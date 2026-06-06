@@ -126,3 +126,35 @@ describe("shares can_access + RLS (raw SQL)", () => {
     ).rejects.toThrow(/row-level security/i);
   });
 });
+
+describe("shares typed table", () => {
+  const resourceTyped = "30000000-0000-4000-8000-000000000010";
+  const typedShareId = "31000000-0000-4000-8000-000000000001";
+
+  it("inserts and selects through the typed Kysely table", async () => {
+    const inserted = await dataContext.withDataContext(ctx(ids.userA), async (scopedDb) => {
+      await scopedDb.db
+        .insertInto("app.shares")
+        .values({
+          id: typedShareId,
+          resource_type: "demo",
+          resource_id: resourceTyped,
+          owner_user_id: ids.userA,
+          grantee_user_id: ids.userB,
+          level: "manage",
+          created_at: new Date(),
+          updated_at: new Date()
+        })
+        .execute();
+
+      return scopedDb.db
+        .selectFrom("app.shares")
+        .selectAll()
+        .where("resource_id", "=", resourceTyped)
+        .executeTakeFirstOrThrow();
+    });
+
+    expect(inserted.level).toBe("manage");
+    expect(inserted.owner_user_id).toBe(ids.userA);
+  });
+});
