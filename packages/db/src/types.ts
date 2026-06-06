@@ -1,0 +1,418 @@
+import type { ColumnType, Selectable } from "kysely";
+
+type TimestampColumn = ColumnType<Date, Date | string | undefined, Date | string>;
+type NullableTimestampColumn = ColumnType<
+  Date | null,
+  Date | string | null | undefined,
+  Date | string | null
+>;
+type JsonColumn = ColumnType<
+  Record<string, unknown>,
+  Record<string, unknown> | string | undefined,
+  Record<string, unknown> | string
+>;
+type TextArrayColumn = ColumnType<
+  string[],
+  readonly string[] | string[] | undefined,
+  readonly string[] | string[]
+>;
+
+export interface SchemaMigrationsTable {
+  version: string;
+  name: string;
+  checksum: string;
+  applied_at: TimestampColumn;
+}
+
+export interface UsersTable {
+  id: string;
+  email: string;
+  name: string;
+  email_verified: boolean;
+  image: string | null;
+  is_instance_admin: boolean;
+  created_at: TimestampColumn;
+  updated_at: TimestampColumn;
+}
+
+export interface AuthSessionsTable {
+  id: string;
+  user_id: string;
+  expires_at: TimestampColumn;
+  created_at: TimestampColumn;
+}
+
+export interface AuthAccountsTable {
+  id: string;
+  account_id: string;
+  provider_id: string;
+  user_id: string;
+  access_token: string | null;
+  refresh_token: string | null;
+  id_token: string | null;
+  access_token_expires_at: NullableTimestampColumn;
+  refresh_token_expires_at: NullableTimestampColumn;
+  scope: string | null;
+  password: string | null;
+  created_at: TimestampColumn;
+  updated_at: TimestampColumn;
+}
+
+export interface BetterAuthSessionsTable {
+  id: string;
+  expires_at: TimestampColumn;
+  token: string;
+  created_at: TimestampColumn;
+  updated_at: TimestampColumn;
+  ip_address: string | null;
+  user_agent: string | null;
+  user_id: string;
+}
+
+export interface AuthVerificationsTable {
+  id: string;
+  identifier: string;
+  value: string;
+  expires_at: TimestampColumn;
+  created_at: TimestampColumn;
+  updated_at: TimestampColumn;
+}
+
+export interface WorkspacesTable {
+  id: string;
+  name: string;
+  created_by_user_id: string | null;
+  created_at: TimestampColumn;
+  updated_at: TimestampColumn;
+}
+
+export interface WorkspaceMembershipsTable {
+  user_id: string;
+  workspace_id: string;
+  role: string;
+  created_at: TimestampColumn;
+}
+
+export interface ResourceGrantsTable {
+  resource_type: string;
+  resource_id: string;
+  grantee_user_id: string;
+  grant_level: "view" | "contribute" | "manage";
+  granted_by_user_id: string | null;
+  created_at: TimestampColumn;
+  updated_at: TimestampColumn;
+}
+
+export interface InstanceSettingsTable {
+  key: string;
+  value: JsonColumn;
+  updated_by_user_id: string | null;
+  created_at: TimestampColumn;
+  updated_at: TimestampColumn;
+}
+
+export interface AdminAuditEventsTable {
+  id: string;
+  actor_user_id: string | null;
+  action: string;
+  target_type: string;
+  target_id: string | null;
+  metadata: JsonColumn;
+  request_id: string | null;
+  created_at: TimestampColumn;
+}
+
+export interface RlsProbeItemsTable {
+  id: string;
+  owner_user_id: string;
+  workspace_id: string | null;
+  visibility: "private" | "workspace";
+  body: string;
+  created_at: TimestampColumn;
+}
+
+export type TaskVisibility = "private" | "workspace";
+export type TaskStatus = "todo" | "in_progress" | "done" | "archived";
+export type NoteVisibility = "private" | "workspace";
+export type NotificationVisibility = "private" | "workspace";
+export type ConnectorProviderType = "calendar" | "email";
+export type ConnectorProviderStatus = "available" | "disabled";
+export type ConnectorAccountStatus = "active" | "error" | "revoked";
+export type CalendarEventVisibility = "private" | "workspace";
+export type EmailMessageVisibility = "private" | "workspace";
+export type AiProviderKind = "openai-compatible" | "anthropic" | "google" | "ollama" | "custom";
+export type AiProviderStatus = "active" | "error" | "disabled" | "revoked";
+export type AiModelStatus = "active" | "disabled";
+export type AiAssistantActionRisk = "write" | "destructive";
+export type AiAssistantActionStatus = "pending" | "confirmed" | "rejected" | "cancelled";
+export type ChatVisibility = "private" | "workspace";
+export type ChatMessageRole = "user" | "assistant";
+export type ChatMessageStatus = "stored" | "pending" | "blocked" | "no_model";
+export type BriefingVisibility = "private" | "workspace";
+export type BriefingCadence = "manual" | "daily" | "weekly";
+export type BriefingRunStatus = "succeeded" | "blocked" | "failed";
+export type BriefingRunKind = "manual" | "scheduled";
+
+export interface TasksTable {
+  id: string;
+  owner_user_id: string;
+  workspace_id: string | null;
+  visibility: TaskVisibility;
+  title: string;
+  description: string | null;
+  status: TaskStatus;
+  priority: number | null;
+  due_at: NullableTimestampColumn;
+  completed_at: NullableTimestampColumn;
+  created_at: TimestampColumn;
+  updated_at: TimestampColumn;
+}
+
+export interface TaskActivityTable {
+  id: string;
+  task_id: string;
+  actor_user_id: string;
+  activity_type: string;
+  body: string | null;
+  created_at: TimestampColumn;
+}
+
+export interface NotesTable {
+  id: string;
+  owner_user_id: string;
+  workspace_id: string | null;
+  visibility: NoteVisibility;
+  title: string;
+  body: string | null;
+  archived_at: NullableTimestampColumn;
+  created_at: TimestampColumn;
+  updated_at: TimestampColumn;
+}
+
+export interface NotificationsTable {
+  id: string;
+  actor_user_id: string | null;
+  recipient_user_id: string | null;
+  workspace_id: string | null;
+  visibility: NotificationVisibility;
+  title: string;
+  body: string | null;
+  metadata: JsonColumn;
+  created_at: TimestampColumn;
+}
+
+export interface NotificationReadsTable {
+  notification_id: string;
+  user_id: string;
+  read_at: TimestampColumn;
+}
+
+export interface ConnectorDefinitionsTable {
+  provider_id: string;
+  provider_type: ConnectorProviderType;
+  display_name: string;
+  status: ConnectorProviderStatus;
+  default_scopes: TextArrayColumn;
+  created_at: TimestampColumn;
+  updated_at: TimestampColumn;
+}
+
+export interface ConnectorAccountsTable {
+  id: string;
+  provider_id: string;
+  owner_user_id: string;
+  workspace_id: string | null;
+  scopes: TextArrayColumn;
+  status: ConnectorAccountStatus;
+  encrypted_secret: JsonColumn;
+  revoked_at: NullableTimestampColumn;
+  created_at: TimestampColumn;
+  updated_at: TimestampColumn;
+}
+
+export interface CalendarEventsTable {
+  id: string;
+  connector_account_id: string;
+  owner_user_id: string;
+  workspace_id: string | null;
+  visibility: CalendarEventVisibility;
+  title: string;
+  starts_at: TimestampColumn;
+  ends_at: TimestampColumn;
+  location: string | null;
+  summary: string | null;
+  body_excerpt: string | null;
+  external_id: string;
+  external_metadata: JsonColumn;
+  created_at: TimestampColumn;
+  updated_at: TimestampColumn;
+}
+
+export interface EmailMessagesTable {
+  id: string;
+  connector_account_id: string;
+  owner_user_id: string;
+  workspace_id: string | null;
+  visibility: EmailMessageVisibility;
+  sender: string;
+  recipients: TextArrayColumn;
+  subject: string;
+  snippet: string | null;
+  body_excerpt: string | null;
+  received_at: TimestampColumn;
+  external_id: string;
+  external_metadata: JsonColumn;
+  created_at: TimestampColumn;
+  updated_at: TimestampColumn;
+}
+
+export interface AiProviderConfigsTable {
+  id: string;
+  owner_user_id: string;
+  provider_kind: AiProviderKind;
+  display_name: string;
+  base_url: string | null;
+  status: AiProviderStatus;
+  encrypted_credential: JsonColumn;
+  revoked_at: NullableTimestampColumn;
+  created_at: TimestampColumn;
+  updated_at: TimestampColumn;
+}
+
+export interface AiConfiguredModelsTable {
+  id: string;
+  provider_config_id: string;
+  owner_user_id: string;
+  provider_model_id: string;
+  display_name: string;
+  capabilities: TextArrayColumn;
+  status: AiModelStatus;
+  created_at: TimestampColumn;
+  updated_at: TimestampColumn;
+}
+
+export interface AiAssistantActionRequestsTable {
+  id: string;
+  owner_user_id: string;
+  workspace_id: string | null;
+  tool_module_id: string;
+  tool_module_name: string;
+  tool_name: string;
+  permission_id: string;
+  risk: AiAssistantActionRisk;
+  status: AiAssistantActionStatus;
+  input_summary: JsonColumn;
+  request_id: string | null;
+  requested_at: TimestampColumn;
+  resolved_at: NullableTimestampColumn;
+  updated_at: TimestampColumn;
+}
+
+export interface ChatThreadsTable {
+  id: string;
+  owner_user_id: string;
+  workspace_id: string | null;
+  visibility: ChatVisibility;
+  title: string;
+  created_at: TimestampColumn;
+  updated_at: TimestampColumn;
+}
+
+export interface ChatMessagesTable {
+  id: string;
+  thread_id: string;
+  owner_user_id: string;
+  workspace_id: string | null;
+  visibility: ChatVisibility;
+  role: ChatMessageRole;
+  status: ChatMessageStatus;
+  body: string;
+  model_metadata: JsonColumn;
+  tool_metadata: JsonColumn;
+  created_at: TimestampColumn;
+  updated_at: TimestampColumn;
+}
+
+export interface BriefingDefinitionsTable {
+  id: string;
+  owner_user_id: string;
+  workspace_id: string | null;
+  visibility: BriefingVisibility;
+  title: string;
+  cadence: BriefingCadence;
+  schedule_metadata: JsonColumn;
+  enabled: boolean;
+  selected_tool_names: TextArrayColumn;
+  last_run_at: NullableTimestampColumn;
+  created_at: TimestampColumn;
+  updated_at: TimestampColumn;
+}
+
+export interface BriefingRunsTable {
+  id: string;
+  definition_id: string;
+  owner_user_id: string;
+  workspace_id: string | null;
+  visibility: BriefingVisibility;
+  status: BriefingRunStatus;
+  run_kind: BriefingRunKind;
+  summary_text: string;
+  source_metadata: JsonColumn;
+  created_at: TimestampColumn;
+}
+
+export interface JarvisDatabase {
+  "app.schema_migrations": SchemaMigrationsTable;
+  "app.users": UsersTable;
+  "app.auth_sessions": AuthSessionsTable;
+  "app.auth_accounts": AuthAccountsTable;
+  "app.better_auth_sessions": BetterAuthSessionsTable;
+  "app.auth_verifications": AuthVerificationsTable;
+  "app.workspaces": WorkspacesTable;
+  "app.workspace_memberships": WorkspaceMembershipsTable;
+  "app.resource_grants": ResourceGrantsTable;
+  "app.instance_settings": InstanceSettingsTable;
+  "app.admin_audit_events": AdminAuditEventsTable;
+  "app.rls_probe_items": RlsProbeItemsTable;
+  "app.tasks": TasksTable;
+  "app.task_activity": TaskActivityTable;
+  "app.notes": NotesTable;
+  "app.notifications": NotificationsTable;
+  "app.notification_reads": NotificationReadsTable;
+  "app.connector_definitions": ConnectorDefinitionsTable;
+  "app.connector_accounts": ConnectorAccountsTable;
+  "app.calendar_events": CalendarEventsTable;
+  "app.email_messages": EmailMessagesTable;
+  "app.ai_provider_configs": AiProviderConfigsTable;
+  "app.ai_configured_models": AiConfiguredModelsTable;
+  "app.ai_assistant_action_requests": AiAssistantActionRequestsTable;
+  "app.chat_threads": ChatThreadsTable;
+  "app.chat_messages": ChatMessagesTable;
+  "app.briefing_definitions": BriefingDefinitionsTable;
+  "app.briefing_runs": BriefingRunsTable;
+}
+
+export type User = Selectable<UsersTable>;
+export type Workspace = Selectable<WorkspacesTable>;
+export type WorkspaceMembership = Selectable<WorkspaceMembershipsTable>;
+export type ResourceGrant = Selectable<ResourceGrantsTable>;
+export type InstanceSetting = Selectable<InstanceSettingsTable>;
+export type AdminAuditEvent = Selectable<AdminAuditEventsTable>;
+export type RlsProbeItem = Selectable<RlsProbeItemsTable>;
+export type Task = Selectable<TasksTable>;
+export type TaskActivity = Selectable<TaskActivityTable>;
+export type Note = Selectable<NotesTable>;
+export type Notification = Selectable<NotificationsTable>;
+export type NotificationRead = Selectable<NotificationReadsTable>;
+export type ConnectorProvider = Selectable<ConnectorDefinitionsTable>;
+export type ConnectorAccount = Selectable<ConnectorAccountsTable>;
+export type CalendarEvent = Selectable<CalendarEventsTable>;
+export type EmailMessage = Selectable<EmailMessagesTable>;
+export type AiProviderConfig = Selectable<AiProviderConfigsTable>;
+export type AiConfiguredModel = Selectable<AiConfiguredModelsTable>;
+export type AiAssistantActionRequest = Selectable<AiAssistantActionRequestsTable>;
+export type ChatThread = Selectable<ChatThreadsTable>;
+export type ChatMessage = Selectable<ChatMessagesTable>;
+export type BriefingDefinition = Selectable<BriefingDefinitionsTable>;
+export type BriefingRun = Selectable<BriefingRunsTable>;
+export type JsonObject = JsonColumn;

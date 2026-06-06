@@ -1,0 +1,16 @@
+{
+  "name": "@jarv1s/worker",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch src/worker.ts",
+    "start": "tsx src/worker.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@jarv1s/db": "workspace:*",
+    "@jarv1s/jobs": "workspace:*",
+    "@jarv1s/module-registry": "workspace:*"
+  }
+}

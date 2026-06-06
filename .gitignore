@@ -1,0 +1,12 @@
+node_modules/
+.pnpm-store/
+dist/
+coverage/
+.turbo/
+playwright-report/
+test-results/
+backups/
+exports/
+.env
+.env.*
+!.env.example

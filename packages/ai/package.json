@@ -1,0 +1,24 @@
+{
+  "name": "@jarv1s/ai",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@jarv1s/calendar": "workspace:*",
+    "@jarv1s/db": "workspace:*",
+    "@jarv1s/email": "workspace:*",
+    "@jarv1s/module-sdk": "workspace:*",
+    "@jarv1s/notes": "workspace:*",
+    "@jarv1s/notifications": "workspace:*",
+    "@jarv1s/shared": "workspace:*",
+    "@jarv1s/tasks": "workspace:*",
+    "fastify": "^5.6.2",
+    "kysely": "^0.29.2"
+  }
+}

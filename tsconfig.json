@@ -1,0 +1,45 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "strict": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
+    "noUncheckedIndexedAccess": true,
+    "ignoreDeprecations": "6.0",
+    "baseUrl": ".",
+    "paths": {
+      "@jarv1s/auth": ["packages/auth/src/index.ts"],
+      "@jarv1s/ai": ["packages/ai/src/index.ts"],
+      "@jarv1s/briefings": ["packages/briefings/src/index.ts"],
+      "@jarv1s/calendar": ["packages/calendar/src/index.ts"],
+      "@jarv1s/chat": ["packages/chat/src/index.ts"],
+      "@jarv1s/connectors": ["packages/connectors/src/index.ts"],
+      "@jarv1s/db": ["packages/db/src/index.ts"],
+      "@jarv1s/db/probes": ["packages/db/src/probes/index.ts"],
+      "@jarv1s/db/*": ["packages/db/src/*"],
+      "@jarv1s/email": ["packages/email/src/index.ts"],
+      "@jarv1s/jobs": ["packages/jobs/src/index.ts"],
+      "@jarv1s/jobs/*": ["packages/jobs/src/*"],
+      "@jarv1s/module-registry": ["packages/module-registry/src/index.ts"],
+      "@jarv1s/module-sdk": ["packages/module-sdk/src/index.ts"],
+      "@jarv1s/notes": ["packages/notes/src/index.ts"],
+      "@jarv1s/notifications": ["packages/notifications/src/index.ts"],
+      "@jarv1s/settings": ["packages/settings/src/index.ts"],
+      "@jarv1s/shared": ["packages/shared/src/index.ts"],
+      "@jarv1s/tasks": ["packages/tasks/src/index.ts"]
+    }
+  },
+  "include": [
+    "apps/api/**/*.ts",
+    "apps/worker/**/*.ts",
+    "packages/**/*.ts",
+    "playwright.config.ts",
+    "scripts/**/*.ts",
+    "spikes/**/*.ts",
+    "tests/**/*.ts",
+    "vitest.config.ts"
+  ]
+}
