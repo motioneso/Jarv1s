@@ -6,6 +6,7 @@ import { createApiServer } from "../../apps/api/src/server.js";
 import {
   AuthSessionResolver,
   DataContextRunner,
+  SharesRepository,
   createDatabase,
   type AccessContext,
   type JarvisDatabase
@@ -46,6 +47,7 @@ describe("Calendar and Email connector-backed read modules", () => {
   let dataContext: DataContextRunner;
   let calendarRepository: CalendarRepository;
   let emailRepository: EmailRepository;
+  let sharesRepository: SharesRepository;
   let server: ReturnType<typeof createApiServer>;
 
   beforeAll(async () => {
@@ -60,6 +62,7 @@ describe("Calendar and Email connector-backed read modules", () => {
     dataContext = new DataContextRunner(appDb);
     calendarRepository = new CalendarRepository();
     emailRepository = new EmailRepository();
+    sharesRepository = new SharesRepository();
     server = createApiServer({
       appDb,
       logger: false
@@ -241,61 +244,31 @@ describe("Calendar and Email connector-backed read modules", () => {
     expect(message.owner_user_id).toBe(ids.userA);
   });
 
-  it("requires active workspace context for workspace-visible cache rows", async () => {
-    await expect(
-      dataContext.withDataContext(userAContext(), (scopedDb) =>
-        calendarRepository.createCachedEventForTest(scopedDb, {
-          connectorAccountId: connectorAccountIds.aCalendar,
-          workspaceId: ids.workspaceAlpha,
-          visibility: "workspace",
-          title: "Workspace event without active context",
-          startsAt: "2026-06-07T13:00:00.000Z",
-          endsAt: "2026-06-07T14:00:00.000Z",
-          externalId: "workspace-event-without-context"
-        })
-      )
-    ).rejects.toThrow();
-    await expect(
-      dataContext.withDataContext(userAContext(), (scopedDb) =>
-        emailRepository.createCachedMessageForTest(scopedDb, {
-          connectorAccountId: connectorAccountIds.aEmail,
-          workspaceId: ids.workspaceAlpha,
-          visibility: "workspace",
-          sender: "sender@example.test",
-          subject: "Workspace message without active context",
-          receivedAt: "2026-06-07T13:30:00.000Z",
-          externalId: "workspace-message-without-context"
-        })
-      )
-    ).rejects.toThrow();
-
-    const event = await dataContext.withDataContext(userAContext(ids.workspaceAlpha), (scopedDb) =>
+  it("owner can create private cache rows without workspace context", async () => {
+    // Under owner-or-share RLS the INSERT policy no longer requires a workspace
+    // context for private rows — only the connector-account integrity check and
+    // owner_user_id match are enforced.
+    const event = await dataContext.withDataContext(userAContext(), (scopedDb) =>
       calendarRepository.createCachedEventForTest(scopedDb, {
         connectorAccountId: connectorAccountIds.aCalendar,
-        workspaceId: ids.workspaceAlpha,
-        visibility: "workspace",
-        title: "Workspace event with active context",
-        startsAt: "2026-06-07T15:00:00.000Z",
-        endsAt: "2026-06-07T16:00:00.000Z",
-        externalId: "workspace-event-with-context"
+        title: "Owner private event no workspace",
+        startsAt: "2026-06-07T13:00:00.000Z",
+        endsAt: "2026-06-07T14:00:00.000Z",
+        externalId: "owner-private-event-no-ws"
       })
     );
-    const message = await dataContext.withDataContext(
-      userAContext(ids.workspaceAlpha),
-      (scopedDb) =>
-        emailRepository.createCachedMessageForTest(scopedDb, {
-          connectorAccountId: connectorAccountIds.aEmail,
-          workspaceId: ids.workspaceAlpha,
-          visibility: "workspace",
-          sender: "sender@example.test",
-          subject: "Workspace message with active context",
-          receivedAt: "2026-06-07T15:30:00.000Z",
-          externalId: "workspace-message-with-context"
-        })
+    const message = await dataContext.withDataContext(userAContext(), (scopedDb) =>
+      emailRepository.createCachedMessageForTest(scopedDb, {
+        connectorAccountId: connectorAccountIds.aEmail,
+        sender: "sender@example.test",
+        subject: "Owner private message no workspace",
+        receivedAt: "2026-06-07T13:30:00.000Z",
+        externalId: "owner-private-message-no-ws"
+      })
     );
 
-    expect(event.workspace_id).toBe(ids.workspaceAlpha);
-    expect(message.workspace_id).toBe(ids.workspaceAlpha);
+    expect(event.owner_user_id).toBe(ids.userA);
+    expect(message.owner_user_id).toBe(ids.userA);
   });
 
   it("keeps private calendar and email rows hidden from other users and admins", async () => {
@@ -319,7 +292,9 @@ describe("Calendar and Email connector-backed read modules", () => {
     expect(adminMessageRead).toBeUndefined();
   });
 
-  it("shows workspace rows only with active joined workspace context", async () => {
+  it("hides another user's rows regardless of workspace context (owner-or-share model)", async () => {
+    // Under owner-or-share RLS, bWorkspace rows (owned by userB) are NOT visible
+    // to userA via workspace membership alone — a share is required.
     const eventWithoutWorkspace = await dataContext.withDataContext(userAContext(), (scopedDb) =>
       calendarRepository.getById(scopedDb, calendarEventIds.bWorkspace)
     );
@@ -337,11 +312,50 @@ describe("Calendar and Email connector-backed read modules", () => {
 
     expect(eventWithoutWorkspace).toBeUndefined();
     expect(messageWithoutWorkspace).toBeUndefined();
-    expect(eventWithWorkspace?.id).toBe(calendarEventIds.bWorkspace);
-    expect(messageWithWorkspace?.id).toBe(emailMessageIds.bWorkspace);
+    // Workspace context alone does not grant access; only a share does
+    expect(eventWithWorkspace).toBeUndefined();
+    expect(messageWithWorkspace).toBeUndefined();
   });
 
-  it("serves read-only Calendar and Email APIs from session and workspace context", async () => {
+  it("allows calendar event read through a view share", async () => {
+    // calendarEventIds.bWorkspace is owned by ids.userB
+    await dataContext.withDataContext(userBContext(), (scopedDb) =>
+      sharesRepository.grant(scopedDb, {
+        resourceType: "calendar_event",
+        resourceId: calendarEventIds.bWorkspace,
+        ownerUserId: ids.userB,
+        granteeUserId: ids.userA,
+        level: "view"
+      })
+    );
+    const visibleToA = await dataContext.withDataContext(userAContext(), (scopedDb) =>
+      calendarRepository.getById(scopedDb, calendarEventIds.bWorkspace)
+    );
+
+    expect(visibleToA?.id).toBe(calendarEventIds.bWorkspace);
+  });
+
+  it("allows email message read through a view share", async () => {
+    // emailMessageIds.bWorkspace is owned by ids.userB
+    await dataContext.withDataContext(userBContext(), (scopedDb) =>
+      sharesRepository.grant(scopedDb, {
+        resourceType: "email_message",
+        resourceId: emailMessageIds.bWorkspace,
+        ownerUserId: ids.userB,
+        granteeUserId: ids.userA,
+        level: "view"
+      })
+    );
+    const visibleToA = await dataContext.withDataContext(userAContext(), (scopedDb) =>
+      emailRepository.getById(scopedDb, emailMessageIds.bWorkspace)
+    );
+
+    expect(visibleToA?.id).toBe(emailMessageIds.bWorkspace);
+  });
+
+  it("serves read-only Calendar and Email APIs from session context (owner-or-share model)", async () => {
+    // NOTE: at this point bWorkspace rows have been shared to userA by the two
+    // preceding share tests, so they appear in all userA list responses.
     const deniedCalendarResponse = await server.inject({
       method: "GET",
       url: "/api/calendar/events"
@@ -353,20 +367,11 @@ describe("Calendar and Email connector-backed read modules", () => {
         authorization: `Bearer ${ids.sessionA}`
       }
     });
-    const calendarWorkspaceListResponse = await server.inject({
-      method: "GET",
-      url: "/api/calendar/events",
-      headers: {
-        authorization: `Bearer ${ids.sessionA}`,
-        "x-jarvis-workspace-id": ids.workspaceAlpha
-      }
-    });
-    const calendarWorkspaceReadResponse = await server.inject({
+    const calendarSharedReadResponse = await server.inject({
       method: "GET",
       url: `/api/calendar/events/${calendarEventIds.bWorkspace}`,
       headers: {
-        authorization: `Bearer ${ids.sessionA}`,
-        "x-jarvis-workspace-id": ids.workspaceAlpha
+        authorization: `Bearer ${ids.sessionA}`
       }
     });
     const hiddenCalendarReadResponse = await server.inject({
@@ -383,20 +388,11 @@ describe("Calendar and Email connector-backed read modules", () => {
         authorization: `Bearer ${ids.sessionA}`
       }
     });
-    const emailWorkspaceListResponse = await server.inject({
-      method: "GET",
-      url: "/api/email/messages",
-      headers: {
-        authorization: `Bearer ${ids.sessionA}`,
-        "x-jarvis-workspace-id": ids.workspaceAlpha
-      }
-    });
-    const emailWorkspaceReadResponse = await server.inject({
+    const emailSharedReadResponse = await server.inject({
       method: "GET",
       url: `/api/email/messages/${emailMessageIds.bWorkspace}`,
       headers: {
-        authorization: `Bearer ${ids.sessionA}`,
-        "x-jarvis-workspace-id": ids.workspaceAlpha
+        authorization: `Bearer ${ids.sessionA}`
       }
     });
     const hiddenEmailReadResponse = await server.inject({
@@ -409,35 +405,37 @@ describe("Calendar and Email connector-backed read modules", () => {
 
     expect(deniedCalendarResponse.statusCode).toBe(401);
     expect(calendarListResponse.statusCode).toBe(200);
-    expect(calendarWorkspaceListResponse.statusCode).toBe(200);
-    expect(calendarWorkspaceReadResponse.statusCode).toBe(200);
+    expect(calendarSharedReadResponse.statusCode).toBe(200);
     expect(hiddenCalendarReadResponse.statusCode).toBe(404);
+    // bWorkspace is shared to userA so it appears in the list
     expect(
       calendarListResponse
         .json<{ events: Array<{ id: string }> }>()
         .events.some((event) => event.id === calendarEventIds.bWorkspace)
-    ).toBe(false);
-    expect(
-      calendarWorkspaceListResponse
-        .json<{ events: Array<{ id: string }> }>()
-        .events.some((event) => event.id === calendarEventIds.bWorkspace)
     ).toBe(true);
+    // bPrivate is never shared and must remain invisible
+    expect(
+      calendarListResponse
+        .json<{ events: Array<{ id: string }> }>()
+        .events.some((event) => event.id === calendarEventIds.bPrivate)
+    ).toBe(false);
     expect(emailListResponse.statusCode).toBe(200);
-    expect(emailWorkspaceListResponse.statusCode).toBe(200);
-    expect(emailWorkspaceReadResponse.statusCode).toBe(200);
+    expect(emailSharedReadResponse.statusCode).toBe(200);
     expect(hiddenEmailReadResponse.statusCode).toBe(404);
+    // bWorkspace is shared to userA so it appears in the list
     expect(
       emailListResponse
         .json<{ messages: Array<{ id: string }> }>()
         .messages.some((message) => message.id === emailMessageIds.bWorkspace)
-    ).toBe(false);
-    expect(
-      emailWorkspaceListResponse
-        .json<{ messages: Array<{ id: string }> }>()
-        .messages.some((message) => message.id === emailMessageIds.bWorkspace)
     ).toBe(true);
-    expect(calendarWorkspaceReadResponse.body).not.toContain("encrypted_secret");
-    expect(emailWorkspaceReadResponse.body).not.toContain("encrypted_secret");
+    // bPrivate is never shared and must remain invisible
+    expect(
+      emailListResponse
+        .json<{ messages: Array<{ id: string }> }>()
+        .messages.some((message) => message.id === emailMessageIds.bPrivate)
+    ).toBe(false);
+    expect(calendarSharedReadResponse.body).not.toContain("encrypted_secret");
+    expect(emailSharedReadResponse.body).not.toContain("encrypted_secret");
   });
 
   it("fails loudly when repositories are called without withDataContext", async () => {
@@ -645,5 +643,12 @@ function userAContext(workspaceId?: string): AccessContext {
     actorUserId: ids.userA,
     workspaceId,
     requestId: "request:user-a-calendar-email"
+  };
+}
+
+function userBContext(): AccessContext {
+  return {
+    actorUserId: ids.userB,
+    requestId: "request:user-b-calendar-email"
   };
 }

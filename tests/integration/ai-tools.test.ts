@@ -210,8 +210,10 @@ describe("AI read-only assistant tool execution foundation", () => {
     expect(readIds(workspaceNotifications.result, "notifications")).toContain(
       notificationIds.workspace
     );
-    expect(readIds(workspaceCalendar.result, "events")).toContain(calendarEventIds.workspace);
-    expect(readIds(workspaceEmail.result, "messages")).toContain(emailMessageIds.workspace);
+    // Calendar and email are now owner-or-share (not workspace-scoped): userA does
+    // not own the workspace row and has no share, so it stays hidden.
+    expect(readIds(workspaceCalendar.result, "events")).not.toContain(calendarEventIds.workspace);
+    expect(readIds(workspaceEmail.result, "messages")).not.toContain(emailMessageIds.workspace);
     expect(JSON.stringify(tasks.result)).not.toContain("User B private task");
     expect(JSON.stringify(notes.result)).not.toContain("User B private note");
     expect(JSON.stringify(notifications.result)).not.toContain("User B private notification");
