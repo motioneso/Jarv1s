@@ -1,5 +1,7 @@
 node_modules/
 .pnpm-store/
+.DS_Store
+._*
 dist/
 coverage/
 .turbo/
