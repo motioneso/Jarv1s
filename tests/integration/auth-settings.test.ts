@@ -367,13 +367,11 @@ describe("M3 auth, users, workspaces, settings", () => {
         grantedByUserId: ownerUserId
       }
     });
-    expect(afterGrantResponse.statusCode).toBe(200);
-    expect(afterGrantResponse.json()).toMatchObject({
-      task: {
-        id: ownerTaskId,
-        ownerUserId
-      }
-    });
+    // Slice 1b: tasks now use the owner-or-share model and no longer consult
+    // app.resource_grants. The admin resource-grants API still records the grant
+    // (200 above), but it is INERT for tasks — the grantee gains no task access.
+    // This assertion and the admin resource-grants-for-tasks path are retired in Slice 1f.
+    expect(afterGrantResponse.statusCode).toBe(404);
   });
 
   it("lists management edges, records audit events, and revokes access", async () => {

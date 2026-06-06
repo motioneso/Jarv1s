@@ -199,7 +199,13 @@ describe("AI read-only assistant tool execution foundation", () => {
     expect(readIds(notifications.result, "notifications")).toEqual([notificationIds.aPrivate]);
     expect(readIds(calendar.result, "events")).toEqual([calendarEventIds.aPrivate]);
     expect(readIds(email.result, "messages")).toEqual([emailMessageIds.aPrivate]);
-    expect(readIds(workspaceTasks.result, "tasks")).toContain(taskIds.bWorkspace);
+    // Tasks are owner-or-share only now (not workspace-scoped): the workspace context
+    // returns the same set as the personal context, and the workspace-only task stays hidden.
+    expect(readIds(workspaceTasks.result, "tasks")).toEqual([
+      taskIds.aPrivate,
+      taskIds.bGrantedToA
+    ]);
+    expect(readIds(workspaceTasks.result, "tasks")).not.toContain(taskIds.bWorkspace);
     expect(readIds(workspaceNotes.result, "notes")).toContain(noteIds.bWorkspace);
     expect(readIds(workspaceNotifications.result, "notifications")).toContain(
       notificationIds.workspace
@@ -333,7 +339,7 @@ describe("AI read-only assistant tool execution foundation", () => {
       }
     });
     const resolved = resolveResponse.json<AssistantActionResponse>().action;
-    const task = await dataContext.withDataContext(userAContext(ids.workspaceAlpha), (scopedDb) =>
+    const task = await dataContext.withDataContext(userBContext(ids.workspaceAlpha), (scopedDb) =>
       tasksRepository.getById(scopedDb, taskIds.bWorkspace)
     );
     const jobsAfter = await countPgBossJobs();
@@ -536,10 +542,10 @@ async function seedTasks(client: pg.Client): Promise<void> {
   );
   await client.query(
     `
-      INSERT INTO app.resource_grants (resource_type, resource_id, grantee_user_id, grant_level)
-      VALUES ('task', $1, $2, 'view')
+      INSERT INTO app.shares (resource_type, resource_id, owner_user_id, grantee_user_id, level)
+      VALUES ('task', $1, $2, $3, 'view')
     `,
-    [taskIds.bGrantedToA, ids.userA]
+    [taskIds.bGrantedToA, ids.userB, ids.userA]
   );
 }
 
@@ -743,6 +749,14 @@ function userAContext(workspaceId?: string | null): AccessContext {
     actorUserId: ids.userA,
     workspaceId: workspaceId ?? null,
     requestId: "request:user-a-ai-tools"
+  };
+}
+
+function userBContext(workspaceId?: string | null): AccessContext {
+  return {
+    actorUserId: ids.userB,
+    workspaceId: workspaceId ?? null,
+    requestId: "request:user-b-ai-tools"
   };
 }
 
