@@ -1,0 +1,89 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    name: Verify foundation and app
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v5
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10.6.2
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Start database
+        run: pnpm db:up
+
+      - name: Verify foundation
+        run: pnpm verify:foundation
+
+      - name: Verify release hardening
+        run: pnpm test:release-hardening
+
+      - name: Audit release hardening
+        run: pnpm audit:release-hardening
+
+      - name: Build web
+        run: pnpm build:web
+
+      - name: Run Playwright smoke tests
+        run: pnpm test:e2e
+
+      - name: Stop database
+        if: always()
+        run: docker compose -f infra/docker-compose.yml down -v
+
+  compose-smoke:
+    name: Compose deployment smoke
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      JARVIS_API_PORT: "3099"
+      JARVIS_WEB_PORT: "5180"
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v5
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10.6.2
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Run Compose smoke
+        run: pnpm smoke:compose -- --api-port 3099
+
+      - name: Stop Compose stack
+        if: always()
+        run: docker compose -f infra/docker-compose.yml down -v

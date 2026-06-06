@@ -1,0 +1,21 @@
+{
+  "name": "@jarv1s/tasks",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@jarv1s/db": "workspace:*",
+    "@jarv1s/jobs": "workspace:*",
+    "@jarv1s/module-sdk": "workspace:*",
+    "@jarv1s/shared": "workspace:*",
+    "fastify": "^5.6.2",
+    "kysely": "^0.29.2",
+    "pg-boss": "^12.18.2"
+  }
+}

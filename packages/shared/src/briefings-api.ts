@@ -1,0 +1,334 @@
+export type BriefingVisibility = "private" | "workspace";
+export type BriefingCadence = "manual" | "daily" | "weekly";
+export type BriefingRunKind = "manual" | "scheduled";
+export type BriefingRunStatus = "succeeded" | "blocked" | "failed";
+
+export interface BriefingDefinitionDto {
+  readonly id: string;
+  readonly ownerUserId: string;
+  readonly workspaceId: string | null;
+  readonly visibility: BriefingVisibility;
+  readonly title: string;
+  readonly cadence: BriefingCadence;
+  readonly scheduleMetadata: Record<string, unknown>;
+  readonly enabled: boolean;
+  readonly selectedToolNames: readonly string[];
+  readonly lastRunAt: string | null;
+  readonly createdAt: string;
+  readonly updatedAt: string;
+}
+
+export interface BriefingRunDto {
+  readonly id: string;
+  readonly definitionId: string;
+  readonly ownerUserId: string;
+  readonly workspaceId: string | null;
+  readonly visibility: BriefingVisibility;
+  readonly status: BriefingRunStatus;
+  readonly runKind: BriefingRunKind;
+  readonly summaryText: string;
+  readonly sourceMetadata: Record<string, unknown>;
+  readonly createdAt: string;
+}
+
+export interface ListBriefingDefinitionsResponse {
+  readonly definitions: readonly BriefingDefinitionDto[];
+}
+
+export interface CreateBriefingDefinitionRequest {
+  readonly title: string;
+  readonly visibility?: BriefingVisibility;
+  readonly workspaceId?: string | null;
+  readonly cadence?: BriefingCadence;
+  readonly scheduleMetadata?: Record<string, unknown>;
+  readonly enabled?: boolean;
+  readonly selectedToolNames: readonly string[];
+}
+
+export interface CreateBriefingDefinitionResponse {
+  readonly definition: BriefingDefinitionDto;
+}
+
+export interface UpdateBriefingDefinitionRequest {
+  readonly title?: string;
+  readonly visibility?: BriefingVisibility;
+  readonly workspaceId?: string | null;
+  readonly cadence?: BriefingCadence;
+  readonly scheduleMetadata?: Record<string, unknown>;
+  readonly enabled?: boolean;
+  readonly selectedToolNames?: readonly string[];
+}
+
+export interface UpdateBriefingDefinitionResponse {
+  readonly definition: BriefingDefinitionDto;
+}
+
+export interface RunBriefingDefinitionRequest {
+  readonly idempotencyKey?: string;
+}
+
+export interface RunBriefingDefinitionResponse {
+  readonly jobId: string;
+  readonly runId: string;
+}
+
+export interface ListBriefingRunsResponse {
+  readonly runs: readonly BriefingRunDto[];
+}
+
+export interface BriefingRunPayloadDto {
+  readonly actorUserId: string;
+  readonly workspaceId?: string | null;
+  readonly definitionId: string;
+  readonly briefingRunId: string;
+  readonly runKind: BriefingRunKind;
+  readonly idempotencyKey?: string;
+}
+
+const errorResponseSchema = {
+  type: "object",
+  additionalProperties: false,
+  required: ["error"],
+  properties: {
+    error: { type: "string" }
+  }
+} as const;
+
+const idParamsSchema = {
+  type: "object",
+  additionalProperties: false,
+  required: ["id"],
+  properties: {
+    id: { type: "string" }
+  }
+} as const;
+
+const jsonObjectSchema = {
+  type: "object",
+  additionalProperties: true
+} as const;
+
+export const briefingVisibilitySchema = {
+  type: "string",
+  enum: ["private", "workspace"]
+} as const;
+
+export const briefingCadenceSchema = {
+  type: "string",
+  enum: ["manual", "daily", "weekly"]
+} as const;
+
+export const briefingRunKindSchema = {
+  type: "string",
+  enum: ["manual", "scheduled"]
+} as const;
+
+export const briefingRunStatusSchema = {
+  type: "string",
+  enum: ["succeeded", "blocked", "failed"]
+} as const;
+
+const selectedToolNamesSchema = {
+  type: "array",
+  minItems: 1,
+  items: { type: "string" }
+} as const;
+
+const briefingDefinitionSchema = {
+  type: "object",
+  additionalProperties: false,
+  required: [
+    "id",
+    "ownerUserId",
+    "workspaceId",
+    "visibility",
+    "title",
+    "cadence",
+    "scheduleMetadata",
+    "enabled",
+    "selectedToolNames",
+    "lastRunAt",
+    "createdAt",
+    "updatedAt"
+  ],
+  properties: {
+    id: { type: "string" },
+    ownerUserId: { type: "string" },
+    workspaceId: { type: ["string", "null"] },
+    visibility: briefingVisibilitySchema,
+    title: { type: "string" },
+    cadence: briefingCadenceSchema,
+    scheduleMetadata: jsonObjectSchema,
+    enabled: { type: "boolean" },
+    selectedToolNames: selectedToolNamesSchema,
+    lastRunAt: { type: ["string", "null"] },
+    createdAt: { type: "string" },
+    updatedAt: { type: "string" }
+  }
+} as const;
+
+const briefingRunSchema = {
+  type: "object",
+  additionalProperties: false,
+  required: [
+    "id",
+    "definitionId",
+    "ownerUserId",
+    "workspaceId",
+    "visibility",
+    "status",
+    "runKind",
+    "summaryText",
+    "sourceMetadata",
+    "createdAt"
+  ],
+  properties: {
+    id: { type: "string" },
+    definitionId: { type: "string" },
+    ownerUserId: { type: "string" },
+    workspaceId: { type: ["string", "null"] },
+    visibility: briefingVisibilitySchema,
+    status: briefingRunStatusSchema,
+    runKind: briefingRunKindSchema,
+    summaryText: { type: "string" },
+    sourceMetadata: jsonObjectSchema,
+    createdAt: { type: "string" }
+  }
+} as const;
+
+export const createBriefingDefinitionRequestSchema = {
+  type: "object",
+  additionalProperties: false,
+  required: ["title", "selectedToolNames"],
+  properties: {
+    title: { type: "string" },
+    visibility: briefingVisibilitySchema,
+    workspaceId: { type: ["string", "null"] },
+    cadence: briefingCadenceSchema,
+    scheduleMetadata: jsonObjectSchema,
+    enabled: { type: "boolean" },
+    selectedToolNames: selectedToolNamesSchema
+  }
+} as const;
+
+export const updateBriefingDefinitionRequestSchema = {
+  type: "object",
+  additionalProperties: false,
+  properties: {
+    title: { type: "string" },
+    visibility: briefingVisibilitySchema,
+    workspaceId: { type: ["string", "null"] },
+    cadence: briefingCadenceSchema,
+    scheduleMetadata: jsonObjectSchema,
+    enabled: { type: "boolean" },
+    selectedToolNames: selectedToolNamesSchema
+  }
+} as const;
+
+export const runBriefingDefinitionRequestSchema = {
+  type: "object",
+  additionalProperties: false,
+  properties: {
+    idempotencyKey: { type: "string" }
+  }
+} as const;
+
+export const briefingRunPayloadSchema = {
+  type: "object",
+  additionalProperties: false,
+  required: ["actorUserId", "definitionId", "briefingRunId", "runKind"],
+  properties: {
+    actorUserId: { type: "string" },
+    workspaceId: { type: ["string", "null"] },
+    definitionId: { type: "string" },
+    briefingRunId: { type: "string" },
+    runKind: briefingRunKindSchema,
+    idempotencyKey: { type: "string" }
+  }
+} as const;
+
+export const listBriefingDefinitionsResponseSchema = {
+  type: "object",
+  additionalProperties: false,
+  required: ["definitions"],
+  properties: {
+    definitions: { type: "array", items: briefingDefinitionSchema }
+  }
+} as const;
+
+export const createBriefingDefinitionResponseSchema = {
+  type: "object",
+  additionalProperties: false,
+  required: ["definition"],
+  properties: {
+    definition: briefingDefinitionSchema
+  }
+} as const;
+
+export const updateBriefingDefinitionResponseSchema = createBriefingDefinitionResponseSchema;
+
+export const runBriefingDefinitionResponseSchema = {
+  type: "object",
+  additionalProperties: false,
+  required: ["jobId", "runId"],
+  properties: {
+    jobId: { type: "string" },
+    runId: { type: "string" }
+  }
+} as const;
+
+export const listBriefingRunsResponseSchema = {
+  type: "object",
+  additionalProperties: false,
+  required: ["runs"],
+  properties: {
+    runs: { type: "array", items: briefingRunSchema }
+  }
+} as const;
+
+export const listBriefingDefinitionsRouteSchema = {
+  response: {
+    200: listBriefingDefinitionsResponseSchema,
+    401: errorResponseSchema
+  }
+} as const;
+
+export const createBriefingDefinitionRouteSchema = {
+  body: createBriefingDefinitionRequestSchema,
+  response: {
+    201: createBriefingDefinitionResponseSchema,
+    400: errorResponseSchema,
+    401: errorResponseSchema
+  }
+} as const;
+
+export const updateBriefingDefinitionRouteSchema = {
+  params: idParamsSchema,
+  body: updateBriefingDefinitionRequestSchema,
+  response: {
+    200: updateBriefingDefinitionResponseSchema,
+    400: errorResponseSchema,
+    401: errorResponseSchema,
+    404: errorResponseSchema
+  }
+} as const;
+
+export const runBriefingDefinitionRouteSchema = {
+  params: idParamsSchema,
+  body: runBriefingDefinitionRequestSchema,
+  response: {
+    202: runBriefingDefinitionResponseSchema,
+    400: errorResponseSchema,
+    401: errorResponseSchema,
+    404: errorResponseSchema
+  }
+} as const;
+
+export const listBriefingRunsRouteSchema = {
+  params: idParamsSchema,
+  response: {
+    200: listBriefingRunsResponseSchema,
+    401: errorResponseSchema,
+    404: errorResponseSchema
+  }
+} as const;

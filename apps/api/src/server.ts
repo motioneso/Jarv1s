@@ -1,0 +1,222 @@
+import Fastify from "fastify";
+import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
+import type { Kysely } from "kysely";
+import type { PgBoss } from "pg-boss";
+
+import { createJarvisAuthRuntime, type JarvisAuthRuntime } from "@jarv1s/auth";
+import {
+  DataContextRunner,
+  createDatabase,
+  getJarvisDatabaseUrls,
+  type JarvisDatabase
+} from "@jarv1s/db";
+import { createPgBossClient } from "@jarv1s/jobs";
+import { getBuiltInModuleManifests, registerBuiltInApiRoutes } from "@jarv1s/module-registry";
+import { listModulesRouteSchema, type ModuleDto } from "@jarv1s/shared";
+
+export interface CreateApiServerOptions {
+  readonly appDb?: Kysely<JarvisDatabase>;
+  readonly boss?: PgBoss;
+  readonly authRuntime?: JarvisAuthRuntime;
+  readonly logger?: boolean;
+}
+
+export function createApiServer(options: CreateApiServerOptions = {}) {
+  const appDb =
+    options.appDb ??
+    createDatabase({
+      connectionString: getJarvisDatabaseUrls().app,
+      maxConnections: Number(process.env.JARVIS_API_DB_POOL_SIZE ?? 4)
+    });
+  const boss = options.boss ?? createPgBossClient(getJarvisDatabaseUrls().app);
+  const ownsAppDb = options.appDb === undefined;
+  const ownsBoss = options.boss === undefined;
+  const authRuntime =
+    options.authRuntime ??
+    createJarvisAuthRuntime({
+      appDb
+    });
+  const ownsAuthRuntime = options.authRuntime === undefined;
+  const server = Fastify({
+    logger: options.logger ?? true
+  });
+  const dataContext = new DataContextRunner(appDb);
+
+  server.get("/health", async () => ({
+    ok: true
+  }));
+
+  registerBetterAuthRoutes(server, authRuntime);
+  registerPlatformRoutes(server, authRuntime);
+
+  registerBuiltInApiRoutes(server, {
+    appDb,
+    resolveAccessContext: authRuntime.resolveAccessContext,
+    listConfiguredAuthProviders: authRuntime.listConfiguredProviders,
+    listModuleManifests: getBuiltInModuleManifests,
+    dataContext,
+    boss
+  });
+
+  server.addHook("onReady", async () => {
+    if (ownsBoss) {
+      await boss.start();
+    }
+  });
+
+  server.addHook("onClose", async () => {
+    await Promise.allSettled([
+      ownsBoss ? boss.stop({ graceful: false }) : Promise.resolve(),
+      ownsAuthRuntime ? authRuntime.close() : Promise.resolve(),
+      ownsAppDb ? appDb.destroy() : Promise.resolve()
+    ]);
+  });
+
+  return server;
+}
+
+if (import.meta.url === `file://${process.argv[1]}`) {
+  const server = createApiServer();
+  const port = Number(process.env.PORT ?? 3000);
+  const host = process.env.HOST ?? "0.0.0.0";
+
+  await server.listen({ host, port });
+}
+
+function registerBetterAuthRoutes(server: FastifyInstance, authRuntime: JarvisAuthRuntime): void {
+  server.route({
+    method: ["DELETE", "GET", "OPTIONS", "PATCH", "POST", "PUT"],
+    url: "/api/auth/*",
+    handler: (request, reply) => handleBetterAuthRequest(request, reply, authRuntime)
+  });
+}
+
+function registerPlatformRoutes(server: FastifyInstance, authRuntime: JarvisAuthRuntime): void {
+  server.get("/api/modules", { schema: listModulesRouteSchema }, async (request, reply) => {
+    try {
+      await authRuntime.resolveAccessContext(request);
+
+      return {
+        modules: getBuiltInModuleManifests().map(serializeModule)
+      };
+    } catch {
+      return reply.code(401).send({ error: "Session is missing or expired" });
+    }
+  });
+}
+
+function serializeModule(module: ReturnType<typeof getBuiltInModuleManifests>[number]): ModuleDto {
+  return {
+    id: module.id,
+    name: module.name,
+    version: module.version,
+    lifecycle: module.lifecycle,
+    navigation: (module.navigation ?? []).map((entry) => ({
+      id: entry.id,
+      label: entry.label,
+      path: entry.path,
+      icon: entry.icon ?? null,
+      order: entry.order ?? null
+    })),
+    settings: (module.settings ?? []).map((surface) => ({
+      id: surface.id,
+      label: surface.label,
+      path: surface.path,
+      scope: surface.scope,
+      order: surface.order ?? null
+    }))
+  };
+}
+
+async function handleBetterAuthRequest(
+  request: FastifyRequest,
+  reply: FastifyReply,
+  authRuntime: JarvisAuthRuntime
+) {
+  const response = await authRuntime.auth.handler(toWebRequest(request));
+
+  reply.code(response.status);
+  for (const [name, value] of response.headers.entries()) {
+    if (name.toLowerCase() === "set-cookie" || name.toLowerCase() === "content-length") {
+      continue;
+    }
+    reply.header(name, value);
+  }
+
+  const setCookieHeaders = readSetCookieHeaders(response.headers);
+  if (setCookieHeaders.length > 0) {
+    reply.header("set-cookie", setCookieHeaders);
+  }
+
+  const body = Buffer.from(await response.arrayBuffer());
+
+  return body.length > 0 ? reply.send(body) : reply.send();
+}
+
+function toWebRequest(request: FastifyRequest): Request {
+  const headers = toWebHeaders(request.headers);
+  const protocol = readForwardedProtocol(headers);
+  const host = headers.get("host") ?? "localhost:3000";
+  const url = `${protocol}://${host}${request.url}`;
+  const init: RequestInit = {
+    method: request.method,
+    headers
+  };
+
+  if (request.method !== "GET" && request.method !== "HEAD" && request.body !== undefined) {
+    init.body = encodeBody(request.body);
+  }
+
+  return new Request(url, init);
+}
+
+function toWebHeaders(headers: FastifyRequest["headers"]): Headers {
+  const webHeaders = new Headers();
+
+  for (const [name, value] of Object.entries(headers)) {
+    if (value === undefined) {
+      continue;
+    }
+    if (Array.isArray(value)) {
+      for (const item of value) {
+        webHeaders.append(name, item);
+      }
+      continue;
+    }
+    webHeaders.set(name, String(value));
+  }
+
+  return webHeaders;
+}
+
+function encodeBody(body: unknown): BodyInit {
+  if (typeof body === "string") {
+    return body;
+  }
+  if (body instanceof Uint8Array) {
+    const copy = new Uint8Array(body.byteLength);
+    copy.set(body);
+
+    return copy.buffer;
+  }
+
+  return JSON.stringify(body);
+}
+
+function readForwardedProtocol(headers: Headers): string {
+  const value = headers.get("x-forwarded-proto");
+
+  if (!value) {
+    return "http";
+  }
+
+  return value.split(",", 1)[0]?.trim() || "http";
+}
+
+function readSetCookieHeaders(headers: Headers): string[] {
+  const headerWithSetCookie = headers as Headers & {
+    getSetCookie?: () => string[];
+  };
+
+  return headerWithSetCookie.getSetCookie?.() ?? [];
+}

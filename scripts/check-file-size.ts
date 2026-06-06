@@ -1,0 +1,99 @@
+import { readdir, readFile } from "node:fs/promises";
+import { extname, join, relative } from "node:path";
+
+const maxLines = Number(process.env.JARVIS_MAX_SOURCE_LINES ?? 1000);
+const rootDirectory = process.cwd();
+const ignoredDirectories = new Set([
+  ".git",
+  ".turbo",
+  "coverage",
+  "dist",
+  "node_modules",
+  "playwright-report",
+  "test-results"
+]);
+const ignoredFiles = new Set(["pnpm-lock.yaml"]);
+const checkedExtensions = new Set([
+  ".css",
+  ".html",
+  ".js",
+  ".json",
+  ".jsx",
+  ".md",
+  ".mjs",
+  ".sql",
+  ".ts",
+  ".tsx"
+]);
+
+interface FileSizeViolation {
+  readonly path: string;
+  readonly lines: number;
+}
+
+const violations: FileSizeViolation[] = [];
+
+for await (const filePath of walk(rootDirectory)) {
+  if (!shouldCheckFile(filePath)) {
+    continue;
+  }
+
+  const contents = await readFile(filePath, "utf8");
+  const lines = countLines(contents);
+
+  if (lines > maxLines) {
+    violations.push({
+      path: relative(rootDirectory, filePath),
+      lines
+    });
+  }
+}
+
+if (violations.length > 0) {
+  console.error(`Files over ${maxLines} lines:`);
+  for (const violation of violations) {
+    console.error(`- ${violation.path}: ${violation.lines}`);
+  }
+  process.exitCode = 1;
+} else {
+  console.log(`No checked files exceed ${maxLines} lines.`);
+}
+
+async function* walk(directory: string): AsyncGenerator<string> {
+  const entries = await readdir(directory, { withFileTypes: true });
+
+  for (const entry of entries) {
+    if (entry.isDirectory()) {
+      if (ignoredDirectories.has(entry.name)) {
+        continue;
+      }
+
+      yield* walk(join(directory, entry.name));
+      continue;
+    }
+
+    if (entry.isFile()) {
+      yield join(directory, entry.name);
+    }
+  }
+}
+
+function shouldCheckFile(filePath: string): boolean {
+  const fileName = relative(rootDirectory, filePath);
+
+  if (ignoredFiles.has(fileName)) {
+    return false;
+  }
+
+  return checkedExtensions.has(extname(filePath));
+}
+
+function countLines(contents: string): number {
+  const trimmedFinalNewline = contents.replace(/\r?\n$/, "");
+
+  if (trimmedFinalNewline.length === 0) {
+    return 0;
+  }
+
+  return trimmedFinalNewline.split(/\r\n|\r|\n/).length;
+}

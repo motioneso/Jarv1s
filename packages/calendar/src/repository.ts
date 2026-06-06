@@ -1,0 +1,79 @@
+import { randomUUID } from "node:crypto";
+
+import { sql } from "kysely";
+
+import {
+  assertDataContextDb,
+  type CalendarEvent,
+  type CalendarEventVisibility,
+  type DataContextDb
+} from "@jarv1s/db";
+
+export interface CreateCachedCalendarEventInput {
+  readonly id?: string;
+  readonly connectorAccountId: string;
+  readonly workspaceId?: string | null;
+  readonly visibility?: CalendarEventVisibility;
+  readonly title: string;
+  readonly startsAt: Date | string;
+  readonly endsAt: Date | string;
+  readonly location?: string | null;
+  readonly summary?: string | null;
+  readonly bodyExcerpt?: string | null;
+  readonly externalId: string;
+  readonly externalMetadata?: Record<string, unknown>;
+}
+
+export class CalendarRepository {
+  async listVisible(scopedDb: DataContextDb): Promise<CalendarEvent[]> {
+    assertDataContextDb(scopedDb);
+
+    return scopedDb.db
+      .selectFrom("app.calendar_events")
+      .selectAll()
+      .orderBy("starts_at", "asc")
+      .orderBy("id")
+      .execute();
+  }
+
+  async getById(scopedDb: DataContextDb, eventId: string): Promise<CalendarEvent | undefined> {
+    assertDataContextDb(scopedDb);
+
+    return scopedDb.db
+      .selectFrom("app.calendar_events")
+      .selectAll()
+      .where("id", "=", eventId)
+      .executeTakeFirst();
+  }
+
+  async createCachedEventForTest(
+    scopedDb: DataContextDb,
+    input: CreateCachedCalendarEventInput
+  ): Promise<CalendarEvent> {
+    assertDataContextDb(scopedDb);
+
+    const now = new Date();
+
+    return scopedDb.db
+      .insertInto("app.calendar_events")
+      .values({
+        id: input.id ?? randomUUID(),
+        connector_account_id: input.connectorAccountId,
+        owner_user_id: sql<string>`app.current_actor_user_id()`,
+        workspace_id: input.workspaceId ?? null,
+        visibility: input.visibility ?? "private",
+        title: input.title,
+        starts_at: input.startsAt,
+        ends_at: input.endsAt,
+        location: input.location ?? null,
+        summary: input.summary ?? null,
+        body_excerpt: input.bodyExcerpt ?? null,
+        external_id: input.externalId,
+        external_metadata: input.externalMetadata ?? {},
+        created_at: now,
+        updated_at: now
+      })
+      .returningAll()
+      .executeTakeFirstOrThrow();
+  }
+}

@@ -1,0 +1,384 @@
+import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import type { Kysely } from "kysely";
+import pg from "pg";
+
+import { createApiServer } from "../../apps/api/src/server.js";
+import {
+  AuthSessionResolver,
+  DataContextRunner,
+  createDatabase,
+  type AccessContext,
+  type JarvisDatabase
+} from "@jarv1s/db";
+import {
+  getBuiltInModuleManifests,
+  getBuiltInModuleRegistrations,
+  getBuiltInSqlMigrationDirectories
+} from "@jarv1s/module-registry";
+import { NotificationsRepository, notificationsModuleManifest } from "@jarv1s/notifications";
+import { connectionStrings, ids, resetFoundationDatabase } from "./test-database.js";
+
+const { Client } = pg;
+
+const notificationIds = {
+  aPrivate: "60000000-0000-4000-8000-000000000001",
+  bPrivate: "60000000-0000-4000-8000-000000000002",
+  workspaceAlpha: "60000000-0000-4000-8000-000000000003"
+} as const;
+
+describe("Notifications module M5", () => {
+  let appDb: Kysely<JarvisDatabase>;
+  let auth: AuthSessionResolver;
+  let dataContext: DataContextRunner;
+  let repository: NotificationsRepository;
+  let server: ReturnType<typeof createApiServer>;
+
+  beforeAll(async () => {
+    await resetFoundationDatabase();
+    await seedNotificationData();
+
+    appDb = createDatabase({
+      connectionString: connectionStrings.app,
+      maxConnections: 1
+    });
+    auth = new AuthSessionResolver(appDb);
+    dataContext = new DataContextRunner(appDb);
+    repository = new NotificationsRepository();
+    server = createApiServer({
+      appDb,
+      logger: false
+    });
+    await server.ready();
+  });
+
+  afterAll(async () => {
+    await Promise.allSettled([server?.close(), appDb?.destroy()]);
+  });
+
+  it("applies Notifications migrations with forced RLS and no worker table grant", async () => {
+    const client = new Client({ connectionString: connectionStrings.migration });
+
+    await client.connect();
+    try {
+      const migrations = await client.query<{ version: string; name: string }>(
+        `
+          SELECT version, name
+          FROM app.schema_migrations
+          WHERE version = '0008'
+          ORDER BY version
+        `
+      );
+      const tables = await client.query<{
+        relname: string;
+        relrowsecurity: boolean;
+        relforcerowsecurity: boolean;
+        owner: string;
+        worker_can_select: boolean;
+      }>(
+        `
+          SELECT
+            c.relname,
+            c.relrowsecurity,
+            c.relforcerowsecurity,
+            pg_get_userbyid(c.relowner) AS owner,
+            has_table_privilege('jarvis_worker_runtime', c.oid, 'SELECT') AS worker_can_select
+          FROM pg_class c
+          JOIN pg_namespace n ON n.oid = c.relnamespace
+          WHERE n.nspname = 'app'
+            AND c.relname IN ('notifications', 'notification_reads')
+          ORDER BY c.relname
+        `
+      );
+
+      expect(migrations.rows).toEqual([{ version: "0008", name: "0008_notifications_module.sql" }]);
+      expect(tables.rows).toEqual([
+        {
+          relname: "notification_reads",
+          relrowsecurity: true,
+          relforcerowsecurity: true,
+          owner: "jarvis_migration_owner",
+          worker_can_select: false
+        },
+        {
+          relname: "notifications",
+          relrowsecurity: true,
+          relforcerowsecurity: true,
+          owner: "jarvis_migration_owner",
+          worker_can_select: false
+        }
+      ]);
+    } finally {
+      await client.end();
+    }
+  });
+
+  it("loads the built-in Notifications module manifest without queues", () => {
+    const manifests = getBuiltInModuleManifests();
+    const registrations = getBuiltInModuleRegistrations();
+    const registration = registrations.find(
+      (item) => item.manifest.id === notificationsModuleManifest.id
+    );
+    const manifest = manifests.find((item) => item.id === notificationsModuleManifest.id);
+
+    expect(manifests.map((item) => item.id)).toEqual([
+      "settings",
+      "connectors",
+      "tasks",
+      "notes",
+      "notifications",
+      "calendar",
+      "email",
+      "ai",
+      "chat",
+      "briefings"
+    ]);
+    expect(registrations.map((item) => item.manifest.id)).toEqual([
+      "settings",
+      "connectors",
+      "tasks",
+      "notes",
+      "notifications",
+      "calendar",
+      "email",
+      "ai",
+      "chat",
+      "briefings"
+    ]);
+    expect(manifest?.database?.ownedTables).toEqual([
+      "app.notifications",
+      "app.notification_reads"
+    ]);
+    expect(manifest?.navigation?.[0]).toMatchObject({
+      id: "notifications",
+      path: "/notifications",
+      permissionId: "notifications.view"
+    });
+    expect(manifest?.settings ?? []).toEqual([]);
+    expect(registration?.queueDefinitions).toEqual([]);
+    expect(getBuiltInSqlMigrationDirectories()).toContainEqual(
+      expect.stringContaining("packages/notifications/sql")
+    );
+  });
+
+  it("denies notification reads when no data context is set", async () => {
+    await expect(appDb.selectFrom("app.notifications").select("id").execute()).resolves.toEqual([]);
+  });
+
+  it("creates private notifications for the active actor by default", async () => {
+    const created = await dataContext.withDataContext(userAContext(), (scopedDb) =>
+      repository.create(scopedDb, {
+        title: "Private default notification",
+        body: "Only User A can read this",
+        metadata: {
+          source: "integration-test"
+        }
+      })
+    );
+    const fetchedByOwner = await dataContext.withDataContext(userAContext(), (scopedDb) =>
+      repository.getById(scopedDb, created.id)
+    );
+    const fetchedByOtherUser = await dataContext.withDataContext(userBContext(), (scopedDb) =>
+      repository.getById(scopedDb, created.id)
+    );
+
+    expect(created.actor_user_id).toBe(ids.userA);
+    expect(created.recipient_user_id).toBe(ids.userA);
+    expect(created.visibility).toBe("private");
+    expect(created.read_at).toBeNull();
+    expect(fetchedByOwner?.id).toBe(created.id);
+    expect(fetchedByOtherUser).toBeUndefined();
+  });
+
+  it("does not let another user or admin role read private notifications", async () => {
+    const userRead = await dataContext.withDataContext(userAContext(), (scopedDb) =>
+      repository.getById(scopedDb, notificationIds.bPrivate)
+    );
+    const adminContext = await auth.resolveAccessContext(
+      ids.sessionAdmin,
+      "request:admin-notifications"
+    );
+    const adminRead = await dataContext.withDataContext(adminContext, (scopedDb) =>
+      repository.getById(scopedDb, notificationIds.bPrivate)
+    );
+
+    expect(userRead).toBeUndefined();
+    expect(adminRead).toBeUndefined();
+  });
+
+  it("allows workspace-visible notifications only with active workspace context", async () => {
+    const withoutWorkspace = await dataContext.withDataContext(userAContext(), (scopedDb) =>
+      repository.getById(scopedDb, notificationIds.workspaceAlpha)
+    );
+    const withWorkspace = await dataContext.withDataContext(
+      userAContext(ids.workspaceAlpha),
+      (scopedDb) => repository.getById(scopedDb, notificationIds.workspaceAlpha)
+    );
+    const nonMember = await dataContext.withDataContext(
+      userBContext(ids.workspaceAlpha),
+      (scopedDb) => repository.getById(scopedDb, notificationIds.workspaceAlpha)
+    );
+
+    expect(withoutWorkspace).toBeUndefined();
+    expect(withWorkspace?.id).toBe(notificationIds.workspaceAlpha);
+    expect(nonMember).toBeUndefined();
+  });
+
+  it("tracks read state per actor for visible notifications", async () => {
+    const beforeRead = await dataContext.withDataContext(
+      userAContext(ids.workspaceAlpha),
+      (scopedDb) => repository.getById(scopedDb, notificationIds.workspaceAlpha)
+    );
+    const markedRead = await dataContext.withDataContext(
+      userAContext(ids.workspaceAlpha),
+      (scopedDb) => repository.markRead(scopedDb, notificationIds.workspaceAlpha)
+    );
+    const afterRead = await dataContext.withDataContext(
+      userAContext(ids.workspaceAlpha),
+      (scopedDb) => repository.getById(scopedDb, notificationIds.workspaceAlpha)
+    );
+    const hiddenMarkRead = await dataContext.withDataContext(userAContext(), (scopedDb) =>
+      repository.markRead(scopedDb, notificationIds.bPrivate)
+    );
+
+    expect(beforeRead?.read_at).toBeNull();
+    expect(markedRead?.read_at).toBeInstanceOf(Date);
+    expect(afterRead?.read_at).toBeInstanceOf(Date);
+    expect(hiddenMarkRead).toBeUndefined();
+  });
+
+  it("serves Notifications API list, mark read, and mark all read from session context", async () => {
+    const listWithoutWorkspaceResponse = await server.inject({
+      method: "GET",
+      url: "/api/notifications",
+      headers: {
+        authorization: `Bearer ${ids.sessionA}`
+      }
+    });
+    const listWithWorkspaceResponse = await server.inject({
+      method: "GET",
+      url: "/api/notifications",
+      headers: {
+        authorization: `Bearer ${ids.sessionA}`,
+        "x-jarvis-workspace-id": ids.workspaceAlpha
+      }
+    });
+    const deniedMarkReadResponse = await server.inject({
+      method: "PATCH",
+      url: `/api/notifications/${notificationIds.bPrivate}/read`,
+      headers: {
+        authorization: `Bearer ${ids.sessionA}`
+      }
+    });
+    const markReadResponse = await server.inject({
+      method: "PATCH",
+      url: `/api/notifications/${notificationIds.aPrivate}/read`,
+      headers: {
+        authorization: `Bearer ${ids.sessionA}`
+      }
+    });
+    const markAllResponse = await server.inject({
+      method: "PATCH",
+      url: "/api/notifications/read-all",
+      headers: {
+        authorization: `Bearer ${ids.sessionA}`
+      }
+    });
+    const afterMarkAllResponse = await server.inject({
+      method: "GET",
+      url: "/api/notifications",
+      headers: {
+        authorization: `Bearer ${ids.sessionA}`
+      }
+    });
+
+    expect(listWithoutWorkspaceResponse.statusCode).toBe(200);
+    expect(
+      listWithoutWorkspaceResponse
+        .json<{ notifications: Array<{ id: string }> }>()
+        .notifications.some((notification) => notification.id === notificationIds.workspaceAlpha)
+    ).toBe(false);
+    expect(listWithWorkspaceResponse.statusCode).toBe(200);
+    expect(
+      listWithWorkspaceResponse
+        .json<{ notifications: Array<{ id: string }> }>()
+        .notifications.some((notification) => notification.id === notificationIds.workspaceAlpha)
+    ).toBe(true);
+    expect(deniedMarkReadResponse.statusCode).toBe(404);
+    expect(markReadResponse.statusCode).toBe(200);
+    expect(
+      markReadResponse.json<{ notification: { id: string; readAt: string | null } }>().notification
+    ).toMatchObject({
+      id: notificationIds.aPrivate,
+      readAt: expect.any(String)
+    });
+    expect(markAllResponse.statusCode).toBe(200);
+    expect(markAllResponse.json<{ unreadCount: number }>().unreadCount).toBe(0);
+    expect(afterMarkAllResponse.json<{ unreadCount: number }>().unreadCount).toBe(0);
+  });
+
+  it("fails loudly when the Notifications repository is called without withDataContext", async () => {
+    await expect(repository.listVisible({} as never)).rejects.toThrow(
+      "Repository access requires withDataContext"
+    );
+  });
+});
+
+async function seedNotificationData(): Promise<void> {
+  const client = new Client({ connectionString: connectionStrings.bootstrap });
+
+  await client.connect();
+  try {
+    await client.query("BEGIN");
+    await client.query(
+      `
+        INSERT INTO app.notifications (
+          id,
+          actor_user_id,
+          recipient_user_id,
+          workspace_id,
+          visibility,
+          title,
+          body,
+          metadata
+        )
+        VALUES
+          ($1, $2, $3, null, 'private', 'User A private notification', 'Private for User A', $4::jsonb),
+          ($5, $3, $2, null, 'private', 'User B private notification', 'Private for User B', $6::jsonb),
+          ($7, $3, null, $8, 'workspace', 'Workspace notification', 'Workspace visible summary', $9::jsonb)
+      `,
+      [
+        notificationIds.aPrivate,
+        ids.userB,
+        ids.userA,
+        JSON.stringify({ source: "seed", resourceType: "task" }),
+        notificationIds.bPrivate,
+        JSON.stringify({ source: "seed", resourceType: "note" }),
+        notificationIds.workspaceAlpha,
+        ids.workspaceAlpha,
+        JSON.stringify({ source: "seed", workspaceScoped: true })
+      ]
+    );
+    await client.query("COMMIT");
+  } catch (error) {
+    await client.query("ROLLBACK");
+    throw error;
+  } finally {
+    await client.end();
+  }
+}
+
+function userAContext(workspaceId?: string): AccessContext {
+  return {
+    actorUserId: ids.userA,
+    workspaceId: workspaceId ?? null,
+    requestId: "request:user-a-notifications"
+  };
+}
+
+function userBContext(workspaceId?: string): AccessContext {
+  return {
+    actorUserId: ids.userB,
+    workspaceId: workspaceId ?? null,
+    requestId: "request:user-b-notifications"
+  };
+}

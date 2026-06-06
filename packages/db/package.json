@@ -1,0 +1,17 @@
+{
+  "name": "@jarv1s/db",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./probes": "./src/probes/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "kysely": "^0.29.2",
+    "pg": "^8.21.0"
+  }
+}

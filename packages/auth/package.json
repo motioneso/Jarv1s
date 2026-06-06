@@ -1,0 +1,18 @@
+{
+  "name": "@jarv1s/auth",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@jarv1s/db": "workspace:*",
+    "@jarv1s/shared": "workspace:*",
+    "better-auth": "^1.6.14",
+    "pg": "^8.21.0"
+  }
+}
