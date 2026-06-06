@@ -103,9 +103,7 @@ describe("shares can_access + RLS (raw SQL)", () => {
   it("does not satisfy a higher level than was granted", async () => {
     await seedShare(resourceLevel, "view");
 
-    await expect(canAccessRaw(ids.userB, "demo", resourceLevel, "contribute")).resolves.toBe(
-      false
-    );
+    await expect(canAccessRaw(ids.userB, "demo", resourceLevel, "contribute")).resolves.toBe(false);
   });
 
   it("does not grant an instance admin access by role alone", async () => {
@@ -246,8 +244,8 @@ describe("SharesRepository", () => {
   });
 
   it("fails loudly when called without the data-context wrapper", async () => {
-    await expect(
-      repository.listForResource({} as never, "demo", resourceRepo)
-    ).rejects.toThrow("Repository access requires withDataContext");
+    await expect(repository.listForResource({} as never, "demo", resourceRepo)).rejects.toThrow(
+      "Repository access requires withDataContext"
+    );
   });
 });

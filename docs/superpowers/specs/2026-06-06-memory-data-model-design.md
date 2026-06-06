@@ -48,27 +48,27 @@ explicitly out of scope for this spec and come later.
 
 ## Resolved Decisions
 
-| # | Decision | Choice | Why |
-|---|----------|--------|-----|
-| 1 | Design target | Memory & data model first | Keystone; everything else depends on its contract. |
-| 2 | Memory home | **Split**: knowledge = files, structured state = DB | Open loops/deadlines must be reliably queryable; prose belongs in portable files. |
-| 3 | File access | **Jarvis hosts the canonical vault** (optional import) | Jarvis can only secure what it controls; enables per-user isolation. |
-| 4 | Vault security | **App-layer isolation now, encryption-ready** | Mirrors RLS; keeps files plain markdown for portability; clean seam for later encryption. |
-| 5 | Retrieval | **Universal internal index; vault is a source, not the index** | Memory layer must exist with or without a vault, and grow over time. |
-| 6 | Embeddings | **Local, pluggable** | Privacy-first (notes never leave the box); decouples retrieval from BYOP. |
-| 7 | Write-back | **Frontmatter machine-owned, body human-owned** | Jarvis keeps structured fields current without ever clobbering the user's prose. |
-| 8 | Roles vs access | **Orthogonal**: roles = platform abilities; access = owner-or-share | Preserves "no admin private-data bypass." |
+| #   | Decision        | Choice                                                              | Why                                                                                       |
+| --- | --------------- | ------------------------------------------------------------------- | ----------------------------------------------------------------------------------------- |
+| 1   | Design target   | Memory & data model first                                           | Keystone; everything else depends on its contract.                                        |
+| 2   | Memory home     | **Split**: knowledge = files, structured state = DB                 | Open loops/deadlines must be reliably queryable; prose belongs in portable files.         |
+| 3   | File access     | **Jarvis hosts the canonical vault** (optional import)              | Jarvis can only secure what it controls; enables per-user isolation.                      |
+| 4   | Vault security  | **App-layer isolation now, encryption-ready**                       | Mirrors RLS; keeps files plain markdown for portability; clean seam for later encryption. |
+| 5   | Retrieval       | **Universal internal index; vault is a source, not the index**      | Memory layer must exist with or without a vault, and grow over time.                      |
+| 6   | Embeddings      | **Local, pluggable**                                                | Privacy-first (notes never leave the box); decouples retrieval from BYOP.                 |
+| 7   | Write-back      | **Frontmatter machine-owned, body human-owned**                     | Jarvis keeps structured fields current without ever clobbering the user's prose.          |
+| 8   | Roles vs access | **Orthogonal**: roles = platform abilities; access = owner-or-share | Preserves "no admin private-data bypass."                                                 |
 
 ## Architecture Overview
 
 Four data surfaces, each with one owner and an explicit canonical/derived rule:
 
-| Surface | Store | Canonical? | Accessed via |
-|---|---|---|---|
-| **Vault** — knowledge: notes, daily logs, people notes | Files, per-user Jarvis-hosted root | ✅ canonical & portable | `VaultContext` |
-| **Memory index** — chunks + local embeddings (pgvector) + wikilink graph + metadata | Postgres | ❌ derived, rebuildable | `DataContextDb` |
-| **Structured agent state** — preferences, commitments, entities | Postgres | ✅ canonical | `DataContextDb` |
-| **Operational** — jobs, schedules, audit, shares, roles | Postgres | ✅ canonical | `DataContextDb` |
+| Surface                                                                             | Store                              | Canonical?              | Accessed via    |
+| ----------------------------------------------------------------------------------- | ---------------------------------- | ----------------------- | --------------- |
+| **Vault** — knowledge: notes, daily logs, people notes                              | Files, per-user Jarvis-hosted root | ✅ canonical & portable | `VaultContext`  |
+| **Memory index** — chunks + local embeddings (pgvector) + wikilink graph + metadata | Postgres                           | ❌ derived, rebuildable | `DataContextDb` |
+| **Structured agent state** — preferences, commitments, entities                     | Postgres                           | ✅ canonical            | `DataContextDb` |
+| **Operational** — jobs, schedules, audit, shares, roles                             | Postgres                           | ✅ canonical            | `DataContextDb` |
 
 Two pluggable interfaces preserve anti-lock-in:
 
@@ -119,22 +119,22 @@ The records:
 
 - **`commitments`** (open loops) — the chief-of-staff primitive.
   `{ id, owner_user_id, title, counterparty?, due_at?, status, provenance, source_kind,
-  source_ref?, surfaced_state, created_at, updated_at }`.
+source_ref?, surfaced_state, created_at, updated_at }`.
   `status` is a drift-aware lifecycle: `open → at_risk → slipped → done | renegotiated |
-  dismissed`. Recovery states are first-class, never error states ("This slipped. We can reset
+dismissed`. Recovery states are first-class, never error states ("This slipped. We can reset
   it."). Distinct from a Task: a Task is something the user chose to track; a commitment is
   something Jarvis noticed the user is on the hook for and may later promote to a Task. Powers
   "what's due in 3 days" and proactive nudges.
 - **`entities`** — people / orgs / accounts.
   `{ id, owner_user_id, type, name, attributes (jsonb, typed per type), provenance,
-  vault_note_path?, connector_refs?, created_at, updated_at }`.
+vault_note_path?, connector_refs?, created_at, updated_at }`.
   A person links to its People-note file **and** to e.g. a shared Plaid connection.
 - **`preferences`** — typed agent/user settings, including **persona config** (assistant name,
   tone, humor, directness, recovery mode, accountability style) per the brand's configurable
   personality. Adaptation must be legible and reversible. Most-restrictive-wins where an admin
   policy applies.
 
-**`life_area`** (work / personal / family / health / …, user-definable) is an *optional tag* on
+**`life_area`** (work / personal / family / health / …, user-definable) is an _optional tag_ on
 structured state and indexed knowledge, used only for **briefing and focus filtering** — it is
 **not** an access-control boundary. Sharing remains per-resource. Deferred to the structured-state
 slice; recorded here so the schema reserves room.
@@ -146,7 +146,7 @@ record type keyed to capability + scope, never inferred.
 ### Memory index (derived, rebuildable)
 
 - **`memory_chunks`** — `{ id, owner_user_id, source_kind, source_path, line_start, line_end,
-  content_hash, text, embedding vector, updated_at }`.
+content_hash, text, embedding vector, updated_at }`.
 - **`memory_links`** — extracted `[[wikilink]]` graph: `{ owner_user_id, from_path, to_path }`.
 - Provenance (path + line range) lets retrieval hand back chunks that are re-readable in full
   via `VaultContext`. Wiping these tables and re-scanning the vault fully reconstructs them.
@@ -163,7 +163,7 @@ level ∈ view | contribute | manage
 - One generic mechanism for every shareable resource (tasks, commitments, entities, finance
   connections, research, media). "Chores" = shared tasks at `contribute`.
 - RLS policies consult `shares` through a single helper `app.can_access(resource_type,
-  resource_id, level)`.
+resource_id, level)`.
 - **Private by default; sharing explicit, per-resource, revocable, audited.**
 - Removing workspaces lets `AccessContext` drop `workspace_id` → context becomes
   `{ actorUserId, requestId }`; RLS becomes "owner OR qualifying share."
@@ -172,8 +172,8 @@ level ∈ view | contribute | manage
 
 - Two roles to start, with ability inheritance: **instance-admin → user**. Extensible later.
 - Abilities only: manage the instance, enable/disable global modules, maintenance, add/remove/
-  assist users. **Roles grant no data visibility.** Admin inherits every user *ability*, never
-  any user's *data*.
+  assist users. **Roles grant no data visibility.** Admin inherits every user _ability_, never
+  any user's _data_.
 - First-user bootstrap (already present) marks the first user instance-admin. `admin_audit_events`
   is retained.
 
@@ -186,7 +186,7 @@ level ∈ view | contribute | manage
   (Syncthing, git, Obsidian pointed at the synced copy). Using Jarvis without a vault is fully
   supported.
 - **`VaultContext`** is the only way to touch vault files: `VaultContextRunner.withVaultContext(
-  accessContext, work)` resolves the root, every op takes a relative path, normalized +
+accessContext, work)` resolves the root, every op takes a relative path, normalized +
   traversal-checked to stay under root. No raw `fs` access elsewhere.
 - **Encryption-ready**: because `VaultContext` is the single chokepoint, per-user encryption at
   rest can be inserted later without changing any caller.
@@ -211,12 +211,12 @@ to. After this, development is additive.
 
 - **Delete** `packages/notes` and `app.notes` (+ migration, routes, web UI, tests). Knowledge
   belongs in the vault, not DB rows.
-- **Replace** the *data-access* machinery — `app.workspaces`, memberships, and the workspace/
+- **Replace** the _data-access_ machinery — `app.workspaces`, memberships, and the workspace/
   grant hierarchy — with `shares`. Simplify `AccessContext` (drop `workspace_id`). Migrate Tasks'
   `workspace` visibility to the shares model. (This is distinct from platform roles below, which
   are retained.)
 - **Retain** the instance-admin role, its admin→user ability inheritance, and first-user
-  bootstrap as a *platform-ability* concept — never a data-access one.
+  bootstrap as a _platform-ability_ concept — never a data-access one.
 - **Swap** the Postgres image to a pgvector-enabled one and add `CREATE EXTENSION vector`.
 - **Keep** everything else intact: `DataContextDb`/RLS substrate, pg-boss (metadata-only
   payloads), module registry, Better Auth, and all hard invariants.
@@ -237,7 +237,7 @@ Integration tests (Vitest against real Postgres + a temp vault root):
   entities.
 - **Write-back**: a Jarvis frontmatter update preserves the human-authored body verbatim.
 - **No admin bypass — extended to files**: an instance-admin cannot read another user's vault
-  *through Jarvis* (DB no-bypass tests are retained).
+  _through Jarvis_ (DB no-bypass tests are retained).
 
 ## Architectural Principles (standing)
 
@@ -252,7 +252,7 @@ Integration tests (Vitest against real Postgres + a temp vault root):
 - **One chokepoint per boundary**: `DataContextDb` for rows, `VaultContext` for files — so
   isolation (and later encryption) lives in exactly one place.
 - **The agent sees all of its user's stored data**: there is no intra-user "hide this from
-  Jarvis" gating. Privacy *from* the agent means not storing it in Jarvis (e.g. a separate vault
+  Jarvis" gating. Privacy _from_ the agent means not storing it in Jarvis (e.g. a separate vault
   you don't import). The access boundary is the user, not a context within the user.
 - **Beliefs are legible and reversible**: anything Jarvis infers is visible to the user, carries
   provenance, and can be corrected, dismissed, or deleted.

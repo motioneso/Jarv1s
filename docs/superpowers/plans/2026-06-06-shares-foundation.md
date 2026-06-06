@@ -17,6 +17,7 @@
 ### Task 1: `shares` table + `can_access()` migration
 
 **Files:**
+
 - Create: `tests/integration/shares.test.ts`
 - Create: `infra/postgres/migrations/0017_shares.sql`
 - Modify: `tests/integration/foundation.test.ts` (migration-list assertion)
@@ -115,9 +116,7 @@ describe("shares can_access + RLS (raw SQL)", () => {
   });
 
   it("does not satisfy a higher level than was granted", async () => {
-    await expect(canAccessRaw(ids.userB, "demo", resourceView, "contribute")).resolves.toBe(
-      false
-    );
+    await expect(canAccessRaw(ids.userB, "demo", resourceView, "contribute")).resolves.toBe(false);
   });
 
   it("does not grant an instance admin access by role alone", async () => {
@@ -283,6 +282,7 @@ git commit -m "feat(db): add shares table and can_access() sharing primitive"
 ### Task 2: Kysely types for `shares`
 
 **Files:**
+
 - Modify: `packages/db/src/types.ts`
 
 - [ ] **Step 1: Write the failing test**
@@ -384,6 +384,7 @@ git commit -m "feat(db): add Kysely types for the shares table"
 ### Task 3: `SharesRepository`
 
 **Files:**
+
 - Create: `packages/db/src/sharing/shares-repository.ts`
 - Create: `packages/db/src/sharing/index.ts`
 - Modify: `packages/db/src/index.ts`
@@ -487,9 +488,9 @@ describe("SharesRepository", () => {
   });
 
   it("fails loudly when called without the data-context wrapper", async () => {
-    await expect(
-      repository.listForResource({} as never, "demo", resourceRepo)
-    ).rejects.toThrow("Repository access requires withDataContext");
+    await expect(repository.listForResource({} as never, "demo", resourceRepo)).rejects.toThrow(
+      "Repository access requires withDataContext"
+    );
   });
 });
 ```
@@ -665,7 +666,7 @@ git commit -m "chore: formatting for shares foundation"
 
 ## Self-Review
 
-- **Spec coverage:** Implements the spec's `shares { resource_type, resource_id, owner_user_id, grantee_user_id, level }` table, the `app.can_access(type, id, level)` helper, "private by default; sharing explicit, per-resource, revocable," and `FORCE ROW LEVEL SECURITY`. Does *not* yet touch `AccessContext`, module RLS, or workspace removal — those are sub-plans 2–6, by design.
+- **Spec coverage:** Implements the spec's `shares { resource_type, resource_id, owner_user_id, grantee_user_id, level }` table, the `app.can_access(type, id, level)` helper, "private by default; sharing explicit, per-resource, revocable," and `FORCE ROW LEVEL SECURITY`. Does _not_ yet touch `AccessContext`, module RLS, or workspace removal — those are sub-plans 2–6, by design.
 - **Placeholder scan:** none — every step has exact code/commands.
 - **Type consistency:** `ShareLevel`, `SharesTable`, `Share`, `"app.shares"`, `SharesRepository`, `GrantShareInput`, `RevokeShareInput`, `grant`/`listForResource`/`revoke`/`canAccess` are used identically across tasks. `app.can_access(text, uuid, text)` and `app.share_level_rank(text)` signatures match between the migration and the repository's raw SQL call.
 - **Green-throughout check:** Task 1 adds a migration + updates the one test that asserts the migration list. No existing module reads `shares`, so no other suite changes. Additive by construction.
