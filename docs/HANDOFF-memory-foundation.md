@@ -10,9 +10,20 @@ Status: Active. This supersedes the alpha-era `docs/HANDOFF.md` (now historical)
 
 ## Next Step (start here)
 
-1. **Slice 1b is MERGED** (probe + Tasks on owner-or-share). **Next: execute Slice 1c (and 1d)** —
-   convert the remaining modules to owner-or-share. A combined **1c+1d plan** is being drafted off
-   the proven 1b template. Two hard lessons from 1b that the 1c/1d work MUST apply:
+1. **Slice 1b is MERGED** (probe + Tasks on owner-or-share). **Next: execute the `slice-1c-core`
+   plan** — `docs/superpowers/plans/2026-06-06-slice-1c-core-calendar-email-connectors-ai.md`
+   (ready). It converts the four no-design-risk modules: **calendar** + **email** → owner-or-share,
+   and **connectors** + **ai** → plain owner-only (they hold encrypted credentials and are
+   deliberately NOT shareable — the audit confirmed `ai_provider_configs` / `ai_configured_models`
+   need no migration at all; only `ai_assistant_action_requests` INSERT does). Execute with
+   `superpowers:subagent-driven-development`.
+   **Still to be planned** (separate `slice-1c-1d-structural` plan, **NOT yet written**):
+   **notifications** (no `owner_user_id` — owner is `recipient_user_id`; workspace notifications have
+   no owner at all), **chat**, **briefings** (first-class workspace-visibility with child tables
+   `chat_messages` / `briefing_runs` that must inherit a parent-level share via an RLS-filtered
+   EXISTS; briefings also has `jarvis_worker_runtime` grants to preserve). Brainstorm the
+   notification redesign before planning those.
+   Two hard lessons from 1b that the 1c/1d work MUST apply:
    - **Cross-module migration coupling.** A module's RLS policies can be redefined by a _later_
      migration owned by a _different_ module (in 1b, `packages/notes/sql/0007` redefined
      `tasks_update` and — because modules migrate in registry order, not by version number — ran
@@ -24,7 +35,7 @@ Status: Active. This supersedes the alpha-era `docs/HANDOFF.md` (now historical)
      `auth-settings.test.ts`, not just `tasks.test.ts`). Enumerate every suite that touches the
      module before assuming the gate stays green.
 2. Read order: the spec (`docs/superpowers/specs/2026-06-06-memory-data-model-design.md`) →
-   `CLAUDE.md` → the 1b plan → the (forthcoming) combined 1c+1d plan.
+   `CLAUDE.md` → the 1b plan → the `slice-1c-core` plan.
 
 Do **not** start new product features. The work is bounded to the memory-foundation slices below.
 
@@ -88,8 +99,13 @@ full, reviewed design is in the spec; the headlines:
 
 1. ✅ **1a Shares foundation** — `app.shares` + `app.has_share` + types + repository. **MERGED (PR #1).**
 2. ✅ **1b Probe + Tasks → owner-or-share** — migrations `0018`/`0019`. **MERGED to `main`.**
-3. ⏭️ **1c** — convert Notifications, Connectors, Calendar, Email. **Next (combined 1c+1d plan in progress).**
-4. **1d** — convert AI (assistant action requests), Chat, Briefings. **Batched with 1c.**
+3. ⏭️ **1c-core** — Calendar + Email → owner-or-share; Connectors + AI → owner-only.
+   **Plan ready; next to execute.** (`2026-06-06-slice-1c-core-calendar-email-connectors-ai.md`)
+4. **1c/1d-structural** — Notifications (recipient-owned redesign), Chat, Briefings (parent-child
+   share inheritance + worker grants). **Needs brainstorm + plan.** Replaces the original flat
+   "1c (Notifications/Connectors/Calendar/Email)" + "1d (AI/Chat/Briefings)" split — the audit showed
+   Connectors/Calendar/Email/AI are the easy batch and Notifications/Chat/Briefings are the
+   structural ones, so the work was re-grouped by difficulty rather than by the old numbering.
 5. **1e** — remove the **Notes** module entirely.
 6. **1f** — drop workspace tables + legacy functions; remove `workspace_id` from `AccessContext`,
    the auth resolver, and the web `x-jarvis-workspace-id` header; retire Settings
