@@ -42,13 +42,16 @@ Read these in order:
 - [MVP foundation scaffold plan](docs/architecture/plans/0001-mvp-foundation-scaffold.md)
 - [Tasks module MVP plan](docs/architecture/plans/0002-tasks-module-mvp.md)
 - [Platform-first alpha roadmap](docs/architecture/plans/0003-platform-first-alpha-roadmap.md)
+- [M7 operations verification plan](docs/architecture/plans/0004-m7-operations-verification-plan.md)
 - [Session handoff](docs/HANDOFF.md)
 - [Tasks M1 handoff](docs/HANDOFF_TASKS_M1.md)
 
 The active continuation point is in [Session handoff](docs/HANDOFF.md), especially the
 `Next Step`, `Open Questions`, and `Review Notes For Next Agent` sections. The next work should stay
 bounded around M7 operations hardening: clean-environment CI-equivalent verification, real external
-OAuth/OIDC callback verification, and production Postgres/pg-boss settings review.
+OAuth/OIDC callback verification, and production Postgres/pg-boss settings review. Use the
+[M7 operations verification plan](docs/architecture/plans/0004-m7-operations-verification-plan.md)
+as the execution checklist.
 
 Keep these invariants intact:
 
