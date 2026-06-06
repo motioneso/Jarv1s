@@ -103,6 +103,17 @@ export interface ResourceGrantsTable {
   updated_at: TimestampColumn;
 }
 
+export interface SharesTable {
+  id: string;
+  resource_type: string;
+  resource_id: string;
+  owner_user_id: string;
+  grantee_user_id: string;
+  level: ShareLevel;
+  created_at: TimestampColumn;
+  updated_at: TimestampColumn;
+}
+
 export interface InstanceSettingsTable {
   key: string;
   value: JsonColumn;
@@ -134,6 +145,7 @@ export interface RlsProbeItemsTable {
 export type TaskVisibility = "private" | "workspace";
 export type TaskStatus = "todo" | "in_progress" | "done" | "archived";
 export type NoteVisibility = "private" | "workspace";
+export type ShareLevel = "view" | "contribute" | "manage";
 export type NotificationVisibility = "private" | "workspace";
 export type ConnectorProviderType = "calendar" | "email";
 export type ConnectorProviderStatus = "available" | "disabled";
@@ -371,6 +383,7 @@ export interface JarvisDatabase {
   "app.workspaces": WorkspacesTable;
   "app.workspace_memberships": WorkspaceMembershipsTable;
   "app.resource_grants": ResourceGrantsTable;
+  "app.shares": SharesTable;
   "app.instance_settings": InstanceSettingsTable;
   "app.admin_audit_events": AdminAuditEventsTable;
   "app.rls_probe_items": RlsProbeItemsTable;
@@ -396,6 +409,7 @@ export type User = Selectable<UsersTable>;
 export type Workspace = Selectable<WorkspacesTable>;
 export type WorkspaceMembership = Selectable<WorkspaceMembershipsTable>;
 export type ResourceGrant = Selectable<ResourceGrantsTable>;
+export type Share = Selectable<SharesTable>;
 export type InstanceSetting = Selectable<InstanceSettingsTable>;
 export type AdminAuditEvent = Selectable<AdminAuditEventsTable>;
 export type RlsProbeItem = Selectable<RlsProbeItemsTable>;
