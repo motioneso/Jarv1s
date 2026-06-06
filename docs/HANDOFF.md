@@ -310,6 +310,9 @@ Goal for the next agent:
   production pg-boss/Postgres operational settings; do not start new product features before that
 - use `docs/architecture/plans/0004-m7-operations-verification-plan.md` as the execution checklist
   for that M7 operations verification work
+- use CodeGraph and agentmemory as normal agent knowledge tools per
+  `docs/DEVELOPMENT_STANDARDS.md#agent-knowledge-tools`; keep CodeGraph synced locally and save
+  durable project decisions or lessons to agentmemory without secrets or private data
 - preserve Briefings metadata-only jobs and assistant action metadata-only confirmation gates; avoid real provider calls/embeddings/connector sync/write or destructive tool execution, and preserve `AccessContext -> withDataContext() -> RLS`
 
 Still do not build casually:
