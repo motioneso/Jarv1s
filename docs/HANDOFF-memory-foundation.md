@@ -10,15 +10,15 @@ Status: Active. This supersedes the alpha-era `docs/HANDOFF.md` (now historical)
 
 ## Next Step (start here)
 
-1. **Decide PR #1.** Slice 1a (shares foundation) is implemented and open as a PR:
-   https://github.com/motioneso/Jarv1s/pull/1 (branch `slice-1a-shares-foundation`).
-   Either merge it to `main`, or branch the next slice from it.
-2. **Write & execute the Slice 1b plan** — convert the core RLS probe + the Tasks module from
-   workspace-visibility to **owner-or-share** (using `app.can_access`). Use the same workflow:
-   `superpowers:writing-plans` → `superpowers:subagent-driven-development` (Sonnet implementers,
-   review between tasks).
-3. The slice sequence and full design are in the spec — read it before planning 1b:
-   `docs/superpowers/specs/2026-06-06-memory-data-model-design.md`.
+1. **Execute the Slice 1b plan** — it is written and ready at
+   `docs/superpowers/plans/2026-06-06-slice-1b-tasks-owner-or-share.md`. It converts the core RLS
+   probe + the Tasks module from workspace-visibility to **owner-or-share** (via `app.has_share`),
+   **RLS-substrate-only** (no API / `AccessContext` / column changes — those land in 1f). Execute
+   with `superpowers:subagent-driven-development` (Sonnet implementers, controller reviews spec
+   compliance + code quality between tasks, commit per task), then run a thermo-nuclear pass on the
+   diff before merging the slice.
+2. Read order before executing: the 1b plan → the spec
+   (`docs/superpowers/specs/2026-06-06-memory-data-model-design.md`) → `CLAUDE.md`.
 
 Do **not** start new product features. The work is bounded to the memory-foundation slices below.
 
@@ -53,21 +53,30 @@ full, reviewed design is in the spec; the headlines:
 ## Where We Are
 
 - **Spec (approved):** `docs/superpowers/specs/2026-06-06-memory-data-model-design.md`
-- **Slice 1a plan:** `docs/superpowers/plans/2026-06-06-shares-foundation.md`
-- **`main`:** `CLAUDE.md` added (`8c7ca11`). Alpha code/docs otherwise intact.
-- **Branch `slice-1a-shares-foundation` (PR #1):** shares foundation — `app.shares` table +
-  `app.can_access()` + Kysely types + `SharesRepository`. Reviewed task-by-task; full gate green
-  (lint, format, file-size, typecheck, migrate, **127 integration tests / 13 files**).
+- **Slice 1a — MERGED to `main`.** PR #1 squash-merged (`c0bcff0`): `app.shares` table +
+  `app.has_share()` + `app.share_level_rank()` + Kysely types + `SharesRepository`. The sharing
+  helper is named **`app.has_share`** (renamed from `can_access` during a thermo-nuclear review — it
+  answers the **share half only**, so RLS policies must OR it with
+  `owner_user_id = app.current_actor_user_id()`, mirroring `app.has_resource_grant`). Full gate
+  green: **127 integration tests / 13 files**. Plan:
+  `docs/superpowers/plans/2026-06-06-shares-foundation.md`.
+- **Slice 1b — PLAN READY (not started):**
+  `docs/superpowers/plans/2026-06-06-slice-1b-tasks-owner-or-share.md`. Scope locked to RLS
+  substrate only (probe + Tasks policies → owner-or-share; no API / `AccessContext` / column
+  changes). Two new migrations: `0018_probe_owner_or_share.sql` (infra),
+  `0019_tasks_owner_or_share.sql` (tasks module).
+- **`main`:** `da496ef` (brand) → `c0bcff0` (Slice 1a) → `CLAUDE.md` → this handoff. Local and
+  `origin/main` in sync.
 - **Obsidian vault:** prior-iteration Jarvis notes archived to `4 Archives/Jarvis-alpha` (1,110
-  files). Active `2 Areas/Jarvis/Specs/` holds only the 2 current-iteration design docs (mirrors of
-  the git specs, kept for remote review).
+  files). Active `2 Areas/Jarvis/Specs/` mirrors the current-iteration design docs + both slice
+  plans (git is canonical; vault copies are for remote review).
 
 ## Slice Roadmap
 
 **Slice 1 — workspace → shares teardown** (full teardown; keep all modules). Sub-plans:
 
-1. ✅ **1a Shares foundation** — `app.shares` + `can_access` + types + repository (PR #1).
-2. ⏭️ **1b** — convert core RLS probe + **Tasks** to owner-or-share.
+1. ✅ **1a Shares foundation** — `app.shares` + `app.has_share` + types + repository. **MERGED (PR #1).**
+2. ⏭️ **1b** — convert core RLS probe + **Tasks** to owner-or-share. **Plan ready; next to execute.**
 3. **1c** — convert Notifications, Connectors, Calendar, Email.
 4. **1d** — convert AI (assistant action requests), Chat, Briefings.
 5. **1e** — remove the **Notes** module entirely.
