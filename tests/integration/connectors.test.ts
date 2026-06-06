@@ -309,36 +309,9 @@ describe("Connectors encrypted foundation", () => {
     expect(adminResponse.body).not.toContain("ciphertext");
   });
 
-  it("requires active workspace context for workspace-scoped connector accounts", async () => {
-    const missingWorkspaceHeader = await server.inject({
-      method: "POST",
-      url: "/api/connectors/accounts",
-      headers: {
-        authorization: `Bearer ${ids.sessionA}`
-      },
-      payload: {
-        providerId: "microsoft-calendar",
-        workspaceId: ids.workspaceAlpha,
-        tokenPayload: {
-          accessToken: "workspace-secret"
-        }
-      }
-    });
-    const nonMemberWorkspaceHeader = await server.inject({
-      method: "POST",
-      url: "/api/connectors/accounts",
-      headers: {
-        authorization: `Bearer ${ids.sessionB}`,
-        "x-jarvis-workspace-id": ids.workspaceAlpha
-      },
-      payload: {
-        providerId: "microsoft-calendar",
-        workspaceId: ids.workspaceAlpha,
-        tokenPayload: {
-          accessToken: "workspace-secret"
-        }
-      }
-    });
+  it("owner sees workspace-tagged connector account regardless of workspace context; other users never see it", async () => {
+    // Slice 1c: connector_accounts are owner-only (AES-encrypted credentials must not
+    // be shared). workspace_id column is preserved but no longer gates SELECT access.
     const createWorkspaceAccount = await server.inject({
       method: "POST",
       url: "/api/connectors/accounts",
@@ -356,6 +329,8 @@ describe("Connectors encrypted foundation", () => {
     });
     const workspaceAccountId = createWorkspaceAccount.json<{ account: { id: string } }>().account
       .id;
+
+    // Owner sees the account WITHOUT workspace context (owner-only, workspace_id irrelevant)
     const listWithoutWorkspace = await server.inject({
       method: "GET",
       url: "/api/connectors/accounts",
@@ -363,6 +338,7 @@ describe("Connectors encrypted foundation", () => {
         authorization: `Bearer ${ids.sessionA}`
       }
     });
+    // Owner also sees the account WITH workspace context
     const listWithWorkspace = await server.inject({
       method: "GET",
       url: "/api/connectors/accounts",
@@ -371,20 +347,31 @@ describe("Connectors encrypted foundation", () => {
         "x-jarvis-workspace-id": ids.workspaceAlpha
       }
     });
+    // A different user (userB) never sees it — owner-only, no cross-user visibility
+    const listAsUserB = await server.inject({
+      method: "GET",
+      url: "/api/connectors/accounts",
+      headers: {
+        authorization: `Bearer ${ids.sessionB}`
+      }
+    });
 
-    expect(missingWorkspaceHeader.statusCode).toBe(400);
-    expect(nonMemberWorkspaceHeader.statusCode).toBe(403);
     expect(createWorkspaceAccount.statusCode).toBe(201);
     expect(
       listWithoutWorkspace
         .json<{ accounts: Array<{ id: string }> }>()
         .accounts.some((account) => account.id === workspaceAccountId)
-    ).toBe(false);
+    ).toBe(true);
     expect(
       listWithWorkspace
         .json<{ accounts: Array<{ id: string }> }>()
         .accounts.some((account) => account.id === workspaceAccountId)
     ).toBe(true);
+    expect(
+      listAsUserB
+        .json<{ accounts: Array<{ id: string }> }>()
+        .accounts.some((account) => account.id === workspaceAccountId)
+    ).toBe(false);
   });
 
   it("updates and revokes connector accounts without leaking replacement token material", async () => {
