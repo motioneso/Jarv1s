@@ -57,7 +57,7 @@ async function seedUsers(): Promise<void> {
   }
 }
 
-async function canAccessRaw(
+async function hasShareRaw(
   actorUserId: string,
   resourceType: string,
   resourceId: string,
@@ -65,7 +65,7 @@ async function canAccessRaw(
 ): Promise<boolean> {
   return dataContext.withDataContext(ctx(actorUserId), async (scopedDb) => {
     const result = await sql<{ ok: boolean }>`
-      select app.can_access(${resourceType}, ${resourceId}::uuid, ${level}) as ok
+      select app.has_share(${resourceType}, ${resourceId}::uuid, ${level}) as ok
     `.execute(scopedDb.db);
     return result.rows[0]?.ok ?? false;
   });
@@ -82,9 +82,9 @@ afterAll(async () => {
   await appDb?.destroy();
 });
 
-describe("shares can_access + RLS (raw SQL)", () => {
+describe("shares has_share + RLS (raw SQL)", () => {
   it("returns false before any share exists", async () => {
-    await expect(canAccessRaw(ids.userB, "demo", resourceView, "view")).resolves.toBe(false);
+    await expect(hasShareRaw(ids.userB, "demo", resourceView, "view")).resolves.toBe(false);
   });
 
   it("grants view access to the grantee after the owner shares", async () => {
@@ -97,19 +97,19 @@ describe("shares can_access + RLS (raw SQL)", () => {
       `.execute(scopedDb.db);
     });
 
-    await expect(canAccessRaw(ids.userB, "demo", resourceView, "view")).resolves.toBe(true);
+    await expect(hasShareRaw(ids.userB, "demo", resourceView, "view")).resolves.toBe(true);
   });
 
   it("does not satisfy a higher level than was granted", async () => {
     await seedShare(resourceLevel, "view");
 
-    await expect(canAccessRaw(ids.userB, "demo", resourceLevel, "contribute")).resolves.toBe(false);
+    await expect(hasShareRaw(ids.userB, "demo", resourceLevel, "contribute")).resolves.toBe(false);
   });
 
   it("does not grant an instance admin access by role alone", async () => {
     await seedShare(resourceAdmin, "view");
 
-    await expect(canAccessRaw(ids.adminUser, "demo", resourceAdmin, "view")).resolves.toBe(false);
+    await expect(hasShareRaw(ids.adminUser, "demo", resourceAdmin, "view")).resolves.toBe(false);
   });
 
   it("forbids inserting a share that claims another user as owner", async () => {
@@ -176,7 +176,7 @@ describe("SharesRepository", () => {
     );
 
     const granteeCanContribute = await dataContext.withDataContext(ctx(ids.userB), (scopedDb) =>
-      repository.canAccess(scopedDb, "demo", resourceRepo, "contribute")
+      repository.hasShare(scopedDb, "demo", resourceRepo, "contribute")
     );
     const ownerCanList = await dataContext.withDataContext(ctx(ids.userA), (scopedDb) =>
       repository.listForResource(scopedDb, "demo", resourceRepo)
@@ -208,7 +208,7 @@ describe("SharesRepository", () => {
     );
 
     const canManage = await dataContext.withDataContext(ctx(ids.userB), (scopedDb) =>
-      repository.canAccess(scopedDb, "demo", resourceUpgrade, "manage")
+      repository.hasShare(scopedDb, "demo", resourceUpgrade, "manage")
     );
     const shares = await dataContext.withDataContext(ctx(ids.userA), (scopedDb) =>
       repository.listForResource(scopedDb, "demo", resourceUpgrade)
@@ -237,7 +237,7 @@ describe("SharesRepository", () => {
     );
 
     const stillHasAccess = await dataContext.withDataContext(ctx(ids.userB), (scopedDb) =>
-      repository.canAccess(scopedDb, "demo", resourceRevoke, "view")
+      repository.hasShare(scopedDb, "demo", resourceRevoke, "view")
     );
 
     expect(stillHasAccess).toBe(false);

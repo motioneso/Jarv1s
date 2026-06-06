@@ -75,7 +75,7 @@ export class SharesRepository {
       .execute();
   }
 
-  async canAccess(
+  async hasShare(
     scopedDb: DataContextDb,
     resourceType: string,
     resourceId: string,
@@ -84,7 +84,7 @@ export class SharesRepository {
     assertDataContextDb(scopedDb);
 
     const result = await sql<{ ok: boolean }>`
-      select app.can_access(${resourceType}, ${resourceId}::uuid, ${level}) as ok
+      select app.has_share(${resourceType}, ${resourceId}::uuid, ${level}) as ok
     `.execute(scopedDb.db);
 
     return result.rows[0]?.ok ?? false;

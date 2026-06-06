@@ -156,14 +156,15 @@ content_hash, text, embedding vector, updated_at }`.
 ### Sharing — `shares`
 
 ```
-shares { id, resource_type, resource_id, owner_user_id, grantee_user_id, level, created_at }
+shares { id, resource_type, resource_id, owner_user_id, grantee_user_id, level, created_at, updated_at }
 level ∈ view | contribute | manage
 ```
 
 - One generic mechanism for every shareable resource (tasks, commitments, entities, finance
   connections, research, media). "Chores" = shared tasks at `contribute`.
-- RLS policies consult `shares` through a single helper `app.can_access(resource_type,
-resource_id, level)`.
+- RLS policies consult `shares` through a single helper `app.has_share(resource_type,
+resource_id, level)` — which answers the share half only; policies OR it with
+  `owner_user_id = app.current_actor_user_id()` (mirrors `app.has_resource_grant`).
 - **Private by default; sharing explicit, per-resource, revocable, audited.**
 - Removing workspaces lets `AccessContext` drop `workspace_id` → context becomes
   `{ actorUserId, requestId }`; RLS becomes "owner OR qualifying share."
@@ -233,7 +234,7 @@ Integration tests (Vitest against real Postgres + a temp vault root):
   rebuild from vault reproduces the index.
 - **Structured-state RLS**: private by default; share grants make a resource visible at the
   granted level; revocation removes access.
-- **Sharing across resource types**: `can_access` behaves uniformly for tasks/commitments/
+- **Sharing across resource types**: `has_share` behaves uniformly for tasks/commitments/
   entities.
 - **Write-back**: a Jarvis frontmatter update preserves the human-authored body verbatim.
 - **No admin bypass — extended to files**: an instance-admin cannot read another user's vault

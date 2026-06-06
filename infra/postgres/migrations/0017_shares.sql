@@ -11,7 +11,7 @@ CREATE TABLE IF NOT EXISTS app.shares (
   UNIQUE (resource_type, resource_id, grantee_user_id)
 );
 
--- Covering index for app.can_access(): the leading three columns are already
+-- Covering index for app.has_share(): the leading three columns are already
 -- indexed by the UNIQUE constraint; this adds level for index-only lookups.
 CREATE INDEX IF NOT EXISTS shares_grantee_lookup_idx
   ON app.shares (resource_type, resource_id, grantee_user_id, level);
@@ -32,7 +32,11 @@ AS $$
   END;
 $$;
 
-CREATE OR REPLACE FUNCTION app.can_access(
+-- Answers only the SHARE half of access ("does a qualifying share exist for the
+-- current actor at >= the requested level?"). It deliberately does NOT consult
+-- ownership — callers OR this with `owner_user_id = app.current_actor_user_id()`
+-- in their RLS policy, exactly like app.has_resource_grant.
+CREATE OR REPLACE FUNCTION app.has_share(
   p_resource_type text,
   p_resource_id uuid,
   p_level text
@@ -56,10 +60,10 @@ AS $$
 $$;
 
 REVOKE ALL ON FUNCTION app.share_level_rank(text) FROM PUBLIC;
-REVOKE ALL ON FUNCTION app.can_access(text, uuid, text) FROM PUBLIC;
+REVOKE ALL ON FUNCTION app.has_share(text, uuid, text) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION app.share_level_rank(text)
   TO jarvis_app_runtime, jarvis_worker_runtime;
-GRANT EXECUTE ON FUNCTION app.can_access(text, uuid, text)
+GRANT EXECUTE ON FUNCTION app.has_share(text, uuid, text)
   TO jarvis_app_runtime, jarvis_worker_runtime;
 
 GRANT SELECT, INSERT, UPDATE, DELETE ON app.shares TO jarvis_app_runtime;
