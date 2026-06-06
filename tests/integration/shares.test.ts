@@ -4,6 +4,7 @@ import pg from "pg";
 
 import {
   DataContextRunner,
+  SharesRepository,
   createDatabase,
   type AccessContext,
   type JarvisDatabase
@@ -156,5 +157,97 @@ describe("shares typed table", () => {
 
     expect(inserted.level).toBe("manage");
     expect(inserted.owner_user_id).toBe(ids.userA);
+  });
+});
+
+describe("SharesRepository", () => {
+  const repository = new SharesRepository();
+  const resourceRepo = "30000000-0000-4000-8000-000000000020";
+  const resourceUpgrade = "30000000-0000-4000-8000-000000000021";
+  const resourceRevoke = "30000000-0000-4000-8000-000000000022";
+
+  it("grants a share the grantee can then access", async () => {
+    await dataContext.withDataContext(ctx(ids.userA), (scopedDb) =>
+      repository.grant(scopedDb, {
+        resourceType: "demo",
+        resourceId: resourceRepo,
+        ownerUserId: ids.userA,
+        granteeUserId: ids.userB,
+        level: "contribute"
+      })
+    );
+
+    const granteeCanContribute = await dataContext.withDataContext(ctx(ids.userB), (scopedDb) =>
+      repository.canAccess(scopedDb, "demo", resourceRepo, "contribute")
+    );
+    const ownerCanList = await dataContext.withDataContext(ctx(ids.userA), (scopedDb) =>
+      repository.listForResource(scopedDb, "demo", resourceRepo)
+    );
+
+    expect(granteeCanContribute).toBe(true);
+    expect(ownerCanList).toHaveLength(1);
+    expect(ownerCanList[0]?.grantee_user_id).toBe(ids.userB);
+  });
+
+  it("upgrades an existing share on re-grant", async () => {
+    await dataContext.withDataContext(ctx(ids.userA), (scopedDb) =>
+      repository.grant(scopedDb, {
+        resourceType: "demo",
+        resourceId: resourceUpgrade,
+        ownerUserId: ids.userA,
+        granteeUserId: ids.userB,
+        level: "view"
+      })
+    );
+    await dataContext.withDataContext(ctx(ids.userA), (scopedDb) =>
+      repository.grant(scopedDb, {
+        resourceType: "demo",
+        resourceId: resourceUpgrade,
+        ownerUserId: ids.userA,
+        granteeUserId: ids.userB,
+        level: "manage"
+      })
+    );
+
+    const canManage = await dataContext.withDataContext(ctx(ids.userB), (scopedDb) =>
+      repository.canAccess(scopedDb, "demo", resourceUpgrade, "manage")
+    );
+    const shares = await dataContext.withDataContext(ctx(ids.userA), (scopedDb) =>
+      repository.listForResource(scopedDb, "demo", resourceUpgrade)
+    );
+
+    expect(canManage).toBe(true);
+    expect(shares).toHaveLength(1);
+  });
+
+  it("revokes access", async () => {
+    await dataContext.withDataContext(ctx(ids.userA), (scopedDb) =>
+      repository.grant(scopedDb, {
+        resourceType: "demo",
+        resourceId: resourceRevoke,
+        ownerUserId: ids.userA,
+        granteeUserId: ids.userB,
+        level: "view"
+      })
+    );
+    await dataContext.withDataContext(ctx(ids.userA), (scopedDb) =>
+      repository.revoke(scopedDb, {
+        resourceType: "demo",
+        resourceId: resourceRevoke,
+        granteeUserId: ids.userB
+      })
+    );
+
+    const stillHasAccess = await dataContext.withDataContext(ctx(ids.userB), (scopedDb) =>
+      repository.canAccess(scopedDb, "demo", resourceRevoke, "view")
+    );
+
+    expect(stillHasAccess).toBe(false);
+  });
+
+  it("fails loudly when called without the data-context wrapper", async () => {
+    await expect(
+      repository.listForResource({} as never, "demo", resourceRepo)
+    ).rejects.toThrow("Repository access requires withDataContext");
   });
 });

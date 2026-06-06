@@ -37,6 +37,7 @@
     "test:connectors": "vitest run tests/integration/connectors.test.ts",
     "test:calendar-email": "vitest run tests/integration/calendar-email.test.ts",
     "test:release-hardening": "vitest run tests/integration/release-hardening.test.ts",
+    "test:shares": "vitest run tests/integration/shares.test.ts",
     "test:notes": "vitest run tests/integration/notes.test.ts",
     "test:notifications": "vitest run tests/integration/notifications.test.ts",
     "test:tasks": "vitest run tests/integration/tasks.test.ts",
