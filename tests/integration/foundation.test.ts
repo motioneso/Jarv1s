@@ -94,7 +94,8 @@ describe("MVP foundation scaffold", () => {
         { version: "0013", name: "0013_ai_module.sql" },
         { version: "0014", name: "0014_chat_module.sql" },
         { version: "0015", name: "0015_briefings_module.sql" },
-        { version: "0016", name: "0016_ai_assistant_actions.sql" }
+        { version: "0016", name: "0016_ai_assistant_actions.sql" },
+        { version: "0017", name: "0017_shares.sql" }
       ]);
     } finally {
       await client.end();
