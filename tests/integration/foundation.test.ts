@@ -110,7 +110,8 @@ describe("MVP foundation scaffold", () => {
         { version: "0015", name: "0015_briefings_module.sql" },
         { version: "0016", name: "0016_ai_assistant_actions.sql" },
         { version: "0017", name: "0017_shares.sql" },
-        { version: "0018", name: "0018_probe_owner_or_share.sql" }
+        { version: "0018", name: "0018_probe_owner_or_share.sql" },
+        { version: "0019", name: "0019_tasks_owner_or_share.sql" }
       ]);
     } finally {
       await client.end();
