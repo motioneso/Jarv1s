@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import type { Kysely } from "kysely";
+import { sql, type Kysely } from "kysely";
 import type { PgBoss } from "pg-boss";
 import pg from "pg";
 
@@ -49,6 +49,20 @@ describe("MVP foundation scaffold", () => {
     workerContext = new DataContextRunner(workerDb);
     repository = new RlsProbeRepository();
 
+    // Seed app.shares for itemBGrantedToA: userB shares 'view' to userA so the
+    // new owner-or-share RLS policy grants userA access (replacing resource_grants).
+    await dataContext.withDataContext(
+      { actorUserId: ids.userB, requestId: "setup:seed-share" },
+      async (scopedDb) => {
+        await sql`
+          insert into app.shares
+            (resource_type, resource_id, owner_user_id, grantee_user_id, level)
+          values
+            ('rls_probe_item', ${ids.itemBGrantedToA}::uuid, ${ids.userB}::uuid, ${ids.userA}::uuid, 'view')
+        `.execute(scopedDb.db);
+      }
+    );
+
     appBoss = createPgBossClient(connectionStrings.app);
     workerBoss = createPgBossClient(connectionStrings.worker);
 
@@ -95,7 +109,9 @@ describe("MVP foundation scaffold", () => {
         { version: "0014", name: "0014_chat_module.sql" },
         { version: "0015", name: "0015_briefings_module.sql" },
         { version: "0016", name: "0016_ai_assistant_actions.sql" },
-        { version: "0017", name: "0017_shares.sql" }
+        { version: "0017", name: "0017_shares.sql" },
+        { version: "0018", name: "0018_probe_owner_or_share.sql" },
+        { version: "0019", name: "0019_tasks_owner_or_share.sql" }
       ]);
     } finally {
       await client.end();
@@ -163,6 +179,35 @@ describe("MVP foundation scaffold", () => {
     expect(item).toBeUndefined();
   });
 
+  it("allows probe access through a view share", async () => {
+    // userA owns a probe row; share 'view' to userB so the new owner-or-share
+    // policy grants userB SELECT access.
+    // NOTE: this share persists for the remainder of the suite (no teardown); no later test asserts userB cannot see itemAOwnPrivate.
+    await dataContext.withDataContext(
+      { actorUserId: ids.userA, requestId: "request:share-setup" },
+      async (scopedDb) => {
+        await sql`
+          insert into app.shares
+            (resource_type, resource_id, owner_user_id, grantee_user_id, level)
+          values
+            ('rls_probe_item', ${ids.itemAOwnPrivate}::uuid, ${ids.userA}::uuid, ${ids.userB}::uuid, 'view')
+        `.execute(scopedDb.db);
+      }
+    );
+
+    const visibleToB = await dataContext.withDataContext(
+      { actorUserId: ids.userB, requestId: "request:user-b" },
+      (scopedDb) =>
+        scopedDb.db
+          .selectFrom("app.rls_probe_items")
+          .selectAll()
+          .where("id", "=", ids.itemAOwnPrivate)
+          .executeTakeFirst()
+    );
+
+    expect(visibleToB?.id).toBe(ids.itemAOwnPrivate);
+  });
+
   it("does not let an instance admin read another user's private row by role alone", async () => {
     const adminContext = await auth.resolveAccessContext(ids.sessionAdmin, "request:admin");
 
@@ -173,30 +218,14 @@ describe("MVP foundation scaffold", () => {
     expect(item).toBeUndefined();
   });
 
-  it("allows access through an explicit resource grant", async () => {
+  it("allows access through an app.shares view grant", async () => {
+    // itemBGrantedToA is owned by userB; a view share to userA was seeded in
+    // beforeAll — the new owner-or-share policy must honour it.
     const item = await dataContext.withDataContext(userAContext(), (scopedDb) =>
       repository.getById(scopedDb, ids.itemBGrantedToA)
     );
 
     expect(item?.id).toBe(ids.itemBGrantedToA);
-  });
-
-  it("allows workspace membership only for workspace-shared rows in the active workspace context", async () => {
-    const withoutWorkspace = await dataContext.withDataContext(userAContext(), (scopedDb) =>
-      repository.getById(scopedDb, ids.itemBWorkspaceShared)
-    );
-
-    const visibleIds = await dataContext.withDataContext(
-      {
-        ...userAContext(),
-        workspaceId: ids.workspaceAlpha
-      },
-      async (scopedDb) => (await repository.listVisible(scopedDb)).map((item) => item.id)
-    );
-
-    expect(withoutWorkspace).toBeUndefined();
-    expect(visibleIds).toContain(ids.itemBWorkspaceShared);
-    expect(visibleIds).not.toContain(ids.itemBWorkspacePrivate);
   });
 
   it("does not leak SET LOCAL identity across pooled requests", async () => {
@@ -247,21 +276,9 @@ describe("MVP foundation scaffold", () => {
     expect(jobId).toBeTypeOf("string");
     expect(result.targetItemVisible).toBe(false);
     expect(result.ownItemVisible).toBe(true);
+    // itemBGrantedToA is visible via an app.shares 'view' row seeded in beforeAll
     expect(result.grantedItemVisible).toBe(true);
-  });
-
-  it("allows workspace-scoped pg-boss jobs only for workspace-shared rows", async () => {
-    const resultPromise = handleNextProbeJob(workerBoss, ids.itemBWorkspaceShared);
-
-    await appBoss.send(RLS_PROBE_QUEUE, {
-      actorUserId: ids.userA,
-      workspaceId: ids.workspaceAlpha,
-      targetItemId: ids.itemBWorkspaceShared
-    } satisfies RlsProbeJobPayload);
-
-    const result = await resultPromise;
-
-    expect(result.targetItemVisible).toBe(true);
+    // itemBWorkspacePrivate has no share to userA — must remain invisible
     expect(result.workspacePrivateItemVisible).toBe(false);
   });
 
