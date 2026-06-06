@@ -10,15 +10,21 @@ Status: Active. This supersedes the alpha-era `docs/HANDOFF.md` (now historical)
 
 ## Next Step (start here)
 
-1. **Execute the Slice 1b plan** — it is written and ready at
-   `docs/superpowers/plans/2026-06-06-slice-1b-tasks-owner-or-share.md`. It converts the core RLS
-   probe + the Tasks module from workspace-visibility to **owner-or-share** (via `app.has_share`),
-   **RLS-substrate-only** (no API / `AccessContext` / column changes — those land in 1f). Execute
-   with `superpowers:subagent-driven-development` (Sonnet implementers, controller reviews spec
-   compliance + code quality between tasks, commit per task), then run a thermo-nuclear pass on the
-   diff before merging the slice.
-2. Read order before executing: the 1b plan → the spec
-   (`docs/superpowers/specs/2026-06-06-memory-data-model-design.md`) → `CLAUDE.md`.
+1. **Slice 1b is MERGED** (probe + Tasks on owner-or-share). **Next: execute Slice 1c (and 1d)** —
+   convert the remaining modules to owner-or-share. A combined **1c+1d plan** is being drafted off
+   the proven 1b template. Two hard lessons from 1b that the 1c/1d work MUST apply:
+   - **Cross-module migration coupling.** A module's RLS policies can be redefined by a _later_
+     migration owned by a _different_ module (in 1b, `packages/notes/sql/0007` redefined
+     `tasks_update` and — because modules migrate in registry order, not by version number — ran
+     _after_ `tasks/0019` and clobbered it). Before converting module X, grep all `packages/*/sql`
+     + `infra/postgres/migrations` for every later `CREATE POLICY <X>_*` and make the new
+     owner-or-share migration the final word (editing the offending later migration if needed).
+   - **Cross-cutting test fallout.** Converting a module breaks integration suites that read its
+     rows cross-user via the legacy model from _other_ files (1b broke `ai-tools.test.ts` and
+     `auth-settings.test.ts`, not just `tasks.test.ts`). Enumerate every suite that touches the
+     module before assuming the gate stays green.
+2. Read order: the spec (`docs/superpowers/specs/2026-06-06-memory-data-model-design.md`) →
+   `CLAUDE.md` → the 1b plan → the (forthcoming) combined 1c+1d plan.
 
 Do **not** start new product features. The work is bounded to the memory-foundation slices below.
 
@@ -60,13 +66,18 @@ full, reviewed design is in the spec; the headlines:
   `owner_user_id = app.current_actor_user_id()`, mirroring `app.has_resource_grant`). Full gate
   green: **127 integration tests / 13 files**. Plan:
   `docs/superpowers/plans/2026-06-06-shares-foundation.md`.
-- **Slice 1b — PLAN READY (not started):**
-  `docs/superpowers/plans/2026-06-06-slice-1b-tasks-owner-or-share.md`. Scope locked to RLS
-  substrate only (probe + Tasks policies → owner-or-share; no API / `AccessContext` / column
-  changes). Two new migrations: `0018_probe_owner_or_share.sql` (infra),
-  `0019_tasks_owner_or_share.sql` (tasks module).
-- **`main`:** `da496ef` (brand) → `c0bcff0` (Slice 1a) → `CLAUDE.md` → this handoff. Local and
-  `origin/main` in sync.
+- **Slice 1b — MERGED to `main`.** Probe (`0018_probe_owner_or_share.sql`, infra) + Tasks
+  (`0019_tasks_owner_or_share.sql`, tasks module) converted to owner-or-share via `app.has_share`;
+  full gate green (**127 tests / 13 files**). Commits: `cee6bad` (probe), `004ef65` (tasks + a
+  required edit to `packages/notes/sql/0007` — see caveats), `b55f36d` (ai-tools + auth-settings
+  test fallout). Plan: `docs/superpowers/plans/2026-06-06-slice-1b-tasks-owner-or-share.md`.
+  **Caveats:** (1) editing the already-applied `notes/0007` to drop its stale `tasks_update`
+  redefinition changes that migration's checksum — any pre-1b DB must `pnpm db:down && pnpm db:up`
+  (fresh CI is unaffected); (2) `app.resource_grants` is now **inert for tasks** (and the probe) —
+  the admin resource-grants API still records grants but they confer no task access; the dead
+  helpers/columns/API path are retired in Slice 1f.
+- **`main`:** `da496ef` (brand) → `c0bcff0` (Slice 1a) → `CLAUDE.md` → handoff → Slice 1b merge.
+  Local and `origin/main` were in sync through 1a (1b merged locally; push when ready).
 - **Obsidian vault:** prior-iteration Jarvis notes archived to `4 Archives/Jarvis-alpha` (1,110
   files). Active `2 Areas/Jarvis/Specs/` mirrors the current-iteration design docs + both slice
   plans (git is canonical; vault copies are for remote review).
@@ -76,9 +87,9 @@ full, reviewed design is in the spec; the headlines:
 **Slice 1 — workspace → shares teardown** (full teardown; keep all modules). Sub-plans:
 
 1. ✅ **1a Shares foundation** — `app.shares` + `app.has_share` + types + repository. **MERGED (PR #1).**
-2. ⏭️ **1b** — convert core RLS probe + **Tasks** to owner-or-share. **Plan ready; next to execute.**
-3. **1c** — convert Notifications, Connectors, Calendar, Email.
-4. **1d** — convert AI (assistant action requests), Chat, Briefings.
+2. ✅ **1b Probe + Tasks → owner-or-share** — migrations `0018`/`0019`. **MERGED to `main`.**
+3. ⏭️ **1c** — convert Notifications, Connectors, Calendar, Email. **Next (combined 1c+1d plan in progress).**
+4. **1d** — convert AI (assistant action requests), Chat, Briefings. **Batched with 1c.**
 5. **1e** — remove the **Notes** module entirely.
 6. **1f** — drop workspace tables + legacy functions; remove `workspace_id` from `AccessContext`,
    the auth resolver, and the web `x-jarvis-workspace-id` header; retire Settings
