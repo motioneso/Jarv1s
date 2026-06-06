@@ -7,6 +7,7 @@ import { createApiServer } from "../../apps/api/src/server.js";
 import {
   AuthSessionResolver,
   DataContextRunner,
+  SharesRepository,
   createDatabase,
   type AccessContext,
   type JarvisDatabase
@@ -30,13 +31,7 @@ const { Client } = pg;
 
 const taskIds = {
   aPrivate: "30000000-0000-4000-8000-000000000001",
-  bPrivate: "30000000-0000-4000-8000-000000000002",
-  bGrantedToA: "30000000-0000-4000-8000-000000000003",
-  bWorkspaceShared: "30000000-0000-4000-8000-000000000004"
-} as const;
-
-const activityIds = {
-  bPrivate: "31000000-0000-4000-8000-000000000001"
+  bPrivate: "30000000-0000-4000-8000-000000000002"
 } as const;
 
 describe("Tasks module M1", () => {
@@ -45,6 +40,7 @@ describe("Tasks module M1", () => {
   let auth: AuthSessionResolver;
   let dataContext: DataContextRunner;
   let repository: TasksRepository;
+  let sharesRepository: SharesRepository;
   let appBoss: PgBoss;
   let workerBoss: PgBoss;
   let server: ReturnType<typeof createApiServer>;
@@ -64,6 +60,7 @@ describe("Tasks module M1", () => {
     auth = new AuthSessionResolver(appDb);
     dataContext = new DataContextRunner(appDb);
     repository = new TasksRepository();
+    sharesRepository = new SharesRepository();
     appBoss = createPgBossClient(connectionStrings.app);
     workerBoss = createPgBossClient(connectionStrings.worker);
 
@@ -229,50 +226,107 @@ describe("Tasks module M1", () => {
     expect(task).toBeUndefined();
   });
 
-  it("allows task access through an explicit resource grant", async () => {
+  it("allows task read through a view share", async () => {
     const task = await dataContext.withDataContext(userAContext(), (scopedDb) =>
-      repository.getById(scopedDb, taskIds.bGrantedToA)
+      repository.create(scopedDb, { title: "Shared with B" })
+    );
+    await dataContext.withDataContext(userAContext(), (scopedDb) =>
+      sharesRepository.grant(scopedDb, {
+        resourceType: "task",
+        resourceId: task.id,
+        ownerUserId: ids.userA,
+        granteeUserId: ids.userB,
+        level: "view"
+      })
+    );
+    const visibleToB = await dataContext.withDataContext(userBContext(), (scopedDb) =>
+      repository.getById(scopedDb, task.id)
     );
 
-    expect(task?.id).toBe(taskIds.bGrantedToA);
+    expect(visibleToB?.id).toBe(task.id);
   });
 
-  it("allows workspace-visible task access only in active member workspace context", async () => {
-    const withoutWorkspace = await dataContext.withDataContext(userAContext(), (scopedDb) =>
-      repository.getById(scopedDb, taskIds.bWorkspaceShared)
+  it("does not let a view-share grantee update the task", async () => {
+    const task = await dataContext.withDataContext(userAContext(), (scopedDb) =>
+      repository.create(scopedDb, { title: "View-only for B" })
     );
-    const wrongWorkspace = await dataContext.withDataContext(
-      userAContext("20000000-0000-4000-8000-000000000999"),
-      (scopedDb) => repository.getById(scopedDb, taskIds.bWorkspaceShared)
+    await dataContext.withDataContext(userAContext(), (scopedDb) =>
+      sharesRepository.grant(scopedDb, {
+        resourceType: "task",
+        resourceId: task.id,
+        ownerUserId: ids.userA,
+        granteeUserId: ids.userB,
+        level: "view"
+      })
     );
-    const withWorkspace = await dataContext.withDataContext(
-      userAContext(ids.workspaceAlpha),
-      (scopedDb) => repository.getById(scopedDb, taskIds.bWorkspaceShared)
+    const updated = await dataContext.withDataContext(userBContext(), (scopedDb) =>
+      repository.update(scopedDb, task.id, { title: "hijacked" })
     );
 
-    expect(withoutWorkspace).toBeUndefined();
-    expect(wrongWorkspace).toBeUndefined();
-    expect(withWorkspace?.id).toBe(taskIds.bWorkspaceShared);
+    expect(updated).toBeUndefined(); // RLS hides the row from UPDATE for a view-only grantee
   });
 
-  it("keeps task activity governed by parent task visibility and active actor context", async () => {
-    const leakedActivity = await dataContext.withDataContext(userAContext(), (scopedDb) =>
-      repository.listActivity(scopedDb, taskIds.bPrivate)
+  it("lets a manage-share grantee update the task", async () => {
+    const task = await dataContext.withDataContext(userAContext(), (scopedDb) =>
+      repository.create(scopedDb, { title: "Managed by B" })
     );
-    const visibleToOwner = await dataContext.withDataContext(userBContext(), (scopedDb) =>
-      repository.listActivity(scopedDb, taskIds.bPrivate)
+    await dataContext.withDataContext(userAContext(), (scopedDb) =>
+      sharesRepository.grant(scopedDb, {
+        resourceType: "task",
+        resourceId: task.id,
+        ownerUserId: ids.userA,
+        granteeUserId: ids.userB,
+        level: "manage"
+      })
     );
-    const activityWrittenByContext = await dataContext.withDataContext(userAContext(), (scopedDb) =>
-      repository.addActivity(scopedDb, taskIds.aPrivate, {
+    const updated = await dataContext.withDataContext(userBContext(), (scopedDb) =>
+      repository.update(scopedDb, task.id, { title: "Managed title" })
+    );
+
+    expect(updated?.title).toBe("Managed title");
+  });
+
+  it("keeps task activity governed by parent task visibility via owner-or-share inheritance", async () => {
+    // userA creates a task and adds activity to it
+    const task = await dataContext.withDataContext(userAContext(), (scopedDb) =>
+      repository.create(scopedDb, { title: "Activity inheritance test task" })
+    );
+    const activity = await dataContext.withDataContext(userAContext(), (scopedDb) =>
+      repository.addActivity(scopedDb, task.id, {
         activityType: "comment",
-        body: "A scoped activity"
+        body: "Activity on shared task"
       })
     );
 
-    expect(leakedActivity).toEqual([]);
-    expect(visibleToOwner).toHaveLength(1);
-    expect(visibleToOwner[0]?.body).toBe("B private activity");
-    expect(activityWrittenByContext.actor_user_id).toBe(ids.userA);
+    // Share the task 'view' to userB
+    await dataContext.withDataContext(userAContext(), (scopedDb) =>
+      sharesRepository.grant(scopedDb, {
+        resourceType: "task",
+        resourceId: task.id,
+        ownerUserId: ids.userA,
+        granteeUserId: ids.userB,
+        level: "view"
+      })
+    );
+
+    // userB can read the activity (inherits task visibility through task_activity_select EXISTS)
+    const visibleToB = await dataContext.withDataContext(userBContext(), (scopedDb) =>
+      repository.listActivity(scopedDb, task.id)
+    );
+
+    // adminUser has no share — cannot read the activity
+    const adminContext = {
+      actorUserId: ids.adminUser,
+      requestId: "request:tasks-test"
+    };
+    const notVisibleToAdmin = await dataContext.withDataContext(adminContext, (scopedDb) =>
+      repository.listActivity(scopedDb, task.id)
+    );
+
+    expect(activity.actor_user_id).toBe(ids.userA);
+    expect(visibleToB).toHaveLength(1);
+    expect(visibleToB[0]?.body).toBe("Activity on shared task");
+    expect(notVisibleToAdmin).toEqual([]);
   });
 
   it("serves Tasks API routes from session-derived context without accepting client owner fields", async () => {
@@ -479,33 +533,9 @@ async function seedTaskData(): Promise<void> {
         INSERT INTO app.tasks (id, owner_user_id, workspace_id, visibility, title, description, status)
         VALUES
           ($1, $2, null, 'private', 'User A seeded private task', 'A private description', 'todo'),
-          ($3, $4, null, 'private', 'User B seeded private task', 'B private description', 'todo'),
-          ($5, $4, null, 'private', 'User B granted task', 'B granted description', 'todo'),
-          ($6, $4, $7, 'workspace', 'User B workspace task', 'B workspace description', 'todo')
+          ($3, $4, null, 'private', 'User B seeded private task', 'B private description', 'todo')
       `,
-      [
-        taskIds.aPrivate,
-        ids.userA,
-        taskIds.bPrivate,
-        ids.userB,
-        taskIds.bGrantedToA,
-        taskIds.bWorkspaceShared,
-        ids.workspaceAlpha
-      ]
-    );
-    await client.query(
-      `
-        INSERT INTO app.resource_grants (resource_type, resource_id, grantee_user_id, grant_level)
-        VALUES ('task', $1, $2, 'view')
-      `,
-      [taskIds.bGrantedToA, ids.userA]
-    );
-    await client.query(
-      `
-        INSERT INTO app.task_activity (id, task_id, actor_user_id, activity_type, body)
-        VALUES ($1, $2, $3, 'comment', 'B private activity')
-      `,
-      [activityIds.bPrivate, taskIds.bPrivate, ids.userB]
+      [taskIds.aPrivate, ids.userA, taskIds.bPrivate, ids.userB]
     );
     await client.query("COMMIT");
   } catch (error) {
