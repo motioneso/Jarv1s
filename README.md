@@ -37,6 +37,8 @@ Read these in order:
 - [Foundation architecture](docs/architecture/decisions/0001-foundation.md)
 - [Maintenance/system posture](docs/architecture/decisions/0002-maintenance-system-posture.md)
 - [Development standards](docs/DEVELOPMENT_STANDARDS.md)
+- [Brand brief](docs/brand/brand-brief.md)
+- [Brand questionnaire](docs/brand/brand-questionnaire.md)
 - [Auth/RLS safety spike](docs/architecture/spikes/0001-auth-rls-safety.md)
 - [pg-boss worker RLS spike](docs/architecture/spikes/0002-pg-boss-worker-rls.md)
 - [MVP foundation scaffold plan](docs/architecture/plans/0001-mvp-foundation-scaffold.md)
