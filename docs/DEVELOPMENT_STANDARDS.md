@@ -31,6 +31,40 @@ pnpm typecheck
 
 `pnpm verify:foundation` includes these checks before migrations and integration tests.
 
+## Agent Knowledge Tools
+
+Agents working in this repository should keep project knowledge current while they work.
+
+Use CodeGraph for codebase navigation before making architectural claims or changing unfamiliar
+flows:
+
+```txt
+codegraph status .
+codegraph sync .
+```
+
+The CodeGraph index is local cache state and lives under `.codegraph/`, which is intentionally
+ignored by git. Do not commit CodeGraph database files. Run `codegraph sync .` after pulling changes
+or after making meaningful code edits so later agent queries see the current shape of the repo.
+
+Prefer CodeGraph MCP queries for:
+
+- understanding how a symbol, route, repository, module, or worker flow fits together
+- tracing callers/callees before refactors
+- checking impact before changing shared helpers, contracts, manifests, or data-context code
+- answering architecture questions that depend on current source code
+
+Use agentmemory for durable session knowledge that should survive beyond one chat:
+
+- save decisions that affect future implementation choices
+- save architectural invariants that were clarified during the session
+- save lessons from debugging, verification failures, or release-hardening work
+- recall prior sessions before continuing old work, reviewing why code exists, or resuming a plan
+
+Do not save secrets, tokens, private user data, raw connector payloads, prompts containing private
+content, or environment-specific credentials into agentmemory. Keep memory entries concise and tied
+to stable project concepts or file paths.
+
 ## Structural Standard
 
 Be ambitious about simplification. Look for restructurings that preserve behavior while making the implementation dramatically smaller, more direct, and more obvious.

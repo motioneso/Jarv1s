@@ -63,6 +63,8 @@ Keep these invariants intact:
 - Models/tools do not get direct database, provider-client, or secret access.
 - Preserve Fastify REST route schemas/shared contracts unless a later milestone proves a stronger
   need.
+- Follow the CodeGraph and agentmemory usage rules in
+  [Development standards](docs/DEVELOPMENT_STANDARDS.md#agent-knowledge-tools).
 
 ## Local Verification
 
