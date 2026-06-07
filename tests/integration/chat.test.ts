@@ -144,7 +144,8 @@ describe("Chat module M6 thin slice", () => {
       "email",
       "ai",
       "chat",
-      "briefings"
+      "briefings",
+      "memory"
     ]);
     expect(manifest?.database?.ownedTables).toEqual(["app.chat_threads", "app.chat_messages"]);
     expect(manifest?.navigation?.[0]).toMatchObject({
@@ -153,7 +154,7 @@ describe("Chat module M6 thin slice", () => {
       permissionId: "chat.view"
     });
     expect(registration?.queueDefinitions).toEqual([]);
-    expect(getBuiltInSqlMigrationDirectories().at(-2)).toContain("packages/chat/sql");
+    expect(getBuiltInSqlMigrationDirectories().at(-3)).toContain("packages/chat/sql");
   });
 
   it("keeps chat threads private by default and denies admin private-data bypass", async () => {

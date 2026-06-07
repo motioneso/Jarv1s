@@ -154,7 +154,8 @@ describe("AI provider foundation", () => {
       "email",
       "ai",
       "chat",
-      "briefings"
+      "briefings",
+      "memory"
     ]);
     expect(manifest?.database?.ownedTables).toEqual([
       "app.ai_provider_configs",

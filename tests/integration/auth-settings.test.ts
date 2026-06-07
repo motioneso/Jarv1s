@@ -181,7 +181,8 @@ describe("M3 auth, users, workspaces, settings", () => {
       "email",
       "ai",
       "chat",
-      "briefings"
+      "briefings",
+      "memory"
     ]);
     expect(modules.flatMap((module) => module.navigation).map((entry) => entry.path)).toEqual([
       "/settings",

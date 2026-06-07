@@ -181,7 +181,8 @@ describe("Briefings module M6 read-only scheduled summaries", () => {
       "email",
       "ai",
       "chat",
-      "briefings"
+      "briefings",
+      "memory"
     ]);
     expect(registration?.manifest.database?.ownedTables).toEqual([
       "app.briefing_definitions",
@@ -200,7 +201,8 @@ describe("Briefings module M6 read-only scheduled summaries", () => {
     expect(registration?.queueDefinitions.map((queue) => queue.name)).toEqual([
       BRIEFINGS_RUN_QUEUE
     ]);
-    expect(getBuiltInSqlMigrationDirectories().at(-1)).toContain("packages/briefings/sql");
+    expect(getBuiltInSqlMigrationDirectories().at(-1)).toContain("packages/memory/sql");
+    expect(getBuiltInSqlMigrationDirectories().at(-2)).toContain("packages/briefings/sql");
   });
 
   it("keeps definitions private by default and denies admin private-data bypass", async () => {
