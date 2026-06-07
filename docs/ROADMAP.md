@@ -11,7 +11,7 @@ actual notes, then turn it into focusing briefings and a wellness loop.
 
 | Milestone | Goal | Exit condition | Status |
 | --- | --- | --- | --- |
-| **M-A1** · Real embeddings + live vault ingestion | Swap StubEmbeddingProvider for a real LocalEmbeddingProvider; ingest real Obsidian vault | Semantic search over notes returns real hits | Not started |
+| **M-A1** · Real embeddings + live vault ingestion | Swap StubEmbeddingProvider for a real LocalEmbeddingProvider; ingest real Obsidian vault | Semantic search over notes returns real hits | **In progress** |
 | **M-A2** · Surface the substrate (REST + UI) | REST APIs + web shell views for structured-state and vault search | I can see my commitments and search my notes in the UI | Not started |
 | **M-A3** · Real AI provider calls | Capability router actually calls a configured provider (Claude, BYO) | Chat returns real responses; no provider hardcoded | Not started |
 | **M-A4** · Vault-grounded daily briefings | Wire MemoryRetriever + commitments + real AI into Briefings; activate recurring schedule | Daily briefing runs automatically and is genuinely useful | Not started |
