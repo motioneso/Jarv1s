@@ -41,6 +41,7 @@
     "test:notes": "vitest run tests/integration/notes.test.ts",
     "test:notifications": "vitest run tests/integration/notifications.test.ts",
     "test:tasks": "vitest run tests/integration/tasks.test.ts",
+    "test:memory": "vitest run tests/integration/memory.test.ts",
     "test:vault": "vitest run tests/integration/vault.test.ts",
     "spike:db:up": "docker compose -f spikes/auth-rls-safety/docker-compose.yml up -d --wait",
     "spike:db:down": "docker compose -f spikes/auth-rls-safety/docker-compose.yml down -v",
