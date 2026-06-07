@@ -14,7 +14,7 @@ This is M1. The existing foundation scaffold is M0. Do not expand this into the 
 Read these before implementation:
 
 - `docs/HANDOFF.md`
-- `docs/HANDOFF_TASKS_M1.md`
+- `docs/archive/HANDOFF_TASKS_M1.md`
 - `docs/architecture/decisions/0001-foundation.md`
 - `docs/architecture/decisions/0002-maintenance-system-posture.md`
 - `docs/architecture/plans/0001-mvp-foundation-scaffold.md`

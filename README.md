@@ -47,7 +47,7 @@ Read these in order:
 - [Platform-first alpha roadmap](docs/architecture/plans/0003-platform-first-alpha-roadmap.md)
 - [M7 operations verification plan](docs/architecture/plans/0004-m7-operations-verification-plan.md)
 - [Session handoff](docs/HANDOFF.md)
-- [Tasks M1 handoff](docs/HANDOFF_TASKS_M1.md)
+- [Tasks M1 handoff (archived)](docs/archive/HANDOFF_TASKS_M1.md)
 
 The active continuation point is in [Session handoff](docs/HANDOFF.md), especially the
 `Next Step`, `Open Questions`, and `Review Notes For Next Agent` sections. The next work should stay
