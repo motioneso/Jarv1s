@@ -71,6 +71,10 @@ export default defineConfig({
       {
         find: "@jarv1s/vault",
         replacement: fileURLToPath(new URL("./packages/vault/src/index.ts", import.meta.url))
+      },
+      {
+        find: "@jarv1s/structured-state",
+        replacement: fileURLToPath(new URL("./packages/structured-state/src/index.ts", import.meta.url))
       }
     ]
   },

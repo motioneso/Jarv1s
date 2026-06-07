@@ -402,6 +402,21 @@ importers:
 
   packages/shared: {}
 
+  packages/structured-state:
+    dependencies:
+      '@jarv1s/db':
+        specifier: workspace:*
+        version: link:../db
+      '@jarv1s/module-sdk':
+        specifier: workspace:*
+        version: link:../module-sdk
+      '@jarv1s/vault':
+        specifier: workspace:*
+        version: link:../vault
+      kysely:
+        specifier: ^0.29.2
+        version: 0.29.2
+
   packages/tasks:
     dependencies:
       '@jarv1s/db':
