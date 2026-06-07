@@ -13,7 +13,12 @@ import {
   type JarvisDatabase
 } from "@jarv1s/db";
 import { VaultContextRunner, writeVaultFile } from "@jarv1s/vault";
-import { MemoryRepository, StubEmbeddingProvider, parseDocument } from "@jarv1s/memory";
+import {
+  MemoryIngestPipeline,
+  MemoryRepository,
+  StubEmbeddingProvider,
+  parseDocument
+} from "@jarv1s/memory";
 import { connectionStrings, resetEmptyFoundationDatabase } from "./test-database.js";
 
 const { Client } = pg;
@@ -262,6 +267,130 @@ describe("MemoryRepository", () => {
         SELECT to_path FROM app.memory_links WHERE from_path = ${fromPath}
       `.execute(scopedDb.db);
       expect(updated.rows.map((r) => r.to_path)).toEqual(["Charlie"]);
+    });
+  });
+});
+
+// ── MemoryIngestPipeline ──────────────────────────────────────────────────────
+
+describe("MemoryIngestPipeline", () => {
+  const repo = new MemoryRepository();
+  const provider = new StubEmbeddingProvider();
+  const pipeline = new MemoryIngestPipeline(provider, repo);
+
+  it("ingestFile produces memory_chunks for each parsed chunk", async () => {
+    const filePath = "notes/ingest-test-1.md";
+    const content = `## Overview\n\nThis is the overview.\n\n## Details\n\nThis is the details section.`;
+
+    await vaultRunner.withVaultContext(ctx(userId), async (vaultCtx) => {
+      await writeVaultFile(vaultCtx, filePath, content);
+      await dataContext.withDataContext(ctx(userId), async (scopedDb) => {
+        await pipeline.ingestFile(scopedDb, vaultCtx, filePath);
+        const result = await sql<{ count: string }>`
+          SELECT count(*)::text FROM app.memory_chunks
+          WHERE owner_user_id = ${userId}::uuid AND source_path = ${filePath}
+        `.execute(scopedDb.db);
+        expect(Number(result.rows[0]?.count)).toBeGreaterThan(0);
+      });
+    });
+  });
+
+  it("ingestFile stores wikilinks in memory_links", async () => {
+    const filePath = "notes/ingest-links.md";
+    const content = `# Link Test\n\nSee [[Alice]] and [[Bob]].`;
+
+    await vaultRunner.withVaultContext(ctx(userId), async (vaultCtx) => {
+      await writeVaultFile(vaultCtx, filePath, content);
+      await dataContext.withDataContext(ctx(userId), async (scopedDb) => {
+        await pipeline.ingestFile(scopedDb, vaultCtx, filePath);
+        const result = await sql<{ to_path: string }>`
+          SELECT to_path FROM app.memory_links
+          WHERE owner_user_id = ${userId}::uuid AND from_path = ${filePath}
+          ORDER BY to_path
+        `.execute(scopedDb.db);
+        expect(result.rows.map((r) => r.to_path)).toEqual(["Alice", "Bob"]);
+      });
+    });
+  });
+
+  it("re-ingesting an edited file replaces old chunks with new ones", async () => {
+    const filePath = "notes/ingest-edit.md";
+    const original = `## Original\n\nOriginal content.`;
+    const revised = `## Revised\n\nRevised content.`;
+
+    await vaultRunner.withVaultContext(ctx(userId), async (vaultCtx) => {
+      await writeVaultFile(vaultCtx, filePath, original);
+      await dataContext.withDataContext(ctx(userId), async (scopedDb) => {
+        await pipeline.ingestFile(scopedDb, vaultCtx, filePath);
+      });
+
+      await writeVaultFile(vaultCtx, filePath, revised);
+      await dataContext.withDataContext(ctx(userId), async (scopedDb) => {
+        await pipeline.ingestFile(scopedDb, vaultCtx, filePath);
+        const result = await sql<{ text: string }>`
+          SELECT text FROM app.memory_chunks
+          WHERE owner_user_id = ${userId}::uuid AND source_path = ${filePath}
+        `.execute(scopedDb.db);
+        expect(result.rows.some((r) => r.text.includes("Revised content."))).toBe(true);
+        expect(result.rows.every((r) => !r.text.includes("Original content."))).toBe(true);
+      });
+    });
+  });
+
+  it("deleteFile removes all chunks and links for the path", async () => {
+    const filePath = "notes/ingest-delete.md";
+    const content = `# Delete Test\n\nSome content with [[Link]].`;
+
+    await vaultRunner.withVaultContext(ctx(userId), async (vaultCtx) => {
+      await writeVaultFile(vaultCtx, filePath, content);
+      await dataContext.withDataContext(ctx(userId), async (scopedDb) => {
+        await pipeline.ingestFile(scopedDb, vaultCtx, filePath);
+        await pipeline.deleteFile(scopedDb, userId, filePath);
+        const chunks = await sql<{ id: string }>`
+          SELECT id FROM app.memory_chunks
+          WHERE owner_user_id = ${userId}::uuid AND source_path = ${filePath}
+        `.execute(scopedDb.db);
+        const links = await sql<{ id: string }>`
+          SELECT id FROM app.memory_links
+          WHERE owner_user_id = ${userId}::uuid AND from_path = ${filePath}
+        `.execute(scopedDb.db);
+        expect(chunks.rows).toHaveLength(0);
+        expect(links.rows).toHaveLength(0);
+      });
+    });
+  });
+
+  it("rebuildFromVault clears old index and re-indexes all .md files in the vault", async () => {
+    // Use a separate user so we don't pollute other tests
+    const rebuildUserId = "00000000-0000-4000-8000-000000000014";
+    const rebuildClient = new Client({ connectionString: connectionStrings.bootstrap });
+    await rebuildClient.connect();
+    try {
+      await rebuildClient.query(
+        `INSERT INTO app.users (id, email, is_instance_admin) VALUES ($1, 'memory-rebuild@example.test', false)`,
+        [rebuildUserId]
+      );
+    } finally {
+      await rebuildClient.end();
+    }
+
+    await vaultRunner.withVaultContext(ctx(rebuildUserId), async (vaultCtx) => {
+      await writeVaultFile(vaultCtx, "notes/file-a.md", `## A\n\nContent A.`);
+      await writeVaultFile(vaultCtx, "notes/file-b.md", `## B\n\nContent B.`);
+      await writeVaultFile(vaultCtx, "notes/ignored.txt", "not markdown");
+
+      await dataContext.withDataContext(ctx(rebuildUserId), async (scopedDb) => {
+        await pipeline.rebuildFromVault(scopedDb, vaultCtx);
+        const result = await sql<{ source_path: string }>`
+          SELECT DISTINCT source_path FROM app.memory_chunks
+          WHERE owner_user_id = ${rebuildUserId}::uuid
+          ORDER BY source_path
+        `.execute(scopedDb.db);
+        const paths = result.rows.map((r) => r.source_path);
+        expect(paths).toContain("notes/file-a.md");
+        expect(paths).toContain("notes/file-b.md");
+        expect(paths).not.toContain("notes/ignored.txt");
+      });
     });
   });
 });
