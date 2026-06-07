@@ -3,6 +3,7 @@ import type { Kysely } from "kysely";
 import type { PgBoss } from "pg-boss";
 
 import { aiModuleManifest, aiModuleSqlMigrationDirectory, registerAiRoutes } from "@jarv1s/ai";
+import { memoryModuleManifest, memorySqlMigrationDirectory } from "@jarv1s/memory";
 import {
   BRIEFINGS_QUEUE_DEFINITIONS,
   briefingsModuleManifest,
@@ -134,6 +135,11 @@ const BUILT_IN_MODULES: readonly BuiltInModuleRegistration[] = [
       registerBriefingsJobWorkers(boss, dependencies.dataContext, {
         moduleManifests: getBuiltInModuleManifests()
       })
+  },
+  {
+    manifest: memoryModuleManifest,
+    sqlMigrationDirectories: [memorySqlMigrationDirectory],
+    queueDefinitions: []
   }
 ];
 

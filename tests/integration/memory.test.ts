@@ -1,9 +1,9 @@
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { type Kysely } from "kysely";
+import { sql, type Kysely } from "kysely";
 import pg from "pg";
 
 import {
@@ -13,7 +13,7 @@ import {
   type JarvisDatabase
 } from "@jarv1s/db";
 import { VaultContextRunner, writeVaultFile } from "@jarv1s/vault";
-import { StubEmbeddingProvider, parseDocument } from "@jarv1s/memory";
+import { MemoryRepository, StubEmbeddingProvider, parseDocument } from "@jarv1s/memory";
 import { connectionStrings, resetEmptyFoundationDatabase } from "./test-database.js";
 
 const { Client } = pg;
@@ -127,3 +127,141 @@ afterAll(async () => {
 
 // ── MemoryRepository, MemoryIngestPipeline, MemoryRetriever tests follow below ──
 // (added in Tasks 5–7)
+
+// ── MemoryRepository ──────────────────────────────────────────────────────────
+
+describe("MemoryRepository", () => {
+  const repo = new MemoryRepository();
+  const provider = new StubEmbeddingProvider();
+
+  async function makeChunks(
+    sourcePath: string,
+    texts: string[]
+  ): Promise<
+    Array<{
+      sourcePath: string;
+      lineStart: number;
+      lineEnd: number;
+      contentHash: string;
+      text: string;
+      embedding: number[];
+    }>
+  > {
+    return Promise.all(
+      texts.map(async (text, i) => ({
+        sourcePath,
+        lineStart: i * 10,
+        lineEnd: i * 10 + 5,
+        contentHash: Buffer.from(text).toString("hex"),
+        text,
+        embedding: await provider.embed(text)
+      }))
+    );
+  }
+
+  it("upsertFileChunks inserts chunks visible to the owner", async () => {
+    const path = "notes/repo-test-1.md";
+    const chunks = await makeChunks(path, ["Chunk one text", "Chunk two text"]);
+    await dataContext.withDataContext(ctx(userId), async (scopedDb) => {
+      await repo.upsertFileChunks(scopedDb, userId, path, chunks);
+      const stored = await sql<{ text: string }>`
+        SELECT text FROM app.memory_chunks
+        WHERE source_path = ${path}
+        ORDER BY line_start
+      `.execute(scopedDb.db);
+      expect(stored.rows.map((r) => r.text)).toEqual(["Chunk one text", "Chunk two text"]);
+    });
+  });
+
+  it("upsertFileChunks replaces all existing chunks for the path", async () => {
+    const path = "notes/repo-test-2.md";
+    const firstChunks = await makeChunks(path, ["Old content"]);
+    const newChunks = await makeChunks(path, ["New content A", "New content B"]);
+
+    await dataContext.withDataContext(ctx(userId), async (scopedDb) => {
+      await repo.upsertFileChunks(scopedDb, userId, path, firstChunks);
+      await repo.upsertFileChunks(scopedDb, userId, path, newChunks);
+      const stored = await sql<{ text: string }>`
+        SELECT text FROM app.memory_chunks WHERE source_path = ${path} ORDER BY line_start
+      `.execute(scopedDb.db);
+      expect(stored.rows.map((r) => r.text)).toEqual(["New content A", "New content B"]);
+    });
+  });
+
+  it("vectorSearch returns chunks ranked by similarity (owner-scoped)", async () => {
+    const path = "notes/repo-test-3.md";
+    const chunks = await makeChunks(path, ["The quick brown fox"]);
+    await dataContext.withDataContext(ctx(userId), async (scopedDb) => {
+      await repo.upsertFileChunks(scopedDb, userId, path, chunks);
+    });
+
+    const queryVec = await provider.embed("The quick brown fox");
+    const results = await dataContext.withDataContext(ctx(userId), async (scopedDb) =>
+      repo.vectorSearch(scopedDb, queryVec, 10)
+    );
+    expect(results.some((r) => r.sourcePath === path)).toBe(true);
+
+    // Other user sees no results
+    const otherResults = await dataContext.withDataContext(ctx(otherUserId), async (scopedDb) =>
+      repo.vectorSearch(scopedDb, queryVec, 10)
+    );
+    expect(otherResults.every((r) => r.sourcePath !== path)).toBe(true);
+  });
+
+  it("deleteFileChunks removes all chunks for a path", async () => {
+    const path = "notes/repo-test-4.md";
+    const chunks = await makeChunks(path, ["To be deleted"]);
+    await dataContext.withDataContext(ctx(userId), async (scopedDb) => {
+      await repo.upsertFileChunks(scopedDb, userId, path, chunks);
+      await repo.deleteFileChunks(scopedDb, userId, path);
+      const stored = await sql<{ id: string }>`
+        SELECT id FROM app.memory_chunks WHERE source_path = ${path}
+      `.execute(scopedDb.db);
+      expect(stored.rows).toHaveLength(0);
+    });
+  });
+
+  it("deleteAllForUser removes all chunks for the user", async () => {
+    const path = "notes/repo-test-5.md";
+    const chunks = await makeChunks(path, ["User data"]);
+    // Use a fresh user so we don't interfere with other tests
+    const freshUserId = "00000000-0000-4000-8000-000000000013";
+    const freshClient = new Client({ connectionString: connectionStrings.bootstrap });
+    await freshClient.connect();
+    try {
+      await freshClient.query(
+        `INSERT INTO app.users (id, email, is_instance_admin) VALUES ($1, 'memory-fresh@example.test', false)`,
+        [freshUserId]
+      );
+    } finally {
+      await freshClient.end();
+    }
+
+    await dataContext.withDataContext(ctx(freshUserId), async (scopedDb) => {
+      await repo.upsertFileChunks(scopedDb, freshUserId, path, chunks);
+      await repo.deleteAllForUser(scopedDb, freshUserId);
+      const stored = await sql<{ id: string }>`
+        SELECT id FROM app.memory_chunks WHERE owner_user_id = ${freshUserId}::uuid
+      `.execute(scopedDb.db);
+      expect(stored.rows).toHaveLength(0);
+    });
+  });
+
+  it("replaceFileLinks upserts wikilinks for a path", async () => {
+    const fromPath = "notes/repo-links.md";
+    await dataContext.withDataContext(ctx(userId), async (scopedDb) => {
+      await repo.replaceFileLinks(scopedDb, userId, fromPath, ["Alice", "Bob"]);
+      const stored = await sql<{ to_path: string }>`
+        SELECT to_path FROM app.memory_links WHERE from_path = ${fromPath} ORDER BY to_path
+      `.execute(scopedDb.db);
+      expect(stored.rows.map((r) => r.to_path)).toEqual(["Alice", "Bob"].sort());
+
+      // Replacing with a new set removes old links
+      await repo.replaceFileLinks(scopedDb, userId, fromPath, ["Charlie"]);
+      const updated = await sql<{ to_path: string }>`
+        SELECT to_path FROM app.memory_links WHERE from_path = ${fromPath}
+      `.execute(scopedDb.db);
+      expect(updated.rows.map((r) => r.to_path)).toEqual(["Charlie"]);
+    });
+  });
+});

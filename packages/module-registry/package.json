@@ -18,6 +18,7 @@
     "@jarv1s/db": "workspace:*",
     "@jarv1s/email": "workspace:*",
     "@jarv1s/jobs": "workspace:*",
+    "@jarv1s/memory": "workspace:*",
     "@jarv1s/module-sdk": "workspace:*",
     "@jarv1s/notifications": "workspace:*",
     "@jarv1s/settings": "workspace:*",
