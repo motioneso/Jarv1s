@@ -10,34 +10,44 @@ Status: Active. This supersedes the alpha-era `docs/HANDOFF.md` (now historical)
 
 ## Next Step (start here)
 
-1. **Slice 1b is MERGED** (probe + Tasks on owner-or-share). **Next: execute the `slice-1c-core`
-   plan** — `docs/superpowers/plans/2026-06-06-slice-1c-core-calendar-email-connectors-ai.md`
-   (ready). It converts the four no-design-risk modules: **calendar** + **email** → owner-or-share,
-   and **connectors** + **ai** → plain owner-only (they hold encrypted credentials and are
-   deliberately NOT shareable — the audit confirmed `ai_provider_configs` / `ai_configured_models`
-   need no migration at all; only `ai_assistant_action_requests` INSERT does). Execute with
-   `superpowers:subagent-driven-development`.
-   **Still to be planned** (separate `slice-1c-1d-structural` plan, **NOT yet written**):
-   **notifications** (no `owner_user_id` — owner is `recipient_user_id`; workspace notifications have
-   no owner at all), **chat**, **briefings** (first-class workspace-visibility with child tables
-   `chat_messages` / `briefing_runs` that must inherit a parent-level share via an RLS-filtered
-   EXISTS; briefings also has `jarvis_worker_runtime` grants to preserve). Brainstorm the
-   notification redesign before planning those.
-   Two hard lessons from 1b that the 1c/1d work MUST apply:
-   - **Cross-module migration coupling.** A module's RLS policies can be redefined by a _later_
-     migration owned by a _different_ module (in 1b, `packages/notes/sql/0007` redefined
-     `tasks_update` and — because modules migrate in registry order, not by version number — ran
-     _after_ `tasks/0019` and clobbered it). Before converting module X, grep all `packages/*/sql`
-     + `infra/postgres/migrations` for every later `CREATE POLICY <X>_*` and make the new
-     owner-or-share migration the final word (editing the offending later migration if needed).
-   - **Cross-cutting test fallout.** Converting a module breaks integration suites that read its
-     rows cross-user via the legacy model from _other_ files (1b broke `ai-tools.test.ts` and
-     `auth-settings.test.ts`, not just `tasks.test.ts`). Enumerate every suite that touches the
-     module before assuming the gate stays green.
-2. Read order: the spec (`docs/superpowers/specs/2026-06-06-memory-data-model-design.md`) →
-   `CLAUDE.md` → the 1b plan → the `slice-1c-core` plan.
+1. **Slice 1c-core is MERGED** (Calendar + Email → owner-or-share; Connectors + AI → owner-only).
+   Full gate green: **129 tests / 13 files**. Commits: `18df4ee` (calendar+email), `042fb4a`
+   (connectors), `6b08328` (AI action requests INSERT). Code review surfaced 7 findings (all test
+   coverage gaps / fragility — no production RLS bugs); the only blocking one (foundation.test.ts
+   raw INSERT without ON CONFLICT) was fixed before push. See Review Notes below.
+   **Next: plan and execute `slice-1c-1d-structural`** — **notifications**, **chat**, **briefings**.
+   These are structurally harder than 1c-core (see below). **Brainstorm the notification redesign
+   first** (`superpowers:brainstorming`) before writing the plan (`superpowers:writing-plans`).
+2. Read order: this handoff → the spec
+   (`docs/superpowers/specs/2026-06-06-memory-data-model-design.md`) → `CLAUDE.md` → the
+   `slice-1c-core` plan (for pattern reference).
 
 Do **not** start new product features. The work is bounded to the memory-foundation slices below.
+
+### Review Notes For Next Agent (Slice 1c-core)
+
+Code review (high effort, 7 findings) on the Slice 1c-core diff:
+
+**Fixed before push:**
+
+- `foundation.test.ts` beforeAll share seed used a raw `sql\`INSERT\``without`ON CONFLICT`—
+would blow up the UNIQUE constraint on a second test run. Fixed: added`ON CONFLICT (resource_type, resource_id, grantee_user_id) DO NOTHING`.
+
+**Known gaps to carry forward (non-blocking, track for 1d/1f):**
+
+- `calendar-email.test.ts` "serves read-only APIs" test has implicit cross-test share dependency
+  (shares for bWorkspace are left over from two preceding `it()` blocks; no beforeAll seeds them).
+  Safe in full-suite runs (sequential, `fileParallelism: false`), breaks under `-t` isolation.
+- `foundation.test.ts`: no surviving test asserts workspace membership alone CANNOT grant probe
+  SELECT access after migration 0018 (negative case was deleted, not replaced).
+- `connectors.test.ts`: deleted `missingWorkspaceHeader→400` / `nonMemberWorkspaceHeader→403`
+  assertions leave `ensureWorkspaceContext` route guard untested.
+- `auth-settings.test.ts`: no API-level test verifies a `SharesRepository`-granted share makes a
+  task visible through `GET /api/tasks/:id` (share tests are repository-layer only).
+- `tasks.test.ts`: task_activity cross-user isolation test uses `adminUser` as the non-grantee
+  stand-in rather than an ordinary unprivileged user.
+- `ai-tools.test.ts`: `toEqual([aPrivate, bGrantedToA])` is order-sensitive; relies on seed-time
+  `updated_at` equality for the tiebreaker. Not broken today but fragile.
 
 ---
 
@@ -87,8 +97,16 @@ full, reviewed design is in the spec; the headlines:
   (fresh CI is unaffected); (2) `app.resource_grants` is now **inert for tasks** (and the probe) —
   the admin resource-grants API still records grants but they confer no task access; the dead
   helpers/columns/API path are retired in Slice 1f.
-- **`main`:** `da496ef` (brand) → `c0bcff0` (Slice 1a) → `CLAUDE.md` → handoff → Slice 1b merge.
-  Local and `origin/main` were in sync through 1a (1b merged locally; push when ready).
+- **Slice 1c-core — MERGED to `main`.** Calendar + Email → owner-or-share (`0020`/`0021`);
+  Connectors → owner-only (`0022`); AI action requests INSERT → owner-only (`0023`). Full gate green
+  (**129 tests / 13 files**). Commits: `18df4ee` (calendar+email), `042fb4a` (connectors), `6b08328`
+  (AI), plus a post-review fix in `foundation.test.ts` (ON CONFLICT on the beforeAll share seed).
+  Plan: `docs/superpowers/plans/2026-06-06-slice-1c-core-calendar-email-connectors-ai.md`.
+  **Notes:** `connector_account_id` immutability on calendar/email is enforced by a DB trigger
+  (`calendar_events_prevent_identity_change`), not the RLS UPDATE WITH CHECK — that's intentional.
+  `ai_provider_configs` and `ai_configured_models` needed no migration (already pure owner-only).
+- **`main`:** `da496ef` (brand) → `c0bcff0` (Slice 1a) → `CLAUDE.md` → handoff → Slice 1b merge →
+  Slice 1c-core. Pushing to `origin/main` now.
 - **Obsidian vault:** prior-iteration Jarvis notes archived to `4 Archives/Jarvis-alpha` (1,110
   files). Active `2 Areas/Jarvis/Specs/` mirrors the current-iteration design docs + both slice
   plans (git is canonical; vault copies are for remote review).
@@ -99,8 +117,8 @@ full, reviewed design is in the spec; the headlines:
 
 1. ✅ **1a Shares foundation** — `app.shares` + `app.has_share` + types + repository. **MERGED (PR #1).**
 2. ✅ **1b Probe + Tasks → owner-or-share** — migrations `0018`/`0019`. **MERGED to `main`.**
-3. ⏭️ **1c-core** — Calendar + Email → owner-or-share; Connectors + AI → owner-only.
-   **Plan ready; next to execute.** (`2026-06-06-slice-1c-core-calendar-email-connectors-ai.md`)
+3. ✅ **1c-core** — Calendar + Email → owner-or-share; Connectors + AI → owner-only.
+   **MERGED to `main`.** (`2026-06-06-slice-1c-core-calendar-email-connectors-ai.md`)
 4. **1c/1d-structural** — Notifications (recipient-owned redesign), Chat, Briefings (parent-child
    share inheritance + worker grants). **Needs brainstorm + plan.** Replaces the original flat
    "1c (Notifications/Connectors/Calendar/Email)" + "1d (AI/Chat/Briefings)" split — the audit showed

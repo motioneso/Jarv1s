@@ -59,6 +59,7 @@ describe("MVP foundation scaffold", () => {
             (resource_type, resource_id, owner_user_id, grantee_user_id, level)
           values
             ('rls_probe_item', ${ids.itemBGrantedToA}::uuid, ${ids.userB}::uuid, ${ids.userA}::uuid, 'view')
+          on conflict (resource_type, resource_id, grantee_user_id) do nothing
         `.execute(scopedDb.db);
       }
     );
