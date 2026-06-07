@@ -139,7 +139,8 @@ describe("Connectors encrypted foundation", () => {
       "email",
       "ai",
       "chat",
-      "briefings"
+      "briefings",
+      "memory"
     ]);
     expect(registrations.map((item) => item.manifest.id)).toEqual([
       "settings",
@@ -150,7 +151,8 @@ describe("Connectors encrypted foundation", () => {
       "email",
       "ai",
       "chat",
-      "briefings"
+      "briefings",
+      "memory"
     ]);
     expect(manifest?.database?.ownedTables).toEqual([
       "app.connector_definitions",
@@ -161,14 +163,15 @@ describe("Connectors encrypted foundation", () => {
       "/settings/admin/connectors"
     ]);
     expect(registration?.queueDefinitions).toEqual([]);
-    expect(getBuiltInSqlMigrationDirectories().at(-1)).toContain("packages/briefings/sql");
-    expect(getBuiltInSqlMigrationDirectories().at(-2)).toContain("packages/chat/sql");
-    expect(getBuiltInSqlMigrationDirectories().at(-3)).toContain("packages/ai/sql");
-    expect(getBuiltInSqlMigrationDirectories().at(-4)).toContain("packages/email/sql");
-    expect(getBuiltInSqlMigrationDirectories().at(-5)).toContain("packages/calendar/sql");
-    expect(getBuiltInSqlMigrationDirectories().at(-6)).toContain("packages/notifications/sql");
-    expect(getBuiltInSqlMigrationDirectories().at(-7)).toContain("packages/tasks/sql");
-    expect(getBuiltInSqlMigrationDirectories().at(-8)).toContain("packages/connectors/sql");
+    expect(getBuiltInSqlMigrationDirectories().at(-1)).toContain("packages/memory/sql");
+    expect(getBuiltInSqlMigrationDirectories().at(-2)).toContain("packages/briefings/sql");
+    expect(getBuiltInSqlMigrationDirectories().at(-3)).toContain("packages/chat/sql");
+    expect(getBuiltInSqlMigrationDirectories().at(-4)).toContain("packages/ai/sql");
+    expect(getBuiltInSqlMigrationDirectories().at(-5)).toContain("packages/email/sql");
+    expect(getBuiltInSqlMigrationDirectories().at(-6)).toContain("packages/calendar/sql");
+    expect(getBuiltInSqlMigrationDirectories().at(-7)).toContain("packages/notifications/sql");
+    expect(getBuiltInSqlMigrationDirectories().at(-8)).toContain("packages/tasks/sql");
+    expect(getBuiltInSqlMigrationDirectories().at(-9)).toContain("packages/connectors/sql");
   });
 
   it("requires an explicit connector secret key in production", () => {
