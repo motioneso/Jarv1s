@@ -224,7 +224,7 @@ Read these first:
 - `docs/architecture/plans/0001-mvp-foundation-scaffold.md`
 - `docs/architecture/plans/0002-tasks-module-mvp.md`
 - `docs/architecture/plans/0003-platform-first-alpha-roadmap.md`
-- `docs/HANDOFF_TASKS_M1.md`
+- `docs/archive/HANDOFF_TASKS_M1.md`
 
 Relevant proof code:
 
