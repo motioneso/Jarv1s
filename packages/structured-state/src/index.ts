@@ -8,6 +8,7 @@ export type { CreateCommitmentInput, UpdateCommitmentInput } from "./commitments
 export { CommitmentsRepository } from "./commitments-repository.js";
 export type { CreateEntityInput, UpdateEntityInput } from "./entities-repository.js";
 export { EntitiesRepository } from "./entities-repository.js";
+export { PreferencesRepository } from "./preferences-repository.js";
 export {
   structuredStateModuleManifest,
   structuredStateSqlMigrationDirectory,
