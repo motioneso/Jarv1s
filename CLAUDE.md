@@ -76,12 +76,12 @@ Every protected data access flows through one path. Repositories **cannot** be c
 Kysely instance — they require a branded `DataContextDb` handle:
 
 ```txt
-auth session -> AccessContext (actorUserId, workspaceId?, requestId?)
+auth session -> AccessContext (actorUserId, requestId?)
   -> DataContextRunner.withDataContext(ctx, work)
-  -> opens a Kysely transaction, sets transaction-local app.actor_user_id / app.workspace_id /
+  -> opens a Kysely transaction, sets transaction-local app.actor_user_id /
      app.request_id via set_config(..., true)
   -> passes a branded DataContextDb to the repository
-  -> Postgres RLS policies evaluate the current actor/workspace
+  -> Postgres RLS policies evaluate the current actor
 ```
 
 Defined in `packages/db/src/data-context.ts`. The brand (`dataContextBrand` symbol +
