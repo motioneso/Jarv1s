@@ -1,0 +1,15 @@
+{
+  "name": "@jarv1s/vault",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@jarv1s/db": "workspace:*"
+  }
+}
