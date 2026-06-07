@@ -354,6 +354,44 @@ export interface MemoryLinksTable {
   to_path: string;
 }
 
+export interface CommitmentsTable {
+  id: string;
+  owner_user_id: string;
+  title: string;
+  counterparty: string | null;
+  due_at: NullableTimestampColumn;
+  status: "open" | "at_risk" | "slipped" | "done" | "renegotiated" | "dismissed";
+  provenance: "volunteered" | "inferred" | "confirmed";
+  source_kind: "manual" | "inferred" | "email" | "calendar";
+  source_ref: string | null;
+  surfaced_state: string | null;
+  life_area: string | null;
+  created_at: TimestampColumn;
+  updated_at: TimestampColumn;
+}
+
+export interface EntitiesTable {
+  id: string;
+  owner_user_id: string;
+  type: "person" | "organization" | "account";
+  name: string;
+  attributes: JsonColumn;
+  provenance: "volunteered" | "inferred" | "confirmed";
+  vault_note_path: string | null;
+  connector_refs: JsonColumn | null;
+  life_area: string | null;
+  created_at: TimestampColumn;
+  updated_at: TimestampColumn;
+}
+
+export interface PreferencesTable {
+  id: string;
+  owner_user_id: string;
+  key: string;
+  value_json: JsonColumn;
+  updated_at: TimestampColumn;
+}
+
 export interface JarvisDatabase {
   "app.schema_migrations": SchemaMigrationsTable;
   "app.users": UsersTable;
@@ -385,6 +423,9 @@ export interface JarvisDatabase {
   "app.briefing_runs": BriefingRunsTable;
   "app.memory_chunks": MemoryChunksTable;
   "app.memory_links": MemoryLinksTable;
+  "app.commitments": CommitmentsTable;
+  "app.entities": EntitiesTable;
+  "app.preferences": PreferencesTable;
 }
 
 export type User = Selectable<UsersTable>;
@@ -411,3 +452,6 @@ export type ChatMessage = Selectable<ChatMessagesTable>;
 export type BriefingDefinition = Selectable<BriefingDefinitionsTable>;
 export type BriefingRun = Selectable<BriefingRunsTable>;
 export type JsonObject = JsonColumn;
+export type Commitment = Selectable<CommitmentsTable>;
+export type Entity = Selectable<EntitiesTable>;
+export type Preference = Selectable<PreferencesTable>;
