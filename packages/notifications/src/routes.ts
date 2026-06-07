@@ -92,8 +92,6 @@ export function serializeNotification(notification: NotificationWithReadState): 
     id: notification.id,
     actorUserId: notification.actor_user_id,
     recipientUserId: notification.recipient_user_id,
-    workspaceId: notification.workspace_id,
-    visibility: notification.visibility,
     title: notification.title,
     body: notification.body,
     metadata: notification.metadata,

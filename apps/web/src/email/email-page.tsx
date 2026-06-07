@@ -55,7 +55,6 @@ function EmailMessageRow(props: { readonly message: EmailMessageDto }) {
             <span>To {props.message.recipients.join(", ")}</span>
           ) : null}
           <span>{formatMessageDate(props.message.receivedAt)}</span>
-          <span>{props.message.visibility}</span>
         </div>
       </div>
     </article>

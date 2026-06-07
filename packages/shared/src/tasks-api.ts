@@ -1,14 +1,10 @@
-export const TASK_VISIBILITIES = ["private", "workspace"] as const;
 export const TASK_STATUSES = ["todo", "in_progress", "done", "archived"] as const;
 
-export type TaskApiVisibility = (typeof TASK_VISIBILITIES)[number];
 export type TaskApiStatus = (typeof TASK_STATUSES)[number];
 
 export interface TaskDto {
   readonly id: string;
   readonly ownerUserId: string;
-  readonly workspaceId: string | null;
-  readonly visibility: TaskApiVisibility;
   readonly title: string;
   readonly description: string | null;
   readonly status: TaskApiStatus;
@@ -35,8 +31,6 @@ export interface ListTasksResponse {
 export interface CreateTaskRequest {
   readonly title: string;
   readonly description?: string | null;
-  readonly visibility?: TaskApiVisibility;
-  readonly workspaceId?: string | null;
   readonly status?: TaskApiStatus;
   readonly priority?: number | null;
   readonly dueAt?: string | null;
@@ -53,8 +47,6 @@ export interface GetTaskResponse {
 export interface UpdateTaskRequest {
   readonly title?: string;
   readonly description?: string | null;
-  readonly visibility?: TaskApiVisibility;
-  readonly workspaceId?: string | null;
   readonly status?: TaskApiStatus;
   readonly priority?: number | null;
   readonly dueAt?: string | null;
@@ -84,7 +76,6 @@ export interface DeferredTaskStatusResponse {
 
 export interface DeferredTaskStatusPayloadDto {
   readonly actorUserId: string;
-  readonly workspaceId: string | null;
   readonly taskId: string;
   readonly requestedStatus: TaskApiStatus;
   readonly idempotencyKey?: string;
@@ -96,11 +87,6 @@ const nullableStringSchema = {
 
 const nullableNumberSchema = {
   anyOf: [{ type: "number" }, { type: "null" }]
-} as const;
-
-export const taskVisibilitySchema = {
-  type: "string",
-  enum: TASK_VISIBILITIES
 } as const;
 
 export const taskStatusSchema = {
@@ -121,8 +107,6 @@ export const taskDtoSchema = {
   required: [
     "id",
     "ownerUserId",
-    "workspaceId",
-    "visibility",
     "title",
     "description",
     "status",
@@ -135,8 +119,6 @@ export const taskDtoSchema = {
   properties: {
     id: { type: "string" },
     ownerUserId: { type: "string" },
-    workspaceId: nullableStringSchema,
-    visibility: taskVisibilitySchema,
     title: { type: "string" },
     description: nullableStringSchema,
     status: taskStatusSchema,
@@ -178,8 +160,6 @@ export const createTaskRequestSchema = {
   properties: {
     title: { type: "string" },
     description: nullableStringSchema,
-    visibility: taskVisibilitySchema,
-    workspaceId: nullableStringSchema,
     status: taskStatusSchema,
     priority: {
       anyOf: [{ type: "integer", minimum: -32768, maximum: 32767 }, { type: "null" }]
@@ -203,8 +183,6 @@ export const updateTaskRequestSchema = {
   properties: {
     title: { type: "string" },
     description: nullableStringSchema,
-    visibility: taskVisibilitySchema,
-    workspaceId: nullableStringSchema,
     status: taskStatusSchema,
     priority: {
       anyOf: [{ type: "integer", minimum: -32768, maximum: 32767 }, { type: "null" }]
@@ -250,10 +228,9 @@ export const deferredTaskStatusResponseSchema = {
 
 export const deferredTaskStatusPayloadSchema = {
   type: "object",
-  required: ["actorUserId", "workspaceId", "taskId", "requestedStatus"],
+  required: ["actorUserId", "taskId", "requestedStatus"],
   properties: {
     actorUserId: { type: "string" },
-    workspaceId: nullableStringSchema,
     taskId: { type: "string" },
     requestedStatus: taskStatusSchema,
     idempotencyKey: { type: "string" }

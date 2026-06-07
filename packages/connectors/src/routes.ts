@@ -85,12 +85,10 @@ export function registerConnectorsRoutes(
       try {
         const accessContext = await dependencies.resolveAccessContext(request);
         const body = parseCreateAccountBody(request.body);
-        ensureWorkspaceContext(accessContext, body.workspaceId);
         const encryptedSecret = secretCipher.encryptJson(body.tokenPayload);
         const account = await dependencies.dataContext.withDataContext(accessContext, (scopedDb) =>
           repository.createAccount(scopedDb, {
             providerId: body.providerId,
-            workspaceId: body.workspaceId ?? null,
             scopes: body.scopes ?? [],
             status: body.status ?? "active",
             encryptedSecret
@@ -177,7 +175,6 @@ function parseCreateAccountBody(body: unknown): CreateConnectorAccountRequest {
 
   return {
     providerId: requiredString(value.providerId, "providerId"),
-    workspaceId: optionalNullableString(value.workspaceId, "workspaceId"),
     scopes: optionalStringArray(value.scopes, "scopes"),
     status: optionalWritableAccountStatus(value.status),
     tokenPayload: requiredJsonObject(value.tokenPayload, "tokenPayload")
@@ -195,19 +192,6 @@ function parseUpdateAccountBody(body: unknown): UpdateConnectorAccountRequest {
         ? undefined
         : requiredJsonObject(value.tokenPayload, "tokenPayload")
   };
-}
-
-function ensureWorkspaceContext(
-  accessContext: AccessContext,
-  workspaceId: string | null | undefined
-): void {
-  if (!workspaceId) {
-    return;
-  }
-
-  if (accessContext.workspaceId !== workspaceId) {
-    throw new HttpError(400, "workspaceId must match the active workspace context");
-  }
 }
 
 async function requireAdmin(
@@ -251,7 +235,6 @@ function serializeAccount(account: ConnectorAccountSafeRow): ConnectorAccountDto
     providerDisplayName: account.provider_display_name,
     providerStatus: account.provider_status,
     ownerUserId: account.owner_user_id,
-    workspaceId: account.workspace_id,
     scopes: account.scopes,
     status: account.status,
     hasSecret: account.has_secret,
@@ -303,14 +286,6 @@ function optionalString(value: unknown, fieldName: string): string | undefined {
   }
 
   return trimmed;
-}
-
-function optionalNullableString(value: unknown, fieldName: string): string | null | undefined {
-  if (value === null) {
-    return null;
-  }
-
-  return optionalString(value, fieldName);
 }
 
 function optionalStringArray(value: unknown, fieldName: string): string[] | undefined {

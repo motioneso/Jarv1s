@@ -44,7 +44,6 @@ export const TASKS_QUEUE_DEFINITIONS: readonly QueueDefinition[] = [
 
 export const DEFERRED_TASK_STATUS_PAYLOAD_KEYS = [
   "actorUserId",
-  "workspaceId",
   "taskId",
   "requestedStatus",
   "idempotencyKey"

@@ -306,19 +306,17 @@ describe("Connectors encrypted foundation", () => {
     expect(adminResponse.body).not.toContain("ciphertext");
   });
 
-  it("owner sees workspace-tagged connector account regardless of workspace context; other users never see it", async () => {
-    // Slice 1c: connector_accounts are owner-only (AES-encrypted credentials must not
-    // be shared). workspace_id column is preserved but no longer gates SELECT access.
+  it("owner sees connector account regardless of workspace context; other users never see it", async () => {
+    // Slice 1f: connector_accounts are owner-only (AES-encrypted credentials must not
+    // be shared). workspace_id column has been dropped.
     const createWorkspaceAccount = await server.inject({
       method: "POST",
       url: "/api/connectors/accounts",
       headers: {
-        authorization: `Bearer ${ids.sessionA}`,
-        "x-jarvis-workspace-id": ids.workspaceAlpha
+        authorization: `Bearer ${ids.sessionA}`
       },
       payload: {
         providerId: "microsoft-calendar",
-        workspaceId: ids.workspaceAlpha,
         tokenPayload: {
           accessToken: "workspace-secret"
         }
@@ -335,13 +333,12 @@ describe("Connectors encrypted foundation", () => {
         authorization: `Bearer ${ids.sessionA}`
       }
     });
-    // Owner also sees the account WITH workspace context
+    // Owner also sees the account when making another GET request
     const listWithWorkspace = await server.inject({
       method: "GET",
       url: "/api/connectors/accounts",
       headers: {
-        authorization: `Bearer ${ids.sessionA}`,
-        "x-jarvis-workspace-id": ids.workspaceAlpha
+        authorization: `Bearer ${ids.sessionA}`
       }
     });
     // A different user (userB) never sees it — owner-only, no cross-user visibility
@@ -474,7 +471,6 @@ async function readEncryptedSecret(accountId: string): Promise<EncryptedConnecto
 function userAContext(): AccessContext {
   return {
     actorUserId: ids.userA,
-    workspaceId: null,
     requestId: "request:user-a-connectors"
   };
 }
@@ -482,7 +478,6 @@ function userAContext(): AccessContext {
 function userBContext(): AccessContext {
   return {
     actorUserId: ids.userB,
-    workspaceId: null,
     requestId: "request:user-b-connectors"
   };
 }

@@ -1,15 +1,10 @@
-import type { TaskApiStatus, TaskApiVisibility, TaskDto } from "@jarv1s/shared";
+import type { TaskApiStatus, TaskDto } from "@jarv1s/shared";
 
 export const statusLabels: Record<TaskApiStatus, string> = {
   todo: "Todo",
   in_progress: "Doing",
   done: "Done",
   archived: "Archived"
-};
-
-export const visibilityLabels: Record<TaskApiVisibility, string> = {
-  private: "Private",
-  workspace: "Workspace"
 };
 
 export function formatDate(value: string | null): string {

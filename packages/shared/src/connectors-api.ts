@@ -19,7 +19,6 @@ export interface ConnectorAccountDto {
   readonly providerDisplayName: string;
   readonly providerStatus: ConnectorProviderStatus;
   readonly ownerUserId: string;
-  readonly workspaceId: string | null;
   readonly scopes: readonly string[];
   readonly status: ConnectorAccountStatus;
   readonly hasSecret: boolean;
@@ -38,7 +37,6 @@ export interface ListConnectorAccountsResponse {
 
 export interface CreateConnectorAccountRequest {
   readonly providerId: string;
-  readonly workspaceId?: string | null;
   readonly scopes?: readonly string[];
   readonly status?: Exclude<ConnectorAccountStatus, "revoked">;
   readonly tokenPayload: Record<string, unknown>;
@@ -113,7 +111,6 @@ const connectorAccountSchema = {
     "providerDisplayName",
     "providerStatus",
     "ownerUserId",
-    "workspaceId",
     "scopes",
     "status",
     "hasSecret",
@@ -128,7 +125,6 @@ const connectorAccountSchema = {
     providerDisplayName: { type: "string" },
     providerStatus: { type: "string", enum: ["available", "disabled"] },
     ownerUserId: { type: "string" },
-    workspaceId: { type: ["string", "null"] },
     scopes: { type: "array", items: { type: "string" } },
     status: { type: "string", enum: ["active", "error", "revoked"] },
     hasSecret: { type: "boolean" },
@@ -144,7 +140,6 @@ export const createConnectorAccountRequestSchema = {
   required: ["providerId", "tokenPayload"],
   properties: {
     providerId: { type: "string" },
-    workspaceId: { type: ["string", "null"] },
     scopes: { type: "array", items: { type: "string" } },
     status: { type: "string", enum: ["active", "error"] },
     tokenPayload: jsonObjectSchema

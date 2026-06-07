@@ -191,7 +191,6 @@ async function handleConnectorAccountsRoute(route: Route, state: MockApiState): 
       providerType: provider?.providerType ?? "calendar",
       providerDisplayName: provider?.displayName ?? input.providerId,
       providerStatus: provider?.status ?? "available",
-      workspaceId: input.workspaceId ?? null,
       scopes: input.scopes ?? [],
       status: input.status ?? "active"
     });
@@ -547,9 +546,7 @@ async function handleTaskListRoute(route: Route, state: MockApiState): Promise<v
     const task = createMockTask(`task-${state.tasks.length + 1}`, input.title, {
       description: input.description ?? null,
       dueAt: input.dueAt ?? null,
-      priority: input.priority ?? null,
-      visibility: input.visibility ?? "private",
-      workspaceId: input.workspaceId ?? null
+      priority: input.priority ?? null
     });
 
     state.tasks = [...state.tasks, task];
@@ -597,8 +594,6 @@ export function createMockCalendarEvent(
     id,
     connectorAccountId: "connector-calendar-1",
     ownerUserId: "user-1",
-    workspaceId: null,
-    visibility: "private",
     title,
     startsAt: "2030-06-06T16:00:00.000Z",
     endsAt: "2030-06-06T17:00:00.000Z",
@@ -622,8 +617,6 @@ export function createMockEmailMessage(
     id,
     connectorAccountId: "connector-email-1",
     ownerUserId: "user-1",
-    workspaceId: null,
-    visibility: "private",
     sender: "sender@example.test",
     recipients: [],
     subject,
@@ -646,8 +639,6 @@ export function createMockTask(
   return {
     id,
     ownerUserId: "user-1",
-    workspaceId: null,
-    visibility: "private",
     title,
     description: null,
     status: "todo",
@@ -669,8 +660,6 @@ export function createMockNotification(
     id,
     actorUserId: "user-1",
     recipientUserId: "user-1",
-    workspaceId: null,
-    visibility: "private",
     title,
     body: null,
     metadata: {},
@@ -714,7 +703,6 @@ function createMockConnectorAccount(
     providerDisplayName: "Google Calendar",
     providerStatus: "available",
     ownerUserId: "user-1",
-    workspaceId: null,
     scopes: [],
     status: "active",
     hasSecret: true,

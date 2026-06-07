@@ -2,12 +2,7 @@ import { randomUUID } from "node:crypto";
 
 import { sql } from "kysely";
 
-import {
-  assertDataContextDb,
-  type DataContextDb,
-  type Notification,
-  type NotificationVisibility
-} from "@jarv1s/db";
+import { assertDataContextDb, type DataContextDb, type Notification } from "@jarv1s/db";
 
 export interface NotificationWithReadState extends Notification {
   readonly read_at: Date | null;
@@ -21,8 +16,6 @@ export interface ListNotificationsResult {
 export interface CreateNotificationInput {
   readonly actorUserId?: string | null;
   readonly recipientUserId?: string | null;
-  readonly workspaceId?: string | null;
-  readonly visibility?: NotificationVisibility;
   readonly title: string;
   readonly body?: string | null;
   readonly metadata?: Record<string, unknown>;
@@ -60,7 +53,6 @@ export class NotificationsRepository {
   ): Promise<NotificationWithReadState> {
     assertDataContextDb(scopedDb);
 
-    const visibility = input.visibility ?? "private";
     const notification = await scopedDb.db
       .insertInto("app.notifications")
       .values({
@@ -71,12 +63,8 @@ export class NotificationsRepository {
             : input.actorUserId,
         recipient_user_id:
           input.recipientUserId === undefined
-            ? visibility === "private"
-              ? sql<string>`app.current_actor_user_id()`
-              : null
+            ? sql<string>`app.current_actor_user_id()`
             : input.recipientUserId,
-        workspace_id: input.workspaceId ?? null,
-        visibility,
         title: input.title,
         body: input.body ?? null,
         metadata: input.metadata ?? {},
@@ -184,8 +172,6 @@ export class NotificationsRepository {
         "notifications.id as id",
         "notifications.actor_user_id as actor_user_id",
         "notifications.recipient_user_id as recipient_user_id",
-        "notifications.workspace_id as workspace_id",
-        "notifications.visibility as visibility",
         "notifications.title as title",
         "notifications.body as body",
         "notifications.metadata as metadata",

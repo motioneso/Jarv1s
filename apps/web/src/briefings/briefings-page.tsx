@@ -15,8 +15,7 @@ import type {
   AiAssistantToolDto,
   BriefingCadence,
   BriefingDefinitionDto,
-  BriefingRunDto,
-  BriefingVisibility
+  BriefingRunDto
 } from "@jarv1s/shared";
 
 interface BriefingsPageProps {
@@ -111,15 +110,11 @@ function CreateBriefingForm(props: {
 }) {
   const queryClient = useQueryClient();
   const [title, setTitle] = useState("");
-  const [visibility, setVisibility] = useState<BriefingVisibility>("private");
   const [cadence, setCadence] = useState<BriefingCadence>("manual");
   const [selectedToolNames, setSelectedToolNames] = useState<readonly string[]>([]);
   const [formError, setFormError] = useState<string | null>(null);
   const createMutation = useMutation({
     mutationFn: () => {
-      if (visibility === "workspace" && !props.activeWorkspaceId) {
-        throw new Error("Select a workspace first");
-      }
       if (selectedToolNames.length === 0) {
         throw new Error("Select at least one read tool");
       }
@@ -127,8 +122,6 @@ function CreateBriefingForm(props: {
       return createBriefingDefinition(
         {
           title,
-          visibility,
-          workspaceId: visibility === "workspace" ? props.activeWorkspaceId : null,
           cadence,
           scheduleMetadata: {},
           enabled: true,
@@ -177,22 +170,6 @@ function CreateBriefingForm(props: {
           <option value="weekly">Weekly</option>
         </select>
       </label>
-      <div className="segmented-control" aria-label="Briefing visibility">
-        <button
-          className={visibility === "private" ? "active" : ""}
-          type="button"
-          onClick={() => setVisibility("private")}
-        >
-          Private
-        </button>
-        <button
-          className={visibility === "workspace" ? "active" : ""}
-          type="button"
-          onClick={() => setVisibility("workspace")}
-        >
-          Workspace
-        </button>
-      </div>
       <ToolCheckboxes
         label="New briefing sources"
         readTools={props.readTools}

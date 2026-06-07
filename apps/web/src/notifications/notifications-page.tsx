@@ -123,7 +123,6 @@ function NotificationRow(props: {
         {props.notification.body ? <p>{props.notification.body}</p> : null}
         <div className="task-meta">
           <span>{unread ? "Unread" : "Read"}</span>
-          <span>{props.notification.visibility}</span>
           <span>{formatNotificationDate(props.notification.createdAt)}</span>
         </div>
       </div>

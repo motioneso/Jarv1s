@@ -8,15 +8,12 @@ import {
   type Task,
   type TaskActivity,
   type TaskStatus,
-  type TaskVisibility,
   type TasksTable
 } from "@jarv1s/db";
 
 export interface CreateTaskInput {
   readonly title: string;
   readonly description?: string | null;
-  readonly visibility?: TaskVisibility;
-  readonly workspaceId?: string | null;
   readonly status?: TaskStatus;
   readonly priority?: number | null;
   readonly dueAt?: Date | string | null;
@@ -25,8 +22,6 @@ export interface CreateTaskInput {
 export interface UpdateTaskInput {
   readonly title?: string;
   readonly description?: string | null;
-  readonly visibility?: TaskVisibility;
-  readonly workspaceId?: string | null;
   readonly status?: TaskStatus;
   readonly priority?: number | null;
   readonly dueAt?: Date | string | null;
@@ -70,8 +65,6 @@ export class TasksRepository {
       .values({
         id: randomUUID(),
         owner_user_id: sql<string>`app.current_actor_user_id()`,
-        workspace_id: input.workspaceId ?? null,
-        visibility: input.visibility ?? "private",
         title: input.title,
         description: input.description ?? null,
         status,
@@ -101,12 +94,6 @@ export class TasksRepository {
     }
     if (input.description !== undefined) {
       updates.description = input.description;
-    }
-    if (input.visibility !== undefined) {
-      updates.visibility = input.visibility;
-    }
-    if (input.workspaceId !== undefined) {
-      updates.workspace_id = input.workspaceId;
     }
     if (input.priority !== undefined) {
       updates.priority = input.priority;

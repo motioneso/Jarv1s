@@ -112,7 +112,6 @@ function CreateConnectorForm(props: {
   const [providerId, setProviderId] = useState("");
   const [scopes, setScopes] = useState("");
   const [tokenPayload, setTokenPayload] = useState('{"accessToken":"placeholder"}');
-  const [workspaceScoped, setWorkspaceScoped] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
   const selectedProvider = useMemo(
     () => props.providers.find((provider) => provider.id === providerId),
@@ -120,14 +119,9 @@ function CreateConnectorForm(props: {
   );
   const createMutation = useMutation({
     mutationFn: () => {
-      if (workspaceScoped && !props.activeWorkspaceId) {
-        throw new Error("Select a workspace first");
-      }
-
       return createConnectorAccount(
         {
           providerId,
-          workspaceId: workspaceScoped ? props.activeWorkspaceId : null,
           scopes: parseScopes(scopes || selectedProvider?.defaultScopes.join(" ") || ""),
           tokenPayload: parseTokenPayload(tokenPayload)
         },
@@ -186,15 +180,6 @@ function CreateConnectorForm(props: {
           rows={3}
           value={tokenPayload}
         />
-      </label>
-
-      <label className="checkbox-row span-2">
-        <input
-          checked={workspaceScoped}
-          onChange={(event) => setWorkspaceScoped(event.target.checked)}
-          type="checkbox"
-        />
-        Workspace scoped
       </label>
 
       {formError ? <p className="form-error span-2">{formError}</p> : null}

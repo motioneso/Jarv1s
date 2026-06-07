@@ -13,7 +13,6 @@ export const RLS_PROBE_QUEUE = "rls-probe";
 
 export interface ActorScopedJobPayload {
   readonly actorUserId: string;
-  readonly workspaceId?: string | null;
 }
 
 export interface RlsProbeJobPayload extends ActorScopedJobPayload {
@@ -105,7 +104,6 @@ function toAccessContext(job: Job<ActorScopedJobPayload>): AccessContext {
 
   return {
     actorUserId: job.data.actorUserId,
-    workspaceId: job.data.workspaceId ?? null,
     requestId: `pgboss:${job.id}`
   };
 }

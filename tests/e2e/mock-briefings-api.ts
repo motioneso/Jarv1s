@@ -37,8 +37,6 @@ export function createMockBriefingDefinition(
   return {
     id,
     ownerUserId: "user-1",
-    workspaceId: null,
-    visibility: "private",
     title,
     cadence: "manual",
     scheduleMetadata: {},
@@ -61,8 +59,6 @@ export function createMockBriefingRun(
     id,
     definitionId,
     ownerUserId: "user-1",
-    workspaceId: null,
-    visibility: "private",
     status: "succeeded",
     runKind: "manual",
     summaryText,
@@ -97,8 +93,6 @@ async function handleBriefingDefinitionsRoute(
       `briefing-${(state.briefingDefinitions ?? []).length + 1}`,
       input.title,
       {
-        visibility: input.visibility ?? "private",
-        workspaceId: input.workspaceId ?? null,
         cadence: input.cadence ?? "manual",
         scheduleMetadata: input.scheduleMetadata ?? {},
         enabled: input.enabled ?? true,
@@ -138,8 +132,6 @@ async function handleBriefingDefinitionDetailRoute(
   const updatedDefinition: BriefingDefinitionDto = {
     ...definition,
     title: input.title ?? definition.title,
-    visibility: input.visibility ?? definition.visibility,
-    workspaceId: input.workspaceId === undefined ? definition.workspaceId : input.workspaceId,
     cadence: input.cadence ?? definition.cadence,
     scheduleMetadata: input.scheduleMetadata ?? definition.scheduleMetadata,
     enabled: input.enabled ?? definition.enabled,

@@ -203,7 +203,6 @@ describe("Tasks module M1", () => {
     );
 
     expect(created.owner_user_id).toBe(ids.userA);
-    expect(created.visibility).toBe("private");
     expect(fetched?.id).toBe(created.id);
   });
 
@@ -398,59 +397,10 @@ describe("Tasks module M1", () => {
     expect(getOtherPrivateResponse.statusCode).toBe(404);
   });
 
-  it("requires active workspace context when updating a task to workspace visibility", async () => {
-    const createResponse = await server.inject({
-      method: "POST",
-      url: "/api/tasks",
-      headers: {
-        authorization: `Bearer ${ids.sessionA}`
-      },
-      payload: {
-        title: "Workspace update guard task"
-      }
-    });
-    const taskId = createResponse.json<{ task: { id: string } }>().task.id;
-    const missingWorkspaceContextResponse = await server.inject({
-      method: "PATCH",
-      url: `/api/tasks/${taskId}`,
-      headers: {
-        authorization: `Bearer ${ids.sessionA}`
-      },
-      payload: {
-        visibility: "workspace",
-        workspaceId: ids.workspaceAlpha
-      }
-    });
-    const activeWorkspaceResponse = await server.inject({
-      method: "PATCH",
-      url: `/api/tasks/${taskId}`,
-      headers: {
-        authorization: `Bearer ${ids.sessionA}`,
-        "x-jarvis-workspace-id": ids.workspaceAlpha
-      },
-      payload: {
-        visibility: "workspace",
-        workspaceId: ids.workspaceAlpha
-      }
-    });
-
-    expect(createResponse.statusCode).toBe(201);
-    expect(missingWorkspaceContextResponse.statusCode).toBe(400);
-    expect(activeWorkspaceResponse.statusCode).toBe(200);
-    expect(
-      activeWorkspaceResponse.json<{ task: { visibility: string; workspaceId: string | null } }>()
-        .task
-    ).toMatchObject({
-      visibility: "workspace",
-      workspaceId: ids.workspaceAlpha
-    });
-  });
-
   it("keeps Tasks worker payloads metadata-only", async () => {
     const resultPromise = handleNextTaskJob(workerBoss);
     await appBoss.send(TASKS_DEFERRED_STATUS_QUEUE, {
       actorUserId: ids.userA,
-      workspaceId: null,
       taskId: taskIds.aPrivate,
       requestedStatus: "done",
       idempotencyKey: "tasks-test-metadata"
@@ -479,7 +429,6 @@ describe("Tasks module M1", () => {
       });
       expect(payload).toEqual({
         actorUserId: ids.userA,
-        workspaceId: null,
         taskId: taskIds.aPrivate,
         requestedStatus: "done",
         idempotencyKey: "tasks-test-metadata"
@@ -496,7 +445,6 @@ describe("Tasks module M1", () => {
     const resultPromise = handleNextTaskJob(workerBoss);
     await appBoss.send(TASKS_DEFERRED_STATUS_QUEUE, {
       actorUserId: ids.userA,
-      workspaceId: null,
       taskId: taskIds.bPrivate,
       requestedStatus: "done"
     } satisfies DeferredTaskStatusPayload);
@@ -528,10 +476,10 @@ async function seedTaskData(): Promise<void> {
     await client.query("BEGIN");
     await client.query(
       `
-        INSERT INTO app.tasks (id, owner_user_id, workspace_id, visibility, title, description, status)
+        INSERT INTO app.tasks (id, owner_user_id, title, description, status)
         VALUES
-          ($1, $2, null, 'private', 'User A seeded private task', 'A private description', 'todo'),
-          ($3, $4, null, 'private', 'User B seeded private task', 'B private description', 'todo')
+          ($1, $2, 'User A seeded private task', 'A private description', 'todo'),
+          ($3, $4, 'User B seeded private task', 'B private description', 'todo')
       `,
       [taskIds.aPrivate, ids.userA, taskIds.bPrivate, ids.userB]
     );
@@ -585,10 +533,9 @@ async function handleNextTaskJob(workerBoss: PgBoss): Promise<DeferredTaskStatus
   }
 }
 
-function userAContext(workspaceId?: string): AccessContext {
+function userAContext(): AccessContext {
   return {
     actorUserId: ids.userA,
-    workspaceId,
     requestId: "request:user-a-tasks"
   };
 }

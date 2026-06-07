@@ -369,7 +369,6 @@ export function registerAiRoutes(
           };
           const action = await dependencies.dataContext.withDataContext(accessContext, (scopedDb) =>
             repository.createPendingAssistantAction(scopedDb, {
-              workspaceId: accessContext.workspaceId ?? null,
               toolModuleId: pendingTool.moduleId,
               toolModuleName: pendingTool.moduleName,
               toolName: pendingTool.name,
@@ -532,7 +531,6 @@ function serializeAssistantAction(action: AiAssistantActionRequestSafeRow): AiAs
   return {
     id: action.id,
     ownerUserId: action.owner_user_id,
-    workspaceId: action.workspace_id,
     toolModuleId: action.tool_module_id,
     toolModuleName: action.tool_module_name,
     toolName: action.tool_name,

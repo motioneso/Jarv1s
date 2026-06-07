@@ -4,15 +4,6 @@ BEGIN
     SELECT 1
     FROM pg_type
     WHERE typnamespace = 'app'::regnamespace
-      AND typname = 'briefing_visibility'
-  ) THEN
-    CREATE TYPE app.briefing_visibility AS ENUM ('private', 'workspace');
-  END IF;
-
-  IF NOT EXISTS (
-    SELECT 1
-    FROM pg_type
-    WHERE typnamespace = 'app'::regnamespace
       AND typname = 'briefing_cadence'
   ) THEN
     CREATE TYPE app.briefing_cadence AS ENUM ('manual', 'daily', 'weekly');
@@ -41,8 +32,6 @@ $$;
 CREATE TABLE IF NOT EXISTS app.briefing_definitions (
   id uuid PRIMARY KEY,
   owner_user_id uuid NOT NULL REFERENCES app.users(id) ON DELETE CASCADE,
-  workspace_id uuid REFERENCES app.workspaces(id) ON DELETE CASCADE,
-  visibility app.briefing_visibility NOT NULL DEFAULT 'private',
   title text NOT NULL CHECK (length(btrim(title)) > 0),
   cadence app.briefing_cadence NOT NULL DEFAULT 'manual',
   schedule_metadata jsonb NOT NULL DEFAULT '{}'::jsonb CHECK (
@@ -55,38 +44,24 @@ CREATE TABLE IF NOT EXISTS app.briefing_definitions (
   ),
   last_run_at timestamptz,
   created_at timestamptz NOT NULL DEFAULT now(),
-  updated_at timestamptz NOT NULL DEFAULT now(),
-  CHECK (
-    (visibility = 'private' AND workspace_id IS NULL)
-    OR (visibility = 'workspace' AND workspace_id IS NOT NULL)
-  )
+  updated_at timestamptz NOT NULL DEFAULT now()
 );
 
 CREATE TABLE IF NOT EXISTS app.briefing_runs (
   id uuid PRIMARY KEY,
   definition_id uuid NOT NULL REFERENCES app.briefing_definitions(id) ON DELETE CASCADE,
   owner_user_id uuid NOT NULL REFERENCES app.users(id) ON DELETE CASCADE,
-  workspace_id uuid REFERENCES app.workspaces(id) ON DELETE CASCADE,
-  visibility app.briefing_visibility NOT NULL DEFAULT 'private',
   status app.briefing_run_status NOT NULL,
   run_kind app.briefing_run_kind NOT NULL DEFAULT 'manual',
   summary_text text NOT NULL CHECK (length(btrim(summary_text)) > 0),
   source_metadata jsonb NOT NULL DEFAULT '{}'::jsonb CHECK (
     jsonb_typeof(source_metadata) = 'object'
   ),
-  created_at timestamptz NOT NULL DEFAULT now(),
-  CHECK (
-    (visibility = 'private' AND workspace_id IS NULL)
-    OR (visibility = 'workspace' AND workspace_id IS NOT NULL)
-  )
+  created_at timestamptz NOT NULL DEFAULT now()
 );
 
 CREATE INDEX IF NOT EXISTS briefing_definitions_owner_user_id_updated_at_idx
   ON app.briefing_definitions(owner_user_id, updated_at DESC);
-
-CREATE INDEX IF NOT EXISTS briefing_definitions_workspace_id_updated_at_idx
-  ON app.briefing_definitions(workspace_id, updated_at DESC)
-  WHERE workspace_id IS NOT NULL;
 
 CREATE INDEX IF NOT EXISTS briefing_runs_definition_id_created_at_idx
   ON app.briefing_runs(definition_id, created_at DESC, id);
@@ -121,11 +96,9 @@ LANGUAGE plpgsql
 AS $$
 DECLARE
   definition_owner_user_id uuid;
-  definition_workspace_id uuid;
-  definition_visibility app.briefing_visibility;
 BEGIN
-  SELECT owner_user_id, workspace_id, visibility
-  INTO definition_owner_user_id, definition_workspace_id, definition_visibility
+  SELECT owner_user_id
+  INTO definition_owner_user_id
   FROM app.briefing_definitions
   WHERE id = NEW.definition_id;
 
@@ -135,14 +108,6 @@ BEGIN
 
   IF NEW.owner_user_id <> definition_owner_user_id THEN
     RAISE EXCEPTION 'briefing run owner_user_id must match its definition';
-  END IF;
-
-  IF NEW.workspace_id IS DISTINCT FROM definition_workspace_id THEN
-    RAISE EXCEPTION 'briefing run workspace_id must match its definition';
-  END IF;
-
-  IF NEW.visibility <> definition_visibility THEN
-    RAISE EXCEPTION 'briefing run visibility must match its definition';
   END IF;
 
   RETURN NEW;
@@ -161,7 +126,7 @@ DROP TRIGGER IF EXISTS briefing_runs_enforce_definition_context
   ON app.briefing_runs;
 
 CREATE TRIGGER briefing_runs_enforce_definition_context
-BEFORE INSERT OR UPDATE OF definition_id, owner_user_id, workspace_id, visibility
+BEFORE INSERT OR UPDATE OF definition_id, owner_user_id
 ON app.briefing_runs
 FOR EACH ROW
 EXECUTE FUNCTION app.enforce_briefing_run_definition_context();
@@ -190,15 +155,7 @@ FOR SELECT
 TO jarvis_app_runtime, jarvis_worker_runtime
 USING (
   app.current_actor_user_id() IS NOT NULL
-  AND (
-    owner_user_id = app.current_actor_user_id()
-    OR (
-      visibility = 'workspace'
-      AND workspace_id IS NOT NULL
-      AND workspace_id = app.current_workspace_id()
-      AND app.is_workspace_member(workspace_id, app.current_actor_user_id())
-    )
-  )
+  AND owner_user_id = app.current_actor_user_id()
 );
 
 CREATE POLICY briefing_definitions_insert
@@ -208,15 +165,6 @@ TO jarvis_app_runtime
 WITH CHECK (
   app.current_actor_user_id() IS NOT NULL
   AND owner_user_id = app.current_actor_user_id()
-  AND (
-    visibility = 'private'
-    OR (
-      visibility = 'workspace'
-      AND workspace_id IS NOT NULL
-      AND workspace_id = app.current_workspace_id()
-      AND app.is_workspace_member(workspace_id, app.current_actor_user_id())
-    )
-  )
 );
 
 CREATE POLICY briefing_definitions_update
@@ -230,15 +178,6 @@ USING (
 WITH CHECK (
   app.current_actor_user_id() IS NOT NULL
   AND owner_user_id = app.current_actor_user_id()
-  AND (
-    visibility = 'private'
-    OR (
-      visibility = 'workspace'
-      AND workspace_id IS NOT NULL
-      AND workspace_id = app.current_workspace_id()
-      AND app.is_workspace_member(workspace_id, app.current_actor_user_id())
-    )
-  )
 );
 
 CREATE POLICY briefing_runs_select
@@ -247,15 +186,7 @@ FOR SELECT
 TO jarvis_app_runtime, jarvis_worker_runtime
 USING (
   app.current_actor_user_id() IS NOT NULL
-  AND (
-    owner_user_id = app.current_actor_user_id()
-    OR (
-      visibility = 'workspace'
-      AND workspace_id IS NOT NULL
-      AND workspace_id = app.current_workspace_id()
-      AND app.is_workspace_member(workspace_id, app.current_actor_user_id())
-    )
-  )
+  AND owner_user_id = app.current_actor_user_id()
 );
 
 CREATE POLICY briefing_runs_insert
@@ -270,7 +201,5 @@ WITH CHECK (
     FROM app.briefing_definitions definition
     WHERE definition.id = briefing_runs.definition_id
       AND definition.owner_user_id = app.current_actor_user_id()
-      AND definition.workspace_id IS NOT DISTINCT FROM briefing_runs.workspace_id
-      AND definition.visibility = briefing_runs.visibility
   )
 );

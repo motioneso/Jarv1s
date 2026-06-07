@@ -43,7 +43,6 @@ CREATE TABLE IF NOT EXISTS app.connector_accounts (
   id uuid PRIMARY KEY,
   provider_id text NOT NULL REFERENCES app.connector_definitions(provider_id),
   owner_user_id uuid NOT NULL REFERENCES app.users(id) ON DELETE CASCADE,
-  workspace_id uuid REFERENCES app.workspaces(id) ON DELETE CASCADE,
   scopes text[] NOT NULL DEFAULT ARRAY[]::text[],
   status app.connector_account_status NOT NULL DEFAULT 'active',
   encrypted_secret jsonb NOT NULL CHECK (jsonb_typeof(encrypted_secret) = 'object'),
@@ -58,10 +57,6 @@ CREATE TABLE IF NOT EXISTS app.connector_accounts (
 
 CREATE INDEX IF NOT EXISTS connector_accounts_owner_user_id_idx
   ON app.connector_accounts(owner_user_id);
-
-CREATE INDEX IF NOT EXISTS connector_accounts_workspace_id_idx
-  ON app.connector_accounts(workspace_id)
-  WHERE workspace_id IS NOT NULL;
 
 CREATE INDEX IF NOT EXISTS connector_accounts_provider_id_idx
   ON app.connector_accounts(provider_id);
@@ -166,13 +161,6 @@ TO jarvis_app_runtime
 USING (
   app.current_actor_user_id() IS NOT NULL
   AND owner_user_id = app.current_actor_user_id()
-  AND (
-    workspace_id IS NULL
-    OR (
-      workspace_id = app.current_workspace_id()
-      AND app.is_workspace_member(workspace_id, app.current_actor_user_id())
-    )
-  )
 );
 
 CREATE POLICY connector_accounts_insert
@@ -182,13 +170,6 @@ TO jarvis_app_runtime
 WITH CHECK (
   app.current_actor_user_id() IS NOT NULL
   AND owner_user_id = app.current_actor_user_id()
-  AND (
-    workspace_id IS NULL
-    OR (
-      workspace_id = app.current_workspace_id()
-      AND app.is_workspace_member(workspace_id, app.current_actor_user_id())
-    )
-  )
 );
 
 CREATE POLICY connector_accounts_update
@@ -198,22 +179,8 @@ TO jarvis_app_runtime
 USING (
   app.current_actor_user_id() IS NOT NULL
   AND owner_user_id = app.current_actor_user_id()
-  AND (
-    workspace_id IS NULL
-    OR (
-      workspace_id = app.current_workspace_id()
-      AND app.is_workspace_member(workspace_id, app.current_actor_user_id())
-    )
-  )
 )
 WITH CHECK (
   app.current_actor_user_id() IS NOT NULL
   AND owner_user_id = app.current_actor_user_id()
-  AND (
-    workspace_id IS NULL
-    OR (
-      workspace_id = app.current_workspace_id()
-      AND app.is_workspace_member(workspace_id, app.current_actor_user_id())
-    )
-  )
 );

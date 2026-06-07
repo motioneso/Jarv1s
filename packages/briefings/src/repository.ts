@@ -15,7 +15,6 @@ import {
   type BriefingRun,
   type BriefingRunKind,
   type BriefingRunStatus,
-  type BriefingVisibility,
   type DataContextDb
 } from "@jarv1s/db";
 import type { JarvisModuleManifest } from "@jarv1s/module-sdk";
@@ -23,8 +22,6 @@ import type { AiAssistantToolDto } from "@jarv1s/shared";
 
 export interface CreateBriefingDefinitionInput {
   readonly title: string;
-  readonly visibility?: BriefingVisibility;
-  readonly workspaceId?: string | null;
   readonly cadence?: BriefingCadence;
   readonly scheduleMetadata?: Record<string, unknown>;
   readonly enabled?: boolean;
@@ -33,8 +30,6 @@ export interface CreateBriefingDefinitionInput {
 
 export interface UpdateBriefingDefinitionInput {
   readonly title?: string;
-  readonly visibility?: BriefingVisibility;
-  readonly workspaceId?: string | null;
   readonly cadence?: BriefingCadence;
   readonly scheduleMetadata?: Record<string, unknown>;
   readonly enabled?: boolean;
@@ -102,8 +97,6 @@ export class BriefingsRepository {
       .values({
         id: randomUUID(),
         owner_user_id: sql<string>`app.current_actor_user_id()`,
-        workspace_id: input.workspaceId ?? null,
-        visibility: input.visibility ?? "private",
         title: input.title,
         cadence: input.cadence ?? "manual",
         schedule_metadata: input.scheduleMetadata ?? {},
@@ -130,12 +123,6 @@ export class BriefingsRepository {
 
     if (input.title !== undefined) {
       updates.title = input.title;
-    }
-    if (input.visibility !== undefined) {
-      updates.visibility = input.visibility;
-    }
-    if (input.workspaceId !== undefined) {
-      updates.workspace_id = input.workspaceId;
     }
     if (input.cadence !== undefined) {
       updates.cadence = input.cadence;
@@ -191,8 +178,6 @@ export class BriefingsRepository {
         id: input.runId ?? randomUUID(),
         definition_id: definition.id,
         owner_user_id: definition.owner_user_id,
-        workspace_id: definition.workspace_id,
-        visibility: definition.visibility,
         status: summary.status,
         run_kind: input.runKind,
         summary_text: summary.summaryText,

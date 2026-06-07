@@ -1,17 +1,12 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import type { TaskApiStatus, TaskApiVisibility } from "@jarv1s/shared";
+import type { TaskApiStatus } from "@jarv1s/shared";
 import { ArrowLeft, LoaderCircle, MessageSquarePlus, Save } from "lucide-react";
 import { type FormEvent, useEffect, useState } from "react";
 import { Link, useParams } from "react-router";
 
 import { addTaskActivity, getTask, updateTask } from "../api/client";
 import { queryKeys } from "../api/query-keys";
-import {
-  fromDateInputValue,
-  statusLabels,
-  toDateInputValue,
-  visibilityLabels
-} from "./task-format";
+import { fromDateInputValue, statusLabels, toDateInputValue } from "./task-format";
 
 interface TaskDetailPageProps {
   readonly activeWorkspaceId: string | null;
@@ -23,7 +18,6 @@ export function TaskDetailPage(props: TaskDetailPageProps) {
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [status, setStatus] = useState<TaskApiStatus>("todo");
-  const [visibility, setVisibility] = useState<TaskApiVisibility>("private");
   const [dueAt, setDueAt] = useState("");
   const [priority, setPriority] = useState("");
   const [activityBody, setActivityBody] = useState("");
@@ -38,9 +32,6 @@ export function TaskDetailPage(props: TaskDetailPageProps) {
       if (!taskId) {
         throw new Error("Task id is missing");
       }
-      if (visibility === "workspace" && !props.activeWorkspaceId) {
-        throw new Error("Select a workspace first");
-      }
 
       return updateTask(
         taskId,
@@ -48,8 +39,6 @@ export function TaskDetailPage(props: TaskDetailPageProps) {
           title,
           description: description || null,
           status,
-          visibility,
-          workspaceId: visibility === "workspace" ? props.activeWorkspaceId : null,
           dueAt: fromDateInputValue(dueAt),
           priority: priority ? Number(priority) : null
         },
@@ -100,7 +89,6 @@ export function TaskDetailPage(props: TaskDetailPageProps) {
     setTitle(task.title);
     setDescription(task.description ?? "");
     setStatus(task.status);
-    setVisibility(task.visibility);
     setDueAt(toDateInputValue(task.dueAt));
     setPriority(task.priority === null ? "" : String(task.priority));
   }, [taskQuery.data?.task]);
@@ -174,20 +162,6 @@ export function TaskDetailPage(props: TaskDetailPageProps) {
                 value={status}
               >
                 {Object.entries(statusLabels).map(([value, label]) => (
-                  <option key={value} value={value}>
-                    {label}
-                  </option>
-                ))}
-              </select>
-            </label>
-
-            <label>
-              Visibility
-              <select
-                onChange={(event) => setVisibility(event.target.value as TaskApiVisibility)}
-                value={visibility}
-              >
-                {Object.entries(visibilityLabels).map(([value, label]) => (
                   <option key={value} value={value}>
                     {label}
                   </option>

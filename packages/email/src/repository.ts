@@ -2,18 +2,11 @@ import { randomUUID } from "node:crypto";
 
 import { sql } from "kysely";
 
-import {
-  assertDataContextDb,
-  type DataContextDb,
-  type EmailMessage,
-  type EmailMessageVisibility
-} from "@jarv1s/db";
+import { assertDataContextDb, type DataContextDb, type EmailMessage } from "@jarv1s/db";
 
 export interface CreateCachedEmailMessageInput {
   readonly id?: string;
   readonly connectorAccountId: string;
-  readonly workspaceId?: string | null;
-  readonly visibility?: EmailMessageVisibility;
   readonly sender: string;
   readonly recipients?: readonly string[];
   readonly subject: string;
@@ -60,8 +53,6 @@ export class EmailRepository {
         id: input.id ?? randomUUID(),
         connector_account_id: input.connectorAccountId,
         owner_user_id: sql<string>`app.current_actor_user_id()`,
-        workspace_id: input.workspaceId ?? null,
-        visibility: input.visibility ?? "private",
         sender: input.sender,
         recipients: [...(input.recipients ?? [])],
         subject: input.subject,

@@ -100,7 +100,6 @@ function CalendarEventRow(props: { readonly event: CalendarEventDto }) {
               {props.event.location}
             </span>
           ) : null}
-          <span>{props.event.visibility}</span>
         </div>
       </div>
     </article>

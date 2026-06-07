@@ -1,13 +1,7 @@
-export const EMAIL_MESSAGE_VISIBILITIES = ["private", "workspace"] as const;
-
-export type EmailMessageVisibility = (typeof EMAIL_MESSAGE_VISIBILITIES)[number];
-
 export interface EmailMessageDto {
   readonly id: string;
   readonly connectorAccountId: string;
   readonly ownerUserId: string;
-  readonly workspaceId: string | null;
-  readonly visibility: EmailMessageVisibility;
   readonly sender: string;
   readonly recipients: readonly string[];
   readonly subject: string;
@@ -52,8 +46,6 @@ export const emailMessageDtoSchema = {
     "id",
     "connectorAccountId",
     "ownerUserId",
-    "workspaceId",
-    "visibility",
     "sender",
     "recipients",
     "subject",
@@ -69,8 +61,6 @@ export const emailMessageDtoSchema = {
     id: { type: "string" },
     connectorAccountId: { type: "string" },
     ownerUserId: { type: "string" },
-    workspaceId: nullableStringSchema,
-    visibility: { type: "string", enum: EMAIL_MESSAGE_VISIBILITIES },
     sender: { type: "string" },
     recipients: { type: "array", items: { type: "string" } },
     subject: { type: "string" },

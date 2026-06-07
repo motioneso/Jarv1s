@@ -300,20 +300,8 @@ describe("Calendar and Email connector-backed read modules", () => {
     const messageWithoutWorkspace = await dataContext.withDataContext(userAContext(), (scopedDb) =>
       emailRepository.getById(scopedDb, emailMessageIds.bWorkspace)
     );
-    const eventWithWorkspace = await dataContext.withDataContext(
-      userAContext(ids.workspaceAlpha),
-      (scopedDb) => calendarRepository.getById(scopedDb, calendarEventIds.bWorkspace)
-    );
-    const messageWithWorkspace = await dataContext.withDataContext(
-      userAContext(ids.workspaceAlpha),
-      (scopedDb) => emailRepository.getById(scopedDb, emailMessageIds.bWorkspace)
-    );
-
     expect(eventWithoutWorkspace).toBeUndefined();
     expect(messageWithoutWorkspace).toBeUndefined();
-    // Workspace context alone does not grant access; only a share does
-    expect(eventWithWorkspace).toBeUndefined();
-    expect(messageWithWorkspace).toBeUndefined();
   });
 
   it("allows calendar event read through a view share", async () => {
@@ -484,8 +472,6 @@ async function seedConnectorBackedReadData(): Promise<void> {
           id,
           connector_account_id,
           owner_user_id,
-          workspace_id,
-          visibility,
           title,
           starts_at,
           ends_at,
@@ -500,8 +486,6 @@ async function seedConnectorBackedReadData(): Promise<void> {
             $1,
             $2,
             $3,
-            null,
-            'private',
             'User A private event',
             '2026-06-08T09:00:00.000Z',
             '2026-06-08T10:00:00.000Z',
@@ -515,8 +499,6 @@ async function seedConnectorBackedReadData(): Promise<void> {
             $4,
             $5,
             $6,
-            null,
-            'private',
             'User B private event',
             '2026-06-08T11:00:00.000Z',
             '2026-06-08T12:00:00.000Z',
@@ -530,8 +512,6 @@ async function seedConnectorBackedReadData(): Promise<void> {
             $7,
             $5,
             $6,
-            $8,
-            'workspace',
             'Workspace planning event',
             '2026-06-08T13:00:00.000Z',
             '2026-06-08T14:00:00.000Z',
@@ -549,8 +529,7 @@ async function seedConnectorBackedReadData(): Promise<void> {
         calendarEventIds.bPrivate,
         connectorAccountIds.bCalendar,
         ids.userB,
-        calendarEventIds.bWorkspace,
-        ids.workspaceAlpha
+        calendarEventIds.bWorkspace
       ]
     );
     await client.query(
@@ -559,8 +538,6 @@ async function seedConnectorBackedReadData(): Promise<void> {
           id,
           connector_account_id,
           owner_user_id,
-          workspace_id,
-          visibility,
           sender,
           recipients,
           subject,
@@ -575,8 +552,6 @@ async function seedConnectorBackedReadData(): Promise<void> {
             $1,
             $2,
             $3,
-            null,
-            'private',
             'sender-a@example.test',
             ARRAY['user-a@example.test']::text[],
             'User A private message',
@@ -590,8 +565,6 @@ async function seedConnectorBackedReadData(): Promise<void> {
             $4,
             $5,
             $6,
-            null,
-            'private',
             'sender-b@example.test',
             ARRAY['user-b@example.test']::text[],
             'User B private message',
@@ -605,8 +578,6 @@ async function seedConnectorBackedReadData(): Promise<void> {
             $7,
             $5,
             $6,
-            $8,
-            'workspace',
             'team@example.test',
             ARRAY['alpha@example.test']::text[],
             'Workspace planning message',
@@ -624,8 +595,7 @@ async function seedConnectorBackedReadData(): Promise<void> {
         emailMessageIds.bPrivate,
         connectorAccountIds.bEmail,
         ids.userB,
-        emailMessageIds.bWorkspace,
-        ids.workspaceAlpha
+        emailMessageIds.bWorkspace
       ]
     );
     await client.query("COMMIT");
@@ -637,10 +607,9 @@ async function seedConnectorBackedReadData(): Promise<void> {
   }
 }
 
-function userAContext(workspaceId?: string): AccessContext {
+function userAContext(): AccessContext {
   return {
     actorUserId: ids.userA,
-    workspaceId,
     requestId: "request:user-a-calendar-email"
   };
 }

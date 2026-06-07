@@ -181,7 +181,6 @@ describe("Notifications module M5", () => {
 
     expect(created.actor_user_id).toBe(ids.userA);
     expect(created.recipient_user_id).toBe(ids.userA);
-    expect(created.visibility).toBe("private");
     expect(created.read_at).toBeNull();
     expect(fetchedByOwner?.id).toBe(created.id);
     expect(fetchedByOtherUser).toBeUndefined();
@@ -203,25 +202,18 @@ describe("Notifications module M5", () => {
     expect(adminRead).toBeUndefined();
   });
 
-  it("recipient-only access: notification is visible to its recipient regardless of workspace context, and invisible to non-recipients", async () => {
-    // aWorkspaceSeed was seeded with visibility='workspace' but recipient_user_id=userA.
-    // Under the new recipient-only policy the visibility column is inert — what matters
-    // is only that recipient_user_id matches the actor.
-    const withoutWorkspace = await dataContext.withDataContext(userAContext(), (scopedDb) =>
+  it("recipient-only access: notification is visible to its recipient, and invisible to non-recipients", async () => {
+    // aWorkspaceSeed has recipient_user_id=userA. Under the recipient-only RLS policy,
+    // only the recipient can see it.
+    const visibleToRecipient = await dataContext.withDataContext(userAContext(), (scopedDb) =>
       repository.getById(scopedDb, notificationIds.aWorkspaceSeed)
-    );
-    const withWorkspace = await dataContext.withDataContext(
-      userAContext(ids.workspaceAlpha),
-      (scopedDb) => repository.getById(scopedDb, notificationIds.aWorkspaceSeed)
     );
     const nonRecipient = await dataContext.withDataContext(userBContext(), (scopedDb) =>
       repository.getById(scopedDb, notificationIds.aWorkspaceSeed)
     );
 
-    // Recipient can see the notification with OR without workspace context
-    expect(withoutWorkspace?.id).toBe(notificationIds.aWorkspaceSeed);
-    expect(withWorkspace?.id).toBe(notificationIds.aWorkspaceSeed);
-    // Non-recipient cannot see it even with workspace context
+    expect(visibleToRecipient?.id).toBe(notificationIds.aWorkspaceSeed);
+    // Non-recipient cannot see it
     expect(nonRecipient).toBeUndefined();
   });
 
@@ -338,16 +330,14 @@ async function seedNotificationData(): Promise<void> {
           id,
           actor_user_id,
           recipient_user_id,
-          workspace_id,
-          visibility,
           title,
           body,
           metadata
         )
         VALUES
-          ($1, $2, $3, null, 'private', 'User A private notification', 'Private for User A', $4::jsonb),
-          ($5, $3, $2, null, 'private', 'User B private notification', 'Private for User B', $6::jsonb),
-          ($7, $2, $3, $8, 'workspace', 'Workspace seed notification', 'Workspace seed for User A', $9::jsonb)
+          ($1, $2, $3, 'User A private notification', 'Private for User A', $4::jsonb),
+          ($5, $3, $2, 'User B private notification', 'Private for User B', $6::jsonb),
+          ($7, $2, $3, 'Workspace seed notification', 'Workspace seed for User A', $8::jsonb)
       `,
       [
         notificationIds.aPrivate,
@@ -357,7 +347,6 @@ async function seedNotificationData(): Promise<void> {
         notificationIds.bPrivate,
         JSON.stringify({ source: "seed", resourceType: "note" }),
         notificationIds.aWorkspaceSeed,
-        ids.workspaceAlpha,
         JSON.stringify({ source: "seed", workspaceScoped: true })
       ]
     );
@@ -370,18 +359,16 @@ async function seedNotificationData(): Promise<void> {
   }
 }
 
-function userAContext(workspaceId?: string): AccessContext {
+function userAContext(): AccessContext {
   return {
     actorUserId: ids.userA,
-    workspaceId: workspaceId ?? null,
     requestId: "request:user-a-notifications"
   };
 }
 
-function userBContext(workspaceId?: string): AccessContext {
+function userBContext(): AccessContext {
   return {
     actorUserId: ids.userB,
-    workspaceId: workspaceId ?? null,
     requestId: "request:user-b-notifications"
   };
 }

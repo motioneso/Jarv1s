@@ -1,22 +1,7 @@
-DO $$
-BEGIN
-  IF NOT EXISTS (
-    SELECT 1
-    FROM pg_type
-    WHERE typnamespace = 'app'::regnamespace
-      AND typname = 'calendar_event_visibility'
-  ) THEN
-    CREATE TYPE app.calendar_event_visibility AS ENUM ('private', 'workspace');
-  END IF;
-END
-$$;
-
 CREATE TABLE IF NOT EXISTS app.calendar_events (
   id uuid PRIMARY KEY,
   connector_account_id uuid NOT NULL REFERENCES app.connector_accounts(id) ON DELETE CASCADE,
   owner_user_id uuid NOT NULL REFERENCES app.users(id) ON DELETE CASCADE,
-  workspace_id uuid REFERENCES app.workspaces(id) ON DELETE CASCADE,
-  visibility app.calendar_event_visibility NOT NULL DEFAULT 'private',
   title text NOT NULL CHECK (length(btrim(title)) > 0),
   starts_at timestamptz NOT NULL,
   ends_at timestamptz NOT NULL,
@@ -30,25 +15,11 @@ CREATE TABLE IF NOT EXISTS app.calendar_events (
   created_at timestamptz NOT NULL DEFAULT now(),
   updated_at timestamptz NOT NULL DEFAULT now(),
   UNIQUE (connector_account_id, external_id),
-  CHECK (ends_at >= starts_at),
-  CHECK (
-    (
-      visibility = 'private'
-      AND workspace_id IS NULL
-    )
-    OR (
-      visibility = 'workspace'
-      AND workspace_id IS NOT NULL
-    )
-  )
+  CHECK (ends_at >= starts_at)
 );
 
 CREATE INDEX IF NOT EXISTS calendar_events_owner_user_id_starts_at_idx
   ON app.calendar_events(owner_user_id, starts_at);
-
-CREATE INDEX IF NOT EXISTS calendar_events_workspace_id_starts_at_idx
-  ON app.calendar_events(workspace_id, starts_at)
-  WHERE workspace_id IS NOT NULL;
 
 CREATE INDEX IF NOT EXISTS calendar_events_connector_account_id_idx
   ON app.calendar_events(connector_account_id);
@@ -101,15 +72,7 @@ FOR SELECT
 TO jarvis_app_runtime
 USING (
   app.current_actor_user_id() IS NOT NULL
-  AND (
-    owner_user_id = app.current_actor_user_id()
-    OR (
-      visibility = 'workspace'
-      AND workspace_id IS NOT NULL
-      AND workspace_id = app.current_workspace_id()
-      AND app.is_workspace_member(workspace_id, app.current_actor_user_id())
-    )
-  )
+  AND owner_user_id = app.current_actor_user_id()
 );
 
 CREATE POLICY calendar_events_insert
@@ -128,15 +91,6 @@ WITH CHECK (
       AND accounts.owner_user_id = app.current_actor_user_id()
       AND definitions.provider_type = 'calendar'
   )
-  AND (
-    visibility = 'private'
-    OR (
-      visibility = 'workspace'
-      AND workspace_id IS NOT NULL
-      AND workspace_id = app.current_workspace_id()
-      AND app.is_workspace_member(workspace_id, app.current_actor_user_id())
-    )
-  )
 );
 
 CREATE POLICY calendar_events_update
@@ -150,13 +104,4 @@ USING (
 WITH CHECK (
   app.current_actor_user_id() IS NOT NULL
   AND owner_user_id = app.current_actor_user_id()
-  AND (
-    visibility = 'private'
-    OR (
-      visibility = 'workspace'
-      AND workspace_id IS NOT NULL
-      AND workspace_id = app.current_workspace_id()
-      AND app.is_workspace_member(workspace_id, app.current_actor_user_id())
-    )
-  )
 );

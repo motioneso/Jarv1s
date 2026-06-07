@@ -69,8 +69,6 @@ export function serializeEmailMessage(message: EmailMessage): EmailMessageDto {
     id: message.id,
     connectorAccountId: message.connector_account_id,
     ownerUserId: message.owner_user_id,
-    workspaceId: message.workspace_id,
-    visibility: message.visibility,
     sender: message.sender,
     recipients: message.recipients,
     subject: message.subject,

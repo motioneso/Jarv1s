@@ -2,18 +2,11 @@ import { randomUUID } from "node:crypto";
 
 import { sql } from "kysely";
 
-import {
-  assertDataContextDb,
-  type CalendarEvent,
-  type CalendarEventVisibility,
-  type DataContextDb
-} from "@jarv1s/db";
+import { assertDataContextDb, type CalendarEvent, type DataContextDb } from "@jarv1s/db";
 
 export interface CreateCachedCalendarEventInput {
   readonly id?: string;
   readonly connectorAccountId: string;
-  readonly workspaceId?: string | null;
-  readonly visibility?: CalendarEventVisibility;
   readonly title: string;
   readonly startsAt: Date | string;
   readonly endsAt: Date | string;
@@ -60,8 +53,6 @@ export class CalendarRepository {
         id: input.id ?? randomUUID(),
         connector_account_id: input.connectorAccountId,
         owner_user_id: sql<string>`app.current_actor_user_id()`,
-        workspace_id: input.workspaceId ?? null,
-        visibility: input.visibility ?? "private",
         title: input.title,
         starts_at: input.startsAt,
         ends_at: input.endsAt,

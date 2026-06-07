@@ -6,7 +6,6 @@ import type { JarvisDatabase } from "./types.js";
 
 export interface AccessContext {
   readonly actorUserId: string;
-  readonly workspaceId?: string | null;
   readonly requestId?: string;
 }
 
@@ -30,7 +29,6 @@ export class DataContextRunner {
 
     return this.rootDb.transaction().execute(async (transaction) => {
       await setLocal(transaction, "app.actor_user_id", accessContext.actorUserId);
-      await setLocal(transaction, "app.workspace_id", accessContext.workspaceId ?? "");
       await setLocal(transaction, "app.request_id", accessContext.requestId ?? randomUUID());
 
       return work({
@@ -63,7 +61,7 @@ export function assertDataContextDb(value: unknown): asserts value is DataContex
 
 async function setLocal(
   transaction: Transaction<JarvisDatabase>,
-  name: "app.actor_user_id" | "app.workspace_id" | "app.request_id",
+  name: "app.actor_user_id" | "app.request_id",
   value: string
 ): Promise<void> {
   await sql`select set_config(${name}, ${value}, true)`.execute(transaction);

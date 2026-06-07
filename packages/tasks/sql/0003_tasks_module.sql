@@ -4,15 +4,6 @@ BEGIN
     SELECT 1
     FROM pg_type
     WHERE typnamespace = 'app'::regnamespace
-      AND typname = 'task_visibility'
-  ) THEN
-    CREATE TYPE app.task_visibility AS ENUM ('private', 'workspace');
-  END IF;
-
-  IF NOT EXISTS (
-    SELECT 1
-    FROM pg_type
-    WHERE typnamespace = 'app'::regnamespace
       AND typname = 'task_status'
   ) THEN
     CREATE TYPE app.task_status AS ENUM ('todo', 'in_progress', 'done', 'archived');
@@ -23,8 +14,6 @@ $$;
 CREATE TABLE IF NOT EXISTS app.tasks (
   id uuid PRIMARY KEY,
   owner_user_id uuid NOT NULL REFERENCES app.users(id) ON DELETE CASCADE,
-  workspace_id uuid,
-  visibility app.task_visibility NOT NULL DEFAULT 'private',
   title text NOT NULL CHECK (length(btrim(title)) > 0),
   description text,
   status app.task_status NOT NULL DEFAULT 'todo',
@@ -46,10 +35,6 @@ CREATE TABLE IF NOT EXISTS app.task_activity (
 
 CREATE INDEX IF NOT EXISTS tasks_owner_user_id_idx
   ON app.tasks(owner_user_id);
-
-CREATE INDEX IF NOT EXISTS tasks_workspace_id_idx
-  ON app.tasks(workspace_id)
-  WHERE workspace_id IS NOT NULL;
 
 CREATE INDEX IF NOT EXISTS tasks_status_idx
   ON app.tasks(status);
@@ -129,12 +114,6 @@ USING (
   AND (
     owner_user_id = app.current_actor_user_id()
     OR app.has_resource_grant('task', id, app.current_actor_user_id())
-    OR (
-      visibility = 'workspace'
-      AND workspace_id IS NOT NULL
-      AND workspace_id = app.current_workspace_id()
-      AND app.is_workspace_member(workspace_id, app.current_actor_user_id())
-    )
   )
 );
 
@@ -145,15 +124,6 @@ TO jarvis_app_runtime, jarvis_worker_runtime
 WITH CHECK (
   app.current_actor_user_id() IS NOT NULL
   AND owner_user_id = app.current_actor_user_id()
-  AND (
-    visibility = 'private'
-    OR (
-      visibility = 'workspace'
-      AND workspace_id IS NOT NULL
-      AND workspace_id = app.current_workspace_id()
-      AND app.is_workspace_member(workspace_id, app.current_actor_user_id())
-    )
-  )
 );
 
 CREATE POLICY tasks_update
@@ -165,12 +135,6 @@ USING (
   AND (
     owner_user_id = app.current_actor_user_id()
     OR app.has_resource_grant_level('task', id, app.current_actor_user_id(), ARRAY['manage'])
-    OR (
-      visibility = 'workspace'
-      AND workspace_id IS NOT NULL
-      AND workspace_id = app.current_workspace_id()
-      AND app.is_workspace_member(workspace_id, app.current_actor_user_id())
-    )
   )
 )
 WITH CHECK (
@@ -178,12 +142,6 @@ WITH CHECK (
   AND (
     owner_user_id = app.current_actor_user_id()
     OR app.has_resource_grant_level('task', id, app.current_actor_user_id(), ARRAY['manage'])
-    OR (
-      visibility = 'workspace'
-      AND workspace_id IS NOT NULL
-      AND workspace_id = app.current_workspace_id()
-      AND app.is_workspace_member(workspace_id, app.current_actor_user_id())
-    )
   )
 );
 

@@ -69,7 +69,6 @@ interface InvocationResponse {
 interface AssistantActionResponse {
   readonly action: {
     readonly id: string;
-    readonly workspaceId: string | null;
     readonly toolName: string;
     readonly permissionId: string;
     readonly risk: "write" | "destructive";
@@ -272,7 +271,6 @@ describe("AI read-only assistant tool execution foundation", () => {
       /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/
     );
     expect(action).toMatchObject({
-      workspaceId: null,
       toolName: "tasks.updateStatus",
       permissionId: "tasks.update",
       risk: "write",
@@ -316,7 +314,7 @@ describe("AI read-only assistant tool execution foundation", () => {
       }
     });
     const resolved = resolveResponse.json<AssistantActionResponse>().action;
-    const task = await dataContext.withDataContext(userBContext(ids.workspaceAlpha), (scopedDb) =>
+    const task = await dataContext.withDataContext(userBContext(), (scopedDb) =>
       tasksRepository.getById(scopedDb, taskIds.bWorkspace)
     );
     const jobsAfter = await countPgBossJobs();
@@ -325,7 +323,6 @@ describe("AI read-only assistant tool execution foundation", () => {
     expect(resolveResponse.statusCode).toBe(200);
     expect(resolved).toMatchObject({
       id: actionRequestId,
-      workspaceId: ids.workspaceAlpha,
       toolName: "tasks.updateStatus",
       risk: "write",
       status: "confirmed"
@@ -496,12 +493,12 @@ async function seedAssistantToolData(): Promise<void> {
 async function seedTasks(client: pg.Client): Promise<void> {
   await client.query(
     `
-      INSERT INTO app.tasks (id, owner_user_id, workspace_id, visibility, title, description, status)
+      INSERT INTO app.tasks (id, owner_user_id, title, description, status)
       VALUES
-        ($1, $2, null, 'private', 'User A assistant task', 'A assistant description', 'todo'),
-        ($3, $4, null, 'private', 'User B private task', 'B private description', 'todo'),
-        ($5, $4, null, 'private', 'User B granted assistant task', 'B granted description', 'todo'),
-        ($6, $4, $7, 'workspace', 'User B workspace assistant task', 'B workspace description', 'todo')
+        ($1, $2, 'User A assistant task', 'A assistant description', 'todo'),
+        ($3, $4, 'User B private task', 'B private description', 'todo'),
+        ($5, $4, 'User B granted assistant task', 'B granted description', 'todo'),
+        ($6, $4, 'User B workspace assistant task', 'B workspace description', 'todo')
     `,
     [
       taskIds.aPrivate,
@@ -509,8 +506,7 @@ async function seedTasks(client: pg.Client): Promise<void> {
       taskIds.bPrivate,
       ids.userB,
       taskIds.bGrantedToA,
-      taskIds.bWorkspace,
-      ids.workspaceAlpha
+      taskIds.bWorkspace
     ]
   );
   await client.query(
@@ -529,16 +525,14 @@ async function seedNotifications(client: pg.Client): Promise<void> {
         id,
         actor_user_id,
         recipient_user_id,
-        workspace_id,
-        visibility,
         title,
         body,
         metadata
       )
       VALUES
-        ($1, $4, $2, null, 'private', 'User A assistant notification', 'Private for User A', $3::jsonb),
-        ($5, $2, $4, null, 'private', 'User B private notification', 'Private for User B', $6::jsonb),
-        ($7, $4, null, $8, 'workspace', 'Workspace assistant notification', 'Workspace visible summary', $9::jsonb)
+        ($1, $4, $2, 'User A assistant notification', 'Private for User A', $3::jsonb),
+        ($5, $2, $4, 'User B private notification', 'Private for User B', $6::jsonb),
+        ($7, $4, $4, 'Workspace assistant notification', 'Workspace visible summary', $8::jsonb)
     `,
     [
       notificationIds.aPrivate,
@@ -548,7 +542,6 @@ async function seedNotifications(client: pg.Client): Promise<void> {
       notificationIds.bPrivate,
       JSON.stringify({ source: "assistant-tools-test" }),
       notificationIds.workspace,
-      ids.workspaceAlpha,
       JSON.stringify({ source: "assistant-tools-test", workspaceScoped: true })
     ]
   );
@@ -586,8 +579,6 @@ async function seedConnectorBackedRows(client: pg.Client): Promise<void> {
         id,
         connector_account_id,
         owner_user_id,
-        workspace_id,
-        visibility,
         title,
         starts_at,
         ends_at,
@@ -598,9 +589,9 @@ async function seedConnectorBackedRows(client: pg.Client): Promise<void> {
         external_metadata
       )
       VALUES
-        ($1, $2, $3, null, 'private', 'User A assistant event', '2026-06-09T09:00:00.000Z', '2026-06-09T10:00:00.000Z', 'Desk', 'A summary', 'A excerpt', 'event-a-assistant', '{"source":"assistant-tools-test"}'::jsonb),
-        ($4, $5, $6, null, 'private', 'User B private event', '2026-06-09T11:00:00.000Z', '2026-06-09T12:00:00.000Z', 'Room B', 'B summary', 'B excerpt', 'event-b-private', '{"source":"assistant-tools-test"}'::jsonb),
-        ($7, $5, $6, $8, 'workspace', 'Workspace assistant event', '2026-06-09T13:00:00.000Z', '2026-06-09T14:00:00.000Z', 'Alpha room', 'Workspace summary', 'Workspace excerpt', 'event-workspace-assistant', '{"source":"assistant-tools-test"}'::jsonb)
+        ($1, $2, $3, 'User A assistant event', '2026-06-09T09:00:00.000Z', '2026-06-09T10:00:00.000Z', 'Desk', 'A summary', 'A excerpt', 'event-a-assistant', '{"source":"assistant-tools-test"}'::jsonb),
+        ($4, $5, $6, 'User B private event', '2026-06-09T11:00:00.000Z', '2026-06-09T12:00:00.000Z', 'Room B', 'B summary', 'B excerpt', 'event-b-private', '{"source":"assistant-tools-test"}'::jsonb),
+        ($7, $5, $6, 'Workspace assistant event', '2026-06-09T13:00:00.000Z', '2026-06-09T14:00:00.000Z', 'Alpha room', 'Workspace summary', 'Workspace excerpt', 'event-workspace-assistant', '{"source":"assistant-tools-test"}'::jsonb)
     `,
     [
       calendarEventIds.aPrivate,
@@ -609,8 +600,7 @@ async function seedConnectorBackedRows(client: pg.Client): Promise<void> {
       calendarEventIds.bPrivate,
       connectorAccountIds.bCalendar,
       ids.userB,
-      calendarEventIds.workspace,
-      ids.workspaceAlpha
+      calendarEventIds.workspace
     ]
   );
   await client.query(
@@ -619,8 +609,6 @@ async function seedConnectorBackedRows(client: pg.Client): Promise<void> {
         id,
         connector_account_id,
         owner_user_id,
-        workspace_id,
-        visibility,
         sender,
         recipients,
         subject,
@@ -631,9 +619,9 @@ async function seedConnectorBackedRows(client: pg.Client): Promise<void> {
         external_metadata
       )
       VALUES
-        ($1, $2, $3, null, 'private', 'sender-a@example.test', ARRAY['user-a@example.test']::text[], 'User A assistant message', 'A snippet', 'A excerpt', '2026-06-09T09:30:00.000Z', 'message-a-assistant', '{"source":"assistant-tools-test"}'::jsonb),
-        ($4, $5, $6, null, 'private', 'sender-b@example.test', ARRAY['user-b@example.test']::text[], 'User B private message', 'B snippet', 'B excerpt', '2026-06-09T10:30:00.000Z', 'message-b-private', '{"source":"assistant-tools-test"}'::jsonb),
-        ($7, $5, $6, $8, 'workspace', 'team@example.test', ARRAY['alpha@example.test']::text[], 'Workspace assistant message', 'Workspace snippet', 'Workspace excerpt', '2026-06-09T11:30:00.000Z', 'message-workspace-assistant', '{"source":"assistant-tools-test"}'::jsonb)
+        ($1, $2, $3, 'sender-a@example.test', ARRAY['user-a@example.test']::text[], 'User A assistant message', 'A snippet', 'A excerpt', '2026-06-09T09:30:00.000Z', 'message-a-assistant', '{"source":"assistant-tools-test"}'::jsonb),
+        ($4, $5, $6, 'sender-b@example.test', ARRAY['user-b@example.test']::text[], 'User B private message', 'B snippet', 'B excerpt', '2026-06-09T10:30:00.000Z', 'message-b-private', '{"source":"assistant-tools-test"}'::jsonb),
+        ($7, $5, $6, 'team@example.test', ARRAY['alpha@example.test']::text[], 'Workspace assistant message', 'Workspace snippet', 'Workspace excerpt', '2026-06-09T11:30:00.000Z', 'message-workspace-assistant', '{"source":"assistant-tools-test"}'::jsonb)
     `,
     [
       emailMessageIds.aPrivate,
@@ -642,8 +630,7 @@ async function seedConnectorBackedRows(client: pg.Client): Promise<void> {
       emailMessageIds.bPrivate,
       connectorAccountIds.bEmail,
       ids.userB,
-      emailMessageIds.workspace,
-      ids.workspaceAlpha
+      emailMessageIds.workspace
     ]
   );
 }
@@ -688,18 +675,16 @@ function adminHeaders(): Record<string, string> {
   };
 }
 
-function userAContext(workspaceId?: string | null): AccessContext {
+function userAContext(): AccessContext {
   return {
     actorUserId: ids.userA,
-    workspaceId: workspaceId ?? null,
     requestId: "request:user-a-ai-tools"
   };
 }
 
-function userBContext(workspaceId?: string | null): AccessContext {
+function userBContext(): AccessContext {
   return {
     actorUserId: ids.userB,
-    workspaceId: workspaceId ?? null,
     requestId: "request:user-b-ai-tools"
   };
 }

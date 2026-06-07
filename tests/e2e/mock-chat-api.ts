@@ -35,8 +35,6 @@ export function createMockChatThread(
   return {
     id,
     ownerUserId: "user-1",
-    workspaceId: null,
-    visibility: "private",
     title,
     createdAt: "2026-06-06T12:00:00.000Z",
     updatedAt: "2026-06-06T12:00:00.000Z",
@@ -54,8 +52,6 @@ export function createMockChatMessage(
     id,
     threadId,
     ownerUserId: "user-1",
-    workspaceId: null,
-    visibility: "private",
     role: "user",
     status: "stored",
     body,
@@ -78,11 +74,7 @@ async function handleChatThreadsRoute(route: Route, state: MockChatApiState): Pr
     const input = request.postDataJSON() as CreateChatThreadRequest;
     const thread = createMockChatThread(
       `chat-thread-${(state.chatThreads ?? []).length + 1}`,
-      input.title,
-      {
-        visibility: input.visibility ?? "private",
-        workspaceId: input.workspaceId ?? null
-      }
+      input.title
     );
 
     state.chatThreads = [thread, ...(state.chatThreads ?? [])];
