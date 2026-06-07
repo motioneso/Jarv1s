@@ -1,5 +1,5 @@
 import { mkdir, readFile, readdir, rm, stat, writeFile } from "node:fs/promises";
-import { dirname } from "node:path";
+import { dirname, join, relative } from "node:path";
 
 import type { VaultContext } from "./vault-context.js";
 import { resolveVaultPath } from "./vault-path.js";
@@ -44,4 +44,26 @@ export async function vaultFileExists(ctx: VaultContext, relativePath: string): 
 export async function makeVaultDir(ctx: VaultContext, relativeDir: string): Promise<void> {
   const fullPath = resolveVaultPath(ctx.vaultRoot, relativeDir);
   await mkdir(fullPath, { recursive: true, mode: 0o700 });
+}
+
+async function collectFilesRecursive(dir: string, vaultRoot: string): Promise<string[]> {
+  const entries = await readdir(dir, { withFileTypes: true });
+  const result: string[] = [];
+  for (const entry of entries) {
+    const entryPath = join(dir, entry.name);
+    if (entry.isDirectory()) {
+      result.push(...(await collectFilesRecursive(entryPath, vaultRoot)));
+    } else if (entry.isFile()) {
+      result.push(relative(vaultRoot, entryPath));
+    }
+  }
+  return result;
+}
+
+export async function listVaultFilesRecursive(
+  ctx: VaultContext,
+  relativeDir: string = "."
+): Promise<string[]> {
+  const fullPath = resolveVaultPath(ctx.vaultRoot, relativeDir);
+  return collectFilesRecursive(fullPath, ctx.vaultRoot);
 }
