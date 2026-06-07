@@ -134,7 +134,6 @@ describe("Connectors encrypted foundation", () => {
       "settings",
       "connectors",
       "tasks",
-      "notes",
       "notifications",
       "calendar",
       "email",
@@ -146,7 +145,6 @@ describe("Connectors encrypted foundation", () => {
       "settings",
       "connectors",
       "tasks",
-      "notes",
       "notifications",
       "calendar",
       "email",
@@ -169,9 +167,8 @@ describe("Connectors encrypted foundation", () => {
     expect(getBuiltInSqlMigrationDirectories().at(-4)).toContain("packages/email/sql");
     expect(getBuiltInSqlMigrationDirectories().at(-5)).toContain("packages/calendar/sql");
     expect(getBuiltInSqlMigrationDirectories().at(-6)).toContain("packages/notifications/sql");
-    expect(getBuiltInSqlMigrationDirectories().at(-7)).toContain("packages/notes/sql");
-    expect(getBuiltInSqlMigrationDirectories().at(-8)).toContain("packages/tasks/sql");
-    expect(getBuiltInSqlMigrationDirectories().at(-9)).toContain("packages/connectors/sql");
+    expect(getBuiltInSqlMigrationDirectories().at(-7)).toContain("packages/tasks/sql");
+    expect(getBuiltInSqlMigrationDirectories().at(-8)).toContain("packages/connectors/sql");
   });
 
   it("requires an explicit connector secret key in production", () => {

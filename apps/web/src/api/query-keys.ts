@@ -40,11 +40,6 @@ export const queryKeys = {
     detail: (id: string, workspaceId: string | null) =>
       ["email", "detail", id, workspaceId] as const
   },
-  notes: {
-    list: (workspaceId: string | null) => ["notes", "list", workspaceId] as const,
-    detail: (id: string, workspaceId: string | null) =>
-      ["notes", "detail", id, workspaceId] as const
-  },
   notifications: {
     list: (workspaceId: string | null) => ["notifications", "list", workspaceId] as const
   },

@@ -41,7 +41,6 @@ export interface UserDataExportTables {
   readonly chatThreads: readonly ExportRow[];
   readonly connectorAccounts: readonly ExportRow[];
   readonly emailMessages: readonly ExportRow[];
-  readonly notes: readonly ExportRow[];
   readonly notificationReads: readonly ExportRow[];
   readonly notifications: readonly ExportRow[];
   readonly resourceGrants: readonly ExportRow[];
@@ -107,7 +106,6 @@ async function readExportTables(
     resourceGrants: await readRows(scopedDb, resourceGrantsQuery(userId)),
     tasks: await readRows(scopedDb, tasksQuery(userId)),
     taskActivity: await readRows(scopedDb, taskActivityQuery(userId)),
-    notes: await readRows(scopedDb, notesQuery(userId)),
     notifications: await readRows(scopedDb, notificationsQuery(userId)),
     notificationReads: await readRows(scopedDb, notificationReadsQuery(userId)),
     connectorAccounts: await readRows(scopedDb, connectorAccountsQuery(userId)),
@@ -251,24 +249,6 @@ function taskActivityQuery(userId: string) {
     JOIN app.tasks task ON task.id = activity.task_id
     WHERE task.owner_user_id = ${userId}::uuid
     ORDER BY activity.created_at, activity.id
-  `;
-}
-
-function notesQuery(userId: string) {
-  return sql<Record<string, unknown>>`
-    SELECT
-      id::text AS id,
-      owner_user_id::text AS "ownerUserId",
-      workspace_id::text AS "workspaceId",
-      visibility::text,
-      title,
-      body,
-      archived_at AS "archivedAt",
-      created_at AS "createdAt",
-      updated_at AS "updatedAt"
-    FROM app.notes
-    WHERE owner_user_id = ${userId}::uuid
-    ORDER BY created_at, id
   `;
 }
 

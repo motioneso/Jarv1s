@@ -24,7 +24,6 @@ const protectedTables = [
   "chat_threads",
   "connector_accounts",
   "email_messages",
-  "notes",
   "notification_reads",
   "notifications",
   "task_activity",

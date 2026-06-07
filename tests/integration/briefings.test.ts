@@ -40,8 +40,6 @@ const sourceIds = {
   userATask: "78000000-0000-4000-8000-000000000001",
   userBPrivateTask: "78000000-0000-4000-8000-000000000002",
   userAWorkspaceTask: "78000000-0000-4000-8000-000000000003",
-  userANote: "79000000-0000-4000-8000-000000000001",
-  userBPrivateNote: "79000000-0000-4000-8000-000000000002",
   userAConnector: "7a000000-0000-4000-8000-000000000001",
   userBConnector: "7a000000-0000-4000-8000-000000000002",
   userAEmail: "7b000000-0000-4000-8000-000000000001",
@@ -178,7 +176,6 @@ describe("Briefings module M6 read-only scheduled summaries", () => {
       "settings",
       "connectors",
       "tasks",
-      "notes",
       "notifications",
       "calendar",
       "email",
@@ -318,7 +315,7 @@ describe("Briefings module M6 read-only scheduled summaries", () => {
     const definition = await dataContext.withDataContext(userAContext(), (scopedDb) =>
       repository.createDefinition(scopedDb, {
         title: "Morning briefing",
-        selectedToolNames: ["tasks.listVisible", "notes.listVisible", "email.listVisibleMessages"]
+        selectedToolNames: ["tasks.listVisible", "email.listVisibleMessages"]
       })
     );
     const run = await dataContext.withDataContext(userAContext(), (scopedDb) =>
@@ -332,8 +329,6 @@ describe("Briefings module M6 read-only scheduled summaries", () => {
     expect(run?.status).toBe("succeeded");
     expect(run?.summary_text).toContain("Tasks: 2 visible");
     expect(run?.summary_text).toContain("User A briefing task");
-    expect(run?.summary_text).toContain("Notes: 1 visible");
-    expect(run?.summary_text).toContain("User A briefing note");
     expect(run?.summary_text).toContain("Email: 1 visible");
     expect(run?.summary_text).toContain("User A briefing email");
     expect(serialized).not.toContain("User B private");
@@ -490,15 +485,6 @@ async function seedBriefingData(): Promise<void> {
         sourceIds.userAWorkspaceTask,
         ids.workspaceAlpha
       ]
-    );
-    await client.query(
-      `
-        INSERT INTO app.notes (id, owner_user_id, workspace_id, visibility, title, body)
-        VALUES
-          ($1, $2, null, 'private', 'User A briefing note', 'A note body'),
-          ($3, $4, null, 'private', 'User B private briefing note', 'B note body')
-      `,
-      [sourceIds.userANote, ids.userA, sourceIds.userBPrivateNote, ids.userB]
     );
     await client.query(
       `

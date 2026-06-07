@@ -99,8 +99,6 @@ describe("MVP foundation scaffold", () => {
         { version: "0003", name: "0003_tasks_module.sql" },
         { version: "0004", name: "0004_auth_workspaces_settings.sql" },
         { version: "0005", name: "0005_admin_audit_events.sql" },
-        { version: "0006", name: "0006_notes_module.sql" },
-        { version: "0007", name: "0007_tighten_workspace_update_rls.sql" },
         { version: "0008", name: "0008_notifications_module.sql" },
         { version: "0009", name: "0009_connectors_module.sql" },
         { version: "0010", name: "0010_connector_admin_safe_metadata.sql" },
@@ -119,7 +117,8 @@ describe("MVP foundation scaffold", () => {
         { version: "0023", name: "0023_ai_action_requests_owner_only.sql" },
         { version: "0024", name: "0024_notifications_owner_only.sql" },
         { version: "0025", name: "0025_chat_owner_or_share.sql" },
-        { version: "0026", name: "0026_briefings_owner_or_share.sql" }
+        { version: "0026", name: "0026_briefings_owner_or_share.sql" },
+        { version: "0027", name: "0027_notes_teardown.sql" }
       ]);
     } finally {
       await client.end();

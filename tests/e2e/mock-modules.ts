@@ -35,22 +35,6 @@ export const modulesResponse: ListModulesResponse = {
       settings: []
     },
     {
-      id: "notes",
-      name: "Notes",
-      version: "0.1.0",
-      lifecycle: "required",
-      navigation: [
-        {
-          id: "notes",
-          label: "Notes",
-          path: "/notes",
-          icon: "file-text",
-          order: 20
-        }
-      ],
-      settings: []
-    },
-    {
       id: "notifications",
       name: "Notifications",
       version: "0.1.0",

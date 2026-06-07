@@ -158,7 +158,6 @@ describe("Calendar and Email connector-backed read modules", () => {
       "settings",
       "connectors",
       "tasks",
-      "notes",
       "notifications",
       "calendar",
       "email",

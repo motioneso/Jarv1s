@@ -25,7 +25,6 @@
       "@jarv1s/jobs/*": ["packages/jobs/src/*"],
       "@jarv1s/module-registry": ["packages/module-registry/src/index.ts"],
       "@jarv1s/module-sdk": ["packages/module-sdk/src/index.ts"],
-      "@jarv1s/notes": ["packages/notes/src/index.ts"],
       "@jarv1s/notifications": ["packages/notifications/src/index.ts"],
       "@jarv1s/settings": ["packages/settings/src/index.ts"],
       "@jarv1s/shared": ["packages/shared/src/index.ts"],

@@ -144,7 +144,6 @@ export interface RlsProbeItemsTable {
 
 export type TaskVisibility = "private" | "workspace";
 export type TaskStatus = "todo" | "in_progress" | "done" | "archived";
-export type NoteVisibility = "private" | "workspace";
 export type ShareLevel = "view" | "contribute" | "manage";
 export type NotificationVisibility = "private" | "workspace";
 export type ConnectorProviderType = "calendar" | "email";
@@ -187,18 +186,6 @@ export interface TaskActivityTable {
   activity_type: string;
   body: string | null;
   created_at: TimestampColumn;
-}
-
-export interface NotesTable {
-  id: string;
-  owner_user_id: string;
-  workspace_id: string | null;
-  visibility: NoteVisibility;
-  title: string;
-  body: string | null;
-  archived_at: NullableTimestampColumn;
-  created_at: TimestampColumn;
-  updated_at: TimestampColumn;
 }
 
 export interface NotificationsTable {
@@ -389,7 +376,6 @@ export interface JarvisDatabase {
   "app.rls_probe_items": RlsProbeItemsTable;
   "app.tasks": TasksTable;
   "app.task_activity": TaskActivityTable;
-  "app.notes": NotesTable;
   "app.notifications": NotificationsTable;
   "app.notification_reads": NotificationReadsTable;
   "app.connector_definitions": ConnectorDefinitionsTable;
@@ -415,7 +401,6 @@ export type AdminAuditEvent = Selectable<AdminAuditEventsTable>;
 export type RlsProbeItem = Selectable<RlsProbeItemsTable>;
 export type Task = Selectable<TasksTable>;
 export type TaskActivity = Selectable<TaskActivityTable>;
-export type Note = Selectable<NotesTable>;
 export type Notification = Selectable<NotificationsTable>;
 export type NotificationRead = Selectable<NotificationReadsTable>;
 export type ConnectorProvider = Selectable<ConnectorDefinitionsTable>;

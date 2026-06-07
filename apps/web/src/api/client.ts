@@ -18,11 +18,8 @@ import type {
   GetEmailMessageResponse,
   CreateConnectorAccountRequest,
   CreateConnectorAccountResponse,
-  CreateNoteRequest,
-  CreateNoteResponse,
   CreateTaskRequest,
   CreateTaskResponse,
-  GetNoteResponse,
   GetTaskResponse,
   ListAiAssistantToolsResponse,
   ListAiConfiguredModelsResponse,
@@ -38,7 +35,6 @@ import type {
   ListConnectorProvidersResponse,
   ListEmailMessagesResponse,
   ListModulesResponse,
-  ListNotesResponse,
   ListNotificationsResponse,
   ListTasksResponse,
   ListWorkspacesResponse,
@@ -58,8 +54,6 @@ import type {
   UpdateAiProviderConfigResponse,
   UpdateConnectorAccountRequest,
   UpdateConnectorAccountResponse,
-  UpdateNoteRequest,
-  UpdateNoteResponse,
   UpdateTaskRequest,
   UpdateTaskResponse
 } from "@jarv1s/shared";
@@ -160,37 +154,6 @@ export async function addTaskActivity(
 ): Promise<AddTaskActivityResponse> {
   return requestJson<AddTaskActivityResponse>(`/api/tasks/${encodeURIComponent(id)}/activity`, {
     method: "POST",
-    body: input,
-    workspaceId
-  });
-}
-
-export async function listNotes(workspaceId: string | null): Promise<ListNotesResponse> {
-  return requestJson<ListNotesResponse>("/api/notes", { workspaceId });
-}
-
-export async function createNote(
-  input: CreateNoteRequest,
-  workspaceId: string | null
-): Promise<CreateNoteResponse> {
-  return requestJson<CreateNoteResponse>("/api/notes", {
-    method: "POST",
-    body: input,
-    workspaceId
-  });
-}
-
-export async function getNote(id: string, workspaceId: string | null): Promise<GetNoteResponse> {
-  return requestJson<GetNoteResponse>(`/api/notes/${encodeURIComponent(id)}`, { workspaceId });
-}
-
-export async function updateNote(
-  id: string,
-  input: UpdateNoteRequest,
-  workspaceId: string | null
-): Promise<UpdateNoteResponse> {
-  return requestJson<UpdateNoteResponse>(`/api/notes/${encodeURIComponent(id)}`, {
-    method: "PATCH",
     body: input,
     workspaceId
   });

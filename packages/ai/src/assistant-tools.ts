@@ -3,14 +3,12 @@ import type { DataContextDb } from "@jarv1s/db";
 import { assertDataContextDb } from "@jarv1s/db";
 import { EmailRepository, serializeEmailMessage } from "@jarv1s/email";
 import type { JarvisModuleManifest } from "@jarv1s/module-sdk";
-import { NotesRepository, serializeNote } from "@jarv1s/notes";
 import { NotificationsRepository, serializeNotification } from "@jarv1s/notifications";
 import type { AiAssistantToolDto } from "@jarv1s/shared";
 import { TasksRepository, serializeTask } from "@jarv1s/tasks";
 
 export interface AiAssistantToolExecutorDependencies {
   readonly tasksRepository?: TasksRepository;
-  readonly notesRepository?: NotesRepository;
   readonly notificationsRepository?: NotificationsRepository;
   readonly calendarRepository?: CalendarRepository;
   readonly emailRepository?: EmailRepository;
@@ -18,14 +16,12 @@ export interface AiAssistantToolExecutorDependencies {
 
 export class AiAssistantToolExecutor {
   private readonly tasksRepository: TasksRepository;
-  private readonly notesRepository: NotesRepository;
   private readonly notificationsRepository: NotificationsRepository;
   private readonly calendarRepository: CalendarRepository;
   private readonly emailRepository: EmailRepository;
 
   constructor(dependencies: AiAssistantToolExecutorDependencies = {}) {
     this.tasksRepository = dependencies.tasksRepository ?? new TasksRepository();
-    this.notesRepository = dependencies.notesRepository ?? new NotesRepository();
     this.notificationsRepository =
       dependencies.notificationsRepository ?? new NotificationsRepository();
     this.calendarRepository = dependencies.calendarRepository ?? new CalendarRepository();
@@ -44,11 +40,6 @@ export class AiAssistantToolExecutor {
         const tasks = await this.tasksRepository.listVisible(scopedDb);
 
         return { tasks: tasks.map(serializeTask) };
-      }
-      case "notes.listVisible": {
-        const notes = await this.notesRepository.listVisible(scopedDb);
-
-        return { notes: notes.map(serializeNote) };
       }
       case "notifications.listVisible": {
         const result = await this.notificationsRepository.listVisible(scopedDb);

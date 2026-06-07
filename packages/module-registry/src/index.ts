@@ -34,11 +34,6 @@ import {
 import { FOUNDATION_QUEUES, type QueueDefinition } from "@jarv1s/jobs";
 import type { JarvisModuleManifest } from "@jarv1s/module-sdk";
 import {
-  notesModuleManifest,
-  notesModuleSqlMigrationDirectory,
-  registerNotesRoutes
-} from "@jarv1s/notes";
-import {
   notificationsModuleManifest,
   notificationsModuleSqlMigrationDirectory,
   registerNotificationsRoutes
@@ -99,12 +94,6 @@ const BUILT_IN_MODULES: readonly BuiltInModuleRegistration[] = [
     queueDefinitions: TASKS_QUEUE_DEFINITIONS,
     registerRoutes: registerTasksRoutes,
     registerWorkers: (boss, dependencies) => registerTasksJobWorkers(boss, dependencies.dataContext)
-  },
-  {
-    manifest: notesModuleManifest,
-    sqlMigrationDirectories: [notesModuleSqlMigrationDirectory],
-    queueDefinitions: [],
-    registerRoutes: registerNotesRoutes
   },
   {
     manifest: notificationsModuleManifest,
