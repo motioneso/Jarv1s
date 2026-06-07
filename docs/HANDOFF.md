@@ -1,5 +1,14 @@
 # Jarv1s Handoff And Next-Agent Instructions
 
+> **FROZEN 2026-06-07.** This document is historical record only. Do not edit or continue adding
+> to it. The live continuation point is now:
+>
+> - **Status + next step:** `docs/STATUS.md`
+> - **Roadmap + milestones:** `docs/ROADMAP.md` + GitHub Milestones on `motioneso/Jarv1s`
+> - **Open work:** GitHub Issues #2–#10 (epic issues, one per milestone)
+> - **Architectural decisions:** `docs/architecture/decisions/`
+> - **Durable lessons:** agentmemory (`project: "jarv1s"`)
+
 Date: 2026-06-07
 
 ## Current State
@@ -290,6 +299,52 @@ pg-boss payloads are operational metadata. They may contain actor ids, workspace
 - Models never get direct database or secret access.
 - All AI actions go through typed, permission-gated tools.
 - Changes must meet the thermo-nuclear maintainability bar in `docs/DEVELOPMENT_STANDARDS.md`: pursue structural simplification, block unjustified 1000-line file growth, and avoid ad-hoc branching or boundary leaks.
+
+## Recent Session (2026-06-07) — Manual Testing + 4 Bug Fixes
+
+First full manual test of the running web UI. Four bugs were found and fixed:
+
+**1. Sign-out not working** — Two fixes applied:
+- `signOutMutation.onSettled` fired regardless of success or failure, silently redirecting even on
+  failure. Changed to `onSuccess`. Also added visible error text ("Sign out failed — retry?") with
+  the error message in the button's `title` attribute. `apps/web/src/shell/app-shell.tsx`
+- Better Auth's trusted-origins CSRF check blocked sign-out (but not sign-in) when accessing via a
+  non-localhost origin (e.g. Tailscale IP `<tailscale-ip>`). Fixed by adding an `Origin` header
+  rewrite in the Vite proxy so all `/api` requests appear to come from `http://localhost:3000`.
+  `apps/web/src/vite.config.ts`
+
+**2. Activity comments not displaying** — Triple bug: no `GET /api/tasks/:id/activity` endpoint
+existed; no React Query invalidation fired after submitting; no UI displayed the returned list.
+All three fixed:
+- Added `ListTaskActivityResponse` type and `listTaskActivityRouteSchema` to `packages/shared/src/tasks-api.ts`
+- Added `GET /api/tasks/:id/activity` route in `packages/tasks/src/routes.ts`
+- Added `queryKeys.tasks.activity(id)` in `apps/web/src/api/query-keys.ts`
+- Added `listTaskActivity()` client function in `apps/web/src/api/client.ts`
+- Added `activityQuery`, `ActivityEntry` component, and list render + post-submit invalidation in
+  `apps/web/src/tasks/task-detail-page.tsx`
+
+**3. No complete button on task list** — The circle/checkmark icon was a decorative `<div aria-hidden>`,
+not interactive. Replaced with a `<button className="task-status-icon icon-button">` that toggles
+status between `"todo"` and `"done"` via the existing `updateTask` mutation.
+`apps/web/src/tasks/tasks-page.tsx`
+
+**4. Briefings stuck at "queued"** — The pg-boss worker process (`apps/worker`) was never started.
+Briefing jobs sit in the queue indefinitely without it. Worker must be started separately:
+`pnpm dev:worker` (or `nohup pnpm dev:worker &` for background). This is not auto-started by
+`pnpm dev:api` or `pnpm dev:web`.
+
+**Webwright verification** was initiated but login failed (email "admin" was used; actual test
+account email is `3843176+motioneso@users.noreply.github.com`, password `***REDACTED-CREDENTIAL***`). Script at
+`outputs/jarv1s-verification/final_runs/run_1/final_script.py` — run_2 is pending with the
+corrected email.
+
+**Dev server startup for LAN testing** (headless machine, always required):
+```bash
+pnpm --filter @jarv1s/web dev -- --host   # binds to 0.0.0.0:5173
+pnpm dev:api                               # API on :3000
+pnpm dev:worker                            # pg-boss worker — DO NOT forget this
+```
+Access via Tailscale IP if direct LAN has client isolation: `http://<tailscale-ip>:5173`
 
 ## Next Step
 
