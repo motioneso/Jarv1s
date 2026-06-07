@@ -55,6 +55,14 @@ afterAll(async () => {
   await appDb.destroy();
 });
 
+// vault setup for write-back tests (add alongside existing afterAll)
+const vaultBase = join(tmpdir(), `jarv1s-ss-vault-${randomUUID()}`);
+const vaultRunner = new VaultContextRunner(vaultBase);
+
+afterAll(async () => {
+  await rm(vaultBase, { recursive: true, force: true });
+});
+
 // ── CommitmentsRepository ─────────────────────────────────────────────────────
 
 describe("CommitmentsRepository", () => {
@@ -262,6 +270,108 @@ describe("PreferencesRepository", () => {
     await dataContext.withDataContext(ctx(otherUserId), async (scopedDb) => {
       const value = await repo.get(scopedDb, "persona.directness");
       expect(value).toBeNull();
+    });
+  });
+});
+
+// ── VaultWriteBackService ─────────────────────────────────────────────────────
+
+describe("VaultWriteBackService", () => {
+  const entityRepo = new EntitiesRepository();
+  const writeBack = new VaultWriteBackService();
+
+  it("syncEntityToVault creates a vault file with YAML frontmatter for the entity", async () => {
+    await vaultRunner.withVaultContext(ctx(userId), async (vaultCtx) => {
+      await dataContext.withDataContext(ctx(userId), async (scopedDb) => {
+        const entity = await entityRepo.create(scopedDb, {
+          ownerUserId: userId,
+          type: "person",
+          name: "Diana Prince",
+          provenance: "volunteered",
+          vaultNotePath: "People/diana.md"
+        });
+        await writeBack.syncEntityToVault(vaultCtx, entity);
+        const content = await readVaultFile(vaultCtx, "People/diana.md");
+        expect(content).toContain("jarvis_type: person");
+        expect(content).toContain("name:");
+        expect(content).toContain("Diana Prince");
+        expect(content).toContain("provenance: volunteered");
+      });
+    });
+  });
+
+  it("syncEntityToVault preserves existing human-authored prose body", async () => {
+    await vaultRunner.withVaultContext(ctx(userId), async (vaultCtx) => {
+      // Simulate user writing prose after initial sync
+      await writeVaultFile(
+        vaultCtx,
+        "People/eve.md",
+        `---\njarvis_id: old-id\n---\n\n# Eve\n\nEve is a security researcher.\n`
+      );
+
+      await dataContext.withDataContext(ctx(userId), async (scopedDb) => {
+        const entity = await entityRepo.create(scopedDb, {
+          ownerUserId: userId,
+          type: "person",
+          name: "Eve Adams",
+          provenance: "confirmed",
+          vaultNotePath: "People/eve.md"
+        });
+        await writeBack.syncEntityToVault(vaultCtx, entity);
+        const content = await readVaultFile(vaultCtx, "People/eve.md");
+        // Machine-owned: updated frontmatter reflects new entity
+        expect(content).toContain("Eve Adams");
+        // Human-owned: user prose is preserved verbatim
+        expect(content).toContain("Eve is a security researcher.");
+        // Old frontmatter is replaced (not left alongside new)
+        expect(content.indexOf("---")).not.toBe(content.lastIndexOf("---") - 3);
+      });
+    });
+  });
+
+  it("syncEntityToVault is a no-op when vault_note_path is null", async () => {
+    await vaultRunner.withVaultContext(ctx(userId), async (vaultCtx) => {
+      await dataContext.withDataContext(ctx(userId), async (scopedDb) => {
+        const entity = await entityRepo.create(scopedDb, {
+          ownerUserId: userId,
+          type: "person",
+          name: "Frank No-Vault",
+          provenance: "inferred"
+          // no vaultNotePath
+        });
+        await writeBack.syncEntityToVault(vaultCtx, entity);
+        // No file should have been created
+        expect(await vaultFileExists(vaultCtx, "People/frank.md")).toBe(false);
+      });
+    });
+  });
+
+  it("updated entity name is reflected in frontmatter after re-sync (body unchanged)", async () => {
+    await vaultRunner.withVaultContext(ctx(userId), async (vaultCtx) => {
+      await dataContext.withDataContext(ctx(userId), async (scopedDb) => {
+        const entity = await entityRepo.create(scopedDb, {
+          ownerUserId: userId,
+          type: "person",
+          name: "Grace Hopper",
+          provenance: "volunteered",
+          vaultNotePath: "People/grace.md"
+        });
+        await writeBack.syncEntityToVault(vaultCtx, entity);
+
+        // Simulate user adding prose
+        const current = await readVaultFile(vaultCtx, "People/grace.md");
+        await writeVaultFile(vaultCtx, "People/grace.md", current + "\n\nGrace invented COBOL.\n");
+
+        // Update entity name
+        const updated = await entityRepo.update(scopedDb, entity.id, {
+          name: "Grace Murray Hopper"
+        });
+        await writeBack.syncEntityToVault(vaultCtx, updated!);
+
+        const final = await readVaultFile(vaultCtx, "People/grace.md");
+        expect(final).toContain("Grace Murray Hopper");
+        expect(final).toContain("Grace invented COBOL.");
+      });
     });
   });
 });
