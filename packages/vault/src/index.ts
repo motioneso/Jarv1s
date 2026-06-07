@@ -5,6 +5,7 @@ export { getVaultBaseDir } from "./vault-config.js";
 export {
   deleteVaultFile,
   listVaultFiles,
+  listVaultFilesRecursive,
   makeVaultDir,
   readVaultFile,
   vaultFileExists,
