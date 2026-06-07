@@ -34,7 +34,7 @@ export class VaultContextRunner {
     return work({
       [vaultContextBrand]: true,
       actorUserId: accessContext.actorUserId,
-      vaultRoot,
+      vaultRoot
     });
   }
 }

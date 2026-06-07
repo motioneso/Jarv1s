@@ -8,5 +8,5 @@ export {
   makeVaultDir,
   readVaultFile,
   vaultFileExists,
-  writeVaultFile,
+  writeVaultFile
 } from "./vault-ops.js";
