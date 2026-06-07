@@ -142,9 +142,6 @@ describe("CommitmentsRepository", () => {
   });
 });
 
-// ── EntitiesRepository, PreferencesRepository, VaultWriteBackService describe blocks
-// added in Tasks 4–6
-
 // ── EntitiesRepository ────────────────────────────────────────────────────────
 
 describe("EntitiesRepository", () => {
@@ -225,6 +222,46 @@ describe("EntitiesRepository", () => {
         vaultNotePath: "People/carol.md"
       });
       expect(e.vault_note_path).toBe("People/carol.md");
+    });
+  });
+});
+
+// ── PreferencesRepository ─────────────────────────────────────────────────────
+
+describe("PreferencesRepository", () => {
+  const repo = new PreferencesRepository();
+
+  it("upsert sets a preference and get returns it", async () => {
+    await dataContext.withDataContext(ctx(userId), async (scopedDb) => {
+      await repo.upsert(scopedDb, userId, "persona.name", "Jarvis");
+      const value = await repo.get(scopedDb, "persona.name");
+      expect(value).toBe("Jarvis");
+    });
+  });
+
+  it("upsert overwrites an existing preference", async () => {
+    await dataContext.withDataContext(ctx(userId), async (scopedDb) => {
+      await repo.upsert(scopedDb, userId, "persona.tone", "formal");
+      await repo.upsert(scopedDb, userId, "persona.tone", "casual");
+      const value = await repo.get(scopedDb, "persona.tone");
+      expect(value).toBe("casual");
+    });
+  });
+
+  it("get returns null for a key that has not been set", async () => {
+    await dataContext.withDataContext(ctx(userId), async (scopedDb) => {
+      const value = await repo.get(scopedDb, "non.existent.key");
+      expect(value).toBeNull();
+    });
+  });
+
+  it("preferences are owner-only: other user cannot read them", async () => {
+    await dataContext.withDataContext(ctx(userId), async (scopedDb) => {
+      await repo.upsert(scopedDb, userId, "persona.directness", "high");
+    });
+    await dataContext.withDataContext(ctx(otherUserId), async (scopedDb) => {
+      const value = await repo.get(scopedDb, "persona.directness");
+      expect(value).toBeNull();
     });
   });
 });
