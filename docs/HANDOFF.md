@@ -1,6 +1,6 @@
 # Jarv1s Handoff And Next-Agent Instructions
 
-Date: 2026-06-06
+Date: 2026-06-07
 
 ## Current State
 
@@ -259,9 +259,11 @@ The data-context wrapper sets transaction-local values:
 
 ```sql
 app.actor_user_id
-app.workspace_id
 app.request_id
 ```
+
+(`app.workspace_id` was removed in Slice 1f; `AccessContext` now carries only `actorUserId` and
+`requestId`.)
 
 Runtime app and worker roles must not own protected tables and must not have `BYPASSRLS`.
 
@@ -291,39 +293,36 @@ pg-boss payloads are operational metadata. They may contain actor ids, workspace
 
 ## Next Step
 
-M2 platform contract hardening is implemented. The M3 backend slice for Auth, Users, Workspaces,
-Settings, auth-provider configuration, admin audit records, and core management edges is also
-implemented.
+The full workspace teardown (Slices 1c-core through 1f) is complete and the code-review fixes are
+committed. The security/RLS substrate now uses pure owner-or-share or owner-only access — workspace
+columns, enums, and functions have been dropped from every product table. `AccessContext` carries
+only `actorUserId` and `requestId`.
 
 Goal for the next agent:
 
-- treat `docs/architecture/plans/0002-tasks-module-mvp.md` and `docs/HANDOFF_TASKS_M1.md` as completed M1 context
-- treat `docs/architecture/plans/0003-platform-first-alpha-roadmap.md` as the current MVP roadmap
-- preserve the current foundation, Tasks, and spike verification commands
-- preserve Fastify REST route schemas/shared contracts unless M3 proves a stronger need
-- keep Better Auth scoped to authentication/session/OAuth identity only; keep authorization in `AccessContext -> withDataContext() -> RLS`
-- Calendar, Email, the narrow AI provider/settings capability-router foundation, Chat, the read-only assistant tool execution foundation, Briefings, and assistant audit/confirmation gates are now complete
-- the M7 lifecycle/Compose hardening follow-up targets are complete: restore drills, production
-  environment examples, broader audit review, and CI/deployment smoke automation
-- next M7 work should focus on either running/verifying the full CI-equivalent command set in a clean
-  environment, real external OAuth/OIDC callback verification against deployed provider apps, or
-  production pg-boss/Postgres operational settings; do not start new product features before that
-- use `docs/architecture/plans/0004-m7-operations-verification-plan.md` as the execution checklist
-  for that M7 operations verification work
+- treat `docs/superpowers/specs/2026-06-06-memory-data-model-design.md` as the authoritative design
+  spec for the next phase — Vault/VaultContext (Slice 2), Memory index and retrieval (Slice 3), and
+  Structured state + write-back (Slice 4)
+- treat all Slices 1c through 1f and their code-review pass as completed context; do not revisit
+  workspace-teardown decisions
+- the workspace selector has been removed from the web frontend; `AccessContext` no longer carries
+  `workspaceId`; `x-jarvis-workspace-id` is no longer sent or validated
 - use CodeGraph and agentmemory as normal agent knowledge tools per
   `docs/DEVELOPMENT_STANDARDS.md#agent-knowledge-tools`; keep CodeGraph synced locally and save
   durable project decisions or lessons to agentmemory without secrets or private data
-- preserve Briefings metadata-only jobs and assistant action metadata-only confirmation gates; avoid real provider calls/embeddings/connector sync/write or destructive tool execution, and preserve `AccessContext -> withDataContext() -> RLS`
+- preserve Briefings metadata-only jobs and assistant action metadata-only confirmation gates; avoid
+  real provider calls/embeddings/connector sync/write or destructive tool execution
+- preserve `AccessContext -> withDataContext() -> RLS`; no admin RLS bypass; no `BYPASSRLS` on
+  runtime roles; repositories accept only `DataContextDb`
 
 Still do not build casually:
 
-- full UI
-- full module system
-- real OAuth providers beyond the M3 auth/session requirement
-- real connectors
+- real OAuth providers beyond the current auth/session requirement
+- real connectors or full OAuth callback flows
 - full email/calendar clients or rich Notes surfaces
-- final API contract layer unless M3 proves plain Fastify REST is insufficient
+- final API contract layer unless plain Fastify REST proves insufficient
 - arbitrary workflow engine
+- real AI provider calls, embeddings, or connector sync
 
 ## Completed M1 Work
 
@@ -472,6 +471,80 @@ Still do not build casually:
 - bounded persisted input summaries to top-level input key names/counts so action records do not contain raw task IDs, private text, prompts, credential material, ciphertext, or raw connector payloads
 - added focused `pnpm test:ai-tools` coverage for pending action records, admin/user no-bypass, read-tool no-record behavior, metadata-only resolution, no task mutation, no jobs, no leakage, and repository `DataContextDb` enforcement
 
+## Completed Slice 1c-core (Calendar, Email, Connectors, AI → owner-or-share / owner-only)
+
+- converted `app.calendar_events` SELECT/INSERT/UPDATE policies to owner-or-share (`app.has_share`)
+  via migration `0020_calendar_owner_or_share.sql`
+- converted `app.email_messages` SELECT/INSERT/UPDATE policies to owner-or-share (`app.has_share`)
+  via migration `0021_email_owner_or_share.sql`
+- converted `app.connector_accounts` SELECT/INSERT/UPDATE policies to plain owner-only (no share arm
+  — credentials are never shareable) via migration `0022_connectors_owner_only.sql`
+- dropped the workspace-membership guard from `app.ai_assistant_action_requests` INSERT (still
+  owner-only, credentials-adjacent) via migration `0023_ai_action_requests_owner_only.sql`
+- rewrote calendar/email workspace-visibility integration test cases to use explicit `app.shares`
+  grants; all nine calendar-email tests pass
+- adjusted cross-cutting `ai-tools.test.ts` assertions to reflect owner-or-share reality for
+  calendar/email (unshared userB rows are no longer visible to userA)
+
+## Completed Slice 1c-1d (Notifications, Chat, Briefings → recipient-only / owner-or-share)
+
+- converted `app.notifications` SELECT/INSERT policies to recipient-only (no share arm — personal
+  messages are NOT shareable) via migration `0024_notifications_owner_only.sql`
+- converted `app.chat_threads` and `app.chat_messages` to owner-or-share via migration
+  `0025_chat_owner_or_share.sql`
+- converted `app.briefing_definitions` and `app.briefing_runs` to owner-or-share via migration
+  `0026_briefings_owner_or_share.sql`
+- updated integration tests for all three modules; all tests pass
+- dropped three dead `ensureWorkspaceVisibilityContext` stubs from tasks, chat, and briefings routes
+  (review-identified issue, fixed in post-review commit)
+
+## Completed Slice 1e (Notes module removal)
+
+- removed `packages/notes` entirely: package directory, module-registry registration, shared
+  contracts, Kysely table types, SQL migration `0006_notes_module.sql` (via tombstone migration
+  `0027_notes_teardown.sql`), web UI routes
+- `app.notes` and `app.note_activity` tables dropped; `app.resource_grants` rows for `note` type
+  dropped; workspace-update RLS trigger `0007_tighten_workspace_update_rls.sql` removed
+- removed Notes read tool from the AI assistant tool executor and briefings tool executor
+- adjusted all integration tests that referenced notes; 12 test files, 119 tests all pass
+
+## Completed Slice 1f (Workspace column and infrastructure teardown)
+
+- dropped `visibility` and `workspace_id` columns from all product tables: `app.tasks`,
+  `app.notifications`, `app.calendar_events`, `app.email_messages`, `app.chat_threads`,
+  `app.chat_messages`, `app.briefing_definitions`, `app.briefing_runs`, `app.connector_accounts`,
+  `app.ai_assistant_action_requests`, and `app.rls_probe_items` via migration
+  `0028_workspace_teardown.sql`
+- dropped workspace enum types: `task_visibility`, `notification_visibility`,
+  `calendar_event_visibility`, `email_message_visibility`, `chat_visibility`, `briefing_visibility`
+- dropped workspace SQL functions: `app.is_workspace_member`, `app.current_workspace_id`
+- updated `app.rls_probe_items` SELECT policy to remove the now-dead workspace arm
+- removed `workspaceId` from `AccessContext`; `DataContextRunner` no longer sets
+  `app.workspace_id` in transaction context
+- removed workspace header validation from access-context resolution in `apps/api`
+- removed workspace prop-drilling from all 14 web frontend files (pages, shell, panels); removed
+  workspace selector from app-shell topbar; `x-jarvis-workspace-id` header no longer sent by the
+  API client; all React Query keys are now static (no workspaceId parameter)
+
+## Completed Post-Slice Code Review Fixes
+
+Five issues identified and fixed in commit `fix(review): address 5 post-Slice-1c-1f review issues`:
+
+1. **Security (notifications INSERT policy)**: `0024_notifications_owner_only.sql` was missing
+   `AND recipient_user_id = app.current_actor_user_id()` in the INSERT `WITH CHECK`. Fixed in
+   `0029_fix_notifications_insert_policy.sql` (in `packages/notifications/sql/`, runs after `0008`
+   creates the table). Both fresh-install and existing-DB paths now enforce the constraint.
+2. **Dead route stubs**: Three route files (`packages/tasks/src/routes.ts`,
+   `packages/chat/src/routes.ts`, `packages/briefings/src/routes.ts`) still had a no-op
+   `ensureWorkspaceVisibilityContext` function and call sites. All removed.
+3. **Frontend workspace prop-drilling**: All 14 web files had `activeWorkspaceId: string | null`
+   prop-drilling removed. The API client no longer sends `x-jarvis-workspace-id`. React Query keys
+   are static constants.
+4. **Misleading migration comment**: `0028_workspace_teardown.sql` comment restored to its
+   committed/applied text so the migration-runner hash check passes.
+5. **Test coverage gap**: `tests/integration/ai-tools.test.ts` now explicitly asserts that
+   userB's notification (seeded with `recipient_user_id = userB`) is NOT visible to userA.
+
 ## Verification Commands
 
 Foundation verification:
@@ -567,9 +640,9 @@ Current known-good foundation result:
 ```txt
 pnpm verify:foundation
 lint, format:check, file-size, typecheck pass
-no SQL migrations applied; 16 already current
+no SQL migrations applied; 27 already current
 Integration Test Files  12 passed (12)
-Integration Tests       113 passed (113)
+Integration Tests       119 passed (119)
 ```
 
 Current known-good Tasks result:
@@ -646,91 +719,38 @@ pnpm test:e2e
 10 passed (chromium)
 ```
 
-Current known-good M6 read-only assistant tools result:
+Current known-good M6 read-only assistant tools result (historical — see Slice 1c-1f for current):
 
 ```txt
-pnpm format
-prettier --write . completed
-
 pnpm test:ai-tools
 Test Files  1 passed (1)
 Tests       9 passed (9)
-
-pnpm verify:foundation
-lint, format:check, file-size, typecheck pass
-no SQL migrations applied; 16 already current
-Integration Test Files  12 passed (12)
-Integration Tests       113 passed (113)
 ```
 
-Current known-good Chat thin slice result:
+Current known-good Chat thin slice result (historical):
 
 ```txt
-pnpm format
-prettier --write . completed
-
 pnpm test:chat
 Test Files  1 passed (1)
 Tests       8 passed (8)
-
-pnpm build:web
-web typecheck and Vite production build pass
-
-pnpm test:e2e
-10 passed (chromium)
-
-pnpm verify:foundation
-lint, format:check, file-size, typecheck pass
-no SQL migrations applied; 16 already current
-Integration Test Files  12 passed (12)
-Integration Tests       113 passed (113)
 ```
 
-Current known-good M6 Briefings result:
+Current known-good M6 Briefings result (historical):
 
 ```txt
-pnpm format
-prettier --write . completed
-
 pnpm test:briefings
 Test Files  1 passed (1)
 Tests       9 passed (9)
-
-pnpm build:web
-web typecheck and Vite production build pass
-
-pnpm test:e2e
-10 passed (chromium)
-
-pnpm verify:foundation
-lint, format:check, file-size, typecheck pass
-no SQL migrations applied; 16 already current
-Integration Test Files  12 passed (12)
-Integration Tests       113 passed (113)
 ```
 
-Current known-good M6 assistant audit/confirmation gates result:
+Current known-good post-Slice-1f + review-fixes result:
 
 ```txt
-pnpm test:ai-tools
-Test Files  1 passed (1)
-Tests       9 passed (9)
-
-pnpm test:ai
-Test Files  1 passed (1)
-Tests       9 passed (9)
-
-pnpm build:web
-web typecheck and Vite production build pass
-
-pnpm test:e2e
-10 passed (chromium)
-
 pnpm verify:foundation
 lint, format:check, file-size, typecheck pass
-no SQL migrations applied; 16 already current
+no SQL migrations applied; 27 already current
 Integration Test Files  12 passed (12)
-Integration Tests       113 passed (113)
+Integration Tests       119 passed (119)
 ```
 
 Spike verification:
@@ -789,4 +809,14 @@ API contract tooling remains intentionally conservative. Fastify REST plus expli
 - Do not give normal app or worker roles table ownership or `BYPASSRLS`.
 - Do not put private content into pg-boss payloads.
 - Do not let repositories accept a root Kysely instance.
-- Keep scope tight. The next slice should be bounded around M7 release hardening, not a broad product expansion.
+- `AccessContext` no longer has `workspaceId`. Do not add it back. The workspace tables and
+  memberships still exist in the DB for historical/admin display, but no runtime path uses workspace
+  context for access gating anymore.
+- The web frontend no longer sends `x-jarvis-workspace-id`. Do not re-add the header or the
+  workspace selector.
+- `0024_notifications_owner_only.sql` in `packages/notifications/sql/` intentionally lacks the
+  `recipient_user_id` INSERT constraint; `0029_fix_notifications_insert_policy.sql` (also in that
+  directory, runs after 0024) applies the correct constraint. Both must stay as-is — altering 0024
+  would break the migration-runner hash check on existing databases.
+- Keep scope tight. The next work is Slice 2 (Vault + VaultContext) per the memory data model design
+  spec, not further RLS cleanup or product expansion outside the spec.
