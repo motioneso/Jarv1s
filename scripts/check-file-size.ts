@@ -8,6 +8,7 @@ const ignoredDirectories = new Set([
   ".turbo",
   "coverage",
   "dist",
+  "docs",
   "node_modules",
   "playwright-report",
   "test-results"

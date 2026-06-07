@@ -13,7 +13,7 @@ import {
   readVaultFile,
   resolveVaultPath,
   vaultFileExists,
-  writeVaultFile,
+  writeVaultFile
 } from "@jarv1s/vault";
 
 // ── resolveVaultPath ──────────────────────────────────────────────────────────
@@ -81,7 +81,9 @@ describe("VaultContextRunner", () => {
     const userA = randomUUID();
     const userB = randomUUID();
     await runner.withVaultContext({ actorUserId: userA }, async (ctx) => {
-      expect(() => resolveVaultPath(ctx.vaultRoot, `../${userB}/secret.md`)).toThrow(VaultPathError);
+      expect(() => resolveVaultPath(ctx.vaultRoot, `../${userB}/secret.md`)).toThrow(
+        VaultPathError
+      );
     });
   });
 
@@ -166,7 +168,9 @@ describe("vault file operations", () => {
 
   it("writeVaultFile throws VaultPathError on traversal", async () => {
     await opsRunner.withVaultContext({ actorUserId: opsUserId }, async (ctx) => {
-      await expect(writeVaultFile(ctx, "../outside/evil.md", "evil")).rejects.toThrow(VaultPathError);
+      await expect(writeVaultFile(ctx, "../outside/evil.md", "evil")).rejects.toThrow(
+        VaultPathError
+      );
     });
   });
 
