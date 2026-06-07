@@ -23,7 +23,7 @@ x-workspace-volumes: &workspace-volumes
 
 services:
   postgres:
-    image: postgres:17-alpine
+    image: pgvector/pgvector:pg17
     container_name: jarv1s-postgres
     environment:
       POSTGRES_DB: jarv1s
