@@ -161,11 +161,35 @@ tests is necessary but not sufficient. Key enforced rules:
 
 ### Agent knowledge tools
 
-Use the **CodeGraph** MCP for codebase navigation before architectural claims or refactors
-(trace callers/callees, check impact on shared helpers/contracts/data-context). The index lives
-under `.codegraph/` (git-ignored); run `codegraph sync .` after pulling or making meaningful
-edits. Use **agentmemory** for durable decisions/invariants/lessons across sessions — never store
-secrets or private data there.
+**CodeGraph** — use `codegraph_context` / `codegraph_trace` / `codegraph_explore` before
+architectural claims or refactors. The index lives under `.codegraph/` (git-ignored); run
+`codegraph sync .` after pulling or making meaningful edits.
+
+**agentmemory** — durable lessons and non-obvious invariants that must survive across sessions.
+Never store secrets or private data.
+
+**Required recalls** — before starting any of these activities call `memory_smart_search`:
+
+| Activity                           | Query                                  |
+| ---------------------------------- | -------------------------------------- |
+| Session start / orientation        | `"jarv1s current project state"`       |
+| RLS policy or security work        | `"jarv1s RLS shareability policy"`     |
+| Migration authoring or debugging   | `"jarv1s migration hash placement"`    |
+| AccessContext or DataContextDb     | `"jarv1s accesscontext datacontext"`   |
+| Integration-test setup or failures | `"jarv1s integration test trap"`       |
+| Frontend/React Query changes       | `"jarv1s frontend workspace querykey"` |
+
+**Required saves** — call `memory_save` immediately (not end-of-session) after any of these:
+
+- A non-obvious architectural decision (why X over Y)
+- A confirmed or discovered invariant (ordering constraint, security rule)
+- A trap or gotcha that caused a real error
+- RLS classification for a resource (owner-only / owner-or-share / recipient-only)
+- A shift in current project state (milestone reached, known-good migration/test counts)
+
+Always use `project: "jarv1s"`. Types: `"architecture"` for invariants, `"bug"` for
+traps/gotchas, `"fact"` for state snapshots, `"pattern"` for coding patterns.
+Do NOT save things already stated in CLAUDE.md or HANDOFF.md.
 
 ## Scope Guardrails
 
