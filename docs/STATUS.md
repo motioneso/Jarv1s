@@ -19,9 +19,8 @@ pnpm test:spike → 2 files, 15 tests pass
 
 ## Next step
 
-1. **Create the GitHub Project board** (requires re-authing `gh` with `project` scope — see note below).
-2. **Begin M-A1**: run `/brief` to spec a provider-agnostic `LocalEmbeddingProvider`,
-   then `/start` for the implementation plan.
+**Begin M-A1**: run `/brief` to spec a provider-agnostic `LocalEmbeddingProvider`,
+then `/start` for the implementation plan.
 
 ## Open questions (carry-forward from HANDOFF.md)
 
@@ -39,12 +38,7 @@ pnpm test:spike → 2 files, 15 tests pass
 - Dev LAN access (headless machine): `pnpm --filter @jarv1s/web dev -- --host` (0.0.0.0:5173),
   then `pnpm dev:api` + `pnpm dev:worker`. Access via Tailscale: `http://<tailscale-ip>:5173`.
 
-## GitHub Project board note
+## GitHub
 
-The `gh` CLI PAT is missing the `project` OAuth scope. To create the Project board:
-
-Option A (recommended): re-auth via `gh auth login` and select the `project` scope, or
-run `gh auth refresh -s project` to add the scope to the existing login.
-
-Option B: create it manually at https://github.com/motioneso?tab=projects → New project →
-Board template → title "Jarv1s Roadmap". Then add the 9 epic issues (#2–#10).
+- Project board: https://github.com/users/motioneso/projects/1 ("Jarv1s Roadmap")
+- Epic issues: #2–#10 (one per milestone, all on the board)
