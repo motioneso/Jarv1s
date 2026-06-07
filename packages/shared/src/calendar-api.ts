@@ -1,13 +1,7 @@
-export const CALENDAR_EVENT_VISIBILITIES = ["private", "workspace"] as const;
-
-export type CalendarEventVisibility = (typeof CALENDAR_EVENT_VISIBILITIES)[number];
-
 export interface CalendarEventDto {
   readonly id: string;
   readonly connectorAccountId: string;
   readonly ownerUserId: string;
-  readonly workspaceId: string | null;
-  readonly visibility: CalendarEventVisibility;
   readonly title: string;
   readonly startsAt: string;
   readonly endsAt: string;
@@ -52,8 +46,6 @@ export const calendarEventDtoSchema = {
     "id",
     "connectorAccountId",
     "ownerUserId",
-    "workspaceId",
-    "visibility",
     "title",
     "startsAt",
     "endsAt",
@@ -69,8 +61,6 @@ export const calendarEventDtoSchema = {
     id: { type: "string" },
     connectorAccountId: { type: "string" },
     ownerUserId: { type: "string" },
-    workspaceId: nullableStringSchema,
-    visibility: { type: "string", enum: CALENDAR_EVENT_VISIBILITIES },
     title: { type: "string" },
     startsAt: { type: "string" },
     endsAt: { type: "string" },

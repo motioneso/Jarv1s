@@ -80,7 +80,6 @@ export interface UpdateAiModelInput {
 }
 
 export interface CreateAiAssistantActionInput {
-  readonly workspaceId?: string | null;
   readonly toolModuleId: string;
   readonly toolModuleName: string;
   readonly toolName: string;
@@ -288,7 +287,6 @@ export class AiRepository {
       .values({
         id: randomUUID(),
         owner_user_id: sql<string>`app.current_actor_user_id()`,
-        workspace_id: input.workspaceId ?? null,
         tool_module_id: input.toolModuleId,
         tool_module_name: input.toolModuleName,
         tool_name: input.toolName,

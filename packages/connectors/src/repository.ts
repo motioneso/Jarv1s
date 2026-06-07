@@ -21,7 +21,6 @@ export interface ConnectorAccountSafeRow {
   readonly provider_display_name: string;
   readonly provider_status: ConnectorProviderStatus;
   readonly owner_user_id: string;
-  readonly workspace_id: string | null;
   readonly scopes: string[];
   readonly status: ConnectorAccountStatus;
   readonly has_secret: boolean;
@@ -32,7 +31,6 @@ export interface ConnectorAccountSafeRow {
 
 export interface CreateConnectorAccountInput {
   readonly providerId: string;
-  readonly workspaceId?: string | null;
   readonly scopes: readonly string[];
   readonly status?: Exclude<ConnectorAccountStatus, "revoked">;
   readonly encryptedSecret: EncryptedConnectorSecret;
@@ -86,7 +84,6 @@ export class ConnectorsRepository {
         id: randomUUID(),
         provider_id: input.providerId,
         owner_user_id: sql<string>`app.current_actor_user_id()`,
-        workspace_id: input.workspaceId ?? null,
         scopes: [...input.scopes],
         status: input.status ?? "active",
         encrypted_secret: input.encryptedSecret,
@@ -184,7 +181,6 @@ export class ConnectorsRepository {
         "definitions.display_name as provider_display_name",
         "definitions.status as provider_status",
         "accounts.owner_user_id as owner_user_id",
-        "accounts.workspace_id as workspace_id",
         "accounts.scopes as scopes",
         "accounts.status as status",
         sql<boolean>`accounts.encrypted_secret IS NOT NULL`.as("has_secret"),

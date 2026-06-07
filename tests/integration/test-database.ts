@@ -108,13 +108,13 @@ async function seedProbeData(): Promise<void> {
 
     await client.query(
       `
-        INSERT INTO app.rls_probe_items (id, owner_user_id, workspace_id, visibility, body)
+        INSERT INTO app.rls_probe_items (id, owner_user_id, body)
         VALUES
-          ($1, $2, null, 'private', 'user A private item'),
-          ($3, $4, null, 'private', 'user B private item'),
-          ($5, $4, null, 'private', 'user B item granted to user A'),
-          ($6, $4, $7, 'workspace', 'user B workspace-shared item'),
-          ($8, $4, $7, 'private', 'user B private item inside workspace')
+          ($1, $2, 'user A private item'),
+          ($3, $4, 'user B private item'),
+          ($5, $4, 'user B item granted to user A'),
+          ($6, $4, 'user B workspace-shared item'),
+          ($7, $4, 'user B private item inside workspace')
       `,
       [
         ids.itemAOwnPrivate,
@@ -123,7 +123,6 @@ async function seedProbeData(): Promise<void> {
         ids.userB,
         ids.itemBGrantedToA,
         ids.itemBWorkspaceShared,
-        ids.workspaceAlpha,
         ids.itemBWorkspacePrivate
       ]
     );

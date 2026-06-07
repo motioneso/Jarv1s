@@ -1,14 +1,11 @@
 import type { AiCapabilityRouteReason, AiConfiguredModelDto, AiModelCapability } from "./ai-api.js";
 
-export type ChatVisibility = "private" | "workspace";
 export type ChatMessageRole = "user" | "assistant";
 export type ChatMessageStatus = "stored" | "pending" | "blocked" | "no_model";
 
 export interface ChatThreadDto {
   readonly id: string;
   readonly ownerUserId: string;
-  readonly workspaceId: string | null;
-  readonly visibility: ChatVisibility;
   readonly title: string;
   readonly createdAt: string;
   readonly updatedAt: string;
@@ -33,8 +30,6 @@ export interface ChatMessageDto {
   readonly id: string;
   readonly threadId: string;
   readonly ownerUserId: string;
-  readonly workspaceId: string | null;
-  readonly visibility: ChatVisibility;
   readonly role: ChatMessageRole;
   readonly status: ChatMessageStatus;
   readonly body: string;
@@ -50,8 +45,6 @@ export interface ListChatThreadsResponse {
 
 export interface CreateChatThreadRequest {
   readonly title: string;
-  readonly visibility?: ChatVisibility;
-  readonly workspaceId?: string | null;
 }
 
 export interface CreateChatThreadResponse {
@@ -92,11 +85,6 @@ const idParamsSchema = {
   properties: {
     id: { type: "string" }
   }
-} as const;
-
-export const chatVisibilitySchema = {
-  type: "string",
-  enum: ["private", "workspace"]
 } as const;
 
 export const chatMessageRoleSchema = {
@@ -176,12 +164,10 @@ const chatSelectedToolMetadataSchema = {
 const chatThreadSchema = {
   type: "object",
   additionalProperties: false,
-  required: ["id", "ownerUserId", "workspaceId", "visibility", "title", "createdAt", "updatedAt"],
+  required: ["id", "ownerUserId", "title", "createdAt", "updatedAt"],
   properties: {
     id: { type: "string" },
     ownerUserId: { type: "string" },
-    workspaceId: { type: ["string", "null"] },
-    visibility: chatVisibilitySchema,
     title: { type: "string" },
     createdAt: { type: "string" },
     updatedAt: { type: "string" }
@@ -195,8 +181,6 @@ const chatMessageSchema = {
     "id",
     "threadId",
     "ownerUserId",
-    "workspaceId",
-    "visibility",
     "role",
     "status",
     "body",
@@ -209,8 +193,6 @@ const chatMessageSchema = {
     id: { type: "string" },
     threadId: { type: "string" },
     ownerUserId: { type: "string" },
-    workspaceId: { type: ["string", "null"] },
-    visibility: chatVisibilitySchema,
     role: chatMessageRoleSchema,
     status: chatMessageStatusSchema,
     body: { type: "string" },
@@ -228,9 +210,7 @@ export const createChatThreadRequestSchema = {
   additionalProperties: false,
   required: ["title"],
   properties: {
-    title: { type: "string" },
-    visibility: chatVisibilitySchema,
-    workspaceId: { type: ["string", "null"] }
+    title: { type: "string" }
   }
 } as const;
 

@@ -174,63 +174,15 @@ describe("Chat module M6 thin slice", () => {
     );
 
     expect(created.owner_user_id).toBe(ids.userA);
-    expect(created.visibility).toBe("private");
     expect(userARead?.id).toBe(created.id);
     expect(userBRead).toBeUndefined();
     expect(adminRead).toBeUndefined();
   });
 
-  it("requires active workspace context for workspace-visible chat creation", async () => {
-    const missingWorkspaceResponse = await server.inject({
-      method: "POST",
-      url: "/api/chat/threads",
-      headers: {
-        authorization: `Bearer ${ids.sessionA}`
-      },
-      payload: {
-        title: "Workspace chat",
-        visibility: "workspace",
-        workspaceId: ids.workspaceAlpha
-      }
-    });
-    const createdResponse = await server.inject({
-      method: "POST",
-      url: "/api/chat/threads",
-      headers: {
-        authorization: `Bearer ${ids.sessionA}`,
-        "x-jarvis-workspace-id": ids.workspaceAlpha
-      },
-      payload: {
-        title: "Workspace chat",
-        visibility: "workspace",
-        workspaceId: ids.workspaceAlpha
-      }
-    });
-    const created = createdResponse.json<{ thread: { id: string; workspaceId: string | null } }>()
-      .thread;
-    const listedResponse = await server.inject({
-      method: "GET",
-      url: "/api/chat/threads",
-      headers: {
-        authorization: `Bearer ${ids.sessionA}`,
-        "x-jarvis-workspace-id": ids.workspaceAlpha
-      }
-    });
-
-    expect(missingWorkspaceResponse.statusCode).toBe(400);
-    expect(createdResponse.statusCode).toBe(201);
-    expect(created.workspaceId).toBe(ids.workspaceAlpha);
-    expect(
-      listedResponse
-        .json<{ threads: Array<{ id: string }> }>()
-        .threads.some((thread) => thread.id === created.id)
-    ).toBe(true);
-  });
-
   it("share grantee with manage can update timestamp but not title on another user's thread", async () => {
     // Grant userA 'manage' access to userB's workspace thread via shares
     await dataContext.withDataContext(
-      { actorUserId: ids.userB, workspaceId: ids.workspaceAlpha, requestId: "request:setup-share" },
+      { actorUserId: ids.userB, requestId: "request:setup-share" },
       (scopedDb) =>
         sharesRepository.grant(scopedDb, {
           resourceType: "chat_thread",
@@ -241,25 +193,22 @@ describe("Chat module M6 thin slice", () => {
         })
     );
 
-    const sharedThread = await dataContext.withDataContext(
-      userAContext(ids.workspaceAlpha),
-      (scopedDb) => repository.getThreadById(scopedDb, chatIds.userBWorkspaceThread)
+    const sharedThread = await dataContext.withDataContext(userAContext(), (scopedDb) =>
+      repository.getThreadById(scopedDb, chatIds.userBWorkspaceThread)
     );
-    const refreshedThread = await dataContext.withDataContext(
-      userAContext(ids.workspaceAlpha),
-      (scopedDb) =>
-        scopedDb.db
-          .updateTable("app.chat_threads")
-          .set({
-            updated_at: "2030-01-01T00:00:00.000Z"
-          })
-          .where("id", "=", chatIds.userBWorkspaceThread)
-          .returning("id")
-          .executeTakeFirst()
+    const refreshedThread = await dataContext.withDataContext(userAContext(), (scopedDb) =>
+      scopedDb.db
+        .updateTable("app.chat_threads")
+        .set({
+          updated_at: "2030-01-01T00:00:00.000Z"
+        })
+        .where("id", "=", chatIds.userBWorkspaceThread)
+        .returning("id")
+        .executeTakeFirst()
     );
 
     await expect(
-      dataContext.withDataContext(userAContext(ids.workspaceAlpha), (scopedDb) =>
+      dataContext.withDataContext(userAContext(), (scopedDb) =>
         scopedDb.db
           .updateTable("app.chat_threads")
           .set({
@@ -284,7 +233,7 @@ describe("Chat module M6 thin slice", () => {
 
     // Grant userA 'view' access to userB's private thread
     await dataContext.withDataContext(
-      { actorUserId: ids.userB, workspaceId: null, requestId: "request:share-private-thread" },
+      { actorUserId: ids.userB, requestId: "request:share-private-thread" },
       (scopedDb) =>
         sharesRepository.grant(scopedDb, {
           resourceType: "chat_thread",
@@ -466,22 +415,21 @@ async function seedChatData(): Promise<void> {
   try {
     await client.query(
       `
-        INSERT INTO app.chat_threads (id, owner_user_id, workspace_id, visibility, title)
+        INSERT INTO app.chat_threads (id, owner_user_id, title)
         VALUES
-          ($1, $2, null, 'private', 'User B private chat'),
-          ($3, $2, $4, 'workspace', 'User B workspace chat')
+          ($1, $2, 'User B private chat'),
+          ($3, $2, 'User B workspace chat')
       `,
-      [chatIds.userBPrivateThread, ids.userB, chatIds.userBWorkspaceThread, ids.workspaceAlpha]
+      [chatIds.userBPrivateThread, ids.userB, chatIds.userBWorkspaceThread]
     );
   } finally {
     await client.end();
   }
 }
 
-function userAContext(workspaceId?: string): AccessContext {
+function userAContext(): AccessContext {
   return {
     actorUserId: ids.userA,
-    workspaceId,
     requestId: "request:user-a-chat"
   };
 }
@@ -489,7 +437,6 @@ function userAContext(workspaceId?: string): AccessContext {
 function userBContext(): AccessContext {
   return {
     actorUserId: ids.userB,
-    workspaceId: null,
     requestId: "request:user-b-chat"
   };
 }

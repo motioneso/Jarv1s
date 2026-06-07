@@ -534,7 +534,6 @@ async function readEncryptedCredential(providerId: string): Promise<EncryptedAiS
 function userAContext(): AccessContext {
   return {
     actorUserId: ids.userA,
-    workspaceId: null,
     requestId: "request:user-a-ai"
   };
 }
@@ -542,7 +541,6 @@ function userAContext(): AccessContext {
 function userBContext(): AccessContext {
   return {
     actorUserId: ids.userB,
-    workspaceId: null,
     requestId: "request:user-b-ai"
   };
 }

@@ -46,7 +46,6 @@ export const BRIEFINGS_QUEUE_DEFINITIONS: readonly QueueDefinition[] = [
 
 export const BRIEFING_RUN_PAYLOAD_KEYS = [
   "actorUserId",
-  "workspaceId",
   "definitionId",
   "briefingRunId",
   "runKind",

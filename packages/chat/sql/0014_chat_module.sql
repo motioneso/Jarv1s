@@ -4,15 +4,6 @@ BEGIN
     SELECT 1
     FROM pg_type
     WHERE typnamespace = 'app'::regnamespace
-      AND typname = 'chat_visibility'
-  ) THEN
-    CREATE TYPE app.chat_visibility AS ENUM ('private', 'workspace');
-  END IF;
-
-  IF NOT EXISTS (
-    SELECT 1
-    FROM pg_type
-    WHERE typnamespace = 'app'::regnamespace
       AND typname = 'chat_message_role'
   ) THEN
     CREATE TYPE app.chat_message_role AS ENUM ('user', 'assistant');
@@ -32,42 +23,26 @@ $$;
 CREATE TABLE IF NOT EXISTS app.chat_threads (
   id uuid PRIMARY KEY,
   owner_user_id uuid NOT NULL REFERENCES app.users(id) ON DELETE CASCADE,
-  workspace_id uuid REFERENCES app.workspaces(id) ON DELETE CASCADE,
-  visibility app.chat_visibility NOT NULL DEFAULT 'private',
   title text NOT NULL CHECK (length(btrim(title)) > 0),
   created_at timestamptz NOT NULL DEFAULT now(),
-  updated_at timestamptz NOT NULL DEFAULT now(),
-  CHECK (
-    (visibility = 'private' AND workspace_id IS NULL)
-    OR (visibility = 'workspace' AND workspace_id IS NOT NULL)
-  )
+  updated_at timestamptz NOT NULL DEFAULT now()
 );
 
 CREATE TABLE IF NOT EXISTS app.chat_messages (
   id uuid PRIMARY KEY,
   thread_id uuid NOT NULL REFERENCES app.chat_threads(id) ON DELETE CASCADE,
   owner_user_id uuid NOT NULL REFERENCES app.users(id) ON DELETE CASCADE,
-  workspace_id uuid REFERENCES app.workspaces(id) ON DELETE CASCADE,
-  visibility app.chat_visibility NOT NULL DEFAULT 'private',
   role app.chat_message_role NOT NULL,
   status app.chat_message_status NOT NULL,
   body text NOT NULL CHECK (length(btrim(body)) > 0),
   model_metadata jsonb NOT NULL DEFAULT '{}'::jsonb CHECK (jsonb_typeof(model_metadata) = 'object'),
   tool_metadata jsonb NOT NULL DEFAULT '{}'::jsonb CHECK (jsonb_typeof(tool_metadata) = 'object'),
   created_at timestamptz NOT NULL DEFAULT now(),
-  updated_at timestamptz NOT NULL DEFAULT now(),
-  CHECK (
-    (visibility = 'private' AND workspace_id IS NULL)
-    OR (visibility = 'workspace' AND workspace_id IS NOT NULL)
-  )
+  updated_at timestamptz NOT NULL DEFAULT now()
 );
 
 CREATE INDEX IF NOT EXISTS chat_threads_owner_user_id_updated_at_idx
   ON app.chat_threads(owner_user_id, updated_at DESC);
-
-CREATE INDEX IF NOT EXISTS chat_threads_workspace_id_updated_at_idx
-  ON app.chat_threads(workspace_id, updated_at DESC)
-  WHERE workspace_id IS NOT NULL;
 
 CREATE INDEX IF NOT EXISTS chat_messages_thread_id_created_at_idx
   ON app.chat_messages(thread_id, created_at, id);
@@ -109,14 +84,6 @@ BEGIN
     RAISE EXCEPTION 'workspace chat participants cannot change chat thread title';
   END IF;
 
-  IF NEW.workspace_id IS DISTINCT FROM OLD.workspace_id THEN
-    RAISE EXCEPTION 'workspace chat participants cannot change chat thread workspace_id';
-  END IF;
-
-  IF NEW.visibility <> OLD.visibility THEN
-    RAISE EXCEPTION 'workspace chat participants cannot change chat thread visibility';
-  END IF;
-
   IF NEW.updated_at < OLD.updated_at THEN
     RAISE EXCEPTION 'workspace chat participants cannot move chat thread updated_at backwards';
   END IF;
@@ -150,25 +117,11 @@ CREATE OR REPLACE FUNCTION app.enforce_chat_message_thread_context()
 RETURNS trigger
 LANGUAGE plpgsql
 AS $$
-DECLARE
-  thread_workspace_id uuid;
-  thread_visibility app.chat_visibility;
 BEGIN
-  SELECT workspace_id, visibility
-  INTO thread_workspace_id, thread_visibility
-  FROM app.chat_threads
-  WHERE id = NEW.thread_id;
-
-  IF NOT FOUND THEN
+  IF NOT EXISTS (
+    SELECT 1 FROM app.chat_threads WHERE id = NEW.thread_id
+  ) THEN
     RAISE EXCEPTION 'chat message thread does not exist';
-  END IF;
-
-  IF NEW.workspace_id IS DISTINCT FROM thread_workspace_id THEN
-    RAISE EXCEPTION 'chat message workspace_id must match its thread';
-  END IF;
-
-  IF NEW.visibility <> thread_visibility THEN
-    RAISE EXCEPTION 'chat message visibility must match its thread';
   END IF;
 
   RETURN NEW;
@@ -203,7 +156,7 @@ DROP TRIGGER IF EXISTS chat_messages_enforce_thread_context
   ON app.chat_messages;
 
 CREATE TRIGGER chat_messages_enforce_thread_context
-BEFORE INSERT OR UPDATE OF thread_id, workspace_id, visibility ON app.chat_messages
+BEFORE INSERT OR UPDATE OF thread_id ON app.chat_messages
 FOR EACH ROW
 EXECUTE FUNCTION app.enforce_chat_message_thread_context();
 
@@ -228,15 +181,7 @@ FOR SELECT
 TO jarvis_app_runtime
 USING (
   app.current_actor_user_id() IS NOT NULL
-  AND (
-    owner_user_id = app.current_actor_user_id()
-    OR (
-      visibility = 'workspace'
-      AND workspace_id IS NOT NULL
-      AND workspace_id = app.current_workspace_id()
-      AND app.is_workspace_member(workspace_id, app.current_actor_user_id())
-    )
-  )
+  AND owner_user_id = app.current_actor_user_id()
 );
 
 CREATE POLICY chat_threads_insert
@@ -246,15 +191,6 @@ TO jarvis_app_runtime
 WITH CHECK (
   app.current_actor_user_id() IS NOT NULL
   AND owner_user_id = app.current_actor_user_id()
-  AND (
-    visibility = 'private'
-    OR (
-      visibility = 'workspace'
-      AND workspace_id IS NOT NULL
-      AND workspace_id = app.current_workspace_id()
-      AND app.is_workspace_member(workspace_id, app.current_actor_user_id())
-    )
-  )
 );
 
 CREATE POLICY chat_threads_update
@@ -263,27 +199,11 @@ FOR UPDATE
 TO jarvis_app_runtime
 USING (
   app.current_actor_user_id() IS NOT NULL
-  AND (
-    owner_user_id = app.current_actor_user_id()
-    OR (
-      visibility = 'workspace'
-      AND workspace_id IS NOT NULL
-      AND workspace_id = app.current_workspace_id()
-      AND app.is_workspace_member(workspace_id, app.current_actor_user_id())
-    )
-  )
+  AND owner_user_id = app.current_actor_user_id()
 )
 WITH CHECK (
   app.current_actor_user_id() IS NOT NULL
-  AND (
-    owner_user_id = app.current_actor_user_id()
-    OR (
-      visibility = 'workspace'
-      AND workspace_id IS NOT NULL
-      AND workspace_id = app.current_workspace_id()
-      AND app.is_workspace_member(workspace_id, app.current_actor_user_id())
-    )
-  )
+  AND owner_user_id = app.current_actor_user_id()
 );
 
 CREATE POLICY chat_messages_select
@@ -292,18 +212,7 @@ FOR SELECT
 TO jarvis_app_runtime
 USING (
   app.current_actor_user_id() IS NOT NULL
-  AND (
-    owner_user_id = app.current_actor_user_id()
-    OR EXISTS (
-      SELECT 1
-      FROM app.chat_threads thread
-      WHERE thread.id = chat_messages.thread_id
-        AND thread.visibility = 'workspace'
-        AND thread.workspace_id IS NOT NULL
-        AND thread.workspace_id = app.current_workspace_id()
-        AND app.is_workspace_member(thread.workspace_id, app.current_actor_user_id())
-    )
-  )
+  AND owner_user_id = app.current_actor_user_id()
 );
 
 CREATE POLICY chat_messages_insert
@@ -317,16 +226,6 @@ WITH CHECK (
     SELECT 1
     FROM app.chat_threads thread
     WHERE thread.id = chat_messages.thread_id
-      AND thread.visibility = chat_messages.visibility
-      AND thread.workspace_id IS NOT DISTINCT FROM chat_messages.workspace_id
-      AND (
-        thread.owner_user_id = app.current_actor_user_id()
-        OR (
-          thread.visibility = 'workspace'
-          AND thread.workspace_id IS NOT NULL
-          AND thread.workspace_id = app.current_workspace_id()
-          AND app.is_workspace_member(thread.workspace_id, app.current_actor_user_id())
-        )
-      )
+      AND thread.owner_user_id = app.current_actor_user_id()
   )
 );

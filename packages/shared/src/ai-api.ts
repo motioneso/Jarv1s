@@ -77,7 +77,6 @@ export interface AiAssistantToolInvocationDto {
 export interface AiAssistantActionDto {
   readonly id: string;
   readonly ownerUserId: string;
-  readonly workspaceId: string | null;
   readonly toolModuleId: string;
   readonly toolModuleName: string;
   readonly toolName: string;
@@ -402,7 +401,6 @@ const aiAssistantActionSchema = {
   required: [
     "id",
     "ownerUserId",
-    "workspaceId",
     "toolModuleId",
     "toolModuleName",
     "toolName",
@@ -417,7 +415,6 @@ const aiAssistantActionSchema = {
   properties: {
     id: { type: "string" },
     ownerUserId: { type: "string" },
-    workspaceId: { type: ["string", "null"] },
     toolModuleId: { type: "string" },
     toolModuleName: { type: "string" },
     toolName: { type: "string" },

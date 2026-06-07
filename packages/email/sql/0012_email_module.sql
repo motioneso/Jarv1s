@@ -1,22 +1,7 @@
-DO $$
-BEGIN
-  IF NOT EXISTS (
-    SELECT 1
-    FROM pg_type
-    WHERE typnamespace = 'app'::regnamespace
-      AND typname = 'email_message_visibility'
-  ) THEN
-    CREATE TYPE app.email_message_visibility AS ENUM ('private', 'workspace');
-  END IF;
-END
-$$;
-
 CREATE TABLE IF NOT EXISTS app.email_messages (
   id uuid PRIMARY KEY,
   connector_account_id uuid NOT NULL REFERENCES app.connector_accounts(id) ON DELETE CASCADE,
   owner_user_id uuid NOT NULL REFERENCES app.users(id) ON DELETE CASCADE,
-  workspace_id uuid REFERENCES app.workspaces(id) ON DELETE CASCADE,
-  visibility app.email_message_visibility NOT NULL DEFAULT 'private',
   sender text NOT NULL CHECK (length(btrim(sender)) > 0),
   recipients text[] NOT NULL DEFAULT ARRAY[]::text[],
   subject text NOT NULL CHECK (length(btrim(subject)) > 0),
@@ -29,25 +14,11 @@ CREATE TABLE IF NOT EXISTS app.email_messages (
   ),
   created_at timestamptz NOT NULL DEFAULT now(),
   updated_at timestamptz NOT NULL DEFAULT now(),
-  UNIQUE (connector_account_id, external_id),
-  CHECK (
-    (
-      visibility = 'private'
-      AND workspace_id IS NULL
-    )
-    OR (
-      visibility = 'workspace'
-      AND workspace_id IS NOT NULL
-    )
-  )
+  UNIQUE (connector_account_id, external_id)
 );
 
 CREATE INDEX IF NOT EXISTS email_messages_owner_user_id_received_at_idx
   ON app.email_messages(owner_user_id, received_at DESC);
-
-CREATE INDEX IF NOT EXISTS email_messages_workspace_id_received_at_idx
-  ON app.email_messages(workspace_id, received_at DESC)
-  WHERE workspace_id IS NOT NULL;
 
 CREATE INDEX IF NOT EXISTS email_messages_connector_account_id_idx
   ON app.email_messages(connector_account_id);
@@ -100,15 +71,7 @@ FOR SELECT
 TO jarvis_app_runtime
 USING (
   app.current_actor_user_id() IS NOT NULL
-  AND (
-    owner_user_id = app.current_actor_user_id()
-    OR (
-      visibility = 'workspace'
-      AND workspace_id IS NOT NULL
-      AND workspace_id = app.current_workspace_id()
-      AND app.is_workspace_member(workspace_id, app.current_actor_user_id())
-    )
-  )
+  AND owner_user_id = app.current_actor_user_id()
 );
 
 CREATE POLICY email_messages_insert
@@ -127,15 +90,6 @@ WITH CHECK (
       AND accounts.owner_user_id = app.current_actor_user_id()
       AND definitions.provider_type = 'email'
   )
-  AND (
-    visibility = 'private'
-    OR (
-      visibility = 'workspace'
-      AND workspace_id IS NOT NULL
-      AND workspace_id = app.current_workspace_id()
-      AND app.is_workspace_member(workspace_id, app.current_actor_user_id())
-    )
-  )
 );
 
 CREATE POLICY email_messages_update
@@ -149,13 +103,4 @@ USING (
 WITH CHECK (
   app.current_actor_user_id() IS NOT NULL
   AND owner_user_id = app.current_actor_user_id()
-  AND (
-    visibility = 'private'
-    OR (
-      visibility = 'workspace'
-      AND workspace_id IS NOT NULL
-      AND workspace_id = app.current_workspace_id()
-      AND app.is_workspace_member(workspace_id, app.current_actor_user_id())
-    )
-  )
 );

@@ -19,7 +19,6 @@ $$;
 CREATE TABLE IF NOT EXISTS app.ai_assistant_action_requests (
   id uuid PRIMARY KEY,
   owner_user_id uuid NOT NULL REFERENCES app.users(id) ON DELETE CASCADE,
-  workspace_id uuid REFERENCES app.workspaces(id) ON DELETE CASCADE,
   tool_module_id text NOT NULL CHECK (length(btrim(tool_module_id)) > 0),
   tool_module_name text NOT NULL CHECK (length(btrim(tool_module_name)) > 0),
   tool_name text NOT NULL CHECK (length(btrim(tool_name)) > 0),
@@ -40,10 +39,6 @@ CREATE TABLE IF NOT EXISTS app.ai_assistant_action_requests (
 CREATE INDEX IF NOT EXISTS ai_assistant_action_requests_owner_status_idx
   ON app.ai_assistant_action_requests(owner_user_id, status, requested_at DESC);
 
-CREATE INDEX IF NOT EXISTS ai_assistant_action_requests_workspace_idx
-  ON app.ai_assistant_action_requests(workspace_id, requested_at DESC)
-  WHERE workspace_id IS NOT NULL;
-
 CREATE OR REPLACE FUNCTION app.enforce_ai_assistant_action_update_scope()
 RETURNS trigger
 LANGUAGE plpgsql
@@ -51,10 +46,6 @@ AS $$
 BEGIN
   IF NEW.owner_user_id <> OLD.owner_user_id THEN
     RAISE EXCEPTION 'AI assistant action owner_user_id cannot be changed';
-  END IF;
-
-  IF NEW.workspace_id IS DISTINCT FROM OLD.workspace_id THEN
-    RAISE EXCEPTION 'AI assistant action workspace_id cannot be changed';
   END IF;
 
   IF NEW.tool_module_id <> OLD.tool_module_id THEN
@@ -133,13 +124,6 @@ TO jarvis_app_runtime
 WITH CHECK (
   app.current_actor_user_id() IS NOT NULL
   AND owner_user_id = app.current_actor_user_id()
-  AND (
-    workspace_id IS NULL
-    OR (
-      workspace_id = app.current_workspace_id()
-      AND app.is_workspace_member(workspace_id, app.current_actor_user_id())
-    )
-  )
 );
 
 CREATE POLICY ai_assistant_action_requests_update

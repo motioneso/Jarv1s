@@ -214,17 +214,10 @@ async function resolveRequestAccessContext(options: {
 }): Promise<AccessContext> {
   const requestId = options.request.id ?? randomUUID();
   const headers = toWebHeaders(options.request.headers);
-  const workspaceId = readHeader(headers, "x-jarvis-workspace-id") ?? null;
   const bearerToken = readBearerToken(headers);
 
   if (bearerToken) {
-    const accessContext = await options.legacySessions.resolveAccessContext(bearerToken, requestId);
-    await ensureActiveWorkspaceMembership(options.appDb, accessContext.actorUserId, workspaceId);
-
-    return {
-      ...accessContext,
-      workspaceId
-    };
+    return options.legacySessions.resolveAccessContext(bearerToken, requestId);
   }
 
   const session = await options.auth.api.getSession({ headers });
@@ -234,11 +227,9 @@ async function resolveRequestAccessContext(options: {
   }
 
   await ensureJarvisUserStillExists(options.appDb, session.user);
-  await ensureActiveWorkspaceMembership(options.appDb, session.user.id, workspaceId);
 
   return {
     actorUserId: session.user.id,
-    workspaceId,
     requestId
   };
 }
@@ -325,27 +316,6 @@ async function ensureJarvisUserStillExists(
 
   if (!existingUser) {
     throw new Error("Session is missing or expired");
-  }
-}
-
-async function ensureActiveWorkspaceMembership(
-  appDb: Kysely<JarvisDatabase>,
-  userId: string,
-  workspaceId: string | null
-): Promise<void> {
-  if (!workspaceId) {
-    return;
-  }
-
-  const membership = await appDb
-    .selectFrom("app.workspace_memberships")
-    .select("user_id")
-    .where("user_id", "=", userId)
-    .where("workspace_id", "=", workspaceId)
-    .executeTakeFirst();
-
-  if (!membership) {
-    throw new Error("Workspace context is unavailable");
   }
 }
 

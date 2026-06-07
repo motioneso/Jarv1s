@@ -8,7 +8,6 @@ import {
   type ChatMessage,
   type ChatMessageStatus,
   type ChatThread,
-  type ChatVisibility,
   type DataContextDb
 } from "@jarv1s/db";
 import type {
@@ -19,8 +18,6 @@ import type {
 
 export interface CreateChatThreadInput {
   readonly title: string;
-  readonly visibility?: ChatVisibility;
-  readonly workspaceId?: string | null;
 }
 
 export interface AppendChatUserMessageInput {
@@ -64,8 +61,6 @@ export class ChatRepository {
       .values({
         id: randomUUID(),
         owner_user_id: sql<string>`app.current_actor_user_id()`,
-        workspace_id: input.workspaceId ?? null,
-        visibility: input.visibility ?? "private",
         title: input.title,
         created_at: now,
         updated_at: now
@@ -162,8 +157,6 @@ export class ChatRepository {
         id: randomUUID(),
         thread_id: input.thread.id,
         owner_user_id: sql<string>`app.current_actor_user_id()`,
-        workspace_id: input.thread.workspace_id,
-        visibility: input.thread.visibility,
         role: input.role,
         status: input.status,
         body: input.body,

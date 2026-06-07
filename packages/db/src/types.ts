@@ -136,30 +136,22 @@ export interface AdminAuditEventsTable {
 export interface RlsProbeItemsTable {
   id: string;
   owner_user_id: string;
-  workspace_id: string | null;
-  visibility: "private" | "workspace";
   body: string;
   created_at: TimestampColumn;
 }
 
-export type TaskVisibility = "private" | "workspace";
 export type TaskStatus = "todo" | "in_progress" | "done" | "archived";
 export type ShareLevel = "view" | "contribute" | "manage";
-export type NotificationVisibility = "private" | "workspace";
 export type ConnectorProviderType = "calendar" | "email";
 export type ConnectorProviderStatus = "available" | "disabled";
 export type ConnectorAccountStatus = "active" | "error" | "revoked";
-export type CalendarEventVisibility = "private" | "workspace";
-export type EmailMessageVisibility = "private" | "workspace";
 export type AiProviderKind = "openai-compatible" | "anthropic" | "google" | "ollama" | "custom";
 export type AiProviderStatus = "active" | "error" | "disabled" | "revoked";
 export type AiModelStatus = "active" | "disabled";
 export type AiAssistantActionRisk = "write" | "destructive";
 export type AiAssistantActionStatus = "pending" | "confirmed" | "rejected" | "cancelled";
-export type ChatVisibility = "private" | "workspace";
 export type ChatMessageRole = "user" | "assistant";
 export type ChatMessageStatus = "stored" | "pending" | "blocked" | "no_model";
-export type BriefingVisibility = "private" | "workspace";
 export type BriefingCadence = "manual" | "daily" | "weekly";
 export type BriefingRunStatus = "succeeded" | "blocked" | "failed";
 export type BriefingRunKind = "manual" | "scheduled";
@@ -167,8 +159,6 @@ export type BriefingRunKind = "manual" | "scheduled";
 export interface TasksTable {
   id: string;
   owner_user_id: string;
-  workspace_id: string | null;
-  visibility: TaskVisibility;
   title: string;
   description: string | null;
   status: TaskStatus;
@@ -192,8 +182,6 @@ export interface NotificationsTable {
   id: string;
   actor_user_id: string | null;
   recipient_user_id: string | null;
-  workspace_id: string | null;
-  visibility: NotificationVisibility;
   title: string;
   body: string | null;
   metadata: JsonColumn;
@@ -220,7 +208,6 @@ export interface ConnectorAccountsTable {
   id: string;
   provider_id: string;
   owner_user_id: string;
-  workspace_id: string | null;
   scopes: TextArrayColumn;
   status: ConnectorAccountStatus;
   encrypted_secret: JsonColumn;
@@ -233,8 +220,6 @@ export interface CalendarEventsTable {
   id: string;
   connector_account_id: string;
   owner_user_id: string;
-  workspace_id: string | null;
-  visibility: CalendarEventVisibility;
   title: string;
   starts_at: TimestampColumn;
   ends_at: TimestampColumn;
@@ -251,8 +236,6 @@ export interface EmailMessagesTable {
   id: string;
   connector_account_id: string;
   owner_user_id: string;
-  workspace_id: string | null;
-  visibility: EmailMessageVisibility;
   sender: string;
   recipients: TextArrayColumn;
   subject: string;
@@ -293,7 +276,6 @@ export interface AiConfiguredModelsTable {
 export interface AiAssistantActionRequestsTable {
   id: string;
   owner_user_id: string;
-  workspace_id: string | null;
   tool_module_id: string;
   tool_module_name: string;
   tool_name: string;
@@ -310,8 +292,6 @@ export interface AiAssistantActionRequestsTable {
 export interface ChatThreadsTable {
   id: string;
   owner_user_id: string;
-  workspace_id: string | null;
-  visibility: ChatVisibility;
   title: string;
   created_at: TimestampColumn;
   updated_at: TimestampColumn;
@@ -321,8 +301,6 @@ export interface ChatMessagesTable {
   id: string;
   thread_id: string;
   owner_user_id: string;
-  workspace_id: string | null;
-  visibility: ChatVisibility;
   role: ChatMessageRole;
   status: ChatMessageStatus;
   body: string;
@@ -335,8 +313,6 @@ export interface ChatMessagesTable {
 export interface BriefingDefinitionsTable {
   id: string;
   owner_user_id: string;
-  workspace_id: string | null;
-  visibility: BriefingVisibility;
   title: string;
   cadence: BriefingCadence;
   schedule_metadata: JsonColumn;
@@ -351,8 +327,6 @@ export interface BriefingRunsTable {
   id: string;
   definition_id: string;
   owner_user_id: string;
-  workspace_id: string | null;
-  visibility: BriefingVisibility;
   status: BriefingRunStatus;
   run_kind: BriefingRunKind;
   summary_text: string;

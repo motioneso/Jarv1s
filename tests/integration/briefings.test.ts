@@ -225,7 +225,6 @@ describe("Briefings module M6 read-only scheduled summaries", () => {
     );
 
     expect(created.owner_user_id).toBe(ids.userA);
-    expect(created.visibility).toBe("private");
     expect(userARead?.id).toBe(created.id);
     expect(userBRead).toBeUndefined();
     expect(adminRead).toBeUndefined();
@@ -272,43 +271,6 @@ describe("Briefings module M6 read-only scheduled summaries", () => {
     );
     expect(defAfterShare?.id).toBe(briefingIds.userBWorkspace);
     expect(runsAfterShare.some((r) => r.id === run?.id)).toBe(true);
-  });
-
-  it("requires active workspace context for workspace-visible definitions", async () => {
-    const missingWorkspaceResponse = await server.inject({
-      method: "POST",
-      url: "/api/briefings/definitions",
-      headers: userAHeaders(),
-      payload: {
-        title: "Workspace briefing",
-        visibility: "workspace",
-        workspaceId: ids.workspaceAlpha,
-        cadence: "daily",
-        selectedToolNames: ["tasks.listVisible"]
-      }
-    });
-    const createdResponse = await server.inject({
-      method: "POST",
-      url: "/api/briefings/definitions",
-      headers: userAWorkspaceHeaders(),
-      payload: {
-        title: "Workspace briefing",
-        visibility: "workspace",
-        workspaceId: ids.workspaceAlpha,
-        cadence: "daily",
-        selectedToolNames: ["tasks.listVisible"]
-      }
-    });
-
-    expect(missingWorkspaceResponse.statusCode).toBe(400);
-    expect(createdResponse.statusCode).toBe(201);
-    expect(
-      createdResponse.json<{ definition: { workspaceId: string | null; visibility: string } }>()
-        .definition
-    ).toMatchObject({
-      workspaceId: ids.workspaceAlpha,
-      visibility: "workspace"
-    });
   });
 
   it("generates deterministic summaries through declared read-only tools only", async () => {
@@ -408,7 +370,6 @@ describe("Briefings module M6 read-only scheduled summaries", () => {
       });
       expect(payload).toEqual({
         actorUserId: ids.userA,
-        workspaceId: null,
         definitionId: definition.id,
         briefingRunId: responseBody.runId,
         runKind: "manual",
@@ -429,7 +390,6 @@ describe("Briefings module M6 read-only scheduled summaries", () => {
 
     await appBoss.send(BRIEFINGS_RUN_QUEUE, {
       actorUserId: ids.userA,
-      workspaceId: null,
       definitionId: briefingIds.userBPrivate,
       briefingRunId: "7c000000-0000-4000-8000-000000000001",
       runKind: "manual",
@@ -471,19 +431,18 @@ async function seedBriefingData(): Promise<void> {
     await client.query("BEGIN");
     await client.query(
       `
-        INSERT INTO app.tasks (id, owner_user_id, workspace_id, visibility, title, description, status)
+        INSERT INTO app.tasks (id, owner_user_id, title, description, status)
         VALUES
-          ($1, $2, null, 'private', 'User A briefing task', 'A task body', 'todo'),
-          ($3, $4, null, 'private', 'User B private briefing task', 'B task body', 'todo'),
-          ($5, $2, $6, 'workspace', 'User A workspace briefing task', 'Workspace task body', 'todo')
+          ($1, $2, 'User A briefing task', 'A task body', 'todo'),
+          ($3, $4, 'User B private briefing task', 'B task body', 'todo'),
+          ($5, $2, 'User A workspace briefing task', 'Workspace task body', 'todo')
       `,
       [
         sourceIds.userATask,
         ids.userA,
         sourceIds.userBPrivateTask,
         ids.userB,
-        sourceIds.userAWorkspaceTask,
-        ids.workspaceAlpha
+        sourceIds.userAWorkspaceTask
       ]
     );
     await client.query(
@@ -508,8 +467,6 @@ async function seedBriefingData(): Promise<void> {
           id,
           connector_account_id,
           owner_user_id,
-          workspace_id,
-          visibility,
           sender,
           recipients,
           subject,
@@ -520,8 +477,8 @@ async function seedBriefingData(): Promise<void> {
           external_metadata
         )
         VALUES
-          ($1, $2, $3, null, 'private', 'sender-a@example.test', ARRAY['user-a@example.test']::text[], 'User A briefing email', 'A email snippet', 'A email excerpt', '2026-06-06T15:00:00.000Z', 'briefing-email-a', '{"source":"briefings-test"}'::jsonb),
-          ($4, $5, $6, null, 'private', 'sender-b@example.test', ARRAY['user-b@example.test']::text[], 'User B private briefing email', 'B email snippet', 'B email excerpt', '2026-06-06T16:00:00.000Z', 'briefing-email-b', '{"source":"briefings-test"}'::jsonb)
+          ($1, $2, $3, 'sender-a@example.test', ARRAY['user-a@example.test']::text[], 'User A briefing email', 'A email snippet', 'A email excerpt', '2026-06-06T15:00:00.000Z', 'briefing-email-a', '{"source":"briefings-test"}'::jsonb),
+          ($4, $5, $6, 'sender-b@example.test', ARRAY['user-b@example.test']::text[], 'User B private briefing email', 'B email snippet', 'B email excerpt', '2026-06-06T16:00:00.000Z', 'briefing-email-b', '{"source":"briefings-test"}'::jsonb)
       `,
       [
         sourceIds.userAEmail,
@@ -537,17 +494,15 @@ async function seedBriefingData(): Promise<void> {
         INSERT INTO app.briefing_definitions (
           id,
           owner_user_id,
-          workspace_id,
-          visibility,
           title,
           cadence,
           selected_tool_names
         )
         VALUES
-          ($1, $2, null, 'private', 'User B private briefing', 'manual', ARRAY['tasks.listVisible']::text[]),
-          ($3, $2, $4, 'workspace', 'User B workspace briefing', 'daily', ARRAY['tasks.listVisible']::text[])
+          ($1, $2, 'User B private briefing', 'manual', ARRAY['tasks.listVisible']::text[]),
+          ($3, $2, 'User B workspace briefing', 'daily', ARRAY['tasks.listVisible']::text[])
       `,
-      [briefingIds.userBPrivate, ids.userB, briefingIds.userBWorkspace, ids.workspaceAlpha]
+      [briefingIds.userBPrivate, ids.userB, briefingIds.userBWorkspace]
     );
     await client.query("COMMIT");
   } catch (error) {
@@ -619,17 +574,9 @@ function userAHeaders(): Record<string, string> {
   };
 }
 
-function userAWorkspaceHeaders(): Record<string, string> {
-  return {
-    ...userAHeaders(),
-    "x-jarvis-workspace-id": ids.workspaceAlpha
-  };
-}
-
-function userAContext(workspaceId?: string | null): AccessContext {
+function userAContext(): AccessContext {
   return {
     actorUserId: ids.userA,
-    workspaceId,
     requestId: "request:user-a-briefings"
   };
 }
@@ -637,7 +584,6 @@ function userAContext(workspaceId?: string | null): AccessContext {
 function userBContext(): AccessContext {
   return {
     actorUserId: ids.userB,
-    workspaceId: null,
     requestId: "request:user-b-briefings"
   };
 }

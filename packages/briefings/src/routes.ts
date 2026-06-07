@@ -15,7 +15,6 @@ import {
   type BriefingCadence,
   type BriefingDefinitionDto,
   type BriefingRunDto,
-  type BriefingVisibility,
   type CreateBriefingDefinitionRequest,
   type RunBriefingDefinitionRequest,
   type UpdateBriefingDefinitionRequest
@@ -130,7 +129,6 @@ export function registerBriefingsRoutes(
         const runId = randomUUID();
         const payload: BriefingRunPayload = {
           actorUserId: accessContext.actorUserId,
-          workspaceId: accessContext.workspaceId ?? null,
           definitionId: definition.id,
           briefingRunId: runId,
           runKind: "manual",
@@ -191,9 +189,6 @@ function parseCreateDefinitionBody(
   moduleManifests: readonly JarvisModuleManifest[]
 ): CreateBriefingDefinitionRequest {
   const value = requireObject(body);
-  const visibility = optionalBriefingVisibility(value.visibility) ?? "private";
-  const workspaceId =
-    visibility === "workspace" ? requiredString(value.workspaceId, "workspaceId") : null;
   const selectedToolNames = requiredReadToolNames(
     value.selectedToolNames,
     "selectedToolNames",
@@ -202,8 +197,6 @@ function parseCreateDefinitionBody(
 
   return {
     title: requiredString(value.title, "title"),
-    visibility,
-    workspaceId,
     cadence: optionalBriefingCadence(value.cadence) ?? "manual",
     scheduleMetadata: optionalJsonObject(value.scheduleMetadata, "scheduleMetadata") ?? {},
     enabled: optionalBoolean(value.enabled, "enabled") ?? true,
@@ -216,20 +209,13 @@ function parseUpdateDefinitionBody(
   moduleManifests: readonly JarvisModuleManifest[]
 ): UpdateBriefingDefinitionRequest {
   const value = requireObject(body);
-  const visibility = optionalBriefingVisibility(value.visibility);
   const selectedToolNames =
     value.selectedToolNames === undefined
       ? undefined
       : requiredReadToolNames(value.selectedToolNames, "selectedToolNames", moduleManifests);
 
-  if (visibility === "workspace" && value.workspaceId === undefined) {
-    throw new HttpError(400, "workspaceId is required for workspace-visible briefings");
-  }
-
   return {
     title: optionalString(value.title, "title"),
-    visibility,
-    workspaceId: optionalNullableString(value.workspaceId, "workspaceId"),
     cadence: optionalBriefingCadence(value.cadence),
     scheduleMetadata: optionalJsonObject(value.scheduleMetadata, "scheduleMetadata"),
     enabled: optionalBoolean(value.enabled, "enabled"),
@@ -249,17 +235,8 @@ function parseRunDefinitionBody(body: unknown): RunBriefingDefinitionRequest {
   };
 }
 
-function ensureWorkspaceVisibilityContext(
-  accessContext: AccessContext,
-  input: { readonly visibility?: BriefingVisibility; readonly workspaceId?: string | null }
-): void {
-  if (input.visibility !== "workspace") {
-    return;
-  }
-
-  if (!accessContext.workspaceId || input.workspaceId !== accessContext.workspaceId) {
-    throw new HttpError(400, "workspace-visible briefings require the active workspace context");
-  }
+function ensureWorkspaceVisibilityContext(_accessContext: AccessContext, _input: unknown): void {
+  // Workspace visibility has been removed; nothing to validate.
 }
 
 function requiredReadToolNames(
@@ -334,14 +311,6 @@ function optionalString(value: unknown, fieldName: string): string | undefined {
   return trimmed;
 }
 
-function optionalNullableString(value: unknown, fieldName: string): string | null | undefined {
-  if (value === null) {
-    return null;
-  }
-
-  return optionalString(value, fieldName);
-}
-
 function optionalJsonObject(
   value: unknown,
   fieldName: string
@@ -367,18 +336,6 @@ function optionalBoolean(value: unknown, fieldName: string): boolean | undefined
   return value;
 }
 
-function optionalBriefingVisibility(value: unknown): BriefingVisibility | undefined {
-  if (value === undefined) {
-    return undefined;
-  }
-
-  if (value !== "private" && value !== "workspace") {
-    throw new HttpError(400, "visibility must be private or workspace");
-  }
-
-  return value;
-}
-
 function optionalBriefingCadence(value: unknown): BriefingCadence | undefined {
   if (value === undefined) {
     return undefined;
@@ -395,8 +352,6 @@ function serializeDefinition(definition: BriefingDefinition): BriefingDefinition
   return {
     id: definition.id,
     ownerUserId: definition.owner_user_id,
-    workspaceId: definition.workspace_id,
-    visibility: definition.visibility,
     title: definition.title,
     cadence: definition.cadence,
     scheduleMetadata: definition.schedule_metadata,
@@ -413,8 +368,6 @@ function serializeRun(run: BriefingRun): BriefingRunDto {
     id: run.id,
     definitionId: run.definition_id,
     ownerUserId: run.owner_user_id,
-    workspaceId: run.workspace_id,
-    visibility: run.visibility,
     status: run.status,
     runKind: run.run_kind,
     summaryText: run.summary_text,

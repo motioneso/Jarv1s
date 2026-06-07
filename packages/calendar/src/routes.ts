@@ -69,8 +69,6 @@ export function serializeCalendarEvent(event: CalendarEvent): CalendarEventDto {
     id: event.id,
     connectorAccountId: event.connector_account_id,
     ownerUserId: event.owner_user_id,
-    workspaceId: event.workspace_id,
-    visibility: event.visibility,
     title: event.title,
     startsAt: toIsoString(event.starts_at),
     endsAt: toIsoString(event.ends_at),

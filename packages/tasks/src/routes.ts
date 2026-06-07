@@ -1,14 +1,7 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import type { PgBoss } from "pg-boss";
 
-import type {
-  AccessContext,
-  DataContextRunner,
-  Task,
-  TaskActivity,
-  TaskStatus,
-  TaskVisibility
-} from "@jarv1s/db";
+import type { AccessContext, DataContextRunner, Task, TaskActivity, TaskStatus } from "@jarv1s/db";
 import {
   addTaskActivityRouteSchema,
   createTaskRouteSchema,
@@ -149,7 +142,6 @@ export function registerTasksRoutes(
 
         const payload: DeferredTaskStatusPayload = {
           actorUserId: accessContext.actorUserId,
-          workspaceId: accessContext.workspaceId ?? null,
           taskId: request.params.id,
           requestedStatus: body.status,
           idempotencyKey: body.idempotencyKey
@@ -173,15 +165,10 @@ export function registerTasksRoutes(
 
 function parseCreateTaskBody(body: unknown) {
   const value = requireObject(body);
-  const visibility = optionalTaskVisibility(value.visibility) ?? "private";
-  const workspaceId =
-    visibility === "workspace" ? requiredString(value.workspaceId, "workspaceId") : null;
 
   return {
     title: requiredString(value.title, "title"),
     description: optionalNullableString(value.description, "description"),
-    visibility,
-    workspaceId,
     status: optionalTaskStatus(value.status) ?? "todo",
     priority: optionalPriority(value.priority),
     dueAt: optionalDate(value.dueAt, "dueAt")
@@ -190,17 +177,10 @@ function parseCreateTaskBody(body: unknown) {
 
 function parseUpdateTaskBody(body: unknown) {
   const value = requireObject(body);
-  const visibility = optionalTaskVisibility(value.visibility);
-
-  if (visibility === "workspace" && value.workspaceId === undefined) {
-    throw new HttpError(400, "workspaceId is required for workspace-visible tasks");
-  }
 
   return {
     title: optionalString(value.title, "title"),
     description: optionalNullableString(value.description, "description"),
-    visibility,
-    workspaceId: optionalNullableString(value.workspaceId, "workspaceId"),
     status: optionalTaskStatus(value.status),
     priority: optionalPriority(value.priority),
     dueAt: optionalDate(value.dueAt, "dueAt")
@@ -208,16 +188,10 @@ function parseUpdateTaskBody(body: unknown) {
 }
 
 function ensureWorkspaceVisibilityContext(
-  accessContext: AccessContext,
-  input: { readonly visibility?: TaskVisibility; readonly workspaceId?: string | null }
+  _accessContext: AccessContext,
+  _input: Record<string, unknown>
 ): void {
-  if (input.visibility !== "workspace") {
-    return;
-  }
-
-  if (!accessContext.workspaceId || input.workspaceId !== accessContext.workspaceId) {
-    throw new HttpError(400, "workspace-visible tasks require the active workspace context");
-  }
+  // Workspace visibility has been removed; nothing to validate.
 }
 
 function parseActivityBody(body: unknown) {
@@ -304,18 +278,6 @@ function optionalTaskStatus(value: unknown): TaskStatus | undefined {
   throw new HttpError(400, "status is invalid");
 }
 
-function optionalTaskVisibility(value: unknown): TaskVisibility | undefined {
-  if (value === undefined) {
-    return undefined;
-  }
-
-  if (value === "private" || value === "workspace") {
-    return value;
-  }
-
-  throw new HttpError(400, "visibility is invalid");
-}
-
 function optionalPriority(value: unknown): number | null | undefined {
   if (value === undefined) {
     return undefined;
@@ -354,8 +316,6 @@ export function serializeTask(task: Task): TaskDto {
   return {
     id: task.id,
     ownerUserId: task.owner_user_id,
-    workspaceId: task.workspace_id,
-    visibility: task.visibility,
     title: task.title,
     description: task.description,
     status: task.status,

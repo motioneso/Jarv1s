@@ -11,12 +11,7 @@ import {
   lookupAiCapabilityRoute
 } from "../api/client";
 import { queryKeys } from "../api/query-keys";
-import type {
-  AiAssistantToolDto,
-  ChatMessageDto,
-  ChatThreadDto,
-  ChatVisibility
-} from "@jarv1s/shared";
+import type { AiAssistantToolDto, ChatMessageDto, ChatThreadDto } from "@jarv1s/shared";
 
 interface ChatPageProps {
   readonly activeWorkspaceId: string | null;
@@ -121,19 +116,12 @@ function CreateThreadForm(props: {
 }) {
   const queryClient = useQueryClient();
   const [title, setTitle] = useState("");
-  const [visibility, setVisibility] = useState<ChatVisibility>("private");
   const [formError, setFormError] = useState<string | null>(null);
   const createMutation = useMutation({
     mutationFn: () => {
-      if (visibility === "workspace" && !props.activeWorkspaceId) {
-        throw new Error("Select a workspace first");
-      }
-
       return createChatThread(
         {
-          title,
-          visibility,
-          workspaceId: visibility === "workspace" ? props.activeWorkspaceId : null
+          title
         },
         props.activeWorkspaceId
       );
@@ -166,22 +154,6 @@ function CreateThreadForm(props: {
           value={title}
         />
       </label>
-      <div className="segmented-control" aria-label="Chat visibility">
-        <button
-          className={visibility === "private" ? "active" : ""}
-          type="button"
-          onClick={() => setVisibility("private")}
-        >
-          Private
-        </button>
-        <button
-          className={visibility === "workspace" ? "active" : ""}
-          type="button"
-          onClick={() => setVisibility("workspace")}
-        >
-          Workspace
-        </button>
-      </div>
       {formError ? <p className="form-error">{formError}</p> : null}
       <button className="primary-button" disabled={createMutation.isPending} type="submit">
         {createMutation.isPending ? (
@@ -222,7 +194,6 @@ function ThreadList(props: {
           onClick={() => props.onSelect(thread.id)}
         >
           <span>{thread.title}</span>
-          <small>{thread.visibility}</small>
         </button>
       ))}
     </div>

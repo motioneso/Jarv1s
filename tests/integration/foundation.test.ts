@@ -118,7 +118,8 @@ describe("MVP foundation scaffold", () => {
         { version: "0024", name: "0024_notifications_owner_only.sql" },
         { version: "0025", name: "0025_chat_owner_or_share.sql" },
         { version: "0026", name: "0026_briefings_owner_or_share.sql" },
-        { version: "0027", name: "0027_notes_teardown.sql" }
+        { version: "0027", name: "0027_notes_teardown.sql" },
+        { version: "0028", name: "0028_workspace_teardown.sql" }
       ]);
     } finally {
       await client.end();

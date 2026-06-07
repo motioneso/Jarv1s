@@ -13,7 +13,6 @@ import {
   type ChatModelRouteMetadataDto,
   type ChatSelectedToolMetadataDto,
   type ChatThreadDto,
-  type ChatVisibility,
   type CreateChatThreadRequest
 } from "@jarv1s/shared";
 
@@ -159,14 +158,9 @@ export function registerChatRoutes(
 
 function parseCreateThreadBody(body: unknown): CreateChatThreadRequest {
   const value = requireObject(body);
-  const visibility = optionalChatVisibility(value.visibility) ?? "private";
-  const workspaceId =
-    visibility === "workspace" ? requiredString(value.workspaceId, "workspaceId") : null;
 
   return {
-    title: requiredString(value.title, "title"),
-    visibility,
-    workspaceId
+    title: requiredString(value.title, "title")
   };
 }
 
@@ -179,17 +173,8 @@ function parseAppendMessageBody(body: unknown): AppendChatUserMessageRequest {
   };
 }
 
-function ensureWorkspaceVisibilityContext(
-  accessContext: AccessContext,
-  input: { readonly visibility?: ChatVisibility; readonly workspaceId?: string | null }
-): void {
-  if (input.visibility !== "workspace") {
-    return;
-  }
-
-  if (!accessContext.workspaceId || input.workspaceId !== accessContext.workspaceId) {
-    throw new HttpError(400, "workspace-visible chats require the active workspace context");
-  }
+function ensureWorkspaceVisibilityContext(_accessContext: AccessContext, _input: unknown): void {
+  // Workspace visibility has been removed; nothing to validate.
 }
 
 function selectAssistantTools(
@@ -227,8 +212,6 @@ function serializeThread(thread: ChatThread): ChatThreadDto {
   return {
     id: thread.id,
     ownerUserId: thread.owner_user_id,
-    workspaceId: thread.workspace_id,
-    visibility: thread.visibility,
     title: thread.title,
     createdAt: toIsoString(thread.created_at),
     updatedAt: toIsoString(thread.updated_at)
@@ -240,8 +223,6 @@ function serializeMessage(message: ChatMessage): ChatMessageDto {
     id: message.id,
     threadId: message.thread_id,
     ownerUserId: message.owner_user_id,
-    workspaceId: message.workspace_id,
-    visibility: message.visibility,
     role: message.role,
     status: message.status,
     body: message.body,
@@ -314,18 +295,6 @@ function optionalStringArray(value: unknown, fieldName: string): string[] | unde
 
     return item.trim();
   });
-}
-
-function optionalChatVisibility(value: unknown): ChatVisibility | undefined {
-  if (value === undefined) {
-    return undefined;
-  }
-
-  if (value !== "private" && value !== "workspace") {
-    throw new HttpError(400, "visibility must be private or workspace");
-  }
-
-  return value;
 }
 
 function toIsoString(value: Date | string): string {

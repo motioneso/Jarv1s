@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import type { TaskApiStatus, TaskApiVisibility, TaskDto } from "@jarv1s/shared";
+import type { TaskApiStatus, TaskDto } from "@jarv1s/shared";
 import {
   Archive,
   CheckCircle2,
@@ -124,22 +124,15 @@ function CreateTaskPanel(props: { readonly activeWorkspaceId: string | null }) {
   const queryClient = useQueryClient();
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
-  const [visibility, setVisibility] = useState<TaskApiVisibility>("private");
   const [dueAt, setDueAt] = useState("");
   const [priority, setPriority] = useState("");
   const [formError, setFormError] = useState<string | null>(null);
   const createMutation = useMutation({
     mutationFn: () => {
-      if (visibility === "workspace" && !props.activeWorkspaceId) {
-        throw new Error("Select a workspace first");
-      }
-
       return createTask(
         {
           title,
           description: description || null,
-          visibility,
-          workspaceId: visibility === "workspace" ? props.activeWorkspaceId : null,
           priority: priority ? Number(priority) : null,
           dueAt: fromDateInputValue(dueAt)
         },
@@ -211,23 +204,6 @@ function CreateTaskPanel(props: { readonly activeWorkspaceId: string | null }) {
           />
         </label>
 
-        <div className="segmented-control span-2" aria-label="Task visibility">
-          <button
-            className={visibility === "private" ? "active" : ""}
-            type="button"
-            onClick={() => setVisibility("private")}
-          >
-            Private
-          </button>
-          <button
-            className={visibility === "workspace" ? "active" : ""}
-            type="button"
-            onClick={() => setVisibility("workspace")}
-          >
-            Workspace
-          </button>
-        </div>
-
         {formError ? <p className="form-error span-2">{formError}</p> : null}
 
         <button className="primary-button span-2" disabled={createMutation.isPending} type="submit">
@@ -263,7 +239,6 @@ function TaskRow(props: {
         {props.task.description ? <p>{props.task.description}</p> : null}
         <div className="task-meta">
           <span>{statusLabels[props.task.status]}</span>
-          <span>{props.task.visibility}</span>
           <span>{formatDate(props.task.dueAt)}</span>
         </div>
       </div>

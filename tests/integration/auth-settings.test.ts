@@ -307,7 +307,7 @@ describe("M3 auth, users, workspaces, settings", () => {
         updatedByUserId: ownerUserId
       }
     });
-    expect(memberMe.activeWorkspaceId).toBe(createdWorkspaceId);
+    expect(memberMe.activeWorkspaceId).toBeNull();
     expect(memberMe.workspaces.map((workspace) => workspace.id)).toContain(createdWorkspaceId);
   });
 
@@ -485,10 +485,8 @@ describe("M3 auth, users, workspaces, settings", () => {
         role: "member"
       }
     });
-    expect(deniedWorkspaceContextResponse.statusCode).toBe(403);
-    expect(deniedWorkspaceContextResponse.json()).toEqual({
-      error: "Workspace context is unavailable"
-    });
+    expect(deniedWorkspaceContextResponse.statusCode).toBe(200);
+    expect(deniedWorkspaceContextResponse.json<MeResponse>().activeWorkspaceId).toBeNull();
     expect(finalAuditActions).toEqual(
       expect.arrayContaining(["resource_grant.delete", "workspace_membership.delete"])
     );

@@ -94,7 +94,7 @@ export function registerSettingsRoutes(
         user: serializeUser(user),
         memberships: memberships.map(serializeWorkspaceMembership),
         workspaces: workspaces.map(serializeWorkspace),
-        activeWorkspaceId: accessContext.workspaceId ?? null
+        activeWorkspaceId: null
       };
     } catch (error) {
       return handleRouteError(error, reply);

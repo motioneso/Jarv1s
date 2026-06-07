@@ -1,4 +1,3 @@
-export type BriefingVisibility = "private" | "workspace";
 export type BriefingCadence = "manual" | "daily" | "weekly";
 export type BriefingRunKind = "manual" | "scheduled";
 export type BriefingRunStatus = "succeeded" | "blocked" | "failed";
@@ -6,8 +5,6 @@ export type BriefingRunStatus = "succeeded" | "blocked" | "failed";
 export interface BriefingDefinitionDto {
   readonly id: string;
   readonly ownerUserId: string;
-  readonly workspaceId: string | null;
-  readonly visibility: BriefingVisibility;
   readonly title: string;
   readonly cadence: BriefingCadence;
   readonly scheduleMetadata: Record<string, unknown>;
@@ -22,8 +19,6 @@ export interface BriefingRunDto {
   readonly id: string;
   readonly definitionId: string;
   readonly ownerUserId: string;
-  readonly workspaceId: string | null;
-  readonly visibility: BriefingVisibility;
   readonly status: BriefingRunStatus;
   readonly runKind: BriefingRunKind;
   readonly summaryText: string;
@@ -37,8 +32,6 @@ export interface ListBriefingDefinitionsResponse {
 
 export interface CreateBriefingDefinitionRequest {
   readonly title: string;
-  readonly visibility?: BriefingVisibility;
-  readonly workspaceId?: string | null;
   readonly cadence?: BriefingCadence;
   readonly scheduleMetadata?: Record<string, unknown>;
   readonly enabled?: boolean;
@@ -51,8 +44,6 @@ export interface CreateBriefingDefinitionResponse {
 
 export interface UpdateBriefingDefinitionRequest {
   readonly title?: string;
-  readonly visibility?: BriefingVisibility;
-  readonly workspaceId?: string | null;
   readonly cadence?: BriefingCadence;
   readonly scheduleMetadata?: Record<string, unknown>;
   readonly enabled?: boolean;
@@ -78,7 +69,6 @@ export interface ListBriefingRunsResponse {
 
 export interface BriefingRunPayloadDto {
   readonly actorUserId: string;
-  readonly workspaceId?: string | null;
   readonly definitionId: string;
   readonly briefingRunId: string;
   readonly runKind: BriefingRunKind;
@@ -108,11 +98,6 @@ const jsonObjectSchema = {
   additionalProperties: true
 } as const;
 
-export const briefingVisibilitySchema = {
-  type: "string",
-  enum: ["private", "workspace"]
-} as const;
-
 export const briefingCadenceSchema = {
   type: "string",
   enum: ["manual", "daily", "weekly"]
@@ -140,8 +125,6 @@ const briefingDefinitionSchema = {
   required: [
     "id",
     "ownerUserId",
-    "workspaceId",
-    "visibility",
     "title",
     "cadence",
     "scheduleMetadata",
@@ -154,8 +137,6 @@ const briefingDefinitionSchema = {
   properties: {
     id: { type: "string" },
     ownerUserId: { type: "string" },
-    workspaceId: { type: ["string", "null"] },
-    visibility: briefingVisibilitySchema,
     title: { type: "string" },
     cadence: briefingCadenceSchema,
     scheduleMetadata: jsonObjectSchema,
@@ -174,8 +155,6 @@ const briefingRunSchema = {
     "id",
     "definitionId",
     "ownerUserId",
-    "workspaceId",
-    "visibility",
     "status",
     "runKind",
     "summaryText",
@@ -186,8 +165,6 @@ const briefingRunSchema = {
     id: { type: "string" },
     definitionId: { type: "string" },
     ownerUserId: { type: "string" },
-    workspaceId: { type: ["string", "null"] },
-    visibility: briefingVisibilitySchema,
     status: briefingRunStatusSchema,
     runKind: briefingRunKindSchema,
     summaryText: { type: "string" },
@@ -202,8 +179,6 @@ export const createBriefingDefinitionRequestSchema = {
   required: ["title", "selectedToolNames"],
   properties: {
     title: { type: "string" },
-    visibility: briefingVisibilitySchema,
-    workspaceId: { type: ["string", "null"] },
     cadence: briefingCadenceSchema,
     scheduleMetadata: jsonObjectSchema,
     enabled: { type: "boolean" },
@@ -216,8 +191,6 @@ export const updateBriefingDefinitionRequestSchema = {
   additionalProperties: false,
   properties: {
     title: { type: "string" },
-    visibility: briefingVisibilitySchema,
-    workspaceId: { type: ["string", "null"] },
     cadence: briefingCadenceSchema,
     scheduleMetadata: jsonObjectSchema,
     enabled: { type: "boolean" },
@@ -239,7 +212,6 @@ export const briefingRunPayloadSchema = {
   required: ["actorUserId", "definitionId", "briefingRunId", "runKind"],
   properties: {
     actorUserId: { type: "string" },
-    workspaceId: { type: ["string", "null"] },
     definitionId: { type: "string" },
     briefingRunId: { type: "string" },
     runKind: briefingRunKindSchema,

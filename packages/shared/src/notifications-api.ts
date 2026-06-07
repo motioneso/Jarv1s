@@ -1,13 +1,7 @@
-export const NOTIFICATION_VISIBILITIES = ["private", "workspace"] as const;
-
-export type NotificationApiVisibility = (typeof NOTIFICATION_VISIBILITIES)[number];
-
 export interface NotificationDto {
   readonly id: string;
   readonly actorUserId: string | null;
   readonly recipientUserId: string | null;
-  readonly workspaceId: string | null;
-  readonly visibility: NotificationApiVisibility;
   readonly title: string;
   readonly body: string | null;
   readonly metadata: Record<string, unknown>;
@@ -37,11 +31,6 @@ const metadataSchema = {
   additionalProperties: true
 } as const;
 
-export const notificationVisibilitySchema = {
-  type: "string",
-  enum: NOTIFICATION_VISIBILITIES
-} as const;
-
 export const notificationParamsSchema = {
   type: "object",
   required: ["id"],
@@ -56,8 +45,6 @@ export const notificationDtoSchema = {
     "id",
     "actorUserId",
     "recipientUserId",
-    "workspaceId",
-    "visibility",
     "title",
     "body",
     "metadata",
@@ -68,8 +55,6 @@ export const notificationDtoSchema = {
     id: { type: "string" },
     actorUserId: nullableStringSchema,
     recipientUserId: nullableStringSchema,
-    workspaceId: nullableStringSchema,
-    visibility: notificationVisibilitySchema,
     title: { type: "string" },
     body: nullableStringSchema,
     metadata: metadataSchema,
