@@ -349,6 +349,9 @@ importers:
       '@jarv1s/settings':
         specifier: workspace:*
         version: link:../settings
+      '@jarv1s/structured-state':
+        specifier: workspace:*
+        version: link:../structured-state
       '@jarv1s/tasks':
         specifier: workspace:*
         version: link:../tasks
