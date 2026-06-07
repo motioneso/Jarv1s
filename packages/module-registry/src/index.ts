@@ -5,6 +5,10 @@ import type { PgBoss } from "pg-boss";
 import { aiModuleManifest, aiModuleSqlMigrationDirectory, registerAiRoutes } from "@jarv1s/ai";
 import { memoryModuleManifest, memorySqlMigrationDirectory } from "@jarv1s/memory";
 import {
+  structuredStateModuleManifest,
+  structuredStateSqlMigrationDirectory
+} from "@jarv1s/structured-state";
+import {
   BRIEFINGS_QUEUE_DEFINITIONS,
   briefingsModuleManifest,
   briefingsModuleSqlMigrationDirectory,
@@ -139,6 +143,11 @@ const BUILT_IN_MODULES: readonly BuiltInModuleRegistration[] = [
   {
     manifest: memoryModuleManifest,
     sqlMigrationDirectories: [memorySqlMigrationDirectory],
+    queueDefinitions: []
+  },
+  {
+    manifest: structuredStateModuleManifest,
+    sqlMigrationDirectories: [structuredStateSqlMigrationDirectory],
     queueDefinitions: []
   }
 ];
