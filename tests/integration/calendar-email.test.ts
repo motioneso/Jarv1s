@@ -164,7 +164,8 @@ describe("Calendar and Email connector-backed read modules", () => {
       "ai",
       "chat",
       "briefings",
-      "memory"
+      "memory",
+      "structured-state"
     ]);
     expect(calendarModuleManifest.database?.ownedTables).toEqual(["app.calendar_events"]);
     expect(emailModuleManifest.database?.ownedTables).toEqual(["app.email_messages"]);

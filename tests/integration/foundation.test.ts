@@ -121,7 +121,8 @@ describe("MVP foundation scaffold", () => {
         { version: "0027", name: "0027_notes_teardown.sql" },
         { version: "0028", name: "0028_workspace_teardown.sql" },
         { version: "0029", name: "0029_fix_notifications_insert_policy.sql" },
-        { version: "0030", name: "0030_memory_index.sql" }
+        { version: "0030", name: "0030_memory_index.sql" },
+        { version: "0031", name: "0031_structured_state.sql" }
       ]);
     } finally {
       await client.end();
