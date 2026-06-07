@@ -334,6 +334,26 @@ export interface BriefingRunsTable {
   created_at: TimestampColumn;
 }
 
+export interface MemoryChunksTable {
+  id: string;
+  owner_user_id: string;
+  source_kind: "vault" | "connector";
+  source_path: string;
+  line_start: number;
+  line_end: number;
+  content_hash: string;
+  text: string;
+  embedding: string | null; // pgvector stored as text in Kysely; serialized as "[n,n,...]"
+  updated_at: TimestampColumn;
+}
+
+export interface MemoryLinksTable {
+  id: string;
+  owner_user_id: string;
+  from_path: string;
+  to_path: string;
+}
+
 export interface JarvisDatabase {
   "app.schema_migrations": SchemaMigrationsTable;
   "app.users": UsersTable;
@@ -363,6 +383,8 @@ export interface JarvisDatabase {
   "app.chat_messages": ChatMessagesTable;
   "app.briefing_definitions": BriefingDefinitionsTable;
   "app.briefing_runs": BriefingRunsTable;
+  "app.memory_chunks": MemoryChunksTable;
+  "app.memory_links": MemoryLinksTable;
 }
 
 export type User = Selectable<UsersTable>;
