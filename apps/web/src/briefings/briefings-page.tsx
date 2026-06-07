@@ -18,19 +18,15 @@ import type {
   BriefingRunDto
 } from "@jarv1s/shared";
 
-interface BriefingsPageProps {
-  readonly activeWorkspaceId: string | null;
-}
-
-export function BriefingsPage(props: BriefingsPageProps) {
+export function BriefingsPage() {
   const [activeDefinitionId, setActiveDefinitionId] = useState<string | null>(null);
   const definitionsQuery = useQuery({
-    queryKey: queryKeys.briefings.definitions(props.activeWorkspaceId),
-    queryFn: () => listBriefingDefinitions(props.activeWorkspaceId)
+    queryKey: queryKeys.briefings.definitions,
+    queryFn: () => listBriefingDefinitions()
   });
   const toolsQuery = useQuery({
-    queryKey: queryKeys.ai.assistantTools(props.activeWorkspaceId),
-    queryFn: () => listAiAssistantTools(props.activeWorkspaceId)
+    queryKey: queryKeys.ai.assistantTools,
+    queryFn: () => listAiAssistantTools()
   });
   const definitions = definitionsQuery.data?.definitions ?? [];
   const activeDefinition = useMemo(
@@ -39,8 +35,8 @@ export function BriefingsPage(props: BriefingsPageProps) {
   );
   const runsQuery = useQuery({
     enabled: activeDefinitionId !== null,
-    queryKey: queryKeys.briefings.runs(activeDefinitionId, props.activeWorkspaceId),
-    queryFn: () => listBriefingRuns(activeDefinitionId ?? "", props.activeWorkspaceId)
+    queryKey: queryKeys.briefings.runs(activeDefinitionId),
+    queryFn: () => listBriefingRuns(activeDefinitionId ?? "")
   });
   const readTools = useMemo(
     () => (toolsQuery.data?.tools ?? []).filter((tool) => tool.risk === "read"),
@@ -68,11 +64,7 @@ export function BriefingsPage(props: BriefingsPageProps) {
             <Newspaper size={20} aria-hidden="true" />
             <h2>Definitions</h2>
           </div>
-          <CreateBriefingForm
-            activeWorkspaceId={props.activeWorkspaceId}
-            readTools={readTools}
-            onCreated={setActiveDefinitionId}
-          />
+          <CreateBriefingForm readTools={readTools} onCreated={setActiveDefinitionId} />
           <DefinitionList
             activeDefinitionId={activeDefinitionId}
             definitions={definitions}
@@ -87,11 +79,7 @@ export function BriefingsPage(props: BriefingsPageProps) {
             <Newspaper size={20} aria-hidden="true" />
             <h2>{activeDefinition?.title ?? "Runs"}</h2>
           </div>
-          <DefinitionEditor
-            activeWorkspaceId={props.activeWorkspaceId}
-            definition={activeDefinition}
-            readTools={readTools}
-          />
+          <DefinitionEditor definition={activeDefinition} readTools={readTools} />
           <RunList
             error={runsQuery.error}
             isLoading={runsQuery.isLoading}
@@ -104,7 +92,6 @@ export function BriefingsPage(props: BriefingsPageProps) {
 }
 
 function CreateBriefingForm(props: {
-  readonly activeWorkspaceId: string | null;
   readonly readTools: readonly AiAssistantToolDto[];
   readonly onCreated: (definitionId: string) => void;
 }) {
@@ -119,16 +106,13 @@ function CreateBriefingForm(props: {
         throw new Error("Select at least one read tool");
       }
 
-      return createBriefingDefinition(
-        {
-          title,
-          cadence,
-          scheduleMetadata: {},
-          enabled: true,
-          selectedToolNames
-        },
-        props.activeWorkspaceId
-      );
+      return createBriefingDefinition({
+        title,
+        cadence,
+        scheduleMetadata: {},
+        enabled: true,
+        selectedToolNames
+      });
     },
     onSuccess: async (response) => {
       setTitle("");
@@ -136,7 +120,7 @@ function CreateBriefingForm(props: {
       setFormError(null);
       props.onCreated(response.definition.id);
       await queryClient.invalidateQueries({
-        queryKey: queryKeys.briefings.definitions(props.activeWorkspaceId)
+        queryKey: queryKeys.briefings.definitions
       });
     },
     onError: (error) => setFormError(readError(error, "Unable to create briefing"))
@@ -228,7 +212,6 @@ function DefinitionList(props: {
 }
 
 function DefinitionEditor(props: {
-  readonly activeWorkspaceId: string | null;
   readonly definition: BriefingDefinitionDto | null;
   readonly readTools: readonly AiAssistantToolDto[];
 }) {
@@ -269,21 +252,17 @@ function DefinitionEditor(props: {
         throw new Error("Select at least one read tool");
       }
 
-      return updateBriefingDefinition(
-        props.definition.id,
-        {
-          title,
-          cadence,
-          enabled,
-          selectedToolNames
-        },
-        props.activeWorkspaceId
-      );
+      return updateBriefingDefinition(props.definition.id, {
+        title,
+        cadence,
+        enabled,
+        selectedToolNames
+      });
     },
     onSuccess: async () => {
       setFormError(null);
       await queryClient.invalidateQueries({
-        queryKey: queryKeys.briefings.definitions(props.activeWorkspaceId)
+        queryKey: queryKeys.briefings.definitions
       });
     },
     onError: (error) => setFormError(readError(error, "Unable to save briefing"))
@@ -294,22 +273,18 @@ function DefinitionEditor(props: {
         throw new Error("Select a briefing first");
       }
 
-      return runBriefingDefinition(
-        props.definition.id,
-        {
-          idempotencyKey: `web:${props.definition.id}:${Date.now()}`
-        },
-        props.activeWorkspaceId
-      );
+      return runBriefingDefinition(props.definition.id, {
+        idempotencyKey: `web:${props.definition.id}:${Date.now()}`
+      });
     },
     onSuccess: async (response) => {
       setRunMessage(`Queued ${response.runId}`);
       await Promise.all([
         queryClient.invalidateQueries({
-          queryKey: queryKeys.briefings.definitions(props.activeWorkspaceId)
+          queryKey: queryKeys.briefings.definitions
         }),
         queryClient.invalidateQueries({
-          queryKey: queryKeys.briefings.runs(props.definition?.id ?? null, props.activeWorkspaceId)
+          queryKey: queryKeys.briefings.runs(props.definition?.id ?? null)
         })
       ]);
     },

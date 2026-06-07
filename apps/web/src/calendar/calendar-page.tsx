@@ -6,19 +6,15 @@ import { useMemo, useState } from "react";
 import { listCalendarEvents } from "../api/client";
 import { queryKeys } from "../api/query-keys";
 
-interface CalendarPageProps {
-  readonly activeWorkspaceId: string | null;
-}
-
 const calendarFilters = ["upcoming", "past", "all"] as const;
 
 type CalendarFilter = (typeof calendarFilters)[number];
 
-export function CalendarPage(props: CalendarPageProps) {
+export function CalendarPage() {
   const [filter, setFilter] = useState<CalendarFilter>("upcoming");
   const eventsQuery = useQuery({
-    queryKey: queryKeys.calendar.list(props.activeWorkspaceId),
-    queryFn: () => listCalendarEvents(props.activeWorkspaceId)
+    queryKey: queryKeys.calendar.list,
+    queryFn: () => listCalendarEvents()
   });
   const events = useMemo(() => {
     const now = Date.now();

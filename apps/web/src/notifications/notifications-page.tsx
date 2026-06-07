@@ -6,35 +6,24 @@ import { useMemo, useState } from "react";
 import { listNotifications, markAllNotificationsRead, markNotificationRead } from "../api/client";
 import { queryKeys } from "../api/query-keys";
 
-interface NotificationsPageProps {
-  readonly activeWorkspaceId: string | null;
-}
-
 const notificationFilters = ["all", "unread"] as const;
 
 type NotificationFilter = (typeof notificationFilters)[number];
 
-export function NotificationsPage(props: NotificationsPageProps) {
+export function NotificationsPage() {
   const queryClient = useQueryClient();
   const [filter, setFilter] = useState<NotificationFilter>("all");
   const notificationsQuery = useQuery({
-    queryKey: queryKeys.notifications.list(props.activeWorkspaceId),
-    queryFn: () => listNotifications(props.activeWorkspaceId)
+    queryKey: queryKeys.notifications.list,
+    queryFn: () => listNotifications()
   });
   const markReadMutation = useMutation({
-    mutationFn: (notificationId: string) =>
-      markNotificationRead(notificationId, props.activeWorkspaceId),
-    onSuccess: () =>
-      queryClient.invalidateQueries({
-        queryKey: queryKeys.notifications.list(props.activeWorkspaceId)
-      })
+    mutationFn: (notificationId: string) => markNotificationRead(notificationId),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.notifications.list })
   });
   const markAllReadMutation = useMutation({
-    mutationFn: () => markAllNotificationsRead(props.activeWorkspaceId),
-    onSuccess: () =>
-      queryClient.invalidateQueries({
-        queryKey: queryKeys.notifications.list(props.activeWorkspaceId)
-      })
+    mutationFn: () => markAllNotificationsRead(),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.notifications.list })
   });
   const notifications = useMemo(() => {
     const items = notificationsQuery.data?.notifications ?? [];

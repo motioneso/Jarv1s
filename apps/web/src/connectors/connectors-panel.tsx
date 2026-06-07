@@ -14,19 +14,18 @@ import { queryKeys } from "../api/query-keys";
 import type { ConnectorAccountDto, ConnectorAccountStatus } from "@jarv1s/shared";
 
 interface ConnectorsPanelProps {
-  readonly activeWorkspaceId: string | null;
   readonly isAdmin: boolean;
 }
 
 export function ConnectorsPanel(props: ConnectorsPanelProps) {
   const queryClient = useQueryClient();
   const providersQuery = useQuery({
-    queryKey: queryKeys.connectors.providers(props.activeWorkspaceId),
-    queryFn: () => listConnectorProviders(props.activeWorkspaceId)
+    queryKey: queryKeys.connectors.providers,
+    queryFn: () => listConnectorProviders()
   });
   const accountsQuery = useQuery({
-    queryKey: queryKeys.connectors.accounts(props.activeWorkspaceId),
-    queryFn: () => listConnectorAccounts(props.activeWorkspaceId)
+    queryKey: queryKeys.connectors.accounts,
+    queryFn: () => listConnectorAccounts()
   });
   const adminAccountsQuery = useQuery({
     enabled: props.isAdmin,
@@ -66,13 +65,11 @@ export function ConnectorsPanel(props: ConnectorsPanelProps) {
           <h2 id="connector-accounts-title">Connector Accounts</h2>
         </div>
         <CreateConnectorForm
-          activeWorkspaceId={props.activeWorkspaceId}
           providers={providers}
-          onCreated={() => invalidateConnectorQueries(queryClient, props.activeWorkspaceId)}
+          onCreated={() => invalidateConnectorQueries(queryClient)}
         />
         <ConnectorAccountList
           accounts={accounts}
-          activeWorkspaceId={props.activeWorkspaceId}
           isLoading={accountsQuery.isLoading}
           error={accountsQuery.error}
         />
@@ -105,7 +102,6 @@ export function ConnectorsPanel(props: ConnectorsPanelProps) {
 }
 
 function CreateConnectorForm(props: {
-  readonly activeWorkspaceId: string | null;
   readonly providers: readonly { readonly id: string; readonly defaultScopes: readonly string[] }[];
   readonly onCreated: () => Promise<void>;
 }) {
@@ -118,16 +114,12 @@ function CreateConnectorForm(props: {
     [providerId, props.providers]
   );
   const createMutation = useMutation({
-    mutationFn: () => {
-      return createConnectorAccount(
-        {
-          providerId,
-          scopes: parseScopes(scopes || selectedProvider?.defaultScopes.join(" ") || ""),
-          tokenPayload: parseTokenPayload(tokenPayload)
-        },
-        props.activeWorkspaceId
-      );
-    },
+    mutationFn: () =>
+      createConnectorAccount({
+        providerId,
+        scopes: parseScopes(scopes || selectedProvider?.defaultScopes.join(" ") || ""),
+        tokenPayload: parseTokenPayload(tokenPayload)
+      }),
     onSuccess: async () => {
       setScopes("");
       setTokenPayload("{}");
@@ -198,7 +190,6 @@ function CreateConnectorForm(props: {
 
 function ConnectorAccountList(props: {
   readonly accounts: readonly ConnectorAccountDto[];
-  readonly activeWorkspaceId: string | null;
   readonly isLoading: boolean;
   readonly error: Error | null;
 }) {
@@ -217,29 +208,22 @@ function ConnectorAccountList(props: {
   return (
     <div className="connector-account-list">
       {props.accounts.map((account) => (
-        <ConnectorAccountRow
-          account={account}
-          activeWorkspaceId={props.activeWorkspaceId}
-          key={account.id}
-        />
+        <ConnectorAccountRow account={account} key={account.id} />
       ))}
     </div>
   );
 }
 
-function ConnectorAccountRow(props: {
-  readonly account: ConnectorAccountDto;
-  readonly activeWorkspaceId: string | null;
-}) {
+function ConnectorAccountRow(props: { readonly account: ConnectorAccountDto }) {
   const queryClient = useQueryClient();
   const updateMutation = useMutation({
     mutationFn: (status: Exclude<ConnectorAccountStatus, "revoked">) =>
-      updateConnectorAccount(props.account.id, { status }, props.activeWorkspaceId),
-    onSuccess: async () => invalidateConnectorQueries(queryClient, props.activeWorkspaceId)
+      updateConnectorAccount(props.account.id, { status }),
+    onSuccess: async () => invalidateConnectorQueries(queryClient)
   });
   const revokeMutation = useMutation({
-    mutationFn: () => revokeConnectorAccount(props.account.id, props.activeWorkspaceId),
-    onSuccess: async () => invalidateConnectorQueries(queryClient, props.activeWorkspaceId)
+    mutationFn: () => revokeConnectorAccount(props.account.id),
+    onSuccess: async () => invalidateConnectorQueries(queryClient)
   });
   const nextStatus = props.account.status === "error" ? "active" : "error";
 
@@ -300,11 +284,10 @@ function parseTokenPayload(value: string): Record<string, unknown> {
 }
 
 async function invalidateConnectorQueries(
-  queryClient: ReturnType<typeof useQueryClient>,
-  activeWorkspaceId: string | null
+  queryClient: ReturnType<typeof useQueryClient>
 ): Promise<void> {
   await Promise.all([
-    queryClient.invalidateQueries({ queryKey: queryKeys.connectors.accounts(activeWorkspaceId) }),
+    queryClient.invalidateQueries({ queryKey: queryKeys.connectors.accounts }),
     queryClient.invalidateQueries({ queryKey: queryKeys.settings.adminConnectorAccounts })
   ]);
 }

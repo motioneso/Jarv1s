@@ -598,4 +598,7 @@ thermo-nuclear / holistic review pass on the diff before merging the slice. **Wa
 (none should, per planning); (2) the `ai-tools.test.ts` cross-cutting assertions are the recurring
 fallout point — do not accidentally share workspace rows to userA (it corrupts the personal-context
 `toEqual`).
+
+```
+
 ```

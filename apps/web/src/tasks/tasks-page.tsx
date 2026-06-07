@@ -16,31 +16,25 @@ import { createTask, listTasks, updateTask } from "../api/client";
 import { queryKeys } from "../api/query-keys";
 import { formatDate, fromDateInputValue, sortTasks, statusLabels } from "./task-format";
 
-interface TasksPageProps {
-  readonly activeWorkspaceId: string | null;
-}
-
 const taskStatusFilters = ["all", "todo", "in_progress", "done", "archived"] as const;
 
 type TaskStatusFilter = (typeof taskStatusFilters)[number];
 
-export function TasksPage(props: TasksPageProps) {
+export function TasksPage() {
   const queryClient = useQueryClient();
   const [statusFilter, setStatusFilter] = useState<TaskStatusFilter>("all");
   const [search, setSearch] = useState("");
   const tasksQuery = useQuery({
-    queryKey: queryKeys.tasks.list(props.activeWorkspaceId),
-    queryFn: () => listTasks(props.activeWorkspaceId)
+    queryKey: queryKeys.tasks.list,
+    queryFn: () => listTasks()
   });
   const updateMutation = useMutation({
     mutationFn: (input: { readonly taskId: string; readonly status: TaskApiStatus }) =>
-      updateTask(input.taskId, { status: input.status }, props.activeWorkspaceId),
+      updateTask(input.taskId, { status: input.status }),
     onSuccess: async (_, input) => {
       await Promise.all([
-        queryClient.invalidateQueries({ queryKey: queryKeys.tasks.list(props.activeWorkspaceId) }),
-        queryClient.invalidateQueries({
-          queryKey: queryKeys.tasks.detail(input.taskId, props.activeWorkspaceId)
-        })
+        queryClient.invalidateQueries({ queryKey: queryKeys.tasks.list }),
+        queryClient.invalidateQueries({ queryKey: queryKeys.tasks.detail(input.taskId) })
       ]);
     }
   });
@@ -68,7 +62,7 @@ export function TasksPage(props: TasksPageProps) {
         </div>
       </div>
 
-      <CreateTaskPanel activeWorkspaceId={props.activeWorkspaceId} />
+      <CreateTaskPanel />
 
       <section className="task-toolbar" aria-label="Task filters">
         <div className="segmented-control wide" aria-label="Status filter">
@@ -120,7 +114,7 @@ export function TasksPage(props: TasksPageProps) {
   );
 }
 
-function CreateTaskPanel(props: { readonly activeWorkspaceId: string | null }) {
+function CreateTaskPanel() {
   const queryClient = useQueryClient();
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
@@ -128,26 +122,20 @@ function CreateTaskPanel(props: { readonly activeWorkspaceId: string | null }) {
   const [priority, setPriority] = useState("");
   const [formError, setFormError] = useState<string | null>(null);
   const createMutation = useMutation({
-    mutationFn: () => {
-      return createTask(
-        {
-          title,
-          description: description || null,
-          priority: priority ? Number(priority) : null,
-          dueAt: fromDateInputValue(dueAt)
-        },
-        props.activeWorkspaceId
-      );
-    },
+    mutationFn: () =>
+      createTask({
+        title,
+        description: description || null,
+        priority: priority ? Number(priority) : null,
+        dueAt: fromDateInputValue(dueAt)
+      }),
     onSuccess: async () => {
       setTitle("");
       setDescription("");
       setDueAt("");
       setPriority("");
       setFormError(null);
-      await queryClient.invalidateQueries({
-        queryKey: queryKeys.tasks.list(props.activeWorkspaceId)
-      });
+      await queryClient.invalidateQueries({ queryKey: queryKeys.tasks.list });
     },
     onError: (error) => setFormError(error.message)
   });

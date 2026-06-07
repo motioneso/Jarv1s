@@ -59,7 +59,6 @@ export function registerChatRoutes(
       try {
         const accessContext = await dependencies.resolveAccessContext(request);
         const input = parseCreateThreadBody(request.body);
-        ensureWorkspaceVisibilityContext(accessContext, input);
         const thread = await dependencies.dataContext.withDataContext(accessContext, (scopedDb) =>
           repository.createThread(scopedDb, input)
         );
@@ -171,10 +170,6 @@ function parseAppendMessageBody(body: unknown): AppendChatUserMessageRequest {
     body: requiredString(value.body, "body"),
     selectedToolNames: optionalStringArray(value.selectedToolNames, "selectedToolNames")
   };
-}
-
-function ensureWorkspaceVisibilityContext(_accessContext: AccessContext, _input: unknown): void {
-  // Workspace visibility has been removed; nothing to validate.
 }
 
 function selectAssistantTools(

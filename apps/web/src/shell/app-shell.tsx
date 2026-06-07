@@ -3,7 +3,6 @@ import {
   Bell,
   CalendarDays,
   CheckSquare,
-  ChevronDown,
   FileText,
   Layers3,
   LogOut,
@@ -22,12 +21,10 @@ import { queryKeys } from "../api/query-keys";
 import type { MeResponse, ModuleDto, ModuleNavigationEntryDto } from "@jarv1s/shared";
 
 interface AppShellProps {
-  readonly activeWorkspaceId: string | null;
   readonly children: ReactNode;
   readonly me: MeResponse;
   readonly modules: readonly ModuleDto[];
   readonly modulesLoading: boolean;
-  readonly onWorkspaceChange: (workspaceId: string | null) => void;
 }
 
 const iconMap: Record<string, ComponentType<{ readonly size?: number }>> = {
@@ -45,18 +42,14 @@ export function AppShell(props: AppShellProps) {
   const queryClient = useQueryClient();
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const navigation = useMemo(() => readNavigation(props.modules), [props.modules]);
-  const activeWorkspace = props.me.workspaces.find(
-    (workspace) => workspace.id === props.activeWorkspaceId
-  );
   const notificationsQuery = useQuery({
-    queryKey: queryKeys.notifications.list(props.activeWorkspaceId),
-    queryFn: () => listNotifications(props.activeWorkspaceId)
+    queryKey: queryKeys.notifications.list,
+    queryFn: () => listNotifications()
   });
   const unreadCount = notificationsQuery.data?.unreadCount ?? 0;
   const signOutMutation = useMutation({
     mutationFn: signOut,
     onSettled: () => {
-      props.onWorkspaceChange(null);
       queryClient.clear();
       window.location.assign("/");
     }
@@ -71,7 +64,6 @@ export function AppShell(props: AppShellProps) {
           </div>
           <div>
             <p className="eyebrow">Jarv1s</p>
-            <strong>{activeWorkspace?.name ?? "No workspace"}</strong>
           </div>
         </div>
 
@@ -103,25 +95,6 @@ export function AppShell(props: AppShellProps) {
           >
             <Menu size={20} aria-hidden="true" />
           </button>
-
-          <label className="workspace-select">
-            <span>Workspace</span>
-            <div className="select-shell">
-              <select
-                aria-label="Workspace"
-                onChange={(event) => props.onWorkspaceChange(event.target.value || null)}
-                value={props.activeWorkspaceId ?? ""}
-              >
-                <option value="">None</option>
-                {props.me.workspaces.map((workspace) => (
-                  <option key={workspace.id} value={workspace.id}>
-                    {workspace.name}
-                  </option>
-                ))}
-              </select>
-              <ChevronDown size={16} aria-hidden="true" />
-            </div>
-          </label>
 
           <div className="topbar-account">
             <UserCircle size={20} aria-hidden="true" />

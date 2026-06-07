@@ -1,5 +1,4 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useEffect, useState } from "react";
 import { BrowserRouter, Navigate, Route, Routes } from "react-router";
 
 import { ApiError, getBootstrapStatus, getMe, getModules } from "./api/client";
@@ -15,57 +14,23 @@ import { AppShell } from "./shell/app-shell";
 import { TaskDetailPage } from "./tasks/task-detail-page";
 import { TasksPage } from "./tasks/tasks-page";
 
-const WORKSPACE_STORAGE_KEY = "jarv1s.activeWorkspaceId";
-
 export function App() {
   const queryClient = useQueryClient();
-  const [workspaceId, setWorkspaceIdState] = useState<string | null>(readStoredWorkspaceId);
   const bootstrapQuery = useQuery({
     queryKey: queryKeys.auth.bootstrap,
     queryFn: getBootstrapStatus
   });
   const meQuery = useQuery({
-    queryKey: queryKeys.auth.me(workspaceId),
-    queryFn: () => getMe(workspaceId),
+    queryKey: queryKeys.auth.me,
+    queryFn: () => getMe(),
     retry: false
   });
   const modulesQuery = useQuery({
     enabled: meQuery.isSuccess,
-    queryKey: queryKeys.modules(workspaceId),
-    queryFn: () => getModules(workspaceId),
+    queryKey: queryKeys.modules,
+    queryFn: () => getModules(),
     retry: false
   });
-
-  useEffect(() => {
-    if (!(meQuery.error instanceof ApiError) || meQuery.error.status !== 401 || !workspaceId) {
-      return;
-    }
-
-    setWorkspaceIdState(null);
-    localStorage.removeItem(WORKSPACE_STORAGE_KEY);
-  }, [meQuery.error, workspaceId]);
-
-  useEffect(() => {
-    const workspaces = meQuery.data?.workspaces ?? [];
-
-    if (workspaceId || workspaces.length === 0) {
-      return;
-    }
-
-    const firstWorkspaceId = workspaces[0]?.id;
-    if (firstWorkspaceId) {
-      setWorkspaceId(firstWorkspaceId);
-    }
-  }, [meQuery.data?.workspaces, workspaceId]);
-
-  const setWorkspaceId = (nextWorkspaceId: string | null) => {
-    setWorkspaceIdState(nextWorkspaceId);
-    if (nextWorkspaceId) {
-      localStorage.setItem(WORKSPACE_STORAGE_KEY, nextWorkspaceId);
-    } else {
-      localStorage.removeItem(WORKSPACE_STORAGE_KEY);
-    }
-  };
 
   const handleAuthenticated = async () => {
     await Promise.all([
@@ -86,7 +51,7 @@ export function App() {
     return <LoadingScreen />;
   }
 
-  if (meQuery.error instanceof ApiError && meQuery.error.status === 401 && !workspaceId) {
+  if (meQuery.error instanceof ApiError && meQuery.error.status === 401) {
     return (
       <AuthScreen
         needsBootstrap={bootstrapQuery.data?.needsBootstrap ?? false}
@@ -107,31 +72,20 @@ export function App() {
   return (
     <BrowserRouter>
       <AppShell
-        activeWorkspaceId={workspaceId}
         me={meQuery.data}
         modules={modulesQuery.data?.modules ?? []}
         modulesLoading={modulesQuery.isLoading}
-        onWorkspaceChange={setWorkspaceId}
       >
         <Routes>
           <Route index element={<Navigate to="/tasks" replace />} />
-          <Route path="/tasks" element={<TasksPage activeWorkspaceId={workspaceId} />} />
-          <Route
-            path="/tasks/:taskId"
-            element={<TaskDetailPage activeWorkspaceId={workspaceId} />}
-          />
-          <Route
-            path="/notifications"
-            element={<NotificationsPage activeWorkspaceId={workspaceId} />}
-          />
-          <Route path="/calendar" element={<CalendarPage activeWorkspaceId={workspaceId} />} />
-          <Route path="/email" element={<EmailPage activeWorkspaceId={workspaceId} />} />
-          <Route path="/chat" element={<ChatPage activeWorkspaceId={workspaceId} />} />
-          <Route path="/briefings" element={<BriefingsPage activeWorkspaceId={workspaceId} />} />
-          <Route
-            path="/settings"
-            element={<SettingsPage activeWorkspaceId={workspaceId} me={meQuery.data} />}
-          />
+          <Route path="/tasks" element={<TasksPage />} />
+          <Route path="/tasks/:taskId" element={<TaskDetailPage />} />
+          <Route path="/notifications" element={<NotificationsPage />} />
+          <Route path="/calendar" element={<CalendarPage />} />
+          <Route path="/email" element={<EmailPage />} />
+          <Route path="/chat" element={<ChatPage />} />
+          <Route path="/briefings" element={<BriefingsPage />} />
+          <Route path="/settings" element={<SettingsPage me={meQuery.data} />} />
           <Route path="*" element={<Navigate to="/tasks" replace />} />
         </Routes>
       </AppShell>
@@ -160,10 +114,6 @@ function FatalState(props: { readonly message: string; readonly onRetry: () => v
       </section>
     </main>
   );
-}
-
-function readStoredWorkspaceId(): string | null {
-  return localStorage.getItem(WORKSPACE_STORAGE_KEY);
 }
 
 function readErrorMessage(error: unknown): string {

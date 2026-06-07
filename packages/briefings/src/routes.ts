@@ -69,9 +69,6 @@ export function registerBriefingsRoutes(
       try {
         const accessContext = await dependencies.resolveAccessContext(request);
         const input = parseCreateDefinitionBody(request.body, dependencies.listModuleManifests());
-
-        ensureWorkspaceVisibilityContext(accessContext, input);
-
         const definition = await dependencies.dataContext.withDataContext(
           accessContext,
           (scopedDb) => repository.createDefinition(scopedDb, input)
@@ -91,9 +88,6 @@ export function registerBriefingsRoutes(
       try {
         const accessContext = await dependencies.resolveAccessContext(request);
         const input = parseUpdateDefinitionBody(request.body, dependencies.listModuleManifests());
-
-        ensureWorkspaceVisibilityContext(accessContext, input);
-
         const definition = await dependencies.dataContext.withDataContext(
           accessContext,
           (scopedDb) => repository.updateDefinition(scopedDb, request.params.id, input)
@@ -233,10 +227,6 @@ function parseRunDefinitionBody(body: unknown): RunBriefingDefinitionRequest {
   return {
     idempotencyKey: optionalString(value.idempotencyKey, "idempotencyKey")
   };
-}
-
-function ensureWorkspaceVisibilityContext(_accessContext: AccessContext, _input: unknown): void {
-  // Workspace visibility has been removed; nothing to validate.
 }
 
 function requiredReadToolNames(
@@ -408,9 +398,6 @@ function handleRouteError(error: unknown, reply: FastifyReply) {
     }
     if (error.message === "Invalid bearer token") {
       return reply.code(401).send({ error: error.message });
-    }
-    if (error.message === "Workspace context is unavailable") {
-      return reply.code(403).send({ error: error.message });
     }
     if (
       error.message.includes("foreign key") ||
