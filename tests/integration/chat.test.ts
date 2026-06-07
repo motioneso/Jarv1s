@@ -6,6 +6,7 @@ import { createApiServer } from "../../apps/api/src/server.js";
 import {
   AuthSessionResolver,
   DataContextRunner,
+  SharesRepository,
   createDatabase,
   type AccessContext,
   type JarvisDatabase
@@ -30,6 +31,7 @@ describe("Chat module M6 thin slice", () => {
   let auth: AuthSessionResolver;
   let dataContext: DataContextRunner;
   let repository: ChatRepository;
+  let sharesRepository: SharesRepository;
   let server: ReturnType<typeof createApiServer>;
   let originalSecretKey: string | undefined;
 
@@ -47,6 +49,7 @@ describe("Chat module M6 thin slice", () => {
     auth = new AuthSessionResolver(appDb);
     dataContext = new DataContextRunner(appDb);
     repository = new ChatRepository();
+    sharesRepository = new SharesRepository();
     server = createApiServer({
       appDb,
       logger: false
@@ -225,7 +228,20 @@ describe("Chat module M6 thin slice", () => {
     ).toBe(true);
   });
 
-  it("limits workspace participant thread updates to timestamp refreshes", async () => {
+  it("share grantee with manage can update timestamp but not title on another user's thread", async () => {
+    // Grant userA 'manage' access to userB's workspace thread via shares
+    await dataContext.withDataContext(
+      { actorUserId: ids.userB, workspaceId: ids.workspaceAlpha, requestId: "request:setup-share" },
+      (scopedDb) =>
+        sharesRepository.grant(scopedDb, {
+          resourceType: "chat_thread",
+          resourceId: chatIds.userBWorkspaceThread,
+          ownerUserId: ids.userB,
+          granteeUserId: ids.userA,
+          level: "manage"
+        })
+    );
+
     const sharedThread = await dataContext.withDataContext(
       userAContext(ids.workspaceAlpha),
       (scopedDb) => repository.getThreadById(scopedDb, chatIds.userBWorkspaceThread)
@@ -258,6 +274,32 @@ describe("Chat module M6 thin slice", () => {
 
     expect(sharedThread?.id).toBe(chatIds.userBWorkspaceThread);
     expect(refreshedThread?.id).toBe(chatIds.userBWorkspaceThread);
+  });
+
+  it("non-owner without share cannot see another user's thread; share grants visibility", async () => {
+    // userA cannot see userB's private thread without a share
+    const beforeShare = await dataContext.withDataContext(userAContext(), (scopedDb) =>
+      repository.getThreadById(scopedDb, chatIds.userBPrivateThread)
+    );
+    expect(beforeShare).toBeUndefined();
+
+    // Grant userA 'view' access to userB's private thread
+    await dataContext.withDataContext(
+      { actorUserId: ids.userB, workspaceId: null, requestId: "request:share-private-thread" },
+      (scopedDb) =>
+        sharesRepository.grant(scopedDb, {
+          resourceType: "chat_thread",
+          resourceId: chatIds.userBPrivateThread,
+          ownerUserId: ids.userB,
+          granteeUserId: ids.userA,
+          level: "view"
+        })
+    );
+
+    const afterShare = await dataContext.withDataContext(userAContext(), (scopedDb) =>
+      repository.getThreadById(scopedDb, chatIds.userBPrivateThread)
+    );
+    expect(afterShare?.id).toBe(chatIds.userBPrivateThread);
   });
 
   it("appends a user message and deterministic assistant metadata without provider/tool execution", async () => {

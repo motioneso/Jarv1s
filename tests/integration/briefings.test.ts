@@ -16,6 +16,7 @@ import {
 import {
   AuthSessionResolver,
   DataContextRunner,
+  SharesRepository,
   createDatabase,
   type AccessContext,
   type JarvisDatabase
@@ -53,6 +54,7 @@ describe("Briefings module M6 read-only scheduled summaries", () => {
   let auth: AuthSessionResolver;
   let dataContext: DataContextRunner;
   let repository: BriefingsRepository;
+  let sharesRepository: SharesRepository;
   let appBoss: PgBoss;
   let workerBoss: PgBoss;
   let server: ReturnType<typeof createApiServer>;
@@ -72,6 +74,7 @@ describe("Briefings module M6 read-only scheduled summaries", () => {
     auth = new AuthSessionResolver(appDb);
     dataContext = new DataContextRunner(appDb);
     repository = new BriefingsRepository();
+    sharesRepository = new SharesRepository();
     appBoss = createPgBossClient(connectionStrings.app);
     workerBoss = createPgBossClient(connectionStrings.worker);
 
@@ -229,6 +232,49 @@ describe("Briefings module M6 read-only scheduled summaries", () => {
     expect(userARead?.id).toBe(created.id);
     expect(userBRead).toBeUndefined();
     expect(adminRead).toBeUndefined();
+  });
+
+  it("share grantee can see definition and its runs; non-grantee cannot", async () => {
+    // Use userBWorkspace definition to avoid polluting the worker-isolation test below
+    // userA cannot see userB's workspace definition or its runs before share grant
+    const defBeforeShare = await dataContext.withDataContext(userAContext(), (scopedDb) =>
+      repository.getDefinitionById(scopedDb, briefingIds.userBWorkspace)
+    );
+    expect(defBeforeShare).toBeUndefined();
+
+    // Create a run for userB's workspace briefing as owner
+    const run = await dataContext.withDataContext(userBContext(), (scopedDb) =>
+      repository.generateRun(scopedDb, briefingIds.userBWorkspace, {
+        moduleManifests: getBuiltInModuleManifests(),
+        runKind: "manual"
+      })
+    );
+
+    const runsBeforeShare = await dataContext.withDataContext(userAContext(), (scopedDb) =>
+      repository.listRuns(scopedDb, briefingIds.userBWorkspace)
+    );
+    expect(runsBeforeShare).toEqual([]);
+
+    // userB grants userA 'view' access to the definition
+    await dataContext.withDataContext(userBContext(), (scopedDb) =>
+      sharesRepository.grant(scopedDb, {
+        resourceType: "briefing_definition",
+        resourceId: briefingIds.userBWorkspace,
+        ownerUserId: ids.userB,
+        granteeUserId: ids.userA,
+        level: "view"
+      })
+    );
+
+    // userA can now see the definition and its run via share
+    const defAfterShare = await dataContext.withDataContext(userAContext(), (scopedDb) =>
+      repository.getDefinitionById(scopedDb, briefingIds.userBWorkspace)
+    );
+    const runsAfterShare = await dataContext.withDataContext(userAContext(), (scopedDb) =>
+      repository.listRuns(scopedDb, briefingIds.userBWorkspace)
+    );
+    expect(defAfterShare?.id).toBe(briefingIds.userBWorkspace);
+    expect(runsAfterShare.some((r) => r.id === run?.id)).toBe(true);
   });
 
   it("requires active workspace context for workspace-visible definitions", async () => {
