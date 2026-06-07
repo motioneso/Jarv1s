@@ -5,7 +5,6 @@ import {
   createMockCalendarEvent,
   createMockConnectorProviders,
   createMockEmailMessage,
-  createMockNote,
   createMockNotification,
   createMockTask,
   mockApi
@@ -16,7 +15,6 @@ test("signs in and renders shell navigation", async ({ page }) => {
     authenticated: false,
     connectorAccounts: [],
     connectorProviders: createMockConnectorProviders(),
-    notes: [],
     notifications: [],
     tasks: []
   });
@@ -29,7 +27,6 @@ test("signs in and renders shell navigation", async ({ page }) => {
   await page.locator("form").getByRole("button", { name: "Sign in" }).click();
 
   await expect(page.locator(".module-nav").getByRole("link", { name: "Tasks" })).toBeVisible();
-  await expect(page.locator(".module-nav").getByRole("link", { name: "Notes" })).toBeVisible();
   await expect(
     page.locator(".module-nav").getByRole("link", { name: "Notifications" })
   ).toBeVisible();
@@ -46,7 +43,6 @@ test("creates and updates tasks through REST calls", async ({ page }) => {
     authenticated: true,
     connectorAccounts: [],
     connectorProviders: createMockConnectorProviders(),
-    notes: [],
     notifications: [],
     tasks: [createMockTask("task-1", "Existing secure task")]
   });
@@ -75,46 +71,11 @@ test("creates and updates tasks through REST calls", async ({ page }) => {
   await expect(page.getByText("Activity saved")).toBeVisible();
 });
 
-test("creates, reads, updates, and archives notes through REST calls", async ({ page }) => {
-  await mockApi(page, {
-    authenticated: true,
-    connectorAccounts: [],
-    connectorProviders: createMockConnectorProviders(),
-    notes: [createMockNote("note-1", "Existing private note")],
-    notifications: [],
-    tasks: []
-  });
-
-  await page.goto("/notes");
-  await expect(page.getByRole("heading", { name: "Notes" })).toBeVisible();
-  await expect(page.getByLabel("Workspace")).toHaveValue("workspace-1");
-
-  await page.getByLabel("Title").fill("Plan M5 notes");
-  await page.getByLabel("Body").fill("Exercise the Notes API from the UI");
-  await page.getByRole("button", { name: "Add note" }).click();
-
-  await expect(page.getByRole("link", { name: "Plan M5 notes" })).toBeVisible();
-  await page.getByRole("link", { name: "Plan M5 notes" }).click();
-  await expect(page.getByRole("heading", { name: "Edit Note" })).toBeVisible();
-
-  await page.getByLabel("Title").fill("Plan M5 notes updated");
-  await page.getByLabel("Body").fill("Updated note body");
-  await page.getByLabel("Archived").check();
-  await page.getByRole("button", { name: "Save note" }).click();
-  await expect(page.getByLabel("Title")).toHaveValue("Plan M5 notes updated");
-  await expect(page.getByLabel("Archived")).toBeChecked();
-
-  await page.locator(".back-link", { hasText: "Notes" }).click();
-  await page.getByRole("button", { name: /Archived/ }).click();
-  await expect(page.getByRole("link", { name: "Plan M5 notes updated" })).toBeVisible();
-});
-
 test("lists and marks notifications read through REST calls", async ({ page }) => {
   await mockApi(page, {
     authenticated: true,
     connectorAccounts: [],
     connectorProviders: createMockConnectorProviders(),
-    notes: [],
     notifications: [
       createMockNotification("notification-1", "New secure notice"),
       createMockNotification("notification-2", "Workspace notice")
@@ -153,7 +114,6 @@ test("navigates Calendar and Email read surfaces through REST calls", async ({ p
         snippet: "Thin read surfaces are ready"
       })
     ],
-    notes: [],
     notifications: [],
     tasks: []
   });
@@ -174,7 +134,6 @@ test("adds and revokes connector accounts through settings REST calls", async ({
     authenticated: true,
     connectorAccounts: [],
     connectorProviders: createMockConnectorProviders(),
-    notes: [],
     notifications: [],
     tasks: []
   });
@@ -206,7 +165,6 @@ test("configures AI providers and capability routing through settings REST calls
     aiProviders: [],
     connectorAccounts: [],
     connectorProviders: createMockConnectorProviders(),
-    notes: [],
     notifications: [],
     tasks: []
   });
@@ -275,7 +233,6 @@ test("creates chat threads and records assistant metadata through REST calls", a
     chatThreads: [],
     connectorAccounts: [],
     connectorProviders: createMockConnectorProviders(),
-    notes: [],
     notifications: [],
     tasks: [createMockTask("task-chat", "Chat must not mutate this task")]
   });
@@ -309,7 +266,6 @@ test("creates and runs briefings through REST calls", async ({ page }) => {
     },
     connectorAccounts: [],
     connectorProviders: createMockConnectorProviders(),
-    notes: [],
     notifications: [],
     tasks: [createMockTask("task-briefing", "M6 briefings smoke source")]
   });
@@ -327,7 +283,7 @@ test("creates and runs briefings through REST calls", async ({ page }) => {
   await expect(page.getByRole("button", { name: "M6 briefing smoke" })).toBeVisible();
 
   await detail.getByLabel("Edit briefing title").fill("M6 briefing smoke updated");
-  await detail.getByLabel("notes.listVisible").check();
+  await detail.getByLabel("tasks.updateStatus").check();
   await detail.getByRole("button", { name: "Save briefing" }).click();
   await expect(page.getByRole("button", { name: "M6 briefing smoke updated" })).toBeVisible();
 

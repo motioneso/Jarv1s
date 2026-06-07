@@ -9,8 +9,6 @@ import { BriefingsPage } from "./briefings/briefings-page";
 import { CalendarPage } from "./calendar/calendar-page";
 import { ChatPage } from "./chat/chat-page";
 import { EmailPage } from "./email/email-page";
-import { NoteDetailPage } from "./notes/note-detail-page";
-import { NotesPage } from "./notes/notes-page";
 import { NotificationsPage } from "./notifications/notifications-page";
 import { SettingsPage } from "./settings/settings-page";
 import { AppShell } from "./shell/app-shell";
@@ -79,7 +77,6 @@ export function App() {
       queryClient.invalidateQueries({ queryKey: ["chat"] }),
       queryClient.invalidateQueries({ queryKey: ["email"] }),
       queryClient.invalidateQueries({ queryKey: ["modules"] }),
-      queryClient.invalidateQueries({ queryKey: ["notes"] }),
       queryClient.invalidateQueries({ queryKey: ["notifications"] }),
       queryClient.invalidateQueries({ queryKey: ["tasks"] })
     ]);
@@ -122,11 +119,6 @@ export function App() {
           <Route
             path="/tasks/:taskId"
             element={<TaskDetailPage activeWorkspaceId={workspaceId} />}
-          />
-          <Route path="/notes" element={<NotesPage activeWorkspaceId={workspaceId} />} />
-          <Route
-            path="/notes/:noteId"
-            element={<NoteDetailPage activeWorkspaceId={workspaceId} />}
           />
           <Route
             path="/notifications"

@@ -139,7 +139,6 @@ describe("Chat module M6 thin slice", () => {
       "settings",
       "connectors",
       "tasks",
-      "notes",
       "notifications",
       "calendar",
       "email",

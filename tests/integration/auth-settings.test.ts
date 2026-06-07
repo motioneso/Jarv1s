@@ -176,7 +176,6 @@ describe("M3 auth, users, workspaces, settings", () => {
       "settings",
       "connectors",
       "tasks",
-      "notes",
       "notifications",
       "calendar",
       "email",
@@ -187,7 +186,6 @@ describe("M3 auth, users, workspaces, settings", () => {
     expect(modules.flatMap((module) => module.navigation).map((entry) => entry.path)).toEqual([
       "/settings",
       "/tasks",
-      "/notes",
       "/notifications",
       "/calendar",
       "/email",

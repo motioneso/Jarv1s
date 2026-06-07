@@ -15,8 +15,6 @@ const { Client } = pg;
 const releaseIds = {
   userATask: "81000000-0000-4000-8000-000000000001",
   userBTask: "81000000-0000-4000-8000-000000000002",
-  userANote: "82000000-0000-4000-8000-000000000001",
-  userBNote: "82000000-0000-4000-8000-000000000002",
   connectorAccount: "83000000-0000-4000-8000-000000000001",
   calendarEvent: "84000000-0000-4000-8000-000000000001",
   emailMessage: "85000000-0000-4000-8000-000000000001",
@@ -54,12 +52,6 @@ describe("M7 release hardening lifecycle scripts", () => {
         title: "User A exportable task"
       })
     ]);
-    expect(userExport.tables.notes).toEqual([
-      expect.objectContaining({
-        id: releaseIds.userANote,
-        title: "User A exportable note"
-      })
-    ]);
     expect(userExport.tables.connectorAccounts).toEqual([
       expect.objectContaining({
         hasSecret: true,
@@ -81,7 +73,6 @@ describe("M7 release hardening lifecycle scripts", () => {
     expect(exportedJson).not.toContain("auth-password-sentinel");
     expect(exportedJson).not.toContain("better-auth-session-token-sentinel");
     expect(exportedJson).not.toContain("User B private task granted to A");
-    expect(exportedJson).not.toContain("User B private note");
     expect(Object.keys(userExport.tables.connectorAccounts[0] ?? {})).not.toContain(
       "encryptedSecret"
     );
@@ -160,14 +151,13 @@ describe("M7 release hardening lifecycle scripts", () => {
             "chat_threads",
             "connector_accounts",
             "email_messages",
-            "notes",
             "notifications",
             "tasks"
           ]
         ]
       );
 
-      expect(privileges.rows).toHaveLength(12);
+      expect(privileges.rows).toHaveLength(11);
       expect(privileges.rows).toEqual(
         privileges.rows.map((row) => ({
           ...row,
@@ -426,15 +416,6 @@ async function seedLifecycleData(): Promise<void> {
         VALUES ('task', $1, $2, 'view', $3)
       `,
       [releaseIds.userBTask, ids.userA, ids.userB]
-    );
-    await client.query(
-      `
-        INSERT INTO app.notes (id, owner_user_id, title, body)
-        VALUES
-          ($1, $2, 'User A exportable note', 'User A private note body'),
-          ($3, $4, 'User B private note', 'User B private note body')
-      `,
-      [releaseIds.userANote, ids.userA, releaseIds.userBNote, ids.userB]
     );
     await client.query(
       `

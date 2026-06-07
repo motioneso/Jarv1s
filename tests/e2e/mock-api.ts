@@ -12,17 +12,14 @@ import type {
   CreateAiConfiguredModelRequest,
   CreateAiProviderConfigRequest,
   CreateConnectorAccountRequest,
-  CreateNoteRequest,
   CreateTaskRequest,
   EmailMessageDto,
   MeResponse,
-  NoteDto,
   NotificationDto,
   TaskDto,
   UpdateAiConfiguredModelRequest,
   UpdateAiProviderConfigRequest,
   UpdateConnectorAccountRequest,
-  UpdateNoteRequest,
   UpdateTaskRequest
 } from "@jarv1s/shared";
 
@@ -42,7 +39,6 @@ export interface MockApiState extends MockBriefingsApiState {
   connectorAccounts: ConnectorAccountDto[];
   connectorProviders: ConnectorProviderDto[];
   emailMessages?: EmailMessageDto[];
-  notes: NoteDto[];
   notifications: NotificationDto[];
   tasks: TaskDto[];
 }
@@ -157,8 +153,6 @@ export async function mockApi(page: Page, state: MockApiState): Promise<void> {
     handleEmailMessageDetailRoute(route, state)
   );
   await page.route("**/api/email/messages", (route) => handleEmailMessageListRoute(route, state));
-  await page.route(/\/api\/notes\/[^/]+$/, (route) => handleNoteDetailRoute(route, state));
-  await page.route("**/api/notes", (route) => handleNoteListRoute(route, state));
   await page.route(/\/api\/notifications\/[^/]+\/read$/, (route) =>
     handleNotificationReadRoute(route, state)
   );
@@ -486,59 +480,6 @@ async function handleEmailMessageDetailRoute(route: Route, state: MockApiState):
   return fulfillJson(route, 200, { message });
 }
 
-async function handleNoteListRoute(route: Route, state: MockApiState): Promise<void> {
-  const request = route.request();
-
-  if (request.method() === "GET") {
-    return fulfillJson(route, 200, { notes: state.notes });
-  }
-
-  if (request.method() === "POST") {
-    const input = request.postDataJSON() as CreateNoteRequest;
-    const note = createMockNote(`note-${state.notes.length + 1}`, input.title, {
-      body: input.body ?? null,
-      visibility: input.visibility ?? "private",
-      workspaceId: input.workspaceId ?? null
-    });
-
-    state.notes = [...state.notes, note];
-    return fulfillJson(route, 201, { note });
-  }
-
-  return fulfillJson(route, 405, { error: "Method not allowed" });
-}
-
-async function handleNoteDetailRoute(route: Route, state: MockApiState): Promise<void> {
-  const request = route.request();
-  const noteId = decodeURIComponent(new URL(request.url()).pathname.split("/").pop() ?? "");
-  const note = state.notes.find((item) => item.id === noteId);
-
-  if (!note) {
-    return fulfillJson(route, 404, { error: "Note not found" });
-  }
-
-  if (request.method() === "GET") {
-    return fulfillJson(route, 200, { note });
-  }
-
-  if (request.method() === "PATCH") {
-    const input = request.postDataJSON() as UpdateNoteRequest;
-    const { archived, ...noteUpdates } = input;
-    const updatedNote: NoteDto = {
-      ...note,
-      ...noteUpdates,
-      archivedAt:
-        archived === undefined ? note.archivedAt : archived ? "2026-06-06T12:00:00.000Z" : null,
-      updatedAt: "2026-06-06T12:00:00.000Z"
-    };
-
-    state.notes = state.notes.map((item) => (item.id === noteId ? updatedNote : item));
-    return fulfillJson(route, 200, { note: updatedNote });
-  }
-
-  return fulfillJson(route, 405, { error: "Method not allowed" });
-}
-
 async function handleNotificationListRoute(route: Route, state: MockApiState): Promise<void> {
   if (route.request().method() !== "GET") {
     return fulfillJson(route, 405, { error: "Method not allowed" });
@@ -719,25 +660,6 @@ export function createMockTask(
   };
 }
 
-export function createMockNote(
-  id: string,
-  title: string,
-  overrides: Partial<NoteDto> = {}
-): NoteDto {
-  return {
-    id,
-    ownerUserId: "user-1",
-    workspaceId: null,
-    visibility: "private",
-    title,
-    body: null,
-    archivedAt: null,
-    createdAt: "2026-06-06T12:00:00.000Z",
-    updatedAt: "2026-06-06T12:00:00.000Z",
-    ...overrides
-  };
-}
-
 export function createMockNotification(
   id: string,
   title: string,
@@ -849,18 +771,6 @@ function createMockAiAssistantTools(): AiAssistantToolDto[] {
       name: "tasks.listVisible",
       description: "List visible tasks.",
       permissionId: "tasks.view",
-      risk: "read",
-      inputSchema: {
-        type: "object"
-      },
-      outputSchema: null
-    },
-    {
-      moduleId: "notes",
-      moduleName: "Notes",
-      name: "notes.listVisible",
-      description: "List visible notes.",
-      permissionId: "notes.view",
       risk: "read",
       inputSchema: {
         type: "object"

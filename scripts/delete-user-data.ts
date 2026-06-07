@@ -34,7 +34,6 @@ const userScopedCountQueries: ReadonlyArray<readonly [table: string, predicate: 
   ["app.resource_grants", "grantee_user_id = $1::uuid OR granted_by_user_id = $1::uuid"],
   ["app.tasks", "owner_user_id = $1::uuid"],
   ["app.task_activity", "actor_user_id = $1::uuid"],
-  ["app.notes", "owner_user_id = $1::uuid"],
   ["app.notifications", "recipient_user_id = $1::uuid OR actor_user_id = $1::uuid"],
   ["app.notification_reads", "user_id = $1::uuid"],
   ["app.connector_accounts", "owner_user_id = $1::uuid"],

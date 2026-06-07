@@ -14,7 +14,6 @@ import {
 import { EmailRepository } from "@jarv1s/email";
 import { getAllQueueDefinitions } from "@jarv1s/module-registry";
 import { getBuiltInModuleManifests } from "@jarv1s/module-registry";
-import { NotesRepository } from "@jarv1s/notes";
 import { NotificationsRepository } from "@jarv1s/notifications";
 import { TasksRepository } from "@jarv1s/tasks";
 import { connectionStrings, ids, resetFoundationDatabase } from "./test-database.js";
@@ -26,13 +25,6 @@ const taskIds = {
   bPrivate: "71000000-0000-4000-8000-000000000002",
   bGrantedToA: "71000000-0000-4000-8000-000000000003",
   bWorkspace: "71000000-0000-4000-8000-000000000004"
-} as const;
-
-const noteIds = {
-  aPrivate: "72000000-0000-4000-8000-000000000001",
-  bPrivate: "72000000-0000-4000-8000-000000000002",
-  bGrantedToA: "72000000-0000-4000-8000-000000000003",
-  bWorkspace: "72000000-0000-4000-8000-000000000004"
 } as const;
 
 const notificationIds = {
@@ -100,7 +92,6 @@ describe("AI read-only assistant tool execution foundation", () => {
   let dataContext: DataContextRunner;
   let tasksRepository: TasksRepository;
   let aiRepository: AiRepository;
-  let notesRepository: NotesRepository;
   let notificationsRepository: NotificationsRepository;
   let calendarRepository: CalendarRepository;
   let emailRepository: EmailRepository;
@@ -121,7 +112,6 @@ describe("AI read-only assistant tool execution foundation", () => {
     dataContext = new DataContextRunner(appDb);
     aiRepository = new AiRepository();
     tasksRepository = new TasksRepository();
-    notesRepository = new NotesRepository();
     notificationsRepository = new NotificationsRepository();
     calendarRepository = new CalendarRepository();
     emailRepository = new EmailRepository();
@@ -178,16 +168,10 @@ describe("AI read-only assistant tool execution foundation", () => {
 
   it("executes declared read tools through RLS-scoped module repositories", async () => {
     const tasks = await invokeTool("tasks.listVisible");
-    const notes = await invokeTool("notes.listVisible");
     const notifications = await invokeTool("notifications.listVisible");
     const calendar = await invokeTool("calendar.listVisibleEvents");
     const email = await invokeTool("email.listVisibleMessages");
     const workspaceTasks = await invokeTool("tasks.listVisible", userAWorkspaceHeaders());
-    const workspaceNotes = await invokeTool("notes.listVisible", userAWorkspaceHeaders());
-    const workspaceNotifications = await invokeTool(
-      "notifications.listVisible",
-      userAWorkspaceHeaders()
-    );
     const workspaceCalendar = await invokeTool(
       "calendar.listVisibleEvents",
       userAWorkspaceHeaders()
@@ -195,7 +179,6 @@ describe("AI read-only assistant tool execution foundation", () => {
     const workspaceEmail = await invokeTool("email.listVisibleMessages", userAWorkspaceHeaders());
 
     expect(readIds(tasks.result, "tasks")).toEqual([taskIds.aPrivate, taskIds.bGrantedToA]);
-    expect(readIds(notes.result, "notes")).toEqual([noteIds.aPrivate, noteIds.bGrantedToA]);
     expect(readIds(notifications.result, "notifications")).toEqual([notificationIds.aPrivate]);
     expect(readIds(calendar.result, "events")).toEqual([calendarEventIds.aPrivate]);
     expect(readIds(email.result, "messages")).toEqual([emailMessageIds.aPrivate]);
@@ -206,16 +189,11 @@ describe("AI read-only assistant tool execution foundation", () => {
       taskIds.bGrantedToA
     ]);
     expect(readIds(workspaceTasks.result, "tasks")).not.toContain(taskIds.bWorkspace);
-    expect(readIds(workspaceNotes.result, "notes")).toContain(noteIds.bWorkspace);
-    expect(readIds(workspaceNotifications.result, "notifications")).toContain(
-      notificationIds.workspace
-    );
     // Calendar and email are now owner-or-share (not workspace-scoped): userA does
     // not own the workspace row and has no share, so it stays hidden.
     expect(readIds(workspaceCalendar.result, "events")).not.toContain(calendarEventIds.workspace);
     expect(readIds(workspaceEmail.result, "messages")).not.toContain(emailMessageIds.workspace);
     expect(JSON.stringify(tasks.result)).not.toContain("User B private task");
-    expect(JSON.stringify(notes.result)).not.toContain("User B private note");
     expect(JSON.stringify(notifications.result)).not.toContain("User B private notification");
     expect(JSON.stringify(calendar.result)).not.toContain("User B private event");
     expect(JSON.stringify(email.result)).not.toContain("User B private message");
@@ -223,20 +201,17 @@ describe("AI read-only assistant tool execution foundation", () => {
 
   it("does not give instance admins a private-data bypass through assistant tools", async () => {
     const tasks = await invokeTool("tasks.listVisible", adminHeaders());
-    const notes = await invokeTool("notes.listVisible", adminHeaders());
     const notifications = await invokeTool("notifications.listVisible", adminHeaders());
     const calendar = await invokeTool("calendar.listVisibleEvents", adminHeaders());
     const email = await invokeTool("email.listVisibleMessages", adminHeaders());
     const combined = JSON.stringify([
       tasks.result,
-      notes.result,
       notifications.result,
       calendar.result,
       email.result
     ]);
 
     expect(readIds(tasks.result, "tasks")).toEqual([]);
-    expect(readIds(notes.result, "notes")).toEqual([]);
     expect(readIds(notifications.result, "notifications")).toEqual([]);
     expect(readIds(calendar.result, "events")).toEqual([]);
     expect(readIds(email.result, "messages")).toEqual([]);
@@ -458,9 +433,6 @@ describe("AI read-only assistant tool execution foundation", () => {
     await expect(tasksRepository.listVisible({} as never)).rejects.toThrow(
       "Repository access requires withDataContext"
     );
-    await expect(notesRepository.listVisible({} as never)).rejects.toThrow(
-      "Repository access requires withDataContext"
-    );
     await expect(notificationsRepository.listVisible({} as never)).rejects.toThrow(
       "Repository access requires withDataContext"
     );
@@ -510,7 +482,6 @@ async function seedAssistantToolData(): Promise<void> {
   try {
     await client.query("BEGIN");
     await seedTasks(client);
-    await seedNotes(client);
     await seedNotifications(client);
     await seedConnectorBackedRows(client);
     await client.query("COMMIT");
@@ -548,35 +519,6 @@ async function seedTasks(client: pg.Client): Promise<void> {
       VALUES ('task', $1, $2, $3, 'view')
     `,
     [taskIds.bGrantedToA, ids.userB, ids.userA]
-  );
-}
-
-async function seedNotes(client: pg.Client): Promise<void> {
-  await client.query(
-    `
-      INSERT INTO app.notes (id, owner_user_id, workspace_id, visibility, title, body)
-      VALUES
-        ($1, $2, null, 'private', 'User A assistant note', 'A assistant body'),
-        ($3, $4, null, 'private', 'User B private note', 'B private body'),
-        ($5, $4, null, 'private', 'User B granted assistant note', 'B granted body'),
-        ($6, $4, $7, 'workspace', 'User B workspace assistant note', 'B workspace body')
-    `,
-    [
-      noteIds.aPrivate,
-      ids.userA,
-      noteIds.bPrivate,
-      ids.userB,
-      noteIds.bGrantedToA,
-      noteIds.bWorkspace,
-      ids.workspaceAlpha
-    ]
-  );
-  await client.query(
-    `
-      INSERT INTO app.resource_grants (resource_type, resource_id, grantee_user_id, grant_level)
-      VALUES ('note', $1, $2, 'view')
-    `,
-    [noteIds.bGrantedToA, ids.userA]
   );
 }
 

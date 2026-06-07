@@ -323,13 +323,6 @@ function summarizeToolResult(
 
         return compactExcerpt([task.title, task.status]);
       });
-    case "notes.listVisible":
-      return summarizeNamedItems(tool.name, result.notes, (item) => {
-        const note = item as { readonly title?: unknown; readonly archivedAt?: unknown };
-        const state = note.archivedAt ? "archived" : "active";
-
-        return compactExcerpt([note.title, state]);
-      });
     case "notifications.listVisible":
       return summarizeNamedItems(tool.name, result.notifications, (item) => {
         const notification = item as { readonly title?: unknown; readonly readAt?: unknown };
@@ -398,8 +391,6 @@ function displayToolName(toolName: string): string {
   switch (toolName) {
     case "tasks.listVisible":
       return "Tasks";
-    case "notes.listVisible":
-      return "Notes";
     case "notifications.listVisible":
       return "Notifications";
     case "calendar.listVisibleEvents":
