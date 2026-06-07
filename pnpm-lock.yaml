@@ -408,6 +408,12 @@ importers:
         specifier: ^12.18.2
         version: 12.18.2
 
+  packages/vault:
+    dependencies:
+      '@jarv1s/db':
+        specifier: workspace:*
+        version: link:../db
+
 packages:
 
   '@babel/code-frame@7.29.7':
