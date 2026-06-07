@@ -81,19 +81,18 @@ export class ApiError extends Error {
 interface ApiRequestOptions extends Omit<RequestInit, "body" | "headers"> {
   readonly body?: unknown;
   readonly headers?: HeadersInit;
-  readonly workspaceId?: string | null;
 }
 
 export async function getBootstrapStatus(): Promise<BootstrapStatusResponse> {
   return requestJson<BootstrapStatusResponse>("/api/bootstrap/status");
 }
 
-export async function getMe(workspaceId: string | null): Promise<MeResponse> {
-  return requestJson<MeResponse>("/api/me", { workspaceId });
+export async function getMe(): Promise<MeResponse> {
+  return requestJson<MeResponse>("/api/me");
 }
 
-export async function getModules(workspaceId: string | null): Promise<ListModulesResponse> {
-  return requestJson<ListModulesResponse>("/api/modules", { workspaceId });
+export async function getModules(): Promise<ListModulesResponse> {
+  return requestJson<ListModulesResponse>("/api/modules");
 }
 
 export async function signUpEmail(input: SignUpEmailRequest): Promise<void> {
@@ -116,357 +115,239 @@ export async function signOut(): Promise<void> {
   });
 }
 
-export async function listTasks(workspaceId: string | null): Promise<ListTasksResponse> {
-  return requestJson<ListTasksResponse>("/api/tasks", { workspaceId });
+export async function listTasks(): Promise<ListTasksResponse> {
+  return requestJson<ListTasksResponse>("/api/tasks");
 }
 
-export async function createTask(
-  input: CreateTaskRequest,
-  workspaceId: string | null
-): Promise<CreateTaskResponse> {
-  return requestJson<CreateTaskResponse>("/api/tasks", {
-    method: "POST",
-    body: input,
-    workspaceId
-  });
+export async function createTask(input: CreateTaskRequest): Promise<CreateTaskResponse> {
+  return requestJson<CreateTaskResponse>("/api/tasks", { method: "POST", body: input });
 }
 
-export async function getTask(id: string, workspaceId: string | null): Promise<GetTaskResponse> {
-  return requestJson<GetTaskResponse>(`/api/tasks/${encodeURIComponent(id)}`, { workspaceId });
+export async function getTask(id: string): Promise<GetTaskResponse> {
+  return requestJson<GetTaskResponse>(`/api/tasks/${encodeURIComponent(id)}`);
 }
 
 export async function updateTask(
   id: string,
-  input: UpdateTaskRequest,
-  workspaceId: string | null
+  input: UpdateTaskRequest
 ): Promise<UpdateTaskResponse> {
   return requestJson<UpdateTaskResponse>(`/api/tasks/${encodeURIComponent(id)}`, {
     method: "PATCH",
-    body: input,
-    workspaceId
+    body: input
   });
 }
 
 export async function addTaskActivity(
   id: string,
-  input: AddTaskActivityRequest,
-  workspaceId: string | null
+  input: AddTaskActivityRequest
 ): Promise<AddTaskActivityResponse> {
   return requestJson<AddTaskActivityResponse>(`/api/tasks/${encodeURIComponent(id)}/activity`, {
     method: "POST",
-    body: input,
-    workspaceId
+    body: input
   });
 }
 
-export async function listNotifications(
-  workspaceId: string | null
-): Promise<ListNotificationsResponse> {
-  return requestJson<ListNotificationsResponse>("/api/notifications", { workspaceId });
+export async function listNotifications(): Promise<ListNotificationsResponse> {
+  return requestJson<ListNotificationsResponse>("/api/notifications");
 }
 
-export async function listCalendarEvents(
-  workspaceId: string | null
-): Promise<ListCalendarEventsResponse> {
-  return requestJson<ListCalendarEventsResponse>("/api/calendar/events", { workspaceId });
+export async function listCalendarEvents(): Promise<ListCalendarEventsResponse> {
+  return requestJson<ListCalendarEventsResponse>("/api/calendar/events");
 }
 
-export async function getCalendarEvent(
-  id: string,
-  workspaceId: string | null
-): Promise<GetCalendarEventResponse> {
-  return requestJson<GetCalendarEventResponse>(`/api/calendar/events/${encodeURIComponent(id)}`, {
-    workspaceId
-  });
+export async function getCalendarEvent(id: string): Promise<GetCalendarEventResponse> {
+  return requestJson<GetCalendarEventResponse>(`/api/calendar/events/${encodeURIComponent(id)}`);
 }
 
-export async function listEmailMessages(
-  workspaceId: string | null
-): Promise<ListEmailMessagesResponse> {
-  return requestJson<ListEmailMessagesResponse>("/api/email/messages", { workspaceId });
+export async function listEmailMessages(): Promise<ListEmailMessagesResponse> {
+  return requestJson<ListEmailMessagesResponse>("/api/email/messages");
 }
 
-export async function listChatThreads(
-  workspaceId: string | null
-): Promise<ListChatThreadsResponse> {
-  return requestJson<ListChatThreadsResponse>("/api/chat/threads", { workspaceId });
+export async function listChatThreads(): Promise<ListChatThreadsResponse> {
+  return requestJson<ListChatThreadsResponse>("/api/chat/threads");
 }
 
 export async function createChatThread(
-  input: CreateChatThreadRequest,
-  workspaceId: string | null
+  input: CreateChatThreadRequest
 ): Promise<CreateChatThreadResponse> {
   return requestJson<CreateChatThreadResponse>("/api/chat/threads", {
     method: "POST",
-    body: input,
-    workspaceId
+    body: input
   });
 }
 
-export async function getChatThread(
-  id: string,
-  workspaceId: string | null
-): Promise<GetChatThreadResponse> {
-  return requestJson<GetChatThreadResponse>(`/api/chat/threads/${encodeURIComponent(id)}`, {
-    workspaceId
-  });
+export async function getChatThread(id: string): Promise<GetChatThreadResponse> {
+  return requestJson<GetChatThreadResponse>(`/api/chat/threads/${encodeURIComponent(id)}`);
 }
 
-export async function listChatMessages(
-  threadId: string,
-  workspaceId: string | null
-): Promise<ListChatMessagesResponse> {
+export async function listChatMessages(threadId: string): Promise<ListChatMessagesResponse> {
   return requestJson<ListChatMessagesResponse>(
-    `/api/chat/threads/${encodeURIComponent(threadId)}/messages`,
-    { workspaceId }
+    `/api/chat/threads/${encodeURIComponent(threadId)}/messages`
   );
 }
 
 export async function appendChatUserMessage(
   threadId: string,
-  input: AppendChatUserMessageRequest,
-  workspaceId: string | null
+  input: AppendChatUserMessageRequest
 ): Promise<AppendChatUserMessageResponse> {
   return requestJson<AppendChatUserMessageResponse>(
     `/api/chat/threads/${encodeURIComponent(threadId)}/messages`,
-    {
-      method: "POST",
-      body: input,
-      workspaceId
-    }
+    { method: "POST", body: input }
   );
 }
 
-export async function getEmailMessage(
-  id: string,
-  workspaceId: string | null
-): Promise<GetEmailMessageResponse> {
-  return requestJson<GetEmailMessageResponse>(`/api/email/messages/${encodeURIComponent(id)}`, {
-    workspaceId
-  });
+export async function getEmailMessage(id: string): Promise<GetEmailMessageResponse> {
+  return requestJson<GetEmailMessageResponse>(`/api/email/messages/${encodeURIComponent(id)}`);
 }
 
-export async function listConnectorProviders(
-  workspaceId: string | null
-): Promise<ListConnectorProvidersResponse> {
-  return requestJson<ListConnectorProvidersResponse>("/api/connectors/providers", { workspaceId });
+export async function listConnectorProviders(): Promise<ListConnectorProvidersResponse> {
+  return requestJson<ListConnectorProvidersResponse>("/api/connectors/providers");
 }
 
-export async function listAiProviders(
-  workspaceId: string | null
-): Promise<ListAiProviderConfigsResponse> {
-  return requestJson<ListAiProviderConfigsResponse>("/api/ai/providers", { workspaceId });
+export async function listAiProviders(): Promise<ListAiProviderConfigsResponse> {
+  return requestJson<ListAiProviderConfigsResponse>("/api/ai/providers");
 }
 
 export async function createAiProvider(
-  input: CreateAiProviderConfigRequest,
-  workspaceId: string | null
+  input: CreateAiProviderConfigRequest
 ): Promise<CreateAiProviderConfigResponse> {
   return requestJson<CreateAiProviderConfigResponse>("/api/ai/providers", {
     method: "POST",
-    body: input,
-    workspaceId
+    body: input
   });
 }
 
 export async function updateAiProvider(
   id: string,
-  input: UpdateAiProviderConfigRequest,
-  workspaceId: string | null
+  input: UpdateAiProviderConfigRequest
 ): Promise<UpdateAiProviderConfigResponse> {
   return requestJson<UpdateAiProviderConfigResponse>(
     `/api/ai/providers/${encodeURIComponent(id)}`,
-    {
-      method: "PATCH",
-      body: input,
-      workspaceId
-    }
+    { method: "PATCH", body: input }
   );
 }
 
-export async function revokeAiProvider(
-  id: string,
-  workspaceId: string | null
-): Promise<RevokeAiProviderConfigResponse> {
+export async function revokeAiProvider(id: string): Promise<RevokeAiProviderConfigResponse> {
   return requestJson<RevokeAiProviderConfigResponse>(
     `/api/ai/providers/${encodeURIComponent(id)}/revoke`,
-    {
-      method: "POST",
-      workspaceId
-    }
+    { method: "POST" }
   );
 }
 
-export async function listAiModels(
-  workspaceId: string | null
-): Promise<ListAiConfiguredModelsResponse> {
-  return requestJson<ListAiConfiguredModelsResponse>("/api/ai/models", { workspaceId });
+export async function listAiModels(): Promise<ListAiConfiguredModelsResponse> {
+  return requestJson<ListAiConfiguredModelsResponse>("/api/ai/models");
 }
 
 export async function createAiModel(
-  input: CreateAiConfiguredModelRequest,
-  workspaceId: string | null
+  input: CreateAiConfiguredModelRequest
 ): Promise<CreateAiConfiguredModelResponse> {
   return requestJson<CreateAiConfiguredModelResponse>("/api/ai/models", {
     method: "POST",
-    body: input,
-    workspaceId
+    body: input
   });
 }
 
 export async function updateAiModel(
   id: string,
-  input: UpdateAiConfiguredModelRequest,
-  workspaceId: string | null
+  input: UpdateAiConfiguredModelRequest
 ): Promise<UpdateAiConfiguredModelResponse> {
   return requestJson<UpdateAiConfiguredModelResponse>(`/api/ai/models/${encodeURIComponent(id)}`, {
     method: "PATCH",
-    body: input,
-    workspaceId
+    body: input
   });
 }
 
 export async function lookupAiCapabilityRoute(
-  capability: AiModelCapability,
-  workspaceId: string | null
+  capability: AiModelCapability
 ): Promise<LookupAiCapabilityRouteResponse> {
   return requestJson<LookupAiCapabilityRouteResponse>(
-    `/api/ai/capability-route/${encodeURIComponent(capability)}`,
-    { workspaceId }
+    `/api/ai/capability-route/${encodeURIComponent(capability)}`
   );
 }
 
-export async function listAiAssistantTools(
-  workspaceId: string | null
-): Promise<ListAiAssistantToolsResponse> {
-  return requestJson<ListAiAssistantToolsResponse>("/api/ai/assistant-tools", { workspaceId });
+export async function listAiAssistantTools(): Promise<ListAiAssistantToolsResponse> {
+  return requestJson<ListAiAssistantToolsResponse>("/api/ai/assistant-tools");
 }
 
-export async function listBriefingDefinitions(
-  workspaceId: string | null
-): Promise<ListBriefingDefinitionsResponse> {
-  return requestJson<ListBriefingDefinitionsResponse>("/api/briefings/definitions", {
-    workspaceId
-  });
+export async function listBriefingDefinitions(): Promise<ListBriefingDefinitionsResponse> {
+  return requestJson<ListBriefingDefinitionsResponse>("/api/briefings/definitions");
 }
 
 export async function createBriefingDefinition(
-  input: CreateBriefingDefinitionRequest,
-  workspaceId: string | null
+  input: CreateBriefingDefinitionRequest
 ): Promise<CreateBriefingDefinitionResponse> {
   return requestJson<CreateBriefingDefinitionResponse>("/api/briefings/definitions", {
     method: "POST",
-    body: input,
-    workspaceId
+    body: input
   });
 }
 
 export async function updateBriefingDefinition(
   id: string,
-  input: UpdateBriefingDefinitionRequest,
-  workspaceId: string | null
+  input: UpdateBriefingDefinitionRequest
 ): Promise<UpdateBriefingDefinitionResponse> {
   return requestJson<UpdateBriefingDefinitionResponse>(
     `/api/briefings/definitions/${encodeURIComponent(id)}`,
-    {
-      method: "PATCH",
-      body: input,
-      workspaceId
-    }
+    { method: "PATCH", body: input }
   );
 }
 
 export async function runBriefingDefinition(
   id: string,
-  input: RunBriefingDefinitionRequest,
-  workspaceId: string | null
+  input: RunBriefingDefinitionRequest
 ): Promise<RunBriefingDefinitionResponse> {
   return requestJson<RunBriefingDefinitionResponse>(
     `/api/briefings/definitions/${encodeURIComponent(id)}/run`,
-    {
-      method: "POST",
-      body: input,
-      workspaceId
-    }
+    { method: "POST", body: input }
   );
 }
 
-export async function listBriefingRuns(
-  id: string,
-  workspaceId: string | null
-): Promise<ListBriefingRunsResponse> {
+export async function listBriefingRuns(id: string): Promise<ListBriefingRunsResponse> {
   return requestJson<ListBriefingRunsResponse>(
-    `/api/briefings/definitions/${encodeURIComponent(id)}/runs`,
-    {
-      workspaceId
-    }
+    `/api/briefings/definitions/${encodeURIComponent(id)}/runs`
   );
 }
 
-export async function listConnectorAccounts(
-  workspaceId: string | null
-): Promise<ListConnectorAccountsResponse> {
-  return requestJson<ListConnectorAccountsResponse>("/api/connectors/accounts", { workspaceId });
+export async function listConnectorAccounts(): Promise<ListConnectorAccountsResponse> {
+  return requestJson<ListConnectorAccountsResponse>("/api/connectors/accounts");
 }
 
 export async function createConnectorAccount(
-  input: CreateConnectorAccountRequest,
-  workspaceId: string | null
+  input: CreateConnectorAccountRequest
 ): Promise<CreateConnectorAccountResponse> {
   return requestJson<CreateConnectorAccountResponse>("/api/connectors/accounts", {
     method: "POST",
-    body: input,
-    workspaceId
+    body: input
   });
 }
 
 export async function updateConnectorAccount(
   id: string,
-  input: UpdateConnectorAccountRequest,
-  workspaceId: string | null
+  input: UpdateConnectorAccountRequest
 ): Promise<UpdateConnectorAccountResponse> {
   return requestJson<UpdateConnectorAccountResponse>(
     `/api/connectors/accounts/${encodeURIComponent(id)}`,
-    {
-      method: "PATCH",
-      body: input,
-      workspaceId
-    }
+    { method: "PATCH", body: input }
   );
 }
 
-export async function revokeConnectorAccount(
-  id: string,
-  workspaceId: string | null
-): Promise<RevokeConnectorAccountResponse> {
+export async function revokeConnectorAccount(id: string): Promise<RevokeConnectorAccountResponse> {
   return requestJson<RevokeConnectorAccountResponse>(
     `/api/connectors/accounts/${encodeURIComponent(id)}/revoke`,
-    {
-      method: "POST",
-      workspaceId
-    }
+    { method: "POST" }
   );
 }
 
-export async function markNotificationRead(
-  id: string,
-  workspaceId: string | null
-): Promise<MarkNotificationReadResponse> {
+export async function markNotificationRead(id: string): Promise<MarkNotificationReadResponse> {
   return requestJson<MarkNotificationReadResponse>(
     `/api/notifications/${encodeURIComponent(id)}/read`,
-    {
-      method: "PATCH",
-      workspaceId
-    }
+    { method: "PATCH" }
   );
 }
 
-export async function markAllNotificationsRead(
-  workspaceId: string | null
-): Promise<MarkAllNotificationsReadResponse> {
+export async function markAllNotificationsRead(): Promise<MarkAllNotificationsReadResponse> {
   return requestJson<MarkAllNotificationsReadResponse>("/api/notifications/read-all", {
-    method: "PATCH",
-    workspaceId
+    method: "PATCH"
   });
 }
 
@@ -489,9 +370,6 @@ async function requestJson<T>(path: string, options: ApiRequestOptions = {}): Pr
   headers.set("accept", "application/json");
   if (hasBody) {
     headers.set("content-type", "application/json");
-  }
-  if (options.workspaceId) {
-    headers.set("x-jarvis-workspace-id", options.workspaceId);
   }
 
   const response = await fetch(path, {

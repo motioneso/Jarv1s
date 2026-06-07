@@ -8,11 +8,7 @@ import { addTaskActivity, getTask, updateTask } from "../api/client";
 import { queryKeys } from "../api/query-keys";
 import { fromDateInputValue, statusLabels, toDateInputValue } from "./task-format";
 
-interface TaskDetailPageProps {
-  readonly activeWorkspaceId: string | null;
-}
-
-export function TaskDetailPage(props: TaskDetailPageProps) {
+export function TaskDetailPage() {
   const { taskId } = useParams<{ readonly taskId: string }>();
   const queryClient = useQueryClient();
   const [title, setTitle] = useState("");
@@ -24,8 +20,8 @@ export function TaskDetailPage(props: TaskDetailPageProps) {
   const [activitySaved, setActivitySaved] = useState(false);
   const taskQuery = useQuery({
     enabled: Boolean(taskId),
-    queryKey: queryKeys.tasks.detail(taskId ?? "", props.activeWorkspaceId),
-    queryFn: () => getTask(taskId ?? "", props.activeWorkspaceId)
+    queryKey: queryKeys.tasks.detail(taskId ?? ""),
+    queryFn: () => getTask(taskId ?? "")
   });
   const saveMutation = useMutation({
     mutationFn: () => {
@@ -33,17 +29,13 @@ export function TaskDetailPage(props: TaskDetailPageProps) {
         throw new Error("Task id is missing");
       }
 
-      return updateTask(
-        taskId,
-        {
-          title,
-          description: description || null,
-          status,
-          dueAt: fromDateInputValue(dueAt),
-          priority: priority ? Number(priority) : null
-        },
-        props.activeWorkspaceId
-      );
+      return updateTask(taskId, {
+        title,
+        description: description || null,
+        status,
+        dueAt: fromDateInputValue(dueAt),
+        priority: priority ? Number(priority) : null
+      });
     },
     onSuccess: async () => {
       if (!taskId) {
@@ -51,10 +43,8 @@ export function TaskDetailPage(props: TaskDetailPageProps) {
       }
 
       await Promise.all([
-        queryClient.invalidateQueries({ queryKey: queryKeys.tasks.list(props.activeWorkspaceId) }),
-        queryClient.invalidateQueries({
-          queryKey: queryKeys.tasks.detail(taskId, props.activeWorkspaceId)
-        })
+        queryClient.invalidateQueries({ queryKey: queryKeys.tasks.list }),
+        queryClient.invalidateQueries({ queryKey: queryKeys.tasks.detail(taskId) })
       ]);
     }
   });
@@ -64,14 +54,7 @@ export function TaskDetailPage(props: TaskDetailPageProps) {
         throw new Error("Task id is missing");
       }
 
-      return addTaskActivity(
-        taskId,
-        {
-          activityType: "comment",
-          body: activityBody || null
-        },
-        props.activeWorkspaceId
-      );
+      return addTaskActivity(taskId, { activityType: "comment", body: activityBody || null });
     },
     onSuccess: () => {
       setActivityBody("");

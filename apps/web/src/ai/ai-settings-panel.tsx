@@ -47,23 +47,19 @@ const AI_CAPABILITIES: readonly AiModelCapability[] = [
   "summarization"
 ];
 
-interface AiSettingsPanelProps {
-  readonly activeWorkspaceId: string | null;
-}
-
-export function AiSettingsPanel(props: AiSettingsPanelProps) {
+export function AiSettingsPanel() {
   const queryClient = useQueryClient();
   const providersQuery = useQuery({
-    queryKey: queryKeys.ai.providers(props.activeWorkspaceId),
-    queryFn: () => listAiProviders(props.activeWorkspaceId)
+    queryKey: queryKeys.ai.providers,
+    queryFn: () => listAiProviders()
   });
   const modelsQuery = useQuery({
-    queryKey: queryKeys.ai.models(props.activeWorkspaceId),
-    queryFn: () => listAiModels(props.activeWorkspaceId)
+    queryKey: queryKeys.ai.models,
+    queryFn: () => listAiModels()
   });
   const assistantToolsQuery = useQuery({
-    queryKey: queryKeys.ai.assistantTools(props.activeWorkspaceId),
-    queryFn: () => listAiAssistantTools(props.activeWorkspaceId)
+    queryKey: queryKeys.ai.assistantTools,
+    queryFn: () => listAiAssistantTools()
   });
   const providers = providersQuery.data?.providers ?? [];
   const models = modelsQuery.data?.models ?? [];
@@ -75,12 +71,8 @@ export function AiSettingsPanel(props: AiSettingsPanelProps) {
           <BrainCircuit size={20} aria-hidden="true" />
           <h2 id="ai-providers-title">AI Providers</h2>
         </div>
-        <CreateAiProviderForm
-          activeWorkspaceId={props.activeWorkspaceId}
-          onCreated={() => invalidateAiQueries(queryClient, props.activeWorkspaceId)}
-        />
+        <CreateAiProviderForm onCreated={() => invalidateAiQueries(queryClient)} />
         <AiProviderList
-          activeWorkspaceId={props.activeWorkspaceId}
           error={providersQuery.error}
           isLoading={providersQuery.isLoading}
           providers={providers}
@@ -93,16 +85,10 @@ export function AiSettingsPanel(props: AiSettingsPanelProps) {
           <h2 id="ai-models-title">AI Models</h2>
         </div>
         <CreateAiModelForm
-          activeWorkspaceId={props.activeWorkspaceId}
           providers={providers}
-          onCreated={() => invalidateAiQueries(queryClient, props.activeWorkspaceId)}
+          onCreated={() => invalidateAiQueries(queryClient)}
         />
-        <AiModelList
-          activeWorkspaceId={props.activeWorkspaceId}
-          error={modelsQuery.error}
-          isLoading={modelsQuery.isLoading}
-          models={models}
-        />
+        <AiModelList error={modelsQuery.error} isLoading={modelsQuery.isLoading} models={models} />
       </section>
 
       <section className="panel" aria-labelledby="ai-routing-title">
@@ -110,7 +96,7 @@ export function AiSettingsPanel(props: AiSettingsPanelProps) {
           <SearchCheck size={20} aria-hidden="true" />
           <h2 id="ai-routing-title">Capability Routing</h2>
         </div>
-        <CapabilityLookup activeWorkspaceId={props.activeWorkspaceId} />
+        <CapabilityLookup />
         <div className="compact-list">
           {(assistantToolsQuery.data?.tools ?? []).map((tool) => (
             <div className="compact-row" key={`${tool.moduleId}:${tool.name}`}>
@@ -128,10 +114,7 @@ export function AiSettingsPanel(props: AiSettingsPanelProps) {
   );
 }
 
-function CreateAiProviderForm(props: {
-  readonly activeWorkspaceId: string | null;
-  readonly onCreated: () => Promise<void>;
-}) {
+function CreateAiProviderForm(props: { readonly onCreated: () => Promise<void> }) {
   const [providerKind, setProviderKind] = useState<AiProviderKind>("openai-compatible");
   const [displayName, setDisplayName] = useState("");
   const [baseUrl, setBaseUrl] = useState("");
@@ -139,15 +122,12 @@ function CreateAiProviderForm(props: {
   const [formError, setFormError] = useState<string | null>(null);
   const createMutation = useMutation({
     mutationFn: () =>
-      createAiProvider(
-        {
-          providerKind,
-          displayName,
-          baseUrl: baseUrl.trim() || null,
-          credentialPayload: parseJsonObject(credentialPayload, "Credential JSON")
-        },
-        props.activeWorkspaceId
-      ),
+      createAiProvider({
+        providerKind,
+        displayName,
+        baseUrl: baseUrl.trim() || null,
+        credentialPayload: parseJsonObject(credentialPayload, "Credential JSON")
+      }),
     onSuccess: async () => {
       setDisplayName("");
       setBaseUrl("");
@@ -226,7 +206,6 @@ function CreateAiProviderForm(props: {
 }
 
 function CreateAiModelForm(props: {
-  readonly activeWorkspaceId: string | null;
   readonly providers: readonly AiProviderConfigDto[];
   readonly onCreated: () => Promise<void>;
 }) {
@@ -241,15 +220,12 @@ function CreateAiModelForm(props: {
   const [formError, setFormError] = useState<string | null>(null);
   const createMutation = useMutation({
     mutationFn: () =>
-      createAiModel(
-        {
-          providerConfigId,
-          providerModelId,
-          displayName,
-          capabilities
-        },
-        props.activeWorkspaceId
-      ),
+      createAiModel({
+        providerConfigId,
+        providerModelId,
+        displayName,
+        capabilities
+      }),
     onSuccess: async () => {
       setProviderModelId("");
       setDisplayName("");
@@ -350,7 +326,6 @@ function CreateAiModelForm(props: {
 }
 
 function AiProviderList(props: {
-  readonly activeWorkspaceId: string | null;
   readonly providers: readonly AiProviderConfigDto[];
   readonly isLoading: boolean;
   readonly error: Error | null;
@@ -370,29 +345,22 @@ function AiProviderList(props: {
   return (
     <div className="ai-config-list">
       {props.providers.map((provider) => (
-        <AiProviderRow
-          activeWorkspaceId={props.activeWorkspaceId}
-          key={provider.id}
-          provider={provider}
-        />
+        <AiProviderRow key={provider.id} provider={provider} />
       ))}
     </div>
   );
 }
 
-function AiProviderRow(props: {
-  readonly activeWorkspaceId: string | null;
-  readonly provider: AiProviderConfigDto;
-}) {
+function AiProviderRow(props: { readonly provider: AiProviderConfigDto }) {
   const queryClient = useQueryClient();
   const updateMutation = useMutation({
     mutationFn: (status: Exclude<AiProviderStatus, "revoked">) =>
-      updateAiProvider(props.provider.id, { status }, props.activeWorkspaceId),
-    onSuccess: async () => invalidateAiQueries(queryClient, props.activeWorkspaceId)
+      updateAiProvider(props.provider.id, { status }),
+    onSuccess: async () => invalidateAiQueries(queryClient)
   });
   const revokeMutation = useMutation({
-    mutationFn: () => revokeAiProvider(props.provider.id, props.activeWorkspaceId),
-    onSuccess: async () => invalidateAiQueries(queryClient, props.activeWorkspaceId)
+    mutationFn: () => revokeAiProvider(props.provider.id),
+    onSuccess: async () => invalidateAiQueries(queryClient)
   });
   const nextStatus = props.provider.status === "disabled" ? "active" : "disabled";
 
@@ -437,7 +405,6 @@ function AiProviderRow(props: {
 }
 
 function AiModelList(props: {
-  readonly activeWorkspaceId: string | null;
   readonly models: readonly AiConfiguredModelDto[];
   readonly isLoading: boolean;
   readonly error: Error | null;
@@ -457,21 +424,17 @@ function AiModelList(props: {
   return (
     <div className="ai-config-list">
       {props.models.map((model) => (
-        <AiModelRow activeWorkspaceId={props.activeWorkspaceId} key={model.id} model={model} />
+        <AiModelRow key={model.id} model={model} />
       ))}
     </div>
   );
 }
 
-function AiModelRow(props: {
-  readonly activeWorkspaceId: string | null;
-  readonly model: AiConfiguredModelDto;
-}) {
+function AiModelRow(props: { readonly model: AiConfiguredModelDto }) {
   const queryClient = useQueryClient();
   const updateMutation = useMutation({
-    mutationFn: (status: AiModelStatus) =>
-      updateAiModel(props.model.id, { status }, props.activeWorkspaceId),
-    onSuccess: async () => invalidateAiQueries(queryClient, props.activeWorkspaceId)
+    mutationFn: (status: AiModelStatus) => updateAiModel(props.model.id, { status }),
+    onSuccess: async () => invalidateAiQueries(queryClient)
   });
   const nextStatus = props.model.status === "disabled" ? "active" : "disabled";
 
@@ -499,11 +462,11 @@ function AiModelRow(props: {
   );
 }
 
-function CapabilityLookup(props: { readonly activeWorkspaceId: string | null }) {
+function CapabilityLookup() {
   const [capability, setCapability] = useState<AiModelCapability>("chat");
   const routeQuery = useQuery({
-    queryKey: queryKeys.ai.capability(capability, props.activeWorkspaceId),
-    queryFn: () => lookupAiCapabilityRoute(capability, props.activeWorkspaceId)
+    queryKey: queryKeys.ai.capability(capability),
+    queryFn: () => lookupAiCapabilityRoute(capability)
   });
   const route = routeQuery.data?.route;
 
@@ -547,13 +510,10 @@ function parseJsonObject(value: string, label: string): Record<string, unknown> 
   return parsed as Record<string, unknown>;
 }
 
-async function invalidateAiQueries(
-  queryClient: ReturnType<typeof useQueryClient>,
-  activeWorkspaceId: string | null
-): Promise<void> {
+async function invalidateAiQueries(queryClient: ReturnType<typeof useQueryClient>): Promise<void> {
   await Promise.all([
-    queryClient.invalidateQueries({ queryKey: queryKeys.ai.providers(activeWorkspaceId) }),
-    queryClient.invalidateQueries({ queryKey: queryKeys.ai.models(activeWorkspaceId) }),
+    queryClient.invalidateQueries({ queryKey: queryKeys.ai.providers }),
+    queryClient.invalidateQueries({ queryKey: queryKeys.ai.models }),
     queryClient.invalidateQueries({ queryKey: ["ai", "capability"] })
   ]);
 }

@@ -51,7 +51,6 @@ export function registerTasksRoutes(
     try {
       const accessContext = await dependencies.resolveAccessContext(request);
       const input = parseCreateTaskBody(request.body);
-      ensureWorkspaceVisibilityContext(accessContext, input);
       const task = await dependencies.dataContext.withDataContext(accessContext, (scopedDb) =>
         repository.create(scopedDb, input)
       );
@@ -90,7 +89,6 @@ export function registerTasksRoutes(
       try {
         const accessContext = await dependencies.resolveAccessContext(request);
         const input = parseUpdateTaskBody(request.body);
-        ensureWorkspaceVisibilityContext(accessContext, input);
         const task = await dependencies.dataContext.withDataContext(accessContext, (scopedDb) =>
           repository.update(scopedDb, request.params.id, input)
         );
@@ -185,13 +183,6 @@ function parseUpdateTaskBody(body: unknown) {
     priority: optionalPriority(value.priority),
     dueAt: optionalDate(value.dueAt, "dueAt")
   };
-}
-
-function ensureWorkspaceVisibilityContext(
-  _accessContext: AccessContext,
-  _input: Record<string, unknown>
-): void {
-  // Workspace visibility has been removed; nothing to validate.
 }
 
 function parseActivityBody(body: unknown) {
@@ -357,10 +348,6 @@ function handleRouteError(error: unknown, reply: FastifyReply) {
   if (error instanceof Error && error.message === "Invalid bearer token") {
     return reply.code(401).send({ error: "Invalid bearer token" });
   }
-  if (error instanceof Error && error.message === "Workspace context is unavailable") {
-    return reply.code(403).send({ error: "Workspace context is unavailable" });
-  }
-
   throw error;
 }
 

@@ -179,6 +179,8 @@ describe("AI read-only assistant tool execution foundation", () => {
 
     expect(readIds(tasks.result, "tasks")).toEqual([taskIds.aPrivate, taskIds.bGrantedToA]);
     expect(readIds(notifications.result, "notifications")).toEqual([notificationIds.aPrivate]);
+    // notificationIds.workspace is seeded with recipient=userB, so userA must NOT see it
+    expect(readIds(notifications.result, "notifications")).not.toContain(notificationIds.workspace);
     expect(readIds(calendar.result, "events")).toEqual([calendarEventIds.aPrivate]);
     expect(readIds(email.result, "messages")).toEqual([emailMessageIds.aPrivate]);
     // Tasks are owner-or-share only now (not workspace-scoped): the workspace context

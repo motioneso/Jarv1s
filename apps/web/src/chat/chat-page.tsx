@@ -13,29 +13,25 @@ import {
 import { queryKeys } from "../api/query-keys";
 import type { AiAssistantToolDto, ChatMessageDto, ChatThreadDto } from "@jarv1s/shared";
 
-interface ChatPageProps {
-  readonly activeWorkspaceId: string | null;
-}
-
-export function ChatPage(props: ChatPageProps) {
+export function ChatPage() {
   const queryClient = useQueryClient();
   const [activeThreadId, setActiveThreadId] = useState<string | null>(null);
   const threadsQuery = useQuery({
-    queryKey: queryKeys.chat.threads(props.activeWorkspaceId),
-    queryFn: () => listChatThreads(props.activeWorkspaceId)
+    queryKey: queryKeys.chat.threads,
+    queryFn: () => listChatThreads()
   });
   const messagesQuery = useQuery({
     enabled: activeThreadId !== null,
-    queryKey: queryKeys.chat.messages(activeThreadId, props.activeWorkspaceId),
-    queryFn: () => listChatMessages(activeThreadId ?? "", props.activeWorkspaceId)
+    queryKey: queryKeys.chat.messages(activeThreadId),
+    queryFn: () => listChatMessages(activeThreadId ?? "")
   });
   const routeQuery = useQuery({
-    queryKey: queryKeys.ai.capability("chat", props.activeWorkspaceId),
-    queryFn: () => lookupAiCapabilityRoute("chat", props.activeWorkspaceId)
+    queryKey: queryKeys.ai.capability("chat"),
+    queryFn: () => lookupAiCapabilityRoute("chat")
   });
   const toolsQuery = useQuery({
-    queryKey: queryKeys.ai.assistantTools(props.activeWorkspaceId),
-    queryFn: () => listAiAssistantTools(props.activeWorkspaceId)
+    queryKey: queryKeys.ai.assistantTools,
+    queryFn: () => listAiAssistantTools()
   });
   const threads = threadsQuery.data?.threads ?? [];
   const activeThread = useMemo(
@@ -64,10 +60,7 @@ export function ChatPage(props: ChatPageProps) {
             <MessageSquare size={20} aria-hidden="true" />
             <h2>Threads</h2>
           </div>
-          <CreateThreadForm
-            activeWorkspaceId={props.activeWorkspaceId}
-            onCreated={setActiveThreadId}
-          />
+          <CreateThreadForm onCreated={setActiveThreadId} />
           <ThreadList
             activeThreadId={activeThreadId}
             error={threadsQuery.error}
@@ -91,15 +84,14 @@ export function ChatPage(props: ChatPageProps) {
           />
           <Composer
             activeThreadId={activeThreadId}
-            activeWorkspaceId={props.activeWorkspaceId}
             tools={toolsQuery.data?.tools ?? []}
             onSent={async () => {
               await Promise.all([
                 queryClient.invalidateQueries({
-                  queryKey: queryKeys.chat.threads(props.activeWorkspaceId)
+                  queryKey: queryKeys.chat.threads
                 }),
                 queryClient.invalidateQueries({
-                  queryKey: queryKeys.chat.messages(activeThreadId, props.activeWorkspaceId)
+                  queryKey: queryKeys.chat.messages(activeThreadId)
                 })
               ]);
             }}
@@ -110,28 +102,20 @@ export function ChatPage(props: ChatPageProps) {
   );
 }
 
-function CreateThreadForm(props: {
-  readonly activeWorkspaceId: string | null;
-  readonly onCreated: (threadId: string) => void;
-}) {
+function CreateThreadForm(props: { readonly onCreated: (threadId: string) => void }) {
   const queryClient = useQueryClient();
   const [title, setTitle] = useState("");
   const [formError, setFormError] = useState<string | null>(null);
   const createMutation = useMutation({
     mutationFn: () => {
-      return createChatThread(
-        {
-          title
-        },
-        props.activeWorkspaceId
-      );
+      return createChatThread({ title });
     },
     onSuccess: async (response) => {
       setTitle("");
       setFormError(null);
       props.onCreated(response.thread.id);
       await queryClient.invalidateQueries({
-        queryKey: queryKeys.chat.threads(props.activeWorkspaceId)
+        queryKey: queryKeys.chat.threads
       });
     },
     onError: (error) => setFormError(error.message)
@@ -275,7 +259,6 @@ function MessageList(props: {
 
 function Composer(props: {
   readonly activeThreadId: string | null;
-  readonly activeWorkspaceId: string | null;
   readonly tools: readonly AiAssistantToolDto[];
   readonly onSent: () => Promise<void>;
 }) {
@@ -288,14 +271,10 @@ function Composer(props: {
         throw new Error("Create or select a chat thread first");
       }
 
-      return appendChatUserMessage(
-        props.activeThreadId,
-        {
-          body,
-          selectedToolNames
-        },
-        props.activeWorkspaceId
-      );
+      return appendChatUserMessage(props.activeThreadId, {
+        body,
+        selectedToolNames
+      });
     },
     onSuccess: async () => {
       setBody("");

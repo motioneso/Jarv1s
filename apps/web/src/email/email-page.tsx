@@ -5,14 +5,10 @@ import { Inbox, LoaderCircle, Mail } from "lucide-react";
 import { listEmailMessages } from "../api/client";
 import { queryKeys } from "../api/query-keys";
 
-interface EmailPageProps {
-  readonly activeWorkspaceId: string | null;
-}
-
-export function EmailPage(props: EmailPageProps) {
+export function EmailPage() {
   const messagesQuery = useQuery({
-    queryKey: queryKeys.email.list(props.activeWorkspaceId),
-    queryFn: () => listEmailMessages(props.activeWorkspaceId)
+    queryKey: queryKeys.email.list,
+    queryFn: () => listEmailMessages()
   });
   const messages = messagesQuery.data?.messages ?? [];
 

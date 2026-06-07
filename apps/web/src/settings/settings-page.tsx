@@ -8,7 +8,6 @@ import { ConnectorsPanel } from "../connectors/connectors-panel";
 import type { MeResponse } from "@jarv1s/shared";
 
 interface SettingsPageProps {
-  readonly activeWorkspaceId: string | null;
   readonly me: MeResponse;
 }
 
@@ -25,9 +24,6 @@ export function SettingsPage(props: SettingsPageProps) {
     queryFn: listAdminWorkspaces,
     retry: false
   });
-  const activeWorkspace = props.me.workspaces.find(
-    (workspace) => workspace.id === props.activeWorkspaceId
-  );
 
   return (
     <section className="page-stack" aria-labelledby="settings-title">
@@ -57,10 +53,6 @@ export function SettingsPage(props: SettingsPageProps) {
               <dt>Role</dt>
               <dd>{props.me.user.isInstanceAdmin ? "Instance admin" : "User"}</dd>
             </div>
-            <div>
-              <dt>Workspace</dt>
-              <dd>{activeWorkspace?.name ?? "None"}</dd>
-            </div>
           </dl>
         </section>
 
@@ -87,14 +79,11 @@ export function SettingsPage(props: SettingsPageProps) {
       </div>
 
       <div className="settings-grid">
-        <ConnectorsPanel
-          activeWorkspaceId={props.activeWorkspaceId}
-          isAdmin={props.me.user.isInstanceAdmin}
-        />
+        <ConnectorsPanel isAdmin={props.me.user.isInstanceAdmin} />
       </div>
 
       <div className="settings-grid">
-        <AiSettingsPanel activeWorkspaceId={props.activeWorkspaceId} />
+        <AiSettingsPanel />
       </div>
 
       {props.me.user.isInstanceAdmin ? (
