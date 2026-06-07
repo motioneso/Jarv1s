@@ -6,6 +6,8 @@ export type {
 } from "./types.js";
 export type { CreateCommitmentInput, UpdateCommitmentInput } from "./commitments-repository.js";
 export { CommitmentsRepository } from "./commitments-repository.js";
+export type { CreateEntityInput, UpdateEntityInput } from "./entities-repository.js";
+export { EntitiesRepository } from "./entities-repository.js";
 export {
   structuredStateModuleManifest,
   structuredStateSqlMigrationDirectory,
