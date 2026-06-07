@@ -193,8 +193,10 @@ Do NOT save things already stated in CLAUDE.md or HANDOFF.md.
 
 ## Scope Guardrails
 
-Keep changes tightly bounded (next work is M7 operations hardening per the handoff). Do **not**
-casually build: real OAuth providers, real connectors, full email/calendar clients, a full module
-marketplace, a workflow engine, real AI provider calls/embeddings, or write/destructive assistant
-execution. Preserve plain Fastify REST + shared TypeScript contracts (`packages/shared/*-api.ts`)
-unless a milestone proves it insufficient.
+Keep changes tightly bounded. The formal M1–M7 roadmap and all four memory data model slices
+(Vault, Memory Index, Structured State) are complete. **Write a spec before building anything
+new.** Do **not** casually build: real OAuth providers, real connectors, full email/calendar
+clients, a full module marketplace, a workflow engine, real AI provider calls, or write/destructive
+assistant execution. Embeddings are in-scope only once a `LocalEmbeddingProvider` spec exists.
+Preserve plain Fastify REST + shared TypeScript contracts (`packages/shared/*-api.ts`) unless a
+milestone proves it insufficient.

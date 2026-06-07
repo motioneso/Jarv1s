@@ -293,36 +293,43 @@ pg-boss payloads are operational metadata. They may contain actor ids, workspace
 
 ## Next Step
 
-The full workspace teardown (Slices 1c-core through 1f) is complete and the code-review fixes are
-committed. The security/RLS substrate now uses pure owner-or-share or owner-only access — workspace
-columns, enums, and functions have been dropped from every product table. `AccessContext` carries
-only `actorUserId` and `requestId`.
+All four slices of the memory data model spec are complete, M7 operations hardening is complete,
+and the formal roadmap (M1–M7) is exhausted. The next phase needs a new spec before any code is
+written.
+
+**The memory/vault/structured-state substrate is now the platform seam.** The logical next
+milestone is to connect it to the product surfaces — exposing vault and agent-state via REST APIs
+the web shell can surface, integrating `MemoryRetriever` into the briefings and chat assistant-tool
+pipelines, and wiring a real `LocalEmbeddingProvider` so semantic search uses actual vectors
+instead of the stub.
 
 Goal for the next agent:
 
-- treat `docs/superpowers/specs/2026-06-06-memory-data-model-design.md` as the authoritative design
-  spec for the next phase — Vault/VaultContext (Slice 2), Memory index and retrieval (Slice 3), and
-  Structured state + write-back (Slice 4)
-- treat all Slices 1c through 1f and their code-review pass as completed context; do not revisit
-  workspace-teardown decisions
-- the workspace selector has been removed from the web frontend; `AccessContext` no longer carries
-  `workspaceId`; `x-jarvis-workspace-id` is no longer sent or validated
-- use CodeGraph and agentmemory as normal agent knowledge tools per
-  `docs/DEVELOPMENT_STANDARDS.md#agent-knowledge-tools`; keep CodeGraph synced locally and save
-  durable project decisions or lessons to agentmemory without secrets or private data
-- preserve Briefings metadata-only jobs and assistant action metadata-only confirmation gates; avoid
-  real provider calls/embeddings/connector sync/write or destructive tool execution
-- preserve `AccessContext -> withDataContext() -> RLS`; no admin RLS bypass; no `BYPASSRLS` on
-  runtime roles; repositories accept only `DataContextDb`
+- **Write a spec first.** The memory data model design spec
+  (`docs/superpowers/specs/2026-06-06-memory-data-model-design.md`) is now the substrate; a new
+  spec should cover the next product surface (vault browser, structured-state REST API, or agent
+  integration into briefings/chat). Do not build without one.
+- Treat Slices 2–4 as completed foundation context; do not revisit vault layout, RLS decisions, or
+  the write-back contract.
+- Docker Compose now uses `pgvector/pgvector:pg17` — do not revert to `postgres:17-alpine`.
+  The pgvector extension is installed in the bootstrap step.
+- `StubEmbeddingProvider` is the test-time embedding implementation (deterministic SHA-256 vectors).
+  A real `LocalEmbeddingProvider` (e.g. `nomic-embed-text` via ollama or a local HTTP endpoint) is
+  the next embedding work, but scope it in a spec first.
+- Use CodeGraph and agentmemory as normal agent knowledge tools per
+  `docs/DEVELOPMENT_STANDARDS.md#agent-knowledge-tools`; keep CodeGraph synced and save durable
+  decisions to agentmemory without secrets or private data.
+- Preserve `AccessContext -> withDataContext() -> RLS`; no admin RLS bypass; no `BYPASSRLS` on
+  runtime roles; repositories accept only `DataContextDb`; `VaultContext` for all vault I/O.
 
 Still do not build casually:
 
 - real OAuth providers beyond the current auth/session requirement
 - real connectors or full OAuth callback flows
-- full email/calendar clients or rich Notes surfaces
+- full email/calendar clients
 - final API contract layer unless plain Fastify REST proves insufficient
 - arbitrary workflow engine
-- real AI provider calls, embeddings, or connector sync
+- real AI provider calls or connector sync (embeddings are the exception once spec'd)
 
 ## Completed M1 Work
 
@@ -526,6 +533,68 @@ Still do not build casually:
   workspace selector from app-shell topbar; `x-jarvis-workspace-id` header no longer sent by the
   API client; all React Query keys are now static (no workspaceId parameter)
 
+## Completed Slice 2 (Vault + VaultContext)
+
+- added `@jarv1s/vault` as a package with traversal-safe path resolver, per-user `VaultContext`
+  brand and `VaultContextRunner`, env-driven vault base directory (`JARVIS_VAULT_ROOT`), and
+  core file operations (`vaultFileExists`, `readVaultFile`, `writeVaultFile`,
+  `listVaultFilesRecursive`)
+- `VaultContext` is a branded interface (parallel to `DataContextDb`) minted only by
+  `VaultContextRunner.withVaultContext()`; all vault I/O goes through it — never raw `fs` calls
+- `resolveVaultPath()` rejects traversal paths (`../`) with `VaultPathError` before any I/O;
+  `ENOENT` from actual file reads is surfaced as `false` or caught by callers, not confused with
+  a security block
+- per-user vault root is created at `<JARVIS_VAULT_ROOT>/<actorUserId>/` with mode `0700`
+- tsconfig path alias `@jarv1s/vault` wired; focused `pnpm test:vault` integration suite added
+
+## Completed Slice 3 (Memory Index + Retrieval)
+
+- switched `infra/docker-compose.yml` from `postgres:17-alpine` to `pgvector/pgvector:pg17`;
+  `CREATE EXTENSION IF NOT EXISTS vector` runs in `infra/postgres/bootstrap/0001_extensions.sql`
+  as a superuser bootstrap step (before migrations, so the extension is available to migrations)
+- added `packages/memory/sql/0001_memory_index.sql` with `app.memory_chunks` (384-dim
+  `vector(384)` column, HNSW cosine index) and `app.memory_links` (wikilink graph), both with
+  owner-only `FORCE ROW LEVEL SECURITY`
+- added `EmbeddingProvider` interface and `StubEmbeddingProvider` (deterministic 384-dim SHA-256
+  vectors, cycling hash bytes); all tests use the stub — no real provider calls
+- added markdown parser (`parseDocument`) extracting YAML frontmatter text, `[[wikilinks]]`, and
+  H2-split text chunks with `lineStart`/`lineEnd` provenance
+- added `MemoryRepository` with `upsertFileChunks` (full-replace: delete all then re-insert),
+  `deleteFileChunks`, `deleteAllForUser`, `vectorSearch` (pgvector cosine `<=>` operator), and
+  `replaceFileLinks`
+- added `MemoryIngestPipeline` (`ingestFile`, `deleteFile`, `rebuildFromVault`) wired to
+  `listVaultFilesRecursive` for `.md` files
+- added `MemoryRetriever.retrieve()` — embeds the query string, calls `vectorSearch`, returns
+  `RetrievedChunk[]` with `sourcePath`, `lineStart`, `lineEnd`, `text`, and `similarity` score
+- `listVaultFilesRecursive` added to `@jarv1s/vault` (recursive readdir returning paths relative
+  to vault root); wired into `MemoryIngestPipeline` for full-vault rebuild
+- `@jarv1s/memory` registered in `packages/module-registry`; focused `pnpm test:memory`
+  integration suite added; 21 tests covering parse, embed, repository RLS, ingest, and retrieval
+
+## Completed Slice 4 (Structured State + Write-back)
+
+- added `packages/structured-state/sql/0001_structured_state.sql` with four Postgres enums
+  (`provenance_kind`, `commitment_status`, `commitment_source_kind`, `entity_type`) and three
+  tables: `app.commitments` (open-loop tracking, drift-aware lifecycle), `app.entities` (people /
+  orgs / accounts with JSONB attributes and optional `vault_note_path`), `app.preferences`
+  (owner-only key/value JSON settings)
+- `commitments` and `entities` use owner-or-share RLS (`app.has_share()`); `preferences` are
+  owner-only — no sharing
+- every record carries `provenance ∈ volunteered | inferred | confirmed`; `commitments` additionally
+  carry `status`, `source_kind`, `counterparty`, `due_at`, `surfaced_state`, `life_area`
+- added `CommitmentsRepository`, `EntitiesRepository`, `PreferencesRepository` — DataContextDb-only,
+  full CRUD, RLS enforced at the Postgres layer
+- added `VaultWriteBackService.syncEntityToVault()` — strips old frontmatter with a regex,
+  serializes entity fields as YAML (double-quoted strings for safety), writes
+  `---\n<frontmatter>---\n<body>` preserving the human-authored prose body verbatim; is a no-op
+  when `vault_note_path` is null; does NOT call `MemoryIngestPipeline` (re-indexing is the
+  caller's responsibility, keeping `packages/structured-state` free of a `packages/memory`
+  dependency)
+- `packages/structured-state` registered in `packages/module-registry`; focused
+  `pnpm test:structured-state` integration suite added; 18 tests covering RLS, JSONB roundtrip,
+  sharing grants/revokes, preferences isolation, write-back frontmatter replacement, and body
+  preservation
+
 ## Completed Post-Slice Code Review Fixes
 
 Five issues identified and fixed in commit `fix(review): address 5 post-Slice-1c-1f review issues`:
@@ -551,206 +620,31 @@ Foundation verification:
 
 ```txt
 pnpm install
-pnpm db:up
+pnpm db:up          ← must use pgvector/pgvector:pg17 image (changed in Slice 3)
 pnpm verify:foundation
 ```
 
-Focused Tasks verification:
+Focused suite commands:
 
 ```txt
 pnpm test:tasks
-```
-
-Focused Notes verification:
-
-```txt
-pnpm test:notes
-```
-
-Focused Notifications verification:
-
-```txt
 pnpm test:notifications
-```
-
-Focused Connectors verification:
-
-```txt
 pnpm test:connectors
-```
-
-Focused Calendar/Email verification:
-
-```txt
 pnpm test:calendar-email
-```
-
-Focused AI foundation verification:
-
-```txt
 pnpm test:ai
-```
-
-Focused AI assistant tools verification:
-
-```txt
 pnpm test:ai-tools
-```
-
-Focused Chat verification:
-
-```txt
 pnpm test:chat
-```
-
-Focused Briefings verification:
-
-```txt
 pnpm test:briefings
-```
-
-Focused release-hardening verification:
-
-```txt
 pnpm test:release-hardening
+pnpm test:vault
+pnpm test:memory
+pnpm test:structured-state
 ```
 
 Release-hardening audit:
 
 ```txt
 pnpm audit:release-hardening
-```
-
-Current known-good M7 release-hardening result:
-
-```txt
-pnpm test:release-hardening
-Test Files  1 passed (1)
-Tests       10 passed (10)
-
-pnpm format:check
-All matched files use Prettier code style!
-
-pnpm audit:release-hardening
-passed true; failures []
-```
-
-Current known-good foundation result:
-
-```txt
-pnpm verify:foundation
-lint, format:check, file-size, typecheck pass
-no SQL migrations applied; 27 already current
-Integration Test Files  12 passed (12)
-Integration Tests       119 passed (119)
-```
-
-Current known-good Tasks result:
-
-```txt
-pnpm test:tasks
-Test Files  1 passed (1)
-Tests       14 passed (14)
-```
-
-Current known-good M4 web result:
-
-```txt
-pnpm build:web
-web typecheck and Vite production build pass
-
-pnpm test:e2e
-10 passed (chromium)
-```
-
-Current known-good Notes result:
-
-```txt
-pnpm test:notes
-Test Files  1 passed (1)
-Tests       9 passed (9)
-```
-
-Current known-good Notifications result:
-
-```txt
-pnpm test:notifications
-Test Files  1 passed (1)
-Tests       9 passed (9)
-```
-
-Current known-good Connectors result:
-
-```txt
-pnpm test:connectors
-Test Files  1 passed (1)
-Tests       9 passed (9)
-```
-
-Current known-good Calendar/Email result:
-
-```txt
-pnpm test:calendar-email
-Test Files  1 passed (1)
-Tests       9 passed (9)
-```
-
-Current known-good AI foundation result:
-
-```txt
-pnpm format
-prettier --write . completed
-
-pnpm test:ai
-Test Files  1 passed (1)
-Tests       9 passed (9)
-
-pnpm build:web
-web typecheck and Vite production build pass
-
-pnpm lint
-eslint completed with 0 warnings
-
-pnpm test:integration
-Test Files  12 passed (12)
-Tests       113 passed (113)
-
-pnpm test:e2e
-10 passed (chromium)
-```
-
-Current known-good M6 read-only assistant tools result (historical — see Slice 1c-1f for current):
-
-```txt
-pnpm test:ai-tools
-Test Files  1 passed (1)
-Tests       9 passed (9)
-```
-
-Current known-good Chat thin slice result (historical):
-
-```txt
-pnpm test:chat
-Test Files  1 passed (1)
-Tests       8 passed (8)
-```
-
-Current known-good M6 Briefings result (historical):
-
-```txt
-pnpm test:briefings
-Test Files  1 passed (1)
-Tests       9 passed (9)
-```
-
-Current known-good post-Slice-1f + review-fixes result:
-
-```txt
-pnpm verify:foundation
-lint, format:check, file-size, typecheck pass
-no SQL migrations applied; 27 already current
-Integration Test Files  12 passed (12)
-Integration Tests       119 passed (119)
 ```
 
 Spike verification:
@@ -760,9 +654,23 @@ pnpm spike:db:up
 pnpm test:spike
 ```
 
-Current known-good spike result:
+**Current known-good result (post Slices 2–4, 2026-06-07):**
 
 ```txt
+pnpm verify:foundation
+lint, format:check, file-size, typecheck pass
+no SQL migrations applied; 29 already current
+Integration Test Files  15 passed (15)
+Integration Tests       177 passed (177)
+```
+
+```txt
+pnpm audit:release-hardening
+passed true; failures []
+```
+
+```txt
+pnpm test:spike
 Test Files  2 passed (2)
 Tests       15 passed (15)
 ```
@@ -803,20 +711,25 @@ API contract tooling remains intentionally conservative. Fastify REST plus expli
 
 ## Review Notes For Next Agent
 
-- The repository is still early and many files are currently untracked.
 - Do not delete the spike directories; they are retained historical proof and still pass.
 - Do not weaken `FORCE ROW LEVEL SECURITY`.
 - Do not give normal app or worker roles table ownership or `BYPASSRLS`.
 - Do not put private content into pg-boss payloads.
-- Do not let repositories accept a root Kysely instance.
-- `AccessContext` no longer has `workspaceId`. Do not add it back. The workspace tables and
-  memberships still exist in the DB for historical/admin display, but no runtime path uses workspace
-  context for access gating anymore.
-- The web frontend no longer sends `x-jarvis-workspace-id`. Do not re-add the header or the
-  workspace selector.
-- `0024_notifications_owner_only.sql` in `packages/notifications/sql/` intentionally lacks the
-  `recipient_user_id` INSERT constraint; `0029_fix_notifications_insert_policy.sql` (also in that
-  directory, runs after 0024) applies the correct constraint. Both must stay as-is — altering 0024
-  would break the migration-runner hash check on existing databases.
-- Keep scope tight. The next work is Slice 2 (Vault + VaultContext) per the memory data model design
-  spec, not further RLS cleanup or product expansion outside the spec.
+- Do not let repositories accept a root Kysely instance. All vault I/O must go through
+  `VaultContext` (never raw `fs` calls).
+- `AccessContext` carries only `actorUserId` and `requestId`. Do not add `workspaceId` back.
+- The web frontend does not send `x-jarvis-workspace-id`. Do not re-add the header or workspace
+  selector.
+- `0024_notifications_owner_only.sql` intentionally lacks the `recipient_user_id` INSERT
+  constraint; `0029_fix_notifications_insert_policy.sql` (same directory) applies it. Both must
+  stay as-is — altering 0024 breaks the migration-runner hash check on existing databases.
+- Docker Compose uses `pgvector/pgvector:pg17`. Do not revert to `postgres:17-alpine`. The vector
+  extension is installed in `infra/postgres/bootstrap/0001_extensions.sql`.
+- `StubEmbeddingProvider` uses deterministic SHA-256 vectors (384-dim). The `memory.test.ts` suite
+  verifies the vector search path end-to-end; tests do not need a real embedding model.
+- `VaultWriteBackService` does NOT call `MemoryIngestPipeline`. Re-indexing after write-back is the
+  caller's responsibility. This is intentional — it keeps `packages/structured-state` free of a
+  `packages/memory` dependency.
+- The formal M1–M7 roadmap is exhausted. Write a new spec before building anything new.
+- All migration SQL lives in the owning module's `sql/` directory, never `infra/postgres/migrations/`.
+  Never edit an applied migration file.
