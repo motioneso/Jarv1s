@@ -16,6 +16,7 @@ import { VaultContextRunner, writeVaultFile } from "@jarv1s/vault";
 import {
   MemoryIngestPipeline,
   MemoryRepository,
+  MemoryRetriever,
   StubEmbeddingProvider,
   parseDocument
 } from "@jarv1s/memory";
@@ -392,5 +393,73 @@ describe("MemoryIngestPipeline", () => {
         expect(paths).not.toContain("notes/ignored.txt");
       });
     });
+  });
+});
+
+// ── MemoryRetriever ───────────────────────────────────────────────────────────
+
+describe("MemoryRetriever", () => {
+  const repo = new MemoryRepository();
+  const provider = new StubEmbeddingProvider();
+  const pipeline = new MemoryIngestPipeline(provider, repo);
+  const retriever = new MemoryRetriever(provider, repo);
+
+  // Use a dedicated user so these tests don't collide with earlier seeded data
+  const retrieverUserId = "00000000-0000-4000-8000-000000000015";
+
+  beforeAll(async () => {
+    const client = new Client({ connectionString: connectionStrings.bootstrap });
+    await client.connect();
+    try {
+      await client.query(
+        `INSERT INTO app.users (id, email, is_instance_admin)
+         VALUES ($1, 'memory-retriever@example.test', false)`,
+        [retrieverUserId]
+      );
+    } finally {
+      await client.end();
+    }
+
+    // Seed two files so retrieval has something to find
+    await vaultRunner.withVaultContext(ctx(retrieverUserId), async (vaultCtx) => {
+      await writeVaultFile(
+        vaultCtx,
+        "knowledge/alpha.md",
+        `## Alpha\n\nAlpha is the first letter.`
+      );
+      await writeVaultFile(vaultCtx, "knowledge/beta.md", `## Beta\n\nBeta is the second letter.`);
+      await dataContext.withDataContext(ctx(retrieverUserId), async (scopedDb) => {
+        await pipeline.ingestFile(scopedDb, vaultCtx, "knowledge/alpha.md");
+        await pipeline.ingestFile(scopedDb, vaultCtx, "knowledge/beta.md");
+      });
+    });
+  });
+
+  it("retrieve returns chunks with provenance (sourcePath, lineStart, lineEnd)", async () => {
+    const results = await dataContext.withDataContext(ctx(retrieverUserId), async (scopedDb) =>
+      retriever.retrieve(scopedDb, "the first letter", 10)
+    );
+    expect(results.length).toBeGreaterThan(0);
+    const first = results[0];
+    expect(first).toMatchObject({
+      sourcePath: expect.any(String),
+      lineStart: expect.any(Number),
+      lineEnd: expect.any(Number),
+      text: expect.any(String),
+      similarity: expect.any(Number)
+    });
+    expect(first?.sourcePath).toMatch(/knowledge\/(alpha|beta)\.md/);
+  });
+
+  it("retrieve is owner-scoped: other user sees no results from this user's vault", async () => {
+    const results = await dataContext.withDataContext(ctx(otherUserId), async (scopedDb) =>
+      retriever.retrieve(scopedDb, "the first letter", 10)
+    );
+    // otherUserId has no ingested data, so no results from retrieverUserId's vault
+    expect(
+      results.every(
+        (r) => r.sourcePath !== "knowledge/alpha.md" && r.sourcePath !== "knowledge/beta.md"
+      )
+    ).toBe(true);
   });
 });
