@@ -355,14 +355,22 @@ export interface MemoryLinksTable {
 }
 
 export interface CommitmentsTable {
-  id: string;
+  id: ColumnType<string, string | undefined, string>;
   owner_user_id: string;
   title: string;
   counterparty: string | null;
   due_at: NullableTimestampColumn;
-  status: "open" | "at_risk" | "slipped" | "done" | "renegotiated" | "dismissed";
+  status: ColumnType<
+    "open" | "at_risk" | "slipped" | "done" | "renegotiated" | "dismissed",
+    "open" | "at_risk" | "slipped" | "done" | "renegotiated" | "dismissed" | undefined,
+    "open" | "at_risk" | "slipped" | "done" | "renegotiated" | "dismissed"
+  >;
   provenance: "volunteered" | "inferred" | "confirmed";
-  source_kind: "manual" | "inferred" | "email" | "calendar";
+  source_kind: ColumnType<
+    "manual" | "inferred" | "email" | "calendar",
+    "manual" | "inferred" | "email" | "calendar" | undefined,
+    "manual" | "inferred" | "email" | "calendar"
+  >;
   source_ref: string | null;
   surfaced_state: string | null;
   life_area: string | null;
@@ -371,7 +379,7 @@ export interface CommitmentsTable {
 }
 
 export interface EntitiesTable {
-  id: string;
+  id: ColumnType<string, string | undefined, string>;
   owner_user_id: string;
   type: "person" | "organization" | "account";
   name: string;
@@ -385,7 +393,7 @@ export interface EntitiesTable {
 }
 
 export interface PreferencesTable {
-  id: string;
+  id: ColumnType<string, string | undefined, string>;
   owner_user_id: string;
   key: string;
   value_json: JsonColumn;
