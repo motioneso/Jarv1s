@@ -32,7 +32,8 @@ test("signs in and renders shell navigation", async ({ page }) => {
   ).toBeVisible();
   await expect(page.locator(".module-nav").getByRole("link", { name: "Calendar" })).toBeVisible();
   await expect(page.locator(".module-nav").getByRole("link", { name: "Email" })).toBeVisible();
-  await expect(page.locator(".module-nav").getByRole("link", { name: "Chat" })).toBeVisible();
+  // Chat is a drawer toggle (button), not a route link.
+  await expect(page.locator(".module-nav").getByRole("button", { name: "Chat" })).toBeVisible();
   await expect(page.locator(".module-nav").getByRole("link", { name: "Briefings" })).toBeVisible();
   await expect(page.locator(".module-nav").getByRole("link", { name: "Settings" })).toBeVisible();
   await expect(page.getByLabel("Workspace")).toHaveValue("workspace-1");
@@ -196,67 +197,6 @@ test("configures AI providers and capability routing through settings REST calls
 
   await aiProviders.getByRole("button", { name: "Revoke" }).click();
   await expect(aiProviders.getByText("Revoked", { exact: true })).toBeVisible();
-});
-
-test("creates chat threads and records assistant metadata through REST calls", async ({ page }) => {
-  await mockApi(page, {
-    authenticated: true,
-    aiModels: [
-      {
-        id: "ai-model-chat",
-        providerConfigId: "ai-provider-chat",
-        providerKind: "anthropic",
-        providerDisplayName: "Anthropic Smoke",
-        providerStatus: "active",
-        providerModelId: "claude-smoke",
-        displayName: "Claude Smoke",
-        capabilities: ["chat", "tool-use"],
-        status: "active",
-        createdAt: "2026-06-06T12:00:00.000Z",
-        updatedAt: "2026-06-06T12:00:00.000Z"
-      }
-    ],
-    aiProviders: [
-      {
-        id: "ai-provider-chat",
-        providerKind: "anthropic",
-        displayName: "Anthropic Smoke",
-        baseUrl: null,
-        status: "active",
-        authMethod: "api_key",
-        hasCredential: true,
-        cliAvailable: false,
-        revokedAt: null,
-        createdAt: "2026-06-06T12:00:00.000Z",
-        updatedAt: "2026-06-06T12:00:00.000Z"
-      }
-    ],
-    chatMessages: {},
-    chatThreads: [],
-    connectorAccounts: [],
-    connectorProviders: createMockConnectorProviders(),
-    notifications: [],
-    tasks: [createMockTask("task-chat", "Chat must not mutate this task")]
-  });
-
-  await page.goto("/chat");
-  await expect(page.getByRole("heading", { name: "Chat" })).toBeVisible();
-  await expect(page.getByText("Claude Smoke via Anthropic Smoke")).toBeVisible();
-  await expect(
-    page.getByLabel("Assistant tool metadata").getByText("tasks.updateStatus")
-  ).toBeVisible();
-
-  await page.getByLabel("Thread title").fill("M6 chat smoke");
-  await page.getByRole("button", { name: "Create thread" }).click();
-  await expect(page.getByRole("button", { name: "M6 chat smoke" })).toBeVisible();
-
-  await page.getByLabel("Message").fill("Please update task status");
-  await page.getByLabel("tasks.updateStatus").check();
-  await page.getByRole("button", { name: "Send message" }).click();
-
-  await expect(page.getByText("Please update task status")).toBeVisible();
-  await expect(page.getByText("blocked", { exact: true })).toBeVisible();
-  await expect(page.getByText(/Tool request recorded but blocked/)).toBeVisible();
 });
 
 test("creates and runs briefings through REST calls", async ({ page }) => {

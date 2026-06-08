@@ -6,15 +6,10 @@ import type {
   CreateAiProviderConfigResponse,
   AddTaskActivityResponse,
   AiModelCapability,
-  AppendChatUserMessageRequest,
-  AppendChatUserMessageResponse,
   BootstrapStatusResponse,
   CreateBriefingDefinitionRequest,
   CreateBriefingDefinitionResponse,
-  CreateChatThreadRequest,
-  CreateChatThreadResponse,
   GetCalendarEventResponse,
-  GetChatThreadResponse,
   GetEmailMessageResponse,
   CreateConnectorAccountRequest,
   CreateConnectorAccountResponse,
@@ -29,7 +24,6 @@ import type {
   ListBriefingDefinitionsResponse,
   ListBriefingRunsResponse,
   ListCalendarEventsResponse,
-  ListChatMessagesResponse,
   ListChatThreadsResponse,
   ListConnectorAccountsResponse,
   ListConnectorProvidersResponse,
@@ -170,35 +164,6 @@ export async function listEmailMessages(): Promise<ListEmailMessagesResponse> {
 
 export async function listChatThreads(): Promise<ListChatThreadsResponse> {
   return requestJson<ListChatThreadsResponse>("/api/chat/threads");
-}
-
-export async function createChatThread(
-  input: CreateChatThreadRequest
-): Promise<CreateChatThreadResponse> {
-  return requestJson<CreateChatThreadResponse>("/api/chat/threads", {
-    method: "POST",
-    body: input
-  });
-}
-
-export async function getChatThread(id: string): Promise<GetChatThreadResponse> {
-  return requestJson<GetChatThreadResponse>(`/api/chat/threads/${encodeURIComponent(id)}`);
-}
-
-export async function listChatMessages(threadId: string): Promise<ListChatMessagesResponse> {
-  return requestJson<ListChatMessagesResponse>(
-    `/api/chat/threads/${encodeURIComponent(threadId)}/messages`
-  );
-}
-
-export async function appendChatUserMessage(
-  threadId: string,
-  input: AppendChatUserMessageRequest
-): Promise<AppendChatUserMessageResponse> {
-  return requestJson<AppendChatUserMessageResponse>(
-    `/api/chat/threads/${encodeURIComponent(threadId)}/messages`,
-    { method: "POST", body: input }
-  );
 }
 
 export async function sendChatTurn(text: string): Promise<{ reply: string }> {

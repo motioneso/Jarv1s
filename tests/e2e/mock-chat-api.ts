@@ -25,6 +25,25 @@ export async function registerMockChatRoutes(page: Page, state: MockChatApiState
     handleChatThreadDetailRoute(route, state)
   );
   await page.route("**/api/chat/threads", (route) => handleChatThreadsRoute(route, state));
+
+  // The live-chat drawer is global (mounted in the app shell), so its SSE stream opens
+  // on every authenticated page. Stub it with a single empty event-stream (one SSE
+  // comment, no records) and hold any reconnect open, so the unmocked stream doesn't
+  // fall through to the SPA server and churn. Tests that exercise the drawer register
+  // their own /api/chat/stream route afterwards, which takes precedence.
+  let streamServed = false;
+  await page.route("**/api/chat/stream", async (route) => {
+    if (streamServed) {
+      return; // hold the reconnect open (no replay, no churn)
+    }
+    streamServed = true;
+    await route.fulfill({
+      status: 200,
+      contentType: "text/event-stream",
+      headers: { "cache-control": "no-cache" },
+      body: ":\n\n"
+    });
+  });
 }
 
 export function createMockChatThread(
