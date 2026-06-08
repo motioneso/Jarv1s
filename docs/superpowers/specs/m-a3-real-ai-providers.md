@@ -64,6 +64,7 @@ All locked in the M-A3 brainstorm (do not re-open):
 | 8   | Host identity     | CLI runs as the host account (single identity)                            | Fine for self-host; no per-user swap in v1                                                         |
 | 9   | Claude transport  | Interactive `claude` in tmux — **never** `claude -p`                      | `claude -p`/print mode is changing                                                                 |
 | 10  | tmux              | Bundle `tmux`; all `cli` providers run in a per-thread tmux session       | One mechanism; operator can attach to inspect a hung/slow session                                  |
+| 11  | Output parsing    | Read each CLI's **JSONL session transcript**, not screen-scrape the pane  | Structured + robust; pane stays for the human; scraping is fallback only                           |
 
 ## Architecture
 
@@ -127,16 +128,18 @@ Mechanism — identical for all three; only the binary, submit key, and extract 
   cap concurrent sessions.
 - **Send:** `tmux send-keys`, using `load-buffer` + `paste-buffer` for multi-line / special-char
   prompts so the TUI receives them intact, then submit.
-- **Wait:** poll `tmux capture-pane` until the pane output stabilizes (response finished rendering),
-  with a bounded timeout.
-- **Extract:** capture the pane and pull out the assistant reply, stripping TUI chrome + echoed
-  input (per-provider heuristics).
+- **Wait + extract (structured, NOT screen-scraping):** read the CLI's **on-disk JSONL session
+  transcript**, not the rendered pane. Each CLI persists its turns as structured records; tail the
+  transcript for the new assistant message — a complete assistant record is the unambiguous
+  completion signal, and its content is the reply (no ANSI/chrome to strip). The tmux pane exists
+  for the human inspector; the machine reads JSONL.
+- **`capture-pane` is a fallback only** — used solely if a given CLI exposes no parseable transcript.
 
-| provider_kind       | CLI binary | notes (verify at build)                    |
-| ------------------- | ---------- | ------------------------------------------ |
-| `anthropic`         | `claude`   | interactive session; **never** `claude -p` |
-| `openai-compatible` | `codex`    | interactive session                        |
-| `google`            | `gemini`   | interactive session                        |
+| provider_kind       | CLI binary | structured-output source (verify exact path/schema at build)                                |
+| ------------------- | ---------- | ------------------------------------------------------------------------------------------- |
+| `anthropic`         | `claude`   | session transcript JSONL under `~/.claude/projects/<cwd>/<id>.jsonl`; **never** `claude -p` |
+| `openai-compatible` | `codex`    | Codex session log/rollout (JSONL) — confirm location/format                                 |
+| `google`            | `gemini`   | Gemini session/log output (JSON/JSONL) — confirm location/format                            |
 
 - **`tmux` is a new runtime dependency, bundled with the install** — required for all `cli`
   providers.
@@ -146,11 +149,10 @@ Mechanism — identical for all three; only the binary, submit key, and extract 
   otherwise the CLI's configured default is used (documented).
 - **Error capture:** timeout, dead session, or empty reply → clear assistant error message, never a
   crashed request.
-- **Risk (flagged honestly):** screen-scraping live TUIs is inherently brittle (ANSI codes,
-  redraws). The completion-detect + reply-extract logic is the riskiest part of M-A3 and will
-  likely need iteration — isolate it behind one tmux-session driver + per-provider extract config so
-  it can evolve without touching chat, and so a future first-class non-interactive interface can
-  swap in behind the same adapter.
+- **Risk (reduced):** parsing each CLI's JSONL transcript is far more robust than screen-scraping,
+  but each CLI's transcript path/schema differs and can change across CLI versions. Isolate the
+  per-provider transcript reader behind one adapter (with `capture-pane` as a last-resort fallback)
+  so it can evolve without touching chat. Confirm each CLI's transcript format at build.
 
 ### Transport B — API key (backup)
 
@@ -182,28 +184,28 @@ logged-in status (best-effort, e.g. a fast `--version` / lightweight auth probe)
 
 ### Files (anticipated; finalized in the plan)
 
-| Action | File                                           | Purpose                                                                 |
-| ------ | ---------------------------------------------- | ----------------------------------------------------------------------- |
-| Create | `packages/ai/src/chat-adapter.ts`              | `ChatProviderAdapter` interface + `createChatAdapter` factory           |
-| Create | `packages/ai/src/adapters/tmux-bridge.ts`      | tmux session driver for all `cli` providers (session/send/wait/extract) |
-| Create | `packages/ai/src/adapters/tmux-extract.ts`     | Per-provider completion-detect + reply-extract heuristics               |
-| Create | `packages/ai/src/adapters/http-api.ts`         | API-key HTTP transport per provider kind                                |
-| Create | `packages/ai/src/cli-availability.ts`          | CLI + tmux presence/auth detection helper                               |
-| Create | `packages/ai/sql/00NN_ai_auth_method.sql`      | `auth_method` column (+ RLS unchanged)                                  |
-| Modify | `packages/ai/src/repository.ts`                | Read/write `auth_method`; expose for adapter selection                  |
-| Modify | `packages/ai/src/routes.ts`                    | Accept `auth_method` on provider create/update; `cliAvailable` in DTO   |
-| Modify | `packages/shared/src/ai-api.ts`                | `authMethod`, `cliAvailable` on provider DTOs                           |
-| Modify | `packages/chat/src/repository.ts`              | Replace the `pending` stub with real execution via the adapter          |
-| Modify | `packages/db/src/types.ts`                     | `auth_method` column type                                               |
-| Tests  | `tests/integration/ai.test.ts`, `chat.test.ts` | Adapter selection, auth_method, execution (mocked transports)           |
+| Action | File                                            | Purpose                                                                                  |
+| ------ | ----------------------------------------------- | ---------------------------------------------------------------------------------------- |
+| Create | `packages/ai/src/chat-adapter.ts`               | `ChatProviderAdapter` interface + `createChatAdapter` factory                            |
+| Create | `packages/ai/src/adapters/tmux-bridge.ts`       | tmux session driver for all `cli` providers (session create / send / inspect)            |
+| Create | `packages/ai/src/adapters/transcript-reader.ts` | Per-provider JSONL session-transcript reader (reply + completion); capture-pane fallback |
+| Create | `packages/ai/src/adapters/http-api.ts`          | API-key HTTP transport per provider kind                                                 |
+| Create | `packages/ai/src/cli-availability.ts`           | CLI + tmux presence/auth detection helper                                                |
+| Create | `packages/ai/sql/00NN_ai_auth_method.sql`       | `auth_method` column (+ RLS unchanged)                                                   |
+| Modify | `packages/ai/src/repository.ts`                 | Read/write `auth_method`; expose for adapter selection                                   |
+| Modify | `packages/ai/src/routes.ts`                     | Accept `auth_method` on provider create/update; `cliAvailable` in DTO                    |
+| Modify | `packages/shared/src/ai-api.ts`                 | `authMethod`, `cliAvailable` on provider DTOs                                            |
+| Modify | `packages/chat/src/repository.ts`               | Replace the `pending` stub with real execution via the adapter                           |
+| Modify | `packages/db/src/types.ts`                      | `auth_method` column type                                                                |
+| Tests  | `tests/integration/ai.test.ts`, `chat.test.ts`  | Adapter selection, auth_method, execution (mocked transports)                            |
 
 ## Testing
 
 - **Adapter selection:** `createChatAdapter` returns the CLI adapter for `auth_method=cli` and the
   HTTP adapter for `auth_method=api_key`, keyed correctly by `provider_kind`.
-- **tmux bridge (mocked):** stub the tmux boundary (send-keys / capture-pane) — assert prompt
-  assembly + send, completion detection, per-provider reply extraction, and dead-session/timeout →
-  clear error, for each of the three providers.
+- **tmux bridge + transcript reader (mocked):** stub the tmux send boundary and feed a fixture
+  JSONL transcript — assert prompt send, completion detection from a complete assistant record,
+  per-provider reply extraction, and dead-session/timeout → clear error, for each provider.
 - **HTTP API (mocked):** stub the HTTP boundary per provider; assert request shape and
   response→`{ text }` mapping; no key in logs.
 - **Chat execution:** with a routed `cli` model (mocked), `appendUserMessage` stores a real
