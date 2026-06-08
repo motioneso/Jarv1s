@@ -60,22 +60,39 @@ export class TasksRepository {
     const now = new Date();
     const status = input.status ?? "todo";
 
-    return scopedDb.db
-      .insertInto("app.tasks")
-      .values({
-        id: randomUUID(),
-        owner_user_id: sql<string>`app.current_actor_user_id()`,
-        title: input.title,
-        description: input.description ?? null,
-        status,
-        priority: input.priority ?? null,
-        due_at: input.dueAt ?? null,
-        completed_at: status === "done" ? now : null,
-        created_at: now,
-        updated_at: now
-      })
-      .returningAll()
-      .executeTakeFirstOrThrow();
+    // list_id is NOT NULL after migration 0039. Default to the actor's Personal list so
+    // existing callers that do not supply a list continue to work. The TasksTable type
+    // gains list_id in Task 2; until then, use a raw SQL insert to satisfy the constraint
+    // without requiring the typed column to be present.
+    const id = randomUUID();
+    const completedAt = status === "done" ? now : null;
+    const result = await sql<Task>`
+      INSERT INTO app.tasks
+        (id, owner_user_id, list_id, title, description, status, priority,
+         due_at, completed_at, created_at, updated_at)
+      VALUES (
+        ${id},
+        app.current_actor_user_id(),
+        (SELECT id FROM app.task_lists
+         WHERE owner_user_id = app.current_actor_user_id() AND name = 'Personal'
+         LIMIT 1),
+        ${input.title},
+        ${input.description ?? null},
+        ${status},
+        ${input.priority ?? null},
+        ${input.dueAt ?? null},
+        ${completedAt},
+        ${now},
+        ${now}
+      )
+      RETURNING *
+    `.execute(scopedDb.db);
+
+    const row = result.rows[0];
+    if (!row) {
+      throw new Error("Failed to create task");
+    }
+    return row;
   }
 
   async update(

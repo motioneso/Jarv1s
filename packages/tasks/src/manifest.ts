@@ -34,7 +34,7 @@ export const tasksModuleManifest = {
     required: true
   },
   database: {
-    migrations: ["sql/0003_tasks_module.sql"],
+    migrations: ["sql/0003_tasks_module.sql", "sql/0019_tasks_owner_or_share.sql", "sql/0039_tasks_foundation.sql"],
     migrationDirectories: ["packages/tasks/sql"],
     ownedTables: ["app.tasks", "app.task_activity"]
   },
