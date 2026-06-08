@@ -62,8 +62,7 @@ export class DataContextChatPersistence implements ChatPersistencePort {
       return messages
         .filter(
           (message) =>
-            message.status === "stored" &&
-            (message.role === "user" || message.role === "assistant")
+            message.status === "stored" && (message.role === "user" || message.role === "assistant")
         )
         .map((message) => ({
           role: message.role as "user" | "assistant",

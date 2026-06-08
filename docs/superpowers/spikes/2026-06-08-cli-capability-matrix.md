@@ -2,7 +2,7 @@
 
 **Date:** 2026-06-08
 **Host:** xbmx (Linux 6.8, headless). tmux 3.4.
-**Goal:** Establish *verified* facts for driving an agentic coding CLI (Claude Code / Codex / Gemini)
+**Goal:** Establish _verified_ facts for driving an agentic coding CLI (Claude Code / Codex / Gemini)
 inside a tmux session as "Jarvis" — without bypass-permissions, with the CLI's own native
 shell/file tools disabled (so Jarvis can only act through a future Jarv1s MCP server, never raw host
 bash), with a launch persona that survives `/clear`, and with a tailable JSONL transcript.
@@ -25,16 +25,16 @@ and inspected the on-disk transcript. All scratch dirs and tmux sessions were cl
 
 ## Summary matrix
 
-| # | Capability | Claude Code (VERIFIED v2.1.168) | Codex CLI (UNVERIFIED — from docs) | Gemini CLI (UNVERIFIED — from docs) |
-|---|---|---|---|---|
-| 1 | Binary on PATH? | **YES** `~/Jarv1s/.local/bin/claude`, v2.1.168 | **NO — UNAVAILABLE, verify later** | **NO — UNAVAILABLE, verify later** |
-| 2 | Launch persona injection | `--append-system-prompt "<text>"` **or** `--append-system-prompt-file <path>` (both verified). `--system-prompt[-file]` *replaces* the default prompt; the append form is what Jarv1s wants. | `~/.codex/config.toml` `model_instructions_file` / project `AGENTS.md`; experimental `developer_instructions`. Unverified. | `GEMINI_SYSTEM_MD=<path>` env var to load a system prompt file; or `.gemini/` context files. Unverified. |
-| 3 | Persona survives `/clear`? | **YES — verified.** After `/clear`, a re-asked identity question still returned the persona token. The launch system prompt is reapplied; `/clear` only drops conversation history. | Unknown — verify. Codex `/clear`-equivalent behavior with `model_instructions_file` unconfirmed. | Unknown — verify. Whether `GEMINI_SYSTEM_MD` persists across the new-chat command unconfirmed. |
-| 4 | "New conversation" command | `/clear` — clears conversation history/context for the current session, keeps the same process + launch system prompt + CLAUDE.md. (No `/new` on this version.) | Likely `/new` and/or `/clear` (unverified). | Likely `/clear` or `/chat new` (unverified). |
-| 5 | Disable native shell/file tools | **Use an ALLOWLIST: `--tools ""`** (empty = disable ALL built-in tools). **VERIFIED** to block Bash *and* the workaround tools (Monitor/Task/agents). `--disallowedTools "Bash ..."` is a DENYLIST and is **insufficient** (see finding F1). | `approval_policy` / `sandbox_mode` in config; no confirmed per-tool allowlist. Unverified — treat as unknown. | `--allowed-tools` / `coreTools` settings or `--sandbox`. Unverified. |
-| 6 | Launch WITHOUT bypass-permissions | `--permission-mode default` (**VERIFIED** to override this host's global `bypassPermissions` default). Simply *not* passing `--dangerously-skip-permissions` is NOT enough here — see F2. | Default is interactive approval; bypass is an explicit `--dangerously-bypass-approvals-and-sandbox` / `--yolo`. Don't pass it. Unverified. | Default prompts for approval; `--yolo` / `--approval-mode auto` bypasses. Don't pass it. Unverified. |
-| 7 | Transcript path + format | **Plain `.jsonl`** (one JSON object per line, NOT compressed). Path: `~/.claude/projects/<encoded-cwd>/<session-id>.jsonl`. cwd encoding: leading `/`→leading `-`, every `/`→`-` (and `.`→`-`). Pin the filename with `--session-id <uuid>` (verified). | `~/.codex/sessions/**/rollout-*.jsonl` — **may be `.jsonl.zst` (zstd-compressed)** on recent versions. Unverified — must check on a real install. | `~/.gemini/tmp/<hash>/` chat/checkpoint files; format/path unverified. |
-| 8 | MCP config (Phase 2 note) | `--mcp-config <file.json>` to load servers; `--strict-mcp-config` to use ONLY those (ignore user/global MCP); `claude mcp ...` subcommands to manage. | `~/.codex/config.toml` `[mcp_servers.*]` blocks. Unverified. | `.gemini/settings.json` `mcpServers` map, or `gemini mcp add`. Unverified. |
+| #   | Capability                        | Claude Code (VERIFIED v2.1.168)                                                                                                                                                                                                                         | Codex CLI (UNVERIFIED — from docs)                                                                                                                | Gemini CLI (UNVERIFIED — from docs)                                                                      |
+| --- | --------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------- |
+| 1   | Binary on PATH?                   | **YES** `~/Jarv1s/.local/bin/claude`, v2.1.168                                                                                                                                                                                                         | **NO — UNAVAILABLE, verify later**                                                                                                                | **NO — UNAVAILABLE, verify later**                                                                       |
+| 2   | Launch persona injection          | `--append-system-prompt "<text>"` **or** `--append-system-prompt-file <path>` (both verified). `--system-prompt[-file]` _replaces_ the default prompt; the append form is what Jarv1s wants.                                                            | `~/.codex/config.toml` `model_instructions_file` / project `AGENTS.md`; experimental `developer_instructions`. Unverified.                        | `GEMINI_SYSTEM_MD=<path>` env var to load a system prompt file; or `.gemini/` context files. Unverified. |
+| 3   | Persona survives `/clear`?        | **YES — verified.** After `/clear`, a re-asked identity question still returned the persona token. The launch system prompt is reapplied; `/clear` only drops conversation history.                                                                     | Unknown — verify. Codex `/clear`-equivalent behavior with `model_instructions_file` unconfirmed.                                                  | Unknown — verify. Whether `GEMINI_SYSTEM_MD` persists across the new-chat command unconfirmed.           |
+| 4   | "New conversation" command        | `/clear` — clears conversation history/context for the current session, keeps the same process + launch system prompt + CLAUDE.md. (No `/new` on this version.)                                                                                         | Likely `/new` and/or `/clear` (unverified).                                                                                                       | Likely `/clear` or `/chat new` (unverified).                                                             |
+| 5   | Disable native shell/file tools   | **Use an ALLOWLIST: `--tools ""`** (empty = disable ALL built-in tools). **VERIFIED** to block Bash _and_ the workaround tools (Monitor/Task/agents). `--disallowedTools "Bash ..."` is a DENYLIST and is **insufficient** (see finding F1).            | `approval_policy` / `sandbox_mode` in config; no confirmed per-tool allowlist. Unverified — treat as unknown.                                     | `--allowed-tools` / `coreTools` settings or `--sandbox`. Unverified.                                     |
+| 6   | Launch WITHOUT bypass-permissions | `--permission-mode default` (**VERIFIED** to override this host's global `bypassPermissions` default). Simply _not_ passing `--dangerously-skip-permissions` is NOT enough here — see F2.                                                               | Default is interactive approval; bypass is an explicit `--dangerously-bypass-approvals-and-sandbox` / `--yolo`. Don't pass it. Unverified.        | Default prompts for approval; `--yolo` / `--approval-mode auto` bypasses. Don't pass it. Unverified.     |
+| 7   | Transcript path + format          | **Plain `.jsonl`** (one JSON object per line, NOT compressed). Path: `~/.claude/projects/<encoded-cwd>/<session-id>.jsonl`. cwd encoding: leading `/`→leading `-`, every `/`→`-` (and `.`→`-`). Pin the filename with `--session-id <uuid>` (verified). | `~/.codex/sessions/**/rollout-*.jsonl` — **may be `.jsonl.zst` (zstd-compressed)** on recent versions. Unverified — must check on a real install. | `~/.gemini/tmp/<hash>/` chat/checkpoint files; format/path unverified.                                   |
+| 8   | MCP config (Phase 2 note)         | `--mcp-config <file.json>` to load servers; `--strict-mcp-config` to use ONLY those (ignore user/global MCP); `claude mcp ...` subcommands to manage.                                                                                                   | `~/.codex/config.toml` `[mcp_servers.*]` blocks. Unverified.                                                                                      | `.gemini/settings.json` `mcpServers` map, or `gemini mcp add`. Unverified.                               |
 
 ---
 
@@ -70,9 +70,9 @@ Drive it: `tmux send-keys -t <name> "<prompt>"` then a separate `tmux send-keys 
   (reply began with the file persona's token). Not listed as its own line in `--help` but documented
   under `--bare` and confirmed working — prefer this for Jarv1s (cleaner than shell-substituting a
   string, no quoting/escaping hazards).
-- `--system-prompt` / `--system-prompt-file` *replace* the default system prompt entirely. Jarv1s
+- `--system-prompt` / `--system-prompt-file` _replace_ the default system prompt entirely. Jarv1s
   wants the **append** form so the normal Claude Code agent behavior is retained.
-- A project `CLAUDE.md` in the cwd is auto-discovered and loaded too, but that is *project context*,
+- A project `CLAUDE.md` in the cwd is auto-discovered and loaded too, but that is _project context_,
   not the launch persona; do not rely on it for identity (it is also reloaded on `/clear`, so it
   can't distinguish "persona survived" — that's why the test persona was injected via the flag, not
   the file).
@@ -128,7 +128,7 @@ auto-loaded `CLAUDE.md`. No `/new` command on this version. For Jarv1s "start fr
 - **Pin the filename:** `--session-id <uuid>` makes the transcript exactly `<uuid>.jsonl` in that
   dir — VERIFIED with `--session-id 11111111-2222-3333-4444-555555555555` producing
   `.../-tmp-jarvis-spike-claude-test/11111111-2222-3333-4444-555555555555.jsonl`. This lets Jarv1s know
-  the exact transcript path *before* launch instead of globbing for the newest file.
+  the exact transcript path _before_ launch instead of globbing for the newest file.
 - Record schema (observed types): `user`, `assistant`, `system`, `attachment`, `mode`,
   `permission-mode`, `last-prompt`, `ai-title`, `file-history-snapshot`. A `user` record carries:
   `type`, `uuid`, `parentUuid`, `sessionId`, `message` (`{role, content}`), `cwd`, `gitBranch`,
@@ -141,7 +141,7 @@ auto-loaded `CLAUDE.md`. No `/new` command on this version. For Jarv1s "start fr
 - `--mcp-config <file.json | json...>` loads MCP servers for the session.
 - `--strict-mcp-config` uses ONLY the `--mcp-config` servers and ignores all other (user/global)
   MCP configuration. **Jarv1s should use `--strict-mcp-config --mcp-config jarvis-mcp.json`** so the
-  CLI is wired to *only* the Jarv1s MCP server and not the operator's personal MCP servers. (Note: in
+  CLI is wired to _only_ the Jarv1s MCP server and not the operator's personal MCP servers. (Note: in
   this spike the operator's global MCP servers — Gmail, Calendar, codegraph, etc. — were still visible
   to the model precisely because strict-config was not used; with `--tools ""` they were the only
   tools present. Scoping MCP is therefore part of the security posture, not just convenience.)
