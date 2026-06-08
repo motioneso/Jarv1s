@@ -28,8 +28,7 @@ export const queryKeys = {
     detail: (id: string) => ["calendar", "detail", id] as const
   },
   chat: {
-    threads: ["chat", "threads"] as const,
-    messages: (threadId: string | null) => ["chat", "messages", threadId] as const
+    threads: ["chat", "threads"] as const
   },
   email: {
     list: ["email", "list"] as const,

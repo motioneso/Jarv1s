@@ -6,7 +6,6 @@ import { queryKeys } from "./api/query-keys";
 import { AuthScreen } from "./auth/auth-screen";
 import { BriefingsPage } from "./briefings/briefings-page";
 import { CalendarPage } from "./calendar/calendar-page";
-import { ChatPage } from "./chat/chat-page";
 import { EmailPage } from "./email/email-page";
 import { NotificationsPage } from "./notifications/notifications-page";
 import { SettingsPage } from "./settings/settings-page";
@@ -83,7 +82,6 @@ export function App() {
           <Route path="/notifications" element={<NotificationsPage />} />
           <Route path="/calendar" element={<CalendarPage />} />
           <Route path="/email" element={<EmailPage />} />
-          <Route path="/chat" element={<ChatPage />} />
           <Route path="/briefings" element={<BriefingsPage />} />
           <Route path="/settings" element={<SettingsPage me={meQuery.data} />} />
           <Route path="*" element={<Navigate to="/tasks" replace />} />

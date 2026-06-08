@@ -4,55 +4,57 @@ import { type FormEvent, useState } from "react";
 
 import { clearChat, listChatThreads, sendChatTurn } from "../api/client";
 import { queryKeys } from "../api/query-keys";
-import { type TranscriptRecord, useChatStream } from "./use-chat-stream";
+import type { TranscriptRecord } from "./use-chat-stream";
 
 /**
- * Live chat drawer: a simple slide-in panel over the Chat route. Sends user turns to
- * POST /api/chat/turn; the SSE stream (use-chat-stream) is the single source of truth
+ * Live chat drawer: a global slide-out panel mounted in the app shell. Sends user turns
+ * to POST /api/chat/turn; the SSE stream (use-chat-stream) is the single source of truth
  * for rendered records. The backend emits both the user echo and the assistant reply
  * over the stream, so Send only POSTs the turn — it does NOT append the POST response,
  * which would double-render every turn.
+ *
+ * The stream + records live in the shell (lifted above this component) so the transcript
+ * keeps streaming and persists while the drawer is closed and as the user navigates
+ * between pages — the chat follows the user. This component only renders the chrome.
  */
-export function ChatDrawer(props: { readonly open: boolean; readonly onClose: () => void }) {
-  const { records, clearRecords } = useChatStream();
-
+export function ChatDrawer(props: {
+  readonly open: boolean;
+  readonly onClose: () => void;
+  readonly records: readonly TranscriptRecord[];
+  readonly clearRecords: () => void;
+}) {
   if (!props.open) {
     return null;
   }
 
+  // Non-modal: no full-screen scrim. The drawer floats over the right edge while the
+  // rest of the app (including the nav) stays interactive, so it can stay open as the
+  // user moves between pages — a support-chat-style widget. Close via the X or the toggle.
   return (
-    <>
-      <button
-        aria-label="Close live chat"
-        className="chat-drawer-scrim"
-        type="button"
-        onClick={props.onClose}
-      />
-      <aside className="chat-drawer" aria-label="Live chat">
-        <div className="chat-drawer-header">
-          <div className="panel-heading">
-            <Bot size={20} aria-hidden="true" />
-            <h2>Live chat</h2>
-          </div>
-          <span className="provider-indicator" aria-label="Active provider">
-            CLI
-          </span>
-          <button
-            aria-label="Close live chat"
-            className="icon-button"
-            type="button"
-            onClick={props.onClose}
-          >
-            <X size={18} aria-hidden="true" />
-          </button>
+    <aside className="chat-drawer" aria-label="Live chat">
+      <div className="chat-drawer-header">
+        <div className="panel-heading">
+          <Bot size={20} aria-hidden="true" />
+          <h2>Live chat</h2>
         </div>
+        <span className="provider-indicator" aria-label="Active provider">
+          CLI
+        </span>
+        <button
+          aria-label="Close live chat"
+          className="icon-button"
+          type="button"
+          onClick={props.onClose}
+        >
+          <X size={18} aria-hidden="true" />
+        </button>
+      </div>
 
-        <NewChatButton onCleared={clearRecords} />
-        <RecordLog records={records} />
-        <ThreadHistory />
-        <DrawerComposer />
-      </aside>
-    </>
+      <NewChatButton onCleared={props.clearRecords} />
+      <RecordLog records={props.records} />
+      <ThreadHistory />
+      <DrawerComposer />
+    </aside>
   );
 }
 
