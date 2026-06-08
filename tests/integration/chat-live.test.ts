@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { beforeAll, describe, expect, it } from "vitest";
 import pg from "pg";
 import { connectionStrings, resetFoundationDatabase } from "./test-database.js";
 const { Client } = pg;
