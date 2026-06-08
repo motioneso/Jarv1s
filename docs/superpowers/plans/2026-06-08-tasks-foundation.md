@@ -284,31 +284,29 @@ git commit -m "feat(tasks): migration 0039 — lists/tags/preferences + task col
 
 ---
 
-## Task 2: `@jarv1s/db` types — new tables, narrowed status, actor_kind
+## Task 2: `@jarv1s/db` types — new tables, columns, actor_kind
+
+> **Sequencing note (discovered during build):** do **NOT** narrow `TaskStatus` here. `pnpm typecheck` includes the **web** app (Plan 3 scope); narrowing the union now breaks web typecheck and violates green-per-commit. In Plan 1, `in_progress` is rejected *behaviorally* at the route layer (Task 9). The **type/schema narrowing of `TaskStatus`/`TASK_STATUSES` + the web updates + the type-level guard test are an atomic task in Plan 3.** `TaskStatus` keeps `in_progress` as a value for now (the DB enum keeps it regardless).
 
 **Files:**
 - Modify: `packages/db/src/types.ts` (the tasks region ~143–175 + the `JarvisDatabase` table map ~435)
 
-- [ ] **Step 1: Write the failing test** (a typecheck-level guard in `tasks.test.ts`)
+- [ ] **Step 1: Write the failing test** (`tasks.test.ts`) — use RAW `sql` (typed tables land in this task, but keep the assertion behavioral)
 
 ```ts
-it("db types: TaskStatus excludes in_progress", () => {
-  const valid: TaskStatus[] = ["todo", "done", "archived"];
-  // @ts-expect-error in_progress is retired
-  const invalid: TaskStatus = "in_progress";
-  expect(valid).toContain("todo");
-  expect(invalid).toBeDefined();
+it("db types: new task columns and tables are queryable", async () => {
+  const cols = await sql<{ column_name: string }>`
+    select column_name from information_schema.columns
+    where table_schema='app' and table_name='tasks'
+      and column_name in ('list_id','parent_task_id','do_at','effort','source','recurrence_series_id')
+  `.execute(appDb);
+  expect(cols.rows.length).toBe(6);
 });
 ```
 
-- [ ] **Step 2: Run it** — `pnpm --filter @jarv1s/db typecheck` (or `pnpm typecheck`). Expected: FAIL (no `@ts-expect-error` needed yet because `in_progress` is still valid → the directive is unused → error).
+- [ ] **Step 2: Run it** — `vitest run tests/integration/tasks.test.ts -t "new task columns"`. (This passes already from Task 1's migration; the real deliverable of Task 2 is the TS types compiling against the new columns — verified by typecheck in Step 4.)
 
-- [ ] **Step 3: Edit `packages/db/src/types.ts`**
-
-```ts
-export type TaskStatus = "todo" | "done" | "archived";
-```
-Extend `TasksTable` with the new columns:
+- [ ] **Step 3: Edit `packages/db/src/types.ts`** — **keep `TaskStatus` as-is** (`"todo" | "in_progress" | "done" | "archived"`). Extend `TasksTable` with the new columns:
 ```ts
 export interface TasksTable {
   id: string;
@@ -392,7 +390,9 @@ git commit -m "feat(db): tasks foundation table types; narrow TaskStatus; add ac
 
 ---
 
-## Task 3: `@jarv1s/shared` contract — narrow status, extend Task DTO, List/Tag DTOs
+## Task 3: `@jarv1s/shared` contract — extend Task DTO, List/Tag DTOs (status narrowing deferred to Plan 3)
+
+> **Do NOT narrow `TASK_STATUSES` here** (same reason as Task 2 — it would break web typecheck). `in_progress` stays in the union/schema for now; behavioral rejection is at the route layer (Task 9). Plan 3 narrows the type + updates web atomically.
 
 **Files:**
 - Modify: `packages/shared/src/tasks-api.ts`
@@ -400,16 +400,19 @@ git commit -m "feat(db): tasks foundation table types; narrow TaskStatus; add ac
 - [ ] **Step 1: Write the failing test** (`tasks.test.ts`)
 
 ```ts
-it("shared: TASK_STATUSES is the narrowed set and create accepts new fields", () => {
-  expect([...TASK_STATUSES]).toEqual(["todo", "done", "archived"]);
+it("shared: Task DTO carries the new fields", () => {
+  // compile-time guard: a TaskDto literal must accept the new fields
+  const dto: Pick<TaskDto, "listId" | "doAt" | "effort" | "source"> = {
+    listId: "x", doAt: null, effort: "quick", source: "manual"
+  };
+  expect(dto.source).toBe("manual");
 });
 ```
-(Add `TASK_STATUSES` to the test's imports from `@jarv1s/shared`.)
+(Add `TaskDto` to the test's type imports from `@jarv1s/shared`.)
 
-- [ ] **Step 2: Run** — `vitest run tests/integration/tasks.test.ts -t "TASK_STATUSES"`. Expected: FAIL (`in_progress` still present).
+- [ ] **Step 2: Run** — `pnpm --filter @jarv1s/shared typecheck`. Expected: FAIL (`listId`/`doAt`/`effort` not on `TaskDto` yet).
 
-- [ ] **Step 3: Edit `packages/shared/src/tasks-api.ts`**
-- Narrow: `export const TASK_STATUSES = ["todo", "done", "archived"] as const;`
+- [ ] **Step 3: Edit `packages/shared/src/tasks-api.ts`** — **keep `TASK_STATUSES` as-is.**
 - Extend `TaskDto` with: `listId: string; parentTaskId: string | null; position: number; doAt: string | null; effort: "quick"|"medium"|"large"|null; source: string; sourceRef: string | null;` and the matching `taskDtoSchema` properties + `required`.
 - Change `priority` schema in `createTaskRequestSchema`/`updateTaskRequestSchema` to `{ anyOf: [{ type: "integer", minimum: 1, maximum: 5 }, { type: "null" }] }`.
 - Add to create/update request schemas: `listId` (string, optional), `doAt` (nullable string), `effort` (`{ anyOf: [{ type:"string", enum:["quick","medium","large"] }, { type:"null" }] }`), `recurrence` (nullable object).
@@ -701,7 +704,9 @@ git commit -m "feat(tasks): drift (overdue/at-risk Medium+) and focus queries"
 
 - [ ] **Step 2: Run** → FAIL.
 
-- [ ] **Step 3: Implement** new routes in `routes.ts` (reuse the existing `withDataContext` + `handleRouteError` pattern), register them in `manifest.ts` `routes` with their `@jarv1s/shared` schemas, and tighten `optionalTaskStatus`/`parseDeferredStatusBody` to reject `in_progress` (the narrowed `taskStatusSchema` already rejects it at the body-validation layer; assert the 400).
+- [ ] **Step 3: Implement** new routes in `routes.ts` (reuse the existing `withDataContext` + `handleRouteError` pattern), register them in `manifest.ts` `routes` with their `@jarv1s/shared` schemas. **Reject `in_progress` behaviorally** (the JSON schema still lists it — type narrowing is Plan 3): in `optionalTaskStatus`/`requiredTaskStatus`/`parseDeferredStatusBody`, explicitly `throw new HttpError(400, "status is invalid")` when the value is `"in_progress"`. Assert the inverted test gets 400.
+
+> **Deferred to Plan 3 (atomic with web):** narrow `TASK_STATUSES`/`@jarv1s/shared` + `@jarv1s/db` `TaskStatus` to `todo|done|archived`, update `apps/web/src/tasks/task-format.ts` + `tasks-page.tsx`, and remove the now-redundant runtime guard. Doing it there keeps every Plan 1 commit's `pnpm typecheck` (which includes web) green.
 
 - [ ] **Step 4: Run** — `pnpm test:tasks` → PASS.
 
