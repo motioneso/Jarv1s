@@ -38,25 +38,25 @@ stub-based integration tests then insert 768-dim vectors that match the migrated
 
 ## File Structure (created / modified)
 
-| Action | File | Responsibility |
-|--------|------|----------------|
-| Modify | `packages/memory/package.json` | Add `@huggingface/transformers` dependency |
-| Modify | `packages/memory/sql/0030_memory_index.sql` | **Do not edit** (applied migration) — listed only as the table it builds on |
-| Create | `packages/memory/sql/0031_memory_embedding_768.sql` | Widen to `vector(768)`, add provenance cols, add `memory_file_index` table + RLS + grants |
-| Modify | `packages/memory/src/manifest.ts` | Register new migration + owned table |
-| Modify | `packages/db/src/types.ts` | Provenance cols on `MemoryChunksTable`; new `MemoryFileIndexTable`; register in `JarvisDatabase` |
-| Modify | `packages/memory/src/embedding-provider.ts` | New interface (`embedDocument`/`embedQuery`, `modelName`/`modelVersion`); stub → 768 dims |
-| Create | `packages/memory/src/local-embedding-provider.ts` | `LocalEmbeddingProvider` (nomic-embed-text-v1.5) |
-| Create | `packages/memory/src/embedding-provider-config.ts` | `EmbeddingProviderConfig`, `createEmbeddingProvider`, `getEmbeddingProviderConfig` |
-| Modify | `packages/memory/src/repository.ts` | File-index methods; `upsertFileChunks` writes provenance |
-| Modify | `packages/memory/src/ingest.ts` | Idempotent `ingestFile`; `purgeDeletedFiles`; `deleteFile` clears index |
-| Modify | `packages/memory/src/retrieval.ts` | Use `embedQuery` |
-| Create | `packages/memory/src/ingestion-service.ts` | `IngestionService` (scan loop, stats, error isolation) |
-| Modify | `packages/memory/src/index.ts` | Export new symbols |
-| Create | `scripts/ingest-vault.ts` | Thin CLI caller |
-| Modify | `package.json` (root) | Add `ingest:vault` + `test:memory:local` scripts |
-| Modify | `tests/integration/memory.test.ts` | Migrate to `embedDocument`/`embedQuery`; add idempotency/purge/service tests |
-| Create | `tests/slow/memory-local-embed.test.ts` | Real-embedding end-to-end test (excluded from `verify:foundation`) |
+| Action | File                                                | Responsibility                                                                                   |
+| ------ | --------------------------------------------------- | ------------------------------------------------------------------------------------------------ |
+| Modify | `packages/memory/package.json`                      | Add `@huggingface/transformers` dependency                                                       |
+| Modify | `packages/memory/sql/0030_memory_index.sql`         | **Do not edit** (applied migration) — listed only as the table it builds on                      |
+| Create | `packages/memory/sql/0031_memory_embedding_768.sql` | Widen to `vector(768)`, add provenance cols, add `memory_file_index` table + RLS + grants        |
+| Modify | `packages/memory/src/manifest.ts`                   | Register new migration + owned table                                                             |
+| Modify | `packages/db/src/types.ts`                          | Provenance cols on `MemoryChunksTable`; new `MemoryFileIndexTable`; register in `JarvisDatabase` |
+| Modify | `packages/memory/src/embedding-provider.ts`         | New interface (`embedDocument`/`embedQuery`, `modelName`/`modelVersion`); stub → 768 dims        |
+| Create | `packages/memory/src/local-embedding-provider.ts`   | `LocalEmbeddingProvider` (nomic-embed-text-v1.5)                                                 |
+| Create | `packages/memory/src/embedding-provider-config.ts`  | `EmbeddingProviderConfig`, `createEmbeddingProvider`, `getEmbeddingProviderConfig`               |
+| Modify | `packages/memory/src/repository.ts`                 | File-index methods; `upsertFileChunks` writes provenance                                         |
+| Modify | `packages/memory/src/ingest.ts`                     | Idempotent `ingestFile`; `purgeDeletedFiles`; `deleteFile` clears index                          |
+| Modify | `packages/memory/src/retrieval.ts`                  | Use `embedQuery`                                                                                 |
+| Create | `packages/memory/src/ingestion-service.ts`          | `IngestionService` (scan loop, stats, error isolation)                                           |
+| Modify | `packages/memory/src/index.ts`                      | Export new symbols                                                                               |
+| Create | `scripts/ingest-vault.ts`                           | Thin CLI caller                                                                                  |
+| Modify | `package.json` (root)                               | Add `ingest:vault` + `test:memory:local` scripts                                                 |
+| Modify | `tests/integration/memory.test.ts`                  | Migrate to `embedDocument`/`embedQuery`; add idempotency/purge/service tests                     |
+| Create | `tests/slow/memory-local-embed.test.ts`             | Real-embedding end-to-end test (excluded from `verify:foundation`)                               |
 
 **Commit-green ordering:** Each task below leaves `pnpm verify:foundation` green. Task 2 is purely
 additive (stub bumped to 768, `embed()` retained). Task 5 performs the interface cutover (removes
@@ -67,6 +67,7 @@ additive (stub bumped to 768, `embed()` retained). Task 5 performs the interface
 ## Task 1: Add the embedding runtime dependency
 
 **Files:**
+
 - Modify: `packages/memory/package.json`
 
 - [ ] **Step 1: Add the dependency**
@@ -106,10 +107,11 @@ git commit -m "build(memory): add @huggingface/transformers for local embeddings
 ## Task 2: Schema migration to 768 dims + provenance + file-index table (additive, green)
 
 This task widens the vector column, adds provenance, creates the idempotency table, updates Kysely
-types, and bumps the stub to 768 — all without changing the embedding *interface* yet. `embed()` is
+types, and bumps the stub to 768 — all without changing the embedding _interface_ yet. `embed()` is
 retained so existing callers keep compiling.
 
 **Files:**
+
 - Create: `packages/memory/sql/0031_memory_embedding_768.sql`
 - Modify: `packages/memory/src/manifest.ts`
 - Modify: `packages/db/src/types.ts`
@@ -356,6 +358,7 @@ git commit -m "feat(memory): widen embeddings to 768 dims, add provenance + file
 ## Task 3: Repository — file-index methods + provenance on chunk insert
 
 **Files:**
+
 - Modify: `packages/memory/src/repository.ts`
 - Test: `tests/integration/memory.test.ts`
 
@@ -531,14 +534,14 @@ Add the file-index methods (anywhere in the class, e.g. after `replaceFileLinks`
 two new args using the provider's provenance fields:
 
 ```ts
-    await this.repository.upsertFileChunks(
-      scopedDb,
-      vaultCtx.actorUserId,
-      relativePath,
-      newChunks,
-      this.embeddingProvider.modelName,
-      this.embeddingProvider.modelVersion
-    );
+await this.repository.upsertFileChunks(
+  scopedDb,
+  vaultCtx.actorUserId,
+  relativePath,
+  newChunks,
+  this.embeddingProvider.modelName,
+  this.embeddingProvider.modelVersion
+);
 ```
 
 (The pipeline still uses `this.embeddingProvider.embed(...)` for now — that is migrated in Task 5.)
@@ -561,6 +564,7 @@ git commit -m "feat(memory): file-index repository methods + chunk provenance"
 ## Task 4: Idempotent + incremental ingestion + purge
 
 **Files:**
+
 - Modify: `packages/memory/src/ingest.ts`
 - Test: `tests/integration/memory.test.ts`
 
@@ -808,6 +812,7 @@ git commit -m "feat(memory): idempotent incremental ingest + purge of deleted fi
 ## Task 5: Interface cutover — retrieval uses `embedQuery`, remove `embed()`
 
 **Files:**
+
 - Modify: `packages/memory/src/retrieval.ts`
 - Modify: `packages/memory/src/embedding-provider.ts`
 - Test: `tests/integration/memory.test.ts` (existing retrieval test still passes)
@@ -857,6 +862,7 @@ git commit -m "refactor(memory): retrieval uses embedQuery; drop deprecated embe
 ## Task 6: LocalEmbeddingProvider + config factory
 
 **Files:**
+
 - Create: `packages/memory/src/local-embedding-provider.ts`
 - Create: `packages/memory/src/embedding-provider-config.ts`
 - Modify: `packages/memory/src/index.ts`
@@ -964,7 +970,10 @@ export type {
   EmbeddingProviderConfig,
   EmbeddingProviderKind
 } from "./embedding-provider-config.js";
-export { createEmbeddingProvider, getEmbeddingProviderConfig } from "./embedding-provider-config.js";
+export {
+  createEmbeddingProvider,
+  getEmbeddingProviderConfig
+} from "./embedding-provider-config.js";
 export type { IngestFileOptions, IngestFileResult, IngestStatus } from "./ingest.js";
 ```
 
@@ -986,6 +995,7 @@ git commit -m "feat(memory): LocalEmbeddingProvider + config factory (nomic-embe
 ## Task 7: IngestionService
 
 **Files:**
+
 - Create: `packages/memory/src/ingestion-service.ts`
 - Modify: `packages/memory/src/index.ts`
 - Test: `tests/integration/memory.test.ts`
@@ -1085,7 +1095,9 @@ export class IngestionService {
     const stats: IngestStats = { processed: 0, skipped: 0, deleted: 0, failed: [] };
 
     const allFiles = (await listVaultFilesRecursive(vaultCtx)).filter((f) => f.endsWith(".md"));
-    const targets = options.sourcePath ? allFiles.filter((f) => f === options.sourcePath) : allFiles;
+    const targets = options.sourcePath
+      ? allFiles.filter((f) => f === options.sourcePath)
+      : allFiles;
 
     // One transaction PER FILE so a SQL failure on one file does not poison the rest.
     // (withDataContext wraps its callback in a single Postgres transaction; a failed
@@ -1152,6 +1164,7 @@ git commit -m "feat(memory): IngestionService with stats + error isolation + pur
 ## Task 8: CLI entry point
 
 **Files:**
+
 - Create: `scripts/ingest-vault.ts`
 - Modify: `package.json` (root)
 
@@ -1276,6 +1289,7 @@ git commit -m "feat(memory): ingest:vault CLI as thin IngestionService caller"
 ## Task 9: Real-embedding end-to-end test (slow path)
 
 **Files:**
+
 - Create: `tests/slow/memory-local-embed.test.ts`
 
 This test downloads the model (~274 MB) on first run, so it lives in `tests/slow/` and is **not**
@@ -1462,6 +1476,7 @@ git commit -m "test(memory): real nomic-embed-text-v1.5 end-to-end semantic sear
 ## Task 10: Final verification + docs + milestone bookkeeping
 
 **Files:**
+
 - Modify: `docs/STATUS.md`
 
 - [ ] **Step 1: Full foundation gate**
@@ -1489,6 +1504,7 @@ Expected: PASS. Confirm `ingest.ts`, `ingestion-service.ts`, and `repository.ts`
 - [ ] **Step 5: Update STATUS.md**
 
 Edit `docs/STATUS.md`:
+
 - "Last known-good state" → bump to **30 migrations applied** and the new integration test count
   (record the actual number `pnpm test:integration` reports).
 - "Next step" → `M-A2 · Surface the substrate (REST + UI)` once M-A1 exit criteria are checked off.
