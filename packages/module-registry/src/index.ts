@@ -21,10 +21,8 @@ import {
   registerCalendarRoutes
 } from "@jarv1s/calendar";
 import {
-  CHAT_EXECUTION_QUEUE,
   chatModuleManifest,
   chatModuleSqlMigrationDirectory,
-  registerChatJobWorkers,
   registerChatRoutes,
   type ChatEngineFactory
 } from "@jarv1s/chat";
@@ -134,18 +132,8 @@ const BUILT_IN_MODULES: readonly BuiltInModuleRegistration[] = [
   {
     manifest: chatModuleManifest,
     sqlMigrationDirectories: [chatModuleSqlMigrationDirectory],
-    queueDefinitions: [
-      {
-        name: CHAT_EXECUTION_QUEUE,
-        options: {
-          retryLimit: 0,
-          deleteAfterSeconds: 300,
-          retentionSeconds: 300
-        }
-      }
-    ],
-    registerRoutes: registerChatRoutes,
-    registerWorkers: (boss, dependencies) => registerChatJobWorkers(boss, dependencies.dataContext)
+    queueDefinitions: [],
+    registerRoutes: registerChatRoutes
   },
   {
     manifest: briefingsModuleManifest,
