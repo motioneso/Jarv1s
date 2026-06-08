@@ -221,20 +221,6 @@ describe("TmuxCliChatEngine — submit + readNew", () => {
 });
 
 describe("TmuxCliChatEngine — lifecycle", () => {
-  it("clear() sends /clear into the session", async () => {
-    const io = fakeIo();
-    const engine = new TmuxCliChatEngine("anthropic", "thread-clear", io, {
-      launchMs: 0,
-      submitMs: 0
-    });
-    await engine.launch({ neutralDir: "/tmp/jarvis/thread-clear", personaPath: "/p.md" });
-
-    io.runCalls.length = 0;
-    await engine.clear();
-
-    expect(flat(io)).toContain("/clear");
-  });
-
   it("isAlive() checks the tmux session via has-session", async () => {
     const io = fakeIo();
     const engine = new TmuxCliChatEngine("anthropic", "thread-alive", io, { launchMs: 0 });

@@ -44,10 +44,6 @@ class FakeLiveEngine implements CliChatEngine {
     this.pending = [{ kind: "reply", text: `echo:${text}` }];
   }
 
-  async clear(): Promise<void> {
-    this.pending = [];
-  }
-
   async readNew(
     afterOffset: number
   ): Promise<{ records: TranscriptRecord[]; offset: number; complete: boolean }> {

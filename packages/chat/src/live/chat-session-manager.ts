@@ -236,14 +236,19 @@ export class ChatSessionManager {
   }
 
   /**
-   * /clear: reset the live engine's in-session history (if any) and open a fresh
-   * stored conversation. The engine process survives; the offset is reset.
+   * /clear: start a fresh conversation. Rather than sending the CLI's `/clear`
+   * (which rotates the transcript to a NEW session-id file the engine can't read —
+   * its path is pinned at launch — so post-clear turns either replay the previous
+   * reply or time out), we drop the live engine entirely. The next submitTurn
+   * lazily relaunches a fresh engine with a new KNOWN transcript path; because
+   * openNewConversation() clears the stored turns, nothing is replayed — a clean,
+   * contextless reset that matches the "known path, no globbing" launch design.
    */
   async clear(actorUserId: string): Promise<void> {
     const session = this.sessions.get(actorUserId);
     if (session) {
-      await session.engine.clear();
-      session.transcriptOffset = 0;
+      await session.engine.kill();
+      this.sessions.delete(actorUserId);
     }
     await this.deps.persistence.openNewConversation(actorUserId);
   }

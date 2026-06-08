@@ -316,10 +316,7 @@ export class ChatRepository {
    * Creates a new chat thread stamped active now, making it the most-recent (and
    * therefore "current") conversation for the owner.
    */
-  async openNewThread(
-    scopedDb: DataContextDb,
-    input: CreateChatThreadInput
-  ): Promise<ChatThread> {
+  async openNewThread(scopedDb: DataContextDb, input: CreateChatThreadInput): Promise<ChatThread> {
     assertDataContextDb(scopedDb);
 
     const now = new Date();
@@ -387,10 +384,7 @@ export class ChatRepository {
    * Bumps a thread's last_active_at to now so it becomes the current conversation.
    * Owner-scoped via RLS; app_runtime holds UPDATE on chat_threads.
    */
-  async touchThread(
-    scopedDb: DataContextDb,
-    threadId: string
-  ): Promise<ChatThread | undefined> {
+  async touchThread(scopedDb: DataContextDb, threadId: string): Promise<ChatThread | undefined> {
     assertDataContextDb(scopedDb);
 
     return scopedDb.db
