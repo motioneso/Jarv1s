@@ -2,6 +2,8 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Bot, LoaderCircle, MessageSquare, Plus, Send, UserCircle } from "lucide-react";
 import { type FormEvent, useEffect, useMemo, useState } from "react";
 
+import type { ChatMessageStatus } from "@jarv1s/shared";
+
 import {
   appendChatUserMessage,
   createChatThread,
@@ -23,7 +25,14 @@ export function ChatPage() {
   const messagesQuery = useQuery({
     enabled: activeThreadId !== null,
     queryKey: queryKeys.chat.messages(activeThreadId),
-    queryFn: () => listChatMessages(activeThreadId ?? "")
+    queryFn: () => listChatMessages(activeThreadId ?? ""),
+    refetchInterval: (query) => {
+      const messages = query.state.data?.messages ?? [];
+      const isLive = messages.some(
+        (m) => m.status === "pending" || m.status === "working"
+      );
+      return isLive ? 1500 : false;
+    }
   });
   const routeQuery = useQuery({
     queryKey: queryKeys.ai.capability("chat"),
@@ -249,10 +258,53 @@ function MessageList(props: {
                 <span key={tool.name}>{tool.name}</span>
               ))}
             </div>
-            <p>{message.body}</p>
+            <AssistantMessageBody
+              status={message.status}
+              body={message.body}
+              activity={message.activity}
+              role={message.role}
+            />
           </div>
         </article>
       ))}
+    </div>
+  );
+}
+
+function AssistantMessageBody(props: {
+  readonly role: string;
+  readonly status: ChatMessageStatus;
+  readonly body: string;
+  readonly activity: readonly { readonly kind: string; readonly text: string }[];
+}) {
+  const isLive = props.status === "pending" || props.status === "working";
+  const showActivity = props.activity.length > 0;
+
+  if (props.role !== "assistant") {
+    return <p>{props.body}</p>;
+  }
+
+  return (
+    <div>
+      {isLive && !showActivity ? <p className="muted-text">Working...</p> : null}
+      {showActivity ? (
+        <details className="activity-panel">
+          <summary>
+            {isLive ? "Working... " : ""}Agent activity ({props.activity.length} events)
+          </summary>
+          <ul className="activity-list">
+            {props.activity.map((event, index) => (
+              <li className="activity-item" key={index}>
+                <strong>{event.kind}</strong> {event.text}
+              </li>
+            ))}
+          </ul>
+        </details>
+      ) : null}
+      {!isLive && props.body ? <p>{props.body}</p> : null}
+      {props.status === "error" ? (
+        <p className="form-error">An error occurred while generating the response.</p>
+      ) : null}
     </div>
   );
 }
