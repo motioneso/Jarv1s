@@ -201,6 +201,25 @@ export async function appendChatUserMessage(
   );
 }
 
+export async function sendChatTurn(text: string): Promise<{ reply: string }> {
+  return requestJson<{ reply: string }>("/api/chat/turn", {
+    method: "POST",
+    body: { text }
+  });
+}
+
+export async function clearChat(): Promise<void> {
+  await requestJson<unknown>("/api/chat/clear", { method: "POST" });
+}
+
+export async function switchChatProvider(): Promise<void> {
+  await requestJson<unknown>("/api/chat/switch", { method: "POST" });
+}
+
+export function chatStreamUrl(): string {
+  return "/api/chat/stream";
+}
+
 export async function getEmailMessage(id: string): Promise<GetEmailMessageResponse> {
   return requestJson<GetEmailMessageResponse>(`/api/email/messages/${encodeURIComponent(id)}`);
 }

@@ -776,6 +776,68 @@ a:focus-visible {
   display: none;
 }
 
+.chat-drawer-scrim {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  border: 0;
+  background: rgb(15 23 42 / 0.35);
+  cursor: pointer;
+}
+
+.chat-drawer {
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 50;
+  width: min(28rem, 100vw);
+  display: grid;
+  grid-template-rows: auto auto 1fr auto auto;
+  gap: 0.75rem;
+  background: var(--surface, #ffffff);
+  border-left: 1px solid var(--border);
+  box-shadow: -8px 0 24px rgb(15 23 42 / 0.12);
+  padding: 1rem;
+  overflow-y: auto;
+}
+
+.chat-drawer-header {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.chat-drawer-header .panel-heading {
+  flex: 1;
+}
+
+.chat-drawer-actions {
+  display: grid;
+  gap: 0.4rem;
+  justify-items: start;
+}
+
+.provider-indicator {
+  border-radius: 999px;
+  background: #edf0f2;
+  color: var(--muted);
+  padding: 0.15rem 0.55rem;
+  font-size: 0.75rem;
+  font-weight: 750;
+}
+
+.chat-activity-line {
+  margin: 0;
+  font-size: 0.85rem;
+}
+
+.chat-history summary {
+  cursor: pointer;
+  color: var(--muted);
+  font-weight: 750;
+}
+
 @keyframes spin {
   to {
     transform: rotate(360deg);
