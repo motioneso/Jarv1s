@@ -49,7 +49,7 @@ export function AppShell(props: AppShellProps) {
   const unreadCount = notificationsQuery.data?.unreadCount ?? 0;
   const signOutMutation = useMutation({
     mutationFn: signOut,
-    onSettled: () => {
+    onSuccess: () => {
       queryClient.clear();
       window.location.assign("/");
     }
@@ -118,11 +118,12 @@ export function AppShell(props: AppShellProps) {
           <button
             className="ghost-button"
             disabled={signOutMutation.isPending}
+            title={signOutMutation.error ? signOutMutation.error.message : undefined}
             type="button"
             onClick={() => signOutMutation.mutate()}
           >
             <LogOut size={18} aria-hidden="true" />
-            Sign out
+            {signOutMutation.error ? "Sign out failed — retry?" : "Sign out"}
           </button>
         </header>
 

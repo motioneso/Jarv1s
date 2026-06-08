@@ -217,9 +217,16 @@ function TaskRow(props: {
 
   return (
     <article className={`task-row ${done ? "done" : ""}`}>
-      <div className="task-status-icon" aria-hidden="true">
+      <button
+        aria-label={done ? `Mark ${props.task.title} as todo` : `Mark ${props.task.title} as done`}
+        className="task-status-icon icon-button"
+        disabled={props.isUpdating}
+        title={done ? "Mark as todo" : "Mark as done"}
+        type="button"
+        onClick={() => props.onStatusChange(done ? "todo" : "done")}
+      >
         {done ? <CheckCircle2 size={22} /> : <Circle size={22} />}
-      </div>
+      </button>
       <div className="task-row-main">
         <Link className="task-title-link" to={`/tasks/${props.task.id}`}>
           {props.task.title}

@@ -10,7 +10,12 @@ export default defineConfig({
     proxy: {
       "/api": {
         target: apiTarget,
-        changeOrigin: true
+        changeOrigin: true,
+        configure: (proxy) => {
+          proxy.on("proxyReq", (proxyReq) => {
+            proxyReq.setHeader("Origin", apiTarget);
+          });
+        }
       },
       "/health": {
         target: apiTarget,

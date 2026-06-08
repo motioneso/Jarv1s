@@ -36,6 +36,7 @@ import type {
   ListEmailMessagesResponse,
   ListModulesResponse,
   ListNotificationsResponse,
+  ListTaskActivityResponse,
   ListTasksResponse,
   ListWorkspacesResponse,
   MarkAllNotificationsReadResponse,
@@ -113,6 +114,10 @@ export async function signOut(): Promise<void> {
   await requestJson<unknown>("/api/auth/sign-out", {
     method: "POST"
   });
+}
+
+export async function listTaskActivity(taskId: string): Promise<ListTaskActivityResponse> {
+  return requestJson<ListTaskActivityResponse>(`/api/tasks/${encodeURIComponent(taskId)}/activity`);
 }
 
 export async function listTasks(): Promise<ListTasksResponse> {
