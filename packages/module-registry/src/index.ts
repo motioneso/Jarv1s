@@ -25,7 +25,8 @@ import {
   chatModuleManifest,
   chatModuleSqlMigrationDirectory,
   registerChatJobWorkers,
-  registerChatRoutes
+  registerChatRoutes,
+  type ChatEngineFactory
 } from "@jarv1s/chat";
 import {
   connectorsModuleManifest,
@@ -55,6 +56,8 @@ import {
   tasksModuleSqlMigrationDirectory
 } from "@jarv1s/tasks";
 
+export type { ChatEngineFactory } from "@jarv1s/chat";
+
 export interface BuiltInRouteDependencies {
   readonly appDb: Kysely<JarvisDatabase>;
   readonly resolveAccessContext: (request: FastifyRequest) => Promise<AccessContext>;
@@ -62,6 +65,8 @@ export interface BuiltInRouteDependencies {
   readonly listModuleManifests: () => readonly JarvisModuleManifest[];
   readonly dataContext: DataContextRunner;
   readonly boss: PgBoss;
+  /** Override the live-chat engine factory (tests inject a fake); defaults to real tmux. */
+  readonly chatEngineFactory?: ChatEngineFactory;
 }
 
 export interface BuiltInWorkerDependencies {

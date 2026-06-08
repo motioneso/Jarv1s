@@ -18,6 +18,8 @@ import {
   type CreateChatThreadRequest
 } from "@jarv1s/shared";
 
+import { registerChatLiveRoutes } from "./live-routes.js";
+import { createChatSessionRuntime, type ChatEngineFactory } from "./live/runtime.js";
 import { ChatRepository, type ChatExecutionJobPayload } from "./repository.js";
 
 export interface ChatRoutesDependencies {
@@ -26,6 +28,8 @@ export interface ChatRoutesDependencies {
   readonly listModuleManifests: () => readonly JarvisModuleManifest[];
   readonly boss: PgBoss;
   readonly repository?: ChatRepository;
+  /** Override the live-chat engine factory (tests inject a fake); defaults to real tmux. */
+  readonly chatEngineFactory?: ChatEngineFactory;
 }
 
 interface ChatThreadParams {
@@ -39,6 +43,18 @@ export function registerChatRoutes(
   const enqueue = (queueName: string, payload: ChatExecutionJobPayload) =>
     dependencies.boss.send(queueName, payload);
   const repository = dependencies.repository ?? new ChatRepository(undefined, enqueue);
+
+  // Live-chat runtime (in-process CLI engine + DataContext persistence), wired
+  // alongside the worker-backed REST routes. The engine factory is injectable so
+  // integration tests can swap in a fake (no real tmux / `claude`).
+  const runtime = createChatSessionRuntime({
+    dataContext: dependencies.dataContext,
+    engineFactory: dependencies.chatEngineFactory
+  });
+  registerChatLiveRoutes(server, {
+    resolveAccessContext: dependencies.resolveAccessContext,
+    runtime
+  });
 
   server.get(
     "/api/chat/threads",

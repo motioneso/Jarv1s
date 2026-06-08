@@ -11,7 +11,11 @@ import {
   type JarvisDatabase
 } from "@jarv1s/db";
 import { createPgBossClient } from "@jarv1s/jobs";
-import { getBuiltInModuleManifests, registerBuiltInApiRoutes } from "@jarv1s/module-registry";
+import {
+  getBuiltInModuleManifests,
+  registerBuiltInApiRoutes,
+  type ChatEngineFactory
+} from "@jarv1s/module-registry";
 import { listModulesRouteSchema, type ModuleDto } from "@jarv1s/shared";
 
 export interface CreateApiServerOptions {
@@ -19,6 +23,8 @@ export interface CreateApiServerOptions {
   readonly boss?: PgBoss;
   readonly authRuntime?: JarvisAuthRuntime;
   readonly logger?: boolean;
+  /** Override the live-chat engine factory (tests inject a fake); defaults to real tmux. */
+  readonly chatEngineFactory?: ChatEngineFactory;
 }
 
 export function createApiServer(options: CreateApiServerOptions = {}) {
@@ -55,7 +61,8 @@ export function createApiServer(options: CreateApiServerOptions = {}) {
     listConfiguredAuthProviders: authRuntime.listConfiguredProviders,
     listModuleManifests: getBuiltInModuleManifests,
     dataContext,
-    boss
+    boss,
+    chatEngineFactory: options.chatEngineFactory
   });
 
   server.addHook("onReady", async () => {

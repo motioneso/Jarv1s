@@ -339,6 +339,51 @@ export class ChatRepository {
   }
 
   /**
+   * Records a completed live-chat turn WITHOUT enqueuing a pg-boss job: a `stored`
+   * user message followed by a `stored` assistant message whose body is the final
+   * reply and whose model_metadata stamps the executing provider+model under
+   * `executed`. The live runtime drives the CLI in-process and bypasses the worker,
+   * so no job is enqueued and the assistant message is born complete.
+   */
+  async recordCompletedTurn(
+    scopedDb: DataContextDb,
+    threadId: string,
+    userText: string,
+    assistantReply: string,
+    executed: { readonly provider: string; readonly model: string }
+  ): Promise<{ userMessage: ChatMessage; assistantMessage: ChatMessage } | undefined> {
+    assertDataContextDb(scopedDb);
+
+    const thread = await this.getThreadById(scopedDb, threadId);
+
+    if (!thread) {
+      return undefined;
+    }
+
+    const now = new Date();
+    const userMessage = await this.insertMessage(scopedDb, {
+      thread,
+      role: "user",
+      status: "stored",
+      body: userText,
+      modelMetadata: {},
+      toolMetadata: { selectedTools: [] },
+      now
+    });
+    const assistantMessage = await this.insertMessage(scopedDb, {
+      thread,
+      role: "assistant",
+      status: "stored",
+      body: assistantReply,
+      modelMetadata: { executed: { provider: executed.provider, model: executed.model } },
+      toolMetadata: { selectedTools: [] },
+      now
+    });
+
+    return { userMessage, assistantMessage };
+  }
+
+  /**
    * Bumps a thread's last_active_at to now so it becomes the current conversation.
    * Owner-scoped via RLS; app_runtime holds UPDATE on chat_threads.
    */
