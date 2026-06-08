@@ -26,6 +26,7 @@ thread-management page. Nothing currently depends on the legacy model (early day
 ## 2. Goals / Non-goals
 
 **Goals**
+
 - The live chat is a **global slide-out drawer** mounted at the app-shell level, toggled from the
   **Chat** nav item, that persists across page navigation (per-user, follows the user everywhere).
   The `/chat` route and its page are removed.
@@ -34,9 +35,10 @@ thread-management page. Nothing currently depends on the legacy model (early day
   deliberately-retained substrate below.
 
 **Non-goals**
+
 - The fully-docked, always-visible chat panel (the long-run direction — see §6). This spec delivers
-  the global *toggleable* drawer; an always-on docked layout is follow-up.
-- Building API-key chat *into the drawer* (future work — see §4).
+  the global _toggleable_ drawer; an always-on docked layout is follow-up.
+- Building API-key chat _into the drawer_ (future work — see §4).
 - Dropping the `chat_threads` / `chat_messages` tables or their migrations (the live runtime uses
   both; RLS classification unchanged).
 - Touching Phase 2 (MCP tools) or Phase 3 (recall).
@@ -69,6 +71,7 @@ added so a future reader knows it is intentionally kept, not forgotten dead code
 ## 5. Inventory — keep vs remove (verified)
 
 ### Frontend (`apps/web/src`)
+
 - **Remove:** `chat/chat-page.tsx` entirely (the whole legacy page — `CreateThreadForm`, `ThreadList`,
   `RouteStatus`, `ToolSelector`, `MessageList`, `Composer`), the `/chat` `<Route>` + `ChatPage` import
   in `app.tsx`, and the thread/message client functions (`createChatThread`, `getChatThread`,
@@ -83,6 +86,7 @@ added so a future reader knows it is intentionally kept, not forgotten dead code
   and across route changes (today they unmount when the drawer closes — see §6).
 
 ### Backend routes (`packages/chat/src/routes.ts`)
+
 - **Remove:** `POST /api/chat/threads` (create), `GET /api/chat/threads/:id`,
   `GET /api/chat/threads/:id/messages`, `POST /api/chat/threads/:id/messages` (enqueue), plus the
   `boss.send` enqueue wiring and `ChatExecutionJobPayload` usage in this file.
@@ -90,16 +94,19 @@ added so a future reader knows it is intentionally kept, not forgotten dead code
   block + `createChatSessionRuntime`.
 
 ### Worker (`packages/chat/src/jobs.ts` + `apps/worker`)
+
 - **Remove:** `jobs.ts` (the chat execution job handler) and its registration/queue wiring in the
   worker. Drop `export * from "./jobs.js"` from `packages/chat/src/index.ts`.
 
 ### AI adapters (`packages/ai/src`)
+
 - **Remove:** `adapters/tmux-bridge.ts` + `tests/unit/ai-tmux-bridge.test.ts`; the `cli` branch of
   `createChatAdapter` (and `createChatAdapter` itself if it has no remaining consumer).
 - **Keep (retained substrate):** `adapters/http-api.ts`, `adapters/transcript-reader.ts`, and the
   `ChatProviderAdapter` / `ChatActivityEvent` / `ChatTurn` / `GenerateChatInput` types.
 
 ### Repository (`packages/chat/src/repository.ts`)
+
 - **Remove (legacy-only):** `createThread`, `getThreadById`, `appendUserMessage`,
   `updateMessageStatus`, `appendActivity`, `updateMessageComplete`, and `ChatExecutionJobPayload` /
   the enqueue constructor arg if unused after removal.
@@ -107,25 +114,31 @@ added so a future reader knows it is intentionally kept, not forgotten dead code
   `getCurrentThread`, `openNewThread`, `recordCompletedTurn`, `touchThread`.
 
 ### Shared contracts (`packages/shared`)
+
 - **Remove:** `createChatThreadRouteSchema`, `getChatThreadRouteSchema`, `listChatMessagesRouteSchema`,
   `appendChatUserMessageRouteSchema` + their now-unused request/response/DTO types.
 - **Keep:** `listChatThreadsRouteSchema` + `ChatThreadDto`.
 
 ### Tests
+
 - **Remove/trim:** legacy chat integration tests (worker-job + thread/message CRUD paths in
   `tests/integration/chat.test.ts`), `ai-tmux-bridge` unit tests, any ai-tools tests asserting the
   legacy chat job.
 - **Keep:** `chat-live-*` unit + integration suites; `http-api` adapter tests (substrate stays).
 
 ### Database
+
 - **Keep:** `chat_threads`, `chat_messages`, all chat migrations (used by the live runtime). No
   schema change.
 
 ## 6. Frontend design — global persistent chat drawer
 
-The chat **stays a slide-out drawer** (`aside.chat-drawer` + scrim). What changes is *where it lives*
-and *how long it lives*: today it's mounted by the legacy page and only exists while that route is
-open; it must become a **global, per-user surface in the harness** that follows the user everywhere.
+The chat **stays a slide-out drawer** (`aside.chat-drawer`), but **non-modal** — the full-screen scrim
+is removed so the rest of the app (including the nav) stays interactive while chat is open. What
+changes is _where it lives_ and _how long it lives_: today it's mounted by the legacy page, modal, and
+only exists while that route is open; it must become a **global, per-user, non-modal surface in the
+harness** that follows the user everywhere. (A modal scrim would block navigation and defeat
+"follows-you"; closing is via the X button or the nav toggle.)
 
 - **Mount once, globally.** Render `ChatDrawer` in `app-shell.tsx`, above the `<Routes>` outlet, so it
   is present on every page and is not torn down by navigation. Open/closed state lives in the shell
@@ -148,7 +161,7 @@ open; it must become a **global, per-user surface in the harness** that follows 
   `listMessages`, already present server-side) to seed the records, plus one localStorage boolean for
   open/closed state. It needs no rework of the global-drawer or lifted-stream design, so pulling it
   forward now buys nothing.
-- **Long-run (non-goal here):** evolve from a toggleable overlay into an always-present *docked* panel
+- **Long-run (non-goal here):** evolve from a toggleable overlay into an always-present _docked_ panel
   (a true persistent window beside page content). This spec delivers the global toggleable drawer; the
   docked layout + visual redesign are follow-up, since the owner noted the chat display will keep
   evolving.
