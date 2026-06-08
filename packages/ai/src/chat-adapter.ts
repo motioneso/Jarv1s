@@ -1,7 +1,6 @@
-import type { AiProviderConfigSafeRow } from "./repository.js";
-import { TmuxBridgeAdapter, createRealTmuxIo } from "./adapters/tmux-bridge.js";
-import { HttpApiAdapter } from "./adapters/http-api.js";
-import type { ProviderKind } from "./adapters/transcript-reader.js";
+// HttpApiAdapter is re-exported here as the substrate for a future
+// API-key-in-drawer tie-in — do not remove as dead code.
+export { HttpApiAdapter } from "./adapters/http-api.js";
 
 export interface ChatTurn {
   readonly role: "user" | "assistant";
@@ -21,61 +20,4 @@ export interface GenerateChatInput {
 
 export interface ChatProviderAdapter {
   generateChat(input: GenerateChatInput): Promise<{ readonly text: string }>;
-}
-
-export interface CreateChatAdapterDeps {
-  threadKey: string;
-  decryptedKey?: string;
-  cwd?: string;
-}
-
-// Supported CLI provider kinds (subset of AiProviderKind)
-const CLI_PROVIDER_KINDS = new Set<ProviderKind>(["anthropic", "openai-compatible", "google"]);
-
-/** Real TmuxIo implementation backed by node:child_process and node:fs/promises. */
-const realTmuxIo = createRealTmuxIo();
-
-/**
- * Factory: select and instantiate the right ChatProviderAdapter based on the
- * provider's auth_method and provider_kind.
- *
- * - auth_method "cli"     → TmuxBridgeAdapter (drives a local CLI in a tmux session)
- * - auth_method "api_key" → HttpApiAdapter (direct HTTPS call with decrypted key)
- */
-export function createChatAdapter(
-  provider: AiProviderConfigSafeRow,
-  deps: CreateChatAdapterDeps
-): ChatProviderAdapter {
-  const { threadKey, decryptedKey } = deps;
-
-  switch (provider.auth_method) {
-    case "cli": {
-      const kind = provider.provider_kind as string;
-      if (!CLI_PROVIDER_KINDS.has(kind as ProviderKind)) {
-        throw new Error(
-          `createChatAdapter: provider_kind "${kind}" is not supported for CLI auth — ` +
-            `supported kinds: ${[...CLI_PROVIDER_KINDS].join(", ")}`
-        );
-      }
-      return new TmuxBridgeAdapter(kind as ProviderKind, threadKey, realTmuxIo);
-    }
-    case "api_key": {
-      if (!decryptedKey) {
-        throw new Error(
-          `createChatAdapter: decryptedKey is required for auth_method "api_key" ` +
-            `(provider ${provider.id})`
-        );
-      }
-      const kind = provider.provider_kind as ProviderKind;
-      return new HttpApiAdapter(kind, decryptedKey, {
-        ...(provider.base_url ? { baseUrl: provider.base_url } : {})
-      });
-    }
-    default: {
-      throw new Error(
-        `createChatAdapter: unsupported auth_method "${String(provider.auth_method)}" ` +
-          `(provider ${provider.id})`
-      );
-    }
-  }
 }

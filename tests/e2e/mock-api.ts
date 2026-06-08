@@ -160,8 +160,11 @@ export async function mockApi(page: Page, state: MockApiState): Promise<void> {
     handleMarkAllNotificationsReadRoute(route, state)
   );
   await page.route("**/api/notifications", (route) => handleNotificationListRoute(route, state));
-  await page.route("**/api/tasks/*/activity", (route) =>
-    fulfillJson(route, 201, {
+  await page.route("**/api/tasks/*/activity", (route) => {
+    if (route.request().method() === "GET") {
+      return fulfillJson(route, 200, { activity: [] });
+    }
+    return fulfillJson(route, 201, {
       activity: {
         id: "activity-1",
         taskId: "task-1",
@@ -170,8 +173,8 @@ export async function mockApi(page: Page, state: MockApiState): Promise<void> {
         body: (route.request().postDataJSON() as { readonly body?: string | null }).body ?? null,
         createdAt: "2026-06-06T12:00:00.000Z"
       }
-    })
-  );
+    });
+  });
   await page.route(/\/api\/tasks\/[^/]+$/, (route) => handleTaskDetailRoute(route, state));
   await page.route("**/api/tasks", (route) => handleTaskListRoute(route, state));
 }
