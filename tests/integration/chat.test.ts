@@ -115,20 +115,24 @@ describe("Chat module M6 thin slice", () => {
       );
 
       expect(migrations.rows).toEqual([{ version: "0014", name: "0014_chat_module.sql" }]);
+      // The chat-execution pg-boss worker (jarvis_worker_runtime) MUST read thread
+      // history and transition assistant messages, so it has SELECT/UPDATE on
+      // chat_messages and SELECT on chat_threads (granted in
+      // 0036_chat_worker_runtime_grants.sql, scoped by owner-only RLS policies).
       expect(tables.rows).toEqual([
         {
           relname: "chat_messages",
           relrowsecurity: true,
           relforcerowsecurity: true,
           owner: "jarvis_migration_owner",
-          worker_has_access: false
+          worker_has_access: true
         },
         {
           relname: "chat_threads",
           relrowsecurity: true,
           relforcerowsecurity: true,
           owner: "jarvis_migration_owner",
-          worker_has_access: false
+          worker_has_access: true
         }
       ]);
     } finally {
@@ -539,6 +543,97 @@ describe("Chat module M6 thin slice", () => {
     expect(result.activity[0]).toEqual({ kind: "thinking", text: "planning…" });
     expect(result.activity[1]).toEqual({ kind: "status", text: "fetching data…" });
     expect(fakeCreateChatAdapter).toHaveBeenCalledTimes(1);
+  });
+
+  it("worker handler runs under the real jarvis_worker_runtime DB role (grant regression)", async () => {
+    // Regression for the M-A3 worker-grant bug: the real pg-boss worker connects as
+    // jarvis_worker_runtime, which originally had NO grants on chat_messages /
+    // chat_threads / ai_* — so invokeChatWorkerHandler died with
+    // "permission denied for table chat_messages" and every turn hung at `pending`.
+    // The prior success test exercises the handler through the privileged app role,
+    // which masks this. This test drives it through the worker role end to end.
+    // Fixed by 0036_chat_worker_runtime_grants.sql + 0037_ai_worker_read_grants.sql.
+
+    // Seed an active chat model (provider + model) as the owner via the API.
+    const providerResponse = await server.inject({
+      method: "POST",
+      url: "/api/ai/providers",
+      headers: { authorization: `Bearer ${ids.sessionA}` },
+      payload: {
+        providerKind: "anthropic",
+        displayName: "Worker-Role Provider",
+        authMethod: "cli"
+      }
+    });
+    expect(providerResponse.statusCode).toBe(201);
+    const providerId = providerResponse.json<{ provider: { id: string } }>().provider.id;
+    const modelResponse = await server.inject({
+      method: "POST",
+      url: "/api/ai/models",
+      headers: { authorization: `Bearer ${ids.sessionA}` },
+      payload: {
+        providerConfigId: providerId,
+        providerModelId: "claude-worker-role",
+        displayName: "Claude Worker Role",
+        capabilities: ["chat"]
+      }
+    });
+    expect(modelResponse.statusCode).toBe(201);
+
+    // Create thread + pending assistant message via the app role (the worker never inserts).
+    const threadResponse = await server.inject({
+      method: "POST",
+      url: "/api/chat/threads",
+      headers: { authorization: `Bearer ${ids.sessionA}` },
+      payload: { title: "Worker-role thread" }
+    });
+    const threadId = threadResponse.json<{ thread: { id: string } }>().thread.id;
+
+    const captured: ChatExecutionJobPayload[] = [];
+    const repoWithEnqueue = new ChatRepository(undefined, async (_q, p) => {
+      captured.push(p);
+      return "job-id";
+    });
+    await dataContext.withDataContext(
+      { actorUserId: ids.userA, requestId: "request:worker-role-setup" },
+      (scopedDb) =>
+        repoWithEnqueue.appendUserMessage(scopedDb, threadId, { body: "Run me" }, ids.userA)
+    );
+    const { assistantMessageId } = captured[0]!;
+
+    const fakeAdapter: ChatProviderAdapter = {
+      async generateChat(input) {
+        input.onActivity?.({ kind: "thinking", text: "thinking…" });
+        return { text: "reply from the worker role" };
+      }
+    };
+
+    // Drive the handler through a DataContextRunner backed by the WORKER role.
+    const workerDb = createDatabase({ connectionString: connectionStrings.worker });
+    const workerDataContext = new DataContextRunner(workerDb);
+    try {
+      const { invokeChatWorkerHandler } = await import("@jarv1s/chat");
+      const result = await invokeChatWorkerHandler(
+        workerDataContext,
+        { actorUserId: ids.userA, threadId, assistantMessageId },
+        { createChatAdapter: () => fakeAdapter }
+      );
+
+      expect(result.status).toBe("stored");
+      expect(result.body).toBe("reply from the worker role");
+      expect(result.activity).toEqual([{ kind: "thinking", text: "thinking…" }]);
+    } finally {
+      await workerDb.destroy();
+    }
+
+    // The assistant message is persisted as stored (read back via the app role).
+    const messages = await dataContext.withDataContext(
+      { actorUserId: ids.userA, requestId: "request:worker-role-verify" },
+      (scopedDb) => repoWithEnqueue.listMessages(scopedDb, threadId)
+    );
+    const assistant = messages.find((m) => m.id === assistantMessageId);
+    expect(assistant?.status).toBe("stored");
+    expect(assistant?.body).toBe("reply from the worker role");
   });
 
   it("worker handler: pending → working → error when adapter throws", async () => {

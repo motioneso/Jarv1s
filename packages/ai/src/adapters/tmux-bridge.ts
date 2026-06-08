@@ -21,6 +21,8 @@ export interface TmuxIo {
   run(cmd: string, args: readonly string[]): Promise<{ code: number; stdout: string }>;
   /** Read a file path to a string (may throw if not yet created). */
   readFile(path: string): Promise<string>;
+  /** Write a string to a file path (overwrites). */
+  writeFile(path: string, content: string): Promise<void>;
   /** Non-blocking sleep. */
   sleep(ms: number): Promise<void>;
 }
@@ -53,11 +55,13 @@ const CLI_FOR: Record<ProviderKind, string> = {
  *     ~/.gemini/tmp/<project-hash>/chats/session-<ISO>-<uuid>.jsonl
  *     Use the newest file under the chats directory for the given project dir.
  */
-function transcriptGlobDir(provider: ProviderKind, cwd: string): string {
+export function transcriptGlobDir(provider: ProviderKind, cwd: string): string {
   switch (provider) {
     case "anthropic": {
-      // URL-encode the cwd the same way Claude Code does
-      const encoded = cwd.replace(/\//g, "-").replace(/^-/, "");
+      // Claude Code encodes the project dir by replacing both "/" and "." with
+      // "-", and KEEPS the leading "-" (an absolute path starts with "/").
+      // e.g. /home/ben/Jarv1s/apps/worker -> -home-ben-Jarv1s-apps-worker
+      const encoded = cwd.replace(/[/.]/g, "-");
       return join(homedir(), ".claude", "projects", encoded);
     }
     case "openai-compatible": {
@@ -83,15 +87,22 @@ const SESSION_PREFIX = "jarv1s-";
 export class TmuxBridgeAdapter implements ChatProviderAdapter {
   private readonly timeoutMs: number;
   private readonly pollMs: number;
+  private readonly launchMs: number;
+  private readonly submitMs: number;
 
   constructor(
     private readonly provider: ProviderKind,
     private readonly threadKey: string,
     private readonly io: TmuxIo,
-    opts: { timeoutMs?: number; pollMs?: number } = {}
+    opts: { timeoutMs?: number; pollMs?: number; launchMs?: number; submitMs?: number } = {}
   ) {
     this.timeoutMs = opts.timeoutMs ?? 120_000;
     this.pollMs = opts.pollMs ?? 1_000;
+    // Time to let the CLI's TUI finish booting before pasting the prompt, and to
+    // let a bracketed paste settle before sending Enter. Real CLIs (e.g. Claude
+    // Code) are not ready to receive input the instant the tmux session starts.
+    this.launchMs = opts.launchMs ?? 3_000;
+    this.submitMs = opts.submitMs ?? 600;
   }
 
   async generateChat(input: GenerateChatInput): Promise<{ text: string }> {
@@ -99,8 +110,10 @@ export class TmuxBridgeAdapter implements ChatProviderAdapter {
     const cli = CLI_FOR[this.provider];
     const cwd = process.cwd();
 
-    // 1. Ensure a tmux session exists (idempotent: new-session -d -s ignores EEXIST)
-    await this.io.run("tmux", [
+    // 1. Ensure a tmux session exists. new-session exits non-zero if the session
+    //    already exists (and leaves the running CLI untouched), so a zero exit
+    //    means we just launched the CLI for this turn.
+    const { code: newSessionCode } = await this.io.run("tmux", [
       "new-session",
       "-d",
       "-s",
@@ -111,16 +124,26 @@ export class TmuxBridgeAdapter implements ChatProviderAdapter {
       "50",
       cli
     ]);
+    const sessionWasCreated = newSessionCode === 0;
 
     // 2. Snapshot the current transcript directory state so we can detect new files
     const transcriptDir = transcriptGlobDir(this.provider, cwd);
 
+    // Let the CLI's TUI finish booting before we paste — only needed on the turn
+    // that actually launched it; a reused session is already idle at its prompt.
+    if (sessionWasCreated) {
+      await this.io.sleep(this.launchMs);
+    }
+
     // 3. Write the prompt to a temp file (avoids shell escaping issues with long prompts)
     const promptText = buildPromptText(input);
     const tmpFile = join(tmpdir(), `jarv1s-prompt-${this.threadKey}-${Date.now()}.txt`);
-    await this.io.run("bash", ["-c", `cat > ${tmpFile}`, promptText]);
+    await this.io.writeFile(tmpFile, promptText);
 
-    // 4. Load and paste the prompt buffer, then send Enter
+    // 4. Load and paste the prompt buffer, then send Enter. The paste and the
+    //    Enter are separate steps with a short settle in between: many CLI TUIs
+    //    use bracketed paste, so an Enter sent in the same instant gets absorbed
+    //    into the paste instead of submitting it.
     await this.io.run("tmux", ["load-buffer", "-b", `jarv1s-${this.threadKey}`, tmpFile]);
     await this.io.run("tmux", [
       "paste-buffer",
@@ -129,7 +152,12 @@ export class TmuxBridgeAdapter implements ChatProviderAdapter {
       "-t",
       sessionName
     ]);
-    await this.io.run("tmux", ["send-keys", "-t", sessionName, "", "Enter"]);
+    await this.io.sleep(this.submitMs);
+    await this.io.run("tmux", ["send-keys", "-t", sessionName, "Enter"]);
+
+    // Give the CLI a moment to create/append its session transcript before we
+    // resolve which file to follow (so we don't lock onto a stale transcript).
+    await this.io.sleep(this.submitMs);
 
     // 5. Find the transcript file (newest .jsonl under the dir)
     const transcriptPath = await this.findNewestTranscript(transcriptDir);

@@ -1,5 +1,5 @@
-import { exec } from "node:child_process";
-import { readFile } from "node:fs/promises";
+import { execFile } from "node:child_process";
+import { readFile, writeFile } from "node:fs/promises";
 import { promisify } from "node:util";
 
 import type { AiProviderConfigSafeRow } from "./repository.js";
@@ -36,13 +36,16 @@ export interface CreateChatAdapterDeps {
 // Supported CLI provider kinds (subset of AiProviderKind)
 const CLI_PROVIDER_KINDS = new Set<ProviderKind>(["anthropic", "openai-compatible", "google"]);
 
-const execAsync = promisify(exec);
+const execFileAsync = promisify(execFile);
 
 /** Real TmuxIo implementation backed by node:child_process and node:fs/promises. */
 const realTmuxIo: TmuxIo = {
   async run(cmd: string, args: readonly string[]): Promise<{ code: number; stdout: string }> {
+    // Use execFile (not exec) so arguments are passed directly to the process
+    // without a shell re-parsing them. A shell join would mangle args containing
+    // spaces, quotes, pipes, or redirects (e.g. the `bash -c "<pipeline>"` calls).
     try {
-      const { stdout } = await execAsync([cmd, ...args].join(" "));
+      const { stdout } = await execFileAsync(cmd, [...args]);
       return { code: 0, stdout: stdout ?? "" };
     } catch (err: unknown) {
       const e = err as { code?: number; stdout?: string };
@@ -51,6 +54,9 @@ const realTmuxIo: TmuxIo = {
   },
   async readFile(path: string): Promise<string> {
     return readFile(path, "utf8");
+  },
+  async writeFile(path: string, content: string): Promise<void> {
+    await writeFile(path, content, "utf8");
   },
   async sleep(ms: number): Promise<void> {
     return new Promise((resolve) => setTimeout(resolve, ms));
