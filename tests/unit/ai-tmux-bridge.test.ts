@@ -5,7 +5,11 @@
 import { describe, expect, it } from "vitest";
 
 import { parseTranscript } from "../../packages/ai/src/adapters/transcript-reader.js";
-import { TmuxBridgeAdapter, type TmuxIo } from "../../packages/ai/src/adapters/tmux-bridge.js";
+import {
+  TmuxBridgeAdapter,
+  transcriptGlobDir,
+  type TmuxIo
+} from "../../packages/ai/src/adapters/tmux-bridge.js";
 
 // ---------------------------------------------------------------------------
 // Fixtures: real JSONL schema per provider (discovered 2026-06-07)
@@ -240,12 +244,17 @@ function fakeModel(providerKind: string = "anthropic") {
 function fakeTmuxIo(
   jsonlAfterPolls: string,
   pollsBeforeReady: number = 2
-): TmuxIo & { runCalls: Array<{ cmd: string; args: readonly string[] }> } {
+): TmuxIo & {
+  runCalls: Array<{ cmd: string; args: readonly string[] }>;
+  writeCalls: Array<{ path: string; content: string }>;
+} {
   let readCount = 0;
   const runCalls: Array<{ cmd: string; args: readonly string[] }> = [];
+  const writeCalls: Array<{ path: string; content: string }> = [];
 
   return {
     runCalls,
+    writeCalls,
     async run(cmd, args) {
       runCalls.push({ cmd, args });
       return { code: 0, stdout: "" };
@@ -257,6 +266,9 @@ function fakeTmuxIo(
       }
       // Return partial content (first thinking record only, no final yet)
       return CLAUDE_FIXTURE_THINKING;
+    },
+    async writeFile(path, content) {
+      writeCalls.push({ path, content });
     },
     async sleep(_ms) {
       /* no-op in tests */
@@ -289,6 +301,52 @@ describe("TmuxBridgeAdapter", () => {
     expect(activityEvents).toContain("tool");
   });
 
+  it("writes the prompt to a temp file via writeFile (not a broken `cat` shell-out)", async () => {
+    // Regression: the prompt used to be written with
+    //   io.run("bash", ["-c", "cat > file", promptText])
+    // which (through the shell join + no stdin) produced a 0-byte file, so the
+    // CLI received an empty prompt. The prompt must be written via io.writeFile.
+    const io = fakeTmuxIo(CLAUDE_FIXTURE_FINAL, 1);
+    const adapter = new TmuxBridgeAdapter("anthropic", "thread-write", io, {
+      timeoutMs: 5_000,
+      pollMs: 0
+    });
+
+    await adapter.generateChat({
+      model: fakeModel("anthropic"),
+      messages: [{ role: "user", content: "What is the answer?" }]
+    });
+
+    expect(io.writeCalls).toHaveLength(1);
+    expect(io.writeCalls[0]?.content).toBe("What is the answer?");
+    // The prompt must NOT be written by shelling out to cat/bash.
+    const wroteViaShell = io.runCalls.some(
+      (c) => c.cmd === "bash" && c.args.join(" ").includes("cat >")
+    );
+    expect(wroteViaShell).toBe(false);
+  });
+
+  it("pastes the prompt buffer then submits Enter as a separate send-keys", async () => {
+    // Regression: paste + Enter must be distinct steps (bracketed paste), and the
+    // pasted buffer must reference the temp file the prompt was written to.
+    const io = fakeTmuxIo(CLAUDE_FIXTURE_FINAL, 1);
+    const adapter = new TmuxBridgeAdapter("anthropic", "thread-paste", io, {
+      timeoutMs: 5_000,
+      pollMs: 0
+    });
+
+    await adapter.generateChat({
+      model: fakeModel("anthropic"),
+      messages: [{ role: "user", content: "hi" }]
+    });
+
+    const tmux = io.runCalls.filter((c) => c.cmd === "tmux").map((c) => c.args.join(" "));
+    const pasteIdx = tmux.findIndex((a) => a.startsWith("paste-buffer"));
+    const enterIdx = tmux.findIndex((a) => a.includes("send-keys") && a.includes("Enter"));
+    expect(pasteIdx).toBeGreaterThanOrEqual(0);
+    expect(enterIdx).toBeGreaterThan(pasteIdx);
+  });
+
   it("creates a tmux session with the correct CLI binary", async () => {
     const jsonl = CLAUDE_FIXTURE_FINAL;
     const io = fakeTmuxIo(jsonl, 1);
@@ -315,6 +373,9 @@ describe("TmuxBridgeAdapter", () => {
       },
       async readFile() {
         return CLAUDE_FIXTURE_THINKING;
+      },
+      async writeFile() {
+        /* no-op */
       },
       async sleep() {
         /* no-op */
@@ -364,5 +425,22 @@ describe("TmuxBridgeAdapter", () => {
     });
 
     expect(result.text).toBe("Here is the Gemini answer.");
+  });
+});
+
+describe("transcriptGlobDir (anthropic project-dir encoding)", () => {
+  it("keeps the leading dash and replaces '/' and '.' with '-'", () => {
+    // Regression: Claude Code stores transcripts under
+    //   ~/.claude/projects/-home-ben-Jarv1s-apps-worker/
+    // The encoder previously stripped the leading dash, so the worker polled a
+    // non-existent directory and always timed out waiting for the reply.
+    const dir = transcriptGlobDir("anthropic", "~/Jarv1s/apps/worker");
+    expect(dir.endsWith("/-home-ben-Jarv1s-apps-worker")).toBe(true);
+    expect(dir).toContain("/.claude/projects/");
+  });
+
+  it("encodes dotted path segments with dashes (e.g. .claude worktrees)", () => {
+    const dir = transcriptGlobDir("anthropic", "~/Jarv1s/.claude/worktrees/x");
+    expect(dir.endsWith("/-home-ben-Jarv1s--claude-worktrees-x")).toBe(true);
   });
 });
