@@ -14,7 +14,7 @@ export class MemoryRetriever {
     query: string,
     limit: number = 10
   ): Promise<RetrievedChunk[]> {
-    const queryEmbedding = await this.embeddingProvider.embed(query);
+    const queryEmbedding = await this.embeddingProvider.embedQuery(query);
     return this.repository.vectorSearch(scopedDb, queryEmbedding, limit);
   }
 }

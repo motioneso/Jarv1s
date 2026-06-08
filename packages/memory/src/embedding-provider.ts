@@ -8,8 +8,6 @@ export interface EmbeddingProvider {
   embedDocument(text: string): Promise<number[]>;
   /** Embed a search query. The provider applies any required task prefix. */
   embedQuery(text: string): Promise<number[]>;
-  /** @deprecated Use embedDocument or embedQuery. Required until Task 5 removes it. */
-  embed(text: string): Promise<number[]>;
 }
 
 export class StubEmbeddingProvider implements EmbeddingProvider {
@@ -22,11 +20,6 @@ export class StubEmbeddingProvider implements EmbeddingProvider {
   }
 
   async embedQuery(text: string): Promise<number[]> {
-    return this.hashEmbed(text);
-  }
-
-  /** Deprecated: retained until callers migrate in Task 5. */
-  async embed(text: string): Promise<number[]> {
     return this.hashEmbed(text);
   }
 

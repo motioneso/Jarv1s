@@ -168,7 +168,7 @@ describe("MemoryRepository", () => {
         lineEnd: i * 10 + 5,
         contentHash: Buffer.from(text).toString("hex"),
         text,
-        embedding: await provider.embed(text)
+        embedding: await provider.embedDocument(text)
       }))
     );
   }
@@ -209,7 +209,7 @@ describe("MemoryRepository", () => {
       await repo.upsertFileChunks(scopedDb, userId, path, chunks, "stub", "0");
     });
 
-    const queryVec = await provider.embed("The quick brown fox");
+    const queryVec = await provider.embedQuery("The quick brown fox");
     const results = await dataContext.withDataContext(ctx(userId), async (scopedDb) =>
       repo.vectorSearch(scopedDb, queryVec, 10)
     );
