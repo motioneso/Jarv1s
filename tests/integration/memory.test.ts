@@ -10,6 +10,7 @@ import {
   DataContextRunner,
   createDatabase,
   type AccessContext,
+  type DataContextDb,
   type JarvisDatabase
 } from "@jarv1s/db";
 import { VaultContextRunner, writeVaultFile } from "@jarv1s/vault";
@@ -446,6 +447,117 @@ describe("MemoryRepository file index", () => {
       await repo.deleteFileIndex(scoped, userId, "vault", "notes/d.md");
       const found = await repo.getFileIndex(scoped, userId, "vault", "notes/d.md");
       expect(found).toBeNull();
+    });
+  });
+});
+
+// ── MemoryIngestPipeline idempotency ─────────────────────────────────────────
+
+describe("MemoryIngestPipeline idempotency", () => {
+  // Use a dedicated user so this describe's file-index state is fully isolated
+  // from the MemoryRepository file-index tests (which insert index rows without
+  // corresponding disk files, causing purgeDeletedFiles to over-count).
+  const idemUserId = "00000000-0000-4000-8000-000000000016";
+  const repo = new MemoryRepository();
+  const pipeline = new MemoryIngestPipeline(new StubEmbeddingProvider(), repo);
+
+  beforeAll(async () => {
+    const client = new Client({ connectionString: connectionStrings.bootstrap });
+    await client.connect();
+    try {
+      await client.query(
+        `INSERT INTO app.users (id, email, is_instance_admin)
+         VALUES ($1, 'memory-idem@example.test', false)`,
+        [idemUserId]
+      );
+    } finally {
+      await client.end();
+    }
+  });
+
+  async function chunkCount(scoped: DataContextDb, path: string): Promise<number> {
+    const r = await sql<{ n: string }>`
+      SELECT count(*)::text AS n FROM app.memory_chunks
+      WHERE owner_user_id = ${idemUserId}::uuid AND source_path = ${path}
+    `.execute(scoped.db);
+    return Number(r.rows[0]?.n ?? "0");
+  }
+
+  it("skips re-ingest when the file is unchanged", async () => {
+    await vaultRunner.withVaultContext(ctx(idemUserId), async (vaultCtx) => {
+      await writeVaultFile(vaultCtx, "loop/a.md", "## A\n\nfirst body");
+      await dataContext.withDataContext(ctx(idemUserId), async (scoped) => {
+        const first = await pipeline.ingestFile(scoped, vaultCtx, "loop/a.md");
+        expect(first.status).toBe("ingested");
+        const second = await pipeline.ingestFile(scoped, vaultCtx, "loop/a.md");
+        expect(second.status).toBe("skipped");
+      });
+    });
+  });
+
+  it("re-ingests when the file content changes", async () => {
+    await vaultRunner.withVaultContext(ctx(idemUserId), async (vaultCtx) => {
+      await writeVaultFile(vaultCtx, "loop/b.md", "## B\n\noriginal");
+      await dataContext.withDataContext(ctx(idemUserId), async (scoped) => {
+        await pipeline.ingestFile(scoped, vaultCtx, "loop/b.md");
+        await writeVaultFile(vaultCtx, "loop/b.md", "## B\n\nchanged content");
+        const again = await pipeline.ingestFile(scoped, vaultCtx, "loop/b.md");
+        expect(again.status).toBe("ingested");
+      });
+    });
+  });
+
+  it("re-ingests when force is set even if unchanged", async () => {
+    await vaultRunner.withVaultContext(ctx(idemUserId), async (vaultCtx) => {
+      await writeVaultFile(vaultCtx, "loop/c.md", "## C\n\nbody");
+      await dataContext.withDataContext(ctx(idemUserId), async (scoped) => {
+        await pipeline.ingestFile(scoped, vaultCtx, "loop/c.md");
+        const forced = await pipeline.ingestFile(scoped, vaultCtx, "loop/c.md", { force: true });
+        expect(forced.status).toBe("ingested");
+      });
+    });
+  });
+
+  it("purges chunks + index entries for files removed from the vault", async () => {
+    // Use a fresh sub-user for this test so prior idempotency tests'
+    // index entries (loop/a.md, loop/b.md, loop/c.md) don't affect the count.
+    const purgeUserId = "00000000-0000-4000-8000-000000000017";
+    const purgeClient = new Client({ connectionString: connectionStrings.bootstrap });
+    await purgeClient.connect();
+    try {
+      await purgeClient.query(
+        `INSERT INTO app.users (id, email, is_instance_admin)
+         VALUES ($1, 'memory-purge@example.test', false)`,
+        [purgeUserId]
+      );
+    } finally {
+      await purgeClient.end();
+    }
+
+    async function purgeChunkCount(scoped: DataContextDb, path: string): Promise<number> {
+      const r = await sql<{ n: string }>`
+        SELECT count(*)::text AS n FROM app.memory_chunks
+        WHERE owner_user_id = ${purgeUserId}::uuid AND source_path = ${path}
+      `.execute(scoped.db);
+      return Number(r.rows[0]?.n ?? "0");
+    }
+
+    await vaultRunner.withVaultContext(ctx(purgeUserId), async (vaultCtx) => {
+      await writeVaultFile(vaultCtx, "purge/keep.md", "## Keep\n\nstays");
+      await writeVaultFile(vaultCtx, "purge/gone.md", "## Gone\n\nremoved later");
+      await dataContext.withDataContext(ctx(purgeUserId), async (scoped) => {
+        await pipeline.ingestFile(scoped, vaultCtx, "purge/keep.md");
+        await pipeline.ingestFile(scoped, vaultCtx, "purge/gone.md");
+        expect(await purgeChunkCount(scoped, "purge/gone.md")).toBeGreaterThan(0);
+
+        // Simulate deletion: remove the file from disk, then purge.
+        await rm(join(vaultCtx.vaultRoot, "purge/gone.md"), { force: true });
+        const result = await pipeline.purgeDeletedFiles(scoped, vaultCtx);
+        expect(result.deleted).toBe(1);
+        expect(await purgeChunkCount(scoped, "purge/gone.md")).toBe(0);
+        expect(await purgeChunkCount(scoped, "purge/keep.md")).toBeGreaterThan(0);
+        expect(await repo.getFileIndex(scoped, purgeUserId, "vault", "purge/gone.md")).toBeNull();
+      });
     });
   });
 });
