@@ -17,7 +17,6 @@ export interface CliChatEngine {
   readonly provider: ProviderKind;
   launch(opts: EngineLaunchOpts): Promise<void>;
   submit(text: string): Promise<void>; // paste prompt + send
-  clear(): Promise<void>; // /clear within the session
   /** Read transcript records appended since the given byte offset; returns the new offset. */
   readNew(
     afterOffset: number

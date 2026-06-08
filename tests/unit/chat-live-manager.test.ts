@@ -33,7 +33,6 @@ class FakeEngine implements CliChatEngine {
   killed = false;
   readonly launchOpts: EngineLaunchOpts[] = [];
   readonly submitted: string[] = [];
-  cleared = 0;
 
   /** Pending reply records to drain on the next readNew (set on submit). */
   private pending: TranscriptRecord[] = [];
@@ -56,11 +55,6 @@ class FakeEngine implements CliChatEngine {
       { kind: "thinking", text: "considering" },
       { kind: "reply", text: this.replyFor(text) }
     ];
-  }
-
-  async clear(): Promise<void> {
-    this.cleared += 1;
-    this.pending = [];
   }
 
   async readNew(
@@ -102,7 +96,6 @@ class NeverCompletingEngine implements CliChatEngine {
   async submit(text: string): Promise<void> {
     this.submitted.push(text);
   }
-  async clear(): Promise<void> {}
   async readNew(
     afterOffset: number
   ): Promise<{ records: TranscriptRecord[]; offset: number; complete: boolean }> {
@@ -146,7 +139,6 @@ class GatedEngine implements CliChatEngine {
   async submit(text: string): Promise<void> {
     this.submitted.push(text);
   }
-  async clear(): Promise<void> {}
   async readNew(
     afterOffset: number
   ): Promise<{ records: TranscriptRecord[]; offset: number; complete: boolean }> {
@@ -160,6 +152,60 @@ class GatedEngine implements CliChatEngine {
   async isAlive(): Promise<boolean> {
     return !this.killed;
   }
+  async kill(): Promise<void> {
+    this.killed = true;
+  }
+}
+
+/**
+ * Fake engine that models the REAL transcript semantics the clear() bug lived in:
+ * a single append-only transcript "file" (pinned by --session-id), plus an async
+ * write — the reply for a submitted turn only becomes visible on the readNew poll
+ * AFTER submit (mirroring the CLI writing the record between polls). readNew returns
+ * everything after `afterOffset` and reports complete iff a reply exists in that
+ * slice (mirroring parseTranscript returning the LAST reply). Because clear() now
+ * drops the engine and the next turn relaunches a fresh one, a post-clear turn sees
+ * only its own output — the regression test below asserts exactly that.
+ */
+class TranscriptFakeEngine implements CliChatEngine {
+  killed = false;
+  readonly submitted: string[] = [];
+  /** The committed transcript "file" — index position is the byte offset analogue. */
+  private readonly transcript: TranscriptRecord[] = [];
+  /** Reply staged by submit(), committed on the NEXT readNew (async write delay). */
+  private staged: TranscriptRecord | null = null;
+
+  constructor(
+    public readonly provider: ProviderKind,
+    public readonly sessionKey: string,
+    private readonly replyFor: (text: string) => string
+  ) {}
+
+  async launch(): Promise<void> {}
+
+  async submit(text: string): Promise<void> {
+    this.submitted.push(text);
+    this.staged = { kind: "reply", text: this.replyFor(text) };
+  }
+
+  async readNew(
+    afterOffset: number
+  ): Promise<{ records: TranscriptRecord[]; offset: number; complete: boolean }> {
+    const slice = this.transcript.slice(afterOffset);
+    const complete = slice.some((r) => r.kind === "reply");
+    const result = { records: slice, offset: this.transcript.length, complete };
+    // Commit the staged reply so it appears on the NEXT poll (async-write model).
+    if (this.staged) {
+      this.transcript.push(this.staged);
+      this.staged = null;
+    }
+    return result;
+  }
+
+  async isAlive(): Promise<boolean> {
+    return !this.killed;
+  }
+
   async kill(): Promise<void> {
     this.killed = true;
   }
@@ -355,15 +401,65 @@ describe("ChatSessionManager", () => {
     expect(last?.executed).toEqual({ provider: "google", model: "gemini-y" });
   });
 
-  it("clear() clears the live engine and opens a new conversation", async () => {
+  it("clear() drops the live engine and opens a new conversation; next turn relaunches fresh", async () => {
     const { manager, persistence, engines } = makeManager();
 
     await manager.submitTurn("user-1", "Ben", "hello");
     await manager.clear("user-1");
 
-    expect(engines[0]?.cleared).toBe(1);
+    // The engine is killed (not reused via CLI /clear, which rotates the
+    // transcript file the engine can't follow) and a new conversation is opened.
+    expect(engines[0]?.killed).toBe(true);
     expect(persistence.newConversations).toBe(1);
     expect(persistence.turns).toHaveLength(0);
+
+    // The next turn lazily relaunches a brand-new engine with no replayed context.
+    await manager.submitTurn("user-1", "Ben", "fresh start");
+    expect(engines).toHaveLength(2);
+    expect(engines[1]?.launchCount).toBe(1);
+    // No prior turns existed (conversation was cleared), so the new prompt is sent
+    // directly — no <conversation> replay block precedes it.
+    expect(engines[1]?.submitted).toEqual(["fresh start"]);
+  });
+
+  it("clear() does not replay the previous reply on the next turn", async () => {
+    // Regression: clear() used to send the CLI's /clear and reset transcriptOffset
+    // to 0. But /clear rotates the transcript to a new session-id file the engine
+    // can't follow (its path is pinned at launch), so the next readNew re-parsed the
+    // OLD file and returned the PREVIOUS reply (then the turn after timed out). The
+    // fix drops the engine on clear so the next turn relaunches with a fresh, known
+    // transcript — this asserts the post-clear turn reflects the NEW prompt.
+    const persistence = new FakePersistence();
+    const engines: TranscriptFakeEngine[] = [];
+    const manager = new ChatSessionManager({
+      engineFactory: (provider, sessionKey) => {
+        const e = new TranscriptFakeEngine(provider, sessionKey, (text) => `reply to: ${text}`);
+        engines.push(e);
+        return e;
+      },
+      persistence,
+      personaFs: noopPersonaFs,
+      clock: new FakeClock(),
+      idleMs: 1_000,
+      neutralBase: "/tmp/jarvis-test",
+      persona: "I am Jarvis, {{userName}}.",
+      pollMs: 0
+    });
+
+    const red = await manager.submitTurn("user-1", "Ben", "say RED");
+    expect(red.reply).toBe("reply to: say RED");
+    const blue = await manager.submitTurn("user-1", "Ben", "say BLUE");
+    expect(blue.reply).toBe("reply to: say BLUE");
+
+    await manager.clear("user-1");
+
+    // The turn right after /clear must reflect the NEW prompt — not replay "say BLUE".
+    const green = await manager.submitTurn("user-1", "Ben", "say GREEN");
+    expect(green.reply).toBe("reply to: say GREEN");
+
+    // And the conversation keeps working (the post-clear turn must not desync the read).
+    const yellow = await manager.submitTurn("user-1", "Ben", "say YELLOW");
+    expect(yellow.reply).toBe("reply to: say YELLOW");
   });
 
   it("does not double-launch when ensureSession is called concurrently", async () => {

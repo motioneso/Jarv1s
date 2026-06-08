@@ -135,15 +135,6 @@ export class TmuxCliChatEngine implements CliChatEngine {
     await this.io.run("tmux", ["send-keys", "-t", this.sessionName, "Enter"]);
   }
 
-  async clear(): Promise<void> {
-    // /clear resets conversation history while keeping the process + launch
-    // persona (verified to survive /clear in the spike). Send the literal text,
-    // then Enter as a separate send-keys.
-    await this.io.run("tmux", ["send-keys", "-t", this.sessionName, "/clear"]);
-    await this.io.sleep(this.submitMs);
-    await this.io.run("tmux", ["send-keys", "-t", this.sessionName, "Enter"]);
-  }
-
   async readNew(
     afterOffset: number
   ): Promise<{ records: TranscriptRecord[]; offset: number; complete: boolean }> {
