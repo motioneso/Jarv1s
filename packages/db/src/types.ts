@@ -248,6 +248,8 @@ export interface EmailMessagesTable {
   updated_at: TimestampColumn;
 }
 
+export type AiAuthMethod = "cli" | "api_key";
+
 export interface AiProviderConfigsTable {
   id: string;
   owner_user_id: string;
@@ -255,6 +257,7 @@ export interface AiProviderConfigsTable {
   display_name: string;
   base_url: string | null;
   status: AiProviderStatus;
+  auth_method: AiAuthMethod;
   encrypted_credential: JsonColumn;
   revoked_at: NullableTimestampColumn;
   created_at: TimestampColumn;

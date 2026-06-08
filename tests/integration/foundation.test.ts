@@ -123,7 +123,8 @@ describe("MVP foundation scaffold", () => {
         { version: "0029", name: "0029_fix_notifications_insert_policy.sql" },
         { version: "0030", name: "0030_memory_index.sql" },
         { version: "0031", name: "0031_structured_state.sql" },
-        { version: "0032", name: "0032_memory_embedding_768.sql" }
+        { version: "0032", name: "0032_memory_embedding_768.sql" },
+        { version: "0033", name: "0033_ai_auth_method.sql" }
       ]);
     } finally {
       await client.end();
