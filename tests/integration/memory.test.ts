@@ -73,23 +73,30 @@ Alice works on product.`;
 // ── StubEmbeddingProvider ─────────────────────────────────────────────────────
 
 describe("StubEmbeddingProvider", () => {
-  it("returns a vector of the declared dimensions", async () => {
+  it("returns a 768-dim vector for documents", async () => {
     const provider = new StubEmbeddingProvider();
-    const vec = await provider.embed("test text");
-    expect(vec).toHaveLength(provider.dimensions);
+    const vec = await provider.embedDocument("test text");
+    expect(provider.dimensions).toBe(768);
+    expect(vec).toHaveLength(768);
   });
 
-  it("returns the same vector for the same text (deterministic)", async () => {
+  it("returns a 768-dim vector for queries", async () => {
     const provider = new StubEmbeddingProvider();
-    const a = await provider.embed("hello world");
-    const b = await provider.embed("hello world");
+    const vec = await provider.embedQuery("test text");
+    expect(vec).toHaveLength(768);
+  });
+
+  it("is deterministic for the same text", async () => {
+    const provider = new StubEmbeddingProvider();
+    const a = await provider.embedDocument("hello world");
+    const b = await provider.embedDocument("hello world");
     expect(a).toEqual(b);
   });
 
   it("returns different vectors for different texts", async () => {
     const provider = new StubEmbeddingProvider();
-    const a = await provider.embed("apples");
-    const b = await provider.embed("quantum physics");
+    const a = await provider.embedDocument("apples");
+    const b = await provider.embedDocument("quantum physics");
     expect(a).not.toEqual(b);
   });
 });
