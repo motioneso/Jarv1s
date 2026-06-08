@@ -9,7 +9,12 @@ import { describe, expect, it } from "vitest";
 
 import { renderPersona, type PersonaFs } from "../../packages/chat/src/live/persona.js";
 
-function fakeFs(): { fs: PersonaFs; mkdirs: string[]; writes: Record<string, string>; calls: string[] } {
+function fakeFs(): {
+  fs: PersonaFs;
+  mkdirs: string[];
+  writes: Record<string, string>;
+  calls: string[];
+} {
   const mkdirs: string[] = [];
   const writes: Record<string, string> = {};
   const calls: string[] = [];

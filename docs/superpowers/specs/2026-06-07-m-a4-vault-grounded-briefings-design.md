@@ -109,18 +109,18 @@ the **CLI/tmux transport is fragile unattended** (see Transport).
 
 ## Resolved Decisions
 
-| # | Decision | Rationale |
-|---|----------|-----------|
-| 1 | Spec now, build after M-A3 merges | Depends on M-A3's capability-router execution path, currently uncommitted. |
-| 2 | AI synthesizes the **full narrative**; raw items + provenance in `source_metadata` | Matches "grounded briefing" and all prior art (LLM-synthesized). |
-| 3 | Vault grounding = **hybrid** (signals-derived semantic query + recency) | Reflects both today's relevance and what's fresh in notes. |
-| 4 | Inputs = vault (always) + commitments (always) + selected read tools | Reuses the read-tool/manifest seam; net-new sources deferred. |
-| 5 | Degradation: bounded transient retry → deterministic fallback (`degraded`); per-source **partial gaps**; **fast precheck** for unattended CLI | Unattended job must always produce something useful, fast. |
-| 6 | Scheduling = **native per-definition pg-boss cron** (key=`definitionId`, per-user `tz`) | Removes the cross-user read + SECURITY DEFINER + system-principal surface entirely. |
-| 7 | **Subscription/CLI-first, fully provider-agnostic** transport; api_key optional, never required | Hard product invariant — ALL AI work must support subscription, any provider. |
-| 8 | Per-user **IANA timezone + target time** in `schedule_metadata` | Correct multi-user morning times. |
-| 9 | Surface **source provenance/counts**; store paths/ids/excerpts (not full note bodies) | Provenance without leaking full content into prompts/metadata. |
-| 10 | Commitments via **read-tool seam**; vault retrieval via **direct memory capability dep** | Commitments fit the param-less seam; query-driven retrieval doesn't (see Module Wiring). |
+| #   | Decision                                                                                                                                      | Rationale                                                                                |
+| --- | --------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------- |
+| 1   | Spec now, build after M-A3 merges                                                                                                             | Depends on M-A3's capability-router execution path, currently uncommitted.               |
+| 2   | AI synthesizes the **full narrative**; raw items + provenance in `source_metadata`                                                            | Matches "grounded briefing" and all prior art (LLM-synthesized).                         |
+| 3   | Vault grounding = **hybrid** (signals-derived semantic query + recency)                                                                       | Reflects both today's relevance and what's fresh in notes.                               |
+| 4   | Inputs = vault (always) + commitments (always) + selected read tools                                                                          | Reuses the read-tool/manifest seam; net-new sources deferred.                            |
+| 5   | Degradation: bounded transient retry → deterministic fallback (`degraded`); per-source **partial gaps**; **fast precheck** for unattended CLI | Unattended job must always produce something useful, fast.                               |
+| 6   | Scheduling = **native per-definition pg-boss cron** (key=`definitionId`, per-user `tz`)                                                       | Removes the cross-user read + SECURITY DEFINER + system-principal surface entirely.      |
+| 7   | **Subscription/CLI-first, fully provider-agnostic** transport; api_key optional, never required                                               | Hard product invariant — ALL AI work must support subscription, any provider.            |
+| 8   | Per-user **IANA timezone + target time** in `schedule_metadata`                                                                               | Correct multi-user morning times.                                                        |
+| 9   | Surface **source provenance/counts**; store paths/ids/excerpts (not full note bodies)                                                         | Provenance without leaking full content into prompts/metadata.                           |
+| 10  | Commitments via **read-tool seam**; vault retrieval via **direct memory capability dep**                                                      | Commitments fit the param-less seam; query-driven retrieval doesn't (see Module Wiring). |
 
 ---
 
@@ -235,14 +235,14 @@ needs adjustment (verify the commitments SELECT policy already covers owner read
 
 ## Reliability / Degradation contract
 
-| Failure | Behavior |
-|---------|----------|
+| Failure                                                                | Behavior                                                                                              |
+| ---------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------- |
 | Transport unavailable (CLI not logged in / key absent / endpoint down) | **Fast precheck** → deterministic fallback, `degraded:true` + re-auth/configure reason. No 120s hang. |
-| Transient AI error (429 / 5xx / network) | Bounded pg-boss retry (small `retryLimit` + backoff), then deterministic fallback. |
-| Permanent AI error (401/403/no model) | No retry → deterministic fallback, `degraded:true` + reason. |
-| Single source/read-tool fails | **Noted gap** in `source_metadata.gaps[]`; synthesized from the rest. Run not failed. |
-| Vault empty / no commitments | Briefing notes the absence; not an error. |
-| Schedule fires twice for a local day | Idempotency key (`definitionId+localDate`) + pg-boss `singletonKey` dedupe. |
+| Transient AI error (429 / 5xx / network)                               | Bounded pg-boss retry (small `retryLimit` + backoff), then deterministic fallback.                    |
+| Permanent AI error (401/403/no model)                                  | No retry → deterministic fallback, `degraded:true` + reason.                                          |
+| Single source/read-tool fails                                          | **Noted gap** in `source_metadata.gaps[]`; synthesized from the rest. Run not failed.                 |
+| Vault empty / no commitments                                           | Briefing notes the absence; not an error.                                                             |
+| Schedule fires twice for a local day                                   | Idempotency key (`definitionId+localDate`) + pg-boss `singletonKey` dedupe.                           |
 
 ---
 
@@ -254,7 +254,7 @@ needs adjustment (verify the commitments SELECT policy already covers owner read
 - **Metadata-only payloads** preserved (IDs + run kind + idempotency key). Personalization re-grounded
   at run time from RLS storage.
 - **Secrets never escape** — credential decryption stays in worker scope (same as chat); only model id
-  + provenance reach `source_metadata`.
+  - provenance reach `source_metadata`.
 - **No `BYPASSRLS`, no SECURITY DEFINER, no system principal, no new non-actor DB path** — the entire
   high-risk surface from rev 1 is gone.
 - **Module isolation** — commitments via read-tool seam; memory via public package API; no internals

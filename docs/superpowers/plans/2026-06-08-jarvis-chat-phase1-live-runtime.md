@@ -19,20 +19,20 @@
 
 ## File Structure
 
-| Path | Responsibility |
-|---|---|
-| `docs/superpowers/spikes/2026-06-08-cli-capability-matrix.md` | **(new)** Spike output: verified per-CLI launch/persona/clear/transcript/tool-disable matrix. |
-| `packages/chat/sql/0038_chat_live_runtime.sql` | **(new)** Migration: `chat_threads.last_active_at` + a per-user current-conversation pointer; index. |
-| `packages/chat/src/live/types.ts` | **(new)** `TranscriptRecord`, `CliChatEngine`, `ChatSessionManager` interfaces + `ChatRecordKind`. |
-| `packages/chat/src/live/persona.ts` | **(new)** Neutral-dir resolution + persona context-file rendering per provider. |
-| `packages/chat/src/live/cli-chat-engine.ts` | **(new)** Persistent-session engine per provider (launch/submit/clear/tail), built on injected IO + `transcript-reader`. |
-| `packages/chat/src/live/chat-session-manager.ts` | **(new)** Per-user session registry + lifecycle (lazy launch, idle reap, respawn+replay, switch, subscribe). |
-| `packages/chat/src/repository.ts` | **(modify)** Stamp executed provider/model on `updateMessageComplete`; `touchThread(last_active_at)`; `getCurrentThread`/`openNewThread`. |
-| `packages/chat/src/routes.ts` | **(modify)** Add `POST /api/chat/turn`, `/clear`, `/switch`, `GET /api/chat/stream` (SSE). |
-| `apps/web/src/chat/chat-drawer.tsx` | **(new)** Slide-in drawer: message log, input, new-chat, provider indicator, history list. |
-| `apps/web/src/chat/use-chat-stream.ts` | **(new)** SSE client hook → records → React state. |
-| `apps/web/src/api/client.ts` | **(modify)** `sendChatTurn`, `clearChat`, `switchChatProvider`, stream URL helper. |
-| `tests/unit/chat-live-*.test.ts`, `tests/integration/chat-live.test.ts`, `tests/e2e/chat-drawer.spec.ts` | **(new)** Tests. |
+| Path                                                                                                     | Responsibility                                                                                                                            |
+| -------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| `docs/superpowers/spikes/2026-06-08-cli-capability-matrix.md`                                            | **(new)** Spike output: verified per-CLI launch/persona/clear/transcript/tool-disable matrix.                                             |
+| `packages/chat/sql/0038_chat_live_runtime.sql`                                                           | **(new)** Migration: `chat_threads.last_active_at` + a per-user current-conversation pointer; index.                                      |
+| `packages/chat/src/live/types.ts`                                                                        | **(new)** `TranscriptRecord`, `CliChatEngine`, `ChatSessionManager` interfaces + `ChatRecordKind`.                                        |
+| `packages/chat/src/live/persona.ts`                                                                      | **(new)** Neutral-dir resolution + persona context-file rendering per provider.                                                           |
+| `packages/chat/src/live/cli-chat-engine.ts`                                                              | **(new)** Persistent-session engine per provider (launch/submit/clear/tail), built on injected IO + `transcript-reader`.                  |
+| `packages/chat/src/live/chat-session-manager.ts`                                                         | **(new)** Per-user session registry + lifecycle (lazy launch, idle reap, respawn+replay, switch, subscribe).                              |
+| `packages/chat/src/repository.ts`                                                                        | **(modify)** Stamp executed provider/model on `updateMessageComplete`; `touchThread(last_active_at)`; `getCurrentThread`/`openNewThread`. |
+| `packages/chat/src/routes.ts`                                                                            | **(modify)** Add `POST /api/chat/turn`, `/clear`, `/switch`, `GET /api/chat/stream` (SSE).                                                |
+| `apps/web/src/chat/chat-drawer.tsx`                                                                      | **(new)** Slide-in drawer: message log, input, new-chat, provider indicator, history list.                                                |
+| `apps/web/src/chat/use-chat-stream.ts`                                                                   | **(new)** SSE client hook → records → React state.                                                                                        |
+| `apps/web/src/api/client.ts`                                                                             | **(modify)** `sendChatTurn`, `clearChat`, `switchChatProvider`, stream URL helper.                                                        |
+| `tests/unit/chat-live-*.test.ts`, `tests/integration/chat-live.test.ts`, `tests/e2e/chat-drawer.spec.ts` | **(new)** Tests.                                                                                                                          |
 
 ---
 
@@ -49,6 +49,7 @@
 - [ ] **Step 4: Write the matrix.** Fill the doc: per CLI × {launch persona flag, persona survives /clear?, /clear command, transcript path, transcript decoding, disable-native-tools flag, MCP config flag (note for Phase 2)}. Flag any item still unconfirmed. **This doc is the source of truth for Tasks 4–5.**
 
 - [ ] **Step 5: Commit.**
+
 ```bash
 git add docs/superpowers/spikes/2026-06-08-cli-capability-matrix.md
 git commit -m "spike(jarvis-chat): verified CLI capability matrix (launch/persona/clear/transcript/tool-disable)"
@@ -61,6 +62,7 @@ git commit -m "spike(jarvis-chat): verified CLI capability matrix (launch/person
 **Files:** Create `packages/chat/sql/0038_chat_live_runtime.sql`; Test `tests/integration/chat-live.test.ts`
 
 - [ ] **Step 1: Write the failing test** (asserts the new column + grant exist).
+
 ```ts
 // tests/integration/chat-live.test.ts  (new file; mirror chat.test.ts setup)
 it("0038: chat_threads has last_active_at and the worker/app role can update it", async () => {
@@ -72,13 +74,16 @@ it("0038: chat_threads has last_active_at and the worker/app role can update it"
        WHERE table_schema='app' AND table_name='chat_threads' AND column_name='last_active_at'`
     );
     expect(col.rowCount).toBe(1);
-  } finally { await client.end(); }
+  } finally {
+    await client.end();
+  }
 });
 ```
 
 - [ ] **Step 2: Run it, verify it FAILS.** `vitest run tests/integration/chat-live.test.ts -t "0038"` → fails (column missing).
 
 - [ ] **Step 3: Write the migration.**
+
 ```sql
 -- packages/chat/sql/0038_chat_live_runtime.sql
 -- Live chat: track conversation recency (drawer opens to the most-recent active
@@ -89,11 +94,13 @@ ALTER TABLE app.chat_threads
 CREATE INDEX IF NOT EXISTS chat_threads_owner_last_active_idx
   ON app.chat_threads (owner_user_id, last_active_at DESC);
 ```
+
 (The executed-model stamp is a code change in Task 6, not schema — `model_metadata jsonb` already exists.)
 
 - [ ] **Step 4: Migrate + run test, verify PASS.** `pnpm db:migrate && vitest run tests/integration/chat-live.test.ts -t "0038"` → applied `0038_…`, test passes.
 
 - [ ] **Step 5: Commit.**
+
 ```bash
 git add packages/chat/sql/0038_chat_live_runtime.sql tests/integration/chat-live.test.ts
 git commit -m "feat(jarvis-chat): migration 0038 — chat_threads.last_active_at"
@@ -106,35 +113,44 @@ git commit -m "feat(jarvis-chat): migration 0038 — chat_threads.last_active_at
 **Files:** Create `packages/chat/src/live/types.ts`
 
 - [ ] **Step 1: Define the interfaces** (no test — pure types; consumed/tested by later tasks).
+
 ```ts
 import type { ChatActivityEvent } from "@jarv1s/ai";
 import type { ProviderKind } from "@jarv1s/ai"; // ("anthropic" | "openai-compatible" | "google")
 
 export type ChatRecordKind = "user" | "thinking" | "tool" | "status" | "reply" | "error";
-export interface TranscriptRecord { readonly kind: ChatRecordKind; readonly text: string; }
+export interface TranscriptRecord {
+  readonly kind: ChatRecordKind;
+  readonly text: string;
+}
 
 export interface EngineLaunchOpts {
   readonly neutralDir: string;
-  readonly personaPath: string;     // rendered persona context file in neutralDir
-  readonly mcpConfigPath?: string;  // Phase 2 (unused in Phase 1)
+  readonly personaPath: string; // rendered persona context file in neutralDir
+  readonly mcpConfigPath?: string; // Phase 2 (unused in Phase 1)
 }
 
 /** A persistent per-user CLI session. One instance per live session. */
 export interface CliChatEngine {
   readonly provider: ProviderKind;
   launch(opts: EngineLaunchOpts): Promise<void>;
-  submit(text: string): Promise<void>;   // paste prompt + send
-  clear(): Promise<void>;                // /clear within the session
+  submit(text: string): Promise<void>; // paste prompt + send
+  clear(): Promise<void>; // /clear within the session
   /** Read transcript records appended since the given byte offset; returns the new offset. */
-  readNew(afterOffset: number): Promise<{ records: TranscriptRecord[]; offset: number; complete: boolean }>;
+  readNew(
+    afterOffset: number
+  ): Promise<{ records: TranscriptRecord[]; offset: number; complete: boolean }>;
   isAlive(): Promise<boolean>;
   kill(): Promise<void>;
 }
 
-export interface ChatTurnSeed { readonly priorTurns: readonly { role: "user" | "assistant"; content: string }[]; }
+export interface ChatTurnSeed {
+  readonly priorTurns: readonly { role: "user" | "assistant"; content: string }[];
+}
 ```
 
 - [ ] **Step 2: Commit.**
+
 ```bash
 git add packages/chat/src/live/types.ts
 git commit -m "feat(jarvis-chat): live runtime core types"
@@ -149,18 +165,19 @@ git commit -m "feat(jarvis-chat): live runtime core types"
 > Built on the **same injected-IO pattern** as `packages/ai/src/adapters/tmux-bridge.ts` (reuse `TmuxIo` + `parseTranscript` + the #17 `transcriptGlobDir` fix). Exact launch flags (persona, **disable native tools**, no bypass-permissions) and transcript decoding (Codex `.zst`) come from the **Task-1 matrix**.
 
 - [ ] **Step 1: Write the failing test** — a fake IO where the session launches with the persona flag and native-tools-disabled flag, `submit` writes the prompt, and `readNew` parses appended records into `reply`. (Model on `ai-tmux-bridge.test.ts`'s fake IO + Claude fixtures.)
+
 ```ts
 it("launches with persona + native tools disabled, submits, and reads the reply record", async () => {
   const io = fakeEngineIo(/* transcript that gains an end_turn reply after submit */);
   const engine = new TmuxCliChatEngine("anthropic", "user-1", io);
   await engine.launch({ neutralDir: "/tmp/u1", personaPath: "/tmp/u1/CLAUDE.md" });
-  const launchCmd = io.runCalls.find(c => c.args.includes("new-session"))!.args.join(" ");
+  const launchCmd = io.runCalls.find((c) => c.args.includes("new-session"))!.args.join(" ");
   expect(launchCmd).toContain("claude");
-  expect(launchCmd).toMatch(/disallowed|disable/i);          // native tools off (exact flag from matrix)
+  expect(launchCmd).toMatch(/disallowed|disable/i); // native tools off (exact flag from matrix)
   await engine.submit("hello");
   const r1 = await engine.readNew(0);
   // poll-read until complete in the test loop...
-  expect(r1.records.some(r => r.kind === "reply")).toBe(true);
+  expect(r1.records.some((r) => r.kind === "reply")).toBe(true);
 });
 ```
 
@@ -179,15 +196,19 @@ it("launches with persona + native tools disabled, submits, and reads the reply 
 **Files:** Create `packages/chat/src/live/persona.ts`; Test `tests/unit/chat-live-persona.test.ts`
 
 - [ ] **Step 1: Failing test.**
+
 ```ts
 it("renders the persona to the provider's context filename in the user's neutral dir", async () => {
   const fs = makeFakeFs();
   const { neutralDir, personaPath } = await renderPersona(fs, {
-    userId: "u1", userName: "Ben", provider: "anthropic",
-    baseDir: "/base", persona: "You are Jarvis."
+    userId: "u1",
+    userName: "Ben",
+    provider: "anthropic",
+    baseDir: "/base",
+    persona: "You are Jarvis."
   });
   expect(neutralDir).toBe("/base/u1");
-  expect(personaPath).toBe("/base/u1/CLAUDE.md");           // AGENTS.md for codex, GEMINI.md for google
+  expect(personaPath).toBe("/base/u1/CLAUDE.md"); // AGENTS.md for codex, GEMINI.md for google
   expect(fs.files["/base/u1/CLAUDE.md"]).toContain("You are Jarvis");
 });
 ```
@@ -221,15 +242,26 @@ it("renders the persona to the provider's context filename in the user's neutral
   - idle reaper kills a session after the idle window; next `submitTurn` **respawns + replays** prior turns as seed.
   - `switchProvider` kills the old engine, launches the new provider, replays prior turns.
   - one engine per user.
+
 ```ts
 it("respawns and replays prior turns after idle-kill", async () => {
-  const m = new ChatSessionManager({ engineFactory, repo, clock, idleMs: 1000, neutralBase: "/b", persona: "P" });
+  const m = new ChatSessionManager({
+    engineFactory,
+    repo,
+    clock,
+    idleMs: 1000,
+    neutralBase: "/b",
+    persona: "P"
+  });
   await m.submitTurn(ctxU1, "first");
-  clock.advance(2000); m.reapIdle();                 // kill on idle
+  clock.advance(2000);
+  m.reapIdle(); // kill on idle
   const replayed: string[] = [];
-  engineFactory.onLaunch = (e) => { e.onSeed = (turns) => replayed.push(...turns.map(t => t.content)); };
+  engineFactory.onLaunch = (e) => {
+    e.onSeed = (turns) => replayed.push(...turns.map((t) => t.content));
+  };
   await m.submitTurn(ctxU1, "second");
-  expect(replayed).toContain("first");               // prior turn replayed into the new engine
+  expect(replayed).toContain("first"); // prior turn replayed into the new engine
 });
 ```
 
