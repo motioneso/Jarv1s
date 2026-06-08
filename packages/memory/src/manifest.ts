@@ -19,8 +19,8 @@ export const memoryModuleManifest: JarvisModuleManifest = {
     required: true
   },
   database: {
-    migrations: ["sql/0030_memory_index.sql"],
+    migrations: ["sql/0030_memory_index.sql", "sql/0032_memory_embedding_768.sql"],
     migrationDirectories: ["packages/memory/sql"],
-    ownedTables: ["app.memory_chunks", "app.memory_links"]
+    ownedTables: ["app.memory_chunks", "app.memory_links", "app.memory_file_index"]
   }
 };

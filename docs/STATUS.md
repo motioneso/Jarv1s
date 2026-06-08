@@ -6,21 +6,21 @@
 
 ## Current milestone
 
-**None in progress.** Roadmap established; GitHub Issues + Milestones created. Next: begin M-A1.
+**None in progress.** M-A1 complete. Next: begin M-A2 (Surface the substrate).
 
 ## Last known-good state (2026-06-07)
 
 ```
 pnpm verify:foundation → lint, format:check, file-size, typecheck pass
-                          29 migrations applied; 177 integration tests pass (15 files)
+                          30 migrations applied; 190 integration tests (15 files)
 pnpm audit:release-hardening → passed true; failures []
+pnpm test:memory:local → 3 tests pass (nomic-embed-text-v1.5 real embeddings)
 pnpm test:spike → 2 files, 15 tests pass
 ```
 
 ## Next step
 
-**Begin M-A1**: run `/brief` to spec a provider-agnostic `LocalEmbeddingProvider`,
-then `/start` for the implementation plan.
+**Begin M-A2**: Surface the substrate (REST + UI). Run `/brief` then `/start M-A2`.
 
 ## Open questions (carry-forward from HANDOFF.md)
 
