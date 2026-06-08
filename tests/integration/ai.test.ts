@@ -110,6 +110,11 @@ describe("AI provider foundation", () => {
         { version: "0013", name: "0013_ai_module.sql" },
         { version: "0016", name: "0016_ai_assistant_actions.sql" }
       ]);
+      // The chat-execution worker (jarvis_worker_runtime) resolves the active chat
+      // model and reads the provider config (with encrypted credential) to make the
+      // AI call, so it has SELECT on ai_configured_models + ai_provider_configs
+      // (granted in 0037_ai_worker_read_grants.sql, owner-only RLS). It never touches
+      // ai_assistant_action_requests, which stays worker-inaccessible.
       expect(tables.rows).toEqual([
         {
           relname: "ai_assistant_action_requests",
@@ -123,14 +128,14 @@ describe("AI provider foundation", () => {
           relrowsecurity: true,
           relforcerowsecurity: true,
           owner: "jarvis_migration_owner",
-          worker_has_access: false
+          worker_has_access: true
         },
         {
           relname: "ai_provider_configs",
           relrowsecurity: true,
           relforcerowsecurity: true,
           owner: "jarvis_migration_owner",
-          worker_has_access: false
+          worker_has_access: true
         }
       ]);
     } finally {
