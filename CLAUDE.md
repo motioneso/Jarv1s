@@ -176,3 +176,12 @@ before any tree-wide action.
 - Preserve plain Fastify REST + shared TypeScript contracts (`packages/shared/*-api.ts`) unless a
   milestone explicitly justifies a heavier contract layer.
 - The 1000-line file limit is enforced by `pnpm check:file-size`. Decompose rather than exceed.
+
+## Design-fork Discipline
+
+When choosing between implementation options, **verify before you rank** — don't estimate cost/
+feasibility from memory. Read the files each option touches (give the one you lean *against* equal
+depth), and grep for existing machinery before calling anything net-new ("big changes" are often
+already half-built). Steelman the option you'd reject. For milestone-level forks, add an adversarial
+second opinion — **preferred, never a gate**: `/codex-review` or `/grill-me-codex` if Codex is
+available → else an independent Claude critic subagent → else a structured self-review.
