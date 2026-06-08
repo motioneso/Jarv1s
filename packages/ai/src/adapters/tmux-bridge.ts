@@ -7,9 +7,12 @@
  * unit tests can run without Postgres, a real tmux binary, or any live CLI.
  */
 
+import { execFile } from "node:child_process";
+import { readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { homedir } from "node:os";
+import { promisify } from "node:util";
 
 import type { ChatProviderAdapter, GenerateChatInput } from "../chat-adapter.js";
 import { parseTranscript, type ProviderKind } from "./transcript-reader.js";
@@ -25,6 +28,39 @@ export interface TmuxIo {
   writeFile(path: string, content: string): Promise<void>;
   /** Non-blocking sleep. */
   sleep(ms: number): Promise<void>;
+}
+
+const execFileAsync = promisify(execFile);
+
+/**
+ * The real TmuxIo backed by node:child_process and node:fs/promises. This is the
+ * single shared production implementation used by both TmuxBridgeAdapter (one-shot
+ * turns) and the live persistent-session engine; tests inject a fake instead.
+ */
+export function createRealTmuxIo(): TmuxIo {
+  return {
+    async run(cmd: string, args: readonly string[]): Promise<{ code: number; stdout: string }> {
+      // Use execFile (not exec) so arguments are passed directly to the process
+      // without a shell re-parsing them. A shell join would mangle args containing
+      // spaces, quotes, pipes, or redirects (e.g. the `bash -c "<pipeline>"` calls).
+      try {
+        const { stdout } = await execFileAsync(cmd, [...args]);
+        return { code: 0, stdout: stdout ?? "" };
+      } catch (err: unknown) {
+        const e = err as { code?: number; stdout?: string };
+        return { code: e.code ?? 1, stdout: e.stdout ?? "" };
+      }
+    },
+    async readFile(path: string): Promise<string> {
+      return readFile(path, "utf8");
+    },
+    async writeFile(path: string, content: string): Promise<void> {
+      await writeFile(path, content, "utf8");
+    },
+    async sleep(ms: number): Promise<void> {
+      return new Promise((resolve) => setTimeout(resolve, ms));
+    }
+  };
 }
 
 // ─── Per-provider constants ───────────────────────────────────────────────────

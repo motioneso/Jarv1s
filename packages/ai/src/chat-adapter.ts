@@ -1,9 +1,5 @@
-import { execFile } from "node:child_process";
-import { readFile, writeFile } from "node:fs/promises";
-import { promisify } from "node:util";
-
 import type { AiProviderConfigSafeRow } from "./repository.js";
-import { TmuxBridgeAdapter, type TmuxIo } from "./adapters/tmux-bridge.js";
+import { TmuxBridgeAdapter, createRealTmuxIo } from "./adapters/tmux-bridge.js";
 import { HttpApiAdapter } from "./adapters/http-api.js";
 import type { ProviderKind } from "./adapters/transcript-reader.js";
 
@@ -36,32 +32,8 @@ export interface CreateChatAdapterDeps {
 // Supported CLI provider kinds (subset of AiProviderKind)
 const CLI_PROVIDER_KINDS = new Set<ProviderKind>(["anthropic", "openai-compatible", "google"]);
 
-const execFileAsync = promisify(execFile);
-
 /** Real TmuxIo implementation backed by node:child_process and node:fs/promises. */
-const realTmuxIo: TmuxIo = {
-  async run(cmd: string, args: readonly string[]): Promise<{ code: number; stdout: string }> {
-    // Use execFile (not exec) so arguments are passed directly to the process
-    // without a shell re-parsing them. A shell join would mangle args containing
-    // spaces, quotes, pipes, or redirects (e.g. the `bash -c "<pipeline>"` calls).
-    try {
-      const { stdout } = await execFileAsync(cmd, [...args]);
-      return { code: 0, stdout: stdout ?? "" };
-    } catch (err: unknown) {
-      const e = err as { code?: number; stdout?: string };
-      return { code: e.code ?? 1, stdout: e.stdout ?? "" };
-    }
-  },
-  async readFile(path: string): Promise<string> {
-    return readFile(path, "utf8");
-  },
-  async writeFile(path: string, content: string): Promise<void> {
-    await writeFile(path, content, "utf8");
-  },
-  async sleep(ms: number): Promise<void> {
-    return new Promise((resolve) => setTimeout(resolve, ms));
-  }
-};
+const realTmuxIo = createRealTmuxIo();
 
 /**
  * Factory: select and instantiate the right ChatProviderAdapter based on the
@@ -74,7 +46,7 @@ export function createChatAdapter(
   provider: AiProviderConfigSafeRow,
   deps: CreateChatAdapterDeps
 ): ChatProviderAdapter {
-  const { threadKey, decryptedKey, cwd } = deps;
+  const { threadKey, decryptedKey } = deps;
 
   switch (provider.auth_method) {
     case "cli": {
@@ -85,9 +57,7 @@ export function createChatAdapter(
             `supported kinds: ${[...CLI_PROVIDER_KINDS].join(", ")}`
         );
       }
-      return new TmuxBridgeAdapter(kind as ProviderKind, threadKey, realTmuxIo, {
-        ...(cwd !== undefined ? {} : {}) // cwd is used by TmuxBridgeAdapter internally via process.cwd()
-      });
+      return new TmuxBridgeAdapter(kind as ProviderKind, threadKey, realTmuxIo);
     }
     case "api_key": {
       if (!decryptedKey) {

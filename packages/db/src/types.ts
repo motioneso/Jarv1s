@@ -298,6 +298,7 @@ export interface ChatThreadsTable {
   title: string;
   created_at: TimestampColumn;
   updated_at: TimestampColumn;
+  last_active_at: TimestampColumn;
 }
 
 export interface ChatMessagesTable {
