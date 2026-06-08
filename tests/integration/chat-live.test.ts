@@ -109,57 +109,6 @@ describe("chat live runtime repository (recency + executed-model stamp)", () => 
     );
     expect(current).toBeUndefined();
   });
-
-  it("updateMessageComplete stamps executed model while preserving route metadata", async () => {
-    const thread = await dataContext.withDataContext(userAContext(), (scopedDb) =>
-      repository.openNewThread(scopedDb, { title: "Executed stamp thread" })
-    );
-
-    // Append a user message; this writes an assistant message carrying model_metadata.route.
-    const appended = await dataContext.withDataContext(userAContext(), (scopedDb) =>
-      repository.appendUserMessage(scopedDb, thread.id, { body: "Stamp my reply" }, ids.userA)
-    );
-    expect(appended).toBeDefined();
-    const assistantMessage = appended!.messages[1];
-
-    const completed = await dataContext.withDataContext(userAContext(), (scopedDb) =>
-      repository.updateMessageComplete(scopedDb, assistantMessage.id, "final reply", {
-        provider: "anthropic",
-        model: "claude-executed"
-      })
-    );
-
-    expect(completed?.status).toBe("stored");
-    expect(completed?.body).toBe("final reply");
-
-    const metadata = completed?.model_metadata as {
-      route?: unknown;
-      executed?: { provider: string; model: string };
-    };
-    // Existing route metadata is preserved (not dropped).
-    expect(metadata.route).toBeDefined();
-    // Executed provider+model is recorded under the executed key.
-    expect(metadata.executed).toEqual({ provider: "anthropic", model: "claude-executed" });
-  });
-
-  it("updateMessageComplete without an executed model leaves metadata untouched", async () => {
-    const thread = await dataContext.withDataContext(userAContext(), (scopedDb) =>
-      repository.openNewThread(scopedDb, { title: "No stamp thread" })
-    );
-    const appended = await dataContext.withDataContext(userAContext(), (scopedDb) =>
-      repository.appendUserMessage(scopedDb, thread.id, { body: "No stamp please" }, ids.userA)
-    );
-    const assistantMessage = appended!.messages[1];
-
-    const completed = await dataContext.withDataContext(userAContext(), (scopedDb) =>
-      repository.updateMessageComplete(scopedDb, assistantMessage.id, "plain reply")
-    );
-
-    const metadata = completed?.model_metadata as { route?: unknown; executed?: unknown };
-    expect(completed?.body).toBe("plain reply");
-    expect(metadata.route).toBeDefined();
-    expect(metadata.executed).toBeUndefined();
-  });
 });
 
 function userAContext(): AccessContext {
