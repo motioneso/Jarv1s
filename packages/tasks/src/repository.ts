@@ -152,6 +152,7 @@ export class TasksRepository {
         id: randomUUID(),
         task_id: taskId,
         actor_user_id: sql<string>`app.current_actor_user_id()`,
+        actor_kind: "user" as const,
         activity_type: input.activityType,
         body: input.body ?? null,
         created_at: new Date()

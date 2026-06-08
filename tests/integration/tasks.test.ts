@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import type { Kysely } from "kysely";
+import { sql, type Kysely } from "kysely";
 import type { PgBoss } from "pg-boss";
 import pg from "pg";
 
@@ -501,6 +501,15 @@ describe("Tasks module M1", () => {
     } finally {
       await client.end();
     }
+  });
+
+  it("db types: new task columns and tables are queryable", async () => {
+    const cols = await sql<{ column_name: string }>`
+      select column_name from information_schema.columns
+      where table_schema='app' and table_name='tasks'
+        and column_name in ('list_id','parent_task_id','do_at','effort','source','recurrence_series_id')
+    `.execute(appDb);
+    expect(cols.rows.length).toBe(6);
   });
 });
 
