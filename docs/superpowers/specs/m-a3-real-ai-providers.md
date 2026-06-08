@@ -52,16 +52,18 @@ is the backup.
 
 All locked in the M-A3 brainstorm (do not re-open):
 
-| #   | Decision          | Choice                                                                | Why                                                                                 |
-| --- | ----------------- | --------------------------------------------------------------------- | ----------------------------------------------------------------------------------- |
-| 1   | Scope             | Real chat only; no grounding, no streaming, no tools                  | Keep M-A3 small and shippable; grounding is M-A4                                    |
-| 2   | Providers         | Claude=`anthropic`, Codex/OpenAI=`openai-compatible`, Gemini=`google` | Three providers prove the router isn't hardcoded                                    |
-| 3   | Primary transport | **Local CLI bridge** (`claude`/`codex`/`gemini`)                      | Operator is subscription-based; no token billing; Jarv1s never holds the credential |
-| 4   | Backup transport  | **API key** (BYO, encrypted at rest)                                  | Reuses existing `ai` credential plumbing; works without a local CLI                 |
-| 5   | Rejected          | Native OAuth subscription login                                       | Fragile, ToS-murky, first-party-only                                                |
-| 6   | Execution         | Inline, synchronous, in the chat REST request                         | Simplest for non-streaming; async/worker is future                                  |
-| 7   | CLI availability  | Detect + warn (config time and call time)                             | Clear failure when a CLI is missing/not authed                                      |
-| 8   | Host identity     | CLI runs as the host account (single identity)                        | Fine for self-host; no per-user swap in v1                                          |
+| #   | Decision          | Choice                                                                    | Why                                                                                                |
+| --- | ----------------- | ------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------- |
+| 1   | Scope             | Real chat only; no grounding, no streaming, no tools                      | Keep M-A3 small and shippable; grounding is M-A4                                                   |
+| 2   | Providers         | Claude=`anthropic`, Codex/OpenAI=`openai-compatible`, Gemini=`google`     | Three providers prove the router isn't hardcoded                                                   |
+| 3   | Primary transport | **Local CLI bridge — all providers via tmux** (`claude`/`codex`/`gemini`) | Subscription-based; no token billing; Jarv1s never holds the credential; sessions stay inspectable |
+| 4   | Backup transport  | **API key** (BYO, encrypted at rest)                                      | Reuses existing `ai` credential plumbing; works without a local CLI                                |
+| 5   | Rejected          | Native OAuth subscription login                                           | Fragile, ToS-murky, first-party-only                                                               |
+| 6   | Execution         | Inline, synchronous, in the chat REST request                             | Simplest for non-streaming; async/worker is future                                                 |
+| 7   | CLI availability  | Detect + warn (config time and call time)                                 | Clear failure when a CLI is missing/not authed                                                     |
+| 8   | Host identity     | CLI runs as the host account (single identity)                            | Fine for self-host; no per-user swap in v1                                                         |
+| 9   | Claude transport  | Interactive `claude` in tmux — **never** `claude -p`                      | `claude -p`/print mode is changing                                                                 |
+| 10  | tmux              | Bundle `tmux`; all `cli` providers run in a per-thread tmux session       | One mechanism; operator can attach to inspect a hung/slow session                                  |
 
 ## Architecture
 
@@ -103,34 +105,52 @@ A factory is the **only** place that picks an adapter, keyed by the provider con
 
 ```ts
 createChatAdapter(provider: AiProviderConfigRow, deps): ChatProviderAdapter
-//  auth_method === "cli"      -> CliBridgeAdapter(cliFor(provider.provider_kind))
+//  auth_method === "cli"      -> TmuxBridgeAdapter(cliFor(provider.provider_kind))  // interactive CLI in tmux
 //  auth_method === "api_key"  -> HttpApiAdapter(provider.provider_kind, decryptedKey)
 ```
 
 No chat/feature code names a provider; it asks the router for a model, loads that model's provider
 config, and calls `createChatAdapter`.
 
-### Transport A — CLI bridge (primary)
+### Transport A — CLI bridge (primary): all providers via tmux
 
-Maps each `provider_kind` to a local CLI binary and invokes it non-interactively, feeding the
-thread as a single prompt and capturing stdout as the reply:
+Every `cli` provider runs as an **interactive CLI session inside its own detached tmux session** —
+uniformly for `claude`, `codex`, and `gemini`. (`claude -p` / print mode is being changed and must
+not be used; driving the interactive session via tmux avoids that and applies one mechanism to all
+three.) **Operator benefit:** if the frontend hangs, the operator can attach to the live session
+(`tmux attach -t <session>`) and see exactly what the CLI/model is doing.
 
-| provider_kind       | CLI binary | Non-interactive invocation (verify exact flags at build) |
-| ------------------- | ---------- | -------------------------------------------------------- |
-| `anthropic`         | `claude`   | `claude -p` / `--print` (prompt via stdin)               |
-| `openai-compatible` | `codex`    | `codex exec` (prompt via stdin/arg)                      |
-| `google`            | `gemini`   | `gemini -p` (prompt via stdin/arg)                       |
+Mechanism — identical for all three; only the binary, submit key, and extract heuristics differ:
 
-Details:
+- **Session:** one detached tmux session **per chat thread** (persistent → multi-turn context for
+  free), created on first message, reused for later turns, killed on idle timeout / thread close;
+  cap concurrent sessions.
+- **Send:** `tmux send-keys`, using `load-buffer` + `paste-buffer` for multi-line / special-char
+  prompts so the TUI receives them intact, then submit.
+- **Wait:** poll `tmux capture-pane` until the pane output stabilizes (response finished rendering),
+  with a bounded timeout.
+- **Extract:** capture the pane and pull out the assistant reply, stripping TUI chrome + echoed
+  input (per-provider heuristics).
 
-- **Prompt construction:** concatenate the thread's prior turns + the new user message into one
-  prompt (the `-p`/exec modes are single-shot). Keep a simple, documented format.
-- **Model selection:** pass `provider_model_id` via the CLI's model flag when supported; otherwise
-  the CLI's configured default is used (documented).
-- **No credential handling:** Jarv1s spawns the CLI; the subscription/login lives in the CLI's own
-  config. Jarv1s stores no secret for `cli` providers.
-- **Timeout + error capture:** bounded subprocess timeout; non-zero exit or empty stdout → adapter
-  throws a clear error surfaced as the assistant error message.
+| provider_kind       | CLI binary | notes (verify at build)                    |
+| ------------------- | ---------- | ------------------------------------------ |
+| `anthropic`         | `claude`   | interactive session; **never** `claude -p` |
+| `openai-compatible` | `codex`    | interactive session                        |
+| `google`            | `gemini`   | interactive session                        |
+
+- **`tmux` is a new runtime dependency, bundled with the install** — required for all `cli`
+  providers.
+- **No credential handling:** the subscription/login lives in each CLI's own config; Jarv1s stores
+  no secret for `cli` providers.
+- **Model selection:** pass `provider_model_id` via the CLI's model flag/command when supported;
+  otherwise the CLI's configured default is used (documented).
+- **Error capture:** timeout, dead session, or empty reply → clear assistant error message, never a
+  crashed request.
+- **Risk (flagged honestly):** screen-scraping live TUIs is inherently brittle (ANSI codes,
+  redraws). The completion-detect + reply-extract logic is the riskiest part of M-A3 and will
+  likely need iteration — isolate it behind one tmux-session driver + per-provider extract config so
+  it can evolve without touching chat, and so a future first-class non-interactive interface can
+  swap in behind the same adapter.
 
 ### Transport B — API key (backup)
 
@@ -162,26 +182,28 @@ logged-in status (best-effort, e.g. a fast `--version` / lightweight auth probe)
 
 ### Files (anticipated; finalized in the plan)
 
-| Action | File                                           | Purpose                                                               |
-| ------ | ---------------------------------------------- | --------------------------------------------------------------------- |
-| Create | `packages/ai/src/chat-adapter.ts`              | `ChatProviderAdapter` interface + `createChatAdapter` factory         |
-| Create | `packages/ai/src/adapters/cli-bridge.ts`       | CLI subprocess transport + per-kind CLI map                           |
-| Create | `packages/ai/src/adapters/http-api.ts`         | API-key HTTP transport per provider kind                              |
-| Create | `packages/ai/src/cli-availability.ts`          | CLI presence/auth detection helper                                    |
-| Create | `packages/ai/sql/00NN_ai_auth_method.sql`      | `auth_method` column (+ RLS unchanged)                                |
-| Modify | `packages/ai/src/repository.ts`                | Read/write `auth_method`; expose for adapter selection                |
-| Modify | `packages/ai/src/routes.ts`                    | Accept `auth_method` on provider create/update; `cliAvailable` in DTO |
-| Modify | `packages/shared/src/ai-api.ts`                | `authMethod`, `cliAvailable` on provider DTOs                         |
-| Modify | `packages/chat/src/repository.ts`              | Replace the `pending` stub with real execution via the adapter        |
-| Modify | `packages/db/src/types.ts`                     | `auth_method` column type                                             |
-| Tests  | `tests/integration/ai.test.ts`, `chat.test.ts` | Adapter selection, auth_method, execution (mocked transports)         |
+| Action | File                                           | Purpose                                                                 |
+| ------ | ---------------------------------------------- | ----------------------------------------------------------------------- |
+| Create | `packages/ai/src/chat-adapter.ts`              | `ChatProviderAdapter` interface + `createChatAdapter` factory           |
+| Create | `packages/ai/src/adapters/tmux-bridge.ts`      | tmux session driver for all `cli` providers (session/send/wait/extract) |
+| Create | `packages/ai/src/adapters/tmux-extract.ts`     | Per-provider completion-detect + reply-extract heuristics               |
+| Create | `packages/ai/src/adapters/http-api.ts`         | API-key HTTP transport per provider kind                                |
+| Create | `packages/ai/src/cli-availability.ts`          | CLI + tmux presence/auth detection helper                               |
+| Create | `packages/ai/sql/00NN_ai_auth_method.sql`      | `auth_method` column (+ RLS unchanged)                                  |
+| Modify | `packages/ai/src/repository.ts`                | Read/write `auth_method`; expose for adapter selection                  |
+| Modify | `packages/ai/src/routes.ts`                    | Accept `auth_method` on provider create/update; `cliAvailable` in DTO   |
+| Modify | `packages/shared/src/ai-api.ts`                | `authMethod`, `cliAvailable` on provider DTOs                           |
+| Modify | `packages/chat/src/repository.ts`              | Replace the `pending` stub with real execution via the adapter          |
+| Modify | `packages/db/src/types.ts`                     | `auth_method` column type                                               |
+| Tests  | `tests/integration/ai.test.ts`, `chat.test.ts` | Adapter selection, auth_method, execution (mocked transports)           |
 
 ## Testing
 
 - **Adapter selection:** `createChatAdapter` returns the CLI adapter for `auth_method=cli` and the
   HTTP adapter for `auth_method=api_key`, keyed correctly by `provider_kind`.
-- **CLI bridge (mocked):** stub the subprocess boundary — assert correct binary/args, prompt
-  assembly from thread history, stdout→reply mapping, timeout/non-zero-exit → clear error.
+- **tmux bridge (mocked):** stub the tmux boundary (send-keys / capture-pane) — assert prompt
+  assembly + send, completion detection, per-provider reply extraction, and dead-session/timeout →
+  clear error, for each of the three providers.
 - **HTTP API (mocked):** stub the HTTP boundary per provider; assert request shape and
   response→`{ text }` mapping; no key in logs.
 - **Chat execution:** with a routed `cli` model (mocked), `appendUserMessage` stores a real
