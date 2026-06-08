@@ -236,8 +236,7 @@ function mapGeminiRecord(
     for (const thought of thoughts) {
       if (!isRecord(thought)) continue;
       const subject = typeof thought["subject"] === "string" ? thought["subject"] : "";
-      const description =
-        typeof thought["description"] === "string" ? thought["description"] : "";
+      const description = typeof thought["description"] === "string" ? thought["description"] : "";
       const text = subject ? `${subject}: ${description}` : description;
       events.push({ kind: "thinking", text });
     }

@@ -576,9 +576,8 @@ function summarizeAssistantToolInput(input: Record<string, unknown>): Record<str
 async function serializeProvider(provider: AiProviderConfigSafeRow): Promise<AiProviderConfigDto> {
   const isCli = provider.auth_method === "cli";
   const isCliProvider = CLI_PROVIDER_KINDS.has(provider.provider_kind as CliProviderKind);
-  const cliAvailableFlag = isCli && isCliProvider
-    ? await cliAvailable(provider.provider_kind as CliProviderKind)
-    : false;
+  const cliAvailableFlag =
+    isCli && isCliProvider ? await cliAvailable(provider.provider_kind as CliProviderKind) : false;
 
   return {
     id: provider.id,

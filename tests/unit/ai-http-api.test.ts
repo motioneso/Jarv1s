@@ -1,20 +1,22 @@
 import { describe, it, expect } from "vitest";
 import { HttpApiAdapter } from "../../packages/ai/src/adapters/http-api.js";
 
-const anthropicModel = {
+type ModelStub = { provider_kind: string; provider_model_id: string };
+
+const anthropicModel: ModelStub = {
   provider_kind: "anthropic",
   provider_model_id: "claude-3-5-sonnet-20241022"
-} as any;
+};
 
-const openaiModel = {
+const openaiModel: ModelStub = {
   provider_kind: "openai-compatible",
   provider_model_id: "gpt-4o"
-} as any;
+};
 
-const googleModel = {
+const googleModel: ModelStub = {
   provider_kind: "google",
   provider_model_id: "gemini-2.0-flash"
-} as any;
+};
 
 describe("HttpApiAdapter — anthropic", () => {
   it("calls the anthropic messages endpoint and maps content[0].text", async () => {
@@ -53,14 +55,14 @@ describe("HttpApiAdapter — anthropic", () => {
       fetch: fakeFetch as typeof fetch
     });
 
-    await expect(
-      adapter.generateChat({ model: anthropicModel, messages: [] })
-    ).rejects.toThrow(/401/);
+    await expect(adapter.generateChat({ model: anthropicModel, messages: [] })).rejects.toThrow(
+      /401/
+    );
 
     // Key must NOT appear in error message
-    await expect(
-      adapter.generateChat({ model: anthropicModel, messages: [] })
-    ).rejects.not.toThrow(/sk-secret-key/);
+    await expect(adapter.generateChat({ model: anthropicModel, messages: [] })).rejects.not.toThrow(
+      /sk-secret-key/
+    );
   });
 });
 
@@ -122,13 +124,11 @@ describe("HttpApiAdapter — openai-compatible", () => {
       fetch: fakeFetch as typeof fetch
     });
 
-    await expect(
-      adapter.generateChat({ model: openaiModel, messages: [] })
-    ).rejects.toThrow(/401/);
+    await expect(adapter.generateChat({ model: openaiModel, messages: [] })).rejects.toThrow(/401/);
 
-    await expect(
-      adapter.generateChat({ model: openaiModel, messages: [] })
-    ).rejects.not.toThrow(/sk-super-secret/);
+    await expect(adapter.generateChat({ model: openaiModel, messages: [] })).rejects.not.toThrow(
+      /sk-super-secret/
+    );
   });
 });
 
@@ -180,23 +180,18 @@ describe("HttpApiAdapter — google", () => {
       fetch: fakeFetch as typeof fetch
     });
 
-    await expect(
-      adapter.generateChat({ model: googleModel, messages: [] })
-    ).rejects.toThrow(/403/);
+    await expect(adapter.generateChat({ model: googleModel, messages: [] })).rejects.toThrow(/403/);
 
-    await expect(
-      adapter.generateChat({ model: googleModel, messages: [] })
-    ).rejects.not.toThrow(/goog-secret-key/);
+    await expect(adapter.generateChat({ model: googleModel, messages: [] })).rejects.not.toThrow(
+      /goog-secret-key/
+    );
   });
 });
 
 describe("HttpApiAdapter — onActivity", () => {
   it("emits a status event when onActivity is provided", async () => {
     const fakeFetch = async () =>
-      new Response(
-        JSON.stringify({ content: [{ type: "text", text: "done" }] }),
-        { status: 200 }
-      );
+      new Response(JSON.stringify({ content: [{ type: "text", text: "done" }] }), { status: 200 });
 
     const events: Array<{ kind: string; text: string }> = [];
     const adapter = new HttpApiAdapter("anthropic", "sk-test", {

@@ -15,7 +15,9 @@ export default tseslint.config(
       "**/coverage/**",
       "**/.turbo/**",
       "playwright-report/**",
-      "test-results/**"
+      "test-results/**",
+      ".claude/worktrees/**",
+      ".claude/workflows/**"
     ]
   },
   {

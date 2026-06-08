@@ -1,7 +1,11 @@
 import type { PgBoss, WorkOptions } from "pg-boss";
 
 import type { DataContextRunner } from "@jarv1s/db";
-import { registerDataContextWorker, type ActorScopedJobPayload, type QueueDefinition } from "@jarv1s/jobs";
+import {
+  registerDataContextWorker,
+  type ActorScopedJobPayload,
+  type QueueDefinition
+} from "@jarv1s/jobs";
 import {
   AiRepository,
   createAiSecretCipher,
@@ -73,7 +77,10 @@ export async function invokeChatWorkerHandler(
 
   // Phase 1: mark working — outer transaction
   await dataContext.withDataContext(
-    { actorUserId: payload.actorUserId, requestId: `chat-worker:${payload.assistantMessageId}:working` },
+    {
+      actorUserId: payload.actorUserId,
+      requestId: `chat-worker:${payload.assistantMessageId}:working`
+    },
     async (scopedDb) => {
       await repository.updateMessageStatus(scopedDb, payload.assistantMessageId, "working");
     }
@@ -84,7 +91,10 @@ export async function invokeChatWorkerHandler(
 
   try {
     const result = await dataContext.withDataContext(
-      { actorUserId: payload.actorUserId, requestId: `chat-worker:${payload.assistantMessageId}:exec` },
+      {
+        actorUserId: payload.actorUserId,
+        requestId: `chat-worker:${payload.assistantMessageId}:exec`
+      },
       async (scopedDb) => {
         // Load thread history (user messages + prior stored assistant messages)
         const messages = await repository.listMessages(scopedDb, payload.threadId);
@@ -116,8 +126,7 @@ export async function invokeChatWorkerHandler(
         if (provider.auth_method === "api_key" && provider.encrypted_credential) {
           const decrypted = secretCipher.decryptJson(provider.encrypted_credential);
 
-          decryptedKey =
-            typeof decrypted.apiKey === "string" ? decrypted.apiKey : undefined;
+          decryptedKey = typeof decrypted.apiKey === "string" ? decrypted.apiKey : undefined;
         }
 
         // Build the conversation turns (all stored messages except the pending assistant one)
@@ -148,7 +157,10 @@ export async function invokeChatWorkerHandler(
 
     // Phase 3: persist activity + final reply
     await dataContext.withDataContext(
-      { actorUserId: payload.actorUserId, requestId: `chat-worker:${payload.assistantMessageId}:store` },
+      {
+        actorUserId: payload.actorUserId,
+        requestId: `chat-worker:${payload.assistantMessageId}:store`
+      },
       async (scopedDb) => {
         for (const event of activity) {
           await repository.appendActivity(scopedDb, payload.assistantMessageId, event);
@@ -160,7 +172,10 @@ export async function invokeChatWorkerHandler(
 
     // Read back the final state to return from the handler
     const finalMessage = await dataContext.withDataContext(
-      { actorUserId: payload.actorUserId, requestId: `chat-worker:${payload.assistantMessageId}:read` },
+      {
+        actorUserId: payload.actorUserId,
+        requestId: `chat-worker:${payload.assistantMessageId}:read`
+      },
       async (scopedDb) => repository.listMessages(scopedDb, payload.threadId)
     );
 
@@ -177,7 +192,10 @@ export async function invokeChatWorkerHandler(
     // Persist error state — never let this crash the process
     try {
       await dataContext.withDataContext(
-        { actorUserId: payload.actorUserId, requestId: `chat-worker:${payload.assistantMessageId}:error` },
+        {
+          actorUserId: payload.actorUserId,
+          requestId: `chat-worker:${payload.assistantMessageId}:error`
+        },
         async (scopedDb) => {
           await repository.updateMessageStatus(
             scopedDb,

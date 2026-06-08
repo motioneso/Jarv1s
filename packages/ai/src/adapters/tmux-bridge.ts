@@ -137,10 +137,9 @@ export class TmuxBridgeAdapter implements ChatProviderAdapter {
     // 6. Poll the transcript until complete or timeout
     const deadline = Date.now() + this.timeoutMs;
     let afterOffset = 0;
-    let emittedEventCount = 0;
 
     while (Date.now() < deadline) {
-      let jsonl = "";
+      let jsonl: string;
       try {
         jsonl = await this.io.readFile(transcriptPath);
       } catch {
@@ -154,7 +153,6 @@ export class TmuxBridgeAdapter implements ChatProviderAdapter {
       // Emit any new activity events
       for (const event of result.events) {
         input.onActivity?.(event);
-        emittedEventCount++;
       }
 
       // Advance the offset so next poll skips already-processed bytes

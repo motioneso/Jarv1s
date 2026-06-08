@@ -8,7 +8,9 @@ describe("cliAvailable", () => {
   });
 
   it("maps openai-compatible to codex binary and returns true when found", async () => {
-    const deps = { which: async (bin: string) => (bin === "codex" ? "/usr/local/bin/codex" : null) };
+    const deps = {
+      which: async (bin: string) => (bin === "codex" ? "/usr/local/bin/codex" : null)
+    };
     expect(await cliAvailable("openai-compatible", deps)).toBe(true);
   });
 
@@ -26,7 +28,9 @@ describe("cliAvailable", () => {
 
   it("returns false when wrong binary is found for provider", async () => {
     // Only "codex" is available, not "claude"
-    const deps = { which: async (bin: string) => (bin === "codex" ? "/usr/local/bin/codex" : null) };
+    const deps = {
+      which: async (bin: string) => (bin === "codex" ? "/usr/local/bin/codex" : null)
+    };
     expect(await cliAvailable("anthropic", deps)).toBe(false);
     expect(await cliAvailable("google", deps)).toBe(false);
   });

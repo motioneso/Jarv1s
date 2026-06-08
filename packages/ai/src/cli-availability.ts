@@ -12,7 +12,7 @@ export interface WhichDeps {
 const PROVIDER_BINARY: Record<ProviderKind, string> = {
   anthropic: "claude",
   "openai-compatible": "codex",
-  google: "gemini",
+  google: "gemini"
 };
 
 async function defaultWhich(binary: string): Promise<string | null> {

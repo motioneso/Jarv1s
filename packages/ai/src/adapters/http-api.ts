@@ -8,7 +8,7 @@ import type {
   ChatTurn,
   ChatActivityEvent,
   GenerateChatInput,
-  ChatProviderAdapter,
+  ChatProviderAdapter
 } from "../chat-adapter.js";
 import type { ProviderKind } from "./transcript-reader.js";
 
