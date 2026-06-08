@@ -210,6 +210,6 @@ describe("HttpApiAdapter — onActivity", () => {
     });
 
     expect(events.length).toBeGreaterThan(0);
-    expect(events[0].kind).toBe("status");
+    expect(events[0]!.kind).toBe("status");
   });
 });
