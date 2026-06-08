@@ -3,8 +3,9 @@
 > **FROZEN 2026-06-07.** This document is historical record only. Do not edit or continue adding
 > to it. The live continuation point is now:
 >
-> - **Status + next step:** `docs/STATUS.md`
-> - **Roadmap + milestones:** `docs/ROADMAP.md` + GitHub Milestones on `motioneso/Jarv1s`
+> - **Status + next step:** the GitHub [project board](https://github.com/users/motioneso/projects/1)
+>   ("In Progress" column). STATUS.md/ROADMAP.md were retired 2026-06-07.
+> - **Roadmap + milestones:** GitHub Milestones + epic issues #2–#10 on `motioneso/Jarv1s`
 > - **Open work:** GitHub Issues #2–#10 (epic issues, one per milestone)
 > - **Architectural decisions:** `docs/architecture/decisions/`
 > - **Durable lessons:** agentmemory (`project: "jarv1s"`)
@@ -305,6 +306,7 @@ pg-boss payloads are operational metadata. They may contain actor ids, workspace
 First full manual test of the running web UI. Four bugs were found and fixed:
 
 **1. Sign-out not working** — Two fixes applied:
+
 - `signOutMutation.onSettled` fired regardless of success or failure, silently redirecting even on
   failure. Changed to `onSuccess`. Also added visible error text ("Sign out failed — retry?") with
   the error message in the button's `title` attribute. `apps/web/src/shell/app-shell.tsx`
@@ -316,6 +318,7 @@ First full manual test of the running web UI. Four bugs were found and fixed:
 **2. Activity comments not displaying** — Triple bug: no `GET /api/tasks/:id/activity` endpoint
 existed; no React Query invalidation fired after submitting; no UI displayed the returned list.
 All three fixed:
+
 - Added `ListTaskActivityResponse` type and `listTaskActivityRouteSchema` to `packages/shared/src/tasks-api.ts`
 - Added `GET /api/tasks/:id/activity` route in `packages/tasks/src/routes.ts`
 - Added `queryKeys.tasks.activity(id)` in `apps/web/src/api/query-keys.ts`
@@ -338,11 +341,13 @@ account email is `3843176+motioneso@users.noreply.github.com` — credential red
 artifacts are written under `outputs/` (git-ignored, regenerable).
 
 **Dev server startup for LAN testing** (headless machine, always required):
+
 ```bash
 pnpm --filter @jarv1s/web dev -- --host   # binds to 0.0.0.0:5173
 pnpm dev:api                               # API on :3000
 pnpm dev:worker                            # pg-boss worker — DO NOT forget this
 ```
+
 Access via Tailscale IP if direct LAN has client isolation: `http://<tailscale-ip>:5173`
 
 ## Next Step
