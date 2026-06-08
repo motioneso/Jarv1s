@@ -151,7 +151,7 @@ export type AiModelStatus = "active" | "disabled";
 export type AiAssistantActionRisk = "write" | "destructive";
 export type AiAssistantActionStatus = "pending" | "confirmed" | "rejected" | "cancelled";
 export type ChatMessageRole = "user" | "assistant";
-export type ChatMessageStatus = "stored" | "pending" | "blocked" | "no_model";
+export type ChatMessageStatus = "stored" | "pending" | "blocked" | "no_model" | "working" | "error";
 export type BriefingCadence = "manual" | "daily" | "weekly";
 export type BriefingRunStatus = "succeeded" | "blocked" | "failed";
 export type BriefingRunKind = "manual" | "scheduled";
@@ -248,6 +248,8 @@ export interface EmailMessagesTable {
   updated_at: TimestampColumn;
 }
 
+export type AiAuthMethod = "cli" | "api_key";
+
 export interface AiProviderConfigsTable {
   id: string;
   owner_user_id: string;
@@ -255,6 +257,7 @@ export interface AiProviderConfigsTable {
   display_name: string;
   base_url: string | null;
   status: AiProviderStatus;
+  auth_method: AiAuthMethod;
   encrypted_credential: JsonColumn;
   revoked_at: NullableTimestampColumn;
   created_at: TimestampColumn;

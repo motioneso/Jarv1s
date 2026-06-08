@@ -1,7 +1,12 @@
 import type { AiCapabilityRouteReason, AiConfiguredModelDto, AiModelCapability } from "./ai-api.js";
 
 export type ChatMessageRole = "user" | "assistant";
-export type ChatMessageStatus = "stored" | "pending" | "blocked" | "no_model";
+export type ChatMessageStatus = "stored" | "pending" | "blocked" | "no_model" | "working" | "error";
+
+export interface ChatActivityEventDto {
+  readonly kind: string;
+  readonly text: string;
+}
 
 export interface ChatThreadDto {
   readonly id: string;
@@ -35,6 +40,7 @@ export interface ChatMessageDto {
   readonly body: string;
   readonly modelRoute: ChatModelRouteMetadataDto | null;
   readonly tools: readonly ChatSelectedToolMetadataDto[];
+  readonly activity: readonly ChatActivityEventDto[];
   readonly createdAt: string;
   readonly updatedAt: string;
 }
@@ -94,7 +100,7 @@ export const chatMessageRoleSchema = {
 
 export const chatMessageStatusSchema = {
   type: "string",
-  enum: ["stored", "pending", "blocked", "no_model"]
+  enum: ["stored", "pending", "blocked", "no_model", "working", "error"]
 } as const;
 
 const aiConfiguredModelSchema = {
@@ -174,6 +180,16 @@ const chatThreadSchema = {
   }
 } as const;
 
+const chatActivityEventSchema = {
+  type: "object",
+  additionalProperties: false,
+  required: ["kind", "text"],
+  properties: {
+    kind: { type: "string" },
+    text: { type: "string" }
+  }
+} as const;
+
 const chatMessageSchema = {
   type: "object",
   additionalProperties: false,
@@ -186,6 +202,7 @@ const chatMessageSchema = {
     "body",
     "modelRoute",
     "tools",
+    "activity",
     "createdAt",
     "updatedAt"
   ],
@@ -200,6 +217,7 @@ const chatMessageSchema = {
       anyOf: [chatModelRouteMetadataSchema, { type: "null" }]
     },
     tools: { type: "array", items: chatSelectedToolMetadataSchema },
+    activity: { type: "array", items: chatActivityEventSchema },
     createdAt: { type: "string" },
     updatedAt: { type: "string" }
   }

@@ -12,6 +12,7 @@ import {
 } from "@jarv1s/shared";
 
 export const CHAT_MODULE_ID = "chat";
+export const CHAT_EXECUTION_QUEUE = "chat-execution";
 export const chatModuleSqlMigrationDirectory = fileURLToPath(new URL("../sql", import.meta.url));
 
 export const chatModuleManifest = {
@@ -28,7 +29,11 @@ export const chatModuleManifest = {
     required: true
   },
   database: {
-    migrations: ["sql/0014_chat_module.sql"],
+    migrations: [
+      "sql/0014_chat_module.sql",
+      "sql/0034_chat_status_activity.sql",
+      "sql/0035_chat_messages_update_grant.sql"
+    ],
     migrationDirectories: ["packages/chat/sql"],
     ownedTables: ["app.chat_threads", "app.chat_messages"]
   },

@@ -20,6 +20,7 @@ import {
   type AiAssistantActionStatus,
   type AiAssistantToolDto,
   type AiAssistantToolInvocationDto,
+  type AiAuthMethod,
   type AiConfiguredModelDto,
   type AiModelCapability,
   type AiModelStatus,
@@ -40,6 +41,7 @@ import {
   findAssistantToolFromManifests,
   listAssistantToolsFromManifests
 } from "./assistant-tools.js";
+import { cliAvailable, type ProviderKind as CliProviderKind } from "./cli-availability.js";
 import { createAiSecretCipher, type AiSecretCipher } from "./crypto.js";
 import {
   AiRepository,
@@ -81,6 +83,8 @@ const WRITABLE_PROVIDER_STATUSES = new Set<Exclude<AiProviderStatus, "revoked">>
   "error",
   "disabled"
 ]);
+const AUTH_METHODS = new Set<AiAuthMethod>(["cli", "api_key"]);
+const CLI_PROVIDER_KINDS = new Set<CliProviderKind>(["anthropic", "openai-compatible", "google"]);
 const MODEL_STATUSES = new Set<AiModelStatus>(["active", "disabled"]);
 const MODEL_CAPABILITIES = new Set<AiModelCapability>([
   "chat",
@@ -109,7 +113,7 @@ export function registerAiRoutes(
           (scopedDb) => repository.listProviders(scopedDb)
         );
 
-        return { providers: providers.map(serializeProvider) };
+        return { providers: await Promise.all(providers.map(serializeProvider)) };
       } catch (error) {
         return handleRouteError(error, reply);
       }
@@ -123,18 +127,23 @@ export function registerAiRoutes(
       try {
         const accessContext = await dependencies.resolveAccessContext(request);
         const body = parseCreateProviderBody(request.body);
-        const encryptedCredential = secretCipher.encryptJson(body.credentialPayload);
+        const authMethod = body.authMethod ?? "api_key";
+        const encryptedCredential =
+          authMethod === "cli"
+            ? secretCipher.encryptJson({ cli: true })
+            : secretCipher.encryptJson(body.credentialPayload ?? {});
         const provider = await dependencies.dataContext.withDataContext(accessContext, (scopedDb) =>
           repository.createProvider(scopedDb, {
             providerKind: body.providerKind,
             displayName: body.displayName,
             baseUrl: body.baseUrl ?? null,
             status: body.status ?? "active",
+            authMethod,
             encryptedCredential
           })
         );
 
-        return reply.code(201).send({ provider: serializeProvider(provider) });
+        return reply.code(201).send({ provider: await serializeProvider(provider) });
       } catch (error) {
         return handleRouteError(error, reply);
       }
@@ -158,6 +167,7 @@ export function registerAiRoutes(
             displayName: body.displayName,
             baseUrl: body.baseUrl,
             status: body.status,
+            authMethod: body.authMethod,
             encryptedCredential
           })
         );
@@ -166,7 +176,7 @@ export function registerAiRoutes(
           return reply.code(404).send({ error: "AI provider config not found" });
         }
 
-        return { provider: serializeProvider(provider) };
+        return { provider: await serializeProvider(provider) };
       } catch (error) {
         return handleRouteError(error, reply);
       }
@@ -188,7 +198,7 @@ export function registerAiRoutes(
           return reply.code(404).send({ error: "AI provider config not found" });
         }
 
-        return { provider: serializeProvider(provider) };
+        return { provider: await serializeProvider(provider) };
       } catch (error) {
         return handleRouteError(error, reply);
       }
@@ -425,13 +435,22 @@ export function registerAiRoutes(
 
 function parseCreateProviderBody(body: unknown): CreateAiProviderConfigRequest {
   const value = requireObject(body);
+  const authMethod = optionalAuthMethod(value.authMethod);
+
+  if (authMethod !== "cli" && value.credentialPayload === undefined) {
+    throw new HttpError(400, "credentialPayload is required for api_key auth method");
+  }
 
   return {
     providerKind: requiredProviderKind(value.providerKind, "providerKind"),
     displayName: requiredString(value.displayName, "displayName"),
     baseUrl: optionalNullableString(value.baseUrl, "baseUrl"),
     status: optionalProviderStatus(value.status),
-    credentialPayload: requiredJsonObject(value.credentialPayload, "credentialPayload")
+    authMethod,
+    credentialPayload:
+      value.credentialPayload === undefined
+        ? undefined
+        : requiredJsonObject(value.credentialPayload, "credentialPayload")
   };
 }
 
@@ -443,6 +462,7 @@ function parseUpdateProviderBody(body: unknown): UpdateAiProviderConfigRequest {
     displayName: optionalString(value.displayName, "displayName"),
     baseUrl: optionalNullableString(value.baseUrl, "baseUrl"),
     status: optionalProviderStatus(value.status),
+    authMethod: optionalAuthMethod(value.authMethod),
     credentialPayload:
       value.credentialPayload === undefined
         ? undefined
@@ -553,14 +573,21 @@ function summarizeAssistantToolInput(input: Record<string, unknown>): Record<str
   };
 }
 
-function serializeProvider(provider: AiProviderConfigSafeRow): AiProviderConfigDto {
+async function serializeProvider(provider: AiProviderConfigSafeRow): Promise<AiProviderConfigDto> {
+  const isCli = provider.auth_method === "cli";
+  const isCliProvider = CLI_PROVIDER_KINDS.has(provider.provider_kind as CliProviderKind);
+  const cliAvailableFlag =
+    isCli && isCliProvider ? await cliAvailable(provider.provider_kind as CliProviderKind) : false;
+
   return {
     id: provider.id,
     providerKind: provider.provider_kind,
     displayName: provider.display_name,
     baseUrl: provider.base_url,
     status: provider.status,
-    hasCredential: provider.has_credential,
+    authMethod: provider.auth_method,
+    hasCredential: isCli ? false : provider.has_credential,
+    cliAvailable: cliAvailableFlag,
     revokedAt: toIsoString(provider.revoked_at),
     createdAt: serializeDate(provider.created_at),
     updatedAt: serializeDate(provider.updated_at)
@@ -652,6 +679,17 @@ function optionalProviderKind(value: unknown, fieldName: string): AiProviderKind
   }
 
   return value as AiProviderKind;
+}
+
+function optionalAuthMethod(value: unknown): AiAuthMethod | undefined {
+  if (value === undefined) {
+    return undefined;
+  }
+  if (typeof value === "string" && AUTH_METHODS.has(value as AiAuthMethod)) {
+    return value as AiAuthMethod;
+  }
+
+  throw new HttpError(400, "authMethod must be cli or api_key");
 }
 
 function optionalProviderStatus(value: unknown): Exclude<AiProviderStatus, "revoked"> | undefined {

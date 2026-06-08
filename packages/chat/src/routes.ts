@@ -1,4 +1,5 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
+import type { PgBoss } from "pg-boss";
 
 import type { AccessContext, ChatMessage, ChatThread, DataContextRunner } from "@jarv1s/db";
 import type { JarvisModuleManifest } from "@jarv1s/module-sdk";
@@ -9,6 +10,7 @@ import {
   listChatMessagesRouteSchema,
   listChatThreadsRouteSchema,
   type AppendChatUserMessageRequest,
+  type ChatActivityEventDto,
   type ChatMessageDto,
   type ChatModelRouteMetadataDto,
   type ChatSelectedToolMetadataDto,
@@ -16,12 +18,13 @@ import {
   type CreateChatThreadRequest
 } from "@jarv1s/shared";
 
-import { ChatRepository } from "./repository.js";
+import { ChatRepository, type ChatExecutionJobPayload } from "./repository.js";
 
 export interface ChatRoutesDependencies {
   readonly resolveAccessContext: (request: FastifyRequest) => Promise<AccessContext>;
   readonly dataContext: DataContextRunner;
   readonly listModuleManifests: () => readonly JarvisModuleManifest[];
+  readonly boss: PgBoss;
   readonly repository?: ChatRepository;
 }
 
@@ -33,7 +36,9 @@ export function registerChatRoutes(
   server: FastifyInstance,
   dependencies: ChatRoutesDependencies
 ): void {
-  const repository = dependencies.repository ?? new ChatRepository();
+  const enqueue = (queueName: string, payload: ChatExecutionJobPayload) =>
+    dependencies.boss.send(queueName, payload);
+  const repository = dependencies.repository ?? new ChatRepository(undefined, enqueue);
 
   server.get(
     "/api/chat/threads",
@@ -134,10 +139,12 @@ export function registerChatRoutes(
           body.selectedToolNames ?? []
         );
         const result = await dependencies.dataContext.withDataContext(accessContext, (scopedDb) =>
-          repository.appendUserMessage(scopedDb, request.params.id, {
-            body: body.body,
-            selectedTools
-          })
+          repository.appendUserMessage(
+            scopedDb,
+            request.params.id,
+            { body: body.body, selectedTools },
+            accessContext.actorUserId
+          )
         );
 
         if (!result) {
@@ -223,6 +230,7 @@ function serializeMessage(message: ChatMessage): ChatMessageDto {
     body: message.body,
     modelRoute: readModelRoute(message.model_metadata),
     tools: readSelectedTools(message.tool_metadata),
+    activity: readActivity(message.model_metadata),
     createdAt: toIsoString(message.created_at),
     updatedAt: toIsoString(message.updated_at)
   };
@@ -238,6 +246,12 @@ function readSelectedTools(metadata: Record<string, unknown>): ChatSelectedToolM
   const tools = metadata.selectedTools;
 
   return Array.isArray(tools) ? (tools as ChatSelectedToolMetadataDto[]) : [];
+}
+
+function readActivity(metadata: Record<string, unknown>): ChatActivityEventDto[] {
+  const activity = metadata.activity;
+
+  return Array.isArray(activity) ? (activity as ChatActivityEventDto[]) : [];
 }
 
 function requireObject(value: unknown): Record<string, unknown> {

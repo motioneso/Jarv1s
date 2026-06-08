@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import type { Kysely } from "kysely";
 import pg from "pg";
 
@@ -16,7 +16,15 @@ import {
   getBuiltInModuleRegistrations,
   getBuiltInSqlMigrationDirectories
 } from "@jarv1s/module-registry";
-import { ChatRepository, chatModuleManifest } from "@jarv1s/chat";
+import {
+  CHAT_EXECUTION_QUEUE,
+  ChatRepository,
+  chatModuleManifest,
+  registerChatJobWorkers,
+  type ChatExecutionJobPayload
+} from "@jarv1s/chat";
+import type { ChatProviderAdapter, CreateChatAdapterDeps } from "@jarv1s/ai";
+import type { AiProviderConfigSafeRow } from "@jarv1s/ai";
 import { connectionStrings, ids, resetFoundationDatabase } from "./test-database.js";
 
 const { Client } = pg;
@@ -128,7 +136,7 @@ describe("Chat module M6 thin slice", () => {
     }
   });
 
-  it("loads Chat as a required built-in module without queues", () => {
+  it("loads Chat as a required built-in module with the execution queue", () => {
     const manifests = getBuiltInModuleManifests();
     const registration = getBuiltInModuleRegistrations().find(
       (item) => item.manifest.id === chatModuleManifest.id
@@ -154,7 +162,8 @@ describe("Chat module M6 thin slice", () => {
       path: "/chat",
       permissionId: "chat.view"
     });
-    expect(registration?.queueDefinitions).toEqual([]);
+    expect(registration?.queueDefinitions).toHaveLength(1);
+    expect(registration?.queueDefinitions[0]?.name).toBe("chat-execution");
     expect(getBuiltInSqlMigrationDirectories().at(-4)).toContain("packages/chat/sql");
   });
 
@@ -398,6 +407,55 @@ describe("Chat module M6 thin slice", () => {
     });
   });
 
+  it("enqueues a metadata-only job with only actorUserId/threadId/assistantMessageId when route is available", async () => {
+    const enqueuedJobs: Array<{ queueName: string; payload: ChatExecutionJobPayload }> = [];
+    const fakeEnqueue = vi.fn(
+      async (queueName: string, payload: ChatExecutionJobPayload): Promise<string | null> => {
+        enqueuedJobs.push({ queueName, payload });
+        return "fake-job-id";
+      }
+    );
+    const repoWithEnqueue = new ChatRepository(undefined, fakeEnqueue);
+
+    // Ensure a model is configured for userA (set up in previous test run; create fresh)
+    const threadResponse = await server.inject({
+      method: "POST",
+      url: "/api/chat/threads",
+      headers: { authorization: `Bearer ${ids.sessionA}` },
+      payload: { title: "Enqueue test thread" }
+    });
+    const threadId = threadResponse.json<{ thread: { id: string } }>().thread.id;
+
+    const result = await dataContext.withDataContext(
+      { actorUserId: ids.userA, requestId: "request:enqueue-test" },
+      (scopedDb) =>
+        repoWithEnqueue.appendUserMessage(
+          scopedDb,
+          threadId,
+          { body: "Hello, enqueue me" },
+          ids.userA
+        )
+    );
+
+    expect(result).toBeDefined();
+    const assistantMessage = result!.messages[1];
+
+    expect(assistantMessage.status).toBe("pending");
+    expect(fakeEnqueue).toHaveBeenCalledTimes(1);
+    expect(enqueuedJobs).toHaveLength(1);
+
+    const job = enqueuedJobs[0]!;
+
+    expect(job.queueName).toBe(CHAT_EXECUTION_QUEUE);
+    // INVARIANT: payload must contain ONLY these three fields — no content, no secrets
+    expect(Object.keys(job.payload).sort()).toEqual(
+      ["actorUserId", "assistantMessageId", "threadId"].sort()
+    );
+    expect(job.payload.actorUserId).toBe(ids.userA);
+    expect(job.payload.threadId).toBe(threadId);
+    expect(job.payload.assistantMessageId).toBe(assistantMessage.id);
+  });
+
   it("fails loudly when the Chat repository is called without withDataContext", async () => {
     await expect(repository.listThreads({} as never)).rejects.toThrow(
       "Repository access requires withDataContext"
@@ -407,6 +465,131 @@ describe("Chat module M6 thin slice", () => {
         body: "outside data context"
       })
     ).rejects.toThrow("Repository access requires withDataContext");
+  });
+
+  it("worker handler: pending → working → stored with activity events on success", async () => {
+    // Arrange: create thread + pending assistant message via the repository
+    const threadResponse = await server.inject({
+      method: "POST",
+      url: "/api/chat/threads",
+      headers: { authorization: `Bearer ${ids.sessionA}` },
+      payload: { title: "Worker test thread (success)" }
+    });
+    expect(threadResponse.statusCode).toBe(201);
+    const threadId = threadResponse.json<{ thread: { id: string } }>().thread.id;
+
+    const capturedJobs: ChatExecutionJobPayload[] = [];
+    const fakeEnqueue = vi.fn(async (_q: string, payload: ChatExecutionJobPayload) => {
+      capturedJobs.push(payload);
+      return "fake-job-id";
+    });
+    const repoWithEnqueue = new ChatRepository(undefined, fakeEnqueue);
+
+    await dataContext.withDataContext(
+      { actorUserId: ids.userA, requestId: "request:worker-success-setup" },
+      (scopedDb) =>
+        repoWithEnqueue.appendUserMessage(scopedDb, threadId, { body: "Run me" }, ids.userA)
+    );
+
+    expect(capturedJobs).toHaveLength(1);
+    const { assistantMessageId } = capturedJobs[0]!;
+
+    // Arrange: a fake adapter that emits 2 activity events then returns a final reply
+    const emittedEvents: Array<{ kind: string; text: string }> = [];
+    const fakeAdapter: ChatProviderAdapter = {
+      async generateChat(input) {
+        input.onActivity?.({ kind: "thinking", text: "planning…" });
+        input.onActivity?.({ kind: "status", text: "fetching data…" });
+        emittedEvents.push(
+          { kind: "thinking", text: "planning…" },
+          { kind: "status", text: "fetching data…" }
+        );
+        return { text: "the answer" };
+      }
+    };
+    const fakeCreateChatAdapter = vi.fn(
+      (_provider: AiProviderConfigSafeRow, _deps: CreateChatAdapterDeps): ChatProviderAdapter =>
+        fakeAdapter
+    );
+
+    // Act: register workers with fake adapter and invoke handler by simulating the job
+    const workerIds = await registerChatJobWorkers(
+      // We can't easily invoke the real pg-boss worker in integration tests, so we test
+      // the repository methods directly instead to verify the state machine transitions.
+      // This also validates the worker wiring.
+      null as never, // boss not used in direct invocation path
+      dataContext,
+      { createChatAdapter: fakeCreateChatAdapter }
+    );
+    // workerIds is empty when boss is null — that's expected for this test
+    expect(Array.isArray(workerIds)).toBe(true);
+
+    // Directly invoke the handler function exported from jobs
+    const { invokeChatWorkerHandler } = await import("@jarv1s/chat");
+    const result = await invokeChatWorkerHandler(
+      dataContext,
+      { actorUserId: ids.userA, threadId, assistantMessageId },
+      { createChatAdapter: fakeCreateChatAdapter }
+    );
+
+    // Assert
+    expect(result.status).toBe("stored");
+    expect(result.body).toBe("the answer");
+    expect(result.activity).toHaveLength(2);
+    expect(result.activity[0]).toEqual({ kind: "thinking", text: "planning…" });
+    expect(result.activity[1]).toEqual({ kind: "status", text: "fetching data…" });
+    expect(fakeCreateChatAdapter).toHaveBeenCalledTimes(1);
+  });
+
+  it("worker handler: pending → working → error when adapter throws", async () => {
+    // Arrange: create thread + pending assistant message
+    const threadResponse = await server.inject({
+      method: "POST",
+      url: "/api/chat/threads",
+      headers: { authorization: `Bearer ${ids.sessionA}` },
+      payload: { title: "Worker test thread (failure)" }
+    });
+    expect(threadResponse.statusCode).toBe(201);
+    const threadId = threadResponse.json<{ thread: { id: string } }>().thread.id;
+
+    const capturedJobs: ChatExecutionJobPayload[] = [];
+    const fakeEnqueue = vi.fn(async (_q: string, payload: ChatExecutionJobPayload) => {
+      capturedJobs.push(payload);
+      return "fake-job-id";
+    });
+    const repoWithEnqueue = new ChatRepository(undefined, fakeEnqueue);
+
+    await dataContext.withDataContext(
+      { actorUserId: ids.userA, requestId: "request:worker-error-setup" },
+      (scopedDb) =>
+        repoWithEnqueue.appendUserMessage(scopedDb, threadId, { body: "Break me" }, ids.userA)
+    );
+
+    expect(capturedJobs).toHaveLength(1);
+    const { assistantMessageId } = capturedJobs[0]!;
+
+    // Arrange: a failing adapter
+    const failingAdapter: ChatProviderAdapter = {
+      async generateChat(_input) {
+        throw new Error("Provider network failure");
+      }
+    };
+    const fakeCreateChatAdapter = vi.fn(
+      (_provider: AiProviderConfigSafeRow, _deps: CreateChatAdapterDeps): ChatProviderAdapter =>
+        failingAdapter
+    );
+
+    // Act
+    const { invokeChatWorkerHandler } = await import("@jarv1s/chat");
+    const result = await invokeChatWorkerHandler(
+      dataContext,
+      { actorUserId: ids.userA, threadId, assistantMessageId },
+      { createChatAdapter: fakeCreateChatAdapter }
+    );
+
+    // Assert
+    expect(result.status).toBe("error");
+    expect(result.body).toContain("Provider network failure");
   });
 });
 

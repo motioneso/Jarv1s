@@ -24,6 +24,7 @@ import {
 } from "../api/client";
 import { queryKeys } from "../api/query-keys";
 import type {
+  AiAuthMethod,
   AiConfiguredModelDto,
   AiModelCapability,
   AiModelStatus,
@@ -118,6 +119,7 @@ function CreateAiProviderForm(props: { readonly onCreated: () => Promise<void> }
   const [providerKind, setProviderKind] = useState<AiProviderKind>("openai-compatible");
   const [displayName, setDisplayName] = useState("");
   const [baseUrl, setBaseUrl] = useState("");
+  const [authMethod, setAuthMethod] = useState<AiAuthMethod>("api_key");
   const [credentialPayload, setCredentialPayload] = useState('{"apiKey":"placeholder"}');
   const [formError, setFormError] = useState<string | null>(null);
   const createMutation = useMutation({
@@ -126,12 +128,17 @@ function CreateAiProviderForm(props: { readonly onCreated: () => Promise<void> }
         providerKind,
         displayName,
         baseUrl: baseUrl.trim() || null,
-        credentialPayload: parseJsonObject(credentialPayload, "Credential JSON")
+        authMethod,
+        credentialPayload:
+          authMethod === "api_key"
+            ? parseJsonObject(credentialPayload, "Credential JSON")
+            : undefined
       }),
     onSuccess: async () => {
       setDisplayName("");
       setBaseUrl("");
       setCredentialPayload("{}");
+      setAuthMethod("api_key");
       setFormError(null);
       await props.onCreated();
     },
@@ -172,6 +179,17 @@ function CreateAiProviderForm(props: { readonly onCreated: () => Promise<void> }
       </label>
 
       <label className="span-2">
+        Auth method
+        <select
+          onChange={(event) => setAuthMethod(event.target.value as AiAuthMethod)}
+          value={authMethod}
+        >
+          <option value="api_key">API key</option>
+          <option value="cli">CLI (subscription)</option>
+        </select>
+      </label>
+
+      <label className="span-2">
         Base URL
         <input
           onChange={(event) => setBaseUrl(event.target.value)}
@@ -181,15 +199,17 @@ function CreateAiProviderForm(props: { readonly onCreated: () => Promise<void> }
         />
       </label>
 
-      <label className="span-2">
-        Credential JSON
-        <textarea
-          onChange={(event) => setCredentialPayload(event.target.value)}
-          required
-          rows={3}
-          value={credentialPayload}
-        />
-      </label>
+      {authMethod === "api_key" ? (
+        <label className="span-2">
+          Credential JSON
+          <textarea
+            onChange={(event) => setCredentialPayload(event.target.value)}
+            required
+            rows={3}
+            value={credentialPayload}
+          />
+        </label>
+      ) : null}
 
       {formError ? <p className="form-error span-2">{formError}</p> : null}
 
@@ -370,9 +390,18 @@ function AiProviderRow(props: { readonly provider: AiProviderConfigDto }) {
         <strong>{props.provider.displayName}</strong>
         <p>
           {props.provider.providerKind} - {props.provider.status} -{" "}
-          {props.provider.hasCredential ? "credential stored" : "no credential"}
+          {props.provider.authMethod === "cli"
+            ? "CLI (subscription)"
+            : props.provider.hasCredential
+              ? "credential stored"
+              : "no credential"}
         </p>
         {props.provider.baseUrl ? <p>{props.provider.baseUrl}</p> : null}
+        {props.provider.authMethod === "cli" && !props.provider.cliAvailable ? (
+          <p className="form-error">
+            CLI not found on PATH. Install and authenticate before using this provider.
+          </p>
+        ) : null}
       </div>
       <div className="connector-actions">
         {props.provider.status !== "revoked" ? (

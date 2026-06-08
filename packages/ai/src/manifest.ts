@@ -39,7 +39,11 @@ export const aiModuleManifest = {
     required: true
   },
   database: {
-    migrations: ["sql/0013_ai_module.sql", "sql/0016_ai_assistant_actions.sql"],
+    migrations: [
+      "sql/0013_ai_module.sql",
+      "sql/0016_ai_assistant_actions.sql",
+      "sql/0033_ai_auth_method.sql"
+    ],
     migrationDirectories: ["packages/ai/sql"],
     ownedTables: [
       "app.ai_provider_configs",
