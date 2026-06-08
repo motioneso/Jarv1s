@@ -176,7 +176,7 @@ describe("MemoryRepository", () => {
     const path = "notes/repo-test-1.md";
     const chunks = await makeChunks(path, ["Chunk one text", "Chunk two text"]);
     await dataContext.withDataContext(ctx(userId), async (scopedDb) => {
-      await repo.upsertFileChunks(scopedDb, userId, path, chunks);
+      await repo.upsertFileChunks(scopedDb, userId, path, chunks, "stub", "0");
       const stored = await sql<{ text: string }>`
         SELECT text FROM app.memory_chunks
         WHERE source_path = ${path}
@@ -192,8 +192,8 @@ describe("MemoryRepository", () => {
     const newChunks = await makeChunks(path, ["New content A", "New content B"]);
 
     await dataContext.withDataContext(ctx(userId), async (scopedDb) => {
-      await repo.upsertFileChunks(scopedDb, userId, path, firstChunks);
-      await repo.upsertFileChunks(scopedDb, userId, path, newChunks);
+      await repo.upsertFileChunks(scopedDb, userId, path, firstChunks, "stub", "0");
+      await repo.upsertFileChunks(scopedDb, userId, path, newChunks, "stub", "0");
       const stored = await sql<{ text: string }>`
         SELECT text FROM app.memory_chunks WHERE source_path = ${path} ORDER BY line_start
       `.execute(scopedDb.db);
@@ -205,7 +205,7 @@ describe("MemoryRepository", () => {
     const path = "notes/repo-test-3.md";
     const chunks = await makeChunks(path, ["The quick brown fox"]);
     await dataContext.withDataContext(ctx(userId), async (scopedDb) => {
-      await repo.upsertFileChunks(scopedDb, userId, path, chunks);
+      await repo.upsertFileChunks(scopedDb, userId, path, chunks, "stub", "0");
     });
 
     const queryVec = await provider.embed("The quick brown fox");
@@ -225,7 +225,7 @@ describe("MemoryRepository", () => {
     const path = "notes/repo-test-4.md";
     const chunks = await makeChunks(path, ["To be deleted"]);
     await dataContext.withDataContext(ctx(userId), async (scopedDb) => {
-      await repo.upsertFileChunks(scopedDb, userId, path, chunks);
+      await repo.upsertFileChunks(scopedDb, userId, path, chunks, "stub", "0");
       await repo.deleteFileChunks(scopedDb, userId, path);
       const stored = await sql<{ id: string }>`
         SELECT id FROM app.memory_chunks WHERE source_path = ${path}
@@ -251,7 +251,7 @@ describe("MemoryRepository", () => {
     }
 
     await dataContext.withDataContext(ctx(freshUserId), async (scopedDb) => {
-      await repo.upsertFileChunks(scopedDb, freshUserId, path, chunks);
+      await repo.upsertFileChunks(scopedDb, freshUserId, path, chunks, "stub", "0");
       await repo.deleteAllForUser(scopedDb, freshUserId);
       const stored = await sql<{ id: string }>`
         SELECT id FROM app.memory_chunks WHERE owner_user_id = ${freshUserId}::uuid
@@ -399,6 +399,53 @@ describe("MemoryIngestPipeline", () => {
         expect(paths).toContain("notes/file-b.md");
         expect(paths).not.toContain("notes/ignored.txt");
       });
+    });
+  });
+});
+
+// ── MemoryRepository file index ───────────────────────────────────────────────
+
+describe("MemoryRepository file index", () => {
+  const repo = new MemoryRepository();
+
+  it("upserts and reads back a file checkpoint", async () => {
+    await dataContext.withDataContext(ctx(userId), async (scoped) => {
+      await repo.upsertFileIndex(scoped, userId, "vault", "notes/a.md", "hash-1", 3, "stub", "0");
+      const found = await repo.getFileIndex(scoped, userId, "vault", "notes/a.md");
+      expect(found).toEqual({ fileHash: "hash-1", embedModelName: "stub" });
+    });
+  });
+
+  it("overwrites the checkpoint on re-upsert (same path)", async () => {
+    await dataContext.withDataContext(ctx(userId), async (scoped) => {
+      await repo.upsertFileIndex(scoped, userId, "vault", "notes/b.md", "hash-1", 1, "stub", "0");
+      await repo.upsertFileIndex(scoped, userId, "vault", "notes/b.md", "hash-2", 5, "stub", "0");
+      const found = await repo.getFileIndex(scoped, userId, "vault", "notes/b.md");
+      expect(found?.fileHash).toBe("hash-2");
+    });
+  });
+
+  it("returns null for an unknown path", async () => {
+    await dataContext.withDataContext(ctx(userId), async (scoped) => {
+      const found = await repo.getFileIndex(scoped, userId, "vault", "notes/missing.md");
+      expect(found).toBeNull();
+    });
+  });
+
+  it("lists indexed paths for a user + source kind", async () => {
+    await dataContext.withDataContext(ctx(userId), async (scoped) => {
+      await repo.upsertFileIndex(scoped, userId, "vault", "notes/c.md", "h", 1, "stub", "0");
+      const paths = await repo.listIndexedPaths(scoped, userId, "vault");
+      expect(paths).toContain("notes/c.md");
+    });
+  });
+
+  it("deletes a file checkpoint", async () => {
+    await dataContext.withDataContext(ctx(userId), async (scoped) => {
+      await repo.upsertFileIndex(scoped, userId, "vault", "notes/d.md", "h", 1, "stub", "0");
+      await repo.deleteFileIndex(scoped, userId, "vault", "notes/d.md");
+      const found = await repo.getFileIndex(scoped, userId, "vault", "notes/d.md");
+      expect(found).toBeNull();
     });
   });
 });

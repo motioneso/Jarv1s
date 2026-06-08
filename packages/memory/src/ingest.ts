@@ -33,7 +33,14 @@ export class MemoryIngestPipeline {
       }))
     );
 
-    await this.repository.upsertFileChunks(scopedDb, vaultCtx.actorUserId, relativePath, newChunks);
+    await this.repository.upsertFileChunks(
+      scopedDb,
+      vaultCtx.actorUserId,
+      relativePath,
+      newChunks,
+      this.embeddingProvider.modelName,
+      this.embeddingProvider.modelVersion
+    );
     await this.repository.replaceFileLinks(scopedDb, vaultCtx.actorUserId, relativePath, wikilinks);
   }
 
