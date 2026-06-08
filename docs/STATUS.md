@@ -6,7 +6,7 @@
 
 ## Current milestone
 
-**None in progress.** M-A1 complete. Next: begin M-A2 (Surface the substrate).
+**M-A3 · Real AI provider calls** — in progress. Branch: `m-a3-real-ai-providers`.
 
 ## Last known-good state (2026-06-07)
 

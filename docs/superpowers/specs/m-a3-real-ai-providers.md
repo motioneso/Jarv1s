@@ -1,6 +1,6 @@
 # M-A3: Real AI Provider Calls
 
-**Status:** Draft (awaiting review)
+**Status:** Approved
 **Date:** 2026-06-07
 **Owner:** Ben
 **GitHub:** Epic issue #4 · Milestone M-A3
