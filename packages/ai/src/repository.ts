@@ -276,6 +276,36 @@ export class AiRepository {
       .executeTakeFirst();
   }
 
+  /**
+   * Returns the provider config row including the raw encrypted credential for use
+   * in the pg-boss worker (credential is decrypted in-process; never logged or forwarded).
+   */
+  async selectProviderWithCredential(
+    scopedDb: DataContextDb,
+    providerId: string
+  ): Promise<(AiProviderConfigSafeRow & { readonly encrypted_credential: EncryptedAiSecret }) | undefined> {
+    assertDataContextDb(scopedDb);
+
+    return scopedDb.db
+      .selectFrom("app.ai_provider_configs")
+      .select([
+        "id",
+        "owner_user_id",
+        "provider_kind",
+        "display_name",
+        "base_url",
+        "status",
+        "auth_method",
+        sql<boolean>`encrypted_credential IS NOT NULL`.as("has_credential"),
+        "revoked_at",
+        "created_at",
+        "updated_at",
+        "encrypted_credential"
+      ])
+      .where("id", "=", providerId)
+      .executeTakeFirst() as Promise<(AiProviderConfigSafeRow & { readonly encrypted_credential: EncryptedAiSecret }) | undefined>;
+  }
+
   async listAssistantActions(scopedDb: DataContextDb): Promise<AiAssistantActionRequestSafeRow[]> {
     assertDataContextDb(scopedDb);
 

@@ -195,6 +195,78 @@ export class ChatRepository {
       .executeTakeFirstOrThrow();
   }
 
+  /**
+   * Transitions the assistant message to the given status and updates body/updated_at.
+   * Used by the pg-boss worker to move through: pending → working → stored | error.
+   */
+  async updateMessageStatus(
+    scopedDb: DataContextDb,
+    messageId: string,
+    status: ChatMessageStatus,
+    body?: string
+  ): Promise<ChatMessage | undefined> {
+    assertDataContextDb(scopedDb);
+
+    const updates: Record<string, unknown> = { status, updated_at: new Date() };
+
+    if (body !== undefined) {
+      updates.body = body;
+    }
+
+    return scopedDb.db
+      .updateTable("app.chat_messages")
+      .set(updates)
+      .where("id", "=", messageId)
+      .returningAll()
+      .executeTakeFirst();
+  }
+
+  /**
+   * Appends an activity event to model_metadata.activity array in Postgres.
+   * Uses a JSON concatenation so concurrent appends don't stomp each other.
+   */
+  async appendActivity(
+    scopedDb: DataContextDb,
+    messageId: string,
+    event: { readonly kind: string; readonly text: string }
+  ): Promise<void> {
+    assertDataContextDb(scopedDb);
+
+    await scopedDb.db
+      .updateTable("app.chat_messages")
+      .set({
+        model_metadata: sql<Record<string, unknown>>`
+          jsonb_set(
+            coalesce(model_metadata, '{}'::jsonb),
+            '{activity}',
+            coalesce(model_metadata->'activity', '[]'::jsonb) || ${JSON.stringify([event])}::jsonb
+          )
+        `,
+        updated_at: new Date()
+      })
+      .where("id", "=", messageId)
+      .execute();
+  }
+
+  /**
+   * Writes the final reply text and sets status to "stored".
+   * Preserves the existing model_metadata (route + activity) by merging body only.
+   */
+  async updateMessageComplete(
+    scopedDb: DataContextDb,
+    messageId: string,
+    body: string
+  ): Promise<ChatMessage | undefined> {
+    assertDataContextDb(scopedDb);
+
+    return scopedDb.db
+      .updateTable("app.chat_messages")
+      .set({ status: "stored", body, updated_at: new Date() })
+      .where("id", "=", messageId)
+      .returningAll()
+      .executeTakeFirst();
+  }
+
   private async resolveChatRoute(scopedDb: DataContextDb): Promise<ChatModelRouteMetadataDto> {
     const model = await this.capabilityRouter.selectModelForCapability(scopedDb, "chat");
 
