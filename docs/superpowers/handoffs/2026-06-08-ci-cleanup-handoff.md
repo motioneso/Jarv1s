@@ -29,21 +29,21 @@ Fix each one independently; they don't interact.
 **Fix:** Add this step immediately before `Run Playwright smoke tests`:
 
 ```yaml
-      - name: Install Playwright browsers
-        run: pnpm exec playwright install --with-deps chromium
+- name: Install Playwright browsers
+  run: pnpm exec playwright install --with-deps chromium
 ```
 
 The full updated sequence in the `verify` job should look like:
 
 ```yaml
-      - name: Build web
-        run: pnpm build:web
+- name: Build web
+  run: pnpm build:web
 
-      - name: Install Playwright browsers
-        run: pnpm exec playwright install --with-deps chromium
+- name: Install Playwright browsers
+  run: pnpm exec playwright install --with-deps chromium
 
-      - name: Run Playwright smoke tests
-        run: pnpm test:e2e
+- name: Run Playwright smoke tests
+  run: pnpm test:e2e
 ```
 
 Installing only `chromium` (not all browsers) keeps CI fast; `playwright.config.ts` uses chromium.
@@ -63,6 +63,7 @@ Installing only `chromium` (not all browsers) keeps CI fast; `playwright.config.
 ```
 
 They appear in two tests:
+
 - `"signs in and renders shell navigation"` (line 39)
 - `"creates and updates tasks through REST calls"` (line 53)
 
@@ -79,6 +80,7 @@ No other test logic depends on the removed selector. Simply delete the two lines
 **Problem:** `onnxruntime-node` (used by `packages/ai` for the local embedding provider) links against glibc (`libonnxruntime.so.1`). The compose services use `node:24-alpine`, which is musl-based and has no glibc.
 
 Error in CI:
+
 ```
 ERR_DLOPEN_FAILED: /workspace/node_modules/onnxruntime-node/bin/napi-v3/linux/x64/onnxruntime_binding.node
 ```
@@ -112,6 +114,7 @@ Add a shell step to each service command:
 ## What to verify after each fix
 
 After fix 1 + 2 together:
+
 ```bash
 # Run locally with browsers installed (or let CI run it)
 pnpm exec playwright install --with-deps chromium
@@ -119,6 +122,7 @@ pnpm build:web && pnpm test:e2e
 ```
 
 After fix 3:
+
 ```bash
 # Build the compose stack and run smoke
 pnpm smoke:compose -- --api-port 3099
@@ -130,11 +134,11 @@ Then push to a branch and confirm the GitHub Actions "Verify foundation and app"
 
 ## Files to touch
 
-| File | Change |
-|------|--------|
-| `.github/workflows/ci.yml` | Add `playwright install` step before e2e |
-| `tests/e2e/app-shell.spec.ts` | Remove 2 stale `Workspace` assertions |
-| `infra/docker-compose.yml` | Swap `node:24-alpine` → `node:24-bookworm-slim` (or add gcompat) |
+| File                          | Change                                                           |
+| ----------------------------- | ---------------------------------------------------------------- |
+| `.github/workflows/ci.yml`    | Add `playwright install` step before e2e                         |
+| `tests/e2e/app-shell.spec.ts` | Remove 2 stale `Workspace` assertions                            |
+| `infra/docker-compose.yml`    | Swap `node:24-alpine` → `node:24-bookworm-slim` (or add gcompat) |
 
 ---
 
