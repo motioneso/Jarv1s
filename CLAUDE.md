@@ -4,11 +4,13 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Orientation
 
-Before starting work, read these three docs in order:
+Before starting work, get current state from GitHub (the source of truth), then read the standards:
 
-1. `docs/STATUS.md` — current milestone, last known-good state, next step
-2. `docs/ROADMAP.md` — milestone sequence, exit criteria, hard invariants
-3. `docs/DEVELOPMENT_STANDARDS.md` — the maintainability bar (enforced, not advisory)
+1. **GitHub** — current status, milestone sequence, and exit criteria live on the
+   [project board](https://github.com/users/motioneso/projects/1) and in Milestones / epic issues
+   #2–#10. (STATUS.md and ROADMAP.md were retired 2026-06-07.)
+2. `docs/DEVELOPMENT_STANDARDS.md` — the maintainability bar (enforced, not advisory)
+3. `docs/operations/dev-environment.md` — local/LAN dev run + infrastructure notes
 
 Architecture rationale lives in `docs/architecture/decisions/`. The canonical route shape is
 `packages/tasks/src/routes.ts`. The canonical data-context pattern is `packages/db/src/data-context.ts`.
@@ -101,15 +103,15 @@ The roadmap is tracked in GitHub. Keep it current — do not let the board drift
 - **Epic issues:** #2–#10, one per milestone, each with an exit-criteria checklist
 
 **At milestone start:**
+
 1. Move the epic issue to "In Progress" on the project board.
-2. Update `docs/STATUS.md` → current milestone field.
 
 **At milestone end (all exit criteria met, `pnpm verify:foundation` + `pnpm audit:release-hardening` green):**
+
 1. Check off all exit-criteria boxes on the epic issue, then close it.
 2. Close the GitHub Milestone.
-3. Update `docs/ROADMAP.md` → set status to "Complete" for that milestone.
-4. Update `docs/STATUS.md` → clear current milestone, set next step.
-5. Save a durable lesson to agentmemory if any non-obvious decision was made.
+3. Move the epic item to "Done" on the project board.
+4. Save a durable lesson to agentmemory if any non-obvious decision was made.
 
 **During a milestone:** open `task`-labelled issues for each implementation slice; close them as
 slices land. Link task issues to the parent epic with "Part of #N".
@@ -145,6 +147,21 @@ Never store secrets or private data.
 Always use `project: "jarv1s"`. Types: `"architecture"` for invariants, `"bug"` for
 traps/gotchas, `"fact"` for state snapshots, `"pattern"` for coding patterns.
 
+## Coordinating With Other Agent Sessions
+
+More than one Claude Code session may work this repo at once — most commonly a build **Workflow**
+running in another tmux pane while you edit elsewhere. They **share one working tree**, so coordinate
+before any tree-wide action.
+
+- **Send a heads-up with the `tmux-pane-message` skill.** Identify panes with `tmux list-panes`,
+  confirm which is the other Claude session, then message it about what you're touching and what to
+  avoid (e.g. "I have uncommitted doc edits under `docs/` — don't `git add -A`"). This is the
+  expected channel for cross-session coordination; use it proactively, not only when something breaks.
+- **Stage only your own files.** Never `git add -A` / `git add .` while another session has
+  uncommitted work — list explicit paths, or you will sweep their changes into your commit.
+- **Don't `git checkout` / `git stash` / `reset` the shared tree** while another session's build is
+  mid-run (see the `/start` skill red flags). Wait until it finishes, or use a separate worktree.
+
 ## Scope Guardrails
 
 - **Write a spec first.** Every new feature, module, or milestone requires an approved design spec
@@ -153,7 +170,9 @@ traps/gotchas, `"fact"` for state snapshots, `"pattern"` for coding patterns.
   clients, a module marketplace, a workflow engine. Each needs its own milestone + spec.
 - **AI provider calls** become real in M-A3; until that spec is approved and the milestone is
   active, the capability router remains metadata-only.
-- **Embeddings** are real starting M-A1; until that spec is approved, use `StubEmbeddingProvider`.
+- **Embeddings** are real as of M-A1 (complete): `LocalEmbeddingProvider` (nomic-embed-text-v1.5)
+  is the default from `getEmbeddingProviderConfig`. `StubEmbeddingProvider` is for tests and
+  explicit opt-out (`JARVIS_EMBED_PROVIDER=stub`) only.
 - Preserve plain Fastify REST + shared TypeScript contracts (`packages/shared/*-api.ts`) unless a
   milestone explicitly justifies a heavier contract layer.
 - The 1000-line file limit is enforced by `pnpm check:file-size`. Decompose rather than exceed.
