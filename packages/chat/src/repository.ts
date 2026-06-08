@@ -16,6 +16,18 @@ import type {
   AiConfiguredModelDto
 } from "@jarv1s/shared";
 
+import { CHAT_EXECUTION_QUEUE } from "./manifest.js";
+
+export interface ChatExecutionJobPayload {
+  readonly actorUserId: string;
+  readonly threadId: string;
+  readonly assistantMessageId: string;
+}
+
+export interface ChatEnqueueFn {
+  (queueName: string, payload: ChatExecutionJobPayload): Promise<string | null>;
+}
+
 export interface CreateChatThreadInput {
   readonly title: string;
 }
@@ -38,7 +50,10 @@ export interface ChatCapabilityRouter {
 }
 
 export class ChatRepository {
-  constructor(private readonly capabilityRouter: ChatCapabilityRouter = new AiRepository()) {}
+  constructor(
+    private readonly capabilityRouter: ChatCapabilityRouter = new AiRepository(),
+    private readonly enqueue: ChatEnqueueFn | null = null
+  ) {}
 
   async listThreads(scopedDb: DataContextDb): Promise<ChatThread[]> {
     assertDataContextDb(scopedDb);
@@ -94,7 +109,8 @@ export class ChatRepository {
   async appendUserMessage(
     scopedDb: DataContextDb,
     threadId: string,
-    input: AppendChatUserMessageInput
+    input: AppendChatUserMessageInput,
+    actorUserId?: string
   ): Promise<AppendChatUserMessageResult | undefined> {
     assertDataContextDb(scopedDb);
 
@@ -133,6 +149,16 @@ export class ChatRepository {
       .returningAll()
       .executeTakeFirstOrThrow();
 
+    if (assistantStatus === "pending" && this.enqueue && actorUserId) {
+      const payload: ChatExecutionJobPayload = {
+        actorUserId,
+        threadId: thread.id,
+        assistantMessageId: assistantMessage.id
+      };
+
+      await this.enqueue(CHAT_EXECUTION_QUEUE, payload);
+    }
+
     return {
       thread: updatedThread,
       messages: [userMessage, assistantMessage]
@@ -167,6 +193,78 @@ export class ChatRepository {
       })
       .returningAll()
       .executeTakeFirstOrThrow();
+  }
+
+  /**
+   * Transitions the assistant message to the given status and updates body/updated_at.
+   * Used by the pg-boss worker to move through: pending → working → stored | error.
+   */
+  async updateMessageStatus(
+    scopedDb: DataContextDb,
+    messageId: string,
+    status: ChatMessageStatus,
+    body?: string
+  ): Promise<ChatMessage | undefined> {
+    assertDataContextDb(scopedDb);
+
+    const updates: Record<string, unknown> = { status, updated_at: new Date() };
+
+    if (body !== undefined) {
+      updates.body = body;
+    }
+
+    return scopedDb.db
+      .updateTable("app.chat_messages")
+      .set(updates)
+      .where("id", "=", messageId)
+      .returningAll()
+      .executeTakeFirst();
+  }
+
+  /**
+   * Appends an activity event to model_metadata.activity array in Postgres.
+   * Uses a JSON concatenation so concurrent appends don't stomp each other.
+   */
+  async appendActivity(
+    scopedDb: DataContextDb,
+    messageId: string,
+    event: { readonly kind: string; readonly text: string }
+  ): Promise<void> {
+    assertDataContextDb(scopedDb);
+
+    await scopedDb.db
+      .updateTable("app.chat_messages")
+      .set({
+        model_metadata: sql<Record<string, unknown>>`
+          jsonb_set(
+            coalesce(model_metadata, '{}'::jsonb),
+            '{activity}',
+            coalesce(model_metadata->'activity', '[]'::jsonb) || ${JSON.stringify([event])}::jsonb
+          )
+        `,
+        updated_at: new Date()
+      })
+      .where("id", "=", messageId)
+      .execute();
+  }
+
+  /**
+   * Writes the final reply text and sets status to "stored".
+   * Preserves the existing model_metadata (route + activity) by merging body only.
+   */
+  async updateMessageComplete(
+    scopedDb: DataContextDb,
+    messageId: string,
+    body: string
+  ): Promise<ChatMessage | undefined> {
+    assertDataContextDb(scopedDb);
+
+    return scopedDb.db
+      .updateTable("app.chat_messages")
+      .set({ status: "stored", body, updated_at: new Date() })
+      .where("id", "=", messageId)
+      .returningAll()
+      .executeTakeFirst();
   }
 
   private async resolveChatRoute(scopedDb: DataContextDb): Promise<ChatModelRouteMetadataDto> {

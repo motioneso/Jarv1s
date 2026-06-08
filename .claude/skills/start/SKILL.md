@@ -60,7 +60,8 @@ as done. "Approved" = the user has signed off, not merely that a file exists.
 
 **0. Orient + guardrails (always, before any stage).**
 
-- Read `docs/STATUS.md`, `docs/ROADMAP.md`, `docs/DEVELOPMENT_STANDARDS.md`.
+- Get current status + the milestone/exit criteria from GitHub (project board + epic issues #2–#10;
+  STATUS.md/ROADMAP.md were retired). Read `docs/DEVELOPMENT_STANDARDS.md`.
 - Run the agentmemory required recalls from CLAUDE.md (at minimum `memory_smart_search "jarv1s
 current project state"`; add the row matching the work — RLS, migrations, AccessContext,
   integration-test, frontend).
@@ -106,8 +107,7 @@ signal — not a doc edit.
   `superpowers:verification-before-completion`.
 - GitHub bookkeeping (source of truth): check off the epic's exit-criteria boxes, **close the
   issue**, **close the milestone** if all criteria are met, move the board item to **Done**.
-- Update the slim docs: `docs/STATUS.md` (current milestone / last-known-good / next step). Leave
-  ROADMAP status to GitHub.
+- Status lives in GitHub only (board + milestones); there are no status docs to update.
 - Save a durable agentmemory lesson for any non-obvious decision or discovered invariant.
 
 ## Build-engine heuristic
@@ -149,8 +149,10 @@ gh api -X PATCH repos/motioneso/Jarv1s/milestones/<M> -f state=closed
 ## Red flags — STOP
 
 - About to write code with **no approved spec or plan** → violates the spec-before-build gate. Stop.
-- About to `git checkout` a new branch while a build workflow is mid-run on the working tree → you
-  will disrupt running agents. Wait until it finishes.
+- About to `git checkout` a new branch (or `git add -A`/`stash`/`reset`) while a build workflow is
+  mid-run on the working tree → you will disrupt running agents or sweep their uncommitted work into
+  your commit. Wait until it finishes, and send a heads-up via the `tmux-pane-message` skill (see
+  CLAUDE.md → _Coordinating With Other Agent Sessions_).
 - About to mark an issue/milestone done from an **agent's self-report** → verify with
   `pnpm verify:foundation` + `pnpm audit:release-hardening` yourself first.
 - About to update only the doc and not the board → GitHub is the source of truth; move the board.

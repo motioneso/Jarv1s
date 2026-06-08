@@ -498,6 +498,51 @@ describe("AI provider foundation", () => {
     expect(response.body).not.toContain("ciphertext");
   });
 
+  it("creates a cli-auth provider without a credential and reads back authMethod + hasCredential", async () => {
+    const createResponse = await server.inject({
+      method: "POST",
+      url: "/api/ai/providers",
+      headers: {
+        authorization: `Bearer ${ids.sessionA}`
+      },
+      payload: {
+        providerKind: "anthropic",
+        displayName: "Claude CLI",
+        authMethod: "cli"
+      }
+    });
+
+    expect(createResponse.statusCode).toBe(201);
+    const provider = createResponse.json<{
+      provider: { authMethod: string; hasCredential: boolean; cliAvailable: boolean };
+    }>().provider;
+    expect(provider.authMethod).toBe("cli");
+    expect(provider.hasCredential).toBe(false);
+    // cliAvailable is a boolean (depends on host having 'claude' binary)
+    expect(typeof provider.cliAvailable).toBe("boolean");
+
+    // Verify api_key default
+    const apiKeyResponse = await server.inject({
+      method: "POST",
+      url: "/api/ai/providers",
+      headers: {
+        authorization: `Bearer ${ids.sessionA}`
+      },
+      payload: {
+        providerKind: "anthropic",
+        displayName: "Anthropic API Key",
+        credentialPayload: { apiKey: "sk-test" }
+      }
+    });
+    expect(apiKeyResponse.statusCode).toBe(201);
+    const apiKeyProvider = apiKeyResponse.json<{
+      provider: { authMethod: string; hasCredential: boolean; cliAvailable: boolean };
+    }>().provider;
+    expect(apiKeyProvider.authMethod).toBe("api_key");
+    expect(apiKeyProvider.hasCredential).toBe(true);
+    expect(apiKeyProvider.cliAvailable).toBe(false);
+  });
+
   it("fails loudly when the AI repository is called without withDataContext", async () => {
     await expect(repository.listProviders({} as never)).rejects.toThrow(
       "Repository access requires withDataContext"

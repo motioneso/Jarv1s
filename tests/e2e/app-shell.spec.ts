@@ -223,7 +223,9 @@ test("creates chat threads and records assistant metadata through REST calls", a
         displayName: "Anthropic Smoke",
         baseUrl: null,
         status: "active",
+        authMethod: "api_key",
         hasCredential: true,
+        cliAvailable: false,
         revokedAt: null,
         createdAt: "2026-06-06T12:00:00.000Z",
         updatedAt: "2026-06-06T12:00:00.000Z"
