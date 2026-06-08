@@ -7,6 +7,7 @@ import {
   createTaskRouteSchema,
   deferredTaskStatusRouteSchema,
   getTaskRouteSchema,
+  listTaskActivityRouteSchema,
   listTasksRouteSchema,
   updateTaskRouteSchema,
   type TaskActivityDto,
@@ -98,6 +99,23 @@ export function registerTasksRoutes(
         }
 
         return { task: serializeTask(task) };
+      } catch (error) {
+        return handleRouteError(error, reply);
+      }
+    }
+  );
+
+  server.get<{ Params: TaskParams }>(
+    "/api/tasks/:id/activity",
+    { schema: listTaskActivityRouteSchema },
+    async (request, reply) => {
+      try {
+        const accessContext = await dependencies.resolveAccessContext(request);
+        const activity = await dependencies.dataContext.withDataContext(accessContext, (scopedDb) =>
+          repository.listActivity(scopedDb, request.params.id)
+        );
+
+        return { activity: activity.map(serializeTaskActivity) };
       } catch (error) {
         return handleRouteError(error, reply);
       }

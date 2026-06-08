@@ -1,10 +1,10 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import type { TaskApiStatus } from "@jarv1s/shared";
+import type { TaskActivityDto, TaskApiStatus } from "@jarv1s/shared";
 import { ArrowLeft, LoaderCircle, MessageSquarePlus, Save } from "lucide-react";
 import { type FormEvent, useEffect, useState } from "react";
 import { Link, useParams } from "react-router";
 
-import { addTaskActivity, getTask, updateTask } from "../api/client";
+import { addTaskActivity, getTask, listTaskActivity, updateTask } from "../api/client";
 import { queryKeys } from "../api/query-keys";
 import { fromDateInputValue, statusLabels, toDateInputValue } from "./task-format";
 
@@ -22,6 +22,11 @@ export function TaskDetailPage() {
     enabled: Boolean(taskId),
     queryKey: queryKeys.tasks.detail(taskId ?? ""),
     queryFn: () => getTask(taskId ?? "")
+  });
+  const activityQuery = useQuery({
+    enabled: Boolean(taskId),
+    queryKey: queryKeys.tasks.activity(taskId ?? ""),
+    queryFn: () => listTaskActivity(taskId ?? "")
   });
   const saveMutation = useMutation({
     mutationFn: () => {
@@ -56,9 +61,12 @@ export function TaskDetailPage() {
 
       return addTaskActivity(taskId, { activityType: "comment", body: activityBody || null });
     },
-    onSuccess: () => {
+    onSuccess: async () => {
       setActivityBody("");
       setActivitySaved(true);
+      if (taskId) {
+        await queryClient.invalidateQueries({ queryKey: queryKeys.tasks.activity(taskId) });
+      }
     }
   });
 
@@ -193,6 +201,14 @@ export function TaskDetailPage() {
             <h2 id="activity-title">Activity</h2>
           </div>
 
+          {activityQuery.data && activityQuery.data.activity.length > 0 ? (
+            <ul className="activity-list">
+              {activityQuery.data.activity.map((entry) => (
+                <ActivityEntry key={entry.id} entry={entry} />
+              ))}
+            </ul>
+          ) : null}
+
           <form className="activity-form" onSubmit={handleActivitySubmit}>
             <label>
               Comment
@@ -222,6 +238,20 @@ export function TaskDetailPage() {
         </section>
       </div>
     </section>
+  );
+}
+
+function ActivityEntry(props: { readonly entry: TaskActivityDto }) {
+  const date = props.entry.createdAt ? new Date(props.entry.createdAt).toLocaleString() : "";
+
+  return (
+    <li className="activity-entry">
+      <div className="activity-meta">
+        <span className="activity-type">{props.entry.activityType}</span>
+        <span className="activity-date">{date}</span>
+      </div>
+      {props.entry.body ? <p className="activity-body">{props.entry.body}</p> : null}
+    </li>
   );
 }
 

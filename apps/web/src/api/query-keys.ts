@@ -40,6 +40,7 @@ export const queryKeys = {
   },
   tasks: {
     list: ["tasks", "list"] as const,
-    detail: (id: string) => ["tasks", "detail", id] as const
+    detail: (id: string) => ["tasks", "detail", id] as const,
+    activity: (id: string) => ["tasks", "activity", id] as const
   }
 };

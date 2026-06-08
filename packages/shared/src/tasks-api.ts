@@ -65,6 +65,10 @@ export interface AddTaskActivityResponse {
   readonly activity: TaskActivityDto;
 }
 
+export interface ListTaskActivityResponse {
+  readonly activity: readonly TaskActivityDto[];
+}
+
 export interface DeferredTaskStatusRequest {
   readonly status: TaskApiStatus;
   readonly idempotencyKey?: string;
@@ -270,6 +274,21 @@ export const addTaskActivityRouteSchema = {
   body: addTaskActivityRequestSchema,
   response: {
     201: addTaskActivityResponseSchema
+  }
+} as const;
+
+export const listTaskActivityResponseSchema = {
+  type: "object",
+  required: ["activity"],
+  properties: {
+    activity: { type: "array", items: taskActivityDtoSchema }
+  }
+} as const;
+
+export const listTaskActivityRouteSchema = {
+  params: taskParamsSchema,
+  response: {
+    200: listTaskActivityResponseSchema
   }
 } as const;
 
