@@ -25,6 +25,7 @@ import {
   TasksRepository,
   registerTasksJobWorkers
 } from "@jarv1s/tasks";
+import type { TaskDto } from "@jarv1s/shared";
 import { connectionStrings, ids, resetFoundationDatabase } from "./test-database.js";
 
 const { Client } = pg;
@@ -510,6 +511,17 @@ describe("Tasks module M1", () => {
         and column_name in ('list_id','parent_task_id','do_at','effort','source','recurrence_series_id')
     `.execute(appDb);
     expect(cols.rows.length).toBe(6);
+  });
+
+  it("shared: Task DTO carries the new fields", () => {
+    // compile-time guard: a TaskDto literal must accept the new fields
+    const dto: Pick<TaskDto, "listId" | "doAt" | "effort" | "source"> = {
+      listId: "x",
+      doAt: null,
+      effort: "quick",
+      source: "manual"
+    };
+    expect(dto.source).toBe("manual");
   });
 });
 

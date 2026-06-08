@@ -325,11 +325,18 @@ export function serializeTask(task: Task): TaskDto {
   return {
     id: task.id,
     ownerUserId: task.owner_user_id,
+    listId: task.list_id,
+    parentTaskId: task.parent_task_id,
     title: task.title,
     description: task.description,
     status: task.status,
     priority: task.priority,
+    position: task.position,
     dueAt: serializeDate(task.due_at),
+    doAt: serializeDate(task.do_at),
+    effort: task.effort,
+    source: task.source,
+    sourceRef: task.source_ref,
     completedAt: serializeDate(task.completed_at),
     createdAt: serializeDate(task.created_at),
     updatedAt: serializeDate(task.updated_at)
