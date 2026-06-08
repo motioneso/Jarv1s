@@ -100,31 +100,27 @@ added so a future reader knows it is intentionally kept, not forgotten dead code
 
 ### AI adapters (`packages/ai/src`)
 
-- **Remove:** `adapters/tmux-bridge.ts` + `tests/unit/ai-tmux-bridge.test.ts`; the `cli` branch of
-  `createChatAdapter` (and `createChatAdapter` itself if it has no remaining consumer).
-- **Keep (retained substrate):** `adapters/http-api.ts`, `adapters/transcript-reader.ts`, and the
-  `ChatProviderAdapter` / `ChatActivityEvent` / `ChatTurn` / `GenerateChatInput` types.
+- **Slim (not delete) `adapters/tmux-bridge.ts`:** remove the `TmuxBridgeAdapter` class, `SESSION_PREFIX`, `CLI_FOR`, `buildPromptText`. **Keep** `TmuxIo`, `createRealTmuxIo`, `transcriptGlobDir` — the live persistent-session engine (`live/runtime.ts`) imports all three.
+- **Slim `chat-adapter.ts`:** remove `createChatAdapter` factory, `CreateChatAdapterDeps`, `realTmuxIo`, `CLI_PROVIDER_KINDS`. **Keep** `ChatProviderAdapter`, `ChatActivityEvent`, `ChatTurn`, `GenerateChatInput` types and `HttpApiAdapter` re-export (substrate for future API-key-in-drawer).
+- **Keep unmodified:** `adapters/http-api.ts`, `adapters/transcript-reader.ts`.
 
 ### Repository (`packages/chat/src/repository.ts`)
 
-- **Remove (legacy-only):** `createThread`, `getThreadById`, `appendUserMessage`,
-  `updateMessageStatus`, `appendActivity`, `updateMessageComplete`, and `ChatExecutionJobPayload` /
-  the enqueue constructor arg if unused after removal.
-- **Keep (live runtime):** `selectModelForCapability` (AI repo), `listThreads`, `listMessages`,
-  `getCurrentThread`, `openNewThread`, `recordCompletedTurn`, `touchThread`.
+- **Remove (legacy-only):** `createThread`, `appendUserMessage`, `updateMessageStatus`,
+  `appendActivity`, `updateMessageComplete`, `ChatExecutionJobPayload` / the enqueue constructor arg.
+- **Keep (live runtime):** `getThreadById` (**correction from original spec** — live `recordCompletedTurn` calls it), `listThreads`, `listMessages`, `getCurrentThread`, `openNewThread`, `recordCompletedTurn`, `touchThread`.
 
 ### Shared contracts (`packages/shared`)
 
 - **Remove:** `createChatThreadRouteSchema`, `getChatThreadRouteSchema`, `listChatMessagesRouteSchema`,
-  `appendChatUserMessageRouteSchema` + their now-unused request/response/DTO types.
-- **Keep:** `listChatThreadsRouteSchema` + `ChatThreadDto`.
+  `appendChatUserMessageRouteSchema`; remove unused request/response interfaces (`CreateChatThreadResponse`, `GetChatThreadResponse`, `ListChatMessagesResponse`, `AppendChatUserMessageResponse`) and all internal helper schemas they depend on.
+- **Keep:** `listChatThreadsRouteSchema`, `listChatThreadsResponseSchema`, `ChatThreadDto`, `ListChatThreadsResponse`, `CreateChatThreadRequest`, `AppendChatUserMessageRequest`, `ChatMessageDto`, `ChatMessageStatus`, `ChatSelectedToolMetadataDto`, and all types still referenced by `tests/e2e/mock-chat-api.ts`.
 
 ### Tests
 
-- **Remove/trim:** legacy chat integration tests (worker-job + thread/message CRUD paths in
-  `tests/integration/chat.test.ts`), `ai-tmux-bridge` unit tests, any ai-tools tests asserting the
-  legacy chat job.
-- **Keep:** `chat-live-*` unit + integration suites; `http-api` adapter tests (substrate stays).
+- **Delete:** `tests/integration/chat.test.ts` (legacy worker/CRUD), `tests/unit/ai-chat-adapter-factory.test.ts` (factory removed).
+- **Slim:** remove stale `updateMessageComplete` cases from `tests/integration/chat-live.test.ts`; remove `TmuxBridgeAdapter` describe block from `tests/unit/ai-tmux-bridge.test.ts` (**keep** `parseTranscript` and `transcriptGlobDir` coverage — file is slimmed, not deleted); fix `ai-tools.test.ts` queue-name assertion to drop `chat-execution`.
+- **Keep:** `chat-live.test.ts` (live repository coverage), `ai-tmux-bridge.test.ts` (transcript reader + glob dir), `http-api` adapter tests.
 
 ### Database
 
