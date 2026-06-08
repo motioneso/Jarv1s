@@ -1,18 +1,9 @@
 import { fileURLToPath } from "node:url";
 
 import type { JarvisModuleManifest } from "@jarv1s/module-sdk";
-import {
-  appendChatUserMessageRequestSchema,
-  appendChatUserMessageResponseSchema,
-  createChatThreadRequestSchema,
-  createChatThreadResponseSchema,
-  getChatThreadResponseSchema,
-  listChatMessagesResponseSchema,
-  listChatThreadsResponseSchema
-} from "@jarv1s/shared";
+import { listChatThreadsResponseSchema } from "@jarv1s/shared";
 
 export const CHAT_MODULE_ID = "chat";
-export const CHAT_EXECUTION_QUEUE = "chat-execution";
 export const chatModuleSqlMigrationDirectory = fileURLToPath(new URL("../sql", import.meta.url));
 
 export const chatModuleManifest = {
@@ -86,32 +77,6 @@ export const chatModuleManifest = {
       path: "/api/chat/threads",
       responseSchema: listChatThreadsResponseSchema,
       permissionId: "chat.view"
-    },
-    {
-      method: "POST",
-      path: "/api/chat/threads",
-      requestSchema: createChatThreadRequestSchema,
-      responseSchema: createChatThreadResponseSchema,
-      permissionId: "chat.create"
-    },
-    {
-      method: "GET",
-      path: "/api/chat/threads/:id",
-      responseSchema: getChatThreadResponseSchema,
-      permissionId: "chat.view"
-    },
-    {
-      method: "GET",
-      path: "/api/chat/threads/:id/messages",
-      responseSchema: listChatMessagesResponseSchema,
-      permissionId: "chat.view"
-    },
-    {
-      method: "POST",
-      path: "/api/chat/threads/:id/messages",
-      requestSchema: appendChatUserMessageRequestSchema,
-      responseSchema: appendChatUserMessageResponseSchema,
-      permissionId: "chat.message"
     }
   ]
 } satisfies JarvisModuleManifest;
