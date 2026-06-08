@@ -9,24 +9,24 @@ issues.
 The throughline: make the dormant memory/vault/structured-state substrate real and grounded in my
 actual notes, then turn it into focusing briefings and a wellness loop.
 
-| Milestone | Goal | Exit condition | Status |
-| --- | --- | --- | --- |
-| **M-A1** · Real embeddings + live vault ingestion | Swap StubEmbeddingProvider for a real LocalEmbeddingProvider; ingest real Obsidian vault | Semantic search over notes returns real hits | **In progress** |
-| **M-A2** · Surface the substrate (REST + UI) | REST APIs + web shell views for structured-state and vault search | I can see my commitments and search my notes in the UI | Not started |
-| **M-A3** · Real AI provider calls | Capability router actually calls a configured provider (Claude, BYO) | Chat returns real responses; no provider hardcoded | Not started |
-| **M-A4** · Vault-grounded daily briefings | Wire MemoryRetriever + commitments + real AI into Briefings; activate recurring schedule | Daily briefing runs automatically and is genuinely useful | Not started |
-| **M-A5** · Commitments ↔ tasks loop | Connect structured-state commitments to Tasks surface; optional: confirmation-gated write execution | Open commitments surface as tasks; drift is visible | Not started |
-| **M-A6** · Wellness module | New built-in module for mental + physical wellbeing (manual entry + trends) | Manual check-ins recorded; trend view working | Not started |
+| Milestone                                         | Goal                                                                                                | Exit condition                                            | Status       |
+| ------------------------------------------------- | --------------------------------------------------------------------------------------------------- | --------------------------------------------------------- | ------------ |
+| **M-A1** · Real embeddings + live vault ingestion | Swap StubEmbeddingProvider for a real LocalEmbeddingProvider; ingest real Obsidian vault            | Semantic search over notes returns real hits              | **Complete** |
+| **M-A2** · Surface the substrate (REST + UI)      | REST APIs + web shell views for structured-state and vault search                                   | I can see my commitments and search my notes in the UI    | Not started  |
+| **M-A3** · Real AI provider calls                 | Capability router actually calls a configured provider (Claude, BYO)                                | Chat returns real responses; no provider hardcoded        | Not started  |
+| **M-A4** · Vault-grounded daily briefings         | Wire MemoryRetriever + commitments + real AI into Briefings; activate recurring schedule            | Daily briefing runs automatically and is genuinely useful | Not started  |
+| **M-A5** · Commitments ↔ tasks loop               | Connect structured-state commitments to Tasks surface; optional: confirmation-gated write execution | Open commitments surface as tasks; drift is visible       | Not started  |
+| **M-A6** · Wellness module                        | New built-in module for mental + physical wellbeing (manual entry + trends)                         | Manual check-ins recorded; trend view working             | Not started  |
 
 ## Track B — Shippable Product
 
 After Track A proves the daily driver, these milestones move toward a product others can self-host.
 
-| Milestone | Goal | Exit condition | Status |
-| --- | --- | --- | --- |
-| **M-B1** · Real connectors (OAuth + sync) | Live Google/Microsoft OAuth + calendar/email sync into read caches | Real calendar/email data visible; tokens never leak | Not started |
-| **M-B2** · Multi-user & onboarding polish | First-run onboarding, sharing UI, visual design pass | A new self-hoster can get up and running without help | Not started |
-| **M-B3** · Release engineering | Versioning, changelog, upgrade story, deployment docs | pnpm smoke:compose passes on a clean checkout | Not started |
+| Milestone                                 | Goal                                                               | Exit condition                                        | Status      |
+| ----------------------------------------- | ------------------------------------------------------------------ | ----------------------------------------------------- | ----------- |
+| **M-B1** · Real connectors (OAuth + sync) | Live Google/Microsoft OAuth + calendar/email sync into read caches | Real calendar/email data visible; tokens never leak   | Not started |
+| **M-B2** · Multi-user & onboarding polish | First-run onboarding, sharing UI, visual design pass               | A new self-hoster can get up and running without help | Not started |
+| **M-B3** · Release engineering            | Versioning, changelog, upgrade story, deployment docs              | pnpm smoke:compose passes on a clean checkout         | Not started |
 
 ## Development Lifecycle (per milestone)
 
