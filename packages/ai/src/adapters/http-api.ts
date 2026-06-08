@@ -1,36 +1,18 @@
 /**
  * HTTP API-key transport adapter for Anthropic, OpenAI-compatible, and Google Gemini providers.
  *
- * Implements ChatProviderAdapter (defined in chat-adapter.ts once Task 1 lands).
- * Until chat-adapter.ts is merged, the local interface declarations below are used.
- * They are structurally compatible and will be replaced by real imports in Task 6.
+ * Implements ChatProviderAdapter (defined in chat-adapter.ts).
  */
 
-// ---------------------------------------------------------------------------
-// Local type aliases (replaced by imports from chat-adapter.ts in Task 6)
-// ---------------------------------------------------------------------------
+import type {
+  ChatTurn,
+  ChatActivityEvent,
+  GenerateChatInput,
+  ChatProviderAdapter,
+} from "../chat-adapter.js";
+import type { ProviderKind } from "./transcript-reader.js";
 
-export type ProviderKind = "anthropic" | "openai-compatible" | "google";
-
-export interface ChatTurn {
-  readonly role: "user" | "assistant";
-  readonly content: string;
-}
-
-export interface ChatActivityEvent {
-  readonly kind: "thinking" | "tool" | "status" | "other";
-  readonly text: string;
-}
-
-export interface GenerateChatInput {
-  readonly model: { readonly provider_kind: string; readonly provider_model_id: string };
-  readonly messages: readonly ChatTurn[];
-  readonly onActivity?: (event: ChatActivityEvent) => void;
-}
-
-export interface ChatProviderAdapter {
-  generateChat(input: GenerateChatInput): Promise<{ readonly text: string }>;
-}
+export type { ChatTurn, ChatActivityEvent, GenerateChatInput, ChatProviderAdapter, ProviderKind };
 
 // ---------------------------------------------------------------------------
 // HttpApiAdapter
