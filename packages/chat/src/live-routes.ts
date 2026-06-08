@@ -5,6 +5,12 @@
  * the manager keys sessions and subscriptions by actor, so there is no cross-user
  * path (a user can only stream their own transcript).
  *
+ * Handler bodies are wrapped in try/catch and mapped through handleLiveRouteError:
+ * known configuration/launch failures become a sanitized 4xx (no active model →
+ * 400, unsupported/launch-not-supported provider → 400, turn-already-in-flight →
+ * 409), and any unexpected error becomes a generic 500 — raw error strings/stacks
+ * are never returned to the client.
+ *
  *   POST /api/chat/turn    { text }  → { reply }   submit one user turn
  *   POST /api/chat/clear             → 204         reset history + new conversation
  *   POST /api/chat/switch            → 200         re-launch on the now-active provider
@@ -14,6 +20,7 @@ import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 
 import type { AccessContext } from "@jarv1s/db";
 
+import { ChatTurnInFlightError } from "./live/chat-session-manager.js";
 import type { ChatSessionRuntime } from "./live/runtime.js";
 
 export interface ChatLiveRoutesDependencies {
@@ -36,33 +43,45 @@ export function registerChatLiveRoutes(
       return reply.code(400).send({ error: "text is required" });
     }
 
-    const userName = await runtime.resolveUserName(access.actorUserId);
-    const { reply: assistantReply } = await runtime.manager.submitTurn(
-      access.actorUserId,
-      userName,
-      text
-    );
+    try {
+      const userName = await runtime.resolveUserName(access.actorUserId);
+      const { reply: assistantReply } = await runtime.manager.submitTurn(
+        access.actorUserId,
+        userName,
+        text
+      );
 
-    return reply.send({ reply: assistantReply });
+      return reply.send({ reply: assistantReply });
+    } catch (error) {
+      return handleLiveRouteError(error, reply);
+    }
   });
 
   server.post("/api/chat/clear", async (request, reply) => {
     const access = await resolveOr401(dependencies, request, reply);
     if (!access) return reply;
 
-    await runtime.manager.clear(access.actorUserId);
+    try {
+      await runtime.manager.clear(access.actorUserId);
 
-    return reply.code(204).send();
+      return reply.code(204).send();
+    } catch (error) {
+      return handleLiveRouteError(error, reply);
+    }
   });
 
   server.post("/api/chat/switch", async (request, reply) => {
     const access = await resolveOr401(dependencies, request, reply);
     if (!access) return reply;
 
-    const userName = await runtime.resolveUserName(access.actorUserId);
-    await runtime.manager.switchProvider(access.actorUserId, userName);
+    try {
+      const userName = await runtime.resolveUserName(access.actorUserId);
+      await runtime.manager.switchProvider(access.actorUserId, userName);
 
-    return reply.code(200).send({ ok: true });
+      return reply.code(200).send({ ok: true });
+    } catch (error) {
+      return handleLiveRouteError(error, reply);
+    }
   });
 
   server.get("/api/chat/stream", async (request, reply) => {
@@ -106,6 +125,38 @@ async function resolveOr401(
     reply.code(401).send({ error: "Session is missing or expired" });
     return undefined;
   }
+}
+
+/**
+ * Map a thrown live-handler error to a sanitized client response. Known
+ * configuration/launch failures become 4xx with a stable client message;
+ * anything unexpected becomes a generic 500 so raw error strings/stacks never
+ * leak to the client. Mirrors the REST chat routes' handleRouteError contract.
+ */
+function handleLiveRouteError(error: unknown, reply: FastifyReply) {
+  if (error instanceof ChatTurnInFlightError) {
+    return reply
+      .code(409)
+      .send({ error: "A chat turn is already in progress. Please wait for it to finish." });
+  }
+
+  if (error instanceof Error) {
+    const message = error.message;
+    // No active chat-capable model is configured for this user.
+    if (/no active chat-capable model/i.test(message)) {
+      return reply.code(400).send({ error: "No active chat-capable model is configured." });
+    }
+    // Unsupported provider kind, or a CLI engine that isn't supported yet.
+    if (/not yet supported|unsupported provider/i.test(message)) {
+      return reply
+        .code(400)
+        .send({ error: "The active chat provider is not supported in this build." });
+    }
+  }
+
+  // Unexpected error: do not leak the raw message/stack.
+  reply.log?.error?.({ err: error }, "live chat route failed");
+  return reply.code(500).send({ error: "Live chat is temporarily unavailable." });
 }
 
 function readText(body: unknown): string | undefined {

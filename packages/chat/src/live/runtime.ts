@@ -9,11 +9,7 @@
 import { homedir } from "node:os";
 import { join } from "node:path";
 
-import {
-  AiRepository,
-  createRealTmuxIo,
-  type ProviderKind
-} from "@jarv1s/ai";
+import { AiRepository, createRealTmuxIo, type ProviderKind } from "@jarv1s/ai";
 import type { DataContextRunner } from "@jarv1s/db";
 
 import { TmuxCliChatEngine } from "./cli-chat-engine.js";
@@ -22,6 +18,10 @@ import { createRealPersonaFs } from "./persona.js";
 import { DataContextChatPersistence } from "./persistence.js";
 import type { CliChatEngine } from "./types.js";
 import { ChatRepository } from "../repository.js";
+
+// Re-exported so the live route and integration tests can reference the
+// turn-at-a-time error without reaching into the manager module directly.
+export { ChatTurnInFlightError } from "./chat-session-manager.js";
 
 /** Default idle reap window: 30 minutes of no activity kills the live engine. */
 const DEFAULT_IDLE_MS = 30 * 60 * 1000;

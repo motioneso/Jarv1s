@@ -7,15 +7,20 @@ import { createMockConnectorProviders, mockApi } from "./mock-api.js";
  *
  * What is mocked:
  *  - The full REST surface via mockApi (auth/me/modules/etc.).
- *  - POST /api/chat/turn → { reply } so the assistant reply renders via the POST path.
+ *  - POST /api/chat/turn → { reply } (the drawer ignores this body; the stream renders).
  *  - POST /api/chat/clear → 204 for the "New chat" action.
- *  - GET  /api/chat/stream (SSE) → an immediately-closed empty event-stream response.
- *    Mocking a live EventSource in Playwright is awkward, so the drawer degrades
- *    gracefully: it renders the user's message optimistically and renders the reply
- *    from the sendChatTurn() POST response. The stream is stubbed only so the
- *    EventSource connection resolves without hanging or erroring the page.
+ *  - GET  /api/chat/stream (SSE) → a one-shot, fulfilled text/event-stream body
+ *    containing the user echo and the assistant reply as two `data:` events.
+ *
+ * The SSE stream is the SINGLE SOURCE OF TRUTH for rendered records: the drawer no
+ * longer appends the POST response, so a real stream mock is required (not an empty
+ * stub). Playwright's route.fulfill with a string event-stream body works here — the
+ * browser EventSource reads the two events, then the fulfilled connection ends.
+ * We assert both records render exactly once (no double-render).
  */
-test("opens the live chat drawer, sends a message, and renders the reply", async ({ page }) => {
+test("opens the live chat drawer, sends a message, and renders the streamed records once", async ({
+  page
+}) => {
   await mockApi(page, {
     authenticated: true,
     chatThreads: [],
@@ -25,15 +30,28 @@ test("opens the live chat drawer, sends a message, and renders the reply", async
     tasks: []
   });
 
-  // Stub the SSE stream with an empty, closed event-stream body.
-  await page.route("**/api/chat/stream", (route) =>
-    route.fulfill({
+  // Mock the SSE stream as the source of truth: a one-shot event-stream body with
+  // the user echo and the assistant reply. The EventSource reads both events, then
+  // the fulfilled connection ends. EventSource auto-reconnects after a closed
+  // stream, so we serve the two events ONCE and then hold the connection open
+  // (empty body, never resolved) on reconnect — otherwise the events would replay
+  // and the records would render twice.
+  let streamServed = false;
+  await page.route("**/api/chat/stream", async (route) => {
+    if (streamServed) {
+      // Hold the reconnect open with no data so events don't replay.
+      return; // leave the route hanging; the page is about to assert and finish
+    }
+    streamServed = true;
+    await route.fulfill({
       status: 200,
       contentType: "text/event-stream",
       headers: { "cache-control": "no-cache" },
-      body: ""
-    })
-  );
+      body:
+        'data: {"kind":"user","text":"Hi there"}\n\n' +
+        'data: {"kind":"reply","text":"Hello from the assistant"}\n\n'
+    });
+  });
 
   await page.route("**/api/chat/turn", (route) =>
     route.fulfill({
@@ -51,14 +69,13 @@ test("opens the live chat drawer, sends a message, and renders the reply", async
   await page.getByRole("button", { name: "Live chat" }).click();
   const drawer = page.getByRole("complementary", { name: "Live chat" });
   await expect(drawer).toBeVisible();
-  await expect(drawer.getByText("Send a message to start chatting")).toBeVisible();
 
   await drawer.getByLabel("Message").fill("Hi there");
   await drawer.getByRole("button", { name: "Send" }).click();
 
-  // User message renders optimistically; reply renders from the POST response.
-  await expect(drawer.getByText("Hi there")).toBeVisible();
-  await expect(drawer.getByText("Hello from the assistant")).toBeVisible();
+  // Both records arrive over the SSE stream and render exactly once each.
+  await expect(drawer.getByText("Hi there")).toHaveCount(1);
+  await expect(drawer.getByText("Hello from the assistant")).toHaveCount(1);
 
   // "New chat" clears the local transcript.
   await drawer.getByRole("button", { name: "New chat" }).click();

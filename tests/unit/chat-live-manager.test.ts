@@ -10,12 +10,17 @@ import { describe, expect, it } from "vitest";
 import type { ProviderKind } from "../../packages/ai/src/index.js";
 import {
   ChatSessionManager,
+  ChatTurnInFlightError,
   type ChatPersistencePort,
   type ChatSessionManagerDeps,
   type Clock
 } from "../../packages/chat/src/live/chat-session-manager.js";
 import type { PersonaFs } from "../../packages/chat/src/live/persona.js";
-import type { CliChatEngine, EngineLaunchOpts, TranscriptRecord } from "../../packages/chat/src/live/types.js";
+import type {
+  CliChatEngine,
+  EngineLaunchOpts,
+  TranscriptRecord
+} from "../../packages/chat/src/live/types.js";
 
 // ─── fakes ───────────────────────────────────────────────────────────────────
 
@@ -112,6 +117,54 @@ class NeverCompletingEngine implements CliChatEngine {
   }
 }
 
+/**
+ * Fake engine whose readNew blocks until an externally-controlled gate is
+ * released — lets a test hold one submitTurn "in flight" while it starts a
+ * second concurrent submitTurn for the same user.
+ */
+class GatedEngine implements CliChatEngine {
+  killed = false;
+  readonly submitted: string[] = [];
+  private gate: Promise<void>;
+  private release!: () => void;
+
+  constructor(
+    public readonly provider: ProviderKind,
+    public readonly sessionKey: string
+  ) {
+    this.gate = new Promise((resolve) => {
+      this.release = resolve;
+    });
+  }
+
+  /** Release the gate so the in-flight readNew can complete the turn. */
+  open(): void {
+    this.release();
+  }
+
+  async launch(): Promise<void> {}
+  async submit(text: string): Promise<void> {
+    this.submitted.push(text);
+  }
+  async clear(): Promise<void> {}
+  async readNew(
+    afterOffset: number
+  ): Promise<{ records: TranscriptRecord[]; offset: number; complete: boolean }> {
+    await this.gate;
+    return {
+      records: [{ kind: "reply", text: "reply to: " + this.submitted.at(-1) }],
+      offset: afterOffset + 1,
+      complete: true
+    };
+  }
+  async isAlive(): Promise<boolean> {
+    return !this.killed;
+  }
+  async kill(): Promise<void> {
+    this.killed = true;
+  }
+}
+
 class FakePersistence implements ChatPersistencePort {
   active: { provider: ProviderKind; model: string } = {
     provider: "anthropic",
@@ -164,6 +217,10 @@ const noopPersonaFs: PersonaFs = {
   async mkdir() {},
   async writeFile() {}
 };
+
+function delay(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
 
 // ─── harness ─────────────────────────────────────────────────────────────────
 
@@ -369,5 +426,74 @@ describe("ChatSessionManager", () => {
 
     // The returned reply is the error body, not an empty success.
     expect(reply).toMatch(/timed out/i);
+  });
+
+  it("rejects a concurrent turn for the same user (turn-at-a-time) and recovers afterwards", async () => {
+    const persistence = new FakePersistence();
+    const engines: GatedEngine[] = [];
+    const manager = new ChatSessionManager({
+      engineFactory: (provider, sessionKey) => {
+        const e = new GatedEngine(provider, sessionKey);
+        engines.push(e);
+        return e;
+      },
+      persistence,
+      personaFs: noopPersonaFs,
+      clock: new FakeClock(),
+      idleMs: 1_000,
+      neutralBase: "/tmp/jarvis-test",
+      persona: "I am Jarvis, {{userName}}.",
+      pollMs: 0
+    });
+
+    // Start the first turn; its readNew blocks on the gate, so it stays in-flight.
+    // The in-flight flag is set synchronously at submitTurn's start.
+    const first = manager.submitTurn("user-1", "Ben", "first");
+
+    // A second concurrent turn for the same user must be rejected.
+    await expect(manager.submitTurn("user-1", "Ben", "second")).rejects.toBeInstanceOf(
+      ChatTurnInFlightError
+    );
+
+    // Wait until the engine has launched, then release the gate so the first turn
+    // can complete.
+    while (engines.length < 1) await delay(1);
+    engines[0]?.open();
+    const { reply } = await first;
+    expect(reply).toBe("reply to: first");
+
+    // The in-flight flag is cleared in finally, so a fresh turn succeeds.
+    const next = await manager.submitTurn("user-1", "Ben", "third");
+    expect(next.reply).toBe("reply to: third");
+  });
+
+  it("allows concurrent turns for DIFFERENT users (lock is per-actor)", async () => {
+    const persistence = new FakePersistence();
+    const engines: GatedEngine[] = [];
+    const manager = new ChatSessionManager({
+      engineFactory: (provider, sessionKey) => {
+        const e = new GatedEngine(provider, sessionKey);
+        engines.push(e);
+        return e;
+      },
+      persistence,
+      personaFs: noopPersonaFs,
+      clock: new FakeClock(),
+      idleMs: 1_000,
+      neutralBase: "/tmp/jarvis-test",
+      persona: "I am Jarvis, {{userName}}.",
+      pollMs: 0
+    });
+
+    const a = manager.submitTurn("user-1", "Ben", "a");
+    const b = manager.submitTurn("user-2", "Ada", "b");
+    // Wait until both engines have been launched (each turn reaches its blocked
+    // readNew), then release both gates so each turn can complete.
+    while (engines.length < 2) await delay(1);
+    for (const e of engines) e.open();
+
+    const [ra, rb] = await Promise.all([a, b]);
+    expect(ra.reply).toBe("reply to: a");
+    expect(rb.reply).toBe("reply to: b");
   });
 });

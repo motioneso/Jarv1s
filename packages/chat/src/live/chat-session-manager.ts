@@ -74,11 +74,30 @@ const DEFAULT_MAX_POLLS = 2_000;
 /** Body persisted/returned when a turn never reports complete within the poll cap. */
 const TIMEOUT_MESSAGE = "Chat timed out before the model finished responding.";
 
+/**
+ * Thrown by submitTurn when a turn is already in flight for the same user. The
+ * live route maps this to HTTP 409 (turn-at-a-time, spec §6.5): concurrent input
+ * while a turn is in-flight is rejected rather than interleaved, which would
+ * corrupt the shared transcript offset.
+ */
+export class ChatTurnInFlightError extends Error {
+  constructor() {
+    super("A chat turn is already in progress. Wait for it to finish before sending another.");
+    this.name = "ChatTurnInFlightError";
+  }
+}
+
 export class ChatSessionManager {
   private readonly sessions = new Map<string, UserSession>();
   private readonly subscribers = new Map<string, Set<Subscriber>>();
   /** In-flight ensureSession promises, keyed by user, to serialize launches. */
   private readonly launching = new Map<string, Promise<UserSession>>();
+  /**
+   * Users with a turn currently in flight. submitTurn rejects a concurrent turn
+   * for the same user (turn-at-a-time, spec §6.5) so two turns can't interleave
+   * readNew against the shared transcript offset and corrupt it.
+   */
+  private readonly turnsInFlight = new Set<string>();
   private readonly pollMs: number;
   private readonly maxPolls: number;
 
@@ -152,6 +171,25 @@ export class ChatSessionManager {
    * completed turn, and return the assistant reply.
    */
   async submitTurn(
+    actorUserId: string,
+    userName: string,
+    text: string
+  ): Promise<{ reply: string }> {
+    // Turn-at-a-time (spec §6.5): reject a concurrent turn for the same user.
+    // The flag is set synchronously (before any await) so two turns started in
+    // the same tick can't both pass the check, and cleared in finally below.
+    if (this.turnsInFlight.has(actorUserId)) {
+      throw new ChatTurnInFlightError();
+    }
+    this.turnsInFlight.add(actorUserId);
+    try {
+      return await this.runTurn(actorUserId, userName, text);
+    } finally {
+      this.turnsInFlight.delete(actorUserId);
+    }
+  }
+
+  private async runTurn(
     actorUserId: string,
     userName: string,
     text: string

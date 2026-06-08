@@ -8,13 +8,13 @@ import { type TranscriptRecord, useChatStream } from "./use-chat-stream";
 
 /**
  * Live chat drawer: a simple slide-in panel over the Chat route. Sends user turns to
- * POST /api/chat/turn and renders the live transcript that arrives over the SSE stream
- * (use-chat-stream). The user's message is rendered optimistically on send, and the
- * reply from the POST response is also appended directly so the conversation is visible
- * even when the SSE stream is unavailable (e.g. mocked E2E environments).
+ * POST /api/chat/turn; the SSE stream (use-chat-stream) is the single source of truth
+ * for rendered records. The backend emits both the user echo and the assistant reply
+ * over the stream, so Send only POSTs the turn — it does NOT append the POST response,
+ * which would double-render every turn.
  */
 export function ChatDrawer(props: { readonly open: boolean; readonly onClose: () => void }) {
-  const { records, clearRecords, appendRecord } = useChatStream();
+  const { records, clearRecords } = useChatStream();
 
   if (!props.open) {
     return null;
@@ -50,10 +50,7 @@ export function ChatDrawer(props: { readonly open: boolean; readonly onClose: ()
         <NewChatButton onCleared={clearRecords} />
         <RecordLog records={records} />
         <ThreadHistory />
-        <DrawerComposer
-          onReply={(text) => appendRecord({ kind: "reply", text })}
-          onUserText={(text) => appendRecord({ kind: "user", text })}
-        />
+        <DrawerComposer />
       </aside>
     </>
   );
@@ -176,10 +173,7 @@ function ThreadHistory() {
   );
 }
 
-function DrawerComposer(props: {
-  readonly onUserText: (text: string) => void;
-  readonly onReply: (text: string) => void;
-}) {
+function DrawerComposer() {
   const [text, setText] = useState("");
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -193,16 +187,13 @@ function DrawerComposer(props: {
 
     setPending(true);
     setError(null);
-    props.onUserText(trimmed);
     setText("");
 
     try {
-      const { reply } = await sendChatTurn(trimmed);
-      // The reply also arrives over the SSE stream; appending it here keeps the
-      // conversation visible when the stream is unavailable (e.g. mocked tests).
-      if (reply) {
-        props.onReply(reply);
-      }
+      // Fire-and-render: the user echo and the assistant reply both arrive over
+      // the SSE stream (the single source of truth), so we do not append the POST
+      // response here — doing so would render every turn twice.
+      await sendChatTurn(trimmed);
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "Could not send message");
     } finally {

@@ -22,15 +22,10 @@ export interface TranscriptRecord {
 export function useChatStream(): {
   readonly records: readonly TranscriptRecord[];
   readonly clearRecords: () => void;
-  readonly appendRecord: (record: TranscriptRecord) => void;
 } {
   const [records, setRecords] = useState<readonly TranscriptRecord[]>([]);
 
   const clearRecords = useCallback(() => setRecords([]), []);
-  const appendRecord = useCallback(
-    (record: TranscriptRecord) => setRecords((current) => [...current, record]),
-    []
-  );
 
   useEffect(() => {
     const source = new EventSource(chatStreamUrl(), { withCredentials: true });
@@ -46,7 +41,7 @@ export function useChatStream(): {
     return () => source.close();
   }, []);
 
-  return { records, clearRecords, appendRecord };
+  return { records, clearRecords };
 }
 
 function parseRecord(data: unknown): TranscriptRecord | null {

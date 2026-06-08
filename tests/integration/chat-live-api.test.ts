@@ -161,6 +161,25 @@ describe("Chat live API (turn / clear / switch / stream)", () => {
     expect(response.statusCode).toBe(401);
   });
 
+  it("POST /api/chat/turn for a user with NO active chat model returns a sanitized 4xx (not 500)", async () => {
+    // userB has a valid session but no configured chat-capable model, so
+    // resolveActiveProvider throws. The route must map that to a sanitized 4xx
+    // rather than letting the raw error reach Fastify's default 500 handler.
+    const response = await server.inject({
+      method: "POST",
+      url: "/api/chat/turn",
+      headers: { authorization: `Bearer ${ids.sessionB}` },
+      payload: { text: "hello jarvis" }
+    });
+
+    expect(response.statusCode).toBeGreaterThanOrEqual(400);
+    expect(response.statusCode).toBeLessThan(500);
+    const body = response.json<{ error: string }>();
+    expect(body.error).toBe("No active chat-capable model is configured.");
+    // The raw internal error string/stack must not leak.
+    expect(JSON.stringify(body)).not.toMatch(/stack|at Object|\.ts:/i);
+  });
+
   it("subscriptions are per-actor: user B's stream never receives user A's records", async () => {
     // Access the live runtime's manager directly via a second server instance that
     // shares the same DB but its own manager — instead, assert against the manager
