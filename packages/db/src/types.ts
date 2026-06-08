@@ -344,6 +344,8 @@ export interface MemoryChunksTable {
   content_hash: string;
   text: string;
   embedding: string | null; // pgvector stored as text in Kysely; serialized as "[n,n,...]"
+  embed_model_name: string | null;
+  embed_model_version: string | null;
   updated_at: TimestampColumn;
 }
 
@@ -352,6 +354,18 @@ export interface MemoryLinksTable {
   owner_user_id: string;
   from_path: string;
   to_path: string;
+}
+
+export interface MemoryFileIndexTable {
+  id: string;
+  owner_user_id: string;
+  source_kind: "vault" | "connector";
+  source_path: string;
+  file_hash: string;
+  chunk_count: number;
+  embed_model_name: string;
+  embed_model_version: string;
+  ingested_at: TimestampColumn;
 }
 
 export interface CommitmentsTable {
@@ -431,6 +445,7 @@ export interface JarvisDatabase {
   "app.briefing_runs": BriefingRunsTable;
   "app.memory_chunks": MemoryChunksTable;
   "app.memory_links": MemoryLinksTable;
+  "app.memory_file_index": MemoryFileIndexTable;
   "app.commitments": CommitmentsTable;
   "app.entities": EntitiesTable;
   "app.preferences": PreferencesTable;
