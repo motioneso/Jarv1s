@@ -475,14 +475,6 @@ describe("MemoryIngestPipeline idempotency", () => {
     }
   });
 
-  async function chunkCount(scoped: DataContextDb, path: string): Promise<number> {
-    const r = await sql<{ n: string }>`
-      SELECT count(*)::text AS n FROM app.memory_chunks
-      WHERE owner_user_id = ${idemUserId}::uuid AND source_path = ${path}
-    `.execute(scoped.db);
-    return Number(r.rows[0]?.n ?? "0");
-  }
-
   it("skips re-ingest when the file is unchanged", async () => {
     await vaultRunner.withVaultContext(ctx(idemUserId), async (vaultCtx) => {
       await writeVaultFile(vaultCtx, "loop/a.md", "## A\n\nfirst body");
