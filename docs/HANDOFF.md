@@ -333,10 +333,9 @@ Briefing jobs sit in the queue indefinitely without it. Worker must be started s
 `pnpm dev:worker` (or `nohup pnpm dev:worker &` for background). This is not auto-started by
 `pnpm dev:api` or `pnpm dev:web`.
 
-**Webwright verification** was initiated but login failed (email "admin" was used; actual test
-account email is `bendlove@gmail.com`, password `***REDACTED-CREDENTIAL***`). Script at
-`outputs/jarv1s-verification/final_runs/run_1/final_script.py` — run_2 is pending with the
-corrected email.
+**Webwright verification** was initiated but login failed (email "admin" was used; the actual test
+account email is `bendlove@gmail.com` — credential redacted; keep it out of the repo). Verification
+artifacts are written under `outputs/` (git-ignored, regenerable).
 
 **Dev server startup for LAN testing** (headless machine, always required):
 ```bash
