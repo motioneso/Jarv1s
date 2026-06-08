@@ -1,0 +1,8 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-settings.json",
+  "skillOverrides": {
+    "superpowers:subagent-driven-development": "off",
+    "superpowers:executing-plans": "off",
+    "superpowers:dispatching-parallel-agents": "off"
+  }
+}

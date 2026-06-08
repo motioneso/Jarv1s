@@ -10,10 +10,12 @@ import {
   DataContextRunner,
   createDatabase,
   type AccessContext,
+  type DataContextDb,
   type JarvisDatabase
 } from "@jarv1s/db";
 import { VaultContextRunner, writeVaultFile } from "@jarv1s/vault";
 import {
+  IngestionService,
   MemoryIngestPipeline,
   MemoryRepository,
   MemoryRetriever,
@@ -73,23 +75,30 @@ Alice works on product.`;
 // ── StubEmbeddingProvider ─────────────────────────────────────────────────────
 
 describe("StubEmbeddingProvider", () => {
-  it("returns a vector of the declared dimensions", async () => {
+  it("returns a 768-dim vector for documents", async () => {
     const provider = new StubEmbeddingProvider();
-    const vec = await provider.embed("test text");
-    expect(vec).toHaveLength(provider.dimensions);
+    const vec = await provider.embedDocument("test text");
+    expect(provider.dimensions).toBe(768);
+    expect(vec).toHaveLength(768);
   });
 
-  it("returns the same vector for the same text (deterministic)", async () => {
+  it("returns a 768-dim vector for queries", async () => {
     const provider = new StubEmbeddingProvider();
-    const a = await provider.embed("hello world");
-    const b = await provider.embed("hello world");
+    const vec = await provider.embedQuery("test text");
+    expect(vec).toHaveLength(768);
+  });
+
+  it("is deterministic for the same text", async () => {
+    const provider = new StubEmbeddingProvider();
+    const a = await provider.embedDocument("hello world");
+    const b = await provider.embedDocument("hello world");
     expect(a).toEqual(b);
   });
 
   it("returns different vectors for different texts", async () => {
     const provider = new StubEmbeddingProvider();
-    const a = await provider.embed("apples");
-    const b = await provider.embed("quantum physics");
+    const a = await provider.embedDocument("apples");
+    const b = await provider.embedDocument("quantum physics");
     expect(a).not.toEqual(b);
   });
 });
@@ -160,7 +169,7 @@ describe("MemoryRepository", () => {
         lineEnd: i * 10 + 5,
         contentHash: Buffer.from(text).toString("hex"),
         text,
-        embedding: await provider.embed(text)
+        embedding: await provider.embedDocument(text)
       }))
     );
   }
@@ -169,7 +178,7 @@ describe("MemoryRepository", () => {
     const path = "notes/repo-test-1.md";
     const chunks = await makeChunks(path, ["Chunk one text", "Chunk two text"]);
     await dataContext.withDataContext(ctx(userId), async (scopedDb) => {
-      await repo.upsertFileChunks(scopedDb, userId, path, chunks);
+      await repo.upsertFileChunks(scopedDb, userId, path, chunks, "stub", "0");
       const stored = await sql<{ text: string }>`
         SELECT text FROM app.memory_chunks
         WHERE source_path = ${path}
@@ -185,8 +194,8 @@ describe("MemoryRepository", () => {
     const newChunks = await makeChunks(path, ["New content A", "New content B"]);
 
     await dataContext.withDataContext(ctx(userId), async (scopedDb) => {
-      await repo.upsertFileChunks(scopedDb, userId, path, firstChunks);
-      await repo.upsertFileChunks(scopedDb, userId, path, newChunks);
+      await repo.upsertFileChunks(scopedDb, userId, path, firstChunks, "stub", "0");
+      await repo.upsertFileChunks(scopedDb, userId, path, newChunks, "stub", "0");
       const stored = await sql<{ text: string }>`
         SELECT text FROM app.memory_chunks WHERE source_path = ${path} ORDER BY line_start
       `.execute(scopedDb.db);
@@ -198,10 +207,10 @@ describe("MemoryRepository", () => {
     const path = "notes/repo-test-3.md";
     const chunks = await makeChunks(path, ["The quick brown fox"]);
     await dataContext.withDataContext(ctx(userId), async (scopedDb) => {
-      await repo.upsertFileChunks(scopedDb, userId, path, chunks);
+      await repo.upsertFileChunks(scopedDb, userId, path, chunks, "stub", "0");
     });
 
-    const queryVec = await provider.embed("The quick brown fox");
+    const queryVec = await provider.embedQuery("The quick brown fox");
     const results = await dataContext.withDataContext(ctx(userId), async (scopedDb) =>
       repo.vectorSearch(scopedDb, queryVec, 10)
     );
@@ -218,7 +227,7 @@ describe("MemoryRepository", () => {
     const path = "notes/repo-test-4.md";
     const chunks = await makeChunks(path, ["To be deleted"]);
     await dataContext.withDataContext(ctx(userId), async (scopedDb) => {
-      await repo.upsertFileChunks(scopedDb, userId, path, chunks);
+      await repo.upsertFileChunks(scopedDb, userId, path, chunks, "stub", "0");
       await repo.deleteFileChunks(scopedDb, userId, path);
       const stored = await sql<{ id: string }>`
         SELECT id FROM app.memory_chunks WHERE source_path = ${path}
@@ -244,7 +253,7 @@ describe("MemoryRepository", () => {
     }
 
     await dataContext.withDataContext(ctx(freshUserId), async (scopedDb) => {
-      await repo.upsertFileChunks(scopedDb, freshUserId, path, chunks);
+      await repo.upsertFileChunks(scopedDb, freshUserId, path, chunks, "stub", "0");
       await repo.deleteAllForUser(scopedDb, freshUserId);
       const stored = await sql<{ id: string }>`
         SELECT id FROM app.memory_chunks WHERE owner_user_id = ${freshUserId}::uuid
@@ -396,6 +405,156 @@ describe("MemoryIngestPipeline", () => {
   });
 });
 
+// ── MemoryRepository file index ───────────────────────────────────────────────
+
+describe("MemoryRepository file index", () => {
+  const repo = new MemoryRepository();
+
+  it("upserts and reads back a file checkpoint", async () => {
+    await dataContext.withDataContext(ctx(userId), async (scoped) => {
+      await repo.upsertFileIndex(scoped, userId, "vault", "notes/a.md", "hash-1", 3, "stub", "0");
+      const found = await repo.getFileIndex(scoped, userId, "vault", "notes/a.md");
+      expect(found).toEqual({ fileHash: "hash-1", embedModelName: "stub" });
+    });
+  });
+
+  it("overwrites the checkpoint on re-upsert (same path)", async () => {
+    await dataContext.withDataContext(ctx(userId), async (scoped) => {
+      await repo.upsertFileIndex(scoped, userId, "vault", "notes/b.md", "hash-1", 1, "stub", "0");
+      await repo.upsertFileIndex(scoped, userId, "vault", "notes/b.md", "hash-2", 5, "stub", "0");
+      const found = await repo.getFileIndex(scoped, userId, "vault", "notes/b.md");
+      expect(found?.fileHash).toBe("hash-2");
+    });
+  });
+
+  it("returns null for an unknown path", async () => {
+    await dataContext.withDataContext(ctx(userId), async (scoped) => {
+      const found = await repo.getFileIndex(scoped, userId, "vault", "notes/missing.md");
+      expect(found).toBeNull();
+    });
+  });
+
+  it("lists indexed paths for a user + source kind", async () => {
+    await dataContext.withDataContext(ctx(userId), async (scoped) => {
+      await repo.upsertFileIndex(scoped, userId, "vault", "notes/c.md", "h", 1, "stub", "0");
+      const paths = await repo.listIndexedPaths(scoped, userId, "vault");
+      expect(paths).toContain("notes/c.md");
+    });
+  });
+
+  it("deletes a file checkpoint", async () => {
+    await dataContext.withDataContext(ctx(userId), async (scoped) => {
+      await repo.upsertFileIndex(scoped, userId, "vault", "notes/d.md", "h", 1, "stub", "0");
+      await repo.deleteFileIndex(scoped, userId, "vault", "notes/d.md");
+      const found = await repo.getFileIndex(scoped, userId, "vault", "notes/d.md");
+      expect(found).toBeNull();
+    });
+  });
+});
+
+// ── MemoryIngestPipeline idempotency ─────────────────────────────────────────
+
+describe("MemoryIngestPipeline idempotency", () => {
+  // Use a dedicated user so this describe's file-index state is fully isolated
+  // from the MemoryRepository file-index tests (which insert index rows without
+  // corresponding disk files, causing purgeDeletedFiles to over-count).
+  const idemUserId = "00000000-0000-4000-8000-000000000016";
+  const repo = new MemoryRepository();
+  const pipeline = new MemoryIngestPipeline(new StubEmbeddingProvider(), repo);
+
+  beforeAll(async () => {
+    const client = new Client({ connectionString: connectionStrings.bootstrap });
+    await client.connect();
+    try {
+      await client.query(
+        `INSERT INTO app.users (id, email, is_instance_admin)
+         VALUES ($1, 'memory-idem@example.test', false)`,
+        [idemUserId]
+      );
+    } finally {
+      await client.end();
+    }
+  });
+
+  it("skips re-ingest when the file is unchanged", async () => {
+    await vaultRunner.withVaultContext(ctx(idemUserId), async (vaultCtx) => {
+      await writeVaultFile(vaultCtx, "loop/a.md", "## A\n\nfirst body");
+      await dataContext.withDataContext(ctx(idemUserId), async (scoped) => {
+        const first = await pipeline.ingestFile(scoped, vaultCtx, "loop/a.md");
+        expect(first.status).toBe("ingested");
+        const second = await pipeline.ingestFile(scoped, vaultCtx, "loop/a.md");
+        expect(second.status).toBe("skipped");
+      });
+    });
+  });
+
+  it("re-ingests when the file content changes", async () => {
+    await vaultRunner.withVaultContext(ctx(idemUserId), async (vaultCtx) => {
+      await writeVaultFile(vaultCtx, "loop/b.md", "## B\n\noriginal");
+      await dataContext.withDataContext(ctx(idemUserId), async (scoped) => {
+        await pipeline.ingestFile(scoped, vaultCtx, "loop/b.md");
+        await writeVaultFile(vaultCtx, "loop/b.md", "## B\n\nchanged content");
+        const again = await pipeline.ingestFile(scoped, vaultCtx, "loop/b.md");
+        expect(again.status).toBe("ingested");
+      });
+    });
+  });
+
+  it("re-ingests when force is set even if unchanged", async () => {
+    await vaultRunner.withVaultContext(ctx(idemUserId), async (vaultCtx) => {
+      await writeVaultFile(vaultCtx, "loop/c.md", "## C\n\nbody");
+      await dataContext.withDataContext(ctx(idemUserId), async (scoped) => {
+        await pipeline.ingestFile(scoped, vaultCtx, "loop/c.md");
+        const forced = await pipeline.ingestFile(scoped, vaultCtx, "loop/c.md", { force: true });
+        expect(forced.status).toBe("ingested");
+      });
+    });
+  });
+
+  it("purges chunks + index entries for files removed from the vault", async () => {
+    // Use a fresh sub-user for this test so prior idempotency tests'
+    // index entries (loop/a.md, loop/b.md, loop/c.md) don't affect the count.
+    const purgeUserId = "00000000-0000-4000-8000-000000000017";
+    const purgeClient = new Client({ connectionString: connectionStrings.bootstrap });
+    await purgeClient.connect();
+    try {
+      await purgeClient.query(
+        `INSERT INTO app.users (id, email, is_instance_admin)
+         VALUES ($1, 'memory-purge@example.test', false)`,
+        [purgeUserId]
+      );
+    } finally {
+      await purgeClient.end();
+    }
+
+    async function purgeChunkCount(scoped: DataContextDb, path: string): Promise<number> {
+      const r = await sql<{ n: string }>`
+        SELECT count(*)::text AS n FROM app.memory_chunks
+        WHERE owner_user_id = ${purgeUserId}::uuid AND source_path = ${path}
+      `.execute(scoped.db);
+      return Number(r.rows[0]?.n ?? "0");
+    }
+
+    await vaultRunner.withVaultContext(ctx(purgeUserId), async (vaultCtx) => {
+      await writeVaultFile(vaultCtx, "purge/keep.md", "## Keep\n\nstays");
+      await writeVaultFile(vaultCtx, "purge/gone.md", "## Gone\n\nremoved later");
+      await dataContext.withDataContext(ctx(purgeUserId), async (scoped) => {
+        await pipeline.ingestFile(scoped, vaultCtx, "purge/keep.md");
+        await pipeline.ingestFile(scoped, vaultCtx, "purge/gone.md");
+        expect(await purgeChunkCount(scoped, "purge/gone.md")).toBeGreaterThan(0);
+
+        // Simulate deletion: remove the file from disk, then purge.
+        await rm(join(vaultCtx.vaultRoot, "purge/gone.md"), { force: true });
+        const result = await pipeline.purgeDeletedFiles(scoped, vaultCtx);
+        expect(result.deleted).toBe(1);
+        expect(await purgeChunkCount(scoped, "purge/gone.md")).toBe(0);
+        expect(await purgeChunkCount(scoped, "purge/keep.md")).toBeGreaterThan(0);
+        expect(await repo.getFileIndex(scoped, purgeUserId, "vault", "purge/gone.md")).toBeNull();
+      });
+    });
+  });
+});
+
 // ── MemoryRetriever ───────────────────────────────────────────────────────────
 
 describe("MemoryRetriever", () => {
@@ -461,5 +620,63 @@ describe("MemoryRetriever", () => {
         (r) => r.sourcePath !== "knowledge/alpha.md" && r.sourcePath !== "knowledge/beta.md"
       )
     ).toBe(true);
+  });
+});
+
+// ── IngestionService ─────────────────────────────────────────────────────────
+
+describe("IngestionService", () => {
+  // Use a dedicated user so the service's full-vault scans are isolated
+  const svcUserId = "00000000-0000-4000-8000-000000000018";
+  const repo = new MemoryRepository();
+  const pipeline = new MemoryIngestPipeline(new StubEmbeddingProvider(), repo);
+  // dataContext is initialized in the outer beforeAll — create the service lazily
+  let service: IngestionService;
+
+  beforeAll(async () => {
+    const client = new Client({ connectionString: connectionStrings.bootstrap });
+    await client.connect();
+    try {
+      await client.query(
+        `INSERT INTO app.users (id, email, is_instance_admin)
+         VALUES ($1, 'memory-svc@example.test', false)`,
+        [svcUserId]
+      );
+    } finally {
+      await client.end();
+    }
+    service = new IngestionService(pipeline, repo, dataContext);
+  });
+
+  it("ingests all markdown files and reports stats", async () => {
+    await vaultRunner.withVaultContext(ctx(svcUserId), async (vaultCtx) => {
+      await writeVaultFile(vaultCtx, "svc/one.md", "## One\n\nalpha");
+      await writeVaultFile(vaultCtx, "svc/two.md", "## Two\n\nbeta");
+      const stats = await service.ingestVault(ctx(svcUserId), vaultCtx);
+      expect(stats.processed).toBe(2);
+      expect(stats.skipped).toBe(0);
+      expect(stats.failed).toHaveLength(0);
+    });
+  });
+
+  it("skips unchanged files on a second run", async () => {
+    await vaultRunner.withVaultContext(ctx(svcUserId), async (vaultCtx) => {
+      await writeVaultFile(vaultCtx, "svc2/a.md", "## A\n\nbody");
+      await service.ingestVault(ctx(svcUserId), vaultCtx);
+      const second = await service.ingestVault(ctx(svcUserId), vaultCtx);
+      expect(second.processed).toBe(0);
+      expect(second.skipped).toBeGreaterThanOrEqual(1);
+    });
+  });
+
+  it("purges files removed from the vault and counts them", async () => {
+    await vaultRunner.withVaultContext(ctx(svcUserId), async (vaultCtx) => {
+      await writeVaultFile(vaultCtx, "svc3/keep.md", "## Keep\n\nx");
+      await writeVaultFile(vaultCtx, "svc3/drop.md", "## Drop\n\ny");
+      await service.ingestVault(ctx(svcUserId), vaultCtx);
+      await rm(join(vaultCtx.vaultRoot, "svc3/drop.md"), { force: true });
+      const stats = await service.ingestVault(ctx(svcUserId), vaultCtx);
+      expect(stats.deleted).toBe(1);
+    });
   });
 });

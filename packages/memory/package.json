@@ -10,6 +10,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@huggingface/transformers": "^3.0.0",
     "@jarv1s/db": "workspace:*",
     "@jarv1s/module-sdk": "workspace:*",
     "@jarv1s/vault": "workspace:*",
