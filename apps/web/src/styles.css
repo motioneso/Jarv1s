@@ -325,6 +325,18 @@ a:focus-visible {
   color: var(--ink);
 }
 
+/* The Chat nav entry is a drawer toggle (<button>), not a route link — reset the
+   button defaults so it is visually identical to the anchor module-links. */
+button.module-link {
+  width: 100%;
+  background: transparent;
+  border: none;
+  font: inherit;
+  font-weight: 750;
+  text-align: left;
+  cursor: pointer;
+}
+
 .nav-loading,
 .muted-text {
   color: var(--muted);
@@ -774,15 +786,6 @@ a:focus-visible {
 .mobile-only,
 .sidebar-scrim {
   display: none;
-}
-
-.chat-drawer-scrim {
-  position: fixed;
-  inset: 0;
-  z-index: 40;
-  border: 0;
-  background: rgb(15 23 42 / 0.35);
-  cursor: pointer;
 }
 
 .chat-drawer {

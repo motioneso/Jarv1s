@@ -18,7 +18,12 @@ import { NavLink } from "react-router";
 
 import { listNotifications, signOut } from "../api/client";
 import { queryKeys } from "../api/query-keys";
+import { ChatDrawer } from "../chat/chat-drawer";
+import { useChatStream } from "../chat/use-chat-stream";
 import type { MeResponse, ModuleDto, ModuleNavigationEntryDto } from "@jarv1s/shared";
+
+/** Module-nav id of the chat entry, which the shell renders as a drawer toggle. */
+const CHAT_NAV_ID = "chat";
 
 interface AppShellProps {
   readonly children: ReactNode;
@@ -41,6 +46,10 @@ const iconMap: Record<string, ComponentType<{ readonly size?: number }>> = {
 export function AppShell(props: AppShellProps) {
   const queryClient = useQueryClient();
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
+  const [chatOpen, setChatOpen] = useState(false);
+  // Lifted to the shell so the SSE stream + transcript persist while the drawer is
+  // closed and as the user navigates between pages — the chat follows the user.
+  const { records, clearRecords } = useChatStream();
   const navigation = useMemo(() => readNavigation(props.modules), [props.modules]);
   const notificationsQuery = useQuery({
     queryKey: queryKeys.notifications.list,
@@ -68,9 +77,21 @@ export function AppShell(props: AppShellProps) {
         </div>
 
         <nav className="module-nav" aria-label="Modules">
-          {navigation.map((entry) => (
-            <NavItem key={entry.id} entry={entry} onClick={() => setMobileNavOpen(false)} />
-          ))}
+          {navigation.map((entry) =>
+            entry.id === CHAT_NAV_ID ? (
+              <ChatNavToggle
+                key={entry.id}
+                entry={entry}
+                active={chatOpen}
+                onToggle={() => {
+                  setChatOpen((open) => !open);
+                  setMobileNavOpen(false);
+                }}
+              />
+            ) : (
+              <NavItem key={entry.id} entry={entry} onClick={() => setMobileNavOpen(false)} />
+            )
+          )}
           {props.modulesLoading ? <span className="nav-loading">Loading modules</span> : null}
         </nav>
       </aside>
@@ -129,6 +150,13 @@ export function AppShell(props: AppShellProps) {
 
         <main className="content-surface">{props.children}</main>
       </div>
+
+      <ChatDrawer
+        open={chatOpen}
+        onClose={() => setChatOpen(false)}
+        records={records}
+        clearRecords={clearRecords}
+      />
     </div>
   );
 }
@@ -152,6 +180,26 @@ function NavItem(props: {
       <Icon size={18} />
       <span>{props.entry.label}</span>
     </NavLink>
+  );
+}
+
+function ChatNavToggle(props: {
+  readonly entry: ModuleNavigationEntryDto;
+  readonly active: boolean;
+  readonly onToggle: () => void;
+}) {
+  const Icon = props.entry.icon ? (iconMap[props.entry.icon] ?? Layers3) : Layers3;
+
+  return (
+    <button
+      type="button"
+      className={`module-link ${props.active ? "active" : ""}`}
+      aria-pressed={props.active}
+      onClick={props.onToggle}
+    >
+      <Icon size={18} />
+      <span>{props.entry.label}</span>
+    </button>
   );
 }
 

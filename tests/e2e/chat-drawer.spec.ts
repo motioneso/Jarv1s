@@ -17,8 +17,12 @@ import { createMockConnectorProviders, mockApi } from "./mock-api.js";
  * stub). Playwright's route.fulfill with a string event-stream body works here — the
  * browser EventSource reads the two events, then the fulfilled connection ends.
  * We assert both records render exactly once (no double-render).
+ *
+ * The chat is now a GLOBAL drawer mounted in the app shell and toggled from the "Chat"
+ * nav item (there is no /chat page). The stream connects at app load, so the records
+ * have already arrived by the time we open the drawer.
  */
-test("opens the live chat drawer, sends a message, and renders the streamed records once", async ({
+test("opens the live chat drawer from the nav and renders the streamed records once", async ({
   page
 }) => {
   await mockApi(page, {
@@ -63,13 +67,14 @@ test("opens the live chat drawer, sends a message, and renders the streamed reco
 
   await page.route("**/api/chat/clear", (route) => route.fulfill({ status: 204, body: "" }));
 
-  await page.goto("/chat");
-  await expect(page.getByRole("heading", { name: "Chat" })).toBeVisible();
+  await page.goto("/");
 
-  await page.getByRole("button", { name: "Live chat" }).click();
+  // Open the global drawer from the Chat nav toggle (no /chat page).
+  await page.locator("nav.module-nav").getByRole("button", { name: "Chat" }).click();
   const drawer = page.getByRole("complementary", { name: "Live chat" });
   await expect(drawer).toBeVisible();
 
+  // Send a turn (the reply arrives over the SSE stream, which is the source of truth).
   await drawer.getByLabel("Message").fill("Hi there");
   await drawer.getByRole("button", { name: "Send" }).click();
 
@@ -77,7 +82,7 @@ test("opens the live chat drawer, sends a message, and renders the streamed reco
   await expect(drawer.getByText("Hi there")).toHaveCount(1);
   await expect(drawer.getByText("Hello from the assistant")).toHaveCount(1);
 
-  // "New chat" clears the local transcript.
+  // "New chat" clears the transcript.
   await drawer.getByRole("button", { name: "New chat" }).click();
   await expect(drawer.getByText("Send a message to start chatting")).toBeVisible();
 });
