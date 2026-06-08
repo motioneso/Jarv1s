@@ -7,6 +7,7 @@ import {
   type AiAssistantActionRequest,
   type AiAssistantActionRisk,
   type AiAssistantActionStatus,
+  type AiAuthMethod,
   type AiConfiguredModelsTable,
   type AiModelStatus,
   type AiProviderConfigsTable,
@@ -25,6 +26,7 @@ export interface AiProviderConfigSafeRow {
   readonly display_name: string;
   readonly base_url: string | null;
   readonly status: AiProviderStatus;
+  readonly auth_method: AiAuthMethod;
   readonly has_credential: boolean;
   readonly revoked_at: Date | null;
   readonly created_at: Date;
@@ -53,6 +55,7 @@ export interface CreateAiProviderInput {
   readonly displayName: string;
   readonly baseUrl?: string | null;
   readonly status?: Exclude<AiProviderStatus, "revoked">;
+  readonly authMethod?: AiAuthMethod;
   readonly encryptedCredential: EncryptedAiSecret;
 }
 
@@ -61,6 +64,7 @@ export interface UpdateAiProviderInput {
   readonly displayName?: string;
   readonly baseUrl?: string | null;
   readonly status?: Exclude<AiProviderStatus, "revoked">;
+  readonly authMethod?: AiAuthMethod;
   readonly encryptedCredential?: EncryptedAiSecret;
 }
 
@@ -116,6 +120,7 @@ export class AiRepository {
         display_name: input.displayName,
         base_url: input.baseUrl ?? null,
         status: input.status ?? "active",
+        auth_method: input.authMethod ?? "api_key",
         encrypted_credential: input.encryptedCredential,
         revoked_at: null,
         created_at: now,
@@ -150,6 +155,9 @@ export class AiRepository {
     if (input.status !== undefined) {
       updates.status = input.status;
       updates.revoked_at = null;
+    }
+    if (input.authMethod !== undefined) {
+      updates.auth_method = input.authMethod;
     }
     if (input.encryptedCredential !== undefined) {
       updates.encrypted_credential = input.encryptedCredential;
@@ -365,6 +373,7 @@ export class AiRepository {
         "display_name",
         "base_url",
         "status",
+        "auth_method",
         sql<boolean>`encrypted_credential IS NOT NULL`.as("has_credential"),
         "revoked_at",
         "created_at",

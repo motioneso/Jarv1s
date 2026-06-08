@@ -1,5 +1,6 @@
 export type AiProviderKind = "openai-compatible" | "anthropic" | "google" | "ollama" | "custom";
 export type AiProviderStatus = "active" | "error" | "disabled" | "revoked";
+export type AiAuthMethod = "cli" | "api_key";
 export type AiModelStatus = "active" | "disabled";
 export type AiModelCapability = "chat" | "tool-use" | "json" | "vision" | "summarization";
 export type AiCapabilityRouteReason = "matched-active-model" | "no-active-model";
@@ -10,7 +11,9 @@ export interface AiProviderConfigDto {
   readonly displayName: string;
   readonly baseUrl: string | null;
   readonly status: AiProviderStatus;
+  readonly authMethod: AiAuthMethod;
   readonly hasCredential: boolean;
+  readonly cliAvailable: boolean;
   readonly revokedAt: string | null;
   readonly createdAt: string;
   readonly updatedAt: string;
@@ -98,7 +101,8 @@ export interface CreateAiProviderConfigRequest {
   readonly displayName: string;
   readonly baseUrl?: string | null;
   readonly status?: Exclude<AiProviderStatus, "revoked">;
-  readonly credentialPayload: Record<string, unknown>;
+  readonly authMethod?: AiAuthMethod;
+  readonly credentialPayload?: Record<string, unknown>;
 }
 
 export interface CreateAiProviderConfigResponse {
@@ -110,6 +114,7 @@ export interface UpdateAiProviderConfigRequest {
   readonly displayName?: string;
   readonly baseUrl?: string | null;
   readonly status?: Exclude<AiProviderStatus, "revoked">;
+  readonly authMethod?: AiAuthMethod;
   readonly credentialPayload?: Record<string, unknown>;
 }
 
@@ -242,6 +247,11 @@ const aiAssistantToolParamsSchema = {
   }
 } as const;
 
+export const aiAuthMethodSchema = {
+  type: "string",
+  enum: ["cli", "api_key"]
+} as const;
+
 const aiProviderConfigSchema = {
   type: "object",
   additionalProperties: false,
@@ -251,7 +261,9 @@ const aiProviderConfigSchema = {
     "displayName",
     "baseUrl",
     "status",
+    "authMethod",
     "hasCredential",
+    "cliAvailable",
     "revokedAt",
     "createdAt",
     "updatedAt"
@@ -262,7 +274,9 @@ const aiProviderConfigSchema = {
     displayName: { type: "string" },
     baseUrl: { type: ["string", "null"] },
     status: aiProviderStatusSchema,
+    authMethod: aiAuthMethodSchema,
     hasCredential: { type: "boolean" },
+    cliAvailable: { type: "boolean" },
     revokedAt: { type: ["string", "null"] },
     createdAt: { type: "string" },
     updatedAt: { type: "string" }
@@ -431,12 +445,13 @@ const aiAssistantActionSchema = {
 export const createAiProviderConfigRequestSchema = {
   type: "object",
   additionalProperties: false,
-  required: ["providerKind", "displayName", "credentialPayload"],
+  required: ["providerKind", "displayName"],
   properties: {
     providerKind: aiProviderKindSchema,
     displayName: { type: "string" },
     baseUrl: { type: ["string", "null"] },
     status: writableAiProviderStatusSchema,
+    authMethod: aiAuthMethodSchema,
     credentialPayload: jsonObjectSchema
   }
 } as const;
@@ -449,6 +464,7 @@ export const updateAiProviderConfigRequestSchema = {
     displayName: { type: "string" },
     baseUrl: { type: ["string", "null"] },
     status: writableAiProviderStatusSchema,
+    authMethod: aiAuthMethodSchema,
     credentialPayload: jsonObjectSchema
   }
 } as const;
