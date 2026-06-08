@@ -46,7 +46,7 @@ export function createChatAdapter(
   provider: AiProviderConfigSafeRow,
   deps: CreateChatAdapterDeps
 ): ChatProviderAdapter {
-  const { threadKey, decryptedKey, cwd } = deps;
+  const { threadKey, decryptedKey } = deps;
 
   switch (provider.auth_method) {
     case "cli": {
@@ -57,9 +57,7 @@ export function createChatAdapter(
             `supported kinds: ${[...CLI_PROVIDER_KINDS].join(", ")}`
         );
       }
-      return new TmuxBridgeAdapter(kind as ProviderKind, threadKey, realTmuxIo, {
-        ...(cwd !== undefined ? {} : {}) // cwd is used by TmuxBridgeAdapter internally via process.cwd()
-      });
+      return new TmuxBridgeAdapter(kind as ProviderKind, threadKey, realTmuxIo);
     }
     case "api_key": {
       if (!decryptedKey) {

@@ -79,6 +79,39 @@ class FakeEngine implements CliChatEngine {
   }
 }
 
+/**
+ * Fake engine whose readNew ALWAYS reports not-complete (and yields a partial,
+ * empty reply) — simulates a CLI that never finishes, so the manager's poll loop
+ * must hit its cap and surface a timeout.
+ */
+class NeverCompletingEngine implements CliChatEngine {
+  killed = false;
+  readonly submitted: string[] = [];
+
+  constructor(
+    public readonly provider: ProviderKind,
+    public readonly sessionKey: string
+  ) {}
+
+  async launch(): Promise<void> {}
+  async submit(text: string): Promise<void> {
+    this.submitted.push(text);
+  }
+  async clear(): Promise<void> {}
+  async readNew(
+    afterOffset: number
+  ): Promise<{ records: TranscriptRecord[]; offset: number; complete: boolean }> {
+    // Never complete, never emit a reply record.
+    return { records: [], offset: afterOffset, complete: false };
+  }
+  async isAlive(): Promise<boolean> {
+    return !this.killed;
+  }
+  async kill(): Promise<void> {
+    this.killed = true;
+  }
+}
+
 class FakePersistence implements ChatPersistencePort {
   active: { provider: ProviderKind; model: string } = {
     provider: "anthropic",
@@ -296,5 +329,45 @@ describe("ChatSessionManager", () => {
 
     expect(engines).toHaveLength(2);
     expect(engines[0]?.sessionKey).not.toBe(engines[1]?.sessionKey);
+  });
+
+  it("surfaces a timeout as an error record and does not store an empty reply as success", async () => {
+    const persistence = new FakePersistence();
+    const engines: NeverCompletingEngine[] = [];
+    const manager = new ChatSessionManager({
+      engineFactory: (provider, sessionKey) => {
+        const e = new NeverCompletingEngine(provider, sessionKey);
+        engines.push(e);
+        return e;
+      },
+      persistence,
+      personaFs: noopPersonaFs,
+      clock: new FakeClock(),
+      idleMs: 1_000,
+      neutralBase: "/tmp/jarvis-test",
+      persona: "I am Jarvis, {{userName}}.",
+      pollMs: 0,
+      maxPolls: 3 // keep the test fast: cap the never-completing poll loop low
+    });
+
+    const seen: TranscriptRecord[] = [];
+    manager.subscribe("user-1", (r) => seen.push(r));
+
+    const { reply } = await manager.submitTurn("user-1", "Ben", "hello");
+
+    // An error record was fanned out to subscribers.
+    const errorRecord = seen.find((r) => r.kind === "error");
+    expect(errorRecord).toBeDefined();
+    expect(errorRecord?.text).toMatch(/timed out/i);
+
+    // The empty/partial reply was NOT recorded as a normal success — the turn was
+    // persisted with a clear error body instead, and the user message is kept.
+    expect(persistence.recorded).toHaveLength(1);
+    expect(persistence.recorded[0]?.userText).toBe("hello");
+    expect(persistence.recorded[0]?.assistantReply).not.toBe("");
+    expect(persistence.recorded[0]?.assistantReply).toMatch(/timed out/i);
+
+    // The returned reply is the error body, not an empty success.
+    expect(reply).toMatch(/timed out/i);
   });
 });

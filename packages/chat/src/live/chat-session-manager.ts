@@ -53,6 +53,8 @@ export interface ChatSessionManagerDeps {
   readonly persona: string;
   /** Delay between readNew polls (default 25ms; tests pass 0). */
   readonly pollMs?: number;
+  /** Cap on readNew polls per turn before a turn is treated as timed out (default 2000). */
+  readonly maxPolls?: number;
 }
 
 /** A subscriber receives every emitted transcript record for its user. */
@@ -66,8 +68,11 @@ interface UserSession {
   transcriptOffset: number;
 }
 
-/** Cap on readNew polls per turn so a never-completing engine can't hang us. */
-const MAX_POLLS = 2_000;
+/** Default cap on readNew polls per turn so a never-completing engine can't hang us. */
+const DEFAULT_MAX_POLLS = 2_000;
+
+/** Body persisted/returned when a turn never reports complete within the poll cap. */
+const TIMEOUT_MESSAGE = "Chat timed out before the model finished responding.";
 
 export class ChatSessionManager {
   private readonly sessions = new Map<string, UserSession>();
@@ -75,9 +80,11 @@ export class ChatSessionManager {
   /** In-flight ensureSession promises, keyed by user, to serialize launches. */
   private readonly launching = new Map<string, Promise<UserSession>>();
   private readonly pollMs: number;
+  private readonly maxPolls: number;
 
   constructor(private readonly deps: ChatSessionManagerDeps) {
     this.pollMs = deps.pollMs ?? 25;
+    this.maxPolls = deps.maxPolls ?? DEFAULT_MAX_POLLS;
   }
 
   /**
@@ -156,6 +163,7 @@ export class ChatSessionManager {
 
     let reply = "";
     let polls = 0;
+    let timedOut = false;
     for (;;) {
       const { records, offset, complete } = await session.engine.readNew(session.transcriptOffset);
       session.transcriptOffset = offset;
@@ -164,8 +172,20 @@ export class ChatSessionManager {
         if (record.kind === "reply") reply = record.text;
       }
       if (complete) break;
-      if (++polls >= MAX_POLLS) break;
+      if (++polls >= this.maxPolls) {
+        timedOut = true;
+        break;
+      }
       if (this.pollMs > 0) await delay(this.pollMs);
+    }
+
+    // The poll loop exited without the engine reporting complete: surface a clear
+    // error rather than silently persisting a partial (often empty) reply as a
+    // successful turn. The user message is still recorded so the stored
+    // conversation stays consistent.
+    if (timedOut) {
+      this.emit(actorUserId, { kind: "error", text: TIMEOUT_MESSAGE });
+      reply = TIMEOUT_MESSAGE;
     }
 
     await this.deps.persistence.recordTurn(actorUserId, text, reply, {
@@ -252,7 +272,7 @@ export class ChatSessionManager {
       const { offset: next, complete } = await engine.readNew(offset);
       offset = next;
       if (complete) break;
-      if (++polls >= MAX_POLLS) break;
+      if (++polls >= this.maxPolls) break;
       if (this.pollMs > 0) await delay(this.pollMs);
     }
     return offset;

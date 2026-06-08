@@ -57,6 +57,8 @@ export class TmuxCliChatEngine implements CliChatEngine {
   private readonly sessionName: string;
   private readonly launchMs: number;
   private readonly submitMs: number;
+  /** Stable per-session temp prompt path, overwritten (not accumulated) per turn. */
+  private readonly promptFile: string;
 
   /** Set at launch: the exact JSONL transcript path (session-id pinned). */
   private storedTranscriptPath: string | null = null;
@@ -70,6 +72,10 @@ export class TmuxCliChatEngine implements CliChatEngine {
     this.sessionName = `${SESSION_PREFIX}${threadKey}`;
     this.launchMs = opts.launchMs ?? 3_000;
     this.submitMs = opts.submitMs ?? 600;
+    // One stable temp file per session: each submit() overwrites it (written then
+    // immediately pasted before the next turn), so at most one prompt file exists
+    // per session at a time instead of accumulating one per turn.
+    this.promptFile = join(tmpdir(), `jarv1s-live-prompt-${this.sessionName}.txt`);
   }
 
   // ─── lifecycle ─────────────────────────────────────────────────────────────
@@ -114,14 +120,16 @@ export class TmuxCliChatEngine implements CliChatEngine {
   async submit(text: string): Promise<void> {
     const sanitized = sanitizeInput(text);
 
-    // Write to a temp file to avoid shell-escaping hazards with long/multiline
-    // prompts, then load + paste the buffer and send Enter as a SEPARATE step
-    // (bracketed paste needs a settle before Enter, or the Enter is absorbed).
-    const tmpFile = join(tmpdir(), `jarv1s-live-prompt-${this.threadKey}-${Date.now()}.txt`);
-    await this.io.writeFile(tmpFile, sanitized);
+    // Write to a single stable per-session temp file to avoid shell-escaping
+    // hazards with long/multiline prompts. Reusing one path (overwritten each
+    // turn) keeps at most one prompt file per session instead of leaking one per
+    // turn; the file is written then immediately pasted before the next turn.
+    // Then load + paste the buffer and send Enter as a SEPARATE step (bracketed
+    // paste needs a settle before Enter, or the Enter is absorbed).
+    await this.io.writeFile(this.promptFile, sanitized);
 
     const bufferName = `jarv1s-live-${this.threadKey}`;
-    await this.io.run("tmux", ["load-buffer", "-b", bufferName, tmpFile]);
+    await this.io.run("tmux", ["load-buffer", "-b", bufferName, this.promptFile]);
     await this.io.run("tmux", ["paste-buffer", "-b", bufferName, "-t", this.sessionName]);
     await this.io.sleep(this.submitMs);
     await this.io.run("tmux", ["send-keys", "-t", this.sessionName, "Enter"]);
