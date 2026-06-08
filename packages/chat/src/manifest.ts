@@ -29,7 +29,11 @@ export const chatModuleManifest = {
     required: true
   },
   database: {
-    migrations: ["sql/0014_chat_module.sql", "sql/0034_chat_status_activity.sql", "sql/0035_chat_messages_update_grant.sql"],
+    migrations: [
+      "sql/0014_chat_module.sql",
+      "sql/0034_chat_status_activity.sql",
+      "sql/0035_chat_messages_update_grant.sql"
+    ],
     migrationDirectories: ["packages/chat/sql"],
     ownedTables: ["app.chat_threads", "app.chat_messages"]
   },

@@ -54,7 +54,7 @@ const realTmuxIo: TmuxIo = {
   },
   async sleep(ms: number): Promise<void> {
     return new Promise((resolve) => setTimeout(resolve, ms));
-  },
+  }
 };
 
 /**
@@ -80,7 +80,7 @@ export function createChatAdapter(
         );
       }
       return new TmuxBridgeAdapter(kind as ProviderKind, threadKey, realTmuxIo, {
-        ...(cwd !== undefined ? {} : {}), // cwd is used by TmuxBridgeAdapter internally via process.cwd()
+        ...(cwd !== undefined ? {} : {}) // cwd is used by TmuxBridgeAdapter internally via process.cwd()
       });
     }
     case "api_key": {
@@ -92,7 +92,7 @@ export function createChatAdapter(
       }
       const kind = provider.provider_kind as ProviderKind;
       return new HttpApiAdapter(kind, decryptedKey, {
-        ...(provider.base_url ? { baseUrl: provider.base_url } : {}),
+        ...(provider.base_url ? { baseUrl: provider.base_url } : {})
       });
     }
     default: {

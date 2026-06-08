@@ -28,9 +28,7 @@ export function ChatPage() {
     queryFn: () => listChatMessages(activeThreadId ?? ""),
     refetchInterval: (query) => {
       const messages = query.state.data?.messages ?? [];
-      const isLive = messages.some(
-        (m) => m.status === "pending" || m.status === "working"
-      );
+      const isLive = messages.some((m) => m.status === "pending" || m.status === "working");
       return isLive ? 1500 : false;
     }
   });

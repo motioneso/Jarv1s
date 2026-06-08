@@ -487,7 +487,8 @@ describe("Chat module M6 thin slice", () => {
 
     await dataContext.withDataContext(
       { actorUserId: ids.userA, requestId: "request:worker-success-setup" },
-      (scopedDb) => repoWithEnqueue.appendUserMessage(scopedDb, threadId, { body: "Run me" }, ids.userA)
+      (scopedDb) =>
+        repoWithEnqueue.appendUserMessage(scopedDb, threadId, { body: "Run me" }, ids.userA)
     );
 
     expect(capturedJobs).toHaveLength(1);
@@ -560,7 +561,8 @@ describe("Chat module M6 thin slice", () => {
 
     await dataContext.withDataContext(
       { actorUserId: ids.userA, requestId: "request:worker-error-setup" },
-      (scopedDb) => repoWithEnqueue.appendUserMessage(scopedDb, threadId, { body: "Break me" }, ids.userA)
+      (scopedDb) =>
+        repoWithEnqueue.appendUserMessage(scopedDb, threadId, { body: "Break me" }, ids.userA)
     );
 
     expect(capturedJobs).toHaveLength(1);

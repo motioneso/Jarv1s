@@ -140,8 +140,7 @@ const BUILT_IN_MODULES: readonly BuiltInModuleRegistration[] = [
       }
     ],
     registerRoutes: registerChatRoutes,
-    registerWorkers: (boss, dependencies) =>
-      registerChatJobWorkers(boss, dependencies.dataContext)
+    registerWorkers: (boss, dependencies) => registerChatJobWorkers(boss, dependencies.dataContext)
   },
   {
     manifest: briefingsModuleManifest,

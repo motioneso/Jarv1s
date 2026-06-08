@@ -283,7 +283,9 @@ export class AiRepository {
   async selectProviderWithCredential(
     scopedDb: DataContextDb,
     providerId: string
-  ): Promise<(AiProviderConfigSafeRow & { readonly encrypted_credential: EncryptedAiSecret }) | undefined> {
+  ): Promise<
+    (AiProviderConfigSafeRow & { readonly encrypted_credential: EncryptedAiSecret }) | undefined
+  > {
     assertDataContextDb(scopedDb);
 
     return scopedDb.db
@@ -303,7 +305,9 @@ export class AiRepository {
         "encrypted_credential"
       ])
       .where("id", "=", providerId)
-      .executeTakeFirst() as Promise<(AiProviderConfigSafeRow & { readonly encrypted_credential: EncryptedAiSecret }) | undefined>;
+      .executeTakeFirst() as Promise<
+      (AiProviderConfigSafeRow & { readonly encrypted_credential: EncryptedAiSecret }) | undefined
+    >;
   }
 
   async listAssistantActions(scopedDb: DataContextDb): Promise<AiAssistantActionRequestSafeRow[]> {

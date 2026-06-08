@@ -22,7 +22,7 @@ function cliProvider(provider_kind = "anthropic"): AiProviderConfigSafeRow {
     has_credential: false,
     revoked_at: null,
     created_at: new Date(),
-    updated_at: new Date(),
+    updated_at: new Date()
   };
 }
 
@@ -38,28 +38,28 @@ function apiKeyProvider(provider_kind = "anthropic"): AiProviderConfigSafeRow {
     has_credential: true,
     revoked_at: null,
     created_at: new Date(),
-    updated_at: new Date(),
+    updated_at: new Date()
   };
 }
 
 describe("createChatAdapter — cli auth_method", () => {
   it("returns a TmuxBridgeAdapter for anthropic+cli", () => {
     const adapter = createChatAdapter(cliProvider("anthropic"), {
-      threadKey: "thread-abc",
+      threadKey: "thread-abc"
     });
     expect(adapter).toBeInstanceOf(TmuxBridgeAdapter);
   });
 
   it("returns a TmuxBridgeAdapter for openai-compatible+cli", () => {
     const adapter = createChatAdapter(cliProvider("openai-compatible"), {
-      threadKey: "thread-def",
+      threadKey: "thread-def"
     });
     expect(adapter).toBeInstanceOf(TmuxBridgeAdapter);
   });
 
   it("returns a TmuxBridgeAdapter for google+cli", () => {
     const adapter = createChatAdapter(cliProvider("google"), {
-      threadKey: "thread-ghi",
+      threadKey: "thread-ghi"
     });
     expect(adapter).toBeInstanceOf(TmuxBridgeAdapter);
   });
@@ -69,7 +69,7 @@ describe("createChatAdapter — api_key auth_method", () => {
   it("returns an HttpApiAdapter for anthropic+api_key with decryptedKey", () => {
     const adapter = createChatAdapter(apiKeyProvider("anthropic"), {
       threadKey: "thread-jkl",
-      decryptedKey: "sk-test-key",
+      decryptedKey: "sk-test-key"
     });
     expect(adapter).toBeInstanceOf(HttpApiAdapter);
   });
@@ -77,7 +77,7 @@ describe("createChatAdapter — api_key auth_method", () => {
   it("returns an HttpApiAdapter for openai-compatible+api_key with decryptedKey", () => {
     const adapter = createChatAdapter(apiKeyProvider("openai-compatible"), {
       threadKey: "thread-mno",
-      decryptedKey: "sk-openai-key",
+      decryptedKey: "sk-openai-key"
     });
     expect(adapter).toBeInstanceOf(HttpApiAdapter);
   });
@@ -85,7 +85,7 @@ describe("createChatAdapter — api_key auth_method", () => {
   it("throws when auth_method is api_key but decryptedKey is missing", () => {
     expect(() =>
       createChatAdapter(apiKeyProvider("anthropic"), {
-        threadKey: "thread-pqr",
+        threadKey: "thread-pqr"
         // no decryptedKey
       })
     ).toThrow(/decryptedKey/i);

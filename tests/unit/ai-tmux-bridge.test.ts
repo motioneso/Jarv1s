@@ -2,7 +2,7 @@
  * Unit tests for transcript-reader and TmuxBridgeAdapter.
  * No Postgres — all I/O boundaries are mocked.
  */
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it } from "vitest";
 
 import { parseTranscript } from "../../packages/ai/src/adapters/transcript-reader.js";
 import { TmuxBridgeAdapter, type TmuxIo } from "../../packages/ai/src/adapters/tmux-bridge.js";
@@ -129,11 +129,9 @@ const GEMINI_FIXTURE_FINAL = JSON.stringify({
 
 describe("parseTranscript — anthropic (Claude Code JSONL schema)", () => {
   it("returns thinking + tool activity events and the final reply on end_turn", () => {
-    const jsonl = [
-      CLAUDE_FIXTURE_THINKING,
-      CLAUDE_FIXTURE_TOOL_USE,
-      CLAUDE_FIXTURE_FINAL
-    ].join("\n");
+    const jsonl = [CLAUDE_FIXTURE_THINKING, CLAUDE_FIXTURE_TOOL_USE, CLAUDE_FIXTURE_FINAL].join(
+      "\n"
+    );
 
     const result = parseTranscript("anthropic", jsonl, 0);
 
@@ -175,11 +173,7 @@ describe("parseTranscript — anthropic (Claude Code JSONL schema)", () => {
 
 describe("parseTranscript — openai-compatible (Codex JSONL schema)", () => {
   it("returns thinking + tool activity events and the final reply on task_complete", () => {
-    const jsonl = [
-      CODEX_FIXTURE_REASONING,
-      CODEX_FIXTURE_EXEC,
-      CODEX_FIXTURE_FINAL
-    ].join("\n");
+    const jsonl = [CODEX_FIXTURE_REASONING, CODEX_FIXTURE_EXEC, CODEX_FIXTURE_FINAL].join("\n");
 
     const result = parseTranscript("openai-compatible", jsonl, 0);
 
@@ -272,11 +266,9 @@ function fakeTmuxIo(
 
 describe("TmuxBridgeAdapter", () => {
   it("sends the prompt, polls the transcript, and returns the final reply", async () => {
-    const jsonl = [
-      CLAUDE_FIXTURE_THINKING,
-      CLAUDE_FIXTURE_TOOL_USE,
-      CLAUDE_FIXTURE_FINAL
-    ].join("\n");
+    const jsonl = [CLAUDE_FIXTURE_THINKING, CLAUDE_FIXTURE_TOOL_USE, CLAUDE_FIXTURE_FINAL].join(
+      "\n"
+    );
 
     const io = fakeTmuxIo(jsonl, 1);
     const adapter = new TmuxBridgeAdapter("anthropic", "thread-abc", io, {

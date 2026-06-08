@@ -10,3 +10,5 @@ coverage/
 playwright-report/
 test-results/
 pnpm-lock.yaml
+.claude/worktrees/
+.claude/workflows/
