@@ -251,18 +251,107 @@ export class ChatRepository {
   /**
    * Writes the final reply text and sets status to "stored".
    * Preserves the existing model_metadata (route + activity) by merging body only.
+   *
+   * When `executedModel` is supplied, the executed provider+model is merged into the
+   * existing model_metadata under the `executed` key (preserving the route + activity
+   * already recorded). Callers that omit it keep the prior behaviour unchanged.
    */
   async updateMessageComplete(
     scopedDb: DataContextDb,
     messageId: string,
-    body: string
+    body: string,
+    executedModel?: { readonly provider: string; readonly model: string }
   ): Promise<ChatMessage | undefined> {
     assertDataContextDb(scopedDb);
 
+    const updates: {
+      status: ChatMessageStatus;
+      body: string;
+      updated_at: Date;
+      model_metadata?: ReturnType<typeof sql<Record<string, unknown>>>;
+    } = { status: "stored", body, updated_at: new Date() };
+
+    if (executedModel) {
+      const executed = { provider: executedModel.provider, model: executedModel.model };
+
+      updates.model_metadata = sql<Record<string, unknown>>`
+        jsonb_set(
+          coalesce(model_metadata, '{}'::jsonb),
+          '{executed}',
+          ${JSON.stringify(executed)}::jsonb
+        )
+      `;
+    }
+
     return scopedDb.db
       .updateTable("app.chat_messages")
-      .set({ status: "stored", body, updated_at: new Date() })
+      .set(updates)
       .where("id", "=", messageId)
+      .returningAll()
+      .executeTakeFirst();
+  }
+
+  /**
+   * Returns the owner's most-recent thread by last_active_at (the conversation the
+   * live drawer should open to), or undefined when the owner has no threads. RLS
+   * scopes rows to the owner; we still bind to the actor's ownership explicitly.
+   */
+  async getCurrentThread(
+    scopedDb: DataContextDb,
+    actorUserId: string
+  ): Promise<ChatThread | undefined> {
+    assertDataContextDb(scopedDb);
+
+    return scopedDb.db
+      .selectFrom("app.chat_threads")
+      .selectAll()
+      .where("owner_user_id", "=", actorUserId)
+      .orderBy("last_active_at", "desc")
+      .orderBy("id")
+      .limit(1)
+      .executeTakeFirst();
+  }
+
+  /**
+   * Creates a new chat thread stamped active now, making it the most-recent (and
+   * therefore "current") conversation for the owner.
+   */
+  async openNewThread(
+    scopedDb: DataContextDb,
+    input: CreateChatThreadInput
+  ): Promise<ChatThread> {
+    assertDataContextDb(scopedDb);
+
+    const now = new Date();
+
+    return scopedDb.db
+      .insertInto("app.chat_threads")
+      .values({
+        id: randomUUID(),
+        owner_user_id: sql<string>`app.current_actor_user_id()`,
+        title: input.title,
+        created_at: now,
+        updated_at: now,
+        last_active_at: now
+      })
+      .returningAll()
+      .executeTakeFirstOrThrow();
+  }
+
+  /**
+   * Bumps a thread's last_active_at to now so it becomes the current conversation.
+   * Owner-scoped via RLS; app_runtime holds UPDATE on chat_threads.
+   */
+  async touchThread(
+    scopedDb: DataContextDb,
+    threadId: string
+  ): Promise<ChatThread | undefined> {
+    assertDataContextDb(scopedDb);
+
+    return scopedDb.db
+      .updateTable("app.chat_threads")
+      .set({ last_active_at: new Date() })
+      .where("id", "=", threadId)
       .returningAll()
       .executeTakeFirst();
   }
