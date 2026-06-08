@@ -9,3 +9,15 @@
 > - **Hard invariants:** `CLAUDE.md` → _Hard Invariants_.
 > - **Local/LAN dev run + infrastructure notes:** `docs/operations/dev-environment.md`.
 > - **Durable lessons / project state:** agentmemory (`project: "jarv1s"`).
+
+## M-A3 Complete — 2026-06-07
+
+**Current milestone:** M-A3 complete. Next: M-A4 Vault-grounded daily briefings.
+
+**Last known-good state (branch: m-a3-real-ai-providers):**
+
+- Migrations: 33 applied (all current)
+- Integration tests: 194 passing across 15 test files
+- `pnpm verify:foundation` green
+- `pnpm audit:release-hardening` → `passed: true`
+- `pnpm check:file-size` → no file exceeds 1000 lines
