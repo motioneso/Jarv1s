@@ -24,6 +24,7 @@ import {
   CHAT_EXECUTION_QUEUE,
   chatModuleManifest,
   chatModuleSqlMigrationDirectory,
+  registerChatJobWorkers,
   registerChatRoutes
 } from "@jarv1s/chat";
 import {
@@ -138,7 +139,9 @@ const BUILT_IN_MODULES: readonly BuiltInModuleRegistration[] = [
         }
       }
     ],
-    registerRoutes: registerChatRoutes
+    registerRoutes: registerChatRoutes,
+    registerWorkers: (boss, dependencies) =>
+      registerChatJobWorkers(boss, dependencies.dataContext)
   },
   {
     manifest: briefingsModuleManifest,
