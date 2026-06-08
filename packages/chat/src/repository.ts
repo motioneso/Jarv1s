@@ -16,6 +16,18 @@ import type {
   AiConfiguredModelDto
 } from "@jarv1s/shared";
 
+import { CHAT_EXECUTION_QUEUE } from "./manifest.js";
+
+export interface ChatExecutionJobPayload {
+  readonly actorUserId: string;
+  readonly threadId: string;
+  readonly assistantMessageId: string;
+}
+
+export interface ChatEnqueueFn {
+  (queueName: string, payload: ChatExecutionJobPayload): Promise<string | null>;
+}
+
 export interface CreateChatThreadInput {
   readonly title: string;
 }
@@ -38,7 +50,10 @@ export interface ChatCapabilityRouter {
 }
 
 export class ChatRepository {
-  constructor(private readonly capabilityRouter: ChatCapabilityRouter = new AiRepository()) {}
+  constructor(
+    private readonly capabilityRouter: ChatCapabilityRouter = new AiRepository(),
+    private readonly enqueue: ChatEnqueueFn | null = null
+  ) {}
 
   async listThreads(scopedDb: DataContextDb): Promise<ChatThread[]> {
     assertDataContextDb(scopedDb);
@@ -94,7 +109,8 @@ export class ChatRepository {
   async appendUserMessage(
     scopedDb: DataContextDb,
     threadId: string,
-    input: AppendChatUserMessageInput
+    input: AppendChatUserMessageInput,
+    actorUserId?: string
   ): Promise<AppendChatUserMessageResult | undefined> {
     assertDataContextDb(scopedDb);
 
@@ -132,6 +148,16 @@ export class ChatRepository {
       .where("id", "=", thread.id)
       .returningAll()
       .executeTakeFirstOrThrow();
+
+    if (assistantStatus === "pending" && this.enqueue && actorUserId) {
+      const payload: ChatExecutionJobPayload = {
+        actorUserId,
+        threadId: thread.id,
+        assistantMessageId: assistantMessage.id
+      };
+
+      await this.enqueue(CHAT_EXECUTION_QUEUE, payload);
+    }
 
     return {
       thread: updatedThread,

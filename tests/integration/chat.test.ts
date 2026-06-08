@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import type { Kysely } from "kysely";
 import pg from "pg";
 
@@ -16,7 +16,12 @@ import {
   getBuiltInModuleRegistrations,
   getBuiltInSqlMigrationDirectories
 } from "@jarv1s/module-registry";
-import { ChatRepository, chatModuleManifest } from "@jarv1s/chat";
+import {
+  CHAT_EXECUTION_QUEUE,
+  ChatRepository,
+  chatModuleManifest,
+  type ChatExecutionJobPayload
+} from "@jarv1s/chat";
 import { connectionStrings, ids, resetFoundationDatabase } from "./test-database.js";
 
 const { Client } = pg;
@@ -128,7 +133,7 @@ describe("Chat module M6 thin slice", () => {
     }
   });
 
-  it("loads Chat as a required built-in module without queues", () => {
+  it("loads Chat as a required built-in module with the execution queue", () => {
     const manifests = getBuiltInModuleManifests();
     const registration = getBuiltInModuleRegistrations().find(
       (item) => item.manifest.id === chatModuleManifest.id
@@ -154,7 +159,8 @@ describe("Chat module M6 thin slice", () => {
       path: "/chat",
       permissionId: "chat.view"
     });
-    expect(registration?.queueDefinitions).toEqual([]);
+    expect(registration?.queueDefinitions).toHaveLength(1);
+    expect(registration?.queueDefinitions[0]?.name).toBe("chat-execution");
     expect(getBuiltInSqlMigrationDirectories().at(-4)).toContain("packages/chat/sql");
   });
 
@@ -396,6 +402,55 @@ describe("Chat module M6 thin slice", () => {
         model: null
       }
     });
+  });
+
+  it("enqueues a metadata-only job with only actorUserId/threadId/assistantMessageId when route is available", async () => {
+    const enqueuedJobs: Array<{ queueName: string; payload: ChatExecutionJobPayload }> = [];
+    const fakeEnqueue = vi.fn(
+      async (queueName: string, payload: ChatExecutionJobPayload): Promise<string | null> => {
+        enqueuedJobs.push({ queueName, payload });
+        return "fake-job-id";
+      }
+    );
+    const repoWithEnqueue = new ChatRepository(undefined, fakeEnqueue);
+
+    // Ensure a model is configured for userA (set up in previous test run; create fresh)
+    const threadResponse = await server.inject({
+      method: "POST",
+      url: "/api/chat/threads",
+      headers: { authorization: `Bearer ${ids.sessionA}` },
+      payload: { title: "Enqueue test thread" }
+    });
+    const threadId = threadResponse.json<{ thread: { id: string } }>().thread.id;
+
+    const result = await dataContext.withDataContext(
+      { actorUserId: ids.userA, requestId: "request:enqueue-test" },
+      (scopedDb) =>
+        repoWithEnqueue.appendUserMessage(
+          scopedDb,
+          threadId,
+          { body: "Hello, enqueue me" },
+          ids.userA
+        )
+    );
+
+    expect(result).toBeDefined();
+    const assistantMessage = result!.messages[1];
+
+    expect(assistantMessage.status).toBe("pending");
+    expect(fakeEnqueue).toHaveBeenCalledTimes(1);
+    expect(enqueuedJobs).toHaveLength(1);
+
+    const job = enqueuedJobs[0]!;
+
+    expect(job.queueName).toBe(CHAT_EXECUTION_QUEUE);
+    // INVARIANT: payload must contain ONLY these three fields — no content, no secrets
+    expect(Object.keys(job.payload).sort()).toEqual(
+      ["actorUserId", "assistantMessageId", "threadId"].sort()
+    );
+    expect(job.payload.actorUserId).toBe(ids.userA);
+    expect(job.payload.threadId).toBe(threadId);
+    expect(job.payload.assistantMessageId).toBe(assistantMessage.id);
   });
 
   it("fails loudly when the Chat repository is called without withDataContext", async () => {
