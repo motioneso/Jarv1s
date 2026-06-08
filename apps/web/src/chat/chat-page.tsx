@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Bot, LoaderCircle, MessageSquare, Plus, Send, UserCircle } from "lucide-react";
+import { Bot, LoaderCircle, MessageSquare, Plus, Send, UserCircle, Zap } from "lucide-react";
 import { type FormEvent, useEffect, useMemo, useState } from "react";
 
 import type { ChatMessageStatus } from "@jarv1s/shared";
@@ -13,11 +13,13 @@ import {
   lookupAiCapabilityRoute
 } from "../api/client";
 import { queryKeys } from "../api/query-keys";
+import { ChatDrawer } from "./chat-drawer";
 import type { AiAssistantToolDto, ChatMessageDto, ChatThreadDto } from "@jarv1s/shared";
 
 export function ChatPage() {
   const queryClient = useQueryClient();
   const [activeThreadId, setActiveThreadId] = useState<string | null>(null);
+  const [drawerOpen, setDrawerOpen] = useState(false);
   const threadsQuery = useQuery({
     queryKey: queryKeys.chat.threads,
     queryFn: () => listChatThreads()
@@ -59,7 +61,13 @@ export function ChatPage() {
           <p className="eyebrow">Chat</p>
           <h1 id="chat-title">Chat</h1>
         </div>
+        <button className="primary-button" type="button" onClick={() => setDrawerOpen(true)}>
+          <Zap size={18} aria-hidden="true" />
+          Live chat
+        </button>
       </div>
+
+      <ChatDrawer open={drawerOpen} onClose={() => setDrawerOpen(false)} />
 
       <section className="chat-layout">
         <aside className="panel chat-sidebar" aria-label="Chat threads">
