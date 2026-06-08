@@ -1,5 +1,7 @@
 export type { EmbeddingProvider } from "./embedding-provider.js";
 export { StubEmbeddingProvider } from "./embedding-provider.js";
+export { IngestionService } from "./ingestion-service.js";
+export type { IngestOptions, IngestStats, IngestFailure } from "./ingestion-service.js";
 export { LocalEmbeddingProvider } from "./local-embedding-provider.js";
 export type {
   EmbeddingProviderConfig,

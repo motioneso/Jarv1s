@@ -15,6 +15,7 @@ import {
 } from "@jarv1s/db";
 import { VaultContextRunner, writeVaultFile } from "@jarv1s/vault";
 import {
+  IngestionService,
   MemoryIngestPipeline,
   MemoryRepository,
   MemoryRetriever,
@@ -619,5 +620,63 @@ describe("MemoryRetriever", () => {
         (r) => r.sourcePath !== "knowledge/alpha.md" && r.sourcePath !== "knowledge/beta.md"
       )
     ).toBe(true);
+  });
+});
+
+// ── IngestionService ─────────────────────────────────────────────────────────
+
+describe("IngestionService", () => {
+  // Use a dedicated user so the service's full-vault scans are isolated
+  const svcUserId = "00000000-0000-4000-8000-000000000018";
+  const repo = new MemoryRepository();
+  const pipeline = new MemoryIngestPipeline(new StubEmbeddingProvider(), repo);
+  // dataContext is initialized in the outer beforeAll — create the service lazily
+  let service: IngestionService;
+
+  beforeAll(async () => {
+    const client = new Client({ connectionString: connectionStrings.bootstrap });
+    await client.connect();
+    try {
+      await client.query(
+        `INSERT INTO app.users (id, email, is_instance_admin)
+         VALUES ($1, 'memory-svc@example.test', false)`,
+        [svcUserId]
+      );
+    } finally {
+      await client.end();
+    }
+    service = new IngestionService(pipeline, repo, dataContext);
+  });
+
+  it("ingests all markdown files and reports stats", async () => {
+    await vaultRunner.withVaultContext(ctx(svcUserId), async (vaultCtx) => {
+      await writeVaultFile(vaultCtx, "svc/one.md", "## One\n\nalpha");
+      await writeVaultFile(vaultCtx, "svc/two.md", "## Two\n\nbeta");
+      const stats = await service.ingestVault(ctx(svcUserId), vaultCtx);
+      expect(stats.processed).toBe(2);
+      expect(stats.skipped).toBe(0);
+      expect(stats.failed).toHaveLength(0);
+    });
+  });
+
+  it("skips unchanged files on a second run", async () => {
+    await vaultRunner.withVaultContext(ctx(svcUserId), async (vaultCtx) => {
+      await writeVaultFile(vaultCtx, "svc2/a.md", "## A\n\nbody");
+      await service.ingestVault(ctx(svcUserId), vaultCtx);
+      const second = await service.ingestVault(ctx(svcUserId), vaultCtx);
+      expect(second.processed).toBe(0);
+      expect(second.skipped).toBeGreaterThanOrEqual(1);
+    });
+  });
+
+  it("purges files removed from the vault and counts them", async () => {
+    await vaultRunner.withVaultContext(ctx(svcUserId), async (vaultCtx) => {
+      await writeVaultFile(vaultCtx, "svc3/keep.md", "## Keep\n\nx");
+      await writeVaultFile(vaultCtx, "svc3/drop.md", "## Drop\n\ny");
+      await service.ingestVault(ctx(svcUserId), vaultCtx);
+      await rm(join(vaultCtx.vaultRoot, "svc3/drop.md"), { force: true });
+      const stats = await service.ingestVault(ctx(svcUserId), vaultCtx);
+      expect(stats.deleted).toBe(1);
+    });
   });
 });
