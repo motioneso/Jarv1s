@@ -11,6 +11,9 @@ import { join } from "node:path";
 
 import { AiRepository, createRealTmuxIo, type ProviderKind } from "@jarv1s/ai";
 import type { DataContextRunner } from "@jarv1s/db";
+import type { PgBoss } from "pg-boss";
+
+import type { RecallPort } from "../recall-port.js";
 
 import { TmuxCliChatEngine } from "./cli-chat-engine.js";
 import { ChatSessionManager } from "./chat-session-manager.js";
@@ -46,6 +49,18 @@ export interface CreateChatSessionRuntimeDeps {
   readonly engineFactory?: ChatEngineFactory;
   /** Override the idle reap window (ms); defaults to 30 minutes. */
   readonly idleMs?: number;
+  /** pg-boss instance for enqueueing embed/extract-facts jobs after each turn. */
+  readonly boss?: PgBoss;
+  /** Phase 3: optional recall service — injects <memory> seed at session launch. */
+  readonly recall?: RecallPort;
+  /** Phase 2: MCP token lifecycle hooks — mint on engine launch, revoke on reap. */
+  readonly mcpTokenLifecycle?: {
+    readonly mint: (
+      actorUserId: string,
+      chatSessionId: string
+    ) => { token: string; mcpServerUrl: string };
+    readonly revoke: (chatSessionId: string) => void;
+  };
 }
 
 export interface ChatSessionRuntime {
@@ -61,7 +76,8 @@ export function createChatSessionRuntime(deps: CreateChatSessionRuntimeDeps): Ch
   const persistence = new DataContextChatPersistence({
     dataContext: deps.dataContext,
     chatRepository: new ChatRepository(),
-    aiRepository: new AiRepository()
+    aiRepository: new AiRepository(),
+    boss: deps.boss
   });
 
   const manager = new ChatSessionManager({
@@ -71,7 +87,10 @@ export function createChatSessionRuntime(deps: CreateChatSessionRuntimeDeps): Ch
     clock: { now: () => Date.now() },
     idleMs: deps.idleMs ?? DEFAULT_IDLE_MS,
     neutralBase: resolveNeutralBase(),
-    persona: DEFAULT_JARVIS_PERSONA
+    persona: DEFAULT_JARVIS_PERSONA,
+    mintMcpToken: deps.mcpTokenLifecycle?.mint,
+    revokeMcpToken: deps.mcpTokenLifecycle?.revoke,
+    recall: deps.recall
   });
 
   return {

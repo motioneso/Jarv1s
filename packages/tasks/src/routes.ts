@@ -1,15 +1,7 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import type { PgBoss } from "pg-boss";
 
-import type {
-  AccessContext,
-  DataContextRunner,
-  Task,
-  TaskActivity,
-  TaskList,
-  TaskStatus,
-  TaskTag
-} from "@jarv1s/db";
+import type { AccessContext, DataContextRunner, TaskStatus } from "@jarv1s/db";
 import {
   addTaskActivityRouteSchema,
   atRiskTasksRouteSchema,
@@ -25,11 +17,7 @@ import {
   listTaskTagsRouteSchema,
   listTasksRouteSchema,
   overdueTasksRouteSchema,
-  updateTaskRouteSchema,
-  type TaskActivityDto,
-  type TaskDto,
-  type TaskListDto,
-  type TaskTagDto
+  updateTaskRouteSchema
 } from "@jarv1s/shared";
 
 import { type DeferredTaskStatusPayload, isDeferredTaskStatusPayloadMetadataOnly } from "./jobs.js";
@@ -38,6 +26,13 @@ import { TaskBreakdownRepository } from "./breakdown.js";
 import { TaskDriftRepository } from "./drift.js";
 import { TaskListsRepository } from "./lists.js";
 import { TasksRepository } from "./repository.js";
+import {
+  filterByQuadrant,
+  serializeTask,
+  serializeTaskActivity,
+  serializeTaskList,
+  serializeTaskTag
+} from "./serialize.js";
 
 export interface TasksRoutesDependencies {
   readonly resolveAccessContext: (request: FastifyRequest) => Promise<AccessContext>;
@@ -509,104 +504,6 @@ function parseStringArray(value: unknown, fieldName: string): string[] {
 
     return item.trim();
   });
-}
-
-/**
- * Compute Eisenhower quadrant for a task.
- *
- * Importance: priority >= 4 is "important".
- * Urgency:    due_at within 48 h of now() or already overdue.
- *
- * Quadrants:
- *   do       = important + urgent
- *   schedule = important + not urgent
- *   delegate = not important + urgent
- *   eliminate = not important + not urgent
- */
-function getQuadrant(task: Task): "do" | "schedule" | "delegate" | "eliminate" {
-  const important = task.priority !== null && task.priority >= 4;
-  let urgent = false;
-
-  if (task.due_at) {
-    const dueMs = (task.due_at instanceof Date ? task.due_at : new Date(task.due_at)).getTime();
-    const nowMs = Date.now();
-    const hoursUntilDue = (dueMs - nowMs) / (1000 * 60 * 60);
-    urgent = hoursUntilDue <= 48;
-  }
-
-  if (important && urgent) return "do";
-  if (important && !urgent) return "schedule";
-  if (!important && urgent) return "delegate";
-  return "eliminate";
-}
-
-function filterByQuadrant(
-  tasks: Task[],
-  quadrant: "do" | "schedule" | "delegate" | "eliminate"
-): Task[] {
-  return tasks.filter((t) => getQuadrant(t) === quadrant);
-}
-
-export function serializeTaskList(list: TaskList): TaskListDto {
-  return {
-    id: list.id,
-    ownerUserId: list.owner_user_id,
-    name: list.name,
-    position: list.position,
-    createdAt: serializeDate(list.created_at),
-    updatedAt: serializeDate(list.updated_at)
-  };
-}
-
-export function serializeTaskTag(tag: TaskTag): TaskTagDto {
-  return {
-    id: tag.id,
-    ownerUserId: tag.owner_user_id,
-    listId: tag.list_id,
-    name: tag.name,
-    createdAt: serializeDate(tag.created_at)
-  };
-}
-
-export function serializeTask(task: Task): TaskDto {
-  return {
-    id: task.id,
-    ownerUserId: task.owner_user_id,
-    listId: task.list_id,
-    parentTaskId: task.parent_task_id,
-    title: task.title,
-    description: task.description,
-    status: task.status,
-    priority: task.priority,
-    position: task.position,
-    dueAt: serializeDate(task.due_at),
-    doAt: serializeDate(task.do_at),
-    effort: task.effort,
-    source: task.source,
-    sourceRef: task.source_ref,
-    completedAt: serializeDate(task.completed_at),
-    createdAt: serializeDate(task.created_at),
-    updatedAt: serializeDate(task.updated_at)
-  };
-}
-
-function serializeTaskActivity(activity: TaskActivity): TaskActivityDto {
-  return {
-    id: activity.id,
-    taskId: activity.task_id,
-    actorUserId: activity.actor_user_id,
-    activityType: activity.activity_type,
-    body: activity.body,
-    createdAt: serializeDate(activity.created_at)
-  };
-}
-
-function serializeDate(value: Date | string | null): string | null {
-  if (value === null) {
-    return null;
-  }
-
-  return value instanceof Date ? value.toISOString() : value;
 }
 
 function handleRouteError(error: unknown, reply: FastifyReply) {

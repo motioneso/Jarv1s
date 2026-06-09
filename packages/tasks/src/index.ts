@@ -6,3 +6,5 @@ export * from "./manifest.js";
 export * from "./recurrence.js";
 export * from "./repository.js";
 export * from "./routes.js";
+export * from "./serialize.js";
+export * from "./tools.js";

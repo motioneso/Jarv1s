@@ -1,9 +1,11 @@
 import { useQuery } from "@tanstack/react-query";
-import { Bot, LoaderCircle, Plus, Send, UserCircle, X } from "lucide-react";
+import { Bot, Brain, LoaderCircle, Plus, Send, UserCircle, X } from "lucide-react";
 import { type FormEvent, useState } from "react";
 
 import { clearChat, listChatThreads, sendChatTurn } from "../api/client";
 import { queryKeys } from "../api/query-keys";
+import { ActionRequestCard } from "./action-request-card";
+import { MemoryPanel } from "./memory-panel";
 import type { TranscriptRecord } from "./use-chat-stream";
 
 /**
@@ -23,6 +25,8 @@ export function ChatDrawer(props: {
   readonly records: readonly TranscriptRecord[];
   readonly clearRecords: () => void;
 }) {
+  const [showMemory, setShowMemory] = useState(false);
+
   if (!props.open) {
     return null;
   }
@@ -41,6 +45,14 @@ export function ChatDrawer(props: {
           CLI
         </span>
         <button
+          aria-label="My Memory"
+          className="icon-button"
+          type="button"
+          onClick={() => setShowMemory((v) => !v)}
+        >
+          <Brain size={18} aria-hidden="true" />
+        </button>
+        <button
           aria-label="Close live chat"
           className="icon-button"
           type="button"
@@ -50,10 +62,16 @@ export function ChatDrawer(props: {
         </button>
       </div>
 
-      <NewChatButton onCleared={props.clearRecords} />
-      <RecordLog records={props.records} />
-      <ThreadHistory />
-      <DrawerComposer />
+      {showMemory ? (
+        <MemoryPanel onClose={() => setShowMemory(false)} />
+      ) : (
+        <>
+          <NewChatButton onCleared={props.clearRecords} />
+          <RecordLog records={props.records} />
+          <ThreadHistory />
+          <DrawerComposer />
+        </>
+      )}
     </aside>
   );
 }
@@ -62,11 +80,11 @@ function NewChatButton(props: { readonly onCleared: () => void }) {
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const handleClick = async () => {
+  const handleClick = async (incognito?: boolean) => {
     setPending(true);
     setError(null);
     try {
-      await clearChat();
+      await clearChat(incognito ? { incognito: true } : undefined);
       props.onCleared();
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "Could not start a new chat");
@@ -90,6 +108,15 @@ function NewChatButton(props: { readonly onCleared: () => void }) {
         )}
         New chat
       </button>
+      <button
+        className="ghost-button"
+        disabled={pending}
+        type="button"
+        onClick={() => void handleClick(true)}
+        title="Temporary — not saved to memory"
+      >
+        Temporary
+      </button>
       {error ? <p className="form-error">{error}</p> : null}
     </div>
   );
@@ -111,6 +138,25 @@ function RecordLog(props: { readonly records: readonly TranscriptRecord[] }) {
 
 function RecordRow(props: { readonly record: TranscriptRecord }) {
   const { kind, text } = props.record;
+
+  if (kind === "action_request" && props.record.actionRequestId) {
+    return (
+      <ActionRequestCard
+        actionRequestId={props.record.actionRequestId}
+        toolName={props.record.toolName ?? kind}
+        summary={props.record.summary ?? text}
+      />
+    );
+  }
+
+  if (kind === "action_result") {
+    const verb = props.record.outcome === "executed" ? "Executed" : "Denied";
+    return (
+      <p className="muted-text chat-activity-line">
+        {verb}: {props.record.toolName ?? "tool"}
+      </p>
+    );
+  }
 
   if (kind === "user") {
     return (
@@ -142,7 +188,6 @@ function RecordRow(props: { readonly record: TranscriptRecord }) {
     return <p className="form-error">{text}</p>;
   }
 
-  // thinking / tool / status — muted activity lines
   return (
     <p className="muted-text chat-activity-line">
       {kind}: {text}

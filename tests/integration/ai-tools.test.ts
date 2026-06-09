@@ -166,11 +166,11 @@ describe("AI read-only assistant tool execution foundation", () => {
   });
 
   it("executes declared read tools through RLS-scoped module repositories", async () => {
-    const tasks = await invokeTool("tasks.listVisible");
+    const tasks = await invokeTool("tasks.list");
     const notifications = await invokeTool("notifications.listVisible");
     const calendar = await invokeTool("calendar.listVisibleEvents");
     const email = await invokeTool("email.listVisibleMessages");
-    const workspaceTasks = await invokeTool("tasks.listVisible", userAWorkspaceHeaders());
+    const workspaceTasks = await invokeTool("tasks.list", userAWorkspaceHeaders());
     const workspaceCalendar = await invokeTool(
       "calendar.listVisibleEvents",
       userAWorkspaceHeaders()
@@ -201,7 +201,7 @@ describe("AI read-only assistant tool execution foundation", () => {
   });
 
   it("does not give instance admins a private-data bypass through assistant tools", async () => {
-    const tasks = await invokeTool("tasks.listVisible", adminHeaders());
+    const tasks = await invokeTool("tasks.list", adminHeaders());
     const notifications = await invokeTool("notifications.listVisible", adminHeaders());
     const calendar = await invokeTool("calendar.listVisibleEvents", adminHeaders());
     const email = await invokeTool("email.listVisibleMessages", adminHeaders());
@@ -376,7 +376,7 @@ describe("AI read-only assistant tool execution foundation", () => {
       url: "/api/ai/assistant-actions",
       headers: userAHeaders()
     });
-    const readInvocation = await invokeTool("tasks.listVisible");
+    const readInvocation = await invokeTool("tasks.list");
     const afterResponse = await server.inject({
       method: "GET",
       url: "/api/ai/assistant-actions",
@@ -427,6 +427,8 @@ describe("AI read-only assistant tool execution foundation", () => {
     expect(getAllQueueDefinitions().map((queue) => queue.name)).toEqual([
       "rls-probe",
       "tasks-deferred-status",
+      "chat.embed-turn",
+      "chat.extract-facts",
       "briefings-run"
     ]);
     await expect(tasksRepository.listVisible({} as never)).rejects.toThrow(

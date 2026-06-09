@@ -76,9 +76,12 @@ export class AssistantToolGateway {
     status: "confirmed" | "rejected" | "cancelled"
   ): Promise<void> {
     const access: AccessContext = { actorUserId, requestId: `mcp_${randomUUID()}` };
-    await this.deps.runner.withDataContext(access, (scopedDb: DataContextDb) =>
+    const resolved = await this.deps.runner.withDataContext(access, (scopedDb: DataContextDb) =>
       this.deps.repository.resolveAssistantAction(scopedDb, actionRequestId, { status })
     );
+    // Only unblock the pending call if the DB row was actually updated (owner matches + still pending).
+    // Without this guard a logged-in user could unblock another user's tool call via a guessed ID.
+    if (!resolved) return;
     this.deps.confirmations.resolve(actionRequestId, status);
   }
 

@@ -13,7 +13,9 @@
  */
 import type { ProviderKind } from "@jarv1s/ai";
 
+import type { RecallPort } from "../recall-port.js";
 import { renderPersona, type PersonaFs } from "./persona.js";
+import { renderMemorySeedBlock } from "./recall-seed.js";
 import type { CliChatEngine, TranscriptRecord } from "./types.js";
 
 /** Monotonic-ish wall clock, injected so idle reaping is testable. */
@@ -38,7 +40,7 @@ export interface ChatPersistencePort {
     executed: { provider: ProviderKind; model: string }
   ): Promise<void>;
   /** Close the current conversation and open a fresh one (for /clear). */
-  openNewConversation(actorUserId: string): Promise<void>;
+  openNewConversation(actorUserId: string, options?: { incognito?: boolean }): Promise<void>;
 }
 
 export interface ChatSessionManagerDeps {
@@ -55,6 +57,13 @@ export interface ChatSessionManagerDeps {
   readonly pollMs?: number;
   /** Cap on readNew polls per turn before a turn is treated as timed out (default 2000). */
   readonly maxPolls?: number;
+  readonly mintMcpToken?: (
+    actorUserId: string,
+    chatSessionId: string
+  ) => { token: string; mcpServerUrl: string };
+  readonly revokeMcpToken?: (chatSessionId: string) => void;
+  /** Phase 3: optional recall service — injects <memory> seed before replay. */
+  readonly recall?: RecallPort;
 }
 
 /** A subscriber receives every emitted transcript record for its user. */
@@ -141,7 +150,13 @@ export class ChatSessionManager {
 
     const sessionKey = actorUserId;
     const engine = this.deps.engineFactory(provider, sessionKey);
-    await engine.launch({ neutralDir, personaPath });
+    const mcpConfig = this.deps.mintMcpToken?.(actorUserId, actorUserId);
+    await engine.launch({
+      neutralDir,
+      personaPath,
+      mcpToken: mcpConfig?.token,
+      mcpServerUrl: mcpConfig?.mcpServerUrl
+    });
 
     const session: UserSession = {
       engine,
@@ -152,13 +167,21 @@ export class ChatSessionManager {
     };
     this.sessions.set(actorUserId, session);
 
+    // Phase 3: recall injection — prepend <memory> seed before conversation replay.
+    const recallResult = this.deps.recall ? await this.deps.recall.recall(actorUserId) : null;
+    const memorySeed = recallResult
+      ? renderMemorySeedBlock(recallResult.episodicChunks, recallResult.facts)
+      : "";
+
     // Replay prior turns of the current conversation so a respawned or
     // provider-switched engine continues seamlessly.
     const priorTurns = await this.deps.persistence.listPriorTurns(actorUserId);
-    if (priorTurns.length > 0) {
-      await engine.submit(renderReplayBlock(priorTurns));
-      // Drain (and discard) the replay's transcript so the real turn's records
-      // start from a clean offset — replay context is not echoed to the user.
+    if (memorySeed || priorTurns.length > 0) {
+      const parts: string[] = [];
+      if (memorySeed) parts.push(memorySeed);
+      if (priorTurns.length > 0) parts.push(renderReplayBlock(priorTurns));
+      await engine.submit(parts.join("\n\n"));
+      // Drain (and discard) so real turn records start from a clean offset.
       session.transcriptOffset = await this.drain(engine, session.transcriptOffset);
     }
 
@@ -244,13 +267,14 @@ export class ChatSessionManager {
    * openNewConversation() clears the stored turns, nothing is replayed — a clean,
    * contextless reset that matches the "known path, no globbing" launch design.
    */
-  async clear(actorUserId: string): Promise<void> {
+  async clear(actorUserId: string, options?: { incognito?: boolean }): Promise<void> {
     const session = this.sessions.get(actorUserId);
     if (session) {
       await session.engine.kill();
       this.sessions.delete(actorUserId);
+      this.deps.revokeMcpToken?.(actorUserId);
     }
-    await this.deps.persistence.openNewConversation(actorUserId);
+    await this.deps.persistence.openNewConversation(actorUserId, options);
   }
 
   /**
@@ -263,6 +287,7 @@ export class ChatSessionManager {
     if (session) {
       await session.engine.kill();
       this.sessions.delete(actorUserId);
+      this.deps.revokeMcpToken?.(actorUserId);
     }
     await this.ensureSession(actorUserId, userName);
   }
@@ -286,6 +311,15 @@ export class ChatSessionManager {
   }
 
   /**
+   * Inject a synthetic record into the fan-out for the given user. Used by the
+   * MCP gateway notifier (Phase 2) to push action_request and action_result
+   * records into the live transcript stream without going through the engine.
+   */
+  injectRecord(actorUserId: string, record: TranscriptRecord): void {
+    this.emit(actorUserId, record);
+  }
+
+  /**
    * Kill and drop any engine idle longer than idleMs. The conversation persists,
    * so the next submitTurn respawns the engine and replays prior turns.
    */
@@ -295,6 +329,7 @@ export class ChatSessionManager {
       if (now - session.lastActivity > this.deps.idleMs) {
         await session.engine.kill();
         this.sessions.delete(userId);
+        this.deps.revokeMcpToken?.(userId);
       }
     }
   }

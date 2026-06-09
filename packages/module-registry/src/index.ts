@@ -3,7 +3,11 @@ import type { Kysely } from "kysely";
 import type { PgBoss } from "pg-boss";
 
 import { aiModuleManifest, aiModuleSqlMigrationDirectory, registerAiRoutes } from "@jarv1s/ai";
-import { memoryModuleManifest, memorySqlMigrationDirectory } from "@jarv1s/memory";
+import {
+  memoryModuleManifest,
+  memorySqlMigrationDirectory,
+  type EmbeddingProvider
+} from "@jarv1s/memory";
 import {
   structuredStateModuleManifest,
   structuredStateSqlMigrationDirectory
@@ -21,8 +25,10 @@ import {
   registerCalendarRoutes
 } from "@jarv1s/calendar";
 import {
+  CHAT_QUEUE_DEFINITIONS,
   chatModuleManifest,
   chatModuleSqlMigrationDirectory,
+  registerChatJobWorkers,
   registerChatRoutes,
   type ChatEngineFactory
 } from "@jarv1s/chat";
@@ -69,6 +75,7 @@ export interface BuiltInRouteDependencies {
 
 export interface BuiltInWorkerDependencies {
   readonly dataContext: DataContextRunner;
+  readonly embeddingProvider: EmbeddingProvider;
 }
 
 export interface BuiltInModuleRegistration {
@@ -132,8 +139,18 @@ const BUILT_IN_MODULES: readonly BuiltInModuleRegistration[] = [
   {
     manifest: chatModuleManifest,
     sqlMigrationDirectories: [chatModuleSqlMigrationDirectory],
-    queueDefinitions: [],
-    registerRoutes: registerChatRoutes
+    queueDefinitions: CHAT_QUEUE_DEFINITIONS,
+    registerRoutes: (server, deps) =>
+      registerChatRoutes(server, {
+        resolveAccessContext: deps.resolveAccessContext,
+        dataContext: deps.dataContext,
+        chatEngineFactory: deps.chatEngineFactory,
+        resolveActiveModules: deps.listModuleManifests,
+        mcpServerUrl: `http://127.0.0.1:${process.env.PORT ?? 3000}/api/mcp`,
+        boss: deps.boss
+      }),
+    registerWorkers: (boss, deps) =>
+      registerChatJobWorkers(boss, deps.dataContext, { embeddingProvider: deps.embeddingProvider })
   },
   {
     manifest: briefingsModuleManifest,

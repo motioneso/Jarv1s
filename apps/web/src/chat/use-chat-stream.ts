@@ -1,16 +1,24 @@
 import { useCallback, useEffect, useState } from "react";
 
-import { chatStreamUrl } from "../api/client";
+import { chatStreamUrl } from "../api/client.js";
 
-/**
- * Mirrors the backend's live-chat TranscriptRecord (packages/chat/src/live/types.ts).
- * Kept local because it is an internal chat-runtime shape, not part of @jarv1s/shared.
- */
-export type ChatRecordKind = "user" | "thinking" | "tool" | "status" | "reply" | "error";
+export type ChatRecordKind =
+  | "user"
+  | "thinking"
+  | "tool"
+  | "status"
+  | "reply"
+  | "error"
+  | "action_request"
+  | "action_result";
 
 export interface TranscriptRecord {
   readonly kind: ChatRecordKind;
   readonly text: string;
+  readonly actionRequestId?: string;
+  readonly toolName?: string;
+  readonly summary?: string;
+  readonly outcome?: "executed" | "denied" | "error";
 }
 
 /**
@@ -44,19 +52,24 @@ export function useChatStream(): {
   return { records, clearRecords };
 }
 
-function parseRecord(data: unknown): TranscriptRecord | null {
-  if (typeof data !== "string") {
-    return null;
-  }
-
+export function parseRecord(data: unknown): TranscriptRecord | null {
+  if (typeof data !== "string") return null;
   try {
-    const parsed = JSON.parse(data) as Partial<TranscriptRecord>;
-    if (typeof parsed.kind === "string" && typeof parsed.text === "string") {
-      return { kind: parsed.kind as ChatRecordKind, text: parsed.text };
-    }
+    const parsed = JSON.parse(data) as Record<string, unknown>;
+    if (typeof parsed.kind !== "string" || typeof parsed.text !== "string") return null;
+    return {
+      kind: parsed.kind as ChatRecordKind,
+      text: parsed.text,
+      actionRequestId:
+        typeof parsed.actionRequestId === "string" ? parsed.actionRequestId : undefined,
+      toolName: typeof parsed.toolName === "string" ? parsed.toolName : undefined,
+      summary: typeof parsed.summary === "string" ? parsed.summary : undefined,
+      outcome:
+        parsed.outcome === "executed" || parsed.outcome === "denied" || parsed.outcome === "error"
+          ? parsed.outcome
+          : undefined
+    };
   } catch {
     return null;
   }
-
-  return null;
 }
