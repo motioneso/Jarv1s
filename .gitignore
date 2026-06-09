@@ -12,6 +12,7 @@ backups/
 exports/
 # Local test/verification artifacts (webwright runs, screenshots) — regenerable, may contain creds
 outputs/
+docs/testing/
 .env
 .env.*
 !.env.example
