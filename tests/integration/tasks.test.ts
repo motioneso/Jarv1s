@@ -194,7 +194,8 @@ describe("Tasks module M1", () => {
       "tasks.overdue",
       "tasks.listLists",
       "tasks.listTags",
-      "tasks.activity"
+      "tasks.activity",
+      "tasks.updateStatus"
     ]);
     expect(getBuiltInSqlMigrationDirectories()).toContainEqual(
       expect.stringContaining("packages/tasks/sql")

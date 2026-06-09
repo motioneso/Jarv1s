@@ -242,7 +242,26 @@ async function generateSummary(
     }
 
     try {
-      const result = await executor.invokeReadTool(scopedDb, tool, {});
+      const manifestTool = input.moduleManifests
+        .flatMap((m) => m.assistantTools ?? [])
+        .find((t) => t.name === tool.name);
+      let result: Record<string, unknown>;
+
+      if (manifestTool?.execute) {
+        const toolResult = await manifestTool.execute(
+          scopedDb,
+          {},
+          {
+            actorUserId: "",
+            requestId: "",
+            chatSessionId: ""
+          }
+        );
+
+        result = toolResult.data ?? {};
+      } else {
+        result = await executor.invokeReadTool(scopedDb, tool, {});
+      }
 
       toolSummaries.push(summarizeToolResult(tool, result));
     } catch (error) {
@@ -303,6 +322,7 @@ function summarizeToolResult(
 ): ToolSummary {
   switch (tool.name) {
     case "tasks.listVisible":
+    case "tasks.list":
       return summarizeNamedItems(tool.name, result.tasks, (item) => {
         const task = item as { readonly title?: unknown; readonly status?: unknown };
 
@@ -375,6 +395,7 @@ function formatToolSummary(tool: ToolSummary): string {
 function displayToolName(toolName: string): string {
   switch (toolName) {
     case "tasks.listVisible":
+    case "tasks.list":
       return "Tasks";
     case "notifications.listVisible":
       return "Notifications";

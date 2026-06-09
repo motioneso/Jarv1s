@@ -22,6 +22,7 @@ import {
   listTaskTagsResponseSchema,
   listTasksResponseSchema,
   overdueTasksRouteSchema,
+  taskStatusSchema,
   updateTaskRequestSchema,
   updateTaskResponseSchema
 } from "@jarv1s/shared";
@@ -335,6 +336,22 @@ export const tasksModuleManifest = {
         }
       },
       execute: taskActivityExecute
+    },
+    {
+      name: "tasks.updateStatus",
+      description: "Update the status of a task visible to the active actor.",
+      permissionId: "tasks.update",
+      risk: "write",
+      inputSchema: {
+        type: "object",
+        required: ["taskId", "status"],
+        properties: {
+          taskId: { type: "string" },
+          status: taskStatusSchema,
+          idempotencyKey: { type: "string" }
+        }
+      },
+      outputSchema: getTaskResponseSchema
     }
   ]
 } satisfies JarvisModuleManifest;
