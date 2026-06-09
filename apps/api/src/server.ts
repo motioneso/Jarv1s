@@ -1,6 +1,7 @@
+import rateLimit from "@fastify/rate-limit";
 import Fastify from "fastify";
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
-import type { Kysely } from "kysely";
+import { sql, type Kysely } from "kysely";
 import type { PgBoss } from "pg-boss";
 
 import { createJarvisAuthRuntime, type JarvisAuthRuntime } from "@jarv1s/auth";
@@ -47,22 +48,62 @@ export function createApiServer(options: CreateApiServerOptions = {}) {
     logger: options.logger ?? true
   });
   const dataContext = new DataContextRunner(appDb);
+  const AUTH_MAX = Number(process.env.JARVIS_RL_AUTH_MAX ?? 10);
 
-  server.get("/health", async () => ({
-    ok: true
-  }));
+  // Register rate-limit first, then register all routes inside server.after() so the
+  // plugin's onRoute hook is active when routes are added (Fastify defers plugin init
+  // to ready(), so after() guarantees plugin-before-route ordering).
+  server.register(rateLimit, {
+    global: false,
+    keyGenerator: (request) => {
+      const forwarded = request.headers["x-forwarded-for"];
+      if (typeof forwarded === "string" && forwarded.trim()) {
+        return forwarded.split(",")[0]?.trim() ?? request.ip;
+      }
+      return request.ip;
+    }
+  });
 
-  registerBetterAuthRoutes(server, authRuntime);
-  registerPlatformRoutes(server, authRuntime);
+  server.after(() => {
+    server.get("/health", async () => ({ ok: true }));
 
-  registerBuiltInApiRoutes(server, {
-    appDb,
-    resolveAccessContext: authRuntime.resolveAccessContext,
-    listConfiguredAuthProviders: authRuntime.listConfiguredProviders,
-    listModuleManifests: getBuiltInModuleManifests,
-    dataContext,
-    boss,
-    chatEngineFactory: options.chatEngineFactory
+    server.get("/health/ready", async (_, reply) => {
+      let dbStatus = "ok";
+      let pgbossStatus = "ok";
+
+      try {
+        await sql`SELECT 1`.execute(appDb);
+      } catch {
+        dbStatus = "down";
+      }
+
+      try {
+        const installed = await boss.isInstalled();
+        if (!installed) {
+          pgbossStatus = "down";
+        }
+      } catch {
+        pgbossStatus = "down";
+      }
+
+      const healthy = dbStatus === "ok" && pgbossStatus === "ok";
+      return reply
+        .code(healthy ? 200 : 503)
+        .send({ ok: healthy, db: dbStatus, pgboss: pgbossStatus });
+    });
+
+    registerBetterAuthRoutes(server, authRuntime, AUTH_MAX);
+    registerPlatformRoutes(server, authRuntime);
+
+    registerBuiltInApiRoutes(server, {
+      appDb,
+      resolveAccessContext: authRuntime.resolveAccessContext,
+      listConfiguredAuthProviders: authRuntime.listConfiguredProviders,
+      listModuleManifests: getBuiltInModuleManifests,
+      dataContext,
+      boss,
+      chatEngineFactory: options.chatEngineFactory
+    });
   });
 
   server.addHook("onReady", async () => {
@@ -87,13 +128,48 @@ if (import.meta.url === `file://${process.argv[1]}`) {
   const port = Number(process.env.PORT ?? 3000);
   const host = process.env.HOST ?? "0.0.0.0";
 
+  const handleCrash = (label: string, err: unknown): void => {
+    server.log.error({ err, label }, "Process crash — exiting");
+    const drain = Promise.race([
+      new Promise<void>((resolve) => {
+        server.close(() => resolve());
+      }),
+      new Promise<void>((resolve) => {
+        setTimeout(resolve, 2000);
+      })
+    ]);
+    void drain.then(() => {
+      process.exit(1);
+    });
+  };
+
+  process.on("unhandledRejection", (reason) => {
+    handleCrash("unhandledRejection", reason);
+  });
+  process.on("uncaughtException", (err: Error) => {
+    handleCrash("uncaughtException", err);
+  });
+
   await server.listen({ host, port });
 }
 
-function registerBetterAuthRoutes(server: FastifyInstance, authRuntime: JarvisAuthRuntime): void {
+function registerBetterAuthRoutes(
+  server: FastifyInstance,
+  authRuntime: JarvisAuthRuntime,
+  authMax: number
+): void {
   server.route({
     method: ["DELETE", "GET", "OPTIONS", "PATCH", "POST", "PUT"],
     url: "/api/auth/*",
+    config: {
+      rateLimit: {
+        max: authMax,
+        timeWindow: "1 minute",
+        allowList: (req: FastifyRequest) =>
+          req.method !== "POST" ||
+          (!req.url.includes("/sign-in/email") && !req.url.includes("/sign-up/email"))
+      }
+    },
     handler: (request, reply) => handleBetterAuthRequest(request, reply, authRuntime)
   });
 }

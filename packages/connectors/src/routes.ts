@@ -76,9 +76,14 @@ export function registerConnectorsRoutes(
     }
   );
 
+  const oauthMax = Number(process.env.JARVIS_RL_OAUTH_MAX ?? 5);
+
   server.post(
     "/api/connectors/google/complete",
-    { schema: googleCompleteRouteSchema },
+    {
+      schema: googleCompleteRouteSchema,
+      config: { rateLimit: { max: oauthMax, timeWindow: "1 minute" } }
+    },
     async (request, reply) => {
       try {
         const accessContext = await dependencies.resolveAccessContext(request);
