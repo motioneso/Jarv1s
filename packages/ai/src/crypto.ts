@@ -1,6 +1,6 @@
 import { createCipheriv, createDecipheriv, randomBytes } from "node:crypto";
 
-import { type Keyring, resolveKeyring } from "@jarv1s/shared";
+import { type Keyring, resolveKeyring } from "@jarv1s/db";
 
 export interface EncryptedAiSecret extends Record<string, unknown> {
   readonly version: 1;
