@@ -191,11 +191,7 @@ export async function resolveActionRequest(
 ): Promise<void> {
   await requestJson<unknown>(
     `/api/chat/action-requests/${encodeURIComponent(actionRequestId)}/resolve`,
-    {
-      method: "POST",
-      body: JSON.stringify({ status }),
-      headers: { "Content-Type": "application/json" }
-    }
+    { method: "POST", body: { status } }
   );
 }
 

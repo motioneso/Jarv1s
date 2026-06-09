@@ -17,6 +17,29 @@ import { registerMcpTransportRoute } from "../../packages/chat/src/mcp-transport
 import { connectionStrings, ids, resetFoundationDatabase } from "./test-database.js";
 import { exampleToolCalls, exampleToolModule } from "./fixtures/example-tool-module.js";
 
+/** Register a minimal resolve route that mirrors what registerChatRoutes does. */
+function registerResolveRoute(
+  app: FastifyInstance,
+  gateway: AssistantToolGateway,
+  actorUserId: string
+) {
+  app.post<{ Params: { id: string }; Body: { status: string } }>(
+    "/api/chat/action-requests/:id/resolve",
+    async (request, reply) => {
+      const rawStatus = (request.body as { status?: unknown }).status;
+      if (rawStatus !== "confirmed" && rawStatus !== "rejected" && rawStatus !== "cancelled") {
+        return reply.code(400).send({ error: "status must be confirmed, rejected, or cancelled" });
+      }
+      try {
+        await gateway.resolveActionRequest(actorUserId, request.params.id, rawStatus);
+        return reply.code(204).send();
+      } catch {
+        return reply.code(400).send({ error: "Could not resolve action request" });
+      }
+    }
+  );
+}
+
 describe("MCP HTTP transport", () => {
   let appDb: Kysely<JarvisDatabase>;
   let app: FastifyInstance;
@@ -183,5 +206,135 @@ describe("MCP HTTP transport", () => {
     expect(actionResult.kind).toBe("action_result");
     if (actionResult.kind !== "action_result") throw new Error("unreachable");
     expect(actionResult.outcome).toBe("executed");
+  });
+});
+
+describe("HTTP resolve endpoint", () => {
+  let appDb: Kysely<JarvisDatabase>;
+  let appA: FastifyInstance;
+  let appB: FastifyInstance;
+  let tokens: SessionTokenRegistry;
+  let gateway: AssistantToolGateway;
+  let emitted: { chatSessionId: string; record: GatewaySessionRecord }[];
+
+  beforeAll(async () => {
+    appDb = createDatabase({ connectionString: connectionStrings.app, maxConnections: 1 });
+    const runner = new DataContextRunner(appDb);
+    const repository = new AiRepository();
+    tokens = new SessionTokenRegistry();
+    const confirmations = new ConfirmationRegistry();
+    emitted = [];
+
+    gateway = new AssistantToolGateway({
+      resolveActiveModules: () => [exampleToolModule],
+      repository,
+      runner,
+      tokens,
+      confirmations,
+      notifier: { emit: (chatSessionId, record) => emitted.push({ chatSessionId, record }) },
+      confirmTimeoutMs: 2_000
+    });
+
+    // Two separate Fastify apps, each resolving as a different user.
+    appA = Fastify({ logger: false });
+    registerMcpTransportRoute(appA, { gateway, tokens });
+    registerResolveRoute(appA, gateway, ids.userA);
+    await appA.ready();
+
+    appB = Fastify({ logger: false });
+    registerResolveRoute(appB, gateway, ids.userB);
+    await appB.ready();
+  });
+
+  beforeEach(() => {
+    exampleToolCalls.length = 0;
+    emitted.length = 0;
+  });
+
+  afterAll(async () => {
+    await appA.close();
+    await appB.close();
+    await appDb.destroy();
+  });
+
+  it("resolve returns 400 for unknown status value", async () => {
+    const res = await appA.inject({
+      method: "POST",
+      url: "/api/chat/action-requests/any-id/resolve",
+      payload: { status: "INVALID" }
+    });
+    expect(res.statusCode).toBe(400);
+  });
+
+  it("approve via HTTP unblocks the pending call and returns 204", async () => {
+    const token = tokens.mint({ actorUserId: ids.userA, chatSessionId: ids.userA });
+
+    const callPromise = appA.inject({
+      method: "POST",
+      url: "/api/mcp",
+      headers: { authorization: `Bearer ${token}` },
+      body: {
+        jsonrpc: "2.0",
+        id: 10,
+        method: "tools/call",
+        params: { name: "example.write", arguments: { value: "http-approve" } }
+      }
+    });
+
+    await new Promise((r) => setTimeout(r, 100));
+    expect(emitted).toHaveLength(1);
+    const req = emitted[0]!.record;
+    if (req.kind !== "action_request") throw new Error("expected action_request");
+
+    const resolveRes = await appA.inject({
+      method: "POST",
+      url: `/api/chat/action-requests/${encodeURIComponent(req.actionRequestId)}/resolve`,
+      payload: { status: "confirmed" }
+    });
+    expect(resolveRes.statusCode).toBe(204);
+
+    const callRes = await callPromise;
+    expect(callRes.statusCode).toBe(200);
+    const body = callRes.json<{ result: { isError: boolean } }>();
+    expect(body.result.isError).toBe(false);
+    expect(exampleToolCalls).toHaveLength(1);
+  });
+
+  it("cross-user resolve does NOT unblock the owner's pending call (IDOR guard)", async () => {
+    const token = tokens.mint({ actorUserId: ids.userA, chatSessionId: ids.userA });
+
+    const callPromise = appA.inject({
+      method: "POST",
+      url: "/api/mcp",
+      headers: { authorization: `Bearer ${token}` },
+      body: {
+        jsonrpc: "2.0",
+        id: 11,
+        method: "tools/call",
+        params: { name: "example.write", arguments: { value: "should-not-execute" } }
+      }
+    });
+
+    await new Promise((r) => setTimeout(r, 100));
+    expect(emitted).toHaveLength(1);
+    const req = emitted[0]!.record;
+    if (req.kind !== "action_request") throw new Error("expected action_request");
+
+    // User B tries to approve User A's action request
+    const resolveRes = await appB.inject({
+      method: "POST",
+      url: `/api/chat/action-requests/${encodeURIComponent(req.actionRequestId)}/resolve`,
+      payload: { status: "confirmed" }
+    });
+    // HTTP layer returns 204 (no information leak), but the call is NOT unblocked
+    expect(resolveRes.statusCode).toBe(204);
+    expect(exampleToolCalls).toHaveLength(0);
+
+    // Confirm the call is still waiting — deny it via the real owner to unblock
+    await gateway.resolveActionRequest(ids.userA, req.actionRequestId, "rejected");
+    const callRes = await callPromise;
+    const body = callRes.json<{ result: { isError: boolean } }>();
+    expect(body.result.isError).toBe(true);
+    expect(exampleToolCalls).toHaveLength(0);
   });
 });

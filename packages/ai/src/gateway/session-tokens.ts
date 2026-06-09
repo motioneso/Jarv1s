@@ -41,7 +41,6 @@ export class SessionTokenRegistry {
     for (const [token, identity] of this.tokens) {
       if (identity.chatSessionId === chatSessionId) {
         this.tokens.delete(token);
-        return;
       }
     }
   }

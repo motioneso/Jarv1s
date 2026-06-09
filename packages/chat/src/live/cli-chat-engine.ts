@@ -235,6 +235,9 @@ export class TmuxCliChatEngine implements CliChatEngine {
 
   private buildCodexCommand(opts: EngineLaunchOpts): string {
     const tokenEnvVar = "JARVIS_MCP_TOKEN";
+    // Codex reads the Bearer token via bearer_token_env_var; there is no file-based injection
+    // equivalent. The token appears in the tmux send-keys command and ps output — accepted tradeoff
+    // for a local single-user session where the token is short-lived and process-scoped.
     const envPrefix = opts.mcpToken ? `${tokenEnvVar}=${opts.mcpToken} ` : "";
     const parts = [`cd ${shellQuote(opts.neutralDir)} &&`, `${envPrefix}codex`];
 
@@ -253,10 +256,10 @@ export class TmuxCliChatEngine implements CliChatEngine {
   }
 
   private buildGeminiCommand(opts: EngineLaunchOpts): string {
-    const envPrefix = opts.mcpToken ? `MCP_TOKEN=${opts.mcpToken} ` : "";
+    // Token is already injected via .gemini/settings.json Authorization header — no env var needed.
     const parts = [
       `cd ${shellQuote(opts.neutralDir)} &&`,
-      `${envPrefix}gemini`,
+      "gemini",
       "--allowed-mcp-server-names jarvis"
     ];
     return parts.join(" ");
