@@ -7,6 +7,34 @@ export interface JsonSchema {
   readonly [key: string]: unknown;
 }
 
+export type ToolInput = Record<string, unknown>;
+
+export interface ToolContext {
+  readonly actorUserId: string;
+  readonly requestId: string;
+  readonly chatSessionId: string;
+}
+
+export interface ToolResult {
+  readonly data: Record<string, unknown>;
+}
+
+/**
+ * Execution handler for an assistant tool. `scopedDb` is a DataContextDb supplied
+ * by the gateway under withDataContext; it is typed as `unknown` here to avoid a
+ * module-sdk -> db dependency. The owning module narrows it via its own repository.
+ * Called ONLY when authorized (read allowed, or write/destructive approved); input
+ * is already validated against inputSchema.
+ */
+export type ToolExecute = (
+  scopedDb: unknown,
+  input: ToolInput,
+  ctx: ToolContext
+) => Promise<ToolResult>;
+
+/** Optional human-readable description of a proposed write, for the Approve/Deny card. */
+export type ToolSummarize = (input: ToolInput, ctx: ToolContext) => string;
+
 export interface ModuleCompatibility {
   readonly jarv1s: string;
 }
@@ -90,6 +118,8 @@ export interface ModuleAssistantToolManifest {
   readonly inputSchema?: JsonSchema;
   readonly outputSchema?: JsonSchema;
   readonly featureFlagId?: string;
+  readonly execute?: ToolExecute;
+  readonly summarize?: ToolSummarize;
 }
 
 export interface JarvisModuleManifest {
