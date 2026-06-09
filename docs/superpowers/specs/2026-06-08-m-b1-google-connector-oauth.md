@@ -132,6 +132,15 @@ After a Connection exists, a follow-on slice makes the data *useful*. The open f
 existing read caches with `UNIQUE(connector_account_id, external_id)` for idempotent
 upsert), which a web view and Jarvis chat can also read. Resolve once the Connection works.
 
+**Carried constraint for the sync slice (`provider_type` conflation — see ADR 0006):** the
+unified Google connection uses `provider_type='google'`, so it is **not** found by
+`WHERE provider_type='calendar'`/`'email'`, and the read-cache RLS insert policies on
+`calendar_events`/`email` still key on those domain values. The sync slice must (a) discover
+connections **by domain** (granted scopes or a service map), and (b) reconcile the legacy
+`google-calendar`/`google-email` definition rows with the unified `google` connection (e.g.
+update the read-cache insert policies / FK target). This is a known item, recorded so it is
+not a latent surprise.
+
 ## 10. Security & invariants (must hold)
 
 - Credentials AES-256-GCM at rest; **never** in logs, pg-boss payloads, exports, or AI

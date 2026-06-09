@@ -536,7 +536,8 @@ describe("Google connection repository", () => {
         encryptedSecret: cipher.encryptJson({ kind: "google-oauth", accessToken: "at" })
       })
     );
-    expect(account.providerId).toBe("google");
+    // NOTE: repository returns ConnectorAccountSafeRow (snake_case) — not the camelCase DTO.
+    expect(account.provider_id).toBe("google");
     expect(account.status).toBe("active");
 
     await dataContext.withDataContext(userA(), (db) => repository.deleteGooglePending(db));
@@ -620,9 +621,23 @@ export interface GooglePendingRow {
       encryptedSecret: input.encryptedSecret
     });
   }
+
+  // Repository owns ALL raw DataContextDb access (service must never cast scopedDb.db).
+  async getActiveGoogleAccountSecret(
+    scopedDb: DataContextDb
+  ): Promise<{ id: string; encryptedSecret: EncryptedConnectorSecret } | undefined> {
+    assertDataContextDb(scopedDb);
+    const row = await scopedDb.db
+      .selectFrom("app.connector_accounts")
+      .select(["id", "encrypted_secret as encryptedSecret"])
+      .where("provider_id", "=", GOOGLE_PROVIDER_ID)
+      .where("status", "=", "active")
+      .executeTakeFirst();
+    return row as { id: string; encryptedSecret: EncryptedConnectorSecret } | undefined;
+  }
 ```
 
-(Note: `updateAccount` currently resets `revoked_at: null` and accepts `status` — reuse as-is.)
+(Note: `updateAccount` currently resets `revoked_at: null` and accepts `status` — reuse as-is. `getActiveGoogleAccountSecret` is the repository home for the secret read that the service used to do via a raw cast — see Task 7 fix B.)
 
 - [ ] **Step 4: Run (passes)**
 
@@ -681,7 +696,8 @@ it("completeAuthorization validates state, exchanges code, and stores tokens", a
   const account = await dataContext.withDataContext(userA(), (db) =>
     service.completeAuthorization(db, { redirectUrl: "http://localhost:1/?code=4/abc&state=fixed-state" })
   );
-  expect(account.providerId).toBe("google");
+  // ConnectorAccountSafeRow (snake_case) — service returns the safe row, not the DTO.
+  expect(account.provider_id).toBe("google");
   expect(account.status).toBe("active");
 });
 
@@ -716,6 +732,11 @@ import {
   parseRedirectUrl, type GoogleConnectionSecret
 } from "./oauth.js";
 import { ConnectorsRepository, type ConnectorAccountSafeRow } from "./repository.js";
+
+/** User-correctable connect failures. Routes map this to HTTP 400 by TYPE (never by message text). */
+export class GoogleConnectError extends Error {
+  readonly statusCode = 400;
+}
 
 export interface GoogleConnectionServiceDeps {
   readonly repository: ConnectorsRepository;
@@ -762,10 +783,10 @@ export class GoogleConnectionService {
     const { code, state } = parseRedirectUrl(input.redirectUrl);
     const pending = await this.deps.repository.getGooglePending(scopedDb);
     if (!pending) {
-      throw new Error("No pending Google authorization found — start the connect flow again");
+      throw new GoogleConnectError("No pending Google authorization found — start the connect flow again");
     }
     if (pending.state !== state) {
-      throw new Error("Authorization state did not match — please retry the connect flow");
+      throw new GoogleConnectError("Authorization state did not match — please retry the connect flow");
     }
     const creds = this.deps.cipher.decryptJson(pending.encryptedSecret) as {
       clientId: string;
@@ -778,7 +799,7 @@ export class GoogleConnectionService {
       redirectUri: GOOGLE_LOOPBACK_REDIRECT
     });
     if (!tokens.refresh_token) {
-      throw new Error("Google did not return a refresh token — re-consent with prompt=consent");
+      throw new GoogleConnectError("Google did not return a refresh token — re-consent with prompt=consent");
     }
     const expiry = new Date(this.now().getTime() + tokens.expires_in * 1000).toISOString();
     const bundle: GoogleConnectionSecret = {
@@ -798,23 +819,15 @@ export class GoogleConnectionService {
     return account;
   }
 
-  /** Returns a non-expired access token, refreshing if needed. Persists a refreshed token. */
+  /** Returns a non-expired access token, refreshing if needed. Persists a refreshed token.
+   *  Fix B: the secret read lives in the repository (getActiveGoogleAccountSecret) — the service
+   *  never touches raw Kysely or casts scopedDb.db. */
   async getFreshAccessToken(scopedDb: DataContextDb): Promise<string> {
-    const account = (await this.deps.repository.listAccounts(scopedDb)).find(
-      (a) => a.provider_id === "google" && a.status === "active"
-    );
-    if (!account) {
-      throw new Error("No active Google connection");
+    const stored = await this.deps.repository.getActiveGoogleAccountSecret(scopedDb);
+    if (!stored) {
+      throw new GoogleConnectError("No active Google connection");
     }
-    // The safe row hides the secret; re-read the secret column directly under RLS.
-    const row = await (scopedDb as { db: import("kysely").Kysely<import("@jarv1s/db").JarvisDatabase> }).db
-      .selectFrom("app.connector_accounts")
-      .select("encrypted_secret")
-      .where("id", "=", account.id)
-      .executeTakeFirstOrThrow();
-    const bundle = this.deps.cipher.decryptJson(
-      row.encrypted_secret as unknown as Parameters<ConnectorSecretCipher["decryptJson"]>[0]
-    ) as GoogleConnectionSecret;
+    const bundle = this.deps.cipher.decryptJson(stored.encryptedSecret) as GoogleConnectionSecret;
     if (new Date(bundle.tokenExpiry).getTime() - this.now().getTime() > 60_000) {
       return bundle.accessToken;
     }
@@ -999,7 +1012,18 @@ import { googleAuthorizeRouteSchema, googleCompleteRouteSchema } from "@jarv1s/s
   });
 ```
 
-Extend `handleRouteError` so the service's user-facing `Error` messages (state mismatch, no pending, no refresh token) return **400** rather than 500 (add a `message.includes("state")` / `includes("pending")` / `includes("refresh token")` → 400 branch, or wrap them in the existing `HttpError`).
+Map `GoogleConnectError` to **400 by type** (not by message text). Import it from `./google-connection.js` and add the first branch of `handleRouteError`:
+
+```typescript
+import { GoogleConnectError } from "./google-connection.js";
+
+// at the top of handleRouteError(error, reply):
+  if (error instanceof GoogleConnectError) {
+    return reply.code(error.statusCode).send({ error: error.message });
+  }
+```
+
+A wording change to a service error message must never silently flip a 400 to a 500 — the mapping keys on the error **type**.
 
 - [ ] **Step 4: Run (passes)**
 
@@ -1020,10 +1044,11 @@ git commit -m "feat(connectors): /api/connectors/google authorize + complete end
 Run: `pnpm test:connectors && pnpm verify:foundation`
 Expected: all pass (new migrations 0040/0041 included; the foundation migration-count assertion, if present, updated — see note).
 
-- [ ] **Step 2: If a migration-count/list assertion fails**, update it to include `0040` and `0041` (search tests for `schema_migrations` / migration-list assertions, e.g. `tests/integration/foundation.test.ts`). Commit that fix.
+- [ ] **Step 2: If a migration-count/list assertion fails**, update it to include `0040` and `0041` (search tests for `schema_migrations` / migration-list assertions, e.g. `tests/integration/foundation.test.ts`). Commit that fix with **explicit paths** (never `git add -A` — the working tree is shared with other sessions).
 
 ```bash
-git add -A && git commit -m "test: include migrations 0040/0041 in foundation assertions"
+git add tests/integration/foundation.test.ts
+git commit -m "test: include migrations 0040/0041 in foundation assertions"
 ```
 
 ### Task 11: Live round-trip verification harness (issue #12)
@@ -1361,9 +1386,26 @@ Expected: both green (lint, format, file-size, typecheck, migrate, integration; 
 - **Spec §11 verification** → Task 11 (live round-trip = issue #12) + integration tests throughout; ~7-day token re-check noted. ✓
 - **Spec §9 (sync/grounding)** → explicitly OUT of scope; no tasks (correct). ✓
 - **Placeholder scan:** every code step shows real code; no "TBD"/"add error handling". The two "confirm the exact shape against X" notes (Task 9 server DI, Task 15 ToolResult) are *verification instructions*, not missing code — acceptable because they pin an exact file to check.
-- **Type consistency:** `GoogleConnectionSecret`, `GoogleTokenResponse`, `upsertGoogleAccount`, `getGooglePending`, `startAuthorization`/`completeAuthorization`/`getFreshAccessToken`, `authorizeGoogleConnection`/`completeGoogleConnection` are used consistently across tasks.
+- **Type consistency (redone after Coordinator fix A):** the **casing boundary** is now explicit — `ConnectorsRepository`/`GoogleConnectionService` return **`ConnectorAccountSafeRow` (snake_case:** `provider_id`, `status`, `has_secret`); the **HTTP layer** serializes to **`ConnectorAccountDto` (camelCase:** `providerId`, `hasSecret`) via `serializeAccount`. Audited every access: Task 6/7 repo+service assertions use `account.provider_id` (snake); Task 9 asserts on the **serialized response** `account.providerId` (camel — correct, that's the DTO); Task 14 e2e reads rendered text. Names (`GoogleConnectionSecret`, `GoogleTokenResponse`, `GoogleConnectError`, `upsertGoogleAccount`, `getGooglePending`, `getActiveGoogleAccountSecret`, `startAuthorization`/`completeAuthorization`/`getFreshAccessToken`, `authorizeGoogleConnection`/`completeGoogleConnection`) are consistent across tasks.
+- **Layering (Coordinator fix B):** the service holds no raw Kysely; the secret read is `repository.getActiveGoogleAccountSecret` (Task 6). No `scopedDb.db` cast anywhere in the service.
+
+## Coordinator review — verdict & resolutions
+
+Verdict **REVISE→build** (`/tmp/m-b1-coordinator-review.md`); points 1–3 APPROVED (keep the enum split, the pending table, `localhost:1`). Required items, now applied to this plan:
+- **(A) casing** — repo/service returns are `ConnectorAccountSafeRow` snake_case; Task 6/7 assertions fixed to `account.provider_id`; Task 9 keeps `.providerId` on the serialized DTO. Self-review redone.
+- **(B) layering** — added `repository.getActiveGoogleAccountSecret`; `getFreshAccessToken` no longer casts `scopedDb.db`.
+- **(C-doc) provider_type conflation** — recorded in ADR 0006 + spec §9 (see below).
+- **(rec) typed errors** — `GoogleConnectError` mapped to 400 by type; no message-substring matching.
+- **(rec) staging** — explicit `git add` paths only; no `git add -A`.
+
+Cleared to build Phase 1 with **no re-review**. Ping Coordinator when Phase 1's gate is green **and before any merge**.
+
+## Merge / landing (Coordinator owns order)
+- Before merging: **integrate `main` (now `cda9f23`, includes PR #37 + #38)** into this branch.
+- **Expect conflicts** in `apps/web/src/settings/settings-page.tsx` (Task 13) and `packages/chat/src/live/runtime.ts` (Task 16) with the Chat Phase 3 / M-A5 Plan 3 streams — resolve on integration.
+- Clear landing order with the Coordinator; do not merge to `main` unilaterally.
 
 ## Open items carried from the spec (not blockers)
 1. ~7-day testing-mode refresh-token expiry — measured in Task 11.
 2. Downstream sync/grounding (inline vs cache) — next slice.
-3. Coordinator review points (top of this doc): unified-connection enum-vs-marker, pending-table-vs-status, redirect constant.
+3. **`provider_type` now mixes domain + vendor** (see ADR 0006) — the sync slice must discover connections by domain (scopes / a service map), not `WHERE provider_type='calendar'`, and reconcile the legacy `google-calendar`/`google-email` rows.

@@ -84,3 +84,12 @@ A user connects Google through **their own per-user OAuth client**, walked throu
 - The **sync engine and briefing grounding are a separate downstream slice** — this ADR
   covers *connecting*, not yet *consuming*. Whether the briefing reads a synced local cache
   or grounds inline is deferred (see the spec's open questions).
+- **`connector_provider_type` now mixes data-domain and vendor values.** The enum meant a data
+  domain (`calendar` / `email`); adding `'google'` makes it also carry a vendor identity. As a
+  result **`WHERE provider_type = 'calendar'` will NOT match the unified Google connection.**
+  This is acceptable for the connection-only slice (no sync runs yet), but the **deferred sync
+  slice must**: (a) discover a user's connections **by domain** — via granted scopes or an
+  explicit service map — rather than by `provider_type`; and (b) **reconcile** the legacy
+  `google-calendar` / `google-email` definition rows (which the read-cache RLS insert policies
+  still key on via `provider_type='calendar'`/`'email'`) with the unified `google` connection.
+  Recorded here so the conflation is explicit, not a latent surprise.
