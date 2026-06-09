@@ -11,12 +11,14 @@ import {
   createTaskTagRouteSchema,
   deferredTaskStatusRouteSchema,
   focusTasksRouteSchema,
+  getTaskPreferencesRouteSchema,
   getTaskRouteSchema,
   listTaskActivityRouteSchema,
   listTaskListsRouteSchema,
   listTaskTagsRouteSchema,
   listTasksRouteSchema,
   overdueTasksRouteSchema,
+  updateTaskPreferencesRouteSchema,
   updateTaskRouteSchema
 } from "@jarv1s/shared";
 
@@ -25,12 +27,14 @@ import { TASKS_DEFERRED_STATUS_QUEUE } from "./manifest.js";
 import { TaskBreakdownRepository } from "./breakdown.js";
 import { TaskDriftRepository } from "./drift.js";
 import { TaskListsRepository } from "./lists.js";
+import { TaskPreferencesRepository } from "./preferences.js";
 import { TasksRepository } from "./repository.js";
 import {
   filterByQuadrant,
   serializeTask,
   serializeTaskActivity,
   serializeTaskList,
+  serializeTaskPreferences,
   serializeTaskTag
 } from "./serialize.js";
 
@@ -42,6 +46,7 @@ export interface TasksRoutesDependencies {
   readonly listsRepository?: TaskListsRepository;
   readonly breakdownRepository?: TaskBreakdownRepository;
   readonly driftRepository?: TaskDriftRepository;
+  readonly preferencesRepository?: TaskPreferencesRepository;
 }
 
 interface TaskParams {
@@ -56,6 +61,7 @@ export function registerTasksRoutes(
   const listsRepository = dependencies.listsRepository ?? new TaskListsRepository();
   const breakdownRepository = dependencies.breakdownRepository ?? new TaskBreakdownRepository();
   const driftRepository = dependencies.driftRepository ?? new TaskDriftRepository();
+  const prefsRepository = dependencies.preferencesRepository ?? new TaskPreferencesRepository();
 
   server.get("/api/tasks", { schema: listTasksRouteSchema }, async (request, reply) => {
     try {
@@ -208,6 +214,45 @@ export function registerTasksRoutes(
         const jobId = await dependencies.boss.send(TASKS_DEFERRED_STATUS_QUEUE, payload);
 
         return reply.code(202).send({ jobId });
+      } catch (error) {
+        return handleRouteError(error, reply);
+      }
+    }
+  );
+
+  // --- Preferences ---
+
+  server.get(
+    "/api/tasks/preferences",
+    { schema: getTaskPreferencesRouteSchema },
+    async (request, reply) => {
+      try {
+        const accessContext = await dependencies.resolveAccessContext(request);
+        const prefs = await dependencies.dataContext.withDataContext(accessContext, (scopedDb) =>
+          prefsRepository.getOrCreate(scopedDb)
+        );
+        return { preferences: serializeTaskPreferences(prefs) };
+      } catch (error) {
+        return handleRouteError(error, reply);
+      }
+    }
+  );
+
+  server.patch(
+    "/api/tasks/preferences",
+    { schema: updateTaskPreferencesRouteSchema },
+    async (request, reply) => {
+      try {
+        const accessContext = await dependencies.resolveAccessContext(request);
+        const body = requireObject(request.body);
+        const defaultView = body["defaultView"];
+        if (defaultView !== "priority" && defaultView !== "matrix") {
+          throw new HttpError(400, "defaultView must be priority or matrix");
+        }
+        const prefs = await dependencies.dataContext.withDataContext(accessContext, (scopedDb) =>
+          prefsRepository.update(scopedDb, defaultView)
+        );
+        return { preferences: serializeTaskPreferences(prefs) };
       } catch (error) {
         return handleRouteError(error, reply);
       }

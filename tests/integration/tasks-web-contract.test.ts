@@ -15,6 +15,64 @@ describe("tasks status contract (Plan 3 narrowing)", () => {
   });
 });
 
+describe("task_preferences vertical slice (Plan 3 Task 3)", () => {
+  let server: ReturnType<typeof createApiServer>;
+  let appBoss: ReturnType<typeof createPgBossClient>;
+  let appDb: ReturnType<typeof createDatabase>;
+
+  beforeAll(async () => {
+    await resetFoundationDatabase();
+
+    appDb = createDatabase({
+      connectionString: connectionStrings.app,
+      maxConnections: 1
+    });
+    appBoss = createPgBossClient(connectionStrings.app);
+    await appBoss.start();
+
+    server = createApiServer({
+      appDb,
+      boss: appBoss,
+      logger: false
+    });
+    await server.ready();
+  });
+
+  afterAll(async () => {
+    await Promise.allSettled([
+      server?.close(),
+      appBoss?.stop({ graceful: false }),
+      appDb?.destroy()
+    ]);
+  });
+
+  it("GET /api/tasks/preferences defaults to priority; PATCH round-trips matrix", async () => {
+    const initial = await server.inject({
+      method: "GET",
+      url: "/api/tasks/preferences",
+      headers: { authorization: `Bearer ${ids.sessionA}` }
+    });
+    expect(initial.statusCode).toBe(200);
+    expect(JSON.parse(initial.body).preferences.defaultView).toBe("priority");
+
+    const updated = await server.inject({
+      method: "PATCH",
+      url: "/api/tasks/preferences",
+      headers: { authorization: `Bearer ${ids.sessionA}` },
+      payload: { defaultView: "matrix" }
+    });
+    expect(updated.statusCode).toBe(200);
+    expect(JSON.parse(updated.body).preferences.defaultView).toBe("matrix");
+
+    const reread = await server.inject({
+      method: "GET",
+      url: "/api/tasks/preferences",
+      headers: { authorization: `Bearer ${ids.sessionA}` }
+    });
+    expect(JSON.parse(reread.body).preferences.defaultView).toBe("matrix");
+  });
+});
+
 describe("tasks route parser — new fields round-trip (Plan 3 Task 2)", () => {
   let server: ReturnType<typeof createApiServer>;
   let appBoss: ReturnType<typeof createPgBossClient>;
