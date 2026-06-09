@@ -1,6 +1,6 @@
 import Fastify from "fastify";
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
-import type { Kysely } from "kysely";
+import { sql, type Kysely } from "kysely";
 import type { PgBoss } from "pg-boss";
 
 import { createJarvisAuthRuntime, type JarvisAuthRuntime } from "@jarv1s/auth";
@@ -48,9 +48,32 @@ export function createApiServer(options: CreateApiServerOptions = {}) {
   });
   const dataContext = new DataContextRunner(appDb);
 
-  server.get("/health", async () => ({
-    ok: true
-  }));
+  server.get("/health", async () => ({ ok: true }));
+
+  server.get("/health/ready", async (_, reply) => {
+    let dbStatus = "ok";
+    let pgbossStatus = "ok";
+
+    try {
+      await sql`SELECT 1`.execute(appDb);
+    } catch {
+      dbStatus = "down";
+    }
+
+    try {
+      const installed = await boss.isInstalled();
+      if (!installed) {
+        pgbossStatus = "down";
+      }
+    } catch {
+      pgbossStatus = "down";
+    }
+
+    const healthy = dbStatus === "ok" && pgbossStatus === "ok";
+    return reply
+      .code(healthy ? 200 : 503)
+      .send({ ok: healthy, db: dbStatus, pgboss: pgbossStatus });
+  });
 
   registerBetterAuthRoutes(server, authRuntime);
   registerPlatformRoutes(server, authRuntime);
