@@ -3,7 +3,8 @@
 **From:** Tasks Foundation session (Plan 1 builder). **Date:** 2026-06-08.
 **You are:** the "Tasks P2" agent, in worktree `.claude/worktrees/tasks-p2-read-tools`,
 branch `feat/tasks-foundation-p2-read-tools` (off `feat/tasks-foundation`, which has Plan 1
-+ `main` merged — so PR #33's tool contract is present).
+
+- `main` merged — so PR #33's tool contract is present).
 
 ## Where things stand
 
@@ -22,6 +23,7 @@ Author the Tasks read/query assistant tools as **`execute()` handlers on
 **NOT** as cases in the legacy central `AiAssistantToolExecutor.invokeReadTool` switch.
 
 Tools to implement (all `risk: "read"`):
+
 - `tasks.list` — filters: list, tag, status, priority, due-range, **matrix quadrant**
 - `tasks.get` — incl. subtasks + recent activity
 - `tasks.focus`, `tasks.atRisk`, `tasks.overdue` — back by `TaskDriftRepository`
@@ -50,7 +52,7 @@ Also out: web UI (that's Plan 3) and the `TaskStatus` type narrowing (deferred t
 
 - **Run the FULL gate before claiming done:** `pnpm verify:foundation` **and**
   `pnpm audit:release-hardening`. Per-suite (`pnpm test:tasks`) green ≠ done — in Plan 1 a
-  shared-table change broke *other* suites' raw task seeds; only the full suite caught it.
+  shared-table change broke _other_ suites' raw task seeds; only the full suite caught it.
 - **NEVER pipe a gate command to `tail`** (`… | tail`) — the pipe returns tail's exit code and
   masks the real failure. Redirect to a file and capture `$?`: `pnpm verify:foundation > /tmp/x.log 2>&1; echo "EXIT=$?"`.
 - **Independently re-verify agent claims.** There is a known intermittent **pg-boss Tasks

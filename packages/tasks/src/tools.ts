@@ -36,15 +36,11 @@ export const taskListExecute: ToolExecute = async (scopedDb, input, _ctx): Promi
   if (priority !== undefined) tasks = tasks.filter((t) => t.priority === priority);
   if (dueBefore) {
     const before = new Date(dueBefore);
-    tasks = tasks.filter(
-      (t) => t.due_at !== null && new Date(t.due_at as Date | string) < before
-    );
+    tasks = tasks.filter((t) => t.due_at !== null && new Date(t.due_at as Date | string) < before);
   }
   if (dueAfter) {
     const after = new Date(dueAfter);
-    tasks = tasks.filter(
-      (t) => t.due_at !== null && new Date(t.due_at as Date | string) > after
-    );
+    tasks = tasks.filter((t) => t.due_at !== null && new Date(t.due_at as Date | string) > after);
   }
   if (
     quadrant === "do" ||

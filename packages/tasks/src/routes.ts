@@ -28,7 +28,6 @@ import { TaskListsRepository } from "./lists.js";
 import { TasksRepository } from "./repository.js";
 import {
   filterByQuadrant,
-  serializeDate,
   serializeTask,
   serializeTaskActivity,
   serializeTaskList,
