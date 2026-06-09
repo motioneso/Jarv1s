@@ -17,9 +17,9 @@
 The kickoff framed Plan 3 as "UI on top of a done backend." That is **mostly** true, but the following named exit criteria have **no REST path yet** and are completed here as thin slices:
 
 1. **Create/update parsers drop new fields.** `packages/tasks/src/routes.ts:348-370` (`parseCreateTaskBody`/`parseUpdateTaskBody`) parse only `title/description/status/priority/dueAt` — they silently discard `listId/doAt/effort/parentTaskId/recurrence`, even though the JSON schemas accept them and `TasksRepository.create/update` fully support them. → **Task 2.**
-2. **Request DTOs lack the new fields.** `CreateTaskRequest`/`UpdateTaskRequest` interfaces (`packages/shared/src/tasks-api.ts:38-44,54-60`) omit `listId/doAt/effort/parentTaskId/recurrence` (the *schemas* have them; the *TS interfaces* don't). → **Task 2.**
+2. **Request DTOs lack the new fields.** `CreateTaskRequest`/`UpdateTaskRequest` interfaces (`packages/shared/src/tasks-api.ts:38-44,54-60`) omit `listId/doAt/effort/parentTaskId/recurrence` (the _schemas_ have them; the _TS interfaces_ don't). → **Task 2.**
 3. **`task_preferences` is unbuilt above the table.** Migration 0039 created `app.task_preferences(default_view)`, but there is **no repository, route, contract, or web usage**. The `default_view` per-user preference is a named exit criterion. → **Task 3.**
-4. **No subtasks REST route.** `repository.listByParentId` exists and the Plan-2 `tasks.get` *assistant tool* uses it, but there is no REST endpoint, so the web detail page can't list subtasks. → **Task 4.**
+4. **No subtasks REST route.** `repository.listByParentId` exists and the Plan-2 `tasks.get` _assistant tool_ uses it, but there is no REST endpoint, so the web detail page can't list subtasks. → **Task 4.**
 
 These are confirmed by reading the files, not assumed.
 
@@ -29,7 +29,7 @@ These are confirmed by reading the files, not assumed.
 
 **SDP-1 — Priority level labels.** The spec names only `Someday=1 … Critical=5` (decision #6); `drift.ts:32` confirms `3 = Medium`. The labels for 2 and 4 are undefined. **Proposed:** `1 Someday · 2 Low · 3 Medium · 4 High · 5 Critical`. (Matrix "important" = priority ≥ 4, matching `serialize.ts:12`.) Used in Task 6.
 
-**SDP-2 — Task↔tag *assignment* (RECOMMEND DEFER).** `app.task_tag_assignments` (table + list-match trigger + RLS) exists but is **entirely unwired**: no repo method, no route, no test, and `TaskDto` has no `tags` field. Wiring it fully means a `TaskDto.tags` contract ripple through `serializeTask` + every mock/test, assign/unassign routes, a tag filter on the list route, and UI chips. **Recommendation:** this milestone ships **tags as create + list *within a list*** (exactly what the backend supports today) and **defers task-level tag assignment + tag filtering to a fast-follow issue.** Lists (one per task, switchable, filterable) carry the organizational weight for M-A5. Coordinator to confirm cut or pull-in.
+**SDP-2 — Task↔tag _assignment_ (RECOMMEND DEFER).** `app.task_tag_assignments` (table + list-match trigger + RLS) exists but is **entirely unwired**: no repo method, no route, no test, and `TaskDto` has no `tags` field. Wiring it fully means a `TaskDto.tags` contract ripple through `serializeTask` + every mock/test, assign/unassign routes, a tag filter on the list route, and UI chips. **Recommendation:** this milestone ships **tags as create + list _within a list_** (exactly what the backend supports today) and **defers task-level tag assignment + tag filtering to a fast-follow issue.** Lists (one per task, switchable, filterable) carry the organizational weight for M-A5. Coordinator to confirm cut or pull-in.
 
 **SDP-3 — List/tag rename & delete (RECOMMEND DEFER).** No rename/delete routes exist; `list_id` is `ON DELETE RESTRICT`, so list-delete needs an empty-or-reassign UX. **Recommendation:** ship create + list + switch-a-task's-list this milestone; defer rename/delete to a fast-follow.
 
@@ -49,31 +49,31 @@ These are confirmed by reading the files, not assumed.
 
 ## File Structure
 
-| File | Responsibility | Action |
-| ---- | -------------- | ------ |
-| `packages/shared/src/tasks-api.ts` | Narrow `TASK_STATUSES`; extend `CreateTaskRequest`/`UpdateTaskRequest`; add Preferences + Subtasks contracts | Modify |
-| `packages/db/src/types.ts` | Narrow `TaskStatus` to `todo\|done\|archived` | Modify |
-| `packages/tasks/src/routes.ts` | Wire new fields in parsers; simplify status guard; preferences + subtasks routes | Modify |
-| `packages/tasks/src/preferences.ts` | `TaskPreferencesRepository` (get-or-create-default + update) | Create |
-| `packages/tasks/src/serialize.ts` | `serializeTaskPreferences` | Modify |
-| `packages/tasks/src/index.ts` | Export preferences module | Modify |
-| `packages/shared/src/tasks-view.ts` | Priority levels, `quadrantOf(TaskDto)`, `groupByPriority` (single source for FE) | Create |
-| `packages/shared/src/index.ts` | Export `tasks-view` | Modify |
-| `apps/web/src/api/client.ts` | Client fns: lists, tags, subtasks, focus/at-risk/overdue, breakdown, preferences | Modify |
-| `apps/web/src/api/query-keys.ts` | Query keys for the new resources | Modify |
-| `apps/web/src/tasks/task-format.ts` | Drop `in_progress`; effort labels; reuse view helpers | Modify |
-| `apps/web/src/tasks/task-capture.tsx` | Title-first quick-capture component | Create |
-| `apps/web/src/tasks/task-list-view.tsx` | Priority-grouped list view | Create |
-| `apps/web/src/tasks/task-matrix-view.tsx` | Eisenhower Matrix view | Create |
-| `apps/web/src/tasks/tasks-page.tsx` | Page shell: view toggle (pref-backed), list/tag sidebar, filters; mounts capture + views | Modify |
-| `apps/web/src/tasks/task-detail-page.tsx` | New fields (list/do-date/effort/recurrence) + subtasks + activity | Modify |
-| `apps/web/src/tasks/tasks.css` | All new Tasks styles (keeps `styles.css` < 1000) | Create |
-| `apps/web/src/main.tsx` | Import `tasks.css` | Modify |
-| `tests/integration/tasks-web-contract.test.ts` | REST: new-field round-trip, preferences, subtasks, status narrowing guard | Create |
-| `tests/integration/tasks-view.test.ts` | Pure unit: quadrant classification + priority grouping | Create |
-| `tests/e2e/mock-api.ts` | Mock lists/tags/subtasks/preferences/focus; drop `in_progress` | Modify |
-| `tests/e2e/tasks.spec.ts` | e2e: capture, priority view, matrix toggle, detail+subtasks | Create |
-| `tests/e2e/app-shell.spec.ts` | Update the existing "creates and updates tasks" test for the new UI | Modify |
+| File                                           | Responsibility                                                                                               | Action |
+| ---------------------------------------------- | ------------------------------------------------------------------------------------------------------------ | ------ |
+| `packages/shared/src/tasks-api.ts`             | Narrow `TASK_STATUSES`; extend `CreateTaskRequest`/`UpdateTaskRequest`; add Preferences + Subtasks contracts | Modify |
+| `packages/db/src/types.ts`                     | Narrow `TaskStatus` to `todo\|done\|archived`                                                                | Modify |
+| `packages/tasks/src/routes.ts`                 | Wire new fields in parsers; simplify status guard; preferences + subtasks routes                             | Modify |
+| `packages/tasks/src/preferences.ts`            | `TaskPreferencesRepository` (get-or-create-default + update)                                                 | Create |
+| `packages/tasks/src/serialize.ts`              | `serializeTaskPreferences`                                                                                   | Modify |
+| `packages/tasks/src/index.ts`                  | Export preferences module                                                                                    | Modify |
+| `packages/shared/src/tasks-view.ts`            | Priority levels, `quadrantOf(TaskDto)`, `groupByPriority` (single source for FE)                             | Create |
+| `packages/shared/src/index.ts`                 | Export `tasks-view`                                                                                          | Modify |
+| `apps/web/src/api/client.ts`                   | Client fns: lists, tags, subtasks, focus/at-risk/overdue, breakdown, preferences                             | Modify |
+| `apps/web/src/api/query-keys.ts`               | Query keys for the new resources                                                                             | Modify |
+| `apps/web/src/tasks/task-format.ts`            | Drop `in_progress`; effort labels; reuse view helpers                                                        | Modify |
+| `apps/web/src/tasks/task-capture.tsx`          | Title-first quick-capture component                                                                          | Create |
+| `apps/web/src/tasks/task-list-view.tsx`        | Priority-grouped list view                                                                                   | Create |
+| `apps/web/src/tasks/task-matrix-view.tsx`      | Eisenhower Matrix view                                                                                       | Create |
+| `apps/web/src/tasks/tasks-page.tsx`            | Page shell: view toggle (pref-backed), list/tag sidebar, filters; mounts capture + views                     | Modify |
+| `apps/web/src/tasks/task-detail-page.tsx`      | New fields (list/do-date/effort/recurrence) + subtasks + activity                                            | Modify |
+| `apps/web/src/tasks/tasks.css`                 | All new Tasks styles (keeps `styles.css` < 1000)                                                             | Create |
+| `apps/web/src/main.tsx`                        | Import `tasks.css`                                                                                           | Modify |
+| `tests/integration/tasks-web-contract.test.ts` | REST: new-field round-trip, preferences, subtasks, status narrowing guard                                    | Create |
+| `tests/integration/tasks-view.test.ts`         | Pure unit: quadrant classification + priority grouping                                                       | Create |
+| `tests/e2e/mock-api.ts`                        | Mock lists/tags/subtasks/preferences/focus; drop `in_progress`                                               | Modify |
+| `tests/e2e/tasks.spec.ts`                      | e2e: capture, priority view, matrix toggle, detail+subtasks                                                  | Create |
+| `tests/e2e/app-shell.spec.ts`                  | Update the existing "creates and updates tasks" test for the new UI                                          | Modify |
 
 > **New tests go in NEW files** (`tasks-web-contract.test.ts`, `tasks-view.test.ts`): `tests/integration/tasks.test.ts` is at 950/1000 lines. Add only the smallest assertions there if unavoidable.
 
@@ -84,6 +84,7 @@ These are confirmed by reading the files, not assumed.
 Narrowing `TaskStatus`/`TASK_STATUSES` to `todo|done|archived` **must** include the web edits in the same commit, because `pnpm typecheck` includes the web app and the current web pages reference `in_progress`. This is the carried-over task from Plans 1–2.
 
 **Files:**
+
 - Modify: `packages/shared/src/tasks-api.ts:1`
 - Modify: `packages/db/src/types.ts` (the `TaskStatus` union — grep for it)
 - Modify: `packages/tasks/src/routes.ts:444-459` (`optionalTaskStatus`)
@@ -109,7 +110,7 @@ describe("tasks status contract (Plan 3 narrowing)", () => {
 ```
 
 - [ ] **Step 2: Run it to verify it fails** — `pnpm --filter @jarv1s/shared typecheck`
-  Expected: FAIL — `@ts-expect-error` is **unused** (because `in_progress` is still assignable), so TS reports "Unused '@ts-expect-error' directive". (Also `TASK_STATUSES` still contains `in_progress`, so the runtime `toEqual` would fail.)
+      Expected: FAIL — `@ts-expect-error` is **unused** (because `in_progress` is still assignable), so TS reports "Unused '@ts-expect-error' directive". (Also `TASK_STATUSES` still contains `in_progress`, so the runtime `toEqual` would fail.)
 
 - [ ] **Step 3: Narrow the shared contract** — `packages/shared/src/tasks-api.ts:1`:
 
@@ -156,18 +157,18 @@ export const statusLabels: Record<TaskApiStatus, string> = {
 };
 ```
 
-  - `apps/web/src/tasks/tasks-page.tsx:19`:
+- `apps/web/src/tasks/tasks-page.tsx:19`:
 
 ```ts
 const taskStatusFilters = ["all", "todo", "done", "archived"] as const;
 ```
 
-  - `apps/web/src/tasks/tasks-page.tsx` — remove the `<option value="in_progress">Doing</option>` line (~248) from the `TaskRow` status `<select>`.
-  - `apps/web/src/tasks/tasks-page.tsx` `readStatusCounts` (~280-292): remove `in_progress: 0` from the `counts` initializer.
-  - `task-detail-page.tsx` already renders from `statusLabels` via `Object.entries`, so no change there.
+- `apps/web/src/tasks/tasks-page.tsx` — remove the `<option value="in_progress">Doing</option>` line (~248) from the `TaskRow` status `<select>`.
+- `apps/web/src/tasks/tasks-page.tsx` `readStatusCounts` (~280-292): remove `in_progress: 0` from the `counts` initializer.
+- `task-detail-page.tsx` already renders from `statusLabels` via `Object.entries`, so no change there.
 
 - [ ] **Step 7: Run** — `pnpm typecheck && vitest run tests/integration/tasks-web-contract.test.ts && pnpm test:tasks`
-  Expected: typecheck green (web included); the narrowing test PASSES; `tasks.test.ts` still green.
+      Expected: typecheck green (web included); the narrowing test PASSES; `tasks.test.ts` still green.
 
 - [ ] **Step 8: Commit**
 
@@ -183,6 +184,7 @@ git commit -m "feat(tasks): narrow TaskStatus to todo|done|archived; retire in_p
 ## Task 2: Wire new task fields through REST (create/update)
 
 **Files:**
+
 - Modify: `packages/shared/src/tasks-api.ts:38-44,54-60` (request interfaces)
 - Modify: `packages/tasks/src/routes.ts:348-370` (parsers), `:461-473` (`optionalPriority`)
 - Test: `tests/integration/tasks-web-contract.test.ts`
@@ -299,7 +301,7 @@ function parseUpdateTaskBody(body: unknown) {
 }
 ```
 
-  Then tighten `optionalPriority` (lines ~461-473) to the 1–5 contract (the schemas already enforce it; this aligns the parser):
+Then tighten `optionalPriority` (lines ~461-473) to the 1–5 contract (the schemas already enforce it; this aligns the parser):
 
 ```ts
 function optionalPriority(value: unknown): number | null | undefined {
@@ -312,7 +314,7 @@ function optionalPriority(value: unknown): number | null | undefined {
 }
 ```
 
-  > `CreateTaskInput`/`UpdateTaskInput` (`repository.ts:17-44`) already accept all of these — no repo change. `doAt`/`dueAt` pass `Date` objects from `optionalDate`; the repo accepts `Date | string | null`.
+> `CreateTaskInput`/`UpdateTaskInput` (`repository.ts:17-44`) already accept all of these — no repo change. `doAt`/`dueAt` pass `Date` objects from `optionalDate`; the repo accepts `Date | string | null`.
 
 - [ ] **Step 5: Run** — `vitest run tests/integration/tasks-web-contract.test.ts && pnpm test:tasks`. Expected: PASS. If any `tasks.test.ts` priority assertion used a value outside 1–5, fix that assertion to a valid value.
 
@@ -328,6 +330,7 @@ git commit -m "feat(tasks): wire listId/doAt/effort/parentTaskId/recurrence thro
 ## Task 3: `task_preferences` vertical slice (default_view)
 
 **Files:**
+
 - Modify: `packages/shared/src/tasks-api.ts` (append Preferences contract)
 - Create: `packages/tasks/src/preferences.ts`
 - Modify: `packages/tasks/src/serialize.ts`, `packages/tasks/src/routes.ts`, `packages/tasks/src/index.ts`
@@ -418,10 +421,7 @@ export class TaskPreferencesRepository {
   async getOrCreate(db: DataContextDb): Promise<TaskPreferences> {
     assertDataContextDb(db);
 
-    const existing = await db.db
-      .selectFrom("app.task_preferences")
-      .selectAll()
-      .executeTakeFirst();
+    const existing = await db.db.selectFrom("app.task_preferences").selectAll().executeTakeFirst();
     if (existing) return existing;
 
     const inserted = await db.db
@@ -447,7 +447,7 @@ export class TaskPreferencesRepository {
 }
 ```
 
-  > `TaskPreferences` is exported from `@jarv1s/db` (`Selectable<TaskPreferencesTable>`, defined in Plan 1). Verify the export name with `grep "TaskPreferences" packages/db/src/types.ts`; if it isn't exported, add `export type TaskPreferences = Selectable<TaskPreferencesTable>;` there in this task.
+> `TaskPreferences` is exported from `@jarv1s/db` (`Selectable<TaskPreferencesTable>`, defined in Plan 1). Verify the export name with `grep "TaskPreferences" packages/db/src/types.ts`; if it isn't exported, add `export type TaskPreferences = Selectable<TaskPreferencesTable>;` there in this task.
 
 - [ ] **Step 5: Serializer + index** — `packages/tasks/src/serialize.ts` add:
 
@@ -463,7 +463,7 @@ export function serializeTaskPreferences(prefs: TaskPreferences): TaskPreference
 }
 ```
 
-  `packages/tasks/src/index.ts` add: `export * from "./preferences.js";`
+`packages/tasks/src/index.ts` add: `export * from "./preferences.js";`
 
 - [ ] **Step 6: Routes** — `packages/tasks/src/routes.ts`. Import the new schemas + `TaskPreferencesRepository` + `serializeTaskPreferences`, add `prefsRepository` to the constructed repos, and add two routes (place beside the Lists routes):
 
@@ -508,9 +508,9 @@ server.patch(
 );
 ```
 
-  Add to `TasksRoutesDependencies` (after `driftRepository?`): `readonly preferencesRepository?: TaskPreferencesRepository;`
+Add to `TasksRoutesDependencies` (after `driftRepository?`): `readonly preferencesRepository?: TaskPreferencesRepository;`
 
-  > **Route order caveat:** Fastify matches `/api/tasks/preferences` vs the param route `/api/tasks/:id` deterministically (static beats dynamic), so order is safe — but the existing `/api/tasks/lists` and `/api/tasks/focus` already prove this pattern works. No `:id` collision.
+> **Route order caveat:** Fastify matches `/api/tasks/preferences` vs the param route `/api/tasks/:id` deterministically (static beats dynamic), so order is safe — but the existing `/api/tasks/lists` and `/api/tasks/focus` already prove this pattern works. No `:id` collision.
 
 - [ ] **Step 7: Run** — `vitest run tests/integration/tasks-web-contract.test.ts -t "preferences" && pnpm typecheck`. Expected: PASS.
 
@@ -528,6 +528,7 @@ git commit -m "feat(tasks): task_preferences vertical slice — GET/PATCH defaul
 ## Task 4: Subtasks read route
 
 **Files:**
+
 - Modify: `packages/shared/src/tasks-api.ts` (route schema), `packages/tasks/src/routes.ts`
 - Test: `tests/integration/tasks-web-contract.test.ts`
 
@@ -536,7 +537,9 @@ git commit -m "feat(tasks): task_preferences vertical slice — GET/PATCH defaul
 ```ts
 it("GET /api/tasks/:id/subtasks returns the parent's children in order", async () => {
   const parent = (await postJson("/api/tasks", { title: "clean kitchen" })).json().task;
-  await postJson(`/api/tasks/${parent.id}/breakdown`, { steps: ["unload dishwasher", "wipe counters"] });
+  await postJson(`/api/tasks/${parent.id}/breakdown`, {
+    steps: ["unload dishwasher", "wipe counters"]
+  });
 
   const subtasks = await getJson(`/api/tasks/${parent.id}/subtasks`);
   expect(subtasks.statusCode).toBe(200);
@@ -594,6 +597,7 @@ git commit -m "feat(tasks): GET /api/tasks/:id/subtasks read route"
 Single source of truth for the FE priority levels and Eisenhower classification. Mirrors `serialize.ts:11-26` (`getQuadrant`) intentionally — backend works on snake_case `Task`, this works on camelCase `TaskDto`.
 
 **Files:**
+
 - Create: `packages/shared/src/tasks-view.ts`
 - Modify: `packages/shared/src/index.ts`
 - Test: `tests/integration/tasks-view.test.ts` (pure — no DB)
@@ -607,10 +611,24 @@ import { groupByPriority, PRIORITY_LEVELS, quadrantOf, type TaskDto } from "@jar
 
 function task(partial: Partial<TaskDto>): TaskDto {
   return {
-    id: "t", ownerUserId: "u", listId: "l", parentTaskId: null, title: "t",
-    description: null, status: "todo", priority: null, position: 0, dueAt: null,
-    doAt: null, effort: null, source: "manual", sourceRef: null, completedAt: null,
-    createdAt: null, updatedAt: null, ...partial
+    id: "t",
+    ownerUserId: "u",
+    listId: "l",
+    parentTaskId: null,
+    title: "t",
+    description: null,
+    status: "todo",
+    priority: null,
+    position: 0,
+    dueAt: null,
+    doAt: null,
+    effort: null,
+    source: "manual",
+    sourceRef: null,
+    completedAt: null,
+    createdAt: null,
+    updatedAt: null,
+    ...partial
   };
 }
 
@@ -751,6 +769,7 @@ git commit -m "feat(shared): tasks-view — priority levels, Eisenhower quadrant
 Add the client functions and query keys the new UI needs. (No new test here — exercised by typecheck + e2e in Task 13. Unused exported functions are fine for lint.)
 
 **Files:**
+
 - Modify: `apps/web/src/api/client.ts`, `apps/web/src/api/query-keys.ts`
 
 - [ ] **Step 1: Extend the client** — `apps/web/src/api/client.ts`. Add to the `@jarv1s/shared` type import block: `BreakdownTaskRequest, BreakdownTaskResponse, CreateTaskListRequest, CreateTaskListResponse, CreateTaskTagRequest, CreateTaskTagResponse, GetTaskPreferencesResponse, ListTaskListsResponse, ListTaskTagsResponse, UpdateTaskPreferencesRequest, UpdateTaskPreferencesResponse`. Then add these functions near the other task functions:
@@ -793,19 +812,17 @@ export async function createTaskList(
 }
 
 export async function listTaskTags(listId: string): Promise<ListTaskTagsResponse> {
-  return requestJson<ListTaskTagsResponse>(
-    `/api/tasks/lists/${encodeURIComponent(listId)}/tags`
-  );
+  return requestJson<ListTaskTagsResponse>(`/api/tasks/lists/${encodeURIComponent(listId)}/tags`);
 }
 
 export async function createTaskTag(
   listId: string,
   input: CreateTaskTagRequest
 ): Promise<CreateTaskTagResponse> {
-  return requestJson<CreateTaskTagResponse>(
-    `/api/tasks/lists/${encodeURIComponent(listId)}/tags`,
-    { method: "POST", body: input }
-  );
+  return requestJson<CreateTaskTagResponse>(`/api/tasks/lists/${encodeURIComponent(listId)}/tags`, {
+    method: "POST",
+    body: input
+  });
 }
 
 export async function getTaskPreferences(): Promise<GetTaskPreferencesResponse> {
@@ -852,6 +869,7 @@ git commit -m "feat(web): api client + query keys for lists, tags, subtasks, pre
 Establishes `tasks.css` (so later web tasks append styles here, never to the 945-line `styles.css`) and adds effort labels.
 
 **Files:**
+
 - Modify: `apps/web/src/tasks/task-format.ts`
 - Create: `apps/web/src/tasks/tasks.css`
 - Modify: `apps/web/src/main.tsx`
@@ -904,6 +922,7 @@ git commit -m "feat(web): effort labels + dedicated tasks.css stylesheet"
 EF-first capture: a single always-focused title field that submits on Enter; optional fields (list, priority, do-date, effort, repeats) live behind a "More" disclosure so the fast path stays one keystroke.
 
 **Files:**
+
 - Create: `apps/web/src/tasks/task-capture.tsx`
 - Modify: `apps/web/src/tasks/tasks.css` (append)
 
@@ -939,7 +958,7 @@ export function TaskCapture(props: { readonly defaultListId?: string }) {
     mutationFn: () =>
       createTask({
         title: title.trim(),
-        listId: (listId || props.defaultListId) || undefined,
+        listId: listId || props.defaultListId || undefined,
         priority: priority ? Number(priority) : null,
         doAt: fromDateInputValue(doAt),
         effort: (effort || null) as "quick" | "medium" | "large" | null,
@@ -976,7 +995,11 @@ export function TaskCapture(props: { readonly defaultListId?: string }) {
           type="text"
           value={title}
         />
-        <button className="primary-button" disabled={createMutation.isPending || !title.trim()} type="submit">
+        <button
+          className="primary-button"
+          disabled={createMutation.isPending || !title.trim()}
+          type="submit"
+        >
           {createMutation.isPending ? (
             <LoaderCircle className="spin" size={18} aria-hidden="true" />
           ) : (
@@ -1050,7 +1073,7 @@ export function TaskCapture(props: { readonly defaultListId?: string }) {
 }
 ```
 
-  > If the Coordinator cuts SDP-4 (recurrence), remove the `repeats` state + the "Repeats" field + the `recurrence:` line.
+> If the Coordinator cuts SDP-4 (recurrence), remove the `repeats` state + the "Repeats" field + the `recurrence:` line.
 
 - [ ] **Step 2: Append styles** — `apps/web/src/tasks/tasks.css`:
 
@@ -1092,7 +1115,7 @@ export function TaskCapture(props: { readonly defaultListId?: string }) {
 }
 ```
 
-  > Reuse existing CSS variables/classes where present (inspect `styles.css` for `--text-muted`, `.primary-button`, `.form-error`, input styling). Match the existing visual language; do not introduce a new palette.
+> Reuse existing CSS variables/classes where present (inspect `styles.css` for `--text-muted`, `.primary-button`, `.form-error`, input styling). Match the existing visual language; do not introduce a new palette.
 
 - [ ] **Step 3: Run** — `pnpm --filter @jarv1s/web typecheck`. Expected: green.
 
@@ -1108,6 +1131,7 @@ git commit -m "feat(web): title-first quick-capture component with optional fiel
 ## Task 9: Priority-grouped list view component
 
 **Files:**
+
 - Create: `apps/web/src/tasks/task-list-view.tsx`
 - Modify: `apps/web/src/tasks/tasks.css` (append)
 
@@ -1193,7 +1217,7 @@ function TaskLine(props: {
 export type { TaskApiStatus };
 ```
 
-  > The `status` filtering (which `tasks` to pass in) is done by the page (Task 11); this component just renders + groups whatever it is given.
+> The `status` filtering (which `tasks` to pass in) is done by the page (Task 11); this component just renders + groups whatever it is given.
 
 - [ ] **Step 2: Append styles** — `apps/web/src/tasks/tasks.css`:
 
@@ -1214,14 +1238,33 @@ export type { TaskApiStatus };
   padding: 0.25rem 0;
   border-bottom: 2px solid var(--border, #e5e7eb);
 }
-.task-group-header.priority-5 { border-bottom-color: #dc2626; }
-.task-group-header.priority-4 { border-bottom-color: #ea580c; }
-.task-group-header.priority-3 { border-bottom-color: #ca8a04; }
-.task-group-header.priority-2 { border-bottom-color: #2563eb; }
-.task-group-header.priority-1 { border-bottom-color: #6b7280; }
-.task-group-header.priority-none { border-bottom-color: #d1d5db; }
-.task-group-count { color: var(--text-muted, #6b7280); font-weight: 500; }
-.task-group-list { list-style: none; margin: 0; padding: 0; }
+.task-group-header.priority-5 {
+  border-bottom-color: #dc2626;
+}
+.task-group-header.priority-4 {
+  border-bottom-color: #ea580c;
+}
+.task-group-header.priority-3 {
+  border-bottom-color: #ca8a04;
+}
+.task-group-header.priority-2 {
+  border-bottom-color: #2563eb;
+}
+.task-group-header.priority-1 {
+  border-bottom-color: #6b7280;
+}
+.task-group-header.priority-none {
+  border-bottom-color: #d1d5db;
+}
+.task-group-count {
+  color: var(--text-muted, #6b7280);
+  font-weight: 500;
+}
+.task-group-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
 .task-line {
   display: flex;
   align-items: center;
@@ -1229,10 +1272,24 @@ export type { TaskApiStatus };
   padding: 0.5rem 0;
   border-bottom: 1px solid var(--border-subtle, #f3f4f6);
 }
-.task-line.done .task-line-title { text-decoration: line-through; color: var(--text-muted, #9ca3af); }
-.task-line-title { flex: 1; text-decoration: none; color: inherit; }
-.task-line-title:hover { text-decoration: underline; }
-.task-line-meta { display: flex; gap: 0.5rem; font-size: 0.78rem; color: var(--text-muted, #6b7280); }
+.task-line.done .task-line-title {
+  text-decoration: line-through;
+  color: var(--text-muted, #9ca3af);
+}
+.task-line-title {
+  flex: 1;
+  text-decoration: none;
+  color: inherit;
+}
+.task-line-title:hover {
+  text-decoration: underline;
+}
+.task-line-meta {
+  display: flex;
+  gap: 0.5rem;
+  font-size: 0.78rem;
+  color: var(--text-muted, #6b7280);
+}
 ```
 
 - [ ] **Step 3: Run** — `pnpm --filter @jarv1s/web typecheck`. Expected: green.
@@ -1249,6 +1306,7 @@ git commit -m "feat(web): priority-grouped task list view"
 ## Task 10: Eisenhower Matrix view component
 
 **Files:**
+
 - Create: `apps/web/src/tasks/task-matrix-view.tsx`
 - Modify: `apps/web/src/tasks/tasks.css` (append)
 
@@ -1270,7 +1328,11 @@ export function TaskMatrixView(props: {
       {QUADRANTS.map((quadrant) => {
         const tasks = quadrantTasks(props.tasks, quadrant.key);
         return (
-          <section className={`matrix-cell matrix-${quadrant.key}`} key={quadrant.key} role="gridcell">
+          <section
+            className={`matrix-cell matrix-${quadrant.key}`}
+            key={quadrant.key}
+            role="gridcell"
+          >
             <header className="matrix-cell-header">
               <span className="matrix-cell-title">{quadrant.title}</span>
               <span className="matrix-cell-subtitle">{quadrant.subtitle}</span>
@@ -1321,17 +1383,44 @@ export function TaskMatrixView(props: {
   padding: 0.85rem;
   min-height: 9rem;
 }
-.matrix-cell.matrix-do { border-top: 3px solid #dc2626; }
-.matrix-cell.matrix-schedule { border-top: 3px solid #2563eb; }
-.matrix-cell.matrix-delegate { border-top: 3px solid #ca8a04; }
-.matrix-cell.matrix-eliminate { border-top: 3px solid #9ca3af; }
-.matrix-cell-header { display: flex; flex-direction: column; margin-bottom: 0.5rem; }
-.matrix-cell-title { font-weight: 600; }
-.matrix-cell-subtitle { font-size: 0.75rem; color: var(--text-muted, #6b7280); }
-.matrix-cell-list { list-style: none; margin: 0; padding: 0; }
-.matrix-empty { color: var(--text-muted, #9ca3af); font-size: 0.82rem; margin: 0.5rem 0 0; }
+.matrix-cell.matrix-do {
+  border-top: 3px solid #dc2626;
+}
+.matrix-cell.matrix-schedule {
+  border-top: 3px solid #2563eb;
+}
+.matrix-cell.matrix-delegate {
+  border-top: 3px solid #ca8a04;
+}
+.matrix-cell.matrix-eliminate {
+  border-top: 3px solid #9ca3af;
+}
+.matrix-cell-header {
+  display: flex;
+  flex-direction: column;
+  margin-bottom: 0.5rem;
+}
+.matrix-cell-title {
+  font-weight: 600;
+}
+.matrix-cell-subtitle {
+  font-size: 0.75rem;
+  color: var(--text-muted, #6b7280);
+}
+.matrix-cell-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.matrix-empty {
+  color: var(--text-muted, #9ca3af);
+  font-size: 0.82rem;
+  margin: 0.5rem 0 0;
+}
 @media (max-width: 720px) {
-  .task-matrix { grid-template-columns: minmax(0, 1fr); }
+  .task-matrix {
+    grid-template-columns: minmax(0, 1fr);
+  }
 }
 ```
 
@@ -1351,6 +1440,7 @@ git commit -m "feat(web): Eisenhower matrix view"
 Replaces the body of `tasks-page.tsx`. Mounts `TaskCapture` + the two views; a view toggle reads/writes `default_view`; a sidebar lists the user's lists (as filters) with create-list + create-tag forms (SDP-2/3: create + filter only, no assignment/delete this milestone).
 
 **Files:**
+
 - Modify: `apps/web/src/tasks/tasks-page.tsx` (rewrite)
 - Modify: `apps/web/src/tasks/tasks.css` (append)
 
@@ -1600,7 +1690,12 @@ function ListSidebar(props: {
           type="text"
           value={newList}
         />
-        <button className="icon-button" disabled={createListMutation.isPending} type="submit" aria-label="Add list">
+        <button
+          className="icon-button"
+          disabled={createListMutation.isPending}
+          type="submit"
+          aria-label="Add list"
+        >
           <Plus size={16} aria-hidden="true" />
         </button>
       </form>
@@ -1623,7 +1718,12 @@ function ListSidebar(props: {
               type="text"
               value={newTag}
             />
-            <button className="icon-button" disabled={createTagMutation.isPending} type="submit" aria-label="Add tag">
+            <button
+              className="icon-button"
+              disabled={createTagMutation.isPending}
+              type="submit"
+              aria-label="Add tag"
+            >
               <Plus size={16} aria-hidden="true" />
             </button>
           </form>
@@ -1634,7 +1734,7 @@ function ListSidebar(props: {
 }
 ```
 
-  > **Default status filter is `todo`** (Open) so the board opens on the actionable list, not archived clutter. **Subtasks are excluded** from the board (`parentTaskId !== null`) — they live on the parent's detail page.
+> **Default status filter is `todo`** (Open) so the board opens on the actionable list, not archived clutter. **Subtasks are excluded** from the board (`parentTaskId !== null`) — they live on the parent's detail page.
 
 - [ ] **Step 2: Append styles** — `apps/web/src/tasks/tasks.css`:
 
@@ -1644,10 +1744,28 @@ function ListSidebar(props: {
   grid-template-columns: 200px minmax(0, 1fr);
   gap: 1.25rem;
 }
-.tasks-sidebar { display: flex; flex-direction: column; gap: 0.75rem; }
-.sidebar-title { font-size: 0.95rem; margin: 0; }
-.sidebar-subtitle { font-size: 0.8rem; margin: 0.75rem 0 0.25rem; color: var(--text-muted, #6b7280); }
-.list-nav { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0.15rem; }
+.tasks-sidebar {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+.sidebar-title {
+  font-size: 0.95rem;
+  margin: 0;
+}
+.sidebar-subtitle {
+  font-size: 0.8rem;
+  margin: 0.75rem 0 0.25rem;
+  color: var(--text-muted, #6b7280);
+}
+.list-nav {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
 .list-nav button {
   width: 100%;
   text-align: left;
@@ -1658,19 +1776,38 @@ function ListSidebar(props: {
   cursor: pointer;
   color: inherit;
 }
-.list-nav button.active { background: var(--surface-active, #eef2ff); font-weight: 600; }
-.sidebar-form { display: flex; gap: 0.35rem; }
-.sidebar-form input { flex: 1; }
-.tag-list { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 0.35rem; }
+.list-nav button.active {
+  background: var(--surface-active, #eef2ff);
+  font-weight: 600;
+}
+.sidebar-form {
+  display: flex;
+  gap: 0.35rem;
+}
+.sidebar-form input {
+  flex: 1;
+}
+.tag-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
 .tag-chip {
   font-size: 0.75rem;
   background: var(--surface-subtle, #f3f4f6);
   border-radius: 999px;
   padding: 0.15rem 0.55rem;
 }
-.tasks-main { min-width: 0; }
+.tasks-main {
+  min-width: 0;
+}
 @media (max-width: 720px) {
-  .tasks-body { grid-template-columns: minmax(0, 1fr); }
+  .tasks-body {
+    grid-template-columns: minmax(0, 1fr);
+  }
 }
 ```
 
@@ -1688,6 +1825,7 @@ git commit -m "feat(web): tasks page — pref-backed view toggle, list/tag sideb
 ## Task 12: Task detail — new fields + subtasks + breakdown
 
 **Files:**
+
 - Modify: `apps/web/src/tasks/task-detail-page.tsx`
 - Modify: `apps/web/src/tasks/tasks.css` (append)
 
@@ -1704,7 +1842,7 @@ import { breakdownTask, listSubtasks, listTaskLists } from "../api/client";
 import { effortLabel } from "./task-format";
 ```
 
-  (b) State — add alongside the existing `useState` calls:
+(b) State — add alongside the existing `useState` calls:
 
 ```tsx
 const [doAt, setDoAt] = useState("");
@@ -1713,7 +1851,7 @@ const [listId, setListId] = useState("");
 const [steps, setSteps] = useState("");
 ```
 
-  (c) Queries — add:
+(c) Queries — add:
 
 ```tsx
 const listsQuery = useQuery({ queryKey: queryKeys.tasks.lists, queryFn: listTaskLists });
@@ -1724,7 +1862,7 @@ const subtasksQuery = useQuery({
 });
 ```
 
-  (d) Hydrate — extend the existing `useEffect` that seeds form state from `taskQuery.data?.task`:
+(d) Hydrate — extend the existing `useEffect` that seeds form state from `taskQuery.data?.task`:
 
 ```tsx
 setDoAt(toDateInputValue(task.doAt));
@@ -1732,7 +1870,7 @@ setEffort(task.effort ?? "");
 setListId(task.listId);
 ```
 
-  (e) Save mutation — extend the `updateTask(...)` payload in `saveMutation`:
+(e) Save mutation — extend the `updateTask(...)` payload in `saveMutation`:
 
 ```tsx
 return updateTask(taskId, {
@@ -1747,7 +1885,7 @@ return updateTask(taskId, {
 });
 ```
 
-  (f) Breakdown mutation — add:
+(f) Breakdown mutation — add:
 
 ```tsx
 const breakdownMutation = useMutation({
@@ -1768,7 +1906,7 @@ const breakdownMutation = useMutation({
 });
 ```
 
-  (g) Priority `<input type=number>` → replace with a select (the contract is 1–5):
+(g) Priority `<input type=number>` → replace with a select (the contract is 1–5):
 
 ```tsx
 <label>
@@ -1784,7 +1922,7 @@ const breakdownMutation = useMutation({
 </label>
 ```
 
-  (h) Add List / Do-on / Effort fields after the Due field:
+(h) Add List / Do-on / Effort fields after the Due field:
 
 ```tsx
 <label>
@@ -1812,7 +1950,7 @@ const breakdownMutation = useMutation({
 </label>
 ```
 
-  (i) Subtasks panel — add a third panel inside `.detail-grid`, before the Activity panel (only show breakdown form when the task itself is a top-level task; subtasks can't have children — guard on `taskQuery.data?.task.parentTaskId === null`):
+(i) Subtasks panel — add a third panel inside `.detail-grid`, before the Activity panel (only show breakdown form when the task itself is a top-level task; subtasks can't have children — guard on `taskQuery.data?.task.parentTaskId === null`):
 
 ```tsx
 <section className="panel" aria-labelledby="subtasks-title">
@@ -1825,7 +1963,9 @@ const breakdownMutation = useMutation({
       {subtasksQuery.data.tasks.map((sub) => (
         <li className={`subtask-item ${sub.status === "done" ? "done" : ""}`} key={sub.id}>
           <Link to={`/tasks/${sub.id}`}>{sub.title}</Link>
-          {effortLabel(sub.effort) ? <span className="task-effort">{effortLabel(sub.effort)}</span> : null}
+          {effortLabel(sub.effort) ? (
+            <span className="task-effort">{effortLabel(sub.effort)}</span>
+          ) : null}
         </li>
       ))}
     </ul>
@@ -1865,16 +2005,37 @@ const breakdownMutation = useMutation({
 </section>
 ```
 
-  > `Link` and `LoaderCircle` are already imported in this file. Keep the page title "Edit Task". Watch the file size — if `task-detail-page.tsx` approaches 1000 lines (it starts at 276; these additions are well within budget), it stays one file.
+> `Link` and `LoaderCircle` are already imported in this file. Keep the page title "Edit Task". Watch the file size — if `task-detail-page.tsx` approaches 1000 lines (it starts at 276; these additions are well within budget), it stays one file.
 
 - [ ] **Step 2: Append styles** — `apps/web/src/tasks/tasks.css`:
 
 ```css
-.subtask-list { list-style: none; margin: 0 0 0.75rem; padding: 0; display: flex; flex-direction: column; gap: 0.35rem; }
-.subtask-item { display: flex; align-items: center; gap: 0.5rem; }
-.subtask-item.done a { text-decoration: line-through; color: var(--text-muted, #9ca3af); }
-.subtask-form { display: flex; flex-direction: column; gap: 0.5rem; }
-.empty-hint { color: var(--text-muted, #9ca3af); font-size: 0.85rem; }
+.subtask-list {
+  list-style: none;
+  margin: 0 0 0.75rem;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+.subtask-item {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+.subtask-item.done a {
+  text-decoration: line-through;
+  color: var(--text-muted, #9ca3af);
+}
+.subtask-form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+.empty-hint {
+  color: var(--text-muted, #9ca3af);
+  font-size: 0.85rem;
+}
 .task-effort {
   font-size: 0.72rem;
   background: var(--surface-subtle, #f3f4f6);
@@ -1897,6 +2058,7 @@ git commit -m "feat(web): task detail — list/do-date/effort fields + subtasks 
 ## Task 13: e2e coverage + full gate + close-out
 
 **Files:**
+
 - Modify: `tests/e2e/mock-api.ts` (add new routes; drop `in_progress`)
 - Create: `tests/e2e/tasks.spec.ts`
 - Modify: `tests/e2e/app-shell.spec.ts` (the existing tasks test references the old "Task Board" heading + "Add task" button + status dropdown)
@@ -1907,13 +2069,15 @@ git commit -m "feat(web): task detail — list/do-date/effort fields + subtasks 
   - `GET **/api/tasks/lists/*/tags` → `{ tags: [] }`; `POST` returns a new tag.
   - `GET **/api/tasks/*/subtasks` → `{ tasks: [] }`.
   - `GET **/api/tasks/focus`, `**/api/tasks/at-risk`, `**/api/tasks/overdue` → `{ tasks: state.tasks }`.
-  Ensure `createMockTask` includes the new DTO fields (`listId: "list-1"`, `doAt: null`, `effort: null`, `parentTaskId: null`, `position`, `source: "manual"`, `sourceRef: null`) and **no `in_progress`** anywhere. Register the more specific routes (`/preferences`, `/lists`, `/focus`, `*/subtasks`) **before** the generic `/api/tasks/*` detail matcher so Playwright matches them first.
+    Ensure `createMockTask` includes the new DTO fields (`listId: "list-1"`, `doAt: null`, `effort: null`, `parentTaskId: null`, `position`, `source: "manual"`, `sourceRef: null`) and **no `in_progress`** anywhere. Register the more specific routes (`/preferences`, `/lists`, `/focus`, `*/subtasks`) **before** the generic `/api/tasks/*` detail matcher so Playwright matches them first.
 
 - [ ] **Step 2: Update the existing shell test** — `tests/e2e/app-shell.spec.ts` (lines ~41-62). The new page heading is "Tasks" (not "Task Board"), capture button label is "Add" (not "Add task"), and the title input has `aria-label="Task title"`. Update those selectors:
 
 ```ts
 test("creates and updates tasks through REST calls", async ({ page }) => {
-  await setupMockApi(page, { /* …existing state with createMockTask("task-1", "Existing secure task") … */ });
+  await setupMockApi(page, {
+    /* …existing state with createMockTask("task-1", "Existing secure task") … */
+  });
   await page.goto("/tasks");
   await expect(page.getByRole("heading", { name: "Tasks", level: 1 })).toBeVisible();
   await page.getByLabel("Task title").fill("Renew passport");
@@ -1922,7 +2086,7 @@ test("creates and updates tasks through REST calls", async ({ page }) => {
 });
 ```
 
-  (Keep the file's existing `setupMockApi`/import structure; only adjust the selectors that changed.)
+(Keep the file's existing `setupMockApi`/import structure; only adjust the selectors that changed.)
 
 - [ ] **Step 3: Add a focused tasks spec** — create `tests/e2e/tasks.spec.ts`:
 
@@ -1934,7 +2098,10 @@ import { createMockTask, setupMockApi } from "./mock-api";
 test.beforeEach(async ({ page }) => {
   await setupMockApi(page, {
     tasks: [
-      createMockTask("t-critical", "File taxes", { priority: 5, dueAt: "2026-06-09T12:00:00.000Z" }),
+      createMockTask("t-critical", "File taxes", {
+        priority: 5,
+        dueAt: "2026-06-09T12:00:00.000Z"
+      }),
       createMockTask("t-someday", "Learn cello", { priority: 1 })
     ]
   });
@@ -1942,7 +2109,10 @@ test.beforeEach(async ({ page }) => {
 
 test("priority view groups tasks and matrix toggle persists via preferences", async ({ page }) => {
   await page.goto("/tasks");
-  await expect(page.getByRole("button", { name: "Priority" })).toHaveAttribute("aria-pressed", "true");
+  await expect(page.getByRole("button", { name: "Priority" })).toHaveAttribute(
+    "aria-pressed",
+    "true"
+  );
   await expect(page.getByRole("heading", { name: "Critical priority" })).toBeVisible();
 
   await page.getByRole("button", { name: "Matrix" }).click();
@@ -1950,7 +2120,7 @@ test("priority view groups tasks and matrix toggle persists via preferences", as
 });
 ```
 
-  > Adjust selector specifics to the actual rendered roles/labels if Playwright reports mismatches; the assertions above match the component markup in Tasks 9–11.
+> Adjust selector specifics to the actual rendered roles/labels if Playwright reports mismatches; the assertions above match the component markup in Tasks 9–11.
 
 - [ ] **Step 4: Run e2e** — `pnpm test:e2e`. Expected: PASS. Fix selector drift if any.
 
@@ -1960,7 +2130,7 @@ test("priority view groups tasks and matrix toggle persists via preferences", as
 pnpm verify:foundation && pnpm test:e2e && pnpm audit:release-hardening
 ```
 
-  Expected: all green. (`verify:foundation` = lint, format:check, check:file-size, typecheck, db:migrate, test:integration.) If `format:check` fails, run `pnpm format` and amend.
+Expected: all green. (`verify:foundation` = lint, format:check, check:file-size, typecheck, db:migrate, test:integration.) If `format:check` fails, run `pnpm format` and amend.
 
 - [ ] **Step 6: Commit**
 
@@ -1980,6 +2150,7 @@ git commit -m "test(web): e2e for priority view, matrix toggle, capture; update 
 ## Self-Review
 
 **1. Spec coverage** (spec rev 3 §"This milestone"):
+
 - Priority-grouped default view → Tasks 5, 9, 11. ✓
 - Matrix view → Tasks 5, 10, 11. ✓
 - `default_view` per-user preference → Task 3 (backend) + Task 11 (toggle). ✓
@@ -1989,7 +2160,7 @@ git commit -m "test(web): e2e for priority view, matrix toggle, capture; update 
 - due/do/effort → Tasks 2 (REST), 8 + 12 (UI). ✓
 - Status narrowing (Open/Done/Archived) → Task 1. ✓
 - Recurrence → minimal select, Tasks 8 + (optional) 12; **SDP-4**. ⚠ (Coordinator decision)
-- Drift/focus queries → client fns added (Task 6); **not surfaced in UI this milestone** (spec calls them an "unconsumed seam" for briefings/heartbeat) — intentional. Note for Coordinator: no focus/at-risk *view* is built; flag if one is wanted.
+- Drift/focus queries → client fns added (Task 6); **not surfaced in UI this milestone** (spec calls them an "unconsumed seam" for briefings/heartbeat) — intentional. Note for Coordinator: no focus/at-risk _view_ is built; flag if one is wanted.
 - REST + web UI for all human writes → Tasks 2, 3, 4 + web tasks. ✓
 
 **2. Placeholder scan:** No "TBD"/"add error handling"/"similar to Task N". Two intentional executor-judgment notes remain (mock-api route bodies in Task 13 Step 1; e2e selector drift) — both point to the exact existing pattern to copy and concrete payloads, not vague placeholders.

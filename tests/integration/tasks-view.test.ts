@@ -4,10 +4,24 @@ import { groupByPriority, PRIORITY_LEVELS, quadrantOf, type TaskDto } from "@jar
 
 function task(partial: Partial<TaskDto>): TaskDto {
   return {
-    id: "t", ownerUserId: "u", listId: "l", parentTaskId: null, title: "t",
-    description: null, status: "todo", priority: null, position: 0, dueAt: null,
-    doAt: null, effort: null, source: "manual", sourceRef: null, completedAt: null,
-    createdAt: null, updatedAt: null, ...partial
+    id: "t",
+    ownerUserId: "u",
+    listId: "l",
+    parentTaskId: null,
+    title: "t",
+    description: null,
+    status: "todo",
+    priority: null,
+    position: 0,
+    dueAt: null,
+    doAt: null,
+    effort: null,
+    source: "manual",
+    sourceRef: null,
+    completedAt: null,
+    createdAt: null,
+    updatedAt: null,
+    ...partial
   };
 }
 

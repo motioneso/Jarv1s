@@ -13,7 +13,11 @@ export function TaskMatrixView(props: {
       {QUADRANTS.map((quadrant) => {
         const tasks = quadrantTasks(props.tasks, quadrant.key);
         return (
-          <section className={`matrix-cell matrix-${quadrant.key}`} key={quadrant.key} role="gridcell">
+          <section
+            className={`matrix-cell matrix-${quadrant.key}`}
+            key={quadrant.key}
+            role="gridcell"
+          >
             <header className="matrix-cell-header">
               <span className="matrix-cell-title">{quadrant.title}</span>
               <span className="matrix-cell-subtitle">{quadrant.subtitle}</span>

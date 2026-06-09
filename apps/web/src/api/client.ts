@@ -194,19 +194,17 @@ export async function createTaskList(
 }
 
 export async function listTaskTags(listId: string): Promise<ListTaskTagsResponse> {
-  return requestJson<ListTaskTagsResponse>(
-    `/api/tasks/lists/${encodeURIComponent(listId)}/tags`
-  );
+  return requestJson<ListTaskTagsResponse>(`/api/tasks/lists/${encodeURIComponent(listId)}/tags`);
 }
 
 export async function createTaskTag(
   listId: string,
   input: CreateTaskTagRequest
 ): Promise<CreateTaskTagResponse> {
-  return requestJson<CreateTaskTagResponse>(
-    `/api/tasks/lists/${encodeURIComponent(listId)}/tags`,
-    { method: "POST", body: input }
-  );
+  return requestJson<CreateTaskTagResponse>(`/api/tasks/lists/${encodeURIComponent(listId)}/tags`, {
+    method: "POST",
+    body: input
+  });
 }
 
 export async function getTaskPreferences(): Promise<GetTaskPreferencesResponse> {

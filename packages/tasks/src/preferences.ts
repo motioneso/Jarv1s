@@ -6,10 +6,7 @@ export class TaskPreferencesRepository {
   async getOrCreate(db: DataContextDb): Promise<TaskPreferences> {
     assertDataContextDb(db);
 
-    const existing = await db.db
-      .selectFrom("app.task_preferences")
-      .selectAll()
-      .executeTakeFirst();
+    const existing = await db.db.selectFrom("app.task_preferences").selectAll().executeTakeFirst();
     if (existing) return existing;
 
     const inserted = await db.db

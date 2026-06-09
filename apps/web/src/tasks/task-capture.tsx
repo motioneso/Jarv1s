@@ -27,7 +27,7 @@ export function TaskCapture(props: { readonly defaultListId?: string }) {
     mutationFn: () =>
       createTask({
         title: title.trim(),
-        listId: (listId || props.defaultListId) || undefined,
+        listId: listId || props.defaultListId || undefined,
         priority: priority ? Number(priority) : null,
         doAt: fromDateInputValue(doAt),
         effort: (effort || null) as "quick" | "medium" | "large" | null,
@@ -64,7 +64,11 @@ export function TaskCapture(props: { readonly defaultListId?: string }) {
           type="text"
           value={title}
         />
-        <button className="primary-button" disabled={createMutation.isPending || !title.trim()} type="submit">
+        <button
+          className="primary-button"
+          disabled={createMutation.isPending || !title.trim()}
+          type="submit"
+        >
           {createMutation.isPending ? (
             <LoaderCircle className="spin" size={18} aria-hidden="true" />
           ) : (
