@@ -40,6 +40,7 @@ Jarv1s Chat now has a live CLI-backed drawer with MCP tool access (Phase 2). Pha
 ## agentmemory recalls to run at session start
 
 Run `memory_smart_search` with these queries (CLAUDE.md "Required recalls"):
+
 - `"jarv1s current project state"`
 - `"jarv1s RLS shareability policy"`
 - `"jarv1s migration hash placement"`

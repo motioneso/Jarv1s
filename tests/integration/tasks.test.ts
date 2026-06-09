@@ -187,7 +187,14 @@ describe("Tasks module M1", () => {
       permissionId: "tasks.update"
     });
     expect(tasksManifest?.assistantTools?.map((tool) => tool.name)).toEqual([
-      "tasks.listVisible",
+      "tasks.list",
+      "tasks.get",
+      "tasks.focus",
+      "tasks.atRisk",
+      "tasks.overdue",
+      "tasks.listLists",
+      "tasks.listTags",
+      "tasks.activity",
       "tasks.updateStatus"
     ]);
     expect(getBuiltInSqlMigrationDirectories()).toContainEqual(
@@ -828,6 +835,26 @@ describe("Tasks module M1", () => {
     expect(response.statusCode).toBe(200);
     const body = response.json<{ tasks: Array<{ title: string }> }>();
     expect(body.tasks.map((t) => t.title)).toContain("quadrant-do-test");
+  });
+
+  it("repository: listByParentId returns direct children in position order", async () => {
+    const breakdown = new TaskBreakdownRepository();
+
+    const parentId = await dataContext.withDataContext(userAContext(), async (db) => {
+      const parent = await repository.create(db, { title: "plan the trip" });
+      await breakdown.breakDown(db, parent.id, ["book flights", "book hotel", "pack bags"]);
+      return parent.id;
+    });
+
+    const subtasks = await dataContext.withDataContext(userAContext(), (db) =>
+      repository.listByParentId(db, parentId)
+    );
+
+    expect(subtasks).toHaveLength(3);
+    expect(subtasks.map((t) => t.parent_task_id)).toEqual([parentId, parentId, parentId]);
+    expect(subtasks.at(0)?.title).toBe("book flights");
+    expect(subtasks.at(1)?.title).toBe("book hotel");
+    expect(subtasks.at(2)?.title).toBe("pack bags");
   });
 });
 
