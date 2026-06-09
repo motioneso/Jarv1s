@@ -1,4 +1,4 @@
-export const TASK_STATUSES = ["todo", "in_progress", "done", "archived"] as const;
+export const TASK_STATUSES = ["todo", "done", "archived"] as const;
 
 export type TaskApiStatus = (typeof TASK_STATUSES)[number];
 
@@ -41,6 +41,11 @@ export interface CreateTaskRequest {
   readonly status?: TaskApiStatus;
   readonly priority?: number | null;
   readonly dueAt?: string | null;
+  readonly listId?: string;
+  readonly doAt?: string | null;
+  readonly effort?: "quick" | "medium" | "large" | null;
+  readonly parentTaskId?: string | null;
+  readonly recurrence?: Record<string, unknown> | null;
 }
 
 export interface CreateTaskResponse {
@@ -57,6 +62,11 @@ export interface UpdateTaskRequest {
   readonly status?: TaskApiStatus;
   readonly priority?: number | null;
   readonly dueAt?: string | null;
+  readonly listId?: string;
+  readonly doAt?: string | null;
+  readonly effort?: "quick" | "medium" | "large" | null;
+  readonly parentTaskId?: string | null;
+  readonly recurrence?: Record<string, unknown> | null;
 }
 
 export interface UpdateTaskResponse {
@@ -545,4 +555,60 @@ export const overdueTasksRouteSchema = {
   response: {
     200: listTasksResponseSchema
   }
+} as const;
+
+// --- Task Preferences ---
+
+export type TaskDefaultView = "priority" | "matrix";
+
+export interface TaskPreferencesDto {
+  readonly defaultView: TaskDefaultView;
+  readonly updatedAt: string | null;
+}
+
+export interface GetTaskPreferencesResponse {
+  readonly preferences: TaskPreferencesDto;
+}
+
+export interface UpdateTaskPreferencesRequest {
+  readonly defaultView: TaskDefaultView;
+}
+
+export interface UpdateTaskPreferencesResponse {
+  readonly preferences: TaskPreferencesDto;
+}
+
+export const taskPreferencesDtoSchema = {
+  type: "object",
+  required: ["defaultView", "updatedAt"],
+  properties: {
+    defaultView: { type: "string", enum: ["priority", "matrix"] },
+    updatedAt: nullableStringSchema
+  }
+} as const;
+
+export const getTaskPreferencesResponseSchema = {
+  type: "object",
+  required: ["preferences"],
+  properties: { preferences: taskPreferencesDtoSchema }
+} as const;
+
+export const updateTaskPreferencesRequestSchema = {
+  type: "object",
+  required: ["defaultView"],
+  properties: { defaultView: { type: "string", enum: ["priority", "matrix"] } }
+} as const;
+
+export const getTaskPreferencesRouteSchema = {
+  response: { 200: getTaskPreferencesResponseSchema }
+} as const;
+
+export const updateTaskPreferencesRouteSchema = {
+  body: updateTaskPreferencesRequestSchema,
+  response: { 200: getTaskPreferencesResponseSchema }
+} as const;
+
+export const listSubtasksRouteSchema = {
+  params: taskParamsSchema,
+  response: { 200: listTasksResponseSchema }
 } as const;

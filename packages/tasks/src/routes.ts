@@ -11,12 +11,15 @@ import {
   createTaskTagRouteSchema,
   deferredTaskStatusRouteSchema,
   focusTasksRouteSchema,
+  getTaskPreferencesRouteSchema,
   getTaskRouteSchema,
+  listSubtasksRouteSchema,
   listTaskActivityRouteSchema,
   listTaskListsRouteSchema,
   listTaskTagsRouteSchema,
   listTasksRouteSchema,
   overdueTasksRouteSchema,
+  updateTaskPreferencesRouteSchema,
   updateTaskRouteSchema
 } from "@jarv1s/shared";
 
@@ -25,12 +28,14 @@ import { TASKS_DEFERRED_STATUS_QUEUE } from "./manifest.js";
 import { TaskBreakdownRepository } from "./breakdown.js";
 import { TaskDriftRepository } from "./drift.js";
 import { TaskListsRepository } from "./lists.js";
+import { TaskPreferencesRepository } from "./preferences.js";
 import { TasksRepository } from "./repository.js";
 import {
   filterByQuadrant,
   serializeTask,
   serializeTaskActivity,
   serializeTaskList,
+  serializeTaskPreferences,
   serializeTaskTag
 } from "./serialize.js";
 
@@ -42,6 +47,7 @@ export interface TasksRoutesDependencies {
   readonly listsRepository?: TaskListsRepository;
   readonly breakdownRepository?: TaskBreakdownRepository;
   readonly driftRepository?: TaskDriftRepository;
+  readonly preferencesRepository?: TaskPreferencesRepository;
 }
 
 interface TaskParams {
@@ -56,6 +62,7 @@ export function registerTasksRoutes(
   const listsRepository = dependencies.listsRepository ?? new TaskListsRepository();
   const breakdownRepository = dependencies.breakdownRepository ?? new TaskBreakdownRepository();
   const driftRepository = dependencies.driftRepository ?? new TaskDriftRepository();
+  const prefsRepository = dependencies.preferencesRepository ?? new TaskPreferencesRepository();
 
   server.get("/api/tasks", { schema: listTasksRouteSchema }, async (request, reply) => {
     try {
@@ -98,6 +105,45 @@ export function registerTasksRoutes(
     }
   });
 
+  // --- Preferences ---
+
+  server.get(
+    "/api/tasks/preferences",
+    { schema: getTaskPreferencesRouteSchema },
+    async (request, reply) => {
+      try {
+        const accessContext = await dependencies.resolveAccessContext(request);
+        const prefs = await dependencies.dataContext.withDataContext(accessContext, (scopedDb) =>
+          prefsRepository.getOrCreate(scopedDb)
+        );
+        return { preferences: serializeTaskPreferences(prefs) };
+      } catch (error) {
+        return handleRouteError(error, reply);
+      }
+    }
+  );
+
+  server.patch(
+    "/api/tasks/preferences",
+    { schema: updateTaskPreferencesRouteSchema },
+    async (request, reply) => {
+      try {
+        const accessContext = await dependencies.resolveAccessContext(request);
+        const body = requireObject(request.body);
+        const defaultView = body["defaultView"];
+        if (defaultView !== "priority" && defaultView !== "matrix") {
+          throw new HttpError(400, "defaultView must be priority or matrix");
+        }
+        const prefs = await dependencies.dataContext.withDataContext(accessContext, (scopedDb) =>
+          prefsRepository.update(scopedDb, defaultView)
+        );
+        return { preferences: serializeTaskPreferences(prefs) };
+      } catch (error) {
+        return handleRouteError(error, reply);
+      }
+    }
+  );
+
   server.get<{ Params: TaskParams }>(
     "/api/tasks/:id",
     { schema: getTaskRouteSchema },
@@ -135,6 +181,22 @@ export function registerTasksRoutes(
         }
 
         return { task: serializeTask(task) };
+      } catch (error) {
+        return handleRouteError(error, reply);
+      }
+    }
+  );
+
+  server.get<{ Params: TaskParams }>(
+    "/api/tasks/:id/subtasks",
+    { schema: listSubtasksRouteSchema },
+    async (request, reply) => {
+      try {
+        const accessContext = await dependencies.resolveAccessContext(request);
+        const tasks = await dependencies.dataContext.withDataContext(accessContext, (scopedDb) =>
+          repository.listByParentId(scopedDb, request.params.id)
+        );
+        return { tasks: tasks.map(serializeTask) };
       } catch (error) {
         return handleRouteError(error, reply);
       }
@@ -353,7 +415,12 @@ function parseCreateTaskBody(body: unknown) {
     description: optionalNullableString(value.description, "description"),
     status: optionalTaskStatus(value.status) ?? "todo",
     priority: optionalPriority(value.priority),
-    dueAt: optionalDate(value.dueAt, "dueAt")
+    dueAt: optionalDate(value.dueAt, "dueAt"),
+    listId: optionalString(value.listId, "listId"),
+    doAt: optionalDate(value.doAt, "doAt"),
+    effort: optionalEffort(value.effort),
+    parentTaskId: optionalNullableString(value.parentTaskId, "parentTaskId"),
+    recurrence: optionalRecurrence(value.recurrence)
   };
 }
 
@@ -365,7 +432,12 @@ function parseUpdateTaskBody(body: unknown) {
     description: optionalNullableString(value.description, "description"),
     status: optionalTaskStatus(value.status),
     priority: optionalPriority(value.priority),
-    dueAt: optionalDate(value.dueAt, "dueAt")
+    dueAt: optionalDate(value.dueAt, "dueAt"),
+    listId: optionalString(value.listId, "listId"),
+    doAt: optionalDate(value.doAt, "doAt"),
+    effort: optionalEffort(value.effort),
+    parentTaskId: optionalNullableString(value.parentTaskId, "parentTaskId"),
+    recurrence: optionalRecurrence(value.recurrence)
   };
 }
 
@@ -424,11 +496,31 @@ function optionalString(value: unknown, fieldName: string): string | undefined {
 }
 
 function optionalNullableString(value: unknown, fieldName: string): string | null | undefined {
-  if (value === null) {
+  // Treat empty string as an explicit null clear (AJV coerces JSON null → "" for
+  // anyOf:[string,null] schemas when coerceTypes:"array" is enabled).
+  if (value === null || value === "") {
     return null;
   }
 
   return optionalString(value, fieldName);
+}
+
+function optionalEffort(value: unknown): "quick" | "medium" | "large" | null | undefined {
+  if (value === undefined) return undefined;
+  // Treat empty string as null (AJV coerces JSON null → "" for anyOf:[string,null] schemas).
+  if (value === null || value === "") return null;
+  if (value === "quick" || value === "medium" || value === "large") return value;
+  throw new HttpError(400, "effort must be quick, medium, or large");
+}
+
+function optionalRecurrence(value: unknown): Record<string, unknown> | null | undefined {
+  if (value === undefined) return undefined;
+  // Treat empty string as null (AJV coerces JSON null → "" for anyOf:[object,null] schemas).
+  if (value === null || value === "") return null;
+  if (typeof value !== "object" || Array.isArray(value)) {
+    throw new HttpError(400, "recurrence must be an object");
+  }
+  return value as Record<string, unknown>;
 }
 
 function requiredTaskStatus(value: unknown): TaskStatus {
@@ -446,11 +538,6 @@ function optionalTaskStatus(value: unknown): TaskStatus | undefined {
     return undefined;
   }
 
-  // in_progress is retired; reject it behaviorally at the route layer
-  if (value === "in_progress") {
-    throw new HttpError(400, "status is invalid");
-  }
-
   if (value === "todo" || value === "done" || value === "archived") {
     return value;
   }
@@ -465,8 +552,8 @@ function optionalPriority(value: unknown): number | null | undefined {
   if (value === null) {
     return null;
   }
-  if (typeof value !== "number" || !Number.isInteger(value) || value < -32768 || value > 32767) {
-    throw new HttpError(400, "priority must be a small integer");
+  if (typeof value !== "number" || !Number.isInteger(value) || value < 1 || value > 5) {
+    throw new HttpError(400, "priority must be an integer from 1 to 5");
   }
 
   return value;
@@ -476,7 +563,9 @@ function optionalDate(value: unknown, fieldName: string): Date | null | undefine
   if (value === undefined) {
     return undefined;
   }
-  if (value === null) {
+  // Treat null or empty string as an explicit null clear (AJV coerces JSON null → "" for
+  // anyOf:[string,null] schemas when coerceTypes:"array" is enabled).
+  if (value === null || value === "") {
     return null;
   }
   if (typeof value !== "string") {
