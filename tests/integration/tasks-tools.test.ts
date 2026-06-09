@@ -189,6 +189,7 @@ describe("Tasks module — assistant read tools", () => {
     expect(overdueIds).toContain(lowOverdue.id);
     expect(overdueIds).toContain(highOverdue.id);
     expect(focusIds).toContain(highOverdue.id);
+    expect(focusIds).toContain(lowOverdue.id);
     expect(atRiskIds).toContain(highOverdue.id);
     expect(atRiskIds).not.toContain(lowOverdue.id);
   });

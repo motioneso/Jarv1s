@@ -86,7 +86,7 @@ export const taskGetExecute: ToolExecute = async (scopedDb, input, _ctx): Promis
     data: {
       task: serializeTask(task),
       subtasks: subtasks.map(serializeTask),
-      activity: activity.slice(0, 10).map(serializeTaskActivity)
+      activity: activity.slice(-10).map(serializeTaskActivity)
     }
   };
 };
