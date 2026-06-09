@@ -5,12 +5,19 @@
  * Every method builds an AccessContext { actorUserId, requestId } and runs its
  * queries through the DataContextRunner so RLS scopes all reads/writes to the
  * acting owner. Provider routing reuses the AI capability router; turn recording
- * reuses ChatRepository's recency + completed-turn helpers (no pg-boss enqueue —
- * the live runtime drives the CLI in-process and persists a born-complete turn).
+ * reuses ChatRepository's recency + completed-turn helpers and then enqueues the
+ * episodic-embed job (unless the thread is incognito).
  */
 import type { AiConfiguredModelSafeRow, AiRepository, ProviderKind } from "@jarv1s/ai";
 import { assertDataContextDb, type DataContextDb, type DataContextRunner } from "@jarv1s/db";
+import type { PgBoss } from "pg-boss";
 
+import {
+  CHAT_EMBED_TURN_QUEUE,
+  CHAT_EXTRACT_FACTS_QUEUE,
+  type EmbedTurnJobPayload,
+  type ExtractFactsJobPayload
+} from "../jobs.js";
 import type { ChatPersistencePort } from "./chat-session-manager.js";
 import type { ChatRepository } from "../repository.js";
 
@@ -24,17 +31,20 @@ export interface DataContextChatPersistenceDeps {
   readonly dataContext: DataContextRunner;
   readonly chatRepository: ChatRepository;
   readonly aiRepository: AiRepository;
+  readonly boss?: PgBoss;
 }
 
 export class DataContextChatPersistence implements ChatPersistencePort {
   private readonly dataContext: DataContextRunner;
   private readonly chat: ChatRepository;
   private readonly ai: AiRepository;
+  private readonly boss: PgBoss | undefined;
 
   constructor(deps: DataContextChatPersistenceDeps) {
     this.dataContext = deps.dataContext;
     this.chat = deps.chatRepository;
     this.ai = deps.aiRepository;
+    this.boss = deps.boss;
   }
 
   async resolveActiveProvider(
@@ -82,14 +92,38 @@ export class DataContextChatPersistence implements ChatPersistencePort {
         (await this.chat.getCurrentThread(scopedDb, actorUserId)) ??
         (await this.chat.openNewThread(scopedDb, { title: DEFAULT_CONVERSATION_TITLE }));
 
-      await this.chat.recordCompletedTurn(scopedDb, thread.id, userText, assistantReply, executed);
+      const result = await this.chat.recordCompletedTurn(
+        scopedDb,
+        thread.id,
+        userText,
+        assistantReply,
+        executed
+      );
       await this.chat.touchThread(scopedDb, thread.id);
+
+      if (this.boss && result && !thread.incognito) {
+        const messageId = result.assistantMessage.id;
+        const embedPayload: EmbedTurnJobPayload = {
+          actorUserId,
+          threadId: thread.id,
+          messageId
+        };
+        const extractPayload: ExtractFactsJobPayload = {
+          actorUserId,
+          threadId: thread.id
+        };
+        await this.boss.send(CHAT_EMBED_TURN_QUEUE, embedPayload);
+        await this.boss.send(CHAT_EXTRACT_FACTS_QUEUE, extractPayload);
+      }
     });
   }
 
-  async openNewConversation(actorUserId: string): Promise<void> {
+  async openNewConversation(actorUserId: string, options?: { incognito?: boolean }): Promise<void> {
     await this.run(actorUserId, "open-new-conversation", (scopedDb) =>
-      this.chat.openNewThread(scopedDb, { title: DEFAULT_CONVERSATION_TITLE })
+      this.chat.openNewThread(scopedDb, {
+        title: DEFAULT_CONVERSATION_TITLE,
+        incognito: options?.incognito
+      })
     );
   }
 

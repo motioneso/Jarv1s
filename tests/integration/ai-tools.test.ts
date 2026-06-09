@@ -427,6 +427,8 @@ describe("AI read-only assistant tool execution foundation", () => {
     expect(getAllQueueDefinitions().map((queue) => queue.name)).toEqual([
       "rls-probe",
       "tasks-deferred-status",
+      "chat.embed-turn",
+      "chat.extract-facts",
       "briefings-run"
     ]);
     await expect(tasksRepository.listVisible({} as never)).rejects.toThrow(

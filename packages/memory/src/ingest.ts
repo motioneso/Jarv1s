@@ -72,7 +72,8 @@ export class MemoryIngestPipeline {
       relativePath,
       newChunks,
       this.embeddingProvider.modelName,
-      this.embeddingProvider.modelVersion
+      this.embeddingProvider.modelVersion,
+      SOURCE_KIND
     );
     await this.repository.replaceFileLinks(scopedDb, ownerUserId, relativePath, wikilinks);
     await this.repository.upsertFileIndex(
@@ -94,7 +95,7 @@ export class MemoryIngestPipeline {
     ownerUserId: string,
     sourcePath: string
   ): Promise<void> {
-    await this.repository.deleteFileChunks(scopedDb, ownerUserId, sourcePath);
+    await this.repository.deleteFileChunks(scopedDb, ownerUserId, sourcePath, SOURCE_KIND);
     await this.repository.replaceFileLinks(scopedDb, ownerUserId, sourcePath, []);
     await this.repository.deleteFileIndex(scopedDb, ownerUserId, SOURCE_KIND, sourcePath);
   }

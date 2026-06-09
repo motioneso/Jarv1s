@@ -27,9 +27,10 @@ export class MemoryRepository {
     sourcePath: string,
     chunks: readonly NewChunkData[],
     embedModelName: string,
-    embedModelVersion: string
+    embedModelVersion: string,
+    sourceKind: string = "vault"
   ): Promise<void> {
-    await this.deleteFileChunks(scopedDb, ownerUserId, sourcePath);
+    await this.deleteFileChunks(scopedDb, ownerUserId, sourcePath, sourceKind);
 
     for (const chunk of chunks) {
       const vectorLiteral = `[${chunk.embedding.join(",")}]`;
@@ -38,7 +39,7 @@ export class MemoryRepository {
           (owner_user_id, source_kind, source_path, line_start, line_end, content_hash, text,
            embedding, embed_model_name, embed_model_version)
         VALUES
-          (${ownerUserId}::uuid, ${"vault"}, ${chunk.sourcePath}, ${chunk.lineStart},
+          (${ownerUserId}::uuid, ${sourceKind}, ${chunk.sourcePath}, ${chunk.lineStart},
            ${chunk.lineEnd}, ${chunk.contentHash}, ${chunk.text}, ${vectorLiteral}::vector,
            ${embedModelName}, ${embedModelVersion})
       `.execute(scopedDb.db);
@@ -48,12 +49,14 @@ export class MemoryRepository {
   async deleteFileChunks(
     scopedDb: DataContextDb,
     ownerUserId: string,
-    sourcePath: string
+    sourcePath: string,
+    sourceKind: string = "vault"
   ): Promise<void> {
     await sql`
       DELETE FROM app.memory_chunks
       WHERE owner_user_id = ${ownerUserId}::uuid
         AND source_path = ${sourcePath}
+        AND source_kind = ${sourceKind}
     `.execute(scopedDb.db);
   }
 
@@ -69,7 +72,8 @@ export class MemoryRepository {
   async vectorSearch(
     scopedDb: DataContextDb,
     embedding: number[],
-    limit: number
+    limit: number,
+    sourceKind: string = "vault"
   ): Promise<RetrievedChunk[]> {
     const vectorLiteral = `[${embedding.join(",")}]`;
     const result = await sql<{
@@ -84,6 +88,7 @@ export class MemoryRepository {
              1 - (embedding <=> ${vectorLiteral}::vector) AS similarity
       FROM app.memory_chunks
       WHERE embedding IS NOT NULL
+        AND source_kind = ${sourceKind}
       ORDER BY embedding <=> ${vectorLiteral}::vector
       LIMIT ${limit}
     `.execute(scopedDb.db);
