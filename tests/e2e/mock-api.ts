@@ -9,6 +9,7 @@ import type {
   ChatThreadDto,
   ConnectorAccountDto,
   ConnectorProviderDto,
+  ConnectorProviderType,
   CreateAiConfiguredModelRequest,
   CreateAiProviderConfigRequest,
   CreateConnectorAccountRequest,
@@ -127,6 +128,12 @@ export async function mockApi(page: Page, state: MockApiState): Promise<void> {
   );
   await page.route("**/api/connectors/accounts", (route) =>
     handleConnectorAccountsRoute(route, state)
+  );
+  await page.route("**/api/connectors/google/authorize", (route) =>
+    handleGoogleAuthorizeRoute(route, state)
+  );
+  await page.route("**/api/connectors/google/complete", (route) =>
+    handleGoogleCompleteRoute(route, state)
   );
   await page.route(/\/api\/ai\/providers\/[^/]+\/revoke$/, (route) =>
     handleAiProviderRevokeRoute(route, state)
@@ -257,6 +264,23 @@ async function handleConnectorRevokeRoute(route: Route, state: MockApiState): Pr
     item.id === accountId ? revokedAccount : item
   );
   return fulfillJson(route, 200, { account: revokedAccount });
+}
+
+async function handleGoogleAuthorizeRoute(route: Route, _state: MockApiState): Promise<void> {
+  return fulfillJson(route, 200, {
+    authUrl: "https://accounts.google.com/o/oauth2/v2/auth?state=test-state&client_id=mock"
+  });
+}
+
+async function handleGoogleCompleteRoute(route: Route, state: MockApiState): Promise<void> {
+  const googleAccount = createMockConnectorAccount("google-account-1", {
+    providerId: "google",
+    providerType: "google" as ConnectorProviderType,
+    providerDisplayName: "Google",
+    status: "active"
+  });
+  state.connectorAccounts = [...state.connectorAccounts, googleAccount];
+  return fulfillJson(route, 201, { account: googleAccount });
 }
 
 async function handleAiProvidersRoute(route: Route, state: MockApiState): Promise<void> {
