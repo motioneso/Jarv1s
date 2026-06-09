@@ -12,7 +12,9 @@ import {
   GOOGLE_SCOPES,
   parseRedirectUrl,
   ConnectorsRepository,
-  createConnectorSecretCipher
+  createConnectorSecretCipher,
+  GoogleConnectionService,
+  GoogleConnectError
 } from "@jarv1s/connectors";
 import { connectionStrings, ids, resetFoundationDatabase } from "./test-database.js";
 
@@ -172,5 +174,125 @@ describe("Google connection repository", () => {
     expect(result?.id).toBeTruthy();
     const decrypted = cipher.decryptJson(result!.encryptedSecret);
     expect(decrypted.accessToken).toBe("at2");
+  });
+});
+
+describe("GoogleConnectionService", () => {
+  let appDb: Kysely<JarvisDatabase>;
+  let dataContext: DataContextRunner;
+  const userA = (): AccessContext => ({ actorUserId: ids.userA, requestId: "req:a" });
+
+  beforeAll(async () => {
+    process.env.JARVIS_CONNECTOR_SECRET_KEY = "test-connector-secret-key";
+    await resetFoundationDatabase();
+    appDb = createDatabase({ connectionString: connectionStrings.app, maxConnections: 1 });
+    dataContext = new DataContextRunner(appDb);
+  });
+  afterAll(async () => {
+    await appDb?.destroy();
+  });
+
+  it("startAuthorization stores pending creds and returns an auth URL", async () => {
+    const service = new GoogleConnectionService({
+      repository: new ConnectorsRepository(),
+      cipher: createConnectorSecretCipher(),
+      oauthClient: new GoogleOAuthClient(),
+      generateState: () => "fixed-state"
+    });
+    const result = await dataContext.withDataContext(userA(), (db) =>
+      service.startAuthorization(db, { clientId: "cid", clientSecret: "sec" })
+    );
+    expect(result.authUrl).toContain("state=fixed-state");
+    expect(result.authUrl).toContain("accounts.google.com");
+    const pending = await dataContext.withDataContext(userA(), (db) =>
+      new ConnectorsRepository().getGooglePending(db)
+    );
+    expect(pending?.state).toBe("fixed-state");
+  });
+
+  it("completeAuthorization validates state, exchanges code, and stores tokens", async () => {
+    const oauthClient = new GoogleOAuthClient({
+      fetchFn: (async () => ({
+        ok: true,
+        status: 200,
+        json: async () => ({
+          access_token: "at",
+          refresh_token: "rt",
+          expires_in: 3600,
+          scope: "https://www.googleapis.com/auth/calendar",
+          token_type: "Bearer"
+        }),
+        text: async () => ""
+      })) as unknown as typeof fetch
+    });
+    const service = new GoogleConnectionService({
+      repository: new ConnectorsRepository(),
+      cipher: createConnectorSecretCipher(),
+      oauthClient,
+      generateState: () => "fixed-state"
+    });
+    await dataContext.withDataContext(userA(), (db) =>
+      service.startAuthorization(db, { clientId: "cid", clientSecret: "sec" })
+    );
+    const account = await dataContext.withDataContext(userA(), (db) =>
+      service.completeAuthorization(db, {
+        redirectUrl: "http://localhost:1/?code=4/abc&state=fixed-state"
+      })
+    );
+    expect(account.provider_id).toBe("google");
+    expect(account.status).toBe("active");
+  });
+
+  it("completeAuthorization rejects a mismatched state with GoogleConnectError", async () => {
+    const service = new GoogleConnectionService({
+      repository: new ConnectorsRepository(),
+      cipher: createConnectorSecretCipher(),
+      oauthClient: new GoogleOAuthClient(),
+      generateState: () => "fixed-state"
+    });
+    await dataContext.withDataContext(userA(), (db) =>
+      service.startAuthorization(db, { clientId: "cid", clientSecret: "sec" })
+    );
+    await expect(
+      dataContext.withDataContext(userA(), (db) =>
+        service.completeAuthorization(db, {
+          redirectUrl: "http://localhost:1/?code=4/abc&state=WRONG"
+        })
+      )
+    ).rejects.toThrow(GoogleConnectError);
+  });
+
+  it("getFreshAccessToken returns a valid token without refreshing when not near expiry", async () => {
+    const oauthClient = new GoogleOAuthClient({
+      fetchFn: (async () => ({
+        ok: true,
+        status: 200,
+        json: async () => ({
+          access_token: "at",
+          refresh_token: "rt",
+          expires_in: 3600,
+          scope: "https://www.googleapis.com/auth/calendar",
+          token_type: "Bearer"
+        }),
+        text: async () => ""
+      })) as unknown as typeof fetch
+    });
+    const service = new GoogleConnectionService({
+      repository: new ConnectorsRepository(),
+      cipher: createConnectorSecretCipher(),
+      oauthClient,
+      generateState: () => "s",
+      now: () => new Date()
+    });
+    await dataContext.withDataContext(userA(), (db) =>
+      service.startAuthorization(db, { clientId: "cid", clientSecret: "sec" })
+    );
+    await dataContext.withDataContext(userA(), (db) =>
+      service.completeAuthorization(db, { redirectUrl: "http://localhost:1/?code=4/abc&state=s" })
+    );
+    const token = await dataContext.withDataContext(userA(), (db) =>
+      service.getFreshAccessToken(db)
+    );
+    expect(token).toBe("at");
   });
 });
