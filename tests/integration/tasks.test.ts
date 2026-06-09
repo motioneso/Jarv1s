@@ -617,6 +617,56 @@ describe("Tasks module M1", () => {
     expect(tag.list_id).toBe(a.id);
     expect(tag.owner_user_id).toBe(ids.userA);
   });
+
+  it("completing a recurring task generates exactly one next instance; idempotent", async () => {
+    const made = await dataContext.withDataContext(userAContext(), (db) =>
+      repository.create(db, {
+        title: "take out trash",
+        recurrence: { freq: "weekly", interval: 1, occurrence_date: "2026-06-08" },
+        dueAt: new Date("2026-06-08")
+      })
+    );
+
+    // Sanity: the created task must have a series id and the recurrence jsonb.
+    expect(made.recurrence_series_id).toBeTruthy();
+    expect((made.recurrence as Record<string, unknown>)["occurrence_date"]).toBe("2026-06-08");
+
+    // Complete the task — this should spawn the next weekly instance.
+    await dataContext.withDataContext(userAContext(), (db) =>
+      repository.updateStatus(db, made.id, "done")
+    );
+
+    // Query the full series.
+    const series = await dataContext.withDataContext(userAContext(), (db) =>
+      db.db
+        .selectFrom("app.tasks")
+        .selectAll()
+        .where("recurrence_series_id", "=", made.recurrence_series_id!)
+        .execute()
+    );
+
+    const open = series.filter((t) => t.status === "todo");
+    expect(open).toHaveLength(1);
+    expect(open[0]!.id).not.toBe(made.id);
+
+    // The next instance must be one week later.
+    const nextOccurrence = (open[0]!.recurrence as Record<string, unknown>)["occurrence_date"];
+    expect(nextOccurrence).toBe("2026-06-15");
+
+    // Idempotency: completing the original again (already done) must NOT spawn a second open instance.
+    await dataContext.withDataContext(userAContext(), (db) =>
+      repository.updateStatus(db, made.id, "done")
+    );
+    const seriesAfter = await dataContext.withDataContext(userAContext(), (db) =>
+      db.db
+        .selectFrom("app.tasks")
+        .selectAll()
+        .where("recurrence_series_id", "=", made.recurrence_series_id!)
+        .execute()
+    );
+    const openAfter = seriesAfter.filter((t) => t.status === "todo");
+    expect(openAfter).toHaveLength(1);
+  });
 });
 
 async function seedTaskData(): Promise<void> {

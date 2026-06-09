@@ -12,6 +12,7 @@ import {
 } from "@jarv1s/db";
 
 import { TaskListsRepository } from "./lists.js";
+import { generateNext } from "./recurrence.js";
 
 export interface CreateTaskInput {
   readonly title: string;
@@ -100,6 +101,25 @@ export class TasksRepository {
     const status = input.status ?? "todo";
     const completedAt = status === "done" ? now : null;
 
+    // Recurrence: assign a series id and ensure occurrence_date is present in the jsonb.
+    let recurrenceValue: Record<string, unknown> | null = null;
+    let recurrenceSeriesId: string | null = null;
+    if (input.recurrence != null) {
+      recurrenceSeriesId = randomUUID();
+      // Derive a default occurrence_date from dueAt or today if not supplied.
+      const existingOccurrenceDate = input.recurrence["occurrence_date"] as string | undefined;
+      let occurrenceDate: string;
+      if (existingOccurrenceDate) {
+        occurrenceDate = existingOccurrenceDate;
+      } else if (input.dueAt != null) {
+        const d = typeof input.dueAt === "string" ? new Date(input.dueAt) : input.dueAt;
+        occurrenceDate = d.toISOString().slice(0, 10);
+      } else {
+        occurrenceDate = now.toISOString().slice(0, 10);
+      }
+      recurrenceValue = { ...input.recurrence, occurrence_date: occurrenceDate };
+    }
+
     const row = await scopedDb.db
       .insertInto("app.tasks")
       .values({
@@ -118,7 +138,8 @@ export class TasksRepository {
         source,
         source_ref: input.sourceRef ?? null,
         external_key: input.externalKey ?? null,
-        recurrence: input.recurrence ?? null,
+        recurrence: recurrenceValue,
+        recurrence_series_id: recurrenceSeriesId,
         completed_at: completedAt,
         created_at: now,
         updated_at: now
@@ -197,6 +218,13 @@ export class TasksRepository {
       if (newStatus === "done" && updated.parent_task_id !== null) {
         // Child completed: check if all siblings are also done; if so, close the parent.
         await this.maybeAutoCloseParent(scopedDb, updated.parent_task_id);
+      }
+
+      // Recurrence: when a recurring task transitions to done, generate the next instance.
+      // Recurring tasks cannot be parents (enforced by DB trigger), so there is no
+      // interaction with the cascade above.
+      if (newStatus === "done" && updated.recurrence != null) {
+        await generateNext(scopedDb, updated);
       }
     }
 
