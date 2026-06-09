@@ -244,7 +244,7 @@ function TaskRow(props: {
           onChange={(event) => props.onStatusChange(event.target.value as TaskApiStatus)}
           value={props.task.status}
         >
-          <option value="todo">Todo</option>
+          <option value="todo">Open</option>
           <option value="done">Done</option>
           <option value="archived">Archived</option>
         </select>
