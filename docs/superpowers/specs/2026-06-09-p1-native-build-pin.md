@@ -1,7 +1,7 @@
 # Pin the Native-Build Posture — Design (P1 #58)
 
 **Status:** Approved for build (2026-06-09)
-**Date:** 2026-06-09  **Owner:** Ben  **Issue:** #58 (Part of epic #46)
+**Date:** 2026-06-09 **Owner:** Ben **Issue:** #58 (Part of epic #46)
 
 ## Context
 
@@ -9,11 +9,11 @@ pnpm 10 blocks dependency install scripts by default. Three transitive packages 
 `@huggingface/transformers` (the M-A1 embedding runtime) carry lifecycle scripts that are silently
 not executed unless explicitly allowed:
 
-| Package | Script type | What it does |
-| --- | --- | --- |
-| `onnxruntime-node@1.21.0` | `postinstall` | Downloads pre-built native ONNX binaries for the current platform |
-| `sharp@0.34.5` | `install` | Downloads pre-built libvips binaries (or compiles from source as fallback) |
-| `protobufjs@7.4.x` | `postinstall` | Emits a version-scheme warning if a dependant uses a mismatched version prefix; harmless if skipped |
+| Package                   | Script type   | What it does                                                                                        |
+| ------------------------- | ------------- | --------------------------------------------------------------------------------------------------- |
+| `onnxruntime-node@1.21.0` | `postinstall` | Downloads pre-built native ONNX binaries for the current platform                                   |
+| `sharp@0.34.5`            | `install`     | Downloads pre-built libvips binaries (or compiles from source as fallback)                          |
+| `protobufjs@7.4.x`        | `postinstall` | Emits a version-scheme warning if a dependant uses a mismatched version prefix; harmless if skipped |
 
 `onnxruntime-node` is the critical one: without its postinstall, the `.node` binding and
 `libonnxruntime.so.1` are absent and `@huggingface/transformers` fails at runtime with a module-not-
@@ -51,12 +51,12 @@ There is no `pnpm.onlyBuiltDependencies` or `pnpm.ignoredBuiltDependencies` anyw
 
 ## Resolved Decisions
 
-| # | Decision | Choice | Why |
-| - | -------- | ------ | --- |
-| 1 | Config location | `pnpm-workspace.yaml` | **Corrected during build (2026-06-09 calibration):** pnpm 10.6.2 in this workspace does **not** read `onlyBuiltDependencies` from the root `package.json` `"pnpm"` key — it stayed a no-op (the ignored-scripts warning persisted, lockfile unchanged). The settings ARE read from `pnpm-workspace.yaml`; placing them there + `pnpm rebuild onnxruntime-node sharp` cleared the warning and produced the linux binding. |
-| 2 | `onnxruntime-node` | Allow (in `onlyBuiltDependencies`) | Downloads pre-built ONNX binary — mandatory for the embedding provider to function. |
-| 3 | `sharp` | Allow (in `onlyBuiltDependencies`) | Downloads pre-built libvips — declared dep of `@huggingface/transformers`; may be needed for future image modalities. |
-| 4 | `protobufjs` | Ignore (in `ignoredBuiltDependencies`) | Postinstall is a version-scheme warning only; blocking it is safe and intentional; documenting the intent prevents future confusion. |
+| #   | Decision           | Choice                                 | Why                                                                                                                                                                                                                                                                                                                                                                                                                      |
+| --- | ------------------ | -------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| 1   | Config location    | `pnpm-workspace.yaml`                  | **Corrected during build (2026-06-09 calibration):** pnpm 10.6.2 in this workspace does **not** read `onlyBuiltDependencies` from the root `package.json` `"pnpm"` key — it stayed a no-op (the ignored-scripts warning persisted, lockfile unchanged). The settings ARE read from `pnpm-workspace.yaml`; placing them there + `pnpm rebuild onnxruntime-node sharp` cleared the warning and produced the linux binding. |
+| 2   | `onnxruntime-node` | Allow (in `onlyBuiltDependencies`)     | Downloads pre-built ONNX binary — mandatory for the embedding provider to function.                                                                                                                                                                                                                                                                                                                                      |
+| 3   | `sharp`            | Allow (in `onlyBuiltDependencies`)     | Downloads pre-built libvips — declared dep of `@huggingface/transformers`; may be needed for future image modalities.                                                                                                                                                                                                                                                                                                    |
+| 4   | `protobufjs`       | Ignore (in `ignoredBuiltDependencies`) | Postinstall is a version-scheme warning only; blocking it is safe and intentional; documenting the intent prevents future confusion.                                                                                                                                                                                                                                                                                     |
 
 ## Resolved Decisions (was open)
 
@@ -94,6 +94,7 @@ ls node_modules/.pnpm/onnxruntime-node@*/node_modules/onnxruntime-node/bin/napi-
 ## Collision notes
 
 `package.json` + `pnpm-lock.yaml` are shared with:
+
 - **#51** (adds `test:unit` script + updates `verify:foundation`) — **lands first** (Wave A).
 - **#53** (adds `@fastify/rate-limit` dependency) — lands last.
 
