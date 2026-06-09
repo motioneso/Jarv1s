@@ -13,6 +13,7 @@ import {
   focusTasksRouteSchema,
   getTaskPreferencesRouteSchema,
   getTaskRouteSchema,
+  listSubtasksRouteSchema,
   listTaskActivityRouteSchema,
   listTaskListsRouteSchema,
   listTaskTagsRouteSchema,
@@ -180,6 +181,22 @@ export function registerTasksRoutes(
         }
 
         return { task: serializeTask(task) };
+      } catch (error) {
+        return handleRouteError(error, reply);
+      }
+    }
+  );
+
+  server.get<{ Params: TaskParams }>(
+    "/api/tasks/:id/subtasks",
+    { schema: listSubtasksRouteSchema },
+    async (request, reply) => {
+      try {
+        const accessContext = await dependencies.resolveAccessContext(request);
+        const tasks = await dependencies.dataContext.withDataContext(accessContext, (scopedDb) =>
+          repository.listByParentId(scopedDb, request.params.id)
+        );
+        return { tasks: tasks.map(serializeTask) };
       } catch (error) {
         return handleRouteError(error, reply);
       }

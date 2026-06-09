@@ -607,3 +607,8 @@ export const updateTaskPreferencesRouteSchema = {
   body: updateTaskPreferencesRequestSchema,
   response: { 200: getTaskPreferencesResponseSchema }
 } as const;
+
+export const listSubtasksRouteSchema = {
+  params: taskParamsSchema,
+  response: { 200: listTasksResponseSchema }
+} as const;

@@ -73,6 +73,64 @@ describe("task_preferences vertical slice (Plan 3 Task 3)", () => {
   });
 });
 
+describe("subtasks read route (Plan 3 Task 4)", () => {
+  let server: ReturnType<typeof createApiServer>;
+  let appBoss: ReturnType<typeof createPgBossClient>;
+  let appDb: ReturnType<typeof createDatabase>;
+
+  beforeAll(async () => {
+    await resetFoundationDatabase();
+
+    appDb = createDatabase({
+      connectionString: connectionStrings.app,
+      maxConnections: 1
+    });
+    appBoss = createPgBossClient(connectionStrings.app);
+    await appBoss.start();
+
+    server = createApiServer({
+      appDb,
+      boss: appBoss,
+      logger: false
+    });
+    await server.ready();
+  });
+
+  afterAll(async () => {
+    await Promise.allSettled([
+      server?.close(),
+      appBoss?.stop({ graceful: false }),
+      appDb?.destroy()
+    ]);
+  });
+
+  it("GET /api/tasks/:id/subtasks returns the parent's children in order", async () => {
+    const parentRes = await server.inject({
+      method: "POST",
+      url: "/api/tasks",
+      headers: { authorization: `Bearer ${ids.sessionA}` },
+      payload: { title: "clean kitchen" }
+    });
+    const parent = JSON.parse(parentRes.body).task;
+
+    await server.inject({
+      method: "POST",
+      url: `/api/tasks/${parent.id}/breakdown`,
+      headers: { authorization: `Bearer ${ids.sessionA}` },
+      payload: { steps: ["unload dishwasher", "wipe counters"] }
+    });
+
+    const subtasksRes = await server.inject({
+      method: "GET",
+      url: `/api/tasks/${parent.id}/subtasks`,
+      headers: { authorization: `Bearer ${ids.sessionA}` }
+    });
+    expect(subtasksRes.statusCode).toBe(200);
+    const titles = JSON.parse(subtasksRes.body).tasks.map((t: { title: string }) => t.title);
+    expect(titles).toEqual(["unload dishwasher", "wipe counters"]);
+  });
+});
+
 describe("tasks route parser — new fields round-trip (Plan 3 Task 2)", () => {
   let server: ReturnType<typeof createApiServer>;
   let appBoss: ReturnType<typeof createPgBossClient>;
