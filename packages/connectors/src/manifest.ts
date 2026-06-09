@@ -1,6 +1,6 @@
 import { fileURLToPath } from "node:url";
 
-import type { JarvisModuleManifest } from "@jarv1s/module-sdk";
+import type { JarvisModuleManifest, ToolExecute } from "@jarv1s/module-sdk";
 import {
   createConnectorAccountRequestSchema,
   createConnectorAccountResponseSchema,
@@ -123,6 +123,35 @@ export const connectorsModuleManifest = {
       path: "/api/admin/connectors/accounts",
       responseSchema: listAdminConnectorAccountsResponseSchema,
       permissionId: "connectors.admin"
+    }
+  ],
+  assistantTools: [
+    {
+      name: "connectors.startGoogleGuidance",
+      description:
+        "Explain, step by step, how the user connects their Google account (Gmail + Calendar). Read-only guidance; the user completes the secret-entry steps in Settings.",
+      permissionId: "connectors.view",
+      risk: "read",
+      inputSchema: { type: "object", additionalProperties: false, properties: {} },
+      outputSchema: {
+        type: "object",
+        properties: {
+          steps: { type: "array", items: { type: "string" } },
+          settingsUrl: { type: "string" }
+        }
+      },
+      execute: (async (_scopedDb, _input, _ctx) => ({
+        data: {
+          steps: [
+            "In Google Cloud Console, create a project and enable the Gmail API and Google Calendar API.",
+            "Configure the OAuth consent screen and add yourself as a test user.",
+            "Create an OAuth client of type 'Desktop app' and copy the client ID and secret.",
+            "Open Jarv1s Settings → Connect Google, paste the client ID and secret, and start authorization.",
+            "Approve in the browser. The http://localhost:1 page will fail to load (expected). Copy the full address-bar URL and paste it back in Settings to finish."
+          ],
+          settingsUrl: "/settings"
+        }
+      })) as ToolExecute
     }
   ]
 } satisfies JarvisModuleManifest;

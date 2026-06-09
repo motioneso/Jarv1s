@@ -17,7 +17,8 @@ import {
   createConnectorSecretCipher,
   GoogleConnectionService,
   GoogleConnectError,
-  registerConnectorsRoutes
+  registerConnectorsRoutes,
+  connectorsModuleManifest
 } from "@jarv1s/connectors";
 import { connectionStrings, ids, resetFoundationDatabase } from "./test-database.js";
 
@@ -434,5 +435,33 @@ describe("google connect routes", () => {
     const body = res.json() as { account: { providerId: string; status: string } };
     expect(body.account.providerId).toBe("google");
     expect(body.account.status).toBe("active");
+  });
+});
+
+describe("connectors.startGoogleGuidance tool", () => {
+  it("is declared in the connectors manifest with execute and read risk", () => {
+    const tool = connectorsModuleManifest.assistantTools?.find(
+      (t) => t.name === "connectors.startGoogleGuidance"
+    );
+    expect(tool).toBeDefined();
+    expect(tool?.risk).toBe("read");
+    expect(tool?.execute).toBeDefined();
+  });
+
+  it("returns steps + settingsUrl and no secrets", async () => {
+    const tool = connectorsModuleManifest.assistantTools?.find(
+      (t) => t.name === "connectors.startGoogleGuidance"
+    );
+    const result = await tool!.execute!(
+      null as unknown,
+      {},
+      { actorUserId: "u1", requestId: "r1", chatSessionId: "s1" }
+    );
+    expect(Array.isArray(result.data.steps)).toBe(true);
+    expect((result.data.steps as string[]).length).toBeGreaterThan(0);
+    expect(result.data.settingsUrl).toBe("/settings");
+    const serialized = JSON.stringify(result.data);
+    expect(serialized).not.toContain("clientSecret");
+    expect(serialized).not.toContain("accessToken");
   });
 });
