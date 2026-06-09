@@ -10,6 +10,8 @@ import type {
 } from "@jarv1s/db";
 import {
   createConnectorAccountRouteSchema,
+  googleAuthorizeRouteSchema,
+  googleCompleteRouteSchema,
   listAdminConnectorAccountsRouteSchema,
   listConnectorAccountsRouteSchema,
   listConnectorProvidersRouteSchema,
@@ -18,10 +20,14 @@ import {
   type ConnectorAccountDto,
   type ConnectorProviderDto,
   type CreateConnectorAccountRequest,
+  type GoogleAuthorizeRequest,
+  type GoogleCompleteRequest,
   type UpdateConnectorAccountRequest
 } from "@jarv1s/shared";
 
 import { createConnectorSecretCipher, type ConnectorSecretCipher } from "./crypto.js";
+import { GoogleConnectionService, GoogleConnectError } from "./google-connection.js";
+import { GoogleOAuthClient } from "./oauth.js";
 import { ConnectorsRepository, type ConnectorAccountSafeRow } from "./repository.js";
 
 export interface ConnectorsRoutesDependencies {
@@ -30,6 +36,7 @@ export interface ConnectorsRoutesDependencies {
   readonly dataContext: DataContextRunner;
   readonly repository?: ConnectorsRepository;
   readonly secretCipher?: ConnectorSecretCipher;
+  readonly googleService?: GoogleConnectionService;
 }
 
 interface AccountParams {
@@ -42,6 +49,50 @@ export function registerConnectorsRoutes(
 ): void {
   const repository = dependencies.repository ?? new ConnectorsRepository();
   const secretCipher = dependencies.secretCipher ?? createConnectorSecretCipher();
+  const googleService =
+    dependencies.googleService ??
+    new GoogleConnectionService({
+      repository,
+      cipher: secretCipher,
+      oauthClient: new GoogleOAuthClient()
+    });
+
+  server.post(
+    "/api/connectors/google/authorize",
+    { schema: googleAuthorizeRouteSchema },
+    async (request, reply) => {
+      try {
+        const accessContext = await dependencies.resolveAccessContext(request);
+        const body = request.body as GoogleAuthorizeRequest;
+        const clientId = requiredString(body.clientId, "clientId");
+        const clientSecret = requiredString(body.clientSecret, "clientSecret");
+        const result = await dependencies.dataContext.withDataContext(accessContext, (scopedDb) =>
+          googleService.startAuthorization(scopedDb, { clientId, clientSecret })
+        );
+        return result;
+      } catch (error) {
+        return handleRouteError(error, reply);
+      }
+    }
+  );
+
+  server.post(
+    "/api/connectors/google/complete",
+    { schema: googleCompleteRouteSchema },
+    async (request, reply) => {
+      try {
+        const accessContext = await dependencies.resolveAccessContext(request);
+        const body = request.body as GoogleCompleteRequest;
+        const redirectUrl = requiredString(body.redirectUrl, "redirectUrl");
+        const account = await dependencies.dataContext.withDataContext(accessContext, (scopedDb) =>
+          googleService.completeAuthorization(scopedDb, { redirectUrl })
+        );
+        return reply.code(201).send({ account: serializeAccount(account) });
+      } catch (error) {
+        return handleRouteError(error, reply);
+      }
+    }
+  );
 
   server.get(
     "/api/connectors/providers",
@@ -334,6 +385,9 @@ class HttpError extends Error {
 }
 
 function handleRouteError(error: unknown, reply: FastifyReply) {
+  if (error instanceof GoogleConnectError) {
+    return reply.code(error.statusCode).send({ error: error.message });
+  }
   if (error instanceof HttpError) {
     return reply.code(error.statusCode).send({ error: error.message });
   }

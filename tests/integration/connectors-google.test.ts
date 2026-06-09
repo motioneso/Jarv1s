@@ -1,10 +1,12 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import {
+  AuthSessionResolver,
   DataContextRunner,
   createDatabase,
   type AccessContext,
   type JarvisDatabase
 } from "@jarv1s/db";
+import Fastify from "fastify";
 import type { Kysely } from "kysely";
 import {
   GoogleOAuthClient,
@@ -14,7 +16,8 @@ import {
   ConnectorsRepository,
   createConnectorSecretCipher,
   GoogleConnectionService,
-  GoogleConnectError
+  GoogleConnectError,
+  registerConnectorsRoutes
 } from "@jarv1s/connectors";
 import { connectionStrings, ids, resetFoundationDatabase } from "./test-database.js";
 
@@ -294,5 +297,142 @@ describe("GoogleConnectionService", () => {
       service.getFreshAccessToken(db)
     );
     expect(token).toBe("at");
+  });
+});
+
+describe("google connect routes", () => {
+  let appDb: Kysely<JarvisDatabase>;
+  let dataContext: DataContextRunner;
+  let server: ReturnType<typeof Fastify>;
+
+  beforeAll(async () => {
+    process.env.JARVIS_CONNECTOR_SECRET_KEY = "test-connector-secret-key";
+    await resetFoundationDatabase();
+    appDb = createDatabase({ connectionString: connectionStrings.app, maxConnections: 1 });
+    const auth = new AuthSessionResolver(appDb);
+    dataContext = new DataContextRunner(appDb);
+
+    const fakeOauthClient = new GoogleOAuthClient({
+      fetchFn: (async () => ({
+        ok: true,
+        status: 200,
+        json: async () => ({
+          access_token: "at-from-google",
+          refresh_token: "rt-from-google",
+          expires_in: 3600,
+          scope: "https://www.googleapis.com/auth/calendar",
+          token_type: "Bearer"
+        }),
+        text: async () => ""
+      })) as unknown as typeof fetch
+    });
+
+    const googleService = new GoogleConnectionService({
+      repository: new ConnectorsRepository(),
+      cipher: createConnectorSecretCipher(),
+      oauthClient: fakeOauthClient,
+      generateState: () => "test-state-123"
+    });
+
+    const resolveAccessContext = async (request: { headers: { authorization?: string } }) => {
+      const authHeader = request.headers.authorization ?? "";
+      const bearerToken = authHeader.startsWith("Bearer ") ? authHeader.slice(7) : "";
+      if (!bearerToken) {
+        throw new Error("Session is missing or expired");
+      }
+      return auth.resolveAccessContext(bearerToken);
+    };
+
+    server = Fastify({ logger: false });
+    registerConnectorsRoutes(server, {
+      appDb,
+      resolveAccessContext: resolveAccessContext as Parameters<
+        typeof registerConnectorsRoutes
+      >[1]["resolveAccessContext"],
+      dataContext,
+      googleService
+    });
+    await server.ready();
+  });
+
+  afterAll(async () => {
+    await Promise.allSettled([server?.close(), appDb?.destroy()]);
+  });
+
+  it("POST /authorize returns 401 without auth", async () => {
+    const res = await server.inject({
+      method: "POST",
+      url: "/api/connectors/google/authorize",
+      payload: { clientId: "cid", clientSecret: "sec" }
+    });
+    expect(res.statusCode).toBe(401);
+  });
+
+  it("POST /authorize returns 400 with missing fields", async () => {
+    const res = await server.inject({
+      method: "POST",
+      url: "/api/connectors/google/authorize",
+      headers: { authorization: `Bearer ${ids.sessionA}` },
+      payload: {}
+    });
+    expect(res.statusCode).toBe(400);
+  });
+
+  it("POST /authorize with valid creds returns 200 + authUrl", async () => {
+    const res = await server.inject({
+      method: "POST",
+      url: "/api/connectors/google/authorize",
+      headers: { authorization: `Bearer ${ids.sessionA}` },
+      payload: { clientId: "cid.apps.googleusercontent.com", clientSecret: "secret" }
+    });
+    expect(res.statusCode).toBe(200);
+    const authorizeBody = res.json() as { authUrl: string };
+    expect(authorizeBody.authUrl).toContain("accounts.google.com");
+    expect(authorizeBody.authUrl).toContain("state=test-state-123");
+  });
+
+  it("POST /complete returns 401 without auth", async () => {
+    const res = await server.inject({
+      method: "POST",
+      url: "/api/connectors/google/complete",
+      payload: { redirectUrl: "http://localhost:1/?code=x&state=y" }
+    });
+    expect(res.statusCode).toBe(401);
+  });
+
+  it("POST /complete with wrong state returns 400 (GoogleConnectError mapped by type)", async () => {
+    await server.inject({
+      method: "POST",
+      url: "/api/connectors/google/authorize",
+      headers: { authorization: `Bearer ${ids.sessionA}` },
+      payload: { clientId: "cid", clientSecret: "sec" }
+    });
+    const res = await server.inject({
+      method: "POST",
+      url: "/api/connectors/google/complete",
+      headers: { authorization: `Bearer ${ids.sessionA}` },
+      payload: { redirectUrl: "http://localhost:1/?code=4/abc&state=WRONG-STATE" }
+    });
+    expect(res.statusCode).toBe(400);
+    expect((res.json() as { error: string }).error).toContain("state");
+  });
+
+  it("POST /complete happy path returns 201 + account", async () => {
+    await server.inject({
+      method: "POST",
+      url: "/api/connectors/google/authorize",
+      headers: { authorization: `Bearer ${ids.sessionA}` },
+      payload: { clientId: "cid", clientSecret: "sec" }
+    });
+    const res = await server.inject({
+      method: "POST",
+      url: "/api/connectors/google/complete",
+      headers: { authorization: `Bearer ${ids.sessionA}` },
+      payload: { redirectUrl: `http://localhost:1/?code=4/abc&state=test-state-123` }
+    });
+    expect(res.statusCode).toBe(201);
+    const body = res.json() as { account: { providerId: string; status: string } };
+    expect(body.account.providerId).toBe("google");
+    expect(body.account.status).toBe("active");
   });
 });
