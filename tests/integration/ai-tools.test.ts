@@ -495,12 +495,24 @@ async function seedAssistantToolData(): Promise<void> {
 async function seedTasks(client: pg.Client): Promise<void> {
   await client.query(
     `
-      INSERT INTO app.tasks (id, owner_user_id, title, description, status)
+      INSERT INTO app.task_lists (owner_user_id, name)
+      VALUES ($1, 'Personal'), ($2, 'Personal')
+      ON CONFLICT DO NOTHING
+    `,
+    [ids.userA, ids.userB]
+  );
+  await client.query(
+    `
+      INSERT INTO app.tasks (id, owner_user_id, title, description, status, list_id)
       VALUES
-        ($1, $2, 'User A assistant task', 'A assistant description', 'todo'),
-        ($3, $4, 'User B private task', 'B private description', 'todo'),
-        ($5, $4, 'User B granted assistant task', 'B granted description', 'todo'),
-        ($6, $4, 'User B workspace assistant task', 'B workspace description', 'todo')
+        ($1, $2, 'User A assistant task', 'A assistant description', 'todo',
+          (SELECT id FROM app.task_lists WHERE owner_user_id = $2 AND name = 'Personal' LIMIT 1)),
+        ($3, $4, 'User B private task', 'B private description', 'todo',
+          (SELECT id FROM app.task_lists WHERE owner_user_id = $4 AND name = 'Personal' LIMIT 1)),
+        ($5, $4, 'User B granted assistant task', 'B granted description', 'todo',
+          (SELECT id FROM app.task_lists WHERE owner_user_id = $4 AND name = 'Personal' LIMIT 1)),
+        ($6, $4, 'User B workspace assistant task', 'B workspace description', 'todo',
+          (SELECT id FROM app.task_lists WHERE owner_user_id = $4 AND name = 'Personal' LIMIT 1))
     `,
     [
       taskIds.aPrivate,

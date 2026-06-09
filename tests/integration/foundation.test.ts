@@ -129,7 +129,8 @@ describe("MVP foundation scaffold", () => {
         { version: "0035", name: "0035_chat_messages_update_grant.sql" },
         { version: "0036", name: "0036_chat_worker_runtime_grants.sql" },
         { version: "0037", name: "0037_ai_worker_read_grants.sql" },
-        { version: "0038", name: "0038_chat_live_runtime.sql" }
+        { version: "0038", name: "0038_chat_live_runtime.sql" },
+        { version: "0039", name: "0039_tasks_foundation.sql" }
       ]);
     } finally {
       await client.end();

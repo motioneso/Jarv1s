@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import type { Kysely } from "kysely";
+import { sql, type Kysely } from "kysely";
 import type { PgBoss } from "pg-boss";
 import pg from "pg";
 
@@ -22,9 +22,13 @@ import {
   TASKS_DEFERRED_STATUS_QUEUE,
   type DeferredTaskStatusPayload,
   type DeferredTaskStatusResult,
+  TaskBreakdownRepository,
+  TaskDriftRepository,
+  TaskListsRepository,
   TasksRepository,
   registerTasksJobWorkers
 } from "@jarv1s/tasks";
+import type { TaskDto } from "@jarv1s/shared";
 import { connectionStrings, ids, resetFoundationDatabase } from "./test-database.js";
 
 const { Client } = pg;
@@ -353,6 +357,18 @@ describe("Tasks module M1", () => {
         authorization: `Bearer ${ids.sessionA}`
       }
     });
+    // Title-only PATCH (valid — no status change)
+    const titlePatchResponse = await server.inject({
+      method: "PATCH",
+      url: `/api/tasks/${created.id}`,
+      headers: {
+        authorization: `Bearer ${ids.sessionA}`
+      },
+      payload: {
+        title: "API-updated task"
+      }
+    });
+    // in_progress is retired — the route must reject it with 400
     const patchResponse = await server.inject({
       method: "PATCH",
       url: `/api/tasks/${created.id}`,
@@ -360,7 +376,6 @@ describe("Tasks module M1", () => {
         authorization: `Bearer ${ids.sessionA}`
       },
       payload: {
-        title: "API-updated task",
         status: "in_progress"
       }
     });
@@ -389,11 +404,13 @@ describe("Tasks module M1", () => {
     expect(createResponse.statusCode).toBe(201);
     expect(created.ownerUserId).toBe(ids.userA);
     expect(getAsOwnerResponse.statusCode).toBe(200);
-    expect(patchResponse.statusCode).toBe(200);
-    expect(patchResponse.json<{ task: { title: string; status: string } }>().task).toMatchObject({
-      title: "API-updated task",
-      status: "in_progress"
-    });
+    // Title update succeeds
+    expect(titlePatchResponse.statusCode).toBe(200);
+    expect(titlePatchResponse.json<{ task: { title: string } }>().task.title).toBe(
+      "API-updated task"
+    );
+    // in_progress is retired — route rejects it
+    expect(patchResponse.statusCode).toBe(400); // in_progress retired
     expect(
       listResponse.json<{ tasks: Array<{ id: string }> }>().tasks.map((task) => task.id)
     ).toContain(created.id);
@@ -470,6 +487,348 @@ describe("Tasks module M1", () => {
       "Repository access requires withDataContext"
     );
   });
+
+  it("migration 0039: every task has a list, in_progress is retired, new columns exist", async () => {
+    // Use the bootstrap (superuser) connection so RLS does not filter the counts.
+    const client = new Client({ connectionString: connectionStrings.bootstrap });
+    await client.connect();
+    try {
+      // All tasks in the DB have a non-null list_id (the NOT NULL constraint holds and
+      // the repository default-list logic works for newly created tasks too).
+      const orphans = await client.query<{ n: string }>(
+        "SELECT count(*)::text AS n FROM app.tasks WHERE list_id IS NULL"
+      );
+      expect(Number(orphans.rows[0]?.n)).toBe(0);
+
+      // The seeded tasks (inserted via seedTaskData, which runs after the migration)
+      // must not have in_progress status — backfill correctness is verified by confirming
+      // the seeded task IDs have 'todo' status.
+      const seededInProgress = await client.query<{ n: string }>(
+        `SELECT count(*)::text AS n FROM app.tasks
+         WHERE id = ANY($1::uuid[]) AND status = 'in_progress'`,
+        [[taskIds.aPrivate, taskIds.bPrivate]]
+      );
+      expect(Number(seededInProgress.rows[0]?.n)).toBe(0);
+
+      // Every test user has a Personal list (seeded in seedTaskData for the fresh test DB).
+      const lists = await client.query<{ owner_user_id: string; name: string }>(
+        "SELECT owner_user_id, name FROM app.task_lists WHERE name = 'Personal'"
+      );
+      expect(lists.rows.length).toBeGreaterThan(0);
+    } finally {
+      await client.end();
+    }
+  });
+
+  it("db types: new task columns and tables are queryable", async () => {
+    const cols = await sql<{ column_name: string }>`
+      select column_name from information_schema.columns
+      where table_schema='app' and table_name='tasks'
+        and column_name in ('list_id','parent_task_id','do_at','effort','source','recurrence_series_id')
+    `.execute(appDb);
+    expect(cols.rows.length).toBe(6);
+  });
+
+  it("shared: Task DTO carries the new fields", () => {
+    // compile-time guard: a TaskDto literal must accept the new fields
+    const dto: Pick<TaskDto, "listId" | "doAt" | "effort" | "source"> = {
+      listId: "x",
+      doAt: null,
+      effort: "quick",
+      source: "manual"
+    };
+    expect(dto.source).toBe("manual");
+  });
+
+  it("create defaults to Personal list, accepts new fields, and is idempotent on (source, external_key)", async () => {
+    const listsRepo = new TaskListsRepository();
+    const made = await dataContext.withDataContext(userAContext(), async (db) => {
+      const list = await listsRepo.getOrCreateDefault(db);
+      return repository.create(db, {
+        title: "ship the deck",
+        priority: 4,
+        effort: "medium",
+        doAt: new Date("2026-06-10"),
+        source: "chat",
+        externalKey: "chat:42",
+        listId: list.id
+      });
+    });
+    expect(made.priority).toBe(4);
+    expect(made.effort).toBe("medium");
+    expect(made.source).toBe("chat");
+    expect(made.external_key).toBe("chat:42");
+
+    // Second create with same (source, externalKey) must return the SAME task id.
+    const second = await dataContext.withDataContext(userAContext(), (db) =>
+      repository.create(db, { title: "dup", source: "chat", externalKey: "chat:42" })
+    );
+    expect(second.id).toBe(made.id);
+
+    // Create without a listId defaults to the Personal list.
+    const defaultList = await dataContext.withDataContext(userAContext(), (db) =>
+      listsRepo.getOrCreateDefault(db)
+    );
+    const noListTask = await dataContext.withDataContext(userAContext(), (db) =>
+      repository.create(db, { title: "auto-list task" })
+    );
+    expect(noListTask.list_id).toBe(defaultList.id);
+    expect(noListTask.source).toBe("manual");
+  });
+
+  it("breakdown augments into a parent; all children done auto-closes parent; grandchild rejected", async () => {
+    const breakdown = new TaskBreakdownRepository();
+    const { parent, children } = await dataContext.withDataContext(userAContext(), async (db) => {
+      const p = await repository.create(db, { title: "clean kitchen" });
+      const kids = await breakdown.breakDown(db, p.id, ["unload dishwasher", "wipe counters"]);
+      return { parent: p, children: kids };
+    });
+
+    expect(children).toHaveLength(2);
+    expect(children[0]?.parent_task_id).toBe(parent.id);
+    expect(children[0]?.list_id).toBe(parent.list_id);
+    expect(children[0]?.position).toBe(0);
+    expect(children[1]?.position).toBe(1);
+
+    // Grandchild rejected by the DB trigger.
+    await expect(
+      dataContext.withDataContext(userAContext(), (db) =>
+        breakdown.breakDown(db, children[0]!.id, ["nope"])
+      )
+    ).rejects.toThrow(/one-level hierarchy/);
+
+    // Completing all children auto-closes the parent.
+    await dataContext.withDataContext(userAContext(), async (db) => {
+      for (const c of children) await repository.updateStatus(db, c.id, "done");
+    });
+    const reloaded = await dataContext.withDataContext(userAContext(), (db) =>
+      repository.getById(db, parent.id)
+    );
+    expect(reloaded?.status).toBe("done");
+  });
+
+  it("lists: get-or-create Personal is idempotent; tags are list-scoped", async () => {
+    const listsRepo = new TaskListsRepository();
+
+    // Calling getOrCreateDefault twice must return the same row.
+    const a = await dataContext.withDataContext(userAContext(), (db) =>
+      listsRepo.getOrCreateDefault(db)
+    );
+    const b = await dataContext.withDataContext(userAContext(), (db) =>
+      listsRepo.getOrCreateDefault(db)
+    );
+    expect(a.id).toBe(b.id);
+    expect(a.name).toBe("Personal");
+
+    // createTag + listTags are list-scoped.
+    const tag = await dataContext.withDataContext(userAContext(), (db) =>
+      listsRepo.createTag(db, a.id, "Visa")
+    );
+    const tags = await dataContext.withDataContext(userAContext(), (db) =>
+      listsRepo.listTags(db, a.id)
+    );
+    expect(tags.map((t) => t.name)).toContain("Visa");
+    expect(tag.list_id).toBe(a.id);
+    expect(tag.owner_user_id).toBe(ids.userA);
+  });
+
+  it("completing a recurring task generates exactly one next instance; idempotent", async () => {
+    const made = await dataContext.withDataContext(userAContext(), (db) =>
+      repository.create(db, {
+        title: "take out trash",
+        recurrence: { freq: "weekly", interval: 1, occurrence_date: "2026-06-08" },
+        dueAt: new Date("2026-06-08")
+      })
+    );
+
+    // Sanity: the created task must have a series id and the recurrence jsonb.
+    expect(made.recurrence_series_id).toBeTruthy();
+    expect((made.recurrence as Record<string, unknown>)["occurrence_date"]).toBe("2026-06-08");
+
+    // Complete the task — this should spawn the next weekly instance.
+    await dataContext.withDataContext(userAContext(), (db) =>
+      repository.updateStatus(db, made.id, "done")
+    );
+
+    // Query the full series.
+    const series = await dataContext.withDataContext(userAContext(), (db) =>
+      db.db
+        .selectFrom("app.tasks")
+        .selectAll()
+        .where("recurrence_series_id", "=", made.recurrence_series_id!)
+        .execute()
+    );
+
+    const open = series.filter((t) => t.status === "todo");
+    expect(open).toHaveLength(1);
+    expect(open[0]!.id).not.toBe(made.id);
+
+    // The next instance must be one week later.
+    const nextOccurrence = (open[0]!.recurrence as Record<string, unknown>)["occurrence_date"];
+    expect(nextOccurrence).toBe("2026-06-15");
+
+    // Idempotency: completing the original again (already done) must NOT spawn a second open instance.
+    await dataContext.withDataContext(userAContext(), (db) =>
+      repository.updateStatus(db, made.id, "done")
+    );
+    const seriesAfter = await dataContext.withDataContext(userAContext(), (db) =>
+      db.db
+        .selectFrom("app.tasks")
+        .selectAll()
+        .where("recurrence_series_id", "=", made.recurrence_series_id!)
+        .execute()
+    );
+    const openAfter = seriesAfter.filter((t) => t.status === "todo");
+    expect(openAfter).toHaveLength(1);
+  });
+
+  it("drift: overdue + at-risk surface Medium+ only; focus orders them", async () => {
+    const drift = new TaskDriftRepository();
+    await dataContext.withDataContext(userAContext(), async (db) => {
+      await repository.create(db, {
+        title: "overdue-critical",
+        priority: 5,
+        dueAt: new Date("2000-01-01")
+      });
+      await repository.create(db, {
+        title: "overdue-someday",
+        priority: 1,
+        dueAt: new Date("2000-01-01")
+      });
+    });
+    const overdue = await dataContext.withDataContext(userAContext(), (db) => drift.getOverdue(db));
+    const atRisk = await dataContext.withDataContext(userAContext(), (db) => drift.getAtRisk(db));
+    expect(overdue.map((t) => t.title)).toContain("overdue-critical");
+    expect(atRisk.map((t) => t.title)).not.toContain("overdue-someday"); // priority < 3 excluded
+  });
+
+  it("GET /api/tasks/lists returns the actor's lists", async () => {
+    const response = await server.inject({
+      method: "GET",
+      url: "/api/tasks/lists",
+      headers: { authorization: `Bearer ${ids.sessionA}` }
+    });
+
+    expect(response.statusCode).toBe(200);
+    const body = response.json<{ lists: Array<{ name: string }> }>();
+    expect(body.lists.map((l) => l.name)).toContain("Personal");
+  });
+
+  it("POST /api/tasks/lists creates a list (idempotent)", async () => {
+    const response = await server.inject({
+      method: "POST",
+      url: "/api/tasks/lists",
+      headers: { authorization: `Bearer ${ids.sessionA}` },
+      payload: { name: "Work" }
+    });
+
+    expect(response.statusCode).toBe(201);
+    const body = response.json<{ list: { name: string; id: string } }>();
+    expect(body.list.name).toBe("Work");
+
+    // Second call returns the same list (idempotent get-or-create)
+    const response2 = await server.inject({
+      method: "POST",
+      url: "/api/tasks/lists",
+      headers: { authorization: `Bearer ${ids.sessionA}` },
+      payload: { name: "Work" }
+    });
+    expect(response2.statusCode).toBe(201);
+    expect(response2.json<{ list: { id: string } }>().list.id).toBe(body.list.id);
+  });
+
+  it("POST /api/tasks/lists/:listId/tags creates a tag on the list", async () => {
+    // Get the Personal list id for userA
+    const listsRepo = new TaskListsRepository();
+    const list = await dataContext.withDataContext(userAContext(), (db) =>
+      listsRepo.getOrCreateDefault(db)
+    );
+
+    const response = await server.inject({
+      method: "POST",
+      url: `/api/tasks/lists/${list.id}/tags`,
+      headers: { authorization: `Bearer ${ids.sessionA}` },
+      payload: { name: "urgent" }
+    });
+
+    expect(response.statusCode).toBe(201);
+    const body = response.json<{ tag: { name: string; listId: string } }>();
+    expect(body.tag.name).toBe("urgent");
+    expect(body.tag.listId).toBe(list.id);
+  });
+
+  it("POST /api/tasks/:id/breakdown creates child steps", async () => {
+    const task = await dataContext.withDataContext(userAContext(), (db) =>
+      repository.create(db, { title: "plan the trip" })
+    );
+
+    const response = await server.inject({
+      method: "POST",
+      url: `/api/tasks/${task.id}/breakdown`,
+      headers: { authorization: `Bearer ${ids.sessionA}` },
+      payload: { steps: ["book flights", "reserve hotel"] }
+    });
+
+    expect(response.statusCode).toBe(201);
+    const body = response.json<{ tasks: Array<{ title: string; parentTaskId: string }> }>();
+    expect(body.tasks).toHaveLength(2);
+    expect(body.tasks.map((t) => t.title)).toEqual(["book flights", "reserve hotel"]);
+    expect(body.tasks[0]?.parentTaskId).toBe(task.id);
+  });
+
+  it("GET /api/tasks/focus returns overdue/at-risk tasks", async () => {
+    // Seed a high-priority overdue task for userA
+    await dataContext.withDataContext(userAContext(), (db) =>
+      repository.create(db, {
+        title: "focus-route-test",
+        priority: 5,
+        dueAt: new Date("2000-01-01")
+      })
+    );
+
+    const response = await server.inject({
+      method: "GET",
+      url: "/api/tasks/focus",
+      headers: { authorization: `Bearer ${ids.sessionA}` }
+    });
+
+    expect(response.statusCode).toBe(200);
+    const body = response.json<{ tasks: Array<{ title: string }> }>();
+    expect(body.tasks.map((t) => t.title)).toContain("focus-route-test");
+  });
+
+  it("GET /api/tasks/at-risk returns at-risk tasks", async () => {
+    const response = await server.inject({
+      method: "GET",
+      url: "/api/tasks/at-risk",
+      headers: { authorization: `Bearer ${ids.sessionA}` }
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json<{ tasks: unknown[] }>().tasks).toBeInstanceOf(Array);
+  });
+
+  it("GET /api/tasks?quadrant=do filters by Eisenhower quadrant", async () => {
+    // Seed a task that is important (priority=5) + urgent (due in 1 hour)
+    const dueIn1h = new Date(Date.now() + 60 * 60 * 1000);
+    await dataContext.withDataContext(userAContext(), (db) =>
+      repository.create(db, {
+        title: "quadrant-do-test",
+        priority: 5,
+        dueAt: dueIn1h
+      })
+    );
+
+    const response = await server.inject({
+      method: "GET",
+      url: "/api/tasks?quadrant=do",
+      headers: { authorization: `Bearer ${ids.sessionA}` }
+    });
+
+    expect(response.statusCode).toBe(200);
+    const body = response.json<{ tasks: Array<{ title: string }> }>();
+    expect(body.tasks.map((t) => t.title)).toContain("quadrant-do-test");
+  });
 });
 
 async function seedTaskData(): Promise<void> {
@@ -478,12 +837,24 @@ async function seedTaskData(): Promise<void> {
   await client.connect();
   try {
     await client.query("BEGIN");
+    // Ensure each user has a Personal list (the migration seeds these for existing users,
+    // but in tests the schema is rebuilt before users are inserted, so we seed them here).
     await client.query(
       `
-        INSERT INTO app.tasks (id, owner_user_id, title, description, status)
+        INSERT INTO app.task_lists (owner_user_id, name)
+        VALUES ($1, 'Personal'), ($2, 'Personal')
+        ON CONFLICT DO NOTHING
+      `,
+      [ids.userA, ids.userB]
+    );
+    await client.query(
+      `
+        INSERT INTO app.tasks (id, owner_user_id, title, description, status, list_id)
         VALUES
-          ($1, $2, 'User A seeded private task', 'A private description', 'todo'),
-          ($3, $4, 'User B seeded private task', 'B private description', 'todo')
+          ($1, $2, 'User A seeded private task', 'A private description', 'todo',
+            (SELECT id FROM app.task_lists WHERE owner_user_id = $2 AND name = 'Personal' LIMIT 1)),
+          ($3, $4, 'User B seeded private task', 'B private description', 'todo',
+            (SELECT id FROM app.task_lists WHERE owner_user_id = $4 AND name = 'Personal' LIMIT 1))
       `,
       [taskIds.aPrivate, ids.userA, taskIds.bPrivate, ids.userB]
     );

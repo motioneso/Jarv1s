@@ -397,10 +397,20 @@ async function seedLifecycleData(): Promise<void> {
     );
     await client.query(
       `
-        INSERT INTO app.tasks (id, owner_user_id, title, description)
+        INSERT INTO app.task_lists (owner_user_id, name)
+        VALUES ($1, 'Personal'), ($2, 'Personal')
+        ON CONFLICT DO NOTHING
+      `,
+      [ids.userA, ids.userB]
+    );
+    await client.query(
+      `
+        INSERT INTO app.tasks (id, owner_user_id, title, description, list_id)
         VALUES
-          ($1, $2, 'User A exportable task', 'User A private task body'),
-          ($3, $4, 'User B private task granted to A', 'User B private task body')
+          ($1, $2, 'User A exportable task', 'User A private task body',
+            (SELECT id FROM app.task_lists WHERE owner_user_id = $2 AND name = 'Personal' LIMIT 1)),
+          ($3, $4, 'User B private task granted to A', 'User B private task body',
+            (SELECT id FROM app.task_lists WHERE owner_user_id = $4 AND name = 'Personal' LIMIT 1))
       `,
       [releaseIds.userATask, ids.userA, releaseIds.userBTask, ids.userB]
     );

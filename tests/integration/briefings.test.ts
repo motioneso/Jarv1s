@@ -435,11 +435,22 @@ async function seedBriefingData(): Promise<void> {
     await client.query("BEGIN");
     await client.query(
       `
-        INSERT INTO app.tasks (id, owner_user_id, title, description, status)
+        INSERT INTO app.task_lists (owner_user_id, name)
+        VALUES ($1, 'Personal'), ($2, 'Personal')
+        ON CONFLICT DO NOTHING
+      `,
+      [ids.userA, ids.userB]
+    );
+    await client.query(
+      `
+        INSERT INTO app.tasks (id, owner_user_id, title, description, status, list_id)
         VALUES
-          ($1, $2, 'User A briefing task', 'A task body', 'todo'),
-          ($3, $4, 'User B private briefing task', 'B task body', 'todo'),
-          ($5, $2, 'User A workspace briefing task', 'Workspace task body', 'todo')
+          ($1, $2, 'User A briefing task', 'A task body', 'todo',
+            (SELECT id FROM app.task_lists WHERE owner_user_id = $2 AND name = 'Personal' LIMIT 1)),
+          ($3, $4, 'User B private briefing task', 'B task body', 'todo',
+            (SELECT id FROM app.task_lists WHERE owner_user_id = $4 AND name = 'Personal' LIMIT 1)),
+          ($5, $2, 'User A workspace briefing task', 'Workspace task body', 'todo',
+            (SELECT id FROM app.task_lists WHERE owner_user_id = $2 AND name = 'Personal' LIMIT 1))
       `,
       [
         sourceIds.userATask,
