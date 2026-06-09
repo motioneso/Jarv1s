@@ -142,7 +142,7 @@ export interface RlsProbeItemsTable {
 
 export type TaskStatus = "todo" | "in_progress" | "done" | "archived";
 export type ShareLevel = "view" | "contribute" | "manage";
-export type ConnectorProviderType = "calendar" | "email";
+export type ConnectorProviderType = "calendar" | "email" | "google";
 export type ConnectorProviderStatus = "available" | "disabled";
 export type ConnectorAccountStatus = "active" | "error" | "revoked";
 export type AiProviderKind = "openai-compatible" | "anthropic" | "google" | "ollama" | "custom";
@@ -253,6 +253,15 @@ export interface ConnectorAccountsTable {
   revoked_at: NullableTimestampColumn;
   created_at: TimestampColumn;
   updated_at: TimestampColumn;
+}
+
+export interface ConnectorOauthPendingTable {
+  id: string;
+  owner_user_id: string;
+  provider_id: string;
+  state: string;
+  encrypted_secret: JsonColumn;
+  created_at: TimestampColumn;
 }
 
 export interface CalendarEventsTable {
@@ -481,6 +490,7 @@ export interface JarvisDatabase {
   "app.notification_reads": NotificationReadsTable;
   "app.connector_definitions": ConnectorDefinitionsTable;
   "app.connector_accounts": ConnectorAccountsTable;
+  "app.connector_oauth_pending": ConnectorOauthPendingTable;
   "app.calendar_events": CalendarEventsTable;
   "app.email_messages": EmailMessagesTable;
   "app.ai_provider_configs": AiProviderConfigsTable;
@@ -515,6 +525,7 @@ export type Notification = Selectable<NotificationsTable>;
 export type NotificationRead = Selectable<NotificationReadsTable>;
 export type ConnectorProvider = Selectable<ConnectorDefinitionsTable>;
 export type ConnectorAccount = Selectable<ConnectorAccountsTable>;
+export type ConnectorOauthPending = Selectable<ConnectorOauthPendingTable>;
 export type CalendarEvent = Selectable<CalendarEventsTable>;
 export type EmailMessage = Selectable<EmailMessagesTable>;
 export type AiProviderConfig = Selectable<AiProviderConfigsTable>;

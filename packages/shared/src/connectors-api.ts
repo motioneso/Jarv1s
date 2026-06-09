@@ -1,4 +1,4 @@
-export type ConnectorProviderType = "calendar" | "email";
+export type ConnectorProviderType = "calendar" | "email" | "google";
 export type ConnectorProviderStatus = "available" | "disabled";
 export type ConnectorAccountStatus = "active" | "error" | "revoked";
 
@@ -92,7 +92,7 @@ const connectorProviderSchema = {
   ],
   properties: {
     id: { type: "string" },
-    providerType: { type: "string", enum: ["calendar", "email"] },
+    providerType: { type: "string", enum: ["calendar", "email", "google"] },
     displayName: { type: "string" },
     status: { type: "string", enum: ["available", "disabled"] },
     defaultScopes: { type: "array", items: { type: "string" } },
@@ -121,7 +121,7 @@ const connectorAccountSchema = {
   properties: {
     id: { type: "string" },
     providerId: { type: "string" },
-    providerType: { type: "string", enum: ["calendar", "email"] },
+    providerType: { type: "string", enum: ["calendar", "email", "google"] },
     providerDisplayName: { type: "string" },
     providerStatus: { type: "string", enum: ["available", "disabled"] },
     ownerUserId: { type: "string" },
