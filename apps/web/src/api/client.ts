@@ -13,6 +13,10 @@ import type {
   GetEmailMessageResponse,
   CreateConnectorAccountRequest,
   CreateConnectorAccountResponse,
+  GoogleAuthorizeRequest,
+  GoogleAuthorizeResponse,
+  GoogleCompleteRequest,
+  GoogleCompleteResponse,
   CreateTaskRequest,
   CreateTaskResponse,
   GetTaskResponse,
@@ -368,6 +372,24 @@ export async function revokeConnectorAccount(id: string): Promise<RevokeConnecto
     `/api/connectors/accounts/${encodeURIComponent(id)}/revoke`,
     { method: "POST" }
   );
+}
+
+export async function authorizeGoogleConnection(
+  input: GoogleAuthorizeRequest
+): Promise<GoogleAuthorizeResponse> {
+  return requestJson<GoogleAuthorizeResponse>("/api/connectors/google/authorize", {
+    method: "POST",
+    body: input
+  });
+}
+
+export async function completeGoogleConnection(
+  input: GoogleCompleteRequest
+): Promise<GoogleCompleteResponse> {
+  return requestJson<GoogleCompleteResponse>("/api/connectors/google/complete", {
+    method: "POST",
+    body: input
+  });
 }
 
 export async function markNotificationRead(id: string): Promise<MarkNotificationReadResponse> {
