@@ -197,6 +197,14 @@ A **test-only fixture module** (a fake manifest exposing `example.read` / `examp
 
 ## 10. The spike (prerequisite)
 
+> **✅ RESOLVED 2026-06-08** (#32) — full findings in
+> `docs/superpowers/spikes/2026-06-08-mcp-client-support.md`. Outcome: **HTTP-direct works for
+> all three CLIs (Claude/Codex/Gemini) with a Bearer-header per-session token — no stdio shim
+> needed.** Native-tool allowlist lockdown is robustly enforceable on all three. Binding
+> constraint: **Codex's 60s default tool-call timeout** must be raised (~180s); set the Gateway's
+> `confirmTimeoutMs` below the configured CLI tool timeout. Per-CLI launch/lockdown recipes are in
+> the spike doc and feed the follow-on CLI-launch plan.
+
 Research spike — **MCP client support across Claude Code / Codex / Gemini CLIs**:
 
 1. **Transport** — stdio vs authenticated HTTP/SSE per CLI; does the in-process-HTTP plan
