@@ -172,12 +172,102 @@ export class TasksRepository {
       updates.completed_at = input.status === "done" ? new Date() : null;
     }
 
-    return scopedDb.db
+    const updated = await scopedDb.db
       .updateTable("app.tasks")
       .set(updates)
       .where("id", "=", taskId)
       .returningAll()
       .executeTakeFirst();
+
+    if (!updated) {
+      return undefined;
+    }
+
+    // --- Completion cascade ---
+    if (input.status !== undefined) {
+      const newStatus = input.status;
+
+      if (newStatus === "done" || newStatus === "archived") {
+        // Parent closing: cascade to open children.
+        if (updated.parent_task_id === null) {
+          await this.cascadeCloseChildren(scopedDb, taskId, newStatus);
+        }
+      }
+
+      if (newStatus === "done" && updated.parent_task_id !== null) {
+        // Child completed: check if all siblings are also done; if so, close the parent.
+        await this.maybeAutoCloseParent(scopedDb, updated.parent_task_id);
+      }
+    }
+
+    return updated;
+  }
+
+  /**
+   * When a parent is set to `done` or `archived`, close all open children
+   * (those not already in the target terminal status) to match.
+   */
+  private async cascadeCloseChildren(
+    scopedDb: DataContextDb,
+    parentId: string,
+    parentStatus: "done" | "archived"
+  ): Promise<void> {
+    const openChildren = await scopedDb.db
+      .selectFrom("app.tasks")
+      .select("id")
+      .where("parent_task_id", "=", parentId)
+      .where("status", "!=", parentStatus)
+      .execute();
+
+    if (openChildren.length === 0) return;
+
+    const now = new Date();
+    for (const child of openChildren) {
+      await scopedDb.db
+        .updateTable("app.tasks")
+        .set({
+          status: parentStatus,
+          completed_at: parentStatus === "done" ? now : null,
+          updated_at: now
+        })
+        .where("id", "=", child.id)
+        .execute();
+
+      await this.addActivity(scopedDb, child.id, {
+        activityType: "status_changed",
+        body: `Cascaded to ${parentStatus} when parent was closed`
+      });
+    }
+  }
+
+  /**
+   * When a child task reaches `done`, check whether all siblings are also
+   * `done`. If so, automatically close the parent.
+   */
+  private async maybeAutoCloseParent(scopedDb: DataContextDb, parentId: string): Promise<void> {
+    const siblings = await scopedDb.db
+      .selectFrom("app.tasks")
+      .select(["id", "status"])
+      .where("parent_task_id", "=", parentId)
+      .execute();
+
+    if (siblings.length === 0) return;
+
+    const allDone = siblings.every((s) => s.status === "done");
+    if (!allDone) return;
+
+    const now = new Date();
+    await scopedDb.db
+      .updateTable("app.tasks")
+      .set({ status: "done", completed_at: now, updated_at: now })
+      .where("id", "=", parentId)
+      .where("status", "!=", "done")
+      .execute();
+
+    await this.addActivity(scopedDb, parentId, {
+      activityType: "completed",
+      body: "All subtasks completed — parent auto-closed"
+    });
   }
 
   async updateStatus(

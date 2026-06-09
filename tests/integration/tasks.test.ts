@@ -22,6 +22,7 @@ import {
   TASKS_DEFERRED_STATUS_QUEUE,
   type DeferredTaskStatusPayload,
   type DeferredTaskStatusResult,
+  TaskBreakdownRepository,
   TaskListsRepository,
   TasksRepository,
   registerTasksJobWorkers
@@ -559,6 +560,37 @@ describe("Tasks module M1", () => {
     );
     expect(noListTask.list_id).toBe(defaultList.id);
     expect(noListTask.source).toBe("manual");
+  });
+
+  it("breakdown augments into a parent; all children done auto-closes parent; grandchild rejected", async () => {
+    const breakdown = new TaskBreakdownRepository();
+    const { parent, children } = await dataContext.withDataContext(userAContext(), async (db) => {
+      const p = await repository.create(db, { title: "clean kitchen" });
+      const kids = await breakdown.breakDown(db, p.id, ["unload dishwasher", "wipe counters"]);
+      return { parent: p, children: kids };
+    });
+
+    expect(children).toHaveLength(2);
+    expect(children[0]?.parent_task_id).toBe(parent.id);
+    expect(children[0]?.list_id).toBe(parent.list_id);
+    expect(children[0]?.position).toBe(0);
+    expect(children[1]?.position).toBe(1);
+
+    // Grandchild rejected by the DB trigger.
+    await expect(
+      dataContext.withDataContext(userAContext(), (db) =>
+        breakdown.breakDown(db, children[0]!.id, ["nope"])
+      )
+    ).rejects.toThrow(/one-level hierarchy/);
+
+    // Completing all children auto-closes the parent.
+    await dataContext.withDataContext(userAContext(), async (db) => {
+      for (const c of children) await repository.updateStatus(db, c.id, "done");
+    });
+    const reloaded = await dataContext.withDataContext(userAContext(), (db) =>
+      repository.getById(db, parent.id)
+    );
+    expect(reloaded?.status).toBe("done");
   });
 
   it("lists: get-or-create Personal is idempotent; tags are list-scoped", async () => {
