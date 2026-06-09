@@ -42,7 +42,7 @@ services:
       - jarv1s
 
   migrate:
-    image: node:24-alpine
+    image: node:24-bookworm-slim
     working_dir: /workspace
     volumes: *workspace-volumes
     environment:
@@ -59,7 +59,7 @@ services:
       - jarv1s
 
   api:
-    image: node:24-alpine
+    image: node:24-bookworm-slim
     working_dir: /workspace
     volumes: *workspace-volumes
     environment:
@@ -77,7 +77,7 @@ services:
       - jarv1s
 
   web:
-    image: node:24-alpine
+    image: node:24-bookworm-slim
     working_dir: /workspace
     volumes: *workspace-volumes
     environment:
@@ -92,7 +92,7 @@ services:
       - jarv1s
 
   worker:
-    image: node:24-alpine
+    image: node:24-bookworm-slim
     working_dir: /workspace
     volumes: *workspace-volumes
     environment:

@@ -125,3 +125,44 @@ Computed from Priority × Due-date proximity; never stored. Jarv1s is active on 
 lightly on **Schedule**. The Matrix is an _alternative_ view: the **default view is a
 single list grouped by Priority**, and the user may opt to make the Matrix their default.
 _Avoid_: Quadrants, Eisenhower box (use Matrix)
+
+### Assistant & tools
+
+**Jarvis**:
+The assistant the user converses with in the chat drawer. Provider-agnostic — it is
+whichever CLI/model the user has configured, given a persona. Acts on the user's behalf
+only through gated assistant tools, never raw host access.
+_Avoid_: bot, agent (when you mean the product-facing assistant), AI.
+
+**Module**:
+A self-contained feature unit (tasks, calendar, email, vault, …) that connects to the
+core through the module SDK and never modifies core code. A module can be enabled or
+disabled; a disabled module contributes nothing — no routes, no tools, no behavior.
+_Avoid_: plugin, package (a module may span packages), service.
+
+**Assistant tool**:
+A discrete capability a module exposes for Jarvis to invoke on the user's behalf. Owned
+end-to-end by the module — the module both declares it and executes it (its `execute`
+handler). Classified by Risk. Read/lookup needs are met by specific bounded tools, never
+by raw host shell access.
+_Avoid_: function, command (an "action request" is a distinct concept).
+
+**Risk** (`read` | `write` | `destructive`):
+Classification of an assistant tool by the consequence of invoking it. `read` changes
+nothing; `write` creates or updates; `destructive` deletes or is otherwise irreversible.
+Drives whether a call runs directly, needs confirmation, or always needs confirmation.
+_Avoid_: permission level, danger.
+
+**Action request**:
+A `write` or `destructive` assistant-tool call that Jarvis has proposed, intercepted and
+held before execution, pending the user's **Approve** or **Deny** in the drawer. Approve
+runs it; Deny returns a "denied by user" result the agent is expected to handle normally.
+A denial is an expected outcome, not an error.
+_Avoid_: confirmation prompt, approval (reserve Approve/Deny for the user's choice).
+
+**Gateway** (Jarv1s MCP gateway):
+The single chokepoint between Jarvis and every module's real operations. Lists tools,
+validates input, enforces Risk-based policy and the confirmation bridge, scopes each call
+to the user under RLS, and dispatches to the owning module's handler. Jarvis's _only_
+capability — there is no path to act that bypasses it.
+_Avoid_: MCP server (use Gateway for the enforcement role; "MCP server" is the transport).

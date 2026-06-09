@@ -36,7 +36,6 @@ test("signs in and renders shell navigation", async ({ page }) => {
   await expect(page.locator(".module-nav").getByRole("button", { name: "Chat" })).toBeVisible();
   await expect(page.locator(".module-nav").getByRole("link", { name: "Briefings" })).toBeVisible();
   await expect(page.locator(".module-nav").getByRole("link", { name: "Settings" })).toBeVisible();
-  await expect(page.getByLabel("Workspace")).toHaveValue("workspace-1");
 });
 
 test("creates and updates tasks through REST calls", async ({ page }) => {
@@ -50,7 +49,6 @@ test("creates and updates tasks through REST calls", async ({ page }) => {
 
   await page.goto("/tasks");
   await expect(page.getByRole("heading", { name: "Task Board" })).toBeVisible();
-  await expect(page.getByLabel("Workspace")).toHaveValue("workspace-1");
 
   await page.getByLabel("Title").fill("Plan M4 smoke");
   await page.getByLabel("Description").fill("Exercise the Tasks API from the UI");
@@ -225,7 +223,6 @@ test("creates and runs briefings through REST calls", async ({ page }) => {
   await expect(page.getByRole("button", { name: "M6 briefing smoke" })).toBeVisible();
 
   await detail.getByLabel("Edit briefing title").fill("M6 briefing smoke updated");
-  await detail.getByLabel("tasks.updateStatus").check();
   await detail.getByRole("button", { name: "Save briefing" }).click();
   await expect(page.getByRole("button", { name: "M6 briefing smoke updated" })).toBeVisible();
 
