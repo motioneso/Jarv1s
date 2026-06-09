@@ -1,0 +1,84 @@
+import { sql } from "kysely";
+
+import type { DataContextDb } from "@jarv1s/db";
+
+export interface UserMemorySettings {
+  readonly userId: string;
+  readonly recallEnabled: boolean;
+  readonly factsEnabled: boolean;
+  readonly createdAt: Date;
+  readonly updatedAt: Date;
+}
+
+export interface UpdateMemorySettings {
+  readonly recallEnabled?: boolean;
+  readonly factsEnabled?: boolean;
+}
+
+const DEFAULTS: Omit<UserMemorySettings, "userId" | "createdAt" | "updatedAt"> = {
+  recallEnabled: true,
+  factsEnabled: true
+};
+
+export class ChatUserMemorySettingsRepository {
+  async getOrCreate(scopedDb: DataContextDb, userId: string): Promise<UserMemorySettings> {
+    const result = await sql<{
+      user_id: string;
+      recall_enabled: boolean;
+      facts_enabled: boolean;
+      created_at: Date;
+      updated_at: Date;
+    }>`
+      INSERT INTO app.chat_user_memory_settings (user_id, recall_enabled, facts_enabled)
+      VALUES (${userId}::uuid, ${DEFAULTS.recallEnabled}, ${DEFAULTS.factsEnabled})
+      ON CONFLICT (user_id) DO UPDATE SET updated_at = app.chat_user_memory_settings.updated_at
+      RETURNING *
+    `.execute(scopedDb.db);
+
+    return this.#mapRow(result.rows[0]!);
+  }
+
+  async update(
+    scopedDb: DataContextDb,
+    userId: string,
+    patch: UpdateMemorySettings
+  ): Promise<UserMemorySettings> {
+    const result = await sql<{
+      user_id: string;
+      recall_enabled: boolean;
+      facts_enabled: boolean;
+      created_at: Date;
+      updated_at: Date;
+    }>`
+      INSERT INTO app.chat_user_memory_settings (user_id, recall_enabled, facts_enabled)
+      VALUES (
+        ${userId}::uuid,
+        ${patch.recallEnabled ?? DEFAULTS.recallEnabled},
+        ${patch.factsEnabled ?? DEFAULTS.factsEnabled}
+      )
+      ON CONFLICT (user_id) DO UPDATE SET
+        recall_enabled = COALESCE(${patch.recallEnabled ?? null}, app.chat_user_memory_settings.recall_enabled),
+        facts_enabled  = COALESCE(${patch.factsEnabled ?? null}, app.chat_user_memory_settings.facts_enabled),
+        updated_at     = now()
+      RETURNING *
+    `.execute(scopedDb.db);
+
+    return this.#mapRow(result.rows[0]!);
+  }
+
+  #mapRow(r: {
+    user_id: string;
+    recall_enabled: boolean;
+    facts_enabled: boolean;
+    created_at: Date;
+    updated_at: Date;
+  }): UserMemorySettings {
+    return {
+      userId: r.user_id,
+      recallEnabled: r.recall_enabled,
+      factsEnabled: r.facts_enabled,
+      createdAt: r.created_at,
+      updatedAt: r.updated_at
+    };
+  }
+}

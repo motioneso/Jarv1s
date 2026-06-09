@@ -6,6 +6,7 @@ import {
   registerDataContextWorker,
   type RlsProbeJobPayload
 } from "@jarv1s/jobs";
+import { createEmbeddingProvider, getEmbeddingProviderConfig } from "@jarv1s/memory";
 import { registerBuiltInModuleWorkers } from "@jarv1s/module-registry";
 
 const urls = getJarvisDatabaseUrls();
@@ -16,6 +17,8 @@ const workerDb = createDatabase({
 const dataContext = new DataContextRunner(workerDb);
 const repository = new RlsProbeRepository();
 const boss = createPgBossClient(urls.worker);
+
+const embeddingProvider = await createEmbeddingProvider(getEmbeddingProviderConfig());
 
 await boss.start();
 await registerDataContextWorker<RlsProbeJobPayload, { targetItemVisible: boolean }>(
@@ -30,7 +33,7 @@ await registerDataContextWorker<RlsProbeJobPayload, { targetItemVisible: boolean
     };
   }
 );
-await registerBuiltInModuleWorkers(boss, { dataContext });
+await registerBuiltInModuleWorkers(boss, { dataContext, embeddingProvider });
 
 console.log(`Jarv1s worker listening on ${RLS_PROBE_QUEUE} and built-in module queues`);
 
