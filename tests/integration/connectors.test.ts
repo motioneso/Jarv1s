@@ -200,7 +200,8 @@ describe("Connectors encrypted foundation", () => {
       "google-calendar",
       "microsoft-calendar",
       "google-email",
-      "microsoft-email"
+      "microsoft-email",
+      "google"
     ]);
     expect(response.body).not.toContain("secret");
     expect(body.providers[0]?.defaultScopes).toContain(
