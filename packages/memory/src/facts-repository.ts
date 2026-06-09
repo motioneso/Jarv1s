@@ -51,7 +51,8 @@ export class ChatMemoryFactsRepository {
          ${data.importance ?? 0.5})
       RETURNING *
     `.execute(scopedDb.db);
-    return this.#mapRow(result.rows[0]);
+    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+    return this.#mapRow(result.rows[0]!);
   }
 
   async listActiveFacts(scopedDb: DataContextDb, ownerUserId: string): Promise<MemoryFact[]> {

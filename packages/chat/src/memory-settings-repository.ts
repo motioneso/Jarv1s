@@ -34,7 +34,8 @@ export class ChatUserMemorySettingsRepository {
       ON CONFLICT (user_id) DO UPDATE SET updated_at = app.chat_user_memory_settings.updated_at
       RETURNING *
     `.execute(scopedDb.db);
-    return this.#mapRow(result.rows[0]);
+    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+    return this.#mapRow(result.rows[0]!);
   }
 
   async update(
@@ -61,7 +62,8 @@ export class ChatUserMemorySettingsRepository {
         updated_at     = now()
       RETURNING *
     `.execute(scopedDb.db);
-    return this.#mapRow(result.rows[0]);
+    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+    return this.#mapRow(result.rows[0]!);
   }
 
   #mapRow(r: {
