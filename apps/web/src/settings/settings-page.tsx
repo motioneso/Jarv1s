@@ -4,6 +4,7 @@ import { ShieldCheck, UsersRound } from "lucide-react";
 import { listAdminWorkspaces, listAuthProviderStatuses } from "../api/client";
 import { queryKeys } from "../api/query-keys";
 import { AiSettingsPanel } from "../ai/ai-settings-panel";
+import { ConnectGooglePanel } from "../connectors/connect-google-panel";
 import { ConnectorsPanel } from "../connectors/connectors-panel";
 import type { MeResponse } from "@jarv1s/shared";
 
@@ -80,6 +81,7 @@ export function SettingsPage(props: SettingsPageProps) {
 
       <div className="settings-grid">
         <ConnectorsPanel isAdmin={props.me.user.isInstanceAdmin} />
+        <ConnectGooglePanel />
       </div>
 
       <div className="settings-grid">
