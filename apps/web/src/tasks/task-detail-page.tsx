@@ -1,12 +1,21 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { TaskActivityDto, TaskApiStatus } from "@jarv1s/shared";
-import { ArrowLeft, LoaderCircle, MessageSquarePlus, Save } from "lucide-react";
+import { PRIORITY_LEVELS } from "@jarv1s/shared";
+import { ArrowLeft, ListTree, LoaderCircle, MessageSquarePlus, Save } from "lucide-react";
 import { type FormEvent, useEffect, useState } from "react";
 import { Link, useParams } from "react-router";
 
-import { addTaskActivity, getTask, listTaskActivity, updateTask } from "../api/client";
+import {
+  addTaskActivity,
+  breakdownTask,
+  getTask,
+  listSubtasks,
+  listTaskActivity,
+  listTaskLists,
+  updateTask
+} from "../api/client";
 import { queryKeys } from "../api/query-keys";
-import { fromDateInputValue, statusLabels, toDateInputValue } from "./task-format";
+import { effortLabel, fromDateInputValue, statusLabels, toDateInputValue } from "./task-format";
 
 export function TaskDetailPage() {
   const { taskId } = useParams<{ readonly taskId: string }>();
@@ -18,6 +27,10 @@ export function TaskDetailPage() {
   const [priority, setPriority] = useState("");
   const [activityBody, setActivityBody] = useState("");
   const [activitySaved, setActivitySaved] = useState(false);
+  const [doAt, setDoAt] = useState("");
+  const [effort, setEffort] = useState("");
+  const [listId, setListId] = useState("");
+  const [steps, setSteps] = useState("");
   const taskQuery = useQuery({
     enabled: Boolean(taskId),
     queryKey: queryKeys.tasks.detail(taskId ?? ""),
@@ -27,6 +40,12 @@ export function TaskDetailPage() {
     enabled: Boolean(taskId),
     queryKey: queryKeys.tasks.activity(taskId ?? ""),
     queryFn: () => listTaskActivity(taskId ?? "")
+  });
+  const listsQuery = useQuery({ queryKey: queryKeys.tasks.lists, queryFn: listTaskLists });
+  const subtasksQuery = useQuery({
+    enabled: Boolean(taskId),
+    queryKey: queryKeys.tasks.subtasks(taskId ?? ""),
+    queryFn: () => listSubtasks(taskId ?? "")
   });
   const saveMutation = useMutation({
     mutationFn: () => {
@@ -39,7 +58,10 @@ export function TaskDetailPage() {
         description: description || null,
         status,
         dueAt: fromDateInputValue(dueAt),
-        priority: priority ? Number(priority) : null
+        doAt: fromDateInputValue(doAt),
+        priority: priority ? Number(priority) : null,
+        effort: (effort || null) as "quick" | "medium" | "large" | null,
+        listId: listId || undefined
       });
     },
     onSuccess: async () => {
@@ -51,6 +73,22 @@ export function TaskDetailPage() {
         queryClient.invalidateQueries({ queryKey: queryKeys.tasks.list }),
         queryClient.invalidateQueries({ queryKey: queryKeys.tasks.detail(taskId) })
       ]);
+    }
+  });
+  const breakdownMutation = useMutation({
+    mutationFn: () => {
+      if (!taskId) throw new Error("Task id is missing");
+      const items = steps
+        .split("\n")
+        .map((s) => s.trim())
+        .filter(Boolean);
+      return breakdownTask(taskId, { steps: items });
+    },
+    onSuccess: async () => {
+      setSteps("");
+      if (taskId) {
+        await queryClient.invalidateQueries({ queryKey: queryKeys.tasks.subtasks(taskId) });
+      }
     }
   });
   const activityMutation = useMutation({
@@ -82,6 +120,9 @@ export function TaskDetailPage() {
     setStatus(task.status);
     setDueAt(toDateInputValue(task.dueAt));
     setPriority(task.priority === null ? "" : String(task.priority));
+    setDoAt(toDateInputValue(task.doAt));
+    setEffort(task.effort ?? "");
+    setListId(task.listId);
   }, [taskQuery.data?.task]);
 
   const handleSave = (event: FormEvent<HTMLFormElement>) => {
@@ -167,13 +208,40 @@ export function TaskDetailPage() {
 
             <label>
               Priority
-              <input
-                max={32767}
-                min={-32768}
-                onChange={(event) => setPriority(event.target.value)}
-                type="number"
-                value={priority}
-              />
+              <select onChange={(event) => setPriority(event.target.value)} value={priority}>
+                <option value="">None</option>
+                {PRIORITY_LEVELS.map((level) => (
+                  <option key={level.value} value={level.value}>
+                    {level.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+
+            <label>
+              List
+              <select onChange={(event) => setListId(event.target.value)} value={listId}>
+                {(listsQuery.data?.lists ?? []).map((list) => (
+                  <option key={list.id} value={list.id}>
+                    {list.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+
+            <label>
+              Do on
+              <input onChange={(event) => setDoAt(event.target.value)} type="date" value={doAt} />
+            </label>
+
+            <label>
+              Effort
+              <select onChange={(event) => setEffort(event.target.value)} value={effort}>
+                <option value="">—</option>
+                <option value="quick">Quick</option>
+                <option value="medium">Medium</option>
+                <option value="large">Large</option>
+              </select>
             </label>
 
             {saveMutation.error ? (
@@ -193,6 +261,61 @@ export function TaskDetailPage() {
               Save task
             </button>
           </form>
+        </section>
+
+        <section className="panel" aria-labelledby="subtasks-title">
+          <div className="panel-heading">
+            <ListTree size={20} aria-hidden="true" />
+            <h2 id="subtasks-title">Subtasks</h2>
+          </div>
+          {subtasksQuery.data && subtasksQuery.data.tasks.length > 0 ? (
+            <ul className="subtask-list">
+              {subtasksQuery.data.tasks.map((sub) => (
+                <li className={`subtask-item ${sub.status === "done" ? "done" : ""}`} key={sub.id}>
+                  <Link to={`/tasks/${sub.id}`}>{sub.title}</Link>
+                  {effortLabel(sub.effort) ? (
+                    <span className="task-effort">{effortLabel(sub.effort)}</span>
+                  ) : null}
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="empty-hint">No subtasks yet.</p>
+          )}
+          {taskQuery.data?.task.parentTaskId === null ? (
+            <form
+              className="subtask-form"
+              onSubmit={(event) => {
+                event.preventDefault();
+                breakdownMutation.mutate();
+              }}
+            >
+              <label>
+                Break into steps (one per line)
+                <textarea
+                  onChange={(event) => setSteps(event.target.value)}
+                  placeholder={"unload dishwasher\nwipe counters"}
+                  rows={3}
+                  value={steps}
+                />
+              </label>
+              {breakdownMutation.error ? (
+                <p className="form-error">{breakdownMutation.error.message}</p>
+              ) : null}
+              <button
+                className="secondary-button"
+                disabled={breakdownMutation.isPending}
+                type="submit"
+              >
+                {breakdownMutation.isPending ? (
+                  <LoaderCircle className="spin" size={18} aria-hidden="true" />
+                ) : (
+                  <ListTree size={18} aria-hidden="true" />
+                )}
+                Add steps
+              </button>
+            </form>
+          ) : null}
         </section>
 
         <section className="panel" aria-labelledby="activity-title">
