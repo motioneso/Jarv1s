@@ -3,6 +3,7 @@ import { fileURLToPath } from "node:url";
 
 export default defineConfig({
   resolve: {
+    extensions: [".ts", ".tsx", ".js", ".jsx", ".json"],
     alias: [
       {
         find: "@jarv1s/ai",
@@ -77,7 +78,7 @@ export default defineConfig({
         replacement: fileURLToPath(
           new URL("./packages/structured-state/src/index.ts", import.meta.url)
         )
-      }
+      },
     ]
   },
   test: {

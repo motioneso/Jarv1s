@@ -185,6 +185,20 @@ export function chatStreamUrl(): string {
   return "/api/chat/stream";
 }
 
+export async function resolveActionRequest(
+  actionRequestId: string,
+  status: "confirmed" | "rejected" | "cancelled"
+): Promise<void> {
+  await requestJson<unknown>(
+    `/api/chat/action-requests/${encodeURIComponent(actionRequestId)}/resolve`,
+    {
+      method: "POST",
+      body: JSON.stringify({ status }),
+      headers: { "Content-Type": "application/json" }
+    }
+  );
+}
+
 export async function getEmailMessage(id: string): Promise<GetEmailMessageResponse> {
   return requestJson<GetEmailMessageResponse>(`/api/email/messages/${encodeURIComponent(id)}`);
 }
