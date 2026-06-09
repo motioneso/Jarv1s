@@ -1,292 +1,285 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import type { TaskApiStatus, TaskDto } from "@jarv1s/shared";
-import {
-  Archive,
-  CheckCircle2,
-  Circle,
-  ClipboardList,
-  LoaderCircle,
-  Plus,
-  Search
-} from "lucide-react";
+import type { TaskDefaultView, TaskDto } from "@jarv1s/shared";
+import { LayoutGrid, List as ListIcon, LoaderCircle, Plus, Search } from "lucide-react";
 import { type FormEvent, useMemo, useState } from "react";
-import { Link } from "react-router";
 
-import { createTask, listTasks, updateTask } from "../api/client";
+import {
+  createTaskList,
+  createTaskTag,
+  getTaskPreferences,
+  listTaskLists,
+  listTasks,
+  listTaskTags,
+  updateTask,
+  updateTaskPreferences
+} from "../api/client";
 import { queryKeys } from "../api/query-keys";
-import { formatDate, fromDateInputValue, sortTasks, statusLabels } from "./task-format";
+import { TaskCapture } from "./task-capture";
+import { TaskListView } from "./task-list-view";
+import { TaskMatrixView } from "./task-matrix-view";
+import { statusLabels } from "./task-format";
 
-const taskStatusFilters = ["all", "todo", "done", "archived"] as const;
-
-type TaskStatusFilter = (typeof taskStatusFilters)[number];
+const statusFilters = ["all", "todo", "done", "archived"] as const;
+type StatusFilter = (typeof statusFilters)[number];
 
 export function TasksPage() {
   const queryClient = useQueryClient();
-  const [statusFilter, setStatusFilter] = useState<TaskStatusFilter>("all");
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>("todo");
   const [search, setSearch] = useState("");
-  const tasksQuery = useQuery({
-    queryKey: queryKeys.tasks.list,
-    queryFn: () => listTasks()
+  const [activeListId, setActiveListId] = useState<string | null>(null);
+
+  const tasksQuery = useQuery({ queryKey: queryKeys.tasks.list, queryFn: () => listTasks() });
+  const listsQuery = useQuery({ queryKey: queryKeys.tasks.lists, queryFn: listTaskLists });
+  const prefsQuery = useQuery({
+    queryKey: queryKeys.tasks.preferences,
+    queryFn: getTaskPreferences
   });
-  const updateMutation = useMutation({
-    mutationFn: (input: { readonly taskId: string; readonly status: TaskApiStatus }) =>
-      updateTask(input.taskId, { status: input.status }),
-    onSuccess: async (_, input) => {
-      await Promise.all([
-        queryClient.invalidateQueries({ queryKey: queryKeys.tasks.list }),
-        queryClient.invalidateQueries({ queryKey: queryKeys.tasks.detail(input.taskId) })
-      ]);
+
+  const view: TaskDefaultView = prefsQuery.data?.preferences.defaultView ?? "priority";
+
+  const viewMutation = useMutation({
+    mutationFn: (next: TaskDefaultView) => updateTaskPreferences({ defaultView: next }),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: queryKeys.tasks.preferences });
     }
   });
-  const tasks = useMemo(() => {
-    const normalizedSearch = search.trim().toLowerCase();
 
-    return sortTasks(tasksQuery.data?.tasks ?? []).filter((task) => {
-      const matchesStatus = statusFilter === "all" || task.status === statusFilter;
-      const matchesSearch =
-        !normalizedSearch ||
-        task.title.toLowerCase().includes(normalizedSearch) ||
-        (task.description?.toLowerCase().includes(normalizedSearch) ?? false);
+  const updateMutation = useMutation({
+    mutationFn: (task: TaskDto) =>
+      updateTask(task.id, { status: task.status === "done" ? "todo" : "done" }),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: queryKeys.tasks.list });
+    }
+  });
 
-      return matchesStatus && matchesSearch;
+  const visibleTasks = useMemo(() => {
+    const needle = search.trim().toLowerCase();
+    return (tasksQuery.data?.tasks ?? []).filter((task) => {
+      if (task.parentTaskId !== null) return false; // subtasks render on the detail page
+      if (activeListId && task.listId !== activeListId) return false;
+      if (statusFilter !== "all" && task.status !== statusFilter) return false;
+      if (
+        needle &&
+        !task.title.toLowerCase().includes(needle) &&
+        !(task.description?.toLowerCase().includes(needle) ?? false)
+      ) {
+        return false;
+      }
+      return true;
     });
-  }, [search, statusFilter, tasksQuery.data?.tasks]);
-  const counts = useMemo(() => readStatusCounts(tasksQuery.data?.tasks ?? []), [tasksQuery.data]);
+  }, [activeListId, search, statusFilter, tasksQuery.data?.tasks]);
 
   return (
     <section className="page-stack" aria-labelledby="tasks-title">
       <div className="page-heading">
         <div>
           <p className="eyebrow">Tasks</p>
-          <h1 id="tasks-title">Task Board</h1>
+          <h1 id="tasks-title">Tasks</h1>
+        </div>
+        <div className="segmented-control" role="group" aria-label="View">
+          <button
+            aria-pressed={view === "priority"}
+            className={view === "priority" ? "active" : ""}
+            disabled={viewMutation.isPending}
+            onClick={() => viewMutation.mutate("priority")}
+            type="button"
+          >
+            <ListIcon size={16} aria-hidden="true" /> Priority
+          </button>
+          <button
+            aria-pressed={view === "matrix"}
+            className={view === "matrix" ? "active" : ""}
+            disabled={viewMutation.isPending}
+            onClick={() => viewMutation.mutate("matrix")}
+            type="button"
+          >
+            <LayoutGrid size={16} aria-hidden="true" /> Matrix
+          </button>
         </div>
       </div>
 
-      <CreateTaskPanel />
+      <div className="panel">
+        <TaskCapture defaultListId={activeListId ?? undefined} />
+      </div>
 
-      <section className="task-toolbar" aria-label="Task filters">
-        <div className="segmented-control wide" aria-label="Status filter">
-          {taskStatusFilters.map((status) => (
-            <button
-              className={statusFilter === status ? "active" : ""}
-              key={status}
-              type="button"
-              onClick={() => setStatusFilter(status)}
-            >
-              {status === "all" ? "All" : statusLabels[status]}
-              <span>{status === "all" ? counts.all : counts[status]}</span>
-            </button>
-          ))}
-        </div>
-
-        <label className="search-box">
-          <Search size={18} aria-hidden="true" />
-          <input
-            aria-label="Search tasks"
-            onChange={(event) => setSearch(event.target.value)}
-            placeholder="Search tasks"
-            type="search"
-            value={search}
+      <div className="tasks-body">
+        <aside className="tasks-sidebar" aria-label="Lists">
+          <ListSidebar
+            activeListId={activeListId}
+            lists={listsQuery.data?.lists ?? []}
+            onSelect={setActiveListId}
           />
-        </label>
-      </section>
+        </aside>
 
-      <section className="task-list" aria-live="polite">
-        {tasksQuery.isLoading ? (
-          <EmptyState icon="loading" title="Loading tasks" />
-        ) : tasksQuery.error ? (
-          <EmptyState title={tasksQuery.error.message} />
-        ) : tasks.length === 0 ? (
-          <EmptyState title="No tasks" />
-        ) : (
-          tasks.map((task) => (
-            <TaskRow
+        <div className="tasks-main">
+          <section className="task-toolbar" aria-label="Filters">
+            <div className="segmented-control wide" aria-label="Status filter">
+              {statusFilters.map((status) => (
+                <button
+                  className={statusFilter === status ? "active" : ""}
+                  key={status}
+                  onClick={() => setStatusFilter(status)}
+                  type="button"
+                >
+                  {status === "all" ? "All" : statusLabels[status]}
+                </button>
+              ))}
+            </div>
+            <label className="search-box">
+              <Search size={18} aria-hidden="true" />
+              <input
+                aria-label="Search tasks"
+                onChange={(event) => setSearch(event.target.value)}
+                placeholder="Search tasks"
+                type="search"
+                value={search}
+              />
+            </label>
+          </section>
+
+          {tasksQuery.isLoading ? (
+            <div className="empty-state">
+              <LoaderCircle className="spin" size={22} aria-hidden="true" />
+              <p>Loading tasks</p>
+            </div>
+          ) : visibleTasks.length === 0 ? (
+            <div className="empty-state">
+              <p>No tasks</p>
+            </div>
+          ) : view === "matrix" ? (
+            <TaskMatrixView
+              tasks={visibleTasks}
               isUpdating={updateMutation.isPending}
-              key={task.id}
-              onArchive={() => updateMutation.mutate({ taskId: task.id, status: "archived" })}
-              onStatusChange={(status) => updateMutation.mutate({ taskId: task.id, status })}
-              task={task}
+              onToggleDone={(task) => updateMutation.mutate(task)}
             />
-          ))
-        )}
-      </section>
+          ) : (
+            <TaskListView
+              tasks={visibleTasks}
+              isUpdating={updateMutation.isPending}
+              onToggleDone={(task) => updateMutation.mutate(task)}
+            />
+          )}
+        </div>
+      </div>
     </section>
   );
 }
 
-function CreateTaskPanel() {
+function ListSidebar(props: {
+  readonly lists: readonly { readonly id: string; readonly name: string }[];
+  readonly activeListId: string | null;
+  readonly onSelect: (id: string | null) => void;
+}) {
   const queryClient = useQueryClient();
-  const [title, setTitle] = useState("");
-  const [description, setDescription] = useState("");
-  const [dueAt, setDueAt] = useState("");
-  const [priority, setPriority] = useState("");
-  const [formError, setFormError] = useState<string | null>(null);
-  const createMutation = useMutation({
-    mutationFn: () =>
-      createTask({
-        title,
-        description: description || null,
-        priority: priority ? Number(priority) : null,
-        dueAt: fromDateInputValue(dueAt)
-      }),
+  const [newList, setNewList] = useState("");
+  const [newTag, setNewTag] = useState("");
+
+  const createListMutation = useMutation({
+    mutationFn: () => createTaskList({ name: newList.trim() }),
     onSuccess: async () => {
-      setTitle("");
-      setDescription("");
-      setDueAt("");
-      setPriority("");
-      setFormError(null);
-      await queryClient.invalidateQueries({ queryKey: queryKeys.tasks.list });
-    },
-    onError: (error) => setFormError(error.message)
+      setNewList("");
+      await queryClient.invalidateQueries({ queryKey: queryKeys.tasks.lists });
+    }
   });
 
-  const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
+  const tagsQuery = useQuery({
+    enabled: Boolean(props.activeListId),
+    queryKey: queryKeys.tasks.tags(props.activeListId ?? ""),
+    queryFn: () => listTaskTags(props.activeListId ?? "")
+  });
+
+  const createTagMutation = useMutation({
+    mutationFn: () => createTaskTag(props.activeListId ?? "", { name: newTag.trim() }),
+    onSuccess: async () => {
+      setNewTag("");
+      if (props.activeListId) {
+        await queryClient.invalidateQueries({ queryKey: queryKeys.tasks.tags(props.activeListId) });
+      }
+    }
+  });
+
+  const submitList = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    setFormError(null);
-    createMutation.mutate();
+    if (newList.trim()) createListMutation.mutate();
+  };
+  const submitTag = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (newTag.trim() && props.activeListId) createTagMutation.mutate();
   };
 
   return (
-    <section className="panel" aria-labelledby="new-task-title">
-      <div className="panel-heading">
-        <ClipboardList size={20} aria-hidden="true" />
-        <h2 id="new-task-title">New Task</h2>
-      </div>
+    <>
+      <h2 className="sidebar-title">Lists</h2>
+      <ul className="list-nav">
+        <li>
+          <button
+            className={props.activeListId === null ? "active" : ""}
+            onClick={() => props.onSelect(null)}
+            type="button"
+          >
+            All
+          </button>
+        </li>
+        {props.lists.map((list) => (
+          <li key={list.id}>
+            <button
+              className={props.activeListId === list.id ? "active" : ""}
+              onClick={() => props.onSelect(list.id)}
+              type="button"
+            >
+              {list.name}
+            </button>
+          </li>
+        ))}
+      </ul>
 
-      <form className="task-create-form" onSubmit={handleSubmit}>
-        <label className="span-2">
-          Title
-          <input
-            onChange={(event) => setTitle(event.target.value)}
-            placeholder="Task title"
-            required
-            type="text"
-            value={title}
-          />
-        </label>
-
-        <label className="span-2">
-          Description
-          <textarea
-            onChange={(event) => setDescription(event.target.value)}
-            placeholder="Notes"
-            rows={3}
-            value={description}
-          />
-        </label>
-
-        <label>
-          Due
-          <input onChange={(event) => setDueAt(event.target.value)} type="date" value={dueAt} />
-        </label>
-
-        <label>
-          Priority
-          <input
-            max={32767}
-            min={-32768}
-            onChange={(event) => setPriority(event.target.value)}
-            placeholder="0"
-            type="number"
-            value={priority}
-          />
-        </label>
-
-        {formError ? <p className="form-error span-2">{formError}</p> : null}
-
-        <button className="primary-button span-2" disabled={createMutation.isPending} type="submit">
-          {createMutation.isPending ? (
-            <LoaderCircle className="spin" size={18} aria-hidden="true" />
-          ) : (
-            <Plus size={18} aria-hidden="true" />
-          )}
-          Add task
+      <form className="sidebar-form" onSubmit={submitList}>
+        <input
+          aria-label="New list name"
+          onChange={(event) => setNewList(event.target.value)}
+          placeholder="New list"
+          type="text"
+          value={newList}
+        />
+        <button
+          aria-label="Add list"
+          className="icon-button"
+          disabled={createListMutation.isPending}
+          type="submit"
+        >
+          <Plus size={16} aria-hidden="true" />
         </button>
       </form>
-    </section>
-  );
-}
 
-function TaskRow(props: {
-  readonly isUpdating: boolean;
-  readonly onArchive: () => void;
-  readonly onStatusChange: (status: TaskApiStatus) => void;
-  readonly task: TaskDto;
-}) {
-  const done = props.task.status === "done";
-
-  return (
-    <article className={`task-row ${done ? "done" : ""}`}>
-      <button
-        aria-label={done ? `Mark ${props.task.title} as todo` : `Mark ${props.task.title} as done`}
-        className="task-status-icon icon-button"
-        disabled={props.isUpdating}
-        title={done ? "Mark as todo" : "Mark as done"}
-        type="button"
-        onClick={() => props.onStatusChange(done ? "todo" : "done")}
-      >
-        {done ? <CheckCircle2 size={22} /> : <Circle size={22} />}
-      </button>
-      <div className="task-row-main">
-        <Link className="task-title-link" to={`/tasks/${props.task.id}`}>
-          {props.task.title}
-        </Link>
-        {props.task.description ? <p>{props.task.description}</p> : null}
-        <div className="task-meta">
-          <span>{statusLabels[props.task.status]}</span>
-          <span>{formatDate(props.task.dueAt)}</span>
+      {props.activeListId ? (
+        <div className="sidebar-tags">
+          <h3 className="sidebar-subtitle">Tags</h3>
+          <ul className="tag-list">
+            {(tagsQuery.data?.tags ?? []).map((tag) => (
+              <li className="tag-chip" key={tag.id}>
+                {tag.name}
+              </li>
+            ))}
+          </ul>
+          <form className="sidebar-form" onSubmit={submitTag}>
+            <input
+              aria-label="New tag name"
+              onChange={(event) => setNewTag(event.target.value)}
+              placeholder="New tag"
+              type="text"
+              value={newTag}
+            />
+            <button
+              aria-label="Add tag"
+              className="icon-button"
+              disabled={createTagMutation.isPending}
+              type="submit"
+            >
+              <Plus size={16} aria-hidden="true" />
+            </button>
+          </form>
         </div>
-      </div>
-      <div className="task-row-actions">
-        <select
-          aria-label={`Status for ${props.task.title}`}
-          disabled={props.isUpdating}
-          onChange={(event) => props.onStatusChange(event.target.value as TaskApiStatus)}
-          value={props.task.status}
-        >
-          <option value="todo">Open</option>
-          <option value="done">Done</option>
-          <option value="archived">Archived</option>
-        </select>
-        <button
-          aria-label={`Archive ${props.task.title}`}
-          className="icon-button"
-          disabled={props.isUpdating || props.task.status === "archived"}
-          title="Archive"
-          type="button"
-          onClick={props.onArchive}
-        >
-          <Archive size={18} aria-hidden="true" />
-        </button>
-      </div>
-    </article>
+      ) : null}
+    </>
   );
-}
-
-function EmptyState(props: { readonly icon?: "loading"; readonly title: string }) {
-  return (
-    <div className="empty-state">
-      {props.icon === "loading" ? (
-        <LoaderCircle className="spin" size={22} aria-hidden="true" />
-      ) : (
-        <ClipboardList size={22} aria-hidden="true" />
-      )}
-      <p>{props.title}</p>
-    </div>
-  );
-}
-
-function readStatusCounts(tasks: readonly TaskDto[]) {
-  const counts: Record<TaskStatusFilter, number> = {
-    all: tasks.length,
-    todo: 0,
-    done: 0,
-    archived: 0
-  };
-
-  for (const task of tasks) {
-    counts[task.status] += 1;
-  }
-
-  return counts;
 }
