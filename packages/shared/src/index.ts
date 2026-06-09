@@ -10,4 +10,5 @@ export * from "./connectors-api.js";
 export * from "./email-api.js";
 export * from "./notifications-api.js";
 export * from "./tasks-api.js";
+export * from "./tasks-view.js";
 export * from "./platform-api.js";
