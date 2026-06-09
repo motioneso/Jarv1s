@@ -3,6 +3,8 @@ import { fileURLToPath } from "node:url";
 import type { JarvisModuleManifest } from "@jarv1s/module-sdk";
 import { getCalendarEventResponseSchema, listCalendarEventsResponseSchema } from "@jarv1s/shared";
 
+import { calendarListVisibleEventsExecute } from "./tools.js";
+
 export const CALENDAR_MODULE_ID = "calendar";
 export const calendarModuleSqlMigrationDirectory = fileURLToPath(
   new URL("../sql", import.meta.url)
@@ -86,7 +88,8 @@ export const calendarModuleManifest = {
         type: "object",
         properties: {}
       },
-      outputSchema: listCalendarEventsResponseSchema
+      outputSchema: listCalendarEventsResponseSchema,
+      execute: calendarListVisibleEventsExecute
     }
   ]
 } satisfies JarvisModuleManifest;
