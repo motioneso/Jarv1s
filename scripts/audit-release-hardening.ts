@@ -87,7 +87,12 @@ export async function auditReleaseHardening(
     const tableAudits = await readTableAudits(client, [...protectedTables]);
     const transientTableAudits = await readTableAudits(client, [...transientTables]);
     const adminAuditPrivileges = await readAdminAuditPrivileges(client);
-    const failures = collectFailures(roles, tableAudits, transientTableAudits, adminAuditPrivileges);
+    const failures = collectFailures(
+      roles,
+      tableAudits,
+      transientTableAudits,
+      adminAuditPrivileges
+    );
 
     return {
       adminAuditPrivileges,
