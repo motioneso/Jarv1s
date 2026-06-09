@@ -1,5 +1,8 @@
-import { describe, expect, it } from "vitest";
-import { GoogleOAuthClient, GOOGLE_LOOPBACK_REDIRECT, GOOGLE_SCOPES, parseRedirectUrl } from "@jarv1s/connectors";
+import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { DataContextRunner, createDatabase, type AccessContext, type JarvisDatabase } from "@jarv1s/db";
+import type { Kysely } from "kysely";
+import { GoogleOAuthClient, GOOGLE_LOOPBACK_REDIRECT, GOOGLE_SCOPES, parseRedirectUrl, ConnectorsRepository, createConnectorSecretCipher } from "@jarv1s/connectors";
+import { connectionStrings, ids, resetFoundationDatabase } from "./test-database.js";
 
 describe("GoogleOAuthClient.buildAuthUrl", () => {
   it("builds a consent URL with offline access, forced consent, scopes and state", () => {
@@ -63,5 +66,64 @@ describe("GoogleOAuthClient.refreshAccessToken", () => {
     const tokens = await client.refreshAccessToken({ clientId: "cid", clientSecret: "secret", refreshToken: "rt" });
     expect(tokens.access_token).toBe("at2");
     expect(new URLSearchParams(captured.body).get("grant_type")).toBe("refresh_token");
+  });
+});
+
+describe("Google connection repository", () => {
+  let appDb: Kysely<JarvisDatabase>;
+  let dataContext: DataContextRunner;
+  let repository: ConnectorsRepository;
+  const userA = (): AccessContext => ({ actorUserId: ids.userA, requestId: "req:a" });
+
+  beforeAll(async () => {
+    process.env.JARVIS_CONNECTOR_SECRET_KEY = "test-connector-secret-key";
+    await resetFoundationDatabase();
+    appDb = createDatabase({ connectionString: connectionStrings.app, maxConnections: 1 });
+    dataContext = new DataContextRunner(appDb);
+    repository = new ConnectorsRepository();
+  });
+  afterAll(async () => { await appDb?.destroy(); });
+
+  it("stores and reads back pending auth, then upserts the active google account", async () => {
+    const cipher = createConnectorSecretCipher();
+    await dataContext.withDataContext(userA(), (db) =>
+      repository.upsertGooglePending(db, {
+        state: "state-xyz",
+        encryptedSecret: cipher.encryptJson({ clientId: "cid", clientSecret: "sec" })
+      })
+    );
+    const pending = await dataContext.withDataContext(userA(), (db) => repository.getGooglePending(db));
+    expect(pending?.state).toBe("state-xyz");
+
+    const account = await dataContext.withDataContext(userA(), (db) =>
+      repository.upsertGoogleAccount(db, {
+        scopes: ["https://www.googleapis.com/auth/calendar"],
+        encryptedSecret: cipher.encryptJson({ kind: "google-oauth", accessToken: "at" })
+      })
+    );
+    // ConnectorAccountSafeRow is snake_case — never camelCase
+    expect(account.provider_id).toBe("google");
+    expect(account.status).toBe("active");
+
+    await dataContext.withDataContext(userA(), (db) => repository.deleteGooglePending(db));
+    const after = await dataContext.withDataContext(userA(), (db) => repository.getGooglePending(db));
+    expect(after).toBeUndefined();
+  });
+
+  it("getActiveGoogleAccountSecret returns the encrypted secret for an active google account", async () => {
+    const cipher = createConnectorSecretCipher();
+    await dataContext.withDataContext(userA(), (db) =>
+      repository.upsertGoogleAccount(db, {
+        scopes: ["https://www.googleapis.com/auth/calendar"],
+        encryptedSecret: cipher.encryptJson({ kind: "google-oauth", accessToken: "at2" })
+      })
+    );
+    const result = await dataContext.withDataContext(userA(), (db) =>
+      repository.getActiveGoogleAccountSecret(db)
+    );
+    expect(result).toBeDefined();
+    expect(result?.id).toBeTruthy();
+    const decrypted = cipher.decryptJson(result!.encryptedSecret);
+    expect(decrypted.accessToken).toBe("at2");
   });
 });
