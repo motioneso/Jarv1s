@@ -48,10 +48,7 @@ export interface TmuxCliChatEngineOpts {
 
 /**
  * A persistent CLI session driven through tmux. One instance per live session.
- *
- * Only the `anthropic` provider (Claude Code) is implemented in Phase 1 — it is
- * the only CLI verified available on the host. codex/gemini are dispatched but
- * throw a clear "not yet supported" error until they are re-spiked (matrix F5).
+ * Supports anthropic (Claude Code), openai-compatible (Codex), and google (Gemini).
  */
 export class TmuxCliChatEngine implements CliChatEngine {
   private readonly sessionName: string;
@@ -81,17 +78,27 @@ export class TmuxCliChatEngine implements CliChatEngine {
   // ─── lifecycle ─────────────────────────────────────────────────────────────
 
   async launch(opts: EngineLaunchOpts): Promise<void> {
-    if (this.provider !== "anthropic") {
-      throw new Error(
-        `TmuxCliChatEngine: provider "${this.provider}" is not yet supported in Phase 1 — ` +
-          `only "anthropic" (Claude Code) is verified/available. ` +
-          `codex/gemini must be re-spiked first (see cli-capability-matrix F5).`
-      );
-    }
-
     // Generate the session id up front so the transcript path is known before
     // launch — no fragile "find the newest transcript" globbing.
     const sessionId = randomUUID();
+
+    if (this.provider === "google" && opts.mcpToken && opts.mcpServerUrl) {
+      const settingsDir = join(opts.neutralDir, ".gemini");
+      await this.io.run("mkdir", ["-p", settingsDir]);
+      const settings = {
+        mcpServers: {
+          jarvis: {
+            httpUrl: opts.mcpServerUrl,
+            headers: { Authorization: `Bearer \${MCP_TOKEN}` },
+            timeout: 180000
+          }
+        },
+        tools: { core: [] as string[] },
+        security: { disableYoloMode: true }
+      };
+      await this.io.writeFile(join(settingsDir, "settings.json"), JSON.stringify(settings, null, 2));
+    }
+
     this.storedTranscriptPath = join(
       transcriptGlobDir(this.provider, opts.neutralDir),
       `${sessionId}.jsonl`
@@ -191,15 +198,74 @@ export class TmuxCliChatEngine implements CliChatEngine {
    * matrix's recommended shape).
    */
   private buildLaunchCommand(opts: EngineLaunchOpts, sessionId: string): string {
-    const cli = CLI_FOR[this.provider];
+    switch (this.provider) {
+      case "anthropic":
+        return this.buildClaudeCommand(opts, sessionId);
+      case "openai-compatible":
+        return this.buildCodexCommand(opts);
+      case "google":
+        return this.buildGeminiCommand(opts);
+    }
+  }
+
+  private buildClaudeCommand(opts: EngineLaunchOpts, sessionId: string): string {
     const parts = [
       `cd ${shellQuote(opts.neutralDir)} &&`,
-      cli,
-      "--permission-mode default",
-      '--tools ""',
+      "claude",
+      "--permission-mode default"
+    ];
+
+    if (opts.mcpToken && opts.mcpServerUrl) {
+      const mcpConfig = JSON.stringify({
+        mcpServers: {
+          jarvis: {
+            type: "http",
+            url: opts.mcpServerUrl,
+            headers: { Authorization: `Bearer ${opts.mcpToken}` },
+            timeout: 180000
+          }
+        }
+      });
+      parts.push(`--mcp-config ${shellQuote(mcpConfig)}`);
+      parts.push('--allowedTools "mcp__jarvis__*"');
+    } else {
+      parts.push('--tools ""');
+    }
+
+    parts.push(
       `--append-system-prompt-file ${shellQuote(opts.personaPath)}`,
       `--session-id ${sessionId}`,
       "--strict-mcp-config"
+    );
+
+    return parts.join(" ");
+  }
+
+  private buildCodexCommand(opts: EngineLaunchOpts): string {
+    const tokenEnvVar = "JARVIS_MCP_TOKEN";
+    const envPrefix = opts.mcpToken ? `${tokenEnvVar}=${opts.mcpToken} ` : "";
+    const parts = [`cd ${shellQuote(opts.neutralDir)} &&`, `${envPrefix}codex`];
+
+    if (opts.mcpToken && opts.mcpServerUrl) {
+      parts.push(
+        `-c 'mcp_servers.jarvis.url="${opts.mcpServerUrl}"'`,
+        `-c 'mcp_servers.jarvis.bearer_token_env_var="${tokenEnvVar}"'`,
+        `-c 'mcp_servers.jarvis.tool_timeout_sec=180'`,
+        `-c 'features.shell_tool=false'`,
+        `-c 'features.apply_patch_tool=false'`
+      );
+    }
+    parts.push("--sandbox read-only", "-a never");
+
+    return parts.join(" ");
+  }
+
+  private buildGeminiCommand(opts: EngineLaunchOpts): string {
+    const envPrefix = opts.mcpToken ? `MCP_TOKEN=${opts.mcpToken} ` : "";
+    const parts = [
+      `cd ${shellQuote(opts.neutralDir)} &&`,
+      `${envPrefix}gemini`,
+      "--allowed-mcp-server-names jarvis"
     ];
     return parts.join(" ");
   }
