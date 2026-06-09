@@ -26,6 +26,8 @@
   **`relay`** skill — write a continuation handoff, `herdr-handoff` your successor, and let the
   coordinator reap you.
 - Honor every CLAUDE.md Hard Invariant. No secrets in any doc, payload, log, or prompt.
+- **Caveman mode** for all status/escalations to the coordinator (terse, no filler, full technical
+  accuracy — saves tokens). Commit messages, PR bodies, and code stay normal/conventional.
 
 ## Collision notes (from the coordinator)
 

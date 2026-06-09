@@ -22,6 +22,11 @@ This is the `start` skill's plan+build stages adapted for coordination mode.
 - You **self-monitor context** and relay before you degrade.
 - You **never** move the project board, close issues/milestones, or merge — those are the
   coordinator's. Your closeout is `coordinated-wrap-up` (PR + report), nothing more.
+- **Communicate in caveman mode to save tokens.** For every status update, escalation, and report
+  to the coordinator — and your own narration — drop articles, filler, and pleasantries; keep full
+  technical accuracy (invoke the `caveman` skill if registered, else just write terse). EXCEPTION:
+  commit messages, PR bodies, and code/comments keep their normal conventional form (they have
+  readers and conventions). Terse to the coordinator; conventional in the artifacts.
 
 ## Procedure
 
