@@ -65,6 +65,7 @@ describe("TmuxCliChatEngine — Codex launch", () => {
     expect(launchLine).toContain("JARVIS_MCP_TOKEN=jst_codex");
     expect(launchLine).toContain("mcp_servers.jarvis.url");
     expect(launchLine).toContain("shell_tool=false");
+    expect(launchLine).toContain("apply_patch_tool=false");
     expect(launchLine).toContain("sandbox read-only");
   });
 });
@@ -86,6 +87,7 @@ describe("TmuxCliChatEngine — Gemini launch", () => {
     expect(writeCall).toBeDefined();
     const settingsContent = JSON.parse(writeCall![1] as string);
     expect(settingsContent.mcpServers.jarvis.httpUrl).toBe("http://127.0.0.1:3000/api/mcp");
+    expect(settingsContent.mcpServers.jarvis.headers.Authorization).toBe("Bearer jst_gemini");
 
     const sendKeysCall = (io.run as ReturnType<typeof vi.fn>).mock.calls.find(
       (c: unknown[]) => c[0] === "tmux" && (c[1] as string[])[0] === "send-keys"

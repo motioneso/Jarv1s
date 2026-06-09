@@ -89,7 +89,7 @@ export class TmuxCliChatEngine implements CliChatEngine {
         mcpServers: {
           jarvis: {
             httpUrl: opts.mcpServerUrl,
-            headers: { Authorization: `Bearer \${MCP_TOKEN}` },
+            headers: { Authorization: `Bearer ${opts.mcpToken}` },
             timeout: 180000
           }
         },
