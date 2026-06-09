@@ -13,6 +13,8 @@ throwaway agent — do the expensive verification on a branch you did not write,
 **short verdict**. The coordinator consumes the verdict and reaps you.
 
 Your entire output to the coordinator is the compact verdict in step 4. Do not paste raw logs.
+**Communicate in caveman mode** (terse — drop articles/filler/pleasantries, keep full technical
+accuracy; invoke the `caveman` skill if registered) for the verdict and any narration, to save tokens.
 
 ## Inputs (from your handoff / bootstrap)
 

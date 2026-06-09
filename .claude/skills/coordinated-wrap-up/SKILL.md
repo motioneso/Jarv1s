@@ -51,6 +51,9 @@ Body states scope, the spec link, your verified gate result (exit codes), and an
 
 ### 4. Report to the coordinator — then STOP
 
+Report in **caveman mode** (terse — drop filler/articles/pleasantries, keep full technical accuracy)
+to save tokens. The PR body itself stays normal/conventional (it has human readers).
+
 Via `herdr-pane-message` to your coordinator label:
 
 > "<slug> DONE. PR: <link>. VF_EXIT=0 AUDIT_EXIT=0 (full suite). Branch <b> pushed, rebased on
