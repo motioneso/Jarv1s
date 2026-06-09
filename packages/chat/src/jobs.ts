@@ -97,6 +97,23 @@ export async function handleEmbedTurnJob(
   );
 }
 
+// ── Extract-facts handler ─────────────────────────────────────────────────────
+
+/**
+ * LLM-driven fact extraction from recent turns. Stubbed until @jarv1s/ai
+ * exposes a clean capability-router call for non-chat completions.
+ * The queue is wired and the worker slot is registered — this handler runs
+ * but performs no-op extraction until the AI utilities are plumbed through.
+ */
+export async function handleExtractFactsJob(
+  _scopedDb: DataContextDb,
+  _ownerUserId: string,
+  _threadId: string
+): Promise<void> {
+  // TODO(phase3-facts): call capability router to extract structured facts
+  // from the most recent turn and upsert them into chat_memory_facts.
+}
+
 // ── Worker registration ───────────────────────────────────────────────────────
 
 export interface RegisterChatJobWorkersOptions {
@@ -129,6 +146,15 @@ export async function registerChatJobWorkers(
     options.workOptions
   );
 
-  // extract-facts worker is wired in Task 8
-  return [embedWorkId];
+  const extractWorkId = await registerDataContextWorker<ExtractFactsJobPayload, void>(
+    boss,
+    CHAT_EXTRACT_FACTS_QUEUE,
+    dataContext,
+    async (job, scopedDb) => {
+      await handleExtractFactsJob(scopedDb, job.data.actorUserId, job.data.threadId);
+    },
+    options.workOptions
+  );
+
+  return [embedWorkId, extractWorkId];
 }
