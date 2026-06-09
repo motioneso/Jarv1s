@@ -8,7 +8,8 @@ Before starting work, get current state from GitHub (the source of truth), then 
 
 1. **GitHub** — current status, milestone sequence, and exit criteria live on the
    [project board](https://github.com/users/motioneso/projects/1) and in Milestones / epic issues
-   #2–#10. (STATUS.md and ROADMAP.md were retired 2026-06-07.)
+   #46–#50 (the **Phase 1–5** epics; older `M-Ax`/`M-Bx` epics #2–#10 are closed). Foundation
+   decisions: ADRs 0007–0009. (STATUS.md and ROADMAP.md were retired 2026-06-07.)
 2. `docs/DEVELOPMENT_STANDARDS.md` — the maintainability bar (enforced, not advisory)
 3. `docs/operations/dev-environment.md` — local/LAN dev run + infrastructure notes
 
@@ -99,8 +100,10 @@ These are decisions, not code descriptions. Violating any of these is a blocker.
 The roadmap is tracked in GitHub. Keep it current — do not let the board drift from reality.
 
 - **Project board:** https://github.com/users/motioneso/projects/1 ("Jarv1s Roadmap")
-- **Milestones:** one per roadmap entry (M-A1 through M-B3)
-- **Epic issues:** #2–#10, one per milestone, each with an exit-criteria checklist
+- **Milestones:** one per roadmap phase — **Phase 1–5 + Backlog** (the older `M-Ax`/`M-Bx`
+  milestones are closed: completed, or superseded by the 2026-06-09 roadmap restructure).
+- **Epic issues:** **#46–#50** (Phase 1–5), one per phase, each with an exit-criteria checklist.
+  Foundation decisions live in **ADRs 0007–0009**. Phase-1 task issues are #51–#60.
 
 **At milestone start:**
 
