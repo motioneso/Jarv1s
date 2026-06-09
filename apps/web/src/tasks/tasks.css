@@ -1,0 +1,7 @@
+/* Tasks UI styles (M-A5 Plan 3). Kept separate from styles.css to respect the 1000-line cap. */
+
+.tasks-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 1.25rem;
+}

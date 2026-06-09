@@ -32,6 +32,16 @@ export function fromDateInputValue(value: string): string | null {
   return new Date(`${value}T12:00:00.000Z`).toISOString();
 }
 
+export const effortLabels: Record<"quick" | "medium" | "large", string> = {
+  quick: "Quick",
+  medium: "Medium",
+  large: "Large"
+};
+
+export function effortLabel(effort: "quick" | "medium" | "large" | null): string | null {
+  return effort ? effortLabels[effort] : null;
+}
+
 export function sortTasks(tasks: readonly TaskDto[]): TaskDto[] {
   return [...tasks].sort((left, right) => {
     const leftDueAt = left.dueAt ? new Date(left.dueAt).getTime() : Number.MAX_SAFE_INTEGER;
