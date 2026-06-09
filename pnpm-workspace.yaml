@@ -2,3 +2,13 @@ packages:
   - "apps/*"
   - "packages/*"
   - "spikes/*"
+
+# Native-build posture (P1 #58): record intent explicitly so a clean install
+# reproduces it. onnxruntime-node + sharp download pre-built binaries (no
+# compiler) and are required by @huggingface/transformers (M-A1 embeddings);
+# protobufjs's postinstall is a harmless version-scheme warning, intentionally blocked.
+onlyBuiltDependencies:
+  - onnxruntime-node
+  - sharp
+ignoredBuiltDependencies:
+  - protobufjs
