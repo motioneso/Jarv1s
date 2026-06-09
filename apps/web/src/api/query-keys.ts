@@ -42,6 +42,10 @@ export const queryKeys = {
   tasks: {
     list: ["tasks", "list"] as const,
     detail: (id: string) => ["tasks", "detail", id] as const,
-    activity: (id: string) => ["tasks", "activity", id] as const
+    activity: (id: string) => ["tasks", "activity", id] as const,
+    subtasks: (id: string) => ["tasks", "subtasks", id] as const,
+    lists: ["tasks", "lists"] as const,
+    tags: (listId: string) => ["tasks", "tags", listId] as const,
+    preferences: ["tasks", "preferences"] as const
   }
 };
