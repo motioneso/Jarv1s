@@ -7,6 +7,7 @@ export * from "./repository.js";
 export * from "./routes.js";
 export * from "./adapters/http-api.js";
 export * from "./adapters/tmux-bridge.js";
+export * from "./gateway/index.js";
 export {
   parseTranscript,
   type ProviderKind,
