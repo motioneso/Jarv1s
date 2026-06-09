@@ -415,13 +415,11 @@ export function registerAiRoutes(
         }
 
         const result = await dependencies.dataContext.withDataContext(accessContext, (scopedDb) =>
-          manifestTool
-            .execute!(scopedDb, body.input ?? {}, {
-              actorUserId: accessContext.actorUserId,
-              requestId: accessContext.requestId ?? "",
-              chatSessionId: ""
-            })
-            .then((r) => r.data ?? {})
+          manifestTool.execute!(scopedDb, body.input ?? {}, {
+            actorUserId: accessContext.actorUserId,
+            requestId: accessContext.requestId ?? "",
+            chatSessionId: ""
+          }).then((r) => r.data ?? {})
         );
 
         return {

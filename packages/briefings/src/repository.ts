@@ -251,11 +251,15 @@ async function generateSummary(
     }
 
     try {
-      const toolResult = await manifestTool.execute(scopedDb, {}, {
-        actorUserId: "",
-        requestId: "",
-        chatSessionId: ""
-      });
+      const toolResult = await manifestTool.execute(
+        scopedDb,
+        {},
+        {
+          actorUserId: "",
+          requestId: "",
+          chatSessionId: ""
+        }
+      );
       const result = toolResult.data ?? {};
       toolSummaries.push(summarizeToolResult(tool, result));
     } catch {
