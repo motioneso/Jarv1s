@@ -1,12 +1,12 @@
 # Tasks Foundation — Design
 
-**Status:** Approved for build — rev 3 (two adversarial verification passes — Gemini 2.5 Pro + Claude critic — both returned *ready-with-fixes*; all fixes folded in below, 2026-06-08)
+**Status:** Approved for build — rev 3 (two adversarial verification passes — Gemini 2.5 Pro + Claude critic — both returned _ready-with-fixes_; all fixes folded in below, 2026-06-08)
 **Date:** 2026-06-08
 **Owner:** Ben
 **Depends on:** M-A3 (real AI providers / chat runtime) merged to `main`.
 **Informs:** M-A4 (vault-grounded briefings) — the briefing reads tasks; this spec defines
 the read contract it will rely on.
-**Related (separate specs):** *AI write-tool execution surface* (in progress, owned by a
+**Related (separate specs):** _AI write-tool execution surface_ (in progress, owned by a
 separate effort) — a prerequisite for Jarv1s **creating/updating** tasks; **@Jarvis-in-task**
 (later) — a task-scoped assistant conversation. Both are explicitly out of this milestone
 (see Scope).
@@ -19,13 +19,13 @@ Jarv1s ships a minimal Tasks module (`packages/tasks/`): a flat `app.tasks` tabl
 description, status, nullable `priority` smallint with no defined meaning, due/completed
 timestamps), an append-only `app.task_activity` feed (free-text type), CRUD + async
 `deferred-status` routes, owner-or-share RLS, and exactly two assistant tools
-(`tasks.listVisible`, `tasks.updateStatus`). The briefing's *entire* current coupling is
+(`tasks.listVisible`, `tasks.updateStatus`). The briefing's _entire_ current coupling is
 calling `tasks.listVisible` and reading task **titles**.
 
 The north-star — verified in the design interview — is to **excel for people with
 executive-function (EF) challenges**: make capture, prioritization, breakdown, and "what do
 I do next" low-effort and low-overwhelm. Future areas (briefings, meetings, chores) hang off
-Tasks, so the task model must be designed out *now* as the single dependable substrate.
+Tasks, so the task model must be designed out _now_ as the single dependable substrate.
 
 This spec is the output of a `grill-with-docs` session. Domain language is in the repo-root
 [`CONTEXT.md`](../../../CONTEXT.md); the core conceptual decision is recorded in
@@ -37,8 +37,8 @@ Two independent model reviews (Gemini 2.5 Pro, unanchored; Claude critic) conver
 same blockers in rev 1, and this rev acts on them:
 
 1. **There is no AI write-tool execution path today.** `AiAssistantToolExecutor` exposes only
-   `invokeReadTool`; the chat runtime records tool metadata *without executing*. So Jarv1s
-   *creating/updating* tasks (and the chat "make me a task" flow) depends on a generic
+   `invokeReadTool`; the chat runtime records tool metadata _without executing_. So Jarv1s
+   _creating/updating_ tasks (and the chat "make me a task" flow) depends on a generic
    write-tool execution surface that does not exist. That is a **separate foundational spec**
    (in progress elsewhere). This milestone ships **read** tools only.
 2. **@Jarvis-in-task is not "a thin layer over the chat runtime."** The chat runtime's
@@ -48,7 +48,7 @@ same blockers in rev 1, and this rev acts on them:
    surface. Deferred.
 
 The result: this milestone delivers the full **human-and-system** task model and its
-**read/query** contract. Jarv1s *operating on* tasks layers on cleanly afterward through the
+**read/query** contract. Jarv1s _operating on_ tasks layers on cleanly afterward through the
 provenance and tool seams built here.
 
 ---
@@ -76,13 +76,13 @@ living status; and the drift/focus queries are ready for the briefing to consume
 
 ## Non-Goals (deferred, seam preserved)
 
-- **Jarv1s write actions on tasks** (`tasks.create`/`update`/`complete`/`breakDown` *as
-  assistant tools*, and the chat "create a task for me" flow) — depend on the separate
-  **AI write-tool execution** spec. This milestone ships read tools only; the *human* REST/UI
+- **Jarv1s write actions on tasks** (`tasks.create`/`update`/`complete`/`breakDown` _as
+  assistant tools_, and the chat "create a task for me" flow) — depend on the separate
+  **AI write-tool execution** spec. This milestone ships read tools only; the _human_ REST/UI
   paths do all writes.
 - **@Jarvis-in-task conversation** — a new task-scoped assistant queue/worker writing
   `jarvis_reply` activity. After the write-tool surface.
-- **Chores area** — a *separate* future module that automates task creation through the
+- **Chores area** — a _separate_ future module that automates task creation through the
   `source` seam. Tasks hold no chore logic.
 - **Completion-relative recurrence** and **subtasks-on-recurrence** — v1 is fixed-schedule,
   flat instances. (A recurring task may therefore **not** also be a parent — see Behavior.)
@@ -97,22 +97,22 @@ living status; and the drift/focus queries are ready for the briefing to consume
 
 ## Resolved Decisions
 
-| #   | Decision | Rationale |
-| --- | -------- | --------- |
-| 1   | Task is the **single action surface**; manual now, Jarv1s/sources later. | One place to look (EF). |
-| 2   | **Commitment = a Task with inferred `source`** (later). No field/table/module; counterparty context in the description. | Chief-of-staff rule; reverses 0031's comment (ADR 0004). |
-| 3   | **One-level hierarchy**; children ordered but **not gated**. | Deep trees overwhelm; gating punishes the motivated. |
-| 4   | Parent is a **real task** (mark done directly *or* auto-close when all children done). **Breakdown augments.** | "Hired someone → done" without the steps. |
-| 5   | **Exactly one List per task** (required, default "Personal", user-managed, no cap). **Tags scoped within a List.** No "Project" concept. | One home + light labels. |
-| 6   | **Priority = 5 named levels** (Someday=1 … Critical=5). | Small clear buckets. |
-| 7   | **Matrix** is a derived view; **default view = single list grouped by Priority**; user may set Matrix as default (per-user pref). | Importance×urgency lens, opt-in. |
-| 8   | Optional **due-date**, **do-date**, **effort** (quick/medium/large). Only **title** required. | Capture-minimal. |
-| 9   | **Recurrence v1 = fixed-schedule, one live instance, missed rolls forward without stacking.** | Repeats without a guilt pile. |
-| 10  | **Provenance:** `source` (open string) + `source_ref` + `external_key`; external-source idempotency on `(owner, source, external_key)`. | New sources plug in without editing Tasks. |
-| 11  | **Drift = task-level computed query** (overdue / at-risk, **Medium+**); no column, no job. | The seam briefing + a heartbeat reuse. |
-| 12  | **Statuses: Open / Done / Archived.** `in_progress` retired (no manual toggle, no auto-derive); shared contract narrowed. | Just work; progress lives in Activity. |
-| 13  | **Activity stream = living status + work-notes** (human + system now; **@Jarvis conversation later**); records `actor_kind`; open-string types. **Briefing must read it.** | Transparent status (EF). |
-| 14  | **Sharing: per-task now**; list-level deferred but forward-compatible; **subtasks inherit parent sharing**. | Honors "private by default". |
+| #   | Decision                                                                                                                                                                   | Rationale                                                |
+| --- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------- |
+| 1   | Task is the **single action surface**; manual now, Jarv1s/sources later.                                                                                                   | One place to look (EF).                                  |
+| 2   | **Commitment = a Task with inferred `source`** (later). No field/table/module; counterparty context in the description.                                                    | Chief-of-staff rule; reverses 0031's comment (ADR 0004). |
+| 3   | **One-level hierarchy**; children ordered but **not gated**.                                                                                                               | Deep trees overwhelm; gating punishes the motivated.     |
+| 4   | Parent is a **real task** (mark done directly _or_ auto-close when all children done). **Breakdown augments.**                                                             | "Hired someone → done" without the steps.                |
+| 5   | **Exactly one List per task** (required, default "Personal", user-managed, no cap). **Tags scoped within a List.** No "Project" concept.                                   | One home + light labels.                                 |
+| 6   | **Priority = 5 named levels** (Someday=1 … Critical=5).                                                                                                                    | Small clear buckets.                                     |
+| 7   | **Matrix** is a derived view; **default view = single list grouped by Priority**; user may set Matrix as default (per-user pref).                                          | Importance×urgency lens, opt-in.                         |
+| 8   | Optional **due-date**, **do-date**, **effort** (quick/medium/large). Only **title** required.                                                                              | Capture-minimal.                                         |
+| 9   | **Recurrence v1 = fixed-schedule, one live instance, missed rolls forward without stacking.**                                                                              | Repeats without a guilt pile.                            |
+| 10  | **Provenance:** `source` (open string) + `source_ref` + `external_key`; external-source idempotency on `(owner, source, external_key)`.                                    | New sources plug in without editing Tasks.               |
+| 11  | **Drift = task-level computed query** (overdue / at-risk, **Medium+**); no column, no job.                                                                                 | The seam briefing + a heartbeat reuse.                   |
+| 12  | **Statuses: Open / Done / Archived.** `in_progress` retired (no manual toggle, no auto-derive); shared contract narrowed.                                                  | Just work; progress lives in Activity.                   |
+| 13  | **Activity stream = living status + work-notes** (human + system now; **@Jarvis conversation later**); records `actor_kind`; open-string types. **Briefing must read it.** | Transparent status (EF).                                 |
+| 14  | **Sharing: per-task now**; list-level deferred but forward-compatible; **subtasks inherit parent sharing**.                                                                | Honors "private by default".                             |
 
 ---
 
@@ -137,24 +137,24 @@ the already-FORCE-RLS `app.tasks` uses a temporary migration-scoped policy (prec
 
 1. **Create new tables (no RLS yet):**
    - `app.task_lists(id, owner_user_id → users, name check(len>0), position int default 0,
-     created_at, updated_at)`, **`UNIQUE (owner_user_id, lower(name))`** (prevents duplicate
+created_at, updated_at)`, **`UNIQUE (owner_user_id, lower(name))`** (prevents duplicate
      "Personal", makes get-or-create a safe `ON CONFLICT DO NOTHING`).
    - `app.task_tags(id, owner_user_id, list_id → task_lists on delete cascade, name,
-     created_at)`, `UNIQUE (list_id, lower(name))`.
+created_at)`, `UNIQUE (list_id, lower(name))`.
    - `app.task_tag_assignments(task_id → tasks on delete cascade, tag_id → task_tags on
-     delete cascade, PRIMARY KEY (task_id, tag_id))`.
+delete cascade, PRIMARY KEY (task_id, tag_id))`.
    - `app.task_preferences(owner_user_id PK → users, default_view text not null default
-     'priority' check (default_view in ('priority','matrix')))` — **tasks-owned** per-user
-     setting. This is a *conscious* duplication of the generic `app.preferences` KV table in
+'priority' check (default_view in ('priority','matrix')))` — **tasks-owned** per-user
+     setting. This is a _conscious_ duplication of the generic `app.preferences` KV table in
      `structured-state`: the module-isolation invariant forbids Tasks reading another module's
      table, so Tasks owns its own preference store rather than reach into `app.preferences`.
 2. **Seed** a "Personal" list for **every** existing user:
    `INSERT INTO app.task_lists(owner_user_id, name) SELECT id, 'Personal' FROM app.users ON CONFLICT DO NOTHING;`
    (runs as migration owner; these tables have no RLS yet).
 3. **Alter `app.tasks`** — add nullable columns: `list_id uuid → task_lists ON DELETE
-   RESTRICT` (a List cannot be deleted while it holds tasks — safer than cascading task
+RESTRICT` (a List cannot be deleted while it holds tasks — safer than cascading task
    deletion; the UI must require emptying/reassigning first), `parent_task_id uuid →
-   tasks(id) on delete cascade`, `position int not null default 0`, `do_at timestamptz`,
+tasks(id) on delete cascade`, `position int not null default 0`, `do_at timestamptz`,
    `effort text`, `source text not null default 'manual'`, `source_ref text`,
    `external_key text`, `recurrence jsonb`, `recurrence_series_id uuid`. The `recurrence`
    jsonb shape is pinned as `{freq:'daily'|'weekly'|'monthly', interval:int, occurrence_date:date}`
@@ -164,15 +164,15 @@ the already-FORCE-RLS `app.tasks` uses a temporary migration-scoped policy (prec
    (the schema-owning, `NOBYPASSRLS` migration role — a plain UPDATE by it matches zero rows
    under FORCE RLS without this policy);
    then `UPDATE app.tasks t SET list_id = l.id FROM app.task_lists l WHERE l.owner_user_id =
-   t.owner_user_id AND l.name='Personal'`; `UPDATE app.tasks SET status='todo' WHERE
-   status='in_progress'`; normalize `priority` into `1..5` or `NULL`; finally
+t.owner_user_id AND l.name='Personal'`; `UPDATE app.tasks SET status='todo' WHERE
+status='in_progress'`; normalize `priority` into `1..5` or `NULL`; finally
    `DROP POLICY tasks_migration_backfill`.
 5. **Constrain `app.tasks`:** `ALTER ... ALTER list_id SET NOT NULL`;
    `CHECK (priority IS NULL OR priority BETWEEN 1 AND 5)`;
    `CHECK (effort IS NULL OR effort IN ('quick','medium','large'))`;
    partial unique index `UNIQUE (owner_user_id, source, external_key) WHERE external_key IS NOT NULL`;
    **recurrence dedup** index `UNIQUE (recurrence_series_id, (recurrence->>'occurrence_date')) WHERE recurrence_series_id IS NOT NULL`
-   (dedicated — `external_key` is left purely for *external* sources, not overloaded);
+   (dedicated — `external_key` is left purely for _external_ sources, not overloaded);
    index `(owner_user_id, status, priority, due_at)` to back drift/focus queries.
 6. **Triggers (BEFORE INSERT/UPDATE on `app.tasks`)** — each is a row trigger doing a
    lookup, not a column check:
@@ -187,8 +187,8 @@ the already-FORCE-RLS `app.tasks` uses a temporary migration-scoped policy (prec
      `EXISTS (SELECT 1 FROM app.tasks p WHERE p.id = NEW.parent_task_id AND p.recurrence IS NOT NULL)`.
    - **Trigger on `task_tag_assignments`:** reject a tag whose `list_id` ≠ the task's `list_id`.
 7. **Enable RLS + policies + grants** on the four new tables (owner-only, `FORCE ROW LEVEL
-   SECURITY`), mirroring `app.tasks`/`commitments`. **Grants:** `SELECT, INSERT, UPDATE,
-   DELETE` to `jarvis_app_runtime` on `task_lists`/`task_tags`/`task_tag_assignments`/
+SECURITY`), mirroring `app.tasks`/`commitments`. **Grants:** `SELECT, INSERT, UPDATE,
+DELETE` to `jarvis_app_runtime` on `task_lists`/`task_tags`/`task_tag_assignments`/
    `task_preferences`; `SELECT` to `jarvis_worker_runtime` on all four (worker reads list/
    tag/pref context for focus/drift composition). `app.task_lists` forward-compat: the
    owner-only `SELECT` policy is written so a future `OR app.has_share('list', id, 'view')`
@@ -201,9 +201,10 @@ the already-FORCE-RLS `app.tasks` uses a temporary migration-scoped policy (prec
 ### Status contract change (shared)
 
 `@jarv1s/shared` `taskStatusSchema` / `TASK_STATUSES` and `@jarv1s/db` `TaskStatus` are
-**narrowed to `todo | done | archived`** (UI labels: *Open / Done / Archived*). The DB enum
+**narrowed to `todo | done | archived`** (UI labels: _Open / Done / Archived_). The DB enum
 value persists (Postgres can't drop it cleanly) but is never written. **Callers to update
 (in scope — they currently reference `in_progress`):**
+
 - `packages/shared/src/tasks-api.ts` (`TASK_STATUSES`/`taskStatusSchema`) and
   `packages/db/src/types.ts` (`TaskStatus`).
 - `packages/tasks/src/routes.ts` `optionalTaskStatus`/`parseDeferredStatusBody` → reject
@@ -244,28 +245,29 @@ value persists (Postgres can't drop it cleanly) but is never written. **Callers 
 - `getFocus`: the "what's next today" ordering = Do-quadrant ∪ at-risk ∪ due-today, ranked by
   (priority, urgency, drift, effort).
 
-**Honest status:** in *this* milestone these queries ship as a **read seam with no live
+**Honest status:** in _this_ milestone these queries ship as a **read seam with no live
 consumer yet** — the briefing rewires to them in **M-A4**, and the heartbeat reuses them
-later. They are exercised by tests and the read tools now; user-visible *proactive* drift
+later. They are exercised by tests and the read tools now; user-visible _proactive_ drift
 arrives with those consumers.
 
 ### Assistant-tool contract — READ ONLY this milestone
 
 > **Updated 2026-06-08 (coordination, issue #34 / PR #33):** Phase-2 Chat-MCP landed a
 > **module-owned tool contract** — `ModuleAssistantToolManifest.execute(scopedDb, input, ctx)`
-> + `summarize()` in `@jarv1s/module-sdk`, dispatched by a generic `AssistantToolGateway`
-> (`packages/ai/src/gateway/`) that gates by risk (read→run, write→confirm) under RLS. **Plan 2
-> authors the Tasks read/query tools as `execute` handlers on this contract — NOT as cases in
-> the legacy central `invokeReadTool` switch** (avoids a later migration). **Tasks *write*
-> tools (`tasks.create`/`updateStatus`/…) are owned by Phase 2's write surface** (confirm-gated,
-> with `summarize()` cards), not this milestone. Prerequisite for Plan 2: PR #33 merged + main
-> integrated into the tasks branch. ADR 0004 (this work) / ADR 0005 (Phase 2) — no collision. `risk:"read"`: `tasks.list` (filters: list, tag,
-status, priority, due-range, **matrix quadrant**), `tasks.get` (incl. subtasks + recent
-activity), `tasks.focus`, `tasks.atRisk`, `tasks.overdue`, `tasks.listLists`, `tasks.listTags`,
-`tasks.activity`. The legacy `tasks.updateStatus` write tool is **removed** until the AI
-write-tool execution surface exists; status/all writes go through REST/UI. **Write** tools
-(`tasks.create`/`update`/`complete`/`archive`/`breakDown`/`addActivity`/list+tag mutations)
-are specified as the **next** milestone's surface, gated on that separate spec.
+>
+> - `summarize()` in `@jarv1s/module-sdk`, dispatched by a generic `AssistantToolGateway`
+>   (`packages/ai/src/gateway/`) that gates by risk (read→run, write→confirm) under RLS. **Plan 2
+>   authors the Tasks read/query tools as `execute` handlers on this contract — NOT as cases in
+>   the legacy central `invokeReadTool` switch** (avoids a later migration). **Tasks _write_
+>   tools (`tasks.create`/`updateStatus`/…) are owned by Phase 2's write surface** (confirm-gated,
+>   with `summarize()` cards), not this milestone. Prerequisite for Plan 2: PR #33 merged + main
+>   integrated into the tasks branch. ADR 0004 (this work) / ADR 0005 (Phase 2) — no collision. `risk:"read"`: `tasks.list` (filters: list, tag,
+>   status, priority, due-range, **matrix quadrant**), `tasks.get` (incl. subtasks + recent
+>   activity), `tasks.focus`, `tasks.atRisk`, `tasks.overdue`, `tasks.listLists`, `tasks.listTags`,
+>   `tasks.activity`. The legacy `tasks.updateStatus` write tool is **removed** until the AI
+>   write-tool execution surface exists; status/all writes go through REST/UI. **Write** tools
+>   (`tasks.create`/`update`/`complete`/`archive`/`breakDown`/`addActivity`/list+tag mutations)
+>   are specified as the **next** milestone's surface, gated on that separate spec.
 
 ### Web / REST + UI (human paths — all writes live here this milestone)
 
@@ -285,20 +287,20 @@ structural: sources become tasks, so an obligation has exactly one representatio
 
 ## Reliability / Degradation
 
-| Concern | Behavior |
-| --- | --- |
-| External source double-fires (future chore/meeting retry) | `external_key` idempotency → one task. |
-| Recurrence double-generation | `(recurrence_series_id, occurrence_date)` unique → one live instance. |
-| Missed recurring occurrence | Single instance rolls forward (overdue), never stacks. |
-| Parent/child consistency | Repository cascade emits activity; FK cascade prevents orphans; parent+children share a list. |
-| Migration on existing data | Backfill runs pre-RLS on new tables and under a transient policy on `app.tasks`; all existing rows get a Personal list before `NOT NULL`. |
+| Concern                                                   | Behavior                                                                                                                                  |
+| --------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| External source double-fires (future chore/meeting retry) | `external_key` idempotency → one task.                                                                                                    |
+| Recurrence double-generation                              | `(recurrence_series_id, occurrence_date)` unique → one live instance.                                                                     |
+| Missed recurring occurrence                               | Single instance rolls forward (overdue), never stacks.                                                                                    |
+| Parent/child consistency                                  | Repository cascade emits activity; FK cascade prevents orphans; parent+children share a list.                                             |
+| Migration on existing data                                | Backfill runs pre-RLS on new tables and under a transient policy on `app.tasks`; all existing rows get a Personal list before `NOT NULL`. |
 
 ---
 
 ## Security / Isolation (hard invariants honored)
 
 - **Private by default / owner-or-share.** New tables are owner-scoped with `FORCE ROW LEVEL
-  SECURITY`; per-task sharing via `app.has_share('task', id, level)` is unchanged. No
+SECURITY`; per-task sharing via `app.has_share('task', id, level)` is unchanged. No
   `BYPASSRLS`, no admin bypass.
 - **DataContextDb only / AccessContext shape unchanged.** All access via `withDataContext`.
 - **Metadata-only job payloads.** This milestone adds **no new job type** (the deferred
@@ -317,6 +319,7 @@ structural: sources become tasks, so an obligation has exactly one representatio
 ## Testing
 
 **Integration (`tests/integration/tasks.test.ts`, extended):**
+
 - Capture-minimal create (title only → owner's "Personal" list).
 - **Migration**: existing rows backfilled to Personal; `in_progress` mapped to `todo`; legacy
   priority normalized; `list_id` NOT NULL holds; transient backfill policy dropped.

@@ -10,7 +10,7 @@
 
 **Spec:** `docs/superpowers/specs/2026-06-08-tasks-foundation-design.md` (rev 3). **Decision:** `docs/architecture/decisions/0004-tasks-single-action-surface.md`.
 
-**Companion plans (write after this lands):** Plan 2 — assistant **read** tools authored as `execute()` handlers on the **module-owned `ModuleAssistantToolManifest` contract** from Phase-2 MCP (PR #33 / issue #34), NOT the legacy central `invokeReadTool` switch; prerequisite is PR #33 merged + main integrated. Tasks **write** tools are Phase 2's surface, not ours. Plan 3 — web UI (priority-grouped + Matrix views, capture, detail, lists/tags). **At merge:** keep the *union* of this branch's `CONTEXT.md` glossary with the Phase-2 assistant/tools terms added on PR #33.
+**Companion plans (write after this lands):** Plan 2 — assistant **read** tools authored as `execute()` handlers on the **module-owned `ModuleAssistantToolManifest` contract** from Phase-2 MCP (PR #33 / issue #34), NOT the legacy central `invokeReadTool` switch; prerequisite is PR #33 merged + main integrated. Tasks **write** tools are Phase 2's surface, not ours. Plan 3 — web UI (priority-grouped + Matrix views, capture, detail, lists/tags). **At merge:** keep the _union_ of this branch's `CONTEXT.md` glossary with the Phase-2 assistant/tools terms added on PR #33.
 
 ---
 
@@ -23,26 +23,27 @@
 
 ## File Structure
 
-| File | Responsibility | Action |
-|---|---|---|
-| `packages/tasks/sql/0039_tasks_foundation.sql` | New tables, columns, backfill, constraints, triggers, RLS, grants | Create |
-| `packages/tasks/src/manifest.ts` | Register migration; add `shareableResources`/permissions unchanged | Modify |
-| `packages/db/src/types.ts` | New table interfaces; narrow `TaskStatus`; new column types; `actor_kind` | Modify |
-| `packages/shared/src/tasks-api.ts` | Narrow `TASK_STATUSES`; extend `TaskDto`+schemas; List/Tag DTOs+schemas | Modify |
-| `packages/tasks/src/repository.ts` | Core task CRUD (slimmed; re-exports submodules) | Modify |
-| `packages/tasks/src/lists.ts` | Lists + Tags repositories | Create |
-| `packages/tasks/src/breakdown.ts` | Hierarchy + breakdown + completion cascade | Create |
-| `packages/tasks/src/recurrence.ts` | Fixed-schedule next-instance generation | Create |
-| `packages/tasks/src/drift.ts` | `getOverdue`/`getAtRisk`/`getFocus` queries | Create |
-| `packages/tasks/src/routes.ts` | Extended task routes + lists/tags/breakdown/query/recurrence routes | Modify |
-| `packages/tasks/src/index.ts` | Re-export new modules | Modify |
-| `tests/integration/tasks.test.ts` | Extend; **invert** the `in_progress` assertion | Modify |
+| File                                           | Responsibility                                                            | Action |
+| ---------------------------------------------- | ------------------------------------------------------------------------- | ------ |
+| `packages/tasks/sql/0039_tasks_foundation.sql` | New tables, columns, backfill, constraints, triggers, RLS, grants         | Create |
+| `packages/tasks/src/manifest.ts`               | Register migration; add `shareableResources`/permissions unchanged        | Modify |
+| `packages/db/src/types.ts`                     | New table interfaces; narrow `TaskStatus`; new column types; `actor_kind` | Modify |
+| `packages/shared/src/tasks-api.ts`             | Narrow `TASK_STATUSES`; extend `TaskDto`+schemas; List/Tag DTOs+schemas   | Modify |
+| `packages/tasks/src/repository.ts`             | Core task CRUD (slimmed; re-exports submodules)                           | Modify |
+| `packages/tasks/src/lists.ts`                  | Lists + Tags repositories                                                 | Create |
+| `packages/tasks/src/breakdown.ts`              | Hierarchy + breakdown + completion cascade                                | Create |
+| `packages/tasks/src/recurrence.ts`             | Fixed-schedule next-instance generation                                   | Create |
+| `packages/tasks/src/drift.ts`                  | `getOverdue`/`getAtRisk`/`getFocus` queries                               | Create |
+| `packages/tasks/src/routes.ts`                 | Extended task routes + lists/tags/breakdown/query/recurrence routes       | Modify |
+| `packages/tasks/src/index.ts`                  | Re-export new modules                                                     | Modify |
+| `tests/integration/tasks.test.ts`              | Extend; **invert** the `in_progress` assertion                            | Modify |
 
 ---
 
 ## Task 1: Migration `0039` — new tables, columns, safe backfill, triggers, RLS
 
 **Files:**
+
 - Create: `packages/tasks/sql/0039_tasks_foundation.sql`
 - Modify: `packages/tasks/src/manifest.ts:37` (add the migration to the `migrations` array)
 - Test: `tests/integration/tasks.test.ts` (a migration-shape assertion)
@@ -268,6 +269,7 @@ ALTER TABLE app.task_activity
 ```ts
     migrations: ["sql/0003_tasks_module.sql", "sql/0019_tasks_owner_or_share.sql", "sql/0039_tasks_foundation.sql"],
 ```
+
 (Match the existing array's contents — verify whether `0019` is already listed; add `0039` regardless.)
 
 - [ ] **Step 5: Apply + run the test**
@@ -286,9 +288,10 @@ git commit -m "feat(tasks): migration 0039 — lists/tags/preferences + task col
 
 ## Task 2: `@jarv1s/db` types — new tables, columns, actor_kind
 
-> **Sequencing note (discovered during build):** do **NOT** narrow `TaskStatus` here. `pnpm typecheck` includes the **web** app (Plan 3 scope); narrowing the union now breaks web typecheck and violates green-per-commit. In Plan 1, `in_progress` is rejected *behaviorally* at the route layer (Task 9). The **type/schema narrowing of `TaskStatus`/`TASK_STATUSES` + the web updates + the type-level guard test are an atomic task in Plan 3.** `TaskStatus` keeps `in_progress` as a value for now (the DB enum keeps it regardless).
+> **Sequencing note (discovered during build):** do **NOT** narrow `TaskStatus` here. `pnpm typecheck` includes the **web** app (Plan 3 scope); narrowing the union now breaks web typecheck and violates green-per-commit. In Plan 1, `in_progress` is rejected _behaviorally_ at the route layer (Task 9). The **type/schema narrowing of `TaskStatus`/`TASK_STATUSES` + the web updates + the type-level guard test are an atomic task in Plan 3.** `TaskStatus` keeps `in_progress` as a value for now (the DB enum keeps it regardless).
 
 **Files:**
+
 - Modify: `packages/db/src/types.ts` (the tasks region ~143–175 + the `JarvisDatabase` table map ~435)
 
 - [ ] **Step 1: Write the failing test** (`tasks.test.ts`) — use RAW `sql` (typed tables land in this task, but keep the assertion behavioral)
@@ -307,6 +310,7 @@ it("db types: new task columns and tables are queryable", async () => {
 - [ ] **Step 2: Run it** — `vitest run tests/integration/tasks.test.ts -t "new task columns"`. (This passes already from Task 1's migration; the real deliverable of Task 2 is the TS types compiling against the new columns — verified by typecheck in Step 4.)
 
 - [ ] **Step 3: Edit `packages/db/src/types.ts`** — **keep `TaskStatus` as-is** (`"todo" | "in_progress" | "done" | "archived"`). Extend `TasksTable` with the new columns:
+
 ```ts
 export interface TasksTable {
   id: string;
@@ -366,13 +370,16 @@ export interface TaskPreferencesTable {
   updated_at: TimestampColumn;
 }
 ```
+
 Add to the `JarvisDatabase` map (~line 435) and the `Selectable` exports (~466):
+
 ```ts
   "app.task_lists": TaskListsTable;
   "app.task_tags": TaskTagsTable;
   "app.task_tag_assignments": TaskTagAssignmentsTable;
   "app.task_preferences": TaskPreferencesTable;
 ```
+
 ```ts
 export type TaskList = Selectable<TaskListsTable>;
 export type TaskTag = Selectable<TaskTagsTable>;
@@ -395,6 +402,7 @@ git commit -m "feat(db): tasks foundation table types; narrow TaskStatus; add ac
 > **Do NOT narrow `TASK_STATUSES` here** (same reason as Task 2 — it would break web typecheck). `in_progress` stays in the union/schema for now; behavioral rejection is at the route layer (Task 9). Plan 3 narrows the type + updates web atomically.
 
 **Files:**
+
 - Modify: `packages/shared/src/tasks-api.ts`
 
 - [ ] **Step 1: Write the failing test** (`tasks.test.ts`)
@@ -403,11 +411,15 @@ git commit -m "feat(db): tasks foundation table types; narrow TaskStatus; add ac
 it("shared: Task DTO carries the new fields", () => {
   // compile-time guard: a TaskDto literal must accept the new fields
   const dto: Pick<TaskDto, "listId" | "doAt" | "effort" | "source"> = {
-    listId: "x", doAt: null, effort: "quick", source: "manual"
+    listId: "x",
+    doAt: null,
+    effort: "quick",
+    source: "manual"
   };
   expect(dto.source).toBe("manual");
 });
 ```
+
 (Add `TaskDto` to the test's type imports from `@jarv1s/shared`.)
 
 - [ ] **Step 2: Run** — `pnpm --filter @jarv1s/shared typecheck`. Expected: FAIL (`listId`/`doAt`/`effort` not on `TaskDto` yet).
@@ -434,6 +446,7 @@ git commit -m "feat(shared): narrow TaskStatus; extend Task DTO; add List/Tag co
 ## Task 4: Lists + Tags repository (`lists.ts`) + get-or-create Personal
 
 **Files:**
+
 - Create: `packages/tasks/src/lists.ts`
 - Modify: `packages/tasks/src/index.ts`
 - Test: `tests/integration/tasks.test.ts`
@@ -444,20 +457,25 @@ git commit -m "feat(shared): narrow TaskStatus; extend Task DTO; add List/Tag co
 it("lists: get-or-create Personal is idempotent; tags are list-scoped", async () => {
   const listsRepo = new TaskListsRepository();
   const a = await dataContext.withDataContext(userAContext(), (db) =>
-    listsRepo.getOrCreateDefault(db));
+    listsRepo.getOrCreateDefault(db)
+  );
   const b = await dataContext.withDataContext(userAContext(), (db) =>
-    listsRepo.getOrCreateDefault(db));
+    listsRepo.getOrCreateDefault(db)
+  );
   expect(a.id).toBe(b.id);
   expect(a.name).toBe("Personal");
 
   const tag = await dataContext.withDataContext(userAContext(), (db) =>
-    listsRepo.createTag(db, a.id, "Visa"));
+    listsRepo.createTag(db, a.id, "Visa")
+  );
   const tags = await dataContext.withDataContext(userAContext(), (db) =>
-    listsRepo.listTags(db, a.id));
+    listsRepo.listTags(db, a.id)
+  );
   expect(tags.map((t) => t.name)).toContain("Visa");
   expect(tag.list_id).toBe(a.id);
 });
 ```
+
 (Import `TaskListsRepository` from `@jarv1s/tasks`.)
 
 - [ ] **Step 2: Run** — `vitest run tests/integration/tasks.test.ts -t "list-scoped"`. Expected: FAIL (no export).
@@ -493,24 +511,40 @@ export class TaskListsRepository {
 
   async list(db: DataContextDb): Promise<TaskList[]> {
     assertDataContextDb(db);
-    return db.db.selectFrom("app.task_lists").selectAll().orderBy("position").orderBy("name").execute();
+    return db.db
+      .selectFrom("app.task_lists")
+      .selectAll()
+      .orderBy("position")
+      .orderBy("name")
+      .execute();
   }
 
   async createTag(db: DataContextDb, listId: string, name: string): Promise<TaskTag> {
     assertDataContextDb(db);
     return db.db
       .insertInto("app.task_tags")
-      .values({ id: randomUUID(), owner_user_id: sql<string>`app.current_actor_user_id()`, list_id: listId, name })
+      .values({
+        id: randomUUID(),
+        owner_user_id: sql<string>`app.current_actor_user_id()`,
+        list_id: listId,
+        name
+      })
       .returningAll()
       .executeTakeFirstOrThrow();
   }
 
   async listTags(db: DataContextDb, listId: string): Promise<TaskTag[]> {
     assertDataContextDb(db);
-    return db.db.selectFrom("app.task_tags").selectAll().where("list_id", "=", listId).orderBy("name").execute();
+    return db.db
+      .selectFrom("app.task_tags")
+      .selectAll()
+      .where("list_id", "=", listId)
+      .orderBy("name")
+      .execute();
   }
 }
 ```
+
 > Note the `onConflict` target is the unique `(owner_user_id, lower(name))` index — Kysely needs `onConflict` on the index columns; if the expression index can't be targeted directly, use `sql` raw `ON CONFLICT DO NOTHING` and re-select. Verify against the generated SQL.
 
 Add to `packages/tasks/src/index.ts`: `export * from "./lists.js";`
@@ -529,6 +563,7 @@ git commit -m "feat(tasks): lists + list-scoped tags repository with idempotent 
 ## Task 5: Task create/update with new fields + provenance idempotency
 
 **Files:**
+
 - Modify: `packages/tasks/src/repository.ts` (CreateTaskInput/UpdateTaskInput + create/update), `packages/tasks/src/routes.ts` (`serializeTask`)
 - Test: `tests/integration/tasks.test.ts`
 
@@ -540,15 +575,21 @@ it("create defaults to Personal list, accepts new fields, and is idempotent on (
   const made = await dataContext.withDataContext(userAContext(), async (db) => {
     const list = await listsRepo.getOrCreateDefault(db);
     return repository.create(db, {
-      title: "ship the deck", priority: 4, effort: "medium",
-      doAt: new Date("2026-06-10"), source: "chat", externalKey: "chat:42", listId: list.id
+      title: "ship the deck",
+      priority: 4,
+      effort: "medium",
+      doAt: new Date("2026-06-10"),
+      source: "chat",
+      externalKey: "chat:42",
+      listId: list.id
     });
   });
   expect(made.priority).toBe(4);
   expect(made.effort).toBe("medium");
 
   const second = await dataContext.withDataContext(userAContext(), (db) =>
-    repository.create(db, { title: "dup", source: "chat", externalKey: "chat:42" }));
+    repository.create(db, { title: "dup", source: "chat", externalKey: "chat:42" })
+  );
   expect(second.id).toBe(made.id); // idempotent: same (source, external_key) → same task
 });
 ```
@@ -571,6 +612,7 @@ git commit -m "feat(tasks): task create/update with list/do-date/effort/provenan
 ## Task 6: Hierarchy + breakdown + completion cascade (`breakdown.ts`)
 
 **Files:**
+
 - Create: `packages/tasks/src/breakdown.ts`; Modify: `packages/tasks/src/repository.ts` (complete/cascade), `index.ts`
 - Test: `tests/integration/tasks.test.ts`
 
@@ -590,7 +632,8 @@ it("breakdown augments into a parent; all children done auto-closes parent; gran
   // grandchild rejected
   await expect(
     dataContext.withDataContext(userAContext(), (db) =>
-      breakdown.breakDown(db, children[0].id, ["nope"]))
+      breakdown.breakDown(db, children[0].id, ["nope"])
+    )
   ).rejects.toThrow(/one-level hierarchy/);
 
   // completing all children auto-closes the parent
@@ -598,7 +641,8 @@ it("breakdown augments into a parent; all children done auto-closes parent; gran
     for (const c of children) await repository.updateStatus(db, c.id, "done");
   });
   const reloaded = await dataContext.withDataContext(userAContext(), (db) =>
-    repository.getById(db, parent.id));
+    repository.getById(db, parent.id)
+  );
   expect(reloaded?.status).toBe("done");
 });
 ```
@@ -631,10 +675,18 @@ it("completing a recurring task generates exactly one next instance; idempotent"
       title: "take out trash",
       recurrence: { freq: "weekly", interval: 1, occurrence_date: "2026-06-08" },
       dueAt: new Date("2026-06-08")
-    }));
-  await dataContext.withDataContext(userAContext(), (db) => repository.updateStatus(db, made.id, "done"));
+    })
+  );
+  await dataContext.withDataContext(userAContext(), (db) =>
+    repository.updateStatus(db, made.id, "done")
+  );
   const series = await dataContext.withDataContext(userAContext(), (db) =>
-    db.db.selectFrom("app.tasks").selectAll().where("recurrence_series_id", "=", made.recurrence_series_id!).execute());
+    db.db
+      .selectFrom("app.tasks")
+      .selectAll()
+      .where("recurrence_series_id", "=", made.recurrence_series_id!)
+      .execute()
+  );
   const open = series.filter((t) => t.status === "todo");
   expect(open).toHaveLength(1);
   expect(open[0].id).not.toBe(made.id);
@@ -666,8 +718,16 @@ git commit -m "feat(tasks): fixed-schedule recurrence, one live instance, idempo
 it("drift: overdue + at-risk surface Medium+ only; focus orders them", async () => {
   const drift = new TaskDriftRepository();
   await dataContext.withDataContext(userAContext(), async (db) => {
-    await repository.create(db, { title: "overdue-critical", priority: 5, dueAt: new Date("2000-01-01") });
-    await repository.create(db, { title: "overdue-someday", priority: 1, dueAt: new Date("2000-01-01") });
+    await repository.create(db, {
+      title: "overdue-critical",
+      priority: 5,
+      dueAt: new Date("2000-01-01")
+    });
+    await repository.create(db, {
+      title: "overdue-someday",
+      priority: 1,
+      dueAt: new Date("2000-01-01")
+    });
   });
   const overdue = await dataContext.withDataContext(userAContext(), (db) => drift.getOverdue(db));
   const atRisk = await dataContext.withDataContext(userAContext(), (db) => drift.getAtRisk(db));
@@ -730,6 +790,6 @@ git commit -m "feat(tasks): REST for lists/tags/breakdown/recurrence/focus/drift
 
 ## Self-Review (done while writing)
 
-- **Spec coverage:** schema deltas, lists/tags, hierarchy/breakdown, priority/effort/do-date, recurrence, drift/focus, status narrowing, provenance + idempotency, activity `actor_kind` — all have tasks. **Matrix view + priority-grouped default view + `default_view` preference UI** are Plan 3 (web); the `default_view` *table* is created in Task 1. **Read assistant tools** are Plan 2. **@Jarvis / write tools** are out of milestone.
+- **Spec coverage:** schema deltas, lists/tags, hierarchy/breakdown, priority/effort/do-date, recurrence, drift/focus, status narrowing, provenance + idempotency, activity `actor_kind` — all have tasks. **Matrix view + priority-grouped default view + `default_view` preference UI** are Plan 3 (web); the `default_view` _table_ is created in Task 1. **Read assistant tools** are Plan 2. **@Jarvis / write tools** are out of milestone.
 - **Placeholder scan:** the two prose-described areas (Task 3 schema property objects, Task 9 route bodies) point to the exact spec section + the existing in-file pattern to copy; no "TBD"/"add error handling" placeholders. Flag for the builder: reproduce those following the cited existing patterns.
 - **Type consistency:** `TaskListsRepository`, `TaskBreakdownRepository`, `TaskDriftRepository`, `getOrCreateDefault`, `breakDown`, `getOverdue`/`getAtRisk`/`getFocus`, `recurrence_series_id`, `occurrence_date` used consistently across tasks and match the Task 2 types.

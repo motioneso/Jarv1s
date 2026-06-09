@@ -2,12 +2,7 @@ import { randomUUID } from "node:crypto";
 
 import { sql } from "kysely";
 
-import {
-  assertDataContextDb,
-  type DataContextDb,
-  type TaskList,
-  type TaskTag
-} from "@jarv1s/db";
+import { assertDataContextDb, type DataContextDb, type TaskList, type TaskTag } from "@jarv1s/db";
 
 export class TaskListsRepository {
   async getOrCreateDefault(db: DataContextDb): Promise<TaskList> {

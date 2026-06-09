@@ -68,17 +68,16 @@ export class TaskDriftRepository {
           eb.and([eb("t.do_at", "is not", null), eb("t.do_at", "<", sql<Date>`now()`)])
         ])
       )
-      .where(
-        (eb) =>
-          eb.not(
-            eb.exists(
-              eb
-                .selectFrom("app.tasks as child")
-                .select(sql<number>`1`.as("one"))
-                .whereRef("child.parent_task_id", "=", "t.id")
-                .where("child.status", "=", "done")
-            )
+      .where((eb) =>
+        eb.not(
+          eb.exists(
+            eb
+              .selectFrom("app.tasks as child")
+              .select(sql<number>`1`.as("one"))
+              .whereRef("child.parent_task_id", "=", "t.id")
+              .where("child.status", "=", "done")
           )
+        )
       )
       .orderBy("t.priority", "desc")
       .orderBy("t.due_at", "asc")

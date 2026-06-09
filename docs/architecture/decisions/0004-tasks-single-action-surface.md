@@ -18,7 +18,7 @@ Specifically:
   counterparty context ("Sarah is waiting") lives in the Task's **description**, not a
   dedicated field. This **reverses** the boundary the shipped `structured-state` module
   asserts in migration `0031` (`-- Commitments … Distinct from Tasks (user-chosen)`).
-- **Chores** are a *separate future area* that automates Task creation by writing through
+- **Chores** are a _separate future area_ that automates Task creation by writing through
   the `source` seam; Tasks hold no chore logic.
 - **Drift** (on-track → at-risk → slipped) is a **task-level computed query**, not a
   commitment-only lifecycle and not a stored column.
@@ -29,8 +29,8 @@ imports nor queries it. Whether to retire it is a separate future cleanup.
 ## Why
 
 The product north-star is to excel for people with **executive-function challenges**. The
-deciding test (the user's words): *a chief of staff hands you one unified list — never
-"here are your tasks, and separately, your commitments."* Multiple surfaces for the same
+deciding test (the user's words): _a chief of staff hands you one unified list — never
+"here are your tasks, and separately, your commitments."_ Multiple surfaces for the same
 obligation multiply cognitive load, and a secondary surface tends to be abandoned. A single
 Task surface, fed by many sources and viewed through optional lenses (Matrix, drift, focus),
 is the lowest-overwhelm shape.

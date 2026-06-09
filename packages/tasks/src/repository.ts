@@ -93,9 +93,7 @@ export class TasksRepository {
     }
 
     // Resolve list_id: use the provided listId or fall back to the actor's Personal list.
-    const listId =
-      input.listId ??
-      (await this.listsRepository.getOrCreateDefault(scopedDb)).id;
+    const listId = input.listId ?? (await this.listsRepository.getOrCreateDefault(scopedDb)).id;
 
     const now = new Date();
     const status = input.status ?? "todo";

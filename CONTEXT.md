@@ -7,7 +7,7 @@ and low-overwhelm.
 
 ## Language
 
-> **Project** is deliberately *not* a domain term. A "project" is just whatever the
+> **Project** is deliberately _not_ a domain term. A "project" is just whatever the
 > user chooses to name a List or a Tag — there is no separate Project concept.
 
 ### Tasks & obligations
@@ -43,7 +43,7 @@ occurrences roll forward without stacking.
 _Avoid_: Repeating task (use Recurring task)
 
 **Chore**:
-A scheduled, repeating responsibility owned by a *separate* future Chores area that
+A scheduled, repeating responsibility owned by a _separate_ future Chores area that
 automates Task creation. From the Tasks domain's point of view a Chore is simply another
 **Source** of Tasks — Tasks hold no chore-specific logic.
 _Avoid_: Recurring task (a Chore is managed elsewhere and creates Tasks; the two differ)
@@ -51,13 +51,13 @@ _Avoid_: Recurring task (a Chore is managed elsewhere and creates Tasks; the two
 **Drift**:
 How far a Task/Commitment has slipped from being on-track for its due date, judged from
 progress on its steps. Surfaced as escalating signal (on-track → at risk → slipped) so
-Jarv1s can nudge *before* something is late.
+Jarv1s can nudge _before_ something is late.
 _Avoid_: Lateness, slippage (use Drift; "slipped" is one Drift state)
 
 **Activity**:
-A Task's append-only stream that doubles as its *living status* and work-notes — system
+A Task's append-only stream that doubles as its _living status_ and work-notes — system
 events (created, broken-down, completed), the user's freeform progress notes ("bought
-new tires, arriving tomorrow"), and — in a *later* milestone — a **conversation with
+new tires, arriving tomorrow"), and — in a _later_ milestone — a **conversation with
 Jarv1s**: the user @-mentions Jarv1s in a Task's Activity and Jarv1s replies inline. Each
 entry records who acted (user / Jarv1s / system). An empty stream means nothing has
 happened yet; the briefing must read it before describing a Task.
@@ -73,23 +73,23 @@ free-text `life_area` on commitments/entities, promoted to a managed thing for T
 _Avoid_: Folder, area, category, project (use List)
 
 **Tag**:
-A user-defined label that lives *within a List* (e.g. "Visa", "Aligned Energy" under
+A user-defined label that lives _within a List_ (e.g. "Visa", "Aligned Energy" under
 Work). A Task may carry many Tags, but only Tags belonging to its own List.
 _Avoid_: Label, project (use Tag)
 
 ### Provenance
 
 **Source**:
-How a Task came to exist — an open namespaced string set *automatically* by whatever
+How a Task came to exist — an open namespaced string set _automatically_ by whatever
 created it (`manual`, `chat`, `commitment`, `chore`, `meeting:zoom`…). Never
 user-entered. `manual` means the user typed it; any other value means Jarv1s created it
-on the user's behalf. The friendly "added by you / added by Jarv1s" label is *derived*
+on the user's behalf. The friendly "added by you / added by Jarv1s" label is _derived_
 from Source (no separate "created by" field).
 _Avoid_: Origin, channel, created-by (use Source)
 
 **Source ref**:
 The id of the originating record a Task came from (the meeting, chore, or commitment).
-Empty for manual Tasks. Lets Jarv1s deep-link back to *why* a Task exists. Paired with an
+Empty for manual Tasks. Lets Jarv1s deep-link back to _why_ a Task exists. Paired with an
 internal idempotency key so an automated Source can never create the same Task twice.
 _Avoid_: Origin id, parent ref (use Source ref)
 
@@ -105,11 +105,11 @@ High (4) · Critical (5)**. A deliberately small set — no 0–100 scale.
 _Avoid_: Importance score, rank, P1/P2 (use the named levels)
 
 **Due date**:
-The hard deadline a Task is actually due by. Drives the *urgency* axis of the Matrix.
+The hard deadline a Task is actually due by. Drives the _urgency_ axis of the Matrix.
 _Avoid_: Deadline (use Due date)
 
 **Do date**:
-Optional — the date the user *intends to work on* a Task, distinct from its Due date
+Optional — the date the user _intends to work on_ a Task, distinct from its Due date
 (e.g. due next week but I want to do it today). A core EF affordance.
 _Avoid_: Scheduled date, start date (use Do date)
 
@@ -122,6 +122,6 @@ _Avoid_: Estimate, points, spiciness (use Effort)
 The derived Eisenhower view of Tasks — **Do** (important + urgent) · **Schedule**
 (important, not urgent) · **Delegate** (urgent, not important) · **Eliminate** (neither).
 Computed from Priority × Due-date proximity; never stored. Jarv1s is active on **Do**,
-lightly on **Schedule**. The Matrix is an *alternative* view: the **default view is a
+lightly on **Schedule**. The Matrix is an _alternative_ view: the **default view is a
 single list grouped by Priority**, and the user may opt to make the Matrix their default.
 _Avoid_: Quadrants, Eisenhower box (use Matrix)
