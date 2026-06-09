@@ -401,9 +401,23 @@ export function registerAiRoutes(
         }
 
         const selectedTool = tool;
-        const result = await dependencies.dataContext.withDataContext(accessContext, (scopedDb) =>
-          assistantToolExecutor.invokeReadTool(scopedDb, selectedTool, body.input ?? {})
-        );
+        const manifestTool = dependencies
+          .listModuleManifests()
+          .flatMap((m) => m.assistantTools ?? [])
+          .find((t) => t.name === selectedTool.name);
+        const result = await dependencies.dataContext.withDataContext(accessContext, (scopedDb) => {
+          if (manifestTool?.execute) {
+            return manifestTool
+              .execute(scopedDb, body.input ?? {}, {
+                actorUserId: accessContext.actorUserId,
+                requestId: accessContext.requestId ?? "",
+                chatSessionId: ""
+              })
+              .then((r) => r.data ?? {});
+          }
+
+          return assistantToolExecutor.invokeReadTool(scopedDb, selectedTool, body.input ?? {});
+        });
 
         return {
           invocation: serializeAssistantToolInvocation(

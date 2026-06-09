@@ -211,7 +211,7 @@ describe("Briefings module M6 read-only scheduled summaries", () => {
     const created = await dataContext.withDataContext(userAContext(), (scopedDb) =>
       repository.createDefinition(scopedDb, {
         title: "User A private briefing",
-        selectedToolNames: ["tasks.listVisible"]
+        selectedToolNames: ["tasks.list"]
       })
     );
     const userARead = await dataContext.withDataContext(userAContext(), (scopedDb) =>
@@ -281,7 +281,7 @@ describe("Briefings module M6 read-only scheduled summaries", () => {
     const definition = await dataContext.withDataContext(userAContext(), (scopedDb) =>
       repository.createDefinition(scopedDb, {
         title: "Morning briefing",
-        selectedToolNames: ["tasks.listVisible", "email.listVisibleMessages"]
+        selectedToolNames: ["tasks.list", "email.listVisibleMessages"]
       })
     );
     const run = await dataContext.withDataContext(userAContext(), (scopedDb) =>
@@ -335,7 +335,7 @@ describe("Briefings module M6 read-only scheduled summaries", () => {
     const definition = await dataContext.withDataContext(userAContext(), (scopedDb) =>
       repository.createDefinition(scopedDb, {
         title: "Worker briefing",
-        selectedToolNames: ["tasks.listVisible"]
+        selectedToolNames: ["tasks.list"]
       })
     );
     const resultPromise = handleNextBriefingJob(workerBoss);
@@ -514,8 +514,8 @@ async function seedBriefingData(): Promise<void> {
           selected_tool_names
         )
         VALUES
-          ($1, $2, 'User B private briefing', 'manual', ARRAY['tasks.listVisible']::text[]),
-          ($3, $2, 'User B workspace briefing', 'daily', ARRAY['tasks.listVisible']::text[])
+          ($1, $2, 'User B private briefing', 'manual', ARRAY['tasks.list']::text[]),
+          ($3, $2, 'User B workspace briefing', 'daily', ARRAY['tasks.list']::text[])
       `,
       [briefingIds.userBPrivate, ids.userB, briefingIds.userBWorkspace]
     );

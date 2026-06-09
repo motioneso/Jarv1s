@@ -337,4 +337,16 @@ export class TasksRepository {
       .orderBy("id")
       .execute();
   }
+
+  async listByParentId(scopedDb: DataContextDb, parentId: string): Promise<Task[]> {
+    assertDataContextDb(scopedDb);
+
+    return scopedDb.db
+      .selectFrom("app.tasks")
+      .selectAll()
+      .where("parent_task_id", "=", parentId)
+      .orderBy("position", "asc")
+      .orderBy("id")
+      .execute();
+  }
 }

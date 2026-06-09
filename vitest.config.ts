@@ -3,6 +3,7 @@ import { fileURLToPath } from "node:url";
 
 export default defineConfig({
   resolve: {
+    extensions: [".ts", ".tsx", ".js", ".jsx", ".json"],
     alias: [
       {
         find: "@jarv1s/ai",
