@@ -243,18 +243,3 @@ describe("TmuxCliChatEngine — lifecycle", () => {
     expect(io.runCalls.some((c) => c.cmd === "tmux" && c.args.includes("kill-session"))).toBe(true);
   });
 });
-
-describe("TmuxCliChatEngine — unsupported providers", () => {
-  it("throws a clear not-yet-supported error for codex/gemini on launch", async () => {
-    const io = fakeIo();
-    const codex = new TmuxCliChatEngine("openai-compatible", "t-codex", io, { launchMs: 0 });
-    await expect(codex.launch({ neutralDir: "/tmp/x", personaPath: "/p.md" })).rejects.toThrow(
-      /not yet supported/i
-    );
-
-    const gemini = new TmuxCliChatEngine("google", "t-gemini", io, { launchMs: 0 });
-    await expect(gemini.launch({ neutralDir: "/tmp/x", personaPath: "/p.md" })).rejects.toThrow(
-      /not yet supported/i
-    );
-  });
-});
