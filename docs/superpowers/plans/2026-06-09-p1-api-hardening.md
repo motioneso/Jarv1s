@@ -12,14 +12,14 @@
 
 ## File Map
 
-| File | Change |
-|------|--------|
-| `packages/db/src/database.ts` | Add `connectionTimeoutMillis` to `DatabaseOptions` + pool construction |
-| `apps/api/src/server.ts` | Split `/health`, add `/health/ready`, add crash handlers (CLI block only), register rate-limit plugin, apply to auth catch-all |
-| `apps/worker/src/worker.ts` | Add crash handlers alongside SIGINT/SIGTERM |
-| `packages/connectors/src/routes.ts` | Add `config.rateLimit` to POST `/api/connectors/google/complete` |
-| `tests/integration/api-health.test.ts` | NEW — test liveness always 200; readiness 200 healthy, 503 dead-DB |
-| `tests/integration/api-rate-limit.test.ts` | NEW — test 429 on auth burst; 429 on oauth burst; no throttle on GET routes |
+| File                                       | Change                                                                                                                         |
+| ------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------ |
+| `packages/db/src/database.ts`              | Add `connectionTimeoutMillis` to `DatabaseOptions` + pool construction                                                         |
+| `apps/api/src/server.ts`                   | Split `/health`, add `/health/ready`, add crash handlers (CLI block only), register rate-limit plugin, apply to auth catch-all |
+| `apps/worker/src/worker.ts`                | Add crash handlers alongside SIGINT/SIGTERM                                                                                    |
+| `packages/connectors/src/routes.ts`        | Add `config.rateLimit` to POST `/api/connectors/google/complete`                                                               |
+| `tests/integration/api-health.test.ts`     | NEW — test liveness always 200; readiness 200 healthy, 503 dead-DB                                                             |
+| `tests/integration/api-rate-limit.test.ts` | NEW — test 429 on auth burst; 429 on oauth burst; no throttle on GET routes                                                    |
 
 ---
 
@@ -30,6 +30,7 @@
 ### Task 1: Add `connectionTimeoutMillis` to `createDatabase`
 
 **Files:**
+
 - Modify: `packages/db/src/database.ts`
 
 - [ ] **Step 1: Read the current file**
@@ -39,6 +40,7 @@ packages/db/src/database.ts
 ```
 
 Current content:
+
 ```typescript
 export interface DatabaseOptions {
   readonly connectionString: string;
@@ -116,6 +118,7 @@ EOF
 ### Task 2: Split `/health` into liveness + readiness in `server.ts`
 
 **Files:**
+
 - Modify: `apps/api/src/server.ts`
 
 - [ ] **Step 1: Write a failing integration test FIRST (red)**
@@ -172,7 +175,7 @@ describe("Health readiness — DB down", () => {
     badDb = createDatabase({
       connectionString: "postgres://jarvis:jarvis@localhost:9999/nonexistent",
       maxConnections: 1,
-      connectionTimeoutMillis: 500  // fail fast in tests
+      connectionTimeoutMillis: 500 // fail fast in tests
     });
     // Stub boss so boss.start() in onReady doesn't blow up
     const stubBoss = {
@@ -227,38 +230,40 @@ import { sql, type Kysely } from "kysely";
 ```
 
 Replace the existing single `/health` handler:
+
 ```typescript
-  server.get("/health", async () => ({
-    ok: true
-  }));
+server.get("/health", async () => ({
+  ok: true
+}));
 ```
 
 With both handlers:
+
 ```typescript
-  server.get("/health", async () => ({ ok: true }));
+server.get("/health", async () => ({ ok: true }));
 
-  server.get("/health/ready", async (_, reply) => {
-    let dbStatus = "ok";
-    let pgbossStatus = "ok";
+server.get("/health/ready", async (_, reply) => {
+  let dbStatus = "ok";
+  let pgbossStatus = "ok";
 
-    try {
-      await sql`SELECT 1`.execute(appDb);
-    } catch {
-      dbStatus = "down";
-    }
+  try {
+    await sql`SELECT 1`.execute(appDb);
+  } catch {
+    dbStatus = "down";
+  }
 
-    try {
-      const installed = await boss.isInstalled();
-      if (!installed) {
-        pgbossStatus = "down";
-      }
-    } catch {
+  try {
+    const installed = await boss.isInstalled();
+    if (!installed) {
       pgbossStatus = "down";
     }
+  } catch {
+    pgbossStatus = "down";
+  }
 
-    const healthy = dbStatus === "ok" && pgbossStatus === "ok";
-    return reply.code(healthy ? 200 : 503).send({ ok: healthy, db: dbStatus, pgboss: pgbossStatus });
-  });
+  const healthy = dbStatus === "ok" && pgbossStatus === "ok";
+  return reply.code(healthy ? 200 : 503).send({ ok: healthy, db: dbStatus, pgboss: pgbossStatus });
+});
 ```
 
 - [ ] **Step 4: Run the tests (green)**
@@ -288,6 +293,7 @@ EOF
 ### Task 3: Install crash handlers in `apps/api/src/server.ts` (CLI bootstrap block)
 
 **Files:**
+
 - Modify: `apps/api/src/server.ts`
 
 The crash handlers MUST go inside the `if (import.meta.url === ...)` block only — not in `createApiServer` — so tests don't register process-global handlers.
@@ -295,6 +301,7 @@ The crash handlers MUST go inside the `if (import.meta.url === ...)` block only 
 - [ ] **Step 1: Implement the crash handler block**
 
 Find the CLI bootstrap block:
+
 ```typescript
 if (import.meta.url === `file://${process.argv[1]}`) {
   const server = createApiServer();
@@ -306,6 +313,7 @@ if (import.meta.url === `file://${process.argv[1]}`) {
 ```
 
 Replace it with:
+
 ```typescript
 if (import.meta.url === `file://${process.argv[1]}`) {
   const server = createApiServer();
@@ -315,14 +323,24 @@ if (import.meta.url === `file://${process.argv[1]}`) {
   const handleCrash = (label: string, err: unknown): void => {
     server.log.error({ err, label }, "Process crash — exiting");
     const drain = Promise.race([
-      new Promise<void>((resolve) => { server.close(() => resolve()); }),
-      new Promise<void>((resolve) => { setTimeout(resolve, 2000); })
+      new Promise<void>((resolve) => {
+        server.close(() => resolve());
+      }),
+      new Promise<void>((resolve) => {
+        setTimeout(resolve, 2000);
+      })
     ]);
-    void drain.then(() => { process.exit(1); });
+    void drain.then(() => {
+      process.exit(1);
+    });
   };
 
-  process.on("unhandledRejection", (reason) => { handleCrash("unhandledRejection", reason); });
-  process.on("uncaughtException", (err: Error) => { handleCrash("uncaughtException", err); });
+  process.on("unhandledRejection", (reason) => {
+    handleCrash("unhandledRejection", reason);
+  });
+  process.on("uncaughtException", (err: Error) => {
+    handleCrash("uncaughtException", err);
+  });
 
   await server.listen({ host, port });
 }
@@ -354,11 +372,13 @@ EOF
 ### Task 4: Install crash handlers in `apps/worker/src/worker.ts`
 
 **Files:**
+
 - Modify: `apps/worker/src/worker.ts`
 
 - [ ] **Step 1: Implement crash handlers alongside existing signal handlers**
 
 The existing SIGINT/SIGTERM block:
+
 ```typescript
 async function shutdown(): Promise<void> {
   await Promise.allSettled([boss.stop({ graceful: false }), workerDb.destroy()]);
@@ -374,18 +394,29 @@ process.once("SIGTERM", () => {
 ```
 
 Add the crash handlers immediately after the SIGTERM handler:
+
 ```typescript
 const handleCrash = (label: string, err: unknown): void => {
-  console.error(JSON.stringify({ level: "fatal", label, err: String(err), msg: "Process crash — exiting" }));
+  console.error(
+    JSON.stringify({ level: "fatal", label, err: String(err), msg: "Process crash — exiting" })
+  );
   const drain = Promise.race([
     shutdown(),
-    new Promise<void>((resolve) => { setTimeout(resolve, 2000); })
+    new Promise<void>((resolve) => {
+      setTimeout(resolve, 2000);
+    })
   ]);
-  void drain.then(() => { process.exit(1); });
+  void drain.then(() => {
+    process.exit(1);
+  });
 };
 
-process.on("unhandledRejection", (reason) => { handleCrash("unhandledRejection", reason); });
-process.on("uncaughtException", (err: Error) => { handleCrash("uncaughtException", err); });
+process.on("unhandledRejection", (reason) => {
+  handleCrash("unhandledRejection", reason);
+});
+process.on("uncaughtException", (err: Error) => {
+  handleCrash("uncaughtException", err);
+});
 ```
 
 - [ ] **Step 2: Typecheck**
@@ -446,6 +477,7 @@ Expected: clean.
 ### Task 6: Add `@fastify/rate-limit` dependency + register plugin
 
 **Files:**
+
 - Modify: `package.json` (root)
 - Modify: `apps/api/src/server.ts`
 
@@ -458,6 +490,7 @@ cd /home/ben/Jarv1s/.claude/worktrees/p1-api-hardening && grep -n '"fastify"' pa
 ```
 
 Then add (keeping alphabetical order with `@fastify/` prefix before `fastify`):
+
 ```json
 "@fastify/rate-limit": "^9",
 ```
@@ -508,13 +541,28 @@ describe("Rate limiting", () => {
     const headers = { "content-type": "application/json", "x-forwarded-for": "1.2.3.4" };
 
     // First 2 requests should pass through to better-auth (401/422, not 429)
-    const res1 = await server.inject({ method: "POST", url: "/api/auth/sign-in/email", headers, payload });
-    const res2 = await server.inject({ method: "POST", url: "/api/auth/sign-in/email", headers, payload });
+    const res1 = await server.inject({
+      method: "POST",
+      url: "/api/auth/sign-in/email",
+      headers,
+      payload
+    });
+    const res2 = await server.inject({
+      method: "POST",
+      url: "/api/auth/sign-in/email",
+      headers,
+      payload
+    });
     expect(res1.statusCode).not.toBe(429);
     expect(res2.statusCode).not.toBe(429);
 
     // 3rd request hits the rate limit
-    const res3 = await server.inject({ method: "POST", url: "/api/auth/sign-in/email", headers, payload });
+    const res3 = await server.inject({
+      method: "POST",
+      url: "/api/auth/sign-in/email",
+      headers,
+      payload
+    });
     expect(res3.statusCode).toBe(429);
   });
 
@@ -522,12 +570,27 @@ describe("Rate limiting", () => {
     const payload = JSON.stringify({ name: "A", email: "a@example.test", password: "wrong" });
     const headers = { "content-type": "application/json", "x-forwarded-for": "2.3.4.5" };
 
-    const res1 = await server.inject({ method: "POST", url: "/api/auth/sign-up/email", headers, payload });
-    const res2 = await server.inject({ method: "POST", url: "/api/auth/sign-up/email", headers, payload });
+    const res1 = await server.inject({
+      method: "POST",
+      url: "/api/auth/sign-up/email",
+      headers,
+      payload
+    });
+    const res2 = await server.inject({
+      method: "POST",
+      url: "/api/auth/sign-up/email",
+      headers,
+      payload
+    });
     expect(res1.statusCode).not.toBe(429);
     expect(res2.statusCode).not.toBe(429);
 
-    const res3 = await server.inject({ method: "POST", url: "/api/auth/sign-up/email", headers, payload });
+    const res3 = await server.inject({
+      method: "POST",
+      url: "/api/auth/sign-up/email",
+      headers,
+      payload
+    });
     expect(res3.statusCode).toBe(429);
   });
 
@@ -544,12 +607,27 @@ describe("Rate limiting", () => {
     const payload = JSON.stringify({ redirectUrl: "https://example.test/cb?code=x" });
     const headers = { "content-type": "application/json", "x-forwarded-for": "4.5.6.7" };
 
-    const res1 = await server.inject({ method: "POST", url: "/api/connectors/google/complete", headers, payload });
-    const res2 = await server.inject({ method: "POST", url: "/api/connectors/google/complete", headers, payload });
+    const res1 = await server.inject({
+      method: "POST",
+      url: "/api/connectors/google/complete",
+      headers,
+      payload
+    });
+    const res2 = await server.inject({
+      method: "POST",
+      url: "/api/connectors/google/complete",
+      headers,
+      payload
+    });
     expect(res1.statusCode).not.toBe(429);
     expect(res2.statusCode).not.toBe(429);
 
-    const res3 = await server.inject({ method: "POST", url: "/api/connectors/google/complete", headers, payload });
+    const res3 = await server.inject({
+      method: "POST",
+      url: "/api/connectors/google/complete",
+      headers,
+      payload
+    });
     expect(res3.statusCode).toBe(429);
   });
 
@@ -574,6 +652,7 @@ Expected: Tests fail — rate limiter not yet registered so bursts return 401/42
 - [ ] **Step 5: Register the rate-limit plugin in server.ts**
 
 Add the import at the top of `apps/api/src/server.ts`:
+
 ```typescript
 import rateLimit from "@fastify/rate-limit";
 ```
@@ -581,19 +660,19 @@ import rateLimit from "@fastify/rate-limit";
 In `createApiServer`, immediately after `const server = Fastify({...})` and before the `/health` route, add:
 
 ```typescript
-  const AUTH_MAX = Number(process.env.JARVIS_RL_AUTH_MAX ?? 10);
-  const OAUTH_MAX = Number(process.env.JARVIS_RL_OAUTH_MAX ?? 5);
+const AUTH_MAX = Number(process.env.JARVIS_RL_AUTH_MAX ?? 10);
+const OAUTH_MAX = Number(process.env.JARVIS_RL_OAUTH_MAX ?? 5);
 
-  server.register(rateLimit, {
-    global: false,
-    keyGenerator: (request) => {
-      const forwarded = request.headers["x-forwarded-for"];
-      if (typeof forwarded === "string" && forwarded.trim()) {
-        return forwarded.split(",")[0]?.trim() ?? request.ip;
-      }
-      return request.ip;
+server.register(rateLimit, {
+  global: false,
+  keyGenerator: (request) => {
+    const forwarded = request.headers["x-forwarded-for"];
+    if (typeof forwarded === "string" && forwarded.trim()) {
+      return forwarded.split(",")[0]?.trim() ?? request.ip;
     }
-  });
+    return request.ip;
+  }
+});
 ```
 
 Pass `AUTH_MAX` and `OAUTH_MAX` down to `registerBetterAuthRoutes` and store them so `registerConnectorsRoutes` can use them. The cleanest approach: update the function signatures to accept the maxes.
@@ -620,10 +699,7 @@ function registerBetterAuthRoutes(
         allowList: (request) => {
           // Only throttle POST sign-in/sign-up — skip all other auth paths
           if (request.method !== "POST") return true;
-          return (
-            !request.url.includes("/sign-in/email") &&
-            !request.url.includes("/sign-up/email")
-          );
+          return !request.url.includes("/sign-in/email") && !request.url.includes("/sign-up/email");
         }
       }
     },
@@ -667,6 +743,7 @@ EOF
 ### Task 7: Apply rate limit to `POST /api/connectors/google/complete`
 
 **Files:**
+
 - Modify: `packages/connectors/src/routes.ts`
 
 - [ ] **Step 1: Locate the google/complete route**
@@ -680,6 +757,7 @@ The route is `server.post("/api/connectors/google/complete", { schema: googleCom
 - [ ] **Step 2: Add the rate-limit config**
 
 Change the route from:
+
 ```typescript
   server.post(
     "/api/connectors/google/complete",
@@ -688,6 +766,7 @@ Change the route from:
 ```
 
 To:
+
 ```typescript
   const OAUTH_MAX = Number(process.env.JARVIS_RL_OAUTH_MAX ?? 5);
 
@@ -751,6 +830,7 @@ echo "Exit: $?"
 ```
 
 Read the exit code:
+
 ```bash
 cat /tmp/gate-p1-api-hardening.txt | tail -40
 ```
@@ -785,6 +865,7 @@ EOF
 Before calling `coordinated-wrap-up`, verify each item:
 
 **#54:**
+
 - [ ] `GET /health` returns `200 {ok:true}` — no DB touch (test asserts this)
 - [ ] `GET /health/ready` returns `200 {ok:true, db:"ok", pgboss:"ok"}` when healthy
 - [ ] `GET /health/ready` returns `503 {ok:false, db:"down", pgboss:"ok"}` when DB unreachable
@@ -794,6 +875,7 @@ Before calling `coordinated-wrap-up`, verify each item:
 - [ ] `pnpm verify:foundation` green
 
 **#53:**
+
 - [ ] `@fastify/rate-limit` in root `package.json` and lockfile
 - [ ] Burst of `POST /api/auth/sign-in/email` past threshold → 429 (test asserts)
 - [ ] Burst of `POST /api/auth/sign-up/email` past threshold → 429 (test asserts)
@@ -804,4 +886,5 @@ Before calling `coordinated-wrap-up`, verify each item:
 - [ ] `pnpm verify:foundation` green
 
 **Process gate:**
+
 - [ ] Invoke `coordinated-wrap-up` to open PR titled `feat(api): crash-safety + health + rate-limiting (P1 #54, #53)` and report to Coordinator.
