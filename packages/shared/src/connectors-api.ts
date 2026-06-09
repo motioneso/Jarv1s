@@ -238,3 +238,53 @@ export const listAdminConnectorAccountsRouteSchema = {
     403: errorResponseSchema
   }
 } as const;
+
+export interface GoogleAuthorizeRequest {
+  clientId: string;
+  clientSecret: string;
+}
+
+export interface GoogleAuthorizeResponse {
+  authUrl: string;
+}
+
+export interface GoogleCompleteRequest {
+  redirectUrl: string;
+}
+
+export interface GoogleCompleteResponse {
+  account: ConnectorAccountDto;
+}
+
+export const googleAuthorizeRequestSchema = {
+  type: "object",
+  required: ["clientId", "clientSecret"],
+  additionalProperties: false,
+  properties: {
+    clientId: { type: "string", minLength: 1 },
+    clientSecret: { type: "string", minLength: 1 }
+  }
+} as const;
+
+export const googleAuthorizeResponseSchema = {
+  type: "object",
+  required: ["authUrl"],
+  properties: { authUrl: { type: "string" } }
+} as const;
+
+export const googleCompleteRequestSchema = {
+  type: "object",
+  required: ["redirectUrl"],
+  additionalProperties: false,
+  properties: { redirectUrl: { type: "string", minLength: 1 } }
+} as const;
+
+export const googleAuthorizeRouteSchema = {
+  body: googleAuthorizeRequestSchema,
+  response: { 200: googleAuthorizeResponseSchema }
+} as const;
+
+export const googleCompleteRouteSchema = {
+  body: googleCompleteRequestSchema,
+  response: { 201: createConnectorAccountResponseSchema }
+} as const;
