@@ -1,6 +1,6 @@
 # Close the auth-secret RLS gap — Design (P1 #52)
 
-**Status:** DRAFT (coordinator readiness, 2026-06-09) — needs Ben's sign-off
+**Status:** Approved for build (2026-06-09)
 **Date:** 2026-06-09  **Owner:** Ben  **Issue:** #52 (Part of epic #46)
 
 ---
@@ -72,65 +72,45 @@ bootstrap the first user). If we simply `FORCE` owner-only RLS on these tables f
 
 ---
 
-## Open Decisions — NEED BEN
+## Resolved Decisions (was open)
 
-### FORK: (a) restrictive RLS + dedicated better-auth role  vs  (b) documented exception + module-reference guard
+### Option (a) — restrictive RLS + dedicated better-auth role, AND keep the guard (defense-in-depth)
 
-**Option (a) — RLS + a dedicated unscoped role for better-auth's own pool.**
+**Chosen: Option (a), plus Option (b)'s lint/test guard as a second layer (not instead).** These are
+the single most sensitive tables in the product (refresh tokens + password hashes), the project will
+hold substantial personal data, and ADR 0007 made cross-user real — so secrecy must be a **database
+invariant, not a convention**. Concretely:
 
-- Add a new login role, e.g. `jarvis_auth_runtime` (bootstrap `0000_roles.sql`), `NOBYPASSRLS`
-  like the others. Grant it the privileges better-auth needs on `auth_accounts`,
-  `better_auth_sessions`, `auth_verifications`, `users`.
-- Point better-auth's pool at a new `JARVIS_AUTH_DATABASE_URL` for that role
-  (`packages/db/src/urls.ts` + `packages/auth/src/index.ts` line 53).
-- `ENABLE` + `FORCE ROW LEVEL SECURITY` on the three tables. Write **owner-only** policies
-  `TO jarvis_app_runtime` (and `jarvis_worker_runtime` where it reads users), keyed on
-  `app.current_actor_user_id()`. The dedicated `jarvis_auth_runtime` role gets a separate
-  **unscoped** policy (`USING (true)` `TO jarvis_auth_runtime`) so better-auth keeps working;
-  RLS still applies to it (no `BYPASSRLS`), it just has a permissive policy because it is the
-  trusted owner of these tables.
-- Tradeoffs: **+** Defense-in-depth at the database — even a module SQL-injection or a stray
-  raw query as `jarvis_app_runtime` cannot read cross-user secrets. **+** Matches the
-  system-wide invariant ("RLS applies to all actors"). **−** New role = new credential to
-  provision/rotate/document; touches bootstrap, urls, auth runtime, compose env, and the
-  release-hardening role list. **−** The legacy CLI bearer path (`AuthSessionResolver`,
-  `packages/db/src/auth-session.ts`) reads `better_auth_sessions` as `jarvis_app_runtime`;
-  its policy must allow a by-token lookup that has no actor context yet (chicken-and-egg:
-  you read the session to *learn* the actor). That likely needs a narrow
-  `SECURITY DEFINER` lookup function (mirroring `app.has_resource_grant`) rather than a row
-  policy, or the bearer path must move onto `jarvis_auth_runtime` too.
+- Add a dedicated login role `jarvis_auth_runtime` (bootstrap `0000_roles.sql`), `NOBYPASSRLS` like
+  the others, granted the privileges better-auth needs on `auth_accounts`, `better_auth_sessions`,
+  `auth_verifications`, `users`. Point better-auth's own pool at a new `JARVIS_AUTH_DATABASE_URL`
+  for that role.
+- `ENABLE` + `FORCE ROW LEVEL SECURITY` on the three tables. Owner-only policies `TO
+  jarvis_app_runtime` (and `jarvis_worker_runtime` where it reads users), keyed on
+  `app.current_actor_user_id()`; a separate **unscoped permissive** policy (`USING (true)` `TO
+  jarvis_auth_runtime`) so better-auth keeps working — RLS still applies (no `BYPASSRLS`).
+- **Also** keep Option (b)'s guard: a lint/test guard that fails if any `packages/*/src` other than
+  `auth`/`db` references these tables. This is defense-in-depth, layered on top of the DB invariant.
 
-**Option (b) — documented exception in CLAUDE.md + a lint/test guard.**
+### Legacy CLI bearer path → SECURITY DEFINER by-token lookup (or move onto the auth role)
 
-- Leave the tables unscoped (better-auth keeps working unchanged). Add a hard invariant to
-  CLAUDE.md: *no module package may reference `auth_accounts`, `better_auth_sessions`, or the
-  secret columns of `users`; only `packages/auth` and `packages/db` (the session resolver)
-  may.* Enforce with a guard test that greps every `packages/*/src` **except** `auth` and `db`
-  for those table names / Kysely table strings and fails on a hit.
-- Tradeoffs: **+** Tiny, fast, no new role/credential, no migration, zero risk to the auth
-  flow. **+** Directly encodes the actual threat model (a *module* query reaching these
-  tables). **−** It is a **process/static** guard, not a database guarantee: a raw query, a
-  dynamic table name, or a query authored inside `auth`/`db` that leaks data is not caught. **−**
-  Violates the spirit of the system-wide "RLS applies to all actors including admins"
-  invariant by carving out an explicit hole. **−** The guard's denylist is bypassable (string
-  obfuscation), so it is necessary-but-not-sufficient.
+The legacy CLI bearer path (`AuthSessionResolver`, `packages/db/src/auth-session.ts`) reads
+`better_auth_sessions` to *learn* the actor before any actor context exists (chicken-and-egg).
+Handle it via a narrow `SECURITY DEFINER` by-token lookup function (mirroring
+`app.has_resource_grant`) **or** by moving the bearer path onto the new `jarvis_auth_runtime` role —
+not via an owner-scoped row policy.
 
-**MY RECOMMENDATION: Option (a), with the bearer-token lookup handled by a `SECURITY DEFINER`
-function.** Reasoning: these are the single most sensitive tables in the product (refresh
-tokens + password hashes), ADR 0007 just made cross-user real, and the project's defining hard
-lesson is "build it right the first time." A static denylist that is admittedly bypassable is
-the wrong tool for the crown-jewel tables — it protects against an honest mistake but not
-against the threat (one module reading every user's secrets). Option (a) makes it a database
-invariant that survives any future module, matching every other private table in the system.
-The cost (one new role + a definer function for the by-token session lookup) is real but
-bounded and is exactly the machinery the codebase already uses elsewhere. **Recommend (a); if
-Ben wants to de-risk Phase 1 scope, ship (b)'s guard test *as well* (cheap) but not instead.**
+### This spec owns the only Phase-1 migration
 
-### Secondary decision — does `jarvis_worker_runtime` need any of these grants?
+#52 is the only Phase-1 task adding SQL (#55 adds none), so it takes the **next global migration
+number (~`0045`)** uncontested. The new migration lives in `infra/postgres/migrations/` (app-schema
+tables owned by the foundation); `0004` is untouched.
 
-The worker currently has no grants on the auth tables; confirm no worker code reads `users`
-for display/email. If it does, its policy must be added in the same migration. (Verify against
-`packages/*/src` worker paths during build; do not assume.)
+### Worker grants — verify during build
+
+The worker currently has no grants on the auth tables. Confirm whether any worker code reads `users`
+for display/email; if it does, add its owner-scoped policy in the same migration. Verify against
+`packages/*/src` worker paths during build; do not assume.
 
 ---
 

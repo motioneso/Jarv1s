@@ -1,6 +1,6 @@
 # Retire the legacy AiAssistantToolExecutor — Design (P1 #57)
 
-**Status:** DRAFT (coordinator readiness, 2026-06-09) — needs Ben's sign-off
+**Status:** Approved for build (2026-06-09)
 **Date:** 2026-06-09  **Owner:** Ben  **Issue:** #57 (Part of epic #46)
 **Decided by:** ADR 0009 §Decision-4 (this spec is the execution detail, not a fresh decision)
 
@@ -69,25 +69,28 @@ So the remaining work is small and mechanical: give the three still-legacy read 
   handlers in a module-local `tools.ts`, wired into its manifest's `assistantTools[].execute`,
   returning `{ data: <same shape the switch returned> }`.
 
-## Open Decisions — NEED BEN
+## Resolved Decisions (was open)
 
-1. **Where do the three new `execute` handlers live, and where do the serializers come from?**
-   The switch used each module's `serialize*` function, but those are currently exported from each
-   module's **`routes.ts`** (`serializeCalendarEvent`, `serializeEmailMessage`,
-   `serializeNotification`) — not a dedicated serialize module. Recommendation: add a small
-   `tools.ts` to each of calendar/email/notifications (mirroring `tasks/src/tools.ts`), importing
-   the existing serializer from that module's own `routes.ts`. This keeps the serializer
-   single-sourced and avoids a new export surface. **Low-risk, recommend approve.**
+Both follow ADR 0009 and the Tasks precedent.
 
-2. **`summarizeAssistantToolInput` home after the file shrinks.** `gateway.ts` imports it from
-   `../assistant-tools.js`. When the executor class is deleted, keep `assistant-tools.ts` as a thin
-   module retaining `summarizeAssistantToolInput`, `listAssistantToolsFromManifests`, and
-   `findAssistantToolFromManifests` (all still used and module-isolation-clean — they only read
-   manifest metadata). Recommendation: keep the file, delete only the executor class + error +
-   the four imports. **Recommend approve.**
+1. **Per-module `tools.ts` for the three new `execute` handlers; serializers single-sourced.** Add a
+   small `tools.ts` to each of calendar/email/notifications (mirroring `tasks/src/tools.ts`),
+   importing the existing serializer (`serializeCalendarEvent`, `serializeEmailMessage`,
+   `serializeNotification`) from that module's own `routes.ts`. This keeps the serializer
+   single-sourced and adds no new export surface.
 
-No genuinely hard fork remains — every handler is a one-line repository `listVisible` + `serialize`
-map, structurally identical to what the switch already did.
+2. **Keep `assistant-tools.ts` as a thin module.** When the executor class is deleted, retain
+   `summarizeAssistantToolInput`, `listAssistantToolsFromManifests`, and
+   `findAssistantToolFromManifests` (all still used by the gateway, all module-isolation-clean —
+   they only read manifest metadata). Delete only the `AiAssistantToolExecutor` class, the
+   `UnsupportedAssistantToolError`, and the four feature-module imports. Both call sites
+   (`ai/routes.ts`, `briefings/repository.ts`) dispatch only through the gateway/manifest path.
+
+   Also delete the four module deps (`@jarv1s/calendar`, `@jarv1s/email`, `@jarv1s/notifications`,
+   `@jarv1s/tasks`) from `packages/ai/package.json`.
+
+Every handler is a one-line repository `listVisible` + `serialize` map, structurally identical to
+what the switch already did.
 
 ## Approach
 

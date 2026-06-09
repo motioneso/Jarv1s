@@ -1,6 +1,6 @@
 # Pin the Native-Build Posture — Design (P1 #58)
 
-**Status:** DRAFT (coordinator readiness, 2026-06-09) — needs Ben's sign-off
+**Status:** Approved for build (2026-06-09)
 **Date:** 2026-06-09  **Owner:** Ben  **Issue:** #58 (Part of epic #46)
 
 ## Context
@@ -58,16 +58,14 @@ There is no `pnpm.onlyBuiltDependencies` or `pnpm.ignoredBuiltDependencies` anyw
 | 3 | `sharp` | Allow (in `onlyBuiltDependencies`) | Downloads pre-built libvips — declared dep of `@huggingface/transformers`; may be needed for future image modalities. |
 | 4 | `protobufjs` | Ignore (in `ignoredBuiltDependencies`) | Postinstall is a version-scheme warning only; blocking it is safe and intentional; documenting the intent prevents future confusion. |
 
-## Open Decisions — NEED BEN
+## Resolved Decisions (was open)
 
-**(A) Include `sharp` in `onlyBuiltDependencies` or `ignoredBuiltDependencies`?**
-Fork: allow sharp's install script vs. block it.
-**Recommendation: allow (`onlyBuiltDependencies`).** `sharp` is a declared dependency of
-`@huggingface/transformers`; without its pre-built libvips binary, image-related pipeline calls
-fail. The embedding path used today does not exercise it, but allowing it now is zero-risk (the
-install script only downloads a pre-built binary, no compiler invoked) and avoids a silent breakage
-if the transformers library is used for image embeddings in future. If Ben wants to be stricter:
-move to `ignoredBuiltDependencies` and add a comment explaining the image path is unused.
+**`sharp` → allow (`onlyBuiltDependencies`).** `sharp`'s install script only downloads a pre-built
+libvips binary (no compiler invoked), so the security profile is low. Allowing it now is zero-risk
+and avoids silent breakage of the embedding path or future image embeddings. `protobufjs` is inert
+(its postinstall is only a version-scheme warning) and stays in `ignoredBuiltDependencies`. The
+final posture is an explicit `pnpm.onlyBuiltDependencies` of `["onnxruntime-node", "sharp"]` with
+`ignoredBuiltDependencies` of `["protobufjs"]` (see Resolved Decisions rows 2–4).
 
 ## Approach
 

@@ -1,6 +1,6 @@
 # Secret-key versioning / rotation — Design (P1 #55)
 
-**Status:** DRAFT (coordinator readiness, 2026-06-09) — needs Ben's sign-off
+**Status:** Approved for build (2026-06-09)
 **Date:** 2026-06-09  **Owner:** Ben  **Issue:** #55 (Part of epic #46)
 
 ---
@@ -75,48 +75,40 @@ output straight back into the jsonb column. The cipher round-trips an opaque JSO
 
 ---
 
-## Open Decisions — NEED BEN
+## Resolved Decisions (was open)
 
-### KEY QUESTION (for the Coordinator): does #55 need a DB MIGRATION?
+### No DB migration — runtime-only, with lazy re-encrypt
 
-**Answer: NO — #55 can be done purely at runtime; no migration is required.**
+**#55 needs NO migration; it is done purely at runtime.** The ciphertext lives in an **opaque
+`jsonb` object column** whose only DB constraint is `jsonb_typeof = 'object'`. Adding a `keyId`
+field keeps it a JSON object, so there are **no column, type, constraint, or grant changes** —
+nothing for a migration to do. The cipher is the only thing that reads the envelope's internal
+fields; Postgres never does, so versioning is entirely a TypeScript concern in `crypto.ts` + config.
 
-Why, from the code and storage shape:
+**Posture: lazy re-encrypt.** Reads decrypt with the old key (matched by `keyId`/absent); the next
+legitimate write re-encrypts with the new key on the existing `UPDATE` paths (`connector_accounts`
+token refresh; AI config update). No bulk re-encryption job, hence no data migration. Old keys must
+remain in the keyring until every row has been touched at least once post-rotation — that is what
+the keyring + runbook are for.
 
-- The ciphertext lives in an **opaque `jsonb` object column** whose only DB constraint is
-  `jsonb_typeof = 'object'`. Adding a `keyId` field keeps it a JSON object, so **no column,
-  type, constraint, or grant changes** — nothing for a migration to do.
-- The cipher is the **only** thing that reads the envelope's internal fields; Postgres never
-  does. So versioning is entirely a TypeScript concern in `crypto.ts` + config.
-- **Lazy re-wrap is achievable in the runtime read/write path** already present: repositories
-  decrypt on read (e.g. `getActiveGoogleAccountSecret`) and write the envelope back on the
-  normal `UPDATE` paths (`connector_accounts` token refresh; AI config update). After rotation,
-  reads decrypt with the old key (matched by `keyId`/absent), and the next legitimate write
-  re-encrypts with the new key. No bulk re-encryption job, hence no data migration.
+**Optional operator script.** An optional one-shot `scripts/rewrap-secrets.ts` (run as the migration
+role inside `withDataContext` per user) can force-rewrap every row so the operator can retire an old
+key promptly. This is operator tooling **alongside** `backup:db` / `export:user`, **not** part of the
+migration chain — so it consumes no global migration number.
 
-**Recommended posture:** **lazy re-encrypt, no migration.** Old keys must remain in the keyring
-until every row has been touched at least once post-rotation; that is exactly what the keyring
-+ runbook are for. An *optional* one-shot operator **script** (not a migration) can force-rewrap
-every row to let the operator retire an old key promptly — `scripts/rewrap-secrets.ts`, run as
-the migration role inside `withDataContext` per user. This is operator tooling, **not** part of
-the migration chain, so **it does not consume a global migration number and cannot collide with
-#52's migration.**
+**Consequence for ordering:** #55 adds no migration file, so it cannot collide with #52 in global
+migration ordering; #52 takes the next number (`0045`) uncontested.
 
-**Therefore #55 and #52 do NOT collide in global migration ordering** — #55 adds no migration
-file; #52 takes the next number (`0045`) uncontested. (If Ben instead wants *eager* rewrap
-baked into the deploy, that still need not be a SQL migration — keep it a runtime script — so
-the no-collision conclusion holds either way.) Confirm with Ben that lazy is acceptable.
+### Keyring config format → JSON
 
-### Secondary — keyring config format
+`JARVIS_*_SECRET_KEYS` is a JSON id→secret map (e.g. `{"v1":"...","v2":"..."}`), not a delimited
+string — unambiguous even when secrets contain `:` or `,`.
 
-`JARVIS_*_SECRET_KEYS` as JSON (`{"v1":"...","v2":"..."}`) vs delimited (`v1:...,v2:...`).
-**Recommend JSON** (unambiguous with secrets that contain `:` or `,`). Need Ben.
+### keyId derivation → explicit, operator-chosen
 
-### Secondary — keyId derivation
-
-Explicit operator-chosen id (`"v1"`) vs derived (first 8 hex of `sha256(secret)`). **Recommend
-explicit, operator-chosen** id so the runbook reads cleanly and ids are stable/human-meaningful.
-Need Ben.
+The current key id is an explicit operator-chosen value (e.g. `"v1"`), named by
+`JARVIS_*_SECRET_KEY_ID` — not a hash-derived id — so the runbook reads cleanly and ids are
+stable and human-meaningful.
 
 ---
 

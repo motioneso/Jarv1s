@@ -1,6 +1,6 @@
 # Resolve the dangling "workspace" vocabulary — Design (P1 #59)
 
-**Status:** DRAFT (coordinator readiness, 2026-06-09) — needs Ben's sign-off
+**Status:** Approved for build (2026-06-09)
 **Date:** 2026-06-09  **Owner:** Ben  **Issue:** #59 (Part of epic #46)
 
 ## Context
@@ -60,38 +60,39 @@ manifests/permissions/tools.
   delivered through **owner-or-share grants**, not workspace membership. So multi-user is NOT a
   reason to keep workspace scoping.
 
-## Open Decisions — NEED BEN
+## Resolved Decisions (was open)
 
-**THE FORK (issue #59 acceptance): remove the vocab now, OR write an ADR defining real workspace scoping.**
+**The fork → REMOVE the dead access-scope vocabulary now. No scoping ADR.** The vocab is a shallow,
+mechanical removal, not load-bearing:
 
-**Recommendation: REMOVE the vocabulary now. Do not write a scoping ADR.** Evidence the vocab is a
-shallow, mechanical removal — not load-bearing:
-
-1. **Zero runtime branches.** `grep` for `ModuleScope` / `scope ===` / `scope ==` finds no code that
-   reads the value to make a decision. The field is pure documentation on manifest entries; changing
-   the strings changes no behavior.
+1. **Zero runtime branches.** No code reads `ModuleScope` / `scope ===` / `scope ==` to make a
+   decision. The field is pure documentation on manifest entries; changing the strings changes no
+   behavior.
 2. **No DB/RLS dependency.** The workspace access functions/columns were already dropped in 0028.
    Removing the vocab touches no SQL and needs no migration.
-3. **The near-term multi-user case is already served** by owner-or-share (ADR 0007 + `rls-shareability`),
-   so there is no pending feature that a `workspace` scope would unblock. Writing a scoping ADR would
-   be designing a feature with no consumer — the exact "spec before build with no near-term need"
-   anti-pattern.
-4. **Steelman for keeping it (rejected):** "workspace might come back." But ADR 0007 fixes the target
-   as a single self-hosted house instance with per-user RLS + grants; a future workspace concept would
-   be a fresh milestone with its own ADR and its own (correctly-runtime-backed) vocabulary. Keeping a
-   dead enum value as a placeholder is precisely the "silent half-existing concept" #59 forbids.
+3. **The near-term multi-user case is already served** by owner-or-share (ADR 0007 +
+   `rls-shareability`), so no pending feature needs a `workspace` scope. A scoping ADR would design a
+   feature with no consumer.
+4. **Steelman for keeping it (rejected):** a future workspace concept would be a fresh milestone with
+   its own ADR and correctly-runtime-backed vocabulary; keeping a dead enum value as a placeholder is
+   exactly the "silent half-existing concept" #59 forbids.
 
-**Sub-decision (NEED BEN): what does each `scope: "workspace"` entry become?** Proposed reclassification:
+Concretely: drop `"workspace"` from `ModuleScope` (`packages/module-sdk`) and from the `platform-api`
+union + JSON-schema enum (`packages/shared`); delete the ~20 stale `scope:"workspace"` manifest
+entries and stale prose; let `pnpm typecheck` surface the full edit set.
+
+**Scope: do NOT conflate with the admin Workspaces feature.** Leave the real `app.workspaces` /
+`app.workspace_memberships` admin tables, the `/api/admin/workspaces*` routes, `me.workspaces`, and
+the settings admin Workspaces panel **intact** — only the dead *access-scope vocabulary* is removed.
+
+**Sub-decision → default reclassification = `"user"`.** Each former `scope: "workspace"` entry becomes:
 
 - Per-user read/write/create tool & permission entries (tasks, chat, email, calendar, notifications,
-  briefings) → **`scope: "user"`** (they operate on the actor's own + shared-to-actor resources under RLS).
-- Connectors' `scope: "workspace"` entry (`connectors/src/manifest.ts:68`) → **`scope: "user"`**
-  (connectors are owner-only).
-- Any entry whose route is admin-gated (e.g. module-management permissions already say "Manage … module")
-  → keep/confirm **`scope: "admin"`** where the route requires `*.manage`.
+  briefings) → **`scope: "user"`** (actor's own + shared-to-actor resources under RLS).
+- Connectors' entry (`connectors/src/manifest.ts:68`) → **`scope: "user"`** (owner-only).
+- Any admin-gated entry whose route requires `*.manage` → keep/confirm **`scope: "admin"`**.
 
-I will map each of the ~20 entries to user/admin in the Approach table during build; **confirm the
-default = `"user"` for actor-scoped entries.**
+The default for actor-scoped entries is **`"user"`**.
 
 ## Approach (concrete files + changes)
 

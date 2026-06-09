@@ -1,6 +1,6 @@
 # Basic Rate-Limiting on Login + OAuth Paste-Back — Design (P1 #53)
 
-**Status:** DRAFT (coordinator readiness, 2026-06-09) — needs Ben's sign-off
+**Status:** Approved for build (2026-06-09)
 **Date:** 2026-06-09  **Owner:** Ben  **Issue:** #53 (Part of epic #46)
 
 ## Context
@@ -42,31 +42,25 @@ one `postgres` — no replicas, no scaling, no load balancer. This is a LAN / po
 | 2 | Scope of registration | Register the plugin **globally disabled** (`global: false`) and opt specific routes in via their route `config.rateLimit`. | Avoids throttling read-heavy app routes; keeps blast radius to the two target surfaces. |
 | 3 | Better-auth coverage | Apply the limit on the better-auth catch-all route's `config`, keyed so only mutating credential paths count. | Login lives behind the `/api/auth/*` catch-all — we cannot add a discrete route without forking better-auth's handler. |
 
-## Open Decisions — NEED BEN
+## Resolved Decisions (was open)
 
-**(A) Rate-limit store — in-memory vs shared.**
-Fork: `@fastify/rate-limit` defaults to an in-process LRU; a shared store needs Redis.
-**Recommendation: in-memory (default).** The deploy is provably single-instance (one `api` container
-in compose, no scaling). In-memory is zero-dependency and correct for one process; it resets on
-restart, which is acceptable for abuse-throttling (a restart is not an attacker-controlled event).
-Revisit only if/when the API is horizontally scaled (would become a separate spec).
+**(A) Rate-limit store → in-memory.** Use `@fastify/rate-limit`'s default in-process LRU; no Redis
+or shared store. The deploy is provably single-instance (one `api` container in compose, no scaling).
+In-memory is zero-dependency and correct for one process; it resets on restart, which is acceptable
+for abuse-throttling. Revisit only if/when the API is horizontally scaled (a separate spec).
 
-**(B) Thresholds.**
-Fork: how many requests per window before `429`.
-**Recommendation:**
+**(B) Thresholds → 10/min login, 5/min OAuth paste-back, all env-overridable.**
 - Login (`/api/auth/sign-in/email`, `/api/auth/sign-up/email`): **10 requests / 1 min** per key.
 - OAuth paste-back (`/api/connectors/google/complete`): **5 requests / 1 min** per key.
-These are generous for a human and tight against scripted brute force. Expose both as env overrides
-(`JARVIS_RL_AUTH_MAX`, `JARVIS_RL_OAUTH_MAX`) so Ben can tune without a redeploy-code change.
+Both are exposed as env overrides (`JARVIS_RL_AUTH_MAX`, `JARVIS_RL_OAUTH_MAX`) so they can be tuned
+without a code change. (The window and other knobs are likewise env-overridable.)
 
-**(C) Key function — per-IP given LAN / port-forward.**
-Fork: key on IP (default) vs a header vs global.
-**Recommendation: per-IP using `x-forwarded-for` when present, else socket IP.** The app already
-honors `x-forwarded-proto` (see `readForwardedProtocol` in `server.ts`), so a reverse proxy is
-expected; trust `x-forwarded-for`'s first hop for the key. Caveat to flag: behind a single
-port-forward all LAN clients may share one source IP, so per-IP can over-throttle a shared NAT. Given
-this is a personal/family self-host, that tradeoff is acceptable; if it bites, fall back to a global
-bucket on the auth route. (Document the `trustProxy` assumption in the PR.)
+**(C) Key function → per-IP via `x-forwarded-for` first hop.** Key per-IP using `x-forwarded-for`'s
+first hop when present, else the socket IP. The app already honors `x-forwarded-proto` (see
+`readForwardedProtocol` in `server.ts`), so a reverse proxy is expected; trust the first hop for the
+key. Accepted caveat: behind a single port-forward, shared-NAT LAN clients may share one source IP,
+so per-IP can over-throttle; acceptable for a personal/family self-host. Document the `trustProxy`
+assumption in the PR.
 
 ## Approach
 
