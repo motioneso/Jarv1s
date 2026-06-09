@@ -8,7 +8,7 @@ description: Close out a Jarv1s work session cleanly and truthfully. Use at the 
 ## Overview
 
 A session is not "done" because the code looks finished. It is done when the tree is
-committed and pushed, the **full** gate is *verifiably* green, **GitHub matches reality**
+committed and pushed, the **full** gate is _verifiably_ green, **GitHub matches reality**
 (it is the source of truth), durable lessons are saved, and any other session sharing the
 repo is left undisturbed. This skill is the checklist that gets you there.
 
@@ -36,7 +36,9 @@ herdr pane list            # or: tmux list-panes -a   (other Claude/agent sessio
 ```bash
 git status --porcelain
 ```
+
 Classify **every** entry:
+
 - **Yours** → commit by explicit path with the right trailer (build commits:
   `Co-Authored-By: Claude`; your own edits: the model you are).
 - **A linter/Prettier reformat** (incl. files you didn't think you changed) → `pnpm format`,
@@ -51,6 +53,7 @@ End with a clean tree, or a clean tree plus a deliberately-stated exception.
 git status -sb                      # ahead/behind upstream
 git log --oneline @{u}..HEAD        # unpushed commits
 ```
+
 Push the branch if it is meant to land. Never force-push a shared branch.
 
 ### 3. The gate is GREEN — verified, not assumed
@@ -59,10 +62,11 @@ Push the branch if it is meant to land. Never force-push a shared branch.
 pnpm verify:foundation > /tmp/wrapup-vf.log 2>&1; echo "VF_EXIT=$?"
 pnpm audit:release-hardening > /tmp/wrapup-audit.log 2>&1; echo "AUDIT_EXIT=$?"
 ```
+
 - **NEVER pipe a gate to `tail`/`head`/`grep` as the final stage** — the pipe returns the
-  *filter's* exit code (0) and masks a real failure. Redirect to a file, capture `$?`, then
+  _filter's_ exit code (0) and masks a real failure. Redirect to a file, capture `$?`, then
   read both the exit code AND the summary line.
-- **Per-suite green ≠ done.** A shared-table/contract change can break *other* modules'
+- **Per-suite green ≠ done.** A shared-table/contract change can break _other_ modules'
   suites (e.g. a new `NOT NULL` column breaking another suite's raw seeds). Run the FULL
   suite, not just the module you touched.
 - **Re-run known flakes** (e.g. the pg-boss worker-timeout tests) to confirm — don't wave a
@@ -74,8 +78,9 @@ If red: fix it (systematic-debugging) before claiming done. A red gate is not a 
 ### 4. GitHub matches reality (source of truth)
 
 Verify with `gh` — do not assume the board drifted with you:
+
 - **Board** (project #1; field/option IDs are in the `start` skill): each touched epic is in
-  the right column. *Move the board item* — editing a doc is not "started/done".
+  the right column. _Move the board item_ — editing a doc is not "started/done".
 - **Epic exit-criteria**: checkboxes reflect what actually shipped. Close the issue only when
   **all** criteria are met **and** the gate is green. For a multi-plan/multi-PR milestone,
   post a progress comment and leave it **open**.
@@ -106,7 +111,7 @@ one). Tell teammates what you touched and what to avoid.
 ### 7. Final status report
 
 One tight summary: what shipped (with the **verified** evidence — exit codes, test counts,
-PR links), the board/PR/issue/milestone state, what's deferred and *where it's tracked*, and
+PR links), the board/PR/issue/milestone state, what's deferred and _where it's tracked_, and
 anything awaiting the user.
 
 ## Red flags — STOP
@@ -120,15 +125,15 @@ anything awaiting the user.
 
 ## Quick reference
 
-| Need | Command |
-|------|---------|
-| Who else is in the tree | `git worktree list` · `herdr pane list` |
-| Uncommitted? | `git status --porcelain` · `pnpm format` |
-| Unpushed? | `git status -sb` · `git log --oneline @{u}..HEAD` |
-| Gate (real exit) | `pnpm verify:foundation > /tmp/vf.log 2>&1; echo "EXIT=$?"` then `pnpm audit:release-hardening` |
-| Board / issues | `gh project item-list 1 --owner motioneso --format json` · `gh issue …` · `gh pr …` |
-| Coordinate / hand off | `herdr-pane-message` · `tmux-pane-message` · `herdr-handoff` |
-| Memory | `memory_save` (project: jarv1s) or file-based memory + MEMORY.md |
+| Need                    | Command                                                                                         |
+| ----------------------- | ----------------------------------------------------------------------------------------------- |
+| Who else is in the tree | `git worktree list` · `herdr pane list`                                                         |
+| Uncommitted?            | `git status --porcelain` · `pnpm format`                                                        |
+| Unpushed?               | `git status -sb` · `git log --oneline @{u}..HEAD`                                               |
+| Gate (real exit)        | `pnpm verify:foundation > /tmp/vf.log 2>&1; echo "EXIT=$?"` then `pnpm audit:release-hardening` |
+| Board / issues          | `gh project item-list 1 --owner motioneso --format json` · `gh issue …` · `gh pr …`             |
+| Coordinate / hand off   | `herdr-pane-message` · `tmux-pane-message` · `herdr-handoff`                                    |
+| Memory                  | `memory_save` (project: jarv1s) or file-based memory + MEMORY.md                                |
 
 See also the `start` skill (the SDD lifecycle this closes out) and CLAUDE.md (hard invariants,
 GitHub tracking, coordinating with other sessions).
