@@ -133,7 +133,14 @@ const BUILT_IN_MODULES: readonly BuiltInModuleRegistration[] = [
     manifest: chatModuleManifest,
     sqlMigrationDirectories: [chatModuleSqlMigrationDirectory],
     queueDefinitions: [],
-    registerRoutes: registerChatRoutes
+    registerRoutes: (server, deps) =>
+      registerChatRoutes(server, {
+        resolveAccessContext: deps.resolveAccessContext,
+        dataContext: deps.dataContext,
+        chatEngineFactory: deps.chatEngineFactory,
+        resolveActiveModules: deps.listModuleManifests,
+        mcpServerUrl: `http://127.0.0.1:${process.env.PORT ?? 3000}/api/mcp`
+      })
   },
   {
     manifest: briefingsModuleManifest,

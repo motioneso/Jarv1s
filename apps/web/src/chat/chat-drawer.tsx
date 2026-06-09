@@ -4,6 +4,7 @@ import { type FormEvent, useState } from "react";
 
 import { clearChat, listChatThreads, sendChatTurn } from "../api/client";
 import { queryKeys } from "../api/query-keys";
+import { ActionRequestCard } from "./action-request-card";
 import type { TranscriptRecord } from "./use-chat-stream";
 
 /**
@@ -112,6 +113,25 @@ function RecordLog(props: { readonly records: readonly TranscriptRecord[] }) {
 function RecordRow(props: { readonly record: TranscriptRecord }) {
   const { kind, text } = props.record;
 
+  if (kind === "action_request" && props.record.actionRequestId) {
+    return (
+      <ActionRequestCard
+        actionRequestId={props.record.actionRequestId}
+        toolName={props.record.toolName ?? kind}
+        summary={props.record.summary ?? text}
+      />
+    );
+  }
+
+  if (kind === "action_result") {
+    const verb = props.record.outcome === "executed" ? "Executed" : "Denied";
+    return (
+      <p className="muted-text chat-activity-line">
+        {verb}: {props.record.toolName ?? "tool"}
+      </p>
+    );
+  }
+
   if (kind === "user") {
     return (
       <article className="chat-message user">
@@ -142,7 +162,6 @@ function RecordRow(props: { readonly record: TranscriptRecord }) {
     return <p className="form-error">{text}</p>;
   }
 
-  // thinking / tool / status — muted activity lines
   return (
     <p className="muted-text chat-activity-line">
       {kind}: {text}

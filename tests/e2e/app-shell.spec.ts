@@ -239,3 +239,99 @@ test("serves PWA metadata", async ({ page }) => {
   expect(response.ok()).toBe(true);
   expect(manifest.name).toBe("Jarv1s");
 });
+
+test.describe("Chat drawer — Approve/Deny card", () => {
+  test("renders Approve/Deny card and resolves on Approve", async ({ page }) => {
+    await mockApi(page, {
+      authenticated: true,
+      connectorAccounts: [],
+      connectorProviders: createMockConnectorProviders(),
+      notifications: [],
+      tasks: []
+    });
+
+    // Override the stream to return an action_request event.
+    // Must be registered before page.goto because the stream connects at app load.
+    const actionRequestEvent = JSON.stringify({
+      kind: "action_request",
+      text: "Approve or deny: Write the value 'test'",
+      actionRequestId: "ar_test_1",
+      toolName: "example.write",
+      summary: "Write the value 'test'"
+    });
+    let streamServed = false;
+    await page.route("**/api/chat/stream", async (route) => {
+      if (streamServed) {
+        return;
+      }
+      streamServed = true;
+      await route.fulfill({
+        status: 200,
+        contentType: "text/event-stream",
+        headers: { "cache-control": "no-cache" },
+        body: `data: ${actionRequestEvent}\n\n`
+      });
+    });
+
+    // Mock the resolve endpoint
+    await page.route("**/api/chat/action-requests/*/resolve", (route) =>
+      route.fulfill({ status: 204, body: "" })
+    );
+
+    await page.goto("/");
+    await page.locator(".module-nav").getByRole("button", { name: "Chat" }).click();
+
+    // Wait for the Approve/Deny card to appear
+    await expect(page.locator(".action-request-card")).toBeVisible({ timeout: 3000 });
+    await expect(page.locator(".action-request-tool")).toContainText("example.write");
+    await expect(page.locator(".action-request-summary")).toContainText("Write the value 'test'");
+
+    // Approve
+    await page.locator(".action-request-card").getByRole("button", { name: "Approve" }).click();
+
+    // Card should show Resolved.
+    await expect(page.locator(".action-request-card")).toContainText("Resolved.");
+  });
+
+  test("Deny resolves the card", async ({ page }) => {
+    await mockApi(page, {
+      authenticated: true,
+      connectorAccounts: [],
+      connectorProviders: createMockConnectorProviders(),
+      notifications: [],
+      tasks: []
+    });
+
+    const actionRequestEvent = JSON.stringify({
+      kind: "action_request",
+      text: "Approve or deny: Write 'y'",
+      actionRequestId: "ar_test_2",
+      toolName: "example.write",
+      summary: "Write 'y'"
+    });
+    let streamServed = false;
+    await page.route("**/api/chat/stream", async (route) => {
+      if (streamServed) {
+        return;
+      }
+      streamServed = true;
+      await route.fulfill({
+        status: 200,
+        contentType: "text/event-stream",
+        headers: { "cache-control": "no-cache" },
+        body: `data: ${actionRequestEvent}\n\n`
+      });
+    });
+
+    await page.route("**/api/chat/action-requests/*/resolve", (route) =>
+      route.fulfill({ status: 204, body: "" })
+    );
+
+    await page.goto("/");
+    await page.locator(".module-nav").getByRole("button", { name: "Chat" }).click();
+
+    await expect(page.locator(".action-request-card")).toBeVisible({ timeout: 3000 });
+    await page.locator(".action-request-card").getByRole("button", { name: "Deny" }).click();
+    await expect(page.locator(".action-request-card")).toContainText("Resolved.");
+  });
+});
