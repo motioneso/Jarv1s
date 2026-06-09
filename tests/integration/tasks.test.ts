@@ -357,6 +357,18 @@ describe("Tasks module M1", () => {
         authorization: `Bearer ${ids.sessionA}`
       }
     });
+    // Title-only PATCH (valid — no status change)
+    const titlePatchResponse = await server.inject({
+      method: "PATCH",
+      url: `/api/tasks/${created.id}`,
+      headers: {
+        authorization: `Bearer ${ids.sessionA}`
+      },
+      payload: {
+        title: "API-updated task"
+      }
+    });
+    // in_progress is retired — the route must reject it with 400
     const patchResponse = await server.inject({
       method: "PATCH",
       url: `/api/tasks/${created.id}`,
@@ -364,7 +376,6 @@ describe("Tasks module M1", () => {
         authorization: `Bearer ${ids.sessionA}`
       },
       payload: {
-        title: "API-updated task",
         status: "in_progress"
       }
     });
@@ -393,11 +404,13 @@ describe("Tasks module M1", () => {
     expect(createResponse.statusCode).toBe(201);
     expect(created.ownerUserId).toBe(ids.userA);
     expect(getAsOwnerResponse.statusCode).toBe(200);
-    expect(patchResponse.statusCode).toBe(200);
-    expect(patchResponse.json<{ task: { title: string; status: string } }>().task).toMatchObject({
-      title: "API-updated task",
-      status: "in_progress"
-    });
+    // Title update succeeds
+    expect(titlePatchResponse.statusCode).toBe(200);
+    expect(titlePatchResponse.json<{ task: { title: string } }>().task.title).toBe(
+      "API-updated task"
+    );
+    // in_progress is retired — route rejects it
+    expect(patchResponse.statusCode).toBe(400); // in_progress retired
     expect(
       listResponse.json<{ tasks: Array<{ id: string }> }>().tasks.map((task) => task.id)
     ).toContain(created.id);
@@ -672,13 +685,149 @@ describe("Tasks module M1", () => {
   it("drift: overdue + at-risk surface Medium+ only; focus orders them", async () => {
     const drift = new TaskDriftRepository();
     await dataContext.withDataContext(userAContext(), async (db) => {
-      await repository.create(db, { title: "overdue-critical", priority: 5, dueAt: new Date("2000-01-01") });
-      await repository.create(db, { title: "overdue-someday", priority: 1, dueAt: new Date("2000-01-01") });
+      await repository.create(db, {
+        title: "overdue-critical",
+        priority: 5,
+        dueAt: new Date("2000-01-01")
+      });
+      await repository.create(db, {
+        title: "overdue-someday",
+        priority: 1,
+        dueAt: new Date("2000-01-01")
+      });
     });
     const overdue = await dataContext.withDataContext(userAContext(), (db) => drift.getOverdue(db));
     const atRisk = await dataContext.withDataContext(userAContext(), (db) => drift.getAtRisk(db));
     expect(overdue.map((t) => t.title)).toContain("overdue-critical");
     expect(atRisk.map((t) => t.title)).not.toContain("overdue-someday"); // priority < 3 excluded
+  });
+
+  it("GET /api/tasks/lists returns the actor's lists", async () => {
+    const response = await server.inject({
+      method: "GET",
+      url: "/api/tasks/lists",
+      headers: { authorization: `Bearer ${ids.sessionA}` }
+    });
+
+    expect(response.statusCode).toBe(200);
+    const body = response.json<{ lists: Array<{ name: string }> }>();
+    expect(body.lists.map((l) => l.name)).toContain("Personal");
+  });
+
+  it("POST /api/tasks/lists creates a list (idempotent)", async () => {
+    const response = await server.inject({
+      method: "POST",
+      url: "/api/tasks/lists",
+      headers: { authorization: `Bearer ${ids.sessionA}` },
+      payload: { name: "Work" }
+    });
+
+    expect(response.statusCode).toBe(201);
+    const body = response.json<{ list: { name: string; id: string } }>();
+    expect(body.list.name).toBe("Work");
+
+    // Second call returns the same list (idempotent get-or-create)
+    const response2 = await server.inject({
+      method: "POST",
+      url: "/api/tasks/lists",
+      headers: { authorization: `Bearer ${ids.sessionA}` },
+      payload: { name: "Work" }
+    });
+    expect(response2.statusCode).toBe(201);
+    expect(response2.json<{ list: { id: string } }>().list.id).toBe(body.list.id);
+  });
+
+  it("POST /api/tasks/lists/:listId/tags creates a tag on the list", async () => {
+    // Get the Personal list id for userA
+    const listsRepo = new TaskListsRepository();
+    const list = await dataContext.withDataContext(userAContext(), (db) =>
+      listsRepo.getOrCreateDefault(db)
+    );
+
+    const response = await server.inject({
+      method: "POST",
+      url: `/api/tasks/lists/${list.id}/tags`,
+      headers: { authorization: `Bearer ${ids.sessionA}` },
+      payload: { name: "urgent" }
+    });
+
+    expect(response.statusCode).toBe(201);
+    const body = response.json<{ tag: { name: string; listId: string } }>();
+    expect(body.tag.name).toBe("urgent");
+    expect(body.tag.listId).toBe(list.id);
+  });
+
+  it("POST /api/tasks/:id/breakdown creates child steps", async () => {
+    const task = await dataContext.withDataContext(userAContext(), (db) =>
+      repository.create(db, { title: "plan the trip" })
+    );
+
+    const response = await server.inject({
+      method: "POST",
+      url: `/api/tasks/${task.id}/breakdown`,
+      headers: { authorization: `Bearer ${ids.sessionA}` },
+      payload: { steps: ["book flights", "reserve hotel"] }
+    });
+
+    expect(response.statusCode).toBe(201);
+    const body = response.json<{ tasks: Array<{ title: string; parentTaskId: string }> }>();
+    expect(body.tasks).toHaveLength(2);
+    expect(body.tasks.map((t) => t.title)).toEqual(["book flights", "reserve hotel"]);
+    expect(body.tasks[0]?.parentTaskId).toBe(task.id);
+  });
+
+  it("GET /api/tasks/focus returns overdue/at-risk tasks", async () => {
+    // Seed a high-priority overdue task for userA
+    await dataContext.withDataContext(userAContext(), (db) =>
+      repository.create(db, {
+        title: "focus-route-test",
+        priority: 5,
+        dueAt: new Date("2000-01-01")
+      })
+    );
+
+    const response = await server.inject({
+      method: "GET",
+      url: "/api/tasks/focus",
+      headers: { authorization: `Bearer ${ids.sessionA}` }
+    });
+
+    expect(response.statusCode).toBe(200);
+    const body = response.json<{ tasks: Array<{ title: string }> }>();
+    expect(body.tasks.map((t) => t.title)).toContain("focus-route-test");
+  });
+
+  it("GET /api/tasks/at-risk returns at-risk tasks", async () => {
+    const response = await server.inject({
+      method: "GET",
+      url: "/api/tasks/at-risk",
+      headers: { authorization: `Bearer ${ids.sessionA}` }
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json<{ tasks: unknown[] }>().tasks).toBeInstanceOf(Array);
+  });
+
+  it("GET /api/tasks?quadrant=do filters by Eisenhower quadrant", async () => {
+    // Seed a task that is important (priority=5) + urgent (due in 1 hour)
+    const dueIn1h = new Date(Date.now() + 60 * 60 * 1000);
+    await dataContext.withDataContext(userAContext(), (db) =>
+      repository.create(db, {
+        title: "quadrant-do-test",
+        priority: 5,
+        dueAt: dueIn1h
+      })
+    );
+
+    const response = await server.inject({
+      method: "GET",
+      url: "/api/tasks?quadrant=do",
+      headers: { authorization: `Bearer ${ids.sessionA}` }
+    });
+
+    expect(response.statusCode).toBe(200);
+    const body = response.json<{ tasks: Array<{ title: string }> }>();
+    expect(body.tasks.map((t) => t.title)).toContain("quadrant-do-test");
   });
 });
 

@@ -4,13 +4,24 @@ import type { JarvisModuleManifest } from "@jarv1s/module-sdk";
 import {
   addTaskActivityRequestSchema,
   addTaskActivityResponseSchema,
+  atRiskTasksRouteSchema,
+  breakdownTaskRequestSchema,
+  breakdownTaskResponseSchema,
+  createTaskListRequestSchema,
+  createTaskListResponseSchema,
   createTaskRequestSchema,
   createTaskResponseSchema,
+  createTaskTagRequestSchema,
+  createTaskTagResponseSchema,
   deferredTaskStatusPayloadSchema,
   deferredTaskStatusRequestSchema,
   deferredTaskStatusResponseSchema,
+  focusTasksRouteSchema,
   getTaskResponseSchema,
+  listTaskListsResponseSchema,
+  listTaskTagsResponseSchema,
   listTasksResponseSchema,
+  overdueTasksRouteSchema,
   taskStatusSchema,
   updateTaskRequestSchema,
   updateTaskResponseSchema
@@ -34,7 +45,11 @@ export const tasksModuleManifest = {
     required: true
   },
   database: {
-    migrations: ["sql/0003_tasks_module.sql", "sql/0019_tasks_owner_or_share.sql", "sql/0039_tasks_foundation.sql"],
+    migrations: [
+      "sql/0003_tasks_module.sql",
+      "sql/0019_tasks_owner_or_share.sql",
+      "sql/0039_tasks_foundation.sql"
+    ],
     migrationDirectories: ["packages/tasks/sql"],
     ownedTables: ["app.tasks", "app.task_activity"]
   },
@@ -139,6 +154,57 @@ export const tasksModuleManifest = {
       requestSchema: deferredTaskStatusRequestSchema,
       responseSchema: deferredTaskStatusResponseSchema,
       permissionId: "tasks.update"
+    },
+    {
+      method: "GET",
+      path: "/api/tasks/lists",
+      responseSchema: listTaskListsResponseSchema,
+      permissionId: "tasks.view"
+    },
+    {
+      method: "POST",
+      path: "/api/tasks/lists",
+      requestSchema: createTaskListRequestSchema,
+      responseSchema: createTaskListResponseSchema,
+      permissionId: "tasks.create"
+    },
+    {
+      method: "GET",
+      path: "/api/tasks/lists/:listId/tags",
+      responseSchema: listTaskTagsResponseSchema,
+      permissionId: "tasks.view"
+    },
+    {
+      method: "POST",
+      path: "/api/tasks/lists/:listId/tags",
+      requestSchema: createTaskTagRequestSchema,
+      responseSchema: createTaskTagResponseSchema,
+      permissionId: "tasks.create"
+    },
+    {
+      method: "POST",
+      path: "/api/tasks/:id/breakdown",
+      requestSchema: breakdownTaskRequestSchema,
+      responseSchema: breakdownTaskResponseSchema,
+      permissionId: "tasks.update"
+    },
+    {
+      method: "GET",
+      path: "/api/tasks/focus",
+      responseSchema: focusTasksRouteSchema.response[200],
+      permissionId: "tasks.view"
+    },
+    {
+      method: "GET",
+      path: "/api/tasks/at-risk",
+      responseSchema: atRiskTasksRouteSchema.response[200],
+      permissionId: "tasks.view"
+    },
+    {
+      method: "GET",
+      path: "/api/tasks/overdue",
+      responseSchema: overdueTasksRouteSchema.response[200],
+      permissionId: "tasks.view"
     }
   ],
   jobs: [

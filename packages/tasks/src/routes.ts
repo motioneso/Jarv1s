@@ -1,21 +1,42 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import type { PgBoss } from "pg-boss";
 
-import type { AccessContext, DataContextRunner, Task, TaskActivity, TaskStatus } from "@jarv1s/db";
+import type {
+  AccessContext,
+  DataContextRunner,
+  Task,
+  TaskActivity,
+  TaskList,
+  TaskStatus,
+  TaskTag
+} from "@jarv1s/db";
 import {
   addTaskActivityRouteSchema,
+  atRiskTasksRouteSchema,
+  breakdownTaskRouteSchema,
+  createTaskListRouteSchema,
   createTaskRouteSchema,
+  createTaskTagRouteSchema,
   deferredTaskStatusRouteSchema,
+  focusTasksRouteSchema,
   getTaskRouteSchema,
   listTaskActivityRouteSchema,
+  listTaskListsRouteSchema,
+  listTaskTagsRouteSchema,
   listTasksRouteSchema,
+  overdueTasksRouteSchema,
   updateTaskRouteSchema,
   type TaskActivityDto,
-  type TaskDto
+  type TaskDto,
+  type TaskListDto,
+  type TaskTagDto
 } from "@jarv1s/shared";
 
 import { type DeferredTaskStatusPayload, isDeferredTaskStatusPayloadMetadataOnly } from "./jobs.js";
 import { TASKS_DEFERRED_STATUS_QUEUE } from "./manifest.js";
+import { TaskBreakdownRepository } from "./breakdown.js";
+import { TaskDriftRepository } from "./drift.js";
+import { TaskListsRepository } from "./lists.js";
 import { TasksRepository } from "./repository.js";
 
 export interface TasksRoutesDependencies {
@@ -23,6 +44,9 @@ export interface TasksRoutesDependencies {
   readonly dataContext: DataContextRunner;
   readonly boss: PgBoss;
   readonly repository?: TasksRepository;
+  readonly listsRepository?: TaskListsRepository;
+  readonly breakdownRepository?: TaskBreakdownRepository;
+  readonly driftRepository?: TaskDriftRepository;
 }
 
 interface TaskParams {
@@ -34,15 +58,32 @@ export function registerTasksRoutes(
   dependencies: TasksRoutesDependencies
 ): void {
   const repository = dependencies.repository ?? new TasksRepository();
+  const listsRepository = dependencies.listsRepository ?? new TaskListsRepository();
+  const breakdownRepository = dependencies.breakdownRepository ?? new TaskBreakdownRepository();
+  const driftRepository = dependencies.driftRepository ?? new TaskDriftRepository();
 
   server.get("/api/tasks", { schema: listTasksRouteSchema }, async (request, reply) => {
     try {
       const accessContext = await dependencies.resolveAccessContext(request);
+      const query = request.query as Record<string, unknown>;
+      const quadrant = optionalString(query["quadrant"], "quadrant");
+      if (
+        quadrant !== undefined &&
+        quadrant !== "do" &&
+        quadrant !== "schedule" &&
+        quadrant !== "delegate" &&
+        quadrant !== "eliminate"
+      ) {
+        throw new HttpError(400, "quadrant must be do, schedule, delegate, or eliminate");
+      }
+
       const tasks = await dependencies.dataContext.withDataContext(accessContext, (scopedDb) =>
         repository.listVisible(scopedDb)
       );
 
-      return { tasks: tasks.map(serializeTask) };
+      const filtered = quadrant ? filterByQuadrant(tasks, quadrant) : tasks;
+
+      return { tasks: filtered.map(serializeTask) };
     } catch (error) {
       return handleRouteError(error, reply);
     }
@@ -177,6 +218,136 @@ export function registerTasksRoutes(
       }
     }
   );
+
+  // --- Lists ---
+
+  server.get("/api/tasks/lists", { schema: listTaskListsRouteSchema }, async (request, reply) => {
+    try {
+      const accessContext = await dependencies.resolveAccessContext(request);
+      const lists = await dependencies.dataContext.withDataContext(accessContext, (scopedDb) =>
+        listsRepository.list(scopedDb)
+      );
+
+      return { lists: lists.map(serializeTaskList) };
+    } catch (error) {
+      return handleRouteError(error, reply);
+    }
+  });
+
+  server.post("/api/tasks/lists", { schema: createTaskListRouteSchema }, async (request, reply) => {
+    try {
+      const accessContext = await dependencies.resolveAccessContext(request);
+      const body = requireObject(request.body);
+      const name = requiredString(body["name"], "name");
+      const list = await dependencies.dataContext.withDataContext(accessContext, (scopedDb) =>
+        listsRepository.getOrCreate(scopedDb, name)
+      );
+
+      return reply.code(201).send({ list: serializeTaskList(list) });
+    } catch (error) {
+      return handleRouteError(error, reply);
+    }
+  });
+
+  // --- Tags ---
+
+  server.get<{ Params: { listId: string } }>(
+    "/api/tasks/lists/:listId/tags",
+    { schema: listTaskTagsRouteSchema },
+    async (request, reply) => {
+      try {
+        const accessContext = await dependencies.resolveAccessContext(request);
+        const tags = await dependencies.dataContext.withDataContext(accessContext, (scopedDb) =>
+          listsRepository.listTags(scopedDb, request.params.listId)
+        );
+
+        return { tags: tags.map(serializeTaskTag) };
+      } catch (error) {
+        return handleRouteError(error, reply);
+      }
+    }
+  );
+
+  server.post<{ Params: { listId: string } }>(
+    "/api/tasks/lists/:listId/tags",
+    { schema: createTaskTagRouteSchema },
+    async (request, reply) => {
+      try {
+        const accessContext = await dependencies.resolveAccessContext(request);
+        const body = requireObject(request.body);
+        const name = requiredString(body["name"], "name");
+        const tag = await dependencies.dataContext.withDataContext(accessContext, (scopedDb) =>
+          listsRepository.createTag(scopedDb, request.params.listId, name)
+        );
+
+        return reply.code(201).send({ tag: serializeTaskTag(tag) });
+      } catch (error) {
+        return handleRouteError(error, reply);
+      }
+    }
+  );
+
+  // --- Breakdown ---
+
+  server.post<{ Params: TaskParams }>(
+    "/api/tasks/:id/breakdown",
+    { schema: breakdownTaskRouteSchema },
+    async (request, reply) => {
+      try {
+        const accessContext = await dependencies.resolveAccessContext(request);
+        const body = requireObject(request.body);
+        const steps = parseStringArray(body["steps"], "steps");
+        const tasks = await dependencies.dataContext.withDataContext(accessContext, (scopedDb) =>
+          breakdownRepository.breakDown(scopedDb, request.params.id, steps)
+        );
+
+        return reply.code(201).send({ tasks: tasks.map(serializeTask) });
+      } catch (error) {
+        return handleRouteError(error, reply);
+      }
+    }
+  );
+
+  // --- Focus / At-Risk / Overdue ---
+
+  server.get("/api/tasks/focus", { schema: focusTasksRouteSchema }, async (request, reply) => {
+    try {
+      const accessContext = await dependencies.resolveAccessContext(request);
+      const tasks = await dependencies.dataContext.withDataContext(accessContext, (scopedDb) =>
+        driftRepository.getFocus(scopedDb)
+      );
+
+      return { tasks: tasks.map(serializeTask) };
+    } catch (error) {
+      return handleRouteError(error, reply);
+    }
+  });
+
+  server.get("/api/tasks/at-risk", { schema: atRiskTasksRouteSchema }, async (request, reply) => {
+    try {
+      const accessContext = await dependencies.resolveAccessContext(request);
+      const tasks = await dependencies.dataContext.withDataContext(accessContext, (scopedDb) =>
+        driftRepository.getAtRisk(scopedDb)
+      );
+
+      return { tasks: tasks.map(serializeTask) };
+    } catch (error) {
+      return handleRouteError(error, reply);
+    }
+  });
+
+  server.get("/api/tasks/overdue", { schema: overdueTasksRouteSchema }, async (request, reply) => {
+    try {
+      const accessContext = await dependencies.resolveAccessContext(request);
+      const tasks = await dependencies.dataContext.withDataContext(accessContext, (scopedDb) =>
+        driftRepository.getOverdue(scopedDb)
+      );
+
+      return { tasks: tasks.map(serializeTask) };
+    } catch (error) {
+      return handleRouteError(error, reply);
+    }
+  });
 }
 
 function parseCreateTaskBody(body: unknown) {
@@ -280,7 +451,12 @@ function optionalTaskStatus(value: unknown): TaskStatus | undefined {
     return undefined;
   }
 
-  if (value === "todo" || value === "in_progress" || value === "done" || value === "archived") {
+  // in_progress is retired; reject it behaviorally at the route layer
+  if (value === "in_progress") {
+    throw new HttpError(400, "status is invalid");
+  }
+
+  if (value === "todo" || value === "done" || value === "archived") {
     return value;
   }
 
@@ -319,6 +495,77 @@ function optionalDate(value: unknown, fieldName: string): Date | null | undefine
   }
 
   return date;
+}
+
+function parseStringArray(value: unknown, fieldName: string): string[] {
+  if (!Array.isArray(value)) {
+    throw new HttpError(400, `${fieldName} must be an array`);
+  }
+
+  return value.map((item, i) => {
+    if (typeof item !== "string" || !item.trim()) {
+      throw new HttpError(400, `${fieldName}[${i.toString()}] must be a non-empty string`);
+    }
+
+    return item.trim();
+  });
+}
+
+/**
+ * Compute Eisenhower quadrant for a task.
+ *
+ * Importance: priority >= 4 is "important".
+ * Urgency:    due_at within 48 h of now() or already overdue.
+ *
+ * Quadrants:
+ *   do       = important + urgent
+ *   schedule = important + not urgent
+ *   delegate = not important + urgent
+ *   eliminate = not important + not urgent
+ */
+function getQuadrant(task: Task): "do" | "schedule" | "delegate" | "eliminate" {
+  const important = task.priority !== null && task.priority >= 4;
+  let urgent = false;
+
+  if (task.due_at) {
+    const dueMs = (task.due_at instanceof Date ? task.due_at : new Date(task.due_at)).getTime();
+    const nowMs = Date.now();
+    const hoursUntilDue = (dueMs - nowMs) / (1000 * 60 * 60);
+    urgent = hoursUntilDue <= 48;
+  }
+
+  if (important && urgent) return "do";
+  if (important && !urgent) return "schedule";
+  if (!important && urgent) return "delegate";
+  return "eliminate";
+}
+
+function filterByQuadrant(
+  tasks: Task[],
+  quadrant: "do" | "schedule" | "delegate" | "eliminate"
+): Task[] {
+  return tasks.filter((t) => getQuadrant(t) === quadrant);
+}
+
+export function serializeTaskList(list: TaskList): TaskListDto {
+  return {
+    id: list.id,
+    ownerUserId: list.owner_user_id,
+    name: list.name,
+    position: list.position,
+    createdAt: serializeDate(list.created_at),
+    updatedAt: serializeDate(list.updated_at)
+  };
+}
+
+export function serializeTaskTag(tag: TaskTag): TaskTagDto {
+  return {
+    id: tag.id,
+    ownerUserId: tag.owner_user_id,
+    listId: tag.list_id,
+    name: tag.name,
+    createdAt: serializeDate(tag.created_at)
+  };
 }
 
 export function serializeTask(task: Task): TaskDto {

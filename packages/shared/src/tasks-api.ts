@@ -492,3 +492,57 @@ export const createTaskTagRouteSchema = {
     201: createTaskTagResponseSchema
   }
 } as const;
+
+// --- Task Breakdown ---
+
+export interface BreakdownTaskRequest {
+  readonly steps: readonly string[];
+}
+
+export interface BreakdownTaskResponse {
+  readonly tasks: readonly TaskDto[];
+}
+
+export const breakdownTaskRequestSchema = {
+  type: "object",
+  required: ["steps"],
+  properties: {
+    steps: { type: "array", items: { type: "string" } }
+  }
+} as const;
+
+export const breakdownTaskResponseSchema = {
+  type: "object",
+  required: ["tasks"],
+  properties: {
+    tasks: { type: "array", items: taskDtoSchema }
+  }
+} as const;
+
+export const breakdownTaskRouteSchema = {
+  params: taskParamsSchema,
+  body: breakdownTaskRequestSchema,
+  response: {
+    201: breakdownTaskResponseSchema
+  }
+} as const;
+
+// --- Focus / At-Risk / Overdue (reuse listTasksResponseSchema shape) ---
+
+export const focusTasksRouteSchema = {
+  response: {
+    200: listTasksResponseSchema
+  }
+} as const;
+
+export const atRiskTasksRouteSchema = {
+  response: {
+    200: listTasksResponseSchema
+  }
+} as const;
+
+export const overdueTasksRouteSchema = {
+  response: {
+    200: listTasksResponseSchema
+  }
+} as const;
