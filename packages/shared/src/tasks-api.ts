@@ -1,4 +1,4 @@
-export const TASK_STATUSES = ["todo", "in_progress", "done", "archived"] as const;
+export const TASK_STATUSES = ["todo", "done", "archived"] as const;
 
 export type TaskApiStatus = (typeof TASK_STATUSES)[number];
 

@@ -446,11 +446,6 @@ function optionalTaskStatus(value: unknown): TaskStatus | undefined {
     return undefined;
   }
 
-  // in_progress is retired; reject it behaviorally at the route layer
-  if (value === "in_progress") {
-    throw new HttpError(400, "status is invalid");
-  }
-
   if (value === "todo" || value === "done" || value === "archived") {
     return value;
   }

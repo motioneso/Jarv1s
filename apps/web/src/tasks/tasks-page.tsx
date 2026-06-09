@@ -16,7 +16,7 @@ import { createTask, listTasks, updateTask } from "../api/client";
 import { queryKeys } from "../api/query-keys";
 import { formatDate, fromDateInputValue, sortTasks, statusLabels } from "./task-format";
 
-const taskStatusFilters = ["all", "todo", "in_progress", "done", "archived"] as const;
+const taskStatusFilters = ["all", "todo", "done", "archived"] as const;
 
 type TaskStatusFilter = (typeof taskStatusFilters)[number];
 
@@ -245,7 +245,6 @@ function TaskRow(props: {
           value={props.task.status}
         >
           <option value="todo">Todo</option>
-          <option value="in_progress">Doing</option>
           <option value="done">Done</option>
           <option value="archived">Archived</option>
         </select>
@@ -281,7 +280,6 @@ function readStatusCounts(tasks: readonly TaskDto[]) {
   const counts: Record<TaskStatusFilter, number> = {
     all: tasks.length,
     todo: 0,
-    in_progress: 0,
     done: 0,
     archived: 0
   };

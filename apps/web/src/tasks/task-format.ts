@@ -1,8 +1,7 @@
 import type { TaskApiStatus, TaskDto } from "@jarv1s/shared";
 
 export const statusLabels: Record<TaskApiStatus, string> = {
-  todo: "Todo",
-  in_progress: "Doing",
+  todo: "Open",
   done: "Done",
   archived: "Archived"
 };
