@@ -1,6 +1,14 @@
 import type { ProviderKind } from "@jarv1s/ai"; // "anthropic" | "openai-compatible" | "google"
 
-export type ChatRecordKind = "user" | "thinking" | "tool" | "status" | "reply" | "error" | "action_request" | "action_result";
+export type ChatRecordKind =
+  | "user"
+  | "thinking"
+  | "tool"
+  | "status"
+  | "reply"
+  | "error"
+  | "action_request"
+  | "action_result";
 export interface TranscriptRecord {
   readonly kind: ChatRecordKind;
   readonly text: string;

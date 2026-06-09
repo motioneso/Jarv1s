@@ -106,7 +106,9 @@ export function registerChatRoutes(
         const { id } = request.params;
         const rawStatus = (request.body as { status?: unknown }).status;
         if (rawStatus !== "confirmed" && rawStatus !== "rejected" && rawStatus !== "cancelled") {
-          return reply.code(400).send({ error: "status must be confirmed, rejected, or cancelled" });
+          return reply
+            .code(400)
+            .send({ error: "status must be confirmed, rejected, or cancelled" });
         }
 
         try {

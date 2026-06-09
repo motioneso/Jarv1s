@@ -78,7 +78,7 @@ export default defineConfig({
         replacement: fileURLToPath(
           new URL("./packages/structured-state/src/index.ts", import.meta.url)
         )
-      },
+      }
     ]
   },
   test: {

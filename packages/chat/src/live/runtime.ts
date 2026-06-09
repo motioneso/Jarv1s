@@ -48,7 +48,10 @@ export interface CreateChatSessionRuntimeDeps {
   readonly idleMs?: number;
   /** Phase 2: MCP token lifecycle hooks — mint on engine launch, revoke on reap. */
   readonly mcpTokenLifecycle?: {
-    readonly mint: (actorUserId: string, chatSessionId: string) => { token: string; mcpServerUrl: string };
+    readonly mint: (
+      actorUserId: string,
+      chatSessionId: string
+    ) => { token: string; mcpServerUrl: string };
     readonly revoke: (chatSessionId: string) => void;
   };
 }

@@ -81,8 +81,8 @@ describe("TmuxCliChatEngine — Gemini launch", () => {
       mcpServerUrl: "http://127.0.0.1:3000/api/mcp"
     });
 
-    const writeCall = (io.writeFile as ReturnType<typeof vi.fn>).mock.calls.find(
-      (c: unknown[]) => (c[0] as string).includes(".gemini/settings.json")
+    const writeCall = (io.writeFile as ReturnType<typeof vi.fn>).mock.calls.find((c: unknown[]) =>
+      (c[0] as string).includes(".gemini/settings.json")
     );
     expect(writeCall).toBeDefined();
     const settingsContent = JSON.parse(writeCall![1] as string);

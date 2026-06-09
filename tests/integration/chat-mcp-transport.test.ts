@@ -87,7 +87,9 @@ describe("MCP HTTP transport", () => {
       body: { jsonrpc: "2.0", id: 0, method: "initialize", params: {} }
     });
     expect(res.statusCode).toBe(200);
-    const body = res.json<{ result: { protocolVersion: string; capabilities: { tools: object } } }>();
+    const body = res.json<{
+      result: { protocolVersion: string; capabilities: { tools: object } };
+    }>();
     expect(body.result.protocolVersion).toBe("2024-11-05");
     expect(body.result.capabilities.tools).toBeDefined();
   });
@@ -133,7 +135,9 @@ describe("MCP HTTP transport", () => {
       }
     });
     expect(res.statusCode).toBe(200);
-    const body = res.json<{ result: { isError: boolean; content: { type: string; text: string }[] } }>();
+    const body = res.json<{
+      result: { isError: boolean; content: { type: string; text: string }[] };
+    }>();
     expect(body.result.isError).toBe(false);
     expect(body.result.content[0]!.type).toBe("text");
     const data = JSON.parse(body.result.content[0]!.text) as { echo: string; actor: string };

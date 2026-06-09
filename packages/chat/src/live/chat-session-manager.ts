@@ -55,7 +55,10 @@ export interface ChatSessionManagerDeps {
   readonly pollMs?: number;
   /** Cap on readNew polls per turn before a turn is treated as timed out (default 2000). */
   readonly maxPolls?: number;
-  readonly mintMcpToken?: (actorUserId: string, chatSessionId: string) => { token: string; mcpServerUrl: string };
+  readonly mintMcpToken?: (
+    actorUserId: string,
+    chatSessionId: string
+  ) => { token: string; mcpServerUrl: string };
   readonly revokeMcpToken?: (chatSessionId: string) => void;
 }
 

@@ -126,10 +126,6 @@ export function gatewayResponseToMcp(res: GatewayToolResponse) {
   };
 }
 
-function jsonRpcError(
-  id: string | number | null | undefined,
-  code: number,
-  message: string
-) {
+function jsonRpcError(id: string | number | null | undefined, code: number, message: string) {
   return { jsonrpc: "2.0", id: id ?? null, error: { code, message } };
 }

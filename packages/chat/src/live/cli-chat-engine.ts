@@ -32,7 +32,6 @@ import type { ChatRecordKind, CliChatEngine, EngineLaunchOpts, TranscriptRecord 
 /** Session name prefix used for all Jarv1s live tmux sessions. */
 const SESSION_PREFIX = "jarv1s-live-";
 
-
 export interface TmuxCliChatEngineOpts {
   /** ms to let the CLI TUI finish booting before the first paste. */
   readonly launchMs?: number;
@@ -90,7 +89,10 @@ export class TmuxCliChatEngine implements CliChatEngine {
         tools: { core: [] as string[] },
         security: { disableYoloMode: true }
       };
-      await this.io.writeFile(join(settingsDir, "settings.json"), JSON.stringify(settings, null, 2));
+      await this.io.writeFile(
+        join(settingsDir, "settings.json"),
+        JSON.stringify(settings, null, 2)
+      );
     }
 
     this.storedTranscriptPath = join(
@@ -203,11 +205,7 @@ export class TmuxCliChatEngine implements CliChatEngine {
   }
 
   private buildClaudeCommand(opts: EngineLaunchOpts, sessionId: string): string {
-    const parts = [
-      `cd ${shellQuote(opts.neutralDir)} &&`,
-      "claude",
-      "--permission-mode default"
-    ];
+    const parts = [`cd ${shellQuote(opts.neutralDir)} &&`, "claude", "--permission-mode default"];
 
     if (opts.mcpToken && opts.mcpServerUrl) {
       const mcpConfig = JSON.stringify({

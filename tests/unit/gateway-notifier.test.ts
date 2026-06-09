@@ -3,9 +3,10 @@ import { ChatGatewayNotifier } from "../../packages/chat/src/gateway-notifier.js
 import type { ChatSessionManager } from "../../packages/chat/src/live/chat-session-manager.js";
 import type { TranscriptRecord } from "../../packages/chat/src/live/types.js";
 
-const makeManager = () => ({
-  injectRecord: vi.fn()
-}) as unknown as ChatSessionManager;
+const makeManager = () =>
+  ({
+    injectRecord: vi.fn()
+  }) as unknown as ChatSessionManager;
 
 describe("ChatGatewayNotifier", () => {
   it("converts action_request and fans out to manager.injectRecord", () => {
@@ -20,7 +21,10 @@ describe("ChatGatewayNotifier", () => {
     });
 
     expect(manager.injectRecord).toHaveBeenCalledOnce();
-    const call0 = (manager.injectRecord as ReturnType<typeof vi.fn>).mock.calls[0] as [string, TranscriptRecord];
+    const call0 = (manager.injectRecord as ReturnType<typeof vi.fn>).mock.calls[0] as [
+      string,
+      TranscriptRecord
+    ];
     const [actorUserId, record] = call0;
     expect(actorUserId).toBe("u1");
     expect(record.kind).toBe("action_request");
@@ -40,7 +44,10 @@ describe("ChatGatewayNotifier", () => {
       outcome: "executed"
     });
 
-    const [, record] = (manager.injectRecord as ReturnType<typeof vi.fn>).mock.calls[0] as [string, TranscriptRecord];
+    const [, record] = (manager.injectRecord as ReturnType<typeof vi.fn>).mock.calls[0] as [
+      string,
+      TranscriptRecord
+    ];
     expect(record.kind).toBe("action_result");
     expect(record.outcome).toBe("executed");
     expect(record.actionRequestId).toBe("ar_1");
