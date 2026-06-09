@@ -9,6 +9,7 @@ import {
   type JarvisDatabase
 } from "@jarv1s/db";
 import { ChatMemoryFactsRepository } from "@jarv1s/memory";
+import { ChatUserMemorySettingsRepository } from "@jarv1s/chat";
 import {
   connectionStrings,
   ids,
@@ -183,6 +184,51 @@ describe("ChatMemoryFactsRepository", () => {
     await dataContext.withDataContext(ctx(userBId), async (scopedDb) => {
       const facts = await repo.listActiveFacts(scopedDb, userBId);
       expect(facts.every((f) => f.ownerUserId === userBId)).toBe(true);
+    });
+  });
+});
+
+// ── Task 4: ChatUserMemorySettingsRepository ──────────────────────────────────
+
+describe("ChatUserMemorySettingsRepository", () => {
+  const repo = new ChatUserMemorySettingsRepository();
+  const userId = ids.userA;
+  let appDb: Kysely<JarvisDatabase>;
+  let dataContext: DataContextRunner;
+
+  beforeAll(async () => {
+    await resetFoundationDatabase();
+    appDb = createDatabase({ connectionString: connectionStrings.app, maxConnections: 1 });
+    dataContext = new DataContextRunner(appDb);
+  });
+
+  afterAll(async () => {
+    await appDb?.destroy();
+  });
+
+  it("getOrCreate returns defaults for a new user", async () => {
+    await dataContext.withDataContext(ctx(userId), async (scopedDb) => {
+      const settings = await repo.getOrCreate(scopedDb, userId);
+      expect(settings.userId).toBe(userId);
+      expect(settings.recallEnabled).toBe(true);
+      expect(settings.factsEnabled).toBe(true);
+    });
+  });
+
+  it("getOrCreate is idempotent", async () => {
+    await dataContext.withDataContext(ctx(userId), async (scopedDb) => {
+      const first = await repo.getOrCreate(scopedDb, userId);
+      const second = await repo.getOrCreate(scopedDb, userId);
+      expect(second.userId).toBe(first.userId);
+      expect(second.recallEnabled).toBe(first.recallEnabled);
+    });
+  });
+
+  it("update patches individual fields", async () => {
+    await dataContext.withDataContext(ctx(userId), async (scopedDb) => {
+      const updated = await repo.update(scopedDb, userId, { recallEnabled: false });
+      expect(updated.recallEnabled).toBe(false);
+      expect(updated.factsEnabled).toBe(true);
     });
   });
 });
