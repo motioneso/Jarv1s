@@ -191,6 +191,44 @@ describe("AI provider foundation", () => {
     ).toThrow("JARVIS_AI_SECRET_KEY is required in production");
   });
 
+  it("decrypts legacy AI secret envelope (no keyId) with current key for backward compat", () => {
+    const cipher = createAiSecretCipher({ JARVIS_AI_SECRET_KEY: "test-key" });
+    const encrypted = cipher.encryptJson({ apiKey: "sk-test" });
+    // Strip keyId to simulate a pre-keyId envelope
+    const { keyId: _omit, ...legacyEnvelope } = encrypted;
+    const legacy = legacyEnvelope as EncryptedAiSecret;
+    expect(cipher.decryptJson(legacy)).toEqual({ apiKey: "sk-test" });
+  });
+
+  it("decrypts old AI key envelope after rotating to a new current key", () => {
+    const cipherV1 = createAiSecretCipher({
+      JARVIS_AI_SECRET_KEY: "old-ai-secret",
+      JARVIS_AI_SECRET_KEY_ID: "v1"
+    });
+    const encryptedV1 = cipherV1.encryptJson({ apiKey: "old-key" });
+    expect(encryptedV1.keyId).toBe("v1");
+
+    // Rotate: v2 is current, v1 is retired (still in keyring)
+    const cipherV2 = createAiSecretCipher({
+      JARVIS_AI_SECRET_KEY: "new-ai-secret",
+      JARVIS_AI_SECRET_KEY_ID: "v2",
+      JARVIS_AI_SECRET_KEYS: JSON.stringify({ v1: "old-ai-secret" })
+    });
+    // Old envelope still decrypts
+    expect(cipherV2.decryptJson(encryptedV1)).toEqual({ apiKey: "old-key" });
+    // New encrypt stamps v2
+    const encryptedV2 = cipherV2.encryptJson({ apiKey: "new-key" });
+    expect(encryptedV2.keyId).toBe("v2");
+    expect(cipherV2.decryptJson(encryptedV2)).toEqual({ apiKey: "new-key" });
+  });
+
+  it("throws a named error for an unknown AI key id instead of an opaque GCM failure", () => {
+    const cipher = createAiSecretCipher({ JARVIS_AI_SECRET_KEY: "test-key" });
+    const envelope = cipher.encryptJson({ apiKey: "sk-secret" });
+    const tampered: EncryptedAiSecret = { ...envelope, keyId: "unknown-key-xyz" };
+    expect(() => cipher.decryptJson(tampered)).toThrow("Unknown AI secret key id: unknown-key-xyz");
+  });
+
   it("encrypts provider credentials at rest and never returns secret material", async () => {
     const createResponse = await server.inject({
       method: "POST",
