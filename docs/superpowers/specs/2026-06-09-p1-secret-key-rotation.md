@@ -1,7 +1,7 @@
 # Secret-key versioning / rotation — Design (P1 #55)
 
 **Status:** Approved for build (2026-06-09)
-**Date:** 2026-06-09  **Owner:** Ben  **Issue:** #55 (Part of epic #46)
+**Date:** 2026-06-09 **Owner:** Ben **Issue:** #55 (Part of epic #46)
 
 ---
 
@@ -15,7 +15,7 @@ Two near-identical ciphers protect the system's stored third-party secrets:
 Both derive the AES-256-GCM key with `createHash("sha256").update(JARVIS_*_SECRET_KEY)` and
 emit an envelope `{ version: 1, algorithm: "aes-256-gcm", iv, tag, ciphertext }`
 (connectors lines 14–27 / 55–67; ai identical). **The envelope carries no key id.** `version`
-is the *envelope-format* version (hardcoded `1`, asserted on decrypt), not a key generation.
+is the _envelope-format_ version (hardcoded `1`, asserted on decrypt), not a key generation.
 
 Consequence: there is exactly **one** key in play, derived purely from the env var. If the
 operator rotates, fat-fingers, or loses `JARVIS_CONNECTOR_SECRET_KEY` / `JARVIS_AI_SECRET_KEY`,
@@ -31,7 +31,7 @@ multiplies the blast radius. There is today no supported way to rotate the key.
   (`packages/connectors/sql/0009_connectors_module.sql` line 48). Also
   `connector_oauth_pending.encrypted_secret`.
 - `app.ai_provider_configs.encrypted_credential jsonb NOT NULL CHECK (jsonb_typeof(...) =
-  'object')` (`packages/ai/sql/0013_ai_module.sql` line 45).
+'object')` (`packages/ai/sql/0013_ai_module.sql` line 45).
 
 The repositories read the whole envelope back out and hand it to the cipher
 (`repository.ts`: `row.encrypted_secret as EncryptedConnectorSecret`), and write the cipher's
@@ -42,7 +42,7 @@ output straight back into the jsonb column. The cipher round-trips an opaque JSO
 
 ## Goals
 
-1. A **key id / version** inside the envelope so the cipher knows *which* key decrypts a row.
+1. A **key id / version** inside the envelope so the cipher knows _which_ key decrypts a row.
 2. **Decrypt-with-old / encrypt-with-new:** the active cipher holds a keyring (current key +
    zero or more retired keys); it decrypts any envelope whose `keyId` it still has, and always
    encrypts with the current key.
@@ -65,7 +65,7 @@ output straight back into the jsonb column. The cipher round-trips an opaque JSO
   the column is opaque jsonb with only a `jsonb_typeof = 'object'` CHECK, adding a field is
   **schema-compatible with the existing CHECK** — no DDL.
 - **Keyring config**, not a single env var: keep `JARVIS_CONNECTOR_SECRET_KEY` /
-  `JARVIS_AI_SECRET_KEY` as the *current* key (back-compat), and add an optional
+  `JARVIS_AI_SECRET_KEY` as the _current_ key (back-compat), and add an optional
   `JARVIS_*_SECRET_KEYS` (id→secret map, e.g. JSON or `id:secret,id:secret`) listing current +
   retired keys. The current key id is named by a `JARVIS_*_SECRET_KEY_ID` (default `"v1"`).
 - The two ciphers are duplicates; factor the keyring logic into one shared helper

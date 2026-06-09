@@ -1,7 +1,7 @@
 # Retire the legacy AiAssistantToolExecutor — Design (P1 #57)
 
 **Status:** Approved for build (2026-06-09)
-**Date:** 2026-06-09  **Owner:** Ben  **Issue:** #57 (Part of epic #46)
+**Date:** 2026-06-09 **Owner:** Ben **Issue:** #57 (Part of epic #46)
 **Decided by:** ADR 0009 §Decision-4 (this spec is the execution detail, not a fresh decision)
 
 ## Context
@@ -96,11 +96,11 @@ what the switch already did.
 
 ### Read tools that still LACK a manifest `execute` handler (the real work — exactly three)
 
-| Tool name                     | Module        | Switch did                                                       | New handler returns                                      |
-| ----------------------------- | ------------- | --------------------------------------------------------------- | ------------------------------------------------------- |
-| `calendar.listVisibleEvents`  | calendar      | `CalendarRepository.listVisible` → `serializeCalendarEvent`     | `{ data: { events: events.map(serializeCalendarEvent) } }` |
-| `email.listVisibleMessages`   | email         | `EmailRepository.listVisible` → `serializeEmailMessage`         | `{ data: { messages: messages.map(serializeEmailMessage) } }` |
-| `notifications.listVisible`   | notifications | `NotificationsRepository.listVisible` → `serializeNotification` | `{ data: { notifications: result.notifications.map(serializeNotification), unreadCount: result.unreadCount } }` |
+| Tool name                    | Module        | Switch did                                                      | New handler returns                                                                                             |
+| ---------------------------- | ------------- | --------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------- |
+| `calendar.listVisibleEvents` | calendar      | `CalendarRepository.listVisible` → `serializeCalendarEvent`     | `{ data: { events: events.map(serializeCalendarEvent) } }`                                                      |
+| `email.listVisibleMessages`  | email         | `EmailRepository.listVisible` → `serializeEmailMessage`         | `{ data: { messages: messages.map(serializeEmailMessage) } }`                                                   |
+| `notifications.listVisible`  | notifications | `NotificationsRepository.listVisible` → `serializeNotification` | `{ data: { notifications: result.notifications.map(serializeNotification), unreadCount: result.unreadCount } }` |
 
 (Tasks is already done — its 8 read tools all have `execute` handlers. The switch's
 `tasks.listVisible` case is dead and is simply deleted with the executor.)
@@ -140,7 +140,7 @@ Retained: `@jarv1s/db`, `@jarv1s/module-sdk`, `@jarv1s/shared`, `fastify`, `kyse
 
 1. **`packages/ai/src/routes.ts`** — remove the `AiAssistantToolExecutor` import, the
    `assistantToolExecutor` dependency field/default, the `else
-   assistantToolExecutor.invokeReadTool(...)` fallback, and the `UnsupportedAssistantToolError`
+assistantToolExecutor.invokeReadTool(...)` fallback, and the `UnsupportedAssistantToolError`
    catch branch (with all three module tools now having `execute`, a declared read tool always
    resolves a `manifestTool.execute`). Read tools with no `execute` should be treated as "not
    declared/executable" → existing 404/blocked path; confirm the `manifestTool?.execute`

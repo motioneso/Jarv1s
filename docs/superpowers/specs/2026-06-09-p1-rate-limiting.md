@@ -1,7 +1,7 @@
 # Basic Rate-Limiting on Login + OAuth Paste-Back — Design (P1 #53)
 
 **Status:** Approved for build (2026-06-09)
-**Date:** 2026-06-09  **Owner:** Ben  **Issue:** #53 (Part of epic #46)
+**Date:** 2026-06-09 **Owner:** Ben **Issue:** #53 (Part of epic #46)
 
 ## Context
 
@@ -36,11 +36,11 @@ one `postgres` — no replicas, no scaling, no load balancer. This is a LAN / po
 
 ## Resolved Decisions
 
-| # | Decision | Choice | Why |
-| - | -------- | ------ | --- |
-| 1 | Plugin | `@fastify/rate-limit` | Official Fastify plugin; first-class v5 support; matches the "plain Fastify" invariant in CLAUDE.md. |
-| 2 | Scope of registration | Register the plugin **globally disabled** (`global: false`) and opt specific routes in via their route `config.rateLimit`. | Avoids throttling read-heavy app routes; keeps blast radius to the two target surfaces. |
-| 3 | Better-auth coverage | Apply the limit on the better-auth catch-all route's `config`, keyed so only mutating credential paths count. | Login lives behind the `/api/auth/*` catch-all — we cannot add a discrete route without forking better-auth's handler. |
+| #   | Decision              | Choice                                                                                                                     | Why                                                                                                                    |
+| --- | --------------------- | -------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------- |
+| 1   | Plugin                | `@fastify/rate-limit`                                                                                                      | Official Fastify plugin; first-class v5 support; matches the "plain Fastify" invariant in CLAUDE.md.                   |
+| 2   | Scope of registration | Register the plugin **globally disabled** (`global: false`) and opt specific routes in via their route `config.rateLimit`. | Avoids throttling read-heavy app routes; keeps blast radius to the two target surfaces.                                |
+| 3   | Better-auth coverage  | Apply the limit on the better-auth catch-all route's `config`, keyed so only mutating credential paths count.              | Login lives behind the `/api/auth/*` catch-all — we cannot add a discrete route without forking better-auth's handler. |
 
 ## Resolved Decisions (was open)
 
@@ -50,10 +50,11 @@ In-memory is zero-dependency and correct for one process; it resets on restart, 
 for abuse-throttling. Revisit only if/when the API is horizontally scaled (a separate spec).
 
 **(B) Thresholds → 10/min login, 5/min OAuth paste-back, all env-overridable.**
+
 - Login (`/api/auth/sign-in/email`, `/api/auth/sign-up/email`): **10 requests / 1 min** per key.
 - OAuth paste-back (`/api/connectors/google/complete`): **5 requests / 1 min** per key.
-Both are exposed as env overrides (`JARVIS_RL_AUTH_MAX`, `JARVIS_RL_OAUTH_MAX`) so they can be tuned
-without a code change. (The window and other knobs are likewise env-overridable.)
+  Both are exposed as env overrides (`JARVIS_RL_AUTH_MAX`, `JARVIS_RL_OAUTH_MAX`) so they can be tuned
+  without a code change. (The window and other knobs are likewise env-overridable.)
 
 **(C) Key function → per-IP via `x-forwarded-for` first hop.** Key per-IP using `x-forwarded-for`'s
 first hop when present, else the socket IP. The app already honors `x-forwarded-proto` (see
@@ -68,6 +69,7 @@ assumption in the PR.
 alongside `fastify` (the version the API resolves).
 
 **`apps/api/src/server.ts`:**
+
 - `await server.register(import("@fastify/rate-limit"), { global: false, ... })` near the top of
   `createApiServer`, before route registration (registration must precede the routes it guards).
 - Pass the keyGenerator (decision C) and read env-tunable maxes (decision B) once at registration.

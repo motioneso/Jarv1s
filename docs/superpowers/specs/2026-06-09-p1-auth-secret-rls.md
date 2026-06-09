@@ -1,7 +1,7 @@
 # Close the auth-secret RLS gap — Design (P1 #52)
 
 **Status:** Approved for build (2026-06-09)
-**Date:** 2026-06-09  **Owner:** Ben  **Issue:** #52 (Part of epic #46)
+**Date:** 2026-06-09 **Owner:** Ben **Issue:** #52 (Part of epic #46)
 
 ---
 
@@ -86,16 +86,16 @@ invariant, not a convention**. Concretely:
   `auth_verifications`, `users`. Point better-auth's own pool at a new `JARVIS_AUTH_DATABASE_URL`
   for that role.
 - `ENABLE` + `FORCE ROW LEVEL SECURITY` on the three tables. Owner-only policies `TO
-  jarvis_app_runtime` (and `jarvis_worker_runtime` where it reads users), keyed on
+jarvis_app_runtime` (and `jarvis_worker_runtime` where it reads users), keyed on
   `app.current_actor_user_id()`; a separate **unscoped permissive** policy (`USING (true)` `TO
-  jarvis_auth_runtime`) so better-auth keeps working — RLS still applies (no `BYPASSRLS`).
+jarvis_auth_runtime`) so better-auth keeps working — RLS still applies (no `BYPASSRLS`).
 - **Also** keep Option (b)'s guard: a lint/test guard that fails if any `packages/*/src` other than
   `auth`/`db` references these tables. This is defense-in-depth, layered on top of the DB invariant.
 
 ### Legacy CLI bearer path → SECURITY DEFINER by-token lookup (or move onto the auth role)
 
 The legacy CLI bearer path (`AuthSessionResolver`, `packages/db/src/auth-session.ts`) reads
-`better_auth_sessions` to *learn* the actor before any actor context exists (chicken-and-egg).
+`better_auth_sessions` to _learn_ the actor before any actor context exists (chicken-and-egg).
 Handle it via a narrow `SECURITY DEFINER` by-token lookup function (mirroring
 `app.has_resource_grant`) **or** by moving the bearer path onto the new `jarvis_auth_runtime` role —
 not via an owner-scoped row policy.
@@ -143,8 +143,8 @@ for display/email; if it does, add its owner-scoped policy in the same migration
 6. **Compose / dev env** — surface the new role's credentials in
    `docs/operations/dev-environment.md` and compose env.
 
-*(If Ben picks (b): skip 1–4 and 6; add the CLAUDE.md invariant + a guard test under
-`tests/integration/` that scans `packages/*/src` excluding `auth`/`db`.)*
+_(If Ben picks (b): skip 1–4 and 6; add the CLAUDE.md invariant + a guard test under
+`tests/integration/` that scans `packages/_/src`excluding`auth`/`db`.)\*
 
 ---
 
@@ -181,7 +181,7 @@ for display/email; if it does, add its owner-scoped policy in the same migration
 ## Hard Invariants honored
 
 - **No admin private-data bypass / RLS applies to all actors** — option (a) keeps every role
-  `NOBYPASSRLS`; the dedicated auth role gets a *permissive policy*, not `BYPASSRLS`.
+  `NOBYPASSRLS`; the dedicated auth role gets a _permissive policy_, not `BYPASSRLS`.
 - **Private by default** — auth secrets become owner-scoped like every other private table.
 - **Secrets never escape** — narrows the runtime surface that can ever read tokens/hashes.
 - **Never edit applied migrations / module SQL placement** — new `infra/` migration file;

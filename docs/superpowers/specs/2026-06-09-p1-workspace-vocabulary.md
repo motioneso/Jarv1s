@@ -1,7 +1,7 @@
 # Resolve the dangling "workspace" vocabulary — Design (P1 #59)
 
 **Status:** Approved for build (2026-06-09)
-**Date:** 2026-06-09  **Owner:** Ben  **Issue:** #59 (Part of epic #46)
+**Date:** 2026-06-09 **Owner:** Ben **Issue:** #59 (Part of epic #46)
 
 ## Context
 
@@ -9,9 +9,10 @@ Slice 1f (migration `0028_workspace_teardown.sql`) tore down workspace-as-data-i
 every product table's `workspace_id`/`visibility` column, dropped the `app.is_workspace_member` /
 `app.current_workspace_id` SQL functions, and removed `workspaceId` from `AccessContext` (now
 `{ actorUserId, requestId }` only). The access substrate is now **owner-or-share** (`app.has_share`
-+ `app.shares`) for shareable modules, **owner-only** for credential modules, and **recipient-only**
-for notifications (see auto-memory `rls-shareability`). There is no workspace dimension the runtime
-can scope by.
+
+- `app.shares`) for shareable modules, **owner-only** for credential modules, and **recipient-only**
+  for notifications (see auto-memory `rls-shareability`). There is no workspace dimension the runtime
+  can scope by.
 
 But the **manifest vocabulary still advertises a `workspace` scope that the runtime cannot honor**:
 
@@ -28,7 +29,7 @@ metadata, not a control input**. So the vocabulary outruns the runtime: it is a 
 
 **Separately — do NOT conflate:** the `app.workspaces` / `app.workspace_memberships` tables and the
 `/api/admin/workspaces*` admin routes (`settings` module) **still exist and still work** as an admin
-grouping/org concept. They were NOT torn down in 1f — only the *data-access-scoping* role of
+grouping/org concept. They were NOT torn down in 1f — only the _data-access-scoping_ role of
 workspaces was. This spec does **not** touch those tables, routes, the settings admin Workspaces
 panel, or `me.workspaces`. It only removes the dead **access-scope vocabulary** from module
 manifests/permissions/tools.
@@ -83,7 +84,7 @@ entries and stale prose; let `pnpm typecheck` surface the full edit set.
 
 **Scope: do NOT conflate with the admin Workspaces feature.** Leave the real `app.workspaces` /
 `app.workspace_memberships` admin tables, the `/api/admin/workspaces*` routes, `me.workspaces`, and
-the settings admin Workspaces panel **intact** — only the dead *access-scope vocabulary* is removed.
+the settings admin Workspaces panel **intact** — only the dead _access-scope vocabulary_ is removed.
 
 **Sub-decision → default reclassification = `"user"`.** Each former `scope: "workspace"` entry becomes:
 
@@ -112,9 +113,9 @@ The default for actor-scoped entries is **`"user"`**.
    - `packages/notifications/src/manifest.ts` (~48–99)
    - `packages/briefings/src/manifest.ts` (~55–77)
    - `packages/connectors/src/manifest.ts` (~68)
-   New prose pattern: "owned by the actor or shared with the actor" / "List … the actor can see"
-   (owner-or-share); for notifications, "delivered to the actor" (recipient-only); for connectors,
-   "owned by the actor" (owner-only).
+     New prose pattern: "owned by the actor or shared with the actor" / "List … the actor can see"
+     (owner-or-share); for notifications, "delivered to the actor" (recipient-only); for connectors,
+     "owned by the actor" (owner-only).
 4. **Grep sweep for residual strings** in non-manifest source/tests: `"workspace-visible"`,
    `"joined workspace"`, `"workspace membership"`, `"workspace context"` — fix any test assertion that
    pins the old description text. (Settings/admin-workspaces strings are intentionally left alone.)
@@ -144,7 +145,7 @@ The default for actor-scoped entries is **`"user"`**.
 
 ## Hard Invariants honored
 
-- **AccessContext shape.** Unchanged and never re-extended — this spec aligns vocabulary *to* the
+- **AccessContext shape.** Unchanged and never re-extended — this spec aligns vocabulary _to_ the
   `{ actorUserId, requestId }` shape, the opposite of re-introducing `workspaceId`.
 - **Private by default / owner-or-share.** New prose describes exactly the RLS model already in force;
   no access behavior changes.
