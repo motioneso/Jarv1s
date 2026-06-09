@@ -187,8 +187,14 @@ describe("Tasks module M1", () => {
       permissionId: "tasks.update"
     });
     expect(tasksManifest?.assistantTools?.map((tool) => tool.name)).toEqual([
-      "tasks.listVisible",
-      "tasks.updateStatus"
+      "tasks.list",
+      "tasks.get",
+      "tasks.focus",
+      "tasks.atRisk",
+      "tasks.overdue",
+      "tasks.listLists",
+      "tasks.listTags",
+      "tasks.activity"
     ]);
     expect(getBuiltInSqlMigrationDirectories()).toContainEqual(
       expect.stringContaining("packages/tasks/sql")
@@ -845,9 +851,9 @@ describe("Tasks module M1", () => {
 
     expect(subtasks).toHaveLength(3);
     expect(subtasks.map((t) => t.parent_task_id)).toEqual([parentId, parentId, parentId]);
-    expect(subtasks[0].title).toBe("book flights");
-    expect(subtasks[1].title).toBe("book hotel");
-    expect(subtasks[2].title).toBe("pack bags");
+    expect(subtasks.at(0)?.title).toBe("book flights");
+    expect(subtasks.at(1)?.title).toBe("book hotel");
+    expect(subtasks.at(2)?.title).toBe("pack bags");
   });
 });
 

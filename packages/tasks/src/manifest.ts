@@ -22,10 +22,20 @@ import {
   listTaskTagsResponseSchema,
   listTasksResponseSchema,
   overdueTasksRouteSchema,
-  taskStatusSchema,
   updateTaskRequestSchema,
   updateTaskResponseSchema
 } from "@jarv1s/shared";
+
+import {
+  taskActivityExecute,
+  taskAtRiskExecute,
+  taskFocusExecute,
+  taskGetExecute,
+  taskListExecute,
+  taskListListsExecute,
+  taskListTagsExecute,
+  taskOverdueExecute
+} from "./tools.js";
 
 export const TASKS_MODULE_ID = "tasks";
 export const TASKS_DEFERRED_STATUS_QUEUE = "tasks-deferred-status";
@@ -223,31 +233,108 @@ export const tasksModuleManifest = {
   ],
   assistantTools: [
     {
-      name: "tasks.listVisible",
-      description: "List tasks visible to the active actor and workspace context.",
+      name: "tasks.list",
+      description:
+        "List tasks visible to the actor. Optional filters: listId, tagId, status (todo|done|archived), priority (1–5 integer), dueBefore/dueAfter (ISO 8601 date strings), quadrant (do|schedule|delegate|eliminate — Eisenhower matrix).",
       permissionId: "tasks.view",
       risk: "read",
       inputSchema: {
         type: "object",
-        properties: {}
-      },
-      outputSchema: listTasksResponseSchema
-    },
-    {
-      name: "tasks.updateStatus",
-      description: "Update the status of a task visible to the active actor.",
-      permissionId: "tasks.update",
-      risk: "write",
-      inputSchema: {
-        type: "object",
-        required: ["taskId", "status"],
         properties: {
-          taskId: { type: "string" },
-          status: taskStatusSchema,
-          idempotencyKey: { type: "string" }
+          listId: { type: "string" },
+          tagId: { type: "string" },
+          status: { type: "string", enum: ["todo", "done", "archived"] },
+          priority: { type: "integer", minimum: 1, maximum: 5 },
+          dueBefore: { type: "string" },
+          dueAfter: { type: "string" },
+          quadrant: { type: "string", enum: ["do", "schedule", "delegate", "eliminate"] }
         }
       },
-      outputSchema: getTaskResponseSchema
+      outputSchema: listTasksResponseSchema,
+      execute: taskListExecute
+    },
+    {
+      name: "tasks.get",
+      description:
+        "Get a specific task by ID, including its subtasks and up to 10 most recent activity entries.",
+      permissionId: "tasks.view",
+      risk: "read",
+      inputSchema: {
+        type: "object",
+        required: ["taskId"],
+        properties: {
+          taskId: { type: "string" }
+        }
+      },
+      execute: taskGetExecute
+    },
+    {
+      name: "tasks.focus",
+      description:
+        "Get the focus list — the highest-priority tasks to work on today: overdue tasks plus at-risk tasks (Medium+ priority, due within 48 h or do-date past), ranked by priority, urgency, and effort.",
+      permissionId: "tasks.view",
+      risk: "read",
+      inputSchema: { type: "object", properties: {} },
+      outputSchema: focusTasksRouteSchema.response[200],
+      execute: taskFocusExecute
+    },
+    {
+      name: "tasks.atRisk",
+      description:
+        "Get tasks at risk of slipping: open, Medium+ priority, due within 48 hours or do-date passed, with no completed subtasks.",
+      permissionId: "tasks.view",
+      risk: "read",
+      inputSchema: { type: "object", properties: {} },
+      outputSchema: atRiskTasksRouteSchema.response[200],
+      execute: taskAtRiskExecute
+    },
+    {
+      name: "tasks.overdue",
+      description:
+        "Get all overdue tasks — open tasks whose due date is in the past, most overdue first.",
+      permissionId: "tasks.view",
+      risk: "read",
+      inputSchema: { type: "object", properties: {} },
+      outputSchema: overdueTasksRouteSchema.response[200],
+      execute: taskOverdueExecute
+    },
+    {
+      name: "tasks.listLists",
+      description: "List all task lists owned by the actor, ordered by position then name.",
+      permissionId: "tasks.view",
+      risk: "read",
+      inputSchema: { type: "object", properties: {} },
+      outputSchema: listTaskListsResponseSchema,
+      execute: taskListListsExecute
+    },
+    {
+      name: "tasks.listTags",
+      description: "List all tags in a given task list.",
+      permissionId: "tasks.view",
+      risk: "read",
+      inputSchema: {
+        type: "object",
+        required: ["listId"],
+        properties: {
+          listId: { type: "string" }
+        }
+      },
+      outputSchema: listTaskTagsResponseSchema,
+      execute: taskListTagsExecute
+    },
+    {
+      name: "tasks.activity",
+      description: "Get the full activity stream for a task, in chronological order.",
+      permissionId: "tasks.view",
+      risk: "read",
+      inputSchema: {
+        type: "object",
+        required: ["taskId"],
+        properties: {
+          taskId: { type: "string" }
+        }
+      },
+      execute: taskActivityExecute
     }
   ]
 } satisfies JarvisModuleManifest;
