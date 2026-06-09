@@ -12,9 +12,10 @@ export class MemoryRetriever {
   async retrieve(
     scopedDb: DataContextDb,
     query: string,
-    limit: number = 10
+    limit: number = 10,
+    sourceKind: string = "vault"
   ): Promise<RetrievedChunk[]> {
     const queryEmbedding = await this.embeddingProvider.embedQuery(query);
-    return this.repository.vectorSearch(scopedDb, queryEmbedding, limit);
+    return this.repository.vectorSearch(scopedDb, queryEmbedding, limit, sourceKind);
   }
 }

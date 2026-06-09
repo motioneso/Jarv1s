@@ -19,3 +19,5 @@ export { parseDocument } from "./parser.js";
 export type { NewChunkData, RetrievedChunk } from "./repository.js";
 export { MemoryRepository } from "./repository.js";
 export { MemoryRetriever } from "./retrieval.js";
+export type { MemoryFact, NewFactData, FactCategory, FactStatus } from "./facts-repository.js";
+export { ChatMemoryFactsRepository } from "./facts-repository.js";
