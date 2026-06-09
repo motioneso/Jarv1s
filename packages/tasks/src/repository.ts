@@ -11,12 +11,22 @@ import {
   type TasksTable
 } from "@jarv1s/db";
 
+import { TaskListsRepository } from "./lists.js";
+
 export interface CreateTaskInput {
   readonly title: string;
   readonly description?: string | null;
   readonly status?: TaskStatus;
   readonly priority?: number | null;
   readonly dueAt?: Date | string | null;
+  readonly listId?: string;
+  readonly doAt?: Date | string | null;
+  readonly effort?: "quick" | "medium" | "large" | null;
+  readonly parentTaskId?: string | null;
+  readonly source?: string;
+  readonly sourceRef?: string | null;
+  readonly externalKey?: string | null;
+  readonly recurrence?: Record<string, unknown> | null;
 }
 
 export interface UpdateTaskInput {
@@ -25,6 +35,11 @@ export interface UpdateTaskInput {
   readonly status?: TaskStatus;
   readonly priority?: number | null;
   readonly dueAt?: Date | string | null;
+  readonly listId?: string;
+  readonly doAt?: Date | string | null;
+  readonly effort?: "quick" | "medium" | "large" | null;
+  readonly parentTaskId?: string | null;
+  readonly recurrence?: Record<string, unknown> | null;
 }
 
 export interface AddTaskActivityInput {
@@ -33,6 +48,8 @@ export interface AddTaskActivityInput {
 }
 
 export class TasksRepository {
+  private readonly listsRepository = new TaskListsRepository();
+
   async listVisible(scopedDb: DataContextDb): Promise<Task[]> {
     assertDataContextDb(scopedDb);
 
@@ -57,38 +74,58 @@ export class TasksRepository {
   async create(scopedDb: DataContextDb, input: CreateTaskInput): Promise<Task> {
     assertDataContextDb(scopedDb);
 
+    const source = input.source ?? "manual";
+
+    // Idempotency: when externalKey is provided, check if a matching task already exists
+    // for this (source, external_key) pair. RLS scopes the query to the current actor.
+    if (input.externalKey != null) {
+      const existing = await scopedDb.db
+        .selectFrom("app.tasks")
+        .selectAll()
+        .where("source", "=", source)
+        .where("external_key", "=", input.externalKey)
+        .executeTakeFirst();
+
+      if (existing) {
+        return existing;
+      }
+    }
+
+    // Resolve list_id: use the provided listId or fall back to the actor's Personal list.
+    const listId =
+      input.listId ??
+      (await this.listsRepository.getOrCreateDefault(scopedDb)).id;
+
     const now = new Date();
     const status = input.status ?? "todo";
-
-    // list_id is NOT NULL after migration 0039. Default to the actor's Personal list so
-    // existing callers that do not supply a list continue to work. The TasksTable type
-    // gains list_id in Task 2; until then, use a raw SQL insert to satisfy the constraint
-    // without requiring the typed column to be present.
-    const id = randomUUID();
     const completedAt = status === "done" ? now : null;
-    const result = await sql<Task>`
-      INSERT INTO app.tasks
-        (id, owner_user_id, list_id, title, description, status, priority,
-         due_at, completed_at, created_at, updated_at)
-      VALUES (
-        ${id},
-        app.current_actor_user_id(),
-        (SELECT id FROM app.task_lists
-         WHERE owner_user_id = app.current_actor_user_id() AND name = 'Personal'
-         LIMIT 1),
-        ${input.title},
-        ${input.description ?? null},
-        ${status},
-        ${input.priority ?? null},
-        ${input.dueAt ?? null},
-        ${completedAt},
-        ${now},
-        ${now}
-      )
-      RETURNING *
-    `.execute(scopedDb.db);
 
-    const row = result.rows[0];
+    const row = await scopedDb.db
+      .insertInto("app.tasks")
+      .values({
+        id: randomUUID(),
+        owner_user_id: sql<string>`app.current_actor_user_id()`,
+        list_id: listId,
+        parent_task_id: input.parentTaskId ?? null,
+        title: input.title,
+        description: input.description ?? null,
+        status,
+        priority: input.priority ?? null,
+        position: 0,
+        due_at: input.dueAt ?? null,
+        do_at: input.doAt ?? null,
+        effort: input.effort ?? null,
+        source,
+        source_ref: input.sourceRef ?? null,
+        external_key: input.externalKey ?? null,
+        recurrence: input.recurrence ?? null,
+        completed_at: completedAt,
+        created_at: now,
+        updated_at: now
+      })
+      .returningAll()
+      .executeTakeFirst();
+
     if (!row) {
       throw new Error("Failed to create task");
     }
@@ -117,6 +154,18 @@ export class TasksRepository {
     }
     if (input.dueAt !== undefined) {
       updates.due_at = input.dueAt;
+    }
+    if (input.doAt !== undefined) {
+      updates.do_at = input.doAt;
+    }
+    if (input.effort !== undefined) {
+      updates.effort = input.effort;
+    }
+    if (input.listId !== undefined) {
+      updates.list_id = input.listId;
+    }
+    if (input.parentTaskId !== undefined) {
+      updates.parent_task_id = input.parentTaskId;
     }
     if (input.status !== undefined) {
       updates.status = input.status;

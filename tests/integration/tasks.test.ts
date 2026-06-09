@@ -525,6 +525,42 @@ describe("Tasks module M1", () => {
     expect(dto.source).toBe("manual");
   });
 
+  it("create defaults to Personal list, accepts new fields, and is idempotent on (source, external_key)", async () => {
+    const listsRepo = new TaskListsRepository();
+    const made = await dataContext.withDataContext(userAContext(), async (db) => {
+      const list = await listsRepo.getOrCreateDefault(db);
+      return repository.create(db, {
+        title: "ship the deck",
+        priority: 4,
+        effort: "medium",
+        doAt: new Date("2026-06-10"),
+        source: "chat",
+        externalKey: "chat:42",
+        listId: list.id
+      });
+    });
+    expect(made.priority).toBe(4);
+    expect(made.effort).toBe("medium");
+    expect(made.source).toBe("chat");
+    expect(made.external_key).toBe("chat:42");
+
+    // Second create with same (source, externalKey) must return the SAME task id.
+    const second = await dataContext.withDataContext(userAContext(), (db) =>
+      repository.create(db, { title: "dup", source: "chat", externalKey: "chat:42" })
+    );
+    expect(second.id).toBe(made.id);
+
+    // Create without a listId defaults to the Personal list.
+    const defaultList = await dataContext.withDataContext(userAContext(), (db) =>
+      listsRepo.getOrCreateDefault(db)
+    );
+    const noListTask = await dataContext.withDataContext(userAContext(), (db) =>
+      repository.create(db, { title: "auto-list task" })
+    );
+    expect(noListTask.list_id).toBe(defaultList.id);
+    expect(noListTask.source).toBe("manual");
+  });
+
   it("lists: get-or-create Personal is idempotent; tags are list-scoped", async () => {
     const listsRepo = new TaskListsRepository();
 
