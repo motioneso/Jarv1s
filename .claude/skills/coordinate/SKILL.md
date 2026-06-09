@@ -32,12 +32,27 @@ gate logs or full diffs — delegate to a QA agent and consume its verdict. Keep
 
 Templates: `.claude/skills/coordinate/templates/manifest.md` and `handoff.md`.
 
+## Phase 0a — Claim the single-coordinator lock (FIRST, before anything)
+
+There must be **exactly one** coordinator (a real two-coordinator incident happened 2026-06-09 —
+a stale `Coordinator`-labelled pane woke on an agent's escalation and ran a parallel merge loop).
+
+1. Claim a unique Herdr label for your own pane: `herdr pane rename "$HERDR_PANE_ID" "Coordinator"`.
+2. Verify uniqueness: `herdr pane list` must show **exactly one** pane labelled `Coordinator` (you).
+   If another **active** pane already holds it, you are a DUPLICATE — **stand down**, message that
+   pane, and do NOT run a second coordinate loop on the same run.
+3. Record the lock in the run manifest (pane-id + label `Coordinator`). Agents escalate to the
+   **label** `Coordinator` (stable across pane-id reflows — the `…-N` suffix changes when panes
+   close); you guarantee it resolves to exactly one pane for the life of the run.
+
 ## Phase 0 — Readiness (with Ben)
 
 Nothing spawns until the run is ready and Ben approves the manifest.
 
 1. **Agree the run's contents** with Ben. Get current state from GitHub (board + epics #46–#50,
-   Phase-1 tasks #51–#60); GitHub is the source of truth.
+   Phase-1 tasks #51–#60); GitHub is the source of truth. **Verify `main` CI is green first**
+   (`gh run list --branch main --limit 1`) — never spawn onto a red `main`; a red format/gate on
+   `main` propagates into every agent's gate. (You also `format:check` before every own commit.)
 2. **Confirm an approved spec exists for every item** (`docs/superpowers/specs/`). If a spec is
    missing or fuzzy, help Ben author it (`superpowers:brainstorming`, `/brief`) — do not spawn on
    an unapproved spec (Hard Invariant: spec before build).
