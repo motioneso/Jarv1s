@@ -22,6 +22,7 @@ import {
   TASKS_DEFERRED_STATUS_QUEUE,
   type DeferredTaskStatusPayload,
   type DeferredTaskStatusResult,
+  TaskListsRepository,
   TasksRepository,
   registerTasksJobWorkers
 } from "@jarv1s/tasks";
@@ -522,6 +523,31 @@ describe("Tasks module M1", () => {
       source: "manual"
     };
     expect(dto.source).toBe("manual");
+  });
+
+  it("lists: get-or-create Personal is idempotent; tags are list-scoped", async () => {
+    const listsRepo = new TaskListsRepository();
+
+    // Calling getOrCreateDefault twice must return the same row.
+    const a = await dataContext.withDataContext(userAContext(), (db) =>
+      listsRepo.getOrCreateDefault(db)
+    );
+    const b = await dataContext.withDataContext(userAContext(), (db) =>
+      listsRepo.getOrCreateDefault(db)
+    );
+    expect(a.id).toBe(b.id);
+    expect(a.name).toBe("Personal");
+
+    // createTag + listTags are list-scoped.
+    const tag = await dataContext.withDataContext(userAContext(), (db) =>
+      listsRepo.createTag(db, a.id, "Visa")
+    );
+    const tags = await dataContext.withDataContext(userAContext(), (db) =>
+      listsRepo.listTags(db, a.id)
+    );
+    expect(tags.map((t) => t.name)).toContain("Visa");
+    expect(tag.list_id).toBe(a.id);
+    expect(tag.owner_user_id).toBe(ids.userA);
   });
 });
 
