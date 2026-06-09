@@ -5,3 +5,39 @@
   grid-template-columns: minmax(0, 1fr);
   gap: 1.25rem;
 }
+
+.task-capture {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+.task-capture-row {
+  display: flex;
+  gap: 0.5rem;
+}
+.task-capture-input {
+  flex: 1;
+}
+.task-capture-more {
+  align-self: flex-start;
+  background: none;
+  border: none;
+  color: var(--text-muted, #6b7280);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  font-size: 0.85rem;
+  padding: 0;
+}
+.task-capture-fields {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: 0.75rem;
+}
+.task-capture-fields label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  font-size: 0.85rem;
+}
