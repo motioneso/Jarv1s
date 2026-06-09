@@ -55,6 +55,11 @@ export interface ChatSessionManagerDeps {
   readonly pollMs?: number;
   /** Cap on readNew polls per turn before a turn is treated as timed out (default 2000). */
   readonly maxPolls?: number;
+  readonly mintMcpToken?: (
+    actorUserId: string,
+    chatSessionId: string
+  ) => { token: string; mcpServerUrl: string };
+  readonly revokeMcpToken?: (chatSessionId: string) => void;
 }
 
 /** A subscriber receives every emitted transcript record for its user. */
@@ -141,7 +146,13 @@ export class ChatSessionManager {
 
     const sessionKey = actorUserId;
     const engine = this.deps.engineFactory(provider, sessionKey);
-    await engine.launch({ neutralDir, personaPath });
+    const mcpConfig = this.deps.mintMcpToken?.(actorUserId, actorUserId);
+    await engine.launch({
+      neutralDir,
+      personaPath,
+      mcpToken: mcpConfig?.token,
+      mcpServerUrl: mcpConfig?.mcpServerUrl
+    });
 
     const session: UserSession = {
       engine,
@@ -249,6 +260,7 @@ export class ChatSessionManager {
     if (session) {
       await session.engine.kill();
       this.sessions.delete(actorUserId);
+      this.deps.revokeMcpToken?.(actorUserId);
     }
     await this.deps.persistence.openNewConversation(actorUserId);
   }
@@ -263,6 +275,7 @@ export class ChatSessionManager {
     if (session) {
       await session.engine.kill();
       this.sessions.delete(actorUserId);
+      this.deps.revokeMcpToken?.(actorUserId);
     }
     await this.ensureSession(actorUserId, userName);
   }
@@ -286,6 +299,15 @@ export class ChatSessionManager {
   }
 
   /**
+   * Inject a synthetic record into the fan-out for the given user. Used by the
+   * MCP gateway notifier (Phase 2) to push action_request and action_result
+   * records into the live transcript stream without going through the engine.
+   */
+  injectRecord(actorUserId: string, record: TranscriptRecord): void {
+    this.emit(actorUserId, record);
+  }
+
+  /**
    * Kill and drop any engine idle longer than idleMs. The conversation persists,
    * so the next submitTurn respawns the engine and replays prior turns.
    */
@@ -295,6 +317,7 @@ export class ChatSessionManager {
       if (now - session.lastActivity > this.deps.idleMs) {
         await session.engine.kill();
         this.sessions.delete(userId);
+        this.deps.revokeMcpToken?.(userId);
       }
     }
   }
