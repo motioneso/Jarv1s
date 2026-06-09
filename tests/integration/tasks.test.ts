@@ -23,6 +23,7 @@ import {
   type DeferredTaskStatusPayload,
   type DeferredTaskStatusResult,
   TaskBreakdownRepository,
+  TaskDriftRepository,
   TaskListsRepository,
   TasksRepository,
   registerTasksJobWorkers
@@ -666,6 +667,18 @@ describe("Tasks module M1", () => {
     );
     const openAfter = seriesAfter.filter((t) => t.status === "todo");
     expect(openAfter).toHaveLength(1);
+  });
+
+  it("drift: overdue + at-risk surface Medium+ only; focus orders them", async () => {
+    const drift = new TaskDriftRepository();
+    await dataContext.withDataContext(userAContext(), async (db) => {
+      await repository.create(db, { title: "overdue-critical", priority: 5, dueAt: new Date("2000-01-01") });
+      await repository.create(db, { title: "overdue-someday", priority: 1, dueAt: new Date("2000-01-01") });
+    });
+    const overdue = await dataContext.withDataContext(userAContext(), (db) => drift.getOverdue(db));
+    const atRisk = await dataContext.withDataContext(userAContext(), (db) => drift.getAtRisk(db));
+    expect(overdue.map((t) => t.title)).toContain("overdue-critical");
+    expect(atRisk.map((t) => t.title)).not.toContain("overdue-someday"); // priority < 3 excluded
   });
 });
 
