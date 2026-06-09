@@ -18,7 +18,7 @@ A user connects Google through **their own per-user OAuth client**, walked throu
    connect — the instance admin's use does not force anyone else.
 
 2. **Loopback-copy-paste authorization** (not OOB, not a hosted callback). The Desktop-app
-   loopback redirect is used; after consent the browser is *expected to fail* loading
+   loopback redirect is used; after consent the browser is _expected to fail_ loading
    `http://localhost:<port>`; the user copies the **entire redirected URL** (which carries
    `?code=…`) back into Jarv1s; the server exchanges the code for tokens **server-to-server**.
    No inbound callback is ever received, so this works on a headless / LAN-only box with
@@ -26,7 +26,7 @@ A user connects Google through **their own per-user OAuth client**, walked throu
 
 3. **Testing-mode, self-as-test-user → no Google verification.** Each per-user app stays
    unverified in "Testing" publishing status with the user added as a test user. Because we
-   never publish an app *for third parties*, Google's restricted-scope verification / CASA
+   never publish an app _for third parties_, Google's restricted-scope verification / CASA
    assessment **never applies**.
 
 4. **Read + write scopes from the first consent** (`gmail.modify` + Calendar read/write), so
@@ -34,7 +34,7 @@ A user connects Google through **their own per-user OAuth client**, walked throu
    second trip through Google's consent screen.
 
 5. **Guided by a skill, dual-surface.** The walkthrough is reachable from the **Settings**
-   page and from **Jarvis in the chat drawer**. The user's OAuth client credentials *and*
+   page and from **Jarvis in the chat drawer**. The user's OAuth client credentials _and_
    the resulting tokens live in the existing **AES-256-GCM `connector_accounts` secret**,
    owner-only under RLS.
 
@@ -61,7 +61,7 @@ A user connects Google through **their own per-user OAuth client**, walked throu
 - **Per-user over shared:** the product is single-user-per-actor and sovereignty-minded;
   per-user apps mean no operator data-controller role and, decisively, **no verification
   gauntlet** for the self-host case.
-- **Loopback-copy-paste over a hosted callback:** the redirect never has to *reach* the box
+- **Loopback-copy-paste over a hosted callback:** the redirect never has to _reach_ the box
   — the human relays the code and the token exchange is outbound-only — so a headless/LAN
   deployment needs no Tailscale, reverse proxy, HTTPS cert, or SSH tunnel. (Google's own
   guidance keeps the loopback flow supported for Desktop-app clients; only the old `oob`
@@ -77,12 +77,12 @@ A user connects Google through **their own per-user OAuth client**, walked throu
   make that bearable**. Higher per-user onboarding cost is the deliberate price of
   sovereignty + no verification.
 - The `connector_accounts` secret now holds a **credential bundle** (the user's OAuth
-  `client_id`/`client_secret` *plus* access/refresh tokens), still AES-256-GCM encrypted,
+  `client_id`/`client_secret` _plus_ access/refresh tokens), still AES-256-GCM encrypted,
   owner-only, and never emitted to logs, pg-boss payloads, exports, or AI prompts.
 - **Microsoft is out of this slice** (handled separately for now); the same connection model
   generalizes to an Azure AD app later.
 - The **sync engine and briefing grounding are a separate downstream slice** — this ADR
-  covers *connecting*, not yet *consuming*. Whether the briefing reads a synced local cache
+  covers _connecting_, not yet _consuming_. Whether the briefing reads a synced local cache
   or grounds inline is deferred (see the spec's open questions).
 - **`connector_provider_type` now mixes data-domain and vendor values.** The enum meant a data
   domain (`calendar` / `email`); adding `'google'` makes it also carry a vendor identity. As a

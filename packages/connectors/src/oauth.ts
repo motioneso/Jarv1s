@@ -54,7 +54,12 @@ export class GoogleOAuthClient {
     this.fetchFn = deps.fetchFn ?? globalThis.fetch;
   }
 
-  buildAuthUrl(input: { clientId: string; scopes: readonly string[]; redirectUri: string; state: string }): string {
+  buildAuthUrl(input: {
+    clientId: string;
+    scopes: readonly string[];
+    redirectUri: string;
+    state: string;
+  }): string {
     const url = new URL(GOOGLE_AUTH_ENDPOINT);
     url.searchParams.set("client_id", input.clientId);
     url.searchParams.set("redirect_uri", input.redirectUri);
@@ -67,7 +72,12 @@ export class GoogleOAuthClient {
     return url.toString();
   }
 
-  async exchangeCode(input: { clientId: string; clientSecret: string; code: string; redirectUri: string }): Promise<GoogleTokenResponse> {
+  async exchangeCode(input: {
+    clientId: string;
+    clientSecret: string;
+    code: string;
+    redirectUri: string;
+  }): Promise<GoogleTokenResponse> {
     return this.postToken({
       code: input.code,
       client_id: input.clientId,
@@ -77,7 +87,11 @@ export class GoogleOAuthClient {
     });
   }
 
-  async refreshAccessToken(input: { clientId: string; clientSecret: string; refreshToken: string }): Promise<GoogleTokenResponse> {
+  async refreshAccessToken(input: {
+    clientId: string;
+    clientSecret: string;
+    refreshToken: string;
+  }): Promise<GoogleTokenResponse> {
     return this.postToken({
       client_id: input.clientId,
       client_secret: input.clientSecret,

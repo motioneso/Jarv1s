@@ -16,18 +16,18 @@ Jarv1s cannot read the user's actual calendar/mail, and cannot act on them.
 
 This milestone makes **Gmail + Google Calendar real, read and write**, so that (a) a future
 briefing grounds on real data and (b) Jarvis can later send mail / create events on the
-user's behalf. **This spec covers the *connection* foundation** — authorizing a real,
+user's behalf. **This spec covers the _connection_ foundation** — authorizing a real,
 refreshable, owner-only Google credential through a guided skill. The **sync engine and
 briefing grounding are an explicit downstream slice** (§9).
 
 ## 2. Goal & success criterion
 
-A user can connect their Google account — guided from Settings *or* by Jarvis in chat — and
+A user can connect their Google account — guided from Settings _or_ by Jarvis in chat — and
 Jarv1s holds a real, auto-refreshing, encrypted, owner-only OAuth credential with
 read+write scopes for Gmail and Calendar. **Success = a live round-trip on the headless
 box:** create the OAuth client → authorize → store tokens → make one authenticated
 read call (list today's events) **and** one reversible write call (create then delete a
-throwaway calendar event), all under the connected user's RLS context. This live proof *is*
+throwaway calendar event), all under the connected user's RLS context. This live proof _is_
 issue #12.
 
 ## 3. Decisions locked (from the grill; see ADR 0006)
@@ -126,7 +126,7 @@ actually connecting Ben's account.
 
 ## 9. Downstream slice (named, not designed here)
 
-After a Connection exists, a follow-on slice makes the data *useful*. The open fork
+After a Connection exists, a follow-on slice makes the data _useful_. The open fork
 (deferred): **(A) inline grounding** — the briefing run reads live at compose time; vs
 **(B) sync-to-cache** — a scheduled CLI/API sync upserts `calendar_events` / `email` (the
 existing read caches with `UNIQUE(connector_account_id, external_id)` for idempotent

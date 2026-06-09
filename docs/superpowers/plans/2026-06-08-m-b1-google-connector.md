@@ -14,9 +14,9 @@
 
 These are the spots where "measure twice" matters — flagged for the Coordinator's review:
 
-1. **Unified-connection schema.** A new `'google'` value on the `app.connector_provider_type` enum + a seeded `provider_id='google'` definition represents the one Connection that enables both services. Because `ALTER TYPE … ADD VALUE` cannot be *used* in the same transaction it's added, the enum change and its first use are **split across two migration files** (`0040` adds the value, `0041` seeds/uses it). Existing `google-calendar`/`google-email` definitions are **left intact** (the deferred sync slice reconciles them). *Alternative considered:* a non-enum marker column to avoid the two-file dance — rejected as less honest, but open to the Coordinator's call.
-2. **Pending-auth storage.** A dedicated short-lived `app.connector_oauth_pending` table (owner-only) holds `{state, encrypted{clientId,clientSecret}}` between `/authorize` and `/complete` — restart-safe, secrets sent once, no `pending` status added to the accounts enum. *Alternative:* a `pending` account status — rejected to keep the accounts table clean.
-3. **Loopback redirect constant** `http://localhost:1` (matches Hermes; the browser is *expected* to fail loading it; only the human relays the `?code=` URL). No inbound callback is ever served.
+1. **Unified-connection schema.** A new `'google'` value on the `app.connector_provider_type` enum + a seeded `provider_id='google'` definition represents the one Connection that enables both services. Because `ALTER TYPE … ADD VALUE` cannot be _used_ in the same transaction it's added, the enum change and its first use are **split across two migration files** (`0040` adds the value, `0041` seeds/uses it). Existing `google-calendar`/`google-email` definitions are **left intact** (the deferred sync slice reconciles them). _Alternative considered:_ a non-enum marker column to avoid the two-file dance — rejected as less honest, but open to the Coordinator's call.
+2. **Pending-auth storage.** A dedicated short-lived `app.connector_oauth_pending` table (owner-only) holds `{state, encrypted{clientId,clientSecret}}` between `/authorize` and `/complete` — restart-safe, secrets sent once, no `pending` status added to the accounts enum. _Alternative:_ a `pending` account status — rejected to keep the accounts table clean.
+3. **Loopback redirect constant** `http://localhost:1` (matches Hermes; the browser is _expected_ to fail loading it; only the human relays the `?code=` URL). No inbound callback is ever served.
 4. **Scopes:** `gmail.modify` + `calendar` from first consent (read+write, least-privilege that still sends/writes).
 
 ---
@@ -24,6 +24,7 @@ These are the spots where "measure twice" matters — flagged for the Coordinato
 ## File structure
 
 **Create:**
+
 - `packages/connectors/sql/0040_connector_google_enum.sql` — adds `'google'` enum value only.
 - `packages/connectors/sql/0041_google_unified_connection.sql` — seeds `google` provider, creates `connector_oauth_pending`, grants/RLS, sets read+write `default_scopes`.
 - `packages/connectors/src/oauth.ts` — `GoogleOAuthClient` (auth URL, code exchange, refresh) + `GoogleConnectionSecret` type + `parseRedirectUrl`.
@@ -34,6 +35,7 @@ These are the spots where "measure twice" matters — flagged for the Coordinato
 - `tests/e2e/connect-google.spec.ts` — e2e for the Settings flow (mocked REST).
 
 **Modify:**
+
 - `packages/db/src/types.ts` — add `'google'` to `ConnectorProviderType`; add `ConnectorOauthPendingTable` + register in `JarvisDatabase`.
 - `packages/connectors/src/repository.ts` — add pending + unified-google account methods.
 - `packages/connectors/src/routes.ts` — add `/api/connectors/google/authorize` + `/complete` handlers.
@@ -52,6 +54,7 @@ These are the spots where "measure twice" matters — flagged for the Coordinato
 ### Task 1: Migration — add the `google` provider enum value
 
 **Files:**
+
 - Create: `packages/connectors/sql/0040_connector_google_enum.sql`
 
 - [ ] **Step 1: Write the migration (enum value only — no use in this file)**
@@ -78,6 +81,7 @@ git commit -m "feat(connectors): migration 0040 — add unified google provider 
 ### Task 2: Migration — seed google provider + pending-auth table
 
 **Files:**
+
 - Create: `packages/connectors/sql/0041_google_unified_connection.sql`
 
 - [ ] **Step 1: Write the migration**
@@ -161,6 +165,7 @@ git commit -m "feat(connectors): migration 0041 — seed google provider + oauth
 ### Task 3: DB types for the new value + pending table
 
 **Files:**
+
 - Modify: `packages/db/src/types.ts` (enum ~line 145; new table interface near the connector tables ~line 256; register in `JarvisDatabase` ~line 460-499)
 
 - [ ] **Step 1: Extend the enum and add the table interface**
@@ -205,6 +210,7 @@ git commit -m "feat(db): types for unified google provider + connector_oauth_pen
 ### Task 4: `GoogleOAuthClient` — auth URL (TDD)
 
 **Files:**
+
 - Create: `packages/connectors/src/oauth.ts`
 - Test: `tests/integration/connectors-google.test.ts` (unit-style; no DB needed for this task)
 
@@ -325,6 +331,7 @@ git commit -m "feat(connectors): GoogleOAuthClient.buildAuthUrl + google oauth c
 ### Task 5: `parseRedirectUrl` + code exchange + refresh (TDD)
 
 **Files:**
+
 - Modify: `packages/connectors/src/oauth.ts`
 - Test: `tests/integration/connectors-google.test.ts`
 
@@ -351,7 +358,9 @@ describe("parseRedirectUrl", () => {
     expect(parsed).toEqual({ code: "4/abc", state: "s1" });
   });
   it("throws on an error redirect", () => {
-    expect(() => parseRedirectUrl("http://localhost:1/?error=access_denied")).toThrow(/access_denied/);
+    expect(() => parseRedirectUrl("http://localhost:1/?error=access_denied")).toThrow(
+      /access_denied/
+    );
   });
 });
 
@@ -490,6 +499,7 @@ git commit -m "feat(connectors): google oauth code-exchange, refresh, redirect p
 ### Task 6: Repository — pending + unified google account (TDD)
 
 **Files:**
+
 - Modify: `packages/connectors/src/repository.ts`
 - Test: `tests/integration/connectors-google.test.ts` (DB-backed; uses the test harness)
 
@@ -500,7 +510,12 @@ Add a DB-backed `describe` (mirror `connectors.test.ts` setup — `resetFoundati
 ```typescript
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import type { Kysely } from "kysely";
-import { DataContextRunner, createDatabase, type AccessContext, type JarvisDatabase } from "@jarv1s/db";
+import {
+  DataContextRunner,
+  createDatabase,
+  type AccessContext,
+  type JarvisDatabase
+} from "@jarv1s/db";
 import { ConnectorsRepository, createConnectorSecretCipher } from "@jarv1s/connectors";
 import { connectionStrings, ids, resetFoundationDatabase } from "./test-database.js";
 
@@ -517,7 +532,9 @@ describe("Google connection repository", () => {
     dataContext = new DataContextRunner(appDb);
     repository = new ConnectorsRepository();
   });
-  afterAll(async () => { await appDb?.destroy(); });
+  afterAll(async () => {
+    await appDb?.destroy();
+  });
 
   it("stores and reads back pending auth, then upserts the active google account", async () => {
     const cipher = createConnectorSecretCipher();
@@ -527,7 +544,9 @@ describe("Google connection repository", () => {
         encryptedSecret: cipher.encryptJson({ clientId: "cid", clientSecret: "sec" })
       })
     );
-    const pending = await dataContext.withDataContext(userA(), (db) => repository.getGooglePending(db));
+    const pending = await dataContext.withDataContext(userA(), (db) =>
+      repository.getGooglePending(db)
+    );
     expect(pending?.state).toBe("state-xyz");
 
     const account = await dataContext.withDataContext(userA(), (db) =>
@@ -541,7 +560,9 @@ describe("Google connection repository", () => {
     expect(account.status).toBe("active");
 
     await dataContext.withDataContext(userA(), (db) => repository.deleteGooglePending(db));
-    const after = await dataContext.withDataContext(userA(), (db) => repository.getGooglePending(db));
+    const after = await dataContext.withDataContext(userA(), (db) =>
+      repository.getGooglePending(db)
+    );
     expect(after).toBeUndefined();
   });
 });
@@ -654,6 +675,7 @@ git commit -m "feat(connectors): repository methods for google pending auth + un
 ### Task 7: `GoogleConnectionService` (TDD)
 
 **Files:**
+
 - Create: `packages/connectors/src/google-connection.ts`
 - Modify: `packages/connectors/src/index.ts` (add `export * from "./google-connection.js";`)
 - Test: `tests/integration/connectors-google.test.ts`
@@ -661,7 +683,12 @@ git commit -m "feat(connectors): repository methods for google pending auth + un
 - [ ] **Step 1: Write failing test (faked oauth client)**
 
 ```typescript
-import { ConnectorsRepository, GoogleConnectionService, GoogleOAuthClient, createConnectorSecretCipher } from "@jarv1s/connectors";
+import {
+  ConnectorsRepository,
+  GoogleConnectionService,
+  GoogleOAuthClient,
+  createConnectorSecretCipher
+} from "@jarv1s/connectors";
 
 it("startAuthorization stores pending creds and returns an auth url", async () => {
   const service = new GoogleConnectionService({
@@ -674,15 +701,24 @@ it("startAuthorization stores pending creds and returns an auth url", async () =
     service.startAuthorization(db, { clientId: "cid", clientSecret: "sec" })
   );
   expect(result.authUrl).toContain("state=fixed-state");
-  const pending = await dataContext.withDataContext(userA(), (db) => new ConnectorsRepository().getGooglePending(db));
+  const pending = await dataContext.withDataContext(userA(), (db) =>
+    new ConnectorsRepository().getGooglePending(db)
+  );
   expect(pending?.state).toBe("fixed-state");
 });
 
 it("completeAuthorization validates state, exchanges code, and stores tokens", async () => {
   const oauthClient = new GoogleOAuthClient({
     fetchFn: (async () => ({
-      ok: true, status: 200,
-      json: async () => ({ access_token: "at", refresh_token: "rt", expires_in: 3600, scope: "https://www.googleapis.com/auth/calendar", token_type: "Bearer" }),
+      ok: true,
+      status: 200,
+      json: async () => ({
+        access_token: "at",
+        refresh_token: "rt",
+        expires_in: 3600,
+        scope: "https://www.googleapis.com/auth/calendar",
+        token_type: "Bearer"
+      }),
       text: async () => ""
     })) as unknown as typeof fetch
   });
@@ -692,9 +728,13 @@ it("completeAuthorization validates state, exchanges code, and stores tokens", a
     oauthClient,
     generateState: () => "fixed-state"
   });
-  await dataContext.withDataContext(userA(), (db) => service.startAuthorization(db, { clientId: "cid", clientSecret: "sec" }));
+  await dataContext.withDataContext(userA(), (db) =>
+    service.startAuthorization(db, { clientId: "cid", clientSecret: "sec" })
+  );
   const account = await dataContext.withDataContext(userA(), (db) =>
-    service.completeAuthorization(db, { redirectUrl: "http://localhost:1/?code=4/abc&state=fixed-state" })
+    service.completeAuthorization(db, {
+      redirectUrl: "http://localhost:1/?code=4/abc&state=fixed-state"
+    })
   );
   // ConnectorAccountSafeRow (snake_case) — service returns the safe row, not the DTO.
   expect(account.provider_id).toBe("google");
@@ -703,13 +743,19 @@ it("completeAuthorization validates state, exchanges code, and stores tokens", a
 
 it("completeAuthorization rejects a mismatched state", async () => {
   const service = new GoogleConnectionService({
-    repository: new ConnectorsRepository(), cipher: createConnectorSecretCipher(),
-    oauthClient: new GoogleOAuthClient(), generateState: () => "fixed-state"
+    repository: new ConnectorsRepository(),
+    cipher: createConnectorSecretCipher(),
+    oauthClient: new GoogleOAuthClient(),
+    generateState: () => "fixed-state"
   });
-  await dataContext.withDataContext(userA(), (db) => service.startAuthorization(db, { clientId: "cid", clientSecret: "sec" }));
+  await dataContext.withDataContext(userA(), (db) =>
+    service.startAuthorization(db, { clientId: "cid", clientSecret: "sec" })
+  );
   await expect(
     dataContext.withDataContext(userA(), (db) =>
-      service.completeAuthorization(db, { redirectUrl: "http://localhost:1/?code=4/abc&state=WRONG" })
+      service.completeAuthorization(db, {
+        redirectUrl: "http://localhost:1/?code=4/abc&state=WRONG"
+      })
     )
   ).rejects.toThrow(/state/i);
 });
@@ -728,8 +774,11 @@ import { randomUUID } from "node:crypto";
 import type { DataContextDb } from "@jarv1s/db";
 import type { ConnectorSecretCipher } from "./crypto.js";
 import {
-  GOOGLE_LOOPBACK_REDIRECT, GOOGLE_SCOPES, GoogleOAuthClient,
-  parseRedirectUrl, type GoogleConnectionSecret
+  GOOGLE_LOOPBACK_REDIRECT,
+  GOOGLE_SCOPES,
+  GoogleOAuthClient,
+  parseRedirectUrl,
+  type GoogleConnectionSecret
 } from "./oauth.js";
 import { ConnectorsRepository, type ConnectorAccountSafeRow } from "./repository.js";
 
@@ -783,10 +832,14 @@ export class GoogleConnectionService {
     const { code, state } = parseRedirectUrl(input.redirectUrl);
     const pending = await this.deps.repository.getGooglePending(scopedDb);
     if (!pending) {
-      throw new GoogleConnectError("No pending Google authorization found — start the connect flow again");
+      throw new GoogleConnectError(
+        "No pending Google authorization found — start the connect flow again"
+      );
     }
     if (pending.state !== state) {
-      throw new GoogleConnectError("Authorization state did not match — please retry the connect flow");
+      throw new GoogleConnectError(
+        "Authorization state did not match — please retry the connect flow"
+      );
     }
     const creds = this.deps.cipher.decryptJson(pending.encryptedSecret) as {
       clientId: string;
@@ -799,7 +852,9 @@ export class GoogleConnectionService {
       redirectUri: GOOGLE_LOOPBACK_REDIRECT
     });
     if (!tokens.refresh_token) {
-      throw new GoogleConnectError("Google did not return a refresh token — re-consent with prompt=consent");
+      throw new GoogleConnectError(
+        "Google did not return a refresh token — re-consent with prompt=consent"
+      );
     }
     const expiry = new Date(this.now().getTime() + tokens.expires_in * 1000).toISOString();
     const bundle: GoogleConnectionSecret = {
@@ -867,6 +922,7 @@ git commit -m "feat(connectors): GoogleConnectionService — authorize/complete/
 ### Task 8: Shared HTTP contracts
 
 **Files:**
+
 - Modify: `packages/shared/src/connectors-api.ts`
 
 - [ ] **Step 1: Add request/response types + schemas** (mirror the existing `createConnectorAccount*` shapes)
@@ -933,6 +989,7 @@ git commit -m "feat(shared): google connect authorize/complete contracts"
 ### Task 9: REST endpoints (TDD via server.inject)
 
 **Files:**
+
 - Modify: `packages/connectors/src/routes.ts`
 - Test: `tests/integration/connectors-google.test.ts` (server-backed describe)
 
@@ -944,7 +1001,8 @@ The connectors routes accept an optional `repository`/`secretCipher`; extend `Co
 import { createApiServer } from "../../apps/api/src/server.js"; // see note below
 // ... build server with an injected googleService whose oauthClient uses a fake fetch ...
 const authorize = await server.inject({
-  method: "POST", url: "/api/connectors/google/authorize",
+  method: "POST",
+  url: "/api/connectors/google/authorize",
   headers: { authorization: `Bearer ${ids.sessionA}` },
   payload: { clientId: "cid", clientSecret: "sec" }
 });
@@ -952,7 +1010,8 @@ expect(authorize.statusCode).toBe(200);
 expect(authorize.json<{ authUrl: string }>().authUrl).toContain("accounts.google.com");
 
 const complete = await server.inject({
-  method: "POST", url: "/api/connectors/google/complete",
+  method: "POST",
+  url: "/api/connectors/google/complete",
   headers: { authorization: `Bearer ${ids.sessionA}` },
   payload: { redirectUrl: `http://localhost:1/?code=4/abc&state=...` }
 });
@@ -1018,9 +1077,9 @@ Map `GoogleConnectError` to **400 by type** (not by message text). Import it fro
 import { GoogleConnectError } from "./google-connection.js";
 
 // at the top of handleRouteError(error, reply):
-  if (error instanceof GoogleConnectError) {
-    return reply.code(error.statusCode).send({ error: error.message });
-  }
+if (error instanceof GoogleConnectError) {
+  return reply.code(error.statusCode).send({ error: error.message });
+}
 ```
 
 A wording change to a service error message must never silently flip a 400 to a 500 — the mapping keys on the error **type**.
@@ -1054,6 +1113,7 @@ git commit -m "test: include migrations 0040/0041 in foundation assertions"
 ### Task 11: Live round-trip verification harness (issue #12)
 
 **Files:**
+
 - Create: `scripts/verify-google-connection.ts`
 
 This is the **manual proof** (not run in CI; retained as a spike). It reads the connected user's google connection, gets a fresh access token, lists today's calendar events (read), then creates and deletes a throwaway event (reversible write).
@@ -1064,13 +1124,21 @@ This is the **manual proof** (not run in CI; retained as a spike). It reads the 
 /* Usage: tsx scripts/verify-google-connection.ts <userId>
    Requires JARVIS_CONNECTOR_SECRET_KEY and a DB with an active google connection. */
 import { DataContextRunner, createDatabase } from "@jarv1s/db";
-import { ConnectorsRepository, GoogleConnectionService, GoogleOAuthClient, createConnectorSecretCipher } from "@jarv1s/connectors";
+import {
+  ConnectorsRepository,
+  GoogleConnectionService,
+  GoogleOAuthClient,
+  createConnectorSecretCipher
+} from "@jarv1s/connectors";
 import { getJarvisDatabaseUrls } from "@jarv1s/db";
 
 async function main() {
   const userId = process.argv[2];
   if (!userId) throw new Error("pass a userId");
-  const appDb = createDatabase({ connectionString: getJarvisDatabaseUrls().app, maxConnections: 1 });
+  const appDb = createDatabase({
+    connectionString: getJarvisDatabaseUrls().app,
+    maxConnections: 1
+  });
   const dc = new DataContextRunner(appDb);
   const service = new GoogleConnectionService({
     repository: new ConnectorsRepository(),
@@ -1102,14 +1170,20 @@ async function main() {
   });
   const event = await created.json();
   console.log("WRITE create status:", created.status, "id:", event.id);
-  const del = await fetch(`https://www.googleapis.com/calendar/v3/calendars/primary/events/${event.id}`, {
-    method: "DELETE",
-    headers: auth
-  });
+  const del = await fetch(
+    `https://www.googleapis.com/calendar/v3/calendars/primary/events/${event.id}`,
+    {
+      method: "DELETE",
+      headers: auth
+    }
+  );
   console.log("WRITE delete status:", del.status);
   await appDb.destroy();
 }
-main().catch((e) => { console.error(e); process.exit(1); });
+main().catch((e) => {
+  console.error(e);
+  process.exit(1);
+});
 ```
 
 - [ ] **Step 2: Connect Ben's account (manual)** via the Settings UI (Phase 2) or by driving `/authorize` → consent → `/complete` with `curl`, then run:
@@ -1131,21 +1205,34 @@ git commit -m "chore(connectors): live google connection verification harness (i
 ### Task 12: Web API client functions
 
 **Files:**
+
 - Modify: `apps/web/src/api/client.ts`
 
 - [ ] **Step 1: Add the two calls** (mirror `createConnectorAccount`)
 
 ```typescript
 import type {
-  GoogleAuthorizeRequest, GoogleAuthorizeResponse,
-  GoogleCompleteRequest, GoogleCompleteResponse
+  GoogleAuthorizeRequest,
+  GoogleAuthorizeResponse,
+  GoogleCompleteRequest,
+  GoogleCompleteResponse
 } from "@jarv1s/shared";
 
-export async function authorizeGoogleConnection(input: GoogleAuthorizeRequest): Promise<GoogleAuthorizeResponse> {
-  return requestJson<GoogleAuthorizeResponse>("/api/connectors/google/authorize", { method: "POST", body: input });
+export async function authorizeGoogleConnection(
+  input: GoogleAuthorizeRequest
+): Promise<GoogleAuthorizeResponse> {
+  return requestJson<GoogleAuthorizeResponse>("/api/connectors/google/authorize", {
+    method: "POST",
+    body: input
+  });
 }
-export async function completeGoogleConnection(input: GoogleCompleteRequest): Promise<GoogleCompleteResponse> {
-  return requestJson<GoogleCompleteResponse>("/api/connectors/google/complete", { method: "POST", body: input });
+export async function completeGoogleConnection(
+  input: GoogleCompleteRequest
+): Promise<GoogleCompleteResponse> {
+  return requestJson<GoogleCompleteResponse>("/api/connectors/google/complete", {
+    method: "POST",
+    body: input
+  });
 }
 ```
 
@@ -1161,6 +1248,7 @@ git commit -m "feat(web): google connect api client calls"
 ### Task 13: Connect Google panel
 
 **Files:**
+
 - Create: `apps/web/src/connectors/connect-google-panel.tsx`
 - Modify: `apps/web/src/settings/settings-page.tsx` (render `<ConnectGooglePanel/>`)
 
@@ -1182,14 +1270,22 @@ export function ConnectGooglePanel(): JSX.Element {
   const [error, setError] = useState<string | null>(null);
 
   const authorize = useMutation({
-    mutationFn: () => authorizeGoogleConnection({ clientId: clientId.trim(), clientSecret: clientSecret.trim() }),
-    onSuccess: (r) => { setAuthUrl(r.authUrl); setError(null); },
+    mutationFn: () =>
+      authorizeGoogleConnection({ clientId: clientId.trim(), clientSecret: clientSecret.trim() }),
+    onSuccess: (r) => {
+      setAuthUrl(r.authUrl);
+      setError(null);
+    },
     onError: (e: Error) => setError(e.message)
   });
   const complete = useMutation({
     mutationFn: () => completeGoogleConnection({ redirectUrl: redirectUrl.trim() }),
     onSuccess: async () => {
-      setAuthUrl(null); setRedirectUrl(""); setClientId(""); setClientSecret(""); setError(null);
+      setAuthUrl(null);
+      setRedirectUrl("");
+      setClientId("");
+      setClientSecret("");
+      setError(null);
       await queryClient.invalidateQueries({ queryKey: queryKeys.connectors.accounts });
     },
     onError: (e: Error) => setError(e.message)
@@ -1202,29 +1298,58 @@ export function ConnectGooglePanel(): JSX.Element {
         <h2 id="connect-google-title">Connect Google</h2>
       </div>
       <ol className="connect-steps">
-        <li>Create a Google Cloud project, enable the Gmail &amp; Calendar APIs, and create an OAuth client of type <strong>Desktop app</strong>. Add yourself as a test user.</li>
+        <li>
+          Create a Google Cloud project, enable the Gmail &amp; Calendar APIs, and create an OAuth
+          client of type <strong>Desktop app</strong>. Add yourself as a test user.
+        </li>
         <li>Paste your client ID &amp; secret below and start authorization.</li>
-        <li>Approve in the browser. It will fail to load <code>http://localhost:1</code> — that is expected. Copy the full address-bar URL and paste it back.</li>
+        <li>
+          Approve in the browser. It will fail to load <code>http://localhost:1</code> — that is
+          expected. Copy the full address-bar URL and paste it back.
+        </li>
       </ol>
-      <label>Client ID
+      <label>
+        Client ID
         <input value={clientId} onChange={(e) => setClientId(e.target.value)} />
       </label>
-      <label>Client secret
-        <input type="password" value={clientSecret} onChange={(e) => setClientSecret(e.target.value)} />
+      <label>
+        Client secret
+        <input
+          type="password"
+          value={clientSecret}
+          onChange={(e) => setClientSecret(e.target.value)}
+        />
       </label>
-      <button className="primary-button" disabled={authorize.isPending || !clientId || !clientSecret}
-        onClick={() => authorize.mutate()}>
-        {authorize.isPending ? <LoaderCircle className="spin" size={18} /> : null} Start authorization
+      <button
+        className="primary-button"
+        disabled={authorize.isPending || !clientId || !clientSecret}
+        onClick={() => authorize.mutate()}
+      >
+        {authorize.isPending ? <LoaderCircle className="spin" size={18} /> : null} Start
+        authorization
       </button>
       {authUrl ? (
         <>
-          <p><a href={authUrl} target="_blank" rel="noreferrer">Open Google consent ↗</a></p>
-          <label>Pasted redirect URL
-            <input value={redirectUrl} onChange={(e) => setRedirectUrl(e.target.value)} placeholder="http://localhost:1/?code=..." />
+          <p>
+            <a href={authUrl} target="_blank" rel="noreferrer">
+              Open Google consent ↗
+            </a>
+          </p>
+          <label>
+            Pasted redirect URL
+            <input
+              value={redirectUrl}
+              onChange={(e) => setRedirectUrl(e.target.value)}
+              placeholder="http://localhost:1/?code=..."
+            />
           </label>
-          <button className="primary-button" disabled={complete.isPending || !redirectUrl}
-            onClick={() => complete.mutate()}>
-            {complete.isPending ? <LoaderCircle className="spin" size={18} /> : null} Finish connecting
+          <button
+            className="primary-button"
+            disabled={complete.isPending || !redirectUrl}
+            onClick={() => complete.mutate()}
+          >
+            {complete.isPending ? <LoaderCircle className="spin" size={18} /> : null} Finish
+            connecting
           </button>
         </>
       ) : null}
@@ -1251,6 +1376,7 @@ git commit -m "feat(web): Connect Google settings panel"
 ### Task 14: e2e (mocked REST)
 
 **Files:**
+
 - Modify: `tests/e2e/mock-api.ts` (handle the two routes)
 - Create: `tests/e2e/connect-google.spec.ts`
 
@@ -1263,7 +1389,13 @@ import { test, expect } from "@playwright/test";
 import { mockApi } from "./mock-api";
 
 test("connects Google via the settings flow", async ({ page }) => {
-  await mockApi(page, { authenticated: true, connectorAccounts: [], connectorProviders: [], notifications: [], tasks: [] });
+  await mockApi(page, {
+    authenticated: true,
+    connectorAccounts: [],
+    connectorProviders: [],
+    notifications: [],
+    tasks: []
+  });
   await page.goto("/settings");
   await expect(page.getByRole("heading", { name: "Connect Google" })).toBeVisible();
   await page.getByLabel("Client ID").fill("cid.apps.googleusercontent.com");
@@ -1293,6 +1425,7 @@ git commit -m "test(e2e): connect google settings flow"
 ### Task 15: `connectors.startGoogleGuidance` read tool (TDD)
 
 **Files:**
+
 - Modify: `packages/connectors/src/manifest.ts` (add `assistantTools`)
 - Test: `tests/integration/connectors-google.test.ts` (gateway invocation) or the existing connectors manifest test
 
@@ -1302,31 +1435,35 @@ git commit -m "test(e2e): connect google settings flow"
 
 ```typescript
 // in connectorsModuleManifest:
-  assistantTools: [
-    {
-      name: "connectors.startGoogleGuidance",
-      description: "Explain, step by step, how the user connects their Google account (Gmail + Calendar). Read-only guidance; the user finishes the secret steps in Settings.",
-      permissionId: "connectors.view",
-      risk: "read",
-      inputSchema: { type: "object", additionalProperties: false, properties: {} },
-      outputSchema: {
-        type: "object",
-        properties: { steps: { type: "array", items: { type: "string" } }, settingsUrl: { type: "string" } }
-      },
-      execute: async () => ({
-        data: {
-          steps: [
-            "In Google Cloud Console, create a project and enable the Gmail API and Google Calendar API.",
-            "Configure the OAuth consent screen and add yourself as a test user.",
-            "Create an OAuth client of type 'Desktop app' and copy the client ID and secret.",
-            "Open Jarv1s Settings → Connect Google, paste the client ID and secret, and start authorization.",
-            "Approve in the browser; the http://localhost:1 page will fail to load (expected). Copy the full address-bar URL and paste it back in Settings to finish."
-          ],
-          settingsUrl: "/settings"
-        }
-      })
-    }
-  ]
+assistantTools: [
+  {
+    name: "connectors.startGoogleGuidance",
+    description:
+      "Explain, step by step, how the user connects their Google account (Gmail + Calendar). Read-only guidance; the user finishes the secret steps in Settings.",
+    permissionId: "connectors.view",
+    risk: "read",
+    inputSchema: { type: "object", additionalProperties: false, properties: {} },
+    outputSchema: {
+      type: "object",
+      properties: {
+        steps: { type: "array", items: { type: "string" } },
+        settingsUrl: { type: "string" }
+      }
+    },
+    execute: async () => ({
+      data: {
+        steps: [
+          "In Google Cloud Console, create a project and enable the Gmail API and Google Calendar API.",
+          "Configure the OAuth consent screen and add yourself as a test user.",
+          "Create an OAuth client of type 'Desktop app' and copy the client ID and secret.",
+          "Open Jarv1s Settings → Connect Google, paste the client ID and secret, and start authorization.",
+          "Approve in the browser; the http://localhost:1 page will fail to load (expected). Copy the full address-bar URL and paste it back in Settings to finish."
+        ],
+        settingsUrl: "/settings"
+      }
+    })
+  }
+];
 ```
 
 (Confirm the exact `ToolResult` shape — `{ data }` vs `{ content }` — against `packages/module-sdk/src/index.ts` and an existing tool like `tasks.listVisible` before implementing.)
@@ -1344,13 +1481,14 @@ git commit -m "feat(connectors): connectors.startGoogleGuidance assistant tool"
 ### Task 16: Persona hint (optional, small)
 
 **Files:**
+
 - Modify: `packages/chat/src/live/runtime.ts` (`DEFAULT_JARVIS_PERSONA`)
 
 - [ ] **Step 1: Add one line** so Jarvis proactively offers help and uses the tool, without leaking that secrets go in Settings:
 
 ```typescript
 // append to DEFAULT_JARVIS_PERSONA lines:
-  "If the user wants to connect Google (Gmail/Calendar), call connectors.startGoogleGuidance and walk them through it; the secret-entry steps happen in Settings, not in chat."
+"If the user wants to connect Google (Gmail/Calendar), call connectors.startGoogleGuidance and walk them through it; the secret-entry steps happen in Settings, not in chat.";
 ```
 
 - [ ] **Step 2: Run chat suite + commit**
@@ -1385,13 +1523,14 @@ Expected: both green (lint, format, file-size, typecheck, migrate, integration; 
 - **Spec §10 security** → encrypted bundle (Tasks 6–7), state CSRF (Task 7), owner-only RLS (Tasks 2–3), no-leak check (Final gate). ✓
 - **Spec §11 verification** → Task 11 (live round-trip = issue #12) + integration tests throughout; ~7-day token re-check noted. ✓
 - **Spec §9 (sync/grounding)** → explicitly OUT of scope; no tasks (correct). ✓
-- **Placeholder scan:** every code step shows real code; no "TBD"/"add error handling". The two "confirm the exact shape against X" notes (Task 9 server DI, Task 15 ToolResult) are *verification instructions*, not missing code — acceptable because they pin an exact file to check.
+- **Placeholder scan:** every code step shows real code; no "TBD"/"add error handling". The two "confirm the exact shape against X" notes (Task 9 server DI, Task 15 ToolResult) are _verification instructions_, not missing code — acceptable because they pin an exact file to check.
 - **Type consistency (redone after Coordinator fix A):** the **casing boundary** is now explicit — `ConnectorsRepository`/`GoogleConnectionService` return **`ConnectorAccountSafeRow` (snake_case:** `provider_id`, `status`, `has_secret`); the **HTTP layer** serializes to **`ConnectorAccountDto` (camelCase:** `providerId`, `hasSecret`) via `serializeAccount`. Audited every access: Task 6/7 repo+service assertions use `account.provider_id` (snake); Task 9 asserts on the **serialized response** `account.providerId` (camel — correct, that's the DTO); Task 14 e2e reads rendered text. Names (`GoogleConnectionSecret`, `GoogleTokenResponse`, `GoogleConnectError`, `upsertGoogleAccount`, `getGooglePending`, `getActiveGoogleAccountSecret`, `startAuthorization`/`completeAuthorization`/`getFreshAccessToken`, `authorizeGoogleConnection`/`completeGoogleConnection`) are consistent across tasks.
 - **Layering (Coordinator fix B):** the service holds no raw Kysely; the secret read is `repository.getActiveGoogleAccountSecret` (Task 6). No `scopedDb.db` cast anywhere in the service.
 
 ## Coordinator review — verdict & resolutions
 
 Verdict **REVISE→build** (`/tmp/m-b1-coordinator-review.md`); points 1–3 APPROVED (keep the enum split, the pending table, `localhost:1`). Required items, now applied to this plan:
+
 - **(A) casing** — repo/service returns are `ConnectorAccountSafeRow` snake_case; Task 6/7 assertions fixed to `account.provider_id`; Task 9 keeps `.providerId` on the serialized DTO. Self-review redone.
 - **(B) layering** — added `repository.getActiveGoogleAccountSecret`; `getFreshAccessToken` no longer casts `scopedDb.db`.
 - **(C-doc) provider_type conflation** — recorded in ADR 0006 + spec §9 (see below).
@@ -1401,11 +1540,13 @@ Verdict **REVISE→build** (`/tmp/m-b1-coordinator-review.md`); points 1–3 APP
 Cleared to build Phase 1 with **no re-review**. Ping Coordinator when Phase 1's gate is green **and before any merge**.
 
 ## Merge / landing (Coordinator owns order)
+
 - Before merging: **integrate `main` (now `cda9f23`, includes PR #37 + #38)** into this branch.
 - **Expect conflicts** in `apps/web/src/settings/settings-page.tsx` (Task 13) and `packages/chat/src/live/runtime.ts` (Task 16) with the Chat Phase 3 / M-A5 Plan 3 streams — resolve on integration.
 - Clear landing order with the Coordinator; do not merge to `main` unilaterally.
 
 ## Open items carried from the spec (not blockers)
+
 1. ~7-day testing-mode refresh-token expiry — measured in Task 11.
 2. Downstream sync/grounding (inline vs cache) — next slice.
 3. **`provider_type` now mixes domain + vendor** (see ADR 0006) — the sync slice must discover connections by domain (scopes / a service map), not `WHERE provider_type='calendar'`, and reconcile the legacy `google-calendar`/`google-email` rows.

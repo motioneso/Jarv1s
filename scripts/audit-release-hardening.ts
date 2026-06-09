@@ -30,6 +30,10 @@ const protectedTables = [
   "tasks"
 ] as const;
 
+// Transient tables: owner-only RLS required, but runtime DELETE is intentional
+// (rows are cleaned up as part of normal operation, e.g. after OAuth completes).
+const transientTables = ["connector_oauth_pending"] as const;
+
 export interface AuditReleaseHardeningOptions {
   readonly bootstrapConnectionString?: string;
 }
@@ -66,6 +70,7 @@ export interface ReleaseHardeningAuditReport {
   readonly failures: readonly string[];
   readonly passed: boolean;
   readonly protectedTables: readonly ProtectedTableAudit[];
+  readonly transientTables: readonly ProtectedTableAudit[];
   readonly roles: readonly RuntimeRoleAudit[];
 }
 
@@ -79,15 +84,17 @@ export async function auditReleaseHardening(
   await client.connect();
   try {
     const roles = await readRuntimeRoles(client);
-    const tableAudits = await readProtectedTables(client);
+    const tableAudits = await readTableAudits(client, [...protectedTables]);
+    const transientTableAudits = await readTableAudits(client, [...transientTables]);
     const adminAuditPrivileges = await readAdminAuditPrivileges(client);
-    const failures = collectFailures(roles, tableAudits, adminAuditPrivileges);
+    const failures = collectFailures(roles, tableAudits, transientTableAudits, adminAuditPrivileges);
 
     return {
       adminAuditPrivileges,
       failures,
       passed: failures.length === 0,
       protectedTables: tableAudits,
+      transientTables: transientTableAudits,
       roles
     };
   } finally {
@@ -126,7 +133,10 @@ async function readRuntimeRoles(client: pg.Client): Promise<readonly RuntimeRole
   }));
 }
 
-async function readProtectedTables(client: pg.Client): Promise<readonly ProtectedTableAudit[]> {
+async function readTableAudits(
+  client: pg.Client,
+  tableNames: readonly string[]
+): Promise<readonly ProtectedTableAudit[]> {
   const result = await client.query<{
     app_can_delete: boolean;
     force_rls: boolean;
@@ -147,7 +157,7 @@ async function readProtectedTables(client: pg.Client): Promise<readonly Protecte
         AND c.relname = ANY($1::text[])
       ORDER BY c.relname
     `,
-    [[...protectedTables]]
+    [[...tableNames]]
   );
 
   return result.rows.map((row) => ({
@@ -185,11 +195,13 @@ async function readAdminAuditPrivileges(client: pg.Client): Promise<AdminAuditPr
 function collectFailures(
   roles: readonly RuntimeRoleAudit[],
   tableAudits: readonly ProtectedTableAudit[],
+  transientTableAudits: readonly ProtectedTableAudit[],
   adminAuditPrivileges: AdminAuditPrivileges
 ): readonly string[] {
   const failures: string[] = [];
   const presentRoleNames = new Set(roles.map((role) => role.roleName));
   const presentTableNames = new Set(tableAudits.map((table) => table.tableName));
+  const presentTransientNames = new Set(transientTableAudits.map((t) => t.tableName));
 
   for (const role of runtimeRoles) {
     if (!presentRoleNames.has(role)) {
@@ -215,6 +227,16 @@ function collectFailures(
     if (table.workerCanDelete) {
       failures.push(`jarvis_worker_runtime can DELETE app.${table.tableName}`);
     }
+  }
+
+  for (const table of transientTables) {
+    if (!presentTransientNames.has(table)) {
+      failures.push(`missing transient table: ${table}`);
+    }
+  }
+  for (const table of transientTableAudits) {
+    if (!table.rlsEnabled) failures.push(`app.${table.tableName} does not enable RLS`);
+    if (!table.forceRls) failures.push(`app.${table.tableName} does not force RLS`);
   }
 
   if (!adminAuditPrivileges.appCanSelect) {
