@@ -1,4 +1,4 @@
--- 0041: unified Google Connection (uses the 'google' enum value added in 0040).
+-- 0044: unified Google Connection (uses the 'google' enum value added in 0043).
 
 -- connector_definitions has FORCE ROW LEVEL SECURITY (from 0009). Migrations run as
 -- jarvis_migration_owner, which FORCE subjects to RLS as well, so seed the row under a
