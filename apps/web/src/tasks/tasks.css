@@ -133,3 +133,15 @@
 @media (max-width: 720px) {
   .tasks-body { grid-template-columns: minmax(0, 1fr); }
 }
+
+.subtask-list { list-style: none; margin: 0 0 0.75rem; padding: 0; display: flex; flex-direction: column; gap: 0.35rem; }
+.subtask-item { display: flex; align-items: center; gap: 0.5rem; }
+.subtask-item.done a { text-decoration: line-through; color: var(--text-muted, #9ca3af); }
+.subtask-form { display: flex; flex-direction: column; gap: 0.5rem; }
+.empty-hint { color: var(--text-muted, #9ca3af); font-size: 0.85rem; }
+.task-effort {
+  font-size: 0.72rem;
+  background: var(--surface-subtle, #f3f4f6);
+  border-radius: 999px;
+  padding: 0.1rem 0.45rem;
+}
