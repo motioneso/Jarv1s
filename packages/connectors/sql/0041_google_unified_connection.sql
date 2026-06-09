@@ -1,11 +1,11 @@
--- 0044: unified Google Connection (uses the 'google' enum value added in 0043).
+-- 0041: unified Google Connection (uses the 'google' enum value added in 0040).
 
--- connector_definitions has FORCE ROW LEVEL SECURITY; jarvis_migration_owner (table
--- owner) cannot bypass it via SET row_security = off (only superusers can). Use
--- ALTER TABLE NO FORCE ROW LEVEL SECURITY before the seed INSERT, then re-enable.
--- This is safe: the table owner can alter its own table, and FORCE is restored
--- before the transaction commits.
-ALTER TABLE app.connector_definitions NO FORCE ROW LEVEL SECURITY;
+-- connector_definitions has FORCE ROW LEVEL SECURITY (from 0009). Migrations run as
+-- jarvis_migration_owner, which FORCE subjects to RLS as well, so seed the row under a
+-- transient migration-owner policy (the 0039 convention) and drop it. The per-file
+-- transaction in sql-runner.ts keeps this atomic.
+CREATE POLICY connector_definitions_migration_seed ON app.connector_definitions
+  TO jarvis_migration_owner USING (true) WITH CHECK (true);
 
 INSERT INTO app.connector_definitions (provider_id, provider_type, display_name, status, default_scopes)
 VALUES (
@@ -25,9 +25,9 @@ ON CONFLICT (provider_id) DO UPDATE SET
   default_scopes = excluded.default_scopes,
   updated_at = now();
 
--- Restore FORCE RLS now that the seed INSERT is done.
-ALTER TABLE app.connector_definitions FORCE ROW LEVEL SECURITY;
+DROP POLICY connector_definitions_migration_seed ON app.connector_definitions;
 
+-- Short-lived in-flight authorization state (between /authorize and /complete).
 CREATE TABLE IF NOT EXISTS app.connector_oauth_pending (
   id uuid PRIMARY KEY,
   owner_user_id uuid NOT NULL REFERENCES app.users(id) ON DELETE CASCADE,
