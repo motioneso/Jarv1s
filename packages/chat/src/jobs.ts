@@ -2,11 +2,7 @@ import { createHash } from "node:crypto";
 import type { PgBoss, WorkOptions } from "pg-boss";
 
 import type { DataContextDb, DataContextRunner } from "@jarv1s/db";
-import {
-  MemoryRepository,
-  type EmbeddingProvider,
-  type NewChunkData
-} from "@jarv1s/memory";
+import { MemoryRepository, type EmbeddingProvider, type NewChunkData } from "@jarv1s/memory";
 import {
   registerDataContextWorker,
   type ActorScopedJobPayload,

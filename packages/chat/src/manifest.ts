@@ -29,11 +29,7 @@ export const chatModuleManifest = {
       "sql/0042_chat_memory_settings.sql"
     ],
     migrationDirectories: ["packages/chat/sql"],
-    ownedTables: [
-      "app.chat_threads",
-      "app.chat_messages",
-      "app.chat_user_memory_settings"
-    ]
+    ownedTables: ["app.chat_threads", "app.chat_messages", "app.chat_user_memory_settings"]
   },
   navigation: [
     {

@@ -12,7 +12,12 @@ import type { AiConfiguredModelSafeRow, AiRepository, ProviderKind } from "@jarv
 import { assertDataContextDb, type DataContextDb, type DataContextRunner } from "@jarv1s/db";
 import type { PgBoss } from "pg-boss";
 
-import { CHAT_EMBED_TURN_QUEUE, CHAT_EXTRACT_FACTS_QUEUE, type EmbedTurnJobPayload, type ExtractFactsJobPayload } from "../jobs.js";
+import {
+  CHAT_EMBED_TURN_QUEUE,
+  CHAT_EXTRACT_FACTS_QUEUE,
+  type EmbedTurnJobPayload,
+  type ExtractFactsJobPayload
+} from "../jobs.js";
 import type { ChatPersistencePort } from "./chat-session-manager.js";
 import type { ChatRepository } from "../repository.js";
 
@@ -113,10 +118,7 @@ export class DataContextChatPersistence implements ChatPersistencePort {
     });
   }
 
-  async openNewConversation(
-    actorUserId: string,
-    options?: { incognito?: boolean }
-  ): Promise<void> {
+  async openNewConversation(actorUserId: string, options?: { incognito?: boolean }): Promise<void> {
     await this.run(actorUserId, "open-new-conversation", (scopedDb) =>
       this.chat.openNewThread(scopedDb, {
         title: DEFAULT_CONVERSATION_TITLE,

@@ -194,17 +194,20 @@ export function registerChatRoutes(
     }
   });
 
-  server.delete<{ Params: { id: string } }>("/api/chat/memory/facts/:id", async (request, reply) => {
-    try {
-      const access = await dependencies.resolveAccessContext(request);
-      await dependencies.dataContext.withDataContext(access, (scopedDb) =>
-        factsRepo.deleteFact(scopedDb, request.params.id)
-      );
-      return reply.code(204).send();
-    } catch (error) {
-      return handleRouteError(error, reply);
+  server.delete<{ Params: { id: string } }>(
+    "/api/chat/memory/facts/:id",
+    async (request, reply) => {
+      try {
+        const access = await dependencies.resolveAccessContext(request);
+        await dependencies.dataContext.withDataContext(access, (scopedDb) =>
+          factsRepo.deleteFact(scopedDb, request.params.id)
+        );
+        return reply.code(204).send();
+      } catch (error) {
+        return handleRouteError(error, reply);
+      }
     }
-  });
+  );
 
   server.patch<{ Params: { id: string } }>("/api/chat/memory/facts/:id", async (request, reply) => {
     try {

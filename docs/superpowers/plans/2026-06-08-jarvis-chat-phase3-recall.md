@@ -13,42 +13,45 @@
 ## File Map
 
 ### New files
-| Path | Responsibility |
-|------|---------------|
-| `packages/memory/sql/0040_memory_chat_source.sql` | Widen `source_kind` CHECK; add `jarvis_worker_runtime` grants on memory tables |
-| `packages/memory/sql/0041_memory_facts.sql` | `app.chat_memory_facts` table, RLS, grants |
-| `packages/chat/sql/0042_chat_memory_settings.sql` | `app.chat_user_memory_settings` table; add `incognito` to `chat_threads` |
-| `packages/memory/src/facts-repository.ts` | `ChatMemoryFactsRepository` — CRUD for extracted facts |
-| `packages/chat/src/memory-settings-repository.ts` | `ChatUserMemorySettingsRepository` — settings read/write |
-| `packages/chat/src/jobs.ts` | pg-boss job definitions, queue definitions, worker registration for both recall jobs |
-| `packages/chat/src/recall-port.ts` | `RecallPort` interface + `RecallService` implementation (hybrid retrieval + fact loading) |
-| `packages/chat/src/live/recall-seed.ts` | Pure function: renders `<memory>` block from chunks + facts |
-| `apps/web/src/chat/memory-panel.tsx` | Memory management panel (facts list + delete/edit) |
-| `tests/integration/chat-recall.test.ts` | Integration tests: worker grants, embed, retrieve, RLS |
-| `tests/unit/chat-recall-seed.test.ts` | Unit tests: seed rendering, hybrid scoring, RecallPort |
+
+| Path                                              | Responsibility                                                                            |
+| ------------------------------------------------- | ----------------------------------------------------------------------------------------- |
+| `packages/memory/sql/0040_memory_chat_source.sql` | Widen `source_kind` CHECK; add `jarvis_worker_runtime` grants on memory tables            |
+| `packages/memory/sql/0041_memory_facts.sql`       | `app.chat_memory_facts` table, RLS, grants                                                |
+| `packages/chat/sql/0042_chat_memory_settings.sql` | `app.chat_user_memory_settings` table; add `incognito` to `chat_threads`                  |
+| `packages/memory/src/facts-repository.ts`         | `ChatMemoryFactsRepository` — CRUD for extracted facts                                    |
+| `packages/chat/src/memory-settings-repository.ts` | `ChatUserMemorySettingsRepository` — settings read/write                                  |
+| `packages/chat/src/jobs.ts`                       | pg-boss job definitions, queue definitions, worker registration for both recall jobs      |
+| `packages/chat/src/recall-port.ts`                | `RecallPort` interface + `RecallService` implementation (hybrid retrieval + fact loading) |
+| `packages/chat/src/live/recall-seed.ts`           | Pure function: renders `<memory>` block from chunks + facts                               |
+| `apps/web/src/chat/memory-panel.tsx`              | Memory management panel (facts list + delete/edit)                                        |
+| `tests/integration/chat-recall.test.ts`           | Integration tests: worker grants, embed, retrieve, RLS                                    |
+| `tests/unit/chat-recall-seed.test.ts`             | Unit tests: seed rendering, hybrid scoring, RecallPort                                    |
 
 ### Modified files
-| Path | What changes |
-|------|-------------|
-| `packages/memory/src/repository.ts` | `upsertFileChunks` add `sourceKind` param; `vectorSearch` add `sourceKind` filter; `deleteFileChunks` add `sourceKind` filter |
-| `packages/memory/src/retrieval.ts` | `retrieve()` add `sourceKind` param; forward to repository |
-| `packages/memory/src/ingest.ts` | Pass `'vault'` explicitly to `upsertFileChunks`, `deleteFileChunks` |
-| `packages/memory/src/manifest.ts` | List migrations 0040, 0041 |
-| `packages/memory/src/index.ts` | Export `ChatMemoryFactsRepository`, fact types |
-| `packages/chat/src/live/persistence.ts` | `recordTurn` returns `{ threadId, messageId }`; enqueue both jobs |
-| `packages/chat/src/live/chat-session-manager.ts` | Add optional `recall?: RecallPort` dep; inject seed in `launchSession` |
-| `packages/chat/src/live/runtime.ts` | Thread `boss` + recall deps into runtime |
-| `packages/chat/src/live-routes.ts` | Add `incognito` query-param support to `POST /api/chat/clear`; add memory routes |
-| `packages/chat/src/manifest.ts` | List migration 0042, export `CHAT_*_QUEUE` constants + definitions |
-| `packages/chat/src/index.ts` | Export new public symbols |
-| `packages/module-registry/src/index.ts` | Wire chat `queueDefinitions` + `registerWorkers` |
-| `apps/web/src/chat/chat-drawer.tsx` | Add memory toggle + incognito button + memory panel entry |
+
+| Path                                             | What changes                                                                                                                  |
+| ------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------- |
+| `packages/memory/src/repository.ts`              | `upsertFileChunks` add `sourceKind` param; `vectorSearch` add `sourceKind` filter; `deleteFileChunks` add `sourceKind` filter |
+| `packages/memory/src/retrieval.ts`               | `retrieve()` add `sourceKind` param; forward to repository                                                                    |
+| `packages/memory/src/ingest.ts`                  | Pass `'vault'` explicitly to `upsertFileChunks`, `deleteFileChunks`                                                           |
+| `packages/memory/src/manifest.ts`                | List migrations 0040, 0041                                                                                                    |
+| `packages/memory/src/index.ts`                   | Export `ChatMemoryFactsRepository`, fact types                                                                                |
+| `packages/chat/src/live/persistence.ts`          | `recordTurn` returns `{ threadId, messageId }`; enqueue both jobs                                                             |
+| `packages/chat/src/live/chat-session-manager.ts` | Add optional `recall?: RecallPort` dep; inject seed in `launchSession`                                                        |
+| `packages/chat/src/live/runtime.ts`              | Thread `boss` + recall deps into runtime                                                                                      |
+| `packages/chat/src/live-routes.ts`               | Add `incognito` query-param support to `POST /api/chat/clear`; add memory routes                                              |
+| `packages/chat/src/manifest.ts`                  | List migration 0042, export `CHAT_*_QUEUE` constants + definitions                                                            |
+| `packages/chat/src/index.ts`                     | Export new public symbols                                                                                                     |
+| `packages/module-registry/src/index.ts`          | Wire chat `queueDefinitions` + `registerWorkers`                                                                              |
+| `apps/web/src/chat/chat-drawer.tsx`              | Add memory toggle + incognito button + memory panel entry                                                                     |
 
 ---
 
 ## Task 1: SQL migrations + manifest registration
 
 **Files:**
+
 - Create: `packages/memory/sql/0040_memory_chat_source.sql`
 - Create: `packages/memory/sql/0041_memory_facts.sql`
 - Create: `packages/chat/sql/0042_chat_memory_settings.sql`
@@ -175,6 +178,7 @@ ALTER TABLE app.chat_threads ADD COLUMN IF NOT EXISTS incognito BOOLEAN NOT NULL
 - [ ] **Step 4: Register migrations in manifests**
 
 In `packages/memory/src/manifest.ts`, update the `migrations` array:
+
 ```typescript
 migrations: [
   "sql/0030_memory_index.sql",
@@ -185,6 +189,7 @@ migrations: [
 ```
 
 In `packages/chat/src/manifest.ts`, update the `migrations` array:
+
 ```typescript
 migrations: [
   "sql/0014_chat_module.sql",
@@ -334,6 +339,7 @@ Co-Authored-By: Claude Sonnet 4.6 <noreply@anthropic.com>"
 ## Task 2: MemoryRepository + MemoryRetriever — add sourceKind params
 
 **Files:**
+
 - Modify: `packages/memory/src/repository.ts`
 - Modify: `packages/memory/src/retrieval.ts`
 - Modify: `packages/memory/src/ingest.ts`
@@ -384,8 +390,12 @@ describe("MemoryRetriever.retrieve sourceKind param", () => {
       new MemoryRepository()
     );
     // TypeScript: retrieve signature must accept (db, query, limit, sourceKind)
-    const fn: (db: DataContextDb, query: string, limit: number, sourceKind: string) => Promise<unknown[]> =
-      retriever.retrieve.bind(retriever);
+    const fn: (
+      db: DataContextDb,
+      query: string,
+      limit: number,
+      sourceKind: string
+    ) => Promise<unknown[]> = retriever.retrieve.bind(retriever);
     expect(typeof fn).toBe("function");
   });
 });
@@ -507,6 +517,7 @@ async retrieve(
 In `packages/memory/src/ingest.ts`, the constant `SOURCE_KIND = "vault"` is already defined. The calls `upsertFileChunks(...)` and `deleteFileChunks(...)` will now need to pass `SOURCE_KIND` as the last argument (since we removed the implicit hardcoding):
 
 `upsertFileChunks` call (line 69):
+
 ```typescript
 await this.repository.upsertFileChunks(
   scopedDb,
@@ -515,11 +526,12 @@ await this.repository.upsertFileChunks(
   newChunks,
   this.embeddingProvider.modelName,
   this.embeddingProvider.modelVersion,
-  SOURCE_KIND   // <-- add this
+  SOURCE_KIND // <-- add this
 );
 ```
 
 `deleteFileChunks` call in `deleteFile` (line 97):
+
 ```typescript
 await this.repository.deleteFileChunks(scopedDb, ownerUserId, sourcePath, SOURCE_KIND);
 ```
@@ -551,6 +563,7 @@ Co-Authored-By: Claude Sonnet 4.6 <noreply@anthropic.com>"
 ## Task 3: ChatMemoryFactsRepository
 
 **Files:**
+
 - Create: `packages/memory/src/facts-repository.ts`
 - Modify: `packages/memory/src/index.ts`
 - Modify: `tests/integration/chat-recall.test.ts`
@@ -560,11 +573,7 @@ Co-Authored-By: Claude Sonnet 4.6 <noreply@anthropic.com>"
 Append to `tests/integration/chat-recall.test.ts`:
 
 ```typescript
-import {
-  DataContextRunner,
-  createDatabase,
-  type AccessContext
-} from "@jarv1s/db";
+import { DataContextRunner, createDatabase, type AccessContext } from "@jarv1s/db";
 import { ChatMemoryFactsRepository } from "@jarv1s/memory";
 
 describe("ChatMemoryFactsRepository (RLS owner-only)", () => {
@@ -765,11 +774,7 @@ export class ChatMemoryFactsRepository {
     return row ? toMemoryFact(row) : null;
   }
 
-  async supersedeFact(
-    scopedDb: DataContextDb,
-    ownerUserId: string,
-    factId: string
-  ): Promise<void> {
+  async supersedeFact(scopedDb: DataContextDb, ownerUserId: string, factId: string): Promise<void> {
     await sql`
       UPDATE app.chat_memory_facts
       SET status = 'superseded', superseded_at = now(), updated_at = now()
@@ -777,11 +782,7 @@ export class ChatMemoryFactsRepository {
     `.execute(scopedDb.db);
   }
 
-  async deleteFact(
-    scopedDb: DataContextDb,
-    ownerUserId: string,
-    factId: string
-  ): Promise<void> {
+  async deleteFact(scopedDb: DataContextDb, ownerUserId: string, factId: string): Promise<void> {
     await sql`
       DELETE FROM app.chat_memory_facts
       WHERE id = ${factId}::uuid AND owner_user_id = ${ownerUserId}::uuid
@@ -819,6 +820,7 @@ function toMemoryFact(row: {
 - [ ] **Step 4: Export from `packages/memory/src/index.ts`**
 
 Add to the bottom of `packages/memory/src/index.ts`:
+
 ```typescript
 export type { MemoryFact, NewMemoryFact } from "./facts-repository.js";
 export { ChatMemoryFactsRepository } from "./facts-repository.js";
@@ -848,6 +850,7 @@ Co-Authored-By: Claude Sonnet 4.6 <noreply@anthropic.com>"
 ## Task 4: ChatUserMemorySettingsRepository
 
 **Files:**
+
 - Create: `packages/chat/src/memory-settings-repository.ts`
 - Modify: `packages/chat/src/index.ts`
 - Modify: `tests/integration/chat-recall.test.ts`
@@ -955,6 +958,7 @@ export class ChatUserMemorySettingsRepository {
 - [ ] **Step 4: Export from `packages/chat/src/index.ts`**
 
 Add:
+
 ```typescript
 export { ChatUserMemorySettingsRepository } from "./memory-settings-repository.js";
 export type { UserMemorySettings } from "./memory-settings-repository.js";
@@ -984,6 +988,7 @@ Co-Authored-By: Claude Sonnet 4.6 <noreply@anthropic.com>"
 ## Task 5: Episodic embed job (`chat.embed-turn`)
 
 **Files:**
+
 - Create: `packages/chat/src/jobs.ts`
 - Modify: `packages/chat/src/manifest.ts`
 - Modify: `packages/module-registry/src/index.ts`
@@ -997,11 +1002,7 @@ Append to `tests/integration/chat-recall.test.ts`:
 
 ```typescript
 import { randomUUID } from "node:crypto";
-import {
-  createDatabase,
-  DataContextRunner,
-  type AccessContext
-} from "@jarv1s/db";
+import { createDatabase, DataContextRunner, type AccessContext } from "@jarv1s/db";
 import {
   ChatMemoryFactsRepository,
   LocalEmbeddingProvider,
@@ -1020,7 +1021,10 @@ describe("chat.embed-turn job — worker grants + embedding", () => {
   beforeAll(async () => {
     await resetEmptyFoundationDatabase();
     // Worker connection: jarvis_worker_runtime role
-    const workerDb = createDatabase({ connectionString: connectionStrings.worker, maxConnections: 1 });
+    const workerDb = createDatabase({
+      connectionString: connectionStrings.worker,
+      maxConnections: 1
+    });
     workerDataContext = new DataContextRunner(workerDb);
     const appDb = createDatabase({ connectionString: connectionStrings.app, maxConnections: 1 });
     appDataContext = new DataContextRunner(appDb);
@@ -1080,11 +1084,7 @@ import { createHash } from "node:crypto";
 import type { PgBoss, WorkOptions } from "pg-boss";
 
 import type { DataContextDb, DataContextRunner } from "@jarv1s/db";
-import {
-  MemoryRepository,
-  type EmbeddingProvider,
-  type NewChunkData
-} from "@jarv1s/memory";
+import { MemoryRepository, type EmbeddingProvider, type NewChunkData } from "@jarv1s/memory";
 import {
   registerDataContextWorker,
   type ActorScopedJobPayload,
@@ -1143,12 +1143,7 @@ export async function handleEmbedTurnJob(
   const contentHash = createHash("sha256").update(text).digest("hex");
 
   // Idempotency: check if this exact content hash is already indexed.
-  const existing = await memoryRepository.getFileIndex(
-    scopedDb,
-    ownerUserId,
-    "chat",
-    threadId
-  );
+  const existing = await memoryRepository.getFileIndex(scopedDb, ownerUserId, "chat", threadId);
   if (existing?.fileHash === contentHash) return; // already embedded
 
   const embedding = await embeddingProvider.embedDocument(text);
@@ -1223,6 +1218,7 @@ export async function registerChatJobWorkers(
 - [ ] **Step 4: Export from `packages/chat/src/index.ts`**
 
 Add:
+
 ```typescript
 export {
   CHAT_EMBED_TURN_QUEUE,
@@ -1237,6 +1233,7 @@ export type { EmbedTurnJobPayload, ExtractFactsJobPayload } from "./jobs.js";
 - [ ] **Step 5: Update `packages/chat/src/manifest.ts`** — export queue definitions
 
 Add at the bottom of the manifest file:
+
 ```typescript
 export { CHAT_QUEUE_DEFINITIONS } from "./jobs.js";
 ```
@@ -1258,6 +1255,7 @@ import { createEmbeddingProvider, getEmbeddingProviderConfig } from "@jarv1s/mem
 ```
 
 And update the chat module entry in `BUILT_IN_MODULES`:
+
 ```typescript
 {
   manifest: chatModuleManifest,
@@ -1305,6 +1303,7 @@ Co-Authored-By: Claude Sonnet 4.6 <noreply@anthropic.com>"
 ## Task 6: Post-turn enqueueing + incognito thread support
 
 **Files:**
+
 - Modify: `packages/chat/src/live/persistence.ts`
 - Modify: `packages/chat/src/live/runtime.ts`
 - Modify: `packages/chat/src/repository.ts`
@@ -1373,6 +1372,7 @@ export interface CreateChatThreadInput {
 Update the INSERT in `openNewThread` to include the `incognito` field (add `incognito: input.incognito ?? false` to the values).
 
 Also add a `getThreadIncognito` helper:
+
 ```typescript
 async getThreadIncognito(
   scopedDb: DataContextDb,
@@ -1395,6 +1395,7 @@ Note: Kysely types may not include `incognito` yet. If the `JarvisDatabase` type
 In `packages/chat/src/live/persistence.ts`:
 
 Add `boss?: PgBoss` to `DataContextChatPersistenceDeps` and store it. Update `recordTurn` to:
+
 1. Return `{ threadId: string; messageId: string }` instead of `void`.
 2. After recording, get the thread and check `incognito`. If not incognito, send both jobs.
 
@@ -1462,13 +1463,13 @@ async recordTurn(
 Note: `getThreadIncognito` returns `boolean` (false by default). The condition `if (!thread)` above is wrong — it should be `if (!isIncognito)`. Correct it:
 
 ```typescript
-    const isIncognito = await this.run(actorUserId, "check-incognito", (scopedDb) =>
-      this.chat.getThreadIncognito(scopedDb, threadId)
-    );
-    if (!isIncognito) {
-      await this.boss.send(CHAT_EMBED_TURN_QUEUE, { actorUserId, threadId, messageId });
-      await this.boss.send(CHAT_EXTRACT_FACTS_QUEUE, { actorUserId, threadId });
-    }
+const isIncognito = await this.run(actorUserId, "check-incognito", (scopedDb) =>
+  this.chat.getThreadIncognito(scopedDb, threadId)
+);
+if (!isIncognito) {
+  await this.boss.send(CHAT_EMBED_TURN_QUEUE, { actorUserId, threadId, messageId });
+  await this.boss.send(CHAT_EXTRACT_FACTS_QUEUE, { actorUserId, threadId });
+}
 ```
 
 Also update `ChatRepository.recordCompletedTurn` to return `{ messageId: string }` (it currently returns `void` — find the INSERT and change it to `RETURNING id`, map the row to `{ messageId: row.id }`).
@@ -1505,6 +1506,7 @@ Update `ChatRoutesDependencies` in `packages/chat/src/routes.ts` to add `boss?: 
 - [ ] **Step 7: Update `registerChatRoutes` to accept + pass `boss`**
 
 In `packages/chat/src/routes.ts`:
+
 ```typescript
 import type { PgBoss } from "pg-boss";
 
@@ -1553,6 +1555,7 @@ Co-Authored-By: Claude Sonnet 4.6 <noreply@anthropic.com>"
 ## Task 7: Hybrid recall + RecallPort
 
 **Files:**
+
 - Create: `packages/chat/src/recall-port.ts`
 - Create: `packages/chat/src/live/recall-seed.ts`
 - Modify: `packages/chat/src/index.ts`
@@ -1689,7 +1692,12 @@ import {
 
 import { ChatUserMemorySettingsRepository } from "./memory-settings-repository.js";
 import { ChatRepository } from "./repository.js";
-import { applyRecencyDecay, hybridScore, type EpisodicChunk, type FactSummary } from "./live/recall-seed.js";
+import {
+  applyRecencyDecay,
+  hybridScore,
+  type EpisodicChunk,
+  type FactSummary
+} from "./live/recall-seed.js";
 
 export interface RecallResult {
   readonly episodicChunks: readonly EpisodicChunk[];
@@ -1727,9 +1735,7 @@ export class RecallService implements RecallPort {
     }
 
     const [episodicChunks, facts] = await Promise.all([
-      settings.recallEnabled
-        ? this.recallEpisodic(actorUserId, accessCtx)
-        : Promise.resolve([]),
+      settings.recallEnabled ? this.recallEpisodic(actorUserId, accessCtx) : Promise.resolve([]),
       settings.factsEnabled
         ? this.dataContext.withDataContext(accessCtx, (db) =>
             this.factsRepo.listActiveFacts(db, actorUserId)
@@ -1752,9 +1758,8 @@ export class RecallService implements RecallPort {
     const query = `${actorUserId} past conversations`;
     const queryEmbedding = await this.embeddingProvider.embedQuery(query);
 
-    const candidates: RetrievedChunk[] = await this.dataContext.withDataContext(
-      accessCtx,
-      (db) => this.memoryRepo.vectorSearch(db, queryEmbedding, TOP_K_CANDIDATES, "chat")
+    const candidates: RetrievedChunk[] = await this.dataContext.withDataContext(accessCtx, (db) =>
+      this.memoryRepo.vectorSearch(db, queryEmbedding, TOP_K_CANDIDATES, "chat")
     );
 
     if (candidates.length === 0) return [];
@@ -1774,13 +1779,9 @@ export class RecallService implements RecallPort {
     const scored = candidates
       .map((chunk) => {
         const threadDate = threadDates.get(chunk.sourcePath);
-        const daysAgo = threadDate
-          ? (now - threadDate.getTime()) / (1000 * 60 * 60 * 24)
-          : 365;
+        const daysAgo = threadDate ? (now - threadDate.getTime()) / (1000 * 60 * 60 * 24) : 365;
         const score = hybridScore(chunk.similarity, applyRecencyDecay(daysAgo));
-        const date = threadDate
-          ? threadDate.toISOString().slice(0, 10)
-          : "unknown";
+        const date = threadDate ? threadDate.toISOString().slice(0, 10) : "unknown";
         return { chunk, score, date };
       })
       .sort((a, b) => b.score - a.score)
@@ -1900,6 +1901,7 @@ Co-Authored-By: Claude Sonnet 4.6 <noreply@anthropic.com>"
 ## Task 8: Seed injection in `ChatSessionManager` + extract-facts job
 
 **Files:**
+
 - Modify: `packages/chat/src/live/chat-session-manager.ts`
 - Modify: `packages/chat/src/live/runtime.ts`
 - Modify: `packages/chat/src/jobs.ts`
@@ -1957,7 +1959,7 @@ describe("ChatSessionManager seed injection", () => {
     // The engine's submit should have been called with the <memory> block
     const submitCalls = (deps.engineFactory as any).mock
       ? []
-      : (deps.personaFs.writeFile as any).mock?.calls ?? [];
+      : ((deps.personaFs.writeFile as any).mock?.calls ?? []);
 
     // Check that submit was called (by inspecting the fake engine)
     // Since engineFactory returns a fresh mock each call, capture it:
@@ -1992,9 +1994,8 @@ describe("ChatSessionManager seed injection", () => {
     const manager = new ChatSessionManager(deps);
     await manager.ensureSession("user-2", "Bob");
 
-    const calls: string[] = (capturedEngine as any)?.submit?.mock?.calls?.map(
-      (c: unknown[]) => c[0] as string
-    ) ?? [];
+    const calls: string[] =
+      (capturedEngine as any)?.submit?.mock?.calls?.map((c: unknown[]) => c[0] as string) ?? [];
     expect(calls.every((c: string) => !c.includes("<memory>"))).toBe(true);
   });
 
@@ -2020,6 +2021,7 @@ Expected: FAIL — `ChatSessionManagerDeps` has no `recall` field.
 In `packages/chat/src/live/chat-session-manager.ts`:
 
 1. Add to imports:
+
 ```typescript
 import type { RecallPort } from "../recall-port.js";
 import { renderMemorySeedBlock } from "./recall-seed.js";
@@ -2109,6 +2111,7 @@ const manager = new ChatSessionManager({
 Update `packages/chat/src/routes.ts` to accept `recall?: RecallService` in `ChatRoutesDependencies` and pass it to `createChatSessionRuntime`.
 
 Update `module-registry` to build and pass a `RecallService` when wiring chat routes:
+
 ```typescript
 // In registerBuiltInApiRoutes or the chat module registration:
 import { RecallService } from "@jarv1s/chat";
@@ -2129,11 +2132,7 @@ registerChatRoutes(server, {
 Append to `jobs.ts`:
 
 ```typescript
-import {
-  ChatMemoryFactsRepository,
-  type MemoryFact,
-  type NewMemoryFact
-} from "@jarv1s/memory";
+import { ChatMemoryFactsRepository, type MemoryFact, type NewMemoryFact } from "@jarv1s/memory";
 import { AiRepository } from "@jarv1s/ai";
 import type { DataContextRunner } from "@jarv1s/db";
 
@@ -2178,9 +2177,7 @@ export async function handleExtractFactsJob(
   const existingFacts = await factsRepo.listActiveFacts(scopedDb, ownerUserId);
   const existingText =
     existingFacts.length > 0
-      ? existingFacts
-          .map((f) => `[${f.id}] (${f.category}) ${f.content}`)
-          .join("\n")
+      ? existingFacts.map((f) => `[${f.id}] (${f.category}) ${f.content}`).join("\n")
       : "(none)";
 
   const fullPrompt = `${EXTRACT_FACTS_PROMPT}
@@ -2285,11 +2282,13 @@ Co-Authored-By: Claude Sonnet 4.6 <noreply@anthropic.com>"
 ## Task 9: Memory controls REST API
 
 **Files:**
+
 - Modify: `packages/chat/src/routes.ts`
 - Modify: `packages/chat/src/live-routes.ts`
 - Modify: `tests/integration/chat-recall.test.ts`
 
 New endpoints:
+
 - `GET /api/chat/memory/settings` — returns `{ recallEnabled, factsEnabled }`
 - `PATCH /api/chat/memory/settings` — update settings
 - `GET /api/chat/memory/facts` — list active facts
@@ -2519,6 +2518,7 @@ Co-Authored-By: Claude Sonnet 4.6 <noreply@anthropic.com>"
 ## Task 10: Web UI — memory panel, settings toggle, incognito option
 
 **Files:**
+
 - Modify: `apps/web/src/chat/chat-drawer.tsx`
 - Create: `apps/web/src/chat/memory-panel.tsx`
 - Modify: `apps/web/src/api/client.ts` (add memory API calls)
@@ -2528,7 +2528,10 @@ Co-Authored-By: Claude Sonnet 4.6 <noreply@anthropic.com>"
 In `apps/web/src/api/client.ts`, add:
 
 ```typescript
-export async function getMemorySettings(): Promise<{ recallEnabled: boolean; factsEnabled: boolean }> {
+export async function getMemorySettings(): Promise<{
+  recallEnabled: boolean;
+  factsEnabled: boolean;
+}> {
   const res = await fetch("/api/chat/memory/settings");
   if (!res.ok) throw new Error("Failed to fetch memory settings");
   return res.json();
@@ -2606,7 +2609,9 @@ export function MemoryPanel({ onClose }: { onClose: () => void }) {
     <div className="memory-panel">
       <div className="memory-panel-header">
         <h3>My Memory</h3>
-        <button onClick={onClose} aria-label="Close memory panel">×</button>
+        <button onClick={onClose} aria-label="Close memory panel">
+          ×
+        </button>
       </div>
 
       <section className="memory-settings">
@@ -2630,9 +2635,7 @@ export function MemoryPanel({ onClose }: { onClose: () => void }) {
 
       <section className="memory-facts">
         <h4>What Jarvis knows about you</h4>
-        {factsData?.facts.length === 0 && (
-          <p className="memory-empty">No facts stored yet.</p>
-        )}
+        {factsData?.facts.length === 0 && <p className="memory-empty">No facts stored yet.</p>}
         <ul>
           {factsData?.facts.map((fact: MemoryFact) => (
             <li key={fact.id} className="memory-fact-item">

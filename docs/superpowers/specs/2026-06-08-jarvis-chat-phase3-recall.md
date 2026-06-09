@@ -106,12 +106,14 @@ full historical context before seeing the active conversation.
 ### 5.1 Existing tables extended
 
 **`app.memory_chunks`** (owned by `packages/memory`):
+
 - `source_kind` CHECK widened from `('vault', 'connector')` → `('vault', 'connector', 'chat')`.
 - Chat turns use `source_path = threadId::text` (UUID string).
 - `memory_file_index.source_kind` CHECK widened the same way.
 - Worker grants added (see §6 Migrations).
 
 **`app.chat_threads`** (owned by `packages/chat`):
+
 - Add column `incognito BOOLEAN NOT NULL DEFAULT FALSE` — set on thread creation for temporary
   chats; immutable once set. Affects both ingestion (skip embed/extract) and retrieval (skip
   inject).
@@ -163,11 +165,11 @@ via API).
 Migration files are numbered from 0040 (0039 = tasks foundation). Module SQL lives in the
 owning module's `sql/` directory; never in `infra/postgres/migrations/`.
 
-| # | File | Package | What |
-|---|------|---------|------|
-| 0040 | `packages/memory/sql/0040_memory_chat_source.sql` | memory | Widen `source_kind` CHECK on `memory_chunks` + `memory_file_index`; add `jarvis_worker_runtime` grants on both tables |
-| 0041 | `packages/memory/sql/0041_memory_facts.sql` | memory | Create `chat_memory_facts`, RLS, grants (app + worker) |
-| 0042 | `packages/chat/sql/0042_chat_memory_settings.sql` | chat | Create `chat_user_memory_settings`, RLS, grants; add `incognito` column to `chat_threads` |
+| #    | File                                              | Package | What                                                                                                                  |
+| ---- | ------------------------------------------------- | ------- | --------------------------------------------------------------------------------------------------------------------- |
+| 0040 | `packages/memory/sql/0040_memory_chat_source.sql` | memory  | Widen `source_kind` CHECK on `memory_chunks` + `memory_file_index`; add `jarvis_worker_runtime` grants on both tables |
+| 0041 | `packages/memory/sql/0041_memory_facts.sql`       | memory  | Create `chat_memory_facts`, RLS, grants (app + worker)                                                                |
+| 0042 | `packages/chat/sql/0042_chat_memory_settings.sql` | chat    | Create `chat_user_memory_settings`, RLS, grants; add `incognito` column to `chat_threads`                             |
 
 Both manifests (`memoryModuleManifest`, `chatModuleManifest`) must list their new migration
 files in the correct order.
@@ -246,6 +248,7 @@ Payload: `{ actorUserId: string, threadId: string, messageId: string }`
 Handler runs under `jarvis_worker_runtime` (needs the grants added in migration 0040).
 
 Steps:
+
 1. Load the turn-pair: fetch user turn + assistant reply for `messageId` from `chat_messages`.
 2. Build embedded text (format above).
 3. Compute `content_hash`; check `memory_file_index` for existing entry with same hash → skip
@@ -260,6 +263,7 @@ Payload: `{ actorUserId: string, threadId: string }`
 Handler runs under `jarvis_worker_runtime`.
 
 Steps:
+
 1. Load the last N turns of the thread (last 5 turn-pairs is sufficient).
 2. Call the capability router to run a short `extract-facts` prompt:
    - Input: recent turns + list of existing active facts.
@@ -273,6 +277,7 @@ responsibility — not hardcoded.
 ### 8.4 Enqueueing
 
 After `ChatPersistencePort.recordTurn()` completes, the chat route enqueues both jobs if:
+
 - `chat_threads.incognito = FALSE` for the current thread
 - `chat_user_memory_settings.recall_enabled = TRUE` (default: TRUE — absent row → TRUE)
 
@@ -306,7 +311,10 @@ chars ≈ 1 token).
 
 ```typescript
 interface RecallPort {
-  recall(actorUserId: string, currentQuery?: string): Promise<{
+  recall(
+    actorUserId: string,
+    currentQuery?: string
+  ): Promise<{
     episodicChunks: Array<{ text: string; date: string; threadId: string }>;
     facts: Array<{ category: string; content: string }>;
   }>;
@@ -366,11 +374,11 @@ in practice.
 
 ## 11. RLS classification
 
-| Table | Classification | Policy |
-|-------|---------------|--------|
-| `memory_chunks` (source_kind='chat') | owner-only | same as vault — `owner_user_id = current_actor_user_id()` |
-| `chat_memory_facts` | owner-only | `owner_user_id = current_actor_user_id()` |
-| `chat_user_memory_settings` | owner-only | `user_id = current_actor_user_id()` |
+| Table                                | Classification | Policy                                                    |
+| ------------------------------------ | -------------- | --------------------------------------------------------- |
+| `memory_chunks` (source_kind='chat') | owner-only     | same as vault — `owner_user_id = current_actor_user_id()` |
+| `chat_memory_facts`                  | owner-only     | `owner_user_id = current_actor_user_id()`                 |
+| `chat_user_memory_settings`          | owner-only     | `user_id = current_actor_user_id()`                       |
 
 No sharing of memory across users; no recipient-only or owner-or-share classification needed.
 
@@ -379,6 +387,7 @@ No sharing of memory across users; no recipient-only or owner-or-share classific
 ## 12. Testing strategy
 
 **Unit (no DB):**
+
 - `MemoryRetriever.hybridRetrieve`: scoring math with fixture chunks.
 - `RecallPort` integration with fake settings repository (recall off → empty; incognito → empty).
 - `ChatSessionManager.launchSession` with a fake `RecallPort`: seed block format; block absent
@@ -386,6 +395,7 @@ No sharing of memory across users; no recipient-only or owner-or-share classific
 - Extract-facts job: reconcile logic (ADD/UPDATE/DELETE/NOOP) against fixture facts.
 
 **Integration (real DB, `jarvis_worker_runtime` role):**
+
 - Worker grants regression: `chat.embed-turn` and `chat.extract-facts` handlers complete
   without `42501` errors.
 - Episodic embed: turn-pair stored in `memory_chunks` with correct `source_kind='chat'`.
@@ -395,6 +405,7 @@ No sharing of memory across users; no recipient-only or owner-or-share classific
 - `chat_user_memory_settings`: recall disabled → no chunks created, no `<memory>` block injected.
 
 **E2E (Playwright, mocked engine):**
+
 - Drawer: send turn → memory indicator appears → new chat → recalled context visible in seed
   (inspected via mock engine's received input).
 - Incognito: "Temporary chat" mode → no memory recall label; no chunks in DB after session.

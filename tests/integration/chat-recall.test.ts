@@ -296,7 +296,10 @@ describe("Memory controls REST API", () => {
 
   it("DELETE /api/chat/memory/facts/:id removes a fact", async () => {
     const fact = await dataContext.withDataContext(ctx(ids.userA), (scopedDb) =>
-      factsRepo.insertFact(scopedDb, ids.userA, { category: "preference", content: "REST delete test" })
+      factsRepo.insertFact(scopedDb, ids.userA, {
+        category: "preference",
+        content: "REST delete test"
+      })
     );
 
     const delRes = await server.inject({

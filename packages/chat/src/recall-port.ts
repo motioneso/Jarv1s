@@ -72,9 +72,8 @@ export class RecallService implements RecallPort {
     const query = `${actorUserId} past conversations`;
     const queryEmbedding = await this.embeddingProvider.embedQuery(query);
 
-    const candidates: RetrievedChunk[] = await this.dataContext.withDataContext(
-      accessCtx,
-      (db) => this.memoryRepo.vectorSearch(db, queryEmbedding, TOP_K_CANDIDATES, "chat")
+    const candidates: RetrievedChunk[] = await this.dataContext.withDataContext(accessCtx, (db) =>
+      this.memoryRepo.vectorSearch(db, queryEmbedding, TOP_K_CANDIDATES, "chat")
     );
 
     if (candidates.length === 0) return [];
@@ -93,9 +92,7 @@ export class RecallService implements RecallPort {
     const scored = candidates
       .map((chunk) => {
         const threadDate = threadDates.get(chunk.sourcePath);
-        const daysAgo = threadDate
-          ? (now - threadDate.getTime()) / (1000 * 60 * 60 * 24)
-          : 365;
+        const daysAgo = threadDate ? (now - threadDate.getTime()) / (1000 * 60 * 60 * 24) : 365;
         const score = hybridScore(chunk.similarity, applyRecencyDecay(daysAgo));
         const date = threadDate ? threadDate.toISOString().slice(0, 10) : "unknown";
         return { chunk, score, date };
