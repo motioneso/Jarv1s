@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import Fastify from "fastify";
 import type { FastifyInstance } from "fastify";
@@ -78,7 +79,7 @@ describe("MCP HTTP transport", () => {
   });
 
   it("responds to initialize with MCP protocol version", async () => {
-    const token = tokens.mint({ actorUserId: ids.userA, chatSessionId: ids.userA });
+    const token = tokens.mint({ actorUserId: ids.userA, chatSessionId: randomUUID() });
     const res = await app.inject({
       method: "POST",
       url: "/api/mcp",
@@ -92,7 +93,7 @@ describe("MCP HTTP transport", () => {
   });
 
   it("returns 204 for notifications/initialized", async () => {
-    const token = tokens.mint({ actorUserId: ids.userA, chatSessionId: ids.userA });
+    const token = tokens.mint({ actorUserId: ids.userA, chatSessionId: randomUUID() });
     const res = await app.inject({
       method: "POST",
       url: "/api/mcp",
@@ -103,7 +104,7 @@ describe("MCP HTTP transport", () => {
   });
 
   it("tools/list returns executable tools and excludes declaration-only", async () => {
-    const token = tokens.mint({ actorUserId: ids.userA, chatSessionId: ids.userA });
+    const token = tokens.mint({ actorUserId: ids.userA, chatSessionId: randomUUID() });
     const res = await app.inject({
       method: "POST",
       url: "/api/mcp",
@@ -119,7 +120,7 @@ describe("MCP HTTP transport", () => {
   });
 
   it("tools/call runs a read tool and returns MCP content", async () => {
-    const token = tokens.mint({ actorUserId: ids.userA, chatSessionId: ids.userA });
+    const token = tokens.mint({ actorUserId: ids.userA, chatSessionId: randomUUID() });
     const res = await app.inject({
       method: "POST",
       url: "/api/mcp",
@@ -142,7 +143,7 @@ describe("MCP HTTP transport", () => {
   });
 
   it("write call blocks, emits action_request, approves, executes", async () => {
-    const token = tokens.mint({ actorUserId: ids.userA, chatSessionId: ids.userA });
+    const token = tokens.mint({ actorUserId: ids.userA, chatSessionId: randomUUID() });
 
     const callPromise = app.inject({
       method: "POST",
@@ -174,8 +175,9 @@ describe("MCP HTTP transport", () => {
     const data = JSON.parse(body.result.content[0]!.text) as { echo: string };
     expect(data.echo).toBe("approve-me");
 
-    expect(emitted[1]!.record.kind).toBe("action_result");
-    if (emitted[1]!.record.kind !== "action_result") throw new Error("unreachable");
-    expect(emitted[1]!.record.outcome).toBe("executed");
+    const actionResult = emitted[1]!.record;
+    expect(actionResult.kind).toBe("action_result");
+    if (actionResult.kind !== "action_result") throw new Error("unreachable");
+    expect(actionResult.outcome).toBe("executed");
   });
 });
