@@ -8,6 +8,7 @@ const { Pool } = pg;
 export interface DatabaseOptions {
   readonly connectionString: string;
   readonly maxConnections?: number;
+  readonly connectionTimeoutMillis?: number;
 }
 
 export function createDatabase(options: DatabaseOptions): Kysely<JarvisDatabase> {
@@ -15,7 +16,10 @@ export function createDatabase(options: DatabaseOptions): Kysely<JarvisDatabase>
     dialect: new PostgresDialect({
       pool: new Pool({
         connectionString: options.connectionString,
-        max: options.maxConnections ?? 4
+        max: options.maxConnections ?? 4,
+        connectionTimeoutMillis:
+          options.connectionTimeoutMillis ??
+          Number(process.env.JARVIS_DB_CONNECT_TIMEOUT_MS ?? 5000)
       })
     })
   });
