@@ -133,7 +133,9 @@ describe("MVP foundation scaffold", () => {
         { version: "0039", name: "0039_tasks_foundation.sql" },
         { version: "0040", name: "0040_memory_chat_source.sql" },
         { version: "0041", name: "0041_memory_facts.sql" },
-        { version: "0042", name: "0042_chat_memory_settings.sql" }
+        { version: "0042", name: "0042_chat_memory_settings.sql" },
+        { version: "0043", name: "0043_connector_google_enum.sql" },
+        { version: "0044", name: "0044_google_unified_connection.sql" }
       ]);
     } finally {
       await client.end();

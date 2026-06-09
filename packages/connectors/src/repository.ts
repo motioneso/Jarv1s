@@ -14,6 +14,14 @@ import {
 
 import type { EncryptedConnectorSecret } from "./crypto.js";
 
+export const GOOGLE_PROVIDER_ID = "google";
+
+export interface GooglePendingRow {
+  readonly id: string;
+  readonly state: string;
+  readonly encryptedSecret: EncryptedConnectorSecret;
+}
+
 export interface ConnectorAccountSafeRow {
   readonly id: string;
   readonly provider_id: string;
@@ -149,6 +157,92 @@ export class ConnectorsRepository {
       .executeTakeFirst();
 
     return updated ? this.requireVisibleAccount(scopedDb, updated.id) : undefined;
+  }
+
+  async upsertGooglePending(
+    scopedDb: DataContextDb,
+    input: { state: string; encryptedSecret: EncryptedConnectorSecret }
+  ): Promise<void> {
+    assertDataContextDb(scopedDb);
+    await scopedDb.db
+      .deleteFrom("app.connector_oauth_pending")
+      .where("provider_id", "=", GOOGLE_PROVIDER_ID)
+      .execute();
+    await scopedDb.db
+      .insertInto("app.connector_oauth_pending")
+      .values({
+        id: randomUUID(),
+        owner_user_id: sql<string>`app.current_actor_user_id()`,
+        provider_id: GOOGLE_PROVIDER_ID,
+        state: input.state,
+        encrypted_secret: input.encryptedSecret,
+        created_at: new Date()
+      })
+      .execute();
+  }
+
+  async getGooglePending(scopedDb: DataContextDb): Promise<GooglePendingRow | undefined> {
+    assertDataContextDb(scopedDb);
+    const row = await scopedDb.db
+      .selectFrom("app.connector_oauth_pending")
+      .select(["id", "state", "encrypted_secret"])
+      .where("provider_id", "=", GOOGLE_PROVIDER_ID)
+      .executeTakeFirst();
+    if (!row) return undefined;
+    return {
+      id: row.id,
+      state: row.state,
+      encryptedSecret: row.encrypted_secret as EncryptedConnectorSecret
+    };
+  }
+
+  async deleteGooglePending(scopedDb: DataContextDb): Promise<void> {
+    assertDataContextDb(scopedDb);
+    await scopedDb.db
+      .deleteFrom("app.connector_oauth_pending")
+      .where("provider_id", "=", GOOGLE_PROVIDER_ID)
+      .execute();
+  }
+
+  async upsertGoogleAccount(
+    scopedDb: DataContextDb,
+    input: { scopes: readonly string[]; encryptedSecret: EncryptedConnectorSecret }
+  ): Promise<ConnectorAccountSafeRow> {
+    assertDataContextDb(scopedDb);
+    const existing = await scopedDb.db
+      .selectFrom("app.connector_accounts")
+      .select("id")
+      .where("provider_id", "=", GOOGLE_PROVIDER_ID)
+      .executeTakeFirst();
+    if (existing) {
+      const updated = await this.updateAccount(scopedDb, existing.id, {
+        scopes: [...input.scopes],
+        status: "active",
+        encryptedSecret: input.encryptedSecret
+      });
+      if (!updated) throw new Error("Failed to update google account");
+      return updated;
+    }
+    return this.createAccount(scopedDb, {
+      providerId: GOOGLE_PROVIDER_ID,
+      scopes: [...input.scopes],
+      status: "active",
+      encryptedSecret: input.encryptedSecret
+    });
+  }
+
+  async getActiveGoogleAccountSecret(
+    scopedDb: DataContextDb
+  ): Promise<{ id: string; encryptedSecret: EncryptedConnectorSecret } | undefined> {
+    assertDataContextDb(scopedDb);
+    const row = await scopedDb.db
+      .selectFrom("app.connector_accounts")
+      .select(["id", "encrypted_secret"])
+      .where("provider_id", "=", GOOGLE_PROVIDER_ID)
+      .where("status", "=", "active")
+      .executeTakeFirst();
+    if (!row) return undefined;
+    return { id: row.id, encryptedSecret: row.encrypted_secret as EncryptedConnectorSecret };
   }
 
   private async requireVisibleAccount(

@@ -227,6 +227,15 @@ describe("M7 release hardening lifecycle scripts", () => {
         })
       ])
     );
+    expect(report.transientTables).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          forceRls: true,
+          rlsEnabled: true,
+          tableName: "connector_oauth_pending"
+        })
+      ])
+    );
     expect(report.adminAuditPrivileges).toEqual({
       appCanDelete: false,
       appCanInsert: true,

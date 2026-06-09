@@ -1,4 +1,4 @@
-export type ConnectorProviderType = "calendar" | "email";
+export type ConnectorProviderType = "calendar" | "email" | "google";
 export type ConnectorProviderStatus = "available" | "disabled";
 export type ConnectorAccountStatus = "active" | "error" | "revoked";
 
@@ -92,7 +92,7 @@ const connectorProviderSchema = {
   ],
   properties: {
     id: { type: "string" },
-    providerType: { type: "string", enum: ["calendar", "email"] },
+    providerType: { type: "string", enum: ["calendar", "email", "google"] },
     displayName: { type: "string" },
     status: { type: "string", enum: ["available", "disabled"] },
     defaultScopes: { type: "array", items: { type: "string" } },
@@ -121,7 +121,7 @@ const connectorAccountSchema = {
   properties: {
     id: { type: "string" },
     providerId: { type: "string" },
-    providerType: { type: "string", enum: ["calendar", "email"] },
+    providerType: { type: "string", enum: ["calendar", "email", "google"] },
     providerDisplayName: { type: "string" },
     providerStatus: { type: "string", enum: ["available", "disabled"] },
     ownerUserId: { type: "string" },
@@ -237,4 +237,54 @@ export const listAdminConnectorAccountsRouteSchema = {
     401: errorResponseSchema,
     403: errorResponseSchema
   }
+} as const;
+
+export interface GoogleAuthorizeRequest {
+  clientId: string;
+  clientSecret: string;
+}
+
+export interface GoogleAuthorizeResponse {
+  authUrl: string;
+}
+
+export interface GoogleCompleteRequest {
+  redirectUrl: string;
+}
+
+export interface GoogleCompleteResponse {
+  account: ConnectorAccountDto;
+}
+
+export const googleAuthorizeRequestSchema = {
+  type: "object",
+  required: ["clientId", "clientSecret"],
+  additionalProperties: false,
+  properties: {
+    clientId: { type: "string", minLength: 1 },
+    clientSecret: { type: "string", minLength: 1 }
+  }
+} as const;
+
+export const googleAuthorizeResponseSchema = {
+  type: "object",
+  required: ["authUrl"],
+  properties: { authUrl: { type: "string" } }
+} as const;
+
+export const googleCompleteRequestSchema = {
+  type: "object",
+  required: ["redirectUrl"],
+  additionalProperties: false,
+  properties: { redirectUrl: { type: "string", minLength: 1 } }
+} as const;
+
+export const googleAuthorizeRouteSchema = {
+  body: googleAuthorizeRequestSchema,
+  response: { 200: googleAuthorizeResponseSchema }
+} as const;
+
+export const googleCompleteRouteSchema = {
+  body: googleCompleteRequestSchema,
+  response: { 201: createConnectorAccountResponseSchema }
 } as const;
