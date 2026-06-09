@@ -41,6 +41,11 @@ export interface CreateTaskRequest {
   readonly status?: TaskApiStatus;
   readonly priority?: number | null;
   readonly dueAt?: string | null;
+  readonly listId?: string;
+  readonly doAt?: string | null;
+  readonly effort?: "quick" | "medium" | "large" | null;
+  readonly parentTaskId?: string | null;
+  readonly recurrence?: Record<string, unknown> | null;
 }
 
 export interface CreateTaskResponse {
@@ -57,6 +62,11 @@ export interface UpdateTaskRequest {
   readonly status?: TaskApiStatus;
   readonly priority?: number | null;
   readonly dueAt?: string | null;
+  readonly listId?: string;
+  readonly doAt?: string | null;
+  readonly effort?: "quick" | "medium" | "large" | null;
+  readonly parentTaskId?: string | null;
+  readonly recurrence?: Record<string, unknown> | null;
 }
 
 export interface UpdateTaskResponse {

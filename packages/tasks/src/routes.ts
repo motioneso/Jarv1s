@@ -353,7 +353,12 @@ function parseCreateTaskBody(body: unknown) {
     description: optionalNullableString(value.description, "description"),
     status: optionalTaskStatus(value.status) ?? "todo",
     priority: optionalPriority(value.priority),
-    dueAt: optionalDate(value.dueAt, "dueAt")
+    dueAt: optionalDate(value.dueAt, "dueAt"),
+    listId: optionalString(value.listId, "listId"),
+    doAt: optionalDate(value.doAt, "doAt"),
+    effort: optionalEffort(value.effort),
+    parentTaskId: optionalNullableString(value.parentTaskId, "parentTaskId"),
+    recurrence: optionalRecurrence(value.recurrence)
   };
 }
 
@@ -365,7 +370,12 @@ function parseUpdateTaskBody(body: unknown) {
     description: optionalNullableString(value.description, "description"),
     status: optionalTaskStatus(value.status),
     priority: optionalPriority(value.priority),
-    dueAt: optionalDate(value.dueAt, "dueAt")
+    dueAt: optionalDate(value.dueAt, "dueAt"),
+    listId: optionalString(value.listId, "listId"),
+    doAt: optionalDate(value.doAt, "doAt"),
+    effort: optionalEffort(value.effort),
+    parentTaskId: optionalNullableString(value.parentTaskId, "parentTaskId"),
+    recurrence: optionalRecurrence(value.recurrence)
   };
 }
 
@@ -424,11 +434,31 @@ function optionalString(value: unknown, fieldName: string): string | undefined {
 }
 
 function optionalNullableString(value: unknown, fieldName: string): string | null | undefined {
-  if (value === null) {
+  // Treat empty string as an explicit null clear (AJV coerces JSON null → "" for
+  // anyOf:[string,null] schemas when coerceTypes:"array" is enabled).
+  if (value === null || value === "") {
     return null;
   }
 
   return optionalString(value, fieldName);
+}
+
+function optionalEffort(value: unknown): "quick" | "medium" | "large" | null | undefined {
+  if (value === undefined) return undefined;
+  // Treat empty string as null (AJV coerces JSON null → "" for anyOf:[string,null] schemas).
+  if (value === null || value === "") return null;
+  if (value === "quick" || value === "medium" || value === "large") return value;
+  throw new HttpError(400, "effort must be quick, medium, or large");
+}
+
+function optionalRecurrence(value: unknown): Record<string, unknown> | null | undefined {
+  if (value === undefined) return undefined;
+  // Treat empty string as null (AJV coerces JSON null → "" for anyOf:[object,null] schemas).
+  if (value === null || value === "") return null;
+  if (typeof value !== "object" || Array.isArray(value)) {
+    throw new HttpError(400, "recurrence must be an object");
+  }
+  return value as Record<string, unknown>;
 }
 
 function requiredTaskStatus(value: unknown): TaskStatus {
@@ -460,8 +490,8 @@ function optionalPriority(value: unknown): number | null | undefined {
   if (value === null) {
     return null;
   }
-  if (typeof value !== "number" || !Number.isInteger(value) || value < -32768 || value > 32767) {
-    throw new HttpError(400, "priority must be a small integer");
+  if (typeof value !== "number" || !Number.isInteger(value) || value < 1 || value > 5) {
+    throw new HttpError(400, "priority must be an integer from 1 to 5");
   }
 
   return value;
@@ -471,7 +501,9 @@ function optionalDate(value: unknown, fieldName: string): Date | null | undefine
   if (value === undefined) {
     return undefined;
   }
-  if (value === null) {
+  // Treat null or empty string as an explicit null clear (AJV coerces JSON null → "" for
+  // anyOf:[string,null] schemas when coerceTypes:"array" is enabled).
+  if (value === null || value === "") {
     return null;
   }
   if (typeof value !== "string") {
