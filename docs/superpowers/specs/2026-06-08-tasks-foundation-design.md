@@ -251,11 +251,15 @@ arrives with those consumers.
 
 ### Assistant-tool contract — READ ONLY this milestone
 
-Wired through the existing `AiAssistantToolExecutor.invokeReadTool` path (the only execution
-surface that exists). **Note:** that executor is a hardcoded `switch (tool.name)`, not
-manifest-driven — so **each read tool below is real new work: a new `case` in
-`invokeReadTool` plus a backing repository/query method**, and the `@jarv1s/ai` package gains
-a dependency on the new tasks query surface. `risk:"read"`: `tasks.list` (filters: list, tag,
+> **Updated 2026-06-08 (coordination, issue #34 / PR #33):** Phase-2 Chat-MCP landed a
+> **module-owned tool contract** — `ModuleAssistantToolManifest.execute(scopedDb, input, ctx)`
+> + `summarize()` in `@jarv1s/module-sdk`, dispatched by a generic `AssistantToolGateway`
+> (`packages/ai/src/gateway/`) that gates by risk (read→run, write→confirm) under RLS. **Plan 2
+> authors the Tasks read/query tools as `execute` handlers on this contract — NOT as cases in
+> the legacy central `invokeReadTool` switch** (avoids a later migration). **Tasks *write*
+> tools (`tasks.create`/`updateStatus`/…) are owned by Phase 2's write surface** (confirm-gated,
+> with `summarize()` cards), not this milestone. Prerequisite for Plan 2: PR #33 merged + main
+> integrated into the tasks branch. ADR 0004 (this work) / ADR 0005 (Phase 2) — no collision. `risk:"read"`: `tasks.list` (filters: list, tag,
 status, priority, due-range, **matrix quadrant**), `tasks.get` (incl. subtasks + recent
 activity), `tasks.focus`, `tasks.atRisk`, `tasks.overdue`, `tasks.listLists`, `tasks.listTags`,
 `tasks.activity`. The legacy `tasks.updateStatus` write tool is **removed** until the AI

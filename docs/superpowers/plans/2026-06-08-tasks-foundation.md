@@ -10,7 +10,7 @@
 
 **Spec:** `docs/superpowers/specs/2026-06-08-tasks-foundation-design.md` (rev 3). **Decision:** `docs/architecture/decisions/0004-tasks-single-action-surface.md`.
 
-**Companion plans (write after this lands):** Plan 2 — assistant **read** tools (`invokeReadTool` cases + manifest). Plan 3 — web UI (priority-grouped + Matrix views, capture, detail, lists/tags).
+**Companion plans (write after this lands):** Plan 2 — assistant **read** tools authored as `execute()` handlers on the **module-owned `ModuleAssistantToolManifest` contract** from Phase-2 MCP (PR #33 / issue #34), NOT the legacy central `invokeReadTool` switch; prerequisite is PR #33 merged + main integrated. Tasks **write** tools are Phase 2's surface, not ours. Plan 3 — web UI (priority-grouped + Matrix views, capture, detail, lists/tags). **At merge:** keep the *union* of this branch's `CONTEXT.md` glossary with the Phase-2 assistant/tools terms added on PR #33.
 
 ---
 
