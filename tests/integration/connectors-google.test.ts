@@ -1,7 +1,19 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { DataContextRunner, createDatabase, type AccessContext, type JarvisDatabase } from "@jarv1s/db";
+import {
+  DataContextRunner,
+  createDatabase,
+  type AccessContext,
+  type JarvisDatabase
+} from "@jarv1s/db";
 import type { Kysely } from "kysely";
-import { GoogleOAuthClient, GOOGLE_LOOPBACK_REDIRECT, GOOGLE_SCOPES, parseRedirectUrl, ConnectorsRepository, createConnectorSecretCipher } from "@jarv1s/connectors";
+import {
+  GoogleOAuthClient,
+  GOOGLE_LOOPBACK_REDIRECT,
+  GOOGLE_SCOPES,
+  parseRedirectUrl,
+  ConnectorsRepository,
+  createConnectorSecretCipher
+} from "@jarv1s/connectors";
 import { connectionStrings, ids, resetFoundationDatabase } from "./test-database.js";
 
 describe("GoogleOAuthClient.buildAuthUrl", () => {
@@ -29,16 +41,26 @@ describe("GoogleOAuthClient.buildAuthUrl", () => {
 function fakeFetch(captured: { body?: string }, payload: object): typeof fetch {
   return (async (_url: string, init?: { body?: BodyInit | null }) => {
     captured.body = String(init?.body ?? "");
-    return { ok: true, status: 200, json: async () => payload, text: async () => JSON.stringify(payload) } as Response;
+    return {
+      ok: true,
+      status: 200,
+      json: async () => payload,
+      text: async () => JSON.stringify(payload)
+    } as Response;
   }) as unknown as typeof fetch;
 }
 
 describe("parseRedirectUrl", () => {
   it("extracts code and state from a pasted loopback URL", () => {
-    expect(parseRedirectUrl("http://localhost:1/?state=s1&code=4/abc&scope=x")).toEqual({ code: "4/abc", state: "s1" });
+    expect(parseRedirectUrl("http://localhost:1/?state=s1&code=4/abc&scope=x")).toEqual({
+      code: "4/abc",
+      state: "s1"
+    });
   });
   it("throws on an error redirect", () => {
-    expect(() => parseRedirectUrl("http://localhost:1/?error=access_denied")).toThrow(/access_denied/);
+    expect(() => parseRedirectUrl("http://localhost:1/?error=access_denied")).toThrow(
+      /access_denied/
+    );
   });
 });
 
@@ -46,9 +68,20 @@ describe("GoogleOAuthClient.exchangeCode", () => {
   it("POSTs the auth code and returns tokens", async () => {
     const captured: { body?: string } = {};
     const client = new GoogleOAuthClient({
-      fetchFn: fakeFetch(captured, { access_token: "at", refresh_token: "rt", expires_in: 3600, scope: "https://www.googleapis.com/auth/calendar", token_type: "Bearer" })
+      fetchFn: fakeFetch(captured, {
+        access_token: "at",
+        refresh_token: "rt",
+        expires_in: 3600,
+        scope: "https://www.googleapis.com/auth/calendar",
+        token_type: "Bearer"
+      })
     });
-    const tokens = await client.exchangeCode({ clientId: "cid", clientSecret: "secret", code: "4/abc", redirectUri: "http://localhost:1" });
+    const tokens = await client.exchangeCode({
+      clientId: "cid",
+      clientSecret: "secret",
+      code: "4/abc",
+      redirectUri: "http://localhost:1"
+    });
     expect(tokens.refresh_token).toBe("rt");
     const params = new URLSearchParams(captured.body);
     expect(params.get("grant_type")).toBe("authorization_code");
@@ -61,9 +94,18 @@ describe("GoogleOAuthClient.refreshAccessToken", () => {
   it("POSTs the refresh token and returns a fresh access token", async () => {
     const captured: { body?: string } = {};
     const client = new GoogleOAuthClient({
-      fetchFn: fakeFetch(captured, { access_token: "at2", expires_in: 3600, scope: "https://www.googleapis.com/auth/calendar", token_type: "Bearer" })
+      fetchFn: fakeFetch(captured, {
+        access_token: "at2",
+        expires_in: 3600,
+        scope: "https://www.googleapis.com/auth/calendar",
+        token_type: "Bearer"
+      })
     });
-    const tokens = await client.refreshAccessToken({ clientId: "cid", clientSecret: "secret", refreshToken: "rt" });
+    const tokens = await client.refreshAccessToken({
+      clientId: "cid",
+      clientSecret: "secret",
+      refreshToken: "rt"
+    });
     expect(tokens.access_token).toBe("at2");
     expect(new URLSearchParams(captured.body).get("grant_type")).toBe("refresh_token");
   });
@@ -82,7 +124,9 @@ describe("Google connection repository", () => {
     dataContext = new DataContextRunner(appDb);
     repository = new ConnectorsRepository();
   });
-  afterAll(async () => { await appDb?.destroy(); });
+  afterAll(async () => {
+    await appDb?.destroy();
+  });
 
   it("stores and reads back pending auth, then upserts the active google account", async () => {
     const cipher = createConnectorSecretCipher();
@@ -92,7 +136,9 @@ describe("Google connection repository", () => {
         encryptedSecret: cipher.encryptJson({ clientId: "cid", clientSecret: "sec" })
       })
     );
-    const pending = await dataContext.withDataContext(userA(), (db) => repository.getGooglePending(db));
+    const pending = await dataContext.withDataContext(userA(), (db) =>
+      repository.getGooglePending(db)
+    );
     expect(pending?.state).toBe("state-xyz");
 
     const account = await dataContext.withDataContext(userA(), (db) =>
@@ -101,12 +147,13 @@ describe("Google connection repository", () => {
         encryptedSecret: cipher.encryptJson({ kind: "google-oauth", accessToken: "at" })
       })
     );
-    // ConnectorAccountSafeRow is snake_case — never camelCase
     expect(account.provider_id).toBe("google");
     expect(account.status).toBe("active");
 
     await dataContext.withDataContext(userA(), (db) => repository.deleteGooglePending(db));
-    const after = await dataContext.withDataContext(userA(), (db) => repository.getGooglePending(db));
+    const after = await dataContext.withDataContext(userA(), (db) =>
+      repository.getGooglePending(db)
+    );
     expect(after).toBeUndefined();
   });
 

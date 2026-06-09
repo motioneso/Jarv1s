@@ -164,7 +164,6 @@ export class ConnectorsRepository {
     input: { state: string; encryptedSecret: EncryptedConnectorSecret }
   ): Promise<void> {
     assertDataContextDb(scopedDb);
-    // Delete any existing pending row first (UNIQUE constraint on owner_user_id + provider_id)
     await scopedDb.db
       .deleteFrom("app.connector_oauth_pending")
       .where("provider_id", "=", GOOGLE_PROVIDER_ID)
@@ -190,7 +189,11 @@ export class ConnectorsRepository {
       .where("provider_id", "=", GOOGLE_PROVIDER_ID)
       .executeTakeFirst();
     if (!row) return undefined;
-    return { id: row.id, state: row.state, encryptedSecret: row.encrypted_secret as EncryptedConnectorSecret };
+    return {
+      id: row.id,
+      state: row.state,
+      encryptedSecret: row.encrypted_secret as EncryptedConnectorSecret
+    };
   }
 
   async deleteGooglePending(scopedDb: DataContextDb): Promise<void> {
