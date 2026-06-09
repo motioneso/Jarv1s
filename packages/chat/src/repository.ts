@@ -120,6 +120,7 @@ export class ChatRepository {
         id: randomUUID(),
         owner_user_id: sql<string>`app.current_actor_user_id()`,
         title: input.title,
+        incognito: false,
         created_at: now,
         updated_at: now,
         last_active_at: now
