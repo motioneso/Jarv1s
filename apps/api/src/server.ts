@@ -110,6 +110,28 @@ if (import.meta.url === `file://${process.argv[1]}`) {
   const port = Number(process.env.PORT ?? 3000);
   const host = process.env.HOST ?? "0.0.0.0";
 
+  const handleCrash = (label: string, err: unknown): void => {
+    server.log.error({ err, label }, "Process crash — exiting");
+    const drain = Promise.race([
+      new Promise<void>((resolve) => {
+        server.close(() => resolve());
+      }),
+      new Promise<void>((resolve) => {
+        setTimeout(resolve, 2000);
+      })
+    ]);
+    void drain.then(() => {
+      process.exit(1);
+    });
+  };
+
+  process.on("unhandledRejection", (reason) => {
+    handleCrash("unhandledRejection", reason);
+  });
+  process.on("uncaughtException", (err: Error) => {
+    handleCrash("uncaughtException", err);
+  });
+
   await server.listen({ host, port });
 }
 
