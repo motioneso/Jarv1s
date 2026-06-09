@@ -166,3 +166,30 @@ validates input, enforces Risk-based policy and the confirmation bridge, scopes 
 to the user under RLS, and dispatches to the owning module's handler. Jarvis's _only_
 capability — there is no path to act that bypasses it.
 _Avoid_: MCP server (use Gateway for the enforcement role; "MCP server" is the transport).
+
+### Connectors & external accounts
+
+**Connector**:
+A built-in integration to a category of external service (Google Calendar, Gmail). The
+provider-level definition — what _can_ be connected — independent of any one user.
+_Avoid_: integration, plugin (use Connector).
+
+**Connection** (a.k.a. connector account):
+One user's authorized, credentialed link to a Connector — their own encrypted tokens, theirs
+alone. Owner-only: a user's Connection is never visible to another, and the instance admin
+connecting Google does not connect anyone else. A Connection has a status (active / error /
+revoked); `error` means its credential needs re-authorizing.
+_Avoid_: account, login (use Connection; "connector account" is the table name).
+
+**Auth method**:
+How a Connection authenticates. For Google it is **per-user OAuth**: each user creates their
+_own_ Google Cloud "Desktop app" client and authorizes read+write scopes, so no shared
+instance app and no Google verification is involved. (Riding the LLM CLI's vendor connectors,
+and a shared instance app, were considered and rejected — see ADR 0006.)
+_Avoid_: integration type, login method (use Auth method).
+
+**Guided connection**:
+The skill-driven walkthrough that helps a user stand up their OAuth client and authorize a
+Connection — delivered from the **Settings** page or by **Jarvis** in the chat drawer. The
+same walkthrough, two surfaces.
+_Avoid_: onboarding wizard, setup flow (use Guided connection).
