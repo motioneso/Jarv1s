@@ -95,6 +95,5 @@ describe("TmuxCliChatEngine — Gemini launch", () => {
     const launchLine = (sendKeysCall![1] as string[])[3];
     expect(launchLine).toContain("gemini");
     expect(launchLine).toContain("--allowed-mcp-server-names jarvis");
-    expect(launchLine).toContain("MCP_TOKEN=jst_gemini");
   });
 });

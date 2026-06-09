@@ -1,7 +1,7 @@
 # Process Crash-Safety + an Honest /health — Design (P1 #54)
 
 **Status:** Approved for build (2026-06-09)
-**Date:** 2026-06-09  **Owner:** Ben  **Issue:** #54 (Part of epic #46)
+**Date:** 2026-06-09 **Owner:** Ben **Issue:** #54 (Part of epic #46)
 
 ## Context
 
@@ -43,14 +43,14 @@ on fatal error is the correct behavior (not in-process error swallowing).
 
 ## Resolved Decisions
 
-| # | Decision | Choice | Why |
-| - | -------- | ------ | --- |
-| 1 | Liveness check shape | `GET /health` → always `200 {ok:true}` (process is up). | Cheap; never touches DB; safe for an aggressive supervisor probe. |
-| 2 | Readiness check shape | `GET /health/ready` → checks DB + pg-boss; `200` when all healthy, `503` with per-component status when not. | Standard liveness/readiness split; lets a probe distinguish "restart me" from "don't route traffic yet." |
-| 3 | DB readiness probe | `SELECT 1` via the existing `appDb` Kysely handle (no DataContext needed — pre-auth infra check). | Minimal, RLS-irrelevant connectivity probe. |
-| 4 | pg-boss readiness probe | A lightweight liveness call on the existing `boss` handle (e.g. `boss.getQueue(RLS_PROBE_QUEUE)` / `isInstalled`), guarded so a "not started" boss reports unhealthy rather than throwing. | Reuses the already-constructed boss; no new connection. |
-| 5 | Crash-handler exit | Log structured error, then `process.exit(1)` after a best-effort flush. | Clean non-zero exit = unambiguous "restart me" signal to compose/systemd. |
-| 6 | DB connection timeout | `connectionTimeoutMillis` default ~5000ms, env-overridable (`JARVIS_DB_CONNECT_TIMEOUT_MS`). | Fail fast on unreachable DB so readiness returns 503 instead of hanging. |
+| #   | Decision                | Choice                                                                                                                                                                                     | Why                                                                                                      |
+| --- | ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------- |
+| 1   | Liveness check shape    | `GET /health` → always `200 {ok:true}` (process is up).                                                                                                                                    | Cheap; never touches DB; safe for an aggressive supervisor probe.                                        |
+| 2   | Readiness check shape   | `GET /health/ready` → checks DB + pg-boss; `200` when all healthy, `503` with per-component status when not.                                                                               | Standard liveness/readiness split; lets a probe distinguish "restart me" from "don't route traffic yet." |
+| 3   | DB readiness probe      | `SELECT 1` via the existing `appDb` Kysely handle (no DataContext needed — pre-auth infra check).                                                                                          | Minimal, RLS-irrelevant connectivity probe.                                                              |
+| 4   | pg-boss readiness probe | A lightweight liveness call on the existing `boss` handle (e.g. `boss.getQueue(RLS_PROBE_QUEUE)` / `isInstalled`), guarded so a "not started" boss reports unhealthy rather than throwing. | Reuses the already-constructed boss; no new connection.                                                  |
+| 5   | Crash-handler exit      | Log structured error, then `process.exit(1)` after a best-effort flush.                                                                                                                    | Clean non-zero exit = unambiguous "restart me" signal to compose/systemd.                                |
+| 6   | DB connection timeout   | `connectionTimeoutMillis` default ~5000ms, env-overridable (`JARVIS_DB_CONNECT_TIMEOUT_MS`).                                                                                               | Fail fast on unreachable DB so readiness returns 503 instead of hanging.                                 |
 
 ## Resolved Decisions (was open)
 
@@ -71,11 +71,13 @@ unreachable Postgres fails fast instead of hanging the readiness probe.
 ## Approach
 
 **`packages/db/src/database.ts`:**
+
 - Add `connectionTimeoutMillis` to the `Pool` options, default from `JARVIS_DB_CONNECT_TIMEOUT_MS`
   (fallback 5000). Optional: surface via `DatabaseOptions.connectionTimeoutMillis`. This is the only
   shared-package edit; it benefits both API and worker pools.
 
 **`apps/api/src/server.ts`:**
+
 - Replace the single `/health` handler with:
   - `server.get("/health", ...)` → `{ ok: true }` (unchanged liveness semantics).
   - `server.get("/health/ready", ...)` → run DB `SELECT 1` and the pg-boss probe; return
@@ -87,6 +89,7 @@ unreachable Postgres fails fast instead of hanging the readiness probe.
   `server.inject`) does not register process-global handlers.
 
 **`apps/worker/src/worker.ts`:**
+
 - Install `process.on("unhandledRejection", ...)` / `process.on("uncaughtException", ...)` alongside
   the existing `SIGINT`/`SIGTERM` handlers, reusing the same structured-log-then-exit(1) policy and the
   existing `shutdown()` (time-boxed). The worker already has `boss.stop` + `workerDb.destroy` in

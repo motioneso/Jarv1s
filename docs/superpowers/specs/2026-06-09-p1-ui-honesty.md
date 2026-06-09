@@ -1,7 +1,7 @@
 # UI honesty pass — Design (P1 #60)
 
 **Status:** Approved for build (2026-06-09)
-**Date:** 2026-06-09  **Owner:** Ben  **Issue:** #60 (Part of epic #46)
+**Date:** 2026-06-09 **Owner:** Ben **Issue:** #60 (Part of epic #46)
 
 ## Context
 
@@ -19,7 +19,7 @@ then they must be disabled, clearly marked "coming soon", or removed. Investigat
    `apps/web/src/chat/memory-panel.tsx`, the drawer opened from `chat/chat-drawer.tsx`). The facts
    list is driven by `chat_memory_facts`, populated only by `handleExtractFactsJob` —
    **confirmed no-op** (`packages/chat/src/jobs.ts:104-111`: TODO, returns immediately). So the panel
-   **always shows "No facts stored yet."** (The *Recall* toggle and recall feature ARE real — Phase 3
+   **always shows "No facts stored yet."** (The _Recall_ toggle and recall feature ARE real — Phase 3
    Recall landed; only the **facts extraction** half is stubbed.)
 4. **Legacy connector token-paste form** — `CreateConnectorForm` in
    `apps/web/src/connectors/connectors-panel.tsx:104-189`, default `{"accessToken":"placeholder"}`
@@ -45,7 +45,7 @@ then they must be disabled, clearly marked "coming soon", or removed. Investigat
 - **Do not build the real backends** (calendar/email sync engine, fact extraction) — those are Phase 3.
 - **Do not remove the real flows:** the Google OAuth panel (`connect-google-panel.tsx`) and the real
   AI provider/model CRUD stay. The AI **Recall** memory toggle stays (it is real).
-- No new feature flag *infrastructure* unless Open Decision 2 chooses it.
+- No new feature flag _infrastructure_ unless Open Decision 2 chooses it.
 
 ## Resolved Decisions (already decided)
 
@@ -59,13 +59,13 @@ then they must be disabled, clearly marked "coming soon", or removed. Investigat
 
 Per-surface resolution:
 
-| Surface | Decision | Why |
-| --- | --- | --- |
-| **Calendar page** | **Coming-soon state, keep nav** | Backend arrives Phase 3; keep the route + nav so the user knows it's planned. Replace body with a "Coming soon" panel via the shared `ComingSoon` component. |
-| **Email page** | **Coming-soon state, keep nav** | Same as Calendar. |
-| **Chat Facts panel** | **Coming-soon within the existing panel; facts toggle disabled** | Keep the Memory panel + the real Recall toggle. Replace the "What Jarvis knows about you" facts list with a "coming soon" note; **disable the "Remember facts about me" facts toggle** (it controls a no-op). The real Recall toggle stays enabled. |
-| **Legacy connector token-paste form** | **REMOVE** | Pure dev scaffolding superseded by the real OAuth panel; a placeholder-token path that creates junk accounts. The real replacement already ships. |
-| **AI `{"apiKey":"placeholder"}` default** | **Clean, not remove** | Backend is real (M-A3). Drop the `placeholder` secret default → empty/`{}` with a non-secret placeholder hint. Keep the real M-A3 provider flow. |
+| Surface                                   | Decision                                                         | Why                                                                                                                                                                                                                                                 |
+| ----------------------------------------- | ---------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Calendar page**                         | **Coming-soon state, keep nav**                                  | Backend arrives Phase 3; keep the route + nav so the user knows it's planned. Replace body with a "Coming soon" panel via the shared `ComingSoon` component.                                                                                        |
+| **Email page**                            | **Coming-soon state, keep nav**                                  | Same as Calendar.                                                                                                                                                                                                                                   |
+| **Chat Facts panel**                      | **Coming-soon within the existing panel; facts toggle disabled** | Keep the Memory panel + the real Recall toggle. Replace the "What Jarvis knows about you" facts list with a "coming soon" note; **disable the "Remember facts about me" facts toggle** (it controls a no-op). The real Recall toggle stays enabled. |
+| **Legacy connector token-paste form**     | **REMOVE**                                                       | Pure dev scaffolding superseded by the real OAuth panel; a placeholder-token path that creates junk accounts. The real replacement already ships.                                                                                                   |
+| **AI `{"apiKey":"placeholder"}` default** | **Clean, not remove**                                            | Backend is real (M-A3). Drop the `placeholder` secret default → empty/`{}` with a non-secret placeholder hint. Keep the real M-A3 provider flow.                                                                                                    |
 
 **The two genuine forks, resolved:**
 
@@ -100,7 +100,7 @@ This pass touches `apps/web` broadly (calendar, email, chat, connectors, ai) and
   of `createConnectorAccount`; if unused, optionally drop it from `client.ts` (confirm).
 - **`apps/web/src/ai/ai-settings-panel.tsx`** — change the `credentialPayload` default from
   `'{"apiKey":"placeholder"}'` to `'{}'` (or `''`) and add a non-secret `placeholder=` hint on the
-  textarea (e.g. `{"apiKey":"sk-..."}` as a *placeholder attribute*, not a value). Backend untouched.
+  textarea (e.g. `{"apiKey":"sk-..."}` as a _placeholder attribute_, not a value). Backend untouched.
 - **e2e:** update `tests/e2e/*` and any `mock-api.ts` expectations that asserted the calendar/email
   lists, the facts list, or the connector create form. Grep e2e for `calendar`, `email`, `Add connector`,
   `apiKey` and adjust.
@@ -128,7 +128,7 @@ This pass touches `apps/web` broadly (calendar, email, chat, connectors, ai) and
 
 ## Hard Invariants honored
 
-- **Secrets never escape.** Removing the placeholder-token/`apiKey` defaults *reduces* secret-shaped
+- **Secrets never escape.** Removing the placeholder-token/`apiKey` defaults _reduces_ secret-shaped
   surface area; no credential rendering is added. Real OAuth/credential flows (encrypted at rest) are
   untouched.
 - **Provider-agnostic AI.** No provider/model is hardcoded; the AI panel keeps requesting capabilities

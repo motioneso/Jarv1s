@@ -1,7 +1,7 @@
 # Scheduled, vault-inclusive backups — Design (P1 #56)
 
 **Status:** Approved for build (2026-06-09)
-**Date:** 2026-06-09  **Owner:** Ben  **Issue:** #56 (Part of epic #46)
+**Date:** 2026-06-09 **Owner:** Ben **Issue:** #56 (Part of epic #46)
 
 ---
 
@@ -82,6 +82,7 @@ at `infra/systemd/`** as reference/install artifacts — operators install them 
 **Recommended: single timestamped `.tar.gz` archive per backup run.**
 
 Contents of `backups/jarv1s-<timestamp>.tar.gz`:
+
 ```
 jarv1s-<timestamp>/
   db.dump          ← pg_dump --format=custom output
@@ -89,6 +90,7 @@ jarv1s-<timestamp>/
 ```
 
 One file per backup event means:
+
 - Atomic off-host copy (one `rsync`/`rclone` transfer per backup).
 - DB dump and vault are always at the same point in time.
 - Restore is unambiguous: pick one archive, extract, restore DB, restore vault.
@@ -99,6 +101,7 @@ One file per backup event means:
 
 The wrapper script prunes archives older than 7 days, keeping one per week for the previous
 4 weeks, then deleting older ones. This gives:
+
 - 7 daily archives (last week, granular).
 - 4 weekly archives (last month, coarser).
 - Maximum ~11 archives on disk at steady state.
@@ -273,19 +276,19 @@ other Phase 1 task.
 ## Exit Criteria
 
 - [ ] `scripts/backup-full.sh` runs manually end-to-end: produces a `.tar.gz` containing both
-  `db.dump` and `vault/`, pruning fires correctly, off-host copy fires when
-  `JARVIS_BACKUP_OFFHOST_CMD` is set.
+      `db.dump` and `vault/`, pruning fires correctly, off-host copy fires when
+      `JARVIS_BACKUP_OFFHOST_CMD` is set.
 - [ ] `infra/systemd/` units are committed and install instructions in
-  `docs/operations/backup.md` are complete.
+      `docs/operations/backup.md` are complete.
 - [ ] `journalctl -u jarv1s-backup.service` shows a clean run after manual
-  `sudo systemctl start jarv1s-backup`.
+      `sudo systemctl start jarv1s-backup`.
 - [ ] `infra/backup.env.example` is committed; `infra/backup.env` is gitignored.
 - [ ] Retention pruning verified: with `JARVIS_BACKUP_DAILY_KEEP=2` test mode, old archives
-  are pruned correctly.
+      are pruned correctly.
 - [ ] Off-host destination is chosen and documented (or explicitly documented as "not yet
-  configured").
+      configured").
 - [ ] Restore-test cadence is written in `docs/operations/backup.md` and one successful drill
-  is performed against a real archive.
+      is performed against a real archive.
 - [ ] `pnpm audit:release-hardening` still passes (no regressions).
 
 ---

@@ -1,7 +1,7 @@
 # Wire tests/unit into the Gate + CI — Design (P1 #51)
 
 **Status:** Approved for build (2026-06-09)
-**Date:** 2026-06-09  **Owner:** Ben  **Issue:** #51 (Part of epic #46)
+**Date:** 2026-06-09 **Owner:** Ben **Issue:** #51 (Part of epic #46)
 
 ## Context
 
@@ -36,12 +36,12 @@ from the gate and CI workflow.
 
 ## Resolved Decisions
 
-| # | Decision | Choice | Why |
-| - | -------- | ------ | --- |
-| 1 | Vitest config | Reuse root `vitest.config.ts` | The existing `include` glob + alias map already resolves `tests/unit`. No second config needed. |
-| 2 | Gate placement | Prepend `pnpm test:unit &&` **before** `pnpm db:migrate` in `verify:foundation` | Unit tests need no DB; failing fast before any DB work is cheaper and clearer. |
-| 3 | CI placement | No separate CI step needed | `verify:foundation` is already the single CI step. Extending the script string is sufficient. |
-| 4 | Gate position relative to `typecheck` | Run `test:unit` **after `typecheck`, before `db:migrate`** | Unit tests depend on compiled types resolving; running before typecheck can produce confusing import errors rather than a clean test failure. The added latency is negligible. |
+| #   | Decision                              | Choice                                                                          | Why                                                                                                                                                                            |
+| --- | ------------------------------------- | ------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| 1   | Vitest config                         | Reuse root `vitest.config.ts`                                                   | The existing `include` glob + alias map already resolves `tests/unit`. No second config needed.                                                                                |
+| 2   | Gate placement                        | Prepend `pnpm test:unit &&` **before** `pnpm db:migrate` in `verify:foundation` | Unit tests need no DB; failing fast before any DB work is cheaper and clearer.                                                                                                 |
+| 3   | CI placement                          | No separate CI step needed                                                      | `verify:foundation` is already the single CI step. Extending the script string is sufficient.                                                                                  |
+| 4   | Gate position relative to `typecheck` | Run `test:unit` **after `typecheck`, before `db:migrate`**                      | Unit tests depend on compiled types resolving; running before typecheck can produce confusing import errors rather than a clean test failure. The added latency is negligible. |
 
 ## Resolved Decisions (was open)
 
@@ -71,6 +71,7 @@ failing unit test must fail the gate" check from the issue.
 ## Collision notes
 
 `package.json` + `pnpm-lock.yaml` are shared with:
+
 - **#58** (adds `pnpm.onlyBuiltDependencies` field — no script change)
 - **#53** (adds `@fastify/rate-limit` dependency)
 
