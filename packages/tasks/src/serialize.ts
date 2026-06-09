@@ -1,5 +1,11 @@
-import type { Task, TaskActivity, TaskList, TaskTag } from "@jarv1s/db";
-import type { TaskActivityDto, TaskDto, TaskListDto, TaskTagDto } from "@jarv1s/shared";
+import type { Task, TaskActivity, TaskList, TaskPreferences, TaskTag } from "@jarv1s/db";
+import type {
+  TaskActivityDto,
+  TaskDto,
+  TaskListDto,
+  TaskPreferencesDto,
+  TaskTagDto
+} from "@jarv1s/shared";
 
 export function serializeDate(value: Date | string | null): string | null {
   if (value === null) {
@@ -72,6 +78,13 @@ export function serializeTask(task: Task): TaskDto {
     completedAt: serializeDate(task.completed_at),
     createdAt: serializeDate(task.created_at),
     updatedAt: serializeDate(task.updated_at)
+  };
+}
+
+export function serializeTaskPreferences(prefs: TaskPreferences): TaskPreferencesDto {
+  return {
+    defaultView: prefs.default_view as "priority" | "matrix",
+    updatedAt: serializeDate(prefs.updated_at ?? null)
   };
 }
 

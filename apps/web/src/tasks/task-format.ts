@@ -1,8 +1,7 @@
 import type { TaskApiStatus, TaskDto } from "@jarv1s/shared";
 
 export const statusLabels: Record<TaskApiStatus, string> = {
-  todo: "Todo",
-  in_progress: "Doing",
+  todo: "Open",
   done: "Done",
   archived: "Archived"
 };
@@ -31,6 +30,16 @@ export function fromDateInputValue(value: string): string | null {
   }
 
   return new Date(`${value}T12:00:00.000Z`).toISOString();
+}
+
+export const effortLabels: Record<"quick" | "medium" | "large", string> = {
+  quick: "Quick",
+  medium: "Medium",
+  large: "Large"
+};
+
+export function effortLabel(effort: "quick" | "medium" | "large" | null): string | null {
+  return effort ? effortLabels[effort] : null;
 }
 
 export function sortTasks(tasks: readonly TaskDto[]): TaskDto[] {

@@ -1,0 +1,80 @@
+import type { TaskDto } from "./tasks-api.js";
+
+export type TaskQuadrant = "do" | "schedule" | "delegate" | "eliminate";
+
+export interface PriorityLevel {
+  readonly value: 1 | 2 | 3 | 4 | 5;
+  readonly label: string;
+}
+
+/** 5..1, highest first (SDP-1: Someday=1 … Critical=5). */
+export const PRIORITY_LEVELS: readonly PriorityLevel[] = [
+  { value: 5, label: "Critical" },
+  { value: 4, label: "High" },
+  { value: 3, label: "Medium" },
+  { value: 2, label: "Low" },
+  { value: 1, label: "Someday" }
+];
+
+export function priorityLabel(priority: number | null): string {
+  return PRIORITY_LEVELS.find((l) => l.value === priority)?.label ?? "No priority";
+}
+
+export interface QuadrantMeta {
+  readonly key: TaskQuadrant;
+  readonly title: string;
+  readonly subtitle: string;
+}
+
+/** Eisenhower order: do → schedule → delegate → eliminate. */
+export const QUADRANTS: readonly QuadrantMeta[] = [
+  { key: "do", title: "Do First", subtitle: "Important & urgent" },
+  { key: "schedule", title: "Schedule", subtitle: "Important, not urgent" },
+  { key: "delegate", title: "Delegate", subtitle: "Urgent, not important" },
+  { key: "eliminate", title: "Later", subtitle: "Neither" }
+];
+
+/** Mirrors backend serialize.ts getQuadrant: important = priority>=4; urgent = due within 48h (incl. overdue). */
+export function quadrantOf(task: TaskDto): TaskQuadrant {
+  const important = task.priority !== null && task.priority >= 4;
+  let urgent = false;
+  if (task.dueAt) {
+    const hoursUntilDue = (new Date(task.dueAt).getTime() - Date.now()) / 3_600_000;
+    urgent = hoursUntilDue <= 48;
+  }
+  if (important && urgent) return "do";
+  if (important && !urgent) return "schedule";
+  if (!important && urgent) return "delegate";
+  return "eliminate";
+}
+
+export interface PriorityGroup {
+  readonly value: 1 | 2 | 3 | 4 | 5 | null;
+  readonly label: string;
+  readonly tasks: TaskDto[];
+}
+
+function byDueThenTitle(a: TaskDto, b: TaskDto): number {
+  const ad = a.dueAt ? new Date(a.dueAt).getTime() : Number.MAX_SAFE_INTEGER;
+  const bd = b.dueAt ? new Date(b.dueAt).getTime() : Number.MAX_SAFE_INTEGER;
+  return ad - bd || a.title.localeCompare(b.title);
+}
+
+/** Groups into 5..1 then a trailing "No priority" (null) group. Empty groups are kept (UI may hide them). */
+export function groupByPriority(tasks: readonly TaskDto[]): PriorityGroup[] {
+  const groups: PriorityGroup[] = PRIORITY_LEVELS.map((l) => ({
+    value: l.value,
+    label: l.label,
+    tasks: tasks.filter((t) => t.priority === l.value).sort(byDueThenTitle)
+  }));
+  groups.push({
+    value: null,
+    label: "No priority",
+    tasks: tasks.filter((t) => t.priority === null).sort(byDueThenTitle)
+  });
+  return groups;
+}
+
+export function quadrantTasks(tasks: readonly TaskDto[], quadrant: TaskQuadrant): TaskDto[] {
+  return tasks.filter((t) => quadrantOf(t) === quadrant).sort(byDueThenTitle);
+}

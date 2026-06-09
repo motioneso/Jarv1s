@@ -7,10 +7,17 @@ import type {
   AddTaskActivityResponse,
   AiModelCapability,
   BootstrapStatusResponse,
+  BreakdownTaskRequest,
+  BreakdownTaskResponse,
   CreateBriefingDefinitionRequest,
   CreateBriefingDefinitionResponse,
+  CreateTaskListRequest,
+  CreateTaskListResponse,
+  CreateTaskTagRequest,
+  CreateTaskTagResponse,
   GetCalendarEventResponse,
   GetEmailMessageResponse,
+  GetTaskPreferencesResponse,
   CreateConnectorAccountRequest,
   CreateConnectorAccountResponse,
   GoogleAuthorizeRequest,
@@ -35,6 +42,8 @@ import type {
   ListModulesResponse,
   ListNotificationsResponse,
   ListTaskActivityResponse,
+  ListTaskListsResponse,
+  ListTaskTagsResponse,
   ListTasksResponse,
   ListWorkspacesResponse,
   MarkAllNotificationsReadResponse,
@@ -53,6 +62,8 @@ import type {
   UpdateAiProviderConfigResponse,
   UpdateConnectorAccountRequest,
   UpdateConnectorAccountResponse,
+  UpdateTaskPreferencesRequest,
+  UpdateTaskPreferencesResponse,
   UpdateTaskRequest,
   UpdateTaskResponse
 } from "@jarv1s/shared";
@@ -146,6 +157,69 @@ export async function addTaskActivity(
 ): Promise<AddTaskActivityResponse> {
   return requestJson<AddTaskActivityResponse>(`/api/tasks/${encodeURIComponent(id)}/activity`, {
     method: "POST",
+    body: input
+  });
+}
+
+export async function listSubtasks(id: string): Promise<ListTasksResponse> {
+  return requestJson<ListTasksResponse>(`/api/tasks/${encodeURIComponent(id)}/subtasks`);
+}
+
+export async function breakdownTask(
+  id: string,
+  input: BreakdownTaskRequest
+): Promise<BreakdownTaskResponse> {
+  return requestJson<BreakdownTaskResponse>(`/api/tasks/${encodeURIComponent(id)}/breakdown`, {
+    method: "POST",
+    body: input
+  });
+}
+
+export async function listFocusTasks(): Promise<ListTasksResponse> {
+  return requestJson<ListTasksResponse>("/api/tasks/focus");
+}
+
+export async function listAtRiskTasks(): Promise<ListTasksResponse> {
+  return requestJson<ListTasksResponse>("/api/tasks/at-risk");
+}
+
+export async function listOverdueTasks(): Promise<ListTasksResponse> {
+  return requestJson<ListTasksResponse>("/api/tasks/overdue");
+}
+
+export async function listTaskLists(): Promise<ListTaskListsResponse> {
+  return requestJson<ListTaskListsResponse>("/api/tasks/lists");
+}
+
+export async function createTaskList(
+  input: CreateTaskListRequest
+): Promise<CreateTaskListResponse> {
+  return requestJson<CreateTaskListResponse>("/api/tasks/lists", { method: "POST", body: input });
+}
+
+export async function listTaskTags(listId: string): Promise<ListTaskTagsResponse> {
+  return requestJson<ListTaskTagsResponse>(`/api/tasks/lists/${encodeURIComponent(listId)}/tags`);
+}
+
+export async function createTaskTag(
+  listId: string,
+  input: CreateTaskTagRequest
+): Promise<CreateTaskTagResponse> {
+  return requestJson<CreateTaskTagResponse>(`/api/tasks/lists/${encodeURIComponent(listId)}/tags`, {
+    method: "POST",
+    body: input
+  });
+}
+
+export async function getTaskPreferences(): Promise<GetTaskPreferencesResponse> {
+  return requestJson<GetTaskPreferencesResponse>("/api/tasks/preferences");
+}
+
+export async function updateTaskPreferences(
+  input: UpdateTaskPreferencesRequest
+): Promise<UpdateTaskPreferencesResponse> {
+  return requestJson<UpdateTaskPreferencesResponse>("/api/tasks/preferences", {
+    method: "PATCH",
     body: input
   });
 }

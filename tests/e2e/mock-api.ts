@@ -17,6 +17,7 @@ import type {
   EmailMessageDto,
   MeResponse,
   NotificationDto,
+  TaskDefaultView,
   TaskDto,
   UpdateAiConfiguredModelRequest,
   UpdateAiProviderConfigRequest,
@@ -42,6 +43,7 @@ export interface MockApiState extends MockBriefingsApiState {
   emailMessages?: EmailMessageDto[];
   notifications: NotificationDto[];
   tasks: TaskDto[];
+  taskDefaultView?: TaskDefaultView;
 }
 
 const meResponse: MeResponse = {
@@ -167,6 +169,10 @@ export async function mockApi(page: Page, state: MockApiState): Promise<void> {
     handleMarkAllNotificationsReadRoute(route, state)
   );
   await page.route("**/api/notifications", (route) => handleNotificationListRoute(route, state));
+  // Generic task routes registered first (lowest priority because Playwright uses reverse order)
+  await page.route("**/api/tasks", (route) => handleTaskListRoute(route, state));
+  await page.route(/\/api\/tasks\/[^/]+$/, (route) => handleTaskDetailRoute(route, state));
+  // Specific task sub-routes registered after to take precedence (last-registered wins)
   await page.route("**/api/tasks/*/activity", (route) => {
     if (route.request().method() === "GET") {
       return fulfillJson(route, 200, { activity: [] });
@@ -182,8 +188,19 @@ export async function mockApi(page: Page, state: MockApiState): Promise<void> {
       }
     });
   });
-  await page.route(/\/api\/tasks\/[^/]+$/, (route) => handleTaskDetailRoute(route, state));
-  await page.route("**/api/tasks", (route) => handleTaskListRoute(route, state));
+  await page.route("**/api/tasks/*/subtasks", (route) => fulfillJson(route, 200, { tasks: [] }));
+  await page.route("**/api/tasks/focus", (route) =>
+    fulfillJson(route, 200, { tasks: state.tasks })
+  );
+  await page.route("**/api/tasks/at-risk", (route) =>
+    fulfillJson(route, 200, { tasks: state.tasks })
+  );
+  await page.route("**/api/tasks/overdue", (route) =>
+    fulfillJson(route, 200, { tasks: state.tasks })
+  );
+  await page.route("**/api/tasks/lists/*/tags", (route) => handleTaskTagsRoute(route, state));
+  await page.route("**/api/tasks/lists", (route) => handleTaskListsRoute(route, state));
+  await page.route("**/api/tasks/preferences", (route) => handleTaskPreferencesRoute(route, state));
 }
 
 async function handleConnectorAccountsRoute(route: Route, state: MockApiState): Promise<void> {
@@ -559,6 +576,78 @@ async function handleMarkAllNotificationsReadRoute(
   return fulfillJson(route, 200, {
     unreadCount: countUnreadNotifications(state.notifications)
   });
+}
+
+async function handleTaskPreferencesRoute(route: Route, state: MockApiState): Promise<void> {
+  if (route.request().method() === "GET") {
+    return fulfillJson(route, 200, {
+      preferences: { defaultView: state.taskDefaultView ?? "priority", updatedAt: null }
+    });
+  }
+
+  if (route.request().method() === "PATCH") {
+    const body = route.request().postDataJSON() as { readonly defaultView?: string };
+    state.taskDefaultView = (body.defaultView as TaskDefaultView) ?? "priority";
+    return fulfillJson(route, 200, {
+      preferences: { defaultView: state.taskDefaultView, updatedAt: null }
+    });
+  }
+
+  return fulfillJson(route, 405, { error: "Method not allowed" });
+}
+
+async function handleTaskListsRoute(route: Route, state: MockApiState): Promise<void> {
+  if (route.request().method() === "GET") {
+    return fulfillJson(route, 200, {
+      lists: [
+        {
+          id: "list-1",
+          ownerUserId: "user-1",
+          name: "Personal",
+          position: 0,
+          createdAt: null,
+          updatedAt: null
+        }
+      ]
+    });
+  }
+
+  if (route.request().method() === "POST") {
+    const body = route.request().postDataJSON() as { readonly name?: string };
+    return fulfillJson(route, 201, {
+      list: {
+        id: "list-new",
+        ownerUserId: "user-1",
+        name: body.name ?? "",
+        position: 1,
+        createdAt: null,
+        updatedAt: null
+      }
+    });
+  }
+
+  return fulfillJson(route, 405, { error: "Method not allowed" });
+}
+
+async function handleTaskTagsRoute(route: Route, state: MockApiState): Promise<void> {
+  if (route.request().method() === "GET") {
+    return fulfillJson(route, 200, { tags: [] });
+  }
+
+  if (route.request().method() === "POST") {
+    const body = route.request().postDataJSON() as { readonly name?: string };
+    return fulfillJson(route, 201, {
+      tag: {
+        id: "tag-1",
+        ownerUserId: "user-1",
+        listId: "list-1",
+        name: body.name ?? "",
+        createdAt: null
+      }
+    });
+  }
+
+  return fulfillJson(route, 405, { error: "Method not allowed" });
 }
 
 async function handleTaskListRoute(route: Route, state: MockApiState): Promise<void> {
