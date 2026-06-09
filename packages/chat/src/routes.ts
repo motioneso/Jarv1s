@@ -1,4 +1,5 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
+import type { PgBoss } from "pg-boss";
 
 import type { AccessContext, ChatThread, DataContextRunner } from "@jarv1s/db";
 import { listChatThreadsRouteSchema, type ChatThreadDto } from "@jarv1s/shared";
@@ -26,6 +27,8 @@ export interface ChatRoutesDependencies {
   readonly chatEngineFactory?: ChatEngineFactory;
   readonly resolveActiveModules?: ActiveModulesResolver;
   readonly mcpServerUrl?: string;
+  /** pg-boss for enqueueing embed/extract-facts jobs after each completed turn. */
+  readonly boss?: PgBoss;
 }
 
 /**
@@ -75,6 +78,7 @@ export function registerChatRoutes(
   const runtime = createChatSessionRuntime({
     dataContext: dependencies.dataContext,
     engineFactory: dependencies.chatEngineFactory,
+    boss: dependencies.boss,
     mcpTokenLifecycle:
       tokens && mcpServerUrl
         ? {

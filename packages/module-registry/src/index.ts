@@ -146,7 +146,8 @@ const BUILT_IN_MODULES: readonly BuiltInModuleRegistration[] = [
         dataContext: deps.dataContext,
         chatEngineFactory: deps.chatEngineFactory,
         resolveActiveModules: deps.listModuleManifests,
-        mcpServerUrl: `http://127.0.0.1:${process.env.PORT ?? 3000}/api/mcp`
+        mcpServerUrl: `http://127.0.0.1:${process.env.PORT ?? 3000}/api/mcp`,
+        boss: deps.boss
       }),
     registerWorkers: (boss, deps) =>
       registerChatJobWorkers(boss, deps.dataContext, { embeddingProvider: deps.embeddingProvider })

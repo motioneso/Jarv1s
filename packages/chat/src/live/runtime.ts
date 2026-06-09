@@ -11,6 +11,7 @@ import { join } from "node:path";
 
 import { AiRepository, createRealTmuxIo, type ProviderKind } from "@jarv1s/ai";
 import type { DataContextRunner } from "@jarv1s/db";
+import type { PgBoss } from "pg-boss";
 
 import { TmuxCliChatEngine } from "./cli-chat-engine.js";
 import { ChatSessionManager } from "./chat-session-manager.js";
@@ -46,6 +47,8 @@ export interface CreateChatSessionRuntimeDeps {
   readonly engineFactory?: ChatEngineFactory;
   /** Override the idle reap window (ms); defaults to 30 minutes. */
   readonly idleMs?: number;
+  /** pg-boss instance for enqueueing embed/extract-facts jobs after each turn. */
+  readonly boss?: PgBoss;
   /** Phase 2: MCP token lifecycle hooks — mint on engine launch, revoke on reap. */
   readonly mcpTokenLifecycle?: {
     readonly mint: (
@@ -69,7 +72,8 @@ export function createChatSessionRuntime(deps: CreateChatSessionRuntimeDeps): Ch
   const persistence = new DataContextChatPersistence({
     dataContext: deps.dataContext,
     chatRepository: new ChatRepository(),
-    aiRepository: new AiRepository()
+    aiRepository: new AiRepository(),
+    boss: deps.boss
   });
 
   const manager = new ChatSessionManager({
