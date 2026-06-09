@@ -12,3 +12,4 @@ export * from "./notifications-api.js";
 export * from "./tasks-api.js";
 export * from "./tasks-view.js";
 export * from "./platform-api.js";
+export * from "./keyring.js";
