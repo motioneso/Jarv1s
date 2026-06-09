@@ -48,3 +48,25 @@ process.once("SIGINT", () => {
 process.once("SIGTERM", () => {
   void shutdown().then(() => process.exit(0));
 });
+
+const handleCrash = (label: string, err: unknown): void => {
+  console.error(
+    JSON.stringify({ level: "fatal", label, err: String(err), msg: "Process crash — exiting" })
+  );
+  const drain = Promise.race([
+    shutdown(),
+    new Promise<void>((resolve) => {
+      setTimeout(resolve, 2000);
+    })
+  ]);
+  void drain.then(() => {
+    process.exit(1);
+  });
+};
+
+process.on("unhandledRejection", (reason) => {
+  handleCrash("unhandledRejection", reason);
+});
+process.on("uncaughtException", (err: Error) => {
+  handleCrash("uncaughtException", err);
+});
