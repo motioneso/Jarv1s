@@ -3,7 +3,7 @@
 **Spec (approved):** docs/superpowers/specs/<slug>.md
 **GitHub issue:** #NN
 **Worktree:** <repo>/.claude/worktrees/<slug>   **Branch:** <branch off origin/main>
-**Coordinator label:** <X>   (escalate here via the `herdr-pane-message` skill)
+**Coordinator label:** `Coordinator`   (UNIQUE — escalate via `herdr-pane-message`; before messaging, verify `herdr pane list` shows EXACTLY ONE pane with this label. Never guess a `…-N` pane-id — they reflow when panes close.)
 **Context self-handoff threshold:** ~70%
 
 ## Start

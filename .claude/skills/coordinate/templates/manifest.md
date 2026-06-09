@@ -1,7 +1,7 @@
 # Coordination Run — <run-id>
 
 **Date:** <YYYY-MM-DD>
-**Coordinator label:** <herdr label of the live coordinator pane>
+**Coordinator lock:** label `Coordinator` = pane `<pane-id>` (single-coordinator lock — exactly one pane holds this label for the life of the run; agents escalate to the label, not the pane-id)
 **Merge policy:** autonomous-after-verified-QA (coordination mode)
 **Context self-handoff threshold:** ~70%
 

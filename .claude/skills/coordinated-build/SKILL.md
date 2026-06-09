@@ -13,8 +13,12 @@ This is the `start` skill's plan+build stages adapted for coordination mode.
 
 **Key differences from stock `start`:**
 - The plan approval gate is the **coordinator**, not a human. You message it and wait.
-- You **escalate** blockers / forks / reviews / done to the coordinator's label via
-  `herdr-pane-message` — you do not sit silently and you do not decide product/architecture forks.
+- You **escalate** blockers / forks / reviews / done to the coordinator's **unique Herdr label**
+  (from your handoff — e.g. `Coordinator`) via `herdr-pane-message` — you do not sit silently and
+  you do not decide product/architecture forks. **Before messaging, run `herdr pane list` and
+  confirm EXACTLY ONE pane holds that label.** If 0 or >1, do NOT guess a pane and do NOT message a
+  different one — halt and wait (a mis-routed escalation once woke a stale duplicate coordinator).
+  Never escalate by a raw `…-N` pane-id alone; those reflow when panes close.
 - You **self-monitor context** and relay before you degrade.
 - You **never** move the project board, close issues/milestones, or merge — those are the
   coordinator's. Your closeout is `coordinated-wrap-up` (PR + report), nothing more.
