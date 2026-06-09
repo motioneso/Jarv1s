@@ -5,11 +5,18 @@ export type TaskApiStatus = (typeof TASK_STATUSES)[number];
 export interface TaskDto {
   readonly id: string;
   readonly ownerUserId: string;
+  readonly listId: string;
+  readonly parentTaskId: string | null;
   readonly title: string;
   readonly description: string | null;
   readonly status: TaskApiStatus;
   readonly priority: number | null;
+  readonly position: number;
   readonly dueAt: string | null;
+  readonly doAt: string | null;
+  readonly effort: "quick" | "medium" | "large" | null;
+  readonly source: string;
+  readonly sourceRef: string | null;
   readonly completedAt: string | null;
   readonly createdAt: string | null;
   readonly updatedAt: string | null;
@@ -106,16 +113,27 @@ export const taskParamsSchema = {
   }
 } as const;
 
+const nullableEffortSchema = {
+  anyOf: [{ type: "string", enum: ["quick", "medium", "large"] }, { type: "null" }]
+} as const;
+
 export const taskDtoSchema = {
   type: "object",
   required: [
     "id",
     "ownerUserId",
+    "listId",
+    "parentTaskId",
     "title",
     "description",
     "status",
     "priority",
+    "position",
     "dueAt",
+    "doAt",
+    "effort",
+    "source",
+    "sourceRef",
     "completedAt",
     "createdAt",
     "updatedAt"
@@ -123,11 +141,18 @@ export const taskDtoSchema = {
   properties: {
     id: { type: "string" },
     ownerUserId: { type: "string" },
+    listId: { type: "string" },
+    parentTaskId: nullableStringSchema,
     title: { type: "string" },
     description: nullableStringSchema,
     status: taskStatusSchema,
     priority: nullableNumberSchema,
+    position: { type: "number" },
     dueAt: nullableStringSchema,
+    doAt: nullableStringSchema,
+    effort: nullableEffortSchema,
+    source: { type: "string" },
+    sourceRef: nullableStringSchema,
     completedAt: nullableStringSchema,
     createdAt: nullableStringSchema,
     updatedAt: nullableStringSchema
@@ -166,9 +191,16 @@ export const createTaskRequestSchema = {
     description: nullableStringSchema,
     status: taskStatusSchema,
     priority: {
-      anyOf: [{ type: "integer", minimum: -32768, maximum: 32767 }, { type: "null" }]
+      anyOf: [{ type: "integer", minimum: 1, maximum: 5 }, { type: "null" }]
     },
-    dueAt: nullableStringSchema
+    dueAt: nullableStringSchema,
+    listId: { type: "string" },
+    doAt: nullableStringSchema,
+    effort: nullableEffortSchema,
+    parentTaskId: nullableStringSchema,
+    recurrence: {
+      anyOf: [{ type: "object", additionalProperties: true }, { type: "null" }]
+    }
   }
 } as const;
 
@@ -189,9 +221,16 @@ export const updateTaskRequestSchema = {
     description: nullableStringSchema,
     status: taskStatusSchema,
     priority: {
-      anyOf: [{ type: "integer", minimum: -32768, maximum: 32767 }, { type: "null" }]
+      anyOf: [{ type: "integer", minimum: 1, maximum: 5 }, { type: "null" }]
     },
-    dueAt: nullableStringSchema
+    dueAt: nullableStringSchema,
+    listId: { type: "string" },
+    doAt: nullableStringSchema,
+    effort: nullableEffortSchema,
+    parentTaskId: nullableStringSchema,
+    recurrence: {
+      anyOf: [{ type: "object", additionalProperties: true }, { type: "null" }]
+    }
   }
 } as const;
 
@@ -297,5 +336,213 @@ export const deferredTaskStatusRouteSchema = {
   body: deferredTaskStatusRequestSchema,
   response: {
     202: deferredTaskStatusResponseSchema
+  }
+} as const;
+
+// --- Task Lists ---
+
+export interface TaskListDto {
+  readonly id: string;
+  readonly ownerUserId: string;
+  readonly name: string;
+  readonly position: number;
+  readonly createdAt: string | null;
+  readonly updatedAt: string | null;
+}
+
+export interface ListTaskListsResponse {
+  readonly lists: readonly TaskListDto[];
+}
+
+export interface CreateTaskListRequest {
+  readonly name: string;
+}
+
+export interface CreateTaskListResponse {
+  readonly list: TaskListDto;
+}
+
+export const taskListDtoSchema = {
+  type: "object",
+  required: ["id", "ownerUserId", "name", "position", "createdAt", "updatedAt"],
+  properties: {
+    id: { type: "string" },
+    ownerUserId: { type: "string" },
+    name: { type: "string" },
+    position: { type: "number" },
+    createdAt: nullableStringSchema,
+    updatedAt: nullableStringSchema
+  }
+} as const;
+
+export const listTaskListsResponseSchema = {
+  type: "object",
+  required: ["lists"],
+  properties: {
+    lists: { type: "array", items: taskListDtoSchema }
+  }
+} as const;
+
+export const createTaskListRequestSchema = {
+  type: "object",
+  required: ["name"],
+  properties: {
+    name: { type: "string" }
+  }
+} as const;
+
+export const createTaskListResponseSchema = {
+  type: "object",
+  required: ["list"],
+  properties: {
+    list: taskListDtoSchema
+  }
+} as const;
+
+export const listTaskListsRouteSchema = {
+  response: {
+    200: listTaskListsResponseSchema
+  }
+} as const;
+
+export const taskListParamsSchema = {
+  type: "object",
+  required: ["listId"],
+  properties: {
+    listId: { type: "string" }
+  }
+} as const;
+
+export const createTaskListRouteSchema = {
+  body: createTaskListRequestSchema,
+  response: {
+    201: createTaskListResponseSchema
+  }
+} as const;
+
+// --- Task Tags ---
+
+export interface TaskTagDto {
+  readonly id: string;
+  readonly ownerUserId: string;
+  readonly listId: string;
+  readonly name: string;
+  readonly createdAt: string | null;
+}
+
+export interface ListTaskTagsResponse {
+  readonly tags: readonly TaskTagDto[];
+}
+
+export interface CreateTaskTagRequest {
+  readonly name: string;
+}
+
+export interface CreateTaskTagResponse {
+  readonly tag: TaskTagDto;
+}
+
+export const taskTagDtoSchema = {
+  type: "object",
+  required: ["id", "ownerUserId", "listId", "name", "createdAt"],
+  properties: {
+    id: { type: "string" },
+    ownerUserId: { type: "string" },
+    listId: { type: "string" },
+    name: { type: "string" },
+    createdAt: nullableStringSchema
+  }
+} as const;
+
+export const listTaskTagsResponseSchema = {
+  type: "object",
+  required: ["tags"],
+  properties: {
+    tags: { type: "array", items: taskTagDtoSchema }
+  }
+} as const;
+
+export const createTaskTagRequestSchema = {
+  type: "object",
+  required: ["name"],
+  properties: {
+    name: { type: "string" }
+  }
+} as const;
+
+export const createTaskTagResponseSchema = {
+  type: "object",
+  required: ["tag"],
+  properties: {
+    tag: taskTagDtoSchema
+  }
+} as const;
+
+export const listTaskTagsRouteSchema = {
+  params: taskListParamsSchema,
+  response: {
+    200: listTaskTagsResponseSchema
+  }
+} as const;
+
+export const createTaskTagRouteSchema = {
+  params: taskListParamsSchema,
+  body: createTaskTagRequestSchema,
+  response: {
+    201: createTaskTagResponseSchema
+  }
+} as const;
+
+// --- Task Breakdown ---
+
+export interface BreakdownTaskRequest {
+  readonly steps: readonly string[];
+}
+
+export interface BreakdownTaskResponse {
+  readonly tasks: readonly TaskDto[];
+}
+
+export const breakdownTaskRequestSchema = {
+  type: "object",
+  required: ["steps"],
+  properties: {
+    steps: { type: "array", items: { type: "string" } }
+  }
+} as const;
+
+export const breakdownTaskResponseSchema = {
+  type: "object",
+  required: ["tasks"],
+  properties: {
+    tasks: { type: "array", items: taskDtoSchema }
+  }
+} as const;
+
+export const breakdownTaskRouteSchema = {
+  params: taskParamsSchema,
+  body: breakdownTaskRequestSchema,
+  response: {
+    201: breakdownTaskResponseSchema
+  }
+} as const;
+
+// --- Focus / At-Risk / Overdue (reuse listTasksResponseSchema shape) ---
+
+export const focusTasksRouteSchema = {
+  response: {
+    200: listTasksResponseSchema
+  }
+} as const;
+
+export const atRiskTasksRouteSchema = {
+  response: {
+    200: listTasksResponseSchema
+  }
+} as const;
+
+export const overdueTasksRouteSchema = {
+  response: {
+    200: listTasksResponseSchema
   }
 } as const;

@@ -159,12 +159,22 @@ export type BriefingRunKind = "manual" | "scheduled";
 export interface TasksTable {
   id: string;
   owner_user_id: string;
+  list_id: string;
+  parent_task_id: string | null;
   title: string;
   description: string | null;
   status: TaskStatus;
   priority: number | null;
+  position: number;
   due_at: NullableTimestampColumn;
+  do_at: NullableTimestampColumn;
   completed_at: NullableTimestampColumn;
+  effort: "quick" | "medium" | "large" | null;
+  source: string;
+  source_ref: string | null;
+  external_key: string | null;
+  recurrence: Record<string, unknown> | null;
+  recurrence_series_id: string | null;
   created_at: TimestampColumn;
   updated_at: TimestampColumn;
 }
@@ -173,9 +183,38 @@ export interface TaskActivityTable {
   id: string;
   task_id: string;
   actor_user_id: string;
+  actor_kind: "user" | "jarvis" | "system";
   activity_type: string;
   body: string | null;
   created_at: TimestampColumn;
+}
+
+export interface TaskListsTable {
+  id: string;
+  owner_user_id: string;
+  name: string;
+  position: number;
+  created_at: TimestampColumn;
+  updated_at: TimestampColumn;
+}
+
+export interface TaskTagsTable {
+  id: string;
+  owner_user_id: string;
+  list_id: string;
+  name: string;
+  created_at: TimestampColumn;
+}
+
+export interface TaskTagAssignmentsTable {
+  task_id: string;
+  tag_id: string;
+}
+
+export interface TaskPreferencesTable {
+  owner_user_id: string;
+  default_view: "priority" | "matrix";
+  updated_at: TimestampColumn;
 }
 
 export interface NotificationsTable {
@@ -434,6 +473,10 @@ export interface JarvisDatabase {
   "app.rls_probe_items": RlsProbeItemsTable;
   "app.tasks": TasksTable;
   "app.task_activity": TaskActivityTable;
+  "app.task_lists": TaskListsTable;
+  "app.task_tags": TaskTagsTable;
+  "app.task_tag_assignments": TaskTagAssignmentsTable;
+  "app.task_preferences": TaskPreferencesTable;
   "app.notifications": NotificationsTable;
   "app.notification_reads": NotificationReadsTable;
   "app.connector_definitions": ConnectorDefinitionsTable;
@@ -465,6 +508,9 @@ export type AdminAuditEvent = Selectable<AdminAuditEventsTable>;
 export type RlsProbeItem = Selectable<RlsProbeItemsTable>;
 export type Task = Selectable<TasksTable>;
 export type TaskActivity = Selectable<TaskActivityTable>;
+export type TaskList = Selectable<TaskListsTable>;
+export type TaskTag = Selectable<TaskTagsTable>;
+export type TaskPreferences = Selectable<TaskPreferencesTable>;
 export type Notification = Selectable<NotificationsTable>;
 export type NotificationRead = Selectable<NotificationReadsTable>;
 export type ConnectorProvider = Selectable<ConnectorDefinitionsTable>;
