@@ -49,7 +49,6 @@ export function createApiServer(options: CreateApiServerOptions = {}) {
   });
   const dataContext = new DataContextRunner(appDb);
   const AUTH_MAX = Number(process.env.JARVIS_RL_AUTH_MAX ?? 10);
-  const OAUTH_MAX = Number(process.env.JARVIS_RL_OAUTH_MAX ?? 5);
 
   // Register rate-limit first, then register all routes inside server.after() so the
   // plugin's onRoute hook is active when routes are added (Fastify defers plugin init
