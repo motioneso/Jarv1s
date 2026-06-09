@@ -62,7 +62,9 @@ export function registerChatLiveRoutes(
     if (!access) return reply;
 
     try {
-      await runtime.manager.clear(access.actorUserId);
+      const rawIncognito = (request.query as Record<string, unknown>).incognito;
+      const incognito = rawIncognito === "true" || rawIncognito === "1";
+      await runtime.manager.clear(access.actorUserId, incognito ? { incognito: true } : undefined);
 
       return reply.code(204).send();
     } catch (error) {

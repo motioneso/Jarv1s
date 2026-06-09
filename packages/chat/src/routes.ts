@@ -12,10 +12,15 @@ import {
   type GatewaySessionRecord,
   type SessionNotifier
 } from "@jarv1s/ai";
+import { ChatMemoryFactsRepository, type MemoryFact } from "@jarv1s/memory";
 
 import { ChatGatewayNotifier } from "./gateway-notifier.js";
 import { registerChatLiveRoutes } from "./live-routes.js";
 import { createChatSessionRuntime, type ChatEngineFactory } from "./live/runtime.js";
+import {
+  ChatUserMemorySettingsRepository,
+  type UserMemorySettings
+} from "./memory-settings-repository.js";
 import { registerMcpTransportRoute } from "./mcp-transport.js";
 import { ChatRepository } from "./repository.js";
 
@@ -45,6 +50,8 @@ export function registerChatRoutes(
   dependencies: ChatRoutesDependencies
 ): void {
   const repository = dependencies.repository ?? new ChatRepository();
+  const memorySettingsRepo = new ChatUserMemorySettingsRepository();
+  const factsRepo = new ChatMemoryFactsRepository();
 
   // Phase 2: proxy notifier — created before gateway so the gateway has a notifier
   // reference; real target is set after the manager is created.
@@ -145,6 +152,75 @@ export function registerChatRoutes(
       }
     }
   );
+
+  // ── Memory settings ────────────────────────────────────────────────────────
+
+  server.get("/api/chat/memory/settings", async (request, reply) => {
+    try {
+      const access = await dependencies.resolveAccessContext(request);
+      const settings = await dependencies.dataContext.withDataContext(access, (scopedDb) =>
+        memorySettingsRepo.getOrCreate(scopedDb, access.actorUserId)
+      );
+      return serializeSettings(settings);
+    } catch (error) {
+      return handleRouteError(error, reply);
+    }
+  });
+
+  server.patch("/api/chat/memory/settings", async (request, reply) => {
+    try {
+      const access = await dependencies.resolveAccessContext(request);
+      const patch = parseSettingsPatch(request.body);
+      const settings = await dependencies.dataContext.withDataContext(access, (scopedDb) =>
+        memorySettingsRepo.update(scopedDb, access.actorUserId, patch)
+      );
+      return serializeSettings(settings);
+    } catch (error) {
+      return handleRouteError(error, reply);
+    }
+  });
+
+  // ── Memory facts ───────────────────────────────────────────────────────────
+
+  server.get("/api/chat/memory/facts", async (request, reply) => {
+    try {
+      const access = await dependencies.resolveAccessContext(request);
+      const facts = await dependencies.dataContext.withDataContext(access, (scopedDb) =>
+        factsRepo.listActiveFacts(scopedDb, access.actorUserId)
+      );
+      return { facts: facts.map(serializeFact) };
+    } catch (error) {
+      return handleRouteError(error, reply);
+    }
+  });
+
+  server.delete<{ Params: { id: string } }>("/api/chat/memory/facts/:id", async (request, reply) => {
+    try {
+      const access = await dependencies.resolveAccessContext(request);
+      await dependencies.dataContext.withDataContext(access, (scopedDb) =>
+        factsRepo.deleteFact(scopedDb, request.params.id)
+      );
+      return reply.code(204).send();
+    } catch (error) {
+      return handleRouteError(error, reply);
+    }
+  });
+
+  server.patch<{ Params: { id: string } }>("/api/chat/memory/facts/:id", async (request, reply) => {
+    try {
+      const access = await dependencies.resolveAccessContext(request);
+      const importance = (request.body as Record<string, unknown>).importance;
+      if (typeof importance !== "number" || importance < 0 || importance > 1) {
+        return reply.code(400).send({ error: "importance must be a number between 0 and 1" });
+      }
+      await dependencies.dataContext.withDataContext(access, (scopedDb) =>
+        factsRepo.updateFactImportance(scopedDb, request.params.id, importance)
+      );
+      return reply.code(204).send();
+    } catch (error) {
+      return handleRouteError(error, reply);
+    }
+  });
 }
 
 function serializeThread(thread: ChatThread): ChatThreadDto {
@@ -155,6 +231,34 @@ function serializeThread(thread: ChatThread): ChatThreadDto {
     createdAt: toIsoString(thread.created_at),
     updatedAt: toIsoString(thread.updated_at)
   };
+}
+
+function serializeSettings(s: UserMemorySettings) {
+  return {
+    recallEnabled: s.recallEnabled,
+    factsEnabled: s.factsEnabled,
+    updatedAt: toIsoString(s.updatedAt)
+  };
+}
+
+function serializeFact(f: MemoryFact) {
+  return {
+    id: f.id,
+    category: f.category,
+    content: f.content,
+    importance: f.importance,
+    sourceThreadId: f.sourceThreadId,
+    createdAt: toIsoString(f.createdAt)
+  };
+}
+
+function parseSettingsPatch(body: unknown): { recallEnabled?: boolean; factsEnabled?: boolean } {
+  if (!body || typeof body !== "object" || Array.isArray(body)) return {};
+  const b = body as Record<string, unknown>;
+  const patch: { recallEnabled?: boolean; factsEnabled?: boolean } = {};
+  if (typeof b.recallEnabled === "boolean") patch.recallEnabled = b.recallEnabled;
+  if (typeof b.factsEnabled === "boolean") patch.factsEnabled = b.factsEnabled;
+  return patch;
 }
 
 function toIsoString(value: Date | string): string {

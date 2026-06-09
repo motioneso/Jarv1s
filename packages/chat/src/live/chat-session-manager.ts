@@ -40,7 +40,7 @@ export interface ChatPersistencePort {
     executed: { provider: ProviderKind; model: string }
   ): Promise<void>;
   /** Close the current conversation and open a fresh one (for /clear). */
-  openNewConversation(actorUserId: string): Promise<void>;
+  openNewConversation(actorUserId: string, options?: { incognito?: boolean }): Promise<void>;
 }
 
 export interface ChatSessionManagerDeps {
@@ -267,14 +267,14 @@ export class ChatSessionManager {
    * openNewConversation() clears the stored turns, nothing is replayed — a clean,
    * contextless reset that matches the "known path, no globbing" launch design.
    */
-  async clear(actorUserId: string): Promise<void> {
+  async clear(actorUserId: string, options?: { incognito?: boolean }): Promise<void> {
     const session = this.sessions.get(actorUserId);
     if (session) {
       await session.engine.kill();
       this.sessions.delete(actorUserId);
       this.deps.revokeMcpToken?.(actorUserId);
     }
-    await this.deps.persistence.openNewConversation(actorUserId);
+    await this.deps.persistence.openNewConversation(actorUserId, options);
   }
 
   /**

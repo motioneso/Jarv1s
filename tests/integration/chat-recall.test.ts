@@ -9,7 +9,8 @@ import {
   type JarvisDatabase
 } from "@jarv1s/db";
 import { ChatMemoryFactsRepository } from "@jarv1s/memory";
-import { ChatUserMemorySettingsRepository } from "@jarv1s/chat";
+import { ChatRepository, ChatUserMemorySettingsRepository } from "@jarv1s/chat";
+import { createApiServer } from "../../apps/api/src/server.js";
 import {
   connectionStrings,
   ids,
@@ -230,5 +231,109 @@ describe("ChatUserMemorySettingsRepository", () => {
       expect(updated.recallEnabled).toBe(false);
       expect(updated.factsEnabled).toBe(true);
     });
+  });
+});
+
+// ── Task 9: Memory controls REST API ─────────────────────────────────────────
+
+describe("Memory controls REST API", () => {
+  let appDb: Kysely<JarvisDatabase>;
+  let server: ReturnType<typeof createApiServer>;
+  const factsRepo = new ChatMemoryFactsRepository();
+  let dataContext: DataContextRunner;
+
+  beforeAll(async () => {
+    await resetFoundationDatabase();
+    appDb = createDatabase({ connectionString: connectionStrings.app, maxConnections: 1 });
+    dataContext = new DataContextRunner(appDb);
+    server = createApiServer({ appDb, logger: false });
+    await server.ready();
+  });
+
+  afterAll(async () => {
+    await Promise.allSettled([server?.close(), appDb?.destroy()]);
+  });
+
+  it("GET /api/chat/memory/settings returns defaults for a new user", async () => {
+    const res = await server.inject({
+      method: "GET",
+      url: "/api/chat/memory/settings",
+      headers: { authorization: `Bearer ${ids.sessionA}` }
+    });
+    expect(res.statusCode).toBe(200);
+    const body = res.json<{ recallEnabled: boolean; factsEnabled: boolean }>();
+    expect(body.recallEnabled).toBe(true);
+    expect(body.factsEnabled).toBe(true);
+  });
+
+  it("GET /api/chat/memory/settings returns 401 without auth", async () => {
+    const res = await server.inject({ method: "GET", url: "/api/chat/memory/settings" });
+    expect(res.statusCode).toBe(401);
+  });
+
+  it("PATCH /api/chat/memory/settings toggles recall off", async () => {
+    const res = await server.inject({
+      method: "PATCH",
+      url: "/api/chat/memory/settings",
+      headers: { authorization: `Bearer ${ids.sessionA}` },
+      payload: { recallEnabled: false }
+    });
+    expect(res.statusCode).toBe(200);
+    const body = res.json<{ recallEnabled: boolean; factsEnabled: boolean }>();
+    expect(body.recallEnabled).toBe(false);
+    expect(body.factsEnabled).toBe(true);
+  });
+
+  it("GET /api/chat/memory/facts returns empty list when no facts", async () => {
+    const res = await server.inject({
+      method: "GET",
+      url: "/api/chat/memory/facts",
+      headers: { authorization: `Bearer ${ids.sessionB}` }
+    });
+    expect(res.statusCode).toBe(200);
+    expect(res.json<{ facts: unknown[] }>().facts).toHaveLength(0);
+  });
+
+  it("DELETE /api/chat/memory/facts/:id removes a fact", async () => {
+    const fact = await dataContext.withDataContext(ctx(ids.userA), (scopedDb) =>
+      factsRepo.insertFact(scopedDb, ids.userA, { category: "preference", content: "REST delete test" })
+    );
+
+    const delRes = await server.inject({
+      method: "DELETE",
+      url: `/api/chat/memory/facts/${fact.id}`,
+      headers: { authorization: `Bearer ${ids.sessionA}` }
+    });
+    expect(delRes.statusCode).toBe(204);
+
+    const facts = await dataContext.withDataContext(ctx(ids.userA), (scopedDb) =>
+      factsRepo.listActiveFacts(scopedDb, ids.userA)
+    );
+    expect(facts.find((f) => f.id === fact.id)).toBeUndefined();
+  });
+
+  it("PATCH /api/chat/memory/facts/:id with invalid importance returns 400", async () => {
+    const res = await server.inject({
+      method: "PATCH",
+      url: "/api/chat/memory/facts/00000000-0000-4000-8000-000000000001",
+      headers: { authorization: `Bearer ${ids.sessionA}` },
+      payload: { importance: 2.5 }
+    });
+    expect(res.statusCode).toBe(400);
+    expect(res.json<{ error: string }>().error).toContain("importance");
+  });
+
+  it("POST /api/chat/clear?incognito=true opens an incognito thread", async () => {
+    const res = await server.inject({
+      method: "POST",
+      url: "/api/chat/clear?incognito=true",
+      headers: { authorization: `Bearer ${ids.sessionA}` }
+    });
+    expect(res.statusCode).toBe(204);
+
+    const thread = await dataContext.withDataContext(ctx(ids.userA), (scopedDb) =>
+      new ChatRepository().getCurrentThread(scopedDb, ids.userA)
+    );
+    expect(thread?.incognito).toBe(true);
   });
 });

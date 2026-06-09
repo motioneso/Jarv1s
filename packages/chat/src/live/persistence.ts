@@ -113,9 +113,15 @@ export class DataContextChatPersistence implements ChatPersistencePort {
     });
   }
 
-  async openNewConversation(actorUserId: string): Promise<void> {
+  async openNewConversation(
+    actorUserId: string,
+    options?: { incognito?: boolean }
+  ): Promise<void> {
     await this.run(actorUserId, "open-new-conversation", (scopedDb) =>
-      this.chat.openNewThread(scopedDb, { title: DEFAULT_CONVERSATION_TITLE })
+      this.chat.openNewThread(scopedDb, {
+        title: DEFAULT_CONVERSATION_TITLE,
+        incognito: options?.incognito
+      })
     );
   }
 
