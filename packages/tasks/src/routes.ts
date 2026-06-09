@@ -104,6 +104,45 @@ export function registerTasksRoutes(
     }
   });
 
+  // --- Preferences ---
+
+  server.get(
+    "/api/tasks/preferences",
+    { schema: getTaskPreferencesRouteSchema },
+    async (request, reply) => {
+      try {
+        const accessContext = await dependencies.resolveAccessContext(request);
+        const prefs = await dependencies.dataContext.withDataContext(accessContext, (scopedDb) =>
+          prefsRepository.getOrCreate(scopedDb)
+        );
+        return { preferences: serializeTaskPreferences(prefs) };
+      } catch (error) {
+        return handleRouteError(error, reply);
+      }
+    }
+  );
+
+  server.patch(
+    "/api/tasks/preferences",
+    { schema: updateTaskPreferencesRouteSchema },
+    async (request, reply) => {
+      try {
+        const accessContext = await dependencies.resolveAccessContext(request);
+        const body = requireObject(request.body);
+        const defaultView = body["defaultView"];
+        if (defaultView !== "priority" && defaultView !== "matrix") {
+          throw new HttpError(400, "defaultView must be priority or matrix");
+        }
+        const prefs = await dependencies.dataContext.withDataContext(accessContext, (scopedDb) =>
+          prefsRepository.update(scopedDb, defaultView)
+        );
+        return { preferences: serializeTaskPreferences(prefs) };
+      } catch (error) {
+        return handleRouteError(error, reply);
+      }
+    }
+  );
+
   server.get<{ Params: TaskParams }>(
     "/api/tasks/:id",
     { schema: getTaskRouteSchema },
@@ -214,45 +253,6 @@ export function registerTasksRoutes(
         const jobId = await dependencies.boss.send(TASKS_DEFERRED_STATUS_QUEUE, payload);
 
         return reply.code(202).send({ jobId });
-      } catch (error) {
-        return handleRouteError(error, reply);
-      }
-    }
-  );
-
-  // --- Preferences ---
-
-  server.get(
-    "/api/tasks/preferences",
-    { schema: getTaskPreferencesRouteSchema },
-    async (request, reply) => {
-      try {
-        const accessContext = await dependencies.resolveAccessContext(request);
-        const prefs = await dependencies.dataContext.withDataContext(accessContext, (scopedDb) =>
-          prefsRepository.getOrCreate(scopedDb)
-        );
-        return { preferences: serializeTaskPreferences(prefs) };
-      } catch (error) {
-        return handleRouteError(error, reply);
-      }
-    }
-  );
-
-  server.patch(
-    "/api/tasks/preferences",
-    { schema: updateTaskPreferencesRouteSchema },
-    async (request, reply) => {
-      try {
-        const accessContext = await dependencies.resolveAccessContext(request);
-        const body = requireObject(request.body);
-        const defaultView = body["defaultView"];
-        if (defaultView !== "priority" && defaultView !== "matrix") {
-          throw new HttpError(400, "defaultView must be priority or matrix");
-        }
-        const prefs = await dependencies.dataContext.withDataContext(accessContext, (scopedDb) =>
-          prefsRepository.update(scopedDb, defaultView)
-        );
-        return { preferences: serializeTaskPreferences(prefs) };
       } catch (error) {
         return handleRouteError(error, reply);
       }
