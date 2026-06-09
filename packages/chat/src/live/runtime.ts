@@ -46,6 +46,11 @@ export interface CreateChatSessionRuntimeDeps {
   readonly engineFactory?: ChatEngineFactory;
   /** Override the idle reap window (ms); defaults to 30 minutes. */
   readonly idleMs?: number;
+  /** Phase 2: MCP token lifecycle hooks — mint on engine launch, revoke on reap. */
+  readonly mcpTokenLifecycle?: {
+    readonly mint: (actorUserId: string, chatSessionId: string) => { token: string; mcpServerUrl: string };
+    readonly revoke: (chatSessionId: string) => void;
+  };
 }
 
 export interface ChatSessionRuntime {
@@ -71,7 +76,9 @@ export function createChatSessionRuntime(deps: CreateChatSessionRuntimeDeps): Ch
     clock: { now: () => Date.now() },
     idleMs: deps.idleMs ?? DEFAULT_IDLE_MS,
     neutralBase: resolveNeutralBase(),
-    persona: DEFAULT_JARVIS_PERSONA
+    persona: DEFAULT_JARVIS_PERSONA,
+    mintMcpToken: deps.mcpTokenLifecycle?.mint,
+    revokeMcpToken: deps.mcpTokenLifecycle?.revoke
   });
 
   return {

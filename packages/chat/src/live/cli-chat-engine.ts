@@ -32,12 +32,6 @@ import type { ChatRecordKind, CliChatEngine, EngineLaunchOpts, TranscriptRecord 
 /** Session name prefix used for all Jarv1s live tmux sessions. */
 const SESSION_PREFIX = "jarv1s-live-";
 
-/** The CLI binary that backs each provider kind. */
-const CLI_FOR: Record<ProviderKind, string> = {
-  anthropic: "claude",
-  "openai-compatible": "codex",
-  google: "gemini"
-};
 
 export interface TmuxCliChatEngineOpts {
   /** ms to let the CLI TUI finish booting before the first paste. */

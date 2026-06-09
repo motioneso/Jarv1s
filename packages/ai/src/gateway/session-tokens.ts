@@ -36,4 +36,13 @@ export class SessionTokenRegistry {
   revoke(token: string): void {
     this.tokens.delete(token);
   }
+
+  revokeBySessionId(chatSessionId: string): void {
+    for (const [token, identity] of this.tokens) {
+      if (identity.chatSessionId === chatSessionId) {
+        this.tokens.delete(token);
+        return;
+      }
+    }
+  }
 }
