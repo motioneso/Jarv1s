@@ -220,7 +220,9 @@ describe("Connectors encrypted foundation", () => {
     const cipher = createConnectorSecretCipher({ JARVIS_CONNECTOR_SECRET_KEY: "test-key" });
     const envelope = cipher.encryptJson({ data: "secret" });
     const tampered: EncryptedConnectorSecret = { ...envelope, keyId: "unknown-key-xyz" };
-    expect(() => cipher.decryptJson(tampered)).toThrow("Unknown connector secret key id: unknown-key-xyz");
+    expect(() => cipher.decryptJson(tampered)).toThrow(
+      "Unknown connector secret key id: unknown-key-xyz"
+    );
   });
 
   it("serves configured connector providers without secret material", async () => {

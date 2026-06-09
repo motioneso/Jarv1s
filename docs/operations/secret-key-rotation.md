@@ -24,14 +24,14 @@ immediate re-encryption of all rows so an old key can be retired promptly.
 
 ## Environment Variables
 
-| Variable | Purpose |
-|---|---|
-| `JARVIS_CONNECTOR_SECRET_KEY` | Current connector key secret (plaintext — hashed to 256 bits) |
-| `JARVIS_CONNECTOR_SECRET_KEY_ID` | Id of the current connector key (default: `"v1"`) |
-| `JARVIS_CONNECTOR_SECRET_KEYS` | JSON object of retired connector keys: `{"v1":"old-secret"}` |
-| `JARVIS_AI_SECRET_KEY` | Current AI key secret |
-| `JARVIS_AI_SECRET_KEY_ID` | Id of the current AI key (default: `"v1"`) |
-| `JARVIS_AI_SECRET_KEYS` | JSON object of retired AI keys |
+| Variable                         | Purpose                                                       |
+| -------------------------------- | ------------------------------------------------------------- |
+| `JARVIS_CONNECTOR_SECRET_KEY`    | Current connector key secret (plaintext — hashed to 256 bits) |
+| `JARVIS_CONNECTOR_SECRET_KEY_ID` | Id of the current connector key (default: `"v1"`)             |
+| `JARVIS_CONNECTOR_SECRET_KEYS`   | JSON object of retired connector keys: `{"v1":"old-secret"}`  |
+| `JARVIS_AI_SECRET_KEY`           | Current AI key secret                                         |
+| `JARVIS_AI_SECRET_KEY_ID`        | Id of the current AI key (default: `"v1"`)                    |
+| `JARVIS_AI_SECRET_KEYS`          | JSON object of retired AI keys                                |
 
 ---
 
@@ -46,7 +46,7 @@ openssl rand -base64 32
 
 ### Step 2 — Add the old key to the retired-keys map
 
-Add the *current* key to `JARVIS_*_SECRET_KEYS` before switching. This ensures old
+Add the _current_ key to `JARVIS_*_SECRET_KEYS` before switching. This ensures old
 envelopes remain decryptable during the transition.
 
 ```bash

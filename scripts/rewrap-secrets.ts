@@ -122,9 +122,7 @@ async function main(): Promise<void> {
           .where("id", "=", row.id)
           .execute();
         aiRewrapped++;
-        console.log(
-          `  ai_provider_configs row ${row.id} — rewrapped → keyId:${rewrapped.keyId}`
-        );
+        console.log(`  ai_provider_configs row ${row.id} — rewrapped → keyId:${rewrapped.keyId}`);
       }
     });
   }
