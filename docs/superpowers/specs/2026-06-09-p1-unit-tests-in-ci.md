@@ -1,6 +1,6 @@
 # Wire tests/unit into the Gate + CI — Design (P1 #51)
 
-**Status:** DRAFT (coordinator readiness, 2026-06-09) — needs Ben's sign-off
+**Status:** Approved for build (2026-06-09)
 **Date:** 2026-06-09  **Owner:** Ben  **Issue:** #51 (Part of epic #46)
 
 ## Context
@@ -41,15 +41,13 @@ from the gate and CI workflow.
 | 1 | Vitest config | Reuse root `vitest.config.ts` | The existing `include` glob + alias map already resolves `tests/unit`. No second config needed. |
 | 2 | Gate placement | Prepend `pnpm test:unit &&` **before** `pnpm db:migrate` in `verify:foundation` | Unit tests need no DB; failing fast before any DB work is cheaper and clearer. |
 | 3 | CI placement | No separate CI step needed | `verify:foundation` is already the single CI step. Extending the script string is sufficient. |
+| 4 | Gate position relative to `typecheck` | Run `test:unit` **after `typecheck`, before `db:migrate`** | Unit tests depend on compiled types resolving; running before typecheck can produce confusing import errors rather than a clean test failure. The added latency is negligible. |
 
-## Open Decisions — NEED BEN
+## Resolved Decisions (was open)
 
-**(A) Gate position: before or after `typecheck`?**
-Fork: run `test:unit` before `pnpm typecheck` (fail even faster on a logic error) vs. after
-(current typecheck-first order is lint → format:check → check:file-size → typecheck → ...).
-**Recommendation: after `typecheck`, before `db:migrate`.** Unit tests depend on compiled types
-resolving; running before typecheck can produce confusing import errors rather than a clean test
-failure. The added latency is negligible (~5–10 s for typecheck on a fast machine).
+**Gate position: after `typecheck`.** `test:unit` runs after `pnpm typecheck` and before
+`pnpm db:migrate` in the gate, so the order is lint → format:check → check:file-size → typecheck →
+test:unit → db:migrate → test:integration. Mechanical change.
 
 ## Approach
 

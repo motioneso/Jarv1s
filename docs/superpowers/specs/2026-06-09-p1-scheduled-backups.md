@@ -1,6 +1,6 @@
 # Scheduled, vault-inclusive backups — Design (P1 #56)
 
-**Status:** DRAFT (coordinator readiness, 2026-06-09) — needs Ben's sign-off
+**Status:** Approved for build (2026-06-09)
 **Date:** 2026-06-09  **Owner:** Ben  **Issue:** #56 (Part of epic #46)
 
 ---
@@ -108,44 +108,29 @@ Both thresholds are configurable via environment variables (`JARVIS_BACKUP_DAILY
 
 ---
 
-## Open Decisions — NEED BEN
+## Resolved Decisions (was open)
 
-### 1. Off-host copy destination (BLOCKING — must be decided before the script can be finalized)
+### 1. Off-host copy destination → rsync over SSH to the Tailscale Windows host
 
-The off-host copy is the most important decision and the one only Ben can make. Options:
+Off-host copy goes via **rsync over SSH to the Tailscale host `<remote-host>`** (Ben's Windows box,
+which already has OpenSSH configured). The destination stays **pluggable**: the script reads
+`JARVIS_BACKUP_OFFHOST_CMD` (default empty = skip) and runs it with the archive path substituted.
+The concrete invocation is an rsync-over-SSH command to that host. The **Windows SSH username and
+target path are supplied as environment at deploy time** — no secrets or host-specific credentials
+live in this spec or the script. (Documenting "no off-host copy configured" remains a valid interim
+state, but the chosen destination is the Tailscale Windows host.)
 
-| Option | Command | Notes |
-|---|---|---|
-| **NAS / network share** | `rsync -az --delete <archive> ben@nas:/path/to/backups/` | Simple if the NAS is always on the LAN/Tailnet. |
-| **External USB drive** | `rsync -az <archive> /mnt/backup-drive/` | Requires the drive to be mounted; script can skip gracefully if mount absent. |
-| **rclone to B2 / S3 / Dropbox / GDrive** | `rclone copy <archive> <remote>:jarv1s-backups/` | Works for any cloud provider; rclone handles encryption-in-transit. |
-| **SSH to another host** | `rsync -az -e ssh <archive> user@host:/path/` | Good if Ben has another always-on machine. |
-| **None (local only for now)** | — | Simplest; add off-host later. |
+### 2. Schedule time → 02:00 local, daily
 
-**Recommendation:** design for a **pluggable destination** — the script reads an env var
-`JARVIS_BACKUP_OFFHOST_CMD` (default empty = skip). When set, the script runs it with the
-archive path as `$1`. This decouples the decision from the script: Ben can set
-`JARVIS_BACKUP_OFFHOST_CMD="rsync -az {} ben@nas:/backups/"` or
-`JARVIS_BACKUP_OFFHOST_CMD="rclone copy {} b2:my-bucket/"` in the environment file without
-touching the script.
+The backup runs **daily at 02:00 local time** (`OnCalendar=*-*-* 02:00:00`, `Persistent=true`),
+avoiding collisions with daytime use and the Postgres-heavy integration test runs.
 
-Ben must choose and configure a real destination before this task can be closed. Documenting
-"no off-host copy configured" in `docs/operations/backup.md` is a valid interim state, but the
-decision must be explicit.
+### 3. Run user → `ben`
 
-### 2. Schedule time
-
-**Recommendation:** 02:00 local time daily. This avoids collisions with daytime use and the
-Postgres-heavy integration test runs. Ben should confirm this fits the machine's typical
-uptime/sleep schedule.
-
-### 3. Run user
-
-**Recommendation:** run the backup service as `ben` (not root). The `pg_dump` reads the DB
-over the network using the bootstrap URL (password via `PGPASSWORD`), so no Unix socket access
-or superuser is needed. The vault directory at `~/obsidian-vault` is readable by `ben`.
-Confirm that `backups/` is writable by the `ben` user (it currently lives under
-`~/Jarv1s/backups/`, which it is).
+The backup service runs as the **`ben`** user (not root). `pg_dump` reads the DB over the network
+using the bootstrap URL (password via `PGPASSWORD`), so no Unix socket access or superuser is needed;
+the vault at `~/obsidian-vault` and `backups/` under `~/Jarv1s/` are both
+readable/writable by `ben`.
 
 ---
 

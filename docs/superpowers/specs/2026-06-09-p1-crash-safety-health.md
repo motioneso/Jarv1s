@@ -1,6 +1,6 @@
 # Process Crash-Safety + an Honest /health — Design (P1 #54)
 
-**Status:** DRAFT (coordinator readiness, 2026-06-09) — needs Ben's sign-off
+**Status:** Approved for build (2026-06-09)
 **Date:** 2026-06-09  **Owner:** Ben  **Issue:** #54 (Part of epic #46)
 
 ## Context
@@ -52,24 +52,21 @@ on fatal error is the correct behavior (not in-process error swallowing).
 | 5 | Crash-handler exit | Log structured error, then `process.exit(1)` after a best-effort flush. | Clean non-zero exit = unambiguous "restart me" signal to compose/systemd. |
 | 6 | DB connection timeout | `connectionTimeoutMillis` default ~5000ms, env-overridable (`JARVIS_DB_CONNECT_TIMEOUT_MS`). | Fail fast on unreachable DB so readiness returns 503 instead of hanging. |
 
-## Open Decisions — NEED BEN
+## Resolved Decisions (was open)
 
-**(A) Readiness vs liveness — split into two endpoints, or one endpoint with component status?**
-Fork: (i) `/health` liveness + `/health/ready` readiness (two routes); (ii) single `/health` returning
-`{ok, components:{db, pgboss}}` with `503` on any failure.
-**Recommendation: the split (option i).** It's cheap — two tiny route handlers in the same file — and
-it's the convention every supervisor (compose `healthcheck`, k8s later) expects: liveness must never
-depend on DB (or a DB blip restart-loops the process), while readiness must. The split makes that
-guarantee structural rather than a code comment.
+**(A) Health split → two endpoints.** `GET /health` is liveness (always `200`, DB-independent) and
+`GET /health/ready` is readiness (checks DB + pg-boss; `200` when healthy, `503` with per-component
+status when not). Two tiny route handlers in the same file. This is the convention every supervisor
+(compose `healthcheck`, k8s later) expects: liveness must never depend on DB (or a DB blip
+restart-loops the process), while readiness must. The split makes that guarantee structural.
 
-**(B) Clean-exit-on-`uncaughtException` policy.**
-Fork: (i) log + `process.exit(1)` immediately; (ii) attempt graceful shutdown (close server/boss/pool)
-then exit; (iii) log and keep running.
-**Recommendation: option (i) with a *best-effort, time-boxed* shutdown.** On `uncaughtException`, the
-process is in an undefined state — Node docs say resuming is unsafe. Log the error via the structured
-logger, kick off `server.close()` / `boss.stop()` under a short timer (e.g. 2s), then `process.exit(1)`
-regardless. For `unhandledRejection`, same handler path. Never option (iii): a half-dead process that
-passes liveness is the exact failure this issue exists to kill.
+**(B) Crash-handler policy → log + best-effort drain + `process.exit(1)`.** Install both
+`unhandledRejection` and `uncaughtException` handlers in `apps/api` and `apps/worker`. On either,
+emit a structured log, kick off a best-effort, time-boxed (~2s) shutdown (`server.close()` /
+`boss.stop()`), then `process.exit(1)` regardless. On `uncaughtException` the process is in an
+undefined state, so resuming is never an option — a half-dead process that still passes liveness is
+the exact failure this issue exists to kill. Also add a DB pool `connectionTimeoutMillis` so an
+unreachable Postgres fails fast instead of hanging the readiness probe.
 
 ## Approach
 

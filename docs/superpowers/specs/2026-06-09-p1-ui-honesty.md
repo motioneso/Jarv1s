@@ -1,6 +1,6 @@
 # UI honesty pass — Design (P1 #60)
 
-**Status:** DRAFT (coordinator readiness, 2026-06-09) — needs Ben's sign-off
+**Status:** Approved for build (2026-06-09)
 **Date:** 2026-06-09  **Owner:** Ben  **Issue:** #60 (Part of epic #46)
 
 ## Context
@@ -55,28 +55,29 @@ then they must be disabled, clearly marked "coming soon", or removed. Investigat
   a disable. (Memory `settings-add-provider-flow`: target UX is "Add Provider → pick → Test", not
   raw-JSON paste.)
 
-## Open Decisions — NEED BEN (disable / coming-soon / remove, per surface)
+## Resolved Decisions (was open) — disable / coming-soon / remove, per surface
 
-Per-surface recommendation (confirm each):
+Per-surface resolution:
 
-| Surface | Recommendation | Why |
+| Surface | Decision | Why |
 | --- | --- | --- |
-| **Calendar page** | **Coming-soon state, keep nav** | Backend arrives Phase 3; keep the route + nav so the user knows it's planned. Replace body with a "Coming soon — calendar sync arrives in Phase 3" panel; keep the data query only if you want it to auto-light-up later (Decision 2). |
+| **Calendar page** | **Coming-soon state, keep nav** | Backend arrives Phase 3; keep the route + nav so the user knows it's planned. Replace body with a "Coming soon" panel via the shared `ComingSoon` component. |
 | **Email page** | **Coming-soon state, keep nav** | Same as Calendar. |
-| **Chat Facts panel** | **Coming-soon within the existing panel** | Keep the Memory panel + Recall toggle (real). Replace the "What Jarvis knows about you" facts list with a "Coming soon — Jarvis will remember facts in Phase 3" note; **disable the "Remember facts about me" toggle** (it controls a no-op). |
-| **Legacy connector token-paste form** | **REMOVE** | Pure dev scaffolding superseded by the real OAuth panel; a placeholder-token path that creates junk accounts. No coming-soon — the real replacement already ships. |
-| **AI `{"apiKey":"placeholder"}` default** | **Fix, not remove** | Backend is real. Minimum: drop the `placeholder` secret default → empty/`{}` with a non-secret placeholder hint. (Optional, larger: replace raw-JSON with a labeled API-key field — likely its own Phase-2/3 polish task, out of scope here.) |
+| **Chat Facts panel** | **Coming-soon within the existing panel; facts toggle disabled** | Keep the Memory panel + the real Recall toggle. Replace the "What Jarvis knows about you" facts list with a "coming soon" note; **disable the "Remember facts about me" facts toggle** (it controls a no-op). The real Recall toggle stays enabled. |
+| **Legacy connector token-paste form** | **REMOVE** | Pure dev scaffolding superseded by the real OAuth panel; a placeholder-token path that creates junk accounts. The real replacement already ships. |
+| **AI `{"apiKey":"placeholder"}` default** | **Clean, not remove** | Backend is real (M-A3). Drop the `placeholder` secret default → empty/`{}` with a non-secret placeholder hint. Keep the real M-A3 provider flow. |
 
-**NEED BEN — the two genuine forks:**
+**The two genuine forks, resolved:**
 
-1. **Facts toggle: disable vs hide?** Recommend **disable + "coming soon" caption** (keeps the
-   feature discoverable). Alternative: hide the facts section entirely until Phase 3.
-2. **Coming-soon mechanism: render-state vs route-removal vs feature flag?**
-   Recommend the **simplest honest option: a render-state swap** (the page/section renders a
-   `ComingSoon` panel instead of the live UI) with **no new flag infra** — the surfaces are statically
-   not-ready, so a runtime flag adds machinery for no benefit. Keep nav entries (so the roadmap is
-   visible). Reject route-removal (loses discoverability) and a feature-flag system (over-engineered
-   for a known-static state). Confirm you don't want the nav entries hidden too.
+1. **Facts toggle → disable (not hide).** Disable the facts toggle with a "coming soon" caption,
+   keeping the feature discoverable. The **real Recall toggle is kept enabled** (it is real).
+2. **Coming-soon mechanism → shared `ComingSoon` component (render-state swap), no flag infra.**
+   The page/section renders a shared `ComingSoon` component instead of the live UI, with no new
+   feature-flag machinery — the surfaces are statically not-ready. **Nav entries are kept** (so the
+   roadmap stays visible). Route-removal (loses discoverability) and a feature-flag system
+   (over-engineered for a known-static state) are both rejected.
+
+This pass touches `apps/web` broadly (calendar, email, chat, connectors, ai) and lands as **one PR**.
 
 ## Approach (concrete files + changes)
 
