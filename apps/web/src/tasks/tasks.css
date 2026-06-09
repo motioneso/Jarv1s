@@ -76,3 +76,26 @@
 .task-line-title { flex: 1; text-decoration: none; color: inherit; }
 .task-line-title:hover { text-decoration: underline; }
 .task-line-meta { display: flex; gap: 0.5rem; font-size: 0.78rem; color: var(--text-muted, #6b7280); }
+.task-matrix {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+}
+.matrix-cell {
+  border: 1px solid var(--border, #e5e7eb);
+  border-radius: 0.6rem;
+  padding: 0.85rem;
+  min-height: 9rem;
+}
+.matrix-cell.matrix-do { border-top: 3px solid #dc2626; }
+.matrix-cell.matrix-schedule { border-top: 3px solid #2563eb; }
+.matrix-cell.matrix-delegate { border-top: 3px solid #ca8a04; }
+.matrix-cell.matrix-eliminate { border-top: 3px solid #9ca3af; }
+.matrix-cell-header { display: flex; flex-direction: column; margin-bottom: 0.5rem; }
+.matrix-cell-title { font-weight: 600; }
+.matrix-cell-subtitle { font-size: 0.75rem; color: var(--text-muted, #6b7280); }
+.matrix-cell-list { list-style: none; margin: 0; padding: 0; }
+.matrix-empty { color: var(--text-muted, #9ca3af); font-size: 0.82rem; margin: 0.5rem 0 0; }
+@media (max-width: 720px) {
+  .task-matrix { grid-template-columns: minmax(0, 1fr); }
+}
