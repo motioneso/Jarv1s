@@ -133,27 +133,15 @@ importers:
 
   packages/ai:
     dependencies:
-      '@jarv1s/calendar':
-        specifier: workspace:*
-        version: link:../calendar
       '@jarv1s/db':
         specifier: workspace:*
         version: link:../db
-      '@jarv1s/email':
-        specifier: workspace:*
-        version: link:../email
       '@jarv1s/module-sdk':
         specifier: workspace:*
         version: link:../module-sdk
-      '@jarv1s/notifications':
-        specifier: workspace:*
-        version: link:../notifications
       '@jarv1s/shared':
         specifier: workspace:*
         version: link:../shared
-      '@jarv1s/tasks':
-        specifier: workspace:*
-        version: link:../tasks
       fastify:
         specifier: ^5.6.2
         version: 5.8.5
