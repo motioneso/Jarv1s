@@ -63,7 +63,6 @@ export function createJarvisAuthRuntime(
       resolveRequestAccessContext({
         request,
         auth,
-        appDb: options.appDb,
         legacySessions
       }),
     listConfiguredProviders: () => listConfiguredAuthProviders(env),
@@ -209,7 +208,6 @@ function createBetterAuthOptions(
 async function resolveRequestAccessContext(options: {
   readonly request: RequestAccessContextInput;
   readonly auth: ReturnType<typeof betterAuth>;
-  readonly appDb: Kysely<JarvisDatabase>;
   readonly legacySessions: AuthSessionResolver;
 }): Promise<AccessContext> {
   const requestId = options.request.id ?? randomUUID();
@@ -225,8 +223,6 @@ async function resolveRequestAccessContext(options: {
   if (!session) {
     throw new Error("Session is missing or expired");
   }
-
-  await ensureJarvisUserStillExists(options.appDb, session.user);
 
   return {
     actorUserId: session.user.id,
@@ -308,21 +304,6 @@ async function bootstrapFirstJarvisUser(
       })
       .execute();
   });
-}
-
-async function ensureJarvisUserStillExists(
-  appDb: Kysely<JarvisDatabase>,
-  user: BetterAuthUser
-): Promise<void> {
-  const existingUser = await appDb
-    .selectFrom("app.users")
-    .select("id")
-    .where("id", "=", user.id)
-    .executeTakeFirst();
-
-  if (!existingUser) {
-    throw new Error("Session is missing or expired");
-  }
 }
 
 function toWebHeaders(headers: Headers | IncomingHttpHeaders): Headers {

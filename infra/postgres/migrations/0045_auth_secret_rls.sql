@@ -73,12 +73,14 @@ CREATE POLICY users_auth_runtime
   USING (true)
   WITH CHECK (true);
 
+-- app_runtime can SELECT all user rows — needed for admin routes, workspace membership checks,
+-- and any other app logic that requires reading other users' profiles. Writes remain self-row only.
 DROP POLICY IF EXISTS users_app_runtime_select ON app.users;
 CREATE POLICY users_app_runtime_select
   ON app.users
   FOR SELECT
   TO jarvis_app_runtime
-  USING (id = app.current_actor_user_id());
+  USING (true);
 
 DROP POLICY IF EXISTS users_app_runtime_insert ON app.users;
 CREATE POLICY users_app_runtime_insert
