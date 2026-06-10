@@ -448,6 +448,8 @@ function serializeUser(user: User): UserDto {
     email: user.email,
     name: user.name,
     isInstanceAdmin: user.is_instance_admin,
+    status: user.status,
+    isBootstrapOwner: user.is_bootstrap_owner,
     createdAt: serializeDate(user.created_at),
     updatedAt: serializeDate(user.updated_at)
   };
