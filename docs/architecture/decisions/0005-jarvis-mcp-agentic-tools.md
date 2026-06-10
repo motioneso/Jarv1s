@@ -57,3 +57,21 @@ and **only** through it. Four load-bearing choices:
   self-hosted deploy; no crash-recovery is built.
 - Transport (HTTP-direct vs stdio-shim) is pending the spike; the in-process gateway and
   the module→tool contract hold regardless.
+
+## Deferred: Tool-catalog scaling seam
+
+`mcp-transport.ts` today returns the full tool catalog on every `tools/list` response —
+correct while the catalog is small (< 15 tools). When modules multiply, a full catalog
+on every request wastes tokens; Claude Code's own `ToolSearch` pattern solves this with
+a search primitive and on-demand schema loading (deferred registration).
+
+**Design intent:** when the total module-registered tool count reaches ~15–20, replace the
+full-catalog response with a two-step contract:
+
+1. `tools/list` returns a lightweight index (name + one-line description only).
+2. A new `tools/schema` call returns the full JSON Schema for one or more named tools on
+   demand, mirroring how ToolSearch loads deferred tool schemas.
+
+**Do not build this now.** The current catalog is well under the threshold. Record the
+seam here so the next contributor knows where to cut when the count crosses it, and does
+not mistake the full-catalog behavior for a permanent contract.
