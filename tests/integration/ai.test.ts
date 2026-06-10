@@ -621,6 +621,174 @@ async function readEncryptedCredential(providerId: string): Promise<EncryptedAiS
   }
 }
 
+describe("AI capability tier routing", () => {
+  let appDb: Kysely<JarvisDatabase>;
+  let dataContext: DataContextRunner;
+  let repository: AiRepository;
+  let server: ReturnType<typeof createApiServer>;
+  let sharedProviderId: string;
+
+  beforeAll(async () => {
+    await resetFoundationDatabase();
+    appDb = createDatabase({ connectionString: connectionStrings.app, maxConnections: 1 });
+    dataContext = new DataContextRunner(appDb);
+    repository = new AiRepository();
+    server = createApiServer({ appDb, logger: false });
+    await server.ready();
+
+    const providerRes = await server.inject({
+      method: "POST",
+      url: "/api/ai/providers",
+      headers: { authorization: `Bearer ${ids.sessionA}` },
+      payload: {
+        providerKind: "anthropic",
+        displayName: "Tier test provider",
+        credentialPayload: { apiKey: "tier-test-key" }
+      }
+    });
+    sharedProviderId = providerRes.json<{ provider: { id: string } }>().provider.id;
+  });
+
+  afterAll(async () => {
+    await Promise.allSettled([server?.close(), appDb?.destroy()]);
+  });
+
+  // Uses "json" capability — isolated from other tests by capability name
+  it("selects exact-tier match when available", async () => {
+    const interactiveRes = await server.inject({
+      method: "POST",
+      url: "/api/ai/models",
+      headers: { authorization: `Bearer ${ids.sessionA}` },
+      payload: {
+        providerConfigId: sharedProviderId,
+        providerModelId: "json-interactive",
+        displayName: "JSON Interactive",
+        capabilities: ["json"],
+        tier: "interactive"
+      }
+    });
+    const economyRes = await server.inject({
+      method: "POST",
+      url: "/api/ai/models",
+      headers: { authorization: `Bearer ${ids.sessionA}` },
+      payload: {
+        providerConfigId: sharedProviderId,
+        providerModelId: "json-economy",
+        displayName: "JSON Economy",
+        capabilities: ["json"],
+        tier: "economy"
+      }
+    });
+    const reasoningRes = await server.inject({
+      method: "POST",
+      url: "/api/ai/models",
+      headers: { authorization: `Bearer ${ids.sessionA}` },
+      payload: {
+        providerConfigId: sharedProviderId,
+        providerModelId: "json-reasoning",
+        displayName: "JSON Reasoning",
+        capabilities: ["json"],
+        tier: "reasoning"
+      }
+    });
+
+    expect(interactiveRes.statusCode).toBe(201);
+    expect(economyRes.statusCode).toBe(201);
+    expect(reasoningRes.statusCode).toBe(201);
+
+    const economyDto = economyRes.json<{ model: { id: string; tier: string } }>().model;
+    expect(economyDto.tier).toBe("economy");
+
+    const economyId = economyDto.id;
+    const interactiveId = interactiveRes.json<{ model: { id: string } }>().model.id;
+
+    const economySelected = await dataContext.withDataContext(userAContext(), (scopedDb) =>
+      repository.selectModelForCapability(scopedDb, "json", "economy")
+    );
+    expect(economySelected?.id).toBe(economyId);
+
+    const interactiveSelected = await dataContext.withDataContext(userAContext(), (scopedDb) =>
+      repository.selectModelForCapability(scopedDb, "json", "interactive")
+    );
+    expect(interactiveSelected?.id).toBe(interactiveId);
+  });
+
+  // Uses "vision" capability — only interactive configured, so economy request falls back
+  it("falls back up the tier ladder when exact tier is not configured", async () => {
+    const interactiveRes = await server.inject({
+      method: "POST",
+      url: "/api/ai/models",
+      headers: { authorization: `Bearer ${ids.sessionA}` },
+      payload: {
+        providerConfigId: sharedProviderId,
+        providerModelId: "vision-interactive",
+        displayName: "Vision Interactive",
+        capabilities: ["vision"],
+        tier: "interactive"
+      }
+    });
+    expect(interactiveRes.statusCode).toBe(201);
+    const interactiveId = interactiveRes.json<{ model: { id: string } }>().model.id;
+
+    const result = await dataContext.withDataContext(userAContext(), (scopedDb) =>
+      repository.selectModelForCapability(scopedDb, "vision", "economy")
+    );
+    expect(result?.id).toBe(interactiveId);
+    expect(result?.tier).toBe("interactive");
+  });
+
+  // Uses "summarization" capability — only reasoning configured, economy falls through entire ladder
+  it("returns the single configured model regardless of tier (single-model setup)", async () => {
+    const reasoningRes = await server.inject({
+      method: "POST",
+      url: "/api/ai/models",
+      headers: { authorization: `Bearer ${ids.sessionA}` },
+      payload: {
+        providerConfigId: sharedProviderId,
+        providerModelId: "summ-reasoning",
+        displayName: "Summary Reasoning",
+        capabilities: ["summarization"],
+        tier: "reasoning"
+      }
+    });
+    expect(reasoningRes.statusCode).toBe(201);
+    const reasoningId = reasoningRes.json<{ model: { id: string } }>().model.id;
+
+    const result = await dataContext.withDataContext(userAContext(), (scopedDb) =>
+      repository.selectModelForCapability(scopedDb, "summarization", "economy")
+    );
+    expect(result?.id).toBe(reasoningId);
+  });
+
+  // Uses "tool-use" capability for create/update; asserts tier in DTO
+  it("tier can be set on create and updated via PATCH", async () => {
+    const createRes = await server.inject({
+      method: "POST",
+      url: "/api/ai/models",
+      headers: { authorization: `Bearer ${ids.sessionA}` },
+      payload: {
+        providerConfigId: sharedProviderId,
+        providerModelId: "tool-economy",
+        displayName: "Tool Economy",
+        capabilities: ["tool-use"],
+        tier: "economy"
+      }
+    });
+    expect(createRes.statusCode).toBe(201);
+    const model = createRes.json<{ model: { id: string; tier: string } }>().model;
+    expect(model.tier).toBe("economy");
+
+    const updateRes = await server.inject({
+      method: "PATCH",
+      url: `/api/ai/models/${model.id}`,
+      headers: { authorization: `Bearer ${ids.sessionA}` },
+      payload: { tier: "interactive" }
+    });
+    expect(updateRes.statusCode).toBe(200);
+    expect(updateRes.json<{ model: { tier: string } }>().model.tier).toBe("interactive");
+  });
+});
+
 function userAContext(): AccessContext {
   return {
     actorUserId: ids.userA,

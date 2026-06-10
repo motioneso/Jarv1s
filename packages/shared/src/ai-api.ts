@@ -2,6 +2,7 @@ export type AiProviderKind = "openai-compatible" | "anthropic" | "google" | "oll
 export type AiProviderStatus = "active" | "error" | "disabled" | "revoked";
 export type AiAuthMethod = "cli" | "api_key";
 export type AiModelStatus = "active" | "disabled";
+export type AiModelTier = "reasoning" | "interactive" | "economy";
 export type AiModelCapability = "chat" | "tool-use" | "json" | "vision" | "summarization";
 export type AiCapabilityRouteReason = "matched-active-model" | "no-active-model";
 
@@ -29,6 +30,7 @@ export interface AiConfiguredModelDto {
   readonly displayName: string;
   readonly capabilities: readonly AiModelCapability[];
   readonly status: AiModelStatus;
+  readonly tier: AiModelTier;
   readonly createdAt: string;
   readonly updatedAt: string;
 }
@@ -136,6 +138,7 @@ export interface CreateAiConfiguredModelRequest {
   readonly displayName: string;
   readonly capabilities: readonly AiModelCapability[];
   readonly status?: AiModelStatus;
+  readonly tier?: AiModelTier;
 }
 
 export interface CreateAiConfiguredModelResponse {
@@ -147,6 +150,7 @@ export interface UpdateAiConfiguredModelRequest {
   readonly displayName?: string;
   readonly capabilities?: readonly AiModelCapability[];
   readonly status?: AiModelStatus;
+  readonly tier?: AiModelTier;
 }
 
 export interface UpdateAiConfiguredModelResponse {
@@ -224,6 +228,11 @@ export const aiModelStatusSchema = {
   enum: ["active", "disabled"]
 } as const;
 
+export const aiModelTierSchema = {
+  type: "string",
+  enum: ["reasoning", "interactive", "economy"]
+} as const;
+
 export const aiModelCapabilitySchema = {
   type: "string",
   enum: ["chat", "tool-use", "json", "vision", "summarization"]
@@ -296,6 +305,7 @@ const aiConfiguredModelSchema = {
     "displayName",
     "capabilities",
     "status",
+    "tier",
     "createdAt",
     "updatedAt"
   ],
@@ -309,6 +319,7 @@ const aiConfiguredModelSchema = {
     displayName: { type: "string" },
     capabilities: { type: "array", items: aiModelCapabilitySchema },
     status: aiModelStatusSchema,
+    tier: aiModelTierSchema,
     createdAt: { type: "string" },
     updatedAt: { type: "string" }
   }
@@ -482,7 +493,8 @@ export const createAiConfiguredModelRequestSchema = {
       minItems: 1,
       items: aiModelCapabilitySchema
     },
-    status: aiModelStatusSchema
+    status: aiModelStatusSchema,
+    tier: aiModelTierSchema
   }
 } as const;
 
@@ -497,7 +509,8 @@ export const updateAiConfiguredModelRequestSchema = {
       minItems: 1,
       items: aiModelCapabilitySchema
     },
-    status: aiModelStatusSchema
+    status: aiModelStatusSchema,
+    tier: aiModelTierSchema
   }
 } as const;
 

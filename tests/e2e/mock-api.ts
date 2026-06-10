@@ -870,6 +870,7 @@ function createMockAiModel(
     displayName: "Model",
     capabilities: ["chat"],
     status: "active",
+    tier: "interactive",
     createdAt: "2026-06-06T12:00:00.000Z",
     updatedAt: "2026-06-06T12:00:00.000Z",
     ...overrides

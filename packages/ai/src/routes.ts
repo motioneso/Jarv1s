@@ -24,6 +24,7 @@ import {
   type AiConfiguredModelDto,
   type AiModelCapability,
   type AiModelStatus,
+  type AiModelTier,
   type AiProviderConfigDto,
   type AiProviderKind,
   type AiProviderStatus,
@@ -83,6 +84,7 @@ const WRITABLE_PROVIDER_STATUSES = new Set<Exclude<AiProviderStatus, "revoked">>
 const AUTH_METHODS = new Set<AiAuthMethod>(["cli", "api_key"]);
 const CLI_PROVIDER_KINDS = new Set<CliProviderKind>(["anthropic", "openai-compatible", "google"]);
 const MODEL_STATUSES = new Set<AiModelStatus>(["active", "disabled"]);
+const MODEL_TIERS = new Set<AiModelTier>(["reasoning", "interactive", "economy"]);
 const MODEL_CAPABILITIES = new Set<AiModelCapability>([
   "chat",
   "tool-use",
@@ -231,7 +233,8 @@ export function registerAiRoutes(
             providerModelId: body.providerModelId,
             displayName: body.displayName,
             capabilities: body.capabilities,
-            status: body.status ?? "active"
+            status: body.status ?? "active",
+            tier: body.tier
           })
         );
 
@@ -254,7 +257,8 @@ export function registerAiRoutes(
             providerModelId: body.providerModelId,
             displayName: body.displayName,
             capabilities: body.capabilities,
-            status: body.status
+            status: body.status,
+            tier: body.tier
           })
         );
 
@@ -483,7 +487,8 @@ function parseCreateModelBody(body: unknown): CreateAiConfiguredModelRequest {
     providerModelId: requiredString(value.providerModelId, "providerModelId"),
     displayName: requiredString(value.displayName, "displayName"),
     capabilities: requiredCapabilities(value.capabilities, "capabilities"),
-    status: optionalModelStatus(value.status)
+    status: optionalModelStatus(value.status),
+    tier: optionalModelTier(value.tier)
   };
 }
 
@@ -497,7 +502,8 @@ function parseUpdateModelBody(body: unknown): UpdateAiConfiguredModelRequest {
       value.capabilities === undefined
         ? undefined
         : requiredCapabilities(value.capabilities, "capabilities"),
-    status: optionalModelStatus(value.status)
+    status: optionalModelStatus(value.status),
+    tier: optionalModelTier(value.tier)
   };
 }
 
@@ -610,6 +616,7 @@ function serializeModel(model: AiConfiguredModelSafeRow): AiConfiguredModelDto {
     displayName: model.display_name,
     capabilities: model.capabilities.map(parseCapability),
     status: model.status,
+    tier: model.tier,
     createdAt: serializeDate(model.created_at),
     updatedAt: serializeDate(model.updated_at)
   };
@@ -717,6 +724,17 @@ function optionalModelStatus(value: unknown): AiModelStatus | undefined {
   }
 
   throw new HttpError(400, "status must be active or disabled");
+}
+
+function optionalModelTier(value: unknown): AiModelTier | undefined {
+  if (value === undefined) {
+    return undefined;
+  }
+  if (typeof value === "string" && MODEL_TIERS.has(value as AiModelTier)) {
+    return value as AiModelTier;
+  }
+
+  throw new HttpError(400, "tier must be reasoning, interactive, or economy");
 }
 
 function requiredCapabilities(value: unknown, fieldName: string): AiModelCapability[] {
