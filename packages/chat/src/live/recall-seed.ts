@@ -2,6 +2,7 @@ export interface EpisodicChunk {
   readonly text: string;
   readonly date: string;
   readonly threadId: string;
+  readonly hybridScore: number;
 }
 
 export interface FactSummary {
@@ -22,27 +23,46 @@ export function applyRecencyDecay(daysAgo: number): number {
   return Math.exp(-LAMBDA * daysAgo);
 }
 
-/**
- * Render the <memory> seed block injected before the conversation replay.
- * Returns empty string if there is nothing to inject.
- */
+/** Approximate token count: 1 token ≈ 4 chars (±20% for typical prose). */
+export function estimateTokens(text: string): number {
+  return Math.ceil(text.length / 4);
+}
+
+export function trimToTokenBudget(
+  chunks: readonly EpisodicChunk[],
+  budgetTokens: number
+): readonly EpisodicChunk[] {
+  const sorted = [...chunks].sort((a, b) => a.hybridScore - b.hybridScore);
+  const kept: EpisodicChunk[] = [];
+  let used = 0;
+  for (const chunk of sorted.reverse()) {
+    const est = estimateTokens(chunk.text);
+    if (used + est > budgetTokens) break;
+    kept.push(chunk);
+    used += est;
+  }
+  return kept;
+}
+
 export function renderMemorySeedBlock(
   chunks: readonly EpisodicChunk[],
-  facts: readonly FactSummary[]
+  facts: readonly FactSummary[],
+  budgetTokens = 1500
 ): string {
-  if (chunks.length === 0 && facts.length === 0) return "";
+  const trimmedChunks = trimToTokenBudget(chunks, budgetTokens);
+  if (trimmedChunks.length === 0 && facts.length === 0) return "";
 
   const lines: string[] = ["<memory>"];
 
-  if (chunks.length > 0) {
+  if (trimmedChunks.length > 0) {
     lines.push("Recalled from past conversations (use as context; not the current conversation):");
-    for (const chunk of chunks) {
+    for (const chunk of trimmedChunks) {
       lines.push(`[${chunk.date}] ${chunk.text}`);
     }
   }
 
   if (facts.length > 0) {
-    if (chunks.length > 0) lines.push("");
+    if (trimmedChunks.length > 0) lines.push("");
     lines.push("What I know about you:");
     for (const fact of facts) {
       lines.push(`- ${fact.content}`);

@@ -104,7 +104,7 @@ export class RecallService implements RecallPort {
     let charCount = 0;
     for (const { chunk, date } of scored) {
       if (charCount + chunk.text.length > MAX_CHARS) break;
-      injected.push({ text: chunk.text, date, threadId: chunk.sourcePath });
+      injected.push({ text: chunk.text, date, threadId: chunk.sourcePath, hybridScore: score });
       charCount += chunk.text.length;
     }
 
