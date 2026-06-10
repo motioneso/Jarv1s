@@ -10,6 +10,7 @@ import {
   type AiAuthMethod,
   type AiConfiguredModelsTable,
   type AiModelStatus,
+  type AiModelTier,
   type AiProviderConfigsTable,
   type AiProviderKind,
   type AiProviderStatus,
@@ -44,6 +45,7 @@ export interface AiConfiguredModelSafeRow {
   readonly display_name: string;
   readonly capabilities: string[];
   readonly status: AiModelStatus;
+  readonly tier: AiModelTier;
   readonly created_at: Date;
   readonly updated_at: Date;
 }
@@ -74,6 +76,7 @@ export interface CreateAiModelInput {
   readonly displayName: string;
   readonly capabilities: readonly AiModelCapability[];
   readonly status?: AiModelStatus;
+  readonly tier?: AiModelTier;
 }
 
 export interface UpdateAiModelInput {
@@ -81,6 +84,7 @@ export interface UpdateAiModelInput {
   readonly displayName?: string;
   readonly capabilities?: readonly AiModelCapability[];
   readonly status?: AiModelStatus;
+  readonly tier?: AiModelTier;
 }
 
 export interface CreateAiAssistantActionInput {
@@ -218,6 +222,7 @@ export class AiRepository {
         display_name: input.displayName,
         capabilities: [...input.capabilities],
         status: input.status ?? "active",
+        tier: input.tier ?? "interactive",
         created_at: now,
         updated_at: now
       })
@@ -250,6 +255,9 @@ export class AiRepository {
     if (input.status !== undefined) {
       updates.status = input.status;
     }
+    if (input.tier !== undefined) {
+      updates.tier = input.tier;
+    }
 
     const updated = await scopedDb.db
       .updateTable("app.ai_configured_models")
@@ -263,10 +271,29 @@ export class AiRepository {
 
   async selectModelForCapability(
     scopedDb: DataContextDb,
-    capability: AiModelCapability
+    capability: AiModelCapability,
+    tier: AiModelTier = "interactive"
   ): Promise<AiConfiguredModelSafeRow | undefined> {
     assertDataContextDb(scopedDb);
 
+    const TIER_LADDER: AiModelTier[] = ["economy", "interactive", "reasoning"];
+    const startIndex = TIER_LADDER.indexOf(tier);
+    const tiersToTry = TIER_LADDER.slice(startIndex);
+
+    for (const t of tiersToTry) {
+      const model = await this.safeModelQuery(scopedDb)
+        .where("models.status", "=", "active")
+        .where("providers.status", "=", "active")
+        .where(sql<boolean>`${capability} = any(${sql.ref("models.capabilities")})`)
+        .where("models.tier", "=", t)
+        .orderBy("models.created_at", "desc")
+        .orderBy("models.id", "desc")
+        .executeTakeFirst();
+
+      if (model) return model;
+    }
+
+    // Final fallback: any active model matching the capability (single-model setups)
     return this.safeModelQuery(scopedDb)
       .where("models.status", "=", "active")
       .where("providers.status", "=", "active")
@@ -436,6 +463,7 @@ export class AiRepository {
         "models.display_name as display_name",
         "models.capabilities as capabilities",
         "models.status as status",
+        "models.tier as tier",
         "models.created_at as created_at",
         "models.updated_at as updated_at"
       ])

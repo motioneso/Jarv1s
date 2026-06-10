@@ -148,6 +148,7 @@ export type ConnectorAccountStatus = "active" | "error" | "revoked";
 export type AiProviderKind = "openai-compatible" | "anthropic" | "google" | "ollama" | "custom";
 export type AiProviderStatus = "active" | "error" | "disabled" | "revoked";
 export type AiModelStatus = "active" | "disabled";
+export type AiModelTier = "reasoning" | "interactive" | "economy";
 export type AiAssistantActionRisk = "write" | "destructive";
 export type AiAssistantActionStatus = "pending" | "confirmed" | "rejected" | "cancelled";
 export type ChatMessageRole = "user" | "assistant";
@@ -320,6 +321,7 @@ export interface AiConfiguredModelsTable {
   display_name: string;
   capabilities: TextArrayColumn;
   status: AiModelStatus;
+  tier: AiModelTier;
   created_at: TimestampColumn;
   updated_at: TimestampColumn;
 }

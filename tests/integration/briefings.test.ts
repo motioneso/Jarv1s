@@ -4,6 +4,7 @@ import type { PgBoss } from "pg-boss";
 import pg from "pg";
 
 import { createApiServer } from "../../apps/api/src/server.js";
+import { AiRepository, createAiSecretCipher } from "@jarv1s/ai";
 import {
   BRIEFINGS_RUN_QUEUE,
   BriefingsRepository,
@@ -424,6 +425,46 @@ describe("Briefings module M6 read-only scheduled summaries", () => {
         runKind: "manual"
       })
     ).rejects.toThrow("Repository access requires withDataContext");
+  });
+
+  it("records economy-tier AI model in source_metadata when configured", async () => {
+    const aiRepository = new AiRepository();
+    const providerRow = await dataContext.withDataContext(userAContext(), (scopedDb) =>
+      aiRepository.createProvider(scopedDb, {
+        providerKind: "anthropic",
+        displayName: "Economy summarizer",
+        encryptedCredential: createAiSecretCipher().encryptJson({ apiKey: "briefing-econ-key" })
+      })
+    );
+    const modelRow = await dataContext.withDataContext(userAContext(), (scopedDb) =>
+      aiRepository.createModel(scopedDb, {
+        providerConfigId: providerRow.id,
+        providerModelId: "econ-summarizer",
+        displayName: "Economy Summarizer",
+        capabilities: ["summarization"],
+        tier: "economy"
+      })
+    );
+
+    const definition = await dataContext.withDataContext(userAContext(), (scopedDb) =>
+      repository.createDefinition(scopedDb, {
+        title: "Economy tier briefing",
+        selectedToolNames: ["tasks.list"]
+      })
+    );
+
+    const run = await dataContext.withDataContext(userAContext(), (scopedDb) =>
+      repository.generateRun(scopedDb, definition.id, {
+        moduleManifests: getBuiltInModuleManifests(),
+        runKind: "manual"
+      })
+    );
+
+    expect(run?.status).toBe("succeeded");
+    const meta = run?.source_metadata as { aiModel: { id: string; tier: string } | null };
+    expect(meta.aiModel).not.toBeNull();
+    expect(meta.aiModel?.id).toBe(modelRow.id);
+    expect(meta.aiModel?.tier).toBe("economy");
   });
 });
 
