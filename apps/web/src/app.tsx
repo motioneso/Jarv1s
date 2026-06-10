@@ -59,6 +59,20 @@ export function App() {
     );
   }
 
+  if (
+    meQuery.error instanceof ApiError &&
+    meQuery.error.code === "account_pending_approval"
+  ) {
+    return <PendingApprovalScreen />;
+  }
+
+  if (
+    meQuery.error instanceof ApiError &&
+    meQuery.error.code === "account_deactivated"
+  ) {
+    return <DeactivatedScreen />;
+  }
+
   if (!meQuery.data) {
     return (
       <FatalState
@@ -109,6 +123,30 @@ function FatalState(props: { readonly message: string; readonly onRetry: () => v
         <button className="primary-button" type="button" onClick={props.onRetry}>
           Retry
         </button>
+      </section>
+    </main>
+  );
+}
+
+function PendingApprovalScreen() {
+  return (
+    <main className="center-screen">
+      <section className="auth-panel">
+        <h1>Jarv1s</h1>
+        <p>Your account is pending approval by an administrator.</p>
+        <p className="form-hint">You will be able to sign in once your account has been approved.</p>
+      </section>
+    </main>
+  );
+}
+
+function DeactivatedScreen() {
+  return (
+    <main className="center-screen">
+      <section className="auth-panel">
+        <h1>Jarv1s</h1>
+        <p className="form-error">Your account has been deactivated.</p>
+        <p className="form-hint">Please contact your administrator for assistance.</p>
       </section>
     </main>
   );

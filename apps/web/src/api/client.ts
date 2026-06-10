@@ -80,7 +80,8 @@ export interface SignInEmailRequest {
 export class ApiError extends Error {
   constructor(
     readonly status: number,
-    message: string
+    message: string,
+    readonly code?: string
   ) {
     super(message);
   }
@@ -497,7 +498,8 @@ async function requestJson<T>(path: string, options: ApiRequestOptions = {}): Pr
   });
 
   if (!response.ok) {
-    throw new ApiError(response.status, await readErrorMessage(response));
+    const { message: errorMessage, code } = await readErrorBody(response);
+    throw new ApiError(response.status, errorMessage, code);
   }
 
   if (response.status === 204) {
@@ -509,19 +511,24 @@ async function requestJson<T>(path: string, options: ApiRequestOptions = {}): Pr
   return text ? (JSON.parse(text) as T) : (undefined as T);
 }
 
-async function readErrorMessage(response: Response): Promise<string> {
+async function readErrorBody(response: Response): Promise<{ message: string; code?: string }> {
   const text = await response.text();
 
   if (!text) {
-    return response.statusText;
+    return { message: response.statusText };
   }
 
   try {
-    const parsed = JSON.parse(text) as { readonly error?: unknown; readonly message?: unknown };
-    const message = parsed.error ?? parsed.message;
-
-    return typeof message === "string" ? message : response.statusText;
+    const parsed = JSON.parse(text) as {
+      readonly error?: unknown;
+      readonly message?: unknown;
+      readonly code?: unknown;
+    };
+    const raw = parsed.error ?? parsed.message;
+    const message = typeof raw === "string" ? raw : response.statusText;
+    const code = typeof parsed.code === "string" ? parsed.code : undefined;
+    return { message, code };
   } catch {
-    return text;
+    return { message: text };
   }
 }
