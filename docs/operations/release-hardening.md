@@ -149,10 +149,15 @@ The smoke script runs:
 docker compose -f infra/docker-compose.yml config --quiet
 docker compose -f infra/docker-compose.yml up -d postgres --wait
 docker compose -f infra/docker-compose.yml run --rm migrate
-docker compose -f infra/docker-compose.yml up -d api web worker
+docker compose -f infra/docker-compose.yml up -d api web worker --wait
 ```
 
-It then polls `http://localhost:3000/health`.
+It then polls `http://localhost:3000/health`. The `api`, `worker`, and `web` services are
+configured with `restart: unless-stopped`, so a crash-exit self-heals without manual intervention.
+The `api` service also has a Docker `HEALTHCHECK` on `/health`; the `--wait` flag above blocks
+until that healthcheck passes before polling begins, making the smoke check reliable even when
+container startup (including `pnpm install`) is slow. The underlying cause — no persistent pnpm
+store across container restarts — is tracked in issue #67.
 
 The Compose services mount source code from the host but keep `node_modules` directories inside
 container-private volumes. This keeps container `pnpm install` runs from prompting to purge or
