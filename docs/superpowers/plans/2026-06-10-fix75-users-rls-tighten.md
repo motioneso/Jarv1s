@@ -12,19 +12,19 @@
 
 ## Consumer Audit (Why These Three Methods)
 
-| Method | Issue | Fix |
-|---|---|---|
-| `SettingsRepository.getUserById(userId)` | Uses plain Kysely (no GUC set) — even self-row reads return 0 rows after tightening | Replace with `SELECT * FROM app.get_user_by_id($1)` |
-| `SettingsRepository.listUsers()` | Reads all users; no GUC | Replace with `SELECT * FROM app.list_all_users()` |
-| `SettingsRepository.requireUser(userId)` | Checks existence of arbitrary user; no GUC | Replace with existence check via `app.get_user_by_id($1)` |
-| `SettingsRepository.countUsers()` | Already calls `app.count_all_users()` SD function | **No change** |
-| `connectors/src/routes.ts:requireAdmin()` | Uses plain `appDb` (Kysely, no GUC) — reads `id, is_instance_admin` from `app.users`; after tightening, `current_actor_user_id()` returns NULL → 0 rows → every connector admin call 401s | Replace with `app.get_user_by_id()` SD call; add `import { sql } from "kysely"` |
-| `chat.live.persistence.resolveUserName()` | Uses `assertDataContextDb` (GUC set via DataContextDb), self-row only | **No change** |
-| `auth/src/index.ts` bootstrap UPDATE | UPDATE via transaction with explicit `set_config` GUC before UPDATE | **No change** |
-| `bootstrapFirstJarvisUser` count+UPDATE | count via SD function; UPDATE with explicit GUC | **No change** |
-| `list_connector_account_safe_metadata()` | SD owned by `jarvis_migration_owner`; users has ENABLE not FORCE RLS, so owner bypasses | **No change** |
-| Connector admin policies `WHERE id = current_actor_user_id()` | Self-row sub-query in policy body | **No change** |
-| All module SQL `REFERENCES app.users(id)` | DDL foreign keys, not runtime SELECT | **No change** |
+| Method                                                        | Issue                                                                                                                                                                                     | Fix                                                                             |
+| ------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------- |
+| `SettingsRepository.getUserById(userId)`                      | Uses plain Kysely (no GUC set) — even self-row reads return 0 rows after tightening                                                                                                       | Replace with `SELECT * FROM app.get_user_by_id($1)`                             |
+| `SettingsRepository.listUsers()`                              | Reads all users; no GUC                                                                                                                                                                   | Replace with `SELECT * FROM app.list_all_users()`                               |
+| `SettingsRepository.requireUser(userId)`                      | Checks existence of arbitrary user; no GUC                                                                                                                                                | Replace with existence check via `app.get_user_by_id($1)`                       |
+| `SettingsRepository.countUsers()`                             | Already calls `app.count_all_users()` SD function                                                                                                                                         | **No change**                                                                   |
+| `connectors/src/routes.ts:requireAdmin()`                     | Uses plain `appDb` (Kysely, no GUC) — reads `id, is_instance_admin` from `app.users`; after tightening, `current_actor_user_id()` returns NULL → 0 rows → every connector admin call 401s | Replace with `app.get_user_by_id()` SD call; add `import { sql } from "kysely"` |
+| `chat.live.persistence.resolveUserName()`                     | Uses `assertDataContextDb` (GUC set via DataContextDb), self-row only                                                                                                                     | **No change**                                                                   |
+| `auth/src/index.ts` bootstrap UPDATE                          | UPDATE via transaction with explicit `set_config` GUC before UPDATE                                                                                                                       | **No change**                                                                   |
+| `bootstrapFirstJarvisUser` count+UPDATE                       | count via SD function; UPDATE with explicit GUC                                                                                                                                           | **No change**                                                                   |
+| `list_connector_account_safe_metadata()`                      | SD owned by `jarvis_migration_owner`; users has ENABLE not FORCE RLS, so owner bypasses                                                                                                   | **No change**                                                                   |
+| Connector admin policies `WHERE id = current_actor_user_id()` | Self-row sub-query in policy body                                                                                                                                                         | **No change**                                                                   |
+| All module SQL `REFERENCES app.users(id)`                     | DDL foreign keys, not runtime SELECT                                                                                                                                                      | **No change**                                                                   |
 
 `count_all_users()` still has real callers (`bootstrapFirstJarvisUser`, `/api/bootstrap/status`) — keep it; do not drop.
 
@@ -32,12 +32,12 @@
 
 ## File Map
 
-| File | Change |
-|---|---|
-| `tests/integration/release-hardening.test.ts` | Add regression test (RED on main, GREEN after fix) |
-| `infra/postgres/migrations/0047_users_rls_tighten.sql` | New migration: tighten policy + create 2 SD functions |
-| `packages/settings/src/repository.ts` | Update 3 methods to call SD functions |
-| `packages/connectors/src/routes.ts` | Add `import { sql } from "kysely"`; replace `requireAdmin()` direct table read with `app.get_user_by_id()` SD call |
+| File                                                   | Change                                                                                                             |
+| ------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------ |
+| `tests/integration/release-hardening.test.ts`          | Add regression test (RED on main, GREEN after fix)                                                                 |
+| `infra/postgres/migrations/0047_users_rls_tighten.sql` | New migration: tighten policy + create 2 SD functions                                                              |
+| `packages/settings/src/repository.ts`                  | Update 3 methods to call SD functions                                                                              |
+| `packages/connectors/src/routes.ts`                    | Add `import { sql } from "kysely"`; replace `requireAdmin()` direct table read with `app.get_user_by_id()` SD call |
 
 ---
 
@@ -46,14 +46,17 @@
 This test must FAIL on `origin/main` and PASS after migration 0047 is applied. Write it first.
 
 **Files:**
+
 - Modify: `tests/integration/release-hardening.test.ts`
 
 - [ ] **Step 1: Locate the insertion point**
 
 Open `tests/integration/release-hardening.test.ts`. Find the existing test at line ~394:
+
 ```
 it("denies app_runtime and worker_runtime direct SELECT on auth_sessions and auth_verifications", ...)
 ```
+
 Insert the new test immediately after it (before the closing `});` of the outer `describe`).
 
 - [ ] **Step 2: Add the regression test**
@@ -94,9 +97,11 @@ JARVIS_PGDATABASE=jarvis_fix75 vitest run tests/integration/release-hardening.te
 ```
 
 Expected: test FAILS with something like:
+
 ```
 AssertionError: expected '2' to be '1'
 ```
+
 (Both userA and userB visible because USING(true) ignores the GUC constraint)
 
 If the test PASSES here, stop — the hole doesn't exist as expected. Re-check the migration state of `jarvis_fix75` database (it may already have 0047 applied).
@@ -122,6 +127,7 @@ Co-Authored-By: Claude Sonnet 4.6 <noreply@anthropic.com>"
 ## Task 2 — Migration 0047: Tighten Policy + Add SD Helpers
 
 **Files:**
+
 - Create: `infra/postgres/migrations/0047_users_rls_tighten.sql`
 
 Follows the `count_all_users` / `resolve_auth_session` precedent from 0045/0046 exactly.
@@ -235,10 +241,12 @@ JARVIS_PGDATABASE=jarvis_fix75 pnpm db:migrate 2>&1 | tail -10
 ```
 
 Expected output ends with something like:
+
 ```
 Applied: 0047_users_rls_tighten.sql
 Migration complete.
 ```
+
 No errors.
 
 - [ ] **Step 3: Verify regression test now passes**
@@ -271,6 +279,7 @@ Co-Authored-By: Claude Sonnet 4.6 <noreply@anthropic.com>"
 ## Task 3 — Update SettingsRepository + connectors requireAdmin to Use the New Helpers
 
 **Files:**
+
 - Modify: `packages/settings/src/repository.ts`
 - Modify: `packages/connectors/src/routes.ts`
 
@@ -281,6 +290,7 @@ Three SettingsRepository methods and the connectors `requireAdmin` function chan
 Verify these three methods in `packages/settings/src/repository.ts`:
 
 `getUserById` (lines ~73-75):
+
 ```typescript
 async getUserById(userId: string): Promise<User | undefined> {
   return this.db.selectFrom("app.users").selectAll().where("id", "=", userId).executeTakeFirst();
@@ -288,6 +298,7 @@ async getUserById(userId: string): Promise<User | undefined> {
 ```
 
 `listUsers` (lines ~77-83):
+
 ```typescript
 async listUsers(): Promise<User[]> {
   return this.db
@@ -300,6 +311,7 @@ async listUsers(): Promise<User[]> {
 ```
 
 `requireUser` (lines ~398-407):
+
 ```typescript
 private async requireUser(userId: string, db: SettingsDb = this.db): Promise<void> {
   const user = await db
@@ -317,9 +329,11 @@ private async requireUser(userId: string, db: SettingsDb = this.db): Promise<voi
 - [ ] **Step 2: Verify `sql` is already imported**
 
 Check line 4 of `packages/settings/src/repository.ts`:
+
 ```typescript
 import { sql } from "kysely";
 ```
+
 It is. The `sql` tag is already used by `countUsers()` at line ~67. No new import needed.
 
 - [ ] **Step 3: Replace `getUserById`**
@@ -327,6 +341,7 @@ It is. The `sql` tag is already used by `countUsers()` at line ~67. No new impor
 Replace the existing `getUserById` method body:
 
 Old:
+
 ```typescript
 async getUserById(userId: string): Promise<User | undefined> {
   return this.db.selectFrom("app.users").selectAll().where("id", "=", userId).executeTakeFirst();
@@ -334,6 +349,7 @@ async getUserById(userId: string): Promise<User | undefined> {
 ```
 
 New:
+
 ```typescript
 async getUserById(userId: string): Promise<User | undefined> {
   const result = await sql<User>`SELECT * FROM app.get_user_by_id(${userId}::uuid)`.execute(
@@ -346,6 +362,7 @@ async getUserById(userId: string): Promise<User | undefined> {
 - [ ] **Step 4: Replace `listUsers`**
 
 Old:
+
 ```typescript
 async listUsers(): Promise<User[]> {
   return this.db
@@ -358,6 +375,7 @@ async listUsers(): Promise<User[]> {
 ```
 
 New:
+
 ```typescript
 async listUsers(): Promise<User[]> {
   const result = await sql<User>`SELECT * FROM app.list_all_users()`.execute(this.db);
@@ -368,6 +386,7 @@ async listUsers(): Promise<User[]> {
 - [ ] **Step 5: Replace `requireUser`**
 
 Old:
+
 ```typescript
 private async requireUser(userId: string, db: SettingsDb = this.db): Promise<void> {
   const user = await db
@@ -383,6 +402,7 @@ private async requireUser(userId: string, db: SettingsDb = this.db): Promise<voi
 ```
 
 New:
+
 ```typescript
 private async requireUser(userId: string, db: SettingsDb = this.db): Promise<void> {
   const result = await sql<{ id: string }>`SELECT id FROM app.get_user_by_id(${userId}::uuid)`.execute(
@@ -400,10 +420,13 @@ private async requireUser(userId: string, db: SettingsDb = this.db): Promise<voi
 Open `packages/connectors/src/routes.ts`. Check the imports at the top of the file — `sql` is NOT currently imported (only `Kysely` from `"kysely"`).
 
 Find the `"kysely"` import line and add `sql` to it. It will look something like:
+
 ```typescript
 import { Kysely } from "kysely";
 ```
+
 Change to:
+
 ```typescript
 import { Kysely, sql } from "kysely";
 ```
@@ -425,8 +448,12 @@ async function requireAdmin(
     .select(["id", "is_instance_admin"])
     .where("id", "=", accessContext.actorUserId)
     .executeTakeFirst();
-  if (!user) { throw new HttpError(401, "Session is missing or expired"); }
-  if (!user.is_instance_admin) { throw new HttpError(403, "Instance admin permission is required"); }
+  if (!user) {
+    throw new HttpError(401, "Session is missing or expired");
+  }
+  if (!user.is_instance_admin) {
+    throw new HttpError(403, "Instance admin permission is required");
+  }
   return accessContext;
 }
 ```
@@ -443,8 +470,12 @@ async function requireAdmin(
     SELECT id, is_instance_admin FROM app.get_user_by_id(${accessContext.actorUserId}::uuid)
   `.execute(dependencies.appDb);
   const user = result.rows[0];
-  if (!user) { throw new HttpError(401, "Session is missing or expired"); }
-  if (!user.is_instance_admin) { throw new HttpError(403, "Instance admin permission is required"); }
+  if (!user) {
+    throw new HttpError(401, "Session is missing or expired");
+  }
+  if (!user.is_instance_admin) {
+    throw new HttpError(403, "Instance admin permission is required");
+  }
   return accessContext;
 }
 ```
@@ -458,6 +489,7 @@ JARVIS_PGDATABASE=jarvis_fix75 vitest run tests/integration/auth-settings.test.t
 ```
 
 Expected: all tests pass. In particular:
+
 - "bootstraps the first Better Auth user as instance owner" — exercises `getUserById` via `requireKnownUser`
 - "keeps later users non-admin and protects admin APIs" — exercises `listUsers()` via `/api/admin/users`
 - "lets admins create workspaces, memberships, and settings" — exercises `requireUser` via `upsertWorkspaceMembership`
@@ -541,6 +573,7 @@ git diff origin/main..HEAD -- infra/postgres/migrations/0047_users_rls_tighten.s
 ```
 
 Confirm:
+
 - New policy `USING(id = app.current_actor_user_id())` — no wider-than-self-row reads for jarvis_app_runtime.
 - Both new functions have `SET search_path = app, pg_temp` — search-path injection hardened.
 - EXECUTE is REVOKED from PUBLIC then re-granted only to jarvis_app_runtime — no over-grant.
@@ -552,16 +585,16 @@ Confirm:
 
 **Spec requirement → task coverage:**
 
-| Requirement | Task |
-|---|---|
-| Tighten `users_app_runtime_select` to self-row | Task 2 (migration 0047) |
-| Add targeted SD helpers for the real admin paths | Task 2 (get_user_by_id, list_all_users) |
-| Decide count_all_users: keep (real callers exist) | Consumer audit + Task 2 comment |
-| Fix all raw `app.users` SELECT consumers (settings + connectors) | Task 3 (SettingsRepository 3 methods + connectors.requireAdmin) |
-| Regression test FAILS on main (count=2), PASSES on branch (count=1) | Task 1 (GUC=userA, count WHERE id IN {userA,userB}) |
-| Green gate before PR | Task 4 |
-| No stale concepts | count_all_users retained (still used); no new dead code introduced |
-| commit Co-Authored-By trailer | Every commit step |
+| Requirement                                                         | Task                                                               |
+| ------------------------------------------------------------------- | ------------------------------------------------------------------ |
+| Tighten `users_app_runtime_select` to self-row                      | Task 2 (migration 0047)                                            |
+| Add targeted SD helpers for the real admin paths                    | Task 2 (get_user_by_id, list_all_users)                            |
+| Decide count_all_users: keep (real callers exist)                   | Consumer audit + Task 2 comment                                    |
+| Fix all raw `app.users` SELECT consumers (settings + connectors)    | Task 3 (SettingsRepository 3 methods + connectors.requireAdmin)    |
+| Regression test FAILS on main (count=2), PASSES on branch (count=1) | Task 1 (GUC=userA, count WHERE id IN {userA,userB})                |
+| Green gate before PR                                                | Task 4                                                             |
+| No stale concepts                                                   | count_all_users retained (still used); no new dead code introduced |
+| commit Co-Authored-By trailer                                       | Every commit step                                                  |
 
 **Placeholder scan:** None found.
 

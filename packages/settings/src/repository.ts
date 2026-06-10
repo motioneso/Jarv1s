@@ -395,9 +395,9 @@ export class SettingsRepository {
   }
 
   private async requireUser(userId: string, db: SettingsDb = this.db): Promise<void> {
-    const result = await sql<{ id: string }>`SELECT id FROM app.get_user_by_id(${userId}::uuid)`.execute(
-      db
-    );
+    const result = await sql<{
+      id: string;
+    }>`SELECT id FROM app.get_user_by_id(${userId}::uuid)`.execute(db);
 
     if (!result.rows[0]) {
       throw new Error("User not found");
