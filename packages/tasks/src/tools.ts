@@ -60,7 +60,7 @@ export const taskListExecute: ToolExecute = async (scopedDb, input, _ctx): Promi
     tasks = tasks.filter((t) => taggedSet.has(t.id));
   }
 
-  return { data: { tasks: tasks.map(serializeTask) } };
+  return { data: { items: tasks.map(serializeTask) }, columnOrder: ["id", "title", "status", "dueAt", "priority"] };
 };
 
 export const taskGetExecute: ToolExecute = async (scopedDb, input, _ctx): Promise<ToolResult> => {
@@ -94,7 +94,7 @@ export const taskFocusExecute: ToolExecute = async (
 ): Promise<ToolResult> => {
   assertDataContextDb(scopedDb);
   const tasks = await drift.getFocus(scopedDb);
-  return { data: { tasks: tasks.map(serializeTask) } };
+  return { data: { items: tasks.map(serializeTask) }, columnOrder: ["id", "title", "status", "dueAt", "priority"] };
 };
 
 export const taskAtRiskExecute: ToolExecute = async (
@@ -104,7 +104,7 @@ export const taskAtRiskExecute: ToolExecute = async (
 ): Promise<ToolResult> => {
   assertDataContextDb(scopedDb);
   const tasks = await drift.getAtRisk(scopedDb);
-  return { data: { tasks: tasks.map(serializeTask) } };
+  return { data: { items: tasks.map(serializeTask) }, columnOrder: ["id", "title", "status", "dueAt", "priority"] };
 };
 
 export const taskOverdueExecute: ToolExecute = async (
@@ -114,7 +114,7 @@ export const taskOverdueExecute: ToolExecute = async (
 ): Promise<ToolResult> => {
   assertDataContextDb(scopedDb);
   const tasks = await drift.getOverdue(scopedDb);
-  return { data: { tasks: tasks.map(serializeTask) } };
+  return { data: { items: tasks.map(serializeTask) }, columnOrder: ["id", "title", "status", "dueAt", "priority"] };
 };
 
 export const taskListListsExecute: ToolExecute = async (
@@ -124,7 +124,7 @@ export const taskListListsExecute: ToolExecute = async (
 ): Promise<ToolResult> => {
   assertDataContextDb(scopedDb);
   const taskLists = await lists.list(scopedDb);
-  return { data: { lists: taskLists.map(serializeTaskList) } };
+  return { data: { items: taskLists.map(serializeTaskList) } };
 };
 
 export const taskListTagsExecute: ToolExecute = async (
@@ -135,7 +135,7 @@ export const taskListTagsExecute: ToolExecute = async (
   assertDataContextDb(scopedDb);
   const { listId } = input as { listId: string };
   const tags = await lists.listTags(scopedDb, listId);
-  return { data: { tags: tags.map(serializeTaskTag) } };
+  return { data: { items: tags.map(serializeTaskTag) } };
 };
 
 export const taskActivityExecute: ToolExecute = async (
@@ -146,5 +146,5 @@ export const taskActivityExecute: ToolExecute = async (
   assertDataContextDb(scopedDb);
   const { taskId } = input as { taskId: string };
   const activity = await repository.listActivity(scopedDb, taskId);
-  return { data: { activity: activity.map(serializeTaskActivity) } };
+  return { data: { items: activity.map(serializeTaskActivity) } };
 };
