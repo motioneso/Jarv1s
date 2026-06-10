@@ -18,8 +18,6 @@ import type {
   GetCalendarEventResponse,
   GetEmailMessageResponse,
   GetTaskPreferencesResponse,
-  CreateConnectorAccountRequest,
-  CreateConnectorAccountResponse,
   GoogleAuthorizeRequest,
   GoogleAuthorizeResponse,
   GoogleCompleteRequest,
@@ -420,15 +418,6 @@ export async function listBriefingRuns(id: string): Promise<ListBriefingRunsResp
 
 export async function listConnectorAccounts(): Promise<ListConnectorAccountsResponse> {
   return requestJson<ListConnectorAccountsResponse>("/api/connectors/accounts");
-}
-
-export async function createConnectorAccount(
-  input: CreateConnectorAccountRequest
-): Promise<CreateConnectorAccountResponse> {
-  return requestJson<CreateConnectorAccountResponse>("/api/connectors/accounts", {
-    method: "POST",
-    body: input
-  });
 }
 
 export async function updateConnectorAccount(
