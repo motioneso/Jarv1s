@@ -36,21 +36,40 @@ export class ConnectorSecretCipher {
       throw new Error("Unsupported connector secret envelope");
     }
 
-    const keyId = envelope.keyId ?? "legacy";
-    const key = this.keyring.keys.get(keyId);
+    const iv = Buffer.from(envelope.iv, "base64");
+    const tag = Buffer.from(envelope.tag, "base64");
+    const ciphertext = Buffer.from(envelope.ciphertext, "base64");
 
-    if (!key) {
-      throw new Error(`Unknown connector secret key id: ${keyId}`);
+    const tryKey = (key: Buffer): Buffer => {
+      const decipher = createDecipheriv("aes-256-gcm", key, iv);
+      decipher.setAuthTag(tag);
+      return Buffer.concat([decipher.update(ciphertext), decipher.final()]);
+    };
+
+    let rawPlaintext: Buffer;
+
+    if (envelope.keyId === undefined) {
+      // Legacy envelope: try current key first, then retired keys in order.
+      let decrypted: Buffer | undefined;
+      for (const candidate of this.keyring.legacyCandidates) {
+        try {
+          decrypted = tryKey(candidate);
+          break;
+        } catch {
+          // auth tag mismatch — try next candidate
+        }
+      }
+      if (!decrypted) {
+        throw new Error("Legacy connector secret envelope: no key could authenticate it");
+      }
+      rawPlaintext = decrypted;
+    } else {
+      const key = this.keyring.keys.get(envelope.keyId);
+      if (!key) throw new Error(`Unknown connector secret key id: ${envelope.keyId}`);
+      rawPlaintext = tryKey(key);
     }
 
-    const decipher = createDecipheriv("aes-256-gcm", key, Buffer.from(envelope.iv, "base64"));
-    decipher.setAuthTag(Buffer.from(envelope.tag, "base64"));
-
-    const plaintext = Buffer.concat([
-      decipher.update(Buffer.from(envelope.ciphertext, "base64")),
-      decipher.final()
-    ]);
-    const parsed = JSON.parse(plaintext.toString("utf8")) as unknown;
+    const parsed = JSON.parse(rawPlaintext.toString("utf8")) as unknown;
 
     if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
       throw new Error("Connector secret payload must be a JSON object");
