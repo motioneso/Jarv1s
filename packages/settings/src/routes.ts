@@ -410,6 +410,9 @@ export function registerSettingsRoutes(
     }
     if (id === accessContext.actorUserId)
       throw new HttpError(422, "You cannot delete your own account");
+    if (existing.is_bootstrap_owner)
+      throw new HttpError(409, "The bootstrap owner cannot be deleted");
+    if (existing.is_instance_admin) await repository.assertNotLastActiveAdmin(id);
     await deleteUserData({
       userId: id,
       confirmUserId: id,

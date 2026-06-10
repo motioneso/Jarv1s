@@ -6,6 +6,7 @@ import { createJarvisAuthRuntime, type JarvisAuthRuntime } from "@jarv1s/auth";
 import { createDatabase, type JarvisDatabase } from "@jarv1s/db";
 import type { Kysely } from "kysely";
 import { createApiServer } from "../../apps/api/src/server.js";
+import { SettingsRepository } from "../../packages/settings/src/repository.js";
 import { connectionStrings, resetEmptyFoundationDatabase } from "./test-database.js";
 
 describe("multi-user isolation", () => {
@@ -244,6 +245,77 @@ describe("multi-user isolation", () => {
         })
       ).statusCode
     ).toBe(409);
+  });
+
+  it("DELETE bootstrap owner by a second admin is rejected (409) and account still exists", async () => {
+    const admin = await signUp("Admin", "admin@example.com"); // bootstrap owner
+    await disableApproval();
+    const second = await signUp("Second", "second@example.com");
+
+    const client = new pg.Client({ connectionString: connectionStrings.bootstrap });
+    await client.connect();
+    await client.query(
+      `UPDATE app.users SET is_instance_admin = true, updated_at = now() WHERE id = $1`,
+      [second.id]
+    );
+    await client.end();
+
+    const secondCookie = await signIn("second@example.com");
+    const del = await server.inject({
+      method: "DELETE",
+      url: `/api/admin/users/${admin.id}`,
+      headers: { cookie: secondCookie }
+    });
+    expect(del.statusCode).toBe(409);
+
+    // Bootstrap owner account must still exist in the users list.
+    const listRes = await server.inject({
+      method: "GET",
+      url: "/api/admin/users",
+      headers: { cookie: secondCookie }
+    });
+    expect(listRes.statusCode).toBe(200);
+    const ids = listRes.json<{ users: { id: string }[] }>().users.map((u) => u.id);
+    expect(ids).toContain(admin.id);
+  });
+
+  it("DELETE last active admin is rejected (409 from assertNotLastActiveAdmin)", async () => {
+    const admin = await signUp("Admin", "admin@example.com"); // bootstrap owner + only admin
+    await disableApproval();
+    const second = await signUp("Second", "second@example.com");
+
+    const client = new pg.Client({ connectionString: connectionStrings.bootstrap });
+    await client.connect();
+    // Promote second to admin and strip bootstrap owner's admin flag so second is
+    // the SOLE active admin. This is the state the assertNotLastActiveAdmin guard
+    // must protect — it cannot be triggered via HTTP (the caller must be an active
+    // admin, which means the target has at least one peer), so verify at the repository
+    // layer directly against the real database.
+    await client.query(
+      `UPDATE app.users SET is_instance_admin = true, updated_at = now() WHERE id = $1`,
+      [second.id]
+    );
+    await client.query(
+      `UPDATE app.users SET is_instance_admin = false, updated_at = now() WHERE id = $1`,
+      [admin.id]
+    );
+    await client.end();
+
+    // second is now the sole active admin. The repository guard must throw 409.
+    const repo = new SettingsRepository(appDb);
+    await expect(repo.assertNotLastActiveAdmin(second.id)).rejects.toMatchObject({
+      statusCode: 409
+    });
+
+    // Sanity: with two active admins, the guard must NOT fire.
+    const client2 = new pg.Client({ connectionString: connectionStrings.bootstrap });
+    await client2.connect();
+    await client2.query(
+      `UPDATE app.users SET is_instance_admin = true, updated_at = now() WHERE id = $1`,
+      [admin.id]
+    );
+    await client2.end();
+    await expect(repo.assertNotLastActiveAdmin(second.id)).resolves.toBeUndefined();
   });
 });
 

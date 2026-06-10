@@ -626,6 +626,10 @@ export class SettingsRepository {
     return user;
   }
 
+  async assertNotLastActiveAdmin(excludingUserId: string): Promise<void> {
+    await this.assertAnotherActiveAdmin(this.db, excludingUserId);
+  }
+
   private async assertAnotherActiveAdmin(db: SettingsDb, excludingUserId: string): Promise<void> {
     const result = await sql<{ id: string }>`
       SELECT id FROM app.list_all_users()
