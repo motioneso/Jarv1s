@@ -31,9 +31,16 @@ This is the `start` skill's plan+build stages adapted for coordination mode.
 ## Procedure
 
 **0. Orient + guardrails.**
+- **Spawn-time env check (first).** Confirm you can resolve the skills you'll need
+  (`coordinated-build` itself, `coordinated-wrap-up`, `relay`). If a skill does NOT resolve by name
+  in your spawn environment, use the **absolute build-skill path** from your handoff doc and follow
+  it directly — don't silently proceed half-equipped.
 - Read your handoff doc and the spec it points at, IN FULL. Note your worktree/branch, the
-  coordinator label, and any collision notes.
-- `pnpm install` (fresh worktree). Confirm you are on your own branch, not `main`.
+  coordinator label, your **risk tier**, and any collision notes. A `security`-tier spec ships to a
+  higher bar (cross-model QA + Ben merge sign-off) — build defensively and document trust boundaries.
+- **Install only if needed:** `[ -d node_modules ] || pnpm install`. Worktrees share the pnpm
+  store; if `node_modules` already exists (e.g. you're a relay successor), don't re-install.
+  Confirm you are on your own branch, not `main`.
 - Run the agentmemory required recalls from CLAUDE.md for the work you're doing (state, plus the
   row matching RLS / migrations / AccessContext / integration-test / frontend).
 - Honor every CLAUDE.md **Hard Invariant**. Respect collision notes — **never assume a migration
@@ -57,13 +64,23 @@ This is the `start` skill's plan+build stages adapted for coordination mode.
   invariant, an ambiguous requirement, a missing dependency, a flaky gate you can't resolve.
   Message the coordinator with the specific question.
 
-**3. Self-monitor context.** At ~**70%** of your window: message the coordinator that you're
-relaying, then use the **`relay`** skill (commit work, write a continuation doc, spawn your
-successor in this same worktree, request reap). Relay early enough to write a clean handoff.
+**3. Self-monitor context on countable events.** Relay at **~80–100k tokens**, or **immediately**
+if you see a compaction summary in your own context (don't trust felt %). Message the coordinator
+that you're relaying, then use the **`relay`** skill (commit work, write a continuation doc, spawn
+your successor in this same worktree, request reap). Relay early enough to write a clean handoff.
+
+**3b. Pre-push fast checks (before EVERY push).** Cheap trio + fresh rebase catch most CI
+round-trips locally:
+```bash
+pnpm format:check && pnpm lint && pnpm typecheck
+git fetch origin main && git rebase origin/main
+```
+Fix anything red before pushing. This is in addition to your full gate at wrap-up.
 
 **4. Close out with `coordinated-wrap-up`.** When the spec's Exit Criteria are met: invoke the
-**`coordinated-wrap-up`** skill — clean tree, your own green gate, push, open PR, report the PR +
-verified evidence to the coordinator. Then stop. The coordinator owns QA, merge, board, and close.
+**`coordinated-wrap-up`** skill — clean tree, your own gate, push (after the pre-push trio), open
+PR, report the PR + verified evidence to the coordinator. Then stop. The coordinator owns QA,
+merge, board, and close.
 
 ## Red flags — STOP
 
@@ -73,7 +90,10 @@ verified evidence to the coordinator. Then stop. The coordinator owns QA, merge,
 - About to **decide a product/architecture fork** yourself → that's the coordinator's (or Ben's)
   call. Escalate.
 - About to **move the board / close an issue / merge** → not yours. Report to the coordinator.
-- About to push past ~70% context without relaying → you'll degrade and lose state. Relay now.
+- About to push past your relay threshold (~80–100k / compaction summary seen) without relaying →
+  you'll degrade and lose state. Relay now.
+- About to push **without the pre-push trio** (`format:check && lint && typecheck`) + fresh rebase →
+  you'll burn a CI round-trip. Run them first.
 
 ## Common mistakes
 

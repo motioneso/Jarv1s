@@ -18,8 +18,12 @@ Design: `docs/superpowers/specs/2026-06-09-dev-coordinator-design.md`.
 **Announce:** "Using coordinate to run the fleet." TodoWrite one item per phase.
 
 **Context discipline (read first):** you are the session that must NOT degrade. Never read raw
-gate logs or full diffs — delegate to a QA agent and consume its verdict. Keep state in the
-**manifest**, not your head. At your own threshold, self-handoff via `relay`.
+gate logs or full diffs — delegate to a QA agent and consume its verdict. Never let a plan body or
+QA verdict body enter your context — they live on the PR; read a one-line pointer. Keep state in
+the **manifest** (your working set — forget aggressively), not your head. **Relay on countable
+events** (~80–100k tokens OR every 2–3 merges), not on a felt percentage, which is known-unreliable.
+**Compaction tripwire:** if you ever see a compaction summary in your own context (the harness
+compacted your prior messages), **flush the manifest + `relay` immediately — merge nothing first.**
 
 ## Roles you orchestrate (skills)
 
@@ -57,6 +61,49 @@ Receive escalation → classify (hard/soft) → Agent(model: "opus", prompt: "<q
 **Agents:** tag your escalation messages with `[SECURITY]` / `[AUTH]` / `[DESIGN-FORK]` / `[CRIT]`
 to guarantee Opus routing.
 
+### Model tiering by role (where to spend, where to save)
+
+The run cost is dominated by the resident coordinator re-sending its context every turn — so the
+loop runs cheap and you spend up only where same-lens review demonstrably misses things.
+
+| Work | Model | Why |
+| ---- | ----- | --- |
+| Resident coordinator loop (dispatch, routing, supervise, merge bookkeeping) | **Sonnet** | ~90% is mechanical; Opus here is the single biggest $ waste |
+| Phase-0 collision/dependency map | **Opus** (one-shot subagent) | reasoning-heavy, done once |
+| Design-fork adjudication | **Opus** (one-shot subagent) | wrong call has data-loss/security cost |
+| **Security-tier QA** (the adversarial cross-model pass) | **Opus / cross-model** | same-lens Sonnet missed the CRITICALs in the real run — this is THE place to spend up |
+| Gate execution (lint/format/typecheck/migrate/test) | **CI — don't re-run** | CI already runs it; QA trusts `gh pr checks`, doesn't burn tokens re-executing |
+
+## Risk tiering — classify every spec by content (not judgment)
+
+Tier each queued spec in the manifest by **content triggers**, set at Phase 0 and carried on the
+handoff doc. The tier decides how hard the PR is verified and whether Ben must sign the merge.
+
+| Tier | Content triggers (any one matches) | What it gets |
+| ---- | ---------------------------------- | ------------ |
+| `routine` | none of the below — pure UI, docs, isolated non-shared module, no schema/auth/secret surface | standard QA agent (gate-via-CI + `/code-review` + exit-criteria); **auto-merge after green** |
+| `sensitive` | shared-table migration, cross-module contract change, data export/deletion paths, job-payload shape changes | standard QA **plus** explicit invariant check (DataContextDb/VaultContext, metadata-only payloads, module isolation); per-merge digest to Ben |
+| `security` | auth · sessions · tokens · RLS · secrets · password/credential handling · rate-limit · network-exposed surface · shared-table **schema** migrations touching policies | **cross-model (Opus) adversarial QA** that hunts *what's NOT tested / trust boundaries*, not just "does the gate pass"; **mandatory `gh pr comment` verdict before merge**; **Ben's explicit merge sign-off** (see Security-tier sign-off) |
+
+Tiering is mechanical: if a trigger word/surface appears in the spec or its diff, it IS that tier —
+no "it's probably fine" downgrade. When in doubt between two tiers, take the higher one.
+
+## Security-tier sign-off (first-class gate — Ben merges these)
+
+A `security`-tier PR is **never** auto-merged. Content triggers (not coordinator judgment) put it
+here, and the human is front-loaded **only** here:
+
+1. Spawn the cross-model **Opus** security QA agent (`coordinated-qa` with `tier=security`). It runs
+   `/security-review` + the adversarial "what's missing / what trust boundary is unproven" pass and
+   **posts its verdict to the PR via `gh pr comment`** (durable evidence, survives your relay).
+2. Surface the PR + the posted verdict pointer to Ben with an explicit ask: **"security-tier — your
+   merge sign-off?"** PAUSE. Do not merge on your own authority.
+3. Merge only after Ben's explicit OK, then do the normal GitHub bookkeeping.
+
+`routine` auto-merges after a green QA; `sensitive` auto-merges but ships Ben a per-merge digest.
+Maintain a **standing per-merge digest to Ben** (what landed, PR link, tier, verified exit codes)
+so the human has a continuous picture without being a gate on routine work.
+
 ## Phase 0a — Claim the single-coordinator lock (FIRST, before anything)
 
 There must be **exactly one** coordinator (a real two-coordinator incident happened 2026-06-09 —
@@ -66,9 +113,11 @@ a stale `Coordinator`-labelled pane woke on an agent's escalation and ran a para
 2. Verify uniqueness: `herdr pane list` must show **exactly one** pane labelled `Coordinator` (you).
    If another **active** pane already holds it, you are a DUPLICATE — **stand down**, message that
    pane, and do NOT run a second coordinate loop on the same run.
-3. Record the lock in the run manifest (pane-id + label `Coordinator`). Agents escalate to the
-   **label** `Coordinator` (stable across pane-id reflows — the `…-N` suffix changes when panes
-   close); you guarantee it resolves to exactly one pane for the life of the run.
+3. Record the lock in the run manifest as **pane-id + label** `Coordinator`. Authority is bound to
+   the **pane-id**, not the label: the label is *routing* (stable for agents to address), the
+   recorded `$HERDR_PANE_ID` is *authority* (who is actually allowed to merge). A label is a
+   spoofable string a stale pane can grab; the pane-id is not. Agents escalate to the label; **you
+   re-confirm your own pane-id against the manifest lock line before every merge** (Phase 3, step 0).
 
 ## Phase 0 — Readiness (with Ben)
 
@@ -131,9 +180,9 @@ between events to catch silent failures.
   few minutes `herdr pane list` (look for `agent_status` unknown/blocked, panes that died) and
   spot-`herdr pane read` anything suspicious — catch trust-prompt stalls and silent crashes a push
   would never report. Nudge or, if dead, re-spawn from the handoff doc.
-- **On an agent relay** (it hit ~70% context): it spawns its own successor in the same worktree
-  and asks to be reaped — confirm the successor is driving (`herdr pane read`), then **reap** the
-  old pane and update the manifest (pane id changed).
+- **On an agent relay** (it hit its countable-event threshold or saw a compaction summary): it
+  spawns its own successor in the same worktree and asks to be reaped — confirm the successor is
+  driving (`herdr pane read`), then **reap** the old pane and update the manifest (pane id changed).
 - Keep the manifest current after every state change — it is your memory.
 
 ## Phase 3 — Verify & merge (you own it all)
@@ -141,23 +190,52 @@ between events to catch silent failures.
 When an agent reports **done** (PR open + its own green evidence — which you do NOT trust on its
 own):
 
+0. **Pane-id authority check (before EVERY merge).** Re-read the manifest lock line and confirm
+   your own `$HERDR_PANE_ID` matches the recorded coordinator pane-id. If it does **not** match,
+   you are not the authoritative coordinator — **stand down, do not merge**, message the
+   `Coordinator` label. Label = routing; pane-id = authority. (A stale duplicate once grabbed the
+   label and ran a parallel merge loop — the pane-id check is what stops that.)
+
 1. **Spawn an ephemeral `coordinated-qa` agent** on the PR branch (`herdr agent start … -- claude
-   … coordinated-qa`). It runs the full gate + `/code-review` + `security-review` and returns a
-   **compact verdict**. Consume the verdict (cheap); **reap the QA agent.**
-2. **If RED / not merge-ready:** relay the blocking findings to the owning build agent to fix
-   (re-open its lane), or escalate to Ben if it's a design problem. Re-QA after the fix.
-3. **If GREEN:** apply the **merge order**. Rebase the PR on `origin/main`; if conflicts are
+   … coordinated-qa`), passing the spec's **risk tier**. QA **trusts CI for the mechanical gate**
+   (`gh pr checks`) and does NOT re-run `pnpm verify:foundation` unless CI is red — it spends tokens
+   on review only. By tier:
+   - `routine` / `sensitive`: **Sonnet** QA — `/code-review` + exit-criteria (+ invariant check for
+     `sensitive`). Compact verdict back to you.
+   - `security`: **cross-model Opus** QA (model escalation policy) — `/security-review` + an
+     adversarial *what's NOT tested / which trust boundary is unproven* pass. It **must `gh pr
+     comment` its verdict** before you act. (Same-lens Sonnet missed the CRITICALs in the real run;
+     this is the budgeted place to spend up.)
+   Consume the compact verdict (cheap — never the body); **reap the QA agent.**
+
+2. **CI waiver protocol (red checks are stop-the-line).** A PR with any red required check does NOT
+   merge. A failing check may be waived **only** if it is: (a) **proven** failing on `origin/main`
+   at the same SHA (not introduced by this PR), (b) **recorded in the manifest** `ci_waivers` field
+   (check name + SHA + proof), and (c) **Ben-approved**. No silent "compose-smoke is fine" pass.
+   **A check that fails twice = stop-the-line:** halt the lane, file a GitHub issue, escalate to Ben.
+
+3. **If RED / not merge-ready:** relay the blocking findings to the owning build agent to fix
+   (re-open its lane), or escalate to Ben if it's a design problem. Re-QA after the fix. (Failure
+   budget: 2 failed QA cycles on one lane → stop the lane, escalate to Ben.)
+
+4. **If GREEN:** apply the **merge order**. Rebase the PR on `origin/main`; if conflicts are
    non-trivial, task the **owning agent** to resolve them (it has the context) — don't hand-edit
    feature code yourself. After rebase, **re-verify the integrated result** with a fresh QA agent
-   (a clean PR can still break against newly-landed siblings).
-4. **Merge autonomously** once the integrated result is green:
+   (diff-scoped against the collision map — a clean PR can still break against newly-landed siblings).
+
+5. **Merge — by tier.** Re-confirm the pane-id authority check (step 0) still holds.
+   - `security`: **do NOT auto-merge** — surface the PR + the posted `gh pr comment` verdict to Ben
+     and get his **explicit merge sign-off** first (see Security-tier sign-off).
+   - `routine`: auto-merge after green. `sensitive`: auto-merge after green, then digest to Ben.
    ```bash
    gh pr merge <PR> --squash --delete-branch
    ```
    Then **GitHub bookkeeping** (source of truth): close the issue, check the epic's exit-criteria
    boxes, move the board item to **Done**, close the milestone if all its criteria are met. (Field
-   IDs are in the `start` skill's GitHub reference.)
-5. **Reap** the build agent and remove its worktree (`git worktree remove`). Release any
+   IDs are in the `start` skill's GitHub reference.) Add this merge to the **standing per-merge
+   digest to Ben** (PR link, tier, verified exit codes).
+
+6. **Reap** the build agent and remove its worktree (`git worktree remove`). Release any
    serialized successor now that its predecessor has landed. Update the manifest (`merged`).
 
 ## Phase 4 — Reap & report
@@ -170,10 +248,13 @@ own):
 
 ## Coordinator self-handoff (protect the long-lived session)
 
-At ~**70%** of YOUR context window:
+Relay on **countable events**, not a felt percentage: **~80–100k tokens consumed OR every 2–3
+merges**, whichever comes first. **Compaction tripwire:** if you see a compaction summary in your
+own context, you are already past safe — flush the manifest and relay **immediately**, and **merge
+nothing first**.
 
-1. Flush the manifest fully (every agent's status/pane/branch/PR, merge order, open escalations);
-   add a one-line "mid-doing" continuation note. Commit it.
+1. Flush the manifest fully (every agent's status/pane/branch/PR, merge order, ci_waivers, open
+   escalations); add a one-line "mid-doing" continuation note. Commit it.
 2. Use **`relay`**: `herdr-handoff` a **new coordinator** pane, bootstrap = "you are the new
    coordinator for run <run-id>; read `docs/coordination/<run-id>.md` IN FULL, invoke `coordinate`,
    re-adopt the live fleet (`herdr pane list` + labels), confirm you're driving, then kill my pane."
@@ -187,10 +268,17 @@ At ~**70%** of YOUR context window:
   verdict. This is the whole point.
 - **Merging on a build agent's self-report.** Merge only after an independent QA agent's verified
   green on the *integrated* result.
+- **Merging without re-confirming your pane-id** against the manifest lock line (Phase 3 step 0).
+  A matching label is not authority — a stale pane can hold the label.
+- **Auto-merging a `security`-tier PR**, or merging it without Ben's explicit sign-off and a posted
+  `gh pr comment` verdict. Content triggers put it there; the human gate is non-negotiable.
+- **Waiving a red CI check** without proving it red on `main` @ same SHA, recording it in
+  `ci_waivers`, and getting Ben's approval. A check failing twice = stop-the-line + file an issue.
 - **Two agents on one worktree/branch**, or assuming a migration number for a serialized spec.
 - **Letting the manifest drift** from reality — a stale manifest breaks your self-handoff.
 - **Hand-editing feature code** to "just fix it" — task the owning agent; you orchestrate.
-- **Pushing past ~70% of your own context** without relaying — you'll degrade the whole run.
+- **Continuing past your relay threshold** (~80–100k / 2–3 merges) — or merging after seeing a
+  compaction summary. Relay first; merge nothing.
 
 ## Quick reference
 
@@ -202,8 +290,12 @@ At ~**70%** of YOUR context window:
 | Talk to an agent | `herdr-pane-message` (`herdr agent send "<label>" "<text>"`) |
 | Liveness sweep | `herdr pane list` · `herdr pane read <pane> --source visible --lines 20` |
 | Reap a spent pane / worktree | kill pane · `git worktree remove .claude/worktrees/<slug>` |
+| Pane-id authority (pre-merge) | re-read manifest lock line · confirm `$HERDR_PANE_ID` matches |
+| CI gate (don't re-run) | `gh pr checks <PR>` — QA spends tokens on review, not re-execution |
 | Merge + close | `gh pr merge <PR> --squash --delete-branch` · `gh issue close` · board move |
+| Security-tier merge | spawn Opus QA → `gh pr comment` verdict → Ben sign-off → merge |
 | Stay resident | `ScheduleWakeup` tick between pushes |
+| Relay trigger | ~80–100k tokens OR 2–3 merges OR compaction summary seen (then merge nothing) |
 | Escalate to Opus | `Agent(model: "opus", prompt: "<question + context>")` — relay compact verdict |
 
 See also the design spec and CLAUDE.md (Hard Invariants, GitHub tracking, coordinating sessions).

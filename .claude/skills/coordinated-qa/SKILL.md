@@ -12,60 +12,95 @@ diffs, and the build agent must not grade its own work (verify-never-trust). So 
 throwaway agent — do the expensive verification on a branch you did not write, and hand back a
 **short verdict**. The coordinator consumes the verdict and reaps you.
 
-Your entire output to the coordinator is the compact verdict in step 4. Do not paste raw logs.
-**Communicate in caveman mode** (terse — drop articles/filler/pleasantries, keep full technical
-accuracy; invoke the `caveman` skill if registered) for the verdict and any narration, to save tokens.
+**Spend tokens on review, not on re-running the gate.** CI already executes the mechanical gate;
+duplicating it is the single biggest QA waste. You **trust `gh pr checks`** for gate pass/fail and
+spend your budget on what CI can't do: judgment review, invariant checking, and — for security
+tier — an adversarial cross-model hunt for what's NOT tested.
+
+Your output to the coordinator is the compact verdict in step 5, **and** (always) a `gh pr comment`
+posting it durably to the PR. Do not paste raw logs. **Communicate in caveman mode** (terse — drop
+articles/filler/pleasantries, keep full technical accuracy; invoke the `caveman` skill if
+registered) for the verdict and any narration, to save tokens.
 
 ## Inputs (from your handoff / bootstrap)
 
-- The **PR branch** (and/or worktree) to verify, the **spec** it implements, and the **coordinator
-  label** to report to.
+- The **PR branch** (and/or worktree) to verify, the **spec** it implements, the **risk tier**
+  (`routine` | `sensitive` | `security`), and the **coordinator label** to report to. If the tier
+  isn't given, infer it from the diff's content triggers and treat ambiguity as the higher tier.
 
 ## Procedure
 
-**1. Get on the branch.** Check out the PR branch (your own worktree/checkout), `pnpm install` if
-fresh. Confirm you're on the right HEAD (`git log --oneline -3`).
+**1. Get on the branch.** Check out the PR branch into a **fresh worktree/checkout** of your own
+(never an author's tree). `[ -d node_modules ] || pnpm install` (shared pnpm store — skip if
+present). Confirm you're on the right HEAD (`git log --oneline -3`).
 
-**2. Run the FULL gate — real exit codes.**
+**2. Trust CI for the mechanical gate — don't re-run it.**
 ```bash
-pnpm verify:foundation > /tmp/qa-vf.log 2>&1; echo "VF_EXIT=$?"
-pnpm audit:release-hardening > /tmp/qa-audit.log 2>&1; echo "AUDIT_EXIT=$?"
+gh pr checks <PR>          # required checks pass/fail
 ```
-- **Never** pipe a gate to `tail`/`grep` as the final stage — you'd capture the filter's exit code
-  and mask a failure. Redirect to a file, capture `$?`, read the exit code AND the summary line.
-- Run the **full** suite (a shared-table/contract change can break other modules). Re-run a known
-  flake (e.g. pg-boss worker-timeout) once before calling it red — don't wave it off either.
+- If **all required checks are green**, record their result and move to review. Do **NOT** run
+  `pnpm verify:foundation` / `audit:release-hardening` — CI already did; re-running duplicates cost
+  2–4× and adds nothing.
+- **Only if CI is red** do you reproduce locally to diagnose (real exit codes, never pipe a gate to
+  `tail`/`grep` as the final stage — capture `$?` + the summary line). A known flake (e.g. pg-boss
+  worker-timeout) gets one re-run before you call it red; don't wave it off either.
+- A red check is **stop-the-line** unless waivable per the coordinator's CI-waiver protocol (proven
+  red on `main` @ same SHA + recorded + Ben-approved) — that's the coordinator's call, not yours.
+  Report it red.
 
-**3. Review the diff.** Against `main`:
+**3. Review the diff (where your tokens go).** Against `main`:
 ```bash
 git fetch origin main && git diff --stat origin/main...HEAD
 ```
 - Run **`/code-review`** (correctness + reuse/simplification) on the diff.
-- Run **`security-review`** — pay special attention to CLAUDE.md Hard Invariants: no RLS bypass,
-  private-by-default, DataContextDb/VaultContext only, no secrets escaping (responses/logs/job
-  payloads/exports/prompts), metadata-only job payloads, provider-agnostic AI, module isolation,
-  migrations (never edited; module SQL in module `sql/`; no assumed migration numbers).
 - Confirm the diff actually covers the spec's **Exit Criteria**.
+- Check CLAUDE.md Hard Invariants: no RLS bypass, private-by-default, DataContextDb/VaultContext
+  only, no secrets escaping (responses/logs/job payloads/exports/prompts), metadata-only job
+  payloads, provider-agnostic AI, module isolation, migrations (never edited; module SQL in module
+  `sql/`; no assumed migration numbers).
 
-**4. Report the compact verdict to the coordinator** via `herdr-pane-message`, then stop:
+**4. Tier-specific depth.**
+- `routine`: steps 1–3 are enough.
+- `sensitive`: add an explicit invariant walk-through (DataContextDb/VaultContext, metadata-only
+  payloads, module isolation) naming each as ok/at-risk.
+- `security`: run **`/security-review`** AND an **adversarial "what's NOT tested" pass** — you are
+  spawned cross-model (Opus) precisely because same-lens review missed CRITICALs. Don't ask "does
+  the gate pass"; ask **"which trust boundary is unproven, what attack path has no test, what does
+  the happy-path test silently skip"** — auth bypass, RLS gaps, secret leakage, missing rate-limit,
+  token/session handling, negative/authz tests absent. List concrete omissions, not vibes.
+
+**5. Post the verdict to the PR, then report it to the coordinator.** ALWAYS `gh pr comment` first
+(durable evidence that survives the coordinator's relay; mandatory for `security` tier before any
+merge), then `herdr-pane-message` the same compact block to the coordinator label, then stop:
+
+```bash
+gh pr comment <PR> --body "QA verdict (<tier>): <paste the block below>"
+```
 
 ```
-QA <slug> — VERDICT: GREEN | RED
-gate: VF_EXIT=<n> AUDIT_EXIT=<n> (full suite[, flake X re-run pass])
+QA <slug> (<tier>) — VERDICT: GREEN | RED
+gate: CI <green|red> (gh pr checks)[ — reproduced locally: VF_EXIT=<n> AUDIT_EXIT=<n> only if CI red]
 review: <N blocking, M non-blocking>
   - BLOCKING: <file:line — one line each, or "none">
   - non-blocking: <one line each, or "none">
 invariants: <ok | which one is at risk>
 exit-criteria: <met | what's missing>
+not-tested (security tier): <unproven trust boundaries / missing tests, or "n/a">
 MERGE-READY: YES | NO  (NO if any blocking finding, red gate, or unmet criteria)
 ```
 
-**5. You will be reaped.** The coordinator kills your session after consuming the verdict. Don't
+**6. You will be reaped.** The coordinator kills your session after consuming the verdict. Don't
 start new work, don't merge, don't touch the board — verdict only.
 
 ## Red flags — STOP
 
-- Returning "green" from a piped exit code, or from a partial (single-module) run.
+- **Re-running `pnpm verify:foundation` when CI is already green** — that's the wasted-budget
+  anti-pattern. Trust `gh pr checks`; reproduce locally only when CI is red.
+- Returning "green" from a piped exit code, or (when you did reproduce) from a partial run.
+- **Skipping the `gh pr comment`** — the PR verdict is mandatory (durable evidence; hard gate for
+  security tier). Post it before you message the coordinator.
+- **Treating a `security`-tier PR as a gate-pass check** — your job there is the adversarial
+  what's-NOT-tested pass, not "CI green so ship it".
 - Pasting raw logs/diffs to the coordinator — that defeats the purpose. Verdict only.
 - Approving a diff that doesn't meet the spec's Exit Criteria, or that risks a Hard Invariant.
 - Merging or editing code — you verify, you don't change or land anything.
@@ -74,9 +109,11 @@ start new work, don't merge, don't touch the board — verdict only.
 
 | Need | Command / skill |
 | ---- | --------------- |
-| Gate (real exit) | `pnpm verify:foundation > /tmp/qa-vf.log 2>&1; echo "EXIT=$?"` then audit |
+| Gate (trust CI) | `gh pr checks <PR>` — reproduce locally ONLY if red |
 | Diff vs main | `git fetch origin main && git diff --stat origin/main...HEAD` |
-| Reviews | `/code-review` · `security-review` |
-| Report verdict | `herdr-pane-message` → coordinator label (compact block above) |
+| Reviews | `/code-review` (all tiers) · `/security-review` + "what's NOT tested" (security tier) |
+| Post verdict to PR | `gh pr comment <PR> --body "<compact block>"` (always; mandatory for security) |
+| Report verdict | `herdr-pane-message` → coordinator label (same compact block) |
 
-See also: `coordinate` (who spawns + reaps you), CLAUDE.md (Hard Invariants you check against).
+See also: `coordinate` (who spawns + reaps you, risk tiers, model tiering), CLAUDE.md (Hard
+Invariants you check against).
