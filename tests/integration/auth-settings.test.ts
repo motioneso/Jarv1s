@@ -7,6 +7,7 @@ import { createApiServer } from "../../apps/api/src/server.js";
 import { createDatabase, type JarvisDatabase } from "@jarv1s/db";
 import type { ListAdminAuditEventsResponse, ListModulesResponse, MeResponse } from "@jarv1s/shared";
 import { connectionStrings, resetEmptyFoundationDatabase } from "./test-database.js";
+import { createJarvisAuthRuntime, type JarvisAuthRuntime } from "@jarv1s/auth";
 
 describe("M3 auth, users, workspaces, settings", () => {
   const authEnvKeys = [
@@ -505,6 +506,7 @@ describe("M3 auth, users, workspaces, settings", () => {
 
 describe("multi-user registration + lifecycle (Phase 2 Slice A)", () => {
   let appDb: Kysely<JarvisDatabase>;
+  let authRuntime: JarvisAuthRuntime;
   let server: ReturnType<typeof createApiServer>;
 
   async function signUp(opts: { name: string; email: string; password: string }) {
@@ -519,12 +521,13 @@ describe("multi-user registration + lifecycle (Phase 2 Slice A)", () => {
   beforeEach(async () => {
     await resetEmptyFoundationDatabase();
     appDb = createDatabase({ connectionString: connectionStrings.app, maxConnections: 1 });
-    server = createApiServer({ appDb, logger: false });
+    authRuntime = createJarvisAuthRuntime({ appDb });
+    server = createApiServer({ appDb, authRuntime, logger: false });
     await server.ready();
   });
 
   afterEach(async () => {
-    await Promise.allSettled([server?.close(), appDb?.destroy()]);
+    await Promise.allSettled([server?.close(), authRuntime?.close(), appDb?.destroy()]);
   });
 
   it("rejects sign-up with 403 when registration.enabled is false (seeded directly)", async () => {
@@ -620,6 +623,19 @@ describe("multi-user registration + lifecycle (Phase 2 Slice A)", () => {
 
     expect(meRes.statusCode).toBe(403);
     expect(meRes.json<{ code?: string }>().code).toBe("account_deactivated");
+  });
+
+  it("revokeUserSessions deletes all of a user's sessions", async () => {
+    const member = await signUp({ name: "Member", email: "member@example.com", password: "password12345" });
+    const memberId = member.json<{ user: { id: string } }>().user.id;
+
+    // Sign-up creates a session; first call should delete at least 1.
+    const deleted = await authRuntime.revokeUserSessions(memberId);
+    expect(deleted).toBeGreaterThan(0);
+
+    // Second call finds nothing left — idempotent/safe.
+    const remaining = await authRuntime.revokeUserSessions(memberId);
+    expect(remaining).toBe(0);
   });
 });
 

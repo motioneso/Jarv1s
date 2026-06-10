@@ -45,6 +45,7 @@ export interface JarvisAuthRuntime {
   readonly auth: ReturnType<typeof betterAuth>;
   readonly resolveAccessContext: (request: RequestAccessContextInput) => Promise<AccessContext>;
   readonly listConfiguredProviders: () => readonly AuthProviderStatusDto[];
+  readonly revokeUserSessions: (userId: string) => Promise<number>;
   readonly close: () => Promise<void>;
 }
 
@@ -82,6 +83,13 @@ export function createJarvisAuthRuntime(
         appDb: options.appDb
       }),
     listConfiguredProviders: () => listConfiguredAuthProviders(env),
+    revokeUserSessions: async (userId: string) => {
+      const result = await pool.query(
+        "DELETE FROM app.better_auth_sessions WHERE user_id = $1",
+        [userId]
+      );
+      return result.rowCount ?? 0;
+    },
     close: () => pool.end()
   };
 }
