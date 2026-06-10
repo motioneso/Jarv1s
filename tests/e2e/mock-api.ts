@@ -815,7 +815,7 @@ export function createMockConnectorProviders(): ConnectorProviderDto[] {
   ];
 }
 
-function createMockConnectorAccount(
+export function createMockConnectorAccount(
   id: string,
   overrides: Partial<ConnectorAccountDto> = {}
 ): ConnectorAccountDto {
