@@ -38,8 +38,14 @@ pnpm audit:release-hardening > /tmp/cb-audit.log 2>&1; echo "AUDIT_EXIT=$?"
 - This is *your* check so the PR isn't dead-on-arrival; the coordinator re-verifies independently
   via a QA agent (verify-never-trust). Don't treat your green as the final word.
 
-### 3. Push + open the PR
+### 3. Pre-push fast checks + push + open the PR
 
+Before pushing, run the cheap trio + a fresh rebase (catches most CI round-trips locally):
+```bash
+pnpm format:check && pnpm lint && pnpm typecheck
+git fetch origin main && git rebase origin/main
+```
+Then push and open the PR:
 ```bash
 git push -u origin <your-branch>
 gh pr create --base main --head <your-branch> \
@@ -80,6 +86,7 @@ or tell the coordinator so it's captured. Don't store secrets.
 | ---- | ------- |
 | Clean tree (your paths) | `git status --porcelain` · `pnpm format` |
 | Gate (real exit) | `pnpm verify:foundation > /tmp/cb-vf.log 2>&1; echo "EXIT=$?"` then audit |
+| Pre-push trio + rebase | `pnpm format:check && pnpm lint && pnpm typecheck` · `git fetch origin main && git rebase origin/main` |
 | Push + PR | `git push -u origin <b>` · `gh pr create --base main` |
 | Report done | `herdr-pane-message` → coordinator label (PR link + exit codes) |
 
