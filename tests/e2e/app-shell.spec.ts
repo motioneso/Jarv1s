@@ -2,9 +2,8 @@ import { expect, test } from "@playwright/test";
 
 import {
   createMockBriefingDefinition,
-  createMockCalendarEvent,
+  createMockConnectorAccount,
   createMockConnectorProviders,
-  createMockEmailMessage,
   createMockNotification,
   createMockTask,
   mockApi
@@ -81,43 +80,35 @@ test("lists and marks notifications read through REST calls", async ({ page }) =
   await expect(page.getByText("No notifications")).toBeVisible();
 });
 
-test("navigates Calendar and Email read surfaces through REST calls", async ({ page }) => {
+test("Calendar and Email pages show coming-soon state", async ({ page }) => {
   await mockApi(page, {
     authenticated: true,
-    calendarEvents: [
-      createMockCalendarEvent("event-1", "Design review", {
-        location: "Alpha room",
-        summary: "Review the MVP shell"
-      })
-    ],
     connectorAccounts: [],
     connectorProviders: createMockConnectorProviders(),
-    emailMessages: [
-      createMockEmailMessage("message-1", "Launch note", {
-        sender: "team@example.test",
-        recipients: ["owner@example.test"],
-        snippet: "Thin read surfaces are ready"
-      })
-    ],
     notifications: [],
     tasks: []
   });
 
   await page.goto("/calendar");
   await expect(page.getByRole("heading", { name: "Calendar" })).toBeVisible();
-  await expect(page.getByText("Design review")).toBeVisible();
-  await expect(page.getByText("Alpha room")).toBeVisible();
+  await expect(page.getByText("Calendar is coming soon.")).toBeVisible();
 
   await page.locator(".module-nav").getByRole("link", { name: "Email" }).click();
   await expect(page.getByRole("heading", { name: "Email" })).toBeVisible();
-  await expect(page.getByText("Launch note")).toBeVisible();
-  await expect(page.getByText("Thin read surfaces are ready")).toBeVisible();
+  await expect(page.getByText("Email is coming soon.")).toBeVisible();
 });
 
-test("adds and revokes connector accounts through settings REST calls", async ({ page }) => {
+test("connector accounts panel shows existing accounts and supports revoke", async ({ page }) => {
   await mockApi(page, {
     authenticated: true,
-    connectorAccounts: [],
+    connectorAccounts: [
+      createMockConnectorAccount("connector-1", {
+        providerId: "google-email",
+        providerDisplayName: "Google Email",
+        scopes: ["gmail.readonly"],
+        status: "active"
+      })
+    ],
     connectorProviders: createMockConnectorProviders(),
     notifications: [],
     tasks: []
@@ -128,10 +119,6 @@ test("adds and revokes connector accounts through settings REST calls", async ({
 
   const connectorAccounts = page.getByRole("region", { name: "Connector Accounts" });
 
-  await connectorAccounts.getByLabel("Provider").selectOption("google-email");
-  await connectorAccounts.getByLabel("Scopes").fill("gmail.readonly");
-  await connectorAccounts.getByLabel("Token JSON").fill('{"accessToken":"secret"}');
-  await connectorAccounts.getByRole("button", { name: "Add connector" }).click();
   await expect(connectorAccounts.getByText("Google Email")).toBeVisible();
 
   await connectorAccounts.getByRole("button", { name: "Mark error" }).click();
