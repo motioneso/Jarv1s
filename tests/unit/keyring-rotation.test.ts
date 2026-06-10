@@ -8,13 +8,12 @@
  *   test (a) — should PASS on origin/main AND with fix (no regression)
  *   test (b) — should FAIL on origin/main, PASS with fix
  */
-import { createCipheriv, randomBytes } from "node:crypto";
 import { createHash } from "node:crypto";
 import { describe, expect, it } from "vitest";
 
 import { AiSecretCipher } from "@jarv1s/ai";
 import { ConnectorSecretCipher } from "@jarv1s/connectors";
-import { resolveKeyring, type Keyring } from "@jarv1s/db";
+import { resolveKeyring } from "@jarv1s/db";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -69,9 +68,7 @@ function makeConnectorCipher(env: NodeJS.ProcessEnv): ConnectorSecretCipher {
 }
 
 /** Produce a legacy-style (no keyId) version of a normal encrypted envelope. */
-function stripKeyId<T extends { keyId?: string }>(
-  envelope: T
-): Omit<T, "keyId"> & { keyId: undefined } {
+function stripKeyId<T extends { keyId?: string }>(envelope: T): T {
   return { ...envelope, keyId: undefined };
 }
 
