@@ -157,8 +157,7 @@ export function renderToolResult(result: ToolResult): string {
   const header = `| ${columns.join(" | ")} |`;
   const divider = `| ${columns.map(() => "---").join(" | ")} |`;
   const rows = items.map(
-    (row: Record<string, unknown>) =>
-      `| ${columns.map((c) => String(row[c] ?? "")).join(" | ")} |`
+    (row: Record<string, unknown>) => `| ${columns.map((c) => String(row[c] ?? "")).join(" | ")} |`
   );
   return [header, divider, ...rows].join("\n");
 }

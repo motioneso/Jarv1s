@@ -60,7 +60,10 @@ export const taskListExecute: ToolExecute = async (scopedDb, input, _ctx): Promi
     tasks = tasks.filter((t) => taggedSet.has(t.id));
   }
 
-  return { data: { items: tasks.map(serializeTask) }, columnOrder: ["id", "title", "status", "dueAt", "priority"] };
+  return {
+    data: { items: tasks.map(serializeTask) },
+    columnOrder: ["id", "title", "status", "dueAt", "priority"]
+  };
 };
 
 export const taskGetExecute: ToolExecute = async (scopedDb, input, _ctx): Promise<ToolResult> => {
@@ -94,7 +97,10 @@ export const taskFocusExecute: ToolExecute = async (
 ): Promise<ToolResult> => {
   assertDataContextDb(scopedDb);
   const tasks = await drift.getFocus(scopedDb);
-  return { data: { items: tasks.map(serializeTask) }, columnOrder: ["id", "title", "status", "dueAt", "priority"] };
+  return {
+    data: { items: tasks.map(serializeTask) },
+    columnOrder: ["id", "title", "status", "dueAt", "priority"]
+  };
 };
 
 export const taskAtRiskExecute: ToolExecute = async (
@@ -104,7 +110,10 @@ export const taskAtRiskExecute: ToolExecute = async (
 ): Promise<ToolResult> => {
   assertDataContextDb(scopedDb);
   const tasks = await drift.getAtRisk(scopedDb);
-  return { data: { items: tasks.map(serializeTask) }, columnOrder: ["id", "title", "status", "dueAt", "priority"] };
+  return {
+    data: { items: tasks.map(serializeTask) },
+    columnOrder: ["id", "title", "status", "dueAt", "priority"]
+  };
 };
 
 export const taskOverdueExecute: ToolExecute = async (
@@ -114,7 +123,10 @@ export const taskOverdueExecute: ToolExecute = async (
 ): Promise<ToolResult> => {
   assertDataContextDb(scopedDb);
   const tasks = await drift.getOverdue(scopedDb);
-  return { data: { items: tasks.map(serializeTask) }, columnOrder: ["id", "title", "status", "dueAt", "priority"] };
+  return {
+    data: { items: tasks.map(serializeTask) },
+    columnOrder: ["id", "title", "status", "dueAt", "priority"]
+  };
 };
 
 export const taskListListsExecute: ToolExecute = async (

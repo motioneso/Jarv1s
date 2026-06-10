@@ -4,7 +4,12 @@ import { renderToolResult } from "../../packages/module-sdk/src/index.js";
 describe("renderToolResult", () => {
   it("renders a uniform flat list as a Markdown pipe table with columns sorted alphabetically", () => {
     const result = renderToolResult({
-      data: { items: [{ id: "1", name: "alpha" }, { id: "2", name: "beta" }] }
+      data: {
+        items: [
+          { id: "1", name: "alpha" },
+          { id: "2", name: "beta" }
+        ]
+      }
     });
     expect(result).toBe("| id | name |\n| --- | --- |\n| 1 | alpha |\n| 2 | beta |");
   });

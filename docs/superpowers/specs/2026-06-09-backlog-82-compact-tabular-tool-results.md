@@ -1,7 +1,7 @@
 # Gateway Tool Results: Compact Tabular Serialization for List-Shaped Payloads — Design (Backlog #82)
 
 **Status:** Draft — awaiting Ben approval
-**Date:** 2026-06-09  **Owner:** Ben  **Issue:** #82
+**Date:** 2026-06-09 **Owner:** Ben **Issue:** #82
 
 ---
 
@@ -62,14 +62,14 @@ The MCP transport (`packages/ai/src/gateway/gateway.ts` + `mcp-transport.ts`) se
 
 ## Resolved Decisions
 
-| # | Decision | Choice | Why |
-|---|----------|--------|-----|
-| 1 | Detection signal | Shape-based: `data.items` is an array AND every element has the same flat key set (no nested objects, no arrays) | No per-module annotation needed; most list tools already return `{ items: [...] }`. |
-| 2 | Renderer location | Utility function `renderToolResult(data)` in `@jarv1s/module-sdk` | Module-SDK has no problematic deps; gateway imports it without creating a new dep direction. No `node:*` imports needed (pure string manipulation). |
-| 3 | Tabular format | Markdown pipe-table (header + divider + one row per item) | Human-readable in logs; models parse it accurately; standard format. |
-| 4 | Fallback | `JSON.stringify(data, null, 2)` for non-uniform / nested payloads | Unchanged behavior for everything that doesn't fit the uniform-list shape. |
-| 5 | Migration scope | Tasks read tools only (issue #82 acceptance); other modules in follow-on | Proves the convention without a big-bang change. |
-| 6 | Column order | Alphabetical (deterministic); modules may specify a preferred order via `ToolResult.columnOrder?: string[]` | Deterministic is better than insertion-order surprises; power users may want control. |
+| #   | Decision          | Choice                                                                                                           | Why                                                                                                                                                 |
+| --- | ----------------- | ---------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1   | Detection signal  | Shape-based: `data.items` is an array AND every element has the same flat key set (no nested objects, no arrays) | No per-module annotation needed; most list tools already return `{ items: [...] }`.                                                                 |
+| 2   | Renderer location | Utility function `renderToolResult(data)` in `@jarv1s/module-sdk`                                                | Module-SDK has no problematic deps; gateway imports it without creating a new dep direction. No `node:*` imports needed (pure string manipulation). |
+| 3   | Tabular format    | Markdown pipe-table (header + divider + one row per item)                                                        | Human-readable in logs; models parse it accurately; standard format.                                                                                |
+| 4   | Fallback          | `JSON.stringify(data, null, 2)` for non-uniform / nested payloads                                                | Unchanged behavior for everything that doesn't fit the uniform-list shape.                                                                          |
+| 5   | Migration scope   | Tasks read tools only (issue #82 acceptance); other modules in follow-on                                         | Proves the convention without a big-bang change.                                                                                                    |
+| 6   | Column order      | Alphabetical (deterministic); modules may specify a preferred order via `ToolResult.columnOrder?: string[]`      | Deterministic is better than insertion-order surprises; power users may want control.                                                               |
 
 ## Approach
 
@@ -78,7 +78,7 @@ The MCP transport (`packages/ai/src/gateway/gateway.ts` + `mcp-transport.ts`) se
 ```ts
 export interface ToolResult {
   readonly data: Record<string, unknown>;
-  readonly columnOrder?: readonly string[];  // optional preferred column order
+  readonly columnOrder?: readonly string[]; // optional preferred column order
 }
 
 /**
@@ -94,14 +94,13 @@ export function renderToolResult(result: ToolResult): string {
   }
 
   const columns = columnOrder
-    ? [...columnOrder, ...Object.keys(items[0]).filter(k => !columnOrder.includes(k))]
+    ? [...columnOrder, ...Object.keys(items[0]).filter((k) => !columnOrder.includes(k))]
     : Object.keys(items[0]).sort();
 
   const header = `| ${columns.join(" | ")} |`;
   const divider = `| ${columns.map(() => "---").join(" | ")} |`;
   const rows = items.map(
-    (row: Record<string, unknown>) =>
-      `| ${columns.map(c => String(row[c] ?? "")).join(" | ")} |`
+    (row: Record<string, unknown>) => `| ${columns.map((c) => String(row[c] ?? "")).join(" | ")} |`
   );
   return [header, divider, ...rows].join("\n");
 }
