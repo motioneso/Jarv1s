@@ -7,7 +7,9 @@ export const queryKeys = {
   settings: {
     providers: ["settings", "providers"] as const,
     workspaces: ["settings", "workspaces"] as const,
-    adminConnectorAccounts: ["settings", "admin", "connector-accounts"] as const
+    adminConnectorAccounts: ["settings", "admin", "connector-accounts"] as const,
+    adminUsers: ["settings", "admin", "users"] as const,
+    registrationSettings: ["settings", "admin", "registration"] as const
   },
   connectors: {
     providers: ["connectors", "providers"] as const,

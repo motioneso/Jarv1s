@@ -140,7 +140,10 @@ describe("MVP foundation scaffold", () => {
         { version: "0046", name: "0046_auth_sessions_rls.sql" },
         { version: "0047", name: "0047_users_rls_tighten.sql" },
         { version: "0048", name: "0048_ai_model_tier.sql" },
-        { version: "0049", name: "0049_chat_conversation_summary.sql" }
+        { version: "0049", name: "0049_chat_conversation_summary.sql" },
+        { version: "0050", name: "0050_multi_user_accounts.sql" },
+        { version: "0051", name: "0051_fix_current_actor_user_id_grant.sql" },
+        { version: "0052", name: "0052_fix_admin_select_policy.sql" }
       ]);
     } finally {
       await client.end();

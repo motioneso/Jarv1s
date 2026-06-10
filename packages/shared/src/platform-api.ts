@@ -3,6 +3,8 @@ export interface UserDto {
   readonly email: string;
   readonly name: string;
   readonly isInstanceAdmin: boolean;
+  readonly status: "pending" | "active" | "deactivated";
+  readonly isBootstrapOwner: boolean;
   readonly createdAt: string;
   readonly updatedAt: string;
 }
@@ -238,12 +240,23 @@ const moduleSchema = {
 const userSchema = {
   type: "object",
   additionalProperties: false,
-  required: ["id", "email", "name", "isInstanceAdmin", "createdAt", "updatedAt"],
+  required: [
+    "id",
+    "email",
+    "name",
+    "isInstanceAdmin",
+    "status",
+    "isBootstrapOwner",
+    "createdAt",
+    "updatedAt"
+  ],
   properties: {
     id: { type: "string" },
     email: { type: "string" },
     name: { type: "string" },
     isInstanceAdmin: { type: "boolean" },
+    status: { type: "string", enum: ["pending", "active", "deactivated"] },
+    isBootstrapOwner: { type: "boolean" },
     createdAt: { type: "string" },
     updatedAt: { type: "string" }
   }
@@ -360,7 +373,8 @@ export const listModulesRouteSchema = {
         modules: { type: "array", items: moduleSchema }
       }
     },
-    401: errorResponseSchema
+    401: errorResponseSchema,
+    403: errorResponseSchema
   }
 } as const;
 
@@ -613,6 +627,104 @@ export const upsertInstanceSettingRouteSchema = {
       }
     },
     400: errorResponseSchema,
+    401: errorResponseSchema,
+    403: errorResponseSchema
+  }
+} as const;
+
+export interface RegistrationSettingsDto {
+  readonly registrationEnabled: boolean;
+  readonly requiresApproval: boolean;
+}
+
+const registrationSettingsSchema = {
+  type: "object",
+  additionalProperties: false,
+  required: ["registrationEnabled", "requiresApproval"],
+  properties: {
+    registrationEnabled: { type: "boolean" },
+    requiresApproval: { type: "boolean" }
+  }
+} as const;
+
+export const adminUserActionRouteSchema = {
+  params: {
+    type: "object",
+    additionalProperties: false,
+    required: ["id"],
+    properties: { id: { type: "string" } }
+  },
+  response: {
+    200: {
+      type: "object",
+      additionalProperties: false,
+      required: ["user"],
+      properties: { user: userSchema }
+    },
+    401: errorResponseSchema,
+    403: errorResponseSchema,
+    404: errorResponseSchema,
+    409: errorResponseSchema,
+    422: errorResponseSchema
+  }
+} as const;
+
+export const adminDeleteUserRouteSchema = {
+  params: {
+    type: "object",
+    additionalProperties: false,
+    required: ["id"],
+    properties: { id: { type: "string" } }
+  },
+  response: {
+    200: {
+      type: "object",
+      additionalProperties: false,
+      required: ["deletedUserId"],
+      properties: { deletedUserId: { type: "string" } }
+    },
+    401: errorResponseSchema,
+    403: errorResponseSchema,
+    404: errorResponseSchema,
+    409: errorResponseSchema,
+    422: errorResponseSchema
+  }
+} as const;
+
+export const adminRejectUserRouteSchema = {
+  params: {
+    type: "object",
+    additionalProperties: false,
+    required: ["id"],
+    properties: { id: { type: "string" } }
+  },
+  response: {
+    200: {
+      type: "object",
+      additionalProperties: false,
+      required: ["rejectedUserId"],
+      properties: { rejectedUserId: { type: "string" } }
+    },
+    401: errorResponseSchema,
+    403: errorResponseSchema,
+    404: errorResponseSchema,
+    409: errorResponseSchema,
+    422: errorResponseSchema
+  }
+} as const;
+
+export const getRegistrationSettingsRouteSchema = {
+  response: {
+    200: registrationSettingsSchema,
+    401: errorResponseSchema,
+    403: errorResponseSchema
+  }
+} as const;
+
+export const putRegistrationSettingsRouteSchema = {
+  body: registrationSettingsSchema,
+  response: {
+    200: registrationSettingsSchema,
     401: errorResponseSchema,
     403: errorResponseSchema
   }

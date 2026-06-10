@@ -6,6 +6,7 @@ import { queryKeys } from "../api/query-keys";
 import { AiSettingsPanel } from "../ai/ai-settings-panel";
 import { ConnectGooglePanel } from "../connectors/connect-google-panel";
 import { ConnectorsPanel } from "../connectors/connectors-panel";
+import { AdminUsersPanel } from "./admin-users-panel";
 import type { MeResponse } from "@jarv1s/shared";
 
 interface SettingsPageProps {
@@ -129,6 +130,12 @@ export function SettingsPage(props: SettingsPageProps) {
               ) : null}
             </div>
           </section>
+        </div>
+      ) : null}
+
+      {props.me.user.isInstanceAdmin ? (
+        <div className="settings-grid">
+          <AdminUsersPanel currentUserId={props.me.user.id} />
         </div>
       ) : null}
     </section>

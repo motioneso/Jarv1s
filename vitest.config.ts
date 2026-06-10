@@ -10,6 +10,10 @@ export default defineConfig({
         replacement: fileURLToPath(new URL("./packages/ai/src/index.ts", import.meta.url))
       },
       {
+        find: "@jarv1s/auth",
+        replacement: fileURLToPath(new URL("./packages/auth/src/index.ts", import.meta.url))
+      },
+      {
         find: "@jarv1s/briefings",
         replacement: fileURLToPath(new URL("./packages/briefings/src/index.ts", import.meta.url))
       },

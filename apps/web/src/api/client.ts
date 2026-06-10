@@ -7,6 +7,9 @@ import type {
   AddTaskActivityResponse,
   AiModelCapability,
   BootstrapStatusResponse,
+  ListUsersResponse,
+  RegistrationSettingsDto,
+  UserDto,
   BreakdownTaskRequest,
   BreakdownTaskResponse,
   CreateBriefingDefinitionRequest,
@@ -80,7 +83,8 @@ export interface SignInEmailRequest {
 export class ApiError extends Error {
   constructor(
     readonly status: number,
-    message: string
+    message: string,
+    readonly code?: string
   ) {
     super(message);
   }
@@ -480,6 +484,66 @@ export async function listAdminConnectorAccounts(): Promise<ListAdminConnectorAc
   return requestJson<ListAdminConnectorAccountsResponse>("/api/admin/connectors/accounts");
 }
 
+export async function listAdminUsers(): Promise<ListUsersResponse> {
+  return requestJson<ListUsersResponse>("/api/admin/users");
+}
+
+export async function approveUser(id: string): Promise<{ user: UserDto }> {
+  return requestJson<{ user: UserDto }>(`/api/admin/users/${encodeURIComponent(id)}/approve`, {
+    method: "POST"
+  });
+}
+
+export async function rejectUser(id: string): Promise<{ rejectedUserId: string }> {
+  return requestJson<{ rejectedUserId: string }>(
+    `/api/admin/users/${encodeURIComponent(id)}/reject`,
+    { method: "POST" }
+  );
+}
+
+export async function deactivateUser(id: string): Promise<{ user: UserDto }> {
+  return requestJson<{ user: UserDto }>(`/api/admin/users/${encodeURIComponent(id)}/deactivate`, {
+    method: "POST"
+  });
+}
+
+export async function reactivateUser(id: string): Promise<{ user: UserDto }> {
+  return requestJson<{ user: UserDto }>(`/api/admin/users/${encodeURIComponent(id)}/reactivate`, {
+    method: "POST"
+  });
+}
+
+export async function promoteUser(id: string): Promise<{ user: UserDto }> {
+  return requestJson<{ user: UserDto }>(`/api/admin/users/${encodeURIComponent(id)}/promote`, {
+    method: "POST"
+  });
+}
+
+export async function demoteUser(id: string): Promise<{ user: UserDto }> {
+  return requestJson<{ user: UserDto }>(`/api/admin/users/${encodeURIComponent(id)}/demote`, {
+    method: "POST"
+  });
+}
+
+export async function deleteAdminUser(id: string): Promise<{ deletedUserId: string }> {
+  return requestJson<{ deletedUserId: string }>(`/api/admin/users/${encodeURIComponent(id)}`, {
+    method: "DELETE"
+  });
+}
+
+export async function getRegistrationSettings(): Promise<RegistrationSettingsDto> {
+  return requestJson<RegistrationSettingsDto>("/api/admin/registration");
+}
+
+export async function putRegistrationSettings(
+  body: RegistrationSettingsDto
+): Promise<RegistrationSettingsDto> {
+  return requestJson<RegistrationSettingsDto>("/api/admin/registration", {
+    method: "PUT",
+    body
+  });
+}
+
 async function requestJson<T>(path: string, options: ApiRequestOptions = {}): Promise<T> {
   const headers = new Headers(options.headers);
   const hasBody = options.body !== undefined;
@@ -497,7 +561,8 @@ async function requestJson<T>(path: string, options: ApiRequestOptions = {}): Pr
   });
 
   if (!response.ok) {
-    throw new ApiError(response.status, await readErrorMessage(response));
+    const { message: errorMessage, code } = await readErrorBody(response);
+    throw new ApiError(response.status, errorMessage, code);
   }
 
   if (response.status === 204) {
@@ -509,19 +574,24 @@ async function requestJson<T>(path: string, options: ApiRequestOptions = {}): Pr
   return text ? (JSON.parse(text) as T) : (undefined as T);
 }
 
-async function readErrorMessage(response: Response): Promise<string> {
+async function readErrorBody(response: Response): Promise<{ message: string; code?: string }> {
   const text = await response.text();
 
   if (!text) {
-    return response.statusText;
+    return { message: response.statusText };
   }
 
   try {
-    const parsed = JSON.parse(text) as { readonly error?: unknown; readonly message?: unknown };
-    const message = parsed.error ?? parsed.message;
-
-    return typeof message === "string" ? message : response.statusText;
+    const parsed = JSON.parse(text) as {
+      readonly error?: unknown;
+      readonly message?: unknown;
+      readonly code?: unknown;
+    };
+    const raw = parsed.error ?? parsed.message;
+    const message = typeof raw === "string" ? raw : response.statusText;
+    const code = typeof parsed.code === "string" ? parsed.code : undefined;
+    return { message, code };
   } catch {
-    return text;
+    return { message: text };
   }
 }

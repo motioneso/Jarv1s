@@ -52,6 +52,8 @@ const meResponse: MeResponse = {
     email: "owner@example.test",
     name: "Owner User",
     isInstanceAdmin: true,
+    status: "active" as const,
+    isBootstrapOwner: true,
     createdAt: "2026-06-06T12:00:00.000Z",
     updatedAt: "2026-06-06T12:00:00.000Z"
   },
