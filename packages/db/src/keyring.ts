@@ -3,6 +3,9 @@ import { createHash } from "node:crypto";
 export interface Keyring {
   readonly currentKeyId: string;
   readonly keys: Map<string, Buffer>;
+  /** Keys to try in order when decrypting a legacy (no-keyId) envelope.
+   * Current key is always first; retired keys follow. */
+  readonly legacyCandidates: readonly Buffer[];
 }
 
 /**
@@ -36,20 +39,22 @@ export function resolveKeyring(
 
   // Parse additional/retired keys from JSON {"id":"secret",...}
   const keysJson = env[keysEnvVar];
+  const retiredBuffers: Buffer[] = [];
 
   if (keysJson) {
     const parsed = JSON.parse(keysJson) as Record<string, string>;
 
     for (const [id, secret] of Object.entries(parsed)) {
-      keys.set(id, createHash("sha256").update(secret).digest());
+      const buf = createHash("sha256").update(secret).digest();
+      keys.set(id, buf);
+      retiredBuffers.push(buf);
     }
   }
 
-  // Envelopes written before keyId was introduced have no keyId field.
-  // Map the reserved "legacy" id to the current key so they continue to decrypt.
-  if (!keys.has("legacy")) {
-    keys.set("legacy", currentKeyBuffer);
-  }
+  // Envelopes written before keyId was introduced carry no keyId field.
+  // Try the current key first (not-yet-rotated deployments), then each retired
+  // key (post-rotation deployments where the legacy envelope predates rotation).
+  const legacyCandidates: readonly Buffer[] = [currentKeyBuffer, ...retiredBuffers];
 
-  return { currentKeyId, keys };
+  return { currentKeyId, keys, legacyCandidates };
 }
