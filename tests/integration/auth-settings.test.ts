@@ -639,6 +639,49 @@ describe("multi-user registration + lifecycle (Phase 2 Slice A)", () => {
     expect(remaining).toBe(0);
   });
 
+  it("admin approves a pending user, who can then access /api/me", async () => {
+    const admin = await signUp({ name: "Admin", email: "admin@example.com", password: "password12345" });
+    const adminCookie = cookieHeader(admin.headers);
+    const member = await signUp({ name: "Member", email: "member@example.com", password: "password12345" });
+    const memberId = member.json<{ user: { id: string } }>().user.id;
+    const memberCookie = cookieHeader(member.headers);
+
+    const approve = await server.inject({
+      method: "POST",
+      url: `/api/admin/users/${memberId}/approve`,
+      headers: { cookie: adminCookie }
+    });
+    expect(approve.statusCode).toBe(200);
+    expect(approve.json<{ user: { status: string } }>().user.status).toBe("active");
+
+    const me = await server.inject({ method: "GET", url: "/api/me", headers: { cookie: memberCookie } });
+    expect(me.statusCode).toBe(200);
+  });
+
+  it("non-admin cannot call lifecycle routes (403)", async () => {
+    const admin = await signUp({ name: "Admin", email: "admin@example.com", password: "password12345" });
+    const adminId = admin.json<{ user: { id: string } }>().user.id;
+    const member = await signUp({ name: "Member", email: "member@example.com", password: "password12345" });
+    const memberId = member.json<{ user: { id: string } }>().user.id;
+    const adminCookie = cookieHeader(admin.headers);
+    // Approve member so they have an active session for subsequent calls.
+    await server.inject({ method: "POST", url: `/api/admin/users/${memberId}/approve`, headers: { cookie: adminCookie } });
+    // Re-sign-in as member to get a fresh active session cookie.
+    const memberSignIn = await server.inject({
+      method: "POST",
+      url: "/api/auth/sign-in/email",
+      headers: { "content-type": "application/json" },
+      payload: { email: "member@example.com", password: "password12345" }
+    });
+    const memberCookie = cookieHeader(memberSignIn.headers);
+    const res = await server.inject({
+      method: "POST",
+      url: `/api/admin/users/${adminId}/demote`,
+      headers: { cookie: memberCookie }
+    });
+    expect(res.statusCode).toBe(403);
+  });
+
   it("repository blocks demoting the last active admin", async () => {
     // Owner is bootstrap_owner; member is promoted to admin via bootstrap, then
     // owner is deactivated via bootstrap — leaving member as the last active admin.
