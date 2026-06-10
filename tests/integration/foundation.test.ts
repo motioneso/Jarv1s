@@ -136,7 +136,8 @@ describe("MVP foundation scaffold", () => {
         { version: "0042", name: "0042_chat_memory_settings.sql" },
         { version: "0043", name: "0043_connector_google_enum.sql" },
         { version: "0044", name: "0044_google_unified_connection.sql" },
-        { version: "0045", name: "0045_auth_secret_rls.sql" }
+        { version: "0045", name: "0045_auth_secret_rls.sql" },
+        { version: "0046", name: "0046_auth_sessions_rls.sql" }
       ]);
     } finally {
       await client.end();

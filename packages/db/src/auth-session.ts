@@ -12,19 +12,20 @@ export class AuthSessionResolver {
     sessionId: string,
     requestId: string = randomUUID()
   ): Promise<AccessContext> {
-    const session = await this.db
-      .selectFrom("app.auth_sessions as sessions")
-      .select(["sessions.user_id as actorUserId"])
-      .where("sessions.id", "=", sessionId)
-      .where("sessions.expires_at", ">", sql<Date>`now()`)
-      .executeTakeFirst();
+    // Uses a SECURITY DEFINER function owned by jarvis_auth_runtime (migration 0046)
+    // so jarvis_app_runtime never holds direct SELECT on auth_sessions.
+    const result = await sql<{ user_id: string }>`
+      SELECT user_id FROM app.resolve_auth_session(${sessionId}::uuid)
+    `.execute(this.db);
+
+    const session = result.rows[0];
 
     if (!session) {
       throw new Error("Session is missing or expired");
     }
 
     return {
-      actorUserId: session.actorUserId,
+      actorUserId: session.user_id,
       requestId
     };
   }

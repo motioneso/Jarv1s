@@ -16,7 +16,12 @@ const runtimeRoles = [
 
 // Auth-secret tables: must have FORCE RLS, and jarvis_app_runtime must not be able
 // to SELECT directly (grant was revoked — any row access goes through the auth role).
-const authSecretTables = ["auth_accounts", "better_auth_sessions"] as const;
+const authSecretTables = [
+  "auth_accounts",
+  "auth_sessions",
+  "auth_verifications",
+  "better_auth_sessions"
+] as const;
 
 // Auth owner table: must have RLS ENABLED (not forced — owner bypass needed for SECURITY DEFINER
 // functions); jarvis_app_runtime retains SELECT (all rows, for admin routes + membership checks).
