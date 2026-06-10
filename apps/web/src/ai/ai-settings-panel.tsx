@@ -120,7 +120,7 @@ function CreateAiProviderForm(props: { readonly onCreated: () => Promise<void> }
   const [displayName, setDisplayName] = useState("");
   const [baseUrl, setBaseUrl] = useState("");
   const [authMethod, setAuthMethod] = useState<AiAuthMethod>("api_key");
-  const [credentialPayload, setCredentialPayload] = useState('{"apiKey":"placeholder"}');
+  const [credentialPayload, setCredentialPayload] = useState("{}");
   const [formError, setFormError] = useState<string | null>(null);
   const createMutation = useMutation({
     mutationFn: () =>
@@ -204,6 +204,7 @@ function CreateAiProviderForm(props: { readonly onCreated: () => Promise<void> }
           Credential JSON
           <textarea
             onChange={(event) => setCredentialPayload(event.target.value)}
+            placeholder='{"apiKey":"sk-..."}'
             required
             rows={3}
             value={credentialPayload}
