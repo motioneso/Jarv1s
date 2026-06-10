@@ -70,6 +70,19 @@ services:
       JARVIS_APP_DATABASE_URL: postgres://jarvis_app_runtime:app_password@postgres:5432/jarv1s
       JARVIS_AUTH_DATABASE_URL: postgres://jarvis_auth_runtime:auth_password@postgres:5432/jarv1s
     command: sh -c "corepack enable && pnpm install --frozen-lockfile --store-dir /tmp/pnpm-store && pnpm start:api"
+    restart: unless-stopped
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://localhost:3000/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 120s
     ports:
       - "${JARVIS_API_PORT:-3000}:3000"
     depends_on:
@@ -86,10 +99,12 @@ services:
       CI: "true"
       JARVIS_API_PROXY_TARGET: http://api:3000
     command: sh -c "corepack enable && pnpm install --frozen-lockfile --store-dir /tmp/pnpm-store && pnpm dev:web"
+    restart: unless-stopped
     ports:
       - "${JARVIS_WEB_PORT:-5173}:5173"
     depends_on:
-      - api
+      api:
+        condition: service_healthy
     networks:
       - jarv1s
 
@@ -101,6 +116,7 @@ services:
       CI: "true"
       JARVIS_WORKER_DATABASE_URL: postgres://jarvis_worker_runtime:worker_password@postgres:5432/jarv1s
     command: sh -c "corepack enable && pnpm install --frozen-lockfile --store-dir /tmp/pnpm-store && pnpm start:worker"
+    restart: unless-stopped
     depends_on:
       migrate:
         condition: service_completed_successfully
