@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import type { OutgoingHttpHeaders } from "node:http";
 import type { Kysely } from "kysely";
 
@@ -492,6 +492,44 @@ describe("M3 auth, users, workspaces, settings", () => {
     expect(finalAuditActions).toEqual(
       expect.arrayContaining(["resource_grant.delete", "workspace_membership.delete"])
     );
+  });
+});
+
+describe("multi-user registration + lifecycle (Phase 2 Slice A)", () => {
+  let appDb: Kysely<JarvisDatabase>;
+  let server: ReturnType<typeof createApiServer>;
+
+  async function signUp(opts: { name: string; email: string; password: string }) {
+    return server.inject({
+      method: "POST",
+      url: "/api/auth/sign-up/email",
+      headers: { "content-type": "application/json" },
+      payload: opts
+    });
+  }
+
+  beforeEach(async () => {
+    await resetEmptyFoundationDatabase();
+    appDb = createDatabase({ connectionString: connectionStrings.app, maxConnections: 1 });
+    server = createApiServer({ appDb, logger: false });
+    await server.ready();
+  });
+
+  afterEach(async () => {
+    await Promise.allSettled([server?.close(), appDb?.destroy()]);
+  });
+
+  it("rejects sign-up with 403 when registration.enabled is false (seeded directly)", async () => {
+    await signUp({ name: "Admin", email: "admin@example.com", password: "password12345" });
+    await appDb
+      .updateTable("app.instance_settings")
+      .set({ value: { value: false }, updated_at: new Date() })
+      .where("key", "=", "registration.enabled")
+      .execute();
+
+    const blocked = await signUp({ name: "Late", email: "late@example.com", password: "password12345" });
+    expect(blocked.statusCode).toBe(403);
+    expect(blocked.json<{ code?: string }>().code).toBe("registration_disabled");
   });
 });
 

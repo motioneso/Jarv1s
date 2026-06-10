@@ -3,6 +3,7 @@ import type { IncomingHttpHeaders } from "node:http";
 
 import { betterAuth } from "better-auth";
 import type { BetterAuthOptions } from "better-auth";
+import { APIError } from "better-auth/api";
 import { genericOAuth, type GenericOAuthConfig } from "better-auth/plugins/generic-oauth";
 import { sql, type Kysely } from "kysely";
 import pg from "pg";
@@ -195,6 +196,7 @@ function createBetterAuthOptions(
     databaseHooks: {
       user: {
         create: {
+          before: (user) => registrationGate(appDb, user),
           after: (user) => bootstrapFirstJarvisUser(appDb, user)
         }
       }
@@ -228,6 +230,38 @@ async function resolveRequestAccessContext(options: {
     actorUserId: session.user.id,
     requestId
   };
+}
+
+async function registrationGate(
+  appDb: Kysely<JarvisDatabase>,
+  _user: BetterAuthUser
+): Promise<void> {
+  const countResult = await sql<{ count: string }>`SELECT app.count_all_users() AS count`.execute(
+    appDb
+  );
+  const existingCount = Number(countResult.rows[0]?.count ?? 0);
+  if (existingCount === 0) return;
+
+  const enabled = await readBooleanSetting(appDb, "registration.enabled", true);
+  if (!enabled) {
+    throw new APIError("FORBIDDEN", { message: "Registration is disabled", code: "registration_disabled" });
+  }
+}
+
+async function readBooleanSetting(
+  appDb: Kysely<JarvisDatabase>,
+  key: string,
+  defaultValue: boolean
+): Promise<boolean> {
+  const row = await appDb
+    .selectFrom("app.instance_settings")
+    .select("value")
+    .where("key", "=", key)
+    .executeTakeFirst();
+
+  if (!row) return defaultValue;
+  const parsed = row.value as Record<string, unknown>;
+  return typeof parsed.value === "boolean" ? parsed.value : defaultValue;
 }
 
 async function bootstrapFirstJarvisUser(
