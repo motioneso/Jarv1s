@@ -96,11 +96,13 @@ main() {
     mkdir -p "$BUNDLE_DIR/vault"
   fi
 
-  # 3. Bundle into archive
+  # 3. Bundle into archive (write to tmp then mv — avoids partial .tar.gz in archive dir)
   mkdir -p "$ARCHIVE_DIR"
   ARCHIVE="$ARCHIVE_DIR/jarv1s-$TIMESTAMP.tar.gz"
+  ARCHIVE_TMP="$STAGING/jarv1s-$TIMESTAMP.tar.gz"
   echo "Bundling archive: $ARCHIVE"
-  tar -czf "$ARCHIVE" -C "$STAGING" "jarv1s-$TIMESTAMP"
+  tar -czf "$ARCHIVE_TMP" -C "$STAGING" "jarv1s-$TIMESTAMP"
+  mv "$ARCHIVE_TMP" "$ARCHIVE"
 
   # 4. Retention pruning
   echo "Pruning archives (daily_keep=$DAILY_KEEP, weekly_keep=$WEEKLY_KEEP)..."
