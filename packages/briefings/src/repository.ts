@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 
 import { sql, type Updateable } from "kysely";
 
-import { findAssistantToolFromManifests } from "@jarv1s/ai";
+import { AiRepository, findAssistantToolFromManifests } from "@jarv1s/ai";
 import {
   assertDataContextDb,
   type BriefingCadence,
@@ -51,6 +51,11 @@ interface SummaryResult {
   readonly summaryText: string;
   readonly sourceMetadata: {
     readonly tools: readonly ToolSummary[];
+    readonly aiModel: {
+      readonly id: string;
+      readonly displayName: string;
+      readonly tier: string;
+    } | null;
   };
 }
 
@@ -276,11 +281,17 @@ async function generateSummary(
   const status = selectRunStatus(toolSummaries);
   const summaryText = toolSummaries.map(formatToolSummary).join("\n");
 
+  const aiRepository = new AiRepository();
+  const aiModel = await aiRepository.selectModelForCapability(scopedDb, "summarization", "economy");
+
   return {
     status,
     summaryText: summaryText || "Briefing did not produce visible source items.",
     sourceMetadata: {
-      tools: toolSummaries
+      tools: toolSummaries,
+      aiModel: aiModel
+        ? { id: aiModel.id, displayName: aiModel.display_name, tier: aiModel.tier }
+        : null
     }
   };
 }
@@ -297,7 +308,8 @@ function blockedSummary(toolSummaries: readonly ToolSummary[]): SummaryResult {
     status: "blocked",
     summaryText: "Briefing blocked because selected tools are not all declared read tools.",
     sourceMetadata: {
-      tools: toolSummaries
+      tools: toolSummaries,
+      aiModel: null
     }
   };
 }
