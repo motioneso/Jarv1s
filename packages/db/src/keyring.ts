@@ -14,8 +14,8 @@ export interface Keyring {
  * - Current key: derived from `keyEnvVar` (or `devDefault` in non-production).
  * - Current key id: `keyIdEnvVar` (default "v1").
  * - Additional keys: `keysEnvVar` JSON object {"id":"secret",...}.
- * - Legacy (absent-keyId) envelopes: mapped to reserved id "legacy", which
- *   falls back to the current key if no separate legacy key is configured.
+ * - Legacy (absent-keyId) envelopes: decrypted by trying `legacyCandidates`
+ *   in order (current key first, then retired keys).
  */
 export function resolveKeyring(
   keyEnvVar: string,
