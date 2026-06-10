@@ -71,7 +71,13 @@ git fetch origin main && git diff --stat origin/main...HEAD
 
 **5. Post the verdict to the PR, then report it to the coordinator.** ALWAYS `gh pr comment` first
 (durable evidence that survives the coordinator's relay; mandatory for `security` tier before any
-merge), then `herdr-pane-message` the same compact block to the coordinator label, then stop:
+merge), then report to the coordinator by the appropriate channel, then stop.
+
+**If invoked as a native subagent (via `Agent` tool):** your final message IS the verdict — output
+the compact verdict block below as your last message with no trailing text. Do NOT call
+`herdr-pane-message` (there is no coordinator pane to target).
+
+**If invoked as a Herdr pane:** `herdr-pane-message` the compact block to the coordinator label.
 
 ```bash
 gh pr comment <PR> --body "QA verdict (<tier>): <paste the block below>"
