@@ -20,6 +20,11 @@ import {
   trimToTokenBudget,
   type EpisodicChunk
 } from "../../packages/chat/src/live/recall-seed.js";
+import {
+  ChatSessionManager,
+  type ChatPersistencePort
+} from "../../packages/chat/src/live/chat-session-manager.js";
+import type { CliChatEngine, TranscriptRecord } from "../../packages/chat/src/live/types.js";
 import { connectionStrings, ids, resetFoundationDatabase } from "./test-database.js";
 
 const { Client } = pg;
@@ -260,6 +265,125 @@ describe("DataContextChatPersistence.recordTurn rolling summary", () => {
         delete process.env.JARVIS_CHAT_REPLAY_K;
       } else {
         process.env.JARVIS_CHAT_REPLAY_K = origK;
+      }
+    }
+  });
+});
+
+// ─── Task 5: launchSession bounded inject (fake engine) ───────────────────────
+
+class FakeEngineForSession implements CliChatEngine {
+  readonly submitted: string[] = [];
+
+  async launch(): Promise<void> {}
+  async submit(text: string): Promise<void> {
+    this.submitted.push(text);
+  }
+  async readNew(
+    afterOffset: number
+  ): Promise<{ records: TranscriptRecord[]; offset: number; complete: boolean }> {
+    return { records: [], offset: afterOffset, complete: true };
+  }
+  async isAlive(): Promise<boolean> {
+    return true;
+  }
+  async kill(): Promise<void> {}
+}
+
+describe("launchSession — bounded inject (fake engine)", () => {
+  it("injects <prior-context> + K-turn <conversation> when persistence returns both", async () => {
+    const fakePersistence: ChatPersistencePort = {
+      resolveActiveProvider: async () => ({ provider: "anthropic", model: "test" }),
+      listPriorTurns: async () => ({
+        recent: [
+          { role: "user", content: "recent user msg" },
+          { role: "assistant", content: "recent assistant msg" }
+        ],
+        oldSummary: "As of turn 5: old context here"
+      }),
+      recordTurn: async () => {},
+      openNewConversation: async () => {}
+    };
+
+    const engine = new FakeEngineForSession();
+    const manager = new ChatSessionManager({
+      engineFactory: () => engine,
+      persistence: fakePersistence,
+      personaFs: { mkdir: async () => {}, writeFile: async () => {} },
+      clock: { now: () => 0 },
+      idleMs: 60_000,
+      neutralBase: "/tmp",
+      persona: "You are Jarvis.",
+      pollMs: 0
+    });
+
+    await manager.ensureSession("user-1", "Test User");
+
+    expect(engine.submitted).toHaveLength(1);
+    const inject = engine.submitted[0] ?? "";
+    expect(inject).toContain("<prior-context>");
+    expect(inject).toContain("As of turn 5: old context here");
+    expect(inject).toContain("recent user msg");
+    expect(inject).toContain("recent assistant msg");
+    expect(inject).not.toContain("<memory>");
+  });
+
+  it("skips inject entirely when listPriorTurns returns empty recent + null summary", async () => {
+    const fakePersistence: ChatPersistencePort = {
+      resolveActiveProvider: async () => ({ provider: "anthropic", model: "test" }),
+      listPriorTurns: async () => ({ recent: [], oldSummary: null }),
+      recordTurn: async () => {},
+      openNewConversation: async () => {}
+    };
+
+    const engine = new FakeEngineForSession();
+    const manager = new ChatSessionManager({
+      engineFactory: () => engine,
+      persistence: fakePersistence,
+      personaFs: { mkdir: async () => {}, writeFile: async () => {} },
+      clock: { now: () => 0 },
+      idleMs: 60_000,
+      neutralBase: "/tmp",
+      persona: "You are Jarvis.",
+      pollMs: 0
+    });
+
+    await manager.ensureSession("user-2", "Test User");
+    expect(engine.submitted).toHaveLength(0);
+  });
+});
+
+// ─── Task 5: memory seed budget env override ─────────────────────────────────
+
+describe("memory seed budget env override", () => {
+  it("JARVIS_CHAT_SEED_BUDGET_TOKENS=50 trims chunks to fit ≤50 tokens", () => {
+    const original = process.env.JARVIS_CHAT_SEED_BUDGET_TOKENS;
+    process.env.JARVIS_CHAT_SEED_BUDGET_TOKENS = "50";
+    try {
+      // Budget 50 tokens = 200 chars. big=400 chars (100 tokens) exceeds; small=100 chars (25 tokens) fits.
+      const big: EpisodicChunk = {
+        text: "x".repeat(400),
+        date: "2025-01-01",
+        threadId: "t1",
+        hybridScore: 0.5
+      };
+      const small: EpisodicChunk = {
+        text: "y".repeat(100),
+        date: "2025-01-01",
+        threadId: "t2",
+        hybridScore: 0.9
+      };
+      const budget = process.env.JARVIS_CHAT_SEED_BUDGET_TOKENS
+        ? parseInt(process.env.JARVIS_CHAT_SEED_BUDGET_TOKENS, 10)
+        : 1500;
+      const result = trimToTokenBudget([big, small], budget);
+      expect(result).toHaveLength(1);
+      expect(result[0]).toBe(small);
+    } finally {
+      if (original === undefined) {
+        delete process.env.JARVIS_CHAT_SEED_BUDGET_TOKENS;
+      } else {
+        process.env.JARVIS_CHAT_SEED_BUDGET_TOKENS = original;
       }
     }
   });
