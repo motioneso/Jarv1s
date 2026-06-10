@@ -43,7 +43,7 @@ export function createComposeSmokePlan(input: ComposeSmokePlanInput = {}): Compo
       },
       {
         command: "docker",
-        args: [...composeArgs, "up", "-d", "api", "web", "worker"],
+        args: [...composeArgs, "up", "-d", "api", "web", "worker", "--wait"],
         description: "Start API, web, and worker services"
       }
     ]
