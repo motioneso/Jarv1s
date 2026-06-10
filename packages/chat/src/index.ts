@@ -1,5 +1,7 @@
 export * from "./jobs.js";
 export * from "./live-routes.js";
+export { DataContextChatPersistence } from "./live/persistence.js";
+export type { DataContextChatPersistenceDeps } from "./live/persistence.js";
 export * from "./live/recall-seed.js";
 export * from "./live/runtime.js";
 export * from "./manifest.js";

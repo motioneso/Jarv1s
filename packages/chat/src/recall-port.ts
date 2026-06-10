@@ -102,9 +102,9 @@ export class RecallService implements RecallPort {
 
     const injected: EpisodicChunk[] = [];
     let charCount = 0;
-    for (const { chunk, date } of scored) {
+    for (const { chunk, date, score } of scored) {
       if (charCount + chunk.text.length > MAX_CHARS) break;
-      injected.push({ text: chunk.text, date, threadId: chunk.sourcePath });
+      injected.push({ text: chunk.text, date, threadId: chunk.sourcePath, hybridScore: score });
       charCount += chunk.text.length;
     }
 
