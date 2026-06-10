@@ -2,13 +2,14 @@ import { mkdir, writeFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { sql } from "kysely";
+import { sql, type Kysely } from "kysely";
 
 import {
   DataContextRunner,
   createDatabase,
   getJarvisDatabaseUrls,
-  type DataContextDb
+  type DataContextDb,
+  type JarvisDatabase
 } from "@jarv1s/db";
 
 type JsonPrimitive = boolean | null | number | string;
@@ -17,6 +18,7 @@ export type ExportRow = Record<string, JsonValue>;
 
 export interface ExportUserDataOptions {
   readonly appConnectionString?: string;
+  readonly authConnectionString?: string;
   readonly exportedAt?: Date;
   readonly outputFile?: string;
   readonly userId: string;
@@ -51,13 +53,18 @@ export interface UserDataExportTables {
 }
 
 export async function exportUserData(options: ExportUserDataOptions): Promise<UserDataExport> {
-  const db = createDatabase({
-    connectionString: options.appConnectionString ?? getJarvisDatabaseUrls().app,
+  const urls = getJarvisDatabaseUrls();
+  const appDb = createDatabase({
+    connectionString: options.appConnectionString ?? urls.app,
+    maxConnections: 1
+  });
+  const authDb = createDatabase({
+    connectionString: options.authConnectionString ?? urls.auth,
     maxConnections: 1
   });
 
   try {
-    const dataContext = new DataContextRunner(db);
+    const dataContext = new DataContextRunner(appDb);
     const exportedAt = (options.exportedAt ?? new Date()).toISOString();
 
     return await dataContext.withDataContext(
@@ -68,11 +75,12 @@ export async function exportUserData(options: ExportUserDataOptions): Promise<Us
       async (scopedDb) => ({
         exportedAt,
         userId: options.userId,
-        tables: await readExportTables(scopedDb, options.userId)
+        tables: await readExportTables(scopedDb, authDb, options.userId)
       })
     );
   } finally {
-    await db.destroy();
+    await appDb.destroy();
+    await authDb.destroy();
   }
 }
 
@@ -96,36 +104,37 @@ async function main(): Promise<void> {
 
 async function readExportTables(
   scopedDb: DataContextDb,
+  authDb: Kysely<JarvisDatabase>,
   userId: string
 ): Promise<UserDataExportTables> {
   return {
-    users: await readRows(scopedDb, userQuery(userId)),
-    authAccounts: await readRows(scopedDb, authAccountsQuery(userId)),
-    betterAuthSessions: await readRows(scopedDb, betterAuthSessionsQuery(userId)),
-    workspaceMemberships: await readRows(scopedDb, workspaceMembershipsQuery(userId)),
-    resourceGrants: await readRows(scopedDb, resourceGrantsQuery(userId)),
-    tasks: await readRows(scopedDb, tasksQuery(userId)),
-    taskActivity: await readRows(scopedDb, taskActivityQuery(userId)),
-    notifications: await readRows(scopedDb, notificationsQuery(userId)),
-    notificationReads: await readRows(scopedDb, notificationReadsQuery(userId)),
-    connectorAccounts: await readRows(scopedDb, connectorAccountsQuery(userId)),
-    calendarEvents: await readRows(scopedDb, calendarEventsQuery(userId)),
-    emailMessages: await readRows(scopedDb, emailMessagesQuery(userId)),
-    aiProviderConfigs: await readRows(scopedDb, aiProviderConfigsQuery(userId)),
-    aiConfiguredModels: await readRows(scopedDb, aiConfiguredModelsQuery(userId)),
-    aiAssistantActionRequests: await readRows(scopedDb, aiAssistantActionRequestsQuery(userId)),
-    chatThreads: await readRows(scopedDb, chatThreadsQuery(userId)),
-    chatMessages: await readRows(scopedDb, chatMessagesQuery(userId)),
-    briefingDefinitions: await readRows(scopedDb, briefingDefinitionsQuery(userId)),
-    briefingRuns: await readRows(scopedDb, briefingRunsQuery(userId))
+    users: await readRows(scopedDb.db, userQuery(userId)),
+    authAccounts: await readRows(authDb, authAccountsQuery(userId)),
+    betterAuthSessions: await readRows(authDb, betterAuthSessionsQuery(userId)),
+    workspaceMemberships: await readRows(scopedDb.db, workspaceMembershipsQuery(userId)),
+    resourceGrants: await readRows(scopedDb.db, resourceGrantsQuery(userId)),
+    tasks: await readRows(scopedDb.db, tasksQuery(userId)),
+    taskActivity: await readRows(scopedDb.db, taskActivityQuery(userId)),
+    notifications: await readRows(scopedDb.db, notificationsQuery(userId)),
+    notificationReads: await readRows(scopedDb.db, notificationReadsQuery(userId)),
+    connectorAccounts: await readRows(scopedDb.db, connectorAccountsQuery(userId)),
+    calendarEvents: await readRows(scopedDb.db, calendarEventsQuery(userId)),
+    emailMessages: await readRows(scopedDb.db, emailMessagesQuery(userId)),
+    aiProviderConfigs: await readRows(scopedDb.db, aiProviderConfigsQuery(userId)),
+    aiConfiguredModels: await readRows(scopedDb.db, aiConfiguredModelsQuery(userId)),
+    aiAssistantActionRequests: await readRows(scopedDb.db, aiAssistantActionRequestsQuery(userId)),
+    chatThreads: await readRows(scopedDb.db, chatThreadsQuery(userId)),
+    chatMessages: await readRows(scopedDb.db, chatMessagesQuery(userId)),
+    briefingDefinitions: await readRows(scopedDb.db, briefingDefinitionsQuery(userId)),
+    briefingRuns: await readRows(scopedDb.db, briefingRunsQuery(userId))
   };
 }
 
 async function readRows(
-  scopedDb: DataContextDb,
+  db: Kysely<JarvisDatabase>,
   query: ReturnType<typeof sql<Record<string, unknown>>>
 ): Promise<ExportRow[]> {
-  const result = await query.execute(scopedDb.db);
+  const result = await query.execute(db);
 
   return result.rows.map(normalizeRow);
 }

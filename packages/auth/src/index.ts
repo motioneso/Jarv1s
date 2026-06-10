@@ -50,7 +50,7 @@ export function createJarvisAuthRuntime(
 ): JarvisAuthRuntime {
   const env = options.env ?? process.env;
   const pool = new Pool({
-    connectionString: options.connectionString ?? getJarvisDatabaseUrls(env).app,
+    connectionString: options.connectionString ?? getJarvisDatabaseUrls(env).auth,
     max: Number(env.JARVIS_AUTH_DB_POOL_SIZE ?? 4),
     options: "-c search_path=app,public"
   });
@@ -63,7 +63,6 @@ export function createJarvisAuthRuntime(
       resolveRequestAccessContext({
         request,
         auth,
-        appDb: options.appDb,
         legacySessions
       }),
     listConfiguredProviders: () => listConfiguredAuthProviders(env),
@@ -209,7 +208,6 @@ function createBetterAuthOptions(
 async function resolveRequestAccessContext(options: {
   readonly request: RequestAccessContextInput;
   readonly auth: ReturnType<typeof betterAuth>;
-  readonly appDb: Kysely<JarvisDatabase>;
   readonly legacySessions: AuthSessionResolver;
 }): Promise<AccessContext> {
   const requestId = options.request.id ?? randomUUID();
@@ -226,8 +224,6 @@ async function resolveRequestAccessContext(options: {
     throw new Error("Session is missing or expired");
   }
 
-  await ensureJarvisUserStillExists(options.appDb, session.user);
-
   return {
     actorUserId: session.user.id,
     requestId
@@ -243,11 +239,17 @@ async function bootstrapFirstJarvisUser(
       transaction
     );
 
-    const rowCount = await transaction
-      .selectFrom("app.users")
-      .select((eb) => eb.fn.countAll<string>().as("count"))
-      .executeTakeFirstOrThrow();
-    const isFirstUser = Number(rowCount.count) === 1;
+    // app.count_all_users() is a SECURITY DEFINER function owned by jarvis_auth_runtime,
+    // which has a USING(true) policy on users under FORCE RLS. This gives us an accurate
+    // total count even though app_runtime's own self-row policy would return count=1.
+    const countResult = await sql<{ count: string }>`SELECT app.count_all_users() AS count`.execute(
+      transaction
+    );
+    const isFirstUser = Number(countResult.rows[0]?.count ?? 0) === 1;
+
+    // Set actor GUC so the UPDATE passes the self-row policy on app.users.
+    // The 'true' flag scopes this to the transaction only.
+    await sql`SELECT set_config('app.actor_user_id', ${user.id}, true)`.execute(transaction);
 
     await transaction
       .updateTable("app.users")
@@ -302,21 +304,6 @@ async function bootstrapFirstJarvisUser(
       })
       .execute();
   });
-}
-
-async function ensureJarvisUserStillExists(
-  appDb: Kysely<JarvisDatabase>,
-  user: BetterAuthUser
-): Promise<void> {
-  const existingUser = await appDb
-    .selectFrom("app.users")
-    .select("id")
-    .where("id", "=", user.id)
-    .executeTakeFirst();
-
-  if (!existingUser) {
-    throw new Error("Session is missing or expired");
-  }
 }
 
 function toWebHeaders(headers: Headers | IncomingHttpHeaders): Headers {
