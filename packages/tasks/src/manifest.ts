@@ -76,10 +76,10 @@ export const tasksModuleManifest = {
   ],
   settings: [
     {
-      id: "tasks.workspace-settings",
+      id: "tasks.module-settings",
       label: "Tasks",
       path: "/settings/modules/tasks",
-      scope: "workspace",
+      scope: "user",
       order: 10,
       permissionId: "tasks.manage"
     }
@@ -88,31 +88,29 @@ export const tasksModuleManifest = {
     {
       id: "tasks.view",
       label: "View tasks",
-      description:
-        "Read tasks visible to the actor through ownership, grants, or workspace visibility.",
-      scope: "workspace",
+      description: "Read tasks owned by or shared with the active actor.",
+      scope: "user",
       actions: ["view"]
     },
     {
       id: "tasks.create",
       label: "Create tasks",
-      description: "Create private tasks or workspace-visible tasks in joined workspaces.",
-      scope: "workspace",
+      description: "Create tasks owned by the active actor.",
+      scope: "user",
       actions: ["create"]
     },
     {
       id: "tasks.update",
       label: "Update tasks",
-      description:
-        "Update tasks the actor owns or can manage through grants or workspace membership.",
-      scope: "workspace",
+      description: "Update tasks owned by or shared with the active actor.",
+      scope: "user",
       actions: ["update"]
     },
     {
       id: "tasks.manage",
       label: "Manage tasks module",
-      description: "Manage Tasks module settings and workspace-level task behavior.",
-      scope: "workspace",
+      description: "Manage Tasks module settings and behavior.",
+      scope: "user",
       actions: ["manage"]
     }
   ],

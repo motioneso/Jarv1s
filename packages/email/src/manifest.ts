@@ -40,16 +40,15 @@ export const emailModuleManifest = {
     {
       id: "email.view",
       label: "View email",
-      description:
-        "Read cached email messages owned by the actor or visible in the active joined workspace.",
-      scope: "workspace",
+      description: "Read cached email messages owned by or shared with the active actor.",
+      scope: "user",
       actions: ["view"]
     },
     {
       id: "email.manage",
       label: "Manage email module",
       description: "Manage Email module settings and connector-backed cache behavior.",
-      scope: "workspace",
+      scope: "user",
       actions: ["manage"]
     }
   ],
@@ -79,7 +78,7 @@ export const emailModuleManifest = {
   assistantTools: [
     {
       name: "email.listVisibleMessages",
-      description: "List cached email messages visible to the active actor and workspace context.",
+      description: "List cached email messages owned by or shared with the active actor.",
       permissionId: "email.view",
       risk: "read",
       inputSchema: {

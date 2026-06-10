@@ -1,5 +1,5 @@
 export type ModuleLifecycle = "required" | "optional" | "user-toggleable" | "workspace-toggleable";
-export type ModuleScope = "user" | "workspace" | "admin" | "system";
+export type ModuleScope = "user" | "admin" | "system";
 export type ModulePermissionAction = "view" | "create" | "update" | "delete" | "manage" | "execute";
 export type ModuleAssistantToolRisk = "read" | "write" | "destructive";
 
