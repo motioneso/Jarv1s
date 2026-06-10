@@ -71,16 +71,15 @@ export class SettingsRepository {
   }
 
   async getUserById(userId: string): Promise<User | undefined> {
-    return this.db.selectFrom("app.users").selectAll().where("id", "=", userId).executeTakeFirst();
+    const result = await sql<User>`SELECT * FROM app.get_user_by_id(${userId}::uuid)`.execute(
+      this.db
+    );
+    return result.rows[0];
   }
 
   async listUsers(): Promise<User[]> {
-    return this.db
-      .selectFrom("app.users")
-      .selectAll()
-      .orderBy("created_at")
-      .orderBy("id")
-      .execute();
+    const result = await sql<User>`SELECT * FROM app.list_all_users()`.execute(this.db);
+    return result.rows;
   }
 
   async listWorkspaces(): Promise<Workspace[]> {
@@ -396,13 +395,11 @@ export class SettingsRepository {
   }
 
   private async requireUser(userId: string, db: SettingsDb = this.db): Promise<void> {
-    const user = await db
-      .selectFrom("app.users")
-      .select("id")
-      .where("id", "=", userId)
-      .executeTakeFirst();
+    const result = await sql<{ id: string }>`SELECT id FROM app.get_user_by_id(${userId}::uuid)`.execute(
+      db
+    );
 
-    if (!user) {
+    if (!result.rows[0]) {
       throw new Error("User not found");
     }
   }
