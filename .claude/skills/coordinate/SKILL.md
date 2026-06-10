@@ -32,6 +32,31 @@ gate logs or full diffs — delegate to a QA agent and consume its verdict. Keep
 
 Templates: `.claude/skills/coordinate/templates/manifest.md` and `handoff.md`.
 
+## Model escalation policy (Sonnet loop → Opus for reasoning-heavy sub-tasks)
+
+The resident coordinator runs on **Sonnet** — dispatch, routing, and mechanical decisions are cheap.
+Some sub-tasks require deeper reasoning. Escalate to **Opus** by spawning a one-shot subagent via
+the `Agent` tool (`model: "opus"`) and relaying its verdict. Do NOT reason through these inline.
+
+**Hard triggers — always spawn Opus (no judgment call):**
+- Agent message contains `[SECURITY]`, `[AUTH]`, `[RLS]`, or `[CRIT]`
+- Any PR touching auth, sessions, rate-limiting, secrets, tokens, or RLS (security tier)
+- NEW RIGOR step 1: independent cross-model security QA
+
+**Soft triggers — use Sonnet judgment; default to Opus when uncertain:**
+- Agent escalates a design fork or architecture question the spec didn't settle
+- Conflicting options where the wrong choice has security or data-loss consequences
+- Agent message contains `[DESIGN-FORK]`
+
+**Pattern:**
+```
+Receive escalation → classify (hard/soft) → Agent(model: "opus", prompt: "<question + context>")
+→ await compact verdict → relay answer to agent + update manifest
+```
+
+**Agents:** tag your escalation messages with `[SECURITY]` / `[AUTH]` / `[DESIGN-FORK]` / `[CRIT]`
+to guarantee Opus routing.
+
 ## Phase 0a — Claim the single-coordinator lock (FIRST, before anything)
 
 There must be **exactly one** coordinator (a real two-coordinator incident happened 2026-06-09 —
@@ -95,9 +120,13 @@ between events to catch silent failures.
 
 - **On a plan-ready escalation:** read the plan. Approve if it stays inside the spec's locked
   decisions; reply approval via `herdr-pane-message`. If it surfaces a genuine product/architecture
-  fork the spec didn't settle, **route it to Ben**, then relay his decision to the agent.
+  fork the spec didn't settle, apply the **model escalation policy** (spawn Opus if `[DESIGN-FORK]`
+  or uncertain), then **route to Ben** with the Opus verdict framing the options.
+- **On a `[SECURITY]`/`[AUTH]`/`[RLS]`/`[CRIT]` escalation:** spawn Opus immediately (see model
+  escalation policy above) — do not reason through it in Sonnet. Relay the verdict to the agent.
 - **On a blocker:** unblock if you can (answer, point at a file/memory). If it's a real
-  design/scope question, escalate to Ben. Update the manifest (`blocked` + the open question).
+  design/scope question, apply model escalation policy, then escalate to Ben. Update the manifest
+  (`blocked` + the open question).
 - **Liveness sweep** (keep yourself resident with a `ScheduleWakeup` tick between pushes): every
   few minutes `herdr pane list` (look for `agent_status` unknown/blocked, panes that died) and
   spot-`herdr pane read` anything suspicious — catch trust-prompt stalls and silent crashes a push
@@ -175,5 +204,6 @@ At ~**70%** of YOUR context window:
 | Reap a spent pane / worktree | kill pane · `git worktree remove .claude/worktrees/<slug>` |
 | Merge + close | `gh pr merge <PR> --squash --delete-branch` · `gh issue close` · board move |
 | Stay resident | `ScheduleWakeup` tick between pushes |
+| Escalate to Opus | `Agent(model: "opus", prompt: "<question + context>")` — relay compact verdict |
 
 See also the design spec and CLAUDE.md (Hard Invariants, GitHub tracking, coordinating sessions).
