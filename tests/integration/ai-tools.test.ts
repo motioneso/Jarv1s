@@ -177,7 +177,7 @@ describe("AI read-only assistant tool execution foundation", () => {
     );
     const workspaceEmail = await invokeTool("email.listVisibleMessages", userAWorkspaceHeaders());
 
-    expect(readIds(tasks.result, "tasks")).toEqual([taskIds.aPrivate, taskIds.bGrantedToA]);
+    expect(readIds(tasks.result, "items")).toEqual([taskIds.aPrivate, taskIds.bGrantedToA]);
     expect(readIds(notifications.result, "notifications")).toEqual([notificationIds.aPrivate]);
     // notificationIds.workspace is seeded with recipient=userB, so userA must NOT see it
     expect(readIds(notifications.result, "notifications")).not.toContain(notificationIds.workspace);
@@ -185,11 +185,11 @@ describe("AI read-only assistant tool execution foundation", () => {
     expect(readIds(email.result, "messages")).toEqual([emailMessageIds.aPrivate]);
     // Tasks are owner-or-share only now (not workspace-scoped): the workspace context
     // returns the same set as the personal context, and the workspace-only task stays hidden.
-    expect(readIds(workspaceTasks.result, "tasks")).toEqual([
+    expect(readIds(workspaceTasks.result, "items")).toEqual([
       taskIds.aPrivate,
       taskIds.bGrantedToA
     ]);
-    expect(readIds(workspaceTasks.result, "tasks")).not.toContain(taskIds.bWorkspace);
+    expect(readIds(workspaceTasks.result, "items")).not.toContain(taskIds.bWorkspace);
     // Calendar and email are now owner-or-share (not workspace-scoped): userA does
     // not own the workspace row and has no share, so it stays hidden.
     expect(readIds(workspaceCalendar.result, "events")).not.toContain(calendarEventIds.workspace);
@@ -212,7 +212,7 @@ describe("AI read-only assistant tool execution foundation", () => {
       email.result
     ]);
 
-    expect(readIds(tasks.result, "tasks")).toEqual([]);
+    expect(readIds(tasks.result, "items")).toEqual([]);
     expect(readIds(notifications.result, "notifications")).toEqual([]);
     expect(readIds(calendar.result, "events")).toEqual([]);
     expect(readIds(email.result, "messages")).toEqual([]);

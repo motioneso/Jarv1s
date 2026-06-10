@@ -320,7 +320,7 @@ function summarizeToolResult(
   switch (tool.name) {
     case "tasks.listVisible":
     case "tasks.list":
-      return summarizeNamedItems(tool.name, result.tasks, (item) => {
+      return summarizeNamedItems(tool.name, result.items, (item) => {
         const task = item as { readonly title?: unknown; readonly status?: unknown };
 
         return compactExcerpt([task.title, task.status]);
