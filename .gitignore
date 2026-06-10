@@ -18,3 +18,6 @@ docs/testing/
 !.env.example
 # Backup operator env (holds PGPASSWORD etc.) — never commit
 infra/backup.env
+
+# Claude Code per-machine local settings (never commit)
+.claude/settings.local.json
