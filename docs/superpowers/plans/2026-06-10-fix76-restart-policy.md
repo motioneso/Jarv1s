@@ -15,11 +15,13 @@
 ### Task 1: Add restart policies + API healthcheck to docker-compose.yml
 
 **Files:**
+
 - Modify: `infra/docker-compose.yml` (lines 62–108)
 
 The `api` service needs `restart: unless-stopped` and a `healthcheck` block. The `worker` and `web` services need `restart: unless-stopped`. The `web` `depends_on` should be upgraded to wait for `api`'s healthcheck.
 
 Use `node` (always present in the container) to probe `/health`. The healthcheck command is:
+
 ```
 node -e "fetch('http://localhost:3000/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
 ```
@@ -141,6 +143,7 @@ EOF
 ### Task 2: Fix smoke-compose startup race — add --wait to compose up
 
 **Files:**
+
 - Modify: `scripts/smoke-compose.ts` (the `createComposeSmokePlan` function, `commands` array)
 - Modify: `tests/integration/release-hardening.test.ts` (add assertion for `--wait`)
 
@@ -176,6 +179,7 @@ Expected: test fails with something like `Expected: true / Received: false`
 In `scripts/smoke-compose.ts`, update `createComposeSmokePlan` — find the `up -d api web worker` command object and add `"--wait"` after `"worker"`:
 
 Current:
+
 ```typescript
 {
   command: "docker",
@@ -185,6 +189,7 @@ Current:
 ```
 
 Updated:
+
 ```typescript
 {
   command: "docker",
@@ -225,6 +230,7 @@ EOF
 ### Task 3: Update ops docs
 
 **Files:**
+
 - Modify: `docs/operations/release-hardening.md` (Docker Compose Smoke section)
 
 - [ ] **Step 1: Update Docker Compose Smoke section in release-hardening.md**
