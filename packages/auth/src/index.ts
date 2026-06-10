@@ -3,6 +3,7 @@ import type { IncomingHttpHeaders } from "node:http";
 
 import { betterAuth } from "better-auth";
 import type { BetterAuthOptions } from "better-auth";
+import { APIError } from "better-auth/api";
 import { genericOAuth, type GenericOAuthConfig } from "better-auth/plugins/generic-oauth";
 import { sql, type Kysely } from "kysely";
 import pg from "pg";
@@ -26,10 +27,25 @@ export interface RequestAccessContextInput {
   readonly headers: Headers | IncomingHttpHeaders;
 }
 
+export class AccountPendingApprovalError extends Error {
+  readonly code = "account_pending_approval";
+  constructor() {
+    super("Account is pending approval");
+  }
+}
+
+export class AccountDeactivatedError extends Error {
+  readonly code = "account_deactivated";
+  constructor() {
+    super("Account has been deactivated");
+  }
+}
+
 export interface JarvisAuthRuntime {
   readonly auth: ReturnType<typeof betterAuth>;
   readonly resolveAccessContext: (request: RequestAccessContextInput) => Promise<AccessContext>;
   readonly listConfiguredProviders: () => readonly AuthProviderStatusDto[];
+  readonly revokeUserSessions: (userId: string) => Promise<number>;
   readonly close: () => Promise<void>;
 }
 
@@ -63,9 +79,16 @@ export function createJarvisAuthRuntime(
       resolveRequestAccessContext({
         request,
         auth,
-        legacySessions
+        legacySessions,
+        appDb: options.appDb
       }),
     listConfiguredProviders: () => listConfiguredAuthProviders(env),
+    revokeUserSessions: async (userId: string) => {
+      const result = await pool.query("DELETE FROM app.better_auth_sessions WHERE user_id = $1", [
+        userId
+      ]);
+      return result.rowCount ?? 0;
+    },
     close: () => pool.end()
   };
 }
@@ -195,6 +218,7 @@ function createBetterAuthOptions(
     databaseHooks: {
       user: {
         create: {
+          before: (user) => registrationGate(appDb, user),
           after: (user) => bootstrapFirstJarvisUser(appDb, user)
         }
       }
@@ -209,25 +233,76 @@ async function resolveRequestAccessContext(options: {
   readonly request: RequestAccessContextInput;
   readonly auth: ReturnType<typeof betterAuth>;
   readonly legacySessions: AuthSessionResolver;
+  readonly appDb: Kysely<JarvisDatabase>;
 }): Promise<AccessContext> {
   const requestId = options.request.id ?? randomUUID();
   const headers = toWebHeaders(options.request.headers);
   const bearerToken = readBearerToken(headers);
 
+  let actorUserId: string;
+
   if (bearerToken) {
-    return options.legacySessions.resolveAccessContext(bearerToken, requestId);
+    const ctx = await options.legacySessions.resolveAccessContext(bearerToken, requestId);
+    actorUserId = ctx.actorUserId;
+  } else {
+    const session = await options.auth.api.getSession({ headers });
+    if (!session) {
+      throw new Error("Session is missing or expired");
+    }
+    actorUserId = session.user.id;
   }
 
-  const session = await options.auth.api.getSession({ headers });
+  const rows = await sql<{ status: string }>`
+    SELECT status FROM app.get_user_by_id(${actorUserId}::uuid)
+  `.execute(options.appDb);
 
-  if (!session) {
+  const userRow = rows.rows[0];
+  if (!userRow) {
     throw new Error("Session is missing or expired");
   }
+  if (userRow.status === "pending") {
+    throw new AccountPendingApprovalError();
+  }
+  if (userRow.status === "deactivated") {
+    throw new AccountDeactivatedError();
+  }
 
-  return {
-    actorUserId: session.user.id,
-    requestId
-  };
+  return { actorUserId, requestId };
+}
+
+async function registrationGate(
+  appDb: Kysely<JarvisDatabase>,
+  _user: BetterAuthUser
+): Promise<void> {
+  const countResult = await sql<{ count: string }>`SELECT app.count_all_users() AS count`.execute(
+    appDb
+  );
+  const existingCount = Number(countResult.rows[0]?.count ?? 0);
+  if (existingCount === 0) return;
+
+  const enabled = await readBooleanSetting(appDb, "registration.enabled", true);
+  if (!enabled) {
+    throw new APIError("FORBIDDEN", {
+      message: "Registration is disabled",
+      code: "registration_disabled"
+    });
+  }
+}
+
+async function readBooleanSetting(
+  appDb: Kysely<JarvisDatabase>,
+  key: string,
+  defaultValue: boolean
+): Promise<boolean> {
+  const row = await appDb
+    .selectFrom("app.instance_settings")
+    .select("value")
+    .where("key", "=", key)
+    .executeTakeFirst();
+
+  if (!row) return defaultValue;
+  const parsed = row.value as Record<string, unknown>;
+  return typeof parsed.value === "boolean" ? parsed.value : defaultValue;
 }
 
 async function bootstrapFirstJarvisUser(
@@ -251,12 +326,24 @@ async function bootstrapFirstJarvisUser(
     // The 'true' flag scopes this to the transaction only.
     await sql`SELECT set_config('app.actor_user_id', ${user.id}, true)`.execute(transaction);
 
+    let status: "active" | "pending" = "active";
+    if (!isFirstUser) {
+      const requiresApproval = await readBooleanSetting(
+        transaction,
+        "registration.requires_approval",
+        true
+      );
+      if (requiresApproval) status = "pending";
+    }
+
     await transaction
       .updateTable("app.users")
       .set({
         name: user.name ?? "",
         email: user.email,
         is_instance_admin: isFirstUser,
+        is_bootstrap_owner: isFirstUser,
+        status,
         updated_at: new Date()
       })
       .where("id", "=", user.id)

@@ -102,7 +102,9 @@ export function createApiServer(options: CreateApiServerOptions = {}) {
       listModuleManifests: getBuiltInModuleManifests,
       dataContext,
       boss,
-      chatEngineFactory: options.chatEngineFactory
+      chatEngineFactory: options.chatEngineFactory,
+      revokeUserSessions: authRuntime.revokeUserSessions,
+      bootstrapConnectionString: ownsAppDb ? getJarvisDatabaseUrls().bootstrap : undefined
     });
   });
 
@@ -201,7 +203,12 @@ function registerPlatformRoutes(server: FastifyInstance, authRuntime: JarvisAuth
       return {
         modules: getBuiltInModuleManifests().map(serializeModule)
       };
-    } catch {
+    } catch (error) {
+      const code =
+        (error instanceof Error && (error as Error & { code?: string }).code) || undefined;
+      if (code === "account_pending_approval" || code === "account_deactivated") {
+        return reply.code(403).send({ error: (error as Error).message, code });
+      }
       return reply.code(401).send({ error: "Session is missing or expired" });
     }
   });

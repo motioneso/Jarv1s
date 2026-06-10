@@ -476,6 +476,13 @@ button.module-link {
   color: var(--muted);
 }
 
+.row-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem;
+}
+
 .note-create-form,
 .ai-form,
 .connector-form,

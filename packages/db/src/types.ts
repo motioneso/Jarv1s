@@ -31,6 +31,8 @@ export interface UsersTable {
   email_verified: boolean;
   image: string | null;
   is_instance_admin: boolean;
+  status: "pending" | "active" | "deactivated";
+  is_bootstrap_owner: boolean;
   created_at: TimestampColumn;
   updated_at: TimestampColumn;
 }
