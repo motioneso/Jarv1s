@@ -102,7 +102,9 @@ export function createApiServer(options: CreateApiServerOptions = {}) {
       listModuleManifests: getBuiltInModuleManifests,
       dataContext,
       boss,
-      chatEngineFactory: options.chatEngineFactory
+      chatEngineFactory: options.chatEngineFactory,
+      revokeUserSessions: authRuntime.revokeUserSessions,
+      bootstrapConnectionString: ownsAppDb ? getJarvisDatabaseUrls().bootstrap : undefined
     });
   });
 

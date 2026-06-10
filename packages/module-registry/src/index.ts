@@ -71,6 +71,8 @@ export interface BuiltInRouteDependencies {
   readonly boss: PgBoss;
   /** Override the live-chat engine factory (tests inject a fake); defaults to real tmux. */
   readonly chatEngineFactory?: ChatEngineFactory;
+  readonly revokeUserSessions?: (userId: string) => Promise<number>;
+  readonly bootstrapConnectionString?: string;
 }
 
 export interface BuiltInWorkerDependencies {
