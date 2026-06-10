@@ -150,9 +150,11 @@ predecessor to land):
    ```
 2. **Write the handoff doc** from `templates/handoff.md` (fill spec, worktree/branch, YOUR Herdr
    label, threshold, collision notes) → commit it so the agent can read it.
-3. **Spawn the build agent** into the run's Herdr tab:
+3. **Spawn the build agent** into the run's **build tab — window 1** (`--tab <workspace>:1`).
+   **Tab discipline (Ben, 2026-06-10):** build/QA agents live in window 1; the coordinator's own
+   window stays coordinator-only — the ONLY thing you may spawn there is your own relay successor.
    ```bash
-   herdr agent start "<Label>" --cwd $(pwd)/.claude/worktrees/<slug> --no-focus \
+   herdr agent start "<Label>" --tab <workspace>:1 --cwd $(pwd)/.claude/worktrees/<slug> --no-focus \
      -- claude --permission-mode bypassPermissions \
      "Build <slug> in this fresh worktree. STEP 1 pnpm install. STEP 2 read docs/.../<handoff>.md IN FULL and follow it via the coordinated-build skill. Begin now."
    ```
@@ -286,7 +288,8 @@ nothing first**.
 | ---- | --------------- |
 | Manifest / handoff templates | `.claude/skills/coordinate/templates/{manifest,handoff}.md` |
 | Isolated worktree | `git worktree add .claude/worktrees/<slug> -b <slug> origin/main` |
-| Spawn build / QA / coordinator | `herdr agent start "<Label>" --cwd <path> --no-focus -- claude …` |
+| Spawn build / QA agent (window 1!) | `herdr agent start "<Label>" --tab <ws>:1 --cwd <path> --no-focus -- claude …` |
+| Spawn relay coordinator (own tab OK) | `herdr agent start "Coordinator" --tab <own tab> …` — only successor may share your window |
 | Talk to an agent | `herdr-pane-message` (`herdr agent send "<label>" "<text>"`) |
 | Liveness sweep | `herdr pane list` · `herdr pane read <pane> --source visible --lines 20` |
 | Reap a spent pane / worktree | kill pane · `git worktree remove .claude/worktrees/<slug>` |
