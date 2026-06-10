@@ -1,4 +1,5 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
+import { sql } from "kysely";
 import type { Kysely } from "kysely";
 
 import type {
@@ -255,11 +256,10 @@ async function requireAdmin(
   dependencies: ConnectorsRoutesDependencies
 ): Promise<AccessContext> {
   const accessContext = await dependencies.resolveAccessContext(request);
-  const user = await dependencies.appDb
-    .selectFrom("app.users")
-    .select(["id", "is_instance_admin"])
-    .where("id", "=", accessContext.actorUserId)
-    .executeTakeFirst();
+  const result = await sql<{ id: string; is_instance_admin: boolean }>`
+    SELECT id, is_instance_admin FROM app.get_user_by_id(${accessContext.actorUserId}::uuid)
+  `.execute(dependencies.appDb);
+  const user = result.rows[0];
 
   if (!user) {
     throw new HttpError(401, "Session is missing or expired");
