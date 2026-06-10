@@ -2,16 +2,15 @@
  * Integration tests for chat token budget feature (issue #81).
  * Tasks: migration column, trimToTokenBudget pure logic, listPriorTurns bounded
  * replay, recordTurn rolling summary, env-var overrides, launchSession injection.
+ *
+ * Single file-level resetFoundationDatabase() to avoid pg-boss background workers
+ * from one reset interfering with the DROP SCHEMA of the next.
  */
 import { beforeAll, describe, expect, it } from "vitest";
 import pg from "pg";
 import type { Kysely } from "kysely";
 
-import {
-  DataContextRunner,
-  createDatabase,
-  type JarvisDatabase
-} from "@jarv1s/db";
+import { DataContextRunner, createDatabase, type JarvisDatabase } from "@jarv1s/db";
 import { AiRepository } from "@jarv1s/ai";
 import { ChatRepository } from "@jarv1s/chat";
 import { DataContextChatPersistence } from "../../packages/chat/src/live/persistence.js";
@@ -29,6 +28,12 @@ import { connectionStrings, ids, resetFoundationDatabase } from "./test-database
 
 const { Client } = pg;
 
+// Single reset — migratePgBoss starts background workers; subsequent DROP SCHEMA
+// would race against those workers if we reset multiple times in one file.
+beforeAll(async () => {
+  await resetFoundationDatabase();
+});
+
 function userAContext() {
   return { actorUserId: ids.userA, requestId: "test" };
 }
@@ -36,10 +41,6 @@ function userAContext() {
 // ─── Task 1: migration ────────────────────────────────────────────────────────
 
 describe("chat-token-budgets migration (00NN)", () => {
-  beforeAll(async () => {
-    await resetFoundationDatabase();
-  });
-
   it("chat_threads has conversation_summary column", async () => {
     const client = new Client({ connectionString: connectionStrings.migration });
     await client.connect();
@@ -110,7 +111,6 @@ describe("ChatRepository.updateConversationSummary", () => {
   let repository: ChatRepository;
 
   beforeAll(async () => {
-    await resetFoundationDatabase();
     appDb = createDatabase({ connectionString: connectionStrings.app, maxConnections: 1 });
     dataContext = new DataContextRunner(appDb);
     repository = new ChatRepository();
@@ -148,7 +148,6 @@ describe("DataContextChatPersistence.listPriorTurns bounded replay", () => {
   let persistence: DataContextChatPersistence;
 
   beforeAll(async () => {
-    await resetFoundationDatabase();
     appDb = createDatabase({ connectionString: connectionStrings.app, maxConnections: 2 });
     dataContext = new DataContextRunner(appDb);
     chatRepo = new ChatRepository();
@@ -171,10 +170,16 @@ describe("DataContextChatPersistence.listPriorTurns bounded replay", () => {
       chatRepo.getCurrentThread(db, ids.userB)
     );
     await dataContext.withDataContext(ctx, (db) =>
-      chatRepo.recordCompletedTurn(db, thread!.id, "q1", "a1", { provider: "anthropic", model: "x" })
+      chatRepo.recordCompletedTurn(db, thread!.id, "q1", "a1", {
+        provider: "anthropic",
+        model: "x"
+      })
     );
     await dataContext.withDataContext(ctx, (db) =>
-      chatRepo.recordCompletedTurn(db, thread!.id, "q2", "a2", { provider: "anthropic", model: "x" })
+      chatRepo.recordCompletedTurn(db, thread!.id, "q2", "a2", {
+        provider: "anthropic",
+        model: "x"
+      })
     );
 
     const result = await persistence.listPriorTurns(ids.userB);
@@ -184,7 +189,7 @@ describe("DataContextChatPersistence.listPriorTurns bounded replay", () => {
   });
 
   it("splits into recent + summary when turn count > K", async () => {
-    // Use userA with a fresh thread and K=2 so we can exceed it quickly.
+    // Fresh thread for userA so this test's turns are isolated.
     const origK = process.env.JARVIS_CHAT_REPLAY_K;
     process.env.JARVIS_CHAT_REPLAY_K = "2";
     try {
@@ -224,7 +229,6 @@ describe("DataContextChatPersistence.recordTurn rolling summary", () => {
   let persistence: DataContextChatPersistence;
 
   beforeAll(async () => {
-    await resetFoundationDatabase();
     appDb = createDatabase({ connectionString: connectionStrings.app, maxConnections: 2 });
     dataContext = new DataContextRunner(appDb);
     chatRepo = new ChatRepository();
@@ -273,6 +277,7 @@ describe("DataContextChatPersistence.recordTurn rolling summary", () => {
 // ─── Task 5: launchSession bounded inject (fake engine) ───────────────────────
 
 class FakeEngineForSession implements CliChatEngine {
+  readonly provider = "anthropic" as const;
   readonly submitted: string[] = [];
 
   async launch(): Promise<void> {}

@@ -24,7 +24,14 @@ describe("renderMemorySeedBlock", () => {
 
   it("renders episodic chunks with provenance", () => {
     const result = renderMemorySeedBlock(
-      [{ text: "User mentioned TypeScript preference", date: "2026-05-01", threadId: "abc123", hybridScore: 0.9 }],
+      [
+        {
+          text: "User mentioned TypeScript preference",
+          date: "2026-05-01",
+          threadId: "abc123",
+          hybridScore: 0.9
+        }
+      ],
       []
     );
     expect(result).toContain("<memory>");

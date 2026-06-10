@@ -71,9 +71,7 @@ export class DataContextChatPersistence implements ChatPersistencePort {
 
       const messages = await this.chat.listMessages(scopedDb, thread.id);
       const turns = messages
-        .filter(
-          (m) => m.status === "stored" && (m.role === "user" || m.role === "assistant")
-        )
+        .filter((m) => m.status === "stored" && (m.role === "user" || m.role === "assistant"))
         .map((m) => ({ role: m.role as "user" | "assistant", content: m.body }));
 
       const k = getReplayK();
@@ -82,8 +80,7 @@ export class DataContextChatPersistence implements ChatPersistencePort {
       }
 
       const recent = turns.slice(-k);
-      const oldSummary =
-        thread.conversation_summary ?? buildRollingSummary(turns.slice(0, -k));
+      const oldSummary = thread.conversation_summary ?? buildRollingSummary(turns.slice(0, -k));
       return { recent, oldSummary };
     });
   }
