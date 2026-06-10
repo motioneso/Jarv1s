@@ -43,8 +43,12 @@ ALTER TABLE app.auth_accounts FORCE ROW LEVEL SECURITY;
 ALTER TABLE app.better_auth_sessions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE app.better_auth_sessions FORCE ROW LEVEL SECURITY;
 
+-- ENABLE (not FORCE) on users: the table owner (jarvis_migration_owner) must be able to
+-- bypass RLS when executing SECURITY DEFINER functions that query users for admin checks
+-- (e.g. app.list_connector_account_safe_metadata). Runtime roles are not the owner and
+-- remain fully policy-controlled. Auth secret tables (auth_accounts, better_auth_sessions)
+-- keep FORCE because no SECURITY DEFINER function owned by migration_owner queries them.
 ALTER TABLE app.users ENABLE ROW LEVEL SECURITY;
-ALTER TABLE app.users FORCE ROW LEVEL SECURITY;
 
 -- 4. Policies — auth_accounts (only jarvis_auth_runtime accesses this table).
 DROP POLICY IF EXISTS auth_accounts_auth_runtime ON app.auth_accounts;

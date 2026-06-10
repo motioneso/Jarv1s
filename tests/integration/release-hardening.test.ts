@@ -263,7 +263,9 @@ describe("M7 release hardening lifecycle scripts", () => {
       expect.arrayContaining([
         {
           appCanSelect: true,
-          forceRls: true,
+          // ENABLE but not FORCE: owner (jarvis_migration_owner) must bypass for SECURITY DEFINER
+          // functions that query users for admin checks (e.g. list_connector_account_safe_metadata).
+          forceRls: false,
           rlsEnabled: true,
           tableName: "users"
         }

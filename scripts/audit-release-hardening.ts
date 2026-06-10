@@ -18,7 +18,8 @@ const runtimeRoles = [
 // to SELECT directly (grant was revoked — any row access goes through the auth role).
 const authSecretTables = ["auth_accounts", "better_auth_sessions"] as const;
 
-// Auth owner table: must have FORCE RLS; jarvis_app_runtime retains SELECT (self-row only).
+// Auth owner table: must have RLS ENABLED (not forced — owner bypass needed for SECURITY DEFINER
+// functions); jarvis_app_runtime retains SELECT (all rows, for admin routes + membership checks).
 const authOwnerTable = ["users"] as const;
 
 const protectedTables = [
@@ -324,7 +325,8 @@ function collectFailures(
   }
   for (const table of authOwnerTableAudits) {
     if (!table.rlsEnabled) failures.push(`app.${table.tableName} does not enable RLS`);
-    if (!table.forceRls) failures.push(`app.${table.tableName} does not force RLS`);
+    // Note: users uses ENABLE (not FORCE) RLS so the table owner (jarvis_migration_owner)
+    // can bypass for SECURITY DEFINER functions. Auth secret tables keep FORCE.
   }
 
   if (!adminAuditPrivileges.appCanSelect) {
