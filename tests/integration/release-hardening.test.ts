@@ -328,6 +328,9 @@ describe("M7 release hardening lifecycle scripts", () => {
     expect(composePlan.healthUrl).toBe("http://localhost:3900/health");
     expect(JSON.stringify(composePlan.commands)).toContain("infra/docker-compose.yml");
     expect(JSON.stringify(composePlan.commands)).not.toContain("postgres://");
+    expect(
+      composePlan.commands.some((c) => c.args.includes("api") && c.args.includes("--wait"))
+    ).toBe(true);
   });
 
   it("requires explicit restore confirmation before destructive execution", () => {
