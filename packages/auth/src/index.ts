@@ -285,12 +285,24 @@ async function bootstrapFirstJarvisUser(
     // The 'true' flag scopes this to the transaction only.
     await sql`SELECT set_config('app.actor_user_id', ${user.id}, true)`.execute(transaction);
 
+    let status: "active" | "pending" = "active";
+    if (!isFirstUser) {
+      const requiresApproval = await readBooleanSetting(
+        transaction,
+        "registration.requires_approval",
+        true
+      );
+      if (requiresApproval) status = "pending";
+    }
+
     await transaction
       .updateTable("app.users")
       .set({
         name: user.name ?? "",
         email: user.email,
         is_instance_admin: isFirstUser,
+        is_bootstrap_owner: isFirstUser,
+        status,
         updated_at: new Date()
       })
       .where("id", "=", user.id)

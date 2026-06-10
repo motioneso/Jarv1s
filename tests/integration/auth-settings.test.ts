@@ -1,6 +1,6 @@
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import type { OutgoingHttpHeaders } from "node:http";
-import type { Kysely } from "kysely";
+import { sql, type Kysely } from "kysely";
 
 import { createApiServer } from "../../apps/api/src/server.js";
 import { createDatabase, type JarvisDatabase } from "@jarv1s/db";
@@ -530,6 +530,37 @@ describe("multi-user registration + lifecycle (Phase 2 Slice A)", () => {
     const blocked = await signUp({ name: "Late", email: "late@example.com", password: "password12345" });
     expect(blocked.statusCode).toBe(403);
     expect(blocked.json<{ code?: string }>().code).toBe("registration_disabled");
+  });
+
+  it("marks the first sign-up as bootstrap owner with active status", async () => {
+    const signUpRes = await signUp({ name: "First", email: "first@example.com", password: "password12345" });
+    expect(signUpRes.statusCode).toBe(200);
+
+    const cookie = cookieHeader(signUpRes.headers);
+    const meRes = await server.inject({ method: "GET", url: "/api/me", headers: { cookie } });
+
+    expect(meRes.statusCode).toBe(200);
+    expect(meRes.json<MeResponse>().user).toMatchObject({
+      isBootstrapOwner: true,
+      status: "active"
+    });
+  });
+
+  it("marks subsequent sign-up as pending when requires_approval is true", async () => {
+    await signUp({ name: "Owner", email: "owner@example.com", password: "password12345" });
+
+    const joinRes = await signUp({ name: "Joiner", email: "joiner@example.com", password: "password12345" });
+    expect(joinRes.statusCode).toBe(200);
+    const userId = joinRes.json<{ user: { id: string } }>().user.id;
+
+    // Query via SECURITY DEFINER function (jarvis_auth_runtime USING(true)) so this
+    // stays valid after Task 5 enforcement blocks pending users from /api/me.
+    const rows = await sql<{
+      is_bootstrap_owner: boolean;
+      status: string;
+    }>`SELECT is_bootstrap_owner, status FROM app.get_user_by_id(${userId}::uuid)`.execute(appDb);
+
+    expect(rows.rows[0]).toMatchObject({ is_bootstrap_owner: false, status: "pending" });
   });
 });
 
