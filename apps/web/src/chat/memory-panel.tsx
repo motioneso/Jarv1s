@@ -46,11 +46,7 @@ export function MemoryPanel(props: { readonly onClose: () => void }) {
           Recall past conversations
         </label>
         <label className="memory-toggle">
-          <input
-            disabled
-            type="checkbox"
-            checked={false}
-          />
+          <input disabled type="checkbox" checked={false} />
           Remember facts about me (coming soon)
         </label>
       </section>
