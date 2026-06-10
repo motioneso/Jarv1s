@@ -16,3 +16,5 @@ docs/testing/
 .env
 .env.*
 !.env.example
+# Backup operator env (holds PGPASSWORD etc.) — never commit
+infra/backup.env
