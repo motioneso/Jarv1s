@@ -69,7 +69,9 @@ function makeConnectorCipher(env: NodeJS.ProcessEnv): ConnectorSecretCipher {
 }
 
 /** Produce a legacy-style (no keyId) version of a normal encrypted envelope. */
-function stripKeyId<T extends { keyId?: string }>(envelope: T): Omit<T, "keyId"> & { keyId: undefined } {
+function stripKeyId<T extends { keyId?: string }>(
+  envelope: T
+): Omit<T, "keyId"> & { keyId: undefined } {
   return { ...envelope, keyId: undefined };
 }
 
@@ -205,19 +207,20 @@ describe("(b) legacy envelope — post-rotation deployment", () => {
 
 describe("resolveKeyring — legacyCandidates", () => {
   it("legacyCandidates contains only current key when no retired keys configured", () => {
-    const keyring = resolveKeyring(
-      "K", "KID", "KS", "dev-default",
-      { K: "my-secret", KID: "v1" } as NodeJS.ProcessEnv
-    );
+    const keyring = resolveKeyring("K", "KID", "KS", "dev-default", {
+      K: "my-secret",
+      KID: "v1"
+    } as NodeJS.ProcessEnv);
     expect(keyring.legacyCandidates).toHaveLength(1);
     expect(keyring.legacyCandidates[0]).toEqual(makeKeyBuffer("my-secret"));
   });
 
   it("legacyCandidates contains current + retired when retired keys configured", () => {
-    const keyring = resolveKeyring(
-      "K", "KID", "KS", "dev-default",
-      { K: "new-secret", KID: "v2", KS: JSON.stringify({ v1: "old-secret" }) } as NodeJS.ProcessEnv
-    );
+    const keyring = resolveKeyring("K", "KID", "KS", "dev-default", {
+      K: "new-secret",
+      KID: "v2",
+      KS: JSON.stringify({ v1: "old-secret" })
+    } as NodeJS.ProcessEnv);
     expect(keyring.legacyCandidates).toHaveLength(2);
     expect(keyring.legacyCandidates[0]).toEqual(makeKeyBuffer("new-secret")); // current first
     expect(keyring.legacyCandidates[1]).toEqual(makeKeyBuffer("old-secret")); // retired second
