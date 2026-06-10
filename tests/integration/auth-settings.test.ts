@@ -1,6 +1,7 @@
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import type { OutgoingHttpHeaders } from "node:http";
 import { sql, type Kysely } from "kysely";
+import pg from "pg";
 
 import { createApiServer } from "../../apps/api/src/server.js";
 import { createDatabase, type JarvisDatabase } from "@jarv1s/db";
@@ -43,6 +44,13 @@ describe("M3 auth, users, workspaces, settings", () => {
       connectionString: connectionStrings.app,
       maxConnections: 1
     });
+    // Disable requires_approval so subsequently-registered users in M3 tests get active status.
+    // (Phase 2 Slice A approval-flow tests run in their own describe with a fresh DB per test.)
+    await appDb
+      .updateTable("app.instance_settings")
+      .set({ value: { value: false }, updated_at: new Date() })
+      .where("key", "=", "registration.requires_approval")
+      .execute();
     server = createApiServer({
       appDb,
       logger: false
@@ -561,6 +569,57 @@ describe("multi-user registration + lifecycle (Phase 2 Slice A)", () => {
     }>`SELECT is_bootstrap_owner, status FROM app.get_user_by_id(${userId}::uuid)`.execute(appDb);
 
     expect(rows.rows[0]).toMatchObject({ is_bootstrap_owner: false, status: "pending" });
+  });
+
+  it("blocks pending user from authenticated endpoint with 403 account_pending_approval", async () => {
+    await signUp({ name: "Owner", email: "owner@example.com", password: "password12345" });
+
+    const joinRes = await signUp({ name: "Joiner", email: "joiner@example.com", password: "password12345" });
+    expect(joinRes.statusCode).toBe(200);
+
+    const meRes = await server.inject({
+      method: "GET",
+      url: "/api/me",
+      headers: { cookie: cookieHeader(joinRes.headers) }
+    });
+
+    expect(meRes.statusCode).toBe(403);
+    expect(meRes.json<{ code?: string }>().code).toBe("account_pending_approval");
+  });
+
+  it("blocks deactivated user from authenticated endpoint with 403 account_deactivated", async () => {
+    await signUp({ name: "Owner", email: "owner@example.com", password: "password12345" });
+
+    // Disable requires_approval so the second user is created with active status.
+    await appDb
+      .updateTable("app.instance_settings")
+      .set({ value: { value: false }, updated_at: new Date() })
+      .where("key", "=", "registration.requires_approval")
+      .execute();
+
+    const joinRes = await signUp({ name: "Joiner", email: "joiner@example.com", password: "password12345" });
+    expect(joinRes.statusCode).toBe(200);
+    const joinerId = joinRes.json<{ user: { id: string } }>().user.id;
+
+    // Deactivate the joiner using the bootstrap (superuser) connection to bypass RLS.
+    // This is test setup only — the bootstrap role is the postgres superuser used
+    // exclusively in tests/infra scripts to seed state that normal roles cannot write.
+    const client = new pg.Client({ connectionString: connectionStrings.bootstrap });
+    await client.connect();
+    await client.query(
+      `UPDATE app.users SET status = 'deactivated', updated_at = now() WHERE id = $1`,
+      [joinerId]
+    );
+    await client.end();
+
+    const meRes = await server.inject({
+      method: "GET",
+      url: "/api/me",
+      headers: { cookie: cookieHeader(joinRes.headers) }
+    });
+
+    expect(meRes.statusCode).toBe(403);
+    expect(meRes.json<{ code?: string }>().code).toBe("account_deactivated");
   });
 });
 

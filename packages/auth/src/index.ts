@@ -27,6 +27,20 @@ export interface RequestAccessContextInput {
   readonly headers: Headers | IncomingHttpHeaders;
 }
 
+export class AccountPendingApprovalError extends Error {
+  readonly code = "account_pending_approval";
+  constructor() {
+    super("Account is pending approval");
+  }
+}
+
+export class AccountDeactivatedError extends Error {
+  readonly code = "account_deactivated";
+  constructor() {
+    super("Account has been deactivated");
+  }
+}
+
 export interface JarvisAuthRuntime {
   readonly auth: ReturnType<typeof betterAuth>;
   readonly resolveAccessContext: (request: RequestAccessContextInput) => Promise<AccessContext>;
@@ -64,7 +78,8 @@ export function createJarvisAuthRuntime(
       resolveRequestAccessContext({
         request,
         auth,
-        legacySessions
+        legacySessions,
+        appDb: options.appDb
       }),
     listConfiguredProviders: () => listConfiguredAuthProviders(env),
     close: () => pool.end()
@@ -211,25 +226,41 @@ async function resolveRequestAccessContext(options: {
   readonly request: RequestAccessContextInput;
   readonly auth: ReturnType<typeof betterAuth>;
   readonly legacySessions: AuthSessionResolver;
+  readonly appDb: Kysely<JarvisDatabase>;
 }): Promise<AccessContext> {
   const requestId = options.request.id ?? randomUUID();
   const headers = toWebHeaders(options.request.headers);
   const bearerToken = readBearerToken(headers);
 
+  let actorUserId: string;
+
   if (bearerToken) {
-    return options.legacySessions.resolveAccessContext(bearerToken, requestId);
+    const ctx = await options.legacySessions.resolveAccessContext(bearerToken, requestId);
+    actorUserId = ctx.actorUserId;
+  } else {
+    const session = await options.auth.api.getSession({ headers });
+    if (!session) {
+      throw new Error("Session is missing or expired");
+    }
+    actorUserId = session.user.id;
   }
 
-  const session = await options.auth.api.getSession({ headers });
+  const rows = await sql<{ status: string }>`
+    SELECT status FROM app.get_user_by_id(${actorUserId}::uuid)
+  `.execute(options.appDb);
 
-  if (!session) {
+  const userRow = rows.rows[0];
+  if (!userRow) {
     throw new Error("Session is missing or expired");
   }
+  if (userRow.status === "pending") {
+    throw new AccountPendingApprovalError();
+  }
+  if (userRow.status === "deactivated") {
+    throw new AccountDeactivatedError();
+  }
 
-  return {
-    actorUserId: session.user.id,
-    requestId
-  };
+  return { actorUserId, requestId };
 }
 
 async function registrationGate(

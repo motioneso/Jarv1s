@@ -519,6 +519,10 @@ function handleRouteError(error: unknown, reply: FastifyReply) {
   }
 
   if (error instanceof Error) {
+    const code = (error as Error & { code?: string }).code;
+    if (code === "account_pending_approval" || code === "account_deactivated") {
+      return reply.code(403).send({ error: error.message, code });
+    }
     if (error.message === "Session is missing or expired") {
       return reply.code(401).send({ error: error.message });
     }
