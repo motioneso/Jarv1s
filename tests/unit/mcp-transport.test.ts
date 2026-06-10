@@ -3,11 +3,11 @@ import { gatewayResponseToMcp } from "../../packages/chat/src/mcp-transport.js";
 import type { GatewayToolResponse } from "@jarv1s/ai";
 
 describe("gatewayResponseToMcp", () => {
-  it("maps ok=true response to non-error content", () => {
-    const res: GatewayToolResponse = { ok: true, data: { result: "hello" } };
+  it("maps ok=true response to non-error content (reads pre-rendered .text)", () => {
+    const res: GatewayToolResponse = { ok: true, data: { text: '{"result":"hello"}' } };
     const mcp = gatewayResponseToMcp(res);
     expect(mcp.isError).toBe(false);
-    expect(mcp.content[0]!.text).toBe(JSON.stringify({ result: "hello" }));
+    expect(mcp.content[0]!.text).toBe('{"result":"hello"}');
   });
 
   it("maps denied response to isError=true with reason", () => {

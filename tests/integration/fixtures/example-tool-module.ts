@@ -71,6 +71,25 @@ export const exampleToolModule: JarvisModuleManifest = {
       description: "Declared without a handler (legacy-style).",
       permissionId: "example.view",
       risk: "read"
+    },
+    {
+      name: "example.list",
+      description: "Returns a uniform flat list (tabular output fixture).",
+      permissionId: "example.view",
+      risk: "read" as const,
+      inputSchema: { type: "object", properties: {} },
+      execute: async (db, _input, ctx: ToolContext) => {
+        assertDataContextDb(db as DataContextDb);
+        exampleToolCalls.push({ name: "example.list", input: {}, actorUserId: ctx.actorUserId });
+        return {
+          data: {
+            items: [
+              { id: "a1", name: "Alpha", status: "active" },
+              { id: "a2", name: "Beta", status: "inactive" }
+            ]
+          }
+        };
+      }
     }
   ]
 };
