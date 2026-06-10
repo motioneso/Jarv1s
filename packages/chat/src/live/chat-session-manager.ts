@@ -30,8 +30,11 @@ export interface Clock {
 export interface ChatPersistencePort {
   /** The active "chat" provider+model for this user (router-selected). */
   resolveActiveProvider(actorUserId: string): Promise<{ provider: ProviderKind; model: string }>;
-  /** Prior stored turns of the user's CURRENT conversation, oldest-first. */
-  listPriorTurns(actorUserId: string): Promise<{ role: "user" | "assistant"; content: string }[]>;
+  /** Prior stored turns split into recent verbatim turns + older rolling summary. */
+  listPriorTurns(actorUserId: string): Promise<{
+    recent: readonly { role: "user" | "assistant"; content: string }[];
+    oldSummary: string | null;
+  }>;
   /** Persist a completed turn (user text + assistant reply + executing provider/model). */
   recordTurn(
     actorUserId: string,
@@ -169,17 +172,22 @@ export class ChatSessionManager {
 
     // Phase 3: recall injection — prepend <memory> seed before conversation replay.
     const recallResult = this.deps.recall ? await this.deps.recall.recall(actorUserId) : null;
+    const seedBudget = process.env.JARVIS_CHAT_SEED_BUDGET_TOKENS
+      ? parseInt(process.env.JARVIS_CHAT_SEED_BUDGET_TOKENS, 10)
+      : 1500;
     const memorySeed = recallResult
-      ? renderMemorySeedBlock(recallResult.episodicChunks, recallResult.facts)
+      ? renderMemorySeedBlock(recallResult.episodicChunks, recallResult.facts, seedBudget)
       : "";
 
-    // Replay prior turns of the current conversation so a respawned or
-    // provider-switched engine continues seamlessly.
-    const priorTurns = await this.deps.persistence.listPriorTurns(actorUserId);
-    if (memorySeed || priorTurns.length > 0) {
+    // Replay the bounded window of prior turns (+ older rolling summary) so a
+    // respawned or provider-switched engine continues seamlessly.
+    const { recent: recentTurns, oldSummary } =
+      await this.deps.persistence.listPriorTurns(actorUserId);
+    if (memorySeed || oldSummary || recentTurns.length > 0) {
       const parts: string[] = [];
       if (memorySeed) parts.push(memorySeed);
-      if (priorTurns.length > 0) parts.push(renderReplayBlock(priorTurns));
+      if (oldSummary) parts.push(renderSummaryBlock(oldSummary));
+      if (recentTurns.length > 0) parts.push(renderReplayBlock(recentTurns));
       await engine.submit(parts.join("\n\n"));
       // Drain (and discard) so real turn records start from a clean offset.
       session.transcriptOffset = await this.drain(engine, session.transcriptOffset);
@@ -371,6 +379,10 @@ function renderReplayBlock(
     ...lines,
     "</conversation>"
   ].join("\n");
+}
+
+function renderSummaryBlock(summary: string): string {
+  return `<prior-context>\n${summary}\n</prior-context>`;
 }
 
 function delay(ms: number): Promise<void> {

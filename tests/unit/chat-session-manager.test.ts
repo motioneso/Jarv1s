@@ -8,7 +8,7 @@ function makeMinimalDeps(
     engineFactory: vi.fn(),
     persistence: {
       resolveActiveProvider: vi.fn(),
-      listPriorTurns: vi.fn().mockResolvedValue([]),
+      listPriorTurns: vi.fn().mockResolvedValue({ recent: [], oldSummary: null }),
       recordTurn: vi.fn(),
       openNewConversation: vi.fn()
     },
