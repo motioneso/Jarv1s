@@ -40,19 +40,21 @@ describe("Rate limiting", () => {
 
   it("bursting POST /api/auth/sign-in/email past threshold returns 429", async () => {
     const payload = JSON.stringify({ email: "rl-test@example.test", password: "wrong" });
-    const headers = { "content-type": "application/json", "x-forwarded-for": "10.0.0.1" };
+    const headers = { "content-type": "application/json" };
 
     const res1 = await server.inject({
       method: "POST",
       url: "/api/auth/sign-in/email",
       headers,
-      payload
+      payload,
+      remoteAddress: "10.0.0.1"
     });
     const res2 = await server.inject({
       method: "POST",
       url: "/api/auth/sign-in/email",
       headers,
-      payload
+      payload,
+      remoteAddress: "10.0.0.1"
     });
     expect(res1.statusCode).not.toBe(429);
     expect(res2.statusCode).not.toBe(429);
@@ -61,26 +63,29 @@ describe("Rate limiting", () => {
       method: "POST",
       url: "/api/auth/sign-in/email",
       headers,
-      payload
+      payload,
+      remoteAddress: "10.0.0.1"
     });
     expect(res3.statusCode).toBe(429);
   });
 
   it("POST /api/auth/sign-up/email is also throttled", async () => {
     const payload = JSON.stringify({ name: "RLTest", email: "rl-up@example.test", password: "x" });
-    const headers = { "content-type": "application/json", "x-forwarded-for": "10.0.0.2" };
+    const headers = { "content-type": "application/json" };
 
     const res1 = await server.inject({
       method: "POST",
       url: "/api/auth/sign-up/email",
       headers,
-      payload
+      payload,
+      remoteAddress: "10.0.0.2"
     });
     const res2 = await server.inject({
       method: "POST",
       url: "/api/auth/sign-up/email",
       headers,
-      payload
+      payload,
+      remoteAddress: "10.0.0.2"
     });
     expect(res1.statusCode).not.toBe(429);
     expect(res2.statusCode).not.toBe(429);
@@ -89,18 +94,18 @@ describe("Rate limiting", () => {
       method: "POST",
       url: "/api/auth/sign-up/email",
       headers,
-      payload
+      payload,
+      remoteAddress: "10.0.0.2"
     });
     expect(res3.statusCode).toBe(429);
   });
 
   it("GET /api/auth/get-session is NOT throttled (allowList skip)", async () => {
-    const headers = { "x-forwarded-for": "10.0.0.3" };
     for (let i = 0; i < 5; i++) {
       const res = await server.inject({
         method: "GET",
         url: "/api/auth/get-session",
-        headers
+        remoteAddress: "10.0.0.3"
       });
       expect(res.statusCode).not.toBe(429);
     }
@@ -108,19 +113,21 @@ describe("Rate limiting", () => {
 
   it("bursting POST /api/connectors/google/complete past threshold returns 429", async () => {
     const payload = JSON.stringify({ redirectUrl: "https://example.test/cb?code=x" });
-    const headers = { "content-type": "application/json", "x-forwarded-for": "10.0.0.4" };
+    const headers = { "content-type": "application/json" };
 
     const res1 = await server.inject({
       method: "POST",
       url: "/api/connectors/google/complete",
       headers,
-      payload
+      payload,
+      remoteAddress: "10.0.0.4"
     });
     const res2 = await server.inject({
       method: "POST",
       url: "/api/connectors/google/complete",
       headers,
-      payload
+      payload,
+      remoteAddress: "10.0.0.4"
     });
     expect(res1.statusCode).not.toBe(429);
     expect(res2.statusCode).not.toBe(429);
@@ -129,7 +136,8 @@ describe("Rate limiting", () => {
       method: "POST",
       url: "/api/connectors/google/complete",
       headers,
-      payload
+      payload,
+      remoteAddress: "10.0.0.4"
     });
     expect(res3.statusCode).toBe(429);
   });
@@ -139,5 +147,45 @@ describe("Rate limiting", () => {
       const res = await server.inject({ method: "GET", url: "/health" });
       expect(res.statusCode).toBe(200);
     }
+  });
+
+  // C1 regression: spoofing a different X-Forwarded-For on every request must NOT
+  // prevent throttling. Before the fix the keyGenerator keyed on XFF, so each request
+  // appeared to come from a fresh IP and the bucket never filled — 429 was never sent.
+  // After the fix the key is the real peer IP (remoteAddress) and the bucket fills on
+  // the third request regardless of what XFF the attacker sends.
+  it("XFF-spoof per-request does NOT bypass throttle — keyed on real peer IP (C1 regression)", async () => {
+    const payload = JSON.stringify({ email: "xff-bypass@example.test", password: "wrong" });
+    const headers = { "content-type": "application/json" };
+    // Same real peer IP on every request, but a different spoofed XFF header each time.
+    const spoofedXffs = ["1.1.1.1", "2.2.2.2", "3.3.3.3"];
+
+    const res1 = await server.inject({
+      method: "POST",
+      url: "/api/auth/sign-in/email",
+      headers: { ...headers, "x-forwarded-for": spoofedXffs[0] },
+      payload,
+      remoteAddress: "10.0.0.99"
+    });
+    const res2 = await server.inject({
+      method: "POST",
+      url: "/api/auth/sign-in/email",
+      headers: { ...headers, "x-forwarded-for": spoofedXffs[1] },
+      payload,
+      remoteAddress: "10.0.0.99"
+    });
+    expect(res1.statusCode).not.toBe(429);
+    expect(res2.statusCode).not.toBe(429);
+
+    // Third request from the same real IP must be throttled even though the attacker
+    // supplies yet another spoofed XFF header.
+    const res3 = await server.inject({
+      method: "POST",
+      url: "/api/auth/sign-in/email",
+      headers: { ...headers, "x-forwarded-for": spoofedXffs[2] },
+      payload,
+      remoteAddress: "10.0.0.99"
+    });
+    expect(res3.statusCode).toBe(429);
   });
 });
