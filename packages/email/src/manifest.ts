@@ -3,6 +3,8 @@ import { fileURLToPath } from "node:url";
 import type { JarvisModuleManifest } from "@jarv1s/module-sdk";
 import { getEmailMessageResponseSchema, listEmailMessagesResponseSchema } from "@jarv1s/shared";
 
+import { emailListVisibleMessagesExecute } from "./tools.js";
+
 export const EMAIL_MODULE_ID = "email";
 export const emailModuleSqlMigrationDirectory = fileURLToPath(new URL("../sql", import.meta.url));
 
@@ -84,7 +86,8 @@ export const emailModuleManifest = {
         type: "object",
         properties: {}
       },
-      outputSchema: listEmailMessagesResponseSchema
+      outputSchema: listEmailMessagesResponseSchema,
+      execute: emailListVisibleMessagesExecute
     }
   ]
 } satisfies JarvisModuleManifest;

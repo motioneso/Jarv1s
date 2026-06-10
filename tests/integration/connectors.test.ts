@@ -185,6 +185,46 @@ describe("Connectors encrypted foundation", () => {
     ).toThrow("JARVIS_CONNECTOR_SECRET_KEY is required in production");
   });
 
+  it("decrypts legacy envelope (no keyId) with current key for backward compat", () => {
+    const cipher = createConnectorSecretCipher({ JARVIS_CONNECTOR_SECRET_KEY: "test-key" });
+    const encrypted = cipher.encryptJson({ kind: "test", value: "hello" });
+    // Strip keyId to simulate a pre-keyId envelope
+    const { keyId: _omit, ...legacyEnvelope } = encrypted;
+    const legacy = legacyEnvelope as EncryptedConnectorSecret;
+    expect(cipher.decryptJson(legacy)).toEqual({ kind: "test", value: "hello" });
+  });
+
+  it("decrypts old-key envelope after rotating to a new current key", () => {
+    const cipherV1 = createConnectorSecretCipher({
+      JARVIS_CONNECTOR_SECRET_KEY: "old-secret",
+      JARVIS_CONNECTOR_SECRET_KEY_ID: "v1"
+    });
+    const encryptedV1 = cipherV1.encryptJson({ token: "old-token" });
+    expect(encryptedV1.keyId).toBe("v1");
+
+    // Rotate: v2 is current, v1 is retired (still in keyring)
+    const cipherV2 = createConnectorSecretCipher({
+      JARVIS_CONNECTOR_SECRET_KEY: "new-secret",
+      JARVIS_CONNECTOR_SECRET_KEY_ID: "v2",
+      JARVIS_CONNECTOR_SECRET_KEYS: JSON.stringify({ v1: "old-secret" })
+    });
+    // Old envelope still decrypts
+    expect(cipherV2.decryptJson(encryptedV1)).toEqual({ token: "old-token" });
+    // New encrypt stamps v2
+    const encryptedV2 = cipherV2.encryptJson({ token: "new-token" });
+    expect(encryptedV2.keyId).toBe("v2");
+    expect(cipherV2.decryptJson(encryptedV2)).toEqual({ token: "new-token" });
+  });
+
+  it("throws a named error for an unknown keyId instead of an opaque GCM failure", () => {
+    const cipher = createConnectorSecretCipher({ JARVIS_CONNECTOR_SECRET_KEY: "test-key" });
+    const envelope = cipher.encryptJson({ data: "secret" });
+    const tampered: EncryptedConnectorSecret = { ...envelope, keyId: "unknown-key-xyz" };
+    expect(() => cipher.decryptJson(tampered)).toThrow(
+      "Unknown connector secret key id: unknown-key-xyz"
+    );
+  });
+
   it("serves configured connector providers without secret material", async () => {
     const response = await server.inject({
       method: "GET",

@@ -36,8 +36,6 @@ import {
 } from "@jarv1s/shared";
 
 import {
-  AiAssistantToolExecutor,
-  UnsupportedAssistantToolError,
   findAssistantToolFromManifests,
   listAssistantToolsFromManifests
 } from "./assistant-tools.js";
@@ -56,7 +54,6 @@ export interface AiRoutesDependencies {
   readonly listModuleManifests: () => readonly JarvisModuleManifest[];
   readonly repository?: AiRepository;
   readonly secretCipher?: AiSecretCipher;
-  readonly assistantToolExecutor?: AiAssistantToolExecutor;
 }
 
 interface IdParams {
@@ -100,7 +97,6 @@ export function registerAiRoutes(
 ): void {
   const repository = dependencies.repository ?? new AiRepository();
   const secretCipher = dependencies.secretCipher ?? createAiSecretCipher();
-  const assistantToolExecutor = dependencies.assistantToolExecutor ?? new AiAssistantToolExecutor();
 
   server.get(
     "/api/ai/providers",
@@ -405,19 +401,26 @@ export function registerAiRoutes(
           .listModuleManifests()
           .flatMap((m) => m.assistantTools ?? [])
           .find((t) => t.name === selectedTool.name);
-        const result = await dependencies.dataContext.withDataContext(accessContext, (scopedDb) => {
-          if (manifestTool?.execute) {
-            return manifestTool
-              .execute(scopedDb, body.input ?? {}, {
-                actorUserId: accessContext.actorUserId,
-                requestId: accessContext.requestId ?? "",
-                chatSessionId: ""
-              })
-              .then((r) => r.data ?? {});
-          }
 
-          return assistantToolExecutor.invokeReadTool(scopedDb, selectedTool, body.input ?? {});
-        });
+        if (!manifestTool?.execute) {
+          return reply.code(403).send({
+            invocation: serializeAssistantToolInvocation(
+              selectedTool,
+              "blocked",
+              null,
+              "unsupported_tool",
+              null
+            )
+          });
+        }
+
+        const result = await dependencies.dataContext.withDataContext(accessContext, (scopedDb) =>
+          manifestTool.execute!(scopedDb, body.input ?? {}, {
+            actorUserId: accessContext.actorUserId,
+            requestId: accessContext.requestId ?? "",
+            chatSessionId: ""
+          }).then((r) => r.data ?? {})
+        );
 
         return {
           invocation: serializeAssistantToolInvocation(
@@ -429,18 +432,6 @@ export function registerAiRoutes(
           )
         };
       } catch (error) {
-        if (error instanceof UnsupportedAssistantToolError && tool) {
-          return reply.code(403).send({
-            invocation: serializeAssistantToolInvocation(
-              tool,
-              "blocked",
-              null,
-              "unsupported_tool",
-              null
-            )
-          });
-        }
-
         return handleRouteError(error, reply);
       }
     }

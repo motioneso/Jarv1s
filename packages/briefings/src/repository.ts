@@ -2,11 +2,7 @@ import { randomUUID } from "node:crypto";
 
 import { sql, type Updateable } from "kysely";
 
-import {
-  AiAssistantToolExecutor,
-  UnsupportedAssistantToolError,
-  findAssistantToolFromManifests
-} from "@jarv1s/ai";
+import { findAssistantToolFromManifests } from "@jarv1s/ai";
 import {
   assertDataContextDb,
   type BriefingCadence,
@@ -40,7 +36,6 @@ export interface GenerateBriefingRunInput {
   readonly moduleManifests: readonly JarvisModuleManifest[];
   readonly runKind: BriefingRunKind;
   readonly runId?: string;
-  readonly assistantToolExecutor?: AiAssistantToolExecutor;
 }
 
 interface ToolSummary {
@@ -217,7 +212,6 @@ async function generateSummary(
   definition: BriefingDefinition,
   input: GenerateBriefingRunInput
 ): Promise<SummaryResult> {
-  const executor = input.assistantToolExecutor ?? new AiAssistantToolExecutor();
   const tools = definition.selected_tool_names.map((name) =>
     selectReadTool(input.moduleManifests, name)
   );
@@ -241,37 +235,40 @@ async function generateSummary(
       continue;
     }
 
-    try {
-      const manifestTool = input.moduleManifests
-        .flatMap((m) => m.assistantTools ?? [])
-        .find((t) => t.name === tool.name);
-      let result: Record<string, unknown>;
+    const manifestTool = input.moduleManifests
+      .flatMap((m) => m.assistantTools ?? [])
+      .find((t) => t.name === tool.name);
 
-      if (manifestTool?.execute) {
-        const toolResult = await manifestTool.execute(
-          scopedDb,
-          {},
-          {
-            actorUserId: "",
-            requestId: "",
-            chatSessionId: ""
-          }
-        );
-
-        result = toolResult.data ?? {};
-      } else {
-        result = await executor.invokeReadTool(scopedDb, tool, {});
-      }
-
-      toolSummaries.push(summarizeToolResult(tool, result));
-    } catch (error) {
+    if (!manifestTool?.execute) {
       toolSummaries.push({
         name: tool.name,
-        status: error instanceof UnsupportedAssistantToolError ? "blocked" : "failed",
+        status: "blocked",
         itemCount: 0,
         excerpts: [],
-        blockedReason:
-          error instanceof UnsupportedAssistantToolError ? "unsupported_tool" : "tool_failed"
+        blockedReason: "unsupported_tool"
+      });
+      continue;
+    }
+
+    try {
+      const toolResult = await manifestTool.execute(
+        scopedDb,
+        {},
+        {
+          actorUserId: "",
+          requestId: "",
+          chatSessionId: ""
+        }
+      );
+      const result = toolResult.data ?? {};
+      toolSummaries.push(summarizeToolResult(tool, result));
+    } catch {
+      toolSummaries.push({
+        name: tool.name,
+        status: "failed",
+        itemCount: 0,
+        excerpts: [],
+        blockedReason: "tool_failed"
       });
     }
   }
