@@ -1,0 +1,13 @@
+[Unit]
+Description=Jarv1s scheduled backup (DB + vault)
+After=network.target docker.service
+Requires=docker.service
+
+[Service]
+Type=oneshot
+User=REPLACE_WITH_INSTALL_USER
+WorkingDirectory=~/Jarv1s
+EnvironmentFile=-~/Jarv1s/infra/backup.env
+ExecStart=~/Jarv1s/scripts/backup-full.sh
+StandardOutput=journal
+StandardError=journal
