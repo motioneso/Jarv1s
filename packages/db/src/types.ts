@@ -350,6 +350,7 @@ export interface ChatThreadsTable {
   created_at: TimestampColumn;
   updated_at: TimestampColumn;
   last_active_at: TimestampColumn;
+  conversation_summary: string | null;
 }
 
 export interface ChatMessagesTable {

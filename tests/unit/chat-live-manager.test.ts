@@ -228,8 +228,11 @@ class FakePersistence implements ChatPersistencePort {
     return this.active;
   }
 
-  async listPriorTurns(): Promise<{ role: "user" | "assistant"; content: string }[]> {
-    return [...this.turns];
+  async listPriorTurns(): Promise<{
+    recent: readonly { role: "user" | "assistant"; content: string }[];
+    oldSummary: string | null;
+  }> {
+    return { recent: [...this.turns], oldSummary: null };
   }
 
   async recordTurn(

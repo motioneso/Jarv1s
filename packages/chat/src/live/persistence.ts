@@ -61,23 +61,27 @@ export class DataContextChatPersistence implements ChatPersistencePort {
     return { provider: toLiveProvider(model), model: model.provider_model_id };
   }
 
-  async listPriorTurns(
-    actorUserId: string
-  ): Promise<{ role: "user" | "assistant"; content: string }[]> {
+  async listPriorTurns(actorUserId: string): Promise<{
+    recent: readonly { role: "user" | "assistant"; content: string }[];
+    oldSummary: string | null;
+  }> {
     return this.run(actorUserId, "list-prior-turns", async (scopedDb) => {
       const thread = await this.chat.getCurrentThread(scopedDb, actorUserId);
-      if (!thread) return [];
+      if (!thread) return { recent: [], oldSummary: null };
 
       const messages = await this.chat.listMessages(scopedDb, thread.id);
-      return messages
-        .filter(
-          (message) =>
-            message.status === "stored" && (message.role === "user" || message.role === "assistant")
-        )
-        .map((message) => ({
-          role: message.role as "user" | "assistant",
-          content: message.body
-        }));
+      const turns = messages
+        .filter((m) => m.status === "stored" && (m.role === "user" || m.role === "assistant"))
+        .map((m) => ({ role: m.role as "user" | "assistant", content: m.body }));
+
+      const k = getReplayK();
+      if (turns.length <= k) {
+        return { recent: turns, oldSummary: null };
+      }
+
+      const recent = turns.slice(-k);
+      const oldSummary = thread.conversation_summary ?? buildRollingSummary(turns.slice(0, -k));
+      return { recent, oldSummary };
     });
   }
 
@@ -100,6 +104,24 @@ export class DataContextChatPersistence implements ChatPersistencePort {
         executed
       );
       await this.chat.touchThread(scopedDb, thread.id);
+
+      // Update rolling summary when stored turns exceed the replay window.
+      const k = getReplayK();
+      const allMessages = await this.chat.listMessages(scopedDb, thread.id);
+      const storedTurns = allMessages.filter(
+        (m) => m.status === "stored" && (m.role === "user" || m.role === "assistant")
+      );
+      if (storedTurns.length > k) {
+        const oldTurns = storedTurns.slice(0, -k).map((m) => ({
+          role: m.role as "user" | "assistant",
+          content: m.body
+        }));
+        await this.chat.updateConversationSummary(
+          scopedDb,
+          thread.id,
+          buildRollingSummary(oldTurns)
+        );
+      }
 
       if (this.boss && result && !thread.incognito) {
         const messageId = result.assistantMessage.id;
@@ -171,4 +193,22 @@ function toLiveProvider(model: AiConfiguredModelSafeRow): ProviderKind {
   throw new Error(
     `Active chat model uses provider kind "${kind}", which has no live CLI engine in Phase 1.`
   );
+}
+
+function getReplayK(): number {
+  const val = process.env.JARVIS_CHAT_REPLAY_K;
+  return val ? parseInt(val, 10) : 10;
+}
+
+function buildRollingSummary(
+  oldTurns: readonly { role: "user" | "assistant"; content: string }[]
+): string {
+  const assistantContent = oldTurns
+    .filter((m) => m.role === "assistant")
+    .map((m) => m.content.trim())
+    .filter(Boolean)
+    .join(" ");
+  const raw = `As of turn ${oldTurns.length}: ${assistantContent}`;
+  // Cap to 2000 chars so the column stays bounded on very long conversations.
+  return raw.length > 2000 ? `...${raw.slice(-2000)}` : raw;
 }
