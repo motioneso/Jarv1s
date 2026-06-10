@@ -14,7 +14,6 @@ export class AuthSessionResolver {
   ): Promise<AccessContext> {
     const session = await this.db
       .selectFrom("app.auth_sessions as sessions")
-      .innerJoin("app.users as users", "users.id", "sessions.user_id")
       .select(["sessions.user_id as actorUserId"])
       .where("sessions.id", "=", sessionId)
       .where("sessions.expires_at", ">", sql<Date>`now()`)

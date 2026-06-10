@@ -9,9 +9,18 @@ const { Client } = pg;
 
 const runtimeRoles = [
   "jarvis_app_runtime",
+  "jarvis_auth_runtime",
   "jarvis_migration_owner",
   "jarvis_worker_runtime"
 ] as const;
+
+// Auth-secret tables: must have FORCE RLS, and jarvis_app_runtime must not be able
+// to SELECT directly (grant was revoked — any row access goes through the auth role).
+const authSecretTables = ["auth_accounts", "better_auth_sessions"] as const;
+
+// Auth owner table: must have RLS ENABLED (not forced — owner bypass needed for SECURITY DEFINER
+// functions); jarvis_app_runtime retains SELECT (all rows, for admin routes + membership checks).
+const authOwnerTable = ["users"] as const;
 
 const protectedTables = [
   "ai_assistant_action_requests",
@@ -46,6 +55,13 @@ export interface RuntimeRoleAudit {
   readonly roleName: string;
 }
 
+export interface AuthSecretTableAudit {
+  readonly appCanSelect: boolean;
+  readonly forceRls: boolean;
+  readonly rlsEnabled: boolean;
+  readonly tableName: string;
+}
+
 export interface ProtectedTableAudit {
   readonly appCanDelete: boolean;
   readonly forceRls: boolean;
@@ -67,6 +83,8 @@ export interface AdminAuditPrivileges {
 
 export interface ReleaseHardeningAuditReport {
   readonly adminAuditPrivileges: AdminAuditPrivileges;
+  readonly authSecretTables: readonly AuthSecretTableAudit[];
+  readonly authOwnerTable: readonly AuthSecretTableAudit[];
   readonly failures: readonly string[];
   readonly passed: boolean;
   readonly protectedTables: readonly ProtectedTableAudit[];
@@ -86,16 +104,22 @@ export async function auditReleaseHardening(
     const roles = await readRuntimeRoles(client);
     const tableAudits = await readTableAudits(client, [...protectedTables]);
     const transientTableAudits = await readTableAudits(client, [...transientTables]);
+    const authSecretTableAudits = await readAuthSecretAudits(client, [...authSecretTables]);
+    const authOwnerTableAudits = await readAuthSecretAudits(client, [...authOwnerTable]);
     const adminAuditPrivileges = await readAdminAuditPrivileges(client);
     const failures = collectFailures(
       roles,
       tableAudits,
       transientTableAudits,
+      authSecretTableAudits,
+      authOwnerTableAudits,
       adminAuditPrivileges
     );
 
     return {
       adminAuditPrivileges,
+      authSecretTables: authSecretTableAudits,
+      authOwnerTable: authOwnerTableAudits,
       failures,
       passed: failures.length === 0,
       protectedTables: tableAudits,
@@ -174,6 +198,39 @@ async function readTableAudits(
   }));
 }
 
+async function readAuthSecretAudits(
+  client: pg.Client,
+  tableNames: readonly string[]
+): Promise<readonly AuthSecretTableAudit[]> {
+  const result = await client.query<{
+    app_can_select: boolean;
+    force_rls: boolean;
+    rls_enabled: boolean;
+    table_name: string;
+  }>(
+    `
+      SELECT
+        c.relname AS table_name,
+        c.relrowsecurity AS rls_enabled,
+        c.relforcerowsecurity AS force_rls,
+        has_table_privilege('jarvis_app_runtime', c.oid, 'SELECT') AS app_can_select
+      FROM pg_class c
+      JOIN pg_namespace n ON n.oid = c.relnamespace
+      WHERE n.nspname = 'app'
+        AND c.relname = ANY($1::text[])
+      ORDER BY c.relname
+    `,
+    [[...tableNames]]
+  );
+
+  return result.rows.map((row) => ({
+    appCanSelect: row.app_can_select,
+    forceRls: row.force_rls,
+    rlsEnabled: row.rls_enabled,
+    tableName: row.table_name
+  }));
+}
+
 async function readAdminAuditPrivileges(client: pg.Client): Promise<AdminAuditPrivileges> {
   const result = await client.query<AdminAuditPrivileges>(
     `
@@ -201,12 +258,16 @@ function collectFailures(
   roles: readonly RuntimeRoleAudit[],
   tableAudits: readonly ProtectedTableAudit[],
   transientTableAudits: readonly ProtectedTableAudit[],
+  authSecretTableAudits: readonly AuthSecretTableAudit[],
+  authOwnerTableAudits: readonly AuthSecretTableAudit[],
   adminAuditPrivileges: AdminAuditPrivileges
 ): readonly string[] {
   const failures: string[] = [];
   const presentRoleNames = new Set(roles.map((role) => role.roleName));
   const presentTableNames = new Set(tableAudits.map((table) => table.tableName));
   const presentTransientNames = new Set(transientTableAudits.map((t) => t.tableName));
+  const presentAuthSecretNames = new Set(authSecretTableAudits.map((t) => t.tableName));
+  const presentAuthOwnerNames = new Set(authOwnerTableAudits.map((t) => t.tableName));
 
   for (const role of runtimeRoles) {
     if (!presentRoleNames.has(role)) {
@@ -242,6 +303,30 @@ function collectFailures(
   for (const table of transientTableAudits) {
     if (!table.rlsEnabled) failures.push(`app.${table.tableName} does not enable RLS`);
     if (!table.forceRls) failures.push(`app.${table.tableName} does not force RLS`);
+  }
+
+  for (const table of authSecretTables) {
+    if (!presentAuthSecretNames.has(table)) {
+      failures.push(`missing auth secret table: ${table}`);
+    }
+  }
+  for (const table of authSecretTableAudits) {
+    if (!table.rlsEnabled) failures.push(`app.${table.tableName} does not enable RLS`);
+    if (!table.forceRls) failures.push(`app.${table.tableName} does not force RLS`);
+    if (table.appCanSelect) {
+      failures.push(`jarvis_app_runtime can SELECT app.${table.tableName} (grant not revoked)`);
+    }
+  }
+
+  for (const table of authOwnerTable) {
+    if (!presentAuthOwnerNames.has(table)) {
+      failures.push(`missing auth owner table: ${table}`);
+    }
+  }
+  for (const table of authOwnerTableAudits) {
+    if (!table.rlsEnabled) failures.push(`app.${table.tableName} does not enable RLS`);
+    // Note: users uses ENABLE (not FORCE) RLS so the table owner (jarvis_migration_owner)
+    // can bypass for SECURITY DEFINER functions. Auth secret tables keep FORCE.
   }
 
   if (!adminAuditPrivileges.appCanSelect) {

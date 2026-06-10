@@ -2,6 +2,7 @@ export interface JarvisDatabaseUrls {
   readonly bootstrap: string;
   readonly migration: string;
   readonly app: string;
+  readonly auth: string;
   readonly worker: string;
 }
 
@@ -20,6 +21,9 @@ export function getJarvisDatabaseUrls(env: NodeJS.ProcessEnv = process.env): Jar
     app:
       env.JARVIS_APP_DATABASE_URL ??
       `postgres://jarvis_app_runtime:app_password@${host}:${port}/${database}`,
+    auth:
+      env.JARVIS_AUTH_DATABASE_URL ??
+      `postgres://jarvis_auth_runtime:auth_password@${host}:${port}/${database}`,
     worker:
       env.JARVIS_WORKER_DATABASE_URL ??
       `postgres://jarvis_worker_runtime:worker_password@${host}:${port}/${database}`

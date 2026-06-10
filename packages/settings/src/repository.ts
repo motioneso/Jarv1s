@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 
+import { sql } from "kysely";
 import type { Kysely, Transaction } from "kysely";
 
 import type {
@@ -63,12 +64,10 @@ export class SettingsRepository {
   constructor(private readonly db: Kysely<JarvisDatabase>) {}
 
   async countUsers(): Promise<number> {
-    const row = await this.db
-      .selectFrom("app.users")
-      .select((eb) => eb.fn.countAll<string>().as("count"))
-      .executeTakeFirstOrThrow();
-
-    return Number(row.count);
+    const result = await sql<{ count: string }>`SELECT app.count_all_users() AS count`.execute(
+      this.db
+    );
+    return Number(result.rows[0]?.count ?? 0);
   }
 
   async getUserById(userId: string): Promise<User | undefined> {

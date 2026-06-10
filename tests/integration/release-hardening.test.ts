@@ -189,6 +189,13 @@ describe("M7 release hardening lifecycle scripts", () => {
         canCreateDb: false,
         canCreateRole: false,
         isSuperuser: false,
+        roleName: "jarvis_auth_runtime"
+      },
+      {
+        bypassRls: false,
+        canCreateDb: false,
+        canCreateRole: false,
+        isSuperuser: false,
         roleName: "jarvis_migration_owner"
       },
       {
@@ -234,6 +241,34 @@ describe("M7 release hardening lifecycle scripts", () => {
           rlsEnabled: true,
           tableName: "connector_oauth_pending"
         })
+      ])
+    );
+    expect(report.authSecretTables).toEqual(
+      expect.arrayContaining([
+        {
+          appCanSelect: false,
+          forceRls: true,
+          rlsEnabled: true,
+          tableName: "auth_accounts"
+        },
+        {
+          appCanSelect: false,
+          forceRls: true,
+          rlsEnabled: true,
+          tableName: "better_auth_sessions"
+        }
+      ])
+    );
+    expect(report.authOwnerTable).toEqual(
+      expect.arrayContaining([
+        {
+          appCanSelect: true,
+          // ENABLE but not FORCE: owner (jarvis_migration_owner) must bypass for SECURITY DEFINER
+          // functions that query users for admin checks (e.g. list_connector_account_safe_metadata).
+          forceRls: false,
+          rlsEnabled: true,
+          tableName: "users"
+        }
       ])
     );
     expect(report.adminAuditPrivileges).toEqual({
@@ -314,6 +349,7 @@ describe("M7 release hardening lifecycle scripts", () => {
       "JARVIS_BOOTSTRAP_DATABASE_URL=",
       "JARVIS_MIGRATION_DATABASE_URL=",
       "JARVIS_APP_DATABASE_URL=",
+      "JARVIS_AUTH_DATABASE_URL=",
       "JARVIS_WORKER_DATABASE_URL=",
       "BETTER_AUTH_SECRET=",
       "JARVIS_AUTH_BASE_URL=",
