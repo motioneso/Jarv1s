@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { readFile } from "node:fs/promises";
 import pg from "pg";
 
+import { AuthSessionResolver, createDatabase } from "@jarv1s/db";
 import { createBackupPlan } from "../../scripts/backup-database.js";
 import { auditReleaseHardening } from "../../scripts/audit-release-hardening.js";
 import { deleteUserData } from "../../scripts/delete-user-data.js";
@@ -255,6 +256,18 @@ describe("M7 release hardening lifecycle scripts", () => {
           appCanSelect: false,
           forceRls: true,
           rlsEnabled: true,
+          tableName: "auth_sessions"
+        },
+        {
+          appCanSelect: false,
+          forceRls: true,
+          rlsEnabled: true,
+          tableName: "auth_verifications"
+        },
+        {
+          appCanSelect: false,
+          forceRls: true,
+          rlsEnabled: true,
           tableName: "better_auth_sessions"
         }
       ])
@@ -376,6 +389,53 @@ describe("M7 release hardening lifecycle scripts", () => {
     expect(operationsDoc).toContain("BETTER_AUTH_SECRET");
     expect(operationsDoc).toContain("JARVIS_CONNECTOR_SECRET_KEY");
     expect(operationsDoc).toContain("JARVIS_AI_SECRET_KEY");
+  });
+
+  it("denies app_runtime and worker_runtime direct SELECT on auth_sessions and auth_verifications", async () => {
+    const appClient = new pg.Client({ connectionString: connectionStrings.app });
+    const workerClient = new pg.Client({ connectionString: connectionStrings.worker });
+
+    await Promise.all([appClient.connect(), workerClient.connect()]);
+    try {
+      await expect(appClient.query("SELECT id FROM app.auth_sessions LIMIT 1")).rejects.toThrow();
+      await expect(
+        workerClient.query("SELECT id FROM app.auth_sessions LIMIT 1")
+      ).rejects.toThrow();
+      await expect(
+        appClient.query("SELECT id FROM app.auth_verifications LIMIT 1")
+      ).rejects.toThrow();
+      await expect(
+        workerClient.query("SELECT id FROM app.auth_verifications LIMIT 1")
+      ).rejects.toThrow();
+    } finally {
+      await Promise.all([appClient.end(), workerClient.end()]);
+    }
+  });
+
+  it("AuthSessionResolver resolves bearer tokens via the security definer function", async () => {
+    const testSessionId = "40000000-ffff-4000-8000-999999999999";
+    const bootstrapClient = new pg.Client({ connectionString: connectionStrings.bootstrap });
+
+    await bootstrapClient.connect();
+    try {
+      await bootstrapClient.query(
+        "INSERT INTO app.auth_sessions (id, user_id, expires_at) VALUES ($1, $2, now() + interval '1 hour')",
+        [testSessionId, ids.userA]
+      );
+    } finally {
+      await bootstrapClient.end();
+    }
+
+    const appDb = createDatabase({ connectionString: connectionStrings.app });
+    try {
+      const resolver = new AuthSessionResolver(appDb);
+      const context = await resolver.resolveAccessContext(testSessionId, "request:test");
+
+      expect(context.actorUserId).toBe(ids.userA);
+      expect(context.requestId).toBe("request:test");
+    } finally {
+      await appDb.destroy();
+    }
   });
 
   it("defines CI automation for foundation, release hardening, audit, web, and Compose smoke", async () => {
