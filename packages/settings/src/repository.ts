@@ -520,7 +520,10 @@ export class SettingsRepository {
       updatedByUserId: input.actorUserId,
       requestId: input.requestId
     });
-    return { registrationEnabled: input.registrationEnabled, requiresApproval: input.requiresApproval };
+    return {
+      registrationEnabled: input.registrationEnabled,
+      requiresApproval: input.requiresApproval
+    };
   }
 
   async listAdminAuditEvents(): Promise<AdminAuditEvent[]> {

@@ -240,7 +240,16 @@ const moduleSchema = {
 const userSchema = {
   type: "object",
   additionalProperties: false,
-  required: ["id", "email", "name", "isInstanceAdmin", "status", "isBootstrapOwner", "createdAt", "updatedAt"],
+  required: [
+    "id",
+    "email",
+    "name",
+    "isInstanceAdmin",
+    "status",
+    "isBootstrapOwner",
+    "createdAt",
+    "updatedAt"
+  ],
   properties: {
     id: { type: "string" },
     email: { type: "string" },

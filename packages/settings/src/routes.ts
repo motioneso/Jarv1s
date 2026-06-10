@@ -329,7 +329,8 @@ export function registerSettingsRoutes(
         const { id } = request.params as { id: string };
         const existing = await repository.getUserById(id);
         if (!existing) throw new HttpError(404, "User not found");
-        if (existing.status !== "pending") throw new HttpError(409, "Only pending accounts can be approved");
+        if (existing.status !== "pending")
+          throw new HttpError(409, "Only pending accounts can be approved");
         const user = await repository.setUserStatus({
           targetUserId: id,
           status: "active",
@@ -407,7 +408,8 @@ export function registerSettingsRoutes(
     if (requirePending && existing.status !== "pending") {
       throw new HttpError(409, "Only pending accounts can be rejected");
     }
-    if (id === accessContext.actorUserId) throw new HttpError(422, "You cannot delete your own account");
+    if (id === accessContext.actorUserId)
+      throw new HttpError(422, "You cannot delete your own account");
     await deleteUserData({
       userId: id,
       confirmUserId: id,

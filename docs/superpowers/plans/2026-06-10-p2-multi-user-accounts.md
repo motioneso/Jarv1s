@@ -46,21 +46,22 @@ Take the next integer, zero-padded to 4 digits. This plan writes the filename as
 
 ## File Structure
 
-| File | Responsibility | Action |
-| ---- | -------------- | ------ |
-| `infra/postgres/migrations/<NNNN>_multi_user_accounts.sql` | status + is_bootstrap_owner columns, CHECK, registration settings seed, `current_actor_is_admin()` helper, admin UPDATE policy | Create |
-| `packages/db/src/types.ts` | add `status` + `is_bootstrap_owner` to `UsersTable` | Modify |
-| `packages/shared/src/platform-api.ts` | extend `UserDto`/`userSchema`; new lifecycle + registration route schemas | Modify |
-| `packages/auth/src/index.ts` | before-hook gate, status assignment in after-hook, status enforcement in `resolveRequestAccessContext`, `revokeUserSessions`, error classes | Modify |
-| `packages/settings/src/repository.ts` | lifecycle write methods + guardrails + registration get/put | Modify |
-| `packages/settings/src/routes.ts` | admin lifecycle + registration endpoints | Modify |
-| `apps/api/src/server.ts` | thread `revokeUserSessions` into settings route deps | Modify |
-| `apps/web/src/api/client.ts` | carry machine-readable `code` on `ApiError` | Modify |
-| `apps/web/src/app.tsx` | pending / deactivated screens | Modify |
-| `apps/web/src/` (admin settings section) | pending approvals list, users table w/ status + actions, registration toggles | Modify |
-| `tests/integration/multi-user-isolation.test.ts` | exit-gate suite incl. admin-bypass negative test | Create |
+| File                                                       | Responsibility                                                                                                                              | Action |
+| ---------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- | ------ |
+| `infra/postgres/migrations/<NNNN>_multi_user_accounts.sql` | status + is_bootstrap_owner columns, CHECK, registration settings seed, `current_actor_is_admin()` helper, admin UPDATE policy              | Create |
+| `packages/db/src/types.ts`                                 | add `status` + `is_bootstrap_owner` to `UsersTable`                                                                                         | Modify |
+| `packages/shared/src/platform-api.ts`                      | extend `UserDto`/`userSchema`; new lifecycle + registration route schemas                                                                   | Modify |
+| `packages/auth/src/index.ts`                               | before-hook gate, status assignment in after-hook, status enforcement in `resolveRequestAccessContext`, `revokeUserSessions`, error classes | Modify |
+| `packages/settings/src/repository.ts`                      | lifecycle write methods + guardrails + registration get/put                                                                                 | Modify |
+| `packages/settings/src/routes.ts`                          | admin lifecycle + registration endpoints                                                                                                    | Modify |
+| `apps/api/src/server.ts`                                   | thread `revokeUserSessions` into settings route deps                                                                                        | Modify |
+| `apps/web/src/api/client.ts`                               | carry machine-readable `code` on `ApiError`                                                                                                 | Modify |
+| `apps/web/src/app.tsx`                                     | pending / deactivated screens                                                                                                               | Modify |
+| `apps/web/src/` (admin settings section)                   | pending approvals list, users table w/ status + actions, registration toggles                                                               | Modify |
+| `tests/integration/multi-user-isolation.test.ts`           | exit-gate suite incl. admin-bypass negative test                                                                                            | Create |
 
 Conventions chosen for this plan:
+
 - **instance_settings keys:** `registration.enabled` and `registration.requires_approval`. Each row's `value` jsonb is `{ "value": <boolean> }` (uniform, matches `value: Record<string, unknown>` in `UpsertInstanceSettingInput`).
 - **status values:** `'pending' | 'active' | 'deactivated'`, default `'active'`.
 - **403 error codes (response body `code` field):** `account_pending`, `account_deactivated`, `registration_disabled`.
@@ -70,6 +71,7 @@ Conventions chosen for this plan:
 ### Task 1: Migration + db types (columns, settings seed, RLS admin path)
 
 **Files:**
+
 - Create: `infra/postgres/migrations/<NNNN>_multi_user_accounts.sql`
 - Modify: `packages/db/src/types.ts:27-44` (UsersTable)
 
@@ -78,8 +80,8 @@ Conventions chosen for this plan:
 In `packages/db/src/types.ts`, inside `interface UsersTable` (after `is_instance_admin: boolean;`):
 
 ```typescript
-  status: "pending" | "active" | "deactivated";
-  is_bootstrap_owner: boolean;
+status: "pending" | "active" | "deactivated";
+is_bootstrap_owner: boolean;
 ```
 
 - [ ] **Step 2: Determine the migration number**
@@ -176,6 +178,7 @@ git commit -m "feat(db): multi-user account status + registration settings + adm
 ### Task 2: Shared contracts (DTO + route schemas)
 
 **Files:**
+
 - Modify: `packages/shared/src/platform-api.ts:1-10` (UserDto), `:238-251` (userSchema), end of file (new route schemas)
 
 - [ ] **Step 1: Extend `UserDto`**
@@ -339,6 +342,7 @@ git commit -m "feat(shared): user status fields + admin lifecycle/registration r
 ### Task 3: Auth — registration gate (before hook)
 
 **Files:**
+
 - Modify: `packages/auth/src/index.ts` (add `before` hook; add a settings reader helper)
 - Test: `tests/integration/auth-settings.test.ts` (add cases) — or a new `tests/integration/registration-gate.test.ts`
 
@@ -349,7 +353,11 @@ Add to `tests/integration/auth-settings.test.ts` (follow the existing setup: `re
 ```typescript
 it("rejects sign-up with 403 registration_disabled when registration is disabled", async () => {
   // First user becomes the admin; bootstrap always succeeds regardless of the toggle.
-  const admin = await signUp(server, { name: "Admin", email: "admin@example.com", password: "password12345" });
+  const admin = await signUp(server, {
+    name: "Admin",
+    email: "admin@example.com",
+    password: "password12345"
+  });
   const adminCookie = cookieHeader(admin.headers);
 
   // Admin disables registration.
@@ -477,6 +485,7 @@ git commit -m "feat(auth): gate self-registration on registration.enabled settin
 ### Task 4: Auth — status assignment (after hook)
 
 **Files:**
+
 - Modify: `packages/auth/src/index.ts:233-307` (`bootstrapFirstJarvisUser`)
 - Test: `tests/integration/auth-settings.test.ts`
 
@@ -484,18 +493,34 @@ git commit -m "feat(auth): gate self-registration on registration.enabled settin
 
 ```typescript
 it("assigns status by registration mode: first user active+admin+bootstrap_owner, later users pending when approval required", async () => {
-  const admin = await signUp(server, { name: "Admin", email: "admin@example.com", password: "password12345" });
+  const admin = await signUp(server, {
+    name: "Admin",
+    email: "admin@example.com",
+    password: "password12345"
+  });
   const adminId = admin.json<{ user: { id: string } }>().user.id;
 
-  const adminRow = await appDb.selectFrom("app.users").selectAll().where("id", "=", adminId).executeTakeFirstOrThrow();
+  const adminRow = await appDb
+    .selectFrom("app.users")
+    .selectAll()
+    .where("id", "=", adminId)
+    .executeTakeFirstOrThrow();
   expect(adminRow.status).toBe("active");
   expect(adminRow.is_instance_admin).toBe(true);
   expect(adminRow.is_bootstrap_owner).toBe(true);
 
   // requires_approval defaults to true → second user is pending.
-  const member = await signUp(server, { name: "Member", email: "member@example.com", password: "password12345" });
+  const member = await signUp(server, {
+    name: "Member",
+    email: "member@example.com",
+    password: "password12345"
+  });
   const memberId = member.json<{ user: { id: string } }>().user.id;
-  const memberRow = await appDb.selectFrom("app.users").selectAll().where("id", "=", memberId).executeTakeFirstOrThrow();
+  const memberRow = await appDb
+    .selectFrom("app.users")
+    .selectAll()
+    .where("id", "=", memberId)
+    .executeTakeFirstOrThrow();
   expect(memberRow.status).toBe("pending");
   expect(memberRow.is_instance_admin).toBe(false);
   expect(memberRow.is_bootstrap_owner).toBe(false);
@@ -509,9 +534,17 @@ it("assigns active to later users when requires_approval is false", async () => 
     .where("key", "=", "registration.requires_approval")
     .execute();
 
-  const member = await signUp(server, { name: "Member", email: "member@example.com", password: "password12345" });
+  const member = await signUp(server, {
+    name: "Member",
+    email: "member@example.com",
+    password: "password12345"
+  });
   const memberId = member.json<{ user: { id: string } }>().user.id;
-  const memberRow = await appDb.selectFrom("app.users").selectAll().where("id", "=", memberId).executeTakeFirstOrThrow();
+  const memberRow = await appDb
+    .selectFrom("app.users")
+    .selectAll()
+    .where("id", "=", memberId)
+    .executeTakeFirstOrThrow();
   expect(memberRow.status).toBe("active");
 });
 ```
@@ -526,36 +559,36 @@ Expected: FAIL — status is the column default `'active'` for everyone and `is_
 Replace the UPDATE block and add the approval read. The function already computes `isFirstUser` from `app.count_all_users()` and sets the actor GUC. Modify:
 
 ```typescript
-    const isFirstUser = Number(countResult.rows[0]?.count ?? 0) === 1;
+const isFirstUser = Number(countResult.rows[0]?.count ?? 0) === 1;
 
-    // Status: first user is always active + admin + bootstrap owner. Later users are pending
-    // only when approval is required; otherwise active immediately.
-    let status: "pending" | "active" = "active";
-    if (!isFirstUser) {
-      const requiresApprovalRow = await sql<{ value: { value?: unknown } | null }>`
+// Status: first user is always active + admin + bootstrap owner. Later users are pending
+// only when approval is required; otherwise active immediately.
+let status: "pending" | "active" = "active";
+if (!isFirstUser) {
+  const requiresApprovalRow = await sql<{ value: { value?: unknown } | null }>`
         SELECT value FROM app.instance_settings WHERE key = 'registration.requires_approval'
       `.execute(transaction);
-      const requiresApproval =
-        typeof requiresApprovalRow.rows[0]?.value?.value === "boolean"
-          ? (requiresApprovalRow.rows[0]?.value?.value as boolean)
-          : true;
-      status = requiresApproval ? "pending" : "active";
-    }
+  const requiresApproval =
+    typeof requiresApprovalRow.rows[0]?.value?.value === "boolean"
+      ? (requiresApprovalRow.rows[0]?.value?.value as boolean)
+      : true;
+  status = requiresApproval ? "pending" : "active";
+}
 
-    await sql`SELECT set_config('app.actor_user_id', ${user.id}, true)`.execute(transaction);
+await sql`SELECT set_config('app.actor_user_id', ${user.id}, true)`.execute(transaction);
 
-    await transaction
-      .updateTable("app.users")
-      .set({
-        name: user.name ?? "",
-        email: user.email,
-        is_instance_admin: isFirstUser,
-        is_bootstrap_owner: isFirstUser,
-        status,
-        updated_at: new Date()
-      })
-      .where("id", "=", user.id)
-      .execute();
+await transaction
+  .updateTable("app.users")
+  .set({
+    name: user.name ?? "",
+    email: user.email,
+    is_instance_admin: isFirstUser,
+    is_bootstrap_owner: isFirstUser,
+    status,
+    updated_at: new Date()
+  })
+  .where("id", "=", user.id)
+  .execute();
 ```
 
 (Leave the first-user workspace + audit block unchanged below this.)
@@ -577,6 +610,7 @@ git commit -m "feat(auth): assign account status + bootstrap-owner flag on user 
 ### Task 5: Auth — access enforcement (resolveRequestAccessContext)
 
 **Files:**
+
 - Modify: `packages/auth/src/index.ts` (error classes + `resolveRequestAccessContext` + thread `appDb`)
 - Test: `tests/integration/auth-settings.test.ts`
 
@@ -585,23 +619,43 @@ git commit -m "feat(auth): assign account status + bootstrap-owner flag on user 
 ```typescript
 it("blocks a pending account from authenticated routes with 403 account_pending", async () => {
   await signUp(server, { name: "Admin", email: "admin@example.com", password: "password12345" });
-  const member = await signUp(server, { name: "Member", email: "member@example.com", password: "password12345" });
+  const member = await signUp(server, {
+    name: "Member",
+    email: "member@example.com",
+    password: "password12345"
+  });
   const memberCookie = cookieHeader(member.headers); // pending by default
 
-  const res = await server.inject({ method: "GET", url: "/api/me", headers: { cookie: memberCookie } });
+  const res = await server.inject({
+    method: "GET",
+    url: "/api/me",
+    headers: { cookie: memberCookie }
+  });
   expect(res.statusCode).toBe(403);
   expect(res.json<{ code?: string }>().code).toBe("account_pending");
 });
 
 it("blocks a deactivated account with 403 account_deactivated", async () => {
   await signUp(server, { name: "Admin", email: "admin@example.com", password: "password12345" });
-  const member = await signUp(server, { name: "Member", email: "member@example.com", password: "password12345" });
+  const member = await signUp(server, {
+    name: "Member",
+    email: "member@example.com",
+    password: "password12345"
+  });
   const memberId = member.json<{ user: { id: string } }>().user.id;
   const memberCookie = cookieHeader(member.headers);
   // Force active→deactivated directly (lifecycle routes are Task 8).
-  await appDb.updateTable("app.users").set({ status: "deactivated" }).where("id", "=", memberId).execute();
+  await appDb
+    .updateTable("app.users")
+    .set({ status: "deactivated" })
+    .where("id", "=", memberId)
+    .execute();
 
-  const res = await server.inject({ method: "GET", url: "/api/me", headers: { cookie: memberCookie } });
+  const res = await server.inject({
+    method: "GET",
+    url: "/api/me",
+    headers: { cookie: memberCookie }
+  });
   expect(res.statusCode).toBe(403);
   expect(res.json<{ code?: string }>().code).toBe("account_deactivated");
 });
@@ -739,6 +793,7 @@ git commit -m "feat(auth): enforce account status during access-context resoluti
 ### Task 6: Auth — session revocation via auth runtime
 
 **Files:**
+
 - Modify: `packages/auth/src/index.ts` (add `revokeUserSessions` to `JarvisAuthRuntime`)
 - Test: `tests/integration/auth-settings.test.ts`
 
@@ -746,10 +801,18 @@ git commit -m "feat(auth): enforce account status during access-context resoluti
 
 ```typescript
 it("revokeUserSessions deletes all of a user's sessions", async () => {
-  const member = await signUp(server, { name: "Member", email: "member@example.com", password: "password12345" });
+  const member = await signUp(server, {
+    name: "Member",
+    email: "member@example.com",
+    password: "password12345"
+  });
   const memberId = member.json<{ user: { id: string } }>().user.id;
 
-  const before = await appDb.selectFrom("app.better_auth_sessions").select("id").where("user_id", "=", memberId).execute();
+  const before = await appDb
+    .selectFrom("app.better_auth_sessions")
+    .select("id")
+    .where("user_id", "=", memberId)
+    .execute();
   expect(before.length).toBeGreaterThan(0);
 
   const deleted = await authRuntime.revokeUserSessions(memberId);
@@ -812,6 +875,7 @@ git commit -m "feat(auth): add revokeUserSessions on the auth runtime"
 ### Task 7: Settings repository — lifecycle methods + guardrails + registration get/put
 
 **Files:**
+
 - Modify: `packages/settings/src/repository.ts`
 - Test: `tests/integration/auth-settings.test.ts` (repository-level cases via the running server are added in Task 8; this task's tests exercise guardrails through the routes — so write the repo code here and assert it in Task 8). To keep TDD honest, add a focused repo guardrail unit-style test in this task using `appDb` directly.
 
@@ -819,11 +883,21 @@ git commit -m "feat(auth): add revokeUserSessions on the auth runtime"
 
 ```typescript
 it("repository blocks demoting the last active admin", async () => {
-  const admin = await signUp(server, { name: "Admin", email: "admin@example.com", password: "password12345" });
+  const admin = await signUp(server, {
+    name: "Admin",
+    email: "admin@example.com",
+    password: "password12345"
+  });
   const adminId = admin.json<{ user: { id: string } }>().user.id;
   const repo = new SettingsRepository(appDb);
-  await expect(repo.setUserAdmin({ targetUserId: adminId, isInstanceAdmin: false, actorUserId: adminId, requestId: "r1" }))
-    .rejects.toThrow(/last.*admin/i);
+  await expect(
+    repo.setUserAdmin({
+      targetUserId: adminId,
+      isInstanceAdmin: false,
+      actorUserId: adminId,
+      requestId: "r1"
+    })
+  ).rejects.toThrow(/last.*admin/i);
 });
 ```
 
@@ -1002,7 +1076,10 @@ And a small typed error the routes can translate to HTTP status (mirrors the rou
 
 ```typescript
 export class HttpRepositoryError extends Error {
-  constructor(readonly statusCode: number, message: string) {
+  constructor(
+    readonly statusCode: number,
+    message: string
+  ) {
     super(message);
   }
 }
@@ -1028,31 +1105,40 @@ git commit -m "feat(settings): user lifecycle + registration repository methods 
 ### Task 8: Settings routes — admin lifecycle + registration endpoints
 
 **Files:**
+
 - Modify: `packages/settings/src/routes.ts`
 - Modify: `apps/api/src/server.ts` (thread `revokeUserSessions` + bootstrap connection into settings deps — see Task 9)
 - Test: `tests/integration/auth-settings.test.ts`
 
 Route table (all `requireAdmin`-gated, all audit-logged via the repo):
 
-| Method | Path | Repo call | Notes |
-| ------ | ---- | --------- | ----- |
-| POST | `/api/admin/users/:id/approve` | `setUserStatus(status:'active', action:'user.approve')` | target must be `pending` (else 409) |
-| POST | `/api/admin/users/:id/reject` | `deleteUserData` (bootstrap) | target must be `pending` (else 409); cascade-deletes the registration |
-| POST | `/api/admin/users/:id/deactivate` | `setUserStatus(status:'deactivated', action:'user.deactivate')` then `revokeUserSessions` | guardrails in repo |
-| POST | `/api/admin/users/:id/reactivate` | `setUserStatus(status:'active', action:'user.reactivate')` | |
-| POST | `/api/admin/users/:id/promote` | `setUserAdmin(isInstanceAdmin:true)` | |
-| POST | `/api/admin/users/:id/demote` | `setUserAdmin(isInstanceAdmin:false)` | guardrails in repo |
-| DELETE | `/api/admin/users/:id` | `deleteUserData` (bootstrap) | full teardown |
-| GET | `/api/admin/registration` | `getRegistrationSettings` | |
-| PUT | `/api/admin/registration` | `setRegistrationSettings` | |
+| Method | Path                              | Repo call                                                                                 | Notes                                                                 |
+| ------ | --------------------------------- | ----------------------------------------------------------------------------------------- | --------------------------------------------------------------------- |
+| POST   | `/api/admin/users/:id/approve`    | `setUserStatus(status:'active', action:'user.approve')`                                   | target must be `pending` (else 409)                                   |
+| POST   | `/api/admin/users/:id/reject`     | `deleteUserData` (bootstrap)                                                              | target must be `pending` (else 409); cascade-deletes the registration |
+| POST   | `/api/admin/users/:id/deactivate` | `setUserStatus(status:'deactivated', action:'user.deactivate')` then `revokeUserSessions` | guardrails in repo                                                    |
+| POST   | `/api/admin/users/:id/reactivate` | `setUserStatus(status:'active', action:'user.reactivate')`                                |                                                                       |
+| POST   | `/api/admin/users/:id/promote`    | `setUserAdmin(isInstanceAdmin:true)`                                                      |                                                                       |
+| POST   | `/api/admin/users/:id/demote`     | `setUserAdmin(isInstanceAdmin:false)`                                                     | guardrails in repo                                                    |
+| DELETE | `/api/admin/users/:id`            | `deleteUserData` (bootstrap)                                                              | full teardown                                                         |
+| GET    | `/api/admin/registration`         | `getRegistrationSettings`                                                                 |                                                                       |
+| PUT    | `/api/admin/registration`         | `setRegistrationSettings`                                                                 |                                                                       |
 
 - [ ] **Step 1: Write the failing route tests (lifecycle happy paths + the admin-only gate)**
 
 ```typescript
 it("admin approves a pending user, who can then access /api/me", async () => {
-  const admin = await signUp(server, { name: "Admin", email: "admin@example.com", password: "password12345" });
+  const admin = await signUp(server, {
+    name: "Admin",
+    email: "admin@example.com",
+    password: "password12345"
+  });
   const adminCookie = cookieHeader(admin.headers);
-  const member = await signUp(server, { name: "Member", email: "member@example.com", password: "password12345" });
+  const member = await signUp(server, {
+    name: "Member",
+    email: "member@example.com",
+    password: "password12345"
+  });
   const memberId = member.json<{ user: { id: string } }>().user.id;
   const memberCookie = cookieHeader(member.headers);
 
@@ -1064,18 +1150,34 @@ it("admin approves a pending user, who can then access /api/me", async () => {
   expect(approve.statusCode).toBe(200);
   expect(approve.json<{ user: { status: string } }>().user.status).toBe("active");
 
-  const me = await server.inject({ method: "GET", url: "/api/me", headers: { cookie: memberCookie } });
+  const me = await server.inject({
+    method: "GET",
+    url: "/api/me",
+    headers: { cookie: memberCookie }
+  });
   expect(me.statusCode).toBe(200);
 });
 
 it("non-admin cannot call lifecycle routes (403)", async () => {
-  const admin = await signUp(server, { name: "Admin", email: "admin@example.com", password: "password12345" });
+  const admin = await signUp(server, {
+    name: "Admin",
+    email: "admin@example.com",
+    password: "password12345"
+  });
   const adminId = admin.json<{ user: { id: string } }>().user.id;
   // Approve a member, then have them try to act as admin.
-  const member = await signUp(server, { name: "Member", email: "member@example.com", password: "password12345" });
+  const member = await signUp(server, {
+    name: "Member",
+    email: "member@example.com",
+    password: "password12345"
+  });
   const memberId = member.json<{ user: { id: string } }>().user.id;
   const adminCookie = cookieHeader(admin.headers);
-  await server.inject({ method: "POST", url: `/api/admin/users/${memberId}/approve`, headers: { cookie: adminCookie } });
+  await server.inject({
+    method: "POST",
+    url: `/api/admin/users/${memberId}/approve`,
+    headers: { cookie: adminCookie }
+  });
   // Re-sign-in member to get a fresh active session cookie.
   const memberSignIn = await server.inject({
     method: "POST",
@@ -1084,7 +1186,11 @@ it("non-admin cannot call lifecycle routes (403)", async () => {
     payload: { email: "member@example.com", password: "password12345" }
   });
   const memberCookie = cookieHeader(memberSignIn.headers);
-  const res = await server.inject({ method: "POST", url: `/api/admin/users/${adminId}/demote`, headers: { cookie: memberCookie } });
+  const res = await server.inject({
+    method: "POST",
+    url: `/api/admin/users/${adminId}/demote`,
+    headers: { cookie: memberCookie }
+  });
   expect(res.statusCode).toBe(403);
 });
 ```
@@ -1113,12 +1219,11 @@ export interface SettingsRoutesDependencies {
 Add a small lifecycle-action handler factory and the routes (inside the same registration function that already adds the admin routes). Example for the status-transition verbs:
 
 ```typescript
-  const lifecycleAction = (
-    verb: string,
-    status: "active" | "deactivated",
-    action: string
-  ) =>
-    server.post(`/api/admin/users/:id/${verb}`, { schema: adminUserActionRouteSchema }, async (request, reply) => {
+const lifecycleAction = (verb: string, status: "active" | "deactivated", action: string) =>
+  server.post(
+    `/api/admin/users/:id/${verb}`,
+    { schema: adminUserActionRouteSchema },
+    async (request, reply) => {
       try {
         const accessContext = await requireAdmin(request, dependencies, repository);
         const { id } = request.params as { id: string };
@@ -1136,33 +1241,42 @@ Add a small lifecycle-action handler factory and the routes (inside the same reg
       } catch (error) {
         return handleRouteError(error, reply);
       }
-    });
+    }
+  );
 
-  lifecycleAction("approve", "active", "user.approve");
-  lifecycleAction("reactivate", "active", "user.reactivate");
-  lifecycleAction("deactivate", "deactivated", "user.deactivate");
+lifecycleAction("approve", "active", "user.approve");
+lifecycleAction("reactivate", "active", "user.reactivate");
+lifecycleAction("deactivate", "deactivated", "user.deactivate");
 ```
 
 `approve` should additionally reject a non-pending target. Add a guard before the call (read the row; 409 if `status !== 'pending'`) OR keep `setUserStatus` idempotent and accept re-approval. **Decision:** keep `approve` strict — add to `setUserStatus` an optional `requirePreviousStatus?: "pending"` check, or guard in the route. Simplest: guard in the `approve`-only path:
 
 ```typescript
-  // Replace the generic approve registration with a strict one:
-  server.post("/api/admin/users/:id/approve", { schema: adminUserActionRouteSchema }, async (request, reply) => {
+// Replace the generic approve registration with a strict one:
+server.post(
+  "/api/admin/users/:id/approve",
+  { schema: adminUserActionRouteSchema },
+  async (request, reply) => {
     try {
       const accessContext = await requireAdmin(request, dependencies, repository);
       const { id } = request.params as { id: string };
       const existing = await repository.getUserById(id);
       if (!existing) throw new HttpError(404, "User not found");
-      if (existing.status !== "pending") throw new HttpError(409, "Only pending accounts can be approved");
+      if (existing.status !== "pending")
+        throw new HttpError(409, "Only pending accounts can be approved");
       const user = await repository.setUserStatus({
-        targetUserId: id, status: "active", action: "user.approve",
-        actorUserId: accessContext.actorUserId, requestId: accessContext.requestId
+        targetUserId: id,
+        status: "active",
+        action: "user.approve",
+        actorUserId: accessContext.actorUserId,
+        requestId: accessContext.requestId
       });
       return { user: serializeUser(user) };
     } catch (error) {
       return handleRouteError(error, reply);
     }
-  });
+  }
+);
 ```
 
 (Remove `"approve"` from the `lifecycleAction` calls above so it isn't double-registered.)
@@ -1170,8 +1284,11 @@ Add a small lifecycle-action handler factory and the routes (inside the same reg
 Promote/demote:
 
 ```typescript
-  const adminFlagAction = (verb: "promote" | "demote", isInstanceAdmin: boolean) =>
-    server.post(`/api/admin/users/:id/${verb}`, { schema: adminUserActionRouteSchema }, async (request, reply) => {
+const adminFlagAction = (verb: "promote" | "demote", isInstanceAdmin: boolean) =>
+  server.post(
+    `/api/admin/users/:id/${verb}`,
+    { schema: adminUserActionRouteSchema },
+    async (request, reply) => {
       try {
         const accessContext = await requireAdmin(request, dependencies, repository);
         const { id } = request.params as { id: string };
@@ -1185,9 +1302,10 @@ Promote/demote:
       } catch (error) {
         return handleRouteError(error, reply);
       }
-    });
-  adminFlagAction("promote", true);
-  adminFlagAction("demote", false);
+    }
+  );
+adminFlagAction("promote", true);
+adminFlagAction("demote", false);
 ```
 
 Reject + delete (both via `deleteUserData`, bootstrap connection):
@@ -1195,29 +1313,33 @@ Reject + delete (both via `deleteUserData`, bootstrap connection):
 Both reuse `deleteUserData`, but their response **contracts differ** — reject returns `{ rejectedUserId }`, delete returns `{ deletedUserId }` (the user no longer exists in either case, so neither returns a `user` object). Register them separately so each binds its correct schema:
 
 ```typescript
-  async function tearDownAccount(
-    request: FastifyRequest,
-    id: string,
-    requireePending: boolean
-  ): Promise<string> {
-    const accessContext = await requireAdmin(request, dependencies, repository);
-    const existing = await repository.getUserById(id);
-    if (!existing) throw new HttpError(404, "User not found");
-    if (requireePending && existing.status !== "pending") {
-      throw new HttpError(409, "Only pending accounts can be rejected");
-    }
-    if (id === accessContext.actorUserId) throw new HttpError(422, "You cannot delete your own account");
-    await deleteUserData({
-      userId: id,
-      confirmUserId: id,
-      actorUserId: accessContext.actorUserId,
-      requestId: accessContext.requestId,
-      bootstrapConnectionString: dependencies.bootstrapConnectionString
-    });
-    return id;
+async function tearDownAccount(
+  request: FastifyRequest,
+  id: string,
+  requireePending: boolean
+): Promise<string> {
+  const accessContext = await requireAdmin(request, dependencies, repository);
+  const existing = await repository.getUserById(id);
+  if (!existing) throw new HttpError(404, "User not found");
+  if (requireePending && existing.status !== "pending") {
+    throw new HttpError(409, "Only pending accounts can be rejected");
   }
+  if (id === accessContext.actorUserId)
+    throw new HttpError(422, "You cannot delete your own account");
+  await deleteUserData({
+    userId: id,
+    confirmUserId: id,
+    actorUserId: accessContext.actorUserId,
+    requestId: accessContext.requestId,
+    bootstrapConnectionString: dependencies.bootstrapConnectionString
+  });
+  return id;
+}
 
-  server.post("/api/admin/users/:id/reject", { schema: adminRejectUserRouteSchema }, async (request, reply) => {
+server.post(
+  "/api/admin/users/:id/reject",
+  { schema: adminRejectUserRouteSchema },
+  async (request, reply) => {
     try {
       const { id } = request.params as { id: string };
       const rejectedUserId = await tearDownAccount(request, id, true);
@@ -1225,9 +1347,13 @@ Both reuse `deleteUserData`, but their response **contracts differ** — reject 
     } catch (error) {
       return handleRouteError(error, reply);
     }
-  });
+  }
+);
 
-  server.delete("/api/admin/users/:id", { schema: adminDeleteUserRouteSchema }, async (request, reply) => {
+server.delete(
+  "/api/admin/users/:id",
+  { schema: adminDeleteUserRouteSchema },
+  async (request, reply) => {
     try {
       const { id } = request.params as { id: string };
       const deletedUserId = await tearDownAccount(request, id, false);
@@ -1235,7 +1361,8 @@ Both reuse `deleteUserData`, but their response **contracts differ** — reject 
     } catch (error) {
       return handleRouteError(error, reply);
     }
-  });
+  }
+);
 ```
 
 (Import `adminRejectUserRouteSchema` alongside the other route schemas — it was added in Task 2.)
@@ -1243,16 +1370,23 @@ Both reuse `deleteUserData`, but their response **contracts differ** — reject 
 Registration get/put:
 
 ```typescript
-  server.get("/api/admin/registration", { schema: getRegistrationSettingsRouteSchema }, async (request, reply) => {
+server.get(
+  "/api/admin/registration",
+  { schema: getRegistrationSettingsRouteSchema },
+  async (request, reply) => {
     try {
       await requireAdmin(request, dependencies, repository);
       return await repository.getRegistrationSettings();
     } catch (error) {
       return handleRouteError(error, reply);
     }
-  });
+  }
+);
 
-  server.put("/api/admin/registration", { schema: putRegistrationSettingsRouteSchema }, async (request, reply) => {
+server.put(
+  "/api/admin/registration",
+  { schema: putRegistrationSettingsRouteSchema },
+  async (request, reply) => {
     try {
       const accessContext = await requireAdmin(request, dependencies, repository);
       const body = request.body as { registrationEnabled: boolean; requiresApproval: boolean };
@@ -1265,7 +1399,8 @@ Registration get/put:
     } catch (error) {
       return handleRouteError(error, reply);
     }
-  });
+  }
+);
 ```
 
 - [ ] **Step 4: Extend `serializeUser` and `handleRouteError`**
@@ -1290,15 +1425,15 @@ function serializeUser(user: User): UserDto {
 `handleRouteError`: translate the repo's `HttpRepositoryError` (and the auth status codes, for any settings route that resolves access context):
 
 ```typescript
-  if (error instanceof HttpRepositoryError) {
-    return reply.code(error.statusCode).send({ error: error.message });
+if (error instanceof HttpRepositoryError) {
+  return reply.code(error.statusCode).send({ error: error.message });
+}
+if (error instanceof Error && "code" in error) {
+  const code = (error as { code: unknown }).code;
+  if (code === "account_pending" || code === "account_deactivated") {
+    return reply.code(403).send({ error: error.message, code });
   }
-  if (error instanceof Error && "code" in error) {
-    const code = (error as { code: unknown }).code;
-    if (code === "account_pending" || code === "account_deactivated") {
-      return reply.code(403).send({ error: error.message, code });
-    }
-  }
+}
 ```
 
 (Import `HttpRepositoryError` from the repository module.)
@@ -1322,6 +1457,7 @@ git commit -m "feat(settings): admin user-lifecycle + registration REST endpoint
 ### Task 9: Wire revokeUserSessions + bootstrap connection into settings deps
 
 **Files:**
+
 - Modify: `apps/api/src/server.ts:98-106` (the `registerBuiltInApiRoutes` call) and wherever settings routes receive their dependencies.
 
 - [ ] **Step 1: Pass the new collaborators**
@@ -1329,17 +1465,17 @@ git commit -m "feat(settings): admin user-lifecycle + registration REST endpoint
 `registerBuiltInApiRoutes` forwards deps to each module's route registrar (settings included). Thread the two new fields through. In `apps/api/src/server.ts`:
 
 ```typescript
-    registerBuiltInApiRoutes(server, {
-      appDb,
-      resolveAccessContext: authRuntime.resolveAccessContext,
-      listConfiguredAuthProviders: authRuntime.listConfiguredProviders,
-      listModuleManifests: getBuiltInModuleManifests,
-      dataContext,
-      boss,
-      chatEngineFactory: options.chatEngineFactory,
-      revokeUserSessions: authRuntime.revokeUserSessions,
-      bootstrapConnectionString: getJarvisDatabaseUrls().bootstrap
-    });
+registerBuiltInApiRoutes(server, {
+  appDb,
+  resolveAccessContext: authRuntime.resolveAccessContext,
+  listConfiguredAuthProviders: authRuntime.listConfiguredProviders,
+  listModuleManifests: getBuiltInModuleManifests,
+  dataContext,
+  boss,
+  chatEngineFactory: options.chatEngineFactory,
+  revokeUserSessions: authRuntime.revokeUserSessions,
+  bootstrapConnectionString: getJarvisDatabaseUrls().bootstrap
+});
 ```
 
 - [ ] **Step 2: Propagate the fields through `@jarv1s/module-registry`**
@@ -1367,6 +1503,7 @@ git commit -m "feat(api): wire session-revocation + bootstrap connection into se
 ### Task 10: Frontend — ApiError code + pending/deactivated screens
 
 **Files:**
+
 - Modify: `apps/web/src/api/client.ts` (`ApiError` carries `code`)
 - Modify: `apps/web/src/app.tsx` (branch on the codes)
 
@@ -1387,10 +1524,10 @@ export class ApiError extends Error {
 In `requestJson`, parse the code from the error body alongside the message:
 
 ```typescript
-  if (!response.ok) {
-    const { message, code } = await readError(response);
-    throw new ApiError(response.status, message, code);
-  }
+if (!response.ok) {
+  const { message, code } = await readError(response);
+  throw new ApiError(response.status, message, code);
+}
 ```
 
 Update `readErrorMessage` → `readError` to return both:
@@ -1469,6 +1606,7 @@ git commit -m "feat(web): surface account_pending/account_deactivated screens"
 ### Task 11: Frontend — admin UI (pending approvals, users table, registration toggles)
 
 **Files:**
+
 - Modify: the admin settings section under `apps/web/src/` (locate with the grep below)
 - Modify: `apps/web/src/api/` client methods for the new endpoints
 
@@ -1482,16 +1620,27 @@ Identify the existing admin settings component and the API client module that wr
 In the web API client, add typed calls (return types from `@jarv1s/shared`):
 
 ```typescript
-export const approveUser = (id: string) => requestJson<{ user: UserDto }>(`/api/admin/users/${id}/approve`, { method: "POST" });
-export const rejectUser = (id: string) => requestJson<{ rejectedUserId: string }>(`/api/admin/users/${id}/reject`, { method: "POST" });
-export const deactivateUser = (id: string) => requestJson<{ user: UserDto }>(`/api/admin/users/${id}/deactivate`, { method: "POST" });
-export const reactivateUser = (id: string) => requestJson<{ user: UserDto }>(`/api/admin/users/${id}/reactivate`, { method: "POST" });
-export const promoteUser = (id: string) => requestJson<{ user: UserDto }>(`/api/admin/users/${id}/promote`, { method: "POST" });
-export const demoteUser = (id: string) => requestJson<{ user: UserDto }>(`/api/admin/users/${id}/demote`, { method: "POST" });
-export const deleteUser = (id: string) => requestJson<{ deletedUserId: string }>(`/api/admin/users/${id}`, { method: "DELETE" });
-export const getRegistrationSettings = () => requestJson<RegistrationSettingsDto>(`/api/admin/registration`);
+export const approveUser = (id: string) =>
+  requestJson<{ user: UserDto }>(`/api/admin/users/${id}/approve`, { method: "POST" });
+export const rejectUser = (id: string) =>
+  requestJson<{ rejectedUserId: string }>(`/api/admin/users/${id}/reject`, { method: "POST" });
+export const deactivateUser = (id: string) =>
+  requestJson<{ user: UserDto }>(`/api/admin/users/${id}/deactivate`, { method: "POST" });
+export const reactivateUser = (id: string) =>
+  requestJson<{ user: UserDto }>(`/api/admin/users/${id}/reactivate`, { method: "POST" });
+export const promoteUser = (id: string) =>
+  requestJson<{ user: UserDto }>(`/api/admin/users/${id}/promote`, { method: "POST" });
+export const demoteUser = (id: string) =>
+  requestJson<{ user: UserDto }>(`/api/admin/users/${id}/demote`, { method: "POST" });
+export const deleteUser = (id: string) =>
+  requestJson<{ deletedUserId: string }>(`/api/admin/users/${id}`, { method: "DELETE" });
+export const getRegistrationSettings = () =>
+  requestJson<RegistrationSettingsDto>(`/api/admin/registration`);
 export const putRegistrationSettings = (body: RegistrationSettingsDto) =>
-  requestJson<RegistrationSettingsDto>(`/api/admin/registration`, { method: "PUT", body: JSON.stringify(body) });
+  requestJson<RegistrationSettingsDto>(`/api/admin/registration`, {
+    method: "PUT",
+    body: JSON.stringify(body)
+  });
 ```
 
 (Match the existing `requestJson` signature/options shape in the client.)
@@ -1499,6 +1648,7 @@ export const putRegistrationSettings = (body: RegistrationSettingsDto) =>
 - [ ] **Step 3: Extend the admin settings component**
 
 Add three sub-sections, invalidating the users query (`queryClient.invalidateQueries`) after each mutation — follow the existing query-key conventions in this app (see the `jarvis-frontend-workspace-querykey` memory):
+
 1. **Pending approvals** — filter users with `status === "pending"`; each row has Approve / Reject buttons.
 2. **Users table** — all users with a status badge (pending/active/deactivated) and contextual actions: Deactivate (active, non-self, non-bootstrap-owner), Reactivate (deactivated), Promote/Demote (guard against demoting bootstrap owner / last admin — disable the button and rely on the 409 from the server as backstop), Delete (non-self).
 3. **Registration toggles** — two switches bound to `getRegistrationSettings`; on change call `putRegistrationSettings`.
@@ -1520,6 +1670,7 @@ git commit -m "feat(web): admin pending-approvals, users table, and registration
 ### Task 12: Exit gate — multi-user-isolation integration suite (incl. admin-bypass negative test)
 
 **Files:**
+
 - Create: `tests/integration/multi-user-isolation.test.ts`
 - Modify: `package.json` (add a `test:multi-user` script mirroring the other per-suite scripts) — optional but matches the convention.
 
@@ -1541,7 +1692,11 @@ function cookieHeader(headers: Record<string, unknown>): string {
   return arr.map((c) => String(c).split(";")[0]).join("; ");
 }
 
-async function signUp(server: Awaited<ReturnType<typeof createApiServer>>, name: string, email: string) {
+async function signUp(
+  server: Awaited<ReturnType<typeof createApiServer>>,
+  name: string,
+  email: string
+) {
   const res = await server.inject({
     method: "POST",
     url: "/api/auth/sign-up/email",
@@ -1580,20 +1735,29 @@ Create a resource as user A (a task is the canonical owner-or-share resource), t
 it("a member cannot read another member's task", async () => {
   const admin = await signUp(server, "Admin", "admin@example.com"); // first = active admin
   // turn off approval so subsequent users are active
-  await appDb.updateTable("app.instance_settings").set({ value: { value: false } }).where("key", "=", "registration.requires_approval").execute();
+  await appDb
+    .updateTable("app.instance_settings")
+    .set({ value: { value: false } })
+    .where("key", "=", "registration.requires_approval")
+    .execute();
 
   const alice = await signUp(server, "Alice", "alice@example.com");
   const bob = await signUp(server, "Bob", "bob@example.com");
 
   const created = await server.inject({
-    method: "POST", url: "/api/tasks",
+    method: "POST",
+    url: "/api/tasks",
     headers: { "content-type": "application/json", cookie: alice.cookie },
     payload: { title: "Alice private task" }
   });
   expect(created.statusCode).toBe(201);
   const taskId = created.json<{ task: { id: string } }>().task.id;
 
-  const bobRead = await server.inject({ method: "GET", url: `/api/tasks/${taskId}`, headers: { cookie: bob.cookie } });
+  const bobRead = await server.inject({
+    method: "GET",
+    url: `/api/tasks/${taskId}`,
+    headers: { cookie: bob.cookie }
+  });
   expect(bobRead.statusCode).toBe(404);
 });
 ```
@@ -1605,28 +1769,47 @@ it("a member cannot read another member's task", async () => {
 ```typescript
 it("an instance admin CANNOT read a member's private task (no admin bypass of RLS)", async () => {
   const admin = await signUp(server, "Admin", "admin@example.com");
-  await appDb.updateTable("app.instance_settings").set({ value: { value: false } }).where("key", "=", "registration.requires_approval").execute();
+  await appDb
+    .updateTable("app.instance_settings")
+    .set({ value: { value: false } })
+    .where("key", "=", "registration.requires_approval")
+    .execute();
   const alice = await signUp(server, "Alice", "alice@example.com");
 
   const created = await server.inject({
-    method: "POST", url: "/api/tasks",
+    method: "POST",
+    url: "/api/tasks",
     headers: { "content-type": "application/json", cookie: alice.cookie },
     payload: { title: "Alice private task" }
   });
   const taskId = created.json<{ task: { id: string } }>().task.id;
 
   // Admin tries directly…
-  const adminRead = await server.inject({ method: "GET", url: `/api/tasks/${taskId}`, headers: { cookie: admin.cookie } });
+  const adminRead = await server.inject({
+    method: "GET",
+    url: `/api/tasks/${taskId}`,
+    headers: { cookie: admin.cookie }
+  });
   expect(adminRead.statusCode).toBe(404);
 
   // …and even after self-granting a resource grant (which is inert for owner-or-share tasks),
   // the admin still cannot read it.
   await server.inject({
-    method: "POST", url: "/api/admin/resource-grants",
+    method: "POST",
+    url: "/api/admin/resource-grants",
     headers: { "content-type": "application/json", cookie: admin.cookie },
-    payload: { resourceType: "task", resourceId: taskId, granteeUserId: admin.id, grantLevel: "view" }
+    payload: {
+      resourceType: "task",
+      resourceId: taskId,
+      granteeUserId: admin.id,
+      grantLevel: "view"
+    }
   });
-  const adminReadAfterGrant = await server.inject({ method: "GET", url: `/api/tasks/${taskId}`, headers: { cookie: admin.cookie } });
+  const adminReadAfterGrant = await server.inject({
+    method: "GET",
+    url: `/api/tasks/${taskId}`,
+    headers: { cookie: admin.cookie }
+  });
   expect(adminReadAfterGrant.statusCode).toBe(404);
 });
 ```
@@ -1640,7 +1823,11 @@ Assert that no API surface returns another user's secrets and that `jarvis_app_r
 ```typescript
 it("app_runtime cannot read another user's auth_accounts or sessions rows", async () => {
   const admin = await signUp(server, "Admin", "admin@example.com");
-  await appDb.updateTable("app.instance_settings").set({ value: { value: false } }).where("key", "=", "registration.requires_approval").execute();
+  await appDb
+    .updateTable("app.instance_settings")
+    .set({ value: { value: false } })
+    .where("key", "=", "registration.requires_approval")
+    .execute();
   const alice = await signUp(server, "Alice", "alice@example.com");
 
   // appDb is the jarvis_app_runtime pool; 0045 revoked its access to these tables entirely.
@@ -1660,33 +1847,64 @@ it("lifecycle: pending blocked → approved active → deactivated blocked + ses
   const member = await signUp(server, "Member", "member@example.com"); // pending (approval on by default)
 
   // pending blocked
-  expect((await server.inject({ method: "GET", url: "/api/me", headers: { cookie: member.cookie } })).statusCode).toBe(403);
+  expect(
+    (await server.inject({ method: "GET", url: "/api/me", headers: { cookie: member.cookie } }))
+      .statusCode
+  ).toBe(403);
 
   // approve → active
-  await server.inject({ method: "POST", url: `/api/admin/users/${member.id}/approve`, headers: { cookie: admin.cookie } });
+  await server.inject({
+    method: "POST",
+    url: `/api/admin/users/${member.id}/approve`,
+    headers: { cookie: admin.cookie }
+  });
   // member must re-authenticate (their pre-approval session may be stale); sign in fresh
   const signIn = await server.inject({
-    method: "POST", url: "/api/auth/sign-in/email",
+    method: "POST",
+    url: "/api/auth/sign-in/email",
     headers: { "content-type": "application/json" },
     payload: { email: "member@example.com", password: "password12345" }
   });
   const activeCookie = cookieHeader(signIn.headers);
-  expect((await server.inject({ method: "GET", url: "/api/me", headers: { cookie: activeCookie } })).statusCode).toBe(200);
+  expect(
+    (await server.inject({ method: "GET", url: "/api/me", headers: { cookie: activeCookie } }))
+      .statusCode
+  ).toBe(200);
 
   // deactivate → blocked + sessions gone
-  await server.inject({ method: "POST", url: `/api/admin/users/${member.id}/deactivate`, headers: { cookie: admin.cookie } });
+  await server.inject({
+    method: "POST",
+    url: `/api/admin/users/${member.id}/deactivate`,
+    headers: { cookie: admin.cookie }
+  });
   const sessions = await authRuntime.revokeUserSessions(member.id); // already revoked by the route → 0
   expect(sessions).toBe(0);
-  expect((await server.inject({ method: "GET", url: "/api/me", headers: { cookie: activeCookie } })).statusCode).toBe(403);
+  expect(
+    (await server.inject({ method: "GET", url: "/api/me", headers: { cookie: activeCookie } }))
+      .statusCode
+  ).toBe(403);
 
   // reactivate → active again (after fresh sign-in)
-  await server.inject({ method: "POST", url: `/api/admin/users/${member.id}/reactivate`, headers: { cookie: admin.cookie } });
+  await server.inject({
+    method: "POST",
+    url: `/api/admin/users/${member.id}/reactivate`,
+    headers: { cookie: admin.cookie }
+  });
   const signIn2 = await server.inject({
-    method: "POST", url: "/api/auth/sign-in/email",
+    method: "POST",
+    url: "/api/auth/sign-in/email",
     headers: { "content-type": "application/json" },
     payload: { email: "member@example.com", password: "password12345" }
   });
-  expect((await server.inject({ method: "GET", url: "/api/me", headers: { cookie: cookieHeader(signIn2.headers) } })).statusCode).toBe(200);
+  expect(
+    (
+      await server.inject({
+        method: "GET",
+        url: "/api/me",
+        headers: { cookie: cookieHeader(signIn2.headers) }
+      })
+    ).statusCode
+  ).toBe(200);
 });
 ```
 
@@ -1696,8 +1914,24 @@ it("lifecycle: pending blocked → approved active → deactivated blocked + ses
 it("guardrails: cannot demote/deactivate the last admin or the bootstrap owner, or deactivate self", async () => {
   const admin = await signUp(server, "Admin", "admin@example.com"); // bootstrap owner + only admin
 
-  expect((await server.inject({ method: "POST", url: `/api/admin/users/${admin.id}/demote`, headers: { cookie: admin.cookie } })).statusCode).toBe(409);
-  expect((await server.inject({ method: "POST", url: `/api/admin/users/${admin.id}/deactivate`, headers: { cookie: admin.cookie } })).statusCode).toBeGreaterThanOrEqual(409);
+  expect(
+    (
+      await server.inject({
+        method: "POST",
+        url: `/api/admin/users/${admin.id}/demote`,
+        headers: { cookie: admin.cookie }
+      })
+    ).statusCode
+  ).toBe(409);
+  expect(
+    (
+      await server.inject({
+        method: "POST",
+        url: `/api/admin/users/${admin.id}/deactivate`,
+        headers: { cookie: admin.cookie }
+      })
+    ).statusCode
+  ).toBeGreaterThanOrEqual(409);
 });
 ```
 
@@ -1749,29 +1983,30 @@ git status   # expect clean
 
 **1. Spec coverage:**
 
-| Spec requirement | Task |
-| ---------------- | ---- |
-| status + is_bootstrap_owner columns | 1 |
-| registration.enabled / requires_approval settings | 1 |
-| Sign-up gate on registration.enabled | 3 |
-| Status assignment (first=active+admin+owner; later=pending/active) | 4 |
-| Access enforcement (pending→403 account_pending, deactivated→403 account_deactivated; both better-auth + bearer paths) | 5 |
-| Session revocation on deactivate via auth_runtime | 6, 8 |
-| Admin routes approve/reject/deactivate/reactivate/promote/demote/delete | 8 |
-| Registration GET/PUT | 8 |
-| requireAdmin gating + audit logging | 7 (audit), 8 (gate) |
-| Guardrails: ≥1 active admin, bootstrap-owner protection, no self-lockout | 7 (repo), 8 (route-level self-delete) |
-| DELETE reuses delete:user (deleteUserData) | 8, 9 |
-| Frontend pending/deactivated screens (no polling) | 10 |
-| Admin UI: pending list, users table, registration toggles | 11 |
-| multi-user-isolation suite + admin-bypass negative test | 12 |
-| verify:foundation green | 13 |
+| Spec requirement                                                                                                       | Task                                  |
+| ---------------------------------------------------------------------------------------------------------------------- | ------------------------------------- |
+| status + is_bootstrap_owner columns                                                                                    | 1                                     |
+| registration.enabled / requires_approval settings                                                                      | 1                                     |
+| Sign-up gate on registration.enabled                                                                                   | 3                                     |
+| Status assignment (first=active+admin+owner; later=pending/active)                                                     | 4                                     |
+| Access enforcement (pending→403 account_pending, deactivated→403 account_deactivated; both better-auth + bearer paths) | 5                                     |
+| Session revocation on deactivate via auth_runtime                                                                      | 6, 8                                  |
+| Admin routes approve/reject/deactivate/reactivate/promote/demote/delete                                                | 8                                     |
+| Registration GET/PUT                                                                                                   | 8                                     |
+| requireAdmin gating + audit logging                                                                                    | 7 (audit), 8 (gate)                   |
+| Guardrails: ≥1 active admin, bootstrap-owner protection, no self-lockout                                               | 7 (repo), 8 (route-level self-delete) |
+| DELETE reuses delete:user (deleteUserData)                                                                             | 8, 9                                  |
+| Frontend pending/deactivated screens (no polling)                                                                      | 10                                    |
+| Admin UI: pending list, users table, registration toggles                                                              | 11                                    |
+| multi-user-isolation suite + admin-bypass negative test                                                                | 12                                    |
+| verify:foundation green                                                                                                | 13                                    |
 
 No gaps.
 
 **2. Placeholder scan:** No "TBD/TODO/handle edge cases" left. The only deliberately-symbolic token is the migration number `<NNNN>` — that is correct project practice (numbers are global, assigned at landing) and Task 1 Step 2 resolves it concretely. Two "locate with grep" steps (Task 5 `/api/me`, Task 11 admin UI) are discovery steps for files this plan does not assume the exact path of — each gives the exact grep and the exact change to make once found.
 
 **3. Type consistency:**
+
 - `setUserStatus` / `setUserAdmin` / `getRegistrationSettings` / `setRegistrationSettings` signatures match between Task 7 (definition) and Task 8 (calls). ✓
 - `RegistrationSettingsDto` (shared, Task 2) vs `RegistrationSettings` (repo, Task 7) — both `{ registrationEnabled, requiresApproval }`. The route returns the shared DTO shape directly. ✓
 - `serializeUser` (Task 8) returns the extended `UserDto` (Task 2). ✓

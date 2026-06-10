@@ -59,17 +59,11 @@ export function App() {
     );
   }
 
-  if (
-    meQuery.error instanceof ApiError &&
-    meQuery.error.code === "account_pending_approval"
-  ) {
+  if (meQuery.error instanceof ApiError && meQuery.error.code === "account_pending_approval") {
     return <PendingApprovalScreen />;
   }
 
-  if (
-    meQuery.error instanceof ApiError &&
-    meQuery.error.code === "account_deactivated"
-  ) {
+  if (meQuery.error instanceof ApiError && meQuery.error.code === "account_deactivated") {
     return <DeactivatedScreen />;
   }
 
@@ -134,7 +128,9 @@ function PendingApprovalScreen() {
       <section className="auth-panel">
         <h1>Jarv1s</h1>
         <p>Your account is pending approval by an administrator.</p>
-        <p className="form-hint">You will be able to sign in once your account has been approved.</p>
+        <p className="form-hint">
+          You will be able to sign in once your account has been approved.
+        </p>
       </section>
     </main>
   );

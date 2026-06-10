@@ -132,11 +132,7 @@ describe("multi-user isolation", () => {
     // appDb runs as jarvis_app_runtime. Migration 0045 revoked its SELECT on auth_accounts +
     // better_auth_sessions entirely (FORCE RLS tables). A direct query must throw permission denied.
     await expect(
-      appDb
-        .selectFrom("app.auth_accounts")
-        .selectAll()
-        .where("user_id", "=", alice.id)
-        .execute()
+      appDb.selectFrom("app.auth_accounts").selectAll().where("user_id", "=", alice.id).execute()
     ).rejects.toThrow();
   });
 

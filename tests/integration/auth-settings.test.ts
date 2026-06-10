@@ -539,13 +539,21 @@ describe("multi-user registration + lifecycle (Phase 2 Slice A)", () => {
       .where("key", "=", "registration.enabled")
       .execute();
 
-    const blocked = await signUp({ name: "Late", email: "late@example.com", password: "password12345" });
+    const blocked = await signUp({
+      name: "Late",
+      email: "late@example.com",
+      password: "password12345"
+    });
     expect(blocked.statusCode).toBe(403);
     expect(blocked.json<{ code?: string }>().code).toBe("registration_disabled");
   });
 
   it("marks the first sign-up as bootstrap owner with active status", async () => {
-    const signUpRes = await signUp({ name: "First", email: "first@example.com", password: "password12345" });
+    const signUpRes = await signUp({
+      name: "First",
+      email: "first@example.com",
+      password: "password12345"
+    });
     expect(signUpRes.statusCode).toBe(200);
 
     const cookie = cookieHeader(signUpRes.headers);
@@ -561,7 +569,11 @@ describe("multi-user registration + lifecycle (Phase 2 Slice A)", () => {
   it("marks subsequent sign-up as pending when requires_approval is true", async () => {
     await signUp({ name: "Owner", email: "owner@example.com", password: "password12345" });
 
-    const joinRes = await signUp({ name: "Joiner", email: "joiner@example.com", password: "password12345" });
+    const joinRes = await signUp({
+      name: "Joiner",
+      email: "joiner@example.com",
+      password: "password12345"
+    });
     expect(joinRes.statusCode).toBe(200);
     const userId = joinRes.json<{ user: { id: string } }>().user.id;
 
@@ -578,7 +590,11 @@ describe("multi-user registration + lifecycle (Phase 2 Slice A)", () => {
   it("blocks pending user from authenticated endpoint with 403 account_pending_approval", async () => {
     await signUp({ name: "Owner", email: "owner@example.com", password: "password12345" });
 
-    const joinRes = await signUp({ name: "Joiner", email: "joiner@example.com", password: "password12345" });
+    const joinRes = await signUp({
+      name: "Joiner",
+      email: "joiner@example.com",
+      password: "password12345"
+    });
     expect(joinRes.statusCode).toBe(200);
 
     const meRes = await server.inject({
@@ -601,7 +617,11 @@ describe("multi-user registration + lifecycle (Phase 2 Slice A)", () => {
       .where("key", "=", "registration.requires_approval")
       .execute();
 
-    const joinRes = await signUp({ name: "Joiner", email: "joiner@example.com", password: "password12345" });
+    const joinRes = await signUp({
+      name: "Joiner",
+      email: "joiner@example.com",
+      password: "password12345"
+    });
     expect(joinRes.statusCode).toBe(200);
     const joinerId = joinRes.json<{ user: { id: string } }>().user.id;
 
@@ -627,7 +647,11 @@ describe("multi-user registration + lifecycle (Phase 2 Slice A)", () => {
   });
 
   it("revokeUserSessions deletes all of a user's sessions", async () => {
-    const member = await signUp({ name: "Member", email: "member@example.com", password: "password12345" });
+    const member = await signUp({
+      name: "Member",
+      email: "member@example.com",
+      password: "password12345"
+    });
     const memberId = member.json<{ user: { id: string } }>().user.id;
 
     // Sign-up creates a session; first call should delete at least 1.
@@ -640,9 +664,17 @@ describe("multi-user registration + lifecycle (Phase 2 Slice A)", () => {
   });
 
   it("admin approves a pending user, who can then access /api/me", async () => {
-    const admin = await signUp({ name: "Admin", email: "admin@example.com", password: "password12345" });
+    const admin = await signUp({
+      name: "Admin",
+      email: "admin@example.com",
+      password: "password12345"
+    });
     const adminCookie = cookieHeader(admin.headers);
-    const member = await signUp({ name: "Member", email: "member@example.com", password: "password12345" });
+    const member = await signUp({
+      name: "Member",
+      email: "member@example.com",
+      password: "password12345"
+    });
     const memberId = member.json<{ user: { id: string } }>().user.id;
     const memberCookie = cookieHeader(member.headers);
 
@@ -654,18 +686,34 @@ describe("multi-user registration + lifecycle (Phase 2 Slice A)", () => {
     expect(approve.statusCode).toBe(200);
     expect(approve.json<{ user: { status: string } }>().user.status).toBe("active");
 
-    const me = await server.inject({ method: "GET", url: "/api/me", headers: { cookie: memberCookie } });
+    const me = await server.inject({
+      method: "GET",
+      url: "/api/me",
+      headers: { cookie: memberCookie }
+    });
     expect(me.statusCode).toBe(200);
   });
 
   it("non-admin cannot call lifecycle routes (403)", async () => {
-    const admin = await signUp({ name: "Admin", email: "admin@example.com", password: "password12345" });
+    const admin = await signUp({
+      name: "Admin",
+      email: "admin@example.com",
+      password: "password12345"
+    });
     const adminId = admin.json<{ user: { id: string } }>().user.id;
-    const member = await signUp({ name: "Member", email: "member@example.com", password: "password12345" });
+    const member = await signUp({
+      name: "Member",
+      email: "member@example.com",
+      password: "password12345"
+    });
     const memberId = member.json<{ user: { id: string } }>().user.id;
     const adminCookie = cookieHeader(admin.headers);
     // Approve member so they have an active session for subsequent calls.
-    await server.inject({ method: "POST", url: `/api/admin/users/${memberId}/approve`, headers: { cookie: adminCookie } });
+    await server.inject({
+      method: "POST",
+      url: `/api/admin/users/${memberId}/approve`,
+      headers: { cookie: adminCookie }
+    });
     // Re-sign-in as member to get a fresh active session cookie.
     const memberSignIn = await server.inject({
       method: "POST",
@@ -685,7 +733,11 @@ describe("multi-user registration + lifecycle (Phase 2 Slice A)", () => {
   it("repository blocks demoting the last active admin", async () => {
     // Owner is bootstrap_owner; member is promoted to admin via bootstrap, then
     // owner is deactivated via bootstrap — leaving member as the last active admin.
-    const ownerRes = await signUp({ name: "Owner", email: "owner@example.com", password: "password12345" });
+    const ownerRes = await signUp({
+      name: "Owner",
+      email: "owner@example.com",
+      password: "password12345"
+    });
     const ownerId = ownerRes.json<{ user: { id: string } }>().user.id;
 
     await appDb
@@ -693,19 +745,34 @@ describe("multi-user registration + lifecycle (Phase 2 Slice A)", () => {
       .set({ value: { value: false }, updated_at: new Date() })
       .where("key", "=", "registration.requires_approval")
       .execute();
-    const memberRes = await signUp({ name: "Member", email: "member@example.com", password: "password12345" });
+    const memberRes = await signUp({
+      name: "Member",
+      email: "member@example.com",
+      password: "password12345"
+    });
     const memberId = memberRes.json<{ user: { id: string } }>().user.id;
 
     // Use bootstrap (superuser) to promote member to admin and deactivate owner.
     const client = new pg.Client({ connectionString: connectionStrings.bootstrap });
     await client.connect();
-    await client.query(`UPDATE app.users SET is_instance_admin = true, updated_at = now() WHERE id = $1`, [memberId]);
-    await client.query(`UPDATE app.users SET status = 'deactivated', updated_at = now() WHERE id = $1`, [ownerId]);
+    await client.query(
+      `UPDATE app.users SET is_instance_admin = true, updated_at = now() WHERE id = $1`,
+      [memberId]
+    );
+    await client.query(
+      `UPDATE app.users SET status = 'deactivated', updated_at = now() WHERE id = $1`,
+      [ownerId]
+    );
     await client.end();
 
     const repo = new SettingsRepository(appDb);
     await expect(
-      repo.setUserAdmin({ targetUserId: memberId, isInstanceAdmin: false, actorUserId: memberId, requestId: "r1" })
+      repo.setUserAdmin({
+        targetUserId: memberId,
+        isInstanceAdmin: false,
+        actorUserId: memberId,
+        requestId: "r1"
+      })
     ).rejects.toThrow(/last.*admin/i);
   });
 });

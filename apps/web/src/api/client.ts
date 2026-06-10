@@ -502,17 +502,15 @@ export async function rejectUser(id: string): Promise<{ rejectedUserId: string }
 }
 
 export async function deactivateUser(id: string): Promise<{ user: UserDto }> {
-  return requestJson<{ user: UserDto }>(
-    `/api/admin/users/${encodeURIComponent(id)}/deactivate`,
-    { method: "POST" }
-  );
+  return requestJson<{ user: UserDto }>(`/api/admin/users/${encodeURIComponent(id)}/deactivate`, {
+    method: "POST"
+  });
 }
 
 export async function reactivateUser(id: string): Promise<{ user: UserDto }> {
-  return requestJson<{ user: UserDto }>(
-    `/api/admin/users/${encodeURIComponent(id)}/reactivate`,
-    { method: "POST" }
-  );
+  return requestJson<{ user: UserDto }>(`/api/admin/users/${encodeURIComponent(id)}/reactivate`, {
+    method: "POST"
+  });
 }
 
 export async function promoteUser(id: string): Promise<{ user: UserDto }> {

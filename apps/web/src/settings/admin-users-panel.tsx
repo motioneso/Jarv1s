@@ -155,9 +155,7 @@ export function AdminUsersPanel(props: AdminUsersPanelProps) {
         {deactivateMutation.error ? (
           <p className="form-error">{deactivateMutation.error.message}</p>
         ) : null}
-        {deleteMutation.error ? (
-          <p className="form-error">{deleteMutation.error.message}</p>
-        ) : null}
+        {deleteMutation.error ? <p className="form-error">{deleteMutation.error.message}</p> : null}
       </section>
 
       <section className="panel" aria-labelledby="registration-title">
@@ -201,9 +199,7 @@ export function AdminUsersPanel(props: AdminUsersPanelProps) {
         ) : regQuery.isLoading ? (
           <p className="muted-text">Loading…</p>
         ) : null}
-        {regMutation.error ? (
-          <p className="form-error">{regMutation.error.message}</p>
-        ) : null}
+        {regMutation.error ? <p className="form-error">{regMutation.error.message}</p> : null}
       </section>
     </>
   );
@@ -275,31 +271,16 @@ function UserRow(props: UserRowProps) {
           </button>
         ) : null}
         {!user.isInstanceAdmin ? (
-          <button
-            className="ghost-button"
-            type="button"
-            disabled={busy}
-            onClick={props.onPromote}
-          >
+          <button className="ghost-button" type="button" disabled={busy} onClick={props.onPromote}>
             Promote
           </button>
         ) : canDemote ? (
-          <button
-            className="ghost-button"
-            type="button"
-            disabled={busy}
-            onClick={props.onDemote}
-          >
+          <button className="ghost-button" type="button" disabled={busy} onClick={props.onDemote}>
             Demote
           </button>
         ) : null}
         {!isSelf ? (
-          <button
-            className="ghost-button"
-            type="button"
-            disabled={busy}
-            onClick={props.onDelete}
-          >
+          <button className="ghost-button" type="button" disabled={busy} onClick={props.onDelete}>
             Delete
           </button>
         ) : null}

@@ -84,10 +84,9 @@ export function createJarvisAuthRuntime(
       }),
     listConfiguredProviders: () => listConfiguredAuthProviders(env),
     revokeUserSessions: async (userId: string) => {
-      const result = await pool.query(
-        "DELETE FROM app.better_auth_sessions WHERE user_id = $1",
-        [userId]
-      );
+      const result = await pool.query("DELETE FROM app.better_auth_sessions WHERE user_id = $1", [
+        userId
+      ]);
       return result.rowCount ?? 0;
     },
     close: () => pool.end()
@@ -283,7 +282,10 @@ async function registrationGate(
 
   const enabled = await readBooleanSetting(appDb, "registration.enabled", true);
   if (!enabled) {
-    throw new APIError("FORBIDDEN", { message: "Registration is disabled", code: "registration_disabled" });
+    throw new APIError("FORBIDDEN", {
+      message: "Registration is disabled",
+      code: "registration_disabled"
+    });
   }
 }
 

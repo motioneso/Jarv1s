@@ -47,10 +47,10 @@ status at the single `resolveAccessContext` chokepoint every request already pas
 **Rejected — lean on better-auth's `admin` plugin** (ban/role/listUsers/removeUser). It
 introduces a second authorization model (`role` string + `banned` flag) that must be mapped
 to and kept in sync with our `is_instance_admin` + RLS world, runs user mutations as the auth
-role *outside* the RLS reasoning hardened in migrations 0045/0046, and still does not model
+role _outside_ the RLS reasoning hardened in migrations 0045/0046, and still does not model
 "pending approval" (we'd build that anyway). Its "less plumbing" is illusory: the mapping +
 sync cost exceeds the ~20 lines of session-revocation that the app-layer approach needs. The
-whole point of this slice is to *prove* isolation through RLS — a parallel admin model works
+whole point of this slice is to _prove_ isolation through RLS — a parallel admin model works
 against that. (`hybrid` was also rejected: two models plus glue is the worst of both.)
 
 This is the "finish-not-rearchitect" path (ADR 0009): `is_instance_admin`, `requireAdmin`,
@@ -83,10 +83,10 @@ ALTER TABLE app.users
 **`app.instance_settings` — two registration controls** (key/value table; admin upsert routes
 already exist):
 
-| Key | Values | Default | Meaning |
-| --- | --- | --- | --- |
-| `registration.enabled` | `"true"` / `"false"` | `"true"` | When false, sign-up endpoint refuses new accounts |
-| `registration.requires_approval` | `"true"` / `"false"` | `"true"` | When true, new sign-ups land in `pending` |
+| Key                              | Values               | Default  | Meaning                                           |
+| -------------------------------- | -------------------- | -------- | ------------------------------------------------- |
+| `registration.enabled`           | `"true"` / `"false"` | `"true"` | When false, sign-up endpoint refuses new accounts |
+| `registration.requires_approval` | `"true"` / `"false"` | `"true"` | When true, new sign-ups land in `pending`         |
 
 **Safe-by-default:** the door is open (matches the "admin shares a link" model) but a stray
 shared URL cannot auto-admit a stranger — the admin confirms each one. The admin can drop the
@@ -107,6 +107,7 @@ Reads `registration.enabled`; if `false`, throws → sign-up rejected. (New hook
 
 **(b) Status assignment — extend the existing `after` hook (`bootstrapFirstJarvisUser`).**
 Keeps the advisory-lock + first-user detection. Adds the status/owner decision:
+
 - First user → `status = 'active'`, `is_instance_admin = true`, `is_bootstrap_owner = true`
   (existing workspace + audit bootstrap unchanged).
 - Subsequent users → `status = 'pending'` if `registration.requires_approval` is on, else
@@ -114,6 +115,7 @@ Keeps the advisory-lock + first-user detection. Adds the status/owner decision:
 
 **(c) Access enforcement — `resolveRequestAccessContext` (the single chokepoint).**
 After resolving the session → user, check `status`:
+
 - `active` → proceed (returns `{ actorUserId, requestId }` — `AccessContext` shape unchanged).
 - `pending` → throw typed `AccountPendingApprovalError`.
 - `deactivated` → throw typed `AccountDeactivatedError`.
@@ -147,17 +149,17 @@ bearer-token branches enforce it.
 New routes, all behind the existing `requireAdmin` guard, all writing an `admin_audit_events`
 row (actor, action, target):
 
-| Route | Action |
-| --- | --- |
-| `GET /api/admin/users` *(extend)* | return `status` + `is_instance_admin` + `is_bootstrap_owner` |
-| `POST /api/admin/users/:id/approve` | `pending → active` |
-| `POST /api/admin/users/:id/reject` | delete the never-activated pending account (plain row delete) |
-| `POST /api/admin/users/:id/deactivate` | `active → deactivated` + revoke sessions |
-| `POST /api/admin/users/:id/reactivate` | `deactivated → active` |
-| `POST /api/admin/users/:id/promote` | set `is_instance_admin = true` |
-| `POST /api/admin/users/:id/demote` | set `is_instance_admin = false` |
-| `DELETE /api/admin/users/:id` | full teardown via the `delete:user` script path |
-| `GET` / `PUT /api/admin/settings/registration` | read / write the two registration settings |
+| Route                                          | Action                                                        |
+| ---------------------------------------------- | ------------------------------------------------------------- |
+| `GET /api/admin/users` _(extend)_              | return `status` + `is_instance_admin` + `is_bootstrap_owner`  |
+| `POST /api/admin/users/:id/approve`            | `pending → active`                                            |
+| `POST /api/admin/users/:id/reject`             | delete the never-activated pending account (plain row delete) |
+| `POST /api/admin/users/:id/deactivate`         | `active → deactivated` + revoke sessions                      |
+| `POST /api/admin/users/:id/reactivate`         | `deactivated → active`                                        |
+| `POST /api/admin/users/:id/promote`            | set `is_instance_admin = true`                                |
+| `POST /api/admin/users/:id/demote`             | set `is_instance_admin = false`                               |
+| `DELETE /api/admin/users/:id`                  | full teardown via the `delete:user` script path               |
+| `GET` / `PUT /api/admin/settings/registration` | read / write the two registration settings                    |
 
 Shared contracts (`packages/shared/*-api.ts`) get the new request/response schemas; the
 `settings` repository gets the corresponding methods. `delete` reuses the existing `delete:user`
@@ -181,12 +183,13 @@ New integration suite `multi-user-isolation` (runs in `pnpm verify:foundation`).
 genuinely separate real users (A + B — full sign-up path, real sessions) plus an admin user.
 
 **Positive isolation — A cannot reach B:**
+
 - `auth_accounts` (OAuth tokens, password hash)
 - `better_auth_sessions` (cannot read or reuse B's session)
 - connector credentials (encrypted OAuth tokens never surface across users)
 - AI provider keys
 - vault files (via `VaultContext`)
-- representative per-user tables (tasks, memory, chat) — owner-only RLS holds for a *real*
+- representative per-user tables (tasks, memory, chat) — owner-only RLS holds for a _real_
   second user, not just synthetic contexts
 
 **Admin-bypass negative test (headline assertion):** an instance-admin user, acting through
@@ -195,6 +198,7 @@ connector secrets, not tasks/memory. Locks in CLAUDE.md: admin power is configur
 only; RLS applies to admins too. If admin can read B's data, the slice has failed.
 
 **Lifecycle assertions:**
+
 - sign-up blocked when `registration.enabled = false`
 - sign-up lands `pending` when approval on, `active` when off
 - `pending` user → every app route 403s with `account_pending`
@@ -220,7 +224,7 @@ only; RLS applies to admins too. If admin can read B's data, the slice has faile
 ## Risks & notes
 
 - **Security tier.** Merge requires the cross-model (Opus) adversarial QA pass that hunts
-  *unproven trust boundaries*, a posted `gh pr comment` verdict, and Ben's explicit merge
+  _unproven trust boundaries_, a posted `gh pr comment` verdict, and Ben's explicit merge
   sign-off — never auto-merge.
 - **Migration number is global**, assigned by landing order; do not hardcode it in the spec.
 - **`AccessContext` shape is frozen** at `{ actorUserId, requestId }` — status is checked
