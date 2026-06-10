@@ -45,7 +45,10 @@ export function createApiServer(options: CreateApiServerOptions = {}) {
     });
   const ownsAuthRuntime = options.authRuntime === undefined;
   const server = Fastify({
-    logger: options.logger ?? true
+    logger: options.logger ?? true,
+    // Honor XFF only when an explicit opt-in confirms a trusted reverse proxy is in
+    // front. Without this, XFF is attacker-controlled and must not key the rate limiter.
+    trustProxy: !!process.env.JARVIS_TRUST_PROXY
   });
   const dataContext = new DataContextRunner(appDb);
   const AUTH_MAX = Number(process.env.JARVIS_RL_AUTH_MAX ?? 10);
@@ -55,13 +58,10 @@ export function createApiServer(options: CreateApiServerOptions = {}) {
   // to ready(), so after() guarantees plugin-before-route ordering).
   server.register(rateLimit, {
     global: false,
-    keyGenerator: (request) => {
-      const forwarded = request.headers["x-forwarded-for"];
-      if (typeof forwarded === "string" && forwarded.trim()) {
-        return forwarded.split(",")[0]?.trim() ?? request.ip;
-      }
-      return request.ip;
-    }
+    // Always key on the real peer IP. When JARVIS_TRUST_PROXY is set, Fastify resolves
+    // request.ip from the XFF chain after verifying the proxy; otherwise it is the
+    // socket remote address and client-supplied XFF headers are ignored.
+    keyGenerator: (request) => request.ip
   });
 
   server.after(() => {
@@ -153,6 +153,15 @@ if (import.meta.url === `file://${process.argv[1]}`) {
   await server.listen({ host, port });
 }
 
+// Credential POST paths that must be throttled.
+const THROTTLED_AUTH_PATHS = new Set([
+  "/api/auth/sign-in/email",
+  "/api/auth/sign-up/email",
+  "/api/auth/forget-password",
+  "/api/auth/reset-password",
+  "/api/auth/change-password"
+]);
+
 function registerBetterAuthRoutes(
   server: FastifyInstance,
   authRuntime: JarvisAuthRuntime,
@@ -165,9 +174,19 @@ function registerBetterAuthRoutes(
       rateLimit: {
         max: authMax,
         timeWindow: "1 minute",
-        allowList: (req: FastifyRequest) =>
-          req.method !== "POST" ||
-          (!req.url.includes("/sign-in/email") && !req.url.includes("/sign-up/email"))
+        allowList: (req: FastifyRequest) => {
+          if (req.method !== "POST") return true;
+          // Decode percent-encoded path before matching to close the %65mail bypass.
+          // Malformed sequences fall back to the raw pathname — not in the set → throttled.
+          const raw = new URL(req.url, "http://localhost").pathname;
+          let pathname: string;
+          try {
+            pathname = decodeURIComponent(raw);
+          } catch {
+            pathname = raw;
+          }
+          return !THROTTLED_AUTH_PATHS.has(pathname);
+        }
       }
     },
     handler: (request, reply) => handleBetterAuthRequest(request, reply, authRuntime)
