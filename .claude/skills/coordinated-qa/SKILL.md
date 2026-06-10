@@ -119,7 +119,8 @@ start new work, don't merge, don't touch the board — verdict only.
 | Diff vs main | `git fetch origin main && git diff --stat origin/main...HEAD` |
 | Reviews | `/code-review` (all tiers) · `/security-review` + "what's NOT tested" (security tier) |
 | Post verdict to PR | `gh pr comment <PR> --body "<compact block>"` (always; mandatory for security) |
-| Report verdict | `herdr-pane-message` → coordinator label (same compact block) |
+| Report verdict (native subagent) | return compact verdict block as final message (no `herdr-pane-message`) |
+| Report verdict (Herdr pane) | `herdr-pane-message` → coordinator label (same compact block) |
 
 See also: `coordinate` (who spawns + reaps you, risk tiers, model tiering), CLAUDE.md (Hard
 Invariants you check against).
