@@ -198,17 +198,46 @@ own):
    `Coordinator` label. Label = routing; pane-id = authority. (A stale duplicate once grabbed the
    label and ran a parallel merge loop — the pane-id check is what stops that.)
 
-1. **Spawn an ephemeral `coordinated-qa` agent** on the PR branch (`herdr agent start … -- claude
-   … coordinated-qa`), passing the spec's **risk tier**. QA **trusts CI for the mechanical gate**
+1. **Spawn an ephemeral `coordinated-qa` agent** on the PR branch via the **`Agent` tool**,
+   passing the spec's **risk tier**. QA **trusts CI for the mechanical gate**
    (`gh pr checks`) and does NOT re-run `pnpm verify:foundation` unless CI is red — it spends tokens
-   on review only. By tier:
+   on review only.
+
+   **Primary path — native subagent:**
+   ```
+   Agent(
+     description: "QA: <slug>",
+     subagent_type: "coordinated-qa",
+     run_in_background: true,
+     isolation: "worktree",
+     model: "opus",        ← security tier only; omit for routine/sensitive
+     prompt: """
+   JARVIS_PGDATABASE=jarvis_qa_<n>
+   PR: <PR number>
+   Branch: <branch>
+   Spec: <spec-path>
+   Tier: <routine|sensitive|security>
+
+   You are a QA agent. Invoke the coordinated-qa skill. Return ONLY the compact verdict as your
+   final message.
+   """
+   )
+   ```
+   Await the background agent notification. Extract the compact verdict from the agent's final
+   message. No reap needed — native subagents clean themselves up.
+
+   **Fallback (Herdr):** If the `Agent` tool is unavailable (e.g., running in a context without
+   native subagent support), fall back to `herdr agent start` with the same QA prompt and collect
+   the verdict via `herdr pane read`. Document any fallback activation in the manifest.
+
+   By tier:
    - `routine` / `sensitive`: **Sonnet** QA — `/code-review` + exit-criteria (+ invariant check for
      `sensitive`). Compact verdict back to you.
-   - `security`: **cross-model Opus** QA (model escalation policy) — `/security-review` + an
+   - `security`: **cross-model Opus** QA (`model: "opus"` in `Agent(...)`) — `/security-review` + an
      adversarial *what's NOT tested / which trust boundary is unproven* pass. It **must `gh pr
      comment` its verdict** before you act. (Same-lens Sonnet missed the CRITICALs in the real run;
      this is the budgeted place to spend up.)
-   Consume the compact verdict (cheap — never the body); **reap the QA agent.**
+   Consume the compact verdict (cheap — never the body).
 
 2. **CI waiver protocol (red checks are stop-the-line).** A PR with any red required check does NOT
    merge. A failing check may be waived **only** if it is: (a) **proven** failing on `origin/main`
@@ -288,7 +317,8 @@ nothing first**.
 | ---- | --------------- |
 | Manifest / handoff templates | `.claude/skills/coordinate/templates/{manifest,handoff}.md` |
 | Isolated worktree | `git worktree add .claude/worktrees/<slug> -b <slug> origin/main` |
-| Spawn build / QA agent (window 1!) | `herdr agent start "<Label>" --tab <ws>:1 --cwd <path> --no-focus -- claude …` |
+| Spawn build agent (window 1!) | `herdr agent start "<Label>" --tab <ws>:1 --cwd <path> --no-focus -- claude …` |
+| Spawn QA agent (native subagent) | `Agent(description: "QA: <slug>", subagent_type: "coordinated-qa", run_in_background: true, isolation: "worktree", prompt: "...")` |
 | Spawn relay coordinator (own tab OK) | `herdr agent start "Coordinator" --tab <own tab> …` — only successor may share your window |
 | Talk to an agent | `herdr-pane-message` (`herdr agent send "<label>" "<text>"`) |
 | Liveness sweep | `herdr pane list` · `herdr pane read <pane> --source visible --lines 20` |
