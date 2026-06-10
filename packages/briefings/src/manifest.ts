@@ -51,30 +51,29 @@ export const briefingsModuleManifest = {
     {
       id: "briefings.view",
       label: "View briefings",
-      description:
-        "Read briefing definitions and runs visible to the actor through ownership or workspace visibility.",
-      scope: "workspace",
+      description: "Read briefing definitions and runs owned by or shared with the active actor.",
+      scope: "user",
       actions: ["view"]
     },
     {
       id: "briefings.create",
       label: "Create briefings",
-      description: "Create private or workspace-visible briefing definitions.",
-      scope: "workspace",
+      description: "Create briefing definitions owned by the active actor.",
+      scope: "user",
       actions: ["create"]
     },
     {
       id: "briefings.update",
       label: "Update briefings",
       description: "Update briefing definitions owned by the active actor.",
-      scope: "workspace",
+      scope: "user",
       actions: ["update"]
     },
     {
       id: "briefings.run",
       label: "Run briefings",
       description: "Queue metadata-only briefing runs over selected read-risk assistant tools.",
-      scope: "workspace",
+      scope: "user",
       actions: ["execute"]
     }
   ],

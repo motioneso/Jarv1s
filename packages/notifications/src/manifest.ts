@@ -46,16 +46,15 @@ export const notificationsModuleManifest = {
     {
       id: "notifications.view",
       label: "View notifications",
-      description:
-        "Read private notifications for the actor and workspace-visible notifications in active joined workspaces.",
-      scope: "workspace",
+      description: "Read notifications delivered to the active actor.",
+      scope: "user",
       actions: ["view"]
     },
     {
       id: "notifications.update",
       label: "Update notification read state",
-      description: "Mark visible notifications read for the active actor.",
-      scope: "workspace",
+      description: "Mark notifications read for the active actor.",
+      scope: "user",
       actions: ["update"]
     },
     {
@@ -98,7 +97,7 @@ export const notificationsModuleManifest = {
   assistantTools: [
     {
       name: "notifications.listVisible",
-      description: "List notifications visible to the active actor and workspace context.",
+      description: "List notifications delivered to the active actor.",
       permissionId: "notifications.view",
       risk: "read",
       inputSchema: {

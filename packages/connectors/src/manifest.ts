@@ -65,7 +65,7 @@ export const connectorsModuleManifest = {
       id: "connectors.manage",
       label: "Manage connector accounts",
       description: "Create, update, and revoke connector authorizations owned by the active actor.",
-      scope: "workspace",
+      scope: "user",
       actions: ["create", "update", "manage"]
     },
     {

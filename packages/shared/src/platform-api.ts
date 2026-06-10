@@ -62,7 +62,7 @@ export interface ModuleSettingsSurfaceDto {
   readonly id: string;
   readonly label: string;
   readonly path: string;
-  readonly scope: "user" | "workspace" | "admin" | "system";
+  readonly scope: "user" | "admin" | "system";
   readonly order: number | null;
 }
 
@@ -213,7 +213,7 @@ const moduleSettingsSurfaceSchema = {
     id: { type: "string" },
     label: { type: "string" },
     path: { type: "string" },
-    scope: { type: "string", enum: ["user", "workspace", "admin", "system"] },
+    scope: { type: "string", enum: ["user", "admin", "system"] },
     order: { type: ["number", "null"] }
   }
 } as const;

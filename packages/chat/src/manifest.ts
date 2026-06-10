@@ -45,15 +45,15 @@ export const chatModuleManifest = {
     {
       id: "chat.view",
       label: "View chat",
-      description: "Read chat threads and messages visible to the active actor and workspace.",
-      scope: "workspace",
+      description: "Read chat threads and messages visible to the active actor.",
+      scope: "user",
       actions: ["view"]
     },
     {
       id: "chat.create",
       label: "Create chat",
-      description: "Create private or workspace-visible chat threads.",
-      scope: "workspace",
+      description: "Create chat threads for the active actor.",
+      scope: "user",
       actions: ["create"]
     },
     {
@@ -61,7 +61,7 @@ export const chatModuleManifest = {
       label: "Append chat messages",
       description:
         "Append user messages and record assistant-side safe routing/tool metadata without execution.",
-      scope: "workspace",
+      scope: "user",
       actions: ["create"]
     }
   ],

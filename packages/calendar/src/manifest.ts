@@ -42,16 +42,15 @@ export const calendarModuleManifest = {
     {
       id: "calendar.view",
       label: "View calendar",
-      description:
-        "Read cached calendar events owned by the actor or visible in the active joined workspace.",
-      scope: "workspace",
+      description: "Read cached calendar events owned by or shared with the active actor.",
+      scope: "user",
       actions: ["view"]
     },
     {
       id: "calendar.manage",
       label: "Manage calendar module",
       description: "Manage Calendar module settings and connector-backed cache behavior.",
-      scope: "workspace",
+      scope: "user",
       actions: ["manage"]
     }
   ],
@@ -81,7 +80,7 @@ export const calendarModuleManifest = {
   assistantTools: [
     {
       name: "calendar.listVisibleEvents",
-      description: "List cached calendar events visible to the active actor and workspace context.",
+      description: "List cached calendar events owned by or shared with the active actor.",
       permissionId: "calendar.view",
       risk: "read",
       inputSchema: {
