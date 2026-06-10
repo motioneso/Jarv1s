@@ -8,6 +8,7 @@ import { createDatabase, type JarvisDatabase } from "@jarv1s/db";
 import type { ListAdminAuditEventsResponse, ListModulesResponse, MeResponse } from "@jarv1s/shared";
 import { connectionStrings, resetEmptyFoundationDatabase } from "./test-database.js";
 import { createJarvisAuthRuntime, type JarvisAuthRuntime } from "@jarv1s/auth";
+import { SettingsRepository } from "../../packages/settings/src/repository.js";
 
 describe("M3 auth, users, workspaces, settings", () => {
   const authEnvKeys = [
@@ -636,6 +637,33 @@ describe("multi-user registration + lifecycle (Phase 2 Slice A)", () => {
     // Second call finds nothing left — idempotent/safe.
     const remaining = await authRuntime.revokeUserSessions(memberId);
     expect(remaining).toBe(0);
+  });
+
+  it("repository blocks demoting the last active admin", async () => {
+    // Owner is bootstrap_owner; member is promoted to admin via bootstrap, then
+    // owner is deactivated via bootstrap — leaving member as the last active admin.
+    const ownerRes = await signUp({ name: "Owner", email: "owner@example.com", password: "password12345" });
+    const ownerId = ownerRes.json<{ user: { id: string } }>().user.id;
+
+    await appDb
+      .updateTable("app.instance_settings")
+      .set({ value: { value: false }, updated_at: new Date() })
+      .where("key", "=", "registration.requires_approval")
+      .execute();
+    const memberRes = await signUp({ name: "Member", email: "member@example.com", password: "password12345" });
+    const memberId = memberRes.json<{ user: { id: string } }>().user.id;
+
+    // Use bootstrap (superuser) to promote member to admin and deactivate owner.
+    const client = new pg.Client({ connectionString: connectionStrings.bootstrap });
+    await client.connect();
+    await client.query(`UPDATE app.users SET is_instance_admin = true, updated_at = now() WHERE id = $1`, [memberId]);
+    await client.query(`UPDATE app.users SET status = 'deactivated', updated_at = now() WHERE id = $1`, [ownerId]);
+    await client.end();
+
+    const repo = new SettingsRepository(appDb);
+    await expect(
+      repo.setUserAdmin({ targetUserId: memberId, isInstanceAdmin: false, actorUserId: memberId, requestId: "r1" })
+    ).rejects.toThrow(/last.*admin/i);
   });
 });
 

@@ -364,7 +364,8 @@ export const listModulesRouteSchema = {
         modules: { type: "array", items: moduleSchema }
       }
     },
-    401: errorResponseSchema
+    401: errorResponseSchema,
+    403: errorResponseSchema
   }
 } as const;
 
