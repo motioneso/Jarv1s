@@ -7,6 +7,7 @@ import type {
   ToolContext,
   ToolExecute
 } from "@jarv1s/module-sdk";
+import { renderToolResult } from "@jarv1s/module-sdk";
 import type { AiAssistantToolDto } from "@jarv1s/shared";
 
 import { summarizeAssistantToolInput } from "../assistant-tools.js";
@@ -95,7 +96,7 @@ export class AssistantToolGateway {
       const result = await this.deps.runner.withDataContext(access, (scopedDb: DataContextDb) =>
         found.execute(scopedDb, input, ctx)
       );
-      return { ok: true, data: result.data };
+      return { ok: true, data: { text: renderToolResult(result) } };
     } catch {
       // never leak internals/secrets from a handler throw
       return { ok: false, error: `Tool ${found.dto.name} failed` };

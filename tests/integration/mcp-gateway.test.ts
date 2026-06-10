@@ -71,10 +71,10 @@ describe("AssistantToolGateway", () => {
     const token = tokens.mint({ actorUserId: ids.userA, chatSessionId: "s1" });
     const res = await gateway.callTool(token, "example.read", { value: "hi" });
 
-    expect(res).toEqual({
-      ok: true,
-      data: { ok: true, name: "example.read", echo: "hi", actor: ids.userA }
-    });
+    expect(res.ok).toBe(true);
+    if (!res.ok) throw new Error("expected ok");
+    const parsed = JSON.parse((res.data as { text: string }).text) as Record<string, unknown>;
+    expect(parsed).toMatchObject({ echo: "hi", actor: ids.userA });
     expect(exampleToolCalls).toHaveLength(1);
     expect(emitted).toHaveLength(0);
   });
@@ -93,10 +93,10 @@ describe("AssistantToolGateway", () => {
     await gateway.resolveActionRequest(ids.userA, card.actionRequestId, "confirmed");
     const res = await call;
 
-    expect(res).toEqual({
-      ok: true,
-      data: { ok: true, name: "example.write", echo: "hello", actor: ids.userA }
-    });
+    expect(res.ok).toBe(true);
+    if (!res.ok) throw new Error("expected ok");
+    const parsed = JSON.parse((res.data as { text: string }).text) as Record<string, unknown>;
+    expect(parsed).toMatchObject({ echo: "hello", actor: ids.userA });
     expect(exampleToolCalls).toHaveLength(1);
     expect(emitted.map((entry) => entry.record.kind)).toEqual(["action_request", "action_result"]);
   });
@@ -151,5 +151,19 @@ describe("AssistantToolGateway", () => {
 
   it("rejects an unknown/revoked token", async () => {
     await expect(gateway.callTool("jst_bogus", "example.read", {})).rejects.toThrow();
+  });
+
+  it("renders a uniform-list tool result as a Markdown pipe table (end-to-end)", async () => {
+    const token = tokens.mint({ actorUserId: ids.userA, chatSessionId: "s-tabular" });
+    const res = await gateway.callTool(token, "example.list", {});
+
+    expect(res.ok).toBe(true);
+    if (!res.ok) throw new Error("expected ok");
+    const text = (res.data as { text: string }).text;
+    expect(text).toContain("| id | name | status |");
+    expect(text).toContain("| --- | --- | --- |");
+    expect(text).toContain("| a1 | Alpha | active |");
+    expect(text).toContain("| a2 | Beta | inactive |");
+    expect(text).not.toContain('"items"');
   });
 });
