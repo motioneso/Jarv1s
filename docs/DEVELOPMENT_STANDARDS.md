@@ -65,6 +65,23 @@ Do not save secrets, tokens, private user data, raw connector payloads, prompts 
 content, or environment-specific credentials into agentmemory. Keep memory entries concise and tied
 to stable project concepts or file paths.
 
+## Prompt-Cache Discipline
+
+Provider-side prefix caching only works when the prompt prefix stays byte-stable. Violating
+this silently invalidates the cache on every request.
+
+Rules for all AI runtime code and persona files in this repo:
+
+- **Persona/context files must be byte-stable per user.** Never embed timestamps, monotonic
+  counters, session IDs, or any value that changes between launches. A persona file is a
+  static prompt prefix; it caches at the provider until the file itself changes.
+- **Dynamic content goes in turns, not the persona.** Memory seeds, replay blocks, injected
+  user context, and any data that changes between sessions must be submitted as explicit
+  conversation turns _after_ the CLI launches — never prepended into the persona/context file.
+
+Violating either rule means every session pays full context processing cost instead of a
+cache hit. On long persona files this is a significant per-message cost.
+
 ## Structural Standard
 
 Be ambitious about simplification. Look for restructurings that preserve behavior while making the implementation dramatically smaller, more direct, and more obvious.
