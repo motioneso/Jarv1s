@@ -66,7 +66,7 @@ describe("Tasks module — assistant read tools", () => {
       tool!.execute!(db, {}, toolCtx(ids.userA))
     );
 
-    const returned = result.data.tasks as TaskDto[];
+    const returned = result.data.items as TaskDto[];
     expect(returned.map((t) => t.id)).toContain(made.id);
     // RLS: user B's private task must not appear
     const bPrivateId = "30000000-0000-4000-8000-000000000002";
@@ -76,7 +76,7 @@ describe("Tasks module — assistant read tools", () => {
     const doneResult = await dataContext.withDataContext(userAContext(), (db) =>
       tool!.execute!(db, { status: "done" }, toolCtx(ids.userA))
     );
-    expect((doneResult.data.tasks as TaskDto[]).every((t) => t.status === "done")).toBe(true);
+    expect((doneResult.data.items as TaskDto[]).every((t) => t.status === "done")).toBe(true);
   });
 
   it("tasks.list: quadrant filter returns only tasks matching the Eisenhower quadrant", async () => {
@@ -90,13 +90,13 @@ describe("Tasks module — assistant read tools", () => {
     const result = await dataContext.withDataContext(userAContext(), (db) =>
       tool!.execute!(db, { quadrant: "do" }, toolCtx(ids.userA))
     );
-    const resultIds = (result.data.tasks as TaskDto[]).map((t) => t.id);
+    const resultIds = (result.data.items as TaskDto[]).map((t) => t.id);
     expect(resultIds).toContain(doTask.id);
 
     const elimResult = await dataContext.withDataContext(userAContext(), (db) =>
       tool!.execute!(db, { quadrant: "eliminate" }, toolCtx(ids.userA))
     );
-    expect((elimResult.data.tasks as TaskDto[]).map((t) => t.id)).not.toContain(doTask.id);
+    expect((elimResult.data.items as TaskDto[]).map((t) => t.id)).not.toContain(doTask.id);
   });
 
   // ── tasks.get ────────────────────────────────────────────────────────────
@@ -182,9 +182,9 @@ describe("Tasks module — assistant read tools", () => {
       )
     ]);
 
-    const focusIds = (focusResult.data.tasks as TaskDto[]).map((t) => t.id);
-    const atRiskIds = (atRiskResult.data.tasks as TaskDto[]).map((t) => t.id);
-    const overdueIds = (overdueResult.data.tasks as TaskDto[]).map((t) => t.id);
+    const focusIds = (focusResult.data.items as TaskDto[]).map((t) => t.id);
+    const atRiskIds = (atRiskResult.data.items as TaskDto[]).map((t) => t.id);
+    const overdueIds = (overdueResult.data.items as TaskDto[]).map((t) => t.id);
 
     expect(overdueIds).toContain(lowOverdue.id);
     expect(overdueIds).toContain(highOverdue.id);
@@ -204,7 +204,7 @@ describe("Tasks module — assistant read tools", () => {
       tool!.execute!(db, {}, toolCtx(ids.userA))
     );
 
-    const taskLists = result.data.lists as Array<{ name: string; ownerUserId: string }>;
+    const taskLists = result.data.items as Array<{ name: string; ownerUserId: string }>;
     expect(taskLists.some((l) => l.name === "Personal")).toBe(true);
     expect(taskLists.every((l) => l.ownerUserId === ids.userA)).toBe(true);
   });
@@ -226,7 +226,7 @@ describe("Tasks module — assistant read tools", () => {
       tool!.execute!(db, { listId: list.id }, toolCtx(ids.userA))
     );
 
-    const tags = result.data.tags as Array<{ name: string }>;
+    const tags = result.data.items as Array<{ name: string }>;
     expect(tags.some((t) => t.name === "work")).toBe(true);
   });
 
@@ -247,7 +247,7 @@ describe("Tasks module — assistant read tools", () => {
       tool!.execute!(db, { taskId }, toolCtx(ids.userA))
     );
 
-    const activity = result.data.activity as Array<{ activityType: string; body: string | null }>;
+    const activity = result.data.items as Array<{ activityType: string; body: string | null }>;
     expect(activity.length).toBeGreaterThanOrEqual(2);
     expect(activity.at(0)?.body).toBe("first");
     expect(activity.at(1)?.body).toBe("second");

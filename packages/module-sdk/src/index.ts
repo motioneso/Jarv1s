@@ -17,6 +17,7 @@ export interface ToolContext {
 
 export interface ToolResult {
   readonly data: Record<string, unknown>;
+  readonly columnOrder?: readonly string[];
 }
 
 /**
@@ -139,4 +140,37 @@ export interface JarvisModuleManifest {
   readonly jobs?: readonly ModuleJobManifest[];
   readonly shareableResources?: readonly ModuleShareableResourceManifest[];
   readonly assistantTools?: readonly ModuleAssistantToolManifest[];
+}
+
+export function renderToolResult(result: ToolResult): string {
+  const { data, columnOrder } = result;
+  const items = data.items;
+
+  if (!isUniformFlatArray(items)) {
+    return JSON.stringify(data, null, 2);
+  }
+
+  const columns = columnOrder
+    ? [...columnOrder, ...Object.keys(items[0]!).filter((k) => !columnOrder.includes(k))]
+    : Object.keys(items[0]!).sort();
+
+  const header = `| ${columns.join(" | ")} |`;
+  const divider = `| ${columns.map(() => "---").join(" | ")} |`;
+  const rows = items.map(
+    (row: Record<string, unknown>) => `| ${columns.map((c) => String(row[c] ?? "")).join(" | ")} |`
+  );
+  return [header, divider, ...rows].join("\n");
+}
+
+function isUniformFlatArray(value: unknown): value is Record<string, unknown>[] {
+  if (!Array.isArray(value) || value.length === 0) return false;
+  const keys = Object.keys(value[0]).sort().join(",");
+  return value.every(
+    (item) =>
+      typeof item === "object" &&
+      item !== null &&
+      !Array.isArray(item) &&
+      Object.keys(item).sort().join(",") === keys &&
+      Object.values(item).every((v) => typeof v !== "object" || v === null)
+  );
 }

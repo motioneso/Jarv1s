@@ -110,7 +110,7 @@ function dtoToMcpTool(dto: AiAssistantToolDto) {
 export function gatewayResponseToMcp(res: GatewayToolResponse) {
   if (res.ok) {
     return {
-      content: [{ type: "text", text: JSON.stringify(res.data) }],
+      content: [{ type: "text", text: (res.data as { text: string }).text }],
       isError: false
     };
   }
