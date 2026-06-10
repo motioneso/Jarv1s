@@ -153,13 +153,14 @@ traps/gotchas, `"fact"` for state snapshots, `"pattern"` for coding patterns.
 ## Coordinating With Other Agent Sessions
 
 More than one Claude Code session may work this repo at once — most commonly a build **Workflow**
-running in another tmux pane while you edit elsewhere. They **share one working tree**, so coordinate
+running in another Herdr pane while you edit elsewhere. They **share one working tree**, so coordinate
 before any tree-wide action.
 
-- **Send a heads-up with the `tmux-pane-message` skill.** Identify panes with `tmux list-panes`,
+- **Send a heads-up with the `herdr-pane-message` skill.** Identify panes with `herdr pane list`,
   confirm which is the other Claude session, then message it about what you're touching and what to
   avoid (e.g. "I have uncommitted doc edits under `docs/` — don't `git add -A`"). This is the
   expected channel for cross-session coordination; use it proactively, not only when something breaks.
+  To spawn a new agent session, use the **`herdr-handoff`** skill.
 - **Stage only your own files.** Never `git add -A` / `git add .` while another session has
   uncommitted work — list explicit paths, or you will sweep their changes into your commit.
 - **Don't `git checkout` / `git stash` / `reset` the shared tree** while another session's build is
