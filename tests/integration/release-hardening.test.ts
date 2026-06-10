@@ -415,6 +415,27 @@ describe("M7 release hardening lifecycle scripts", () => {
     }
   });
 
+  it("enforces self-row restriction on users SELECT for jarvis_app_runtime (GUC set = own row only)", async () => {
+    // users userA and userB are already seeded by beforeEach (seedLifecycleData).
+    // Connect as jarvis_app_runtime, set GUC to userA (session-level).
+    // self-row policy: only userA visible → count of {userA, userB} = 1.
+    // On origin/main: USING(true) → both visible → count = 2 → test FAILS (RED).
+    // After migration 0047: self-row → count = 1 → test PASSES (GREEN).
+    const appClient = new Client({ connectionString: connectionStrings.app });
+
+    await appClient.connect();
+    try {
+      await appClient.query("SELECT set_config('app.actor_user_id', $1, false)", [ids.userA]);
+      const result = await appClient.query<{ count: string }>(
+        "SELECT count(*)::text AS count FROM app.users WHERE id IN ($1::uuid, $2::uuid)",
+        [ids.userA, ids.userB]
+      );
+      expect(result.rows[0]?.count).toBe("1");
+    } finally {
+      await appClient.end();
+    }
+  });
+
   it("AuthSessionResolver resolves bearer tokens via the security definer function", async () => {
     const testSessionId = "40000000-ffff-4000-8000-999999999999";
     const bootstrapClient = new pg.Client({ connectionString: connectionStrings.bootstrap });
