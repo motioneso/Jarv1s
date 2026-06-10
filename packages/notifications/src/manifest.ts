@@ -7,6 +7,8 @@ import {
   markNotificationReadResponseSchema
 } from "@jarv1s/shared";
 
+import { notificationsListVisibleExecute } from "./tools.js";
+
 export const NOTIFICATIONS_MODULE_ID = "notifications";
 export const notificationsModuleSqlMigrationDirectory = fileURLToPath(
   new URL("../sql", import.meta.url)
@@ -103,7 +105,8 @@ export const notificationsModuleManifest = {
         type: "object",
         properties: {}
       },
-      outputSchema: listNotificationsResponseSchema
+      outputSchema: listNotificationsResponseSchema,
+      execute: notificationsListVisibleExecute
     }
   ]
 } satisfies JarvisModuleManifest;

@@ -185,3 +185,10 @@ Full foundation verification:
 ```txt
 pnpm verify:foundation
 ```
+
+## Secret-Key Rotation
+
+Connector and AI secrets are AES-256-GCM encrypted at rest with versioned key envelopes
+that support zero-downtime rotation. See [secret-key-rotation.md](./secret-key-rotation.md)
+for the step-by-step runbook and the optional `scripts/rewrap-secrets.ts` force-rewrap
+operator script.
