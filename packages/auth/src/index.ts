@@ -1,4 +1,4 @@
-import { randomUUID } from "node:crypto";
+import { randomBytes, randomUUID } from "node:crypto";
 import type { IncomingHttpHeaders } from "node:http";
 
 import { betterAuth } from "better-auth";
@@ -438,6 +438,28 @@ function readHeader(headers: Headers, name: string): string | undefined {
   return value?.trim() || undefined;
 }
 
+// Fixed secret used ONLY under the test runner so suites that don't set
+// BETTER_AUTH_SECRET get a stable signing key within and across runs. Gated
+// strictly behind an explicit test signal — never behind "not production" —
+// so it can never sign a real session.
+const TEST_AUTH_SECRET = "jarv1s-test-better-auth-secret";
+
+function isTestRuntime(env: NodeJS.ProcessEnv): boolean {
+  return env.VITEST === "true" || env.NODE_ENV === "test";
+}
+
+// Resolves the better-auth session-signing secret. A known/hardcoded constant
+// must NEVER sign a real session, so the resolution order is:
+//   1. BETTER_AUTH_SECRET / AUTH_SECRET from the environment — always preferred.
+//   2. Test runner (VITEST / NODE_ENV=test) — a fixed test secret, gated behind
+//      an explicit test signal only.
+//   3. Production — FAIL FAST. A real deployment must provide its own secret.
+//   4. Otherwise (local dev) — a strong, ephemeral per-process secret generated
+//      at boot. This keeps headless LAN dev frictionless (no required env var to
+//      start) while ensuring sessions are signed with a cryptographically-random
+//      key, not a publicly-known constant. The trade-off is that sessions do not
+//      survive a process restart in dev, which is acceptable; set
+//      BETTER_AUTH_SECRET to make dev sessions durable.
 function readAuthSecret(env: NodeJS.ProcessEnv): string {
   const secret = env.BETTER_AUTH_SECRET ?? env.AUTH_SECRET;
 
@@ -445,11 +467,21 @@ function readAuthSecret(env: NodeJS.ProcessEnv): string {
     return secret;
   }
 
+  if (isTestRuntime(env)) {
+    return TEST_AUTH_SECRET;
+  }
+
   if (env.NODE_ENV === "production") {
     throw new Error("BETTER_AUTH_SECRET is required in production");
   }
 
-  return "jarv1s-development-better-auth-secret";
+  const ephemeralSecret = randomBytes(32).toString("hex");
+  console.warn(
+    "[auth] BETTER_AUTH_SECRET is not set. Generated a strong EPHEMERAL " +
+      "session-signing secret for this process. All sessions will be invalidated " +
+      "when the process restarts. Set BETTER_AUTH_SECRET to persist sessions."
+  );
+  return ephemeralSecret;
 }
 
 function readTrustedOrigins(env: NodeJS.ProcessEnv): string[] {
