@@ -48,6 +48,25 @@ const protectedTables = [
 // (rows are cleaned up as part of normal operation, e.g. after OAuth completes).
 const transientTables = ["connector_oauth_pending"] as const;
 
+// Tables in the app schema that are intentionally exempt from FORCE RLS.
+// This list must remain small. Every entry requires a documented reason.
+// Adding a new owner-data table here without a strong architectural justification
+// is a security defect — the dynamic coverage check below will catch omissions.
+const forceRlsExemptions = new Map<string, string>([
+  // Infrastructure / access-control tables — no per-user private row data;
+  // accessed by app_runtime under broad grants, not per-actor RLS policies.
+  ["workspace_memberships", "access-control infra: no per-user private row data"],
+  ["resource_grants", "access-control infra: no per-user private row data"],
+  ["workspaces", "instance config: not per-user owner data"],
+  ["instance_settings", "instance config: not per-user owner data"],
+  // Audit log: append-only by app_runtime, no per-user SELECT needed.
+  // Privilege shape is checked separately (SELECT+INSERT allowed, UPDATE+DELETE denied).
+  ["admin_audit_events", "audit log: privilege shape checked separately"],
+  // users has ENABLE (not FORCE) so jarvis_migration_owner can bypass for SECURITY DEFINER
+  // auth functions. Checked explicitly in the authOwnerTable block above.
+  ["users", "ENABLE-only: SECURITY DEFINER auth functions need owner bypass; checked separately"]
+]);
+
 export interface AuditReleaseHardeningOptions {
   readonly bootstrapConnectionString?: string;
 }
@@ -86,8 +105,16 @@ export interface AdminAuditPrivileges {
   readonly workerCanUpdate: boolean;
 }
 
+/** RLS state of a table as read from pg_class. */
+export interface AppSchemaTableRlsState {
+  readonly forceRls: boolean;
+  readonly rlsEnabled: boolean;
+  readonly tableName: string;
+}
+
 export interface ReleaseHardeningAuditReport {
   readonly adminAuditPrivileges: AdminAuditPrivileges;
+  readonly appSchemaCoverage: readonly AppSchemaTableRlsState[];
   readonly authSecretTables: readonly AuthSecretTableAudit[];
   readonly authOwnerTable: readonly AuthSecretTableAudit[];
   readonly failures: readonly string[];
@@ -112,17 +139,20 @@ export async function auditReleaseHardening(
     const authSecretTableAudits = await readAuthSecretAudits(client, [...authSecretTables]);
     const authOwnerTableAudits = await readAuthSecretAudits(client, [...authOwnerTable]);
     const adminAuditPrivileges = await readAdminAuditPrivileges(client);
+    const appSchemaCoverage = await readAllAppSchemaTables(client);
     const failures = collectFailures(
       roles,
       tableAudits,
       transientTableAudits,
       authSecretTableAudits,
       authOwnerTableAudits,
-      adminAuditPrivileges
+      adminAuditPrivileges,
+      appSchemaCoverage
     );
 
     return {
       adminAuditPrivileges,
+      appSchemaCoverage,
       authSecretTables: authSecretTableAudits,
       authOwnerTable: authOwnerTableAudits,
       failures,
@@ -236,6 +266,40 @@ async function readAuthSecretAudits(
   }));
 }
 
+/**
+ * Reads RLS state for every base table in the `app` schema from pg_class.
+ * This is the source of truth for the dynamic coverage check: every table
+ * returned here must either be covered by the static checks above (authSecretTables,
+ * authOwnerTable, protectedTables, transientTables) or appear in forceRlsExemptions.
+ */
+async function readAllAppSchemaTables(
+  client: pg.Client
+): Promise<readonly AppSchemaTableRlsState[]> {
+  const result = await client.query<{
+    force_rls: boolean;
+    rls_enabled: boolean;
+    table_name: string;
+  }>(
+    `
+      SELECT
+        c.relname AS table_name,
+        c.relrowsecurity AS rls_enabled,
+        c.relforcerowsecurity AS force_rls
+      FROM pg_class c
+      JOIN pg_namespace n ON n.oid = c.relnamespace
+      WHERE n.nspname = 'app'
+        AND c.relkind = 'r'
+      ORDER BY c.relname
+    `
+  );
+
+  return result.rows.map((row) => ({
+    forceRls: row.force_rls,
+    rlsEnabled: row.rls_enabled,
+    tableName: row.table_name
+  }));
+}
+
 async function readAdminAuditPrivileges(client: pg.Client): Promise<AdminAuditPrivileges> {
   const result = await client.query<AdminAuditPrivileges>(
     `
@@ -265,7 +329,8 @@ function collectFailures(
   transientTableAudits: readonly ProtectedTableAudit[],
   authSecretTableAudits: readonly AuthSecretTableAudit[],
   authOwnerTableAudits: readonly AuthSecretTableAudit[],
-  adminAuditPrivileges: AdminAuditPrivileges
+  adminAuditPrivileges: AdminAuditPrivileges,
+  appSchemaCoverage: readonly AppSchemaTableRlsState[]
 ): readonly string[] {
   const failures: string[] = [];
   const presentRoleNames = new Set(roles.map((role) => role.roleName));
@@ -353,6 +418,34 @@ function collectFailures(
     adminAuditPrivileges.workerCanDelete
   ) {
     failures.push("jarvis_worker_runtime has app.admin_audit_events privileges");
+  }
+
+  // Dynamic coverage check: every app-schema table must either have FORCE RLS
+  // or appear in the explicit exemption list above. This ensures that adding a new
+  // owner-data table without applying FORCE RLS causes this gate to fail automatically,
+  // with no script edit required.
+  const coveredByStaticChecks = new Set<string>([
+    ...protectedTables,
+    ...transientTables,
+    ...authSecretTables,
+    ...authOwnerTable
+  ]);
+  for (const table of appSchemaCoverage) {
+    if (forceRlsExemptions.has(table.tableName)) {
+      // Intentionally exempt — reason is documented in forceRlsExemptions above.
+      continue;
+    }
+    if (!table.forceRls) {
+      if (!coveredByStaticChecks.has(table.tableName)) {
+        // Table exists in the app schema, has no FORCE RLS, and is not listed in any
+        // known category. This is either a missing migration or a missing exemption entry.
+        failures.push(
+          `app.${table.tableName} is missing FORCE RLS and is not in the exemption list`
+        );
+      }
+      // Tables in the static-check sets that are missing FORCE RLS are already reported
+      // by the checks above; no duplicate failure needed here.
+    }
   }
 
   return failures;
