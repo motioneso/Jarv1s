@@ -1,5 +1,5 @@
 import { mkdir, readFile, readdir, rm, stat, writeFile } from "node:fs/promises";
-import { dirname, join, relative } from "node:path";
+import { dirname, join, relative, resolve, sep } from "node:path";
 
 import type { VaultContext } from "./vault-context.js";
 import { resolveVaultPath } from "./vault-path.js";
@@ -66,4 +66,33 @@ export async function listVaultFilesRecursive(
 ): Promise<string[]> {
   const fullPath = resolveVaultPath(ctx.vaultRoot, relativeDir);
   return collectFilesRecursive(fullPath, ctx.vaultRoot);
+}
+
+/**
+ * Operator-level helper: removes the entire vault directory for a given userId.
+ *
+ * This is intentionally NOT scoped to a VaultContext (which belongs to a live
+ * user session) — it is called during account deletion after the DB transaction
+ * has committed. It is idempotent: no error is thrown if the directory does not
+ * exist. The resolved path is checked to be strictly inside `vaultsBaseDir`
+ * before deletion to prevent path traversal.
+ *
+ * Ordering rationale: call AFTER the DB commit. If the DB delete fails the
+ * vault is untouched; if the vault rm fails the DB rows are already gone (the
+ * user is effectively deleted) and the orphan can be retried or cleaned up
+ * manually without risk of data inconsistency.
+ */
+export async function deleteUserVaultDir(vaultsBaseDir: string, userId: string): Promise<void> {
+  const normalizedBase = resolve(vaultsBaseDir);
+  const userVaultDir = resolve(join(vaultsBaseDir, userId));
+
+  // Safety check: the resolved path must be strictly inside the base dir.
+  // This mirrors the containment logic in resolveVaultPath.
+  if (userVaultDir === normalizedBase || !userVaultDir.startsWith(normalizedBase + sep)) {
+    throw new Error(
+      `deleteUserVaultDir: resolved path ${JSON.stringify(userVaultDir)} is not inside vault base ${JSON.stringify(normalizedBase)}`
+    );
+  }
+
+  await rm(userVaultDir, { recursive: true, force: true });
 }

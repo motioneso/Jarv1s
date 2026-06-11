@@ -5,6 +5,7 @@ import { fileURLToPath } from "node:url";
 import pg from "pg";
 
 import { getJarvisDatabaseUrls } from "@jarv1s/db";
+import { deleteUserVaultDir, getVaultBaseDir } from "@jarv1s/vault";
 
 const { Client } = pg;
 
@@ -117,6 +118,13 @@ export async function deleteUserData(
     ]);
 
     await client.query("COMMIT");
+
+    // Delete the user's vault filesystem directory AFTER the DB commit.
+    // Ordering rationale: if the DB delete fails the vault is untouched; if
+    // the vault rm fails the user rows are already gone (effectively deleted)
+    // and the orphan can be retried manually without risk of data inconsistency.
+    // The operation is idempotent — no error if the directory does not exist.
+    await deleteUserVaultDir(getVaultBaseDir(), options.userId);
 
     return {
       auditEventId,
