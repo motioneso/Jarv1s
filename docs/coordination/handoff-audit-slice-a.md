@@ -4,9 +4,9 @@
 **Plan:** docs/superpowers/plans/2026-06-11-audit-slice-a-rls-least-priv.md
 **GitHub issues:** #97, #98
 **Risk tier:** `security` (RLS policies + trigger touching auth surface → cross-model QA + Ben merge sign-off required; build to that bar)
-**Worktree:** /home/ben/Jarv1s/.claude/worktrees/audit-slice-a   **Branch:** audit-slice-a (off origin/main @ d186e01)
+**Worktree:** /home/ben/Jarv1s/.claude/worktrees/audit-slice-a **Branch:** audit-slice-a (off origin/main @ d186e01)
 **Build skill path (absolute):** /home/ben/Jarv1s/.claude/skills/coordinated-build/SKILL.md
-**Coordinator label:** `Coordinator`   (UNIQUE — escalate via `herdr-pane-message`; before messaging, verify `herdr pane list` shows EXACTLY ONE pane with this label)
+**Coordinator label:** `Coordinator` (UNIQUE — escalate via `herdr-pane-message`; before messaging, verify `herdr pane list` shows EXACTLY ONE pane with this label)
 **Relay threshold:** ~80–100k tokens OR a compaction summary in your own context (relay immediately).
 
 ## Start
@@ -32,19 +32,23 @@
 Two migration-only security fixes (no application code changes):
 
 **#97 — `BEFORE UPDATE` trigger on `app.users`**
+
 - Block non-admin self-escalation of `is_instance_admin`
 - Trigger function `app.users_guard_admin_flag()`: raises SQLSTATE 42501 if `NEW.is_instance_admin IS DISTINCT FROM OLD.is_instance_admin AND current_actor_user_id() IS NOT NULL AND NOT current_actor_is_admin()`
 - NULL guard is required — preserves bootstrap/migration paths
 - Migration goes in `infra/postgres/migrations/`
 
 **#98 — Worker RLS policies on memory tables**
+
 - 9 policies: SELECT/INSERT/UPDATE/DELETE on `memory_chunks`, SELECT/INSERT/UPDATE/DELETE on `memory_file_index`, SELECT on `memory_links` — all `TO jarvis_worker_runtime`, owner_user_id = current_actor_user_id()
 - Migration goes in `packages/memory/sql/`
 
 **Migration number assignment:** Determine at build time:
+
 ```bash
 ls infra/postgres/migrations/*.sql packages/*/sql/*.sql | sed 's|.*/\([0-9]*\)_.*|\1|' | sort -n | tail -1
 ```
+
 Current high-water = 0052 in this worktree (freshly created off d186e01). Expected next two = 0053 and 0054. Assign sequentially in one build — do NOT pre-assume if main has moved.
 
 ## Collision notes
