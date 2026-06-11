@@ -24,7 +24,7 @@ Severity post-Fable. Tier by content trigger (most of this backlog is `security`
 
 | Slice | Issues | Tier | Adds migration? | Spec | Status |
 | ----- | ------ | ---- | --------------- | ---- | ------ |
-| **A — RLS least-priv migrations** | #97 users-column UPDATE restriction, #98 worker memory RLS policies | security | **yes (×3: 0053+0054+0055)** | `docs/superpowers/specs/2026-06-11-audit-slice-a-rls-least-priv.md` ✅ | **QA in flight** — PR #181, CI ✅ green, VF=0 AUDIT=0 359/359, SliceA-QA pane `w653f42bef3ac02-5` running Opus QA |
+| **A — RLS least-priv migrations** | #97 users-column UPDATE restriction, #98 worker memory RLS policies | security | **yes (×3: 0053+0054+0055)** | `docs/superpowers/specs/2026-06-11-audit-slice-a-rls-least-priv.md` ✅ | **AWAITING BEN MERGE SIGN-OFF** — PR #181, CI ✅ green, Opus QA APPROVED (2 non-blocking: deactivated-admin edge case + worker grant breadth), verdict at https://github.com/motioneso/Jarv1s/pull/181#issuecomment-4685492403 |
 | **B — Dead subsystem deletion** | #120 workspaces, #153 resource-grants no-op, #115 + #116 (resolved by deletion), fold #152 manifest-narrowing; advances #155/#127/#101 workspace-halves | sensitive→**security** | **yes (DROP)** | — MISSING | blocked-on-spec |
 | **C — Vault containment** | #129 actorUserId validation, #130 symlink real-path containment | security | no (code) | `docs/superpowers/specs/2026-06-11-audit-slice-c-vault-containment.md` ✅ | **QA in flight** — PR #182, CI ✅ green, VF=0 348 tests, SliceC-QA pane `w653f42bef3ac02-6` running Opus QA |
 | **D — Settings → DataContextDb** | #95 SettingsRepository raw Kysely, #155 /api/me cross-user read | security | maybe (grant) | — MISSING | blocked-on-spec |
