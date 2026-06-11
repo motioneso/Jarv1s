@@ -234,6 +234,93 @@ describe("ChatUserMemorySettingsRepository", () => {
   });
 });
 
+// ── worker_runtime RLS policies on memory tables (#98) ───────────────────────
+
+describe("worker_runtime RLS policies on memory tables (#98)", () => {
+  beforeAll(async () => {
+    await resetEmptyFoundationDatabase();
+    const seed = new Client({ connectionString: connectionStrings.bootstrap });
+    await seed.connect();
+    try {
+      await seed.query(
+        `INSERT INTO app.users (id, email, name) VALUES
+           ($1, 'worker-a@test.test', 'Worker A'),
+           ($2, 'worker-b@test.test', 'Worker B')`,
+        [ids.userA, ids.userB]
+      );
+      // Pre-seed one chunk per user so SELECT isolation is testable
+      await seed.query(
+        `INSERT INTO app.memory_chunks
+           (owner_user_id, source_kind, source_path, line_start, line_end, content_hash, text)
+         VALUES
+           ($1, 'chat', '/worker-a/path', 0, 1, 'hash-seed-a', 'chunk a'),
+           ($2, 'chat', '/worker-b/path', 0, 1, 'hash-seed-b', 'chunk b')`,
+        [ids.userA, ids.userB]
+      );
+    } finally {
+      await seed.end();
+    }
+  });
+
+  it("worker can INSERT into memory_chunks for its own actor", async () => {
+    const client = new Client({ connectionString: connectionStrings.worker });
+    await client.connect();
+    try {
+      await client.query("BEGIN");
+      await client.query(`SET LOCAL app.actor_user_id = '${ids.userA}'`);
+      const result = await client.query(
+        `INSERT INTO app.memory_chunks
+           (owner_user_id, source_kind, source_path, line_start, line_end, content_hash, text)
+         VALUES ($1, 'chat', '/worker-a/new', 0, 1, 'hash-new', 'new chunk')
+         RETURNING id`,
+        [ids.userA]
+      );
+      expect(result.rowCount).toBe(1);
+    } finally {
+      await client.query("ROLLBACK").catch(() => undefined);
+      await client.end();
+    }
+  });
+
+  it("worker INSERT on memory_chunks is rejected when owner_user_id does not match actor", async () => {
+    const client = new Client({ connectionString: connectionStrings.worker });
+    await client.connect();
+    try {
+      await client.query("BEGIN");
+      await client.query(`SET LOCAL app.actor_user_id = '${ids.userA}'`);
+      await expect(
+        client.query(
+          `INSERT INTO app.memory_chunks
+             (owner_user_id, source_kind, source_path, line_start, line_end, content_hash, text)
+           VALUES ($1, 'chat', '/forged/path', 0, 1, 'hash-forged', 'forged chunk')`,
+          [ids.userB]
+        )
+      ).rejects.toThrow();
+    } finally {
+      await client.query("ROLLBACK").catch(() => undefined);
+      await client.end();
+    }
+  });
+
+  it("worker SELECT on memory_chunks returns only the actor's rows", async () => {
+    const client = new Client({ connectionString: connectionStrings.worker });
+    await client.connect();
+    try {
+      await client.query("BEGIN");
+      await client.query(`SET LOCAL app.actor_user_id = '${ids.userA}'`);
+      const result = await client.query<{ source_path: string }>(
+        `SELECT source_path FROM app.memory_chunks`
+      );
+      const paths = result.rows.map((r) => r.source_path);
+      expect(paths).toContain("/worker-a/path");
+      expect(paths).not.toContain("/worker-b/path");
+    } finally {
+      await client.query("ROLLBACK").catch(() => undefined);
+      await client.end();
+    }
+  });
+});
+
 // ── Task 9: Memory controls REST API ─────────────────────────────────────────
 
 describe("Memory controls REST API", () => {
