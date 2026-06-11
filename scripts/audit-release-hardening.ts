@@ -59,6 +59,9 @@ const forceRlsExemptions = new Map<string, string>([
   ["resource_grants", "access-control infra: no per-user private row data"],
   ["workspaces", "instance config: not per-user owner data"],
   ["instance_settings", "instance config: not per-user owner data"],
+  // Migration runner bookkeeping (applied filename + hash + timestamp). Instance
+  // infra written only by jarvis_migration_owner; holds no per-user rows.
+  ["schema_migrations", "migration-runner bookkeeping: instance infra, no per-user data"],
   // Audit log: append-only by app_runtime, no per-user SELECT needed.
   // Privilege shape is checked separately (SELECT+INSERT allowed, UPDATE+DELETE denied).
   ["admin_audit_events", "audit log: privilege shape checked separately"],
