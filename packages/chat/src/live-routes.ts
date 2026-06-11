@@ -15,6 +15,11 @@
  *   POST /api/chat/clear             → 204         reset history + new conversation
  *   POST /api/chat/switch            → 200         re-launch on the now-active provider
  *   GET  /api/chat/stream            → SSE         live transcript records for the actor
+ *
+ * Rate limiting: POST /api/chat/turn is throttled per session token (per user on a
+ * LAN multi-user deployment). Limit: JARVIS_RL_CHAT_MAX requests per minute
+ * (default 20). Falls back to IP when no session token is present so unauthenticated
+ * abuse is still capped.
  */
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 
@@ -22,6 +27,28 @@ import type { AccessContext } from "@jarv1s/db";
 
 import { ChatTurnInFlightError } from "./live/chat-session-manager.js";
 import type { ChatSessionRuntime } from "./live/runtime.js";
+
+// Per-user rate-limit key: use the Better Auth session token from the cookie or the
+// Authorization Bearer token. Falls back to IP so unauthenticated requests are still
+// capped (they will get a 401 from the handler before consuming any AI spend).
+//
+// Override the limit via env: JARVIS_RL_CHAT_MAX=<n> (requests per minute, default 20).
+const CHAT_MAX = Number(process.env.JARVIS_RL_CHAT_MAX ?? 20);
+
+function chatRateLimitKey(request: FastifyRequest): string {
+  const cookie = (request.headers.cookie ?? "")
+    .split(";")
+    .map((s) => s.trim())
+    .find((s) => s.startsWith("better-auth.session_token="));
+  if (cookie) {
+    return cookie.slice("better-auth.session_token=".length).split(";")[0] ?? request.ip;
+  }
+  const auth = request.headers.authorization ?? "";
+  if (auth.startsWith("Bearer ")) {
+    return auth.slice(7);
+  }
+  return request.ip;
+}
 
 export interface ChatLiveRoutesDependencies {
   readonly resolveAccessContext: (request: FastifyRequest) => Promise<AccessContext>;
@@ -34,28 +61,40 @@ export function registerChatLiveRoutes(
 ): void {
   const { runtime } = dependencies;
 
-  server.post("/api/chat/turn", async (request, reply) => {
-    const access = await resolveOr401(dependencies, request, reply);
-    if (!access) return reply;
+  server.post(
+    "/api/chat/turn",
+    {
+      config: {
+        rateLimit: {
+          max: CHAT_MAX,
+          timeWindow: "1 minute",
+          keyGenerator: chatRateLimitKey
+        }
+      }
+    },
+    async (request, reply) => {
+      const access = await resolveOr401(dependencies, request, reply);
+      if (!access) return reply;
 
-    const text = readText(request.body);
-    if (text === undefined) {
-      return reply.code(400).send({ error: "text is required" });
+      const text = readText(request.body);
+      if (text === undefined) {
+        return reply.code(400).send({ error: "text is required" });
+      }
+
+      try {
+        const userName = await runtime.resolveUserName(access.actorUserId);
+        const { reply: assistantReply } = await runtime.manager.submitTurn(
+          access.actorUserId,
+          userName,
+          text
+        );
+
+        return reply.send({ reply: assistantReply });
+      } catch (error) {
+        return handleLiveRouteError(error, reply);
+      }
     }
-
-    try {
-      const userName = await runtime.resolveUserName(access.actorUserId);
-      const { reply: assistantReply } = await runtime.manager.submitTurn(
-        access.actorUserId,
-        userName,
-        text
-      );
-
-      return reply.send({ reply: assistantReply });
-    } catch (error) {
-      return handleLiveRouteError(error, reply);
-    }
-  });
+  );
 
   server.post("/api/chat/clear", async (request, reply) => {
     const access = await resolveOr401(dependencies, request, reply);
