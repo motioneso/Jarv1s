@@ -3,6 +3,7 @@ export { assertVaultContext, VaultContextRunner, vaultContextBrand } from "./vau
 export type { VaultContext } from "./vault-context.js";
 export { getVaultBaseDir } from "./vault-config.js";
 export {
+  deleteUserVaultDir,
   deleteVaultFile,
   listVaultFiles,
   listVaultFilesRecursive,
