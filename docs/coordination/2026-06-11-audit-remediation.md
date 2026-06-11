@@ -22,17 +22,17 @@
 
 Severity post-Fable. Tier by content trigger (most of this backlog is `security`).
 
-| Slice | Issues | Tier | Adds migration? | Spec | Status |
-| ----- | ------ | ---- | --------------- | ---- | ------ |
-| **A — RLS least-priv migrations** | #97 users-column UPDATE restriction, #98 worker memory RLS policies | security | **yes (×2)** | — MISSING | blocked-on-spec |
-| **B — Dead subsystem deletion** | #120 workspaces, #153 resource-grants no-op, #115 + #116 (resolved by deletion), fold #152 manifest-narrowing; advances #155/#127/#101 workspace-halves | sensitive→**security** | **yes (DROP)** | — MISSING | blocked-on-spec |
-| **C — Vault containment** | #129 actorUserId validation, #130 symlink real-path containment | security | no (code) | — MISSING | blocked-on-spec |
-| **D — Settings → DataContextDb** | #95 SettingsRepository raw Kysely, #155 /api/me cross-user read | security | maybe (grant) | — MISSING | blocked-on-spec |
-| **E — Auth module hardening** | #113 bearer-token bypass (design-gated), #101 module-isolation, #127 bootstrap actor-GUC, #141 OAuth error-body leak | security | no (code) | — MISSING | blocked-on-spec |
-| **F — AI tool-path hardening** | #132 REST validateToolInput, #119 server-side allowlist, #148 blank ToolContext, #172 tools/list actor-scope | security | no (code) | — MISSING | blocked-on-spec |
-| **G — Data-layer defense-in-depth** | #102 assertDataContextDb, #144 vectorSearch owner predicate, #99 structured-state WITH CHECK | security | maybe (#99) | — MISSING | blocked-on-spec |
-| **H — Migration/job infra** | #124 schema_migrations per-dir, #134 worker dead grant REVOKE, #135 incognito trigger, #157 metadata-only payload guard, #174 pgboss RLS | security/sensitive | **yes (×3)** | — MISSING | blocked-on-spec |
-| **I — Portability + observability tail** | #170 export omits private, #149 handleRouteError, #140 list ownership, #166 test hygiene (LOW) | sensitive/routine | no (code) | — MISSING | blocked-on-spec |
+| Slice                                    | Issues                                                                                                                                                  | Tier                   | Adds migration? | Spec      | Status          |
+| ---------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------- | --------------- | --------- | --------------- |
+| **A — RLS least-priv migrations**        | #97 users-column UPDATE restriction, #98 worker memory RLS policies                                                                                     | security               | **yes (×2)**    | — MISSING | blocked-on-spec |
+| **B — Dead subsystem deletion**          | #120 workspaces, #153 resource-grants no-op, #115 + #116 (resolved by deletion), fold #152 manifest-narrowing; advances #155/#127/#101 workspace-halves | sensitive→**security** | **yes (DROP)**  | — MISSING | blocked-on-spec |
+| **C — Vault containment**                | #129 actorUserId validation, #130 symlink real-path containment                                                                                         | security               | no (code)       | — MISSING | blocked-on-spec |
+| **D — Settings → DataContextDb**         | #95 SettingsRepository raw Kysely, #155 /api/me cross-user read                                                                                         | security               | maybe (grant)   | — MISSING | blocked-on-spec |
+| **E — Auth module hardening**            | #113 bearer-token bypass (design-gated), #101 module-isolation, #127 bootstrap actor-GUC, #141 OAuth error-body leak                                    | security               | no (code)       | — MISSING | blocked-on-spec |
+| **F — AI tool-path hardening**           | #132 REST validateToolInput, #119 server-side allowlist, #148 blank ToolContext, #172 tools/list actor-scope                                            | security               | no (code)       | — MISSING | blocked-on-spec |
+| **G — Data-layer defense-in-depth**      | #102 assertDataContextDb, #144 vectorSearch owner predicate, #99 structured-state WITH CHECK                                                            | security               | maybe (#99)     | — MISSING | blocked-on-spec |
+| **H — Migration/job infra**              | #124 schema_migrations per-dir, #134 worker dead grant REVOKE, #135 incognito trigger, #157 metadata-only payload guard, #174 pgboss RLS                | security/sensitive     | **yes (×3)**    | — MISSING | blocked-on-spec |
+| **I — Portability + observability tail** | #170 export omits private, #149 handleRouteError, #140 list ownership, #166 test hygiene (LOW)                                                          | sensitive/routine      | no (code)       | — MISSING | blocked-on-spec |
 
 Not yet sliced: the aggregate `MED/LOW findings —` batch issues (#104–#111, #114, #117, #122–#171 even, #156…) — a later backlog pass after the HIGH/MED individual findings land.
 
@@ -68,9 +68,9 @@ budgeted place to spend up; the resident loop runs cheap on Sonnet).
 
 ## CI waivers
 
-| Check | PR | Proven red on `main` @ SHA | Proof | Ben-approved |
-| ----- | -- | -------------------------- | ----- | ------------ |
-| <none> | — | — | — | — |
+| Check  | PR  | Proven red on `main` @ SHA | Proof | Ben-approved |
+| ------ | --- | -------------------------- | ----- | ------------ |
+| <none> | —   | —                          | —     | —            |
 
 ## Outstanding escalations
 
