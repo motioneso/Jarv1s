@@ -248,13 +248,31 @@ describe("worker_runtime RLS policies on memory tables (#98)", () => {
            ($2, 'worker-b@test.test', 'Worker B')`,
         [ids.userA, ids.userB]
       );
-      // Pre-seed one chunk per user so SELECT isolation is testable
+      // Pre-seed one chunk per user so SELECT/UPDATE/DELETE isolation is testable
       await seed.query(
         `INSERT INTO app.memory_chunks
            (owner_user_id, source_kind, source_path, line_start, line_end, content_hash, text)
          VALUES
            ($1, 'chat', '/worker-a/path', 0, 1, 'hash-seed-a', 'chunk a'),
            ($2, 'chat', '/worker-b/path', 0, 1, 'hash-seed-b', 'chunk b')`,
+        [ids.userA, ids.userB]
+      );
+      // Pre-seed one file_index entry per user for SELECT/UPDATE/DELETE isolation
+      await seed.query(
+        `INSERT INTO app.memory_file_index
+           (owner_user_id, source_kind, source_path, file_hash, embed_model_name, embed_model_version)
+         VALUES
+           ($1, 'vault', '/worker-a/file.md', 'hash-fi-a', 'nomic-embed', '1.5'),
+           ($2, 'vault', '/worker-b/file.md', 'hash-fi-b', 'nomic-embed', '1.5')`,
+        [ids.userA, ids.userB]
+      );
+      // Pre-seed one link per user for SELECT isolation
+      await seed.query(
+        `INSERT INTO app.memory_links
+           (owner_user_id, from_path, to_path)
+         VALUES
+           ($1, '/worker-a/from.md', '/worker-a/to.md'),
+           ($2, '/worker-b/from.md', '/worker-b/to.md')`,
         [ids.userA, ids.userB]
       );
     } finally {
@@ -314,6 +332,166 @@ describe("worker_runtime RLS policies on memory tables (#98)", () => {
       const paths = result.rows.map((r) => r.source_path);
       expect(paths).toContain("/worker-a/path");
       expect(paths).not.toContain("/worker-b/path");
+    } finally {
+      await client.query("ROLLBACK").catch(() => undefined);
+      await client.end();
+    }
+  });
+
+  it("worker UPDATE on memory_chunks is isolated to actor's rows", async () => {
+    const client = new Client({ connectionString: connectionStrings.worker });
+    await client.connect();
+    try {
+      await client.query("BEGIN");
+      await client.query(`SET LOCAL app.actor_user_id = '${ids.userA}'`);
+      // Own row update succeeds
+      const own = await client.query(
+        `UPDATE app.memory_chunks SET text = 'updated' WHERE source_path = '/worker-a/path'`
+      );
+      expect(own.rowCount).toBe(1);
+      // Cross-user row update silently matches nothing (RLS filters it out)
+      const cross = await client.query(
+        `UPDATE app.memory_chunks SET text = 'hacked' WHERE source_path = '/worker-b/path'`
+      );
+      expect(cross.rowCount).toBe(0);
+    } finally {
+      await client.query("ROLLBACK").catch(() => undefined);
+      await client.end();
+    }
+  });
+
+  it("worker DELETE on memory_chunks is isolated to actor's rows", async () => {
+    const client = new Client({ connectionString: connectionStrings.worker });
+    await client.connect();
+    try {
+      await client.query("BEGIN");
+      await client.query(`SET LOCAL app.actor_user_id = '${ids.userA}'`);
+      // Cross-user row delete silently matches nothing
+      const cross = await client.query(
+        `DELETE FROM app.memory_chunks WHERE source_path = '/worker-b/path'`
+      );
+      expect(cross.rowCount).toBe(0);
+      // Own row delete works
+      const own = await client.query(
+        `DELETE FROM app.memory_chunks WHERE source_path = '/worker-a/path'`
+      );
+      expect(own.rowCount).toBe(1);
+    } finally {
+      await client.query("ROLLBACK").catch(() => undefined);
+      await client.end();
+    }
+  });
+
+  it("worker SELECT on memory_file_index returns only the actor's rows", async () => {
+    const client = new Client({ connectionString: connectionStrings.worker });
+    await client.connect();
+    try {
+      await client.query("BEGIN");
+      await client.query(`SET LOCAL app.actor_user_id = '${ids.userA}'`);
+      const result = await client.query<{ source_path: string }>(
+        `SELECT source_path FROM app.memory_file_index`
+      );
+      const paths = result.rows.map((r) => r.source_path);
+      expect(paths).toContain("/worker-a/file.md");
+      expect(paths).not.toContain("/worker-b/file.md");
+    } finally {
+      await client.query("ROLLBACK").catch(() => undefined);
+      await client.end();
+    }
+  });
+
+  it("worker can INSERT into memory_file_index for its own actor", async () => {
+    const client = new Client({ connectionString: connectionStrings.worker });
+    await client.connect();
+    try {
+      await client.query("BEGIN");
+      await client.query(`SET LOCAL app.actor_user_id = '${ids.userA}'`);
+      const result = await client.query(
+        `INSERT INTO app.memory_file_index
+           (owner_user_id, source_kind, source_path, file_hash, embed_model_name, embed_model_version)
+         VALUES ($1, 'vault', '/worker-a/new-file.md', 'hash-new-fi', 'nomic-embed', '1.5')
+         RETURNING id`,
+        [ids.userA]
+      );
+      expect(result.rowCount).toBe(1);
+    } finally {
+      await client.query("ROLLBACK").catch(() => undefined);
+      await client.end();
+    }
+  });
+
+  it("worker INSERT on memory_file_index is rejected when owner_user_id does not match actor", async () => {
+    const client = new Client({ connectionString: connectionStrings.worker });
+    await client.connect();
+    try {
+      await client.query("BEGIN");
+      await client.query(`SET LOCAL app.actor_user_id = '${ids.userA}'`);
+      await expect(
+        client.query(
+          `INSERT INTO app.memory_file_index
+             (owner_user_id, source_kind, source_path, file_hash, embed_model_name, embed_model_version)
+           VALUES ($1, 'vault', '/forged/file.md', 'hash-forged-fi', 'nomic-embed', '1.5')`,
+          [ids.userB]
+        )
+      ).rejects.toThrow();
+    } finally {
+      await client.query("ROLLBACK").catch(() => undefined);
+      await client.end();
+    }
+  });
+
+  it("worker UPDATE on memory_file_index is isolated to actor's rows", async () => {
+    const client = new Client({ connectionString: connectionStrings.worker });
+    await client.connect();
+    try {
+      await client.query("BEGIN");
+      await client.query(`SET LOCAL app.actor_user_id = '${ids.userA}'`);
+      const own = await client.query(
+        `UPDATE app.memory_file_index SET chunk_count = 5 WHERE source_path = '/worker-a/file.md'`
+      );
+      expect(own.rowCount).toBe(1);
+      const cross = await client.query(
+        `UPDATE app.memory_file_index SET chunk_count = 999 WHERE source_path = '/worker-b/file.md'`
+      );
+      expect(cross.rowCount).toBe(0);
+    } finally {
+      await client.query("ROLLBACK").catch(() => undefined);
+      await client.end();
+    }
+  });
+
+  it("worker DELETE on memory_file_index is isolated to actor's rows", async () => {
+    const client = new Client({ connectionString: connectionStrings.worker });
+    await client.connect();
+    try {
+      await client.query("BEGIN");
+      await client.query(`SET LOCAL app.actor_user_id = '${ids.userA}'`);
+      const cross = await client.query(
+        `DELETE FROM app.memory_file_index WHERE source_path = '/worker-b/file.md'`
+      );
+      expect(cross.rowCount).toBe(0);
+      const own = await client.query(
+        `DELETE FROM app.memory_file_index WHERE source_path = '/worker-a/file.md'`
+      );
+      expect(own.rowCount).toBe(1);
+    } finally {
+      await client.query("ROLLBACK").catch(() => undefined);
+      await client.end();
+    }
+  });
+
+  it("worker SELECT on memory_links returns only the actor's rows", async () => {
+    const client = new Client({ connectionString: connectionStrings.worker });
+    await client.connect();
+    try {
+      await client.query("BEGIN");
+      await client.query(`SET LOCAL app.actor_user_id = '${ids.userA}'`);
+      const result = await client.query<{ from_path: string }>(
+        `SELECT from_path FROM app.memory_links`
+      );
+      const paths = result.rows.map((r) => r.from_path);
+      expect(paths).toContain("/worker-a/from.md");
+      expect(paths).not.toContain("/worker-b/from.md");
     } finally {
       await client.query("ROLLBACK").catch(() => undefined);
       await client.end();

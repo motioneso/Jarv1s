@@ -845,6 +845,70 @@ describe("users_guard_admin_flag trigger (#97)", () => {
   });
 });
 
+describe("users_guard_admin_flag bootstrap exemption (#97)", () => {
+  it("allows non-admin self-promotion when no admins exist (single user)", async () => {
+    await resetEmptyFoundationDatabase();
+    const seed = new pg.Client({ connectionString: connectionStrings.bootstrap });
+    await seed.connect();
+    try {
+      await seed.query(
+        `INSERT INTO app.users (id, email, name, is_instance_admin)
+         VALUES ($1, 'bootstrap-only@test.test', 'Bootstrap', false)`,
+        [ids.userA]
+      );
+    } finally {
+      await seed.end();
+    }
+
+    const client = new pg.Client({ connectionString: connectionStrings.app });
+    await client.connect();
+    try {
+      await client.query("BEGIN");
+      await client.query(`SET LOCAL app.actor_user_id = '${ids.userA}'`);
+      const result = await client.query(
+        `UPDATE app.users SET is_instance_admin = true WHERE id = $1`,
+        [ids.userA]
+      );
+      expect(result.rowCount).toBe(1);
+    } finally {
+      await client.query("ROLLBACK").catch(() => undefined);
+      await client.end();
+    }
+  });
+
+  it("allows non-admin self-promotion when multiple non-admin users exist but no admins", async () => {
+    await resetEmptyFoundationDatabase();
+    const seed = new pg.Client({ connectionString: connectionStrings.bootstrap });
+    await seed.connect();
+    try {
+      await seed.query(
+        `INSERT INTO app.users (id, email, name, is_instance_admin)
+         VALUES
+           ($1, 'no-admin-a@test.test', 'No Admin A', false),
+           ($2, 'no-admin-b@test.test', 'No Admin B', false)`,
+        [ids.userA, ids.userB]
+      );
+    } finally {
+      await seed.end();
+    }
+
+    const client = new pg.Client({ connectionString: connectionStrings.app });
+    await client.connect();
+    try {
+      await client.query("BEGIN");
+      await client.query(`SET LOCAL app.actor_user_id = '${ids.userA}'`);
+      const result = await client.query(
+        `UPDATE app.users SET is_instance_admin = true WHERE id = $1`,
+        [ids.userA]
+      );
+      expect(result.rowCount).toBe(1);
+    } finally {
+      await client.query("ROLLBACK").catch(() => undefined);
+      await client.end();
+    }
+  });
+});
+
 function cookieHeader(headers: OutgoingHttpHeaders): string {
   const setCookie = headers["set-cookie"];
   const cookies = Array.isArray(setCookie)
