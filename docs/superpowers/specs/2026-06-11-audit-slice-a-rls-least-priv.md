@@ -64,6 +64,14 @@ via trigger), keeping the house pattern uniform for immutable-unless-admin colum
 `0050_multi_user_accounts.sql` for the admin UPDATE policy). Confirm the function exists and is
 callable by `jarvis_app_runtime` before the trigger body references it.
 
+**Bootstrap exemption (discovered during build):** `packages/auth/src/index.ts`
+(`bootstrapFirstJarvisUser`) sets the actor GUC to the new user's ID *before* promoting them
+to admin. The NULL guard therefore does not protect the bootstrap path — `current_actor_user_id()`
+IS NOT NULL, but `current_actor_is_admin()` returns false (not yet admin). The trigger must add:
+`AND NOT (NEW.is_instance_admin = true AND app.count_all_users() = 1)`. This is the exact
+bootstrap window: only 1 user exists, being promoted. Post-bootstrap `count_all_users()` is
+always > 1, so the exemption is unreachable through the normal signup flow.
+
 **Migration location:** `infra/postgres/migrations/<NNNN>_users_guard_admin_flag.sql`
 
 ---
