@@ -1,3 +1,4 @@
+import helmet from "@fastify/helmet";
 import rateLimit from "@fastify/rate-limit";
 import Fastify from "fastify";
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
@@ -52,6 +53,36 @@ export function createApiServer(options: CreateApiServerOptions = {}) {
   });
   const dataContext = new DataContextRunner(appDb);
   const AUTH_MAX = Number(process.env.JARVIS_RL_AUTH_MAX ?? 10);
+
+  // Security headers via @fastify/helmet.
+  // This API serves JSON only, so CSP is maximally restrictive (default-src 'none').
+  // HSTS is omitted on plain HTTP — the header has no effect and misleads LAN/dev
+  // setups where TLS is not present. It is enabled only when JARVIS_TRUST_PROXY is
+  // set, which signals a TLS-terminating reverse proxy is in front (the same signal
+  // already used for XFF trust above).
+  server.register(helmet, {
+    contentSecurityPolicy: {
+      directives: {
+        defaultSrc: ["'none'"],
+        frameAncestors: ["'none'"]
+      }
+    },
+    // X-Frame-Options is redundant when frame-ancestors is set in CSP, but helmet
+    // sets it to DENY by default, which is a safe belt-and-suspenders header for
+    // older browsers.
+    frameguard: { action: "deny" },
+    // noSniff: true is the helmet default (X-Content-Type-Options: nosniff).
+    // referrerPolicy: no-referrer keeps request metadata off third-party servers.
+    referrerPolicy: { policy: "no-referrer" },
+    // Only activate HSTS when we know TLS is in use. Without TLS the header is
+    // not just useless — it can lock users out of plain-HTTP LAN access.
+    hsts: process.env.JARVIS_TRUST_PROXY
+      ? {
+          maxAge: 31536000,
+          includeSubDomains: true
+        }
+      : false
+  });
 
   // Register rate-limit first, then register all routes inside server.after() so the
   // plugin's onRoute hook is active when routes are added (Fastify defers plugin init
