@@ -20,6 +20,7 @@
     "restore:db": "tsx scripts/restore-database.ts",
     "export:user": "tsx scripts/export-user-data.ts",
     "delete:user": "tsx scripts/delete-user-data.ts",
+    "audit:preflight": "bash scripts/check-tree-fresh.sh",
     "audit:release-hardening": "tsx scripts/audit-release-hardening.ts",
     "smoke:compose": "tsx scripts/smoke-compose.ts",
     "dev:api": "pnpm --filter @jarv1s/api dev",

@@ -189,3 +189,23 @@ depth), and grep for existing machinery before calling anything net-new ("big ch
 already half-built). Steelman the option you'd reject. For milestone-level forks, add an adversarial
 second opinion — **preferred, never a gate**: `/codex-review` or `/grill-me-codex` if Codex is
 available → else an independent Claude critic subagent → else a structured self-review.
+
+## Grounding Discipline (audits & analysis)
+
+Before grounding **any** audit, security review, or architectural analysis, you MUST confirm the
+working tree is current — a stale checkout invalidates the whole run. On 2026-06-10 four security
+audits were grounded on a local `main` that was 8 commits behind `origin/main` (8 missing merged
+PRs); most HIGH/MED findings re-validated wrong and the work had to be redone.
+
+- **Run the preflight first:** `pnpm audit:preflight` (→ `scripts/check-tree-fresh.sh`). It fetches
+  origin and **fails (exit 1) if the tree is behind the baseline**. Being *ahead* (local-only
+  doc/coordination commits) is fine; being *behind* means the code under review is stale. Do not
+  start an audit until it exits 0.
+- **Record the verified commit** in every audit report ("grounded on `<sha>`"), and have any audit
+  subagent you dispatch run the preflight and report its commit too. An audit that doesn't name its
+  commit is not trustworthy.
+- **Never disturb a shared working tree to get current.** Another session may be mid-build — do not
+  `git pull` / `checkout` / `reset` it. Ground on a detached read-only worktree instead:
+  `git worktree add /tmp/audit-ground origin/main` (never `git pull` that worktree).
+- **Intentionally auditing an older ref?** That's the only time staleness is acceptable — set
+  `JARVIS_ALLOW_STALE=1` so the override is explicit and logged, and note it in the report.

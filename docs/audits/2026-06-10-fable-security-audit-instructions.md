@@ -13,8 +13,14 @@ Each phase is a **self-contained Fable session**. Run them in order (security-cr
 At the end of each phase, write findings to the output file listed, commit, then start the next phase.  
 If usage caps mid-phase, the completed phases are already saved and still useful.
 
+**Grounding preflight (REQUIRED before phase 1):** run `pnpm audit:preflight`. It must exit 0
+(tree current with `origin/main`) before you ground anything — a stale checkout invalidates the
+whole audit (it happened: see CLAUDE.md → "Grounding Discipline"). If it fails, ground on a detached
+read-only worktree (`git worktree add /tmp/audit-ground origin/main`) — never `pull`/`checkout`/`reset`
+the shared tree. **Record the verified commit at the top of every phase output file.**
+
 **Worktree:** run from the main working tree (`/home/ben/Jarv1s`) unless noted.  
-**Do not run tests or gates** — trust CI is green. Spend tokens on adversarial review, not re-execution.  
+**Do not run tests or gates** (other than the preflight above) — trust CI is green. Spend tokens on adversarial review, not re-execution.  
 **Do not fix code** — record findings. Fixes become follow-up issues.
 
 ### What to look for in every phase
