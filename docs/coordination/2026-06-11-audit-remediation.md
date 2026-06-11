@@ -10,13 +10,13 @@
 > Coordinator's externalized memory. Keep CURRENT. GitHub is source of truth for spec/issue/board
 > status; this file holds only in-flight operational state.
 
-## ⛔ Phase-0 gate status — NOT cleared to spawn
+## Phase-0 gate status
 
-- **CI on `main`:** (verify before any spawn — `gh run list --branch main --limit 1`)
-- **Specs:** **ZERO** specs exist in `docs/superpowers/specs/` for any audit-fix slice below.
-  Hard Invariant (spec before build) ⇒ **nothing spawns until specs are authored + Ben approves
-  this manifest.** The bottleneck for this run is **spec authoring**, not agent capacity.
-- **Ben manifest approval:** PENDING.
+- **CI on `main`:** ✅ green @ e629f3c (verified 2026-06-11)
+- **Ben manifest approval:** ✅ approved (Slice A first — 2026-06-11)
+- **Slice A spec:** ✅ `docs/superpowers/specs/2026-06-11-audit-slice-a-rls-least-priv.md`
+- **Slice A plan:** ✅ `docs/superpowers/plans/2026-06-11-audit-slice-a-rls-least-priv.md`
+- **Remaining slices B–I:** still blocked on specs (spec-before-build gate)
 
 ## Queue (proposed slices — each needs a spec before it can spawn)
 
@@ -24,9 +24,9 @@ Severity post-Fable. Tier by content trigger (most of this backlog is `security`
 
 | Slice | Issues | Tier | Adds migration? | Spec | Status |
 | ----- | ------ | ---- | --------------- | ---- | ------ |
-| **A — RLS least-priv migrations** | #97 users-column UPDATE restriction, #98 worker memory RLS policies | security | **yes (×2)** | — MISSING | blocked-on-spec |
+| **A — RLS least-priv migrations** | #97 users-column UPDATE restriction, #98 worker memory RLS policies | security | **yes (×2)** | `docs/superpowers/specs/2026-06-11-audit-slice-a-rls-least-priv.md` ✅ | **QA in flight** — PR #181, VF=0 AUDIT=0 349/349, Opus QA agent running |
 | **B — Dead subsystem deletion** | #120 workspaces, #153 resource-grants no-op, #115 + #116 (resolved by deletion), fold #152 manifest-narrowing; advances #155/#127/#101 workspace-halves | sensitive→**security** | **yes (DROP)** | — MISSING | blocked-on-spec |
-| **C — Vault containment** | #129 actorUserId validation, #130 symlink real-path containment | security | no (code) | — MISSING | blocked-on-spec |
+| **C — Vault containment** | #129 actorUserId validation, #130 symlink real-path containment | security | no (code) | `docs/superpowers/specs/2026-06-11-audit-slice-c-vault-containment.md` ✅ | **building** — pane `w653f42bef3ac02-4` (SliceC-build), worktree `audit-slice-c`, plan pre-approved |
 | **D — Settings → DataContextDb** | #95 SettingsRepository raw Kysely, #155 /api/me cross-user read | security | maybe (grant) | — MISSING | blocked-on-spec |
 | **E — Auth module hardening** | #113 bearer-token bypass (design-gated), #101 module-isolation, #127 bootstrap actor-GUC, #141 OAuth error-body leak | security | no (code) | — MISSING | blocked-on-spec |
 | **F — AI tool-path hardening** | #132 REST validateToolInput, #119 server-side allowlist, #148 blank ToolContext, #172 tools/list actor-scope | security | no (code) | — MISSING | blocked-on-spec |
