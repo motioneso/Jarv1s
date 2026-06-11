@@ -193,16 +193,16 @@ afterAll(async () => {
 describe("VaultContextRunner actorUserId validation (#129)", () => {
   it("throws VaultContextError on empty actorUserId", async () => {
     const runner = new VaultContextRunner(validationBase);
-    await expect(
-      runner.withVaultContext({ actorUserId: "" }, async () => {})
-    ).rejects.toThrow(VaultContextError);
+    await expect(runner.withVaultContext({ actorUserId: "" }, async () => {})).rejects.toThrow(
+      VaultContextError
+    );
   });
 
   it("throws VaultContextError on whitespace-only actorUserId", async () => {
     const runner = new VaultContextRunner(validationBase);
-    await expect(
-      runner.withVaultContext({ actorUserId: "   " }, async () => {})
-    ).rejects.toThrow(VaultContextError);
+    await expect(runner.withVaultContext({ actorUserId: "   " }, async () => {})).rejects.toThrow(
+      VaultContextError
+    );
   });
 
   it("accepts a valid actorUserId and returns the work result", async () => {
