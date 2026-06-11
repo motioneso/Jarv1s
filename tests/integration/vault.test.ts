@@ -1,10 +1,11 @@
 import { randomUUID } from "node:crypto";
-import { rm } from "node:fs/promises";
+import { mkdir, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterAll, describe, expect, it } from "vitest";
 
 import {
+  VaultContextError,
   VaultContextRunner,
   VaultPathError,
   deleteVaultFile,
@@ -178,5 +179,38 @@ describe("vault file operations", () => {
     await opsRunner.withVaultContext({ actorUserId: opsUserId }, async (ctx) => {
       await expect(vaultFileExists(ctx, "../outside/secret.md")).rejects.toThrow(VaultPathError);
     });
+  });
+});
+
+// ── VaultContextRunner actorUserId validation (#129) ─────────────────────────
+
+const validationBase = join(tmpdir(), `jarv1s-vault-validation-${randomUUID()}`);
+
+afterAll(async () => {
+  await rm(validationBase, { recursive: true, force: true });
+});
+
+describe("VaultContextRunner actorUserId validation (#129)", () => {
+  it("throws VaultContextError on empty actorUserId", async () => {
+    const runner = new VaultContextRunner(validationBase);
+    await expect(
+      runner.withVaultContext({ actorUserId: "" }, async () => {})
+    ).rejects.toThrow(VaultContextError);
+  });
+
+  it("throws VaultContextError on whitespace-only actorUserId", async () => {
+    const runner = new VaultContextRunner(validationBase);
+    await expect(
+      runner.withVaultContext({ actorUserId: "   " }, async () => {})
+    ).rejects.toThrow(VaultContextError);
+  });
+
+  it("accepts a valid actorUserId and returns the work result", async () => {
+    const runner = new VaultContextRunner(validationBase);
+    const result = await runner.withVaultContext(
+      { actorUserId: "00000000-0000-4000-8000-000000000001" },
+      async (ctx) => ctx.actorUserId
+    );
+    expect(result).toBe("00000000-0000-4000-8000-000000000001");
   });
 });
