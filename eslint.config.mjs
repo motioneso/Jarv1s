@@ -17,7 +17,9 @@ export default tseslint.config(
       "playwright-report/**",
       "test-results/**",
       ".claude/worktrees/**",
-      ".claude/workflows/**"
+      ".claude/workflows/**",
+      "docs/audit/**",
+      "docs/audits/**"
     ]
   },
   {
