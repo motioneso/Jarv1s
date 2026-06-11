@@ -24,9 +24,9 @@ Severity post-Fable. Tier by content trigger (most of this backlog is `security`
 
 | Slice | Issues | Tier | Adds migration? | Spec | Status |
 | ----- | ------ | ---- | --------------- | ---- | ------ |
-| **A — RLS least-priv migrations** | #97 users-column UPDATE restriction, #98 worker memory RLS policies | security | **yes (×2)** | `docs/superpowers/specs/2026-06-11-audit-slice-a-rls-least-priv.md` ✅ | **QA in flight** — PR #181, VF=0 AUDIT=0 349/349, Opus QA agent running |
+| **A — RLS least-priv migrations** | #97 users-column UPDATE restriction, #98 worker memory RLS policies | security | **yes (×3: 0053+0054+0055)** | `docs/superpowers/specs/2026-06-11-audit-slice-a-rls-least-priv.md` ✅ | **QA in flight** — PR #181, CI ✅ green, VF=0 AUDIT=0 359/359, SliceA-QA pane `w653f42bef3ac02-5` running Opus QA |
 | **B — Dead subsystem deletion** | #120 workspaces, #153 resource-grants no-op, #115 + #116 (resolved by deletion), fold #152 manifest-narrowing; advances #155/#127/#101 workspace-halves | sensitive→**security** | **yes (DROP)** | — MISSING | blocked-on-spec |
-| **C — Vault containment** | #129 actorUserId validation, #130 symlink real-path containment | security | no (code) | `docs/superpowers/specs/2026-06-11-audit-slice-c-vault-containment.md` ✅ | **building** — pane `w653f42bef3ac02-4` (SliceC-build), worktree `audit-slice-c`, plan pre-approved |
+| **C — Vault containment** | #129 actorUserId validation, #130 symlink real-path containment | security | no (code) | `docs/superpowers/specs/2026-06-11-audit-slice-c-vault-containment.md` ✅ | **QA pending CI** — PR #182, CI ⏳ pending, VF=0 348 tests; awaiting CI green to spawn Opus QA |
 | **D — Settings → DataContextDb** | #95 SettingsRepository raw Kysely, #155 /api/me cross-user read | security | maybe (grant) | — MISSING | blocked-on-spec |
 | **E — Auth module hardening** | #113 bearer-token bypass (design-gated), #101 module-isolation, #127 bootstrap actor-GUC, #141 OAuth error-body leak | security | no (code) | — MISSING | blocked-on-spec |
 | **F — AI tool-path hardening** | #132 REST validateToolInput, #119 server-side allowlist, #148 blank ToolContext, #172 tools/list actor-scope | security | no (code) | — MISSING | blocked-on-spec |
