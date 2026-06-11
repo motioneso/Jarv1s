@@ -214,3 +214,38 @@ describe("VaultContextRunner actorUserId validation (#129)", () => {
     expect(result).toBe("00000000-0000-4000-8000-000000000001");
   });
 });
+
+// ── Symlink escape containment (#130) ────────────────────────────────────────
+
+const symlinkBase = join(tmpdir(), `jarv1s-vault-symlink-${randomUUID()}`);
+
+afterAll(async () => {
+  await rm(symlinkBase, { recursive: true, force: true });
+});
+
+describe("symlink escape containment (#130)", () => {
+  it("readVaultFile throws VaultPathError when path resolves through symlink to outside file", async () => {
+    const outsideFile = join(symlinkBase, "outside.txt");
+    await mkdir(symlinkBase, { recursive: true });
+    await writeFile(outsideFile, "secret");
+    const runner = new VaultContextRunner(join(symlinkBase, "vaults"));
+    await runner.withVaultContext({ actorUserId: "user-a" }, async (ctx) => {
+      const linkPath = join(ctx.vaultRoot, "escape-link");
+      await symlink(outsideFile, linkPath);
+      await expect(readVaultFile(ctx, "escape-link")).rejects.toThrow(VaultPathError);
+    });
+  });
+
+  it("writeVaultFile throws VaultPathError when parent dir is a symlink to outside dir", async () => {
+    const outsideDir = join(symlinkBase, "outside-dir");
+    await mkdir(outsideDir, { recursive: true });
+    const runner = new VaultContextRunner(join(symlinkBase, "vaults"));
+    await runner.withVaultContext({ actorUserId: "user-b" }, async (ctx) => {
+      const linkPath = join(ctx.vaultRoot, "escape-dir");
+      await symlink(outsideDir, linkPath);
+      await expect(writeVaultFile(ctx, "escape-dir/evil.txt", "pwned")).rejects.toThrow(
+        VaultPathError
+      );
+    });
+  });
+});
