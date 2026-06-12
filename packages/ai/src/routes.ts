@@ -1,11 +1,13 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 
+import { parsePositiveIntEnv } from "@jarv1s/shared";
+
 // Per-user rate-limit key for the assistant-tools invoke endpoint: use the Better Auth
 // session cookie or Authorization Bearer token so each LAN user gets a separate counter.
 // Unauthenticated requests fall back to IP (they will get a 401 before any AI spend).
 //
 // Override the limit via env: JARVIS_RL_AI_TOOLS_MAX=<n> (requests per minute, default 60).
-const AI_TOOLS_MAX = Number(process.env.JARVIS_RL_AI_TOOLS_MAX ?? 60);
+const AI_TOOLS_MAX = parsePositiveIntEnv(process.env.JARVIS_RL_AI_TOOLS_MAX, 60);
 
 function aiToolsRateLimitKey(request: FastifyRequest): string {
   const cookie = (request.headers.cookie ?? "")

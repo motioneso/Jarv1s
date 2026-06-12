@@ -236,7 +236,7 @@ describe("MemoryRepository", () => {
     });
   });
 
-  it("deleteAllForUser removes all chunks for the user", async () => {
+  it("deleteAllForUser removes chunks, links, and the file index for the user", async () => {
     const path = "notes/repo-test-5.md";
     const chunks = await makeChunks(path, ["User data"]);
     // Use a fresh user so we don't interfere with other tests
@@ -254,11 +254,26 @@ describe("MemoryRepository", () => {
 
     await dataContext.withDataContext(ctx(freshUserId), async (scopedDb) => {
       await repo.upsertFileChunks(scopedDb, freshUserId, path, chunks, "stub", "0");
+      await repo.replaceFileLinks(scopedDb, freshUserId, path, ["Other"]);
+      await repo.upsertFileIndex(scopedDb, freshUserId, "vault", path, "hash-5", 1, "stub", "0");
+
       await repo.deleteAllForUser(scopedDb, freshUserId);
-      const stored = await sql<{ id: string }>`
+
+      const chunkRows = await sql<{ id: string }>`
         SELECT id FROM app.memory_chunks WHERE owner_user_id = ${freshUserId}::uuid
       `.execute(scopedDb.db);
-      expect(stored.rows).toHaveLength(0);
+      const linkRows = await sql<{ from_path: string }>`
+        SELECT from_path FROM app.memory_links WHERE owner_user_id = ${freshUserId}::uuid
+      `.execute(scopedDb.db);
+      // The file index must be wiped too, or rebuildFromVault would skip files that
+      // were deleted from the vault, leaving them orphaned in the index (#146).
+      const indexRows = await sql<{ source_path: string }>`
+        SELECT source_path FROM app.memory_file_index WHERE owner_user_id = ${freshUserId}::uuid
+      `.execute(scopedDb.db);
+
+      expect(chunkRows.rows).toHaveLength(0);
+      expect(linkRows.rows).toHaveLength(0);
+      expect(indexRows.rows).toHaveLength(0);
     });
   });
 

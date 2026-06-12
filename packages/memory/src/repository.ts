@@ -20,6 +20,24 @@ export interface RetrievedChunk {
   readonly similarity: number;
 }
 
+/**
+ * Render an embedding as a pgvector literal `[v0,v1,...]`. The components are
+ * already typed `number[]`, so there is no SQL-injection surface (a number can
+ * only stringify to digits/`.`/`-`/`e`/`NaN`/`Infinity`); this guard is purely
+ * defense-in-depth (#146). A non-finite component would serialize to `NaN`/
+ * `Infinity` and be rejected by the `::vector` cast with an opaque DB error — and
+ * filtering it out would silently change the vector's dimensionality, corrupting
+ * the index. So fail loud and early instead.
+ */
+function toVectorLiteral(embedding: readonly number[]): string {
+  for (const component of embedding) {
+    if (!Number.isFinite(component)) {
+      throw new Error("Embedding contains a non-finite component");
+    }
+  }
+  return `[${embedding.join(",")}]`;
+}
+
 export class MemoryRepository {
   async upsertFileChunks(
     scopedDb: DataContextDb,
@@ -34,7 +52,7 @@ export class MemoryRepository {
     await this.deleteFileChunks(scopedDb, ownerUserId, sourcePath, sourceKind);
 
     for (const chunk of chunks) {
-      const vectorLiteral = `[${chunk.embedding.join(",")}]`;
+      const vectorLiteral = toVectorLiteral(chunk.embedding);
       await sql`
         INSERT INTO app.memory_chunks
           (owner_user_id, source_kind, source_path, line_start, line_end, content_hash, text,
@@ -70,6 +88,15 @@ export class MemoryRepository {
     await sql`
       DELETE FROM app.memory_links WHERE owner_user_id = ${ownerUserId}::uuid
     `.execute(scopedDb.db);
+    // The file index records which files have been ingested and at what hash; it
+    // must be wiped alongside the chunks it points at. Leaving it behind orphans
+    // the index — `rebuildFromVault` (the disaster-recovery caller) re-ingests only
+    // files still present in the vault, so any file deleted since the last ingest
+    // would keep a stale index row forever and `purgeDeletedFiles` would have to
+    // mop it up later. A full reset clears all three tables (#146).
+    await sql`
+      DELETE FROM app.memory_file_index WHERE owner_user_id = ${ownerUserId}::uuid
+    `.execute(scopedDb.db);
   }
 
   async vectorSearch(
@@ -79,7 +106,7 @@ export class MemoryRepository {
     sourceKind: string = "vault"
   ): Promise<RetrievedChunk[]> {
     assertDataContextDb(scopedDb);
-    const vectorLiteral = `[${embedding.join(",")}]`;
+    const vectorLiteral = toVectorLiteral(embedding);
     const result = await sql<{
       id: string;
       source_path: string;
