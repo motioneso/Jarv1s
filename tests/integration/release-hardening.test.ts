@@ -3,6 +3,7 @@ import { readFile } from "node:fs/promises";
 import pg from "pg";
 
 import { AuthSessionResolver, createDatabase } from "@jarv1s/db";
+import { createApiServer } from "../../apps/api/src/server.js";
 import { createBackupPlan } from "../../scripts/backup-database.js";
 import { auditReleaseHardening } from "../../scripts/audit-release-hardening.js";
 import { deleteUserData } from "../../scripts/delete-user-data.js";
@@ -186,6 +187,59 @@ describe("M7 release hardening lifecycle scripts", () => {
         userId: ids.userA
       })
     ).rejects.toThrow("Confirmation user id must match the target user id");
+  });
+
+  it("DELETE /api/admin/users/:id succeeds after workspace tables are dropped", async () => {
+    const appDb2 = createDatabase({ connectionString: connectionStrings.app, maxConnections: 1 });
+    const server2 = createApiServer({ appDb: appDb2, logger: false });
+    await server2.ready();
+    const bootstrapClient = new Client({ connectionString: connectionStrings.bootstrap });
+    await bootstrapClient.connect();
+    try {
+      // Disable approval so newly registered users are active, not pending.
+      await appDb2
+        .updateTable("app.instance_settings")
+        .set({ value: { value: false }, updated_at: new Date() })
+        .where("key", "=", "registration.requires_approval")
+        .execute();
+
+      // Sign up the owner. seedLifecycleData already inserted userA/userB, so this owner is
+      // NOT the first user and is not auto-promoted — we promote it explicitly below.
+      const ownerRes = await server2.inject({
+        method: "POST",
+        url: "/api/auth/sign-up/email",
+        headers: { "content-type": "application/json" },
+        payload: { name: "Owner", email: "owner-del@example.test", password: "password12345" }
+      });
+      const ownerCookie = ownerRes.headers["set-cookie"] as string;
+      const ownerId = ownerRes.json<{ user: { id: string } }>().user.id;
+
+      // Promote the owner to an active instance admin so the DELETE is authorized.
+      await bootstrapClient.query(
+        `UPDATE app.users SET is_instance_admin = true, status = 'active' WHERE id = $1`,
+        [ownerId]
+      );
+
+      // Sign up the deletion target.
+      const targetRes = await server2.inject({
+        method: "POST",
+        url: "/api/auth/sign-up/email",
+        headers: { "content-type": "application/json" },
+        payload: { name: "Target", email: "target-del@example.test", password: "password12345" }
+      });
+      const targetId = targetRes.json<{ user: { id: string } }>().user.id;
+
+      const deleteRes = await server2.inject({
+        method: "DELETE",
+        url: `/api/admin/users/${targetId}`,
+        headers: { cookie: ownerCookie }
+      });
+      expect(deleteRes.statusCode).toBe(200);
+      expect(deleteRes.json<{ deletedUserId: string }>().deletedUserId).toBe(targetId);
+    } finally {
+      await bootstrapClient.end();
+      await Promise.allSettled([server2.close(), appDb2.destroy()]);
+    }
   });
 
   it("keeps app and worker roles without DELETE on protected product and secret tables", async () => {
