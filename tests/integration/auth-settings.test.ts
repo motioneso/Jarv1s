@@ -6,7 +6,7 @@ import pg from "pg";
 import { createApiServer } from "../../apps/api/src/server.js";
 import { createDatabase, type JarvisDatabase } from "@jarv1s/db";
 import type { ListAdminAuditEventsResponse, ListModulesResponse, MeResponse } from "@jarv1s/shared";
-import { connectionStrings, resetEmptyFoundationDatabase } from "./test-database.js";
+import { connectionStrings, ids, resetEmptyFoundationDatabase } from "./test-database.js";
 import { createJarvisAuthRuntime, type JarvisAuthRuntime } from "@jarv1s/auth";
 import { SettingsRepository } from "../../packages/settings/src/repository.js";
 
@@ -774,6 +774,138 @@ describe("multi-user registration + lifecycle (Phase 2 Slice A)", () => {
         requestId: "r1"
       })
     ).rejects.toThrow(/last.*admin/i);
+  });
+});
+
+describe("users_guard_admin_flag trigger (#97)", () => {
+  beforeAll(async () => {
+    await resetEmptyFoundationDatabase();
+    const seed = new pg.Client({ connectionString: connectionStrings.bootstrap });
+    await seed.connect();
+    try {
+      await seed.query(
+        `INSERT INTO app.users (id, email, name, is_instance_admin)
+         VALUES
+           ($1, 'trigger-non-admin@test.test', 'Non Admin', false),
+           ($2, 'trigger-admin@test.test',     'Admin',     true)`,
+        [ids.userA, ids.adminUser]
+      );
+    } finally {
+      await seed.end();
+    }
+  });
+
+  it("rejects non-admin self-escalation of is_instance_admin", async () => {
+    const client = new pg.Client({ connectionString: connectionStrings.app });
+    await client.connect();
+    try {
+      await client.query("BEGIN");
+      await client.query(`SET LOCAL app.actor_user_id = '${ids.userA}'`);
+      await expect(
+        client.query(`UPDATE app.users SET is_instance_admin = true WHERE id = $1`, [ids.userA])
+      ).rejects.toThrow(/permission denied/i);
+    } finally {
+      await client.query("ROLLBACK").catch(() => undefined);
+      await client.end();
+    }
+  });
+
+  it("allows an active admin to change is_instance_admin on another user", async () => {
+    const client = new pg.Client({ connectionString: connectionStrings.app });
+    await client.connect();
+    try {
+      await client.query("BEGIN");
+      await client.query(`SET LOCAL app.actor_user_id = '${ids.adminUser}'`);
+      const result = await client.query(
+        `UPDATE app.users SET is_instance_admin = false WHERE id = $1`,
+        [ids.userA]
+      );
+      expect(result.rowCount).toBe(1);
+    } finally {
+      await client.query("ROLLBACK").catch(() => undefined);
+      await client.end();
+    }
+  });
+
+  it("allows non-admin to update safe columns on their own row", async () => {
+    const client = new pg.Client({ connectionString: connectionStrings.app });
+    await client.connect();
+    try {
+      await client.query("BEGIN");
+      await client.query(`SET LOCAL app.actor_user_id = '${ids.userA}'`);
+      const result = await client.query(
+        `UPDATE app.users SET name = 'Updated Name' WHERE id = $1`,
+        [ids.userA]
+      );
+      expect(result.rowCount).toBe(1);
+    } finally {
+      await client.query("ROLLBACK").catch(() => undefined);
+      await client.end();
+    }
+  });
+});
+
+describe("users_guard_admin_flag bootstrap exemption (#97)", () => {
+  it("allows non-admin self-promotion when no admins exist (single user)", async () => {
+    await resetEmptyFoundationDatabase();
+    const seed = new pg.Client({ connectionString: connectionStrings.bootstrap });
+    await seed.connect();
+    try {
+      await seed.query(
+        `INSERT INTO app.users (id, email, name, is_instance_admin)
+         VALUES ($1, 'bootstrap-only@test.test', 'Bootstrap', false)`,
+        [ids.userA]
+      );
+    } finally {
+      await seed.end();
+    }
+
+    const client = new pg.Client({ connectionString: connectionStrings.app });
+    await client.connect();
+    try {
+      await client.query("BEGIN");
+      await client.query(`SET LOCAL app.actor_user_id = '${ids.userA}'`);
+      const result = await client.query(
+        `UPDATE app.users SET is_instance_admin = true WHERE id = $1`,
+        [ids.userA]
+      );
+      expect(result.rowCount).toBe(1);
+    } finally {
+      await client.query("ROLLBACK").catch(() => undefined);
+      await client.end();
+    }
+  });
+
+  it("allows non-admin self-promotion when multiple non-admin users exist but no admins", async () => {
+    await resetEmptyFoundationDatabase();
+    const seed = new pg.Client({ connectionString: connectionStrings.bootstrap });
+    await seed.connect();
+    try {
+      await seed.query(
+        `INSERT INTO app.users (id, email, name, is_instance_admin)
+         VALUES
+           ($1, 'no-admin-a@test.test', 'No Admin A', false),
+           ($2, 'no-admin-b@test.test', 'No Admin B', false)`,
+        [ids.userA, ids.userB]
+      );
+    } finally {
+      await seed.end();
+    }
+
+    const client = new pg.Client({ connectionString: connectionStrings.app });
+    await client.connect();
+    try {
+      await client.query("BEGIN");
+      await client.query(`SET LOCAL app.actor_user_id = '${ids.userA}'`);
+      const result = await client.query(
+        `UPDATE app.users SET is_instance_admin = true WHERE id = $1`,
+        [ids.userA]
+      );
+      expect(result.rowCount).toBe(1);
+    } finally {
+      await client.query("ROLLBACK").catch(() => undefined);
+      await client.end();
+    }
   });
 });
 
