@@ -1,7 +1,7 @@
 # Coordination Run — <run-id>
 
 **Date:** <YYYY-MM-DD>
-**Coordinator lock:** label `Coordinator` = pane `<pane-id>` (single-coordinator lock — exactly one pane holds this label for the life of the run; agents escalate to the **label** (routing), the coordinator merges only when its own `$HERDR_PANE_ID` matches this recorded **pane-id** (authority))
+**Coordinator lock:** label `Coordinator`, **stable anchor = Claude session id `<session-id>`** (match `agent_session.value` in `herdr pane list`). Single-coordinator lock — exactly one pane labelled `Coordinator` whose session id matches this anchor holds authority for the life of the run. ⚠️ **Pane numbers (`w…-N`) reflow on every restart/split/reap — do NOT trust any pane number written in this file as an identifier; resolve the pane fresh by label+session at read time.** Agents escalate to the **label** (routing, re-claimable); the coordinator merges only when its own pane's **session id** (immutable, NOT the pane number) matches this recorded anchor.
 **Merge policy:** autonomous-after-verified-QA for `routine`/`sensitive`; **`security`-tier needs Ben's explicit merge sign-off**
 **Relay threshold:** security-tier merge → relay immediately after Phase 3 step 7; routine/sensitive `merges_since_relay` ≥ 2 → relay. No deferral. Compaction summary = already past safe → relay, merge nothing.
 **merges_since_relay:** 0

@@ -120,11 +120,19 @@ a stale `Coordinator`-labelled pane woke on an agent's escalation and ran a para
 2. Verify uniqueness: `herdr pane list` must show **exactly one** pane labelled `Coordinator` (you).
    If another **active** pane already holds it, you are a DUPLICATE — **stand down**, message that
    pane, and do NOT run a second coordinate loop on the same run.
-3. Record the lock in the run manifest as **pane-id + label** `Coordinator`. Authority is bound to
-   the **pane-id**, not the label: the label is *routing* (stable for agents to address), the
-   recorded `$HERDR_PANE_ID` is *authority* (who is actually allowed to merge). A label is a
-   spoofable string a stale pane can grab; the pane-id is not. Agents escalate to the label; **you
-   re-confirm your own pane-id against the manifest lock line before every merge** (Phase 3, step 0).
+3. Record the lock in the run manifest as **Claude session id + label** `Coordinator`. There are
+   **three** identifiers and only one is authority:
+   - **label** (`Coordinator`) = *routing* — stable string agents address; **re-claimable** (a stale
+     pane can grab it), so NOT authority.
+   - **pane number** (`w…-N`) = *ephemeral* — these **reflow on every restart / split / reap** and
+     renumber repeatedly across a long run (proven in 2026-06-11-audit-remediation, which restarted
+     many times). **Never trust a `w…-N` number written in the manifest as an identifier — it is
+     stale the moment a pane closes.**
+   - **Claude session id** (`agent_session.value` in `herdr pane list`, e.g.
+     `515ad953-…`) = *authority* — immutable for the life of the session, survives pane renumbering.
+   Bind authority to the **session id**. Agents escalate to the label; **you re-confirm your own
+   session id against the manifest lock line before every merge** (Phase 3, step 0). Resolve your
+   pane fresh by label+session at read time — do not carry a pane number forward.
 
 ## Phase 0 — Readiness (with Ben)
 
@@ -157,16 +165,25 @@ predecessor to land):
    ```
 2. **Write the handoff doc** from `templates/handoff.md` (fill spec, worktree/branch, YOUR Herdr
    label, threshold, collision notes) → commit it so the agent can read it.
-3. **Spawn the build agent** into the run's **build tab — window 1** (`--tab <workspace>:1`).
-   **Tab discipline (Ben, 2026-06-10):** build/QA agents live in window 1; the coordinator's own
-   window stays coordinator-only — the ONLY thing you may spawn there is your own relay successor.
+3. **Spawn the build agent** into the run's shared **"Agents" tab** (one tab holds ALL build *and*
+   QA agents — `--tab <workspace>:<agents-tab>`). **Tab discipline (Ben, 2026-06-10):** build/QA
+   agents share that one tab; the coordinator's own window stays coordinator-only — the ONLY thing
+   you may spawn there is your own relay successor. **Grid layout by wave size:** lay the Agents tab
+   out as **2×2** for a 4-agent wave, **3×1** for a 3-agent wave (split with
+   `herdr pane split <pane> --direction down|right --cwd <path> --no-focus`).
    ```bash
-   herdr agent start "<Label>" --tab <workspace>:1 --cwd $(pwd)/.claude/worktrees/<slug> --no-focus \
+   herdr agent start "<Label>" --tab <workspace>:<agents-tab> --cwd $(pwd)/.claude/worktrees/<slug> --no-focus \
      -- claude --permission-mode bypassPermissions \
      "Build <slug> in this fresh worktree. STEP 1 pnpm install. STEP 2 read docs/.../<handoff>.md IN FULL and follow it via the coordinated-build skill. Begin now."
    ```
 4. **Verify it actually started** (not stuck on a trust prompt): `herdr pane read <pane> --source
    visible --lines 20`; answer prompts with `herdr pane send-keys <pane> Enter`.
+
+   **⚠️ Messaging agents — two-call path.** In some environments `herdr agent send` / `herdr pane
+   message` silently fail to deliver (the agent never sees Enter, so the message sits unsent — Ben
+   flagged this 2026-06-10). The **reliable** path is two separate calls: `herdr pane send-text
+   <pane> "<msg>"` **followed by** `herdr pane send-keys <pane> Enter`. Use that for every message to
+   an agent pane.
 5. **Record** agent label/pane/branch in the manifest; set status `building`.
 
 Launch parallel-safe specs together; hold serialized ones until their predecessor merges.
@@ -189,6 +206,12 @@ between events to catch silent failures.
   few minutes `herdr pane list` (look for `agent_status` unknown/blocked, panes that died) and
   spot-`herdr pane read` anything suspicious — catch trust-prompt stalls and silent crashes a push
   would never report. Nudge or, if dead, re-spawn from the handoff doc.
+  **⚠️ Never block on `herdr pane run <pane> 'sleep N'` poll-loops** (proven wasteful in
+  2026-06-11-audit-remediation — six blocking 45s iterations re-sending context each turn). To wait,
+  use **`ScheduleWakeup`** for fixed-interval polling, **`Monitor`** for an event-driven condition,
+  or a **harness-tracked background task** (`run_in_background`) that auto-notifies on completion —
+  all let you sleep without burning a turn per tick. Background-poll a Herdr PR that doesn't
+  auto-notify, and let native background `Agent` QA wake you on its own.
 - **On an agent relay** (it hit its countable-event threshold or saw a compaction summary): it
   spawns its own successor in the same worktree and asks to be reaped — confirm the successor is
   driving (`herdr pane read`), then **reap** the old pane and update the manifest (pane id changed).
@@ -199,11 +222,13 @@ between events to catch silent failures.
 When an agent reports **done** (PR open + its own green evidence — which you do NOT trust on its
 own):
 
-0. **Pane-id authority check (before EVERY merge).** Re-read the manifest lock line and confirm
-   your own `$HERDR_PANE_ID` matches the recorded coordinator pane-id. If it does **not** match,
-   you are not the authoritative coordinator — **stand down, do not merge**, message the
-   `Coordinator` label. Label = routing; pane-id = authority. (A stale duplicate once grabbed the
-   label and ran a parallel merge loop — the pane-id check is what stops that.)
+0. **Session-id authority check (before EVERY merge).** Re-read the manifest lock line and confirm
+   your own Claude session id (your pane's `agent_session.value` in `herdr pane list`) matches the
+   recorded coordinator session id. If it does **not** match, you are not the authoritative
+   coordinator — **stand down, do not merge**, message the `Coordinator` label. Label = routing
+   (re-claimable); pane number = ephemeral (reflows); **session id = authority** (immutable). (A
+   stale duplicate once grabbed the label and ran a parallel merge loop — the session-id check is
+   what stops that, and unlike a pane number it does not renumber across restarts.)
 
 1. **Spawn an ephemeral `coordinated-qa` agent** on the PR branch via the **`Agent` tool**,
    passing the spec's **risk tier**. QA **trusts CI for the mechanical gate**
@@ -313,8 +338,14 @@ already failed.
   verdict. This is the whole point.
 - **Merging on a build agent's self-report.** Merge only after an independent QA agent's verified
   green on the *integrated* result.
-- **Merging without re-confirming your pane-id** against the manifest lock line (Phase 3 step 0).
-  A matching label is not authority — a stale pane can hold the label.
+- **Merging without re-confirming your session id** against the manifest lock line (Phase 3 step 0).
+  A matching label is not authority (re-claimable); a pane number is not authority (it reflows) —
+  only the immutable Claude session id is.
+- **A build agent touching `docs/coordination/`** (coordinator-only), or running repo-wide
+  `pnpm format` + broad `git add` instead of scoping format/staging to its own changed paths — it
+  will sweep another session's uncommitted work. Encode both bans in every handoff doc.
+- **A blocking `herdr pane run <pane> 'sleep N'` poll-loop** to wait on anything — use
+  `ScheduleWakeup` / `Monitor` / a background task instead (Phase 2).
 - **Auto-merging a `security`-tier PR**, or merging it without Ben's explicit sign-off and a posted
   `gh pr comment` verdict. Content triggers put it there; the human gate is non-negotiable.
 - **Waiving a red CI check** without proving it red on `main` @ same SHA, recording it in
@@ -332,13 +363,13 @@ already failed.
 | ---- | --------------- |
 | Manifest / handoff templates | `.claude/skills/coordinate/templates/{manifest,handoff}.md` |
 | Isolated worktree | `git worktree add .claude/worktrees/<slug> -b <slug> origin/main` |
-| Spawn build agent (window 1!) | `herdr agent start "<Label>" --tab <ws>:1 --cwd <path> --no-focus -- claude …` |
+| Spawn build agent (shared Agents tab) | `herdr agent start "<Label>" --tab <ws>:<agents-tab> --cwd <path> --no-focus -- claude …` (2×2 for 4-agent / 3×1 for 3-agent waves) |
 | Spawn QA agent (native subagent) | `Agent(description: "QA: <slug>", subagent_type: "coordinated-qa", run_in_background: true, isolation: "worktree", prompt: "...")` |
 | Spawn relay coordinator (own tab OK) | `herdr agent start "Coordinator" --tab <own tab> …` — only successor may share your window |
-| Talk to an agent | `herdr-pane-message` (`herdr agent send "<label>" "<text>"`) |
+| Talk to an agent (two-call path) | `herdr pane send-text <pane> "<msg>"` **then** `herdr pane send-keys <pane> Enter` (`herdr agent send`/`pane message` can silently not-send) |
 | Liveness sweep | `herdr pane list` · `herdr pane read <pane> --source visible --lines 20` |
 | Reap a spent pane / worktree | kill pane · `git worktree remove .claude/worktrees/<slug>` |
-| Pane-id authority (pre-merge) | re-read manifest lock line · confirm `$HERDR_PANE_ID` matches |
+| Session-id authority (pre-merge) | re-read manifest lock line · confirm your pane's `agent_session.value` matches (NOT the pane number — it reflows) |
 | CI gate (don't re-run) | `gh pr checks <PR>` — QA spends tokens on review, not re-execution |
 | Merge + close | `gh pr merge <PR> --squash --delete-branch` · `gh issue close` · board move |
 | Security-tier merge | spawn Opus QA → `gh pr comment` verdict → Ben sign-off → merge |
