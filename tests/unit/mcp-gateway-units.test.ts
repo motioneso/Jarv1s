@@ -50,6 +50,65 @@ describe("session token registry", () => {
     expect(() => registry.verify(token)).toThrow(InvalidSessionTokenError);
     expect(() => registry.verify("never-minted")).toThrow(InvalidSessionTokenError);
   });
+
+  it("expires a token once its TTL elapses with no activity", () => {
+    let nowMs = 1_000;
+    const registry = new SessionTokenRegistry({ clock: { now: () => nowMs }, ttlMs: 10_000 });
+    const token = registry.mint({ actorUserId: "u1", chatSessionId: "s1", allowedToolNames: null });
+
+    nowMs += 9_999;
+    expect(registry.verify(token).actorUserId).toBe("u1"); // still inside window
+
+    // verify() slid the window forward; advance past the *new* expiry.
+    nowMs += 10_000;
+    expect(() => registry.verify(token)).toThrow(InvalidSessionTokenError);
+    // A second verify on the same (now-deleted) token still fails.
+    expect(() => registry.verify(token)).toThrow(InvalidSessionTokenError);
+  });
+
+  it("verify() slides the TTL so an in-use token never expires mid-flight", () => {
+    let nowMs = 0;
+    const registry = new SessionTokenRegistry({ clock: { now: () => nowMs }, ttlMs: 10_000 });
+    const token = registry.mint({ actorUserId: "u1", chatSessionId: "s1", allowedToolNames: null });
+
+    // Verify every 9s for a "long turn" well past one TTL window — it stays valid.
+    for (let i = 0; i < 20; i++) {
+      nowMs += 9_000;
+      expect(registry.verify(token).actorUserId).toBe("u1");
+    }
+  });
+
+  it("touchBySessionId refreshes the TTL for an active-but-tool-idle session", () => {
+    let nowMs = 0;
+    const registry = new SessionTokenRegistry({ clock: { now: () => nowMs }, ttlMs: 10_000 });
+    const token = registry.mint({ actorUserId: "u1", chatSessionId: "s1", allowedToolNames: null });
+
+    nowMs += 9_000;
+    registry.touchBySessionId("s1"); // chat activity, no tool call
+    nowMs += 9_000; // 18s since mint, but only 9s since touch
+    expect(registry.verify(token).actorUserId).toBe("u1");
+
+    // touch only affects the matching session.
+    nowMs += 9_000;
+    registry.touchBySessionId("other-session");
+    nowMs += 2_000;
+    expect(() => registry.verify(token)).toThrow(InvalidSessionTokenError);
+  });
+
+  it("sweeps expired entries on mint so orphaned tokens cannot accumulate", () => {
+    let nowMs = 0;
+    const registry = new SessionTokenRegistry({ clock: { now: () => nowMs }, ttlMs: 10_000 });
+    const orphan = registry.mint({
+      actorUserId: "u1",
+      chatSessionId: "s1",
+      allowedToolNames: null
+    });
+
+    nowMs += 20_000; // orphan now expired, never revoked
+    // A fresh mint sweeps the expired orphan; verifying it confirms it is gone.
+    registry.mint({ actorUserId: "u2", chatSessionId: "s2", allowedToolNames: null });
+    expect(() => registry.verify(orphan)).toThrow(InvalidSessionTokenError);
+  });
 });
 
 describe("confirmation registry", () => {

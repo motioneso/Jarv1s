@@ -102,7 +102,8 @@ export function registerChatRoutes(
                 mcpServerUrl
               };
             },
-            revoke: (chatSessionId: string) => tokens!.revokeBySessionId(chatSessionId)
+            revoke: (chatSessionId: string) => tokens!.revokeBySessionId(chatSessionId),
+            touch: (chatSessionId: string) => tokens!.touchBySessionId(chatSessionId)
           }
         : undefined
   });
