@@ -17,6 +17,8 @@ import {
   RLS_PROBE_QUEUE,
   createPgBossClient,
   registerDataContextWorker,
+  sendJob,
+  type ActorScopedJobPayload,
   type RlsProbeJobPayload
 } from "@jarv1s/jobs";
 import { connectionStrings, ids, resetFoundationDatabase } from "./test-database.js";
@@ -420,6 +422,35 @@ describe("MVP foundation scaffold", () => {
     } finally {
       await client.end();
     }
+  });
+});
+
+describe("sendJob send-side guard (#157)", () => {
+  it("throws when payload contains a forbidden key 'content'", async () => {
+    const fakeBoss = { send: async () => "fake-id" } as unknown as PgBoss;
+    await expect(
+      sendJob(fakeBoss, "test-queue", {
+        actorUserId: "00000000-0000-4000-8000-000000000001",
+        content: "secret"
+      } as unknown as ActorScopedJobPayload)
+    ).rejects.toThrow("Job payload contains non-metadata keys: content");
+  });
+
+  it("does not throw for a valid metadata-only payload", async () => {
+    let sent = false;
+    const fakeBoss = {
+      send: async () => {
+        sent = true;
+        return "fake-id";
+      }
+    } as unknown as PgBoss;
+    await sendJob(fakeBoss, "test-queue", {
+      actorUserId: "00000000-0000-4000-8000-000000000001",
+      taskId: "some-task-id",
+      requestedStatus: "done",
+      idempotencyKey: "k1"
+    } as unknown as ActorScopedJobPayload);
+    expect(sent).toBe(true);
   });
 });
 
