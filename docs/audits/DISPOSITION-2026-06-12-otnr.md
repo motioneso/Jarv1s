@@ -186,9 +186,23 @@ Recommended order — security/RLS first, then defense-in-depth, then hygiene:
    connectors violation. Fable verified zero root-handle queries remain in connectors, exact
    401/403/200 parity, auth-before-work ordering, dead-code removal safe, 59 integration tests green.
 
+5. **B4 + B5** crypto cipher dedup + registry TTL — ✅ **MERGED (PR #194 @ `1153ee6`, Fable
+   security-QA APPROVE, 2026-06-12).** B4: hoisted one generic `JsonSecretCipher` + `EncryptedSecret`
+   envelope into `@jarv1s/db` (`secret-cipher.ts`); `AiSecretCipher`/`ConnectorSecretCipher` reduced to
+   thin label-binding subclasses + type aliases + env factories — byte-for-byte behavior-preserving
+   (Fable mechanically diffed both old cipher bodies against the shared base: BODIES-IDENTICAL modulo
+   label templating; all historical error strings reproduce exactly via the `label`/capitalized-label
+   trick). ~150 duplicate lines removed. B5: `SessionTokenRegistry` gained an injectable clock + 60-min
+   TTL backstop (`verify()` lazily expires + slides; `mint()` sweeps; new `touchBySessionId()` wired
+   through runtime/routes to the chat manager's `lastActivity` so token-liveness ≡ session-liveness — no
+   spurious 401 for a live-but-tool-idle session, guaranteed death for orphans). Zero-arg ctor preserved.
+   Fable non-blocking follow-ups (B5-future): `reapIdle()` is defined but never scheduled in production
+   (main-branch gap, not this PR — one degraded self-healing turn after >60-min idle); consider an
+   interval scheduler or touch-at-turn-start, and a one-line comment on `touchBySessionId` resurrecting
+   an expired-but-unswept entry (only reachable from the actor's own authenticated activity → benign).
+
 **Then re-assess and continue:**
 
-5. **B4 + B5** crypto cipher dedup + registry TTL (sensitive).
 6. **B7** React Query user-scoping (sensitive, frontend).
 7. **C** `validateToolInput`, `#94` TOCTOU, `x-forwarded-proto` (sensitive).
 8. **B6** dead-surface deletion (routine/sensitive).

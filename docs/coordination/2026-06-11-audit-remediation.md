@@ -93,10 +93,24 @@ each slice inline; Fable (model:fable) substitutes for Ben at every security gat
   Fable security QA **APPROVE / MERGE-READY: YES** (5 hard items VERIFIED: zero root-handle
   queries remain in connectors, exact 401/403/200 parity, auth-before-work ordering, dead-code
   removal safe, 59 integration tests green). settings #156 was already fixed by D #188 → B3 =
-  connectors only. (Code-only, spine unchanged → **HEAD 0062**.) Main CI on `dff5301`: in flight
-  at relay → verify green.
-- **▶ NEXT: B4 + B5** crypto cipher dedup + registry TTL (sensitive). Then B7
-  (React Query user-scoping), C-sensitive, B6, B8, routine.
+  connectors only. (Code-only, spine unchanged → **HEAD 0062**.) Main CI on `dff5301`: confirmed green.
+- **✅ Batch 2 / B4 + B5 MERGED** — PR #194 @ `1153ee6`. **B4**: hoisted generic `JsonSecretCipher`
+  - `EncryptedSecret` envelope into `@jarv1s/db` (`packages/db/src/secret-cipher.ts`);
+    `AiSecretCipher`/`ConnectorSecretCipher` reduced to thin label-binding subclasses + type aliases +
+    env factories. Byte-for-byte behavior-preserving — Fable mechanically diffed both old cipher bodies
+    vs the shared base (BODIES-IDENTICAL modulo label templating); all historical error strings exact via
+    the `label`/capitalized-label trick. ~150 dup lines removed. **B5**: `SessionTokenRegistry` gained an
+    injectable clock + 60-min TTL backstop (`verify()` lazily expires + slides; `mint()` sweeps; new
+    `touchBySessionId()` wired runtime→routes→manager `lastActivity` so token-liveness ≡ session-liveness;
+    no spurious 401 for live-but-tool-idle, guaranteed orphan death). Zero-arg ctor preserved. Fable
+    security QA **APPROVE** (B4 behavior-preserving, B5 sound; no secret/token reaches logs or errors;
+    scope = 9 files, no migration). B5-future follow-ups (non-blocking): `reapIdle()` defined but never
+    scheduled in production (main gap — one self-healing degraded turn after >60-min idle) → consider an
+    interval scheduler or touch-at-turn-start; one-line comment on `touchBySessionId` resurrecting an
+    expired-but-unswept entry (benign — actor's own authenticated activity only). (Code-only, spine
+    unchanged → **HEAD 0062**.) Main CI on `1153ee6` confirmed green (`completed/success`).
+- **▶ NEXT: B7** React Query user-scoping (sensitive, frontend). Then C-sensitive
+  (`validateToolInput`/#133 residual, #94 TOCTOU, x-forwarded-proto), B6, B8, C-routine.
 
 ---
 
