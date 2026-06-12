@@ -145,12 +145,23 @@ backup/restore URL creds, point `smoke:compose` at a DB-readiness endpoint, deco
 
 Recommended order — security/RLS first, then defense-in-depth, then hygiene:
 
-**Batch 1 (security tier — launch first, one slice; Fable-approved 2026-06-12):**
-- **B2** RLS hardening migration — `TO`-role on chat/memory + RLS on `instance_settings` &
-  `admin_audit_events` + `task_tag_assignments` ownership predicate (all in one new migration file).
-- **C** folded-in security items: `/api/bootstrap/status` → `needsBootstrap` bool only (drop
-  `userCount`); add social-auth sign-in/callback prefixes to `THROTTLED_AUTH_PATHS`.
-- Cross-model Opus QA required (RLS migration). Smallest blast radius, highest invariant value.
+**Batch 1 (security tier) — ✅ DONE (PR #191, Fable security-QA APPROVED @ `d0e71b5`, 2026-06-12):**
+- **B2** RLS hardening — split across 4 migration files (global ordering by landing): `0059`
+  ENABLE+FORCE on `instance_settings` (writes admin-gated) & `admin_audit_events` (append-only,
+  admin-only SELECT); `0060` `TO jarvis_app_runtime` on chat_memory_settings; `0061`
+  `TO app+worker` on chat_memory_facts; `0062` `task_tag_assignments` ownership predicate
+  (USING+WITH CHECK).
+- **C** folded-in: `/api/bootstrap/status` → `needsBootstrap` bool only (dropped `userCount`,
+  OTNR-P4 #122); `/api/auth/sign-in/social` added to `THROTTLED_AUTH_PATHS` (callback GET left
+  unthrottled by design).
+- Test sites: new `setInstanceSetting()` superuser helper replaced 9 raw `appDb` setting writes
+  that the admin-gated policy would silently no-op.
+- **Fable QA caught a real gap** (fixed in `d0e71b5`): `audit-release-hardening.ts` still exempted
+  the two admin tables from FORCE-RLS coverage with now-false rationales → gate verified nothing
+  about the 0059 posture. Added an `adminRlsTables` category asserting `rlsEnabled && forceRls`.
+- Verified: typecheck/lint/format/file-size/`audit:release-hardening` green; integration suites
+  (auth-settings, multi-user-isolation, foundation, release-hardening, api-rate-limit, memory,
+  chat-recall, chat-live, tasks-73) green. _(Pending: main CI green → merge → relay.)_
 
 **Then re-assess and continue:**
 
