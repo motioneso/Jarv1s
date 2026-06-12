@@ -248,7 +248,7 @@ export class SettingsRepository {
     }
   }
 
-  private async insertAuditEvent(
+  async insertAuditEvent(
     scopedDb: DataContextDb,
     input: {
       readonly actorUserId: string;
@@ -273,4 +273,24 @@ export class SettingsRepository {
       })
       .execute();
   }
+}
+
+/**
+ * Public cross-module API for recording admin audit events.
+ * Called by packages/auth via @jarv1s/settings — auth must never import
+ * SettingsRepository directly or write app.admin_audit_events directly.
+ */
+export async function recordAuditEvent(
+  scopedDb: DataContextDb,
+  event: {
+    readonly actorUserId: string;
+    readonly action: string;
+    readonly targetType: string; // NOT NULL in schema — always required
+    readonly targetId: string;
+    readonly metadata: Record<string, unknown>;
+    readonly requestId: string;
+  }
+): Promise<void> {
+  assertDataContextDb(scopedDb);
+  await new SettingsRepository().insertAuditEvent(scopedDb, event);
 }
