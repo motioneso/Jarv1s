@@ -4,7 +4,7 @@
 **Implementation plan (pre-written + Fable-reviewed — DO NOT rewrite):** `docs/superpowers/plans/2026-06-12-audit-slice-i-portability-tail.md`
 **GitHub issues:** #170 (export omits private memory/structured-state), #149 (handleRouteError dead-401), #140 (list/parent-task ownership check), #166 (foundation test share hygiene, LOW).
 **Risk tier:** `sensitive` (#170 user-data export) + `routine` (#149/#140/#166). Treated as `security`-tier for QA in this run (#170 is a privacy/data-egress path) — built to that bar.
-**Worktree:** `/home/ben/Jarv1s/.claude/worktrees/audit-slice-i`   **Branch:** `audit-slice-i` (off `origin/main` @ e0a9e2a)
+**Worktree:** `/home/ben/Jarv1s/.claude/worktrees/audit-slice-i` **Branch:** `audit-slice-i` (off `origin/main` @ e0a9e2a)
 **Build skill path (absolute):** `/home/ben/Jarv1s/.claude/skills/coordinated-build/SKILL.md`
 **Coordinator label:** `Coordinator` (UNIQUE — escalate via `herdr-pane-message`; verify `herdr pane list` shows exactly one such pane before messaging.)
 **Relay threshold:** ~80–100k tokens OR a compaction summary in your own context → relay immediately.
