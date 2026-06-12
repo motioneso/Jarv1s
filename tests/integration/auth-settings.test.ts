@@ -562,6 +562,116 @@ describe("multi-user registration + lifecycle (Phase 2 Slice A)", () => {
       )
     ).rejects.toThrow(/last.*admin/i);
   });
+
+  it("setUserAdmin promote succeeds under withDataContext (0055 trigger passes)", async () => {
+    // First sign-up is the bootstrap owner + active admin (the actor that performs the promote).
+    const actorRes = await signUp({
+      name: "Promote Actor",
+      email: "promote-actor@example.com",
+      password: "password12345"
+    });
+    const actorId = actorRes.json<{ user: { id: string } }>().user.id;
+
+    // Disable approval so the second sign-up lands active, then create the non-admin target.
+    await appDb
+      .updateTable("app.instance_settings")
+      .set({ value: { value: false }, updated_at: new Date() })
+      .where("key", "=", "registration.requires_approval")
+      .execute();
+    const targetRes = await signUp({
+      name: "Promote Target",
+      email: "promote-target@example.com",
+      password: "password12345"
+    });
+    const targetId = targetRes.json<{ user: { id: string } }>().user.id;
+
+    // Ensure target is an active non-admin (actor is already an active admin as bootstrap owner).
+    const seed = new pg.Client({ connectionString: connectionStrings.bootstrap });
+    await seed.connect();
+    await seed.query(
+      `UPDATE app.users SET is_instance_admin = false, status = 'active', updated_at = now() WHERE id = $1`,
+      [targetId]
+    );
+    await seed.end();
+
+    const repo = new SettingsRepository();
+    const dataCtx = new DataContextRunner(appDb);
+    const promoted = await dataCtx.withDataContext(
+      { actorUserId: actorId, requestId: "promote-1" },
+      (scopedDb) =>
+        repo.setUserAdmin(scopedDb, {
+          targetUserId: targetId,
+          isInstanceAdmin: true,
+          actorUserId: actorId,
+          requestId: "promote-1"
+        })
+    );
+
+    // The UPDATE must have passed the 0055 trigger under the GUC set by withDataContext.
+    expect(promoted.is_instance_admin).toBe(true);
+    expect(promoted.id).toBe(targetId);
+
+    // Confirm the row was actually persisted (defends against a silent GUC fail-open regression).
+    const verify = new pg.Client({ connectionString: connectionStrings.bootstrap });
+    await verify.connect();
+    const row = await verify.query(`SELECT is_instance_admin FROM app.users WHERE id = $1`, [
+      targetId
+    ]);
+    await verify.end();
+    expect(row.rows[0]?.is_instance_admin).toBe(true);
+  });
+
+  it("setUserAdmin self-escalation rejected by 0055 trigger when actor is non-admin (deny path)", async () => {
+    // First sign-up becomes the bootstrap owner and STAYS as the active admin.
+    // This ensures app.any_admin_exists() returns TRUE so the trigger's bootstrap-recovery
+    // exemption (which allows self-promotion when no admin exists) does NOT apply.
+    await signUp({
+      name: "Deny Path Owner",
+      email: "deny-path-owner@example.com",
+      password: "password12345"
+    });
+    // bootstrap owner is automatically active + admin — no seed needed.
+
+    // Disable approval so the second sign-up lands as active.
+    await appDb
+      .updateTable("app.instance_settings")
+      .set({ value: { value: false }, updated_at: new Date() })
+      .where("key", "=", "registration.requires_approval")
+      .execute();
+
+    const nonAdminRes = await signUp({
+      name: "Non-Admin Escalator",
+      email: "deny-path-escalator@example.com",
+      password: "password12345"
+    });
+    const nonAdminId = nonAdminRes.json<{ user: { id: string } }>().user.id;
+
+    // Confirm the second user is active and non-admin.
+    const seed = new pg.Client({ connectionString: connectionStrings.bootstrap });
+    await seed.connect();
+    await seed.query(
+      `UPDATE app.users SET is_instance_admin = false, status = 'active', updated_at = now() WHERE id = $1`,
+      [nonAdminId]
+    );
+    await seed.end();
+
+    const repo = new SettingsRepository();
+    const dataCtx = new DataContextRunner(appDb);
+
+    // Non-admin tries to promote themselves — 0055 trigger fires (any_admin_exists = TRUE)
+    // and rejects with 42501. If GUC regresses to NULL, trigger fails open → promotion succeeds
+    // → this assertion goes RED, catching the regression.
+    await expect(
+      dataCtx.withDataContext({ actorUserId: nonAdminId, requestId: "deny-1" }, (scopedDb) =>
+        repo.setUserAdmin(scopedDb, {
+          targetUserId: nonAdminId,
+          isInstanceAdmin: true,
+          actorUserId: nonAdminId,
+          requestId: "deny-1"
+        })
+      )
+    ).rejects.toThrow(/42501|permission denied/i);
+  });
 });
 
 describe("users_guard_admin_flag trigger (#97)", () => {
@@ -725,3 +835,22 @@ function restoreAuthEnv(env: Record<string, string | undefined>): void {
     process.env[key] = value;
   }
 }
+
+describe("SettingsRepository assertDataContextDb guard", () => {
+  it("throws 'Repository access requires withDataContext' when passed an unbranded handle", async () => {
+    const repo = new SettingsRepository();
+    const fakeDb = {} as Parameters<typeof repo.getUserById>[0];
+    await expect(repo.getUserById(fakeDb, "any-id")).rejects.toThrow(
+      "Repository access requires withDataContext"
+    );
+    await expect(repo.listUsers(fakeDb)).rejects.toThrow(
+      "Repository access requires withDataContext"
+    );
+    await expect(repo.listInstanceSettings(fakeDb)).rejects.toThrow(
+      "Repository access requires withDataContext"
+    );
+    await expect(repo.listAdminAuditEvents(fakeDb)).rejects.toThrow(
+      "Repository access requires withDataContext"
+    );
+  });
+});
