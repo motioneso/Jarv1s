@@ -3,7 +3,8 @@
 **Date:** <YYYY-MM-DD>
 **Coordinator lock:** label `Coordinator` = pane `<pane-id>` (single-coordinator lock — exactly one pane holds this label for the life of the run; agents escalate to the **label** (routing), the coordinator merges only when its own `$HERDR_PANE_ID` matches this recorded **pane-id** (authority))
 **Merge policy:** autonomous-after-verified-QA for `routine`/`sensitive`; **`security`-tier needs Ben's explicit merge sign-off**
-**Relay threshold:** countable events — ~80–100k tokens OR every 2–3 merges OR a compaction summary seen (then flush + relay, merge nothing first)
+**Relay threshold:** security-tier merge → relay immediately after Phase 3 step 7; routine/sensitive `merges_since_relay` ≥ 2 → relay. No deferral. Compaction summary = already past safe → relay, merge nothing.
+**merges_since_relay:** 0
 
 > This is the coordinator's externalized memory. Keep it CURRENT — it is what lets a fresh
 > coordinator adopt this run after a self-handoff. GitHub is the source of truth for
