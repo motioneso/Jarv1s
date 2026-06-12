@@ -38,9 +38,13 @@ describe("gateway policy", () => {
 describe("session token registry", () => {
   it("mints a token that resolves to its identity, and fails after revoke", () => {
     const registry = new SessionTokenRegistry();
-    const token = registry.mint({ actorUserId: "u1", chatSessionId: "s1" });
+    const token = registry.mint({ actorUserId: "u1", chatSessionId: "s1", allowedToolNames: null });
 
-    expect(registry.verify(token)).toEqual({ actorUserId: "u1", chatSessionId: "s1" });
+    expect(registry.verify(token)).toEqual({
+      actorUserId: "u1",
+      chatSessionId: "s1",
+      allowedToolNames: null
+    });
 
     registry.revoke(token);
     expect(() => registry.verify(token)).toThrow(InvalidSessionTokenError);

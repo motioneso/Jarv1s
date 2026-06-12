@@ -76,7 +76,8 @@ export async function registerBriefingsJobWorkers(
       const run = await repository.generateRun(scopedDb, job.data.definitionId, {
         moduleManifests: options.moduleManifests,
         runKind: job.data.runKind,
-        runId: job.data.briefingRunId
+        runId: job.data.briefingRunId,
+        jobId: job.id
       });
       const result = {
         definitionId: job.data.definitionId,

@@ -62,6 +62,7 @@ import {
   findAssistantToolFromManifests,
   listAssistantToolsFromManifests
 } from "./assistant-tools.js";
+import { ToolInputValidationError, validateToolInput } from "./gateway/input-validation.js";
 import { cliAvailable, type ProviderKind as CliProviderKind } from "./cli-availability.js";
 import { createAiSecretCipher, type AiSecretCipher } from "./crypto.js";
 import {
@@ -449,8 +450,11 @@ export function registerAiRoutes(
           });
         }
 
+        // Validate caller-supplied input before execution.
+        // Invariant: validateToolInput gates every caller-supplied-input execute call on REST paths.
+        const validatedInput = validateToolInput(manifestTool.inputSchema, body.input ?? {});
         const result = await dependencies.dataContext.withDataContext(accessContext, (scopedDb) =>
-          manifestTool.execute!(scopedDb, body.input ?? {}, {
+          manifestTool.execute!(scopedDb, validatedInput, {
             actorUserId: accessContext.actorUserId,
             requestId: accessContext.requestId ?? "",
             chatSessionId: ""
@@ -814,6 +818,10 @@ class HttpError extends Error {
 function handleRouteError(error: unknown, reply: FastifyReply) {
   if (error instanceof HttpError) {
     return reply.code(error.statusCode).send({ error: error.message });
+  }
+
+  if (error instanceof ToolInputValidationError) {
+    return reply.code(400).send({ error: error.message });
   }
 
   if (error instanceof Error) {

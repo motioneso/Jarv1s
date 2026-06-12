@@ -391,6 +391,25 @@ describe("AI read-only assistant tool execution foundation", () => {
     );
   });
 
+  it("returns HTTP 400 (not 500/200) when REST tool input violates the tool's inputSchema", async () => {
+    // The Fastify route schema and parseInvokeAssistantToolBody reject a NON-OBJECT input with 400
+    // BEFORE the handler runs — so a non-object payload can never reach validateToolInput.
+    // To exercise the NEW guard we must send a valid JSON OBJECT that still violates the TOOL's
+    // inputSchema. tasks.list declares listId: { type: "string" } (packages/tasks/src/manifest.ts).
+    // Passing listId: 123 (a number) fails the type check in validateToolInput.
+    const response = await server.inject({
+      method: "POST",
+      url: "/api/ai/assistant-tools/tasks.list/invoke",
+      headers: userAHeaders(),
+      payload: {
+        input: { listId: 123 }
+      }
+    });
+    expect(response.statusCode).toBe(400);
+    const body = response.json<{ error: string }>();
+    expect(body.error).toMatch(/Field listId must be a string/);
+  });
+
   it("does not return AI credentials, connector secrets, ciphertext, or pg-boss payload data", async () => {
     const providerResponse = await server.inject({
       method: "POST",

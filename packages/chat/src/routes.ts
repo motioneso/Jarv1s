@@ -89,10 +89,18 @@ export function registerChatRoutes(
     mcpTokenLifecycle:
       tokens && mcpServerUrl
         ? {
-            mint: (actorUserId: string) => ({
-              token: tokens!.mint({ actorUserId, chatSessionId: actorUserId }),
-              mcpServerUrl
-            }),
+            mint: (actorUserId: string) => {
+              // Capture the actor's current executable tool set as the per-session allowlist.
+              // Bare tool names (e.g. "example.read") — same format as tools/list and tools/call params.name.
+              // The mcp__jarvis__<name> prefix is a client-side CLI convention that never reaches the server.
+              const allowedToolNames = new Set(
+                gateway!.listToolsForActor(actorUserId).map((tool) => tool.name)
+              );
+              return {
+                token: tokens!.mint({ actorUserId, chatSessionId: actorUserId, allowedToolNames }),
+                mcpServerUrl
+              };
+            },
             revoke: (chatSessionId: string) => tokens!.revokeBySessionId(chatSessionId)
           }
         : undefined
