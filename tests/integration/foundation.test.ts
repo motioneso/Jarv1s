@@ -6,15 +6,19 @@ import pg from "pg";
 import {
   AuthSessionResolver,
   DataContextRunner,
+  assertUniqueMigrationVersions,
   createDatabase,
   type AccessContext,
-  type JarvisDatabase
+  type JarvisDatabase,
+  type MigrationFile
 } from "@jarv1s/db";
 import { RlsProbeRepository } from "@jarv1s/db/probes";
 import {
   RLS_PROBE_QUEUE,
   createPgBossClient,
   registerDataContextWorker,
+  sendJob,
+  type ActorScopedJobPayload,
   type RlsProbeJobPayload
 } from "@jarv1s/jobs";
 import { connectionStrings, ids, resetFoundationDatabase } from "./test-database.js";
@@ -148,7 +152,9 @@ describe("MVP foundation scaffold", () => {
         { version: "0053", name: "0053_users_guard_admin_flag.sql" },
         { version: "0054", name: "0054_worker_memory_rls.sql" },
         { version: "0055", name: "0055_users_guard_admin_flag_v2.sql" },
-        { version: "0056", name: "0056_drop_dead_workspace_subsystem.sql" }
+        { version: "0056", name: "0056_drop_dead_workspace_subsystem.sql" },
+        { version: "0057", name: "0057_revoke_app_runtime_chat_update.sql" },
+        { version: "0058", name: "0058_chat_threads_incognito_immutable.sql" }
       ]);
     } finally {
       await client.end();
@@ -415,6 +421,213 @@ describe("MVP foundation scaffold", () => {
         targetItemId: ids.itemBPrivate
       });
       expect(payloads.rows[0]?.data).not.toHaveProperty("body");
+    } finally {
+      await client.end();
+    }
+  });
+});
+
+describe("sendJob send-side guard (#157)", () => {
+  it("throws when payload contains a forbidden key 'content'", async () => {
+    const fakeBoss = { send: async () => "fake-id" } as unknown as PgBoss;
+    await expect(
+      sendJob(fakeBoss, "test-queue", {
+        actorUserId: "00000000-0000-4000-8000-000000000001",
+        content: "secret"
+      } as unknown as ActorScopedJobPayload)
+    ).rejects.toThrow("Job payload contains non-metadata keys: content");
+  });
+
+  it("does not throw for a valid metadata-only payload", async () => {
+    let sent = false;
+    const fakeBoss = {
+      send: async () => {
+        sent = true;
+        return "fake-id";
+      }
+    } as unknown as PgBoss;
+    await sendJob(fakeBoss, "test-queue", {
+      actorUserId: "00000000-0000-4000-8000-000000000001",
+      taskId: "some-task-id",
+      requestedStatus: "done",
+      idempotencyKey: "k1"
+    } as unknown as ActorScopedJobPayload);
+    expect(sent).toBe(true);
+  });
+});
+
+describe("assertUniqueMigrationVersions (#124)", () => {
+  it("throws when two migration files from different directories share the same version prefix", () => {
+    const files: MigrationFile[] = [
+      { version: "0055", name: "0055_foo.sql", checksum: "aaa", sql: "SELECT 1;" },
+      { version: "0055", name: "0055_bar.sql", checksum: "bbb", sql: "SELECT 2;" }
+    ];
+    expect(() => assertUniqueMigrationVersions(files)).toThrow(
+      "Duplicate migration version numbers across directories: 0055"
+    );
+  });
+
+  it("does not throw when all version prefixes are unique", () => {
+    const files: MigrationFile[] = [
+      { version: "0054", name: "0054_a.sql", checksum: "aaa", sql: "SELECT 1;" },
+      { version: "0055", name: "0055_b.sql", checksum: "bbb", sql: "SELECT 2;" }
+    ];
+    expect(() => assertUniqueMigrationVersions(files)).not.toThrow();
+  });
+});
+
+describe("chat_threads incognito immutability trigger (#135)", () => {
+  const threadId = "99000000-0000-4000-8000-000000000001";
+
+  beforeAll(async () => {
+    await resetFoundationDatabase();
+    // Seed via bootstrap (superuser) to bypass FORCE RLS on chat_threads.
+    const client = new Client({ connectionString: connectionStrings.bootstrap });
+    await client.connect();
+    try {
+      await client.query(
+        `INSERT INTO app.chat_threads (id, owner_user_id, title, incognito)
+         VALUES ($1, $2, 'Test Thread', false)`,
+        [threadId, ids.userA]
+      );
+    } finally {
+      await client.end();
+    }
+  });
+
+  it("raises 42501 when attempting to UPDATE incognito on an existing chat_thread", async () => {
+    // Trigger fires for all roles including superuser.
+    const client = new Client({ connectionString: connectionStrings.bootstrap });
+    await client.connect();
+    try {
+      await expect(
+        client.query(`UPDATE app.chat_threads SET incognito = true WHERE id = $1`, [threadId])
+      ).rejects.toMatchObject({ code: "42501" });
+    } finally {
+      await client.end();
+    }
+  });
+
+  it("does NOT raise on UPDATE of a non-incognito column (title)", async () => {
+    // Must set actor context so enforce_chat_thread_update_scope allows the owner to rename.
+    const client = new Client({ connectionString: connectionStrings.bootstrap });
+    await client.connect();
+    try {
+      await client.query("BEGIN");
+      await client.query("SELECT set_config('app.actor_user_id', $1, true)", [ids.userA]);
+      const result = await client.query(
+        `UPDATE app.chat_threads SET title = 'Renamed Thread' WHERE id = $1`,
+        [threadId]
+      );
+      await client.query("COMMIT");
+      expect(result.rowCount).toBe(1);
+    } finally {
+      await client.end();
+    }
+  });
+});
+
+describe("pgboss narrowed grants (#174)", () => {
+  beforeAll(async () => {
+    await resetFoundationDatabase();
+  });
+
+  it("jarvis_app_runtime cannot UPDATE pgboss.job after narrowing", async () => {
+    const client = new Client({ connectionString: connectionStrings.bootstrap });
+    await client.connect();
+    try {
+      const result = await client.query<{ has_privilege: boolean }>(
+        `SELECT has_table_privilege('jarvis_app_runtime', 'pgboss.job', 'update') AS has_privilege`
+      );
+      expect(result.rows[0]?.has_privilege).toBe(false);
+    } finally {
+      await client.end();
+    }
+  });
+
+  it("jarvis_worker_runtime can UPDATE pgboss.job after narrowing", async () => {
+    const client = new Client({ connectionString: connectionStrings.bootstrap });
+    await client.connect();
+    try {
+      const result = await client.query<{ has_privilege: boolean }>(
+        `SELECT has_table_privilege('jarvis_worker_runtime', 'pgboss.job', 'update') AS has_privilege`
+      );
+      expect(result.rows[0]?.has_privilege).toBe(true);
+    } finally {
+      await client.end();
+    }
+  });
+
+  it("jarvis_app_runtime can SELECT pgboss.queue (required for boss.send)", async () => {
+    const client = new Client({ connectionString: connectionStrings.bootstrap });
+    await client.connect();
+    try {
+      const result = await client.query<{ has_privilege: boolean }>(
+        `SELECT has_table_privilege('jarvis_app_runtime', 'pgboss.queue', 'select') AS has_privilege`
+      );
+      expect(result.rows[0]?.has_privilege).toBe(true);
+    } finally {
+      await client.end();
+    }
+  });
+
+  it("jarvis_app_runtime cannot DELETE from pgboss.job", async () => {
+    const client = new Client({ connectionString: connectionStrings.bootstrap });
+    await client.connect();
+    try {
+      const result = await client.query<{ has_privilege: boolean }>(
+        `SELECT has_table_privilege('jarvis_app_runtime', 'pgboss.job', 'delete') AS has_privilege`
+      );
+      expect(result.rows[0]?.has_privilege).toBe(false);
+    } finally {
+      await client.end();
+    }
+  });
+});
+
+describe("chat_messages UPDATE grant revoked + policy narrowed (#134)", () => {
+  beforeAll(async () => {
+    await resetFoundationDatabase();
+  });
+
+  it("jarvis_app_runtime cannot UPDATE app.chat_messages after migration", async () => {
+    const client = new Client({ connectionString: connectionStrings.bootstrap });
+    await client.connect();
+    try {
+      const result = await client.query<{ has_privilege: boolean }>(
+        `SELECT has_table_privilege('jarvis_app_runtime', 'app.chat_messages', 'update') AS has_privilege`
+      );
+      expect(result.rows[0]?.has_privilege).toBe(false);
+    } finally {
+      await client.end();
+    }
+  });
+
+  it("chat_messages_update policy targets only jarvis_worker_runtime and keeps owner scoping", async () => {
+    const client = new Client({ connectionString: connectionStrings.bootstrap });
+    await client.connect();
+    try {
+      const result = await client.query<{
+        roles: string[];
+        qual: string | null;
+        with_check: string | null;
+      }>(
+        `SELECT roles, qual, with_check
+           FROM pg_policies
+          WHERE schemaname = 'app'
+            AND tablename = 'chat_messages'
+            AND policyname = 'chat_messages_update'`
+      );
+      const policy = result.rows[0];
+      expect(policy).toBeDefined();
+      expect(policy?.roles).toContain("jarvis_worker_runtime");
+      expect(policy?.roles).not.toContain("jarvis_app_runtime");
+      // Postgres may print qualified form (app.current_actor_user_id) or unqualified.
+      // The invariant: predicate is owner-scoped, NOT simply `true`.
+      expect(policy?.qual).toContain("owner_user_id");
+      expect(policy?.qual).toContain("current_actor_user_id()");
+      expect(policy?.with_check).toContain("owner_user_id");
+      expect(policy?.with_check).toContain("current_actor_user_id()");
     } finally {
       await client.end();
     }
