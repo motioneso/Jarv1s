@@ -26,7 +26,6 @@ describe("M3 auth, users, settings", () => {
   let ownerCookie: string;
   let memberCookie: string;
   let ownerUserId: string;
-  let memberUserId: string;
 
   beforeAll(async () => {
     await resetEmptyFoundationDatabase();
@@ -214,7 +213,6 @@ describe("M3 auth, users, settings", () => {
     });
 
     memberCookie = cookieHeader(signUpResponse.headers);
-    memberUserId = signUpResponse.json<{ user: { id: string } }>().user.id;
 
     const deniedResponse = await server.inject({
       method: "GET",

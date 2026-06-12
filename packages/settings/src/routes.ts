@@ -1,7 +1,13 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import type { Kysely } from "kysely";
 
-import type { AccessContext, AdminAuditEvent, InstanceSetting, JarvisDatabase, User } from "@jarv1s/db";
+import type {
+  AccessContext,
+  AdminAuditEvent,
+  InstanceSetting,
+  JarvisDatabase,
+  User
+} from "@jarv1s/db";
 import {
   adminDeleteUserRouteSchema,
   adminRejectUserRouteSchema,
@@ -361,20 +367,6 @@ function requireObject(value: unknown): Record<string, unknown> {
   }
 
   return value as Record<string, unknown>;
-}
-
-function requiredString(value: unknown, fieldName: string): string {
-  if (typeof value !== "string") {
-    throw new HttpError(400, `${fieldName} must be a string`);
-  }
-
-  const trimmed = value.trim();
-
-  if (!trimmed) {
-    throw new HttpError(400, `${fieldName} must not be empty`);
-  }
-
-  return trimmed;
 }
 
 function serializeUser(user: User): UserDto {
