@@ -2,32 +2,19 @@ import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 
 import { parsePositiveIntEnv } from "@jarv1s/shared";
 
-// Per-user rate-limit key for the assistant-tools invoke endpoint: use the Better Auth
-// session cookie or Authorization Bearer token so each LAN user gets a separate counter.
-// Unauthenticated requests fall back to IP (they will get a 401 before any AI spend).
+// Per-user rate-limit key for the assistant-tools invoke endpoint: hashed
+// session-token/cookie via the shared module-sdk helper (a one-way fingerprint, never the
+// raw secret) so each LAN user gets a separate counter. Unauthenticated requests fall back
+// to IP (they will get a 401 before any AI spend).
 //
 // Override the limit via env: JARVIS_RL_AI_TOOLS_MAX=<n> (requests per minute, default 60).
 const AI_TOOLS_MAX = parsePositiveIntEnv(process.env.JARVIS_RL_AI_TOOLS_MAX, 60);
-
-function aiToolsRateLimitKey(request: FastifyRequest): string {
-  const cookie = (request.headers.cookie ?? "")
-    .split(";")
-    .map((s) => s.trim())
-    .find((s) => s.startsWith("better-auth.session_token="));
-  if (cookie) {
-    return cookie.slice("better-auth.session_token=".length).split(";")[0] ?? request.ip;
-  }
-  const auth = request.headers.authorization ?? "";
-  if (auth.startsWith("Bearer ")) {
-    return auth.slice(7);
-  }
-  return request.ip;
-}
 
 import type { AccessContext, DataContextRunner } from "@jarv1s/db";
 import {
   HttpError,
   handleRouteError as handleModuleRouteError,
+  sessionRateLimitKey,
   type JarvisModuleManifest
 } from "@jarv1s/module-sdk";
 import {
@@ -391,7 +378,7 @@ export function registerAiRoutes(
         rateLimit: {
           max: AI_TOOLS_MAX,
           timeWindow: "1 minute",
-          keyGenerator: aiToolsRateLimitKey
+          keyGenerator: sessionRateLimitKey
         }
       }
     },
