@@ -527,6 +527,64 @@ describe("chat_threads incognito immutability trigger (#135)", () => {
   });
 });
 
+describe("pgboss narrowed grants (#174)", () => {
+  beforeAll(async () => {
+    await resetFoundationDatabase();
+  });
+
+  it("jarvis_app_runtime cannot UPDATE pgboss.job after narrowing", async () => {
+    const client = new Client({ connectionString: connectionStrings.bootstrap });
+    await client.connect();
+    try {
+      const result = await client.query<{ has_privilege: boolean }>(
+        `SELECT has_table_privilege('jarvis_app_runtime', 'pgboss.job', 'update') AS has_privilege`
+      );
+      expect(result.rows[0]?.has_privilege).toBe(false);
+    } finally {
+      await client.end();
+    }
+  });
+
+  it("jarvis_worker_runtime can UPDATE pgboss.job after narrowing", async () => {
+    const client = new Client({ connectionString: connectionStrings.bootstrap });
+    await client.connect();
+    try {
+      const result = await client.query<{ has_privilege: boolean }>(
+        `SELECT has_table_privilege('jarvis_worker_runtime', 'pgboss.job', 'update') AS has_privilege`
+      );
+      expect(result.rows[0]?.has_privilege).toBe(true);
+    } finally {
+      await client.end();
+    }
+  });
+
+  it("jarvis_app_runtime can SELECT pgboss.queue (required for boss.send)", async () => {
+    const client = new Client({ connectionString: connectionStrings.bootstrap });
+    await client.connect();
+    try {
+      const result = await client.query<{ has_privilege: boolean }>(
+        `SELECT has_table_privilege('jarvis_app_runtime', 'pgboss.queue', 'select') AS has_privilege`
+      );
+      expect(result.rows[0]?.has_privilege).toBe(true);
+    } finally {
+      await client.end();
+    }
+  });
+
+  it("jarvis_app_runtime cannot DELETE from pgboss.job", async () => {
+    const client = new Client({ connectionString: connectionStrings.bootstrap });
+    await client.connect();
+    try {
+      const result = await client.query<{ has_privilege: boolean }>(
+        `SELECT has_table_privilege('jarvis_app_runtime', 'pgboss.job', 'delete') AS has_privilege`
+      );
+      expect(result.rows[0]?.has_privilege).toBe(false);
+    } finally {
+      await client.end();
+    }
+  });
+});
+
 describe("chat_messages UPDATE grant revoked + policy narrowed (#134)", () => {
   beforeAll(async () => {
     await resetFoundationDatabase();
