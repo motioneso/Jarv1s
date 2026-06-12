@@ -110,6 +110,33 @@ describe("M3 auth, users, settings", () => {
     });
   });
 
+  it("recordAuditEvent writes an audit row via the public settings API", async () => {
+    // ownerUserId is set by the preceding bootstrap test — use it as the actor so
+    // the GUC-scoped insert passes RLS on app.admin_audit_events.
+    const { recordAuditEvent } = await import("@jarv1s/settings");
+    const runner = new DataContextRunner(appDb);
+    await runner.withDataContext(
+      { actorUserId: ownerUserId, requestId: "test:record-audit" },
+      async (scopedDb) => {
+        await recordAuditEvent(scopedDb, {
+          actorUserId: ownerUserId,
+          action: "test.record_audit_event",
+          targetType: "user",
+          targetId: ownerUserId,
+          metadata: {},
+          requestId: "test:record-audit"
+        });
+      }
+    );
+
+    const rows = await sql<{ action: string; actor_user_id: string }>`
+      SELECT action, actor_user_id FROM app.admin_audit_events
+      WHERE action = 'test.record_audit_event'
+    `.execute(appDb);
+    expect(rows.rows[0]?.action).toBe("test.record_audit_event");
+    expect(rows.rows[0]?.actor_user_id).toBe(ownerUserId);
+  });
+
   it("exposes configured auth provider status without secrets", async () => {
     const response = await server.inject({
       method: "GET",

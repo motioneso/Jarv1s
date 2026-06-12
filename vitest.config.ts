@@ -62,6 +62,10 @@ export default defineConfig({
         )
       },
       {
+        find: "@jarv1s/settings",
+        replacement: fileURLToPath(new URL("./packages/settings/src/index.ts", import.meta.url))
+      },
+      {
         find: "@jarv1s/shared",
         replacement: fileURLToPath(new URL("./packages/shared/src/index.ts", import.meta.url))
       },
