@@ -6,7 +6,11 @@ import pg from "pg";
 import { createApiServer } from "../../apps/api/src/server.js";
 import { createDatabase, DataContextRunner, type JarvisDatabase } from "@jarv1s/db";
 import type { ListAdminAuditEventsResponse, ListModulesResponse, MeResponse } from "@jarv1s/shared";
-import { connectionStrings, resetEmptyFoundationDatabase } from "./test-database.js";
+import {
+  connectionStrings,
+  resetEmptyFoundationDatabase,
+  setInstanceSetting
+} from "./test-database.js";
 import { createJarvisAuthRuntime, type JarvisAuthRuntime } from "@jarv1s/auth";
 import { SettingsRepository } from "../../packages/settings/src/repository.js";
 
@@ -45,11 +49,7 @@ describe("M3 auth, users, settings", () => {
     });
     // Disable requires_approval so subsequently-registered users in M3 tests get active status.
     // (Phase 2 Slice A approval-flow tests run in their own describe with a fresh DB per test.)
-    await appDb
-      .updateTable("app.instance_settings")
-      .set({ value: { value: false }, updated_at: new Date() })
-      .where("key", "=", "registration.requires_approval")
-      .execute();
+    await setInstanceSetting("registration.requires_approval", { value: false });
     server = createApiServer({
       appDb,
       logger: false
@@ -88,10 +88,10 @@ describe("M3 auth, users, settings", () => {
     ownerUserId = signUpResponse.json<{ user: { id: string } }>().user.id;
 
     expect(initialStatus.statusCode).toBe(200);
-    expect(initialStatus.json()).toEqual({ needsBootstrap: true, userCount: 0 });
+    expect(initialStatus.json()).toEqual({ needsBootstrap: true });
     expect(signUpResponse.statusCode).toBe(200);
     expect(ownerCookie).toContain("better-auth");
-    expect(bootstrappedStatus.json()).toEqual({ needsBootstrap: false, userCount: 1 });
+    expect(bootstrappedStatus.json()).toEqual({ needsBootstrap: false });
 
     const meResponse = await server.inject({
       method: "GET",
@@ -142,10 +142,16 @@ describe("M3 auth, users, settings", () => {
       }
     );
 
-    const rows = await sql<{ action: string; actor_user_id: string }>`
-      SELECT action, actor_user_id FROM app.admin_audit_events
-      WHERE action = 'test.record_audit_event'
-    `.execute(appDb);
+    // admin_audit_events SELECT is admin-gated by RLS (migration 0059); read back through
+    // the owner's admin DataContext so the GUC-scoped policy admits the row.
+    const rows = await runner.withDataContext(
+      { actorUserId: ownerUserId, requestId: "test:record-audit-read" },
+      (scopedDb) =>
+        sql<{ action: string; actor_user_id: string }>`
+          SELECT action, actor_user_id FROM app.admin_audit_events
+          WHERE action = 'test.record_audit_event'
+        `.execute(scopedDb.db)
+    );
     expect(rows.rows[0]?.action).toBe("test.record_audit_event");
     expect(rows.rows[0]?.actor_user_id).toBe(ownerUserId);
   });
@@ -357,11 +363,7 @@ describe("multi-user registration + lifecycle (Phase 2 Slice A)", () => {
 
   it("rejects sign-up with 403 when registration.enabled is false (seeded directly)", async () => {
     await signUp({ name: "Admin", email: "admin@example.com", password: "password12345" });
-    await appDb
-      .updateTable("app.instance_settings")
-      .set({ value: { value: false }, updated_at: new Date() })
-      .where("key", "=", "registration.enabled")
-      .execute();
+    await setInstanceSetting("registration.enabled", { value: false });
 
     const blocked = await signUp({
       name: "Late",
@@ -435,11 +437,7 @@ describe("multi-user registration + lifecycle (Phase 2 Slice A)", () => {
     await signUp({ name: "Owner", email: "owner@example.com", password: "password12345" });
 
     // Disable requires_approval so the second user is created with active status.
-    await appDb
-      .updateTable("app.instance_settings")
-      .set({ value: { value: false }, updated_at: new Date() })
-      .where("key", "=", "registration.requires_approval")
-      .execute();
+    await setInstanceSetting("registration.requires_approval", { value: false });
 
     const joinRes = await signUp({
       name: "Joiner",
@@ -564,11 +562,7 @@ describe("multi-user registration + lifecycle (Phase 2 Slice A)", () => {
     });
     const ownerId = ownerRes.json<{ user: { id: string } }>().user.id;
 
-    await appDb
-      .updateTable("app.instance_settings")
-      .set({ value: { value: false }, updated_at: new Date() })
-      .where("key", "=", "registration.requires_approval")
-      .execute();
+    await setInstanceSetting("registration.requires_approval", { value: false });
     const memberRes = await signUp({
       name: "Member",
       email: "member@example.com",
@@ -613,11 +607,7 @@ describe("multi-user registration + lifecycle (Phase 2 Slice A)", () => {
     const actorId = actorRes.json<{ user: { id: string } }>().user.id;
 
     // Disable approval so the second sign-up lands active, then create the non-admin target.
-    await appDb
-      .updateTable("app.instance_settings")
-      .set({ value: { value: false }, updated_at: new Date() })
-      .where("key", "=", "registration.requires_approval")
-      .execute();
+    await setInstanceSetting("registration.requires_approval", { value: false });
     const targetRes = await signUp({
       name: "Promote Target",
       email: "promote-target@example.com",
@@ -673,11 +663,7 @@ describe("multi-user registration + lifecycle (Phase 2 Slice A)", () => {
     // bootstrap owner is automatically active + admin — no seed needed.
 
     // Disable approval so the second sign-up lands as active.
-    await appDb
-      .updateTable("app.instance_settings")
-      .set({ value: { value: false }, updated_at: new Date() })
-      .where("key", "=", "registration.requires_approval")
-      .execute();
+    await setInstanceSetting("registration.requires_approval", { value: false });
 
     const nonAdminRes = await signUp({
       name: "Non-Admin Escalator",
@@ -722,11 +708,7 @@ describe("multi-user registration + lifecycle (Phase 2 Slice A)", () => {
     const adminCookie = cookieHeader(admin.headers);
 
     // Disable approval so the member becomes active and gets a usable session.
-    await appDb
-      .updateTable("app.instance_settings")
-      .set({ value: { value: false }, updated_at: new Date() })
-      .where("key", "=", "registration.requires_approval")
-      .execute();
+    await setInstanceSetting("registration.requires_approval", { value: false });
 
     const member = await signUp({
       name: "Member",

@@ -60,11 +60,12 @@ export function registerSettingsRoutes(
   const bootstrapHelper = new BootstrapHelper(dependencies.rootDb);
 
   server.get("/api/bootstrap/status", { schema: bootstrapStatusRouteSchema }, async () => {
+    // Return only the boolean the client needs. The raw user count is an instance-wide
+    // metric exposed on an UNAUTHENTICATED route — do not leak it (OTNR-P4 #122).
     const userCount = await bootstrapHelper.countUsers();
 
     return {
-      needsBootstrap: userCount === 0,
-      userCount
+      needsBootstrap: userCount === 0
     };
   });
 

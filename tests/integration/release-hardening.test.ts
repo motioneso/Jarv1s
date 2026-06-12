@@ -197,11 +197,11 @@ describe("M7 release hardening lifecycle scripts", () => {
     await bootstrapClient.connect();
     try {
       // Disable approval so newly registered users are active, not pending.
-      await appDb2
-        .updateTable("app.instance_settings")
-        .set({ value: { value: false }, updated_at: new Date() })
-        .where("key", "=", "registration.requires_approval")
-        .execute();
+      // instance_settings UPDATE is admin-gated by RLS (migration 0059); write through
+      // the bootstrap superuser already open here, which bypasses RLS for test setup.
+      await bootstrapClient.query(
+        `UPDATE app.instance_settings SET value = '{"value": false}'::jsonb, updated_at = now() WHERE key = 'registration.requires_approval'`
+      );
 
       // Sign up the owner. seedLifecycleData already inserted userA/userB, so this owner is
       // NOT the first user and is not auto-promoted — we promote it explicitly below.
