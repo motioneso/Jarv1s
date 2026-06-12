@@ -9,7 +9,7 @@
 **Relay threshold:** security-tier merge → relay immediately; routine/sensitive merges\*since\*relay ≥ 2 → relay. No deferral.
 **merges_since_relay:** 0 — **RUN COMPLETE, final relay fired at H #190.** \_History: F #184 04:34Z, G #186 + I #185 ~04:40Z under p_38; B #187 05:09Z under p_44 (security relay); D #188 ~06:20Z under p_45 (security relay); E #189 `0baa384` (security relay, this session); **H #190 `2dc204b` (FINAL security relay, this session — all slices A–I landed)**.\*
 
-**Live state (Coordinator session `515ad953`, 2026-06-12T19:30Z — RELAY after B8 #197):** ✅ **B8 #197 MERGED** — squash `9a17503` @ 19:30:20Z; #171 closed. OTNR-P29 e2e + operator-script hardening (all 8 MED/LOW). Fable cross-model QA **APPROVE** (grounded `d844a79`); CI green; **code-only, spine unchanged → HEAD 0062**. Security-tier merge → relay fired. **Only C-routine remains** in the OTNR MED/LOW disposition: **#168** FK covering indexes (new migration → advances spine past 0062) + **#165** worker graceful SIGTERM drain. After C-routine, OTNR §E is fully discharged → resume Phase-2+ epics. ⚠️ Local worktree metadata is crossed (cosmetic — completed Fable QA worktree `agent-a9460a9` + main tree swapped recorded HEADs after `gh pr checkout`); authoritative state is clean: on `main @ 9a17503`, origin/main has the merge. Another session holds worktree `agent-a1f67d81` — do **not** force-prune.
+**Live state (Coordinator session `515ad953`, 2026-06-12T20:08Z — RELAY after C-routine #198 → OTNR §E FULLY DISCHARGED):** ✅ **C-routine #198 MERGED** — squash `691a0c4` @ 20:07:40Z; **#168 + #165 closed**. FK-covering indexes (`0063_tasks_fk_indexes.sql`, `0064_chat_memory_facts_source_thread_idx.sql`), worker graceful-drain on SIGTERM/SIGINT (`boss.stop({graceful:true})` raced vs 10s timeout, then pool destroy), startup queue-existence guard, migration-runner per-file transaction wrap. Fable cross-model QA **APPROVE/MERGE-READY:YES**; 3 comment-only nit-fixes batched in post-approval (immutable 0064 provenance `0041`, shutdown/crash-log comments); CI green on `3e9f1d6`. **Migration spine HEAD now 0064** (was 0062 — C added 0063 tasks + 0064 memory). Already-done (verified, not gaps): schema_migrations version-collision preflight (`assertUniqueMigrationVersions`), app.users FORCE-RLS (`authOwnerTable`), no-actor job rejection (`toAccessContext`). Document-accepted deferrals: `connector_oauth_pending.provider_id` index (immutable seed table), bootstrap dev passwords (deployment-milestone concern). **🏁 OTNR MED/LOW disposition §E is now FULLY DISCHARGED — all buckets (A–I + B-RLS + B8 + C-routine) landed. → RETURN TO PHASE-2+ EPIC WORK.** Worktrees cleaned: removed temp `/tmp/c-routine-fix` + completed build-agent `agent-af0b548b648348f01`; merged local branch deleted. Tree authoritative & clean: primary on `main @ 691a0c4` (fast-forwarded to origin/main). Another session still holds detached worktree `agent-a1f67d81` — do **not** force-prune.
 
 **Live state (p_44, 2026-06-12T05:09Z):** ✅ **B #187 MERGED** — squash commit `4a82dcc` @ 05:08:59Z. Bookkeeping DONE; tree clean (main only). Migration spine HEAD now **0056**. Security-tier merge → relay fired.
 
@@ -178,9 +178,13 @@ each slice inline; Fable (model:fable) substitutes for Ben at every security gat
   usage string omits `--confirm-database` (drill output has it); `vaultDeleted:true` reported even when
   user row absent (benign idempotent rm). **Code-only, spine unchanged → HEAD 0062.** Main CI on PR head
   green (Compose smoke + Verify foundation both pass). Issue #171 closed. Security-tier merge → relay fired.
-- **▶ NEXT: C-routine** — (1) **#168** FK covering indexes → **new migration, advances spine past 0062**;
-  (2) **#165** worker `graceful:false` → graceful drain on SIGTERM (still OPEN). Batchable. After
-  C-routine the OTNR MED/LOW disposition (§E) is fully discharged → return to Phase-2+ epic work.
+- **✅ C-routine DONE — #198 MERGED (`691a0c4`), #168 + #165 closed.** (1) **#168** FK covering
+  indexes landed as `0063` (tasks) + `0064` (memory) → **spine HEAD now 0064**; (2) **#165** worker
+  graceful drain on SIGTERM/SIGINT + startup queue guard. **OTNR MED/LOW disposition (§E) is FULLY
+  DISCHARGED.**
+- **▶ NEXT: PHASE-2+ EPIC WORK.** The audit-remediation run is complete end-to-end — all OTNR buckets
+  (A–I + B-RLS + B8 #197 + C-routine #198) merged. Orientation: GitHub board + epics #46–#50 are the
+  source of truth; re-recall `"jarv1s current project state"` and pick up the next phase milestone.
 
 ---
 
