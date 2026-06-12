@@ -30,6 +30,7 @@ import {
   type UpsertInstanceSettingRequest,
   type UserDto
 } from "@jarv1s/shared";
+import { HttpError, handleRouteError as handleModuleRouteError } from "@jarv1s/module-sdk";
 
 import { deleteUserData } from "../../../scripts/delete-user-data.js";
 import { BootstrapHelper } from "./bootstrap.js";
@@ -508,38 +509,21 @@ function serializeDate(value: Date | string): string {
 }
 
 function handleRouteError(error: unknown, reply: FastifyReply) {
-  if (error instanceof HttpError) {
-    return reply.code(error.statusCode).send({ error: error.message });
-  }
-
-  if (error instanceof HttpRepositoryError) {
-    return reply.code(error.statusCode).send({ error: error.message });
-  }
-
-  if (error instanceof Error) {
-    const code = (error as Error & { code?: string }).code;
-    if (code === "account_pending_approval" || code === "account_deactivated") {
-      return reply.code(403).send({ error: error.message, code });
-    }
-    if (error.message === "Session is missing or expired") {
-      return reply.code(401).send({ error: error.message });
-    }
-    if (error.message === "Invalid bearer token") {
-      return reply.code(401).send({ error: error.message });
-    }
-    if (error.message === "User not found") {
-      return reply.code(400).send({ error: error.message });
-    }
-  }
-
-  throw error;
-}
-
-class HttpError extends Error {
-  constructor(
-    readonly statusCode: number,
-    message: string
-  ) {
-    super(message);
-  }
+  return handleModuleRouteError(error, reply, {
+    mappers: [
+      (e, r) =>
+        e instanceof HttpRepositoryError
+          ? r.code(e.statusCode).send({ error: e.message })
+          : undefined,
+      (e, r) => {
+        if (e instanceof Error) {
+          const code = (e as Error & { code?: string }).code;
+          if (code === "account_pending_approval" || code === "account_deactivated") {
+            return r.code(403).send({ error: e.message, code });
+          }
+        }
+        return undefined;
+      }
+    ]
+  });
 }

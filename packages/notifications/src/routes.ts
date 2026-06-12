@@ -1,5 +1,6 @@
-import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
+import type { FastifyInstance, FastifyRequest } from "fastify";
 
+import { handleRouteError } from "@jarv1s/module-sdk";
 import type { AccessContext, DataContextRunner } from "@jarv1s/db";
 import {
   listNotificationsRouteSchema,
@@ -106,15 +107,4 @@ function toIsoString(value: Date | string | null): string | null {
   }
 
   return value instanceof Date ? value.toISOString() : value;
-}
-
-function handleRouteError(error: unknown, reply: FastifyReply) {
-  if (error instanceof Error && error.message === "Session is missing or expired") {
-    return reply.code(401).send({ error: "Session is missing or expired" });
-  }
-  if (error instanceof Error && error.message === "Invalid bearer token") {
-    return reply.code(401).send({ error: "Session is missing or expired" });
-  }
-  reply.log.error(error, "Unexpected notification route error");
-  return reply.code(500).send({ error: "Internal server error" });
 }
