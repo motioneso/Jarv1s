@@ -19,7 +19,6 @@ export const ids = {
   sessionA: "40000000-0000-4000-8000-000000000001",
   sessionB: "40000000-0000-4000-8000-000000000002",
   sessionAdmin: "40000000-0000-4000-8000-000000000003",
-  workspaceAlpha: "20000000-0000-4000-8000-000000000001",
   itemAOwnPrivate: "10000000-0000-4000-8000-000000000001",
   itemBPrivate: "10000000-0000-4000-8000-000000000002",
   itemBGrantedToA: "10000000-0000-4000-8000-000000000003",
@@ -92,22 +91,6 @@ async function seedProbeData(): Promise<void> {
 
     await client.query(
       `
-        INSERT INTO app.workspaces (id, name, created_by_user_id)
-        VALUES ($1, 'Alpha Workspace', $2)
-      `,
-      [ids.workspaceAlpha, ids.userA]
-    );
-
-    await client.query(
-      `
-        INSERT INTO app.workspace_memberships (user_id, workspace_id, role)
-        VALUES ($1, $2, 'member')
-      `,
-      [ids.userA, ids.workspaceAlpha]
-    );
-
-    await client.query(
-      `
         INSERT INTO app.rls_probe_items (id, owner_user_id, body)
         VALUES
           ($1, $2, 'user A private item'),
@@ -125,14 +108,6 @@ async function seedProbeData(): Promise<void> {
         ids.itemBWorkspaceShared,
         ids.itemBWorkspacePrivate
       ]
-    );
-
-    await client.query(
-      `
-        INSERT INTO app.resource_grants (resource_type, resource_id, grantee_user_id, grant_level)
-        VALUES ('rls_probe_item', $1, $2, 'view')
-      `,
-      [ids.itemBGrantedToA, ids.userA]
     );
 
     await client.query("COMMIT");

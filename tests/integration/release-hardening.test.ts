@@ -613,19 +613,6 @@ async function seedLifecycleData(): Promise<void> {
     );
     await client.query(
       `
-        INSERT INTO app.resource_grants (
-          resource_type,
-          resource_id,
-          grantee_user_id,
-          grant_level,
-          granted_by_user_id
-        )
-        VALUES ('task', $1, $2, 'view', $3)
-      `,
-      [releaseIds.userBTask, ids.userA, ids.userB]
-    );
-    await client.query(
-      `
         INSERT INTO app.connector_accounts (
           id,
           provider_id,
