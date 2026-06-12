@@ -48,20 +48,23 @@ const protectedTables = [
 // (rows are cleaned up as part of normal operation, e.g. after OAuth completes).
 const transientTables = ["connector_oauth_pending"] as const;
 
+// Instance-admin tables: hold no per-user owner data but ARE RLS ENABLED+FORCED
+// (migration 0059) so app_runtime cannot read/write them outside an admin-scoped
+// policy. They don't fit `protectedTables` — instance_settings retains an RLS-gated
+// app_runtime write grant (admin-only by policy), and admin_audit_events is
+// append-only — so their privilege shapes are checked separately
+// (admin_audit_events via readAdminAuditPrivileges; instance_settings writes are
+// admin-gated by policy). Here we assert only that RLS is enabled and forced.
+const adminRlsTables = ["admin_audit_events", "instance_settings"] as const;
+
 // Tables in the app schema that are intentionally exempt from FORCE RLS.
 // This list must remain small. Every entry requires a documented reason.
 // Adding a new owner-data table here without a strong architectural justification
 // is a security defect — the dynamic coverage check below will catch omissions.
 const forceRlsExemptions = new Map<string, string>([
-  // Infrastructure / access-control tables — no per-user private row data;
-  // accessed by app_runtime under broad grants, not per-actor RLS policies.
-  ["instance_settings", "instance config: not per-user owner data"],
   // Migration runner bookkeeping (applied filename + hash + timestamp). Instance
   // infra written only by jarvis_migration_owner; holds no per-user rows.
   ["schema_migrations", "migration-runner bookkeeping: instance infra, no per-user data"],
-  // Audit log: append-only by app_runtime, no per-user SELECT needed.
-  // Privilege shape is checked separately (SELECT+INSERT allowed, UPDATE+DELETE denied).
-  ["admin_audit_events", "audit log: privilege shape checked separately"],
   // users has ENABLE (not FORCE) so jarvis_migration_owner can bypass for SECURITY DEFINER
   // auth functions. Checked explicitly in the authOwnerTable block above.
   ["users", "ENABLE-only: SECURITY DEFINER auth functions need owner bypass; checked separately"]
@@ -420,6 +423,21 @@ function collectFailures(
     failures.push("jarvis_worker_runtime has app.admin_audit_events privileges");
   }
 
+  // Instance-admin tables must be RLS ENABLED and FORCED (migration 0059). Their
+  // privilege shapes are asserted elsewhere (admin_audit_events above; instance_settings
+  // writes are admin-gated by policy), so here we only verify the RLS posture so a
+  // regression dropping FORCE/ENABLE fails this gate.
+  const coverageByName = new Map(appSchemaCoverage.map((t) => [t.tableName, t]));
+  for (const table of adminRlsTables) {
+    const state = coverageByName.get(table);
+    if (!state) {
+      failures.push(`missing instance-admin table: ${table}`);
+      continue;
+    }
+    if (!state.rlsEnabled) failures.push(`app.${table} does not enable RLS`);
+    if (!state.forceRls) failures.push(`app.${table} does not force RLS`);
+  }
+
   // Dynamic coverage check: every app-schema table must either have FORCE RLS
   // or appear in the explicit exemption list above. This ensures that adding a new
   // owner-data table without applying FORCE RLS causes this gate to fail automatically,
@@ -428,7 +446,8 @@ function collectFailures(
     ...protectedTables,
     ...transientTables,
     ...authSecretTables,
-    ...authOwnerTable
+    ...authOwnerTable,
+    ...adminRlsTables
   ]);
   for (const table of appSchemaCoverage) {
     if (forceRlsExemptions.has(table.tableName)) {

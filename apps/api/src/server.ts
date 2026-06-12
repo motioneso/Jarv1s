@@ -189,8 +189,15 @@ if (import.meta.url === `file://${process.argv[1]}`) {
 }
 
 // Credential POST paths that must be throttled.
+// `sign-in/social` initiates an OAuth flow (the provider is carried in the request body,
+// not the path) and is an abuse-prone unauthenticated surface, so it is throttled too
+// (OTNR-P4 #122). The OAuth *callback* (`/api/auth/callback/:provider`) is a provider-driven
+// GET redirect — it is intentionally NOT throttled: it is exempted by the POST-only guard
+// below, carries a per-flow state token better-auth already validates, and rate-limiting a
+// provider redirect would break legitimate logins.
 const THROTTLED_AUTH_PATHS = new Set([
   "/api/auth/sign-in/email",
+  "/api/auth/sign-in/social",
   "/api/auth/sign-up/email",
   "/api/auth/forget-password",
   "/api/auth/reset-password",

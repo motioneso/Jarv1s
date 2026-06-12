@@ -7,7 +7,11 @@ import { createDatabase, DataContextRunner, type JarvisDatabase } from "@jarv1s/
 import type { Kysely } from "kysely";
 import { createApiServer } from "../../apps/api/src/server.js";
 import { SettingsRepository } from "../../packages/settings/src/repository.js";
-import { connectionStrings, resetEmptyFoundationDatabase } from "./test-database.js";
+import {
+  connectionStrings,
+  resetEmptyFoundationDatabase,
+  setInstanceSetting
+} from "./test-database.js";
 
 describe("multi-user isolation", () => {
   let appDb: Kysely<JarvisDatabase>;
@@ -38,11 +42,7 @@ describe("multi-user isolation", () => {
   }
 
   async function disableApproval() {
-    await appDb
-      .updateTable("app.instance_settings")
-      .set({ value: { value: false }, updated_at: new Date() })
-      .where("key", "=", "registration.requires_approval")
-      .execute();
+    await setInstanceSetting("registration.requires_approval", { value: false });
   }
 
   beforeEach(async () => {

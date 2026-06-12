@@ -62,7 +62,6 @@ export interface InstanceSettingDto {
 
 export interface BootstrapStatusResponse {
   readonly needsBootstrap: boolean;
-  readonly userCount: number;
 }
 
 export interface MeResponse {
@@ -259,10 +258,9 @@ export const bootstrapStatusRouteSchema = {
     200: {
       type: "object",
       additionalProperties: false,
-      required: ["needsBootstrap", "userCount"],
+      required: ["needsBootstrap"],
       properties: {
-        needsBootstrap: { type: "boolean" },
-        userCount: { type: "number" }
+        needsBootstrap: { type: "boolean" }
       }
     }
   }

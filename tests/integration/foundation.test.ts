@@ -154,7 +154,11 @@ describe("MVP foundation scaffold", () => {
         { version: "0055", name: "0055_users_guard_admin_flag_v2.sql" },
         { version: "0056", name: "0056_drop_dead_workspace_subsystem.sql" },
         { version: "0057", name: "0057_revoke_app_runtime_chat_update.sql" },
-        { version: "0058", name: "0058_chat_threads_incognito_immutable.sql" }
+        { version: "0058", name: "0058_chat_threads_incognito_immutable.sql" },
+        { version: "0059", name: "0059_admin_tables_rls.sql" },
+        { version: "0060", name: "0060_chat_memory_settings_to_role.sql" },
+        { version: "0061", name: "0061_memory_facts_to_role.sql" },
+        { version: "0062", name: "0062_task_tag_assignments_ownership.sql" }
       ]);
     } finally {
       await client.end();
