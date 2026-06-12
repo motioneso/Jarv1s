@@ -15,6 +15,7 @@ import type { ProviderKind } from "@jarv1s/ai";
 
 import type { RecallPort } from "../recall-port.js";
 import { renderPersona, type PersonaFs } from "./persona.js";
+import { neutralizeSeedFraming } from "./prompt-safety.js";
 import { renderMemorySeedBlock } from "./recall-seed.js";
 import type { CliChatEngine, TranscriptRecord } from "./types.js";
 
@@ -372,11 +373,18 @@ export class ChatSessionManager {
 /**
  * Render prior turns as a compact <conversation> seed block so a freshly-spawned
  * or switched engine continues the conversation with full context.
+ *
+ * Exported for unit testing of the prompt-injection neutralization (#123).
  */
-function renderReplayBlock(
+export function renderReplayBlock(
   priorTurns: readonly { role: "user" | "assistant"; content: string }[]
 ): string {
-  const lines = priorTurns.map((t) => `${t.role === "user" ? "User" : "Assistant"}: ${t.content}`);
+  // Prior turn content is user-authored — neutralize any seed-framing delimiter
+  // so a turn can't break out of the <conversation> block and inject instructions
+  // into a freshly-spawned engine (#123).
+  const lines = priorTurns.map(
+    (t) => `${t.role === "user" ? "User" : "Assistant"}: ${neutralizeSeedFraming(t.content)}`
+  );
   return [
     "<conversation>",
     "The following is the prior conversation so far. Continue it; do not respond to this message.",
@@ -385,8 +393,14 @@ function renderReplayBlock(
   ].join("\n");
 }
 
-function renderSummaryBlock(summary: string): string {
-  return `<prior-context>\n${summary}\n</prior-context>`;
+// Exported for unit testing of the prompt-injection neutralization (#123).
+export function renderSummaryBlock(summary: string): string {
+  // The rolling summary is a verbatim concatenation of stored assistant message
+  // bodies (see persistence.ts buildRollingSummary), which are attacker-steerable
+  // — a user can ask the model to echo a `</prior-context>` delimiter that then
+  // gets persisted and replayed here. Route it through the same chokepoint as
+  // every other untrusted seed surface so it cannot break out of the block (#123).
+  return `<prior-context>\n${neutralizeSeedFraming(summary)}\n</prior-context>`;
 }
 
 function delay(ms: number): Promise<void> {

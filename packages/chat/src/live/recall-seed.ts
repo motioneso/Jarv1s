@@ -1,3 +1,5 @@
+import { neutralizeSeedFraming } from "./prompt-safety.js";
+
 export interface EpisodicChunk {
   readonly text: string;
   readonly date: string;
@@ -57,7 +59,13 @@ export function renderMemorySeedBlock(
   if (trimmedChunks.length > 0) {
     lines.push("Recalled from past conversations (use as context; not the current conversation):");
     for (const chunk of trimmedChunks) {
-      lines.push(`[${chunk.date}] ${chunk.text}`);
+      // Recalled text is user-influenced — neutralize any seed-framing delimiter
+      // it carries so it can't break out of the <memory> block (#123).
+      // `chunk.date` is system-formatted (recall-port.ts derives it via
+      // toISOString().slice(0,10), or the literal "unknown") and is therefore not
+      // an attacker-controlled surface; if its provenance ever becomes free text,
+      // it must be routed through neutralizeSeedFraming too.
+      lines.push(`[${chunk.date}] ${neutralizeSeedFraming(chunk.text)}`);
     }
   }
 
@@ -65,7 +73,7 @@ export function renderMemorySeedBlock(
     if (trimmedChunks.length > 0) lines.push("");
     lines.push("What I know about you:");
     for (const fact of facts) {
-      lines.push(`- ${fact.content}`);
+      lines.push(`- ${neutralizeSeedFraming(fact.content)}`);
     }
   }
 

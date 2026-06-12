@@ -33,6 +33,36 @@ export interface RenderPersonaInput {
   readonly persona: string;
 }
 
+/** Upper bound on a substituted display name — a name is a short inline token. */
+const MAX_USERNAME_LENGTH = 80;
+
+/**
+ * Sanitize a user-controlled display name before it is substituted into the
+ * persona system-prompt file (#136).
+ *
+ * The persona text is written verbatim into the CLI's context file
+ * (CLAUDE.md/AGENTS.md/GEMINI.md) and auto-loaded as system instructions, so a
+ * crafted display name containing newlines or markup could inject its own
+ * instructions into the persona. Collapse every control/whitespace run to a
+ * single space, drop characters that could open markup/headings/emphasis, and
+ * cap the length so the name can only ever be a short inline token. Falls back
+ * to a neutral token if nothing printable survives.
+ */
+export function sanitizeUserName(rawName: string): string {
+  const cleaned = rawName
+    // Control characters (newlines, tabs, NUL, DEL, C1) — a display name is single-line.
+    .replace(/\p{Cc}+/gu, " ")
+    // Markup/structural characters that could start a heading, code span, link,
+    // emphasis, or an injected framing tag inside the persona file.
+    .replace(/[<>#`*_~[\]{}|]/g, "")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, MAX_USERNAME_LENGTH)
+    .trim();
+
+  return cleaned.length > 0 ? cleaned : "there";
+}
+
 /** Provider → CLI context filename auto-loaded from the working directory. */
 const CONTEXT_FILENAME: Record<ProviderKind, string> = {
   anthropic: "CLAUDE.md",
@@ -56,7 +86,7 @@ export async function renderPersona(
 ): Promise<{ neutralDir: string; personaPath: string }> {
   const neutralDir = join(resolveBaseDir(input.baseDir), input.userId);
   const personaPath = join(neutralDir, CONTEXT_FILENAME[input.provider]);
-  const content = input.persona.replaceAll("{{userName}}", input.userName);
+  const content = input.persona.replaceAll("{{userName}}", sanitizeUserName(input.userName));
 
   await fs.mkdir(neutralDir);
   await fs.writeFile(personaPath, content);
