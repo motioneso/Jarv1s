@@ -163,9 +163,20 @@ Recommended order — security/RLS first, then defense-in-depth, then hygiene:
   (auth-settings, multi-user-isolation, foundation, release-hardening, api-rate-limit, memory,
   chat-recall, chat-live, tasks-73) green. _(Pending: main CI green → merge → relay.)_
 
+**Batch 2 (sensitive tier) — in progress:**
+
+3. **B1** `handleRouteError` consolidation — ✅ **MERGED (PR #192 @ `eb0391d`, Fable security-QA
+   APPROVED, 2026-06-12).** Single canonical `handleRouteError`/`HttpError` in `@jarv1s/module-sdk`
+   (`route-errors.ts`); thin per-module wrappers keep per-module status mappers +
+   `invalidRequestMessage`. Scrubs its own fallthrough 500 to `{error:"Internal server error"}` +
+   `reply.log.error` (never rethrows → never hits Fastify's leaky default handler). Dropped dead
+   settings `"User not found"→400` branch (verified unreachable). Cross-module `instanceof
+   HttpError` verified single-class. Fable non-blocking recs (B1-future): pin duplicate-key→400 /
+   401-body assertions in integration tests; module-sdk `fastify` → devDependencies (cosmetic);
+   optional `!reply.sent` guard before shared branches.
+
 **Then re-assess and continue:**
 
-3. **B1** `handleRouteError` consolidation (sensitive) — touches 5 modules, one helper.
 4. **B3** raw-Kysely `requireAdmin` → DataContextDb (sensitive).
 5. **B4 + B5** crypto cipher dedup + registry TTL (sensitive).
 6. **B7** React Query user-scoping (sensitive, frontend).
