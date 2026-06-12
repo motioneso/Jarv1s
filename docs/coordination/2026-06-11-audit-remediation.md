@@ -82,9 +82,21 @@ each slice inline; Fable (model:fable) substitutes for Ben at every security gat
   - C bootstrap/throttle folds. Fable APPROVED. **Migration spine HEAD now 0062.**
 - **✅ Batch 2 / B1 MERGED** — PR #192 @ `eb0391d`. `handleRouteError`/`HttpError` consolidated
   into `@jarv1s/module-sdk`; per-module wrappers; scrubbed-500 closes the info-leak. Fable
-  APPROVED. (Code-only, spine unchanged.) Main CI: in flight at relay time → verify green.
-- **▶ NEXT: B3** raw-Kysely `requireAdmin` → DataContextDb (connectors #143, settings #156
-  residual). Then B4+B5, B7, C-sensitive, B6, B8, routine.
+  APPROVED. (Code-only, spine unchanged.) Main CI on `eb0391d` confirmed green.
+- **✅ Batch 2 / B3 MERGED** — PR #193 @ `dff5301`. Connectors admin check (`GET
+/api/admin/connectors/accounts`) routed off the root-Kysely `appDb` handle through
+  `DataContextDb` (new `ConnectorsRepository.getUserById` on `scopedDb.db` via
+  SECURITY-DEFINER `app.get_user_by_id`); admin assertion moved inside `withDataContext` so
+  check + listing share the actor's scoped txn — mirrors settings. Dead `appDb` removed from
+  the shared `BuiltInRouteDependencies` bag + server wiring + connectors-google test; `rootDb`
+  (settings BootstrapHelper) is now the only documented root-handle escape in the route layer.
+  Fable security QA **APPROVE / MERGE-READY: YES** (5 hard items VERIFIED: zero root-handle
+  queries remain in connectors, exact 401/403/200 parity, auth-before-work ordering, dead-code
+  removal safe, 59 integration tests green). settings #156 was already fixed by D #188 → B3 =
+  connectors only. (Code-only, spine unchanged → **HEAD 0062**.) Main CI on `dff5301`: in flight
+  at relay → verify green.
+- **▶ NEXT: B4 + B5** crypto cipher dedup + registry TTL (sensitive). Then B7
+  (React Query user-scoping), C-sensitive, B6, B8, routine.
 
 ---
 

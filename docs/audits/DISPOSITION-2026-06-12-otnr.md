@@ -175,9 +175,19 @@ Recommended order — security/RLS first, then defense-in-depth, then hygiene:
    401-body assertions in integration tests; module-sdk `fastify` → devDependencies (cosmetic);
    optional `!reply.sent` guard before shared branches.
 
+4. **B3** raw-Kysely `requireAdmin` → DataContextDb — ✅ **MERGED (PR #193 @ `dff5301`, Fable
+   security-QA APPROVE / MERGE-READY: YES, 2026-06-12).** Connectors admin route routed off the
+   root-Kysely `appDb` handle to `DataContextDb` (new `ConnectorsRepository.getUserById` executing
+   `app.get_user_by_id` SECURITY-DEFINER on `scopedDb.db`); admin assertion moved inside
+   `withDataContext` so check + listing share the actor's scoped txn (mirrors settings). Dead
+   `appDb` removed from the shared `BuiltInRouteDependencies` bag + server wiring + connectors-google
+   test — `rootDb` (settings BootstrapHelper) is now the only documented root-handle escape in the
+   route layer. settings #156 was already converted by D #188, so B3 collapsed to the single
+   connectors violation. Fable verified zero root-handle queries remain in connectors, exact
+   401/403/200 parity, auth-before-work ordering, dead-code removal safe, 59 integration tests green.
+
 **Then re-assess and continue:**
 
-4. **B3** raw-Kysely `requireAdmin` → DataContextDb (sensitive).
 5. **B4 + B5** crypto cipher dedup + registry TTL (sensitive).
 6. **B7** React Query user-scoping (sensitive, frontend).
 7. **C** `validateToolInput`, `#94` TOCTOU, `x-forwarded-proto` (sensitive).
