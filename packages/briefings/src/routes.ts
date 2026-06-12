@@ -5,7 +5,11 @@ import type { PgBoss } from "pg-boss";
 
 import { listAssistantToolsFromManifests } from "@jarv1s/ai";
 import type { AccessContext, BriefingDefinition, BriefingRun, DataContextRunner } from "@jarv1s/db";
-import type { JarvisModuleManifest } from "@jarv1s/module-sdk";
+import {
+  HttpError,
+  handleRouteError as handleModuleRouteError,
+  type JarvisModuleManifest
+} from "@jarv1s/module-sdk";
 import {
   createBriefingDefinitionRouteSchema,
   listBriefingDefinitionsRouteSchema,
@@ -380,35 +384,8 @@ function toIsoString(value: Date | string): string {
   return value instanceof Date ? value.toISOString() : value;
 }
 
-class HttpError extends Error {
-  constructor(
-    readonly statusCode: number,
-    message: string
-  ) {
-    super(message);
-  }
-}
-
 function handleRouteError(error: unknown, reply: FastifyReply) {
-  if (error instanceof HttpError) {
-    return reply.code(error.statusCode).send({ error: error.message });
-  }
-
-  if (error instanceof Error) {
-    if (error.message === "Session is missing or expired") {
-      return reply.code(401).send({ error: error.message });
-    }
-    if (error.message === "Invalid bearer token") {
-      return reply.code(401).send({ error: error.message });
-    }
-    if (
-      error.message.includes("foreign key") ||
-      error.message.includes("violates row-level security policy") ||
-      error.message.includes("duplicate key")
-    ) {
-      return reply.code(400).send({ error: "Briefings request is invalid" });
-    }
-  }
-
-  throw error;
+  return handleModuleRouteError(error, reply, {
+    invalidRequestMessage: "Briefings request is invalid"
+  });
 }

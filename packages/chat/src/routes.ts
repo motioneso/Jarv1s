@@ -13,6 +13,7 @@ import {
   type SessionNotifier
 } from "@jarv1s/ai";
 import { ChatMemoryFactsRepository, type MemoryFact } from "@jarv1s/memory";
+import { handleRouteError as handleModuleRouteError } from "@jarv1s/module-sdk";
 
 import { ChatGatewayNotifier } from "./gateway-notifier.js";
 import { registerChatLiveRoutes } from "./live-routes.js";
@@ -277,20 +278,5 @@ function toIsoString(value: Date | string): string {
 }
 
 function handleRouteError(error: unknown, reply: FastifyReply) {
-  if (error instanceof Error) {
-    if (error.message === "Session is missing or expired") {
-      return reply.code(401).send({ error: error.message });
-    }
-    if (error.message === "Invalid bearer token") {
-      return reply.code(401).send({ error: error.message });
-    }
-    if (
-      error.message.includes("foreign key") ||
-      error.message.includes("violates row-level security policy")
-    ) {
-      return reply.code(400).send({ error: "Chat request is invalid" });
-    }
-  }
-
-  throw error;
+  return handleModuleRouteError(error, reply, { invalidRequestMessage: "Chat request is invalid" });
 }

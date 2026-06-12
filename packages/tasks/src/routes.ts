@@ -1,4 +1,4 @@
-import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
+import type { FastifyInstance, FastifyRequest } from "fastify";
 import type { PgBoss } from "pg-boss";
 
 import type { AccessContext, DataContextRunner, TaskStatus } from "@jarv1s/db";
@@ -24,6 +24,8 @@ import {
 } from "@jarv1s/shared";
 
 import { sendJob } from "@jarv1s/jobs";
+
+import { handleRouteError } from "@jarv1s/module-sdk";
 
 import { HttpError } from "./errors.js";
 import { type DeferredTaskStatusPayload, isDeferredTaskStatusPayloadMetadataOnly } from "./jobs.js";
@@ -596,18 +598,4 @@ function parseStringArray(value: unknown, fieldName: string): string[] {
 
     return item.trim();
   });
-}
-
-function handleRouteError(error: unknown, reply: FastifyReply) {
-  if (error instanceof HttpError) {
-    return reply.code(error.statusCode).send({ error: error.message });
-  }
-
-  if (error instanceof Error && error.message === "Session is missing or expired") {
-    return reply.code(401).send({ error: "Session is missing or expired" });
-  }
-  if (error instanceof Error && error.message === "Invalid bearer token") {
-    return reply.code(401).send({ error: "Invalid bearer token" });
-  }
-  throw error;
 }
