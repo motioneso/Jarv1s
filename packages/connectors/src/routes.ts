@@ -25,6 +25,7 @@ import {
   type GoogleCompleteRequest,
   type UpdateConnectorAccountRequest
 } from "@jarv1s/shared";
+import { HttpError, handleRouteError as handleModuleRouteError } from "@jarv1s/module-sdk";
 
 import { createConnectorSecretCipher, type ConnectorSecretCipher } from "./crypto.js";
 import { GoogleConnectionService, GoogleConnectError } from "./google-connection.js";
@@ -380,37 +381,14 @@ function toIsoString(value: Date | string | null): string | null {
   return value instanceof Date ? value.toISOString() : value;
 }
 
-class HttpError extends Error {
-  constructor(
-    readonly statusCode: number,
-    message: string
-  ) {
-    super(message);
-  }
-}
-
 function handleRouteError(error: unknown, reply: FastifyReply) {
-  if (error instanceof GoogleConnectError) {
-    return reply.code(error.statusCode).send({ error: error.message });
-  }
-  if (error instanceof HttpError) {
-    return reply.code(error.statusCode).send({ error: error.message });
-  }
-
-  if (error instanceof Error) {
-    if (error.message === "Session is missing or expired") {
-      return reply.code(401).send({ error: error.message });
-    }
-    if (error.message === "Invalid bearer token") {
-      return reply.code(401).send({ error: error.message });
-    }
-    if (
-      error.message.includes("foreign key") ||
-      error.message.includes("violates row-level security policy")
-    ) {
-      return reply.code(400).send({ error: "Connector account request is invalid" });
-    }
-  }
-
-  throw error;
+  return handleModuleRouteError(error, reply, {
+    mappers: [
+      (e, r) =>
+        e instanceof GoogleConnectError
+          ? r.code(e.statusCode).send({ error: e.message })
+          : undefined
+    ],
+    invalidRequestMessage: "Connector account request is invalid"
+  });
 }

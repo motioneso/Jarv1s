@@ -1,5 +1,6 @@
-import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
+import type { FastifyInstance, FastifyRequest } from "fastify";
 
+import { handleRouteError } from "@jarv1s/module-sdk";
 import type { AccessContext, CalendarEvent, DataContextRunner } from "@jarv1s/db";
 import {
   getCalendarEventRouteSchema,
@@ -84,8 +85,4 @@ export function serializeCalendarEvent(event: CalendarEvent): CalendarEventDto {
 
 function toIsoString(value: Date | string): string {
   return value instanceof Date ? value.toISOString() : value;
-}
-
-function handleRouteError(_error: unknown, reply: FastifyReply) {
-  return reply.code(401).send({ error: "Session is missing or expired" });
 }

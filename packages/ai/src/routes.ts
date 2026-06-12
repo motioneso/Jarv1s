@@ -23,7 +23,11 @@ function aiToolsRateLimitKey(request: FastifyRequest): string {
 }
 
 import type { AccessContext, DataContextRunner } from "@jarv1s/db";
-import type { JarvisModuleManifest } from "@jarv1s/module-sdk";
+import {
+  HttpError,
+  handleRouteError as handleModuleRouteError,
+  type JarvisModuleManifest
+} from "@jarv1s/module-sdk";
 import {
   createAiConfiguredModelRouteSchema,
   createAiProviderConfigRouteSchema,
@@ -806,39 +810,12 @@ function toIsoString(value: Date | string | null): string | null {
   return value instanceof Date ? value.toISOString() : value;
 }
 
-class HttpError extends Error {
-  constructor(
-    readonly statusCode: number,
-    message: string
-  ) {
-    super(message);
-  }
-}
-
 function handleRouteError(error: unknown, reply: FastifyReply) {
-  if (error instanceof HttpError) {
-    return reply.code(error.statusCode).send({ error: error.message });
-  }
-
-  if (error instanceof ToolInputValidationError) {
-    return reply.code(400).send({ error: error.message });
-  }
-
-  if (error instanceof Error) {
-    if (error.message === "Session is missing or expired") {
-      return reply.code(401).send({ error: error.message });
-    }
-    if (error.message === "Invalid bearer token") {
-      return reply.code(401).send({ error: error.message });
-    }
-    if (
-      error.message.includes("foreign key") ||
-      error.message.includes("violates row-level security policy") ||
-      error.message.includes("duplicate key")
-    ) {
-      return reply.code(400).send({ error: "AI configuration request is invalid" });
-    }
-  }
-
-  throw error;
+  return handleModuleRouteError(error, reply, {
+    mappers: [
+      (e, r) =>
+        e instanceof ToolInputValidationError ? r.code(400).send({ error: e.message }) : undefined
+    ],
+    invalidRequestMessage: "AI configuration request is invalid"
+  });
 }
