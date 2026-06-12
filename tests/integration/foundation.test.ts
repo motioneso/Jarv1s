@@ -25,12 +25,20 @@ import { connectionStrings, ids, resetFoundationDatabase } from "./test-database
 
 const { Client } = pg;
 
+// Test-only RLS-bypass read of the probe table via a root Kysely handle. This deliberately
+// skips `withDataContext`, so it lives in the test harness — never on the shipped
+// `DataContextRunner` — to assert that RLS denies rows when no actor context is set.
+async function selectVisibleProbeIds(rootDb: Kysely<JarvisDatabase>): Promise<string[]> {
+  const rows = await rootDb.selectFrom("app.rls_probe_items").select("id").orderBy("id").execute();
+
+  return rows.map((row) => row.id);
+}
+
 describe("MVP foundation scaffold", () => {
   let appDb: Kysely<JarvisDatabase>;
   let workerDb: Kysely<JarvisDatabase>;
   let auth: AuthSessionResolver;
   let dataContext: DataContextRunner;
-  let workerContext: DataContextRunner;
   let repository: RlsProbeRepository;
   let appBoss: PgBoss;
   let workerBoss: PgBoss;
@@ -50,7 +58,6 @@ describe("MVP foundation scaffold", () => {
 
     auth = new AuthSessionResolver(appDb);
     dataContext = new DataContextRunner(appDb);
-    workerContext = new DataContextRunner(workerDb);
     repository = new RlsProbeRepository();
 
     // Seed app.shares for itemBGrantedToA: userB shares 'view' to userA so the
@@ -205,8 +212,8 @@ describe("MVP foundation scaffold", () => {
   });
 
   it("denies protected rows when no app context is set", async () => {
-    await expect(dataContext.unsafeSelectVisibleProbeIdsForTest()).resolves.toEqual([]);
-    await expect(workerContext.unsafeSelectVisibleProbeIdsForTest()).resolves.toEqual([]);
+    await expect(selectVisibleProbeIds(appDb)).resolves.toEqual([]);
+    await expect(selectVisibleProbeIds(workerDb)).resolves.toEqual([]);
   });
 
   it("resolves a session to app authz context and lets a user read their own private row", async () => {
@@ -322,7 +329,7 @@ describe("MVP foundation scaffold", () => {
       expect(visibleIds).toContain(ids.itemAOwnPrivate);
     });
 
-    await expect(dataContext.unsafeSelectVisibleProbeIdsForTest()).resolves.toEqual([]);
+    await expect(selectVisibleProbeIds(appDb)).resolves.toEqual([]);
   });
 
   it("clears transaction-local context after rollback", async () => {
@@ -333,7 +340,7 @@ describe("MVP foundation scaffold", () => {
       })
     ).rejects.toThrow("force rollback");
 
-    await expect(dataContext.unsafeSelectVisibleProbeIdsForTest()).resolves.toEqual([]);
+    await expect(selectVisibleProbeIds(appDb)).resolves.toEqual([]);
   });
 
   it("fails loudly when a repository is called without the data-context wrapper", async () => {

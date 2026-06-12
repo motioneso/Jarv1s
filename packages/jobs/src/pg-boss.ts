@@ -7,6 +7,7 @@ import {
   type WorkOptions
 } from "pg-boss";
 
+import { assertUuid } from "@jarv1s/db";
 import type { AccessContext, DataContextDb, DataContextRunner } from "@jarv1s/db";
 
 export const PGBOSS_SCHEMA = "pgboss";
@@ -80,9 +81,36 @@ export async function sendJob<T extends ActorScopedJobPayload>(
   return options === undefined ? boss.send(queue, payload) : boss.send(queue, payload, options);
 }
 
+export interface PgBossClientHooks {
+  /**
+   * Invoked for pg-boss internal `error` events. Defaults to structured stderr logging.
+   *
+   * NEVER rethrow from here (#158): the `error` event fires on pg-boss's own maintenance
+   * connection, and a throw inside the EventEmitter listener escalates to an
+   * `uncaughtException` that crashes the entire host process on a transient DB blip. A
+   * long-lived process (the API HTTP server) must survive a momentary boss-connection error,
+   * so the default handler logs and continues.
+   */
+  readonly onError?: (error: Error) => void;
+}
+
+function defaultOnPgBossError(error: Error): void {
+  // Single-line structured JSON for log scrapers. We deliberately serialise only name+message,
+  // never the raw error object — some driver errors carry the connection string.
+  process.stderr.write(
+    `${JSON.stringify({
+      level: "error",
+      event: "pgboss.internal_error",
+      name: error.name,
+      message: error.message
+    })}\n`
+  );
+}
+
 export function createPgBossClient(
   connectionString: string,
-  overrides: Partial<ConstructorOptions> = {}
+  overrides: Partial<ConstructorOptions> = {},
+  hooks: PgBossClientHooks = {}
 ): PgBoss {
   const boss = new PgBoss({
     connectionString,
@@ -94,8 +122,9 @@ export function createPgBossClient(
     ...overrides
   });
 
-  boss.on("error", (error) => {
-    throw error;
+  const onError = hooks.onError ?? defaultOnPgBossError;
+  boss.on("error", (error: unknown) => {
+    onError(error instanceof Error ? error : new Error(String(error)));
   });
 
   return boss;
@@ -146,6 +175,10 @@ function toAccessContext(job: Job<ActorScopedJobPayload>): AccessContext {
   if (!job.data.actorUserId) {
     throw new Error(`Job ${job.id} is missing actorUserId`);
   }
+  // The actor id becomes the RLS principal via withDataContext → set_config. Shape-check it at
+  // the job boundary so a malformed payload fails with a job-scoped error rather than a 22P02
+  // surfacing deep inside a handler query (#158).
+  assertUuid(job.data.actorUserId, `Job ${job.id} actorUserId`);
 
   return {
     actorUserId: job.data.actorUserId,
