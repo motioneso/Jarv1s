@@ -96,6 +96,7 @@ do not rely on these line numbers:
 
 **Public methods (all need `scopedDb: DataContextDb` as first param + `assertDataContextDb`
 at method entry):**
+
 - `countUsers` — **exception**: moves to `bootstrap.ts` (see §2)
 - `getUserById` (was incorrectly named `getUser` in prior drafts — verify actual name)
 - `listUsers` (admin user listing — not `listAllUsers`)
@@ -110,6 +111,7 @@ at method entry):**
 - `assertNotLastActiveAdmin` (≈ line 629 — public, called from `routes.ts:415`; uses `this.db`)
 
 **Private helpers (update to accept `scopedDb` from callers):**
+
 - `requireUserRow`
 - `assertAnotherActiveAdmin`
 - `insertAuditEvent` (Slice E will expose a public version; keep the private helper for now)
@@ -122,10 +124,11 @@ surfaces all remaining raw-handle usages as errors.
 **Critical path — must not be missed:**
 
 Both methods currently do:
+
 ```typescript
 // ≈ lines 416-419 (setUserStatus) and 454-457 (setUserAdmin):
 await this.db.transaction().execute(async (tx) => {
-  await tx.executeQuery(sql`SELECT set_config('app.actor_user_id', ${input.actorUserId}, true)`)
+  await tx.executeQuery(sql`SELECT set_config('app.actor_user_id', ${input.actorUserId}, true)`);
   // ... DML ...
 });
 ```
@@ -134,6 +137,7 @@ After DataContextDb conversion, `scopedDb` is already a `Transaction` — callin
 on it is a runtime error. The `withDataContext` call in the route already sets the GUC.
 
 **Fix:** delete both `transaction().execute()` wrappers and the `set_config` calls entirely:
+
 ```typescript
 async setUserAdmin(scopedDb: DataContextDb, input: SetUserAdminInput): Promise<...> {
   assertDataContextDb(scopedDb);

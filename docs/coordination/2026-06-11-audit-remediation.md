@@ -25,17 +25,17 @@
 
 Severity post-Fable. Tier by content trigger (most of this backlog is `security`).
 
-| Slice | Issues | Tier | Adds migration? | Spec | Status |
-| ----- | ------ | ---- | --------------- | ---- | ------ |
-| **A — RLS least-priv migrations** | #97 users-column UPDATE restriction, #98 worker memory RLS policies | security | **yes (×3: 0053+0054+0055)** | `docs/superpowers/specs/2026-06-11-audit-slice-a-rls-least-priv.md` ✅ | **MERGED** PR #181 @ 2026-06-12T00:13:10Z — issues #97 #98 closed, board Done |
-| **B — Dead subsystem deletion** | #120 workspaces, #153 resource-grants no-op, #115 + #116 (resolved by deletion), fold #152 manifest-narrowing; advances #155/#127/#101 workspace-halves | sensitive→**security** | **yes (DROP)** | `docs/superpowers/specs/2026-06-12-audit-slice-b-dead-subsystem-deletion.md` ✅ | blocked-on-Ben-review |
-| **C — Vault containment** | #129 actorUserId validation, #130 symlink real-path containment | security | no (code) | `docs/superpowers/specs/2026-06-11-audit-slice-c-vault-containment.md` ✅ | **MERGED** PR #182 @ 2026-06-12T00:13:23Z — issues #130 closed, board Done |
-| **D — Settings → DataContextDb** | #95 SettingsRepository raw Kysely, #155 /api/me cross-user read | security | maybe (grant) | `docs/superpowers/specs/2026-06-12-audit-slice-d-settings-datacontext.md` ✅ | blocked-on-Ben-review |
-| **E — Auth module hardening** | #101 module-isolation, #127 bootstrap actor-GUC, #141 OAuth error-body leak (#113 deferred → issue #183) | security | no (code) | `docs/superpowers/specs/2026-06-12-audit-slice-e-auth-hardening.md` ✅ | blocked-on-Ben-review |
-| **F — AI tool-path hardening** | #132 REST validateToolInput, #119 server-side allowlist, #148 blank ToolContext, #172 tools/list actor-scope | security | no (code) | `docs/superpowers/specs/2026-06-12-audit-slice-f-ai-toolpath-hardening.md` ✅ | blocked-on-Ben-review |
-| **G — Data-layer defense-in-depth** | #102 assertDataContextDb, #144 vectorSearch owner predicate, #99 structured-state WITH CHECK | security | maybe (#99) | `docs/superpowers/specs/2026-06-12-audit-slice-g-datalayer-defense.md` ✅ | blocked-on-Ben-review |
-| **H — Migration/job infra** | #124 schema_migrations per-dir, #134 worker dead grant REVOKE, #135 incognito trigger, #157 metadata-only payload guard, #174 pgboss RLS | security/sensitive | **yes (×2 versioned + 1 grants file)** | `docs/superpowers/specs/2026-06-12-audit-slice-h-migration-job-infra.md` ✅ | blocked-on-Ben-review |
-| **I — Portability + observability tail** | #170 export omits private, #149 handleRouteError, #140 list ownership, #166 test hygiene (LOW) | sensitive/routine | no (code) | `docs/superpowers/specs/2026-06-12-audit-slice-i-portability-tail.md` ✅ | blocked-on-Ben-review |
+| Slice                                    | Issues                                                                                                                                                  | Tier                   | Adds migration?                        | Spec                                                                            | Status                                                                        |
+| ---------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------- | -------------------------------------- | ------------------------------------------------------------------------------- | ----------------------------------------------------------------------------- |
+| **A — RLS least-priv migrations**        | #97 users-column UPDATE restriction, #98 worker memory RLS policies                                                                                     | security               | **yes (×3: 0053+0054+0055)**           | `docs/superpowers/specs/2026-06-11-audit-slice-a-rls-least-priv.md` ✅          | **MERGED** PR #181 @ 2026-06-12T00:13:10Z — issues #97 #98 closed, board Done |
+| **B — Dead subsystem deletion**          | #120 workspaces, #153 resource-grants no-op, #115 + #116 (resolved by deletion), fold #152 manifest-narrowing; advances #155/#127/#101 workspace-halves | sensitive→**security** | **yes (DROP)**                         | `docs/superpowers/specs/2026-06-12-audit-slice-b-dead-subsystem-deletion.md` ✅ | blocked-on-Ben-review                                                         |
+| **C — Vault containment**                | #129 actorUserId validation, #130 symlink real-path containment                                                                                         | security               | no (code)                              | `docs/superpowers/specs/2026-06-11-audit-slice-c-vault-containment.md` ✅       | **MERGED** PR #182 @ 2026-06-12T00:13:23Z — issues #130 closed, board Done    |
+| **D — Settings → DataContextDb**         | #95 SettingsRepository raw Kysely, #155 /api/me cross-user read                                                                                         | security               | maybe (grant)                          | `docs/superpowers/specs/2026-06-12-audit-slice-d-settings-datacontext.md` ✅    | blocked-on-Ben-review                                                         |
+| **E — Auth module hardening**            | #101 module-isolation, #127 bootstrap actor-GUC, #141 OAuth error-body leak (#113 deferred → issue #183)                                                | security               | no (code)                              | `docs/superpowers/specs/2026-06-12-audit-slice-e-auth-hardening.md` ✅          | blocked-on-Ben-review                                                         |
+| **F — AI tool-path hardening**           | #132 REST validateToolInput, #119 server-side allowlist, #148 blank ToolContext, #172 tools/list actor-scope                                            | security               | no (code)                              | `docs/superpowers/specs/2026-06-12-audit-slice-f-ai-toolpath-hardening.md` ✅   | blocked-on-Ben-review                                                         |
+| **G — Data-layer defense-in-depth**      | #102 assertDataContextDb, #144 vectorSearch owner predicate, #99 structured-state WITH CHECK                                                            | security               | maybe (#99)                            | `docs/superpowers/specs/2026-06-12-audit-slice-g-datalayer-defense.md` ✅       | blocked-on-Ben-review                                                         |
+| **H — Migration/job infra**              | #124 schema_migrations per-dir, #134 worker dead grant REVOKE, #135 incognito trigger, #157 metadata-only payload guard, #174 pgboss RLS                | security/sensitive     | **yes (×2 versioned + 1 grants file)** | `docs/superpowers/specs/2026-06-12-audit-slice-h-migration-job-infra.md` ✅     | blocked-on-Ben-review                                                         |
+| **I — Portability + observability tail** | #170 export omits private, #149 handleRouteError, #140 list ownership, #166 test hygiene (LOW)                                                          | sensitive/routine      | no (code)                              | `docs/superpowers/specs/2026-06-12-audit-slice-i-portability-tail.md` ✅        | blocked-on-Ben-review                                                         |
 
 Not yet sliced: the aggregate `MED/LOW findings —` batch issues (#104–#111, #114, #117, #122–#171 even, #156…) — a later backlog pass after the HIGH/MED individual findings land.
 
@@ -71,9 +71,9 @@ budgeted place to spend up; the resident loop runs cheap on Sonnet).
 
 ## CI waivers
 
-| Check | PR | Proven red on `main` @ SHA | Proof | Ben-approved |
-| ----- | -- | -------------------------- | ----- | ------------ |
-| <none> | — | — | — | — |
+| Check  | PR  | Proven red on `main` @ SHA | Proof | Ben-approved |
+| ------ | --- | -------------------------- | ----- | ------------ |
+| <none> | —   | —                          | —     | —            |
 
 ## Outstanding escalations
 

@@ -12,32 +12,37 @@
 
 ## File map
 
-| File | Change |
-|------|--------|
-| `packages/vault/src/vault-context.ts` | Add `VaultContextError` class; add `actorUserId` guard in `withVaultContext` (line 31 area) |
-| `packages/vault/src/vault-ops.ts` | Add `realpath` to import (line 1); add `assertNoSymlinkEscape` helper; call it after each of the 7 `resolveVaultPath` call sites |
-| `packages/vault/src/index.ts` | Export `VaultContextError` |
-| `tests/integration/vault.test.ts` | Add `symlink`, `writeFile`, `mkdir` to fs imports; import `VaultContextError`; add 5 new tests |
+| File                                  | Change                                                                                                                           |
+| ------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
+| `packages/vault/src/vault-context.ts` | Add `VaultContextError` class; add `actorUserId` guard in `withVaultContext` (line 31 area)                                      |
+| `packages/vault/src/vault-ops.ts`     | Add `realpath` to import (line 1); add `assertNoSymlinkEscape` helper; call it after each of the 7 `resolveVaultPath` call sites |
+| `packages/vault/src/index.ts`         | Export `VaultContextError`                                                                                                       |
+| `tests/integration/vault.test.ts`     | Add `symlink`, `writeFile`, `mkdir` to fs imports; import `VaultContextError`; add 5 new tests                                   |
 
 ---
 
 ## Task 1: Write failing tests for #129 (actorUserId validation)
 
 **Files:**
+
 - Modify: `tests/integration/vault.test.ts`
 
 - [ ] **Step 1: Add imports needed for new tests**
 
 In `tests/integration/vault.test.ts`, update the imports block. Current line 2:
+
 ```typescript
 import { rm } from "node:fs/promises";
 ```
+
 Replace with:
+
 ```typescript
 import { mkdir, rm, symlink, writeFile } from "node:fs/promises";
 ```
 
 Also add `VaultContextError` to the `@jarv1s/vault` import block (currently lines 7–17). Add it to the named imports list:
+
 ```typescript
 import {
   VaultContextError,
@@ -67,16 +72,16 @@ afterAll(async () => {
 describe("VaultContextRunner actorUserId validation (#129)", () => {
   it("throws VaultContextError on empty actorUserId", async () => {
     const runner = new VaultContextRunner(validationBase);
-    await expect(
-      runner.withVaultContext({ actorUserId: "" }, async () => {})
-    ).rejects.toThrow(VaultContextError);
+    await expect(runner.withVaultContext({ actorUserId: "" }, async () => {})).rejects.toThrow(
+      VaultContextError
+    );
   });
 
   it("throws VaultContextError on whitespace-only actorUserId", async () => {
     const runner = new VaultContextRunner(validationBase);
-    await expect(
-      runner.withVaultContext({ actorUserId: "   " }, async () => {})
-    ).rejects.toThrow(VaultContextError);
+    await expect(runner.withVaultContext({ actorUserId: "   " }, async () => {})).rejects.toThrow(
+      VaultContextError
+    );
   });
 
   it("accepts a valid actorUserId and returns the work result", async () => {
@@ -96,6 +101,7 @@ describe("VaultContextRunner actorUserId validation (#129)", () => {
 cd /home/ben/Jarv1s/.claude/worktrees/audit-slice-c
 pnpm typecheck 2>&1 | grep VaultContextError
 ```
+
 Expected: error about `VaultContextError` not being exported from `@jarv1s/vault`.
 
 ---
@@ -103,6 +109,7 @@ Expected: error about `VaultContextError` not being exported from `@jarv1s/vault
 ## Task 2: Add VaultContextError + guard in vault-context.ts
 
 **Files:**
+
 - Modify: `packages/vault/src/vault-context.ts`
 - Modify: `packages/vault/src/index.ts`
 
@@ -117,12 +124,12 @@ export class VaultContextError extends Error {
     this.name = "VaultContextError";
   }
 }
-
 ```
 
 - [ ] **Step 2: Add the actorUserId guard in withVaultContext**
 
 In `packages/vault/src/vault-context.ts`, the `withVaultContext` method body currently starts at (adjusted line after the class addition):
+
 ```typescript
   async withVaultContext<T>(
     accessContext: AccessContext,
@@ -132,26 +139,37 @@ In `packages/vault/src/vault-context.ts`, the `withVaultContext` method body cur
 ```
 
 Replace the method body opening (just the first line of the body):
+
 ```typescript
-    const vaultRoot = join(this.vaultsBaseDir, accessContext.actorUserId);
+const vaultRoot = join(this.vaultsBaseDir, accessContext.actorUserId);
 ```
+
 With:
+
 ```typescript
-    if (!accessContext.actorUserId || !accessContext.actorUserId.trim()) {
-      throw new VaultContextError("withVaultContext: actorUserId must be non-empty");
-    }
-    const vaultRoot = join(this.vaultsBaseDir, accessContext.actorUserId);
+if (!accessContext.actorUserId || !accessContext.actorUserId.trim()) {
+  throw new VaultContextError("withVaultContext: actorUserId must be non-empty");
+}
+const vaultRoot = join(this.vaultsBaseDir, accessContext.actorUserId);
 ```
 
 - [ ] **Step 3: Export VaultContextError from index.ts**
 
 In `packages/vault/src/index.ts`, update line 2:
+
 ```typescript
 export { assertVaultContext, VaultContextRunner, vaultContextBrand } from "./vault-context.js";
 ```
+
 Replace with:
+
 ```typescript
-export { VaultContextError, assertVaultContext, VaultContextRunner, vaultContextBrand } from "./vault-context.js";
+export {
+  VaultContextError,
+  assertVaultContext,
+  VaultContextRunner,
+  vaultContextBrand
+} from "./vault-context.js";
 ```
 
 - [ ] **Step 4: Run #129 tests — confirm they pass**
@@ -160,6 +178,7 @@ export { VaultContextError, assertVaultContext, VaultContextRunner, vaultContext
 cd /home/ben/Jarv1s/.claude/worktrees/audit-slice-c
 vitest run tests/integration/vault.test.ts --reporter=verbose 2>&1 | grep -A2 "actorUserId validation"
 ```
+
 Expected: 3 tests pass.
 
 - [ ] **Step 5: Commit**
@@ -180,6 +199,7 @@ EOF
 ## Task 3: Write failing tests for #130 (symlink escape)
 
 **Files:**
+
 - Modify: `tests/integration/vault.test.ts`
 
 - [ ] **Step 1: Add symlink escape tests at end of file**
@@ -227,6 +247,7 @@ describe("symlink escape containment (#130)", () => {
 cd /home/ben/Jarv1s/.claude/worktrees/audit-slice-c
 vitest run tests/integration/vault.test.ts --reporter=verbose 2>&1 | grep -A3 "symlink escape"
 ```
+
 Expected: 2 tests FAIL (the symlink escape succeeds — no `VaultPathError` thrown yet).
 
 ---
@@ -234,15 +255,19 @@ Expected: 2 tests FAIL (the symlink escape succeeds — no `VaultPathError` thro
 ## Task 4: Add assertNoSymlinkEscape to vault-ops.ts
 
 **Files:**
+
 - Modify: `packages/vault/src/vault-ops.ts`
 
 - [ ] **Step 1: Add `realpath` to the fs/promises import**
 
 In `packages/vault/src/vault-ops.ts`, line 1:
+
 ```typescript
 import { mkdir, readFile, readdir, rm, stat, writeFile } from "node:fs/promises";
 ```
+
 Replace with:
+
 ```typescript
 import { mkdir, readFile, readdir, realpath, rm, stat, writeFile } from "node:fs/promises";
 ```
@@ -264,16 +289,18 @@ async function assertNoSymlinkEscape(fullPath: string, vaultRoot: string): Promi
     throw new VaultPathError(relative(vaultRoot, fullPath));
   }
 }
-
 ```
 
 Note: `VaultPathError` is not currently imported in `vault-ops.ts`. Add it to the import from `./vault-path.js`:
 
 In `packages/vault/src/vault-ops.ts`, find the line:
+
 ```typescript
 import { resolveVaultPath } from "./vault-path.js";
 ```
+
 Replace with:
+
 ```typescript
 import { VaultPathError, resolveVaultPath } from "./vault-path.js";
 ```
@@ -281,13 +308,16 @@ import { VaultPathError, resolveVaultPath } from "./vault-path.js";
 - [ ] **Step 3: Add assertNoSymlinkEscape calls at all 7 resolveVaultPath call sites**
 
 **readVaultFile** (currently lines 7–10):
+
 ```typescript
 export async function readVaultFile(ctx: VaultContext, relativePath: string): Promise<string> {
   const fullPath = resolveVaultPath(ctx.vaultRoot, relativePath);
   return readFile(fullPath, "utf8");
 }
 ```
+
 Replace with:
+
 ```typescript
 export async function readVaultFile(ctx: VaultContext, relativePath: string): Promise<string> {
   const fullPath = resolveVaultPath(ctx.vaultRoot, relativePath);
@@ -297,6 +327,7 @@ export async function readVaultFile(ctx: VaultContext, relativePath: string): Pr
 ```
 
 **writeVaultFile** (currently lines 12–20):
+
 ```typescript
 export async function writeVaultFile(
   ctx: VaultContext,
@@ -308,7 +339,9 @@ export async function writeVaultFile(
   await writeFile(fullPath, content, "utf8");
 }
 ```
+
 Replace with:
+
 ```typescript
 export async function writeVaultFile(
   ctx: VaultContext,
@@ -323,6 +356,7 @@ export async function writeVaultFile(
 ```
 
 **listVaultFiles** (currently lines 22–26):
+
 ```typescript
 export async function listVaultFiles(ctx: VaultContext, relativeDir: string): Promise<string[]> {
   const fullPath = resolveVaultPath(ctx.vaultRoot, relativeDir);
@@ -330,7 +364,9 @@ export async function listVaultFiles(ctx: VaultContext, relativeDir: string): Pr
   return entries.filter((e) => e.isFile()).map((e) => e.name);
 }
 ```
+
 Replace with:
+
 ```typescript
 export async function listVaultFiles(ctx: VaultContext, relativeDir: string): Promise<string[]> {
   const fullPath = resolveVaultPath(ctx.vaultRoot, relativeDir);
@@ -341,13 +377,16 @@ export async function listVaultFiles(ctx: VaultContext, relativeDir: string): Pr
 ```
 
 **deleteVaultFile** (currently lines 28–31):
+
 ```typescript
 export async function deleteVaultFile(ctx: VaultContext, relativePath: string): Promise<void> {
   const fullPath = resolveVaultPath(ctx.vaultRoot, relativePath);
   await rm(fullPath);
 }
 ```
+
 Replace with:
+
 ```typescript
 export async function deleteVaultFile(ctx: VaultContext, relativePath: string): Promise<void> {
   const fullPath = resolveVaultPath(ctx.vaultRoot, relativePath);
@@ -357,6 +396,7 @@ export async function deleteVaultFile(ctx: VaultContext, relativePath: string): 
 ```
 
 **vaultFileExists** (currently lines 33–42 — note resolveVaultPath is intentionally outside the try block so VaultPathError propagates; assertNoSymlinkEscape must also be outside):
+
 ```typescript
 export async function vaultFileExists(ctx: VaultContext, relativePath: string): Promise<boolean> {
   // resolveVaultPath is called outside the try block so VaultPathError propagates
@@ -369,7 +409,9 @@ export async function vaultFileExists(ctx: VaultContext, relativePath: string): 
   }
 }
 ```
+
 Replace with:
+
 ```typescript
 export async function vaultFileExists(ctx: VaultContext, relativePath: string): Promise<boolean> {
   // resolveVaultPath + assertNoSymlinkEscape outside the try so their errors propagate
@@ -385,13 +427,16 @@ export async function vaultFileExists(ctx: VaultContext, relativePath: string): 
 ```
 
 **makeVaultDir** (currently lines 44–47):
+
 ```typescript
 export async function makeVaultDir(ctx: VaultContext, relativeDir: string): Promise<void> {
   const fullPath = resolveVaultPath(ctx.vaultRoot, relativeDir);
   await mkdir(fullPath, { recursive: true, mode: 0o700 });
 }
 ```
+
 Replace with:
+
 ```typescript
 export async function makeVaultDir(ctx: VaultContext, relativeDir: string): Promise<void> {
   const fullPath = resolveVaultPath(ctx.vaultRoot, relativeDir);
@@ -401,6 +446,7 @@ export async function makeVaultDir(ctx: VaultContext, relativeDir: string): Prom
 ```
 
 **listVaultFilesRecursive** (currently lines 63–69):
+
 ```typescript
 export async function listVaultFilesRecursive(
   ctx: VaultContext,
@@ -410,7 +456,9 @@ export async function listVaultFilesRecursive(
   return collectFilesRecursive(fullPath, ctx.vaultRoot);
 }
 ```
+
 Replace with:
+
 ```typescript
 export async function listVaultFilesRecursive(
   ctx: VaultContext,
@@ -428,6 +476,7 @@ export async function listVaultFilesRecursive(
 cd /home/ben/Jarv1s/.claude/worktrees/audit-slice-c
 vitest run tests/integration/vault.test.ts --reporter=verbose 2>&1 | tail -20
 ```
+
 Expected: all existing tests still pass + 2 new symlink tests now pass.
 
 - [ ] **Step 5: Commit**
@@ -455,6 +504,7 @@ EOF
 cd /home/ben/Jarv1s/.claude/worktrees/audit-slice-c
 pnpm format:check && pnpm lint && pnpm check:file-size && pnpm typecheck
 ```
+
 Expected: all pass (0 warnings).
 
 - [ ] **Step 2: If format:check fails, fix it**
@@ -476,6 +526,7 @@ EOF
 cd /home/ben/Jarv1s/.claude/worktrees/audit-slice-c
 pnpm db:up && pnpm db:migrate && pnpm test:integration 2>&1 | tail -5
 ```
+
 Note the final test count and exit code.
 
 - [ ] **Step 4: Rebase on origin/main**
@@ -526,6 +577,7 @@ EOF
 - [ ] **Step 7: Report to Coordinator**
 
 Send to label `Coordinator`:
+
 ```
 [SliceC] PR ready: <PR URL>. VF_EXIT=<exit code> TEST_COUNT=<N>. Issues #129 + #130. Ready for cross-model QA + merge sign-off.
 ```

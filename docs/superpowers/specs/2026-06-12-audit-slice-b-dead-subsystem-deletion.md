@@ -24,6 +24,7 @@ Despite being functionally dead, the tables carry full DML grants (`0004:87`, `0
 no purpose. The correct fix is deletion, not patching dead code.
 
 **Table provenance (verified):**
+
 - `app.workspace_memberships` and `app.resource_grants`: created in `infra/postgres/migrations/0001_app_schema.sql:33,41`
 - `app.workspaces`: created in `0004_auth_workspaces_settings.sql:47`
 - `0002_app_rls.sql` created functions only; `0005` added grants
@@ -31,6 +32,7 @@ no purpose. The correct fix is deletion, not patching dead code.
 **FK facts:** `resource_grants`'s FKs point at `app.users` (not workspaces). `workspace_memberships.workspace_id` has **no FK** to `app.workspaces`. There are no inter-table FKs among the three tables. `CASCADE` is belt-and-braces only; **it will NOT remove `$$`-body SQL functions** (Postgres tracks no dependency for string-body functions). Functions must be dropped explicitly.
 
 **Keystone fix:** Deleting this subsystem closes or substantially advances seven issues:
+
 - **#120** — workspaces table with no RLS → gone
 - **#153** — resource-grants CRUD is no-op → gone
 - **#115** — resource_grants no RLS → gone (table gone)
@@ -73,6 +75,7 @@ DROP FUNCTION IF EXISTS app.has_resource_grant_level(text, uuid, uuid, text[]);
 ```
 
 **Post-migration verification (required as PR evidence):**
+
 ```sql
 -- Must return 0 rows:
 SELECT proname FROM pg_proc
@@ -92,10 +95,12 @@ This covers all overloads, not just `\d app.workspaces`.
 500s with a missing-table error.
 
 **`scripts/delete-user-data.ts`:**
+
 - Remove the `DELETE FROM app.workspace_memberships` entry (≈ line 34)
 - Remove the `DELETE FROM app.resource_grants` entry (≈ line 35)
 
 **`scripts/export-user-data.ts`:**
+
 - Remove `workspaceMembershipsQuery` (≈ lines 197–206) and its entry in the table list (≈ line 114)
 - Remove the `resource_grants` query (≈ line 220) and its field references
 - Remove any serialization/field references to `workspaces`, `memberships`, `activeWorkspaceId`
@@ -146,6 +151,7 @@ methods break prematurely.
 
 Remove workspace/membership/resource-grant DTOs, JSON schemas, and route schemas from
 `packages/shared/src/platform-api.ts`:
+
 - `Workspace`/`ResourceGrant` DTO types (≈ lines 12–149)
 - `workspace*`/`resourceGrant*` route schemas (≈ lines 265–310, 427–580)
 - The `meRouteSchema.required` array (≈ line 400) must have `memberships`, `workspaces`, and
@@ -162,11 +168,13 @@ their `JarvisDatabase` keys (≈ lines 482–484), and their `Selectable` export
 The web app is at `apps/web/` (not `packages/web/` — that path does not exist).
 
 Known files with workspace references:
+
 - `apps/web/src/api/client.ts`
 - `apps/web/src/api/query-keys.ts`
 - `apps/web/src/settings/settings-page.tsx` (17 workspace refs — delete workspace section)
 
 E2e mock files also reference workspace fields:
+
 - `tests/e2e/mock-api.ts` (6 refs)
 - `tests/e2e/app-shell.spec.ts` (1 ref)
 
@@ -200,13 +208,15 @@ with a proper public API call. The insert itself stays; only the metadata change
 **BOTH `shareableResources` entries must be narrowed** (commitment at ≈ line 29, entity at ≈ line 30):
 
 **Current:**
+
 ```typescript
-["view", "contribute", "manage"]
+["view", "contribute", "manage"];
 ```
 
 **Fix (both entries):**
+
 ```typescript
-["view"]
+["view"];
 ```
 
 The `commitments`, `entities`, and `preferences` UPDATE/DELETE policies are strictly

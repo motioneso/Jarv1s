@@ -55,6 +55,7 @@ accepts `scopedDb: DataContextDb`. There are 9 public methods.
 Same pattern — add the import and the guard at method entry.
 
 Actual method counts (verified):
+
 - `commitments-repository.ts`: create, listVisible, get, update, delete (5 methods)
 - `entities-repository.ts`: create, listVisible, get, update, delete (5 methods)
 - `preferences-repository.ts`: upsert, get, list, delete (4 methods)
@@ -71,6 +72,7 @@ carries the actor via the GUC (`app.current_actor_user_id()`), consistent with h
 query in this file enforces owner scope. Use the GUC directly in SQL:
 
 **Current WHERE clause (approximate):**
+
 ```sql
 WHERE embedding IS NOT NULL
   AND source_kind = ${sourceKind}
@@ -93,6 +95,7 @@ LIMIT ${limit}
 `ownerUserId` and are unaffected. Do not change their signatures.
 
 **Why no new index:** `owner_user_id` indexes already exist:
+
 - `packages/memory/sql/0030_memory_index.sql:18` — `(owner_user_id)`
 - `packages/memory/sql/0030_memory_index.sql:21` — `(owner_user_id, source_path)`
 
@@ -103,6 +106,7 @@ stays 0.**
 ### #99 — Replace caller-supplied `ownerUserId` with DB-derived value
 
 **Affected files:**
+
 - `packages/structured-state/src/commitments-repository.ts` — `create` method, ≈ line 30:
   `owner_user_id: input.ownerUserId`
 - `packages/structured-state/src/entities-repository.ts` — `create` method, ≈ line 29:
@@ -111,8 +115,8 @@ stays 0.**
   positional `owner_user_id: ownerUserId` (note: this is a positional parameter, not part of
   an input object — remove the positional param, not an object field)
 
-**Fix:** Replace the caller-supplied value with `sql\`app.current_actor_user_id()\`` (using
-Kysely's `sql` template tag), matching the pattern in `packages/tasks/src/repository.ts:125`:
+**Fix:** Replace the caller-supplied value with `sql\`app.current_actor_user_id()\``(using
+Kysely's`sql`template tag), matching the pattern in`packages/tasks/src/repository.ts:125`:
 
 ```typescript
 // commitments-repository.ts create:
