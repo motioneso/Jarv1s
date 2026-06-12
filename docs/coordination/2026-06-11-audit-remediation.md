@@ -146,10 +146,20 @@ each slice inline; Fable (model:fable) substitutes for Ben at every security gat
     deployments without `JARVIS_TRUST_PROXY` emit `http` URLs instead of accidental spoofable-`https`.
   * #156 was already fully resolved by D #188 + B3 #193 → not part of C-sensitive. #122 folded items
     (`/api/bootstrap/status` userCount leak, social-auth `THROTTLED_AUTH_PATHS`) landed in Batch 1 #191.
-- **▶ NEXT: B6** — dead-surface deletion: structured-state delete-path #154, module-sdk inert
-  manifest fields #160, orphaned workspace CRUD + `instance_settings` write-only store (#156 residual).
-  Then B8 (operator-script guards + e2e negative-auth + `mock-api.ts` decomposition), C-routine
-  (#168 FK covering indexes [new migration], #165 worker graceful drain on SIGTERM).
+- **✅ B6 DISPOSITIONED (no deletion) — #154 #160 CLOSED.** Grounding falsified the "delete dead
+  surface" premise: module-sdk manifest fields (`payloadSchema`/`requestSchema`/`responseSchema`/
+  `ownedTables`/`shareableResources`/`grantLevels`) are **live contract populated by all 10 modules**;
+  `metadataOnly` is redundant with the `ALLOWED_PAYLOAD_KEYS` structural guard (H #157);
+  structured-state is **registered ahead-of-consumer infra** for Tasks/commitments (module-registry
+  imports its manifest + migration 0031); assertDataContextDb already landed via G/#102. Feature-level
+  items (version column, worker grant, `validateManifest` boot seam, JsonSchema structural tightening)
+  deferred to their consuming milestones — captured in DISPOSITION §B6. No PR (triage-and-close).
+- **▶ NEXT: B8** — operator-script & e2e hardening (#171): (sensitive) `restore:db --clean` echo
+  target host/db + require `--confirm-database` (mirror `delete-user-data.ts` confirmUserId pattern);
+  `delete:user` post-delete vault reminder. (test) e2e `authenticated:false` + `isInstanceAdmin:false`
+  negative specs; assert chat Approve/Deny sends the decision. (routine) decompose `mock-api.ts` (918
+  lines, near the 1000-line gate). Then C-routine (#168 FK covering indexes [new migration], #165
+  worker graceful drain on SIGTERM).
 
 ---
 

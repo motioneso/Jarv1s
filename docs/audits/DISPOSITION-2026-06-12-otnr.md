@@ -83,10 +83,42 @@ Session-token / MCP-confirmation registries grow without eviction — slow leak 
 **Buckets:** #114 (P2), #123 (P3).
 **Fix:** bounded LRU + TTL eviction; cap size; expire confirmations.
 
-### B6. Dead / inert surface deletion — **ROUTINE→SENSITIVE**
-Unwired code that reads as live: structured-state delete-path, module-sdk inert manifest fields.
-**Buckets:** #154 (P17 structured-state), #160 (P21 module-sdk).
-**Fix:** delete the dead surface (no-stale-concepts discipline).
+### B6. Dead / inert surface deletion — **DISPOSITIONED (no deletion) ✅ CLOSED**
+**Buckets:** #154 (P17 structured-state), #160 (P21 module-sdk). Closed @ `d2027a1`+ after grounding.
+**Original premise ("delete the dead surface") was FALSIFIED by grounding** (verify-before-rank @
+`1863dac`):
+
+- **#160 module-sdk manifest fields are NOT inert** — `payloadSchema`/`requestSchema`/
+  `responseSchema`/`ownedTables`/`shareableResources`/`grantLevels` are **populated by all 10 module
+  manifests** (tasks, ai, briefings, connectors, chat, notifications, email, calendar,
+  structured-state, memory). They are the declared module contract, ahead-of-consumer by design
+  (route-validation milestone reads request/responseSchema; resource-grants milestone reads
+  shareableResources/grantLevels). Deleting them would gut the manifest system. **Keep.**
+- **#160 `metadataOnly`** — the metadata-only-payload invariant is **already enforced structurally**
+  by `ALLOWED_PAYLOAD_KEYS` in `packages/jobs/src/pg-boss.ts` `sendJob()` (H #157), globally across
+  all queues. The per-job `metadataOnly: true` flag (set in tasks+briefings) is redundant declared
+  intent with no reader — its future consumer is the `validateManifest` boot seam (#160 LOW). **Keep
+  + cross-reference**; deleting a forward-looking security-intent marker is not a net win.
+- **#154 assertDataContextDb guard** — **already DONE by G/#102** (6/5/6 `assertDataContextDb` call
+  sites across commitments/entities/preferences repos). Resolved.
+- **#154 "module ships unwired"** — structured-state is **registered in `module-registry`** (imports
+  its manifest + SQL migration dir; migration 0031 is on the spine) and is the backing store for the
+  imminent Tasks/commitments feature. Ahead-of-consumer infra, not dead code.
+
+**Deferred to the consuming milestone (NOT pre-epic remediation):**
+- #154 optimistic-concurrency `version` column + typed write-conflict, and 404-vs-403 distinction on
+  `get`/`update`/`delete` → **Tasks/commitments milestone** (the feature that drives concurrent
+  writes + the calling API layer that needs the status distinction).
+- #154 worker-runtime grant for `app.commitments/entities/preferences` → the background-inference
+  milestone that adds the worker consumer (`source_kind` `inferred`/`email`/`calendar`).
+- #160 `validateManifest`/`validateModuleSet` boot seam (unique IDs + resolvable
+  permission/featureFlag refs) + `ToolExecute<TInput,TData>` generics → **net-new module-isolation
+  hardening, spec-gated**, not a deletion slice.
+- #160 minimal structural `JsonSchema` (`type?`/`properties?`/`required?`/`items?`/`enum?`) to drop
+  the `schema as SchemaNode` cast in `input-validation.ts` → small + safe (keep the `[key:string]`
+  index signature, add optional structural fields), but touches the just-merged C-sensitive validator;
+  **deferred** to avoid reopening a fresh security fix for marginal gain. Good first follow-up.
+
 (Note: the audit-P "workspace-CRUD in settings" item is **already gone** — Fable confirmed zero
 `workspace` references remain in `packages/settings/src/` at `639e8cb`.)
 
@@ -222,8 +254,12 @@ Recommended order — security/RLS first, then defense-in-depth, then hygiene:
    URL reconstruction. +1 regression test (auth-settings 21/21). Code-only, spine **HEAD 0062**.
    Issues #94 #164 #133 closed. **◀ relay pointer is here → next is B6.** (docs-only follow-up: ops
    note that #164 yields `http` URLs when `JARVIS_TRUST_PROXY` unset behind a proxy.)
-8. **B6** dead-surface deletion (routine/sensitive) — **▶ NEXT.** structured-state delete-path #154,
-   module-sdk inert manifest fields #160, orphaned workspace CRUD + write-only `instance_settings`.
+8. **B6** dead-surface deletion (routine/sensitive) — ✅ **DISPOSITIONED, no deletion (see §B6).**
+   Premise falsified by grounding: module-sdk manifest fields are live contract (10 modules populate
+   them); `metadataOnly` redundant with the `ALLOWED_PAYLOAD_KEYS` structural guard; structured-state
+   is registered ahead-of-consumer infra; assertDataContextDb already done by #102. Feature-level
+   items (version column, worker grant, `validateManifest` seam, JsonSchema tightening) deferred to
+   their consuming milestones. Issues #154 #160 closed with grounded rationale. **◀ relay → next B8.**
 9. **B8** operator-script guards (`restore:db` confirm) + e2e negative-auth coverage (sensitive); script LOWs (routine).
 10. **C** FK indexes + worker graceful shutdown (routine) — batchable.
 
