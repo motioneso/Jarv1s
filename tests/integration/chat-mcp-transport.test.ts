@@ -253,6 +253,30 @@ describe("MCP HTTP transport", () => {
     if (actionResult.kind !== "action_result") throw new Error("unreachable");
     expect(actionResult.outcome).toBe("executed");
   });
+
+  it("tools/call returns an error when tool is not in the session allowlist", async () => {
+    const token = tokens.mint({
+      actorUserId: ids.userA,
+      chatSessionId: randomUUID(),
+      allowedToolNames: new Set(["example.write"])
+    });
+    const res = await app.inject({
+      method: "POST",
+      url: "/api/mcp",
+      headers: { authorization: `Bearer ${token}` },
+      body: {
+        jsonrpc: "2.0",
+        id: 99,
+        method: "tools/call",
+        params: { name: "example.read", arguments: { value: "blocked" } }
+      }
+    });
+    expect(res.statusCode).toBe(200);
+    const body = res.json<{ result: { isError: boolean; content: { text: string }[] } }>();
+    expect(body.result.isError).toBe(true);
+    expect(body.result.content[0]!.text).toContain("not in session allowlist");
+    expect(exampleToolCalls).toHaveLength(0);
+  });
 });
 
 describe("HTTP resolve endpoint", () => {
