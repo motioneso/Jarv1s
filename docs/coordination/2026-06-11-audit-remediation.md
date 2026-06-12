@@ -1,7 +1,7 @@
 # Coordination Run — 2026-06-11-audit-remediation
 
 **Date:** 2026-06-11
-**Coordinator lock:** label `Coordinator` = pane `w653f42bef3ac02-3` (`$HERDR_PANE_ID=p_38`). Single-coordinator lock — exactly one pane holds this label for the life of the run; agents escalate to the **label** (routing), the coordinator merges only when its own `$HERDR_PANE_ID` resolves to this recorded **pane-id** (authority).
+**Coordinator lock:** label `Coordinator` = pane `w653f42bef3ac02-2` (`$HERDR_PANE_ID=p_38`). Single-coordinator lock — exactly one pane holds this label for the life of the run; agents escalate to the **label** (routing), the coordinator merges only when its own `$HERDR_PANE_ID` resolves to this recorded **pane-id** (authority).
 **Finding source:** `docs/audits/2026-06-11-fable5-issue-verification.md` — independent Fable 5 verification @ `origin/main e629f3c`, migration head 0052 (22 stand, 8 severity-downgraded to MED/LOW, 0 refuted, 0 already-fixed).
 **Merge policy:** autonomous-after-verified-QA for `routine`/`sensitive`; **`security`-tier needs Ben's explicit merge sign-off** + posted `gh pr comment` verdict.
 **Relay threshold:** security-tier merge → relay immediately; routine/sensitive merges_since_relay ≥ 2 → relay. No deferral.
