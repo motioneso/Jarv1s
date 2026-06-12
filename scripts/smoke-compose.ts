@@ -24,7 +24,13 @@ export function createComposeSmokePlan(input: ComposeSmokePlanInput = {}): Compo
   const composeArgs = ["compose", "-f", composeFile];
 
   return {
-    healthUrl: `http://localhost:${apiPort}/health`,
+    // Use the readiness probe, not the liveness `/health`. `/health` returns
+    // `{ ok: true }` as soon as the process is listening — it says nothing about
+    // whether Postgres or pg-boss are reachable, so a smoke that migrated the DB
+    // could still pass against a server with a broken DB connection. `/health/ready`
+    // runs `SELECT 1` and checks pg-boss, returning `{ ok, db, pgboss }` with a 503
+    // until both are up, which is the post-migration invariant we want to assert (#171).
+    healthUrl: `http://localhost:${apiPort}/health/ready`,
     commands: [
       {
         command: "docker",
@@ -117,10 +123,20 @@ async function waitForHealth(url: string): Promise<void> {
     try {
       const response = await fetch(url);
       if (response.ok) {
-        const body = (await response.json()) as { readonly ok?: unknown };
-        if (body.ok === true) {
+        const body = (await response.json()) as {
+          readonly ok?: unknown;
+          readonly db?: unknown;
+          readonly pgboss?: unknown;
+        };
+        // The readiness probe only returns ok:true when DB and pg-boss are both
+        // reachable; assert the component fields too so a future payload change
+        // can't let a DB-down server slip through the smoke (#171).
+        if (body.ok === true && body.db === "ok" && body.pgboss === "ok") {
           return;
         }
+        lastError = new Error(
+          `readiness not satisfied: ${JSON.stringify({ db: body.db, pgboss: body.pgboss })}`
+        );
       }
     } catch (error) {
       lastError = error;

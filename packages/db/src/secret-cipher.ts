@@ -17,6 +17,20 @@ export interface EncryptedSecret extends Record<string, unknown> {
 }
 
 /**
+ * Thrown by {@link JsonSecretCipher.parseEnvelope} when an untrusted value does
+ * not structurally match {@link EncryptedSecret}. Distinct from the generic
+ * decrypt errors so callers (e.g. the rewrap-secrets operator script) can
+ * report "this row's ciphertext column is malformed" separately from "this row
+ * could not be decrypted with the available keys" (#171).
+ */
+export class MalformedSecretEnvelopeError extends Error {
+  constructor(label: string, detail: string) {
+    super(`Malformed ${label} envelope: ${detail}`);
+    this.name = "MalformedSecretEnvelopeError";
+  }
+}
+
+/**
  * Generic authenticated-encryption cipher for at-rest JSON secrets, backed by
  * a rotating {@link Keyring}. A single implementation serves every secret
  * domain (AI credentials, connector credentials, ...); the `label` only names
@@ -51,6 +65,46 @@ export class JsonSecretCipher {
       tag: cipher.getAuthTag().toString("base64"),
       ciphertext: ciphertext.toString("base64")
     };
+  }
+
+  /**
+   * Structurally validate an untrusted value (e.g. a JSON column read from the
+   * database) as an {@link EncryptedSecret}, returning the typed envelope or
+   * throwing a {@link MalformedSecretEnvelopeError}. This separates *shape*
+   * failures (a corrupt/empty column, a schema drift) from *cryptographic*
+   * failures (wrong key, tampered ciphertext) thrown by {@link decryptJson},
+   * so operators rewrapping secrets can tell a bad row apart from a bad key
+   * (#171). Performs no decryption — only field presence and type checks.
+   */
+  parseEnvelope(json: unknown): EncryptedSecret {
+    if (!json || typeof json !== "object" || Array.isArray(json)) {
+      throw new MalformedSecretEnvelopeError(this.label, "not a JSON object");
+    }
+
+    const candidate = json as Record<string, unknown>;
+
+    if (candidate.version !== 1) {
+      throw new MalformedSecretEnvelopeError(
+        this.label,
+        `unsupported version ${String(candidate.version)}`
+      );
+    }
+    if (candidate.algorithm !== "aes-256-gcm") {
+      throw new MalformedSecretEnvelopeError(
+        this.label,
+        `unsupported algorithm ${String(candidate.algorithm)}`
+      );
+    }
+    if (candidate.keyId !== undefined && typeof candidate.keyId !== "string") {
+      throw new MalformedSecretEnvelopeError(this.label, "keyId must be a string when present");
+    }
+    for (const field of ["iv", "tag", "ciphertext"] as const) {
+      if (typeof candidate[field] !== "string" || candidate[field] === "") {
+        throw new MalformedSecretEnvelopeError(this.label, `${field} must be a non-empty string`);
+      }
+    }
+
+    return candidate as EncryptedSecret;
   }
 
   decryptJson(envelope: EncryptedSecret): Record<string, unknown> {

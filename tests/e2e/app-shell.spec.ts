@@ -37,6 +37,47 @@ test("signs in and renders shell navigation", async ({ page }) => {
   await expect(page.locator(".module-nav").getByRole("link", { name: "Settings" })).toBeVisible();
 });
 
+test("gates a protected route behind sign-in when unauthenticated", async ({ page }) => {
+  // Navigating directly to a protected route while unauthenticated must land on
+  // the sign-in gate, not leak the protected surface (#171).
+  await mockApi(page, {
+    authenticated: false,
+    connectorAccounts: [],
+    connectorProviders: createMockConnectorProviders(),
+    notifications: [],
+    tasks: [createMockTask("task-1", "Owner-only secret task")]
+  });
+
+  await page.goto("/settings");
+
+  await expect(page.getByRole("heading", { name: "Sign in" })).toBeVisible();
+  // The protected shell navigation and any owner data must not be rendered.
+  await expect(page.locator(".module-nav").getByRole("link", { name: "Settings" })).toHaveCount(0);
+  await expect(page.getByText("Owner-only secret task")).toHaveCount(0);
+});
+
+test("hides admin-only settings sections for a non-admin user", async ({ page }) => {
+  // isInstanceAdmin:false must hide admin surfaces (Auth Providers, Admin Users)
+  // and the API rejects the admin fetch with 403 (#171).
+  await mockApi(page, {
+    authenticated: true,
+    isInstanceAdmin: false,
+    connectorAccounts: [],
+    connectorProviders: createMockConnectorProviders(),
+    notifications: [],
+    tasks: []
+  });
+
+  await page.goto("/settings");
+
+  await expect(page.getByRole("heading", { name: "Account", level: 1 })).toBeVisible();
+  // Role reads "User", not "Instance admin".
+  await expect(page.locator("dd", { hasText: /^User$/ })).toBeVisible();
+  // Admin-only panels are absent.
+  await expect(page.getByRole("heading", { name: "Auth Providers" })).toHaveCount(0);
+  await expect(page.getByRole("heading", { name: "Users" })).toHaveCount(0);
+});
+
 test("creates and updates tasks through REST calls", async ({ page }) => {
   await mockApi(page, {
     authenticated: true,
@@ -246,10 +287,17 @@ test.describe("Chat drawer — Approve/Deny card", () => {
       });
     });
 
-    // Mock the resolve endpoint
-    await page.route("**/api/chat/action-requests/*/resolve", (route) =>
-      route.fulfill({ status: 204, body: "" })
-    );
+    // Mock the resolve endpoint, capturing the request so we can assert the
+    // decision was actually transmitted — not merely that the card flipped to
+    // "Resolved." (a card could resolve optimistically without sending) (#171).
+    let resolveUrl: string | undefined;
+    let resolveBody: unknown;
+    await page.route("**/api/chat/action-requests/*/resolve", (route) => {
+      const request = route.request();
+      resolveUrl = request.url();
+      resolveBody = request.postDataJSON();
+      return route.fulfill({ status: 204, body: "" });
+    });
 
     await page.goto("/");
     await page.locator(".module-nav").getByRole("button", { name: "Chat" }).click();
@@ -264,6 +312,10 @@ test.describe("Chat drawer — Approve/Deny card", () => {
 
     // Card should show Resolved.
     await expect(page.locator(".action-request-card")).toContainText("Resolved.");
+
+    // Assert the approval decision and the path's action-request id actually went over the wire.
+    expect(resolveBody).toEqual({ status: "confirmed" });
+    expect(resolveUrl).toContain("/api/chat/action-requests/ar_test_1/resolve");
   });
 
   test("Deny resolves the card", async ({ page }) => {
@@ -296,9 +348,14 @@ test.describe("Chat drawer — Approve/Deny card", () => {
       });
     });
 
-    await page.route("**/api/chat/action-requests/*/resolve", (route) =>
-      route.fulfill({ status: 204, body: "" })
-    );
+    let resolveUrl: string | undefined;
+    let resolveBody: unknown;
+    await page.route("**/api/chat/action-requests/*/resolve", (route) => {
+      const request = route.request();
+      resolveUrl = request.url();
+      resolveBody = request.postDataJSON();
+      return route.fulfill({ status: 204, body: "" });
+    });
 
     await page.goto("/");
     await page.locator(".module-nav").getByRole("button", { name: "Chat" }).click();
@@ -306,5 +363,9 @@ test.describe("Chat drawer — Approve/Deny card", () => {
     await expect(page.locator(".action-request-card")).toBeVisible({ timeout: 3000 });
     await page.locator(".action-request-card").getByRole("button", { name: "Deny" }).click();
     await expect(page.locator(".action-request-card")).toContainText("Resolved.");
+
+    // Assert the rejection decision and the path's action-request id actually went over the wire.
+    expect(resolveBody).toEqual({ status: "rejected" });
+    expect(resolveUrl).toContain("/api/chat/action-requests/ar_test_2/resolve");
   });
 });

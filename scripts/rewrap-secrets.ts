@@ -75,9 +75,8 @@ async function main(): Promise<void> {
 
       for (const row of connectorRows) {
         try {
-          const plaintext = connectorCipher.decryptJson(
-            row.encrypted_secret as Parameters<typeof connectorCipher.decryptJson>[0]
-          );
+          const envelope = connectorCipher.parseEnvelope(row.encrypted_secret);
+          const plaintext = connectorCipher.decryptJson(envelope);
           const rewrapped = connectorCipher.encryptJson(plaintext);
           await scopedDb.db
             .updateTable("app.connector_accounts")
@@ -103,9 +102,8 @@ async function main(): Promise<void> {
 
       for (const row of pendingRows) {
         try {
-          const plaintext = connectorCipher.decryptJson(
-            row.encrypted_secret as Parameters<typeof connectorCipher.decryptJson>[0]
-          );
+          const envelope = connectorCipher.parseEnvelope(row.encrypted_secret);
+          const plaintext = connectorCipher.decryptJson(envelope);
           const rewrapped = connectorCipher.encryptJson(plaintext);
           await scopedDb.db
             .updateTable("app.connector_oauth_pending")
@@ -135,9 +133,8 @@ async function main(): Promise<void> {
       for (const row of aiRows) {
         if (!row.encrypted_credential) continue;
         try {
-          const plaintext = aiCipher.decryptJson(
-            row.encrypted_credential as Parameters<typeof aiCipher.decryptJson>[0]
-          );
+          const envelope = aiCipher.parseEnvelope(row.encrypted_credential);
+          const plaintext = aiCipher.decryptJson(envelope);
           const rewrapped = aiCipher.encryptJson(plaintext);
           await scopedDb.db
             .updateTable("app.ai_provider_configs")
