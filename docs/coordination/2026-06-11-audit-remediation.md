@@ -4,8 +4,11 @@
 **Coordinator lock:** label `Coordinator` = pane `w653f42bef3ac02-1` (`$HERDR_PANE_ID=p_30`). Single-coordinator lock — exactly one pane holds this label for the life of the run; agents escalate to the **label** (routing), the coordinator merges only when its own `$HERDR_PANE_ID` resolves to this recorded **pane-id** (authority).
 **Finding source:** `docs/audits/2026-06-11-fable5-issue-verification.md` — independent Fable 5 verification @ `origin/main e629f3c`, migration head 0052 (22 stand, 8 severity-downgraded to MED/LOW, 0 refuted, 0 already-fixed).
 **Merge policy:** autonomous-after-verified-QA for `routine`/`sensitive`; **`security`-tier needs Ben's explicit merge sign-off** + posted `gh pr comment` verdict.
-**Relay threshold:** ~80–100k tokens OR every 2–3 merges OR a compaction summary seen (flush + relay, merge nothing first).
-**Available worker panes (Ben, 2026-06-11):** idle `w653f42bef3ac02-2` (claude) and `w653f42bef3ac02-3` (codex) may be reused as workers. Codex pane = candidate **cross-model security-tier QA** path. Build agents still require an **isolated worktree** + own `JARVIS_PGDATABASE` (the three panes share one working tree — never build in it).
+**Relay threshold:** security-tier merge → relay immediately; routine/sensitive merges_since_relay ≥ 2 → relay. No deferral.
+**merges_since_relay:** 2 (Slices A+C both security-tier — relay triggered)
+**Available worker panes (Ben, 2026-06-11):** idle `w653f42bef3ac02-2` (claude) may be reused as worker. Codex pane `w653f42bef3ac02-2` = candidate cross-model security-tier QA path. Build agents require an **isolated worktree** + own `JARVIS_PGDATABASE`.
+
+**→ CONTINUATION NOTE (relay @ ~38% context, 2026-06-12):** Slices A+C merged and closed. Fleet is idle. All remaining slices (B, D, E, F, G, H, I) are blocked on specs — next action is spec authoring with Ben, starting with **Slice B** (dead subsystem deletion: #120 workspaces, #153 resource-grants no-op, #115+#116+#152 manifest-narrowing — lowest blast radius, next on migration spine). Slice E has a design fork (#113 bearer-token) that needs Ben's decision. coordinate skill relay trigger updated (commit ea985e4) — new coordinator should use updated rule. Successor: claim the `Coordinator` label, re-confirm pane-id, update the lock line below with new pane-id.
 
 > Coordinator's externalized memory. Keep CURRENT. GitHub is source of truth for spec/issue/board
 > status; this file holds only in-flight operational state.
