@@ -50,7 +50,6 @@ export function SettingsPage(props: SettingsPageProps) {
             </div>
           </dl>
         </section>
-
       </div>
 
       <div className="settings-grid">
@@ -84,7 +83,6 @@ export function SettingsPage(props: SettingsPageProps) {
               ) : null}
             </div>
           </section>
-
         </div>
       ) : null}
 
