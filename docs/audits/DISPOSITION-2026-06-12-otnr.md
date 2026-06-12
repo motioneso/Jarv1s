@@ -25,9 +25,9 @@ re-work; check them off when the bucket is next touched.
 | Chat/MCP/AI-tools routes unthrottled | #122 P4 | #118 — `@fastify/rate-limit` registered `server.ts:91` |
 | Worker memory tables missing RLS (×9) | #146 P12 | #98 — migration 0054 (closed) |
 | Account-delete leaves on-disk vault data (the substantive leak) | #171 P29 | #96 — `deleteUserVaultDir` post-COMMIT (residual: print post-delete reminder — minor) |
-| `SettingsRepository` raw Kysely (not DataContextDb) | #156 P19 | #188 — Slice D per-method conversion |
+| `SettingsRepository` raw Kysely (not DataContextDb) | #156 P18 | #188 — Slice D per-method conversion |
 | `assertDataContextDb` gaps (memory) | #146 P12 | #102 (closed) |
-| REST tool-`/invoke` bypasses MCP gateway | #133 P8 | #132 (closed) |
+| REST tool-`/invoke` input-validation gap | #133 P8 | #132/#184 — `validateToolInput` + risk-gating on the read path (`packages/ai/src/routes.ts:408-461`). **Residual:** route still calls `manifestTool.execute` directly with a malformed `ToolContext` instead of `AssistantToolGateway` — remains **ACTIONABLE in #133 MED** (no live write bypass; write/destructive already gated). Do **not** check the bucket off wholesale. |
 | `BETTER_AUTH` hardcoded dev secret | #164 P23 | #112 — env-first/fail-fast |
 | pg-boss job payload could carry private content | (job-payload) | #157 — send-side metadata-only guard |
 
@@ -44,22 +44,33 @@ module buckets — far cheaper to do once than per-bucket.
 ### B1. `handleRouteError` → 401 masking (consolidation) — **SENSITIVE**
 Per-module copies of `handleRouteError` collapse RLS-denied (would-be 404/403) into a generic 401
 and/or swallow the real status, masking authz outcomes and complicating debugging.
-**Buckets:** #122 (P4), #145 (P12 calendar), #147 (P13 email), #151 (P15 notifications), #156 (P19 settings).
+**Buckets:** #122 (P4), #145 (P13 calendar), #147 (P14 email), #151 (P16 notifications), #156 (P18 settings).
 **Fix:** one canonical `handleRouteError` in `@jarv1s/module-sdk` (or `@jarv1s/shared`); migrate all
 call sites; delete the copies. Preserve correct status mapping (404 for not-found/denied, 401 only
 for unauthenticated). One PR.
 
-### B2. RLS policies missing `TO <role>` clause — **SECURITY (RLS migration)**
-Policies on `chat` (0042) and `memory` (0041) tables omit the `TO app_runtime`/`TO <role>` target,
-so they also evaluate for other roles — defense-in-depth gap, not a known bypass.
-**Buckets:** #117 (P1), #146 (P12 memory), #168 (P27).
-**Fix:** new migration adding `TO`-role targeting to the affected policies. New file only — never
-edit applied migrations. Cross-model Opus QA required.
+### B2. RLS hardening migration (TO-role + missing RLS + ownership predicate) — **SECURITY (RLS migration)**
+One new migration file batching four related RLS gaps (same blast radius, one QA pass):
+- **`TO <role>` clause missing** on `chat` (`packages/chat/sql/0042:16-29`) and `memory`
+  (`packages/memory/sql/0041:29-42`) policies — they apply to PUBLIC; safe today because every
+  predicate also requires `current_actor_user_id()` AND a table GRANT held only by the runtime
+  roles, so **defense-in-depth, no active bypass** (Fable-confirmed). **Buckets:** #117 (P1),
+  #146 (P12 memory), #168 (P27).
+- **`app.instance_settings` and `app.admin_audit_events` have NO RLS at all** (grants only; no
+  `ENABLE/FORCE ROW LEVEL SECURITY` in any migration) — the two genuine residuals from old
+  audit-P1. **Bucket:** #117 (P1).
+- **`task_tag_assignments` RLS gates on parent-task *visibility*, not ownership**
+  (`packages/tasks/sql/0039_tasks_foundation.sql:154-157`) — a read-share recipient could mutate
+  tag assignments. **Bucket:** #168 (P27).
+
+**Fix:** new migration adding `TO`-role targeting, enabling RLS + owner policies on the two admin
+tables, and tightening the tag-assignment policy to ownership. New file only — never edit applied
+migrations. **Cross-model Opus QA required.**
 
 ### B3. Raw-Kysely `requireAdmin` → DataContextDb — **SENSITIVE**
 `requireAdmin` round-trips query through a root Kysely handle instead of a branded `DataContextDb`,
 violating the DataContextDb-only invariant.
-**Buckets:** #143 (P10 connectors), #156 (P19 settings residual).
+**Buckets:** #143 (P11 connectors), #156 (P18 settings residual).
 **Fix:** route admin checks through `DataContextDb` / the `any_admin_exists()` SECURITY DEFINER helper.
 
 ### B4. Duplicate crypto cipher classes — **SENSITIVE (crypto)**
@@ -73,11 +84,11 @@ Session-token / MCP-confirmation registries grow without eviction — slow leak 
 **Fix:** bounded LRU + TTL eviction; cap size; expire confirmations.
 
 ### B6. Dead / inert surface deletion — **ROUTINE→SENSITIVE**
-Unwired code that reads as live: structured-state delete-path, workspace-CRUD still in settings
-routes (subsystem dropped in 0056), module-sdk inert manifest fields.
-**Buckets:** #154 (P17 structured-state), #156 (P19 settings workspace-CRUD), #160 (P21 module-sdk).
-**Fix:** delete the dead surface (no-stale-concepts discipline). Workspace-CRUD removal should
-confirm no live caller post-0056.
+Unwired code that reads as live: structured-state delete-path, module-sdk inert manifest fields.
+**Buckets:** #154 (P17 structured-state), #160 (P21 module-sdk).
+**Fix:** delete the dead surface (no-stale-concepts discipline).
+(Note: the audit-P "workspace-CRUD in settings" item is **already gone** — Fable confirmed zero
+`workspace` references remain in `packages/settings/src/` at `639e8cb`.)
 
 ### B7. React Query keys not user-scoped — **SENSITIVE (frontend data-isolation)**
 Cache keys omit the actor id → risk of cross-user cache bleed on the shared house instance.
@@ -106,15 +117,23 @@ backup/restore URL creds, point `smoke:compose` at a DB-readiness endpoint, deco
 | `/api/bootstrap/status` leaks `userCount` | #122 P4 (folded) | security | return `needsBootstrap` bool only |
 | Social-auth OAuth paths unthrottled | #122 P4 (folded) | security | add social sign-in + callback prefixes to `THROTTLED_AUTH_PATHS` |
 | Hand-rolled `validateToolInput` | #123 P3 | sensitive | schema-validate tool input (zod) |
-| Last-admin demote/delete TOCTOU | #94 / #156 P19 | sensitive | advisory lock / `FOR UPDATE` around the admin-count guard |
+| Last-admin demote/delete TOCTOU | #94 / #156 P18 | sensitive | advisory lock / `FOR UPDATE` around the admin-count guard |
 | `x-forwarded-proto` trust at edge | #164 P23 | sensitive | trust-proxy allowlist |
 
 ---
 
 ## D. ACCEPT-RISK / WONTFIX (document, don't fix)
 
-- **CORS not configured** (#164 P23) — single-origin architecture (web served same-origin via Vite
-  proxy → API). CORS is genuinely unneeded; adding it would be cargo-cult. **Accept; document.**
+- **CORS not configured** (#164 P23) — single-origin architecture: the web client issues only
+  relative-path fetches (`apps/web/src/api/client.ts:551`, no API base URL anywhere in
+  `apps/web/src`) and the serving layer proxies `/api` server-side
+  (`infra/docker-compose.yml` `JARVIS_API_PROXY_TARGET`). Browser→API is same-origin by
+  construction; absent CORS headers is the browser-secure default. **Accept.**
+  **⚠ Prod caveat (document this):** `infra/env.production.example` shows split hostnames
+  (`JARVIS_AUTH_BASE_URL` = api host vs `JARVIS_AUTH_TRUSTED_ORIGINS` = web host), implying a
+  split-origin topology the relative-path client can't support. **Production REQUIRES a same-origin
+  reverse proxy (web + `/api` on one origin).** Do NOT "fix" a split-origin misdeployment by adding
+  permissive CORS later — that would be the actual vulnerability.
 - **Most INFO-tier OTNR findings** — observations, not defects.
 - LOW items that are explicitly "future-sync hardening" (constraints that only bite when real
   connector sync lands, gated behind their own milestone/spec) — **defer to that milestone**, not
@@ -126,8 +145,15 @@ backup/restore URL creds, point `smoke:compose` at a DB-readiness endpoint, deco
 
 Recommended order — security/RLS first, then defense-in-depth, then hygiene:
 
-1. **B2** RLS `TO`-role migration (security) — smallest blast radius, real invariant tightening.
-2. **C** folded-in security items: `userCount` leak + social-auth throttle (security, tiny).
+**Batch 1 (security tier — launch first, one slice; Fable-approved 2026-06-12):**
+- **B2** RLS hardening migration — `TO`-role on chat/memory + RLS on `instance_settings` &
+  `admin_audit_events` + `task_tag_assignments` ownership predicate (all in one new migration file).
+- **C** folded-in security items: `/api/bootstrap/status` → `needsBootstrap` bool only (drop
+  `userCount`); add social-auth sign-in/callback prefixes to `THROTTLED_AUTH_PATHS`.
+- Cross-model Opus QA required (RLS migration). Smallest blast radius, highest invariant value.
+
+**Then re-assess and continue:**
+
 3. **B1** `handleRouteError` consolidation (sensitive) — touches 5 modules, one helper.
 4. **B3** raw-Kysely `requireAdmin` → DataContextDb (sensitive).
 5. **B4 + B5** crypto cipher dedup + registry TTL (sensitive).
