@@ -1,6 +1,6 @@
 # Spec: Audit Slice I — Portability + Observability Tail
 
-**Date:** 2026-06-12
+**Date:** 2026-06-12 (revised post-Fable review)
 **Audit issues:** #170, #149, #140, #166
 **Tier:** `sensitive` (#170 has end-user privacy impact) + `routine` (#149, #140, #166)
 **Run manifest:** `docs/coordination/2026-06-11-audit-remediation.md`
@@ -16,27 +16,29 @@ any point after Slice A merges (no structural dependency on B–H). #166 require
 Four independent hygiene and portability fixes, none requiring schema changes:
 
 - **#170 — export omits user memory and structured-state data:**
-  `scripts/export-user-data.ts` maintains an explicit 19-table allowlist. Missing from it:
+  `scripts/export-user-data.ts` maintains an explicit allowlist. Missing from it:
   `app.memory_chunks`, `app.chat_memory_facts`, `app.commitments`, `app.entities`,
   `app.preferences`. These are core personal data tables (episodic memory, structured notes,
-  user commitments). A GDPR-style data export that omits them is incomplete. This is the only
-  Tier-3 item with direct end-user privacy impact.
+  user commitments). A GDPR-style data export that omits them is incomplete.
+  **Known-incomplete residual:** `app.shares` (the live owner-or-share sharing table) and
+  task-module tables (`app.task_lists`, `app.task_tags`) also contain personal data and are
+  not exported today. `tasksQuery` (≈ lines 227–244) is missing eight post-foundation columns
+  (`list_id`, `parent_task_id`, `do_at`, `effort`, `source`, `source_ref`, `external_key`,
+  `recurrence`). These are tracked as follow-up work; this slice only adds the five specified tables.
 - **#149 — `handleRouteError` always returns 401:**
   `packages/notifications/src/routes.ts:111-117` has a dead conditional — both branches of an
-  `if` block send `401 Session is missing or expired`. The second branch is unreachable. Any
-  unexpected error (5xx, data error, DB timeout) is masked as a 401 auth failure. This hides
-  bugs and breaks monitoring.
+  `if` block send `401 Session is missing or expired`. Any unexpected error (5xx, data error,
+  DB timeout) is masked as a 401 auth failure.
 - **#140 — no list/parent-task ownership check on task create/update:**
   `packages/tasks/src/repository.ts:96` (create: `input.listId` taken raw),
+  `:127` (create: `input.parentTaskId` taken raw),
   `:184-187` (update: `list_id`/`parent_task_id` written raw). FK validates existence but not
   ownership. A task can be moved to a list the actor doesn't own, making the task invisible
-  (it exists but RLS hides it on the foreign list). Severity: MED/integrity, not an IDOR read
-  leak (the issue itself states this).
+  (it exists but RLS hides it on the foreign list).
 - **#166 — foundation integration test share persists across suite:**
-  `tests/integration/foundation.test.ts:214-217` creates a share with a self-incriminating
-  comment ("this share persists for the remainder of the suite (no teardown)"). This is test
-  hygiene with zero production exposure but it pollutes subsequent tests in the suite and
-  masks isolation failures.
+  `tests/integration/foundation.test.ts` ≈ line 220 creates a share with a self-incriminating
+  comment ("this share persists for the remainder of the suite (no teardown)"). This pollutes
+  subsequent tests in the suite and masks isolation failures.
 
 ---
 
@@ -46,16 +48,17 @@ Four independent hygiene and portability fixes, none requiring schema changes:
 
 **Location:** `scripts/export-user-data.ts`.
 
-The export function reads from an explicit allowlist. Add the five missing tables and their
-appropriate columns/serialization.
+Add the five missing tables. `app.chat_memory_facts` exists — confirmed at
+`packages/memory/sql/0041_memory_facts.sql:4` — remove the "if this table exists" hedge.
 
 **Tables to add:**
 
 1. **`app.memory_chunks`** — export `id`, `source_kind`, `source_path`, `line_start`, `line_end`,
-   `text` (no embeddings — they are derived and large). Filter `WHERE owner_user_id = $userId`.
+   `text`. Filter `WHERE owner_user_id = $userId`. **Do not export** `embedding` (vector blob,
+   derived, large) or `content_hash`/`file_hash`.
 
-2. **`app.chat_memory_facts`** — if this table exists (confirm schema), export all non-derived
-   columns. Filter by owner.
+2. **`app.chat_memory_facts`** — export all non-derived columns. Filter by `owner_user_id`.
+   Do not export `embedding` if it exists.
 
 3. **`app.commitments`** — export all user-visible columns. Filter by `owner_user_id`.
 
@@ -63,15 +66,19 @@ appropriate columns/serialization.
 
 5. **`app.preferences`** — export all columns. Filter by `owner_user_id`.
 
-**Do not export:** vector embedding columns (`embedding`), internal hash columns
-(`content_hash`, `file_hash`), or any column that is purely derived/internal. Treat these the
-same way connector secrets are handled: include a boolean `hasFoo` rather than the value if
-the column is opaque internal data.
-
 **Pattern to follow:** the existing `connectorAccountsQuery` and `aiProviderConfigsQuery`
 functions show how to structure owner-filtered export queries with sensitive field redaction.
 
-### #149 — Fix `handleRouteError` dead branch in notifications
+**Tests:** Extend `tests/integration/release-hardening.test.ts` (lines 44–80 cover existing
+export assertions) with new assertions for each of the five added sections:
+- Output JSON contains `memoryChunks`, `chatMemoryFacts`, `commitments`, `entities`, `preferences` keys
+- Negative assertions: no `embedding` key appears in any chunk row
+- Negative assertions: no `content_hash` key appears
+
+Do not rely solely on a manual `pnpm export:user` run — add automated assertions to the
+release-hardening suite so the gate catches regressions.
+
+### #149 — Fix `handleRouteError` in notifications
 
 **Location:** `packages/notifications/src/routes.ts:111-117`.
 
@@ -88,120 +95,154 @@ function handleRouteError(error: unknown, reply: FastifyReply) {
 **Fix:**
 ```typescript
 function handleRouteError(error: unknown, reply: FastifyReply) {
-  if (error instanceof Error && error.message.includes("Session")) {
+  if (error instanceof Error && error.message === "Session is missing or expired") {
     return reply.code(401).send({ error: "Session is missing or expired" });
   }
-  // Unexpected errors: log server-side, return generic 500
-  console.error("Unhandled notifications route error:", error);
-  return reply.code(500).send({ error: "Internal server error" });
+  if (error instanceof Error && error.message === "Invalid bearer token") {
+    return reply.code(401).send({ error: "Session is missing or expired" });
+  }
+  // Unexpected errors: log and return generic 500
+  throw error;   // let Fastify's default handler log it and return 500
 }
 ```
 
-This matches the pattern used in `packages/briefings/src/routes.ts:390-416` (which properly
-distinguishes auth errors from unexpected errors). Use whatever logger is available in the
-package; fall back to `console.error` if no structured logger is wired.
+Use exact-match `===` (not `includes`) for both auth-error messages — every sibling module
+(`packages/tasks/src/routes.ts:606-608`, `packages/chat`, `packages/ai`, etc.) uses exact-match.
+The `"Invalid bearer token"` branch is essential: `resolveAccessContext` throws it for invalid
+tokens, and losing that → 500 would break auth signaling for all three notifications routes.
 
-Also review whether the same dead-branch pattern exists in `packages/chat/src/routes.ts:271`
-(`handleRouteError` there) — fix it in the same PR if so.
+Re-throwing unexpected errors (rather than `reply.code(500)`) matches house style in
+`packages/briefings/src/routes.ts:411` and other modules.
 
-### #140 — Ownership check for listId and parentTaskId on task create/update
+Also review `packages/chat/src/routes.ts:271` (`handleRouteError` there) — fix the same
+dead-branch pattern in the same PR if present.
+
+### #140 — Ownership check for listId and parentTaskId
 
 **Location:** `packages/tasks/src/repository.ts`.
 
-**Create path (≈ line 95-96):**
-```typescript
-const listId = input.listId ?? (await this.listsRepository.getOrCreateDefault(scopedDb)).id;
-```
+**Create path (≈ lines 95–127):**
 
 Before assigning `listId`, verify the actor owns that list:
 ```typescript
 if (input.listId) {
   const owned = await this.listsRepository.isOwnedByActor(scopedDb, input.listId);
-  if (!owned) throw new Error("List not found or not accessible");
+  if (!owned) throw new HttpError(404, "List not found or not accessible");
 }
 ```
 
-**Update path (≈ lines 184-187):**
-Same check: if `input.listId` is being changed, verify the target list is owned by the actor.
+Before assigning `parentTaskId`, verify the **actor owns** the parent task (not just visibility):
+```typescript
+if (input.parentTaskId) {
+  const parentOwned = await scopedDb.db
+    .selectFrom("app.tasks")
+    .select("id")
+    .where("id", "=", input.parentTaskId)
+    .where("owner_user_id", "=", sql<string>`app.current_actor_user_id()`)
+    .executeTakeFirst();
+  if (!parentOwned) throw new HttpError(404, "Parent task not found or not accessible");
+}
+```
 
-**`parentTaskId` check (≈ line 186):**
-If `parentTaskId` is being set, verify the parent task is visible to the actor (use an
-existence check via `getById` which is already owner-scoped via RLS).
+**Why ownership not visibility for parent:** `app.tasks` RLS is owner-OR-share (`0019_tasks_owner_or_share.sql:12-22`). A task merely view-shared to the actor passes a plain `getById` check, allowing the actor to parent their task under another user's task. Subsequent calls (`maybeAutoCloseParent`) would then write `task_activity` rows on the foreign parent. Require `owner_user_id = current_actor_user_id()` explicitly.
 
-**`isOwnedByActor` method to add in `packages/tasks/src/lists-repository.ts`** (or wherever
-`TaskListRepository` lives):
+**Update path (≈ lines 184–187):**
+Same checks: if `input.listId` changes, verify ownership. If `input.parentTaskId` changes,
+verify ownership (not visibility).
+
+**`isOwnedByActor` method to add in `packages/tasks/src/lists.ts`** (class `TaskListsRepository`):
 ```typescript
 async isOwnedByActor(scopedDb: DataContextDb, listId: string): Promise<boolean> {
   assertDataContextDb(scopedDb);
-  const row = await scopedDb
+  const row = await scopedDb.db
     .selectFrom("app.task_lists")
     .select("id")
     .where("id", "=", listId)
     .executeTakeFirst();
-  return !!row;   // RLS already filters to actor's lists
+  return !!row;   // RLS is owner-only (0039_tasks_foundation.sql:143-146); row present = owned
 }
 ```
 
-Since `app.task_lists` has owner-scoped RLS, a SELECT that returns a row means the actor owns
-it. No explicit `owner_user_id = actor` check needed at the app layer — RLS handles it.
+**Error → HTTP mapping:** tasks routes have a local `HttpError` class (declared at
+`packages/tasks/src/routes.ts:612-619`). The repository cannot throw it directly (it would
+create a circular dep or force an import from routes). Options — pick one:
+1. Move `HttpError` to `packages/tasks/src/errors.ts` and import it in both repository and routes.
+2. Throw a plain `Error` with a specific message (e.g., `"List not found or not accessible"`),
+   then add a message-match branch in `handleRouteError` (routes.ts:598-610) mapping it to 404.
+
+Specify in the PR which approach is used. The acceptance test must assert HTTP 404 (not 500).
+
+**Residual (explicitly accepted):** a manage-share grantee updating a task they manage can move
+it to one of their own lists. This is accepted behavior for manage-share level; the spec does
+not restrict it.
 
 ### #166 — Fix share persistence in foundation integration test
 
-**Location:** `tests/integration/foundation.test.ts:214-217`.
+**Location:** `tests/integration/foundation.test.ts` ≈ line 220 (the share creation with the
+self-incriminating comment).
 
-Add a teardown in the test or `afterEach`/`afterAll` block to delete the share created in
-that test. Alternatively, create the share inside a test-scoped transaction that is rolled
-back after the test. The specific pattern depends on how the foundation test suite manages
-DB state — follow the existing teardown conventions in the file.
+**Do NOT use a blanket `afterEach` cleanup** — a downstream test at ≈ line 257 ('allows access
+through an app.shares view grant') depends on a `beforeAll`-seeded share for `itemBGrantedToA`.
+A blanket `cleanupShares(testDb, testActorUserId)` would delete that seeded share.
 
-If the test creates a share and downstream tests expect it to be absent, the simplest fix is:
+**Correct fix:** at the end of the specific test (or in a targeted `afterAll` scoped to that
+test), delete only the specific share row that test creates:
 
 ```typescript
-afterEach(async () => {
-  await cleanupShares(testDb, testActorUserId);
+// After the test that creates the dangling share:
+afterAll(async () => {
+  await testDb
+    .deleteFrom("app.shares")
+    .where("resource_type", "=", "rls_probe_item")
+    .where("resource_id", "=", itemAOwnPrivate)
+    .where("grantee_user_id", "=", userB)
+    .execute();
 });
 ```
 
-Where `cleanupShares` deletes shares created by the test actor. This ensures test isolation
-without rewriting the test structure.
+Adjust `resource_type`/`resource_id`/`grantee_user_id` to match the actual row.
+
+**Acceptance:** add an in-suite assertion immediately after the cleanup — verify that the
+downstream test (`allows access through an app.shares view grant`) still passes (proves the
+seeded share was not deleted). A "run twice" check is insufficient because each run reseeds.
 
 ---
 
 ## Hard invariants
 
-- **Export must not include secrets.** `app.memory_chunks` `text` column is user content (safe).
-  Do not export `embedding` (vector blob — useless and large). Do not export any column named
-  `*_key`, `*_secret`, `*_token`, `*_credential`, or `*_hash`.
-- **Secrets never escape** (CLAUDE.md hard invariant #5). The export additions must follow the
-  same redaction pattern as connector/AI config exports (boolean `hasSecret`, not the secret).
-- **`handleRouteError` 500 must not leak internal error details** to the response body. Log
-  the full error server-side; return only `"Internal server error"` to the client.
-- **RLS for ownership checks.** The `isOwnedByActor` list check relies on RLS to scope the
-  query. It must be called inside a `withDataContext` context (the repository already requires
-  `DataContextDb`), so the GUC is set. No raw `owner_user_id =` app-layer filter needed.
+- **Export must not include secrets or derived data.** Do not export `embedding`, `content_hash`,
+  `file_hash`, or any `*_key`/`*_secret`/`*_token`/`*_credential` column.
+- **`handleRouteError` 500 must not leak internal error details.** Re-throw and let Fastify
+  handle logging; return only the generic Fastify error JSON to the client.
+- **RLS for ownership checks.** The `isOwnedByActor` list check relies on RLS (`task_lists` is
+  owner-only). Must be called inside a `withDataContext` context. The parent-task ownership check
+  uses an explicit `owner_user_id = app.current_actor_user_id()` predicate — not `getById`.
+- **Both create and update paths guard listId and parentTaskId.** The vulnerability exists on
+  both paths; partial fix is insufficient.
 
 ---
 
 ## Tests
 
 - **`pnpm verify:foundation`** green. `pnpm test:integration` green.
-- **Export completeness:** run `pnpm export:user -- --user-id <test-user>` and verify the
-  output JSON contains `memoryChunks`, `commitments`, `entities`, `preferences` sections.
-  Verify no `embedding` column appears.
-- **Notifications 500:** trigger an unexpected error on a notification route (e.g., DB down
-  or forced throw); verify the response is `500 Internal server error`, not `401`.
-- **Task list ownership:** attempt to create a task with a `listId` belonging to another user;
-  verify the request returns a 404/403, not a silent success.
-- **Foundation test isolation:** run `pnpm test:integration` twice in sequence; verify the
-  second run does not fail due to share state leaked from the first.
+- **Export completeness:** `tests/integration/release-hardening.test.ts` must assert each of the
+  five new table sections is present in export output, with redaction checks for `embedding` and
+  `content_hash`.
+- **Notifications 500:** trigger an unexpected error on a notification route (e.g., forced throw);
+  verify the response is a 500 (not 401). Also verify that an invalid-token request still returns 401.
+- **Task list ownership (create and update):** attempt to create a task with a `listId` belonging
+  to another user → expect 404, not silent success. Attempt to create with a `parentTaskId` belonging
+  to another user → expect 404. Repeat for update path.
+- **Foundation test isolation:** after the #166 fix, a following test that depends on the seeded
+  share (`itemBGrantedToA`) still passes within the same `pnpm test:integration` run.
 
 ---
 
 ## Out of scope
 
 - GDPR deletion or data-portability endpoint (only the export script is in scope).
-- Full export UI or scheduled-export feature.
-- Adding missing tables beyond the five listed (other tables are either already exported or
-  do not contain personal data).
-- Refactoring `handleRouteError` into a shared utility (clean, but not required for this fix).
+- Adding `app.shares`, `app.task_lists`, `app.task_tags` to the export, or refreshing `tasksQuery`
+  columns — tracked as follow-up. The out-of-scope rationale in this spec is "known-incomplete,
+  deferred to a follow-up issue" not "those tables contain no personal data."
+- Refactoring `handleRouteError` into a shared utility.
 - Task list management UI changes.
