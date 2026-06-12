@@ -9,7 +9,6 @@ import {
   DataContextRunner,
   SharesRepository,
   createDatabase,
-  type AccessContext,
   type JarvisDatabase
 } from "@jarv1s/db";
 import { createPgBossClient } from "@jarv1s/jobs";
@@ -21,22 +20,22 @@ import {
 import {
   TASKS_DEFERRED_STATUS_QUEUE,
   type DeferredTaskStatusPayload,
-  type DeferredTaskStatusResult,
   TaskBreakdownRepository,
   TaskDriftRepository,
   TaskListsRepository,
-  TasksRepository,
-  registerTasksJobWorkers
+  TasksRepository
 } from "@jarv1s/tasks";
 import type { TaskDto } from "@jarv1s/shared";
 import { connectionStrings, ids, resetFoundationDatabase } from "./test-database.js";
+import {
+  handleNextTaskJob,
+  seedTaskData,
+  taskIds,
+  userAContext,
+  userBContext
+} from "./tasks-helpers.js";
 
 const { Client } = pg;
-
-const taskIds = {
-  aPrivate: "30000000-0000-4000-8000-000000000001",
-  bPrivate: "30000000-0000-4000-8000-000000000002"
-} as const;
 
 describe("Tasks module M1", () => {
   let appDb: Kysely<JarvisDatabase>;
@@ -856,95 +855,138 @@ describe("Tasks module M1", () => {
     expect(subtasks.at(1)?.title).toBe("book hotel");
     expect(subtasks.at(2)?.title).toBe("pack bags");
   });
-});
 
-async function seedTaskData(): Promise<void> {
-  const client = new Client({ connectionString: connectionStrings.bootstrap });
-
-  await client.connect();
-  try {
-    await client.query("BEGIN");
-    // Ensure each user has a Personal list (the migration seeds these for existing users,
-    // but in tests the schema is rebuilt before users are inserted, so we seed them here).
-    await client.query(
-      `
-        INSERT INTO app.task_lists (owner_user_id, name)
-        VALUES ($1, 'Personal'), ($2, 'Personal')
-        ON CONFLICT DO NOTHING
-      `,
-      [ids.userA, ids.userB]
+  it("rejects task create with a listId that belongs to another user (404)", async () => {
+    const userBList = await dataContext.withDataContext(userBContext(), (db) =>
+      new TaskListsRepository().getOrCreateDefault(db)
     );
-    await client.query(
-      `
-        INSERT INTO app.tasks (id, owner_user_id, title, description, status, list_id)
-        VALUES
-          ($1, $2, 'User A seeded private task', 'A private description', 'todo',
-            (SELECT id FROM app.task_lists WHERE owner_user_id = $2 AND name = 'Personal' LIMIT 1)),
-          ($3, $4, 'User B seeded private task', 'B private description', 'todo',
-            (SELECT id FROM app.task_lists WHERE owner_user_id = $4 AND name = 'Personal' LIMIT 1))
-      `,
-      [taskIds.aPrivate, ids.userA, taskIds.bPrivate, ids.userB]
-    );
-    await client.query("COMMIT");
-  } catch (error) {
-    await client.query("ROLLBACK");
-    throw error;
-  } finally {
-    await client.end();
-  }
-}
 
-async function handleNextTaskJob(workerBoss: PgBoss): Promise<DeferredTaskStatusResult> {
-  const scopedWorkerDb = createDatabase({
-    connectionString: connectionStrings.worker,
-    maxConnections: 1
-  });
-  const dataContext = new DataContextRunner(scopedWorkerDb);
-  let workIds: string[] = [];
-
-  try {
-    const resultPromise = new Promise<DeferredTaskStatusResult>((resolve, reject) => {
-      const timeout = setTimeout(() => {
-        reject(new Error("Timed out waiting for Tasks worker"));
-      }, 10_000);
-
-      registerTasksJobWorkers(workerBoss, dataContext, {
-        workOptions: { pollingIntervalSeconds: 0.5 },
-        onResult: (_job, result) => {
-          clearTimeout(timeout);
-          resolve(result);
-        }
-      })
-        .then((registeredWorkIds) => {
-          workIds = registeredWorkIds;
+    await expect(
+      dataContext.withDataContext(userAContext(), (db) =>
+        repository.create(db, {
+          title: "cross-list task",
+          listId: userBList.id
         })
-        .catch((error) => {
-          clearTimeout(timeout);
-          reject(error);
-        });
+      )
+    ).rejects.toThrow("List not found or not accessible");
+  });
+
+  it("rejects task create with a parentTaskId owned by another user (404)", async () => {
+    await expect(
+      dataContext.withDataContext(userAContext(), (db) =>
+        repository.create(db, {
+          title: "cross-parent task",
+          parentTaskId: taskIds.bPrivate
+        })
+      )
+    ).rejects.toThrow("Parent task not found or not accessible");
+  });
+
+  it("rejects task update with a listId that belongs to another user (404)", async () => {
+    const task = await dataContext.withDataContext(userAContext(), (db) =>
+      repository.create(db, { title: "will be moved to wrong list" })
+    );
+    const userBList = await dataContext.withDataContext(userBContext(), (db) =>
+      new TaskListsRepository().getOrCreateDefault(db)
+    );
+
+    await expect(
+      dataContext.withDataContext(userAContext(), (db) =>
+        repository.update(db, task.id, { listId: userBList.id })
+      )
+    ).rejects.toThrow("List not found or not accessible");
+  });
+
+  it("rejects task update with a parentTaskId owned by another user (404)", async () => {
+    const task = await dataContext.withDataContext(userAContext(), (db) =>
+      repository.create(db, { title: "will be re-parented to wrong task" })
+    );
+
+    await expect(
+      dataContext.withDataContext(userAContext(), (db) =>
+        repository.update(db, task.id, { parentTaskId: taskIds.bPrivate })
+      )
+    ).rejects.toThrow("Parent task not found or not accessible");
+  });
+
+  it("allows task create with own listId and own parentTaskId", async () => {
+    const list = await dataContext.withDataContext(userAContext(), (db) =>
+      new TaskListsRepository().getOrCreateDefault(db)
+    );
+    const parent = await dataContext.withDataContext(userAContext(), (db) =>
+      repository.create(db, { title: "parent task" })
+    );
+    const child = await dataContext.withDataContext(userAContext(), (db) =>
+      repository.create(db, {
+        title: "child task",
+        listId: list.id,
+        parentTaskId: parent.id
+      })
+    );
+
+    expect(child.list_id).toBe(list.id);
+    expect(child.parent_task_id).toBe(parent.id);
+  });
+
+  it("rejects parenting under a task that is only VIEW-SHARED to the actor (ownership, not visibility)", async () => {
+    const userBTask = await dataContext.withDataContext(userBContext(), (db) =>
+      repository.create(db, { title: "userB task, view-shared to A" })
+    );
+    await dataContext.withDataContext(userBContext(), (db) =>
+      sharesRepository.grant(db, {
+        resourceType: "task",
+        resourceId: userBTask.id,
+        ownerUserId: ids.userB,
+        granteeUserId: ids.userA,
+        level: "view"
+      })
+    );
+
+    // Sanity: userA CAN see the task (visibility passes) ...
+    const visibleToA = await dataContext.withDataContext(userAContext(), (db) =>
+      repository.getById(db, userBTask.id)
+    );
+    expect(visibleToA?.id).toBe(userBTask.id);
+
+    // ... but must NOT be able to parent under it on create.
+    await expect(
+      dataContext.withDataContext(userAContext(), (db) =>
+        repository.create(db, { title: "child under foreign parent", parentTaskId: userBTask.id })
+      )
+    ).rejects.toThrow("Parent task not found or not accessible");
+
+    // ... and must NOT be able to re-parent an existing own task under it on update.
+    const ownTask = await dataContext.withDataContext(userAContext(), (db) =>
+      repository.create(db, { title: "userA own task" })
+    );
+    await expect(
+      dataContext.withDataContext(userAContext(), (db) =>
+        repository.update(db, ownTask.id, { parentTaskId: userBTask.id })
+      )
+    ).rejects.toThrow("Parent task not found or not accessible");
+  });
+
+  it("POST /api/tasks with a foreign listId returns 404", async () => {
+    const userBList = await dataContext.withDataContext(userBContext(), (db) =>
+      new TaskListsRepository().getOrCreateDefault(db)
+    );
+
+    const response = await server.inject({
+      method: "POST",
+      url: "/api/tasks",
+      headers: { authorization: `Bearer ${ids.sessionA}` },
+      payload: { title: "cross-list via API", listId: userBList.id }
     });
 
-    return await resultPromise;
-  } finally {
-    await Promise.all(
-      workIds.map((workId) =>
-        workerBoss.offWork(TASKS_DEFERRED_STATUS_QUEUE, { id: workId, wait: true })
-      )
-    );
-    await scopedWorkerDb.destroy();
-  }
-}
+    expect(response.statusCode).toBe(404);
+    expect(response.json<{ error: string }>().error).toBe("List not found or not accessible");
+  });
 
-function userAContext(): AccessContext {
-  return {
-    actorUserId: ids.userA,
-    requestId: "request:user-a-tasks"
-  };
-}
-
-function userBContext(): AccessContext {
-  return {
-    actorUserId: ids.userB,
-    requestId: "request:user-b-tasks"
-  };
-}
+  it("HttpError from tasks errors module has correct statusCode and message", async () => {
+    const { HttpError } = await import("../../packages/tasks/src/errors.js");
+    const err = new HttpError(404, "not found");
+    expect(err.statusCode).toBe(404);
+    expect(err.message).toBe("not found");
+    expect(err).toBeInstanceOf(Error);
+  });
+});

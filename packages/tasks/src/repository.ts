@@ -11,6 +11,7 @@ import {
   type TasksTable
 } from "@jarv1s/db";
 
+import { HttpError } from "./errors.js";
 import { TaskListsRepository } from "./lists.js";
 import { generateNext } from "./recurrence.js";
 
@@ -93,6 +94,23 @@ export class TasksRepository {
     }
 
     // Resolve list_id: use the provided listId or fall back to the actor's Personal list.
+    // If a listId is provided, verify the actor owns it (RLS on task_lists is owner-only).
+    if (input.listId) {
+      const owned = await this.listsRepository.isOwnedByActor(scopedDb, input.listId);
+      if (!owned) throw new HttpError(404, "List not found or not accessible");
+    }
+    // Verify ownership (not just visibility) for parentTaskId.
+    // app.tasks RLS is owner-or-share, so a plain getById would succeed for view-shared tasks.
+    // We require owner_user_id = current_actor_user_id() explicitly.
+    if (input.parentTaskId != null) {
+      const parentOwned = await scopedDb.db
+        .selectFrom("app.tasks")
+        .select("id")
+        .where("id", "=", input.parentTaskId)
+        .where("owner_user_id", "=", sql<string>`app.current_actor_user_id()`)
+        .executeTakeFirst();
+      if (!parentOwned) throw new HttpError(404, "Parent task not found or not accessible");
+    }
     const listId = input.listId ?? (await this.listsRepository.getOrCreateDefault(scopedDb)).id;
 
     const now = new Date();
@@ -157,6 +175,22 @@ export class TasksRepository {
     input: UpdateTaskInput
   ): Promise<Task | undefined> {
     assertDataContextDb(scopedDb);
+
+    // Ownership check: if the caller is moving the task to a different list, verify ownership.
+    if (input.listId !== undefined) {
+      const owned = await this.listsRepository.isOwnedByActor(scopedDb, input.listId);
+      if (!owned) throw new HttpError(404, "List not found or not accessible");
+    }
+    // Ownership check: if the caller is reparenting the task, require owner_user_id match.
+    if (input.parentTaskId != null) {
+      const parentOwned = await scopedDb.db
+        .selectFrom("app.tasks")
+        .select("id")
+        .where("id", "=", input.parentTaskId)
+        .where("owner_user_id", "=", sql<string>`app.current_actor_user_id()`)
+        .executeTakeFirst();
+      if (!parentOwned) throw new HttpError(404, "Parent task not found or not accessible");
+    }
 
     const updates: Updateable<TasksTable> = {
       updated_at: new Date()

@@ -109,9 +109,12 @@ function toIsoString(value: Date | string | null): string | null {
 }
 
 function handleRouteError(error: unknown, reply: FastifyReply) {
-  if (error instanceof Error && error.message.includes("Session")) {
+  if (error instanceof Error && error.message === "Session is missing or expired") {
     return reply.code(401).send({ error: "Session is missing or expired" });
   }
-
-  return reply.code(401).send({ error: "Session is missing or expired" });
+  if (error instanceof Error && error.message === "Invalid bearer token") {
+    return reply.code(401).send({ error: "Session is missing or expired" });
+  }
+  reply.log.error(error, "Unexpected notification route error");
+  return reply.code(500).send({ error: "Internal server error" });
 }

@@ -104,4 +104,14 @@ export class TaskListsRepository {
       .orderBy("name")
       .execute();
   }
+
+  async isOwnedByActor(db: DataContextDb, listId: string): Promise<boolean> {
+    assertDataContextDb(db);
+    const row = await db.db
+      .selectFrom("app.task_lists")
+      .select("id")
+      .where("id", "=", listId)
+      .executeTakeFirst();
+    return !!row; // RLS is owner-only (0039_tasks_foundation.sql); row present = actor owns it
+  }
 }
