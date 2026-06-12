@@ -55,9 +55,6 @@ const transientTables = ["connector_oauth_pending"] as const;
 const forceRlsExemptions = new Map<string, string>([
   // Infrastructure / access-control tables — no per-user private row data;
   // accessed by app_runtime under broad grants, not per-actor RLS policies.
-  ["workspace_memberships", "access-control infra: no per-user private row data"],
-  ["resource_grants", "access-control infra: no per-user private row data"],
-  ["workspaces", "instance config: not per-user owner data"],
   ["instance_settings", "instance config: not per-user owner data"],
   // Migration runner bookkeeping (applied filename + hash + timestamp). Instance
   // infra written only by jarvis_migration_owner; holds no per-user rows.

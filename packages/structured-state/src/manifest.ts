@@ -26,7 +26,7 @@ export const structuredStateModuleManifest: JarvisModuleManifest = {
     ownedTables: ["app.commitments", "app.entities", "app.preferences"]
   },
   shareableResources: [
-    { resourceType: "commitment", grantLevels: ["view", "contribute", "manage"] },
-    { resourceType: "entity", grantLevels: ["view", "contribute", "manage"] }
+    { resourceType: "commitment", grantLevels: ["view"] },
+    { resourceType: "entity", grantLevels: ["view"] }
   ]
 };

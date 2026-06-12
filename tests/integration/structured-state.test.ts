@@ -18,7 +18,8 @@ import {
   CommitmentsRepository,
   EntitiesRepository,
   PreferencesRepository,
-  VaultWriteBackService
+  VaultWriteBackService,
+  structuredStateModuleManifest
 } from "@jarv1s/structured-state";
 import { connectionStrings, resetEmptyFoundationDatabase } from "./test-database.js";
 
@@ -62,6 +63,14 @@ const vaultRunner = new VaultContextRunner(vaultBase);
 
 afterAll(async () => {
   await rm(vaultBase, { recursive: true, force: true });
+});
+
+it("structured-state manifest exposes only view grant level (no contribute/manage)", () => {
+  const levels = structuredStateModuleManifest.shareableResources?.flatMap((r) => r.grantLevels);
+  expect(levels).toBeDefined();
+  expect(levels?.every((l) => l === "view")).toBe(true);
+  expect(levels).not.toContain("contribute");
+  expect(levels).not.toContain("manage");
 });
 
 // ── CommitmentsRepository ─────────────────────────────────────────────────────

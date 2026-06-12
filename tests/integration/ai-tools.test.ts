@@ -694,7 +694,7 @@ function userAHeaders(): Record<string, string> {
 function userAWorkspaceHeaders(): Record<string, string> {
   return {
     ...userAHeaders(),
-    "x-jarvis-workspace-id": ids.workspaceAlpha
+    "x-jarvis-workspace-id": "00000000-0000-4000-8000-000000000099"
   };
 }
 

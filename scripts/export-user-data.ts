@@ -50,11 +50,9 @@ export interface UserDataExportTables {
   readonly notificationReads: readonly ExportRow[];
   readonly notifications: readonly ExportRow[];
   readonly preferences: readonly ExportRow[];
-  readonly resourceGrants: readonly ExportRow[];
   readonly taskActivity: readonly ExportRow[];
   readonly tasks: readonly ExportRow[];
   readonly users: readonly ExportRow[];
-  readonly workspaceMemberships: readonly ExportRow[];
 }
 
 export async function exportUserData(options: ExportUserDataOptions): Promise<UserDataExport> {
@@ -116,8 +114,6 @@ async function readExportTables(
     users: await readRows(scopedDb.db, userQuery(userId)),
     authAccounts: await readRows(authDb, authAccountsQuery(userId)),
     betterAuthSessions: await readRows(authDb, betterAuthSessionsQuery(userId)),
-    workspaceMemberships: await readRows(scopedDb.db, workspaceMembershipsQuery(userId)),
-    resourceGrants: await readRows(scopedDb.db, resourceGrantsQuery(userId)),
     tasks: await readRows(scopedDb.db, tasksQuery(userId)),
     taskActivity: await readRows(scopedDb.db, taskActivityQuery(userId)),
     notifications: await readRows(scopedDb.db, notificationsQuery(userId)),
@@ -201,36 +197,6 @@ function betterAuthSessionsQuery(userId: string) {
     FROM app.better_auth_sessions
     WHERE user_id = ${userId}::uuid
     ORDER BY created_at, id
-  `;
-}
-
-function workspaceMembershipsQuery(userId: string) {
-  return sql<Record<string, unknown>>`
-    SELECT
-      user_id::text AS "userId",
-      workspace_id::text AS "workspaceId",
-      role,
-      created_at AS "createdAt"
-    FROM app.workspace_memberships
-    WHERE user_id = ${userId}::uuid
-    ORDER BY created_at, workspace_id
-  `;
-}
-
-function resourceGrantsQuery(userId: string) {
-  return sql<Record<string, unknown>>`
-    SELECT
-      resource_type AS "resourceType",
-      resource_id::text AS "resourceId",
-      grantee_user_id::text AS "granteeUserId",
-      grant_level AS "grantLevel",
-      granted_by_user_id::text AS "grantedByUserId",
-      created_at AS "createdAt",
-      updated_at AS "updatedAt"
-    FROM app.resource_grants
-    WHERE grantee_user_id = ${userId}::uuid
-      OR granted_by_user_id = ${userId}::uuid
-    ORDER BY created_at, resource_type, resource_id
   `;
 }
 

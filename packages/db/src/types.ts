@@ -80,31 +80,6 @@ export interface AuthVerificationsTable {
   updated_at: TimestampColumn;
 }
 
-export interface WorkspacesTable {
-  id: string;
-  name: string;
-  created_by_user_id: string | null;
-  created_at: TimestampColumn;
-  updated_at: TimestampColumn;
-}
-
-export interface WorkspaceMembershipsTable {
-  user_id: string;
-  workspace_id: string;
-  role: string;
-  created_at: TimestampColumn;
-}
-
-export interface ResourceGrantsTable {
-  resource_type: string;
-  resource_id: string;
-  grantee_user_id: string;
-  grant_level: "view" | "contribute" | "manage";
-  granted_by_user_id: string | null;
-  created_at: TimestampColumn;
-  updated_at: TimestampColumn;
-}
-
 export interface SharesTable {
   id: string;
   resource_type: string;
@@ -479,9 +454,6 @@ export interface JarvisDatabase {
   "app.auth_accounts": AuthAccountsTable;
   "app.better_auth_sessions": BetterAuthSessionsTable;
   "app.auth_verifications": AuthVerificationsTable;
-  "app.workspaces": WorkspacesTable;
-  "app.workspace_memberships": WorkspaceMembershipsTable;
-  "app.resource_grants": ResourceGrantsTable;
   "app.shares": SharesTable;
   "app.instance_settings": InstanceSettingsTable;
   "app.admin_audit_events": AdminAuditEventsTable;
@@ -515,9 +487,6 @@ export interface JarvisDatabase {
 }
 
 export type User = Selectable<UsersTable>;
-export type Workspace = Selectable<WorkspacesTable>;
-export type WorkspaceMembership = Selectable<WorkspaceMembershipsTable>;
-export type ResourceGrant = Selectable<ResourceGrantsTable>;
 export type Share = Selectable<SharesTable>;
 export type InstanceSetting = Selectable<InstanceSettingsTable>;
 export type AdminAuditEvent = Selectable<AdminAuditEventsTable>;
