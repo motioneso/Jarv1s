@@ -24,9 +24,9 @@ Severity post-Fable. Tier by content trigger (most of this backlog is `security`
 
 | Slice | Issues | Tier | Adds migration? | Spec | Status |
 | ----- | ------ | ---- | --------------- | ---- | ------ |
-| **A — RLS least-priv migrations** | #97 users-column UPDATE restriction, #98 worker memory RLS policies | security | **yes (×3: 0053+0054+0055)** | `docs/superpowers/specs/2026-06-11-audit-slice-a-rls-least-priv.md` ✅ | **AWAITING BEN MERGE SIGN-OFF** — PR #181, CI ✅ green, Opus QA APPROVED (2 non-blocking: deactivated-admin edge case + worker grant breadth), verdict at https://github.com/motioneso/Jarv1s/pull/181#issuecomment-4685492403 |
+| **A — RLS least-priv migrations** | #97 users-column UPDATE restriction, #98 worker memory RLS policies | security | **yes (×3: 0053+0054+0055)** | `docs/superpowers/specs/2026-06-11-audit-slice-a-rls-least-priv.md` ✅ | **MERGED** PR #181 @ 2026-06-12T00:13:10Z — issues #97 #98 closed, board Done |
 | **B — Dead subsystem deletion** | #120 workspaces, #153 resource-grants no-op, #115 + #116 (resolved by deletion), fold #152 manifest-narrowing; advances #155/#127/#101 workspace-halves | sensitive→**security** | **yes (DROP)** | — MISSING | blocked-on-spec |
-| **C — Vault containment** | #129 actorUserId validation, #130 symlink real-path containment | security | no (code) | `docs/superpowers/specs/2026-06-11-audit-slice-c-vault-containment.md` ✅ | **AWAITING BEN MERGE SIGN-OFF** — PR #182, CI ✅ green, Opus QA APPROVED (0 blocking, all 7 sites guarded, both symlink scenarios tested), verdict at https://github.com/motioneso/Jarv1s/pull/182#issuecomment-4685503510 |
+| **C — Vault containment** | #129 actorUserId validation, #130 symlink real-path containment | security | no (code) | `docs/superpowers/specs/2026-06-11-audit-slice-c-vault-containment.md` ✅ | **MERGED** PR #182 @ 2026-06-12T00:13:23Z — issues #130 closed, board Done |
 | **D — Settings → DataContextDb** | #95 SettingsRepository raw Kysely, #155 /api/me cross-user read | security | maybe (grant) | — MISSING | blocked-on-spec |
 | **E — Auth module hardening** | #113 bearer-token bypass (design-gated), #101 module-isolation, #127 bootstrap actor-GUC, #141 OAuth error-body leak | security | no (code) | — MISSING | blocked-on-spec |
 | **F — AI tool-path hardening** | #132 REST validateToolInput, #119 server-side allowlist, #148 blank ToolContext, #172 tools/list actor-scope | security | no (code) | — MISSING | blocked-on-spec |
@@ -82,4 +82,7 @@ budgeted place to spend up; the resident loop runs cheap on Sonnet).
 
 ## Reaped sessions
 
-- <none yet>
+- SliceA-build (pane -3) — reaped post-merge PR #181
+- SliceA-QA (pane -5) — reaped post-verdict
+- SliceC-build (pane -4) — reaped post-merge PR #182
+- SliceC-QA (pane -6) — reaped post-verdict
