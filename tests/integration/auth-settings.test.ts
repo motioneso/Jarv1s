@@ -712,6 +712,87 @@ describe("multi-user registration + lifecycle (Phase 2 Slice A)", () => {
       )
     ).rejects.toThrow(/42501|permission denied/i);
   });
+
+  it("POST /api/admin/users/:id/revoke-sessions revokes target sessions, count only, admin survives", async () => {
+    const admin = await signUp({
+      name: "Admin",
+      email: "admin-revoke@example.com",
+      password: "password12345"
+    });
+    const adminCookie = cookieHeader(admin.headers);
+
+    // Disable approval so the member becomes active and gets a usable session.
+    await appDb
+      .updateTable("app.instance_settings")
+      .set({ value: { value: false }, updated_at: new Date() })
+      .where("key", "=", "registration.requires_approval")
+      .execute();
+
+    const member = await signUp({
+      name: "Member",
+      email: "member-revoke@example.com",
+      password: "password12345"
+    });
+    const memberId = member.json<{ user: { id: string } }>().user.id;
+    const memberCookie = cookieHeader(member.headers);
+
+    // Sanity: the member's session is live before the revoke.
+    const beforeRevoke = await server.inject({
+      method: "GET",
+      url: "/api/me",
+      headers: { cookie: memberCookie }
+    });
+    expect(beforeRevoke.statusCode).toBe(200);
+
+    const response = await server.inject({
+      method: "POST",
+      url: `/api/admin/users/${memberId}/revoke-sessions`,
+      headers: { cookie: adminCookie }
+    });
+
+    // (1) Response shape: count only, no session identifiers.
+    expect(response.statusCode).toBe(200);
+    const body = response.json<{ success: boolean; count: number }>();
+    expect(body.success).toBe(true);
+    expect(typeof body.count).toBe("number");
+    expect(body.count).toBeGreaterThanOrEqual(1); // sign-up created at least 1 session
+    const raw = response.body;
+    expect(raw).not.toContain("session_id");
+    expect(raw).not.toContain("token");
+    expect(raw).not.toContain("user_id");
+    expect(raw).not.toContain("better_auth");
+
+    // (2) Target sessions are actually dead — the member's cookie now fails auth.
+    const afterRevoke = await server.inject({
+      method: "GET",
+      url: "/api/me",
+      headers: { cookie: memberCookie }
+    });
+    expect(afterRevoke.statusCode).toBe(401);
+
+    // (3) The admin's OWN session survives — revoke is scoped to the target user only.
+    const adminStillValid = await server.inject({
+      method: "GET",
+      url: "/api/me",
+      headers: { cookie: adminCookie }
+    });
+    expect(adminStillValid.statusCode).toBe(200);
+
+    // (4) DB confirms zero session rows remain for the target user. Use the bootstrap
+    // connection (superuser, bypasses RLS) — app_runtime's FORCE RLS would hide other
+    // users' session rows from a plain appDb query and make this check meaningless.
+    const seed = new pg.Client({ connectionString: connectionStrings.bootstrap });
+    await seed.connect();
+    try {
+      const memberRows = await seed.query(
+        "SELECT count(*)::int AS count FROM app.better_auth_sessions WHERE user_id = $1",
+        [memberId]
+      );
+      expect(memberRows.rows[0]?.count).toBe(0);
+    } finally {
+      await seed.end();
+    }
+  });
 });
 
 describe("users_guard_admin_flag trigger (#97)", () => {

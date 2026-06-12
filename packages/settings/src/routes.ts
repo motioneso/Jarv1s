@@ -13,6 +13,7 @@ import type {
 import {
   adminDeleteUserRouteSchema,
   adminRejectUserRouteSchema,
+  adminRevokeSessionsRouteSchema,
   adminUserActionRouteSchema,
   bootstrapStatusRouteSchema,
   getRegistrationSettingsRouteSchema,
@@ -230,6 +231,32 @@ export function registerSettingsRoutes(
 
   lifecycleAction("reactivate", "active", "user.reactivate");
   lifecycleAction("deactivate", "deactivated", "user.deactivate");
+
+  server.post(
+    "/api/admin/users/:id/revoke-sessions",
+    { schema: adminRevokeSessionsRouteSchema },
+    async (request, reply) => {
+      try {
+        const accessContext = await dependencies.resolveAccessContext(request);
+        const { id } = request.params as { id: string };
+        // Admin check + target existence check share ONE transaction (post-D pattern).
+        await dependencies.dataContext.withDataContext(accessContext, async (scopedDb) => {
+          await assertAdminUser(repository, scopedDb, accessContext.actorUserId);
+          const target = await repository.getUserById(scopedDb, id);
+          if (!target) throw new HttpError(404, "User not found");
+        });
+        // revokeUserSessions runs on the auth pool (DELETE ... WHERE user_id = id) — outside
+        // the data context. It targets the named user's sessions only, never the calling
+        // admin's. The response carries the deleted-row count and nothing from the session row.
+        const count = dependencies.revokeUserSessions
+          ? await dependencies.revokeUserSessions(id)
+          : 0;
+        return { success: true, count };
+      } catch (error) {
+        return handleRouteError(error, reply);
+      }
+    }
+  );
 
   const adminFlagAction = (verb: "promote" | "demote", isInstanceAdmin: boolean) =>
     server.post(
