@@ -238,6 +238,15 @@ export class SettingsRepository {
     scopedDb: DataContextDb,
     excludingUserId: string
   ): Promise<void> {
+    // TOCTOU guard (#94): serialize every last-active-admin check against any other
+    // admin-removing mutation. withDataContext runs this method inside a transaction,
+    // so a transaction-scoped advisory lock taken here is held through the caller's
+    // subsequent UPDATE and commit. Without it, two concurrent demote/deactivate/reject
+    // calls on the last two admins could both pass this check and leave zero active
+    // admins. Mirrors the bootstrapFirstJarvisUser lock pattern (auth/src/index.ts).
+    await sql`SELECT pg_advisory_xact_lock(hashtext('jarv1s:last-active-admin'))`.execute(
+      scopedDb.db
+    );
     const result = await sql<{ id: string }>`
       SELECT id FROM app.list_all_users()
       WHERE is_instance_admin = true AND status = 'active' AND id != ${excludingUserId}::uuid

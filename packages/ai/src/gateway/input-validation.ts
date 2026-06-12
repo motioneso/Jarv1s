@@ -15,10 +15,74 @@ const JSON_TYPE_OF: Record<string, (v: unknown) => boolean> = {
   array: (v) => Array.isArray(v)
 };
 
+interface SchemaNode {
+  readonly type?: string;
+  readonly enum?: readonly unknown[];
+  readonly required?: readonly string[];
+  readonly properties?: Record<string, SchemaNode>;
+  readonly items?: SchemaNode;
+}
+
+function joinPath(base: string, key: string): string {
+  return base === "" ? key : `${base}.${key}`;
+}
+
+function validateObject(schema: SchemaNode, value: ToolInput, basePath: string): void {
+  const required = Array.isArray(schema.required) ? schema.required : [];
+  for (const key of required) {
+    if (!(key in value)) {
+      throw new ToolInputValidationError(`Missing required field: ${joinPath(basePath, key)}`);
+    }
+  }
+
+  const properties = schema.properties ?? {};
+  for (const [key, declared] of Object.entries(properties)) {
+    if (!(key in value)) {
+      continue;
+    }
+    validateValue(declared, value[key], joinPath(basePath, key));
+  }
+}
+
+function validateValue(schema: SchemaNode, value: unknown, path: string): void {
+  if (Array.isArray(schema.enum) && !schema.enum.some((option) => option === value)) {
+    const allowed = schema.enum.map((option) => JSON.stringify(option)).join(", ");
+    throw new ToolInputValidationError(`Field ${path} must be one of: ${allowed}`);
+  }
+
+  if (schema.type !== undefined) {
+    const check = JSON_TYPE_OF[schema.type];
+    if (check && !check(value)) {
+      throw new ToolInputValidationError(`Field ${path} must be a ${schema.type}`);
+    }
+  }
+
+  if (schema.type === "object" && schema.properties) {
+    validateObject(schema, value as ToolInput, path);
+  }
+
+  if (schema.type === "array" && schema.items && Array.isArray(value)) {
+    value.forEach((item, index) =>
+      validateValue(schema.items as SchemaNode, item, `${path}[${index}]`)
+    );
+  }
+}
+
 /**
- * Deliberately minimal, dependency-free structural validation (required keys +
- * declared scalar/object/array types). Sufficient for Phase 2 + the fixture; a
- * full JSON-schema validator can replace this when real modules need it.
+ * Dependency-free structural validation for assistant-tool input. This is the
+ * security chokepoint for caller-supplied tool input on the gateway/REST paths,
+ * so it enforces the structural constraints that matter for safety:
+ *   - the top-level input is a JSON object;
+ *   - all `required` keys are present, recursively into nested objects;
+ *   - each declared property matches its `type`
+ *     (string/number/boolean/object/array);
+ *   - `enum` membership, and `array` `items` types, recursively.
+ *
+ * It deliberately does NOT enforce `format`, `pattern`, numeric bounds
+ * (minimum/maximum), `additionalProperties`, or composition keywords
+ * (`oneOf`/`anyOf`/`allOf`/`$ref`). Callers MUST NOT treat a passing result as
+ * full JSON-Schema conformance. When a real module ships a schema that needs
+ * those, swap in a full validator (ajv) rather than extending this by hand (#133).
  */
 export function validateToolInput(schema: JsonSchema | undefined, input: unknown): ToolInput {
   if (typeof input !== "object" || input === null || Array.isArray(input)) {
@@ -29,23 +93,7 @@ export function validateToolInput(schema: JsonSchema | undefined, input: unknown
     return value;
   }
 
-  const required = Array.isArray(schema.required) ? (schema.required as string[]) : [];
-  for (const key of required) {
-    if (!(key in value)) {
-      throw new ToolInputValidationError(`Missing required field: ${key}`);
-    }
-  }
-
-  const properties = (schema.properties ?? {}) as Record<string, { type?: string }>;
-  for (const [key, declared] of Object.entries(properties)) {
-    if (!(key in value) || declared.type === undefined) {
-      continue;
-    }
-    const check = JSON_TYPE_OF[declared.type];
-    if (check && !check(value[key])) {
-      throw new ToolInputValidationError(`Field ${key} must be a ${declared.type}`);
-    }
-  }
+  validateObject(schema as SchemaNode, value, "");
 
   return value;
 }

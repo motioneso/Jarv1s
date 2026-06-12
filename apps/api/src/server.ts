@@ -303,8 +303,13 @@ async function handleBetterAuthRequest(
 
 function toWebRequest(request: FastifyRequest): Request {
   const headers = toWebHeaders(request.headers);
-  const protocol = readForwardedProtocol(headers);
-  const host = headers.get("host") ?? "localhost:3000";
+  // Build the better-auth URL from Fastify's protocol/host, which already honor the
+  // explicit `trustProxy` opt-in (JARVIS_TRUST_PROXY): forwarded headers are consulted
+  // only when a trusted proxy is configured, and otherwise fall back to the connection
+  // scheme/host. Reading x-forwarded-proto / host directly off client headers would
+  // trust attacker-controlled values regardless of that opt-in (#164).
+  const protocol = request.protocol;
+  const host = request.host || "localhost:3000";
   const url = `${protocol}://${host}${request.url}`;
   const init: RequestInit = {
     method: request.method,
@@ -349,16 +354,6 @@ function encodeBody(body: unknown): BodyInit {
   }
 
   return JSON.stringify(body);
-}
-
-function readForwardedProtocol(headers: Headers): string {
-  const value = headers.get("x-forwarded-proto");
-
-  if (!value) {
-    return "http";
-  }
-
-  return value.split(",", 1)[0]?.trim() || "http";
 }
 
 function readSetCookieHeaders(headers: Headers): string[] {
