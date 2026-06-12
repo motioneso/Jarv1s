@@ -10,10 +10,9 @@ import pg from "pg";
 
 import {
   AuthSessionResolver,
-  DataContextRunner,
   getJarvisDatabaseUrls,
   type AccessContext,
-  type DataContextDb,
+  type DataContextRunner,
   type JarvisDatabase
 } from "@jarv1s/db";
 import { recordAuditEvent as settingsRecordAuditEvent } from "@jarv1s/settings";
