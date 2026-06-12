@@ -221,9 +221,13 @@ describe("Legacy session-bearer auth hardening (#113)", () => {
           url: "/api/auth/sign-in/email",
           headers: {
             "content-type": "application/json",
-            // A different bogus bearer per request: if the credential throttle had inherited
-            // the global per-principal key, each would mint its own bucket and never 429.
-            authorization: `Bearer junk-${n}`
+            // A different *UUID-shaped* bogus bearer per request. This is deliberate: under the
+            // global per-principal key these mint a distinct `bearer:` bucket each, so if the
+            // auth route ever lost its explicit IP keyGenerator and inherited the global one,
+            // each request would land in a fresh bucket and never 429 — and this test would
+            // fail. Non-UUID junk would be routed to the shared `ip:` bucket by the global key's
+            // UUID gate, masking that regression; UUID-shaped tokens make the test discriminating.
+            authorization: `Bearer 40000000-0000-4000-8000-00000000000${n}`
           },
           payload: { email: "attacker@example.com", password: `guess-${n}` }
         });
