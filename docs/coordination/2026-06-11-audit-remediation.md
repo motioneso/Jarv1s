@@ -1,7 +1,7 @@
 # Coordination Run — 2026-06-11-audit-remediation
 
 **Date:** 2026-06-11
-**Coordinator lock:** label `Coordinator` = pane `w653f42bef3ac02-2` (`$HERDR_PANE_ID=p_38`). Single-coordinator lock — exactly one pane holds this label for the life of the run; agents escalate to the **label** (routing), the coordinator merges only when its own `$HERDR_PANE_ID` resolves to this recorded **pane-id** (authority).
+**Coordinator lock:** label `Coordinator` = pane `w653f42bef3ac02-3` (`$HERDR_PANE_ID=p_44`) — RELAY SUCCESSOR claimed 2026-06-12 (predecessor `p_38`/`-2` reaped). Single-coordinator lock — exactly one pane holds this label for the life of the run; agents escalate to the **label** (routing), the coordinator merges only when its own `$HERDR_PANE_ID` resolves to this recorded value (authority). **Pane-ids are VOLATILE (herdr compacts on close) — `$HERDR_PANE_ID=p_44` is the stable authority; re-resolve the numeric pane from `herdr pane list` before any merge.**
 **Finding source:** `docs/audits/2026-06-11-fable5-issue-verification.md` — independent Fable 5 verification @ `origin/main e629f3c`, migration head 0052 (22 stand, 8 severity-downgraded to MED/LOW, 0 refuted, 0 already-fixed).
 **Merge policy:** autonomous-after-verified-QA for `routine`/`sensitive`. **`security`-tier sign-off DELEGATED to Fable (Ben, 2026-06-12 — "I'm not in a good place to review; have Fable review the security PRs and proceed").** Per security PR: run adversarial QA as a **Fable (`model: 'fable'`) cross-model review** + post verdict via `gh pr comment`; **Fable APPROVE → merge autonomously**; Fable `revise`/`reject` → bounce to build agent, re-QA. Ben gets a per-merge digest (not a gate). Escalate back to Ben only on a genuine design fork Fable can't settle.
 **Relay threshold:** security-tier merge → relay immediately; routine/sensitive merges\*since_relay ≥ 2 → relay. No deferral.
@@ -42,8 +42,8 @@ closed, worktrees/branches/agents reaped, board Done. Migration head after these
 6. **Session-end housekeeping:** remove plan/spec copies from the obsidian vault (git copy canonical);
    save durable memory for the prettier-discipline lapse + build-agent scope-creep trap + G-off-spine.
 
-Lock unchanged: Coordinator = pane `w653f42bef3ac02-2` / `$HERDR_PANE_ID=p_38`. Re-confirm yours
-matches before any merge.
+Lock NOW: Coordinator = `$HERDR_PANE_ID=p_44` (pane `w653f42bef3ac02-3` at claim time, volatile).
+Re-confirm yours matches before any merge.
 
 > Coordinator's externalized memory. Keep CURRENT. GitHub is source of truth for spec/issue/board
 > status; this file holds only in-flight operational state.
