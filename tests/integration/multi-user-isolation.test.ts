@@ -48,7 +48,7 @@ describe("multi-user isolation", () => {
   beforeEach(async () => {
     await resetEmptyFoundationDatabase();
     appDb = createDatabase({ connectionString: connectionStrings.app, maxConnections: 1 });
-    authRuntime = createJarvisAuthRuntime({ appDb });
+    authRuntime = createJarvisAuthRuntime({ appDb, runner: new DataContextRunner(appDb) });
     server = createApiServer({ appDb, authRuntime, logger: false });
     await server.ready();
   });

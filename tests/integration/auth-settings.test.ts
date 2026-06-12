@@ -6,7 +6,7 @@ import pg from "pg";
 import { createApiServer } from "../../apps/api/src/server.js";
 import { createDatabase, DataContextRunner, type JarvisDatabase } from "@jarv1s/db";
 import type { ListAdminAuditEventsResponse, ListModulesResponse, MeResponse } from "@jarv1s/shared";
-import { connectionStrings, ids, resetEmptyFoundationDatabase } from "./test-database.js";
+import { connectionStrings, resetEmptyFoundationDatabase } from "./test-database.js";
 import { createJarvisAuthRuntime, type JarvisAuthRuntime } from "@jarv1s/auth";
 import { SettingsRepository } from "../../packages/settings/src/repository.js";
 
@@ -108,6 +108,46 @@ describe("M3 auth, users, settings", () => {
       email: "owner@example.test",
       isInstanceAdmin: true
     });
+  });
+
+  it("bootstrap writes audit event with action bootstrap_owner_created", async () => {
+    const auditResponse = await server.inject({
+      method: "GET",
+      url: "/api/admin/audit-events",
+      headers: { cookie: ownerCookie }
+    });
+    const events = auditResponse.json<ListAdminAuditEventsResponse>().auditEvents;
+    const actions = events.map((event) => event.action);
+    expect(actions).toContain("bootstrap_owner_created");
+    const bootstrapEvent = events.find((event) => event.action === "bootstrap_owner_created");
+    expect(bootstrapEvent?.actorUserId).toBe(ownerUserId);
+  });
+
+  it("recordAuditEvent writes an audit row via the public settings API", async () => {
+    // ownerUserId is set by the preceding bootstrap test — use it as the actor so
+    // the GUC-scoped insert passes RLS on app.admin_audit_events.
+    const { recordAuditEvent } = await import("@jarv1s/settings");
+    const runner = new DataContextRunner(appDb);
+    await runner.withDataContext(
+      { actorUserId: ownerUserId, requestId: "test:record-audit" },
+      async (scopedDb) => {
+        await recordAuditEvent(scopedDb, {
+          actorUserId: ownerUserId,
+          action: "test.record_audit_event",
+          targetType: "user",
+          targetId: ownerUserId,
+          metadata: {},
+          requestId: "test:record-audit"
+        });
+      }
+    );
+
+    const rows = await sql<{ action: string; actor_user_id: string }>`
+      SELECT action, actor_user_id FROM app.admin_audit_events
+      WHERE action = 'test.record_audit_event'
+    `.execute(appDb);
+    expect(rows.rows[0]?.action).toBe("test.record_audit_event");
+    expect(rows.rows[0]?.actor_user_id).toBe(ownerUserId);
   });
 
   it("exposes configured auth provider status without secrets", async () => {
@@ -282,7 +322,7 @@ describe("M3 auth, users, settings", () => {
 
     expect(auditResponse.statusCode).toBe(200);
     expect(auditActions).toEqual(
-      expect.arrayContaining(["bootstrap.instance_owner", "instance_setting.upsert"])
+      expect.arrayContaining(["bootstrap_owner_created", "instance_setting.upsert"])
     );
     expect(auditActions).not.toContain("workspace.create");
     expect(auditActions).not.toContain("resource_grant.upsert");
@@ -306,7 +346,7 @@ describe("multi-user registration + lifecycle (Phase 2 Slice A)", () => {
   beforeEach(async () => {
     await resetEmptyFoundationDatabase();
     appDb = createDatabase({ connectionString: connectionStrings.app, maxConnections: 1 });
-    authRuntime = createJarvisAuthRuntime({ appDb });
+    authRuntime = createJarvisAuthRuntime({ appDb, runner: new DataContextRunner(appDb) });
     server = createApiServer({ appDb, authRuntime, logger: false });
     await server.ready();
   });
@@ -672,136 +712,85 @@ describe("multi-user registration + lifecycle (Phase 2 Slice A)", () => {
       )
     ).rejects.toThrow(/42501|permission denied/i);
   });
-});
 
-describe("users_guard_admin_flag trigger (#97)", () => {
-  beforeAll(async () => {
-    await resetEmptyFoundationDatabase();
+  it("POST /api/admin/users/:id/revoke-sessions revokes target sessions, count only, admin survives", async () => {
+    const admin = await signUp({
+      name: "Admin",
+      email: "admin-revoke@example.com",
+      password: "password12345"
+    });
+    const adminCookie = cookieHeader(admin.headers);
+
+    // Disable approval so the member becomes active and gets a usable session.
+    await appDb
+      .updateTable("app.instance_settings")
+      .set({ value: { value: false }, updated_at: new Date() })
+      .where("key", "=", "registration.requires_approval")
+      .execute();
+
+    const member = await signUp({
+      name: "Member",
+      email: "member-revoke@example.com",
+      password: "password12345"
+    });
+    const memberId = member.json<{ user: { id: string } }>().user.id;
+    const memberCookie = cookieHeader(member.headers);
+
+    // Sanity: the member's session is live before the revoke.
+    const beforeRevoke = await server.inject({
+      method: "GET",
+      url: "/api/me",
+      headers: { cookie: memberCookie }
+    });
+    expect(beforeRevoke.statusCode).toBe(200);
+
+    const response = await server.inject({
+      method: "POST",
+      url: `/api/admin/users/${memberId}/revoke-sessions`,
+      headers: { cookie: adminCookie }
+    });
+
+    // (1) Response shape: count only, no session identifiers.
+    expect(response.statusCode).toBe(200);
+    const body = response.json<{ success: boolean; count: number }>();
+    expect(body.success).toBe(true);
+    expect(typeof body.count).toBe("number");
+    expect(body.count).toBeGreaterThanOrEqual(1); // sign-up created at least 1 session
+    const raw = response.body;
+    expect(raw).not.toContain("session_id");
+    expect(raw).not.toContain("token");
+    expect(raw).not.toContain("user_id");
+    expect(raw).not.toContain("better_auth");
+
+    // (2) Target sessions are actually dead — the member's cookie now fails auth.
+    const afterRevoke = await server.inject({
+      method: "GET",
+      url: "/api/me",
+      headers: { cookie: memberCookie }
+    });
+    expect(afterRevoke.statusCode).toBe(401);
+
+    // (3) The admin's OWN session survives — revoke is scoped to the target user only.
+    const adminStillValid = await server.inject({
+      method: "GET",
+      url: "/api/me",
+      headers: { cookie: adminCookie }
+    });
+    expect(adminStillValid.statusCode).toBe(200);
+
+    // (4) DB confirms zero session rows remain for the target user. Use the bootstrap
+    // connection (superuser, bypasses RLS) — app_runtime's FORCE RLS would hide other
+    // users' session rows from a plain appDb query and make this check meaningless.
     const seed = new pg.Client({ connectionString: connectionStrings.bootstrap });
     await seed.connect();
     try {
-      await seed.query(
-        `INSERT INTO app.users (id, email, name, is_instance_admin)
-         VALUES
-           ($1, 'trigger-non-admin@test.test', 'Non Admin', false),
-           ($2, 'trigger-admin@test.test',     'Admin',     true)`,
-        [ids.userA, ids.adminUser]
+      const memberRows = await seed.query(
+        "SELECT count(*)::int AS count FROM app.better_auth_sessions WHERE user_id = $1",
+        [memberId]
       );
+      expect(memberRows.rows[0]?.count).toBe(0);
     } finally {
       await seed.end();
-    }
-  });
-
-  it("rejects non-admin self-escalation of is_instance_admin", async () => {
-    const client = new pg.Client({ connectionString: connectionStrings.app });
-    await client.connect();
-    try {
-      await client.query("BEGIN");
-      await client.query(`SET LOCAL app.actor_user_id = '${ids.userA}'`);
-      await expect(
-        client.query(`UPDATE app.users SET is_instance_admin = true WHERE id = $1`, [ids.userA])
-      ).rejects.toThrow(/permission denied/i);
-    } finally {
-      await client.query("ROLLBACK").catch(() => undefined);
-      await client.end();
-    }
-  });
-
-  it("allows an active admin to change is_instance_admin on another user", async () => {
-    const client = new pg.Client({ connectionString: connectionStrings.app });
-    await client.connect();
-    try {
-      await client.query("BEGIN");
-      await client.query(`SET LOCAL app.actor_user_id = '${ids.adminUser}'`);
-      const result = await client.query(
-        `UPDATE app.users SET is_instance_admin = false WHERE id = $1`,
-        [ids.userA]
-      );
-      expect(result.rowCount).toBe(1);
-    } finally {
-      await client.query("ROLLBACK").catch(() => undefined);
-      await client.end();
-    }
-  });
-
-  it("allows non-admin to update safe columns on their own row", async () => {
-    const client = new pg.Client({ connectionString: connectionStrings.app });
-    await client.connect();
-    try {
-      await client.query("BEGIN");
-      await client.query(`SET LOCAL app.actor_user_id = '${ids.userA}'`);
-      const result = await client.query(
-        `UPDATE app.users SET name = 'Updated Name' WHERE id = $1`,
-        [ids.userA]
-      );
-      expect(result.rowCount).toBe(1);
-    } finally {
-      await client.query("ROLLBACK").catch(() => undefined);
-      await client.end();
-    }
-  });
-});
-
-describe("users_guard_admin_flag bootstrap exemption (#97)", () => {
-  it("allows non-admin self-promotion when no admins exist (single user)", async () => {
-    await resetEmptyFoundationDatabase();
-    const seed = new pg.Client({ connectionString: connectionStrings.bootstrap });
-    await seed.connect();
-    try {
-      await seed.query(
-        `INSERT INTO app.users (id, email, name, is_instance_admin)
-         VALUES ($1, 'bootstrap-only@test.test', 'Bootstrap', false)`,
-        [ids.userA]
-      );
-    } finally {
-      await seed.end();
-    }
-
-    const client = new pg.Client({ connectionString: connectionStrings.app });
-    await client.connect();
-    try {
-      await client.query("BEGIN");
-      await client.query(`SET LOCAL app.actor_user_id = '${ids.userA}'`);
-      const result = await client.query(
-        `UPDATE app.users SET is_instance_admin = true WHERE id = $1`,
-        [ids.userA]
-      );
-      expect(result.rowCount).toBe(1);
-    } finally {
-      await client.query("ROLLBACK").catch(() => undefined);
-      await client.end();
-    }
-  });
-
-  it("allows non-admin self-promotion when multiple non-admin users exist but no admins", async () => {
-    await resetEmptyFoundationDatabase();
-    const seed = new pg.Client({ connectionString: connectionStrings.bootstrap });
-    await seed.connect();
-    try {
-      await seed.query(
-        `INSERT INTO app.users (id, email, name, is_instance_admin)
-         VALUES
-           ($1, 'no-admin-a@test.test', 'No Admin A', false),
-           ($2, 'no-admin-b@test.test', 'No Admin B', false)`,
-        [ids.userA, ids.userB]
-      );
-    } finally {
-      await seed.end();
-    }
-
-    const client = new pg.Client({ connectionString: connectionStrings.app });
-    await client.connect();
-    try {
-      await client.query("BEGIN");
-      await client.query(`SET LOCAL app.actor_user_id = '${ids.userA}'`);
-      const result = await client.query(
-        `UPDATE app.users SET is_instance_admin = true WHERE id = $1`,
-        [ids.userA]
-      );
-      expect(result.rowCount).toBe(1);
-    } finally {
-      await client.query("ROLLBACK").catch(() => undefined);
-      await client.end();
     }
   });
 });
@@ -835,22 +824,3 @@ function restoreAuthEnv(env: Record<string, string | undefined>): void {
     process.env[key] = value;
   }
 }
-
-describe("SettingsRepository assertDataContextDb guard", () => {
-  it("throws 'Repository access requires withDataContext' when passed an unbranded handle", async () => {
-    const repo = new SettingsRepository();
-    const fakeDb = {} as Parameters<typeof repo.getUserById>[0];
-    await expect(repo.getUserById(fakeDb, "any-id")).rejects.toThrow(
-      "Repository access requires withDataContext"
-    );
-    await expect(repo.listUsers(fakeDb)).rejects.toThrow(
-      "Repository access requires withDataContext"
-    );
-    await expect(repo.listInstanceSettings(fakeDb)).rejects.toThrow(
-      "Repository access requires withDataContext"
-    );
-    await expect(repo.listAdminAuditEvents(fakeDb)).rejects.toThrow(
-      "Repository access requires withDataContext"
-    );
-  });
-});

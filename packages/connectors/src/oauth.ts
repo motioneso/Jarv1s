@@ -24,8 +24,14 @@ export interface GoogleTokenResponse {
   token_type: string;
 }
 
+// Minimal Logger interface — avoids adding a pino/fastify dependency to connectors.
+interface OAuthLogger {
+  error(data: Record<string, unknown>, message: string): void;
+}
+
 export interface GoogleOAuthClientDeps {
   readonly fetchFn?: typeof fetch;
+  readonly logger?: OAuthLogger;
 }
 
 export function parseRedirectUrl(redirectUrl: string): { code: string; state: string } {
@@ -49,9 +55,14 @@ export function parseRedirectUrl(redirectUrl: string): { code: string; state: st
 
 export class GoogleOAuthClient {
   private readonly fetchFn: typeof fetch;
+  private readonly logger: OAuthLogger;
 
   constructor(deps: GoogleOAuthClientDeps = {}) {
     this.fetchFn = deps.fetchFn ?? globalThis.fetch;
+    // Default to console so no pino dependency is required in the connectors package.
+    this.logger = deps.logger ?? {
+      error: (data, msg) => console.error(msg, data)
+    };
   }
 
   buildAuthUrl(input: {
@@ -108,7 +119,10 @@ export class GoogleOAuthClient {
     });
     if (!response.ok) {
       const detail = await response.text().catch(() => "");
-      throw new Error(`Google token endpoint returned ${response.status}: ${detail}`);
+      // Log detail server-side for debugging. Do NOT embed it in the Error message —
+      // handleRouteError propagates Error.message to the HTTP response body (#141).
+      this.logger.error({ statusCode: response.status, detail }, "Google token exchange failed");
+      throw new Error(`Google token endpoint returned ${response.status}`);
     }
     return (await response.json()) as GoogleTokenResponse;
   }

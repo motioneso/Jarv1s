@@ -388,6 +388,29 @@ export const adminUserActionRouteSchema = {
   }
 } as const;
 
+export const adminRevokeSessionsRouteSchema = {
+  params: {
+    type: "object",
+    additionalProperties: false,
+    required: ["id"],
+    properties: { id: { type: "string" } }
+  },
+  response: {
+    200: {
+      type: "object",
+      additionalProperties: false,
+      required: ["success", "count"],
+      properties: {
+        success: { type: "boolean" },
+        count: { type: "number" }
+      }
+    },
+    401: errorResponseSchema,
+    403: errorResponseSchema,
+    404: errorResponseSchema
+  }
+} as const;
+
 export const adminDeleteUserRouteSchema = {
   params: {
     type: "object",
