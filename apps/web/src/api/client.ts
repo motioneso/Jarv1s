@@ -46,7 +46,6 @@ import type {
   ListTaskListsResponse,
   ListTaskTagsResponse,
   ListTasksResponse,
-  ListWorkspacesResponse,
   MarkAllNotificationsReadResponse,
   MarkNotificationReadResponse,
   MeResponse,
@@ -474,10 +473,6 @@ export async function markAllNotificationsRead(): Promise<MarkAllNotificationsRe
 
 export async function listAuthProviderStatuses(): Promise<ListAuthProviderStatusesResponse> {
   return requestJson<ListAuthProviderStatusesResponse>("/api/admin/auth/providers");
-}
-
-export async function listAdminWorkspaces(): Promise<ListWorkspacesResponse> {
-  return requestJson<ListWorkspacesResponse>("/api/admin/workspaces");
 }
 
 export async function listAdminConnectorAccounts(): Promise<ListAdminConnectorAccountsResponse> {

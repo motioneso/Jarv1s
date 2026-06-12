@@ -56,25 +56,7 @@ const meResponse: MeResponse = {
     isBootstrapOwner: true,
     createdAt: "2026-06-06T12:00:00.000Z",
     updatedAt: "2026-06-06T12:00:00.000Z"
-  },
-  memberships: [
-    {
-      userId: "user-1",
-      workspaceId: "workspace-1",
-      role: "owner",
-      createdAt: "2026-06-06T12:00:00.000Z"
-    }
-  ],
-  workspaces: [
-    {
-      id: "workspace-1",
-      name: "Personal",
-      createdByUserId: "user-1",
-      createdAt: "2026-06-06T12:00:00.000Z",
-      updatedAt: "2026-06-06T12:00:00.000Z"
-    }
-  ],
-  activeWorkspaceId: "workspace-1"
+  }
 };
 
 export async function mockApi(page: Page, state: MockApiState): Promise<void> {
@@ -114,9 +96,6 @@ export async function mockApi(page: Page, state: MockApiState): Promise<void> {
         }
       ]
     })
-  );
-  await page.route("**/api/admin/workspaces", (route) =>
-    fulfillJson(route, 200, { workspaces: meResponse.workspaces })
   );
   await page.route("**/api/admin/connectors/accounts", (route) =>
     fulfillJson(route, 200, { accounts: state.connectorAccounts })
