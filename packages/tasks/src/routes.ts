@@ -23,6 +23,7 @@ import {
   updateTaskRouteSchema
 } from "@jarv1s/shared";
 
+import { HttpError } from "./errors.js";
 import { type DeferredTaskStatusPayload, isDeferredTaskStatusPayloadMetadataOnly } from "./jobs.js";
 import { TASKS_DEFERRED_STATUS_QUEUE } from "./manifest.js";
 import { TaskBreakdownRepository } from "./breakdown.js";
@@ -609,11 +610,3 @@ function handleRouteError(error: unknown, reply: FastifyReply) {
   throw error;
 }
 
-class HttpError extends Error {
-  constructor(
-    readonly statusCode: number,
-    message: string
-  ) {
-    super(message);
-  }
-}

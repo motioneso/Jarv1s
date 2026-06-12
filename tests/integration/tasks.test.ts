@@ -856,6 +856,14 @@ describe("Tasks module M1", () => {
     expect(subtasks.at(1)?.title).toBe("book hotel");
     expect(subtasks.at(2)?.title).toBe("pack bags");
   });
+
+  it("HttpError from tasks errors module has correct statusCode and message", async () => {
+    const { HttpError } = await import("../../packages/tasks/src/errors.js");
+    const err = new HttpError(404, "not found");
+    expect(err.statusCode).toBe(404);
+    expect(err.message).toBe("not found");
+    expect(err).toBeInstanceOf(Error);
+  });
 });
 
 async function seedTaskData(): Promise<void> {
