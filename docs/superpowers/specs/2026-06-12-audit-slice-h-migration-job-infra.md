@@ -166,12 +166,16 @@ REVOKE UPDATE ON app.chat_messages FROM jarvis_app_runtime;
 
 -- Also narrow the chat_messages_update RLS policy to worker_runtime only.
 -- (Recreate it rather than ALTER to avoid syntax gotchas.)
+-- The owner-scoped USING/WITH CHECK predicate from 0036 is preserved verbatim —
+-- this ONLY narrows the role list (drops jarvis_app_runtime). Replacing the
+-- predicate with USING (true) would let the worker update any user's chat
+-- messages, violating the "RLS applies to all actors / private-by-default" invariant.
 DROP POLICY IF EXISTS chat_messages_update ON app.chat_messages;
 CREATE POLICY chat_messages_update ON app.chat_messages
   FOR UPDATE
   TO jarvis_worker_runtime
-  USING (true)
-  WITH CHECK (true);
+  USING (owner_user_id = app.current_actor_user_id())
+  WITH CHECK (owner_user_id = app.current_actor_user_id());
 ```
 
 **Note:** chat_threads is a chat-module-owned table (created in
