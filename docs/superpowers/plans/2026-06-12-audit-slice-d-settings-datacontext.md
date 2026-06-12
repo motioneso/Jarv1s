@@ -105,7 +105,7 @@ This PR must land **after Slice B** is on `origin/main`. Slice B deletes the wor
    grep -n "type SettingsDb\|SettingsDb" packages/settings/src/repository.ts | head -5
    ```
 
-   Expected output includes `16:type SettingsDb = Kysely<JarvisDatabase> | Transaction<JarvisDatabase>;`
+   Expected output includes `type SettingsDb = Kysely<JarvisDatabase> | Transaction<JarvisDatabase>;` (line number may vary post-Slice-B rebase — match on content, not line)
 
 2. - [ ] Write the failing compile test — confirm that `pnpm typecheck` currently passes and will be used as the regression gate after changes:
 
@@ -434,18 +434,18 @@ This PR must land **after Slice B** is on `origin/main`. Slice B deletes the wor
 
 **Files:**
 
-- Modify: `packages/settings/src/routes.ts` (full file; key lines: dependency interface at 51–58, constructor at 83, all route handlers)
+- Modify: `packages/settings/src/routes.ts` (full file — dependency interface, constructor, all route handlers)
 - Test: `tests/integration/auth-settings.test.ts` (HTTP-level tests at lines 68–505)
 
 ### Steps
 
-1. - [ ] Confirm the current `SettingsRoutesDependencies` interface at line 51:
+1. - [ ] Confirm the current `SettingsRoutesDependencies` interface exists with `appDb`:
 
    ```bash
    grep -n "SettingsRoutesDependencies\|appDb\|DataContextRunner" packages/settings/src/routes.ts | head -10
    ```
 
-   Expected: `51:export interface SettingsRoutesDependencies {`, `52:  readonly appDb: Kysely<JarvisDatabase>;`
+   Expected output includes `export interface SettingsRoutesDependencies {` and `readonly appDb: Kysely<JarvisDatabase>;` (line numbers may vary post-Slice-B rebase — match on content, not line)
 
 2. - [ ] Update `packages/settings/src/routes.ts`. Full changes:
    - Add `import type { DataContextRunner, DataContextDb } from "@jarv1s/db";` alongside existing `@jarv1s/db` type imports
@@ -722,7 +722,7 @@ This PR must land **after Slice B** is on `origin/main`. Slice B deletes the wor
 
 **Files:**
 
-- Modify: `tests/integration/auth-settings.test.ts` (line 11 import, line 768 direct repo instantiation)
+- Modify: `tests/integration/auth-settings.test.ts` (import at top, direct repo instantiation — line ~552 post-Slice-B rebase)
 - Modify: `tests/integration/multi-user-isolation.test.ts` (line 9 import, line 305 direct repo instantiation)
 
 ### Steps
@@ -733,11 +733,11 @@ This PR must land **after Slice B** is on `origin/main`. Slice B deletes the wor
    grep -n "new SettingsRepository\|SettingsRepository\|new DataContextRunner" tests/integration/auth-settings.test.ts tests/integration/multi-user-isolation.test.ts
    ```
 
-   Expected:
-   - `auth-settings.test.ts:11:import { SettingsRepository } from "../../packages/settings/src/repository.js";`
-   - `auth-settings.test.ts:768:    const repo = new SettingsRepository(appDb);`
-   - `multi-user-isolation.test.ts:9:import { SettingsRepository } from "../../packages/settings/src/repository.js";`
-   - `multi-user-isolation.test.ts:305:    const repo = new SettingsRepository(appDb);`
+   Expected output includes (line numbers may vary post-Slice-B rebase — match on content, not line):
+   - `auth-settings.test.ts:…:import { SettingsRepository } from "../../packages/settings/src/repository.js";`
+   - `auth-settings.test.ts:…:    const repo = new SettingsRepository(appDb);`
+   - `multi-user-isolation.test.ts:…:import { SettingsRepository } from "../../packages/settings/src/repository.js";`
+   - `multi-user-isolation.test.ts:…:    const repo = new SettingsRepository(appDb);`
 
 2. - [ ] Update `tests/integration/auth-settings.test.ts`:
    - Replace import at line 11:
@@ -858,19 +858,21 @@ This PR must land **after Slice B** is on `origin/main`. Slice B deletes the wor
 
 ---
 
-## Task 6b: Add the `setUserAdmin` promote-under-`withDataContext` regression test (security-critical)
+## Task 6b: Add `withDataContext` regression tests for 0055 trigger (success + deny paths)
 
-**Why this task exists (spec §4 / Tests):** The spec requires a regression test proving that
-`setUserAdmin` promote succeeds through `withDataContext` and passes the 0055 trigger. **No existing
-test covers this.** The converted Task 5 test only hits the 409 last-admin _failure_ path
-(`assertAnotherActiveAdmin` throws BEFORE the UPDATE, so the trigger never fires). The
-multi-user-isolation promote/demote assertions are all 409 failures. The two
+**Why this task exists (spec §4 / Tests):** The spec requires both the "promote succeeds" AND
+"self-escalation blocked" paths tested through `withDataContext`, not just the DB-level trigger. The
+converted Task 5 tests only hit 409 app-layer failures (before any DB UPDATE). The two
 `users_guard_admin_flag trigger (#97)` tests (auth-settings.test.ts:798, :813) use a **raw
-`pg.Client` with manual `SET LOCAL`** — they bypass `withDataContext` entirely. Critically, the
-0055 trigger **fails OPEN** when `app.current_actor_user_id()` is `NULL`
-(`0055_users_guard_admin_flag_v2.sql:38`): if the new GUC plumbing silently regresses (GUC unset),
-a promote UPDATE would still succeed and nothing would go red. Only an assertion that the row was
-**actually promoted, executed through `withDataContext`** catches that regression.
+`pg.Client` with manual `SET LOCAL`** — they bypass `withDataContext` entirely.
+
+Critically, the 0055 trigger **fails OPEN** when `app.current_actor_user_id()` is `NULL`
+(`0055_users_guard_admin_flag_v2.sql:38`). The **deny path** is the regression-catching test: a
+non-admin actor calling `setUserAdmin` through `withDataContext` must be **REJECTED** by the trigger
+(42501). If the GUC plumbing silently regresses (GUC unset → NULL), the trigger fails open and the
+promotion **succeeds** — making this test go red. The success-path test (step 1 below) does NOT
+catch a GUC regression because both "GUC set + trigger allows" and "GUC NULL + trigger fails open"
+produce the same promoted result; only the deny-path test distinguishes them.
 
 **Files:**
 
@@ -950,19 +952,68 @@ a promote UPDATE would still succeed and nothing would go red. Only an assertion
    });
    ```
 
-2. - [ ] Run the new regression test in isolation (Postgres required):
+2. - [ ] Add the following **deny-path** regression test inside the same
+         `describe("multi-user registration + lifecycle (Phase 2 Slice A)")` block, immediately after
+         the step-1 success-path test. This is the **regression-catching test**: a non-admin actor
+         calling `setUserAdmin` through `withDataContext` must be REJECTED by the 0055 trigger (42501).
+         If the GUC plumbing silently regresses (GUC NULL → trigger fails open → promotion succeeds),
+         this assertion goes RED — catching the regression. The success-path test from step 1 does NOT
+         catch a GUC regression (both "GUC set + trigger allows" and "GUC NULL + trigger fails open"
+         produce the same promoted result; only the deny path distinguishes them):
+
+   ```typescript
+   it("setUserAdmin self-escalation rejected by 0055 trigger when actor is non-admin (deny path)", async () => {
+     // Bootstrap owner is the active admin. Sign up a second non-admin user as the escalation actor.
+     const actorRes = await signUp({
+       name: "Non-Admin Actor",
+       email: "non-admin-escalation@example.com",
+       password: "password12345"
+     });
+     const nonAdminId = actorRes.json<{ user: { id: string } }>().user.id;
+
+     // Ensure the second user is non-admin and active.
+     const seed = new pg.Client({ connectionString: connectionStrings.bootstrap });
+     await seed.connect();
+     await seed.query(
+       `UPDATE app.users SET is_instance_admin = false, status = 'active', updated_at = now() WHERE id = $1`,
+       [nonAdminId]
+     );
+     await seed.end();
+
+     const repo = new SettingsRepository();
+     const dataCtx = new DataContextRunner(appDb);
+
+     // A non-admin actor tries to promote themselves — the 0055 trigger rejects with 42501.
+     // If GUC regresses to NULL, trigger fails open and the promotion succeeds instead of throwing,
+     // making this assertion go RED and catching the regression.
+     await expect(
+       dataCtx.withDataContext({ actorUserId: nonAdminId, requestId: "deny-1" }, (scopedDb) =>
+         repo.setUserAdmin(scopedDb, {
+           targetUserId: nonAdminId,
+           isInstanceAdmin: true,
+           actorUserId: nonAdminId,
+           requestId: "deny-1"
+         })
+       )
+     ).rejects.toThrow(/42501|permission denied/i);
+   });
+   ```
+
+3. - [ ] Run both new regression tests in isolation (Postgres required):
 
    ```bash
    pnpm db:up && pnpm db:migrate
-   vitest run tests/integration/auth-settings.test.ts -t "setUserAdmin promote succeeds under withDataContext" 2>&1 | tail -20
+   vitest run tests/integration/auth-settings.test.ts -t "setUserAdmin promote succeeds under withDataContext|setUserAdmin self-escalation rejected" 2>&1 | tail -20
    ```
 
-   Expected: `✓ setUserAdmin promote succeeds under withDataContext (0055 trigger passes)`
+   Expected:
+   - `✓ setUserAdmin promote succeeds under withDataContext (0055 trigger passes)`
+   - `✓ setUserAdmin self-escalation rejected by 0055 trigger when actor is non-admin (deny path)`
 
-3. - [ ] Commit:
+4. - [ ] Commit:
    ```bash
    git add tests/integration/auth-settings.test.ts
-   git commit -m "test(settings): regression — setUserAdmin promote passes 0055 trigger via withDataContext"
+   git commit -m "test(settings): regression — 0055 trigger success+deny paths via withDataContext"
    ```
 
 ---
@@ -998,7 +1049,7 @@ a promote UPDATE would still succeed and nothing would go red. Only an assertion
    - `setUserAdmin promote succeeds under withDataContext (0055 trigger passes)` — the **new** regression test added in Task 6b (this is the only test that catches a silent GUC regression through `withDataContext` — see the Task 6b rationale)
    - `SettingsRepository assertDataContextDb guard` — new guard test passes (Task 6)
 
-3. - [ ] If the new Task 6b regression test (`setUserAdmin promote succeeds under withDataContext`) fails with a `permission denied` error from the 0055 trigger, confirm that `withDataContext` is calling `setLocal` with `app.actor_user_id` before the UPDATE. The trigger fires on UPDATE of `is_instance_admin` and checks `app.current_actor_user_id()`; the trigger fails **OPEN** when that GUC is `NULL` (`0055_users_guard_admin_flag_v2.sql:38`), so a silent GUC regression would NOT surface a permission error — it is precisely the Task 6b _success_ assertion (the row was actually promoted) that catches the regression. Verify the GUC plumbing with:
+3. - [ ] If the Task 6b deny-path test (`setUserAdmin self-escalation rejected by 0055 trigger`) fails with an unexpected **success** (no error thrown), confirm that `withDataContext` is calling `setLocal` with `app.actor_user_id` before the UPDATE. The trigger fires on UPDATE of `is_instance_admin` and checks `app.current_actor_user_id()`; the trigger fails **OPEN** when that GUC is `NULL` (`0055_users_guard_admin_flag_v2.sql:38`), so a silent GUC regression would NOT surface a permission error on the success path — it is precisely the **Task 6b deny-path test** (non-admin self-escalation must be rejected) that catches the regression: if GUC regresses to NULL, the trigger fails open and the promotion succeeds instead of throwing, making the deny-path assertion go red. Verify the GUC plumbing with:
 
    ```bash
    grep -n "set_config\|actor_user_id\|setLocal" packages/db/src/data-context.ts
@@ -1025,9 +1076,11 @@ a promote UPDATE would still succeed and nothing would go red. Only an assertion
    grep -rn "Kysely<" packages/settings/src/
    ```
 
-   Expected output: **exactly two matches**, both documented exemptions:
-   - `packages/settings/src/bootstrap.ts` — the `BootstrapHelper` constructor `Kysely<JarvisDatabase>` (the SOLE no-session exemption for `countUsers`)
-   - `packages/settings/src/routes.ts` — the `rootDb: Kysely<JarvisDatabase>` field in `SettingsRoutesDependencies`, which exists ONLY to pass `rootDb` into `BootstrapHelper` (carries the bootstrap exemption forward)
+   Expected output: **exactly four matches** — two per file, all documented exemptions:
+   - `packages/settings/src/bootstrap.ts` — docstring line: `This is the SOLE documented exemption for \`Kysely<\` in packages/settings/src/.`
+   - `packages/settings/src/bootstrap.ts` — constructor line: `constructor(private readonly rootDb: Kysely<JarvisDatabase>) {}`
+   - `packages/settings/src/routes.ts` — interface comment: `// Documented Kysely< exemption: rootDb exists ONLY to construct BootstrapHelper`
+   - `packages/settings/src/routes.ts` — interface field: `readonly rootDb: Kysely<JarvisDatabase>;`
 
    Confirm zero matches in `repository.ts` specifically:
 
