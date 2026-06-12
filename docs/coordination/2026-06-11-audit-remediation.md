@@ -80,7 +80,7 @@ Current panes: Coordinator = sole Claude pane (session `515ad953`); codex = idle
 - **✅ D #188 MERGED** (`596755a`). Reaped.
 - **✅ H #190 MERGED** — squash `2dc204b` @ 2026-06-12 (this session). Fable security QA **GREEN, MERGE-READY: YES** (0 blocking, 4 non-blocking; verdict comment 4689753519; #134 owner-scoping preserved verbatim from 0036, 0057/0058 correct, consume-side guards intact, #174 strictly least-priv). Issues #124 #134 #135 #157 #174 closed. SliceH-build pane + worktree + branch + QA worktree all reaped. **Migrations 0057+0058 landed → spine HEAD 0058.**
   - H non-blocking follow-ups (candidates): (1) `pg-boss.ts` ALLOWED_PAYLOAD_KEYS is keys-only/global (values unvalidated at send; consume guards still validate → net strengthening); (2) #124 wiring proven via unit test, no e2e duplicate-file-abort test; (3) #134 denial asserted via `has_table_privilege`/`pg_policies` text, not a live denied UPDATE-as-app_runtime.
-- **Final relay fired** (security-tier H merge). **Main CI on `2dc204b` confirming** (PR head `b037fbf` was green + clean squash).
+- **Final relay fired** (security-tier H merge). **✅ Main CI on `2dc204b` CONFIRMED GREEN** (`completed/success`, 2026-06-12T~09:45Z) — run fully verified end-to-end. Durable memory saved ([[project-state]] @ 0058, Fable-as-Ben-proxy pattern + anti-patterns). Vault plan/spec cleanup + `coordinate`-skill update (Task #8) are the only remaining session-end housekeeping.
 
 > Coordinator's externalized memory. Keep CURRENT. GitHub is source of truth for spec/issue/board
 > status; this file holds only in-flight operational state.
