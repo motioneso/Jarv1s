@@ -353,28 +353,6 @@ async function bootstrapFirstJarvisUser(
       return;
     }
 
-    const workspaceId = randomUUID();
-
-    await transaction
-      .insertInto("app.workspaces")
-      .values({
-        id: workspaceId,
-        name: "Personal",
-        created_by_user_id: user.id,
-        created_at: new Date(),
-        updated_at: new Date()
-      })
-      .execute();
-    await transaction
-      .insertInto("app.workspace_memberships")
-      .values({
-        user_id: user.id,
-        workspace_id: workspaceId,
-        role: "owner",
-        created_at: new Date()
-      })
-      .execute();
-
     await transaction
       .insertInto("app.admin_audit_events")
       .values({
@@ -383,9 +361,7 @@ async function bootstrapFirstJarvisUser(
         action: "bootstrap.instance_owner",
         target_type: "user",
         target_id: user.id,
-        metadata: {
-          workspaceId
-        },
+        metadata: {},
         request_id: null,
         created_at: new Date()
       })

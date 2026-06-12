@@ -10,7 +10,7 @@ import { connectionStrings, ids, resetEmptyFoundationDatabase } from "./test-dat
 import { createJarvisAuthRuntime, type JarvisAuthRuntime } from "@jarv1s/auth";
 import { SettingsRepository } from "../../packages/settings/src/repository.js";
 
-describe("M3 auth, users, workspaces, settings", () => {
+describe("M3 auth, users, settings", () => {
   const authEnvKeys = [
     "JARVIS_AUTH_GOOGLE_CLIENT_ID",
     "JARVIS_AUTH_GOOGLE_CLIENT_SECRET",
@@ -26,9 +26,6 @@ describe("M3 auth, users, workspaces, settings", () => {
   let ownerCookie: string;
   let memberCookie: string;
   let ownerUserId: string;
-  let memberUserId: string;
-  let createdWorkspaceId: string;
-  let ownerTaskId: string;
 
   beforeAll(async () => {
     await resetEmptyFoundationDatabase();
@@ -110,11 +107,6 @@ describe("M3 auth, users, workspaces, settings", () => {
       id: ownerUserId,
       email: "owner@example.test",
       isInstanceAdmin: true
-    });
-    expect(me.workspaces).toHaveLength(1);
-    expect(me.memberships[0]).toMatchObject({
-      userId: ownerUserId,
-      role: "owner"
     });
   });
 
@@ -221,7 +213,6 @@ describe("M3 auth, users, workspaces, settings", () => {
     });
 
     memberCookie = cookieHeader(signUpResponse.headers);
-    memberUserId = signUpResponse.json<{ user: { id: string } }>().user.id;
 
     const deniedResponse = await server.inject({
       method: "GET",
@@ -251,33 +242,7 @@ describe("M3 auth, users, workspaces, settings", () => {
     ]);
   });
 
-  it("lets admins create workspaces, memberships, and settings", async () => {
-    const createWorkspaceResponse = await server.inject({
-      method: "POST",
-      url: "/api/admin/workspaces",
-      headers: {
-        cookie: ownerCookie
-      },
-      payload: {
-        name: "Alpha Workspace"
-      }
-    });
-
-    createdWorkspaceId = createWorkspaceResponse.json<{
-      workspace: { id: string };
-    }>().workspace.id;
-
-    const membershipResponse = await server.inject({
-      method: "POST",
-      url: `/api/admin/workspaces/${createdWorkspaceId}/memberships`,
-      headers: {
-        cookie: ownerCookie
-      },
-      payload: {
-        userId: memberUserId,
-        role: "member"
-      }
-    });
+  it("lets admins patch instance settings", async () => {
     const settingResponse = await server.inject({
       method: "PATCH",
       url: "/api/admin/settings/provider-policy",
@@ -290,25 +255,7 @@ describe("M3 auth, users, workspaces, settings", () => {
         }
       }
     });
-    const memberMeResponse = await server.inject({
-      method: "GET",
-      url: "/api/me",
-      headers: {
-        cookie: memberCookie,
-        "x-jarvis-workspace-id": createdWorkspaceId
-      }
-    });
-    const memberMe = memberMeResponse.json<MeResponse>();
 
-    expect(createWorkspaceResponse.statusCode).toBe(201);
-    expect(membershipResponse.statusCode).toBe(200);
-    expect(membershipResponse.json()).toMatchObject({
-      membership: {
-        userId: memberUserId,
-        workspaceId: createdWorkspaceId,
-        role: "member"
-      }
-    });
     expect(settingResponse.statusCode).toBe(200);
     expect(settingResponse.json()).toMatchObject({
       setting: {
@@ -319,189 +266,26 @@ describe("M3 auth, users, workspaces, settings", () => {
         updatedByUserId: ownerUserId
       }
     });
-    expect(memberMe.activeWorkspaceId).toBeNull();
-    expect(memberMe.workspaces.map((workspace) => workspace.id)).toContain(createdWorkspaceId);
   });
 
-  it("creates resource grants without giving admins private-data bypass", async () => {
-    const createTaskResponse = await server.inject({
-      method: "POST",
-      url: "/api/tasks",
-      headers: {
-        cookie: ownerCookie
-      },
-      payload: {
-        title: "Owner-only task"
-      }
-    });
-
-    ownerTaskId = createTaskResponse.json<{ task: { id: string } }>().task.id;
-
-    const beforeGrantResponse = await server.inject({
-      method: "GET",
-      url: `/api/tasks/${ownerTaskId}`,
-      headers: {
-        cookie: memberCookie
-      }
-    });
-    const grantResponse = await server.inject({
-      method: "POST",
-      url: "/api/admin/resource-grants",
-      headers: {
-        cookie: ownerCookie
-      },
-      payload: {
-        resourceType: "task",
-        resourceId: ownerTaskId,
-        granteeUserId: memberUserId,
-        grantLevel: "view"
-      }
-    });
-    const afterGrantResponse = await server.inject({
-      method: "GET",
-      url: `/api/tasks/${ownerTaskId}`,
-      headers: {
-        cookie: memberCookie
-      }
-    });
-
-    expect(createTaskResponse.statusCode).toBe(201);
-    expect(beforeGrantResponse.statusCode).toBe(404);
-    expect(grantResponse.statusCode).toBe(200);
-    expect(grantResponse.json()).toMatchObject({
-      grant: {
-        resourceType: "task",
-        resourceId: ownerTaskId,
-        granteeUserId: memberUserId,
-        grantLevel: "view",
-        grantedByUserId: ownerUserId
-      }
-    });
-    // Slice 1b: tasks now use the owner-or-share model and no longer consult
-    // app.resource_grants. The admin resource-grants API still records the grant
-    // (200 above), but it is INERT for tasks — the grantee gains no task access.
-    // This assertion and the admin resource-grants-for-tasks path are retired in Slice 1f.
-    expect(afterGrantResponse.statusCode).toBe(404);
-  });
-
-  it("lists management edges, records audit events, and revokes access", async () => {
-    const membershipsResponse = await server.inject({
-      method: "GET",
-      url: `/api/admin/workspaces/${createdWorkspaceId}/memberships`,
-      headers: {
-        cookie: ownerCookie
-      }
-    });
-    const grantsResponse = await server.inject({
-      method: "GET",
-      url: "/api/admin/resource-grants",
-      headers: {
-        cookie: ownerCookie
-      }
-    });
-    const initialAuditResponse = await server.inject({
+  it("records audit events for bootstrap and settings actions", async () => {
+    const auditResponse = await server.inject({
       method: "GET",
       url: "/api/admin/audit-events",
       headers: {
         cookie: ownerCookie
       }
     });
-    const deleteGrantResponse = await server.inject({
-      method: "DELETE",
-      url: `/api/admin/resource-grants/task/${ownerTaskId}/${memberUserId}`,
-      headers: {
-        cookie: ownerCookie
-      }
-    });
-    const afterGrantDeleteResponse = await server.inject({
-      method: "GET",
-      url: `/api/tasks/${ownerTaskId}`,
-      headers: {
-        cookie: memberCookie
-      }
-    });
-    const deleteMembershipResponse = await server.inject({
-      method: "DELETE",
-      url: `/api/admin/workspaces/${createdWorkspaceId}/memberships/${memberUserId}`,
-      headers: {
-        cookie: ownerCookie
-      }
-    });
-    const deniedWorkspaceContextResponse = await server.inject({
-      method: "GET",
-      url: "/api/me",
-      headers: {
-        cookie: memberCookie,
-        "x-jarvis-workspace-id": createdWorkspaceId
-      }
-    });
-    const finalAuditResponse = await server.inject({
-      method: "GET",
-      url: "/api/admin/audit-events",
-      headers: {
-        cookie: ownerCookie
-      }
-    });
-    const initialAuditActions = initialAuditResponse
-      .json<ListAdminAuditEventsResponse>()
-      .auditEvents.map((event) => event.action);
-    const finalAuditActions = finalAuditResponse
+    const auditActions = auditResponse
       .json<ListAdminAuditEventsResponse>()
       .auditEvents.map((event) => event.action);
 
-    expect(membershipsResponse.statusCode).toBe(200);
-    expect(membershipsResponse.json()).toMatchObject({
-      memberships: expect.arrayContaining([
-        expect.objectContaining({
-          userId: memberUserId,
-          workspaceId: createdWorkspaceId,
-          role: "member"
-        })
-      ])
-    });
-    expect(grantsResponse.statusCode).toBe(200);
-    expect(grantsResponse.json()).toMatchObject({
-      grants: expect.arrayContaining([
-        expect.objectContaining({
-          resourceType: "task",
-          resourceId: ownerTaskId,
-          granteeUserId: memberUserId,
-          grantLevel: "view"
-        })
-      ])
-    });
-    expect(initialAuditActions).toEqual(
-      expect.arrayContaining([
-        "bootstrap.instance_owner",
-        "workspace.create",
-        "workspace_membership.upsert",
-        "instance_setting.upsert",
-        "resource_grant.upsert"
-      ])
+    expect(auditResponse.statusCode).toBe(200);
+    expect(auditActions).toEqual(
+      expect.arrayContaining(["bootstrap.instance_owner", "instance_setting.upsert"])
     );
-    expect(deleteGrantResponse.statusCode).toBe(200);
-    expect(deleteGrantResponse.json()).toMatchObject({
-      grant: {
-        resourceType: "task",
-        resourceId: ownerTaskId,
-        granteeUserId: memberUserId,
-        grantLevel: "view"
-      }
-    });
-    expect(afterGrantDeleteResponse.statusCode).toBe(404);
-    expect(deleteMembershipResponse.statusCode).toBe(200);
-    expect(deleteMembershipResponse.json()).toMatchObject({
-      membership: {
-        userId: memberUserId,
-        workspaceId: createdWorkspaceId,
-        role: "member"
-      }
-    });
-    expect(deniedWorkspaceContextResponse.statusCode).toBe(200);
-    expect(deniedWorkspaceContextResponse.json<MeResponse>().activeWorkspaceId).toBeNull();
-    expect(finalAuditActions).toEqual(
-      expect.arrayContaining(["resource_grant.delete", "workspace_membership.delete"])
-    );
+    expect(auditActions).not.toContain("workspace.create");
+    expect(auditActions).not.toContain("resource_grant.upsert");
   });
 });
 

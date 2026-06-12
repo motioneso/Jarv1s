@@ -1,7 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { ShieldCheck, UsersRound } from "lucide-react";
 
-import { listAdminWorkspaces, listAuthProviderStatuses } from "../api/client";
+import { listAuthProviderStatuses } from "../api/client";
 import { queryKeys } from "../api/query-keys";
 import { AiSettingsPanel } from "../ai/ai-settings-panel";
 import { ConnectGooglePanel } from "../connectors/connect-google-panel";
@@ -20,13 +20,6 @@ export function SettingsPage(props: SettingsPageProps) {
     queryFn: listAuthProviderStatuses,
     retry: false
   });
-  const workspacesQuery = useQuery({
-    enabled: props.me.user.isInstanceAdmin,
-    queryKey: queryKeys.settings.workspaces,
-    queryFn: listAdminWorkspaces,
-    retry: false
-  });
-
   return (
     <section className="page-stack" aria-labelledby="settings-title">
       <div className="page-heading">
@@ -56,27 +49,6 @@ export function SettingsPage(props: SettingsPageProps) {
               <dd>{props.me.user.isInstanceAdmin ? "Instance admin" : "User"}</dd>
             </div>
           </dl>
-        </section>
-
-        <section className="panel" aria-labelledby="memberships-title">
-          <div className="panel-heading">
-            <ShieldCheck size={20} aria-hidden="true" />
-            <h2 id="memberships-title">Memberships</h2>
-          </div>
-          <div className="compact-list">
-            {props.me.memberships.map((membership) => {
-              const workspace = props.me.workspaces.find(
-                (item) => item.id === membership.workspaceId
-              );
-
-              return (
-                <div className="compact-row" key={membership.workspaceId}>
-                  <span>{workspace?.name ?? membership.workspaceId}</span>
-                  <strong>{membership.role}</strong>
-                </div>
-              );
-            })}
-          </div>
         </section>
       </div>
 
@@ -108,25 +80,6 @@ export function SettingsPage(props: SettingsPageProps) {
               {providersQuery.isLoading ? <p className="muted-text">Loading providers</p> : null}
               {providersQuery.error ? (
                 <p className="form-error">{providersQuery.error.message}</p>
-              ) : null}
-            </div>
-          </section>
-
-          <section className="panel" aria-labelledby="admin-workspaces-title">
-            <div className="panel-heading">
-              <UsersRound size={20} aria-hidden="true" />
-              <h2 id="admin-workspaces-title">Workspaces</h2>
-            </div>
-            <div className="compact-list">
-              {(workspacesQuery.data?.workspaces ?? []).map((workspace) => (
-                <div className="compact-row" key={workspace.id}>
-                  <span>{workspace.name}</span>
-                  <strong>{workspace.createdAt.slice(0, 10)}</strong>
-                </div>
-              ))}
-              {workspacesQuery.isLoading ? <p className="muted-text">Loading workspaces</p> : null}
-              {workspacesQuery.error ? (
-                <p className="form-error">{workspacesQuery.error.message}</p>
               ) : null}
             </div>
           </section>

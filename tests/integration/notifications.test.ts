@@ -261,7 +261,7 @@ describe("Notifications module M5", () => {
       url: "/api/notifications",
       headers: {
         authorization: `Bearer ${ids.sessionA}`,
-        "x-jarvis-workspace-id": ids.workspaceAlpha
+        "x-jarvis-workspace-id": "00000000-0000-4000-8000-000000000099"
       }
     });
     const deniedMarkReadResponse = await server.inject({

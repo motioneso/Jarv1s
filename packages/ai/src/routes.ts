@@ -831,9 +831,6 @@ function handleRouteError(error: unknown, reply: FastifyReply) {
     if (error.message === "Invalid bearer token") {
       return reply.code(401).send({ error: error.message });
     }
-    if (error.message === "Workspace context is unavailable") {
-      return reply.code(403).send({ error: error.message });
-    }
     if (
       error.message.includes("foreign key") ||
       error.message.includes("violates row-level security policy") ||

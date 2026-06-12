@@ -99,6 +99,7 @@ describe("MVP foundation scaffold", () => {
         { version: "0003", name: "0003_tasks_module.sql" },
         { version: "0004", name: "0004_auth_workspaces_settings.sql" },
         { version: "0005", name: "0005_admin_audit_events.sql" },
+        { version: "0006", name: "0006_tasks_drop_workspace_grants.sql" },
         { version: "0008", name: "0008_notifications_module.sql" },
         { version: "0009", name: "0009_connectors_module.sql" },
         { version: "0010", name: "0010_connector_admin_safe_metadata.sql" },
@@ -146,7 +147,8 @@ describe("MVP foundation scaffold", () => {
         { version: "0052", name: "0052_fix_admin_select_policy.sql" },
         { version: "0053", name: "0053_users_guard_admin_flag.sql" },
         { version: "0054", name: "0054_worker_memory_rls.sql" },
-        { version: "0055", name: "0055_users_guard_admin_flag_v2.sql" }
+        { version: "0055", name: "0055_users_guard_admin_flag_v2.sql" },
+        { version: "0056", name: "0056_drop_dead_workspace_subsystem.sql" }
       ]);
     } finally {
       await client.end();
@@ -354,6 +356,21 @@ describe("MVP foundation scaffold", () => {
     expect(result.grantedItemVisible).toBe(true);
     // itemBWorkspacePrivate has no share to userA — must remain invisible
     expect(result.workspacePrivateItemVisible).toBe(false);
+  });
+
+  it("confirms workspace/grant tables are absent after DROP migration", async () => {
+    const client = new Client({ connectionString: connectionStrings.migration });
+    await client.connect();
+    try {
+      const result = await client.query<{ table_name: string }>(
+        `SELECT table_name FROM information_schema.tables
+         WHERE table_schema = 'app'
+           AND table_name IN ('workspaces','workspace_memberships','resource_grants')`
+      );
+      expect(result.rows).toHaveLength(0);
+    } finally {
+      await client.end();
+    }
   });
 
   it("keeps pg-boss metadata outside protected app tables and payloads minimal", async () => {
