@@ -1,45 +1,38 @@
 import type { Page, Route } from "@playwright/test";
 import type {
-  AiAssistantToolDto,
-  AiConfiguredModelDto,
-  AiModelCapability,
-  AiProviderConfigDto,
   CalendarEventDto,
   ChatMessageDto,
   ChatThreadDto,
-  ConnectorAccountDto,
-  ConnectorProviderDto,
-  ConnectorProviderType,
-  CreateAiConfiguredModelRequest,
-  CreateAiProviderConfigRequest,
-  CreateConnectorAccountRequest,
   CreateTaskRequest,
   EmailMessageDto,
   MeResponse,
   NotificationDto,
   TaskDefaultView,
   TaskDto,
-  UpdateAiConfiguredModelRequest,
-  UpdateAiProviderConfigRequest,
-  UpdateConnectorAccountRequest,
   UpdateTaskRequest
 } from "@jarv1s/shared";
 
+import { registerMockAiRoutes, type MockAiApiState } from "./mock-ai-api.js";
 import { registerMockBriefingsRoutes, type MockBriefingsApiState } from "./mock-briefings-api.js";
 import { registerMockChatRoutes } from "./mock-chat-api.js";
+import { registerMockConnectorRoutes, type MockConnectorsApiState } from "./mock-connectors-api.js";
 import { modulesResponse } from "./mock-modules.js";
 
 export { createMockBriefingDefinition, createMockBriefingRun } from "./mock-briefings-api.js";
+export { createMockConnectorAccount, createMockConnectorProviders } from "./mock-connectors-api.js";
 
-export interface MockApiState extends MockBriefingsApiState {
+export interface MockApiState
+  extends MockBriefingsApiState, MockAiApiState, MockConnectorsApiState {
   authenticated: boolean;
-  aiModels?: AiConfiguredModelDto[];
-  aiProviders?: AiProviderConfigDto[];
+  /**
+   * Whether the authenticated user is an instance admin. Defaults to true so
+   * existing specs keep their admin surfaces; set false to exercise the
+   * non-admin path (admin sections hidden, admin routes 403) — see #171.
+   */
+  isInstanceAdmin?: boolean;
   calendarEvents?: CalendarEventDto[];
   chatMessages?: Record<string, ChatMessageDto[]>;
   chatThreads?: ChatThreadDto[];
-  connectorAccounts: ConnectorAccountDto[];
-  connectorProviders: ConnectorProviderDto[];
   emailMessages?: EmailMessageDto[];
   notifications: NotificationDto[];
   tasks: TaskDto[];
@@ -59,17 +52,29 @@ const meResponse: MeResponse = {
   }
 };
 
+function meResponseFor(state: MockApiState): MeResponse {
+  const isInstanceAdmin = state.isInstanceAdmin ?? true;
+  return {
+    user: {
+      ...meResponse.user,
+      isInstanceAdmin,
+      // A non-admin can never be the bootstrap owner; keep the fixture coherent.
+      isBootstrapOwner: isInstanceAdmin && meResponse.user.isBootstrapOwner
+    }
+  };
+}
+
 export async function mockApi(page: Page, state: MockApiState): Promise<void> {
   await page.route("**/api/bootstrap/status", (route) =>
     fulfillJson(route, 200, { needsBootstrap: false })
   );
   await page.route("**/api/auth/sign-in/email", (route) => {
     state.authenticated = true;
-    return fulfillJson(route, 200, { user: meResponse.user });
+    return fulfillJson(route, 200, { user: meResponseFor(state).user });
   });
   await page.route("**/api/auth/sign-up/email", (route) => {
     state.authenticated = true;
-    return fulfillJson(route, 200, { user: meResponse.user });
+    return fulfillJson(route, 200, { user: meResponseFor(state).user });
   });
   await page.route("**/api/auth/sign-out", (route) => {
     state.authenticated = false;
@@ -77,7 +82,7 @@ export async function mockApi(page: Page, state: MockApiState): Promise<void> {
   });
   await page.route("**/api/me", (route) =>
     state.authenticated
-      ? fulfillJson(route, 200, meResponse)
+      ? fulfillJson(route, 200, meResponseFor(state))
       : fulfillJson(route, 401, { error: "Session is missing or expired" })
   );
   await page.route("**/api/modules", (route) =>
@@ -86,53 +91,23 @@ export async function mockApi(page: Page, state: MockApiState): Promise<void> {
       : fulfillJson(route, 401, { error: "Session is missing or expired" })
   );
   await page.route("**/api/admin/auth/providers", (route) =>
-    fulfillJson(route, 200, {
-      providers: [
-        {
-          id: "email-password",
-          displayName: "Email and password",
-          providerType: "local",
-          enabled: true
-        }
-      ]
-    })
+    // Admin-only surface: a non-admin caller is rejected, mirroring the API's
+    // requireInstanceAdmin guard so the negative e2e path is realistic (#171).
+    (state.isInstanceAdmin ?? true)
+      ? fulfillJson(route, 200, {
+          providers: [
+            {
+              id: "email-password",
+              displayName: "Email and password",
+              providerType: "local",
+              enabled: true
+            }
+          ]
+        })
+      : fulfillJson(route, 403, { error: "Instance admin required" })
   );
-  await page.route("**/api/admin/connectors/accounts", (route) =>
-    fulfillJson(route, 200, { accounts: state.connectorAccounts })
-  );
-  await page.route("**/api/connectors/providers", (route) =>
-    fulfillJson(route, 200, { providers: state.connectorProviders })
-  );
-  await page.route(/\/api\/connectors\/accounts\/[^/]+\/revoke$/, (route) =>
-    handleConnectorRevokeRoute(route, state)
-  );
-  await page.route(/\/api\/connectors\/accounts\/[^/]+$/, (route) =>
-    handleConnectorDetailRoute(route, state)
-  );
-  await page.route("**/api/connectors/accounts", (route) =>
-    handleConnectorAccountsRoute(route, state)
-  );
-  await page.route("**/api/connectors/google/authorize", (route) =>
-    handleGoogleAuthorizeRoute(route, state)
-  );
-  await page.route("**/api/connectors/google/complete", (route) =>
-    handleGoogleCompleteRoute(route, state)
-  );
-  await page.route(/\/api\/ai\/providers\/[^/]+\/revoke$/, (route) =>
-    handleAiProviderRevokeRoute(route, state)
-  );
-  await page.route(/\/api\/ai\/providers\/[^/]+$/, (route) =>
-    handleAiProviderDetailRoute(route, state)
-  );
-  await page.route("**/api/ai/providers", (route) => handleAiProvidersRoute(route, state));
-  await page.route(/\/api\/ai\/models\/[^/]+$/, (route) => handleAiModelDetailRoute(route, state));
-  await page.route("**/api/ai/models", (route) => handleAiModelsRoute(route, state));
-  await page.route(/\/api\/ai\/capability-route\/[^/]+$/, (route) =>
-    handleAiCapabilityRoute(route, state)
-  );
-  await page.route("**/api/ai/assistant-tools", (route) =>
-    fulfillJson(route, 200, { tools: createMockAiAssistantTools() })
-  );
+  await registerMockConnectorRoutes(page, state);
+  await registerMockAiRoutes(page, state);
   await registerMockBriefingsRoutes(page, state);
   await registerMockChatRoutes(page, state);
   await page.route(/\/api\/calendar\/events\/[^/]+$/, (route) =>
@@ -182,278 +157,6 @@ export async function mockApi(page: Page, state: MockApiState): Promise<void> {
   await page.route("**/api/tasks/lists/*/tags", (route) => handleTaskTagsRoute(route, state));
   await page.route("**/api/tasks/lists", (route) => handleTaskListsRoute(route, state));
   await page.route("**/api/tasks/preferences", (route) => handleTaskPreferencesRoute(route, state));
-}
-
-async function handleConnectorAccountsRoute(route: Route, state: MockApiState): Promise<void> {
-  const request = route.request();
-
-  if (request.method() === "GET") {
-    return fulfillJson(route, 200, { accounts: state.connectorAccounts });
-  }
-
-  if (request.method() === "POST") {
-    const input = request.postDataJSON() as CreateConnectorAccountRequest;
-    const provider = state.connectorProviders.find((item) => item.id === input.providerId);
-    const account = createMockConnectorAccount(`connector-${state.connectorAccounts.length + 1}`, {
-      providerId: input.providerId,
-      providerType: provider?.providerType ?? "calendar",
-      providerDisplayName: provider?.displayName ?? input.providerId,
-      providerStatus: provider?.status ?? "available",
-      scopes: input.scopes ?? [],
-      status: input.status ?? "active"
-    });
-
-    state.connectorAccounts = [...state.connectorAccounts, account];
-    return fulfillJson(route, 201, { account });
-  }
-
-  return fulfillJson(route, 405, { error: "Method not allowed" });
-}
-
-async function handleConnectorDetailRoute(route: Route, state: MockApiState): Promise<void> {
-  const request = route.request();
-  const accountId = decodeURIComponent(new URL(request.url()).pathname.split("/").pop() ?? "");
-  const account = state.connectorAccounts.find((item) => item.id === accountId);
-
-  if (!account) {
-    return fulfillJson(route, 404, { error: "Connector account not found" });
-  }
-
-  if (request.method() !== "PATCH") {
-    return fulfillJson(route, 405, { error: "Method not allowed" });
-  }
-
-  const input = request.postDataJSON() as UpdateConnectorAccountRequest;
-  const updatedAccount = {
-    ...account,
-    scopes: input.scopes ?? account.scopes,
-    status: input.status ?? account.status,
-    updatedAt: "2026-06-06T12:00:00.000Z"
-  };
-
-  state.connectorAccounts = state.connectorAccounts.map((item) =>
-    item.id === accountId ? updatedAccount : item
-  );
-  return fulfillJson(route, 200, { account: updatedAccount });
-}
-
-async function handleConnectorRevokeRoute(route: Route, state: MockApiState): Promise<void> {
-  const request = route.request();
-  const segments = new URL(request.url()).pathname.split("/");
-  const accountId = decodeURIComponent(segments.at(-2) ?? "");
-  const account = state.connectorAccounts.find((item) => item.id === accountId);
-
-  if (!account) {
-    return fulfillJson(route, 404, { error: "Connector account not found" });
-  }
-
-  if (request.method() !== "POST") {
-    return fulfillJson(route, 405, { error: "Method not allowed" });
-  }
-
-  const revokedAccount = {
-    ...account,
-    status: "revoked" as const,
-    revokedAt: "2026-06-06T12:00:00.000Z",
-    updatedAt: "2026-06-06T12:00:00.000Z"
-  };
-
-  state.connectorAccounts = state.connectorAccounts.map((item) =>
-    item.id === accountId ? revokedAccount : item
-  );
-  return fulfillJson(route, 200, { account: revokedAccount });
-}
-
-async function handleGoogleAuthorizeRoute(route: Route, _state: MockApiState): Promise<void> {
-  return fulfillJson(route, 200, {
-    authUrl: "https://accounts.google.com/o/oauth2/v2/auth?state=test-state&client_id=mock"
-  });
-}
-
-async function handleGoogleCompleteRoute(route: Route, state: MockApiState): Promise<void> {
-  const googleAccount = createMockConnectorAccount("google-account-1", {
-    providerId: "google",
-    providerType: "google" as ConnectorProviderType,
-    providerDisplayName: "Google",
-    status: "active"
-  });
-  state.connectorAccounts = [...state.connectorAccounts, googleAccount];
-  return fulfillJson(route, 201, { account: googleAccount });
-}
-
-async function handleAiProvidersRoute(route: Route, state: MockApiState): Promise<void> {
-  const request = route.request();
-
-  if (request.method() === "GET") {
-    return fulfillJson(route, 200, { providers: state.aiProviders ?? [] });
-  }
-
-  if (request.method() === "POST") {
-    const input = request.postDataJSON() as CreateAiProviderConfigRequest;
-    const provider = createMockAiProvider(`ai-provider-${(state.aiProviders ?? []).length + 1}`, {
-      providerKind: input.providerKind,
-      displayName: input.displayName,
-      baseUrl: input.baseUrl ?? null,
-      status: input.status ?? "active",
-      hasCredential: true
-    });
-
-    state.aiProviders = [...(state.aiProviders ?? []), provider];
-    return fulfillJson(route, 201, { provider });
-  }
-
-  return fulfillJson(route, 405, { error: "Method not allowed" });
-}
-
-async function handleAiProviderDetailRoute(route: Route, state: MockApiState): Promise<void> {
-  const request = route.request();
-  const providerId = decodeURIComponent(new URL(request.url()).pathname.split("/").pop() ?? "");
-  const provider = (state.aiProviders ?? []).find((item) => item.id === providerId);
-
-  if (!provider) {
-    return fulfillJson(route, 404, { error: "AI provider config not found" });
-  }
-
-  if (request.method() !== "PATCH") {
-    return fulfillJson(route, 405, { error: "Method not allowed" });
-  }
-
-  const input = request.postDataJSON() as UpdateAiProviderConfigRequest;
-  const updatedProvider: AiProviderConfigDto = {
-    ...provider,
-    providerKind: input.providerKind ?? provider.providerKind,
-    displayName: input.displayName ?? provider.displayName,
-    baseUrl: input.baseUrl === undefined ? provider.baseUrl : input.baseUrl,
-    status: input.status ?? provider.status,
-    hasCredential: input.credentialPayload === undefined ? provider.hasCredential : true,
-    revokedAt: null,
-    updatedAt: "2026-06-06T12:00:00.000Z"
-  };
-
-  state.aiProviders = (state.aiProviders ?? []).map((item) =>
-    item.id === providerId ? updatedProvider : item
-  );
-  return fulfillJson(route, 200, { provider: updatedProvider });
-}
-
-async function handleAiProviderRevokeRoute(route: Route, state: MockApiState): Promise<void> {
-  const request = route.request();
-  const segments = new URL(request.url()).pathname.split("/");
-  const providerId = decodeURIComponent(segments.at(-2) ?? "");
-  const provider = (state.aiProviders ?? []).find((item) => item.id === providerId);
-
-  if (!provider) {
-    return fulfillJson(route, 404, { error: "AI provider config not found" });
-  }
-
-  if (request.method() !== "POST") {
-    return fulfillJson(route, 405, { error: "Method not allowed" });
-  }
-
-  const revokedProvider: AiProviderConfigDto = {
-    ...provider,
-    status: "revoked",
-    revokedAt: "2026-06-06T12:00:00.000Z",
-    updatedAt: "2026-06-06T12:00:00.000Z"
-  };
-
-  state.aiProviders = (state.aiProviders ?? []).map((item) =>
-    item.id === providerId ? revokedProvider : item
-  );
-  return fulfillJson(route, 200, { provider: revokedProvider });
-}
-
-async function handleAiModelsRoute(route: Route, state: MockApiState): Promise<void> {
-  const request = route.request();
-
-  if (request.method() === "GET") {
-    return fulfillJson(route, 200, { models: state.aiModels ?? [] });
-  }
-
-  if (request.method() === "POST") {
-    const input = request.postDataJSON() as CreateAiConfiguredModelRequest;
-    const provider = (state.aiProviders ?? []).find((item) => item.id === input.providerConfigId);
-
-    if (!provider) {
-      return fulfillJson(route, 400, { error: "AI configuration request is invalid" });
-    }
-
-    const model = createMockAiModel(`ai-model-${(state.aiModels ?? []).length + 1}`, {
-      providerConfigId: provider.id,
-      providerKind: provider.providerKind,
-      providerDisplayName: provider.displayName,
-      providerStatus: provider.status,
-      providerModelId: input.providerModelId,
-      displayName: input.displayName,
-      capabilities: input.capabilities,
-      status: input.status ?? "active"
-    });
-
-    state.aiModels = [...(state.aiModels ?? []), model];
-    return fulfillJson(route, 201, { model });
-  }
-
-  return fulfillJson(route, 405, { error: "Method not allowed" });
-}
-
-async function handleAiModelDetailRoute(route: Route, state: MockApiState): Promise<void> {
-  const request = route.request();
-  const modelId = decodeURIComponent(new URL(request.url()).pathname.split("/").pop() ?? "");
-  const model = (state.aiModels ?? []).find((item) => item.id === modelId);
-
-  if (!model) {
-    return fulfillJson(route, 404, { error: "AI model config not found" });
-  }
-
-  if (request.method() !== "PATCH") {
-    return fulfillJson(route, 405, { error: "Method not allowed" });
-  }
-
-  const input = request.postDataJSON() as UpdateAiConfiguredModelRequest;
-  const updatedModel: AiConfiguredModelDto = {
-    ...model,
-    providerModelId: input.providerModelId ?? model.providerModelId,
-    displayName: input.displayName ?? model.displayName,
-    capabilities: input.capabilities ?? model.capabilities,
-    status: input.status ?? model.status,
-    updatedAt: "2026-06-06T12:00:00.000Z"
-  };
-
-  state.aiModels = (state.aiModels ?? []).map((item) =>
-    item.id === modelId ? updatedModel : item
-  );
-  return fulfillJson(route, 200, { model: updatedModel });
-}
-
-async function handleAiCapabilityRoute(route: Route, state: MockApiState): Promise<void> {
-  if (route.request().method() !== "GET") {
-    return fulfillJson(route, 405, { error: "Method not allowed" });
-  }
-
-  const capability = decodeURIComponent(
-    new URL(route.request().url()).pathname.split("/").pop() ?? ""
-  ) as AiModelCapability;
-  const model =
-    (state.aiModels ?? []).find((item) => {
-      const provider = (state.aiProviders ?? []).find(
-        (providerConfig) => providerConfig.id === item.providerConfigId
-      );
-
-      return (
-        item.status === "active" &&
-        item.capabilities.includes(capability) &&
-        provider?.status === "active"
-      );
-    }) ?? null;
-
-  return fulfillJson(route, 200, {
-    route: {
-      capability,
-      available: Boolean(model),
-      reason: model ? "matched-active-model" : "no-active-model",
-      model
-    }
-  });
 }
 
 async function handleCalendarEventListRoute(route: Route, state: MockApiState): Promise<void> {
@@ -771,120 +474,6 @@ export function createMockNotification(
     createdAt: "2026-06-06T12:00:00.000Z",
     ...overrides
   };
-}
-
-export function createMockConnectorProviders(): ConnectorProviderDto[] {
-  return [
-    {
-      id: "google-calendar",
-      providerType: "calendar",
-      displayName: "Google Calendar",
-      status: "available",
-      defaultScopes: ["https://www.googleapis.com/auth/calendar.readonly"],
-      createdAt: "2026-06-06T12:00:00.000Z",
-      updatedAt: "2026-06-06T12:00:00.000Z"
-    },
-    {
-      id: "google-email",
-      providerType: "email",
-      displayName: "Google Email",
-      status: "available",
-      defaultScopes: ["https://www.googleapis.com/auth/gmail.readonly"],
-      createdAt: "2026-06-06T12:00:00.000Z",
-      updatedAt: "2026-06-06T12:00:00.000Z"
-    }
-  ];
-}
-
-export function createMockConnectorAccount(
-  id: string,
-  overrides: Partial<ConnectorAccountDto> = {}
-): ConnectorAccountDto {
-  return {
-    id,
-    providerId: "google-calendar",
-    providerType: "calendar",
-    providerDisplayName: "Google Calendar",
-    providerStatus: "available",
-    ownerUserId: "user-1",
-    scopes: [],
-    status: "active",
-    hasSecret: true,
-    revokedAt: null,
-    createdAt: "2026-06-06T12:00:00.000Z",
-    updatedAt: "2026-06-06T12:00:00.000Z",
-    ...overrides
-  };
-}
-
-function createMockAiProvider(
-  id: string,
-  overrides: Partial<AiProviderConfigDto> = {}
-): AiProviderConfigDto {
-  return {
-    id,
-    providerKind: "openai-compatible",
-    displayName: "OpenAI Compatible",
-    baseUrl: null,
-    status: "active",
-    authMethod: "api_key",
-    hasCredential: true,
-    cliAvailable: false,
-    revokedAt: null,
-    createdAt: "2026-06-06T12:00:00.000Z",
-    updatedAt: "2026-06-06T12:00:00.000Z",
-    ...overrides
-  };
-}
-
-function createMockAiModel(
-  id: string,
-  overrides: Partial<AiConfiguredModelDto> = {}
-): AiConfiguredModelDto {
-  return {
-    id,
-    providerConfigId: "ai-provider-1",
-    providerKind: "openai-compatible",
-    providerDisplayName: "OpenAI Compatible",
-    providerStatus: "active",
-    providerModelId: "model-id",
-    displayName: "Model",
-    capabilities: ["chat"],
-    status: "active",
-    tier: "interactive",
-    createdAt: "2026-06-06T12:00:00.000Z",
-    updatedAt: "2026-06-06T12:00:00.000Z",
-    ...overrides
-  };
-}
-
-function createMockAiAssistantTools(): AiAssistantToolDto[] {
-  return [
-    {
-      moduleId: "tasks",
-      moduleName: "Tasks",
-      name: "tasks.listVisible",
-      description: "List visible tasks.",
-      permissionId: "tasks.view",
-      risk: "read",
-      inputSchema: {
-        type: "object"
-      },
-      outputSchema: null
-    },
-    {
-      moduleId: "tasks",
-      moduleName: "Tasks",
-      name: "tasks.updateStatus",
-      description: "Queue a task status update.",
-      permissionId: "tasks.update",
-      risk: "write",
-      inputSchema: {
-        type: "object"
-      },
-      outputSchema: null
-    }
-  ];
 }
 
 function countUnreadNotifications(notifications: readonly NotificationDto[]): number {
