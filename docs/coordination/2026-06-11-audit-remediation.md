@@ -105,6 +105,11 @@ Spawned into the "Agents" tab (`w653f42bef3ac02:3`), Sonnet 4.6, bypass-permissi
 **Sweep 1 (20:45):** all 4 `working`, no stalls/escalations. B at 59% ctx/$5.12 mid-deletion
 (Task 1b done, 2-9 pending), auto-compacting — expect a self-relay (successor in same worktree).
 
+**Sweep 2 (21:07):** all 4 `working`, no escalations. **G ahead** — impl done (5 files), running
+`pnpm verify:foundation` (final gate); likely first done. **B COST WATCH** — still Task 1b/2 after
+52 min, re-compacted (55% ctx), **$8.81** (largest slice; throughput healthy, not stalled, but
+pricey — flag to Ben). F/I working, nominal. No relay yet (B held pane `-3`).
+
 **Merge sequencing for the collisions:** B merges first (spine HEAD) → G and I rebase their shared
 test-file edits on top of B before their own merge. F is collision-free, merges as soon as green.
 
