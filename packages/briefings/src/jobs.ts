@@ -37,6 +37,14 @@ export const BRIEFINGS_QUEUE_DEFINITIONS: readonly QueueDefinition[] = [
   {
     name: BRIEFINGS_RUN_QUEUE,
     options: {
+      // `exclusive`: at most one job per (queue, singletonKey) across all
+      // non-terminal states (created OR active). This is what makes a
+      // client-supplied idempotency key actually dedupe a run-now submit (#150) —
+      // a double-click / retry while the first run is still queued or running is
+      // collapsed to a single job. The route namespaces the singletonKey by
+      // definition id (and uses a unique key for keyless runs so they never
+      // falsely collide). Standard policy stores singletonKey but never dedupes.
+      policy: "exclusive",
       retryLimit: 0,
       deleteAfterSeconds: 60,
       retentionSeconds: 60

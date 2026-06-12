@@ -77,6 +77,17 @@ export const briefingsModuleManifest = {
       actions: ["execute"]
     }
   ],
+  // briefing_definitions is share-aware at the RLS layer: its SELECT policy uses
+  // has_share('briefing_definition', id, 'view') and its UPDATE policy uses
+  // has_share(..., 'manage') (sql/0026). Declare the resource here so the manifest
+  // matches that reality and the briefings.view permission's "owned by or shared
+  // with" wording is backed by a real shareable-resource entry (#150).
+  shareableResources: [
+    {
+      resourceType: "briefing_definition",
+      grantLevels: ["view", "manage"]
+    }
+  ],
   featureFlags: [
     {
       id: "briefings.module",

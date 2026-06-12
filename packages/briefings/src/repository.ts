@@ -276,7 +276,22 @@ async function generateSummary(
       );
       const result = toolResult.data ?? {};
       toolSummaries.push(summarizeToolResult(tool, result));
-    } catch {
+    } catch (error) {
+      // A failed read-tool degrades the briefing rather than failing the whole run, but the
+      // failure must still be observable (#150): emit a single-line structured log with only
+      // the tool name + error name/message — never the raw error (it can carry tool output or
+      // connection details). The user-facing surface stays the redacted "tool_failed" summary.
+      const e = error instanceof Error ? error : new Error(String(error));
+      console.error(
+        JSON.stringify({
+          event: "briefing_tool_failed",
+          tool: tool.name,
+          error: e.name,
+          // Bounded: an error message can still echo tool output or connection
+          // details, so cap it so a verbose provider error cannot dump payload to logs.
+          message: e.message.slice(0, 200)
+        })
+      );
       toolSummaries.push({
         name: tool.name,
         status: "failed",
@@ -404,10 +419,11 @@ function formatToolSummary(tool: ToolSummary): string {
     }`;
   }
 
-  const visibleLabel = tool.itemCount === 1 ? "visible" : "visible";
+  // "visible" is invariant of count — the former `itemCount === 1 ? "visible" : "visible"`
+  // ternary had identical branches (dead code), so it's inlined as a constant (#150).
   const excerpts = tool.excerpts.length > 0 ? `; top: ${tool.excerpts.join("; ")}` : "";
 
-  return `${displayToolName(tool.name)}: ${tool.itemCount} ${visibleLabel}${excerpts}`;
+  return `${displayToolName(tool.name)}: ${tool.itemCount} visible${excerpts}`;
 }
 
 function displayToolName(toolName: string): string {

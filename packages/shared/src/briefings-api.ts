@@ -202,7 +202,7 @@ export const runBriefingDefinitionRequestSchema = {
   type: "object",
   additionalProperties: false,
   properties: {
-    idempotencyKey: { type: "string" }
+    idempotencyKey: { type: "string", minLength: 1, maxLength: 200 }
   }
 } as const;
 
