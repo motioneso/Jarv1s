@@ -122,9 +122,12 @@ console.log(`Jarv1s worker listening on ${RLS_PROBE_QUEUE} and built-in module q
 
 // LOW (#165): document the intentional escalation path. unhandledRejection and
 // uncaughtException both funnel into handleCrash, which logs, attempts a
-// bounded drain (2s race), then exits with code 1. The boss `error` event
-// (emitted for internal pg-boss errors) is also wired via createPgBossClient
-// to re-throw synchronously, ensuring it surfaces as an uncaughtException.
+// bounded drain (2s race), then exits with code 1.
+//
+// MED (#158): pg-boss internal `error` events are NO LONGER re-thrown — they are
+// logged structured (defaultOnPgBossError) without escalation, so a transient
+// boss-connection blip cannot crash the worker mid-drain. Genuine fatal failures
+// still surface through unhandledRejection / uncaughtException above.
 const handleCrash = (label: string, err: unknown): void => {
   // LOW (#165): log err.message for Error values instead of String(err), which
   // would stringify a non-Error object (e.g. a config/pool object) and could

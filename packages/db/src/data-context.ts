@@ -9,6 +9,23 @@ export interface AccessContext {
   readonly requestId?: string;
 }
 
+// The RLS principal is injected into the `app.actor_user_id` GUC, which every RLS policy
+// reads back as `current_setting('app.actor_user_id')::uuid`. A non-UUID value would surface
+// as a `22P02 invalid_text_representation` deep inside an unrelated query (failing open in
+// confusing ways), so we shape-check the actor id here — the single RLS injection point —
+// before it ever reaches `set_config`.
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+export function isUuid(value: string): boolean {
+  return UUID_RE.test(value);
+}
+
+export function assertUuid(value: string, label: string): void {
+  if (!UUID_RE.test(value)) {
+    throw new Error(`${label} must be a UUID`);
+  }
+}
+
 export const dataContextBrand: unique symbol = Symbol("DataContextDb");
 
 export interface DataContextDb {
@@ -26,6 +43,7 @@ export class DataContextRunner {
     if (!accessContext.actorUserId) {
       throw new Error("withDataContext requires an actor user id");
     }
+    assertUuid(accessContext.actorUserId, "withDataContext actor user id");
 
     return this.rootDb.transaction().execute(async (transaction) => {
       await setLocal(transaction, "app.actor_user_id", accessContext.actorUserId);
@@ -36,16 +54,6 @@ export class DataContextRunner {
         [dataContextBrand]: true
       });
     });
-  }
-
-  async unsafeSelectVisibleProbeIdsForTest(): Promise<string[]> {
-    const rows = await this.rootDb
-      .selectFrom("app.rls_probe_items")
-      .select("id")
-      .orderBy("id")
-      .execute();
-
-    return rows.map((row) => row.id);
   }
 }
 
