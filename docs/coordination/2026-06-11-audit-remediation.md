@@ -3,23 +3,23 @@
 **Date:** 2026-06-11
 **Coordinator lock:** label `Coordinator` = pane `w653f42bef3ac02-2` (`$HERDR_PANE_ID=p_38`). Single-coordinator lock — exactly one pane holds this label for the life of the run; agents escalate to the **label** (routing), the coordinator merges only when its own `$HERDR_PANE_ID` resolves to this recorded **pane-id** (authority).
 **Finding source:** `docs/audits/2026-06-11-fable5-issue-verification.md` — independent Fable 5 verification @ `origin/main e629f3c`, migration head 0052 (22 stand, 8 severity-downgraded to MED/LOW, 0 refuted, 0 already-fixed).
-**Merge policy:** autonomous-after-verified-QA for `routine`/`sensitive`; **`security`-tier needs Ben's explicit merge sign-off** + posted `gh pr comment` verdict.
+**Merge policy:** autonomous-after-verified-QA for `routine`/`sensitive`. **`security`-tier sign-off DELEGATED to Fable (Ben, 2026-06-12 — "I'm not in a good place to review; have Fable review the security PRs and proceed").** Per security PR: run adversarial QA as a **Fable (`model: 'fable'`) cross-model review** + post verdict via `gh pr comment`; **Fable APPROVE → merge autonomously**; Fable `revise`/`reject` → bounce to build agent, re-QA. Ben gets a per-merge digest (not a gate). Escalate back to Ben only on a genuine design fork Fable can't settle.
 **Relay threshold:** security-tier merge → relay immediately; routine/sensitive merges_since_relay ≥ 2 → relay. No deferral.
 **merges_since_relay:** 0 (reset — relay fired, successor session started 2026-06-12)
 **Available worker panes (Ben, 2026-06-12):** Coordinator = `w653f42bef3ac02-2` (me). Codex pane = `w653f42bef3ac02-1` = candidate cross-model security-tier QA path. Build agents require an **isolated worktree** + own `JARVIS_PGDATABASE`.
 
-**→ CONTINUATION NOTE (2026-06-12, handoff complete):** Slices A+C merged and closed. Fleet is idle. All remaining slices (B, D, E, F, G, H, I) are blocked on specs — next action is spec authoring with Ben, starting with **Slice B** (dead subsystem deletion: #120 workspaces, #153 resource-grants no-op, #115+#116+#152 manifest-narrowing — lowest blast radius, next on migration spine). Slice E has a design fork (#113 bearer-token) that needs Ben's decision. Successor coordinator active @ pane `w653f42bef3ac02-2` / `$HERDR_PANE_ID=p_38`.
+**→ CONTINUATION NOTE (2026-06-12, plans written + Fable-reviewed):** Slices A+C merged/closed. All 7 remaining specs (B,D,E,F,G,H,I) authored + Fable-reviewed + prettier-formatted (035c4d6/7eba4c5). **Ben greenlit the build** ("write up the plans, have Fable review, spin up the agents") — spec-review gate SATISFIED. 7 TDD plans written (`docs/superpowers/plans/2026-06-12-audit-slice-*.md`); Fable adversarial review over all 7 → **all `revise`** (false intermediate-gate expectations; claimed-tested-but-uncaught security tests; fabricated line refs; **+1 spec-level security defect: H #134 chat_messages_update was `USING(true) WITH CHECK(true)` → removes owner-scoping; fixed in spec+plan**). Per-slice fix agents applied Fable's exact FIX text (workflow w78euq8lv). NEXT: format+commit+push the 7 plans → Phase-1 spawn parallel-safe (B,F,G,I) off origin/main; hold D(after B)/E(after D)/H(after B+G) on the spine. **Security-tier merges still need Ben's per-merge sign-off** (build greenlight ≠ merge greenlight). Coordinator @ pane `w653f42bef3ac02-2` / `$HERDR_PANE_ID=p_38`.
 
 > Coordinator's externalized memory. Keep CURRENT. GitHub is source of truth for spec/issue/board
 > status; this file holds only in-flight operational state.
 
 ## Phase-0 gate status
 
-- **CI on `main`:** ✅ green @ e629f3c (verified 2026-06-11)
+- **CI on `main`:** ✅ green @ 7eba4c5 (verified 2026-06-12)
 - **Ben manifest approval:** ✅ approved (Slice A first — 2026-06-11)
-- **Slice A spec:** ✅ `docs/superpowers/specs/2026-06-11-audit-slice-a-rls-least-priv.md`
-- **Slice A plan:** ✅ `docs/superpowers/plans/2026-06-11-audit-slice-a-rls-least-priv.md`
-- **Remaining slices B–I:** specs authored 2026-06-12, awaiting Ben review before spawning
+- **Ben build greenlight:** ✅ 2026-06-12 ("write up the plans, have Fable review, spin up the agents") — spec-review gate satisfied; security-tier MERGES still need per-merge sign-off
+- **Slice A spec/plan:** ✅ merged (PR #181)
+- **Remaining slices B–I:** specs ✅ + TDD plans ✅ written + Fable-reviewed (all `revise` → fixes applied 2026-06-12)
 
 ## Queue (proposed slices — each needs a spec before it can spawn)
 
