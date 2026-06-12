@@ -166,5 +166,76 @@ describe("Legacy session-bearer auth hardening (#113)", () => {
         expect(res.statusCode).toBe(200);
       }
     });
+
+    it("does not mint a fresh bucket per non-UUID bearer token (Finding 2)", async () => {
+      // Three DIFFERENT junk (non-UUID) tokens from one peer. Because junk tokens are not
+      // UUID-shaped, they fall into the shared `ip:` bucket rather than one bucket each — so
+      // an attacker cannot evade the per-principal class by varying a bogus token per request.
+      const hit = (token: string) =>
+        server.inject({
+          method: "GET",
+          url: "/api/modules",
+          headers: { authorization: `Bearer ${token}` }
+        });
+
+      await hit("not-a-uuid-1");
+      await hit("not-a-uuid-2");
+      const third = await hit("not-a-uuid-3");
+      expect(third.statusCode).toBe(429);
+    });
+  });
+
+  // Finding 1 (BLOCKER): switching the global key to a per-principal key must NOT re-key the
+  // inherited /api/auth/* credential throttle. Credential POSTs are pre-auth, so the throttle
+  // must stay pinned to the peer IP — otherwise varying `Authorization: Bearer <junk>` mints a
+  // fresh bucket per request and re-opens sign-in brute-force (OTNR-P4 #122 / C1).
+  describe("credential brute-force throttle (#113 Finding 1)", () => {
+    let server: ReturnType<typeof createApiServer>;
+    let originalAuthMax: string | undefined;
+
+    beforeAll(async () => {
+      originalAuthMax = process.env.JARVIS_RL_AUTH_MAX;
+      process.env.JARVIS_RL_AUTH_MAX = "2";
+
+      await resetFoundationDatabase();
+      server = createApiServer({
+        appDb: createDatabase({ connectionString: connectionStrings.app, maxConnections: 1 }),
+        logger: false
+      });
+      await server.ready();
+    });
+
+    afterAll(async () => {
+      await server?.close();
+      if (originalAuthMax === undefined) {
+        delete process.env.JARVIS_RL_AUTH_MAX;
+      } else {
+        process.env.JARVIS_RL_AUTH_MAX = originalAuthMax;
+      }
+    });
+
+    it("keys credential POSTs on peer IP — varying bogus auth headers cannot bypass it", async () => {
+      const signIn = (n: number) =>
+        server.inject({
+          method: "POST",
+          url: "/api/auth/sign-in/email",
+          headers: {
+            "content-type": "application/json",
+            // A different bogus bearer per request: if the credential throttle had inherited
+            // the global per-principal key, each would mint its own bucket and never 429.
+            authorization: `Bearer junk-${n}`
+          },
+          payload: { email: "attacker@example.com", password: `guess-${n}` }
+        });
+
+      const r1 = await signIn(1);
+      const r2 = await signIn(2);
+      const r3 = await signIn(3);
+
+      // The first two consume the IP bucket (max=2); the third is throttled regardless of the
+      // varying Authorization header — proving the key is the peer IP, not the token.
+      expect(r3.statusCode).toBe(429);
+      expect([r1.statusCode, r2.statusCode]).not.toContain(429);
+    });
   });
 });

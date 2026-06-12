@@ -93,14 +93,18 @@ export function createApiServer(options: CreateApiServerOptions = {}) {
   // plugin's onRoute hook is active when routes are added (Fastify defers plugin init
   // to ready(), so after() guarantees plugin-before-route ordering).
   //
-  // This is a GLOBAL throttle class keyed on the authenticated principal (#113). Before
-  // the fix, rate limiting was opt-in per-route (global:false) and keyed only on IP, so
-  // the legacy session-bearer path — any caller presenting a session UUID as a bearer
-  // token — could hammer arbitrary module routes unbounded; only the /api/auth/* credential
-  // POSTs were throttled. Now every route carries a default per-principal limit: a leaked or
-  // abused bearer token is bounded to JARVIS_RL_GLOBAL_MAX req/min on its own bucket.
-  // Stricter per-route limits (chat / MCP / AI-tools / auth) still override this default;
-  // health probes are exempt.
+  // This is a GLOBAL throttle class keyed on the presented principal (#113). Before the fix,
+  // rate limiting was opt-in per-route (global:false) and keyed only on IP, so the legacy
+  // session-bearer path — any caller presenting a session UUID as a bearer token — could
+  // hammer arbitrary module routes unbounded; only the /api/auth/* credential POSTs were
+  // throttled. Now every route that does NOT declare its own config.rateLimit inherits this
+  // default per-principal limit: a leaked or abused bearer token is bounded to
+  // JARVIS_RL_GLOBAL_MAX req/min on its own (UUID-keyed) bucket.
+  //
+  // Routes with their own config.rateLimit OVERRIDE this (they do not stack): chat / MCP /
+  // AI-tools keep their stricter per-principal limits, and /api/auth/* pins its own IP-based
+  // key (credential POSTs are pre-auth — see registerBetterAuthRoutes). Health probes are
+  // exempt via allowList.
   const GLOBAL_RL_MAX = Number(process.env.JARVIS_RL_GLOBAL_MAX ?? 2000);
   server.register(rateLimit, {
     global: true,
@@ -218,29 +222,45 @@ const THROTTLED_AUTH_PATHS = new Set([
   "/api/auth/change-password"
 ]);
 
-// Rate-limit key for the global throttle class. Prefer the authenticated principal so
-// each LAN user / bearer client gets its own bucket, falling back to the real peer IP
-// for unauthenticated requests (which hit a 401 before any real work). The bearer token
-// is a session secret, so it is hashed — never used raw as a key — keeping it out of the
-// limiter's in-memory store and any error/header output. Namespaced prefixes prevent a
-// bearer hash from ever colliding with a cookie hash or an IP literal.
+// Better Auth session-token cookie names. The `__Secure-` prefix is added automatically
+// when the cookie is issued over TLS (which the app does behind JARVIS_TRUST_PROXY), so a
+// browser user's request carries the prefixed form. Both must be recognized or TLS users
+// silently degrade from a per-principal bucket to a shared per-IP one.
+const SESSION_COOKIE_NAMES = ["better-auth.session_token=", "__Secure-better-auth.session_token="];
+
+// A Better Auth session id is a v4 UUID (the legacy session-bearer path casts it ::uuid).
+const SESSION_UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+// Rate-limit key for the global throttle class. Prefer the presented credential so each
+// LAN user / bearer client gets its own bucket; otherwise key on the real peer IP.
+//
+// Junk credentials must NOT mint fresh buckets, or an attacker varying a bogus token per
+// request would evade the per-principal limit entirely (each bogus token = a new 2000/min
+// bucket = unbounded resolve_auth_session DB load). So the bearer branch keys per-principal
+// ONLY for a UUID-shaped token (the sole shape the legacy session-bearer path can resolve);
+// anything else falls through to the peer-IP bucket, which is bounded. The cookie value is
+// opaque/signed so a non-empty value is treated as a principal as-is.
+//
+// The token/cookie is a session secret, so it is hashed — never used raw as a key — keeping
+// it out of the limiter's in-memory store and any error/header output. Namespaced prefixes
+// prevent a bearer hash from ever colliding with a cookie hash or an IP literal.
 function authPrincipalRateLimitKey(request: FastifyRequest): string {
   const authorization = request.headers.authorization ?? "";
   if (authorization.toLowerCase().startsWith("bearer ")) {
     const token = authorization.slice(authorization.indexOf(" ") + 1).trim();
-    if (token) {
+    if (token && SESSION_UUID.test(token)) {
       return `bearer:${createHash("sha256").update(token).digest("hex").slice(0, 32)}`;
     }
   }
 
-  const cookie = (request.headers.cookie ?? "")
-    .split(";")
-    .map((part) => part.trim())
-    .find((part) => part.startsWith("better-auth.session_token="));
-  if (cookie) {
-    const value = cookie.slice("better-auth.session_token=".length).split(";")[0];
-    if (value) {
-      return `cookie:${createHash("sha256").update(value).digest("hex").slice(0, 32)}`;
+  const cookieParts = (request.headers.cookie ?? "").split(";").map((part) => part.trim());
+  for (const name of SESSION_COOKIE_NAMES) {
+    const match = cookieParts.find((part) => part.startsWith(name));
+    if (match) {
+      const value = match.slice(name.length).split(";")[0];
+      if (value) {
+        return `cookie:${createHash("sha256").update(value).digest("hex").slice(0, 32)}`;
+      }
     }
   }
 
@@ -262,6 +282,13 @@ function registerBetterAuthRoutes(
       rateLimit: {
         max: authMax,
         timeWindow: "1 minute",
+        // Credential POSTs are PRE-auth: there is no trusted principal yet, and the
+        // Authorization/Cookie headers are fully attacker-controlled. Key on the peer IP
+        // (C1 decision). This MUST be set explicitly: a per-route config.rateLimit with no
+        // keyGenerator inherits the GLOBAL keyGenerator (authPrincipalRateLimitKey), which
+        // would let an attacker vary `Authorization: Bearer <junk-N>` to mint a fresh bucket
+        // per request and fully bypass the sign-in brute-force throttle (OTNR-P4 #122 / C1).
+        keyGenerator: (req: FastifyRequest) => `ip:${req.ip}`,
         allowList: (req: FastifyRequest) => {
           if (req.method !== "POST") return true;
           // Decode percent-encoded path before matching to close the %65mail bypass.
