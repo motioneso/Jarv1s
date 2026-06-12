@@ -39,12 +39,17 @@ export interface UserDataExportTables {
   readonly briefingDefinitions: readonly ExportRow[];
   readonly briefingRuns: readonly ExportRow[];
   readonly calendarEvents: readonly ExportRow[];
+  readonly chatMemoryFacts: readonly ExportRow[];
   readonly chatMessages: readonly ExportRow[];
   readonly chatThreads: readonly ExportRow[];
+  readonly commitments: readonly ExportRow[];
   readonly connectorAccounts: readonly ExportRow[];
   readonly emailMessages: readonly ExportRow[];
+  readonly entities: readonly ExportRow[];
+  readonly memoryChunks: readonly ExportRow[];
   readonly notificationReads: readonly ExportRow[];
   readonly notifications: readonly ExportRow[];
+  readonly preferences: readonly ExportRow[];
   readonly resourceGrants: readonly ExportRow[];
   readonly taskActivity: readonly ExportRow[];
   readonly tasks: readonly ExportRow[];
@@ -126,7 +131,12 @@ async function readExportTables(
     chatThreads: await readRows(scopedDb.db, chatThreadsQuery(userId)),
     chatMessages: await readRows(scopedDb.db, chatMessagesQuery(userId)),
     briefingDefinitions: await readRows(scopedDb.db, briefingDefinitionsQuery(userId)),
-    briefingRuns: await readRows(scopedDb.db, briefingRunsQuery(userId))
+    briefingRuns: await readRows(scopedDb.db, briefingRunsQuery(userId)),
+    memoryChunks: await readRows(scopedDb.db, memoryChunksQuery(userId)),
+    chatMemoryFacts: await readRows(scopedDb.db, chatMemoryFactsQuery(userId)),
+    commitments: await readRows(scopedDb.db, commitmentsQuery(userId)),
+    entities: await readRows(scopedDb.db, entitiesQuery(userId)),
+    preferences: await readRows(scopedDb.db, preferencesQuery(userId))
   };
 }
 
@@ -475,6 +485,98 @@ function briefingRunsQuery(userId: string) {
     FROM app.briefing_runs
     WHERE owner_user_id = ${userId}::uuid
     ORDER BY created_at, id
+  `;
+}
+
+function memoryChunksQuery(userId: string) {
+  return sql<Record<string, unknown>>`
+    SELECT
+      id::text AS id,
+      owner_user_id::text AS "ownerUserId",
+      source_kind AS "sourceKind",
+      source_path AS "sourcePath",
+      line_start AS "lineStart",
+      line_end AS "lineEnd",
+      text,
+      updated_at AS "updatedAt"
+    FROM app.memory_chunks
+    WHERE owner_user_id = ${userId}::uuid
+    ORDER BY source_path, line_start, id
+  `;
+}
+
+function chatMemoryFactsQuery(userId: string) {
+  return sql<Record<string, unknown>>`
+    SELECT
+      id::text AS id,
+      owner_user_id::text AS "ownerUserId",
+      category,
+      content,
+      source_thread_id::text AS "sourceThreadId",
+      importance,
+      status,
+      superseded_at AS "supersededAt",
+      created_at AS "createdAt",
+      updated_at AS "updatedAt"
+    FROM app.chat_memory_facts
+    WHERE owner_user_id = ${userId}::uuid
+    ORDER BY created_at, id
+  `;
+}
+
+function commitmentsQuery(userId: string) {
+  return sql<Record<string, unknown>>`
+    SELECT
+      id::text AS id,
+      owner_user_id::text AS "ownerUserId",
+      title,
+      counterparty,
+      due_at AS "dueAt",
+      status::text,
+      provenance::text,
+      source_kind::text AS "sourceKind",
+      source_ref AS "sourceRef",
+      surfaced_state AS "surfacedState",
+      life_area AS "lifeArea",
+      created_at AS "createdAt",
+      updated_at AS "updatedAt"
+    FROM app.commitments
+    WHERE owner_user_id = ${userId}::uuid
+    ORDER BY created_at, id
+  `;
+}
+
+function entitiesQuery(userId: string) {
+  return sql<Record<string, unknown>>`
+    SELECT
+      id::text AS id,
+      owner_user_id::text AS "ownerUserId",
+      type::text,
+      name,
+      attributes,
+      provenance::text,
+      vault_note_path AS "vaultNotePath",
+      connector_refs AS "connectorRefs",
+      life_area AS "lifeArea",
+      created_at AS "createdAt",
+      updated_at AS "updatedAt"
+    FROM app.entities
+    WHERE owner_user_id = ${userId}::uuid
+    ORDER BY created_at, id
+  `;
+}
+
+function preferencesQuery(userId: string) {
+  return sql<Record<string, unknown>>`
+    SELECT
+      id::text AS id,
+      owner_user_id::text AS "ownerUserId",
+      key,
+      value_json AS "valueJson",
+      updated_at AS "updatedAt"
+    FROM app.preferences
+    WHERE owner_user_id = ${userId}::uuid
+    ORDER BY key, id
   `;
 }
 

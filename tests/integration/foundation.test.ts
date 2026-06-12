@@ -214,24 +214,64 @@ describe("MVP foundation scaffold", () => {
     expect(item).toBeUndefined();
   });
 
-  it("allows probe access through a view share", async () => {
-    // userA owns a probe row; share 'view' to userB so the new owner-or-share
-    // policy grants userB SELECT access.
-    // NOTE: this share persists for the remainder of the suite (no teardown); no later test asserts userB cannot see itemAOwnPrivate.
-    await dataContext.withDataContext(
-      { actorUserId: ids.userA, requestId: "request:share-setup" },
-      async (scopedDb) => {
-        await sql`
-          insert into app.shares
-            (resource_type, resource_id, owner_user_id, grantee_user_id, level)
-          values
-            ('rls_probe_item', ${ids.itemAOwnPrivate}::uuid, ${ids.userA}::uuid, ${ids.userB}::uuid, 'view')
-        `.execute(scopedDb.db);
-      }
-    );
+  describe("transient view share (isolated)", () => {
+    afterAll(async () => {
+      // Delete only the specific share created by this test; the beforeAll-seeded
+      // share for itemBGrantedToA (resource_id = ids.itemBGrantedToA) is untouched.
+      await dataContext.withDataContext(
+        { actorUserId: ids.userA, requestId: "request:share-teardown" },
+        async (scopedDb) => {
+          await scopedDb.db
+            .deleteFrom("app.shares")
+            .where("resource_type", "=", "rls_probe_item")
+            .where("resource_id", "=", ids.itemAOwnPrivate)
+            .where("grantee_user_id", "=", ids.userB)
+            .execute();
+        }
+      );
+    });
 
-    const visibleToB = await dataContext.withDataContext(
-      { actorUserId: ids.userB, requestId: "request:user-b" },
+    it("allows probe access through a view share", async () => {
+      // userA owns a probe row; share 'view' to userB so the new owner-or-share
+      // policy grants userB SELECT access.
+      await dataContext.withDataContext(
+        { actorUserId: ids.userA, requestId: "request:share-setup" },
+        async (scopedDb) => {
+          await sql`
+            insert into app.shares
+              (resource_type, resource_id, owner_user_id, grantee_user_id, level)
+            values
+              ('rls_probe_item', ${ids.itemAOwnPrivate}::uuid, ${ids.userA}::uuid, ${ids.userB}::uuid, 'view')
+          `.execute(scopedDb.db);
+        }
+      );
+
+      const visibleToB = await dataContext.withDataContext(
+        { actorUserId: ids.userB, requestId: "request:user-b" },
+        (scopedDb) =>
+          scopedDb.db
+            .selectFrom("app.rls_probe_items")
+            .selectAll()
+            .where("id", "=", ids.itemAOwnPrivate)
+            .executeTakeFirst()
+      );
+
+      expect(visibleToB?.id).toBe(ids.itemAOwnPrivate);
+    });
+  });
+
+  it("share isolation: seeded itemBGrantedToA survives and transient itemAOwnPrivate share is gone", async () => {
+    // (a) The teardown in the transient-share describe deletes only the itemAOwnPrivate
+    // share — the beforeAll-seeded itemBGrantedToA share must remain, so userA still sees it.
+    const seededStillVisible = await dataContext.withDataContext(userAContext(), (scopedDb) =>
+      repository.getById(scopedDb, ids.itemBGrantedToA)
+    );
+    expect(seededStillVisible?.id).toBe(ids.itemBGrantedToA);
+
+    // (b) The transient share for itemAOwnPrivate was removed — userB must no longer see it.
+    // If the targeted afterAll delete silently fails or its where-clause drifts, this fails.
+    const transientGone = await dataContext.withDataContext(
+      { actorUserId: ids.userB, requestId: "request:user-b-isolation" },
       (scopedDb) =>
         scopedDb.db
           .selectFrom("app.rls_probe_items")
@@ -239,8 +279,7 @@ describe("MVP foundation scaffold", () => {
           .where("id", "=", ids.itemAOwnPrivate)
           .executeTakeFirst()
     );
-
-    expect(visibleToB?.id).toBe(ids.itemAOwnPrivate);
+    expect(transientGone).toBeUndefined();
   });
 
   it("does not let an instance admin read another user's private row by role alone", async () => {
