@@ -391,6 +391,58 @@ describe("Briefings module M6 read-only scheduled summaries", () => {
     }
   });
 
+  it("dedupes concurrent run-now submits sharing an idempotency key (#150)", async () => {
+    // A double-submit (retry / double-click) before the worker consumes must
+    // collapse to ONE queued job. pg-boss returns null on the singletonKey
+    // collision; the route surfaces that as 409 (already queued), not a 500.
+    const definition = await dataContext.withDataContext(userAContext(), (scopedDb) =>
+      repository.createDefinition(scopedDb, {
+        title: "Idempotency briefing",
+        selectedToolNames: ["tasks.list"]
+      })
+    );
+    const idempotencyKey = "briefing-idempotency-dedupe-test";
+
+    const first = await server.inject({
+      method: "POST",
+      url: `/api/briefings/definitions/${definition.id}/run`,
+      headers: userAHeaders(),
+      payload: { idempotencyKey }
+    });
+    const second = await server.inject({
+      method: "POST",
+      url: `/api/briefings/definitions/${definition.id}/run`,
+      headers: userAHeaders(),
+      payload: { idempotencyKey }
+    });
+
+    expect(first.statusCode).toBe(202);
+    expect(first.json<{ jobId: string }>().jobId).toBeTruthy();
+    expect(second.statusCode).toBe(409);
+    expect(second.json()).toEqual({
+      error: "A briefing run with this idempotency key is already queued or running"
+    });
+
+    const client = new Client({ connectionString: connectionStrings.bootstrap });
+    await client.connect();
+    try {
+      const counted = await client.query<{ count: string }>(
+        `
+          SELECT count(*) AS count
+          FROM pgboss.job_common
+          WHERE name = $1 AND data->>'idempotencyKey' = $2
+        `,
+        [BRIEFINGS_RUN_QUEUE, idempotencyKey]
+      );
+      expect(counted.rows[0]?.count).toBe("1");
+    } finally {
+      await client.end();
+    }
+
+    // Drain the single queued job so it can't leak into later worker assertions.
+    await handleNextBriefingJob(workerBoss);
+  });
+
   it("does not let a User A worker job run User B's private briefing", async () => {
     const resultPromise = handleNextBriefingJob(workerBoss);
 

@@ -140,20 +140,33 @@ export function registerBriefingsRoutes(
         }
 
         // A client-supplied idempotency key must actually dedupe the job, not just
-        // ride along in the payload (#150): pg-boss only keeps one job per queue in a
-        // non-terminal state for a given singletonKey, so a double-submit (retry, double
-        // click) collapses to a single run. Namespace by definition id so one
-        // definition's key can never suppress another definition's run.
-        const jobId = await sendJob(
-          dependencies.boss,
-          BRIEFINGS_RUN_QUEUE,
-          payload,
-          body.idempotencyKey
-            ? { singletonKey: `${definition.id}:${body.idempotencyKey}` }
-            : undefined
-        );
+        // ride along in the payload (#150). The BRIEFINGS_RUN_QUEUE uses the
+        // `exclusive` policy, so pg-boss keeps at most one job per (queue,
+        // singletonKey) across all non-terminal states — a double-submit (retry,
+        // double-click) collapses to a single run. Namespace by definition id so one
+        // definition's key can never suppress another's. A run WITHOUT an idempotency
+        // key gets a unique per-run singletonKey (the runId) so it never falsely
+        // collides — only an explicit, repeated key dedupes.
+        const singletonKey = body.idempotencyKey
+          ? `${definition.id}:key:${body.idempotencyKey}`
+          : `${definition.id}:run:${runId}`;
+        const jobId = await sendJob(dependencies.boss, BRIEFINGS_RUN_QUEUE, payload, {
+          singletonKey
+        });
 
         if (!jobId) {
+          // With an idempotency key, a null jobId means the singletonKey collided —
+          // the prior submit is still queued or running, so this is the dedupe path
+          // (#150), surfaced as 409. We do NOT return the fresh runId: the caller's
+          // run is the one already in flight, not this one. A keyless run uses a
+          // unique singletonKey and so can only get null on a genuine enqueue
+          // failure → 500.
+          if (body.idempotencyKey) {
+            throw new HttpError(
+              409,
+              "A briefing run with this idempotency key is already queued or running"
+            );
+          }
           throw new HttpError(500, "Briefing run could not be queued");
         }
 

@@ -2,7 +2,7 @@ import {
   PgBoss,
   type ConstructorOptions,
   type Job,
-  type QueueOptions,
+  type Queue,
   type SendOptions,
   type WorkOptions
 } from "pg-boss";
@@ -23,7 +23,7 @@ export interface RlsProbeJobPayload extends ActorScopedJobPayload {
 
 export interface QueueDefinition {
   readonly name: string;
-  readonly options?: Omit<QueueOptions, "name">;
+  readonly options?: Omit<Queue, "name">;
 }
 
 export const FOUNDATION_QUEUES: readonly QueueDefinition[] = [
@@ -143,8 +143,28 @@ export async function migratePgBoss(
   try {
     for (const queue of queues) {
       const existing = await boss.getQueue(queue.name);
+      const desiredPolicy = queue.options?.policy ?? "standard";
+      const currentPolicy = existing?.policy ?? "standard";
 
-      if (existing) {
+      if (existing && currentPolicy !== desiredPolicy) {
+        // A queue's policy cannot be changed in place: pg-boss's UpdateQueueOptions
+        // omits `policy`, and the singletonKey dedup index is policy-filtered
+        // (job_iN ... WHERE policy = '<policy>'), so a job only dedupes if its row's
+        // policy column matches. The only way to flip policy is to drop and recreate
+        // the queue. Safe in this pre-prod project where queued jobs are ephemeral;
+        // logged so the one-time drop of any in-flight jobs is visible.
+        process.stderr.write(
+          `${JSON.stringify({
+            level: "warn",
+            event: "pgboss.queue_policy_recreate",
+            queue: queue.name,
+            from: currentPolicy,
+            to: desiredPolicy
+          })}\n`
+        );
+        await boss.deleteQueue(queue.name);
+        await boss.createQueue(queue.name, queue.options);
+      } else if (existing) {
         await boss.updateQueue(queue.name, queue.options);
       } else {
         await boss.createQueue(queue.name, queue.options);
