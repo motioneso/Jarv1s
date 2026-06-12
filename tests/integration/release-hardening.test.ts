@@ -395,6 +395,14 @@ describe("M7 release hardening lifecycle scripts", () => {
         }
       ])
     );
+    // OTNR #168 LOW — FORCE-RLS regression: app.users must have RLS ENABLED
+    // (relrowsecurity = true) but NOT FORCED (relforcerowsecurity = false).
+    // Better-auth's SECURITY DEFINER functions run as jarvis_migration_owner (the
+    // table owner), which bypasses RLS only when FORCE is absent.  Every other
+    // product table in the app schema must have FORCE RLS — asserted above via
+    // protectedTables (forceRls: true) and the dynamic coverage check in
+    // collectFailures (scripts/audit-release-hardening.ts), which fails if any
+    // new table lacks FORCE RLS without an explicit exemption entry.
     expect(report.authOwnerTable).toEqual(
       expect.arrayContaining([
         {
