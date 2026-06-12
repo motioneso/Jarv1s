@@ -10,6 +10,7 @@ import {
   DataContextRunner,
   createDatabase,
   type AccessContext,
+  type DataContextDb,
   type JarvisDatabase
 } from "@jarv1s/db";
 import { VaultContextRunner, readVaultFile, vaultFileExists, writeVaultFile } from "@jarv1s/vault";
@@ -369,7 +370,7 @@ describe("assertDataContextDb guards — structured-state repos", () => {
   it("CommitmentsRepository.create throws on unbranded handle", async () => {
     const repo = new CommitmentsRepository();
     await expect(
-      repo.create(appDb as unknown as import("@jarv1s/db").DataContextDb, {
+      repo.create(appDb as unknown as DataContextDb, {
         title: "x",
         provenance: "volunteered"
       })
@@ -378,15 +379,15 @@ describe("assertDataContextDb guards — structured-state repos", () => {
 
   it("EntitiesRepository.listVisible throws on unbranded handle", async () => {
     const repo = new EntitiesRepository();
-    await expect(
-      repo.listVisible(appDb as unknown as import("@jarv1s/db").DataContextDb)
-    ).rejects.toThrow("Repository access requires withDataContext");
+    await expect(repo.listVisible(appDb as unknown as DataContextDb)).rejects.toThrow(
+      "Repository access requires withDataContext"
+    );
   });
 
   it("PreferencesRepository.upsert throws on unbranded handle", async () => {
     const repo = new PreferencesRepository();
-    await expect(
-      repo.upsert(appDb as unknown as import("@jarv1s/db").DataContextDb, "k", "v")
-    ).rejects.toThrow("Repository access requires withDataContext");
+    await expect(repo.upsert(appDb as unknown as DataContextDb, "k", "v")).rejects.toThrow(
+      "Repository access requires withDataContext"
+    );
   });
 });
