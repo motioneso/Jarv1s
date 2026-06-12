@@ -92,8 +92,15 @@ Unwired code that reads as live: structured-state delete-path, module-sdk inert 
 
 ### B7. React Query keys not user-scoped — **SENSITIVE (frontend data-isolation)**
 Cache keys omit the actor id → risk of cross-user cache bleed on the shared house instance.
-**Bucket:** #163 (P24 web).
-**Fix:** namespace all query keys by `actorUserId`; align with the frontend workspace-querykey memory.
+**Bucket:** #163 (P24 web). ✅ **MERGED (PR #195 @ `fbb131e`).**
+**Fix (as built — deviates from the proposal below, deliberately):** clear-on-identity-boundary in
+`apps/web/src/app.tsx` `handleAuthenticated` — `await queryClient.resetQueries()` evicts every cached
+query (incl. inactive prior-user entries) + refetches mounted identity queries under the new cookie.
+Fable QA upheld this as *strictly stronger* than per-key namespacing for this single-`QueryClient`
+SPA (fail-closed vs fail-open; no cache persister exists, so eviction is complete across reloads;
+namespacing NOT additionally required — it would only matter if `persistQueryClient` is ever added).
+~~namespace all query keys by `actorUserId`~~ (original proposal — superseded; the frontend
+workspace-querykey memory predates the single-instance house model).
 
 ### B8. Operator-script & E2E hardening — **SENSITIVE→ROUTINE**
 Operator scripts and e2e mocks have safety/coverage gaps.
@@ -203,7 +210,9 @@ Recommended order — security/RLS first, then defense-in-depth, then hygiene:
 
 **Then re-assess and continue:**
 
-6. **B7** React Query user-scoping (sensitive, frontend).
+6. **B7** React Query user-scoping (sensitive, frontend) — ✅ **MERGED (PR #195 @ `fbb131e`, Fable
+   security-QA APPROVE after one REQUEST_CHANGES round; built as clear-on-boundary `resetQueries()`,
+   not key-namespacing — Fable ruled it strictly stronger; e2e 14/14 green).** #163 resolved.
 7. **C** `validateToolInput`, `#94` TOCTOU, `x-forwarded-proto` (sensitive).
 8. **B6** dead-surface deletion (routine/sensitive).
 9. **B8** operator-script guards (`restore:db` confirm) + e2e negative-auth coverage (sensitive); script LOWs (routine).

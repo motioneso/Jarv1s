@@ -109,8 +109,24 @@ each slice inline; Fable (model:fable) substitutes for Ben at every security gat
     interval scheduler or touch-at-turn-start; one-line comment on `touchBySessionId` resurrecting an
     expired-but-unswept entry (benign — actor's own authenticated activity only). (Code-only, spine
     unchanged → **HEAD 0062**.) Main CI on `1153ee6` confirmed green (`completed/success`).
-- **▶ NEXT: B7** React Query user-scoping (sensitive, frontend). Then C-sensitive
-  (`validateToolInput`/#133 residual, #94 TOCTOU, x-forwarded-proto), B6, B8, C-routine.
+- **✅ Batch 2 / B7 MERGED** — PR #195 @ `fbb131e` (#163, P24 web). Cross-user React Query cache
+  bleed on the shared house instance closed via **clear-on-identity-boundary** in
+  `apps/web/src/app.tsx` `handleAuthenticated`: `await queryClient.resetQueries()` evicts every
+  cached query (incl. inactive prior-user entries) + refetches mounted identity queries under the
+  new cookie. Fail-closed. **Deliberate deviation from disposition's literal "namespace keys by
+  actorUserId"** — Fable QA upheld it as _strictly stronger_ for this single-`QueryClient` SPA
+  (fail-closed vs fail-open; no persister exists so eviction is complete across reloads; namespacing
+  NOT additionally required). Fable's first pass was **REQUEST_CHANGES**: the initial `clear()` +
+  `refetchQueries()` hung sign-in (query-core 5.101.0 `clear()` destroys queries _without_ notifying
+  observers → no refetch). Fixed with prescribed `resetQueries()`; `pnpm test:e2e` **14/14 green**
+  (incl. the sign-in→shell test that failed pre-fix). Code-only, spine unchanged → **HEAD 0062**.
+  Main CI on `fbb131e` green (`completed/success`, HEAD-verified before merge). B7 follow-up
+  (non-blocking, out of #163 scope): no global 401→AuthScreen handler — session-expiry leaves stale
+  view until reconnect; candidate for a later slice.
+- **▶ NEXT: C-sensitive** — `validateToolInput`/#133 residual (zod schema-validate), #94/#156
+  last-admin demote/delete TOCTOU (advisory lock / `FOR UPDATE`), #164 x-forwarded-proto trust-proxy
+  allowlist; plus #122 folded items (`/api/bootstrap/status` userCount leak → `needsBootstrap` bool
+  only; social-auth OAuth paths → `THROTTLED_AUTH_PATHS`). Then B6, B8, C-routine.
 
 ---
 
