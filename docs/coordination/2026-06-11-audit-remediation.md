@@ -73,7 +73,23 @@ Lock line: Coordinator = label `Coordinator`, stable anchor = session `515ad953-
 
 Current panes: Coordinator = sole Claude pane (session `515ad953`); codex = idle. All build/QA panes + worktrees reaped; tree is **main-only**.
 
-**🎉 AUDIT-REMEDIATION RUN COMPLETE — all slices A–I MERGED.** Every audit issue closed. Migration spine HEAD now **0058**.
+**▶ POST-A–I MED/LOW REMEDIATION (2026-06-12, continuing per Ben "nail those down before epics"):**
+Triage in `docs/audits/DISPOSITION-2026-06-12-otnr.md` (B1–B8 + C plan). Solo coordinator builds
+each slice inline; Fable (model:fable) substitutes for Ben at every security gate.
+
+- **✅ Batch 1 (security tier) MERGED** — PR #191 @ `d0e71b5`. B2 RLS hardening (migrations
+  0059–0062: admin-table ENABLE+FORCE, chat-memory `TO`-role targeting, tag-assignment ownership)
+  - C bootstrap/throttle folds. Fable APPROVED. **Migration spine HEAD now 0062.**
+- **✅ Batch 2 / B1 MERGED** — PR #192 @ `eb0391d`. `handleRouteError`/`HttpError` consolidated
+  into `@jarv1s/module-sdk`; per-module wrappers; scrubbed-500 closes the info-leak. Fable
+  APPROVED. (Code-only, spine unchanged.) Main CI: in flight at relay time → verify green.
+- **▶ NEXT: B3** raw-Kysely `requireAdmin` → DataContextDb (connectors #143, settings #156
+  residual). Then B4+B5, B7, C-sensitive, B6, B8, routine.
+
+---
+
+**🎉 A–I RUN COMPLETE — all slices A–I MERGED.** Every A–I audit issue closed. Migration spine
+HEAD was **0058** at A–I close (now 0062 after MED/LOW Batch 1).
 
 - **✅ E #189 MERGED** — squash `0baa384`. Fable security QA GREEN (0 blocking). Issues #101 #127 #141 closed. Reaped. (E code-only, spine unchanged.)
   - E non-blocking follow-ups (candidates, not blockers): (1) no direct 401/403 negative test on new revoke-sessions route (transitive via shared `assertAdminUser` + demote-403); (2) revoke-sessions writes no audit event though other lifecycle actions do; (3) `oauth.ts:46` reflects redirect `error` param into Error message (pre-existing, no secret).
