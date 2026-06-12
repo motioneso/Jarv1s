@@ -137,15 +137,19 @@ export class ConnectorsRepository {
     assertDataContextDb(scopedDb);
 
     const updates: Updateable<ConnectorAccountsTable> = {
-      updated_at: new Date(),
-      revoked_at: null
+      updated_at: new Date()
     };
 
     if (input.scopes !== undefined) {
       updates.scopes = [...input.scopes];
     }
     if (input.status !== undefined) {
+      // `status` is `Exclude<…, "revoked">`, so a provided status is always a
+      // reactivation. Clearing `revoked_at` ONLY here (not unconditionally) stops
+      // an unrelated PATCH — e.g. a scope change — from silently un-revoking a
+      // revoked account (#143). Revocation itself stays owned by revokeAccount.
       updates.status = input.status;
+      updates.revoked_at = null;
     }
     if (input.encryptedSecret !== undefined) {
       updates.encrypted_secret = input.encryptedSecret;
