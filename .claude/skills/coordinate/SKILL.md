@@ -20,10 +20,17 @@ Design: `docs/superpowers/specs/2026-06-09-dev-coordinator-design.md`.
 **Context discipline (read first):** you are the session that must NOT degrade. Never read raw
 gate logs or full diffs — delegate to a QA agent and consume its verdict. Never let a plan body or
 QA verdict body enter your context — they live on the PR; read a one-line pointer. Keep state in
-the **manifest** (your working set — forget aggressively), not your head. **Relay on countable
-events** (~80–100k tokens OR every 2–3 merges), not on a felt percentage, which is known-unreliable.
+the **manifest** (your working set — forget aggressively), not your head. **Relay on the merge
+counter** (the only trigger you can actually count — token counts are not measurable by the
+session): relay after **every security-tier merge** unconditionally; relay after **every 2
+routine/sensitive merges**. No ranges — ranges invite deferral. Track `merges_since_relay` in the
+manifest; check it at the end of Phase 3 step 6.
+**No-deferral rule:** when the relay trigger fires, the only permitted action is flush + relay.
+Remaining bookkeeping goes in the manifest continuation note — the successor closes the loop.
 **Compaction tripwire:** if you ever see a compaction summary in your own context (the harness
-compacted your prior messages), **flush the manifest + `relay` immediately — merge nothing first.**
+compacted your prior messages), you are already past safe — flush the manifest + relay
+**immediately**, **merge nothing first**. The tripwire is a backstop; the merge counter should
+fire first.
 
 ## Roles you orchestrate (skills)
 
@@ -269,6 +276,13 @@ own):
 6. **Reap** the build agent and remove its worktree (`git worktree remove`). Release any
    serialized successor now that its predecessor has landed. Update the manifest (`merged`).
 
+7. **Relay check (non-negotiable).** Increment `merges_since_relay` in the manifest. Then:
+   - **security-tier merge:** relay now. No exceptions, no "just one more."
+   - **routine/sensitive, `merges_since_relay` ≥ 2:** relay now.
+   - Otherwise: continue, but do not take on new merge work without re-checking.
+   When relay fires here, flush the manifest and invoke the self-handoff procedure below. The
+   successor picks up remaining bookkeeping from the manifest continuation note.
+
 ## Phase 4 — Reap & report
 
 - Kill spent panes to free resources; prune merged worktrees.
@@ -279,10 +293,10 @@ own):
 
 ## Coordinator self-handoff (protect the long-lived session)
 
-Relay on **countable events**, not a felt percentage: **~80–100k tokens consumed OR every 2–3
-merges**, whichever comes first. **Compaction tripwire:** if you see a compaction summary in your
-own context, you are already past safe — flush the manifest and relay **immediately**, and **merge
-nothing first**.
+Trigger: **Phase 3 step 7** fires this procedure. The merge counter (`merges_since_relay` in the
+manifest) is the only operative trigger — token counts are not measurable. The compaction tripwire
+is a backstop for when the counter fails to fire in time; if the tripwire triggers, the counter
+already failed.
 
 1. Flush the manifest fully (every agent's status/pane/branch/PR, merge order, ci_waivers, open
    escalations); add a one-line "mid-doing" continuation note. Commit it.
@@ -308,8 +322,9 @@ nothing first**.
 - **Two agents on one worktree/branch**, or assuming a migration number for a serialized spec.
 - **Letting the manifest drift** from reality — a stale manifest breaks your self-handoff.
 - **Hand-editing feature code** to "just fix it" — task the owning agent; you orchestrate.
-- **Continuing past your relay threshold** (~80–100k / 2–3 merges) — or merging after seeing a
-  compaction summary. Relay first; merge nothing.
+- **Continuing past your relay threshold** — security-tier merge = relay immediately; 2
+  routine/sensitive merges = relay immediately. Check `merges_since_relay` in Phase 3 step 7.
+  Compaction summary = relay immediately, merge nothing. No "just finish this one thing."
 
 ## Quick reference
 
@@ -328,7 +343,7 @@ nothing first**.
 | Merge + close | `gh pr merge <PR> --squash --delete-branch` · `gh issue close` · board move |
 | Security-tier merge | spawn Opus QA → `gh pr comment` verdict → Ben sign-off → merge |
 | Stay resident | `ScheduleWakeup` tick between pushes |
-| Relay trigger | ~80–100k tokens OR 2–3 merges OR compaction summary seen (then merge nothing) |
+| Relay trigger | security merge → relay immediately; 2 routine/sensitive merges → relay; compaction seen → relay, merge nothing |
 | Escalate to Opus | `Agent(model: "opus", prompt: "<question + context>")` — relay compact verdict |
 
 See also the design spec and CLAUDE.md (Hard Invariants, GitHub tracking, coordinating sessions).
