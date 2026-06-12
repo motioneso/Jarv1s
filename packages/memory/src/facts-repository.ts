@@ -52,7 +52,14 @@ export class ChatMemoryFactsRepository {
       RETURNING *
     `.execute(scopedDb.db);
 
-    return this.#mapRow(result.rows[0]!);
+    const row = result.rows[0];
+    if (!row) {
+      // An INSERT ... RETURNING * always yields the inserted row, so a missing
+      // row means the statement was silently rewritten (e.g. a future RLS policy
+      // blocking the write) — surface it instead of masking it behind a `!` (#146).
+      throw new Error("insertFact returned no row");
+    }
+    return this.#mapRow(row);
   }
 
   async listActiveFacts(scopedDb: DataContextDb, ownerUserId: string): Promise<MemoryFact[]> {

@@ -24,6 +24,7 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 
 import type { AccessContext } from "@jarv1s/db";
+import { parsePositiveIntEnv } from "@jarv1s/shared";
 
 import { ChatTurnInFlightError } from "./live/chat-session-manager.js";
 import type { ChatSessionRuntime } from "./live/runtime.js";
@@ -33,7 +34,7 @@ import type { ChatSessionRuntime } from "./live/runtime.js";
 // capped (they will get a 401 from the handler before consuming any AI spend).
 //
 // Override the limit via env: JARVIS_RL_CHAT_MAX=<n> (requests per minute, default 20).
-const CHAT_MAX = Number(process.env.JARVIS_RL_CHAT_MAX ?? 20);
+const CHAT_MAX = parsePositiveIntEnv(process.env.JARVIS_RL_CHAT_MAX, 20);
 
 function chatRateLimitKey(request: FastifyRequest): string {
   const cookie = (request.headers.cookie ?? "")

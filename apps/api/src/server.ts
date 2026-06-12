@@ -20,7 +20,7 @@ import {
   registerBuiltInApiRoutes,
   type ChatEngineFactory
 } from "@jarv1s/module-registry";
-import { listModulesRouteSchema, type ModuleDto } from "@jarv1s/shared";
+import { listModulesRouteSchema, parsePositiveIntEnv, type ModuleDto } from "@jarv1s/shared";
 
 export interface CreateApiServerOptions {
   readonly appDb?: Kysely<JarvisDatabase>;
@@ -57,7 +57,7 @@ export function createApiServer(options: CreateApiServerOptions = {}) {
       logger: server.log
     });
   const ownsAuthRuntime = options.authRuntime === undefined;
-  const AUTH_MAX = Number(process.env.JARVIS_RL_AUTH_MAX ?? 10);
+  const AUTH_MAX = parsePositiveIntEnv(process.env.JARVIS_RL_AUTH_MAX, 10);
 
   // Security headers via @fastify/helmet.
   // This API serves JSON only, so CSP is maximally restrictive (default-src 'none').
@@ -105,7 +105,7 @@ export function createApiServer(options: CreateApiServerOptions = {}) {
   // AI-tools keep their stricter per-principal limits, and /api/auth/* pins its own IP-based
   // key (credential POSTs are pre-auth — see registerBetterAuthRoutes). Health probes are
   // exempt via allowList.
-  const GLOBAL_RL_MAX = Number(process.env.JARVIS_RL_GLOBAL_MAX ?? 2000);
+  const GLOBAL_RL_MAX = parsePositiveIntEnv(process.env.JARVIS_RL_GLOBAL_MAX, 2000);
   server.register(rateLimit, {
     global: true,
     max: GLOBAL_RL_MAX,
