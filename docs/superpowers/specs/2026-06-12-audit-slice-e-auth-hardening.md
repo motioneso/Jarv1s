@@ -53,6 +53,7 @@ Kysely transaction. This inner `transaction().execute()` block must be **replace
 a handle that is already inside a transaction.
 
 **The correct API call:**
+
 ```typescript
 // DataContextRunner is passed in from server.ts — it is an instance, not a static class.
 // withDataContext is an instance method:
@@ -70,10 +71,10 @@ await runner.withDataContext(
     await dependencies.settings.recordAuditEvent(scopedDb, {
       actorUserId: user.id,
       action: "bootstrap_owner_created",
-      targetType: "user",     // NOT NULL in schema — always supply
+      targetType: "user", // NOT NULL in schema — always supply
       targetId: user.id,
-      metadata: {},           // was { workspaceId } — Slice B changed it to {}
-      requestId: `bootstrap:${user.id}`,
+      metadata: {}, // was { workspaceId } — Slice B changed it to {}
+      requestId: `bootstrap:${user.id}`
     });
   }
 );
@@ -97,7 +98,7 @@ export async function recordAuditEvent(
   event: {
     actorUserId: string;
     action: string;
-    targetType: string;   // NOT NULL in app.admin_audit_events schema — always required
+    targetType: string; // NOT NULL in app.admin_audit_events schema — always required
     targetId: string;
     metadata: Record<string, unknown>;
     requestId: string;
@@ -118,10 +119,12 @@ package public API), NOT by importing `SettingsRepository` directly or querying
 ### #101 + #127 — Dependency wiring
 
 `packages/auth/src/index.ts` currently receives `appDb`. After this change it must also receive:
+
 - A `DataContextRunner` instance (`runner`) — instance method, not static
 - A `settings.recordAuditEvent` reference (or a `settings` dependency object)
 
 **Options — pick one and specify in the PR:**
+
 1. Extend the auth init function signature: `initAuth({ appDb, runner, settings: { recordAuditEvent } })`
 2. Add fields to the existing auth deps object
 

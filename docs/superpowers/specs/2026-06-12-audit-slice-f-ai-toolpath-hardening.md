@@ -49,7 +49,7 @@ Extend `SessionIdentity` in `packages/ai/src/gateway/session-tokens.ts:3-6` with
 export interface SessionIdentity {
   actorUserId: string;
   chatSessionId: string;
-  allowedToolNames: Set<string> | null;  // null = unrestricted (non-chat and non-MCP paths)
+  allowedToolNames: Set<string> | null; // null = unrestricted (non-chat and non-MCP paths)
 }
 ```
 
@@ -58,11 +58,11 @@ token-create call at ≈ line 45), pass the tools/list response set as the initi
 
 ```typescript
 const tools = await deps.gateway.executableTools(actorUserId);
-const allowedNames = new Set(tools.map(t => t.tool.name));
+const allowedNames = new Set(tools.map((t) => t.tool.name));
 const token = deps.tokens.mint({ actorUserId, chatSessionId, allowedToolNames: allowedNames });
 ```
 
-**Tool name mapping (mcp__jarvis__* pattern):** the MCP client receives tool names in
+**Tool name mapping (mcp**jarvis**\* pattern):** the MCP client receives tool names in
 `mcp__<server>__<tool>` format per MCP convention. Verify whether `executableTools` returns
 names in this format or in the bare tool name. If bare: transform to `mcp__jarvis__<name>`
 for the allowedNames set, or store both. State explicitly in the PR which format the set uses.
@@ -105,7 +105,7 @@ const validatedInput = validateToolInput(found.tool.inputSchema, rawInput);
 const result = await manifestTool.execute!(scopedDb, validatedInput, {
   actorUserId,
   requestId,
-  chatSessionId: "",   // REST path has no chat session; "" is correct here
+  chatSessionId: "" // REST path has no chat session; "" is correct here
 });
 ```
 
@@ -140,11 +140,15 @@ The `definition.owner_user_id` is in scope in `generateSummary` (it's on the bri
 definition record) and provably equals the actor — use it:
 
 ```typescript
-await manifestTool.execute(scopedDb, {}, {
-  actorUserId: definition.owner_user_id,
-  requestId: `pgboss:${job.id}`,   // job.id from the pg-boss job context, NOT actorUserId
-  chatSessionId: "",
-});
+await manifestTool.execute(
+  scopedDb,
+  {},
+  {
+    actorUserId: definition.owner_user_id,
+    requestId: `pgboss:${job.id}`, // job.id from the pg-boss job context, NOT actorUserId
+    chatSessionId: ""
+  }
+);
 ```
 
 `job.id` is the pg-boss job ID, available on the job object at `packages/briefings/src/jobs.ts:76`.
@@ -164,6 +168,7 @@ loaded from the DB in the same function and should carry `owner_user_id`.
 `listToolsForActor(actorUserId: string)`.
 
 **In `packages/ai/src/gateway/gateway.ts`:**
+
 ```typescript
 listToolsForActor(actorUserId: string): ToolDto[] {
   // executableTools is already actor-scoped
@@ -176,6 +181,7 @@ If `executableTools` is async, `listToolsForActor` is async too. Check the exist
 signature before deciding sync vs async.
 
 **In `packages/chat/src/mcp-transport.ts`:**
+
 ```typescript
 if (method === "tools/list") {
   // actorUserId is already in identity — captured from token at line 70
@@ -183,7 +189,7 @@ if (method === "tools/list") {
   return reply.code(200).send({
     jsonrpc: "2.0",
     id,
-    result: { tools: tools.map(dtoToMcpTool) },
+    result: { tools: tools.map(dtoToMcpTool) }
   });
 }
 ```

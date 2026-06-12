@@ -44,7 +44,7 @@ Five infrastructure hardening issues that share no overlap with application busi
   `boss.send(...)` call site is an unguarded send path.
 - **#174 — pgboss blanket `ALL TABLES` grant:**
   `infra/postgres/grants/0001_pgboss_runtime_grants.sql` grants `SELECT, INSERT, UPDATE, DELETE
-  ON ALL TABLES IN SCHEMA pgboss` to both roles. The pgboss schema has ~20 tables; each role
+ON ALL TABLES IN SCHEMA pgboss` to both roles. The pgboss schema has ~20 tables; each role
   needs only a subset. **Critically: pg-boss v12 reads `pgboss.queue` on every `boss.send()` and
   `boss.work()` call** — this table must be in the grant matrix. Narrowing without including
   `pgboss.queue` breaks all job operations.
@@ -64,7 +64,7 @@ wrapper is the prevention layer.
 export async function sendJob<T extends ActorScopedJobPayload>(
   boss: PgBoss,
   queue: string,
-  payload: T,
+  payload: T
 ): Promise<string | null> {
   assertMetadataOnlyPayload(payload);
   return boss.send(queue, payload);
@@ -74,15 +74,18 @@ export async function sendJob<T extends ActorScopedJobPayload>(
 **All raw `boss.send(` call sites must be migrated to `sendJob(boss, ...)`.** Build agent: grep
 for `boss.send(` across all packages to enumerate call sites. Known call sites (verify against
 actual code):
+
 - `packages/chat/src/persistence.ts:137-138`
 - `packages/tasks/src/routes.ts:270`
 - `packages/briefings/src/routes.ts:136`
 - Any others found by `grep -rn "boss\.send(" packages/ --include="*.ts"`
 
 After migration, add a lint/grep gate to the PR exit criteria:
+
 ```
 grep -rn "boss\.send(" packages/ --include="*.ts"
 ```
+
 This must return zero matches (all `boss.send` calls replaced by `sendJob`).
 
 ### #157 — `assertMetadataOnlyPayload` guard
@@ -91,11 +94,11 @@ This must return zero matches (all `boss.send` calls replaced by `sendJob`).
 
 ```typescript
 function assertMetadataOnlyPayload(payload: Record<string, unknown>): void {
-  const forbidden = Object.keys(payload).filter(k => !ALLOWED_PAYLOAD_KEYS.has(k));
+  const forbidden = Object.keys(payload).filter((k) => !ALLOWED_PAYLOAD_KEYS.has(k));
   if (forbidden.length > 0) {
     throw new Error(
       `Job payload contains non-metadata keys: ${forbidden.join(", ")}. ` +
-      `Payloads must contain only: ${[...ALLOWED_PAYLOAD_KEYS].join(", ")}`
+        `Payloads must contain only: ${[...ALLOWED_PAYLOAD_KEYS].join(", ")}`
     );
   }
 }
@@ -137,10 +140,11 @@ include the bootstrap (`infra/postgres/bootstrap/`) or grants (`infra/postgres/g
 directories — those use `runSqlFiles` not the versioned migration runner.
 
 **The assertion:**
+
 ```typescript
-const versions = allFiles.map(f => f.version);
+const versions = allFiles.map((f) => f.version);
 const seen = new Set<string>();
-const duplicates = versions.filter(v => seen.size === seen.add(v).size);
+const duplicates = versions.filter((v) => seen.size === seen.add(v).size);
 if (duplicates.length > 0) {
   throw new Error(
     `Duplicate migration version numbers across directories: ${[...new Set(duplicates)].join(", ")}`
@@ -220,16 +224,16 @@ these for completed-job archival.
 Starting grant matrix (build agent: verify by running `\dt pgboss.*` on test DB and
 cross-referencing actual usage in `packages/jobs/` and `packages/db/`):
 
-| Table | `jarvis_app_runtime` | `jarvis_worker_runtime` |
-|---|---|---|
-| `pgboss.job` | SELECT, INSERT | SELECT, INSERT, UPDATE |
-| `pgboss.queue` | SELECT | SELECT |
-| `pgboss.schedule` | SELECT, INSERT, UPDATE, DELETE | — |
-| `pgboss.subscription` | SELECT | SELECT |
-| `pgboss.version` | SELECT | SELECT |
-| `pgboss.job_archive` | — | SELECT, INSERT |
-| `pgboss.partition` | — | SELECT, INSERT |
-| All other pgboss tables | — | — |
+| Table                   | `jarvis_app_runtime`           | `jarvis_worker_runtime` |
+| ----------------------- | ------------------------------ | ----------------------- |
+| `pgboss.job`            | SELECT, INSERT                 | SELECT, INSERT, UPDATE  |
+| `pgboss.queue`          | SELECT                         | SELECT                  |
+| `pgboss.schedule`       | SELECT, INSERT, UPDATE, DELETE | —                       |
+| `pgboss.subscription`   | SELECT                         | SELECT                  |
+| `pgboss.version`        | SELECT                         | SELECT                  |
+| `pgboss.job_archive`    | —                              | SELECT, INSERT          |
+| `pgboss.partition`      | —                              | SELECT, INSERT          |
+| All other pgboss tables | —                              | —                       |
 
 **The REVOKE + re-GRANT must be idempotent.** Use `REVOKE IF GRANTED` pattern or plain REVOKE
 (which is a no-op if not granted in Postgres). Do NOT use `CREATE OR REPLACE` for grants.

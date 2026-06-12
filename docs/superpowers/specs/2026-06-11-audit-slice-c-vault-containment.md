@@ -21,7 +21,7 @@ Two independent containment gaps in `packages/vault/src/`, confirmed by Fable 5 
 
 - **#130** — `resolveVaultPath` uses `resolve()` + string-prefix check only (lexical). A
   symlink placed inside a user's vault that points outside (e.g., `<vaultRoot>/link ->
-  /etc/passwd`) passes the containment check because the symlink's own path is within the
+/etc/passwd`) passes the containment check because the symlink's own path is within the
   root. Reading or writing through it escapes the vault boundary.
 
 ---
@@ -36,9 +36,7 @@ Add a guard at the top of `withVaultContext` before constructing `vaultRoot`:
 
 ```typescript
 if (!accessContext.actorUserId || !accessContext.actorUserId.trim()) {
-  throw new VaultContextError(
-    "withVaultContext: actorUserId must be non-empty"
-  );
+  throw new VaultContextError("withVaultContext: actorUserId must be non-empty");
 }
 ```
 
@@ -159,7 +157,9 @@ describe("symlink escape containment (#130)", () => {
     await runner.withVaultContext({ actorUserId: "user-b", requestId: "r1" }, async (ctx) => {
       const linkPath = join(ctx.vaultRoot, "escape-dir");
       await symlink(outsideDir, linkPath);
-      await expect(writeVaultFile(ctx, "escape-dir/evil.txt", "pwned")).rejects.toThrow(VaultPathError);
+      await expect(writeVaultFile(ctx, "escape-dir/evil.txt", "pwned")).rejects.toThrow(
+        VaultPathError
+      );
     });
   });
 });

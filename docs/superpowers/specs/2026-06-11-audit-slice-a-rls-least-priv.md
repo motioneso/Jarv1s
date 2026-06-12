@@ -66,7 +66,7 @@ via trigger), keeping the house pattern uniform for immutable-unless-admin colum
 callable by `jarvis_app_runtime` before the trigger body references it.
 
 **Bootstrap exemption (discovered during build):** `packages/auth/src/index.ts`
-(`bootstrapFirstJarvisUser`) sets the actor GUC to the new user's ID *before* promoting them
+(`bootstrapFirstJarvisUser`) sets the actor GUC to the new user's ID _before_ promoting them
 to admin. The NULL guard therefore does not protect the bootstrap path — `current_actor_user_id()`
 IS NOT NULL, but `current_actor_is_admin()` returns false (not yet admin). The trigger must add:
 `AND NOT (NEW.is_instance_admin = true AND app.count_all_users() = 1)`. This is the exact

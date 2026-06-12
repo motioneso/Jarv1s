@@ -71,6 +71,7 @@ functions show how to structure owner-filtered export queries with sensitive fie
 
 **Tests:** Extend `tests/integration/release-hardening.test.ts` (lines 44–80 cover existing
 export assertions) with new assertions for each of the five added sections:
+
 - Output JSON contains `memoryChunks`, `chatMemoryFacts`, `commitments`, `entities`, `preferences` keys
 - Negative assertions: no `embedding` key appears in any chunk row
 - Negative assertions: no `content_hash` key appears
@@ -83,16 +84,18 @@ release-hardening suite so the gate catches regressions.
 **Location:** `packages/notifications/src/routes.ts:111-117`.
 
 **Current:**
+
 ```typescript
 function handleRouteError(error: unknown, reply: FastifyReply) {
   if (error instanceof Error && error.message.includes("Session")) {
     return reply.code(401).send({ error: "Session is missing or expired" });
   }
-  return reply.code(401).send({ error: "Session is missing or expired" });  // dead, always 401
+  return reply.code(401).send({ error: "Session is missing or expired" }); // dead, always 401
 }
 ```
 
 **Fix:**
+
 ```typescript
 function handleRouteError(error: unknown, reply: FastifyReply) {
   if (error instanceof Error && error.message === "Session is missing or expired") {
@@ -102,7 +105,7 @@ function handleRouteError(error: unknown, reply: FastifyReply) {
     return reply.code(401).send({ error: "Session is missing or expired" });
   }
   // Unexpected errors: log and return generic 500
-  throw error;   // let Fastify's default handler log it and return 500
+  throw error; // let Fastify's default handler log it and return 500
 }
 ```
 
@@ -124,6 +127,7 @@ dead-branch pattern in the same PR if present.
 **Create path (≈ lines 95–127):**
 
 Before assigning `listId`, verify the actor owns that list:
+
 ```typescript
 if (input.listId) {
   const owned = await this.listsRepository.isOwnedByActor(scopedDb, input.listId);
@@ -132,6 +136,7 @@ if (input.listId) {
 ```
 
 Before assigning `parentTaskId`, verify the **actor owns** the parent task (not just visibility):
+
 ```typescript
 if (input.parentTaskId) {
   const parentOwned = await scopedDb.db
@@ -151,6 +156,7 @@ Same checks: if `input.listId` changes, verify ownership. If `input.parentTaskId
 verify ownership (not visibility).
 
 **`isOwnedByActor` method to add in `packages/tasks/src/lists.ts`** (class `TaskListsRepository`):
+
 ```typescript
 async isOwnedByActor(scopedDb: DataContextDb, listId: string): Promise<boolean> {
   assertDataContextDb(scopedDb);
@@ -166,6 +172,7 @@ async isOwnedByActor(scopedDb: DataContextDb, listId: string): Promise<boolean> 
 **Error → HTTP mapping:** tasks routes have a local `HttpError` class (declared at
 `packages/tasks/src/routes.ts:612-619`). The repository cannot throw it directly (it would
 create a circular dep or force an import from routes). Options — pick one:
+
 1. Move `HttpError` to `packages/tasks/src/errors.ts` and import it in both repository and routes.
 2. Throw a plain `Error` with a specific message (e.g., `"List not found or not accessible"`),
    then add a message-match branch in `handleRouteError` (routes.ts:598-610) mapping it to 404.
