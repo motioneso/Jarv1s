@@ -24,7 +24,7 @@ export interface MigrationRunResult {
   readonly skipped: AppliedMigration[];
 }
 
-interface MigrationFile {
+export interface MigrationFile {
   readonly version: string;
   readonly name: string;
   readonly checksum: string;
@@ -112,6 +112,20 @@ export async function runSqlFiles(connectionString: string, directory: string): 
     return executed;
   } finally {
     await client.end();
+  }
+}
+
+export async function loadMigrationFiles(directory: string): Promise<MigrationFile[]> {
+  return readMigrationFiles(directory);
+}
+
+export function assertUniqueMigrationVersions(files: MigrationFile[]): void {
+  const seen = new Set<string>();
+  const duplicates = files.map((f) => f.version).filter((v) => seen.size === seen.add(v).size);
+  if (duplicates.length > 0) {
+    throw new Error(
+      `Duplicate migration version numbers across directories: ${[...new Set(duplicates)].join(", ")}`
+    );
   }
 }
 

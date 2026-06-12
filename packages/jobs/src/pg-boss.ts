@@ -3,6 +3,7 @@ import {
   type ConstructorOptions,
   type Job,
   type QueueOptions,
+  type SendOptions,
   type WorkOptions
 } from "pg-boss";
 
@@ -34,6 +35,50 @@ export const FOUNDATION_QUEUES: readonly QueueDefinition[] = [
     }
   }
 ];
+
+/**
+ * The complete set of allowed metadata keys for all pg-boss payloads in this codebase.
+ * Enumerated from all live boss.send() / sendJob() call sites.
+ * Hard invariant: no key that carries content, prompts, secrets, or tokens may appear here.
+ */
+export const ALLOWED_PAYLOAD_KEYS: ReadonlySet<string> = new Set([
+  "actorUserId",
+  "taskId",
+  "requestedStatus",
+  "definitionId",
+  "briefingRunId",
+  "runKind",
+  "threadId",
+  "messageId",
+  "targetItemId",
+  "kind",
+  "resourceId",
+  "idempotencyKey"
+]);
+
+function assertMetadataOnlyPayload(payload: Record<string, unknown>): void {
+  const forbidden = Object.keys(payload).filter((k) => !ALLOWED_PAYLOAD_KEYS.has(k));
+  if (forbidden.length > 0) {
+    throw new Error(
+      `Job payload contains non-metadata keys: ${forbidden.join(", ")}. ` +
+        `Payloads must contain only: ${[...ALLOWED_PAYLOAD_KEYS].join(", ")}`
+    );
+  }
+}
+
+/**
+ * Send-side wrapper that enforces the metadata-only payload invariant before
+ * delegating to boss.send(). Use this everywhere instead of raw boss.send().
+ */
+export async function sendJob<T extends ActorScopedJobPayload>(
+  boss: PgBoss,
+  queue: string,
+  payload: T,
+  options?: SendOptions
+): Promise<string | null> {
+  assertMetadataOnlyPayload(payload as unknown as Record<string, unknown>);
+  return options === undefined ? boss.send(queue, payload) : boss.send(queue, payload, options);
+}
 
 export function createPgBossClient(
   connectionString: string,

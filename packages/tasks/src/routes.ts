@@ -23,6 +23,8 @@ import {
   updateTaskRouteSchema
 } from "@jarv1s/shared";
 
+import { sendJob } from "@jarv1s/jobs";
+
 import { HttpError } from "./errors.js";
 import { type DeferredTaskStatusPayload, isDeferredTaskStatusPayloadMetadataOnly } from "./jobs.js";
 import { TASKS_DEFERRED_STATUS_QUEUE } from "./manifest.js";
@@ -268,7 +270,7 @@ export function registerTasksRoutes(
           throw new HttpError(500, "Task job payload contains non-metadata fields");
         }
 
-        const jobId = await dependencies.boss.send(TASKS_DEFERRED_STATUS_QUEUE, payload);
+        const jobId = await sendJob(dependencies.boss, TASKS_DEFERRED_STATUS_QUEUE, payload);
 
         return reply.code(202).send({ jobId });
       } catch (error) {
