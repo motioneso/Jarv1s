@@ -1,7 +1,7 @@
 import type { FastifyInstance, FastifyRequest } from "fastify";
 
 import type { AssistantToolGateway, GatewayToolResponse, SessionTokenRegistry } from "@jarv1s/ai";
-import type { AiAssistantToolDto } from "@jarv1s/shared";
+import { parsePositiveIntEnv, type AiAssistantToolDto } from "@jarv1s/shared";
 
 const MCP_PROTOCOL_VERSION = "2024-11-05";
 
@@ -12,7 +12,7 @@ const MCP_PROTOCOL_VERSION = "2024-11-05";
 // Override the limit via env: JARVIS_RL_MCP_MAX=<n> (requests per minute, default 120).
 // tools/call is the only method that drives actual AI work; other methods (initialize,
 // tools/list, notifications/*) are cheap but share the same counter to avoid bypass.
-const MCP_MAX = Number(process.env.JARVIS_RL_MCP_MAX ?? 120);
+const MCP_MAX = parsePositiveIntEnv(process.env.JARVIS_RL_MCP_MAX, 120);
 
 function mcpRateLimitKey(request: FastifyRequest): string {
   const auth = (request.headers.authorization as string | undefined) ?? "";

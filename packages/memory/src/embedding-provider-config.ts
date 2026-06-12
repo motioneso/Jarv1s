@@ -24,8 +24,20 @@ export function createEmbeddingProvider(config: EmbeddingProviderConfig): Embedd
  * M-A3 replaces this with a DB-backed reader feeding the capability router; the
  * EmbeddingProviderConfig shape and createEmbeddingProvider factory stay stable.
  */
+const EMBEDDING_PROVIDER_KINDS: readonly EmbeddingProviderKind[] = ["local", "stub"];
+
 export function getEmbeddingProviderConfig(): EmbeddingProviderConfig {
-  const kind = (process.env["JARVIS_EMBED_PROVIDER"] ?? "local") as EmbeddingProviderKind;
+  const raw = process.env["JARVIS_EMBED_PROVIDER"] ?? "local";
+  // Validate at the boundary rather than casting an arbitrary env string to the
+  // union: an operator typo (`JARVIS_EMBED_PROVIDER=stb`) would otherwise flow
+  // through the factory and only fail later — or worse, silently mis-route once a
+  // third provider kind exists (#146).
+  if (!EMBEDDING_PROVIDER_KINDS.includes(raw as EmbeddingProviderKind)) {
+    throw new Error(
+      `Invalid JARVIS_EMBED_PROVIDER "${raw}" (expected one of: ${EMBEDDING_PROVIDER_KINDS.join(", ")})`
+    );
+  }
+  const kind = raw as EmbeddingProviderKind;
   const modelId = process.env["JARVIS_EMBED_MODEL"];
   return modelId ? { kind, modelId } : { kind };
 }

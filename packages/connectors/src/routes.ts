@@ -14,6 +14,7 @@ import {
   listAdminConnectorAccountsRouteSchema,
   listConnectorAccountsRouteSchema,
   listConnectorProvidersRouteSchema,
+  parsePositiveIntEnv,
   revokeConnectorAccountRouteSchema,
   updateConnectorAccountRouteSchema,
   type ConnectorAccountDto,
@@ -40,24 +41,6 @@ export interface ConnectorsRoutesDependencies {
 
 interface AccountParams {
   readonly id: string;
-}
-
-/**
- * Parse a positive-integer rate-limit knob from the environment, falling back to
- * `fallback` for unset/empty/non-numeric/non-positive values. `Number(garbage)`
- * yields `NaN`, which Fastify's rate-limit plugin treats as "no limit" — so an
- * operator typo would silently disable the OAuth rate limit (#169). Failing
- * closed to the default keeps the limit in force.
- */
-function parsePositiveIntEnv(raw: string | undefined, fallback: number): number {
-  if (raw === undefined || raw.trim() === "") {
-    return fallback;
-  }
-  const parsed = Number(raw);
-  if (!Number.isInteger(parsed) || parsed <= 0) {
-    return fallback;
-  }
-  return parsed;
 }
 
 export function registerConnectorsRoutes(
