@@ -7,7 +7,7 @@
 **⚡ OVERNIGHT AUTONOMY (Ben, 2026-06-12 ~05:10Z — going to sleep):** _"Keep knocking out all issues, igd you need me do a fable agent to review my part."_ → Run the fleet **fully autonomous overnight across the relay chain**; do NOT pause for Ben on anything. **Fable substitutes for Ben at EVERY gate** he'd normally hold: (a) security-tier merge sign-offs (already delegated, line 6) AND (b) **spec/plan-approval for D/E/H** — where a slice would normally wait on Ben's greenlight, spawn a one-shot **Fable (`model:'fable'`) reviewer** over the spec+plan; Fable APPROVE → spawn the build agent; Fable revise → apply fixes, re-review. Escalate to Ben **only** if Fable hits a genuine design fork it cannot settle (leave it `blocked`, digest, move on to other slices — never idle the fleet waiting). Successor coordinators inherit this authorization until Ben says otherwise.
 
 **Relay threshold:** security-tier merge → relay immediately; routine/sensitive merges\*since\*relay ≥ 2 → relay. No deferral.
-**merges_since_relay:** 0 — reset at relay (p*46 successor). \_History: F #184 04:34Z, G #186 + I #185 ~04:40Z under p_38; B #187 05:09Z under p_44 (security relay); D #188 ~06:20Z under p_45 (security relay).*
+**merges_since_relay:** 0 — reset at E #189 security relay (this session). \_History: F #184 04:34Z, G #186 + I #185 ~04:40Z under p_38; B #187 05:09Z under p_44 (security relay); D #188 ~06:20Z under p_45 (security relay); **E #189 `0baa384` ~2026-06-12 (security relay, this session)**.\*
 
 **Live state (p_44, 2026-06-12T05:09Z):** ✅ **B #187 MERGED** — squash commit `4a82dcc` @ 05:08:59Z. Bookkeeping DONE; tree clean (main only). Migration spine HEAD now **0056**. Security-tier merge → relay fired.
 
@@ -71,12 +71,13 @@ Lock line: Coordinator = label `Coordinator`, currently pane `w653f42bef3ac02-4`
 
 **→→→→ LIVE STATE (2026-06-12, post-interruptions; pane numbers reflow — labels are authority):**
 
-Current panes (`herdr pane list`): Coordinator = pane `-3` (this session, 515ad953); SliceE-build = pane `-2` (idle, done); SliceH-build = pane `-4` (NEW, building); codex = pane `-1`.
+Current panes (`herdr pane list`): Coordinator = pane `-3` (this session, 515ad953); SliceH-build = pane `-4` (building); codex = pane `-1`. SliceE-build reaped.
 
-- **E #189 OPEN, MERGEABLE, both CI checks GREEN**. Branch `audit-slice-e`. SliceE-build DONE + idle. **Fable security QA IN FLIGHT** (background Agent `a1c75f3d31e30caf9`, will post `gh pr comment` verdict on #189). On APPROVE → squash merge → close #101 #127 #141 → board Done → relay (security tier). On revise → bounce to SliceE-build pane.
-- **D #188 already MERGED** (596755a). Old SliceD-build leftover already reaped.
-- **H SPAWNED** (2026-06-12, this session): SliceH-build pane `-4`, branch `audit-slice-h` off origin/main @ `261d527`, DB `jarvis_qa_h` (provisioned, vector ext). Handoff `docs/coordination/handoffs/2026-06-12-audit-slice-h.md`. Migration numbers **0057+0058** (spine HEAD 0056). Issues #124 #134 #135 #157 #174. Sonnet, autonomous. Security tier → Fable QA → merge.
-- **Migration spine HEAD 0056**; H tail = 0057+0058.
+- **✅ E #189 MERGED** — squash `0baa384` @ 2026-06-12 (this session). Fable security QA: **GREEN, MERGE-READY: YES** (0 blocking, 3 non-blocking follow-ups; verdict comment 4689348233). Issues #101 #127 #141 closed. SliceE-build pane + `audit-slice-e` worktree/branch + QA worktree all reaped. Migration spine HEAD still **0056** (E code-only). **Security-tier relay fired.**
+  - E non-blocking follow-ups (candidates, not blockers): (1) no direct 401/403 negative test on new revoke-sessions route (transitive coverage via shared `assertAdminUser` + demote-403 test); (2) revoke-sessions writes no audit event though other lifecycle actions do; (3) `oauth.ts:46` reflects redirect `error` param into Error message (pre-existing, no secret).
+- **D #188 already MERGED** (596755a). Reaped.
+- **🔨 H BUILDING** — SliceH-build pane `-4`, branch `audit-slice-h` off origin/main @ `261d527`, DB `jarvis_qa_h` (provisioned, vector ext). Handoff `docs/coordination/handoffs/2026-06-12-audit-slice-h.md`. Migration numbers **0057+0058** (spine HEAD 0056). Issues #124 #134 #135 #157 #174. Sonnet, autonomous. Security tier → Fable QA → merge → relay.
+- **Migration spine HEAD 0056**; H tail = 0057+0058. **H is the LAST slice** — after H merges, the audit-remediation run is COMPLETE (A–I all landed).
 
 > Coordinator's externalized memory. Keep CURRENT. GitHub is source of truth for spec/issue/board
 > status; this file holds only in-flight operational state.
