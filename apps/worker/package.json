@@ -11,6 +11,7 @@
   "dependencies": {
     "@jarv1s/db": "workspace:*",
     "@jarv1s/jobs": "workspace:*",
+    "@jarv1s/memory": "workspace:*",
     "@jarv1s/module-registry": "workspace:*"
   }
 }

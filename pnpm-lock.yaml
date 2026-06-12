@@ -133,6 +133,9 @@ importers:
       '@jarv1s/jobs':
         specifier: workspace:*
         version: link:../../packages/jobs
+      '@jarv1s/memory':
+        specifier: workspace:*
+        version: link:../../packages/memory
       '@jarv1s/module-registry':
         specifier: workspace:*
         version: link:../../packages/module-registry
