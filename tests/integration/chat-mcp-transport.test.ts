@@ -144,6 +144,52 @@ describe("MCP HTTP transport", () => {
     expect(names).not.toContain("example.declaration-only");
   });
 
+  it("tools/list is actor-scoped at the transport level — userB token yields an empty list", async () => {
+    const scopedTokens = new SessionTokenRegistry();
+    const scopedGateway = new AssistantToolGateway({
+      resolveActiveModules: (actorUserId) =>
+        actorUserId === ids.userA ? [exampleToolModule] : [],
+      repository: new AiRepository(),
+      runner: new DataContextRunner(appDb),
+      tokens: scopedTokens,
+      confirmations: new ConfirmationRegistry(),
+      notifier: { emit: () => {} },
+      confirmTimeoutMs: 2_000
+    });
+    const scopedApp = Fastify({ logger: false });
+    registerMcpTransportRoute(scopedApp, { gateway: scopedGateway, tokens: scopedTokens });
+    await scopedApp.ready();
+    try {
+      const callList = async (actorUserId: string) => {
+        const token = scopedTokens.mint({
+          actorUserId,
+          chatSessionId: randomUUID(),
+          allowedToolNames: null
+        });
+        const res = await scopedApp.inject({
+          method: "POST",
+          url: "/api/mcp",
+          headers: { authorization: `Bearer ${token}` },
+          body: { jsonrpc: "2.0", id: 1, method: "tools/list" }
+        });
+        expect(res.statusCode).toBe(200);
+        return res
+          .json<{ result: { tools: { name: string }[] } }>()
+          .result.tools.map((t) => t.name);
+      };
+
+      const aNames = await callList(ids.userA);
+      const bNames = await callList(ids.userB);
+
+      expect(aNames).toContain("example.read");
+      expect(aNames).toContain("example.write");
+      expect(aNames).not.toContain("example.declaration-only");
+      expect(bNames).toEqual([]);
+    } finally {
+      await scopedApp.close();
+    }
+  });
+
   it("tools/call runs a read tool and returns MCP content", async () => {
     const token = tokens.mint({ actorUserId: ids.userA, chatSessionId: randomUUID(), allowedToolNames: null });
     const res = await app.inject({

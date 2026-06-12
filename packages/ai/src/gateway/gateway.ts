@@ -43,9 +43,9 @@ interface ExecutableTool {
 export class AssistantToolGateway {
   constructor(private readonly deps: AssistantToolGatewayDependencies) {}
 
-  /** Only tools with an execute handler are exposed — declaration-only tools are invisible. */
-  listTools(): AiAssistantToolDto[] {
-    return this.executableTools("").map((entry) => entry.dto);
+  /** Returns only tools executable by this actor (via resolveActiveModules). */
+  listToolsForActor(actorUserId: string): AiAssistantToolDto[] {
+    return this.executableTools(actorUserId).map((entry) => entry.dto);
   }
 
   async callTool(token: string, toolName: string, rawInput: unknown): Promise<GatewayToolResponse> {

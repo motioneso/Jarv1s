@@ -60,7 +60,7 @@ describe("AssistantToolGateway", () => {
   });
 
   it("lists only tools that have an execute handler", () => {
-    const names = gateway.listTools().map((tool) => tool.name);
+    const names = gateway.listToolsForActor(ids.userA).map((tool) => tool.name);
     expect(names).toContain("example.read");
     expect(names).toContain("example.write");
     expect(names).toContain("example.destroy");
@@ -178,6 +178,7 @@ describe("AssistantToolGateway", () => {
 
     expect(res.ok).toBe(false);
     if (res.ok) throw new Error("expected not ok");
+    if ("denied" in res) throw new Error("expected error, not denied");
     expect(res.error).toContain("not in session allowlist");
     expect(exampleToolCalls).toHaveLength(0);
   });
@@ -193,5 +194,28 @@ describe("AssistantToolGateway", () => {
 
     expect(res.ok).toBe(true);
     expect(exampleToolCalls).toHaveLength(1);
+  });
+
+  it("listToolsForActor is actor-scoped — a different actor gets a different list", () => {
+    // resolveActiveModules returns the example module ONLY for userA; userB gets nothing.
+    // If listToolsForActor ignored its argument (the bug listTools() had), userB would
+    // get the same non-empty list and this test would fail — which is exactly the point.
+    const scopedGateway = new AssistantToolGateway({
+      resolveActiveModules: (actorUserId) =>
+        actorUserId === ids.userA ? [exampleToolModule] : [],
+      repository,
+      runner,
+      tokens,
+      confirmations,
+      notifier: { emit: () => {} },
+      confirmTimeoutMs: 1000
+    });
+
+    const aNames = scopedGateway.listToolsForActor(ids.userA).map((tool) => tool.name);
+    const bNames = scopedGateway.listToolsForActor(ids.userB).map((tool) => tool.name);
+
+    expect(aNames).toContain("example.read");
+    expect(aNames).toContain("example.write");
+    expect(bNames).toEqual([]);
   });
 });
