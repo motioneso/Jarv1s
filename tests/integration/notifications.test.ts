@@ -1,6 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import type { Kysely } from "kysely";
 import pg from "pg";
+import Fastify from "fastify";
 
 import { createApiServer } from "../../apps/api/src/server.js";
 import {
@@ -15,7 +16,11 @@ import {
   getBuiltInModuleRegistrations,
   getBuiltInSqlMigrationDirectories
 } from "@jarv1s/module-registry";
-import { NotificationsRepository, notificationsModuleManifest } from "@jarv1s/notifications";
+import {
+  NotificationsRepository,
+  notificationsModuleManifest,
+  registerNotificationsRoutes
+} from "@jarv1s/notifications";
 import { connectionStrings, ids, resetFoundationDatabase } from "./test-database.js";
 
 const { Client } = pg;
@@ -319,6 +324,50 @@ describe("Notifications module M5", () => {
     await expect(repository.listVisible({} as never)).rejects.toThrow(
       "Repository access requires withDataContext"
     );
+  });
+
+  it("returns 401 for no auth header and for a wrong-scheme authorization header", async () => {
+    const noAuthResponse = await server.inject({
+      method: "GET",
+      url: "/api/notifications"
+    });
+
+    // Wrong scheme ("Basic") → readBearerToken throws "Invalid bearer token" → handleRouteError → 401
+    const wrongSchemeResponse = await server.inject({
+      method: "GET",
+      url: "/api/notifications",
+      headers: { authorization: "Basic dXNlcjpwYXNz" }
+    });
+
+    expect(noAuthResponse.statusCode).toBe(401);
+    expect(wrongSchemeResponse.statusCode).toBe(401);
+    expect(noAuthResponse.json<{ error: string }>().error).toBe("Session is missing or expired");
+  });
+
+  it("returns 500 (not 401) when an unexpected error escapes a notification route", async () => {
+    const probe = Fastify({ logger: false });
+    registerNotificationsRoutes(probe, {
+      resolveAccessContext: async () => ({
+        actorUserId: ids.userA,
+        requestId: "request:err-probe"
+      }),
+      dataContext,
+      repository: {
+        listVisible: async () => {
+          throw new Error("boom-stack-details");
+        }
+      } as unknown as NotificationsRepository
+    });
+    await probe.ready();
+
+    try {
+      const res = await probe.inject({ method: "GET", url: "/api/notifications" });
+
+      expect(res.statusCode).toBe(500);
+      expect(res.body).not.toContain("boom-stack-details");
+    } finally {
+      await probe.close();
+    }
   });
 });
 
