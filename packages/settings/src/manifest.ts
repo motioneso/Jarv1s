@@ -37,14 +37,14 @@ export const settingsModuleManifest: JarvisModuleManifest = {
     {
       id: "settings.view",
       label: "View settings",
-      description: "View personal and workspace settings surfaces.",
+      description: "View personal settings surfaces.",
       scope: "user",
       actions: ["view"]
     },
     {
       id: "settings.manage",
       label: "Manage instance settings",
-      description: "Manage users, workspaces, grants, and instance-level settings.",
+      description: "Manage users and instance-level settings.",
       scope: "admin",
       actions: ["manage"]
     }
@@ -67,46 +67,6 @@ export const settingsModuleManifest: JarvisModuleManifest = {
     {
       method: "GET",
       path: "/api/admin/users",
-      permissionId: "settings.manage"
-    },
-    {
-      method: "GET",
-      path: "/api/admin/workspaces",
-      permissionId: "settings.manage"
-    },
-    {
-      method: "POST",
-      path: "/api/admin/workspaces",
-      permissionId: "settings.manage"
-    },
-    {
-      method: "GET",
-      path: "/api/admin/workspaces/:id/memberships",
-      permissionId: "settings.manage"
-    },
-    {
-      method: "POST",
-      path: "/api/admin/workspaces/:id/memberships",
-      permissionId: "settings.manage"
-    },
-    {
-      method: "DELETE",
-      path: "/api/admin/workspaces/:id/memberships/:userId",
-      permissionId: "settings.manage"
-    },
-    {
-      method: "GET",
-      path: "/api/admin/resource-grants",
-      permissionId: "settings.manage"
-    },
-    {
-      method: "POST",
-      path: "/api/admin/resource-grants",
-      permissionId: "settings.manage"
-    },
-    {
-      method: "DELETE",
-      path: "/api/admin/resource-grants/:resourceType/:resourceId/:granteeUserId",
       permissionId: "settings.manage"
     },
     {
