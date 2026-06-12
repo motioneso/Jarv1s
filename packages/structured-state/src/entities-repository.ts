@@ -1,8 +1,8 @@
+import { sql } from "kysely";
 import { assertDataContextDb, type DataContextDb, type Entity } from "@jarv1s/db";
 import type { EntityType, ProvenanceKind } from "./types.js";
 
 export interface CreateEntityInput {
-  readonly ownerUserId: string;
   readonly type: EntityType;
   readonly name: string;
   readonly provenance: ProvenanceKind;
@@ -27,7 +27,7 @@ export class EntitiesRepository {
     const row = await scopedDb.db
       .insertInto("app.entities")
       .values({
-        owner_user_id: input.ownerUserId,
+        owner_user_id: sql<string>`app.current_actor_user_id()`,
         type: input.type,
         name: input.name,
         provenance: input.provenance,

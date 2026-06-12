@@ -1,17 +1,13 @@
+import { sql } from "kysely";
 import { assertDataContextDb, type DataContextDb } from "@jarv1s/db";
 
 export class PreferencesRepository {
-  async upsert(
-    scopedDb: DataContextDb,
-    ownerUserId: string,
-    key: string,
-    value: unknown
-  ): Promise<void> {
+  async upsert(scopedDb: DataContextDb, key: string, value: unknown): Promise<void> {
     assertDataContextDb(scopedDb);
     await scopedDb.db
       .insertInto("app.preferences")
       .values({
-        owner_user_id: ownerUserId,
+        owner_user_id: sql<string>`app.current_actor_user_id()`,
         key,
         value_json: JSON.stringify(value),
         updated_at: new Date()

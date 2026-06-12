@@ -1,8 +1,8 @@
+import { sql } from "kysely";
 import { assertDataContextDb, type Commitment, type DataContextDb } from "@jarv1s/db";
 import type { CommitmentSourceKind, CommitmentStatus, ProvenanceKind } from "./types.js";
 
 export interface CreateCommitmentInput {
-  readonly ownerUserId: string;
   readonly title: string;
   readonly provenance: ProvenanceKind;
   readonly counterparty?: string;
@@ -28,7 +28,7 @@ export class CommitmentsRepository {
     const result = await scopedDb.db
       .insertInto("app.commitments")
       .values({
-        owner_user_id: input.ownerUserId,
+        owner_user_id: sql<string>`app.current_actor_user_id()`,
         title: input.title,
         provenance: input.provenance,
         counterparty: input.counterparty ?? null,

@@ -71,7 +71,6 @@ describe("CommitmentsRepository", () => {
   it("owner can create and list their own commitments", async () => {
     await dataContext.withDataContext(ctx(userId), async (scopedDb) => {
       await repo.create(scopedDb, {
-        ownerUserId: userId,
         title: "Call Alice back",
         provenance: "volunteered"
       });
@@ -84,7 +83,7 @@ describe("CommitmentsRepository", () => {
     let title: string;
     await dataContext.withDataContext(ctx(userId), async (scopedDb) => {
       title = `Private-${randomUUID()}`;
-      await repo.create(scopedDb, { ownerUserId: userId, title, provenance: "volunteered" });
+      await repo.create(scopedDb, { title, provenance: "volunteered" });
     });
     const list = await dataContext.withDataContext(ctx(otherUserId), (scopedDb) =>
       repo.listVisible(scopedDb)
@@ -96,7 +95,6 @@ describe("CommitmentsRepository", () => {
     let commitmentId: string;
     await dataContext.withDataContext(ctx(userId), async (scopedDb) => {
       const c = await repo.create(scopedDb, {
-        ownerUserId: userId,
         title: `Shared-${randomUUID()}`,
         provenance: "volunteered"
       });
@@ -116,7 +114,6 @@ describe("CommitmentsRepository", () => {
     let commitmentId: string;
     await dataContext.withDataContext(ctx(userId), async (scopedDb) => {
       const c = await repo.create(scopedDb, {
-        ownerUserId: userId,
         title: `Revoked-${randomUUID()}`,
         provenance: "volunteered"
       });
@@ -139,7 +136,6 @@ describe("CommitmentsRepository", () => {
   it("owner can update status of their commitment", async () => {
     await dataContext.withDataContext(ctx(userId), async (scopedDb) => {
       const c = await repo.create(scopedDb, {
-        ownerUserId: userId,
         title: "Track status",
         provenance: "volunteered"
       });
@@ -158,7 +154,6 @@ describe("EntitiesRepository", () => {
   it("owner can create and list their own entities", async () => {
     await dataContext.withDataContext(ctx(userId), async (scopedDb) => {
       await repo.create(scopedDb, {
-        ownerUserId: userId,
         type: "person",
         name: "Alice Smith",
         provenance: "volunteered"
@@ -172,7 +167,6 @@ describe("EntitiesRepository", () => {
     let entityId: string;
     await dataContext.withDataContext(ctx(userId), async (scopedDb) => {
       const e = await repo.create(scopedDb, {
-        ownerUserId: userId,
         type: "person",
         name: `Private-${randomUUID()}`,
         provenance: "volunteered"
@@ -189,7 +183,6 @@ describe("EntitiesRepository", () => {
     let entityId: string;
     await dataContext.withDataContext(ctx(userId), async (scopedDb) => {
       const e = await repo.create(scopedDb, {
-        ownerUserId: userId,
         type: "organization",
         name: `Shared-Org-${randomUUID()}`,
         provenance: "volunteered"
@@ -209,7 +202,6 @@ describe("EntitiesRepository", () => {
   it("attributes are stored as JSONB and returned correctly", async () => {
     await dataContext.withDataContext(ctx(userId), async (scopedDb) => {
       const e = await repo.create(scopedDb, {
-        ownerUserId: userId,
         type: "person",
         name: "Bob Jones",
         provenance: "volunteered",
@@ -223,7 +215,6 @@ describe("EntitiesRepository", () => {
   it("vault_note_path is stored and returned", async () => {
     await dataContext.withDataContext(ctx(userId), async (scopedDb) => {
       const e = await repo.create(scopedDb, {
-        ownerUserId: userId,
         type: "person",
         name: "Carol",
         provenance: "volunteered",
@@ -241,7 +232,7 @@ describe("PreferencesRepository", () => {
 
   it("upsert sets a preference and get returns it", async () => {
     await dataContext.withDataContext(ctx(userId), async (scopedDb) => {
-      await repo.upsert(scopedDb, userId, "persona.name", "Jarvis");
+      await repo.upsert(scopedDb, "persona.name", "Jarvis");
       const value = await repo.get(scopedDb, "persona.name");
       expect(value).toBe("Jarvis");
     });
@@ -249,8 +240,8 @@ describe("PreferencesRepository", () => {
 
   it("upsert overwrites an existing preference", async () => {
     await dataContext.withDataContext(ctx(userId), async (scopedDb) => {
-      await repo.upsert(scopedDb, userId, "persona.tone", "formal");
-      await repo.upsert(scopedDb, userId, "persona.tone", "casual");
+      await repo.upsert(scopedDb, "persona.tone", "formal");
+      await repo.upsert(scopedDb, "persona.tone", "casual");
       const value = await repo.get(scopedDb, "persona.tone");
       expect(value).toBe("casual");
     });
@@ -265,7 +256,7 @@ describe("PreferencesRepository", () => {
 
   it("preferences are owner-only: other user cannot read them", async () => {
     await dataContext.withDataContext(ctx(userId), async (scopedDb) => {
-      await repo.upsert(scopedDb, userId, "persona.directness", "high");
+      await repo.upsert(scopedDb, "persona.directness", "high");
     });
     await dataContext.withDataContext(ctx(otherUserId), async (scopedDb) => {
       const value = await repo.get(scopedDb, "persona.directness");
@@ -284,7 +275,6 @@ describe("VaultWriteBackService", () => {
     await vaultRunner.withVaultContext(ctx(userId), async (vaultCtx) => {
       await dataContext.withDataContext(ctx(userId), async (scopedDb) => {
         const entity = await entityRepo.create(scopedDb, {
-          ownerUserId: userId,
           type: "person",
           name: "Diana Prince",
           provenance: "volunteered",
@@ -311,7 +301,6 @@ describe("VaultWriteBackService", () => {
 
       await dataContext.withDataContext(ctx(userId), async (scopedDb) => {
         const entity = await entityRepo.create(scopedDb, {
-          ownerUserId: userId,
           type: "person",
           name: "Eve Adams",
           provenance: "confirmed",
@@ -333,7 +322,6 @@ describe("VaultWriteBackService", () => {
     await vaultRunner.withVaultContext(ctx(userId), async (vaultCtx) => {
       await dataContext.withDataContext(ctx(userId), async (scopedDb) => {
         const entity = await entityRepo.create(scopedDb, {
-          ownerUserId: userId,
           type: "person",
           name: "Frank No-Vault",
           provenance: "inferred"
@@ -350,7 +338,6 @@ describe("VaultWriteBackService", () => {
     await vaultRunner.withVaultContext(ctx(userId), async (vaultCtx) => {
       await dataContext.withDataContext(ctx(userId), async (scopedDb) => {
         const entity = await entityRepo.create(scopedDb, {
-          ownerUserId: userId,
           type: "person",
           name: "Grace Hopper",
           provenance: "volunteered",
@@ -383,7 +370,6 @@ describe("assertDataContextDb guards — structured-state repos", () => {
     const repo = new CommitmentsRepository();
     await expect(
       repo.create(appDb as unknown as import("@jarv1s/db").DataContextDb, {
-        ownerUserId: userId,
         title: "x",
         provenance: "volunteered"
       })
@@ -400,7 +386,7 @@ describe("assertDataContextDb guards — structured-state repos", () => {
   it("PreferencesRepository.upsert throws on unbranded handle", async () => {
     const repo = new PreferencesRepository();
     await expect(
-      repo.upsert(appDb as unknown as import("@jarv1s/db").DataContextDb, userId, "k", "v")
+      repo.upsert(appDb as unknown as import("@jarv1s/db").DataContextDb, "k", "v")
     ).rejects.toThrow("Repository access requires withDataContext");
   });
 });
