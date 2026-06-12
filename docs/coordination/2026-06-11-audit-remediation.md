@@ -1,7 +1,7 @@
 # Coordination Run — 2026-06-11-audit-remediation
 
 **Date:** 2026-06-11
-**Coordinator lock:** label `Coordinator` = pane `w653f42bef3ac02-2` (`$HERDR_PANE_ID=p_45`) — RELAY SUCCESSOR 2 claimed 2026-06-12 (predecessor `p_44`/`-2` reaped; herdr compacted `-3`→`-2`). Single-coordinator lock — exactly one pane holds this label for the life of the run; agents escalate to the **label** (routing), the coordinator merges only when its own `$HERDR_PANE_ID` resolves to this recorded value (authority). **Pane-ids are VOLATILE (herdr compacts on close) — `$HERDR_PANE_ID=p_45` is the stable authority; re-resolve the numeric pane from `herdr pane list` before any merge.**
+**Coordinator lock:** label `Coordinator` = pane `w653f42bef3ac02-4` (`$HERDR_PANE_ID=p_51`), tab `:3` — successor coordinator. ⚠️ **This session has been repeatedly interrupted/restarted (2026-06-12), and herdr renumbered the coordinator each time: `p_49`→`p_50`→`p_51` (numeric `-6`→`-5`→`-4`). The `$HERDR_PANE_ID` is therefore NOT stable across these restarts.** Operative authority rule for THIS run: the sole Claude pane labelled `Coordinator` that is actively `working` is the authority — re-claim the label after any restart, verify exactly one `Coordinator` pane via `herdr pane list`, and re-resolve the numeric pane before any merge. Durable run state lives in this committed manifest + GitHub (source of truth), not in the volatile pane id.
 **Finding source:** `docs/audits/2026-06-11-fable5-issue-verification.md` — independent Fable 5 verification @ `origin/main e629f3c`, migration head 0052 (22 stand, 8 severity-downgraded to MED/LOW, 0 refuted, 0 already-fixed).
 **Merge policy:** autonomous-after-verified-QA for `routine`/`sensitive`. **`security`-tier sign-off DELEGATED to Fable (Ben, 2026-06-12 — "I'm not in a good place to review; have Fable review the security PRs and proceed").** Per security PR: run adversarial QA as a **Fable (`model: 'fable'`) cross-model review** + post verdict via `gh pr comment`; **Fable APPROVE → merge autonomously**; Fable `revise`/`reject` → bounce to build agent, re-QA. Ben gets a per-merge digest (not a gate). Escalate back to Ben only on a genuine design fork Fable can't settle.
 **⚡ OVERNIGHT AUTONOMY (Ben, 2026-06-12 ~05:10Z — going to sleep):** _"Keep knocking out all issues, igd you need me do a fable agent to review my part."_ → Run the fleet **fully autonomous overnight across the relay chain**; do NOT pause for Ben on anything. **Fable substitutes for Ben at EVERY gate** he'd normally hold: (a) security-tier merge sign-offs (already delegated, line 6) AND (b) **spec/plan-approval for D/E/H** — where a slice would normally wait on Ben's greenlight, spawn a one-shot **Fable (`model:'fable'`) reviewer** over the spec+plan; Fable APPROVE → spawn the build agent; Fable revise → apply fixes, re-review. Escalate to Ben **only** if Fable hits a genuine design fork it cannot settle (leave it `blocked`, digest, move on to other slices — never idle the fleet waiting). Successor coordinators inherit this authorization until Ben says otherwise.
@@ -67,7 +67,14 @@ D #188 MERGED (596755a). E BUILDING (pane `w653f42bef3ac02-4`, branch `audit-sli
 6. Board updates: `gh project item-list 1 --owner motioneso` — update D/E/H items to Done.
 7. Task #8 (coordinate skill update) — still pending; do after E+H settle.
 
-Lock line (p_46 writes this): Coordinator = HERDR_PANE_ID=p_46
+Lock line: Coordinator = label `Coordinator`, currently pane `w653f42bef3ac02-4` (`$HERDR_PANE_ID=p_51`), tab `:3`. Session repeatedly restarted 2026-06-12 (`p_49`→`p_50`→`p_51`); pane id is NOT stable across restarts — sole `working` Claude pane labelled `Coordinator` = authority. Re-claim label + verify uniqueness after any restart.
+
+**→→→→ LIVE STATE (p_51, 2026-06-12, post-interruptions):**
+
+- **E #189 OPEN, MERGEABLE, both CI checks GREEN** ("Verify foundation and app" SUCCESS, "Compose deployment smoke" SUCCESS). Branch `audit-slice-e`. SliceE-build (pane `-2`) DONE + idle. Security tier → Fable QA (gh pr comment verdict) → merge on APPROVE → close #101 #127 #141 → relay.
+- **D #188 already MERGED** (596755a). SliceD-build pane (`-3`) is a STALE leftover (worktree deleted) → reap.
+- **Migration spine HEAD 0056**; H numbers **0057+0058** (D code-only). H not yet spawned (spawn after E settles).
+- Codex pane `-1` idle. Old coordinator panes already gone (herdr churn).
 
 > Coordinator's externalized memory. Keep CURRENT. GitHub is source of truth for spec/issue/board
 > status; this file holds only in-flight operational state.
