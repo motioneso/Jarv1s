@@ -9,31 +9,6 @@ export interface UserDto {
   readonly updatedAt: string;
 }
 
-export interface WorkspaceDto {
-  readonly id: string;
-  readonly name: string;
-  readonly createdByUserId: string | null;
-  readonly createdAt: string;
-  readonly updatedAt: string;
-}
-
-export interface WorkspaceMembershipDto {
-  readonly userId: string;
-  readonly workspaceId: string;
-  readonly role: string;
-  readonly createdAt: string;
-}
-
-export interface ResourceGrantDto {
-  readonly resourceType: string;
-  readonly resourceId: string;
-  readonly granteeUserId: string;
-  readonly grantLevel: "view" | "contribute" | "manage";
-  readonly grantedByUserId: string | null;
-  readonly createdAt: string;
-  readonly updatedAt: string;
-}
-
 export interface AdminAuditEventDto {
   readonly id: string;
   readonly actorUserId: string | null;
@@ -92,61 +67,10 @@ export interface BootstrapStatusResponse {
 
 export interface MeResponse {
   readonly user: UserDto;
-  readonly memberships: readonly WorkspaceMembershipDto[];
-  readonly workspaces: readonly WorkspaceDto[];
-  readonly activeWorkspaceId: string | null;
 }
 
 export interface ListUsersResponse {
   readonly users: readonly UserDto[];
-}
-
-export interface ListWorkspacesResponse {
-  readonly workspaces: readonly WorkspaceDto[];
-}
-
-export interface ListWorkspaceMembershipsResponse {
-  readonly memberships: readonly WorkspaceMembershipDto[];
-}
-
-export interface CreateWorkspaceRequest {
-  readonly name: string;
-}
-
-export interface CreateWorkspaceResponse {
-  readonly workspace: WorkspaceDto;
-}
-
-export interface UpsertWorkspaceMembershipRequest {
-  readonly userId: string;
-  readonly role: string;
-}
-
-export interface UpsertWorkspaceMembershipResponse {
-  readonly membership: WorkspaceMembershipDto;
-}
-
-export interface DeleteWorkspaceMembershipResponse {
-  readonly membership: WorkspaceMembershipDto;
-}
-
-export interface ListResourceGrantsResponse {
-  readonly grants: readonly ResourceGrantDto[];
-}
-
-export interface UpsertResourceGrantRequest {
-  readonly resourceType: string;
-  readonly resourceId: string;
-  readonly granteeUserId: string;
-  readonly grantLevel: "view" | "contribute" | "manage";
-}
-
-export interface UpsertResourceGrantResponse {
-  readonly grant: ResourceGrantDto;
-}
-
-export interface DeleteResourceGrantResponse {
-  readonly grant: ResourceGrantDto;
 }
 
 export interface ListInstanceSettingsResponse {
@@ -262,54 +186,6 @@ const userSchema = {
   }
 } as const;
 
-const workspaceSchema = {
-  type: "object",
-  additionalProperties: false,
-  required: ["id", "name", "createdByUserId", "createdAt", "updatedAt"],
-  properties: {
-    id: { type: "string" },
-    name: { type: "string" },
-    createdByUserId: { type: ["string", "null"] },
-    createdAt: { type: "string" },
-    updatedAt: { type: "string" }
-  }
-} as const;
-
-const workspaceMembershipSchema = {
-  type: "object",
-  additionalProperties: false,
-  required: ["userId", "workspaceId", "role", "createdAt"],
-  properties: {
-    userId: { type: "string" },
-    workspaceId: { type: "string" },
-    role: { type: "string" },
-    createdAt: { type: "string" }
-  }
-} as const;
-
-const resourceGrantSchema = {
-  type: "object",
-  additionalProperties: false,
-  required: [
-    "resourceType",
-    "resourceId",
-    "granteeUserId",
-    "grantLevel",
-    "grantedByUserId",
-    "createdAt",
-    "updatedAt"
-  ],
-  properties: {
-    resourceType: { type: "string" },
-    resourceId: { type: "string" },
-    granteeUserId: { type: "string" },
-    grantLevel: { type: "string", enum: ["view", "contribute", "manage"] },
-    grantedByUserId: { type: ["string", "null"] },
-    createdAt: { type: "string" },
-    updatedAt: { type: "string" }
-  }
-} as const;
-
 const adminAuditEventSchema = {
   type: "object",
   additionalProperties: false,
@@ -397,12 +273,9 @@ export const meRouteSchema = {
     200: {
       type: "object",
       additionalProperties: false,
-      required: ["user", "memberships", "workspaces", "activeWorkspaceId"],
+      required: ["user"],
       properties: {
-        user: userSchema,
-        memberships: { type: "array", items: workspaceMembershipSchema },
-        workspaces: { type: "array", items: workspaceSchema },
-        activeWorkspaceId: { type: ["string", "null"] }
+        user: userSchema
       }
     },
     401: errorResponseSchema
@@ -419,160 +292,6 @@ export const listUsersRouteSchema = {
         users: { type: "array", items: userSchema }
       }
     },
-    401: errorResponseSchema,
-    403: errorResponseSchema
-  }
-} as const;
-
-export const listWorkspacesRouteSchema = {
-  response: {
-    200: {
-      type: "object",
-      additionalProperties: false,
-      required: ["workspaces"],
-      properties: {
-        workspaces: { type: "array", items: workspaceSchema }
-      }
-    },
-    401: errorResponseSchema,
-    403: errorResponseSchema
-  }
-} as const;
-
-export const listWorkspaceMembershipsRouteSchema = {
-  response: {
-    200: {
-      type: "object",
-      additionalProperties: false,
-      required: ["memberships"],
-      properties: {
-        memberships: { type: "array", items: workspaceMembershipSchema }
-      }
-    },
-    400: errorResponseSchema,
-    401: errorResponseSchema,
-    403: errorResponseSchema
-  }
-} as const;
-
-export const createWorkspaceRouteSchema = {
-  body: {
-    type: "object",
-    additionalProperties: false,
-    required: ["name"],
-    properties: {
-      name: { type: "string" }
-    }
-  },
-  response: {
-    201: {
-      type: "object",
-      additionalProperties: false,
-      required: ["workspace"],
-      properties: {
-        workspace: workspaceSchema
-      }
-    },
-    400: errorResponseSchema,
-    401: errorResponseSchema,
-    403: errorResponseSchema
-  }
-} as const;
-
-export const upsertWorkspaceMembershipRouteSchema = {
-  body: {
-    type: "object",
-    additionalProperties: false,
-    required: ["userId", "role"],
-    properties: {
-      userId: { type: "string" },
-      role: { type: "string" }
-    }
-  },
-  response: {
-    200: {
-      type: "object",
-      additionalProperties: false,
-      required: ["membership"],
-      properties: {
-        membership: workspaceMembershipSchema
-      }
-    },
-    400: errorResponseSchema,
-    401: errorResponseSchema,
-    403: errorResponseSchema
-  }
-} as const;
-
-export const deleteWorkspaceMembershipRouteSchema = {
-  response: {
-    200: {
-      type: "object",
-      additionalProperties: false,
-      required: ["membership"],
-      properties: {
-        membership: workspaceMembershipSchema
-      }
-    },
-    400: errorResponseSchema,
-    401: errorResponseSchema,
-    403: errorResponseSchema
-  }
-} as const;
-
-export const listResourceGrantsRouteSchema = {
-  response: {
-    200: {
-      type: "object",
-      additionalProperties: false,
-      required: ["grants"],
-      properties: {
-        grants: { type: "array", items: resourceGrantSchema }
-      }
-    },
-    401: errorResponseSchema,
-    403: errorResponseSchema
-  }
-} as const;
-
-export const upsertResourceGrantRouteSchema = {
-  body: {
-    type: "object",
-    additionalProperties: false,
-    required: ["resourceType", "resourceId", "granteeUserId", "grantLevel"],
-    properties: {
-      resourceType: { type: "string" },
-      resourceId: { type: "string" },
-      granteeUserId: { type: "string" },
-      grantLevel: { type: "string", enum: ["view", "contribute", "manage"] }
-    }
-  },
-  response: {
-    200: {
-      type: "object",
-      additionalProperties: false,
-      required: ["grant"],
-      properties: {
-        grant: resourceGrantSchema
-      }
-    },
-    400: errorResponseSchema,
-    401: errorResponseSchema,
-    403: errorResponseSchema
-  }
-} as const;
-
-export const deleteResourceGrantRouteSchema = {
-  response: {
-    200: {
-      type: "object",
-      additionalProperties: false,
-      required: ["grant"],
-      properties: {
-        grant: resourceGrantSchema
-      }
-    },
-    400: errorResponseSchema,
     401: errorResponseSchema,
     403: errorResponseSchema
   }
