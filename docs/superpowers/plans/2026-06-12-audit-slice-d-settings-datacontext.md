@@ -602,10 +602,11 @@ This PR must land **after Slice B** is on `origin/main`. Slice B deletes the wor
        return id;
      }
      ```
-     > Guard order preserved from the current `routes.ts:406-415`: `getUserById` 404 → pending-only
+     > Guard order from the original `tearDownAccount` in `routes.ts`: `getUserById` 404 → pending-only
      > 409 → self-delete 422 → bootstrap-owner 409 → last-active-admin 409. The self-delete 422 check
      > stays AFTER the 404/409-pending checks (do not reorder it earlier — that would flip
-     > "reject your own pending account" from 409 to 422).
+     > "reject your own pending account" from 409 to 422). Do not assert specific line numbers — they
+     > shift post-Slice-B; locate `tearDownAccount` by function name.
 
 3. - [ ] Run typecheck. Note that adding a **required** `rootDb` to `SettingsRoutesDependencies`
          makes `packages/module-registry/src/index.ts:102` (`registerRoutes: registerSettingsRoutes`)
@@ -745,7 +746,7 @@ This PR must land **after Slice B** is on `origin/main`. Slice B deletes the wor
      import { DataContextRunner } from "@jarv1s/db";
      import { SettingsRepository } from "../../packages/settings/src/repository.js";
      ```
-   - Replace lines 768–776 (the `new SettingsRepository(appDb)` block). The test checks that `setUserAdmin` throws when the user is the last active admin. Convert to use `withDataContext`:
+   - Replace the `new SettingsRepository(appDb)` block (at ~lines 552–561 post-Slice-B rebase; match on content, not line numbers). The test checks that `setUserAdmin` throws when the user is the last active admin. Convert to use `withDataContext`:
      ```typescript
      const repo = new SettingsRepository();
      const dataCtx = new DataContextRunner(appDb);
@@ -863,8 +864,7 @@ This PR must land **after Slice B** is on `origin/main`. Slice B deletes the wor
 **Why this task exists (spec §4 / Tests):** The spec requires both the "promote succeeds" AND
 "self-escalation blocked" paths tested through `withDataContext`, not just the DB-level trigger. The
 converted Task 5 tests only hit 409 app-layer failures (before any DB UPDATE). The two
-`users_guard_admin_flag trigger (#97)` tests (auth-settings.test.ts:798, :813) use a **raw
-`pg.Client` with manual `SET LOCAL`** — they bypass `withDataContext` entirely.
+two `users_guard_admin_flag trigger (#97)` tests use a **raw `pg.Client` with manual `SET LOCAL`** — they bypass `withDataContext` entirely.
 
 Critically, the 0055 trigger **fails OPEN** when `app.current_actor_user_id()` is `NULL`
 (`0055_users_guard_admin_flag_v2.sql:38`). The **deny path** is the regression-catching test: a
@@ -963,15 +963,31 @@ produce the same promoted result; only the deny-path test distinguishes them.
 
    ```typescript
    it("setUserAdmin self-escalation rejected by 0055 trigger when actor is non-admin (deny path)", async () => {
-     // Bootstrap owner is the active admin. Sign up a second non-admin user as the escalation actor.
-     const actorRes = await signUp({
-       name: "Non-Admin Actor",
-       email: "non-admin-escalation@example.com",
+     // First sign-up becomes the bootstrap owner and STAYS as the active admin.
+     // This ensures app.any_admin_exists() returns TRUE so the trigger's bootstrap-recovery
+     // exemption (which allows self-promotion when no admin exists) does NOT apply.
+     await signUp({
+       name: "Deny Path Owner",
+       email: "deny-path-owner@example.com",
        password: "password12345"
      });
-     const nonAdminId = actorRes.json<{ user: { id: string } }>().user.id;
+     // bootstrap owner is automatically active + admin — no seed needed.
 
-     // Ensure the second user is non-admin and active.
+     // Disable approval so the second sign-up lands as active.
+     await appDb
+       .updateTable("app.instance_settings")
+       .set({ value: { value: false }, updated_at: new Date() })
+       .where("key", "=", "registration.requires_approval")
+       .execute();
+
+     const nonAdminRes = await signUp({
+       name: "Non-Admin Escalator",
+       email: "deny-path-escalator@example.com",
+       password: "password12345"
+     });
+     const nonAdminId = nonAdminRes.json<{ user: { id: string } }>().user.id;
+
+     // Confirm the second user is active and non-admin.
      const seed = new pg.Client({ connectionString: connectionStrings.bootstrap });
      await seed.connect();
      await seed.query(
@@ -983,9 +999,9 @@ produce the same promoted result; only the deny-path test distinguishes them.
      const repo = new SettingsRepository();
      const dataCtx = new DataContextRunner(appDb);
 
-     // A non-admin actor tries to promote themselves — the 0055 trigger rejects with 42501.
-     // If GUC regresses to NULL, trigger fails open and the promotion succeeds instead of throwing,
-     // making this assertion go RED and catching the regression.
+     // Non-admin tries to promote themselves — 0055 trigger fires (any_admin_exists = TRUE)
+     // and rejects with 42501. If GUC regresses to NULL, trigger fails open → promotion succeeds
+     // → this assertion goes RED, catching the regression.
      await expect(
        dataCtx.withDataContext({ actorUserId: nonAdminId, requestId: "deny-1" }, (scopedDb) =>
          repo.setUserAdmin(scopedDb, {
@@ -1041,12 +1057,13 @@ produce the same promoted result; only the deny-path test distinguishes them.
    vitest run tests/integration/auth-settings.test.ts tests/integration/multi-user-isolation.test.ts 2>&1 | tail -30
    ```
 
-   Expected: all tests pass. In particular, the following **real** named tests must appear as passing (verified against the current test files — do not invent test names):
-   - `bootstraps the first Better Auth user as instance owner` (auth-settings.test.ts:68) — confirms `GET /api/bootstrap/status` works via `BootstrapHelper`
-   - `DELETE last active admin is rejected (409 from assertNotLastActiveAdmin)` (multi-user-isolation.test.ts:282) — confirms the `assertNotLastActiveAdmin` guard still fires via `withDataContext` (converted in Task 5)
-   - `users_guard_admin_flag trigger (#97) — rejects non-admin self-escalation` (auth-settings.test.ts:798) — note: this test uses a **raw `pg.Client` with manual `SET LOCAL`**, so it does NOT exercise the `withDataContext` GUC path; it only confirms the DB-level trigger itself
-   - `users_guard_admin_flag trigger (#97) — allows an active admin to change is_instance_admin on another user` (auth-settings.test.ts:813) — also uses a **raw `pg.Client` with manual `SET LOCAL`**, NOT `withDataContext`; it does not catch a GUC-plumbing regression
-   - `setUserAdmin promote succeeds under withDataContext (0055 trigger passes)` — the **new** regression test added in Task 6b (this is the only test that catches a silent GUC regression through `withDataContext` — see the Task 6b rationale)
+   Expected: all tests pass. In particular, the following **real** named tests must appear as passing (verified against the current test files — do not invent test names; line numbers omitted as they shift with rebase):
+   - `bootstraps the first Better Auth user as instance owner` — confirms `GET /api/bootstrap/status` works via `BootstrapHelper`
+   - `DELETE last active admin is rejected (409 from assertNotLastActiveAdmin)` — confirms the `assertNotLastActiveAdmin` guard still fires via `withDataContext` (converted in Task 5)
+   - `users_guard_admin_flag trigger (#97) — rejects non-admin self-escalation` — uses a **raw `pg.Client` with manual `SET LOCAL`**; does NOT exercise the `withDataContext` GUC path; only confirms the DB-level trigger itself
+   - `users_guard_admin_flag trigger (#97) — allows an active admin to change is_instance_admin on another user` — also uses a **raw `pg.Client` with manual `SET LOCAL`**, NOT `withDataContext`; does not catch a GUC-plumbing regression
+   - `setUserAdmin promote succeeds under withDataContext (0055 trigger passes)` — new success-path test added in Task 6b; confirms the legitimate promote path still works through `withDataContext`
+   - `setUserAdmin self-escalation rejected by 0055 trigger when actor is non-admin (deny path)` — new denial-path test added in Task 6b (**this is the only test that catches a silent GUC regression** through `withDataContext` — see the Task 6b rationale)
    - `SettingsRepository assertDataContextDb guard` — new guard test passes (Task 6)
 
 3. - [ ] If the Task 6b deny-path test (`setUserAdmin self-escalation rejected by 0055 trigger`) fails with an unexpected **success** (no error thrown), confirm that `withDataContext` is calling `setLocal` with `app.actor_user_id` before the UPDATE. The trigger fires on UPDATE of `is_instance_admin` and checks `app.current_actor_user_id()`; the trigger fails **OPEN** when that GUC is `NULL` (`0055_users_guard_admin_flag_v2.sql:38`), so a silent GUC regression would NOT surface a permission error on the success path — it is precisely the **Task 6b deny-path test** (non-admin self-escalation must be rejected) that catches the regression: if GUC regresses to NULL, the trigger fails open and the promotion succeeds instead of throwing, making the deny-path assertion go red. Verify the GUC plumbing with:
