@@ -92,6 +92,7 @@ export class MemoryRepository {
              1 - (embedding <=> ${vectorLiteral}::vector) AS similarity
       FROM app.memory_chunks
       WHERE embedding IS NOT NULL
+        AND owner_user_id = app.current_actor_user_id()
         AND source_kind = ${sourceKind}
       ORDER BY embedding <=> ${vectorLiteral}::vector
       LIMIT ${limit}
