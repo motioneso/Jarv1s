@@ -12,18 +12,20 @@
 
 ## File Structure
 
-| File | Action | Purpose |
-|------|--------|---------|
+| File                                                          | Action | Purpose                                       |
+| ------------------------------------------------------------- | ------ | --------------------------------------------- |
 | `infra/postgres/migrations/<NNNN>_users_guard_admin_flag.sql` | Create | Trigger function + trigger on app.users (#97) |
-| `packages/memory/sql/<NNNN+1>_worker_memory_rls.sql` | Create | 9 worker policies on memory tables (#98) |
-| `tests/integration/auth-settings.test.ts` | Modify | Add 3 trigger behaviour tests (#97) |
-| `tests/integration/chat-recall.test.ts` | Modify | Add 3 worker RLS behaviour tests (#98) |
-| `tests/integration/foundation.test.ts` | Modify | Add 2 new migration versions to registry |
+| `packages/memory/sql/<NNNN+1>_worker_memory_rls.sql`          | Create | 9 worker policies on memory tables (#98)      |
+| `tests/integration/auth-settings.test.ts`                     | Modify | Add 3 trigger behaviour tests (#97)           |
+| `tests/integration/chat-recall.test.ts`                       | Modify | Add 3 worker RLS behaviour tests (#98)        |
+| `tests/integration/foundation.test.ts`                        | Modify | Add 2 new migration versions to registry      |
 
 **Migration number assignment rule:** At implementation time, run:
+
 ```bash
 ls infra/postgres/migrations/*.sql packages/*/sql/*.sql | sed 's|.*/\([0-9]*\)_.*|\1|' | sort -n | tail -1
 ```
+
 Current high-water = `0052`, so the expected next two are `0053` and `0054`. If something has landed since, use the actual current high-water + 1 and + 2. Update every filename, `foundation.test.ts` entry, and migration content to match.
 
 ---
@@ -31,6 +33,7 @@ Current high-water = `0052`, so the expected next two are `0053` and `0054`. If 
 ## Task 1: Write failing tests for the #97 trigger
 
 **Files:**
+
 - Modify: `tests/integration/auth-settings.test.ts`
 
 - [ ] **Step 1: Locate the insertion point**
@@ -67,10 +70,7 @@ Current high-water = `0052`, so the expected next two are `0053` and `0054`. If 
         await client.query("BEGIN");
         await client.query(`SET LOCAL app.current_actor_user_id = '${ids.userA}'`);
         await expect(
-          client.query(
-            `UPDATE app.users SET is_instance_admin = true WHERE id = $1`,
-            [ids.userA]
-          )
+          client.query(`UPDATE app.users SET is_instance_admin = true WHERE id = $1`, [ids.userA])
         ).rejects.toThrow(/permission denied/i);
       } finally {
         await client.query("ROLLBACK").catch(() => undefined);
@@ -129,6 +129,7 @@ Current high-water = `0052`, so the expected next two are `0053` and `0054`. If 
 ## Task 2: Write failing tests for the #98 worker memory RLS
 
 **Files:**
+
 - Modify: `tests/integration/chat-recall.test.ts`
 
 - [ ] **Step 1: Add the describe block at the end of chat-recall.test.ts**
@@ -237,6 +238,7 @@ Current high-water = `0052`, so the expected next two are `0053` and `0054`. If 
 ## Task 3: Write migration NNNN — users_guard_admin_flag
 
 **Files:**
+
 - Create: `infra/postgres/migrations/<NNNN>_users_guard_admin_flag.sql`
 
 Replace `<NNNN>` with the actual next migration number you determined at the start of Task 1 (expected: `0053`).
@@ -310,6 +312,7 @@ Replace `<NNNN>` with the actual next migration number you determined at the sta
 ## Task 4: Write migration NNNN+1 — worker memory RLS policies
 
 **Files:**
+
 - Create: `packages/memory/sql/<NNNN+1>_worker_memory_rls.sql`
 
 Replace `<NNNN+1>` with the second migration number (expected: `0054`).
@@ -406,23 +409,29 @@ Replace `<NNNN+1>` with the second migration number (expected: `0054`).
 ## Task 5: Update foundation.test.ts migration registry
 
 **Files:**
+
 - Modify: `tests/integration/foundation.test.ts` (line ~146)
 
 - [ ] **Step 1: Find the end of the migration list**
 
   Open `tests/integration/foundation.test.ts`. Find the line:
+
   ```typescript
         { version: "0052", name: "0052_fix_admin_select_policy.sql" }
   ```
+
   It's at approximately line 146.
 
 - [ ] **Step 2: Add the two new entries**
 
   Change:
+
   ```typescript
         { version: "0052", name: "0052_fix_admin_select_policy.sql" }
   ```
+
   To (using the actual migration numbers you assigned — expected 0053/0054):
+
   ```typescript
         { version: "0052", name: "0052_fix_admin_select_policy.sql" },
         { version: "0053", name: "0053_users_guard_admin_flag.sql" },
@@ -533,6 +542,7 @@ Replace `<NNNN+1>` with the second migration number (expected: `0054`).
 - [ ] **Step 5: Report back to the Coordinator**
 
   Message the `Coordinator` pane (via `herdr-pane-message` skill) with:
+
   ```
   [Coordinator] Slice A PR open: <PR URL>. Branch: <branch name>.
   pnpm test:integration PASSED (N tests). audit:release-hardening PASSED.
