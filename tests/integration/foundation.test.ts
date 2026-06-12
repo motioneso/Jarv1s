@@ -152,7 +152,8 @@ describe("MVP foundation scaffold", () => {
         { version: "0053", name: "0053_users_guard_admin_flag.sql" },
         { version: "0054", name: "0054_worker_memory_rls.sql" },
         { version: "0055", name: "0055_users_guard_admin_flag_v2.sql" },
-        { version: "0056", name: "0056_drop_dead_workspace_subsystem.sql" }
+        { version: "0056", name: "0056_drop_dead_workspace_subsystem.sql" },
+        { version: "0057", name: "0057_revoke_app_runtime_chat_update.sql" }
       ]);
     } finally {
       await client.end();
@@ -471,6 +472,55 @@ describe("assertUniqueMigrationVersions (#124)", () => {
       { version: "0055", name: "0055_b.sql", checksum: "bbb", sql: "SELECT 2;" }
     ];
     expect(() => assertUniqueMigrationVersions(files)).not.toThrow();
+  });
+});
+
+describe("chat_messages UPDATE grant revoked + policy narrowed (#134)", () => {
+  beforeAll(async () => {
+    await resetFoundationDatabase();
+  });
+
+  it("jarvis_app_runtime cannot UPDATE app.chat_messages after migration", async () => {
+    const client = new Client({ connectionString: connectionStrings.bootstrap });
+    await client.connect();
+    try {
+      const result = await client.query<{ has_privilege: boolean }>(
+        `SELECT has_table_privilege('jarvis_app_runtime', 'app.chat_messages', 'update') AS has_privilege`
+      );
+      expect(result.rows[0]?.has_privilege).toBe(false);
+    } finally {
+      await client.end();
+    }
+  });
+
+  it("chat_messages_update policy targets only jarvis_worker_runtime and keeps owner scoping", async () => {
+    const client = new Client({ connectionString: connectionStrings.bootstrap });
+    await client.connect();
+    try {
+      const result = await client.query<{
+        roles: string[];
+        qual: string | null;
+        with_check: string | null;
+      }>(
+        `SELECT roles, qual, with_check
+           FROM pg_policies
+          WHERE schemaname = 'app'
+            AND tablename = 'chat_messages'
+            AND policyname = 'chat_messages_update'`
+      );
+      const policy = result.rows[0];
+      expect(policy).toBeDefined();
+      expect(policy?.roles).toContain("jarvis_worker_runtime");
+      expect(policy?.roles).not.toContain("jarvis_app_runtime");
+      // Postgres may print qualified form (app.current_actor_user_id) or unqualified.
+      // The invariant: predicate is owner-scoped, NOT simply `true`.
+      expect(policy?.qual).toContain("owner_user_id");
+      expect(policy?.qual).toContain("current_actor_user_id()");
+      expect(policy?.with_check).toContain("owner_user_id");
+      expect(policy?.with_check).toContain("current_actor_user_id()");
+    } finally {
+      await client.end();
+    }
   });
 });
 
