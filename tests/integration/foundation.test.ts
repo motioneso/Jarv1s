@@ -153,7 +153,8 @@ describe("MVP foundation scaffold", () => {
         { version: "0054", name: "0054_worker_memory_rls.sql" },
         { version: "0055", name: "0055_users_guard_admin_flag_v2.sql" },
         { version: "0056", name: "0056_drop_dead_workspace_subsystem.sql" },
-        { version: "0057", name: "0057_revoke_app_runtime_chat_update.sql" }
+        { version: "0057", name: "0057_revoke_app_runtime_chat_update.sql" },
+        { version: "0058", name: "0058_chat_threads_incognito_immutable.sql" }
       ]);
     } finally {
       await client.end();
@@ -472,6 +473,57 @@ describe("assertUniqueMigrationVersions (#124)", () => {
       { version: "0055", name: "0055_b.sql", checksum: "bbb", sql: "SELECT 2;" }
     ];
     expect(() => assertUniqueMigrationVersions(files)).not.toThrow();
+  });
+});
+
+describe("chat_threads incognito immutability trigger (#135)", () => {
+  const threadId = "99000000-0000-4000-8000-000000000001";
+
+  beforeAll(async () => {
+    await resetFoundationDatabase();
+    // Seed via bootstrap (superuser) to bypass FORCE RLS on chat_threads.
+    const client = new Client({ connectionString: connectionStrings.bootstrap });
+    await client.connect();
+    try {
+      await client.query(
+        `INSERT INTO app.chat_threads (id, owner_user_id, title, incognito)
+         VALUES ($1, $2, 'Test Thread', false)`,
+        [threadId, ids.userA]
+      );
+    } finally {
+      await client.end();
+    }
+  });
+
+  it("raises 42501 when attempting to UPDATE incognito on an existing chat_thread", async () => {
+    // Trigger fires for all roles including superuser.
+    const client = new Client({ connectionString: connectionStrings.bootstrap });
+    await client.connect();
+    try {
+      await expect(
+        client.query(`UPDATE app.chat_threads SET incognito = true WHERE id = $1`, [threadId])
+      ).rejects.toMatchObject({ code: "42501" });
+    } finally {
+      await client.end();
+    }
+  });
+
+  it("does NOT raise on UPDATE of a non-incognito column (title)", async () => {
+    // Must set actor context so enforce_chat_thread_update_scope allows the owner to rename.
+    const client = new Client({ connectionString: connectionStrings.bootstrap });
+    await client.connect();
+    try {
+      await client.query("BEGIN");
+      await client.query("SELECT set_config('app.actor_user_id', $1, true)", [ids.userA]);
+      const result = await client.query(
+        `UPDATE app.chat_threads SET title = 'Renamed Thread' WHERE id = $1`,
+        [threadId]
+      );
+      await client.query("COMMIT");
+      expect(result.rowCount).toBe(1);
+    } finally {
+      await client.end();
+    }
   });
 });
 
