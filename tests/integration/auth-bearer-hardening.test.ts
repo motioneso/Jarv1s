@@ -1,0 +1,170 @@
+import { afterAll, beforeAll, describe, expect, it } from "vitest";
+
+import pg from "pg";
+
+import { createJarvisAuthRuntime, type AuthLogger } from "@jarv1s/auth";
+import { DataContextRunner, createDatabase, type JarvisDatabase } from "@jarv1s/db";
+import type { Kysely } from "kysely";
+
+import { createApiServer } from "../../apps/api/src/server.js";
+import { connectionStrings, ids, resetFoundationDatabase } from "./test-database.js";
+
+const { Client } = pg;
+
+// Regression coverage for the OTNR-P2 #113 hardening of the legacy session-bearer auth
+// path (any caller presenting a Better Auth session UUID as `Authorization: Bearer <id>`).
+// The path is intentionally kept (it is the headless/CLI-bridge auth) but must now:
+//   1. reject expired sessions server-side (expires_at enforced in migration 0046),
+//   2. emit a structured observability event on every use — never logging the raw token,
+//   3. be throttled per-principal by the global rate-limit class.
+describe("Legacy session-bearer auth hardening (#113)", () => {
+  describe("observability", () => {
+    let appDb: Kysely<JarvisDatabase>;
+    let events: Array<{ obj: Record<string, unknown>; msg: string }>;
+    let runtime: ReturnType<typeof createJarvisAuthRuntime>;
+
+    beforeAll(async () => {
+      await resetFoundationDatabase();
+      appDb = createDatabase({ connectionString: connectionStrings.app, maxConnections: 1 });
+      events = [];
+      const logger: AuthLogger = {
+        info: (obj, msg) => events.push({ obj, msg })
+      };
+      runtime = createJarvisAuthRuntime({
+        appDb,
+        runner: new DataContextRunner(appDb),
+        logger
+      });
+    });
+
+    afterAll(async () => {
+      await runtime.close();
+      await appDb.destroy();
+    });
+
+    it("emits a structured event on bearer auth without leaking the raw token", async () => {
+      const ctx = await runtime.resolveAccessContext({
+        headers: { authorization: `Bearer ${ids.sessionA}` }
+      });
+      expect(ctx.actorUserId).toBe(ids.userA);
+
+      const event = events.find((e) => e.obj.event === "auth.bearer_session");
+      expect(event).toBeDefined();
+      expect(event!.obj.actorUserId).toBe(ids.userA);
+      // Fingerprint is a 12-char SHA-256 prefix, never the raw session UUID.
+      expect(event!.obj.tokenFingerprint).toMatch(/^[0-9a-f]{12}$/);
+      // Hard invariant: session tokens must never reach logs.
+      expect(JSON.stringify(event)).not.toContain(ids.sessionA);
+    });
+
+    it("emits no bearer event when no Authorization header is present", async () => {
+      const before = events.filter((e) => e.obj.event === "auth.bearer_session").length;
+      await expect(runtime.resolveAccessContext({ headers: {} })).rejects.toThrow();
+      const after = events.filter((e) => e.obj.event === "auth.bearer_session").length;
+      expect(after).toBe(before);
+    });
+  });
+
+  describe("expires_at enforcement", () => {
+    const expiredSessionId = "40000000-0000-4000-8000-0000000000ee";
+    let server: ReturnType<typeof createApiServer>;
+
+    beforeAll(async () => {
+      await resetFoundationDatabase();
+      // Insert a session whose expires_at is already in the past for user A.
+      const client = new Client({ connectionString: connectionStrings.bootstrap });
+      await client.connect();
+      try {
+        await client.query(
+          `INSERT INTO app.auth_sessions (id, user_id, expires_at)
+           VALUES ($1, $2, now() - interval '1 hour')`,
+          [expiredSessionId, ids.userA]
+        );
+      } finally {
+        await client.end();
+      }
+
+      server = createApiServer({
+        appDb: createDatabase({ connectionString: connectionStrings.app, maxConnections: 1 }),
+        logger: false
+      });
+      await server.ready();
+    });
+
+    afterAll(async () => {
+      await server?.close();
+    });
+
+    it("accepts a live session id as a bearer token", async () => {
+      const res = await server.inject({
+        method: "GET",
+        url: "/api/modules",
+        headers: { authorization: `Bearer ${ids.sessionA}` }
+      });
+      expect(res.statusCode).toBe(200);
+    });
+
+    it("rejects an expired session id presented as a bearer token", async () => {
+      const res = await server.inject({
+        method: "GET",
+        url: "/api/modules",
+        headers: { authorization: `Bearer ${expiredSessionId}` }
+      });
+      expect(res.statusCode).toBe(401);
+    });
+  });
+
+  describe("rate-limit class", () => {
+    let server: ReturnType<typeof createApiServer>;
+    let originalGlobalMax: string | undefined;
+
+    beforeAll(async () => {
+      originalGlobalMax = process.env.JARVIS_RL_GLOBAL_MAX;
+      // Low threshold so the test needs only a few requests.
+      process.env.JARVIS_RL_GLOBAL_MAX = "2";
+
+      await resetFoundationDatabase();
+      server = createApiServer({
+        appDb: createDatabase({ connectionString: connectionStrings.app, maxConnections: 1 }),
+        logger: false
+      });
+      await server.ready();
+    });
+
+    afterAll(async () => {
+      await server?.close();
+      if (originalGlobalMax === undefined) {
+        delete process.env.JARVIS_RL_GLOBAL_MAX;
+      } else {
+        process.env.JARVIS_RL_GLOBAL_MAX = originalGlobalMax;
+      }
+    });
+
+    it("throttles a bearer-authed module route past the per-principal threshold", async () => {
+      const inject = (sessionId: string) =>
+        server.inject({
+          method: "GET",
+          url: "/api/modules",
+          headers: { authorization: `Bearer ${sessionId}` }
+        });
+
+      const res1 = await inject(ids.sessionA);
+      const res2 = await inject(ids.sessionA);
+      const res3 = await inject(ids.sessionA);
+      expect(res1.statusCode).toBe(200);
+      expect(res2.statusCode).toBe(200);
+      expect(res3.statusCode).toBe(429);
+
+      // A different bearer token is a separate bucket — not affected by user A's burst.
+      const other = await inject(ids.sessionB);
+      expect(other.statusCode).toBe(200);
+    });
+
+    it("never throttles health probes", async () => {
+      for (let i = 0; i < 5; i++) {
+        const res = await server.inject({ method: "GET", url: "/health" });
+        expect(res.statusCode).toBe(200);
+      }
+    });
+  });
+});

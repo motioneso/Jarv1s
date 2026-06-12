@@ -1,3 +1,5 @@
+import { createHash } from "node:crypto";
+
 import helmet from "@fastify/helmet";
 import rateLimit from "@fastify/rate-limit";
 import Fastify from "fastify";
@@ -40,19 +42,21 @@ export function createApiServer(options: CreateApiServerOptions = {}) {
   const ownsAppDb = options.appDb === undefined;
   const ownsBoss = options.boss === undefined;
   const dataContext = new DataContextRunner(appDb);
-  const authRuntime =
-    options.authRuntime ??
-    createJarvisAuthRuntime({
-      appDb,
-      runner: dataContext
-    });
-  const ownsAuthRuntime = options.authRuntime === undefined;
   const server = Fastify({
     logger: options.logger ?? true,
     // Honor XFF only when an explicit opt-in confirms a trusted reverse proxy is in
     // front. Without this, XFF is attacker-controlled and must not key the rate limiter.
     trustProxy: !!process.env.JARVIS_TRUST_PROXY
   });
+  const authRuntime =
+    options.authRuntime ??
+    createJarvisAuthRuntime({
+      appDb,
+      runner: dataContext,
+      // Surfaces the legacy session-bearer observability event (#113) into the API logs.
+      logger: server.log
+    });
+  const ownsAuthRuntime = options.authRuntime === undefined;
   const AUTH_MAX = Number(process.env.JARVIS_RL_AUTH_MAX ?? 10);
 
   // Security headers via @fastify/helmet.
@@ -88,12 +92,23 @@ export function createApiServer(options: CreateApiServerOptions = {}) {
   // Register rate-limit first, then register all routes inside server.after() so the
   // plugin's onRoute hook is active when routes are added (Fastify defers plugin init
   // to ready(), so after() guarantees plugin-before-route ordering).
+  //
+  // This is a GLOBAL throttle class keyed on the authenticated principal (#113). Before
+  // the fix, rate limiting was opt-in per-route (global:false) and keyed only on IP, so
+  // the legacy session-bearer path — any caller presenting a session UUID as a bearer
+  // token — could hammer arbitrary module routes unbounded; only the /api/auth/* credential
+  // POSTs were throttled. Now every route carries a default per-principal limit: a leaked or
+  // abused bearer token is bounded to JARVIS_RL_GLOBAL_MAX req/min on its own bucket.
+  // Stricter per-route limits (chat / MCP / AI-tools / auth) still override this default;
+  // health probes are exempt.
+  const GLOBAL_RL_MAX = Number(process.env.JARVIS_RL_GLOBAL_MAX ?? 2000);
   server.register(rateLimit, {
-    global: false,
-    // Always key on the real peer IP. When JARVIS_TRUST_PROXY is set, Fastify resolves
-    // request.ip from the XFF chain after verifying the proxy; otherwise it is the
-    // socket remote address and client-supplied XFF headers are ignored.
-    keyGenerator: (request) => request.ip
+    global: true,
+    max: GLOBAL_RL_MAX,
+    timeWindow: "1 minute",
+    // Health/readiness probes must never be throttled (monitoring + compose smoke).
+    allowList: (request) => request.url === "/health" || request.url.startsWith("/health/ready"),
+    keyGenerator: authPrincipalRateLimitKey
   });
 
   server.after(() => {
@@ -202,6 +217,38 @@ const THROTTLED_AUTH_PATHS = new Set([
   "/api/auth/reset-password",
   "/api/auth/change-password"
 ]);
+
+// Rate-limit key for the global throttle class. Prefer the authenticated principal so
+// each LAN user / bearer client gets its own bucket, falling back to the real peer IP
+// for unauthenticated requests (which hit a 401 before any real work). The bearer token
+// is a session secret, so it is hashed — never used raw as a key — keeping it out of the
+// limiter's in-memory store and any error/header output. Namespaced prefixes prevent a
+// bearer hash from ever colliding with a cookie hash or an IP literal.
+function authPrincipalRateLimitKey(request: FastifyRequest): string {
+  const authorization = request.headers.authorization ?? "";
+  if (authorization.toLowerCase().startsWith("bearer ")) {
+    const token = authorization.slice(authorization.indexOf(" ") + 1).trim();
+    if (token) {
+      return `bearer:${createHash("sha256").update(token).digest("hex").slice(0, 32)}`;
+    }
+  }
+
+  const cookie = (request.headers.cookie ?? "")
+    .split(";")
+    .map((part) => part.trim())
+    .find((part) => part.startsWith("better-auth.session_token="));
+  if (cookie) {
+    const value = cookie.slice("better-auth.session_token=".length).split(";")[0];
+    if (value) {
+      return `cookie:${createHash("sha256").update(value).digest("hex").slice(0, 32)}`;
+    }
+  }
+
+  // When JARVIS_TRUST_PROXY is set, Fastify resolves request.ip from the XFF chain after
+  // verifying the proxy; otherwise it is the socket remote address and client-supplied
+  // XFF headers are ignored (C1 regression guard).
+  return `ip:${request.ip}`;
+}
 
 function registerBetterAuthRoutes(
   server: FastifyInstance,

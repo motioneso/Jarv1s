@@ -1,4 +1,4 @@
-import { randomBytes, randomUUID } from "node:crypto";
+import { createHash, randomBytes, randomUUID } from "node:crypto";
 import type { IncomingHttpHeaders } from "node:http";
 
 import { betterAuth } from "better-auth";
@@ -51,11 +51,26 @@ export interface JarvisAuthRuntime {
   readonly close: () => Promise<void>;
 }
 
+/**
+ * Minimal structured-log sink for security-relevant auth events. Shaped like a pino
+ * logger's `info(mergeObject, msg)` so the Fastify request logger satisfies it directly,
+ * without dragging a Fastify type dependency into the auth package. Optional: when absent
+ * (e.g. tests that inject their own runtime) the events are simply not emitted.
+ */
+export interface AuthLogger {
+  info(obj: Record<string, unknown>, msg: string): void;
+}
+
 export interface CreateJarvisAuthRuntimeOptions {
   readonly appDb: Kysely<JarvisDatabase>;
   readonly runner: DataContextRunner;
   readonly connectionString?: string;
   readonly env?: NodeJS.ProcessEnv;
+  /**
+   * Structured-log sink for the legacy session-bearer observability event (#113).
+   * Pass the Fastify `server.log` here; omit to suppress the event.
+   */
+  readonly logger?: AuthLogger;
 }
 
 interface BetterAuthUser {
@@ -94,7 +109,8 @@ export function createJarvisAuthRuntime(
         request,
         auth,
         legacySessions,
-        appDb: options.appDb
+        appDb: options.appDb,
+        logger: options.logger
       }),
     listConfiguredProviders: () => listConfiguredAuthProviders(env),
     revokeUserSessions: async (userId: string) => {
@@ -250,6 +266,7 @@ async function resolveRequestAccessContext(options: {
   readonly auth: ReturnType<typeof betterAuth>;
   readonly legacySessions: AuthSessionResolver;
   readonly appDb: Kysely<JarvisDatabase>;
+  readonly logger?: AuthLogger;
 }): Promise<AccessContext> {
   const requestId = options.request.id ?? randomUUID();
   const headers = toWebHeaders(options.request.headers);
@@ -258,8 +275,34 @@ async function resolveRequestAccessContext(options: {
   let actorUserId: string;
 
   if (bearerToken) {
+    // LEGACY SESSION-BEARER PATH (#113 — hardened, do not weaken).
+    //
+    // This is the programmatic/headless auth used by the Jarv1s CLI bridge and the
+    // integration suite. The bearer token IS a Better Auth session UUID — there is no
+    // separate API-key table; the session id is the only secret. The following
+    // invariants make this path safe to keep and MUST hold:
+    //   1. expires_at is enforced *server-side*: `app.resolve_auth_session` filters
+    //      `WHERE id = $1 AND expires_at > now()` (migration 0046). An expired session
+    //      id cannot authenticate here — do not move that check into application code.
+    //   2. The `::uuid` cast in the resolver rejects any non-UUID token (no SQL
+    //      injection surface); `readBearerToken` already rejects malformed schemes.
+    //   3. Use is observable: every successful bearer auth emits the structured event
+    //      below so this weaker-than-cookie path is never silent.
+    //   4. Use is throttled: bearer-authed routes carry the global rate-limit class
+    //      keyed on the auth principal (apps/api/src/server.ts), not just IP.
+    // The raw token is a session secret and MUST NEVER be logged (hard invariant —
+    // session tokens never reach logs); only a one-way fingerprint is emitted.
     const ctx = await options.legacySessions.resolveAccessContext(bearerToken, requestId);
     actorUserId = ctx.actorUserId;
+    options.logger?.info(
+      {
+        event: "auth.bearer_session",
+        actorUserId,
+        requestId,
+        tokenFingerprint: fingerprintToken(bearerToken)
+      },
+      "Authenticated via legacy session-bearer token"
+    );
   } else {
     const session = await options.auth.api.getSession({ headers });
     if (!session) {
@@ -408,6 +451,13 @@ function toWebHeaders(headers: Headers | IncomingHttpHeaders): Headers {
   }
 
   return webHeaders;
+}
+
+// One-way fingerprint of a bearer/session token for observability. Returns a short
+// SHA-256 prefix so a security log can correlate repeated use of the *same* token
+// without ever recording the token itself (session tokens must never reach logs).
+function fingerprintToken(token: string): string {
+  return createHash("sha256").update(token).digest("hex").slice(0, 12);
 }
 
 function readBearerToken(headers: Headers): string | undefined {
