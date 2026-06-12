@@ -65,6 +65,9 @@ export interface ChatSessionManagerDeps {
     chatSessionId: string
   ) => { token: string; mcpServerUrl: string };
   readonly revokeMcpToken?: (chatSessionId: string) => void;
+  /** Refresh the session token's TTL on activity, so a live session's token never
+   *  expires under the registry backstop (mirrors lastActivity / idle reaping). */
+  readonly touchMcpToken?: (chatSessionId: string) => void;
   /** Phase 3: optional recall service — injects <memory> seed before replay. */
   readonly recall?: RecallPort;
 }
@@ -262,6 +265,7 @@ export class ChatSessionManager {
       model: session.model
     });
     session.lastActivity = this.deps.clock.now();
+    this.deps.touchMcpToken?.(actorUserId);
 
     return { reply };
   }
