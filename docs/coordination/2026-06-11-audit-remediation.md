@@ -9,6 +9,8 @@
 **Relay threshold:** security-tier merge → relay immediately; routine/sensitive merges\*since\*relay ≥ 2 → relay. No deferral.
 **merges_since_relay:** 0 — **RUN COMPLETE, final relay fired at H #190.** \_History: F #184 04:34Z, G #186 + I #185 ~04:40Z under p_38; B #187 05:09Z under p_44 (security relay); D #188 ~06:20Z under p_45 (security relay); E #189 `0baa384` (security relay, this session); **H #190 `2dc204b` (FINAL security relay, this session — all slices A–I landed)**.\*
 
+**Live state (Coordinator session `515ad953`, 2026-06-12T19:30Z — RELAY after B8 #197):** ✅ **B8 #197 MERGED** — squash `9a17503` @ 19:30:20Z; #171 closed. OTNR-P29 e2e + operator-script hardening (all 8 MED/LOW). Fable cross-model QA **APPROVE** (grounded `d844a79`); CI green; **code-only, spine unchanged → HEAD 0062**. Security-tier merge → relay fired. **Only C-routine remains** in the OTNR MED/LOW disposition: **#168** FK covering indexes (new migration → advances spine past 0062) + **#165** worker graceful SIGTERM drain. After C-routine, OTNR §E is fully discharged → resume Phase-2+ epics. ⚠️ Local worktree metadata is crossed (cosmetic — completed Fable QA worktree `agent-a9460a9` + main tree swapped recorded HEADs after `gh pr checkout`); authoritative state is clean: on `main @ 9a17503`, origin/main has the merge. Another session holds worktree `agent-a1f67d81` — do **not** force-prune.
+
 **Live state (p_44, 2026-06-12T05:09Z):** ✅ **B #187 MERGED** — squash commit `4a82dcc` @ 05:08:59Z. Bookkeeping DONE; tree clean (main only). Migration spine HEAD now **0056**. Security-tier merge → relay fired.
 
 **Live state (p_45, 2026-06-12T~07:00Z):** D plan fixed (3-round Fable gate → APPROVE @ 60fa688). SliceD-build spawned in Agents tab (pane `w653f42bef3ac02-5`, worktree `.claude/worktrees/audit-slice-d`, branch `audit-slice-d`, `JARVIS_PGDATABASE=jarvis_qa_d`). E build agent HELD (pane `w653f42bef3ac02-4`) — waiting for D to merge (E plan's pre-flight requires `insertAuditEvent(db: DataContextDb)` on origin/main). H blocked until D merges (migration number dependency).
@@ -154,12 +156,31 @@ each slice inline; Fable (model:fable) substitutes for Ben at every security gat
   imports its manifest + migration 0031); assertDataContextDb already landed via G/#102. Feature-level
   items (version column, worker grant, `validateManifest` boot seam, JsonSchema structural tightening)
   deferred to their consuming milestones — captured in DISPOSITION §B6. No PR (triage-and-close).
-- **▶ NEXT: B8** — operator-script & e2e hardening (#171): (sensitive) `restore:db --clean` echo
-  target host/db + require `--confirm-database` (mirror `delete-user-data.ts` confirmUserId pattern);
-  `delete:user` post-delete vault reminder. (test) e2e `authenticated:false` + `isInstanceAdmin:false`
-  negative specs; assert chat Approve/Deny sends the decision. (routine) decompose `mock-api.ts` (918
-  lines, near the 1000-line gate). Then C-routine (#168 FK covering indexes [new migration], #165
-  worker graceful drain on SIGTERM).
+- **✅ Batch 2 / B8 MERGED** — PR #197 squash `9a17503` @ 2026-06-12T19:30:20Z (#171, OTNR-P29
+  E2E + operator-script hardening). All 8 MED/LOW findings landed in one bundle. **MED:** (1)
+  `delete:user` now removes the user's on-disk vault subtree via **VaultContext** (`deleteUserVaultDir`,
+  strict `startsWith(base+sep)` containment) **after** the DB COMMIT, with observable `vaultDeleted`
+  result field + operator reminder; (2) `restore:db` requires `--confirm-database <name>` to match the
+  resolved target before destructive `--clean --if-exists` (guard binds at plan construction, `--execute`
+  only — mirrors `delete-user-data` confirmUserId); (3) chat Approve/Deny e2e now assert the decision
+  body (`{status:"confirmed"}`/`{status:"rejected"}`) + action-request id go over the wire; (4) new
+  `authenticated:false` (sign-in gate, no owner-data leak) + `isInstanceAdmin:false` (admin panels hidden)
+  specs. **LOW:** (5) `parseEnvelope(json:unknown)` + `MalformedSecretEnvelopeError` on `JsonSecretCipher`
+  — zero decryption, distinguishes shape vs decrypt failures; `rewrap-secrets`'s 3 blind-cast sites routed
+  through it (per-row try/catch + FOR UPDATE + exit-1-on-skip preserved); (6) backup/restore validate
+  `url.username` non-empty before PGPASSWORD; (7) `smoke:compose` now hits `/health/ready` and asserts
+  `db==="ok" && pgboss==="ok"` (endpoint already existed — no new route); (8) `mock-api.ts` decomposed
+  into `mock-ai-api.ts` + `mock-connectors-api.ts` siblings (922→~470 lines; registered route set
+  byte-identical, Playwright precedence intact). **Fable cross-model QA: APPROVE** (grounded `d844a79`;
+  all 8 findings genuinely addressed; finding-1 deletion mechanism landed earlier in #177, this PR
+  completes operator visibility + coverage; invariants clean — VaultContext not raw fs, no secret leak,
+  no migration; tsc/eslint/file-size/unit-18 + full e2e 16/16 all exit 0). Non-blocking nits: restore
+  usage string omits `--confirm-database` (drill output has it); `vaultDeleted:true` reported even when
+  user row absent (benign idempotent rm). **Code-only, spine unchanged → HEAD 0062.** Main CI on PR head
+  green (Compose smoke + Verify foundation both pass). Issue #171 closed. Security-tier merge → relay fired.
+- **▶ NEXT: C-routine** — (1) **#168** FK covering indexes → **new migration, advances spine past 0062**;
+  (2) **#165** worker `graceful:false` → graceful drain on SIGTERM (still OPEN). Batchable. After
+  C-routine the OTNR MED/LOW disposition (§E) is fully discharged → return to Phase-2+ epic work.
 
 ---
 
