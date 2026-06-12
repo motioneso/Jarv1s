@@ -110,6 +110,19 @@ describe("M3 auth, users, settings", () => {
     });
   });
 
+  it("bootstrap writes audit event with action bootstrap_owner_created", async () => {
+    const auditResponse = await server.inject({
+      method: "GET",
+      url: "/api/admin/audit-events",
+      headers: { cookie: ownerCookie }
+    });
+    const events = auditResponse.json<ListAdminAuditEventsResponse>().auditEvents;
+    const actions = events.map((event) => event.action);
+    expect(actions).toContain("bootstrap_owner_created");
+    const bootstrapEvent = events.find((event) => event.action === "bootstrap_owner_created");
+    expect(bootstrapEvent?.actorUserId).toBe(ownerUserId);
+  });
+
   it("recordAuditEvent writes an audit row via the public settings API", async () => {
     // ownerUserId is set by the preceding bootstrap test — use it as the actor so
     // the GUC-scoped insert passes RLS on app.admin_audit_events.
@@ -309,7 +322,7 @@ describe("M3 auth, users, settings", () => {
 
     expect(auditResponse.statusCode).toBe(200);
     expect(auditActions).toEqual(
-      expect.arrayContaining(["bootstrap.instance_owner", "instance_setting.upsert"])
+      expect.arrayContaining(["bootstrap_owner_created", "instance_setting.upsert"])
     );
     expect(auditActions).not.toContain("workspace.create");
     expect(auditActions).not.toContain("resource_grant.upsert");
@@ -333,7 +346,7 @@ describe("multi-user registration + lifecycle (Phase 2 Slice A)", () => {
   beforeEach(async () => {
     await resetEmptyFoundationDatabase();
     appDb = createDatabase({ connectionString: connectionStrings.app, maxConnections: 1 });
-    authRuntime = createJarvisAuthRuntime({ appDb });
+    authRuntime = createJarvisAuthRuntime({ appDb, runner: new DataContextRunner(appDb) });
     server = createApiServer({ appDb, authRuntime, logger: false });
     await server.ready();
   });

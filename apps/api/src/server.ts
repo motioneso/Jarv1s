@@ -39,10 +39,12 @@ export function createApiServer(options: CreateApiServerOptions = {}) {
   const boss = options.boss ?? createPgBossClient(getJarvisDatabaseUrls().app);
   const ownsAppDb = options.appDb === undefined;
   const ownsBoss = options.boss === undefined;
+  const dataContext = new DataContextRunner(appDb);
   const authRuntime =
     options.authRuntime ??
     createJarvisAuthRuntime({
-      appDb
+      appDb,
+      runner: dataContext
     });
   const ownsAuthRuntime = options.authRuntime === undefined;
   const server = Fastify({
@@ -51,7 +53,6 @@ export function createApiServer(options: CreateApiServerOptions = {}) {
     // front. Without this, XFF is attacker-controlled and must not key the rate limiter.
     trustProxy: !!process.env.JARVIS_TRUST_PROXY
   });
-  const dataContext = new DataContextRunner(appDb);
   const AUTH_MAX = Number(process.env.JARVIS_RL_AUTH_MAX ?? 10);
 
   // Security headers via @fastify/helmet.

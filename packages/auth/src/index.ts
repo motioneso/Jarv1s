@@ -10,10 +10,13 @@ import pg from "pg";
 
 import {
   AuthSessionResolver,
+  DataContextRunner,
   getJarvisDatabaseUrls,
   type AccessContext,
+  type DataContextDb,
   type JarvisDatabase
 } from "@jarv1s/db";
+import { recordAuditEvent as settingsRecordAuditEvent } from "@jarv1s/settings";
 import type { AuthProviderStatusDto } from "@jarv1s/shared";
 
 const { Pool } = pg;
@@ -51,6 +54,7 @@ export interface JarvisAuthRuntime {
 
 export interface CreateJarvisAuthRuntimeOptions {
   readonly appDb: Kysely<JarvisDatabase>;
+  readonly runner: DataContextRunner;
   readonly connectionString?: string;
   readonly env?: NodeJS.ProcessEnv;
 }
@@ -60,6 +64,13 @@ interface BetterAuthUser {
   readonly email: string;
   readonly name?: string;
 }
+
+// The slice of the @jarv1s/settings public API that auth depends on. Auth records
+// admin audit events exclusively through this public API, never through the settings
+// repository class or by writing the settings-owned audit table directly (#101).
+type BootstrapSettings = {
+  readonly recordAuditEvent: typeof settingsRecordAuditEvent;
+};
 
 export function createJarvisAuthRuntime(
   options: CreateJarvisAuthRuntimeOptions
@@ -71,7 +82,11 @@ export function createJarvisAuthRuntime(
     options: "-c search_path=app,public"
   });
   const legacySessions = new AuthSessionResolver(options.appDb);
-  const auth = betterAuth(createBetterAuthOptions(pool, options.appDb, env));
+  const auth = betterAuth(
+    createBetterAuthOptions(pool, options.appDb, env, options.runner, {
+      recordAuditEvent: settingsRecordAuditEvent
+    })
+  );
 
   return {
     auth,
@@ -145,7 +160,9 @@ export function listConfiguredAuthProviders(
 function createBetterAuthOptions(
   pool: pg.Pool,
   appDb: Kysely<JarvisDatabase>,
-  env: NodeJS.ProcessEnv
+  env: NodeJS.ProcessEnv,
+  runner: DataContextRunner,
+  settings: BootstrapSettings
 ): BetterAuthOptions {
   const socialProviders = readSocialProviders(env);
   const plugins = readAuthPlugins(env);
@@ -219,7 +236,7 @@ function createBetterAuthOptions(
       user: {
         create: {
           before: (user) => registrationGate(appDb, user),
-          after: (user) => bootstrapFirstJarvisUser(appDb, user)
+          after: (user) => bootstrapFirstJarvisUser(runner, settings, user as BetterAuthUser)
         }
       }
     },
@@ -306,67 +323,69 @@ async function readBooleanSetting(
 }
 
 async function bootstrapFirstJarvisUser(
-  appDb: Kysely<JarvisDatabase>,
+  runner: DataContextRunner,
+  settings: BootstrapSettings,
   user: BetterAuthUser
 ): Promise<void> {
-  await appDb.transaction().execute(async (transaction) => {
-    await sql`select pg_advisory_xact_lock(hashtext('jarv1s:first-user-bootstrap'))`.execute(
-      transaction
-    );
-
-    // app.count_all_users() is a SECURITY DEFINER function owned by jarvis_auth_runtime,
-    // which has a USING(true) policy on users under FORCE RLS. This gives us an accurate
-    // total count even though app_runtime's own self-row policy would return count=1.
-    const countResult = await sql<{ count: string }>`SELECT app.count_all_users() AS count`.execute(
-      transaction
-    );
-    const isFirstUser = Number(countResult.rows[0]?.count ?? 0) === 1;
-
-    // Set actor GUC so the UPDATE passes the self-row policy on app.users.
-    // The 'true' flag scopes this to the transaction only.
-    await sql`SELECT set_config('app.actor_user_id', ${user.id}, true)`.execute(transaction);
-
-    let status: "active" | "pending" = "active";
-    if (!isFirstUser) {
-      const requiresApproval = await readBooleanSetting(
-        transaction,
-        "registration.requires_approval",
-        true
+  // withDataContext is the sole transaction boundary: it opens one transaction and
+  // sets app.actor_user_id / app.request_id GUCs for its lifetime. No raw appDb DML
+  // and no manual set_config here (#127).
+  await runner.withDataContext(
+    { actorUserId: user.id, requestId: `bootstrap:${user.id}` },
+    async (scopedDb) => {
+      // Advisory transaction-level lock — prevents two concurrent sign-ups from both
+      // seeing isFirstUser = true. Must run inside the same transaction.
+      await sql`SELECT pg_advisory_xact_lock(hashtext('jarv1s:first-user-bootstrap'))`.execute(
+        scopedDb.db
       );
-      if (requiresApproval) status = "pending";
-    }
 
-    await transaction
-      .updateTable("app.users")
-      .set({
-        name: user.name ?? "",
-        email: user.email,
-        is_instance_admin: isFirstUser,
-        is_bootstrap_owner: isFirstUser,
-        status,
-        updated_at: new Date()
-      })
-      .where("id", "=", user.id)
-      .execute();
+      // app.count_all_users() is a SECURITY DEFINER function owned by jarvis_auth_runtime,
+      // which has a USING(true) policy on users under FORCE RLS. This gives an accurate
+      // total count even though app_runtime's own self-row policy would return count=1.
+      const countResult = await sql<{
+        count: string;
+      }>`SELECT app.count_all_users() AS count`.execute(scopedDb.db);
+      const isFirstUser = Number(countResult.rows[0]?.count ?? 0) === 1;
 
-    if (!isFirstUser) {
-      return;
-    }
+      let status: "active" | "pending" = "active";
+      if (!isFirstUser) {
+        const requiresApproval = await readBooleanSetting(
+          scopedDb.db,
+          "registration.requires_approval",
+          true
+        );
+        if (requiresApproval) status = "pending";
+      }
 
-    await transaction
-      .insertInto("app.admin_audit_events")
-      .values({
-        id: randomUUID(),
-        actor_user_id: user.id,
-        action: "bootstrap.instance_owner",
-        target_type: "user",
-        target_id: user.id,
+      await scopedDb.db
+        .updateTable("app.users")
+        .set({
+          name: user.name ?? "",
+          email: user.email,
+          is_instance_admin: isFirstUser,
+          is_bootstrap_owner: isFirstUser,
+          status,
+          updated_at: new Date()
+        })
+        .where("id", "=", user.id)
+        .execute();
+
+      if (!isFirstUser) {
+        return;
+      }
+
+      // Auth must not write the settings-owned audit table directly. Record the
+      // bootstrap event through the @jarv1s/settings public API (#101).
+      await settings.recordAuditEvent(scopedDb, {
+        actorUserId: user.id,
+        action: "bootstrap_owner_created",
+        targetType: "user", // NOT NULL in schema
+        targetId: user.id,
         metadata: {},
-        request_id: null,
-        created_at: new Date()
-      })
-      .execute();
-  });
+        requestId: `bootstrap:${user.id}`
+      });
+    }
+  );
 }
 
 function toWebHeaders(headers: Headers | IncomingHttpHeaders): Headers {
