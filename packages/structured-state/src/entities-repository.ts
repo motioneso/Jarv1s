@@ -1,4 +1,4 @@
-import type { DataContextDb, Entity } from "@jarv1s/db";
+import { assertDataContextDb, type DataContextDb, type Entity } from "@jarv1s/db";
 import type { EntityType, ProvenanceKind } from "./types.js";
 
 export interface CreateEntityInput {
@@ -23,6 +23,7 @@ export interface UpdateEntityInput {
 
 export class EntitiesRepository {
   async create(scopedDb: DataContextDb, input: CreateEntityInput): Promise<Entity> {
+    assertDataContextDb(scopedDb);
     const row = await scopedDb.db
       .insertInto("app.entities")
       .values({
@@ -41,6 +42,7 @@ export class EntitiesRepository {
   }
 
   async listVisible(scopedDb: DataContextDb): Promise<Entity[]> {
+    assertDataContextDb(scopedDb);
     const rows = await scopedDb.db
       .selectFrom("app.entities")
       .selectAll()
@@ -50,6 +52,7 @@ export class EntitiesRepository {
   }
 
   async get(scopedDb: DataContextDb, id: string): Promise<Entity | undefined> {
+    assertDataContextDb(scopedDb);
     const row = await scopedDb.db
       .selectFrom("app.entities")
       .selectAll()
@@ -63,6 +66,7 @@ export class EntitiesRepository {
     id: string,
     input: UpdateEntityInput
   ): Promise<Entity | undefined> {
+    assertDataContextDb(scopedDb);
     const updates: Record<string, unknown> = { updated_at: new Date() };
     if (input.name !== undefined) updates["name"] = input.name;
     if (input.attributes !== undefined) updates["attributes"] = JSON.stringify(input.attributes);
@@ -82,6 +86,7 @@ export class EntitiesRepository {
   }
 
   async delete(scopedDb: DataContextDb, id: string): Promise<void> {
+    assertDataContextDb(scopedDb);
     await scopedDb.db.deleteFrom("app.entities").where("id", "=", id).execute();
   }
 }

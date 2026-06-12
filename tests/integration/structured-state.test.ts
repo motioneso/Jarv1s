@@ -375,3 +375,32 @@ describe("VaultWriteBackService", () => {
     });
   });
 });
+
+// ── assertDataContextDb guards ────────────────────────────────────────────────
+
+describe("assertDataContextDb guards — structured-state repos", () => {
+  it("CommitmentsRepository.create throws on unbranded handle", async () => {
+    const repo = new CommitmentsRepository();
+    await expect(
+      repo.create(appDb as unknown as import("@jarv1s/db").DataContextDb, {
+        ownerUserId: userId,
+        title: "x",
+        provenance: "volunteered"
+      })
+    ).rejects.toThrow("Repository access requires withDataContext");
+  });
+
+  it("EntitiesRepository.listVisible throws on unbranded handle", async () => {
+    const repo = new EntitiesRepository();
+    await expect(
+      repo.listVisible(appDb as unknown as import("@jarv1s/db").DataContextDb)
+    ).rejects.toThrow("Repository access requires withDataContext");
+  });
+
+  it("PreferencesRepository.upsert throws on unbranded handle", async () => {
+    const repo = new PreferencesRepository();
+    await expect(
+      repo.upsert(appDb as unknown as import("@jarv1s/db").DataContextDb, userId, "k", "v")
+    ).rejects.toThrow("Repository access requires withDataContext");
+  });
+});

@@ -1,4 +1,4 @@
-import type { DataContextDb } from "@jarv1s/db";
+import { assertDataContextDb, type DataContextDb } from "@jarv1s/db";
 
 export class PreferencesRepository {
   async upsert(
@@ -7,6 +7,7 @@ export class PreferencesRepository {
     key: string,
     value: unknown
   ): Promise<void> {
+    assertDataContextDb(scopedDb);
     await scopedDb.db
       .insertInto("app.preferences")
       .values({
@@ -25,6 +26,7 @@ export class PreferencesRepository {
   }
 
   async get(scopedDb: DataContextDb, key: string): Promise<unknown> {
+    assertDataContextDb(scopedDb);
     const row = await scopedDb.db
       .selectFrom("app.preferences")
       .select("value_json")
@@ -34,6 +36,7 @@ export class PreferencesRepository {
   }
 
   async list(scopedDb: DataContextDb): Promise<Record<string, unknown>> {
+    assertDataContextDb(scopedDb);
     const rows = await scopedDb.db
       .selectFrom("app.preferences")
       .select(["key", "value_json"])
@@ -42,6 +45,7 @@ export class PreferencesRepository {
   }
 
   async delete(scopedDb: DataContextDb, key: string): Promise<void> {
+    assertDataContextDb(scopedDb);
     await scopedDb.db.deleteFrom("app.preferences").where("key", "=", key).execute();
   }
 }

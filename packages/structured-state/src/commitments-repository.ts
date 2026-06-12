@@ -1,4 +1,4 @@
-import type { Commitment, DataContextDb } from "@jarv1s/db";
+import { assertDataContextDb, type Commitment, type DataContextDb } from "@jarv1s/db";
 import type { CommitmentSourceKind, CommitmentStatus, ProvenanceKind } from "./types.js";
 
 export interface CreateCommitmentInput {
@@ -24,6 +24,7 @@ export interface UpdateCommitmentInput {
 
 export class CommitmentsRepository {
   async create(scopedDb: DataContextDb, input: CreateCommitmentInput): Promise<Commitment> {
+    assertDataContextDb(scopedDb);
     const result = await scopedDb.db
       .insertInto("app.commitments")
       .values({
@@ -42,6 +43,7 @@ export class CommitmentsRepository {
   }
 
   async listVisible(scopedDb: DataContextDb): Promise<Commitment[]> {
+    assertDataContextDb(scopedDb);
     const rows = await scopedDb.db
       .selectFrom("app.commitments")
       .selectAll()
@@ -51,6 +53,7 @@ export class CommitmentsRepository {
   }
 
   async get(scopedDb: DataContextDb, id: string): Promise<Commitment | undefined> {
+    assertDataContextDb(scopedDb);
     const row = await scopedDb.db
       .selectFrom("app.commitments")
       .selectAll()
@@ -64,6 +67,7 @@ export class CommitmentsRepository {
     id: string,
     input: UpdateCommitmentInput
   ): Promise<Commitment | undefined> {
+    assertDataContextDb(scopedDb);
     const updates: Record<string, unknown> = { updated_at: new Date() };
     if (input.title !== undefined) updates["title"] = input.title;
     if (input.status !== undefined) updates["status"] = input.status;
@@ -83,6 +87,7 @@ export class CommitmentsRepository {
   }
 
   async delete(scopedDb: DataContextDb, id: string): Promise<void> {
+    assertDataContextDb(scopedDb);
     await scopedDb.db.deleteFrom("app.commitments").where("id", "=", id).execute();
   }
 }
