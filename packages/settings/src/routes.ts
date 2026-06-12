@@ -32,7 +32,7 @@ import {
 } from "@jarv1s/shared";
 import { HttpError, handleRouteError as handleModuleRouteError } from "@jarv1s/module-sdk";
 
-import { deleteUserData } from "../../../scripts/delete-user-data.js";
+import { deleteUserData, LastActiveAdminError } from "../../../scripts/delete-user-data.js";
 import { BootstrapHelper } from "./bootstrap.js";
 import { HttpRepositoryError, SettingsRepository } from "./repository.js";
 
@@ -311,14 +311,26 @@ export function registerSettingsRoutes(
         throw new HttpError(409, "The bootstrap owner cannot be deleted");
       if (existing.is_instance_admin) await repository.assertNotLastActiveAdmin(scopedDb, id);
     });
-    await deleteUserData({
-      userId: id,
-      confirmUserId: id,
-      actorUserId: accessContext.actorUserId,
-      requestId: requireRequestId(accessContext),
-      bootstrapConnectionString: dependencies.bootstrapConnectionString,
-      dryRun: false
-    });
+    // The pre-check above is a fast-path 409 for the common case; it commits and
+    // releases its advisory lock before deleteUserData runs. deleteUserData
+    // re-asserts the last-admin guard under the same lock inside its own
+    // transaction, so it is the authoritative serialized check. Map its typed
+    // failure back to a 409 if a concurrent removal won the race (#94).
+    try {
+      await deleteUserData({
+        userId: id,
+        confirmUserId: id,
+        actorUserId: accessContext.actorUserId,
+        requestId: requireRequestId(accessContext),
+        bootstrapConnectionString: dependencies.bootstrapConnectionString,
+        dryRun: false
+      });
+    } catch (error) {
+      if (error instanceof LastActiveAdminError) {
+        throw new HttpError(409, error.message);
+      }
+      throw error;
+    }
     return id;
   }
 

@@ -26,6 +26,19 @@ export interface DeleteUserDataResult {
   readonly userId: string;
 }
 
+/**
+ * Thrown when deleting the target would leave the instance with zero active
+ * admins. Distinct type so the admin DELETE/reject route can map it to a 409
+ * (rather than a generic 500) when a concurrent removal loses the race that the
+ * advisory lock serializes. See the last-admin re-check in deleteUserData (#94).
+ */
+export class LastActiveAdminError extends Error {
+  constructor() {
+    super("Cannot remove the last active admin");
+    this.name = "LastActiveAdminError";
+  }
+}
+
 const userScopedCountQueries: ReadonlyArray<readonly [table: string, predicate: string]> = [
   ["app.users", "id = $1::uuid"],
   ["app.auth_sessions", "user_id = $1::uuid"],
@@ -75,6 +88,34 @@ export async function deleteUserData(
         dryRun,
         userId: options.userId
       };
+    }
+
+    // Last-active-admin TOCTOU guard (#94). The route's pre-check ran in a
+    // *separate* committed transaction, so by the time we reach this DELETE the
+    // instance state may have changed. Serialize against the repository's admin
+    // mutations on the same advisory key, then re-assert under the lock that
+    // removing this user does not drop the active-admin count to zero. The lock
+    // is per-database, so it serializes correctly even though this is the
+    // bootstrap connection rather than an app-runtime one. Both run inside one
+    // transaction here, so the xact lock is held through the DELETE and COMMIT.
+    await client.query("SELECT pg_advisory_xact_lock(hashtext('jarv1s:last-active-admin'))");
+    const adminGuard = await client.query<{
+      target_is_admin: boolean | null;
+      other_active_admin: boolean;
+    }>(
+      `
+        SELECT
+          (SELECT is_instance_admin FROM app.users WHERE id = $1::uuid) AS target_is_admin,
+          EXISTS (
+            SELECT 1 FROM app.users
+            WHERE is_instance_admin = true AND status = 'active' AND id != $1::uuid
+          ) AS other_active_admin
+      `,
+      [options.userId]
+    );
+    if (adminGuard.rows[0]?.target_is_admin === true && !adminGuard.rows[0]?.other_active_admin) {
+      // The catch below issues the ROLLBACK that releases the advisory lock.
+      throw new LastActiveAdminError();
     }
 
     const auditEventId = randomUUID();

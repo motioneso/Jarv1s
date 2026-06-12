@@ -110,8 +110,10 @@ export class SettingsRepository {
     if (input.status === "deactivated" && input.targetUserId === input.actorUserId) {
       throw new HttpRepositoryError(422, "You cannot deactivate your own account");
     }
-    if (input.status === "deactivated" && target.is_instance_admin) {
-      await this.assertAnotherActiveAdmin(scopedDb, input.targetUserId);
+    // Re-reads the admin flag under the lock (the `target` read above may be
+    // stale); no-ops for non-admins. Guards against deactivating the last admin.
+    if (input.status === "deactivated") {
+      await this.assertRemovingActiveAdminIsSafe(scopedDb, input.targetUserId);
     }
 
     const updated = await scopedDb.db
@@ -142,9 +144,9 @@ export class SettingsRepository {
       if (target.is_bootstrap_owner) {
         throw new HttpRepositoryError(409, "The bootstrap owner cannot be demoted");
       }
-      if (target.is_instance_admin) {
-        await this.assertAnotherActiveAdmin(scopedDb, input.targetUserId);
-      }
+      // Re-reads the admin flag under the lock (the `target` read above may be
+      // stale); no-ops if the target is not actually an admin.
+      await this.assertRemovingActiveAdminIsSafe(scopedDb, input.targetUserId);
     }
 
     const updated = await scopedDb.db
@@ -234,7 +236,23 @@ export class SettingsRepository {
     return user;
   }
 
-  private async assertAnotherActiveAdmin(
+  /**
+   * Serialize last-active-admin checks against any other admin-removing mutation.
+   * withDataContext runs each repository method inside a single transaction, so
+   * this transaction-scoped advisory lock is held through the caller's subsequent
+   * UPDATE and commit. The same key is taken by the bootstrap-connection delete
+   * path (scripts/delete-user-data.ts) — advisory locks are per-database, so all
+   * removal paths serialize. Mirrors the bootstrapFirstJarvisUser pattern
+   * (auth/src/index.ts). (#94)
+   */
+  private async lockLastActiveAdmin(scopedDb: DataContextDb): Promise<void> {
+    await sql`SELECT pg_advisory_xact_lock(hashtext('jarv1s:last-active-admin'))`.execute(
+      scopedDb.db
+    );
+  }
+
+  /** Throws 409 unless an active admin other than excludingUserId exists. Assumes the lock is held. */
+  private async ensureAnotherActiveAdminExists(
     scopedDb: DataContextDb,
     excludingUserId: string
   ): Promise<void> {
@@ -246,6 +264,37 @@ export class SettingsRepository {
     if (!result.rows[0]) {
       throw new HttpRepositoryError(409, "Cannot remove the last active admin");
     }
+  }
+
+  /**
+   * Take the lock, then count under it. For callers (the route delete/reject
+   * pre-checks) that have already established the target is an admin.
+   */
+  private async assertAnotherActiveAdmin(
+    scopedDb: DataContextDb,
+    excludingUserId: string
+  ): Promise<void> {
+    await this.lockLastActiveAdmin(scopedDb);
+    await this.ensureAnotherActiveAdminExists(scopedDb, excludingUserId);
+  }
+
+  /**
+   * Guard a deactivate/demote of targetUserId. Takes the lock FIRST, then
+   * re-reads the target's admin flag under the lock — so a stale "not an admin"
+   * read taken before the lock (e.g. racing a concurrent promote) can never skip
+   * the guard. Only when the target is genuinely an admin do we require another
+   * active admin to remain. (#94)
+   */
+  private async assertRemovingActiveAdminIsSafe(
+    scopedDb: DataContextDb,
+    targetUserId: string
+  ): Promise<void> {
+    await this.lockLastActiveAdmin(scopedDb);
+    const target = await this.requireUserRow(scopedDb, targetUserId);
+    if (!target.is_instance_admin) {
+      return;
+    }
+    await this.ensureAnotherActiveAdminExists(scopedDb, targetUserId);
   }
 
   async insertAuditEvent(
