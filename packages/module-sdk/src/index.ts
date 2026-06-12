@@ -5,6 +5,8 @@ export {
   type HandleRouteErrorOptions
 } from "./route-errors.js";
 
+export { sessionRateLimitKey } from "./rate-limit-key.js";
+
 export type ModuleLifecycle = "required" | "optional" | "user-toggleable" | "workspace-toggleable";
 export type ModuleScope = "user" | "admin" | "system";
 export type ModulePermissionAction = "view" | "create" | "update" | "delete" | "manage" | "execute";
