@@ -61,6 +61,8 @@ export interface CreateChatSessionRuntimeDeps {
       chatSessionId: string
     ) => { token: string; mcpServerUrl: string };
     readonly revoke: (chatSessionId: string) => void;
+    /** Refresh a session token's TTL on activity (defaults to no-op if omitted). */
+    readonly touch?: (chatSessionId: string) => void;
   };
 }
 
@@ -91,6 +93,7 @@ export function createChatSessionRuntime(deps: CreateChatSessionRuntimeDeps): Ch
     persona: DEFAULT_JARVIS_PERSONA,
     mintMcpToken: deps.mcpTokenLifecycle?.mint,
     revokeMcpToken: deps.mcpTokenLifecycle?.revoke,
+    touchMcpToken: deps.mcpTokenLifecycle?.touch,
     recall: deps.recall
   });
 
