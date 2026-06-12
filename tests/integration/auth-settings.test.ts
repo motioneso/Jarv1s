@@ -844,6 +844,53 @@ describe("users_guard_admin_flag bootstrap exemption (#97)", () => {
       await client.end();
     }
   });
+
+  it("withDataContext allows bootstrap owner to set is_instance_admin when no admin exists", async () => {
+    // Fresh DB — no users yet, so app.any_admin_exists() is false and the 0055
+    // trigger must allow the bootstrap owner's self-promotion.
+    await resetEmptyFoundationDatabase();
+    const seed = new pg.Client({ connectionString: connectionStrings.bootstrap });
+    await seed.connect();
+    try {
+      await seed.query(
+        `INSERT INTO app.users (id, email, name, is_instance_admin)
+         VALUES ($1, 'withdc-bootstrap@test.test', 'DC Bootstrap', false)`,
+        [ids.userA]
+      );
+    } finally {
+      await seed.end();
+    }
+
+    const localDb = createDatabase({
+      connectionString: connectionStrings.app,
+      maxConnections: 1
+    });
+    const dataContext = new DataContextRunner(localDb);
+    try {
+      // withDataContext sets app.actor_user_id to the bootstrap owner before the
+      // UPDATE fires the 0055 trigger; any_admin_exists() = false → self-promotion allowed.
+      await expect(
+        dataContext.withDataContext(
+          { actorUserId: ids.userA, requestId: "test:bootstrap" },
+          async (scopedDb) => {
+            await scopedDb.db
+              .updateTable("app.users")
+              .set({ is_instance_admin: true, updated_at: new Date() })
+              .where("id", "=", ids.userA)
+              .execute();
+          }
+        )
+      ).resolves.not.toThrow();
+
+      const rows = await sql<{
+        is_instance_admin: boolean;
+      }>`SELECT is_instance_admin FROM app.get_user_by_id(${ids.userA}::uuid)`.execute(localDb);
+      expect(rows.rows[0]?.is_instance_admin).toBe(true);
+    } finally {
+      // finally so a failed assertion never leaks the connection and hangs the suite.
+      await localDb.destroy();
+    }
+  });
 });
 
 function cookieHeader(headers: OutgoingHttpHeaders): string {
