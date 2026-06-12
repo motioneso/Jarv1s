@@ -36,6 +36,11 @@ export interface GenerateBriefingRunInput {
   readonly moduleManifests: readonly JarvisModuleManifest[];
   readonly runKind: BriefingRunKind;
   readonly runId?: string;
+  /**
+   * pg-boss job ID when this run is triggered by a worker job.
+   * Used to form the requestId in ToolContext so execution is traceable.
+   */
+  readonly jobId?: string;
 }
 
 interface ToolSummary {
@@ -258,10 +263,12 @@ async function generateSummary(
     try {
       const toolResult = await manifestTool.execute(
         scopedDb,
+        // Hard-coded empty input — briefings always run tools with no caller-supplied input.
+        // validateToolInput is intentionally NOT called here; {} is not caller-supplied input.
         {},
         {
-          actorUserId: "",
-          requestId: "",
+          actorUserId: definition.owner_user_id,
+          requestId: input.jobId ? `pgboss:${input.jobId}` : `briefing:${input.runId ?? randomUUID()}`,
           chatSessionId: ""
         }
       );

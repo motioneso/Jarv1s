@@ -28,6 +28,7 @@ import {
   getBuiltInModuleRegistrations,
   getBuiltInSqlMigrationDirectories
 } from "@jarv1s/module-registry";
+import type { JarvisModuleManifest } from "@jarv1s/module-sdk";
 import { connectionStrings, ids, resetFoundationDatabase } from "./test-database.js";
 
 const { Client } = pg;
@@ -465,6 +466,55 @@ describe("Briefings module M6 read-only scheduled summaries", () => {
     expect(meta.aiModel).not.toBeNull();
     expect(meta.aiModel?.id).toBe(modelRow.id);
     expect(meta.aiModel?.tier).toBe("economy");
+  });
+
+  it("briefing tool execute receives a non-empty actorUserId and requestId in ToolContext", async () => {
+    const capturedContexts: { actorUserId: string; requestId: string }[] = [];
+    const capturingManifest: JarvisModuleManifest = {
+      id: "ctx-check",
+      name: "CtxCheck",
+      version: "0.0.0",
+      publisher: "test",
+      lifecycle: "optional",
+      compatibility: { jarv1s: "*" },
+      assistantTools: [
+        {
+          name: "ctx-check.read",
+          description: "Captures ToolContext for assertion.",
+          permissionId: "ctx-check.view",
+          risk: "read" as const,
+          execute: async (_db, _input, ctx) => {
+            capturedContexts.push({ actorUserId: ctx.actorUserId, requestId: ctx.requestId });
+            return { data: {} };
+          }
+        }
+      ]
+    };
+
+    const def = await dataContext.withDataContext(
+      { actorUserId: ids.userA, requestId: "r:briefing-ctx-test" },
+      (scopedDb) =>
+        repository.createDefinition(scopedDb, {
+          title: "ToolContext check",
+          selectedToolNames: ["ctx-check.read"]
+        })
+    );
+
+    const run = await dataContext.withDataContext(
+      { actorUserId: ids.userA, requestId: "r:briefing-ctx-run" },
+      (scopedDb) =>
+        repository.generateRun(scopedDb, def.id, {
+          moduleManifests: [capturingManifest],
+          runKind: "manual",
+          // omit runId — let repository generate a UUID
+        })
+    );
+
+    expect(run).toBeDefined();
+    expect(capturedContexts).toHaveLength(1);
+    expect(capturedContexts[0]!.actorUserId).toBe(ids.userA);
+    expect(capturedContexts[0]!.requestId).not.toBe("");
+    expect(capturedContexts[0]!.requestId).toMatch(/^briefing:|^pgboss:/);
   });
 });
 
