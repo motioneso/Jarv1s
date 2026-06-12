@@ -3,6 +3,11 @@ import { randomUUID } from "node:crypto";
 export interface SessionIdentity {
   readonly actorUserId: string;
   readonly chatSessionId: string;
+  /**
+   * When non-null, only tools whose names appear in this set may be called
+   * via this session token.  null = unrestricted (REST and non-MCP paths).
+   */
+  readonly allowedToolNames: Set<string> | null;
 }
 
 export class InvalidSessionTokenError extends Error {
