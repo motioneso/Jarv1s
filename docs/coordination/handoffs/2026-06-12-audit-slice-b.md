@@ -4,7 +4,7 @@
 **Implementation plan (pre-written + Fable-reviewed — DO NOT rewrite):** `docs/superpowers/plans/2026-06-12-audit-slice-b-dead-subsystem-deletion.md`
 **GitHub issues:** #120 (workspaces), #153 (resource-grants no-op), #115/#116 (resolved by deletion), #152 (manifest narrowing). Advances workspace-halves of #155/#127/#101.
 **Risk tier:** `security` (shared-table DROP migration touching RLS surface). ⇒ cross-model QA + sign-off before merge — build to that bar.
-**Worktree:** `~/Jarv1s/.claude/worktrees/audit-slice-b`   **Branch:** `audit-slice-b` (off `origin/main` @ e0a9e2a)
+**Worktree:** `~/Jarv1s/.claude/worktrees/audit-slice-b` **Branch:** `audit-slice-b` (off `origin/main` @ e0a9e2a)
 **Build skill path (absolute):** `~/Jarv1s/.claude/skills/coordinated-build/SKILL.md`
 **Coordinator label:** `Coordinator` (UNIQUE — escalate via `herdr-pane-message`; verify `herdr pane list` shows exactly one such pane before messaging. Never guess a `…-N` pane-id.)
 **Relay threshold:** ~80–100k tokens OR a compaction summary in your own context → relay immediately.

@@ -4,7 +4,7 @@
 **Implementation plan (pre-written + Fable-reviewed — DO NOT rewrite):** `docs/superpowers/plans/2026-06-12-audit-slice-g-datalayer-defense.md`
 **GitHub issues:** #102 (assertDataContextDb in memory/structured-state repos), #144 (vectorSearch owner predicate), #99 (structured-state WITH CHECK migration).
 **Risk tier:** `security` (RLS / DataContextDb enforcement + a policy-touching migration). ⇒ cross-model QA + sign-off before merge.
-**Worktree:** `~/Jarv1s/.claude/worktrees/audit-slice-g`   **Branch:** `audit-slice-g` (off `origin/main` @ e0a9e2a)
+**Worktree:** `~/Jarv1s/.claude/worktrees/audit-slice-g` **Branch:** `audit-slice-g` (off `origin/main` @ e0a9e2a)
 **Build skill path (absolute):** `~/Jarv1s/.claude/skills/coordinated-build/SKILL.md`
 **Coordinator label:** `Coordinator` (UNIQUE — escalate via `herdr-pane-message`; verify `herdr pane list` shows exactly one such pane before messaging.)
 **Relay threshold:** ~80–100k tokens OR a compaction summary in your own context → relay immediately.

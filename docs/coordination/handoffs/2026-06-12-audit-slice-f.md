@@ -4,7 +4,7 @@
 **Implementation plan (pre-written + Fable-reviewed — DO NOT rewrite):** `docs/superpowers/plans/2026-06-12-audit-slice-f-ai-toolpath-hardening.md`
 **GitHub issues:** #132 (REST validateToolInput), #119 (server-side session allowlist), #148 (blank ToolContext in briefings), #172 (tools/list actor-scope).
 **Risk tier:** `security` (AI tool invocation paths, actor-scope + trust-boundary enforcement). ⇒ cross-model QA + sign-off before merge.
-**Worktree:** `~/Jarv1s/.claude/worktrees/audit-slice-f`   **Branch:** `audit-slice-f` (off `origin/main` @ e0a9e2a)
+**Worktree:** `~/Jarv1s/.claude/worktrees/audit-slice-f` **Branch:** `audit-slice-f` (off `origin/main` @ e0a9e2a)
 **Build skill path (absolute):** `~/Jarv1s/.claude/skills/coordinated-build/SKILL.md`
 **Coordinator label:** `Coordinator` (UNIQUE — escalate via `herdr-pane-message`; verify `herdr pane list` shows exactly one such pane before messaging.)
 **Relay threshold:** ~80–100k tokens OR a compaction summary in your own context → relay immediately.
