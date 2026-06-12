@@ -31,6 +31,7 @@ Two independent RLS gaps discovered by the multi-run audit and confirmed by Fabl
 ### #97 — BEFORE UPDATE trigger on `app.users`
 
 **Trigger spec:**
+
 ```sql
 CREATE OR REPLACE FUNCTION app.users_guard_admin_flag()
 RETURNS trigger LANGUAGE plpgsql AS $$
@@ -79,6 +80,7 @@ always > 1, so the exemption is unreachable through the normal signup flow.
 ### #98 — Worker RLS policies on memory tables
 
 **What 0040 granted** (the grants already exist — we are only adding matching policies):
+
 - `memory_chunks`: SELECT, INSERT, UPDATE, DELETE to `jarvis_worker_runtime`
 - `memory_file_index`: SELECT, INSERT, UPDATE, DELETE to `jarvis_worker_runtime`
 - `memory_links`: SELECT to `jarvis_worker_runtime`
@@ -162,12 +164,14 @@ before its DML calls (standard worker pattern). The policies being missing was t
 ## Tests
 
 ### #97
+
 - **Reject self-escalation:** set GUC to a non-admin user ID; `UPDATE app.users SET is_instance_admin = true WHERE id = <self>` must raise `42501`.
 - **Allow self-update of safe columns:** same non-admin user updating `name` or `email` on their own row must succeed (trigger must not over-block).
 - **Allow admin promotion:** set GUC to a known admin ID; UPDATE on another user's `is_instance_admin` must succeed.
 - Run `pnpm test:tasks` and `pnpm test:integration` to confirm no regressions in settings/admin flows.
 
 ### #98
+
 - **Worker INSERT succeeds:** using `jarvis_worker_runtime` + GUC set to an actor user ID, INSERT a row into `memory_chunks` (with `owner_user_id = actor`) must succeed (not silently denied).
 - **Worker cross-user INSERT rejected:** worker INSERT with `owner_user_id` != current actor must be rejected by the WITH CHECK predicate.
 - **Worker SELECT cross-user blocked:** SELECT by worker for a different user's chunks must return 0 rows.

@@ -1,11 +1,34 @@
-import { mkdir, readFile, readdir, rm, stat, writeFile } from "node:fs/promises";
+import { mkdir, readFile, readdir, realpath, rm, stat, writeFile } from "node:fs/promises";
 import { dirname, join, relative, resolve, sep } from "node:path";
 
 import type { VaultContext } from "./vault-context.js";
-import { resolveVaultPath } from "./vault-path.js";
+import { VaultPathError, resolveVaultPath } from "./vault-path.js";
+
+async function assertNoSymlinkEscape(fullPath: string, vaultRoot: string): Promise<void> {
+  // Walk up ancestor chain to find the deepest existing path, then realpath that.
+  // Pre-write targets may have several non-existent ancestor segments.
+  let checkPath = fullPath;
+  let realChecked: string | undefined;
+  while (checkPath !== dirname(checkPath)) {
+    try {
+      realChecked = await realpath(checkPath);
+      break;
+    } catch {
+      checkPath = dirname(checkPath);
+    }
+  }
+  if (realChecked === undefined) {
+    realChecked = await realpath(checkPath);
+  }
+  const normalizedRoot = resolve(vaultRoot);
+  if (realChecked !== normalizedRoot && !realChecked.startsWith(normalizedRoot + sep)) {
+    throw new VaultPathError(relative(vaultRoot, fullPath));
+  }
+}
 
 export async function readVaultFile(ctx: VaultContext, relativePath: string): Promise<string> {
   const fullPath = resolveVaultPath(ctx.vaultRoot, relativePath);
+  await assertNoSymlinkEscape(fullPath, ctx.vaultRoot);
   return readFile(fullPath, "utf8");
 }
 
@@ -15,24 +38,28 @@ export async function writeVaultFile(
   content: string
 ): Promise<void> {
   const fullPath = resolveVaultPath(ctx.vaultRoot, relativePath);
+  await assertNoSymlinkEscape(fullPath, ctx.vaultRoot);
   await mkdir(dirname(fullPath), { recursive: true, mode: 0o700 });
   await writeFile(fullPath, content, "utf8");
 }
 
 export async function listVaultFiles(ctx: VaultContext, relativeDir: string): Promise<string[]> {
   const fullPath = resolveVaultPath(ctx.vaultRoot, relativeDir);
+  await assertNoSymlinkEscape(fullPath, ctx.vaultRoot);
   const entries = await readdir(fullPath, { withFileTypes: true });
   return entries.filter((e) => e.isFile()).map((e) => e.name);
 }
 
 export async function deleteVaultFile(ctx: VaultContext, relativePath: string): Promise<void> {
   const fullPath = resolveVaultPath(ctx.vaultRoot, relativePath);
+  await assertNoSymlinkEscape(fullPath, ctx.vaultRoot);
   await rm(fullPath);
 }
 
 export async function vaultFileExists(ctx: VaultContext, relativePath: string): Promise<boolean> {
-  // resolveVaultPath is called outside the try block so VaultPathError propagates
+  // resolveVaultPath + assertNoSymlinkEscape outside the try so their errors propagate
   const fullPath = resolveVaultPath(ctx.vaultRoot, relativePath);
+  await assertNoSymlinkEscape(fullPath, ctx.vaultRoot);
   try {
     await stat(fullPath);
     return true;
@@ -43,6 +70,7 @@ export async function vaultFileExists(ctx: VaultContext, relativePath: string): 
 
 export async function makeVaultDir(ctx: VaultContext, relativeDir: string): Promise<void> {
   const fullPath = resolveVaultPath(ctx.vaultRoot, relativeDir);
+  await assertNoSymlinkEscape(fullPath, ctx.vaultRoot);
   await mkdir(fullPath, { recursive: true, mode: 0o700 });
 }
 
@@ -65,6 +93,7 @@ export async function listVaultFilesRecursive(
   relativeDir: string = "."
 ): Promise<string[]> {
   const fullPath = resolveVaultPath(ctx.vaultRoot, relativeDir);
+  await assertNoSymlinkEscape(fullPath, ctx.vaultRoot);
   return collectFilesRecursive(fullPath, ctx.vaultRoot);
 }
 

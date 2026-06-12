@@ -198,8 +198,8 @@ audits were grounded on a local `main` that was 8 commits behind `origin/main` (
 PRs); most HIGH/MED findings re-validated wrong and the work had to be redone.
 
 - **Run the preflight first:** `pnpm audit:preflight` (→ `scripts/check-tree-fresh.sh`). It fetches
-  origin and **fails (exit 1) if the tree is behind the baseline**. Being *ahead* (local-only
-  doc/coordination commits) is fine; being *behind* means the code under review is stale. Do not
+  origin and **fails (exit 1) if the tree is behind the baseline**. Being _ahead_ (local-only
+  doc/coordination commits) is fine; being _behind_ means the code under review is stale. Do not
   start an audit until it exits 0.
 - **Record the verified commit** in every audit report ("grounded on `<sha>`"), and have any audit
   subagent you dispatch run the preflight and report its commit too. An audit that doesn't name its
