@@ -13,6 +13,7 @@ import {
 } from "./test-database.js";
 import { createJarvisAuthRuntime, type JarvisAuthRuntime } from "@jarv1s/auth";
 import { SettingsRepository } from "../../packages/settings/src/repository.js";
+import { deleteUserData, LastActiveAdminError } from "../../scripts/delete-user-data.js";
 
 describe("M3 auth, users, settings", () => {
   const authEnvKeys = [
@@ -595,6 +596,59 @@ describe("multi-user registration + lifecycle (Phase 2 Slice A)", () => {
         })
       )
     ).rejects.toThrow(/last.*admin/i);
+  });
+
+  it("deleteUserData refuses to remove the last active admin (#94 TOCTOU re-check)", async () => {
+    // The route's pre-check commits and releases its advisory lock before
+    // deleteUserData runs on a fresh bootstrap connection, so deleteUserData
+    // must re-assert the last-admin guard inside its own transaction. Drive it
+    // directly (the sequential route path is caught earlier by the pre-check;
+    // this guard only matters when a concurrent removal wins the race).
+    const ownerRes = await signUp({
+      name: "Owner",
+      email: "owner@example.com",
+      password: "password12345"
+    });
+    const ownerId = ownerRes.json<{ user: { id: string } }>().user.id;
+
+    await setInstanceSetting("registration.requires_approval", { value: false });
+    const memberRes = await signUp({
+      name: "Member",
+      email: "member@example.com",
+      password: "password12345"
+    });
+    const memberId = memberRes.json<{ user: { id: string } }>().user.id;
+
+    // Promote member to admin and deactivate owner → member is the sole active admin.
+    const seed = new pg.Client({ connectionString: connectionStrings.bootstrap });
+    await seed.connect();
+    await seed.query(
+      `UPDATE app.users SET is_instance_admin = true, updated_at = now() WHERE id = $1`,
+      [memberId]
+    );
+    await seed.query(
+      `UPDATE app.users SET status = 'deactivated', updated_at = now() WHERE id = $1`,
+      [ownerId]
+    );
+    await seed.end();
+
+    await expect(
+      deleteUserData({
+        userId: memberId,
+        confirmUserId: memberId,
+        actorUserId: memberId,
+        requestId: "del-last-admin",
+        bootstrapConnectionString: connectionStrings.bootstrap,
+        dryRun: false
+      })
+    ).rejects.toBeInstanceOf(LastActiveAdminError);
+
+    // The transaction rolled back: the user row must still exist.
+    const verify = new pg.Client({ connectionString: connectionStrings.bootstrap });
+    await verify.connect();
+    const row = await verify.query(`SELECT id FROM app.users WHERE id = $1`, [memberId]);
+    await verify.end();
+    expect(row.rows.length).toBe(1);
   });
 
   it("setUserAdmin promote succeeds under withDataContext (0055 trigger passes)", async () => {
