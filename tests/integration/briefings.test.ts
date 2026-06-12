@@ -446,6 +446,11 @@ describe("Briefings module M6 read-only scheduled summaries", () => {
   it("does not let a User A worker job run User B's private briefing", async () => {
     const resultPromise = handleNextBriefingJob(workerBoss);
 
+    // Keyless send is safe here only because this is the sole keyless enqueue against
+    // the exclusive run queue in this suite — under `exclusive` policy all NULL
+    // singletonKeys collapse to one job (COALESCE(singleton_key,'')), so any second
+    // keyless send would dedupe against this one. Add an explicit singletonKey if a
+    // future test enqueues another keyless run-now job here.
     await appBoss.send(BRIEFINGS_RUN_QUEUE, {
       actorUserId: ids.userA,
       definitionId: briefingIds.userBPrivate,

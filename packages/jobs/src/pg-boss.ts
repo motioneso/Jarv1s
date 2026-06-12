@@ -165,7 +165,17 @@ export async function migratePgBoss(
         await boss.deleteQueue(queue.name);
         await boss.createQueue(queue.name, queue.options);
       } else if (existing) {
-        await boss.updateQueue(queue.name, queue.options);
+        // pg-boss v12's updateQueue throws if the options object carries `policy`
+        // or `partition` (manager.js rejects both keys outright — it does not compare
+        // values, so even an unchanged policy errors) and asserts a non-empty object.
+        // Strip those non-updatable keys so re-running `pnpm db:migrate` against an
+        // already-created policy-bearing queue (e.g. briefings `exclusive`) stays
+        // idempotent — the migrate contract requires exit 0 on every run, not just the
+        // first. The policy-change case is handled above by drop+recreate.
+        const { policy: _policy, partition: _partition, ...updatable } = queue.options ?? {};
+        if (Object.keys(updatable).length > 0) {
+          await boss.updateQueue(queue.name, updatable);
+        }
       } else {
         await boss.createQueue(queue.name, queue.options);
       }

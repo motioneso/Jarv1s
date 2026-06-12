@@ -287,7 +287,9 @@ async function generateSummary(
           event: "briefing_tool_failed",
           tool: tool.name,
           error: e.name,
-          message: e.message
+          // Bounded: an error message can still echo tool output or connection
+          // details, so cap it so a verbose provider error cannot dump payload to logs.
+          message: e.message.slice(0, 200)
         })
       );
       toolSummaries.push({
