@@ -6,9 +6,11 @@ import pg from "pg";
 import {
   AuthSessionResolver,
   DataContextRunner,
+  assertUniqueMigrationVersions,
   createDatabase,
   type AccessContext,
-  type JarvisDatabase
+  type JarvisDatabase,
+  type MigrationFile
 } from "@jarv1s/db";
 import { RlsProbeRepository } from "@jarv1s/db/probes";
 import {
@@ -418,6 +420,26 @@ describe("MVP foundation scaffold", () => {
     } finally {
       await client.end();
     }
+  });
+});
+
+describe("assertUniqueMigrationVersions (#124)", () => {
+  it("throws when two migration files from different directories share the same version prefix", () => {
+    const files: MigrationFile[] = [
+      { version: "0055", name: "0055_foo.sql", checksum: "aaa", sql: "SELECT 1;" },
+      { version: "0055", name: "0055_bar.sql", checksum: "bbb", sql: "SELECT 2;" }
+    ];
+    expect(() => assertUniqueMigrationVersions(files)).toThrow(
+      "Duplicate migration version numbers across directories: 0055"
+    );
+  });
+
+  it("does not throw when all version prefixes are unique", () => {
+    const files: MigrationFile[] = [
+      { version: "0054", name: "0054_a.sql", checksum: "aaa", sql: "SELECT 1;" },
+      { version: "0055", name: "0055_b.sql", checksum: "bbb", sql: "SELECT 2;" }
+    ];
+    expect(() => assertUniqueMigrationVersions(files)).not.toThrow();
   });
 });
 

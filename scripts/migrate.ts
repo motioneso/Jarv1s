@@ -1,7 +1,13 @@
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { getJarvisDatabaseUrls, runSqlFiles, runSqlMigrations } from "@jarv1s/db";
+import {
+  assertUniqueMigrationVersions,
+  getJarvisDatabaseUrls,
+  loadMigrationFiles,
+  runSqlFiles,
+  runSqlMigrations
+} from "@jarv1s/db";
 import { migratePgBoss } from "@jarv1s/jobs";
 import { getAllQueueDefinitions, getBuiltInSqlMigrationDirectories } from "@jarv1s/module-registry";
 
@@ -13,6 +19,12 @@ const migrationsDirectory = join(root, "infra/postgres/migrations");
 const grantsDirectory = join(root, "infra/postgres/grants");
 
 await runSqlFiles(urls.bootstrap, bootstrapDirectory);
+
+const allMigrationDirectories = [migrationsDirectory, ...getBuiltInSqlMigrationDirectories()];
+const allMigrationFiles = (
+  await Promise.all(allMigrationDirectories.map((dir) => loadMigrationFiles(dir)))
+).flat();
+assertUniqueMigrationVersions(allMigrationFiles);
 
 const migrationResults = [
   await runSqlMigrations({
