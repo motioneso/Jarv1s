@@ -1,8 +1,14 @@
-import { mkdir, readFile, readdir, realpath, rm, stat, writeFile } from "node:fs/promises";
+import { chmod, mkdir, readFile, readdir, realpath, rm, stat, writeFile } from "node:fs/promises";
 import { dirname, join, relative, resolve, sep } from "node:path";
 
 import type { VaultContext } from "./vault-context.js";
+import { assertVaultContext } from "./vault-context.js";
 import { VaultPathError, resolveVaultPath } from "./vault-path.js";
+
+// Vault notes are private user data. Files are created 0600 (owner-only) and dirs 0700, so a
+// shared host or a misconfigured umask can never leave a note world-readable.
+const VAULT_FILE_MODE = 0o600;
+const VAULT_DIR_MODE = 0o700;
 
 async function assertNoSymlinkEscape(fullPath: string, vaultRoot: string): Promise<void> {
   // Walk up ancestor chain to find the deepest existing path, then realpath that.
@@ -27,6 +33,7 @@ async function assertNoSymlinkEscape(fullPath: string, vaultRoot: string): Promi
 }
 
 export async function readVaultFile(ctx: VaultContext, relativePath: string): Promise<string> {
+  assertVaultContext(ctx);
   const fullPath = resolveVaultPath(ctx.vaultRoot, relativePath);
   await assertNoSymlinkEscape(fullPath, ctx.vaultRoot);
   return readFile(fullPath, "utf8");
@@ -37,13 +44,18 @@ export async function writeVaultFile(
   relativePath: string,
   content: string
 ): Promise<void> {
+  assertVaultContext(ctx);
   const fullPath = resolveVaultPath(ctx.vaultRoot, relativePath);
   await assertNoSymlinkEscape(fullPath, ctx.vaultRoot);
-  await mkdir(dirname(fullPath), { recursive: true, mode: 0o700 });
-  await writeFile(fullPath, content, "utf8");
+  await mkdir(dirname(fullPath), { recursive: true, mode: VAULT_DIR_MODE });
+  // `mode` on writeFile only applies when the file is created; chmod afterward guarantees
+  // owner-only perms even when overwriting a note that predates this hardening.
+  await writeFile(fullPath, content, { encoding: "utf8", mode: VAULT_FILE_MODE });
+  await chmod(fullPath, VAULT_FILE_MODE);
 }
 
 export async function listVaultFiles(ctx: VaultContext, relativeDir: string): Promise<string[]> {
+  assertVaultContext(ctx);
   const fullPath = resolveVaultPath(ctx.vaultRoot, relativeDir);
   await assertNoSymlinkEscape(fullPath, ctx.vaultRoot);
   const entries = await readdir(fullPath, { withFileTypes: true });
@@ -51,12 +63,14 @@ export async function listVaultFiles(ctx: VaultContext, relativeDir: string): Pr
 }
 
 export async function deleteVaultFile(ctx: VaultContext, relativePath: string): Promise<void> {
+  assertVaultContext(ctx);
   const fullPath = resolveVaultPath(ctx.vaultRoot, relativePath);
   await assertNoSymlinkEscape(fullPath, ctx.vaultRoot);
   await rm(fullPath);
 }
 
 export async function vaultFileExists(ctx: VaultContext, relativePath: string): Promise<boolean> {
+  assertVaultContext(ctx);
   // resolveVaultPath + assertNoSymlinkEscape outside the try so their errors propagate
   const fullPath = resolveVaultPath(ctx.vaultRoot, relativePath);
   await assertNoSymlinkEscape(fullPath, ctx.vaultRoot);
@@ -69,9 +83,10 @@ export async function vaultFileExists(ctx: VaultContext, relativePath: string): 
 }
 
 export async function makeVaultDir(ctx: VaultContext, relativeDir: string): Promise<void> {
+  assertVaultContext(ctx);
   const fullPath = resolveVaultPath(ctx.vaultRoot, relativeDir);
   await assertNoSymlinkEscape(fullPath, ctx.vaultRoot);
-  await mkdir(fullPath, { recursive: true, mode: 0o700 });
+  await mkdir(fullPath, { recursive: true, mode: VAULT_DIR_MODE });
 }
 
 async function collectFilesRecursive(dir: string, vaultRoot: string): Promise<string[]> {
@@ -92,6 +107,7 @@ export async function listVaultFilesRecursive(
   ctx: VaultContext,
   relativeDir: string = "."
 ): Promise<string[]> {
+  assertVaultContext(ctx);
   const fullPath = resolveVaultPath(ctx.vaultRoot, relativeDir);
   await assertNoSymlinkEscape(fullPath, ctx.vaultRoot);
   return collectFilesRecursive(fullPath, ctx.vaultRoot);
