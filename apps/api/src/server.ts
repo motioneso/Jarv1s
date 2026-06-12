@@ -128,7 +128,6 @@ export function createApiServer(options: CreateApiServerOptions = {}) {
     registerPlatformRoutes(server, authRuntime);
 
     registerBuiltInApiRoutes(server, {
-      appDb,
       rootDb: appDb,
       resolveAccessContext: authRuntime.resolveAccessContext,
       listConfiguredAuthProviders: authRuntime.listConfiguredProviders,

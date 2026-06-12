@@ -1,13 +1,11 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
-import { sql } from "kysely";
-import type { Kysely } from "kysely";
 
 import type {
   AccessContext,
   ConnectorAccountStatus,
   ConnectorProvider,
-  DataContextRunner,
-  JarvisDatabase
+  DataContextDb,
+  DataContextRunner
 } from "@jarv1s/db";
 import {
   createConnectorAccountRouteSchema,
@@ -33,7 +31,6 @@ import { GoogleOAuthClient } from "./oauth.js";
 import { ConnectorsRepository, type ConnectorAccountSafeRow } from "./repository.js";
 
 export interface ConnectorsRoutesDependencies {
-  readonly appDb: Kysely<JarvisDatabase>;
   readonly resolveAccessContext: (request: FastifyRequest) => Promise<AccessContext>;
   readonly dataContext: DataContextRunner;
   readonly repository?: ConnectorsRepository;
@@ -215,9 +212,15 @@ export function registerConnectorsRoutes(
     { schema: listAdminConnectorAccountsRouteSchema },
     async (request, reply) => {
       try {
-        const accessContext = await requireAdmin(request, dependencies);
-        const accounts = await dependencies.dataContext.withDataContext(accessContext, (scopedDb) =>
-          repository.listAdminSafeAccounts(scopedDb)
+        const accessContext = await dependencies.resolveAccessContext(request);
+        // Admin check runs through the branded DataContextDb (not a root Kysely handle)
+        // and shares the actor's scoped transaction with the listing query.
+        const accounts = await dependencies.dataContext.withDataContext(
+          accessContext,
+          async (scopedDb) => {
+            await assertInstanceAdmin(repository, scopedDb, accessContext.actorUserId);
+            return repository.listAdminSafeAccounts(scopedDb);
+          }
         );
 
         return { accounts: accounts.map(serializeAccount) };
@@ -252,15 +255,12 @@ function parseUpdateAccountBody(body: unknown): UpdateConnectorAccountRequest {
   };
 }
 
-async function requireAdmin(
-  request: FastifyRequest,
-  dependencies: ConnectorsRoutesDependencies
-): Promise<AccessContext> {
-  const accessContext = await dependencies.resolveAccessContext(request);
-  const result = await sql<{ id: string; is_instance_admin: boolean }>`
-    SELECT id, is_instance_admin FROM app.get_user_by_id(${accessContext.actorUserId}::uuid)
-  `.execute(dependencies.appDb);
-  const user = result.rows[0];
+async function assertInstanceAdmin(
+  repository: ConnectorsRepository,
+  scopedDb: DataContextDb,
+  userId: string
+): Promise<void> {
+  const user = await repository.getUserById(scopedDb, userId);
 
   if (!user) {
     throw new HttpError(401, "Session is missing or expired");
@@ -268,8 +268,6 @@ async function requireAdmin(
   if (!user.is_instance_admin) {
     throw new HttpError(403, "Instance admin permission is required");
   }
-
-  return accessContext;
 }
 
 function serializeProvider(provider: ConnectorProvider): ConnectorProviderDto {

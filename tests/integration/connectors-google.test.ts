@@ -392,7 +392,6 @@ describe("google connect routes", () => {
 
     server = Fastify({ logger: false });
     registerConnectorsRoutes(server, {
-      appDb,
       resolveAccessContext: resolveAccessContext as Parameters<
         typeof registerConnectorsRoutes
       >[1]["resolveAccessContext"],
