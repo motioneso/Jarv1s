@@ -50,7 +50,31 @@ export interface UpdateConnectorAccountInput {
   readonly encryptedSecret?: EncryptedConnectorSecret;
 }
 
+export interface AdminUserCheckRow {
+  readonly id: string;
+  readonly is_instance_admin: boolean;
+}
+
 export class ConnectorsRepository {
+  /**
+   * Look up the actor's admin flag through the branded DataContextDb handle (never a
+   * root Kysely instance — DataContextDb-only invariant). `app.get_user_by_id` is a
+   * SECURITY DEFINER helper granted to the runtime role, so it resolves the row inside
+   * the actor's scoped transaction. Returns undefined when no such user exists.
+   */
+  async getUserById(
+    scopedDb: DataContextDb,
+    userId: string
+  ): Promise<AdminUserCheckRow | undefined> {
+    assertDataContextDb(scopedDb);
+
+    const result = await sql<AdminUserCheckRow>`
+      SELECT id, is_instance_admin FROM app.get_user_by_id(${userId}::uuid)
+    `.execute(scopedDb.db);
+
+    return result.rows[0];
+  }
+
   async listProviders(scopedDb: DataContextDb): Promise<ConnectorProvider[]> {
     assertDataContextDb(scopedDb);
 

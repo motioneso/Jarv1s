@@ -63,9 +63,10 @@ import {
 export type { ChatEngineFactory } from "@jarv1s/chat";
 
 export interface BuiltInRouteDependencies {
-  readonly appDb: Kysely<JarvisDatabase>;
   // Raw root handle forwarded to settings' BootstrapHelper (pre-session countUsers).
-  // Documented Kysely< exemption — see packages/settings/src/bootstrap.ts.
+  // Documented Kysely< exemption — see packages/settings/src/bootstrap.ts. This is the
+  // ONLY root-handle escape hatch in the route layer; module admin checks run through
+  // DataContextDb (connectors' admin check was converted off appDb in Audit B3).
   readonly rootDb: Kysely<JarvisDatabase>;
   readonly resolveAccessContext: (request: FastifyRequest) => Promise<AccessContext>;
   readonly listConfiguredAuthProviders: () => readonly AuthProviderStatusDto[];
