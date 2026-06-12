@@ -609,4 +609,3 @@ function handleRouteError(error: unknown, reply: FastifyReply) {
   }
   throw error;
 }
-
