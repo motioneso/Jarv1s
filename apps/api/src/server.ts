@@ -128,6 +128,7 @@ export function createApiServer(options: CreateApiServerOptions = {}) {
 
     registerBuiltInApiRoutes(server, {
       appDb,
+      rootDb: appDb,
       resolveAccessContext: authRuntime.resolveAccessContext,
       listConfiguredAuthProviders: authRuntime.listConfiguredProviders,
       listModuleManifests: getBuiltInModuleManifests,
