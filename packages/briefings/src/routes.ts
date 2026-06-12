@@ -139,7 +139,19 @@ export function registerBriefingsRoutes(
           throw new HttpError(500, "Briefing job payload contains non-metadata fields");
         }
 
-        const jobId = await sendJob(dependencies.boss, BRIEFINGS_RUN_QUEUE, payload);
+        // A client-supplied idempotency key must actually dedupe the job, not just
+        // ride along in the payload (#150): pg-boss only keeps one job per queue in a
+        // non-terminal state for a given singletonKey, so a double-submit (retry, double
+        // click) collapses to a single run. Namespace by definition id so one
+        // definition's key can never suppress another definition's run.
+        const jobId = await sendJob(
+          dependencies.boss,
+          BRIEFINGS_RUN_QUEUE,
+          payload,
+          body.idempotencyKey
+            ? { singletonKey: `${definition.id}:${body.idempotencyKey}` }
+            : undefined
+        );
 
         if (!jobId) {
           throw new HttpError(500, "Briefing run could not be queued");
