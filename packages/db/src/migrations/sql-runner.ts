@@ -95,6 +95,22 @@ export async function runSqlMigrations(
   }
 }
 
+/**
+ * Execute every `.sql` file in `directory` (sorted alphabetically) against the
+ * given connection string.
+ *
+ * **Idempotency contract** (#168 LOW): every file in the bootstrap and grants
+ * directories MUST be written as idempotent SQL — `CREATE OR REPLACE`,
+ * `CREATE … IF NOT EXISTS`, `GRANT`, `ALTER ROLE … SET`, and similar
+ * re-runnable statements are fine.  Unlike `runSqlMigrations`, this function
+ * carries **no hash guard**: it re-executes every file on every call to
+ * `pnpm db:migrate`.  If a file is not idempotent it will fail on the second
+ * run.
+ *
+ * Each file is executed inside a transaction (BEGIN / COMMIT). A failure in
+ * the middle of a file triggers ROLLBACK, leaving the database in the state
+ * it was in before that file started, and the error is re-thrown.
+ */
 export async function runSqlFiles(connectionString: string, directory: string): Promise<string[]> {
   const client = new Client({ connectionString });
   const files = await readdir(directory);
@@ -105,8 +121,15 @@ export async function runSqlFiles(connectionString: string, directory: string): 
   try {
     for (const fileName of sqlFiles) {
       const sql = await readFile(join(directory, fileName), "utf8");
-      await client.query(sql);
-      executed.push(fileName);
+      await client.query("BEGIN");
+      try {
+        await client.query(sql);
+        await client.query("COMMIT");
+        executed.push(fileName);
+      } catch (error) {
+        await client.query("ROLLBACK");
+        throw error;
+      }
     }
 
     return executed;
