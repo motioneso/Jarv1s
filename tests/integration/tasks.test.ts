@@ -857,6 +857,132 @@ describe("Tasks module M1", () => {
     expect(subtasks.at(2)?.title).toBe("pack bags");
   });
 
+  it("rejects task create with a listId that belongs to another user (404)", async () => {
+    const userBList = await dataContext.withDataContext(userBContext(), (db) =>
+      new TaskListsRepository().getOrCreateDefault(db)
+    );
+
+    await expect(
+      dataContext.withDataContext(userAContext(), (db) =>
+        repository.create(db, {
+          title: "cross-list task",
+          listId: userBList.id
+        })
+      )
+    ).rejects.toThrow("List not found or not accessible");
+  });
+
+  it("rejects task create with a parentTaskId owned by another user (404)", async () => {
+    await expect(
+      dataContext.withDataContext(userAContext(), (db) =>
+        repository.create(db, {
+          title: "cross-parent task",
+          parentTaskId: taskIds.bPrivate
+        })
+      )
+    ).rejects.toThrow("Parent task not found or not accessible");
+  });
+
+  it("rejects task update with a listId that belongs to another user (404)", async () => {
+    const task = await dataContext.withDataContext(userAContext(), (db) =>
+      repository.create(db, { title: "will be moved to wrong list" })
+    );
+    const userBList = await dataContext.withDataContext(userBContext(), (db) =>
+      new TaskListsRepository().getOrCreateDefault(db)
+    );
+
+    await expect(
+      dataContext.withDataContext(userAContext(), (db) =>
+        repository.update(db, task.id, { listId: userBList.id })
+      )
+    ).rejects.toThrow("List not found or not accessible");
+  });
+
+  it("rejects task update with a parentTaskId owned by another user (404)", async () => {
+    const task = await dataContext.withDataContext(userAContext(), (db) =>
+      repository.create(db, { title: "will be re-parented to wrong task" })
+    );
+
+    await expect(
+      dataContext.withDataContext(userAContext(), (db) =>
+        repository.update(db, task.id, { parentTaskId: taskIds.bPrivate })
+      )
+    ).rejects.toThrow("Parent task not found or not accessible");
+  });
+
+  it("allows task create with own listId and own parentTaskId", async () => {
+    const list = await dataContext.withDataContext(userAContext(), (db) =>
+      new TaskListsRepository().getOrCreateDefault(db)
+    );
+    const parent = await dataContext.withDataContext(userAContext(), (db) =>
+      repository.create(db, { title: "parent task" })
+    );
+    const child = await dataContext.withDataContext(userAContext(), (db) =>
+      repository.create(db, {
+        title: "child task",
+        listId: list.id,
+        parentTaskId: parent.id
+      })
+    );
+
+    expect(child.list_id).toBe(list.id);
+    expect(child.parent_task_id).toBe(parent.id);
+  });
+
+  it("rejects parenting under a task that is only VIEW-SHARED to the actor (ownership, not visibility)", async () => {
+    const userBTask = await dataContext.withDataContext(userBContext(), (db) =>
+      repository.create(db, { title: "userB task, view-shared to A" })
+    );
+    await dataContext.withDataContext(userBContext(), (db) =>
+      sharesRepository.grant(db, {
+        resourceType: "task",
+        resourceId: userBTask.id,
+        ownerUserId: ids.userB,
+        granteeUserId: ids.userA,
+        level: "view"
+      })
+    );
+
+    // Sanity: userA CAN see the task (visibility passes) ...
+    const visibleToA = await dataContext.withDataContext(userAContext(), (db) =>
+      repository.getById(db, userBTask.id)
+    );
+    expect(visibleToA?.id).toBe(userBTask.id);
+
+    // ... but must NOT be able to parent under it on create.
+    await expect(
+      dataContext.withDataContext(userAContext(), (db) =>
+        repository.create(db, { title: "child under foreign parent", parentTaskId: userBTask.id })
+      )
+    ).rejects.toThrow("Parent task not found or not accessible");
+
+    // ... and must NOT be able to re-parent an existing own task under it on update.
+    const ownTask = await dataContext.withDataContext(userAContext(), (db) =>
+      repository.create(db, { title: "userA own task" })
+    );
+    await expect(
+      dataContext.withDataContext(userAContext(), (db) =>
+        repository.update(db, ownTask.id, { parentTaskId: userBTask.id })
+      )
+    ).rejects.toThrow("Parent task not found or not accessible");
+  });
+
+  it("POST /api/tasks with a foreign listId returns 404", async () => {
+    const userBList = await dataContext.withDataContext(userBContext(), (db) =>
+      new TaskListsRepository().getOrCreateDefault(db)
+    );
+
+    const response = await server.inject({
+      method: "POST",
+      url: "/api/tasks",
+      headers: { authorization: `Bearer ${ids.sessionA}` },
+      payload: { title: "cross-list via API", listId: userBList.id }
+    });
+
+    expect(response.statusCode).toBe(404);
+    expect(response.json<{ error: string }>().error).toBe("List not found or not accessible");
+  });
+
   it("HttpError from tasks errors module has correct statusCode and message", async () => {
     const { HttpError } = await import("../../packages/tasks/src/errors.js");
     const err = new HttpError(404, "not found");
