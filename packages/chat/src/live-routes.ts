@@ -24,32 +24,18 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 
 import type { AccessContext } from "@jarv1s/db";
+import { sessionRateLimitKey } from "@jarv1s/module-sdk";
 import { parsePositiveIntEnv } from "@jarv1s/shared";
 
 import { ChatTurnInFlightError } from "./live/chat-session-manager.js";
 import type { ChatSessionRuntime } from "./live/runtime.js";
 
-// Per-user rate-limit key: use the Better Auth session token from the cookie or the
-// Authorization Bearer token. Falls back to IP so unauthenticated requests are still
-// capped (they will get a 401 from the handler before consuming any AI spend).
+// Per-user rate-limit key: hashed session-token/cookie via the shared module-sdk helper
+// (a one-way fingerprint, never the raw secret), falling back to IP so unauthenticated
+// requests are still capped (they get a 401 from the handler before any AI spend).
 //
 // Override the limit via env: JARVIS_RL_CHAT_MAX=<n> (requests per minute, default 20).
 const CHAT_MAX = parsePositiveIntEnv(process.env.JARVIS_RL_CHAT_MAX, 20);
-
-function chatRateLimitKey(request: FastifyRequest): string {
-  const cookie = (request.headers.cookie ?? "")
-    .split(";")
-    .map((s) => s.trim())
-    .find((s) => s.startsWith("better-auth.session_token="));
-  if (cookie) {
-    return cookie.slice("better-auth.session_token=".length).split(";")[0] ?? request.ip;
-  }
-  const auth = request.headers.authorization ?? "";
-  if (auth.startsWith("Bearer ")) {
-    return auth.slice(7);
-  }
-  return request.ip;
-}
 
 export interface ChatLiveRoutesDependencies {
   readonly resolveAccessContext: (request: FastifyRequest) => Promise<AccessContext>;
@@ -69,7 +55,7 @@ export function registerChatLiveRoutes(
         rateLimit: {
           max: CHAT_MAX,
           timeWindow: "1 minute",
-          keyGenerator: chatRateLimitKey
+          keyGenerator: sessionRateLimitKey
         }
       }
     },
