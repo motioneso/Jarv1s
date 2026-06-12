@@ -1,11 +1,9 @@
 import { randomUUID } from "node:crypto";
 
 import { sql } from "kysely";
-import type { Kysely, Transaction } from "kysely";
 
-import type { AdminAuditEvent, InstanceSetting, JarvisDatabase, User } from "@jarv1s/db";
-
-type SettingsDb = Kysely<JarvisDatabase> | Transaction<JarvisDatabase>;
+import type { AdminAuditEvent, InstanceSetting, User } from "@jarv1s/db";
+import { assertDataContextDb, type DataContextDb } from "@jarv1s/db";
 
 export interface UpsertInstanceSettingInput {
   readonly key: string;
@@ -44,144 +42,133 @@ export class HttpRepositoryError extends Error {
 }
 
 export class SettingsRepository {
-  constructor(private readonly db: Kysely<JarvisDatabase>) {}
+  // No db in constructor — DataContextDb is passed per method via withDataContext.
 
-  async countUsers(): Promise<number> {
-    const result = await sql<{ count: string }>`SELECT app.count_all_users() AS count`.execute(
-      this.db
-    );
-    return Number(result.rows[0]?.count ?? 0);
-  }
-
-  async getUserById(userId: string): Promise<User | undefined> {
+  async getUserById(scopedDb: DataContextDb, userId: string): Promise<User | undefined> {
+    assertDataContextDb(scopedDb);
     const result = await sql<User>`SELECT * FROM app.get_user_by_id(${userId}::uuid)`.execute(
-      this.db
+      scopedDb.db
     );
     return result.rows[0];
   }
 
-  async listUsers(): Promise<User[]> {
-    const result = await sql<User>`SELECT * FROM app.list_all_users()`.execute(this.db);
+  async listUsers(scopedDb: DataContextDb): Promise<User[]> {
+    assertDataContextDb(scopedDb);
+    const result = await sql<User>`SELECT * FROM app.list_all_users()`.execute(scopedDb.db);
     return result.rows;
   }
 
-  async listInstanceSettings(): Promise<InstanceSetting[]> {
-    return this.db.selectFrom("app.instance_settings").selectAll().orderBy("key").execute();
+  async listInstanceSettings(scopedDb: DataContextDb): Promise<InstanceSetting[]> {
+    assertDataContextDb(scopedDb);
+    return scopedDb.db.selectFrom("app.instance_settings").selectAll().orderBy("key").execute();
   }
 
-  async upsertInstanceSetting(input: UpsertInstanceSettingInput): Promise<InstanceSetting> {
-    return this.db.transaction().execute(async (transaction) => {
-      const setting = await transaction
-        .insertInto("app.instance_settings")
-        .values({
-          key: input.key,
+  async upsertInstanceSetting(
+    scopedDb: DataContextDb,
+    input: UpsertInstanceSettingInput
+  ): Promise<InstanceSetting> {
+    assertDataContextDb(scopedDb);
+    const setting = await scopedDb.db
+      .insertInto("app.instance_settings")
+      .values({
+        key: input.key,
+        value: input.value,
+        updated_by_user_id: input.updatedByUserId,
+        created_at: new Date(),
+        updated_at: new Date()
+      })
+      .onConflict((oc) =>
+        oc.column("key").doUpdateSet({
           value: input.value,
           updated_by_user_id: input.updatedByUserId,
-          created_at: new Date(),
           updated_at: new Date()
         })
-        .onConflict((oc) =>
-          oc.column("key").doUpdateSet({
-            value: input.value,
-            updated_by_user_id: input.updatedByUserId,
-            updated_at: new Date()
-          })
-        )
-        .returningAll()
-        .executeTakeFirstOrThrow();
+      )
+      .returningAll()
+      .executeTakeFirstOrThrow();
 
-      await this.insertAuditEvent(transaction, {
-        actorUserId: input.updatedByUserId,
-        action: "instance_setting.upsert",
-        targetType: "instance_setting",
-        targetId: input.key,
-        requestId: input.requestId,
-        metadata: {
-          key: input.key
-        }
-      });
-
-      return setting;
+    await this.insertAuditEvent(scopedDb, {
+      actorUserId: input.updatedByUserId,
+      action: "instance_setting.upsert",
+      targetType: "instance_setting",
+      targetId: input.key,
+      requestId: input.requestId,
+      metadata: { key: input.key }
     });
+
+    return setting;
   }
 
-  async setUserStatus(input: SetUserStatusInput): Promise<User> {
-    return this.db.transaction().execute(async (transaction) => {
-      await sql`SELECT set_config('app.actor_user_id', ${input.actorUserId}, true)`.execute(
-        transaction
-      );
+  async setUserStatus(scopedDb: DataContextDb, input: SetUserStatusInput): Promise<User> {
+    assertDataContextDb(scopedDb);
+    // GUC already set by withDataContext — no inner tx wrapper, no manual GUC write here.
+    const target = await this.requireUserRow(scopedDb, input.targetUserId);
 
-      const target = await this.requireUserRow(input.targetUserId, transaction);
+    if (target.is_bootstrap_owner && input.status === "deactivated") {
+      throw new HttpRepositoryError(409, "The bootstrap owner cannot be deactivated");
+    }
+    if (input.status === "deactivated" && input.targetUserId === input.actorUserId) {
+      throw new HttpRepositoryError(422, "You cannot deactivate your own account");
+    }
+    if (input.status === "deactivated" && target.is_instance_admin) {
+      await this.assertAnotherActiveAdmin(scopedDb, input.targetUserId);
+    }
 
-      if (target.is_bootstrap_owner && input.status === "deactivated") {
-        throw new HttpRepositoryError(409, "The bootstrap owner cannot be deactivated");
-      }
-      if (input.status === "deactivated" && input.targetUserId === input.actorUserId) {
-        throw new HttpRepositoryError(422, "You cannot deactivate your own account");
-      }
-      if (input.status === "deactivated" && target.is_instance_admin) {
-        await this.assertAnotherActiveAdmin(transaction, input.targetUserId);
-      }
+    const updated = await scopedDb.db
+      .updateTable("app.users")
+      .set({ status: input.status, updated_at: new Date() })
+      .where("id", "=", input.targetUserId)
+      .returningAll()
+      .executeTakeFirstOrThrow();
 
-      const updated = await transaction
-        .updateTable("app.users")
-        .set({ status: input.status, updated_at: new Date() })
-        .where("id", "=", input.targetUserId)
-        .returningAll()
-        .executeTakeFirstOrThrow();
-
-      await this.insertAuditEvent(transaction, {
-        actorUserId: input.actorUserId,
-        action: input.action,
-        targetType: "user",
-        targetId: input.targetUserId,
-        metadata: { status: input.status },
-        requestId: input.requestId
-      });
-
-      return updated;
+    await this.insertAuditEvent(scopedDb, {
+      actorUserId: input.actorUserId,
+      action: input.action,
+      targetType: "user",
+      targetId: input.targetUserId,
+      metadata: { status: input.status },
+      requestId: input.requestId
     });
+
+    return updated;
   }
 
-  async setUserAdmin(input: SetUserAdminInput): Promise<User> {
-    return this.db.transaction().execute(async (transaction) => {
-      await sql`SELECT set_config('app.actor_user_id', ${input.actorUserId}, true)`.execute(
-        transaction
-      );
+  async setUserAdmin(scopedDb: DataContextDb, input: SetUserAdminInput): Promise<User> {
+    assertDataContextDb(scopedDb);
+    // GUC already set by withDataContext — no inner tx wrapper, no manual GUC write here.
+    const target = await this.requireUserRow(scopedDb, input.targetUserId);
 
-      const target = await this.requireUserRow(input.targetUserId, transaction);
-
-      if (!input.isInstanceAdmin) {
-        if (target.is_bootstrap_owner) {
-          throw new HttpRepositoryError(409, "The bootstrap owner cannot be demoted");
-        }
-        if (target.is_instance_admin) {
-          await this.assertAnotherActiveAdmin(transaction, input.targetUserId);
-        }
+    if (!input.isInstanceAdmin) {
+      if (target.is_bootstrap_owner) {
+        throw new HttpRepositoryError(409, "The bootstrap owner cannot be demoted");
       }
+      if (target.is_instance_admin) {
+        await this.assertAnotherActiveAdmin(scopedDb, input.targetUserId);
+      }
+    }
 
-      const updated = await transaction
-        .updateTable("app.users")
-        .set({ is_instance_admin: input.isInstanceAdmin, updated_at: new Date() })
-        .where("id", "=", input.targetUserId)
-        .returningAll()
-        .executeTakeFirstOrThrow();
+    const updated = await scopedDb.db
+      .updateTable("app.users")
+      .set({ is_instance_admin: input.isInstanceAdmin, updated_at: new Date() })
+      .where("id", "=", input.targetUserId)
+      .returningAll()
+      .executeTakeFirstOrThrow();
 
-      await this.insertAuditEvent(transaction, {
-        actorUserId: input.actorUserId,
-        action: input.isInstanceAdmin ? "user.promote" : "user.demote",
-        targetType: "user",
-        targetId: input.targetUserId,
-        metadata: { isInstanceAdmin: input.isInstanceAdmin },
-        requestId: input.requestId
-      });
-
-      return updated;
+    await this.insertAuditEvent(scopedDb, {
+      actorUserId: input.actorUserId,
+      action: input.isInstanceAdmin ? "user.promote" : "user.demote",
+      targetType: "user",
+      targetId: input.targetUserId,
+      metadata: { isInstanceAdmin: input.isInstanceAdmin },
+      requestId: input.requestId
     });
+
+    return updated;
   }
 
-  async getRegistrationSettings(): Promise<RegistrationSettings> {
-    const rows = await this.db
+  async getRegistrationSettings(scopedDb: DataContextDb): Promise<RegistrationSettings> {
+    assertDataContextDb(scopedDb);
+    const rows = await scopedDb.db
       .selectFrom("app.instance_settings")
       .select(["key", "value"])
       .where("key", "in", ["registration.enabled", "registration.requires_approval"])
@@ -198,15 +185,17 @@ export class SettingsRepository {
   }
 
   async setRegistrationSettings(
+    scopedDb: DataContextDb,
     input: RegistrationSettings & { actorUserId: string; requestId: string }
   ): Promise<RegistrationSettings> {
-    await this.upsertInstanceSetting({
+    assertDataContextDb(scopedDb);
+    await this.upsertInstanceSetting(scopedDb, {
       key: "registration.enabled",
       value: { value: input.registrationEnabled },
       updatedByUserId: input.actorUserId,
       requestId: input.requestId
     });
-    await this.upsertInstanceSetting({
+    await this.upsertInstanceSetting(scopedDb, {
       key: "registration.requires_approval",
       value: { value: input.requiresApproval },
       updatedByUserId: input.actorUserId,
@@ -218,8 +207,9 @@ export class SettingsRepository {
     };
   }
 
-  async listAdminAuditEvents(): Promise<AdminAuditEvent[]> {
-    return this.db
+  async listAdminAuditEvents(scopedDb: DataContextDb): Promise<AdminAuditEvent[]> {
+    assertDataContextDb(scopedDb);
+    return scopedDb.db
       .selectFrom("app.admin_audit_events")
       .selectAll()
       .orderBy("created_at", "desc")
@@ -228,18 +218,15 @@ export class SettingsRepository {
       .execute();
   }
 
-  private async requireUser(userId: string, db: SettingsDb = this.db): Promise<void> {
-    const result = await sql<{
-      id: string;
-    }>`SELECT id FROM app.get_user_by_id(${userId}::uuid)`.execute(db);
-
-    if (!result.rows[0]) {
-      throw new Error("User not found");
-    }
+  async assertNotLastActiveAdmin(scopedDb: DataContextDb, excludingUserId: string): Promise<void> {
+    assertDataContextDb(scopedDb);
+    await this.assertAnotherActiveAdmin(scopedDb, excludingUserId);
   }
 
-  private async requireUserRow(userId: string, db: SettingsDb = this.db): Promise<User> {
-    const result = await sql<User>`SELECT * FROM app.get_user_by_id(${userId}::uuid)`.execute(db);
+  private async requireUserRow(scopedDb: DataContextDb, userId: string): Promise<User> {
+    const result = await sql<User>`SELECT * FROM app.get_user_by_id(${userId}::uuid)`.execute(
+      scopedDb.db
+    );
     const user = result.rows[0];
     if (!user) {
       throw new HttpRepositoryError(404, "User not found");
@@ -247,23 +234,22 @@ export class SettingsRepository {
     return user;
   }
 
-  async assertNotLastActiveAdmin(excludingUserId: string): Promise<void> {
-    await this.assertAnotherActiveAdmin(this.db, excludingUserId);
-  }
-
-  private async assertAnotherActiveAdmin(db: SettingsDb, excludingUserId: string): Promise<void> {
+  private async assertAnotherActiveAdmin(
+    scopedDb: DataContextDb,
+    excludingUserId: string
+  ): Promise<void> {
     const result = await sql<{ id: string }>`
       SELECT id FROM app.list_all_users()
       WHERE is_instance_admin = true AND status = 'active' AND id != ${excludingUserId}::uuid
       LIMIT 1
-    `.execute(db);
+    `.execute(scopedDb.db);
     if (!result.rows[0]) {
       throw new HttpRepositoryError(409, "Cannot remove the last active admin");
     }
   }
 
   private async insertAuditEvent(
-    db: SettingsDb,
+    scopedDb: DataContextDb,
     input: {
       readonly actorUserId: string;
       readonly action: string;
@@ -273,7 +259,7 @@ export class SettingsRepository {
       readonly requestId: string;
     }
   ): Promise<void> {
-    await db
+    await scopedDb.db
       .insertInto("app.admin_audit_events")
       .values({
         id: randomUUID(),

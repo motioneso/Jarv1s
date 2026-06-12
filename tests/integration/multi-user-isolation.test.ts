@@ -3,7 +3,7 @@ import type { OutgoingHttpHeaders } from "node:http";
 import pg from "pg";
 
 import { createJarvisAuthRuntime, type JarvisAuthRuntime } from "@jarv1s/auth";
-import { createDatabase, type JarvisDatabase } from "@jarv1s/db";
+import { createDatabase, DataContextRunner, type JarvisDatabase } from "@jarv1s/db";
 import type { Kysely } from "kysely";
 import { createApiServer } from "../../apps/api/src/server.js";
 import { SettingsRepository } from "../../packages/settings/src/repository.js";
@@ -302,10 +302,13 @@ describe("multi-user isolation", () => {
     await client.end();
 
     // second is now the sole active admin. The repository guard must throw 409.
-    const repo = new SettingsRepository(appDb);
-    await expect(repo.assertNotLastActiveAdmin(second.id)).rejects.toMatchObject({
-      statusCode: 409
-    });
+    const repo = new SettingsRepository();
+    const dataCtx = new DataContextRunner(appDb);
+    await expect(
+      dataCtx.withDataContext({ actorUserId: second.id, requestId: "t1" }, (scopedDb) =>
+        repo.assertNotLastActiveAdmin(scopedDb, second.id)
+      )
+    ).rejects.toMatchObject({ statusCode: 409 });
 
     // Sanity: with two active admins, the guard must NOT fire.
     const client2 = new pg.Client({ connectionString: connectionStrings.bootstrap });
@@ -315,7 +318,11 @@ describe("multi-user isolation", () => {
       [admin.id]
     );
     await client2.end();
-    await expect(repo.assertNotLastActiveAdmin(second.id)).resolves.toBeUndefined();
+    await expect(
+      dataCtx.withDataContext({ actorUserId: second.id, requestId: "t2" }, (scopedDb) =>
+        repo.assertNotLastActiveAdmin(scopedDb, second.id)
+      )
+    ).resolves.toBeUndefined();
   });
 });
 
