@@ -90,7 +90,8 @@ export function registerChatRoutes(
       tokens && mcpServerUrl
         ? {
             mint: (actorUserId: string) => ({
-              token: tokens!.mint({ actorUserId, chatSessionId: actorUserId }),
+              // TEMPORARY: Task 4 replaces null with the captured per-session allowlist.
+              token: tokens!.mint({ actorUserId, chatSessionId: actorUserId, allowedToolNames: null }),
               mcpServerUrl
             }),
             revoke: (chatSessionId: string) => tokens!.revokeBySessionId(chatSessionId)

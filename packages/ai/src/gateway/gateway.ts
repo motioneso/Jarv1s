@@ -49,12 +49,19 @@ export class AssistantToolGateway {
   }
 
   async callTool(token: string, toolName: string, rawInput: unknown): Promise<GatewayToolResponse> {
-    const { actorUserId, chatSessionId } = this.deps.tokens.verify(token);
+    const { actorUserId, chatSessionId, allowedToolNames } = this.deps.tokens.verify(token);
     const ctx: ToolContext = { actorUserId, requestId: `mcp_${randomUUID()}`, chatSessionId };
 
     const found = this.executableTools(actorUserId).find((entry) => entry.tool.name === toolName);
     if (!found) {
       return { ok: false, error: `Tool not available: ${toolName}` };
+    }
+
+    // Server-side per-session allowlist check (defense-in-depth on top of executableTools).
+    // Only fires when allowedToolNames is non-null (MCP sessions with a captured allowlist).
+    // null = unrestricted (REST path tokens minted without an allowlist).
+    if (allowedToolNames !== null && !allowedToolNames.has(toolName)) {
+      return { ok: false, error: `Tool not in session allowlist: ${toolName}` };
     }
 
     let input: Record<string, unknown>;

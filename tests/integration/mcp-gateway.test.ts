@@ -68,7 +68,7 @@ describe("AssistantToolGateway", () => {
   });
 
   it("runs a read tool immediately under the caller's RLS scope", async () => {
-    const token = tokens.mint({ actorUserId: ids.userA, chatSessionId: "s1" });
+    const token = tokens.mint({ actorUserId: ids.userA, chatSessionId: "s1", allowedToolNames: null });
     const res = await gateway.callTool(token, "example.read", { value: "hi" });
 
     expect(res.ok).toBe(true);
@@ -80,7 +80,7 @@ describe("AssistantToolGateway", () => {
   });
 
   it("blocks a write until approved, emits a card, then executes", async () => {
-    const token = tokens.mint({ actorUserId: ids.userA, chatSessionId: "s1" });
+    const token = tokens.mint({ actorUserId: ids.userA, chatSessionId: "s1", allowedToolNames: null });
     const call = gateway.callTool(token, "example.write", { value: "hello" });
 
     await tick();
@@ -102,7 +102,7 @@ describe("AssistantToolGateway", () => {
   });
 
   it("returns a denied result without calling the handler", async () => {
-    const token = tokens.mint({ actorUserId: ids.userA, chatSessionId: "s1" });
+    const token = tokens.mint({ actorUserId: ids.userA, chatSessionId: "s1", allowedToolNames: null });
     const call = gateway.callTool(token, "example.write", { value: "nope" });
 
     await tick();
@@ -116,7 +116,7 @@ describe("AssistantToolGateway", () => {
   });
 
   it("blocks destructive tools the same as writes (no run-immediately path)", async () => {
-    const token = tokens.mint({ actorUserId: ids.userA, chatSessionId: "s1" });
+    const token = tokens.mint({ actorUserId: ids.userA, chatSessionId: "s1", allowedToolNames: null });
     const call = gateway.callTool(token, "example.destroy", { value: "x" });
 
     await tick();
@@ -130,7 +130,7 @@ describe("AssistantToolGateway", () => {
   });
 
   it("returns a safe error and never leaks internal details", async () => {
-    const token = tokens.mint({ actorUserId: ids.userA, chatSessionId: "s1" });
+    const token = tokens.mint({ actorUserId: ids.userA, chatSessionId: "s1", allowedToolNames: null });
     const res = await gateway.callTool(token, "example.boom", {});
 
     expect(res).toEqual({ ok: false, error: "Tool example.boom failed" });
@@ -139,7 +139,7 @@ describe("AssistantToolGateway", () => {
   });
 
   it("acts only as the token's user; input cannot override identity", async () => {
-    const token = tokens.mint({ actorUserId: ids.userB, chatSessionId: "s2" });
+    const token = tokens.mint({ actorUserId: ids.userB, chatSessionId: "s2", allowedToolNames: null });
     const res = await gateway.callTool(token, "example.read", {
       value: "v",
       actorUserId: ids.userA
@@ -154,7 +154,7 @@ describe("AssistantToolGateway", () => {
   });
 
   it("renders a uniform-list tool result as a Markdown pipe table (end-to-end)", async () => {
-    const token = tokens.mint({ actorUserId: ids.userA, chatSessionId: "s-tabular" });
+    const token = tokens.mint({ actorUserId: ids.userA, chatSessionId: "s-tabular", allowedToolNames: null });
     const res = await gateway.callTool(token, "example.list", {});
 
     expect(res.ok).toBe(true);
@@ -165,5 +165,33 @@ describe("AssistantToolGateway", () => {
     expect(text).toContain("| a1 | Alpha | active |");
     expect(text).toContain("| a2 | Beta | inactive |");
     expect(text).not.toContain('"items"');
+  });
+
+  it("blocks a tool call when allowedToolNames is set and the tool is not in it", async () => {
+    const token = tokens.mint({
+      actorUserId: ids.userA,
+      chatSessionId: "s-allowlist",
+      allowedToolNames: new Set(["example.write"])
+    });
+
+    const res = await gateway.callTool(token, "example.read", { value: "blocked" });
+
+    expect(res.ok).toBe(false);
+    if (res.ok) throw new Error("expected not ok");
+    expect(res.error).toContain("not in session allowlist");
+    expect(exampleToolCalls).toHaveLength(0);
+  });
+
+  it("allows a tool call when allowedToolNames is null (unrestricted)", async () => {
+    const token = tokens.mint({
+      actorUserId: ids.userA,
+      chatSessionId: "s-unrestricted",
+      allowedToolNames: null
+    });
+
+    const res = await gateway.callTool(token, "example.read", { value: "allowed" });
+
+    expect(res.ok).toBe(true);
+    expect(exampleToolCalls).toHaveLength(1);
   });
 });
