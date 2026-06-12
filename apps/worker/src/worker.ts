@@ -94,9 +94,10 @@ export async function buildWorker(deps?: { connectionString?: string }): Promise
   // Graceful-shutdown (#165 MED)
   //
   // boss.stop({ graceful: true }) asks pg-boss to drain in-flight jobs before
-  // closing connections. We race against a bounded timeout so a hung drain
-  // still exits cleanly. workerDb.destroy() is always called AFTER boss.stop()
-  // resolves — pg-boss needs the pool open to complete its shutdown sequence.
+  // closing its own connections. We race against a bounded timeout so a hung
+  // drain still exits cleanly. workerDb.destroy() is always called AFTER
+  // boss.stop() resolves — workerDb is the Kysely pool that job *handlers* run
+  // against, so it must outlive the drain (pg-boss owns a separate connection).
   // -------------------------------------------------------------------------
   async function shutdown(): Promise<void> {
     await Promise.race([
@@ -125,8 +126,10 @@ console.log(`Jarv1s worker listening on ${RLS_PROBE_QUEUE} and built-in module q
 // (emitted for internal pg-boss errors) is also wired via createPgBossClient
 // to re-throw synchronously, ensuring it surfaces as an uncaughtException.
 const handleCrash = (label: string, err: unknown): void => {
-  // LOW (#165): log err.message instead of String(err) to avoid leaking
-  // connection strings that may appear in error stack traces.
+  // LOW (#165): log err.message for Error values instead of String(err), which
+  // would stringify a non-Error object (e.g. a config/pool object) and could
+  // surface a connection string. Non-Error rejection reasons collapse to
+  // "unknown" — blunt, but never leaks.
   const message = err instanceof Error ? err.message : "unknown";
   console.error(
     JSON.stringify({ level: "fatal", label, err: message, msg: "Process crash — exiting" })
