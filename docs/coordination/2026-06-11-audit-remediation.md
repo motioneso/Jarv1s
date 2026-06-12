@@ -28,14 +28,14 @@ Severity post-Fable. Tier by content trigger (most of this backlog is `security`
 | Slice                                    | Issues                                                                                                                                                  | Tier                   | Adds migration?                        | Spec                                                                            | Status                                                                        |
 | ---------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------- | -------------------------------------- | ------------------------------------------------------------------------------- | ----------------------------------------------------------------------------- |
 | **A — RLS least-priv migrations**        | #97 users-column UPDATE restriction, #98 worker memory RLS policies                                                                                     | security               | **yes (×3: 0053+0054+0055)**           | `docs/superpowers/specs/2026-06-11-audit-slice-a-rls-least-priv.md` ✅          | **MERGED** PR #181 @ 2026-06-12T00:13:10Z — issues #97 #98 closed, board Done |
-| **B — Dead subsystem deletion**          | #120 workspaces, #153 resource-grants no-op, #115 + #116 (resolved by deletion), fold #152 manifest-narrowing; advances #155/#127/#101 workspace-halves | sensitive→**security** | **yes (DROP, 0056)**                   | `docs/superpowers/specs/2026-06-12-audit-slice-b-dead-subsystem-deletion.md` ✅ | **building** — SliceB-build pane `-4`, branch `audit-slice-b`                  |
+| **B — Dead subsystem deletion**          | #120 workspaces, #153 resource-grants no-op, #115 + #116 (resolved by deletion), fold #152 manifest-narrowing; advances #155/#127/#101 workspace-halves | sensitive→**security** | **yes (DROP, 0056)**                   | `docs/superpowers/specs/2026-06-12-audit-slice-b-dead-subsystem-deletion.md` ✅ | **building** — SliceB-build (pane volatile), branch `audit-slice-b`            |
 | **C — Vault containment**                | #129 actorUserId validation, #130 symlink real-path containment                                                                                         | security               | no (code)                              | `docs/superpowers/specs/2026-06-11-audit-slice-c-vault-containment.md` ✅       | **MERGED** PR #182 @ 2026-06-12T00:13:23Z — issues #130 closed, board Done    |
 | **D — Settings → DataContextDb**         | #95 SettingsRepository raw Kysely, #155 /api/me cross-user read                                                                                         | security               | maybe (grant)                          | `docs/superpowers/specs/2026-06-12-audit-slice-d-settings-datacontext.md` ✅    | blocked-on-Ben-review                                                         |
 | **E — Auth module hardening**            | #101 module-isolation, #127 bootstrap actor-GUC, #141 OAuth error-body leak (#113 deferred → issue #183)                                                | security               | no (code)                              | `docs/superpowers/specs/2026-06-12-audit-slice-e-auth-hardening.md` ✅          | blocked-on-Ben-review                                                         |
-| **F — AI tool-path hardening**           | #132 REST validateToolInput, #119 server-side allowlist, #148 blank ToolContext, #172 tools/list actor-scope                                            | security               | no (code)                              | `docs/superpowers/specs/2026-06-12-audit-slice-f-ai-toolpath-hardening.md` ✅   | **building** — SliceF-build pane `-5`, branch `audit-slice-f`                  |
-| **G — Data-layer defense-in-depth**      | #102 assertDataContextDb, #144 vectorSearch owner predicate, #99 structured-state WITH CHECK                                                            | security               | maybe (#99, assigned at merge after B+D) | `docs/superpowers/specs/2026-06-12-audit-slice-g-datalayer-defense.md` ✅       | **building** — SliceG-build pane `-6`, branch `audit-slice-g`                  |
+| **F — AI tool-path hardening**           | #132 REST validateToolInput, #119 server-side allowlist, #148 blank ToolContext, #172 tools/list actor-scope                                            | security               | no (code)                              | `docs/superpowers/specs/2026-06-12-audit-slice-f-ai-toolpath-hardening.md` ✅   | **building** — SliceF-build (pane volatile), branch `audit-slice-f`            |
+| **G — Data-layer defense-in-depth**      | #102 assertDataContextDb, #144 vectorSearch owner predicate, #99 structured-state WITH CHECK                                                            | security               | maybe (#99, assigned at merge after B+D) | `docs/superpowers/specs/2026-06-12-audit-slice-g-datalayer-defense.md` ✅       | **building** — SliceG-build (pane volatile), branch `audit-slice-g`            |
 | **H — Migration/job infra**              | #124 schema_migrations per-dir, #134 worker dead grant REVOKE, #135 incognito trigger, #157 metadata-only payload guard, #174 pgboss RLS                | security/sensitive     | **yes (×2 versioned + 1 grants file)** | `docs/superpowers/specs/2026-06-12-audit-slice-h-migration-job-infra.md` ✅     | blocked-on-Ben-review                                                         |
-| **I — Portability + observability tail** | #170 export omits private, #149 handleRouteError, #140 list ownership, #166 test hygiene (LOW)                                                          | sensitive/routine→**security-bar** | no (code)                  | `docs/superpowers/specs/2026-06-12-audit-slice-i-portability-tail.md` ✅        | **building** — SliceI-build pane `-7`, branch `audit-slice-i`                  |
+| **I — Portability + observability tail** | #170 export omits private, #149 handleRouteError, #140 list ownership, #166 test hygiene (LOW)                                                          | sensitive/routine→**security-bar** | no (code)                  | `docs/superpowers/specs/2026-06-12-audit-slice-i-portability-tail.md` ✅        | **building** — SliceI-build (pane volatile), branch `audit-slice-i`            |
 
 Not yet sliced: the aggregate `MED/LOW findings —` batch issues (#104–#111, #114, #117, #122–#171 even, #156…) — a later backlog pass after the HIGH/MED individual findings land.
 
@@ -90,12 +90,20 @@ Spawned into the "Agents" tab (`w653f42bef3ac02:3`), Sonnet 4.6, bypass-permissi
 `superpowers:executing-plans` (execute-not-replan; no plan-approval round-trip). Handoffs:
 `docs/coordination/handoffs/2026-06-12-audit-slice-{b,f,g,i}.md` (committed bb7f994).
 
-| Agent        | Pane | Branch          | Migration            | Test-file collisions                          |
-| ------------ | ---- | --------------- | -------------------- | --------------------------------------------- |
-| SliceB-build | `-4` | `audit-slice-b` | 0056 (spine HEAD)    | `foundation.test.ts` (↔I), `structured-state.test.ts` (↔G) |
-| SliceF-build | `-5` | `audit-slice-f` | none (code-only)     | none — collision-free                         |
-| SliceG-build | `-6` | `audit-slice-g` | #99 (number at merge, after B+D) | `structured-state.test.ts` (↔B)   |
-| SliceI-build | `-7` | `audit-slice-i` | none (code-only)     | `foundation.test.ts` (↔B; B merges first)     |
+> **Pane IDs are VOLATILE — route by LABEL, not number.** The reaped SliceA/C panes freed `-3..-6`
+> and herdr compacted this wave's IDs down by one (was `-4..-7` at spawn → now `-3..-6` per
+> `herdr pane list` @ 20:45 sweep). Labels (`SliceX-build`) + cwd are stable; re-resolve the numeric
+> pane from `herdr pane list` before any send/read/reap.
+
+| Agent        | Pane (volatile) | Branch          | Migration            | Test-file collisions                          |
+| ------------ | --------------- | --------------- | -------------------- | --------------------------------------------- |
+| SliceB-build | `-3`            | `audit-slice-b` | 0056 (spine HEAD)    | `foundation.test.ts` (↔I), `structured-state.test.ts` (↔G) |
+| SliceF-build | `-4`            | `audit-slice-f` | none (code-only)     | none — collision-free                         |
+| SliceG-build | `-5`            | `audit-slice-g` | #99 (number at merge, after B+D) | `structured-state.test.ts` (↔B)   |
+| SliceI-build | `-6`            | `audit-slice-i` | none (code-only)     | `foundation.test.ts` (↔B; B merges first)     |
+
+**Sweep 1 (20:45):** all 4 `working`, no stalls/escalations. B at 59% ctx/$5.12 mid-deletion
+(Task 1b done, 2-9 pending), auto-compacting — expect a self-relay (successor in same worktree).
 
 **Merge sequencing for the collisions:** B merges first (spine HEAD) → G and I rebase their shared
 test-file edits on top of B before their own merge. F is collision-free, merges as soon as green.
