@@ -505,7 +505,7 @@ describe("Briefings module M6 read-only scheduled summaries", () => {
       (scopedDb) =>
         repository.generateRun(scopedDb, def.id, {
           moduleManifests: [capturingManifest],
-          runKind: "manual",
+          runKind: "manual"
           // omit runId — let repository generate a UUID
         })
     );

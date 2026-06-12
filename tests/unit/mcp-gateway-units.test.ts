@@ -40,7 +40,11 @@ describe("session token registry", () => {
     const registry = new SessionTokenRegistry();
     const token = registry.mint({ actorUserId: "u1", chatSessionId: "s1", allowedToolNames: null });
 
-    expect(registry.verify(token)).toEqual({ actorUserId: "u1", chatSessionId: "s1", allowedToolNames: null });
+    expect(registry.verify(token)).toEqual({
+      actorUserId: "u1",
+      chatSessionId: "s1",
+      allowedToolNames: null
+    });
 
     registry.revoke(token);
     expect(() => registry.verify(token)).toThrow(InvalidSessionTokenError);

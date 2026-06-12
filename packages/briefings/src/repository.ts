@@ -268,7 +268,9 @@ async function generateSummary(
         {},
         {
           actorUserId: definition.owner_user_id,
-          requestId: input.jobId ? `pgboss:${input.jobId}` : `briefing:${input.runId ?? randomUUID()}`,
+          requestId: input.jobId
+            ? `pgboss:${input.jobId}`
+            : `briefing:${input.runId ?? randomUUID()}`,
           chatSessionId: ""
         }
       );

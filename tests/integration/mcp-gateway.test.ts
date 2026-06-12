@@ -68,7 +68,11 @@ describe("AssistantToolGateway", () => {
   });
 
   it("runs a read tool immediately under the caller's RLS scope", async () => {
-    const token = tokens.mint({ actorUserId: ids.userA, chatSessionId: "s1", allowedToolNames: null });
+    const token = tokens.mint({
+      actorUserId: ids.userA,
+      chatSessionId: "s1",
+      allowedToolNames: null
+    });
     const res = await gateway.callTool(token, "example.read", { value: "hi" });
 
     expect(res.ok).toBe(true);
@@ -80,7 +84,11 @@ describe("AssistantToolGateway", () => {
   });
 
   it("blocks a write until approved, emits a card, then executes", async () => {
-    const token = tokens.mint({ actorUserId: ids.userA, chatSessionId: "s1", allowedToolNames: null });
+    const token = tokens.mint({
+      actorUserId: ids.userA,
+      chatSessionId: "s1",
+      allowedToolNames: null
+    });
     const call = gateway.callTool(token, "example.write", { value: "hello" });
 
     await tick();
@@ -102,7 +110,11 @@ describe("AssistantToolGateway", () => {
   });
 
   it("returns a denied result without calling the handler", async () => {
-    const token = tokens.mint({ actorUserId: ids.userA, chatSessionId: "s1", allowedToolNames: null });
+    const token = tokens.mint({
+      actorUserId: ids.userA,
+      chatSessionId: "s1",
+      allowedToolNames: null
+    });
     const call = gateway.callTool(token, "example.write", { value: "nope" });
 
     await tick();
@@ -116,7 +128,11 @@ describe("AssistantToolGateway", () => {
   });
 
   it("blocks destructive tools the same as writes (no run-immediately path)", async () => {
-    const token = tokens.mint({ actorUserId: ids.userA, chatSessionId: "s1", allowedToolNames: null });
+    const token = tokens.mint({
+      actorUserId: ids.userA,
+      chatSessionId: "s1",
+      allowedToolNames: null
+    });
     const call = gateway.callTool(token, "example.destroy", { value: "x" });
 
     await tick();
@@ -130,7 +146,11 @@ describe("AssistantToolGateway", () => {
   });
 
   it("returns a safe error and never leaks internal details", async () => {
-    const token = tokens.mint({ actorUserId: ids.userA, chatSessionId: "s1", allowedToolNames: null });
+    const token = tokens.mint({
+      actorUserId: ids.userA,
+      chatSessionId: "s1",
+      allowedToolNames: null
+    });
     const res = await gateway.callTool(token, "example.boom", {});
 
     expect(res).toEqual({ ok: false, error: "Tool example.boom failed" });
@@ -139,7 +159,11 @@ describe("AssistantToolGateway", () => {
   });
 
   it("acts only as the token's user; input cannot override identity", async () => {
-    const token = tokens.mint({ actorUserId: ids.userB, chatSessionId: "s2", allowedToolNames: null });
+    const token = tokens.mint({
+      actorUserId: ids.userB,
+      chatSessionId: "s2",
+      allowedToolNames: null
+    });
     const res = await gateway.callTool(token, "example.read", {
       value: "v",
       actorUserId: ids.userA
@@ -154,7 +178,11 @@ describe("AssistantToolGateway", () => {
   });
 
   it("renders a uniform-list tool result as a Markdown pipe table (end-to-end)", async () => {
-    const token = tokens.mint({ actorUserId: ids.userA, chatSessionId: "s-tabular", allowedToolNames: null });
+    const token = tokens.mint({
+      actorUserId: ids.userA,
+      chatSessionId: "s-tabular",
+      allowedToolNames: null
+    });
     const res = await gateway.callTool(token, "example.list", {});
 
     expect(res.ok).toBe(true);
@@ -201,8 +229,7 @@ describe("AssistantToolGateway", () => {
     // If listToolsForActor ignored its argument (the bug listTools() had), userB would
     // get the same non-empty list and this test would fail — which is exactly the point.
     const scopedGateway = new AssistantToolGateway({
-      resolveActiveModules: (actorUserId) =>
-        actorUserId === ids.userA ? [exampleToolModule] : [],
+      resolveActiveModules: (actorUserId) => (actorUserId === ids.userA ? [exampleToolModule] : []),
       repository,
       runner,
       tokens,
