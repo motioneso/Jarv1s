@@ -33,14 +33,16 @@ export function App() {
 
   const handleAuthenticated = async () => {
     // Data-isolation on the shared house instance: a newly authenticated identity
-    // must never inherit the previous user's cached data. Evict the entire React
-    // Query cache, then refetch identity under the new session cookie. This mirrors
-    // the sign-out path (app-shell.tsx) which also clears. invalidateQueries was
-    // insufficient on two counts: (1) it kept the prior user's data visible while
-    // refetching, and (2) its prefix list omitted the "settings" and "connectors"
-    // namespaces, so that cached data was never refreshed at all.
-    queryClient.clear();
-    await queryClient.refetchQueries({ queryKey: queryKeys.auth.me });
+    // must never inherit the previous user's cached data. resetQueries() evicts
+    // every cached query to its initial state — including inactive entries the
+    // prior user left behind — and refetches the mounted identity queries under
+    // the new session cookie. invalidateQueries was insufficient on two counts:
+    // (1) it kept the prior user's data visible while refetching, and (2) its
+    // prefix list omitted the "settings" and "connectors" namespaces, so that
+    // cached data was never refreshed at all. (We use resetQueries, not clear():
+    // clear() destroys queries without notifying their observers, so the mounted
+    // `me`/`bootstrap` queries would never refetch and sign-in would hang.)
+    await queryClient.resetQueries();
   };
 
   if (bootstrapQuery.isLoading || meQuery.isLoading) {
