@@ -164,6 +164,7 @@ describe("M7 release hardening lifecycle scripts", () => {
 
     expect(result.dryRun).toBe(false);
     expect(result.deleted).toBe(true);
+    expect(result.vaultDeleted).toBe(true);
     expect(result.countsBeforeDelete["app.users"]).toBe(1);
     expect(rows.userAExists).toBe(false);
     expect(rows.userBExists).toBe(true);
@@ -426,6 +427,7 @@ describe("M7 release hardening lifecycle scripts", () => {
     });
     const restorePlan = createRestorePlan({
       backupFile: "backups/jarv1s-test.dump",
+      confirmDatabase: "jarv1s",
       confirmRestore: true,
       connectionString: "postgres://postgres:super-secret@db.example.test:5432/jarv1s",
       execute: true
@@ -447,7 +449,7 @@ describe("M7 release hardening lifecycle scripts", () => {
     expect(restorePlan.args).toContain("backups/jarv1s-test.dump");
     expect(restorePlan.env.PGPASSWORD).toBe("super-secret");
     expect(`${restorePlan.command} ${restorePlan.args.join(" ")}`).not.toContain("super-secret");
-    expect(composePlan.healthUrl).toBe("http://localhost:3900/health");
+    expect(composePlan.healthUrl).toBe("http://localhost:3900/health/ready");
     expect(JSON.stringify(composePlan.commands)).toContain("infra/docker-compose.yml");
     expect(JSON.stringify(composePlan.commands)).not.toContain("postgres://");
     expect(
@@ -464,6 +466,56 @@ describe("M7 release hardening lifecycle scripts", () => {
         execute: true
       })
     ).toThrow("Restore execution requires --confirm-restore");
+  });
+
+  it("requires --confirm-database to match the target before destructive restore", () => {
+    // The `--clean --if-exists` restore drops/recreates objects, so a mistargeted
+    // connection string is destructive. The operator must name the exact database
+    // back, mirroring the confirmUserId guard in delete-user-data.ts (#171).
+    expect(() =>
+      createRestorePlan({
+        backupFile: "backups/jarv1s-test.dump",
+        confirmRestore: true,
+        connectionString: "postgres://postgres:super-secret@db.example.test:5432/jarv1s",
+        execute: true
+      })
+    ).toThrow('--confirm-database to match the target database "jarv1s"');
+
+    expect(() =>
+      createRestorePlan({
+        backupFile: "backups/jarv1s-test.dump",
+        confirmDatabase: "wrong-db",
+        confirmRestore: true,
+        connectionString: "postgres://postgres:super-secret@db.example.test:5432/jarv1s",
+        execute: true
+      })
+    ).toThrow('--confirm-database to match the target database "jarv1s"');
+
+    // A drill plan (execute omitted) does not require the database confirmation.
+    expect(() =>
+      createRestorePlan({
+        backupFile: "backups/jarv1s-test.dump",
+        connectionString: "postgres://postgres:super-secret@db.example.test:5432/jarv1s"
+      })
+    ).not.toThrow();
+  });
+
+  it("rejects backup and restore connection strings missing a username", () => {
+    // PGPASSWORD without a username silently falls back to the OS user, which can
+    // hit an unintended role; require the URL to carry credentials explicitly (#171).
+    expect(() =>
+      createBackupPlan({
+        connectionString: "postgres://:super-secret@db.example.test:5432/jarv1s",
+        outputFile: "backups/jarv1s-test.dump"
+      })
+    ).toThrow("Backup database URL must include a username");
+
+    expect(() =>
+      createRestorePlan({
+        backupFile: "backups/jarv1s-test.dump",
+        connectionString: "postgres://:super-secret@db.example.test:5432/jarv1s"
+      })
+    ).toThrow("Restore database URL must include a username");
   });
 
   it("keeps Docker Compose node installs isolated from host node_modules", async () => {

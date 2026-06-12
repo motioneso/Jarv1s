@@ -223,3 +223,53 @@ describe("resolveKeyring — legacyCandidates", () => {
     expect(keyring.legacyCandidates[1]).toEqual(makeKeyBuffer("old-secret")); // retired second
   });
 });
+
+// ---------------------------------------------------------------------------
+// parseEnvelope — structural validation distinct from decrypt failures (#171)
+//   Lets the rewrap-secrets operator script tell a malformed ciphertext column
+//   apart from a wrong-key decrypt failure.
+// ---------------------------------------------------------------------------
+
+describe("parseEnvelope — structural validation", () => {
+  const env = makeEnv({ currentSecret: "structural-test-secret", currentKeyId: "v1" });
+
+  it("accepts a well-formed envelope and returns it typed", () => {
+    const cipher = makeAiCipher(env);
+    const envelope = cipher.encryptJson({ kind: "test", token: "abc" });
+
+    const parsed = cipher.parseEnvelope(envelope as unknown);
+    expect(parsed).toEqual(envelope);
+    // Round-trips through decrypt after a parse hop.
+    expect(cipher.decryptJson(parsed).token).toBe("abc");
+  });
+
+  it("accepts a legacy (keyId-absent) envelope", () => {
+    const cipher = makeConnectorCipher(env);
+    const legacy = stripKeyId(cipher.encryptJson({ kind: "test", token: "abc" }));
+
+    expect(() => cipher.parseEnvelope(legacy as unknown)).not.toThrow();
+  });
+
+  it.each([
+    ["null", null],
+    ["a JSON array", []],
+    ["a primitive", "not-an-object"],
+    [
+      "a wrong version",
+      { version: 2, algorithm: "aes-256-gcm", iv: "a", tag: "b", ciphertext: "c" }
+    ],
+    [
+      "a wrong algorithm",
+      { version: 1, algorithm: "aes-128-cbc", iv: "a", tag: "b", ciphertext: "c" }
+    ],
+    [
+      "a non-string keyId",
+      { version: 1, algorithm: "aes-256-gcm", keyId: 7, iv: "a", tag: "b", ciphertext: "c" }
+    ],
+    ["an empty iv", { version: 1, algorithm: "aes-256-gcm", iv: "", tag: "b", ciphertext: "c" }],
+    ["a missing ciphertext", { version: 1, algorithm: "aes-256-gcm", iv: "a", tag: "b" }]
+  ])("rejects %s with a MalformedSecretEnvelopeError", (_label, value) => {
+    const cipher = makeAiCipher(env);
+    expect(() => cipher.parseEnvelope(value as unknown)).toThrow(/Malformed AI secret envelope/);
+  });
+});

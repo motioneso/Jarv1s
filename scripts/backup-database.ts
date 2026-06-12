@@ -22,9 +22,13 @@ export function createBackupPlan(input: BackupPlanInput = {}): BackupPlan {
   const url = new URL(input.connectionString ?? getJarvisDatabaseUrls().bootstrap);
   const outputFile = input.outputFile ?? defaultBackupFile(input.now ?? new Date());
   const database = url.pathname.replace(/^\//, "");
+  const username = decodeURIComponent(url.username);
 
   if (!database) {
     throw new Error("Backup database URL must include a database name");
+  }
+  if (!username) {
+    throw new Error("Backup database URL must include a username");
   }
 
   return {
@@ -35,7 +39,7 @@ export function createBackupPlan(input: BackupPlanInput = {}): BackupPlan {
       "--port",
       url.port || "5432",
       "--username",
-      decodeURIComponent(url.username),
+      username,
       "--dbname",
       database,
       "--format=custom",

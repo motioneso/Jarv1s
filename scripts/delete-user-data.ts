@@ -24,6 +24,13 @@ export interface DeleteUserDataResult {
   readonly deleted: boolean;
   readonly dryRun: boolean;
   readonly userId: string;
+  /**
+   * Whether the user's on-disk vault subtree was removed. False on dry-run
+   * (the vault is only deleted after the DB commit); true once executed. The
+   * operator-facing field exists so a delete is visibly known to have purged
+   * filesystem-resident vault data, not only DB rows (#171).
+   */
+  readonly vaultDeleted: boolean;
 }
 
 /**
@@ -86,7 +93,8 @@ export async function deleteUserData(
         countsBeforeDelete: counts,
         deleted: false,
         dryRun,
-        userId: options.userId
+        userId: options.userId,
+        vaultDeleted: false
       };
     }
 
@@ -170,7 +178,8 @@ export async function deleteUserData(
       countsBeforeDelete: counts,
       deleted: (deleted.rowCount ?? 0) > 0,
       dryRun,
-      userId: options.userId
+      userId: options.userId,
+      vaultDeleted: true
     };
   } catch (error) {
     await client.query("ROLLBACK");
@@ -197,6 +206,15 @@ async function main(): Promise<void> {
   });
 
   console.log(JSON.stringify(result, null, 2));
+
+  if (result.dryRun) {
+    console.log(
+      "Dry run only — no rows or vault data deleted. On --execute, the user's on-disk " +
+        "vault subtree is removed via VaultContext after the DB commit."
+    );
+  } else if (result.vaultDeleted) {
+    console.log(`Removed on-disk vault subtree for user ${result.userId}.`);
+  }
 }
 
 async function readCounts(
