@@ -31,6 +31,26 @@ export class MalformedSecretEnvelopeError extends Error {
 }
 
 /**
+ * True only for the OpenSSL GCM authentication-tag mismatch thrown by
+ * `decipher.final()` when a ciphertext is decrypted under the wrong key. Used to
+ * tell "wrong key, try the next legacy candidate" apart from structural errors
+ * (bad IV length, corrupt base64) that must propagate rather than be swallowed.
+ * Node surfaces this as either an `ERR_OSSL_*` code or the classic
+ * "unable to authenticate data" message depending on the OpenSSL build.
+ */
+function isGcmAuthFailure(error: unknown): boolean {
+  if (!(error instanceof Error)) {
+    return false;
+  }
+  const code = (error as NodeJS.ErrnoException).code ?? "";
+  return (
+    code === "ERR_OSSL_BAD_DECRYPT" ||
+    code.startsWith("ERR_OSSL_EVP") ||
+    /unable to authenticate data/i.test(error.message)
+  );
+}
+
+/**
  * Generic authenticated-encryption cipher for at-rest JSON secrets, backed by
  * a rotating {@link Keyring}. A single implementation serves every secret
  * domain (AI credentials, connector credentials, ...); the `label` only names
@@ -51,7 +71,13 @@ export class JsonSecretCipher {
   }
 
   encryptJson(value: Record<string, unknown>): EncryptedSecret {
-    const key = this.keyring.keys.get(this.keyring.currentKeyId)!;
+    const key = this.keyring.keys.get(this.keyring.currentKeyId);
+    if (!key) {
+      // A keyring without its own current key is a wiring bug, not a runtime
+      // condition — surface it explicitly instead of via a `!` that hides the
+      // cross-package invariant that resolveKeyring always seeds currentKeyId.
+      throw new Error(`Keyring is missing its current key "${this.keyring.currentKeyId}"`);
+    }
     const iv = randomBytes(12);
     const cipher = createCipheriv("aes-256-gcm", key, iv);
     const plaintext = Buffer.from(JSON.stringify(value), "utf8");
@@ -126,12 +152,19 @@ export class JsonSecretCipher {
 
     if (envelope.keyId === undefined) {
       // Legacy envelope: try current key first, then retired keys in order.
+      // Only a GCM auth-tag mismatch means "wrong key, try the next candidate".
+      // Any other failure (bad IV/tag length, corrupt base64, decipher state)
+      // is real corruption or misconfiguration and must NOT be swallowed —
+      // re-throw it so it surfaces instead of masquerading as a key miss (#114).
       let decrypted: Buffer | undefined;
       for (const candidate of this.keyring.legacyCandidates) {
         try {
           decrypted = tryKey(candidate);
           break;
-        } catch {
+        } catch (error) {
+          if (!isGcmAuthFailure(error)) {
+            throw error;
+          }
           // auth tag mismatch — try next candidate
         }
       }
