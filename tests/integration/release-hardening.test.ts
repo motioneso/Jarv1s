@@ -80,6 +80,74 @@ describe("M7 release hardening lifecycle scripts", () => {
     expect(Object.keys(userExport.tables.aiProviderConfigs[0] ?? {})).not.toContain(
       "encryptedCredential"
     );
+
+    // #170: five missing personal-data tables must now be present.
+    expect(userExport.tables).toHaveProperty("memoryChunks");
+    expect(userExport.tables).toHaveProperty("chatMemoryFacts");
+    expect(userExport.tables).toHaveProperty("commitments");
+    expect(userExport.tables).toHaveProperty("entities");
+    expect(userExport.tables).toHaveProperty("preferences");
+
+    // Redaction: embedding and content_hash must never appear in the export JSON.
+    expect(exportedJson).not.toContain('"embedding"');
+    expect(exportedJson).not.toContain('"content_hash"');
+    expect(exportedJson).not.toContain('"file_hash"');
+  });
+
+  it("exports memory chunks, memory facts, commitments, entities, and preferences — redacts derived fields", async () => {
+    await seedExportExtensionData();
+
+    const userExport = await exportUserData({
+      appConnectionString: connectionStrings.app,
+      exportedAt: new Date("2026-06-12T10:00:00.000Z"),
+      userId: ids.userA
+    });
+    const exportedJson = JSON.stringify(userExport);
+
+    // memoryChunks: present, includes user-facing fields, excludes embedding and content_hash.
+    expect(userExport.tables.memoryChunks.length).toBeGreaterThan(0);
+    expect(userExport.tables.memoryChunks[0]).toHaveProperty("id");
+    expect(userExport.tables.memoryChunks[0]).toHaveProperty("sourceKind");
+    expect(userExport.tables.memoryChunks[0]).toHaveProperty("sourcePath");
+    expect(userExport.tables.memoryChunks[0]).toHaveProperty("lineStart");
+    expect(userExport.tables.memoryChunks[0]).toHaveProperty("lineEnd");
+    expect(userExport.tables.memoryChunks[0]).toHaveProperty("text");
+    expect(Object.keys(userExport.tables.memoryChunks[0] ?? {})).not.toContain("embedding");
+    expect(Object.keys(userExport.tables.memoryChunks[0] ?? {})).not.toContain("content_hash");
+    expect(Object.keys(userExport.tables.memoryChunks[0] ?? {})).not.toContain("contentHash");
+
+    // chatMemoryFacts: present, no embedding column.
+    expect(userExport.tables.chatMemoryFacts.length).toBeGreaterThan(0);
+    expect(userExport.tables.chatMemoryFacts[0]).toHaveProperty("id");
+    expect(userExport.tables.chatMemoryFacts[0]).toHaveProperty("category");
+    expect(userExport.tables.chatMemoryFacts[0]).toHaveProperty("content");
+    expect(Object.keys(userExport.tables.chatMemoryFacts[0] ?? {})).not.toContain("embedding");
+
+    // commitments: present with user-visible columns.
+    expect(userExport.tables.commitments.length).toBeGreaterThan(0);
+    expect(userExport.tables.commitments[0]).toHaveProperty("id");
+    expect(userExport.tables.commitments[0]).toHaveProperty("title");
+    expect(userExport.tables.commitments[0]).toHaveProperty("status");
+
+    // entities: present with user-visible columns.
+    expect(userExport.tables.entities.length).toBeGreaterThan(0);
+    expect(userExport.tables.entities[0]).toHaveProperty("id");
+    expect(userExport.tables.entities[0]).toHaveProperty("name");
+    expect(userExport.tables.entities[0]).toHaveProperty("type");
+
+    // preferences: present with key/value structure.
+    expect(userExport.tables.preferences.length).toBeGreaterThan(0);
+    expect(userExport.tables.preferences[0]).toHaveProperty("id");
+    expect(userExport.tables.preferences[0]).toHaveProperty("key");
+    expect(userExport.tables.preferences[0]).toHaveProperty("valueJson");
+
+    // Global redaction guard across all new sections — key-level AND value-level.
+    expect(exportedJson).not.toContain('"embedding"');
+    expect(exportedJson).not.toContain('"content_hash"');
+    expect(exportedJson).not.toContain('"file_hash"');
+    // Value-level: the seed plants 'hash-sentinel' as memory_chunks.content_hash. A key-only
+    // check would miss a renamed-column leak; assert the sentinel value never appears.
+    expect(exportedJson).not.toContain("hash-sentinel");
   });
 
   it("deletes one user only after exact confirmation and records metadata-only audit", async () => {
@@ -643,6 +711,51 @@ async function seedLifecycleData(): Promise<void> {
         VALUES ($1, $2, $3, 'test-model', 'Test Model', ARRAY['chat'])
       `,
       [releaseIds.aiModel, releaseIds.aiProvider, ids.userA]
+    );
+    await client.query("COMMIT");
+  } catch (error) {
+    await client.query("ROLLBACK");
+    throw error;
+  } finally {
+    await client.end();
+  }
+}
+
+async function seedExportExtensionData(): Promise<void> {
+  const client = new Client({ connectionString: connectionStrings.bootstrap });
+
+  await client.connect();
+  try {
+    await client.query("BEGIN");
+    await client.query(
+      `INSERT INTO app.memory_chunks
+         (owner_user_id, source_kind, source_path, line_start, line_end, content_hash, text)
+       VALUES ($1, 'vault', 'notes/test.md', 0, 10, 'hash-sentinel', 'chunk text sentinel')`,
+      [ids.userA]
+    );
+    await client.query(
+      `INSERT INTO app.chat_memory_facts
+         (owner_user_id, category, content, importance)
+       VALUES ($1, 'fact', 'user likes coffee', 0.80)`,
+      [ids.userA]
+    );
+    await client.query(
+      `INSERT INTO app.commitments
+         (owner_user_id, title, status, provenance, source_kind)
+       VALUES ($1, 'send the report', 'open', 'inferred', 'email')`,
+      [ids.userA]
+    );
+    await client.query(
+      `INSERT INTO app.entities
+         (owner_user_id, type, name, attributes, provenance)
+       VALUES ($1, 'person', 'Alice Smith', '{}', 'volunteered')`,
+      [ids.userA]
+    );
+    await client.query(
+      `INSERT INTO app.preferences
+         (owner_user_id, key, value_json)
+       VALUES ($1, 'persona.tone', '"concise"')`,
+      [ids.userA]
     );
     await client.query("COMMIT");
   } catch (error) {
