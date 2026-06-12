@@ -4,9 +4,11 @@
  * Before a freshly-spawned or provider-switched CLI engine resumes a session, the
  * session manager submits a seed made of XML-style framing blocks — `<memory>`
  * (recalled past conversations + extracted facts), `<conversation>` (replayed
- * prior turns), and `<prior-context>` (a rolling model summary). The text inside
- * those blocks is user-influenced (a recalled chunk or a prior user turn can
- * contain anything the user once typed). If that text can itself contain one of
+ * prior turns), and `<prior-context>` (a rolling summary that is a verbatim
+ * concatenation of stored assistant message bodies). The text inside those blocks
+ * is user-influenced — a recalled chunk or prior user turn can contain anything
+ * the user once typed, and the rolling summary can echo whatever the user steered
+ * the model to emit. If that text can itself contain one of
  * our closing delimiters it can break out of its block and have the remainder
  * read as out-of-band instructions — a prompt-injection vector (#123).
  */

@@ -373,8 +373,10 @@ export class ChatSessionManager {
 /**
  * Render prior turns as a compact <conversation> seed block so a freshly-spawned
  * or switched engine continues the conversation with full context.
+ *
+ * Exported for unit testing of the prompt-injection neutralization (#123).
  */
-function renderReplayBlock(
+export function renderReplayBlock(
   priorTurns: readonly { role: "user" | "assistant"; content: string }[]
 ): string {
   // Prior turn content is user-authored — neutralize any seed-framing delimiter
@@ -391,8 +393,14 @@ function renderReplayBlock(
   ].join("\n");
 }
 
-function renderSummaryBlock(summary: string): string {
-  return `<prior-context>\n${summary}\n</prior-context>`;
+// Exported for unit testing of the prompt-injection neutralization (#123).
+export function renderSummaryBlock(summary: string): string {
+  // The rolling summary is a verbatim concatenation of stored assistant message
+  // bodies (see persistence.ts buildRollingSummary), which are attacker-steerable
+  // — a user can ask the model to echo a `</prior-context>` delimiter that then
+  // gets persisted and replayed here. Route it through the same chokepoint as
+  // every other untrusted seed surface so it cannot break out of the block (#123).
+  return `<prior-context>\n${neutralizeSeedFraming(summary)}\n</prior-context>`;
 }
 
 function delay(ms: number): Promise<void> {
