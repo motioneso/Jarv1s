@@ -12,6 +12,8 @@ import type { AiConfiguredModelSafeRow, AiRepository, ProviderKind } from "@jarv
 import { assertDataContextDb, type DataContextDb, type DataContextRunner } from "@jarv1s/db";
 import type { PgBoss } from "pg-boss";
 
+import { sendJob } from "@jarv1s/jobs";
+
 import {
   CHAT_EMBED_TURN_QUEUE,
   CHAT_EXTRACT_FACTS_QUEUE,
@@ -134,8 +136,8 @@ export class DataContextChatPersistence implements ChatPersistencePort {
           actorUserId,
           threadId: thread.id
         };
-        await this.boss.send(CHAT_EMBED_TURN_QUEUE, embedPayload);
-        await this.boss.send(CHAT_EXTRACT_FACTS_QUEUE, extractPayload);
+        await sendJob(this.boss, CHAT_EMBED_TURN_QUEUE, embedPayload);
+        await sendJob(this.boss, CHAT_EXTRACT_FACTS_QUEUE, extractPayload);
       }
     });
   }

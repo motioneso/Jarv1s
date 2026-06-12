@@ -3,6 +3,7 @@ import {
   type ConstructorOptions,
   type Job,
   type QueueOptions,
+  type SendOptions,
   type WorkOptions
 } from "pg-boss";
 
@@ -73,7 +74,7 @@ export async function sendJob<T extends ActorScopedJobPayload>(
   boss: PgBoss,
   queue: string,
   payload: T,
-  options?: PgBoss.SendOptions
+  options?: SendOptions
 ): Promise<string | null> {
   assertMetadataOnlyPayload(payload as unknown as Record<string, unknown>);
   return options === undefined ? boss.send(queue, payload) : boss.send(queue, payload, options);

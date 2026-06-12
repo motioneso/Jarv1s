@@ -20,6 +20,8 @@ import {
   type UpdateBriefingDefinitionRequest
 } from "@jarv1s/shared";
 
+import { sendJob } from "@jarv1s/jobs";
+
 import { type BriefingRunPayload, isBriefingRunPayloadMetadataOnly } from "./jobs.js";
 import { BRIEFINGS_RUN_QUEUE } from "./manifest.js";
 import { BriefingsRepository } from "./repository.js";
@@ -133,7 +135,7 @@ export function registerBriefingsRoutes(
           throw new HttpError(500, "Briefing job payload contains non-metadata fields");
         }
 
-        const jobId = await dependencies.boss.send(BRIEFINGS_RUN_QUEUE, payload);
+        const jobId = await sendJob(dependencies.boss, BRIEFINGS_RUN_QUEUE, payload);
 
         if (!jobId) {
           throw new HttpError(500, "Briefing run could not be queued");
