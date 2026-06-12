@@ -4,6 +4,8 @@ import type { Kysely } from "kysely";
 import type {
   AccessContext,
   AdminAuditEvent,
+  DataContextDb,
+  DataContextRunner,
   InstanceSetting,
   JarvisDatabase,
   User
@@ -29,10 +31,15 @@ import {
 } from "@jarv1s/shared";
 
 import { deleteUserData } from "../../../scripts/delete-user-data.js";
+import { BootstrapHelper } from "./bootstrap.js";
 import { HttpRepositoryError, SettingsRepository } from "./repository.js";
 
 export interface SettingsRoutesDependencies {
-  readonly appDb: Kysely<JarvisDatabase>;
+  // Documented Kysely< exemption: rootDb exists ONLY to construct BootstrapHelper
+  // (countUsers — runs before any session/actor exists, so withDataContext cannot be used).
+  // See the SOLE-exemption comment in packages/settings/src/bootstrap.ts.
+  readonly rootDb: Kysely<JarvisDatabase>;
+  readonly dataContext: DataContextRunner;
   readonly resolveAccessContext: (request: FastifyRequest) => Promise<AccessContext>;
   readonly listConfiguredAuthProviders?: () => readonly AuthProviderStatusDto[];
   readonly repository?: SettingsRepository;
@@ -48,10 +55,11 @@ export function registerSettingsRoutes(
   server: FastifyInstance,
   dependencies: SettingsRoutesDependencies
 ): void {
-  const repository = dependencies.repository ?? new SettingsRepository(dependencies.appDb);
+  const repository = dependencies.repository ?? new SettingsRepository();
+  const bootstrapHelper = new BootstrapHelper(dependencies.rootDb);
 
   server.get("/api/bootstrap/status", { schema: bootstrapStatusRouteSchema }, async () => {
-    const userCount = await repository.countUsers();
+    const userCount = await bootstrapHelper.countUsers();
 
     return {
       needsBootstrap: userCount === 0,
@@ -62,7 +70,9 @@ export function registerSettingsRoutes(
   server.get("/api/me", { schema: meRouteSchema }, async (request, reply) => {
     try {
       const accessContext = await dependencies.resolveAccessContext(request);
-      const user = await requireKnownUser(repository, accessContext.actorUserId);
+      const user = await dependencies.dataContext.withDataContext(accessContext, (scopedDb) =>
+        requireKnownUser(repository, scopedDb, accessContext.actorUserId)
+      );
 
       return {
         user: serializeUser(user)
@@ -77,7 +87,10 @@ export function registerSettingsRoutes(
     { schema: listAuthProviderStatusesRouteSchema },
     async (request, reply) => {
       try {
-        await requireAdmin(request, dependencies, repository);
+        const accessContext = await dependencies.resolveAccessContext(request);
+        await dependencies.dataContext.withDataContext(accessContext, (scopedDb) =>
+          assertAdminUser(repository, scopedDb, accessContext.actorUserId)
+        );
 
         return {
           providers: dependencies.listConfiguredAuthProviders?.() ?? []
@@ -90,8 +103,14 @@ export function registerSettingsRoutes(
 
   server.get("/api/admin/users", { schema: listUsersRouteSchema }, async (request, reply) => {
     try {
-      await requireAdmin(request, dependencies, repository);
-      const users = await repository.listUsers();
+      const accessContext = await dependencies.resolveAccessContext(request);
+      const users = await dependencies.dataContext.withDataContext(
+        accessContext,
+        async (scopedDb) => {
+          await assertAdminUser(repository, scopedDb, accessContext.actorUserId);
+          return repository.listUsers(scopedDb);
+        }
+      );
 
       return { users: users.map(serializeUser) };
     } catch (error) {
@@ -104,8 +123,14 @@ export function registerSettingsRoutes(
     { schema: listInstanceSettingsRouteSchema },
     async (request, reply) => {
       try {
-        await requireAdmin(request, dependencies, repository);
-        const settings = await repository.listInstanceSettings();
+        const accessContext = await dependencies.resolveAccessContext(request);
+        const settings = await dependencies.dataContext.withDataContext(
+          accessContext,
+          async (scopedDb) => {
+            await assertAdminUser(repository, scopedDb, accessContext.actorUserId);
+            return repository.listInstanceSettings(scopedDb);
+          }
+        );
 
         return { settings: settings.map(serializeInstanceSetting) };
       } catch (error) {
@@ -119,14 +144,20 @@ export function registerSettingsRoutes(
     { schema: upsertInstanceSettingRouteSchema },
     async (request, reply) => {
       try {
-        const accessContext = await requireAdmin(request, dependencies, repository);
+        const accessContext = await dependencies.resolveAccessContext(request);
         const body = parseInstanceSettingBody(request.body);
-        const setting = await repository.upsertInstanceSetting({
-          key: request.params.key,
-          value: body.value,
-          updatedByUserId: accessContext.actorUserId,
-          requestId: requireRequestId(accessContext)
-        });
+        const setting = await dependencies.dataContext.withDataContext(
+          accessContext,
+          async (scopedDb) => {
+            await assertAdminUser(repository, scopedDb, accessContext.actorUserId);
+            return repository.upsertInstanceSetting(scopedDb, {
+              key: request.params.key,
+              value: body.value,
+              updatedByUserId: accessContext.actorUserId,
+              requestId: requireRequestId(accessContext)
+            });
+          }
+        );
 
         return { setting: serializeInstanceSetting(setting) };
       } catch (error) {
@@ -140,19 +171,25 @@ export function registerSettingsRoutes(
     { schema: adminUserActionRouteSchema },
     async (request, reply) => {
       try {
-        const accessContext = await requireAdmin(request, dependencies, repository);
+        const accessContext = await dependencies.resolveAccessContext(request);
         const { id } = request.params as { id: string };
-        const existing = await repository.getUserById(id);
-        if (!existing) throw new HttpError(404, "User not found");
-        if (existing.status !== "pending")
-          throw new HttpError(409, "Only pending accounts can be approved");
-        const user = await repository.setUserStatus({
-          targetUserId: id,
-          status: "active",
-          action: "user.approve",
-          actorUserId: accessContext.actorUserId,
-          requestId: requireRequestId(accessContext)
-        });
+        const user = await dependencies.dataContext.withDataContext(
+          accessContext,
+          async (scopedDb) => {
+            await assertAdminUser(repository, scopedDb, accessContext.actorUserId);
+            const existing = await repository.getUserById(scopedDb, id);
+            if (!existing) throw new HttpError(404, "User not found");
+            if (existing.status !== "pending")
+              throw new HttpError(409, "Only pending accounts can be approved");
+            return repository.setUserStatus(scopedDb, {
+              targetUserId: id,
+              status: "active",
+              action: "user.approve",
+              actorUserId: accessContext.actorUserId,
+              requestId: requireRequestId(accessContext)
+            });
+          }
+        );
         return { user: serializeUser(user) };
       } catch (error) {
         return handleRouteError(error, reply);
@@ -166,15 +203,21 @@ export function registerSettingsRoutes(
       { schema: adminUserActionRouteSchema },
       async (request, reply) => {
         try {
-          const accessContext = await requireAdmin(request, dependencies, repository);
+          const accessContext = await dependencies.resolveAccessContext(request);
           const { id } = request.params as { id: string };
-          const user = await repository.setUserStatus({
-            targetUserId: id,
-            status,
-            action,
-            actorUserId: accessContext.actorUserId,
-            requestId: requireRequestId(accessContext)
-          });
+          const user = await dependencies.dataContext.withDataContext(
+            accessContext,
+            async (scopedDb) => {
+              await assertAdminUser(repository, scopedDb, accessContext.actorUserId);
+              return repository.setUserStatus(scopedDb, {
+                targetUserId: id,
+                status,
+                action,
+                actorUserId: accessContext.actorUserId,
+                requestId: requireRequestId(accessContext)
+              });
+            }
+          );
           if (verb === "deactivate" && dependencies.revokeUserSessions) {
             await dependencies.revokeUserSessions(id);
           }
@@ -194,14 +237,20 @@ export function registerSettingsRoutes(
       { schema: adminUserActionRouteSchema },
       async (request, reply) => {
         try {
-          const accessContext = await requireAdmin(request, dependencies, repository);
+          const accessContext = await dependencies.resolveAccessContext(request);
           const { id } = request.params as { id: string };
-          const user = await repository.setUserAdmin({
-            targetUserId: id,
-            isInstanceAdmin,
-            actorUserId: accessContext.actorUserId,
-            requestId: requireRequestId(accessContext)
-          });
+          const user = await dependencies.dataContext.withDataContext(
+            accessContext,
+            async (scopedDb) => {
+              await assertAdminUser(repository, scopedDb, accessContext.actorUserId);
+              return repository.setUserAdmin(scopedDb, {
+                targetUserId: id,
+                isInstanceAdmin,
+                actorUserId: accessContext.actorUserId,
+                requestId: requireRequestId(accessContext)
+              });
+            }
+          );
           return { user: serializeUser(user) };
         } catch (error) {
           return handleRouteError(error, reply);
@@ -217,17 +266,22 @@ export function registerSettingsRoutes(
     id: string,
     requirePending: boolean
   ): Promise<string> {
-    const accessContext = await requireAdmin(request, dependencies, repository);
-    const existing = await repository.getUserById(id);
-    if (!existing) throw new HttpError(404, "User not found");
-    if (requirePending && existing.status !== "pending") {
-      throw new HttpError(409, "Only pending accounts can be rejected");
-    }
-    if (id === accessContext.actorUserId)
-      throw new HttpError(422, "You cannot delete your own account");
-    if (existing.is_bootstrap_owner)
-      throw new HttpError(409, "The bootstrap owner cannot be deleted");
-    if (existing.is_instance_admin) await repository.assertNotLastActiveAdmin(id);
+    const accessContext = await dependencies.resolveAccessContext(request);
+    await dependencies.dataContext.withDataContext(accessContext, async (scopedDb) => {
+      // Guard order preserved from the original routes.ts (404 → pending-409 → self-422
+      // → bootstrap-409 → last-admin-409). Do not reorder.
+      await assertAdminUser(repository, scopedDb, accessContext.actorUserId);
+      const existing = await repository.getUserById(scopedDb, id);
+      if (!existing) throw new HttpError(404, "User not found");
+      if (requirePending && existing.status !== "pending") {
+        throw new HttpError(409, "Only pending accounts can be rejected");
+      }
+      if (id === accessContext.actorUserId)
+        throw new HttpError(422, "You cannot delete your own account");
+      if (existing.is_bootstrap_owner)
+        throw new HttpError(409, "The bootstrap owner cannot be deleted");
+      if (existing.is_instance_admin) await repository.assertNotLastActiveAdmin(scopedDb, id);
+    });
     await deleteUserData({
       userId: id,
       confirmUserId: id,
@@ -272,8 +326,11 @@ export function registerSettingsRoutes(
     { schema: getRegistrationSettingsRouteSchema },
     async (request, reply) => {
       try {
-        await requireAdmin(request, dependencies, repository);
-        return await repository.getRegistrationSettings();
+        const accessContext = await dependencies.resolveAccessContext(request);
+        return await dependencies.dataContext.withDataContext(accessContext, async (scopedDb) => {
+          await assertAdminUser(repository, scopedDb, accessContext.actorUserId);
+          return repository.getRegistrationSettings(scopedDb);
+        });
       } catch (error) {
         return handleRouteError(error, reply);
       }
@@ -285,13 +342,16 @@ export function registerSettingsRoutes(
     { schema: putRegistrationSettingsRouteSchema },
     async (request, reply) => {
       try {
-        const accessContext = await requireAdmin(request, dependencies, repository);
+        const accessContext = await dependencies.resolveAccessContext(request);
         const body = request.body as { registrationEnabled: boolean; requiresApproval: boolean };
-        return await repository.setRegistrationSettings({
-          registrationEnabled: body.registrationEnabled,
-          requiresApproval: body.requiresApproval,
-          actorUserId: accessContext.actorUserId,
-          requestId: requireRequestId(accessContext)
+        return await dependencies.dataContext.withDataContext(accessContext, async (scopedDb) => {
+          await assertAdminUser(repository, scopedDb, accessContext.actorUserId);
+          return repository.setRegistrationSettings(scopedDb, {
+            registrationEnabled: body.registrationEnabled,
+            requiresApproval: body.requiresApproval,
+            actorUserId: accessContext.actorUserId,
+            requestId: requireRequestId(accessContext)
+          });
         });
       } catch (error) {
         return handleRouteError(error, reply);
@@ -304,8 +364,14 @@ export function registerSettingsRoutes(
     { schema: listAdminAuditEventsRouteSchema },
     async (request, reply) => {
       try {
-        await requireAdmin(request, dependencies, repository);
-        const auditEvents = await repository.listAdminAuditEvents();
+        const accessContext = await dependencies.resolveAccessContext(request);
+        const auditEvents = await dependencies.dataContext.withDataContext(
+          accessContext,
+          async (scopedDb) => {
+            await assertAdminUser(repository, scopedDb, accessContext.actorUserId);
+            return repository.listAdminAuditEvents(scopedDb);
+          }
+        );
 
         return { auditEvents: auditEvents.map(serializeAdminAuditEvent) };
       } catch (error) {
@@ -315,23 +381,27 @@ export function registerSettingsRoutes(
   );
 }
 
-async function requireAdmin(
-  request: FastifyRequest,
-  dependencies: SettingsRoutesDependencies,
-  repository: SettingsRepository
-): Promise<AccessContext> {
-  const accessContext = await dependencies.resolveAccessContext(request);
-  const user = await requireKnownUser(repository, accessContext.actorUserId);
-
+// The admin check happens INSIDE the route's withDataContext so the admin check and the
+// actual operation share one transaction. assertAdminUser/requireKnownUser take scopedDb
+// from that transaction — there is no nested withDataContext and no DB-holding helper.
+async function assertAdminUser(
+  repository: SettingsRepository,
+  scopedDb: DataContextDb,
+  userId: string
+): Promise<User> {
+  const user = await requireKnownUser(repository, scopedDb, userId);
   if (!user.is_instance_admin) {
     throw new HttpError(403, "Instance admin permission is required");
   }
-
-  return accessContext;
+  return user;
 }
 
-async function requireKnownUser(repository: SettingsRepository, userId: string): Promise<User> {
-  const user = await repository.getUserById(userId);
+async function requireKnownUser(
+  repository: SettingsRepository,
+  scopedDb: DataContextDb,
+  userId: string
+): Promise<User> {
+  const user = await repository.getUserById(scopedDb, userId);
 
   if (!user) {
     throw new HttpError(401, "Session is missing or expired");
