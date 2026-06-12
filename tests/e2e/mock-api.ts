@@ -61,7 +61,7 @@ const meResponse: MeResponse = {
 
 export async function mockApi(page: Page, state: MockApiState): Promise<void> {
   await page.route("**/api/bootstrap/status", (route) =>
-    fulfillJson(route, 200, { needsBootstrap: false, userCount: state.authenticated ? 1 : 0 })
+    fulfillJson(route, 200, { needsBootstrap: false })
   );
   await page.route("**/api/auth/sign-in/email", (route) => {
     state.authenticated = true;

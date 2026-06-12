@@ -48,6 +48,33 @@ export async function resetEmptyFoundationDatabase(): Promise<void> {
   await runSqlFiles(connectionStrings.migration, join(root, "infra/postgres/grants"));
 }
 
+/**
+ * Set an instance-wide setting from a test's arrange phase.
+ *
+ * Writes through the bootstrap superuser connection (same channel as seedProbeData),
+ * which bypasses RLS. instance_settings UPDATE is admin-gated by policy (migration
+ * 0059); production writes go through an admin DataContext (settings repository), and
+ * test setup that only needs to arrange a precondition uses this privileged channel
+ * rather than minting an admin actor — mirroring how seedProbeData seeds RLS-protected
+ * tables. The value is stored as the jsonb wrapper the settings repository reads.
+ */
+export async function setInstanceSetting(
+  key: string,
+  value: Record<string, unknown>
+): Promise<void> {
+  const client = new Client({ connectionString: connectionStrings.bootstrap });
+
+  await client.connect();
+  try {
+    await client.query(
+      `UPDATE app.instance_settings SET value = $1::jsonb, updated_at = now() WHERE key = $2`,
+      [JSON.stringify(value), key]
+    );
+  } finally {
+    await client.end();
+  }
+}
+
 async function dropApplicationSchemas(): Promise<void> {
   const client = new Client({ connectionString: connectionStrings.bootstrap });
 
