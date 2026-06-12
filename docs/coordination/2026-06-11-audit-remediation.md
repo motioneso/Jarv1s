@@ -32,7 +32,7 @@ Severity post-Fable. Tier by content trigger (most of this backlog is `security`
 | **C — Vault containment**                | #129 actorUserId validation, #130 symlink real-path containment                                                                                         | security               | no (code)                              | `docs/superpowers/specs/2026-06-11-audit-slice-c-vault-containment.md` ✅       | **MERGED** PR #182 @ 2026-06-12T00:13:23Z — issues #130 closed, board Done    |
 | **D — Settings → DataContextDb**         | #95 SettingsRepository raw Kysely, #155 /api/me cross-user read                                                                                         | security               | maybe (grant)                          | `docs/superpowers/specs/2026-06-12-audit-slice-d-settings-datacontext.md` ✅    | blocked-on-Ben-review                                                         |
 | **E — Auth module hardening**            | #101 module-isolation, #127 bootstrap actor-GUC, #141 OAuth error-body leak (#113 deferred → issue #183)                                                | security               | no (code)                              | `docs/superpowers/specs/2026-06-12-audit-slice-e-auth-hardening.md` ✅          | blocked-on-Ben-review                                                         |
-| **F — AI tool-path hardening**           | #132 REST validateToolInput, #119 server-side allowlist, #148 blank ToolContext, #172 tools/list actor-scope                                            | security               | no (code)                              | `docs/superpowers/specs/2026-06-12-audit-slice-f-ai-toolpath-hardening.md` ✅   | **building** — SliceF-build (pane volatile), branch `audit-slice-f`            |
+| **F — AI tool-path hardening**           | #132 REST validateToolInput, #119 server-side allowlist, #148 blank ToolContext, #172 tools/list actor-scope                                            | security               | no (code)                              | `docs/superpowers/specs/2026-06-12-audit-slice-f-ai-toolpath-hardening.md` ✅   | **DONE → QA** — PR #184 (closes #119/#132/#148/#172); Fable security QA running; CI pending |
 | **G — Data-layer defense-in-depth**      | #102 assertDataContextDb, #144 vectorSearch owner predicate, #99 structured-state WITH CHECK                                                            | security               | maybe (#99, assigned at merge after B+D) | `docs/superpowers/specs/2026-06-12-audit-slice-g-datalayer-defense.md` ✅       | **building** — SliceG-build (pane volatile), branch `audit-slice-g`            |
 | **H — Migration/job infra**              | #124 schema_migrations per-dir, #134 worker dead grant REVOKE, #135 incognito trigger, #157 metadata-only payload guard, #174 pgboss RLS                | security/sensitive     | **yes (×2 versioned + 1 grants file)** | `docs/superpowers/specs/2026-06-12-audit-slice-h-migration-job-infra.md` ✅     | blocked-on-Ben-review                                                         |
 | **I — Portability + observability tail** | #170 export omits private, #149 handleRouteError, #140 list ownership, #166 test hygiene (LOW)                                                          | sensitive/routine→**security-bar** | no (code)                  | `docs/superpowers/specs/2026-06-12-audit-slice-i-portability-tail.md` ✅        | **building** — SliceI-build (pane volatile), branch `audit-slice-i`            |
@@ -109,6 +109,14 @@ Spawned into the "Agents" tab (`w653f42bef3ac02:3`), Sonnet 4.6, bypass-permissi
 `pnpm verify:foundation` (final gate); likely first done. **B COST WATCH** — still Task 1b/2 after
 52 min, re-compacted (55% ctx), **$8.81** (largest slice; throughput healthy, not stalled, but
 pricey — flag to Ben). F/I working, nominal. No relay yet (B held pane `-3`).
+
+**F DONE (21:1x):** PR #184 (closes #119/#132/#148/#172), security-tier, collision-free (merges
+independent of spine once green). Pane-id authority re-confirmed `p_38` ✅. CI **pending** at QA
+dispatch. **Fable** (`model: fable`) security QA spawned via Agent tool (general-purpose +
+coordinated-qa skill, isolation worktree, bg) — adversarial trust-boundary pass (allowlist
+server-side enforcement, validateToolInput 400, actorUserId always-populated, listToolsForActor
+scoping) + must `gh pr comment` an APPROVE/REVISE/REJECT verdict. Merge gated on Fable APPROVE **and**
+green CI. (Ben's Codex-vs-Fable choice still open — verdict is reversible before merge.)
 
 **Merge sequencing for the collisions:** B merges first (spine HEAD) → G and I rebase their shared
 test-file edits on top of B before their own merge. F is collision-free, merges as soon as green.
