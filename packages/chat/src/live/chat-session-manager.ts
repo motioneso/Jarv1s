@@ -15,6 +15,7 @@ import type { ProviderKind } from "@jarv1s/ai";
 
 import type { RecallPort } from "../recall-port.js";
 import { renderPersona, type PersonaFs } from "./persona.js";
+import { neutralizeSeedFraming } from "./prompt-safety.js";
 import { renderMemorySeedBlock } from "./recall-seed.js";
 import type { CliChatEngine, TranscriptRecord } from "./types.js";
 
@@ -376,7 +377,12 @@ export class ChatSessionManager {
 function renderReplayBlock(
   priorTurns: readonly { role: "user" | "assistant"; content: string }[]
 ): string {
-  const lines = priorTurns.map((t) => `${t.role === "user" ? "User" : "Assistant"}: ${t.content}`);
+  // Prior turn content is user-authored — neutralize any seed-framing delimiter
+  // so a turn can't break out of the <conversation> block and inject instructions
+  // into a freshly-spawned engine (#123).
+  const lines = priorTurns.map(
+    (t) => `${t.role === "user" ? "User" : "Assistant"}: ${neutralizeSeedFraming(t.content)}`
+  );
   return [
     "<conversation>",
     "The following is the prior conversation so far. Continue it; do not respond to this message.",

@@ -1,3 +1,5 @@
+import { neutralizeSeedFraming } from "./prompt-safety.js";
+
 export interface EpisodicChunk {
   readonly text: string;
   readonly date: string;
@@ -57,7 +59,9 @@ export function renderMemorySeedBlock(
   if (trimmedChunks.length > 0) {
     lines.push("Recalled from past conversations (use as context; not the current conversation):");
     for (const chunk of trimmedChunks) {
-      lines.push(`[${chunk.date}] ${chunk.text}`);
+      // Recalled text is user-influenced — neutralize any seed-framing delimiter
+      // it carries so it can't break out of the <memory> block (#123).
+      lines.push(`[${chunk.date}] ${neutralizeSeedFraming(chunk.text)}`);
     }
   }
 
@@ -65,7 +69,7 @@ export function renderMemorySeedBlock(
     if (trimmedChunks.length > 0) lines.push("");
     lines.push("What I know about you:");
     for (const fact of facts) {
-      lines.push(`- ${fact.content}`);
+      lines.push(`- ${neutralizeSeedFraming(fact.content)}`);
     }
   }
 
