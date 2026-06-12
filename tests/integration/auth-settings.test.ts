@@ -4,7 +4,7 @@ import { sql, type Kysely } from "kysely";
 import pg from "pg";
 
 import { createApiServer } from "../../apps/api/src/server.js";
-import { createDatabase, type JarvisDatabase } from "@jarv1s/db";
+import { createDatabase, DataContextRunner, type JarvisDatabase } from "@jarv1s/db";
 import type { ListAdminAuditEventsResponse, ListModulesResponse, MeResponse } from "@jarv1s/shared";
 import { connectionStrings, ids, resetEmptyFoundationDatabase } from "./test-database.js";
 import { createJarvisAuthRuntime, type JarvisAuthRuntime } from "@jarv1s/auth";
@@ -549,14 +549,17 @@ describe("multi-user registration + lifecycle (Phase 2 Slice A)", () => {
     );
     await client.end();
 
-    const repo = new SettingsRepository(appDb);
+    const repo = new SettingsRepository();
+    const dataCtx = new DataContextRunner(appDb);
     await expect(
-      repo.setUserAdmin({
-        targetUserId: memberId,
-        isInstanceAdmin: false,
-        actorUserId: memberId,
-        requestId: "r1"
-      })
+      dataCtx.withDataContext({ actorUserId: memberId, requestId: "r1" }, (scopedDb) =>
+        repo.setUserAdmin(scopedDb, {
+          targetUserId: memberId,
+          isInstanceAdmin: false,
+          actorUserId: memberId,
+          requestId: "r1"
+        })
+      )
     ).rejects.toThrow(/last.*admin/i);
   });
 });
