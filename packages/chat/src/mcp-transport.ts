@@ -66,8 +66,9 @@ export function registerMcpTransportRoute(
         return reply.code(401).send(jsonRpcError(null, -32600, "Missing Authorization header"));
       }
       const token = auth.slice(7);
+      let identity: ReturnType<typeof deps.tokens.verify>;
       try {
-        deps.tokens.verify(token);
+        identity = deps.tokens.verify(token);
       } catch {
         return reply.code(401).send(jsonRpcError(null, -32600, "Invalid or expired session token"));
       }
@@ -96,7 +97,7 @@ export function registerMcpTransportRoute(
         return reply.code(200).send({
           jsonrpc: "2.0",
           id,
-          result: { tools: deps.gateway.listTools().map(dtoToMcpTool) }
+          result: { tools: deps.gateway.listToolsForActor(identity.actorUserId).map(dtoToMcpTool) }
         });
       }
 

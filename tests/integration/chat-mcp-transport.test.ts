@@ -102,7 +102,11 @@ describe("MCP HTTP transport", () => {
   });
 
   it("responds to initialize with MCP protocol version", async () => {
-    const token = tokens.mint({ actorUserId: ids.userA, chatSessionId: randomUUID() });
+    const token = tokens.mint({
+      actorUserId: ids.userA,
+      chatSessionId: randomUUID(),
+      allowedToolNames: null
+    });
     const res = await app.inject({
       method: "POST",
       url: "/api/mcp",
@@ -118,7 +122,11 @@ describe("MCP HTTP transport", () => {
   });
 
   it("returns 204 for notifications/initialized", async () => {
-    const token = tokens.mint({ actorUserId: ids.userA, chatSessionId: randomUUID() });
+    const token = tokens.mint({
+      actorUserId: ids.userA,
+      chatSessionId: randomUUID(),
+      allowedToolNames: null
+    });
     const res = await app.inject({
       method: "POST",
       url: "/api/mcp",
@@ -129,7 +137,11 @@ describe("MCP HTTP transport", () => {
   });
 
   it("tools/list returns executable tools and excludes declaration-only", async () => {
-    const token = tokens.mint({ actorUserId: ids.userA, chatSessionId: randomUUID() });
+    const token = tokens.mint({
+      actorUserId: ids.userA,
+      chatSessionId: randomUUID(),
+      allowedToolNames: null
+    });
     const res = await app.inject({
       method: "POST",
       url: "/api/mcp",
@@ -144,8 +156,57 @@ describe("MCP HTTP transport", () => {
     expect(names).not.toContain("example.declaration-only");
   });
 
+  it("tools/list is actor-scoped at the transport level — userB token yields an empty list", async () => {
+    const scopedTokens = new SessionTokenRegistry();
+    const scopedGateway = new AssistantToolGateway({
+      resolveActiveModules: (actorUserId) => (actorUserId === ids.userA ? [exampleToolModule] : []),
+      repository: new AiRepository(),
+      runner: new DataContextRunner(appDb),
+      tokens: scopedTokens,
+      confirmations: new ConfirmationRegistry(),
+      notifier: { emit: () => {} },
+      confirmTimeoutMs: 2_000
+    });
+    const scopedApp = Fastify({ logger: false });
+    registerMcpTransportRoute(scopedApp, { gateway: scopedGateway, tokens: scopedTokens });
+    await scopedApp.ready();
+    try {
+      const callList = async (actorUserId: string) => {
+        const token = scopedTokens.mint({
+          actorUserId,
+          chatSessionId: randomUUID(),
+          allowedToolNames: null
+        });
+        const res = await scopedApp.inject({
+          method: "POST",
+          url: "/api/mcp",
+          headers: { authorization: `Bearer ${token}` },
+          body: { jsonrpc: "2.0", id: 1, method: "tools/list" }
+        });
+        expect(res.statusCode).toBe(200);
+        return res
+          .json<{ result: { tools: { name: string }[] } }>()
+          .result.tools.map((t) => t.name);
+      };
+
+      const aNames = await callList(ids.userA);
+      const bNames = await callList(ids.userB);
+
+      expect(aNames).toContain("example.read");
+      expect(aNames).toContain("example.write");
+      expect(aNames).not.toContain("example.declaration-only");
+      expect(bNames).toEqual([]);
+    } finally {
+      await scopedApp.close();
+    }
+  });
+
   it("tools/call runs a read tool and returns MCP content", async () => {
-    const token = tokens.mint({ actorUserId: ids.userA, chatSessionId: randomUUID() });
+    const token = tokens.mint({
+      actorUserId: ids.userA,
+      chatSessionId: randomUUID(),
+      allowedToolNames: null
+    });
     const res = await app.inject({
       method: "POST",
       url: "/api/mcp",
@@ -170,7 +231,11 @@ describe("MCP HTTP transport", () => {
   });
 
   it("write call blocks, emits action_request, approves, executes", async () => {
-    const token = tokens.mint({ actorUserId: ids.userA, chatSessionId: randomUUID() });
+    const token = tokens.mint({
+      actorUserId: ids.userA,
+      chatSessionId: randomUUID(),
+      allowedToolNames: null
+    });
 
     const callPromise = app.inject({
       method: "POST",
@@ -206,6 +271,30 @@ describe("MCP HTTP transport", () => {
     expect(actionResult.kind).toBe("action_result");
     if (actionResult.kind !== "action_result") throw new Error("unreachable");
     expect(actionResult.outcome).toBe("executed");
+  });
+
+  it("tools/call returns an error when tool is not in the session allowlist", async () => {
+    const token = tokens.mint({
+      actorUserId: ids.userA,
+      chatSessionId: randomUUID(),
+      allowedToolNames: new Set(["example.write"])
+    });
+    const res = await app.inject({
+      method: "POST",
+      url: "/api/mcp",
+      headers: { authorization: `Bearer ${token}` },
+      body: {
+        jsonrpc: "2.0",
+        id: 99,
+        method: "tools/call",
+        params: { name: "example.read", arguments: { value: "blocked" } }
+      }
+    });
+    expect(res.statusCode).toBe(200);
+    const body = res.json<{ result: { isError: boolean; content: { text: string }[] } }>();
+    expect(body.result.isError).toBe(true);
+    expect(body.result.content[0]!.text).toContain("not in session allowlist");
+    expect(exampleToolCalls).toHaveLength(0);
   });
 });
 
@@ -267,7 +356,11 @@ describe("HTTP resolve endpoint", () => {
   });
 
   it("approve via HTTP unblocks the pending call and returns 204", async () => {
-    const token = tokens.mint({ actorUserId: ids.userA, chatSessionId: ids.userA });
+    const token = tokens.mint({
+      actorUserId: ids.userA,
+      chatSessionId: ids.userA,
+      allowedToolNames: null
+    });
 
     const callPromise = appA.inject({
       method: "POST",
@@ -301,7 +394,11 @@ describe("HTTP resolve endpoint", () => {
   });
 
   it("cross-user resolve does NOT unblock the owner's pending call (IDOR guard)", async () => {
-    const token = tokens.mint({ actorUserId: ids.userA, chatSessionId: ids.userA });
+    const token = tokens.mint({
+      actorUserId: ids.userA,
+      chatSessionId: ids.userA,
+      allowedToolNames: null
+    });
 
     const callPromise = appA.inject({
       method: "POST",
