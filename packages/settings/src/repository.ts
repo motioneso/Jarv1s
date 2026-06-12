@@ -101,7 +101,7 @@ export class SettingsRepository {
 
   async setUserStatus(scopedDb: DataContextDb, input: SetUserStatusInput): Promise<User> {
     assertDataContextDb(scopedDb);
-    // GUC already set by withDataContext. No inner transaction. No set_config.
+    // GUC already set by withDataContext — no inner tx wrapper, no manual GUC write here.
     const target = await this.requireUserRow(scopedDb, input.targetUserId);
 
     if (target.is_bootstrap_owner && input.status === "deactivated") {
@@ -135,7 +135,7 @@ export class SettingsRepository {
 
   async setUserAdmin(scopedDb: DataContextDb, input: SetUserAdminInput): Promise<User> {
     assertDataContextDb(scopedDb);
-    // GUC already set by withDataContext. No inner transaction. No set_config.
+    // GUC already set by withDataContext — no inner tx wrapper, no manual GUC write here.
     const target = await this.requireUserRow(scopedDb, input.targetUserId);
 
     if (!input.isInstanceAdmin) {
