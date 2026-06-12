@@ -213,8 +213,17 @@ Recommended order — security/RLS first, then defense-in-depth, then hygiene:
 6. **B7** React Query user-scoping (sensitive, frontend) — ✅ **MERGED (PR #195 @ `fbb131e`, Fable
    security-QA APPROVE after one REQUEST_CHANGES round; built as clear-on-boundary `resetQueries()`,
    not key-namespacing — Fable ruled it strictly stronger; e2e 14/14 green).** #163 resolved.
-7. **C** `validateToolInput`, `#94` TOCTOU, `x-forwarded-proto` (sensitive).
-8. **B6** dead-surface deletion (routine/sensitive).
+7. **C-sensitive** `validateToolInput` (#133), `#94` last-admin TOCTOU, `x-forwarded-proto` (#164)
+   (sensitive→security) — ✅ **MERGED (PR #196 @ `1863dac`, Fable security-QA APPROVE after one
+   REQUEST_CHANGES round).** Round-1 caught a real BLOCKER (DELETE path bypassed the lock — route
+   pre-check committed before the separate bootstrap-conn delete); fixed by folding a per-database
+   `pg_advisory_xact_lock` + under-lock re-check into both the repository methods and
+   `scripts/delete-user-data.ts`. #133 = dependency-free recursive validator; #164 = trustProxy-aware
+   URL reconstruction. +1 regression test (auth-settings 21/21). Code-only, spine **HEAD 0062**.
+   Issues #94 #164 #133 closed. **◀ relay pointer is here → next is B6.** (docs-only follow-up: ops
+   note that #164 yields `http` URLs when `JARVIS_TRUST_PROXY` unset behind a proxy.)
+8. **B6** dead-surface deletion (routine/sensitive) — **▶ NEXT.** structured-state delete-path #154,
+   module-sdk inert manifest fields #160, orphaned workspace CRUD + write-only `instance_settings`.
 9. **B8** operator-script guards (`restore:db` confirm) + e2e negative-auth coverage (sensitive); script LOWs (routine).
 10. **C** FK indexes + worker graceful shutdown (routine) — batchable.
 

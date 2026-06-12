@@ -123,10 +123,33 @@ each slice inline; Fable (model:fable) substitutes for Ben at every security gat
   Main CI on `fbb131e` green (`completed/success`, HEAD-verified before merge). B7 follow-up
   (non-blocking, out of #163 scope): no global 401→AuthScreen handler — session-expiry leaves stale
   view until reconnect; candidate for a later slice.
-- **▶ NEXT: C-sensitive** — `validateToolInput`/#133 residual (zod schema-validate), #94/#156
-  last-admin demote/delete TOCTOU (advisory lock / `FOR UPDATE`), #164 x-forwarded-proto trust-proxy
-  allowlist; plus #122 folded items (`/api/bootstrap/status` userCount leak → `needsBootstrap` bool
-  only; social-auth OAuth paths → `THROTTLED_AUTH_PATHS`). Then B6, B8, C-routine.
+- **✅ Batch 2 / C-sensitive MERGED** — PR #196 squash `1863dac` @ 2026-06-12T18:54:08Z (#94, #164,
+  #133). **#94 last-admin TOCTOU** closed on **every** removal path (deactivate/demote/reject +
+  `DELETE /api/admin/users/:id`): per-database `pg_advisory_xact_lock(hashtext('jarv1s:last-active-admin'))`
+  - under-lock re-check, taken both in the repository methods (app-runtime conns, via
+    `assertRemovingActiveAdminIsSafe` — lock-first, re-read target under lock) **and** folded into
+    `scripts/delete-user-data.ts`'s own bootstrap-connection transaction (held through DELETE+COMMIT).
+    Route pre-check demoted to fast-path 409; in-tx re-check (`LastActiveAdminError` → 409) is the
+    authoritative serialized guard. **#164**: `apps/api/src/server.ts` URL reconstruction now
+    trustProxy-aware (`request.protocol`/`request.host`, gated by `JARVIS_TRUST_PROXY`); removed the
+    unconditional `X-Forwarded-Proto` trust. **#133**: `validateToolInput` rewritten dependency-free +
+    recursive (object/required/type/enum/array-items), JSDoc honest about unenforced
+    format/pattern/bounds/additionalProperties/composition → ajv when needed. **Fable cross-model QA:
+    round-1 REQUEST_CHANGES caught a real BLOCKER** (DELETE path still open — route pre-check committed
+    & released the lock before the separate bootstrap-conn delete ran with no re-check); fixed by
+    folding the lock+recheck into `deleteUserData`; **round-2 APPROVE** (cross-connection per-database
+    serialization verified structurally; READ COMMITTED confirmed, no isolation override; clean
+    rollback/no connection-leak; no refactor regression). +1 deterministic regression test
+    (auth-settings 21/21). Code-only, spine unchanged → **HEAD 0062**. Main CI on `76683d0` green
+    (`completed/success`, head_sha-verified === PR HEAD before merge). Security-tier merge → relay fired.
+  * C-sensitive ops follow-up (non-blocking, docs-only): note in ops docs that #164 makes proxied
+    deployments without `JARVIS_TRUST_PROXY` emit `http` URLs instead of accidental spoofable-`https`.
+  * #156 was already fully resolved by D #188 + B3 #193 → not part of C-sensitive. #122 folded items
+    (`/api/bootstrap/status` userCount leak, social-auth `THROTTLED_AUTH_PATHS`) landed in Batch 1 #191.
+- **▶ NEXT: B6** — dead-surface deletion: structured-state delete-path #154, module-sdk inert
+  manifest fields #160, orphaned workspace CRUD + `instance_settings` write-only store (#156 residual).
+  Then B8 (operator-script guards + e2e negative-auth + `mock-api.ts` decomposition), C-routine
+  (#168 FK covering indexes [new migration], #165 worker graceful drain on SIGTERM).
 
 ---
 
