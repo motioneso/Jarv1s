@@ -680,3 +680,27 @@ describe("IngestionService", () => {
     });
   });
 });
+
+// ── MemoryRepository — assertDataContextDb guard ──────────────────────────────
+
+describe("MemoryRepository — assertDataContextDb guard", () => {
+  const repo = new MemoryRepository();
+
+  it("throws when an unbranded handle is passed to upsertFileChunks", async () => {
+    await expect(
+      repo.upsertFileChunks(appDb as unknown as DataContextDb, "u1", "p.md", [], "stub", "0")
+    ).rejects.toThrow("Repository access requires withDataContext");
+  });
+
+  it("throws when an unbranded handle is passed to vectorSearch", async () => {
+    await expect(repo.vectorSearch(appDb as unknown as DataContextDb, [], 5)).rejects.toThrow(
+      "Repository access requires withDataContext"
+    );
+  });
+
+  it("throws when an unbranded handle is passed to listIndexedPaths", async () => {
+    await expect(
+      repo.listIndexedPaths(appDb as unknown as DataContextDb, "u1", "vault")
+    ).rejects.toThrow("Repository access requires withDataContext");
+  });
+});

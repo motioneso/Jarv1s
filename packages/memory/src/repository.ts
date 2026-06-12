@@ -1,6 +1,6 @@
 import { sql } from "kysely";
 
-import type { DataContextDb } from "@jarv1s/db";
+import { assertDataContextDb, type DataContextDb } from "@jarv1s/db";
 
 export interface NewChunkData {
   readonly sourcePath: string;
@@ -30,6 +30,7 @@ export class MemoryRepository {
     embedModelVersion: string,
     sourceKind: string = "vault"
   ): Promise<void> {
+    assertDataContextDb(scopedDb);
     await this.deleteFileChunks(scopedDb, ownerUserId, sourcePath, sourceKind);
 
     for (const chunk of chunks) {
@@ -52,6 +53,7 @@ export class MemoryRepository {
     sourcePath: string,
     sourceKind: string = "vault"
   ): Promise<void> {
+    assertDataContextDb(scopedDb);
     await sql`
       DELETE FROM app.memory_chunks
       WHERE owner_user_id = ${ownerUserId}::uuid
@@ -61,6 +63,7 @@ export class MemoryRepository {
   }
 
   async deleteAllForUser(scopedDb: DataContextDb, ownerUserId: string): Promise<void> {
+    assertDataContextDb(scopedDb);
     await sql`
       DELETE FROM app.memory_chunks WHERE owner_user_id = ${ownerUserId}::uuid
     `.execute(scopedDb.db);
@@ -75,6 +78,7 @@ export class MemoryRepository {
     limit: number,
     sourceKind: string = "vault"
   ): Promise<RetrievedChunk[]> {
+    assertDataContextDb(scopedDb);
     const vectorLiteral = `[${embedding.join(",")}]`;
     const result = await sql<{
       id: string;
@@ -109,6 +113,7 @@ export class MemoryRepository {
     fromPath: string,
     toPaths: readonly string[]
   ): Promise<void> {
+    assertDataContextDb(scopedDb);
     await sql`
       DELETE FROM app.memory_links
       WHERE owner_user_id = ${ownerUserId}::uuid AND from_path = ${fromPath}
@@ -129,6 +134,7 @@ export class MemoryRepository {
     sourceKind: string,
     sourcePath: string
   ): Promise<{ fileHash: string; embedModelName: string } | null> {
+    assertDataContextDb(scopedDb);
     const result = await sql<{ file_hash: string; embed_model_name: string }>`
       SELECT file_hash, embed_model_name
       FROM app.memory_file_index
@@ -150,6 +156,7 @@ export class MemoryRepository {
     embedModelName: string,
     embedModelVersion: string
   ): Promise<void> {
+    assertDataContextDb(scopedDb);
     await sql`
       INSERT INTO app.memory_file_index
         (owner_user_id, source_kind, source_path, file_hash, chunk_count,
@@ -172,6 +179,7 @@ export class MemoryRepository {
     sourceKind: string,
     sourcePath: string
   ): Promise<void> {
+    assertDataContextDb(scopedDb);
     await sql`
       DELETE FROM app.memory_file_index
       WHERE owner_user_id = ${ownerUserId}::uuid
@@ -185,6 +193,7 @@ export class MemoryRepository {
     ownerUserId: string,
     sourceKind: string
   ): Promise<string[]> {
+    assertDataContextDb(scopedDb);
     const result = await sql<{ source_path: string }>`
       SELECT source_path
       FROM app.memory_file_index
