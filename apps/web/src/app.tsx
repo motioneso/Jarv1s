@@ -32,18 +32,17 @@ export function App() {
   });
 
   const handleAuthenticated = async () => {
-    await Promise.all([
-      queryClient.invalidateQueries({ queryKey: queryKeys.auth.bootstrap }),
-      queryClient.invalidateQueries({ queryKey: ["auth"] }),
-      queryClient.invalidateQueries({ queryKey: ["ai"] }),
-      queryClient.invalidateQueries({ queryKey: ["briefings"] }),
-      queryClient.invalidateQueries({ queryKey: ["calendar"] }),
-      queryClient.invalidateQueries({ queryKey: ["chat"] }),
-      queryClient.invalidateQueries({ queryKey: ["email"] }),
-      queryClient.invalidateQueries({ queryKey: ["modules"] }),
-      queryClient.invalidateQueries({ queryKey: ["notifications"] }),
-      queryClient.invalidateQueries({ queryKey: ["tasks"] })
-    ]);
+    // Data-isolation on the shared house instance: a newly authenticated identity
+    // must never inherit the previous user's cached data. resetQueries() evicts
+    // every cached query to its initial state — including inactive entries the
+    // prior user left behind — and refetches the mounted identity queries under
+    // the new session cookie. invalidateQueries was insufficient on two counts:
+    // (1) it kept the prior user's data visible while refetching, and (2) its
+    // prefix list omitted the "settings" and "connectors" namespaces, so that
+    // cached data was never refreshed at all. (We use resetQueries, not clear():
+    // clear() destroys queries without notifying their observers, so the mounted
+    // `me`/`bootstrap` queries would never refetch and sign-in would hang.)
+    await queryClient.resetQueries();
   };
 
   if (bootstrapQuery.isLoading || meQuery.isLoading) {
