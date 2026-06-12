@@ -3,6 +3,13 @@ import { join } from "node:path";
 
 import type { AccessContext } from "@jarv1s/db";
 
+export class VaultContextError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "VaultContextError";
+  }
+}
+
 export const vaultContextBrand: unique symbol = Symbol("VaultContext");
 
 export interface VaultContext {
@@ -28,6 +35,9 @@ export class VaultContextRunner {
     accessContext: AccessContext,
     work: (ctx: VaultContext) => Promise<T>
   ): Promise<T> {
+    if (!accessContext.actorUserId || !accessContext.actorUserId.trim()) {
+      throw new VaultContextError("withVaultContext: actorUserId must be non-empty");
+    }
     const vaultRoot = join(this.vaultsBaseDir, accessContext.actorUserId);
     await mkdir(vaultRoot, { recursive: true, mode: 0o700 });
 
