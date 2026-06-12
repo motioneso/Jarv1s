@@ -94,6 +94,52 @@ describe("GoogleOAuthClient.exchangeCode", () => {
     expect(params.get("code")).toBe("4/abc");
     expect(params.get("client_secret")).toBe("secret");
   });
+
+  it("does not include token-endpoint error body in the thrown Error message", async () => {
+    const loggedErrors: Array<{ statusCode: number; detail: string }> = [];
+    const fakeLogger = {
+      error: (data: { statusCode: number; detail: string }, _msg: string) => {
+        loggedErrors.push(data);
+      }
+    };
+    const errorBody =
+      '{"error":"invalid_client","error_description":"The OAuth client was not found."}';
+    const client = new GoogleOAuthClient({
+      fetchFn: (async () => ({
+        ok: false,
+        status: 401,
+        text: async () => errorBody,
+        json: async () => ({})
+      })) as unknown as typeof fetch,
+      logger: fakeLogger
+    });
+
+    await expect(
+      client.exchangeCode({
+        clientId: "bad-client",
+        clientSecret: "bad-secret",
+        code: "bad-code",
+        redirectUri: "http://localhost:1"
+      })
+    ).rejects.toThrow(/Google token endpoint returned 401/);
+
+    // The error message must NOT contain the raw detail.
+    const caughtError = await client
+      .exchangeCode({
+        clientId: "bad-client",
+        clientSecret: "bad-secret",
+        code: "bad-code",
+        redirectUri: "http://localhost:1"
+      })
+      .catch((e: Error) => e);
+    expect((caughtError as Error).message).not.toContain("invalid_client");
+    expect((caughtError as Error).message).not.toContain("The OAuth client was not found");
+
+    // The detail must have been logged server-side.
+    expect(loggedErrors.length).toBeGreaterThanOrEqual(1);
+    expect(loggedErrors[0]?.statusCode).toBe(401);
+    expect(loggedErrors[0]?.detail).toContain("invalid_client");
+  });
 });
 
 describe("GoogleOAuthClient.refreshAccessToken", () => {
