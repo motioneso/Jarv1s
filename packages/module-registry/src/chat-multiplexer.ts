@@ -2,7 +2,13 @@ import type { Kysely } from "kysely";
 
 import type { JarvisDatabase } from "@jarv1s/db";
 import type { ChatMultiplexerChoice } from "@jarv1s/shared";
-import { createBinaryProbe, createRealTmuxIo, resolveMultiplexer } from "@jarv1s/ai";
+import {
+  cliAvailable,
+  createBinaryProbe,
+  createRealTmuxIo,
+  decideMultiplexer,
+  resolveMultiplexer
+} from "@jarv1s/ai";
 import {
   createRealEngineFactory,
   unavailableEngineFactory,
@@ -28,6 +34,40 @@ export function probeChatMultiplexerAvailability(
 ): ChatMultiplexerAvailability {
   const probe = createBinaryProbe(env);
   return { tmux: probe.has("tmux"), herdr: probe.has("herdr") };
+}
+
+/** Cap a host probe so a slow/hung binary lookup degrades to false instead of stalling a request. */
+async function boundedProbe(p: Promise<boolean>, ms = 1500): Promise<boolean> {
+  return Promise.race([
+    p.catch(() => false),
+    new Promise<boolean>((resolve) => setTimeout(() => resolve(false), ms))
+  ]);
+}
+
+/**
+ * Live, bounded multiplexer usability for a single kind. `decideMultiplexer` is pure and
+ * already encodes "herdr usable ⇔ installed AND root pane" (multiplexer-resolve.ts);
+ * the only host I/O is the synchronous PATH `has(bin)` inside createBinaryProbe, which we
+ * still wrap so the contract is uniformly bounded. Re-reads PATH each call, so a binary
+ * installed after boot is reflected on the next status fetch (no restart needed).
+ */
+export function makeMultiplexerUsableProbe(
+  env: NodeJS.ProcessEnv = process.env
+): (kind: "tmux" | "herdr") => Promise<boolean> {
+  return (kind) =>
+    boundedProbe(
+      Promise.resolve().then(() => {
+        const probe = createBinaryProbe(env);
+        return decideMultiplexer({ env, configured: kind, isInstalled: (b) => probe.has(b) }).ok;
+      })
+    );
+}
+
+/** Live, bounded provider-CLI presence (presence-only). Re-reads PATH each call. */
+export function makeCliPresentProbe(): (
+  kind: "anthropic" | "openai-compatible" | "google"
+) => Promise<boolean> {
+  return (kind) => boundedProbe(cliAvailable(kind));
 }
 
 /**

@@ -4,7 +4,11 @@ import { sql } from "kysely";
 
 import type { AdminAuditEvent, InstanceSetting, ModuleEnablementRow, User } from "@jarv1s/db";
 import { assertDataContextDb, type DataContextDb } from "@jarv1s/db";
-import type { ChatMultiplexerChoice, OnboardingState } from "@jarv1s/shared";
+import type {
+  ChatMultiplexerChoice,
+  OnboardingState,
+  OnboardingStatusResponse
+} from "@jarv1s/shared";
 
 export interface UpsertInstanceSettingInput {
   readonly key: string;
@@ -42,6 +46,29 @@ export interface SetOnboardingStateInput {
   readonly actorUserId: string;
   readonly requestId: string;
 }
+
+export type OnboardingProviderKind = "anthropic" | "openai-compatible" | "google";
+
+/** Host usability of each multiplexer, resolved by the composition root (env-aware). */
+export interface OnboardingAvailability {
+  readonly tmuxUsable: boolean;
+  readonly herdrUsable: boolean;
+}
+
+/** Pure inputs to the status assembler (no DB, no host I/O, no transaction). */
+export interface AssembleOnboardingStatusInput {
+  readonly state: OnboardingState;
+  readonly selected: ChatMultiplexerChoice | null;
+  readonly availability: OnboardingAvailability;
+  readonly cliPresentByKind: Readonly<Record<OnboardingProviderKind, boolean>>;
+  readonly connectorAccountExists: boolean;
+}
+
+const ONBOARDING_CLI_KINDS: readonly OnboardingProviderKind[] = [
+  "anthropic",
+  "openai-compatible",
+  "google"
+];
 
 export interface SetModuleDisabledInput {
   readonly moduleId: string;
@@ -389,6 +416,68 @@ export class SettingsRepository {
       metadata: { state: input.state }
     });
     return input.state;
+  }
+
+  /** Read the persisted chat.multiplexer choice, or null when no row exists (fresh instance). */
+  async readChatMultiplexerChoiceOrNull(
+    scopedDb: DataContextDb
+  ): Promise<ChatMultiplexerChoice | null> {
+    assertDataContextDb(scopedDb);
+    const row = await scopedDb.db
+      .selectFrom("app.instance_settings")
+      .select("value")
+      .where("key", "=", "chat.multiplexer")
+      .executeTakeFirst();
+    if (!row) return null;
+    const raw = (row.value as { value?: unknown } | undefined)?.value;
+    return raw === "auto" || raw === "tmux" || raw === "herdr" ? raw : null;
+  }
+
+  /**
+   * PURE derivation of onboarding status — no DB, no host probes, no transaction. The route
+   * supplies the persisted state + selected choice (from a DB read), the host availability
+   * snapshot, the per-provider CLI presence, and the connector-exists bool. Derived `done`:
+   *  - multiplexer.done ⇔ the SELECTED choice is USABLE on this host:
+   *       "tmux"  ⇒ tmuxUsable ; "herdr" ⇒ herdrUsable ; "auto" ⇒ tmuxUsable || herdrUsable.
+   *     A null selection (no chat.multiplexer row yet) ⇒ not done. Bare binary presence is
+   *     NOT enough for herdr (it needs a root pane) — usability is decided upstream.
+   *  - cliAuth.done ⇔ at least one provider CLI is PRESENT (presence ≠ authenticated; floor).
+   *  - connectors.done ⇔ a connector account exists.
+   * The `satisfies OnboardingStatusResponse` makes contract drift a compile error (Codex R1).
+   */
+  assembleOnboardingStatus(input: AssembleOnboardingStatusInput): OnboardingStatusResponse {
+    const { state, selected, availability, cliPresentByKind, connectorAccountExists } = input;
+
+    const multiplexerDone =
+      selected === "tmux"
+        ? availability.tmuxUsable
+        : selected === "herdr"
+          ? availability.herdrUsable
+          : selected === "auto"
+            ? availability.tmuxUsable || availability.herdrUsable
+            : false;
+
+    const providers = ONBOARDING_CLI_KINDS.map((kind) => ({
+      kind,
+      cliPresent: cliPresentByKind[kind]
+    }));
+
+    return {
+      state,
+      steps: {
+        multiplexer: {
+          done: multiplexerDone,
+          selected,
+          tmuxUsable: availability.tmuxUsable,
+          herdrUsable: availability.herdrUsable
+        },
+        cliAuth: {
+          done: providers.some((p) => p.cliPresent),
+          providers
+        },
+        connectors: { done: connectorAccountExists }
+      }
+    } satisfies OnboardingStatusResponse;
   }
 
   async listAdminAuditEvents(scopedDb: DataContextDb): Promise<AdminAuditEvent[]> {

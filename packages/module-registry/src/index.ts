@@ -34,12 +34,13 @@ import {
   type ChatEngineFactory
 } from "@jarv1s/chat";
 import {
+  ConnectorsRepository,
   connectorsModuleManifest,
   connectorsModuleSqlMigrationDirectory,
   registerConnectorsRoutes
 } from "@jarv1s/connectors";
 import type { ActiveModulesResolver } from "@jarv1s/ai";
-import type { AccessContext, DataContextRunner, JarvisDatabase } from "@jarv1s/db";
+import type { AccessContext, DataContextDb, DataContextRunner, JarvisDatabase } from "@jarv1s/db";
 import {
   emailModuleManifest,
   emailModuleSqlMigrationDirectory,
@@ -67,7 +68,12 @@ import {
 } from "@jarv1s/tasks";
 
 import { assertModulesCompatible } from "./compat-gate.js";
-import { probeChatMultiplexerAvailability, resolveChatEngineFactory } from "./chat-multiplexer.js";
+import {
+  makeCliPresentProbe,
+  makeMultiplexerUsableProbe,
+  probeChatMultiplexerAvailability,
+  resolveChatEngineFactory
+} from "./chat-multiplexer.js";
 
 export type { ChatEngineFactory } from "@jarv1s/chat";
 export type { JarvisModuleManifest } from "@jarv1s/module-sdk";
@@ -115,6 +121,16 @@ export interface BuiltInRouteDependencies {
   readonly bootstrapConnectionString?: string;
   /** Boot-time multiplexer availability snapshot for the admin settings UI. */
   readonly chatMultiplexerAvailability?: { readonly tmux: boolean; readonly herdr: boolean };
+  /**
+   * Bounded, live onboarding probes (Phase 2). Built inside registerBuiltInApiRoutes (sync,
+   * no boot-time probing) and forwarded to the settings module so it keeps no @jarv1s/ai /
+   * @jarv1s/connectors PACKAGE dependency (module isolation). Each probes lazily, per request.
+   */
+  readonly onboardingProbes?: {
+    readonly multiplexerUsable: (kind: "tmux" | "herdr") => Promise<boolean>;
+    readonly cliPresent: (kind: "anthropic" | "openai-compatible" | "google") => Promise<boolean>;
+    readonly connectorAccountExists: (scopedDb: DataContextDb) => Promise<boolean>;
+  };
 }
 
 export interface BuiltInWorkerDependencies {
@@ -150,7 +166,8 @@ const BUILT_IN_MODULES: readonly BuiltInModuleRegistration[] = [
         listModuleManifests: deps.listModuleManifests,
         revokeUserSessions: deps.revokeUserSessions,
         bootstrapConnectionString: deps.bootstrapConnectionString,
-        chatMultiplexerAvailability: deps.chatMultiplexerAvailability
+        chatMultiplexerAvailability: deps.chatMultiplexerAvailability,
+        onboardingProbes: deps.onboardingProbes
       })
   },
   {
@@ -261,6 +278,17 @@ export function registerBuiltInApiRoutes(
   const env = process.env;
   const availability = probeChatMultiplexerAvailability(env);
 
+  // Onboarding probes: built synchronously (no boot-time probing) and forwarded to the
+  // settings module. Each function probes lazily, per request, bounded by a short timeout.
+  const multiplexerUsable = makeMultiplexerUsableProbe(env);
+  const cliPresent = makeCliPresentProbe();
+  const onboardingProbes = {
+    multiplexerUsable,
+    cliPresent,
+    connectorAccountExists: async (scopedDb: DataContextDb) =>
+      (await new ConnectorsRepository().listAccounts(scopedDb)).length > 0
+  };
+
   // The factory is resolved asynchronously in onReady (a settings read), but routes
   // register synchronously. Bridge with a late-bound wrapper: it is only ever invoked
   // when a chat session launches, which is strictly after onReady. Tests/embedders
@@ -278,7 +306,8 @@ export function registerBuiltInApiRoutes(
   const deps: BuiltInRouteDependencies = {
     ...dependencies,
     chatEngineFactory,
-    chatMultiplexerAvailability: availability
+    chatMultiplexerAvailability: availability,
+    onboardingProbes
   };
 
   for (const module of BUILT_IN_MODULES) {

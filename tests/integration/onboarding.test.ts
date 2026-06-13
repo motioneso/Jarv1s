@@ -1,0 +1,172 @@
+import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import type { OutgoingHttpHeaders } from "node:http";
+import { type Kysely } from "kysely";
+
+import { createApiServer } from "../../apps/api/src/server.js";
+import { createDatabase, type JarvisDatabase } from "@jarv1s/db";
+import { SettingsRepository } from "../../packages/settings/src/repository.js";
+import { connectionStrings, resetEmptyFoundationDatabase } from "./test-database.js";
+
+// Canonical cookie extraction (mirrors tests/integration/auth-settings.test.ts) — strips
+// attributes so the joined header is a clean "name=value; name2=value2" string.
+function cookieHeader(headers: OutgoingHttpHeaders): string {
+  const setCookie = headers["set-cookie"];
+  const cookies = Array.isArray(setCookie)
+    ? setCookie
+    : typeof setCookie === "string" || typeof setCookie === "number"
+      ? [String(setCookie)]
+      : [];
+  return cookies.map((cookie) => cookie.split(";", 1)[0]).join("; ");
+}
+
+describe("Phase 2 onboarding — getOnboardingStatus (derived steps)", () => {
+  let appDb: Kysely<JarvisDatabase>;
+  let server: ReturnType<typeof createApiServer>;
+  let ownerCookie: string;
+
+  beforeAll(async () => {
+    await resetEmptyFoundationDatabase();
+    appDb = createDatabase({ connectionString: connectionStrings.app, maxConnections: 1 });
+    server = createApiServer({ appDb, logger: false });
+    await server.ready();
+
+    const signUp = await server.inject({
+      method: "POST",
+      url: "/api/auth/sign-up/email",
+      headers: { "content-type": "application/json" },
+      payload: {
+        name: "Owner",
+        email: "owner@onboarding.test",
+        password: "correct horse battery staple"
+      }
+    });
+    ownerCookie = cookieHeader(signUp.headers);
+  });
+
+  afterAll(async () => {
+    await Promise.allSettled([server?.close(), appDb?.destroy()]);
+  });
+
+  it("returns state=pending + all steps not-done for a fresh bootstrap owner", async () => {
+    const res = await server.inject({
+      method: "GET",
+      url: "/api/onboarding/status",
+      headers: { cookie: ownerCookie }
+    });
+    expect(res.statusCode).toBe(200);
+    const body = res.json() as {
+      state: string;
+      steps: {
+        multiplexer: { done: boolean; selected: string | null };
+        cliAuth: { done: boolean; providers: { kind: string; cliPresent: boolean }[] };
+        connectors: { done: boolean };
+      };
+    };
+    expect(body.state).toBe("pending");
+    // selected is null only when no chat.multiplexer row exists yet on a fresh instance.
+    expect(body.steps.multiplexer.selected).toBeNull();
+    // multiplexer.done is false because nothing is selected/usable yet (host-independent:
+    // selected===null ⇒ not done regardless of installed binaries).
+    expect(body.steps.multiplexer.done).toBe(false);
+    expect(body.steps.connectors.done).toBe(false);
+    // No secret-shaped field anywhere.
+    expect(JSON.stringify(body)).not.toMatch(/token|secret|password|credential/i);
+  });
+
+  it("marks the multiplexer step done after chat.multiplexer is set to a usable choice", async () => {
+    // Use the DEDICATED, audited adapter route (PUT /api/admin/chat-multiplexer) — the
+    // single owner of chat.multiplexer. Onboarding never writes that key directly.
+    const put = await server.inject({
+      method: "PUT",
+      url: "/api/admin/chat-multiplexer",
+      headers: { cookie: ownerCookie, "content-type": "application/json" },
+      payload: { multiplexer: "auto" }
+    });
+    expect(put.statusCode).toBe(200);
+
+    const res = await server.inject({
+      method: "GET",
+      url: "/api/onboarding/status",
+      headers: { cookie: ownerCookie }
+    });
+    const body = res.json() as {
+      steps: {
+        multiplexer: {
+          done: boolean;
+          selected: string | null;
+          tmuxUsable: boolean;
+          herdrUsable: boolean;
+        };
+      };
+    };
+    // selected reflects the persisted choice ("auto"). done depends on host usability,
+    // which is host-dependent in the real server; assert selected + that done is a boolean
+    // consistent with usability (done ⇔ at least one usable for "auto").
+    expect(body.steps.multiplexer.selected).toBe("auto");
+    const anyUsable = body.steps.multiplexer.tmuxUsable || body.steps.multiplexer.herdrUsable;
+    expect(body.steps.multiplexer.done).toBe(anyUsable);
+  });
+
+  it("assembleOnboardingStatus derives flags from a settings row + availability snapshot + connector bool", () => {
+    // Pure assembler — no DB, no host, no transaction. Exercised directly so derivation
+    // logic runs deterministically regardless of the CI host's installed binaries.
+    const repository = new SettingsRepository();
+    const status = repository.assembleOnboardingStatus({
+      state: "pending",
+      selected: "herdr",
+      availability: { tmuxUsable: true, herdrUsable: false },
+      cliPresentByKind: { anthropic: true, "openai-compatible": false, google: false },
+      connectorAccountExists: true
+    });
+    expect(status.state).toBe("pending");
+    // herdr selected but NOT usable (no root pane) ⇒ multiplexer.done is FALSE even though
+    // herdr's binary may be present — bare presence is insufficient (Codex R1 herdr finding).
+    expect(status.steps.multiplexer.selected).toBe("herdr");
+    expect(status.steps.multiplexer.done).toBe(false);
+    expect(status.steps.multiplexer.tmuxUsable).toBe(true);
+    expect(status.steps.multiplexer.herdrUsable).toBe(false);
+    expect(status.steps.cliAuth.providers).toEqual([
+      { kind: "anthropic", cliPresent: true },
+      { kind: "openai-compatible", cliPresent: false },
+      { kind: "google", cliPresent: false }
+    ]);
+    expect(status.steps.cliAuth.done).toBe(true); // at least one present
+    expect(status.steps.connectors.done).toBe(true);
+  });
+
+  it("assembleOnboardingStatus: auto is done when either multiplexer is usable", () => {
+    const repository = new SettingsRepository();
+    const auto = repository.assembleOnboardingStatus({
+      state: "pending",
+      selected: "auto",
+      availability: { tmuxUsable: true, herdrUsable: false },
+      cliPresentByKind: { anthropic: false, "openai-compatible": false, google: false },
+      connectorAccountExists: false
+    });
+    expect(auto.steps.multiplexer.done).toBe(true); // auto + tmux usable
+    expect(auto.steps.cliAuth.done).toBe(false); // no CLI present
+  });
+
+  it("rejects a non-admin caller with 403", async () => {
+    // A second, non-admin user. Approval is on by default, so they sign up pending,
+    // then the owner approves+demotes is unnecessary — pending users are 403/blocked
+    // before reaching admin routes. Sign up a member and assert the status route 403s.
+    const member = await server.inject({
+      method: "POST",
+      url: "/api/auth/sign-up/email",
+      headers: { "content-type": "application/json" },
+      payload: {
+        name: "Member",
+        email: "member@onboarding.test",
+        password: "correct horse battery staple"
+      }
+    });
+    const memberCookie = cookieHeader(member.headers);
+    const res = await server.inject({
+      method: "GET",
+      url: "/api/onboarding/status",
+      headers: { cookie: memberCookie }
+    });
+    expect([401, 403]).toContain(res.statusCode);
+  });
+});

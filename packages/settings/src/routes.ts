@@ -17,6 +17,7 @@ import {
   adminUserActionRouteSchema,
   bootstrapStatusRouteSchema,
   getChatMultiplexerSettingsRouteSchema,
+  getOnboardingStatusRouteSchema,
   getRegistrationSettingsRouteSchema,
   listAdminAuditEventsRouteSchema,
   listAdminModulesRouteSchema,
@@ -59,6 +60,21 @@ export interface SettingsRoutesDependencies {
   readonly bootstrapConnectionString?: string;
   /** Boot-time availability snapshot, injected by the composition root (apply-on-restart). */
   readonly chatMultiplexerAvailability?: { readonly tmux: boolean; readonly herdr: boolean };
+  /**
+   * Onboarding probes (Phase 2). Injected so packages/settings keeps no @jarv1s/ai /
+   * @jarv1s/connectors PACKAGE dependency (module isolation); wired in packages/module-registry.
+   * REQUIRED on any server that mounts the onboarding routes — when absent the routes fail
+   * closed (500 + logged) rather than silently reporting all-not-done (Codex R1 masking finding).
+   * Each function below is BOUNDED (timeout → false) and called OUTSIDE the DB transaction.
+   */
+  readonly onboardingProbes?: {
+    /** Multiplexer usability (herdr accounts for the root-pane requirement). Bounded live probe. */
+    readonly multiplexerUsable: (kind: "tmux" | "herdr") => Promise<boolean>;
+    /** Provider CLI presence (presence-only). Bounded live probe. */
+    readonly cliPresent: (kind: "anthropic" | "openai-compatible" | "google") => Promise<boolean>;
+    /** Connector-account existence — a scoped read (needs the request's RLS scope). */
+    readonly connectorAccountExists: (scopedDb: DataContextDb) => Promise<boolean>;
+  };
 }
 
 interface SettingParams {
@@ -472,6 +488,58 @@ export function registerSettingsRoutes(
         );
 
         return { auditEvents: auditEvents.map(serializeAdminAuditEvent) };
+      } catch (error) {
+        return handleRouteError(error, reply);
+      }
+    }
+  );
+
+  server.get(
+    "/api/onboarding/status",
+    { schema: getOnboardingStatusRouteSchema },
+    async (request, reply) => {
+      try {
+        const probes = dependencies.onboardingProbes;
+        if (!probes) {
+          request.log.error("onboarding routes mounted without onboardingProbes — failing closed");
+          // Fail CLOSED (500) rather than silently reporting all-not-done (Codex R1 masking).
+          // Throw so the shared error handler maps it — the typed per-route reply only
+          // declares 200/401/403, and a misconfiguration is a generic internal error.
+          throw new HttpError(500, "onboarding probes not configured");
+        }
+        const accessContext = await dependencies.resolveAccessContext(request);
+
+        // DB reads + admin check + connector-exists share ONE transaction (slice-D).
+        const dbPart = await dependencies.dataContext.withDataContext(
+          accessContext,
+          async (scopedDb) => {
+            await assertAdminUser(repository, scopedDb, accessContext.actorUserId);
+            const [state, selected, connectorAccountExists] = await Promise.all([
+              repository.readOnboardingState(scopedDb),
+              repository.readChatMultiplexerChoiceOrNull(scopedDb),
+              probes.connectorAccountExists(scopedDb)
+            ]);
+            return { state, selected, connectorAccountExists };
+          }
+        );
+
+        // Bounded host probes OUTSIDE the transaction (each is timeout-capped → false in
+        // the injected impl, so this Promise.all resolves quickly even on a slow host).
+        const [tmuxUsable, herdrUsable, anthropic, openaiCompatible, google] = await Promise.all([
+          probes.multiplexerUsable("tmux"),
+          probes.multiplexerUsable("herdr"),
+          probes.cliPresent("anthropic"),
+          probes.cliPresent("openai-compatible"),
+          probes.cliPresent("google")
+        ]);
+
+        return repository.assembleOnboardingStatus({
+          state: dbPart.state,
+          selected: dbPart.selected,
+          availability: { tmuxUsable, herdrUsable }, // herdrUsable is root-pane-aware (Task 6)
+          cliPresentByKind: { anthropic, "openai-compatible": openaiCompatible, google },
+          connectorAccountExists: dbPart.connectorAccountExists
+        });
       } catch (error) {
         return handleRouteError(error, reply);
       }
