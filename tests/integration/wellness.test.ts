@@ -8,6 +8,7 @@ import {
   type AccessContext,
   type JarvisDatabase
 } from "@jarv1s/db";
+import { WELLNESS_FEELING_CORES, createCheckinRequestSchema } from "@jarv1s/shared";
 import { wellnessModuleManifest, WELLNESS_MODULE_ID } from "@jarv1s/wellness";
 
 import { connectionStrings, resetEmptyFoundationDatabase } from "./test-database.js";
@@ -173,5 +174,20 @@ describe("medications + medication_logs tables + RLS", () => {
           .execute()
       )
     ).rejects.toThrow();
+  });
+});
+
+describe("wellness shared contract", () => {
+  it("exposes the six Willcox cores and a create-checkin request schema", () => {
+    expect(WELLNESS_FEELING_CORES).toEqual([
+      "mad",
+      "sad",
+      "scared",
+      "joyful",
+      "powerful",
+      "peaceful"
+    ]);
+    expect(createCheckinRequestSchema.required).toContain("feelingCore");
+    expect(createCheckinRequestSchema.additionalProperties).toBe(false);
   });
 });
