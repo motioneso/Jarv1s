@@ -156,9 +156,9 @@ describe("focusBlockEventId (outbound-write idempotency floor)", () => {
     expect(
       focusBlockEventId({ ...proposal, windowStart: new Date("2026-06-17T14:00:00Z") })
     ).not.toBe(base);
-    expect(focusBlockEventId({ ...proposal, windowEnd: new Date("2026-06-17T17:00:00Z") })).not.toBe(
-      base
-    );
+    expect(
+      focusBlockEventId({ ...proposal, windowEnd: new Date("2026-06-17T17:00:00Z") })
+    ).not.toBe(base);
     expect(focusBlockEventId({ ...proposal, durationMinutes: 60 })).not.toBe(base);
     expect(focusBlockEventId({ ...proposal, title: "Deep work" })).not.toBe(base);
   });

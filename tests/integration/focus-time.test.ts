@@ -403,7 +403,9 @@ describe("Group D — CalendarWriteService impl (faked Google fetch)", () => {
         // The already-created block occupies the unshifted slot, forcing chooseSlot to shift.
         return {
           body: {
-            calendars: { primary: { busy: [{ start: "2026-06-17T13:00:00Z", end: "2026-06-17T13:30:00Z" }] } }
+            calendars: {
+              primary: { busy: [{ start: "2026-06-17T13:00:00Z", end: "2026-06-17T13:30:00Z" }] }
+            }
           }
         };
       }
