@@ -39,22 +39,32 @@ done
 # that path is unavailable (e.g. checking a non-containerized host) do we fall back to
 # the host-side probe below.
 PROD_COMPOSE="infra/docker-compose.prod.yml"
+# The prod Compose now REQUIRES JARVIS_IMAGE_TAG + POSTGRES_PASSWORD for `${...}`
+# interpolation, so EVERY `docker compose` call here must pass --env-file or it errors
+# out (which would silently drop us to the weaker host-only probe — Codex deploy-code
+# R2 #1). Resolve the same operator env file the stack was started with.
+COMPOSE_ENV_FILE="${JARVIS_ENV_FILE_ABS:-infra/env.production.local}"
+COMPOSE_BASE="docker compose"
+if [ -f "${COMPOSE_ENV_FILE}" ]; then
+  COMPOSE_BASE="docker compose --env-file ${COMPOSE_ENV_FILE}"
+fi
 if [ -z "${HERDR_SOCKET_PATH:-}" ] && command -v docker >/dev/null 2>&1 \
    && [ -f "${PROD_COMPOSE}" ] \
-   && docker compose -f "${PROD_COMPOSE}" ps --status running --services 2>/dev/null | grep -qx api; then
+   && ${COMPOSE_BASE} -f "${PROD_COMPOSE}" ps --status running --services 2>/dev/null | grep -qx api; then
   echo "[reboot-survival] probing the multiplexer bridge from inside the api container ..."
-  # `tmux ls` exits 0 if the server is up (even with no sessions it prints to stderr
-  # and exits 1, so also accept the "no server" path by trying to start+kill a probe
-  # session — the same logic as the host fallback, but executed IN the container so a
-  # uid/mount failure surfaces as a non-zero exec here, never a false green).
-  if docker compose -f "${PROD_COMPOSE}" exec -T api sh -c \
-       'tmux ls >/dev/null 2>&1 || (tmux new-session -d -s jarv1s-reboot-probe && tmux kill-session -t jarv1s-reboot-probe)' \
-       >/dev/null 2>&1; then
-    echo "[reboot-survival] PASS: stack healthy + the container can reach the host multiplexer"
+  # Require the HOST tmux server to ALREADY be reachable over the bind-mounted socket:
+  # `tmux ls` exits 0 only if the client talked to a running server. We deliberately do
+  # NOT fall back to `tmux new-session` here — starting a server from the container's
+  # own tmux binary would prove the OPPOSITE of ADR 0008 (the server must be the host's,
+  # where the AI CLIs + auth live) and could false-green (Codex deploy-code R2 #2). A
+  # uid/mount failure or an absent host server therefore surfaces as a non-zero exec.
+  if ${COMPOSE_BASE} -f "${PROD_COMPOSE}" exec -T api tmux ls >/dev/null 2>&1; then
+    echo "[reboot-survival] PASS: stack healthy + the container reached the host tmux server"
     exit 0
   fi
-  echo "[reboot-survival] FAIL: api container cannot reach the host tmux socket" \
-       "(check JARVIS_HOST_UID/GID + the ${PROD_COMPOSE} socket bind mount)" >&2
+  echo "[reboot-survival] FAIL: api container cannot reach the host tmux server over the" \
+       "bridged socket (check that the HOST tmux server is running, JARVIS_HOST_UID/GID," \
+       "and the ${PROD_COMPOSE} socket bind mount)" >&2
   exit 1
 fi
 

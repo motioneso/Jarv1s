@@ -141,5 +141,9 @@ JARVIS_API_PORT=3000 scripts/verify-reboot-survival.sh
 It asserts (1) `/health/ready` returns `{ ok:true, db:"ok", pgboss:"ok" }` and (2) the
 multiplexer bridge is live — when the containerized stack is running it execs `tmux ls`
 INSIDE the api container (proving the bind-mounted host socket is reachable as the mapped
-uid, not merely that host tmux is up); otherwise it falls back to a host-side tmux/herdr
-liveness check. Non-zero exit means a component is down — it fails loudly, never false-green.
+uid, AND that the tmux SERVER is the host's per ADR 0008 — it never starts a server from
+the container, which would false-green); otherwise it falls back to a host-side
+tmux/herdr liveness check. The in-container probe shells out to `docker compose` with
+`--env-file infra/env.production.local` (auto-detected) so the prod Compose's required
+interpolation vars resolve; override the file with `JARVIS_ENV_FILE_ABS`. Non-zero exit
+means a component is down — it fails loudly, never false-green.
