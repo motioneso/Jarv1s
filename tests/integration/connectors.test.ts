@@ -62,7 +62,7 @@ describe("Connectors encrypted foundation", () => {
     }
   });
 
-  it("applies connector migrations with forced RLS and no worker table grant", async () => {
+  it("applies connector migrations with forced RLS and least-privilege worker SELECT", async () => {
     const client = new Client({ connectionString: connectionStrings.migration });
 
     await client.connect();
@@ -101,20 +101,25 @@ describe("Connectors encrypted foundation", () => {
         { version: "0009", name: "0009_connectors_module.sql" },
         { version: "0010", name: "0010_connector_admin_safe_metadata.sql" }
       ]);
+      // Phase 3 connector-sync (migration 0069) additively grants the google-sync worker
+      // SELECT on these tables so it can read the actor's encrypted Google bundle and join
+      // connector_definitions in the cache INSERT-policy EXISTS check. RLS stays FORCED and
+      // owner-scoped (the worker only ever sees the actor's own rows); the grant is SELECT/
+      // UPDATE on accounts + SELECT on definitions — never INSERT (least-privilege).
       expect(tables.rows).toEqual([
         {
           relname: "connector_accounts",
           relrowsecurity: true,
           relforcerowsecurity: true,
           owner: "jarvis_migration_owner",
-          worker_can_select: false
+          worker_can_select: true
         },
         {
           relname: "connector_definitions",
           relrowsecurity: true,
           relforcerowsecurity: true,
           owner: "jarvis_migration_owner",
-          worker_can_select: false
+          worker_can_select: true
         }
       ]);
     } finally {

@@ -345,6 +345,51 @@ describe("GoogleConnectionService", () => {
     );
     expect(token).toBe("at");
   });
+
+  it("getFreshAccessToken({ force: true }) refreshes once even when the cached token is still valid", async () => {
+    let refreshCalls = 0;
+    const oauthClient = new GoogleOAuthClient({
+      fetchFn: (async (_url: string, init?: RequestInit) => {
+        // exchangeCode and refreshAccessToken both POST to the token endpoint; distinguish by
+        // the grant_type in the body so we count only refresh calls.
+        const body = String(init?.body ?? "");
+        if (body.includes("grant_type=refresh_token")) refreshCalls += 1;
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({
+            access_token: refreshCalls > 0 ? "refreshed-at" : "at",
+            refresh_token: "rt",
+            expires_in: 3600,
+            scope: "https://www.googleapis.com/auth/calendar",
+            token_type: "Bearer"
+          }),
+          text: async () => ""
+        };
+      }) as unknown as typeof fetch
+    });
+    const service = new GoogleConnectionService({
+      repository: new ConnectorsRepository(),
+      cipher: createConnectorSecretCipher(),
+      oauthClient,
+      generateState: () => "force-state",
+      now: () => new Date()
+    });
+    await dataContext.withDataContext(userA(), (db) =>
+      service.startAuthorization(db, { clientId: "cid", clientSecret: "sec" })
+    );
+    await dataContext.withDataContext(userA(), (db) =>
+      service.completeAuthorization(db, {
+        redirectUrl: "http://localhost:1/?code=4/abc&state=force-state"
+      })
+    );
+    // A still-valid cached token would normally short-circuit; force bypasses that fast path.
+    const forced = await dataContext.withDataContext(userA(), (db) =>
+      service.getFreshAccessToken(db, { force: true })
+    );
+    expect(refreshCalls).toBe(1);
+    expect(forced).toBe("refreshed-at");
+  });
 });
 
 describe("google connect routes", () => {
