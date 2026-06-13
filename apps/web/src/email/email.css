@@ -1,0 +1,62 @@
+/*
+ * Email triage page styles (Phase 3 connector-sync). Consumes ONLY semantic
+ * var() tokens from styles/tokens.css — no hex / rgb() literals live here. Each
+ * message renders as a triage card: sender + subject + received time, plus the
+ * AI-derived summary and structured signals inside the ProvisionalRegion
+ * governor. The raw email body is never present in the DTO and is never shown.
+ */
+
+.email-feed {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.email-received {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+}
+
+.email-summary {
+  margin: 0;
+  color: var(--text);
+  line-height: 1.5;
+}
+
+.email-summary--empty {
+  color: var(--text-muted);
+  font-style: italic;
+}
+
+.email-signal-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+
+.email-signal-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin: 0;
+  font-size: 0.78rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.email-signal-list {
+  margin: 0;
+  padding-left: 1.2rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  color: var(--text);
+  font-size: 0.9rem;
+}
+
+.email-confidence {
+  font-size: 0.78rem;
+  color: var(--text-muted);
+}
