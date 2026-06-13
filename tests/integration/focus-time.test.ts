@@ -390,6 +390,60 @@ describe("Group D — CalendarWriteService impl (faked Google fetch)", () => {
     expect(res.message).toMatch(/try again/i);
   });
 
+  it("retry whose freeBusy shifts the slot still hits 409 (window-keyed id), no 2nd event", async () => {
+    // The realistic double-book: 1st insert succeeds but the response is lost; the created block
+    // now shows as busy, so the retry's freeBusy shifts the chosen slot. The id must STILL match
+    // (it is keyed on the requested window, not the shifted slot) so Google returns 409 and no
+    // second event is created (Codex HIGH round 2). We simulate the retry directly: freeBusy
+    // reports the first block busy (forcing a shift) AND the events POST returns 409.
+    await seedGoogleAccount(ids.userA, ["https://www.googleapis.com/auth/calendar"]);
+    let insertCalls = 0;
+    const { fetchFn } = captureFetch((url) => {
+      if (url.includes("/freeBusy")) {
+        // The already-created block occupies the unshifted slot, forcing chooseSlot to shift.
+        return {
+          body: {
+            calendars: { primary: { busy: [{ start: "2026-06-17T13:00:00Z", end: "2026-06-17T13:30:00Z" }] } }
+          }
+        };
+      }
+      if (url.includes("/events")) {
+        insertCalls += 1;
+        return { status: 409, body: { error: "duplicate" } }; // id already exists
+      }
+      return { body: {} };
+    });
+    const cipher = createConnectorSecretCipher();
+    const repository = new ConnectorsRepository();
+    const impl = buildCalendarWriteService({
+      googleService: new GoogleConnectionService({
+        repository,
+        cipher,
+        oauthClient: new GoogleOAuthClient({ fetchFn })
+      }),
+      googleApiClient: new GoogleApiClient({ fetchFn }),
+      connectorsRepository: repository,
+      calendarRepository: new CalendarRepository()
+    });
+    const res = await dataContext.withDataContext(
+      { actorUserId: ids.userA, requestId: "t" },
+      (scopedDb) =>
+        impl.proposeAndInsert(
+          scopedDb,
+          { actorUserId: ids.userA, requestId: "t", chatSessionId: "s" },
+          {
+            start: new Date("2026-06-17T13:00:00Z"),
+            end: new Date("2026-06-17T16:00:00Z"),
+            durationMinutes: 120,
+            title: "Focus time"
+          }
+        )
+    );
+    expect(res.shifted).toBe(true); // the retry's slot shifted past the busy first block
+    expect(res.created).toBe(true); // ...but the 409 (same window-keyed id) made it idempotent
+    expect(insertCalls).toBe(1); // exactly one insert attempt, which 409'd — no duplicate created
+  });
+
   it("the deterministic event id is sent on insert (idempotent retry key)", async () => {
     await seedGoogleAccount(ids.userA, ["https://www.googleapis.com/auth/calendar"]);
     // Capture the events POST body to assert the deterministic id reached Google.

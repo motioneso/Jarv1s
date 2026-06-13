@@ -127,15 +127,18 @@ export function buildCalendarWriteService(deps: CalendarWriteImplDeps): Calendar
       }
 
       // 4. Insert the event, tagged jarvisCreated, with a DETERMINISTIC event id so a retry of
-      // this exact approved proposal cannot double-book the real calendar. The id is derived from
-      // actor + chosen slot + title; Google rejects a duplicate id with 409 Conflict, which we
-      // treat as idempotent success (the event already exists from a prior attempt whose response
-      // was lost). This is the outbound-write idempotency floor — without it, "Couldn't create —
-      // try again" after a lost insert response would let a re-approve create a second event.
+      // this exact approved proposal cannot double-book the real calendar. Google rejects a
+      // duplicate id with 409 Conflict, which we treat as idempotent success below. The id is
+      // keyed on the ORIGINAL APPROVED PROPOSAL (the requested search window + duration + actor +
+      // title), NOT the post-freeBusy chosen slot: after a lost insert response the already-created
+      // block shows as busy, so a retry's freeBusy would shift the slot and a slot-keyed id would
+      // miss the 409 and create a second event (Codex HIGH round 2). resolved.start/.end is the
+      // requested window (invariant across retries), so the id is stable however the slot shifts.
       const eventId = focusBlockEventId({
         actorUserId: ctx.actorUserId,
-        start: slot.start,
-        end: slot.end,
+        windowStart: resolved.start,
+        windowEnd: resolved.end,
+        durationMinutes: resolved.durationMinutes,
         title: resolved.title
       });
       let inserted: { id: string; htmlLink?: string };
