@@ -150,3 +150,13 @@ test("wellness nav is hidden when the actor has disabled the module", async ({ p
   await expect(page).toHaveURL(/\/tasks$/);
   await expect(page.getByRole("heading", { name: "Wellness" })).toHaveCount(0);
 });
+
+test("wellness route fails closed when the module-state request errors", async ({ page }) => {
+  // If /api/me/modules cannot be read we cannot prove the actor is enabled, so the gate must
+  // fail closed for a health-data module: redirect, never mount the wellness UI (Codex review).
+  await page.route("**/api/me/modules", (route) => route.fulfill({ status: 500, body: "boom" }));
+
+  await page.goto("/wellness");
+  await expect(page).toHaveURL(/\/tasks$/);
+  await expect(page.getByRole("heading", { name: "Wellness" })).toHaveCount(0);
+});
