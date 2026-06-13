@@ -142,15 +142,19 @@ export class SettingsRepository {
   /**
    * Admin: insert (disable) or delete (enable) the instance-scope deny row for a
    * module. Insert is on-conflict-do-nothing (idempotent). Writes an admin audit
-   * event recording only the module id + actor + requestId (metadata-only invariant).
+   * event recording only the module id + actor + requestId (metadata-only invariant)
+   * ONLY when the row actually changed — an idempotent no-op (re-disabling an
+   * already-disabled module, or re-enabling one that was never disabled) writes no
+   * audit row, so the audit log records real state transitions, not API calls.
    */
   async setInstanceModuleDisabled(
     scopedDb: DataContextDb,
     input: SetModuleDisabledInput
   ): Promise<void> {
     assertDataContextDb(scopedDb);
+    let changed: boolean;
     if (input.disabled) {
-      await scopedDb.db
+      const result = await scopedDb.db
         .insertInto("app.module_enablement")
         .values({
           scope: "instance",
@@ -161,13 +165,20 @@ export class SettingsRepository {
           updated_at: new Date()
         })
         .onConflict((oc) => oc.columns(["module_id"]).where("scope", "=", "instance").doNothing())
-        .execute();
+        .executeTakeFirst();
+      // onConflict-do-nothing yields 0 inserted rows when the row already existed.
+      changed = (result?.numInsertedOrUpdatedRows ?? 0n) > 0n;
     } else {
-      await scopedDb.db
+      const result = await scopedDb.db
         .deleteFrom("app.module_enablement")
         .where("scope", "=", "instance")
         .where("module_id", "=", input.moduleId)
-        .execute();
+        .executeTakeFirst();
+      changed = (result?.numDeletedRows ?? 0n) > 0n;
+    }
+
+    if (!changed) {
+      return;
     }
 
     await this.insertAuditEvent(scopedDb, {
