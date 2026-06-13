@@ -15,6 +15,7 @@ import {
   type SessionNotifier
 } from "@jarv1s/ai";
 import { DataContextRunner, createDatabase, type JarvisDatabase } from "@jarv1s/db";
+import { GoogleApiClient } from "@jarv1s/connectors";
 import type { Kysely } from "kysely";
 import { connectionStrings, ids, resetFoundationDatabase } from "./test-database.js";
 
@@ -290,5 +291,91 @@ describe("Group A — gateway passes toolServices as the 4th execute argument", 
     });
     const res = await gateway.callTool(token, "needs.tool", {});
     expect(res.ok).toBe(false); // "Tool not available" — fail closed, no execute reached
+  });
+});
+
+function captureFetch(
+  reply: (url: string, init?: RequestInit) => { status?: number; body: unknown }
+) {
+  const calls: Array<{ url: string; init?: RequestInit }> = [];
+  const fetchFn = (async (url: string, init?: RequestInit) => {
+    calls.push({ url, init });
+    const r = reply(url, init);
+    return {
+      ok: (r.status ?? 200) < 400,
+      status: r.status ?? 200,
+      json: async () => r.body,
+      text: async () => JSON.stringify(r.body)
+    } as Response;
+  }) as unknown as typeof fetch;
+  return { calls, fetchFn };
+}
+
+describe("Group B — GoogleApiClient.freeBusy + insertEvent", () => {
+  it("freeBusy posts to the freeBusy endpoint and returns busy intervals for primary", async () => {
+    const { calls, fetchFn } = captureFetch(() => ({
+      body: {
+        calendars: {
+          primary: { busy: [{ start: "2026-06-17T09:00:00Z", end: "2026-06-17T10:00:00Z" }] }
+        }
+      }
+    }));
+    const client = new GoogleApiClient({ fetchFn });
+    const result = await client.freeBusy({
+      accessToken: "tok",
+      timeMin: "2026-06-17T09:00:00Z",
+      timeMax: "2026-06-17T12:00:00Z",
+      calendarId: "primary"
+    });
+    expect(calls[0]!.url).toContain("/freeBusy");
+    expect(calls[0]!.init?.method).toBe("POST");
+    expect(result.busy).toEqual([{ start: "2026-06-17T09:00:00Z", end: "2026-06-17T10:00:00Z" }]);
+  });
+
+  it("insertEvent posts to the primary calendar events endpoint and returns the created id + htmlLink", async () => {
+    const { calls, fetchFn } = captureFetch(() => ({
+      body: { id: "evt-123", htmlLink: "https://calendar.google.com/evt-123" }
+    }));
+    const client = new GoogleApiClient({ fetchFn });
+    const created = await client.insertEvent({
+      accessToken: "tok",
+      calendarId: "primary",
+      summary: "Focus time",
+      start: "2026-06-17T09:00:00Z",
+      end: "2026-06-17T11:00:00Z",
+      extendedPrivateProperties: { jarvisCreated: "true", jarvisTool: "proposeFocusBlock" }
+    });
+    expect(calls[0]!.url).toContain("/calendars/primary/events");
+    expect(calls[0]!.init?.method).toBe("POST");
+    const sentBody = JSON.parse(String(calls[0]!.init?.body));
+    expect(sentBody.extendedProperties.private.jarvisCreated).toBe("true");
+    expect(created.id).toBe("evt-123");
+    expect(created.htmlLink).toBe("https://calendar.google.com/evt-123");
+  });
+
+  it("insertEvent throws a body-free GoogleApiError on a non-2xx", async () => {
+    const { fetchFn } = captureFetch(() => ({
+      status: 500,
+      body: { error: "SECRET-INTERNAL-DETAIL" }
+    }));
+    const client = new GoogleApiClient({ fetchFn });
+    await expect(
+      client.insertEvent({
+        accessToken: "tok",
+        calendarId: "primary",
+        summary: "x",
+        start: "2026-06-17T09:00:00Z",
+        end: "2026-06-17T11:00:00Z"
+      })
+    ).rejects.toThrow("Google calendar returned 500");
+    await expect(
+      client.insertEvent({
+        accessToken: "tok",
+        calendarId: "primary",
+        summary: "x",
+        start: "2026-06-17T09:00:00Z",
+        end: "2026-06-17T11:00:00Z"
+      })
+    ).rejects.not.toThrow(/SECRET-INTERNAL-DETAIL/);
   });
 });
