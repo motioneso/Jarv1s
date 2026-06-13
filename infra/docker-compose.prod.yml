@@ -95,8 +95,11 @@ services:
       - jarv1s-vault-data:/data/vaults
       - jarv1s-model-cache:/app/.cache/huggingface
       # Host-multiplexer bridge (§6) — present only for the CLI-subscription
-      # adapter. The API-key adapter needs NONE of these mounts.
-      - ${JARVIS_TMUX_SOCKET_DIR:-/tmp/tmux-1000}:${JARVIS_TMUX_SOCKET_DIR:-/tmp/tmux-1000}
+      # adapter. The API-key adapter needs NONE of these mounts. The socket-dir
+      # default is DERIVED from JARVIS_HOST_UID (tmux uses /tmp/tmux-$(id -u),
+      # mode 0700 per-uid) so the two cannot silently drift when an operator sets
+      # a non-1000 uid but forgets to update the socket dir — branch-review #3.
+      - ${JARVIS_TMUX_SOCKET_DIR:-/tmp/tmux-${JARVIS_HOST_UID:-1000}}:${JARVIS_TMUX_SOCKET_DIR:-/tmp/tmux-${JARVIS_HOST_UID:-1000}}
       # Host CLI auth/transcript dirs — mount ONLY the three CLI dirs, read-only, NOT
       # the whole host HOME (which would expose ~/.ssh, git creds, cloud configs,
       # shell history — far beyond CLI auth). JARVIS_CLI_HOME_BASE=/host-home, so the
@@ -125,7 +128,8 @@ services:
     volumes:
       - jarv1s-vault-data:/data/vaults
       - jarv1s-model-cache:/app/.cache/huggingface
-      - ${JARVIS_TMUX_SOCKET_DIR:-/tmp/tmux-1000}:${JARVIS_TMUX_SOCKET_DIR:-/tmp/tmux-1000}
+      # Socket-dir default DERIVED from JARVIS_HOST_UID — see api (branch-review #3).
+      - ${JARVIS_TMUX_SOCKET_DIR:-/tmp/tmux-${JARVIS_HOST_UID:-1000}}:${JARVIS_TMUX_SOCKET_DIR:-/tmp/tmux-${JARVIS_HOST_UID:-1000}}
       # Mount ONLY the three CLI dirs read-only (NOT the whole host HOME — see api).
       - ${JARVIS_HOST_CLAUDE_DIR:-/home/ben/.claude}:/host-home/.claude:ro
       - ${JARVIS_HOST_CODEX_DIR:-/home/ben/.codex}:/host-home/.codex:ro
