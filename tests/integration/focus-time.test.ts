@@ -439,9 +439,15 @@ describe("Group D — CalendarWriteService impl (faked Google fetch)", () => {
           }
         )
     );
-    expect(res.shifted).toBe(true); // the retry's slot shifted past the busy first block
-    expect(res.created).toBe(true); // ...but the 409 (same window-keyed id) made it idempotent
+    expect(res.created).toBe(true); // the 409 (same window-keyed id) made the retry idempotent
     expect(insertCalls).toBe(1); // exactly one insert attempt, which 409'd — no duplicate created
+    // On 409 we do NOT report the retry's shifted guess (the real event sits at the first-attempt
+    // slot, which we don't re-fetch) — we honestly report the requested window, unshifted, and skip
+    // the mirror so the cache is never written with a wrong time (Codex HIGH round 3).
+    expect(res.shifted).toBe(false);
+    expect(res.calendarMirror).toBe("skipped-error");
+    expect(res.resolvedStart).toBe("2026-06-17T13:00:00.000Z"); // requested window start, not shifted
+    expect(res.message).toMatch(/already on your calendar/i);
   });
 
   it("the deterministic event id is sent on insert (idempotent retry key)", async () => {
