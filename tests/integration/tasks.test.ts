@@ -19,11 +19,13 @@ import {
 } from "@jarv1s/module-registry";
 import {
   TASKS_DEFERRED_STATUS_QUEUE,
+  TASKS_RECURRENCE_QUEUE,
   type DeferredTaskStatusPayload,
   TaskBreakdownRepository,
   TaskDriftRepository,
   TaskListsRepository,
   TasksRepository,
+  registerTasksJobWorkers,
   rollForwardOwnedSeries
 } from "@jarv1s/tasks";
 import type { TaskDto } from "@jarv1s/shared";
@@ -440,6 +442,72 @@ describe("Tasks module M1", () => {
     expect(
       isRecurrenceMaterializePayloadMetadataOnly({ actorUserId: ids.userA, seriesId: "x" })
     ).toBe(false);
+  });
+
+  it("a recurrence job with an extra payload key is rejected by the worker and never advances the series", async () => {
+    const today = new Date().toISOString().slice(0, 10);
+    const past = new Date(Date.now() - 21 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+    const made = await dataContext.withDataContext(userAContext(), (db) =>
+      repository.create(db, {
+        title: "malformed payload must not roll me",
+        recurrence: { freq: "weekly", interval: 1, occurrence_date: past }
+      })
+    );
+
+    const scopedWorkerDb = createDatabase({
+      connectionString: connectionStrings.worker,
+      maxConnections: 1
+    });
+    const workerDataContext = new DataContextRunner(scopedWorkerDb);
+    let workIds: string[] = [];
+    let recurrenceResultFired = false;
+
+    try {
+      workIds = await registerTasksJobWorkers(workerBoss, workerDataContext, {
+        workOptions: { pollingIntervalSeconds: 0.5 },
+        onRecurrenceResult: () => {
+          recurrenceResultFired = true;
+        }
+      });
+
+      // Bypass sendJob's send-side metadata guard with a raw boss.send carrying an extra
+      // (non-metadata) key, so the malformed payload reaches the worker handler. The handler's
+      // isRecurrenceMaterializePayloadMetadataOnly guard must throw → the job fails, the result
+      // callback never fires, and the stale series is NOT advanced.
+      await appBoss.send(TASKS_RECURRENCE_QUEUE, {
+        actorUserId: ids.userA,
+        seriesId: made.recurrence_series_id
+      } as unknown as Record<string, unknown>);
+
+      // Give the worker time to pick up, attempt, and reject the malformed job.
+      await new Promise((resolve) => setTimeout(resolve, 2_000));
+    } finally {
+      await Promise.all(
+        workIds.map((workId, index) =>
+          workerBoss.offWork(index === 0 ? TASKS_DEFERRED_STATUS_QUEUE : TASKS_RECURRENCE_QUEUE, {
+            id: workId,
+            wait: true
+          })
+        )
+      );
+      await scopedWorkerDb.destroy();
+    }
+
+    expect(recurrenceResultFired).toBe(false);
+
+    const live = await dataContext.withDataContext(userAContext(), (db) =>
+      db.db
+        .selectFrom("app.tasks")
+        .selectAll()
+        .where("recurrence_series_id", "=", made.recurrence_series_id!)
+        .where("status", "=", "todo")
+        .execute()
+    );
+    // Still exactly one live row, still stale (the malformed job rolled nothing forward).
+    expect(live).toHaveLength(1);
+    const occ = (live[0]!.recurrence as Record<string, unknown>)["occurrence_date"] as string;
+    expect(occ).toBe(past);
+    expect(occ < today).toBe(true);
   });
 
   it("keeps Tasks worker payloads metadata-only", async () => {

@@ -55,6 +55,50 @@ describe("nextOccurrenceAtOrAfter (roll-forward date math)", () => {
   });
 });
 
+describe("nextOccurrenceAtOrAfter — monthly multi-skip + month-end clamp composition", () => {
+  it("monthly multi-skip across a year boundary advances to the first occurrence >= today in one pass", () => {
+    // Anchor Oct 31 2025, monthly. Roll forward to today 2026-03-01.
+    // The first clamp (Oct 31 -> Nov 30) degrades the moving anchor to day 30, so the
+    // chain is Oct 31 -> Nov 30 -> Dec 30 -> Jan 30 -> Feb 28 (clamp) -> Mar 28 (>= today).
+    expect(
+      nextOccurrenceAtOrAfter(
+        { freq: "monthly", interval: 1, occurrence_date: "2025-10-31" },
+        "2026-03-01"
+      )
+    ).toBe("2026-03-28");
+  });
+
+  it("monthly multi-skip from a month-end date keeps clamping correctly across several skips (never overflows the month)", () => {
+    // Anchor Jan 31 2026, monthly. The clamp composes through nextOccurrenceAtOrAfter:
+    // Jan 31 -> Feb 28 (clamp; 2026 is not a leap year) -> Mar 28 -> Apr 28 -> May 28 (>= today).
+    // Critically it never overflows into the wrong month (e.g. never lands on Mar 3 from Feb+31d).
+    expect(
+      nextOccurrenceAtOrAfter(
+        { freq: "monthly", interval: 1, occurrence_date: "2026-01-31" },
+        "2026-05-15"
+      )
+    ).toBe("2026-05-28");
+  });
+
+  it("monthly is a no-op when the stored occurrence is already at/after today (already current)", () => {
+    expect(
+      nextOccurrenceAtOrAfter(
+        { freq: "monthly", interval: 1, occurrence_date: "2026-06-15" },
+        "2026-06-01"
+      )
+    ).toBe("2026-06-15");
+  });
+
+  it("monthly does not roll an occurrence that equals today (today boundary)", () => {
+    expect(
+      nextOccurrenceAtOrAfter(
+        { freq: "monthly", interval: 1, occurrence_date: "2026-06-13" },
+        "2026-06-13"
+      )
+    ).toBe("2026-06-13");
+  });
+});
+
 describe("recurrenceCronExpr", () => {
   it("returns the documented pre-dawn daily cron expression", () => {
     expect(recurrenceCronExpr()).toBe("0 3 * * *");
