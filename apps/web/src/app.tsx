@@ -107,13 +107,20 @@ export function App() {
         ? shouldShowOnboarding(meQuery.data, onboardingStatus)
         : !onboardingStatus.completed);
     if (incomplete) {
+      // The wizard is wrapped in BrowserRouter because member steps (api-key-opt-out,
+      // section-tour) render react-router <Link> elements; rendering a <Link> outside a Router
+      // throws a context invariant and crashes the app the moment the member advances into
+      // those steps. The shell below mounts its own BrowserRouter — the two are never mounted
+      // at once (this is an early return), so there is no nested-router conflict.
       return (
-        <OnboardingWizard
-          initialStatus={onboardingStatus}
-          onDone={() =>
-            void queryClient.invalidateQueries({ queryKey: queryKeys.onboarding.status })
-          }
-        />
+        <BrowserRouter>
+          <OnboardingWizard
+            initialStatus={onboardingStatus}
+            onDone={() =>
+              void queryClient.invalidateQueries({ queryKey: queryKeys.onboarding.status })
+            }
+          />
+        </BrowserRouter>
       );
     }
     // else: terminal/complete state OR errored/timed-out ⇒ fall through to the shell.

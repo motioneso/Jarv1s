@@ -33,6 +33,13 @@ test("active member sees the member step array (no CLI-auth/multiplexer) and can
   // Member-specific steps exist; founder-only steps do NOT.
   await expect(page.getByText(/CLI auth/i)).toHaveCount(0);
   await expect(page.getByText(/multiplexer/i)).toHaveCount(0);
+
+  // Advancing into the API-key step renders a react-router <Link> — this MUST NOT crash the
+  // app (regression guard: the wizard must be inside a Router). If the wizard were rendered
+  // outside BrowserRouter, the <Link> would throw a context invariant here.
+  await page.getByRole("button", { name: "Next" }).click();
+  await expect(page.getByRole("heading", { name: "AI assistant" })).toBeVisible();
+  await expect(page.getByRole("link", { name: /Settings/i })).toBeVisible();
 });
 
 test('"Skip setup" reaches the app shell', async ({ page }) => {

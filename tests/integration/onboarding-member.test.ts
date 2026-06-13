@@ -319,7 +319,7 @@ describe("Phase 4 member onboarding — route branch (status/complete/skip per a
     expect(JSON.stringify(body)).not.toMatch(/token|secret|password|credential/i);
   });
 
-  it("member POST /complete stamps completed and audits onboarding.member_complete", async () => {
+  it("member POST /complete stamps completed and does NOT leak completion to the admin audit log", async () => {
     const res = await server.inject({
       method: "POST",
       url: "/api/onboarding/complete",
@@ -335,7 +335,13 @@ describe("Phase 4 member onboarding — route branch (status/complete/skip per a
     });
     expect((status.json() as { completed: boolean }).completed).toBe(true);
 
-    // The founder can read the audit log; the member_complete action is present.
+    // SECURITY REGRESSION GUARD (no-admin-bypass): member onboarding completion is PRIVATE
+    // per-user state ("not even an admin may read"). app.admin_audit_events SELECT is admin-wide
+    // (0059), so an "onboarding.member_complete" row keyed to the member would re-leak that exact
+    // fact (member X onboarded at time T) to any admin via the admin audit log — a side channel
+    // defeating the owner-only app.member_onboarding table. The member's durable completion record
+    // is app.member_onboarding.completed_at, NOT an admin-readable audit row. Assert the admin
+    // audit log carries NO member-onboarding action at all.
     const audit = await server.inject({
       method: "GET",
       url: "/api/admin/audit-events",
@@ -344,7 +350,8 @@ describe("Phase 4 member onboarding — route branch (status/complete/skip per a
     const actions = (audit.json() as { auditEvents: { action: string }[] }).auditEvents.map(
       (e) => e.action
     );
-    expect(actions).toContain("onboarding.member_complete");
+    expect(actions).not.toContain("onboarding.member_complete");
+    expect(actions.some((a) => /member.*onboard|onboard.*member/i.test(a))).toBe(false);
   });
 
   it("member POST /skip == complete (terminal onboarded state)", async () => {
