@@ -57,7 +57,24 @@ export async function registerMockOnboardingRoutes(
   await page.route("**/api/onboarding/skip", (route) => setState(route, "skipped"));
   // The multiplexer step writes via the DEDICATED adapter route PUT /api/admin/chat-multiplexer
   // (NOT a generic settings PATCH). Mirror its ChatMultiplexerSettingsDto response shape.
+  // This route is ALSO read (GET) by the admin settings panel (getChatMultiplexerSettings),
+  // so existing specs that render that panel hit it without a body — handle GET separately
+  // (return the current snapshot) instead of assuming every request is a write.
   await page.route(/\/api\/admin\/chat-multiplexer$/, (route) => {
+    if (route.request().method() === "GET") {
+      const snapshot = state.onboardingStatus ?? defaultOnboardingStatus();
+      return route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          multiplexer: snapshot.steps.multiplexer.selected ?? "auto",
+          available: {
+            tmux: snapshot.steps.multiplexer.tmuxUsable,
+            herdr: snapshot.steps.multiplexer.herdrUsable
+          }
+        }) // ChatMultiplexerSettingsDto
+      });
+    }
     const body = route.request().postDataJSON() as { multiplexer: "auto" | "tmux" | "herdr" };
     const choice = body.multiplexer;
     const prev = state.onboardingStatus ?? defaultOnboardingStatus();
