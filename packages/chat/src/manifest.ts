@@ -80,6 +80,21 @@ export const chatModuleManifest = {
       path: "/api/chat/threads",
       responseSchema: listChatThreadsResponseSchema,
       permissionId: "chat.view"
-    }
+    },
+    { method: "POST", path: "/api/chat/turn", permissionId: "chat.message" },
+    { method: "GET", path: "/api/chat/stream", permissionId: "chat.view" },
+    { method: "POST", path: "/api/chat/clear", permissionId: "chat.message" },
+    { method: "POST", path: "/api/chat/switch", permissionId: "chat.message" },
+    { method: "GET", path: "/api/chat/memory/settings", permissionId: "chat.view" },
+    { method: "PATCH", path: "/api/chat/memory/settings", permissionId: "chat.message" },
+    { method: "GET", path: "/api/chat/memory/facts", permissionId: "chat.view" },
+    { method: "DELETE", path: "/api/chat/memory/facts/:id", permissionId: "chat.message" },
+    { method: "PATCH", path: "/api/chat/memory/facts/:id", permissionId: "chat.message" },
+    {
+      method: "POST",
+      path: "/api/chat/action-requests/:id/resolve",
+      permissionId: "chat.message"
+    },
+    { method: "POST", path: "/api/mcp", permissionId: "chat.message" }
   ]
 } satisfies JarvisModuleManifest;
