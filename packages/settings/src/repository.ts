@@ -41,6 +41,11 @@ export interface RegistrationSettings {
   readonly requiresApproval: boolean;
 }
 
+export interface SetMemberOnboardingCompleteInput {
+  readonly actorUserId: string;
+  readonly requestId: string;
+}
+
 export interface SetOnboardingStateInput {
   readonly state: Exclude<OnboardingState, "pending">; // only complete/skip are written
   readonly actorUserId: string;
@@ -354,6 +359,71 @@ export class SettingsRepository {
       registrationEnabled: input.registrationEnabled,
       requiresApproval: input.requiresApproval
     };
+  }
+
+  /**
+   * Read the calling MEMBER's own onboarding completion timestamp from
+   * app.member_onboarding. The table is OWNER-ONLY (self-row RLS, NO admin policy), so
+   * even an admin actor sees only its own row — the headline no-admin-bypass invariant
+   * for this surface. We filter on app.current_actor_user_id() (NOT a caller-supplied id)
+   * for defense in depth: the RLS policy already guarantees only the actor's row is
+   * visible, and matching on the GUC means a regressed caller can never even attempt a
+   * cross-user read. Returns completedAt: null when the member has no row yet.
+   *
+   * NOTE: this deliberately does NOT read app.users — app.users carries an admin-wide
+   * SELECT policy (0052), so storing/reading onboarding state there would leak it to admins.
+   */
+  async getMemberOnboardingState(scopedDb: DataContextDb): Promise<{ completedAt: Date | null }> {
+    assertDataContextDb(scopedDb);
+    const row = await scopedDb.db
+      .selectFrom("app.member_onboarding")
+      .select("completed_at")
+      .where("user_id", "=", sql<string>`app.current_actor_user_id()`)
+      .executeTakeFirst();
+    return { completedAt: row?.completed_at ?? null };
+  }
+
+  /**
+   * Stamp the calling MEMBER's own completed_at = now() in app.member_onboarding, via an
+   * UPSERT keyed on app.current_actor_user_id(). The self-row INSERT/UPDATE policies
+   * authorize ONLY user_id = current actor; there is NO admin UPDATE policy, so an admin
+   * actor cannot stamp another user's row. Idempotent (re-stamping is harmless). We do NOT
+   * accept a target user id — the actor is taken from the GUC, closing finding #4 (admin
+   * stamping another user's row). Records an admin_audit_events row
+   * (action: "onboarding.member_complete"). Reads only requestId from the caller for the
+   * audit row's actor (AccessContext invariant: actorUserId/requestId only).
+   */
+  async setMemberOnboardingComplete(
+    scopedDb: DataContextDb,
+    input: SetMemberOnboardingCompleteInput
+  ): Promise<{ completedAt: Date | null }> {
+    assertDataContextDb(scopedDb);
+    const now = new Date();
+    // UPSERT keyed on the GUC actor id — never on a caller-supplied target. The INSERT WITH
+    // CHECK and UPDATE USING/WITH CHECK both require user_id = app.current_actor_user_id(),
+    // so this only ever touches the actor's own row.
+    const upserted = await scopedDb.db
+      .insertInto("app.member_onboarding")
+      .values({
+        user_id: sql<string>`app.current_actor_user_id()`,
+        completed_at: now,
+        created_at: now,
+        updated_at: now
+      })
+      .onConflict((oc) => oc.column("user_id").doUpdateSet({ completed_at: now, updated_at: now }))
+      .returning("completed_at")
+      .executeTakeFirst();
+
+    await this.insertAuditEvent(scopedDb, {
+      actorUserId: input.actorUserId,
+      action: "onboarding.member_complete",
+      targetType: "user",
+      targetId: input.actorUserId,
+      metadata: {},
+      requestId: input.requestId
+    });
+
+    return { completedAt: upserted?.completed_at ?? null };
   }
 
   async getChatMultiplexerSetting(
