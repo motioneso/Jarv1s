@@ -1,10 +1,12 @@
 import { describe, expect, it } from "vitest";
+import type { PgBoss } from "pg-boss";
 
 import {
   computeNextOccurrenceDate,
   advanceDate,
   nextOccurrenceAtOrAfter,
-  recurrenceCronExpr
+  recurrenceCronExpr,
+  reconcileRecurrenceSchedule
 } from "@jarv1s/tasks";
 
 describe("recurrence date helpers", () => {
@@ -56,5 +58,18 @@ describe("nextOccurrenceAtOrAfter (roll-forward date math)", () => {
 describe("recurrenceCronExpr", () => {
   it("returns the documented pre-dawn daily cron expression", () => {
     expect(recurrenceCronExpr()).toBe("0 3 * * *");
+  });
+});
+
+describe("reconcileRecurrenceSchedule (failure isolation)", () => {
+  it("swallows boss.schedule errors and never throws to the caller", async () => {
+    const boss = {
+      schedule: async () => {
+        throw new Error("boom");
+      }
+    } as unknown as PgBoss;
+    await expect(
+      reconcileRecurrenceSchedule(boss, "11111111-1111-1111-1111-111111111111")
+    ).resolves.toBeUndefined();
   });
 });

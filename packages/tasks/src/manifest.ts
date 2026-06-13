@@ -16,12 +16,19 @@ import {
   deferredTaskStatusPayloadSchema,
   deferredTaskStatusRequestSchema,
   deferredTaskStatusResponseSchema,
+  deleteTaskListRequestSchema,
+  deleteTaskListRouteSchema,
+  deleteTaskTagRouteSchema,
   focusTasksRouteSchema,
   getTaskResponseSchema,
   listTaskListsResponseSchema,
   listTaskTagsResponseSchema,
   listTasksResponseSchema,
   overdueTasksRouteSchema,
+  renameTaskListRequestSchema,
+  renameTaskListRouteSchema,
+  renameTaskTagRequestSchema,
+  renameTaskTagRouteSchema,
   taskStatusSchema,
   updateTaskRequestSchema,
   updateTaskResponseSchema
@@ -180,6 +187,20 @@ export const tasksModuleManifest = {
       permissionId: "tasks.create"
     },
     {
+      method: "PATCH",
+      path: "/api/tasks/lists/:listId",
+      requestSchema: renameTaskListRequestSchema,
+      responseSchema: renameTaskListRouteSchema.response[200],
+      permissionId: "tasks.update"
+    },
+    {
+      method: "DELETE",
+      path: "/api/tasks/lists/:listId",
+      requestSchema: deleteTaskListRequestSchema,
+      responseSchema: deleteTaskListRouteSchema.response[200],
+      permissionId: "tasks.update"
+    },
+    {
       method: "GET",
       path: "/api/tasks/lists/:listId/tags",
       responseSchema: listTaskTagsResponseSchema,
@@ -191,6 +212,19 @@ export const tasksModuleManifest = {
       requestSchema: createTaskTagRequestSchema,
       responseSchema: createTaskTagResponseSchema,
       permissionId: "tasks.create"
+    },
+    {
+      method: "PATCH",
+      path: "/api/tasks/lists/:listId/tags/:tagId",
+      requestSchema: renameTaskTagRequestSchema,
+      responseSchema: renameTaskTagRouteSchema.response[200],
+      permissionId: "tasks.update"
+    },
+    {
+      method: "DELETE",
+      path: "/api/tasks/lists/:listId/tags/:tagId",
+      responseSchema: deleteTaskTagRouteSchema.response[200],
+      permissionId: "tasks.update"
     },
     {
       method: "POST",
