@@ -1,15 +1,30 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import type { TaskDefaultView, TaskDto } from "@jarv1s/shared";
-import { LayoutGrid, List as ListIcon, LoaderCircle, Plus, Search } from "lucide-react";
+import type { TaskDefaultView, TaskDto, TaskTagDto } from "@jarv1s/shared";
+import {
+  Check,
+  LayoutGrid,
+  List as ListIcon,
+  LoaderCircle,
+  Pencil,
+  Plus,
+  Search,
+  Trash2,
+  X
+} from "lucide-react";
 import { type FormEvent, useMemo, useState } from "react";
 
 import {
+  ApiError,
   createTaskList,
   createTaskTag,
+  deleteTaskList,
+  deleteTaskTag,
   getTaskPreferences,
   listTaskLists,
   listTasks,
   listTaskTags,
+  renameTaskList,
+  renameTaskTag,
   updateTask,
   updateTaskPreferences
 } from "../api/client";
@@ -221,15 +236,13 @@ function ListSidebar(props: {
           </button>
         </li>
         {props.lists.map((list) => (
-          <li key={list.id}>
-            <button
-              className={props.activeListId === list.id ? "active" : ""}
-              onClick={() => props.onSelect(list.id)}
-              type="button"
-            >
-              {list.name}
-            </button>
-          </li>
+          <ListRow
+            activeListId={props.activeListId}
+            allLists={props.lists}
+            key={list.id}
+            list={list}
+            onSelect={props.onSelect}
+          />
         ))}
       </ul>
 
@@ -256,9 +269,7 @@ function ListSidebar(props: {
           <h3 className="sidebar-subtitle">Tags</h3>
           <ul className="tag-list">
             {(tagsQuery.data?.tags ?? []).map((tag) => (
-              <li className="tag-chip" key={tag.id}>
-                {tag.name}
-              </li>
+              <TagRow key={tag.id} listId={props.activeListId ?? ""} tag={tag} />
             ))}
           </ul>
           <form className="sidebar-form" onSubmit={submitTag}>
@@ -281,5 +292,240 @@ function ListSidebar(props: {
         </div>
       ) : null}
     </>
+  );
+}
+
+function ListRow(props: {
+  readonly list: { readonly id: string; readonly name: string };
+  readonly allLists: readonly { readonly id: string; readonly name: string }[];
+  readonly activeListId: string | null;
+  readonly onSelect: (id: string | null) => void;
+}) {
+  const { list } = props;
+  const queryClient = useQueryClient();
+  const [editing, setEditing] = useState(false);
+  const [name, setName] = useState(list.name);
+  const [notEmpty, setNotEmpty] = useState(false);
+  const [reassignTo, setReassignTo] = useState("");
+
+  const otherLists = props.allLists.filter((other) => other.id !== list.id);
+
+  const renameMutation = useMutation({
+    mutationFn: () => renameTaskList(list.id, { name: name.trim() }),
+    onSuccess: async () => {
+      setEditing(false);
+      await queryClient.invalidateQueries({ queryKey: queryKeys.tasks.lists });
+    }
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: (reassignToListId?: string) =>
+      deleteTaskList(list.id, reassignToListId ? { reassignToListId } : undefined),
+    onSuccess: async () => {
+      setNotEmpty(false);
+      if (props.activeListId === list.id) props.onSelect(null);
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: queryKeys.tasks.lists }),
+        queryClient.invalidateQueries({ queryKey: queryKeys.tasks.list })
+      ]);
+    },
+    onError: (error) => {
+      if (error instanceof ApiError && error.status === 409) {
+        setNotEmpty(true);
+      }
+    }
+  });
+
+  if (editing) {
+    return (
+      <li className="list-row editing">
+        <form
+          className="sidebar-form"
+          onSubmit={(event) => {
+            event.preventDefault();
+            if (name.trim()) renameMutation.mutate();
+          }}
+        >
+          <input
+            aria-label={`Rename list ${list.name}`}
+            onChange={(event) => setName(event.target.value)}
+            type="text"
+            value={name}
+          />
+          <button aria-label="Save list name" className="icon-button" type="submit">
+            <Check size={16} aria-hidden="true" />
+          </button>
+          <button
+            aria-label="Cancel rename"
+            className="icon-button"
+            onClick={() => {
+              setEditing(false);
+              setName(list.name);
+            }}
+            type="button"
+          >
+            <X size={16} aria-hidden="true" />
+          </button>
+        </form>
+      </li>
+    );
+  }
+
+  return (
+    <li className="list-row">
+      <button
+        className={props.activeListId === list.id ? "active" : ""}
+        onClick={() => props.onSelect(list.id)}
+        type="button"
+      >
+        {list.name}
+      </button>
+      <button
+        aria-label={`Rename list ${list.name}`}
+        className="icon-button"
+        onClick={() => {
+          setName(list.name);
+          setEditing(true);
+        }}
+        type="button"
+      >
+        <Pencil size={14} aria-hidden="true" />
+      </button>
+      <button
+        aria-label={`Delete list ${list.name}`}
+        className="icon-button"
+        disabled={deleteMutation.isPending}
+        onClick={() => deleteMutation.mutate(undefined)}
+        type="button"
+      >
+        <Trash2 size={14} aria-hidden="true" />
+      </button>
+      {notEmpty ? (
+        <div className="list-reassign" role="alert">
+          <p className="form-error">List is not empty.</p>
+          {otherLists.length > 0 ? (
+            <form
+              className="sidebar-form"
+              onSubmit={(event) => {
+                event.preventDefault();
+                if (reassignTo) deleteMutation.mutate(reassignTo);
+              }}
+            >
+              <select
+                aria-label="Reassign tasks to list"
+                onChange={(event) => setReassignTo(event.target.value)}
+                value={reassignTo}
+              >
+                <option value="">Move tasks to…</option>
+                {otherLists.map((other) => (
+                  <option key={other.id} value={other.id}>
+                    {other.name}
+                  </option>
+                ))}
+              </select>
+              <button
+                className="icon-button"
+                aria-label="Confirm delete and reassign"
+                disabled={!reassignTo || deleteMutation.isPending}
+                type="submit"
+              >
+                <Check size={16} aria-hidden="true" />
+              </button>
+            </form>
+          ) : (
+            <p className="empty-hint">No other list to move tasks to.</p>
+          )}
+        </div>
+      ) : null}
+    </li>
+  );
+}
+
+function TagRow(props: { readonly listId: string; readonly tag: TaskTagDto }) {
+  const { listId, tag } = props;
+  const queryClient = useQueryClient();
+  const [editing, setEditing] = useState(false);
+  const [name, setName] = useState(tag.name);
+
+  const invalidate = () =>
+    queryClient.invalidateQueries({ queryKey: queryKeys.tasks.tags(listId) });
+
+  const renameMutation = useMutation({
+    mutationFn: () => renameTaskTag(listId, tag.id, { name: name.trim() }),
+    onSuccess: async () => {
+      setEditing(false);
+      await invalidate();
+    }
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: () => deleteTaskTag(listId, tag.id),
+    onSuccess: async () => {
+      await Promise.all([
+        invalidate(),
+        queryClient.invalidateQueries({ queryKey: queryKeys.tasks.list })
+      ]);
+    }
+  });
+
+  if (editing) {
+    return (
+      <li className="tag-chip editing">
+        <form
+          className="tag-edit-form"
+          onSubmit={(event) => {
+            event.preventDefault();
+            if (name.trim()) renameMutation.mutate();
+          }}
+        >
+          <input
+            aria-label={`Rename tag ${tag.name}`}
+            onChange={(event) => setName(event.target.value)}
+            type="text"
+            value={name}
+          />
+          <button aria-label="Save tag name" className="tag-chip-action" type="submit">
+            <Check size={12} aria-hidden="true" />
+          </button>
+          <button
+            aria-label="Cancel rename"
+            className="tag-chip-action"
+            onClick={() => {
+              setEditing(false);
+              setName(tag.name);
+            }}
+            type="button"
+          >
+            <X size={12} aria-hidden="true" />
+          </button>
+        </form>
+      </li>
+    );
+  }
+
+  return (
+    <li className="tag-chip">
+      {tag.name}
+      <button
+        aria-label={`Rename tag ${tag.name}`}
+        className="tag-chip-action"
+        onClick={() => {
+          setName(tag.name);
+          setEditing(true);
+        }}
+        type="button"
+      >
+        <Pencil size={12} aria-hidden="true" />
+      </button>
+      <button
+        aria-label={`Delete tag ${tag.name}`}
+        className="tag-chip-action"
+        disabled={deleteMutation.isPending}
+        onClick={() => deleteMutation.mutate()}
+        type="button"
+      >
+        <X size={12} aria-hidden="true" />
+      </button>
+    </li>
   );
 }

@@ -1,17 +1,20 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import type { TaskActivityDto, TaskApiStatus } from "@jarv1s/shared";
+import type { TaskActivityDto, TaskApiStatus, TaskDto } from "@jarv1s/shared";
 import { PRIORITY_LEVELS } from "@jarv1s/shared";
-import { ArrowLeft, ListTree, LoaderCircle, MessageSquarePlus, Save } from "lucide-react";
+import { ArrowLeft, ListTree, LoaderCircle, MessageSquarePlus, Save, Tag, X } from "lucide-react";
 import { type FormEvent, useEffect, useState } from "react";
 import { Link, useParams } from "react-router";
 
 import {
   addTaskActivity,
+  assignTaskTag,
   breakdownTask,
   getTask,
   listSubtasks,
   listTaskActivity,
   listTaskLists,
+  listTaskTags,
+  unassignTaskTag,
   updateTask
 } from "../api/client";
 import { queryKeys } from "../api/query-keys";
@@ -318,6 +321,8 @@ export function TaskDetailPage() {
           ) : null}
         </section>
 
+        <TaskTagsPanel task={taskQuery.data.task} />
+
         <section className="panel" aria-labelledby="activity-title">
           <div className="panel-heading">
             <MessageSquarePlus size={20} aria-hidden="true" />
@@ -360,6 +365,106 @@ export function TaskDetailPage() {
           </form>
         </section>
       </div>
+    </section>
+  );
+}
+
+function TaskTagsPanel(props: { readonly task: TaskDto }) {
+  const { task } = props;
+  const queryClient = useQueryClient();
+  const [tagId, setTagId] = useState("");
+
+  const listTagsQuery = useQuery({
+    queryKey: queryKeys.tasks.tags(task.listId),
+    queryFn: () => listTaskTags(task.listId)
+  });
+
+  const invalidate = async () => {
+    await Promise.all([
+      queryClient.invalidateQueries({ queryKey: queryKeys.tasks.detail(task.id) }),
+      queryClient.invalidateQueries({ queryKey: queryKeys.tasks.list })
+    ]);
+  };
+
+  const assignMutation = useMutation({
+    mutationFn: (selectedTagId: string) => assignTaskTag(task.id, { tagId: selectedTagId }),
+    onSuccess: async () => {
+      setTagId("");
+      await invalidate();
+    }
+  });
+
+  const unassignMutation = useMutation({
+    mutationFn: (selectedTagId: string) => unassignTaskTag(task.id, selectedTagId),
+    onSuccess: invalidate
+  });
+
+  const assignedIds = new Set(task.tags.map((tag) => tag.id));
+  const availableTags = (listTagsQuery.data?.tags ?? []).filter((tag) => !assignedIds.has(tag.id));
+  const isPending = assignMutation.isPending || unassignMutation.isPending;
+
+  const handleAssign = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (tagId) assignMutation.mutate(tagId);
+  };
+
+  return (
+    <section className="panel" aria-labelledby="task-tags-title">
+      <div className="panel-heading">
+        <Tag size={20} aria-hidden="true" />
+        <h2 id="task-tags-title">Tags</h2>
+      </div>
+
+      {task.tags.length > 0 ? (
+        <ul className="task-tags-list">
+          {task.tags.map((tag) => (
+            <li className="tag-chip removable" key={tag.id}>
+              {tag.name}
+              <button
+                aria-label={`Remove tag ${tag.name}`}
+                className="tag-chip-remove"
+                disabled={isPending}
+                onClick={() => unassignMutation.mutate(tag.id)}
+                type="button"
+              >
+                <X size={12} aria-hidden="true" />
+              </button>
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <p className="empty-hint">No tags assigned.</p>
+      )}
+
+      <form className="task-tags-form" onSubmit={handleAssign}>
+        <label>
+          Add tag
+          <select
+            aria-label="Add tag"
+            onChange={(event) => setTagId(event.target.value)}
+            value={tagId}
+          >
+            <option value="">Select a tag…</option>
+            {availableTags.map((tag) => (
+              <option key={tag.id} value={tag.id}>
+                {tag.name}
+              </option>
+            ))}
+          </select>
+        </label>
+        {assignMutation.error ? <p className="form-error">{assignMutation.error.message}</p> : null}
+        {unassignMutation.error ? (
+          <p className="form-error">{unassignMutation.error.message}</p>
+        ) : null}
+        <button className="secondary-button" disabled={!tagId || isPending} type="submit">
+          {assignMutation.isPending ? (
+            <LoaderCircle className="spin" size={18} aria-hidden="true" />
+          ) : (
+            <Tag size={18} aria-hidden="true" />
+          )}
+          Assign tag
+        </button>
+      </form>
     </section>
   );
 }
