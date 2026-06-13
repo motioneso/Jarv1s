@@ -719,6 +719,52 @@ describe("extractEmailSignals", () => {
     const result = await extractEmailSignals(PARSED, deps);
     expect(result.summary).toBeNull();
   });
+
+  it("nulls a summary that is a long verbatim body PREFIX longer than the summary cap", async () => {
+    // Defeat the pre-truncation gap: a model returns the first 600 chars of a 700-char body
+    // verbatim as the summary. Because the guard now runs on the RAW (untruncated) summary and
+    // catches a long verbatim body substring, the near-complete body prefix must NOT be persisted.
+    const body = "Sensitive paragraph. ".repeat(40); // ~840 chars of real body content
+    const parsed = { ...PARSED, body, snippet: null };
+    const prefix = body.slice(0, 600); // first 600 chars — a near-complete body prefix
+    const deps = fakeDeps({
+      replies: [JSON.stringify({ summary: prefix, confidence: 0.9 })],
+      models: [{ tier: "economy" }]
+    });
+    const result = await extractEmailSignals(parsed, deps);
+    expect(result.summary).toBeNull();
+  });
+
+  it("keeps a genuine short summary that is NOT a long verbatim body slice", async () => {
+    // False-positive guard: a normal paraphrase of a long body survives the substring check.
+    const body = "Sensitive paragraph. ".repeat(40);
+    const parsed = { ...PARSED, body, snippet: null };
+    const deps = fakeDeps({
+      replies: [JSON.stringify({ summary: "Repeated sensitive paragraph; no action needed." })],
+      models: [{ tier: "economy" }]
+    });
+    const result = await extractEmailSignals(parsed, deps);
+    expect(result.summary).toBe("Repeated sensitive paragraph; no action needed.");
+  });
+
+  it("degrades to metadata-only when the router resolves a NON-economy model", async () => {
+    // selectModelForCapability can fall through the tier ladder (or final any-model fallback) and
+    // return an interactive/reasoning model for an "economy" request. The strict tier gate must
+    // reject it and persist a metadata-only row rather than run a pricier tier (cost posture) —
+    // and crucially never call the model, so no body is ever sent.
+    let chatCalls = 0;
+    const deps: EmailExtractDeps = {
+      selectModel: async () => ({ tier: "reasoning" }),
+      runChat: async () => {
+        chatCalls += 1;
+        return { text: JSON.stringify({ summary: "should never run" }) };
+      }
+    };
+    const result = await extractEmailSignals(PARSED, deps);
+    expect(result.summary).toBeNull();
+    expect(result.signals).toEqual({});
+    expect(chatCalls).toBe(0);
+  });
 });
 
 describe("google-sync queue contract", () => {
