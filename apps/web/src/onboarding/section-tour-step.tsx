@@ -1,7 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "react-router";
 
-import { getModules } from "../api/client";
+import { getModules, getMyModules } from "../api/client";
 import { queryKeys } from "../api/query-keys";
 
 interface TourSection {
@@ -33,12 +33,27 @@ export function SectionTourStep(props: { readonly onDone: () => void }) {
     queryFn: () => getModules(),
     retry: false
   });
+  // Per-user enablement: a module the actor has disabled must NOT appear in the tour even
+  // though it is instance-enabled. /api/modules carries navigation but not the actor's
+  // per-user state; /api/me/modules carries the actor's `active` flag (Phase-2 disable seam).
+  // We combine them the same way the app shell does (readNavigation): drop nav for any
+  // module the actor has turned off — otherwise the tour would link a route the route guard
+  // 404s for this member.
+  const myModulesQuery = useQuery({
+    queryKey: queryKeys.myModules,
+    queryFn: () => getMyModules(),
+    retry: false
+  });
 
-  // Build the set of enabled nav paths from the modules registry. Settings is always
-  // present (core); a section whose route is not in the enabled nav set is omitted —
-  // this is how "Wellness" disappears cleanly when no wellness module is installed.
+  // Build the set of enabled nav paths from the modules registry, gated on per-user state.
+  // Settings is always present (core); a section whose route is not in the enabled nav set
+  // is omitted — this is how "Wellness" disappears when it's uninstalled OR the actor disabled it.
+  const disabledModuleIds = new Set(
+    (myModulesQuery.data?.modules ?? []).filter((m) => !m.active).map((m) => m.id)
+  );
   const enabledPaths = new Set<string>(["/settings"]);
   for (const mod of modulesQuery.data?.modules ?? []) {
+    if (disabledModuleIds.has(mod.id)) continue;
     for (const nav of mod.navigation) {
       enabledPaths.add(nav.path);
     }

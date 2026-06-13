@@ -182,8 +182,10 @@ export function registerWellnessRoutes(
         if (!result) return reply.code(404).send({ error: "Medication not found" });
         return reply.code(201).send({ log: serializeMedicationLog(result) });
       } catch (error) {
-        // A repeat log of the same scheduled slot trips the partial unique index
-        // (medication_logs_scheduled_unique) — map it to an idempotent 409, not a 500.
+        // Re-logging the same scheduled slot now UPSERTS (corrects the adherence record) in the
+        // repository, so the partial unique index no longer rejects a status correction. This
+        // 409 mapping is retained only as a defensive fallback for any unforeseen unique
+        // violation — it should not fire on the normal log/correct flow.
         if (isUniqueViolation(error)) {
           return reply.code(409).send({ error: "This scheduled dose is already logged" });
         }
@@ -262,6 +264,13 @@ function parseCreateMedicationBody(body: unknown): CreateMedicationInput {
       `frequencyType must be one of ${MEDICATION_FREQUENCY_TYPES.join(", ")}`
     );
   }
+  // Range-validate the numeric discriminator fields at the route so an out-of-range value
+  // surfaces as a friendly 400 rather than tripping the DB CHECK as a 500 (matches the DB
+  // bounds: times_per_day/interval_hours 1–24, cycle_days_on >= 1, cycle_days_off >= 0).
+  assertIntInRange(value["timesPerDay"], "timesPerDay", 1, 24);
+  assertIntInRange(value["intervalHours"], "intervalHours", 1, 24);
+  assertIntInRange(value["cycleDaysOn"], "cycleDaysOn", 1, 366);
+  assertIntInRange(value["cycleDaysOff"], "cycleDaysOff", 0, 366);
   if (frequencyType === "times_per_day" && value["timesPerDay"] == null) {
     throw new HttpError(400, "timesPerDay is required for times_per_day");
   }
@@ -419,6 +428,15 @@ function parseStringArray(value: unknown, field: string): string[] {
 }
 function isNonEmptyArray(value: unknown): boolean {
   return Array.isArray(value) && value.length > 0;
+}
+function assertIntInRange(value: unknown, field: string, min: number, max: number): void {
+  if (value === undefined || value === null) return;
+  if (typeof value !== "number" || !Number.isInteger(value) || value < min || value > max) {
+    throw new HttpError(
+      400,
+      `${field} must be an integer from ${min.toString()} to ${max.toString()}`
+    );
+  }
 }
 function optionalStringArrayOrNull(value: unknown, field: string): string[] | null | undefined {
   if (value === undefined) return undefined;

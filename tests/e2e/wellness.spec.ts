@@ -63,11 +63,47 @@ test.beforeEach(async ({ page }) => {
     })
   );
 
-  await page.route("**/api/wellness/medications**", (route) =>
-    route.fulfill({
+  await page.route("**/api/wellness/medications**", (route) => {
+    if (route.request().method() === "POST") {
+      return route.fulfill({
+        status: 201,
+        contentType: "application/json",
+        body: JSON.stringify({
+          medication: {
+            id: "m-new",
+            ownerUserId: "user-1",
+            name: "New Med",
+            dosage: null,
+            form: null,
+            frequencyType: "once_daily",
+            timesPerDay: null,
+            intervalHours: null,
+            weekdays: null,
+            scheduleTimes: ["08:00"],
+            cycleDaysOn: null,
+            cycleDaysOff: null,
+            cycleAnchorDate: null,
+            active: true,
+            notes: null,
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString()
+          }
+        })
+      });
+    }
+    return route.fulfill({
       status: 200,
       contentType: "application/json",
       body: JSON.stringify({ medications: [] })
+    });
+  });
+
+  // The schedule fetch backs MedicationsView; keep it empty so the view renders the form.
+  await page.route("**/api/wellness/medications/schedule**", (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({ date: "2026-06-13", slots: [] })
     })
   );
 
@@ -116,6 +152,95 @@ test("wellness page renders and a check-in can be saved", async ({ page }) => {
     page.getByRole("button", { name: "Save", exact: true }).click()
   ]);
   expect(request.method()).toBe("POST");
+});
+
+test("medication form sends correct payload for every_n_hours (was a guaranteed 400)", async ({
+  page
+}) => {
+  await page.goto("/wellness");
+  await page.getByRole("button", { name: "Medications" }).click();
+
+  await page.getByLabel("Medication name").fill("Antibiotic");
+  await page.getByLabel("Frequency").selectOption("every_n_hours");
+  await page.getByLabel("Interval hours").fill("8");
+
+  const [request] = await Promise.all([
+    page.waitForRequest(
+      (r) => r.url().includes("/api/wellness/medications") && r.method() === "POST"
+    ),
+    page.getByRole("button", { name: "Add" }).click()
+  ]);
+  const body = request.postDataJSON() as Record<string, unknown>;
+  expect(body.frequencyType).toBe("every_n_hours");
+  expect(body.intervalHours).toBe(8);
+  // every_n_hours must NOT send schedule_times (the DB has no requirement; route uses interval).
+  expect(body.scheduleTimes).toBeNull();
+});
+
+test("medication form sends weekdays for specific_weekdays", async ({ page }) => {
+  await page.goto("/wellness");
+  await page.getByRole("button", { name: "Medications" }).click();
+
+  await page.getByLabel("Medication name").fill("Weekly Pill");
+  await page.getByLabel("Frequency").selectOption("specific_weekdays");
+  await page.getByRole("checkbox", { name: "Mon" }).check();
+  await page.getByRole("checkbox", { name: "Wed" }).check();
+
+  const [request] = await Promise.all([
+    page.waitForRequest(
+      (r) => r.url().includes("/api/wellness/medications") && r.method() === "POST"
+    ),
+    page.getByRole("button", { name: "Add" }).click()
+  ]);
+  const body = request.postDataJSON() as Record<string, unknown>;
+  expect(body.frequencyType).toBe("specific_weekdays");
+  expect(body.weekdays).toEqual([1, 3]);
+});
+
+test("medication form sends cycle fields for cyclical", async ({ page }) => {
+  await page.goto("/wellness");
+  await page.getByRole("button", { name: "Medications" }).click();
+
+  await page.getByLabel("Medication name").fill("Birth Control");
+  await page.getByLabel("Frequency").selectOption("cyclical");
+  await page.getByLabel("Cycle anchor date").fill("2026-06-15");
+  await page.getByLabel("Cycle days on").fill("21");
+  await page.getByLabel("Cycle days off").fill("7");
+
+  const [request] = await Promise.all([
+    page.waitForRequest(
+      (r) => r.url().includes("/api/wellness/medications") && r.method() === "POST"
+    ),
+    page.getByRole("button", { name: "Add" }).click()
+  ]);
+  const body = request.postDataJSON() as Record<string, unknown>;
+  expect(body.frequencyType).toBe("cyclical");
+  expect(body.cycleAnchorDate).toBe("2026-06-15");
+  expect(body.cycleDaysOn).toBe(21);
+  expect(body.cycleDaysOff).toBe(7);
+});
+
+test("medication form omits scheduling fields for as_needed (PRN)", async ({ page }) => {
+  await page.goto("/wellness");
+  await page.getByRole("button", { name: "Medications" }).click();
+
+  await page.getByLabel("Medication name").fill("Painkiller");
+  await page.getByLabel("Frequency").selectOption("as_needed");
+
+  const [request] = await Promise.all([
+    page.waitForRequest(
+      (r) => r.url().includes("/api/wellness/medications") && r.method() === "POST"
+    ),
+    page.getByRole("button", { name: "Add" }).click()
+  ]);
+  const body = request.postDataJSON() as Record<string, unknown>;
+  expect(body.frequencyType).toBe("as_needed");
+  // PRN must carry NO scheduling/cycle fields (DB CHECK rejects them otherwise).
+  expect(body.scheduleTimes).toBeNull();
+  expect(body.timesPerDay).toBeNull();
+  expect(body.intervalHours).toBeNull();
+  expect(body.weekdays).toBeNull();
+  expect(body.cycleAnchorDate).toBeNull();
 });
 
 test("wellness nav is hidden when the actor has disabled the module", async ({ page }) => {

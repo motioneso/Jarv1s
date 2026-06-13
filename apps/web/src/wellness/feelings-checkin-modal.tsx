@@ -24,8 +24,6 @@ export function FeelingsCheckinModal(props: FeelingsCheckinModalProps) {
   const [energy, setEnergy] = useState<number | null>(null);
   const [note, setNote] = useState("");
   const [assisting, setAssisting] = useState(false);
-  const [assistInput, setAssistInput] = useState("");
-  const { records } = useChatStream();
 
   const createMutation = useMutation({
     mutationFn: (input: CreateCheckinRequest) => createWellnessCheckin(input),
@@ -89,33 +87,7 @@ export function FeelingsCheckinModal(props: FeelingsCheckinModalProps) {
           {assisting ? "Pick on the wheel instead" : "I don't know what I feel — talk it through"}
         </button>
 
-        {assisting ? (
-          <div className="assisted-chat">
-            <div className="assisted-transcript">
-              {records.slice(-6).map((r, i) => (
-                <p key={i} className={`assisted-line ${r.kind}`}>
-                  {r.text}
-                </p>
-              ))}
-            </div>
-            <form
-              onSubmit={(e) => {
-                e.preventDefault();
-                if (assistInput.trim()) {
-                  void sendChatTurn(assistInput.trim());
-                  setAssistInput("");
-                }
-              }}
-            >
-              <input
-                value={assistInput}
-                onChange={(e) => setAssistInput(e.target.value)}
-                placeholder="Tell Jarvis what's going on..."
-                aria-label="Message Jarvis"
-              />
-            </form>
-          </div>
-        ) : null}
+        {assisting ? <AssistedChat /> : null}
 
         <fieldset className="sensations-field">
           <legend>Body check (optional)</legend>
@@ -196,4 +168,42 @@ export function FeelingsCheckinModal(props: FeelingsCheckinModalProps) {
 
 function readError(error: unknown): string {
   return error instanceof Error ? error.message : "Could not save check-in";
+}
+
+/**
+ * The assisted "talk it through" chat. Extracted into its own component so `useChatStream()`
+ * (which opens an EventSource against /api/chat/stream) runs ONLY while this is mounted —
+ * i.e. only when the user is actively in assisted mode. Mirrors OnboardingChatPanel; prevents
+ * the modal from opening a redundant always-on SSE connection on every /wellness visit.
+ */
+function AssistedChat() {
+  const { records } = useChatStream();
+  const [assistInput, setAssistInput] = useState("");
+  return (
+    <div className="assisted-chat">
+      <div className="assisted-transcript">
+        {records.slice(-6).map((r, i) => (
+          <p key={i} className={`assisted-line ${r.kind}`}>
+            {r.text}
+          </p>
+        ))}
+      </div>
+      <form
+        onSubmit={(e) => {
+          e.preventDefault();
+          if (assistInput.trim()) {
+            void sendChatTurn(assistInput.trim());
+            setAssistInput("");
+          }
+        }}
+      >
+        <input
+          value={assistInput}
+          onChange={(e) => setAssistInput(e.target.value)}
+          placeholder="Tell Jarvis what's going on..."
+          aria-label="Message Jarvis"
+        />
+      </form>
+    </div>
+  );
 }
