@@ -52,3 +52,85 @@ runs `infra/postgres/bootstrap` first, so a brand-new database self-provisions o
   `sql/` dirs). When several branches add migrations in parallel, assign numbers by **landing order**
   — the branch that merges first takes the lower numbers; later branches renumber above it after
   integrating `main`. Never edit an already-applied migration.
+
+## Production deploy (containerized stack)
+
+The deploy artifact is `infra/docker-compose.prod.yml` (NOT the dev
+`infra/docker-compose.yml`, which bind-mounts source and runs `tsx` for everything). It
+runs two images: one app image (`ghcr.io/motioneso/jarv1s-api`) used for api / worker /
+migrate by command selection, and an nginx static-web image (`ghcr.io/motioneso/jarv1s-web`)
+that serves the SPA and reverse-proxies `/api` + `/health` to the api — so the api keeps
+its `default-src 'none'` CSP and never serves HTML. The api/worker run as bundled plain
+`node dist/server.js` / `node dist/worker.js` (no tsx, no per-start install). The migrate
+one-shot runs `tsx scripts/migrate.ts` (NOT bundled — module SQL dirs resolve via
+`import.meta.url`, which bundling would break); the image ships tsx + the SQL tree for it.
+
+**Deploy steps:**
+
+```txt
+cp infra/env.production.example infra/env.production.local   # off-git; fill secrets/UIDs/tag
+# set JARVIS_IMAGE_TAG to a published version tag (never :edge/:latest)
+docker compose -f infra/docker-compose.prod.yml up -d
+# or, at boot: systemctl enable --now jarv1s-stack
+```
+
+Order: postgres (healthcheck) → migrate one-shot (`tsx scripts/migrate.ts`: bootstrap →
+app+module SQL → pg-boss → grants; exits 0) → api+worker (gated on
+`service_completed_successfully`) → web (gated on api healthy). Every long-running
+service is `restart: unless-stopped`; the api keeps a `/health` HEALTHCHECK.
+
+**Host prerequisites:** Docker + the compose plugin installed and the daemon running
+(`jarv1s-stack.service` has `Requires=docker.service`). The embedding model downloads on
+first use into the `jarv1s-model-cache` named volume (`HF_HOME=/app/.cache/huggingface`);
+set `JARVIS_EMBED_PROVIDER=stub` to skip it.
+
+## Host-multiplexer bridge (CLI chat from the container)
+
+Live CLI chat drives `claude`/`codex`/`gemini` through tmux under the operator's personal
+auth. Per ADR 0008 §2 we do NOT bundle the AI CLIs (`claude`/`codex`/`gemini`) — they are
+host-provisioned and run on the HOST. The tmux SERVER also runs on the host. What the
+container carries is only the thin **tmux CLIENT** (apt-installed in the image): the
+api/worker engine execs `tmux send-keys/...` from inside the container against the
+bind-mounted host tmux socket, so the AI CLIs launch on the host with host auth. The
+container **steers the host's** tmux and **reads the host's** transcripts through bind
+mounts (only on api/worker):
+
+1. **tmux socket** — the host per-uid tmux socket dir (`/tmp/tmux-<uid>`, mode 0700) is
+   bind-mounted at the same path; the tmux server runs on the host. (Herdr-from-container
+   is NOT wired in this slice — run herdr on the host and set `JARVIS_MULTIPLEXER=tmux`
+   for the container.)
+2. **Host CLI dirs (least-privilege)** — ONLY the three CLI-config dirs `~/.claude`,
+   `~/.codex`, `~/.gemini` are bind-mounted READ-ONLY under `/host-home` (NOT the whole
+   host HOME — that would expose `~/.ssh`, git/cloud creds, shell history). They line up
+   under `JARVIS_CLI_HOME_BASE=/host-home` so the engine's `transcriptGlobDir` finds
+   `/host-home/.claude|.codex|.gemini`.
+3. **Neutral-dir alignment** — the per-user neutral dir base (`JARVIS_CHAT_HOME`) is
+   mounted at the SAME absolute path on host and container so the host-spawned CLI `cd`s
+   into the dir the container computed.
+
+**UID mapping:** the container runs as `JARVIS_HOST_UID:JARVIS_HOST_GID` (the host operator
+uid/gid) so it can open the 0700 socket and read the three RO CLI dirs. Because that uid
+may differ from the image `node` uid, the writable named volumes (model cache, vault) are
+made world-writable at build (Task 7). If the uid does not match the socket owner, CLI chat
+silently breaks while REST stays green — the reboot-survival probe catches this.
+
+**Security tradeoff (accepted, documented):** mounting the three host CLI-auth dirs + the
+tmux socket means a container compromise can reach the operator's personal CLI credentials
+and steer host tmux sessions. This is accepted under the **single-operator household model**
+(ADR 0007) — the same shared-uid soft boundary the CLI-adapter slice documents. The mount
+is scoped to the three CLI dirs (read-only), NOT the whole HOME, to bound the blast radius.
+It is **opt-in**: present only when the CLI-subscription adapter is chosen.
+The **API-key adapter needs NONE of these mounts** (it talks HTTP to a provider), so an
+API-key instance runs with a strictly smaller attack surface.
+
+## Reboot-survival check
+
+After a host reboot (or `systemctl start jarv1s-stack`), confirm the stack survived:
+
+```txt
+JARVIS_API_PORT=3000 scripts/verify-reboot-survival.sh
+```
+
+It asserts (1) `/health/ready` returns `{ ok:true, db:"ok", pgboss:"ok" }` and (2) a chat
+session can launch against the host multiplexer (tmux/herdr liveness on the bridged
+socket). Non-zero exit means a component is down — it fails loudly, never false-green.
