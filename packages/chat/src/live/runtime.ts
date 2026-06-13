@@ -49,8 +49,12 @@ export type ChatEngineFactory = (provider: ProviderKind, sessionKey: string) => 
  * single-host behavior for tests and standalone embedders).
  */
 export function createRealEngineFactory(opts: { mux?: Multiplexer } = {}): ChatEngineFactory {
+  // Containerized deploys (deployable-stack §6) point this at the bind-mounted host
+  // CLI-dir base (/host-home) so transcripts written by the host CLI are read back
+  // correctly. Unset on a host install → the engine uses the OS home (unchanged).
+  const homeBase = process.env.JARVIS_CLI_HOME_BASE;
   return (provider, sessionKey) =>
-    new CliChatEngineImpl(provider, sessionKey, createRealTmuxIo(), { mux: opts.mux });
+    new CliChatEngineImpl(provider, sessionKey, createRealTmuxIo(), { mux: opts.mux, homeBase });
 }
 
 /** A factory that refuses to launch: used when the host has no multiplexer installed. */

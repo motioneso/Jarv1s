@@ -102,3 +102,24 @@ describe("CliChatEngineImpl — Gemini launch", () => {
     expect(launchLine).toContain("--allowed-mcp-server-names jarvis");
   });
 });
+
+describe("CliChatEngineImpl — homeBase seam (#deployable-stack §6)", () => {
+  it("resolves the transcript path under the provided homeBase", async () => {
+    const io = makeIo();
+    const engine = new CliChatEngineImpl("anthropic", "host-session", io, {
+      homeBase: "/host-home"
+    });
+    await engine.launch({ neutralDir: "/tmp/neutral", personaPath: "/tmp/persona.txt" });
+
+    expect(engine.transcriptPath().startsWith("/host-home/.claude/projects/")).toBe(true);
+  });
+
+  it("falls back to the OS home when no homeBase is given", async () => {
+    const io = makeIo();
+    const engine = new CliChatEngineImpl("anthropic", "local-session", io);
+    await engine.launch({ neutralDir: "/tmp/neutral", personaPath: "/tmp/persona.txt" });
+
+    expect(engine.transcriptPath()).not.toContain("/host-home/");
+    expect(engine.transcriptPath()).toContain("/.claude/projects/");
+  });
+});
