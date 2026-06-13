@@ -1033,3 +1033,138 @@ describe("Group D — buildChatToolServices wires calendarWrite into the gateway
     expect((bare.toolServices as Record<string, unknown>).calendarWrite).toBeUndefined();
   });
 });
+
+describe("Group D — no write without approval (safety property)", () => {
+  let appDb: Kysely<JarvisDatabase>;
+  let dataContext: DataContextRunner;
+
+  beforeAll(async () => {
+    await resetFoundationDatabase();
+    appDb = createDatabase({ connectionString: connectionStrings.app, maxConnections: 1 });
+    dataContext = new DataContextRunner(appDb);
+  });
+  afterAll(async () => {
+    await appDb.destroy();
+  });
+
+  // Snapshot the owner's already-pending action ids (read under their own RLS). The deny/timeout
+  // cases run before the approve case and can leave a stale pending row in the shared DB (a timed-out
+  // confirmation deliberately stays "pending in the drawer", gateway.ts:187). We must therefore wait
+  // for a NEW pending row, not the first one we see — otherwise we'd resolve the stale row on a
+  // gateway whose ConfirmationRegistry has no waiter for it, and the live call would hang.
+  async function snapshotPendingIds(
+    runner: DataContextRunner,
+    actorUserId: string
+  ): Promise<Set<string>> {
+    const repo = new AiRepository();
+    const pending = await runner.withDataContext(
+      { actorUserId, requestId: "snapshot-pending" },
+      (scopedDb) => repo.listAssistantActions(scopedDb)
+    );
+    return new Set(pending.filter((a) => a.status === "pending").map((a) => a.id));
+  }
+
+  // Discover the pending action id created AFTER `existing` was snapshotted (the current call's),
+  // reading the owner's pending action requests under their own RLS context (the harness uses a
+  // discarding notifier, so there is no card to read off `emitted`).
+  async function waitForNewPendingActionId(
+    runner: DataContextRunner,
+    actorUserId: string,
+    existing: Set<string>
+  ): Promise<string> {
+    const repo = new AiRepository();
+    for (let i = 0; i < 200; i++) {
+      const pending = await runner.withDataContext(
+        { actorUserId, requestId: "wait-pending" },
+        (scopedDb) => repo.listAssistantActions(scopedDb)
+      );
+      const found = pending.find((a) => a.status === "pending" && !existing.has(a.id));
+      if (found) return found.id;
+      await new Promise((resolve) => setTimeout(resolve, 10));
+    }
+    throw new Error("no new pending action request appeared");
+  }
+
+  function gatewayWithCountingService(confirmTimeoutMs: number) {
+    let inserts = 0;
+    const service = {
+      async proposeAndInsert(
+        _db: unknown,
+        _ctx: unknown,
+        window: { start: Date; end: Date; durationMinutes: number; title: string }
+      ) {
+        inserts += 1;
+        return {
+          created: true,
+          resolvedStart: window.start.toISOString(),
+          resolvedEnd: window.end.toISOString(),
+          shifted: false,
+          conflict: "none" as const,
+          googleEventId: "evt",
+          calendarMirror: "skipped-rls" as const
+        };
+      }
+    };
+    const tokens = new SessionTokenRegistry();
+    const gateway = new AssistantToolGateway({
+      resolveActiveModules: async () => [calendarModuleManifest],
+      repository: new AiRepository(),
+      runner: dataContext,
+      tokens,
+      confirmations: new ConfirmationRegistry(),
+      notifier: { emit() {} },
+      confirmTimeoutMs,
+      toolServices: { calendarWrite: service }
+    });
+    return { gateway, tokens, getInserts: () => inserts };
+  }
+
+  it("a denied proposal performs no insert", async () => {
+    const { gateway, tokens, getInserts } = gatewayWithCountingService(150_000);
+    const token = tokens.mint({
+      actorUserId: ids.userA,
+      chatSessionId: ids.userA,
+      allowedToolNames: null
+    });
+    const existing = await snapshotPendingIds(dataContext, ids.userA);
+    const callPromise = gateway.callTool(token, "calendar.proposeFocusBlock", {
+      partOfDay: "morning"
+    });
+    const actionId = await waitForNewPendingActionId(dataContext, ids.userA, existing);
+    await gateway.resolveActionRequest(ids.userA, actionId, "rejected");
+    const res = await callPromise;
+    expect(res.ok).toBe(false);
+    expect(getInserts()).toBe(0);
+  });
+
+  it("a timed-out proposal performs no insert", async () => {
+    const { gateway, tokens, getInserts } = gatewayWithCountingService(50); // 50ms timeout
+    const token = tokens.mint({
+      actorUserId: ids.userA,
+      chatSessionId: ids.userA,
+      allowedToolNames: null
+    });
+    const res = await gateway.callTool(token, "calendar.proposeFocusBlock", {
+      partOfDay: "morning"
+    });
+    expect(res.ok).toBe(false);
+    expect(getInserts()).toBe(0);
+  });
+
+  it("an approved proposal performs exactly one insert", async () => {
+    const { gateway, tokens, getInserts } = gatewayWithCountingService(150_000);
+    const token = tokens.mint({
+      actorUserId: ids.userA,
+      chatSessionId: ids.userA,
+      allowedToolNames: null
+    });
+    const existing = await snapshotPendingIds(dataContext, ids.userA);
+    const callPromise = gateway.callTool(token, "calendar.proposeFocusBlock", {
+      partOfDay: "morning"
+    });
+    const actionId = await waitForNewPendingActionId(dataContext, ids.userA, existing);
+    await gateway.resolveActionRequest(ids.userA, actionId, "confirmed");
+    await callPromise;
+    expect(getInserts()).toBe(1);
+  });
+});
