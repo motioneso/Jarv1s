@@ -44,15 +44,17 @@ export class AssistantToolGateway {
   constructor(private readonly deps: AssistantToolGatewayDependencies) {}
 
   /** Returns only tools executable by this actor (via resolveActiveModules). */
-  listToolsForActor(actorUserId: string): AiAssistantToolDto[] {
-    return this.executableTools(actorUserId).map((entry) => entry.dto);
+  async listToolsForActor(actorUserId: string): Promise<AiAssistantToolDto[]> {
+    return (await this.executableTools(actorUserId)).map((entry) => entry.dto);
   }
 
   async callTool(token: string, toolName: string, rawInput: unknown): Promise<GatewayToolResponse> {
     const { actorUserId, chatSessionId, allowedToolNames } = this.deps.tokens.verify(token);
     const ctx: ToolContext = { actorUserId, requestId: `mcp_${randomUUID()}`, chatSessionId };
 
-    const found = this.executableTools(actorUserId).find((entry) => entry.tool.name === toolName);
+    const found = (await this.executableTools(actorUserId)).find(
+      (entry) => entry.tool.name === toolName
+    );
     if (!found) {
       return { ok: false, error: `Tool not available: ${toolName}` };
     }
@@ -177,8 +179,9 @@ export class AssistantToolGateway {
     return `${tool.name} (${String(generic.inputKeyCount ?? 0)} field(s))`;
   }
 
-  private executableTools(actorUserId: string): ExecutableTool[] {
-    const modules: readonly JarvisModuleManifest[] = this.deps.resolveActiveModules(actorUserId);
+  private async executableTools(actorUserId: string): Promise<ExecutableTool[]> {
+    const modules: readonly JarvisModuleManifest[] =
+      await this.deps.resolveActiveModules(actorUserId);
     const out: ExecutableTool[] = [];
     for (const module of modules) {
       for (const tool of module.assistantTools ?? []) {

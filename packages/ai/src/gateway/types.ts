@@ -1,14 +1,15 @@
 import type { JarvisModuleManifest } from "@jarv1s/module-sdk";
 
 /**
- * Resolves the modules whose tools are exposed for a user. The enablement SEAM:
- * Phase 2 wires this to `() => getBuiltInModuleManifests()` from
- * `@jarv1s/module-registry` (done where the gateway is constructed, to avoid an
- * ai -> module-registry dependency). When per-user module enable/disable ships
- * (#30), this resolver reads it and disabled modules' tools vanish from the
- * surface with no change to the gateway or any module.
+ * Resolves the modules whose tools are exposed for a user. The enablement SEAM
+ * (ADR 0009 §3): the real resolver (createActiveModulesResolver in
+ * @jarv1s/module-registry) reads the app.module_enablement deny-list under
+ * withDataContext, so a disabled module's tools vanish from the surface with no
+ * change to the gateway or any module. Async because it does a DB round-trip.
  */
-export type ActiveModulesResolver = (actorUserId: string) => readonly JarvisModuleManifest[];
+export type ActiveModulesResolver = (
+  actorUserId: string
+) => Promise<readonly JarvisModuleManifest[]>;
 
 /**
  * A record the gateway pushes into a chat session's live stream (out-of-band from

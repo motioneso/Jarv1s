@@ -91,11 +91,16 @@ export function registerMcpTransportRoute(
       }
 
       if (method === "tools/list") {
-        return reply.code(200).send({
-          jsonrpc: "2.0",
-          id,
-          result: { tools: deps.gateway.listToolsForActor(identity.actorUserId).map(dtoToMcpTool) }
-        });
+        let tools;
+        try {
+          tools = (await deps.gateway.listToolsForActor(identity.actorUserId)).map(dtoToMcpTool);
+        } catch (err) {
+          // FAIL CLOSED + scrub: a resolver/DB failure must not expose the tool surface
+          // nor leak err.message. Generic internal error; detail logged server-side.
+          request.log.error({ err }, "mcp tools/list resolver failed");
+          return reply.code(200).send(jsonRpcError(id, -32603, "Internal error"));
+        }
+        return reply.code(200).send({ jsonrpc: "2.0", id, result: { tools } });
       }
 
       if (method === "tools/call") {
@@ -107,9 +112,11 @@ export function registerMcpTransportRoute(
         try {
           response = await deps.gateway.callTool(token, params.name, params.arguments ?? {});
         } catch (err) {
-          // callTool only throws on invalid token — guard already passed above.
-          const message = err instanceof Error ? err.message : "Internal error";
-          return reply.code(200).send(jsonRpcError(id, -32603, message));
+          // callTool can now throw resolver/DB errors (async resolver) in addition to
+          // invalid-token — never echo err.message (it may carry DB detail). Generic
+          // internal error; detail logged server-side only.
+          request.log.error({ err }, "mcp tools/call failed");
+          return reply.code(200).send(jsonRpcError(id, -32603, "Internal error"));
         }
         return reply.code(200).send({
           jsonrpc: "2.0",

@@ -58,7 +58,7 @@ describe("MCP HTTP transport", () => {
     emitted = [];
 
     gateway = new AssistantToolGateway({
-      resolveActiveModules: () => [exampleToolModule],
+      resolveActiveModules: async () => [exampleToolModule],
       repository,
       runner,
       tokens,
@@ -159,7 +159,8 @@ describe("MCP HTTP transport", () => {
   it("tools/list is actor-scoped at the transport level — userB token yields an empty list", async () => {
     const scopedTokens = new SessionTokenRegistry();
     const scopedGateway = new AssistantToolGateway({
-      resolveActiveModules: (actorUserId) => (actorUserId === ids.userA ? [exampleToolModule] : []),
+      resolveActiveModules: async (actorUserId) =>
+        actorUserId === ids.userA ? [exampleToolModule] : [],
       repository: new AiRepository(),
       runner: new DataContextRunner(appDb),
       tokens: scopedTokens,
@@ -315,7 +316,7 @@ describe("HTTP resolve endpoint", () => {
     emitted = [];
 
     gateway = new AssistantToolGateway({
-      resolveActiveModules: () => [exampleToolModule],
+      resolveActiveModules: async () => [exampleToolModule],
       repository,
       runner,
       tokens,
