@@ -66,6 +66,15 @@ function TaskLine(props: {
       <Link className="task-line-title" to={`/tasks/${props.task.id}`}>
         {props.task.title}
       </Link>
+      {props.task.tags.length > 0 ? (
+        <span className="task-line-tags">
+          {props.task.tags.map((tag) => (
+            <span className="tag-chip" key={tag.id}>
+              {tag.name}
+            </span>
+          ))}
+        </span>
+      ) : null}
       <div className="task-line-meta">
         {props.task.dueAt ? <span className="task-due">{formatDate(props.task.dueAt)}</span> : null}
         {effort ? <span className="task-effort">{effort}</span> : null}
