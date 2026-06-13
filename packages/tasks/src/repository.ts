@@ -14,7 +14,7 @@ import {
 
 import { HttpError } from "./errors.js";
 import { TaskListsRepository } from "./lists.js";
-import { generateNext } from "./recurrence.js";
+import { generateNext, rollForwardOwnedSeries } from "./recurrence.js";
 
 export interface CreateTaskInput {
   readonly title: string;
@@ -55,6 +55,11 @@ export class TasksRepository {
 
   async listVisible(scopedDb: DataContextDb): Promise<Task[]> {
     assertDataContextDb(scopedDb);
+
+    // Lazy-on-view freshness: advance any stale recurring series before reading so the
+    // list reflects the current occurrence between daily cron ticks. No-op when nothing
+    // is stale. Owner-only (RLS + explicit owner predicate inside rollForwardOwnedSeries).
+    await rollForwardOwnedSeries(scopedDb);
 
     return scopedDb.db
       .selectFrom("app.tasks")

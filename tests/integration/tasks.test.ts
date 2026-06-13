@@ -864,6 +864,36 @@ describe("Tasks module M1", () => {
     expect(occ >= today).toBe(true);
   });
 
+  it("GET /api/tasks returns tags and rolls a stale recurring series forward (lazy-on-view)", async () => {
+    const past = new Date(Date.now() - 21 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+    const today = new Date().toISOString().slice(0, 10);
+    const made = await dataContext.withDataContext(userAContext(), (db) =>
+      repository.create(db, {
+        title: "lazy roll",
+        recurrence: { freq: "weekly", interval: 1, occurrence_date: past }
+      })
+    );
+    const res = await server.inject({
+      method: "GET",
+      url: "/api/tasks",
+      headers: { authorization: `Bearer ${ids.sessionA}` }
+    });
+    expect(res.statusCode).toBe(200);
+    const body = res.json() as { tasks: { id: string; tags: unknown[] }[] };
+    expect(body.tasks.every((t) => Array.isArray(t.tags))).toBe(true);
+
+    const live = await dataContext.withDataContext(userAContext(), (db) =>
+      db.db
+        .selectFrom("app.tasks")
+        .selectAll()
+        .where("recurrence_series_id", "=", made.recurrence_series_id!)
+        .where("status", "=", "todo")
+        .execute()
+    );
+    const occ = (live[0]!.recurrence as Record<string, unknown>)["occurrence_date"] as string;
+    expect(occ >= today).toBe(true);
+  });
+
   it("drift: overdue + at-risk surface Medium+ only; focus orders them", async () => {
     const drift = new TaskDriftRepository();
     await dataContext.withDataContext(userAContext(), async (db) => {
