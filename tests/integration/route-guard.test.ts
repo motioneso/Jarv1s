@@ -264,6 +264,39 @@ describe("registerRouteEnablementGuard end-to-end (bare Fastify)", () => {
     await app.close();
   });
 
+  it("never 404s a CORS preflight: OPTIONS passes the guard even for a disabled module", async () => {
+    // An OPTIONS preflight keys as "OPTIONS /api/weather/today" — on neither the platform
+    // allowlist nor the manifest routes[], so before the short-circuit the guard 404'd it
+    // even though the module is INACTIVE. That would break cross-origin preflight (e.g.
+    // /api/auth/*) the moment Phase 2 adds a containerized/--host topology. The guard must
+    // let OPTIONS through so the route's own OPTIONS handler (or @fastify/cors) can answer.
+    const app = Fastify({ logger: false });
+    let actorResolved = false;
+    app.after(() => {
+      // Register an explicit OPTIONS handler so Fastify has a matched route to answer with.
+      app.options("/api/weather/today", async (_req, reply) => reply.code(204).send());
+      app.get("/api/weather/today", async () => ({ ok: true }));
+      registerRouteEnablementGuard(app, {
+        manifests: [weather],
+        // Module is INACTIVE: a guarded verb (GET) would 404. OPTIONS must still pass.
+        resolveActiveModules: async () => [],
+        resolveAccessContext: async () => {
+          // The guard must short-circuit OPTIONS BEFORE any actor resolution.
+          actorResolved = true;
+          return { actorUserId: "00000000-0000-4000-8000-000000000001" };
+        },
+        platformAllowlist: new Set<string>()
+      });
+    });
+    await app.ready();
+    const res = await app.inject({ method: "OPTIONS", url: "/api/weather/today" });
+    expect(res.statusCode).toBe(204);
+    expect(res.statusCode).not.toBe(404);
+    // The short-circuit happens before access-context resolution, so it is also cheap.
+    expect(actorResolved).toBe(false);
+    await app.close();
+  });
+
   it("FAILS CLOSED: a resolver throw never reaches the route handler", async () => {
     // A resolver/DB error must NEVER silently let a guarded request through (which would
     // re-enable a disabled module). The thrown error becomes a 503 via the guard's

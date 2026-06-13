@@ -33,7 +33,11 @@ import {
 } from "@jarv1s/wellness";
 import type { Medication, MedicationLog } from "@jarv1s/db";
 import type { ToolContext } from "@jarv1s/module-sdk";
-import { aggregateFocusSignals, type FocusSignal } from "@jarv1s/module-sdk";
+import {
+  aggregateFocusSignals,
+  type FocusSignal,
+  type FocusSignalContextRunner
+} from "@jarv1s/module-sdk";
 import { getBuiltInModuleManifests } from "@jarv1s/module-registry";
 import { TasksRepository, registerTasksRoutes } from "@jarv1s/tasks";
 import { BriefingsRepository } from "@jarv1s/briefings";
@@ -664,22 +668,58 @@ describe("focus-signal contribution point", () => {
     expect(signal!.summary.toLowerCase()).toContain("energy");
   });
 
+  // Per-provider context runner mirroring the composition root (apps/api/src/server.ts):
+  // each provider gets its OWN withDataContext (fresh transaction → fresh pg connection).
+  const perProviderContext =
+    (actorUserId: string, requestId: string): FocusSignalContextRunner =>
+    <T>(work: (scopedDb: unknown) => Promise<T>) =>
+      dataContext.withDataContext({ actorUserId, requestId }, (db) => work(db));
+
   it("aggregateFocusSignals fails soft: a throwing provider is treated as no signal", async () => {
     const throwing = async () => {
       throw new Error("boom");
     };
-    const result = await dataContext.withDataContext(ctx(userId), (db) =>
-      aggregateFocusSignals(
-        [
-          { moduleId: "wellness", provider: wellnessFocusSignal },
-          { moduleId: "broken", provider: throwing as never }
-        ],
-        db,
-        { actorUserId: userId, requestId: "req:focus" }
-      )
+    const result = await aggregateFocusSignals(
+      [
+        { moduleId: "wellness", provider: wellnessFocusSignal },
+        { moduleId: "broken", provider: throwing as never }
+      ],
+      perProviderContext(userId, "req:focus"),
+      { actorUserId: userId, requestId: "req:focus" }
     );
     expect(result.some((s) => s.moduleId === "wellness")).toBe(true);
     expect(result.some((s) => (s as FocusSignal).moduleId === "broken")).toBe(false);
+  });
+
+  it("a provider that ABORTS its transaction (25P02) does not poison the others", async () => {
+    // This is the load-bearing per-provider-context property. A bad query aborts the
+    // CURRENT transaction in Postgres; every later statement on that SAME connection fails
+    // with 25P02 ("current transaction is aborted"). If providers shared one transaction,
+    // the poison would cascade and the healthy provider's query would 25P02-fail too — a
+    // total focus outage. Because each provider runs in its OWN withDataContext, the abort
+    // is contained: the broken provider drops (fail-soft) and the healthy one still returns.
+    const poisons = async (scopedDb: unknown) => {
+      // Issue a guaranteed-failing statement to abort THIS provider's transaction, then a
+      // follow-up read that would 25P02 if the txn were shared with the healthy provider.
+      const db = (scopedDb as { db: Kysely<JarvisDatabase> }).db;
+      await sql`select * from definitely_no_such_table_xyz`.execute(db).catch(() => {
+        // swallow the original error; the point is the transaction is now aborted.
+      });
+      // This read runs inside the now-aborted txn → 25P02. Provider throws → dropped.
+      await sql`select 1 as ok`.execute(db);
+      return { moduleId: "poison", readiness: 1, summary: "should never appear" };
+    };
+    const result = await aggregateFocusSignals(
+      [
+        { moduleId: "poison", provider: poisons as never },
+        { moduleId: "wellness", provider: wellnessFocusSignal }
+      ],
+      perProviderContext(userId, "req:focus"),
+      { actorUserId: userId, requestId: "req:focus" }
+    );
+    // The healthy provider survives: its query ran in a SEPARATE, un-poisoned transaction.
+    expect(result.some((s) => s.moduleId === "wellness")).toBe(true);
+    expect(result.some((s) => s.moduleId === "poison")).toBe(false);
   });
 });
 

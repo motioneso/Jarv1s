@@ -196,6 +196,14 @@ export function registerRouteEnablementGuard(server: FastifyInstance, deps: Rout
   const allowlist = deps.platformAllowlist ?? PLATFORM_UNGUARDED_ROUTES;
 
   server.addHook("onRequest", async (request: FastifyRequest, reply: FastifyReply) => {
+    // CORS preflight is never module-gated. An OPTIONS request keys as "OPTIONS <pattern>",
+    // which is on neither the platform allowlist nor any manifest routes[] (manifests
+    // declare only the real verbs), so without this short-circuit the guard would 404 every
+    // preflight — including /api/auth/* — and break cross-origin auth/module calls the
+    // moment Phase 2 introduces a containerized/`--host` topology. normalizeMethod folds
+    // only HEAD→GET; OPTIONS is handled here and is filtered from the coverage accumulator.
+    if (request.method === "OPTIONS") return;
+
     const pattern = request.routeOptions?.url;
     // No matched route (404 from the router itself) — let Fastify's 404 handler run.
     if (!pattern) return;
