@@ -19,20 +19,26 @@ import {
   getChatMultiplexerSettingsRouteSchema,
   getRegistrationSettingsRouteSchema,
   listAdminAuditEventsRouteSchema,
+  listAdminModulesRouteSchema,
   listAuthProviderStatusesRouteSchema,
   listInstanceSettingsRouteSchema,
+  listMyModulesRouteSchema,
   listUsersRouteSchema,
   meRouteSchema,
+  patchModuleEnablementRouteSchema,
   putChatMultiplexerSettingsRouteSchema,
   putRegistrationSettingsRouteSchema,
   upsertInstanceSettingRouteSchema,
   type AdminAuditEventDto,
+  type AdminModuleDto,
   type AuthProviderStatusDto,
   type ChatMultiplexerChoice,
   type InstanceSettingDto,
+  type MyModuleDto,
   type UpsertInstanceSettingRequest,
   type UserDto
 } from "@jarv1s/shared";
+import type { JarvisModuleManifest } from "@jarv1s/module-sdk";
 import { HttpError, handleRouteError as handleModuleRouteError } from "@jarv1s/module-sdk";
 
 import { deleteUserData, LastActiveAdminError } from "../../../scripts/delete-user-data.js";
@@ -47,6 +53,7 @@ export interface SettingsRoutesDependencies {
   readonly dataContext: DataContextRunner;
   readonly resolveAccessContext: (request: FastifyRequest) => Promise<AccessContext>;
   readonly listConfiguredAuthProviders?: () => readonly AuthProviderStatusDto[];
+  readonly listModuleManifests?: () => readonly JarvisModuleManifest[];
   readonly repository?: SettingsRepository;
   readonly revokeUserSessions?: (userId: string) => Promise<number>;
   readonly bootstrapConnectionString?: string;
@@ -470,6 +477,148 @@ export function registerSettingsRoutes(
       }
     }
   );
+
+  function requireManifests(): readonly JarvisModuleManifest[] {
+    return dependencies.listModuleManifests?.() ?? [];
+  }
+
+  function findManifest(id: string): JarvisModuleManifest | undefined {
+    return requireManifests().find((m) => m.id === id);
+  }
+
+  function isRequired(m: JarvisModuleManifest): boolean {
+    return m.availability?.required === true;
+  }
+
+  function supportsUserDisable(m: JarvisModuleManifest): boolean {
+    return m.availability?.supportsUserDisable !== false;
+  }
+
+  server.get(
+    "/api/admin/modules",
+    { schema: listAdminModulesRouteSchema },
+    async (request, reply) => {
+      try {
+        const accessContext = await dependencies.resolveAccessContext(request);
+        const instanceRows = await dependencies.dataContext.withDataContext(
+          accessContext,
+          async (scopedDb) => {
+            await assertAdminUser(repository, scopedDb, accessContext.actorUserId);
+            return repository.listInstanceModuleDenyRows(scopedDb);
+          }
+        );
+        const instanceDisabled = new Set(instanceRows.map((r) => r.module_id));
+        const modules: AdminModuleDto[] = requireManifests().map((m) => ({
+          id: m.id,
+          name: m.name,
+          version: m.version,
+          lifecycle: m.lifecycle,
+          required: isRequired(m),
+          supportsUserDisable: supportsUserDisable(m),
+          instanceDisabled: instanceDisabled.has(m.id)
+        }));
+        return { modules };
+      } catch (error) {
+        return handleRouteError(error, reply);
+      }
+    }
+  );
+
+  server.patch<{ Params: { id: string } }>(
+    "/api/admin/modules/:id",
+    { schema: patchModuleEnablementRouteSchema },
+    async (request, reply) => {
+      try {
+        const accessContext = await dependencies.resolveAccessContext(request);
+        const disabled = parseDisabledBody(request.body);
+        // SECURITY: authorize FIRST, before any manifest lookup or required/unknown
+        // check, so a non-admin can never distinguish unknown (404) vs required (409)
+        // modules — they always get the admin 403. assertAdminUser must run before the
+        // 404/409 branches. All checks live inside one withDataContext.
+        const dto = await dependencies.dataContext.withDataContext(
+          accessContext,
+          async (scopedDb) => {
+            await assertAdminUser(repository, scopedDb, accessContext.actorUserId);
+            const manifest = findManifest(request.params.id);
+            if (!manifest) throw new HttpError(404, "Module not found");
+            if (disabled && isRequired(manifest)) {
+              throw new HttpError(409, "Required modules cannot be disabled");
+            }
+            await repository.setInstanceModuleDisabled(scopedDb, {
+              moduleId: manifest.id,
+              disabled,
+              actorUserId: accessContext.actorUserId,
+              requestId: requireRequestId(accessContext)
+            });
+            return computeMyModuleDto(repository, scopedDb, manifest, accessContext.actorUserId);
+          }
+        );
+        return { module: dto };
+      } catch (error) {
+        return handleRouteError(error, reply);
+      }
+    }
+  );
+
+  server.get("/api/me/modules", { schema: listMyModulesRouteSchema }, async (request, reply) => {
+    try {
+      const accessContext = await dependencies.resolveAccessContext(request);
+      const modules = await dependencies.dataContext.withDataContext(
+        accessContext,
+        async (scopedDb) => {
+          const rows = await repository.listModuleDenyRowsForActor(scopedDb);
+          const instanceDisabled = new Set(
+            rows.filter((r) => r.scope === "instance").map((r) => r.module_id)
+          );
+          const userDisabled = new Set(
+            rows
+              .filter((r) => r.scope === "user" && r.user_id === accessContext.actorUserId)
+              .map((r) => r.module_id)
+          );
+          return requireManifests().map((m) =>
+            toMyModuleDto(m, instanceDisabled.has(m.id), userDisabled.has(m.id))
+          );
+        }
+      );
+      return { modules };
+    } catch (error) {
+      return handleRouteError(error, reply);
+    }
+  });
+
+  server.patch<{ Params: { id: string } }>(
+    "/api/me/modules/:id",
+    { schema: patchModuleEnablementRouteSchema },
+    async (request, reply) => {
+      try {
+        const accessContext = await dependencies.resolveAccessContext(request);
+        const disabled = parseDisabledBody(request.body);
+        const manifest = findManifest(request.params.id);
+        if (!manifest) throw new HttpError(404, "Module not found");
+        if (disabled && isRequired(manifest)) {
+          throw new HttpError(409, "Required modules cannot be disabled");
+        }
+        if (disabled && !supportsUserDisable(manifest)) {
+          throw new HttpError(422, "This module cannot be disabled per-user");
+        }
+        const dto = await dependencies.dataContext.withDataContext(
+          accessContext,
+          async (scopedDb) => {
+            await repository.setUserModuleDisabled(scopedDb, {
+              moduleId: manifest.id,
+              disabled,
+              actorUserId: accessContext.actorUserId,
+              requestId: requireRequestId(accessContext)
+            });
+            return computeMyModuleDto(repository, scopedDb, manifest, accessContext.actorUserId);
+          }
+        );
+        return { module: dto };
+      } catch (error) {
+        return handleRouteError(error, reply);
+      }
+    }
+  );
 }
 
 // The admin check happens INSIDE the route's withDataContext so the admin check and the
@@ -528,6 +677,59 @@ function requireObject(value: unknown): Record<string, unknown> {
   }
 
   return value as Record<string, unknown>;
+}
+
+function parseDisabledBody(body: unknown): boolean {
+  if (!body || typeof body !== "object" || Array.isArray(body)) {
+    throw new HttpError(400, "Expected JSON object body");
+  }
+  const disabled = (body as Record<string, unknown>).disabled;
+  if (typeof disabled !== "boolean") {
+    throw new HttpError(400, "disabled must be a boolean");
+  }
+  return disabled;
+}
+
+function toMyModuleDto(
+  manifest: JarvisModuleManifest,
+  instanceDisabled: boolean,
+  userDisabled: boolean
+): MyModuleDto {
+  const required = manifest.availability?.required === true;
+  const userDisableSupported = manifest.availability?.supportsUserDisable !== false;
+  // Mirror the resolver's rule exactly so the UI and gateway never disagree.
+  const active = required
+    ? true
+    : instanceDisabled
+      ? false
+      : userDisableSupported && userDisabled
+        ? false
+        : true;
+  return {
+    id: manifest.id,
+    name: manifest.name,
+    version: manifest.version,
+    lifecycle: manifest.lifecycle,
+    required,
+    supportsUserDisable: userDisableSupported,
+    instanceDisabled,
+    userDisabled,
+    active
+  };
+}
+
+async function computeMyModuleDto(
+  repository: SettingsRepository,
+  scopedDb: DataContextDb,
+  manifest: JarvisModuleManifest,
+  actorUserId: string
+): Promise<MyModuleDto> {
+  const rows = await repository.listModuleDenyRowsForActor(scopedDb);
+  const instanceDisabled = rows.some((r) => r.scope === "instance" && r.module_id === manifest.id);
+  const userDisabled = rows.some(
+    (r) => r.scope === "user" && r.module_id === manifest.id && r.user_id === actorUserId
+  );
+  return toMyModuleDto(manifest, instanceDisabled, userDisabled);
 }
 
 function serializeUser(user: User): UserDto {
