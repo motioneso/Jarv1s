@@ -139,8 +139,11 @@ describe("Calendar and Email connector-backed read modules", () => {
           relrowsecurity: true,
           relforcerowsecurity: true,
           owner: "jarvis_migration_owner",
-          // email worker grant lands in a later P3 slice (email 0068); still false here.
-          worker_can_select: false
+          // P3 connector-sync (email 0068): the google-sync worker is granted SELECT
+          // (+ INSERT/UPDATE) on email_messages so it can populate the read cache. RLS
+          // still scopes every read/write to the actor; the grant only opens the table to
+          // the worker role under those policies.
+          worker_can_select: true
         }
       ]);
       expect(unsafeColumns.rows).toEqual([]);
