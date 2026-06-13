@@ -16,6 +16,11 @@ import {
   type Clock
 } from "../../packages/chat/src/live/chat-session-manager.js";
 import type { PersonaFs } from "../../packages/chat/src/live/persona.js";
+import {
+  createRealEngineFactory,
+  unavailableEngineFactory,
+  CliChatUnavailableError
+} from "../../packages/chat/src/live/runtime.js";
 import type {
   CliChatEngine,
   EngineLaunchOpts,
@@ -594,5 +599,27 @@ describe("ChatSessionManager", () => {
     const [ra, rb] = await Promise.all([a, b]);
     expect(ra.reply).toBe("reply to: a");
     expect(rb.reply).toBe("reply to: b");
+  });
+});
+
+describe("createRealEngineFactory", () => {
+  it("builds an engine using the injected multiplexer kind", () => {
+    const mux = {
+      kind: "herdr" as const,
+      open: async () => "h",
+      submit: async () => {},
+      isAlive: async () => true,
+      kill: async () => {},
+      attachCommand: () => "herdr"
+    };
+    const engine = createRealEngineFactory({ mux })("anthropic", "thread-1");
+    expect(engine).toBeDefined();
+  });
+});
+
+describe("unavailableEngineFactory", () => {
+  it("throws CliChatUnavailableError when invoked", () => {
+    const factory = unavailableEngineFactory("no multiplexer");
+    expect(() => factory("anthropic", "t")).toThrow(CliChatUnavailableError);
   });
 });

@@ -28,6 +28,7 @@ import { sessionRateLimitKey } from "@jarv1s/module-sdk";
 import { parsePositiveIntEnv } from "@jarv1s/shared";
 
 import { ChatTurnInFlightError } from "./live/chat-session-manager.js";
+import { CliChatUnavailableError } from "./live/errors.js";
 import type { ChatSessionRuntime } from "./live/runtime.js";
 
 // Per-user rate-limit key: hashed session-token/cookie via the shared module-sdk helper
@@ -180,6 +181,16 @@ function handleLiveRouteError(error: unknown, reply: FastifyReply) {
         .code(400)
         .send({ error: "The active chat provider is not supported in this build." });
     }
+  }
+
+  if (error instanceof CliChatUnavailableError) {
+    // Log the underlying cause server-side; send a fixed, sanitized message (the
+    // error covers both "no multiplexer configured" and "launch failed").
+    reply.log?.warn?.(
+      { err: error, cause: (error as { cause?: unknown }).cause },
+      "live chat unavailable"
+    );
+    return reply.code(503).send({ error: "Live chat is currently unavailable on this host." });
   }
 
   // Unexpected error: do not leak the raw message/stack.
