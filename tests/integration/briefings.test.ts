@@ -3,54 +3,44 @@ import type { Kysely } from "kysely";
 import type { PgBoss } from "pg-boss";
 import pg from "pg";
 
-import { createApiServer } from "../../apps/api/src/server.js";
 import { AiRepository, createAiSecretCipher } from "@jarv1s/ai";
-import type { ComposeDeps, GenerateChatFn } from "@jarv1s/briefings";
 import {
   BRIEFINGS_RUN_QUEUE,
-  BriefingsRepository,
   briefingsModuleManifest,
   isBriefingRunPayloadMetadataOnly,
   reconcileSchedule,
-  registerBriefingsJobWorkers,
   type BriefingRunPayload,
-  type BriefingRunResult
+  type BriefingsRepository
 } from "@jarv1s/briefings";
-import type { MemoryRetriever } from "@jarv1s/memory";
-import {
+import type {
   AuthSessionResolver,
   DataContextRunner,
   SharesRepository,
-  createDatabase,
-  type AccessContext,
-  type JarvisDatabase
+  JarvisDatabase
 } from "@jarv1s/db";
 import { createPgBossClient } from "@jarv1s/jobs";
-import { NotificationsRepository } from "@jarv1s/notifications";
 import {
   getBuiltInModuleManifests,
   getBuiltInModuleRegistrations,
   getBuiltInSqlMigrationDirectories
 } from "@jarv1s/module-registry";
-import type { JarvisModuleManifest } from "@jarv1s/module-sdk";
-import { connectionStrings, ids, resetFoundationDatabase } from "./test-database.js";
+import { connectionStrings, ids } from "./test-database.js";
+import {
+  briefingIds,
+  countPgBossJobs,
+  handleNextBriefingJob,
+  makeComposeDeps,
+  setupBriefingsHarness,
+  sourceIds,
+  spyBossSchedule,
+  teardownBriefingsHarness,
+  userAContext,
+  userAHeaders,
+  userBContext,
+  type BriefingsTestHarness
+} from "./briefings.helpers.js";
 
 const { Client } = pg;
-
-const briefingIds = {
-  userBPrivate: "77000000-0000-4000-8000-000000000001",
-  userBWorkspace: "77000000-0000-4000-8000-000000000002"
-} as const;
-
-const sourceIds = {
-  userATask: "78000000-0000-4000-8000-000000000001",
-  userBPrivateTask: "78000000-0000-4000-8000-000000000002",
-  userAWorkspaceTask: "78000000-0000-4000-8000-000000000003",
-  userAConnector: "7a000000-0000-4000-8000-000000000001",
-  userBConnector: "7a000000-0000-4000-8000-000000000002",
-  userAEmail: "7b000000-0000-4000-8000-000000000001",
-  userBPrivateEmail: "7b000000-0000-4000-8000-000000000002"
-} as const;
 
 describe("Briefings module M6 read-only scheduled summaries", () => {
   let appDb: Kysely<JarvisDatabase>;
@@ -58,51 +48,32 @@ describe("Briefings module M6 read-only scheduled summaries", () => {
   let auth: AuthSessionResolver;
   let dataContext: DataContextRunner;
   let repository: BriefingsRepository;
-  let notificationsRepository: NotificationsRepository;
   let sharesRepository: SharesRepository;
   let appBoss: PgBoss;
   let workerBoss: PgBoss;
-  let server: ReturnType<typeof createApiServer>;
+  let server: BriefingsTestHarness["server"];
 
   beforeAll(async () => {
-    await resetFoundationDatabase();
-    await seedBriefingData();
-
-    appDb = createDatabase({
-      connectionString: connectionStrings.app,
-      maxConnections: 1
-    });
-    workerDb = createDatabase({
-      connectionString: connectionStrings.worker,
-      maxConnections: 1
-    });
-    auth = new AuthSessionResolver(appDb);
-    dataContext = new DataContextRunner(appDb);
-    repository = new BriefingsRepository();
-    notificationsRepository = new NotificationsRepository();
-    sharesRepository = new SharesRepository();
-    appBoss = createPgBossClient(connectionStrings.app);
-    workerBoss = createPgBossClient(connectionStrings.worker);
-
-    await appBoss.start();
-    await workerBoss.start();
-
-    server = createApiServer({
-      appDb,
-      boss: appBoss,
-      logger: false
-    });
-    await server.ready();
+    const harness = await setupBriefingsHarness();
+    appDb = harness.appDb;
+    workerDb = harness.workerDb;
+    auth = harness.auth;
+    dataContext = harness.dataContext;
+    repository = harness.repository;
+    sharesRepository = harness.sharesRepository;
+    appBoss = harness.appBoss;
+    workerBoss = harness.workerBoss;
+    server = harness.server;
   });
 
   afterAll(async () => {
-    await Promise.allSettled([
-      server?.close(),
-      appBoss?.stop({ graceful: false }),
-      workerBoss?.stop({ graceful: false }),
-      appDb?.destroy(),
-      workerDb?.destroy()
-    ]);
+    await teardownBriefingsHarness({
+      server,
+      appBoss,
+      workerBoss,
+      appDb,
+      workerDb
+    });
   });
 
   it("applies Briefings migrations with forced RLS and narrow worker table grants", async () => {
@@ -706,666 +677,4 @@ describe("Briefings module M6 read-only scheduled summaries", () => {
       })
     ).rejects.toThrow("Repository access requires withDataContext");
   });
-
-  it("records economy-tier AI model in source_metadata when configured", async () => {
-    const aiRepository = new AiRepository();
-    const providerRow = await dataContext.withDataContext(userAContext(), (scopedDb) =>
-      aiRepository.createProvider(scopedDb, {
-        providerKind: "anthropic",
-        displayName: "Economy summarizer",
-        encryptedCredential: createAiSecretCipher().encryptJson({ apiKey: "briefing-econ-key" })
-      })
-    );
-    const modelRow = await dataContext.withDataContext(userAContext(), (scopedDb) =>
-      aiRepository.createModel(scopedDb, {
-        providerConfigId: providerRow.id,
-        providerModelId: "econ-summarizer",
-        displayName: "Economy Summarizer",
-        capabilities: ["summarization"],
-        tier: "economy"
-      })
-    );
-
-    const definition = await dataContext.withDataContext(userAContext(), (scopedDb) =>
-      repository.createDefinition(scopedDb, {
-        title: "Economy tier briefing",
-        selectedToolNames: ["tasks.list"]
-      })
-    );
-
-    const outcome = await dataContext.withDataContext(userAContext(), (scopedDb) =>
-      repository.generateRun(scopedDb, definition.id, {
-        moduleManifests: getBuiltInModuleManifests(),
-        runKind: "manual",
-        composeDeps: makeComposeDeps(async () => ({ text: "synth narrative" }))
-      })
-    );
-    const run = outcome?.run;
-
-    expect(run?.status).toBe("succeeded");
-    const meta = run?.source_metadata as {
-      aiModel: { id: string; tier: string } | null;
-      degraded: boolean;
-    };
-    expect(meta.degraded).toBe(false);
-    expect(meta.aiModel).not.toBeNull();
-    expect(meta.aiModel?.id).toBe(modelRow.id);
-    expect(meta.aiModel?.tier).toBe("economy");
-  });
-
-  it("briefing tool execute receives a non-empty actorUserId and requestId in ToolContext", async () => {
-    // compose gathers from a FIXED set of read tools (commitments/tasks/calendar/email/
-    // chats). To assert the ToolContext compose passes to a tool's execute, supply ONLY a
-    // capturing manifest that owns one of those names — so it is the sole match compose
-    // finds and executes exactly once.
-    const capturedContexts: { actorUserId: string; requestId: string }[] = [];
-    const capturingManifest: JarvisModuleManifest = {
-      id: "ctx-check",
-      name: "CtxCheck",
-      version: "0.0.0",
-      publisher: "test",
-      lifecycle: "optional",
-      compatibility: { jarv1s: "*" },
-      assistantTools: [
-        {
-          name: "commitments.listVisible",
-          description: "Captures ToolContext for assertion.",
-          permissionId: "commitments.view",
-          risk: "read" as const,
-          execute: async (_db, _input, ctx) => {
-            capturedContexts.push({ actorUserId: ctx.actorUserId, requestId: ctx.requestId });
-            return { data: { commitments: [] } };
-          }
-        }
-      ]
-    };
-
-    const def = await dataContext.withDataContext(
-      { actorUserId: ids.userA, requestId: "r:briefing-ctx-test" },
-      (scopedDb) =>
-        repository.createDefinition(scopedDb, {
-          title: "ToolContext check",
-          selectedToolNames: ["commitments.listVisible"]
-        })
-    );
-
-    const outcome = await dataContext.withDataContext(
-      { actorUserId: ids.userA, requestId: "r:briefing-ctx-run" },
-      (scopedDb) =>
-        repository.generateRun(scopedDb, def.id, {
-          moduleManifests: [capturingManifest],
-          runKind: "manual",
-          composeDeps: makeComposeDeps(undefined, [capturingManifest])
-          // omit runId — let repository generate a UUID
-        })
-    );
-
-    expect(outcome?.run).toBeDefined();
-    expect(capturedContexts).toHaveLength(1);
-    expect(capturedContexts[0]!.actorUserId).toBe(ids.userA);
-    expect(capturedContexts[0]!.requestId).not.toBe("");
-    expect(capturedContexts[0]!.requestId).toMatch(/^briefing:|^pgboss:/);
-  });
-
-  it("falls back deterministically (degraded, status succeeded) when no model is configured", async () => {
-    // No AI model configured for this fresh definition's owner → compose takes the
-    // deterministic degraded fallback. Status stays "succeeded" (there is no
-    // "degraded" enum value — degraded is a source_metadata boolean).
-    const definition = await dataContext.withDataContext(userBContext(), (scopedDb) =>
-      repository.createDefinition(scopedDb, {
-        title: "Degraded briefing",
-        selectedToolNames: ["tasks.list"]
-      })
-    );
-    const outcome = await dataContext.withDataContext(userBContext(), (scopedDb) =>
-      repository.generateRun(scopedDb, definition.id, {
-        moduleManifests: getBuiltInModuleManifests(),
-        runKind: "manual",
-        composeDeps: makeComposeDeps(async () => {
-          throw new Error("synthesis must not be called when there is no model");
-        })
-      })
-    );
-    const run = outcome?.run;
-    const meta = run?.source_metadata as {
-      degraded: boolean;
-      degradedReason: string;
-      aiModel: unknown;
-    };
-
-    expect(run?.status).toBe("succeeded");
-    expect(meta.degraded).toBe(true);
-    expect(meta.degradedReason).toBe("no_model");
-    expect(meta.aiModel).toBeNull();
-  });
-
-  it("never leaks the decrypted provider credential into a synthesized run", async () => {
-    const aiRepository = new AiRepository();
-    const provider = await dataContext.withDataContext(userBContext(), (scopedDb) =>
-      aiRepository.createProvider(scopedDb, {
-        providerKind: "anthropic",
-        displayName: "Secret summarizer",
-        encryptedCredential: createAiSecretCipher().encryptJson({ apiKey: "sk-SECRET-123" })
-      })
-    );
-    await dataContext.withDataContext(userBContext(), (scopedDb) =>
-      aiRepository.createModel(scopedDb, {
-        providerConfigId: provider.id,
-        providerModelId: "secret-summarizer",
-        displayName: "Secret Summarizer",
-        capabilities: ["summarization"],
-        tier: "economy"
-      })
-    );
-    const definition = await dataContext.withDataContext(userBContext(), (scopedDb) =>
-      repository.createDefinition(scopedDb, {
-        title: "Secrets briefing",
-        selectedToolNames: ["tasks.list"]
-      })
-    );
-
-    const outcome = await dataContext.withDataContext(userBContext(), (scopedDb) =>
-      repository.generateRun(scopedDb, definition.id, {
-        moduleManifests: getBuiltInModuleManifests(),
-        runKind: "manual",
-        // The fake adapter echoing the secret would be the worst case; prove the secret
-        // never reaches summary_text or source_metadata regardless of synthesis output.
-        composeDeps: makeComposeDeps(async () => ({ text: "synth narrative" }))
-      })
-    );
-    const run = outcome?.run;
-
-    expect(run?.status).toBe("succeeded");
-    expect(run?.summary_text ?? "").not.toContain("sk-SECRET-123");
-    expect(JSON.stringify(run?.source_metadata)).not.toContain("sk-SECRET-123");
-  });
-
-  it("is idempotent for scheduled runs on the same local day", async () => {
-    const definition = await dataContext.withDataContext(userAContext(), (scopedDb) =>
-      repository.createDefinition(scopedDb, {
-        title: "Scheduled idempotency briefing",
-        cadence: "daily",
-        scheduleMetadata: { targetTime: "06:00", timezone: "UTC" },
-        selectedToolNames: ["tasks.list"]
-      })
-    );
-
-    const first = await dataContext.withDataContext(userAContext(), (scopedDb) =>
-      repository.generateRun(scopedDb, definition.id, {
-        moduleManifests: getBuiltInModuleManifests(),
-        runKind: "scheduled",
-        composeDeps: makeComposeDeps(async () => ({ text: "synth narrative" }))
-      })
-    );
-    const second = await dataContext.withDataContext(userAContext(), (scopedDb) =>
-      repository.generateRun(scopedDb, definition.id, {
-        moduleManifests: getBuiltInModuleManifests(),
-        runKind: "scheduled",
-        composeDeps: makeComposeDeps(async () => ({ text: "synth narrative" }))
-      })
-    );
-
-    expect(first?.created).toBe(true);
-    expect(second?.created).toBe(false);
-    expect(second?.run.id).toBe(first?.run.id);
-
-    const runs = await dataContext.withDataContext(userAContext(), (scopedDb) =>
-      repository.listRuns(scopedDb, definition.id)
-    );
-    expect(runs.filter((r) => r.run_kind === "scheduled")).toHaveLength(1);
-  });
-
-  it("scheduled worker job without a briefingRunId mints one, persists the run, and notifies the owner", async () => {
-    const definition = await dataContext.withDataContext(userAContext(), (scopedDb) =>
-      repository.createDefinition(scopedDb, {
-        title: "Scheduled notify briefing",
-        cadence: "daily",
-        scheduleMetadata: { targetTime: "06:00", timezone: "UTC" },
-        selectedToolNames: ["tasks.list"]
-      })
-    );
-
-    const resultPromise = handleNextBriefingJobWithNotifications(workerBoss);
-    // A scheduled cron fire carries NO briefingRunId — pure metadata only. In production
-    // the cron schedule keys the job by definition id (reconcileSchedule), so give this
-    // direct send a unique singletonKey so the `exclusive` queue actually enqueues it
-    // (a keyless send would collapse onto another keyless job under `exclusive`).
-    await appBoss.send(
-      BRIEFINGS_RUN_QUEUE,
-      {
-        actorUserId: ids.userA,
-        definitionId: definition.id,
-        runKind: "scheduled"
-      } satisfies BriefingRunPayload,
-      { singletonKey: `${definition.id}:sched:1` }
-    );
-    const result = await resultPromise;
-
-    expect(result.status).toBe("succeeded");
-    expect(result.created).toBe(true);
-    // The worker minted a run id even though the payload carried none.
-    expect(result.runId).toMatch(/^[0-9a-f-]{36}$/);
-
-    const runs = await dataContext.withDataContext(userAContext(), (scopedDb) =>
-      repository.listRuns(scopedDb, definition.id)
-    );
-    expect(runs.filter((r) => r.run_kind === "scheduled")).toHaveLength(1);
-    expect(runs[0]?.id).toBe(result.runId);
-
-    const { notifications } = await dataContext.withDataContext(userAContext(), (scopedDb) =>
-      notificationsRepository.listVisible(scopedDb)
-    );
-    const briefingNotifications = notifications.filter(
-      (n) => n.title === "Your morning briefing is ready"
-    );
-    expect(briefingNotifications).toHaveLength(1);
-    const notification = briefingNotifications[0]!;
-    expect(notification.recipient_user_id).toBe(ids.userA);
-    // Metadata-only: definition + run ids, never briefing content.
-    expect(notification.metadata).toEqual({
-      definitionId: definition.id,
-      briefingRunId: result.runId
-    });
-    expect(notification.body).toBeNull();
-  });
-
-  it("manual worker job does not create a briefing-ready notification", async () => {
-    const definition = await dataContext.withDataContext(userAContext(), (scopedDb) =>
-      repository.createDefinition(scopedDb, {
-        title: "Manual no-notify briefing",
-        selectedToolNames: ["tasks.list"]
-      })
-    );
-
-    const resultPromise = handleNextBriefingJobWithNotifications(workerBoss);
-    await appBoss.send(
-      BRIEFINGS_RUN_QUEUE,
-      {
-        actorUserId: ids.userA,
-        definitionId: definition.id,
-        briefingRunId: "7d000000-0000-4000-8000-000000000001",
-        runKind: "manual",
-        idempotencyKey: "briefing-manual-no-notify"
-      } satisfies BriefingRunPayload,
-      { singletonKey: `${definition.id}:key:briefing-manual-no-notify` }
-    );
-    const result = await resultPromise;
-
-    expect(result.status).toBe("succeeded");
-    expect(result.created).toBe(true);
-
-    const { notifications } = await dataContext.withDataContext(userAContext(), (scopedDb) =>
-      notificationsRepository.listVisible(scopedDb)
-    );
-    expect(
-      notifications.filter(
-        (n) =>
-          n.title === "Your morning briefing is ready" &&
-          (n.metadata as { briefingRunId?: string }).briefingRunId ===
-            "7d000000-0000-4000-8000-000000000001"
-      )
-    ).toHaveLength(0);
-  });
-
-  it("does not re-notify on an idempotent same-day scheduled re-fire (exactly one notification)", async () => {
-    const definition = await dataContext.withDataContext(userAContext(), (scopedDb) =>
-      repository.createDefinition(scopedDb, {
-        title: "Scheduled dedupe-notify briefing",
-        cadence: "daily",
-        scheduleMetadata: { targetTime: "06:00", timezone: "UTC" },
-        selectedToolNames: ["tasks.list"]
-      })
-    );
-
-    const firstPromise = handleNextBriefingJobWithNotifications(workerBoss);
-    await appBoss.send(
-      BRIEFINGS_RUN_QUEUE,
-      {
-        actorUserId: ids.userA,
-        definitionId: definition.id,
-        runKind: "scheduled"
-      } satisfies BriefingRunPayload,
-      // Distinct singletonKeys so BOTH fires enqueue and reach the worker — the dedupe
-      // under test is the repository's local-day idempotency, NOT pg-boss singleton.
-      { singletonKey: `${definition.id}:sched:dedupe:1` }
-    );
-    const first = await firstPromise;
-    expect(first.created).toBe(true);
-
-    const secondPromise = handleNextBriefingJobWithNotifications(workerBoss);
-    await appBoss.send(
-      BRIEFINGS_RUN_QUEUE,
-      {
-        actorUserId: ids.userA,
-        definitionId: definition.id,
-        runKind: "scheduled"
-      } satisfies BriefingRunPayload,
-      { singletonKey: `${definition.id}:sched:dedupe:2` }
-    );
-    const second = await secondPromise;
-    // The second fire is an idempotent same-local-day skip.
-    expect(second.created).toBe(false);
-    expect(second.runId).toBe(first.runId);
-
-    const { notifications } = await dataContext.withDataContext(userAContext(), (scopedDb) =>
-      notificationsRepository.listVisible(scopedDb)
-    );
-    expect(
-      notifications.filter(
-        (n) =>
-          n.title === "Your morning briefing is ready" &&
-          (n.metadata as { definitionId?: string }).definitionId === definition.id
-      )
-    ).toHaveLength(1);
-  });
 });
-
-// Build synthesis deps for generateRun in these integration tests. The AI repository
-// and cipher are REAL (so economy-tier model selection + in-worker credential
-// decryption run against the real DB), the vault retriever is a no-op (vault grounding
-// is exercised in the compose unit tests), and the adapter is injected so no real HTTP
-// provider is contacted — the fake `generateChat` returns a fixed narrative by default.
-function makeComposeDeps(
-  generateChat?: GenerateChatFn,
-  moduleManifests: readonly JarvisModuleManifest[] = getBuiltInModuleManifests()
-): ComposeDeps {
-  const noopRetriever = {
-    async retrieve() {
-      return [];
-    },
-    async retrieveRecent() {
-      return [];
-    }
-  } as unknown as MemoryRetriever;
-
-  return {
-    moduleManifests,
-    aiRepository: new AiRepository(),
-    cipher: createAiSecretCipher(),
-    memoryRetriever: noopRetriever,
-    createAdapter: () => ({
-      generateChat: generateChat ?? (async () => ({ text: "synth narrative" }))
-    })
-  };
-}
-
-async function seedBriefingData(): Promise<void> {
-  const client = new Client({ connectionString: connectionStrings.bootstrap });
-
-  await client.connect();
-  try {
-    await client.query("BEGIN");
-    await client.query(
-      `
-        INSERT INTO app.task_lists (owner_user_id, name)
-        VALUES ($1, 'Personal'), ($2, 'Personal')
-        ON CONFLICT DO NOTHING
-      `,
-      [ids.userA, ids.userB]
-    );
-    await client.query(
-      `
-        INSERT INTO app.tasks (id, owner_user_id, title, description, status, list_id)
-        VALUES
-          ($1, $2, 'User A briefing task', 'A task body', 'todo',
-            (SELECT id FROM app.task_lists WHERE owner_user_id = $2 AND name = 'Personal' LIMIT 1)),
-          ($3, $4, 'User B private briefing task', 'B task body', 'todo',
-            (SELECT id FROM app.task_lists WHERE owner_user_id = $4 AND name = 'Personal' LIMIT 1)),
-          ($5, $2, 'User A workspace briefing task', 'Workspace task body', 'todo',
-            (SELECT id FROM app.task_lists WHERE owner_user_id = $2 AND name = 'Personal' LIMIT 1))
-      `,
-      [
-        sourceIds.userATask,
-        ids.userA,
-        sourceIds.userBPrivateTask,
-        ids.userB,
-        sourceIds.userAWorkspaceTask
-      ]
-    );
-    await client.query(
-      `
-        INSERT INTO app.connector_accounts (
-          id,
-          provider_id,
-          owner_user_id,
-          scopes,
-          status,
-          encrypted_secret
-        )
-        VALUES
-          ($1, 'google-email', $2, ARRAY['gmail.readonly']::text[], 'active', '{"ciphertext":"briefing-hidden-ciphertext"}'::jsonb),
-          ($3, 'google-email', $4, ARRAY['gmail.readonly']::text[], 'active', '{"ciphertext":"briefing-hidden-ciphertext"}'::jsonb)
-      `,
-      [sourceIds.userAConnector, ids.userA, sourceIds.userBConnector, ids.userB]
-    );
-    await client.query(
-      `
-        INSERT INTO app.email_messages (
-          id,
-          connector_account_id,
-          owner_user_id,
-          sender,
-          recipients,
-          subject,
-          snippet,
-          body_excerpt,
-          received_at,
-          external_id,
-          external_metadata
-        )
-        VALUES
-          ($1, $2, $3, 'sender-a@example.test', ARRAY['user-a@example.test']::text[], 'User A briefing email', 'A email snippet', 'A email excerpt', '2026-06-06T15:00:00.000Z', 'briefing-email-a', '{"source":"briefings-test"}'::jsonb),
-          ($4, $5, $6, 'sender-b@example.test', ARRAY['user-b@example.test']::text[], 'User B private briefing email', 'B email snippet', 'B email excerpt', '2026-06-06T16:00:00.000Z', 'briefing-email-b', '{"source":"briefings-test"}'::jsonb)
-      `,
-      [
-        sourceIds.userAEmail,
-        sourceIds.userAConnector,
-        ids.userA,
-        sourceIds.userBPrivateEmail,
-        sourceIds.userBConnector,
-        ids.userB
-      ]
-    );
-    await client.query(
-      `
-        INSERT INTO app.briefing_definitions (
-          id,
-          owner_user_id,
-          title,
-          cadence,
-          selected_tool_names
-        )
-        VALUES
-          ($1, $2, 'User B private briefing', 'manual', ARRAY['tasks.list']::text[]),
-          ($3, $2, 'User B workspace briefing', 'daily', ARRAY['tasks.list']::text[])
-      `,
-      [briefingIds.userBPrivate, ids.userB, briefingIds.userBWorkspace]
-    );
-    await client.query("COMMIT");
-  } catch (error) {
-    await client.query("ROLLBACK");
-    throw error;
-  } finally {
-    await client.end();
-  }
-}
-
-async function handleNextBriefingJob(workerBoss: PgBoss): Promise<BriefingRunResult> {
-  const scopedWorkerDb = createDatabase({
-    connectionString: connectionStrings.worker,
-    maxConnections: 1
-  });
-  const workerDataContext = new DataContextRunner(scopedWorkerDb);
-  let workIds: string[] = [];
-
-  try {
-    const resultPromise = new Promise<BriefingRunResult>((resolve, reject) => {
-      const timeout = setTimeout(() => {
-        reject(new Error("Timed out waiting for Briefings worker"));
-      }, 10_000);
-
-      registerBriefingsJobWorkers(workerBoss, workerDataContext, {
-        moduleManifests: getBuiltInModuleManifests(),
-        // Inject a fake-adapter composeDeps so the worker path is deterministic and never
-        // makes a real HTTP provider call (A8 injects the registry-built deps in prod).
-        composeDeps: makeComposeDeps(async () => ({ text: "synth narrative" })),
-        workOptions: { pollingIntervalSeconds: 0.5 },
-        onResult: (_job, result) => {
-          clearTimeout(timeout);
-          resolve(result);
-        }
-      })
-        .then((registeredWorkIds) => {
-          workIds = registeredWorkIds;
-        })
-        .catch((error) => {
-          clearTimeout(timeout);
-          reject(error);
-        });
-    });
-
-    return await resultPromise;
-  } finally {
-    await Promise.all(
-      workIds.map((workId) => workerBoss.offWork(BRIEFINGS_RUN_QUEUE, { id: workId, wait: true }))
-    );
-    await scopedWorkerDb.destroy();
-  }
-}
-
-// Same as handleNextBriefingJob, but injects a REAL NotificationsRepository bound to a
-// fresh worker-role data context so the A8 notification path runs end-to-end through the
-// worker INSERT grant (migration 0071) — proving the worker can actually deliver the
-// "Your morning briefing is ready" notification.
-async function handleNextBriefingJobWithNotifications(
-  workerBoss: PgBoss
-): Promise<BriefingRunResult> {
-  const scopedWorkerDb = createDatabase({
-    connectionString: connectionStrings.worker,
-    maxConnections: 1
-  });
-  const workerDataContext = new DataContextRunner(scopedWorkerDb);
-  let workIds: string[] = [];
-
-  try {
-    const resultPromise = new Promise<BriefingRunResult>((resolve, reject) => {
-      const timeout = setTimeout(() => {
-        reject(new Error("Timed out waiting for Briefings worker"));
-      }, 10_000);
-
-      registerBriefingsJobWorkers(workerBoss, workerDataContext, {
-        moduleManifests: getBuiltInModuleManifests(),
-        composeDeps: makeComposeDeps(async () => ({ text: "synth narrative" })),
-        notificationsRepository: new NotificationsRepository(),
-        workOptions: { pollingIntervalSeconds: 0.5 },
-        onResult: (_job, result) => {
-          clearTimeout(timeout);
-          resolve(result);
-        }
-      })
-        .then((registeredWorkIds) => {
-          workIds = registeredWorkIds;
-        })
-        .catch((error) => {
-          clearTimeout(timeout);
-          reject(error);
-        });
-    });
-
-    return await resultPromise;
-  } finally {
-    await Promise.all(
-      workIds.map((workId) => workerBoss.offWork(BRIEFINGS_RUN_QUEUE, { id: workId, wait: true }))
-    );
-    await scopedWorkerDb.destroy();
-  }
-}
-
-async function countPgBossJobs(): Promise<number> {
-  const client = new Client({ connectionString: connectionStrings.migration });
-
-  await client.connect();
-  try {
-    const result = await client.query<{ count: string }>(
-      "SELECT count(*) AS count FROM pgboss.job"
-    );
-
-    return Number(result.rows[0]?.count ?? 0);
-  } finally {
-    await client.end();
-  }
-}
-
-interface CapturedScheduleCall {
-  readonly name: string;
-  readonly cron: string;
-  readonly data: Record<string, unknown>;
-  readonly tz?: string;
-  readonly key?: string;
-}
-
-interface CapturedUnscheduleCall {
-  readonly name: string;
-  readonly key: string;
-}
-
-/**
- * Wrap the real pg-boss instance's schedule/unschedule so a route test can assert
- * the route reconciled the schedule, while STILL exercising the real boss (the calls
- * pass through to pg-boss). Returns captured calls + a restore().
- */
-function spyBossSchedule(boss: PgBoss): {
-  schedule: CapturedScheduleCall[];
-  unschedule: CapturedUnscheduleCall[];
-  restore: () => void;
-} {
-  const schedule: CapturedScheduleCall[] = [];
-  const unschedule: CapturedUnscheduleCall[] = [];
-  const originalSchedule = boss.schedule.bind(boss);
-  const originalUnschedule = boss.unschedule.bind(boss);
-
-  boss.schedule = (async (name: string, cron: string, data?: object, options?: object) => {
-    schedule.push({
-      name,
-      cron,
-      data: (data ?? {}) as Record<string, unknown>,
-      tz: (options as { tz?: string } | undefined)?.tz,
-      key: (options as { key?: string } | undefined)?.key
-    });
-    return originalSchedule(name, cron, data as never, options as never);
-  }) as typeof boss.schedule;
-
-  boss.unschedule = (async (name: string, key: string) => {
-    unschedule.push({ name, key });
-    return originalUnschedule(name, key);
-  }) as typeof boss.unschedule;
-
-  return {
-    schedule,
-    unschedule,
-    restore: () => {
-      boss.schedule = originalSchedule;
-      boss.unschedule = originalUnschedule;
-    }
-  };
-}
-
-function userAHeaders(): Record<string, string> {
-  return {
-    authorization: `Bearer ${ids.sessionA}`
-  };
-}
-
-function userAContext(): AccessContext {
-  return {
-    actorUserId: ids.userA,
-    requestId: "request:user-a-briefings"
-  };
-}
-
-function userBContext(): AccessContext {
-  return {
-    actorUserId: ids.userB,
-    requestId: "request:user-b-briefings"
-  };
-}
