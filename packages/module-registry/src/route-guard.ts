@@ -1,0 +1,229 @@
+import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
+
+import type { AccessContext } from "@jarv1s/db";
+import type { JarvisModuleManifest } from "@jarv1s/module-sdk";
+
+import type { ActiveModulesResolver } from "@jarv1s/ai";
+
+/** A method+pattern key. Method is upper-cased; pattern is Fastify's matched-route url. */
+export type RouteKey = string;
+
+/**
+ * Normalize an HTTP method for keying. Fastify auto-generates a HEAD handler for every
+ * GET route (`exposeHeadRoutes`, default on), and the guard keys runtime requests by
+ * `request.method` — so an inbound HEAD to a guarded GET route would key as
+ * "HEAD /api/..." and miss the GET-keyed index, returning a spurious guard-404. We fold
+ * HEAD into GET everywhere (index build, runtime lookup, coverage accumulator) so a HEAD
+ * is gated exactly like its GET. OPTIONS is handled separately (filtered from the
+ * accumulator; CORS/preflight is not module-gated).
+ */
+function normalizeMethod(method: string): string {
+  const upper = method.toUpperCase();
+  return upper === "HEAD" ? "GET" : upper;
+}
+
+export function routeKey(method: string, pattern: string): RouteKey {
+  return `${normalizeMethod(method)} ${pattern}`;
+}
+
+/**
+ * Platform/unguarded routes (ADR 0009 §4): the guard skips these. Settings owns
+ * /api/me, /api/bootstrap/status, and /api/admin/*, so a prefix heuristic is unsafe —
+ * the allowlist is explicit. Includes the new admin + self enablement endpoints (a
+ * user must always be able to re-enable a module they disabled).
+ */
+export const PLATFORM_UNGUARDED_ROUTES: ReadonlySet<RouteKey> = new Set<RouteKey>([
+  // health probes
+  routeKey("GET", "/health"),
+  routeKey("GET", "/health/ready"),
+  // platform module listing
+  routeKey("GET", "/api/modules"),
+  // better-auth wildcard: registered as ONE route /api/auth/* across all methods, owned
+  // by no module (platform auth). HEAD folds into GET via normalizeMethod; OPTIONS is
+  // filtered from the coverage accumulator (CORS/preflight), so it is harmless here.
+  routeKey("GET", "/api/auth/*"),
+  routeKey("POST", "/api/auth/*"),
+  routeKey("PATCH", "/api/auth/*"),
+  routeKey("PUT", "/api/auth/*"),
+  routeKey("DELETE", "/api/auth/*"),
+  // settings: pre-auth bootstrap + own profile
+  routeKey("GET", "/api/bootstrap/status"),
+  routeKey("GET", "/api/me"),
+  // settings admin surface (gated by assertAdminUser, not by module enablement)
+  routeKey("GET", "/api/admin/auth/providers"),
+  routeKey("GET", "/api/admin/users"),
+  routeKey("POST", "/api/admin/users/:id/approve"),
+  routeKey("POST", "/api/admin/users/:id/reject"),
+  routeKey("DELETE", "/api/admin/users/:id"),
+  routeKey("POST", "/api/admin/users/:id/reactivate"),
+  routeKey("POST", "/api/admin/users/:id/deactivate"),
+  routeKey("POST", "/api/admin/users/:id/revoke-sessions"),
+  routeKey("POST", "/api/admin/users/:id/promote"),
+  routeKey("POST", "/api/admin/users/:id/demote"),
+  routeKey("GET", "/api/admin/settings"),
+  routeKey("PATCH", "/api/admin/settings/:key"),
+  routeKey("GET", "/api/admin/registration"),
+  routeKey("PUT", "/api/admin/registration"),
+  routeKey("GET", "/api/admin/audit-events"),
+  // NOTE: /api/admin/connectors/accounts is NOT here — it is connector-OWNED (declared
+  // in connectorsModuleManifest.routes[]) so it is guarded by the connectors module's
+  // enablement, not the platform allowlist. Allowlisting it would leave it reachable
+  // after an admin disables connectors. (Only routes owned by NO module belong here.)
+  // new enablement endpoints (admin + self)
+  routeKey("GET", "/api/admin/modules"),
+  routeKey("PATCH", "/api/admin/modules/:id"),
+  routeKey("GET", "/api/me/modules"),
+  routeKey("PATCH", "/api/me/modules/:id")
+]);
+
+export type RouteModuleIndex = ReadonlyMap<RouteKey, string>;
+
+/**
+ * Build a method+pattern → moduleId index from every manifest's routes[]. Throws if two
+ * manifests claim the same method+pattern: a silent last-writer-wins would let the wrong
+ * module's enablement gate a route (e.g. a route stays reachable because a still-active
+ * module accidentally claimed a disabled module's path). A collision is a build error.
+ */
+export function buildRouteModuleIndex(
+  manifests: readonly JarvisModuleManifest[]
+): RouteModuleIndex {
+  const index = new Map<RouteKey, string>();
+  for (const manifest of manifests) {
+    for (const route of manifest.routes ?? []) {
+      const key = routeKey(route.method, route.path);
+      const existing = index.get(key);
+      if (existing !== undefined && existing !== manifest.id) {
+        throw new Error(
+          `Route "${key}" is claimed by two modules ("${existing}" and "${manifest.id}"). ` +
+            `Each route may belong to exactly one module.`
+        );
+      }
+      index.set(key, manifest.id);
+    }
+  }
+  return index;
+}
+
+export function lookupModuleForRoute(
+  index: RouteModuleIndex,
+  method: string,
+  pattern: string
+): string | undefined {
+  return index.get(routeKey(method, pattern));
+}
+
+export interface RegisteredRoute {
+  readonly method: string;
+  readonly url: string;
+}
+
+export interface RouteCoverageInput {
+  readonly registered: readonly RegisteredRoute[];
+  readonly manifests: readonly JarvisModuleManifest[];
+  readonly platformAllowlist: ReadonlySet<RouteKey>;
+}
+
+/**
+ * Boot-time coverage assertion (ADR 0009 §4). Throws if any registered route is
+ * neither claimed by a manifest routes[] entry nor on the platform allowlist, OR if a
+ * manifest declares a route that is not registered (drift). This makes "routes[] is
+ * load-bearing" verifiable rather than aspirational. The guard would have a blind spot
+ * for any uncovered route, so the process must not start.
+ */
+export function assertRouteCoverage(input: RouteCoverageInput): void {
+  const index = buildRouteModuleIndex(input.manifests);
+  const registeredKeys = new Set(input.registered.map((r) => routeKey(r.method, r.url)));
+
+  const uncovered: string[] = [];
+  for (const key of registeredKeys) {
+    if (input.platformAllowlist.has(key)) continue;
+    if (index.has(key)) continue;
+    uncovered.push(key);
+  }
+
+  const drifted: string[] = [];
+  for (const key of index.keys()) {
+    if (!registeredKeys.has(key)) drifted.push(key);
+  }
+
+  if (uncovered.length > 0 || drifted.length > 0) {
+    const parts: string[] = [];
+    if (uncovered.length > 0) {
+      parts.push(
+        `registered routes not claimed by any manifest routes[] or the platform allowlist: ` +
+          uncovered.sort().join(", ")
+      );
+    }
+    if (drifted.length > 0) {
+      parts.push(
+        `manifest routes[] entries with no registered route (drift): ` + drifted.sort().join(", ")
+      );
+    }
+    throw new Error(`Route-coverage assertion failed — ${parts.join("; ")}`);
+  }
+}
+
+export interface RouteGuardDeps {
+  readonly manifests: readonly JarvisModuleManifest[];
+  readonly resolveActiveModules: ActiveModulesResolver;
+  readonly resolveAccessContext: (request: FastifyRequest) => Promise<AccessContext>;
+  readonly platformAllowlist?: ReadonlySet<RouteKey>;
+}
+
+/**
+ * Register a single onRequest hook that 404s a request whose matched route belongs to
+ * a module not active for the actor. onRequest runs after routing, so
+ * request.routeOptions.url is the matched pattern (e.g. /api/tasks/:id). 404 (never
+ * 403) — do not leak that the module exists but is disabled. Platform/unguarded routes
+ * pass through with no actor resolution.
+ *
+ * FAIL-CLOSED + SCRUBBED on resolver/DB error: a resolver throw must NEVER let the
+ * request through (that would silently re-enable a disabled module). We catch it inside
+ * the hook, log the detail SERVER-SIDE only, and return a generic 503 with NO err.message
+ * — the rest of the app routes errors through handleRouteError/HttpError and never lets a
+ * raw error reach Fastify's default handler (which would echo err.message). This onRequest
+ * hook is a new code path outside that convention, so it must scrub here itself (Hard
+ * Invariant: secrets/DB detail never escape to responses or logs in a leakable form).
+ */
+export function registerRouteEnablementGuard(server: FastifyInstance, deps: RouteGuardDeps): void {
+  const index = buildRouteModuleIndex(deps.manifests);
+  const allowlist = deps.platformAllowlist ?? PLATFORM_UNGUARDED_ROUTES;
+
+  server.addHook("onRequest", async (request: FastifyRequest, reply: FastifyReply) => {
+    const pattern = request.routeOptions?.url;
+    // No matched route (404 from the router itself) — let Fastify's 404 handler run.
+    if (!pattern) return;
+
+    const key = routeKey(request.method, pattern);
+    if (allowlist.has(key)) return;
+
+    const moduleId = index.get(key);
+    // Unindexed + not allowlisted: the boot assertion should have prevented deploy.
+    // Fail closed defensively at request time.
+    if (!moduleId) {
+      return reply.code(404).send({ error: "Not found" });
+    }
+
+    let actorUserId: string;
+    try {
+      const access = await deps.resolveAccessContext(request);
+      actorUserId = access.actorUserId;
+    } catch {
+      // Not authenticated — let the route's own handler return its normal 401.
+      return;
+    }
+
+    let active: readonly JarvisModuleManifest[];
+    try {
+      active = await deps.resolveActiveModules(actorUserId);
+    } catch (error) {
+      // FAIL CLOSED: never let a resolver/DB error fall through to the handler. Log the
+      // detail server-side; return a generic 503 with no internal message.
+      request.log.error({ err: error, moduleId }, "module-enablement resolver failed");
+      return reply.code(503).send({ error: "Service unavailable" });
+    }
+    if (!active.some((m) => m.id === moduleId)) {
+      return reply.code(404).send({ error: "Not found" });
+    }
+  });
+}
