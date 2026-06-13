@@ -30,7 +30,7 @@ Give Jarvis its first real **agency win**: when Ben asks ("Jarvis, block two hou
 for deep work"), Jarvis proposes a concrete focus block, Ben approves it through the existing
 Approve/Deny card, and a real event appears on his **primary Google Calendar** — tagged as
 Jarvis-created and conflict-checked against his live availability. This is the first time Jarvis
-*changes the outside world* on the user's behalf, and it does so under the un-skippable
+_changes the outside world_ on the user's behalf, and it does so under the un-skippable
 write→confirm gate (ADR 0005 #3), so the agency is real but never unsupervised.
 
 Concretely: a new module-owned assistant tool `calendar.proposeFocusBlock` (declared `risk: "write"`)
@@ -66,8 +66,8 @@ Both capabilities live in `packages/connectors` (`GoogleConnectionService.getFre
 `google-connection.ts:110`; the `GoogleApiClient` built by the connector-sync slice). But
 `packages/calendar` must **not** import `packages/connectors` (module isolation), and a `ToolExecute`
 handler receives only `(scopedDb, input, ctx)` — no injected services (`packages/module-sdk/src/index.ts:39`).
-The connectors module *could* host the tool itself, but that misplaces a *calendar* write under
-*connectors* and forces connectors to own calendar's cache-mirror and DTOs (rejected below). Instead we
+The connectors module _could_ host the tool itself, but that misplaces a _calendar_ write under
+_connectors_ and forces connectors to own calendar's cache-mirror and DTOs (rejected below). Instead we
 introduce a **generic tool-service injection seam**: the gateway gains an optional per-module
 `ToolServices` map; a module declares (by manifest) that its tools want a named service; the
 composition layer (`packages/chat/src/routes.ts`, where the gateway is already wired) **constructs**
@@ -125,7 +125,7 @@ built**.
   `services.calendarWrite`.
 - **Depends on:** nothing new. Pure type + one-line plumbing extension. **Alternative considered:**
   extend `ToolContext` with the services instead of a 4th arg — rejected because `ToolContext` is a
-  *value-identity* object (`{actorUserId, requestId, chatSessionId}`, `module-sdk:21`) persisted into
+  _value-identity_ object (`{actorUserId, requestId, chatSessionId}`, `module-sdk:21`) persisted into
   action-request summaries; mixing live service objects into it muddies that. A separate 4th arg keeps
   identity and capabilities cleanly separated.
 
@@ -137,8 +137,8 @@ built**.
   and a typed input schema.
   - **Input schema** (validated by `validateToolInput` before the handler runs, `gateway.ts:69`):
     `{ date?: string (ISO yyyy-mm-dd), partOfDay?: "morning"|"afternoon"|"evening", start?: string
-    (ISO datetime), durationMinutes: integer (15..480, default 120), title?: string (default "Focus
-    time") }`. Either `partOfDay` (mapped to a window via documented local-time bands, e.g.
+(ISO datetime), durationMinutes: integer (15..480, default 120), title?: string (default "Focus
+time") }`. Either `partOfDay` (mapped to a window via documented local-time bands, e.g.
     morning=09:00–12:00) **or** an explicit `start` resolves the candidate slot; `date` defaults to the
     next day when only `partOfDay` is given. Timezone: resolved from the primary calendar's timezone
     (fetched once via the Google client `calendars.get` / settings, or defaulting to the connection's
@@ -148,14 +148,14 @@ built**.
     delegates to `service.proposeAndInsert(scopedDb, ctx, resolvedWindow)`. Because the tool is
     `risk:"write"`, the gateway has **already** obtained the user's approval before `execute` is called
     (`confirmAndRun` runs `runHandler` only after `outcome === "confirmed"`, `gateway.ts:158`). So
-    `execute` performs the **real write**. The *proposal preview* shown on the card comes from
+    `execute` performs the **real write**. The _proposal preview_ shown on the card comes from
     `summarize` (next bullet).
   - **`summarize(input, ctx)`** (`ToolSummarize`, `module-sdk:46`): returns the human-readable card
     text, e.g. `Block "Focus time" on Tue Jun 17, 09:00–11:00 (primary calendar)`. **Important
     constraint:** `summarize` is synchronous and pure (`gateway.ts:168` calls it inline, no `await`),
     so it **cannot** call freeBusy. Therefore the **conflict check + slot resolution happens inside
-    `execute`/`proposeAndInsert`**, and the card text from `summarize` reflects the *requested* window;
-    the *resolved* window (after any conflict shift) is reported in the tool result text the user sees
+    `execute`/`proposeAndInsert`**, and the card text from `summarize` reflects the _requested_ window;
+    the _resolved_ window (after any conflict shift) is reported in the tool result text the user sees
     after approval. (See Open risks #1 for the UX nuance and the chosen resolution.)
   - **Pure propose logic** lives in `focus-time.ts`: `resolveWindow(input, now, tz) → {start, end}`
     and `chooseSlot(window, freeBusyBusyIntervals, durationMinutes) → {start, end, shifted: boolean}`
@@ -165,7 +165,7 @@ built**.
 - **How used:** registered automatically via the manifest's `assistantTools` array (the gateway's
   `executableTools` reads `module.assistantTools`, `gateway.ts:184`). No core edit.
 - **Depends on:** the injection seam (component 1) for `services.calendarWrite`; the
-  `CalendarWriteService` interface **declared in `packages/calendar`** (component 3) and *implemented*
+  `CalendarWriteService` interface **declared in `packages/calendar`** (component 3) and _implemented_
   in the composition layer (component 4). Calendar declares the interface it needs; connectors/chat
   satisfy it — dependency points the right way (calendar owns its contract).
 
@@ -175,18 +175,23 @@ built**.
   no `connectors` import leaks in:
 
   ```ts
-  export interface FocusBlockWindow { start: Date; end: Date; title: string; }
+  export interface FocusBlockWindow {
+    start: Date;
+    end: Date;
+    title: string;
+  }
   export interface ProposeFocusResult {
     created: boolean;
-    resolvedStart: string; resolvedEnd: string;   // ISO
-    shifted: boolean;                               // moved from requested window
+    resolvedStart: string;
+    resolvedEnd: string; // ISO
+    shifted: boolean; // moved from requested window
     conflict: "none" | "shifted" | "no-clear-slot";
     googleEventId?: string;
     calendarMirror: "written" | "skipped-rls" | "skipped-error";
   }
   export interface CalendarWriteService {
     proposeAndInsert(
-      scopedDb: unknown,            // DataContextDb; calendar narrows via assertDataContextDb
+      scopedDb: unknown, // DataContextDb; calendar narrows via assertDataContextDb
       ctx: ToolContext,
       window: FocusBlockWindow
     ): Promise<ProposeFocusResult>;
@@ -204,7 +209,7 @@ built**.
 - **What it does:** builds the concrete `CalendarWriteService` and registers it in the gateway's
   `toolServices`. `packages/chat` already constructs the `AssistantToolGateway`
   (`chat/routes.ts:74`) and already depends on `@jarv1s/ai`; it is the natural composition layer (it
-  is *not* a module that another module imports — it is the host that wires the gateway). The impl
+  is _not_ a module that another module imports — it is the host that wires the gateway). The impl
   closes over:
   - `GoogleConnectionService.getFreshAccessToken(scopedDb)` → the per-call access token.
   - `GoogleApiClient` (from the connector-sync slice) → `freeBusy.query` + `events.insert`.
@@ -213,14 +218,14 @@ built**.
   - `CalendarRepository.upsertCachedEvent` (the production upsert added by the connector-sync slice,
     component 5 there) → the mirror.
   - `chooseSlot`/`resolveWindow` from `packages/calendar` for the pure logic (imported from
-    `@jarv1s/calendar` public exports — chat may import calendar; the *forbidden* direction is calendar
+    `@jarv1s/calendar` public exports — chat may import calendar; the _forbidden_ direction is calendar
     → connectors).
   - `proposeAndInsert` flow: `getFreshAccessToken` → `freeBusy.query({timeMin,timeMax,items:[{id:
-    "primary"}]})` → `chooseSlot` → if `no-clear-slot` return early (no write) → else
+"primary"}]})` → `chooseSlot` → if `no-clear-slot` return early (no write) → else
     `events.insert({calendarId:"primary", start, end, summary:title,
-    extendedProperties:{private:{jarvisCreated:"true", jarvisTool:"proposeFocusBlock"}}})` → on success,
+extendedProperties:{private:{jarvisCreated:"true", jarvisTool:"proposeFocusBlock"}}})` → on success,
     attempt the cache mirror via `upsertCachedEvent` (catch RLS/other errors → `calendarMirror:
-    "skipped-rls"|"skipped-error"`, never fail the whole call — the Google event is the source of
+"skipped-rls"|"skipped-error"`, never fail the whole call — the Google event is the source of
     truth).
 - **How used:** in `registerChatRoutes`, when the gateway is constructed, build the impl **only when**
   the necessary deps are available (a `GoogleConnectionService` + Google client factory passed down
@@ -230,13 +235,13 @@ built**.
 - **Depends on:** `@jarv1s/connectors` (allowed — chat is the composition host, not a peer module),
   `@jarv1s/calendar` (pure logic + upsert), the Google client from the connector-sync slice.
   **Why this site, not the connectors module hosting the tool (the alternative):** siting the tool in
-  `connectors` would (a) put a *calendar* write tool under the *connectors* surface and permission
+  `connectors` would (a) put a _calendar_ write tool under the _connectors_ surface and permission
   (`connectors.manage`, semantically wrong — this is a calendar action), (b) force `connectors` to own
   the calendar cache-mirror upsert and any calendar DTO, re-introducing the cross-module reach the
   module contract exists to prevent (ADR 0005 #2 calls the central-switch reach "exactly the rot a
   connector contract exists to prevent"), and (c) couple the focus-time tool's lifecycle to connectors
-  rather than calendar. The injection seam keeps the tool *in calendar* (correct ownership, correct
-  permission) while the *credential + Google I/O* stay *in connectors* (correct secret containment),
+  rather than calendar. The injection seam keeps the tool _in calendar_ (correct ownership, correct
+  permission) while the _credential + Google I/O_ stay _in connectors_ (correct secret containment),
   joined only at the composition layer that is already allowed to see both. This is the same shape the
   gateway itself uses (it lives in `ai`/`chat` and reaches every module's tools through a generic
   contract, not by importing module internals).
@@ -257,7 +262,7 @@ built**.
     (it already has the connectors crypto cipher + repository wiring from M-B1).
 - **How used:** purely wiring; no behavior beyond making component 4 constructible.
 - **Depends on:** the connector-sync slice's `GoogleApiClient` export existing. If the focus-time slice
-  builds *before* connector-sync merges, this is the **blocking** dependency (see Open risks #4).
+  builds _before_ connector-sync merges, this is the **blocking** dependency (see Open risks #4).
 
 ### 6. OAuth granted-scope verification + re-consent path — `packages/connectors` (verify) + Settings/chat copy
 
@@ -268,8 +273,8 @@ built**.
   `CalendarWriteService` checks the active account's `scopes` include
   `https://www.googleapis.com/auth/calendar`. If a **pre-existing** account (connected before this
   scope was added, or one that granted a narrower set) lacks it, the tool returns a clear, actionable
-  result: *"Your Google connection doesn't have calendar-write permission yet — reconnect in Settings
-  to grant it,"* and does **not** attempt the insert. The re-consent path reuses the **existing**
+  result: _"Your Google connection doesn't have calendar-write permission yet — reconnect in Settings
+  to grant it,"_ and does **not** attempt the insert. The re-consent path reuses the **existing**
   `buildAuthUrl`, which **already** sets `prompt=consent` and `access_type=offline`
   (`oauth.ts:79`), so re-running the Settings connect flow re-prompts and re-stores `grantedScopes` —
   **no new OAuth code is required**, only the scope check + the guidance copy. The scope check reads
@@ -310,29 +315,30 @@ waiter → `confirmAndRun` proceeds to `runHandler`.
 **Execution (the real write, inside `withDataContext` under the actor's RLS):** `runHandler`
 (`gateway.ts:96`) builds `AccessContext {actorUserId, requestId}` and calls
 `found.execute(scopedDb, input, ctx, toolServices)` →
+
 1. tool narrows `services.calendarWrite`, `resolveWindow(input, now, tz)` → candidate window.
 2. `service.proposeAndInsert(scopedDb, ctx, window)`:
    a. `hasCalendarWriteScope(scopedDb)` — if false → return `{created:false, conflict:"none",
-      calendarMirror:"skipped-error"}` with the re-consent message; **no Google call**.
+calendarMirror:"skipped-error"}` with the re-consent message; **no Google call**.
    b. `getFreshAccessToken(scopedDb)` (`google-connection.ts:110`; refreshes + re-encrypts if <60 s to
-      expiry — needs the connector account to be readable/updatable under RLS, which it is for
-      `jarvis_app_runtime` since this runs in the **API** process, not the worker).
+   expiry — needs the connector account to be readable/updatable under RLS, which it is for
+   `jarvis_app_runtime` since this runs in the **API** process, not the worker).
    c. `googleApiClient.freeBusy({accessToken, timeMin:windowStart, timeMax:windowEnd,
-      items:[{id:"primary"}]})` → busy intervals.
+items:[{id:"primary"}]})` → busy intervals.
    d. `chooseSlot(window, busy, durationMinutes)` → `{start, end, shifted}` or `no-clear-slot`.
    e. if `no-clear-slot` → return `{created:false, conflict:"no-clear-slot"}` (no write).
    f. else `googleApiClient.insertEvent({accessToken, calendarId:"primary", start, end,
-      summary:title, extendedProperties:{private:{jarvisCreated:"true",
-      jarvisTool:"proposeFocusBlock"}}})` → `{ googleEventId }`.
+summary:title, extendedProperties:{private:{jarvisCreated:"true",
+jarvisTool:"proposeFocusBlock"}}})` → `{ googleEventId }`.
    g. **cache mirror (best-effort, gated):** `getActiveGoogleAccountSecret(scopedDb)` → `connector
-      _account_id` → `calendarRepository.upsertCachedEvent(scopedDb, {connectorAccountId, externalId:
-      googleEventId, title, startsAt:start, endsAt:end, externalMetadata:{jarvisCreated:true,
-      htmlLink, source:"proposeFocusBlock"}})`. The calendar INSERT policy requires
-      `provider_type IN (…,'google')` + calendar scope (connector-sync migration 0065). If that
-      migration has not landed the INSERT fails the `WITH CHECK` → catch → `calendarMirror:
-      "skipped-rls"`. Any other error → `"skipped-error"`. **Never throws out of `proposeAndInsert`.**
+_account_id` → `calendarRepository.upsertCachedEvent(scopedDb, {connectorAccountId, externalId:
+googleEventId, title, startsAt:start, endsAt:end, externalMetadata:{jarvisCreated:true,
+htmlLink, source:"proposeFocusBlock"}})`. The calendar INSERT policy requires
+   `provider_type IN (…,'google')` + calendar scope (connector-sync migration 0065). If that
+   migration has not landed the INSERT fails the `WITH CHECK` → catch → `calendarMirror:
+"skipped-rls"`. Any other error → `"skipped-error"`. **Never throws out of `proposeAndInsert`.**
    h. return `{created:true, resolvedStart, resolvedEnd, shifted, conflict: shifted?"shifted":"none",
-      googleEventId, calendarMirror}`.
+googleEventId, calendarMirror}`.
 3. `runHandler` wraps the result via `renderToolResult` → the tool's textual reply to Jarvis →
    `confirmAndRun` emits an `action_result` card (`executed`/`error`) → Jarvis tells Ben the resolved
    time (and whether it was shifted / blocked).
@@ -347,7 +353,7 @@ scope** here — the data carries the flag).
 `CalendarWriteService` (already in the gateway's `toolServices`) or calls `proposeAndInsert` directly
 with a window it chose, and surfaces an Approve/Deny the same way. No focus-time code changes for that.
 
-**Migrations:** **this slice adds none of its own.** It *depends on* the connector-sync slice's
+**Migrations:** **this slice adds none of its own.** It _depends on_ the connector-sync slice's
 calendar migration (`0065_calendar_worker_grants_and_google_insert.sql`) for the
 `provider_type IN (…,'google')` INSERT relaxation that the cache mirror needs. If the build sequence
 ever puts focus-time first, the mirror simply runs in `skipped-rls` mode until connector-sync lands —
@@ -421,7 +427,7 @@ Citing the CLAUDE.md **Hard Invariants**:
   metadata-only `action_request` (tool name, permission, risk, input summary) the gateway already
   writes.
 - **Module isolation.** `packages/calendar` does **not** import `packages/connectors`. The calendar
-  tool depends only on the `CalendarWriteService` *interface it owns* (component 3); the *implementation*
+  tool depends only on the `CalendarWriteService` _interface it owns_ (component 3); the _implementation_
   that touches connectors is built in the composition host (`packages/chat`), which is allowed to see
   both. The injection seam is generic (component 1), not a calendar special-case. The calendar tool
   writes only `app.calendar_events` (its own table) via its own repository.
@@ -458,12 +464,12 @@ is faked at the `fetch` boundary (the `GoogleApiClient` takes an injectable `fet
   timezone to a window (table-driven: morning/afternoon/evening, explicit start, default tomorrow,
   duration clamping 15..480). `chooseSlot` against synthetic busy intervals: empty window → requested
   slot; partial overlap → shifted to next clear slot (`shifted:true`); fully busy day/part → `no-clear-
-  slot`; exact-fit gap chosen.
+slot`; exact-fit gap chosen.
 - **Injection seam (`gateway` + `module-sdk`, integration):** a fake module with a tool declaring
   `requiresServices:["x"]` whose `execute` reads `services.x` receives the registered service; a tool
   that ignores the 4th arg still runs (backwards compat); `requiresServices` key absent from
   `toolServices` is asserted at wiring (build-time guard test). Existing tools (`calendar
-  .listVisibleEvents`, `tasks.focus`, etc.) still dispatch unchanged.
+.listVisibleEvents`, `tasks.focus`, etc.) still dispatch unchanged.
 - **`CalendarWriteService` impl (integration, faked Google `fetch`):**
   - happy path: scope present → freeBusy returns empty → insert called with `calendarId:"primary"`,
     correct `start/end/summary`, `extendedProperties.private.jarvisCreated:"true"` → returns
@@ -475,7 +481,7 @@ is faked at the `fetch` boundary (the `GoogleApiClient` takes an injectable `fet
     called**.
   - no connection / refresh failure / Google non-2xx: each → `created:false` (or generic failure), no
     leaked secret/body in any error string.
-  - mirror skip: with the calendar INSERT policy *not* relaxed (simulate by using a non-google
+  - mirror skip: with the calendar INSERT policy _not_ relaxed (simulate by using a non-google
     connector account) → insert succeeds (Google faked) but mirror → `skipped-rls`, call still
     `created:true`.
 - **No-write-without-approval (the safety property, integration):** drive the full gateway path; a
@@ -513,8 +519,7 @@ is faked at the `fetch` boundary (the `GoogleApiClient` takes an injectable `fet
    busy window is shifted to the next clear slot within the same part-of-day (`shifted:true`), and a
    fully-busy window returns `no-clear-slot` with **no insert**.
 5. The created event is **mirrored** into `app.calendar_events` with
-   `external_metadata.jarvisCreated:true` when the connector-sync RLS relaxation (calendar migration
-   0065) is present; when it is absent the mirror is **skipped** (`calendarMirror:"skipped-rls"`) and
+   `external_metadata.jarvisCreated:true` when the connector-sync RLS relaxation (calendar migration 0065) is present; when it is absent the mirror is **skipped** (`calendarMirror:"skipped-rls"`) and
    the call still succeeds (the Google event is the source of truth). The mirror is best-effort and
    never fails the call.
 6. A **generic** tool-service injection seam exists: `ModuleAssistantToolManifest.requiresServices?`,
@@ -576,8 +581,8 @@ is faked at the `fetch` boundary (the `GoogleApiClient` takes an injectable `fet
    approve "09:00–11:00" and get "10:00–12:00" (the next clear slot). **Chosen resolution:** the card
    text explicitly says "(or the next clear slot if busy)" and the post-approval tool reply states the
    **resolved** time; the shift is bounded to the same date/part-of-day. **Alternative (heavier, noted):**
-   a two-step tool (`proposeFocusBlock` returns a concrete slot as a *read*, then a separate
-   `confirmFocusBlock` *write* inserts the exact slot the card showed) — rejected for the MVP as
+   a two-step tool (`proposeFocusBlock` returns a concrete slot as a _read_, then a separate
+   `confirmFocusBlock` _write_ inserts the exact slot the card showed) — rejected for the MVP as
    double the round-trips and tool count, but it is the clean upgrade if approve-then-shift proves
    confusing in the live round-trip. Re-evaluate after Ben uses it.
 2. **Hard build-order dependency on connector-sync.** The `GoogleApiClient` (`events.insert` +

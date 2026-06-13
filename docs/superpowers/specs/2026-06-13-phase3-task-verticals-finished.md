@@ -49,7 +49,7 @@ Finish the three remaining task verticals so the Tasks module is a complete dail
 This is **one focused new spec** because recurrence-as-scheduled-materialization is genuinely
 new design (roll-forward semantics, a per-actor cron schedule, a worker INSERT grant, a
 lazy-on-view safety net) not pinned by the foundation spec — which shipped recurrence as
-*completion-driven only*. Tag assignment and rename/delete are mechanical contract/CRUD work
+_completion-driven only_. Tag assignment and rename/delete are mechanical contract/CRUD work
 folded into the same slice because they touch the same files (`repository.ts`, `lists.ts`,
 `routes.ts`, `serialize.ts`, `tasks-api.ts`, the mocks) and should land the contract change
 once.
@@ -117,7 +117,7 @@ Each component lists: **what it does · how it is used · what it depends on.**
   Roll-forward **mutates the existing live instance in place** rather than inserting a new row —
   this is the "one live instance, missed rolls forward without stacking" rule (decision #9):
   skipping N missed occurrences must not create N rows. (Contrast: `generateNext`, the
-  completion path, inserts a *new* `todo` row because the prior instance is now `done` — that is
+  completion path, inserts a _new_ `todo` row because the prior instance is now `done` — that is
   correct because completion is the user acknowledging the occurrence happened.)
 - **How used:** Called by the cron worker (component D) for the fired actor, and by the
   lazy-on-view read path (component E) inside the same `withDataContext` scope. Both are
@@ -152,7 +152,7 @@ Each component lists: **what it does · how it is used · what it depends on.**
 - **Depends on:** `@jarv1s/jobs` (`ActorScopedJobPayload`, `QueueDefinition`,
   `registerDataContextWorker`, `sendJob`). `actorUserId` and `idempotencyKey` are already in
   `ALLOWED_PAYLOAD_KEYS` (`pg-boss.ts:45-58`) — **no change to that set is needed** (this is the
-  "series id discovered under RLS, never in payload" decision; if a future revision *did* put a
+  "series id discovered under RLS, never in payload" decision; if a future revision _did_ put a
   series id in the payload it would require adding a key to `ALLOWED_PAYLOAD_KEYS`).
 
 ### C. Recurrence — per-actor schedule reconcile (`packages/tasks/src/recurrence-schedule.ts`, new)
@@ -243,7 +243,7 @@ Each component lists: **what it does · how it is used · what it depends on.**
   to `taskDtoSchema` (add `tags` to `required` and to `properties` as
   `{ type: "array", items: taskTagDtoSchema }`, `tasks-api.ts:129-169`). `TaskTagDto` and
   `taskTagDtoSchema` already exist (`tasks-api.ts:440-470`) and must be **defined above**
-  `taskDtoSchema` references it — note `taskTagDtoSchema` is currently declared *after*
+  `taskDtoSchema` references it — note `taskTagDtoSchema` is currently declared _after_
   `taskDtoSchema`, so either move `taskTagDtoSchema` above `taskDtoSchema` or inline the items
   schema; the implementer must resolve this ordering so the `as const` schema is valid. Add two
   new request/response contracts: `AssignTaskTagRequest { tagId: string }` →
@@ -318,13 +318,13 @@ Each component lists: **what it does · how it is used · what it depends on.**
     (return `409`); creating tasks resolves-or-creates "Personal" (`lists.ts:8`), so at least one
     list should always exist.
   - `renameTag(db, listId, tagId, name)` — `UPDATE app.task_tags SET name=? WHERE id=? AND
-    list_id=?`; relies on `task_tags_list_name_idx` (`0039:24`) for duplicate rejection (→ `409`).
+list_id=?`; relies on `task_tags_list_name_idx` (`0039:24`) for duplicate rejection (→ `409`).
   - `deleteTag(db, listId, tagId)` — `DELETE FROM app.task_tags WHERE id=? AND list_id=?`;
     assignments cascade automatically (`task_tag_assignments.tag_id ... ON DELETE CASCADE`,
     `0039:29`). No 409 path — tag delete is always allowed.
 - **How used:** Routes (component K) call these inside `withDataContext`.
 - **Depends on:** RLS owner-only on `task_lists`/`task_tags` (`0039:143-151`); the `ON DELETE
-  RESTRICT` and `ON DELETE CASCADE` FKs; `isOwnedByActor`.
+RESTRICT` and `ON DELETE CASCADE` FKs; `isOwnedByActor`.
 
 ### K. List/tag rename + delete — routes (`packages/tasks/src/routes.ts`, `manifest.ts`, shared)
 
@@ -372,7 +372,7 @@ Each component lists: **what it does · how it is used · what it depends on.**
 
 - **What:** `createMockTask` (`mock-api.ts:434`) adds `tags: []` so the e2e `TaskDto` matches the
   contract. Add mock handlers for `POST/DELETE /api/tasks/:id/tags`, `PATCH/DELETE
-  /api/tasks/lists/:listId`, `PATCH/DELETE /api/tasks/lists/:listId/tags/:tagId` so the new UI
+/api/tasks/lists/:listId`, `PATCH/DELETE /api/tasks/lists/:listId/tags/:tagId` so the new UI
   paths are routable in e2e. The existing tag list mock `handleTaskTagsRoute`
   (`mock-api.ts:316`) returns a tag with `listId: "list-1"` — reuse for the detail-page tag
   picker.
@@ -384,6 +384,7 @@ Each component lists: **what it does · how it is used · what it depends on.**
 ## Data flow
 
 **Scheduled recurrence (cron path):**
+
 1. Worker boss starts with `{ schedule: true }` (shared briefings change,
    `apps/worker/src/worker.ts:46`); pg-boss evaluates `pgboss.schedule` rows.
 2. A user's daily schedule row (key = `actorUserId`, written by component C) fires at the cron
@@ -396,13 +397,14 @@ Each component lists: **what it does · how it is used · what it depends on.**
    (component A). No new rows; no duplicates (unique index backstop).
 
 **Lazy-on-view (read path):**
+
 1. `GET /api/tasks` → `resolveAccessContext` → `withDataContext` → `repository.listVisible`.
 2. `listVisible` first calls `rollForwardOwnedSeries(scopedDb)` (no-op if nothing stale), then
    reads tasks + joins tags (component H) and serializes with `tags` populated.
 
 **Completion (unchanged primary path):** `PATCH /api/tasks/:id { status: "done" }` →
 `repository.update` → on a recurring `done` task, `generateNext` inserts the next instance
-(`repository.ts:258`). The cron and lazy paths never duplicate this because a *completed* series
+(`repository.ts:258`). The cron and lazy paths never duplicate this because a _completed_ series
 has no live `todo` instance to roll forward — the new live instance `generateNext` created is
 already at the next occurrence.
 
@@ -471,7 +473,7 @@ and `tests/integration/tasks.test.ts` assertions that read serialized tasks.
 - **Secrets never escape.** No secrets touched. `TaskDto.tags` carries only tag id/name/listId —
   no secret surface. Structured logs emit name+message only (`pg-boss.ts:97` precedent).
 - **Module isolation.** All work is inside the `tasks` module + its shared contract + its web
-  surface. No other module's tables are read or written. The cron reuses the *generic* pg-boss
+  surface. No other module's tables are read or written. The cron reuses the _generic_ pg-boss
   engine in `@jarv1s/jobs`, not the briefings module's internals — the two slices share only the
   `createPgBossClient` foundation knob and each registers its own queue/schedule.
 - **Provider-agnostic AI.** No AI provider or model is referenced; this slice adds no AI calls.
@@ -579,7 +581,7 @@ in its own `recurrence-schedule.ts`; consider a `tags.ts` repository split).
   `tasks_hierarchy_guard` trigger still forbids a recurring task being a parent
   (`0039:101-108`). Unchanged here.
 - **Weekly/monthly cron cadence per schedule.** The schedule fires **daily** and rolls forward
-  whatever is due; the recurrence *spec* (daily/weekly/monthly) lives in the task's `recurrence`
+  whatever is due; the recurrence _spec_ (daily/weekly/monthly) lives in the task's `recurrence`
   jsonb, not in the cron cadence. Distinct schedule cadences are unnecessary.
 - **Unschedule on last-recurring-task-deleted.** The per-actor schedule persists; the job is a
   cheap no-op when the actor has no live recurring series. A cleanup pass is deferred.
@@ -605,7 +607,7 @@ in its own `recurrence-schedule.ts`; consider a `tags.ts` repository split).
    bites, the cron alone is sufficient for correctness and the lazy path can be gated to the
    recurring subset only (already the plan).
 3. **`taskTagDtoSchema` declaration order in `tasks-api.ts`.** `taskDtoSchema` (line 129) is
-   defined *before* `taskTagDtoSchema` (line 460); referencing the latter inside the former
+   defined _before_ `taskTagDtoSchema` (line 460); referencing the latter inside the former
    requires reordering or inlining. A mechanical but easy-to-miss compile break — flagged in
    component G.
 4. **N+1 on the tag join.** The list/subtask reads must batch the tag fetch
@@ -617,7 +619,7 @@ in its own `recurrence-schedule.ts`; consider a `tags.ts` repository split).
    landing and update the manifest accordingly (Fleet Operations memory: numbers are global by
    landing order).
 6. **`createPgBossClient` `schedule: true` blast radius.** Enabling the cron engine in the worker
-   is a foundation change; if it is *not* yet merged when this slice builds, the recurrence cron
+   is a foundation change; if it is _not_ yet merged when this slice builds, the recurrence cron
    silently won't fire (lazy-on-view still keeps the UI correct, so tests that don't simulate a
    fired job still pass — masking the gap). The integration test should exercise
    `rollForwardOwnedSeries` directly (not via a real cron tick) so correctness is verified

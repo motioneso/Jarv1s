@@ -82,30 +82,30 @@ pnpm audit:preflight   # must exit 0 (tree not behind origin/main); see CLAUDE.m
 
 **New files:**
 
-| File | Responsibility |
-| --- | --- |
-| `packages/calendar/src/focus-time.ts` | Pure, I/O-free propose logic: `resolveWindow(input, now, tz)` and `chooseSlot(window, busyIntervals, durationMinutes)`. Unit-testable. |
-| `packages/calendar/src/calendar-write-service.ts` | Interface-only: `FocusBlockWindow`, `ProposeFocusResult`, `CalendarWriteService`. Owned by calendar; imports only `@jarv1s/module-sdk`. No `@jarv1s/connectors`. |
-| `packages/chat/src/calendar-write-impl.ts` | Concrete `CalendarWriteService` builder closing over `GoogleConnectionService`, `GoogleApiClient`, the connectors repository, and `CalendarRepository.upsertCachedEvent`. The only site that joins calendar logic to connector I/O. |
-| `tests/integration/focus-time.test.ts` | Integration suite: injection seam, scope check, impl happy/conflict/missing-scope/mirror-skip, and the no-write-without-approval safety property (full gateway path). |
-| `packages/calendar/test/focus-time-logic.test.ts` | Unit tests for the pure `resolveWindow`/`chooseSlot` logic (no DB, no Postgres). |
+| File                                              | Responsibility                                                                                                                                                                                                                      |
+| ------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `packages/calendar/src/focus-time.ts`             | Pure, I/O-free propose logic: `resolveWindow(input, now, tz)` and `chooseSlot(window, busyIntervals, durationMinutes)`. Unit-testable.                                                                                              |
+| `packages/calendar/src/calendar-write-service.ts` | Interface-only: `FocusBlockWindow`, `ProposeFocusResult`, `CalendarWriteService`. Owned by calendar; imports only `@jarv1s/module-sdk`. No `@jarv1s/connectors`.                                                                    |
+| `packages/chat/src/calendar-write-impl.ts`        | Concrete `CalendarWriteService` builder closing over `GoogleConnectionService`, `GoogleApiClient`, the connectors repository, and `CalendarRepository.upsertCachedEvent`. The only site that joins calendar logic to connector I/O. |
+| `tests/integration/focus-time.test.ts`            | Integration suite: injection seam, scope check, impl happy/conflict/missing-scope/mirror-skip, and the no-write-without-approval safety property (full gateway path).                                                               |
+| `packages/calendar/test/focus-time-logic.test.ts` | Unit tests for the pure `resolveWindow`/`chooseSlot` logic (no DB, no Postgres).                                                                                                                                                    |
 
 **Modified files:**
 
-| File | Change |
-| --- | --- |
-| `packages/module-sdk/src/index.ts` | Add `ToolServices` type, extend `ToolExecute` with optional 4th `services` arg, add `requiresServices?` to `ModuleAssistantToolManifest`. |
-| `packages/ai/src/gateway/gateway.ts` | Add `toolServices?: ToolServices` to deps; pass `this.deps.toolServices ?? {}` as the 4th arg in `runHandler`. |
-| `packages/calendar/src/tools.ts` | Add `calendarProposeFocusBlockExecute` (`ToolExecute`) and `summarizeProposeFocusBlock` (`ToolSummarize`). |
-| `packages/calendar/src/manifest.ts` | Add the `calendar.proposeFocusBlock` entry to `assistantTools`. |
-| `packages/calendar/src/index.ts` | Export `focus-time.js` and `calendar-write-service.js`. |
+| File                                           | Change                                                                                                                                                                   |
+| ---------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `packages/module-sdk/src/index.ts`             | Add `ToolServices` type, extend `ToolExecute` with optional 4th `services` arg, add `requiresServices?` to `ModuleAssistantToolManifest`.                                |
+| `packages/ai/src/gateway/gateway.ts`           | Add `toolServices?: ToolServices` to deps; pass `this.deps.toolServices ?? {}` as the 4th arg in `runHandler`.                                                           |
+| `packages/calendar/src/tools.ts`               | Add `calendarProposeFocusBlockExecute` (`ToolExecute`) and `summarizeProposeFocusBlock` (`ToolSummarize`).                                                               |
+| `packages/calendar/src/manifest.ts`            | Add the `calendar.proposeFocusBlock` entry to `assistantTools`.                                                                                                          |
+| `packages/calendar/src/index.ts`               | Export `focus-time.js` and `calendar-write-service.js`.                                                                                                                  |
 | `packages/connectors/src/google-api-client.ts` | Add `freeBusy` + `insertEvent` methods, `GoogleFreeBusyResult`/`GoogleInsertedEvent` types, and a private `postJson` helper. (Created by connector-sync; extended here.) |
-| `packages/connectors/src/repository.ts` | Add `hasCalendarWriteScope(scopedDb)` (read-only, owner-scoped). |
-| `packages/chat/src/routes.ts` | Accept the connectors collaborators; build `calendar-write-impl`; register it as `toolServices.calendarWrite` on the gateway. |
-| `packages/chat/package.json` | Add `@jarv1s/connectors` and `@jarv1s/calendar` workspace deps. |
-| `packages/module-registry/src/index.ts` | Plumb a `GoogleConnectionService` factory + `GoogleApiClient` from connectors down to `registerChatRoutes`. |
-| `apps/api/src/server.ts` | Construct + pass the connectors collaborators into `BuiltInRouteDependencies`. |
-| `package.json` | Add a `test:focus-time` script wired into `verify:foundation`'s integration set (or confirm the existing integration glob already includes it). |
+| `packages/connectors/src/repository.ts`        | Add `hasCalendarWriteScope(scopedDb)` (read-only, owner-scoped).                                                                                                         |
+| `packages/chat/src/routes.ts`                  | Accept the connectors collaborators; build `calendar-write-impl`; register it as `toolServices.calendarWrite` on the gateway.                                            |
+| `packages/chat/package.json`                   | Add `@jarv1s/connectors` and `@jarv1s/calendar` workspace deps.                                                                                                          |
+| `packages/module-registry/src/index.ts`        | Plumb a `GoogleConnectionService` factory + `GoogleApiClient` from connectors down to `registerChatRoutes`.                                                              |
+| `apps/api/src/server.ts`                       | Construct + pass the connectors collaborators into `BuiltInRouteDependencies`.                                                                                           |
+| `package.json`                                 | Add a `test:focus-time` script wired into `verify:foundation`'s integration set (or confirm the existing integration glob already includes it).                          |
 
 ### Design-direction slice (presentation-only)
 
@@ -128,6 +128,7 @@ registry. Existing tools (which take 3 args) keep dispatching unchanged.
 ## Task A1: Add `ToolServices` + 4th `ToolExecute` arg + `requiresServices` to module-sdk
 
 **Files:**
+
 - Modify: `packages/module-sdk/src/index.ts:41-45` (`ToolExecute`), `:125-135` (`ModuleAssistantToolManifest`)
 - Test: `tests/integration/focus-time.test.ts` (new file; this task adds the seam type-shape test)
 
@@ -146,9 +147,14 @@ describe("Group A — tool-service injection seam (module-sdk types)", () => {
       const svc = (services ?? {}).demo as { ping: () => string } | undefined;
       return { data: { value: svc ? svc.ping() : "no-service" } };
     };
-    const result = await handler({}, {}, { actorUserId: "u", requestId: "r", chatSessionId: "s" }, {
-      demo: { ping: () => "pong" }
-    });
+    const result = await handler(
+      {},
+      {},
+      { actorUserId: "u", requestId: "r", chatSessionId: "s" },
+      {
+        demo: { ping: () => "pong" }
+      }
+    );
     expect(result.data.value).toBe("pong");
   });
 
@@ -249,6 +255,7 @@ git commit -m "feat(module-sdk): add ToolServices + 4th ToolExecute arg + requir
 ## Task A2: Add `toolServices` to the gateway and pass it as the 4th arg
 
 **Files:**
+
 - Modify: `packages/ai/src/gateway/gateway.ts:21-29` (deps), `:96-111` (`runHandler` + new
   `servicesFor`), `:182-208` (`executableTools` fail-closed filter), `:4-10` (imports)
 - Test: `tests/integration/focus-time.test.ts`
@@ -316,19 +323,33 @@ describe("Group A — gateway passes toolServices as the 4th execute argument", 
 
   it("a WRITE tool declaring requiresServices receives the registered service (after approve)", async () => {
     const module: JarvisModuleManifest = {
-      id: "demo", name: "Demo", version: "0", publisher: "t",
-      lifecycle: "required", compatibility: { jarv1s: ">=0.0.0" },
-      assistantTools: [{
-        name: "demo.ping", description: "d", permissionId: "demo.view", risk: "write",
-        inputSchema: { type: "object", properties: {} }, requiresServices: ["demo"],
-        execute: async (_db, _i, _c, services) => {
-          const svc = (services ?? {}).demo as { ping: () => string };
-          return { data: { value: svc.ping() } };
+      id: "demo",
+      name: "Demo",
+      version: "0",
+      publisher: "t",
+      lifecycle: "required",
+      compatibility: { jarv1s: ">=0.0.0" },
+      assistantTools: [
+        {
+          name: "demo.ping",
+          description: "d",
+          permissionId: "demo.view",
+          risk: "write",
+          inputSchema: { type: "object", properties: {} },
+          requiresServices: ["demo"],
+          execute: async (_db, _i, _c, services) => {
+            const svc = (services ?? {}).demo as { ping: () => string };
+            return { data: { value: svc.ping() } };
+          }
         }
-      }]
+      ]
     };
     const { gateway, tokens } = gatewayWith([module], { demo: { ping: () => "pong" } });
-    const token = tokens.mint({ actorUserId: ids.userA, chatSessionId: ids.userA, allowedToolNames: null });
+    const token = tokens.mint({
+      actorUserId: ids.userA,
+      chatSessionId: ids.userA,
+      allowedToolNames: null
+    });
     const res = await callAndApprove(gateway, token, "demo.ping", {});
     expect(res.ok).toBe(true);
     expect(res.ok && res.data.text).toContain("pong");
@@ -336,43 +357,70 @@ describe("Group A — gateway passes toolServices as the 4th execute argument", 
 
   it("a legacy 3-arg read tool still dispatches when toolServices is empty", async () => {
     const module: JarvisModuleManifest = {
-      id: "legacy", name: "Legacy", version: "0", publisher: "t",
-      lifecycle: "required", compatibility: { jarv1s: ">=0.0.0" },
-      assistantTools: [{
-        name: "legacy.read", description: "d", permissionId: "legacy.view", risk: "read",
-        inputSchema: { type: "object", properties: {} },
-        execute: async (_db, _i, _c) => ({ data: { ok: true } })
-      }]
+      id: "legacy",
+      name: "Legacy",
+      version: "0",
+      publisher: "t",
+      lifecycle: "required",
+      compatibility: { jarv1s: ">=0.0.0" },
+      assistantTools: [
+        {
+          name: "legacy.read",
+          description: "d",
+          permissionId: "legacy.view",
+          risk: "read",
+          inputSchema: { type: "object", properties: {} },
+          execute: async (_db, _i, _c) => ({ data: { ok: true } })
+        }
+      ]
     };
     const { gateway, tokens } = gatewayWith([module], {});
-    const token = tokens.mint({ actorUserId: ids.userA, chatSessionId: ids.userA, allowedToolNames: null });
+    const token = tokens.mint({
+      actorUserId: ids.userA,
+      chatSessionId: ids.userA,
+      allowedToolNames: null
+    });
     const res = await gateway.callTool(token, "legacy.read", {});
     expect(res.ok).toBe(true);
   });
 
   it("a WRITE tool receives ONLY its declared services, never the whole registry (HIGH #1)", async () => {
     const module: JarvisModuleManifest = {
-      id: "iso", name: "Iso", version: "0", publisher: "t",
-      lifecycle: "required", compatibility: { jarv1s: ">=0.0.0" },
-      assistantTools: [{
-        // declares "allowed" only — must NOT be able to see "secret"
-        name: "iso.write", description: "d", permissionId: "iso.manage", risk: "write",
-        inputSchema: { type: "object", properties: {} }, requiresServices: ["allowed"],
-        execute: async (_db, _i, _c, services) => {
-          const s = services ?? {};
-          return { data: { sawAllowed: "allowed" in s, sawSecret: "secret" in s } };
+      id: "iso",
+      name: "Iso",
+      version: "0",
+      publisher: "t",
+      lifecycle: "required",
+      compatibility: { jarv1s: ">=0.0.0" },
+      assistantTools: [
+        {
+          // declares "allowed" only — must NOT be able to see "secret"
+          name: "iso.write",
+          description: "d",
+          permissionId: "iso.manage",
+          risk: "write",
+          inputSchema: { type: "object", properties: {} },
+          requiresServices: ["allowed"],
+          execute: async (_db, _i, _c, services) => {
+            const s = services ?? {};
+            return { data: { sawAllowed: "allowed" in s, sawSecret: "secret" in s } };
+          }
         }
-      }]
+      ]
     };
     const { gateway, tokens } = gatewayWith([module], {
       allowed: { ok: () => "yes" },
       secret: { proposeAndInsert: () => "WOULD-WRITE" }
     });
-    const token = tokens.mint({ actorUserId: ids.userA, chatSessionId: ids.userA, allowedToolNames: null });
+    const token = tokens.mint({
+      actorUserId: ids.userA,
+      chatSessionId: ids.userA,
+      allowedToolNames: null
+    });
     const res = await callAndApprove(gateway, token, "iso.write", {});
     expect(res.ok).toBe(true);
-    expect(res.ok && res.data.text).toContain("\"sawAllowed\":true");
-    expect(res.ok && res.data.text).toContain("\"sawSecret\":false");
+    expect(res.ok && res.data.text).toContain('"sawAllowed":true');
+    expect(res.ok && res.data.text).toContain('"sawSecret":false');
   });
 
   it("a READ tool NEVER receives an injected service, even if it declares one (HIGH #5)", async () => {
@@ -380,37 +428,71 @@ describe("Group A — gateway passes toolServices as the 4th execute argument", 
     // would bypass the write→confirm floor. The gateway must hide it at listing AND withhold the
     // service if somehow invoked. Both are asserted here.
     const module: JarvisModuleManifest = {
-      id: "sneaky", name: "Sneaky", version: "0", publisher: "t",
-      lifecycle: "required", compatibility: { jarv1s: ">=0.0.0" },
-      assistantTools: [{
-        name: "sneaky.read", description: "d", permissionId: "sneaky.view", risk: "read",
-        inputSchema: { type: "object", properties: {} }, requiresServices: ["writeCapable"],
-        execute: async (_db, _i, _c, services) => ({ data: { saw: "writeCapable" in (services ?? {}) } })
-      }]
+      id: "sneaky",
+      name: "Sneaky",
+      version: "0",
+      publisher: "t",
+      lifecycle: "required",
+      compatibility: { jarv1s: ">=0.0.0" },
+      assistantTools: [
+        {
+          name: "sneaky.read",
+          description: "d",
+          permissionId: "sneaky.view",
+          risk: "read",
+          inputSchema: { type: "object", properties: {} },
+          requiresServices: ["writeCapable"],
+          execute: async (_db, _i, _c, services) => ({
+            data: { saw: "writeCapable" in (services ?? {}) }
+          })
+        }
+      ]
     };
     const { gateway, tokens } = gatewayWith([module], {
       writeCapable: { proposeAndInsert: () => "WOULD-WRITE-NO-CONFIRM" }
     });
     // Hidden at listing (read tool declaring services is a misconfiguration).
-    expect(gateway.listToolsForActor(ids.userA).find((t) => t.name === "sneaky.read")).toBeUndefined();
-    const token = tokens.mint({ actorUserId: ids.userA, chatSessionId: ids.userA, allowedToolNames: null });
+    expect(
+      gateway.listToolsForActor(ids.userA).find((t) => t.name === "sneaky.read")
+    ).toBeUndefined();
+    const token = tokens.mint({
+      actorUserId: ids.userA,
+      chatSessionId: ids.userA,
+      allowedToolNames: null
+    });
     const res = await gateway.callTool(token, "sneaky.read", {});
     expect(res.ok).toBe(false); // not available — never reaches execute, never sees the service
   });
 
   it("a WRITE tool whose required service is NOT registered is not listed or invokable (HIGH #2)", async () => {
     const module: JarvisModuleManifest = {
-      id: "needs", name: "Needs", version: "0", publisher: "t",
-      lifecycle: "required", compatibility: { jarv1s: ">=0.0.0" },
-      assistantTools: [{
-        name: "needs.tool", description: "d", permissionId: "needs.manage", risk: "write",
-        inputSchema: { type: "object", properties: {} }, requiresServices: ["absent"],
-        execute: async () => ({ data: { ok: true } })
-      }]
+      id: "needs",
+      name: "Needs",
+      version: "0",
+      publisher: "t",
+      lifecycle: "required",
+      compatibility: { jarv1s: ">=0.0.0" },
+      assistantTools: [
+        {
+          name: "needs.tool",
+          description: "d",
+          permissionId: "needs.manage",
+          risk: "write",
+          inputSchema: { type: "object", properties: {} },
+          requiresServices: ["absent"],
+          execute: async () => ({ data: { ok: true } })
+        }
+      ]
     };
     const { gateway, tokens } = gatewayWith([module], {}); // "absent" not registered
-    expect(gateway.listToolsForActor(ids.userA).find((t) => t.name === "needs.tool")).toBeUndefined();
-    const token = tokens.mint({ actorUserId: ids.userA, chatSessionId: ids.userA, allowedToolNames: null });
+    expect(
+      gateway.listToolsForActor(ids.userA).find((t) => t.name === "needs.tool")
+    ).toBeUndefined();
+    const token = tokens.mint({
+      actorUserId: ids.userA,
+      chatSessionId: ids.userA,
+      allowedToolNames: null
+    });
     const res = await gateway.callTool(token, "needs.tool", {});
     expect(res.ok).toBe(false); // "Tool not available" — fail closed, no execute reached
   });
@@ -521,23 +603,23 @@ keys are not ALL registered, so an unsatisfiable tool is never listed, confirmed
 because `calendarWrite` was never wired). Add the guard right after the `typeof tool.execute` check:
 
 ```ts
-        if (typeof tool.execute !== "function") {
-          continue;
-        }
-        const declaredServices = tool.requiresServices ?? [];
-        // Fail closed #1: a read tool must NOT declare services — a read dispatches without the
-        // confirm gate, so a write-capable service on a read tool would bypass the write→confirm
-        // floor. Such a manifest is a misconfiguration; hide it rather than risk a bypass (HIGH #5).
-        if (declaredServices.length > 0 && resolvePolicy(tool.risk) === "run") {
-          continue;
-        }
-        // Fail closed #2: a tool whose required services we cannot satisfy is hidden — never
-        // listed and never confirmable. Prevents an approve→execute-fail dead-end (HIGH #2).
-        const registry = this.deps.toolServices ?? {};
-        const missing = declaredServices.filter((key) => !(key in registry));
-        if (missing.length > 0) {
-          continue;
-        }
+if (typeof tool.execute !== "function") {
+  continue;
+}
+const declaredServices = tool.requiresServices ?? [];
+// Fail closed #1: a read tool must NOT declare services — a read dispatches without the
+// confirm gate, so a write-capable service on a read tool would bypass the write→confirm
+// floor. Such a manifest is a misconfiguration; hide it rather than risk a bypass (HIGH #5).
+if (declaredServices.length > 0 && resolvePolicy(tool.risk) === "run") {
+  continue;
+}
+// Fail closed #2: a tool whose required services we cannot satisfy is hidden — never
+// listed and never confirmable. Prevents an approve→execute-fail dead-end (HIGH #2).
+const registry = this.deps.toolServices ?? {};
+const missing = declaredServices.filter((key) => !(key in registry));
+if (missing.length > 0) {
+  continue;
+}
 ```
 
 - [ ] **Step 4: Run test to verify it passes**
@@ -562,6 +644,7 @@ git commit -m "feat(ai-gateway): pass opaque toolServices as 4th execute arg (fo
 ## Task B1: Add `freeBusy` + `insertEvent` to `GoogleApiClient`
 
 **Files:**
+
 - Modify: `packages/connectors/src/google-api-client.ts` (add types + 2 methods + `postJson` helper)
 - Test: `tests/integration/focus-time.test.ts`
 
@@ -573,7 +656,9 @@ connector-sync `captureFetch` pattern):
 ```ts
 import { GoogleApiClient } from "@jarv1s/connectors";
 
-function captureFetch(reply: (url: string, init?: RequestInit) => { status?: number; body: unknown }) {
+function captureFetch(
+  reply: (url: string, init?: RequestInit) => { status?: number; body: unknown }
+) {
   const calls: Array<{ url: string; init?: RequestInit }> = [];
   const fetchFn = (async (url: string, init?: RequestInit) => {
     calls.push({ url, init });
@@ -591,7 +676,11 @@ function captureFetch(reply: (url: string, init?: RequestInit) => { status?: num
 describe("Group B — GoogleApiClient.freeBusy + insertEvent", () => {
   it("freeBusy posts to the freeBusy endpoint and returns busy intervals for primary", async () => {
     const { calls, fetchFn } = captureFetch(() => ({
-      body: { calendars: { primary: { busy: [{ start: "2026-06-17T09:00:00Z", end: "2026-06-17T10:00:00Z" }] } } }
+      body: {
+        calendars: {
+          primary: { busy: [{ start: "2026-06-17T09:00:00Z", end: "2026-06-17T10:00:00Z" }] }
+        }
+      }
     }));
     const client = new GoogleApiClient({ fetchFn });
     const result = await client.freeBusy({
@@ -627,18 +716,27 @@ describe("Group B — GoogleApiClient.freeBusy + insertEvent", () => {
   });
 
   it("insertEvent throws a body-free GoogleApiError on a non-2xx", async () => {
-    const { fetchFn } = captureFetch(() => ({ status: 500, body: { error: "SECRET-INTERNAL-DETAIL" } }));
+    const { fetchFn } = captureFetch(() => ({
+      status: 500,
+      body: { error: "SECRET-INTERNAL-DETAIL" }
+    }));
     const client = new GoogleApiClient({ fetchFn });
     await expect(
       client.insertEvent({
-        accessToken: "tok", calendarId: "primary", summary: "x",
-        start: "2026-06-17T09:00:00Z", end: "2026-06-17T11:00:00Z"
+        accessToken: "tok",
+        calendarId: "primary",
+        summary: "x",
+        start: "2026-06-17T09:00:00Z",
+        end: "2026-06-17T11:00:00Z"
       })
     ).rejects.toThrow("Google calendar returned 500");
     await expect(
       client.insertEvent({
-        accessToken: "tok", calendarId: "primary", summary: "x",
-        start: "2026-06-17T09:00:00Z", end: "2026-06-17T11:00:00Z"
+        accessToken: "tok",
+        calendarId: "primary",
+        summary: "x",
+        start: "2026-06-17T09:00:00Z",
+        end: "2026-06-17T11:00:00Z"
       })
     ).rejects.not.toThrow(/SECRET-INTERNAL-DETAIL/);
   });
@@ -769,6 +867,7 @@ git commit -m "feat(connectors): add GoogleApiClient.freeBusy + insertEvent for 
 ## Task B2: Add `hasCalendarWriteScope` to the connectors repository
 
 **Files:**
+
 - Modify: `packages/connectors/src/repository.ts` (add method after `getActiveGoogleAccountSecret`, ~line 274)
 - Test: `tests/integration/focus-time.test.ts`
 
@@ -782,7 +881,9 @@ import { ConnectorsRepository, createConnectorSecretCipher } from "@jarv1s/conne
 
 describe("Group B — hasCalendarWriteScope (owner-scoped, read-only)", () => {
   it("returns true when the active google account holds the calendar scope", async () => {
-    const accountId = await seedGoogleAccount(ids.userA, ["https://www.googleapis.com/auth/calendar"]);
+    const accountId = await seedGoogleAccount(ids.userA, [
+      "https://www.googleapis.com/auth/calendar"
+    ]);
     expect(accountId).toBeTruthy();
     const repo = new ConnectorsRepository();
     const has = await dataContext.withDataContext(
@@ -896,6 +997,7 @@ git commit -m "feat(connectors): add owner-scoped hasCalendarWriteScope read for
 ## Task C1: Pure `resolveWindow` + `chooseSlot` in `focus-time.ts`
 
 **Files:**
+
 - Create: `packages/calendar/src/focus-time.ts`
 - Test: `packages/calendar/test/focus-time-logic.test.ts` (new; pure unit, no DB)
 
@@ -913,16 +1015,28 @@ const NOW = new Date("2026-06-16T12:00:00Z");
 
 describe("resolveWindow", () => {
   it("morning maps to 09:00–12:00 local on the given date", () => {
-    const w = resolveWindow({ date: "2026-06-17", partOfDay: "morning", durationMinutes: 120 }, NOW, TZ);
+    const w = resolveWindow(
+      { date: "2026-06-17", partOfDay: "morning", durationMinutes: 120 },
+      NOW,
+      TZ
+    );
     // 09:00 America/New_York on 2026-06-17 is 13:00Z (EDT, UTC-4).
     expect(w.start.toISOString()).toBe("2026-06-17T13:00:00.000Z");
     expect(w.end.toISOString()).toBe("2026-06-17T16:00:00.000Z");
   });
 
   it("afternoon maps to 12:00–17:00, evening to 17:00–21:00 local", () => {
-    const a = resolveWindow({ date: "2026-06-17", partOfDay: "afternoon", durationMinutes: 60 }, NOW, TZ);
+    const a = resolveWindow(
+      { date: "2026-06-17", partOfDay: "afternoon", durationMinutes: 60 },
+      NOW,
+      TZ
+    );
     expect(a.start.toISOString()).toBe("2026-06-17T16:00:00.000Z"); // 12:00 EDT
-    const e = resolveWindow({ date: "2026-06-17", partOfDay: "evening", durationMinutes: 60 }, NOW, TZ);
+    const e = resolveWindow(
+      { date: "2026-06-17", partOfDay: "evening", durationMinutes: 60 },
+      NOW,
+      TZ
+    );
     expect(e.start.toISOString()).toBe("2026-06-17T21:00:00.000Z"); // 17:00 EDT
   });
 
@@ -1068,12 +1182,24 @@ function clampDuration(d: number | undefined): number {
 function tzOffsetMinutes(tz: string, at: Date): number {
   const dtf = new Intl.DateTimeFormat("en-US", {
     timeZone: tz,
-    year: "numeric", month: "2-digit", day: "2-digit",
-    hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hour12: false
   });
   const parts = dtf.formatToParts(at);
   const get = (t: string) => Number(parts.find((p) => p.type === t)!.value);
-  const asUtc = Date.UTC(get("year"), get("month") - 1, get("day"), get("hour"), get("minute"), get("second"));
+  const asUtc = Date.UTC(
+    get("year"),
+    get("month") - 1,
+    get("day"),
+    get("hour"),
+    get("minute"),
+    get("second")
+  );
   return Math.round((asUtc - at.getTime()) / 60_000);
 }
 
@@ -1089,7 +1215,10 @@ function localWallClockToUtc(dateIso: string, hour: number, tz: string): Date {
 /** yyyy-mm-dd of `at` in `tz`. */
 function localDateString(at: Date, tz: string): string {
   const dtf = new Intl.DateTimeFormat("en-CA", {
-    timeZone: tz, year: "numeric", month: "2-digit", day: "2-digit"
+    timeZone: tz,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit"
   });
   return dtf.format(at); // en-CA yields yyyy-mm-dd
 }
@@ -1209,6 +1338,7 @@ git commit -m "feat(calendar): pure resolveWindow + chooseSlot focus-time logic 
 ## Task C2: `CalendarWriteService` interface (calendar-owned, no connectors import)
 
 **Files:**
+
 - Create: `packages/calendar/src/calendar-write-service.ts`
 - Modify: `packages/calendar/src/index.ts`
 - Test: `packages/calendar/test/focus-time-logic.test.ts` (add a type-shape assertion)
@@ -1333,6 +1463,7 @@ git commit -m "feat(calendar): add calendar-owned CalendarWriteService interface
 ## Task C3: `proposeFocusBlock` tool handler + summarize, registered on the manifest
 
 **Files:**
+
 - Modify: `packages/calendar/src/tools.ts`, `packages/calendar/src/manifest.ts`
 - Test: `tests/integration/focus-time.test.ts`
 
@@ -1348,7 +1479,9 @@ import type { ProposeFocusResult } from "@jarv1s/calendar";
 
 describe("Group C — calendar.proposeFocusBlock tool wiring", () => {
   it("summarize renders requested-window card text mentioning the next-clear-slot caveat", () => {
-    const tool = calendarModuleManifest.assistantTools!.find((t) => t.name === "calendar.proposeFocusBlock");
+    const tool = calendarModuleManifest.assistantTools!.find(
+      (t) => t.name === "calendar.proposeFocusBlock"
+    );
     expect(tool).toBeTruthy();
     expect(tool!.risk).toBe("write");
     expect(tool!.permissionId).toBe("calendar.manage");
@@ -1364,7 +1497,11 @@ describe("Group C — calendar.proposeFocusBlock tool wiring", () => {
   it("on approve, execute resolves a window and delegates to services.calendarWrite", async () => {
     let captured: { start: Date; end: Date; durationMinutes: number; title: string } | null = null;
     const fakeService = {
-      async proposeAndInsert(_db: unknown, _ctx: unknown, window: { start: Date; end: Date; durationMinutes: number; title: string }) {
+      async proposeAndInsert(
+        _db: unknown,
+        _ctx: unknown,
+        window: { start: Date; end: Date; durationMinutes: number; title: string }
+      ) {
         captured = window;
         const r: ProposeFocusResult = {
           created: true,
@@ -1386,14 +1523,22 @@ describe("Group C — calendar.proposeFocusBlock tool wiring", () => {
       resolveActiveModules: () => [calendarModuleManifest],
       repository: new AiRepository(),
       runner: dataContext,
-      tokens, confirmations, notifier,
+      tokens,
+      confirmations,
+      notifier,
       confirmTimeoutMs: 150_000,
       toolServices: { calendarWrite: fakeService }
     });
-    const token = tokens.mint({ actorUserId: ids.userA, chatSessionId: ids.userA, allowedToolNames: null });
+    const token = tokens.mint({
+      actorUserId: ids.userA,
+      chatSessionId: ids.userA,
+      allowedToolNames: null
+    });
 
     const callPromise = gateway.callTool(token, "calendar.proposeFocusBlock", {
-      partOfDay: "morning", durationMinutes: 120, title: "Deep work"
+      partOfDay: "morning",
+      durationMinutes: 120,
+      title: "Deep work"
     });
     // Approve the pending action once it has been created.
     const actionId = await waitForPendingActionId(dataContext, ids.userA);
@@ -1423,9 +1568,8 @@ async function waitForPendingActionId(
 ): Promise<string> {
   const repo = new AiRepository();
   for (let i = 0; i < 50; i += 1) {
-    const actions = await dc.withDataContext(
-      { actorUserId, requestId: "poll" },
-      (scopedDb) => repo.listAssistantActions(scopedDb)
+    const actions = await dc.withDataContext({ actorUserId, requestId: "poll" }, (scopedDb) =>
+      repo.listAssistantActions(scopedDb)
     );
     // newest-pending for THIS tool (listAssistantActions returns newest-first; confirm in repository.ts)
     const pending = actions.find((a) => a.status === "pending" && a.toolName === toolName);
@@ -1477,8 +1621,7 @@ function readInput(input: Record<string, unknown>): FocusBlockInput {
     date: typeof input.date === "string" ? input.date : undefined,
     partOfDay: input.partOfDay as PartOfDay | undefined,
     start: typeof input.start === "string" ? input.start : undefined,
-    durationMinutes:
-      typeof input.durationMinutes === "number" ? input.durationMinutes : undefined,
+    durationMinutes: typeof input.durationMinutes === "number" ? input.durationMinutes : undefined,
     title: typeof input.title === "string" ? input.title : undefined
   };
 }
@@ -1507,12 +1650,19 @@ export const summarizeProposeFocusBlock = (
   const resolved = resolveWindow(readInput(input), new Date(), DEFAULT_TIMEZONE);
   const fmt = new Intl.DateTimeFormat("en-US", {
     timeZone: DEFAULT_TIMEZONE,
-    weekday: "short", month: "short", day: "numeric",
-    hour: "2-digit", minute: "2-digit", hour12: false
+    weekday: "short",
+    month: "short",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false
   });
   const startStr = fmt.format(resolved.start);
   const endStr = new Intl.DateTimeFormat("en-US", {
-    timeZone: DEFAULT_TIMEZONE, hour: "2-digit", minute: "2-digit", hour12: false
+    timeZone: DEFAULT_TIMEZONE,
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false
   }).format(resolved.end);
   return `Block "${resolved.title}" ${startStr}–${endStr} on your primary calendar (or the next clear slot if that window is busy).`;
 };
@@ -1594,6 +1744,7 @@ git commit -m "feat(calendar): add calendar.proposeFocusBlock write tool (risk:w
 ## Task D1: Concrete `CalendarWriteService` in `packages/chat`
 
 **Files:**
+
 - Create: `packages/chat/src/calendar-write-impl.ts`
 - Modify: `packages/chat/src/index.ts` (export `calendar-write-impl.js` so `@jarv1s/chat` exposes
   `buildCalendarWriteService`)
@@ -1630,7 +1781,9 @@ function buildImpl(opts: {
   const cipher = createConnectorSecretCipher();
   const repository = new ConnectorsRepository();
   const googleService = new GoogleConnectionService({
-    repository, cipher, oauthClient: new GoogleOAuthClient({ fetchFn })
+    repository,
+    cipher,
+    oauthClient: new GoogleOAuthClient({ fetchFn })
   });
   return buildCalendarWriteService({
     googleService,
@@ -1647,34 +1800,45 @@ describe("Group D — CalendarWriteService impl (faked Google fetch)", () => {
     const res = await dataContext.withDataContext(
       { actorUserId: ids.userA, requestId: "t" },
       (scopedDb) =>
-        impl.proposeAndInsert(scopedDb, { actorUserId: ids.userA, requestId: "t", chatSessionId: "s" }, {
-          start: new Date("2026-06-17T13:00:00Z"),
-          end: new Date("2026-06-17T16:00:00Z"),
-          durationMinutes: 120,
-          title: "Focus time"
-        })
+        impl.proposeAndInsert(
+          scopedDb,
+          { actorUserId: ids.userA, requestId: "t", chatSessionId: "s" },
+          {
+            start: new Date("2026-06-17T13:00:00Z"),
+            end: new Date("2026-06-17T16:00:00Z"),
+            durationMinutes: 120,
+            title: "Focus time"
+          }
+        )
     );
     expect(res.created).toBe(true);
     expect(res.googleEventId).toBe("evt-new");
     expect(res.conflict).toBe("none");
     // Duration regression guard: a 120-minute request over a 09:00–12:00 (180-min) band
     // must insert a 120-minute block, NOT the whole band. resolvedEnd - resolvedStart = 120m.
-    const inserted = (new Date(res.resolvedEnd).getTime() - new Date(res.resolvedStart).getTime()) / 60_000;
+    const inserted =
+      (new Date(res.resolvedEnd).getTime() - new Date(res.resolvedStart).getTime()) / 60_000;
     expect(inserted).toBe(120);
   });
 
   it("conflict: a busy interval shifts the slot (shifted:true)", async () => {
     await seedGoogleAccount(ids.userA, ["https://www.googleapis.com/auth/calendar"]);
-    const impl = buildImpl({ freeBusyBusy: [{ start: "2026-06-17T13:00:00Z", end: "2026-06-17T13:30:00Z" }] });
+    const impl = buildImpl({
+      freeBusyBusy: [{ start: "2026-06-17T13:00:00Z", end: "2026-06-17T13:30:00Z" }]
+    });
     const res = await dataContext.withDataContext(
       { actorUserId: ids.userA, requestId: "t" },
       (scopedDb) =>
-        impl.proposeAndInsert(scopedDb, { actorUserId: ids.userA, requestId: "t", chatSessionId: "s" }, {
-          start: new Date("2026-06-17T13:00:00Z"),
-          end: new Date("2026-06-17T16:00:00Z"),
-          durationMinutes: 120,
-          title: "Focus time"
-        })
+        impl.proposeAndInsert(
+          scopedDb,
+          { actorUserId: ids.userA, requestId: "t", chatSessionId: "s" },
+          {
+            start: new Date("2026-06-17T13:00:00Z"),
+            end: new Date("2026-06-17T16:00:00Z"),
+            durationMinutes: 120,
+            title: "Focus time"
+          }
+        )
     );
     expect(res.created).toBe(true);
     expect(res.shifted).toBe(true);
@@ -1683,16 +1847,22 @@ describe("Group D — CalendarWriteService impl (faked Google fetch)", () => {
 
   it("fully busy: no-clear-slot → created:false, no insert call", async () => {
     await seedGoogleAccount(ids.userA, ["https://www.googleapis.com/auth/calendar"]);
-    const impl = buildImpl({ freeBusyBusy: [{ start: "2026-06-17T13:00:00Z", end: "2026-06-17T16:00:00Z" }] });
+    const impl = buildImpl({
+      freeBusyBusy: [{ start: "2026-06-17T13:00:00Z", end: "2026-06-17T16:00:00Z" }]
+    });
     const res = await dataContext.withDataContext(
       { actorUserId: ids.userA, requestId: "t" },
       (scopedDb) =>
-        impl.proposeAndInsert(scopedDb, { actorUserId: ids.userA, requestId: "t", chatSessionId: "s" }, {
-          start: new Date("2026-06-17T13:00:00Z"),
-          end: new Date("2026-06-17T16:00:00Z"),
-          durationMinutes: 120,
-          title: "Focus time"
-        })
+        impl.proposeAndInsert(
+          scopedDb,
+          { actorUserId: ids.userA, requestId: "t", chatSessionId: "s" },
+          {
+            start: new Date("2026-06-17T13:00:00Z"),
+            end: new Date("2026-06-17T16:00:00Z"),
+            durationMinutes: 120,
+            title: "Focus time"
+          }
+        )
     );
     expect(res.created).toBe(false);
     expect(res.conflict).toBe("no-clear-slot");
@@ -1704,12 +1874,16 @@ describe("Group D — CalendarWriteService impl (faked Google fetch)", () => {
     const res = await dataContext.withDataContext(
       { actorUserId: ids.userB, requestId: "t" },
       (scopedDb) =>
-        impl.proposeAndInsert(scopedDb, { actorUserId: ids.userB, requestId: "t", chatSessionId: "s" }, {
-          start: new Date("2026-06-17T13:00:00Z"),
-          end: new Date("2026-06-17T16:00:00Z"),
-          durationMinutes: 120,
-          title: "Focus time"
-        })
+        impl.proposeAndInsert(
+          scopedDb,
+          { actorUserId: ids.userB, requestId: "t", chatSessionId: "s" },
+          {
+            start: new Date("2026-06-17T13:00:00Z"),
+            end: new Date("2026-06-17T16:00:00Z"),
+            durationMinutes: 120,
+            title: "Focus time"
+          }
+        )
     );
     expect(res.created).toBe(false);
     expect(res.message).toMatch(/reconnect/i);
@@ -1971,6 +2145,7 @@ git commit -m "feat(chat): build concrete CalendarWriteService impl (composition
 ## Task D2: Cache-mirror gating test (skipped-rls on a non-relaxed account)
 
 **Files:**
+
 - Test: `tests/integration/focus-time.test.ts`
 
 - [ ] **Step 1: Write the failing test**
@@ -1987,7 +2162,9 @@ it exercises the exact classification branch in `mirrorEvent` and asserts the ca
 class RlsRejectingCalendarRepository extends CalendarRepository {
   // Simulate the calendar INSERT policy WITH CHECK failing (provider_type guard, pre-0065).
   override async upsertCachedEvent(): Promise<never> {
-    const err = new Error("new row violates row-level security policy for table \"calendar_events\"") as Error & {
+    const err = new Error(
+      'new row violates row-level security policy for table "calendar_events"'
+    ) as Error & {
       code?: string;
     };
     err.code = "42501"; // insufficient_privilege — what pg raises for an RLS violation
@@ -2006,16 +2183,23 @@ class GenericFailingCalendarRepository extends CalendarRepository {
 describe("Group D — cache mirror gating (deterministic)", () => {
   it("classifies an RLS (42501) mirror failure as skipped-rls; call still created:true", async () => {
     await seedGoogleAccount(ids.userA, ["https://www.googleapis.com/auth/calendar"]);
-    const impl = buildImpl({ freeBusyBusy: [], calendarRepository: new RlsRejectingCalendarRepository() });
+    const impl = buildImpl({
+      freeBusyBusy: [],
+      calendarRepository: new RlsRejectingCalendarRepository()
+    });
     const res = await dataContext.withDataContext(
       { actorUserId: ids.userA, requestId: "t" },
       (scopedDb) =>
-        impl.proposeAndInsert(scopedDb, { actorUserId: ids.userA, requestId: "t", chatSessionId: "s" }, {
-          start: new Date("2026-06-17T13:00:00Z"),
-          end: new Date("2026-06-17T16:00:00Z"),
-          durationMinutes: 120,
-          title: "Focus time"
-        })
+        impl.proposeAndInsert(
+          scopedDb,
+          { actorUserId: ids.userA, requestId: "t", chatSessionId: "s" },
+          {
+            start: new Date("2026-06-17T13:00:00Z"),
+            end: new Date("2026-06-17T16:00:00Z"),
+            durationMinutes: 120,
+            title: "Focus time"
+          }
+        )
     );
     expect(res.created).toBe(true); // the Google event is the source of truth; mirror is best-effort
     expect(res.calendarMirror).toBe("skipped-rls");
@@ -2024,16 +2208,23 @@ describe("Group D — cache mirror gating (deterministic)", () => {
 
   it("classifies a non-RLS DB error as skipped-error; call still created:true", async () => {
     await seedGoogleAccount(ids.userA, ["https://www.googleapis.com/auth/calendar"]);
-    const impl = buildImpl({ freeBusyBusy: [], calendarRepository: new GenericFailingCalendarRepository() });
+    const impl = buildImpl({
+      freeBusyBusy: [],
+      calendarRepository: new GenericFailingCalendarRepository()
+    });
     const res = await dataContext.withDataContext(
       { actorUserId: ids.userA, requestId: "t" },
       (scopedDb) =>
-        impl.proposeAndInsert(scopedDb, { actorUserId: ids.userA, requestId: "t", chatSessionId: "s" }, {
-          start: new Date("2026-06-17T13:00:00Z"),
-          end: new Date("2026-06-17T16:00:00Z"),
-          durationMinutes: 120,
-          title: "Focus time"
-        })
+        impl.proposeAndInsert(
+          scopedDb,
+          { actorUserId: ids.userA, requestId: "t", chatSessionId: "s" },
+          {
+            start: new Date("2026-06-17T13:00:00Z"),
+            end: new Date("2026-06-17T16:00:00Z"),
+            durationMinutes: 120,
+            title: "Focus time"
+          }
+        )
     );
     expect(res.created).toBe(true);
     expect(res.calendarMirror).toBe("skipped-error");
@@ -2071,6 +2262,7 @@ git commit -m "test(focus-time): assert cache mirror is gated and never fails th
 ## Task D3: Plumb connectors collaborators into chat route registration
 
 **Files:**
+
 - Modify: `packages/chat/src/routes.ts` (deps + gateway `toolServices`)
 - Modify: `packages/module-registry/src/index.ts` (carry collaborators to `registerChatRoutes`)
 - Modify: `apps/api/src/server.ts` (construct + pass collaborators)
@@ -2143,16 +2335,26 @@ function buildGatewayAppFromFactory(collaborators: {
   app.post<{ Params: { id: string }; Body: { status: string } }>(
     "/api/chat/action-requests/:id/resolve",
     async (request, reply) => {
-      await gateway.resolveActionRequest(ids.userA, request.params.id, request.body.status as "confirmed");
+      await gateway.resolveActionRequest(
+        ids.userA,
+        request.params.id,
+        request.body.status as "confirmed"
+      );
       return reply.code(204).send();
     }
   );
   return { app, tokens };
 }
 
-async function mcp(app: import("fastify").FastifyInstance, token: string, method: string, params: unknown) {
+async function mcp(
+  app: import("fastify").FastifyInstance,
+  token: string,
+  method: string,
+  params: unknown
+) {
   const res = await app.inject({
-    method: "POST", url: "/api/mcp",
+    method: "POST",
+    url: "/api/mcp",
     headers: { authorization: `Bearer ${token}` },
     body: { jsonrpc: "2.0", id: 1, method, params }
   });
@@ -2173,22 +2375,32 @@ describe("Group D — buildChatToolServices wires calendarWrite into the gateway
     const connectorsRepository = new ConnectorsRepository();
     const { app, tokens } = buildGatewayAppFromFactory({
       googleConnectionService: new GoogleConnectionService({
-        repository: connectorsRepository, cipher, oauthClient: new GoogleOAuthClient({ fetchFn })
+        repository: connectorsRepository,
+        cipher,
+        oauthClient: new GoogleOAuthClient({ fetchFn })
       }),
       googleApiClient: new GoogleApiClient({ fetchFn }),
       connectorsRepository
     });
     await app.ready();
-    const token = tokens.mint({ actorUserId: ids.userA, chatSessionId: ids.userA, allowedToolNames: null });
+    const token = tokens.mint({
+      actorUserId: ids.userA,
+      chatSessionId: ids.userA,
+      allowedToolNames: null
+    });
 
     const list = await mcp(app, token, "tools/list", {});
     const names = (list.result.tools as Array<{ name: string }>).map((t) => t.name);
     expect(names).toContain("calendar.proposeFocusBlock"); // factory produced calendarWrite ⇒ tool listed
 
-    const callP = mcp(app, token, "tools/call", { name: "calendar.proposeFocusBlock", arguments: { partOfDay: "morning", durationMinutes: 120 } });
+    const callP = mcp(app, token, "tools/call", {
+      name: "calendar.proposeFocusBlock",
+      arguments: { partOfDay: "morning", durationMinutes: 120 }
+    });
     const actionId = await waitForPendingActionId(dataContext, ids.userA);
     await app.inject({
-      method: "POST", url: `/api/chat/action-requests/${actionId}/resolve`,
+      method: "POST",
+      url: `/api/chat/action-requests/${actionId}/resolve`,
       payload: { status: "confirmed" }
     });
     const callResult = await callP;
@@ -2200,11 +2412,18 @@ describe("Group D — buildChatToolServices wires calendarWrite into the gateway
   it("WITHOUT collaborators: the factory yields {} so tools/list EXCLUDES the tool and tools/call is rejected", async () => {
     const { app, tokens } = buildGatewayAppFromFactory({}); // factory returns {}
     await app.ready();
-    const token = tokens.mint({ actorUserId: ids.userA, chatSessionId: ids.userA, allowedToolNames: null });
+    const token = tokens.mint({
+      actorUserId: ids.userA,
+      chatSessionId: ids.userA,
+      allowedToolNames: null
+    });
     const list = await mcp(app, token, "tools/list", {});
     const names = (list.result.tools as Array<{ name: string }>).map((t) => t.name);
     expect(names).not.toContain("calendar.proposeFocusBlock"); // fail-closed: hidden
-    const call = await mcp(app, token, "tools/call", { name: "calendar.proposeFocusBlock", arguments: {} });
+    const call = await mcp(app, token, "tools/call", {
+      name: "calendar.proposeFocusBlock",
+      arguments: {}
+    });
     // gateway returns ok:false "Tool not available" → MCP surfaces an error, never reaches execute.
     expect(JSON.stringify(call).toLowerCase()).toMatch(/not available|error/);
     await app.close();
@@ -2270,7 +2489,11 @@ after Group C the WITH case lists+executes it. All three conditions must hold fo
 
 ```ts
 import { buildCalendarWriteService } from "./calendar-write-impl.js";
-import type { GoogleConnectionService, GoogleApiClient, ConnectorsRepository } from "@jarv1s/connectors";
+import type {
+  GoogleConnectionService,
+  GoogleApiClient,
+  ConnectorsRepository
+} from "@jarv1s/connectors";
 import { CalendarRepository } from "@jarv1s/calendar";
 ```
 
@@ -2349,21 +2572,21 @@ In the gateway-construction block (the `if (dependencies.resolveActiveModules &&
 branch), construct the gateway from the helper so the real path is exactly what the test verifies:
 
 ```ts
-    gateway = new AssistantToolGateway(
-      buildChatGatewayDependencies({
-        resolveActiveModules: dependencies.resolveActiveModules,
-        repository: aiRepository,
-        runner: dependencies.dataContext,
-        tokens,
-        confirmations,
-        notifier: notifierProxy,
-        collaborators: {
-          googleConnectionService: dependencies.googleConnectionService,
-          googleApiClient: dependencies.googleApiClient,
-          connectorsRepository: dependencies.connectorsRepository
-        }
-      })
-    );
+gateway = new AssistantToolGateway(
+  buildChatGatewayDependencies({
+    resolveActiveModules: dependencies.resolveActiveModules,
+    repository: aiRepository,
+    runner: dependencies.dataContext,
+    tokens,
+    confirmations,
+    notifier: notifierProxy,
+    collaborators: {
+      googleConnectionService: dependencies.googleConnectionService,
+      googleApiClient: dependencies.googleApiClient,
+      connectorsRepository: dependencies.connectorsRepository
+    }
+  })
+);
 ```
 
 Both helpers are exported from `@jarv1s/chat` via the existing `export * from "./routes.js"` in
@@ -2422,13 +2645,13 @@ Inside `createApiServer`, before `registerBuiltInApiRoutes`, build the collabora
 repository + cipher; the service is per-call-scoped via `scopedDb`, so one instance is fine):
 
 ```ts
-    const connectorsRepository = new ConnectorsRepository();
-    const googleConnectionService = new GoogleConnectionService({
-      repository: connectorsRepository,
-      cipher: createConnectorSecretCipher(),
-      oauthClient: new GoogleOAuthClient()
-    });
-    const googleApiClient = new GoogleApiClient();
+const connectorsRepository = new ConnectorsRepository();
+const googleConnectionService = new GoogleConnectionService({
+  repository: connectorsRepository,
+  cipher: createConnectorSecretCipher(),
+  oauthClient: new GoogleOAuthClient()
+});
+const googleApiClient = new GoogleApiClient();
 ```
 
 Add to the `registerBuiltInApiRoutes(server, {...})` object:
@@ -2462,6 +2685,7 @@ git commit -m "feat(wiring): plumb connectors collaborators -> chat gateway tool
 ## Task D4: The no-write-without-approval safety property (deny + timeout)
 
 **Files:**
+
 - Test: `tests/integration/focus-time.test.ts`
 
 - [ ] **Step 1: Write the failing test**
@@ -2475,20 +2699,32 @@ describe("Group D — no write without approval (safety property)", () => {
   function gatewayWithCountingService(confirmTimeoutMs: number) {
     let inserts = 0;
     const service = {
-      async proposeAndInsert(_db: unknown, _ctx: unknown, window: { start: Date; end: Date; durationMinutes: number; title: string }) {
+      async proposeAndInsert(
+        _db: unknown,
+        _ctx: unknown,
+        window: { start: Date; end: Date; durationMinutes: number; title: string }
+      ) {
         inserts += 1;
         return {
-          created: true, resolvedStart: window.start.toISOString(), resolvedEnd: window.end.toISOString(),
-          shifted: false, conflict: "none" as const, googleEventId: "evt", calendarMirror: "skipped-rls" as const
+          created: true,
+          resolvedStart: window.start.toISOString(),
+          resolvedEnd: window.end.toISOString(),
+          shifted: false,
+          conflict: "none" as const,
+          googleEventId: "evt",
+          calendarMirror: "skipped-rls" as const
         };
       }
     };
     const tokens = new SessionTokenRegistry();
     const gateway = new AssistantToolGateway({
       resolveActiveModules: () => [calendarModuleManifest],
-      repository: new AiRepository(), runner: dataContext, tokens,
+      repository: new AiRepository(),
+      runner: dataContext,
+      tokens,
       confirmations: new ConfirmationRegistry(),
-      notifier: { emit() {} }, confirmTimeoutMs,
+      notifier: { emit() {} },
+      confirmTimeoutMs,
       toolServices: { calendarWrite: service }
     });
     return { gateway, tokens, getInserts: () => inserts };
@@ -2496,8 +2732,14 @@ describe("Group D — no write without approval (safety property)", () => {
 
   it("a denied proposal performs no insert", async () => {
     const { gateway, tokens, getInserts } = gatewayWithCountingService(150_000);
-    const token = tokens.mint({ actorUserId: ids.userA, chatSessionId: ids.userA, allowedToolNames: null });
-    const callPromise = gateway.callTool(token, "calendar.proposeFocusBlock", { partOfDay: "morning" });
+    const token = tokens.mint({
+      actorUserId: ids.userA,
+      chatSessionId: ids.userA,
+      allowedToolNames: null
+    });
+    const callPromise = gateway.callTool(token, "calendar.proposeFocusBlock", {
+      partOfDay: "morning"
+    });
     const actionId = await waitForPendingActionId(dataContext, ids.userA);
     await gateway.resolveActionRequest(ids.userA, actionId, "rejected");
     const res = await callPromise;
@@ -2507,16 +2749,28 @@ describe("Group D — no write without approval (safety property)", () => {
 
   it("a timed-out proposal performs no insert", async () => {
     const { gateway, tokens, getInserts } = gatewayWithCountingService(50); // 50ms timeout
-    const token = tokens.mint({ actorUserId: ids.userA, chatSessionId: ids.userA, allowedToolNames: null });
-    const res = await gateway.callTool(token, "calendar.proposeFocusBlock", { partOfDay: "morning" });
+    const token = tokens.mint({
+      actorUserId: ids.userA,
+      chatSessionId: ids.userA,
+      allowedToolNames: null
+    });
+    const res = await gateway.callTool(token, "calendar.proposeFocusBlock", {
+      partOfDay: "morning"
+    });
     expect(res.ok).toBe(false);
     expect(getInserts()).toBe(0);
   });
 
   it("an approved proposal performs exactly one insert", async () => {
     const { gateway, tokens, getInserts } = gatewayWithCountingService(150_000);
-    const token = tokens.mint({ actorUserId: ids.userA, chatSessionId: ids.userA, allowedToolNames: null });
-    const callPromise = gateway.callTool(token, "calendar.proposeFocusBlock", { partOfDay: "morning" });
+    const token = tokens.mint({
+      actorUserId: ids.userA,
+      chatSessionId: ids.userA,
+      allowedToolNames: null
+    });
+    const callPromise = gateway.callTool(token, "calendar.proposeFocusBlock", {
+      partOfDay: "morning"
+    });
     const actionId = await waitForPendingActionId(dataContext, ids.userA);
     await gateway.resolveActionRequest(ids.userA, actionId, "confirmed");
     await callPromise;
@@ -2549,6 +2803,7 @@ git commit -m "test(focus-time): prove no Google write occurs on deny or timeout
 ## Task D5: Wire the focus-time suite into the gate
 
 **Files:**
+
 - Modify: `package.json` (add `test:focus-time`; confirm `verify:foundation` integration glob picks it up)
 - Test: the script itself
 
@@ -2599,8 +2854,8 @@ git commit -m "chore(test): add test:focus-time script and ensure gate covers th
 **Files:** (read-only investigation; no commit)
 
 - [ ] **Step 1:** Read in full: `docs/brand/visual-language-research.md` (especially §"Implications for the
-  Phase 3 design slice" and the HARD STOP list) and `docs/brand/brand-brief.md` (the "Avoid" list incl. the
-  recovery-language rule, `brand-brief.md:184-194`).
+      Phase 3 design slice" and the HARD STOP list) and `docs/brand/brand-brief.md` (the "Avoid" list incl. the
+      recovery-language rule, `brand-brief.md:184-194`).
 
 - [ ] **Step 2:** Enumerate every CSS custom property referenced anywhere in `apps/web/src`:
 
@@ -2632,6 +2887,7 @@ Expected: ~952 lines (cap is 1000). The split must keep every resulting file und
 ## Task F2: Author the semantic token layer (`tokens.css`) — restyles nothing on its own
 
 **Files:**
+
 - Create: `apps/web/src/styles/tokens.css`
 - Modify: `apps/web/src/main.tsx` (import `tokens.css` FIRST)
 - Test: `pnpm check:file-size && pnpm lint && pnpm format:check` + the hex-isolation grep
@@ -2650,10 +2906,10 @@ from F1 Step 2 plus the Ritual tokens — verified by the consumer files resolvi
 they are converted (later tasks).
 
 - [ ] **Step 2: Create `apps/web/src/styles/tokens.css`** with three tiers. Author the **primitive ramps**
-  (the ONLY hex in the app), the **semantic aliases** (every referenced token + the Ritual additions), and
-  **theme overlays** (`:root` light default + `[data-theme="dark"]` + `[data-theme="amber"]` re-pointing
-  semantic tokens only). Concrete structure (fill ramp values from the locked palette in
-  `visual-language-research.md`; the names below are load-bearing — they must match what components consume):
+      (the ONLY hex in the app), the **semantic aliases** (every referenced token + the Ritual additions), and
+      **theme overlays** (`:root` light default + `[data-theme="dark"]` + `[data-theme="amber"]` re-pointing
+      semantic tokens only). Concrete structure (fill ramp values from the locked palette in
+      `visual-language-research.md`; the names below are load-bearing — they must match what components consume):
 
 ```css
 /* apps/web/src/styles/tokens.css
@@ -2664,21 +2920,21 @@ they are converted (later tasks).
 :root {
   /* Tier 1 — primitive ramps (raw values; never referenced by components directly). */
   --neutral-0: #ffffff;
-  --neutral-50: #f7f6f3;   /* newsprint off-white */
+  --neutral-50: #f7f6f3; /* newsprint off-white */
   --neutral-100: #efede8;
   --neutral-200: #e2dfd8;
   --neutral-400: #9a948a;
   --neutral-600: #5c574e;
   --neutral-800: #2b2722;
   --neutral-900: #172026;
-  --teal-500: #2f7d72;     /* brand teal/green */
+  --teal-500: #2f7d72; /* brand teal/green */
   --teal-600: #25655c;
-  --amber-400: #d9a441;    /* circadian / attention */
+  --amber-400: #d9a441; /* circadian / attention */
   --amber-600: #b07d24;
-  --bucket-morning-hue: #e8b04b;   /* morning bright */
+  --bucket-morning-hue: #e8b04b; /* morning bright */
   --bucket-afternoon-hue: #c98a3c;
-  --bucket-evening-hue: #8a6d9a;   /* evening amber-violet (NOT an AI-glow gradient) */
-  --danger-500: #b3382f;   /* reserved for genuine system/validation failure ONLY */
+  --bucket-evening-hue: #8a6d9a; /* evening amber-violet (NOT an AI-glow gradient) */
+  --danger-500: #b3382f; /* reserved for genuine system/validation failure ONLY */
 
   /* Tier 2 — semantic tokens (the public surface components consume). */
   --surface: var(--neutral-50);
@@ -2696,14 +2952,14 @@ they are converted (later tasks).
   --border-subtle: var(--neutral-100);
   --accent: var(--teal-500);
   --accent-strong: var(--teal-600);
-  --state-attention: var(--amber-400);   /* unread / at-risk — never error-red */
-  --state-recovery: var(--amber-600);    /* normal human drift — never error-red */
+  --state-attention: var(--amber-400); /* unread / at-risk — never error-red */
+  --state-recovery: var(--amber-600); /* normal human drift — never error-red */
   --warning: var(--amber-400);
   --danger: var(--danger-500);
   --bucket-morning: var(--bucket-morning-hue);
   --bucket-afternoon: var(--bucket-afternoon-hue);
   --bucket-evening: var(--bucket-evening-hue);
-  --provisional-opacity: 0.7;            /* governor for AI/unconfirmed content */
+  --provisional-opacity: 0.7; /* governor for AI/unconfirmed content */
 }
 
 [data-theme="dark"] {
@@ -2738,8 +2994,8 @@ they are converted (later tasks).
 > in later tasks.
 
 - [ ] **Step 3: Import `tokens.css` FIRST in `apps/web/src/main.tsx`** (cascade order: tokens before
-  consumers). Read the current import block (`main.tsx:7-8`) and add `import "./styles/tokens.css";` as the
-  first style import, before `./styles.css`.
+      consumers). Read the current import block (`main.tsx:7-8`) and add `import "./styles/tokens.css";` as the
+      first style import, before `./styles.css`.
 
 - [ ] **Step 4: Run the gates**
 
@@ -2757,6 +3013,7 @@ git commit -m "feat(web): add Ritual semantic token layer (3 tiers, dark/amber-r
 ## Task F3: Lightweight `ui/` primitives (presentation-only, no API/DTO imports)
 
 **Files:**
+
 - Create: `apps/web/src/ui/Card.tsx`, `Stack.tsx`, `SectionHeader.tsx`, `Badge.tsx`, `TimeBucket.tsx`,
   `ProvisionalRegion.tsx`, `index.ts`
 - Test: `pnpm typecheck` + a grep guard that none imports an API client or a data DTO
@@ -2772,8 +3029,8 @@ grep -rnE "@jarv1s/shared|api-client|useQuery|fetch\(" ~/Jarv1s/apps/web/src/ui/
 Expected after this task: **no matches** (primitives are pure presentation). For now the dir does not exist.
 
 - [ ] **Step 2: Create the primitives.** Each is a small typed presentational component using semantic
-  tokens via className/inline `var()`. Example `TimeBucket.tsx` (the chronology header) and
-  `ProvisionalRegion.tsx` (the governor) are load-bearing for the Ritual model:
+      tokens via className/inline `var()`. Example `TimeBucket.tsx` (the chronology header) and
+      `ProvisionalRegion.tsx` (the governor) are load-bearing for the Ritual model:
 
 ```tsx
 // apps/web/src/ui/TimeBucket.tsx
@@ -2853,7 +3110,11 @@ export function Card({ children, className }: { children: ReactNode; className?:
 // apps/web/src/ui/Stack.tsx
 import type { ReactNode } from "react";
 export function Stack({ gap = "md", children }: { gap?: "sm" | "md" | "lg"; children: ReactNode }) {
-  return <div className="stack" data-gap={gap}>{children}</div>;
+  return (
+    <div className="stack" data-gap={gap}>
+      {children}
+    </div>
+  );
 }
 ```
 
@@ -2902,12 +3163,13 @@ git commit -m "feat(web): add presentation-only Ritual ui primitives (TimeBucket
 ## Task F4: Static HTML mockups — the taste-gate deliverable
 
 **Files:**
+
 - Create: `docs/brand/mockups/briefing-reading.html`, `docs/brand/mockups/tasks-day-buckets.html`,
   `docs/brand/mockups/settings-form.html`
 - Test: each opens standalone in a browser; mirrors the `tokens.css` names
 
 - [ ] **Step 1:** Create the three self-contained mockups (inline `<style>` re-using the SAME semantic token
-  names from `tokens.css` in a local `:root` block; no build step, no external assets). They must demonstrate:
+      names from `tokens.css` in a local `:root` block; no build step, no external assets). They must demonstrate:
   1. **`briefing-reading.html`** — editorial single-column reading surface (newsprint `--surface`, comfortable
      measure, generous vertical rhythm) rendering representative briefing prose with light section headers.
   2. **`tasks-day-buckets.html`** — This Morning / This Afternoon / This Evening sections with the
@@ -2948,7 +3210,7 @@ git commit -m "docs(brand): add Ritual-direction mockups (briefing reading, day 
 **Files:** (verification only)
 
 - [ ] **Step 1:** Confirm the pre-gate deliverable is exactly: spec (already approved) + mockups (F4) + token
-  scaffolding (F2) + primitives (F3). **No screen has been restyled yet.**
+      scaffolding (F2) + primitives (F3). **No screen has been restyled yet.**
 
 - [ ] **Step 2:** Run the pre-gate gates (these must be green WITHOUT any app-wide restyle):
 
@@ -2971,6 +3233,7 @@ Expected: PASS (acceptance criterion #11 — the scaffolding restyles nothing, s
 > scaffolding (`tokens.css` + the `ui/` primitives) — **none of which restyles an existing screen.**
 >
 > **What the autonomous build MUST do at this gate:**
+>
 > 1. Stop all design-direction work. Do **not** start Task F6+ (the app-wide restyle).
 > 2. Surface the mockups for review: post the three `docs/brand/mockups/*.html` paths (and screenshots if a
 >    headless browser is available) to Ben via the relay/handoff channel, with a one-line summary of the
@@ -2989,6 +3252,7 @@ Expected: PASS (acceptance criterion #11 — the scaffolding restyles nothing, s
 ## Task F6 (POST-GATE): Split `styles.css` + convert base hex to semantic tokens
 
 **Files:**
+
 - Modify: `apps/web/src/styles.css` (hex → `var()`, ensure < 1000 lines after the token move)
 - Test: `pnpm check:file-size` + the hex-isolation grep
 
@@ -2999,8 +3263,8 @@ grep -nE '#[0-9a-fA-F]{3,6}|rgb\(' ~/Jarv1s/apps/web/src/styles.css
 ```
 
 - [ ] **Step 2:** Replace each hex/`rgb()` with the matching semantic token from `tokens.css` (e.g.
-  `#ffffff` → `var(--surface-raised)`, `#172026` → `var(--text)`). Preserve every layout rule and selector
-  (per F1 Step 3, do not break e2e selectors). The token tier already moved out of `:root`, so net lines drop.
+      `#ffffff` → `var(--surface-raised)`, `#172026` → `var(--text)`). Preserve every layout rule and selector
+      (per F1 Step 3, do not break e2e selectors). The token tier already moved out of `:root`, so net lines drop.
 
 - [ ] **Step 3:** Run the gate:
 
@@ -3030,18 +3294,19 @@ git commit -m "refactor(web): convert styles.css hex to semantic tokens; split u
 ## Task F7 (POST-GATE): Convert `tasks.css` hex + adopt time-bucket visual rhythm
 
 **Files:**
+
 - Modify: `apps/web/src/tasks/tasks.css` (hex → tokens incl. priority/matrix blocks), `tasks-page.tsx`
   (adopt `TimeBucket`/`Badge` for the grouped visual rhythm — NO new persisted view/data field)
 - Test: `pnpm check:file-size`, hex grep, `pnpm test:e2e` (`tasks.spec.ts` still passes)
 
 - [ ] **Step 1:** Replace the hardcoded priority/matrix hex (`tasks.css:60-77,123-134`:
-  `#dc2626`, `#ea580c`, `#ca8a04`, `#2563eb`, `#6b7280`) with semantic tokens, and remove inline
-  `var(--x, #fallback)` fallbacks now that `tokens.css` defines the five formerly-undefined tokens.
+      `#dc2626`, `#ea580c`, `#ca8a04`, `#2563eb`, `#6b7280`) with semantic tokens, and remove inline
+      `var(--x, #fallback)` fallbacks now that `tokens.css` defines the five formerly-undefined tokens.
 
 - [ ] **Step 2:** In `tasks-page.tsx`, apply the `TimeBucket`/`Badge` primitives to the existing groupings as
-  a **presentation-only** rhythm. **Do NOT** add a new `TaskDefaultView` value or any scheduling/time-bucket
-  data field (spec Out-of-scope; the live day-bucket DATA is task-vertical work). Group by a presentation-only
-  derivation from existing task fields; the full day-view is demonstrated in the mockup.
+      a **presentation-only** rhythm. **Do NOT** add a new `TaskDefaultView` value or any scheduling/time-bucket
+      data field (spec Out-of-scope; the live day-bucket DATA is task-vertical work). Group by a presentation-only
+      derivation from existing task fields; the full day-view is demonstrated in the mockup.
 
 - [ ] **Step 3:** Run gates + grep:
 
@@ -3062,6 +3327,7 @@ git commit -m "refactor(web): tasks surface to semantic tokens + Ritual time-buc
 ## Task F8 (POST-GATE): Briefing editorial reading surface + e2e
 
 **Files:**
+
 - Create: `apps/web/src/briefings/briefing-reading-view.tsx`, `apps/web/src/briefings/briefings.css`
 - Modify: `apps/web/src/briefings/briefings-page.tsx` (render the selected run in the reading surface),
   `apps/web/src/main.tsx` (import `briefings.css`)
@@ -3082,7 +3348,10 @@ test("briefing reading surface renders summaryText in an editorial region", asyn
   await mockBriefingsApi(page); // reuse existing run fixtures
   await page.goto("/briefings");
   // select the first definition with a run (selector per the existing briefings-page markup)
-  await page.getByRole("button", { name: /run|briefing/i }).first().click();
+  await page
+    .getByRole("button", { name: /run|briefing/i })
+    .first()
+    .click();
   const region = page.getByRole("region", { name: "Briefing" });
   await expect(region).toBeVisible();
   await expect(region).toContainText(/.+/); // the fixture's summaryText
@@ -3098,11 +3367,11 @@ Run: `pnpm test:e2e tests/e2e/briefing-reading.spec.ts`
 Expected: FAIL — no `region` with `aria-label="Briefing"` exists yet.
 
 - [ ] **Step 3: Implement the reading view.** Create `briefing-reading-view.tsx` rendering a single
-  `BriefingRunDto.summaryText` in an editorial single-column layout (the `ui/` primitives + `briefings.css`),
-  preserving paragraph/line breaks (`white-space: pre-wrap` or split-on-newline), with an
-  `aria-label="Briefing"` region. **No change to `BriefingRunDto` / `briefings-api.ts`** (acceptance criterion
-  #6). Wire it into `briefings-page.tsx` to render the selected run's body (keep the definitions/editor column
-  intact). Import `briefings.css` after `tokens.css` in `main.tsx`.
+      `BriefingRunDto.summaryText` in an editorial single-column layout (the `ui/` primitives + `briefings.css`),
+      preserving paragraph/line breaks (`white-space: pre-wrap` or split-on-newline), with an
+      `aria-label="Briefing"` region. **No change to `BriefingRunDto` / `briefings-api.ts`** (acceptance criterion
+      #6). Wire it into `briefings-page.tsx` to render the selected run's body (keep the definitions/editor column
+      intact). Import `briefings.css` after `tokens.css` in `main.tsx`.
 
 ```tsx
 // apps/web/src/briefings/briefing-reading-view.tsx
@@ -3142,6 +3411,7 @@ git commit -m "feat(web): editorial briefing reading surface + e2e (renders exis
 ## Task F9 (POST-GATE): Coherent restyle pass — settings, chat drawer, notifications, auth
 
 **Files:**
+
 - Modify: `apps/web/src/settings/settings-page.tsx`, `apps/web/src/chat/chat-drawer.tsx`,
   `apps/web/src/notifications/notifications-page.tsx`, `apps/web/src/auth/auth-screen.tsx` (+ their CSS)
 - Test: `pnpm test:e2e`, hex grep, `pnpm check:file-size`
@@ -3158,7 +3428,7 @@ git commit -m "feat(web): editorial briefing reading surface + e2e (renders exis
     only ensure they consume the shared token layer if touched.
 
 - [ ] **Step 2:** Preserve every e2e selector enumerated in F1 Step 3 (update specs in this task if a selector
-  must change).
+      must change).
 
 - [ ] **Step 3:** Run gates + grep:
 
@@ -3168,7 +3438,7 @@ grep -rlE '#[0-9a-fA-F]{3,6}|rgb\(' ~/Jarv1s/apps/web/src --include='*.css'   # 
 ```
 
 - [ ] **Step 4:** `pnpm test:e2e` → all suites pass (`chat-drawer.spec.ts`, `app-shell.spec.ts`,
-  `connect-google.spec.ts`, `tasks.spec.ts`).
+      `connect-google.spec.ts`, `tasks.spec.ts`).
 
 - [ ] **Step 5: Commit**
 
@@ -3185,47 +3455,47 @@ After completing the tasks (and before the final gate), run this checklist with 
 
 ### 1. Spec coverage — focus-time spec (`2026-06-13-p3-focus-time-self-scheduling.md`)
 
-| Spec section / acceptance criterion | Task(s) |
-| --- | --- |
-| §Components 1 — generic injection seam (manifest `requiresServices`, 4th `ToolExecute` arg, gateway `toolServices`) | A1, A2 |
-| §Components 2 — focus-time tool + pure propose logic + `summarize` | C1, C3 |
-| §Components 3 — calendar-owned `CalendarWriteService` interface | C2 |
-| §Components 4 — impl + wiring in `packages/chat` | D1, D3 |
-| §Components 5 — dependency plumbing (module-registry, connectors exports, apps/api) | D1 (deps), D3 |
-| §Components 6 — granted-scope verification + re-consent copy (`hasCalendarWriteScope`) | B2, D1 |
-| §Components 7 — manifest registration | C3 |
-| §Data flow — freeBusy live → chooseSlot → insert → mirror | B1, C1, D1 |
-| §Error handling — missing scope / no connection / refresh fail / Google non-2xx / conflict / mirror skip / timeout / invalid input / double-approve | B1 (body-free error), C1 (conflict/no-slot + malformed/overflow start/date rejection), D1 (scope/connection/refresh/insert/mirror), D4 (timeout/deny/approve), A2/gateway (enum validation + idempotent resolve unchanged) |
-| §Security — no new policy, secrets contained, DataContextDb only, AccessContext shape, module isolation, no migration, **write→confirm floor un-bypassable via the service seam** (read tools never receive an injected service; per-tool subset only) | Honored across A–D; asserted in A2 (HIGH#1 subset, HIGH#5 read-tool withhold/hide), B1 (body-free), D1 (token discarded), D4 (no-write-without-approval) |
-| §Testing strategy — pure logic, seam, impl, no-write safety, scope verify, secret containment, gate | C1, A2, D1/D2, D4, B2, B1, D5 |
-| AC#1 tool exists `risk:write`/`calendar.manage`, no policy edit | C3 (assert risk/permission); no edit to policy.ts/gateway confirm path |
-| AC#2 routes through confirm; deny/timeout → no write; approve → one insert | D4 |
-| AC#3 insert on primary tagged jarvisCreated, returns resolved time + id | B1, D1 |
-| AC#4 live freeBusy, shift or no-clear-slot | C1, D1 |
-| AC#5 best-effort mirror with `external_metadata.jarvisCreated` | D1, D2 |
-| AC#6 generic seam (per-tool subset, read tools withheld, fail-closed listing), calendar owns interface, chat builds impl, no connectors import in calendar | A1/A2, C2, D1, D3 (MCP-path wiring) |
-| AC#7 scope verified, re-consent reuses `buildAuthUrl` (no new OAuth code) | B2, D1 |
-| AC#8 no secret escapes; Google errors body-free; no pg-boss job | B1, D1, D4 |
-| AC#9 clean seam for future briefing caller (documented, not built) | C2 interface + D1 builder are directly reusable (noted) |
-| AC#10 no migration authored; module isolation/DataContextDb/AccessContext preserved | whole slice (no `sql/` file added) |
-| AC#11 `verify:foundation` + `audit:release-hardening` green; independent review | Final gate task + the review note below |
+| Spec section / acceptance criterion                                                                                                                                                                                                                    | Task(s)                                                                                                                                                                                                                    |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| §Components 1 — generic injection seam (manifest `requiresServices`, 4th `ToolExecute` arg, gateway `toolServices`)                                                                                                                                    | A1, A2                                                                                                                                                                                                                     |
+| §Components 2 — focus-time tool + pure propose logic + `summarize`                                                                                                                                                                                     | C1, C3                                                                                                                                                                                                                     |
+| §Components 3 — calendar-owned `CalendarWriteService` interface                                                                                                                                                                                        | C2                                                                                                                                                                                                                         |
+| §Components 4 — impl + wiring in `packages/chat`                                                                                                                                                                                                       | D1, D3                                                                                                                                                                                                                     |
+| §Components 5 — dependency plumbing (module-registry, connectors exports, apps/api)                                                                                                                                                                    | D1 (deps), D3                                                                                                                                                                                                              |
+| §Components 6 — granted-scope verification + re-consent copy (`hasCalendarWriteScope`)                                                                                                                                                                 | B2, D1                                                                                                                                                                                                                     |
+| §Components 7 — manifest registration                                                                                                                                                                                                                  | C3                                                                                                                                                                                                                         |
+| §Data flow — freeBusy live → chooseSlot → insert → mirror                                                                                                                                                                                              | B1, C1, D1                                                                                                                                                                                                                 |
+| §Error handling — missing scope / no connection / refresh fail / Google non-2xx / conflict / mirror skip / timeout / invalid input / double-approve                                                                                                    | B1 (body-free error), C1 (conflict/no-slot + malformed/overflow start/date rejection), D1 (scope/connection/refresh/insert/mirror), D4 (timeout/deny/approve), A2/gateway (enum validation + idempotent resolve unchanged) |
+| §Security — no new policy, secrets contained, DataContextDb only, AccessContext shape, module isolation, no migration, **write→confirm floor un-bypassable via the service seam** (read tools never receive an injected service; per-tool subset only) | Honored across A–D; asserted in A2 (HIGH#1 subset, HIGH#5 read-tool withhold/hide), B1 (body-free), D1 (token discarded), D4 (no-write-without-approval)                                                                   |
+| §Testing strategy — pure logic, seam, impl, no-write safety, scope verify, secret containment, gate                                                                                                                                                    | C1, A2, D1/D2, D4, B2, B1, D5                                                                                                                                                                                              |
+| AC#1 tool exists `risk:write`/`calendar.manage`, no policy edit                                                                                                                                                                                        | C3 (assert risk/permission); no edit to policy.ts/gateway confirm path                                                                                                                                                     |
+| AC#2 routes through confirm; deny/timeout → no write; approve → one insert                                                                                                                                                                             | D4                                                                                                                                                                                                                         |
+| AC#3 insert on primary tagged jarvisCreated, returns resolved time + id                                                                                                                                                                                | B1, D1                                                                                                                                                                                                                     |
+| AC#4 live freeBusy, shift or no-clear-slot                                                                                                                                                                                                             | C1, D1                                                                                                                                                                                                                     |
+| AC#5 best-effort mirror with `external_metadata.jarvisCreated`                                                                                                                                                                                         | D1, D2                                                                                                                                                                                                                     |
+| AC#6 generic seam (per-tool subset, read tools withheld, fail-closed listing), calendar owns interface, chat builds impl, no connectors import in calendar                                                                                             | A1/A2, C2, D1, D3 (MCP-path wiring)                                                                                                                                                                                        |
+| AC#7 scope verified, re-consent reuses `buildAuthUrl` (no new OAuth code)                                                                                                                                                                              | B2, D1                                                                                                                                                                                                                     |
+| AC#8 no secret escapes; Google errors body-free; no pg-boss job                                                                                                                                                                                        | B1, D1, D4                                                                                                                                                                                                                 |
+| AC#9 clean seam for future briefing caller (documented, not built)                                                                                                                                                                                     | C2 interface + D1 builder are directly reusable (noted)                                                                                                                                                                    |
+| AC#10 no migration authored; module isolation/DataContextDb/AccessContext preserved                                                                                                                                                                    | whole slice (no `sql/` file added)                                                                                                                                                                                         |
+| AC#11 `verify:foundation` + `audit:release-hardening` green; independent review                                                                                                                                                                        | Final gate task + the review note below                                                                                                                                                                                    |
 
 ### 1b. Spec coverage — design-direction spec (`2026-06-13-p3-design-direction-ritual-design.md`)
 
-| Acceptance criterion | Task(s) |
-| --- | --- |
-| AC#1 `tokens.css` is the only hex-bearing CSS file | F2, F6, F7 (grep guard) |
-| AC#2 every referenced token defined; fallbacks removed | F1 (enumerate), F2 (define), F7 (remove fallbacks) |
-| AC#3 dark/amber-ready overlays, light-first | F2 |
-| AC#4 `styles.css` split, all files < 1000 lines | F6 (`check:file-size`) |
-| AC#5 4–6 primitives, no API/DTO imports | F3 (6 primitives + grep guard) |
-| AC#6 briefing reading renders `summaryText`, no DTO change | F8 (`git diff` guard) |
-| AC#7 2–3 mockups (briefing, day-buckets, form) | F4 |
-| AC#8 governor opacity + recovery/attention never error-red | F2 (tokens), F3 (Badge has no error tone), F4 (mockups) |
-| AC#9 HARD STOP list honored | F2, F3, F4, F9 |
-| AC#10 explicit `AWAIT BEN'S MOCKUP SIGN-OFF` before app-wide restyle | The gate banner between F5 and F6 |
-| AC#11 pre-gate scaffolding gates green | F5 |
-| AC#12 post-gate briefing e2e; existing e2e pass | F8 |
+| Acceptance criterion                                                 | Task(s)                                                 |
+| -------------------------------------------------------------------- | ------------------------------------------------------- |
+| AC#1 `tokens.css` is the only hex-bearing CSS file                   | F2, F6, F7 (grep guard)                                 |
+| AC#2 every referenced token defined; fallbacks removed               | F1 (enumerate), F2 (define), F7 (remove fallbacks)      |
+| AC#3 dark/amber-ready overlays, light-first                          | F2                                                      |
+| AC#4 `styles.css` split, all files < 1000 lines                      | F6 (`check:file-size`)                                  |
+| AC#5 4–6 primitives, no API/DTO imports                              | F3 (6 primitives + grep guard)                          |
+| AC#6 briefing reading renders `summaryText`, no DTO change           | F8 (`git diff` guard)                                   |
+| AC#7 2–3 mockups (briefing, day-buckets, form)                       | F4                                                      |
+| AC#8 governor opacity + recovery/attention never error-red           | F2 (tokens), F3 (Badge has no error tone), F4 (mockups) |
+| AC#9 HARD STOP list honored                                          | F2, F3, F4, F9                                          |
+| AC#10 explicit `AWAIT BEN'S MOCKUP SIGN-OFF` before app-wide restyle | The gate banner between F5 and F6                       |
+| AC#11 pre-gate scaffolding gates green                               | F5                                                      |
+| AC#12 post-gate briefing e2e; existing e2e pass                      | F8                                                      |
 
 ### 2. Placeholder scan
 
@@ -3295,7 +3565,7 @@ pnpm audit:release-hardening; echo "EXIT=$?"
 Expected: `EXIT=0`.
 
 - [ ] **Step 4:** Run the web e2e suite (post-gate design tasks only; if the design restyle has not yet passed
-  the mockup gate, run the focus-time + existing suites and note the design e2e as pending):
+      the mockup gate, run the focus-time + existing suites and note the design e2e as pending):
 
 ```bash
 pnpm build:web && pnpm test:e2e; echo "EXIT=$?"
@@ -3304,7 +3574,7 @@ pnpm build:web && pnpm test:e2e; echo "EXIT=$?"
 Expected: `EXIT=0` (all specs, incl. the new `briefing-reading.spec.ts` once F8 has landed post-gate).
 
 - [ ] **Step 5:** Confirm Hard-Invariant guards with greps, then hand off for the **mandatory independent
-  review** (this is the first real outbound write to a third party — per project memory, CI-green ≠ secure):
+      review** (this is the first real outbound write to a third party — per project memory, CI-green ≠ secure):
 
 ```bash
 # calendar must NOT import connectors (module isolation linchpin)
@@ -3323,6 +3593,6 @@ adversarial second opinion (`/codex-review` or a Claude critic) on the injection
 no-write-without-approval property.
 
 - [ ] **Step 6:** Live round-trip (manual, headless box, after merge): connect Ben's Google → in the drawer
-  "block 2 hours tomorrow morning" → Approve → confirm a real event with the Jarvis tag in Google Calendar →
-  confirm it appears on the Jarv1s Calendar page → request a busy window → confirm it shifts or reports no
-  slot → deny a proposal → confirm **nothing** is created.
+      "block 2 hours tomorrow morning" → Approve → confirm a real event with the Jarvis tag in Google Calendar →
+      confirm it appears on the Jarv1s Calendar page → request a busy window → confirm it shifts or reports no
+      slot → deny a proposal → confirm **nothing** is created.

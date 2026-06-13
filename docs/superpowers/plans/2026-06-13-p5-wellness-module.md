@@ -101,6 +101,7 @@ Expected: Postgres container healthy.
 ### Task 1: Create the `@jarv1s/wellness` package scaffold + path mapping + test script
 
 **Files:**
+
 - Create: `packages/wellness/package.json`
 - Create: `packages/wellness/src/index.ts`
 - Create: `packages/wellness/src/manifest.ts`
@@ -168,7 +169,9 @@ import type { JarvisModuleManifest } from "@jarv1s/module-sdk";
 
 export const WELLNESS_MODULE_ID = "wellness";
 export const WELLNESS_MEDICATION_REMINDER_QUEUE = "wellness-medication-reminder";
-export const wellnessModuleSqlMigrationDirectory = fileURLToPath(new URL("../sql", import.meta.url));
+export const wellnessModuleSqlMigrationDirectory = fileURLToPath(
+  new URL("../sql", import.meta.url)
+);
 
 export const wellnessModuleManifest = {
   id: WELLNESS_MODULE_ID,
@@ -227,6 +230,7 @@ Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>"
 ### Task 2: Create `app.wellness_checkins` table + RLS (migration 0066) + db types
 
 **Files:**
+
 - Create: `packages/wellness/sql/0066_wellness_checkins.sql`
 - Modify: `packages/db/src/types.ts` (add `WellnessCheckinsTable`, `JarvisDatabase` entry, `Selectable` export)
 - Modify: `packages/wellness/src/manifest.ts` (add `database` block; register sql dir on the manifest)
@@ -415,7 +419,11 @@ export interface WellnessCheckinsTable {
   intensity: number | null;
   energy: number | null;
   note: string | null;
-  identified_via: ColumnType<"wheel" | "assisted", "wheel" | "assisted" | undefined, "wheel" | "assisted">;
+  identified_via: ColumnType<
+    "wheel" | "assisted",
+    "wheel" | "assisted" | undefined,
+    "wheel" | "assisted"
+  >;
   created_at: TimestampColumn;
   updated_at: TimestampColumn;
 }
@@ -450,10 +458,7 @@ Why this comes before running the test (resolves the red/green sequencing — Co
 In `packages/module-registry/src/index.ts`, add the import (with the other module imports):
 
 ```ts
-import {
-  wellnessModuleManifest,
-  wellnessModuleSqlMigrationDirectory
-} from "@jarv1s/wellness";
+import { wellnessModuleManifest, wellnessModuleSqlMigrationDirectory } from "@jarv1s/wellness";
 ```
 
 Add a registry entry at the END of the `BUILT_IN_MODULES` array (after the structured-state entry):
@@ -484,6 +489,7 @@ Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>"
 ### Task 3: Create `app.medications` + `app.medication_logs` (migrations 0067, 0068) + db types
 
 **Files:**
+
 - Create: `packages/wellness/sql/0067_wellness_medications.sql`
 - Create: `packages/wellness/sql/0068_wellness_medication_logs.sql`
 - Modify: `packages/db/src/types.ts` (two table interfaces, `JarvisDatabase` entries, `Selectable` exports)
@@ -872,6 +878,7 @@ Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>"
 ### Task 4: Shared wellness API contract (`packages/shared/src/wellness-api.ts`)
 
 **Files:**
+
 - Create: `packages/shared/src/wellness-api.ts`
 - Modify: `packages/shared/src/index.ts` (add the export)
 - Test: `tests/integration/wellness.test.ts`
@@ -1190,7 +1197,10 @@ export const createMedicationRequestSchema = {
     timesPerDay: { anyOf: [{ type: "integer", minimum: 1, maximum: 24 }, { type: "null" }] },
     intervalHours: { anyOf: [{ type: "integer", minimum: 1, maximum: 24 }, { type: "null" }] },
     weekdays: {
-      anyOf: [{ type: "array", items: { type: "integer", minimum: 1, maximum: 7 } }, { type: "null" }]
+      anyOf: [
+        { type: "array", items: { type: "integer", minimum: 1, maximum: 7 } },
+        { type: "null" }
+      ]
     },
     scheduleTimes: { anyOf: [stringArraySchema, { type: "null" }] },
     cycleDaysOn: { anyOf: [{ type: "integer", minimum: 1 }, { type: "null" }] },
@@ -1443,6 +1453,7 @@ Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>"
 ### Task 5: `WellnessRepository` + serializers (check-ins, medications, dose logs)
 
 **Files:**
+
 - Create: `packages/wellness/src/serialize.ts`
 - Create: `packages/wellness/src/repository.ts`
 - Modify: `packages/wellness/src/index.ts` (export the repository + input types)
@@ -1643,7 +1654,10 @@ export interface LogDoseInput {
 
 export class WellnessRepository {
   // ── Check-ins ──────────────────────────────────────────────────────────
-  async createCheckin(scopedDb: DataContextDb, input: CreateCheckinInput): Promise<WellnessCheckin> {
+  async createCheckin(
+    scopedDb: DataContextDb,
+    input: CreateCheckinInput
+  ): Promise<WellnessCheckin> {
     assertDataContextDb(scopedDb);
     const row = await scopedDb.db
       .insertInto("app.wellness_checkins")
@@ -1663,7 +1677,10 @@ export class WellnessRepository {
     return row as WellnessCheckin;
   }
 
-  async listCheckins(scopedDb: DataContextDb, options: ListCheckinsOptions = {}): Promise<WellnessCheckin[]> {
+  async listCheckins(
+    scopedDb: DataContextDb,
+    options: ListCheckinsOptions = {}
+  ): Promise<WellnessCheckin[]> {
     assertDataContextDb(scopedDb);
     let query = scopedDb.db
       .selectFrom("app.wellness_checkins")
@@ -1676,7 +1693,10 @@ export class WellnessRepository {
   }
 
   // ── Medications ────────────────────────────────────────────────────────
-  async createMedication(scopedDb: DataContextDb, input: CreateMedicationInput): Promise<Medication> {
+  async createMedication(
+    scopedDb: DataContextDb,
+    input: CreateMedicationInput
+  ): Promise<Medication> {
     assertDataContextDb(scopedDb);
     const row = await scopedDb.db
       .insertInto("app.medications")
@@ -1744,7 +1764,11 @@ export class WellnessRepository {
   }
 
   // ── Dose logs ──────────────────────────────────────────────────────────
-  async logDose(scopedDb: DataContextDb, medicationId: string, input: LogDoseInput): Promise<MedicationLog> {
+  async logDose(
+    scopedDb: DataContextDb,
+    medicationId: string,
+    input: LogDoseInput
+  ): Promise<MedicationLog> {
     assertDataContextDb(scopedDb);
     const row = await scopedDb.db
       .insertInto("app.medication_logs")
@@ -1811,11 +1835,7 @@ export type {
   UpdateMedicationInput,
   LogDoseInput
 } from "./repository.js";
-export {
-  serializeCheckin,
-  serializeMedication,
-  serializeMedicationLog
-} from "./serialize.js";
+export { serializeCheckin, serializeMedication, serializeMedicationLog } from "./serialize.js";
 ```
 
 - [ ] **Step 4: Run the test**
@@ -1835,6 +1855,7 @@ Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>"
 ### Task 6: Pure schedule computation (`schedule.ts`)
 
 **Files:**
+
 - Create: `packages/wellness/src/schedule.ts`
 - Modify: `packages/wellness/src/index.ts` (export `computeSchedule`)
 - Test: `tests/integration/wellness.test.ts`
@@ -2073,6 +2094,7 @@ Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>"
 ### Task 7: REST routes (`registerWellnessRoutes`)
 
 **Files:**
+
 - Create: `packages/wellness/src/routes.ts`
 - Modify: `packages/wellness/src/index.ts` (export `registerWellnessRoutes` + `WellnessRoutesDependencies`)
 - Test: `tests/integration/wellness.test.ts`
@@ -2124,7 +2146,11 @@ describe("wellness REST routes", () => {
       const bad = await app.inject({
         method: "POST",
         url: "/api/wellness/checkins",
-        payload: { feelingCore: "scared", feelingSecondary: "anxious", feelingTertiary: "not-a-leaf" }
+        payload: {
+          feelingCore: "scared",
+          feelingSecondary: "anxious",
+          feelingTertiary: "not-a-leaf"
+        }
       });
       expect(bad.statusCode).toBe(400);
     } finally {
@@ -2234,59 +2260,75 @@ export function registerWellnessRoutes(
   const repo = dependencies.repository ?? new WellnessRepository();
 
   // ── Check-ins ────────────────────────────────────────────────────────────
-  server.post("/api/wellness/checkins", { schema: createCheckinRouteSchema }, async (request, reply) => {
-    try {
-      const accessContext = await dependencies.resolveAccessContext(request);
-      const input = parseCheckinBody(request.body);
-      const checkin = await dependencies.dataContext.withDataContext(accessContext, (scopedDb) =>
-        repo.createCheckin(scopedDb, input)
-      );
-      return reply.code(201).send({ checkin: serializeCheckin(checkin) });
-    } catch (error) {
-      return handleRouteError(error, reply);
+  server.post(
+    "/api/wellness/checkins",
+    { schema: createCheckinRouteSchema },
+    async (request, reply) => {
+      try {
+        const accessContext = await dependencies.resolveAccessContext(request);
+        const input = parseCheckinBody(request.body);
+        const checkin = await dependencies.dataContext.withDataContext(accessContext, (scopedDb) =>
+          repo.createCheckin(scopedDb, input)
+        );
+        return reply.code(201).send({ checkin: serializeCheckin(checkin) });
+      } catch (error) {
+        return handleRouteError(error, reply);
+      }
     }
-  });
+  );
 
-  server.get("/api/wellness/checkins", { schema: listCheckinsRouteSchema }, async (request, reply) => {
-    try {
-      const accessContext = await dependencies.resolveAccessContext(request);
-      const query = request.query as Record<string, unknown>;
-      const since = parseSince(query["since"]);
-      const limit = parseLimit(query["limit"]);
-      const checkins = await dependencies.dataContext.withDataContext(accessContext, (scopedDb) =>
-        repo.listCheckins(scopedDb, { since, limit })
-      );
-      return { checkins: checkins.map(serializeCheckin) };
-    } catch (error) {
-      return handleRouteError(error, reply);
+  server.get(
+    "/api/wellness/checkins",
+    { schema: listCheckinsRouteSchema },
+    async (request, reply) => {
+      try {
+        const accessContext = await dependencies.resolveAccessContext(request);
+        const query = request.query as Record<string, unknown>;
+        const since = parseSince(query["since"]);
+        const limit = parseLimit(query["limit"]);
+        const checkins = await dependencies.dataContext.withDataContext(accessContext, (scopedDb) =>
+          repo.listCheckins(scopedDb, { since, limit })
+        );
+        return { checkins: checkins.map(serializeCheckin) };
+      } catch (error) {
+        return handleRouteError(error, reply);
+      }
     }
-  });
+  );
 
   // ── Medications ──────────────────────────────────────────────────────────
-  server.get("/api/wellness/medications", { schema: listMedicationsRouteSchema }, async (request, reply) => {
-    try {
-      const accessContext = await dependencies.resolveAccessContext(request);
-      const meds = await dependencies.dataContext.withDataContext(accessContext, (scopedDb) =>
-        repo.listMedications(scopedDb)
-      );
-      return { medications: meds.map(serializeMedication) };
-    } catch (error) {
-      return handleRouteError(error, reply);
+  server.get(
+    "/api/wellness/medications",
+    { schema: listMedicationsRouteSchema },
+    async (request, reply) => {
+      try {
+        const accessContext = await dependencies.resolveAccessContext(request);
+        const meds = await dependencies.dataContext.withDataContext(accessContext, (scopedDb) =>
+          repo.listMedications(scopedDb)
+        );
+        return { medications: meds.map(serializeMedication) };
+      } catch (error) {
+        return handleRouteError(error, reply);
+      }
     }
-  });
+  );
 
-  server.post("/api/wellness/medications", { schema: createMedicationRouteSchema }, async (request, reply) => {
-    try {
-      const accessContext = await dependencies.resolveAccessContext(request);
-      const input = parseCreateMedicationBody(request.body);
-      const med = await dependencies.dataContext.withDataContext(accessContext, (scopedDb) =>
-        repo.createMedication(scopedDb, input)
-      );
-      return reply.code(201).send({ medication: serializeMedication(med) });
-    } catch (error) {
-      return handleRouteError(error, reply);
+  server.post(
+    "/api/wellness/medications",
+    { schema: createMedicationRouteSchema },
+    async (request, reply) => {
+      try {
+        const accessContext = await dependencies.resolveAccessContext(request);
+        const input = parseCreateMedicationBody(request.body);
+        const med = await dependencies.dataContext.withDataContext(accessContext, (scopedDb) =>
+          repo.createMedication(scopedDb, input)
+        );
+        return reply.code(201).send({ medication: serializeMedication(med) });
+      } catch (error) {
+        return handleRouteError(error, reply);
+      }
     }
-  });
+  );
 
   server.patch<{ Params: MedParams }>(
     "/api/wellness/medications/:id",
@@ -2361,9 +2403,7 @@ export function registerWellnessRoutes(
 function isUniqueViolation(error: unknown): boolean {
   // Postgres unique_violation. The driver surfaces `.code` on the error object.
   return (
-    typeof error === "object" &&
-    error !== null &&
-    (error as { code?: string }).code === "23505"
+    typeof error === "object" && error !== null && (error as { code?: string }).code === "23505"
   );
 }
 
@@ -2377,7 +2417,12 @@ function parseCheckinBody(body: unknown): CreateCheckinInput {
   }
   const intensity = value["intensity"];
   if (intensity !== undefined && intensity !== null) {
-    if (typeof intensity !== "number" || !Number.isInteger(intensity) || intensity < 1 || intensity > 5) {
+    if (
+      typeof intensity !== "number" ||
+      !Number.isInteger(intensity) ||
+      intensity < 1 ||
+      intensity > 5
+    ) {
       throw new HttpError(400, "intensity must be an integer from 1 to 5");
     }
   }
@@ -2397,7 +2442,10 @@ function parseCheckinBody(body: unknown): CreateCheckinInput {
   // individually (Codex R2): reject e.g. a tertiary that isn't a leaf of its secondary, or a
   // tertiary supplied without its secondary. `undefined`/`null`/`""` normalize to no selection.
   if (!isValidFeelingPath(feelingCore, feelingSecondary ?? null, feelingTertiary ?? null)) {
-    throw new HttpError(400, "feelingSecondary/feelingTertiary must form a valid path under feelingCore");
+    throw new HttpError(
+      400,
+      "feelingSecondary/feelingTertiary must form a valid path under feelingCore"
+    );
   }
   return {
     feelingCore,
@@ -2416,7 +2464,10 @@ function parseCreateMedicationBody(body: unknown): CreateMedicationInput {
   const name = requiredString(value["name"], "name");
   const frequencyType = value["frequencyType"];
   if (!isFrequencyType(frequencyType)) {
-    throw new HttpError(400, `frequencyType must be one of ${MEDICATION_FREQUENCY_TYPES.join(", ")}`);
+    throw new HttpError(
+      400,
+      `frequencyType must be one of ${MEDICATION_FREQUENCY_TYPES.join(", ")}`
+    );
   }
   if (frequencyType === "times_per_day" && value["timesPerDay"] == null) {
     throw new HttpError(400, "timesPerDay is required for times_per_day");
@@ -2445,7 +2496,10 @@ function parseCreateMedicationBody(body: unknown): CreateMedicationInput {
   ) {
     throw new HttpError(400, "scheduleTimes length must equal timesPerDay");
   }
-  if (frequencyType === "cyclical" && (value["cycleAnchorDate"] == null || value["cycleDaysOn"] == null)) {
+  if (
+    frequencyType === "cyclical" &&
+    (value["cycleAnchorDate"] == null || value["cycleDaysOn"] == null)
+  ) {
     throw new HttpError(400, "cycleAnchorDate and cycleDaysOn are required for cyclical");
   }
   // as_needed (PRN) is unscheduled — reject scheduling/cycle fields (matches the DB CHECK).
@@ -2521,10 +2575,14 @@ function isFeelingCore(value: unknown): value is WellnessFeelingCore {
   return typeof value === "string" && (WELLNESS_FEELING_CORES as readonly string[]).includes(value);
 }
 function isFrequencyType(value: unknown): value is MedicationFrequencyTypeApi {
-  return typeof value === "string" && (MEDICATION_FREQUENCY_TYPES as readonly string[]).includes(value);
+  return (
+    typeof value === "string" && (MEDICATION_FREQUENCY_TYPES as readonly string[]).includes(value)
+  );
 }
 function isLogStatus(value: unknown): value is MedicationLogStatusApi {
-  return typeof value === "string" && (MEDICATION_LOG_STATUSES as readonly string[]).includes(value);
+  return (
+    typeof value === "string" && (MEDICATION_LOG_STATUSES as readonly string[]).includes(value)
+  );
 }
 
 function requireObject(value: unknown): Record<string, unknown> {
@@ -2621,6 +2679,7 @@ Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>"
 ### Task 8: AI read tools + complete the manifest (nav, permissions, routes, jobs, assistantTools)
 
 **Files:**
+
 - Create: `packages/wellness/src/tools.ts`
 - Modify: `packages/wellness/src/manifest.ts` (add nav, permissions, routes, jobs, assistantTools)
 - Modify: `packages/wellness/src/index.ts` (export the tool executes)
@@ -2645,7 +2704,9 @@ describe("wellness AI read tools", () => {
   }
 
   it("wellness.recentCheckIns returns owner-scoped check-ins and is declared read", async () => {
-    const tool = wellnessModuleManifest.assistantTools?.find((t) => t.name === "wellness.recentCheckIns");
+    const tool = wellnessModuleManifest.assistantTools?.find(
+      (t) => t.name === "wellness.recentCheckIns"
+    );
     expect(tool?.risk).toBe("read");
     expect(tool?.execute).toBeDefined();
 
@@ -2769,14 +2830,13 @@ import {
   updateMedicationRequestSchema
 } from "@jarv1s/shared";
 
-import {
-  wellnessMedicationAdherenceExecute,
-  wellnessRecentCheckInsExecute
-} from "./tools.js";
+import { wellnessMedicationAdherenceExecute, wellnessRecentCheckInsExecute } from "./tools.js";
 
 export const WELLNESS_MODULE_ID = "wellness";
 export const WELLNESS_MEDICATION_REMINDER_QUEUE = "wellness-medication-reminder";
-export const wellnessModuleSqlMigrationDirectory = fileURLToPath(new URL("../sql", import.meta.url));
+export const wellnessModuleSqlMigrationDirectory = fileURLToPath(
+  new URL("../sql", import.meta.url)
+);
 
 export const wellnessModuleManifest = {
   id: WELLNESS_MODULE_ID,
@@ -2835,13 +2895,52 @@ export const wellnessModuleManifest = {
     }
   ],
   routes: [
-    { method: "POST", path: "/api/wellness/checkins", requestSchema: createCheckinRequestSchema, responseSchema: createCheckinResponseSchema, permissionId: "wellness.create" },
-    { method: "GET", path: "/api/wellness/checkins", responseSchema: listCheckinsResponseSchema, permissionId: "wellness.view" },
-    { method: "GET", path: "/api/wellness/medications", responseSchema: listMedicationsResponseSchema, permissionId: "wellness.view" },
-    { method: "POST", path: "/api/wellness/medications", requestSchema: createMedicationRequestSchema, responseSchema: medicationResponseSchema, permissionId: "wellness.create" },
-    { method: "PATCH", path: "/api/wellness/medications/:id", requestSchema: updateMedicationRequestSchema, responseSchema: medicationResponseSchema, permissionId: "wellness.update" },
-    { method: "GET", path: "/api/wellness/medications/schedule", responseSchema: medicationScheduleResponseSchema, permissionId: "wellness.view" },
-    { method: "POST", path: "/api/wellness/medications/:id/logs", requestSchema: createMedicationLogRequestSchema, responseSchema: createMedicationLogResponseSchema, permissionId: "wellness.create" }
+    {
+      method: "POST",
+      path: "/api/wellness/checkins",
+      requestSchema: createCheckinRequestSchema,
+      responseSchema: createCheckinResponseSchema,
+      permissionId: "wellness.create"
+    },
+    {
+      method: "GET",
+      path: "/api/wellness/checkins",
+      responseSchema: listCheckinsResponseSchema,
+      permissionId: "wellness.view"
+    },
+    {
+      method: "GET",
+      path: "/api/wellness/medications",
+      responseSchema: listMedicationsResponseSchema,
+      permissionId: "wellness.view"
+    },
+    {
+      method: "POST",
+      path: "/api/wellness/medications",
+      requestSchema: createMedicationRequestSchema,
+      responseSchema: medicationResponseSchema,
+      permissionId: "wellness.create"
+    },
+    {
+      method: "PATCH",
+      path: "/api/wellness/medications/:id",
+      requestSchema: updateMedicationRequestSchema,
+      responseSchema: medicationResponseSchema,
+      permissionId: "wellness.update"
+    },
+    {
+      method: "GET",
+      path: "/api/wellness/medications/schedule",
+      responseSchema: medicationScheduleResponseSchema,
+      permissionId: "wellness.view"
+    },
+    {
+      method: "POST",
+      path: "/api/wellness/medications/:id/logs",
+      requestSchema: createMedicationLogRequestSchema,
+      responseSchema: createMedicationLogResponseSchema,
+      permissionId: "wellness.create"
+    }
   ],
   jobs: [
     {
@@ -2877,10 +2976,7 @@ export const wellnessModuleManifest = {
 Update `packages/wellness/src/index.ts` to add:
 
 ```ts
-export {
-  wellnessRecentCheckInsExecute,
-  wellnessMedicationAdherenceExecute
-} from "./tools.js";
+export { wellnessRecentCheckInsExecute, wellnessMedicationAdherenceExecute } from "./tools.js";
 ```
 
 NOTE on the `heart-pulse` icon: it is added to the web shell `iconMap` in Task 18 — `lucide-react` exports `HeartPulse`. Until then nav falls back to the generic `Layers3` icon, which is harmless.
@@ -2902,6 +2998,7 @@ Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>"
 ### Task 9: Register Wellness in `BUILT_IN_MODULES` with routes (full registry wiring)
 
 **Files:**
+
 - Modify: `packages/module-registry/src/index.ts` (upgrade the Task 2b partial entry to include `registerRoutes`)
 - Test: `tests/integration/wellness.test.ts`
 
@@ -2981,6 +3078,7 @@ Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>"
 ### Task 10: Briefings "Wellness" section via the existing read-tool seam (zero briefings-package change)
 
 **Files:**
+
 - Test: `tests/integration/wellness.test.ts` (assert `generateRun` resolves the wellness tool with NO briefings edit)
 
 This task proves the seam — it adds NO production code. `generateRun` resolves a definition's `selected_tool_names` against `input.moduleManifests` and calls `manifestTool.execute`. We assert a briefing definition selecting `wellness.recentCheckIns` renders a section.
@@ -2995,6 +3093,7 @@ select/execute a read tool from a module the OWNER has user-disabled — for EVE
 module, not Wellness specifically.
 
 Arbiter ruling (why this does NOT block this slice):
+
 - It is NOT a Hard-Invariant breach. The wellness read tools run under `withDataContext`
   (owner-scoped RLS); a disabled-module briefing can only ever read the OWNER'S OWN data inside the
   OWNER'S OWN briefing — no cross-user leak, no admin bypass, no secret exposure.
@@ -3044,8 +3143,11 @@ describe("briefings Wellness section (existing read-tool seam, zero briefings ch
     );
 
     expect(run?.status).toBe("succeeded");
-    const tools = (run?.source_metadata as { tools?: Array<{ name: string; status: string }> }).tools ?? [];
-    expect(tools.some((t) => t.name === "wellness.recentCheckIns" && t.status !== "failed")).toBe(true);
+    const tools =
+      (run?.source_metadata as { tools?: Array<{ name: string; status: string }> }).tools ?? [];
+    expect(tools.some((t) => t.name === "wellness.recentCheckIns" && t.status !== "failed")).toBe(
+      true
+    );
   });
 });
 ```
@@ -3078,6 +3180,7 @@ Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>"
 This plan uses the **fallback** path from the spec (Component 5) — write a real `profile` fact via the memory module's PUBLIC `ChatMemoryFactsRepository` — to keep the generic-core-change count at exactly ONE (the focus-signal seam, Stage 4). The fact text is the abstracted trend ONLY (never raw feelings).
 
 **Files:**
+
 - Create: `packages/wellness/src/recall-context.ts`
 - Modify: `packages/wellness/package.json` (add `@jarv1s/memory` dependency)
 - Modify: `packages/wellness/src/index.ts` (export `deriveEnergyTrend`, `WellnessRecallContributor`)
@@ -3114,11 +3217,21 @@ describe("wellness chat recall energy-trend fact", () => {
     const facts = new ChatMemoryFactsRepository();
 
     await dataContext.withDataContext(ctx(userId), async (db) => {
-      await new WellnessRepository().createCheckin(db, { feelingCore: "sad", intensity: 1, energy: 1 });
-      await new WellnessRepository().createCheckin(db, { feelingCore: "scared", intensity: 2, energy: 2 });
+      await new WellnessRepository().createCheckin(db, {
+        feelingCore: "sad",
+        intensity: 1,
+        energy: 1
+      });
+      await new WellnessRepository().createCheckin(db, {
+        feelingCore: "scared",
+        intensity: 2,
+        energy: 2
+      });
       await contributor.refreshEnergyTrendFact(db, userId);
       const active = await facts.listActiveFacts(db, userId);
-      expect(active.some((f) => f.category === "profile" && f.content.toLowerCase().includes("energy"))).toBe(true);
+      expect(
+        active.some((f) => f.category === "profile" && f.content.toLowerCase().includes("energy"))
+      ).toBe(true);
     });
   });
 });
@@ -3156,9 +3269,7 @@ const ENERGY_TREND_TAG = "[wellness:energy-trend]";
 export function deriveEnergyTrend(
   recent: ReadonlyArray<Pick<WellnessCheckin, "energy" | "feeling_core">>
 ): string | null {
-  const energies = recent
-    .map((c) => c.energy)
-    .filter((n): n is number => typeof n === "number");
+  const energies = recent.map((c) => c.energy).filter((n): n is number => typeof n === "number");
   if (energies.length === 0) return null;
 
   const avg = energies.reduce((sum, n) => sum + n, 0) / energies.length;
@@ -3172,7 +3283,9 @@ export function deriveEnergyTrend(
 }
 
 export class WellnessRecallContributor {
-  constructor(private readonly facts: ChatMemoryFactsRepository = new ChatMemoryFactsRepository()) {}
+  constructor(
+    private readonly facts: ChatMemoryFactsRepository = new ChatMemoryFactsRepository()
+  ) {}
 
   /**
    * Recompute the energy-trend and store it as a single owner profile fact. Supersedes
@@ -3188,7 +3301,9 @@ export class WellnessRecallContributor {
       .limit(7)
       .execute();
 
-    const trend = deriveEnergyTrend(recent as Array<Pick<WellnessCheckin, "energy" | "feeling_core">>);
+    const trend = deriveEnergyTrend(
+      recent as Array<Pick<WellnessCheckin, "energy" | "feeling_core">>
+    );
 
     const active = await this.facts.listActiveFacts(scopedDb, ownerUserId);
     for (const fact of active) {
@@ -3217,20 +3332,27 @@ export { deriveEnergyTrend, WellnessRecallContributor } from "./recall-context.j
 NOTE: `refreshEnergyTrendFact` is invoked on each check-in create from the route layer. Add this call inside the check-in POST handler in `packages/wellness/src/routes.ts` — after the `createCheckin` succeeds, within the SAME `withDataContext` block. Modify the POST handler body to:
 
 ```ts
-  server.post("/api/wellness/checkins", { schema: createCheckinRouteSchema }, async (request, reply) => {
+server.post(
+  "/api/wellness/checkins",
+  { schema: createCheckinRouteSchema },
+  async (request, reply) => {
     try {
       const accessContext = await dependencies.resolveAccessContext(request);
       const input = parseCheckinBody(request.body);
-      const checkin = await dependencies.dataContext.withDataContext(accessContext, async (scopedDb) => {
-        const created = await repo.createCheckin(scopedDb, input);
-        await recallContributor.refreshEnergyTrendFact(scopedDb, accessContext.actorUserId);
-        return created;
-      });
+      const checkin = await dependencies.dataContext.withDataContext(
+        accessContext,
+        async (scopedDb) => {
+          const created = await repo.createCheckin(scopedDb, input);
+          await recallContributor.refreshEnergyTrendFact(scopedDb, accessContext.actorUserId);
+          return created;
+        }
+      );
       return reply.code(201).send({ checkin: serializeCheckin(checkin) });
     } catch (error) {
       return handleRouteError(error, reply);
     }
-  });
+  }
+);
 ```
 
 Add the contributor to `routes.ts` — import it and construct it at the top of `registerWellnessRoutes`:
@@ -3240,7 +3362,7 @@ import { WellnessRecallContributor } from "./recall-context.js";
 ```
 
 ```ts
-  const recallContributor = new WellnessRecallContributor();
+const recallContributor = new WellnessRecallContributor();
 ```
 
 - [ ] **Step 4: Run the test**
@@ -3264,6 +3386,7 @@ Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>"
 This is the **single justified generic core change** (spec Component 3, acceptance criterion 6). It touches `module-sdk` (type + manifest field + a generic aggregator), `module-registry`/`server.ts` (wire an aggregated provider into route deps), and `tasks` focus route (consume a generic `FocusSignal[]` — NEVER importing wellness). Wellness implements the provider in-package.
 
 **Files:**
+
 - Modify: `packages/module-sdk/src/index.ts` (add `FocusSignal`, `FocusSignalProvider`, `focusSignal?` field, `aggregateFocusSignals`)
 - Create: `packages/wellness/src/focus-signal.ts`
 - Modify: `packages/wellness/src/manifest.ts` (add `focusSignal: wellnessFocusSignal`)
@@ -3456,9 +3579,7 @@ const repository = new WellnessRepository();
 export const wellnessFocusSignal: FocusSignalProvider = async (scopedDb, _ctx) => {
   assertDataContextDb(scopedDb);
   const recent = await repository.listCheckins(scopedDb, { limit: 7 });
-  const energies = recent
-    .map((c) => c.energy)
-    .filter((n): n is number => typeof n === "number");
+  const energies = recent.map((c) => c.energy).filter((n): n is number => typeof n === "number");
   if (energies.length === 0) return null;
 
   const avg = energies.reduce((sum, n) => sum + n, 0) / energies.length;
@@ -3560,30 +3681,30 @@ In `packages/tasks/src/routes.ts`, add to `TasksRoutesDependencies`:
 Replace the `/api/tasks/focus` handler with one that attaches signals and caps the list when aggregate readiness is low. Resolve signals FIRST (its own context), THEN read the focus tasks in a separate withDataContext — never nest the two:
 
 ```ts
-  server.get("/api/tasks/focus", { schema: focusTasksRouteSchema }, async (request, reply) => {
-    try {
-      const accessContext = await dependencies.resolveAccessContext(request);
-      // Step 1: signals (the source opens its own per-actor contexts; not nested below).
-      const signals = dependencies.focusSignals
-        ? await dependencies.focusSignals({
-            actorUserId: accessContext.actorUserId,
-            requestId: accessContext.requestId ?? "focus"
-          })
-        : [];
-      // Step 2: the focus tasks, in their own transaction.
-      const tasks = await dependencies.dataContext.withDataContext(accessContext, (scopedDb) =>
-        driftRepository.getFocus(scopedDb)
-      );
+server.get("/api/tasks/focus", { schema: focusTasksRouteSchema }, async (request, reply) => {
+  try {
+    const accessContext = await dependencies.resolveAccessContext(request);
+    // Step 1: signals (the source opens its own per-actor contexts; not nested below).
+    const signals = dependencies.focusSignals
+      ? await dependencies.focusSignals({
+          actorUserId: accessContext.actorUserId,
+          requestId: accessContext.requestId ?? "focus"
+        })
+      : [];
+    // Step 2: the focus tasks, in their own transaction.
+    const tasks = await dependencies.dataContext.withDataContext(accessContext, (scopedDb) =>
+      driftRepository.getFocus(scopedDb)
+    );
 
-      // Generic readiness re-weighting: when aggregate readiness is low, surface fewer,
-      // lighter items. Tasks does not know WHY readiness is low — only the number.
-      const ordered = applyReadinessCap(tasks.map(serializeTask), signals);
+    // Generic readiness re-weighting: when aggregate readiness is low, surface fewer,
+    // lighter items. Tasks does not know WHY readiness is low — only the number.
+    const ordered = applyReadinessCap(tasks.map(serializeTask), signals);
 
-      return { tasks: ordered, signals };
-    } catch (error) {
-      return handleRouteError(error, reply);
-    }
-  });
+    return { tasks: ordered, signals };
+  } catch (error) {
+    return handleRouteError(error, reply);
+  }
+});
 ```
 
 Add this helper at the bottom of `packages/tasks/src/routes.ts` (it is generic — operates on the numeric signal only):
@@ -3626,9 +3747,7 @@ export function focusSignalProvidersFor(
   manifests: readonly JarvisModuleManifest[]
 ): RegisteredFocusSignal[] {
   return manifests.flatMap((manifest) =>
-    manifest.focusSignal
-      ? [{ moduleId: manifest.id, provider: manifest.focusSignal }]
-      : []
+    manifest.focusSignal ? [{ moduleId: manifest.id, provider: manifest.focusSignal }] : []
   );
 }
 ```
@@ -3711,7 +3830,12 @@ describe("focus consumer down-weights when readiness is low (generic)", () => {
       const repo = new TasksRepository();
       const past = new Date(Date.now() - 86_400_000);
       for (let i = 0; i < 6; i++) {
-        await repo.create(db, { title: `urgent-${i.toString()}`, status: "todo", priority: 5, dueAt: past });
+        await repo.create(db, {
+          title: `urgent-${i.toString()}`,
+          status: "todo",
+          priority: 5,
+          dueAt: past
+        });
       }
     });
 
@@ -3720,7 +3844,9 @@ describe("focus consumer down-weights when readiness is low (generic)", () => {
       resolveAccessContext: async () => ({ actorUserId: userId, requestId: "req:focus" }),
       dataContext,
       boss: undefined as never,
-      focusSignals: async () => [{ moduleId: "wellness", readiness: 0.1, summary: "Energy trended low." }]
+      focusSignals: async () => [
+        { moduleId: "wellness", readiness: 0.1, summary: "Energy trended low." }
+      ]
     });
     await app.ready();
     try {
@@ -3805,6 +3931,7 @@ Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>"
 This is intentionally early in the web stage so Ben has a taste artifact to review in the morning. It is a static HTML file — no build step, no React.
 
 **Files:**
+
 - Create: `docs/brand/mockups/feelings-wheel-modal.html`
 
 - [ ] **Step 1: Create the static mockup**
@@ -3819,35 +3946,159 @@ Create `docs/brand/mockups/feelings-wheel-modal.html` — a static, NON-SHIPPING
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Wellness — Feelings Wheel modal flow (mockup)</title>
     <style>
-      :root { --bg:#0f1115; --panel:#1a1d24; --ink:#e8eaf0; --muted:#9aa0ad; --accent:#7c9cff; }
-      body { margin:0; background:var(--bg); color:var(--ink); font:15px/1.5 system-ui, sans-serif; }
-      h1 { font-size:18px; padding:20px 24px 0; }
-      p.sub { color:var(--muted); padding:0 24px; margin-top:4px; }
-      .flow { display:grid; grid-template-columns:repeat(2, minmax(320px,1fr)); gap:20px; padding:24px; }
-      .card { background:var(--panel); border:1px solid #262a33; border-radius:14px; padding:18px; }
-      .card h2 { font-size:13px; text-transform:uppercase; letter-spacing:.06em; color:var(--muted); margin:0 0 12px; }
-      .wheel { display:grid; grid-template-columns:repeat(3,1fr); gap:8px; }
-      .core { border:none; border-radius:10px; padding:14px 8px; color:#10131a; font-weight:600; cursor:pointer; }
-      .mad{background:#ff8b8b} .sad{background:#8bb6ff} .scared{background:#c79bff}
-      .joyful{background:#ffe08b} .powerful{background:#ffb86b} .peaceful{background:#8bf0c4}
-      .chips { display:flex; flex-wrap:wrap; gap:8px; margin-top:14px; }
-      .chip { border:1px solid #333; border-radius:999px; padding:6px 12px; color:var(--ink); background:#12151c; cursor:pointer; }
-      .chat { background:#12151c; border-radius:10px; padding:12px; min-height:120px; }
-      .bubble { background:#222633; border-radius:10px; padding:8px 12px; margin:6px 0; max-width:80%; }
-      .bubble.me { background:var(--accent); color:#0b0e14; margin-left:auto; }
-      label { display:block; margin:12px 0 4px; color:var(--muted); font-size:13px; }
-      input, textarea, select { width:100%; box-sizing:border-box; background:#12151c; color:var(--ink); border:1px solid #2a2f3a; border-radius:8px; padding:8px; }
-      .actions { display:flex; gap:10px; margin-top:16px; }
-      .btn { border:none; border-radius:9px; padding:10px 16px; font-weight:600; cursor:pointer; }
-      .btn.primary { background:var(--accent); color:#0b0e14; }
-      .btn.ghost { background:transparent; color:var(--ink); border:1px solid #2a2f3a; }
+      :root {
+        --bg: #0f1115;
+        --panel: #1a1d24;
+        --ink: #e8eaf0;
+        --muted: #9aa0ad;
+        --accent: #7c9cff;
+      }
+      body {
+        margin: 0;
+        background: var(--bg);
+        color: var(--ink);
+        font:
+          15px/1.5 system-ui,
+          sans-serif;
+      }
+      h1 {
+        font-size: 18px;
+        padding: 20px 24px 0;
+      }
+      p.sub {
+        color: var(--muted);
+        padding: 0 24px;
+        margin-top: 4px;
+      }
+      .flow {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(320px, 1fr));
+        gap: 20px;
+        padding: 24px;
+      }
+      .card {
+        background: var(--panel);
+        border: 1px solid #262a33;
+        border-radius: 14px;
+        padding: 18px;
+      }
+      .card h2 {
+        font-size: 13px;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+        color: var(--muted);
+        margin: 0 0 12px;
+      }
+      .wheel {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 8px;
+      }
+      .core {
+        border: none;
+        border-radius: 10px;
+        padding: 14px 8px;
+        color: #10131a;
+        font-weight: 600;
+        cursor: pointer;
+      }
+      .mad {
+        background: #ff8b8b;
+      }
+      .sad {
+        background: #8bb6ff;
+      }
+      .scared {
+        background: #c79bff;
+      }
+      .joyful {
+        background: #ffe08b;
+      }
+      .powerful {
+        background: #ffb86b;
+      }
+      .peaceful {
+        background: #8bf0c4;
+      }
+      .chips {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        margin-top: 14px;
+      }
+      .chip {
+        border: 1px solid #333;
+        border-radius: 999px;
+        padding: 6px 12px;
+        color: var(--ink);
+        background: #12151c;
+        cursor: pointer;
+      }
+      .chat {
+        background: #12151c;
+        border-radius: 10px;
+        padding: 12px;
+        min-height: 120px;
+      }
+      .bubble {
+        background: #222633;
+        border-radius: 10px;
+        padding: 8px 12px;
+        margin: 6px 0;
+        max-width: 80%;
+      }
+      .bubble.me {
+        background: var(--accent);
+        color: #0b0e14;
+        margin-left: auto;
+      }
+      label {
+        display: block;
+        margin: 12px 0 4px;
+        color: var(--muted);
+        font-size: 13px;
+      }
+      input,
+      textarea,
+      select {
+        width: 100%;
+        box-sizing: border-box;
+        background: #12151c;
+        color: var(--ink);
+        border: 1px solid #2a2f3a;
+        border-radius: 8px;
+        padding: 8px;
+      }
+      .actions {
+        display: flex;
+        gap: 10px;
+        margin-top: 16px;
+      }
+      .btn {
+        border: none;
+        border-radius: 9px;
+        padding: 10px 16px;
+        font-weight: 600;
+        cursor: pointer;
+      }
+      .btn.primary {
+        background: var(--accent);
+        color: #0b0e14;
+      }
+      .btn.ghost {
+        background: transparent;
+        color: var(--ink);
+        border: 1px solid #2a2f3a;
+      }
     </style>
   </head>
   <body>
     <h1>Wellness — Feelings check-in modal flow</h1>
-    <p class="sub">Static, NON-SHIPPING taste artifact for Ben's morning review only. The
-      shipped React UI in this slice is intentionally BASIC (plain buttons/chips/selects, no
-      colored wheel) — the polished feelings-wheel is deferred to a dedicated Ben UI session.</p>
+    <p class="sub">
+      Static, NON-SHIPPING taste artifact for Ben's morning review only. The shipped React UI in
+      this slice is intentionally BASIC (plain buttons/chips/selects, no colored wheel) — the
+      polished feelings-wheel is deferred to a dedicated Ben UI session.
+    </p>
     <div class="flow">
       <section class="card" aria-label="Step 1">
         <h2>1 · Pick a feeling + body check</h2>
@@ -3878,13 +4129,17 @@ Create `docs/brand/mockups/feelings-wheel-modal.html` — a static, NON-SHIPPING
       <section class="card" aria-label="Step 3">
         <h2>3 · Details</h2>
         <label>Intensity (1–5)</label>
-        <select><option>4</option></select>
+        <select>
+          <option>4</option>
+        </select>
         <label>Note / context</label>
         <textarea rows="3">Deadline moved up; chest is tight.</textarea>
       </section>
       <section class="card" aria-label="Step 4">
         <h2>4 · Save</h2>
-        <p style="color:var(--muted)">Save the check-in, or save and bring it into a Jarvis conversation.</p>
+        <p style="color:var(--muted)">
+          Save the check-in, or save and bring it into a Jarvis conversation.
+        </p>
         <div class="actions">
           <button class="btn ghost">Save</button>
           <button class="btn primary">Save &amp; discuss</button>
@@ -3914,6 +4169,7 @@ Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>"
 The taxonomy + body-sensations + `isValidFeelingPath` now live in `@jarv1s/shared` (added in Task 4) so the browser bundle never imports the server-only `@jarv1s/wellness` index (Codex R1). This task (a) asserts that shared data/helper and (b) builds a deliberately BASIC picker — plain `<select>` for core/secondary/tertiary plus chip buttons — NOT a polished colored wheel. The polished feelings-wheel is deferred to a dedicated Ben UI session (per the slice's "UI basic/functional" constraint). No new `packages/wellness` taxonomy files are created.
 
 **Files:**
+
 - Create: `apps/web/src/wellness/feelings-picker.tsx` (basic, plain controls; imports taxonomy from `@jarv1s/shared`)
 - Test: `tests/integration/wellness.test.ts` (assert shared taxonomy + path validation) + web typecheck
 
@@ -4097,6 +4353,7 @@ Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>"
 ### Task 15: Typed web client + query keys + `openChatWith` shell helper
 
 **Files:**
+
 - Modify: `apps/web/src/api/query-keys.ts` (add `wellness` keys)
 - Modify: `apps/web/src/api/client.ts` (add wellness client fns)
 - Modify: `apps/web/src/shell/app-shell.tsx` (lift an `openChatWith(prompt)` helper + a context provider)
@@ -4231,18 +4488,18 @@ import { useCallback } from "react";
 Inside `AppShell`, add the helper (after `const [chatOpen, setChatOpen] = useState(false);`):
 
 ```ts
-  const openChatWith = useCallback((prompt: string) => {
-    setChatOpen(true);
-    void sendChatTurn(prompt);
-  }, []);
+const openChatWith = useCallback((prompt: string) => {
+  setChatOpen(true);
+  void sendChatTurn(prompt);
+}, []);
 ```
 
 Wrap the returned tree's `<main className="content-surface">{props.children}</main>` so the provider spans the children:
 
 ```tsx
-        <main className="content-surface">
-          <ChatControlsProvider value={{ openChatWith }}>{props.children}</ChatControlsProvider>
-        </main>
+<main className="content-surface">
+  <ChatControlsProvider value={{ openChatWith }}>{props.children}</ChatControlsProvider>
+</main>
 ```
 
 - [ ] **Step 4: Web typecheck**
@@ -4262,6 +4519,7 @@ Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>"
 ### Task 16: Feelings check-in modal (`feelings-checkin-modal.tsx`)
 
 **Files:**
+
 - Create: `apps/web/src/wellness/feelings-checkin-modal.tsx`
 - Test: web typecheck + the Playwright smoke (Task 18)
 
@@ -4490,6 +4748,7 @@ Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>"
 ### Task 17: Medications views (`medications-view.tsx`, `medication-schedule.tsx`)
 
 **Files:**
+
 - Create: `apps/web/src/wellness/medications-view.tsx`
 - Create: `apps/web/src/wellness/medication-schedule.tsx`
 - Test: web typecheck + Playwright smoke (Task 18)
@@ -4548,7 +4807,10 @@ export function MedicationSchedule() {
       {slots.length === 0 ? <p className="muted">No medications scheduled.</p> : null}
       <ul className="schedule-list">
         {slots.map((slot, i) => (
-          <li key={`${slot.medicationId}-${i.toString()}`} className={`schedule-slot ${slot.status}`}>
+          <li
+            key={`${slot.medicationId}-${i.toString()}`}
+            className={`schedule-slot ${slot.status}`}
+          >
             <span className="slot-name">{slot.name}</span>
             <span className="slot-time">
               {slot.asNeeded ? "As needed" : (slot.scheduledFor?.slice(11, 16) ?? "")}
@@ -4758,6 +5020,7 @@ Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>"
 ### Task 18: Wellness page + app.tsx route caveat + nav-visibility-when-disabled + Playwright smoke
 
 **Files:**
+
 - Create: `apps/web/src/wellness/wellness-page.tsx`
 - Modify: `apps/web/src/app.tsx` (the `/wellness` `<Route>` caveat + fetch `/api/me/modules` for active flags and pass them to `AppShell`)
 - Modify: `apps/web/src/api/client.ts` (add `getMyModules()` — `/api/me/modules`, already-shipped endpoint)
@@ -4840,7 +5103,7 @@ import { WellnessPage } from "./wellness/wellness-page";
 Add the route inside `<Routes>` (after the `/briefings` route):
 
 ```tsx
-          <Route path="/wellness" element={<WellnessPage />} />
+<Route path="/wellness" element={<WellnessPage />} />
 ```
 
 - [ ] **Step 3: Add the icon + hide nav for the actor's disabled modules (consuming the LANDED `/api/me/modules`)**
@@ -4864,14 +5127,14 @@ import { getModules, getMyModules } from "./api/client";
 ```
 
 ```ts
-  const myModulesQuery = useQuery({
-    enabled: meQuery.isSuccess,
-    queryKey: queryKeys.myModules,
-    queryFn: () => getMyModules(),
-    retry: false
-  });
-  const disabledModuleIds =
-    myModulesQuery.data?.modules.filter((m) => !m.active).map((m) => m.id) ?? [];
+const myModulesQuery = useQuery({
+  enabled: meQuery.isSuccess,
+  queryKey: queryKeys.myModules,
+  queryFn: () => getMyModules(),
+  retry: false
+});
+const disabledModuleIds =
+  myModulesQuery.data?.modules.filter((m) => !m.active).map((m) => m.id) ?? [];
 ```
 
 Pass it to `AppShell`:
@@ -4916,10 +5179,10 @@ Add `disabledModuleIds` to `AppShellProps` and thread it into `readNavigation`:
 ```
 
 ```ts
-  const navigation = useMemo(
-    () => readNavigation(props.modules, props.disabledModuleIds ?? []),
-    [props.modules, props.disabledModuleIds]
-  );
+const navigation = useMemo(
+  () => readNavigation(props.modules, props.disabledModuleIds ?? []),
+  [props.modules, props.disabledModuleIds]
+);
 ```
 
 Update `readNavigation` to drop nav for any module the actor disabled. A module absent from
@@ -4965,7 +5228,15 @@ test("wellness page renders and a check-in can be saved", async ({ page }) => {
             name: "Wellness",
             version: "0.1.0",
             lifecycle: "user-toggleable",
-            navigation: [{ id: "wellness", label: "Wellness", path: "/wellness", icon: "heart-pulse", order: 40 }],
+            navigation: [
+              {
+                id: "wellness",
+                label: "Wellness",
+                path: "/wellness",
+                icon: "heart-pulse",
+                order: 40
+              }
+            ],
             settings: []
           }
         ]
@@ -5053,6 +5324,7 @@ Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>"
 ### Task 19: Module-isolation assertions (tasks ⇄ wellness must not import each other)
 
 **Files:**
+
 - Test: `tests/integration/wellness.test.ts`
 
 - [ ] **Step 1: Write the failing/guard test**
@@ -5075,9 +5347,9 @@ describe("module isolation: wellness ⇄ tasks", () => {
   });
 
   it("@jarv1s/tasks package.json does NOT depend on @jarv1s/wellness", () => {
-    const pkg = JSON.parse(
-      readFileSync(join(repoRoot, "packages/tasks/package.json"), "utf8")
-    ) as { dependencies?: Record<string, string> };
+    const pkg = JSON.parse(readFileSync(join(repoRoot, "packages/tasks/package.json"), "utf8")) as {
+      dependencies?: Record<string, string>;
+    };
     expect(Object.keys(pkg.dependencies ?? {})).not.toContain("@jarv1s/wellness");
   });
 

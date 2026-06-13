@@ -7,9 +7,10 @@ Branch: `phase2-portable-deploy` (main untouched). All commits land here for mor
 ---
 
 ## ⚑ Design forks & decisions deferred for Ben's review
+
 _(autonomous calls I made that you may want to revisit; nothing here blocked the build)_
 
-- **[deploy] tmux CLIENT bundled in the production image.** ADR 0008 forbids bundling the AI CLIs and the multiplexer *server*; but the containerized api/worker must exec `tmux` verbs against the **host** tmux socket, so the thin tmux **client** binary is installed in the image. I read this as consistent with ADR 0008's intent (portability = don't bake the *engine*/subscription), and reworded the invariant note to distinguish client-vs-server. Flagging in case you'd rather the container reach tmux a different way (e.g. herdr-only, or a host-side exec shim).
+- **[deploy] tmux CLIENT bundled in the production image.** ADR 0008 forbids bundling the AI CLIs and the multiplexer _server_; but the containerized api/worker must exec `tmux` verbs against the **host** tmux socket, so the thin tmux **client** binary is installed in the image. I read this as consistent with ADR 0008's intent (portability = don't bake the _engine_/subscription), and reworded the invariant note to distinguish client-vs-server. Flagging in case you'd rather the container reach tmux a different way (e.g. herdr-only, or a host-side exec shim).
 - **[deploy] runtime image = `FROM build` (full deps incl. tsx), migrate runs as `tsx scripts/migrate.ts` (not bundled).** Codex caught that esbuild-bundling migrate collapses every module's `new URL('../sql', import.meta.url)` to one path → chosen a larger but correct single image over a broken pruned one. Revisit if image size matters for your deploy target.
 - **[wellness] active-prioritization will add ONE generic "readiness-signal" contribution point to module-sdk** (any module can provide it) — the single justified core change for Phase 5, designed generically to preserve module isolation (Wellness never imports Tasks). Confirm you're happy with that being a core seam vs. keeping wellness fully leaf.
 - **[wellness/briefings] per-user module-disable does NOT yet cover the briefings WORKER path.** Codex (P5 review) flagged: the briefings worker + `/api/modules` + frontend use the FULL manifest set (`listModuleManifests`), not the actor-filtered async `resolveActiveModules`. So a user who disables Wellness would still have its read tools run inside a SCHEDULED briefing. Module-seam (just built) covers the request-time route guard + MCP gateway; the briefings-worker reconciliation is the gap. Plan: address it during the P5 wellness build (make the briefings worker honor per-user enablement), else ship as a documented v1 limitation. Flagging for your call.
@@ -19,23 +20,24 @@ _(autonomous calls I made that you may want to revisit; nothing here blocked the
 
 ## ✅ Slice status
 
-| Slice | Plan-review | Build | Code-review |
-|---|---|---|---|
-| P2 · CLI chat adapter | ✅ APPROVED (4 rounds, pre-run) | ✅ 17 tasks, green | ✅ APPROVED (2 rounds; fixed orphan-session cleanup + admin HTTP tests; e7cec29) |
-| P2 · Module-enablement seam | ✅ 15 findings applied | ✅ 13 commits, green | ⏳ code-review (wma7gjikf) |
-| P2 · Deployable stack | ⏳ in review | — | — |
-| P2 · Primary onboarding | ⏳ in review | — | — |
-| P3 · Connector sync | ✅ APPROVED (r3) | queued | — |
-| P3 · Real briefings | ✅ APPROVED (r4) | queued | — |
-| P3 · Task verticals | ✅ APPROVED (r3) | queued | — |
-| P3 · Focus-time agency | ✅ APPROVED (r4) | queued | — |
-| P3 · Design direction | ⏸️ DEFERRED to UI session (spec only) | — | — |
-| P4 · Secondary onboarding | ✅ all findings applied (r3; "deadlock"=1 mock nit) | queued | — |
-| P5 · Wellness module | ✅ findings applied (r3; 1 cross-slice fork ↓) | queued | — |
+| Slice                       | Plan-review                                         | Build                                                         | Code-review                                                                                                                                      |
+| --------------------------- | --------------------------------------------------- | ------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
+| P2 · CLI chat adapter       | ✅ APPROVED (4 rounds, pre-run)                     | ✅ 17 tasks, green                                            | ✅ APPROVED (2 rounds; fixed orphan-session cleanup + admin HTTP tests; e7cec29)                                                                 |
+| P2 · Module-enablement seam | ✅ 15 findings applied                              | ✅ 13 commits, green                                          | ✅ APPROVED (r3, 0 fixes; arbiter empirically disproved a false ON CONFLICT finding)                                                             |
+| P2 · Deployable stack       | ✅ APPROVED (r3)                                    | ✅ 14 commits, green                                          | ✅ APPROVED (r3; fixed 5 real deploy bugs: env_file path, weak-DB-password interpolation, false-green reboot probe ×2, ADR-0008 probe violation) |
+| P2 · Primary onboarding     | ✅ reviewed                                         | ✅ 13 commits, green (wizard/steps/overlay/status routes/e2e) | ⏳ code-review (wdhrzdyls)                                                                                                                       |
+| P3 · Connector sync         | ✅ APPROVED (r3)                                    | queued                                                        | —                                                                                                                                                |
+| P3 · Real briefings         | ✅ APPROVED (r4)                                    | queued                                                        | —                                                                                                                                                |
+| P3 · Task verticals         | ✅ APPROVED (r3)                                    | queued                                                        | —                                                                                                                                                |
+| P3 · Focus-time agency      | ✅ APPROVED (r4)                                    | queued                                                        | —                                                                                                                                                |
+| P3 · Design direction       | ⏸️ DEFERRED to UI session (spec only)               | —                                                             | —                                                                                                                                                |
+| P4 · Secondary onboarding   | ✅ all findings applied (r3; "deadlock"=1 mock nit) | queued                                                        | —                                                                                                                                                |
+| P5 · Wellness module        | ✅ findings applied (r3; 1 cross-slice fork ↓)      | queued                                                        | —                                                                                                                                                |
 
 ---
 
 ## 📋 Event log
+
 _(appended as the run proceeds)_
 
 - **start** — specs+plans authored for P2 (done) + P3/P4/P5 (in progress); CLI-adapter build pilot launched; P2 plan-review launched.

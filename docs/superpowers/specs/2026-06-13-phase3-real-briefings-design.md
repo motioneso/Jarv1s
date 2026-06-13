@@ -110,7 +110,7 @@ Each component lists: what it does · how it is used · what it depends on.
 - Add an explicit `schedule?: boolean` knob to `createPgBossClient` (default stays `false`) **or** pass
   `{ schedule: true }` via the existing `overrides` argument at the worker call site only. Prefer the
   latter — it is a one-line change at `apps/worker/src/worker.ts` (`createPgBossClient(connectionString,
-  { schedule: true })`) and leaves the API boss unchanged, so the cron engine runs in exactly one process.
+{ schedule: true })`) and leaves the API boss unchanged, so the cron engine runs in exactly one process.
 - Do **not** also enable `supervise`/`migrate`/`createSchema` (they remain `false`; migrations are owned by
   `pnpm db:migrate` → `migratePgBoss`). The change is scoped to the scheduler only.
 - The `error`-event handler that must never rethrow (`defaultOnPgBossError`, `pg-boss.ts:97`) already
@@ -132,7 +132,7 @@ Each component lists: what it does · how it is used · what it depends on.
     `boss.unschedule(BRIEFINGS_RUN_QUEUE, definition.id)`. `key=definition.id` means the schedule upserts
     on `(name, key)`, so create/update/cadence-change/tz-change all funnel through the same call. `data` is
     the **metadata-only** scheduled-run payload `{actorUserId: definition.owner_user_id, definitionId:
-    definition.id, runKind: "scheduled"}` — note no `briefingRunId`/`idempotencyKey` here; the worker mints
+definition.id, runKind: "scheduled"}` — note no `briefingRunId`/`idempotencyKey` here; the worker mints
     those (see component 4).
 - **How used:** Called from the route layer (component 3) on create/update/delete, with the boss handle
   that `BriefingsRoutesDependencies.boss` already provides (`routes.ts:37`). Also exposes a
@@ -147,7 +147,7 @@ Each component lists: what it does · how it is used · what it depends on.
 
 - **What:** After a successful `createDefinition` / `updateDefinition` (the existing handlers at
   `routes.ts:71` and `routes.ts:90`) and on a new delete handler, call `reconcileSchedule(boss,
-  definition)`. There is no delete route today; if delete remains out of scope for this slice, then
+definition)`. There is no delete route today; if delete remains out of scope for this slice, then
   "disable" (`enabled: false` via PATCH) is the unschedule path and that is sufficient — call it out in the
   PR. Schedule reconcile runs **after** the DB mutation commits, using the returned definition row.
 - **How used:** The route already has `dependencies.boss` (`routes.ts:37`) and runs inside
@@ -205,31 +205,31 @@ Each component lists: what it does · how it is used · what it depends on.
         turns from today (in the user's tz), excluding incognito threads.
   3. **Note gaps:** when a source is empty, errors, or is truncated by a cap, record a structured entry in
      `source_metadata.gaps[]` (e.g. `{ source: "email", reason: "empty_cache" | "tool_failed" |
-     "truncated" }`). A single failed source degrades to a noted gap — it never fails the whole run (this
+"truncated" }`). A single failed source degrades to a noted gap — it never fails the whole run (this
      preserves the existing per-tool degrade-not-fail behavior at `repository.ts:279`).
   4. **Build one bounded prompt:** a system instruction ("synthesize a concise morning briefing with light
      section headers; ground strictly in the provided items; note where a section is empty") plus a
      user/content message containing the capped, structured sections with provenance. Enforce **one
      conservative economy token budget** by char-capping each section and the total (see Data flow).
   5. **Resolve the model (provider-agnostic):** `aiRepository.selectModelForCapability(scopedDb,
-     "summarization", "economy")` — the call already present at `repository.ts:309`. No provider/model is
+"summarization", "economy")` — the call already present at `repository.ts:309`. No provider/model is
      hardcoded; the router returns the user's configured economy model (with its tier-ladder fallback,
      `repository.ts:279`).
   6. **Decrypt credential in-worker + synthesize:** `aiRepository.selectProviderWithCredential(scopedDb,
-     model.provider_config_id)` (`repository.ts:310`) returns the row including
+model.provider_config_id)` (`repository.ts:310`) returns the row including
      `encrypted_credential`; decrypt with `createAiSecretCipher()` (`ai/crypto.ts:16`) **in worker scope
      only**; construct `HttpApiAdapter(provider_kind, apiKey, { baseUrl })` (`ai/adapters/http-api.ts:28`)
      and call `generateChat({ model: { provider_kind, provider_model_id }, messages })`. The plaintext key
      never leaves the function, never enters logs, `source_metadata`, or the prompt.
   7. **Persist:** `summary_text` = the LLM narrative (with light structured headers); `source_metadata` =
      `{ tools[], commitmentCount, taskCount, calendarCount, emailCount, notes[] (path/id/excerpt only),
-     chatTurnCount, aiModel (id/displayName/tier), gaps[], degraded: false }`. Status = `succeeded` (or
+chatTurnCount, aiModel (id/displayName/tier), gaps[], degraded: false }`. Status = `succeeded` (or
      `blocked` if a non-read tool was selected — keep the existing `blockedSummary` guard at
      `repository.ts:229`).
   8. **Deterministic degraded fallback:** if model resolution returns `undefined`, credential decryption
      fails, or `generateChat` throws, persist a deterministic narrative built from the gathered sections
      (shaped like today's `formatToolSummary` output, `repository.ts:415`), set `source_metadata.degraded
-     = true` and `degradedReason` (e.g. `"no_model" | "synthesis_failed" | "credential_error"`), and set
+= true` and `degradedReason` (e.g. `"no_model" | "synthesis_failed" | "credential_error"`), and set
      status `succeeded` (the run still produced a useful summary) — **not** `failed`. `failed` stays
      reserved for a hard read-tool failure as today (`selectRunStatus`, `repository.ts:341`).
 - **How used:** `generateRun` is the single entry for both manual and scheduled runs. `compose.ts` holds
@@ -383,19 +383,19 @@ mints `runId`, enqueues with the existing `singletonKey` dedupe (`routes.ts:150`
 
 ## Error handling
 
-| Failure | Behavior |
-| --- | --- |
-| No `summarization`/economy model configured (`selectModelForCapability` → undefined) | Deterministic fallback summary, `degraded:true`, `degradedReason:"no_model"`; status `succeeded`. |
-| Credential decrypt fails / provider has no credential | Deterministic fallback, `degraded:true`, `degradedReason:"credential_error"`. |
-| `generateChat` throws (network/4xx/5xx) | Deterministic fallback, `degraded:true`, `degradedReason:"synthesis_failed"`. (`HttpApiAdapter` already throws `HTTP <status>` without the key, `http-api.ts:54`.) |
-| A single source/read tool fails or is empty | Noted `gaps[]` entry; synthesize from the rest; run not failed (preserves `repository.ts:279` degrade-not-fail). |
-| Connector-sync slice not landed (calendar/email caches empty) | `gaps[]` entry `{source:"email"|"calendar", reason:"empty_cache"}`; briefing still produced from the other sources. |
-| Non-read tool selected | `blockedSummary`, status `blocked` (unchanged guard, `repository.ts:229`). |
-| Scheduled job double-fires for one local day | Local-day idempotency check in `compose` returns the existing run; no second synthesis, no second notification. |
-| Schedule reconcile fails on create/update | Logged (name+message only); HTTP mutation still succeeds; per-session reconcile self-heals. |
-| Notification create fails | Logged; run already persisted, not failed. |
-| `handleExtractFactsJob` LLM/parse/decrypt error | No-op degrade (logged); chat turn unaffected; pg-boss `retryLimit:2` may retry. |
-| pg-boss internal `error` event | Existing `defaultOnPgBossError` logs and never rethrows (`pg-boss.ts:97`); cron engine inherits this. |
+| Failure                                                                              | Behavior                                                                                                                                                           |
+| ------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------- |
+| No `summarization`/economy model configured (`selectModelForCapability` → undefined) | Deterministic fallback summary, `degraded:true`, `degradedReason:"no_model"`; status `succeeded`.                                                                  |
+| Credential decrypt fails / provider has no credential                                | Deterministic fallback, `degraded:true`, `degradedReason:"credential_error"`.                                                                                      |
+| `generateChat` throws (network/4xx/5xx)                                              | Deterministic fallback, `degraded:true`, `degradedReason:"synthesis_failed"`. (`HttpApiAdapter` already throws `HTTP <status>` without the key, `http-api.ts:54`.) |
+| A single source/read tool fails or is empty                                          | Noted `gaps[]` entry; synthesize from the rest; run not failed (preserves `repository.ts:279` degrade-not-fail).                                                   |
+| Connector-sync slice not landed (calendar/email caches empty)                        | `gaps[]` entry `{source:"email"                                                                                                                                    | "calendar", reason:"empty_cache"}`; briefing still produced from the other sources. |
+| Non-read tool selected                                                               | `blockedSummary`, status `blocked` (unchanged guard, `repository.ts:229`).                                                                                         |
+| Scheduled job double-fires for one local day                                         | Local-day idempotency check in `compose` returns the existing run; no second synthesis, no second notification.                                                    |
+| Schedule reconcile fails on create/update                                            | Logged (name+message only); HTTP mutation still succeeds; per-session reconcile self-heals.                                                                        |
+| Notification create fails                                                            | Logged; run already persisted, not failed.                                                                                                                         |
+| `handleExtractFactsJob` LLM/parse/decrypt error                                      | No-op degrade (logged); chat turn unaffected; pg-boss `retryLimit:2` may retry.                                                                                    |
+| pg-boss internal `error` event                                                       | Existing `defaultOnPgBossError` logs and never rethrows (`pg-boss.ts:97`); cron engine inherits this.                                                              |
 
 All error logs are single-line structured JSON with **name + bounded message only** (mirroring the
 existing `briefing_tool_failed` log, `repository.ts:285`) — never the raw error (it can echo tool output,
@@ -493,7 +493,7 @@ and add chat-facts coverage.
 **RLS / isolation:**
 
 14. A run executes only the owner's data (extend the existing `does not let a User A worker job run User B's
-    private briefing` test, briefings.test.ts:446); no code path enumerates definitions/commitments/chats
+private briefing` test, briefings.test.ts:446); no code path enumerates definitions/commitments/chats
     across users.
 
 **Gate:** `pnpm verify:foundation` + `pnpm audit:release-hardening` green. Run `pnpm check:file-size` to

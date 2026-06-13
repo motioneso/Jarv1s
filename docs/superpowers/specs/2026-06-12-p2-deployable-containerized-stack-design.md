@@ -208,9 +208,9 @@ only:
    - herdr: bind-mount the host herdr socket `~/.config/herdr/herdr.sock` (env
      `HERDR_SOCKET_PATH`) into the container at a stable path, and set `HERDR_SOCKET_PATH` in the
      container env to that path.
-   The tmux/herdr **server runs on the host**, so the `claude`/`codex`/`gemini` processes execute on
-   the host with the host's CLI auth — exactly ADR 0008's host-provisioned model. The container only
-   sends multiplexer verbs over the socket.
+     The tmux/herdr **server runs on the host**, so the `claude`/`codex`/`gemini` processes execute on
+     the host with the host's CLI auth — exactly ADR 0008's host-provisioned model. The container only
+     sends multiplexer verbs over the socket.
 
 2. **Host CLI config / transcript dirs.** Bind-mount the host operator's `~/.claude`, `~/.codex`,
    `~/.gemini` (read access is required so `readNew()` can parse the JSONL transcripts —

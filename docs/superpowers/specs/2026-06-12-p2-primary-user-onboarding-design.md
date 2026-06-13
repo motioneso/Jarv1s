@@ -20,8 +20,8 @@ After the founder signs up (the bootstrap-owner created by `bootstrapFirstJarvis
 `packages/auth/src/index.ts:367-431`), give them a guided, **fully skippable, resumable** path that
 provisions the prerequisites ADR 0008 §2 calls out — multiplexer install, CLI auth, optional
 connector setup — and records that onboarding is done. The flow must work **before any AI model is
-configured** (a deterministic step wizard is the spine), and it must be able to *light up a Jarvis
-chat overlay* once a CLI path is chosen so the assistant can help fill remaining steps
+configured** (a deterministic step wizard is the spine), and it must be able to _light up a Jarvis
+chat overlay_ once a CLI path is chosen so the assistant can help fill remaining steps
 conversationally. This resolves the chicken-and-egg of ADR 0008: chat needs a configured model, but
 onboarding is what configures the model.
 
@@ -39,7 +39,7 @@ chat path are validated end-to-end at the DEPLOY checkpoint once the two depende
 `apps/web/src/onboarding/` route tree that renders ordered, individually-skippable steps and reads
 its completion state from a new `GET /api/onboarding/status` endpoint. It is pure REST + React Query,
 identical in shape to the existing admin panels, and depends on no AI model. The optional second
-surface is a **Jarvis chat overlay** that mounts *inside* the wizard and is disabled until an AI path
+surface is a **Jarvis chat overlay** that mounts _inside_ the wizard and is disabled until an AI path
 is usable; it reuses the existing live-chat machinery (`apps/web/src/chat/chat-drawer.tsx` +
 `use-chat-stream.ts`) so "the assistant guides you" is the same engine the rest of the app uses, not
 a parallel one. The overlay never gates progress — every step is completable from the deterministic
@@ -47,11 +47,11 @@ controls alone.
 
 **State is hybrid, founder-scoped, zero-migration.** Founder/instance provisioning state lives in
 `app.instance_settings` (the existing key/value table, `packages/db/src/types.ts:94-100`), written
-through the *already-built* admin upsert path
+through the _already-built_ admin upsert path
 (`SettingsRepository.upsertInstanceSetting`, `packages/settings/src/repository.ts:66-100`, which
 audits every write). Three keys are introduced/consumed: `onboarding.completed` (bool),
 `onboarding.skipped` (bool), and `chat.multiplexer` (`"tmux" | "herdr"` — see §Components →
-"chat.multiplexer setting (ownership)"). Per-step completion is *derived*, not separately persisted:
+"chat.multiplexer setting (ownership)"). Per-step completion is _derived_, not separately persisted:
 step 2 is "done" when `chat.multiplexer` is set, step 3 is "done" when the chosen provider's CLI is
 authed-and-present (best-effort presence probe), step 4 is "done" when a Google connector account
 exists. This keeps per-user onboarding state minimal — the whole flow targets the **primary user /
@@ -86,8 +86,8 @@ the settings module's existing `registerSettingsRoutes`
 
 - **What it does:** returns the onboarding state the wizard needs to render and the app.tsx branch
   needs to decide routing: `{ completed: boolean, skipped: boolean, steps: { multiplexer: { done,
-  selected: "tmux"|"herdr"|null, tmuxAvailable, herdrAvailable }, cliAuth: { done, providers:
-  [{ kind, cliAvailable }] }, connectors: { done } } }`. Step `done` flags are **derived
+selected: "tmux"|"herdr"|null, tmuxAvailable, herdrAvailable }, cliAuth: { done, providers:
+[{ kind, cliAvailable }] }, connectors: { done } } }`. Step `done` flags are **derived
   server-side** from `instance_settings` + presence probes + connector-account existence, never
   stored.
 - **How it's used:** the app.tsx onboarding branch reads `completed`/`skipped` to decide routing; the
@@ -138,8 +138,8 @@ the settings module's existing `registerSettingsRoutes`
   matching `readBooleanSetting` in `auth/src/index.ts:351-365` and `getRegistrationSettings` in
   `repository.ts:171-187`). No new write route is needed; reuse the audited admin upsert.
 - **Depends on:** the existing `upsertInstanceSettingRouteSchema` (`platform-api.ts:321-343`) and the
-  client's `request()` helper. The CLI-adapter slice's engine factory is the *reader*; this slice is
-  the *writer* and surfaces the selection in step 2.
+  client's `request()` helper. The CLI-adapter slice's engine factory is the _reader_; this slice is
+  the _writer_ and surfaces the selection in step 2.
 
 ### 4. Onboarding wizard UI (`apps/web/src/onboarding/`)
 
@@ -153,7 +153,7 @@ A new route tree mounted by the app.tsx branch. Components:
 - **`WelcomeStep`** — step 1: a welcome panel + the prominent skip option. No server interaction.
 - **`MultiplexerStep`** — step 2: **instructions-only** (ADR 0008 §2 + the CLI-adapter spec: the API
   runs unprivileged as `ben`, so we never auto-install). Reads `steps.multiplexer.{tmuxAvailable,
-  herdrAvailable}`; if neither is present, shows copy-paste install commands (e.g. `apt install tmux`
+herdrAvailable}`; if neither is present, shows copy-paste install commands (e.g. `apt install tmux`
   / the herdr install line) and a **re-check button** that refetches `getOnboardingStatus()`. Once a
   multiplexer is present the founder **selects** tmux or herdr (writes `chat.multiplexer` via the
   audited PATCH, §Components 3). Polling = a manual re-check button (no blocking loops; mirrors the
@@ -174,7 +174,7 @@ not-done step. Styling reuses the existing `panel` / `connect-steps` / `primary-
 
 - **Depends on:** `getOnboardingStatus`, `completeOnboarding`, `skipOnboarding`, and
   `upsertInstanceSetting` client functions; `ConnectGooglePanel`; React Router (`react-router`, the
-  same dep `app.tsx` already uses). The wizard is mounted *outside* `BrowserRouter`'s app routes (it
+  same dep `app.tsx` already uses). The wizard is mounted _outside_ `BrowserRouter`'s app routes (it
   replaces the app shell, like `PendingApprovalScreen`), or as a dedicated `/onboarding` route inside
   a minimal router — implementer's choice, but it must not require the full `AppShell`.
 
@@ -209,7 +209,7 @@ not-done step. Styling reuses the existing `panel` / `connect-steps` / `primary-
 ### 7. `app.tsx` onboarding branch + shared contract
 
 - **What it does:** after `meQuery` succeeds, when `meQuery.data.user.isInstanceAdmin &&
-  meQuery.data.user.isBootstrapOwner`, an enabled `onboardingStatusQuery`
+meQuery.data.user.isBootstrapOwner`, an enabled `onboardingStatusQuery`
   (`queryKey: queryKeys.onboarding.status`) runs; while it loads, show the existing `LoadingScreen`;
   if `!completed && !skipped`, render `<OnboardingWizard/>` instead of `<BrowserRouter>...`. This
   mirrors the `account_pending`/`deactivated` branch shape (`app.tsx:61-67`) exactly — a single
@@ -266,8 +266,8 @@ not-done step. Styling reuses the existing `panel` / `connect-steps` / `primary-
   who somehow calls these gets a clean 403; the client treats it as "not for me" and renders the app
   shell.
 - **Multiplexer absent on re-check:** the step stays not-done and keeps showing install instructions
-  + the re-check button. No auto-install, no retry loop, no error state — "still missing" is a normal
-  intermediate state.
+  - the re-check button. No auto-install, no retry loop, no error state — "still missing" is a normal
+    intermediate state.
 - **CLI not authed on re-check:** same — presence/auth probe returns false, step stays not-done with
   the host-shell auth instructions. We never attempt the auth ourselves.
 - **`chat.multiplexer` write conflict** (the CLI-adapter slice also wrote it): the upsert is
@@ -311,7 +311,7 @@ Cites CLAUDE.md "Hard Invariants" this slice touches:
   upsert path that writes `admin_audit_events` (`repository.ts:90-97`), so the founder's provisioning
   actions are durably recorded.
 - **Bootstrap-owner trigger only.** The app.tsx branch fires only for `isBootstrapOwner` users, so a
-  newly-approved second household member is *never* routed into onboarding — they go straight to the
+  newly-approved second household member is _never_ routed into onboarding — they go straight to the
   app shell (onboarding is founder/instance provisioning, not per-member).
 
 ---
@@ -397,7 +397,7 @@ Cites CLAUDE.md "Hard Invariants" this slice touches:
 - **`chat.multiplexer` contract ownership race.** The CLI-adapter slice (§4.2) selects the
   multiplexer "via config / onboarding" but does **not** define a persisted setting or a shared
   contract (verified by grep). This onboarding slice therefore defines and writes `chat.multiplexer`.
-  If the CLI-adapter slice lands the contract first, onboarding must *consume* it (drop its own type,
+  If the CLI-adapter slice lands the contract first, onboarding must _consume_ it (drop its own type,
   import theirs). **Coordinate at build time** via the run manifest / herdr-pane-message so the type is
   defined exactly once — duplicate definitions in `platform-api.ts` would fail typecheck.
 - **DEPLOY-checkpoint-only validation.** The real effect of selecting a multiplexer (the engine
