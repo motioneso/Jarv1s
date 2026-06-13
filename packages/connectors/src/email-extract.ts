@@ -389,15 +389,21 @@ export async function extractEmailSignals(
     result = { summary: null, signals: { confidence: 0 } };
   }
 
-  // Verbatim-echo guard: if the model returned the body verbatim (no summarization at all),
-  // drop the summary rather than persist the raw body. We deliberately use EXACT normalized
-  // equality (whitespace-collapsed), NOT a fuzzy overlap threshold — a real summary of a short
-  // email legitimately reuses much of its wording, so an overlap heuristic would null-out valid
-  // summaries. Exact equality catches only the pathological "model echoed the body" case.
+  // Body-echo guard for the summary. A legitimate summary is SHORTER than the body and
+  // paraphrases it; it never embeds the entire body. We drop the summary when its normalized form
+  // (a) equals the body, OR (b) CONTAINS the full body as a substring — the "Summary: <body>"
+  // wrap/prefix case a bad/jailbroken model uses to slip a short body past exact-equality. We
+  // intentionally do NOT use a fuzzy partial-overlap threshold (a real summary of a short email
+  // legitimately reuses much of its wording); full-body containment is unambiguous evidence of
+  // "model echoed the body" with no false-positive risk for genuine summaries (privacy §6).
   const normalize = (s: string): string => s.replace(/\s+/g, " ").trim().toLowerCase();
   const normalizedBody = normalize(parsed.body);
-  if (result.summary !== null && normalize(result.summary) === normalizedBody) {
-    result = { ...result, summary: null };
+  if (result.summary !== null) {
+    const normalizedSummary = normalize(result.summary);
+    const echoesBody =
+      normalizedSummary === normalizedBody ||
+      (normalizedBody.length > 0 && normalizedSummary.includes(normalizedBody));
+    if (echoesBody) result = { ...result, summary: null };
   }
 
   // Cumulative guard: defeat the "split the body into many short chunks across signal fields"
