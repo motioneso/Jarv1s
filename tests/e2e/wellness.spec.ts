@@ -160,3 +160,21 @@ test("wellness route fails closed when the module-state request errors", async (
   await expect(page).toHaveURL(/\/tasks$/);
   await expect(page.getByRole("heading", { name: "Wellness" })).toHaveCount(0);
 });
+
+test("wellness route fails closed when the module is absent from the state response", async ({
+  page
+}) => {
+  // A 200 that omits wellness (backend skew / partial response) is NOT proof of enablement:
+  // affirmative enablement is required, so the gate denies and never mounts the UI (Codex R3).
+  await page.route("**/api/me/modules", (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({ modules: [] })
+    })
+  );
+
+  await page.goto("/wellness");
+  await expect(page).toHaveURL(/\/tasks$/);
+  await expect(page.getByRole("heading", { name: "Wellness" })).toHaveCount(0);
+});
