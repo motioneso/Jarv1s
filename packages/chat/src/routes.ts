@@ -17,6 +17,7 @@ import { handleRouteError as handleModuleRouteError } from "@jarv1s/module-sdk";
 
 import { ChatGatewayNotifier } from "./gateway-notifier.js";
 import { registerChatLiveRoutes } from "./live-routes.js";
+import { CliChatUnavailableError } from "./live/errors.js";
 import { createChatSessionRuntime, type ChatEngineFactory } from "./live/runtime.js";
 import {
   ChatUserMemorySettingsRepository,
@@ -279,5 +280,9 @@ function toIsoString(value: Date | string): string {
 }
 
 function handleRouteError(error: unknown, reply: FastifyReply) {
+  if (error instanceof CliChatUnavailableError) {
+    reply.log?.warn?.({ err: error }, "live chat unavailable");
+    return reply.code(503).send({ error: "Live chat is currently unavailable on this host." });
+  }
   return handleModuleRouteError(error, reply, { invalidRequestMessage: "Chat request is invalid" });
 }

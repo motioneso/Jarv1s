@@ -9,13 +9,15 @@
 import { homedir } from "node:os";
 import { join } from "node:path";
 
-import { AiRepository, createRealTmuxIo, type ProviderKind } from "@jarv1s/ai";
+import { AiRepository, createRealTmuxIo, type Multiplexer, type ProviderKind } from "@jarv1s/ai";
 import type { DataContextRunner } from "@jarv1s/db";
 import type { PgBoss } from "pg-boss";
 
 import type { RecallPort } from "../recall-port.js";
 
-import { TmuxCliChatEngine } from "./cli-chat-engine.js";
+import { CliChatEngineImpl } from "./cli-chat-engine.js";
+import { CliChatUnavailableError } from "./errors.js";
+export { CliChatUnavailableError } from "./errors.js";
 import { ChatSessionManager } from "./chat-session-manager.js";
 import { createRealPersonaFs } from "./persona.js";
 import { DataContextChatPersistence } from "./persistence.js";
@@ -40,9 +42,26 @@ export const DEFAULT_JARVIS_PERSONA = [
 
 export type ChatEngineFactory = (provider: ProviderKind, sessionKey: string) => CliChatEngine;
 
-/** The real engine factory: a persistent tmux-driven CLI session per live session. */
-export const realEngineFactory: ChatEngineFactory = (provider, sessionKey) =>
-  new TmuxCliChatEngine(provider, sessionKey, createRealTmuxIo());
+/**
+ * Builds the production engine factory. The multiplexer is resolved ONCE at the
+ * composition root (module-registry) and injected here, so every session shares
+ * one stateless backend. With no mux it defaults to tmux (preserves legacy
+ * single-host behavior for tests and standalone embedders).
+ */
+export function createRealEngineFactory(opts: { mux?: Multiplexer } = {}): ChatEngineFactory {
+  return (provider, sessionKey) =>
+    new CliChatEngineImpl(provider, sessionKey, createRealTmuxIo(), { mux: opts.mux });
+}
+
+/** A factory that refuses to launch: used when the host has no multiplexer installed. */
+export function unavailableEngineFactory(reason: string): ChatEngineFactory {
+  return () => {
+    throw new CliChatUnavailableError(reason);
+  };
+}
+
+/** Back-compat default: tmux over a fresh io (unchanged behavior). */
+export const realEngineFactory: ChatEngineFactory = createRealEngineFactory();
 
 export interface CreateChatSessionRuntimeDeps {
   readonly dataContext: DataContextRunner;

@@ -11,7 +11,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import type { Kysely } from "kysely";
 
 import { createApiServer } from "../../apps/api/src/server.js";
-import { ChatRepository } from "@jarv1s/chat";
+import { ChatRepository, CliChatUnavailableError } from "@jarv1s/chat";
 import type { ChatEngineFactory } from "@jarv1s/module-registry";
 import {
   DataContextRunner,
@@ -205,6 +205,70 @@ describe("Chat live API (turn / clear / switch / stream)", () => {
     // A received its own records (at least the echoed user + reply); B received none.
     expect(aRecords.length).toBeGreaterThan(0);
     expect(bRecords).toHaveLength(0);
+  });
+});
+
+describe("Chat live API — no multiplexer available", () => {
+  let appDb: Kysely<JarvisDatabase>;
+  let server: ReturnType<typeof createApiServer>;
+  let originalSecretKey: string | undefined;
+
+  beforeAll(async () => {
+    originalSecretKey = process.env.JARVIS_AI_SECRET_KEY;
+    process.env.JARVIS_AI_SECRET_KEY = "test-chat-live-api-secret-key";
+
+    await resetFoundationDatabase();
+
+    appDb = createDatabase({ connectionString: connectionStrings.app, maxConnections: 1 });
+    server = createApiServer({
+      appDb,
+      logger: false,
+      // A factory that refuses to launch — mirrors a host with no tmux/herdr installed.
+      chatEngineFactory: () => {
+        throw new CliChatUnavailableError("no terminal multiplexer (tmux/herdr) installed");
+      }
+    });
+    await server.ready();
+
+    // Seed an active chat-capable model for userA so resolveActiveProvider succeeds
+    // and the failure surfaces at engine-launch (503), not at provider resolution.
+    const providerResponse = await server.inject({
+      method: "POST",
+      url: "/api/ai/providers",
+      headers: { authorization: `Bearer ${ids.sessionA}` },
+      payload: { providerKind: "anthropic", displayName: "Live API Provider", authMethod: "cli" }
+    });
+    const providerId = providerResponse.json<{ provider: { id: string } }>().provider.id;
+    await server.inject({
+      method: "POST",
+      url: "/api/ai/models",
+      headers: { authorization: `Bearer ${ids.sessionA}` },
+      payload: {
+        providerConfigId: providerId,
+        providerModelId: "claude-live",
+        displayName: "Claude Live",
+        capabilities: ["chat"]
+      }
+    });
+  });
+
+  afterAll(async () => {
+    await Promise.allSettled([server?.close(), appDb?.destroy()]);
+    if (originalSecretKey === undefined) {
+      delete process.env.JARVIS_AI_SECRET_KEY;
+    } else {
+      process.env.JARVIS_AI_SECRET_KEY = originalSecretKey;
+    }
+  });
+
+  it("returns 503 when no multiplexer is available", async () => {
+    const res = await server.inject({
+      method: "POST",
+      url: "/api/chat/turn",
+      headers: { authorization: `Bearer ${ids.sessionA}` },
+      payload: { text: "hello jarvis" }
+    });
+    expect(res.statusCode).toBe(503);
   });
 });
 
