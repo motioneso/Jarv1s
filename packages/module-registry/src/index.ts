@@ -2,8 +2,15 @@ import type { FastifyInstance, FastifyRequest } from "fastify";
 import type { Kysely } from "kysely";
 import type { PgBoss } from "pg-boss";
 
-import { aiModuleManifest, aiModuleSqlMigrationDirectory, registerAiRoutes } from "@jarv1s/ai";
 import {
+  AiRepository,
+  aiModuleManifest,
+  aiModuleSqlMigrationDirectory,
+  createAiSecretCipher,
+  registerAiRoutes
+} from "@jarv1s/ai";
+import {
+  ChatMemoryFactsRepository,
   memoryModuleManifest,
   memorySqlMigrationDirectory,
   type EmbeddingProvider
@@ -235,7 +242,14 @@ const BUILT_IN_MODULES: readonly BuiltInModuleRegistration[] = [
         boss: deps.boss
       }),
     registerWorkers: (boss, deps) =>
-      registerChatJobWorkers(boss, deps.dataContext, { embeddingProvider: deps.embeddingProvider })
+      registerChatJobWorkers(boss, deps.dataContext, {
+        embeddingProvider: deps.embeddingProvider,
+        extractFactsDeps: {
+          aiRepository: new AiRepository(),
+          cipher: createAiSecretCipher(),
+          factsRepository: new ChatMemoryFactsRepository()
+        }
+      })
   },
   {
     manifest: briefingsModuleManifest,
