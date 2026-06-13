@@ -804,6 +804,24 @@ describe("Tasks module M1", () => {
     expect(occ).toBe(past); // untouched — manage share is NOT ownership for roll-forward
   });
 
+  it("jarvis_worker_runtime holds INSERT and UPDATE on app.tasks (recurrence grant)", async () => {
+    const client = new Client({ connectionString: connectionStrings.bootstrap });
+    await client.connect();
+    try {
+      const { rows } = await client.query(
+        `SELECT privilege_type FROM information_schema.role_table_grants
+         WHERE grantee = 'jarvis_worker_runtime'
+           AND table_schema = 'app' AND table_name = 'tasks'
+           AND privilege_type IN ('INSERT','UPDATE')
+         ORDER BY privilege_type`
+      );
+      const privs = rows.map((r: { privilege_type: string }) => r.privilege_type);
+      expect(privs).toEqual(["INSERT", "UPDATE"]);
+    } finally {
+      await client.end();
+    }
+  });
+
   it("drift: overdue + at-risk surface Medium+ only; focus orders them", async () => {
     const drift = new TaskDriftRepository();
     await dataContext.withDataContext(userAContext(), async (db) => {
