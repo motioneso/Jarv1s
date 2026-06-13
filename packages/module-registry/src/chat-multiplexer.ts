@@ -76,7 +76,19 @@ export async function resolveChatEngineFactory(deps: {
   const env = deps.env ?? process.env;
   const io = createRealTmuxIo();
   const probe = createBinaryProbe(env);
-  const configured = await readMultiplexerChoice(deps.appDb);
+
+  // Boot resolution must NEVER crash server readiness (the documented "disabled, not
+  // crashed" contract). A failed pre-auth settings read (e.g. the DB is unreachable at
+  // boot) degrades to "auto" so liveness/readiness stays independent of this optional
+  // subsystem; the real choice is re-read on the next restart once the DB is healthy.
+  let configured: ChatMultiplexerChoice;
+  try {
+    configured = await readMultiplexerChoice(deps.appDb);
+  } catch (err) {
+    const reason = err instanceof Error ? err.message : String(err);
+    deps.log?.(`[chat] could not read chat.multiplexer setting (${reason}) — defaulting to auto`);
+    configured = "auto";
+  }
 
   let resolution;
   try {

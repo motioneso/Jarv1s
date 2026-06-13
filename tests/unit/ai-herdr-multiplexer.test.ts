@@ -10,23 +10,38 @@ function makeIo(overrides: Record<string, { code: number; stdout: string }> = {}
     }
     return { code: 0, stdout: "", stderr: "" };
   });
-  return { run, sleep: vi.fn().mockResolvedValue(undefined), readFile: vi.fn().mockResolvedValue(""), writeFile: vi.fn().mockResolvedValue(undefined) };
+  return {
+    run,
+    sleep: vi.fn().mockResolvedValue(undefined),
+    readFile: vi.fn().mockResolvedValue(""),
+    writeFile: vi.fn().mockResolvedValue(undefined)
+  };
 }
 
 // Realistic herdr v0.6.8 envelopes; pane ids look like "p_51" (server/workspace-assigned).
-const SPLIT_JSON = '{"id":"cli:pane:split","result":{"pane":{"pane_id":"p_77"}},"type":"pane_info"}';
+const SPLIT_JSON =
+  '{"id":"cli:pane:split","result":{"pane":{"pane_id":"p_77"}},"type":"pane_info"}';
 
 describe("HerdrMultiplexer", () => {
   it("open() splits from the explicit root pane, parses the new pane id, types the launch line, and returns the id", async () => {
     const io = makeIo({ "herdr pane split": { code: 0, stdout: SPLIT_JSON } });
     const mux = new HerdrMultiplexer(io, { rootPane: "p_51" });
-    const handle = await mux.open({ name: "jarv1s-live-x", cols: 220, rows: 50, launchLine: "cd '/n' && claude" });
+    const handle = await mux.open({
+      name: "jarv1s-live-x",
+      cols: 220,
+      rows: 50,
+      launchLine: "cd '/n' && claude"
+    });
 
     expect(handle).toBe("p_77");
     const flat = io.run.mock.calls.map((c: unknown[]) => [c[0], ...(c[1] as string[])].join(" "));
-    expect(flat.some((c) => c.startsWith("herdr pane split p_51 --direction down --no-focus"))).toBe(true);
+    expect(
+      flat.some((c) => c.startsWith("herdr pane split p_51 --direction down --no-focus"))
+    ).toBe(true);
     const textIdx = flat.findIndex((c) => c.startsWith("herdr pane send-text p_77"));
-    const enterIdx = flat.findIndex((c) => c.startsWith("herdr pane send-keys p_77") && c.includes("Enter"));
+    const enterIdx = flat.findIndex(
+      (c) => c.startsWith("herdr pane send-keys p_77") && c.includes("Enter")
+    );
     expect(textIdx).toBeGreaterThanOrEqual(0);
     expect(enterIdx).toBeGreaterThan(textIdx);
   });
@@ -42,17 +57,33 @@ describe("HerdrMultiplexer", () => {
 
   it("open() throws when no root pane can be resolved (no override, no env)", async () => {
     const mux = new HerdrMultiplexer(makeIo(), { env: {} });
-    await expect(mux.open({ name: "x", cols: 1, rows: 1, launchLine: "c" })).rejects.toThrow(/root pane/i);
+    await expect(mux.open({ name: "x", cols: 1, rows: 1, launchLine: "c" })).rejects.toThrow(
+      /root pane/i
+    );
   });
 
   it("open() throws a clear error when herdr returns non-JSON", async () => {
     const io = makeIo({ "herdr pane split": { code: 0, stdout: "not json" } });
-    await expect(new HerdrMultiplexer(io, { rootPane: "p_51" }).open({ name: "x", cols: 1, rows: 1, launchLine: "c" })).rejects.toThrow(/herdr/i);
+    await expect(
+      new HerdrMultiplexer(io, { rootPane: "p_51" }).open({
+        name: "x",
+        cols: 1,
+        rows: 1,
+        launchLine: "c"
+      })
+    ).rejects.toThrow(/herdr/i);
   });
 
   it("open() throws when `pane split` exits non-zero", async () => {
     const io = makeIo({ "herdr pane split": { code: 1, stdout: "" } });
-    await expect(new HerdrMultiplexer(io, { rootPane: "p_51" }).open({ name: "x", cols: 1, rows: 1, launchLine: "c" })).rejects.toThrow(/split failed/i);
+    await expect(
+      new HerdrMultiplexer(io, { rootPane: "p_51" }).open({
+        name: "x",
+        cols: 1,
+        rows: 1,
+        launchLine: "c"
+      })
+    ).rejects.toThrow(/split failed/i);
   });
 
   it("open() throws when send-text after split exits non-zero", async () => {
@@ -60,7 +91,14 @@ describe("HerdrMultiplexer", () => {
       "herdr pane split": { code: 0, stdout: SPLIT_JSON },
       "herdr pane send-text": { code: 1, stdout: "" }
     });
-    await expect(new HerdrMultiplexer(io, { rootPane: "p_51" }).open({ name: "x", cols: 1, rows: 1, launchLine: "c" })).rejects.toThrow(/send-text failed/i);
+    await expect(
+      new HerdrMultiplexer(io, { rootPane: "p_51" }).open({
+        name: "x",
+        cols: 1,
+        rows: 1,
+        launchLine: "c"
+      })
+    ).rejects.toThrow(/send-text failed/i);
   });
 
   it("submit() sends text then Enter to the pane handle, checking exit codes", async () => {
@@ -69,14 +107,18 @@ describe("HerdrMultiplexer", () => {
     await mux.submit("p_77", "hello");
     const flat = io.run.mock.calls.map((c: unknown[]) => [c[0], ...(c[1] as string[])].join(" "));
     const textIdx = flat.findIndex((c) => c.startsWith("herdr pane send-text p_77"));
-    const enterIdx = flat.findIndex((c) => c.startsWith("herdr pane send-keys p_77") && c.includes("Enter"));
+    const enterIdx = flat.findIndex(
+      (c) => c.startsWith("herdr pane send-keys p_77") && c.includes("Enter")
+    );
     expect(textIdx).toBeGreaterThanOrEqual(0);
     expect(enterIdx).toBeGreaterThan(textIdx);
   });
 
   it("submit() throws when send-text exits non-zero", async () => {
     const io = makeIo({ "herdr pane send-text": { code: 1, stdout: "" } });
-    await expect(new HerdrMultiplexer(io, { rootPane: "p_51" }).submit("p_77", "hi")).rejects.toThrow(/send-text failed/i);
+    await expect(
+      new HerdrMultiplexer(io, { rootPane: "p_51" }).submit("p_77", "hi")
+    ).rejects.toThrow(/send-text failed/i);
   });
 
   it("isAlive() maps `pane get` exit code to a boolean", async () => {
@@ -88,7 +130,9 @@ describe("HerdrMultiplexer", () => {
 
   it("kill() closes the pane and ignores the exit code (idempotent)", async () => {
     const io = makeIo({ "herdr pane close p_77": { code: 1, stdout: "" } });
-    await expect(new HerdrMultiplexer(io, { rootPane: "p_51" }).kill("p_77")).resolves.toBeUndefined();
+    await expect(
+      new HerdrMultiplexer(io, { rootPane: "p_51" }).kill("p_77")
+    ).resolves.toBeUndefined();
     const flat = io.run.mock.calls.map((c: unknown[]) => [c[0], ...(c[1] as string[])].join(" "));
     expect(flat.some((c) => c.startsWith("herdr pane close p_77"))).toBe(true);
   });
