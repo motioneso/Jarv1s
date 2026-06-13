@@ -18,6 +18,8 @@ docs/testing/
 !.env.example
 # Backup operator env (holds PGPASSWORD etc.) — never commit
 infra/backup.env
+# Local prod-compose smoke env file (off-git; the *.env* globs miss the .local suffix)
+infra/env.production.local
 
 # Claude Code per-machine local settings (never commit)
 .claude/settings.local.json
