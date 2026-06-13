@@ -155,7 +155,8 @@ describe("Notifications module M5", () => {
       "chat",
       "briefings",
       "memory",
-      "structured-state"
+      "structured-state",
+      "wellness"
     ]);
     expect(registrations.map((item) => item.manifest.id)).toEqual([
       "settings",
@@ -168,7 +169,8 @@ describe("Notifications module M5", () => {
       "chat",
       "briefings",
       "memory",
-      "structured-state"
+      "structured-state",
+      "wellness"
     ]);
     expect(manifest?.database?.ownedTables).toEqual([
       "app.notifications",

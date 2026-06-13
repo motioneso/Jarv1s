@@ -58,7 +58,7 @@ import {
   registerEmailRoutes
 } from "@jarv1s/email";
 import { FOUNDATION_QUEUES, type QueueDefinition } from "@jarv1s/jobs";
-import type { JarvisModuleManifest } from "@jarv1s/module-sdk";
+import type { JarvisModuleManifest, RegisteredFocusSignal } from "@jarv1s/module-sdk";
 import {
   NotificationsRepository,
   notificationsModuleManifest,
@@ -78,6 +78,11 @@ import {
   tasksModuleManifest,
   tasksModuleSqlMigrationDirectory
 } from "@jarv1s/tasks";
+import {
+  registerWellnessRoutes,
+  wellnessModuleManifest,
+  wellnessModuleSqlMigrationDirectory
+} from "@jarv1s/wellness";
 
 import { assertModulesCompatible } from "./compat-gate.js";
 import {
@@ -89,6 +94,7 @@ import {
 
 export type { ChatEngineFactory } from "@jarv1s/chat";
 export type { JarvisModuleManifest } from "@jarv1s/module-sdk";
+export { aggregateFocusSignals } from "@jarv1s/module-sdk";
 
 export {
   createActiveModulesResolver,
@@ -127,6 +133,16 @@ export interface BuiltInRouteDependencies {
   readonly resolveActiveModules: ActiveModulesResolver;
   readonly dataContext: DataContextRunner;
   readonly boss: PgBoss;
+  /**
+   * Per-request, per-actor focus-signal aggregator. The composition root resolves the
+   * actor's ACTIVE modules first, builds providers from them, runs each in its own
+   * withDataContext, then aggregates — so a disabled module contributes nothing. Tasks
+   * consumes an opaque FocusSignal[].
+   */
+  readonly focusSignals?: (ctx: {
+    readonly actorUserId: string;
+    readonly requestId: string;
+  }) => Promise<readonly { moduleId: string; readiness: number; summary: string }[]>;
   /** Override the live-chat engine factory (tests inject a fake); defaults to real tmux. */
   readonly chatEngineFactory?: ChatEngineFactory;
   readonly revokeUserSessions?: (userId: string) => Promise<number>;
@@ -199,7 +215,13 @@ const BUILT_IN_MODULES: readonly BuiltInModuleRegistration[] = [
     manifest: tasksModuleManifest,
     sqlMigrationDirectories: [tasksModuleSqlMigrationDirectory],
     queueDefinitions: TASKS_QUEUE_DEFINITIONS,
-    registerRoutes: registerTasksRoutes,
+    registerRoutes: (server, deps) =>
+      registerTasksRoutes(server, {
+        resolveAccessContext: deps.resolveAccessContext,
+        dataContext: deps.dataContext,
+        boss: deps.boss,
+        focusSignals: deps.focusSignals
+      }),
     registerWorkers: (boss, dependencies) => registerTasksJobWorkers(boss, dependencies.dataContext)
   },
   {
@@ -288,6 +310,16 @@ const BUILT_IN_MODULES: readonly BuiltInModuleRegistration[] = [
     manifest: structuredStateModuleManifest,
     sqlMigrationDirectories: [structuredStateSqlMigrationDirectory],
     queueDefinitions: []
+  },
+  {
+    manifest: wellnessModuleManifest,
+    sqlMigrationDirectories: [wellnessModuleSqlMigrationDirectory],
+    queueDefinitions: [],
+    registerRoutes: (server, deps) =>
+      registerWellnessRoutes(server, {
+        resolveAccessContext: deps.resolveAccessContext,
+        dataContext: deps.dataContext
+      })
   }
 ];
 
@@ -302,6 +334,19 @@ export function getBuiltInModuleRegistrations(): readonly BuiltInModuleRegistrat
 
 export function getBuiltInModuleManifests(): readonly JarvisModuleManifest[] {
   return BUILT_IN_MODULES.map((module) => module.manifest);
+}
+
+/**
+ * Build the focus-signal provider list from a manifest set. Pass the per-actor ACTIVE
+ * manifests (resolveActiveModules(actorUserId)) so a per-user-disabled module is excluded.
+ * Generic: any module that declares `focusSignal` participates; no module is special-cased.
+ */
+export function focusSignalProvidersFor(
+  manifests: readonly JarvisModuleManifest[]
+): RegisteredFocusSignal[] {
+  return manifests.flatMap((manifest) =>
+    manifest.focusSignal ? [{ moduleId: manifest.id, provider: manifest.focusSignal }] : []
+  );
 }
 
 export function getBuiltInSqlMigrationDirectories(): readonly string[] {

@@ -47,6 +47,84 @@ export type ToolExecute = (
 /** Optional human-readable description of a proposed write, for the Approve/Deny card. */
 export type ToolSummarize = (input: ToolInput, ctx: ToolContext) => string;
 
+/** A normalized readiness/energy signal contributed by ANY module to the focus path. */
+export interface FocusSignal {
+  /** Stable id of the contributing module, e.g. "wellness". */
+  readonly moduleId: string;
+  /** Normalized readiness in [0,1]; 1 = fully ready/energized, 0 = depleted. */
+  readonly readiness: number;
+  /** Short, non-sensitive human label, e.g. "energy trended low". */
+  readonly summary: string;
+}
+
+/**
+ * A focus-signal provider. `scopedDb` is a DataContextDb supplied under withDataContext;
+ * it is typed `unknown` to avoid a module-sdk -> db dependency (the owning module narrows
+ * it via assertDataContextDb, exactly like ToolExecute). Returns null = no signal for this
+ * actor (e.g. no recent data).
+ */
+export type FocusSignalProvider = (
+  scopedDb: unknown,
+  ctx: { readonly actorUserId: string; readonly requestId: string }
+) => Promise<FocusSignal | null>;
+
+export interface RegisteredFocusSignal {
+  readonly moduleId: string;
+  readonly provider: FocusSignalProvider;
+}
+
+/** Sanitized observability hook for a failed/dropped provider. */
+export interface FocusSignalAggregateOptions {
+  /**
+   * Called when a provider throws or returns a malformed value. Receives ONLY the contributing
+   * moduleId + the error's name (never the error message, stack, or any payload/health data) —
+   * so a readiness outage is observable without leaking sensitive content (Codex R1).
+   */
+  readonly onProviderError?: (moduleId: string, errorName: string) => void;
+}
+
+/**
+ * Run every registered provider for an actor and collect the non-null signals. Generic and
+ * uniform: it knows nothing about any specific module. A provider that throws or returns a
+ * malformed value is treated as "no signal" (fail soft — focus must never break), but the
+ * drop is reported via `onProviderError` (sanitized) so outages are not silent.
+ */
+export async function aggregateFocusSignals(
+  providers: readonly RegisteredFocusSignal[],
+  scopedDb: unknown,
+  ctx: { readonly actorUserId: string; readonly requestId: string },
+  options: FocusSignalAggregateOptions = {}
+): Promise<FocusSignal[]> {
+  const results = await Promise.all(
+    providers.map(async ({ moduleId, provider }) => {
+      try {
+        const signal = await provider(scopedDb, ctx);
+        if (
+          signal &&
+          typeof signal.moduleId === "string" &&
+          typeof signal.readiness === "number" &&
+          Number.isFinite(signal.readiness) &&
+          typeof signal.summary === "string"
+        ) {
+          return {
+            moduleId: signal.moduleId,
+            readiness: Math.min(1, Math.max(0, signal.readiness)),
+            summary: signal.summary
+          } satisfies FocusSignal;
+        }
+        // Non-null but malformed → treat as a provider error (observability).
+        if (signal !== null) options.onProviderError?.(moduleId, "MalformedFocusSignal");
+        return null;
+      } catch (error) {
+        const name = error instanceof Error ? error.name : "UnknownError";
+        options.onProviderError?.(moduleId, name);
+        return null;
+      }
+    })
+  );
+  return results.filter((s): s is FocusSignal => s !== null);
+}
+
 export interface ModuleCompatibility {
   readonly jarv1s: string;
 }
@@ -151,6 +229,7 @@ export interface JarvisModuleManifest {
   readonly jobs?: readonly ModuleJobManifest[];
   readonly shareableResources?: readonly ModuleShareableResourceManifest[];
   readonly assistantTools?: readonly ModuleAssistantToolManifest[];
+  readonly focusSignal?: FocusSignalProvider;
 }
 
 export function renderToolResult(result: ToolResult): string {

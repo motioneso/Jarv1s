@@ -1,0 +1,209 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Wellness — Feelings Wheel modal flow (mockup)</title>
+    <style>
+      :root {
+        --bg: #0f1115;
+        --panel: #1a1d24;
+        --ink: #e8eaf0;
+        --muted: #9aa0ad;
+        --accent: #7c9cff;
+      }
+      body {
+        margin: 0;
+        background: var(--bg);
+        color: var(--ink);
+        font:
+          15px/1.5 system-ui,
+          sans-serif;
+      }
+      h1 {
+        font-size: 18px;
+        padding: 20px 24px 0;
+      }
+      p.sub {
+        color: var(--muted);
+        padding: 0 24px;
+        margin-top: 4px;
+      }
+      .flow {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(320px, 1fr));
+        gap: 20px;
+        padding: 24px;
+      }
+      .card {
+        background: var(--panel);
+        border: 1px solid #262a33;
+        border-radius: 14px;
+        padding: 18px;
+      }
+      .card h2 {
+        font-size: 13px;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+        color: var(--muted);
+        margin: 0 0 12px;
+      }
+      .wheel {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 8px;
+      }
+      .core {
+        border: none;
+        border-radius: 10px;
+        padding: 14px 8px;
+        color: #10131a;
+        font-weight: 600;
+        cursor: pointer;
+      }
+      .mad {
+        background: #ff8b8b;
+      }
+      .sad {
+        background: #8bb6ff;
+      }
+      .scared {
+        background: #c79bff;
+      }
+      .joyful {
+        background: #ffe08b;
+      }
+      .powerful {
+        background: #ffb86b;
+      }
+      .peaceful {
+        background: #8bf0c4;
+      }
+      .chips {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        margin-top: 14px;
+      }
+      .chip {
+        border: 1px solid #333;
+        border-radius: 999px;
+        padding: 6px 12px;
+        color: var(--ink);
+        background: #12151c;
+        cursor: pointer;
+      }
+      .chat {
+        background: #12151c;
+        border-radius: 10px;
+        padding: 12px;
+        min-height: 120px;
+      }
+      .bubble {
+        background: #222633;
+        border-radius: 10px;
+        padding: 8px 12px;
+        margin: 6px 0;
+        max-width: 80%;
+      }
+      .bubble.me {
+        background: var(--accent);
+        color: #0b0e14;
+        margin-left: auto;
+      }
+      label {
+        display: block;
+        margin: 12px 0 4px;
+        color: var(--muted);
+        font-size: 13px;
+      }
+      input,
+      textarea,
+      select {
+        width: 100%;
+        box-sizing: border-box;
+        background: #12151c;
+        color: var(--ink);
+        border: 1px solid #2a2f3a;
+        border-radius: 8px;
+        padding: 8px;
+      }
+      .actions {
+        display: flex;
+        gap: 10px;
+        margin-top: 16px;
+      }
+      .btn {
+        border: none;
+        border-radius: 9px;
+        padding: 10px 16px;
+        font-weight: 600;
+        cursor: pointer;
+      }
+      .btn.primary {
+        background: var(--accent);
+        color: #0b0e14;
+      }
+      .btn.ghost {
+        background: transparent;
+        color: var(--ink);
+        border: 1px solid #2a2f3a;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Wellness — Feelings check-in modal flow</h1>
+    <p class="sub">
+      Static, NON-SHIPPING taste artifact for Ben's morning review only. The shipped React UI in
+      this slice is intentionally BASIC (plain buttons/chips/selects, no colored wheel) — the
+      polished feelings-wheel is deferred to a dedicated Ben UI session.
+    </p>
+    <div class="flow">
+      <section class="card" aria-label="Step 1">
+        <h2>1 · Pick a feeling + body check</h2>
+        <div class="wheel">
+          <button class="core mad">Mad</button>
+          <button class="core sad">Sad</button>
+          <button class="core scared">Scared</button>
+          <button class="core joyful">Joyful</button>
+          <button class="core powerful">Powerful</button>
+          <button class="core peaceful">Peaceful</button>
+        </div>
+        <p style="color: var(--muted); margin: 14px 0 4px">Scared → Anxious → Overwhelmed</p>
+        <div class="chips" aria-label="Body sensations">
+          <span class="chip">Tight chest</span><span class="chip">Racing heart</span>
+          <span class="chip">Lump in throat</span><span class="chip">Clenched jaw</span>
+          <span class="chip">Shallow breathing</span>
+        </div>
+      </section>
+      <section class="card" aria-label="Step 2">
+        <h2>2 · "I don't know what I feel" → talk to Jarvis</h2>
+        <div class="chat">
+          <div class="bubble me">I'm not sure what I'm feeling right now.</div>
+          <div class="bubble">Let's figure it out. What happened just before this?</div>
+          <div class="bubble me">A deadline got moved up.</div>
+          <div class="bubble">That sounds like it could be anxiety. Does "overwhelmed" fit?</div>
+        </div>
+      </section>
+      <section class="card" aria-label="Step 3">
+        <h2>3 · Details</h2>
+        <label>Intensity (1–5)</label>
+        <select>
+          <option>4</option>
+        </select>
+        <label>Note / context</label>
+        <textarea rows="3">Deadline moved up; chest is tight.</textarea>
+      </section>
+      <section class="card" aria-label="Step 4">
+        <h2>4 · Save</h2>
+        <p style="color: var(--muted)">
+          Save the check-in, or save and bring it into a Jarvis conversation.
+        </p>
+        <div class="actions">
+          <button class="btn ghost">Save</button>
+          <button class="btn primary">Save &amp; discuss</button>
+        </div>
+      </section>
+    </div>
+  </body>
+</html>

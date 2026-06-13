@@ -157,7 +157,8 @@ describe("Tasks module M1", () => {
       "chat",
       "briefings",
       "memory",
-      "structured-state"
+      "structured-state",
+      "wellness"
     ]);
     expect(registrations.map((registration) => registration.manifest.id)).toEqual([
       "settings",
@@ -170,7 +171,8 @@ describe("Tasks module M1", () => {
       "chat",
       "briefings",
       "memory",
-      "structured-state"
+      "structured-state",
+      "wellness"
     ]);
     expect(tasksManifest?.database?.ownedTables).toEqual(["app.tasks", "app.task_activity"]);
     expect(tasksManifest?.navigation?.[0]).toMatchObject({

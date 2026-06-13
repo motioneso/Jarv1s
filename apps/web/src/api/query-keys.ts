@@ -7,6 +7,7 @@ export const queryKeys = {
     status: ["onboarding", "status"] as const
   },
   modules: ["modules"] as const,
+  myModules: ["me", "modules"] as const,
   settings: {
     providers: ["settings", "providers"] as const,
     adminConnectorAccounts: ["settings", "admin", "connector-accounts"] as const,
@@ -52,5 +53,10 @@ export const queryKeys = {
     lists: ["tasks", "lists"] as const,
     tags: (listId: string) => ["tasks", "tags", listId] as const,
     preferences: ["tasks", "preferences"] as const
+  },
+  wellness: {
+    checkins: ["wellness", "checkins"] as const,
+    medications: ["wellness", "medications"] as const,
+    schedule: (date: string) => ["wellness", "schedule", date] as const
   }
 };

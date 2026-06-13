@@ -60,6 +60,17 @@ export interface TasksRoutesDependencies {
   readonly breakdownRepository?: TaskBreakdownRepository;
   readonly driftRepository?: TaskDriftRepository;
   readonly preferencesRepository?: TaskPreferencesRepository;
+  /**
+   * Generic focus-signal source injected from the composition root. Tasks consumes an
+   * opaque FocusSignal[] and never knows which modules produced them (module isolation).
+   * It does NOT take `scopedDb`: the source opens its OWN per-actor withDataContext(s) —
+   * exactly like the AI route surfaces' `resolveActiveModules` (packages/ai/src/routes.ts) —
+   * so it is NOT nested inside the focus query's transaction (avoids pool-nesting hazards).
+   */
+  readonly focusSignals?: (ctx: {
+    readonly actorUserId: string;
+    readonly requestId: string;
+  }) => Promise<readonly { moduleId: string; readiness: number; summary: string }[]>;
 }
 
 interface TaskParams {
@@ -574,6 +585,14 @@ export function registerTasksRoutes(
   server.get("/api/tasks/focus", { schema: focusTasksRouteSchema }, async (request, reply) => {
     try {
       const accessContext = await dependencies.resolveAccessContext(request);
+      // Step 1: signals (the source opens its own per-actor contexts; not nested below).
+      const signals = dependencies.focusSignals
+        ? await dependencies.focusSignals({
+            actorUserId: accessContext.actorUserId,
+            requestId: accessContext.requestId ?? "focus"
+          })
+        : [];
+      // Step 2: the focus tasks + their tags, in their own transaction.
       const { tasks, tagMap } = await dependencies.dataContext.withDataContext(
         accessContext,
         async (scopedDb) => {
@@ -586,7 +605,15 @@ export function registerTasksRoutes(
         }
       );
 
-      return { tasks: tasks.map((task) => serializeTask(task, tagMap.get(task.id) ?? [])) };
+      // Serialize WITH tags (task-verticals), then generic readiness re-weighting (p5):
+      // when aggregate readiness is low, surface fewer, lighter items. Tasks does not
+      // know WHY readiness is low — only the number.
+      const ordered = applyReadinessCap(
+        tasks.map((task) => serializeTask(task, tagMap.get(task.id) ?? [])),
+        signals
+      );
+
+      return { tasks: ordered, signals };
     } catch (error) {
       return handleRouteError(error, reply);
     }
@@ -821,4 +848,16 @@ function parseStringArray(value: unknown, fieldName: string): string[] {
 
     return item.trim();
   });
+}
+
+function applyReadinessCap(
+  tasks: ReturnType<typeof serializeTask>[],
+  signals: readonly { readiness: number }[]
+): ReturnType<typeof serializeTask>[] {
+  if (signals.length === 0) return tasks;
+  const aggregate = signals.reduce((sum, s) => sum + s.readiness, 0) / signals.length;
+  if (aggregate >= 0.5) return tasks;
+  // Low readiness: cap to the top 3 highest-priority items so a depleted day surfaces less.
+  const cap = aggregate <= 0.25 ? 3 : 5;
+  return tasks.slice(0, cap);
 }

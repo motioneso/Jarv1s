@@ -215,6 +215,36 @@ export const listTasksResponseSchema = {
   }
 } as const;
 
+export const focusSignalDtoSchema = {
+  type: "object",
+  required: ["moduleId", "readiness", "summary"],
+  properties: {
+    moduleId: { type: "string" },
+    readiness: { type: "number" },
+    summary: { type: "string" }
+  }
+} as const;
+
+export interface FocusSignalDto {
+  readonly moduleId: string;
+  readonly readiness: number;
+  readonly summary: string;
+}
+
+export const focusTasksResponseSchema = {
+  type: "object",
+  required: ["tasks"],
+  properties: {
+    tasks: { type: "array", items: taskDtoSchema },
+    signals: { type: "array", items: focusSignalDtoSchema }
+  }
+} as const;
+
+export interface FocusTasksResponse {
+  readonly tasks: readonly TaskDto[];
+  readonly signals?: readonly FocusSignalDto[];
+}
+
 export const createTaskRequestSchema = {
   type: "object",
   additionalProperties: false,
@@ -551,7 +581,7 @@ export const breakdownTaskRouteSchema = {
 
 export const focusTasksRouteSchema = {
   response: {
-    200: listTasksResponseSchema
+    200: focusTasksResponseSchema
   }
 } as const;
 
