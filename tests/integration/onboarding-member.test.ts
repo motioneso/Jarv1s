@@ -25,9 +25,6 @@ function cookieHeader(headers: OutgoingHttpHeaders): string {
       : [];
   return cookies.map((cookie) => cookie.split(";", 1)[0]).join("; ");
 }
-// cookieHeader is consumed by the Task 5 route-branch describe; reference it so the
-// no-unused-vars lint stays green until that block lands. (Remove this line in Task 5.)
-void cookieHeader;
 
 describe("Phase 4 member onboarding — migration", () => {
   beforeAll(async () => {
@@ -255,5 +252,116 @@ describe("Phase 4 member onboarding — repository methods", () => {
           .execute()
     );
     expect(rowsVisibleToAdmin).toEqual([]); // A's row invisible to the admin → no leak
+  });
+});
+
+describe("Phase 4 member onboarding — route branch (status/complete/skip per actor)", () => {
+  let appDb: Kysely<JarvisDatabase>;
+  let server: ReturnType<typeof createApiServer>;
+  let ownerCookie: string;
+  let memberCookie: string;
+
+  beforeAll(async () => {
+    await resetEmptyFoundationDatabase();
+    appDb = createDatabase({ connectionString: connectionStrings.app, maxConnections: 1 });
+    server = createApiServer({ appDb, logger: false });
+    await server.ready();
+
+    const owner = await server.inject({
+      method: "POST",
+      url: "/api/auth/sign-up/email",
+      headers: { "content-type": "application/json" },
+      payload: { name: "Owner", email: "owner2@p4.test", password: "correct horse battery staple" }
+    });
+    ownerCookie = cookieHeader(owner.headers);
+    await setInstanceSetting("registration.requires_approval", { value: false });
+
+    const member = await server.inject({
+      method: "POST",
+      url: "/api/auth/sign-up/email",
+      headers: { "content-type": "application/json" },
+      payload: { name: "Member", email: "m2@p4.test", password: "correct horse battery staple" }
+    });
+    memberCookie = cookieHeader(member.headers);
+  });
+
+  afterAll(async () => {
+    await Promise.allSettled([server?.close(), appDb?.destroy()]);
+  });
+
+  it("founder GET /status returns role: founder (unchanged founder shape)", async () => {
+    const res = await server.inject({
+      method: "GET",
+      url: "/api/onboarding/status",
+      headers: { cookie: ownerCookie }
+    });
+    expect(res.statusCode).toBe(200);
+    expect((res.json() as { role: string }).role).toBe("founder");
+  });
+
+  it("active member GET /status returns role: member with completed:false (admit via requireKnownUser)", async () => {
+    const res = await server.inject({
+      method: "GET",
+      url: "/api/onboarding/status",
+      headers: { cookie: memberCookie }
+    });
+    expect(res.statusCode).toBe(200);
+    const body = res.json() as {
+      role: string;
+      completed: boolean;
+      steps: { apiKeyOptOut: { done: boolean }; connectors: { done: boolean } };
+    };
+    expect(body.role).toBe("member");
+    expect(body.completed).toBe(false);
+    expect(body.steps.apiKeyOptOut.done).toBe(false);
+    expect(body.steps.connectors.done).toBe(false);
+    // No secret-shaped field.
+    expect(JSON.stringify(body)).not.toMatch(/token|secret|password|credential/i);
+  });
+
+  it("member POST /complete stamps completed and audits onboarding.member_complete", async () => {
+    const res = await server.inject({
+      method: "POST",
+      url: "/api/onboarding/complete",
+      headers: { cookie: memberCookie }
+    });
+    expect(res.statusCode).toBe(200);
+    expect((res.json() as { completed: boolean }).completed).toBe(true);
+
+    const status = await server.inject({
+      method: "GET",
+      url: "/api/onboarding/status",
+      headers: { cookie: memberCookie }
+    });
+    expect((status.json() as { completed: boolean }).completed).toBe(true);
+
+    // The founder can read the audit log; the member_complete action is present.
+    const audit = await server.inject({
+      method: "GET",
+      url: "/api/admin/audit-events",
+      headers: { cookie: ownerCookie }
+    });
+    const actions = (audit.json() as { auditEvents: { action: string }[] }).auditEvents.map(
+      (e) => e.action
+    );
+    expect(actions).toContain("onboarding.member_complete");
+  });
+
+  it("member POST /skip == complete (terminal onboarded state)", async () => {
+    // Fresh member to assert /skip stamps completion.
+    const m = await server.inject({
+      method: "POST",
+      url: "/api/auth/sign-up/email",
+      headers: { "content-type": "application/json" },
+      payload: { name: "Skipper", email: "skip@p4.test", password: "correct horse battery staple" }
+    });
+    const skipperCookie = cookieHeader(m.headers);
+    const res = await server.inject({
+      method: "POST",
+      url: "/api/onboarding/skip",
+      headers: { cookie: skipperCookie }
+    });
+    expect(res.statusCode).toBe(200);
+    expect((res.json() as { completed: boolean }).completed).toBe(true);
   });
 });

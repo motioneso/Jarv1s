@@ -436,6 +436,17 @@ export interface OnboardingStateResponse {
   readonly state: OnboardingState;
 }
 
+/**
+ * Phase 4: the member complete/skip response. A member's onboarding has no separate
+ * "skipped" lifecycle (skip == terminal "onboarded"), so the response carries a single
+ * `completed` boolean — distinct from the founder's instance-global `{ state }` shape.
+ */
+export interface OnboardingMemberCompleteResponse {
+  readonly completed: boolean;
+}
+
+export type OnboardingCompleteResponse = OnboardingStateResponse | OnboardingMemberCompleteResponse;
+
 // Phase 4: the founder branch is the unchanged Phase-2 shape with a `role` discriminant.
 const onboardingFounderStatusSchema = {
   type: "object",
@@ -537,6 +548,23 @@ const onboardingStateResponseSchema = {
   }
 } as const;
 
+// Phase 4: the member complete/skip response — a single `completed` boolean.
+const onboardingMemberCompleteResponseSchema = {
+  type: "object",
+  additionalProperties: false,
+  required: ["completed"],
+  properties: {
+    completed: { type: "boolean" }
+  }
+} as const;
+
+// Phase 4: complete/skip now serve BOTH the founder `{ state }` shape and the member
+// `{ completed }` shape, branched on role inside the handler. The response is validated
+// against this role-tagged-by-shape union (each variant keeps additionalProperties:false).
+const onboardingCompleteResponseSchema = {
+  oneOf: [onboardingStateResponseSchema, onboardingMemberCompleteResponseSchema]
+} as const;
+
 export const getOnboardingStatusRouteSchema = {
   response: {
     200: onboardingStatusResponseSchema,
@@ -547,7 +575,7 @@ export const getOnboardingStatusRouteSchema = {
 
 export const onboardingCompleteRouteSchema = {
   response: {
-    200: onboardingStateResponseSchema,
+    200: onboardingCompleteResponseSchema,
     401: errorResponseSchema,
     403: errorResponseSchema
   }
@@ -555,7 +583,7 @@ export const onboardingCompleteRouteSchema = {
 
 export const onboardingSkipRouteSchema = {
   response: {
-    200: onboardingStateResponseSchema,
+    200: onboardingCompleteResponseSchema,
     401: errorResponseSchema,
     403: errorResponseSchema
   }

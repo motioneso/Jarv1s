@@ -304,7 +304,12 @@ describe("Phase 2 onboarding — complete/skip (audited)", () => {
   });
 });
 
-describe("Phase 2 onboarding — bootstrap-owner gating (promoted non-owner admin is rejected)", () => {
+// Phase 4 relaxed the onboarding gate from bootstrap-owner-only to requireKnownUser: the
+// founder/member split is purely on is_bootstrap_owner, so a promoted NON-owner admin is a
+// MEMBER for onboarding purposes (they get the role:"member" per-user flow, not a 403). The
+// instance-global founder state stays owner-only — a member's complete/skip stamps the
+// member's OWN app.member_onboarding row, never the instance-scoped onboarding.state.
+describe("Phase 4 onboarding — promoted non-owner admin is a MEMBER (not founder, not 403)", () => {
   let appDb: Kysely<JarvisDatabase>;
   let server: ReturnType<typeof createApiServer>;
   let ownerCookie: string;
@@ -368,31 +373,42 @@ describe("Phase 2 onboarding — bootstrap-owner gating (promoted non-owner admi
     await Promise.allSettled([server?.close(), appDb?.destroy()]);
   });
 
-  it("a promoted non-owner admin is 403 on GET /status, POST /complete, POST /skip", async () => {
+  it("a promoted non-owner admin gets the MEMBER status shape (200, role: member) — Phase 4", async () => {
+    // Phase 4: onboarding is no longer bootstrap-owner-only. A non-owner admin is a member
+    // for onboarding purposes; they read their OWN per-user state (self-row RLS), never the
+    // founder's instance-global state.
     const status = await server.inject({
       method: "GET",
       url: "/api/onboarding/status",
       headers: { cookie: adminCookie }
     });
-    expect(status.statusCode).toBe(403);
+    expect(status.statusCode).toBe(200);
+    const body = status.json() as { role: string; completed: boolean };
+    expect(body.role).toBe("member");
+    expect(body.completed).toBe(false);
 
+    // Member complete/skip stamp the member's OWN row and return the { completed } shape.
     const complete = await server.inject({
       method: "POST",
       url: "/api/onboarding/complete",
       headers: { cookie: adminCookie }
     });
-    expect(complete.statusCode).toBe(403);
+    expect(complete.statusCode).toBe(200);
+    expect((complete.json() as { completed: boolean }).completed).toBe(true);
 
     const skip = await server.inject({
       method: "POST",
       url: "/api/onboarding/skip",
       headers: { cookie: adminCookie }
     });
-    expect(skip.statusCode).toBe(403);
+    expect(skip.statusCode).toBe(200);
+    expect((skip.json() as { completed: boolean }).completed).toBe(true);
   });
 
-  it("the owner's onboarding state is untouched after a non-owner admin's blocked writes", async () => {
-    // The blocked POSTs above must NOT have mutated the single instance-scoped state.
+  it("the owner's instance-global onboarding state is untouched by a member's complete/skip", async () => {
+    // The member (promoted admin) complete/skip above stamped the member's OWN
+    // app.member_onboarding row — they MUST NOT have mutated the single instance-scoped
+    // founder onboarding.state, which stays "pending" for the owner.
     const status = await server.inject({
       method: "GET",
       url: "/api/onboarding/status",
