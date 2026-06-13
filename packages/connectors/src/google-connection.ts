@@ -107,14 +107,18 @@ export class GoogleConnectionService {
     return account;
   }
 
-  async getFreshAccessToken(scopedDb: DataContextDb): Promise<string> {
+  async getFreshAccessToken(
+    scopedDb: DataContextDb,
+    opts: { force?: boolean } = {}
+  ): Promise<string> {
     const stored = await this.deps.repository.getActiveGoogleAccountSecret(scopedDb);
     if (!stored) {
       throw new GoogleConnectError("No active Google connection");
     }
     const bundle = this.deps.cipher.decryptJson(stored.encryptedSecret) as GoogleConnectionSecret;
     // More than 60 s remaining — return the cached token without a network round-trip.
-    if (new Date(bundle.tokenExpiry).getTime() - this.now().getTime() > 60_000) {
+    // `force` (used by the sync 401-retry path) bypasses this fast path to force a refresh.
+    if (!opts.force && new Date(bundle.tokenExpiry).getTime() - this.now().getTime() > 60_000) {
       return bundle.accessToken;
     }
     const refreshed = await this.deps.oauthClient.refreshAccessToken({
