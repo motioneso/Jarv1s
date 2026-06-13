@@ -48,7 +48,7 @@
     "test:notifications": "vitest run tests/integration/notifications.test.ts",
     "test:tasks": "vitest run tests/integration/tasks.test.ts",
     "test:tasks-tools": "vitest run tests/integration/tasks-tools.test.ts",
-    "test:wellness": "vitest run tests/integration/wellness.test.ts",
+    "test:wellness": "vitest run tests/integration/wellness.test.ts tests/integration/wellness-medications.test.ts",
     "test:memory": "vitest run tests/integration/memory.test.ts",
     "test:memory:local": "vitest run tests/slow/memory-local-embed.test.ts",
     "ingest:vault": "tsx scripts/ingest-vault.ts",
