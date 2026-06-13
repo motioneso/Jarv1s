@@ -430,6 +430,17 @@ describe("Tasks module M1", () => {
     expect(queue).not.toBeNull();
   });
 
+  it("isRecurrenceMaterializePayloadMetadataOnly rejects extra keys", async () => {
+    const { isRecurrenceMaterializePayloadMetadataOnly } = await import("@jarv1s/tasks");
+    expect(isRecurrenceMaterializePayloadMetadataOnly({ actorUserId: ids.userA })).toBe(true);
+    expect(
+      isRecurrenceMaterializePayloadMetadataOnly({ actorUserId: ids.userA, idempotencyKey: "k" })
+    ).toBe(true);
+    expect(
+      isRecurrenceMaterializePayloadMetadataOnly({ actorUserId: ids.userA, seriesId: "x" })
+    ).toBe(false);
+  });
+
   it("keeps Tasks worker payloads metadata-only", async () => {
     const resultPromise = handleNextTaskJob(workerBoss);
     await appBoss.send(TASKS_DEFERRED_STATUS_QUEUE, {
