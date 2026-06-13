@@ -5,6 +5,8 @@ import { fileURLToPath } from "node:url";
 export interface ComposeSmokePlanInput {
   readonly apiPort?: string;
   readonly composeFile?: string;
+  /** Build the compose images locally before bringing the stack up (prod variant). */
+  readonly build?: boolean;
 }
 
 export interface ComposeSmokeCommand {
@@ -23,6 +25,42 @@ export function createComposeSmokePlan(input: ComposeSmokePlanInput = {}): Compo
   const apiPort = input.apiPort ?? process.env.JARVIS_API_PORT ?? "3000";
   const composeArgs = ["compose", "-f", composeFile];
 
+  // The prod compose has only `image:` refs (no `build:`), so `docker compose build`
+  // would be a no-op. Build the two Dockerfiles DIRECTLY and tag them to the exact
+  // GHCR refs the prod compose resolves (ghcr.io/motioneso/jarv1s-{api,web}:$TAG),
+  // so the smoke proves the published topology with no registry round-trip and no
+  // manual `docker tag` step (Codex R1: smoke-build contradiction).
+  const imageTag = process.env.JARVIS_IMAGE_TAG ?? "smoke";
+  const buildCommands: ComposeSmokeCommand[] = input.build
+    ? [
+        {
+          command: "docker",
+          args: [
+            "build",
+            "-t",
+            `ghcr.io/motioneso/jarv1s-api:${imageTag}`,
+            "-f",
+            "Dockerfile",
+            "."
+          ],
+          description:
+            "Build the app (api/worker/migrate) image locally and tag it to the prod GHCR ref"
+        },
+        {
+          command: "docker",
+          args: [
+            "build",
+            "-t",
+            `ghcr.io/motioneso/jarv1s-web:${imageTag}`,
+            "-f",
+            "apps/web/Dockerfile",
+            "."
+          ],
+          description: "Build the static-web image locally and tag it to the prod GHCR ref"
+        }
+      ]
+    : [];
+
   return {
     // Use the readiness probe, not the liveness `/health`. `/health` returns
     // `{ ok: true }` as soon as the process is listening — it says nothing about
@@ -32,6 +70,7 @@ export function createComposeSmokePlan(input: ComposeSmokePlanInput = {}): Compo
     // until both are up, which is the post-migration invariant we want to assert (#171).
     healthUrl: `http://localhost:${apiPort}/health/ready`,
     commands: [
+      ...buildCommands,
       {
         command: "docker",
         args: [...composeArgs, "config", "--quiet"],
@@ -60,7 +99,8 @@ async function main(): Promise<void> {
   const args = parseArgs(process.argv.slice(2));
   const plan = createComposeSmokePlan({
     apiPort: args.apiPort,
-    composeFile: args.composeFile
+    composeFile: args.composeFile,
+    build: args.build
   });
 
   for (const command of plan.commands) {
@@ -75,10 +115,12 @@ async function main(): Promise<void> {
 function parseArgs(args: readonly string[]): {
   readonly apiPort?: string;
   readonly composeFile?: string;
+  readonly build?: boolean;
 } {
   return {
     apiPort: readFlag(args, "--api-port"),
-    composeFile: readFlag(args, "--compose-file")
+    composeFile: readFlag(args, "--compose-file"),
+    build: args.includes("--build")
   };
 }
 
