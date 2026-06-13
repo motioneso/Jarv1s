@@ -188,6 +188,136 @@ describe("HttpApiAdapter — google", () => {
   });
 });
 
+describe("HttpApiAdapter — maxOutputTokens (economy envelope)", () => {
+  it("clamps the anthropic max_tokens to maxOutputTokens when provided", async () => {
+    let capturedBody: Record<string, unknown> = {};
+    const fakeFetch = async (_url: string | URL | Request, init?: RequestInit) => {
+      capturedBody = JSON.parse((init?.body as string) ?? "{}");
+      return new Response(JSON.stringify({ content: [{ type: "text", text: "ok" }] }), {
+        status: 200
+      });
+    };
+
+    const adapter = new HttpApiAdapter("anthropic", "sk-test-anthropic", {
+      fetch: fakeFetch as typeof fetch
+    });
+    await adapter.generateChat({
+      model: anthropicModel,
+      messages: [{ role: "user", content: "yo" }],
+      maxOutputTokens: 1024
+    });
+    expect(capturedBody.max_tokens).toBe(1024);
+  });
+
+  it("preserves the anthropic default max_tokens (8192) when maxOutputTokens is omitted", async () => {
+    let capturedBody: Record<string, unknown> = {};
+    const fakeFetch = async (_url: string | URL | Request, init?: RequestInit) => {
+      capturedBody = JSON.parse((init?.body as string) ?? "{}");
+      return new Response(JSON.stringify({ content: [{ type: "text", text: "ok" }] }), {
+        status: 200
+      });
+    };
+
+    const adapter = new HttpApiAdapter("anthropic", "sk-test-anthropic", {
+      fetch: fakeFetch as typeof fetch
+    });
+    await adapter.generateChat({
+      model: anthropicModel,
+      messages: [{ role: "user", content: "yo" }]
+    });
+    expect(capturedBody.max_tokens).toBe(8192);
+  });
+
+  it("sets openai-compatible max_tokens only when maxOutputTokens is provided", async () => {
+    let capturedBody: Record<string, unknown> = {};
+    const fakeFetch = async (_url: string | URL | Request, init?: RequestInit) => {
+      capturedBody = JSON.parse((init?.body as string) ?? "{}");
+      return new Response(
+        JSON.stringify({ choices: [{ message: { role: "assistant", content: "ok" } }] }),
+        { status: 200 }
+      );
+    };
+
+    const adapter = new HttpApiAdapter("openai-compatible", "sk-test-openai", {
+      fetch: fakeFetch as typeof fetch
+    });
+    await adapter.generateChat({
+      model: openaiModel,
+      messages: [{ role: "user", content: "hello" }],
+      maxOutputTokens: 1024
+    });
+    expect(capturedBody.max_tokens).toBe(1024);
+  });
+
+  it("omits openai-compatible max_tokens when maxOutputTokens is absent (no default invented)", async () => {
+    let capturedBody: Record<string, unknown> = {};
+    const fakeFetch = async (_url: string | URL | Request, init?: RequestInit) => {
+      capturedBody = JSON.parse((init?.body as string) ?? "{}");
+      return new Response(
+        JSON.stringify({ choices: [{ message: { role: "assistant", content: "ok" } }] }),
+        { status: 200 }
+      );
+    };
+
+    const adapter = new HttpApiAdapter("openai-compatible", "sk-test-openai", {
+      fetch: fakeFetch as typeof fetch
+    });
+    await adapter.generateChat({
+      model: openaiModel,
+      messages: [{ role: "user", content: "hello" }]
+    });
+    expect(capturedBody.max_tokens).toBeUndefined();
+  });
+
+  it("sets google maxOutputTokens via generationConfig only when provided", async () => {
+    let capturedBody: Record<string, unknown> = {};
+    const fakeFetch = async (_url: string | URL | Request, init?: RequestInit) => {
+      capturedBody = JSON.parse((init?.body as string) ?? "{}");
+      return new Response(
+        JSON.stringify({
+          candidates: [{ content: { parts: [{ text: "ok" }], role: "model" } }]
+        }),
+        { status: 200 }
+      );
+    };
+
+    const adapter = new HttpApiAdapter("google", "sk-test-google", {
+      fetch: fakeFetch as typeof fetch
+    });
+    await adapter.generateChat({
+      model: googleModel,
+      messages: [{ role: "user", content: "hi google" }],
+      maxOutputTokens: 1024
+    });
+    const generationConfig = capturedBody.generationConfig as
+      | { maxOutputTokens?: number }
+      | undefined;
+    expect(generationConfig?.maxOutputTokens).toBe(1024);
+  });
+
+  it("omits google generationConfig when maxOutputTokens is absent (no default invented)", async () => {
+    let capturedBody: Record<string, unknown> = {};
+    const fakeFetch = async (_url: string | URL | Request, init?: RequestInit) => {
+      capturedBody = JSON.parse((init?.body as string) ?? "{}");
+      return new Response(
+        JSON.stringify({
+          candidates: [{ content: { parts: [{ text: "ok" }], role: "model" } }]
+        }),
+        { status: 200 }
+      );
+    };
+
+    const adapter = new HttpApiAdapter("google", "sk-test-google", {
+      fetch: fakeFetch as typeof fetch
+    });
+    await adapter.generateChat({
+      model: googleModel,
+      messages: [{ role: "user", content: "hi google" }]
+    });
+    expect(capturedBody.generationConfig).toBeUndefined();
+  });
+});
+
 describe("HttpApiAdapter — onActivity", () => {
   it("emits a status event when onActivity is provided", async () => {
     const fakeFetch = async () =>

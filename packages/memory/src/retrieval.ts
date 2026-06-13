@@ -18,4 +18,17 @@ export class MemoryRetriever {
     const queryEmbedding = await this.embeddingProvider.embedQuery(query);
     return this.repository.vectorSearch(scopedDb, queryEmbedding, limit, sourceKind);
   }
+
+  /**
+   * Recency-ordered retrieval (no query embedding). Used by the briefing's hybrid
+   * vault grounding (semantic ∪ recency) so the most recently ingested notes are
+   * surfaced even when no query matches them semantically.
+   */
+  async retrieveRecent(
+    scopedDb: DataContextDb,
+    limit: number = 10,
+    sourceKind: string = "vault"
+  ): Promise<RetrievedChunk[]> {
+    return this.repository.listRecentChunks(scopedDb, limit, sourceKind);
+  }
 }

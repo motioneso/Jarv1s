@@ -33,7 +33,9 @@ function ctx(actorUserId: string): AccessContext {
 }
 
 let appDb: Kysely<JarvisDatabase>;
+let workerDb: Kysely<JarvisDatabase>;
 let dataContext: DataContextRunner;
+let workerContext: DataContextRunner;
 
 beforeAll(async () => {
   await resetEmptyFoundationDatabase();
@@ -50,11 +52,14 @@ beforeAll(async () => {
     await client.end();
   }
   appDb = createDatabase({ connectionString: connectionStrings.app, maxConnections: 1 });
+  workerDb = createDatabase({ connectionString: connectionStrings.worker, maxConnections: 1 });
   dataContext = new DataContextRunner(appDb);
+  workerContext = new DataContextRunner(workerDb);
 });
 
 afterAll(async () => {
   await appDb.destroy();
+  await workerDb.destroy();
 });
 
 // vault setup for write-back tests (add alongside existing afterAll)
@@ -152,6 +157,110 @@ describe("CommitmentsRepository", () => {
       await repo.update(scopedDb, c.id, { status: "done" });
       const updated = await repo.get(scopedDb, c.id);
       expect(updated?.status).toBe("done");
+    });
+  });
+});
+
+// ── commitments.listVisible read tool + worker-role grant ─────────────────────
+// The briefings pg-boss worker runs as jarvis_worker_runtime and reads commitments
+// through this read tool. Migration 0031 granted SELECT (and the SELECT policy) to
+// jarvis_app_runtime only; the worker grant migration adds the worker role to both,
+// mirroring the owner-or-share policy EXACTLY so shared commitments remain visible.
+
+describe("commitments.listVisible read tool + worker-role grant", () => {
+  const repo = new CommitmentsRepository();
+
+  it("worker role has SELECT on app.commitments (and no write privileges)", async () => {
+    const client = new Client({ connectionString: connectionStrings.migration });
+    await client.connect();
+    try {
+      const result = await client.query<{
+        worker_can_select: boolean;
+        worker_can_insert: boolean;
+        worker_can_update: boolean;
+        worker_can_delete: boolean;
+      }>(
+        `
+          SELECT
+            has_table_privilege('jarvis_worker_runtime', c.oid, 'SELECT') AS worker_can_select,
+            has_table_privilege('jarvis_worker_runtime', c.oid, 'INSERT') AS worker_can_insert,
+            has_table_privilege('jarvis_worker_runtime', c.oid, 'UPDATE') AS worker_can_update,
+            has_table_privilege('jarvis_worker_runtime', c.oid, 'DELETE') AS worker_can_delete
+          FROM pg_class c
+          JOIN pg_namespace n ON n.oid = c.relnamespace
+          WHERE n.nspname = 'app' AND c.relname = 'commitments'
+        `
+      );
+      expect(result.rows[0]).toEqual({
+        worker_can_select: true,
+        worker_can_insert: false,
+        worker_can_update: false,
+        worker_can_delete: false
+      });
+    } finally {
+      await client.end();
+    }
+  });
+
+  it("exposes commitments.listVisible as a read tool returning owner-scoped commitments", async () => {
+    const tool = (structuredStateModuleManifest.assistantTools ?? []).find(
+      (t) => t.name === "commitments.listVisible"
+    );
+    expect(tool?.risk).toBe("read");
+    expect(tool?.permissionId).toBeTruthy();
+
+    // Seed a commitment as the owner via the app role, then read it via the tool under a
+    // WORKER-role data context for the SAME actor — proving the worker grant + policy work.
+    const title = `WorkerRead-${randomUUID()}`;
+    await dataContext.withDataContext(ctx(userId), async (scopedDb) => {
+      await repo.create(scopedDb, { title, provenance: "volunteered" });
+    });
+
+    await workerContext.withDataContext(ctx(userId), async (scopedDb) => {
+      const result = await tool!.execute!(
+        scopedDb,
+        {},
+        {
+          actorUserId: userId,
+          requestId: "test",
+          chatSessionId: ""
+        }
+      );
+      const commitments = (result.data as { commitments: Array<{ title: string }> }).commitments;
+      expect(commitments.some((c) => c.title === title)).toBe(true);
+    });
+  });
+
+  it("worker policy preserves shareability: grantee worker-read sees a shared commitment", async () => {
+    // Owner (userId) creates a commitment and grants userB 'view'. Under a WORKER-role
+    // data context scoped to userB, the tool must surface the shared commitment — proving
+    // the worker policy mirrors the owner-or-share clause (no shareability regression).
+    let commitmentId: string;
+    const title = `WorkerShared-${randomUUID()}`;
+    await dataContext.withDataContext(ctx(userId), async (scopedDb) => {
+      const c = await repo.create(scopedDb, { title, provenance: "volunteered" });
+      commitmentId = c.id;
+      await sql`
+        INSERT INTO app.shares (resource_type, resource_id, owner_user_id, grantee_user_id, level)
+        VALUES ('commitment', ${commitmentId}::uuid, ${userId}::uuid, ${otherUserId}::uuid, 'view')
+      `.execute(scopedDb.db);
+    });
+
+    const tool = (structuredStateModuleManifest.assistantTools ?? []).find(
+      (t) => t.name === "commitments.listVisible"
+    );
+    await workerContext.withDataContext(ctx(otherUserId), async (scopedDb) => {
+      const result = await tool!.execute!(
+        scopedDb,
+        {},
+        {
+          actorUserId: otherUserId,
+          requestId: "test",
+          chatSessionId: ""
+        }
+      );
+      const commitments = (result.data as { commitments: Array<{ id: string }> }).commitments;
+      expect(commitments.some((c) => c.id === commitmentId!)).toBe(true);
     });
   });
 });

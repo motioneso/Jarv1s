@@ -28,7 +28,10 @@ export const notificationsModuleManifest = {
     required: true
   },
   database: {
-    migrations: ["sql/0008_notifications_module.sql"],
+    migrations: [
+      "sql/0008_notifications_module.sql",
+      "sql/0071_notifications_worker_insert_grant.sql"
+    ],
     migrationDirectories: ["packages/notifications/sql"],
     ownedTables: ["app.notifications", "app.notification_reads"]
   },
