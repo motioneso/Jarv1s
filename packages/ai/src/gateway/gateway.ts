@@ -5,7 +5,8 @@ import type {
   JarvisModuleManifest,
   ModuleAssistantToolManifest,
   ToolContext,
-  ToolExecute
+  ToolExecute,
+  ToolServices
 } from "@jarv1s/module-sdk";
 import { renderToolResult } from "@jarv1s/module-sdk";
 import type { AiAssistantToolDto } from "@jarv1s/shared";
@@ -26,6 +27,13 @@ export interface AssistantToolGatewayDependencies {
   readonly confirmations: ConfirmationRegistry;
   readonly notifier: SessionNotifier;
   readonly confirmTimeoutMs: number;
+  /**
+   * Opaque, composition-layer-constructed service registry keyed by service name.
+   * Passed verbatim (as a per-tool, declared-keys-only subset) as the 4th argument
+   * to a confirmed tool's execute. The gateway never inspects it. A tool declares
+   * which keys it needs via manifest `requiresServices`.
+   */
+  readonly toolServices?: ToolServices;
 }
 
 interface ExecutableTool {
@@ -95,15 +103,39 @@ export class AssistantToolGateway {
     this.deps.confirmations.resolve(actionRequestId, status);
   }
 
+  /**
+   * The subset of toolServices this tool declared via requiresServices — but ONLY for tools that
+   * pass through the confirm gate. A read tool (risk → "run", no confirmation) receives NOTHING,
+   * so no injected (potentially write-capable) service can be invoked without an Approve. This
+   * keeps the write→confirm floor structurally un-bypassable by a mistaken/hostile read-tool
+   * requiresServices declaration, with no service-risk taxonomy (Codex HIGH #5). The per-tool
+   * subset also means a tool can never reach an undeclared (write-capable) service (Codex HIGH #1).
+   */
+  private servicesFor(tool: ModuleAssistantToolManifest): ToolServices {
+    if (resolvePolicy(tool.risk) === "run") {
+      return {}; // read path bypasses confirmAndRun — never hand it a service (write→confirm floor)
+    }
+    const registry = this.deps.toolServices ?? {};
+    const keys = tool.requiresServices ?? [];
+    const subset: Record<string, unknown> = {};
+    for (const key of keys) {
+      // executableTools already guaranteed every declared key is registered (fail-closed),
+      // so this is always present here; guard defensively regardless.
+      if (key in registry) subset[key] = registry[key];
+    }
+    return subset;
+  }
+
   private async runHandler(
     found: ExecutableTool,
     input: Record<string, unknown>,
     ctx: ToolContext
   ): Promise<GatewayToolResponse> {
     const access: AccessContext = { actorUserId: ctx.actorUserId, requestId: ctx.requestId };
+    const services = this.servicesFor(found.tool);
     try {
       const result = await this.deps.runner.withDataContext(access, (scopedDb: DataContextDb) =>
-        found.execute(scopedDb, input, ctx)
+        found.execute(scopedDb, input, ctx, services)
       );
       return { ok: true, data: { text: renderToolResult(result) } };
     } catch {
@@ -186,6 +218,20 @@ export class AssistantToolGateway {
     for (const module of modules) {
       for (const tool of module.assistantTools ?? []) {
         if (typeof tool.execute !== "function") {
+          continue;
+        }
+        const declaredServices = tool.requiresServices ?? [];
+        // Fail closed #1: a read tool must NOT declare services — a read dispatches without the
+        // confirm gate, so a write-capable service on a read tool would bypass the write→confirm
+        // floor. Such a manifest is a misconfiguration; hide it rather than risk a bypass (HIGH #5).
+        if (declaredServices.length > 0 && resolvePolicy(tool.risk) === "run") {
+          continue;
+        }
+        // Fail closed #2: a tool whose required services we cannot satisfy is hidden — never
+        // listed and never confirmable. Prevents an approve→execute-fail dead-end (HIGH #2).
+        const registry = this.deps.toolServices ?? {};
+        const missing = declaredServices.filter((key) => !(key in registry));
+        if (missing.length > 0) {
           continue;
         }
         out.push({
