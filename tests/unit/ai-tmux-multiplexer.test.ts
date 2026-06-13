@@ -91,4 +91,34 @@ describe("TmuxMultiplexer", () => {
     // The detached session must be torn down so nothing is orphaned.
     expect(calls(io).some((c) => c.startsWith("tmux kill-session -t jarv1s-live-x"))).toBe(true);
   });
+
+  it("redacts a token-bearing launch line echoed back on stderr (open() failure path)", async () => {
+    const io = makeIo();
+    // tmux echoes the failing command (with the MCP token env-var prefix) back on stderr.
+    io.run.mockResolvedValueOnce({
+      code: 1,
+      stdout: "",
+      stderr: "failed to run: JARVIS_MCP_TOKEN=jst_supersecret123 codex --sandbox read-only"
+    });
+    const mux = new TmuxMultiplexer(io);
+
+    const err = await mux
+      .open({
+        name: "x",
+        cols: 220,
+        rows: 50,
+        launchLine: "JARVIS_MCP_TOKEN=jst_supersecret123 codex"
+      })
+      .then(
+        () => null,
+        (e: unknown) => e as Error
+      );
+
+    expect(err).toBeInstanceOf(Error);
+    // The token must never reach the Error message (which the route logs server-side).
+    expect(err!.message).not.toContain("jst_supersecret123");
+    expect(err!.message).not.toContain("JARVIS_MCP_TOKEN=jst_");
+    expect(err!.message).toContain("[redacted]");
+    expect(err!.message).toMatch(/new-session failed/);
+  });
 });

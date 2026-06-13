@@ -100,11 +100,16 @@ export class HttpApiAdapter implements ChatProviderAdapter {
       }
 
       case "google": {
-        const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(modelId)}:generateContent?key=${this.apiKey}`;
+        // Send the key via the x-goog-api-key header, never the URL query string
+        // (a `?key=` query param leaks to external proxy/APM/access logs). Google's
+        // generativelanguage endpoint accepts either form; the header keeps the
+        // secret out of request lines (secrets-never-escape, defense-in-depth).
+        const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(modelId)}:generateContent`;
         return {
           url,
           headers: {
-            "content-type": "application/json"
+            "content-type": "application/json",
+            "x-goog-api-key": this.apiKey
           },
           body: {
             contents: input.messages.map((m) => ({

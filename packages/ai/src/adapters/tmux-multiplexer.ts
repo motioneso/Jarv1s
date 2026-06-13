@@ -9,6 +9,7 @@ import { join } from "node:path";
 
 import type { TmuxIo } from "./tmux-bridge.js";
 import type { Multiplexer, MuxHandle, MuxOpenOpts } from "./multiplexer.js";
+import { redactSecrets } from "./redact.js";
 
 export interface TmuxMultiplexerOpts {
   /** ms to let a bracketed paste settle before sending Enter. */
@@ -39,7 +40,7 @@ export class TmuxMultiplexer implements Multiplexer {
     ]);
     if (created.code !== 0) {
       throw new Error(
-        `TmuxMultiplexer.open: tmux new-session failed (code ${created.code}): ${created.stderr ?? ""}`
+        `TmuxMultiplexer.open: tmux new-session failed (code ${created.code}): ${redactSecrets(created.stderr)}`
       );
     }
     // From here the detached session exists; any failure must tear it down so a
@@ -55,7 +56,7 @@ export class TmuxMultiplexer implements Multiplexer {
     if (sent.code !== 0) {
       await this.killQuietly(opts.name);
       throw new Error(
-        `TmuxMultiplexer.open: tmux send-keys failed (code ${sent.code}): ${sent.stderr ?? ""}`
+        `TmuxMultiplexer.open: tmux send-keys failed (code ${sent.code}): ${redactSecrets(sent.stderr)}`
       );
     }
     return opts.name;
@@ -75,7 +76,7 @@ export class TmuxMultiplexer implements Multiplexer {
     const { code, stderr } = await this.io.run("tmux", args);
     if (code !== 0) {
       throw new Error(
-        `TmuxMultiplexer: \`tmux ${args[0]}\` failed (code ${code}): ${stderr ?? ""}`
+        `TmuxMultiplexer: \`tmux ${args[0]}\` failed (code ${code}): ${redactSecrets(stderr)}`
       );
     }
   }

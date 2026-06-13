@@ -93,6 +93,17 @@ export class AssistantToolGateway {
     actionRequestId: string,
     status: "confirmed" | "rejected" | "cancelled"
   ): Promise<void> {
+    // Confirm-after-timeout guard (fail-closed): a "confirmed" only means anything while the
+    // blocked call is still awaiting. After the confirm timeout the waiter is gone, the call
+    // already returned "timed out", and the tool can NEVER execute — so persisting 'confirmed'
+    // would leave a row claiming a write happened when none did (DB/drawer divergence). When no
+    // live waiter exists, treat an Approve as a no-op so the row stays pending (the operator sees
+    // an honest "still pending" rather than a phantom success). A reject/cancel stays terminal
+    // regardless: declining a no-longer-runnable action is always safe and correct.
+    if (status === "confirmed" && !this.deps.confirmations.isAwaiting(actionRequestId)) {
+      return;
+    }
+
     const access: AccessContext = { actorUserId, requestId: `mcp_${randomUUID()}` };
     const resolved = await this.deps.runner.withDataContext(access, (scopedDb: DataContextDb) =>
       this.deps.repository.resolveAssistantAction(scopedDb, actionRequestId, { status })
