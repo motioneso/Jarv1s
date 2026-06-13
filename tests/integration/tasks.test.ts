@@ -725,6 +725,30 @@ describe("Tasks module M1", () => {
     expect(again).toBe(0);
   });
 
+  it("roll-forward does not duplicate the completion-path instance", async () => {
+    const today = new Date().toISOString().slice(0, 10);
+    const made = await dataContext.withDataContext(userAContext(), (db) =>
+      repository.create(db, {
+        title: "complete then roll",
+        recurrence: { freq: "weekly", interval: 1, occurrence_date: today },
+        dueAt: new Date(today + "T09:00:00.000Z")
+      })
+    );
+    await dataContext.withDataContext(userAContext(), (db) =>
+      repository.updateStatus(db, made.id, "done")
+    );
+    await dataContext.withDataContext(userAContext(), (db) => rollForwardOwnedSeries(db, today));
+    const live = await dataContext.withDataContext(userAContext(), (db) =>
+      db.db
+        .selectFrom("app.tasks")
+        .selectAll()
+        .where("recurrence_series_id", "=", made.recurrence_series_id!)
+        .where("status", "=", "todo")
+        .execute()
+    );
+    expect(live).toHaveLength(1); // exactly one live instance
+  });
+
   it("drift: overdue + at-risk surface Medium+ only; focus orders them", async () => {
     const drift = new TaskDriftRepository();
     await dataContext.withDataContext(userAContext(), async (db) => {
