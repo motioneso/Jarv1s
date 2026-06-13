@@ -57,7 +57,7 @@ export const ALLOWED_PAYLOAD_KEYS: ReadonlySet<string> = new Set([
   "idempotencyKey"
 ]);
 
-function assertMetadataOnlyPayload(payload: Record<string, unknown>): void {
+export function assertMetadataOnlyPayload(payload: Record<string, unknown>): void {
   const forbidden = Object.keys(payload).filter((k) => !ALLOWED_PAYLOAD_KEYS.has(k));
   if (forbidden.length > 0) {
     throw new Error(
