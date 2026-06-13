@@ -106,51 +106,49 @@ describe("SettingsRepository deny-list methods", () => {
   });
 
   it("admin can disable then re-enable a module at instance scope (and audit is written)", async () => {
-    await runner.withDataContext(
-      { actorUserId: ids.adminUser, requestId: "req-admin-1" },
-      (db) =>
-        repo.setInstanceModuleDisabled(db, {
-          moduleId: "weather",
-          disabled: true,
-          actorUserId: ids.adminUser,
-          requestId: "req-admin-1"
-        })
+    await runner.withDataContext({ actorUserId: ids.adminUser, requestId: "req-admin-1" }, (db) =>
+      repo.setInstanceModuleDisabled(db, {
+        moduleId: "weather",
+        disabled: true,
+        actorUserId: ids.adminUser,
+        requestId: "req-admin-1"
+      })
     );
 
     const afterDisable = await runner.withDataContext(
       { actorUserId: ids.userA, requestId: "req-a-1" },
       (db) => repo.listModuleDenyRowsForActor(db)
     );
-    expect(afterDisable.some((r) => r.scope === "instance" && r.module_id === "weather")).toBe(true);
-
-    // Idempotent disable (insert-on-conflict-do-nothing) does not throw or duplicate.
-    await runner.withDataContext(
-      { actorUserId: ids.adminUser, requestId: "req-admin-2" },
-      (db) =>
-        repo.setInstanceModuleDisabled(db, {
-          moduleId: "weather",
-          disabled: true,
-          actorUserId: ids.adminUser,
-          requestId: "req-admin-2"
-        })
+    expect(afterDisable.some((r) => r.scope === "instance" && r.module_id === "weather")).toBe(
+      true
     );
 
-    await runner.withDataContext(
-      { actorUserId: ids.adminUser, requestId: "req-admin-3" },
-      (db) =>
-        repo.setInstanceModuleDisabled(db, {
-          moduleId: "weather",
-          disabled: false,
-          actorUserId: ids.adminUser,
-          requestId: "req-admin-3"
-        })
+    // Idempotent disable (insert-on-conflict-do-nothing) does not throw or duplicate.
+    await runner.withDataContext({ actorUserId: ids.adminUser, requestId: "req-admin-2" }, (db) =>
+      repo.setInstanceModuleDisabled(db, {
+        moduleId: "weather",
+        disabled: true,
+        actorUserId: ids.adminUser,
+        requestId: "req-admin-2"
+      })
+    );
+
+    await runner.withDataContext({ actorUserId: ids.adminUser, requestId: "req-admin-3" }, (db) =>
+      repo.setInstanceModuleDisabled(db, {
+        moduleId: "weather",
+        disabled: false,
+        actorUserId: ids.adminUser,
+        requestId: "req-admin-3"
+      })
     );
 
     const afterEnable = await runner.withDataContext(
       { actorUserId: ids.userA, requestId: "req-a-2" },
       (db) => repo.listModuleDenyRowsForActor(db)
     );
-    expect(afterEnable.some((r) => r.scope === "instance" && r.module_id === "weather")).toBe(false);
+    expect(afterEnable.some((r) => r.scope === "instance" && r.module_id === "weather")).toBe(
+      false
+    );
 
     const audit = await runner.withDataContext(
       { actorUserId: ids.adminUser, requestId: "req-admin-4" },
@@ -162,15 +160,13 @@ describe("SettingsRepository deny-list methods", () => {
   });
 
   it("user deny rows are owner-scoped (RLS isolates actors)", async () => {
-    await runner.withDataContext(
-      { actorUserId: ids.userA, requestId: "req-a-3" },
-      (db) =>
-        repo.setUserModuleDisabled(db, {
-          moduleId: "weather",
-          disabled: true,
-          actorUserId: ids.userA,
-          requestId: "req-a-3"
-        })
+    await runner.withDataContext({ actorUserId: ids.userA, requestId: "req-a-3" }, (db) =>
+      repo.setUserModuleDisabled(db, {
+        moduleId: "weather",
+        disabled: true,
+        actorUserId: ids.userA,
+        requestId: "req-a-3"
+      })
     );
 
     const aRows = await runner.withDataContext(
@@ -187,15 +183,13 @@ describe("SettingsRepository deny-list methods", () => {
   });
 
   it("listInstanceModuleDenyRows returns instance rows only", async () => {
-    await runner.withDataContext(
-      { actorUserId: ids.adminUser, requestId: "req-admin-5" },
-      (db) =>
-        repo.setInstanceModuleDisabled(db, {
-          moduleId: "wellness",
-          disabled: true,
-          actorUserId: ids.adminUser,
-          requestId: "req-admin-5"
-        })
+    await runner.withDataContext({ actorUserId: ids.adminUser, requestId: "req-admin-5" }, (db) =>
+      repo.setInstanceModuleDisabled(db, {
+        moduleId: "wellness",
+        disabled: true,
+        actorUserId: ids.adminUser,
+        requestId: "req-admin-5"
+      })
     );
     const rows = await runner.withDataContext(
       { actorUserId: ids.adminUser, requestId: "req-admin-6" },
@@ -287,9 +281,7 @@ describe("createActiveModulesResolver", () => {
 
   it("empty store: all fixture modules are active (zero behavior-change baseline)", async () => {
     const active = await resolver()(ids.userA);
-    expect(active.map((m) => m.id).sort()).toEqual(
-      ["tasks-fixture", "weather", "wellness"].sort()
-    );
+    expect(active.map((m) => m.id).sort()).toEqual(["tasks-fixture", "weather", "wellness"].sort());
   });
 
   it("instance deny row drops a non-required module for ALL actors", async () => {

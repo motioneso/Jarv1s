@@ -16,7 +16,9 @@ export interface ActiveModulesResolverDeps {
  * rule. The store is deny-only: absence of a row = enabled (honoring defaultEnabled,
  * true for all built-ins). required:true modules are never droppable.
  */
-export function createActiveModulesResolver(deps: ActiveModulesResolverDeps): ActiveModulesResolver {
+export function createActiveModulesResolver(
+  deps: ActiveModulesResolverDeps
+): ActiveModulesResolver {
   const repository = new SettingsRepository();
 
   return async (actorUserId: string): Promise<readonly JarvisModuleManifest[]> => {
@@ -28,7 +30,9 @@ export function createActiveModulesResolver(deps: ActiveModulesResolverDeps): Ac
       denyRows.filter((r) => r.scope === "instance").map((r) => r.module_id)
     );
     const userDisabled = new Set(
-      denyRows.filter((r) => r.scope === "user" && r.user_id === actorUserId).map((r) => r.module_id)
+      denyRows
+        .filter((r) => r.scope === "user" && r.user_id === actorUserId)
+        .map((r) => r.module_id)
     );
 
     return deps.manifests.filter((manifest) => {
