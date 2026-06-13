@@ -264,6 +264,32 @@ export function createApiServer(options: CreateApiServerOptions = {}) {
   return server;
 }
 
+/**
+ * Graceful-shutdown helper for the api entrypoint (deployable-stack §9). On
+ * SIGTERM/SIGINT we call server.close() — which runs the onClose hook tearing
+ * down boss/auth/db — then exit 0, racing a bounded timeout so a hung close
+ * still exits cleanly. Mirrors the worker's signal path (worker.ts:151-157).
+ *
+ * Exported (and parameterized with exit/timeout) so it is unit-testable without
+ * spawning the real binary or sending a real signal.
+ */
+export async function shutdownOnSignal(
+  server: { close(cb: (err?: Error) => void): void },
+  opts: { timeoutMs?: number; exit?: (code: number) => never } = {}
+): Promise<void> {
+  const timeoutMs = opts.timeoutMs ?? 10_000;
+  const exit = opts.exit ?? ((code: number) => process.exit(code));
+  await Promise.race([
+    new Promise<void>((resolve) => {
+      server.close(() => resolve());
+    }),
+    new Promise<void>((resolve) => {
+      setTimeout(resolve, timeoutMs);
+    })
+  ]);
+  exit(0);
+}
+
 if (import.meta.url === `file://${process.argv[1]}`) {
   const server = createApiServer();
   const port = Number(process.env.PORT ?? 3000);
@@ -289,6 +315,13 @@ if (import.meta.url === `file://${process.argv[1]}`) {
   });
   process.on("uncaughtException", (err: Error) => {
     handleCrash("uncaughtException", err);
+  });
+
+  process.once("SIGTERM", () => {
+    void shutdownOnSignal(server);
+  });
+  process.once("SIGINT", () => {
+    void shutdownOnSignal(server);
   });
 
   await server.listen({ host, port });
