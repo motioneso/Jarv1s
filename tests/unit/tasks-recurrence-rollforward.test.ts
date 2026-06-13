@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { computeNextOccurrenceDate, advanceDate } from "@jarv1s/tasks";
+import { computeNextOccurrenceDate, advanceDate, nextOccurrenceAtOrAfter } from "@jarv1s/tasks";
 
 describe("recurrence date helpers", () => {
   it("computeNextOccurrenceDate advances weekly by interval", () => {
@@ -25,11 +25,25 @@ describe("recurrence date helpers", () => {
   });
 
   it("advanceDate shifts a Date by the occurrence delta", () => {
-    const shifted = advanceDate(
-      new Date("2026-06-08T09:00:00.000Z"),
-      "2026-06-08",
-      "2026-06-15"
-    );
+    const shifted = advanceDate(new Date("2026-06-08T09:00:00.000Z"), "2026-06-08", "2026-06-15");
     expect(shifted?.toISOString()).toBe("2026-06-15T09:00:00.000Z");
+  });
+});
+
+describe("nextOccurrenceAtOrAfter (roll-forward date math)", () => {
+  const spec = { freq: "weekly", interval: 1, occurrence_date: "2026-06-01" } as const;
+
+  it("returns the same date when occurrence is already at/after today", () => {
+    expect(nextOccurrenceAtOrAfter(spec, "2026-06-01")).toBe("2026-06-01");
+    expect(nextOccurrenceAtOrAfter(spec, "2026-05-31")).toBe("2026-06-01");
+  });
+
+  it("rolls a multi-skip series forward to the first occurrence >= today in one pass", () => {
+    // five weekly cadences in the past relative to today 2026-07-06:
+    expect(nextOccurrenceAtOrAfter(spec, "2026-07-06")).toBe("2026-07-06");
+  });
+
+  it("does not roll an occurrence that equals today (boundary)", () => {
+    expect(nextOccurrenceAtOrAfter(spec, "2026-06-01")).toBe("2026-06-01");
   });
 });
