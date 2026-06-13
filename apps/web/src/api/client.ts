@@ -7,6 +7,8 @@ import type {
   AddTaskActivityResponse,
   AiModelCapability,
   BootstrapStatusResponse,
+  ChatMultiplexerChoice,
+  ChatMultiplexerSettingsDto,
   ListUsersResponse,
   RegistrationSettingsDto,
   UserDto,
@@ -536,6 +538,19 @@ export async function putRegistrationSettings(
   return requestJson<RegistrationSettingsDto>("/api/admin/registration", {
     method: "PUT",
     body
+  });
+}
+
+export async function getChatMultiplexerSettings(): Promise<ChatMultiplexerSettingsDto> {
+  return requestJson<ChatMultiplexerSettingsDto>("/api/admin/chat-multiplexer");
+}
+
+export async function setChatMultiplexerSettings(
+  multiplexer: ChatMultiplexerChoice
+): Promise<ChatMultiplexerSettingsDto> {
+  return requestJson<ChatMultiplexerSettingsDto>("/api/admin/chat-multiplexer", {
+    method: "PUT",
+    body: { multiplexer }
   });
 }
 
