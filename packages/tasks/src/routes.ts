@@ -90,7 +90,7 @@ export function registerTasksRoutes(
 
       const filtered = quadrant ? filterByQuadrant(tasks, quadrant) : tasks;
 
-      return { tasks: filtered.map(serializeTask) };
+      return { tasks: filtered.map((task) => serializeTask(task)) };
     } catch (error) {
       return handleRouteError(error, reply);
     }
@@ -201,7 +201,7 @@ export function registerTasksRoutes(
         const tasks = await dependencies.dataContext.withDataContext(accessContext, (scopedDb) =>
           repository.listByParentId(scopedDb, request.params.id)
         );
-        return { tasks: tasks.map(serializeTask) };
+        return { tasks: tasks.map((task) => serializeTask(task)) };
       } catch (error) {
         return handleRouteError(error, reply);
       }
@@ -363,7 +363,7 @@ export function registerTasksRoutes(
           breakdownRepository.breakDown(scopedDb, request.params.id, steps)
         );
 
-        return reply.code(201).send({ tasks: tasks.map(serializeTask) });
+        return reply.code(201).send({ tasks: tasks.map((task) => serializeTask(task)) });
       } catch (error) {
         return handleRouteError(error, reply);
       }
@@ -379,7 +379,7 @@ export function registerTasksRoutes(
         driftRepository.getFocus(scopedDb)
       );
 
-      return { tasks: tasks.map(serializeTask) };
+      return { tasks: tasks.map((task) => serializeTask(task)) };
     } catch (error) {
       return handleRouteError(error, reply);
     }
@@ -392,7 +392,7 @@ export function registerTasksRoutes(
         driftRepository.getAtRisk(scopedDb)
       );
 
-      return { tasks: tasks.map(serializeTask) };
+      return { tasks: tasks.map((task) => serializeTask(task)) };
     } catch (error) {
       return handleRouteError(error, reply);
     }
@@ -405,7 +405,7 @@ export function registerTasksRoutes(
         driftRepository.getOverdue(scopedDb)
       );
 
-      return { tasks: tasks.map(serializeTask) };
+      return { tasks: tasks.map((task) => serializeTask(task)) };
     } catch (error) {
       return handleRouteError(error, reply);
     }
