@@ -8,7 +8,9 @@ import {
   type AccessContext,
   type JarvisDatabase
 } from "@jarv1s/db";
-import { ChatRepository, chatModuleManifest } from "@jarv1s/chat";
+import { ChatRepository, chatModuleManifest, handleExtractFactsJob } from "@jarv1s/chat";
+import { AiRepository, createAiSecretCipher, type GenerateChatInput } from "@jarv1s/ai";
+import { ChatMemoryFactsRepository } from "@jarv1s/memory";
 import { connectionStrings, ids, resetFoundationDatabase } from "./test-database.js";
 const { Client } = pg;
 
@@ -193,6 +195,231 @@ describe("chat.listTodaysTurns read tool + listThreadsByActivity", () => {
       expect(
         turns.some((t) => t.threadTitle === "Today-tool-normal" && t.role === "assistant")
       ).toBe(true);
+    });
+  });
+});
+
+describe("handleExtractFactsJob — durable fact upsert + no-op degrade", () => {
+  let appDb: Kysely<JarvisDatabase>;
+  let dataContext: DataContextRunner;
+  let repository: ChatRepository;
+  let aiRepository: AiRepository;
+  let factsRepository: ChatMemoryFactsRepository;
+
+  // A summarization/economy model + credentialed provider so the handler reaches the
+  // (injected) adapter path instead of returning early on a missing model/credential.
+  async function seedEconomyModel(label: string): Promise<void> {
+    const provider = await dataContext.withDataContext(userAContext(), (scopedDb) =>
+      aiRepository.createProvider(scopedDb, {
+        providerKind: "anthropic",
+        displayName: `Facts summarizer ${label}`,
+        encryptedCredential: createAiSecretCipher().encryptJson({ apiKey: "facts-extract-key" })
+      })
+    );
+    await dataContext.withDataContext(userAContext(), (scopedDb) =>
+      aiRepository.createModel(scopedDb, {
+        providerConfigId: provider.id,
+        providerModelId: `facts-summarizer-${label}`,
+        displayName: "Facts Summarizer",
+        capabilities: ["summarization"],
+        tier: "economy"
+      })
+    );
+  }
+
+  // Build ExtractFactsDeps with an injected fake adapter so no real HTTP call happens.
+  function makeDeps(generate: (input: GenerateChatInput) => Promise<{ readonly text: string }>) {
+    return {
+      aiRepository,
+      cipher: createAiSecretCipher(),
+      factsRepository,
+      createAdapter: () => ({ generateChat: generate })
+    };
+  }
+
+  beforeAll(async () => {
+    appDb = createDatabase({
+      connectionString: connectionStrings.app,
+      maxConnections: 1
+    });
+    dataContext = new DataContextRunner(appDb);
+    repository = new ChatRepository();
+    aiRepository = new AiRepository();
+    factsRepository = new ChatMemoryFactsRepository();
+  });
+
+  it("extracts JSON facts and upserts active rows with sourceThreadId set", async () => {
+    await seedEconomyModel("extract");
+    await dataContext.withDataContext(userAContext(), async (scopedDb) => {
+      const thread = await repository.openNewThread(scopedDb, { title: "Facts-extract" });
+      await repository.recordCompletedTurn(
+        scopedDb,
+        thread.id,
+        "I am a vegetarian and I want to run a marathon.",
+        "Noted — I'll keep that in mind.",
+        { provider: "anthropic", model: "claude-economy" }
+      );
+
+      const deps = makeDeps(async () => ({
+        text: JSON.stringify([
+          { category: "preference", content: "Eats vegetarian", importance: 0.8 },
+          { category: "goal", content: "Run a marathon", importance: 0.7 }
+        ])
+      }));
+      await handleExtractFactsJob(scopedDb, ids.userA, thread.id, deps);
+
+      const facts = await factsRepository.listActiveFacts(scopedDb, ids.userA);
+      const veggie = facts.find((f) => f.content === "Eats vegetarian");
+      const marathon = facts.find((f) => f.content === "Run a marathon");
+      expect(veggie?.category).toBe("preference");
+      expect(veggie?.importance).toBeGreaterThan(0);
+      expect(veggie?.importance).toBeLessThanOrEqual(1);
+      expect(veggie?.sourceThreadId).toBe(thread.id);
+      expect(marathon?.category).toBe("goal");
+    });
+  });
+
+  it("does not write rows and does not throw when generateChat throws", async () => {
+    await seedEconomyModel("degrade-throw");
+    await dataContext.withDataContext(userAContext(), async (scopedDb) => {
+      const thread = await repository.openNewThread(scopedDb, { title: "Facts-degrade-throw" });
+      await repository.recordCompletedTurn(
+        scopedDb,
+        thread.id,
+        "Some uniquely worded throwaway sentence about kayaking gear.",
+        "Got it.",
+        { provider: "anthropic", model: "claude-economy" }
+      );
+
+      const before = await factsRepository.listActiveFacts(scopedDb, ids.userA);
+      const deps = makeDeps(async () => {
+        throw new Error("provider down");
+      });
+      await expect(
+        handleExtractFactsJob(scopedDb, ids.userA, thread.id, deps)
+      ).resolves.toBeUndefined();
+      const after = await factsRepository.listActiveFacts(scopedDb, ids.userA);
+      expect(after.length).toBe(before.length);
+    });
+  });
+
+  it("does not write rows when generateChat returns non-JSON (no-op degrade)", async () => {
+    await seedEconomyModel("degrade-nonjson");
+    await dataContext.withDataContext(userAContext(), async (scopedDb) => {
+      const thread = await repository.openNewThread(scopedDb, { title: "Facts-degrade-nonjson" });
+      await repository.recordCompletedTurn(
+        scopedDb,
+        thread.id,
+        "Another distinct sentence about sourdough starter maintenance.",
+        "Understood.",
+        { provider: "anthropic", model: "claude-economy" }
+      );
+
+      const before = await factsRepository.listActiveFacts(scopedDb, ids.userA);
+      const deps = makeDeps(async () => ({ text: "Here are some facts: not json at all." }));
+      await handleExtractFactsJob(scopedDb, ids.userA, thread.id, deps);
+      const after = await factsRepository.listActiveFacts(scopedDb, ids.userA);
+      expect(after.length).toBe(before.length);
+    });
+  });
+
+  it("idempotency (F10): the same fact content twice writes only one active row", async () => {
+    await seedEconomyModel("idempotent");
+    await dataContext.withDataContext(userAContext(), async (scopedDb) => {
+      const thread = await repository.openNewThread(scopedDb, { title: "Facts-idempotent" });
+      await repository.recordCompletedTurn(
+        scopedDb,
+        thread.id,
+        "Please remember I prefer dark roast coffee in the morning.",
+        "Sure thing.",
+        { provider: "anthropic", model: "claude-economy" }
+      );
+
+      const generate = async () => ({
+        text: JSON.stringify([
+          // Whitespace/casing differs across runs to prove normalized dedupe.
+          { category: "preference", content: "Prefers dark roast coffee", importance: 0.6 }
+        ])
+      });
+      const deps = makeDeps(generate);
+      await handleExtractFactsJob(scopedDb, ids.userA, thread.id, deps);
+      // Second run returns the SAME content (differently cased/spaced) — must dedupe.
+      const deps2 = makeDeps(async () => ({
+        text: JSON.stringify([
+          { category: "preference", content: "  prefers   DARK roast coffee ", importance: 0.9 }
+        ])
+      }));
+      await handleExtractFactsJob(scopedDb, ids.userA, thread.id, deps2);
+
+      const facts = await factsRepository.listActiveFacts(scopedDb, ids.userA);
+      const matching = facts.filter(
+        (f) =>
+          f.category === "preference" &&
+          f.content.trim().toLowerCase().replace(/\s+/g, " ") === "prefers dark roast coffee"
+      );
+      expect(matching.length).toBe(1);
+    });
+  });
+
+  it("grounded supersession (F11): supersedes a real active id, ignores a hallucinated id", async () => {
+    await seedEconomyModel("supersede");
+    await dataContext.withDataContext(userAContext(), async (scopedDb) => {
+      const thread = await repository.openNewThread(scopedDb, { title: "Facts-supersede" });
+      await repository.recordCompletedTurn(
+        scopedDb,
+        thread.id,
+        "Update my dietary note.",
+        "Done.",
+        { provider: "anthropic", model: "claude-economy" }
+      );
+
+      // Seed one real active fact (capture its real id) and one unrelated active fact.
+      const real = await factsRepository.insertFact(scopedDb, ids.userA, {
+        category: "fact",
+        content: "Old dietary note F11 target",
+        sourceThreadId: thread.id,
+        importance: 0.5
+      });
+      const unrelated = await factsRepository.insertFact(scopedDb, ids.userA, {
+        category: "fact",
+        content: "Unrelated standing fact F11",
+        sourceThreadId: thread.id,
+        importance: 0.5
+      });
+
+      // (a) supersedes a REAL active id -> that fact becomes superseded.
+      const depsReal = makeDeps(async () => ({
+        text: JSON.stringify([
+          {
+            category: "fact",
+            content: "New dietary note F11 replacement",
+            importance: 0.7,
+            supersedes: real.id
+          }
+        ])
+      }));
+      await handleExtractFactsJob(scopedDb, ids.userA, thread.id, depsReal);
+
+      let active = await factsRepository.listActiveFacts(scopedDb, ids.userA);
+      expect(active.some((f) => f.id === real.id)).toBe(false); // superseded
+      expect(active.some((f) => f.content === "New dietary note F11 replacement")).toBe(true);
+
+      // (b) supersedes a RANDOM uuid NOT in the active set -> nothing is superseded.
+      const hallucinated = "11111111-1111-4111-8111-111111111111";
+      const depsFake = makeDeps(async () => ({
+        text: JSON.stringify([
+          {
+            category: "fact",
+            content: "Tries to supersede a hallucinated id F11",
+            importance: 0.7,
+            supersedes: hallucinated
+          }
+        ])
+      }));
+      await handleExtractFactsJob(scopedDb, ids.userA, thread.id, depsFake);
+
+      active = await factsRepository.listActiveFacts(scopedDb, ids.userA);
+      expect(active.some((f) => f.id === unrelated.id)).toBe(true); // still active
     });
   });
 });
