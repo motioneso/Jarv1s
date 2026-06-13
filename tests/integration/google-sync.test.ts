@@ -4,6 +4,7 @@ import { DataContextRunner, createDatabase, type JarvisDatabase } from "@jarv1s/
 import type { Kysely } from "kysely";
 import { ConnectorsRepository, createConnectorSecretCipher } from "@jarv1s/connectors";
 import { CalendarRepository } from "@jarv1s/calendar";
+import { EmailRepository } from "@jarv1s/email";
 import { connectionStrings, ids, resetFoundationDatabase } from "./test-database.js";
 
 let appDb: Kysely<JarvisDatabase>;
@@ -319,5 +320,78 @@ describe("CalendarRepository.upsertCachedEvent idempotency", () => {
         .executeTakeFirstOrThrow()
     );
     expect(Number(rows.n)).toBe(1);
+  });
+});
+
+describe("EmailRepository.upsertCachedMessage idempotency + columns", () => {
+  it("persists summary + signals and re-upserts in place", async () => {
+    const accountId = await seedGoogleAccount(["https://www.googleapis.com/auth/gmail.modify"]);
+    const email = new EmailRepository();
+    const ctx = { actorUserId: ids.userA, requestId: "test" };
+    await dataContext.withDataContext(ctx, (db) =>
+      email.upsertCachedMessage(db, {
+        connectorAccountId: accountId,
+        externalId: "e-dup",
+        sender: "a@b.com",
+        subject: "v1",
+        receivedAt: "2026-06-13T09:00:00.000Z",
+        summary: "first",
+        signals: { importance: "low", confidence: 0.4 }
+      })
+    );
+    const second = await dataContext.withDataContext(ctx, (db) =>
+      email.upsertCachedMessage(db, {
+        connectorAccountId: accountId,
+        externalId: "e-dup",
+        sender: "a@b.com",
+        subject: "v2",
+        receivedAt: "2026-06-13T09:05:00.000Z",
+        summary: "second",
+        signals: { importance: "high", confidence: 0.9 }
+      })
+    );
+    expect(second.subject).toBe("v2");
+    expect(second.summary).toBe("second");
+    expect((second.signals as { importance?: string }).importance).toBe("high");
+  });
+
+  it("has no full-body column on email_messages", async () => {
+    const cols = await sql<{ column_name: string }>`
+      SELECT column_name FROM information_schema.columns
+      WHERE table_schema = 'app' AND table_name = 'email_messages'
+    `.execute(appDb);
+    const names = cols.rows.map((r) => r.column_name);
+    expect(names).not.toContain("body");
+    expect(names).not.toContain("body_full");
+    expect(names).not.toContain("raw_body");
+  });
+
+  it("rejects a non-object signals value via the CHECK constraint (real insert path)", async () => {
+    // The A1 catalog test proves the CHECK exists; this proves it actually REJECTS.
+    const accountId = await seedGoogleAccount(["https://www.googleapis.com/auth/gmail.modify"]);
+    await expect(
+      dataContext.withDataContext({ actorUserId: ids.userA, requestId: "test" }, (db) =>
+        db.db
+          .insertInto("app.email_messages")
+          .values({
+            id: "00000000-0000-0000-0000-0000000000aa",
+            connector_account_id: accountId,
+            owner_user_id: sql<string>`app.current_actor_user_id()`,
+            sender: "a@b.com",
+            recipients: [],
+            subject: "bad signals",
+            snippet: null,
+            body_excerpt: null,
+            received_at: "2026-06-13T09:00:00.000Z",
+            external_id: "bad-signals-1",
+            external_metadata: {},
+            summary: null,
+            signals: sql`'[]'::jsonb`,
+            created_at: new Date(),
+            updated_at: new Date()
+          })
+          .execute()
+      )
+    ).rejects.toThrow();
   });
 });
