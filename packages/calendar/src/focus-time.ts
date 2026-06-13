@@ -153,23 +153,34 @@ export function resolveWindow(input: FocusBlockInput, now: Date, tz: string): Re
 }
 
 /**
- * A deterministic Google Calendar event id for an approved focus block, derived from the
- * actor + chosen slot + title. Idempotency floor for the outbound write: a retry of the SAME
- * approved proposal (e.g. lost insert response → user re-approves the identical block) reuses
- * this id, so Google returns 409 Conflict instead of creating a duplicate event. Google event
- * ids must be base32hex (chars a-v + 0-9), length 5..1024 — we sha256 the canonical key and map
- * to base32hex, producing a 51-char id well inside the bounds. Pure + I/O-free.
+ * A deterministic Google Calendar event id for an approved focus block. Idempotency floor for
+ * the outbound write: a retry of the SAME approved proposal (e.g. lost insert response → user
+ * re-approves the identical block) reuses this id, so Google returns 409 Conflict instead of
+ * creating a duplicate event.
+ *
+ * CRITICAL: the key is the ORIGINAL APPROVED PROPOSAL — the requested search window
+ * (windowStart..windowEnd), the requested durationMinutes, the actor, and the title — NOT the
+ * post-freeBusy chosen slot. Keying on the chosen slot would NOT be retry-safe: after a lost
+ * insert response the already-created block shows as busy, so the retry's freeBusy shifts the
+ * slot, yielding a DIFFERENT id and a second event (Codex HIGH round 2). The requested window is
+ * invariant across retries, so the id is stable regardless of how the slot is shifted.
+ *
+ * Google event ids must be base32hex (chars a-v + 0-9), length 5..1024 — we sha256 the canonical
+ * key and map each byte's low 5 bits to base32hex, producing a 35-char id (3-char tag + 32) well
+ * inside the bounds. Pure + I/O-free.
  */
 export function focusBlockEventId(input: {
   actorUserId: string;
-  start: Date;
-  end: Date;
+  windowStart: Date;
+  windowEnd: Date;
+  durationMinutes: number;
   title: string;
 }): string {
   const canonical = [
     input.actorUserId,
-    input.start.toISOString(),
-    input.end.toISOString(),
+    input.windowStart.toISOString(),
+    input.windowEnd.toISOString(),
+    String(input.durationMinutes),
     input.title
   ].join("|");
   const digest = createHash("sha256").update(canonical).digest();

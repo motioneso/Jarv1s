@@ -126,27 +126,44 @@ describe("chooseSlot", () => {
 });
 
 describe("focusBlockEventId (outbound-write idempotency floor)", () => {
-  const slot = {
+  // Keyed on the ORIGINAL approved proposal (requested window + duration + actor + title),
+  // NOT the post-freeBusy chosen slot — so a retry whose slot shifts still produces the same id.
+  const proposal = {
     actorUserId: "user-a",
-    start: new Date("2026-06-17T13:00:00Z"),
-    end: new Date("2026-06-17T15:00:00Z"),
+    windowStart: new Date("2026-06-17T13:00:00Z"),
+    windowEnd: new Date("2026-06-17T16:00:00Z"),
+    durationMinutes: 120,
     title: "Focus time"
   };
 
   it("is deterministic: the same approved proposal yields the same id (retry-safe)", () => {
-    expect(focusBlockEventId(slot)).toBe(focusBlockEventId({ ...slot }));
+    expect(focusBlockEventId(proposal)).toBe(focusBlockEventId({ ...proposal }));
   });
 
-  it("differs when actor, slot, or title changes (no cross-proposal collision)", () => {
-    const base = focusBlockEventId(slot);
-    expect(focusBlockEventId({ ...slot, actorUserId: "user-b" })).not.toBe(base);
-    expect(focusBlockEventId({ ...slot, start: new Date("2026-06-17T13:30:00Z") })).not.toBe(base);
-    expect(focusBlockEventId({ ...slot, end: new Date("2026-06-17T16:00:00Z") })).not.toBe(base);
-    expect(focusBlockEventId({ ...slot, title: "Deep work" })).not.toBe(base);
+  it("is INDEPENDENT of the chosen slot: only the requested window/duration/actor/title matter", () => {
+    // Two retries of the SAME proposal must collide even though the second retry's freeBusy
+    // would shift the slot — the id is keyed on the requested window, not the slot. Proven by
+    // construction: focusBlockEventId takes no slot input. This test documents that contract.
+    const a = focusBlockEventId(proposal);
+    const b = focusBlockEventId({ ...proposal }); // same proposal, regardless of any slot shift
+    expect(a).toBe(b);
+  });
+
+  it("differs when actor, window, duration, or title changes (no cross-proposal collision)", () => {
+    const base = focusBlockEventId(proposal);
+    expect(focusBlockEventId({ ...proposal, actorUserId: "user-b" })).not.toBe(base);
+    expect(
+      focusBlockEventId({ ...proposal, windowStart: new Date("2026-06-17T14:00:00Z") })
+    ).not.toBe(base);
+    expect(focusBlockEventId({ ...proposal, windowEnd: new Date("2026-06-17T17:00:00Z") })).not.toBe(
+      base
+    );
+    expect(focusBlockEventId({ ...proposal, durationMinutes: 60 })).not.toBe(base);
+    expect(focusBlockEventId({ ...proposal, title: "Deep work" })).not.toBe(base);
   });
 
   it("is a valid Google event id: base32hex chars only, length within 5..1024", () => {
-    const id = focusBlockEventId(slot);
+    const id = focusBlockEventId(proposal);
     expect(id).toMatch(/^jfb[0-9a-v]+$/); // base32hex alphabet (a-v + 0-9), Jarvis tag prefix
     expect(id.length).toBeGreaterThanOrEqual(5);
     expect(id.length).toBeLessThanOrEqual(1024);
