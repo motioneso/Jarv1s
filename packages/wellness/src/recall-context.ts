@@ -1,7 +1,14 @@
+import { sql } from "kysely";
+
 import { assertDataContextDb, type DataContextDb, type WellnessCheckin } from "@jarv1s/db";
 import { ChatMemoryFactsRepository } from "@jarv1s/memory";
 
 const ENERGY_TREND_TAG = "[wellness:energy-trend]";
+
+// Stable namespace for the per-owner transaction advisory lock that serializes concurrent
+// energy-trend refreshes (a constant first key; the owner hash is the second key). Any fixed
+// 32-bit int unlikely to collide with other advisory-lock users works.
+const ENERGY_TREND_LOCK_NAMESPACE = 0x77656c6c; // 'well'
 
 /**
  * Abstracted, non-clinical energy trend derived from recent self-rated ENERGY (1–5), NOT
@@ -37,6 +44,14 @@ export class WellnessRecallContributor {
    */
   async refreshEnergyTrendFact(scopedDb: DataContextDb, ownerUserId: string): Promise<void> {
     assertDataContextDb(scopedDb);
+    // Serialize concurrent refreshes for THIS owner so two near-simultaneous check-ins can't
+    // each insert an energy-trend fact (leaving two active/contradictory facts). withDataContext
+    // runs inside a transaction, so pg_advisory_xact_lock auto-releases on commit/rollback. The
+    // second writer blocks until the first commits, then sees the now-active fact and supersedes
+    // it before inserting — exactly one active energy-trend fact remains.
+    await sql`SELECT pg_advisory_xact_lock(${ENERGY_TREND_LOCK_NAMESPACE}::int, ('x' || substr(md5(${ownerUserId}), 1, 8))::bit(32)::int)`.execute(
+      scopedDb.db
+    );
     const recent = await scopedDb.db
       .selectFrom("app.wellness_checkins")
       .select(["energy", "feeling_core"])

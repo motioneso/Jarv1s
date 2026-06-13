@@ -1,0 +1,256 @@
+import Fastify from "fastify";
+import { type Kysely } from "kysely";
+import pg from "pg";
+import { afterAll, beforeAll, describe, expect, it } from "vitest";
+
+import { DataContextRunner, createDatabase, type JarvisDatabase } from "@jarv1s/db";
+import { registerWellnessRoutes } from "@jarv1s/wellness";
+
+import { connectionStrings, resetEmptyFoundationDatabase } from "./test-database.js";
+
+const { Client } = pg;
+
+const userId = "00000000-0000-4000-8000-000000000051";
+
+let appDb: Kysely<JarvisDatabase>;
+let dataContext: DataContextRunner;
+
+beforeAll(async () => {
+  await resetEmptyFoundationDatabase();
+  const client = new Client({ connectionString: connectionStrings.bootstrap });
+  await client.connect();
+  try {
+    await client.query(
+      `INSERT INTO app.users (id, email, is_instance_admin)
+       VALUES ($1, 'well-med@example.test', false)`,
+      [userId]
+    );
+  } finally {
+    await client.end();
+  }
+  appDb = createDatabase({ connectionString: connectionStrings.app, maxConnections: 2 });
+  dataContext = new DataContextRunner(appDb);
+});
+
+afterAll(async () => {
+  await appDb?.destroy();
+});
+
+// Covers the wellness REST surface AND the Phase-2 fixes: all six frequency types create
+// without a 400, every_n_hours produces interval schedule slots (was invisible), and
+// out-of-range numeric discriminator fields surface as friendly 400s (not DB-CHECK 500s).
+describe("wellness REST routes", () => {
+  async function buildApp(actorUserId: string) {
+    const app = Fastify();
+    registerWellnessRoutes(app, {
+      resolveAccessContext: async () => ({ actorUserId, requestId: "req:route-test" }),
+      dataContext
+    });
+    await app.ready();
+    return app;
+  }
+
+  it("POST /api/wellness/checkins creates; GET lists owner-scoped", async () => {
+    const app = await buildApp(userId);
+    try {
+      const created = await app.inject({
+        method: "POST",
+        url: "/api/wellness/checkins",
+        payload: { feelingCore: "joyful", intensity: 5, sensations: ["warmth"] }
+      });
+      expect(created.statusCode).toBe(201);
+      expect(created.json().checkin.feelingCore).toBe("joyful");
+
+      const listed = await app.inject({ method: "GET", url: "/api/wellness/checkins?limit=5" });
+      expect(listed.statusCode).toBe(200);
+      expect(listed.json().checkins.length).toBeGreaterThan(0);
+    } finally {
+      await app.close();
+    }
+  });
+
+  it("POST a check-in with a feeling path mismatch is rejected 400", async () => {
+    const app = await buildApp(userId);
+    try {
+      // tertiary is not a leaf of the secondary under this core → invalid path.
+      const bad = await app.inject({
+        method: "POST",
+        url: "/api/wellness/checkins",
+        payload: {
+          feelingCore: "scared",
+          feelingSecondary: "anxious",
+          feelingTertiary: "not-a-leaf"
+        }
+      });
+      expect(bad.statusCode).toBe(400);
+    } finally {
+      await app.close();
+    }
+  });
+
+  it("POST a PRN dose log without prn_reason is rejected 400", async () => {
+    const app = await buildApp(userId);
+    try {
+      const med = await app.inject({
+        method: "POST",
+        url: "/api/wellness/medications",
+        payload: { name: "Ibuprofen", frequencyType: "as_needed" }
+      });
+      const medId = med.json().medication.id as string;
+
+      const bad = await app.inject({
+        method: "POST",
+        url: `/api/wellness/medications/${medId}/logs`,
+        payload: { status: "prn" }
+      });
+      expect(bad.statusCode).toBe(400);
+    } finally {
+      await app.close();
+    }
+  });
+
+  it("GET /api/wellness/medications/schedule returns slots for today", async () => {
+    const app = await buildApp(userId);
+    try {
+      await app.inject({
+        method: "POST",
+        url: "/api/wellness/medications",
+        payload: { name: "Vitamin D", frequencyType: "once_daily", scheduleTimes: ["09:00"] }
+      });
+      const today = new Date().toISOString().slice(0, 10);
+      const sched = await app.inject({
+        method: "GET",
+        url: `/api/wellness/medications/schedule?date=${today}`
+      });
+      expect(sched.statusCode).toBe(200);
+      expect(sched.json().date).toBe(today);
+      expect(Array.isArray(sched.json().slots)).toBe(true);
+    } finally {
+      await app.close();
+    }
+  });
+
+  // All six frequency types must create (no 400) AND, where scheduled, produce slots.
+  it("POST creates all six frequency types without a 400", async () => {
+    const app = await buildApp(userId);
+    try {
+      const monday = "2026-06-15"; // ISO weekday 1
+      const payloads = [
+        { name: "Daily", frequencyType: "once_daily", scheduleTimes: ["08:00"] },
+        {
+          name: "Thrice",
+          frequencyType: "times_per_day",
+          timesPerDay: 3,
+          scheduleTimes: ["08:00", "13:00", "20:00"]
+        },
+        {
+          name: "Weekdays",
+          frequencyType: "specific_weekdays",
+          weekdays: [1, 3, 5],
+          scheduleTimes: ["09:00"]
+        },
+        { name: "Interval", frequencyType: "every_n_hours", intervalHours: 8 },
+        { name: "Prn", frequencyType: "as_needed" },
+        {
+          name: "Cyclical",
+          frequencyType: "cyclical",
+          cycleAnchorDate: monday,
+          cycleDaysOn: 21,
+          cycleDaysOff: 7,
+          scheduleTimes: ["08:00"]
+        }
+      ];
+      for (const payload of payloads) {
+        const res = await app.inject({
+          method: "POST",
+          url: "/api/wellness/medications",
+          payload
+        });
+        expect(res.statusCode, `creating ${payload.frequencyType}`).toBe(201);
+      }
+    } finally {
+      await app.close();
+    }
+  });
+
+  it("POST every_n_hours med then GET schedule lists its interval slots (was invisible)", async () => {
+    const app = await buildApp(userId);
+    try {
+      const created = await app.inject({
+        method: "POST",
+        url: "/api/wellness/medications",
+        payload: { name: "Antibiotic", frequencyType: "every_n_hours", intervalHours: 6 }
+      });
+      expect(created.statusCode).toBe(201);
+      const medId = created.json().medication.id as string;
+
+      const today = new Date().toISOString().slice(0, 10);
+      const sched = await app.inject({
+        method: "GET",
+        url: `/api/wellness/medications/schedule?date=${today}`
+      });
+      expect(sched.statusCode).toBe(200);
+      const slotsForMed = (
+        sched.json().slots as Array<{ medicationId: string; asNeeded: boolean }>
+      ).filter((s) => s.medicationId === medId && !s.asNeeded);
+      // 24h / 6h = 4 interval slots — proves every_n_hours is no longer invisible.
+      expect(slotsForMed.length).toBe(4);
+    } finally {
+      await app.close();
+    }
+  });
+
+  it("POST out-of-range intervalHours is a friendly 400, not a DB-CHECK 500", async () => {
+    const app = await buildApp(userId);
+    try {
+      const res = await app.inject({
+        method: "POST",
+        url: "/api/wellness/medications",
+        payload: { name: "TooOften", frequencyType: "every_n_hours", intervalHours: 99 }
+      });
+      expect(res.statusCode).toBe(400);
+    } finally {
+      await app.close();
+    }
+  });
+
+  it("POST out-of-range timesPerDay is a friendly 400, not a DB-CHECK 500", async () => {
+    const app = await buildApp(userId);
+    try {
+      const res = await app.inject({
+        method: "POST",
+        url: "/api/wellness/medications",
+        payload: {
+          name: "WayTooMuch",
+          frequencyType: "times_per_day",
+          timesPerDay: 99,
+          scheduleTimes: Array.from({ length: 99 }, () => "08:00")
+        }
+      });
+      expect(res.statusCode).toBe(400);
+    } finally {
+      await app.close();
+    }
+  });
+
+  it("POST out-of-range cycleDaysOn is a friendly 400, not a DB-CHECK 500", async () => {
+    const app = await buildApp(userId);
+    try {
+      const res = await app.inject({
+        method: "POST",
+        url: "/api/wellness/medications",
+        payload: {
+          name: "BadCycle",
+          frequencyType: "cyclical",
+          cycleAnchorDate: "2026-06-15",
+          cycleDaysOn: 0,
+          cycleDaysOff: 7,
+          scheduleTimes: ["08:00"]
+        }
+      });
+      expect(res.statusCode).toBe(400);
+    } finally {
+      await app.close();
+    }
+  });
+});

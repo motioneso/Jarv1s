@@ -23,7 +23,6 @@ import {
 import {
   WellnessRepository,
   computeSchedule,
-  registerWellnessRoutes,
   wellnessModuleManifest,
   WELLNESS_MODULE_ID,
   wellnessRecentCheckInsExecute,
@@ -265,6 +264,38 @@ describe("WellnessRepository", () => {
     });
   });
 
+  it("re-logging the same scheduled slot CORRECTS the status (upsert, reversible)", async () => {
+    await dataContext.withDataContext(ctx(userId), async (scopedDb) => {
+      const med = await repo.createMedication(scopedDb, {
+        name: "Metformin",
+        frequencyType: "once_daily",
+        scheduleTimes: ["08:00"]
+      });
+      const today = new Date();
+      const scheduledFor = new Date(
+        Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate(), 8, 0, 0)
+      ).toISOString();
+
+      // First log: accidentally "skipped".
+      const skipped = await repo.logDose(scopedDb, med.id, { status: "skipped", scheduledFor });
+      expect(skipped.status).toBe("skipped");
+
+      // Correct it to "taken" — must succeed (no unique-violation) and overwrite, not duplicate.
+      const taken = await repo.logDose(scopedDb, med.id, { status: "taken", scheduledFor });
+      expect(taken.status).toBe("taken");
+
+      // Exactly ONE log row for that (med, slot) — the correction overwrote the prior log.
+      const logs = await scopedDb.db
+        .selectFrom("app.medication_logs")
+        .selectAll()
+        .where("medication_id", "=", med.id)
+        .where("scheduled_for", "=", new Date(scheduledFor))
+        .execute();
+      expect(logs.length).toBe(1);
+      expect(logs[0]?.status).toBe("taken");
+    });
+  });
+
   it("createCheckin throws on an unbranded handle (DataContextDb guard)", async () => {
     await expect(
       repo.createCheckin(appDb as unknown as never, { feelingCore: "joyful" })
@@ -325,6 +356,64 @@ describe("computeSchedule (pure)", () => {
     expect(slots[0]?.asNeeded).toBe(true);
   });
 
+  it("every_n_hours generates interval slots across the civil day (anchored at midnight)", () => {
+    // interval 6h, no schedule_time anchor → 00:00, 06:00, 12:00, 18:00.
+    const slots = computeSchedule(
+      [med({ frequency_type: "every_n_hours", interval_hours: 6, schedule_times: null })],
+      [],
+      date
+    );
+    const scheduled = slots.filter((s) => !s.asNeeded);
+    expect(scheduled.length).toBe(4);
+    expect(scheduled.map((s) => s.scheduledFor?.slice(11, 16))).toEqual([
+      "00:00",
+      "06:00",
+      "12:00",
+      "18:00"
+    ]);
+    // Regression guard: an every_n_hours med must NOT be invisible on the schedule.
+    expect(scheduled.length).toBeGreaterThan(0);
+  });
+
+  it("every_n_hours anchors at the first schedule_time when provided", () => {
+    // interval 8h anchored at 06:00 → 06:00, 14:00, 22:00 (next would be 30:00 = past midnight).
+    const slots = computeSchedule(
+      [med({ frequency_type: "every_n_hours", interval_hours: 8, schedule_times: ["06:00"] })],
+      [],
+      date
+    );
+    const scheduled = slots.filter((s) => !s.asNeeded);
+    expect(scheduled.map((s) => s.scheduledFor?.slice(11, 16))).toEqual([
+      "06:00",
+      "14:00",
+      "22:00"
+    ]);
+  });
+
+  it("every_n_hours marks an interval slot taken from a matching same-day log", () => {
+    const m = med({
+      id: "mi",
+      frequency_type: "every_n_hours",
+      interval_hours: 12,
+      schedule_times: null
+    });
+    const scheduledFor = new Date("2026-06-15T12:00:00.000Z");
+    const log: MedicationLog = {
+      id: "li",
+      medication_id: "mi",
+      owner_user_id: userId,
+      status: "taken",
+      dose: null,
+      prn_reason: null,
+      scheduled_for: scheduledFor,
+      logged_at: scheduledFor,
+      created_at: scheduledFor
+    } as MedicationLog;
+    const slots = computeSchedule([m], [log], date);
+    const noon = slots.find((s) => s.scheduledFor?.slice(11, 16) === "12:00");
+    expect(noon?.status).toBe("taken");
+  });
+
   it("a matching same-day log marks the slot taken", () => {
     const m = med({ id: "mx", schedule_times: ["08:00"] });
     const scheduledFor = new Date("2026-06-15T08:00:00.000Z");
@@ -341,98 +430,6 @@ describe("computeSchedule (pure)", () => {
     } as MedicationLog;
     const slots = computeSchedule([m], [log], date);
     expect(slots.find((s) => !s.asNeeded)?.status).toBe("taken");
-  });
-});
-
-describe("wellness REST routes", () => {
-  async function buildApp(actorUserId: string) {
-    const app = Fastify();
-    registerWellnessRoutes(app, {
-      resolveAccessContext: async () => ({ actorUserId, requestId: "req:route-test" }),
-      dataContext
-    });
-    await app.ready();
-    return app;
-  }
-
-  it("POST /api/wellness/checkins creates; GET lists owner-scoped", async () => {
-    const app = await buildApp(userId);
-    try {
-      const created = await app.inject({
-        method: "POST",
-        url: "/api/wellness/checkins",
-        payload: { feelingCore: "joyful", intensity: 5, sensations: ["warmth"] }
-      });
-      expect(created.statusCode).toBe(201);
-      expect(created.json().checkin.feelingCore).toBe("joyful");
-
-      const listed = await app.inject({ method: "GET", url: "/api/wellness/checkins?limit=5" });
-      expect(listed.statusCode).toBe(200);
-      expect(listed.json().checkins.length).toBeGreaterThan(0);
-    } finally {
-      await app.close();
-    }
-  });
-
-  it("POST a check-in with a feeling path mismatch is rejected 400", async () => {
-    const app = await buildApp(userId);
-    try {
-      // tertiary is not a leaf of the secondary under this core → invalid path.
-      const bad = await app.inject({
-        method: "POST",
-        url: "/api/wellness/checkins",
-        payload: {
-          feelingCore: "scared",
-          feelingSecondary: "anxious",
-          feelingTertiary: "not-a-leaf"
-        }
-      });
-      expect(bad.statusCode).toBe(400);
-    } finally {
-      await app.close();
-    }
-  });
-
-  it("POST a PRN dose log without prn_reason is rejected 400", async () => {
-    const app = await buildApp(userId);
-    try {
-      const med = await app.inject({
-        method: "POST",
-        url: "/api/wellness/medications",
-        payload: { name: "Ibuprofen", frequencyType: "as_needed" }
-      });
-      const medId = med.json().medication.id as string;
-
-      const bad = await app.inject({
-        method: "POST",
-        url: `/api/wellness/medications/${medId}/logs`,
-        payload: { status: "prn" }
-      });
-      expect(bad.statusCode).toBe(400);
-    } finally {
-      await app.close();
-    }
-  });
-
-  it("GET /api/wellness/medications/schedule returns slots for today", async () => {
-    const app = await buildApp(userId);
-    try {
-      await app.inject({
-        method: "POST",
-        url: "/api/wellness/medications",
-        payload: { name: "Vitamin D", frequencyType: "once_daily", scheduleTimes: ["09:00"] }
-      });
-      const today = new Date().toISOString().slice(0, 10);
-      const sched = await app.inject({
-        method: "GET",
-        url: `/api/wellness/medications/schedule?date=${today}`
-      });
-      expect(sched.statusCode).toBe(200);
-      expect(sched.json().date).toBe(today);
-      expect(Array.isArray(sched.json().slots)).toBe(true);
-    } finally {
-      await app.close();
-    }
   });
 });
 
@@ -588,6 +585,47 @@ describe("wellness chat recall energy-trend fact", () => {
         active.some((f) => f.category === "profile" && f.content.toLowerCase().includes("energy"))
       ).toBe(true);
     });
+  });
+
+  it("concurrent refreshes leave exactly ONE active energy-trend fact (advisory lock)", async () => {
+    // Dedicated owner so this isn't perturbed by other tests' facts.
+    const owner = "00000000-0000-4000-8000-000000000044";
+    const seed = new Client({ connectionString: connectionStrings.bootstrap });
+    await seed.connect();
+    try {
+      await seed.query(
+        `INSERT INTO app.users (id, email, is_instance_admin)
+         VALUES ($1,'concurrent@example.test',false) ON CONFLICT (id) DO NOTHING`,
+        [owner]
+      );
+    } finally {
+      await seed.end();
+    }
+
+    const contributor = new WellnessRecallContributor();
+    const facts = new ChatMemoryFactsRepository();
+
+    // Seed an energy-bearing check-in so deriveEnergyTrend returns a non-null trend.
+    await dataContext.withDataContext(ctx(owner), (db) =>
+      new WellnessRepository().createCheckin(db, { feelingCore: "sad", intensity: 2, energy: 2 })
+    );
+
+    // Two refreshes run in PARALLEL transactions. Without the per-owner advisory lock both
+    // would read "no active fact" and each insert → two active facts. The lock serializes them.
+    await Promise.all([
+      dataContext.withDataContext(ctx(owner), (db) =>
+        contributor.refreshEnergyTrendFact(db, owner)
+      ),
+      dataContext.withDataContext(ctx(owner), (db) => contributor.refreshEnergyTrendFact(db, owner))
+    ]);
+
+    const active = await dataContext.withDataContext(ctx(owner), (db) =>
+      facts.listActiveFacts(db, owner)
+    );
+    const energyFacts = active.filter(
+      (f) => f.category === "profile" && f.content.includes("[wellness:energy-trend]")
+    );
+    expect(energyFacts.length).toBe(1);
   });
 });
 

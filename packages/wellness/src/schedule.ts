@@ -49,9 +49,15 @@ export function computeSchedule(
       continue;
     }
 
-    const times = med.schedule_times ?? [];
-    for (const time of times) {
-      const scheduledFor = combineDateAndTime(date, time);
+    // every_n_hours generates slots from interval_hours, anchored at the optional first
+    // schedule_time (else civil midnight), stepping across the civil day. All other
+    // scheduled families emit one slot per enumerated schedule_time.
+    const slotInstants =
+      med.frequency_type === "every_n_hours"
+        ? intervalSlots(date, med.interval_hours, med.schedule_times)
+        : (med.schedule_times ?? []).map((time) => combineDateAndTime(date, time));
+
+    for (const scheduledFor of slotInstants) {
       slots.push({
         medicationId: med.id,
         name: med.name,
@@ -66,6 +72,39 @@ export function computeSchedule(
     if (a.asNeeded !== b.asNeeded) return a.asNeeded ? 1 : -1;
     return (a.scheduledFor ?? "").localeCompare(b.scheduledFor ?? "");
   });
+}
+
+/**
+ * Civil-day slots for an every_n_hours med. Anchored at the optional first schedule_time
+ * (e.g. "06:00" → first dose at 06:00, then every interval); absent any schedule_time it
+ * anchors at civil midnight. Steps forward by interval_hours and emits every slot whose
+ * civil instant falls strictly before the next civil midnight. interval_hours is validated
+ * 1–24 at the route + DB; an absent/<=0 interval yields no slots (defensive, never throws).
+ */
+function intervalSlots(
+  date: Date,
+  intervalHours: number | null,
+  scheduleTimes: readonly string[] | null
+): Date[] {
+  if (!intervalHours || intervalHours <= 0) return [];
+  const anchorTime = scheduleTimes?.[0];
+  const start = anchorTime
+    ? combineDateAndTime(date, anchorTime)
+    : combineDateAndTime(date, "00:00");
+  const dayEnd = Date.UTC(
+    date.getUTCFullYear(),
+    date.getUTCMonth(),
+    date.getUTCDate() + 1,
+    0,
+    0,
+    0
+  );
+  const slots: Date[] = [];
+  const stepMs = intervalHours * 60 * 60 * 1000;
+  for (let t = start.getTime(); t < dayEnd; t += stepMs) {
+    slots.push(new Date(t));
+  }
+  return slots;
 }
 
 function isoWeekdayOf(date: Date): number {

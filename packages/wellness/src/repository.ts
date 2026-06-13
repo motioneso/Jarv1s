@@ -171,22 +171,55 @@ export class WellnessRepository {
   }
 
   // ── Dose logs ──────────────────────────────────────────────────────────
+  /**
+   * Log a dose. SCHEDULED (non-PRN) logs UPSERT on the (medication_id, scheduled_for) partial
+   * unique index, so re-logging the same slot CORRECTS the record (e.g. fat-fingered "skipped"
+   * → "taken") instead of being permanently rejected by the unique index — the slot's adherence
+   * state stays editable. PRN logs (scheduled_for IS NULL) are not on the index and always insert.
+   */
   async logDose(
     scopedDb: DataContextDb,
     medicationId: string,
     input: LogDoseInput
   ): Promise<MedicationLog> {
     assertDataContextDb(scopedDb);
+    const scheduledFor = input.scheduledFor ? new Date(input.scheduledFor) : null;
+    const values = {
+      medication_id: medicationId,
+      owner_user_id: sql<string>`app.current_actor_user_id()`,
+      status: input.status,
+      dose: input.dose ?? null,
+      prn_reason: input.prnReason ?? null,
+      scheduled_for: scheduledFor
+    };
+
+    // PRN doses are unscheduled (no conflict target) — plain insert.
+    if (scheduledFor === null) {
+      const row = await scopedDb.db
+        .insertInto("app.medication_logs")
+        .values(values)
+        .returningAll()
+        .executeTakeFirstOrThrow();
+      return row as MedicationLog;
+    }
+
+    // Scheduled doses upsert on the partial unique index so a correction overwrites the prior
+    // log for that slot rather than tripping the unique violation. The conflict target matches
+    // the index predicate (scheduled_for IS NOT NULL).
     const row = await scopedDb.db
       .insertInto("app.medication_logs")
-      .values({
-        medication_id: medicationId,
-        owner_user_id: sql<string>`app.current_actor_user_id()`,
-        status: input.status,
-        dose: input.dose ?? null,
-        prn_reason: input.prnReason ?? null,
-        scheduled_for: input.scheduledFor ? new Date(input.scheduledFor) : null
-      })
+      .values(values)
+      .onConflict((oc) =>
+        oc
+          .columns(["medication_id", "scheduled_for"])
+          .where("scheduled_for", "is not", null)
+          .doUpdateSet({
+            status: input.status,
+            dose: input.dose ?? null,
+            prn_reason: input.prnReason ?? null,
+            logged_at: sql<Date>`now()`
+          })
+      )
       .returningAll()
       .executeTakeFirstOrThrow();
     return row as MedicationLog;
