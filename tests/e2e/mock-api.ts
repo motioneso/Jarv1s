@@ -17,12 +17,16 @@ import { registerMockBriefingsRoutes, type MockBriefingsApiState } from "./mock-
 import { registerMockChatRoutes } from "./mock-chat-api.js";
 import { registerMockConnectorRoutes, type MockConnectorsApiState } from "./mock-connectors-api.js";
 import { modulesResponse } from "./mock-modules.js";
+import {
+  registerMockOnboardingRoutes,
+  type MockOnboardingApiState
+} from "./mock-onboarding-api.js";
 
 export { createMockBriefingDefinition, createMockBriefingRun } from "./mock-briefings-api.js";
 export { createMockConnectorAccount, createMockConnectorProviders } from "./mock-connectors-api.js";
 
 export interface MockApiState
-  extends MockBriefingsApiState, MockAiApiState, MockConnectorsApiState {
+  extends MockBriefingsApiState, MockAiApiState, MockConnectorsApiState, MockOnboardingApiState {
   authenticated: boolean;
   /**
    * Whether the authenticated user is an instance admin. Defaults to true so
@@ -110,6 +114,7 @@ export async function mockApi(page: Page, state: MockApiState): Promise<void> {
   await registerMockAiRoutes(page, state);
   await registerMockBriefingsRoutes(page, state);
   await registerMockChatRoutes(page, state);
+  await registerMockOnboardingRoutes(page, state);
   await page.route(/\/api\/calendar\/events\/[^/]+$/, (route) =>
     handleCalendarEventDetailRoute(route, state)
   );
