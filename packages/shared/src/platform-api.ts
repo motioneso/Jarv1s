@@ -1,3 +1,5 @@
+import { errorResponseSchema } from "./schema-fragments.js";
+
 export interface UserDto {
   readonly id: string;
   readonly email: string;
@@ -95,15 +97,6 @@ export interface ListAuthProviderStatusesResponse {
 export interface ListModulesResponse {
   readonly modules: readonly ModuleDto[];
 }
-
-const errorResponseSchema = {
-  type: "object",
-  additionalProperties: false,
-  required: ["error"],
-  properties: {
-    error: { type: "string" }
-  }
-} as const;
 
 const authProviderStatusSchema = {
   type: "object",

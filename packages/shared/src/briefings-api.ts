@@ -1,3 +1,5 @@
+import { errorResponseSchema, idParamsSchema, jsonObjectSchema } from "./schema-fragments.js";
+
 export type BriefingCadence = "manual" | "daily" | "weekly";
 export type BriefingRunKind = "manual" | "scheduled";
 export type BriefingRunStatus = "succeeded" | "blocked" | "failed";
@@ -74,29 +76,6 @@ export interface BriefingRunPayloadDto {
   readonly runKind: BriefingRunKind;
   readonly idempotencyKey?: string;
 }
-
-const errorResponseSchema = {
-  type: "object",
-  additionalProperties: false,
-  required: ["error"],
-  properties: {
-    error: { type: "string" }
-  }
-} as const;
-
-const idParamsSchema = {
-  type: "object",
-  additionalProperties: false,
-  required: ["id"],
-  properties: {
-    id: { type: "string" }
-  }
-} as const;
-
-const jsonObjectSchema = {
-  type: "object",
-  additionalProperties: true
-} as const;
 
 export const briefingCadenceSchema = {
   type: "string",

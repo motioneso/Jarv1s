@@ -1,3 +1,5 @@
+import { nullableStringSchema } from "./schema-fragments.js";
+
 export const TASK_STATUSES = ["todo", "done", "archived"] as const;
 
 export type TaskApiStatus = (typeof TASK_STATUSES)[number];
@@ -102,10 +104,6 @@ export interface DeferredTaskStatusPayloadDto {
   readonly idempotencyKey?: string;
 }
 
-const nullableStringSchema = {
-  anyOf: [{ type: "string" }, { type: "null" }]
-} as const;
-
 const nullableNumberSchema = {
   anyOf: [{ type: "number" }, { type: "null" }]
 } as const;
@@ -117,6 +115,7 @@ export const taskStatusSchema = {
 
 export const taskParamsSchema = {
   type: "object",
+  additionalProperties: false,
   required: ["id"],
   properties: {
     id: { type: "string" }
@@ -195,6 +194,7 @@ export const listTasksResponseSchema = {
 
 export const createTaskRequestSchema = {
   type: "object",
+  additionalProperties: false,
   required: ["title"],
   properties: {
     title: { type: "string" },
@@ -226,6 +226,7 @@ export const getTaskResponseSchema = createTaskResponseSchema;
 
 export const updateTaskRequestSchema = {
   type: "object",
+  additionalProperties: false,
   properties: {
     title: { type: "string" },
     description: nullableStringSchema,
@@ -248,6 +249,7 @@ export const updateTaskResponseSchema = createTaskResponseSchema;
 
 export const addTaskActivityRequestSchema = {
   type: "object",
+  additionalProperties: false,
   properties: {
     activityType: { type: "string" },
     body: nullableStringSchema
@@ -264,6 +266,7 @@ export const addTaskActivityResponseSchema = {
 
 export const deferredTaskStatusRequestSchema = {
   type: "object",
+  additionalProperties: false,
   required: ["status"],
   properties: {
     status: taskStatusSchema,
@@ -395,6 +398,7 @@ export const listTaskListsResponseSchema = {
 
 export const createTaskListRequestSchema = {
   type: "object",
+  additionalProperties: false,
   required: ["name"],
   properties: {
     name: { type: "string" }
@@ -417,6 +421,7 @@ export const listTaskListsRouteSchema = {
 
 export const taskListParamsSchema = {
   type: "object",
+  additionalProperties: false,
   required: ["listId"],
   properties: {
     listId: { type: "string" }
@@ -474,6 +479,7 @@ export const listTaskTagsResponseSchema = {
 
 export const createTaskTagRequestSchema = {
   type: "object",
+  additionalProperties: false,
   required: ["name"],
   properties: {
     name: { type: "string" }
@@ -515,6 +521,7 @@ export interface BreakdownTaskResponse {
 
 export const breakdownTaskRequestSchema = {
   type: "object",
+  additionalProperties: false,
   required: ["steps"],
   properties: {
     steps: { type: "array", items: { type: "string" } }
@@ -595,6 +602,7 @@ export const getTaskPreferencesResponseSchema = {
 
 export const updateTaskPreferencesRequestSchema = {
   type: "object",
+  additionalProperties: false,
   required: ["defaultView"],
   properties: { defaultView: { type: "string", enum: ["priority", "matrix"] } }
 } as const;
