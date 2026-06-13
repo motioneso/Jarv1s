@@ -177,7 +177,7 @@ flow are preserved verbatim; only the multiplexer verbs move behind the seam.
 ### 5.4 `packages/chat/src/live/runtime.ts` — factory wiring
 
 - `realEngineFactory` (`:44-45`) constructs `new TmuxCliChatEngine(provider, sessionKey,
-  createRealTmuxIo())`. After refactor: construct the renamed engine **with a selected
+createRealTmuxIo())`. After refactor: construct the renamed engine **with a selected
   `Multiplexer`** (PATH-detected/configured). Keep `engineFactory` injectable so integration tests
   still swap a fake engine (no real multiplexer / CLI binary).
 
@@ -199,7 +199,17 @@ flow are preserved verbatim; only the multiplexer verbs move behind the seam.
 
 ---
 
-## 6. Agent-path defense-in-depth — `PreToolUse` policy
+## 6. Agent-path defense-in-depth — `PreToolUse` policy — **DEFERRED (follow-up under epic #47)**
+
+> **Deferred out of v1 per the 2026-06-12 grill decision.** This policy is **not built in this
+> milestone**; it is filed as a follow-up issue under epic #47 and documented in
+> `packages/chat/README.md`. Rationale: the one programmatic input path is already neutralized
+> (`sanitizeInput` strips the leading-`!` escape) and native tools are already denied at launch flags
+> (`--tools ""` / the MCP allowlist + `--strict-mcp-config`), so the hook is pure defense-in-depth.
+> It is also provider-specific (Claude only — Codex `--sandbox read-only` and Gemini
+> `--allowed-mcp-server-names jarvis` already block at launch), and its fail-closed semantics +
+> cross-engine scope need their own design. The section below is retained as the design target for
+> that follow-up; it is **not** an acceptance criterion of this milestone.
 
 A FailproofAI-style policy middleware hooks the `PreToolUse` event of all three CLIs (Claude / Codex
 / Gemini — the exact set FailproofAI targets). It returns `allow()` / `deny(msg)` / `instruct(msg)`.
@@ -317,8 +327,9 @@ reshape with no precedent (the API runs unprivileged as `ben`). Its own spec + A
    security-critical command-builder flags verbatim** (§3.2 / §5.1).
 3. Stale comments fixed: engine header (`:6`), Codex "single-user" comment (`:238-240`),
    `types.ts` "JWT" (`:25`).
-4. `!`-escape rejected on every input path; `PreToolUse` policy (§6) seeded per agent home with the
-   three required behaviors.
+4. `!`-escape rejected on every input path. (The `PreToolUse` policy in §6 is **deferred to a
+   follow-up under epic #47** per the 2026-06-12 grill decision — see §6 and
+   `packages/chat/README.md`; it is **not** an acceptance criterion of this milestone.)
 5. Per-user neutral dirs created `0700`; `TmuxIo.run` env/cwd + `transcriptGlobDir` homeBase seams
    added (default-noop).
 6. §8 shared-uid limitation documented in the module README and linked from epic #47.
