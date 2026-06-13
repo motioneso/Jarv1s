@@ -1427,4 +1427,84 @@ describe("Tasks module M1", () => {
       dataContext.withDataContext(adminContext, (db) => listsRepo.deleteList(db, only.id))
     ).rejects.toMatchObject({ statusCode: 409 });
   });
+
+  it("renameTag renames, rejects duplicates (409), and 404s a foreign/missing tag", async () => {
+    const listsRepo = new TaskListsRepository();
+    const list = await dataContext.withDataContext(userAContext(), (db) =>
+      listsRepo.getOrCreate(db, "Tag Rename List")
+    );
+    const original = await dataContext.withDataContext(userAContext(), (db) =>
+      listsRepo.createTag(db, list.id, "tag-rename-src")
+    );
+    const other = await dataContext.withDataContext(userAContext(), (db) =>
+      listsRepo.createTag(db, list.id, "tag-rename-other")
+    );
+
+    // Rename to a fresh unique name succeeds.
+    const renamed = await dataContext.withDataContext(userAContext(), (db) =>
+      listsRepo.renameTag(db, list.id, original.id, "tag-rename-dst")
+    );
+    expect(renamed.name).toBe("tag-rename-dst");
+
+    // Renaming to a name already taken in the list (case-insensitive unique index) → 409.
+    await expect(
+      dataContext.withDataContext(userAContext(), (db) =>
+        listsRepo.renameTag(db, list.id, renamed.id, "tag-rename-other")
+      )
+    ).rejects.toMatchObject({ statusCode: 409 });
+
+    // A foreign/non-existent tag id → 404 (RLS UPDATE matches zero rows).
+    await expect(
+      dataContext.withDataContext(userAContext(), (db) =>
+        listsRepo.renameTag(db, list.id, "00000000-0000-0000-0000-000000000000", "whatever")
+      )
+    ).rejects.toMatchObject({ statusCode: 404 });
+
+    // `other` is referenced (suppresses unused-var lint) — it is the 409 collision target.
+    expect(other.id).not.toBe(renamed.id);
+  });
+
+  it("deleteTag removes the tag and cascades its assignment rows", async () => {
+    const listsRepo = new TaskListsRepository();
+    const list = await dataContext.withDataContext(userAContext(), (db) =>
+      listsRepo.getOrCreate(db, "Tag Delete List")
+    );
+    const tag = await dataContext.withDataContext(userAContext(), (db) =>
+      listsRepo.createTag(db, list.id, "delete-me")
+    );
+    const task = await dataContext.withDataContext(userAContext(), (db) =>
+      repository.create(db, { title: "tagged", listId: list.id })
+    );
+    await dataContext.withDataContext(userAContext(), (db) =>
+      listsRepo.assignTag(db, task.id, tag.id)
+    );
+
+    await dataContext.withDataContext(userAContext(), (db) =>
+      listsRepo.deleteTag(db, list.id, tag.id)
+    );
+
+    // The tag is gone.
+    const remainingTags = await dataContext.withDataContext(userAContext(), (db) =>
+      db.db.selectFrom("app.task_tags").select("id").where("id", "=", tag.id).execute()
+    );
+    expect(remainingTags).toHaveLength(0);
+
+    // The assignment row was cascaded (task_tag_assignments.tag_id ON DELETE CASCADE).
+    const tags = await dataContext.withDataContext(userAContext(), (db) =>
+      repository.getTagsForTask(db, task.id)
+    );
+    expect(tags).toHaveLength(0);
+  });
+
+  it("deleteTag 404s a foreign/missing tag", async () => {
+    const listsRepo = new TaskListsRepository();
+    const list = await dataContext.withDataContext(userAContext(), (db) =>
+      listsRepo.getOrCreate(db, "Tag Delete 404 List")
+    );
+    await expect(
+      dataContext.withDataContext(userAContext(), (db) =>
+        listsRepo.deleteTag(db, list.id, "00000000-0000-0000-0000-000000000000")
+      )
+    ).rejects.toMatchObject({ statusCode: 404 });
+  });
 });

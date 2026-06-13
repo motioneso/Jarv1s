@@ -257,6 +257,45 @@ export class TaskListsRepository {
     }
   }
 
+  async renameTag(
+    db: DataContextDb,
+    listId: string,
+    tagId: string,
+    name: string
+  ): Promise<TaskTag> {
+    assertDataContextDb(db);
+    try {
+      const row = await db.db
+        .updateTable("app.task_tags")
+        .set({ name })
+        .where("id", "=", tagId)
+        .where("list_id", "=", listId)
+        .returningAll()
+        .executeTakeFirst();
+      if (!row) throw new HttpError(404, "Tag not found or not accessible");
+      return row;
+    } catch (err: unknown) {
+      if (err instanceof HttpError) throw err;
+      const message = err instanceof Error ? err.message : String(err);
+      if (message.includes("task_tags_list_name_idx") || message.includes("unique")) {
+        throw new HttpError(409, "A tag with that name already exists in this list");
+      }
+      throw err;
+    }
+  }
+
+  async deleteTag(db: DataContextDb, listId: string, tagId: string): Promise<void> {
+    assertDataContextDb(db);
+    const deleted = await db.db
+      .deleteFrom("app.task_tags")
+      .where("id", "=", tagId)
+      .where("list_id", "=", listId)
+      .returning("id")
+      .executeTakeFirst();
+    if (!deleted) throw new HttpError(404, "Tag not found or not accessible");
+    // task_tag_assignments.tag_id FK is ON DELETE CASCADE — assignments are gone.
+  }
+
   async isOwnedByActor(db: DataContextDb, listId: string): Promise<boolean> {
     assertDataContextDb(db);
     const row = await db.db
