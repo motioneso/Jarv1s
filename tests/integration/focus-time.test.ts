@@ -292,6 +292,55 @@ describe("Group D — CalendarWriteService impl (faked Google fetch)", () => {
     expect(res.conflict).toBe("no-clear-slot");
   });
 
+  it("freeBusy per-calendar errors[] → created:false, NO insert (no double-booking)", async () => {
+    // A freeBusy 200 carrying a per-calendar errors[] with empty busy must NOT be read as
+    // "fully free": fail-closed in freeBusy() throws, proposeAndInsert returns created:false,
+    // and the events POST is never reached — so a focus block can't double-book a real event.
+    await seedGoogleAccount(ids.userA, ["https://www.googleapis.com/auth/calendar"]);
+    let insertCalls = 0;
+    const { fetchFn } = captureFetch((url) => {
+      if (url.includes("/freeBusy")) {
+        return {
+          body: { calendars: { primary: { busy: [], errors: [{ reason: "rateLimitExceeded" }] } } }
+        };
+      }
+      if (url.includes("/events")) {
+        insertCalls += 1;
+        return { body: { id: "evt-should-not-exist" } };
+      }
+      return { body: {} };
+    });
+    const cipher = createConnectorSecretCipher();
+    const repository = new ConnectorsRepository();
+    const impl = buildCalendarWriteService({
+      googleService: new GoogleConnectionService({
+        repository,
+        cipher,
+        oauthClient: new GoogleOAuthClient({ fetchFn })
+      }),
+      googleApiClient: new GoogleApiClient({ fetchFn }),
+      connectorsRepository: repository,
+      calendarRepository: new CalendarRepository()
+    });
+    const res = await dataContext.withDataContext(
+      { actorUserId: ids.userA, requestId: "t" },
+      (scopedDb) =>
+        impl.proposeAndInsert(
+          scopedDb,
+          { actorUserId: ids.userA, requestId: "t", chatSessionId: "s" },
+          {
+            start: new Date("2026-06-17T13:00:00Z"),
+            end: new Date("2026-06-17T16:00:00Z"),
+            durationMinutes: 120,
+            title: "Focus time"
+          }
+        )
+    );
+    expect(res.created).toBe(false);
+    expect(insertCalls).toBe(0);
+    expect(res.message).toMatch(/availability/i);
+  });
+
   it("missing scope: returns created:false with a re-consent message, no Google call", async () => {
     await seedGoogleAccount(ids.userB, ["https://www.googleapis.com/auth/gmail.modify"]);
     const impl = buildImpl({ freeBusyBusy: [] });

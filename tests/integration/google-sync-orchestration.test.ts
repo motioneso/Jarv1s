@@ -94,6 +94,158 @@ describe("runGoogleSync handler", () => {
     expect(Object.keys(result)).not.toContain("accessToken");
   });
 
+  it("a single DB-level upsert failure does NOT roll back OTHER upserts or fabricate counts", async () => {
+    // HIGH: the whole sync runs in ONE outer transaction. Without per-item SAVEPOINTs, a single
+    // DB-level error (here a CHECK violation: a calendar event whose start is AFTER its end) would
+    // abort the transaction; the email upsert would then fail 25P02 (swallowed), yet the handler
+    // returned non-zero counts and the outer COMMIT became a silent ROLLBACK — total data loss with
+    // fabricated success. With SAVEPOINTs the bad event is confined: it's counted as an error, the
+    // email upsert COMMITS, and the reported counts MATCH what is actually persisted.
+    const accountId = await seedGoogleAccount(handles.dataContext, [
+      "https://www.googleapis.com/auth/calendar",
+      "https://www.googleapis.com/auth/gmail.modify"
+    ]);
+    const ctx = { actorUserId: ids.userA, requestId: "pgboss:test" };
+    const result = await handles.dataContext.withDataContext(ctx, (scopedDb) =>
+      runGoogleSync(scopedDb, {
+        getFreshAccessToken: async () => "tok",
+        getActiveAccount: async () => ({ id: accountId, scopes: ["calendar", "gmail"] }),
+        googleClient: {
+          listCalendarEvents: async () => [
+            {
+              id: "bad-evt",
+              summary: "Inverted times (CHECK violation)",
+              // start AFTER end → ends_at >= starts_at CHECK fails on upsert.
+              start: { dateTime: "2026-06-13T10:00:00Z" },
+              end: { dateTime: "2026-06-13T09:00:00Z" }
+            },
+            {
+              id: "good-evt",
+              summary: "Valid event",
+              start: { dateTime: "2026-06-13T11:00:00Z" },
+              end: { dateTime: "2026-06-13T11:30:00Z" }
+            }
+          ],
+          listMessageIds: async () => [{ id: "txn-msg-1" }],
+          getMessage: async () => ({
+            id: "txn-msg-1",
+            payload: {
+              mimeType: "text/plain",
+              headers: [
+                { name: "Subject", value: "Survives the bad calendar event" },
+                { name: "From", value: "a@b.com" }
+              ],
+              body: { data: Buffer.from("hi").toString("base64") }
+            }
+          })
+        },
+        emailExtractDeps: {
+          selectModel: async () => undefined,
+          runChat: async () => ({ text: "" })
+        },
+        now: () => new Date("2026-06-13T12:00:00.000Z")
+      })
+    );
+
+    // The bad event is recorded as an error, not silently dropped; the good event + the email are
+    // upserted. Crucially the handler did NOT throw and did NOT fabricate counts.
+    expect(result.errors).toContain("calendar-item-error");
+    expect(result.calendarUpserted).toBe(1);
+    expect(result.emailUpserted).toBe(1);
+
+    // The reported counts MATCH the rows that actually committed (no silent rollback). Query the
+    // specific external_ids this test created — the connector account is a singleton per user, so
+    // events from sibling tests share the same account id.
+    const persisted = await handles.dataContext.withDataContext(ctx, (db) =>
+      Promise.all([
+        db.db
+          .selectFrom("app.calendar_events")
+          .select((eb) => eb.fn.countAll<string>().as("n"))
+          .where("external_id", "=", "good-evt")
+          .executeTakeFirstOrThrow(),
+        db.db
+          .selectFrom("app.calendar_events")
+          .select((eb) => eb.fn.countAll<string>().as("n"))
+          .where("external_id", "=", "bad-evt")
+          .executeTakeFirstOrThrow(),
+        db.db
+          .selectFrom("app.email_messages")
+          .select((eb) => eb.fn.countAll<string>().as("n"))
+          .where("external_id", "=", "txn-msg-1")
+          .executeTakeFirstOrThrow()
+      ])
+    );
+    expect(Number(persisted[0].n)).toBe(1); // the good event committed
+    expect(Number(persisted[1].n)).toBe(0); // the bad event's savepoint rolled back — not persisted
+    expect(Number(persisted[2].n)).toBe(1); // the email survived the bad calendar upsert
+  });
+
+  it("skips all-day / missing-time events instead of fabricating 1970-epoch instants", async () => {
+    // MED: an all-day event (date, no time) must NOT map to UTC midnight via a 1970 epoch, and an
+    // event missing start/end must be SKIPPED rather than producing end < start (CHECK landmine).
+    const accountId = await seedGoogleAccount(handles.dataContext, [
+      "https://www.googleapis.com/auth/calendar"
+    ]);
+    const ctx = { actorUserId: ids.userA, requestId: "pgboss:test" };
+    const result = await handles.dataContext.withDataContext(ctx, (scopedDb) =>
+      runGoogleSync(scopedDb, {
+        getFreshAccessToken: async () => "tok",
+        getActiveAccount: async () => ({ id: accountId, scopes: ["calendar"] }),
+        googleClient: {
+          listCalendarEvents: async () => [
+            {
+              // All-day event: Google sends `date` (exclusive end). Must produce a valid range.
+              id: "allday-1",
+              summary: "All-day offsite",
+              start: { date: "2026-06-20" },
+              end: { date: "2026-06-21" }
+            },
+            {
+              // Missing end entirely → skipped, NOT fabricated as a 1970-epoch end.
+              id: "no-end-1",
+              summary: "Broken event",
+              start: { dateTime: "2026-06-20T09:00:00Z" }
+            }
+          ],
+          listMessageIds: async () => [],
+          getMessage: async () => ({ id: "x" })
+        },
+        emailExtractDeps: {
+          selectModel: async () => undefined,
+          runChat: async () => ({ text: "" })
+        },
+        now: () => new Date("2026-06-13T12:00:00.000Z")
+      })
+    );
+    // Only the all-day event is upserted; the malformed one is skipped (no error, no fabrication).
+    expect(result.calendarUpserted).toBe(1);
+    expect(result.errors).toEqual([]);
+    const row = await handles.dataContext.withDataContext(ctx, (db) =>
+      db.db
+        .selectFrom("app.calendar_events")
+        .selectAll()
+        .where("external_id", "=", "allday-1")
+        .executeTakeFirstOrThrow()
+    );
+    // The all-day range is valid (end > start) and NOT the 1970 epoch.
+    const starts = new Date((row as { starts_at: Date | string }).starts_at).getTime();
+    const ends = new Date((row as { ends_at: Date | string }).ends_at).getTime();
+    expect(ends).toBeGreaterThan(starts);
+    expect(starts).toBeGreaterThan(new Date("2026-01-01T00:00:00Z").getTime());
+    expect((row as { external_metadata: { allDay?: boolean } }).external_metadata.allDay).toBe(
+      true
+    );
+    // The malformed missing-end event was never persisted.
+    const broken = await handles.dataContext.withDataContext(ctx, (db) =>
+      db.db
+        .selectFrom("app.calendar_events")
+        .select((eb) => eb.fn.countAll<string>().as("n"))
+        .where("external_id", "=", "no-end-1")
+        .executeTakeFirstOrThrow()
+    );
+    expect(Number(broken.n)).toBe(0);
+  });
+
   it("records a no-active-connection error without throwing", async () => {
     const ctx = { actorUserId: ids.userB, requestId: "pgboss:test" };
     const result = await handles.dataContext.withDataContext(ctx, (scopedDb) =>
@@ -261,6 +413,63 @@ describe("runGoogleSync handler", () => {
     expect(refreshes).toBe(1);
     expect(calendarAttempts).toBe(2);
     expect(result.calendarUpserted).toBe(1);
+    expect(result.errors).toEqual([]);
+  });
+
+  it("a mid-loop 401 rotates the token for ALL remaining messages (no per-message re-refresh)", async () => {
+    // LOW: when one message 401s and the forced refresh succeeds, the rotated token must be carried
+    // forward (shared holder), so every later message uses the fresh token rather than 401ing and
+    // refreshing again. Here only the FIRST getMessage on the stale token 401s; with the holder,
+    // exactly ONE refresh occurs even though there are several messages.
+    const accountId = await seedGoogleAccount(handles.dataContext, [
+      "https://www.googleapis.com/auth/gmail.modify"
+    ]);
+    const ctx = { actorUserId: ids.userA, requestId: "pgboss:test" };
+    let refreshes = 0;
+    let staleHits = 0;
+    const msg = (id: string) => ({
+      id,
+      payload: {
+        mimeType: "text/plain",
+        headers: [
+          { name: "Subject", value: "S" },
+          { name: "From", value: "a@b.com" }
+        ],
+        body: { data: Buffer.from("hi").toString("base64") }
+      }
+    });
+    const result = await handles.dataContext.withDataContext(ctx, (db) =>
+      runGoogleSync(db, {
+        getFreshAccessToken: async (_db, opts) => {
+          if (opts?.force) refreshes += 1;
+          return opts?.force ? "fresh-tok" : "stale-tok";
+        },
+        getActiveAccount: async () => ({ id: accountId, scopes: ["gmail"] }),
+        googleClient: {
+          listCalendarEvents: async () => [],
+          listMessageIds: async () => [{ id: "loop-1" }, { id: "loop-2" }, { id: "loop-3" }],
+          getMessage: async ({ accessToken, id }) => {
+            if (accessToken === "stale-tok") {
+              staleHits += 1;
+              const e = new Error("Google gmail returned 401") as Error & { statusCode: number };
+              e.statusCode = 401;
+              throw e;
+            }
+            return msg(id);
+          }
+        },
+        emailExtractDeps: {
+          selectModel: async () => undefined,
+          runChat: async () => ({ text: "" })
+        },
+        now: () => new Date("2026-06-13T12:00:00.000Z")
+      })
+    );
+    // Exactly one refresh (the first 401), and the stale token is hit exactly once — later messages
+    // reuse the fresh token instead of re-401ing per message.
+    expect(refreshes).toBe(1);
+    expect(staleHits).toBe(1);
+    expect(result.emailUpserted).toBe(3);
     expect(result.errors).toEqual([]);
   });
 

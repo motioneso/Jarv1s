@@ -144,7 +144,16 @@ export class GoogleApiClient {
   }): Promise<GoogleFreeBusyResult> {
     const calendarId = input.calendarId ?? "primary";
     const json = await this.postJson<{
-      calendars?: Record<string, { busy?: GoogleBusyInterval[] }>;
+      // A freeBusy 200 can carry a PER-CALENDAR `errors[]` (e.g. notFound, rateLimitExceeded)
+      // alongside an empty `busy`. We model it here so the failure is visible — without it a
+      // per-calendar error reads as "fully free" and a focus block double-books over a real event.
+      calendars?: Record<
+        string,
+        {
+          busy?: GoogleBusyInterval[];
+          errors?: ReadonlyArray<{ domain?: string; reason?: string }>;
+        }
+      >;
     }>(
       `${CALENDAR_BASE}/freeBusy`,
       input.accessToken,
@@ -155,7 +164,32 @@ export class GoogleApiClient {
       },
       "calendar"
     );
-    return { busy: json.calendars?.[calendarId]?.busy ?? [] };
+    // FAIL-CLOSED: if the requested calendar key is absent OR Google reported a per-calendar
+    // error for it, we CANNOT trust an empty busy list as "free". Throw so proposeAndInsert's
+    // try/catch returns created:false ("couldn't check availability") instead of inserting a
+    // focus block into an unverified slot (double-booking guarantee). Log status only — never
+    // the body — to keep the existing no-leak posture.
+    const calendar = json.calendars?.[calendarId];
+    if (!calendar) {
+      this.logger.error(
+        { api: "calendar", reason: "freebusy-missing-calendar" },
+        "Google freeBusy omitted the requested calendar"
+      );
+      throw new GoogleApiError(`Google calendar freeBusy missing calendar ${calendarId}`, 502);
+    }
+    if (calendar.errors && calendar.errors.length > 0) {
+      this.logger.error(
+        {
+          api: "calendar",
+          reason: "freebusy-calendar-error",
+          // reason codes are non-secret API status tokens (notFound, rateLimitExceeded, ...)
+          codes: calendar.errors.map((e) => e.reason ?? "unknown")
+        },
+        "Google freeBusy returned a per-calendar error"
+      );
+      throw new GoogleApiError(`Google calendar freeBusy reported a per-calendar error`, 502);
+    }
+    return { busy: calendar.busy ?? [] };
   }
 
   async insertEvent(input: {

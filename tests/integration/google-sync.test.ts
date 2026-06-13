@@ -7,6 +7,7 @@ import {
   GoogleApiClient,
   extractEmailSignals,
   parseEmail,
+  resolveEmailMessageCap,
   type EmailExtractDeps
 } from "@jarv1s/connectors";
 import { CalendarRepository } from "@jarv1s/calendar";
@@ -458,6 +459,96 @@ describe("GoogleApiClient gmail", () => {
   });
 });
 
+describe("resolveEmailMessageCap (JARVIS_EMAIL_SYNC_CAP guard)", () => {
+  it("returns the default (50) when unset", () => {
+    expect(resolveEmailMessageCap(undefined)).toBe(50);
+  });
+
+  it("returns a valid positive integer as-is", () => {
+    expect(resolveEmailMessageCap("100")).toBe(100);
+    expect(resolveEmailMessageCap("1")).toBe(1);
+  });
+
+  it("falls back to the default for a non-numeric value (no silent zero-email sync)", () => {
+    // Number('not-a-number') is NaN → slice(0, NaN) === [] → zero emails synced silently. Guard it.
+    expect(resolveEmailMessageCap("not-a-number")).toBe(50);
+  });
+
+  it("falls back to the default for zero, negatives, and non-integers", () => {
+    expect(resolveEmailMessageCap("0")).toBe(50);
+    expect(resolveEmailMessageCap("-5")).toBe(50);
+    expect(resolveEmailMessageCap("12.5")).toBe(50);
+    expect(resolveEmailMessageCap("")).toBe(50);
+  });
+});
+
+describe("GoogleApiClient.freeBusy fail-closed", () => {
+  it("returns the busy list for the requested calendar on a clean 200", async () => {
+    const busy = [{ start: "2026-06-17T13:00:00Z", end: "2026-06-17T13:30:00Z" }];
+    const { fetchFn } = captureFetch(() => ({
+      ok: true,
+      status: 200,
+      body: { calendars: { primary: { busy } } }
+    }));
+    const client = new GoogleApiClient({ fetchFn });
+    const result = await client.freeBusy({
+      accessToken: "tok",
+      timeMin: "2026-06-17T13:00:00Z",
+      timeMax: "2026-06-17T16:00:00Z",
+      calendarId: "primary"
+    });
+    expect(result.busy).toEqual(busy);
+  });
+
+  it("THROWS (fail-closed) on a per-calendar errors[] so a real event is never treated as free", async () => {
+    // A freeBusy 200 can carry a per-calendar errors[] (e.g. rateLimitExceeded) with empty busy.
+    // Treating that as "fully free" would double-book the focus block over a real meeting.
+    const { fetchFn } = captureFetch(() => ({
+      ok: true,
+      status: 200,
+      body: { calendars: { primary: { busy: [], errors: [{ reason: "rateLimitExceeded" }] } } }
+    }));
+    const client = new GoogleApiClient({ fetchFn });
+    await expect(
+      client.freeBusy({
+        accessToken: "tok",
+        timeMin: "2026-06-17T13:00:00Z",
+        timeMax: "2026-06-17T16:00:00Z",
+        calendarId: "primary"
+      })
+    ).rejects.toThrow(/per-calendar error/);
+  });
+
+  it("THROWS (fail-closed) when the requested calendar key is absent from the response", async () => {
+    const { fetchFn } = captureFetch(() => ({
+      ok: true,
+      status: 200,
+      body: { calendars: {} }
+    }));
+    const client = new GoogleApiClient({ fetchFn });
+    await expect(
+      client.freeBusy({
+        accessToken: "tok",
+        timeMin: "2026-06-17T13:00:00Z",
+        timeMax: "2026-06-17T16:00:00Z",
+        calendarId: "primary"
+      })
+    ).rejects.toThrow(/missing calendar/);
+  });
+
+  it("does not leak the per-calendar error reason into the thrown Error message", async () => {
+    const { fetchFn } = captureFetch(() => ({
+      ok: true,
+      status: 200,
+      body: { calendars: { primary: { busy: [], errors: [{ reason: "SECRET-INTERNAL-REASON" }] } } }
+    }));
+    const client = new GoogleApiClient({ fetchFn });
+    await expect(
+      client.freeBusy({ accessToken: "tok", timeMin: "x", timeMax: "y", calendarId: "primary" })
+    ).rejects.not.toThrow(/SECRET-INTERNAL-REASON/);
+  });
+});
+
 function b64url(s: string): string {
   return Buffer.from(s, "utf8").toString("base64").replace(/\+/g, "-").replace(/\//g, "_");
 }
@@ -699,6 +790,21 @@ describe("extractEmailSignals", () => {
     const body = "Sensitive paragraph. ".repeat(40); // ~840 chars of real body content
     const parsed = { ...PARSED, body, snippet: null };
     const prefix = body.slice(0, 600); // first 600 chars — a near-complete body prefix
+    const deps = fakeDeps({
+      replies: [JSON.stringify({ summary: prefix, confidence: 0.9 })],
+      models: [{ tier: "economy" }]
+    });
+    const result = await extractEmailSignals(parsed, deps);
+    expect(result.summary).toBeNull();
+  });
+
+  it("nulls a 200+ char verbatim body PREFIX that is BELOW 50% of a long body (echo-guard)", async () => {
+    // Regression: a 200–600 char contiguous body prefix below BODY_RECONSTRUCTION_FRACTION used to
+    // slip the echo-guard and persist raw email text into summary. The summary substring check now
+    // drops any 200+ char verbatim body slice regardless of fraction.
+    const body = "Sensitive confidential paragraph number. ".repeat(80); // ~3280 chars
+    const parsed = { ...PARSED, body, snippet: null };
+    const prefix = body.slice(0, 250); // ~7.6% of the body — well below 50%
     const deps = fakeDeps({
       replies: [JSON.stringify({ summary: prefix, confidence: 0.9 })],
       models: [{ tier: "economy" }]
