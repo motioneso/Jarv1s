@@ -1,19 +1,55 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { sql } from "kysely";
-import { createDatabase, type JarvisDatabase } from "@jarv1s/db";
+import { DataContextRunner, createDatabase, type JarvisDatabase } from "@jarv1s/db";
 import type { Kysely } from "kysely";
-import { connectionStrings, resetFoundationDatabase } from "./test-database.js";
+import { ConnectorsRepository, createConnectorSecretCipher } from "@jarv1s/connectors";
+import { connectionStrings, ids, resetFoundationDatabase } from "./test-database.js";
 
 let appDb: Kysely<JarvisDatabase>;
+let dataContext: DataContextRunner;
+let workerDb: Kysely<JarvisDatabase>;
+let workerDataContext: DataContextRunner;
 
 beforeAll(async () => {
   await resetFoundationDatabase();
   appDb = createDatabase({ connectionString: connectionStrings.app });
+  dataContext = new DataContextRunner(appDb);
+  workerDb = createDatabase({ connectionString: connectionStrings.worker });
+  workerDataContext = new DataContextRunner(workerDb);
 });
 
 afterAll(async () => {
   await appDb.destroy();
+  await workerDb.destroy();
 });
+
+// IMPORTANT — test isolation. `upsertGoogleAccount` is a SINGLETON per user (keyed on
+// provider_id = GOOGLE_PROVIDER_ID): every call for the same actor OVERWRITES that user's
+// one google account (id + scopes). The connector-account row is seeded via the APP
+// DataContext (the worker has no INSERT grant on connector_accounts — see 0069 note); the
+// worker DataContext only ever READS it. Seed POSITIVE cases under `ids.userA`; the A4
+// cross-user invisibility case uses `ids.adminUser`, which no test ever gives an account.
+async function seedGoogleAccount(
+  scopes: string[],
+  actorUserId: string = ids.userA
+): Promise<string> {
+  const cipher = createConnectorSecretCipher();
+  const repo = new ConnectorsRepository();
+  return dataContext.withDataContext({ actorUserId, requestId: "test" }, async (scopedDb) => {
+    const account = await repo.upsertGoogleAccount(scopedDb, {
+      scopes,
+      encryptedSecret: cipher.encryptJson({ kind: "google-oauth" })
+    });
+    // Prove the precondition: the stored scopes are exactly what this test seeded.
+    const stored = await scopedDb.db
+      .selectFrom("app.connector_accounts")
+      .select("scopes")
+      .where("id", "=", account.id)
+      .executeTakeFirstOrThrow();
+    expect(new Set(stored.scopes)).toEqual(new Set(scopes));
+    return account.id;
+  });
+}
 
 describe("email_messages summary/signals columns (0067)", () => {
   it("has nullable summary and a jsonb signals column defaulting to {}", async () => {
@@ -171,5 +207,81 @@ describe("email RLS — worker role + google INSERT relax (0068)", () => {
     // The google branch is scope-gated: only an account holding the Gmail scope qualifies.
     expect(withCheck).toMatch(/https:\/\/www\.googleapis\.com\/auth\/gmail\.modify/);
     expect(withCheck).toMatch(/ANY \(accounts\.scopes\)/);
+  });
+});
+
+// Task A4 (was plan-placeholder 0068; re-derived to 0069 — 0068 was taken by the email
+// worker-grants migration that landed in A3). The google-sync worker (jarvis_worker_runtime)
+// must SELECT the actor's encrypted Google OAuth bundle and UPDATE the re-encrypted refreshed
+// token, while connector_accounts stay OWNER-ONLY (secrets are never shared cross-user).
+describe("connector_accounts RLS — worker role (0069)", () => {
+  it("the worker role reads the actor's active google account secret", async () => {
+    const accountId = await seedGoogleAccount(["https://www.googleapis.com/auth/calendar"]);
+    const repo = new ConnectorsRepository();
+    const secret = await workerDataContext.withDataContext(
+      { actorUserId: ids.userA, requestId: "test" },
+      (scopedDb) => repo.getActiveGoogleAccountSecret(scopedDb)
+    );
+    expect(secret?.id).toBe(accountId);
+  });
+
+  it("the worker role cannot see another user's connector account", async () => {
+    // Use ids.adminUser here: it is a third authenticated user (test-database.ts) that no test
+    // ever gives a connector account, so cross-user invisibility is asserted cleanly regardless
+    // of run order.
+    const repo = new ConnectorsRepository();
+    const secret = await workerDataContext.withDataContext(
+      { actorUserId: ids.adminUser, requestId: "test" },
+      (scopedDb) => repo.getActiveGoogleAccountSecret(scopedDb)
+    );
+    expect(secret).toBeUndefined();
+  });
+
+  it("grants the worker role SELECT/UPDATE on connector_accounts and SELECT on connector_definitions", async () => {
+    // aclexplode(relacl) surfaces grants to OTHER roles (information_schema is current-role only).
+    const grants = await sql<{ relname: string; privilege_type: string }>`
+      SELECT c.relname, a.privilege_type
+      FROM pg_class c
+      JOIN pg_namespace n ON n.oid = c.relnamespace
+      CROSS JOIN LATERAL aclexplode(c.relacl) AS a
+      JOIN pg_roles g ON g.oid = a.grantee
+      WHERE n.nspname = 'app'
+        AND c.relname IN ('connector_accounts', 'connector_definitions')
+        AND g.rolname = 'jarvis_worker_runtime'
+    `.execute(appDb);
+    const byTable = grants.rows.reduce<Record<string, Set<string>>>((acc, r) => {
+      (acc[r.relname] ??= new Set()).add(r.privilege_type);
+      return acc;
+    }, {});
+    expect(byTable.connector_accounts).toContain("SELECT");
+    expect(byTable.connector_accounts).toContain("UPDATE");
+    // OWNER-ONLY secrets: the worker is deliberately NOT granted INSERT on connector_accounts
+    // (connection creation stays app-runtime only).
+    expect(byTable.connector_accounts?.has("INSERT")).toBe(false);
+    expect(byTable.connector_definitions).toContain("SELECT");
+  });
+
+  it("keeps connector_accounts SELECT owner-only (no app.has_share arm) for both runtimes", async () => {
+    const roles = await sql<{ rolname: string }>`
+      SELECT g.rolname
+      FROM pg_policy p
+      CROSS JOIN LATERAL unnest(p.polroles) AS r(oid)
+      JOIN pg_roles g ON g.oid = r.oid
+      WHERE p.polrelid = 'app.connector_accounts'::regclass
+        AND p.polname = 'connector_accounts_select'
+    `.execute(appDb);
+    expect(new Set(roles.rows.map((r) => r.rolname))).toEqual(
+      new Set(["jarvis_app_runtime", "jarvis_worker_runtime"])
+    );
+    const policy = await sql<{ qual: string }>`
+      SELECT pg_get_expr(p.polqual, p.polrelid) AS qual
+      FROM pg_policy p
+      WHERE p.polrelid = 'app.connector_accounts'::regclass
+        AND p.polname = 'connector_accounts_select'
+    `.execute(appDb);
+    const qual = policy.rows[0]?.qual ?? "";
+    expect(qual).toMatch(/owner_user_id = app\.current_actor_user_id\(\)/);
+    // Secrets are never shared: no share-based read arm.
+    expect(qual).not.toMatch(/has_share/);
   });
 });
