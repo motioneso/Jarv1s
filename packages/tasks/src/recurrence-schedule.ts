@@ -1,5 +1,7 @@
 import type { PgBoss } from "pg-boss";
 
+import { assertMetadataOnlyPayload } from "@jarv1s/jobs";
+
 import type { RecurrenceMaterializePayload } from "./jobs.js";
 import { TASKS_RECURRENCE_QUEUE } from "./manifest.js";
 
@@ -28,6 +30,12 @@ export async function reconcileRecurrenceSchedule(
 ): Promise<void> {
   const data: RecurrenceMaterializePayload = { actorUserId };
   try {
+    // Defense-in-depth (mirrors briefings reconcileSchedule): boss.schedule does NOT route
+    // through sendJob's metadata guard, so assert the cron payload is metadata-only here too
+    // (Hard Invariant: metadata-only job payloads). `actorUserId` is in ALLOWED_PAYLOAD_KEYS
+    // today; this catches a future payload drift at the source. A throw here is caught by the
+    // surrounding failure-isolation catch and logged, never surfaced to the HTTP caller.
+    assertMetadataOnlyPayload(data as unknown as Record<string, unknown>);
     await boss.schedule(TASKS_RECURRENCE_QUEUE, recurrenceCronExpr(), data, {
       tz: RECURRENCE_SCHEDULE_TZ,
       key: actorUserId

@@ -116,4 +116,22 @@ describe("reconcileRecurrenceSchedule (failure isolation)", () => {
       reconcileRecurrenceSchedule(boss, "11111111-1111-1111-1111-111111111111")
     ).resolves.toBeUndefined();
   });
+
+  it("passes a metadata-only payload through the assertMetadataOnlyPayload guard to boss.schedule", async () => {
+    // Defense-in-depth: boss.schedule bypasses sendJob's metadata guard, so reconcile asserts
+    // the payload is metadata-only before scheduling. A valid {actorUserId} payload (the only key)
+    // must pass the guard and reach boss.schedule unchanged — no extra/content keys leak in.
+    let captured: Record<string, unknown> | undefined;
+    const boss = {
+      schedule: async (_name: string, _cron: string, data: Record<string, unknown>) => {
+        captured = data;
+      }
+    } as unknown as PgBoss;
+
+    await reconcileRecurrenceSchedule(boss, "11111111-1111-1111-1111-111111111111");
+
+    expect(captured).toEqual({ actorUserId: "11111111-1111-1111-1111-111111111111" });
+    // Only the allowed metadata key — no content/secret drift.
+    expect(Object.keys(captured ?? {})).toEqual(["actorUserId"]);
+  });
 });

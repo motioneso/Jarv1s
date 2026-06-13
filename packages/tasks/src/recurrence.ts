@@ -148,21 +148,38 @@ export async function rollForwardRecurringSeries(
   // is CRITICAL — a concurrent completion (generateNext path) can flip this row to 'done'
   // between our SELECT and UPDATE; without it we would mutate a completed historical row.
   // Owner predicate restated for defense-in-depth.
-  const updated = await db.db
-    .updateTable("app.tasks")
-    .set({
-      recurrence: nextRecurrence as unknown as Record<string, unknown>,
-      due_at: nextDueAt,
-      do_at: nextDoAt,
-      updated_at: new Date()
-    })
-    .where("id", "=", live.id)
-    .where("status", "=", "todo")
-    .where(sql<boolean>`(recurrence->>'occurrence_date') < ${today}`)
-    .where(sql<boolean>`owner_user_id = app.current_actor_user_id()`)
-    .executeTakeFirst();
+  //
+  // Unique-violation guard (mirrors generateNext): setting occurrence_date to newOccurrence
+  // can collide with a sibling row already at that date in this series — e.g. a 'done'
+  // historical instance, or a concurrent generateNext that minted newOccurrence between our
+  // SELECT and UPDATE. The `tasks_recurrence_occurrence_idx` unique index on
+  // (recurrence_series_id, (recurrence->>'occurrence_date')) then raises 23505. The series
+  // is already at-or-past `today` in that case (someone else converged it), so this is a
+  // benign no-op — swallow it rather than 500 the entire list load that triggered the
+  // lazy-on-view roll-forward.
+  try {
+    const updated = await db.db
+      .updateTable("app.tasks")
+      .set({
+        recurrence: nextRecurrence as unknown as Record<string, unknown>,
+        due_at: nextDueAt,
+        do_at: nextDoAt,
+        updated_at: new Date()
+      })
+      .where("id", "=", live.id)
+      .where("status", "=", "todo")
+      .where(sql<boolean>`(recurrence->>'occurrence_date') < ${today}`)
+      .where(sql<boolean>`owner_user_id = app.current_actor_user_id()`)
+      .executeTakeFirst();
 
-  return Number(updated.numUpdatedRows ?? 0n) > 0;
+    return Number(updated.numUpdatedRows ?? 0n) > 0;
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : String(err);
+    if (message.includes("tasks_recurrence_occurrence_idx") || message.includes("unique")) {
+      return false;
+    }
+    throw err;
+  }
 }
 
 /**

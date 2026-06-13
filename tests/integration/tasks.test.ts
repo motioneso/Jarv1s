@@ -1,3 +1,5 @@
+import { randomUUID } from "node:crypto";
+
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { sql, type Kysely } from "kysely";
 import type { PgBoss } from "pg-boss";
@@ -24,7 +26,8 @@ import {
   TaskBreakdownRepository,
   TaskListsRepository,
   TasksRepository,
-  registerTasksJobWorkers
+  registerTasksJobWorkers,
+  rollForwardRecurringSeries
 } from "@jarv1s/tasks";
 import type { TaskDto } from "@jarv1s/shared";
 import { connectionStrings, ids, resetFoundationDatabase } from "./test-database.js";
@@ -507,6 +510,63 @@ describe("Tasks module M1", () => {
     const occ = (live[0]!.recurrence as Record<string, unknown>)["occurrence_date"] as string;
     expect(occ).toBe(past);
     expect(occ < today).toBe(true);
+  });
+
+  it("rollForward survives a unique-occurrence collision (sibling already at the target date) — no 500, no-op", async () => {
+    // A stale live (todo) instance plus a sibling row (e.g. a completed historical instance)
+    // already sitting at the date roll-forward would advance to. The in-place UPDATE then trips
+    // tasks_recurrence_occurrence_idx (23505). Before the guard this threw and 500'd the whole
+    // list load; with the guard it is swallowed as a benign no-op (the series is already
+    // represented at the target date) and the stale live row is left untouched.
+    const today = new Date().toISOString().slice(0, 10);
+    const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+
+    // Live (todo) instance at today-7; weekly/interval-1 means roll-forward computes exactly `today`.
+    const live = await dataContext.withDataContext(userAContext(), (db) =>
+      repository.create(db, {
+        title: "collision-live",
+        recurrence: { freq: "weekly", interval: 1, occurrence_date: sevenDaysAgo }
+      })
+    );
+    const seriesId = live.recurrence_series_id!;
+
+    // Sibling (done) instance in the SAME series already occupying occurrence_date = today —
+    // the exact value the roll-forward UPDATE would set, guaranteeing the unique violation.
+    await dataContext.withDataContext(userAContext(), (db) =>
+      db.db
+        .insertInto("app.tasks")
+        .values({
+          id: randomUUID(),
+          owner_user_id: sql<string>`app.current_actor_user_id()`,
+          list_id: live.list_id,
+          title: "collision-done-sibling",
+          status: "done",
+          position: 0,
+          source: "recurrence",
+          recurrence: { freq: "weekly", interval: 1, occurrence_date: today } as unknown as Record<
+            string,
+            unknown
+          >,
+          recurrence_series_id: seriesId,
+          completed_at: new Date()
+        })
+        .execute()
+    );
+
+    // Must NOT throw — the collision (23505 on tasks_recurrence_occurrence_idx) is caught and
+    // treated as a benign no-op for THIS series. Drive the per-series path directly so the
+    // assertion is isolated to the collision series (other suite series are irrelevant here).
+    const rolled = await dataContext.withDataContext(userAContext(), (db) =>
+      rollForwardRecurringSeries(db, seriesId, today)
+    );
+    expect(rolled).toBe(false); // the collision series advanced nothing
+
+    // The stale live row is unchanged (still at today-7, still todo) — not corrupted.
+    const liveAfter = await dataContext.withDataContext(userAContext(), (db) =>
+      db.db.selectFrom("app.tasks").selectAll().where("id", "=", live.id).executeTakeFirstOrThrow()
+    );
+    expect(liveAfter.status).toBe("todo");
+    expect((liveAfter.recurrence as Record<string, unknown>)["occurrence_date"]).toBe(sevenDaysAgo);
   });
 
   it("keeps Tasks worker payloads metadata-only", async () => {
