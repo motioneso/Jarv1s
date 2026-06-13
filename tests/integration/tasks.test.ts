@@ -1225,4 +1225,55 @@ describe("Tasks module M1", () => {
     );
     expect(map.get(task.id)?.length).toBe(1);
   });
+
+  it("assignTag enforces same-list via trigger; unassignTag removes", async () => {
+    const listsRepo = new TaskListsRepository();
+    const listA = await dataContext.withDataContext(userAContext(), (db) =>
+      listsRepo.getOrCreate(db, "A")
+    );
+    const listB = await dataContext.withDataContext(userAContext(), (db) =>
+      listsRepo.getOrCreate(db, "B")
+    );
+    const tagB = await dataContext.withDataContext(userAContext(), (db) =>
+      listsRepo.createTag(db, listB.id, "X")
+    );
+    const task = await dataContext.withDataContext(userAContext(), (db) =>
+      repository.create(db, { title: "t", listId: listA.id })
+    );
+
+    await expect(
+      dataContext.withDataContext(userAContext(), (db) => listsRepo.assignTag(db, task.id, tagB.id))
+    ).rejects.toThrow(); // cross-list rejected by task_tag_list_match trigger
+
+    const tagA = await dataContext.withDataContext(userAContext(), (db) =>
+      listsRepo.createTag(db, listA.id, "Y")
+    );
+    await dataContext.withDataContext(userAContext(), (db) =>
+      listsRepo.assignTag(db, task.id, tagA.id)
+    );
+    let tags = await dataContext.withDataContext(userAContext(), (db) =>
+      repository.getTagsForTask(db, task.id)
+    );
+    expect(tags.map((t) => t.id)).toContain(tagA.id);
+
+    await dataContext.withDataContext(userAContext(), (db) =>
+      listsRepo.unassignTag(db, task.id, tagA.id)
+    );
+    tags = await dataContext.withDataContext(userAContext(), (db) =>
+      repository.getTagsForTask(db, task.id)
+    );
+    expect(tags).toHaveLength(0);
+
+    // Deterministic 404 for a missing task / missing tag (not a raw 500).
+    await expect(
+      dataContext.withDataContext(userAContext(), (db) =>
+        listsRepo.assignTag(db, "00000000-0000-0000-0000-000000000000", tagA.id)
+      )
+    ).rejects.toMatchObject({ statusCode: 404 });
+    await expect(
+      dataContext.withDataContext(userAContext(), (db) =>
+        listsRepo.assignTag(db, task.id, "00000000-0000-0000-0000-000000000000")
+      )
+    ).rejects.toMatchObject({ statusCode: 404 });
+  });
 });
