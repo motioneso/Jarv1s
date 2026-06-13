@@ -441,6 +441,9 @@ describe("google connect routes", () => {
         typeof registerConnectorsRoutes
       >[1]["resolveAccessContext"],
       dataContext,
+      // Sync-on-connect enqueues a best-effort google-sync job on POST /complete; a no-op
+      // fake boss keeps these OAuth-route tests focused on the connect flow (G2).
+      boss: { send: async () => null } as never,
       googleService
     });
     await server.ready();

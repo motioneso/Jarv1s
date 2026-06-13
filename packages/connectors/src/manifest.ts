@@ -4,6 +4,7 @@ import type { JarvisModuleManifest, ToolExecute } from "@jarv1s/module-sdk";
 import {
   createConnectorAccountRequestSchema,
   createConnectorAccountResponseSchema,
+  googleSyncResponseSchema,
   listAdminConnectorAccountsResponseSchema,
   listConnectorAccountsResponseSchema,
   listConnectorProvidersResponseSchema,
@@ -136,6 +137,12 @@ export const connectorsModuleManifest = {
     {
       method: "POST",
       path: "/api/connectors/google/complete",
+      permissionId: "connectors.manage"
+    },
+    {
+      method: "POST",
+      path: "/api/connectors/google/sync",
+      responseSchema: googleSyncResponseSchema,
       permissionId: "connectors.manage"
     }
   ],
