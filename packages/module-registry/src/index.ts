@@ -70,6 +70,11 @@ import { probeChatMultiplexerAvailability, resolveChatEngineFactory } from "./ch
 
 export type { ChatEngineFactory } from "@jarv1s/chat";
 
+export {
+  createActiveModulesResolver,
+  type ActiveModulesResolverDeps
+} from "./active-modules-resolver.js";
+
 export interface BuiltInRouteDependencies {
   // Raw root handle forwarded to settings' BootstrapHelper (pre-session countUsers).
   // Documented Kysely< exemption — see packages/settings/src/bootstrap.ts. This is the
