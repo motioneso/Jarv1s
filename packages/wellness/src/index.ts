@@ -14,3 +14,5 @@ export type {
 } from "./repository.js";
 export { serializeCheckin, serializeMedication, serializeMedicationLog } from "./serialize.js";
 export { computeSchedule } from "./schedule.js";
+export { registerWellnessRoutes } from "./routes.js";
+export type { WellnessRoutesDependencies } from "./routes.js";

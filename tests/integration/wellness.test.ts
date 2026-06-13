@@ -1,3 +1,4 @@
+import Fastify from "fastify";
 import { sql, type Kysely } from "kysely";
 import pg from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
@@ -12,6 +13,7 @@ import { WELLNESS_FEELING_CORES, createCheckinRequestSchema } from "@jarv1s/shar
 import {
   WellnessRepository,
   computeSchedule,
+  registerWellnessRoutes,
   wellnessModuleManifest,
   WELLNESS_MODULE_ID
 } from "@jarv1s/wellness";
@@ -317,5 +319,97 @@ describe("computeSchedule (pure)", () => {
     } as MedicationLog;
     const slots = computeSchedule([m], [log], date);
     expect(slots.find((s) => !s.asNeeded)?.status).toBe("taken");
+  });
+});
+
+describe("wellness REST routes", () => {
+  async function buildApp(actorUserId: string) {
+    const app = Fastify();
+    registerWellnessRoutes(app, {
+      resolveAccessContext: async () => ({ actorUserId, requestId: "req:route-test" }),
+      dataContext
+    });
+    await app.ready();
+    return app;
+  }
+
+  it("POST /api/wellness/checkins creates; GET lists owner-scoped", async () => {
+    const app = await buildApp(userId);
+    try {
+      const created = await app.inject({
+        method: "POST",
+        url: "/api/wellness/checkins",
+        payload: { feelingCore: "joyful", intensity: 5, sensations: ["warmth"] }
+      });
+      expect(created.statusCode).toBe(201);
+      expect(created.json().checkin.feelingCore).toBe("joyful");
+
+      const listed = await app.inject({ method: "GET", url: "/api/wellness/checkins?limit=5" });
+      expect(listed.statusCode).toBe(200);
+      expect(listed.json().checkins.length).toBeGreaterThan(0);
+    } finally {
+      await app.close();
+    }
+  });
+
+  it("POST a check-in with a feeling path mismatch is rejected 400", async () => {
+    const app = await buildApp(userId);
+    try {
+      // tertiary is not a leaf of the secondary under this core → invalid path.
+      const bad = await app.inject({
+        method: "POST",
+        url: "/api/wellness/checkins",
+        payload: {
+          feelingCore: "scared",
+          feelingSecondary: "anxious",
+          feelingTertiary: "not-a-leaf"
+        }
+      });
+      expect(bad.statusCode).toBe(400);
+    } finally {
+      await app.close();
+    }
+  });
+
+  it("POST a PRN dose log without prn_reason is rejected 400", async () => {
+    const app = await buildApp(userId);
+    try {
+      const med = await app.inject({
+        method: "POST",
+        url: "/api/wellness/medications",
+        payload: { name: "Ibuprofen", frequencyType: "as_needed" }
+      });
+      const medId = med.json().medication.id as string;
+
+      const bad = await app.inject({
+        method: "POST",
+        url: `/api/wellness/medications/${medId}/logs`,
+        payload: { status: "prn" }
+      });
+      expect(bad.statusCode).toBe(400);
+    } finally {
+      await app.close();
+    }
+  });
+
+  it("GET /api/wellness/medications/schedule returns slots for today", async () => {
+    const app = await buildApp(userId);
+    try {
+      await app.inject({
+        method: "POST",
+        url: "/api/wellness/medications",
+        payload: { name: "Vitamin D", frequencyType: "once_daily", scheduleTimes: ["09:00"] }
+      });
+      const today = new Date().toISOString().slice(0, 10);
+      const sched = await app.inject({
+        method: "GET",
+        url: `/api/wellness/medications/schedule?date=${today}`
+      });
+      expect(sched.statusCode).toBe(200);
+      expect(sched.json().date).toBe(today);
+      expect(Array.isArray(sched.json().slots)).toBe(true);
+    } finally {
+      await app.close();
+    }
   });
 });
