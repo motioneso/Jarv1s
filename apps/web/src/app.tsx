@@ -56,9 +56,13 @@ export function App() {
   // request errors we cannot prove the actor is enabled, so we redirect rather than risk
   // rendering the health-data UI for a disabled actor (Codex code-review).
   const myModulesEnabled = (moduleId: string): "loading" | "enabled" | "denied" => {
-    if (myModulesQuery.isSuccess) return disabledModuleIds.includes(moduleId) ? "denied" : "enabled";
-    if (myModulesQuery.isError) return "denied"; // fail closed
-    return "loading";
+    if (myModulesQuery.isError) return "denied"; // fail closed: cannot prove enabled
+    if (!myModulesQuery.isSuccess) return "loading";
+    // Affirmative enablement only: require an explicit active row. "Not listed" (backend skew,
+    // partial/malformed response) is NOT proof of enablement for a health-data route — deny it
+    // (Codex code-review R3).
+    const module = myModulesQuery.data.modules.find((m) => m.id === moduleId);
+    return module?.active === true ? "enabled" : "denied";
   };
   const wellnessGate = myModulesEnabled("wellness");
   const ownerForOnboarding = isBootstrapOwner(meQuery.data);
