@@ -121,9 +121,15 @@ test("lists and marks notifications read through REST calls", async ({ page }) =
   await expect(page.getByText("No notifications")).toBeVisible();
 });
 
-test("Calendar and Email pages show coming-soon state", async ({ page }) => {
+test("Calendar and Email pages render their real (empty) data views", async ({ page }) => {
+  // The retired coming-soon placeholders were replaced by real React-Query pages
+  // in Phase 3 connector-sync (H2/H3). With no cached data the pages show their
+  // empty states, not the old "coming soon" copy. Full data rendering is covered
+  // by tests/e2e/calendar-email.spec.ts.
   await mockApi(page, {
     authenticated: true,
+    calendarEvents: [],
+    emailMessages: [],
     connectorAccounts: [],
     connectorProviders: createMockConnectorProviders(),
     notifications: [],
@@ -131,12 +137,14 @@ test("Calendar and Email pages show coming-soon state", async ({ page }) => {
   });
 
   await page.goto("/calendar");
-  await expect(page.getByRole("heading", { name: "Calendar" })).toBeVisible();
-  await expect(page.getByText("Calendar is coming soon.")).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Calendar", level: 1 })).toBeVisible();
+  await expect(page.getByText("No upcoming events")).toBeVisible();
+  await expect(page.getByText("Calendar is coming soon.")).toHaveCount(0);
 
   await page.locator(".module-nav").getByRole("link", { name: "Email" }).click();
-  await expect(page.getByRole("heading", { name: "Email" })).toBeVisible();
-  await expect(page.getByText("Email is coming soon.")).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Email", level: 1 })).toBeVisible();
+  await expect(page.getByText("No email messages")).toBeVisible();
+  await expect(page.getByText("Email is coming soon.")).toHaveCount(0);
 });
 
 test("connector accounts panel shows existing accounts and supports revoke", async ({ page }) => {
