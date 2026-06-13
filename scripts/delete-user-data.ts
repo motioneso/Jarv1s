@@ -263,6 +263,20 @@ function readFlag(args: readonly string[], name: string): string | undefined {
   return value;
 }
 
-if (process.argv[1] && fileURLToPath(import.meta.url) === resolve(process.argv[1])) {
+// Run the CLI only when this file is executed directly (tsx scripts/delete-user-data.ts),
+// never when it is imported as a library (packages/settings/src/routes.ts reuses
+// deleteUserData) and — critically — never when esbuild bundles it into a resident
+// entrypoint (deployable-stack §5): in a bundle import.meta.url collapses to the
+// bundle's own URL (e.g. .../dist/server.js), so the path-equality alone would
+// misfire. Requiring import.meta.url to still point at THIS script's filename keeps
+// the guard false inside any bundle.
+const isThisModuleEntry =
+  import.meta.url.endsWith("delete-user-data.ts") ||
+  import.meta.url.endsWith("delete-user-data.js");
+if (
+  isThisModuleEntry &&
+  process.argv[1] &&
+  fileURLToPath(import.meta.url) === resolve(process.argv[1])
+) {
   await main();
 }
