@@ -52,3 +52,88 @@ _(appended as the run proceeds)_
 - **P3/P4/P5 PLAN-REVIEW launched** (wdpthbtn9, 6 agents, non-committers) in parallel with the CLI code-review.
 - **CLI ADAPTER ✅ FULLY DONE** — code-review APPROVED (2 rounds, e7cec29): added orphan-session cleanup on partial-launch failure + admin-route HTTP tests; rejected a module-isolation-breaking suggestion for a lighter in-module allowlist guard. Slice 1/10 complete.
 - **MODULE-SEAM BUILD ✅** — 13 commits (215891c..338605a), 0 blocked, typecheck green. Recurring plan-defect the build auto-fixed (measure-twice working): the plan-authoring used per-package `test/` dirs but root vitest only collects `tests/` → agents relocated unit tests to `tests/unit/` consistently. (Other plans likely share this; build agents fix per-task.) Module-seam **code-review launched** (wma7gjikf). Slice 2/10 building→review.
+- **MODULE-SEAM ✅ FULLY DONE** — code-review APPROVED (r3, 0 fixes); the lone Codex finding (parameterized partial-index ON CONFLICT) was empirically disproved by the arbiter (ran the SQL twice on live PG17 → idempotent) and withdrawn. Slice 2/10 complete.
+- **DEPLOY ✅ FULLY DONE** — build 14 commits (a20456f..ab25d28, 0 blocked, green): multi-stage Dockerfile, nginx web image, prod compose, esbuild bundler, GHCR job, systemd unit, reboot-survival, SIGTERM. Code-review APPROVED (r3) fixing **5 real deploy bugs** (env_file path; weak-DB-password via env_file-no-interpolation; false-green reboot probe ×2; ADR-0008 probe violation) → commits 85bb150, 2fce0a6. Durable lesson saved to memory [[deploy-compose-env-trap]]. Slice 3/10 complete.
+- **PRIMARY-ONBOARDING ✅ FULLY DONE** — build 13 commits (2fce0a6..ffbfd49 incl. review fix, green): herdrAvailable probe, shared contracts, settings repo+routes (status/complete/skip, audited, fail-closed), web wizard+steps+overlay, app.tsx branch, e2e. Code-review APPROVED (r2) fixing 1 HIGH (routes were any-admin → now bootstrap-owner-only via assertBootstrapOwnerAdminUser; ffbfd49). Slice 4/10 complete. **🎉 PHASE 2 = 4/4 DONE.**
+- **PHASE 2 CHECKPOINT GREEN** — full `pnpm lint` + `check:file-size` + `format:check` pass (typecheck green per reviews); prettier-formatted all phase2-5 docs; committed 8142d7a.
+- **CONNECTOR-SYNC BUILD ⏳** — slice 5/10 building (workflow wcy7d52t1), 27 tasks; foundation done (email triage-columns migration, worker grants on cal/email/connector tables, scope-gated provider_type='google' INSERT-RLS relax — the M-B1 blocker, idempotent upserts); Google client + email LLM pass + basic pages remaining.
+
+---
+
+## 🔄 RESUME STATE (cold-start instructions — read this first after any compaction)
+
+**Where we are:** Phase 2 = 4/4 slices FULLY DONE (build + Codex code-review APPROVED + green), committed on branch `phase2-portable-deploy`. Connector-sync (Phase 3 #1) is BUILDING via background workflow `wcy7d52t1`.
+
+**Build queue (dependency order) — for each: build → verify green → Codex code-review → fix → next:**
+
+1. ✅ CLI chat adapter · 2. ✅ module-enablement seam · 3. ✅ deployable stack · 4. ✅ primary onboarding
+2. ⏳ connector-sync (`docs/superpowers/plans/2026-06-13-p3-connector-sync-engine.md`) — BUILDING
+3. real-briefings (`…2026-06-13-p3-real-briefings.md`)
+4. task-verticals (`…2026-06-13-p3-task-verticals.md`)
+5. focus-time-agency (`…2026-06-13-p3-focus-time-agency.md`)
+6. P4 secondary-user-onboarding (`…2026-06-13-p4-secondary-user-onboarding.md`)
+7. P5 wellness-module (`…2026-06-13-p5-wellness-module.md`)
+   — Design-direction (`…2026-06-13-p3-design-direction.md`) = DEFERRED, do NOT build (Ben's UI session).
+   ALL 10 plans are already Codex PLAN-reviewed (no more plan-review needed). UI everywhere = BASIC functional only.
+
+**How to run each remaining slice (reuse the saved workflow scripts as templates — edit PLAN/SLICE/MAX_TASKS):**
+
+- BUILD: template `…/workflows/scripts/build-connector-sync-wf_d3bae5a2-c46.js` (or any build-\* script). Pattern = one agent per plan task, sequential loop 1..MAX_TASKS, schema {task,status,summary,commit,deviations,blocker}, agents RESOLVE plan defects (don't halt), NEVER `git add -A` (explicit paths only — other docs are uncommitted), Co-Authored-By: Claude Opus 4.8 trailer, break on plan-complete/blocked.
+- CODE-REVIEW: template `…/workflows/scripts/code-review-deployable-stack-wf_298241a2-507.js`. Pattern = 1 agent, diff base = the commit JUST BEFORE the slice's first build commit (find via `git log --oneline`), runs `codex exec --dangerously-bypass-approvals-and-sandbox --json -o /tmp/codex-code-<key>.txt "<adversarial prompt>"`, parses thread.started, arbiter-fixes material findings + commits, resumes ≤3 rounds to APPROVED.
+- Codex MUST use `--dangerously-bypass-approvals-and-sandbox` (read-only sandbox can't init here — bwrap loopback; see memory [[codex-sandbox-workaround]]). Do NOT pin `-m`.
+
+**Invariants for the run:** ONE committing workflow at a time on the branch (a build OR a code-review; never two). Migration numbers are global-by-landing-order — re-derive next-free at build (0065=module-seam taken; connector-sync uses 0066+). Honor all CLAUDE.md Hard Invariants. Do NOT merge to main — Ben reviews `phase2-portable-deploy` in the morning. Don't pause for design forks — append them to the "Design forks" section above.
+
+**When ALL slices done:** run full `pnpm verify:foundation` + `pnpm audit:release-hardening`; refresh the status table; commit this log; save an end-of-run memory; write the morning summary. Then stop (await Ben).
+
+---
+
+## ⚡ PARALLELIZATION STRATEGY (decided 2026-06-13, after dependency analysis wf_2b6df9ec-0af)
+
+Ben asked whether slices are a linear chain so we can run parallel agents. **They are not.** A read-only
+per-plan analysis (6 agents) + synthesis produced the real dependency DAG and a parallel-build/serial-integrate plan.
+
+**Verified dependency DAG (logical = consumes another slice's tables/APIs/types):**
+
+- `connector-sync → real-briefings` (soft/quality), `connector-sync → focus-time-agency` (HARD: focus-time extends GoogleApiClient + consumes CalendarRepository.upsertCachedEvent + the calendar google-INSERT relax).
+- `task-verticals` → no cross-slice deps (self-contained in tasks module).
+- `p4-secondary-onboarding` → only the Phase-2 onboarding seam (LANDED). `p5-wellness-module` → only the Phase-2 module-enablement seam (LANDED).
+
+**The binding constraint is NOT logical deps — it's the merge/migration tax:**
+
+- **Migration numbering** is global-by-landing-order and already past the plans' authored numbers: connector-sync took 0066–0069, **next-free = 0070**. Pre-assign DISJOINT ranges so parallel worktrees never race: real-briefings `0070-0072`, task-verticals `0073`, p4 `0074`, p5 `0075-0077`, focus-time = NONE (exempt).
+- **~8 shared hub files** (`module-registry/index.ts`, `shared/platform-api.ts`, `shared/tasks-api.ts`, `apps/web/src/app.tsx`, `api/client.ts`, `api/query-keys.ts`, `apps/worker/src/worker.ts`) are touched by multiple slices → worktree isolation protects the bulk (new packages/pages/tests) but these must be hand-reconciled at SERIAL integration.
+
+**Execution model (UPDATED — supersedes the old "one committing workflow at a time"):**
+ONE committer per _branch/tree_; **parallel committers ARE allowed in ISOLATED worktrees + isolated DBs**;
+**integration back into `phase2-portable-deploy` is strictly serial** with a full `verify:foundation` between every merge.
+
+- **Phase 1 (now):** finish connector-sync → its Codex code-review → land on `phase2-portable-deploy` = the **baseline**.
+- **Phase 2 (parallel build, serial integrate):** 4 worktrees off baseline (`real-briefings`, `task-verticals`, `p4`, `p5`), each its own DB + pre-assigned migration range, each build → in-worktree Codex code-review. Merge order (conflict-minimizing): **task-verticals → real-briefings → p4 → p5**, `verify:foundation` between each.
+- **Phase 3 (last, alone):** `focus-time-agency` (hard dep on connector-sync code + deepest shared-contract edits) → review → integrate → final `verify:foundation` + `audit:release-hardening`.
+
+**Isolation harness VALIDATED (2026-06-13):** `CREATE DATABASE jarvis_<slice>` + `JARVIS_PGDATABASE=… pnpm db:migrate`
+yields a DB identical to default jarv1s (39 `app` tables + 8 pgboss + pgvector). Reusable setup: `/tmp/wt-setup.sh <slice> <baseline>`
+(creates worktree+branch, gitignored `./jx` DB-pinning wrapper, `pnpm install`, isolated DB+migrate). Build agents in a worktree
+MUST run every pnpm/db/test command via `./jx` so they never touch the default DB; NEVER `pnpm db:down` (shared Postgres).
+
+---
+
+## Event log (cont. 2026-06-13)
+
+- **CONNECTOR-SYNC BUILD ✅** — 28 tasks done, 1 plan-complete, 0 blocked (commits `ec2884b..db13051`, 28). Build auto-resolved migration renumbering 0065→0066-0069 (A0 honored: 0065 was taken by module-seam) and the A2/A3/A4 grant-vs-policy ordering (made A2 assert at catalog level, end-to-end worker INSERT proven at A4+B1). Fast gate green: lint, format:check, check:file-size, typecheck all exit 0.
+- **CONNECTOR-SYNC CODE-REVIEW** (`whh5gfdia`) — Codex 3 rounds, **REVISE-deadlock at round cap** but substantively converged: 3 real PRIVACY/exfiltration fixes on LLM-derived email fields → `2bc08e3` (per-field signals sanitizer + economy-tier-only), `c80a823` (cumulative body-reconstruction guard), `96fa3fb` (summary full-body containment). The r3 fix landed after Codex's last REVISE with no 4th pass (cap). Arbiter affirmed all hard invariants hold; typecheck green + 93 targeted tests green (incl. RLS scope-guard fail-closed). Durable lesson saved → memory `llm-field-exfiltration-defense`.
+- **CONNECTOR-SYNC CONFIRMATION** (`w8g0dt4mk`) — fresh Codex pass on the final state (privacy guards + invariant sweep) to convert the round-cap REVISE into a confirmed verdict BEFORE forking 4 parallel worktrees off this baseline. ⏳ running. (This slice = the integration baseline; it must be clean before Batch 2.)
+- **BATCH-2 MACHINERY STAGED** — `/tmp/wt-setup.sh` (validated worktree+DB isolation) + `/tmp/build-slice-wf.js` (parameterized build→in-worktree-Codex-review per slice). Buffered disjoint migration ranges: real-briefings `0070-74`, task-verticals `0075-78`, p4 `0079-81`, p5 `0082-86`. Plan: pilot task-verticals first, then fan out real-briefings/p4/p5; serial-integrate in order with verify:foundation between each; focus-time-agency last.
+
+- **CONNECTOR-SYNC ✅ FULLY DONE (slice 5/10)** — confirmation pass (`w8g0dt4mk`) returned **APPROVED** (r1 REVISE → r2 APPROVED) after catching **2 MORE material issues the 3-round review missed**, both fixed in `f22701d`: (1) summary body-PREFIX exfiltration (containment guard ran after 600-char truncation → a ~600-char verbatim prefix of a longer body slipped past; now guards raw summary pre-truncation incl. long-verbatim-substring check); (2) economy-tier not actually enforced (selectModel('economy') walks the ladder UP + falls back to any active model → now rejects any resolved tier≠economy, returns metadata-only before sending the body). Codex independently re-ran 529 tests green. **Baseline for Batch 2 = `f22701d`.** Lesson [[llm-field-exfiltration-defense]]. (Confirmation-pass discipline justified — never accept a round-cap REVISE on privacy/RLS code.)
+- **BATCH-2 PILOT LAUNCHED** — task-verticals worktree ready (`/home/ben/jarv1s-wt-task-verticals`, branch `build/task-verticals`, db `jarvis_task_verticals` 39 tables, off `f22701d`); build+review workflow `w935f5r5f` running. Validating the worktree/DB/`./jx`/migration-range contract on this pilot (checkpoint watcher `bt15w2fw8`) BEFORE fanning out real-briefings/p4/p5 in parallel.
+
+- **PILOT VALIDATED + BATCH-2 FANNED OUT** — task-verticals pilot proved the contract: (a) the broken-args spawn was caught by the STEP-0 guard (agent refused to touch main repo, 0 commits — safety property confirmed); root cause = `args` delivered as a JSON string → fixed build-slice-wf.js with a defensive `JSON.parse`; (b) relaunch committed cleanly to `build/task-verticals` with main UNCHANGED at f22701d and zero leak into default jarv1s. Branch isolation (the integration-critical property) PROVEN; migration files are committed per-branch so integration correctness doesn't depend on test-DB choice; serial-integration verify:foundation is the backstop. **4 parallel build+review workflows now live** off f22701d: task-verticals `w1ucrjrbl` (jarvis_task_verticals, 0075-78), real-briefings `wvr2nz5co` (jarvis_real_briefings, 0070-74), p4 `w2fgom2xf` (jarvis_p4_secondary_onboarding, 0079-81), p5 `wx4vcejzv` (jarvis_p5_wellness_module, 0082-86). Each = build (sequential tasks, ./jx DB-pinned) → in-worktree Codex code-review. Disjoint pre-assigned ranges → no renumber at integration. **Serial integration order on completion: task-verticals → real-briefings → p4 → p5** (verify:foundation between each), then focus-time-agency last.
+
+- **GITHUB SYNCED (per Ben's request, 2026-06-13)** — pushed `phase2-portable-deploy` to origin (was local-only; now backs up Phase 2 + connector-sync through f22701d). Posted point-in-time status comments on epics #47 (Phase 2 build-complete, pending review+merge), #48 (Phase 3: connector-sync done, real-briefings/task-verticals building, focus-time queued, design-direction deferred), #49 (P4 building), #50 (P5 building), and #16 (design-direction deferred → UI session, research+plan ready). Moved epics #47-50 Todo→In Progress on the board (#46 stays Done). Did NOT close any epic/milestone (work is on a branch, not merged/final-verified) and did NOT open a PR yet (branch still receiving Batch-2 integration merges; PR best opened when integration-complete). #40/#41 will close when task-verticals integrates.
+
+- **P4-SECONDARY-ONBOARDING ✅ build+review (HELD for integration order)** — 14 tasks; in-worktree Codex review APPROVED (r2) with a HIGH security fix (removed onboarding.member_complete write to admin-wide admin_audit_events → was a member-onboarding leak to admins), a HIGH crash fix (BrowserRouter wrap for member steps' react-router Links), type-integrity + a regression guard. Validated on isolated jarvis_p4_secondary_onboarding (12/12 + 13 isolation). Branch `build/p4-secondary-onboarding` @ bd54f5b. Integration order = 3rd (after task-verticals, real-briefings).
+- **./jx LEAK NOTED (harmless)** — p4 leaked migration 0079 into the default jarv1s test DB (one bare command without ./jx). Blast radius contained: the other 3 slices' ranges are ABSENT from default; each isolated DB holds exactly its own range (tv 0075, rb 0070-71, p5 0082-84). Harmless because (a) p4's real tests ran on its isolated DB, (b) migration FILES are committed per-branch so integration applies 0079 to the real trunk regardless, (c) 0079 is additive. Confirms the design call: BRANCH isolation (proven) is the integration-critical property; per-DB isolation is a test-reliability nicety with a self-correcting backstop (a bare cmd against a wrong-schema DB fails loudly) + the serial-integration verify:foundation. No cleanup needed; final trunk db:migrate reconciles default.
+
+- **P5-WELLNESS build COMPLETE but BLOCKED on inherited baseline gate (task 21)** — p5 built all feature tasks (checkins 0082, medications 0083/0084 incl. a SECURITY DEFINER→INVOKER trigger fix for owner-equality under FORCE RLS, etc.) in isolated jarvis_p5_wellness_module, but its final gate failed `check:file-size` on `tests/integration/google-sync.test.ts` (1131 lines) — a CONNECTOR-SYNC file in baseline f22701d. The agent correctly refused to split another slice's file and escalated. **ROOT CAUSE (my gap):** I ran check:file-size on the connector-sync BUILD (db13051) but the 3-round code-review + confirmation ADDED privacy tests to google-sync.test.ts, growing it 1000→1131, and I baselined f22701d without re-running check:file-size after the review commits. p5's in-worktree code-review was SKIPPED (build blocked) — p5 still needs its review after the baseline fix. **FIX:** decompose google-sync.test.ts on the trunk (connector-sync domain), then resume p5.
