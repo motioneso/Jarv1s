@@ -18,7 +18,7 @@ import { registerMockAiRoutes, type MockAiApiState } from "./mock-ai-api.js";
 import { registerMockBriefingsRoutes, type MockBriefingsApiState } from "./mock-briefings-api.js";
 import { registerMockChatRoutes } from "./mock-chat-api.js";
 import { registerMockConnectorRoutes, type MockConnectorsApiState } from "./mock-connectors-api.js";
-import { modulesResponse } from "./mock-modules.js";
+import { modulesResponse, myModulesResponse } from "./mock-modules.js";
 import {
   registerMockOnboardingRoutes,
   type MockOnboardingApiState
@@ -142,6 +142,13 @@ export async function mockApi(page: Page, state: MockApiState): Promise<void> {
   await page.route("**/api/modules", (route) =>
     state.authenticated
       ? fulfillJson(route, 200, modulesResponse)
+      : fulfillJson(route, 401, { error: "Session is missing or expired" })
+  );
+  // The shell also fetches /api/me/modules for per-actor enablement flags; every module is
+  // reported active so existing specs keep their full nav (nav hides only on explicit disable).
+  await page.route("**/api/me/modules", (route) =>
+    state.authenticated
+      ? fulfillJson(route, 200, myModulesResponse)
       : fulfillJson(route, 401, { error: "Session is missing or expired" })
   );
   await page.route("**/api/admin/auth/providers", (route) =>

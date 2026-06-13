@@ -20,6 +20,11 @@ import type {
   BreakdownTaskResponse,
   CreateBriefingDefinitionRequest,
   CreateBriefingDefinitionResponse,
+  CreateCheckinRequest,
+  CreateCheckinResponse,
+  CreateMedicationLogRequest,
+  CreateMedicationLogResponse,
+  CreateMedicationRequest,
   CreateTaskListRequest,
   CreateTaskListResponse,
   CreateTaskTagRequest,
@@ -43,11 +48,14 @@ import type {
   ListBriefingDefinitionsResponse,
   ListBriefingRunsResponse,
   ListCalendarEventsResponse,
+  ListCheckinsResponse,
   ListChatThreadsResponse,
   ListConnectorAccountsResponse,
   ListConnectorProvidersResponse,
   ListEmailMessagesResponse,
+  ListMedicationsResponse,
   ListModulesResponse,
+  ListMyModulesResponse,
   ListNotificationsResponse,
   ListTaskActivityResponse,
   ListTaskListsResponse,
@@ -55,6 +63,8 @@ import type {
   ListTasksResponse,
   MarkAllNotificationsReadResponse,
   MarkNotificationReadResponse,
+  MedicationResponse,
+  MedicationScheduleResponse,
   MeResponse,
   OnboardingStatusResponse,
   OnboardingCompleteResponse,
@@ -71,6 +81,7 @@ import type {
   UpdateAiProviderConfigResponse,
   UpdateConnectorAccountRequest,
   UpdateConnectorAccountResponse,
+  UpdateMedicationRequest,
   UpdateTaskPreferencesRequest,
   UpdateTaskPreferencesResponse,
   UpdateTaskRequest,
@@ -113,6 +124,10 @@ export async function getMe(): Promise<MeResponse> {
 
 export async function getModules(): Promise<ListModulesResponse> {
   return requestJson<ListModulesResponse>("/api/modules");
+}
+
+export async function getMyModules(): Promise<ListMyModulesResponse> {
+  return requestJson<ListMyModulesResponse>("/api/me/modules");
 }
 
 /** Bounded so a hung status read can never trap the founder before the app shell (Codex R2 #2). */
@@ -318,6 +333,58 @@ export async function updateTaskPreferences(
     method: "PATCH",
     body: input
   });
+}
+
+export async function listWellnessCheckins(): Promise<ListCheckinsResponse> {
+  return requestJson<ListCheckinsResponse>("/api/wellness/checkins?limit=50");
+}
+
+export async function createWellnessCheckin(
+  input: CreateCheckinRequest
+): Promise<CreateCheckinResponse> {
+  return requestJson<CreateCheckinResponse>("/api/wellness/checkins", {
+    method: "POST",
+    body: input
+  });
+}
+
+export async function listMedications(): Promise<ListMedicationsResponse> {
+  return requestJson<ListMedicationsResponse>("/api/wellness/medications");
+}
+
+export async function createMedication(
+  input: CreateMedicationRequest
+): Promise<MedicationResponse> {
+  return requestJson<MedicationResponse>("/api/wellness/medications", {
+    method: "POST",
+    body: input
+  });
+}
+
+export async function updateMedication(
+  id: string,
+  input: UpdateMedicationRequest
+): Promise<MedicationResponse> {
+  return requestJson<MedicationResponse>(`/api/wellness/medications/${encodeURIComponent(id)}`, {
+    method: "PATCH",
+    body: input
+  });
+}
+
+export async function getMedicationSchedule(date: string): Promise<MedicationScheduleResponse> {
+  return requestJson<MedicationScheduleResponse>(
+    `/api/wellness/medications/schedule?date=${encodeURIComponent(date)}`
+  );
+}
+
+export async function logMedicationDose(
+  medicationId: string,
+  input: CreateMedicationLogRequest
+): Promise<CreateMedicationLogResponse> {
+  return requestJson<CreateMedicationLogResponse>(
+    `/api/wellness/medications/${encodeURIComponent(medicationId)}/logs`,
+    { method: "POST", body: input }
+  );
 }
 
 export async function listNotifications(): Promise<ListNotificationsResponse> {

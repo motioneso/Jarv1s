@@ -1,7 +1,15 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import type { ReactNode } from "react";
 import { BrowserRouter, Navigate, Route, Routes } from "react-router";
 
-import { ApiError, getBootstrapStatus, getMe, getModules, getOnboardingStatus } from "./api/client";
+import {
+  ApiError,
+  getBootstrapStatus,
+  getMe,
+  getModules,
+  getMyModules,
+  getOnboardingStatus
+} from "./api/client";
 import { queryKeys } from "./api/query-keys";
 import { AuthScreen } from "./auth/auth-screen";
 import { shouldShowOnboarding } from "./onboarding/resume";
@@ -14,6 +22,7 @@ import { SettingsPage } from "./settings/settings-page";
 import { AppShell } from "./shell/app-shell";
 import { TaskDetailPage } from "./tasks/task-detail-page";
 import { TasksPage } from "./tasks/tasks-page";
+import { WellnessPage } from "./wellness/wellness-page";
 
 export function App() {
   const queryClient = useQueryClient();
@@ -36,6 +45,30 @@ export function App() {
   // role-appropriate status (founder = instance-global; member = per-user). Pending/deactivated
   // identities never reach here (handled by the error branches below before the shell renders).
   const activeForOnboarding = meQuery.data?.user.status === "active";
+  const myModulesQuery = useQuery({
+    enabled: meQuery.isSuccess,
+    queryKey: queryKeys.myModules,
+    queryFn: () => getMyModules(),
+    retry: false
+  });
+  const disabledModuleIds =
+    myModulesQuery.data?.modules.filter((m) => !m.active).map((m) => m.id) ?? [];
+  // A disabled module's SPA route must not render its UI on a deep-link, not just hide its
+  // nav entry — for a health-data module that means the page (and its API calls) never mount
+  // for a disabled actor. We can only confirm the module is ENABLED once /api/me/modules
+  // resolves successfully; until then the gate shows a loader. The gate FAILS CLOSED: if that
+  // request errors we cannot prove the actor is enabled, so we redirect rather than risk
+  // rendering the health-data UI for a disabled actor (Codex code-review).
+  const myModulesEnabled = (moduleId: string): "loading" | "enabled" | "denied" => {
+    if (myModulesQuery.isError) return "denied"; // fail closed: cannot prove enabled
+    if (!myModulesQuery.isSuccess) return "loading";
+    // Affirmative enablement only: require an explicit active row. "Not listed" (backend skew,
+    // partial/malformed response) is NOT proof of enablement for a health-data route — deny it
+    // (Codex code-review R3).
+    const module = myModulesQuery.data.modules.find((m) => m.id === moduleId);
+    return module?.active === true ? "enabled" : "denied";
+  };
+  const wellnessGate = myModulesEnabled("wellness");
   const onboardingQuery = useQuery({
     enabled: activeForOnboarding,
     queryKey: queryKeys.onboarding.status,
@@ -132,6 +165,7 @@ export function App() {
         me={meQuery.data}
         modules={modulesQuery.data?.modules ?? []}
         modulesLoading={modulesQuery.isLoading}
+        disabledModuleIds={disabledModuleIds}
       >
         <Routes>
           <Route index element={<Navigate to="/tasks" replace />} />
@@ -141,12 +175,35 @@ export function App() {
           <Route path="/calendar" element={<CalendarPage />} />
           <Route path="/email" element={<EmailPage />} />
           <Route path="/briefings" element={<BriefingsPage />} />
+          <Route
+            path="/wellness"
+            element={
+              <ModuleGatedRoute gate={wellnessGate}>
+                <WellnessPage />
+              </ModuleGatedRoute>
+            }
+          />
           <Route path="/settings" element={<SettingsPage me={meQuery.data} />} />
           <Route path="*" element={<Navigate to="/tasks" replace />} />
         </Routes>
       </AppShell>
     </BrowserRouter>
   );
+}
+
+/**
+ * Renders a module's SPA route only when the actor's per-user module state proves the module
+ * is enabled. "loading" → a loader (no flash of the gated UI); "denied" (disabled OR the
+ * state request errored — fail closed) → redirect to /tasks so the gated UI never mounts;
+ * "enabled" → render the children.
+ */
+function ModuleGatedRoute(props: {
+  readonly gate: "loading" | "enabled" | "denied";
+  readonly children: ReactNode;
+}) {
+  if (props.gate === "loading") return <LoadingScreen />;
+  if (props.gate === "denied") return <Navigate to="/tasks" replace />;
+  return <>{props.children}</>;
 }
 
 function LoadingScreen() {

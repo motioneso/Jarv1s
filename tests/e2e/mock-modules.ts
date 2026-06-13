@@ -1,4 +1,4 @@
-import type { ListModulesResponse } from "@jarv1s/shared";
+import type { ListModulesResponse, ListMyModulesResponse } from "@jarv1s/shared";
 
 export const modulesResponse: ListModulesResponse = {
   modules: [
@@ -147,4 +147,22 @@ export const modulesResponse: ListModulesResponse = {
       settings: []
     }
   ]
+};
+
+/**
+ * Per-actor enablement flags for the same module set, all active — the shell hides nav only
+ * for modules the actor has explicitly disabled, so the default fixture keeps the full nav.
+ */
+export const myModulesResponse: ListMyModulesResponse = {
+  modules: modulesResponse.modules.map((module) => ({
+    id: module.id,
+    name: module.name,
+    version: module.version,
+    lifecycle: module.lifecycle,
+    required: module.lifecycle === "required",
+    supportsUserDisable: module.lifecycle === "user-toggleable",
+    instanceDisabled: false,
+    userDisabled: false,
+    active: true
+  }))
 };
