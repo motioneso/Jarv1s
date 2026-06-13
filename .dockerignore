@@ -1,0 +1,27 @@
+# Keep the Docker build context small and never leak host artifacts/secrets.
+node_modules
+**/node_modules
+.git
+.gitignore
+.github
+tests
+spikes
+docs
+backups
+exports
+**/dist
+.codegraph
+.turbo
+playwright-report
+test-results
+# Secrets: the *.env globs do NOT match a `foo.production.local` suffix, so list
+# the operator env file EXPLICITLY (Task 11 creates it in the build context).
+*.env
+*.env.*
+infra/env.production.local
+**/env.production.local
+**/*.local.env
+.env*
+!infra/env.production.example
+.DS_Store
+*.log
