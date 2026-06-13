@@ -145,6 +145,60 @@ describe("Tasks module — assistant read tools", () => {
     expect(result.data.error).toBeDefined();
   });
 
+  it("tasks.get: returns the task's tags", async () => {
+    const tool = getTool("tasks.get");
+
+    const list = await dataContext.withDataContext(userAContext(), (db) =>
+      listsRepo.getOrCreate(db, "Tools-tags")
+    );
+    const tag = await dataContext.withDataContext(userAContext(), (db) =>
+      listsRepo.createTag(db, list.id, "tool-tag")
+    );
+    const task = await dataContext.withDataContext(userAContext(), (db) =>
+      repository.create(db, { title: "tagged tool task", listId: list.id })
+    );
+    // assignTag lands in Task 17; insert the assignment directly so this runs in order.
+    await dataContext.withDataContext(userAContext(), (db) =>
+      db.db
+        .insertInto("app.task_tag_assignments")
+        .values({ task_id: task.id, tag_id: tag.id })
+        .execute()
+    );
+
+    const result = await dataContext.withDataContext(userAContext(), (db) =>
+      tool!.execute!(db, { taskId: task.id }, toolCtx(ids.userA))
+    );
+
+    const returned = result.data.task as TaskDto;
+    expect(returned.tags.map((t) => t.id)).toContain(tag.id);
+  });
+
+  it("tasks.list: returns each task's tags", async () => {
+    const tool = getTool("tasks.list");
+
+    const list = await dataContext.withDataContext(userAContext(), (db) =>
+      listsRepo.getOrCreate(db, "Tools-list-tags")
+    );
+    const tag = await dataContext.withDataContext(userAContext(), (db) =>
+      listsRepo.createTag(db, list.id, "list-tool-tag")
+    );
+    const task = await dataContext.withDataContext(userAContext(), (db) =>
+      repository.create(db, { title: "tagged list task", listId: list.id })
+    );
+    await dataContext.withDataContext(userAContext(), (db) =>
+      db.db
+        .insertInto("app.task_tag_assignments")
+        .values({ task_id: task.id, tag_id: tag.id })
+        .execute()
+    );
+
+    const result = await dataContext.withDataContext(userAContext(), (db) =>
+      tool!.execute!(db, {}, toolCtx(ids.userA))
+    );
+    const returned = (result.data.items as TaskDto[]).find((t) => t.id === task.id);
+    expect(returned?.tags.map((t) => t.id)).toContain(tag.id);
+  });
+
   // ── tasks.focus / tasks.atRisk / tasks.overdue ───────────────────────────
 
   it("tasks.focus, tasks.atRisk, tasks.overdue: execute defined; overdue task appears in focus+overdue but not in atRisk (priority < 3)", async () => {

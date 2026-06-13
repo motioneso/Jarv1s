@@ -4,6 +4,8 @@ import type { JarvisModuleManifest } from "@jarv1s/module-sdk";
 import {
   addTaskActivityRequestSchema,
   addTaskActivityResponseSchema,
+  assignTaskTagRequestSchema,
+  assignTaskTagRouteSchema,
   atRiskTasksRouteSchema,
   breakdownTaskRequestSchema,
   breakdownTaskResponseSchema,
@@ -16,13 +18,21 @@ import {
   deferredTaskStatusPayloadSchema,
   deferredTaskStatusRequestSchema,
   deferredTaskStatusResponseSchema,
+  deleteTaskListRequestSchema,
+  deleteTaskListRouteSchema,
+  deleteTaskTagRouteSchema,
   focusTasksRouteSchema,
   getTaskResponseSchema,
   listTaskListsResponseSchema,
   listTaskTagsResponseSchema,
   listTasksResponseSchema,
   overdueTasksRouteSchema,
+  renameTaskListRequestSchema,
+  renameTaskListRouteSchema,
+  renameTaskTagRequestSchema,
+  renameTaskTagRouteSchema,
   taskStatusSchema,
+  unassignTaskTagRouteSchema,
   updateTaskRequestSchema,
   updateTaskResponseSchema
 } from "@jarv1s/shared";
@@ -40,6 +50,7 @@ import {
 
 export const TASKS_MODULE_ID = "tasks";
 export const TASKS_DEFERRED_STATUS_QUEUE = "tasks-deferred-status";
+export const TASKS_RECURRENCE_QUEUE = "tasks-recurrence-materialize";
 export const tasksModuleSqlMigrationDirectory = fileURLToPath(new URL("../sql", import.meta.url));
 
 export const tasksModuleManifest = {
@@ -59,7 +70,8 @@ export const tasksModuleManifest = {
     migrations: [
       "sql/0003_tasks_module.sql",
       "sql/0019_tasks_owner_or_share.sql",
-      "sql/0039_tasks_foundation.sql"
+      "sql/0039_tasks_foundation.sql",
+      "sql/0075_tasks_worker_recurrence_grant.sql"
     ],
     migrationDirectories: ["packages/tasks/sql"],
     ownedTables: ["app.tasks", "app.task_activity"]
@@ -165,6 +177,19 @@ export const tasksModuleManifest = {
       permissionId: "tasks.update"
     },
     {
+      method: "POST",
+      path: "/api/tasks/:id/tags",
+      requestSchema: assignTaskTagRequestSchema,
+      responseSchema: assignTaskTagRouteSchema.response[200],
+      permissionId: "tasks.update"
+    },
+    {
+      method: "DELETE",
+      path: "/api/tasks/:id/tags/:tagId",
+      responseSchema: unassignTaskTagRouteSchema.response[200],
+      permissionId: "tasks.update"
+    },
+    {
       method: "GET",
       path: "/api/tasks/lists",
       responseSchema: listTaskListsResponseSchema,
@@ -178,6 +203,20 @@ export const tasksModuleManifest = {
       permissionId: "tasks.create"
     },
     {
+      method: "PATCH",
+      path: "/api/tasks/lists/:listId",
+      requestSchema: renameTaskListRequestSchema,
+      responseSchema: renameTaskListRouteSchema.response[200],
+      permissionId: "tasks.update"
+    },
+    {
+      method: "DELETE",
+      path: "/api/tasks/lists/:listId",
+      requestSchema: deleteTaskListRequestSchema,
+      responseSchema: deleteTaskListRouteSchema.response[200],
+      permissionId: "tasks.update"
+    },
+    {
       method: "GET",
       path: "/api/tasks/lists/:listId/tags",
       responseSchema: listTaskTagsResponseSchema,
@@ -189,6 +228,19 @@ export const tasksModuleManifest = {
       requestSchema: createTaskTagRequestSchema,
       responseSchema: createTaskTagResponseSchema,
       permissionId: "tasks.create"
+    },
+    {
+      method: "PATCH",
+      path: "/api/tasks/lists/:listId/tags/:tagId",
+      requestSchema: renameTaskTagRequestSchema,
+      responseSchema: renameTaskTagRouteSchema.response[200],
+      permissionId: "tasks.update"
+    },
+    {
+      method: "DELETE",
+      path: "/api/tasks/lists/:listId/tags/:tagId",
+      responseSchema: deleteTaskTagRouteSchema.response[200],
+      permissionId: "tasks.update"
     },
     {
       method: "POST",

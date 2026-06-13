@@ -8,12 +8,13 @@ import {
   type Task,
   type TaskActivity,
   type TaskStatus,
+  type TaskTag,
   type TasksTable
 } from "@jarv1s/db";
 
 import { HttpError } from "./errors.js";
 import { TaskListsRepository } from "./lists.js";
-import { generateNext } from "./recurrence.js";
+import { generateNext, rollForwardOwnedSeries } from "./recurrence.js";
 
 export interface CreateTaskInput {
   readonly title: string;
@@ -54,6 +55,11 @@ export class TasksRepository {
 
   async listVisible(scopedDb: DataContextDb): Promise<Task[]> {
     assertDataContextDb(scopedDb);
+
+    // Lazy-on-view freshness: advance any stale recurring series before reading so the
+    // list reflects the current occurrence between daily cron ticks. No-op when nothing
+    // is stale. Owner-only (RLS + explicit owner predicate inside rollForwardOwnedSeries).
+    await rollForwardOwnedSeries(scopedDb);
 
     return scopedDb.db
       .selectFrom("app.tasks")
@@ -225,6 +231,25 @@ export class TasksRepository {
       updates.completed_at = input.status === "done" ? new Date() : null;
     }
 
+    // List move: drop assignments whose tag does not belong to the destination list, BEFORE the
+    // move. Same ambient transaction as the rest of update() (withDataContext wraps the callback
+    // in one transaction; scopedDb.db is that Transaction), so this is atomic with the move —
+    // no nested transaction. Preserves the same-list invariant the task_tag_list_match trigger
+    // enforces at assignment time. Matches the delete-with-reassign drop rule (deleteList).
+    if (input.listId !== undefined) {
+      await scopedDb.db
+        .deleteFrom("app.task_tag_assignments")
+        .where("task_id", "=", taskId)
+        .where((eb) =>
+          eb(
+            "tag_id",
+            "not in",
+            eb.selectFrom("app.task_tags").select("id").where("list_id", "=", input.listId!)
+          )
+        )
+        .execute();
+    }
+
     const updated = await scopedDb.db
       .updateTable("app.tasks")
       .set(updates)
@@ -382,5 +407,62 @@ export class TasksRepository {
       .orderBy("position", "asc")
       .orderBy("id")
       .execute();
+  }
+
+  /**
+   * Set of visible task ids that carry the given tag (RLS-scoped). Used by the
+   * GET /api/tasks `tagId` filter. The select is owner/share-scoped by RLS on
+   * task_tag_assignments, so a foreign tag yields an empty set.
+   */
+  async taskIdsWithTag(scopedDb: DataContextDb, tagId: string): Promise<Set<string>> {
+    assertDataContextDb(scopedDb);
+    const rows = await scopedDb.db
+      .selectFrom("app.task_tag_assignments")
+      .select("task_id")
+      .where("tag_id", "=", tagId)
+      .execute();
+    return new Set(rows.map((r) => r.task_id));
+  }
+
+  async getTagsForTask(scopedDb: DataContextDb, taskId: string): Promise<TaskTag[]> {
+    assertDataContextDb(scopedDb);
+    return scopedDb.db
+      .selectFrom("app.task_tag_assignments as a")
+      .innerJoin("app.task_tags as g", "g.id", "a.tag_id")
+      .selectAll("g")
+      .where("a.task_id", "=", taskId)
+      .orderBy("g.name")
+      .execute();
+  }
+
+  /** Batch fetch tags for many tasks in ONE grouped query (avoids N+1). */
+  async getTagsForTasks(
+    scopedDb: DataContextDb,
+    taskIds: readonly string[]
+  ): Promise<Map<string, TaskTag[]>> {
+    assertDataContextDb(scopedDb);
+    const map = new Map<string, TaskTag[]>();
+    if (taskIds.length === 0) return map;
+    const rows = await scopedDb.db
+      .selectFrom("app.task_tag_assignments as a")
+      .innerJoin("app.task_tags as g", "g.id", "a.tag_id")
+      .select([
+        "a.task_id as task_id",
+        "g.id as id",
+        "g.owner_user_id as owner_user_id",
+        "g.list_id as list_id",
+        "g.name as name",
+        "g.created_at as created_at"
+      ])
+      .where("a.task_id", "in", taskIds as string[])
+      .orderBy("g.name")
+      .execute();
+    for (const row of rows) {
+      const { task_id, ...tag } = row;
+      const arr = map.get(task_id) ?? [];
+      arr.push(tag as unknown as TaskTag);
+      map.set(task_id, arr);
+    }
+    return map;
   }
 }

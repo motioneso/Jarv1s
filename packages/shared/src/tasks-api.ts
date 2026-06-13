@@ -4,6 +4,14 @@ export const TASK_STATUSES = ["todo", "done", "archived"] as const;
 
 export type TaskApiStatus = (typeof TASK_STATUSES)[number];
 
+export interface TaskTagDto {
+  readonly id: string;
+  readonly ownerUserId: string;
+  readonly listId: string;
+  readonly name: string;
+  readonly createdAt: string | null;
+}
+
 export interface TaskDto {
   readonly id: string;
   readonly ownerUserId: string;
@@ -22,6 +30,7 @@ export interface TaskDto {
   readonly completedAt: string | null;
   readonly createdAt: string | null;
   readonly updatedAt: string | null;
+  readonly tags: readonly TaskTagDto[];
 }
 
 export interface TaskActivityDto {
@@ -126,6 +135,18 @@ const nullableEffortSchema = {
   anyOf: [{ type: "string", enum: ["quick", "medium", "large"] }, { type: "null" }]
 } as const;
 
+export const taskTagDtoSchema = {
+  type: "object",
+  required: ["id", "ownerUserId", "listId", "name", "createdAt"],
+  properties: {
+    id: { type: "string" },
+    ownerUserId: { type: "string" },
+    listId: { type: "string" },
+    name: { type: "string" },
+    createdAt: nullableStringSchema
+  }
+} as const;
+
 export const taskDtoSchema = {
   type: "object",
   required: [
@@ -145,7 +166,8 @@ export const taskDtoSchema = {
     "sourceRef",
     "completedAt",
     "createdAt",
-    "updatedAt"
+    "updatedAt",
+    "tags"
   ],
   properties: {
     id: { type: "string" },
@@ -164,7 +186,8 @@ export const taskDtoSchema = {
     sourceRef: nullableStringSchema,
     completedAt: nullableStringSchema,
     createdAt: nullableStringSchema,
-    updatedAt: nullableStringSchema
+    updatedAt: nullableStringSchema,
+    tags: { type: "array", items: taskTagDtoSchema }
   }
 } as const;
 
@@ -437,14 +460,6 @@ export const createTaskListRouteSchema = {
 
 // --- Task Tags ---
 
-export interface TaskTagDto {
-  readonly id: string;
-  readonly ownerUserId: string;
-  readonly listId: string;
-  readonly name: string;
-  readonly createdAt: string | null;
-}
-
 export interface ListTaskTagsResponse {
   readonly tags: readonly TaskTagDto[];
 }
@@ -456,18 +471,6 @@ export interface CreateTaskTagRequest {
 export interface CreateTaskTagResponse {
   readonly tag: TaskTagDto;
 }
-
-export const taskTagDtoSchema = {
-  type: "object",
-  required: ["id", "ownerUserId", "listId", "name", "createdAt"],
-  properties: {
-    id: { type: "string" },
-    ownerUserId: { type: "string" },
-    listId: { type: "string" },
-    name: { type: "string" },
-    createdAt: nullableStringSchema
-  }
-} as const;
 
 export const listTaskTagsResponseSchema = {
   type: "object",
@@ -619,4 +622,103 @@ export const updateTaskPreferencesRouteSchema = {
 export const listSubtasksRouteSchema = {
   params: taskParamsSchema,
   response: { 200: listTasksResponseSchema }
+} as const;
+
+// --- Tag assignment ---
+
+export interface AssignTaskTagRequest {
+  readonly tagId: string;
+}
+
+export const assignTaskTagRequestSchema = {
+  type: "object",
+  additionalProperties: false,
+  required: ["tagId"],
+  properties: { tagId: { type: "string" } }
+} as const;
+
+// params for DELETE /api/tasks/:id/tags/:tagId
+export const taskTagParamsSchema = {
+  type: "object",
+  additionalProperties: false,
+  required: ["id", "tagId"],
+  properties: { id: { type: "string" }, tagId: { type: "string" } }
+} as const;
+
+export const assignTaskTagRouteSchema = {
+  params: taskParamsSchema,
+  body: assignTaskTagRequestSchema,
+  response: { 200: getTaskResponseSchema }
+} as const;
+
+export const unassignTaskTagRouteSchema = {
+  params: taskTagParamsSchema,
+  response: { 200: getTaskResponseSchema }
+} as const;
+
+// --- List/tag rename + delete ---
+
+export interface RenameTaskListRequest {
+  readonly name: string;
+}
+export interface DeleteTaskListRequest {
+  readonly reassignToListId?: string;
+}
+export interface RenameTaskTagRequest {
+  readonly name: string;
+}
+
+export const renameTaskListRequestSchema = {
+  type: "object",
+  additionalProperties: false,
+  required: ["name"],
+  properties: { name: { type: "string" } }
+} as const;
+
+export const deleteTaskListRequestSchema = {
+  type: "object",
+  additionalProperties: false,
+  properties: { reassignToListId: { type: "string" } }
+} as const;
+
+export const renameTaskTagRequestSchema = {
+  type: "object",
+  additionalProperties: false,
+  required: ["name"],
+  properties: { name: { type: "string" } }
+} as const;
+
+// params for /api/tasks/lists/:listId/tags/:tagId
+export const taskListTagParamsSchema = {
+  type: "object",
+  additionalProperties: false,
+  required: ["listId", "tagId"],
+  properties: { listId: { type: "string" }, tagId: { type: "string" } }
+} as const;
+
+export const renameTaskListRouteSchema = {
+  params: taskListParamsSchema,
+  body: renameTaskListRequestSchema,
+  response: { 200: createTaskListResponseSchema }
+} as const;
+
+export const deleteTaskListRouteSchema = {
+  params: taskListParamsSchema,
+  body: deleteTaskListRequestSchema,
+  response: {
+    200: { type: "object", required: ["deleted"], properties: { deleted: { type: "boolean" } } }
+  }
+} as const;
+
+export const renameTaskTagRouteSchema = {
+  params: taskListTagParamsSchema,
+  body: renameTaskTagRequestSchema,
+  response: { 200: createTaskTagResponseSchema }
+} as const;
+
+export const deleteTaskTagRouteSchema = {
+  params: taskListTagParamsSchema,
+  response: {
+    200: { type: "object", required: ["deleted"], properties: { deleted: { type: "boolean" } } }
+  }
 } as const;

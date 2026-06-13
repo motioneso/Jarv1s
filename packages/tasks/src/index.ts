@@ -5,6 +5,7 @@ export * from "./lists.js";
 export * from "./manifest.js";
 export * from "./preferences.js";
 export * from "./recurrence.js";
+export * from "./recurrence-schedule.js";
 export * from "./repository.js";
 export * from "./routes.js";
 export * from "./serialize.js";

@@ -1,5 +1,9 @@
 import type {
   AddTaskActivityRequest,
+  AssignTaskTagRequest,
+  RenameTaskListRequest,
+  DeleteTaskListRequest,
+  RenameTaskTagRequest,
   CreateAiConfiguredModelRequest,
   CreateAiConfiguredModelResponse,
   CreateAiProviderConfigRequest,
@@ -161,8 +165,64 @@ export async function listTaskActivity(taskId: string): Promise<ListTaskActivity
   return requestJson<ListTaskActivityResponse>(`/api/tasks/${encodeURIComponent(taskId)}/activity`);
 }
 
-export async function listTasks(): Promise<ListTasksResponse> {
-  return requestJson<ListTasksResponse>("/api/tasks");
+export async function listTasks(params?: { readonly tagId?: string }): Promise<ListTasksResponse> {
+  const qs = params?.tagId ? `?tagId=${encodeURIComponent(params.tagId)}` : "";
+  return requestJson<ListTasksResponse>(`/api/tasks${qs}`);
+}
+
+export async function assignTaskTag(
+  taskId: string,
+  input: AssignTaskTagRequest
+): Promise<GetTaskResponse> {
+  return requestJson<GetTaskResponse>(`/api/tasks/${encodeURIComponent(taskId)}/tags`, {
+    method: "POST",
+    body: input
+  });
+}
+
+export async function unassignTaskTag(taskId: string, tagId: string): Promise<GetTaskResponse> {
+  return requestJson<GetTaskResponse>(
+    `/api/tasks/${encodeURIComponent(taskId)}/tags/${encodeURIComponent(tagId)}`,
+    { method: "DELETE" }
+  );
+}
+
+export async function renameTaskList(
+  listId: string,
+  input: RenameTaskListRequest
+): Promise<CreateTaskListResponse> {
+  return requestJson<CreateTaskListResponse>(`/api/tasks/lists/${encodeURIComponent(listId)}`, {
+    method: "PATCH",
+    body: input
+  });
+}
+
+export async function deleteTaskList(
+  listId: string,
+  input?: DeleteTaskListRequest
+): Promise<{ deleted: boolean }> {
+  return requestJson<{ deleted: boolean }>(`/api/tasks/lists/${encodeURIComponent(listId)}`, {
+    method: "DELETE",
+    body: input ?? {}
+  });
+}
+
+export async function renameTaskTag(
+  listId: string,
+  tagId: string,
+  input: RenameTaskTagRequest
+): Promise<CreateTaskTagResponse> {
+  return requestJson<CreateTaskTagResponse>(
+    `/api/tasks/lists/${encodeURIComponent(listId)}/tags/${encodeURIComponent(tagId)}`,
+    { method: "PATCH", body: input }
+  );
+}
+
+export async function deleteTaskTag(listId: string, tagId: string): Promise<{ deleted: boolean }> {
+  return requestJson<{ deleted: boolean }>(
+    `/api/tasks/lists/${encodeURIComponent(listId)}/tags/${encodeURIComponent(tagId)}`,
+    { method: "DELETE" }
+  );
 }
 
 export async function createTask(input: CreateTaskRequest): Promise<CreateTaskResponse> {

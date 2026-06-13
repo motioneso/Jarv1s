@@ -4,12 +4,15 @@ import type { PgBoss } from "pg-boss";
 import type { AccessContext, DataContextRunner, TaskStatus } from "@jarv1s/db";
 import {
   addTaskActivityRouteSchema,
+  assignTaskTagRouteSchema,
   atRiskTasksRouteSchema,
   breakdownTaskRouteSchema,
   createTaskListRouteSchema,
   createTaskRouteSchema,
   createTaskTagRouteSchema,
   deferredTaskStatusRouteSchema,
+  deleteTaskListRouteSchema,
+  deleteTaskTagRouteSchema,
   focusTasksRouteSchema,
   getTaskPreferencesRouteSchema,
   getTaskRouteSchema,
@@ -19,6 +22,9 @@ import {
   listTaskTagsRouteSchema,
   listTasksRouteSchema,
   overdueTasksRouteSchema,
+  renameTaskListRouteSchema,
+  renameTaskTagRouteSchema,
+  unassignTaskTagRouteSchema,
   updateTaskPreferencesRouteSchema,
   updateTaskRouteSchema
 } from "@jarv1s/shared";
@@ -30,6 +36,7 @@ import { handleRouteError } from "@jarv1s/module-sdk";
 import { HttpError } from "./errors.js";
 import { type DeferredTaskStatusPayload, isDeferredTaskStatusPayloadMetadataOnly } from "./jobs.js";
 import { TASKS_DEFERRED_STATUS_QUEUE } from "./manifest.js";
+import { reconcileRecurrenceSchedule } from "./recurrence-schedule.js";
 import { TaskBreakdownRepository } from "./breakdown.js";
 import { TaskDriftRepository } from "./drift.js";
 import { TaskListsRepository } from "./lists.js";
@@ -74,6 +81,7 @@ export function registerTasksRoutes(
       const accessContext = await dependencies.resolveAccessContext(request);
       const query = request.query as Record<string, unknown>;
       const quadrant = optionalString(query["quadrant"], "quadrant");
+      const tagId = optionalString(query["tagId"], "tagId");
       if (
         quadrant !== undefined &&
         quadrant !== "do" &&
@@ -84,13 +92,26 @@ export function registerTasksRoutes(
         throw new HttpError(400, "quadrant must be do, schedule, delegate, or eliminate");
       }
 
-      const tasks = await dependencies.dataContext.withDataContext(accessContext, (scopedDb) =>
-        repository.listVisible(scopedDb)
+      const { tasks, tagMap } = await dependencies.dataContext.withDataContext(
+        accessContext,
+        async (scopedDb) => {
+          let rows = await repository.listVisible(scopedDb);
+          // tagId filter (RLS-scoped): restrict to tasks carrying this tag before serialization.
+          if (tagId !== undefined) {
+            const taggedIds = await repository.taskIdsWithTag(scopedDb, tagId);
+            rows = rows.filter((r) => taggedIds.has(r.id));
+          }
+          const map = await repository.getTagsForTasks(
+            scopedDb,
+            rows.map((r) => r.id)
+          );
+          return { tasks: rows, tagMap: map };
+        }
       );
 
       const filtered = quadrant ? filterByQuadrant(tasks, quadrant) : tasks;
 
-      return { tasks: filtered.map(serializeTask) };
+      return { tasks: filtered.map((task) => serializeTask(task, tagMap.get(task.id) ?? [])) };
     } catch (error) {
       return handleRouteError(error, reply);
     }
@@ -100,11 +121,22 @@ export function registerTasksRoutes(
     try {
       const accessContext = await dependencies.resolveAccessContext(request);
       const input = parseCreateTaskBody(request.body);
-      const task = await dependencies.dataContext.withDataContext(accessContext, (scopedDb) =>
-        repository.create(scopedDb, input)
+      const { task, tags } = await dependencies.dataContext.withDataContext(
+        accessContext,
+        async (scopedDb) => {
+          const row = await repository.create(scopedDb, input);
+          const t = await repository.getTagsForTask(scopedDb, row.id);
+          return { task: row, tags: t };
+        }
       );
 
-      return reply.code(201).send({ task: serializeTask(task) });
+      // Recurring create → ensure this actor has the daily roll-forward schedule.
+      // Failure-isolated (reconcileRecurrenceSchedule never throws) so it cannot fail the 201.
+      if (task.recurrence != null) {
+        await reconcileRecurrenceSchedule(dependencies.boss, accessContext.actorUserId);
+      }
+
+      return reply.code(201).send({ task: serializeTask(task, tags) });
     } catch (error) {
       return handleRouteError(error, reply);
     }
@@ -155,15 +187,20 @@ export function registerTasksRoutes(
     async (request, reply) => {
       try {
         const accessContext = await dependencies.resolveAccessContext(request);
-        const task = await dependencies.dataContext.withDataContext(accessContext, (scopedDb) =>
-          repository.getById(scopedDb, request.params.id)
+        const { task, tags } = await dependencies.dataContext.withDataContext(
+          accessContext,
+          async (scopedDb) => {
+            const row = await repository.getById(scopedDb, request.params.id);
+            const t = row ? await repository.getTagsForTask(scopedDb, row.id) : [];
+            return { task: row, tags: t };
+          }
         );
 
         if (!task) {
           return reply.code(404).send({ error: "Task not found" });
         }
 
-        return { task: serializeTask(task) };
+        return { task: serializeTask(task, tags) };
       } catch (error) {
         return handleRouteError(error, reply);
       }
@@ -177,15 +214,20 @@ export function registerTasksRoutes(
       try {
         const accessContext = await dependencies.resolveAccessContext(request);
         const input = parseUpdateTaskBody(request.body);
-        const task = await dependencies.dataContext.withDataContext(accessContext, (scopedDb) =>
-          repository.update(scopedDb, request.params.id, input)
+        const { task, tags } = await dependencies.dataContext.withDataContext(
+          accessContext,
+          async (scopedDb) => {
+            const row = await repository.update(scopedDb, request.params.id, input);
+            const t = row ? await repository.getTagsForTask(scopedDb, row.id) : [];
+            return { task: row, tags: t };
+          }
         );
 
         if (!task) {
           return reply.code(404).send({ error: "Task not found" });
         }
 
-        return { task: serializeTask(task) };
+        return { task: serializeTask(task, tags) };
       } catch (error) {
         return handleRouteError(error, reply);
       }
@@ -198,10 +240,76 @@ export function registerTasksRoutes(
     async (request, reply) => {
       try {
         const accessContext = await dependencies.resolveAccessContext(request);
-        const tasks = await dependencies.dataContext.withDataContext(accessContext, (scopedDb) =>
-          repository.listByParentId(scopedDb, request.params.id)
+        const { tasks, tagMap } = await dependencies.dataContext.withDataContext(
+          accessContext,
+          async (scopedDb) => {
+            const rows = await repository.listByParentId(scopedDb, request.params.id);
+            const map = await repository.getTagsForTasks(
+              scopedDb,
+              rows.map((r) => r.id)
+            );
+            return { tasks: rows, tagMap: map };
+          }
         );
-        return { tasks: tasks.map(serializeTask) };
+        return { tasks: tasks.map((task) => serializeTask(task, tagMap.get(task.id) ?? [])) };
+      } catch (error) {
+        return handleRouteError(error, reply);
+      }
+    }
+  );
+
+  // --- Tag assignment (task <-> tag) ---
+
+  server.post<{ Params: TaskParams }>(
+    "/api/tasks/:id/tags",
+    { schema: assignTaskTagRouteSchema },
+    async (request, reply) => {
+      try {
+        const accessContext = await dependencies.resolveAccessContext(request);
+        const body = requireObject(request.body);
+        const tagId = requiredString(body["tagId"], "tagId");
+        const { task, tags } = await dependencies.dataContext.withDataContext(
+          accessContext,
+          async (scopedDb) => {
+            await listsRepository.assignTag(scopedDb, request.params.id, tagId);
+            const row = await repository.getById(scopedDb, request.params.id);
+            const t = row ? await repository.getTagsForTask(scopedDb, row.id) : [];
+            return { task: row, tags: t };
+          }
+        );
+
+        if (!task) {
+          return reply.code(404).send({ error: "Task not found" });
+        }
+
+        return { task: serializeTask(task, tags) };
+      } catch (error) {
+        return handleRouteError(error, reply);
+      }
+    }
+  );
+
+  server.delete<{ Params: { id: string; tagId: string } }>(
+    "/api/tasks/:id/tags/:tagId",
+    { schema: unassignTaskTagRouteSchema },
+    async (request, reply) => {
+      try {
+        const accessContext = await dependencies.resolveAccessContext(request);
+        const { task, tags } = await dependencies.dataContext.withDataContext(
+          accessContext,
+          async (scopedDb) => {
+            await listsRepository.unassignTag(scopedDb, request.params.id, request.params.tagId);
+            const row = await repository.getById(scopedDb, request.params.id);
+            const t = row ? await repository.getTagsForTask(scopedDb, row.id) : [];
+            return { task: row, tags: t };
+          }
+        );
+
+        if (!task) {
+          return reply.code(404).send({ error: "Task not found" });
+        }
+
+        return { task: serializeTask(task, tags) };
       } catch (error) {
         return handleRouteError(error, reply);
       }
@@ -286,6 +394,13 @@ export function registerTasksRoutes(
   server.get("/api/tasks/lists", { schema: listTaskListsRouteSchema }, async (request, reply) => {
     try {
       const accessContext = await dependencies.resolveAccessContext(request);
+
+      // Per-session self-heal: the Tasks page loads lists on mount, so this is a cheap
+      // (one upsert) opportunistic re-establish of the actor's recurrence schedule. It is
+      // failure-isolated (reconcileRecurrenceSchedule never throws), so it cannot affect latency
+      // beyond the upsert and never fails the request.
+      await reconcileRecurrenceSchedule(dependencies.boss, accessContext.actorUserId);
+
       const lists = await dependencies.dataContext.withDataContext(accessContext, (scopedDb) =>
         listsRepository.list(scopedDb)
       );
@@ -310,6 +425,44 @@ export function registerTasksRoutes(
       return handleRouteError(error, reply);
     }
   });
+
+  server.patch<{ Params: { listId: string } }>(
+    "/api/tasks/lists/:listId",
+    { schema: renameTaskListRouteSchema },
+    async (request, reply) => {
+      try {
+        const accessContext = await dependencies.resolveAccessContext(request);
+        const body = requireObject(request.body);
+        const name = requiredString(body["name"], "name");
+        const list = await dependencies.dataContext.withDataContext(accessContext, (scopedDb) =>
+          listsRepository.renameList(scopedDb, request.params.listId, name)
+        );
+
+        return { list: serializeTaskList(list) };
+      } catch (error) {
+        return handleRouteError(error, reply);
+      }
+    }
+  );
+
+  server.delete<{ Params: { listId: string } }>(
+    "/api/tasks/lists/:listId",
+    { schema: deleteTaskListRouteSchema },
+    async (request, reply) => {
+      try {
+        const accessContext = await dependencies.resolveAccessContext(request);
+        const body = requireObject(request.body ?? {});
+        const reassignToListId = optionalString(body["reassignToListId"], "reassignToListId");
+        await dependencies.dataContext.withDataContext(accessContext, (scopedDb) =>
+          listsRepository.deleteList(scopedDb, request.params.listId, reassignToListId)
+        );
+
+        return { deleted: true };
+      } catch (error) {
+        return handleRouteError(error, reply);
+      }
+    }
+  );
 
   // --- Tags ---
 
@@ -349,6 +502,42 @@ export function registerTasksRoutes(
     }
   );
 
+  server.patch<{ Params: { listId: string; tagId: string } }>(
+    "/api/tasks/lists/:listId/tags/:tagId",
+    { schema: renameTaskTagRouteSchema },
+    async (request, reply) => {
+      try {
+        const accessContext = await dependencies.resolveAccessContext(request);
+        const body = requireObject(request.body);
+        const name = requiredString(body["name"], "name");
+        const tag = await dependencies.dataContext.withDataContext(accessContext, (scopedDb) =>
+          listsRepository.renameTag(scopedDb, request.params.listId, request.params.tagId, name)
+        );
+
+        return { tag: serializeTaskTag(tag) };
+      } catch (error) {
+        return handleRouteError(error, reply);
+      }
+    }
+  );
+
+  server.delete<{ Params: { listId: string; tagId: string } }>(
+    "/api/tasks/lists/:listId/tags/:tagId",
+    { schema: deleteTaskTagRouteSchema },
+    async (request, reply) => {
+      try {
+        const accessContext = await dependencies.resolveAccessContext(request);
+        await dependencies.dataContext.withDataContext(accessContext, (scopedDb) =>
+          listsRepository.deleteTag(scopedDb, request.params.listId, request.params.tagId)
+        );
+
+        return { deleted: true };
+      } catch (error) {
+        return handleRouteError(error, reply);
+      }
+    }
+  );
+
   // --- Breakdown ---
 
   server.post<{ Params: TaskParams }>(
@@ -359,11 +548,21 @@ export function registerTasksRoutes(
         const accessContext = await dependencies.resolveAccessContext(request);
         const body = requireObject(request.body);
         const steps = parseStringArray(body["steps"], "steps");
-        const tasks = await dependencies.dataContext.withDataContext(accessContext, (scopedDb) =>
-          breakdownRepository.breakDown(scopedDb, request.params.id, steps)
+        const { tasks, tagMap } = await dependencies.dataContext.withDataContext(
+          accessContext,
+          async (scopedDb) => {
+            const rows = await breakdownRepository.breakDown(scopedDb, request.params.id, steps);
+            const map = await repository.getTagsForTasks(
+              scopedDb,
+              rows.map((r) => r.id)
+            );
+            return { tasks: rows, tagMap: map };
+          }
         );
 
-        return reply.code(201).send({ tasks: tasks.map(serializeTask) });
+        return reply
+          .code(201)
+          .send({ tasks: tasks.map((task) => serializeTask(task, tagMap.get(task.id) ?? [])) });
       } catch (error) {
         return handleRouteError(error, reply);
       }
@@ -375,11 +574,19 @@ export function registerTasksRoutes(
   server.get("/api/tasks/focus", { schema: focusTasksRouteSchema }, async (request, reply) => {
     try {
       const accessContext = await dependencies.resolveAccessContext(request);
-      const tasks = await dependencies.dataContext.withDataContext(accessContext, (scopedDb) =>
-        driftRepository.getFocus(scopedDb)
+      const { tasks, tagMap } = await dependencies.dataContext.withDataContext(
+        accessContext,
+        async (scopedDb) => {
+          const rows = await driftRepository.getFocus(scopedDb);
+          const map = await repository.getTagsForTasks(
+            scopedDb,
+            rows.map((r) => r.id)
+          );
+          return { tasks: rows, tagMap: map };
+        }
       );
 
-      return { tasks: tasks.map(serializeTask) };
+      return { tasks: tasks.map((task) => serializeTask(task, tagMap.get(task.id) ?? [])) };
     } catch (error) {
       return handleRouteError(error, reply);
     }
@@ -388,11 +595,19 @@ export function registerTasksRoutes(
   server.get("/api/tasks/at-risk", { schema: atRiskTasksRouteSchema }, async (request, reply) => {
     try {
       const accessContext = await dependencies.resolveAccessContext(request);
-      const tasks = await dependencies.dataContext.withDataContext(accessContext, (scopedDb) =>
-        driftRepository.getAtRisk(scopedDb)
+      const { tasks, tagMap } = await dependencies.dataContext.withDataContext(
+        accessContext,
+        async (scopedDb) => {
+          const rows = await driftRepository.getAtRisk(scopedDb);
+          const map = await repository.getTagsForTasks(
+            scopedDb,
+            rows.map((r) => r.id)
+          );
+          return { tasks: rows, tagMap: map };
+        }
       );
 
-      return { tasks: tasks.map(serializeTask) };
+      return { tasks: tasks.map((task) => serializeTask(task, tagMap.get(task.id) ?? [])) };
     } catch (error) {
       return handleRouteError(error, reply);
     }
@@ -401,11 +616,19 @@ export function registerTasksRoutes(
   server.get("/api/tasks/overdue", { schema: overdueTasksRouteSchema }, async (request, reply) => {
     try {
       const accessContext = await dependencies.resolveAccessContext(request);
-      const tasks = await dependencies.dataContext.withDataContext(accessContext, (scopedDb) =>
-        driftRepository.getOverdue(scopedDb)
+      const { tasks, tagMap } = await dependencies.dataContext.withDataContext(
+        accessContext,
+        async (scopedDb) => {
+          const rows = await driftRepository.getOverdue(scopedDb);
+          const map = await repository.getTagsForTasks(
+            scopedDb,
+            rows.map((r) => r.id)
+          );
+          return { tasks: rows, tagMap: map };
+        }
       );
 
-      return { tasks: tasks.map(serializeTask) };
+      return { tasks: tasks.map((task) => serializeTask(task, tagMap.get(task.id) ?? [])) };
     } catch (error) {
       return handleRouteError(error, reply);
     }
