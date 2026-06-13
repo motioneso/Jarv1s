@@ -34,6 +34,12 @@ export interface MockApiState
    * non-admin path (admin sections hidden, admin routes 403) — see #171.
    */
   isInstanceAdmin?: boolean;
+  /**
+   * Phase 4: explicitly drive the bootstrap-owner flag (the founder vs member onboarding
+   * branch keys on it). Defaults to the existing "admin ⇒ bootstrap owner" derivation; set it
+   * false to exercise the member onboarding path while keeping /api/me coherent.
+   */
+  isBootstrapOwner?: boolean;
   calendarEvents?: CalendarEventDto[];
   chatMessages?: Record<string, ChatMessageDto[]>;
   chatThreads?: ChatThreadDto[];
@@ -62,8 +68,11 @@ function meResponseFor(state: MockApiState): MeResponse {
     user: {
       ...meResponse.user,
       isInstanceAdmin,
-      // A non-admin can never be the bootstrap owner; keep the fixture coherent.
-      isBootstrapOwner: isInstanceAdmin && meResponse.user.isBootstrapOwner
+      // An EXPLICIT state.isBootstrapOwner override wins (member specs pass false); otherwise keep
+      // the existing "admin ⇒ bootstrap owner" default. A non-admin can never be the bootstrap
+      // owner, so the default keeps the fixture coherent.
+      isBootstrapOwner:
+        state.isBootstrapOwner ?? (isInstanceAdmin && meResponse.user.isBootstrapOwner)
     }
   };
 }
