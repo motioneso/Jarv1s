@@ -10,9 +10,12 @@ implements every § of it). **Epic:** #47 (Phase 2), exit criterion #6.
 After the founder signs up (bootstrap owner created by `bootstrapFirstJarvisUser`,
 `packages/auth/src/index.ts`), give them a **deterministic, fully-skippable, resumable** step wizard
 that provisions the ADR 0008 §2 prerequisites (multiplexer install + selection, CLI auth, optional
-connector setup) and records completion in `app.instance_settings`. The wizard works **before any AI
-model is configured**; an optional Jarvis chat overlay lights up only once a CLI path exists. No new
-table, no migration, no new module, no secrets in any response. All admin writes are audited.
+connector setup) and records completion in `app.instance_settings` via a single `onboarding.state`
+enum key. The wizard works **before any AI model is configured**; an optional Jarvis chat overlay
+lights up only once a **usable** multiplexer + a present CLI exist. No new table, no migration, no new
+module, no secrets in any response. All admin writes are audited. The multiplexer choice reuses the
+already-landed CLI-adapter `chat.multiplexer` contract and `PUT /api/admin/chat-multiplexer` route —
+onboarding introduces **no second writer** of that key and **no duplicate `ChatMultiplexer` type**.
 
 ## Architecture
 
@@ -20,22 +23,58 @@ table, no migration, no new module, no secrets in any response. All admin writes
   identical in shape to the existing admin panels. State read from a new `GET /api/onboarding/status`.
   No AI dependency.
 - **Optional overlay:** an `OnboardingChatOverlay` that reuses the existing chat drawer/stream; inert
-  until `steps.multiplexer.selected` is set AND the chosen provider's `cliAvailable` is true. Never
-  gates step completion.
+  until `steps.multiplexer.done` (a **usable** multiplexer — root-pane aware for herdr) AND at least
+  one provider's `cliPresent` is true (`isOverlayEnabled`). Never gates step completion.
 - **Server surface:** three new routes in `packages/settings` (the module that already owns
   `instance_settings`, `requireAdmin`, `admin_audit_events`): `GET /api/onboarding/status` (admin),
   `POST /api/onboarding/complete` (requireAdmin + audited), `POST /api/onboarding/skip` (same). All
   follow the slice-D per-method `DataContextDb` pattern (`assertDataContextDb(scopedDb)` first; admin
-  check + repository call share one `withDataContext` transaction).
-- **State (hybrid, founder-scoped, zero-migration):** three `instance_settings` keys —
-  `onboarding.completed` (bool), `onboarding.skipped` (bool), `chat.multiplexer` (`"tmux"|"herdr"`).
-  Per-step `done` is **derived server-side**, never separately persisted: multiplexer-done when
-  `chat.multiplexer` is set; cliAuth-done when the chosen provider's CLI is present; connectors-done
-  when a connector account exists.
+  check + repository call share one `withDataContext` transaction). Host presence probes (tmux/herdr/
+  CLI) are **bounded live probes** run **outside** the DB transaction (see "Probe placement" below):
+  each is capped by a short timeout that degrades to `false`, so a slow/hung `command -v` neither holds
+  a DB connection nor makes the founder wait — while still reflecting a binary installed after boot
+  (live "Re-check" works without a server restart).
+- **State (founder-scoped, zero-migration):** `onboarding` status is a **single enum** key —
+  `onboarding.state` (`"pending" | "completed" | "skipped"`, default `"pending"`) — so the terminal
+  state is unambiguous (a prior `completed` + `skipped` double-true was possible with two booleans).
+  The multiplexer choice is **NOT a new key**: the CLI-adapter slice already owns `chat.multiplexer`
+  (`packages/settings/src/repository.ts` `get/setChatMultiplexerSetting`, contract
+  `ChatMultiplexerChoice = "auto" | "tmux" | "herdr"`, routes `GET/PUT /api/admin/chat-multiplexer`).
+  Onboarding **reuses** that contract/route end to end — no second writer, no `ChatMultiplexer`
+  duplicate type, no generic `PATCH /api/admin/settings/:key` write to that key.
+  Per-step `done` is **derived server-side**, never separately persisted:
+  - **multiplexer.done** ⇔ the chosen multiplexer is **usable** (not merely a binary on PATH). It
+    reuses the adapter slice's resolution semantics (`packages/ai/src/adapters/multiplexer-resolve.ts`
+    `decideMultiplexer`): `"tmux"` usable ⇔ tmux installed; `"herdr"` usable ⇔ herdr installed **AND**
+    a root pane exists (`JARVIS_HERDR_ROOT_PANE`/`HERDR_PANE_ID`); `"auto"` usable ⇔ either is usable.
+    `done` is true when `decideMultiplexer(...)` returns `{ ok: true }`. Bare `command -v herdr` is
+    insufficient (herdr needs a root pane) — the wizard never enables "Use herdr" on bare presence.
+  - **cliAuth.done** ⇔ at least one provider CLI is **present** (`cliAvailable`, presence-only). This
+    is a deliberate, documented floor: presence ≠ authenticated; the field is named/worded "present"
+    (`anyCliPresent`), and the step copy says "detected", never "authenticated". The wizard never
+    blocks on it; the founder confirms login on the host.
+  - **connectors.done** ⇔ a connector account exists.
 - **Trigger:** one new branch in `apps/web/src/app.tsx`, mirroring the existing
   `account_pending_approval`/`deactivated` branches. Fires **only** for
-  `isInstanceAdmin && isBootstrapOwner`; renders `<OnboardingWizard/>` when `!completed && !skipped`.
-  Does **not** touch the unauthenticated `/api/bootstrap/status` probe (OTNR-P4 #122).
+  `isInstanceAdmin && isBootstrapOwner`; renders `<OnboardingWizard/>` when `state === "pending"`.
+  Does **not** touch the unauthenticated `/api/bootstrap/status` probe (OTNR-P4 #122). **Never blocks
+  a fresh instance from booting:** the status query has `retry: false`; on error/timeout the branch
+  falls through to the app shell (onboarding is optional), and app.tsx passes the already-fetched
+  status into the wizard as `initialData` so the wizard renders no second loading screen.
+
+#### Probe placement (Codex R1 probes-in-txn / R2 unbounded / R3 boot-block + re-check)
+
+`getOnboardingStatus` is split so host probes never run inside the DB transaction AND never block
+boot: the two `instance_settings` reads + the admin check + connector-existence run inside
+`withDataContext`; the tmux/herdr usability decision and CLI presence probes run in the **route,
+outside** the transaction, as **injected bounded live functions**. Each host probe is wrapped in a
+short timeout (→ `false`), so it (a) never holds a DB connection (outside the txn), (b) never makes the
+founder wait unbounded (the timeout caps request latency), (c) never blocks server **startup** (no
+probing at boot — the functions are constructed synchronously and probe lazily, so
+`registerBuiltInApiRoutes` stays sync), and (d) reflects a binary installed after boot on the next
+status fetch (live "Re-check"). The repository's status assembler is a **pure** function of (settings
+row, the resolved usability booleans, the resolved CLI-presence booleans, connector-exists bool) — the
+route resolves the booleans (bounded) and hands them to the pure assembler.
 
 ## Tech Stack
 
@@ -55,13 +94,22 @@ tests, Playwright for e2e (mock REST via `tests/e2e/mock-*.ts`). The `@jarv1s/ai
 - **No admin private-data bypass** — routes are admin-gated and read only instance-scoped settings +
   presence booleans + connector-account *existence* (never contents). RLS unchanged.
 - **Secrets never escape** — CLI-auth step is presence-only (never runs the CLI, never reads tokens);
-  `getOnboardingStatus` returns only booleans + the `"tmux"|"herdr"|null` enum; no secret-shaped field.
-- **Module isolation** — onboarding lives in `packages/settings`; it consumes `cli-availability` from
-  `@jarv1s/ai` and the connector-existence check from `@jarv1s/connectors`' public API, both **injected
-  as route dependencies** (no cross-module table reads, no settings→ai/connectors *package* dep).
-- **Audit everything admin** — complete/skip and the `chat.multiplexer` write all flow through the
-  audited upsert path (`admin_audit_events`).
-- **No migration** — reuses the existing `instance_settings` table and audited upsert.
+  `getOnboardingStatus` returns only booleans + the `"auto"|"tmux"|"herdr"|null` enum; no
+  secret-shaped field (the integration test asserts no `token|secret|password|credential` substring).
+- **Module isolation** — onboarding lives in `packages/settings`; it consumes the multiplexer-usability
+  decision + CLI presence from `@jarv1s/ai` and the connector-existence check from `@jarv1s/connectors`'
+  public API, all **injected as route dependencies** (no cross-module table reads, no settings→
+  ai/connectors *package* dep). The injection happens in `packages/module-registry`, which already
+  imports both modules.
+- **Single ownership of `chat.multiplexer`** — onboarding NEVER writes that key directly. The
+  multiplexer step calls the adapter slice's `PUT /api/admin/chat-multiplexer` (which routes through
+  `setChatMultiplexerSetting` + its audit action). No generic `PATCH /api/admin/settings/:key` write,
+  no duplicate audit action, no duplicate `ChatMultiplexer` type.
+- **Audit everything admin** — complete/skip flow through `setOnboardingState` (audit actions
+  `onboarding.complete` / `onboarding.skip`); the multiplexer write is audited by the existing
+  `setChatMultiplexerSetting` path. All land in `admin_audit_events`.
+- **No migration** — reuses the existing `instance_settings` table (one new key, `onboarding.state`)
+  and the existing audited upsert helper.
 - **Bootstrap-owner trigger only** — the app.tsx branch fires only for `isBootstrapOwner`.
 
 ### Verification scope note (read before executing)
@@ -72,12 +120,20 @@ db:migrate && test:integration`. It **does not** run `test:e2e` (Playwright). Th
 - The `herdrAvailable` unit test (Task 1) lands in `tests/unit/` so it runs under `test:unit`.
 - The status/complete/skip server behaviour (Tasks 4–5) lands in `tests/integration/` so it runs
   under `test:integration`.
-- The wizard + app.tsx-branch behaviour (Tasks 11–12) lands in `tests/e2e/` (Playwright). These are
-  authored and must pass via `pnpm test:e2e`, but the **foundation gate covers them only through
-  lint + typecheck**. The final task runs `pnpm verify:foundation` (mandatory) and additionally runs
-  `pnpm test:e2e` for the onboarding specs (best-effort; the build host must have the Playwright
-  browser — if unavailable, lint+typecheck of the specs is the floor and that is acceptable per the
-  spec's CI scope).
+- **The skip/resume + overlay-gating + app-branch decision logic is extracted into a pure, host-free
+  helper** (`apps/web/src/onboarding/resume.ts` → `firstIncompleteStepIndex`, `isOverlayEnabled`,
+  `isBootstrapOwner`, `shouldShowOnboarding`) and unit-tested in `tests/unit/onboarding-resume.test.ts`
+  so the core skippability / resumability / overlay-gating / **app-branch (owner-only, pending-only,
+  error-fall-through)** behaviour runs **inside `verify:foundation`** (Codex R1/R2: branch tests must
+  not be Playwright-only). The wizard and `app.tsx` both import these predicates; the e2e spec then
+  only confirms the rendered wiring.
+- The wizard + app.tsx-branch full-render behaviour (Tasks 12–13) lands in `tests/e2e/` (Playwright).
+  These are authored and must pass via `pnpm test:e2e`, but the **foundation gate covers them only
+  through lint + typecheck**. The final task runs `pnpm verify:foundation` (mandatory) and
+  additionally runs `pnpm test:e2e` for the onboarding specs (best-effort; the build host must have
+  the Playwright browser — if unavailable, lint+typecheck of the specs is the floor and that is
+  acceptable per the spec's CI scope, because the load-bearing resume/gating logic is already covered
+  by the in-gate unit test above).
 
 ---
 
@@ -88,7 +144,9 @@ db:migrate && test:integration`. It **does not** run `test:e2e` (Playwright). Th
 | Path | Purpose | Tested by |
 | --- | --- | --- |
 | `tests/unit/onboarding-cli-availability.test.ts` | unit test for `herdrAvailable` | itself |
-| `tests/integration/onboarding.test.ts` | integration tests for status/complete/skip | itself |
+| `tests/unit/onboarding-resume.test.ts` | unit test for resume + overlay-gating + app-branch predicates (in gate) | itself |
+| `tests/integration/onboarding.test.ts` | integration tests for status/complete/skip + real connector | itself |
+| `apps/web/src/onboarding/resume.ts` | pure resume/overlay-gating/app-branch helpers (host-free, gate-tested) | unit |
 | `apps/web/src/onboarding/onboarding-wizard.tsx` | the spine wizard component | e2e |
 | `apps/web/src/onboarding/welcome-step.tsx` | step 1 | e2e |
 | `apps/web/src/onboarding/multiplexer-step.tsx` | step 2 (instructions + select + re-check) | e2e |
@@ -103,15 +161,15 @@ db:migrate && test:integration`. It **does not** run `test:e2e` (Playwright). Th
 | Path | Change |
 | --- | --- |
 | `packages/ai/src/cli-availability.ts` | add `herdrAvailable(deps?)` (presence-only) |
-| `packages/shared/src/platform-api.ts` | add `ChatMultiplexer`, `OnboardingStatusResponse` (+ DTO sub-shapes), and 3 route schemas |
-| `packages/settings/src/repository.ts` | add `getOnboardingStatus(scopedDb, deps)` + `setOnboardingFlag(scopedDb, input)` |
-| `packages/settings/src/routes.ts` | add 3 onboarding routes; extend `SettingsRoutesDependencies` with injected probes |
-| `packages/settings/package.json` | (no change — probes injected; verified below, kept here for audit clarity) |
-| `packages/module-registry/src/index.ts` | wrap `registerSettingsRoutes` to inject `cli`/`connectorAccountExists` deps |
+| `packages/shared/src/platform-api.ts` | add `OnboardingState` enum, `OnboardingStatusResponse` (+ DTO sub-shapes), 3 route schemas; **reuse existing `ChatMultiplexerChoice`** (do NOT add a `ChatMultiplexer` type) |
+| `packages/settings/src/repository.ts` | add `assembleOnboardingStatus(...)` (pure) + `readOnboardingState`/`setOnboardingState`; reuse `getChatMultiplexerSetting` |
+| `packages/settings/src/routes.ts` | add 3 onboarding routes; extend `SettingsRoutesDependencies` with injected `onboardingProbes` (bounded live usability/CLI-presence functions + connector-exists) |
+| `packages/module-registry/src/index.ts` | wrap `registerSettingsRoutes` — **spread/forward existing deps**, then add `onboardingProbes` (bounded live tmux/herdr-usability + CLI-presence functions + connector-exists check) |
+| `packages/module-registry/src/chat-multiplexer.ts` | add `boundedProbe` + `makeMultiplexerUsableProbe`/`makeCliPresentProbe` live bounded probes |
 | `apps/api/src/server.ts` | pass nothing new (registration owns the wiring) — verified, no change required |
 | `apps/web/src/api/query-keys.ts` | add `onboarding` namespace |
-| `apps/web/src/api/client.ts` | add `getOnboardingStatus`, `completeOnboarding`, `skipOnboarding`, `upsertInstanceSetting` |
-| `apps/web/src/app.tsx` | add the bootstrap-owner onboarding branch |
+| `apps/web/src/api/client.ts` | add `getOnboardingStatus`, `completeOnboarding`, `skipOnboarding`; reuse the existing `putChatMultiplexerSettings` client fn (add it if absent) — **no generic instance-setting writer for `chat.multiplexer`** |
+| `apps/web/src/app.tsx` | add the bootstrap-owner onboarding branch; pass status as `initialData` to the wizard |
 | `tests/e2e/mock-api.ts` | register the onboarding mock + add `onboardingStatus` to `MockApiState` |
 
 > `apps/api/src/server.ts` and `packages/settings/package.json` are listed for completeness; the
@@ -203,17 +261,20 @@ git commit -m "feat(ai): add herdrAvailable presence probe (Phase 2 onboarding)"
 
 ---
 
-### Task 2 — Shared contracts: `ChatMultiplexer`, `OnboardingStatusResponse`, route schemas
+### Task 2 — Shared contracts: `OnboardingState`, `OnboardingStatusResponse`, route schemas
 
 **Files**
 - Modify: `packages/shared/src/platform-api.ts`
   (re-exported automatically by the barrel `packages/shared/src/index.ts:15`, no barrel edit needed)
 
-> **Coordination note (spec §Open risks):** if the CLI-adapter slice already landed a
-> `ChatMultiplexer` type in `platform-api.ts`, do **not** redefine it — a duplicate export fails
-> typecheck. Before adding it, grep: `grep -rn "ChatMultiplexer" packages/shared/src`. If it exists,
-> skip the `ChatMultiplexer` definition below and `import`/reference the existing one; keep everything
-> else. (This plan assumes it does not yet exist.)
+> **Coordination — the CLI-adapter slice HAS LANDED (verified 2026-06-13).** `platform-api.ts:345`
+> already defines `export type ChatMultiplexerChoice = "auto" | "tmux" | "herdr"` ("Single source of
+> truth — ai/settings import this"), plus `ChatMultiplexerSettingsDto`,
+> `getChatMultiplexerSettingsRouteSchema`, `putChatMultiplexerSettingsRouteSchema`. **Do NOT add a
+> `ChatMultiplexer` type** — onboarding reuses `ChatMultiplexerChoice`. The `selected` field below is
+> typed `ChatMultiplexerChoice | null` (`null` only when the `chat.multiplexer` row is absent on a
+> fresh instance; once present it is `"auto"|"tmux"|"herdr"`). Confirm before editing:
+> `grep -n "ChatMultiplexerChoice" packages/shared/src/platform-api.ts` (expect the existing line 345).
 
 **Step 2.1 — Write the failing test.**
 There is no standalone unit suite for `platform-api.ts` types; the contract is verified structurally by
@@ -233,24 +294,32 @@ In `packages/shared/src/platform-api.ts`, immediately after the `RegistrationSet
 // ---------------------------------------------------------------------------
 // Onboarding (Phase 2 primary-user onboarding). See
 // docs/superpowers/specs/2026-06-12-p2-primary-user-onboarding-design.md
+// NOTE: ChatMultiplexerChoice ("auto"|"tmux"|"herdr") is the EXISTING CLI-adapter
+// contract (this file, ~line 345). Onboarding reuses it; it is NOT redefined here.
 // ---------------------------------------------------------------------------
 
-/** The selected terminal multiplexer for the CLI chat path. */
-export type ChatMultiplexer = "tmux" | "herdr";
+/** Single, unambiguous onboarding lifecycle state (replaces two booleans). */
+export type OnboardingState = "pending" | "completed" | "skipped";
 
 export interface OnboardingMultiplexerStepDto {
+  /** done ⇔ the chosen multiplexer is USABLE (tmux installed | herdr installed+root pane | auto). */
   readonly done: boolean;
-  readonly selected: ChatMultiplexer | null;
-  readonly tmuxAvailable: boolean;
-  readonly herdrAvailable: boolean;
+  /** The persisted chat.multiplexer choice, or null when no row exists yet. */
+  readonly selected: ChatMultiplexerChoice | null;
+  /** tmux is usable on this host (installed). */
+  readonly tmuxUsable: boolean;
+  /** herdr is usable on this host (installed AND a root pane is configured). */
+  readonly herdrUsable: boolean;
 }
 
 export interface OnboardingCliProviderDto {
   readonly kind: "anthropic" | "openai-compatible" | "google";
-  readonly cliAvailable: boolean;
+  /** Presence-only: the binary is on PATH. NOT a claim of authentication. */
+  readonly cliPresent: boolean;
 }
 
 export interface OnboardingCliAuthStepDto {
+  /** Documented floor: done ⇔ at least one provider CLI is PRESENT (presence ≠ authed). */
   readonly done: boolean;
   readonly providers: readonly OnboardingCliProviderDto[];
 }
@@ -266,23 +335,20 @@ export interface OnboardingStepsDto {
 }
 
 export interface OnboardingStatusResponse {
-  readonly completed: boolean;
-  readonly skipped: boolean;
+  readonly state: OnboardingState;
   readonly steps: OnboardingStepsDto;
 }
 
-export interface OnboardingFlagResponse {
-  readonly completed: boolean;
-  readonly skipped: boolean;
+export interface OnboardingStateResponse {
+  readonly state: OnboardingState;
 }
 
 const onboardingStatusResponseSchema = {
   type: "object",
   additionalProperties: false,
-  required: ["completed", "skipped", "steps"],
+  required: ["state", "steps"],
   properties: {
-    completed: { type: "boolean" },
-    skipped: { type: "boolean" },
+    state: { type: "string", enum: ["pending", "completed", "skipped"] },
     steps: {
       type: "object",
       additionalProperties: false,
@@ -291,12 +357,12 @@ const onboardingStatusResponseSchema = {
         multiplexer: {
           type: "object",
           additionalProperties: false,
-          required: ["done", "selected", "tmuxAvailable", "herdrAvailable"],
+          required: ["done", "selected", "tmuxUsable", "herdrUsable"],
           properties: {
             done: { type: "boolean" },
-            selected: { type: ["string", "null"], enum: ["tmux", "herdr", null] },
-            tmuxAvailable: { type: "boolean" },
-            herdrAvailable: { type: "boolean" }
+            selected: { type: ["string", "null"], enum: ["auto", "tmux", "herdr", null] },
+            tmuxUsable: { type: "boolean" },
+            herdrUsable: { type: "boolean" }
           }
         },
         cliAuth: {
@@ -310,13 +376,13 @@ const onboardingStatusResponseSchema = {
               items: {
                 type: "object",
                 additionalProperties: false,
-                required: ["kind", "cliAvailable"],
+                required: ["kind", "cliPresent"],
                 properties: {
                   kind: {
                     type: "string",
                     enum: ["anthropic", "openai-compatible", "google"]
                   },
-                  cliAvailable: { type: "boolean" }
+                  cliPresent: { type: "boolean" }
                 }
               }
             }
@@ -333,13 +399,12 @@ const onboardingStatusResponseSchema = {
   }
 } as const;
 
-const onboardingFlagResponseSchema = {
+const onboardingStateResponseSchema = {
   type: "object",
   additionalProperties: false,
-  required: ["completed", "skipped"],
+  required: ["state"],
   properties: {
-    completed: { type: "boolean" },
-    skipped: { type: "boolean" }
+    state: { type: "string", enum: ["pending", "completed", "skipped"] }
   }
 } as const;
 
@@ -353,7 +418,7 @@ export const getOnboardingStatusRouteSchema = {
 
 export const onboardingCompleteRouteSchema = {
   response: {
-    200: onboardingFlagResponseSchema,
+    200: onboardingStateResponseSchema,
     401: errorResponseSchema,
     403: errorResponseSchema
   }
@@ -361,7 +426,7 @@ export const onboardingCompleteRouteSchema = {
 
 export const onboardingSkipRouteSchema = {
   response: {
-    200: onboardingFlagResponseSchema,
+    200: onboardingStateResponseSchema,
     401: errorResponseSchema,
     403: errorResponseSchema
   }
@@ -369,6 +434,7 @@ export const onboardingSkipRouteSchema = {
 ```
 
 > `errorResponseSchema` is already imported at the top of `platform-api.ts` (line 1). No new import.
+> `ChatMultiplexerChoice` is already declared in the same file (line 345) — reference it directly.
 
 **Step 2.3 — Run (expect PASS).**
 `pnpm typecheck` → PASS. The new symbols are exported via the barrel automatically.
@@ -376,105 +442,124 @@ export const onboardingSkipRouteSchema = {
 **Step 2.4 — Commit.**
 ```
 git add packages/shared/src/platform-api.ts
-git commit -m "feat(shared): add onboarding contracts + ChatMultiplexer (Phase 2 onboarding)"
+git commit -m "feat(shared): add onboarding contracts (reuse ChatMultiplexerChoice) (Phase 2 onboarding)"
 ```
 
 ---
 
-### Task 3 — `SettingsRepository.setOnboardingFlag` (audited upsert wrapper)
+### Task 3 — `SettingsRepository.readOnboardingState` / `setOnboardingState` (enum, audited via the existing upsert helper)
 
 **Files**
 - Modify: `packages/settings/src/repository.ts`
 - Test: covered by Task 5's integration test (`tests/integration/onboarding.test.ts`); this task
-  ships the method so Task 5's test can be written against it. To keep the TDD loop tight, Task 3's
-  proof is `pnpm typecheck` PASS + Task 5 RED→GREEN. (The method is exercised end-to-end in Task 5.)
+  ships the methods so Task 5's test can be written against them. To keep the TDD loop tight, Task 3's
+  proof is `pnpm typecheck` PASS + Task 5 RED→GREEN. (The methods are exercised end-to-end in Task 5.)
 
-**Step 3.1 — Run typecheck baseline.**
-`pnpm typecheck` → PASS.
+**Step 3.1 — Run typecheck baseline + confirm reuse points.**
+`pnpm typecheck` → PASS. Confirm the helper you will extend:
+`grep -n "async upsertInstanceSetting\|insertAuditEvent\|UpsertInstanceSettingInput" packages/settings/src/repository.ts`
+— `upsertInstanceSetting(scopedDb, { key, value, updatedByUserId, requestId })` performs the row
+upsert AND writes exactly one audit row with the hard-coded action `"instance_setting.upsert"`. To get
+**exactly one** audit row carrying the specific `onboarding.complete`/`onboarding.skip` action (Codex
+R2: avoid a double audit; R1: no hand-rolled second insert), add an **optional `action` override** to
+`UpsertInstanceSettingInput` and use it in `upsertInstanceSetting`. Verify `insertAuditEvent`'s shape
+first (`grep -n "insertAuditEvent\|interface UpsertInstanceSettingInput" packages/settings/src/repository.ts`)
+and adapt field names to match (do not invent fields).
 
-**Step 3.2 — Implement.**
-In `packages/settings/src/repository.ts`, add an input interface near the other input interfaces
-(after `RegistrationSettings`, around line 33):
+**Step 3.2 — Implement (one audit row via an action override on the shared helper).**
+In `packages/settings/src/repository.ts`:
+
+(a) Add an optional `action` (and optional `metadata`) to the **existing** `UpsertInstanceSettingInput`
+— leave every existing field (including `value`, whose current type is `Record<string, unknown>`)
+exactly as-is; only append the two optionals (Codex R3 #5):
 
 ```ts
-export interface SetOnboardingFlagInput {
-  readonly flag: "completed" | "skipped";
+export interface UpsertInstanceSettingInput {
+  // ...all existing fields UNCHANGED (key, value: Record<string, unknown>, updatedByUserId,
+  //    requestId — do not retype value)...
+  /** Override the audit action (default "instance_setting.upsert"). Keeps ONE audit row. */
+  readonly action?: string;
+  /** Override audit metadata (default { key }). */
+  readonly metadata?: Record<string, unknown>;
+}
+```
+
+> Confirm the current field shape first (`grep -n "interface UpsertInstanceSettingInput" -A8 packages/settings/src/repository.ts`)
+> and append only the two optionals. Do NOT change `value`'s type.
+
+(b) Use them in `upsertInstanceSetting`'s `insertAuditEvent` call (replace the hard-coded action/
+metadata):
+
+```ts
+    await this.insertAuditEvent(scopedDb, {
+      actorUserId: input.updatedByUserId,
+      action: input.action ?? "instance_setting.upsert",
+      targetType: "instance_setting",
+      targetId: input.key,
+      requestId: input.requestId,
+      metadata: input.metadata ?? { key: input.key }
+    });
+```
+
+> This is backward-compatible: every existing caller (including `setChatMultiplexerSetting`) omits
+> `action`/`metadata` and keeps the `instance_setting.upsert` row unchanged. Only onboarding passes the
+> override, yielding exactly one row.
+
+(c) Add the input type near the other input interfaces (after `RegistrationSettings`). Import
+`OnboardingState` from `@jarv1s/shared` (extend the existing shared import block):
+
+```ts
+export interface SetOnboardingStateInput {
+  readonly state: Exclude<OnboardingState, "pending">; // only complete/skip are written
   readonly actorUserId: string;
   readonly requestId: string;
 }
 ```
 
-Then add the method inside `class SettingsRepository`, immediately after `setRegistrationSettings`
-(after line 210):
+(d) Add the methods inside `class SettingsRepository`, immediately after
+`getChatMultiplexerSetting`/`setChatMultiplexerSetting` (keeping onboarding next to its sibling
+multiplexer setting):
 
 ```ts
-  /**
-   * Set onboarding.completed / onboarding.skipped to true through the audited
-   * upsert path. Uses a dedicated audit action ("onboarding.complete" /
-   * "onboarding.skip") rather than the generic instance_setting.upsert, so the
-   * founder's provisioning action is legible in admin_audit_events.
-   */
-  async setOnboardingFlag(
-    scopedDb: DataContextDb,
-    input: SetOnboardingFlagInput
-  ): Promise<{ completed: boolean; skipped: boolean }> {
+  /** Read the single onboarding lifecycle state (default "pending" when absent). */
+  async readOnboardingState(scopedDb: DataContextDb): Promise<OnboardingState> {
     assertDataContextDb(scopedDb);
-    const key = input.flag === "completed" ? "onboarding.completed" : "onboarding.skipped";
-    await scopedDb.db
-      .insertInto("app.instance_settings")
-      .values({
-        key,
-        value: { value: true },
-        updated_by_user_id: input.actorUserId,
-        created_at: new Date(),
-        updated_at: new Date()
-      })
-      .onConflict((oc) =>
-        oc.column("key").doUpdateSet({
-          value: { value: true },
-          updated_by_user_id: input.actorUserId,
-          updated_at: new Date()
-        })
-      )
-      .execute();
-
-    await this.insertAuditEvent(scopedDb, {
-      actorUserId: input.actorUserId,
-      action: input.flag === "completed" ? "onboarding.complete" : "onboarding.skip",
-      targetType: "instance_setting",
-      targetId: key,
-      metadata: { key },
-      requestId: input.requestId
-    });
-
-    return this.readOnboardingFlags(scopedDb);
+    const row = await scopedDb.db
+      .selectFrom("app.instance_settings")
+      .select("value")
+      .where("key", "=", "onboarding.state")
+      .executeTakeFirst();
+    const raw = (row?.value as { value?: unknown } | undefined)?.value;
+    return raw === "completed" || raw === "skipped" ? raw : "pending";
   }
 
-  /** Read the two onboarding boolean flags from instance_settings (default false). */
-  async readOnboardingFlags(
-    scopedDb: DataContextDb
-  ): Promise<{ completed: boolean; skipped: boolean }> {
+  /**
+   * Set onboarding.state to "completed" or "skipped" through the shared audited upsert
+   * helper with an ACTION OVERRIDE, so there is exactly ONE audit row carrying the
+   * specific verb ("onboarding.complete"/"onboarding.skip"). A single enum key means the
+   * terminal state is never ambiguous (the prior two-boolean design allowed completed &&
+   * skipped both true); skip overwrites completed and vice-versa.
+   */
+  async setOnboardingState(
+    scopedDb: DataContextDb,
+    input: SetOnboardingStateInput
+  ): Promise<OnboardingState> {
     assertDataContextDb(scopedDb);
-    const rows = await scopedDb.db
-      .selectFrom("app.instance_settings")
-      .select(["key", "value"])
-      .where("key", "in", ["onboarding.completed", "onboarding.skipped"])
-      .execute();
-    const read = (key: string): boolean => {
-      const val = (rows.find((r) => r.key === key)?.value as { value?: unknown } | undefined)
-        ?.value;
-      return val === true;
-    };
-    return {
-      completed: read("onboarding.completed"),
-      skipped: read("onboarding.skipped")
-    };
+    await this.upsertInstanceSetting(scopedDb, {
+      key: "onboarding.state",
+      value: { value: input.state },
+      updatedByUserId: input.actorUserId,
+      requestId: input.requestId,
+      action: input.state === "completed" ? "onboarding.complete" : "onboarding.skip",
+      metadata: { state: input.state }
+    });
+    return input.state;
   }
 ```
 
-> Mirrors `getRegistrationSettings`' read shape (`repository.ts:171-187`) and `upsertInstanceSetting`'s
-> `onConflict` (`repository.ts:80-86`). `{ value: true }` matches the `{ value: <x> }` convention.
-> `assertDataContextDb` first on every method (DataContextDb invariant). No nested `withDataContext`.
+> Reuses `upsertInstanceSetting` for the row write — no hand-rolled second insert path (R1) — and the
+> action override means exactly one audit row (R2). `assertDataContextDb` first on every DB method
+> (DataContextDb invariant). No nested `withDataContext`.
 
 **Step 3.3 — Run (expect PASS).**
 `pnpm typecheck` → PASS.
@@ -482,20 +567,33 @@ Then add the method inside `class SettingsRepository`, immediately after `setReg
 **Step 3.4 — Commit.**
 ```
 git add packages/settings/src/repository.ts
-git commit -m "feat(settings): add setOnboardingFlag/readOnboardingFlags repository methods (Phase 2 onboarding)"
+git commit -m "feat(settings): add readOnboardingState/setOnboardingState (enum, audited) (Phase 2 onboarding)"
 ```
 
 ---
 
-### Task 4 — `SettingsRepository.getOnboardingStatus` (derived steps) + integration test (read path)
+### Task 4 — `GET /api/onboarding/status`: pure assembler + route + module-registry wiring + integration test
 
 **Files**
-- Create: `tests/integration/onboarding.test.ts` (read-path tests this task; write-path tests added in Task 5)
+- Create: `tests/integration/onboarding.test.ts` (read-path tests this task; write-path tests in Task 5)
 - Modify: `packages/settings/src/repository.ts`
+- Modify: `packages/settings/src/routes.ts`
+- Modify: `packages/module-registry/src/index.ts` (inject the bounded onboarding probes)
+- Modify: `packages/module-registry/src/chat-multiplexer.ts` (add the bounded live usability/CLI probes)
 
-The status method derives `steps` from `instance_settings` + injected presence probes + an injected
-connector-existence check. Probes are **injected** (not imported) so the repository stays free of
-`@jarv1s/ai`/`@jarv1s/connectors` package deps (module isolation) and tests can fake them.
+> **Ordering note (Codex R2 #1):** the route fails closed (500) until the probes are injected, and the
+> integration tests run through `createApiServer` (→ module-registry). So the probe **wiring is part of
+> THIS task** (Step 4.4b), landing before the route-mounted assertions run green. Task 6 then only adds
+> the *real-connector-account* assertion (which needs a seeded account) — it does not first-introduce
+> the wiring.
+
+The status is a **pure assembler** fed by: the persisted `onboarding.state` + `chat.multiplexer`
+choice (DB reads), the resolved tmux/herdr usability booleans, the resolved per-provider CLI-presence
+booleans, and a connector-existence bool. The route resolves the booleans by calling **injected
+bounded live probe functions** (timeout → false, outside the DB transaction); those functions are
+supplied by module-registry (which already imports `@jarv1s/ai`/`@jarv1s/connectors`), so
+`packages/settings` keeps no package dep on them (module isolation). The pure assembler takes only
+booleans, so tests fake it directly with no host or DB.
 
 **Step 4.1 — Write the failing test.**
 Create `tests/integration/onboarding.test.ts`:
@@ -557,7 +655,7 @@ describe("Phase 2 onboarding — getOnboardingStatus (derived steps)", () => {
     await Promise.allSettled([server?.close(), appDb?.destroy()]);
   });
 
-  it("returns all steps not-done for a fresh bootstrap owner", async () => {
+  it("returns state=pending + all steps not-done for a fresh bootstrap owner", async () => {
     const res = await server.inject({
       method: "GET",
       url: "/api/onboarding/status",
@@ -565,31 +663,34 @@ describe("Phase 2 onboarding — getOnboardingStatus (derived steps)", () => {
     });
     expect(res.statusCode).toBe(200);
     const body = res.json() as {
-      completed: boolean;
-      skipped: boolean;
+      state: string;
       steps: {
         multiplexer: { done: boolean; selected: string | null };
-        cliAuth: { done: boolean; providers: { kind: string; cliAvailable: boolean }[] };
+        cliAuth: { done: boolean; providers: { kind: string; cliPresent: boolean }[] };
         connectors: { done: boolean };
       };
     };
-    expect(body.completed).toBe(false);
-    expect(body.skipped).toBe(false);
-    expect(body.steps.multiplexer.done).toBe(false);
+    expect(body.state).toBe("pending");
+    // selected is null only when no chat.multiplexer row exists yet on a fresh instance.
     expect(body.steps.multiplexer.selected).toBeNull();
+    // multiplexer.done is false because nothing is selected/usable yet (host-independent:
+    // selected===null ⇒ not done regardless of installed binaries).
+    expect(body.steps.multiplexer.done).toBe(false);
     expect(body.steps.connectors.done).toBe(false);
     // No secret-shaped field anywhere.
     expect(JSON.stringify(body)).not.toMatch(/token|secret|password|credential/i);
   });
 
-  it("marks the multiplexer step done after chat.multiplexer is set", async () => {
-    const patch = await server.inject({
-      method: "PATCH",
-      url: "/api/admin/settings/chat.multiplexer",
+  it("marks the multiplexer step done after chat.multiplexer is set to a usable choice", async () => {
+    // Use the DEDICATED, audited adapter route (PUT /api/admin/chat-multiplexer) — the
+    // single owner of chat.multiplexer. Onboarding never writes that key directly.
+    const put = await server.inject({
+      method: "PUT",
+      url: "/api/admin/chat-multiplexer",
       headers: { cookie: ownerCookie, "content-type": "application/json" },
-      payload: { value: { value: "tmux" } }
+      payload: { multiplexer: "auto" }
     });
-    expect(patch.statusCode).toBe(200);
+    expect(put.statusCode).toBe(200);
 
     const res = await server.inject({
       method: "GET",
@@ -597,34 +698,54 @@ describe("Phase 2 onboarding — getOnboardingStatus (derived steps)", () => {
       headers: { cookie: ownerCookie }
     });
     const body = res.json() as {
-      steps: { multiplexer: { done: boolean; selected: string | null } };
+      steps: { multiplexer: { done: boolean; selected: string | null; tmuxUsable: boolean; herdrUsable: boolean } };
     };
-    expect(body.steps.multiplexer.done).toBe(true);
-    expect(body.steps.multiplexer.selected).toBe("tmux");
+    // selected reflects the persisted choice ("auto"). done depends on host usability,
+    // which is host-dependent in the real server; assert selected + that done is a boolean
+    // consistent with usability (done ⇔ at least one usable for "auto").
+    expect(body.steps.multiplexer.selected).toBe("auto");
+    const anyUsable = body.steps.multiplexer.tmuxUsable || body.steps.multiplexer.herdrUsable;
+    expect(body.steps.multiplexer.done).toBe(anyUsable);
   });
 
-  it("getOnboardingStatus repository method derives done flags from injected probes", async () => {
+  it("assembleOnboardingStatus derives flags from a settings row + availability snapshot + connector bool", () => {
+    // Pure assembler — no DB, no host, no transaction. Exercised directly so derivation
+    // logic runs deterministically regardless of the CI host's installed binaries.
     const repository = new SettingsRepository();
-    const status = await dataContext.withDataContext(
-      { actorUserId: ownerUserId, requestId: "req-status-1" },
-      (scopedDb) =>
-        repository.getOnboardingStatus(scopedDb, {
-          tmuxAvailable: async () => true,
-          herdrAvailable: async () => false,
-          cliAvailable: async (kind) => kind === "anthropic",
-          connectorAccountExists: async () => true
-        })
-    );
-    expect(status.steps.multiplexer.tmuxAvailable).toBe(true);
-    expect(status.steps.multiplexer.herdrAvailable).toBe(false);
+    const status = repository.assembleOnboardingStatus({
+      state: "pending",
+      selected: "herdr",
+      availability: { tmuxUsable: true, herdrUsable: false },
+      cliPresentByKind: { anthropic: true, "openai-compatible": false, google: false },
+      connectorAccountExists: true
+    });
+    expect(status.state).toBe("pending");
+    // herdr selected but NOT usable (no root pane) ⇒ multiplexer.done is FALSE even though
+    // herdr's binary may be present — bare presence is insufficient (Codex R1 herdr finding).
+    expect(status.steps.multiplexer.selected).toBe("herdr");
+    expect(status.steps.multiplexer.done).toBe(false);
+    expect(status.steps.multiplexer.tmuxUsable).toBe(true);
+    expect(status.steps.multiplexer.herdrUsable).toBe(false);
     expect(status.steps.cliAuth.providers).toEqual([
-      { kind: "anthropic", cliAvailable: true },
-      { kind: "openai-compatible", cliAvailable: false },
-      { kind: "google", cliAvailable: false }
+      { kind: "anthropic", cliPresent: true },
+      { kind: "openai-compatible", cliPresent: false },
+      { kind: "google", cliPresent: false }
     ]);
-    // cliAuth.done = at least one provider's CLI present.
-    expect(status.steps.cliAuth.done).toBe(true);
+    expect(status.steps.cliAuth.done).toBe(true); // at least one present
     expect(status.steps.connectors.done).toBe(true);
+  });
+
+  it("assembleOnboardingStatus: auto is done when either multiplexer is usable", () => {
+    const repository = new SettingsRepository();
+    const auto = repository.assembleOnboardingStatus({
+      state: "pending",
+      selected: "auto",
+      availability: { tmuxUsable: true, herdrUsable: false },
+      cliPresentByKind: { anthropic: false, "openai-compatible": false, google: false },
+      connectorAccountExists: false
+    });
+    expect(auto.steps.multiplexer.done).toBe(true); // auto + tmux usable
+    expect(auto.steps.cliAuth.done).toBe(false); // no CLI present
   });
 
   it("rejects a non-admin caller with 403", async () => {
@@ -664,36 +785,31 @@ describe("Phase 2 onboarding — getOnboardingStatus (derived steps)", () => {
 `pnpm vitest run tests/integration/onboarding.test.ts`
 Expected: FAIL — the route `/api/onboarding/status` 404s and `getOnboardingStatus` does not exist.
 
-**Step 4.3 — Implement the repository method.**
-In `packages/settings/src/repository.ts`, add the probe-deps interface near the top input interfaces
-(after `SetOnboardingFlagInput` from Task 3):
+**Step 4.3 — Implement the pure assembler + thin DB read.**
+The status method is split so host probes never run inside the DB transaction (Codex R1
+probes-in-transaction race): the **route** resolves the tmux/herdr usability + CLI-presence booleans
+(via bounded live probes, outside the txn) and the connector-exists bool (its check uses the route's
+own `scopedDb`), then calls a **pure** `assembleOnboardingStatus` that takes only booleans.
+In `packages/settings/src/repository.ts`, add these types near the top input interfaces (after
+`SetOnboardingStateInput` from Task 3). Import `OnboardingStatusResponse`, `ChatMultiplexerChoice`,
+and `OnboardingState` from `@jarv1s/shared` (extend the existing shared import block):
 
 ```ts
 export type OnboardingProviderKind = "anthropic" | "openai-compatible" | "google";
 
-export interface OnboardingStatusDeps {
-  readonly tmuxAvailable: () => Promise<boolean>;
-  readonly herdrAvailable: () => Promise<boolean>;
-  readonly cliAvailable: (kind: OnboardingProviderKind) => Promise<boolean>;
-  readonly connectorAccountExists: (scopedDb: DataContextDb) => Promise<boolean>;
+/** Host usability of each multiplexer, resolved by the composition root (env-aware). */
+export interface OnboardingAvailability {
+  readonly tmuxUsable: boolean;
+  readonly herdrUsable: boolean;
 }
 
-export interface OnboardingStatus {
-  readonly completed: boolean;
-  readonly skipped: boolean;
-  readonly steps: {
-    readonly multiplexer: {
-      readonly done: boolean;
-      readonly selected: "tmux" | "herdr" | null;
-      readonly tmuxAvailable: boolean;
-      readonly herdrAvailable: boolean;
-    };
-    readonly cliAuth: {
-      readonly done: boolean;
-      readonly providers: readonly { kind: OnboardingProviderKind; cliAvailable: boolean }[];
-    };
-    readonly connectors: { readonly done: boolean };
-  };
+/** Pure inputs to the status assembler (no DB, no host I/O, no transaction). */
+export interface AssembleOnboardingStatusInput {
+  readonly state: OnboardingState;
+  readonly selected: ChatMultiplexerChoice | null;
+  readonly availability: OnboardingAvailability;
+  readonly cliPresentByKind: Readonly<Record<OnboardingProviderKind, boolean>>;
+  readonly connectorAccountExists: boolean;
 }
 
 const ONBOARDING_CLI_KINDS: readonly OnboardingProviderKind[] = [
@@ -703,76 +819,88 @@ const ONBOARDING_CLI_KINDS: readonly OnboardingProviderKind[] = [
 ];
 ```
 
-Add the method inside `class SettingsRepository`, after `readOnboardingFlags` (from Task 3):
+Add the **pure** assembler inside `class SettingsRepository` (a method for testability; it touches no
+`this` state and no DB — `assertDataContextDb` is therefore NOT called here because there is no
+`scopedDb`):
 
 ```ts
   /**
-   * Derive the onboarding status the wizard renders and app.tsx routes on.
-   * Step `done` flags are DERIVED here, never separately persisted:
-   *  - multiplexer.done  ⇔ chat.multiplexer is set (to "tmux"|"herdr")
-   *  - cliAuth.done      ⇔ at least one provider's CLI is present (best-effort, presence-only)
-   *  - connectors.done   ⇔ a connector account exists
-   * Presence probes + connector-existence are injected (module isolation; testable).
+   * PURE derivation of onboarding status — no DB, no host probes, no transaction. The route
+   * supplies the persisted state + selected choice (from a DB read), the host availability
+   * snapshot, the per-provider CLI presence, and the connector-exists bool. Derived `done`:
+   *  - multiplexer.done ⇔ the SELECTED choice is USABLE on this host:
+   *       "tmux"  ⇒ tmuxUsable ; "herdr" ⇒ herdrUsable ; "auto" ⇒ tmuxUsable || herdrUsable.
+   *     A null selection (no chat.multiplexer row yet) ⇒ not done. Bare binary presence is
+   *     NOT enough for herdr (it needs a root pane) — usability is decided upstream.
+   *  - cliAuth.done ⇔ at least one provider CLI is PRESENT (presence ≠ authenticated; floor).
+   *  - connectors.done ⇔ a connector account exists.
+   * The `satisfies OnboardingStatusResponse` makes contract drift a compile error (Codex R1).
    */
-  async getOnboardingStatus(
-    scopedDb: DataContextDb,
-    deps: OnboardingStatusDeps
-  ): Promise<OnboardingStatus> {
-    assertDataContextDb(scopedDb);
+  assembleOnboardingStatus(input: AssembleOnboardingStatusInput): OnboardingStatusResponse {
+    const { state, selected, availability, cliPresentByKind, connectorAccountExists } = input;
 
-    const flagRows = await scopedDb.db
-      .selectFrom("app.instance_settings")
-      .select(["key", "value"])
-      .where("key", "in", ["onboarding.completed", "onboarding.skipped", "chat.multiplexer"])
-      .execute();
+    const multiplexerDone =
+      selected === "tmux"
+        ? availability.tmuxUsable
+        : selected === "herdr"
+          ? availability.herdrUsable
+          : selected === "auto"
+            ? availability.tmuxUsable || availability.herdrUsable
+            : false;
 
-    const rawValue = (key: string): unknown =>
-      (flagRows.find((r) => r.key === key)?.value as { value?: unknown } | undefined)?.value;
-
-    const completed = rawValue("onboarding.completed") === true;
-    const skipped = rawValue("onboarding.skipped") === true;
-
-    const multiplexerRaw = rawValue("chat.multiplexer");
-    const selected: "tmux" | "herdr" | null =
-      multiplexerRaw === "tmux" || multiplexerRaw === "herdr" ? multiplexerRaw : null;
-
-    const [tmuxAvailable, herdrAvailable, connectorsDone, ...cliFlags] = await Promise.all([
-      deps.tmuxAvailable(),
-      deps.herdrAvailable(),
-      deps.connectorAccountExists(scopedDb),
-      ...ONBOARDING_CLI_KINDS.map((kind) => deps.cliAvailable(kind))
-    ]);
-
-    const providers = ONBOARDING_CLI_KINDS.map((kind, i) => ({
+    const providers = ONBOARDING_CLI_KINDS.map((kind) => ({
       kind,
-      cliAvailable: cliFlags[i]
+      cliPresent: cliPresentByKind[kind]
     }));
 
     return {
-      completed,
-      skipped,
+      state,
       steps: {
         multiplexer: {
-          done: selected !== null,
+          done: multiplexerDone,
           selected,
-          tmuxAvailable,
-          herdrAvailable
+          tmuxUsable: availability.tmuxUsable,
+          herdrUsable: availability.herdrUsable
         },
         cliAuth: {
-          done: providers.some((p) => p.cliAvailable),
+          done: providers.some((p) => p.cliPresent),
           providers
         },
-        connectors: { done: connectorsDone }
+        connectors: { done: connectorAccountExists }
       }
-    };
+    } satisfies OnboardingStatusResponse;
+  }
+```
+
+> The repository return type IS the shared `OnboardingStatusResponse` (no parallel local DTO; Codex
+> R1 contract-drift). `selected` is read in the route from the existing
+> `getChatMultiplexerSetting(scopedDb)` (which returns `"auto"` when no row exists) — **but** the
+> status needs to distinguish "no row yet" (`null`, fresh instance) from a persisted `"auto"`. So the
+> route reads the raw row presence: if no `chat.multiplexer` row exists, pass `selected: null`; else
+> pass the stored choice. Add a tiny helper to the repository for that exact read:
+
+```ts
+  /** Read the persisted chat.multiplexer choice, or null when no row exists (fresh instance). */
+  async readChatMultiplexerChoiceOrNull(
+    scopedDb: DataContextDb
+  ): Promise<ChatMultiplexerChoice | null> {
+    assertDataContextDb(scopedDb);
+    const row = await scopedDb.db
+      .selectFrom("app.instance_settings")
+      .select("value")
+      .where("key", "=", "chat.multiplexer")
+      .executeTakeFirst();
+    if (!row) return null;
+    const raw = (row.value as { value?: unknown } | undefined)?.value;
+    return raw === "auto" || raw === "tmux" || raw === "herdr" ? raw : null;
   }
 ```
 
 **Step 4.4 — Implement the route (status only this task).**
 In `packages/settings/src/routes.ts`:
 
-(a) Extend the imports from `@jarv1s/shared` (the existing import block, lines 13–32) to add the new
-schemas — add these three names to the import list:
+(a) Extend the imports from `@jarv1s/shared` (the existing import block) to add the new schemas — add
+these three names to the import list:
 
 ```ts
   getOnboardingStatusRouteSchema,
@@ -782,53 +910,84 @@ schemas — add these three names to the import list:
 
 (Place them alongside the other `*RouteSchema` imports; they are value imports, not `type` imports.)
 
-(b) Extend `SettingsRoutesDependencies` (after line 49, before the closing `}`) with the injected
-onboarding probes:
+(b) Extend `SettingsRoutesDependencies` with the injected onboarding deps. These are **bounded live
+probe functions** run at request time **outside the DB transaction** — NOT boot snapshots. Each host
+probe is internally wrapped in a short timeout that degrades to `false`, so (i) it never blocks server
+**startup** (Codex R3 #2 — boot is untouched), (ii) it never holds a DB connection or makes the
+founder wait unbounded (Codex R1 in-txn / R2 unbounded-request — the race caps latency), and (iii) the
+step "Re-check" buttons reflect a binary installed **after** boot without a restart (Codex R3 #3 — live
+re-check works). The existing `chatMultiplexerAvailability` dep stays as-is (the admin hint legitimately
+shows bare presence); onboarding gets its own root-pane-aware usability probe:
 
 ```ts
   /**
-   * Onboarding presence/existence probes (Phase 2). Injected so packages/settings keeps no
-   * @jarv1s/ai / @jarv1s/connectors package dependency (module isolation). Wired in
-   * packages/module-registry. Optional so existing callers/tests need not pass them; when
-   * absent the onboarding routes 500 (they are only mounted on a configured server).
+   * Onboarding probes (Phase 2). Injected so packages/settings keeps no @jarv1s/ai /
+   * @jarv1s/connectors PACKAGE dependency (module isolation); wired in packages/module-registry.
+   * REQUIRED on any server that mounts the onboarding routes — when absent the routes fail
+   * closed (500 + logged) rather than silently reporting all-not-done (Codex R1 masking finding).
+   * Each function below is BOUNDED (timeout → false) and called OUTSIDE the DB transaction.
    */
   readonly onboardingProbes?: {
-    readonly tmuxAvailable: () => Promise<boolean>;
-    readonly herdrAvailable: () => Promise<boolean>;
-    readonly cliAvailable: (
+    /** Multiplexer usability (herdr accounts for the root-pane requirement). Bounded live probe. */
+    readonly multiplexerUsable: (kind: "tmux" | "herdr") => Promise<boolean>;
+    /** Provider CLI presence (presence-only). Bounded live probe. */
+    readonly cliPresent: (
       kind: "anthropic" | "openai-compatible" | "google"
     ) => Promise<boolean>;
+    /** Connector-account existence — a scoped read (needs the request's RLS scope). */
     readonly connectorAccountExists: (scopedDb: DataContextDb) => Promise<boolean>;
   };
 ```
 
 (c) Register the status route inside `registerSettingsRoutes`, immediately after the existing
-`/api/admin/audit-events` GET route (after line 422, before the closing `}` of the function). Add a
-local default so the route works when probes are not injected (tests construct the server with real
-probes via module-registry; the default keeps the route honest if mounted bare):
+`/api/admin/audit-events` GET route. **Fail closed** when deps are missing instead of defaulting to
+`false` (Codex R1: silent masking). Only the two DB reads + the connector-existence read (RLS-scoped)
+run inside `withDataContext`; the bounded host probes run **after**, outside the transaction (Codex R1):
 
 ```ts
-  const onboardingProbes = dependencies.onboardingProbes ?? {
-    tmuxAvailable: async () => false,
-    herdrAvailable: async () => false,
-    cliAvailable: async () => false,
-    connectorAccountExists: async () => false
-  };
-
   server.get(
     "/api/onboarding/status",
     { schema: getOnboardingStatusRouteSchema },
     async (request, reply) => {
       try {
+        const probes = dependencies.onboardingProbes;
+        if (!probes) {
+          request.log.error("onboarding routes mounted without onboardingProbes — failing closed");
+          return reply.code(500).send({ error: "onboarding probes not configured" });
+        }
         const accessContext = await dependencies.resolveAccessContext(request);
-        const status = await dependencies.dataContext.withDataContext(
+
+        // DB reads + admin check + connector-exists share ONE transaction (slice-D).
+        const dbPart = await dependencies.dataContext.withDataContext(
           accessContext,
           async (scopedDb) => {
             await assertAdminUser(repository, scopedDb, accessContext.actorUserId);
-            return repository.getOnboardingStatus(scopedDb, onboardingProbes);
+            const [state, selected, connectorAccountExists] = await Promise.all([
+              repository.readOnboardingState(scopedDb),
+              repository.readChatMultiplexerChoiceOrNull(scopedDb),
+              probes.connectorAccountExists(scopedDb)
+            ]);
+            return { state, selected, connectorAccountExists };
           }
         );
-        return status;
+
+        // Bounded host probes OUTSIDE the transaction (each is timeout-capped → false in
+        // the injected impl, so this Promise.all resolves quickly even on a slow host).
+        const [tmuxUsable, herdrUsable, anthropic, openaiCompatible, google] = await Promise.all([
+          probes.multiplexerUsable("tmux"),
+          probes.multiplexerUsable("herdr"),
+          probes.cliPresent("anthropic"),
+          probes.cliPresent("openai-compatible"),
+          probes.cliPresent("google")
+        ]);
+
+        return repository.assembleOnboardingStatus({
+          state: dbPart.state,
+          selected: dbPart.selected,
+          availability: { tmuxUsable, herdrUsable }, // herdrUsable is root-pane-aware (Task 6)
+          cliPresentByKind: { anthropic, "openai-compatible": openaiCompatible, google },
+          connectorAccountExists: dbPart.connectorAccountExists
+        });
       } catch (error) {
         return handleRouteError(error, reply);
       }
@@ -836,24 +995,123 @@ probes via module-registry; the default keeps the route honest if mounted bare):
   );
 ```
 
-> The route returns the repository's `OnboardingStatus` directly; its shape exactly matches
-> `OnboardingStatusResponse` / `getOnboardingStatusRouteSchema` (Task 2), so the Fastify response
-> serializer validates it. Admin check + repository call share one `withDataContext` transaction
-> (slice-D pattern). Reads only `accessContext.actorUserId` (AccessContext invariant).
+> Returns the pure assembler's `OnboardingStatusResponse` — shape matches
+> `getOnboardingStatusRouteSchema` (Task 2) so the Fastify serializer validates it. Admin check + DB
+> reads share one `withDataContext` (slice-D pattern); the **bounded** host probes run outside it
+> (Codex R1 in-txn + R2 unbounded + R3 boot-block + R3 re-check, all satisfied: live but capped). Reads
+> only `accessContext.actorUserId` (AccessContext invariant). Fails closed if misconfigured. This is
+> the single canonical route implementation (Codex R2 #4) — no later task rewrites it.
+
+**Step 4.4b — Wire the bounded live probes in module-registry (so the route is green for the tests).**
+The route fails closed until `onboardingProbes` is injected; inject it here so the integration tests
+(via `createApiServer` → `registerBuiltInApiRoutes`) pass in THIS task. **`registerBuiltInApiRoutes` is
+SYNCHRONOUS** (`index.ts:206`), so the wiring must NOT `await` anything at registration time (Codex R3
+#1) and must NOT probe the host at boot (Codex R3 #2). Instead inject **bounded live functions** that
+probe lazily, per request, each capped by a short timeout that degrades to `false`.
+
+(i) In `packages/module-registry/src/chat-multiplexer.ts`, add a bounded-probe helper + the live
+usability/presence functions next to `probeChatMultiplexerAvailability` (do NOT modify the existing
+`UpsertInstanceSettingInput` or the existing sync availability probe):
+
+```ts
+import { decideMultiplexer } from "@jarv1s/ai"; // root-pane-aware usability decision (pure)
+import { cliAvailable } from "@jarv1s/ai"; // presence-only CLI probe (async, uses `which`)
+
+/** Cap a host probe so a slow/hung binary lookup degrades to false instead of stalling a request. */
+async function boundedProbe(p: Promise<boolean>, ms = 1500): Promise<boolean> {
+  return Promise.race([
+    p.catch(() => false),
+    new Promise<boolean>((resolve) => setTimeout(() => resolve(false), ms))
+  ]);
+}
+
+/**
+ * Live, bounded multiplexer usability for a single kind. `decideMultiplexer` is pure and
+ * already encodes "herdr usable ⇔ installed AND root pane" (multiplexer-resolve.ts:37-39);
+ * the only host I/O is the synchronous PATH `has(bin)` inside createBinaryProbe, which we
+ * still wrap so the contract is uniformly bounded. Re-reads PATH each call, so a binary
+ * installed after boot is reflected on the next status fetch (no restart needed).
+ */
+export function makeMultiplexerUsableProbe(
+  env: NodeJS.ProcessEnv = process.env
+): (kind: "tmux" | "herdr") => Promise<boolean> {
+  return (kind) =>
+    boundedProbe(
+      Promise.resolve().then(() => {
+        const probe = createBinaryProbe(env);
+        return decideMultiplexer({ env, configured: kind, isInstalled: (b) => probe.has(b) }).ok;
+      })
+    );
+}
+
+/** Live, bounded provider-CLI presence (presence-only). Re-reads PATH each call. */
+export function makeCliPresentProbe(): (
+  kind: "anthropic" | "openai-compatible" | "google"
+) => Promise<boolean> {
+  return (kind) => boundedProbe(cliAvailable(kind));
+}
+```
+
+> Confirm `decideMultiplexer`/`createBinaryProbe`/`cliAvailable` are barrel-exported from `@jarv1s/ai`
+> (`grep -rn "decideMultiplexer\|createBinaryProbe\|cliAvailable" packages/ai/src/index.ts`); if not,
+> import from the submodule paths `chat-multiplexer.ts` already uses, or add the re-export. If
+> `createBinaryProbe` does a one-shot scan at construction, building it fresh inside the probe (as
+> above) is what makes re-check live; if it is already cheap/sync, keep it inside the closure.
+
+(ii) In `packages/module-registry/src/index.ts`, inject `onboardingProbes` by **spreading deps then
+augmenting** (so `chatMultiplexerAvailability` and every other settings dep is preserved — Codex R1
+#3). No `await`, no boot-time probing — the functions are constructed synchronously and probe lazily:
+
+```ts
+import { ConnectorsRepository } from "@jarv1s/connectors";
+import { makeMultiplexerUsableProbe, makeCliPresentProbe } from "./chat-multiplexer.js";
+
+// Inside registerBuiltInApiRoutes (sync), near the existing `const availability = ...`:
+const multiplexerUsable = makeMultiplexerUsableProbe(env);
+const cliPresent = makeCliPresentProbe();
+
+// Replace the bare `registerRoutes: registerSettingsRoutes` settings entry with:
+  {
+    manifest: settingsModuleManifest,
+    sqlMigrationDirectories: [],
+    queueDefinitions: [],
+    registerRoutes: (server, regDeps) =>
+      registerSettingsRoutes(server, {
+        ...regDeps, // forwards chatMultiplexerAvailability + every existing settings dep
+        onboardingProbes: {
+          multiplexerUsable,
+          cliPresent,
+          connectorAccountExists: async (scopedDb) =>
+            (await new ConnectorsRepository().listAccounts(scopedDb)).length > 0
+        }
+      })
+  },
+```
+
+> `BUILT_IN_MODULES` is currently a module-level `const` whose settings entry is the bare
+> `registerSettingsRoutes`. To close over the request-built probes, move the settings descriptor's
+> `registerRoutes` to a wrapper constructed inside `registerBuiltInApiRoutes` (it already builds a per-
+> call `deps` and loops `module.registerRoutes?.(server, deps)` at `index.ts:227-234`), e.g. special-
+> case the settings module in that loop, or replace the loop's settings entry with the wrapper above.
+> Follow the existing `availability`/`chatEngineFactory` pattern, which is likewise built inside this
+> sync function and closed over. **No `await` is added to `registerBuiltInApiRoutes`** (Codex R3 #1) and
+> **no host probe runs at boot** (Codex R3 #2) — probing happens lazily, per request, bounded.
+> `listAccounts` is RLS-scoped + returns `ConnectorAccountSafeRow[]` (no secrets) — metadata-only.
 
 **Step 4.5 — Run (expect PASS).**
-`pnpm vitest run tests/integration/onboarding.test.ts` → all green.
+`pnpm vitest run tests/integration/onboarding.test.ts` → all green. `pnpm typecheck` → PASS.
 
-> The integration test constructs the server via `createApiServer` (Task 6 wires real probes through
-> module-registry). Real `tmux`/`herdr`/`cli` presence on the CI host is irrelevant to the
-> assertions: the "not-done" tests only assert `multiplexer.done`/`connectors.done`/flags (which do
-> not depend on host binaries), and the probe-derivation test calls the repository method directly
-> with fakes. The `chat.multiplexer` test asserts `selected`/`done`, also host-independent.
+> Real host binaries are irrelevant to the deterministic assertions: the
+> `state=pending`/`selected=null`/`connectors.done=false` tests don't depend on installed binaries
+> (selection is null ⇒ not done; no connector account ⇒ not done); the two `assembleOnboardingStatus`
+> tests call the **pure** method directly with fixed inputs; the `selected="auto"` test asserts
+> `done === (tmuxUsable || herdrUsable)` which holds by construction. The route is green because the
+> bounded probes are injected in Step 4.4b.
 
 **Step 4.6 — Commit.**
 ```
-git add packages/settings/src/repository.ts packages/settings/src/routes.ts tests/integration/onboarding.test.ts
-git commit -m "feat(settings): GET /api/onboarding/status with server-derived steps (Phase 2 onboarding)"
+git add packages/settings/src/repository.ts packages/settings/src/routes.ts packages/module-registry/src/index.ts packages/module-registry/src/chat-multiplexer.ts tests/integration/onboarding.test.ts
+git commit -m "feat(settings): GET /api/onboarding/status — pure assembler, bounded live probes, fail-closed, wired (Phase 2 onboarding)"
 ```
 
 ---
@@ -895,21 +1153,21 @@ describe("Phase 2 onboarding — complete/skip (audited)", () => {
     await Promise.allSettled([server?.close(), appDb?.destroy()]);
   });
 
-  it("POST /complete upserts onboarding.completed and audits onboarding.complete", async () => {
+  it("POST /complete sets state=completed and audits onboarding.complete", async () => {
     const res = await server.inject({
       method: "POST",
       url: "/api/onboarding/complete",
       headers: { cookie: ownerCookie }
     });
     expect(res.statusCode).toBe(200);
-    expect(res.json()).toEqual({ completed: true, skipped: false });
+    expect(res.json()).toEqual({ state: "completed" });
 
     const status = await server.inject({
       method: "GET",
       url: "/api/onboarding/status",
       headers: { cookie: ownerCookie }
     });
-    expect((status.json() as { completed: boolean }).completed).toBe(true);
+    expect((status.json() as { state: string }).state).toBe("completed");
 
     const audit = await server.inject({
       method: "GET",
@@ -922,14 +1180,23 @@ describe("Phase 2 onboarding — complete/skip (audited)", () => {
     expect(actions).toContain("onboarding.complete");
   });
 
-  it("POST /skip upserts onboarding.skipped and audits onboarding.skip", async () => {
+  it("POST /skip sets state=skipped (replacing completed — single enum, never both) and audits", async () => {
     const res = await server.inject({
       method: "POST",
       url: "/api/onboarding/skip",
       headers: { cookie: ownerCookie }
     });
     expect(res.statusCode).toBe(200);
-    expect(res.json()).toEqual({ completed: true, skipped: true });
+    // A single enum means skip OVERWRITES completed — the terminal state is unambiguous;
+    // there is no "completed && skipped both true" (Codex R1 ambiguous-terminal-state finding).
+    expect(res.json()).toEqual({ state: "skipped" });
+
+    const status = await server.inject({
+      method: "GET",
+      url: "/api/onboarding/status",
+      headers: { cookie: ownerCookie }
+    });
+    expect((status.json() as { state: string }).state).toBe("skipped");
 
     const audit = await server.inject({
       method: "GET",
@@ -980,38 +1247,41 @@ In `packages/settings/src/routes.ts`, immediately after the `/api/onboarding/sta
 Task 4, add:
 
 ```ts
-  const onboardingFlagAction = (verb: "complete" | "skip", flag: "completed" | "skipped") =>
+  const onboardingStateAction = (verb: "complete" | "skip", state: "completed" | "skipped") =>
     server.post(
       `/api/onboarding/${verb}`,
       { schema: verb === "complete" ? onboardingCompleteRouteSchema : onboardingSkipRouteSchema },
       async (request, reply) => {
         try {
           const accessContext = await dependencies.resolveAccessContext(request);
-          const flags = await dependencies.dataContext.withDataContext(
+          const result = await dependencies.dataContext.withDataContext(
             accessContext,
             async (scopedDb) => {
               await assertAdminUser(repository, scopedDb, accessContext.actorUserId);
-              return repository.setOnboardingFlag(scopedDb, {
-                flag,
+              const newState = await repository.setOnboardingState(scopedDb, {
+                state,
                 actorUserId: accessContext.actorUserId,
                 requestId: requireRequestId(accessContext)
               });
+              return { state: newState };
             }
           );
-          return flags;
+          return result;
         } catch (error) {
           return handleRouteError(error, reply);
         }
       }
     );
 
-  onboardingFlagAction("complete", "completed");
-  onboardingFlagAction("skip", "skipped");
+  onboardingStateAction("complete", "completed");
+  onboardingStateAction("skip", "skipped");
 ```
 
 > Admin check + upsert share one transaction (slice-D pattern). `requireRequestId(accessContext)`
 > supplies the audit `request_id` (`routes.ts:454-460`). Reads only `actorUserId`/`requestId`
-> (AccessContext invariant). The audit row is written inside `setOnboardingFlag` (Task 3).
+> (AccessContext invariant). The audit row is written inside `setOnboardingState` (Task 3). The
+> response `{ state }` matches `onboardingCompleteRouteSchema`/`onboardingSkipRouteSchema`
+> (`OnboardingStateResponse`, Task 2).
 
 **Step 5.4 — Run (expect PASS).**
 `pnpm vitest run tests/integration/onboarding.test.ts` → all green (both describes).
@@ -1024,140 +1294,74 @@ git commit -m "feat(settings): POST /api/onboarding/complete + /skip (audited) (
 
 ---
 
-### Task 6 — Wire the onboarding probes into the settings route registration (module-registry)
+### Task 6 — Prove the connector-existence wiring with a real account (integration)
 
 **Files**
-- Modify: `packages/module-registry/src/index.ts`
+- Modify: `tests/integration/onboarding.test.ts`
 
-This is where module isolation is honoured: `@jarv1s/module-registry` already imports the AI and
-connectors modules, so it (not `@jarv1s/settings`) supplies the probes. Verify its current imports
-first, then wrap the settings registration like the chat one (`index.ts:149-157`).
+The probe wiring landed in Task 4 (Step 4.4b). This task adds the **real** wiring assertion Codex R1 #5
+asked for: seed an actual connector account and prove the status route's `connectors.done` flips to
+`true` (the boolean-type placeholder is gone). It also re-asserts no secret leaks through the payload.
 
-**Step 6.1 — Confirm available imports.**
-Run: `grep -n "from \"@jarv1s/ai\"\|from \"@jarv1s/connectors\"\|ConnectorsRepository\|cliAvailable\|tmuxAvailable\|herdrAvailable" packages/module-registry/src/index.ts`
-- If `@jarv1s/ai` / `@jarv1s/connectors` are already imported, extend those import lines.
-- If not, add them (both are already workspace deps of `@jarv1s/module-registry`; confirm with
-  `grep -n "@jarv1s/ai\|@jarv1s/connectors" packages/module-registry/package.json`). If a needed
-  package is **not** a dep, add it to `packages/module-registry/package.json` `dependencies` as
-  `"@jarv1s/ai": "workspace:*"` / `"@jarv1s/connectors": "workspace:*"` and run `pnpm install`.
+**Step 6.1 — Confirm the connectors test cipher helper name.**
+Run `grep -rn "encryptJson\|createConnectorSecretCipher\|ConnectorSecretCipher\|cipher" tests/integration/connectors.test.ts packages/connectors/src | head` and use the exact helper that
+`connectors.test.ts` uses to build an `encryptedSecret` — do not invent a name. (As of writing,
+`connectors.test.ts` builds `encryptedSecret` via a cipher's `.encryptJson({ accessToken })`; match it.)
 
 **Step 6.2 — Write the failing test.**
-The behaviour is covered by Task 4/5 integration tests **only if** real probes are wired. To prove the
-wiring specifically (the status route reflects the host's real `connectorAccountExists` after an
-account is created), add one assertion to the read suite in `tests/integration/onboarding.test.ts`.
-Append inside the **first** describe (after the "marks the multiplexer step done" test):
+Add the connectors imports to the test file's import block:
 
 ```ts
-  it("derives connectors.done from a real connector account via wired probes", async () => {
-    // Create a Google connector account through the real connector flow, then assert
-    // the onboarding status route (wired probes) flips connectors.done true.
-    const authorize = await server.inject({
-      method: "POST",
-      url: "/api/connectors/google/authorize",
-      headers: { cookie: ownerCookie, "content-type": "application/json" },
-      payload: { clientId: "cid.apps.googleusercontent.com", clientSecret: "secret" }
-    });
-    expect(authorize.statusCode).toBe(200);
-    // The complete step needs a real redirect URL with a code; the connectors suite
-    // exercises the full happy path. Here we only need an account row to exist, so use
-    // the connectors repository directly under the owner's data context to insert one.
-    // (Mirrors how connectors.test.ts seeds accounts.) If a direct-insert helper is not
-    // available, call the full /complete with a stubbed redirect as connectors-google.test.ts does.
+import { ConnectorsRepository } from "@jarv1s/connectors";
+// + the cipher helper connectors.test.ts imports (confirmed in Step 6.1), e.g.:
+import { createConnectorSecretCipher } from "@jarv1s/connectors";
+```
+
+Append inside the **first** describe (after the multiplexer test), reusing that suite's
+`ownerUserId`/`ownerCookie`/`dataContext`:
+
+```ts
+  it("derives connectors.done=true after a real connector account exists", async () => {
+    await dataContext.withDataContext(
+      { actorUserId: ownerUserId, requestId: "req-seed-connector" },
+      (scopedDb) =>
+        new ConnectorsRepository().createAccount(scopedDb, {
+          providerId: "google",
+          scopes: ["https://www.googleapis.com/auth/gmail.readonly"],
+          encryptedSecret: createConnectorSecretCipher().encryptJson({
+            accessToken: "seeded-token-not-asserted"
+          })
+        })
+    );
+
     const status = await server.inject({
       method: "GET",
       url: "/api/onboarding/status",
       headers: { cookie: ownerCookie }
     });
     expect(status.statusCode).toBe(200);
-    // Without a successfully completed OAuth, connectors.done stays false — assert the
-    // wiring path returns a real boolean (not the bare-default), i.e. the route is reachable
-    // and reflects current account state.
-    expect(typeof (status.json() as { steps: { connectors: { done: boolean } } }).steps.connectors.done).toBe("boolean");
+    const body = status.json() as { steps: { connectors: { done: boolean } } };
+    expect(body.steps.connectors.done).toBe(true); // proves connectorAccountExists is wired
+    expect(status.body).not.toMatch(/seeded-token-not-asserted|accessToken|ciphertext/i);
   });
 ```
 
-> **Implementer note:** completing a real Google OAuth in-test requires the connectors fixture flow
-> (`tests/integration/connectors-google.test.ts` shows the `/authorize`→`/complete` pair with a
-> deterministic test state). If wiring a full happy-path account is heavy, this assertion's floor is
-> "the route is reachable and returns a real boolean," which proves the probes are wired (the
-> repository-level derivation correctness is already covered by the injected-fakes test in Task 4).
-> Prefer the full happy-path if the connectors fixture is readily importable; otherwise keep the
-> boolean-type assertion.
+**Step 6.3 — Run (expect FAIL → PASS).**
+With Task 4's wiring already in place, this test is the only new behaviour. Run
+`pnpm vitest run tests/integration/onboarding.test.ts`. If it is **red**, the connector probe is not
+wired correctly (revisit Step 4.4b-ii's `connectorAccountExists`); if **green**, the wiring is proven.
+(There is no separate implementation step here — the wiring shipped in Task 4; this task is the
+verifying assertion. If, contrary to expectation, the assertion passes before you intended any change,
+that is fine: it confirms Task 4's wiring already satisfies the requirement.)
 
-**Step 6.3 — Run (expect FAIL).**
-`pnpm vitest run tests/integration/onboarding.test.ts`
-Expected: with probes still defaulting to `false` (bare default from Task 4), the new test passes the
-boolean-type check but `connectors.done` is always `false`. To make the wiring *observable*, the
-real test of this task is: **the connectors authorize call returns 200 and the status route is
-reachable through the real server** — which fails only if registration breaks. Run and confirm green
-or red accordingly; if the suite is green, proceed (the wiring change in 6.4 must keep it green and
-flip behaviour for real accounts).
+> `createAccount` sets `owner_user_id = app.current_actor_user_id()` (RLS-scoped), so the seeded row is
+> the owner's and `listAccounts(scopedDb)` under the same owner returns it. The cipher helper encrypts
+> at rest; the secret never surfaces in the status payload (the last assertion proves it).
 
-**Step 6.4 — Implement the wiring.**
-In `packages/module-registry/src/index.ts`:
-
-(a) Add/extend imports at the top:
-
-```ts
-import { cliAvailable, tmuxAvailable, herdrAvailable } from "@jarv1s/ai";
-import { ConnectorsRepository } from "@jarv1s/connectors";
+**Step 6.4 — Commit.**
 ```
-
-> The connectors repository class is `ConnectorsRepository` (plural), exported from
-> `@jarv1s/connectors` (`packages/connectors/src/repository.ts:58`), with a no-arg constructor and a
-> `listAccounts(scopedDb)` method (`repository.ts:89`). `@jarv1s/ai` and `@jarv1s/connectors` are
-> already imported in `module-registry/src/index.ts` (lines 5, 39) and already listed in its
-> `package.json` deps — extend the existing import lines; no new package dependency or `pnpm install`
-> is required (Step 6.1's add-a-dep branch will not trigger).
-
-(b) Replace the settings registration entry (currently `index.ts:102-107`,
-`registerRoutes: registerSettingsRoutes`) with a wrapping form that injects the probes:
-
-```ts
-  {
-    manifest: settingsModuleManifest,
-    sqlMigrationDirectories: [],
-    queueDefinitions: [],
-    registerRoutes: (server, deps) =>
-      registerSettingsRoutes(server, {
-        rootDb: deps.rootDb,
-        dataContext: deps.dataContext,
-        resolveAccessContext: deps.resolveAccessContext,
-        listConfiguredAuthProviders: deps.listConfiguredAuthProviders,
-        revokeUserSessions: deps.revokeUserSessions,
-        bootstrapConnectionString: deps.bootstrapConnectionString,
-        onboardingProbes: {
-          tmuxAvailable: () => tmuxAvailable(),
-          herdrAvailable: () => herdrAvailable(),
-          cliAvailable: (kind) => cliAvailable(kind),
-          connectorAccountExists: async (scopedDb) => {
-            const accounts = await new ConnectorsRepository().listAccounts(scopedDb);
-            return accounts.length > 0;
-          }
-        }
-      })
-  },
-```
-
-> `registerSettingsRoutes` already accepts every field above (`SettingsRoutesDependencies`,
-> `routes.ts:39-50`, plus the new optional `onboardingProbes` from Task 5). `ConnectorsRepository`
-> takes the `scopedDb` from the route's own `withDataContext` transaction — `listAccounts` is
-> RLS-scoped to the founder and returns `ConnectorAccountSafeRow[]` (no secrets), so the existence
-> check reads metadata only (module isolation + secrets invariants satisfied). The `cliAvailable`
-> kind union matches `ProviderKind` from `@jarv1s/ai`.
-
-(c) If `@jarv1s/ai`/`@jarv1s/connectors` were not already in `packages/module-registry/package.json`,
-add them and run `pnpm install` (Step 6.1).
-
-**Step 6.5 — Run (expect PASS).**
-`pnpm vitest run tests/integration/onboarding.test.ts` → green. `pnpm typecheck` → PASS.
-
-**Step 6.6 — Commit.**
-```
-git add packages/module-registry/src/index.ts tests/integration/onboarding.test.ts
-# include package.json + lockfile ONLY if you added deps in 6.1/6.4c:
-# git add packages/module-registry/package.json pnpm-lock.yaml
-git commit -m "feat(module-registry): inject onboarding presence/connector probes into settings routes (Phase 2 onboarding)"
+git add tests/integration/onboarding.test.ts
+git commit -m "test(settings): prove onboarding connectors.done wiring with a real account (Phase 2 onboarding)"
 ```
 
 ---
@@ -1188,43 +1392,57 @@ In `apps/web/src/api/query-keys.ts`, add an `onboarding` namespace (after the `a
 **Step 7.3 — Implement client functions.**
 In `apps/web/src/api/client.ts`:
 
-(a) Add the new response types to the `@jarv1s/shared` import block (lines 1–69):
+(a) Add the new response types to the `@jarv1s/shared` import block:
 
 ```ts
   OnboardingStatusResponse,
-  OnboardingFlagResponse,
-  UpsertInstanceSettingResponse,
+  OnboardingStateResponse,
 ```
 
-(b) Add the functions near the other platform reads (after `getModules`, ~line 107):
+> Do **NOT** add a generic instance-setting writer. The multiplexer choice is written through the
+> existing `setChatMultiplexerSettings(multiplexer)` (`client.ts:548`, hits the audited
+> `PUT /api/admin/chat-multiplexer`) — the single owner of `chat.multiplexer`. `ChatMultiplexerChoice`
+> and `ChatMultiplexerSettingsDto` are already imported (`client.ts:10-11`).
+
+(b) Add the functions near the other platform reads (after `getModules`, ~line 108):
 
 ```ts
+/** Bounded so a hung status read can never trap the founder before the app shell (Codex R2 #2). */
+const ONBOARDING_STATUS_TIMEOUT_MS = 4000;
+
 export async function getOnboardingStatus(): Promise<OnboardingStatusResponse> {
-  return requestJson<OnboardingStatusResponse>("/api/onboarding/status");
+  // Race the request against a bounded timeout. On timeout this rejects → React Query
+  // (retry:false) surfaces isError, and app.tsx falls through to the app shell. A fresh
+  // instance therefore always boots even if /api/onboarding/status hangs.
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), ONBOARDING_STATUS_TIMEOUT_MS);
+  try {
+    return await requestJson<OnboardingStatusResponse>("/api/onboarding/status", {
+      signal: controller.signal
+    });
+  } finally {
+    clearTimeout(timer);
+  }
 }
 
-export async function completeOnboarding(): Promise<OnboardingFlagResponse> {
-  return requestJson<OnboardingFlagResponse>("/api/onboarding/complete", { method: "POST" });
+export async function completeOnboarding(): Promise<OnboardingStateResponse> {
+  return requestJson<OnboardingStateResponse>("/api/onboarding/complete", { method: "POST" });
 }
 
-export async function skipOnboarding(): Promise<OnboardingFlagResponse> {
-  return requestJson<OnboardingFlagResponse>("/api/onboarding/skip", { method: "POST" });
-}
-
-export async function upsertInstanceSetting(
-  key: string,
-  value: Record<string, unknown>
-): Promise<UpsertInstanceSettingResponse> {
-  return requestJson<UpsertInstanceSettingResponse>(
-    `/api/admin/settings/${encodeURIComponent(key)}`,
-    { method: "PATCH", body: { value } }
-  );
+export async function skipOnboarding(): Promise<OnboardingStateResponse> {
+  return requestJson<OnboardingStateResponse>("/api/onboarding/skip", { method: "POST" });
 }
 ```
 
-> `upsertInstanceSetting` hits the existing audited `PATCH /api/admin/settings/:key`
-> (`routes.ts:145-170`); the body convention is `{ value: { value: "tmux" } }`, so step 2 calls
-> `upsertInstanceSetting("chat.multiplexer", { value: "tmux" })`.
+> Confirm `requestJson` forwards `signal` to `fetch` (`grep -n "function requestJson\|signal\|fetch("
+> apps/web/src/api/client.ts`). If its options type does not yet accept `signal`, add
+> `readonly signal?: AbortSignal` to that options type and pass it through to `fetch` (a one-line
+> addition; every other caller is unaffected). The timeout converts a hang into a fall-through, which
+> the app.tsx branch (Task 11) treats as "no wizard, render the shell".
+>
+> The multiplexer step (Task 8) calls the **existing** `setChatMultiplexerSettings(choice)` — no new
+> client function for that write, no generic `PATCH /api/admin/settings/:key`. Single ownership of
+> `chat.multiplexer` preserved (Codex R1 #1/#2).
 
 **Step 7.4 — Run (expect PASS).**
 `pnpm typecheck` → PASS.
@@ -1279,9 +1497,9 @@ export function WelcomeStep(props: { readonly onSkipAll: () => void }) {
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { LoaderCircle } from "lucide-react";
 
-import type { OnboardingMultiplexerStepDto } from "@jarv1s/shared";
+import type { ChatMultiplexerChoice, OnboardingMultiplexerStepDto } from "@jarv1s/shared";
 
-import { upsertInstanceSetting } from "../api/client";
+import { setChatMultiplexerSettings } from "../api/client";
 import { queryKeys } from "../api/query-keys";
 
 export function MultiplexerStep(props: {
@@ -1290,14 +1508,19 @@ export function MultiplexerStep(props: {
 }) {
   const queryClient = useQueryClient();
   const select = useMutation({
-    mutationFn: (choice: "tmux" | "herdr") =>
-      upsertInstanceSetting("chat.multiplexer", { value: choice }),
+    // Reuse the EXISTING audited writer — single owner of chat.multiplexer.
+    mutationFn: (choice: ChatMultiplexerChoice) => setChatMultiplexerSettings(choice),
     onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: queryKeys.onboarding.status });
+      // Invalidate BOTH the onboarding status and the settings chat-multiplexer query so the
+      // adapter slice's settings panel (if open) stays consistent.
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: queryKeys.onboarding.status }),
+        queryClient.invalidateQueries({ queryKey: queryKeys.settings.chatMultiplexer })
+      ]);
     }
   });
 
-  const anyAvailable = props.step.tmuxAvailable || props.step.herdrAvailable;
+  const anyUsable = props.step.tmuxUsable || props.step.herdrUsable;
 
   return (
     <section className="panel" aria-labelledby="onboarding-multiplexer-title">
@@ -1307,13 +1530,15 @@ export function MultiplexerStep(props: {
       {props.step.selected ? (
         <p className="form-hint">
           Selected: <strong>{props.step.selected}</strong>
+          {props.step.done ? " (usable)" : " (selected, but not usable on this host yet)"}
         </p>
       ) : null}
-      {!anyAvailable ? (
+      {!anyUsable ? (
         <>
           <p>
             Jarv1s runs unprivileged, so we can&apos;t install software for you. Install one of these
-            on the host, then re-check:
+            on the host, then re-check. (herdr also needs a root pane — set
+            <code>JARVIS_HERDR_ROOT_PANE</code> or run Jarv1s inside herdr.)
           </p>
           <ol className="connect-steps">
             <li>
@@ -1329,7 +1554,7 @@ export function MultiplexerStep(props: {
           <button
             className="primary-button"
             type="button"
-            disabled={!props.step.tmuxAvailable || select.isPending}
+            disabled={!props.step.tmuxUsable || select.isPending}
             onClick={() => select.mutate("tmux")}
           >
             {select.isPending ? <LoaderCircle className="spin" size={18} /> : null} Use tmux
@@ -1337,10 +1562,19 @@ export function MultiplexerStep(props: {
           <button
             className="primary-button"
             type="button"
-            disabled={!props.step.herdrAvailable || select.isPending}
+            disabled={!props.step.herdrUsable || select.isPending}
             onClick={() => select.mutate("herdr")}
           >
             {select.isPending ? <LoaderCircle className="spin" size={18} /> : null} Use herdr
+          </button>
+          <button
+            className="ghost-button"
+            type="button"
+            disabled={select.isPending}
+            onClick={() => select.mutate("auto")}
+            title="Let Jarv1s pick whichever usable multiplexer is installed"
+          >
+            Auto-detect
           </button>
         </div>
       )}
@@ -1352,9 +1586,14 @@ export function MultiplexerStep(props: {
 }
 ```
 
-> Write happens via the existing audited `PATCH /api/admin/settings/:key` (no new route). Re-check is
-> a manual button (no auto-install, no blocking poll loop — anti-pattern against sleep-loops). The
-> install commands are copy-paste only.
+> Write happens via the existing audited `PUT /api/admin/chat-multiplexer`
+> (`setChatMultiplexerSettings`) — no new route, no generic `PATCH`, single ownership of
+> `chat.multiplexer` (Codex R1 #1/#2). The "Use herdr" button is disabled unless herdr is **usable**
+> (installed AND root pane — `herdrUsable`), so the founder is never offered a choice that would only
+> fail at launch (Codex R1 herdr finding). "Auto-detect" persists `"auto"` (the existing default
+> semantics). Re-check is a manual button (no auto-install, no blocking poll — anti-pattern against
+> sleep-loops). Install commands are copy-paste only. `queryKeys.settings.chatMultiplexer`
+> (`query-keys.ts:12`) already exists.
 
 **Step 8.4 — Implement `cli-auth-step.tsx`.**
 
@@ -1389,7 +1628,7 @@ export function CliAuthStep(props: {
           return (
             <li key={provider.kind}>
               <strong>{label.name}</strong>{" "}
-              {provider.cliAvailable ? (
+              {provider.cliPresent ? (
                 <span className="form-hint">detected — run its login on the host if you haven&apos;t</span>
               ) : (
                 <span className="form-hint">
@@ -1528,21 +1767,164 @@ git commit -m "feat(web): gated OnboardingChatOverlay reusing chat drawer/stream
 
 ---
 
-### Task 10 — `OnboardingWizard` (the spine: steps, skip, resume, finish, overlay)
+### Task 10 — Resume/overlay-gating helper (gate-tested) + `OnboardingWizard` spine
 
 **Files**
+- Create: `apps/web/src/onboarding/resume.ts` (pure, host-free)
+- Create: `tests/unit/onboarding-resume.test.ts` (runs under `verify:foundation`'s `test:unit`)
 - Create: `apps/web/src/onboarding/onboarding-wizard.tsx`
 
-Verified at runtime by Task 11 e2e; type-verified by `pnpm typecheck`.
+The load-bearing skip/resume/overlay-gating logic is extracted into a **pure** helper so it runs
+inside the foundation gate (Codex R1: branch tests must not be Playwright-only), not just the
+best-effort e2e.
 
 **Step 10.1 — Typecheck baseline.**
 `pnpm typecheck` → PASS.
 
-**Step 10.2 — Implement.**
+**Step 10.2 — Write the failing unit test for the helper.**
+Create `tests/unit/onboarding-resume.test.ts`:
+
+```ts
+import { describe, it, expect } from "vitest";
+import type { OnboardingStatusResponse } from "@jarv1s/shared";
+
+import {
+  STEP_KEYS,
+  firstIncompleteStepIndex,
+  isOverlayEnabled
+} from "../../apps/web/src/onboarding/resume.js";
+
+function status(overrides: Partial<OnboardingStatusResponse["steps"]> = {}): OnboardingStatusResponse {
+  return {
+    state: "pending",
+    steps: {
+      multiplexer: { done: false, selected: null, tmuxUsable: false, herdrUsable: false },
+      cliAuth: {
+        done: false,
+        providers: [
+          { kind: "anthropic", cliPresent: false },
+          { kind: "openai-compatible", cliPresent: false },
+          { kind: "google", cliPresent: false }
+        ]
+      },
+      connectors: { done: false },
+      ...overrides
+    }
+  };
+}
+
+describe("firstIncompleteStepIndex", () => {
+  it("returns the multiplexer step (index 1) when nothing is done", () => {
+    expect(firstIncompleteStepIndex(status())).toBe(STEP_KEYS.indexOf("multiplexer"));
+  });
+
+  it("skips done steps and resumes at the first not-done", () => {
+    const s = status({
+      multiplexer: { done: true, selected: "tmux", tmuxUsable: true, herdrUsable: false }
+    });
+    expect(firstIncompleteStepIndex(s)).toBe(STEP_KEYS.indexOf("cliAuth"));
+  });
+
+  it("returns the last step index when every derived step is done", () => {
+    const s = status({
+      multiplexer: { done: true, selected: "auto", tmuxUsable: true, herdrUsable: false },
+      cliAuth: {
+        done: true,
+        providers: [
+          { kind: "anthropic", cliPresent: true },
+          { kind: "openai-compatible", cliPresent: false },
+          { kind: "google", cliPresent: false }
+        ]
+      },
+      connectors: { done: true }
+    });
+    expect(firstIncompleteStepIndex(s)).toBe(STEP_KEYS.length - 1);
+  });
+});
+
+describe("isOverlayEnabled", () => {
+  it("is false when no multiplexer is usable", () => {
+    expect(isOverlayEnabled(status())).toBe(false);
+  });
+
+  it("is false when a multiplexer is usable but no CLI is present", () => {
+    const s = status({
+      multiplexer: { done: true, selected: "tmux", tmuxUsable: true, herdrUsable: false }
+    });
+    expect(isOverlayEnabled(s)).toBe(false);
+  });
+
+  it("is true only when the multiplexer step is done (usable) AND a CLI is present", () => {
+    const s = status({
+      multiplexer: { done: true, selected: "tmux", tmuxUsable: true, herdrUsable: false },
+      cliAuth: {
+        done: true,
+        providers: [
+          { kind: "anthropic", cliPresent: true },
+          { kind: "openai-compatible", cliPresent: false },
+          { kind: "google", cliPresent: false }
+        ]
+      }
+    });
+    expect(isOverlayEnabled(s)).toBe(true);
+  });
+
+  it("is false for a null status (still-loading / error)", () => {
+    expect(isOverlayEnabled(undefined)).toBe(false);
+  });
+});
+```
+
+**Step 10.3 — Run (expect FAIL), then implement `resume.ts`.**
+`pnpm vitest run tests/unit/onboarding-resume.test.ts` → FAIL (module missing). Then create
+`apps/web/src/onboarding/resume.ts`:
+
+```ts
+import type { OnboardingStatusResponse } from "@jarv1s/shared";
+
+export const STEP_KEYS = ["welcome", "multiplexer", "cliAuth", "connectors"] as const;
+export type StepKey = (typeof STEP_KEYS)[number];
+
+/** Per-step done map. welcome is always "done" for resume purposes; the rest are derived. */
+export function doneByStep(status: OnboardingStatusResponse | undefined): Record<StepKey, boolean> {
+  const steps = status?.steps;
+  return {
+    welcome: true,
+    multiplexer: steps?.multiplexer.done ?? false,
+    cliAuth: steps?.cliAuth.done ?? false,
+    connectors: steps?.connectors.done ?? false
+  };
+}
+
+/** Index of the first not-done step; the last step index when everything is done. */
+export function firstIncompleteStepIndex(status: OnboardingStatusResponse | undefined): number {
+  const done = doneByStep(status);
+  const idx = STEP_KEYS.findIndex((k) => !done[k]);
+  return idx === -1 ? STEP_KEYS.length - 1 : idx;
+}
+
+/**
+ * The optional Jarvis overlay is enabled ONLY when a usable CLI chat path exists:
+ * the multiplexer step is DONE (i.e. the chosen multiplexer is USABLE — tmux installed,
+ * herdr installed+root-pane, or auto with one usable) AND at least one provider CLI is
+ * PRESENT. Gating on `multiplexer.done` (not bare `selected`) honours herdr's root-pane
+ * requirement (Codex R1) — a selected-but-unusable herdr does not light the overlay.
+ */
+export function isOverlayEnabled(status: OnboardingStatusResponse | undefined): boolean {
+  if (!status) return false;
+  return status.steps.multiplexer.done && status.steps.cliAuth.providers.some((p) => p.cliPresent);
+}
+```
+
+Re-run: `pnpm vitest run tests/unit/onboarding-resume.test.ts` → all green.
+
+**Step 10.4 — Implement the wizard (imports the helper; takes `initialStatus` from app.tsx).**
 
 ```tsx
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+
+import type { OnboardingStatusResponse } from "@jarv1s/shared";
 
 import { completeOnboarding, getOnboardingStatus, skipOnboarding } from "../api/client";
 import { queryKeys } from "../api/query-keys";
@@ -1551,40 +1933,31 @@ import { ConnectorStep } from "./connector-step";
 import { MultiplexerStep } from "./multiplexer-step";
 import { OnboardingChatOverlay } from "./onboarding-chat-overlay";
 import { WelcomeStep } from "./welcome-step";
+import { STEP_KEYS, firstIncompleteStepIndex, isOverlayEnabled } from "./resume";
 
-const STEP_KEYS = ["welcome", "multiplexer", "cliAuth", "connectors"] as const;
-type StepKey = (typeof STEP_KEYS)[number];
-
-export function OnboardingWizard(props: { readonly onDone: () => void }) {
+export function OnboardingWizard(props: {
+  readonly onDone: () => void;
+  /** The status app.tsx already fetched — seeds the query so the wizard shows NO second loader. */
+  readonly initialStatus: OnboardingStatusResponse;
+}) {
   const queryClient = useQueryClient();
   const statusQuery = useQuery({
     queryKey: queryKeys.onboarding.status,
     queryFn: getOnboardingStatus,
-    retry: false
+    retry: false,
+    initialData: props.initialStatus // never a fresh-load spinner inside the wizard
   });
 
-  const [stepIndex, setStepIndex] = useState(0);
+  const [stepIndex, setStepIndex] = useState(() => firstIncompleteStepIndex(props.initialStatus));
   const [resumed, setResumed] = useState(false);
 
-  // Resumability: on first successful load, jump to the first not-done step. Steps after
-  // welcome map to derived done flags; welcome is always "done" for resume purposes.
-  const doneByStep = useMemo<Record<StepKey, boolean>>(() => {
-    const steps = statusQuery.data?.steps;
-    return {
-      welcome: true,
-      multiplexer: steps?.multiplexer.done ?? false,
-      cliAuth: steps?.cliAuth.done ?? false,
-      connectors: steps?.connectors.done ?? false
-    };
-  }, [statusQuery.data]);
-
+  // If the first server refresh arrives, resume once at the first not-done step.
   useEffect(() => {
     if (statusQuery.isSuccess && !resumed) {
-      const firstNotDone = STEP_KEYS.findIndex((k) => !doneByStep[k]);
-      setStepIndex(firstNotDone === -1 ? STEP_KEYS.length - 1 : firstNotDone);
+      setStepIndex(firstIncompleteStepIndex(statusQuery.data));
       setResumed(true);
     }
-  }, [statusQuery.isSuccess, resumed, doneByStep]);
+  }, [statusQuery.isSuccess, statusQuery.data, resumed]);
 
   const invalidateStatus = () =>
     queryClient.invalidateQueries({ queryKey: queryKeys.onboarding.status });
@@ -1604,22 +1977,10 @@ export function OnboardingWizard(props: { readonly onDone: () => void }) {
     }
   });
 
-  if (statusQuery.isLoading) {
-    return (
-      <main className="center-screen">
-        <div className="loading-mark" aria-hidden="true" />
-        <p>Loading setup</p>
-      </main>
-    );
-  }
-
-  const steps = statusQuery.data?.steps;
-  // Overlay is enabled only when a CLI chat path exists: a multiplexer is selected AND at least
-  // one provider's CLI is present (spec §6). selected is "tmux"|"herdr"|null from the server.
-  const overlayEnabled =
-    steps != null &&
-    steps.multiplexer.selected != null &&
-    steps.cliAuth.providers.some((p) => p.cliAvailable);
+  // No isLoading branch: initialData guarantees data is present from the first render
+  // (app.tsx already waited). A background refetch error never blanks the wizard.
+  const steps = statusQuery.data.steps;
+  const overlayEnabled = isOverlayEnabled(statusQuery.data);
 
   const currentKey = STEP_KEYS[stepIndex];
   const isLast = stepIndex === STEP_KEYS.length - 1;
@@ -1639,19 +2000,19 @@ export function OnboardingWizard(props: { readonly onDone: () => void }) {
 
         {statusQuery.isError ? (
           <p className="form-error">
-            Couldn&apos;t load setup status. You can still skip and configure later.
+            Couldn&apos;t refresh setup status. You can still skip and configure later.
           </p>
         ) : null}
 
         <div className="onboarding-step">
           {currentKey === "welcome" ? <WelcomeStep onSkipAll={() => skip.mutate()} /> : null}
-          {currentKey === "multiplexer" && steps ? (
+          {currentKey === "multiplexer" ? (
             <MultiplexerStep step={steps.multiplexer} onRecheck={invalidateStatus} />
           ) : null}
-          {currentKey === "cliAuth" && steps ? (
+          {currentKey === "cliAuth" ? (
             <CliAuthStep step={steps.cliAuth} onRecheck={invalidateStatus} />
           ) : null}
-          {currentKey === "connectors" && steps ? (
+          {currentKey === "connectors" ? (
             <ConnectorStep done={steps.connectors.done} />
           ) : null}
         </div>
@@ -1697,27 +2058,30 @@ export function OnboardingWizard(props: { readonly onDone: () => void }) {
 ```
 
 > Every step is reachable and individually skippable ("Skip this step" advances without writing);
-> "Skip setup" (header + welcome) writes `onboarding.skipped` and exits; "Finish" writes
-> `onboarding.completed`. Re-entry resumes at the first not-done step (the `useEffect`). The overlay
-> mounts but is enabled only when a multiplexer is selected AND a provider CLI is present. On status
-> error the wizard still renders and skip works (error handling — never trap the founder). The wizard
-> uses `center-screen`/`panel`/`primary-button`/`ghost-button`/`form-hint`/`form-error` classes that
+> "Skip setup" (header + welcome) writes `onboarding.state = "skipped"` and exits; "Finish" writes
+> `onboarding.state = "completed"`. Re-entry resumes at the first not-done step
+> (`firstIncompleteStepIndex`, seeded synchronously from `initialStatus` so there is no flash). The
+> overlay is enabled only when the multiplexer step is **done (usable)** AND a provider CLI is present
+> (`isOverlayEnabled`). There is **no in-wizard loading screen** — `initialData` from app.tsx
+> guarantees data on first render, so a stalled background refetch never blanks the wizard or traps
+> the founder (Codex R1 double-loader / fresh-boot finding). The wizard uses
+> `center-screen`/`panel`/`primary-button`/`ghost-button`/`form-hint`/`form-error` classes that
 > already exist in `apps/web/src/styles.css`; the new `onboarding-*` class names are layout-only and
-> can be left unstyled (no functional dependency) or given minimal CSS — see Step 10.3.
+> can be left unstyled (no functional dependency) or given minimal CSS — see Step 10.5.
 
-**Step 10.3 — (Optional) minimal CSS.**
+**Step 10.5 — (Optional) minimal CSS.**
 The wizard relies only on existing classes for function. If you add the `onboarding-*` wrappers,
 append minimal rules to `apps/web/src/styles.css` (purely cosmetic; not load-bearing). This is
 optional and may be skipped; if added, include `apps/web/src/styles.css` in the commit `git add`.
 
-**Step 10.4 — Run (expect PASS).**
-`pnpm typecheck` → PASS. `pnpm lint` → PASS (fix any unused-import/var warnings; lint runs with
-`--max-warnings=0`).
+**Step 10.6 — Run (expect PASS).**
+`pnpm vitest run tests/unit/onboarding-resume.test.ts` → green. `pnpm typecheck` → PASS. `pnpm lint`
+→ PASS (fix any unused-import/var warnings; lint runs with `--max-warnings=0`).
 
-**Step 10.5 — Commit.**
+**Step 10.7 — Commit.**
 ```
-git add apps/web/src/onboarding/onboarding-wizard.tsx
-# add apps/web/src/styles.css too ONLY if you added CSS in 10.3
+git add apps/web/src/onboarding/resume.ts tests/unit/onboarding-resume.test.ts apps/web/src/onboarding/onboarding-wizard.tsx
+# add apps/web/src/styles.css too ONLY if you added CSS in 10.5
 git commit -m "feat(web): OnboardingWizard spine — steps, skip, resume, finish, overlay (Phase 2 onboarding)"
 ```
 
@@ -1744,58 +2108,121 @@ import { OnboardingWizard } from "./onboarding/onboarding-wizard";
 > `getModules`/`getBootstrapStatus`/`getMe` are already imported from `./api/client` (line 4);
 > extend that import with `getOnboardingStatus` rather than adding a second import line.
 
-(b) Add the onboarding status query after the `modulesQuery` (after line 32). It must be **enabled
-only for the bootstrap owner** so household members never call it:
+(b) **Extend `resume.ts` with the pure app-branch predicate (so the branch is gate-testable, Codex R2
+#5).** Add to `apps/web/src/onboarding/resume.ts`:
 
 ```ts
-  const isBootstrapOwner =
-    meQuery.data?.user.isInstanceAdmin === true && meQuery.data?.user.isBootstrapOwner === true;
+import type { MeResponse, OnboardingStatusResponse } from "@jarv1s/shared";
+
+/** Bootstrap owner ⇔ instance admin AND bootstrap owner. Used to gate the onboarding fetch+branch. */
+export function isBootstrapOwner(me: MeResponse | undefined): boolean {
+  return me?.user.isInstanceAdmin === true && me?.user.isBootstrapOwner === true;
+}
+
+/**
+ * Pure decision the app.tsx branch makes: show the wizard ONLY for a bootstrap owner whose
+ * status has loaded successfully with state === "pending". Any other case (non-owner, no data
+ * yet, error/timeout, or a terminal state) ⇒ false ⇒ render the app shell. This guarantees a
+ * fresh instance always boots and a non-owner never sees the wizard.
+ */
+export function shouldShowOnboarding(
+  me: MeResponse | undefined,
+  status: OnboardingStatusResponse | undefined
+): boolean {
+  return isBootstrapOwner(me) && status?.state === "pending";
+}
+```
+
+> Confirm `MeResponse` shape (`grep -n "interface MeResponse\|isBootstrapOwner\|isInstanceAdmin" packages/shared/src/platform-api.ts`)
+> and that `MeResponse` is barrel-exported from `@jarv1s/shared`. **First** append these failing unit
+> tests to `tests/unit/onboarding-resume.test.ts` (extend its imports with `shouldShowOnboarding`,
+> `isBootstrapOwner` and `MeResponse`), run them RED, then implement the predicate above to turn them
+> green:
+
+```ts
+function me(isInstanceAdmin: boolean, isBootstrapOwner: boolean): MeResponse {
+  // Build the minimal MeResponse the predicate reads; match the real shape (fill required
+  // fields per platform-api.ts — only user.isInstanceAdmin / user.isBootstrapOwner are read).
+  return { user: { isInstanceAdmin, isBootstrapOwner } } as unknown as MeResponse;
+}
+
+describe("shouldShowOnboarding", () => {
+  it("is false for a non-owner even with a pending status", () => {
+    expect(shouldShowOnboarding(me(false, false), status())).toBe(false);
+    expect(shouldShowOnboarding(me(true, false), status())).toBe(false); // admin but not bootstrap owner
+  });
+  it("is true for a bootstrap owner with state=pending", () => {
+    expect(shouldShowOnboarding(me(true, true), status())).toBe(true);
+  });
+  it("is false for a bootstrap owner once state is terminal", () => {
+    expect(shouldShowOnboarding(me(true, true), { ...status(), state: "completed" })).toBe(false);
+    expect(shouldShowOnboarding(me(true, true), { ...status(), state: "skipped" })).toBe(false);
+  });
+  it("is false when status is undefined (loading/error) — fall through to the shell", () => {
+    expect(shouldShowOnboarding(me(true, true), undefined)).toBe(false);
+  });
+});
+```
+
+(c) Add the onboarding status query after the `modulesQuery`. It must be **enabled only for the
+bootstrap owner** so household members never call it (the `enabled` flag means no network request
+fires for non-owners — proven by the in-gate `isBootstrapOwner` test + the e2e non-owner test):
+
+```ts
+  const ownerForOnboarding = isBootstrapOwner(meQuery.data);
   const onboardingQuery = useQuery({
-    enabled: isBootstrapOwner,
+    enabled: ownerForOnboarding,
     queryKey: queryKeys.onboarding.status,
     queryFn: getOnboardingStatus,
-    retry: false
+    retry: false // getOnboardingStatus is itself bounded by a 4s timeout (client.ts)
   });
 ```
 
-(c) Add the branch **after** the `if (!meQuery.data) { ... }` block (after line 76, before the
+(d) Add the branch **after** the `if (!meQuery.data) { ... }` block (before the
 `return ( <BrowserRouter> ...`):
 
 ```ts
-  if (isBootstrapOwner) {
+  if (ownerForOnboarding) {
+    // A hung status read cannot trap the founder: getOnboardingStatus is bounded to 4s, so
+    // isLoading resolves to data-or-error within that window. We show a bounded loader only
+    // for the owner's first boot (avoids a shell flash before the wizard); on error/timeout
+    // onboardingQuery.data is undefined ⇒ we fall through to the app shell below.
     if (onboardingQuery.isLoading) {
       return <LoadingScreen />;
     }
-    // Status error must never trap the founder: fall through to the app shell (onboarding
-    // is optional). On success, show the wizard only while not completed and not skipped.
-    if (
-      onboardingQuery.data &&
-      !onboardingQuery.data.completed &&
-      !onboardingQuery.data.skipped
-    ) {
+    if (shouldShowOnboarding(meQuery.data, onboardingQuery.data)) {
       return (
         <OnboardingWizard
+          initialStatus={onboardingQuery.data!}
           onDone={() => void queryClient.invalidateQueries({ queryKey: queryKeys.onboarding.status })}
         />
       );
     }
+    // else: not pending (terminal state) OR errored/timed-out ⇒ fall through to the shell.
   }
 ```
 
-> Mirrors the `account_pending`/`deactivated` early-return shape (`app.tsx:61-67`) — a single early
-> `return` before the app-shell render. Fires only for `isInstanceAdmin && isBootstrapOwner`
-> (acceptance #4; bootstrap-owner-trigger-only invariant). Does **not** touch
-> `/api/bootstrap/status`. On status error, `onboardingQuery.data` is undefined → no wizard → app
-> shell renders (error handling). `onDone` invalidates the status query so the wizard's own
-> `complete`/`skip` mutation result re-drives this branch to fall through.
+> Mirrors the `account_pending`/`deactivated` early-return shape (`app.tsx:61-67`). Fires only for
+> `isInstanceAdmin && isBootstrapOwner` (acceptance #4; bootstrap-owner-trigger-only invariant). Does
+> **not** touch `/api/bootstrap/status` (OTNR-P4 #122) — that pre-auth probe and its bounded exemption
+> are untouched; the onboarding status route is fully authed + admin-gated, outside the pre-auth
+> exemption. The loader is **bounded** by `getOnboardingStatus`'s 4s timeout (Task 7): a hang resolves
+> to `isError` within 4s and falls through — a fresh instance always boots (Codex R1/R2 fresh-boot
+> finding). The decision uses the pure `shouldShowOnboarding` (gate-tested). Passing `initialStatus`
+> removes the wizard's own loader (Codex R1 double-loader finding). `onDone` invalidates the status
+> query so `complete`/`skip` re-drives this branch to a terminal state → fall through. (`initialStatus`
+> is non-null here because `shouldShowOnboarding` is true only when `status?.state === "pending"`; the
+> `!` is therefore sound — or restructure with a local `const data = onboardingQuery.data` guard if you
+> prefer to avoid the non-null assertion under lint rules.)
 
 **Step 11.3 — Run (expect PASS).**
+`pnpm vitest run tests/unit/onboarding-resume.test.ts` → green (incl. the new predicate tests).
 `pnpm typecheck` → PASS. `pnpm lint` → PASS.
 
 **Step 11.4 — Commit.**
 ```
-git add apps/web/src/app.tsx
-git commit -m "feat(web): app.tsx bootstrap-owner onboarding branch (Phase 2 onboarding)"
+git add apps/web/src/onboarding/resume.ts tests/unit/onboarding-resume.test.ts apps/web/src/app.tsx
+git commit -m "feat(web): app.tsx bootstrap-owner onboarding branch + gate-tested predicate (Phase 2 onboarding)"
 ```
 
 ---
@@ -1826,16 +2253,15 @@ export function defaultOnboardingStatus(
   overrides: Partial<OnboardingStatusResponse> = {}
 ): OnboardingStatusResponse {
   return {
-    completed: false,
-    skipped: false,
+    state: "pending",
     steps: {
-      multiplexer: { done: false, selected: null, tmuxAvailable: false, herdrAvailable: false },
+      multiplexer: { done: false, selected: null, tmuxUsable: false, herdrUsable: false },
       cliAuth: {
         done: false,
         providers: [
-          { kind: "anthropic", cliAvailable: false },
-          { kind: "openai-compatible", cliAvailable: false },
-          { kind: "google", cliAvailable: false }
+          { kind: "anthropic", cliPresent: false },
+          { kind: "openai-compatible", cliPresent: false },
+          { kind: "google", cliPresent: false }
         ]
       },
       connectors: { done: false }
@@ -1849,44 +2275,55 @@ export async function registerMockOnboardingRoutes(
   state: MockOnboardingApiState
 ): Promise<void> {
   const get = (route: Route) => {
-    const status = state.onboardingStatus ?? defaultOnboardingStatus();
+    // Default to a COMPLETED status so existing specs (which never set onboardingStatus)
+    // fall straight through to the app shell — the wizard never hijacks them. The onboarding
+    // spec opts in explicitly with onboardingStatus: defaultOnboardingStatus() (state pending).
+    const status = state.onboardingStatus ?? defaultOnboardingStatus({ state: "completed" });
     return route.fulfill({
       status: 200,
       contentType: "application/json",
       body: JSON.stringify(status)
     });
   };
-  const flag = (route: Route, patch: Partial<OnboardingStatusResponse>) => {
-    state.onboardingStatus = { ...(state.onboardingStatus ?? defaultOnboardingStatus()), ...patch };
+  const setState = (route: Route, next: "completed" | "skipped") => {
+    state.onboardingStatus = { ...(state.onboardingStatus ?? defaultOnboardingStatus()), state: next };
     return route.fulfill({
       status: 200,
       contentType: "application/json",
-      body: JSON.stringify({ completed: state.onboardingStatus.completed, skipped: state.onboardingStatus.skipped })
+      body: JSON.stringify({ state: next }) // OnboardingStateResponse
     });
   };
   await page.route("**/api/onboarding/status", (route) => get(route));
-  await page.route("**/api/onboarding/complete", (route) => flag(route, { completed: true }));
-  await page.route("**/api/onboarding/skip", (route) => flag(route, { skipped: true }));
-  await page.route(/\/api\/admin\/settings\/chat\.multiplexer$/, (route) => {
-    const body = route.request().postDataJSON() as { value: { value: "tmux" | "herdr" } };
-    const choice = body.value.value;
+  await page.route("**/api/onboarding/complete", (route) => setState(route, "completed"));
+  await page.route("**/api/onboarding/skip", (route) => setState(route, "skipped"));
+  // The multiplexer step writes via the DEDICATED adapter route PUT /api/admin/chat-multiplexer
+  // (NOT a generic settings PATCH). Mirror its ChatMultiplexerSettingsDto response shape.
+  await page.route(/\/api\/admin\/chat-multiplexer$/, (route) => {
+    const body = route.request().postDataJSON() as { multiplexer: "auto" | "tmux" | "herdr" };
+    const choice = body.multiplexer;
     const prev = state.onboardingStatus ?? defaultOnboardingStatus();
+    // Reflect selection; mark done iff the chosen choice maps to a usable backend in the mock's
+    // current snapshot (so e2e can drive both the usable and the not-yet-usable paths).
+    const usable =
+      choice === "tmux"
+        ? prev.steps.multiplexer.tmuxUsable
+        : choice === "herdr"
+          ? prev.steps.multiplexer.herdrUsable
+          : prev.steps.multiplexer.tmuxUsable || prev.steps.multiplexer.herdrUsable;
     state.onboardingStatus = {
       ...prev,
-      steps: { ...prev.steps, multiplexer: { ...prev.steps.multiplexer, done: true, selected: choice } }
+      steps: { ...prev.steps, multiplexer: { ...prev.steps.multiplexer, done: usable, selected: choice } }
     };
     return route.fulfill({
       status: 200,
       contentType: "application/json",
       body: JSON.stringify({
-        setting: {
-          key: "chat.multiplexer",
-          value: { value: choice },
-          updatedByUserId: "user-1",
-          createdAt: "2026-06-06T12:00:00.000Z",
-          updatedAt: "2026-06-06T12:00:00.000Z"
+        multiplexer: choice,
+        available: {
+          tmux: state.onboardingStatus.steps.multiplexer.tmuxUsable,
+          herdr: state.onboardingStatus.steps.multiplexer.herdrUsable
         }
-      })
+      }) // ChatMultiplexerSettingsDto
     });
   });
 }
@@ -1921,30 +2358,12 @@ export interface MockApiState
   await registerMockOnboardingRoutes(page, state);
 ```
 
-> By default `state.onboardingStatus` is undefined → the mock serves `defaultOnboardingStatus()`
-> (`completed:false, skipped:false`), which would route every authenticated bootstrap-owner spec into
-> the wizard and break existing specs (app-shell, tasks, chat-drawer, connect-google). **To preserve
-> existing specs**, set the default served status to *completed* when `onboardingStatus` is not
-> explicitly provided. Change `defaultOnboardingStatus()` usage in `registerMockOnboardingRoutes`'
-> `get` to serve a completed status by default:
-
-Adjust `mock-onboarding-api.ts` `get` to:
-
-```ts
-  const get = (route: Route) => {
-    const status =
-      state.onboardingStatus ?? defaultOnboardingStatus({ completed: true });
-    return route.fulfill({
-      status: 200,
-      contentType: "application/json",
-      body: JSON.stringify(status)
-    });
-  };
-```
-
-> Existing specs (which never set `onboardingStatus`) thus see `completed:true` and fall straight
-> through to the app shell — no behaviour change. The onboarding spec explicitly sets
-> `onboardingStatus: defaultOnboardingStatus()` to opt into the wizard.
+> **Default preserves existing specs.** The `get` handler above already defaults to
+> `defaultOnboardingStatus({ state: "completed" })` when `onboardingStatus` is unset, so every
+> existing authenticated bootstrap-owner spec (app-shell, tasks, chat-drawer, connect-google) sees a
+> completed status and falls straight through to the app shell — no behaviour change. The onboarding
+> spec opts into the wizard by explicitly passing `onboardingStatus: defaultOnboardingStatus()`
+> (which is `state: "pending"`). No separate `get` adjustment is needed; it is built in.
 
 **Step 12.3 — Write the spec.**
 Create `tests/e2e/onboarding.spec.ts`:
@@ -1979,7 +2398,7 @@ test("bootstrap owner with incomplete onboarding sees the wizard, then the app s
   await page.getByRole("button", { name: "Next" }).click(); // cliAuth -> connectors
   await page.getByRole("button", { name: "Finish" }).click();
 
-  // After finish the status mock returns completed:true; the branch falls through.
+  // After finish the status mock returns state:"completed"; the app.tsx branch falls through.
   await expect(page.getByRole("heading", { name: "Set up Jarv1s" })).not.toBeVisible();
 });
 
@@ -2060,25 +2479,32 @@ owning task before proceeding to Task 14.
 **Step 13.1 — Spec §-by-§ coverage check.** Confirm each acceptance criterion (spec §Acceptance
 criteria 1–10) is satisfied:
 
-1. `GET /api/onboarding/status` returns `{completed,skipped,steps}` with server-derived `done` flags;
-   admin-gated; per-method `DataContextDb`. → Tasks 4, 6.
-2. `POST /complete` + `/skip` upsert the flags, `requireAdmin`-gated, each writes an audit row. → Tasks
-   3, 5.
+1. `GET /api/onboarding/status` returns `{state,steps}` with server-derived `done` flags; admin-gated;
+   per-method `DataContextDb`; host probes outside the txn; fail-closed if misconfigured. → Tasks 4, 6.
+2. `POST /complete` + `/skip` set the single `onboarding.state` enum, `requireAdmin`-gated, each writes
+   an `onboarding.complete`/`onboarding.skip` audit row; skip overwrites completed (no ambiguous
+   both-true). → Tasks 3, 5.
 3. `cli-availability.ts` gains `herdrAvailable`, presence-only, same `WhichDeps` seam. → Task 1.
-4. `app.tsx` branch fires only for `isInstanceAdmin && isBootstrapOwner` when `!completed && !skipped`;
-   mirrors `account_pending`; never touches `/api/bootstrap/status`. → Task 11.
+4. `app.tsx` branch fires only for `isInstanceAdmin && isBootstrapOwner` when `state === "pending"`
+   (pure `shouldShowOnboarding`, unit-tested in-gate); mirrors `account_pending`; never touches
+   `/api/bootstrap/status`; passes `initialStatus` (no double loader); status read is bounded to 4s
+   and falls through on error/timeout so a fresh instance always boots. → Tasks 7, 11.
 5. Wizard renders four ordered steps; every step skippable; whole flow skippable; re-entry resumes at
-   first not-done. → Tasks 8, 10.
-6. Step 2 writes `chat.multiplexer` via existing audited `PATCH /api/admin/settings/:key`; multiplexer/
-   CLI steps show instructions + manual re-check (no auto-install, no blocking poll). → Tasks 7, 8.
-7. Optional chat overlay mounts in the wizard, disabled until a CLI path is usable, reuses chat drawer/
-   stream, never gates completion. → Tasks 9, 10.
-8. New shared contracts in `platform-api.ts`, barrel-exported; `queryKeys.onboarding` namespace. →
-   Tasks 2, 7.
-9. No new migration; no secret-shaped field in any onboarding response; `AccessContext` unchanged; all
-   writes audited. → Tasks 2–6 (assertions in Task 4/5 tests check for secret-shaped fields and audit
-   actions).
-10. `pnpm verify:foundation` green incl. new unit + integration tests. → Task 14.
+   first not-done (pure `firstIncompleteStepIndex`, unit-tested in-gate). → Tasks 8, 10.
+6. Step 2 writes `chat.multiplexer` via the **existing dedicated audited** `PUT /api/admin/chat-multiplexer`
+   (`setChatMultiplexerSettings`) — single owner, no generic PATCH, supports `auto`; multiplexer/CLI
+   steps show instructions + manual re-check (no auto-install, no blocking poll); "Use herdr" disabled
+   unless herdr is usable (root-pane aware). → Tasks 7, 8.
+7. Optional chat overlay mounts in the wizard, disabled until the multiplexer is **usable** AND a CLI is
+   present (`isOverlayEnabled`, unit-tested), reuses chat drawer/stream, never gates completion. →
+   Tasks 9, 10.
+8. New shared contracts in `platform-api.ts` (reusing `ChatMultiplexerChoice`, NO duplicate type),
+   barrel-exported; `queryKeys.onboarding` namespace. → Tasks 2, 7.
+9. No new migration (one new `onboarding.state` key); no secret-shaped field in any onboarding response
+   (status + connector-seed tests assert no `token|secret|password|credential|accessToken|ciphertext`);
+   `AccessContext` unchanged; all writes audited. → Tasks 2–6.
+10. `pnpm verify:foundation` green incl. new unit (cli-availability + resume) + integration tests. →
+    Task 14.
 
 **Step 13.2 — Placeholder scan.** Grep the worktree for accidental placeholders introduced by this
 slice:
@@ -2087,32 +2513,43 @@ grep -rn "TODO\|FIXME\|similar to above\|placeholder\|XXX" \
   packages/ai/src/cli-availability.ts \
   packages/shared/src/platform-api.ts \
   packages/settings/src/repository.ts packages/settings/src/routes.ts \
-  packages/module-registry/src/index.ts \
+  packages/module-registry/src/index.ts packages/module-registry/src/chat-multiplexer.ts \
   apps/web/src/onboarding apps/web/src/app.tsx apps/web/src/api/client.ts apps/web/src/api/query-keys.ts \
-  tests/unit/onboarding-cli-availability.test.ts tests/integration/onboarding.test.ts \
+  tests/unit/onboarding-cli-availability.test.ts tests/unit/onboarding-resume.test.ts \
+  tests/integration/onboarding.test.ts \
   tests/e2e/mock-onboarding-api.ts tests/e2e/onboarding.spec.ts
 ```
 Expected: no matches in the new/changed code (pre-existing TODOs elsewhere are out of scope).
 
 **Step 13.3 — Type-consistency check.** Confirm:
-- The repository `OnboardingStatus` shape is structurally identical to `OnboardingStatusResponse`
-  (Task 2) so the status route can `return status` and pass JSON-schema serialization. Field names,
-  optionality, and the `selected` enum (`"tmux"|"herdr"|null`) match.
+- `assembleOnboardingStatus(...)` returns the shared `OnboardingStatusResponse` (enforced by
+  `satisfies OnboardingStatusResponse`); the route returns it directly and the Fastify serializer
+  validates it against `getOnboardingStatusRouteSchema`. No parallel local DTO exists.
 - `OnboardingProviderKind` (repository) === `ProviderKind` (`@jarv1s/ai`) === the schema `kind` enum
   (`anthropic|openai-compatible|google`) === `OnboardingCliProviderDto.kind`.
-- `upsertInstanceSetting(key, value)` body is `{ value }` and the value passed is `{ value: choice }`
-  → the wire body is `{ value: { value: "tmux" } }` (matches `parseInstanceSettingBody`).
+- `selected` is `ChatMultiplexerChoice | null` everywhere (shared DTO, repository helper, schema enum
+  `["auto","tmux","herdr",null]`).
+- The multiplexer write goes through `setChatMultiplexerSettings(choice)` → `PUT /api/admin/chat-multiplexer`;
+  there is NO generic instance-setting writer for `chat.multiplexer` anywhere in the slice.
 - `ChatDrawer`/`useChatStream` destructure in the overlay matches the real exports (Task 9 note).
 
 **Step 13.4 — Hard-Invariant audit.** Confirm against CLAUDE.md "Hard Invariants":
-DataContextDb-only (every new repo method starts with `assertDataContextDb`), AccessContext unchanged
-(routes read only `actorUserId`/`requestId`), secrets never escape (status returns booleans + enum
-only; CLI step presence-only), module isolation (probes injected via module-registry, no settings→
-ai/connectors package dep), no migration, all admin writes audited, bootstrap-owner-only trigger.
+DataContextDb-only (every new repo method that touches the DB starts with `assertDataContextDb`; the
+pure assembler has no `scopedDb`), AccessContext unchanged (routes read only `actorUserId`/`requestId`),
+secrets never escape (status returns booleans + the multiplexer enum only; CLI step presence-only;
+connector existence is a bool, never contents), module isolation (probes injected via module-registry
+which spreads existing deps + adds `onboardingProbes`; no settings→ai/connectors package dep), no
+migration, all admin writes audited (onboarding state + the reused multiplexer write), bootstrap-owner-
+only trigger. Also confirm the onboarding status route is fully authed/admin-gated and therefore does
+NOT use the pre-auth non-secret read exemption (`chat-multiplexer.ts` `PREAUTH_READABLE_SETTING_KEYS`);
+that allowlist is unchanged.
 
-**Step 13.5 — Coordination check.** Re-run `grep -rn "ChatMultiplexer" packages/shared/src` to confirm
-the type is defined exactly once (spec §Open risks — CLI-adapter slice race). If the CLI-adapter slice
-landed it meanwhile, reconcile to a single definition (Task 2 note) before Task 14.
+**Step 13.5 — Single-ownership check.** Re-run
+`grep -rn "ChatMultiplexer\b\|ChatMultiplexerChoice" packages/shared/src` — confirm `ChatMultiplexerChoice`
+is defined exactly once (the adapter slice's, ~line 345) and the slice added **no** `ChatMultiplexer`
+type. Re-run `grep -rn "chat.multiplexer" packages/settings/src apps/web/src` — confirm the only writers
+are `setChatMultiplexerSetting` (repository) / `setChatMultiplexerSettings` (client) via
+`PUT /api/admin/chat-multiplexer`; onboarding adds no second writer.
 
 ---
 
@@ -2129,9 +2566,9 @@ This runs, in order: `lint` (eslint, `--max-warnings=0`), `format:check` (pretti
 `pnpm format` first if needed and re-commit), `check:file-size` (no source file >1000 lines — verify
 `apps/web/src/onboarding/onboarding-wizard.tsx`, `packages/settings/src/routes.ts`,
 `packages/settings/src/repository.ts`, and `packages/shared/src/platform-api.ts` are all under the
-limit), `typecheck` (tsc + web typecheck), `test:unit` (includes the `herdrAvailable` test),
-`db:migrate` (idempotent; no new migration so the hash-check is unaffected), `test:integration`
-(includes `tests/integration/onboarding.test.ts`).
+limit), `typecheck` (tsc + web typecheck), `test:unit` (includes the `herdrAvailable` AND the
+`onboarding-resume` helper tests), `db:migrate` (idempotent; no new migration so the hash-check is
+unaffected), `test:integration` (includes `tests/integration/onboarding.test.ts`).
 Expected: GREEN end-to-end. Capture the real exit code (do not pipe through `| tail`).
 
 **Step 14.3 — Run the onboarding e2e where a browser is available.**
@@ -2157,10 +2594,14 @@ Otherwise no commit is needed — the gate is green on the existing commits.
   lists explicit paths.
 - **Do not start, stop, or migrate another agent's database** — use the per-agent `JARVIS_PGDATABASE`
   the run manifest assigned you for `pnpm db:up`/`test:integration`.
-- **`chat.multiplexer` contract is owned here** unless the CLI-adapter slice landed it first; Task 2
-  and Task 13.5 guard against a duplicate `ChatMultiplexer` definition.
+- **`chat.multiplexer` is owned by the CLI-adapter slice (already landed).** Onboarding reuses
+  `ChatMultiplexerChoice` + `PUT /api/admin/chat-multiplexer` and adds NO second writer and NO
+  duplicate type. Task 2 and Task 13.5 guard this. If the adapter slice's contract changed since this
+  plan was written, re-confirm `getChatMultiplexerSetting`/`setChatMultiplexerSetting` and the route
+  shape before building (grep first).
 - **Two paths validate only at the DEPLOY checkpoint** (real multiplexer engine use; real chat overlay
-  replies) — do not stall the build waiting on the CLI-adapter / deployable-stack slices. Everything
-  in Tasks 1–14 is buildable and gate-testable against the already-shipped panels + presence probes.
+  replies) — do not stall the build waiting on the deployable-stack slice. Everything in Tasks 1–14 is
+  buildable and gate-testable against the already-shipped panels + presence probes + the landed
+  multiplexer contract.
 - If any step's "expected FAIL" instead passes, stop and investigate (the test or the baseline is
   wrong) before implementing — do not skip the RED phase.
