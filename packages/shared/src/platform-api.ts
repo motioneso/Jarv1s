@@ -512,3 +512,150 @@ export const putChatMultiplexerSettingsRouteSchema = {
     403: errorResponseSchema
   }
 } as const;
+
+// ── Module enablement (admin + self-service) ────────────────────────────────
+
+export interface AdminModuleDto {
+  readonly id: string;
+  readonly name: string;
+  readonly version: string;
+  readonly lifecycle: "required" | "optional" | "user-toggleable" | "workspace-toggleable";
+  readonly required: boolean;
+  readonly supportsUserDisable: boolean;
+  readonly instanceDisabled: boolean;
+}
+
+export interface MyModuleDto {
+  readonly id: string;
+  readonly name: string;
+  readonly version: string;
+  readonly lifecycle: "required" | "optional" | "user-toggleable" | "workspace-toggleable";
+  readonly required: boolean;
+  readonly supportsUserDisable: boolean;
+  readonly instanceDisabled: boolean;
+  readonly userDisabled: boolean;
+  readonly active: boolean;
+}
+
+export interface ListAdminModulesResponse {
+  readonly modules: readonly AdminModuleDto[];
+}
+
+export interface ListMyModulesResponse {
+  readonly modules: readonly MyModuleDto[];
+}
+
+export interface PatchModuleEnablementRequest {
+  readonly disabled: boolean;
+}
+
+const lifecycleEnum = {
+  type: "string",
+  enum: ["required", "optional", "user-toggleable", "workspace-toggleable"]
+} as const;
+
+const adminModuleSchema = {
+  type: "object",
+  additionalProperties: false,
+  required: [
+    "id",
+    "name",
+    "version",
+    "lifecycle",
+    "required",
+    "supportsUserDisable",
+    "instanceDisabled"
+  ],
+  properties: {
+    id: { type: "string" },
+    name: { type: "string" },
+    version: { type: "string" },
+    lifecycle: lifecycleEnum,
+    required: { type: "boolean" },
+    supportsUserDisable: { type: "boolean" },
+    instanceDisabled: { type: "boolean" }
+  }
+} as const;
+
+const myModuleSchema = {
+  type: "object",
+  additionalProperties: false,
+  required: [
+    "id",
+    "name",
+    "version",
+    "lifecycle",
+    "required",
+    "supportsUserDisable",
+    "instanceDisabled",
+    "userDisabled",
+    "active"
+  ],
+  properties: {
+    id: { type: "string" },
+    name: { type: "string" },
+    version: { type: "string" },
+    lifecycle: lifecycleEnum,
+    required: { type: "boolean" },
+    supportsUserDisable: { type: "boolean" },
+    instanceDisabled: { type: "boolean" },
+    userDisabled: { type: "boolean" },
+    active: { type: "boolean" }
+  }
+} as const;
+
+export const adminModuleParamsSchema = {
+  type: "object",
+  additionalProperties: false,
+  required: ["id"],
+  properties: { id: { type: "string" } }
+} as const;
+
+export const listAdminModulesRouteSchema = {
+  response: {
+    200: {
+      type: "object",
+      additionalProperties: false,
+      required: ["modules"],
+      properties: { modules: { type: "array", items: adminModuleSchema } }
+    },
+    401: errorResponseSchema,
+    403: errorResponseSchema
+  }
+} as const;
+
+export const listMyModulesRouteSchema = {
+  response: {
+    200: {
+      type: "object",
+      additionalProperties: false,
+      required: ["modules"],
+      properties: { modules: { type: "array", items: myModuleSchema } }
+    },
+    401: errorResponseSchema
+  }
+} as const;
+
+export const patchModuleEnablementRouteSchema = {
+  params: adminModuleParamsSchema,
+  body: {
+    type: "object",
+    additionalProperties: false,
+    required: ["disabled"],
+    properties: { disabled: { type: "boolean" } }
+  },
+  response: {
+    200: {
+      type: "object",
+      additionalProperties: false,
+      required: ["module"],
+      properties: { module: { ...myModuleSchema } }
+    },
+    400: errorResponseSchema,
+    401: errorResponseSchema,
+    403: errorResponseSchema,
+    404: errorResponseSchema,
+    409: errorResponseSchema,
+    422: errorResponseSchema
+  }
+} as const;
