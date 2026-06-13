@@ -214,6 +214,26 @@ export const tasksModuleManifest = {
       path: "/api/tasks/overdue",
       responseSchema: overdueTasksRouteSchema.response[200],
       permissionId: "tasks.view"
+    },
+    {
+      method: "GET",
+      path: "/api/tasks/preferences",
+      permissionId: "tasks.view"
+    },
+    {
+      method: "PATCH",
+      path: "/api/tasks/preferences",
+      permissionId: "tasks.update"
+    },
+    {
+      method: "GET",
+      path: "/api/tasks/:id/subtasks",
+      permissionId: "tasks.view"
+    },
+    {
+      method: "GET",
+      path: "/api/tasks/:id/activity",
+      permissionId: "tasks.view"
     }
   ],
   jobs: [

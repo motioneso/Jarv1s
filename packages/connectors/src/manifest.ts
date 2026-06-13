@@ -123,6 +123,16 @@ export const connectorsModuleManifest = {
       path: "/api/admin/connectors/accounts",
       responseSchema: listAdminConnectorAccountsResponseSchema,
       permissionId: "connectors.admin"
+    },
+    {
+      method: "POST",
+      path: "/api/connectors/google/authorize",
+      permissionId: "connectors.manage"
+    },
+    {
+      method: "POST",
+      path: "/api/connectors/google/complete",
+      permissionId: "connectors.manage"
     }
   ],
   assistantTools: [
