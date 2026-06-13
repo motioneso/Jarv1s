@@ -11,6 +11,7 @@ import {
   BriefingsRepository,
   briefingsModuleManifest,
   isBriefingRunPayloadMetadataOnly,
+  reconcileSchedule,
   registerBriefingsJobWorkers,
   type BriefingRunPayload,
   type BriefingRunResult
@@ -603,6 +604,63 @@ describe("Briefings module M6 read-only scheduled summaries", () => {
       expect(calls.schedule.length).toBeGreaterThanOrEqual(1);
     } finally {
       calls.restore();
+    }
+  });
+
+  it("keeps distinct per-definition schedule rows under the exclusive run queue (F12)", async () => {
+    // Two DIFFERENT enabled daily definitions owned by user A. The BRIEFINGS_RUN_QUEUE
+    // policy is `exclusive` (NULL singletonKeys collapse to one job), but pg-boss
+    // SCHEDULES are keyed independently — pgboss.schedule is PRIMARY KEY (name, key),
+    // and reconcileSchedule keys on definition.id — so both must co-exist.
+    const defA = await dataContext.withDataContext(userAContext(), (scopedDb) =>
+      repository.createDefinition(scopedDb, {
+        title: "Schedule rows A",
+        cadence: "daily",
+        scheduleMetadata: { targetTime: "06:00", timezone: "America/New_York" },
+        enabled: true,
+        selectedToolNames: ["tasks.list"]
+      })
+    );
+    const defB = await dataContext.withDataContext(userAContext(), (scopedDb) =>
+      repository.createDefinition(scopedDb, {
+        title: "Schedule rows B",
+        cadence: "daily",
+        scheduleMetadata: { targetTime: "07:30", timezone: "UTC" },
+        enabled: true,
+        selectedToolNames: ["tasks.list"]
+      })
+    );
+
+    // Build a REAL cron-enabled boss (the worker's mode) so boss.schedule writes
+    // actual pgboss.schedule rows — not a spy.
+    const scheduleBoss = createPgBossClient(connectionStrings.worker, { schedule: true });
+    await scheduleBoss.start();
+    const client = new Client({ connectionString: connectionStrings.migration });
+    await client.connect();
+    try {
+      await reconcileSchedule(scheduleBoss, defA);
+      await reconcileSchedule(scheduleBoss, defB);
+
+      const bothRows = await client.query<{ name: string; key: string }>(
+        `SELECT name, key FROM pgboss.schedule WHERE name = $1 AND key = ANY($2::text[]) ORDER BY key`,
+        [BRIEFINGS_RUN_QUEUE, [defA.id, defB.id]]
+      );
+      const keys = bothRows.rows.map((r) => r.key).sort();
+      expect(keys).toEqual([defA.id, defB.id].sort());
+
+      // Disabling one definition removes ONLY its schedule row (the other survives).
+      await reconcileSchedule(scheduleBoss, { ...defA, enabled: false });
+      const afterDisable = await client.query<{ key: string }>(
+        `SELECT key FROM pgboss.schedule WHERE name = $1 AND key = ANY($2::text[])`,
+        [BRIEFINGS_RUN_QUEUE, [defA.id, defB.id]]
+      );
+      const remaining = afterDisable.rows.map((r) => r.key);
+      expect(remaining).toEqual([defB.id]);
+    } finally {
+      await client.end();
+      // Clean up B's surviving schedule so it can't fire into later worker assertions.
+      await reconcileSchedule(scheduleBoss, { ...defB, enabled: false });
+      await scheduleBoss.stop({ graceful: false });
     }
   });
 
