@@ -463,6 +463,27 @@ export interface PreferencesTable {
   updated_at: TimestampColumn;
 }
 
+export interface WellnessCheckinsTable {
+  id: ColumnType<string, string | undefined, string>;
+  owner_user_id: string;
+  checked_in_at: TimestampColumn;
+  feeling_core: "mad" | "sad" | "scared" | "joyful" | "powerful" | "peaceful";
+  feeling_secondary: string | null;
+  feeling_tertiary: string | null;
+  wheel_version: ColumnType<string, string | undefined, string>;
+  sensations: TextArrayColumn;
+  intensity: number | null;
+  energy: number | null;
+  note: string | null;
+  identified_via: ColumnType<
+    "wheel" | "assisted",
+    "wheel" | "assisted" | undefined,
+    "wheel" | "assisted"
+  >;
+  created_at: TimestampColumn;
+  updated_at: TimestampColumn;
+}
+
 export interface JarvisDatabase {
   "app.schema_migrations": SchemaMigrationsTable;
   "app.users": UsersTable;
@@ -501,6 +522,7 @@ export interface JarvisDatabase {
   "app.commitments": CommitmentsTable;
   "app.entities": EntitiesTable;
   "app.preferences": PreferencesTable;
+  "app.wellness_checkins": WellnessCheckinsTable;
 }
 
 export type User = Selectable<UsersTable>;
@@ -532,3 +554,4 @@ export type JsonObject = JsonColumn;
 export type Commitment = Selectable<CommitmentsTable>;
 export type Entity = Selectable<EntitiesTable>;
 export type Preference = Selectable<PreferencesTable>;
+export type WellnessCheckin = Selectable<WellnessCheckinsTable>;

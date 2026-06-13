@@ -21,5 +21,10 @@ export const wellnessModuleManifest = {
     defaultEnabled: true,
     required: false,
     supportsUserDisable: true
+  },
+  database: {
+    migrations: ["sql/0082_wellness_checkins.sql"],
+    migrationDirectories: ["packages/wellness/sql"],
+    ownedTables: ["app.wellness_checkins"]
   }
 } satisfies JarvisModuleManifest;
