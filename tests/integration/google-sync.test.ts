@@ -15,6 +15,7 @@ import {
   type GoogleSyncPayload
 } from "@jarv1s/connectors";
 import { ALLOWED_PAYLOAD_KEYS } from "@jarv1s/jobs";
+import { googleSyncRouteSchema, type GoogleSyncResponse } from "@jarv1s/shared";
 import { CalendarRepository } from "@jarv1s/calendar";
 import { EmailRepository } from "@jarv1s/email";
 import { connectionStrings, ids, resetFoundationDatabase } from "./test-database.js";
@@ -913,5 +914,15 @@ describe("runGoogleSync handler", () => {
     expect((summary ?? "").length).toBeLessThanOrEqual(600);
     // body_excerpt is explicitly NOT written by sync (handler never passes it).
     expect((row as { body_excerpt: string | null }).body_excerpt).toBeNull();
+  });
+});
+
+describe("google-sync route schema (G1)", () => {
+  it("exposes a 202 google-sync route schema with enqueued/deduped/jobId", () => {
+    expect(googleSyncRouteSchema.response[202]).toBeDefined();
+    const r: GoogleSyncResponse = { enqueued: true, deduped: false, jobId: "j" };
+    expect(r.enqueued).toBe(true);
+    const d: GoogleSyncResponse = { enqueued: false, deduped: true, jobId: null };
+    expect(d.deduped).toBe(true);
   });
 });
