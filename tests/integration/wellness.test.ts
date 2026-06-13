@@ -21,6 +21,7 @@ import {
 } from "@jarv1s/wellness";
 import type { Medication, MedicationLog } from "@jarv1s/db";
 import type { ToolContext } from "@jarv1s/module-sdk";
+import { getBuiltInModuleManifests } from "@jarv1s/module-registry";
 
 import { connectionStrings, resetEmptyFoundationDatabase } from "./test-database.js";
 
@@ -460,5 +461,23 @@ describe("wellness AI read tools", () => {
     const job = (wellnessModuleManifest.jobs ?? [])[0];
     expect(job?.queueName).toBe("wellness-medication-reminder");
     expect(job?.metadataOnly).toBe(true);
+  });
+});
+
+describe("wellness registry integration", () => {
+  it("wellness is registered exactly once in BUILT_IN_MODULES and is the only required:false module", () => {
+    const manifests = getBuiltInModuleManifests();
+    const wellness = manifests.filter((m) => m.id === "wellness");
+    expect(wellness.length).toBe(1);
+    expect(wellness[0]?.availability?.required).toBe(false);
+
+    const optional = manifests.filter((m) => m.availability?.required === false);
+    expect(optional.map((m) => m.id)).toEqual(["wellness"]);
+  });
+
+  it("wellness routes are reachable through registerBuiltInApiRoutes (briefings can resolve its tools)", () => {
+    const manifest = getBuiltInModuleManifests().find((m) => m.id === "wellness");
+    const toolNames = (manifest?.assistantTools ?? []).map((t) => t.name);
+    expect(toolNames).toContain("wellness.recentCheckIns");
   });
 });
