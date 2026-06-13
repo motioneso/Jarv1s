@@ -5,6 +5,7 @@ import pg from "pg";
 
 import { createApiServer } from "../../apps/api/src/server.js";
 import { AiRepository, createAiSecretCipher } from "@jarv1s/ai";
+import type { ComposeDeps, GenerateChatFn } from "@jarv1s/briefings";
 import {
   BRIEFINGS_RUN_QUEUE,
   BriefingsRepository,
@@ -14,6 +15,7 @@ import {
   type BriefingRunPayload,
   type BriefingRunResult
 } from "@jarv1s/briefings";
+import type { MemoryRetriever } from "@jarv1s/memory";
 import {
   AuthSessionResolver,
   DataContextRunner,
@@ -245,12 +247,14 @@ describe("Briefings module M6 read-only scheduled summaries", () => {
     expect(defBeforeShare).toBeUndefined();
 
     // Create a run for userB's workspace briefing as owner
-    const run = await dataContext.withDataContext(userBContext(), (scopedDb) =>
+    const outcome = await dataContext.withDataContext(userBContext(), (scopedDb) =>
       repository.generateRun(scopedDb, briefingIds.userBWorkspace, {
         moduleManifests: getBuiltInModuleManifests(),
-        runKind: "manual"
+        runKind: "manual",
+        composeDeps: makeComposeDeps()
       })
     );
+    const run = outcome?.run;
 
     const runsBeforeShare = await dataContext.withDataContext(userAContext(), (scopedDb) =>
       repository.listRuns(scopedDb, briefingIds.userBWorkspace)
@@ -279,26 +283,55 @@ describe("Briefings module M6 read-only scheduled summaries", () => {
     expect(runsAfterShare.some((r) => r.id === run?.id)).toBe(true);
   });
 
-  it("generates deterministic summaries through declared read-only tools only", async () => {
+  it("synthesizes a run through declared read-only tools and leaks no source secrets", async () => {
+    // Configure an economy model so compose takes the synthesis path (not the degraded
+    // fallback). The injected fake adapter returns the fixed "synth narrative".
+    const aiRepository = new AiRepository();
+    const provider = await dataContext.withDataContext(userAContext(), (scopedDb) =>
+      aiRepository.createProvider(scopedDb, {
+        providerKind: "anthropic",
+        displayName: "Synthesis summarizer",
+        encryptedCredential: createAiSecretCipher().encryptJson({ apiKey: "briefing-synth-key" })
+      })
+    );
+    await dataContext.withDataContext(userAContext(), (scopedDb) =>
+      aiRepository.createModel(scopedDb, {
+        providerConfigId: provider.id,
+        providerModelId: "synth-summarizer",
+        displayName: "Synthesis Summarizer",
+        capabilities: ["summarization"],
+        tier: "economy"
+      })
+    );
+
     const definition = await dataContext.withDataContext(userAContext(), (scopedDb) =>
       repository.createDefinition(scopedDb, {
         title: "Morning briefing",
         selectedToolNames: ["tasks.list", "email.listVisibleMessages"]
       })
     );
-    const run = await dataContext.withDataContext(userAContext(), (scopedDb) =>
+    const outcome = await dataContext.withDataContext(userAContext(), (scopedDb) =>
       repository.generateRun(scopedDb, definition.id, {
         moduleManifests: getBuiltInModuleManifests(),
-        runKind: "manual"
+        runKind: "manual",
+        composeDeps: makeComposeDeps(async () => ({ text: "synth narrative" }))
       })
     );
+    const run = outcome?.run;
     const serialized = JSON.stringify(run);
+    const meta = run?.source_metadata as {
+      degraded: boolean;
+      taskCount: number;
+      emailCount: number;
+    };
 
+    expect(outcome?.created).toBe(true);
     expect(run?.status).toBe("succeeded");
-    expect(run?.summary_text).toContain("Tasks: 2 visible");
-    expect(run?.summary_text).toContain("User A briefing task");
-    expect(run?.summary_text).toContain("Email: 1 visible");
-    expect(run?.summary_text).toContain("User A briefing email");
+    expect(run?.summary_text).toBe("synth narrative");
+    expect(meta.degraded).toBe(false);
+    expect(meta.taskCount).toBeGreaterThanOrEqual(1);
+    expect(typeof meta.emailCount).toBe("number");
+    // RLS + provenance: no other user's private rows and no connector ciphertext leak.
     expect(serialized).not.toContain("User B private");
     expect(serialized).not.toContain("briefing-hidden-ciphertext");
     expect(serialized).not.toContain("encrypted_secret");
@@ -480,7 +513,8 @@ describe("Briefings module M6 read-only scheduled summaries", () => {
     await expect(
       repository.generateRun({} as never, briefingIds.userBPrivate, {
         moduleManifests: getBuiltInModuleManifests(),
-        runKind: "manual"
+        runKind: "manual",
+        composeDeps: makeComposeDeps()
       })
     ).rejects.toThrow("Repository access requires withDataContext");
   });
@@ -511,21 +545,31 @@ describe("Briefings module M6 read-only scheduled summaries", () => {
       })
     );
 
-    const run = await dataContext.withDataContext(userAContext(), (scopedDb) =>
+    const outcome = await dataContext.withDataContext(userAContext(), (scopedDb) =>
       repository.generateRun(scopedDb, definition.id, {
         moduleManifests: getBuiltInModuleManifests(),
-        runKind: "manual"
+        runKind: "manual",
+        composeDeps: makeComposeDeps(async () => ({ text: "synth narrative" }))
       })
     );
+    const run = outcome?.run;
 
     expect(run?.status).toBe("succeeded");
-    const meta = run?.source_metadata as { aiModel: { id: string; tier: string } | null };
+    const meta = run?.source_metadata as {
+      aiModel: { id: string; tier: string } | null;
+      degraded: boolean;
+    };
+    expect(meta.degraded).toBe(false);
     expect(meta.aiModel).not.toBeNull();
     expect(meta.aiModel?.id).toBe(modelRow.id);
     expect(meta.aiModel?.tier).toBe("economy");
   });
 
   it("briefing tool execute receives a non-empty actorUserId and requestId in ToolContext", async () => {
+    // compose gathers from a FIXED set of read tools (commitments/tasks/calendar/email/
+    // chats). To assert the ToolContext compose passes to a tool's execute, supply ONLY a
+    // capturing manifest that owns one of those names — so it is the sole match compose
+    // finds and executes exactly once.
     const capturedContexts: { actorUserId: string; requestId: string }[] = [];
     const capturingManifest: JarvisModuleManifest = {
       id: "ctx-check",
@@ -536,13 +580,13 @@ describe("Briefings module M6 read-only scheduled summaries", () => {
       compatibility: { jarv1s: "*" },
       assistantTools: [
         {
-          name: "ctx-check.read",
+          name: "commitments.listVisible",
           description: "Captures ToolContext for assertion.",
-          permissionId: "ctx-check.view",
+          permissionId: "commitments.view",
           risk: "read" as const,
           execute: async (_db, _input, ctx) => {
             capturedContexts.push({ actorUserId: ctx.actorUserId, requestId: ctx.requestId });
-            return { data: {} };
+            return { data: { commitments: [] } };
           }
         }
       ]
@@ -553,27 +597,165 @@ describe("Briefings module M6 read-only scheduled summaries", () => {
       (scopedDb) =>
         repository.createDefinition(scopedDb, {
           title: "ToolContext check",
-          selectedToolNames: ["ctx-check.read"]
+          selectedToolNames: ["commitments.listVisible"]
         })
     );
 
-    const run = await dataContext.withDataContext(
+    const outcome = await dataContext.withDataContext(
       { actorUserId: ids.userA, requestId: "r:briefing-ctx-run" },
       (scopedDb) =>
         repository.generateRun(scopedDb, def.id, {
           moduleManifests: [capturingManifest],
-          runKind: "manual"
+          runKind: "manual",
+          composeDeps: makeComposeDeps(undefined, [capturingManifest])
           // omit runId — let repository generate a UUID
         })
     );
 
-    expect(run).toBeDefined();
+    expect(outcome?.run).toBeDefined();
     expect(capturedContexts).toHaveLength(1);
     expect(capturedContexts[0]!.actorUserId).toBe(ids.userA);
     expect(capturedContexts[0]!.requestId).not.toBe("");
     expect(capturedContexts[0]!.requestId).toMatch(/^briefing:|^pgboss:/);
   });
+
+  it("falls back deterministically (degraded, status succeeded) when no model is configured", async () => {
+    // No AI model configured for this fresh definition's owner → compose takes the
+    // deterministic degraded fallback. Status stays "succeeded" (there is no
+    // "degraded" enum value — degraded is a source_metadata boolean).
+    const definition = await dataContext.withDataContext(userBContext(), (scopedDb) =>
+      repository.createDefinition(scopedDb, {
+        title: "Degraded briefing",
+        selectedToolNames: ["tasks.list"]
+      })
+    );
+    const outcome = await dataContext.withDataContext(userBContext(), (scopedDb) =>
+      repository.generateRun(scopedDb, definition.id, {
+        moduleManifests: getBuiltInModuleManifests(),
+        runKind: "manual",
+        composeDeps: makeComposeDeps(async () => {
+          throw new Error("synthesis must not be called when there is no model");
+        })
+      })
+    );
+    const run = outcome?.run;
+    const meta = run?.source_metadata as {
+      degraded: boolean;
+      degradedReason: string;
+      aiModel: unknown;
+    };
+
+    expect(run?.status).toBe("succeeded");
+    expect(meta.degraded).toBe(true);
+    expect(meta.degradedReason).toBe("no_model");
+    expect(meta.aiModel).toBeNull();
+  });
+
+  it("never leaks the decrypted provider credential into a synthesized run", async () => {
+    const aiRepository = new AiRepository();
+    const provider = await dataContext.withDataContext(userBContext(), (scopedDb) =>
+      aiRepository.createProvider(scopedDb, {
+        providerKind: "anthropic",
+        displayName: "Secret summarizer",
+        encryptedCredential: createAiSecretCipher().encryptJson({ apiKey: "sk-SECRET-123" })
+      })
+    );
+    await dataContext.withDataContext(userBContext(), (scopedDb) =>
+      aiRepository.createModel(scopedDb, {
+        providerConfigId: provider.id,
+        providerModelId: "secret-summarizer",
+        displayName: "Secret Summarizer",
+        capabilities: ["summarization"],
+        tier: "economy"
+      })
+    );
+    const definition = await dataContext.withDataContext(userBContext(), (scopedDb) =>
+      repository.createDefinition(scopedDb, {
+        title: "Secrets briefing",
+        selectedToolNames: ["tasks.list"]
+      })
+    );
+
+    const outcome = await dataContext.withDataContext(userBContext(), (scopedDb) =>
+      repository.generateRun(scopedDb, definition.id, {
+        moduleManifests: getBuiltInModuleManifests(),
+        runKind: "manual",
+        // The fake adapter echoing the secret would be the worst case; prove the secret
+        // never reaches summary_text or source_metadata regardless of synthesis output.
+        composeDeps: makeComposeDeps(async () => ({ text: "synth narrative" }))
+      })
+    );
+    const run = outcome?.run;
+
+    expect(run?.status).toBe("succeeded");
+    expect(run?.summary_text ?? "").not.toContain("sk-SECRET-123");
+    expect(JSON.stringify(run?.source_metadata)).not.toContain("sk-SECRET-123");
+  });
+
+  it("is idempotent for scheduled runs on the same local day", async () => {
+    const definition = await dataContext.withDataContext(userAContext(), (scopedDb) =>
+      repository.createDefinition(scopedDb, {
+        title: "Scheduled idempotency briefing",
+        cadence: "daily",
+        scheduleMetadata: { targetTime: "06:00", timezone: "UTC" },
+        selectedToolNames: ["tasks.list"]
+      })
+    );
+
+    const first = await dataContext.withDataContext(userAContext(), (scopedDb) =>
+      repository.generateRun(scopedDb, definition.id, {
+        moduleManifests: getBuiltInModuleManifests(),
+        runKind: "scheduled",
+        composeDeps: makeComposeDeps(async () => ({ text: "synth narrative" }))
+      })
+    );
+    const second = await dataContext.withDataContext(userAContext(), (scopedDb) =>
+      repository.generateRun(scopedDb, definition.id, {
+        moduleManifests: getBuiltInModuleManifests(),
+        runKind: "scheduled",
+        composeDeps: makeComposeDeps(async () => ({ text: "synth narrative" }))
+      })
+    );
+
+    expect(first?.created).toBe(true);
+    expect(second?.created).toBe(false);
+    expect(second?.run.id).toBe(first?.run.id);
+
+    const runs = await dataContext.withDataContext(userAContext(), (scopedDb) =>
+      repository.listRuns(scopedDb, definition.id)
+    );
+    expect(runs.filter((r) => r.run_kind === "scheduled")).toHaveLength(1);
+  });
 });
+
+// Build synthesis deps for generateRun in these integration tests. The AI repository
+// and cipher are REAL (so economy-tier model selection + in-worker credential
+// decryption run against the real DB), the vault retriever is a no-op (vault grounding
+// is exercised in the compose unit tests), and the adapter is injected so no real HTTP
+// provider is contacted — the fake `generateChat` returns a fixed narrative by default.
+function makeComposeDeps(
+  generateChat?: GenerateChatFn,
+  moduleManifests: readonly JarvisModuleManifest[] = getBuiltInModuleManifests()
+): ComposeDeps {
+  const noopRetriever = {
+    async retrieve() {
+      return [];
+    },
+    async retrieveRecent() {
+      return [];
+    }
+  } as unknown as MemoryRetriever;
+
+  return {
+    moduleManifests,
+    aiRepository: new AiRepository(),
+    cipher: createAiSecretCipher(),
+    memoryRetriever: noopRetriever,
+    createAdapter: () => ({
+      generateChat: generateChat ?? (async () => ({ text: "synth narrative" }))
+    })
+  };
+}
 
 async function seedBriefingData(): Promise<void> {
   const client = new Client({ connectionString: connectionStrings.bootstrap });
@@ -692,6 +874,9 @@ async function handleNextBriefingJob(workerBoss: PgBoss): Promise<BriefingRunRes
 
       registerBriefingsJobWorkers(workerBoss, workerDataContext, {
         moduleManifests: getBuiltInModuleManifests(),
+        // Inject a fake-adapter composeDeps so the worker path is deterministic and never
+        // makes a real HTTP provider call (A8 injects the registry-built deps in prod).
+        composeDeps: makeComposeDeps(async () => ({ text: "synth narrative" })),
         workOptions: { pollingIntervalSeconds: 0.5 },
         onResult: (_job, result) => {
           clearTimeout(timeout);
