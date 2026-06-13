@@ -142,6 +142,18 @@ Keep logic where the architecture says it belongs.
 
 When a change needs a helper, search for the canonical helper first. Do not create a near-duplicate.
 
+### Pre-auth non-secret instance-config reads (bounded exemption)
+
+A small allowlist of NON-SECRET `app.instance_settings` keys may be read with the raw
+app Kysely handle (no `DataContextDb`, no actor GUC) when a value is needed before any
+actor exists — at boot, or on a pre-auth route. This is sanctioned because the
+`instance_settings` SELECT policy is `USING (true)` (migration 0059) and these keys hold
+only non-secret configuration; secrets live in the AES-256-GCM credential store. Current
+allowlist: `registration.enabled`, `registration.requires_approval` (auth registration
+gate), `chat.multiplexer` (composition-root multiplexer resolution). WRITES remain
+admin-gated (`current_actor_is_admin()`). Do **not** extend the allowlist to any key that
+could carry user data or secrets, and never use this path for per-user tables.
+
 ## Review Order
 
 When reviewing changes, prioritize findings in this order:

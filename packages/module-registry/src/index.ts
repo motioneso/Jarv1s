@@ -28,6 +28,7 @@ import {
   CHAT_QUEUE_DEFINITIONS,
   chatModuleManifest,
   chatModuleSqlMigrationDirectory,
+  CliChatUnavailableError,
   registerChatJobWorkers,
   registerChatRoutes,
   type ChatEngineFactory
@@ -60,13 +61,17 @@ import {
   tasksModuleSqlMigrationDirectory
 } from "@jarv1s/tasks";
 
+import { probeChatMultiplexerAvailability, resolveChatEngineFactory } from "./chat-multiplexer.js";
+
 export type { ChatEngineFactory } from "@jarv1s/chat";
 
 export interface BuiltInRouteDependencies {
   // Raw root handle forwarded to settings' BootstrapHelper (pre-session countUsers).
   // Documented Kysely< exemption — see packages/settings/src/bootstrap.ts. This is the
   // ONLY root-handle escape hatch in the route layer; module admin checks run through
-  // DataContextDb (connectors' admin check was converted off appDb in Audit B3).
+  // DataContextDb (connectors' admin check was converted off appDb in Audit B3) — plus
+  // the bounded pre-auth non-secret instance-config reads documented in
+  // DEVELOPMENT_STANDARDS.md (registration gate + `chat.multiplexer` boot resolution).
   readonly rootDb: Kysely<JarvisDatabase>;
   readonly resolveAccessContext: (request: FastifyRequest) => Promise<AccessContext>;
   readonly listConfiguredAuthProviders: () => readonly AuthProviderStatusDto[];
@@ -77,6 +82,8 @@ export interface BuiltInRouteDependencies {
   readonly chatEngineFactory?: ChatEngineFactory;
   readonly revokeUserSessions?: (userId: string) => Promise<number>;
   readonly bootstrapConnectionString?: string;
+  /** Boot-time multiplexer availability snapshot for the admin settings UI. */
+  readonly chatMultiplexerAvailability?: { readonly tmux: boolean; readonly herdr: boolean };
 }
 
 export interface BuiltInWorkerDependencies {
@@ -200,8 +207,41 @@ export function registerBuiltInApiRoutes(
   server: FastifyInstance,
   dependencies: BuiltInRouteDependencies
 ): void {
+  const env = process.env;
+  const availability = probeChatMultiplexerAvailability(env);
+
+  // The factory is resolved asynchronously in onReady (a settings read), but routes
+  // register synchronously. Bridge with a late-bound wrapper: it is only ever invoked
+  // when a chat session launches, which is strictly after onReady. Tests/embedders
+  // that pass an explicit chatEngineFactory bypass resolution entirely.
+  let resolvedChatFactory: ChatEngineFactory | null = null;
+  const chatEngineFactory: ChatEngineFactory =
+    dependencies.chatEngineFactory ??
+    ((provider, key) => {
+      if (!resolvedChatFactory) {
+        throw new CliChatUnavailableError("chat engine factory is not resolved yet");
+      }
+      return resolvedChatFactory(provider, key);
+    });
+
+  const deps: BuiltInRouteDependencies = {
+    ...dependencies,
+    chatEngineFactory,
+    chatMultiplexerAvailability: availability
+  };
+
   for (const module of BUILT_IN_MODULES) {
-    module.registerRoutes?.(server, dependencies);
+    module.registerRoutes?.(server, deps);
+  }
+
+  if (!dependencies.chatEngineFactory) {
+    server.addHook("onReady", async () => {
+      resolvedChatFactory = await resolveChatEngineFactory({
+        appDb: dependencies.rootDb,
+        env,
+        log: (msg) => server.log.info(msg)
+      });
+    });
   }
 }
 

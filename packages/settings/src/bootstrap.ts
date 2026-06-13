@@ -10,7 +10,10 @@ import type { JarvisDatabase } from "@jarv1s/db";
  * function `app.count_all_users()` is a SECURITY DEFINER function with no
  * private data — raw access is safe and intentional.
  *
- * This is the SOLE documented exemption for `Kysely<` in packages/settings/src/.
+ * This is the SOLE documented exemption for `Kysely<` in packages/settings/src/. (The
+ * broader bounded "pre-auth non-secret instance-config reads" exemption — registration
+ * gate + `chat.multiplexer` boot resolution — lives outside this package and is recorded
+ * in DEVELOPMENT_STANDARDS.md.)
  */
 export class BootstrapHelper {
   constructor(private readonly rootDb: Kysely<JarvisDatabase>) {}
