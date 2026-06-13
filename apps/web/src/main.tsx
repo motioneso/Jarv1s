@@ -27,3 +27,16 @@ createRoot(document.getElementById("root") as HTMLElement).render(
 );
 
 registerServiceWorker();
+
+// Dev-only annotation toolbar (agentation): click any UI element to queue structured
+// comments (CSS selector + React component name + your note) for the coding agent.
+// Dynamic + DEV-guarded so it is NEVER in the production/deploy bundle. Posts annotations
+// to the agentation-mcp server on :4747 (see .mcp.json), which the agent reads over MCP.
+if (import.meta.env.DEV) {
+  void import("agentation").then(({ Agentation }) => {
+    const mount = document.createElement("div");
+    mount.id = "agentation-root";
+    document.body.appendChild(mount);
+    createRoot(mount).render(<Agentation endpoint="http://localhost:4747" />);
+  });
+}
