@@ -9,6 +9,8 @@ import type {
   NotificationDto,
   TaskDefaultView,
   TaskDto,
+  TaskListDto,
+  TaskTagDto,
   UpdateTaskRequest
 } from "@jarv1s/shared";
 
@@ -41,6 +43,45 @@ export interface MockApiState
   notifications: NotificationDto[];
   tasks: TaskDto[];
   taskDefaultView?: TaskDefaultView;
+  /**
+   * Stateful lists/tags so rename/delete mutations are reflected by the
+   * follow-up refetch (the web UI invalidates and re-reads after mutating).
+   * Left undefined by specs that don't care; seeded with a default list +
+   * tag lazily on first access.
+   */
+  taskLists?: TaskListDto[];
+  taskTags?: TaskTagDto[];
+}
+
+function taskListsFor(state: MockApiState): TaskListDto[] {
+  if (!state.taskLists) {
+    state.taskLists = [
+      {
+        id: "list-1",
+        ownerUserId: "user-1",
+        name: "Personal",
+        position: 0,
+        createdAt: null,
+        updatedAt: null
+      }
+    ];
+  }
+  return state.taskLists;
+}
+
+function taskTagsFor(state: MockApiState): TaskTagDto[] {
+  if (!state.taskTags) {
+    state.taskTags = [
+      {
+        id: "tag-urgent",
+        ownerUserId: "user-1",
+        listId: "list-1",
+        name: "urgent",
+        createdAt: null
+      }
+    ];
+  }
+  return state.taskTags;
 }
 
 const meResponse: MeResponse = {
@@ -162,6 +203,17 @@ export async function mockApi(page: Page, state: MockApiState): Promise<void> {
   await page.route("**/api/tasks/lists/*/tags", (route) => handleTaskTagsRoute(route, state));
   await page.route("**/api/tasks/lists", (route) => handleTaskListsRoute(route, state));
   await page.route("**/api/tasks/preferences", (route) => handleTaskPreferencesRoute(route, state));
+  // Mutation routes registered AFTER the generic + sub-routes above so Playwright's
+  // reverse-registration precedence selects these for the more-specific paths. The
+  // `.../tags/*` pattern is strictly more specific than the bare `.../tags` picker
+  // route above (extra `/*`), so it captures PATCH/DELETE of a specific tag without
+  // shadowing the GET/POST tag-picker handler. Most-specific registered LAST.
+  await page.route("**/api/tasks/lists/*/tags/*", (route) =>
+    handleTaskTagMutateRoute(route, state)
+  );
+  await page.route("**/api/tasks/lists/*", (route) => handleTaskListMutateRoute(route, state));
+  await page.route("**/api/tasks/*/tags", (route) => handleTaskTagAssignmentRoute(route, state));
+  await page.route("**/api/tasks/*/tags/*", (route) => handleTaskTagAssignmentRoute(route, state));
 }
 
 async function handleCalendarEventListRoute(route: Route, state: MockApiState): Promise<void> {
@@ -287,53 +339,54 @@ async function handleTaskPreferencesRoute(route: Route, state: MockApiState): Pr
 
 async function handleTaskListsRoute(route: Route, state: MockApiState): Promise<void> {
   if (route.request().method() === "GET") {
-    return fulfillJson(route, 200, {
-      lists: [
-        {
-          id: "list-1",
-          ownerUserId: "user-1",
-          name: "Personal",
-          position: 0,
-          createdAt: null,
-          updatedAt: null
-        }
-      ]
-    });
+    return fulfillJson(route, 200, { lists: taskListsFor(state) });
   }
 
   if (route.request().method() === "POST") {
     const body = route.request().postDataJSON() as { readonly name?: string };
-    return fulfillJson(route, 201, {
-      list: {
-        id: "list-new",
-        ownerUserId: "user-1",
-        name: body.name ?? "",
-        position: 1,
-        createdAt: null,
-        updatedAt: null
-      }
-    });
+    const lists = taskListsFor(state);
+    const list: TaskListDto = {
+      id: `list-${lists.length + 1}`,
+      ownerUserId: "user-1",
+      name: body.name ?? "",
+      position: lists.length,
+      createdAt: null,
+      updatedAt: null
+    };
+    state.taskLists = [...lists, list];
+    return fulfillJson(route, 201, { list });
   }
 
   return fulfillJson(route, 405, { error: "Method not allowed" });
 }
 
+function listIdFromTagsPath(route: Route): string {
+  // .../api/tasks/lists/:listId/tags
+  const segments = new URL(route.request().url()).pathname.split("/");
+  return decodeURIComponent(segments.at(-2) ?? "");
+}
+
 async function handleTaskTagsRoute(route: Route, state: MockApiState): Promise<void> {
+  const listId = listIdFromTagsPath(route);
+
   if (route.request().method() === "GET") {
-    return fulfillJson(route, 200, { tags: [] });
+    return fulfillJson(route, 200, {
+      tags: taskTagsFor(state).filter((tag) => tag.listId === listId)
+    });
   }
 
   if (route.request().method() === "POST") {
     const body = route.request().postDataJSON() as { readonly name?: string };
-    return fulfillJson(route, 201, {
-      tag: {
-        id: "tag-1",
-        ownerUserId: "user-1",
-        listId: "list-1",
-        name: body.name ?? "",
-        createdAt: null
-      }
-    });
+    const tags = taskTagsFor(state);
+    const tag: TaskTagDto = {
+      id: `tag-${tags.length + 1}`,
+      ownerUserId: "user-1",
+      listId,
+      name: body.name ?? "",
+      createdAt: null
+    };
+    state.taskTags = [...tags, tag];
+    return fulfillJson(route, 201, { tag });
   }
 
   return fulfillJson(route, 405, { error: "Method not allowed" });
@@ -385,6 +438,99 @@ async function handleTaskDetailRoute(route: Route, state: MockApiState): Promise
 
     state.tasks = state.tasks.map((item) => (item.id === taskId ? updatedTask : item));
     return fulfillJson(route, 200, { task: updatedTask });
+  }
+
+  return fulfillJson(route, 405, { error: "Method not allowed" });
+}
+
+async function handleTaskTagAssignmentRoute(route: Route, state: MockApiState): Promise<void> {
+  const request = route.request();
+  const segments = new URL(request.url()).pathname.split("/");
+  const method = request.method();
+
+  if (method === "POST") {
+    // .../api/tasks/:taskId/tags  → assign the tag in the body, return the task.
+    const taskId = decodeURIComponent(segments.at(-2) ?? "");
+    const body = request.postDataJSON() as { readonly tagId?: string };
+    const task = state.tasks.find((item) => item.id === taskId);
+    if (!task) {
+      return fulfillJson(route, 404, { error: "Task not found" });
+    }
+    const tag = taskTagsFor(state).find((item) => item.id === body.tagId);
+    if (!tag) {
+      return fulfillJson(route, 404, { error: "Tag not found" });
+    }
+    const updatedTask: TaskDto = { ...task, tags: [...task.tags, tag] };
+    state.tasks = state.tasks.map((item) => (item.id === taskId ? updatedTask : item));
+    return fulfillJson(route, 200, { task: updatedTask });
+  }
+
+  if (method === "DELETE") {
+    // .../api/tasks/:taskId/tags/:tagId → unassign, return the task.
+    const tagId = decodeURIComponent(segments.at(-1) ?? "");
+    const taskId = decodeURIComponent(segments.at(-3) ?? "");
+    const task = state.tasks.find((item) => item.id === taskId);
+    if (!task) {
+      return fulfillJson(route, 404, { error: "Task not found" });
+    }
+    const updatedTask: TaskDto = {
+      ...task,
+      tags: task.tags.filter((item) => item.id !== tagId)
+    };
+    state.tasks = state.tasks.map((item) => (item.id === taskId ? updatedTask : item));
+    return fulfillJson(route, 200, { task: updatedTask });
+  }
+
+  return fulfillJson(route, 405, { error: "Method not allowed" });
+}
+
+async function handleTaskListMutateRoute(route: Route, state: MockApiState): Promise<void> {
+  const request = route.request();
+  const listId = decodeURIComponent(new URL(request.url()).pathname.split("/").pop() ?? "");
+  const method = request.method();
+
+  if (method === "PATCH") {
+    const body = request.postDataJSON() as { readonly name?: string };
+    const lists = taskListsFor(state);
+    const existing = lists.find((item) => item.id === listId);
+    if (!existing) {
+      return fulfillJson(route, 404, { error: "List not found" });
+    }
+    const list: TaskListDto = { ...existing, name: body.name ?? existing.name };
+    state.taskLists = lists.map((item) => (item.id === listId ? list : item));
+    return fulfillJson(route, 200, { list });
+  }
+
+  if (method === "DELETE") {
+    state.taskLists = taskListsFor(state).filter((item) => item.id !== listId);
+    return fulfillJson(route, 200, { deleted: true });
+  }
+
+  return fulfillJson(route, 405, { error: "Method not allowed" });
+}
+
+async function handleTaskTagMutateRoute(route: Route, state: MockApiState): Promise<void> {
+  const request = route.request();
+  const segments = new URL(request.url()).pathname.split("/");
+  // .../api/tasks/lists/:listId/tags/:tagId
+  const tagId = decodeURIComponent(segments.at(-1) ?? "");
+  const method = request.method();
+
+  if (method === "PATCH") {
+    const body = request.postDataJSON() as { readonly name?: string };
+    const tags = taskTagsFor(state);
+    const existing = tags.find((item) => item.id === tagId);
+    if (!existing) {
+      return fulfillJson(route, 404, { error: "Tag not found" });
+    }
+    const tag: TaskTagDto = { ...existing, name: body.name ?? existing.name };
+    state.taskTags = tags.map((item) => (item.id === tagId ? tag : item));
+    return fulfillJson(route, 200, { tag });
+  }
+
+  if (method === "DELETE") {
+    state.taskTags = taskTagsFor(state).filter((item) => item.id !== tagId);
+    return fulfillJson(route, 200, { deleted: true });
   }
 
   return fulfillJson(route, 405, { error: "Method not allowed" });
