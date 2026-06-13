@@ -33,6 +33,24 @@ export class ChatRepository {
       .execute();
   }
 
+  /**
+   * Threads ordered by REAL activity (last_active_at, bumped on every turn via
+   * touchThread), most-active first, capped at `limit`. Used by the briefing's
+   * today's-chats scan so a long-lived thread active today is never dropped — the
+   * existing listThreads orders by updated_at, which is NOT bumped on a turn.
+   */
+  async listThreadsByActivity(scopedDb: DataContextDb, limit: number): Promise<ChatThread[]> {
+    assertDataContextDb(scopedDb);
+
+    return scopedDb.db
+      .selectFrom("app.chat_threads")
+      .selectAll()
+      .orderBy("last_active_at", "desc")
+      .orderBy("id")
+      .limit(limit)
+      .execute();
+  }
+
   async getThreadById(scopedDb: DataContextDb, threadId: string): Promise<ChatThread | undefined> {
     assertDataContextDb(scopedDb);
 
