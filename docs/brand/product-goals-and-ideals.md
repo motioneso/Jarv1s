@@ -329,6 +329,16 @@ rather than inventing a parallel set of tier names. Lightweight tooltips or deta
 each tier means, but the main UI should avoid noisy cost exposition. Jarvis should optimize for being
 useful with minimal LLM usage where possible, especially in a self-hosted/BYO-provider product.
 
+Usage appetite should have both instance-level and user-level controls. Instance admins set the ceiling
+for shared resources, such as monthly spend or maximum allowed tier. Individual users set their
+preferences inside that ceiling. If a user wants maximum usage but the instance ceiling is five dollars
+per month, the instance ceiling wins.
+
+When a user approaches or hits an admin usage ceiling, Jarvis should degrade gracefully first and
+explain the ceiling when it matters. Optional warnings such as "60% of monthly usage" may be useful,
+but they should be user-configurable. If a requested action would exceed the ceiling, Jarvis should
+offer an allowed lower-usage path or explain that the instance admin must raise the ceiling.
+
 Jarvis may proactively ask for additional permissions at the moment of need, with narrow scope and a
 clear reason. If the user declines, Jarvis should respect that and avoid asking again for a long
 cooldown, such as at least a month, unless the user directly requests an action that needs the missing
