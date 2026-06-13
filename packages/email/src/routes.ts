@@ -75,6 +75,8 @@ export function serializeEmailMessage(message: EmailMessage): EmailMessageDto {
     subject: message.subject,
     snippet: message.snippet,
     bodyExcerpt: message.body_excerpt,
+    summary: message.summary,
+    signals: message.signals,
     receivedAt: toIsoString(message.received_at),
     externalId: message.external_id,
     externalMetadata: message.external_metadata,

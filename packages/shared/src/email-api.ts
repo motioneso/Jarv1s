@@ -9,6 +9,8 @@ export interface EmailMessageDto {
   readonly subject: string;
   readonly snippet: string | null;
   readonly bodyExcerpt: string | null;
+  readonly summary: string | null;
+  readonly signals: Record<string, unknown>;
   readonly receivedAt: string;
   readonly externalId: string;
   readonly externalMetadata: Record<string, unknown>;
@@ -44,6 +46,8 @@ export const emailMessageDtoSchema = {
     "subject",
     "snippet",
     "bodyExcerpt",
+    "summary",
+    "signals",
     "receivedAt",
     "externalId",
     "externalMetadata",
@@ -59,6 +63,8 @@ export const emailMessageDtoSchema = {
     subject: { type: "string" },
     snippet: nullableStringSchema,
     bodyExcerpt: nullableStringSchema,
+    summary: nullableStringSchema,
+    signals: jsonObjectSchema,
     receivedAt: { type: "string" },
     externalId: { type: "string" },
     externalMetadata: jsonObjectSchema,

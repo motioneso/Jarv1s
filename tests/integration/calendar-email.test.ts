@@ -12,7 +12,7 @@ import {
   type JarvisDatabase
 } from "@jarv1s/db";
 import { CalendarRepository, calendarModuleManifest } from "@jarv1s/calendar";
-import { EmailRepository, emailModuleManifest } from "@jarv1s/email";
+import { EmailRepository, emailModuleManifest, serializeEmailMessage } from "@jarv1s/email";
 import {
   getBuiltInModuleManifests,
   getBuiltInModuleRegistrations,
@@ -442,6 +442,30 @@ describe("Calendar and Email connector-backed read modules", () => {
     await expect(emailRepository.listVisible({} as never)).rejects.toThrow(
       "Repository access requires withDataContext"
     );
+  });
+});
+
+describe("serializeEmailMessage summary/signals (C2)", () => {
+  it("serializes summary + signals onto EmailMessageDto", () => {
+    const dto = serializeEmailMessage({
+      id: "00000000-0000-0000-0000-000000000001",
+      connector_account_id: "00000000-0000-0000-0000-000000000002",
+      owner_user_id: "00000000-0000-0000-0000-000000000003",
+      sender: "a@b.com",
+      recipients: [],
+      subject: "s",
+      snippet: null,
+      body_excerpt: null,
+      received_at: new Date("2026-06-13T09:00:00.000Z"),
+      external_id: "x",
+      external_metadata: {},
+      summary: "concise",
+      signals: { importance: "high" },
+      created_at: new Date("2026-06-13T09:00:00.000Z"),
+      updated_at: new Date("2026-06-13T09:00:00.000Z")
+    } as never);
+    expect(dto.summary).toBe("concise");
+    expect((dto.signals as { importance?: string }).importance).toBe("high");
   });
 });
 
