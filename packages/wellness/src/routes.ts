@@ -26,6 +26,7 @@ import type {
   UpdateMedicationInput
 } from "./repository.js";
 import { WellnessRepository } from "./repository.js";
+import { WellnessRecallContributor } from "./recall-context.js";
 import { computeSchedule } from "./schedule.js";
 import { serializeCheckin, serializeMedication, serializeMedicationLog } from "./serialize.js";
 
@@ -44,6 +45,7 @@ export function registerWellnessRoutes(
   dependencies: WellnessRoutesDependencies
 ): void {
   const repo = dependencies.repository ?? new WellnessRepository();
+  const recallContributor = new WellnessRecallContributor();
 
   // ── Check-ins ────────────────────────────────────────────────────────────
   server.post(
@@ -53,8 +55,13 @@ export function registerWellnessRoutes(
       try {
         const accessContext = await dependencies.resolveAccessContext(request);
         const input = parseCheckinBody(request.body);
-        const checkin = await dependencies.dataContext.withDataContext(accessContext, (scopedDb) =>
-          repo.createCheckin(scopedDb, input)
+        const checkin = await dependencies.dataContext.withDataContext(
+          accessContext,
+          async (scopedDb) => {
+            const created = await repo.createCheckin(scopedDb, input);
+            await recallContributor.refreshEnergyTrendFact(scopedDb, accessContext.actorUserId);
+            return created;
+          }
         );
         return reply.code(201).send({ checkin: serializeCheckin(checkin) });
       } catch (error) {

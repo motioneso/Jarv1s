@@ -17,12 +17,15 @@ import {
   wellnessModuleManifest,
   WELLNESS_MODULE_ID,
   wellnessRecentCheckInsExecute,
-  wellnessMedicationAdherenceExecute
+  wellnessMedicationAdherenceExecute,
+  deriveEnergyTrend,
+  WellnessRecallContributor
 } from "@jarv1s/wellness";
 import type { Medication, MedicationLog } from "@jarv1s/db";
 import type { ToolContext } from "@jarv1s/module-sdk";
 import { getBuiltInModuleManifests } from "@jarv1s/module-registry";
 import { BriefingsRepository } from "@jarv1s/briefings";
+import { ChatMemoryFactsRepository } from "@jarv1s/memory";
 
 import { connectionStrings, resetEmptyFoundationDatabase } from "./test-database.js";
 
@@ -513,5 +516,47 @@ describe("briefings Wellness section (existing read-tool seam, zero briefings ch
     expect(tools.some((t) => t.name === "wellness.recentCheckIns" && t.status !== "failed")).toBe(
       true
     );
+  });
+});
+
+describe("wellness chat recall energy-trend fact", () => {
+  it("deriveEnergyTrend produces an abstracted, non-clinical trend string (no raw feelings)", () => {
+    const trend = deriveEnergyTrend([
+      { energy: 2, feeling_core: "sad" } as never,
+      { energy: 1, feeling_core: "scared" } as never,
+      { energy: 2, feeling_core: "sad" } as never
+    ]);
+    expect(trend).not.toBeNull();
+    expect(trend?.toLowerCase()).toContain("energy");
+    // Must NOT contain a raw feeling word.
+    expect(trend?.toLowerCase()).not.toContain("sad");
+    expect(trend?.toLowerCase()).not.toContain("scared");
+  });
+
+  it("deriveEnergyTrend returns null when there are no recent check-ins", () => {
+    expect(deriveEnergyTrend([])).toBeNull();
+  });
+
+  it("contributor upserts a profile fact that listActiveFacts picks up", async () => {
+    const contributor = new WellnessRecallContributor();
+    const facts = new ChatMemoryFactsRepository();
+
+    await dataContext.withDataContext(ctx(userId), async (db) => {
+      await new WellnessRepository().createCheckin(db, {
+        feelingCore: "sad",
+        intensity: 1,
+        energy: 1
+      });
+      await new WellnessRepository().createCheckin(db, {
+        feelingCore: "scared",
+        intensity: 2,
+        energy: 2
+      });
+      await contributor.refreshEnergyTrendFact(db, userId);
+      const active = await facts.listActiveFacts(db, userId);
+      expect(
+        active.some((f) => f.category === "profile" && f.content.toLowerCase().includes("energy"))
+      ).toBe(true);
+    });
   });
 });
