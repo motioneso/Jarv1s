@@ -166,6 +166,41 @@ export async function rollForwardRecurringSeries(
 }
 
 /**
+ * Roll forward every live recurring series owned by the current actor (RLS-scoped).
+ * Finds distinct series with a stale live instance, rolls each via
+ * rollForwardRecurringSeries, and returns the count advanced. Idempotent.
+ */
+export async function rollForwardOwnedSeries(
+  db: DataContextDb,
+  today: string = new Date().toISOString().slice(0, 10)
+): Promise<number> {
+  assertDataContextDb(db);
+
+  // OWNER-ONLY scan: distinct stale series the ACTOR OWNS (explicit predicate, not just
+  // RLS — tasks_select is owner-OR-share, so a manage-shared stale series would otherwise
+  // appear here and be rolled by the grantee).
+  const stale = await db.db
+    .selectFrom("app.tasks")
+    .select("recurrence_series_id")
+    .distinct()
+    .where("recurrence_series_id", "is not", null)
+    .where("status", "=", "todo")
+    .where(sql<boolean>`owner_user_id = app.current_actor_user_id()`)
+    .where(sql<boolean>`(recurrence->>'occurrence_date') < ${today}`)
+    .execute();
+
+  let rolled = 0;
+  for (const row of stale) {
+    const seriesId = row.recurrence_series_id;
+    if (seriesId == null) continue;
+    if (await rollForwardRecurringSeries(db, seriesId, today)) {
+      rolled += 1;
+    }
+  }
+  return rolled;
+}
+
+/**
  * Generate the next instance of a recurring task in the same series.
  *
  * Idempotency: the `tasks_recurrence_occurrence_idx` unique index on
