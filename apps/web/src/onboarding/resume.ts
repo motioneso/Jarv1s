@@ -1,4 +1,4 @@
-import type { OnboardingStatusResponse } from "@jarv1s/shared";
+import type { MeResponse, OnboardingStatusResponse } from "@jarv1s/shared";
 
 export const STEP_KEYS = ["welcome", "multiplexer", "cliAuth", "connectors"] as const;
 export type StepKey = (typeof STEP_KEYS)[number];
@@ -31,4 +31,22 @@ export function firstIncompleteStepIndex(status: OnboardingStatusResponse | unde
 export function isOverlayEnabled(status: OnboardingStatusResponse | undefined): boolean {
   if (!status) return false;
   return status.steps.multiplexer.done && status.steps.cliAuth.providers.some((p) => p.cliPresent);
+}
+
+/** Bootstrap owner ⇔ instance admin AND bootstrap owner. Used to gate the onboarding fetch+branch. */
+export function isBootstrapOwner(me: MeResponse | undefined): boolean {
+  return me?.user.isInstanceAdmin === true && me?.user.isBootstrapOwner === true;
+}
+
+/**
+ * Pure decision the app.tsx branch makes: show the wizard ONLY for a bootstrap owner whose
+ * status has loaded successfully with state === "pending". Any other case (non-owner, no data
+ * yet, error/timeout, or a terminal state) ⇒ false ⇒ render the app shell. This guarantees a
+ * fresh instance always boots and a non-owner never sees the wizard.
+ */
+export function shouldShowOnboarding(
+  me: MeResponse | undefined,
+  status: OnboardingStatusResponse | undefined
+): boolean {
+  return isBootstrapOwner(me) && status?.state === "pending";
 }
