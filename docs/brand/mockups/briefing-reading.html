@@ -1,0 +1,282 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Jarv1s — Briefing reading view (mockup)</title>
+    <!--
+      DESIGN-GATE MOCKUP (Phase 3 · Ritual / Chronological-Flow lead).
+      Static, self-contained, openable directly in a browser (no build step).
+
+      It reuses the EXACT semantic token NAMES from apps/web/src/styles/tokens.css
+      (and the same primitive hex values), so Ben's sign-off on this artifact
+      transfers 1:1 onto the implementation. Hex literals live only in :root,
+      every rule below consumes var(--token) — the same discipline as tokens.css.
+
+      Mode: "The Living Archive" / editorial single-column reading surface — the
+      natural fit for the briefing READING surface (visual-language-research.md §4).
+      Newsprint off-white, ink-black text, comfortable measure, generous vertical
+      rhythm, AI/provisional content at the 70% governor opacity.
+
+      HARD STOP list honored: no purple/blue AI-glow gradients, no sparkle/magic
+      icons, no mascots/therapeutic softness, no chat-first dominance, no
+      horizontal pagination. Anti-shame: recovery/at-risk states render amber, never
+      error-red.
+    -->
+    <style>
+      :root {
+        /* TIER 1 — primitive ramps (raw values; the only hex in the file) */
+        --ramp-neutral-0: #ffffff;
+        --ramp-neutral-25: #f7fcfb;
+        --ramp-neutral-50: #f7f8fa;
+        --ramp-neutral-100: #eef3f2;
+        --ramp-neutral-175: #f3f4f6;
+        --ramp-neutral-200: #edf0f2;
+        --ramp-neutral-300: #d9dee3;
+        --ramp-neutral-600: #6b7280;
+        --ramp-neutral-650: #5d6874;
+        --ramp-neutral-900: #172026;
+        --ramp-teal-500: #0f766e;
+        --ramp-teal-600: #0b5f59;
+        --ramp-amber-500: #b45309;
+        --ramp-amber-400: #ca8a04;
+        --ramp-bucket-morning: #ca8a04;
+        --ramp-bucket-afternoon: #ea580c;
+        --ramp-bucket-evening: #b45309;
+        --ramp-ink-rgb: 23 32 38;
+
+        /* TIER 2 — semantic tokens (the names components actually use) */
+        --surface: var(--ramp-neutral-50);
+        --surface-raised: var(--ramp-neutral-0);
+        --surface-subtle: var(--ramp-neutral-175);
+        --surface-accent-soft: var(--ramp-neutral-25);
+        --text: var(--ramp-neutral-900);
+        --text-muted: var(--ramp-neutral-600);
+        --muted: var(--ramp-neutral-650);
+        --border-default: var(--ramp-neutral-300);
+        --border-subtle: var(--ramp-neutral-175);
+        --accent: var(--ramp-teal-500);
+        --accent-strong: var(--ramp-teal-600);
+        --state-attention: var(--ramp-amber-500);
+        --state-recovery: var(--ramp-amber-400);
+        --bucket-morning: var(--ramp-bucket-morning);
+        --bucket-afternoon: var(--ramp-bucket-afternoon);
+        --bucket-evening: var(--ramp-bucket-evening);
+        --provisional-opacity: 0.7;
+        --shadow-panel: 0 14px 36px rgb(var(--ramp-ink-rgb) / 0.08);
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        background: var(--surface);
+        color: var(--text);
+        font-family: "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif;
+        line-height: 1.7;
+        -webkit-font-smoothing: antialiased;
+      }
+
+      .reading-frame {
+        max-width: 44rem;
+        margin: 0 auto;
+        padding: 3.5rem 1.5rem 6rem;
+      }
+
+      .masthead {
+        border-bottom: 2px solid var(--text);
+        padding-bottom: 0.9rem;
+        margin-bottom: 2.25rem;
+      }
+
+      .masthead__eyebrow {
+        margin: 0;
+        font-family:
+          "Atkinson Hyperlegible",
+          system-ui,
+          -apple-system,
+          "Segoe UI",
+          sans-serif;
+        font-size: 0.72rem;
+        letter-spacing: 0.18em;
+        text-transform: uppercase;
+        color: var(--text-muted);
+      }
+
+      .masthead__title {
+        margin: 0.35rem 0 0;
+        font-size: 2.6rem;
+        font-weight: 700;
+        line-height: 1.1;
+        letter-spacing: -0.01em;
+      }
+
+      .masthead__dateline {
+        margin: 0.7rem 0 0;
+        font-family:
+          "Atkinson Hyperlegible",
+          system-ui,
+          -apple-system,
+          "Segoe UI",
+          sans-serif;
+        font-size: 0.85rem;
+        color: var(--muted);
+      }
+
+      .lede {
+        font-size: 1.22rem;
+        line-height: 1.6;
+        color: var(--text);
+        margin: 0 0 2rem;
+      }
+
+      .article h2 {
+        font-size: 1.5rem;
+        margin: 2.4rem 0 0.6rem;
+        line-height: 1.25;
+      }
+
+      .article p {
+        margin: 0 0 1.2rem;
+      }
+
+      .article a {
+        color: var(--accent-strong);
+        text-decoration: underline;
+        text-underline-offset: 2px;
+      }
+
+      .provenance {
+        font-family:
+          "Atkinson Hyperlegible",
+          system-ui,
+          -apple-system,
+          "Segoe UI",
+          sans-serif;
+        font-size: 0.8rem;
+        color: var(--text-muted);
+        border-left: 2px solid var(--border-default);
+        padding-left: 0.8rem;
+        margin: 0 0 1.4rem;
+      }
+
+      /* Governor — AI-derived passage renders dimmed at 70% with a quiet label. */
+      .provisional {
+        opacity: var(--provisional-opacity);
+        background: var(--surface-accent-soft);
+        border: 1px solid var(--border-subtle);
+        border-radius: 12px;
+        padding: 1.1rem 1.3rem;
+        margin: 0 0 1.6rem;
+      }
+
+      .provisional__label {
+        margin: 0 0 0.5rem;
+        font-family:
+          "Atkinson Hyperlegible",
+          system-ui,
+          -apple-system,
+          "Segoe UI",
+          sans-serif;
+        font-size: 0.68rem;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: var(--text-muted);
+      }
+
+      .provisional p {
+        margin: 0;
+        font-size: 1.02rem;
+      }
+
+      /* Anti-shame recovery note: amber/muted, NEVER error-red. */
+      .recovery-note {
+        font-family:
+          "Atkinson Hyperlegible",
+          system-ui,
+          -apple-system,
+          "Segoe UI",
+          sans-serif;
+        font-size: 0.92rem;
+        color: var(--state-recovery);
+        background: var(--surface-subtle);
+        border-left: 3px solid var(--state-attention);
+        border-radius: 0 8px 8px 0;
+        padding: 0.8rem 1rem;
+        margin: 1.8rem 0;
+      }
+
+      .signoff {
+        margin-top: 3rem;
+        padding-top: 1.2rem;
+        border-top: 1px solid var(--border-default);
+        font-family:
+          "Atkinson Hyperlegible",
+          system-ui,
+          -apple-system,
+          "Segoe UI",
+          sans-serif;
+        font-size: 0.85rem;
+        color: var(--muted);
+      }
+    </style>
+  </head>
+  <body>
+    <main class="reading-frame">
+      <header class="masthead">
+        <p class="masthead__eyebrow">Morning Briefing</p>
+        <h1 class="masthead__title">Today, calmly.</h1>
+        <p class="masthead__dateline">Saturday, 13 June 2026 · prepared 06:40</p>
+      </header>
+
+      <article class="article">
+        <p class="lede">
+          Two things deserve your attention before noon, and neither is on fire. The rest of the day
+          has room to breathe.
+        </p>
+
+        <div class="provisional">
+          <p class="provisional__label">Provisional — not yet confirmed</p>
+          <p>
+            Jarvis read your inbox and calendar this morning and drafted the summary below. Nothing
+            here has been acted on; confirm anything you want pinned.
+          </p>
+        </div>
+
+        <h2>The shape of the morning</h2>
+        <p>
+          Standup is at 9:00 and the quarterly review moved to 11:30 — you have a clear block
+          between them. The contractor invoice that came in overnight is due Friday; it is the only
+          item with a hard money deadline this week.
+        </p>
+        <p class="provenance">
+          From: Gmail · 6 new threads since yesterday — surfaced 1 with a deadline.
+        </p>
+
+        <h2>What might get lost</h2>
+        <p>
+          A reply you started to the venue about the offsite is still a draft. It is not urgent, but
+          it is the kind of thing that quietly slips for a week. Surfaced here so it does not.
+        </p>
+
+        <div class="recovery-note">
+          You moved “draft the retro notes” past its slot twice this week. No problem — it is
+          carried into This Afternoon, where there is space for it. Nothing is overdue; it is just
+          waiting.
+        </div>
+
+        <h2>Steering, not narrating</h2>
+        <p>
+          This is a reading surface, not a chat. When you want Jarvis to do something — reschedule,
+          draft a reply, pin a priority — you tell it, and it shows its reasoning before it acts.
+          Read more in the
+          <a href="#">day view</a>.
+        </p>
+
+        <div class="signoff">Read by you · last synced 06:38 · sources: Calendar, Gmail</div>
+      </article>
+    </main>
+  </body>
+</html>
