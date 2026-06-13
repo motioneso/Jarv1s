@@ -29,6 +29,7 @@ import { sendJob } from "@jarv1s/jobs";
 import { type BriefingRunPayload, isBriefingRunPayloadMetadataOnly } from "./jobs.js";
 import { BRIEFINGS_RUN_QUEUE } from "./manifest.js";
 import { BriefingsRepository } from "./repository.js";
+import { reconcileOwnedSchedules, reconcileSchedule } from "./schedule.js";
 
 export interface BriefingsRoutesDependencies {
   readonly resolveAccessContext: (request: FastifyRequest) => Promise<AccessContext>;
@@ -61,6 +62,32 @@ export function registerBriefingsRoutes(
           (scopedDb) => repository.listDefinitions(scopedDb)
         );
 
+        // Best-effort self-heal: re-converge this owner's pg-boss schedules so a worker
+        // that restarted with an empty pg-boss schedule table re-acquires the owner's
+        // crons on next visit. Fire-and-forget AFTER building the response payload — it
+        // must never block or fail the read, and reconciles ONLY the actor's own
+        // definitions (RLS-scoped via the repository). reconcileOwnedSchedules already
+        // swallows + logs per-definition errors; guard the whole call too.
+        void dependencies.dataContext
+          .withDataContext(accessContext, (scopedDb) =>
+            reconcileOwnedSchedules(
+              dependencies.boss,
+              scopedDb,
+              repository,
+              accessContext.actorUserId
+            )
+          )
+          .catch((error) => {
+            const e = error instanceof Error ? error : new Error(String(error));
+            console.error(
+              JSON.stringify({
+                event: "briefing_self_heal_failed",
+                error: e.name,
+                message: e.message.slice(0, 200)
+              })
+            );
+          });
+
         return { definitions: definitions.map(serializeDefinition) };
       } catch (error) {
         return handleRouteError(error, reply);
@@ -79,6 +106,10 @@ export function registerBriefingsRoutes(
           accessContext,
           (scopedDb) => repository.createDefinition(scopedDb, input)
         );
+
+        // Reconcile OUTSIDE the data-context callback (pg-boss is not RLS-scoped).
+        // Failure-isolated: a reconcile failure is logged and never fails the mutation.
+        await reconcileScheduleSafely(dependencies.boss, definition);
 
         return reply.code(201).send({ definition: serializeDefinition(definition) });
       } catch (error) {
@@ -102,6 +133,10 @@ export function registerBriefingsRoutes(
         if (!definition) {
           return reply.code(404).send({ error: "Briefing definition not found" });
         }
+
+        // Reconcile the schedule for the updated definition (cadence/tz/enabled may have
+        // changed). Failure-isolated — never fails the mutation.
+        await reconcileScheduleSafely(dependencies.boss, definition);
 
         return { definition: serializeDefinition(definition) };
       } catch (error) {
@@ -207,6 +242,25 @@ export function registerBriefingsRoutes(
       }
     }
   );
+}
+
+async function reconcileScheduleSafely(
+  boss: PgBoss,
+  definition: BriefingDefinition
+): Promise<void> {
+  try {
+    await reconcileSchedule(boss, definition);
+  } catch (error) {
+    const e = error instanceof Error ? error : new Error(String(error));
+    console.error(
+      JSON.stringify({
+        event: "briefing_schedule_reconcile_failed",
+        definitionId: definition.id,
+        error: e.name,
+        message: e.message.slice(0, 200)
+      })
+    );
+  }
 }
 
 function parseCreateDefinitionBody(
