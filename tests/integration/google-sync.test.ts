@@ -1,5 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { sql } from "kysely";
+import Fastify from "fastify";
 import { DataContextRunner, createDatabase, type JarvisDatabase } from "@jarv1s/db";
 import type { Kysely } from "kysely";
 import {
@@ -10,6 +11,7 @@ import {
   createConnectorSecretCipher,
   extractEmailSignals,
   parseEmail,
+  registerConnectorsRoutes,
   runGoogleSync,
   type EmailExtractDeps,
   type GoogleSyncPayload
@@ -924,5 +926,67 @@ describe("google-sync route schema (G1)", () => {
     expect(r.enqueued).toBe(true);
     const d: GoogleSyncResponse = { enqueued: false, deduped: true, jobId: null };
     expect(d.deduped).toBe(true);
+  });
+});
+
+function fakeBoss(captured: {
+  sends: Array<{ queue: string; payload: Record<string, unknown>; options?: unknown }>;
+}) {
+  return {
+    send: async (queue: string, payload: unknown, options?: unknown) => {
+      captured.sends.push({
+        queue,
+        payload: payload as Record<string, unknown>,
+        options
+      });
+      return "job-1";
+    }
+  } as never;
+}
+
+describe("POST /api/connectors/google/sync route (G2)", () => {
+  it("enqueues one metadata-only job and returns 202", async () => {
+    const captured = {
+      sends: [] as Array<{ queue: string; payload: Record<string, unknown>; options?: unknown }>
+    };
+    const server = Fastify();
+    registerConnectorsRoutes(server, {
+      resolveAccessContext: async () => ({ actorUserId: ids.userA, requestId: "r" }),
+      dataContext,
+      boss: fakeBoss(captured)
+    });
+    await server.ready();
+    const res = await server.inject({ method: "POST", url: "/api/connectors/google/sync" });
+    expect(res.statusCode).toBe(202);
+    const body = JSON.parse(res.body) as GoogleSyncResponse;
+    expect(body.enqueued).toBe(true);
+    expect(body.deduped).toBe(false);
+    expect(captured.sends).toHaveLength(1);
+    expect(captured.sends[0]!.queue).toBe("connectors.google-sync");
+    expect(Object.keys(captured.sends[0]!.payload).sort()).toEqual([
+      "actorUserId",
+      "idempotencyKey",
+      "kind"
+    ]);
+    await server.close();
+  });
+
+  it("returns enqueued=false/deduped=true when an actor sync is already in flight (null jobId)", async () => {
+    // A singletonKey collision makes sendJob resolve to null (briefings precedent,
+    // packages/jobs/src/pg-boss.ts). The route must report dedupe, NOT a phantom enqueue.
+    const server = Fastify();
+    registerConnectorsRoutes(server, {
+      resolveAccessContext: async () => ({ actorUserId: ids.userA, requestId: "r" }),
+      dataContext,
+      boss: { send: async () => null } as never
+    });
+    await server.ready();
+    const res = await server.inject({ method: "POST", url: "/api/connectors/google/sync" });
+    expect(res.statusCode).toBe(202);
+    const body = JSON.parse(res.body) as GoogleSyncResponse;
+    expect(body.enqueued).toBe(false);
+    expect(body.deduped).toBe(true);
+    expect(body.jobId).toBeNull();
+    await server.close();
   });
 });

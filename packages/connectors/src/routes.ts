@@ -1,4 +1,7 @@
+import { randomUUID } from "node:crypto";
+
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
+import type { PgBoss } from "pg-boss";
 
 import type {
   AccessContext,
@@ -7,10 +10,12 @@ import type {
   DataContextDb,
   DataContextRunner
 } from "@jarv1s/db";
+import { sendJob } from "@jarv1s/jobs";
 import {
   createConnectorAccountRouteSchema,
   googleAuthorizeRouteSchema,
   googleCompleteRouteSchema,
+  googleSyncRouteSchema,
   listAdminConnectorAccountsRouteSchema,
   listConnectorAccountsRouteSchema,
   listConnectorProvidersRouteSchema,
@@ -30,10 +35,12 @@ import { createConnectorSecretCipher, type ConnectorSecretCipher } from "./crypt
 import { GoogleConnectionService, GoogleConnectError } from "./google-connection.js";
 import { GoogleOAuthClient } from "./oauth.js";
 import { ConnectorsRepository, type ConnectorAccountSafeRow } from "./repository.js";
+import { GOOGLE_SYNC_QUEUE } from "./sync-jobs.js";
 
 export interface ConnectorsRoutesDependencies {
   readonly resolveAccessContext: (request: FastifyRequest) => Promise<AccessContext>;
   readonly dataContext: DataContextRunner;
+  readonly boss: PgBoss;
   readonly repository?: ConnectorsRepository;
   readonly secretCipher?: ConnectorSecretCipher;
   readonly googleService?: GoogleConnectionService;
@@ -77,6 +84,7 @@ export function registerConnectorsRoutes(
   );
 
   const oauthMax = parsePositiveIntEnv(process.env.JARVIS_RL_OAUTH_MAX, 5);
+  const syncMax = parsePositiveIntEnv(process.env.JARVIS_RL_GOOGLE_SYNC_MAX, 6);
 
   server.post(
     "/api/connectors/google/complete",
@@ -92,7 +100,57 @@ export function registerConnectorsRoutes(
         const account = await dependencies.dataContext.withDataContext(accessContext, (scopedDb) =>
           googleService.completeAuthorization(scopedDb, { redirectUrl })
         );
+        try {
+          await sendJob(
+            dependencies.boss,
+            GOOGLE_SYNC_QUEUE,
+            {
+              actorUserId: accessContext.actorUserId,
+              kind: "google-sync" as const,
+              idempotencyKey: randomUUID()
+            },
+            { singletonKey: accessContext.actorUserId }
+          );
+        } catch (error) {
+          // best-effort: the user can sync manually if the enqueue fails. Log a sanitized,
+          // structured event (name only — never the error object, which may carry connection
+          // strings) so a swallowed enqueue is still observable.
+          request.log.warn(
+            { event: "connectors.sync_on_connect_enqueue_failed", name: (error as Error).name },
+            "sync-on-connect enqueue failed; user can sync manually"
+          );
+        }
         return reply.code(201).send({ account: serializeAccount(account) });
+      } catch (error) {
+        return handleRouteError(error, reply);
+      }
+    }
+  );
+
+  server.post(
+    "/api/connectors/google/sync",
+    {
+      schema: googleSyncRouteSchema,
+      config: { rateLimit: { max: syncMax, timeWindow: "1 minute" } }
+    },
+    async (request, reply) => {
+      try {
+        const accessContext = await dependencies.resolveAccessContext(request);
+        const idempotencyKey = randomUUID();
+        const jobId = await sendJob(
+          dependencies.boss,
+          GOOGLE_SYNC_QUEUE,
+          { actorUserId: accessContext.actorUserId, kind: "google-sync" as const, idempotencyKey },
+          // Per-actor singletonKey: a manual click racing sync-on-connect (or a second click)
+          // collapses to one in-flight job. A null jobId means the collision happened — report
+          // dedupe, not a fresh enqueue (briefings null-jobId precedent).
+          { singletonKey: accessContext.actorUserId }
+        );
+        return reply.code(202).send({
+          enqueued: jobId !== null,
+          deduped: jobId === null,
+          jobId
+        });
       } catch (error) {
         return handleRouteError(error, reply);
       }
