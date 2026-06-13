@@ -68,6 +68,7 @@ import {
   tasksModuleManifest,
   tasksModuleSqlMigrationDirectory
 } from "@jarv1s/tasks";
+import { wellnessModuleManifest, wellnessModuleSqlMigrationDirectory } from "@jarv1s/wellness";
 
 import { assertModulesCompatible } from "./compat-gate.js";
 import {
@@ -255,6 +256,11 @@ const BUILT_IN_MODULES: readonly BuiltInModuleRegistration[] = [
   {
     manifest: structuredStateModuleManifest,
     sqlMigrationDirectories: [structuredStateSqlMigrationDirectory],
+    queueDefinitions: []
+  },
+  {
+    manifest: wellnessModuleManifest,
+    sqlMigrationDirectories: [wellnessModuleSqlMigrationDirectory],
     queueDefinitions: []
   }
 ];
