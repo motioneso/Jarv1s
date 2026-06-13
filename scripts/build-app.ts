@@ -1,0 +1,101 @@
+/**
+ * esbuild bundler for the production image's RESIDENT services (api, worker).
+ * Produces a single runnable file per entrypoint under dist/, resolving the
+ * @jarv1s/* SOURCE-ONLY workspace graph at build time so the api/worker runtime
+ * is plain `node dist/...` (no tsx, no per-start pnpm install — deployable-stack §1/§2).
+ *
+ * migrate is intentionally NOT a target here: it runs as `tsx scripts/migrate.ts`
+ * because module SQL dirs are resolved via `import.meta.url` and bundling would
+ * collapse every module's URL to the bundle's, breaking SQL resolution.
+ *
+ * Native deps that load .node binaries (onnxruntime-node, sharp) and the
+ * transformers wrapper are kept EXTERNAL — they must be required from the pruned
+ * production node_modules at runtime, never inlined (Open Risk #3/#6).
+ */
+import { fileURLToPath } from "node:url";
+import { dirname, resolve } from "node:path";
+
+import { build, type Plugin } from "esbuild";
+
+const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
+
+type Target = "api" | "worker";
+
+const ENTRYPOINTS: Record<Target, { entry: string; outfile: string }> = {
+  api: { entry: "apps/api/src/server.ts", outfile: "dist/server.js" },
+  worker: { entry: "apps/worker/src/worker.ts", outfile: "dist/worker.js" }
+};
+
+// Packages that must NOT be bundled: they load native binaries or read files
+// relative to their own package dir at runtime. Resolved from node_modules instead.
+const EXTERNAL = ["@huggingface/transformers", "onnxruntime-node", "sharp", "pg-native"];
+
+/**
+ * better-auth's kysely-adapter ships bun/d1/node-sqlite dialect chunks that it
+ * loads via gated `await import()` ONLY when a SQLite driver is configured. Jarv1s
+ * is Postgres-only, so those code paths are never executed — but esbuild still
+ * statically walks the dynamic imports and fails because the chunks import
+ * `DEFAULT_MIGRATION_TABLE`/`DEFAULT_MIGRATION_LOCK_TABLE`, symbols that kysely
+ * 0.29.2 no longer exports. Mark these dead dialect chunks (and the `node:sqlite`
+ * builtin they reach for) external so the bundle keeps the un-taken `import()` as a
+ * runtime require that is never reached under our Postgres driver. Without this the
+ * api/worker bundles cannot be produced at all.
+ */
+const externalizeUnusedSqliteDialects: Plugin = {
+  name: "externalize-unused-sqlite-dialects",
+  setup(pluginBuild) {
+    pluginBuild.onResolve({ filter: /(bun|d1|node)-sqlite-dialect/ }, (args) => ({
+      path: args.path,
+      external: true
+    }));
+    pluginBuild.onResolve({ filter: /^node:sqlite$/ }, (args) => ({
+      path: args.path,
+      external: true
+    }));
+  }
+};
+
+async function buildTarget(target: Target): Promise<void> {
+  const { entry, outfile } = ENTRYPOINTS[target];
+  await build({
+    entryPoints: [resolve(root, entry)],
+    outfile: resolve(root, outfile),
+    bundle: true,
+    platform: "node",
+    target: "node24",
+    format: "esm",
+    sourcemap: true,
+    // Resolve @jarv1s/* via the workspace symlinks in node_modules (preferred) or
+    // fall back to the tsconfig path aliases; esbuild follows node resolution by
+    // default through the symlinked workspace packages.
+    external: EXTERNAL,
+    plugins: [externalizeUnusedSqliteDialects],
+    // ESM bundle needs these shims for CJS-style globals used by deps.
+    banner: {
+      js: [
+        "import { createRequire as __jarvisCreateRequire } from 'node:module';",
+        "import { fileURLToPath as __jarvisFileURLToPath } from 'node:url';",
+        "import { dirname as __jarvisDirname } from 'node:path';",
+        "const require = __jarvisCreateRequire(import.meta.url);",
+        "const __filename = __jarvisFileURLToPath(import.meta.url);",
+        "const __dirname = __jarvisDirname(__filename);"
+      ].join("\n")
+    },
+    logLevel: "info"
+  });
+  console.log(`built ${outfile}`);
+}
+
+async function main(): Promise<void> {
+  const target = process.argv[2] as Target | undefined;
+  if (target && target in ENTRYPOINTS) {
+    await buildTarget(target);
+    return;
+  }
+  // No/unknown arg -> build both resident entrypoints (api + worker).
+  for (const t of Object.keys(ENTRYPOINTS) as Target[]) {
+    await buildTarget(t);
+  }
+}
+
+await main();
