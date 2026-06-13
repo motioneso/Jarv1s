@@ -20,7 +20,7 @@ export interface RecurrenceSpec {
  * - weekly:  +7*interval days
  * - monthly: +interval calendar months (same day-of-month, clamped by JS Date)
  */
-function computeNextOccurrenceDate(spec: RecurrenceSpec): string {
+export function computeNextOccurrenceDate(spec: RecurrenceSpec): string {
   const base = new Date(spec.occurrence_date + "T00:00:00.000Z");
 
   switch (spec.freq) {
@@ -30,9 +30,18 @@ function computeNextOccurrenceDate(spec: RecurrenceSpec): string {
     case "weekly":
       base.setUTCDate(base.getUTCDate() + 7 * spec.interval);
       break;
-    case "monthly":
+    case "monthly": {
+      const day = base.getUTCDate();
+      // Move to the 1st before adding months so the month add never overflows the day,
+      // then clamp the day to the target month's last day.
+      base.setUTCDate(1);
       base.setUTCMonth(base.getUTCMonth() + spec.interval);
+      const lastDayOfTargetMonth = new Date(
+        Date.UTC(base.getUTCFullYear(), base.getUTCMonth() + 1, 0)
+      ).getUTCDate();
+      base.setUTCDate(Math.min(day, lastDayOfTargetMonth));
       break;
+    }
   }
 
   // Return YYYY-MM-DD in UTC
@@ -43,7 +52,7 @@ function computeNextOccurrenceDate(spec: RecurrenceSpec): string {
  * Advance a Date value by the same delta as the recurrence spec's occurrence_date shift.
  * Returns null if the input date is null.
  */
-function advanceDate(
+export function advanceDate(
   original: Date | string | null | undefined,
   oldOccurrence: string,
   newOccurrence: string
