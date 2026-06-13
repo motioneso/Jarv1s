@@ -1,5 +1,14 @@
 import { describe, expect, it } from "vitest";
-import { taskDtoSchema } from "@jarv1s/shared";
+import {
+  taskDtoSchema,
+  assignTaskTagRequestSchema,
+  assignTaskTagRouteSchema,
+  unassignTaskTagRouteSchema,
+  renameTaskListRequestSchema,
+  deleteTaskListRequestSchema,
+  renameTaskTagRequestSchema,
+  taskTagParamsSchema
+} from "@jarv1s/shared";
 import type { TaskDto } from "@jarv1s/shared";
 
 describe("TaskDto.tags contract", () => {
@@ -29,5 +38,17 @@ describe("TaskDto.tags contract", () => {
       tags: []
     };
     expect(dto.tags).toEqual([]);
+  });
+});
+
+describe("assign/rename/delete contract schemas", () => {
+  it("exposes the assign/rename/delete schemas", () => {
+    expect(assignTaskTagRequestSchema.required).toContain("tagId");
+    expect(deleteTaskListRequestSchema.properties).toHaveProperty("reassignToListId");
+    expect(renameTaskListRequestSchema.required).toContain("name");
+    expect(renameTaskTagRequestSchema.required).toContain("name");
+    expect(taskTagParamsSchema.required).toEqual(["id", "tagId"]);
+    expect(assignTaskTagRouteSchema.response[200]).toBeDefined();
+    expect(unassignTaskTagRouteSchema.response[200]).toBeDefined();
   });
 });
