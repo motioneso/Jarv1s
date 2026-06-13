@@ -96,21 +96,40 @@ export interface FocusSignalAggregateOptions {
 }
 
 /**
+ * Runs a single provider's work inside a FRESH, per-provider data context. The composition
+ * root supplies this (wrapping `DataContextRunner.withDataContext`) so module-sdk stays free
+ * of a `@jarv1s/db` dependency. Each provider MUST get its own context/transaction — see
+ * aggregateFocusSignals for why a shared one is unsafe.
+ */
+export type FocusSignalContextRunner = <T>(work: (scopedDb: unknown) => Promise<T>) => Promise<T>;
+
+/**
  * Run every registered provider for an actor and collect the non-null signals. Generic and
  * uniform: it knows nothing about any specific module. A provider that throws or returns a
  * malformed value is treated as "no signal" (fail soft — focus must never break), but the
  * drop is reported via `onProviderError` (sanitized) so outages are not silent.
+ *
+ * CONCURRENCY/ISOLATION: each provider runs in its OWN data context via `runInContext` (a
+ * fresh withDataContext → fresh transaction → fresh pg connection). This is load-bearing,
+ * not cosmetic: a single shared Kysely transaction is ONE pg client, so (a) "concurrent"
+ * provider queries would serialize on that one connection — no real parallelism — and (b)
+ * any provider whose query aborts the transaction (Postgres 25P02) would poison every OTHER
+ * provider's queries on the same connection, turning one provider's failure into a total
+ * focus outage and defeating the fail-soft guarantee above. Separate contexts make the
+ * fail-soft real and let the providers genuinely run in parallel.
  */
 export async function aggregateFocusSignals(
   providers: readonly RegisteredFocusSignal[],
-  scopedDb: unknown,
+  runInContext: FocusSignalContextRunner,
   ctx: { readonly actorUserId: string; readonly requestId: string },
   options: FocusSignalAggregateOptions = {}
 ): Promise<FocusSignal[]> {
   const results = await Promise.all(
     providers.map(async ({ moduleId, provider }) => {
       try {
-        const signal = await provider(scopedDb, ctx);
+        // Each provider gets its OWN context/transaction: one provider aborting its txn
+        // (25P02) cannot poison another, and they do not serialize on one pg connection.
+        const signal = await runInContext((scopedDb) => provider(scopedDb, ctx));
         if (
           signal &&
           typeof signal.moduleId === "string" &&

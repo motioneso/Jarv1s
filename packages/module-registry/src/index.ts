@@ -137,9 +137,11 @@ export interface BuiltInRouteDependencies {
   readonly boss: PgBoss;
   /**
    * Per-request, per-actor focus-signal aggregator. The composition root resolves the
-   * actor's ACTIVE modules first, builds providers from them, runs each in its own
-   * withDataContext, then aggregates — so a disabled module contributes nothing. Tasks
-   * consumes an opaque FocusSignal[].
+   * actor's ACTIVE modules first, builds providers from them, then runs EACH provider in
+   * its OWN withDataContext (fresh transaction → fresh pg connection) before aggregating —
+   * so a disabled module contributes nothing AND one provider aborting its transaction
+   * (25P02) cannot poison the others (fail-soft is real, not just declared). Tasks consumes
+   * an opaque FocusSignal[].
    */
   readonly focusSignals?: (ctx: {
     readonly actorUserId: string;

@@ -229,15 +229,24 @@ export function createApiServer(options: CreateApiServerOptions = {}) {
         const activeManifests = await resolveActiveModules(ctx.actorUserId);
         const providers = focusSignalProvidersFor(activeManifests);
         if (providers.length === 0) return [];
-        // 2) Run every provider inside ONE actor-scoped read transaction, then aggregate.
-        return dataContext.withDataContext(
-          { actorUserId: ctx.actorUserId, requestId: ctx.requestId },
-          (scopedDb) =>
-            aggregateFocusSignals(providers, scopedDb, ctx, {
-              onProviderError: (moduleId, errorName) =>
-                // Sanitized: moduleId + error NAME only — never message/stack/payload.
-                server.log.warn({ moduleId, errorName }, "focus-signal provider failed (soft)")
-            })
+        // 2) Run each provider in its OWN actor-scoped data context (fresh withDataContext →
+        //    fresh transaction → fresh pg connection). A shared transaction is one pg client,
+        //    so providers would serialize on it AND one provider's query aborting the txn
+        //    (25P02) would poison every other provider — defeating aggregateFocusSignals'
+        //    fail-soft guarantee. Per-provider contexts make the fail-soft real.
+        return aggregateFocusSignals(
+          providers,
+          (work) =>
+            dataContext.withDataContext(
+              { actorUserId: ctx.actorUserId, requestId: ctx.requestId },
+              (scopedDb) => work(scopedDb)
+            ),
+          ctx,
+          {
+            onProviderError: (moduleId, errorName) =>
+              // Sanitized: moduleId + error NAME only — never message/stack/payload.
+              server.log.warn({ moduleId, errorName }, "focus-signal provider failed (soft)")
+          }
         );
       },
       dataContext,
