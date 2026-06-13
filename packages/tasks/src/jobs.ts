@@ -63,6 +63,24 @@ export function isDeferredTaskStatusPayloadMetadataOnly(payload: Record<string, 
   return Object.keys(payload).every((key) => allowedKeys.has(key));
 }
 
+export interface RecurrenceMaterializePayload extends ActorScopedJobPayload {
+  readonly idempotencyKey?: string;
+}
+
+export interface RecurrenceMaterializeResult {
+  readonly rolledForward: number;
+}
+
+export const RECURRENCE_MATERIALIZE_PAYLOAD_KEYS = ["actorUserId", "idempotencyKey"] as const;
+
+export function isRecurrenceMaterializePayloadMetadataOnly(
+  payload: Record<string, unknown>
+): boolean {
+  const allowedKeys = new Set<string>(RECURRENCE_MATERIALIZE_PAYLOAD_KEYS);
+
+  return Object.keys(payload).every((key) => allowedKeys.has(key));
+}
+
 export async function registerTasksJobWorkers(
   boss: PgBoss,
   dataContext: DataContextRunner,
