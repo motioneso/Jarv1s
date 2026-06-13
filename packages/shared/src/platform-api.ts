@@ -360,6 +360,147 @@ const registrationSettingsSchema = {
   }
 } as const;
 
+// ---------------------------------------------------------------------------
+// Onboarding (Phase 2 primary-user onboarding). See
+// docs/superpowers/specs/2026-06-12-p2-primary-user-onboarding-design.md
+// NOTE: ChatMultiplexerChoice ("auto"|"tmux"|"herdr") is the EXISTING CLI-adapter
+// contract (this file, ~line 345). Onboarding reuses it; it is NOT redefined here.
+// ---------------------------------------------------------------------------
+
+/** Single, unambiguous onboarding lifecycle state (replaces two booleans). */
+export type OnboardingState = "pending" | "completed" | "skipped";
+
+export interface OnboardingMultiplexerStepDto {
+  /** done ⇔ the chosen multiplexer is USABLE (tmux installed | herdr installed+root pane | auto). */
+  readonly done: boolean;
+  /** The persisted chat.multiplexer choice, or null when no row exists yet. */
+  readonly selected: ChatMultiplexerChoice | null;
+  /** tmux is usable on this host (installed). */
+  readonly tmuxUsable: boolean;
+  /** herdr is usable on this host (installed AND a root pane is configured). */
+  readonly herdrUsable: boolean;
+}
+
+export interface OnboardingCliProviderDto {
+  readonly kind: "anthropic" | "openai-compatible" | "google";
+  /** Presence-only: the binary is on PATH. NOT a claim of authentication. */
+  readonly cliPresent: boolean;
+}
+
+export interface OnboardingCliAuthStepDto {
+  /** Documented floor: done ⇔ at least one provider CLI is PRESENT (presence ≠ authed). */
+  readonly done: boolean;
+  readonly providers: readonly OnboardingCliProviderDto[];
+}
+
+export interface OnboardingConnectorStepDto {
+  readonly done: boolean;
+}
+
+export interface OnboardingStepsDto {
+  readonly multiplexer: OnboardingMultiplexerStepDto;
+  readonly cliAuth: OnboardingCliAuthStepDto;
+  readonly connectors: OnboardingConnectorStepDto;
+}
+
+export interface OnboardingStatusResponse {
+  readonly state: OnboardingState;
+  readonly steps: OnboardingStepsDto;
+}
+
+export interface OnboardingStateResponse {
+  readonly state: OnboardingState;
+}
+
+const onboardingStatusResponseSchema = {
+  type: "object",
+  additionalProperties: false,
+  required: ["state", "steps"],
+  properties: {
+    state: { type: "string", enum: ["pending", "completed", "skipped"] },
+    steps: {
+      type: "object",
+      additionalProperties: false,
+      required: ["multiplexer", "cliAuth", "connectors"],
+      properties: {
+        multiplexer: {
+          type: "object",
+          additionalProperties: false,
+          required: ["done", "selected", "tmuxUsable", "herdrUsable"],
+          properties: {
+            done: { type: "boolean" },
+            selected: { type: ["string", "null"], enum: ["auto", "tmux", "herdr", null] },
+            tmuxUsable: { type: "boolean" },
+            herdrUsable: { type: "boolean" }
+          }
+        },
+        cliAuth: {
+          type: "object",
+          additionalProperties: false,
+          required: ["done", "providers"],
+          properties: {
+            done: { type: "boolean" },
+            providers: {
+              type: "array",
+              items: {
+                type: "object",
+                additionalProperties: false,
+                required: ["kind", "cliPresent"],
+                properties: {
+                  kind: {
+                    type: "string",
+                    enum: ["anthropic", "openai-compatible", "google"]
+                  },
+                  cliPresent: { type: "boolean" }
+                }
+              }
+            }
+          }
+        },
+        connectors: {
+          type: "object",
+          additionalProperties: false,
+          required: ["done"],
+          properties: { done: { type: "boolean" } }
+        }
+      }
+    }
+  }
+} as const;
+
+const onboardingStateResponseSchema = {
+  type: "object",
+  additionalProperties: false,
+  required: ["state"],
+  properties: {
+    state: { type: "string", enum: ["pending", "completed", "skipped"] }
+  }
+} as const;
+
+export const getOnboardingStatusRouteSchema = {
+  response: {
+    200: onboardingStatusResponseSchema,
+    401: errorResponseSchema,
+    403: errorResponseSchema
+  }
+} as const;
+
+export const onboardingCompleteRouteSchema = {
+  response: {
+    200: onboardingStateResponseSchema,
+    401: errorResponseSchema,
+    403: errorResponseSchema
+  }
+} as const;
+
+export const onboardingSkipRouteSchema = {
+  response: {
+    200: onboardingStateResponseSchema,
+    401: errorResponseSchema,
+    403: errorResponseSchema
+  }
+} as const;
+
 export const adminUserActionRouteSchema = {
   params: {
     type: "object",
