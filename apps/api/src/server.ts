@@ -16,7 +16,9 @@ import {
 } from "@jarv1s/db";
 import { createPgBossClient } from "@jarv1s/jobs";
 import {
+  aggregateFocusSignals,
   createActiveModulesResolver,
+  focusSignalProvidersFor,
   getBuiltInModuleManifests,
   registerBuiltInApiRoutes,
   registerRouteEnablementGuard,
@@ -201,6 +203,24 @@ export function createApiServer(options: CreateApiServerOptions = {}) {
       listConfiguredAuthProviders: authRuntime.listConfiguredProviders,
       listModuleManifests: getBuiltInModuleManifests,
       resolveActiveModules,
+      focusSignals: async (ctx) => {
+        // 1) Resolve THIS actor's active manifests (honors per-user/instance disable) — its
+        //    own short context, exactly like the AI route surfaces do. A disabled module is
+        //    excluded, so it contributes no focus signal.
+        const activeManifests = await resolveActiveModules(ctx.actorUserId);
+        const providers = focusSignalProvidersFor(activeManifests);
+        if (providers.length === 0) return [];
+        // 2) Run every provider inside ONE actor-scoped read transaction, then aggregate.
+        return dataContext.withDataContext(
+          { actorUserId: ctx.actorUserId, requestId: ctx.requestId },
+          (scopedDb) =>
+            aggregateFocusSignals(providers, scopedDb, ctx, {
+              onProviderError: (moduleId, errorName) =>
+                // Sanitized: moduleId + error NAME only — never message/stack/payload.
+                server.log.warn({ moduleId, errorName }, "focus-signal provider failed (soft)")
+            })
+        );
+      },
       dataContext,
       boss,
       chatEngineFactory: options.chatEngineFactory,

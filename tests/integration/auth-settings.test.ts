@@ -232,7 +232,8 @@ describe("M3 auth, users, settings", () => {
       "chat",
       "briefings",
       "memory",
-      "structured-state"
+      "structured-state",
+      "wellness"
     ]);
     expect(modules.flatMap((module) => module.navigation).map((entry) => entry.path)).toEqual([
       "/settings",
@@ -241,7 +242,8 @@ describe("M3 auth, users, settings", () => {
       "/calendar",
       "/email",
       "/chat",
-      "/briefings"
+      "/briefings",
+      "/wellness"
     ]);
   });
 

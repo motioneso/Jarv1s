@@ -14,6 +14,7 @@ import {
   updateMedicationRequestSchema
 } from "@jarv1s/shared";
 
+import { wellnessFocusSignal } from "./focus-signal.js";
 import { wellnessMedicationAdherenceExecute, wellnessRecentCheckInsExecute } from "./tools.js";
 
 export const WELLNESS_MODULE_ID = "wellness";
@@ -153,5 +154,6 @@ export const wellnessModuleManifest = {
       inputSchema: { type: "object", properties: {} },
       execute: wellnessMedicationAdherenceExecute
     }
-  ]
+  ],
+  focusSignal: wellnessFocusSignal
 } satisfies JarvisModuleManifest;
