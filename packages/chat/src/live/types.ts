@@ -22,7 +22,8 @@ export interface EngineLaunchOpts {
   readonly neutralDir: string;
   readonly personaPath: string; // rendered persona context file in neutralDir
   readonly mcpConfigPath?: string; // Phase 2 (unused in Phase 1)
-  readonly mcpToken?: string; // Phase 2: per-session JWT for MCP gateway
+  /** Opaque per-session MCP bearer token (jst_<uuid>), minted at launch. */
+  readonly mcpToken?: string;
   readonly mcpServerUrl?: string; // Phase 2: MCP gateway base URL
 }
 
