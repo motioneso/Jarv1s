@@ -247,6 +247,12 @@ importers:
       '@jarv1s/ai':
         specifier: workspace:*
         version: link:../ai
+      '@jarv1s/calendar':
+        specifier: workspace:*
+        version: link:../calendar
+      '@jarv1s/connectors':
+        specifier: workspace:*
+        version: link:../connectors
       '@jarv1s/db':
         specifier: workspace:*
         version: link:../db

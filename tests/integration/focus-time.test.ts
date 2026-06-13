@@ -18,9 +18,12 @@ import { DataContextRunner, createDatabase, type JarvisDatabase } from "@jarv1s/
 import {
   ConnectorsRepository,
   GoogleApiClient,
+  GoogleConnectionService,
+  GoogleOAuthClient,
   createConnectorSecretCipher
 } from "@jarv1s/connectors";
-import { calendarModuleManifest } from "@jarv1s/calendar";
+import { buildCalendarWriteService } from "@jarv1s/chat";
+import { calendarModuleManifest, CalendarRepository } from "@jarv1s/calendar";
 import type { ProposeFocusResult } from "@jarv1s/calendar";
 import type { Kysely } from "kysely";
 import { connectionStrings, ids, resetFoundationDatabase } from "./test-database.js";
@@ -569,5 +572,171 @@ describe("Group C — calendar.proposeFocusBlock tool wiring", () => {
     // The seam must carry the REQUESTED duration (120m), not the band width (Codex HIGH #3).
     expect(captured!.durationMinutes).toBe(120);
     expect(okText(res)).toContain("evt-xyz");
+  });
+});
+
+describe("Group D — CalendarWriteService impl (faked Google fetch)", () => {
+  let appDb: Kysely<JarvisDatabase>;
+  let dataContext: DataContextRunner;
+
+  beforeAll(async () => {
+    process.env.JARVIS_CONNECTOR_SECRET_KEY = "test-connector-secret-key";
+    await resetFoundationDatabase();
+    appDb = createDatabase({ connectionString: connectionStrings.app, maxConnections: 1 });
+    dataContext = new DataContextRunner(appDb);
+  });
+  afterAll(async () => {
+    await appDb.destroy();
+  });
+
+  // Inserts a real app.connector_accounts row via ConnectorsRepository.upsertGoogleAccount under the
+  // owner's RLS, with an encrypted bundle so has_secret is true.
+  async function seedGoogleAccount(ownerId: string, scopes: string[]): Promise<string> {
+    const cipher = createConnectorSecretCipher();
+    const repo = new ConnectorsRepository();
+    const account = await dataContext.withDataContext(
+      { actorUserId: ownerId, requestId: "seed" },
+      (scopedDb) =>
+        repo.upsertGoogleAccount(scopedDb, {
+          scopes,
+          encryptedSecret: cipher.encryptJson({
+            kind: "google-oauth",
+            clientId: "cid",
+            clientSecret: "csecret",
+            accessToken: "atoken",
+            refreshToken: "rtoken",
+            tokenExpiry: new Date(Date.now() + 3_600_000).toISOString(),
+            grantedScopes: scopes
+          })
+        })
+    );
+    return account.id;
+  }
+
+  function buildImpl(opts: {
+    freeBusyBusy?: Array<{ start: string; end: string }>;
+    insertReply?: { id: string; htmlLink?: string };
+    insertStatus?: number;
+    /** Override the calendar repository (D2 injects one whose upsertCachedEvent throws 42501). */
+    calendarRepository?: CalendarRepository;
+  }) {
+    const { fetchFn } = captureFetch((url) => {
+      if (url.includes("/freeBusy")) {
+        return { body: { calendars: { primary: { busy: opts.freeBusyBusy ?? [] } } } };
+      }
+      if (url.includes("/events")) {
+        if (opts.insertStatus) return { status: opts.insertStatus, body: { error: "SECRET" } };
+        return { body: opts.insertReply ?? { id: "evt-new", htmlLink: "https://x/evt-new" } };
+      }
+      return { body: {} };
+    });
+    const cipher = createConnectorSecretCipher();
+    const repository = new ConnectorsRepository();
+    const googleService = new GoogleConnectionService({
+      repository,
+      cipher,
+      oauthClient: new GoogleOAuthClient({ fetchFn })
+    });
+    return buildCalendarWriteService({
+      googleService,
+      googleApiClient: new GoogleApiClient({ fetchFn }),
+      connectorsRepository: repository,
+      calendarRepository: opts.calendarRepository ?? new CalendarRepository()
+    });
+  }
+
+  it("happy path: clear window → insertEvent with jarvisCreated tag → created:true", async () => {
+    await seedGoogleAccount(ids.userA, ["https://www.googleapis.com/auth/calendar"]);
+    const impl = buildImpl({ freeBusyBusy: [] });
+    const res = await dataContext.withDataContext(
+      { actorUserId: ids.userA, requestId: "t" },
+      (scopedDb) =>
+        impl.proposeAndInsert(
+          scopedDb,
+          { actorUserId: ids.userA, requestId: "t", chatSessionId: "s" },
+          {
+            start: new Date("2026-06-17T13:00:00Z"),
+            end: new Date("2026-06-17T16:00:00Z"),
+            durationMinutes: 120,
+            title: "Focus time"
+          }
+        )
+    );
+    expect(res.created).toBe(true);
+    expect(res.googleEventId).toBe("evt-new");
+    expect(res.conflict).toBe("none");
+    // Duration regression guard: a 120-minute request over a 09:00–12:00 (180-min) band
+    // must insert a 120-minute block, NOT the whole band. resolvedEnd - resolvedStart = 120m.
+    const inserted =
+      (new Date(res.resolvedEnd).getTime() - new Date(res.resolvedStart).getTime()) / 60_000;
+    expect(inserted).toBe(120);
+  });
+
+  it("conflict: a busy interval shifts the slot (shifted:true)", async () => {
+    await seedGoogleAccount(ids.userA, ["https://www.googleapis.com/auth/calendar"]);
+    const impl = buildImpl({
+      freeBusyBusy: [{ start: "2026-06-17T13:00:00Z", end: "2026-06-17T13:30:00Z" }]
+    });
+    const res = await dataContext.withDataContext(
+      { actorUserId: ids.userA, requestId: "t" },
+      (scopedDb) =>
+        impl.proposeAndInsert(
+          scopedDb,
+          { actorUserId: ids.userA, requestId: "t", chatSessionId: "s" },
+          {
+            start: new Date("2026-06-17T13:00:00Z"),
+            end: new Date("2026-06-17T16:00:00Z"),
+            durationMinutes: 120,
+            title: "Focus time"
+          }
+        )
+    );
+    expect(res.created).toBe(true);
+    expect(res.shifted).toBe(true);
+    expect(res.conflict).toBe("shifted");
+  });
+
+  it("fully busy: no-clear-slot → created:false, no insert call", async () => {
+    await seedGoogleAccount(ids.userA, ["https://www.googleapis.com/auth/calendar"]);
+    const impl = buildImpl({
+      freeBusyBusy: [{ start: "2026-06-17T13:00:00Z", end: "2026-06-17T16:00:00Z" }]
+    });
+    const res = await dataContext.withDataContext(
+      { actorUserId: ids.userA, requestId: "t" },
+      (scopedDb) =>
+        impl.proposeAndInsert(
+          scopedDb,
+          { actorUserId: ids.userA, requestId: "t", chatSessionId: "s" },
+          {
+            start: new Date("2026-06-17T13:00:00Z"),
+            end: new Date("2026-06-17T16:00:00Z"),
+            durationMinutes: 120,
+            title: "Focus time"
+          }
+        )
+    );
+    expect(res.created).toBe(false);
+    expect(res.conflict).toBe("no-clear-slot");
+  });
+
+  it("missing scope: returns created:false with a re-consent message, no Google call", async () => {
+    await seedGoogleAccount(ids.userB, ["https://www.googleapis.com/auth/gmail.modify"]);
+    const impl = buildImpl({ freeBusyBusy: [] });
+    const res = await dataContext.withDataContext(
+      { actorUserId: ids.userB, requestId: "t" },
+      (scopedDb) =>
+        impl.proposeAndInsert(
+          scopedDb,
+          { actorUserId: ids.userB, requestId: "t", chatSessionId: "s" },
+          {
+            start: new Date("2026-06-17T13:00:00Z"),
+            end: new Date("2026-06-17T16:00:00Z"),
+            durationMinutes: 120,
+            title: "Focus time"
+          }
+        )
+    );
+    expect(res.created).toBe(false);
+    expect(res.message).toMatch(/reconnect/i);
   });
 });
