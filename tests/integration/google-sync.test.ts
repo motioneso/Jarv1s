@@ -646,6 +646,39 @@ describe("extractEmailSignals", () => {
     expect(serialized).not.toContain(PARSED.body);
   });
 
+  it("strips text signals when they collectively reconstruct the body (split-chunk attack)", async () => {
+    // A hostile model splits the body into many short (<=40-char) chunks across action items so
+    // each one slips past the per-field echo floor; the cumulative guard must still strip them.
+    const body =
+      "Meeting moved to Friday. Bring the signed contract and the Q3 budget spreadsheet please.";
+    const parsed = { ...PARSED, body, snippet: null };
+    const chunks = body.split(" ").map((text) => ({ text }));
+    const deps = fakeDeps({
+      replies: [JSON.stringify({ summary: "Logistics for Friday meeting", actionItems: chunks })],
+      models: [{ tier: "economy" }]
+    });
+    const result = await extractEmailSignals(parsed, deps);
+    expect(result.signals.actionItems).toEqual([]);
+    expect(JSON.stringify(result.signals)).not.toContain("budget spreadsheet");
+  });
+
+  it("keeps legitimate signals that do not reconstruct the body", async () => {
+    const deps = fakeDeps({
+      replies: [
+        JSON.stringify({
+          summary: "Utility bill due soon",
+          billsDue: [{ description: "Electric", amount: 84.2, dueDate: "2026-06-30" }],
+          actionItems: [{ text: "Pay the electric bill" }],
+          confidence: 0.8
+        })
+      ],
+      models: [{ tier: "economy" }]
+    });
+    const result = await extractEmailSignals(PARSED, deps);
+    expect(result.signals.billsDue?.[0]?.description).toBe("Electric");
+    expect(result.signals.actionItems?.[0]?.text).toBe("Pay the electric bill");
+  });
+
   it("caps signal strings at the bound (no unbounded model text persisted)", async () => {
     const huge = "z".repeat(5000);
     const deps = fakeDeps({

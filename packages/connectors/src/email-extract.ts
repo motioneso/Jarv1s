@@ -307,6 +307,59 @@ function safeParseSignals(text: string, parsedBody: string): EmailExtractResult 
   }
 }
 
+/** Fraction of the email body that, if collectively reproduced across signal strings, is treated
+ * as a reconstruction attack. A genuine triage rarely re-quotes most of the body across fields. */
+export const BODY_RECONSTRUCTION_FRACTION = 0.5;
+
+/** Every persisted string inside a sanitized EmailSignals object, in document order. */
+function signalStrings(signals: EmailSignals): string[] {
+  const out: string[] = [];
+  for (const b of signals.billsDue ?? []) {
+    if (b.description) out.push(b.description);
+    if (b.currency) out.push(b.currency);
+    if (b.dueDate) out.push(b.dueDate);
+  }
+  for (const a of signals.actionItems ?? []) {
+    if (a.text) out.push(a.text);
+    if (a.dueDate) out.push(a.dueDate);
+  }
+  for (const d of signals.deadlines ?? []) {
+    if (d.text) out.push(d.text);
+    if (d.date) out.push(d.date);
+  }
+  return out;
+}
+
+/**
+ * Cumulative body-reconstruction guard. The per-field echo check (safeSignalStr) drops a single
+ * field that re-embeds a large body chunk, but a hostile model can split the body into many short
+ * (<=40-char) chunks spread across description/text/dueDate/date fields, each individually under
+ * the per-field floor, that together reconstruct the body in the persisted jsonb. This guard sums
+ * how much of the (normalized) body is covered by signal strings that are body substrings; if that
+ * coverage reaches BODY_RECONSTRUCTION_FRACTION of the body, we strip ALL text-bearing signal
+ * arrays (keeping only the numeric/enum fields) so no body fragment is persisted (privacy §6).
+ */
+function stripIfBodyReconstructed(signals: EmailSignals, normalizedBody: string): EmailSignals {
+  if (normalizedBody.length === 0) return signals;
+  let covered = 0;
+  for (const s of signalStrings(signals)) {
+    const normalized = s.replace(/\s+/g, " ").trim().toLowerCase();
+    if (normalized.length > 0 && normalizedBody.includes(normalized)) covered += normalized.length;
+  }
+  if (covered >= normalizedBody.length * BODY_RECONSTRUCTION_FRACTION) {
+    return {
+      mayGetLostInShuffle: signals.mayGetLostInShuffle,
+      importance: signals.importance,
+      confidence: signals.confidence,
+      truncated: signals.truncated,
+      billsDue: [],
+      actionItems: [],
+      deadlines: []
+    };
+  }
+  return signals;
+}
+
 export async function extractEmailSignals(
   parsed: ParsedEmail,
   deps: EmailExtractDeps,
@@ -342,9 +395,14 @@ export async function extractEmailSignals(
   // email legitimately reuses much of its wording, so an overlap heuristic would null-out valid
   // summaries. Exact equality catches only the pathological "model echoed the body" case.
   const normalize = (s: string): string => s.replace(/\s+/g, " ").trim().toLowerCase();
-  if (result.summary !== null && normalize(result.summary) === normalize(parsed.body)) {
+  const normalizedBody = normalize(parsed.body);
+  if (result.summary !== null && normalize(result.summary) === normalizedBody) {
     result = { ...result, summary: null };
   }
+
+  // Cumulative guard: defeat the "split the body into many short chunks across signal fields"
+  // exfiltration path that the per-field echo check cannot see on its own.
+  result = { ...result, signals: stripIfBodyReconstructed(result.signals, normalizedBody) };
 
   const truncatedSignals = parsed.bodyTruncated
     ? { ...result.signals, truncated: true }
