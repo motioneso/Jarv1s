@@ -157,18 +157,25 @@ export function buildCalendarWriteService(deps: CalendarWriteImplDeps): Calendar
         // 409 Conflict = an event with this deterministic id already exists, i.e. this exact
         // approved proposal was already inserted (a duplicate/retry). Idempotent success — the
         // block is on the calendar; return created:true with the known id rather than prompting
-        // the user to "try again" (which would otherwise risk a second insert). The mirror below
-        // re-asserts the cache idempotently. Any other Google failure is a real failure.
+        // the user to "try again" (which would otherwise risk a second insert).
+        //
+        // IMPORTANT: do NOT report THIS retry's chosen slot or mirror it. In the realistic retry,
+        // freeBusy now sees the first-attempt block as busy, so `slot` here is a SHIFTED guess that
+        // does NOT match where the real event actually sits (the first-attempt slot). We don't have
+        // the stored event's exact time without an extra events.get (out of scope this slice), so we
+        // report the requested WINDOW (truthful: the block is somewhere in the approved window) with
+        // shifted:false/conflict:none and skip the cache mirror (mirroring the wrong time would
+        // corrupt the cache). The Google event remains the source of truth (Codex HIGH round 3).
         if (error instanceof GoogleApiError && error.statusCode === 409) {
-          const dedupMirror = await mirrorEvent(deps, scopedDb, { id: eventId }, slot, resolved);
           return {
             created: true,
-            resolvedStart: slot.start.toISOString(),
-            resolvedEnd: slot.end.toISOString(),
-            shifted: slot.shifted,
-            conflict: slot.conflict === "none" ? "none" : "shifted",
+            resolvedStart: resolved.start.toISOString(),
+            resolvedEnd: resolved.end.toISOString(),
+            shifted: false,
+            conflict: "none",
             googleEventId: eventId,
-            calendarMirror: dedupMirror
+            calendarMirror: "skipped-error",
+            message: "This focus block is already on your calendar."
           };
         }
         return {
