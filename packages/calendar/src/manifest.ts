@@ -3,7 +3,11 @@ import { fileURLToPath } from "node:url";
 import type { JarvisModuleManifest } from "@jarv1s/module-sdk";
 import { getCalendarEventResponseSchema, listCalendarEventsResponseSchema } from "@jarv1s/shared";
 
-import { calendarListVisibleEventsExecute } from "./tools.js";
+import {
+  calendarListVisibleEventsExecute,
+  calendarProposeFocusBlockExecute,
+  summarizeProposeFocusBlock
+} from "./tools.js";
 
 export const CALENDAR_MODULE_ID = "calendar";
 export const calendarModuleSqlMigrationDirectory = fileURLToPath(
@@ -92,6 +96,39 @@ export const calendarModuleManifest = {
       },
       outputSchema: listCalendarEventsResponseSchema,
       execute: calendarListVisibleEventsExecute
+    },
+    {
+      name: "calendar.proposeFocusBlock",
+      description:
+        "Propose and (on approval) create a focus-time block on the user's primary Google Calendar, conflict-checked live against their availability.",
+      permissionId: "calendar.manage",
+      risk: "write",
+      requiresServices: ["calendarWrite"],
+      // NOTE: the gateway's validateToolInput (input-validation.ts) enforces only type + enum +
+      // required (NOT format/pattern/minimum/maximum/additionalProperties — see its docstring and
+      // issue #133). So the `enum` below IS enforced. date/start FORMAT and duration BOUNDS are
+      // enforced in the HANDLER: resolveWindow rejects a malformed start/date and clampDuration
+      // bounds duration to 15..480 (Codex MED #5). Unknown extra keys are NOT rejected — readInput
+      // simply ignores them, which is safe (only the known fields drive the write; an extra key
+      // cannot change the resolved window). Descriptions document intent for a future ajv swap.
+      inputSchema: {
+        type: "object",
+        properties: {
+          date: { type: "string", description: "local calendar date yyyy-mm-dd" },
+          partOfDay: { type: "string", enum: ["morning", "afternoon", "evening"] },
+          start: {
+            type: "string",
+            description: "explicit RFC3339 instant; if set, wins over date/partOfDay"
+          },
+          durationMinutes: {
+            type: "number",
+            description: "block length; clamped to 15..480 by the handler"
+          },
+          title: { type: "string", description: "block title; defaults to 'Focus time'" }
+        }
+      },
+      execute: calendarProposeFocusBlockExecute,
+      summarize: summarizeProposeFocusBlock
     }
   ]
 } satisfies JarvisModuleManifest;
