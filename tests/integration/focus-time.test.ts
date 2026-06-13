@@ -20,6 +20,8 @@ import {
   GoogleApiClient,
   createConnectorSecretCipher
 } from "@jarv1s/connectors";
+import { calendarModuleManifest } from "@jarv1s/calendar";
+import type { ProposeFocusResult } from "@jarv1s/calendar";
 import type { Kysely } from "kysely";
 import { connectionStrings, ids, resetFoundationDatabase } from "./test-database.js";
 
@@ -455,5 +457,117 @@ describe("Group B — hasCalendarWriteScope (owner-scoped, read-only)", () => {
       (scopedDb) => repo.hasCalendarWriteScope(scopedDb)
     );
     expect(has).toBe(false);
+  });
+});
+
+describe("Group C — calendar.proposeFocusBlock tool wiring", () => {
+  let appDb: Kysely<JarvisDatabase>;
+  let dataContext: DataContextRunner;
+
+  beforeAll(async () => {
+    await resetFoundationDatabase();
+    appDb = createDatabase({ connectionString: connectionStrings.app, maxConnections: 1 });
+    dataContext = new DataContextRunner(appDb);
+  });
+  afterAll(async () => {
+    await appDb.destroy();
+  });
+
+  // Drive the focus-time write tool through the confirm gate with an Approve. Reads the pending
+  // actionRequestId off the emitted action_request card (no DB polling), then resolves it.
+  async function callAndApprove(
+    gateway: AssistantToolGateway,
+    emitted: GatewaySessionRecord[],
+    token: string,
+    toolName: string,
+    input: Record<string, unknown>
+  ): Promise<GatewayToolResponse> {
+    const callP = gateway.callTool(token, toolName, input);
+    let card: Extract<GatewaySessionRecord, { kind: "action_request" }> | undefined;
+    for (let i = 0; i < 200 && !card; i++) {
+      await new Promise((resolve) => setTimeout(resolve, 10));
+      card = emitted.find(
+        (r): r is Extract<GatewaySessionRecord, { kind: "action_request" }> =>
+          r.kind === "action_request" && r.toolName === toolName
+      );
+    }
+    if (!card) throw new Error(`no action_request card emitted for ${toolName}`);
+    await gateway.resolveActionRequest(ids.userA, card.actionRequestId, "confirmed");
+    return callP;
+  }
+
+  it("summarize renders requested-window card text mentioning the next-clear-slot caveat", () => {
+    const tool = calendarModuleManifest.assistantTools!.find(
+      (t) => t.name === "calendar.proposeFocusBlock"
+    );
+    expect(tool).toBeTruthy();
+    expect(tool!.risk).toBe("write");
+    expect(tool!.permissionId).toBe("calendar.manage");
+    expect(tool!.requiresServices).toEqual(["calendarWrite"]);
+    const text = tool!.summarize!(
+      { partOfDay: "morning", durationMinutes: 120, title: "Deep work" },
+      { actorUserId: "u", requestId: "r", chatSessionId: "s" }
+    );
+    expect(text).toMatch(/Deep work/);
+    expect(text).toMatch(/next clear slot/i);
+  });
+
+  it("on approve, execute resolves a window and delegates to services.calendarWrite", async () => {
+    let captured: { start: Date; end: Date; durationMinutes: number; title: string } | null = null;
+    const fakeService = {
+      async proposeAndInsert(
+        _db: unknown,
+        _ctx: unknown,
+        window: { start: Date; end: Date; durationMinutes: number; title: string }
+      ) {
+        captured = window;
+        const r: ProposeFocusResult = {
+          created: true,
+          resolvedStart: window.start.toISOString(),
+          resolvedEnd: window.end.toISOString(),
+          shifted: false,
+          conflict: "none",
+          googleEventId: "evt-xyz",
+          calendarMirror: "skipped-rls"
+        };
+        return r;
+      }
+    };
+
+    const tokens = new SessionTokenRegistry();
+    const confirmations = new ConfirmationRegistry();
+    const emitted: GatewaySessionRecord[] = [];
+    const notifier: SessionNotifier = {
+      emit(_sessionId, record) {
+        emitted.push(record);
+      }
+    };
+    const gateway = new AssistantToolGateway({
+      resolveActiveModules: async () => [calendarModuleManifest],
+      repository: new AiRepository(),
+      runner: dataContext,
+      tokens,
+      confirmations,
+      notifier,
+      confirmTimeoutMs: 150_000,
+      toolServices: { calendarWrite: fakeService }
+    });
+    const token = tokens.mint({
+      actorUserId: ids.userA,
+      chatSessionId: ids.userA,
+      allowedToolNames: null
+    });
+
+    const res = await callAndApprove(gateway, emitted, token, "calendar.proposeFocusBlock", {
+      partOfDay: "morning",
+      durationMinutes: 120,
+      title: "Deep work"
+    });
+
+    expect(res.ok).toBe(true);
+    expect(captured).not.toBeNull();
+    // The seam must carry the REQUESTED duration (120m), not the band width (Codex HIGH #3).
+    expect(captured!.durationMinutes).toBe(120);
+    expect(okText(res)).toContain("evt-xyz");
   });
 });
