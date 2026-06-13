@@ -4,6 +4,7 @@ import type { PgBoss } from "pg-boss";
 import type { AccessContext, DataContextRunner, TaskStatus } from "@jarv1s/db";
 import {
   addTaskActivityRouteSchema,
+  assignTaskTagRouteSchema,
   atRiskTasksRouteSchema,
   breakdownTaskRouteSchema,
   createTaskListRouteSchema,
@@ -23,6 +24,7 @@ import {
   overdueTasksRouteSchema,
   renameTaskListRouteSchema,
   renameTaskTagRouteSchema,
+  unassignTaskTagRouteSchema,
   updateTaskPreferencesRouteSchema,
   updateTaskRouteSchema
 } from "@jarv1s/shared";
@@ -79,6 +81,7 @@ export function registerTasksRoutes(
       const accessContext = await dependencies.resolveAccessContext(request);
       const query = request.query as Record<string, unknown>;
       const quadrant = optionalString(query["quadrant"], "quadrant");
+      const tagId = optionalString(query["tagId"], "tagId");
       if (
         quadrant !== undefined &&
         quadrant !== "do" &&
@@ -92,7 +95,12 @@ export function registerTasksRoutes(
       const { tasks, tagMap } = await dependencies.dataContext.withDataContext(
         accessContext,
         async (scopedDb) => {
-          const rows = await repository.listVisible(scopedDb);
+          let rows = await repository.listVisible(scopedDb);
+          // tagId filter (RLS-scoped): restrict to tasks carrying this tag before serialization.
+          if (tagId !== undefined) {
+            const taggedIds = await repository.taskIdsWithTag(scopedDb, tagId);
+            rows = rows.filter((r) => taggedIds.has(r.id));
+          }
           const map = await repository.getTagsForTasks(
             scopedDb,
             rows.map((r) => r.id)
@@ -244,6 +252,64 @@ export function registerTasksRoutes(
           }
         );
         return { tasks: tasks.map((task) => serializeTask(task, tagMap.get(task.id) ?? [])) };
+      } catch (error) {
+        return handleRouteError(error, reply);
+      }
+    }
+  );
+
+  // --- Tag assignment (task <-> tag) ---
+
+  server.post<{ Params: TaskParams }>(
+    "/api/tasks/:id/tags",
+    { schema: assignTaskTagRouteSchema },
+    async (request, reply) => {
+      try {
+        const accessContext = await dependencies.resolveAccessContext(request);
+        const body = requireObject(request.body);
+        const tagId = requiredString(body["tagId"], "tagId");
+        const { task, tags } = await dependencies.dataContext.withDataContext(
+          accessContext,
+          async (scopedDb) => {
+            await listsRepository.assignTag(scopedDb, request.params.id, tagId);
+            const row = await repository.getById(scopedDb, request.params.id);
+            const t = row ? await repository.getTagsForTask(scopedDb, row.id) : [];
+            return { task: row, tags: t };
+          }
+        );
+
+        if (!task) {
+          return reply.code(404).send({ error: "Task not found" });
+        }
+
+        return { task: serializeTask(task, tags) };
+      } catch (error) {
+        return handleRouteError(error, reply);
+      }
+    }
+  );
+
+  server.delete<{ Params: { id: string; tagId: string } }>(
+    "/api/tasks/:id/tags/:tagId",
+    { schema: unassignTaskTagRouteSchema },
+    async (request, reply) => {
+      try {
+        const accessContext = await dependencies.resolveAccessContext(request);
+        const { task, tags } = await dependencies.dataContext.withDataContext(
+          accessContext,
+          async (scopedDb) => {
+            await listsRepository.unassignTag(scopedDb, request.params.id, request.params.tagId);
+            const row = await repository.getById(scopedDb, request.params.id);
+            const t = row ? await repository.getTagsForTask(scopedDb, row.id) : [];
+            return { task: row, tags: t };
+          }
+        );
+
+        if (!task) {
+          return reply.code(404).send({ error: "Task not found" });
+        }
+
+        return { task: serializeTask(task, tags) };
       } catch (error) {
         return handleRouteError(error, reply);
       }

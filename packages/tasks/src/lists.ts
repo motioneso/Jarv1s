@@ -193,6 +193,16 @@ export class TaskListsRepository {
     // already atomic. Do NOT open a nested transaction.
     assertDataContextDb(db);
 
+    // 0. Serialize concurrent deletes BY THE SAME ACTOR (Codex finding): the
+    //    "cannot delete your only list" guard is a read-then-write TOCTOU under the default
+    //    READ COMMITTED isolation — two concurrent deletes of two DIFFERENT lists could each
+    //    see count==2 and both commit, leaving the actor with zero lists. A transaction-scoped
+    //    advisory lock keyed to the actor serializes this actor's list deletes (auto-released at
+    //    commit/rollback). Cross-actor deletes never contend (distinct lock keys).
+    await sql`select pg_advisory_xact_lock(hashtext('tasks:list-delete:' || app.current_actor_user_id()))`.execute(
+      db.db
+    );
+
     // 1. EXISTENCE/OWNERSHIP FIRST (Codex finding): a missing/foreign target must be 404, not a
     //    misleading 409 from the last-list guard below. The select is RLS owner-scoped.
     const all = await db.db.selectFrom("app.task_lists").select("id").execute();
