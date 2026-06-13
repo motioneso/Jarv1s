@@ -448,6 +448,7 @@ describe("AI read-only assistant tool execution foundation", () => {
       "rls-probe",
       "connectors.google-sync",
       "tasks-deferred-status",
+      "tasks-recurrence-materialize",
       "chat.embed-turn",
       "chat.extract-facts",
       "briefings-run"
