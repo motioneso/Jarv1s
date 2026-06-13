@@ -15,7 +15,11 @@ import {
   type SessionNotifier
 } from "@jarv1s/ai";
 import { DataContextRunner, createDatabase, type JarvisDatabase } from "@jarv1s/db";
-import { GoogleApiClient } from "@jarv1s/connectors";
+import {
+  ConnectorsRepository,
+  GoogleApiClient,
+  createConnectorSecretCipher
+} from "@jarv1s/connectors";
 import type { Kysely } from "kysely";
 import { connectionStrings, ids, resetFoundationDatabase } from "./test-database.js";
 
@@ -377,5 +381,79 @@ describe("Group B — GoogleApiClient.freeBusy + insertEvent", () => {
         end: "2026-06-17T11:00:00Z"
       })
     ).rejects.not.toThrow(/SECRET-INTERNAL-DETAIL/);
+  });
+});
+
+describe("Group B — hasCalendarWriteScope (owner-scoped, read-only)", () => {
+  let appDb: Kysely<JarvisDatabase>;
+  let dataContext: DataContextRunner;
+
+  beforeAll(async () => {
+    process.env.JARVIS_CONNECTOR_SECRET_KEY = "test-connector-secret-key";
+    await resetFoundationDatabase();
+    appDb = createDatabase({ connectionString: connectionStrings.app, maxConnections: 1 });
+    dataContext = new DataContextRunner(appDb);
+  });
+  afterAll(async () => {
+    await appDb.destroy();
+  });
+
+  // Inserts a real app.connector_accounts row via ConnectorsRepository.upsertGoogleAccount under the
+  // owner's RLS, with an encrypted bundle so has_secret is true — the bundle contents are never read
+  // by the scope check.
+  async function seedGoogleAccount(ownerId: string, scopes: string[]): Promise<string> {
+    const cipher = createConnectorSecretCipher();
+    const repo = new ConnectorsRepository();
+    const account = await dataContext.withDataContext(
+      { actorUserId: ownerId, requestId: "seed" },
+      (scopedDb) =>
+        repo.upsertGoogleAccount(scopedDb, {
+          scopes,
+          encryptedSecret: cipher.encryptJson({
+            kind: "google-oauth",
+            clientId: "cid",
+            clientSecret: "csecret",
+            accessToken: "atoken",
+            refreshToken: "rtoken",
+            tokenExpiry: new Date(Date.now() + 3_600_000).toISOString(),
+            grantedScopes: scopes
+          })
+        })
+    );
+    return account.id;
+  }
+
+  it("returns true when the active google account holds the calendar scope", async () => {
+    const accountId = await seedGoogleAccount(ids.userA, [
+      "https://www.googleapis.com/auth/calendar"
+    ]);
+    expect(accountId).toBeTruthy();
+    const repo = new ConnectorsRepository();
+    const has = await dataContext.withDataContext(
+      { actorUserId: ids.userA, requestId: "test" },
+      (scopedDb) => repo.hasCalendarWriteScope(scopedDb)
+    );
+    expect(has).toBe(true);
+  });
+
+  it("returns false when the active google account lacks the calendar scope", async () => {
+    await seedGoogleAccount(ids.userB, ["https://www.googleapis.com/auth/gmail.modify"]);
+    const repo = new ConnectorsRepository();
+    const has = await dataContext.withDataContext(
+      { actorUserId: ids.userB, requestId: "test" },
+      (scopedDb) => repo.hasCalendarWriteScope(scopedDb)
+    );
+    expect(has).toBe(false);
+  });
+
+  it("returns false when there is no active google connection", async () => {
+    // ids.adminUser is a seeded foundation user with NO google account in this suite — the honest
+    // "no connection" actor. (test-database.ts seeds only userA/userB/adminUser; there is no userC.)
+    const repo = new ConnectorsRepository();
+    const has = await dataContext.withDataContext(
+      { actorUserId: ids.adminUser, requestId: "test" },
+      (scopedDb) => repo.hasCalendarWriteScope(scopedDb)
+    );
+    expect(has).toBe(false);
   });
 });
