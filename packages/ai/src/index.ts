@@ -7,6 +7,11 @@ export * from "./repository.js";
 export * from "./routes.js";
 export * from "./adapters/http-api.js";
 export * from "./adapters/tmux-bridge.js";
+export * from "./adapters/multiplexer.js";
+export * from "./adapters/tmux-multiplexer.js";
+export * from "./adapters/herdr-multiplexer.js";
+export * from "./adapters/binary-probe.js";
+export * from "./adapters/multiplexer-resolve.js";
 export * from "./gateway/index.js";
 export {
   parseTranscript,
