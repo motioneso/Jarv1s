@@ -47,6 +47,12 @@ export interface CliChatEngineOpts {
   readonly submitMs?: number;
   /** Multiplexer backend; defaults to a TmuxMultiplexer over the same io (preserves legacy behavior). */
   readonly mux?: Multiplexer;
+  /**
+   * Base dir whose `.claude`/`.codex`/`.gemini` hold the CLI transcripts.
+   * Set to the bind-mounted host HOME base when running containerized
+   * (deployable-stack §6); omitted → the OS home of the running process.
+   */
+  readonly homeBase?: string;
 }
 
 /**
@@ -63,6 +69,9 @@ export class CliChatEngineImpl implements CliChatEngine {
   /** Set at launch: the exact JSONL transcript path (session-id pinned). */
   private storedTranscriptPath: string | null = null;
 
+  /** Optional host-HOME base for transcript resolution (containerized bridge). */
+  private readonly homeBase?: string;
+
   constructor(
     public readonly provider: ProviderKind,
     private readonly threadKey: string,
@@ -71,6 +80,7 @@ export class CliChatEngineImpl implements CliChatEngine {
   ) {
     this.launchMs = opts.launchMs ?? 3_000;
     this.mux = opts.mux ?? new TmuxMultiplexer(io, { submitMs: opts.submitMs ?? 600 });
+    this.homeBase = opts.homeBase;
   }
 
   // ─── lifecycle ─────────────────────────────────────────────────────────────
@@ -101,7 +111,7 @@ export class CliChatEngineImpl implements CliChatEngine {
     }
 
     this.storedTranscriptPath = join(
-      transcriptGlobDir(this.provider, opts.neutralDir),
+      transcriptGlobDir(this.provider, opts.neutralDir, this.homeBase),
       `${sessionId}.jsonl`
     );
 
