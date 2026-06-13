@@ -135,6 +135,46 @@ export class MemoryRepository {
     }));
   }
 
+  /**
+   * Recent chunks for a source kind, ordered by their file's ingestion recency.
+   * Used by briefings' hybrid vault retrieval (semantic ∪ recency). RLS scopes to
+   * the owner via app.current_actor_user_id().
+   */
+  async listRecentChunks(
+    scopedDb: DataContextDb,
+    limit: number,
+    sourceKind: string = "vault"
+  ): Promise<RetrievedChunk[]> {
+    assertDataContextDb(scopedDb);
+    const result = await sql<{
+      id: string;
+      source_path: string;
+      line_start: number;
+      line_end: number;
+      text: string;
+    }>`
+      SELECT c.id, c.source_path, c.line_start, c.line_end, c.text
+      FROM app.memory_chunks c
+      JOIN app.memory_file_index fi
+        ON fi.owner_user_id = c.owner_user_id
+       AND fi.source_kind = c.source_kind
+       AND fi.source_path = c.source_path
+      WHERE c.owner_user_id = app.current_actor_user_id()
+        AND c.source_kind = ${sourceKind}
+      ORDER BY fi.ingested_at DESC, c.line_start ASC
+      LIMIT ${limit}
+    `.execute(scopedDb.db);
+
+    return result.rows.map((r) => ({
+      id: r.id,
+      sourcePath: r.source_path,
+      lineStart: r.line_start,
+      lineEnd: r.line_end,
+      text: r.text,
+      similarity: 0
+    }));
+  }
+
   async replaceFileLinks(
     scopedDb: DataContextDb,
     ownerUserId: string,
