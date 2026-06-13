@@ -25,6 +25,7 @@ import {
   type JarvisDatabase
 } from "@jarv1s/db";
 import { createPgBossClient } from "@jarv1s/jobs";
+import { NotificationsRepository } from "@jarv1s/notifications";
 import {
   getBuiltInModuleManifests,
   getBuiltInModuleRegistrations,
@@ -56,6 +57,7 @@ describe("Briefings module M6 read-only scheduled summaries", () => {
   let auth: AuthSessionResolver;
   let dataContext: DataContextRunner;
   let repository: BriefingsRepository;
+  let notificationsRepository: NotificationsRepository;
   let sharesRepository: SharesRepository;
   let appBoss: PgBoss;
   let workerBoss: PgBoss;
@@ -76,6 +78,7 @@ describe("Briefings module M6 read-only scheduled summaries", () => {
     auth = new AuthSessionResolver(appDb);
     dataContext = new DataContextRunner(appDb);
     repository = new BriefingsRepository();
+    notificationsRepository = new NotificationsRepository();
     sharesRepository = new SharesRepository();
     appBoss = createPgBossClient(connectionStrings.app);
     workerBoss = createPgBossClient(connectionStrings.worker);
@@ -726,6 +729,150 @@ describe("Briefings module M6 read-only scheduled summaries", () => {
     );
     expect(runs.filter((r) => r.run_kind === "scheduled")).toHaveLength(1);
   });
+
+  it("scheduled worker job without a briefingRunId mints one, persists the run, and notifies the owner", async () => {
+    const definition = await dataContext.withDataContext(userAContext(), (scopedDb) =>
+      repository.createDefinition(scopedDb, {
+        title: "Scheduled notify briefing",
+        cadence: "daily",
+        scheduleMetadata: { targetTime: "06:00", timezone: "UTC" },
+        selectedToolNames: ["tasks.list"]
+      })
+    );
+
+    const resultPromise = handleNextBriefingJobWithNotifications(workerBoss);
+    // A scheduled cron fire carries NO briefingRunId — pure metadata only. In production
+    // the cron schedule keys the job by definition id (reconcileSchedule), so give this
+    // direct send a unique singletonKey so the `exclusive` queue actually enqueues it
+    // (a keyless send would collapse onto another keyless job under `exclusive`).
+    await appBoss.send(
+      BRIEFINGS_RUN_QUEUE,
+      {
+        actorUserId: ids.userA,
+        definitionId: definition.id,
+        runKind: "scheduled"
+      } satisfies BriefingRunPayload,
+      { singletonKey: `${definition.id}:sched:1` }
+    );
+    const result = await resultPromise;
+
+    expect(result.status).toBe("succeeded");
+    expect(result.created).toBe(true);
+    // The worker minted a run id even though the payload carried none.
+    expect(result.runId).toMatch(/^[0-9a-f-]{36}$/);
+
+    const runs = await dataContext.withDataContext(userAContext(), (scopedDb) =>
+      repository.listRuns(scopedDb, definition.id)
+    );
+    expect(runs.filter((r) => r.run_kind === "scheduled")).toHaveLength(1);
+    expect(runs[0]?.id).toBe(result.runId);
+
+    const { notifications } = await dataContext.withDataContext(userAContext(), (scopedDb) =>
+      notificationsRepository.listVisible(scopedDb)
+    );
+    const briefingNotifications = notifications.filter(
+      (n) => n.title === "Your morning briefing is ready"
+    );
+    expect(briefingNotifications).toHaveLength(1);
+    const notification = briefingNotifications[0]!;
+    expect(notification.recipient_user_id).toBe(ids.userA);
+    // Metadata-only: definition + run ids, never briefing content.
+    expect(notification.metadata).toEqual({
+      definitionId: definition.id,
+      briefingRunId: result.runId
+    });
+    expect(notification.body).toBeNull();
+  });
+
+  it("manual worker job does not create a briefing-ready notification", async () => {
+    const definition = await dataContext.withDataContext(userAContext(), (scopedDb) =>
+      repository.createDefinition(scopedDb, {
+        title: "Manual no-notify briefing",
+        selectedToolNames: ["tasks.list"]
+      })
+    );
+
+    const resultPromise = handleNextBriefingJobWithNotifications(workerBoss);
+    await appBoss.send(
+      BRIEFINGS_RUN_QUEUE,
+      {
+        actorUserId: ids.userA,
+        definitionId: definition.id,
+        briefingRunId: "7d000000-0000-4000-8000-000000000001",
+        runKind: "manual",
+        idempotencyKey: "briefing-manual-no-notify"
+      } satisfies BriefingRunPayload,
+      { singletonKey: `${definition.id}:key:briefing-manual-no-notify` }
+    );
+    const result = await resultPromise;
+
+    expect(result.status).toBe("succeeded");
+    expect(result.created).toBe(true);
+
+    const { notifications } = await dataContext.withDataContext(userAContext(), (scopedDb) =>
+      notificationsRepository.listVisible(scopedDb)
+    );
+    expect(
+      notifications.filter(
+        (n) =>
+          n.title === "Your morning briefing is ready" &&
+          (n.metadata as { briefingRunId?: string }).briefingRunId ===
+            "7d000000-0000-4000-8000-000000000001"
+      )
+    ).toHaveLength(0);
+  });
+
+  it("does not re-notify on an idempotent same-day scheduled re-fire (exactly one notification)", async () => {
+    const definition = await dataContext.withDataContext(userAContext(), (scopedDb) =>
+      repository.createDefinition(scopedDb, {
+        title: "Scheduled dedupe-notify briefing",
+        cadence: "daily",
+        scheduleMetadata: { targetTime: "06:00", timezone: "UTC" },
+        selectedToolNames: ["tasks.list"]
+      })
+    );
+
+    const firstPromise = handleNextBriefingJobWithNotifications(workerBoss);
+    await appBoss.send(
+      BRIEFINGS_RUN_QUEUE,
+      {
+        actorUserId: ids.userA,
+        definitionId: definition.id,
+        runKind: "scheduled"
+      } satisfies BriefingRunPayload,
+      // Distinct singletonKeys so BOTH fires enqueue and reach the worker — the dedupe
+      // under test is the repository's local-day idempotency, NOT pg-boss singleton.
+      { singletonKey: `${definition.id}:sched:dedupe:1` }
+    );
+    const first = await firstPromise;
+    expect(first.created).toBe(true);
+
+    const secondPromise = handleNextBriefingJobWithNotifications(workerBoss);
+    await appBoss.send(
+      BRIEFINGS_RUN_QUEUE,
+      {
+        actorUserId: ids.userA,
+        definitionId: definition.id,
+        runKind: "scheduled"
+      } satisfies BriefingRunPayload,
+      { singletonKey: `${definition.id}:sched:dedupe:2` }
+    );
+    const second = await secondPromise;
+    // The second fire is an idempotent same-local-day skip.
+    expect(second.created).toBe(false);
+    expect(second.runId).toBe(first.runId);
+
+    const { notifications } = await dataContext.withDataContext(userAContext(), (scopedDb) =>
+      notificationsRepository.listVisible(scopedDb)
+    );
+    expect(
+      notifications.filter(
+        (n) =>
+          n.title === "Your morning briefing is ready" &&
+          (n.metadata as { definitionId?: string }).definitionId === definition.id
+      )
+    ).toHaveLength(1);
+  });
 });
 
 // Build synthesis deps for generateRun in these integration tests. The AI repository
@@ -877,6 +1024,54 @@ async function handleNextBriefingJob(workerBoss: PgBoss): Promise<BriefingRunRes
         // Inject a fake-adapter composeDeps so the worker path is deterministic and never
         // makes a real HTTP provider call (A8 injects the registry-built deps in prod).
         composeDeps: makeComposeDeps(async () => ({ text: "synth narrative" })),
+        workOptions: { pollingIntervalSeconds: 0.5 },
+        onResult: (_job, result) => {
+          clearTimeout(timeout);
+          resolve(result);
+        }
+      })
+        .then((registeredWorkIds) => {
+          workIds = registeredWorkIds;
+        })
+        .catch((error) => {
+          clearTimeout(timeout);
+          reject(error);
+        });
+    });
+
+    return await resultPromise;
+  } finally {
+    await Promise.all(
+      workIds.map((workId) => workerBoss.offWork(BRIEFINGS_RUN_QUEUE, { id: workId, wait: true }))
+    );
+    await scopedWorkerDb.destroy();
+  }
+}
+
+// Same as handleNextBriefingJob, but injects a REAL NotificationsRepository bound to a
+// fresh worker-role data context so the A8 notification path runs end-to-end through the
+// worker INSERT grant (migration 0071) — proving the worker can actually deliver the
+// "Your morning briefing is ready" notification.
+async function handleNextBriefingJobWithNotifications(
+  workerBoss: PgBoss
+): Promise<BriefingRunResult> {
+  const scopedWorkerDb = createDatabase({
+    connectionString: connectionStrings.worker,
+    maxConnections: 1
+  });
+  const workerDataContext = new DataContextRunner(scopedWorkerDb);
+  let workIds: string[] = [];
+
+  try {
+    const resultPromise = new Promise<BriefingRunResult>((resolve, reject) => {
+      const timeout = setTimeout(() => {
+        reject(new Error("Timed out waiting for Briefings worker"));
+      }, 10_000);
+
+      registerBriefingsJobWorkers(workerBoss, workerDataContext, {
+        moduleManifests: getBuiltInModuleManifests(),
+        composeDeps: makeComposeDeps(async () => ({ text: "synth narrative" })),
+        notificationsRepository: new NotificationsRepository(),
         workOptions: { pollingIntervalSeconds: 0.5 },
         onResult: (_job, result) => {
           clearTimeout(timeout);

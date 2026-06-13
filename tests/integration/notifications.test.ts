@@ -60,7 +60,7 @@ describe("Notifications module M5", () => {
     await Promise.allSettled([server?.close(), appDb?.destroy()]);
   });
 
-  it("applies Notifications migrations with forced RLS and no worker table grant", async () => {
+  it("applies Notifications migrations with forced RLS and a narrow worker SELECT/INSERT grant on notifications", async () => {
     const client = new Client({ connectionString: connectionStrings.migration });
 
     await client.connect();
@@ -69,7 +69,7 @@ describe("Notifications module M5", () => {
         `
           SELECT version, name
           FROM app.schema_migrations
-          WHERE version = '0008'
+          WHERE version IN ('0008', '0071')
           ORDER BY version
         `
       );
@@ -79,6 +79,9 @@ describe("Notifications module M5", () => {
         relforcerowsecurity: boolean;
         owner: string;
         worker_can_select: boolean;
+        worker_can_insert: boolean;
+        worker_can_update: boolean;
+        worker_can_delete: boolean;
       }>(
         `
           SELECT
@@ -86,7 +89,10 @@ describe("Notifications module M5", () => {
             c.relrowsecurity,
             c.relforcerowsecurity,
             pg_get_userbyid(c.relowner) AS owner,
-            has_table_privilege('jarvis_worker_runtime', c.oid, 'SELECT') AS worker_can_select
+            has_table_privilege('jarvis_worker_runtime', c.oid, 'SELECT') AS worker_can_select,
+            has_table_privilege('jarvis_worker_runtime', c.oid, 'INSERT') AS worker_can_insert,
+            has_table_privilege('jarvis_worker_runtime', c.oid, 'UPDATE') AS worker_can_update,
+            has_table_privilege('jarvis_worker_runtime', c.oid, 'DELETE') AS worker_can_delete
           FROM pg_class c
           JOIN pg_namespace n ON n.oid = c.relnamespace
           WHERE n.nspname = 'app'
@@ -95,21 +101,34 @@ describe("Notifications module M5", () => {
         `
       );
 
-      expect(migrations.rows).toEqual([{ version: "0008", name: "0008_notifications_module.sql" }]);
+      // 0071 (real-briefings) added a worker-role SELECT/INSERT grant + policies on
+      // app.notifications ONLY (so the briefings worker can deliver the "morning briefing
+      // ready" notification). notification_reads is untouched; the worker can never
+      // UPDATE/DELETE notifications.
+      expect(migrations.rows).toEqual([
+        { version: "0008", name: "0008_notifications_module.sql" },
+        { version: "0071", name: "0071_notifications_worker_insert_grant.sql" }
+      ]);
       expect(tables.rows).toEqual([
         {
           relname: "notification_reads",
           relrowsecurity: true,
           relforcerowsecurity: true,
           owner: "jarvis_migration_owner",
-          worker_can_select: false
+          worker_can_select: false,
+          worker_can_insert: false,
+          worker_can_update: false,
+          worker_can_delete: false
         },
         {
           relname: "notifications",
           relrowsecurity: true,
           relforcerowsecurity: true,
           owner: "jarvis_migration_owner",
-          worker_can_select: false
+          worker_can_select: true,
+          worker_can_insert: true,
+          worker_can_update: false,
+          worker_can_delete: false
         }
       ]);
     } finally {
