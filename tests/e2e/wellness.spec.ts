@@ -144,4 +144,9 @@ test("wellness nav is hidden when the actor has disabled the module", async ({ p
 
   await page.goto("/wellness");
   await expect(page.locator(".module-nav").getByRole("link", { name: "Wellness" })).toHaveCount(0);
+
+  // Deep-linking the disabled health-data route must NOT render the wellness UI: the SPA
+  // route is gated on the actor's module state and redirects to /tasks once it resolves.
+  await expect(page).toHaveURL(/\/tasks$/);
+  await expect(page.getByRole("heading", { name: "Wellness" })).toHaveCount(0);
 });
