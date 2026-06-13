@@ -1,0 +1,154 @@
+# ---------------------------------------------------------------------------
+# Jarv1s PRODUCTION Compose (deployable-stack §5). The DEPLOY artifact.
+# This file is ALONGSIDE infra/docker-compose.yml (the dev/smoke file), never a
+# replacement. Differences from dev (the whole point):
+#   - pinned GHCR image tags (no node:24 + runtime pnpm install + tsx)
+#   - NO source bind mounts (the dev file's workspace bind mount is gone)
+#   - named volumes for postgres data, vault /data/vaults, model cache
+#   - restart: unless-stopped + the api /health HEALTHCHECK
+#   - secrets injected at runtime via env_file (never in image layers)
+#   - api/worker carry the host-multiplexer bridge mounts (§6)
+#
+# Operator: copy infra/env.production.example -> an off-git env file, fill it,
+# set JARVIS_IMAGE_TAG to the published version tag, then:
+#   docker compose -f infra/docker-compose.prod.yml --env-file <file> up -d
+# ---------------------------------------------------------------------------
+
+# NOTE: Compose resolves a relative env_file path against THIS file's directory
+# (infra/), not the repo root — so the default is `./env.production.local`, which
+# lands at infra/env.production.local. Override with an absolute path via
+# JARVIS_ENV_FILE if the operator keeps the env file elsewhere.
+x-app-env-file: &app-env-file
+  env_file:
+    - ${JARVIS_ENV_FILE:-./env.production.local}
+
+services:
+  postgres:
+    image: pgvector/pgvector:pg17
+    container_name: jarv1s-postgres-prod
+    environment:
+      POSTGRES_DB: jarv1s
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d jarv1s"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+    volumes:
+      - jarv1s-postgres-data:/var/lib/postgresql/data
+    networks:
+      - jarv1s
+    restart: unless-stopped
+
+  migrate:
+    image: ghcr.io/motioneso/jarv1s-api:${JARVIS_IMAGE_TAG:?set JARVIS_IMAGE_TAG to a published version tag}
+    <<: *app-env-file
+    # Migrate is a one-shot run via tsx (NOT a bundled dist/migrate.js): module SQL
+    # dirs resolve via import.meta.url, which bundling would collapse (Task 5). The
+    # image ships tsx + the migrate source + the SQL tree for exactly this command.
+    # Use the explicit bin path (node_modules/.bin is not guaranteed on PATH). Migrate
+    # only touches Postgres (no host-bridge mounts, no host uid needed) — it runs as
+    # the image's default node user.
+    command: ["node_modules/.bin/tsx", "scripts/migrate.ts"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - jarv1s
+
+  api:
+    image: ghcr.io/motioneso/jarv1s-api:${JARVIS_IMAGE_TAG:?set JARVIS_IMAGE_TAG to a published version tag}
+    <<: *app-env-file
+    command: ["node", "dist/server.js"]
+    # Run as the host operator uid/gid so the bind-mounted host tmux socket
+    # (mode 0700 per-uid) and host CLI dirs are openable (§6 UID mapping).
+    user: "${JARVIS_HOST_UID:-1000}:${JARVIS_HOST_GID:-1000}"
+    environment:
+      PORT: "3000"
+      HOST: 0.0.0.0
+      # Point transcript resolution + spawned multiplexer commands at the host HOME (§6).
+      JARVIS_CLI_HOME_BASE: /host-home
+      HF_HOME: /app/.cache/huggingface
+    restart: unless-stopped
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://localhost:3000/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 120s
+    ports:
+      - "${JARVIS_API_PORT:-3000}:3000"
+    volumes:
+      - jarv1s-vault-data:/data/vaults
+      - jarv1s-model-cache:/app/.cache/huggingface
+      # Host-multiplexer bridge (§6) — present only for the CLI-subscription
+      # adapter. The API-key adapter needs NONE of these mounts.
+      - ${JARVIS_TMUX_SOCKET_DIR:-/tmp/tmux-1000}:${JARVIS_TMUX_SOCKET_DIR:-/tmp/tmux-1000}
+      # Host CLI auth/transcript dirs — mount ONLY the three CLI dirs, read-only, NOT
+      # the whole host HOME (which would expose ~/.ssh, git creds, cloud configs,
+      # shell history — far beyond CLI auth). JARVIS_CLI_HOME_BASE=/host-home, so the
+      # engine's transcriptGlobDir finds /host-home/.claude|.codex|.gemini exactly.
+      - ${JARVIS_HOST_CLAUDE_DIR:-~/Jarv1s/.claude}:/host-home/.claude:ro
+      - ${JARVIS_HOST_CODEX_DIR:-~/Jarv1s/.codex}:/host-home/.codex:ro
+      - ${JARVIS_HOST_GEMINI_DIR:-~/Jarv1s/.gemini}:/host-home/.gemini:ro
+      # Shared neutral-dir base: identical absolute path on host + container so
+      # the host-spawned CLI cd's into the same dir the container computed (§6.3).
+      - ${JARVIS_CHAT_HOME:-~/Jarv1s/.jarvis/chat}:${JARVIS_CHAT_HOME:-~/Jarv1s/.jarvis/chat}
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    networks:
+      - jarv1s
+
+  worker:
+    image: ghcr.io/motioneso/jarv1s-api:${JARVIS_IMAGE_TAG:?set JARVIS_IMAGE_TAG to a published version tag}
+    <<: *app-env-file
+    command: ["node", "dist/worker.js"]
+    user: "${JARVIS_HOST_UID:-1000}:${JARVIS_HOST_GID:-1000}"
+    environment:
+      JARVIS_CLI_HOME_BASE: /host-home
+      HF_HOME: /app/.cache/huggingface
+    restart: unless-stopped
+    volumes:
+      - jarv1s-vault-data:/data/vaults
+      - jarv1s-model-cache:/app/.cache/huggingface
+      - ${JARVIS_TMUX_SOCKET_DIR:-/tmp/tmux-1000}:${JARVIS_TMUX_SOCKET_DIR:-/tmp/tmux-1000}
+      # Mount ONLY the three CLI dirs read-only (NOT the whole host HOME — see api).
+      - ${JARVIS_HOST_CLAUDE_DIR:-~/Jarv1s/.claude}:/host-home/.claude:ro
+      - ${JARVIS_HOST_CODEX_DIR:-~/Jarv1s/.codex}:/host-home/.codex:ro
+      - ${JARVIS_HOST_GEMINI_DIR:-~/Jarv1s/.gemini}:/host-home/.gemini:ro
+      - ${JARVIS_CHAT_HOME:-~/Jarv1s/.jarvis/chat}:${JARVIS_CHAT_HOME:-~/Jarv1s/.jarvis/chat}
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    networks:
+      - jarv1s
+
+  web:
+    image: ghcr.io/motioneso/jarv1s-web:${JARVIS_IMAGE_TAG:?set JARVIS_IMAGE_TAG to a published version tag}
+    restart: unless-stopped
+    ports:
+      - "${JARVIS_WEB_PORT:-5173}:80"
+    depends_on:
+      api:
+        condition: service_healthy
+    networks:
+      - jarv1s
+
+volumes:
+  jarv1s-postgres-data:
+  jarv1s-vault-data:
+  jarv1s-model-cache:
+
+networks:
+  jarv1s:
+    ipam:
+      config:
+        - subnet: ${JARVIS_DOCKER_SUBNET:-10.251.0.0/24}
