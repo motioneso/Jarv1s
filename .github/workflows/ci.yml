@@ -4,6 +4,8 @@ on:
   push:
     branches:
       - main
+    tags:
+      - "v*"
   pull_request:
 
 permissions:
@@ -90,3 +92,119 @@ jobs:
       - name: Stop Compose stack
         if: always()
         run: docker compose -f infra/docker-compose.yml down -v
+
+  prod-compose-smoke:
+    name: Prod compose deployment smoke
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v5
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10.6.2
+      - name: Set up Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: pnpm
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Assert .dockerignore excludes the secrets env file (before it exists)
+        run: |
+          grep -q '^infra/env.production.local$' .dockerignore \
+            || { echo "::error::.dockerignore must explicitly exclude infra/env.production.local before the smoke writes it"; exit 1; }
+      - name: Write smoke env file
+        run: |
+          cat > infra/env.production.local <<'EOF'
+          NODE_ENV=production
+          POSTGRES_PASSWORD=postgres
+          JARVIS_BOOTSTRAP_DATABASE_URL=postgres://postgres:postgres@postgres:5432/jarv1s
+          JARVIS_MIGRATION_DATABASE_URL=postgres://jarvis_migration_owner:migration_password@postgres:5432/jarv1s
+          JARVIS_APP_DATABASE_URL=postgres://jarvis_app_runtime:app_password@postgres:5432/jarv1s
+          JARVIS_AUTH_DATABASE_URL=postgres://jarvis_auth_runtime:auth_password@postgres:5432/jarv1s
+          JARVIS_WORKER_DATABASE_URL=postgres://jarvis_worker_runtime:worker_password@postgres:5432/jarv1s
+          BETTER_AUTH_SECRET=smoke-only-not-a-real-secret-0000000000
+          JARVIS_CONNECTOR_SECRET_KEY=00000000000000000000000000000000
+          JARVIS_AI_SECRET_KEY=11111111111111111111111111111111
+          JARVIS_EMBED_PROVIDER=stub
+          EOF
+      - name: Run prod compose smoke (builds images + in-image migrate)
+        env:
+          JARVIS_IMAGE_TAG: ci-${{ github.run_id }}
+          JARVIS_ENV_FILE: ./infra/env.production.local
+          # CI host has no CLI dirs / tmux server; create empty mount targets.
+          JARVIS_HOST_CLAUDE_DIR: ${{ github.workspace }}/.ci-claude
+          JARVIS_HOST_CODEX_DIR: ${{ github.workspace }}/.ci-codex
+          JARVIS_HOST_GEMINI_DIR: ${{ github.workspace }}/.ci-gemini
+          JARVIS_TMUX_SOCKET_DIR: ${{ github.workspace }}/.ci-tmux
+          JARVIS_CHAT_HOME: ${{ github.workspace }}/.ci-chat
+        run: |
+          mkdir -p .ci-claude .ci-codex .ci-gemini .ci-tmux .ci-chat
+          pnpm smoke:compose:prod
+      - name: Stop prod compose stack
+        if: always()
+        run: JARVIS_IMAGE_TAG=ci-${{ github.run_id }} JARVIS_ENV_FILE=./infra/env.production.local docker compose -f infra/docker-compose.prod.yml down -v
+
+  publish:
+    name: Build and publish images
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    needs: [verify, compose-smoke, prod-compose-smoke]
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v5
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        if: startsWith(github.ref, 'refs/tags/v') || github.ref == 'refs/heads/main'
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Compute image tags
+        id: tags
+        run: |
+          if [[ "${GITHUB_REF}" == refs/tags/v* ]]; then
+            VERSION="${GITHUB_REF#refs/tags/}"
+            echo "api_tags=ghcr.io/motioneso/jarv1s-api:${VERSION}" >> "$GITHUB_OUTPUT"
+            echo "web_tags=ghcr.io/motioneso/jarv1s-web:${VERSION}" >> "$GITHUB_OUTPUT"
+            echo "push=true" >> "$GITHUB_OUTPUT"
+          elif [[ "${GITHUB_REF}" == refs/heads/main ]]; then
+            echo "api_tags=ghcr.io/motioneso/jarv1s-api:edge" >> "$GITHUB_OUTPUT"
+            echo "web_tags=ghcr.io/motioneso/jarv1s-web:edge" >> "$GITHUB_OUTPUT"
+            echo "push=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "api_tags=ghcr.io/motioneso/jarv1s-api:pr-${{ github.run_id }}" >> "$GITHUB_OUTPUT"
+            echo "web_tags=ghcr.io/motioneso/jarv1s-web:pr-${{ github.run_id }}" >> "$GITHUB_OUTPUT"
+            echo "push=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Build (and push on tag/main) app image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./Dockerfile
+          push: ${{ steps.tags.outputs.push == 'true' }}
+          tags: ${{ steps.tags.outputs.api_tags }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Build (and push on tag/main) web image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./apps/web/Dockerfile
+          push: ${{ steps.tags.outputs.push == 'true' }}
+          tags: ${{ steps.tags.outputs.web_tags }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
