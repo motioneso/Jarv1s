@@ -1,3 +1,5 @@
+import { createHash } from "node:crypto";
+
 export type PartOfDay = "morning" | "afternoon" | "evening";
 
 export interface FocusBlockInput {
@@ -148,6 +150,37 @@ export function resolveWindow(input: FocusBlockInput, now: Date, tz: string): Re
     throw new FocusBlockInputError("date is not a valid calendar date");
   }
   return { start, end, durationMinutes, title };
+}
+
+/**
+ * A deterministic Google Calendar event id for an approved focus block, derived from the
+ * actor + chosen slot + title. Idempotency floor for the outbound write: a retry of the SAME
+ * approved proposal (e.g. lost insert response → user re-approves the identical block) reuses
+ * this id, so Google returns 409 Conflict instead of creating a duplicate event. Google event
+ * ids must be base32hex (chars a-v + 0-9), length 5..1024 — we sha256 the canonical key and map
+ * to base32hex, producing a 51-char id well inside the bounds. Pure + I/O-free.
+ */
+export function focusBlockEventId(input: {
+  actorUserId: string;
+  start: Date;
+  end: Date;
+  title: string;
+}): string {
+  const canonical = [
+    input.actorUserId,
+    input.start.toISOString(),
+    input.end.toISOString(),
+    input.title
+  ].join("|");
+  const digest = createHash("sha256").update(canonical).digest();
+  // Map each byte's low 5 bits to a base32hex char (a-v0-9). 32 bytes → 32 chars; prefix with
+  // a fixed "jfb" tag so the id is recognizably a Jarvis focus block and never starts ambiguously.
+  const alphabet = "0123456789abcdefghijklmnopqrstuv";
+  let out = "";
+  for (const byte of digest) {
+    out += alphabet[byte & 0x1f];
+  }
+  return `jfb${out}`;
 }
 
 interface Interval {

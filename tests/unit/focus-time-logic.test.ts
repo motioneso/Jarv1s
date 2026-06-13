@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   resolveWindow,
   chooseSlot,
+  focusBlockEventId,
   type FocusBlockInput
 } from "../../packages/calendar/src/focus-time.js";
 import type {
@@ -121,6 +122,34 @@ describe("chooseSlot", () => {
     expect(r.conflict).toBe("shifted");
     expect(r.start.toISOString()).toBe("2026-06-17T13:30:00.000Z");
     expect(r.end.toISOString()).toBe("2026-06-17T15:30:00.000Z");
+  });
+});
+
+describe("focusBlockEventId (outbound-write idempotency floor)", () => {
+  const slot = {
+    actorUserId: "user-a",
+    start: new Date("2026-06-17T13:00:00Z"),
+    end: new Date("2026-06-17T15:00:00Z"),
+    title: "Focus time"
+  };
+
+  it("is deterministic: the same approved proposal yields the same id (retry-safe)", () => {
+    expect(focusBlockEventId(slot)).toBe(focusBlockEventId({ ...slot }));
+  });
+
+  it("differs when actor, slot, or title changes (no cross-proposal collision)", () => {
+    const base = focusBlockEventId(slot);
+    expect(focusBlockEventId({ ...slot, actorUserId: "user-b" })).not.toBe(base);
+    expect(focusBlockEventId({ ...slot, start: new Date("2026-06-17T13:30:00Z") })).not.toBe(base);
+    expect(focusBlockEventId({ ...slot, end: new Date("2026-06-17T16:00:00Z") })).not.toBe(base);
+    expect(focusBlockEventId({ ...slot, title: "Deep work" })).not.toBe(base);
+  });
+
+  it("is a valid Google event id: base32hex chars only, length within 5..1024", () => {
+    const id = focusBlockEventId(slot);
+    expect(id).toMatch(/^jfb[0-9a-v]+$/); // base32hex alphabet (a-v + 0-9), Jarvis tag prefix
+    expect(id.length).toBeGreaterThanOrEqual(5);
+    expect(id.length).toBeLessThanOrEqual(1024);
   });
 });
 

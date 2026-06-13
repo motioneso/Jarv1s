@@ -344,6 +344,94 @@ describe("Group D — CalendarWriteService impl (faked Google fetch)", () => {
     expect(res.googleEventId).toBe("evt-new");
   });
 
+  it("idempotency: a 409 on insert (duplicate approved proposal) returns created:true, no duplicate", async () => {
+    // A 409 means an event with the deterministic id already exists — i.e. this exact approved
+    // proposal was already inserted (a retry after a lost response). The impl must treat it as
+    // idempotent success (created:true) rather than prompting "try again", which would risk a
+    // SECOND real calendar event. This is the outbound-write idempotency floor (Codex HIGH).
+    await seedGoogleAccount(ids.userA, ["https://www.googleapis.com/auth/calendar"]);
+    const impl = buildImpl({ freeBusyBusy: [], insertStatus: 409 });
+    const res = await dataContext.withDataContext(
+      { actorUserId: ids.userA, requestId: "t" },
+      (scopedDb) =>
+        impl.proposeAndInsert(
+          scopedDb,
+          { actorUserId: ids.userA, requestId: "t", chatSessionId: "s" },
+          {
+            start: new Date("2026-06-17T13:00:00Z"),
+            end: new Date("2026-06-17T16:00:00Z"),
+            durationMinutes: 120,
+            title: "Focus time"
+          }
+        )
+    );
+    expect(res.created).toBe(true); // duplicate insert is a no-op, not a failure
+    expect(res.googleEventId).toMatch(/^jfb/); // the deterministic id of the already-existing event
+  });
+
+  it("a non-409 insert error still returns created:false (try-again), never a silent success", async () => {
+    await seedGoogleAccount(ids.userA, ["https://www.googleapis.com/auth/calendar"]);
+    const impl = buildImpl({ freeBusyBusy: [], insertStatus: 500 });
+    const res = await dataContext.withDataContext(
+      { actorUserId: ids.userA, requestId: "t" },
+      (scopedDb) =>
+        impl.proposeAndInsert(
+          scopedDb,
+          { actorUserId: ids.userA, requestId: "t", chatSessionId: "s" },
+          {
+            start: new Date("2026-06-17T13:00:00Z"),
+            end: new Date("2026-06-17T16:00:00Z"),
+            durationMinutes: 120,
+            title: "Focus time"
+          }
+        )
+    );
+    expect(res.created).toBe(false);
+    expect(res.message).toMatch(/try again/i);
+  });
+
+  it("the deterministic event id is sent on insert (idempotent retry key)", async () => {
+    await seedGoogleAccount(ids.userA, ["https://www.googleapis.com/auth/calendar"]);
+    // Capture the events POST body to assert the deterministic id reached Google.
+    let sentEventId: string | undefined;
+    const { fetchFn } = captureFetch((url, init) => {
+      if (url.includes("/freeBusy")) return { body: { calendars: { primary: { busy: [] } } } };
+      if (url.includes("/events")) {
+        sentEventId = JSON.parse(String(init?.body)).id;
+        return { body: { id: sentEventId, htmlLink: "https://x" } };
+      }
+      return { body: {} };
+    });
+    const cipher = createConnectorSecretCipher();
+    const repository = new ConnectorsRepository();
+    const impl = buildCalendarWriteService({
+      googleService: new GoogleConnectionService({
+        repository,
+        cipher,
+        oauthClient: new GoogleOAuthClient({ fetchFn })
+      }),
+      googleApiClient: new GoogleApiClient({ fetchFn }),
+      connectorsRepository: repository,
+      calendarRepository: new CalendarRepository()
+    });
+    const res = await dataContext.withDataContext(
+      { actorUserId: ids.userA, requestId: "t" },
+      (scopedDb) =>
+        impl.proposeAndInsert(
+          scopedDb,
+          { actorUserId: ids.userA, requestId: "t", chatSessionId: "s" },
+          {
+            start: new Date("2026-06-17T13:00:00Z"),
+            end: new Date("2026-06-17T16:00:00Z"),
+            durationMinutes: 120,
+            title: "Focus time"
+          }
+        )
+    );
+    expect(sentEventId).toMatch(/^jfb[0-9a-v]+$/);
+    expect(res.googleEventId).toBe(sentEventId);
+  });
+
   it("classifies a non-RLS DB error as skipped-error; call still created:true", async () => {
     await seedGoogleAccount(ids.userA, ["https://www.googleapis.com/auth/calendar"]);
     const impl = buildImpl({
