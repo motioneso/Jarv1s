@@ -425,6 +425,11 @@ describe("Tasks module M1", () => {
     expect(getOtherPrivateResponse.statusCode).toBe(404);
   });
 
+  it("creates the tasks-recurrence-materialize queue", async () => {
+    const queue = await workerBoss.getQueue("tasks-recurrence-materialize");
+    expect(queue).not.toBeNull();
+  });
+
   it("keeps Tasks worker payloads metadata-only", async () => {
     const resultPromise = handleNextTaskJob(workerBoss);
     await appBoss.send(TASKS_DEFERRED_STATUS_QUEUE, {

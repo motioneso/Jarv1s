@@ -40,6 +40,7 @@ import {
 
 export const TASKS_MODULE_ID = "tasks";
 export const TASKS_DEFERRED_STATUS_QUEUE = "tasks-deferred-status";
+export const TASKS_RECURRENCE_QUEUE = "tasks-recurrence-materialize";
 export const tasksModuleSqlMigrationDirectory = fileURLToPath(new URL("../sql", import.meta.url));
 
 export const tasksModuleManifest = {
