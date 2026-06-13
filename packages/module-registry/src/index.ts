@@ -133,7 +133,17 @@ const BUILT_IN_MODULES: readonly BuiltInModuleRegistration[] = [
     manifest: settingsModuleManifest,
     sqlMigrationDirectories: [settingsModuleSqlMigrationDirectory],
     queueDefinitions: [],
-    registerRoutes: registerSettingsRoutes
+    registerRoutes: (server, deps) =>
+      registerSettingsRoutes(server, {
+        rootDb: deps.rootDb,
+        dataContext: deps.dataContext,
+        resolveAccessContext: deps.resolveAccessContext,
+        listConfiguredAuthProviders: deps.listConfiguredAuthProviders,
+        listModuleManifests: deps.listModuleManifests,
+        revokeUserSessions: deps.revokeUserSessions,
+        bootstrapConnectionString: deps.bootstrapConnectionString,
+        chatMultiplexerAvailability: deps.chatMultiplexerAvailability
+      })
   },
   {
     manifest: connectorsModuleManifest,

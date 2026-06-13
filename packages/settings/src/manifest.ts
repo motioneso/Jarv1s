@@ -2,7 +2,9 @@ import { fileURLToPath } from "node:url";
 
 import type { JarvisModuleManifest } from "@jarv1s/module-sdk";
 
-export const settingsModuleSqlMigrationDirectory = fileURLToPath(new URL("../sql", import.meta.url));
+export const settingsModuleSqlMigrationDirectory = fileURLToPath(
+  new URL("../sql", import.meta.url)
+);
 
 export const settingsModuleManifest: JarvisModuleManifest = {
   id: "settings",
@@ -87,6 +89,26 @@ export const settingsModuleManifest: JarvisModuleManifest = {
       method: "GET",
       path: "/api/admin/audit-events",
       permissionId: "settings.manage"
+    },
+    {
+      method: "GET",
+      path: "/api/admin/modules",
+      permissionId: "settings.manage"
+    },
+    {
+      method: "PATCH",
+      path: "/api/admin/modules/:id",
+      permissionId: "settings.manage"
+    },
+    {
+      method: "GET",
+      path: "/api/me/modules",
+      permissionId: "settings.view"
+    },
+    {
+      method: "PATCH",
+      path: "/api/me/modules/:id",
+      permissionId: "settings.view"
     }
   ]
 };
