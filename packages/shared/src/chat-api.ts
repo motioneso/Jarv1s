@@ -1,4 +1,5 @@
 import type { AiCapabilityRouteReason, AiConfiguredModelDto, AiModelCapability } from "./ai-api.js";
+import { errorResponseSchema } from "./schema-fragments.js";
 
 export type ChatMessageRole = "user" | "assistant";
 export type ChatMessageStatus = "stored" | "pending" | "blocked" | "no_model" | "working" | "error";
@@ -57,15 +58,6 @@ export interface AppendChatUserMessageRequest {
   readonly body: string;
   readonly selectedToolNames?: readonly string[];
 }
-
-const errorResponseSchema = {
-  type: "object",
-  additionalProperties: false,
-  required: ["error"],
-  properties: {
-    error: { type: "string" }
-  }
-} as const;
 
 const chatThreadSchema = {
   type: "object",

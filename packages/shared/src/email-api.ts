@@ -1,3 +1,5 @@
+import { errorResponseSchema, jsonObjectSchema, nullableStringSchema } from "./schema-fragments.js";
+
 export interface EmailMessageDto {
   readonly id: string;
   readonly connectorAccountId: string;
@@ -21,15 +23,6 @@ export interface ListEmailMessagesResponse {
 export interface GetEmailMessageResponse {
   readonly message: EmailMessageDto;
 }
-
-const nullableStringSchema = {
-  anyOf: [{ type: "string" }, { type: "null" }]
-} as const;
-
-const jsonObjectSchema = {
-  type: "object",
-  additionalProperties: true
-} as const;
 
 const emailMessageParamsSchema = {
   type: "object",
@@ -92,15 +85,6 @@ export const getEmailMessageResponseSchema = {
   required: ["message"],
   properties: {
     message: emailMessageDtoSchema
-  }
-} as const;
-
-const errorResponseSchema = {
-  type: "object",
-  additionalProperties: false,
-  required: ["error"],
-  properties: {
-    error: { type: "string" }
   }
 } as const;
 

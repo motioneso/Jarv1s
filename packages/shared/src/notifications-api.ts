@@ -1,3 +1,5 @@
+import { nullableStringSchema } from "./schema-fragments.js";
+
 export interface NotificationDto {
   readonly id: string;
   readonly actorUserId: string | null;
@@ -21,10 +23,6 @@ export interface MarkNotificationReadResponse {
 export interface MarkAllNotificationsReadResponse {
   readonly unreadCount: number;
 }
-
-const nullableStringSchema = {
-  anyOf: [{ type: "string" }, { type: "null" }]
-} as const;
 
 const metadataSchema = {
   type: "object",
