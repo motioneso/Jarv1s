@@ -78,4 +78,17 @@ describe("TmuxMultiplexer", () => {
       mux.open({ name: "x", cols: 220, rows: 50, launchLine: "claude" })
     ).rejects.toThrow(/new-session failed/);
   });
+
+  it("open() kills the just-created session if send-keys fails (no orphaned session)", async () => {
+    const io = makeIo();
+    io.run
+      .mockResolvedValueOnce({ code: 0, stdout: "", stderr: "" }) // new-session ok
+      .mockResolvedValueOnce({ code: 1, stdout: "", stderr: "send failed" }); // send-keys fails
+    const mux = new TmuxMultiplexer(io);
+    await expect(
+      mux.open({ name: "jarv1s-live-x", cols: 220, rows: 50, launchLine: "claude" })
+    ).rejects.toThrow(/send-keys failed/);
+    // The detached session must be torn down so nothing is orphaned.
+    expect(calls(io).some((c) => c.startsWith("tmux kill-session -t jarv1s-live-x"))).toBe(true);
+  });
 });

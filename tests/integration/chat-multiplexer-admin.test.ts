@@ -1,9 +1,17 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
+import type { OutgoingHttpHeaders } from "node:http";
 import type { Kysely } from "kysely";
 
+import { createApiServer } from "../../apps/api/src/server.js";
 import { createDatabase, DataContextRunner, type JarvisDatabase } from "@jarv1s/db";
+import type { ChatMultiplexerSettingsDto } from "@jarv1s/shared";
 import { SettingsRepository } from "../../packages/settings/src/repository.js";
-import { connectionStrings, ids, resetFoundationDatabase } from "./test-database.js";
+import {
+  connectionStrings,
+  ids,
+  resetEmptyFoundationDatabase,
+  resetFoundationDatabase
+} from "./test-database.js";
 
 describe("chat.multiplexer instance setting (settings repository)", () => {
   let appDb: Kysely<JarvisDatabase>;
@@ -51,3 +59,123 @@ describe("chat.multiplexer instance setting (settings repository)", () => {
     ).rejects.toThrow();
   });
 });
+
+describe("GET/PUT /api/admin/chat-multiplexer (HTTP route)", () => {
+  let appDb: Kysely<JarvisDatabase>;
+  let server: ReturnType<typeof createApiServer>;
+  let adminCookie: string;
+  let memberCookie: string;
+
+  beforeAll(async () => {
+    await resetEmptyFoundationDatabase();
+    appDb = createDatabase({ connectionString: connectionStrings.app, maxConnections: 1 });
+    server = createApiServer({ appDb, logger: false });
+    await server.ready();
+
+    // First sign-up bootstraps the instance owner (admin); the second is a plain member.
+    const owner = await signUp(server, "owner@chat-mux.test", "Owner");
+    adminCookie = owner.cookie;
+    const member = await signUp(server, "member@chat-mux.test", "Member");
+    memberCookie = member.cookie;
+  });
+
+  afterAll(async () => {
+    await Promise.allSettled([server?.close(), appDb?.destroy()]);
+  });
+
+  it("admin GET returns the default 'auto' choice plus a boolean availability snapshot", async () => {
+    const res = await server.inject({
+      method: "GET",
+      url: "/api/admin/chat-multiplexer",
+      headers: { cookie: adminCookie }
+    });
+    expect(res.statusCode).toBe(200);
+    const body = res.json<ChatMultiplexerSettingsDto>();
+    expect(body.multiplexer).toBe("auto");
+    expect(typeof body.available.tmux).toBe("boolean");
+    expect(typeof body.available.herdr).toBe("boolean");
+  });
+
+  it("admin PUT persists the choice and echoes the availability snapshot", async () => {
+    const put = await server.inject({
+      method: "PUT",
+      url: "/api/admin/chat-multiplexer",
+      headers: { cookie: adminCookie, "content-type": "application/json" },
+      payload: { multiplexer: "tmux" }
+    });
+    expect(put.statusCode).toBe(200);
+    expect(put.json<ChatMultiplexerSettingsDto>().multiplexer).toBe("tmux");
+
+    // Round-trips on a fresh GET (it was actually written to instance_settings).
+    const get = await server.inject({
+      method: "GET",
+      url: "/api/admin/chat-multiplexer",
+      headers: { cookie: adminCookie }
+    });
+    expect(get.json<ChatMultiplexerSettingsDto>().multiplexer).toBe("tmux");
+  });
+
+  it("rejects an invalid multiplexer value with 400 (schema-enforced enum)", async () => {
+    const res = await server.inject({
+      method: "PUT",
+      url: "/api/admin/chat-multiplexer",
+      headers: { cookie: adminCookie, "content-type": "application/json" },
+      payload: { multiplexer: "screen" }
+    });
+    expect(res.statusCode).toBe(400);
+  });
+
+  it("denies a non-admin GET with 403", async () => {
+    const res = await server.inject({
+      method: "GET",
+      url: "/api/admin/chat-multiplexer",
+      headers: { cookie: memberCookie }
+    });
+    expect(res.statusCode).toBe(403);
+  });
+
+  it("denies a non-admin PUT with 403", async () => {
+    const res = await server.inject({
+      method: "PUT",
+      url: "/api/admin/chat-multiplexer",
+      headers: { cookie: memberCookie, "content-type": "application/json" },
+      payload: { multiplexer: "herdr" }
+    });
+    expect(res.statusCode).toBe(403);
+  });
+
+  it("denies an unauthenticated GET with 401", async () => {
+    const res = await server.inject({ method: "GET", url: "/api/admin/chat-multiplexer" });
+    expect(res.statusCode).toBe(401);
+  });
+});
+
+async function signUp(
+  server: ReturnType<typeof createApiServer>,
+  email: string,
+  name: string
+): Promise<{ cookie: string; userId: string }> {
+  const res = await server.inject({
+    method: "POST",
+    url: "/api/auth/sign-up/email",
+    headers: { "content-type": "application/json" },
+    payload: { name, email, password: "correct horse battery staple" }
+  });
+  if (res.statusCode !== 200) {
+    throw new Error(`sign-up for ${email} failed (${res.statusCode}): ${res.body}`);
+  }
+  return {
+    cookie: cookieHeader(res.headers),
+    userId: res.json<{ user: { id: string } }>().user.id
+  };
+}
+
+function cookieHeader(headers: OutgoingHttpHeaders): string {
+  const setCookie = headers["set-cookie"];
+  const cookies = Array.isArray(setCookie)
+    ? setCookie
+    : typeof setCookie === "string" || typeof setCookie === "number"
+      ? [String(setCookie)]
+      : [];
+  return cookies.map((cookie) => cookie.split(";", 1)[0]).join("; ");
+}

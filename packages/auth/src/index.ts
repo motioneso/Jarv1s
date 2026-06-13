@@ -348,11 +348,29 @@ async function registrationGate(
   }
 }
 
+/**
+ * Allowlist of NON-SECRET instance-config keys this pre-auth helper may read via the
+ * raw appDb handle with no actor GUC (the documented "pre-auth non-secret
+ * instance-config reads" exemption — see DEVELOPMENT_STANDARDS.md). Mechanically
+ * bounds the exemption so the helper can never be repurposed to read an arbitrary
+ * (possibly sensitive) setting key; mirrors PREAUTH_READABLE_SETTING_KEYS in
+ * module-registry's chat-multiplexer boot reader. Secrets never live in
+ * instance_settings (they are AES-256-GCM in the credential store), so this list
+ * must only ever contain non-secret config keys.
+ */
+const PREAUTH_READABLE_SETTING_KEYS = new Set<string>([
+  "registration.enabled",
+  "registration.requires_approval"
+]);
+
 async function readBooleanSetting(
   appDb: Kysely<JarvisDatabase>,
   key: string,
   defaultValue: boolean
 ): Promise<boolean> {
+  if (!PREAUTH_READABLE_SETTING_KEYS.has(key)) {
+    throw new Error(`pre-auth instance-setting read not allowed for key "${key}"`);
+  }
   const row = await appDb
     .selectFrom("app.instance_settings")
     .select("value")

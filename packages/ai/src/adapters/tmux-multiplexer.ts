@@ -42,6 +42,9 @@ export class TmuxMultiplexer implements Multiplexer {
         `TmuxMultiplexer.open: tmux new-session failed (code ${created.code}): ${created.stderr ?? ""}`
       );
     }
+    // From here the detached session exists; any failure must tear it down so a
+    // half-launched session is never orphaned (the caller only stores the handle
+    // on success, so it could never kill it otherwise).
     const sent = await this.io.run("tmux", [
       "send-keys",
       "-t",
@@ -50,6 +53,7 @@ export class TmuxMultiplexer implements Multiplexer {
       "Enter"
     ]);
     if (sent.code !== 0) {
+      await this.killQuietly(opts.name);
       throw new Error(
         `TmuxMultiplexer.open: tmux send-keys failed (code ${sent.code}): ${sent.stderr ?? ""}`
       );
@@ -83,6 +87,15 @@ export class TmuxMultiplexer implements Multiplexer {
 
   async kill(handle: MuxHandle): Promise<void> {
     await this.io.run("tmux", ["kill-session", "-t", handle]);
+  }
+
+  /** Best-effort cleanup during a failed open(); never masks the original error. */
+  private async killQuietly(handle: MuxHandle): Promise<void> {
+    try {
+      await this.kill(handle);
+    } catch {
+      // ignore — the launch error is the one worth surfacing.
+    }
   }
 
   attachCommand(handle: MuxHandle): string {
