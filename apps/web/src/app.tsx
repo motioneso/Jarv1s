@@ -51,10 +51,16 @@ export function App() {
     myModulesQuery.data?.modules.filter((m) => !m.active).map((m) => m.id) ?? [];
   // A disabled module's SPA route must not render its UI on a deep-link, not just hide its
   // nav entry — for a health-data module that means the page (and its API calls) never mount
-  // for a disabled actor. We can only decide once /api/me/modules has resolved; until then the
-  // gate shows a loader rather than flashing the page or wrongly redirecting.
-  const myModulesReady = myModulesQuery.isSuccess || myModulesQuery.isError;
-  const wellnessDisabled = disabledModuleIds.includes("wellness");
+  // for a disabled actor. We can only confirm the module is ENABLED once /api/me/modules
+  // resolves successfully; until then the gate shows a loader. The gate FAILS CLOSED: if that
+  // request errors we cannot prove the actor is enabled, so we redirect rather than risk
+  // rendering the health-data UI for a disabled actor (Codex code-review).
+  const myModulesEnabled = (moduleId: string): "loading" | "enabled" | "denied" => {
+    if (myModulesQuery.isSuccess) return disabledModuleIds.includes(moduleId) ? "denied" : "enabled";
+    if (myModulesQuery.isError) return "denied"; // fail closed
+    return "loading";
+  };
+  const wellnessGate = myModulesEnabled("wellness");
   const ownerForOnboarding = isBootstrapOwner(meQuery.data);
   const onboardingQuery = useQuery({
     enabled: ownerForOnboarding,
@@ -148,7 +154,7 @@ export function App() {
           <Route
             path="/wellness"
             element={
-              <ModuleGatedRoute ready={myModulesReady} disabled={wellnessDisabled}>
+              <ModuleGatedRoute gate={wellnessGate}>
                 <WellnessPage />
               </ModuleGatedRoute>
             }
@@ -162,17 +168,17 @@ export function App() {
 }
 
 /**
- * Renders a module's SPA route only when the actor has the module enabled. While the
- * per-actor module state is still loading we render nothing (a disabled actor must never
- * see a flash of the gated UI); once loaded, a disabled actor is redirected to /tasks.
+ * Renders a module's SPA route only when the actor's per-user module state proves the module
+ * is enabled. "loading" → a loader (no flash of the gated UI); "denied" (disabled OR the
+ * state request errored — fail closed) → redirect to /tasks so the gated UI never mounts;
+ * "enabled" → render the children.
  */
 function ModuleGatedRoute(props: {
-  readonly ready: boolean;
-  readonly disabled: boolean;
+  readonly gate: "loading" | "enabled" | "denied";
   readonly children: ReactNode;
 }) {
-  if (!props.ready) return <LoadingScreen />;
-  if (props.disabled) return <Navigate to="/tasks" replace />;
+  if (props.gate === "loading") return <LoadingScreen />;
+  if (props.gate === "denied") return <Navigate to="/tasks" replace />;
   return <>{props.children}</>;
 }
 
