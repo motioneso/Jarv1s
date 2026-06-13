@@ -2,9 +2,13 @@ import pg from "pg";
 import type { PgBoss } from "pg-boss";
 
 import { DataContextRunner, createDatabase, type AccessContext } from "@jarv1s/db";
+import { sendJob } from "@jarv1s/jobs";
 import {
   TASKS_DEFERRED_STATUS_QUEUE,
+  TASKS_RECURRENCE_QUEUE,
   type DeferredTaskStatusResult,
+  type RecurrenceMaterializePayload,
+  type RecurrenceMaterializeResult,
   registerTasksJobWorkers
 } from "@jarv1s/tasks";
 
@@ -88,6 +92,58 @@ export async function handleNextTaskJob(workerBoss: PgBoss): Promise<DeferredTas
     await Promise.all(
       workIds.map((workId) =>
         workerBoss.offWork(TASKS_DEFERRED_STATUS_QUEUE, { id: workId, wait: true })
+      )
+    );
+    await scopedWorkerDb.destroy();
+  }
+}
+
+export async function handleNextRecurrenceJob(
+  appBoss: PgBoss,
+  workerBoss: PgBoss,
+  actorUserId: string
+): Promise<RecurrenceMaterializeResult> {
+  const scopedWorkerDb = createDatabase({
+    connectionString: connectionStrings.worker,
+    maxConnections: 1
+  });
+  const dataContext = new DataContextRunner(scopedWorkerDb);
+  let workIds: string[] = [];
+
+  try {
+    const resultPromise = new Promise<RecurrenceMaterializeResult>((resolve, reject) => {
+      const timeout = setTimeout(() => {
+        reject(new Error("Timed out waiting for Tasks recurrence worker"));
+      }, 10_000);
+
+      registerTasksJobWorkers(workerBoss, dataContext, {
+        workOptions: { pollingIntervalSeconds: 0.5 },
+        onRecurrenceResult: (_job, result) => {
+          clearTimeout(timeout);
+          resolve(result);
+        }
+      })
+        .then((registeredWorkIds) => {
+          workIds = registeredWorkIds;
+        })
+        .catch((error) => {
+          clearTimeout(timeout);
+          reject(error);
+        });
+    });
+
+    await sendJob(appBoss, TASKS_RECURRENCE_QUEUE, {
+      actorUserId
+    } satisfies RecurrenceMaterializePayload);
+
+    return await resultPromise;
+  } finally {
+    await Promise.all(
+      workIds.map((workId, index) =>
+        workerBoss.offWork(index === 0 ? TASKS_DEFERRED_STATUS_QUEUE : TASKS_RECURRENCE_QUEUE, {
+          id: workId,
+          wait: true
+        })
       )
     );
     await scopedWorkerDb.destroy();
