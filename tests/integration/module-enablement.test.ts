@@ -2,7 +2,12 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import pg from "pg";
 import type { Kysely } from "kysely";
 
-import { DataContextRunner, createDatabase, type JarvisDatabase } from "@jarv1s/db";
+import {
+  DataContextRunner,
+  createDatabase,
+  type AdminAuditEvent,
+  type JarvisDatabase
+} from "@jarv1s/db";
 import { createActiveModulesResolver } from "@jarv1s/module-registry";
 
 import { SettingsRepository } from "../../packages/settings/src/repository.js";
@@ -157,6 +162,82 @@ describe("SettingsRepository deny-list methods", () => {
     const actions = audit.map((e) => e.action);
     expect(actions).toContain("module.instance_disable");
     expect(actions).toContain("module.instance_enable");
+  });
+
+  it("idempotent no-op instance writes do NOT emit an admin-audit row", async () => {
+    const moduleId = "noop-audit-probe";
+
+    function countAuditFor(events: AdminAuditEvent[]): number {
+      return events.filter(
+        (e) =>
+          e.target_type === "module" &&
+          e.target_id === moduleId &&
+          (e.action === "module.instance_disable" || e.action === "module.instance_enable")
+      ).length;
+    }
+
+    // Enable-when-already-enabled (DELETE affects 0 rows): no audit row.
+    await runner.withDataContext({ actorUserId: ids.adminUser, requestId: "noop-1" }, (db) =>
+      repo.setInstanceModuleDisabled(db, {
+        moduleId,
+        disabled: false,
+        actorUserId: ids.adminUser,
+        requestId: "noop-1"
+      })
+    );
+    let audit = await runner.withDataContext(
+      { actorUserId: ids.adminUser, requestId: "noop-r1" },
+      (db) => repo.listAdminAuditEvents(db)
+    );
+    expect(countAuditFor(audit)).toBe(0);
+
+    // First real disable (INSERT affects 1 row): exactly one audit row.
+    await runner.withDataContext({ actorUserId: ids.adminUser, requestId: "noop-2" }, (db) =>
+      repo.setInstanceModuleDisabled(db, {
+        moduleId,
+        disabled: true,
+        actorUserId: ids.adminUser,
+        requestId: "noop-2"
+      })
+    );
+    // Re-disable (onConflict-do-nothing affects 0 rows): no additional audit row.
+    await runner.withDataContext({ actorUserId: ids.adminUser, requestId: "noop-3" }, (db) =>
+      repo.setInstanceModuleDisabled(db, {
+        moduleId,
+        disabled: true,
+        actorUserId: ids.adminUser,
+        requestId: "noop-3"
+      })
+    );
+    audit = await runner.withDataContext(
+      { actorUserId: ids.adminUser, requestId: "noop-r2" },
+      (db) => repo.listAdminAuditEvents(db)
+    );
+    expect(countAuditFor(audit)).toBe(1);
+
+    // First real enable (DELETE affects 1 row): one more audit row (total 2).
+    await runner.withDataContext({ actorUserId: ids.adminUser, requestId: "noop-4" }, (db) =>
+      repo.setInstanceModuleDisabled(db, {
+        moduleId,
+        disabled: false,
+        actorUserId: ids.adminUser,
+        requestId: "noop-4"
+      })
+    );
+    // Re-enable (DELETE affects 0 rows): no additional audit row.
+    await runner.withDataContext({ actorUserId: ids.adminUser, requestId: "noop-5" }, (db) =>
+      repo.setInstanceModuleDisabled(db, {
+        moduleId,
+        disabled: false,
+        actorUserId: ids.adminUser,
+        requestId: "noop-5"
+      })
+    );
+    audit = await runner.withDataContext(
+      { actorUserId: ids.adminUser, requestId: "noop-r3" },
+      (db) => repo.listAdminAuditEvents(db)
+    );
+    expect(countAuditFor(audit)).toBe(2);
   });
 
   it("user deny rows are owner-scoped (RLS isolates actors)", async () => {

@@ -180,7 +180,11 @@ describe("MVP foundation scaffold", () => {
         { version: "0082", name: "0082_wellness_checkins.sql" },
         { version: "0083", name: "0083_wellness_medications.sql" },
         { version: "0084", name: "0084_wellness_medication_logs.sql" },
-        { version: "0085", name: "0085_briefing_runs_owner_only_select.sql" }
+        { version: "0085", name: "0085_briefing_runs_owner_only_select.sql" },
+        {
+          version: "0086",
+          name: "0086_module_enablement_instance_select_actor_guard.sql"
+        }
       ]);
     } finally {
       await client.end();
