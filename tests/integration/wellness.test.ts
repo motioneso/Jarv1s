@@ -9,7 +9,7 @@ import {
   type JarvisDatabase
 } from "@jarv1s/db";
 import { WELLNESS_FEELING_CORES, createCheckinRequestSchema } from "@jarv1s/shared";
-import { wellnessModuleManifest, WELLNESS_MODULE_ID } from "@jarv1s/wellness";
+import { WellnessRepository, wellnessModuleManifest, WELLNESS_MODULE_ID } from "@jarv1s/wellness";
 
 import { connectionStrings, resetEmptyFoundationDatabase } from "./test-database.js";
 
@@ -189,5 +189,55 @@ describe("wellness shared contract", () => {
     ]);
     expect(createCheckinRequestSchema.required).toContain("feelingCore");
     expect(createCheckinRequestSchema.additionalProperties).toBe(false);
+  });
+});
+
+describe("WellnessRepository", () => {
+  const repo = new WellnessRepository();
+
+  it("createCheckin persists the full wheel path + sensations; listCheckins is owner-scoped", async () => {
+    await dataContext.withDataContext(ctx(userId), async (scopedDb) => {
+      await repo.createCheckin(scopedDb, {
+        feelingCore: "scared",
+        feelingSecondary: "anxious",
+        feelingTertiary: "overwhelmed",
+        sensations: ["tight chest", "racing heart"],
+        intensity: 4,
+        note: "deadline",
+        identifiedVia: "assisted"
+      });
+      const list = await repo.listCheckins(scopedDb, { limit: 10 });
+      const latest = list[0];
+      expect(latest?.feeling_core).toBe("scared");
+      expect(latest?.feeling_tertiary).toBe("overwhelmed");
+      expect(latest?.sensations).toEqual(["tight chest", "racing heart"]);
+      expect(latest?.identified_via).toBe("assisted");
+    });
+  });
+
+  it("createMedication + logDose; getSchedule marks a slot taken from a same-day log", async () => {
+    await dataContext.withDataContext(ctx(userId), async (scopedDb) => {
+      const med = await repo.createMedication(scopedDb, {
+        name: "Levothyroxine",
+        frequencyType: "once_daily",
+        scheduleTimes: ["08:00"]
+      });
+      const today = new Date();
+      const scheduledFor = new Date(
+        Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate(), 8, 0, 0)
+      ).toISOString();
+      await repo.logDose(scopedDb, med.id, {
+        status: "taken",
+        scheduledFor
+      });
+      const log = await repo.listRecentLogs(scopedDb, { sinceDays: 1 });
+      expect(log.some((l) => l.medication_id === med.id && l.status === "taken")).toBe(true);
+    });
+  });
+
+  it("createCheckin throws on an unbranded handle (DataContextDb guard)", async () => {
+    await expect(
+      repo.createCheckin(appDb as unknown as never, { feelingCore: "joyful" })
+    ).rejects.toThrow("Repository access requires withDataContext");
   });
 });

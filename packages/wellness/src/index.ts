@@ -4,3 +4,12 @@ export {
   wellnessModuleManifest,
   wellnessModuleSqlMigrationDirectory
 } from "./manifest.js";
+export { WellnessRepository } from "./repository.js";
+export type {
+  CreateCheckinInput,
+  ListCheckinsOptions,
+  CreateMedicationInput,
+  UpdateMedicationInput,
+  LogDoseInput
+} from "./repository.js";
+export { serializeCheckin, serializeMedication, serializeMedicationLog } from "./serialize.js";
