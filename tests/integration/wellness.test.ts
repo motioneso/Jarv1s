@@ -9,7 +9,13 @@ import {
   type AccessContext,
   type JarvisDatabase
 } from "@jarv1s/db";
-import { WELLNESS_FEELING_CORES, createCheckinRequestSchema } from "@jarv1s/shared";
+import {
+  WELLNESS_FEELING_CORES,
+  createCheckinRequestSchema,
+  FEELINGS_WHEEL,
+  BODY_SENSATIONS,
+  isValidFeelingPath
+} from "@jarv1s/shared";
 import {
   WellnessRepository,
   computeSchedule,
@@ -694,5 +700,40 @@ describe("focus providers honor per-user enablement (Phase-2 seam is LANDED)", (
         requestId: "req:wellness-test"
       })
     );
+  });
+});
+
+describe("feelings taxonomy (browser-safe, in @jarv1s/shared)", () => {
+  it("has the six cores, each with secondary→tertiary leaves", () => {
+    expect(FEELINGS_WHEEL.map((c) => c.core)).toEqual([
+      "mad",
+      "sad",
+      "scared",
+      "joyful",
+      "powerful",
+      "peaceful"
+    ]);
+    for (const core of FEELINGS_WHEEL) {
+      expect(core.secondary.length).toBeGreaterThan(0);
+      for (const sec of core.secondary) {
+        expect(typeof sec.name).toBe("string");
+        expect(Array.isArray(sec.tertiary)).toBe(true);
+      }
+    }
+  });
+
+  it("body-sensations is a non-empty curated list", () => {
+    expect(BODY_SENSATIONS.length).toBeGreaterThanOrEqual(8);
+    expect(BODY_SENSATIONS).toContain("Tight chest");
+  });
+
+  it("isValidFeelingPath accepts valid paths and rejects mismatches", () => {
+    expect(isValidFeelingPath("scared")).toBe(true);
+    expect(isValidFeelingPath("scared", "anxious")).toBe(true);
+    expect(isValidFeelingPath("scared", "anxious", "overwhelmed")).toBe(true);
+    expect(isValidFeelingPath("scared", "anxious", "not-a-leaf")).toBe(false);
+    expect(isValidFeelingPath("scared", "not-a-secondary")).toBe(false);
+    // a tertiary without its secondary is invalid
+    expect(isValidFeelingPath("scared", null, "overwhelmed")).toBe(false);
   });
 });
