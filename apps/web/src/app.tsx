@@ -1,9 +1,11 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { BrowserRouter, Navigate, Route, Routes } from "react-router";
 
-import { ApiError, getBootstrapStatus, getMe, getModules } from "./api/client";
+import { ApiError, getBootstrapStatus, getMe, getModules, getOnboardingStatus } from "./api/client";
 import { queryKeys } from "./api/query-keys";
 import { AuthScreen } from "./auth/auth-screen";
+import { isBootstrapOwner, shouldShowOnboarding } from "./onboarding/resume";
+import { OnboardingWizard } from "./onboarding/onboarding-wizard";
 import { BriefingsPage } from "./briefings/briefings-page";
 import { CalendarPage } from "./calendar/calendar-page";
 import { EmailPage } from "./email/email-page";
@@ -29,6 +31,13 @@ export function App() {
     queryKey: queryKeys.modules,
     queryFn: () => getModules(),
     retry: false
+  });
+  const ownerForOnboarding = isBootstrapOwner(meQuery.data);
+  const onboardingQuery = useQuery({
+    enabled: ownerForOnboarding,
+    queryKey: queryKeys.onboarding.status,
+    queryFn: getOnboardingStatus,
+    retry: false // getOnboardingStatus is itself bounded by a 4s timeout (client.ts)
   });
 
   const handleAuthenticated = async () => {
@@ -73,6 +82,28 @@ export function App() {
         onRetry={() => void queryClient.invalidateQueries({ queryKey: ["auth"] })}
       />
     );
+  }
+
+  if (ownerForOnboarding) {
+    // A hung status read cannot trap the founder: getOnboardingStatus is bounded to 4s, so
+    // isLoading resolves to data-or-error within that window. We show a bounded loader only
+    // for the owner's first boot (avoids a shell flash before the wizard); on error/timeout
+    // onboardingQuery.data is undefined ⇒ we fall through to the app shell below.
+    if (onboardingQuery.isLoading) {
+      return <LoadingScreen />;
+    }
+    const onboardingStatus = onboardingQuery.data;
+    if (onboardingStatus && shouldShowOnboarding(meQuery.data, onboardingStatus)) {
+      return (
+        <OnboardingWizard
+          initialStatus={onboardingStatus}
+          onDone={() =>
+            void queryClient.invalidateQueries({ queryKey: queryKeys.onboarding.status })
+          }
+        />
+      );
+    }
+    // else: not pending (terminal state) OR errored/timed-out ⇒ fall through to the shell.
   }
 
   return (
