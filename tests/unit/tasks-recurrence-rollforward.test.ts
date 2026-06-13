@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vitest";
 
-import { computeNextOccurrenceDate, advanceDate, nextOccurrenceAtOrAfter } from "@jarv1s/tasks";
+import {
+  computeNextOccurrenceDate,
+  advanceDate,
+  nextOccurrenceAtOrAfter,
+  recurrenceCronExpr
+} from "@jarv1s/tasks";
 
 describe("recurrence date helpers", () => {
   it("computeNextOccurrenceDate advances weekly by interval", () => {
@@ -45,5 +50,11 @@ describe("nextOccurrenceAtOrAfter (roll-forward date math)", () => {
 
   it("does not roll an occurrence that equals today (boundary)", () => {
     expect(nextOccurrenceAtOrAfter(spec, "2026-06-01")).toBe("2026-06-01");
+  });
+});
+
+describe("recurrenceCronExpr", () => {
+  it("returns the documented pre-dawn daily cron expression", () => {
+    expect(recurrenceCronExpr()).toBe("0 3 * * *");
   });
 });
