@@ -8,6 +8,7 @@ import {
 } from "@jarv1s/jobs";
 
 import { TASKS_DEFERRED_STATUS_QUEUE, TASKS_RECURRENCE_QUEUE } from "./manifest.js";
+import { rollForwardOwnedSeries } from "./recurrence.js";
 import { TasksRepository } from "./repository.js";
 
 export interface DeferredTaskStatusPayload extends ActorScopedJobPayload {
@@ -28,6 +29,10 @@ export interface RegisterTasksJobWorkersOptions {
   readonly onResult?: (
     job: Job<DeferredTaskStatusPayload>,
     result: DeferredTaskStatusResult
+  ) => void;
+  readonly onRecurrenceResult?: (
+    job: Job<RecurrenceMaterializePayload>,
+    result: RecurrenceMaterializeResult
   ) => void;
 }
 
@@ -120,5 +125,29 @@ export async function registerTasksJobWorkers(
     options.workOptions
   );
 
-  return [workId];
+  const recurrenceWorkId = await registerDataContextWorker<
+    RecurrenceMaterializePayload,
+    RecurrenceMaterializeResult
+  >(
+    boss,
+    TASKS_RECURRENCE_QUEUE,
+    dataContext,
+    async (job, scopedDb) => {
+      if (
+        !isRecurrenceMaterializePayloadMetadataOnly(job.data as unknown as Record<string, unknown>)
+      ) {
+        throw new Error(`Recurrence job ${job.id} contains non-metadata payload fields`);
+      }
+
+      const rolledForward = await rollForwardOwnedSeries(scopedDb);
+      const result = { rolledForward };
+
+      options.onRecurrenceResult?.(job, result);
+
+      return result;
+    },
+    options.workOptions
+  );
+
+  return [workId, recurrenceWorkId];
 }

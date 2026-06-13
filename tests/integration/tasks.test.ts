@@ -29,6 +29,7 @@ import {
 import type { TaskDto } from "@jarv1s/shared";
 import { connectionStrings, ids, resetFoundationDatabase } from "./test-database.js";
 import {
+  handleNextRecurrenceJob,
   handleNextTaskJob,
   seedTaskData,
   taskIds,
@@ -836,6 +837,31 @@ describe("Tasks module M1", () => {
     } finally {
       await client.end();
     }
+  });
+
+  it("recurrence worker rolls the actor's stale series forward under RLS", async () => {
+    const today = new Date().toISOString().slice(0, 10);
+    const past = new Date(Date.now() - 21 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+    const made = await dataContext.withDataContext(userAContext(), (db) =>
+      repository.create(db, {
+        title: "worker rolls me",
+        recurrence: { freq: "weekly", interval: 1, occurrence_date: past }
+      })
+    );
+
+    const result = await handleNextRecurrenceJob(appBoss, workerBoss, ids.userA);
+    expect(result.rolledForward).toBeGreaterThanOrEqual(1);
+
+    const live = await dataContext.withDataContext(userAContext(), (db) =>
+      db.db
+        .selectFrom("app.tasks")
+        .selectAll()
+        .where("recurrence_series_id", "=", made.recurrence_series_id!)
+        .where("status", "=", "todo")
+        .execute()
+    );
+    const occ = (live[0]!.recurrence as Record<string, unknown>)["occurrence_date"] as string;
+    expect(occ >= today).toBe(true);
   });
 
   it("drift: overdue + at-risk surface Medium+ only; focus orders them", async () => {
