@@ -342,6 +342,9 @@ export const upsertInstanceSettingRouteSchema = {
   }
 } as const;
 
+/** The admin-selectable multiplexer choice. Single source of truth — ai/settings import this. */
+export type ChatMultiplexerChoice = "auto" | "tmux" | "herdr";
+
 export interface RegistrationSettingsDto {
   readonly registrationEnabled: boolean;
   readonly requiresApproval: boolean;
