@@ -1,20 +1,22 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ShieldCheck, Users } from "lucide-react";
+import { ShieldCheck, TerminalSquare, Users } from "lucide-react";
 
 import {
   approveUser,
   deactivateUser,
   deleteAdminUser,
   demoteUser,
+  getChatMultiplexerSettings,
   getRegistrationSettings,
   listAdminUsers,
   promoteUser,
   putRegistrationSettings,
   reactivateUser,
-  rejectUser
+  rejectUser,
+  setChatMultiplexerSettings
 } from "../api/client";
 import { queryKeys } from "../api/query-keys";
-import type { RegistrationSettingsDto, UserDto } from "@jarv1s/shared";
+import type { ChatMultiplexerChoice, RegistrationSettingsDto, UserDto } from "@jarv1s/shared";
 
 interface AdminUsersPanelProps {
   readonly currentUserId: string;
@@ -30,6 +32,11 @@ export function AdminUsersPanel(props: AdminUsersPanelProps) {
   const regQuery = useQuery({
     queryKey: queryKeys.settings.registrationSettings,
     queryFn: getRegistrationSettings,
+    retry: false
+  });
+  const muxQuery = useQuery({
+    queryKey: queryKeys.settings.chatMultiplexer,
+    queryFn: getChatMultiplexerSettings,
     retry: false
   });
 
@@ -68,6 +75,12 @@ export function AdminUsersPanel(props: AdminUsersPanelProps) {
     mutationFn: (settings: RegistrationSettingsDto) => putRegistrationSettings(settings),
     onSuccess: (data) => {
       queryClient.setQueryData(queryKeys.settings.registrationSettings, data);
+    }
+  });
+  const muxMutation = useMutation({
+    mutationFn: (choice: ChatMultiplexerChoice) => setChatMultiplexerSettings(choice),
+    onSuccess: (data) => {
+      queryClient.setQueryData(queryKeys.settings.chatMultiplexer, data);
     }
   });
 
@@ -201,6 +214,50 @@ export function AdminUsersPanel(props: AdminUsersPanelProps) {
         ) : null}
         {regMutation.error ? <p className="form-error">{regMutation.error.message}</p> : null}
       </section>
+
+      {muxQuery.data ? (
+        <section className="panel" aria-labelledby="multiplexer-title">
+          <div className="panel-heading">
+            <TerminalSquare size={20} aria-hidden="true" />
+            <h2 id="multiplexer-title">Live chat multiplexer</h2>
+          </div>
+          <p className="muted-text">
+            Which terminal multiplexer hosts live CLI chat sessions. Changes apply on server
+            restart.
+          </p>
+          <dl className="definition-list">
+            <div>
+              <dt>Backend</dt>
+              <dd>
+                <select
+                  value={muxQuery.data.multiplexer}
+                  disabled={muxMutation.isPending}
+                  onChange={(e) => muxMutation.mutate(e.target.value as ChatMultiplexerChoice)}
+                >
+                  <option value="auto">Auto-detect</option>
+                  <option value="tmux">tmux</option>
+                  <option value="herdr">herdr</option>
+                </select>
+              </dd>
+            </div>
+            <div>
+              <dt>Detected on this host</dt>
+              <dd>
+                <span>{`tmux: ${muxQuery.data.available.tmux ? "installed" : "not detected"}`}</span>
+                {" · "}
+                <span>{`herdr: ${
+                  muxQuery.data.available.herdr ? "installed" : "not detected"
+                }`}</span>
+              </dd>
+            </div>
+          </dl>
+          <p className="muted-text">
+            Auto picks herdr when the server runs inside herdr, otherwise tmux. If the selected
+            backend isn’t installed, live chat is disabled until you install it and restart.
+          </p>
+          {muxMutation.error ? <p className="form-error">{muxMutation.error.message}</p> : null}
+        </section>
+      ) : null}
     </>
   );
 }
