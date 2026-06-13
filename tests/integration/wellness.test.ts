@@ -19,11 +19,14 @@ import {
   wellnessRecentCheckInsExecute,
   wellnessMedicationAdherenceExecute,
   deriveEnergyTrend,
-  WellnessRecallContributor
+  WellnessRecallContributor,
+  wellnessFocusSignal
 } from "@jarv1s/wellness";
 import type { Medication, MedicationLog } from "@jarv1s/db";
 import type { ToolContext } from "@jarv1s/module-sdk";
+import { aggregateFocusSignals, type FocusSignal } from "@jarv1s/module-sdk";
 import { getBuiltInModuleManifests } from "@jarv1s/module-registry";
+import { TasksRepository, registerTasksRoutes } from "@jarv1s/tasks";
 import { BriefingsRepository } from "@jarv1s/briefings";
 import { ChatMemoryFactsRepository } from "@jarv1s/memory";
 
@@ -558,5 +561,138 @@ describe("wellness chat recall energy-trend fact", () => {
         active.some((f) => f.category === "profile" && f.content.toLowerCase().includes("energy"))
       ).toBe(true);
     });
+  });
+});
+
+describe("focus-signal contribution point", () => {
+  it("wellness provider returns null with no check-ins", async () => {
+    const fresh = "00000000-0000-4000-8000-000000000043";
+    const client2 = new Client({ connectionString: connectionStrings.bootstrap });
+    await client2.connect();
+    try {
+      await client2.query(
+        `INSERT INTO app.users (id, email, is_instance_admin) VALUES ($1,'fresh@example.test',false)
+         ON CONFLICT (id) DO NOTHING`,
+        [fresh]
+      );
+    } finally {
+      await client2.end();
+    }
+    const signal = await dataContext.withDataContext(ctx(fresh), (db) =>
+      wellnessFocusSignal(db, { actorUserId: fresh, requestId: "req:focus" })
+    );
+    expect(signal).toBeNull();
+  });
+
+  it("wellness provider yields low readiness after low-ENERGY check-ins", async () => {
+    await dataContext.withDataContext(ctx(userId), async (db) => {
+      const repo = new WellnessRepository();
+      await repo.createCheckin(db, { feelingCore: "sad", intensity: 1, energy: 1 });
+      await repo.createCheckin(db, { feelingCore: "scared", intensity: 1, energy: 1 });
+    });
+    const signal = await dataContext.withDataContext(ctx(userId), (db) =>
+      wellnessFocusSignal(db, { actorUserId: userId, requestId: "req:focus" })
+    );
+    expect(signal).not.toBeNull();
+    expect(signal!.moduleId).toBe("wellness");
+    expect(signal!.readiness).toBeLessThan(0.5);
+    expect(signal!.summary.toLowerCase()).toContain("energy");
+  });
+
+  it("aggregateFocusSignals fails soft: a throwing provider is treated as no signal", async () => {
+    const throwing = async () => {
+      throw new Error("boom");
+    };
+    const result = await dataContext.withDataContext(ctx(userId), (db) =>
+      aggregateFocusSignals(
+        [
+          { moduleId: "wellness", provider: wellnessFocusSignal },
+          { moduleId: "broken", provider: throwing as never }
+        ],
+        db,
+        { actorUserId: userId, requestId: "req:focus" }
+      )
+    );
+    expect(result.some((s) => s.moduleId === "wellness")).toBe(true);
+    expect(result.some((s) => (s as FocusSignal).moduleId === "broken")).toBe(false);
+  });
+});
+
+describe("focus consumer down-weights when readiness is low (generic)", () => {
+  it("caps the focus list when the injected aggregate readiness is low", async () => {
+    // Seed many high-priority overdue tasks for the actor.
+    await dataContext.withDataContext(ctx(userId), async (db) => {
+      const repo = new TasksRepository();
+      const past = new Date(Date.now() - 86_400_000);
+      for (let i = 0; i < 6; i++) {
+        await repo.create(db, {
+          title: `urgent-${i.toString()}`,
+          status: "todo",
+          priority: 5,
+          dueAt: past
+        });
+      }
+    });
+
+    const app = Fastify();
+    registerTasksRoutes(app, {
+      resolveAccessContext: async () => ({ actorUserId: userId, requestId: "req:focus" }),
+      dataContext,
+      boss: undefined as never,
+      focusSignals: async () => [
+        { moduleId: "wellness", readiness: 0.1, summary: "Energy trended low." }
+      ]
+    });
+    await app.ready();
+    try {
+      const res = await app.inject({ method: "GET", url: "/api/tasks/focus" });
+      expect(res.statusCode).toBe(200);
+      const body = res.json();
+      expect(body.tasks.length).toBeLessThanOrEqual(3);
+      expect(body.signals[0].readiness).toBe(0.1);
+    } finally {
+      await app.close();
+    }
+  });
+});
+
+describe("focus providers honor per-user enablement (Phase-2 seam is LANDED)", () => {
+  it("focusSignalProvidersFor(active) excludes a module the actor disabled", async () => {
+    const { createActiveModulesResolver, focusSignalProvidersFor, getBuiltInModuleManifests } =
+      await import("@jarv1s/module-registry");
+    const { SettingsRepository } = await import("@jarv1s/settings");
+
+    const resolveActive = createActiveModulesResolver({
+      dataContext,
+      manifests: getBuiltInModuleManifests()
+    });
+
+    // Before disabling: wellness is active and contributes a provider.
+    const before = focusSignalProvidersFor(await resolveActive(userId));
+    expect(before.some((p) => p.moduleId === "wellness")).toBe(true);
+
+    // Disable wellness for this actor via the settings deny-list (the seam's own writer).
+    // setUserModuleDisabled writes the deny row for input.actorUserId (the acting user).
+    await dataContext.withDataContext(ctx(userId), (db) =>
+      new SettingsRepository().setUserModuleDisabled(db, {
+        moduleId: "wellness",
+        disabled: true,
+        actorUserId: userId,
+        requestId: "req:wellness-test"
+      })
+    );
+
+    const after = focusSignalProvidersFor(await resolveActive(userId));
+    expect(after.some((p) => p.moduleId === "wellness")).toBe(false);
+
+    // Re-enable so later tests see wellness active again (clean state).
+    await dataContext.withDataContext(ctx(userId), (db) =>
+      new SettingsRepository().setUserModuleDisabled(db, {
+        moduleId: "wellness",
+        disabled: false,
+        actorUserId: userId,
+        requestId: "req:wellness-test"
+      })
+    );
   });
 });
