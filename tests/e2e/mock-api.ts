@@ -427,6 +427,8 @@ export function createMockEmailMessage(
     subject,
     snippet: null,
     bodyExcerpt: null,
+    summary: null,
+    signals: {},
     receivedAt: "2026-06-06T12:00:00.000Z",
     externalId: id,
     externalMetadata: {},
