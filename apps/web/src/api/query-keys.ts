@@ -7,6 +7,7 @@ export const queryKeys = {
     status: ["onboarding", "status"] as const
   },
   modules: ["modules"] as const,
+  myModules: ["me", "modules"] as const,
   settings: {
     providers: ["settings", "providers"] as const,
     adminConnectorAccounts: ["settings", "admin", "connector-accounts"] as const,

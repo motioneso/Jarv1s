@@ -51,6 +51,7 @@ import type {
   ListEmailMessagesResponse,
   ListMedicationsResponse,
   ListModulesResponse,
+  ListMyModulesResponse,
   ListNotificationsResponse,
   ListTaskActivityResponse,
   ListTaskListsResponse,
@@ -119,6 +120,10 @@ export async function getMe(): Promise<MeResponse> {
 
 export async function getModules(): Promise<ListModulesResponse> {
   return requestJson<ListModulesResponse>("/api/modules");
+}
+
+export async function getMyModules(): Promise<ListMyModulesResponse> {
+  return requestJson<ListMyModulesResponse>("/api/me/modules");
 }
 
 /** Bounded so a hung status read can never trap the founder before the app shell (Codex R2 #2). */
