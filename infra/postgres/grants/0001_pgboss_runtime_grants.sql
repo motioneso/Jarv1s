@@ -25,7 +25,18 @@ GRANT SELECT ON pgboss.version TO jarvis_app_runtime, jarvis_worker_runtime;
 GRANT SELECT, INSERT ON pgboss.job_common TO jarvis_app_runtime;
 GRANT SELECT, INSERT, UPDATE ON pgboss.job_common TO jarvis_worker_runtime;
 
--- pgboss.schedule, pgboss.bam, pgboss.warning: no runtime grant.
--- Both client roles run schedule:false/supervise:false; these tables are internal/maintenance only.
+-- pgboss.schedule: the recurrence cron foundation (Phase 3 task-verticals) needs runtime access.
+-- The API server upserts a per-actor daily schedule via boss.schedule() on the REQUEST path
+-- (reconcileRecurrenceSchedule — POST /api/tasks create + GET /api/tasks/lists self-heal), which is
+-- `INSERT ... ON CONFLICT (name,key) DO UPDATE` and so needs SELECT+INSERT+UPDATE. The worker
+-- process runs the cron engine (schedule:true); pg-boss's timekeeper reads schedules (SELECT),
+-- maintains them (INSERT/UPDATE), and removes them on unschedule (DELETE).
+-- NOTE: every reconcile is failure-isolated (errors are swallowed), so a MISSING grant would
+-- silently disable recurrence cron entirely — these grants are load-bearing, not defensive.
+GRANT SELECT, INSERT, UPDATE ON pgboss.schedule TO jarvis_app_runtime;
+GRANT SELECT, INSERT, UPDATE, DELETE ON pgboss.schedule TO jarvis_worker_runtime;
+
+-- pgboss.bam, pgboss.warning: no runtime grant.
+-- Both client roles run supervise:false; these tables are internal/maintenance only.
 
 REVOKE ALL ON ALL FUNCTIONS IN SCHEMA pgboss FROM PUBLIC;
