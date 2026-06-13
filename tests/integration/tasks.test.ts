@@ -749,6 +749,61 @@ describe("Tasks module M1", () => {
     expect(live).toHaveLength(1); // exactly one live instance
   });
 
+  it("roll-forward is RLS-scoped: A's run never touches B's series", async () => {
+    const today = new Date().toISOString().slice(0, 10);
+    const past = new Date(Date.now() - 21 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+    const bMade = await dataContext.withDataContext(userBContext(), (db) =>
+      repository.create(db, {
+        title: "B weekly",
+        recurrence: { freq: "weekly", interval: 1, occurrence_date: past }
+      })
+    );
+    await dataContext.withDataContext(userAContext(), (db) => rollForwardOwnedSeries(db, today));
+    const bLive = await dataContext.withDataContext(userBContext(), (db) =>
+      db.db
+        .selectFrom("app.tasks")
+        .selectAll()
+        .where("recurrence_series_id", "=", bMade.recurrence_series_id!)
+        .where("status", "=", "todo")
+        .execute()
+    );
+    const occ = (bLive[0]!.recurrence as Record<string, unknown>)["occurrence_date"] as string;
+    expect(occ).toBe(past); // untouched by A's run
+  });
+
+  it("roll-forward does NOT roll a manage-shared series owned by another user", async () => {
+    const today = new Date().toISOString().slice(0, 10);
+    const past = new Date(Date.now() - 21 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+    const bMade = await dataContext.withDataContext(userBContext(), (db) =>
+      repository.create(db, {
+        title: "B weekly shared-manage",
+        recurrence: { freq: "weekly", interval: 1, occurrence_date: past }
+      })
+    );
+    // Grant A a 'manage' share on B's task (owner-OR-share RLS would otherwise let A roll it).
+    await dataContext.withDataContext(userBContext(), (db) =>
+      sharesRepository.grant(db, {
+        resourceType: "task",
+        resourceId: bMade.id,
+        ownerUserId: ids.userB,
+        granteeUserId: ids.userA,
+        level: "manage"
+      })
+    );
+    // A's roll-forward run must skip it (explicit owner_user_id predicate, not just RLS).
+    await dataContext.withDataContext(userAContext(), (db) => rollForwardOwnedSeries(db, today));
+    const bLive = await dataContext.withDataContext(userBContext(), (db) =>
+      db.db
+        .selectFrom("app.tasks")
+        .selectAll()
+        .where("recurrence_series_id", "=", bMade.recurrence_series_id!)
+        .where("status", "=", "todo")
+        .execute()
+    );
+    const occ = (bLive[0]!.recurrence as Record<string, unknown>)["occurrence_date"] as string;
+    expect(occ).toBe(past); // untouched — manage share is NOT ownership for roll-forward
+  });
+
   it("drift: overdue + at-risk surface Medium+ only; focus orders them", async () => {
     const drift = new TaskDriftRepository();
     await dataContext.withDataContext(userAContext(), async (db) => {
