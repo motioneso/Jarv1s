@@ -166,6 +166,97 @@ export class TaskListsRepository {
       .execute();
   }
 
+  async renameList(db: DataContextDb, listId: string, name: string): Promise<TaskList> {
+    assertDataContextDb(db);
+    try {
+      const row = await db.db
+        .updateTable("app.task_lists")
+        .set({ name, updated_at: new Date() })
+        .where("id", "=", listId)
+        .returningAll()
+        .executeTakeFirst();
+      if (!row) throw new HttpError(404, "List not found or not accessible");
+      return row;
+    } catch (err: unknown) {
+      if (err instanceof HttpError) throw err;
+      const message = err instanceof Error ? err.message : String(err);
+      if (message.includes("task_lists_owner_name_idx") || message.includes("unique")) {
+        throw new HttpError(409, "A list with that name already exists");
+      }
+      throw err;
+    }
+  }
+
+  async deleteList(db: DataContextDb, listId: string, reassignToListId?: string): Promise<void> {
+    // NOTE: this runs inside the ambient withDataContext transaction (db.db is the RLS-scoped
+    // Transaction — data-context.ts), so the reassign drop + task move + list delete below are
+    // already atomic. Do NOT open a nested transaction.
+    assertDataContextDb(db);
+
+    // 1. EXISTENCE/OWNERSHIP FIRST (Codex finding): a missing/foreign target must be 404, not a
+    //    misleading 409 from the last-list guard below. The select is RLS owner-scoped.
+    const all = await db.db.selectFrom("app.task_lists").select("id").execute();
+    if (!all.some((l) => l.id === listId)) {
+      throw new HttpError(404, "List not found or not accessible");
+    }
+
+    // 2. Reject a no-op self-reassign (Codex finding): reassigning to the same list would be a
+    //    no-op move that then falls through to an ON DELETE RESTRICT 409 — surface 400 instead.
+    if (reassignToListId !== undefined && reassignToListId === listId) {
+      throw new HttpError(400, "Cannot reassign a list's tasks to itself");
+    }
+
+    // 3. Guard: refuse to delete the last remaining list.
+    if (all.length <= 1) {
+      throw new HttpError(409, "Cannot delete your only list");
+    }
+
+    if (reassignToListId) {
+      const ownsDest = await this.isOwnedByActor(db, reassignToListId);
+      if (!ownsDest) throw new HttpError(404, "Destination list not found or not accessible");
+
+      // Drop assignments whose tag is not in the destination list (list move drops foreign tags —
+      // foundation "List move" rule), THEN move the tasks. Mirrors repository.update's list-move
+      // drop so the task_tag_list_match invariant holds after the move.
+      await db.db
+        .deleteFrom("app.task_tag_assignments")
+        .where((eb) =>
+          eb("task_id", "in", eb.selectFrom("app.tasks").select("id").where("list_id", "=", listId))
+        )
+        .where((eb) =>
+          eb(
+            "tag_id",
+            "not in",
+            eb.selectFrom("app.task_tags").select("id").where("list_id", "=", reassignToListId)
+          )
+        )
+        .execute();
+
+      await db.db
+        .updateTable("app.tasks")
+        .set({ list_id: reassignToListId, updated_at: new Date() })
+        .where("list_id", "=", listId)
+        .execute();
+    }
+
+    try {
+      const deleted = await db.db
+        .deleteFrom("app.task_lists")
+        .where("id", "=", listId)
+        .returning("id")
+        .executeTakeFirst();
+      if (!deleted) throw new HttpError(404, "List not found or not accessible");
+    } catch (err: unknown) {
+      if (err instanceof HttpError) throw err;
+      const message = err instanceof Error ? err.message : String(err);
+      // ON DELETE RESTRICT (app.tasks.list_id FK) raises on a non-empty list.
+      if (message.includes("foreign key") || message.includes("violates")) {
+        throw new HttpError(409, "List is not empty");
+      }
+      throw err;
+    }
+  }
+
   async isOwnedByActor(db: DataContextDb, listId: string): Promise<boolean> {
     assertDataContextDb(db);
     const row = await db.db

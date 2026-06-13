@@ -1304,4 +1304,127 @@ describe("Tasks module M1", () => {
     );
     expect(tags).toHaveLength(0); // tagA belonged to listA, dropped on move to listB
   });
+
+  it("renameList renames, rejects duplicates (409), and 404s a foreign/missing list", async () => {
+    const listsRepo = new TaskListsRepository();
+    const original = await dataContext.withDataContext(userAContext(), (db) =>
+      listsRepo.getOrCreate(db, "Rename Src")
+    );
+    const other = await dataContext.withDataContext(userAContext(), (db) =>
+      listsRepo.getOrCreate(db, "Rename Other")
+    );
+
+    // Rename to a fresh unique name succeeds.
+    const renamed = await dataContext.withDataContext(userAContext(), (db) =>
+      listsRepo.renameList(db, original.id, "Rename Dst")
+    );
+    expect(renamed.name).toBe("Rename Dst");
+
+    // Renaming to a name already taken (case-insensitive unique index) → 409.
+    await expect(
+      dataContext.withDataContext(userAContext(), (db) =>
+        listsRepo.renameList(db, renamed.id, "Rename Other")
+      )
+    ).rejects.toMatchObject({ statusCode: 409 });
+
+    // A foreign/non-existent list id → 404 (RLS UPDATE matches zero rows).
+    await expect(
+      dataContext.withDataContext(userAContext(), (db) =>
+        listsRepo.renameList(db, "00000000-0000-0000-0000-000000000000", "whatever")
+      )
+    ).rejects.toMatchObject({ statusCode: 404 });
+
+    // `other` is referenced (suppresses unused-var lint) — confirm it still exists.
+    expect(other.id).not.toBe(renamed.id);
+  });
+
+  it("deleteList refuses a non-empty list without reassign (409)", async () => {
+    const listsRepo = new TaskListsRepository();
+    const list = await dataContext.withDataContext(userAContext(), (db) =>
+      listsRepo.getOrCreate(db, "Delete NonEmpty")
+    );
+    await dataContext.withDataContext(userAContext(), (db) =>
+      repository.create(db, { title: "blocks delete", listId: list.id })
+    );
+
+    await expect(
+      dataContext.withDataContext(userAContext(), (db) => listsRepo.deleteList(db, list.id))
+    ).rejects.toMatchObject({ statusCode: 409 });
+  });
+
+  it("deleteList with reassign moves tasks, drops old-list tags, and deletes the list", async () => {
+    const listsRepo = new TaskListsRepository();
+    const src = await dataContext.withDataContext(userAContext(), (db) =>
+      listsRepo.getOrCreate(db, "Reassign Src")
+    );
+    const dst = await dataContext.withDataContext(userAContext(), (db) =>
+      listsRepo.getOrCreate(db, "Reassign Dst")
+    );
+    const srcTag = await dataContext.withDataContext(userAContext(), (db) =>
+      listsRepo.createTag(db, src.id, "src-only")
+    );
+    const task = await dataContext.withDataContext(userAContext(), (db) =>
+      repository.create(db, { title: "reassign me", listId: src.id })
+    );
+    await dataContext.withDataContext(userAContext(), (db) =>
+      listsRepo.assignTag(db, task.id, srcTag.id)
+    );
+
+    await dataContext.withDataContext(userAContext(), (db) =>
+      listsRepo.deleteList(db, src.id, dst.id)
+    );
+
+    // The src list is gone.
+    const remaining = await dataContext.withDataContext(userAContext(), (db) =>
+      db.db.selectFrom("app.task_lists").select("id").where("id", "=", src.id).execute()
+    );
+    expect(remaining).toHaveLength(0);
+
+    // The task moved to dst and its src-list tag was dropped.
+    const moved = await dataContext.withDataContext(userAContext(), (db) =>
+      db.db.selectFrom("app.tasks").selectAll().where("id", "=", task.id).executeTakeFirstOrThrow()
+    );
+    expect(moved.list_id).toBe(dst.id);
+    const tags = await dataContext.withDataContext(userAContext(), (db) =>
+      repository.getTagsForTask(db, task.id)
+    );
+    expect(tags).toHaveLength(0); // src-only tag dropped on reassign
+  });
+
+  it("deleteList 404s a foreign/missing list before the last-list guard (actor has other lists)", async () => {
+    const listsRepo = new TaskListsRepository();
+    await expect(
+      dataContext.withDataContext(userAContext(), (db) =>
+        listsRepo.deleteList(db, "00000000-0000-0000-0000-000000000000")
+      )
+    ).rejects.toMatchObject({ statusCode: 404 });
+  });
+
+  it("deleteList rejects a self-reassign with 400 (not a RESTRICT 409)", async () => {
+    const listsRepo = new TaskListsRepository();
+    const list = await dataContext.withDataContext(userAContext(), (db) =>
+      listsRepo.getOrCreate(db, "Self Reassign")
+    );
+    await expect(
+      dataContext.withDataContext(userAContext(), (db) =>
+        listsRepo.deleteList(db, list.id, list.id)
+      )
+    ).rejects.toMatchObject({ statusCode: 400 });
+  });
+
+  it("deleteList refuses to delete the actor's only list (409)", async () => {
+    // The admin user is seeded with NO task lists (only userA/userB get a Personal list),
+    // and no other tasks test creates lists for it — so a single created list IS its only list.
+    const adminContext = {
+      actorUserId: ids.adminUser,
+      requestId: "request:admin-delete-last-list"
+    };
+    const listsRepo = new TaskListsRepository();
+    const only = await dataContext.withDataContext(adminContext, (db) =>
+      listsRepo.getOrCreate(db, "Admin Only List")
+    );
+    await expect(
+      dataContext.withDataContext(adminContext, (db) => listsRepo.deleteList(db, only.id))
+    ).rejects.toMatchObject({ statusCode: 409 });
+  });
 });
