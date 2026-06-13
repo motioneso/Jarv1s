@@ -41,6 +41,7 @@ import { BriefingsRepository } from "@jarv1s/briefings";
 import { ChatMemoryFactsRepository } from "@jarv1s/memory";
 
 import { connectionStrings, resetEmptyFoundationDatabase } from "./test-database.js";
+import { makeComposeDeps } from "./briefings.helpers.js";
 
 const { Client } = pg;
 
@@ -516,16 +517,21 @@ describe("briefings Wellness section (existing read-tool seam, zero briefings ch
       })
     );
 
-    const run = await dataContext.withDataContext(ctx(userId), (db) =>
+    const result = await dataContext.withDataContext(ctx(userId), (db) =>
       briefings.generateRun(db, definition.id, {
         runKind: "manual",
-        moduleManifests: getBuiltInModuleManifests()
+        // real-briefings made composeDeps required (synthesis + grounding seam) and
+        // generateRun now returns { run, created }. moduleManifests (incl. wellness)
+        // resolves wellness.recentCheckIns; makeComposeDeps() supplies the synth seam.
+        moduleManifests: getBuiltInModuleManifests(),
+        composeDeps: makeComposeDeps()
       })
     );
 
-    expect(run?.status).toBe("succeeded");
+    expect(result?.run.status).toBe("succeeded");
     const tools =
-      (run?.source_metadata as { tools?: Array<{ name: string; status: string }> }).tools ?? [];
+      (result?.run.source_metadata as { tools?: Array<{ name: string; status: string }> }).tools ??
+      [];
     expect(tools.some((t) => t.name === "wellness.recentCheckIns" && t.status !== "failed")).toBe(
       true
     );
