@@ -1,3 +1,5 @@
+import { errorResponseSchema, jsonObjectSchema } from "./schema-fragments.js";
+
 export type ConnectorProviderType = "calendar" | "email" | "google";
 export type ConnectorProviderStatus = "available" | "disabled";
 export type ConnectorAccountStatus = "active" | "error" | "revoked";
@@ -63,20 +65,6 @@ export interface RevokeConnectorAccountResponse {
 export interface ListAdminConnectorAccountsResponse {
   readonly accounts: readonly ConnectorAccountDto[];
 }
-
-const errorResponseSchema = {
-  type: "object",
-  additionalProperties: false,
-  required: ["error"],
-  properties: {
-    error: { type: "string" }
-  }
-} as const;
-
-const jsonObjectSchema = {
-  type: "object",
-  additionalProperties: true
-} as const;
 
 const connectorProviderSchema = {
   type: "object",

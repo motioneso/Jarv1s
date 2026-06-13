@@ -1,3 +1,5 @@
+import { errorResponseSchema, jsonObjectSchema, nullableStringSchema } from "./schema-fragments.js";
+
 export interface CalendarEventDto {
   readonly id: string;
   readonly connectorAccountId: string;
@@ -21,15 +23,6 @@ export interface ListCalendarEventsResponse {
 export interface GetCalendarEventResponse {
   readonly event: CalendarEventDto;
 }
-
-const nullableStringSchema = {
-  anyOf: [{ type: "string" }, { type: "null" }]
-} as const;
-
-const jsonObjectSchema = {
-  type: "object",
-  additionalProperties: true
-} as const;
 
 const calendarEventParamsSchema = {
   type: "object",
@@ -92,15 +85,6 @@ export const getCalendarEventResponseSchema = {
   required: ["event"],
   properties: {
     event: calendarEventDtoSchema
-  }
-} as const;
-
-const errorResponseSchema = {
-  type: "object",
-  additionalProperties: false,
-  required: ["error"],
-  properties: {
-    error: { type: "string" }
   }
 } as const;
 

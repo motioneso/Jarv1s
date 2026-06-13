@@ -1,3 +1,10 @@
+import {
+  errorResponseSchema,
+  idParamsSchema,
+  jsonObjectSchema,
+  nullableJsonObjectSchema
+} from "./schema-fragments.js";
+
 export type AiProviderKind = "openai-compatible" | "anthropic" | "google" | "ollama" | "custom";
 export type AiProviderStatus = "active" | "error" | "disabled" | "revoked";
 export type AiAuthMethod = "cli" | "api_key";
@@ -180,33 +187,6 @@ export interface ResolveAiAssistantActionRequest {
 export interface ResolveAiAssistantActionResponse {
   readonly action: AiAssistantActionDto;
 }
-
-const errorResponseSchema = {
-  type: "object",
-  additionalProperties: false,
-  required: ["error"],
-  properties: {
-    error: { type: "string" }
-  }
-} as const;
-
-const jsonObjectSchema = {
-  type: "object",
-  additionalProperties: true
-} as const;
-
-const nullableJsonObjectSchema = {
-  anyOf: [jsonObjectSchema, { type: "null" }]
-} as const;
-
-const idParamsSchema = {
-  type: "object",
-  additionalProperties: false,
-  required: ["id"],
-  properties: {
-    id: { type: "string" }
-  }
-} as const;
 
 export const aiProviderKindSchema = {
   type: "string",
