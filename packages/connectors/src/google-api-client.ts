@@ -30,6 +30,20 @@ export interface GoogleCalendarEvent {
   readonly attendees?: ReadonlyArray<unknown>;
 }
 
+export interface GoogleBusyInterval {
+  readonly start: string;
+  readonly end: string;
+}
+
+export interface GoogleFreeBusyResult {
+  readonly busy: GoogleBusyInterval[];
+}
+
+export interface GoogleInsertedEvent {
+  readonly id: string;
+  readonly htmlLink?: string;
+}
+
 export interface GmailMessageStub {
   readonly id: string;
   readonly threadId?: string;
@@ -122,10 +136,97 @@ export class GoogleApiClient {
     return this.getJson<GmailMessageFull>(url.toString(), input.accessToken, "gmail");
   }
 
+  async freeBusy(input: {
+    accessToken: string;
+    timeMin: string;
+    timeMax: string;
+    calendarId?: string;
+  }): Promise<GoogleFreeBusyResult> {
+    const calendarId = input.calendarId ?? "primary";
+    const json = await this.postJson<{
+      calendars?: Record<string, { busy?: GoogleBusyInterval[] }>;
+    }>(
+      `${CALENDAR_BASE}/freeBusy`,
+      input.accessToken,
+      {
+        timeMin: input.timeMin,
+        timeMax: input.timeMax,
+        items: [{ id: calendarId }]
+      },
+      "calendar"
+    );
+    return { busy: json.calendars?.[calendarId]?.busy ?? [] };
+  }
+
+  async insertEvent(input: {
+    accessToken: string;
+    calendarId?: string;
+    summary: string;
+    start: string;
+    end: string;
+    timeZone?: string;
+    extendedPrivateProperties?: Record<string, string>;
+    /**
+     * Optional caller-supplied event id (base32hex, 5..1024 chars per the Google id rule).
+     * When set, the insert is idempotent at Google: a second insert of the SAME id returns
+     * 409 Conflict instead of creating a duplicate event. The focus-time impl derives this
+     * deterministically from the approved proposal (actor + chosen slot + title) so a retry
+     * of the identical approved proposal cannot double-book the real calendar.
+     */
+    eventId?: string;
+  }): Promise<GoogleInsertedEvent> {
+    const calendarId = input.calendarId ?? "primary";
+    const body: Record<string, unknown> = {
+      summary: input.summary,
+      start: input.timeZone
+        ? { dateTime: input.start, timeZone: input.timeZone }
+        : { dateTime: input.start },
+      end: input.timeZone
+        ? { dateTime: input.end, timeZone: input.timeZone }
+        : { dateTime: input.end }
+    };
+    if (input.eventId) {
+      body.id = input.eventId;
+    }
+    if (input.extendedPrivateProperties) {
+      body.extendedProperties = { private: input.extendedPrivateProperties };
+    }
+    const json = await this.postJson<GoogleInsertedEvent>(
+      `${CALENDAR_BASE}/calendars/${encodeURIComponent(calendarId)}/events`,
+      input.accessToken,
+      body,
+      "calendar"
+    );
+    return { id: json.id, htmlLink: json.htmlLink };
+  }
+
   private async getJson<T>(url: string, accessToken: string, api: string): Promise<T> {
     const response = await this.fetchFn(url, {
       method: "GET",
       headers: { authorization: `Bearer ${accessToken}` }
+    });
+    if (!response.ok) {
+      // Log status server-side only; NEVER embed the response body in Error.message —
+      // handleRouteError propagates Error.message to HTTP responses (oauth.ts:122).
+      this.logger.error({ statusCode: response.status, api }, "Google API call failed");
+      throw new GoogleApiError(`Google ${api} returned ${response.status}`, response.status);
+    }
+    return (await response.json()) as T;
+  }
+
+  private async postJson<T>(
+    url: string,
+    accessToken: string,
+    body: unknown,
+    api: string
+  ): Promise<T> {
+    const response = await this.fetchFn(url, {
+      method: "POST",
+      headers: {
+        authorization: `Bearer ${accessToken}`,
+        "content-type": "application/json"
+      },
+      body: JSON.stringify(body)
     });
     if (!response.ok) {
       // Log status server-side only; NEVER embed the response body in Error.message —
