@@ -303,3 +303,111 @@ describe("Phase 2 onboarding — complete/skip (audited)", () => {
     expect([401, 403]).toContain(res.statusCode);
   });
 });
+
+describe("Phase 2 onboarding — bootstrap-owner gating (promoted non-owner admin is rejected)", () => {
+  let appDb: Kysely<JarvisDatabase>;
+  let server: ReturnType<typeof createApiServer>;
+  let ownerCookie: string;
+  let adminCookie: string;
+
+  beforeAll(async () => {
+    await resetEmptyFoundationDatabase();
+    appDb = createDatabase({ connectionString: connectionStrings.app, maxConnections: 1 });
+    server = createApiServer({ appDb, logger: false });
+    await server.ready();
+
+    // First sign-up becomes the bootstrap owner (active + instance admin + bootstrap owner).
+    const owner = await server.inject({
+      method: "POST",
+      url: "/api/auth/sign-up/email",
+      headers: { "content-type": "application/json" },
+      payload: {
+        name: "Owner",
+        email: "owner-gate@onboarding.test",
+        password: "correct horse battery staple"
+      }
+    });
+    ownerCookie = cookieHeader(owner.headers);
+
+    // Second sign-up is a normal member (pending under default approval).
+    const member = await server.inject({
+      method: "POST",
+      url: "/api/auth/sign-up/email",
+      headers: { "content-type": "application/json" },
+      payload: {
+        name: "Admin2",
+        email: "admin2-gate@onboarding.test",
+        password: "correct horse battery staple"
+      }
+    });
+    adminCookie = cookieHeader(member.headers);
+    const memberId = member.json<{ user: { id: string } }>().user.id;
+
+    // Owner approves + promotes the member to a FULL instance admin who is NOT the
+    // bootstrap owner — the exact actor the gate must reject.
+    const approve = await server.inject({
+      method: "POST",
+      url: `/api/admin/users/${memberId}/approve`,
+      headers: { cookie: ownerCookie }
+    });
+    expect(approve.statusCode).toBe(200);
+    const promote = await server.inject({
+      method: "POST",
+      url: `/api/admin/users/${memberId}/promote`,
+      headers: { cookie: ownerCookie }
+    });
+    expect(promote.statusCode).toBe(200);
+    const promoted = promote.json<{
+      user: { isInstanceAdmin: boolean; isBootstrapOwner: boolean };
+    }>().user;
+    expect(promoted.isInstanceAdmin).toBe(true);
+    expect(promoted.isBootstrapOwner).toBe(false);
+  });
+
+  afterAll(async () => {
+    await Promise.allSettled([server?.close(), appDb?.destroy()]);
+  });
+
+  it("a promoted non-owner admin is 403 on GET /status, POST /complete, POST /skip", async () => {
+    const status = await server.inject({
+      method: "GET",
+      url: "/api/onboarding/status",
+      headers: { cookie: adminCookie }
+    });
+    expect(status.statusCode).toBe(403);
+
+    const complete = await server.inject({
+      method: "POST",
+      url: "/api/onboarding/complete",
+      headers: { cookie: adminCookie }
+    });
+    expect(complete.statusCode).toBe(403);
+
+    const skip = await server.inject({
+      method: "POST",
+      url: "/api/onboarding/skip",
+      headers: { cookie: adminCookie }
+    });
+    expect(skip.statusCode).toBe(403);
+  });
+
+  it("the owner's onboarding state is untouched after a non-owner admin's blocked writes", async () => {
+    // The blocked POSTs above must NOT have mutated the single instance-scoped state.
+    const status = await server.inject({
+      method: "GET",
+      url: "/api/onboarding/status",
+      headers: { cookie: ownerCookie }
+    });
+    expect(status.statusCode).toBe(200);
+    expect((status.json() as { state: string }).state).toBe("pending");
+  });
+
+  it("the bootstrap owner still reaches the status payload (gate is not over-tight)", async () => {
+    const status = await server.inject({
+      method: "GET",
+      url: "/api/onboarding/status",
+      headers: { cookie: ownerCookie }
+    });
+    expect(status.statusCode).toBe(200);
+  });
+});
