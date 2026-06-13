@@ -37,6 +37,13 @@ export interface UsersTable {
   updated_at: TimestampColumn;
 }
 
+export interface MemberOnboardingTable {
+  user_id: string;
+  completed_at: NullableTimestampColumn;
+  created_at: TimestampColumn;
+  updated_at: TimestampColumn;
+}
+
 export interface AuthSessionsTable {
   id: string;
   user_id: string;
@@ -466,6 +473,7 @@ export interface PreferencesTable {
 export interface JarvisDatabase {
   "app.schema_migrations": SchemaMigrationsTable;
   "app.users": UsersTable;
+  "app.member_onboarding": MemberOnboardingTable;
   "app.auth_sessions": AuthSessionsTable;
   "app.auth_accounts": AuthAccountsTable;
   "app.better_auth_sessions": BetterAuthSessionsTable;
@@ -504,6 +512,7 @@ export interface JarvisDatabase {
 }
 
 export type User = Selectable<UsersTable>;
+export type MemberOnboarding = Selectable<MemberOnboardingTable>;
 export type Share = Selectable<SharesTable>;
 export type InstanceSetting = Selectable<InstanceSettingsTable>;
 export type AdminAuditEvent = Selectable<AdminAuditEventsTable>;
