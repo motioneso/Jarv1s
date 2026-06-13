@@ -130,9 +130,21 @@ importers:
 
   apps/worker:
     dependencies:
+      '@jarv1s/ai':
+        specifier: workspace:*
+        version: link:../../packages/ai
+      '@jarv1s/calendar':
+        specifier: workspace:*
+        version: link:../../packages/calendar
+      '@jarv1s/connectors':
+        specifier: workspace:*
+        version: link:../../packages/connectors
       '@jarv1s/db':
         specifier: workspace:*
         version: link:../../packages/db
+      '@jarv1s/email':
+        specifier: workspace:*
+        version: link:../../packages/email
       '@jarv1s/jobs':
         specifier: workspace:*
         version: link:../../packages/jobs

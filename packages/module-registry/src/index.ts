@@ -35,8 +35,10 @@ import {
 } from "@jarv1s/chat";
 import {
   ConnectorsRepository,
+  GOOGLE_SYNC_QUEUE_DEFINITIONS,
   connectorsModuleManifest,
   connectorsModuleSqlMigrationDirectory,
+  registerConnectorsJobWorkers,
   registerConnectorsRoutes
 } from "@jarv1s/connectors";
 import type { ActiveModulesResolver } from "@jarv1s/ai";
@@ -173,8 +175,15 @@ const BUILT_IN_MODULES: readonly BuiltInModuleRegistration[] = [
   {
     manifest: connectorsModuleManifest,
     sqlMigrationDirectories: [connectorsModuleSqlMigrationDirectory],
-    queueDefinitions: [],
-    registerRoutes: registerConnectorsRoutes
+    queueDefinitions: GOOGLE_SYNC_QUEUE_DEFINITIONS,
+    registerRoutes: (server, deps) =>
+      registerConnectorsRoutes(server, {
+        resolveAccessContext: deps.resolveAccessContext,
+        dataContext: deps.dataContext,
+        boss: deps.boss
+      }),
+    registerWorkers: (boss, deps) =>
+      registerConnectorsJobWorkers(boss, { dataContext: deps.dataContext })
   },
   {
     manifest: tasksModuleManifest,
