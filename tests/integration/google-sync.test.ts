@@ -2,7 +2,11 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { sql } from "kysely";
 import { DataContextRunner, createDatabase, type JarvisDatabase } from "@jarv1s/db";
 import type { Kysely } from "kysely";
-import { ConnectorsRepository, createConnectorSecretCipher } from "@jarv1s/connectors";
+import {
+  ConnectorsRepository,
+  GoogleApiClient,
+  createConnectorSecretCipher
+} from "@jarv1s/connectors";
 import { CalendarRepository } from "@jarv1s/calendar";
 import { EmailRepository } from "@jarv1s/email";
 import { connectionStrings, ids, resetFoundationDatabase } from "./test-database.js";
@@ -393,5 +397,79 @@ describe("EmailRepository.upsertCachedMessage idempotency + columns", () => {
           .execute()
       )
     ).rejects.toThrow();
+  });
+});
+
+function captureFetch(responder: (url: string) => { ok: boolean; status: number; body: unknown }) {
+  const calls: Array<{ url: string; headers: Record<string, string> }> = [];
+  const fetchFn = (async (url: string, init?: RequestInit) => {
+    const headers = (init?.headers ?? {}) as Record<string, string>;
+    calls.push({ url: String(url), headers });
+    const r = responder(String(url));
+    return {
+      ok: r.ok,
+      status: r.status,
+      json: async () => r.body,
+      text: async () => JSON.stringify(r.body)
+    } as Response;
+  }) as unknown as typeof fetch;
+  return { calls, fetchFn };
+}
+
+describe("GoogleApiClient.listCalendarEvents", () => {
+  it("requests primary calendar with singleEvents=true, orderBy=startTime, the window, and pages", async () => {
+    const { calls, fetchFn } = captureFetch((url) =>
+      url.includes("pageToken=PAGE2")
+        ? { ok: true, status: 200, body: { items: [{ id: "b" }] } }
+        : { ok: true, status: 200, body: { items: [{ id: "a" }], nextPageToken: "PAGE2" } }
+    );
+    const client = new GoogleApiClient({ fetchFn });
+    const events = await client.listCalendarEvents({
+      accessToken: "tok",
+      calendarId: "primary",
+      timeMin: "2026-06-06T00:00:00.000Z",
+      timeMax: "2026-07-13T00:00:00.000Z"
+    });
+    expect(events.map((e) => e.id)).toEqual(["a", "b"]);
+    const first = new URL(calls[0]!.url);
+    expect(first.pathname).toContain("/calendars/primary/events");
+    expect(first.searchParams.get("singleEvents")).toBe("true");
+    expect(first.searchParams.get("orderBy")).toBe("startTime");
+    expect(first.searchParams.get("timeMin")).toBe("2026-06-06T00:00:00.000Z");
+    expect(calls[0]!.headers.authorization).toBe("Bearer tok");
+  });
+
+  it("throws without leaking the response body on non-2xx", async () => {
+    const { fetchFn } = captureFetch(() => ({
+      ok: false,
+      status: 503,
+      body: { error: "SECRET-LEAK-DETAIL" }
+    }));
+    const client = new GoogleApiClient({ fetchFn });
+    await expect(
+      client.listCalendarEvents({ accessToken: "tok", timeMin: "x", timeMax: "y" })
+    ).rejects.toThrow(/Google calendar returned 503/);
+    await expect(
+      client.listCalendarEvents({ accessToken: "tok", timeMin: "x", timeMax: "y" })
+    ).rejects.not.toThrow(/SECRET-LEAK-DETAIL/);
+  });
+});
+
+describe("GoogleApiClient gmail", () => {
+  it("lists message ids then gets a full message", async () => {
+    const { calls, fetchFn } = captureFetch((url) =>
+      url.includes("/messages/m1")
+        ? { ok: true, status: 200, body: { id: "m1", payload: {} } }
+        : { ok: true, status: 200, body: { messages: [{ id: "m1", threadId: "t1" }] } }
+    );
+    const client = new GoogleApiClient({ fetchFn });
+    const ids = await client.listMessageIds({ accessToken: "tok", query: "newer_than:30d" });
+    expect(ids.map((m) => m.id)).toEqual(["m1"]);
+    const msg = await client.getMessage({ accessToken: "tok", id: "m1" });
+    expect(msg.id).toBe("m1");
+    const listUrl = new URL(calls[0]!.url);
+    expect(listUrl.searchParams.get("q")).toBe("newer_than:30d");
+    const getUrl = new URL(calls[1]!.url);
+    expect(getUrl.searchParams.get("format")).toBe("full");
   });
 });
