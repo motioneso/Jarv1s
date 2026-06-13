@@ -74,7 +74,7 @@ describe("Calendar and Email connector-backed read modules", () => {
     await Promise.allSettled([server?.close(), appDb?.destroy()]);
   });
 
-  it("applies Calendar and Email migrations with forced RLS and no worker table grant", async () => {
+  it("applies Calendar and Email migrations with forced RLS and scoped worker grants", async () => {
     const client = new Client({ connectionString: connectionStrings.migration });
 
     await client.connect();
@@ -128,13 +128,18 @@ describe("Calendar and Email connector-backed read modules", () => {
           relrowsecurity: true,
           relforcerowsecurity: true,
           owner: "jarvis_migration_owner",
-          worker_can_select: false
+          // P3 connector-sync (calendar 0066): the google-sync worker is granted SELECT
+          // (+ INSERT/UPDATE) on calendar_events so it can populate the read cache. RLS
+          // still scopes every read/write to the actor; the grant only opens the table to
+          // the worker role under those policies.
+          worker_can_select: true
         },
         {
           relname: "email_messages",
           relrowsecurity: true,
           relforcerowsecurity: true,
           owner: "jarvis_migration_owner",
+          // email worker grant lands in a later P3 slice (email 0068); still false here.
           worker_can_select: false
         }
       ]);

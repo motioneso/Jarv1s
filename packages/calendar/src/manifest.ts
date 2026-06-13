@@ -24,7 +24,10 @@ export const calendarModuleManifest = {
     required: true
   },
   database: {
-    migrations: ["sql/0011_calendar_module.sql"],
+    migrations: [
+      "sql/0011_calendar_module.sql",
+      "sql/0066_calendar_worker_grants_and_google_insert.sql"
+    ],
     migrationDirectories: ["packages/calendar/sql"],
     ownedTables: ["app.calendar_events"]
   },
