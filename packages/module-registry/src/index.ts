@@ -11,6 +11,8 @@ import {
 } from "@jarv1s/ai";
 import {
   ChatMemoryFactsRepository,
+  MemoryRepository,
+  MemoryRetriever,
   memoryModuleManifest,
   memorySqlMigrationDirectory,
   type EmbeddingProvider
@@ -58,6 +60,7 @@ import {
 import { FOUNDATION_QUEUES, type QueueDefinition } from "@jarv1s/jobs";
 import type { JarvisModuleManifest } from "@jarv1s/module-sdk";
 import {
+  NotificationsRepository,
   notificationsModuleManifest,
   notificationsModuleSqlMigrationDirectory,
   registerNotificationsRoutes
@@ -258,7 +261,22 @@ const BUILT_IN_MODULES: readonly BuiltInModuleRegistration[] = [
     registerRoutes: registerBriefingsRoutes,
     registerWorkers: (boss, dependencies) =>
       registerBriefingsJobWorkers(boss, dependencies.dataContext, {
-        moduleManifests: getBuiltInModuleManifests()
+        moduleManifests: getBuiltInModuleManifests(),
+        // A13: inject the full synthesis deps so the production scheduled briefing
+        // actually grounds in vault recency/semantics AND fires the "ready"
+        // notification — without this the worker falls back to the no-op retriever
+        // (no vault grounding) and never delivers the notification (both seams are
+        // built in the engine; this is the wiring that activates them).
+        composeDeps: {
+          moduleManifests: getBuiltInModuleManifests(),
+          aiRepository: new AiRepository(),
+          cipher: createAiSecretCipher(),
+          memoryRetriever: new MemoryRetriever(
+            dependencies.embeddingProvider,
+            new MemoryRepository()
+          )
+        },
+        notificationsRepository: new NotificationsRepository()
       })
   },
   {
