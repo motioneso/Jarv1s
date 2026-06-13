@@ -4,6 +4,11 @@ import {
   chooseSlot,
   type FocusBlockInput
 } from "../../packages/calendar/src/focus-time.js";
+import type {
+  CalendarWriteService,
+  FocusBlockWindow,
+  ProposeFocusResult
+} from "../../packages/calendar/src/calendar-write-service.js";
 
 const TZ = "America/New_York";
 // Fixed "now": 2026-06-16T12:00:00Z (a Tuesday). "tomorrow" = 2026-06-17.
@@ -116,6 +121,37 @@ describe("chooseSlot", () => {
     expect(r.conflict).toBe("shifted");
     expect(r.start.toISOString()).toBe("2026-06-17T13:30:00.000Z");
     expect(r.end.toISOString()).toBe("2026-06-17T15:30:00.000Z");
+  });
+});
+
+describe("CalendarWriteService interface shape", () => {
+  it("a fake impl satisfies the interface and returns a ProposeFocusResult", async () => {
+    const fake: CalendarWriteService = {
+      async proposeAndInsert(_scopedDb, _ctx, window: FocusBlockWindow) {
+        const result: ProposeFocusResult = {
+          created: true,
+          resolvedStart: window.start.toISOString(),
+          resolvedEnd: window.end.toISOString(),
+          shifted: false,
+          conflict: "none",
+          googleEventId: "evt-1",
+          calendarMirror: "written"
+        };
+        return result;
+      }
+    };
+    const res = await fake.proposeAndInsert(
+      {},
+      { actorUserId: "u", requestId: "r", chatSessionId: "s" },
+      {
+        start: new Date("2026-06-17T13:00:00Z"),
+        end: new Date("2026-06-17T15:00:00Z"),
+        durationMinutes: 120,
+        title: "Focus time"
+      }
+    );
+    expect(res.created).toBe(true);
+    expect(res.calendarMirror).toBe("written");
   });
 });
 
