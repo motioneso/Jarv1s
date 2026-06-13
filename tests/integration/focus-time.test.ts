@@ -33,6 +33,31 @@ function okText(res: GatewayToolResponse): string {
   return String((res.data as { text: string }).text);
 }
 
+// D2 — fake calendar repositories that throw on the cache mirror, to prove mirrorEvent
+// classifies deterministically (independent of whether connector-sync's RLS migration is
+// applied in the run DB). upsertCachedEvent always throws, so Promise<never> satisfies the
+// override of Promise<CalendarEvent>.
+class RlsRejectingCalendarRepository extends CalendarRepository {
+  // Simulate the calendar INSERT policy WITH CHECK failing (provider_type guard, pre-relax).
+  override async upsertCachedEvent(): Promise<never> {
+    const err = new Error(
+      'new row violates row-level security policy for table "calendar_events"'
+    ) as Error & {
+      code?: string;
+    };
+    err.code = "42501"; // insufficient_privilege — what pg raises for an RLS violation
+    throw err;
+  }
+}
+
+class GenericFailingCalendarRepository extends CalendarRepository {
+  override async upsertCachedEvent(): Promise<never> {
+    const err = new Error("deadlock detected") as Error & { code?: string };
+    err.code = "40P01"; // a NON-RLS error → must classify as skipped-error
+    throw err;
+  }
+}
+
 describe("Group A — tool-service injection seam (module-sdk types)", () => {
   it("a ToolExecute handler may accept a 4th services argument and read a named service", async () => {
     const handler: ToolExecute = async (_scopedDb, _input, _ctx, services?: ToolServices) => {
@@ -738,5 +763,60 @@ describe("Group D — CalendarWriteService impl (faked Google fetch)", () => {
     );
     expect(res.created).toBe(false);
     expect(res.message).toMatch(/reconnect/i);
+  });
+
+  // D2 — cache mirror gating (deterministic). Inject a calendar repository whose
+  // upsertCachedEvent throws the exact SQLSTATE Postgres raises for an RLS WITH CHECK
+  // violation (42501), so the test exercises the classification branch in mirrorEvent
+  // regardless of whether connector-sync's RLS-relax migration is applied in the run DB
+  // (Codex MED #6). The call must still return created:true and never throw — the Google
+  // event is the source of truth; the mirror is best-effort.
+  it("classifies an RLS (42501) mirror failure as skipped-rls; call still created:true", async () => {
+    await seedGoogleAccount(ids.userA, ["https://www.googleapis.com/auth/calendar"]);
+    const impl = buildImpl({
+      freeBusyBusy: [],
+      calendarRepository: new RlsRejectingCalendarRepository()
+    });
+    const res = await dataContext.withDataContext(
+      { actorUserId: ids.userA, requestId: "t" },
+      (scopedDb) =>
+        impl.proposeAndInsert(
+          scopedDb,
+          { actorUserId: ids.userA, requestId: "t", chatSessionId: "s" },
+          {
+            start: new Date("2026-06-17T13:00:00Z"),
+            end: new Date("2026-06-17T16:00:00Z"),
+            durationMinutes: 120,
+            title: "Focus time"
+          }
+        )
+    );
+    expect(res.created).toBe(true); // the Google event is the source of truth; mirror is best-effort
+    expect(res.calendarMirror).toBe("skipped-rls");
+    expect(res.googleEventId).toBe("evt-new");
+  });
+
+  it("classifies a non-RLS DB error as skipped-error; call still created:true", async () => {
+    await seedGoogleAccount(ids.userA, ["https://www.googleapis.com/auth/calendar"]);
+    const impl = buildImpl({
+      freeBusyBusy: [],
+      calendarRepository: new GenericFailingCalendarRepository()
+    });
+    const res = await dataContext.withDataContext(
+      { actorUserId: ids.userA, requestId: "t" },
+      (scopedDb) =>
+        impl.proposeAndInsert(
+          scopedDb,
+          { actorUserId: ids.userA, requestId: "t", chatSessionId: "s" },
+          {
+            start: new Date("2026-06-17T13:00:00Z"),
+            end: new Date("2026-06-17T16:00:00Z"),
+            durationMinutes: 120,
+            title: "Focus time"
+          }
+        )
+    );
+    expect(res.created).toBe(true);
+    expect(res.calendarMirror).toBe("skipped-error");
   });
 });
