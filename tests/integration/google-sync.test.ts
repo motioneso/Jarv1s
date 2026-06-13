@@ -5,11 +5,15 @@ import type { Kysely } from "kysely";
 import {
   ConnectorsRepository,
   GoogleApiClient,
+  GOOGLE_SYNC_QUEUE,
+  GOOGLE_SYNC_QUEUE_DEFINITIONS,
   createConnectorSecretCipher,
   extractEmailSignals,
   parseEmail,
-  type EmailExtractDeps
+  type EmailExtractDeps,
+  type GoogleSyncPayload
 } from "@jarv1s/connectors";
+import { ALLOWED_PAYLOAD_KEYS } from "@jarv1s/jobs";
 import { CalendarRepository } from "@jarv1s/calendar";
 import { EmailRepository } from "@jarv1s/email";
 import { connectionStrings, ids, resetFoundationDatabase } from "./test-database.js";
@@ -624,5 +628,25 @@ describe("extractEmailSignals", () => {
     });
     const result = await extractEmailSignals(PARSED, deps);
     expect(result.summary).toBeNull();
+  });
+});
+
+describe("google-sync queue contract", () => {
+  it("uses an exclusive queue named connectors.google-sync", () => {
+    expect(GOOGLE_SYNC_QUEUE).toBe("connectors.google-sync");
+    const def = GOOGLE_SYNC_QUEUE_DEFINITIONS[0]!;
+    expect(def.name).toBe(GOOGLE_SYNC_QUEUE);
+    expect(def.options?.policy).toBe("exclusive");
+  });
+
+  it("payload keys are all in the metadata-only allowlist", () => {
+    const payload: GoogleSyncPayload = {
+      actorUserId: "00000000-0000-0000-0000-000000000001",
+      kind: "google-sync",
+      idempotencyKey: "k"
+    };
+    for (const key of Object.keys(payload)) {
+      expect(ALLOWED_PAYLOAD_KEYS.has(key)).toBe(true);
+    }
   });
 });
