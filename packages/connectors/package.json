@@ -10,10 +10,15 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@jarv1s/ai": "workspace:*",
+    "@jarv1s/calendar": "workspace:*",
     "@jarv1s/db": "workspace:*",
+    "@jarv1s/email": "workspace:*",
+    "@jarv1s/jobs": "workspace:*",
     "@jarv1s/module-sdk": "workspace:*",
     "@jarv1s/shared": "workspace:*",
     "fastify": "^5.6.2",
-    "kysely": "^0.29.2"
+    "kysely": "^0.29.2",
+    "pg-boss": "^12.18.2"
   }
 }
