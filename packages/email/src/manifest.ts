@@ -22,7 +22,11 @@ export const emailModuleManifest = {
     required: true
   },
   database: {
-    migrations: ["sql/0012_email_module.sql", "sql/0067_email_summary_signals_columns.sql"],
+    migrations: [
+      "sql/0012_email_module.sql",
+      "sql/0067_email_summary_signals_columns.sql",
+      "sql/0068_email_worker_grants_and_google_insert.sql"
+    ],
     migrationDirectories: ["packages/email/sql"],
     ownedTables: ["app.email_messages"]
   },
