@@ -276,3 +276,26 @@ export const googleCompleteRouteSchema = {
   body: googleCompleteRequestSchema,
   response: { 201: createConnectorAccountResponseSchema }
 } as const;
+
+export interface GoogleSyncResponse {
+  /** True when a new job was enqueued; false when an in-flight sync already covers this actor. */
+  readonly enqueued: boolean;
+  /** True when this request was collapsed into an already-queued/running sync (singletonKey hit). */
+  readonly deduped: boolean;
+  readonly jobId: string | null;
+}
+
+export const googleSyncResponseSchema = {
+  type: "object",
+  additionalProperties: false,
+  required: ["enqueued", "deduped", "jobId"],
+  properties: {
+    enqueued: { type: "boolean" },
+    deduped: { type: "boolean" },
+    jobId: { type: ["string", "null"] }
+  }
+} as const;
+
+export const googleSyncRouteSchema = {
+  response: { 202: googleSyncResponseSchema }
+} as const;
