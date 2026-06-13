@@ -3,7 +3,8 @@ import type { OutgoingHttpHeaders } from "node:http";
 import { type Kysely } from "kysely";
 
 import { createApiServer } from "../../apps/api/src/server.js";
-import { createDatabase, type JarvisDatabase } from "@jarv1s/db";
+import { createDatabase, DataContextRunner, type JarvisDatabase } from "@jarv1s/db";
+import { ConnectorsRepository, createConnectorSecretCipher } from "@jarv1s/connectors";
 import { SettingsRepository } from "../../packages/settings/src/repository.js";
 import { connectionStrings, resetEmptyFoundationDatabase } from "./test-database.js";
 
@@ -22,11 +23,14 @@ function cookieHeader(headers: OutgoingHttpHeaders): string {
 describe("Phase 2 onboarding — getOnboardingStatus (derived steps)", () => {
   let appDb: Kysely<JarvisDatabase>;
   let server: ReturnType<typeof createApiServer>;
+  let dataContext: DataContextRunner;
   let ownerCookie: string;
+  let ownerUserId: string;
 
   beforeAll(async () => {
     await resetEmptyFoundationDatabase();
     appDb = createDatabase({ connectionString: connectionStrings.app, maxConnections: 1 });
+    dataContext = new DataContextRunner(appDb);
     server = createApiServer({ appDb, logger: false });
     await server.ready();
 
@@ -41,6 +45,7 @@ describe("Phase 2 onboarding — getOnboardingStatus (derived steps)", () => {
       }
     });
     ownerCookie = cookieHeader(signUp.headers);
+    ownerUserId = signUp.json<{ user: { id: string } }>().user.id;
   });
 
   afterAll(async () => {
@@ -105,6 +110,30 @@ describe("Phase 2 onboarding — getOnboardingStatus (derived steps)", () => {
     expect(body.steps.multiplexer.selected).toBe("auto");
     const anyUsable = body.steps.multiplexer.tmuxUsable || body.steps.multiplexer.herdrUsable;
     expect(body.steps.multiplexer.done).toBe(anyUsable);
+  });
+
+  it("derives connectors.done=true after a real connector account exists", async () => {
+    await dataContext.withDataContext(
+      { actorUserId: ownerUserId, requestId: "req-seed-connector" },
+      (scopedDb) =>
+        new ConnectorsRepository().createAccount(scopedDb, {
+          providerId: "google",
+          scopes: ["https://www.googleapis.com/auth/gmail.readonly"],
+          encryptedSecret: createConnectorSecretCipher().encryptJson({
+            accessToken: "seeded-token-not-asserted"
+          })
+        })
+    );
+
+    const status = await server.inject({
+      method: "GET",
+      url: "/api/onboarding/status",
+      headers: { cookie: ownerCookie }
+    });
+    expect(status.statusCode).toBe(200);
+    const body = status.json() as { steps: { connectors: { done: boolean } } };
+    expect(body.steps.connectors.done).toBe(true); // proves connectorAccountExists is wired
+    expect(status.body).not.toMatch(/seeded-token-not-asserted|accessToken|ciphertext/i);
   });
 
   it("assembleOnboardingStatus derives flags from a settings row + availability snapshot + connector bool", () => {
