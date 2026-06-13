@@ -45,3 +45,13 @@ export async function tmuxAvailable(deps?: WhichDeps): Promise<boolean> {
   const result = await which("tmux");
   return result !== null;
 }
+
+/**
+ * Returns true if the herdr binary is present on PATH.
+ * No auth probing is performed — presence only (same posture as tmuxAvailable/cliAvailable).
+ */
+export async function herdrAvailable(deps?: WhichDeps): Promise<boolean> {
+  const which = deps?.which ?? defaultWhich;
+  const result = await which("herdr");
+  return result !== null;
+}
