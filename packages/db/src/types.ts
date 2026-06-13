@@ -16,6 +16,16 @@ type TextArrayColumn = ColumnType<
   readonly string[] | string[] | undefined,
   readonly string[] | string[]
 >;
+type NullableTextArrayColumn = ColumnType<
+  string[] | null,
+  readonly string[] | string[] | null | undefined,
+  readonly string[] | string[] | null
+>;
+type NullableNumberArrayColumn = ColumnType<
+  number[] | null,
+  readonly number[] | number[] | null | undefined,
+  readonly number[] | number[] | null
+>;
 
 export interface SchemaMigrationsTable {
   version: string;
@@ -484,6 +494,47 @@ export interface WellnessCheckinsTable {
   updated_at: TimestampColumn;
 }
 
+export type MedicationFrequencyType =
+  | "once_daily"
+  | "times_per_day"
+  | "specific_weekdays"
+  | "every_n_hours"
+  | "as_needed"
+  | "cyclical";
+export type MedicationLogStatus = "taken" | "skipped" | "prn";
+
+export interface MedicationsTable {
+  id: ColumnType<string, string | undefined, string>;
+  owner_user_id: string;
+  name: string;
+  dosage: string | null;
+  form: string | null;
+  frequency_type: MedicationFrequencyType;
+  times_per_day: number | null;
+  interval_hours: number | null;
+  weekdays: NullableNumberArrayColumn;
+  schedule_times: NullableTextArrayColumn;
+  cycle_days_on: number | null;
+  cycle_days_off: number | null;
+  cycle_anchor_date: ColumnType<string | null, string | null | undefined, string | null>;
+  active: ColumnType<boolean, boolean | undefined, boolean>;
+  notes: string | null;
+  created_at: TimestampColumn;
+  updated_at: TimestampColumn;
+}
+
+export interface MedicationLogsTable {
+  id: ColumnType<string, string | undefined, string>;
+  medication_id: string;
+  owner_user_id: string;
+  status: MedicationLogStatus;
+  dose: string | null;
+  prn_reason: string | null;
+  scheduled_for: NullableTimestampColumn;
+  logged_at: TimestampColumn;
+  created_at: TimestampColumn;
+}
+
 export interface JarvisDatabase {
   "app.schema_migrations": SchemaMigrationsTable;
   "app.users": UsersTable;
@@ -523,6 +574,8 @@ export interface JarvisDatabase {
   "app.entities": EntitiesTable;
   "app.preferences": PreferencesTable;
   "app.wellness_checkins": WellnessCheckinsTable;
+  "app.medications": MedicationsTable;
+  "app.medication_logs": MedicationLogsTable;
 }
 
 export type User = Selectable<UsersTable>;
@@ -555,3 +608,5 @@ export type Commitment = Selectable<CommitmentsTable>;
 export type Entity = Selectable<EntitiesTable>;
 export type Preference = Selectable<PreferencesTable>;
 export type WellnessCheckin = Selectable<WellnessCheckinsTable>;
+export type Medication = Selectable<MedicationsTable>;
+export type MedicationLog = Selectable<MedicationLogsTable>;
