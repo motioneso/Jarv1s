@@ -100,3 +100,78 @@ describe("wellness_checkins table + RLS", () => {
     ).rejects.toThrow();
   });
 });
+
+describe("medications + medication_logs tables + RLS", () => {
+  it("owner can create a med + a log; denormalized owner; RLS blocks other user", async () => {
+    let medId = "";
+    await dataContext.withDataContext(ctx(userId), async (scopedDb) => {
+      const med = await scopedDb.db
+        .insertInto("app.medications")
+        .values({
+          owner_user_id: sql<string>`app.current_actor_user_id()`,
+          name: "Sertraline",
+          dosage: "50 mg",
+          frequency_type: "once_daily",
+          schedule_times: sql<string[]>`ARRAY['08:00']::time[]`
+        })
+        .returning("id")
+        .executeTakeFirstOrThrow();
+      medId = med.id;
+
+      await scopedDb.db
+        .insertInto("app.medication_logs")
+        .values({
+          medication_id: medId,
+          owner_user_id: sql<string>`app.current_actor_user_id()`,
+          status: "taken",
+          dose: "50 mg",
+          // Scheduled (non-PRN) logs must carry scheduled_for (DB CHECK).
+          scheduled_for: sql<Date>`now()`
+        })
+        .execute();
+    });
+
+    const otherMeds = await dataContext.withDataContext(ctx(otherUserId), (scopedDb) =>
+      scopedDb.db.selectFrom("app.medications").selectAll().execute()
+    );
+    expect(otherMeds.length).toBe(0);
+
+    const otherLogs = await dataContext.withDataContext(ctx(otherUserId), (scopedDb) =>
+      scopedDb.db.selectFrom("app.medication_logs").selectAll().execute()
+    );
+    expect(otherLogs.length).toBe(0);
+  });
+
+  it("rejects a medication_log whose owner differs from the parent medication's owner", async () => {
+    let medId = "";
+    await dataContext.withDataContext(ctx(userId), async (scopedDb) => {
+      const med = await scopedDb.db
+        .insertInto("app.medications")
+        .values({
+          owner_user_id: sql<string>`app.current_actor_user_id()`,
+          name: "Test Med",
+          frequency_type: "as_needed"
+        })
+        .returning("id")
+        .executeTakeFirstOrThrow();
+      medId = med.id;
+    });
+
+    // otherUser attempts to log against userId's medication: RLS INSERT WITH CHECK
+    // requires owner_user_id = current actor, and the trigger requires it to equal the
+    // parent med owner — so this must fail.
+    await expect(
+      dataContext.withDataContext(ctx(otherUserId), (scopedDb) =>
+        scopedDb.db
+          .insertInto("app.medication_logs")
+          .values({
+            medication_id: medId,
+            owner_user_id: sql<string>`app.current_actor_user_id()`,
+            status: "prn",
+            prn_reason: "headache"
+          })
+          .execute()
+      )
+    ).rejects.toThrow();
+  });
+});

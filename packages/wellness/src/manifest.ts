@@ -23,8 +23,12 @@ export const wellnessModuleManifest = {
     supportsUserDisable: true
   },
   database: {
-    migrations: ["sql/0082_wellness_checkins.sql"],
+    migrations: [
+      "sql/0082_wellness_checkins.sql",
+      "sql/0083_wellness_medications.sql",
+      "sql/0084_wellness_medication_logs.sql"
+    ],
     migrationDirectories: ["packages/wellness/sql"],
-    ownedTables: ["app.wellness_checkins"]
+    ownedTables: ["app.wellness_checkins", "app.medications", "app.medication_logs"]
   }
 } satisfies JarvisModuleManifest;
