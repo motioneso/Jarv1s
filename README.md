@@ -38,6 +38,7 @@ Read these in order:
 - [Maintenance/system posture](docs/architecture/decisions/0002-maintenance-system-posture.md)
 - [Development standards](docs/DEVELOPMENT_STANDARDS.md)
 - [Brand brief](docs/brand/brand-brief.md)
+- [Product goals and ideals](docs/brand/product-goals-and-ideals.md)
 - [Brand questionnaire](docs/brand/brand-questionnaire.md)
 - [Visual language research plan](docs/brand/visual-language-research-plan.md)
 - [Auth/RLS safety spike](docs/architecture/spikes/0001-auth-rls-safety.md)
