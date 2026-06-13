@@ -4,6 +4,7 @@ import { sql } from "kysely";
 
 import type { AdminAuditEvent, InstanceSetting, User } from "@jarv1s/db";
 import { assertDataContextDb, type DataContextDb } from "@jarv1s/db";
+import type { ChatMultiplexerChoice } from "@jarv1s/shared";
 
 export interface UpsertInstanceSettingInput {
   readonly key: string;
@@ -207,6 +208,33 @@ export class SettingsRepository {
       registrationEnabled: input.registrationEnabled,
       requiresApproval: input.requiresApproval
     };
+  }
+
+  async getChatMultiplexerSetting(
+    scopedDb: DataContextDb
+  ): Promise<{ multiplexer: ChatMultiplexerChoice }> {
+    assertDataContextDb(scopedDb);
+    const row = await scopedDb.db
+      .selectFrom("app.instance_settings")
+      .select("value")
+      .where("key", "=", "chat.multiplexer")
+      .executeTakeFirst();
+    const raw = (row?.value as { value?: unknown } | undefined)?.value;
+    return { multiplexer: raw === "tmux" || raw === "herdr" ? raw : "auto" };
+  }
+
+  async setChatMultiplexerSetting(
+    scopedDb: DataContextDb,
+    input: { multiplexer: ChatMultiplexerChoice; actorUserId: string; requestId: string }
+  ): Promise<{ multiplexer: ChatMultiplexerChoice }> {
+    assertDataContextDb(scopedDb);
+    await this.upsertInstanceSetting(scopedDb, {
+      key: "chat.multiplexer",
+      value: { value: input.multiplexer },
+      updatedByUserId: input.actorUserId,
+      requestId: input.requestId
+    });
+    return { multiplexer: input.multiplexer };
   }
 
   async listAdminAuditEvents(scopedDb: DataContextDb): Promise<AdminAuditEvent[]> {
