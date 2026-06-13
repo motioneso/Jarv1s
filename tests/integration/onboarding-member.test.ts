@@ -1,9 +1,33 @@
-import { beforeAll, describe, expect, it } from "vitest";
+import type { OutgoingHttpHeaders } from "node:http";
+
+import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { type Kysely } from "kysely";
 import pg from "pg";
 
-import { connectionStrings, resetEmptyFoundationDatabase } from "./test-database.js";
+import { createDatabase, DataContextRunner, type JarvisDatabase } from "@jarv1s/db";
+
+import { createApiServer } from "../../apps/api/src/server.js";
+import { SettingsRepository } from "../../packages/settings/src/repository.js";
+import {
+  connectionStrings,
+  resetEmptyFoundationDatabase,
+  setInstanceSetting
+} from "./test-database.js";
 
 const { Client } = pg;
+
+function cookieHeader(headers: OutgoingHttpHeaders): string {
+  const setCookie = headers["set-cookie"];
+  const cookies = Array.isArray(setCookie)
+    ? setCookie
+    : typeof setCookie === "string" || typeof setCookie === "number"
+      ? [String(setCookie)]
+      : [];
+  return cookies.map((cookie) => cookie.split(";", 1)[0]).join("; ");
+}
+// cookieHeader is consumed by the Task 5 route-branch describe; reference it so the
+// no-unused-vars lint stays green until that block lands. (Remove this line in Task 5.)
+void cookieHeader;
 
 describe("Phase 4 member onboarding — migration", () => {
   beforeAll(async () => {
@@ -116,5 +140,120 @@ describe("Phase 4 member onboarding — migration", () => {
     } finally {
       await client.end();
     }
+  });
+});
+
+describe("Phase 4 member onboarding — repository methods", () => {
+  let appDb: Kysely<JarvisDatabase>;
+  let server: ReturnType<typeof createApiServer>;
+  let dataContext: DataContextRunner;
+  let memberAId: string;
+  let memberBId: string;
+
+  beforeAll(async () => {
+    await resetEmptyFoundationDatabase();
+    appDb = createDatabase({ connectionString: connectionStrings.app, maxConnections: 1 });
+    dataContext = new DataContextRunner(appDb);
+    server = createApiServer({ appDb, logger: false });
+    await server.ready();
+
+    // First sign-up becomes the bootstrap owner + admin. Turn approval off so members
+    // become active immediately (so their AccessContext resolves for the data-context calls).
+    const owner = await server.inject({
+      method: "POST",
+      url: "/api/auth/sign-up/email",
+      headers: { "content-type": "application/json" },
+      payload: { name: "Owner", email: "owner@p4.test", password: "correct horse battery staple" }
+    });
+    void owner;
+    await setInstanceSetting("registration.requires_approval", { value: false });
+
+    const memberA = await server.inject({
+      method: "POST",
+      url: "/api/auth/sign-up/email",
+      headers: { "content-type": "application/json" },
+      payload: { name: "Member A", email: "a@p4.test", password: "correct horse battery staple" }
+    });
+    memberAId = memberA.json<{ user: { id: string } }>().user.id;
+
+    const memberB = await server.inject({
+      method: "POST",
+      url: "/api/auth/sign-up/email",
+      headers: { "content-type": "application/json" },
+      payload: { name: "Member B", email: "b@p4.test", password: "correct horse battery staple" }
+    });
+    memberBId = memberB.json<{ user: { id: string } }>().user.id;
+  });
+
+  afterAll(async () => {
+    await Promise.allSettled([server?.close(), appDb?.destroy()]);
+  });
+
+  let ownerId: string;
+
+  it("getMemberOnboardingState returns completedAt: null for a fresh member", async () => {
+    const repo = new SettingsRepository();
+    const state = await dataContext.withDataContext(
+      { actorUserId: memberAId, requestId: "p4-r1" },
+      (scopedDb) => repo.getMemberOnboardingState(scopedDb)
+    );
+    expect(state.completedAt).toBeNull();
+  });
+
+  it("setMemberOnboardingComplete stamps the actor's own row and a re-read returns non-null", async () => {
+    const repo = new SettingsRepository();
+    await dataContext.withDataContext({ actorUserId: memberAId, requestId: "p4-r2" }, (scopedDb) =>
+      repo.setMemberOnboardingComplete(scopedDb, { actorUserId: memberAId, requestId: "p4-r2" })
+    );
+    const state = await dataContext.withDataContext(
+      { actorUserId: memberAId, requestId: "p4-r3" },
+      (scopedDb) => repo.getMemberOnboardingState(scopedDb)
+    );
+    expect(state.completedAt).toBeInstanceOf(Date);
+  });
+
+  it("stamping is per-actor: completing as A does not stamp B (no row for B)", async () => {
+    const repo = new SettingsRepository();
+    // A is already stamped above. B has never completed, so B reads null — proving the
+    // write was GUC-scoped to A's row only (no caller-supplied target id exists).
+    const bState = await dataContext.withDataContext(
+      { actorUserId: memberBId, requestId: "p4-r4" },
+      (scopedDb) => repo.getMemberOnboardingState(scopedDb)
+    );
+    expect(bState.completedAt).toBeNull();
+  });
+
+  it("an ADMIN cannot read another member's onboarding state (no admin SELECT policy on member_onboarding)", async () => {
+    // The bootstrap owner is an admin. Acting under the owner's GUC, a self-row read of
+    // member_onboarding returns ONLY the owner's row (none), NEVER member A's stamped row.
+    // This is the regression test that proves the no-admin-bypass fix: had onboarding state
+    // ridden app.users, the 0052 admin SELECT policy would have leaked A's value here.
+    const owner = await server.inject({
+      method: "POST",
+      url: "/api/auth/sign-in/email",
+      headers: { "content-type": "application/json" },
+      payload: { email: "owner@p4.test", password: "correct horse battery staple" }
+    });
+    ownerId = owner.json<{ user: { id: string } }>().user.id;
+    const repo = new SettingsRepository();
+    const adminView = await dataContext.withDataContext(
+      { actorUserId: ownerId, requestId: "p4-r5" },
+      (scopedDb) => repo.getMemberOnboardingState(scopedDb)
+    );
+    // The admin reads its OWN (absent) onboarding row, never member A's stamped one.
+    expect(adminView.completedAt).toBeNull();
+
+    // Direct raw assertion: under the admin GUC, the member_onboarding table exposes only
+    // the admin's own rows — A's row is NOT visible. Use a raw count via the data context.
+    const rowsVisibleToAdmin = await dataContext.withDataContext(
+      { actorUserId: ownerId, requestId: "p4-r6" },
+      (scopedDb) =>
+        scopedDb.db
+          .selectFrom("app.member_onboarding")
+          .select("user_id")
+          .where("user_id", "=", memberAId)
+          .execute()
+    );
+    expect(rowsVisibleToAdmin).toEqual([]); // A's row invisible to the admin → no leak
   });
 });
