@@ -1,7 +1,11 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import pg from "pg";
+import type { Kysely } from "kysely";
 
-import { connectionStrings, resetEmptyFoundationDatabase } from "./test-database.js";
+import { DataContextRunner, createDatabase, type JarvisDatabase } from "@jarv1s/db";
+
+import { SettingsRepository } from "../../packages/settings/src/repository.js";
+import { connectionStrings, ids, resetEmptyFoundationDatabase } from "./test-database.js";
 
 const { Client } = pg;
 
@@ -74,5 +78,180 @@ describe("module-enablement store (app.module_enablement)", () => {
     );
     expect(result.rows[0]?.relrowsecurity).toBe(true);
     expect(result.rows[0]?.relforcerowsecurity).toBe(true);
+  });
+});
+
+describe("SettingsRepository deny-list methods", () => {
+  let appDb: Kysely<JarvisDatabase>;
+  let runner: DataContextRunner;
+  let repo: SettingsRepository;
+
+  beforeAll(async () => {
+    // resetFoundationDatabase seeds userA, userB, adminUser (see test-database.ts).
+    const { resetFoundationDatabase } = await import("./test-database.js");
+    await resetFoundationDatabase();
+    appDb = createDatabase({ connectionString: connectionStrings.app, maxConnections: 1 });
+    runner = new DataContextRunner(appDb);
+    repo = new SettingsRepository();
+  });
+
+  afterAll(async () => {
+    await appDb.destroy();
+  });
+
+  it("admin can disable then re-enable a module at instance scope (and audit is written)", async () => {
+    await runner.withDataContext(
+      { actorUserId: ids.adminUser, requestId: "req-admin-1" },
+      (db) =>
+        repo.setInstanceModuleDisabled(db, {
+          moduleId: "weather",
+          disabled: true,
+          actorUserId: ids.adminUser,
+          requestId: "req-admin-1"
+        })
+    );
+
+    const afterDisable = await runner.withDataContext(
+      { actorUserId: ids.userA, requestId: "req-a-1" },
+      (db) => repo.listModuleDenyRowsForActor(db)
+    );
+    expect(afterDisable.some((r) => r.scope === "instance" && r.module_id === "weather")).toBe(true);
+
+    // Idempotent disable (insert-on-conflict-do-nothing) does not throw or duplicate.
+    await runner.withDataContext(
+      { actorUserId: ids.adminUser, requestId: "req-admin-2" },
+      (db) =>
+        repo.setInstanceModuleDisabled(db, {
+          moduleId: "weather",
+          disabled: true,
+          actorUserId: ids.adminUser,
+          requestId: "req-admin-2"
+        })
+    );
+
+    await runner.withDataContext(
+      { actorUserId: ids.adminUser, requestId: "req-admin-3" },
+      (db) =>
+        repo.setInstanceModuleDisabled(db, {
+          moduleId: "weather",
+          disabled: false,
+          actorUserId: ids.adminUser,
+          requestId: "req-admin-3"
+        })
+    );
+
+    const afterEnable = await runner.withDataContext(
+      { actorUserId: ids.userA, requestId: "req-a-2" },
+      (db) => repo.listModuleDenyRowsForActor(db)
+    );
+    expect(afterEnable.some((r) => r.scope === "instance" && r.module_id === "weather")).toBe(false);
+
+    const audit = await runner.withDataContext(
+      { actorUserId: ids.adminUser, requestId: "req-admin-4" },
+      (db) => repo.listAdminAuditEvents(db)
+    );
+    const actions = audit.map((e) => e.action);
+    expect(actions).toContain("module.instance_disable");
+    expect(actions).toContain("module.instance_enable");
+  });
+
+  it("user deny rows are owner-scoped (RLS isolates actors)", async () => {
+    await runner.withDataContext(
+      { actorUserId: ids.userA, requestId: "req-a-3" },
+      (db) =>
+        repo.setUserModuleDisabled(db, {
+          moduleId: "weather",
+          disabled: true,
+          actorUserId: ids.userA,
+          requestId: "req-a-3"
+        })
+    );
+
+    const aRows = await runner.withDataContext(
+      { actorUserId: ids.userA, requestId: "req-a-4" },
+      (db) => repo.listModuleDenyRowsForActor(db)
+    );
+    expect(aRows.some((r) => r.scope === "user" && r.module_id === "weather")).toBe(true);
+
+    const bRows = await runner.withDataContext(
+      { actorUserId: ids.userB, requestId: "req-b-1" },
+      (db) => repo.listModuleDenyRowsForActor(db)
+    );
+    expect(bRows.some((r) => r.scope === "user" && r.module_id === "weather")).toBe(false);
+  });
+
+  it("listInstanceModuleDenyRows returns instance rows only", async () => {
+    await runner.withDataContext(
+      { actorUserId: ids.adminUser, requestId: "req-admin-5" },
+      (db) =>
+        repo.setInstanceModuleDisabled(db, {
+          moduleId: "wellness",
+          disabled: true,
+          actorUserId: ids.adminUser,
+          requestId: "req-admin-5"
+        })
+    );
+    const rows = await runner.withDataContext(
+      { actorUserId: ids.adminUser, requestId: "req-admin-6" },
+      (db) => repo.listInstanceModuleDenyRows(db)
+    );
+    expect(rows.every((r) => r.scope === "instance")).toBe(true);
+    expect(rows.some((r) => r.module_id === "wellness")).toBe(true);
+  });
+
+  // ── RLS enforcement at the DB policy level (not just repo logic). These run on the
+  // app runtime role (DataContext), so they exercise the actual GRANTs + policies in
+  // migration 0065, the security floor. A repo method behaving is not enough — the
+  // policy must reject a hostile/buggy write even if the repo is bypassed.
+
+  it("RLS: a NON-admin actor cannot write an instance-scope row", async () => {
+    // userA is not an admin. The instance_insert policy requires current_actor_is_admin().
+    await expect(
+      runner.withDataContext({ actorUserId: ids.userA, requestId: "req-a-9" }, (db) =>
+        db.db
+          .insertInto("app.module_enablement")
+          .values({
+            scope: "instance",
+            module_id: "rls-probe-instance",
+            user_id: null,
+            disabled_by_user_id: ids.userA,
+            created_at: new Date(),
+            updated_at: new Date()
+          })
+          .execute()
+      )
+    ).rejects.toThrow();
+    // And no row leaked in.
+    const rows = await runner.withDataContext(
+      { actorUserId: ids.adminUser, requestId: "req-admin-9" },
+      (db) => repo.listInstanceModuleDenyRows(db)
+    );
+    expect(rows.some((r) => r.module_id === "rls-probe-instance")).toBe(false);
+  });
+
+  it("RLS: an actor cannot insert a user-scope row targeting a DIFFERENT user_id", async () => {
+    // userA tries to disable a module FOR userB. The user_insert WITH CHECK pins
+    // user_id = current_actor_user_id(), so this must be rejected by the policy.
+    await expect(
+      runner.withDataContext({ actorUserId: ids.userA, requestId: "req-a-10" }, (db) =>
+        db.db
+          .insertInto("app.module_enablement")
+          .values({
+            scope: "user",
+            module_id: "rls-probe-user",
+            user_id: ids.userB,
+            disabled_by_user_id: ids.userA,
+            created_at: new Date(),
+            updated_at: new Date()
+          })
+          .execute()
+      )
+    ).rejects.toThrow();
+    // userB sees no such row (RLS + the rejected write).
+    const bRows = await runner.withDataContext(
+      { actorUserId: ids.userB, requestId: "req-b-10" },
+      (db) => repo.listModuleDenyRowsForActor(db)
+    );
+    expect(bRows.some((r) => r.module_id === "rls-probe-user")).toBe(false);
   });
 });
