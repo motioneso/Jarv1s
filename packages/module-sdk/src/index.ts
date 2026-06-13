@@ -32,16 +32,28 @@ export interface ToolResult {
 }
 
 /**
+ * Opaque per-call service registry handed to a tool's execute by the gateway. Keyed by
+ * service name (e.g. "calendarWrite"); values are typed `unknown` to keep module-sdk free
+ * of any module dependency (same reason scopedDb is `unknown`). The owning module narrows
+ * the value it requested via its own type. Constructed by the composition host, never by a
+ * module. The gateway treats it as opaque and never inspects its contents.
+ */
+export type ToolServices = Readonly<Record<string, unknown>>;
+
+/**
  * Execution handler for an assistant tool. `scopedDb` is a DataContextDb supplied
  * by the gateway under withDataContext; it is typed as `unknown` here to avoid a
  * module-sdk -> db dependency. The owning module narrows it via its own repository.
+ * `services` is an optional composition-layer-constructed capability registry (see
+ * ToolServices); a tool that needs no service simply omits the 4th parameter.
  * Called ONLY when authorized (read allowed, or write/destructive approved); input
  * is already validated against inputSchema.
  */
 export type ToolExecute = (
   scopedDb: unknown,
   input: ToolInput,
-  ctx: ToolContext
+  ctx: ToolContext,
+  services?: ToolServices
 ) => Promise<ToolResult>;
 
 /** Optional human-readable description of a proposed write, for the Approve/Deny card. */
@@ -210,6 +222,13 @@ export interface ModuleAssistantToolManifest {
   readonly featureFlagId?: string;
   readonly execute?: ToolExecute;
   readonly summarize?: ToolSummarize;
+  /**
+   * Names of composition-layer services this tool's execute requires in the 4th
+   * `services` argument (e.g. ["calendarWrite"]). Declaration only — the module does
+   * not construct the service. The composition host builds it and registers it on the
+   * gateway's toolServices; a build-time/test assertion checks every declared key is present.
+   */
+  readonly requiresServices?: readonly string[];
 }
 
 export interface JarvisModuleManifest {

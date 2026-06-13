@@ -9,6 +9,13 @@ import type { PgBoss } from "pg-boss";
 
 import { createJarvisAuthRuntime, type JarvisAuthRuntime } from "@jarv1s/auth";
 import {
+  ConnectorsRepository,
+  GoogleConnectionService,
+  GoogleOAuthClient,
+  GoogleApiClient,
+  createConnectorSecretCipher
+} from "@jarv1s/connectors";
+import {
   DataContextRunner,
   createDatabase,
   getJarvisDatabaseUrls,
@@ -197,6 +204,18 @@ export function createApiServer(options: CreateApiServerOptions = {}) {
       manifests: getBuiltInModuleManifests()
     });
 
+    // Connector collaborators for the calendar focus-time write tool. A single shared
+    // repository + cipher; the service is per-call-scoped via scopedDb, so one instance
+    // is fine. createConnectorSecretCipher requires JARVIS_CONNECTOR_SECRET_KEY in a
+    // hardened (production) env; in dev/test it falls back to the dev default.
+    const connectorsRepository = new ConnectorsRepository();
+    const googleConnectionService = new GoogleConnectionService({
+      repository: connectorsRepository,
+      cipher: createConnectorSecretCipher(),
+      oauthClient: new GoogleOAuthClient()
+    });
+    const googleApiClient = new GoogleApiClient();
+
     registerBuiltInApiRoutes(server, {
       rootDb: appDb,
       resolveAccessContext: authRuntime.resolveAccessContext,
@@ -225,7 +244,10 @@ export function createApiServer(options: CreateApiServerOptions = {}) {
       boss,
       chatEngineFactory: options.chatEngineFactory,
       revokeUserSessions: authRuntime.revokeUserSessions,
-      bootstrapConnectionString: ownsAppDb ? getJarvisDatabaseUrls().bootstrap : undefined
+      bootstrapConnectionString: ownsAppDb ? getJarvisDatabaseUrls().bootstrap : undefined,
+      googleConnectionService,
+      googleApiClient,
+      connectorsRepository
     });
 
     // Test-only seam (ADR 0009 §4 verification): register synthetic guarded routes on a
