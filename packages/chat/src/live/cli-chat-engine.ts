@@ -26,6 +26,7 @@ import { join } from "node:path";
 
 import {
   parseTranscript,
+  redactSecrets,
   transcriptGlobDir,
   TmuxMultiplexer,
   type Multiplexer,
@@ -66,8 +67,22 @@ export class CliChatEngineImpl implements CliChatEngine {
   /** The opaque session handle returned by mux.open() at launch. */
   private handle: MuxHandle | null = null;
 
-  /** Set at launch: the exact JSONL transcript path (session-id pinned). */
+  /**
+   * The resolved JSONL transcript path. For `anthropic` this is pinned at launch
+   * (`--session-id` makes the filename deterministic and known before the CLI
+   * boots). For `openai-compatible`/`google` the CLI chooses its own filename
+   * (`rollout-…`/`session-…`), so this stays null until `readNew()` resolves the
+   * newest `.jsonl` under the glob dir lazily (the file does not exist until the
+   * CLI writes its first turn).
+   */
   private storedTranscriptPath: string | null = null;
+
+  /**
+   * Set at launch: the directory the active provider writes its transcript into.
+   * Used to lazily resolve the newest transcript file for providers that do NOT
+   * accept a session-id (Codex/Gemini).
+   */
+  private transcriptDir: string | null = null;
 
   /** Optional host-HOME base for transcript resolution (containerized bridge). */
   private readonly homeBase?: string;
@@ -86,8 +101,10 @@ export class CliChatEngineImpl implements CliChatEngine {
   // ─── lifecycle ─────────────────────────────────────────────────────────────
 
   async launch(opts: EngineLaunchOpts): Promise<void> {
-    // Generate the session id up front so the transcript path is known before
-    // launch — no fragile "find the newest transcript" globbing.
+    // Generate the session id up front. For Claude this also pins the transcript
+    // filename (`--session-id`), so no fragile newest-file globbing is needed there.
+    // Codex/Gemini don't accept a session-id, so their transcript path is resolved
+    // lazily in readNew() (newest .jsonl under the glob dir).
     const sessionId = randomUUID();
 
     if (this.provider === "google" && opts.mcpToken && opts.mcpServerUrl) {
@@ -110,10 +127,13 @@ export class CliChatEngineImpl implements CliChatEngine {
       );
     }
 
-    this.storedTranscriptPath = join(
-      transcriptGlobDir(this.provider, opts.neutralDir, this.homeBase),
-      `${sessionId}.jsonl`
-    );
+    this.transcriptDir = transcriptGlobDir(this.provider, opts.neutralDir, this.homeBase);
+    // Only Claude is launched with `--session-id`, so only Claude's transcript filename
+    // is known up front. Codex/Gemini name their own file (`rollout-…`/`session-…`), so
+    // their path is resolved lazily in readNew() — pinning `${sessionId}.jsonl` for them
+    // would point at a file that never exists, so replies could never be read back.
+    this.storedTranscriptPath =
+      this.provider === "anthropic" ? join(this.transcriptDir, `${sessionId}.jsonl`) : null;
 
     const launchLine = this.buildLaunchCommand(opts, sessionId);
     try {
@@ -129,7 +149,17 @@ export class CliChatEngineImpl implements CliChatEngine {
       // a plain Error from mux.open(). Convert it to the 503-mapped error with a
       // sanitized message; the raw cause is logged server-side by the route handler
       // (Codex R2 #2). Never surface raw stderr to the client.
-      throw new CliChatUnavailableError("could not start the live chat session", { cause: err });
+      //
+      // The launch line carries the per-session MCP bearer token inline (Codex env-var
+      // prefix; see buildCodexCommand). The in-repo multiplexers already redact stderr,
+      // but a backend whose thrown message echoes the launch line (or a future
+      // JARVIS_MULTIPLEXER override) could otherwise carry `JARVIS_MCP_TOKEN=jst_…` into
+      // the server log via the structurally-serialized `cause`. Redact at this boundary
+      // (defense-in-depth, secrets-never-escape) so no token shape can reach a log even
+      // on the failure path; the original stack is dropped (it can embed the launch line).
+      throw new CliChatUnavailableError("could not start the live chat session", {
+        cause: redactCause(err)
+      });
     }
 
     // Let the CLI TUI finish booting before the first prompt is pasted.
@@ -144,13 +174,20 @@ export class CliChatEngineImpl implements CliChatEngine {
   async readNew(
     afterOffset: number
   ): Promise<{ records: TranscriptRecord[]; offset: number; complete: boolean }> {
-    if (this.storedTranscriptPath === null) {
+    if (this.transcriptDir === null) {
       throw new Error("CliChatEngineImpl.readNew called before launch()");
+    }
+
+    const path = await this.resolveTranscriptPath();
+    if (path === null) {
+      // Transcript file not created yet (Codex/Gemini name it on first write) —
+      // tolerate, return empty/not-complete and keep the caller's offset.
+      return { records: [], offset: afterOffset, complete: false };
     }
 
     let jsonl: string;
     try {
-      jsonl = await this.io.readFile(this.storedTranscriptPath);
+      jsonl = await this.io.readFile(path);
     } catch {
       // Transcript not created yet — tolerate, return empty/not-complete and
       // keep the caller's offset so nothing is skipped.
@@ -182,11 +219,47 @@ export class CliChatEngineImpl implements CliChatEngine {
 
   // ─── introspection (used by tests / callers needing the pinned path) ─────────
 
-  /** The exact transcript path computed at launch, or throws if not launched. */
+  /**
+   * The transcript path. For `anthropic` it is the session-id-pinned path computed
+   * at launch. For `openai-compatible`/`google` the filename is chosen by the CLI,
+   * so this returns the most-recently-resolved path (or throws if not yet resolved —
+   * call after at least one readNew(), or use readNew() directly).
+   */
   transcriptPath(): string {
-    if (this.storedTranscriptPath === null) {
+    if (this.transcriptDir === null) {
       throw new Error("CliChatEngineImpl.transcriptPath called before launch()");
     }
+    if (this.storedTranscriptPath === null) {
+      throw new Error(
+        "CliChatEngineImpl.transcriptPath: transcript not yet resolved for this provider (no .jsonl file written yet)"
+      );
+    }
+    return this.storedTranscriptPath;
+  }
+
+  /**
+   * Resolve the path of the transcript file to read.
+   *
+   * - `anthropic`: pinned at launch (deterministic via `--session-id`).
+   * - `openai-compatible`/`google`: the CLI names its own file (`rollout-…`/
+   *   `session-…`), so resolve the NEWEST `.jsonl` under the glob dir. We cache it
+   *   once found so a later log-rotation can't switch us to a different file
+   *   mid-session. Returns null if no transcript file exists yet.
+   */
+  private async resolveTranscriptPath(): Promise<string | null> {
+    if (this.storedTranscriptPath !== null) return this.storedTranscriptPath;
+    if (this.transcriptDir === null) return null;
+
+    // `ls -t` sorts by mtime, newest first; tolerate a not-yet-created dir (nonzero exit).
+    const listed = await this.io.run("ls", ["-t", this.transcriptDir]);
+    if (listed.code !== 0) return null;
+    const newest = listed.stdout
+      .split("\n")
+      .map((line) => line.trim())
+      .find((name) => name.endsWith(".jsonl"));
+    if (!newest) return null;
+
+    this.storedTranscriptPath = join(this.transcriptDir, newest);
     return this.storedTranscriptPath;
   }
 
@@ -292,4 +365,20 @@ function sanitizeInput(text: string): string {
 /** Minimal POSIX single-quote shell quoting for paths embedded in a send-keys line. */
 function shellQuote(value: string): string {
   return `'${value.replace(/'/g, `'\\''`)}'`;
+}
+
+/**
+ * Build a sanitized cause for CliChatUnavailableError. The launch line embeds the
+ * per-session MCP bearer token, so a backend error message that echoes it could leak
+ * the token into the server log via the structurally-serialized cause. Return a fresh
+ * Error whose message is run through `redactSecrets` and whose stack is dropped (the
+ * stack can also embed the launch line). Non-Error causes are stringified + redacted.
+ */
+function redactCause(err: unknown): Error {
+  const message = err instanceof Error ? err.message : String(err);
+  const sanitized = new Error(redactSecrets(message));
+  sanitized.name = err instanceof Error ? err.name : "Error";
+  // Drop the original stack: it can carry the token-bearing launch line.
+  sanitized.stack = undefined;
+  return sanitized;
 }

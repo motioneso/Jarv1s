@@ -12,6 +12,7 @@ export * from "./adapters/tmux-multiplexer.js";
 export * from "./adapters/herdr-multiplexer.js";
 export * from "./adapters/binary-probe.js";
 export * from "./adapters/multiplexer-resolve.js";
+export { redactSecrets } from "./adapters/redact.js";
 export * from "./gateway/index.js";
 export {
   parseTranscript,
