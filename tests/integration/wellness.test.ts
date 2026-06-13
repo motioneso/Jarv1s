@@ -15,9 +15,12 @@ import {
   computeSchedule,
   registerWellnessRoutes,
   wellnessModuleManifest,
-  WELLNESS_MODULE_ID
+  WELLNESS_MODULE_ID,
+  wellnessRecentCheckInsExecute,
+  wellnessMedicationAdherenceExecute
 } from "@jarv1s/wellness";
 import type { Medication, MedicationLog } from "@jarv1s/db";
+import type { ToolContext } from "@jarv1s/module-sdk";
 
 import { connectionStrings, resetEmptyFoundationDatabase } from "./test-database.js";
 
@@ -411,5 +414,51 @@ describe("wellness REST routes", () => {
     } finally {
       await app.close();
     }
+  });
+});
+
+describe("wellness AI read tools", () => {
+  function toolCtx(actorUserId: string): ToolContext {
+    return { actorUserId, requestId: "tool-req", chatSessionId: "" };
+  }
+
+  it("wellness.recentCheckIns returns owner-scoped check-ins and is declared read", async () => {
+    const tool = wellnessModuleManifest.assistantTools?.find(
+      (t) => t.name === "wellness.recentCheckIns"
+    );
+    expect(tool?.risk).toBe("read");
+    expect(tool?.execute).toBeDefined();
+
+    await dataContext.withDataContext(ctx(userId), (db) =>
+      new WellnessRepository().createCheckin(db, { feelingCore: "peaceful", intensity: 4 })
+    );
+    const result = await dataContext.withDataContext(ctx(userId), (db) =>
+      wellnessRecentCheckInsExecute(db, {}, toolCtx(userId))
+    );
+    const items = result.data.items as Array<{ feelingCore: string }>;
+    expect(items.length).toBeGreaterThan(0);
+  });
+
+  it("wellness.medicationAdherence returns counts only (no full med list)", async () => {
+    const result = await dataContext.withDataContext(ctx(userId), (db) =>
+      wellnessMedicationAdherenceExecute(db, {}, toolCtx(userId))
+    );
+    expect(result.data).toHaveProperty("scheduled");
+    expect(result.data).toHaveProperty("taken");
+    expect(result.data).not.toHaveProperty("medications");
+    expect(result.data).not.toHaveProperty("items");
+  });
+
+  it("every manifest route corresponds to a declared permission", () => {
+    const permissionIds = new Set((wellnessModuleManifest.permissions ?? []).map((p) => p.id));
+    for (const route of wellnessModuleManifest.routes ?? []) {
+      if (route.permissionId) expect(permissionIds.has(route.permissionId)).toBe(true);
+    }
+  });
+
+  it("declares a metadata-only deferred reminder queue but no active queueDefinitions", () => {
+    const job = (wellnessModuleManifest.jobs ?? [])[0];
+    expect(job?.queueName).toBe("wellness-medication-reminder");
+    expect(job?.metadataOnly).toBe(true);
   });
 });

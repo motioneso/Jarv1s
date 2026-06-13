@@ -1,6 +1,20 @@
 import { fileURLToPath } from "node:url";
 
 import type { JarvisModuleManifest } from "@jarv1s/module-sdk";
+import {
+  createCheckinRequestSchema,
+  createCheckinResponseSchema,
+  createMedicationLogRequestSchema,
+  createMedicationLogResponseSchema,
+  createMedicationRequestSchema,
+  listCheckinsResponseSchema,
+  listMedicationsResponseSchema,
+  medicationResponseSchema,
+  medicationScheduleResponseSchema,
+  updateMedicationRequestSchema
+} from "@jarv1s/shared";
+
+import { wellnessMedicationAdherenceExecute, wellnessRecentCheckInsExecute } from "./tools.js";
 
 export const WELLNESS_MODULE_ID = "wellness";
 export const WELLNESS_MEDICATION_REMINDER_QUEUE = "wellness-medication-reminder";
@@ -30,5 +44,114 @@ export const wellnessModuleManifest = {
     ],
     migrationDirectories: ["packages/wellness/sql"],
     ownedTables: ["app.wellness_checkins", "app.medications", "app.medication_logs"]
-  }
+  },
+  navigation: [
+    {
+      id: "wellness",
+      label: "Wellness",
+      path: "/wellness",
+      icon: "heart-pulse",
+      order: 40,
+      permissionId: "wellness.view"
+    }
+  ],
+  permissions: [
+    {
+      id: "wellness.view",
+      label: "View wellness",
+      description: "Read the active actor's own wellness check-ins and medications.",
+      scope: "user",
+      actions: ["view"]
+    },
+    {
+      id: "wellness.create",
+      label: "Log wellness",
+      description: "Create check-ins, medications, and dose logs owned by the active actor.",
+      scope: "user",
+      actions: ["create"]
+    },
+    {
+      id: "wellness.update",
+      label: "Update wellness",
+      description: "Update the active actor's own medications.",
+      scope: "user",
+      actions: ["update"]
+    }
+  ],
+  routes: [
+    {
+      method: "POST",
+      path: "/api/wellness/checkins",
+      requestSchema: createCheckinRequestSchema,
+      responseSchema: createCheckinResponseSchema,
+      permissionId: "wellness.create"
+    },
+    {
+      method: "GET",
+      path: "/api/wellness/checkins",
+      responseSchema: listCheckinsResponseSchema,
+      permissionId: "wellness.view"
+    },
+    {
+      method: "GET",
+      path: "/api/wellness/medications",
+      responseSchema: listMedicationsResponseSchema,
+      permissionId: "wellness.view"
+    },
+    {
+      method: "POST",
+      path: "/api/wellness/medications",
+      requestSchema: createMedicationRequestSchema,
+      responseSchema: medicationResponseSchema,
+      permissionId: "wellness.create"
+    },
+    {
+      method: "PATCH",
+      path: "/api/wellness/medications/:id",
+      requestSchema: updateMedicationRequestSchema,
+      responseSchema: medicationResponseSchema,
+      permissionId: "wellness.update"
+    },
+    {
+      method: "GET",
+      path: "/api/wellness/medications/schedule",
+      responseSchema: medicationScheduleResponseSchema,
+      permissionId: "wellness.view"
+    },
+    {
+      method: "POST",
+      path: "/api/wellness/medications/:id/logs",
+      requestSchema: createMedicationLogRequestSchema,
+      responseSchema: createMedicationLogResponseSchema,
+      permissionId: "wellness.create"
+    }
+  ],
+  jobs: [
+    {
+      // Designed seam; NO worker registered until the Phase-3 scheduler lands (deferred).
+      queueName: WELLNESS_MEDICATION_REMINDER_QUEUE,
+      metadataOnly: true,
+      permissionId: "wellness.view"
+    }
+  ],
+  assistantTools: [
+    {
+      name: "wellness.recentCheckIns",
+      description:
+        "List the actor's recent feelings check-ins (most recent first): timestamp, core feeling, secondary feeling, and intensity. Read-only.",
+      permissionId: "wellness.view",
+      risk: "read",
+      inputSchema: { type: "object", properties: {} },
+      execute: wellnessRecentCheckInsExecute
+    },
+    {
+      name: "wellness.medicationAdherence",
+      description:
+        "Summarize the actor's medication adherence over the last 7 days as counts (scheduled, taken, skipped, PRN) and an adherence rate. Returns counts only, never a medication list. Read-only.",
+      permissionId: "wellness.view",
+      risk: "read",
+      inputSchema: { type: "object", properties: {} },
+      execute: wellnessMedicationAdherenceExecute
+    }
+  ]
 } satisfies JarvisModuleManifest;
