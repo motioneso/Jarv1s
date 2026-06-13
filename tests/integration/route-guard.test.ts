@@ -1,8 +1,11 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import Fastify from "fastify";
 import type { Kysely } from "kysely";
 
 import { createApiServer } from "../../apps/api/src/server.js";
 import { createDatabase, type JarvisDatabase } from "@jarv1s/db";
+import { registerRouteEnablementGuard } from "@jarv1s/module-registry";
+import type { JarvisModuleManifest } from "@jarv1s/module-sdk";
 import {
   connectionStrings,
   resetEmptyFoundationDatabase,
@@ -151,5 +154,146 @@ describe("module enablement endpoints", () => {
       payload: { disabled: true }
     });
     expect(required.statusCode).toBe(403);
+  });
+
+  describe("route guard wiring (real server)", () => {
+    it("the real server boots clean (coverage assertion passes)", async () => {
+      // server.ready() in beforeAll already ran the boot assertion; reaching here proves it.
+      expect(server).toBeDefined();
+    });
+
+    it("platform routes are never 404'd by the guard", async () => {
+      for (const url of ["/api/me", "/api/modules", "/api/me/modules", "/health"]) {
+        const res = await server.inject({ method: "GET", url, headers: { cookie: ownerCookie } });
+        expect(res.statusCode).not.toBe(404);
+      }
+    });
+
+    it("an active module's route is reachable (not guard-404'd)", async () => {
+      const res = await server.inject({
+        method: "GET",
+        url: "/api/tasks",
+        headers: { cookie: ownerCookie }
+      });
+      expect(res.statusCode).toBe(200);
+    });
+  });
+
+  describe("real server route-enablement guard is wired", () => {
+    it("404s a route owned by an inactive (synthetic) module — proving the guard is registered", async () => {
+      const probeDb = createDatabase({
+        connectionString: connectionStrings.app,
+        maxConnections: 1
+      });
+      const probeServer = createApiServer({
+        appDb: probeDb,
+        logger: false,
+        __testExtraGuardedRoutes: {
+          manifests: [
+            {
+              id: "__probe_inactive__",
+              name: "Probe",
+              version: "0.1.0",
+              publisher: "test",
+              lifecycle: "optional",
+              compatibility: { jarv1s: ">=0.0.0" },
+              availability: { defaultEnabled: true, required: false, supportsUserDisable: true },
+              routes: [{ method: "GET", path: "/api/__probe__/ping", permissionId: "probe.view" }]
+            }
+          ],
+          routes: [{ method: "GET", url: "/api/__probe__/ping" }]
+        }
+      });
+      await probeServer.ready();
+      // Authenticated request (reuse the signed-in owner cookie). The guard resolves the
+      // actor, finds /api/__probe__/ping → module "__probe_inactive__", which the resolver
+      // (built-ins only) never returns active → 404. Before the guard is wired: 200.
+      const res = await probeServer.inject({
+        method: "GET",
+        url: "/api/__probe__/ping",
+        headers: { cookie: ownerCookie }
+      });
+      expect(res.statusCode).toBe(404);
+      await probeServer.close();
+      await probeDb.destroy();
+    });
+  });
+});
+
+describe("registerRouteEnablementGuard end-to-end (bare Fastify)", () => {
+  const weather: JarvisModuleManifest = {
+    id: "weather",
+    name: "Weather",
+    version: "0.1.0",
+    publisher: "test",
+    lifecycle: "optional",
+    compatibility: { jarv1s: ">=0.0.0" },
+    availability: { defaultEnabled: true, required: false, supportsUserDisable: true },
+    routes: [{ method: "GET", path: "/api/weather/today", permissionId: "weather.view" }]
+  };
+
+  async function buildServer(active: boolean) {
+    const app = Fastify({ logger: false });
+    app.after(() => {
+      app.get("/api/weather/today", async () => ({ ok: true }));
+      registerRouteEnablementGuard(app, {
+        manifests: [weather],
+        resolveActiveModules: async () => (active ? [weather] : []),
+        resolveAccessContext: async () => ({
+          actorUserId: "00000000-0000-4000-8000-000000000001"
+        }),
+        platformAllowlist: new Set<string>()
+      });
+    });
+    await app.ready();
+    return app;
+  }
+
+  it("returns 200 when the module is active", async () => {
+    const app = await buildServer(true);
+    const res = await app.inject({ method: "GET", url: "/api/weather/today" });
+    expect(res.statusCode).toBe(200);
+    await app.close();
+  });
+
+  it("returns 404 (NOT 403) when the module is not active", async () => {
+    const app = await buildServer(false);
+    const res = await app.inject({ method: "GET", url: "/api/weather/today" });
+    expect(res.statusCode).toBe(404);
+    expect(res.statusCode).not.toBe(403);
+    await app.close();
+  });
+
+  it("FAILS CLOSED: a resolver throw never reaches the route handler", async () => {
+    // A resolver/DB error must NEVER silently let a guarded request through (which would
+    // re-enable a disabled module). The thrown error becomes a 503 via the guard's
+    // fail-closed branch; the handler body must not run. We prove it both by status (not
+    // 200) and by a side-effect flag the handler would set if it ran.
+    const app = Fastify({ logger: false });
+    let handlerRan = false;
+    app.after(() => {
+      app.get("/api/weather/today", async () => {
+        handlerRan = true;
+        return { ok: true };
+      });
+      registerRouteEnablementGuard(app, {
+        manifests: [weather],
+        resolveActiveModules: async () => {
+          throw new Error("resolver/DB unavailable");
+        },
+        resolveAccessContext: async () => ({
+          actorUserId: "00000000-0000-4000-8000-000000000001"
+        }),
+        platformAllowlist: new Set<string>()
+      });
+    });
+    await app.ready();
+    const res = await app.inject({ method: "GET", url: "/api/weather/today" });
+    expect(res.statusCode).not.toBe(200);
+    expect(res.statusCode).toBe(503);
+    expect(handlerRan).toBe(false);
+    // The internal error message must NOT leak in the response body.
+    expect(res.body).not.toContain("resolver/DB unavailable");
+    await app.close();
   });
 });

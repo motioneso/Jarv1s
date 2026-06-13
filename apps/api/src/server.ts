@@ -16,9 +16,14 @@ import {
 } from "@jarv1s/db";
 import { createPgBossClient } from "@jarv1s/jobs";
 import {
+  createActiveModulesResolver,
   getBuiltInModuleManifests,
   registerBuiltInApiRoutes,
-  type ChatEngineFactory
+  registerRouteEnablementGuard,
+  assertRouteCoverage,
+  PLATFORM_UNGUARDED_ROUTES,
+  type ChatEngineFactory,
+  type JarvisModuleManifest
 } from "@jarv1s/module-registry";
 import { listModulesRouteSchema, parsePositiveIntEnv, type ModuleDto } from "@jarv1s/shared";
 
@@ -29,6 +34,19 @@ export interface CreateApiServerOptions {
   readonly logger?: boolean;
   /** Override the live-chat engine factory (tests inject a fake); defaults to real tmux. */
   readonly chatEngineFactory?: ChatEngineFactory;
+  /**
+   * TEST-ONLY. Synthetic guarded routes + their manifests, used to prove the real
+   * server's route-enablement guard 404s a route owned by an INACTIVE module. Never set
+   * in production. Mechanism: these manifests are added to the GUARD's manifest set (so
+   * the guard maps the synthetic route → synthetic module id) but NOT to the resolver's
+   * manifest set (createActiveModulesResolver only knows the built-ins). The resolver
+   * therefore never returns the synthetic module as active, so the guard's
+   * `active.some(m => m.id === syntheticId)` is false → 404. No deny-row seeding needed.
+   */
+  readonly __testExtraGuardedRoutes?: {
+    readonly manifests: readonly JarvisModuleManifest[];
+    readonly routes: readonly { method: string; url: string }[];
+  };
 }
 
 export function createApiServer(options: CreateApiServerOptions = {}) {
@@ -115,6 +133,32 @@ export function createApiServer(options: CreateApiServerOptions = {}) {
     keyGenerator: authPrincipalRateLimitKey
   });
 
+  // Test-only: extra routes + their synthetic (inactive) manifests, to verify the guard
+  // 404s an inactive module's route on the REAL server. Undefined in production. The
+  // accessor lets the onReady coverage hook (which runs after after()) see the synthetic
+  // manifests so it does not flag the synthetic route as an orphan.
+  const guardManifestsForCoverage = (): readonly JarvisModuleManifest[] => [
+    ...getBuiltInModuleManifests(),
+    ...(options.__testExtraGuardedRoutes?.manifests ?? [])
+  ];
+
+  // Accumulate every registered route as it is added, so the onReady coverage assertion
+  // can read the final route tree. printRoutes parsing is brittle; an onRoute hook is
+  // exact. Add it BEFORE after() so it observes routes registered inside after().
+  const registeredRoutes: { method: string; url: string }[] = [];
+  server.addHook("onRoute", (routeOptions) => {
+    const methods = Array.isArray(routeOptions.method)
+      ? routeOptions.method
+      : [routeOptions.method];
+    for (const method of methods) {
+      // HEAD is folded into GET by routeKey (normalizeMethod), so an auto-HEAD route is
+      // already covered by its GET entry — skip it here to avoid asserting a separate
+      // "HEAD ..." key the index never holds. OPTIONS (CORS/preflight) is not module-gated.
+      if (method === "HEAD" || method === "OPTIONS") continue;
+      registeredRoutes.push({ method, url: routeOptions.url });
+    }
+  });
+
   server.after(() => {
     server.get("/health", async () => ({ ok: true }));
 
@@ -146,16 +190,60 @@ export function createApiServer(options: CreateApiServerOptions = {}) {
     registerBetterAuthRoutes(server, authRuntime, AUTH_MAX);
     registerPlatformRoutes(server, authRuntime);
 
+    const resolveActiveModules = createActiveModulesResolver({
+      dataContext,
+      manifests: getBuiltInModuleManifests()
+    });
+
     registerBuiltInApiRoutes(server, {
       rootDb: appDb,
       resolveAccessContext: authRuntime.resolveAccessContext,
       listConfiguredAuthProviders: authRuntime.listConfiguredProviders,
       listModuleManifests: getBuiltInModuleManifests,
+      resolveActiveModules,
       dataContext,
       boss,
       chatEngineFactory: options.chatEngineFactory,
       revokeUserSessions: authRuntime.revokeUserSessions,
       bootstrapConnectionString: ownsAppDb ? getJarvisDatabaseUrls().bootstrap : undefined
+    });
+
+    // Test-only seam (ADR 0009 §4 verification): register synthetic guarded routes on a
+    // throwaway INACTIVE manifest so a test can prove the REAL server's guard 404s an
+    // inactive module's route. Ignored in production (option is undefined). The synthetic
+    // manifests are appended to the guard's manifest set; the resolver (built-ins only)
+    // never returns them as active, so the guard 404s their routes.
+    const guardManifests = [
+      ...getBuiltInModuleManifests(),
+      ...(options.__testExtraGuardedRoutes?.manifests ?? [])
+    ];
+    if (options.__testExtraGuardedRoutes) {
+      for (const r of options.__testExtraGuardedRoutes.routes) {
+        server.route({ method: r.method, url: r.url, handler: async () => ({ ok: true }) });
+      }
+    }
+
+    // Register the route-enablement guard AFTER all routes exist so the onRequest hook
+    // can read request.routeOptions.url (the matched pattern). The guard 404s a request
+    // whose owning module is not active for the actor (never 403 — no existence leak).
+    registerRouteEnablementGuard(server, {
+      manifests: guardManifests,
+      resolveActiveModules,
+      resolveAccessContext: authRuntime.resolveAccessContext
+    });
+  });
+
+  server.addHook("onReady", async () => {
+    // Coverage assertion (ADR 0009 §4) runs once the route tree is final. Throws if any
+    // registered route is neither claimed by a manifest routes[] nor on the platform
+    // allowlist (the guard would have a blind spot for it). Use the SAME manifest set the
+    // guard uses, so the test-only synthetic routes are covered by their synthetic
+    // manifest; in production __testExtraGuardedRoutes is undefined → identical to the
+    // built-in set.
+    assertRouteCoverage({
+      registered: registeredRoutes,
+      manifests: guardManifestsForCoverage(),
+      platformAllowlist: PLATFORM_UNGUARDED_ROUTES
     });
   });
 
