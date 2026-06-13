@@ -180,6 +180,84 @@ describe("Tasks module — rename/delete routes + recurrence reconcile", () => {
     expect(tags).toHaveLength(0);
   });
 
+  it("POST /api/tasks/:id/tags assigns a tag (200, task.tags reflects it); DELETE unassigns (200)", async () => {
+    const list = await dataContext.withDataContext(userAContext(), (db) =>
+      listsRepo.getOrCreate(db, "Route Assign List")
+    );
+    const tag = await dataContext.withDataContext(userAContext(), (db) =>
+      listsRepo.createTag(db, list.id, "route-assign-tag")
+    );
+    const task = await dataContext.withDataContext(userAContext(), (db) =>
+      repository.create(db, { title: "route-assign-task", listId: list.id })
+    );
+
+    const assign = await server.inject({
+      method: "POST",
+      url: `/api/tasks/${task.id}/tags`,
+      headers: { authorization: `Bearer ${ids.sessionA}` },
+      payload: { tagId: tag.id }
+    });
+    expect(assign.statusCode).toBe(200);
+    const assignedTags = assign.json<{ task: { tags: { id: string }[] } }>().task.tags;
+    expect(assignedTags.map((t) => t.id)).toContain(tag.id);
+
+    const unassign = await server.inject({
+      method: "DELETE",
+      url: `/api/tasks/${task.id}/tags/${tag.id}`,
+      headers: { authorization: `Bearer ${ids.sessionA}` }
+    });
+    expect(unassign.statusCode).toBe(200);
+    expect(unassign.json<{ task: { tags: { id: string }[] } }>().task.tags).toHaveLength(0);
+  });
+
+  it("POST /api/tasks/:id/tags by a non-owner is 404 (RLS owner-only assignment)", async () => {
+    const list = await dataContext.withDataContext(userAContext(), (db) =>
+      listsRepo.getOrCreate(db, "Route Assign Foreign List")
+    );
+    const tag = await dataContext.withDataContext(userAContext(), (db) =>
+      listsRepo.createTag(db, list.id, "route-assign-foreign-tag")
+    );
+    const task = await dataContext.withDataContext(userAContext(), (db) =>
+      repository.create(db, { title: "route-assign-foreign-task", listId: list.id })
+    );
+
+    const foreign = await server.inject({
+      method: "POST",
+      url: `/api/tasks/${task.id}/tags`,
+      headers: { authorization: `Bearer ${ids.sessionB}` },
+      payload: { tagId: tag.id }
+    });
+    expect(foreign.statusCode).toBe(404);
+  });
+
+  it("GET /api/tasks?tagId=… filters to tasks carrying that tag (RLS-scoped)", async () => {
+    const list = await dataContext.withDataContext(userAContext(), (db) =>
+      listsRepo.getOrCreate(db, "Route TagFilter List")
+    );
+    const tag = await dataContext.withDataContext(userAContext(), (db) =>
+      listsRepo.createTag(db, list.id, "route-tagfilter-tag")
+    );
+    const tagged = await dataContext.withDataContext(userAContext(), (db) =>
+      repository.create(db, { title: "route-tagfilter-tagged", listId: list.id })
+    );
+    const untagged = await dataContext.withDataContext(userAContext(), (db) =>
+      repository.create(db, { title: "route-tagfilter-untagged", listId: list.id })
+    );
+    await dataContext.withDataContext(userAContext(), (db) =>
+      listsRepo.assignTag(db, tagged.id, tag.id)
+    );
+
+    const res = await server.inject({
+      method: "GET",
+      url: `/api/tasks?tagId=${tag.id}`,
+      headers: { authorization: `Bearer ${ids.sessionA}` }
+    });
+    expect(res.statusCode).toBe(200);
+    const returnedIds = res.json<{ tasks: { id: string }[] }>().tasks.map((t) => t.id);
+    expect(returnedIds).toContain(tagged.id);
+    expect(returnedIds).not.toContain(untagged.id);
+  });
+
   it("POST /api/tasks with recurrence returns 201 and reconciles a daily schedule row for the actor", async () => {
     const res = await server.inject({
       method: "POST",

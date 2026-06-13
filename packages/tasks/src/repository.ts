@@ -409,6 +409,21 @@ export class TasksRepository {
       .execute();
   }
 
+  /**
+   * Set of visible task ids that carry the given tag (RLS-scoped). Used by the
+   * GET /api/tasks `tagId` filter. The select is owner/share-scoped by RLS on
+   * task_tag_assignments, so a foreign tag yields an empty set.
+   */
+  async taskIdsWithTag(scopedDb: DataContextDb, tagId: string): Promise<Set<string>> {
+    assertDataContextDb(scopedDb);
+    const rows = await scopedDb.db
+      .selectFrom("app.task_tag_assignments")
+      .select("task_id")
+      .where("tag_id", "=", tagId)
+      .execute();
+    return new Set(rows.map((r) => r.task_id));
+  }
+
   async getTagsForTask(scopedDb: DataContextDb, taskId: string): Promise<TaskTag[]> {
     assertDataContextDb(scopedDb);
     return scopedDb.db

@@ -454,7 +454,12 @@ function TagRow(props: { readonly listId: string; readonly tag: TaskTagDto }) {
     mutationFn: () => renameTaskTag(listId, tag.id, { name: name.trim() }),
     onSuccess: async () => {
       setEditing(false);
-      await invalidate();
+      // Task cards render tag names from cached TaskDto.tags, so the task list/detail
+      // caches must be refreshed too — not just the sidebar tags query (mirrors delete).
+      await Promise.all([
+        invalidate(),
+        queryClient.invalidateQueries({ queryKey: queryKeys.tasks.list })
+      ]);
     }
   });
 

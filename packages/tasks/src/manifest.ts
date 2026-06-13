@@ -4,6 +4,8 @@ import type { JarvisModuleManifest } from "@jarv1s/module-sdk";
 import {
   addTaskActivityRequestSchema,
   addTaskActivityResponseSchema,
+  assignTaskTagRequestSchema,
+  assignTaskTagRouteSchema,
   atRiskTasksRouteSchema,
   breakdownTaskRequestSchema,
   breakdownTaskResponseSchema,
@@ -30,6 +32,7 @@ import {
   renameTaskTagRequestSchema,
   renameTaskTagRouteSchema,
   taskStatusSchema,
+  unassignTaskTagRouteSchema,
   updateTaskRequestSchema,
   updateTaskResponseSchema
 } from "@jarv1s/shared";
@@ -171,6 +174,19 @@ export const tasksModuleManifest = {
       path: "/api/tasks/:id/deferred-status",
       requestSchema: deferredTaskStatusRequestSchema,
       responseSchema: deferredTaskStatusResponseSchema,
+      permissionId: "tasks.update"
+    },
+    {
+      method: "POST",
+      path: "/api/tasks/:id/tags",
+      requestSchema: assignTaskTagRequestSchema,
+      responseSchema: assignTaskTagRouteSchema.response[200],
+      permissionId: "tasks.update"
+    },
+    {
+      method: "DELETE",
+      path: "/api/tasks/:id/tags/:tagId",
+      responseSchema: unassignTaskTagRouteSchema.response[200],
       permissionId: "tasks.update"
     },
     {
