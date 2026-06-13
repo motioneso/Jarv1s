@@ -16,3 +16,4 @@ export { serializeCheckin, serializeMedication, serializeMedicationLog } from ".
 export { computeSchedule } from "./schedule.js";
 export { registerWellnessRoutes } from "./routes.js";
 export type { WellnessRoutesDependencies } from "./routes.js";
+export { wellnessRecentCheckInsExecute, wellnessMedicationAdherenceExecute } from "./tools.js";
