@@ -743,6 +743,62 @@ describe("SettingsRepository deny-list methods", () => {
     expect(rows.every((r) => r.scope === "instance")).toBe(true);
     expect(rows.some((r) => r.module_id === "wellness")).toBe(true);
   });
+
+  // ── RLS enforcement at the DB policy level (not just repo logic). These run on the
+  // app runtime role (DataContext), so they exercise the actual GRANTs + policies in
+  // migration 0065, the security floor. A repo method behaving is not enough — the
+  // policy must reject a hostile/buggy write even if the repo is bypassed.
+
+  it("RLS: a NON-admin actor cannot write an instance-scope row", async () => {
+    // userA is not an admin. The instance_insert policy requires current_actor_is_admin().
+    await expect(
+      runner.withDataContext({ actorUserId: ids.userA, requestId: "req-a-9" }, (db) =>
+        db.db
+          .insertInto("app.module_enablement")
+          .values({
+            scope: "instance",
+            module_id: "rls-probe-instance",
+            user_id: null,
+            disabled_by_user_id: ids.userA,
+            created_at: new Date(),
+            updated_at: new Date()
+          })
+          .execute()
+      )
+    ).rejects.toThrow();
+    // And no row leaked in.
+    const rows = await runner.withDataContext(
+      { actorUserId: ids.adminUser, requestId: "req-admin-9" },
+      (db) => repo.listInstanceModuleDenyRows(db)
+    );
+    expect(rows.some((r) => r.module_id === "rls-probe-instance")).toBe(false);
+  });
+
+  it("RLS: an actor cannot insert a user-scope row targeting a DIFFERENT user_id", async () => {
+    // userA tries to disable a module FOR userB. The user_insert WITH CHECK pins
+    // user_id = current_actor_user_id(), so this must be rejected by the policy.
+    await expect(
+      runner.withDataContext({ actorUserId: ids.userA, requestId: "req-a-10" }, (db) =>
+        db.db
+          .insertInto("app.module_enablement")
+          .values({
+            scope: "user",
+            module_id: "rls-probe-user",
+            user_id: ids.userB,
+            disabled_by_user_id: ids.userA,
+            created_at: new Date(),
+            updated_at: new Date()
+          })
+          .execute()
+      )
+    ).rejects.toThrow();
+    // userB sees no such row (RLS + the rejected write).
+    const bRows = await runner.withDataContext(
+      { actorUserId: ids.userB, requestId: "req-b-10" },
+      (db) => repo.listModuleDenyRowsForActor(db)
+    );
+    expect(bRows.some((r) => r.module_id === "rls-probe-user")).toBe(false);
+  });
 });
 ```
 
@@ -889,11 +945,23 @@ Add the four methods inside the `SettingsRepository` class (e.g. after `listInst
 ```
 
 > Note on the partial-unique `onConflict`: Kysely's `onConflict(...).columns([...]).where(...)`
-> targets a partial unique index. If the typecheck or runtime rejects the `.where` arm on
-> `onConflict`, fall back to a guard-then-insert inside the same method (SELECT existing → skip
-> insert if present) — the method is already inside `withDataContext`'s transaction, so the
-> check-then-insert is atomic under the actor's RLS scope. Prefer the `onConflict` form; use the
-> fallback only if Kysely's typing blocks it.
+> targets a partial unique index. PREFER this form. If Kysely's typing or runtime rejects the
+> `.where` arm on `onConflict`, the fallback is a **catch-on-unique-violation**, NOT a
+> check-then-insert. A `SELECT existing → INSERT if absent` is NOT atomic at the default READ
+> COMMITTED isolation — two concurrent disables of the same module can both see "absent" and both
+> insert, and the second hits the unique constraint anyway (so the SELECT bought nothing) or, worse,
+> if there were no constraint, would duplicate. Instead, attempt the bare INSERT and treat Postgres
+> error code `23505` (unique_violation) as success (the row already exists = already disabled =
+> idempotent). Concretely:
+> ```ts
+> try {
+>   await scopedDb.db.insertInto("app.module_enablement").values({ ... }).execute();
+> } catch (err) {
+>   if ((err as { code?: string }).code !== "23505") throw err;
+>   // already disabled — idempotent no-op
+> }
+> ```
+> Either form keeps disable idempotent under concurrency. Do not use check-then-insert.
 
 ### Step 3.4 — Run (expected PASS)
 
@@ -1054,10 +1122,21 @@ is Task 6.
 - Modify: `packages/ai/src/gateway/types.ts`
 - Modify: `packages/ai/src/gateway/gateway.ts`
 - Modify: `packages/chat/src/routes.ts`
+- Modify: `packages/chat/src/mcp-transport.ts` (the `tools/list` branch calls `listToolsForActor` synchronously — must await)
 - Modify: `packages/chat/src/live/runtime.ts`
 - Modify: `packages/chat/src/live/chat-session-manager.ts`
 - Modify: `tests/integration/mcp-gateway.test.ts`
 - Modify: `tests/integration/chat-mcp-transport.test.ts` (only if it constructs a resolver — verify)
+
+> **Mandatory ripple gate (run BEFORE writing implementation, and again before Step 5.4).** Making
+> `listToolsForActor` async breaks every synchronous caller. Enumerate them all with:
+> ```
+> rg -n "listToolsForActor|resolveActiveModules|ActiveModulesResolver|mintMcpToken|\.mint\(" packages apps tests
+> ```
+> Every hit that consumes the return value synchronously (`.map`, `.find`, `.length`, spread, direct
+> property access) must be awaited. As of `a898533` the non-obvious one the file list above would miss
+> is `packages/chat/src/mcp-transport.ts:97` (the MCP `tools/list` branch). Do not proceed past this
+> task until the `rg` output shows every call site updated.
 
 ### Step 5.1 — Write the failing test
 
@@ -1085,6 +1164,42 @@ the two stub resolvers to async and assert `listToolsForActor` returns a Promise
 - For the scoped-gateway test near line 228 that calls `listToolsForActor`, add `await` to those
   call sites too (search the file for every `.listToolsForActor(` and `await` it; the function is
   now async).
+
+- Add a FAIL-CLOSED test: a gateway built with a throwing resolver must REJECT `listToolsForActor`
+  and `callTool` (never return a partial/empty tool set that silently re-enables a disabled module).
+  Mint a VALID token from the shared `SessionTokenRegistry` so `callTool` passes token verification
+  and actually reaches the resolver (a bogus token would reject at verification and prove nothing):
+
+```ts
+  it("fails closed: a throwing resolveActiveModules rejects listToolsForActor and callTool", async () => {
+    let resolverCalls = 0;
+    const failing = new AssistantToolGateway({
+      resolveActiveModules: async () => {
+        resolverCalls += 1;
+        throw new Error("resolver/DB unavailable");
+      },
+      repository,
+      runner,
+      tokens, // SHARED registry from beforeAll, so the minted token below verifies
+      confirmations,
+      notifier: { emit: (chatSessionId, record) => emitted.push({ chatSessionId, record }) },
+      confirmTimeoutMs: 1000
+    });
+    // listToolsForActor reaches the resolver directly.
+    await expect(failing.listToolsForActor(ids.userA)).rejects.toThrow();
+    // callTool: mint a VALID token (allowedToolNames: null) so it clears token verification
+    // and proceeds into executableTools → resolver, which throws → reject (not a degraded set).
+    const token = tokens.mint({ actorUserId: ids.userA, chatSessionId: "fail-closed", allowedToolNames: null });
+    await expect(failing.callTool(token, "example.read", {})).rejects.toThrow();
+    expect(resolverCalls).toBeGreaterThanOrEqual(2); // both surfaces actually invoked the resolver
+  });
+```
+
+> `AssistantToolGateway`, `repository`, `runner`, `tokens`, `confirmations`, `emitted` are the same
+> identifiers `mcp-gateway.test.ts` already constructs in its `beforeAll` (verify names at build). The
+> load-bearing assertion: BOTH surfaces reject AND the resolver was reached (the `resolverCalls`
+> counter rules out a false pass from rejecting before the resolver) — never a degraded empty/partial
+> set on resolver error.
 
 ### Step 5.2 — Run (expected FAIL)
 
@@ -1193,6 +1308,68 @@ to:
             },
 ```
 
+**(c2)** `packages/chat/src/mcp-transport.ts` — the `tools/list` branch (line ~93–98) calls
+`listToolsForActor` synchronously and `.map`s the result. The handler is already `async` (it `await`s
+`callTool` below), so await the now-Promise. BUT once the resolver is async, `listToolsForActor` can
+now reject with a resolver/DB error — which would default-500 with `err.message` leaking. Wrap it in
+a try/catch returning a generic JSON-RPC `-32603` (internal error), logging detail server-side only.
+Change:
+
+```ts
+      if (method === "tools/list") {
+        return reply.code(200).send({
+          jsonrpc: "2.0",
+          id,
+          result: { tools: deps.gateway.listToolsForActor(identity.actorUserId).map(dtoToMcpTool) }
+        });
+      }
+```
+
+to:
+
+```ts
+      if (method === "tools/list") {
+        let tools;
+        try {
+          tools = (await deps.gateway.listToolsForActor(identity.actorUserId)).map(dtoToMcpTool);
+        } catch (err) {
+          // FAIL CLOSED + scrub: a resolver/DB failure must not expose the tool surface
+          // nor leak err.message. Generic internal error; detail logged server-side.
+          request.log.error({ err }, "mcp tools/list resolver failed");
+          return reply.code(200).send(jsonRpcError(id, -32603, "Internal error"));
+        }
+        return reply.code(200).send({ jsonrpc: "2.0", id, result: { tools } });
+      }
+```
+
+Also fix the existing `tools/call` catch (line ~109–112), which currently echoes `err.message`. Now
+that `callTool` awaits the async resolver it can throw resolver/DB errors (not only invalid-token),
+so the message could leak DB detail. Scrub it:
+
+```ts
+        } catch (err) {
+          // callTool only throws on invalid token — guard already passed above.
+          const message = err instanceof Error ? err.message : "Internal error";
+          return reply.code(200).send(jsonRpcError(id, -32603, message));
+        }
+```
+
+becomes:
+
+```ts
+        } catch (err) {
+          // callTool can now throw resolver/DB errors (async resolver) in addition to
+          // invalid-token — never echo err.message (it may carry DB detail). Generic
+          // internal error; detail logged server-side only.
+          request.log.error({ err }, "mcp tools/call failed");
+          return reply.code(200).send(jsonRpcError(id, -32603, "Internal error"));
+        }
+```
+
+> Verify `request.log` is in scope in this handler (Fastify request logger). If the handler binds the
+> request as a different identifier, use that. The load-bearing change: no `err.message` reaches the
+> JSON-RPC response on either branch.
+
 **(d)** `packages/chat/src/live/runtime.ts` — change the `mcpTokenLifecycle.mint` type (lines 58–66)
 to return a Promise:
 
@@ -1247,10 +1424,15 @@ pnpm --filter @jarv1s/ai exec tsc --noEmit
 pnpm --filter @jarv1s/chat exec tsc --noEmit
 ```
 
+Confirm `chat-mcp-transport.test.ts` exercises the `tools/list` branch and passes (it proves the
+`mcp-transport.ts` await is correct). If no existing test hits `tools/list`, add one to that file
+that sends a `tools/list` JSON-RPC request and asserts a non-empty `result.tools` array — the
+`.map` on a Promise would otherwise fail silently at runtime.
+
 ### Step 5.5 — Commit
 
 ```
-git add packages/ai/src/gateway/types.ts packages/ai/src/gateway/gateway.ts packages/chat/src/routes.ts packages/chat/src/live/runtime.ts packages/chat/src/live/chat-session-manager.ts tests/integration/mcp-gateway.test.ts tests/integration/chat-mcp-transport.test.ts
+git add packages/ai/src/gateway/types.ts packages/ai/src/gateway/gateway.ts packages/chat/src/routes.ts packages/chat/src/mcp-transport.ts packages/chat/src/live/runtime.ts packages/chat/src/live/chat-session-manager.ts tests/integration/mcp-gateway.test.ts tests/integration/chat-mcp-transport.test.ts
 git commit -m "refactor(ai,chat): make ActiveModulesResolver async (gateway + token-mint ripple)"
 ```
 
@@ -1531,12 +1713,25 @@ git commit -m "feat(module-registry): add DB-backed createActiveModulesResolver 
 ## Task 7 — Reconcile manifest `routes[]` (tasks + chat) for guard coverage
 
 The coverage assertion (Task 9) requires every registered API route to be either claimed by a
-manifest `routes[]` entry or on the platform allowlist. Two modules under-declare. Add the missing
+manifest `routes[]` entry or on the platform allowlist. Three modules under-declare. Add the missing
 entries FIRST (per spec Risk #1 mitigation: do reconciliation before wiring the guard's 404).
+
+> **Reconciliation is empirical, not from this list.** The set of under-declared routes below
+> reflects `a898533`; the load-bearing source of truth is the boot coverage assertion (Task 11). Before
+> writing entries, enumerate the actual registered API routes and diff against the manifests:
+> ```
+> rg -n "server\.(get|post|patch|put|delete)\b" packages apps --glob '*routes*.ts' --glob '*transport*.ts'
+> ```
+> Every registered `/api/*` route must land in its owning module's `routes[]` (preferred) or the
+> platform allowlist. The three known gaps as of `a898533`: tasks (preferences GET/PATCH, subtasks
+> GET), chat (8 live/memory/mcp routes), and **connectors** (the two Google OAuth POST routes —
+> `packages/connectors/src/routes.ts:60` `/api/connectors/google/authorize` and `:81`
+> `/api/connectors/google/complete`, which the connectors manifest does not yet declare).
 
 **Files**
 - Modify: `packages/tasks/src/manifest.ts`
 - Modify: `packages/chat/src/manifest.ts`
+- Modify: `packages/connectors/src/manifest.ts` (declare the two Google OAuth POST routes)
 - Create: `packages/module-registry/test/route-coverage.test.ts` (a pure unit test of index↔manifest reconciliation, no DB)
 
 ### Step 7.1 — Write the failing test
@@ -1582,6 +1777,12 @@ describe("manifest routes[] reconciliation", () => {
     ]) {
       expect(paths).toContainEqual(expected);
     }
+  });
+
+  it("connectors manifest declares the Google OAuth POST routes", () => {
+    const paths = manifestPaths("connectors");
+    expect(paths).toContainEqual({ method: "POST", path: "/api/connectors/google/authorize" });
+    expect(paths).toContainEqual({ method: "POST", path: "/api/connectors/google/complete" });
   });
 
   it("every manifest API route uses Fastify :param syntax (not {param})", () => {
@@ -1678,19 +1879,42 @@ to (verify each method/path against the registered routes at build time):
   ]
 ```
 
+**(c)** `packages/connectors/src/manifest.ts` — add the two Google OAuth routes to the `routes:`
+array (append after the `/api/admin/connectors/accounts` entry, before the closing `]`). These are
+registered at `packages/connectors/src/routes.ts:60` and `:81` but were never declared, so the boot
+coverage assertion would fail on them. Both are write actions → `connectors.manage`:
+
+```ts
+    {
+      method: "POST",
+      path: "/api/connectors/google/authorize",
+      permissionId: "connectors.manage"
+    },
+    {
+      method: "POST",
+      path: "/api/connectors/google/complete",
+      permissionId: "connectors.manage"
+    }
+```
+
+> Re-verify at build that no OTHER connector route is undeclared (run the `rg` enumeration above
+> against `packages/connectors/src/routes.ts`). The two Google routes are the only gap as of
+> `a898533`, but the boot assertion in Task 11 is the final arbiter.
+
 ### Step 7.4 — Run (expected PASS)
 
 ```
 pnpm --filter @jarv1s/module-registry exec vitest run test/route-coverage.test.ts
 pnpm --filter @jarv1s/tasks exec tsc --noEmit
 pnpm --filter @jarv1s/chat exec tsc --noEmit
+pnpm --filter @jarv1s/connectors exec tsc --noEmit
 ```
 
 ### Step 7.5 — Commit
 
 ```
-git add packages/tasks/src/manifest.ts packages/chat/src/manifest.ts packages/module-registry/test/route-coverage.test.ts
-git commit -m "feat(tasks,chat): declare all registered API routes in manifest routes[]"
+git add packages/tasks/src/manifest.ts packages/chat/src/manifest.ts packages/connectors/src/manifest.ts packages/module-registry/test/route-coverage.test.ts
+git commit -m "feat(tasks,chat,connectors): declare all registered API routes in manifest routes[]"
 ```
 
 ---
@@ -1977,10 +2201,35 @@ describe("route→module index", () => {
     expect(lookupModuleForRoute(index, "GET", "/api/unknown")).toBeUndefined();
   });
 
+  it("folds HEAD into GET so Fastify auto-HEAD is gated like its GET", () => {
+    const index = buildRouteModuleIndex(manifests);
+    // A GET-only manifest route must resolve for a HEAD request to the same path.
+    expect(lookupModuleForRoute(index, "HEAD", "/api/weather/today")).toBe("weather");
+  });
+
+  it("throws when two modules claim the same method+pattern (naming both)", () => {
+    const collide: JarvisModuleManifest[] = [
+      manifests[0]!,
+      {
+        ...manifests[0]!,
+        id: "imposter",
+        name: "Imposter",
+        routes: [{ method: "GET", path: "/api/weather/today", permissionId: "weather.view" }]
+      }
+    ];
+    expect(() => buildRouteModuleIndex(collide)).toThrow(/weather/);
+    expect(() => buildRouteModuleIndex(collide)).toThrow(/imposter/);
+  });
+
   it("includes the platform health + auth + modules + me + admin/me-modules entries", () => {
     expect(PLATFORM_UNGUARDED_ROUTES.has("GET /health")).toBe(true);
     expect(PLATFORM_UNGUARDED_ROUTES.has("GET /api/modules")).toBe(true);
     expect(PLATFORM_UNGUARDED_ROUTES.has("GET /api/me")).toBe(true);
+    // better-auth wildcard (all methods, owned by no module)
+    expect(PLATFORM_UNGUARDED_ROUTES.has("POST /api/auth/*")).toBe(true);
+    expect(PLATFORM_UNGUARDED_ROUTES.has("GET /api/auth/*")).toBe(true);
+    // connector-owned routes must NOT be allowlisted (guarded by connectors module)
+    expect(PLATFORM_UNGUARDED_ROUTES.has("GET /api/admin/connectors/accounts")).toBe(false);
   });
 });
 
@@ -2048,8 +2297,22 @@ import type { ActiveModulesResolver } from "@jarv1s/ai";
 /** A method+pattern key. Method is upper-cased; pattern is Fastify's matched-route url. */
 export type RouteKey = string;
 
+/**
+ * Normalize an HTTP method for keying. Fastify auto-generates a HEAD handler for every
+ * GET route (`exposeHeadRoutes`, default on), and the guard keys runtime requests by
+ * `request.method` — so an inbound HEAD to a guarded GET route would key as
+ * "HEAD /api/..." and miss the GET-keyed index, returning a spurious guard-404. We fold
+ * HEAD into GET everywhere (index build, runtime lookup, coverage accumulator) so a HEAD
+ * is gated exactly like its GET. OPTIONS is handled separately (filtered from the
+ * accumulator; CORS/preflight is not module-gated).
+ */
+function normalizeMethod(method: string): string {
+  const upper = method.toUpperCase();
+  return upper === "HEAD" ? "GET" : upper;
+}
+
 export function routeKey(method: string, pattern: string): RouteKey {
-  return `${method.toUpperCase()} ${pattern}`;
+  return `${normalizeMethod(method)} ${pattern}`;
 }
 
 /**
@@ -2064,6 +2327,14 @@ export const PLATFORM_UNGUARDED_ROUTES: ReadonlySet<RouteKey> = new Set<RouteKey
   routeKey("GET", "/health/ready"),
   // platform module listing
   routeKey("GET", "/api/modules"),
+  // better-auth wildcard: registered as ONE route /api/auth/* across all methods, owned
+  // by no module (platform auth). HEAD folds into GET via normalizeMethod; OPTIONS is
+  // filtered from the coverage accumulator (CORS/preflight), so it is harmless here.
+  routeKey("GET", "/api/auth/*"),
+  routeKey("POST", "/api/auth/*"),
+  routeKey("PATCH", "/api/auth/*"),
+  routeKey("PUT", "/api/auth/*"),
+  routeKey("DELETE", "/api/auth/*"),
   // settings: pre-auth bootstrap + own profile
   routeKey("GET", "/api/bootstrap/status"),
   routeKey("GET", "/api/me"),
@@ -2083,7 +2354,10 @@ export const PLATFORM_UNGUARDED_ROUTES: ReadonlySet<RouteKey> = new Set<RouteKey
   routeKey("GET", "/api/admin/registration"),
   routeKey("PUT", "/api/admin/registration"),
   routeKey("GET", "/api/admin/audit-events"),
-  routeKey("GET", "/api/admin/connectors/accounts"),
+  // NOTE: /api/admin/connectors/accounts is NOT here — it is connector-OWNED (declared
+  // in connectorsModuleManifest.routes[]) so it is guarded by the connectors module's
+  // enablement, not the platform allowlist. Allowlisting it would leave it reachable
+  // after an admin disables connectors. (Only routes owned by NO module belong here.)
   // new enablement endpoints (admin + self)
   routeKey("GET", "/api/admin/modules"),
   routeKey("PATCH", "/api/admin/modules/:id"),
@@ -2093,14 +2367,27 @@ export const PLATFORM_UNGUARDED_ROUTES: ReadonlySet<RouteKey> = new Set<RouteKey
 
 export type RouteModuleIndex = ReadonlyMap<RouteKey, string>;
 
-/** Build a method+pattern → moduleId index from every manifest's routes[]. */
+/**
+ * Build a method+pattern → moduleId index from every manifest's routes[]. Throws if two
+ * manifests claim the same method+pattern: a silent last-writer-wins would let the wrong
+ * module's enablement gate a route (e.g. a route stays reachable because a still-active
+ * module accidentally claimed a disabled module's path). A collision is a build error.
+ */
 export function buildRouteModuleIndex(
   manifests: readonly JarvisModuleManifest[]
 ): RouteModuleIndex {
   const index = new Map<RouteKey, string>();
   for (const manifest of manifests) {
     for (const route of manifest.routes ?? []) {
-      index.set(routeKey(route.method, route.path), manifest.id);
+      const key = routeKey(route.method, route.path);
+      const existing = index.get(key);
+      if (existing !== undefined && existing !== manifest.id) {
+        throw new Error(
+          `Route "${key}" is claimed by two modules ("${existing}" and "${manifest.id}"). ` +
+            `Each route may belong to exactly one module.`
+        );
+      }
+      index.set(key, manifest.id);
     }
   }
   return index;
@@ -2177,8 +2464,15 @@ export interface RouteGuardDeps {
  * a module not active for the actor. onRequest runs after routing, so
  * request.routeOptions.url is the matched pattern (e.g. /api/tasks/:id). 404 (never
  * 403) — do not leak that the module exists but is disabled. Platform/unguarded routes
- * pass through with no actor resolution. A resolver failure FAILS CLOSED (the thrown
- * error becomes a 500 via Fastify's error path — the request never passes through).
+ * pass through with no actor resolution.
+ *
+ * FAIL-CLOSED + SCRUBBED on resolver/DB error: a resolver throw must NEVER let the
+ * request through (that would silently re-enable a disabled module). We catch it inside
+ * the hook, log the detail SERVER-SIDE only, and return a generic 503 with NO err.message
+ * — the rest of the app routes errors through handleRouteError/HttpError and never lets a
+ * raw error reach Fastify's default handler (which would echo err.message). This onRequest
+ * hook is a new code path outside that convention, so it must scrub here itself (Hard
+ * Invariant: secrets/DB detail never escape to responses or logs in a leakable form).
  */
 export function registerRouteEnablementGuard(server: FastifyInstance, deps: RouteGuardDeps): void {
   const index = buildRouteModuleIndex(deps.manifests);
@@ -2208,7 +2502,15 @@ export function registerRouteEnablementGuard(server: FastifyInstance, deps: Rout
       return;
     }
 
-    const active = await deps.resolveActiveModules(actorUserId);
+    let active: readonly JarvisModuleManifest[];
+    try {
+      active = await deps.resolveActiveModules(actorUserId);
+    } catch (error) {
+      // FAIL CLOSED: never let a resolver/DB error fall through to the handler. Log the
+      // detail server-side; return a generic 503 with no internal message.
+      request.log.error({ err: error, moduleId }, "module-enablement resolver failed");
+      return reply.code(503).send({ error: "Service unavailable" });
+    }
     if (!active.some((m) => m.id === moduleId)) {
       return reply.code(404).send({ error: "Not found" });
     }
@@ -2384,6 +2686,33 @@ describe("module enablement endpoints", () => {
     });
     expect(res.statusCode).toBe(403);
   });
+
+  it("a non-admin PATCH gets 403 even for an unknown or required module (no existence leak)", async () => {
+    // Re-register a non-admin member (cookies above are scoped to other tests).
+    const signUp = await server.inject({
+      method: "POST",
+      url: "/api/auth/sign-up/email",
+      headers: { "content-type": "application/json" },
+      payload: { name: "Member2", email: "member2@example.test", password: "correct horse battery staple y" }
+    });
+    const memberCookie = cookieHeader(signUp.headers as Record<string, unknown>);
+    // Unknown module: an admin would get 404, a required module 409 — a non-admin must
+    // get 403 for BOTH, so the response cannot be used to probe module existence/status.
+    const unknown = await server.inject({
+      method: "PATCH",
+      url: "/api/admin/modules/does-not-exist",
+      headers: { cookie: memberCookie, "content-type": "application/json" },
+      payload: { disabled: true }
+    });
+    expect(unknown.statusCode).toBe(403);
+    const required = await server.inject({
+      method: "PATCH",
+      url: "/api/admin/modules/tasks",
+      headers: { cookie: memberCookie, "content-type": "application/json" },
+      payload: { disabled: true }
+    });
+    expect(required.statusCode).toBe(403);
+  });
 });
 ```
 
@@ -2475,15 +2804,19 @@ closing `}` of the function), add:
       try {
         const accessContext = await dependencies.resolveAccessContext(request);
         const disabled = parseDisabledBody(request.body);
-        const manifest = findManifest(request.params.id);
-        if (!manifest) throw new HttpError(404, "Module not found");
-        if (disabled && isRequired(manifest)) {
-          throw new HttpError(409, "Required modules cannot be disabled");
-        }
+        // SECURITY: authorize FIRST, before any manifest lookup or required/unknown
+        // check, so a non-admin can never distinguish unknown (404) vs required (409)
+        // modules — they always get the admin 403. assertAdminUser must run before the
+        // 404/409 branches. All checks live inside one withDataContext.
         const dto = await dependencies.dataContext.withDataContext(
           accessContext,
           async (scopedDb) => {
             await assertAdminUser(repository, scopedDb, accessContext.actorUserId);
+            const manifest = findManifest(request.params.id);
+            if (!manifest) throw new HttpError(404, "Module not found");
+            if (disabled && isRequired(manifest)) {
+              throw new HttpError(409, "Required modules cannot be disabled");
+            }
             await repository.setInstanceModuleDisabled(scopedDb, {
               moduleId: manifest.id,
               disabled,
@@ -2789,38 +3122,110 @@ describe("registerRouteEnablementGuard end-to-end (bare Fastify)", () => {
     expect(res.statusCode).not.toBe(403);
     await app.close();
   });
+
+  it("FAILS CLOSED: a resolver throw never reaches the route handler", async () => {
+    // A resolver/DB error must NEVER silently let a guarded request through (which would
+    // re-enable a disabled module). The thrown error becomes a 500 via Fastify's error
+    // path; the handler body must not run. We prove it both by status (not 200) and by a
+    // side-effect flag the handler would set if it ran.
+    const app = Fastify({ logger: false });
+    let handlerRan = false;
+    app.after(() => {
+      app.get("/api/weather/today", async () => {
+        handlerRan = true;
+        return { ok: true };
+      });
+      registerRouteEnablementGuard(app, {
+        manifests: [weather],
+        resolveActiveModules: async () => {
+          throw new Error("resolver/DB unavailable");
+        },
+        resolveAccessContext: async () => ({ actorUserId: "00000000-0000-4000-8000-000000000001" }),
+        platformAllowlist: new Set<string>()
+      });
+    });
+    await app.ready();
+    const res = await app.inject({ method: "GET", url: "/api/weather/today" });
+    expect(res.statusCode).not.toBe(200);
+    expect(res.statusCode).toBe(503);
+    expect(handlerRan).toBe(false);
+    // The internal error message must NOT leak in the response body.
+    expect(res.body).not.toContain("resolver/DB unavailable");
+    await app.close();
+  });
 });
 ```
 
-### Step 11.2 — Run (expected FAIL)
+### Step 11.2 — Write the failing test (observable proof the real server wired the guard)
 
-```
-vitest run tests/integration/route-guard.test.ts
+The bare-Fastify e2e tests (Step 11.1) already prove the guard LOGIC. This step proves the REAL
+server actually registered it — not merely that it still boots. A "server boots clean" assertion is
+too weak (a server with NO guard also boots). Add an OBSERVABLE assertion to the real-server block:
+register a throwaway probe route owned by a test-only manifest that is NOT active, and assert the
+real server 404s it — only a wired guard can do that. Because all 11 built-ins are required (and we
+do not make one non-required — out of scope), drive this with a deterministic, test-only injection
+seam rather than a real module:
+
+Use the test-only `__testExtraGuardedRoutes` seam on `createApiServer` (defined in Step 11.3): it
+registers a route owned by a synthetic manifest the resolver never returns as active, so the REAL
+server's guard must 404 it. Before the guard is wired in `server.ts`, that route returns 200 — that
+is the RED. Add a SECOND `createApiServer` instance in this test file configured with the seam (kept
+separate from the main `beforeAll` server so the synthetic route does not pollute other tests):
+
+```ts
+describe("real server route-enablement guard is wired", () => {
+  it("404s a route owned by an inactive (synthetic) module — proving the guard is registered", async () => {
+    const probeDb = createDatabase({ connectionString: connectionStrings.app, maxConnections: 1 });
+    const probeServer = createApiServer({
+      appDb: probeDb,
+      logger: false,
+      __testExtraGuardedRoutes: {
+        manifests: [
+          {
+            id: "__probe_inactive__",
+            name: "Probe",
+            version: "0.1.0",
+            publisher: "test",
+            lifecycle: "optional",
+            compatibility: { jarv1s: ">=0.0.0" },
+            availability: { defaultEnabled: true, required: false, supportsUserDisable: true },
+            routes: [{ method: "GET", path: "/api/__probe__/ping", permissionId: "probe.view" }]
+          }
+        ],
+        routes: [{ method: "GET", url: "/api/__probe__/ping" }]
+      }
+    });
+    await probeServer.ready();
+    // Authenticated request (reuse a signed-in cookie pattern). The guard resolves the
+    // actor, finds /api/__probe__/ping → module "__probe_inactive__", which the resolver
+    // (built-ins only) never returns active → 404. Before the guard is wired: 200.
+    const res = await probeServer.inject({
+      method: "GET",
+      url: "/api/__probe__/ping",
+      headers: { cookie: ownerCookie }
+    });
+    expect(res.statusCode).toBe(404);
+    await probeServer.close();
+    await probeDb.destroy();
+  });
+});
 ```
 
-Expect failure: the bare-Fastify end-to-end test fails because the guard is fine, but the "real
-server boots clean" test fails if the server does not yet register the guard/coverage assertion — OR
-the coverage assertion throws at `server.ready()` because the guard is wired before the
-manifest/allowlist reconciliation is complete. The failing signal here is the real-server
-`beforeAll` throwing during `server.ready()` once the assertion is added but before reconciliation —
-which Task 7 + Task 10 already handled, so the expected failure is specifically that the guard is not
-yet wired (real-server tests still pass, but the e2e guard test may pass too). If everything passes
-without the wiring, force the failing state by adding the wiring test first: assert
-`server.inject` on a guarded path goes through the guard — but since we cannot disable a real module,
-rely on the bare-Fastify e2e test as the failing driver: it imports `registerRouteEnablementGuard`,
-which already exists (Task 9), so it passes. THEREFORE the true failing driver for this task is the
-**coverage assertion at boot**: temporarily nothing fails. To get a real RED, first add the wiring
-that calls `assertRouteCoverage` at boot and run the FULL existing suite — if reconciliation is
-incomplete, `auth-settings.test.ts` (which boots `createApiServer`) will throw at `server.ready()`.
-Run:
+> If signing in a fresh owner for the probe server is awkward, set
+> `registration.requires_approval=false` and sign up an owner on `probeServer` exactly as the main
+> `beforeAll` does, or reuse a shared bootstrapped DB. The load-bearing assertion is the 404 from the
+> REAL `createApiServer` guard against a route the resolver cannot mark active.
+
+The other RED driver is the **coverage assertion at boot**. Run the full existing suite — if
+reconciliation (Tasks 7/10) is incomplete, `auth-settings.test.ts` (which boots `createApiServer`)
+throws at `server.ready()` naming the unreconciled route:
 
 ```
 vitest run tests/integration/auth-settings.test.ts
 ```
 
-If it throws a coverage-assertion error naming an unreconciled route, that is the RED to fix in Step
-11.3 by adding the route to a manifest or the allowlist. If it passes, reconciliation from Tasks 7/10
-is already complete and you proceed to wire-and-verify.
+If it throws a coverage-assertion error naming an unreconciled route, that is a RED to fix in Step
+11.3 by adding the route to a manifest or the allowlist. Iterate until clean.
 
 ### Step 11.3 — Minimal implementation
 
@@ -2829,6 +3234,16 @@ is already complete and you proceed to wire-and-verify.
 
 ```ts
 import type { ActiveModulesResolver } from "@jarv1s/ai";
+```
+
+Also RE-EXPORT `JarvisModuleManifest` so `apps/api/src/server.ts` (which depends on
+`@jarv1s/module-registry` but NOT on `@jarv1s/module-sdk`) can type the test-seam option without
+adding a new package dependency. `module-registry` already imports the type at the top of this file
+(line ~47); add a re-export near the other type re-exports (e.g. beside
+`export type { ChatEngineFactory } from "@jarv1s/chat";`):
+
+```ts
+export type { JarvisModuleManifest } from "@jarv1s/module-sdk";
 ```
 
 Add to `BuiltInRouteDependencies` (after `listModuleManifests`):
@@ -2950,7 +3365,8 @@ import {
   registerRouteEnablementGuard,
   assertRouteCoverage,
   PLATFORM_UNGUARDED_ROUTES,
-  type ChatEngineFactory
+  type ChatEngineFactory,
+  type JarvisModuleManifest
 } from "@jarv1s/module-registry";
 ```
 
@@ -2976,11 +3392,26 @@ and add the guard + assertion. Replace the `registerBuiltInApiRoutes(server, {..
       bootstrapConnectionString: ownsAppDb ? getJarvisDatabaseUrls().bootstrap : undefined
     });
 
+    // Test-only seam (ADR 0009 §4 verification): register synthetic guarded routes on a
+    // throwaway INACTIVE manifest so a test can prove the REAL server's guard 404s an
+    // inactive module's route. Ignored in production (option is undefined). The synthetic
+    // manifests are appended to the guard's manifest set AND the resolver excludes them
+    // (a deny row seeded by the test, or the resolver wrapper below filters them out).
+    const guardManifests = [
+      ...getBuiltInModuleManifests(),
+      ...(options.__testExtraGuardedRoutes?.manifests ?? [])
+    ];
+    if (options.__testExtraGuardedRoutes) {
+      for (const r of options.__testExtraGuardedRoutes.routes) {
+        server.route({ method: r.method, url: r.url, handler: async () => ({ ok: true }) });
+      }
+    }
+
     // Register the route-enablement guard AFTER all routes exist so the onRequest hook
     // can read request.routeOptions.url (the matched pattern). The guard 404s a request
     // whose owning module is not active for the actor (never 403 — no existence leak).
     registerRouteEnablementGuard(server, {
-      manifests: getBuiltInModuleManifests(),
+      manifests: guardManifests,
       resolveActiveModules,
       resolveAccessContext: authRuntime.resolveAccessContext
     });
@@ -3014,6 +3445,9 @@ accumulate, and have the `onReady` assertion read it. Concretely, inside `create
       ? routeOptions.method
       : [routeOptions.method];
     for (const method of methods) {
+      // HEAD is folded into GET by routeKey (normalizeMethod), so an auto-HEAD route is
+      // already covered by its GET entry — skip it here to avoid asserting a separate
+      // "HEAD ..." key the index never holds. OPTIONS (CORS/preflight) is not module-gated.
       if (method === "HEAD" || method === "OPTIONS") continue;
       registeredRoutes.push({ method, url: routeOptions.url });
     }
@@ -3026,31 +3460,61 @@ and the `onReady` assertion uses `registeredRoutes`:
   server.addHook("onReady", async () => {
     assertRouteCoverage({
       registered: registeredRoutes,
-      manifests: getBuiltInModuleManifests(),
+      // Use the SAME manifest set the guard uses, so the test-only synthetic routes are
+      // "covered" by their synthetic manifest and the assertion does not flag them as
+      // orphans. In production __testExtraGuardedRoutes is undefined → identical to the
+      // built-in set.
+      manifests: guardManifestsForCoverage(),
       platformAllowlist: PLATFORM_UNGUARDED_ROUTES
     });
   });
 ```
 
-> Remove the separate `collectRegisteredRoutes` helper mentioned above — the `onRoute` accumulator
-> replaces it. The `/api/auth/*` wildcard route registers with `url: "/api/auth/*"`. Add
-> `routeKey("DELETE"|"GET"|"OPTIONS"|"PATCH"|"POST"|"PUT", "/api/auth/*")` for the auth methods to
-> `PLATFORM_UNGUARDED_ROUTES` in Task 9 if the assertion flags `/api/auth/*`. VERIFY at build:
-> run `auth-settings.test.ts` and read the assertion error; add each flagged route to the allowlist
-> (platform) or the owning manifest. This is the in-scope reconciliation — budget for iterating here.
+Define the option and the manifest accessor near the top of `createApiServer` (the accessor lets the
+`onReady` hook, which runs after `after()`, see the synthetic manifests):
 
-> **Auth wildcard note:** `/api/auth/*` is registered as one route with all HTTP methods. Add these
-> to `PLATFORM_UNGUARDED_ROUTES`:
-> ```ts
-> routeKey("GET", "/api/auth/*"),
-> routeKey("POST", "/api/auth/*"),
-> routeKey("PATCH", "/api/auth/*"),
-> routeKey("PUT", "/api/auth/*"),
-> routeKey("DELETE", "/api/auth/*"),
-> routeKey("OPTIONS", "/api/auth/*")
-> ```
-> (OPTIONS is filtered out of the accumulator, so it is harmless to include or omit.) Also add the
-> connectors OAuth routes if any are not in the connectors manifest; the assertion will name them.
+```ts
+  // Test-only: extra routes + their synthetic (inactive) manifests, to verify the guard
+  // 404s an inactive module's route on the REAL server. Undefined in production.
+  const guardManifestsForCoverage = (): readonly JarvisModuleManifest[] => [
+    ...getBuiltInModuleManifests(),
+    ...(options.__testExtraGuardedRoutes?.manifests ?? [])
+  ];
+```
+
+And add to the `createApiServer` options interface (clearly marked test-only):
+
+```ts
+  /**
+   * TEST-ONLY. Synthetic guarded routes + their manifests, used to prove the real
+   * server's route-enablement guard 404s a route owned by an INACTIVE module. Never set
+   * in production. Mechanism: these manifests are added to the GUARD's manifest set (so
+   * the guard maps the synthetic route → synthetic module id) but NOT to the resolver's
+   * manifest set (createActiveModulesResolver only knows the built-ins). The resolver
+   * therefore never returns the synthetic module as active, so the guard's
+   * `active.some(m => m.id === syntheticId)` is false → 404. No deny-row seeding needed.
+   */
+  readonly __testExtraGuardedRoutes?: {
+    readonly manifests: readonly JarvisModuleManifest[];
+    readonly routes: readonly { method: string; url: string }[];
+  };
+```
+
+> Remove the separate `collectRegisteredRoutes` helper mentioned above — the `onRoute` accumulator
+> replaces it. `JarvisModuleManifest` must be imported in `server.ts`. **Import it from
+> `@jarv1s/module-registry` (re-exported there — see Step 11.3(a)), NOT from `@jarv1s/module-sdk`:**
+> `apps/api/package.json` does not declare `@jarv1s/module-sdk` as a dependency, and it already depends
+> on `@jarv1s/module-registry`. Adding a direct module-sdk import without the dep is a build/lint
+> failure.
+
+> **Auth wildcard note:** `/api/auth/*` is registered as one route with all HTTP methods and is
+> ALREADY in `PLATFORM_UNGUARDED_ROUTES` (declared up front in Task 9, all methods). HEAD folds into
+> GET via `normalizeMethod`; OPTIONS is filtered from the coverage accumulator (CORS/preflight). The
+> connectors OAuth routes are declared in the connectors manifest in Task 7. So no allowlist edits are
+> expected here. If `auth-settings.test.ts` STILL names an unanticipated route at boot, add it to the
+> owning manifest `routes[]` (preferred) or — only for genuinely platform-owned routes —
+> `PLATFORM_UNGUARDED_ROUTES` in `route-guard.ts`; if you edit that file, it IS in this task's
+> `git add` list (Step 11.5), so stage it.
 
 ### Step 11.4 — Run (expected PASS)
 
@@ -3071,7 +3535,7 @@ pnpm --filter @jarv1s/module-registry exec tsc --noEmit
 ### Step 11.5 — Commit
 
 ```
-git add packages/module-registry/src/index.ts packages/ai/src/routes.ts apps/api/src/server.ts tests/integration/route-guard.test.ts
+git add packages/module-registry/src/index.ts packages/module-registry/src/route-guard.ts packages/ai/src/routes.ts apps/api/src/server.ts tests/integration/route-guard.test.ts
 git commit -m "feat(api): wire async resolver + route-enablement guard + boot coverage assertion"
 ```
 
@@ -3129,6 +3593,41 @@ registerAiRoutes(server, {
 If a test relied on the REST tool surface always showing all modules regardless of actor, that
 behavior is now actor-scoped — but with an empty deny store the active set equals the full set, so
 the assertions hold unchanged.
+
+Add a FAIL-CLOSED test for the AI REST tool surfaces: a server wired with a throwing
+`resolveActiveModules` must NOT return a 200 tool list and must NOT execute a tool — the resolver
+error must surface as a 5xx, never a silent empty/all set. Add to `ai-tools.test.ts`:
+
+```ts
+  it("fails closed: a throwing resolveActiveModules does not list or invoke tools", async () => {
+    const app = Fastify({ logger: false });
+    app.after(() =>
+      registerAiRoutes(app, {
+        resolveAccessContext, // reuse the test's stub returning a valid actor
+        dataContext,
+        resolveActiveModules: async () => {
+          throw new Error("resolver/DB unavailable");
+        }
+      })
+    );
+    await app.ready();
+    const list = await app.inject({ method: "GET", url: "/api/ai/assistant-tools" });
+    expect(list.statusCode).toBeGreaterThanOrEqual(500);
+    const invoke = await app.inject({
+      method: "POST",
+      url: "/api/ai/assistant-tools/example.read/invoke",
+      headers: { "content-type": "application/json" },
+      payload: { arguments: {} }
+    });
+    expect(invoke.statusCode).toBeGreaterThanOrEqual(500);
+    await app.close();
+  });
+```
+
+> Adapt `resolveAccessContext` / `dataContext` to the construction the AI test file already uses. The
+> point is observable: resolver throw → 5xx on both surfaces, never a 200 with a degraded tool set.
+> Brace check: the block is one arrow body — `app.after(() => registerAiRoutes(app, { ...deps }))`
+> with a SINGLE `registerAiRoutes(app, {` call; do not nest a second one.
 
 ### Step 12.4 — Run (expected PASS)
 
