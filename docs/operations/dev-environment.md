@@ -113,7 +113,6 @@ sync cost and latency without code changes:
 | `JARVIS_RL_GOOGLE_SYNC_MAX`        | `6`     | Per-actor rate limit (per minute) on the manual `POST /api/connectors/google/sync` route.     |
 | `JARVIS_EMAIL_SYNC_CAP`            | `50`    | Max email messages summarized per sync run.                                                   |
 | `JARVIS_EMAIL_LLM_TIMEOUT_MS`      | `20000` | Per-LLM-call timeout (ms) for the summary/signals pass.                                       |
-| `JARVIS_EMAIL_ESCALATE_CONFIDENCE` | `0.5`   | Confidence floor below which a high-importance message escalates once to the next model tier. |
 
 ## Host-multiplexer bridge (CLI chat from the container)
 

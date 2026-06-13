@@ -604,17 +604,58 @@ describe("extractEmailSignals", () => {
     expect(result.signals.billsDue ?? []).toEqual([]);
   });
 
-  it("escalates exactly once on high importance + low confidence", async () => {
+  it("stays economy-tier only — never escalates to a pricier tier", async () => {
+    // Even on high importance + low confidence, the sync pass must NOT request a second
+    // (interactive/reasoning) model: the plan pins inbox triage to the user's economy tier.
+    const tiers: string[] = [];
+    const deps: EmailExtractDeps = {
+      selectModel: async (tier) => {
+        tiers.push(tier);
+        return { tier };
+      },
+      runChat: async () => ({
+        text: JSON.stringify({ summary: "x", importance: "high", confidence: 0.2 })
+      })
+    };
+    const result = await extractEmailSignals(PARSED, deps);
+    expect(tiers).toEqual(["economy"]);
+    expect(result.escalated).toBe(false);
+    expect(result.summary).toBe("x");
+  });
+
+  it("drops signal text that echoes the email body and strips unknown keys (privacy)", async () => {
+    // A prompt-injected model packs the full body into actionItems[].text and adds a rogue key.
+    // The sanitizer must drop the body-echoing item and never carry the unknown key through.
     const deps = fakeDeps({
       replies: [
-        JSON.stringify({ summary: "x", importance: "high", confidence: 0.2 }),
-        JSON.stringify({ summary: "escalated", importance: "high", confidence: 0.8 })
+        JSON.stringify({
+          summary: "Utility bill due soon",
+          actionItems: [{ text: PARSED.body }, { text: "Pay the electric bill" }],
+          rawBody: PARSED.body,
+          confidence: 0.9
+        })
       ],
-      models: [{ tier: "economy" }, { tier: "interactive" }]
+      models: [{ tier: "economy" }]
     });
-    const result = await extractEmailSignals(PARSED, deps, { escalateConfidence: 0.5 });
-    expect(result.summary).toBe("escalated");
-    expect(result.signals.confidence).toBe(0.8);
+    const result = await extractEmailSignals(PARSED, deps);
+    // The body-echoing action item is dropped; the legitimate one survives.
+    expect(result.signals.actionItems?.map((a) => a.text)).toEqual(["Pay the electric bill"]);
+    // No unknown key (e.g. rawBody) ever lands in the persisted signals object.
+    expect(Object.keys(result.signals)).not.toContain("rawBody");
+    const serialized = JSON.stringify(result.signals);
+    expect(serialized).not.toContain(PARSED.body);
+  });
+
+  it("caps signal strings at the bound (no unbounded model text persisted)", async () => {
+    const huge = "z".repeat(5000);
+    const deps = fakeDeps({
+      replies: [
+        JSON.stringify({ summary: "s", billsDue: [{ description: huge }], confidence: 0.5 })
+      ],
+      models: [{ tier: "economy" }]
+    });
+    const result = await extractEmailSignals(PARSED, deps);
+    expect((result.signals.billsDue?.[0]?.description.length ?? 0) <= 280).toBe(true);
   });
 
   it("skips the LLM pass and returns metadata-only when no model is configured", async () => {
