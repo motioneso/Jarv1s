@@ -758,7 +758,16 @@ describe("MemoryRepository recency", () => {
         "stub",
         "0"
       );
-      await repo.upsertFileIndex(scopedDb, recencyUserId, "vault", olderPath, "h-old", 1, "stub", "0");
+      await repo.upsertFileIndex(
+        scopedDb,
+        recencyUserId,
+        "vault",
+        olderPath,
+        "h-old",
+        1,
+        "stub",
+        "0"
+      );
       await sql`
         UPDATE app.memory_file_index
         SET ingested_at = now() - interval '1 day'
@@ -773,7 +782,16 @@ describe("MemoryRepository recency", () => {
         "stub",
         "0"
       );
-      await repo.upsertFileIndex(scopedDb, recencyUserId, "vault", newerPath, "h-new", 1, "stub", "0");
+      await repo.upsertFileIndex(
+        scopedDb,
+        recencyUserId,
+        "vault",
+        newerPath,
+        "h-new",
+        1,
+        "stub",
+        "0"
+      );
     });
   });
 
