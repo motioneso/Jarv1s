@@ -163,6 +163,31 @@ export class BriefingsRepository {
       return undefined;
     }
 
+    // Capture ONE `now` so the lock-day, the existing-run comparison, and compose's
+    // local-day window all agree even across a local-midnight boundary.
+    const now = new Date();
+
+    // Scheduled local-day idempotency under a transaction-scoped advisory lock so two
+    // concurrent cron fires (multi-replica worker, or a retry overlapping the first)
+    // cannot both pass check-then-insert (F2). `scopedDb.db` is ALREADY the Kysely
+    // Transaction opened by withDataContext (DataContextDb.db: Transaction<...>), so we
+    // take the lock ON that existing transaction — do NOT open a nested transaction. The
+    // lock auto-releases when withDataContext's transaction commits/rolls back.
+    //
+    // This runs BEFORE the blocked-tool guard so a blocked SCHEDULED definition is also
+    // deduped: the idempotency check matches any same-local-day scheduled run regardless
+    // of status, so a persisted `blocked` run suppresses every later fire that day rather
+    // than orphaning a fresh blocked row on each cron tick.
+    if (input.runKind === "scheduled") {
+      // hashtextextended(text, 0) → stable bigint key per (definition, local day).
+      const lockKey = `${definition.id}:${localDayString(definition, now)}`;
+      await sql`SELECT pg_advisory_xact_lock(hashtextextended(${lockKey}, 0))`.execute(scopedDb.db);
+      const existing = await this.findScheduledRunForLocalDay(scopedDb, definition, now);
+      if (existing) {
+        return { run: existing, created: false };
+      }
+    }
+
     // Blocked-tool guard preserved: a non-read selected tool blocks the run.
     const blocked = definition.selected_tool_names.some((name) => {
       const tool = findAssistantToolFromManifests(input.composeDeps.moduleManifests, name);
@@ -175,26 +200,6 @@ export class BriefingsRepository {
         sourceMetadata: { degraded: false, gaps: [], blockedReason: "non_read_tool" }
       });
       return { run, created: true };
-    }
-
-    // Capture ONE `now` so the lock-day, the existing-run comparison, and compose's
-    // local-day window all agree even across a local-midnight boundary.
-    const now = new Date();
-
-    // Scheduled local-day idempotency under a transaction-scoped advisory lock so two
-    // concurrent cron fires (multi-replica worker, or a retry overlapping the first)
-    // cannot both pass check-then-insert (F2). `scopedDb.db` is ALREADY the Kysely
-    // Transaction opened by withDataContext (DataContextDb.db: Transaction<...>), so we
-    // take the lock ON that existing transaction — do NOT open a nested transaction. The
-    // lock auto-releases when withDataContext's transaction commits/rolls back.
-    if (input.runKind === "scheduled") {
-      // hashtextextended(text, 0) → stable bigint key per (definition, local day).
-      const lockKey = `${definition.id}:${localDayString(definition, now)}`;
-      await sql`SELECT pg_advisory_xact_lock(hashtextextended(${lockKey}, 0))`.execute(scopedDb.db);
-      const existing = await this.findScheduledRunForLocalDay(scopedDb, definition, now);
-      if (existing) {
-        return { run: existing, created: false };
-      }
     }
 
     const composed = await composeBriefing(
