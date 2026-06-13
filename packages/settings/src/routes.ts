@@ -26,6 +26,8 @@ import {
   listMyModulesRouteSchema,
   listUsersRouteSchema,
   meRouteSchema,
+  onboardingCompleteRouteSchema,
+  onboardingSkipRouteSchema,
   patchModuleEnablementRouteSchema,
   putChatMultiplexerSettingsRouteSchema,
   putRegistrationSettingsRouteSchema,
@@ -545,6 +547,35 @@ export function registerSettingsRoutes(
       }
     }
   );
+
+  const onboardingStateAction = (verb: "complete" | "skip", state: "completed" | "skipped") =>
+    server.post(
+      `/api/onboarding/${verb}`,
+      { schema: verb === "complete" ? onboardingCompleteRouteSchema : onboardingSkipRouteSchema },
+      async (request, reply) => {
+        try {
+          const accessContext = await dependencies.resolveAccessContext(request);
+          const result = await dependencies.dataContext.withDataContext(
+            accessContext,
+            async (scopedDb) => {
+              await assertAdminUser(repository, scopedDb, accessContext.actorUserId);
+              const newState = await repository.setOnboardingState(scopedDb, {
+                state,
+                actorUserId: accessContext.actorUserId,
+                requestId: requireRequestId(accessContext)
+              });
+              return { state: newState };
+            }
+          );
+          return result;
+        } catch (error) {
+          return handleRouteError(error, reply);
+        }
+      }
+    );
+
+  onboardingStateAction("complete", "completed");
+  onboardingStateAction("skip", "skipped");
 
   function requireManifests(): readonly JarvisModuleManifest[] {
     return dependencies.listModuleManifests?.() ?? [];

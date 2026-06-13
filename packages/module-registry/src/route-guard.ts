@@ -69,6 +69,8 @@ export const PLATFORM_UNGUARDED_ROUTES: ReadonlySet<RouteKey> = new Set<RouteKey
   routeKey("GET", "/api/admin/audit-events"),
   // onboarding (Phase 2): admin-gated platform routes owned by no module
   routeKey("GET", "/api/onboarding/status"),
+  routeKey("POST", "/api/onboarding/complete"),
+  routeKey("POST", "/api/onboarding/skip"),
   // NOTE: /api/admin/connectors/accounts is NOT here — it is connector-OWNED (declared
   // in connectorsModuleManifest.routes[]) so it is guarded by the connectors module's
   // enablement, not the platform allowlist. Allowlisting it would leave it reachable

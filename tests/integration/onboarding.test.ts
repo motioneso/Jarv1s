@@ -170,3 +170,107 @@ describe("Phase 2 onboarding — getOnboardingStatus (derived steps)", () => {
     expect([401, 403]).toContain(res.statusCode);
   });
 });
+
+describe("Phase 2 onboarding — complete/skip (audited)", () => {
+  let appDb: Kysely<JarvisDatabase>;
+  let server: ReturnType<typeof createApiServer>;
+  let ownerCookie: string;
+
+  beforeAll(async () => {
+    await resetEmptyFoundationDatabase();
+    appDb = createDatabase({ connectionString: connectionStrings.app, maxConnections: 1 });
+    server = createApiServer({ appDb, logger: false });
+    await server.ready();
+    const signUp = await server.inject({
+      method: "POST",
+      url: "/api/auth/sign-up/email",
+      headers: { "content-type": "application/json" },
+      payload: {
+        name: "Owner",
+        email: "owner-flag@onboarding.test",
+        password: "correct horse battery staple"
+      }
+    });
+    ownerCookie = cookieHeader(signUp.headers);
+  });
+
+  afterAll(async () => {
+    await Promise.allSettled([server?.close(), appDb?.destroy()]);
+  });
+
+  it("POST /complete sets state=completed and audits onboarding.complete", async () => {
+    const res = await server.inject({
+      method: "POST",
+      url: "/api/onboarding/complete",
+      headers: { cookie: ownerCookie }
+    });
+    expect(res.statusCode).toBe(200);
+    expect(res.json()).toEqual({ state: "completed" });
+
+    const status = await server.inject({
+      method: "GET",
+      url: "/api/onboarding/status",
+      headers: { cookie: ownerCookie }
+    });
+    expect((status.json() as { state: string }).state).toBe("completed");
+
+    const audit = await server.inject({
+      method: "GET",
+      url: "/api/admin/audit-events",
+      headers: { cookie: ownerCookie }
+    });
+    const actions = (audit.json() as { auditEvents: { action: string }[] }).auditEvents.map(
+      (e) => e.action
+    );
+    expect(actions).toContain("onboarding.complete");
+  });
+
+  it("POST /skip sets state=skipped (replacing completed — single enum, never both) and audits", async () => {
+    const res = await server.inject({
+      method: "POST",
+      url: "/api/onboarding/skip",
+      headers: { cookie: ownerCookie }
+    });
+    expect(res.statusCode).toBe(200);
+    // A single enum means skip OVERWRITES completed — the terminal state is unambiguous;
+    // there is no "completed && skipped both true" (Codex R1 ambiguous-terminal-state finding).
+    expect(res.json()).toEqual({ state: "skipped" });
+
+    const status = await server.inject({
+      method: "GET",
+      url: "/api/onboarding/status",
+      headers: { cookie: ownerCookie }
+    });
+    expect((status.json() as { state: string }).state).toBe("skipped");
+
+    const audit = await server.inject({
+      method: "GET",
+      url: "/api/admin/audit-events",
+      headers: { cookie: ownerCookie }
+    });
+    const actions = (audit.json() as { auditEvents: { action: string }[] }).auditEvents.map(
+      (e) => e.action
+    );
+    expect(actions).toContain("onboarding.skip");
+  });
+
+  it("returns 403/401 for a non-admin caller on complete", async () => {
+    const member = await server.inject({
+      method: "POST",
+      url: "/api/auth/sign-up/email",
+      headers: { "content-type": "application/json" },
+      payload: {
+        name: "Member",
+        email: "member-flag@onboarding.test",
+        password: "correct horse battery staple"
+      }
+    });
+    const memberCookie = cookieHeader(member.headers);
+    const res = await server.inject({
+      method: "POST",
+      url: "/api/onboarding/complete",
+      headers: { cookie: memberCookie }
+    });
+    expect([401, 403]).toContain(res.statusCode);
+  });
+});
