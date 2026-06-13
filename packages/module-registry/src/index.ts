@@ -65,6 +65,7 @@ import {
   tasksModuleSqlMigrationDirectory
 } from "@jarv1s/tasks";
 
+import { assertModulesCompatible } from "./compat-gate.js";
 import { probeChatMultiplexerAvailability, resolveChatEngineFactory } from "./chat-multiplexer.js";
 
 export type { ChatEngineFactory } from "@jarv1s/chat";
@@ -190,6 +191,11 @@ const BUILT_IN_MODULES: readonly BuiltInModuleRegistration[] = [
     queueDefinitions: []
   }
 ];
+
+// Compat gate (ADR 0009 §3): validate every built-in's compatibility.jarv1s against
+// CORE_VERSION at load time, before any registration path runs. Throws if a module is
+// incompatible or not defaultEnabled, naming the offender.
+assertModulesCompatible(BUILT_IN_MODULES.map((module) => module.manifest));
 
 export function getBuiltInModuleRegistrations(): readonly BuiltInModuleRegistration[] {
   return BUILT_IN_MODULES;
