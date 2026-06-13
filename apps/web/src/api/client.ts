@@ -51,6 +51,8 @@ import type {
   MarkAllNotificationsReadResponse,
   MarkNotificationReadResponse,
   MeResponse,
+  OnboardingStatusResponse,
+  OnboardingStateResponse,
   RevokeAiProviderConfigResponse,
   RevokeConnectorAccountResponse,
   LookupAiCapabilityRouteResponse,
@@ -106,6 +108,32 @@ export async function getMe(): Promise<MeResponse> {
 
 export async function getModules(): Promise<ListModulesResponse> {
   return requestJson<ListModulesResponse>("/api/modules");
+}
+
+/** Bounded so a hung status read can never trap the founder before the app shell (Codex R2 #2). */
+const ONBOARDING_STATUS_TIMEOUT_MS = 4000;
+
+export async function getOnboardingStatus(): Promise<OnboardingStatusResponse> {
+  // Race the request against a bounded timeout. On timeout this rejects → React Query
+  // (retry:false) surfaces isError, and app.tsx falls through to the app shell. A fresh
+  // instance therefore always boots even if /api/onboarding/status hangs.
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), ONBOARDING_STATUS_TIMEOUT_MS);
+  try {
+    return await requestJson<OnboardingStatusResponse>("/api/onboarding/status", {
+      signal: controller.signal
+    });
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+export async function completeOnboarding(): Promise<OnboardingStateResponse> {
+  return requestJson<OnboardingStateResponse>("/api/onboarding/complete", { method: "POST" });
+}
+
+export async function skipOnboarding(): Promise<OnboardingStateResponse> {
+  return requestJson<OnboardingStateResponse>("/api/onboarding/skip", { method: "POST" });
 }
 
 export async function signUpEmail(input: SignUpEmailRequest): Promise<void> {

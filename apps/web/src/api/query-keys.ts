@@ -3,6 +3,9 @@ export const queryKeys = {
     bootstrap: ["auth", "bootstrap"] as const,
     me: ["auth", "me"] as const
   },
+  onboarding: {
+    status: ["onboarding", "status"] as const
+  },
   modules: ["modules"] as const,
   settings: {
     providers: ["settings", "providers"] as const,
