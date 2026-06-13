@@ -1,9 +1,10 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import type { Kysely } from "kysely";
+import Fastify from "fastify";
 import pg from "pg";
 
 import { createApiServer } from "../../apps/api/src/server.js";
-import { AiRepository } from "@jarv1s/ai";
+import { AiRepository, registerAiRoutes } from "@jarv1s/ai";
 import { CalendarRepository } from "@jarv1s/calendar";
 import {
   DataContextRunner,
@@ -465,6 +466,32 @@ describe("AI read-only assistant tool execution foundation", () => {
     await expect(aiRepository.listAssistantActions({} as never)).rejects.toThrow(
       "Repository access requires withDataContext"
     );
+  });
+
+  it("fails closed: a throwing resolveActiveModules does not list or invoke tools", async () => {
+    // A resolver/DB failure must surface as a 5xx on BOTH REST tool surfaces — never a
+    // 200 with a degraded (empty/all) tool set that silently re-enables a disabled module.
+    const app = Fastify({ logger: false });
+    app.after(() =>
+      registerAiRoutes(app, {
+        resolveAccessContext: async () => userAContext(),
+        dataContext,
+        resolveActiveModules: async () => {
+          throw new Error("resolver/DB unavailable");
+        }
+      })
+    );
+    await app.ready();
+    const list = await app.inject({ method: "GET", url: "/api/ai/assistant-tools" });
+    expect(list.statusCode).toBeGreaterThanOrEqual(500);
+    const invoke = await app.inject({
+      method: "POST",
+      url: "/api/ai/assistant-tools/example.read/invoke",
+      headers: { "content-type": "application/json" },
+      payload: { input: {} }
+    });
+    expect(invoke.statusCode).toBeGreaterThanOrEqual(500);
+    await app.close();
   });
 
   async function invokeTool(
