@@ -18,12 +18,21 @@ describe("TmuxMultiplexer", () => {
   it("open() creates a detached session and sends the launch line, returning the name as handle", async () => {
     const io = makeIo();
     const mux = new TmuxMultiplexer(io);
-    const handle = await mux.open({ name: "jarv1s-live-x", cols: 220, rows: 50, launchLine: "cd '/n' && claude --tools \"\"" });
+    const handle = await mux.open({
+      name: "jarv1s-live-x",
+      cols: 220,
+      rows: 50,
+      launchLine: "cd '/n' && claude --tools \"\""
+    });
 
     expect(handle).toBe("jarv1s-live-x");
     const flat = calls(io);
-    expect(flat.some((c) => c.startsWith("tmux new-session -d -s jarv1s-live-x -x 220 -y 50"))).toBe(true);
-    expect(flat.some((c) => c.startsWith("tmux send-keys -t jarv1s-live-x") && c.endsWith("Enter"))).toBe(true);
+    expect(
+      flat.some((c) => c.startsWith("tmux new-session -d -s jarv1s-live-x -x 220 -y 50"))
+    ).toBe(true);
+    expect(
+      flat.some((c) => c.startsWith("tmux send-keys -t jarv1s-live-x") && c.endsWith("Enter"))
+    ).toBe(true);
   });
 
   it("submit() loads+pastes a buffer then sends Enter as a separate step", async () => {
@@ -65,6 +74,8 @@ describe("TmuxMultiplexer", () => {
     const io = makeIo();
     io.run.mockResolvedValueOnce({ code: 1, stdout: "", stderr: "duplicate session" });
     const mux = new TmuxMultiplexer(io);
-    await expect(mux.open({ name: "x", cols: 220, rows: 50, launchLine: "claude" })).rejects.toThrow(/new-session failed/);
+    await expect(
+      mux.open({ name: "x", cols: 220, rows: 50, launchLine: "claude" })
+    ).rejects.toThrow(/new-session failed/);
   });
 });

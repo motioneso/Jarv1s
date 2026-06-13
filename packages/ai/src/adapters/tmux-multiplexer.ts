@@ -19,20 +19,40 @@ export class TmuxMultiplexer implements Multiplexer {
   readonly kind = "tmux" as const;
   private readonly submitMs: number;
 
-  constructor(private readonly io: TmuxIo, opts: TmuxMultiplexerOpts = {}) {
+  constructor(
+    private readonly io: TmuxIo,
+    opts: TmuxMultiplexerOpts = {}
+  ) {
     this.submitMs = opts.submitMs ?? 600;
   }
 
   async open(opts: MuxOpenOpts): Promise<MuxHandle> {
     const created = await this.io.run("tmux", [
-      "new-session", "-d", "-s", opts.name, "-x", String(opts.cols), "-y", String(opts.rows)
+      "new-session",
+      "-d",
+      "-s",
+      opts.name,
+      "-x",
+      String(opts.cols),
+      "-y",
+      String(opts.rows)
     ]);
     if (created.code !== 0) {
-      throw new Error(`TmuxMultiplexer.open: tmux new-session failed (code ${created.code}): ${created.stderr ?? ""}`);
+      throw new Error(
+        `TmuxMultiplexer.open: tmux new-session failed (code ${created.code}): ${created.stderr ?? ""}`
+      );
     }
-    const sent = await this.io.run("tmux", ["send-keys", "-t", opts.name, opts.launchLine, "Enter"]);
+    const sent = await this.io.run("tmux", [
+      "send-keys",
+      "-t",
+      opts.name,
+      opts.launchLine,
+      "Enter"
+    ]);
     if (sent.code !== 0) {
-      throw new Error(`TmuxMultiplexer.open: tmux send-keys failed (code ${sent.code}): ${sent.stderr ?? ""}`);
+      throw new Error(
+        `TmuxMultiplexer.open: tmux send-keys failed (code ${sent.code}): ${sent.stderr ?? ""}`
+      );
     }
     return opts.name;
   }
@@ -50,7 +70,9 @@ export class TmuxMultiplexer implements Multiplexer {
   private async runChecked(args: readonly string[]): Promise<void> {
     const { code, stderr } = await this.io.run("tmux", args);
     if (code !== 0) {
-      throw new Error(`TmuxMultiplexer: \`tmux ${args[0]}\` failed (code ${code}): ${stderr ?? ""}`);
+      throw new Error(
+        `TmuxMultiplexer: \`tmux ${args[0]}\` failed (code ${code}): ${stderr ?? ""}`
+      );
     }
   }
 

@@ -32,20 +32,34 @@ export class HerdrMultiplexer implements Multiplexer {
   private readonly rootPaneOverride?: string;
   private readonly env: NodeJS.ProcessEnv;
 
-  constructor(private readonly io: TmuxIo, opts: HerdrMultiplexerOpts = {}) {
+  constructor(
+    private readonly io: TmuxIo,
+    opts: HerdrMultiplexerOpts = {}
+  ) {
     this.rootPaneOverride = opts.rootPane;
     this.env = opts.env ?? process.env;
   }
 
   async open(opts: MuxOpenOpts): Promise<MuxHandle> {
     const root = this.resolveRootPane();
-    const split = await this.io.run("herdr", ["pane", "split", root, "--direction", "down", "--no-focus"]);
+    const split = await this.io.run("herdr", [
+      "pane",
+      "split",
+      root,
+      "--direction",
+      "down",
+      "--no-focus"
+    ]);
     if (split.code !== 0) {
-      throw new Error(`HerdrMultiplexer.open: herdr pane split failed (code ${split.code}): ${split.stderr ?? ""}`);
+      throw new Error(
+        `HerdrMultiplexer.open: herdr pane split failed (code ${split.code}): ${split.stderr ?? ""}`
+      );
     }
     const paneId = paneIdFromInfo(split.stdout);
     if (!paneId) {
-      throw new Error("HerdrMultiplexer.open: could not parse pane_id from `herdr pane split` JSON");
+      throw new Error(
+        "HerdrMultiplexer.open: could not parse pane_id from `herdr pane split` JSON"
+      );
     }
     // Launch symmetrically with tmux: type the launch line, then submit Enter.
     await this.runChecked(["pane", "send-text", paneId, opts.launchLine], "send-text");

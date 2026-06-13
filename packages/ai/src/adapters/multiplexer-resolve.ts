@@ -35,7 +35,9 @@ export function decideMultiplexer(input: MultiplexerDecisionInput): MultiplexerD
   // (explicit JARVIS_HERDR_ROOT_PANE, or the server's own HERDR_PANE_ID). Without
   // a root pane, picking herdr would boot a backend that only fails at launch — so
   // it must not count as available for `auto`/`configured` resolution (Codex R2 #1).
-  const herdrRootAvailable = Boolean(env.JARVIS_HERDR_ROOT_PANE?.trim() || env.HERDR_PANE_ID?.trim());
+  const herdrRootAvailable = Boolean(
+    env.JARVIS_HERDR_ROOT_PANE?.trim() || env.HERDR_PANE_ID?.trim()
+  );
   const herdrUsable = isInstalled("herdr") && herdrRootAvailable;
   const tmuxUsable = isInstalled("tmux");
 
@@ -53,7 +55,10 @@ export function decideMultiplexer(input: MultiplexerDecisionInput): MultiplexerD
   if (configured === "tmux") {
     return tmuxUsable
       ? { ok: true, kind: "tmux", source: "configured" }
-      : { ok: false, reason: `multiplexer "tmux" is selected in admin settings but is not installed on this host` };
+      : {
+          ok: false,
+          reason: `multiplexer "tmux" is selected in admin settings but is not installed on this host`
+        };
   }
   if (configured === "herdr") {
     if (herdrUsable) return { ok: true, kind: "herdr", source: "configured" };
@@ -69,7 +74,11 @@ export function decideMultiplexer(input: MultiplexerDecisionInput): MultiplexerD
   if (env.HERDR_ENV === "1" && herdrUsable) return { ok: true, kind: "herdr", source: "auto" };
   if (tmuxUsable) return { ok: true, kind: "tmux", source: "auto" };
   if (herdrUsable) return { ok: true, kind: "herdr", source: "auto" };
-  return { ok: false, reason: "no usable terminal multiplexer found (install tmux, or install herdr and set a root pane)" };
+  return {
+    ok: false,
+    reason:
+      "no usable terminal multiplexer found (install tmux, or install herdr and set a root pane)"
+  };
 }
 
 export interface MultiplexerResolutionInput extends MultiplexerDecisionInput {

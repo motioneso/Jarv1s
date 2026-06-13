@@ -51,7 +51,11 @@ export function createRealTmuxIo(): TmuxIo {
         return { code: 0, stdout, stderr };
       } catch (err) {
         const e = err as { code?: number; stdout?: string; stderr?: string };
-        return { code: typeof e.code === "number" ? e.code : 1, stdout: e.stdout ?? "", stderr: e.stderr };
+        return {
+          code: typeof e.code === "number" ? e.code : 1,
+          stdout: e.stdout ?? "",
+          stderr: e.stderr
+        };
       }
     },
     async readFile(path: string): Promise<string> {
@@ -86,7 +90,11 @@ export function createRealTmuxIo(): TmuxIo {
  *     ~/.gemini/tmp/<project-hash>/chats/session-<ISO>-<uuid>.jsonl
  *     Use the newest file under the chats directory for the given project dir.
  */
-export function transcriptGlobDir(provider: ProviderKind, cwd: string, homeBase: string = homedir()): string {
+export function transcriptGlobDir(
+  provider: ProviderKind,
+  cwd: string,
+  homeBase: string = homedir()
+): string {
   switch (provider) {
     case "anthropic": {
       // Claude Code encodes the project dir by replacing both "/" and "." with
