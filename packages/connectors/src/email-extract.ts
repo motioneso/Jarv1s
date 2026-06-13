@@ -12,6 +12,15 @@ export const MAX_BODY_CHARS = 20_000;
 export const MAX_SUMMARY_CHARS = 600;
 
 /**
+ * Absolute minimum length (chars) at which a summary that is a *verbatim contiguous substring* of
+ * the email body is treated as a body echo rather than a legitimate paraphrase. Combined with the
+ * BODY_RECONSTRUCTION_FRACTION check, this nulls a summary that reproduces a long body slice (e.g.
+ * the first 600 chars of a 700-char body) while leaving genuine short summaries — which paraphrase
+ * and are rarely long verbatim slices of the body — untouched (privacy posture, spec §6).
+ */
+export const SUMMARY_BODY_SUBSTRING_FLOOR = 200;
+
+/**
  * Hard cap on any single string field inside `signals` (descriptions, action-item text, etc.).
  * `signals` is persisted (jsonb column) alongside the summary, so a prompt-injected/jailbroken
  * model that stuffs the full body into `actionItems[].text` would otherwise leak it into a
@@ -285,8 +294,11 @@ function safeParseSignals(text: string, parsedBody: string): EmailExtractResult 
       typeof obj.confidence === "number" && obj.confidence >= 0 && obj.confidence <= 1
         ? obj.confidence
         : 0;
-    const summary =
-      typeof obj.summary === "string" ? obj.summary.slice(0, MAX_SUMMARY_CHARS) : null;
+    // Keep the RAW (untruncated) summary here. Truncation to MAX_SUMMARY_CHARS happens only AFTER
+    // the body-containment guard in extractEmailSignals — truncating first would let a model that
+    // returns the first MAX_SUMMARY_CHARS of a longer body slip a near-complete body prefix past a
+    // containment check (the guard could no longer "see" the full body inside the summary).
+    const summary = typeof obj.summary === "string" ? obj.summary : null;
     return {
       summary,
       signals: {
@@ -378,6 +390,15 @@ export async function extractEmailSignals(
     // No configured summarization model — metadata-only row (graceful degrade).
     return { summary: null, signals: {} };
   }
+  // STRICT economy-tier enforcement. selectModelForCapability walks the tier ladder UP from the
+  // requested tier and ultimately falls back to ANY active model, so "economy" can resolve to an
+  // interactive/reasoning/other-tier model in production. The plan pins inbox triage to the user's
+  // economy tier (cost posture); rather than silently spend a pricier tier on routine batch
+  // summarization, we reject a non-economy resolution and degrade to a metadata-only row. Still
+  // provider-agnostic: we gate on the tier label, never on a provider/model identity.
+  if (economyModel.tier !== "economy") {
+    return { summary: null, signals: {} };
+  }
 
   const prompt = buildPrompt(parsed);
   let result: EmailExtractResult;
@@ -390,20 +411,35 @@ export async function extractEmailSignals(
   }
 
   // Body-echo guard for the summary. A legitimate summary is SHORTER than the body and
-  // paraphrases it; it never embeds the entire body. We drop the summary when its normalized form
-  // (a) equals the body, OR (b) CONTAINS the full body as a substring — the "Summary: <body>"
-  // wrap/prefix case a bad/jailbroken model uses to slip a short body past exact-equality. We
-  // intentionally do NOT use a fuzzy partial-overlap threshold (a real summary of a short email
-  // legitimately reuses much of its wording); full-body containment is unambiguous evidence of
-  // "model echoed the body" with no false-positive risk for genuine summaries (privacy §6).
+  // paraphrases it; it never embeds (a large run of) the body. This runs on the RAW, untruncated
+  // model summary — running it after truncation would blind it to a body longer than the summary
+  // cap (a model returning the first MAX_SUMMARY_CHARS of a longer body would otherwise persist a
+  // near-complete body prefix). We drop the summary when its normalized form:
+  //   (a) equals the body, OR
+  //   (b) CONTAINS the full body as a substring — the "Summary: <body>" wrap/prefix case a bad
+  //       model uses to slip a short body past exact-equality, OR
+  //   (c) IS a verbatim body substring (prefix/slice) long enough to be a reconstruction — the
+  //       model echoing a long contiguous body chunk into the summary. We require the substring to
+  //       be both an absolute minimum length AND cover the reconstruction fraction of the body, so
+  //       a genuine short-email summary that happens to reuse a phrase verbatim is not nulled.
+  // Only after passing all three is the summary truncated to MAX_SUMMARY_CHARS for persistence.
   const normalize = (s: string): string => s.replace(/\s+/g, " ").trim().toLowerCase();
   const normalizedBody = normalize(parsed.body);
   if (result.summary !== null) {
     const normalizedSummary = normalize(result.summary);
+    const isLongBodySubstring =
+      normalizedBody.length > 0 &&
+      normalizedSummary.length >= SUMMARY_BODY_SUBSTRING_FLOOR &&
+      normalizedSummary.length >= normalizedBody.length * BODY_RECONSTRUCTION_FRACTION &&
+      normalizedBody.includes(normalizedSummary);
     const echoesBody =
       normalizedSummary === normalizedBody ||
-      (normalizedBody.length > 0 && normalizedSummary.includes(normalizedBody));
-    if (echoesBody) result = { ...result, summary: null };
+      (normalizedBody.length > 0 && normalizedSummary.includes(normalizedBody)) ||
+      isLongBodySubstring;
+    result = {
+      ...result,
+      summary: echoesBody ? null : result.summary.slice(0, MAX_SUMMARY_CHARS)
+    };
   }
 
   // Cumulative guard: defeat the "split the body into many short chunks across signal fields"
