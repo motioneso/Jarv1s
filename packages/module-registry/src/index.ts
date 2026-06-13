@@ -52,7 +52,11 @@ import {
   registerNotificationsRoutes
 } from "@jarv1s/notifications";
 import type { AuthProviderStatusDto } from "@jarv1s/shared";
-import { registerSettingsRoutes, settingsModuleManifest } from "@jarv1s/settings";
+import {
+  registerSettingsRoutes,
+  settingsModuleManifest,
+  settingsModuleSqlMigrationDirectory
+} from "@jarv1s/settings";
 import {
   TASKS_QUEUE_DEFINITIONS,
   registerTasksJobWorkers,
@@ -108,7 +112,7 @@ export interface BuiltInModuleRegistration {
 const BUILT_IN_MODULES: readonly BuiltInModuleRegistration[] = [
   {
     manifest: settingsModuleManifest,
-    sqlMigrationDirectories: [],
+    sqlMigrationDirectories: [settingsModuleSqlMigrationDirectory],
     queueDefinitions: [],
     registerRoutes: registerSettingsRoutes
   },

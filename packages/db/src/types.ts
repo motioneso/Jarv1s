@@ -110,6 +110,16 @@ export interface AdminAuditEventsTable {
   created_at: TimestampColumn;
 }
 
+export interface ModuleEnablementTable {
+  id: ColumnType<string, string | undefined, string>;
+  scope: "instance" | "user";
+  module_id: string;
+  user_id: string | null;
+  disabled_by_user_id: string | null;
+  created_at: TimestampColumn;
+  updated_at: TimestampColumn;
+}
+
 export interface RlsProbeItemsTable {
   id: string;
   owner_user_id: string;
@@ -457,6 +467,7 @@ export interface JarvisDatabase {
   "app.shares": SharesTable;
   "app.instance_settings": InstanceSettingsTable;
   "app.admin_audit_events": AdminAuditEventsTable;
+  "app.module_enablement": ModuleEnablementTable;
   "app.rls_probe_items": RlsProbeItemsTable;
   "app.tasks": TasksTable;
   "app.task_activity": TaskActivityTable;
@@ -490,6 +501,7 @@ export type User = Selectable<UsersTable>;
 export type Share = Selectable<SharesTable>;
 export type InstanceSetting = Selectable<InstanceSettingsTable>;
 export type AdminAuditEvent = Selectable<AdminAuditEventsTable>;
+export type ModuleEnablementRow = Selectable<ModuleEnablementTable>;
 export type RlsProbeItem = Selectable<RlsProbeItemsTable>;
 export type Task = Selectable<TasksTable>;
 export type TaskActivity = Selectable<TaskActivityTable>;
