@@ -23,7 +23,8 @@ import {
   TaskBreakdownRepository,
   TaskDriftRepository,
   TaskListsRepository,
-  TasksRepository
+  TasksRepository,
+  rollForwardOwnedSeries
 } from "@jarv1s/tasks";
 import type { TaskDto } from "@jarv1s/shared";
 import { connectionStrings, ids, resetFoundationDatabase } from "./test-database.js";
@@ -686,6 +687,42 @@ describe("Tasks module M1", () => {
     );
     const openAfter = seriesAfter.filter((t) => t.status === "todo");
     expect(openAfter).toHaveLength(1);
+  });
+
+  it("rollForwardOwnedSeries advances a stale series to the next occurrence >= today, one row, idempotent", async () => {
+    const today = new Date().toISOString().slice(0, 10);
+    const past = new Date(Date.now() - 21 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+
+    const made = await dataContext.withDataContext(userAContext(), (db) =>
+      repository.create(db, {
+        title: "weekly recurring",
+        recurrence: { freq: "weekly", interval: 1, occurrence_date: past },
+        dueAt: new Date(past + "T09:00:00.000Z")
+      })
+    );
+
+    const rolled = await dataContext.withDataContext(userAContext(), (db) =>
+      rollForwardOwnedSeries(db, today)
+    );
+    expect(rolled).toBeGreaterThanOrEqual(1);
+
+    const series = await dataContext.withDataContext(userAContext(), (db) =>
+      db.db
+        .selectFrom("app.tasks")
+        .selectAll()
+        .where("recurrence_series_id", "=", made.recurrence_series_id!)
+        .where("status", "=", "todo")
+        .execute()
+    );
+    expect(series).toHaveLength(1); // no stacking
+    const occ = (series[0]!.recurrence as Record<string, unknown>)["occurrence_date"] as string;
+    expect(occ >= today).toBe(true);
+
+    // Idempotent: a second run is a no-op (zero rolled, still one row).
+    const again = await dataContext.withDataContext(userAContext(), (db) =>
+      rollForwardOwnedSeries(db, today)
+    );
+    expect(again).toBe(0);
   });
 
   it("drift: overdue + at-risk surface Medium+ only; focus orders them", async () => {
