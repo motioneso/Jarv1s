@@ -280,6 +280,12 @@ export interface EmailMessagesTable {
   received_at: TimestampColumn;
   external_id: string;
   external_metadata: JsonColumn;
+  // app.email_messages (Phase 3 connector-sync): LLM-derived triage columns.
+  // summary is nullable text; signals is a jsonb object (NOT NULL DEFAULT '{}'),
+  // hence JsonColumn so it can be omitted on insert (DB default applies). The full
+  // email body is NEVER a column (privacy posture, spec §6).
+  summary: string | null;
+  signals: JsonColumn;
   created_at: TimestampColumn;
   updated_at: TimestampColumn;
 }
