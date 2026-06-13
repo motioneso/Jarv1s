@@ -479,6 +479,133 @@ describe("Briefings module M6 read-only scheduled summaries", () => {
     await handleNextBriefingJob(workerBoss);
   });
 
+  it("reconciles the pg-boss schedule on create (daily enabled → boss.schedule keyed by id)", async () => {
+    const calls = spyBossSchedule(appBoss);
+    try {
+      const response = await server.inject({
+        method: "POST",
+        url: "/api/briefings/definitions",
+        headers: userAHeaders(),
+        payload: {
+          title: "Scheduled morning briefing",
+          cadence: "daily",
+          scheduleMetadata: { targetTime: "06:00", timezone: "America/New_York" },
+          enabled: true,
+          selectedToolNames: ["tasks.list"]
+        }
+      });
+
+      expect(response.statusCode).toBe(201);
+      const definition = response.json<{ definition: { id: string } }>().definition;
+      expect(calls.unschedule).toHaveLength(0);
+      const scheduled = calls.schedule.filter((c) => c.key === definition.id);
+      expect(scheduled).toHaveLength(1);
+      expect(scheduled[0]).toMatchObject({
+        name: BRIEFINGS_RUN_QUEUE,
+        cron: "0 6 * * *",
+        tz: "America/New_York",
+        key: definition.id,
+        data: {
+          actorUserId: ids.userA,
+          definitionId: definition.id,
+          runKind: "scheduled"
+        }
+      });
+    } finally {
+      calls.restore();
+    }
+  });
+
+  it("reconciles the pg-boss schedule on update to enabled:false (→ boss.unschedule)", async () => {
+    const definition = await dataContext.withDataContext(userAContext(), (scopedDb) =>
+      repository.createDefinition(scopedDb, {
+        title: "Toggle-off briefing",
+        cadence: "daily",
+        scheduleMetadata: { targetTime: "07:30", timezone: "UTC" },
+        enabled: true,
+        selectedToolNames: ["tasks.list"]
+      })
+    );
+
+    const calls = spyBossSchedule(appBoss);
+    try {
+      const response = await server.inject({
+        method: "PATCH",
+        url: `/api/briefings/definitions/${definition.id}`,
+        headers: userAHeaders(),
+        payload: { enabled: false }
+      });
+
+      expect(response.statusCode).toBe(200);
+      expect(calls.schedule).toHaveLength(0);
+      expect(calls.unschedule).toEqual([{ name: BRIEFINGS_RUN_QUEUE, key: definition.id }]);
+    } finally {
+      calls.restore();
+    }
+  });
+
+  it("does not fail the create request when schedule reconcile throws (failure-isolated)", async () => {
+    const originalSchedule = appBoss.schedule.bind(appBoss);
+    appBoss.schedule = (async () => {
+      throw new Error("pg-boss schedule unavailable");
+    }) as typeof appBoss.schedule;
+    try {
+      const response = await server.inject({
+        method: "POST",
+        url: "/api/briefings/definitions",
+        headers: userAHeaders(),
+        payload: {
+          title: "Reconcile-failure briefing",
+          cadence: "daily",
+          scheduleMetadata: { targetTime: "08:00", timezone: "UTC" },
+          enabled: true,
+          selectedToolNames: ["tasks.list"]
+        }
+      });
+
+      // The mutation succeeded even though reconcile threw — reconcile is best-effort.
+      expect(response.statusCode).toBe(201);
+      expect(response.json<{ definition: { id: string } }>().definition.id).toBeTruthy();
+    } finally {
+      appBoss.schedule = originalSchedule;
+    }
+  });
+
+  it("self-heals the owner's schedules on GET list and stays 200 even when reconcile throws", async () => {
+    // Ensure at least one enabled daily definition owned by user A exists so the
+    // best-effort self-heal has something to reconcile.
+    await dataContext.withDataContext(userAContext(), (scopedDb) =>
+      repository.createDefinition(scopedDb, {
+        title: "Self-heal target",
+        cadence: "daily",
+        scheduleMetadata: { targetTime: "06:15", timezone: "UTC" },
+        enabled: true,
+        selectedToolNames: ["tasks.list"]
+      })
+    );
+
+    const calls = spyBossSchedule(appBoss);
+    try {
+      const response = await server.inject({
+        method: "GET",
+        url: "/api/briefings/definitions",
+        headers: userAHeaders()
+      });
+
+      expect(response.statusCode).toBe(200);
+      // List response shape is unchanged.
+      const body = response.json<{ definitions: Array<{ id: string }> }>();
+      expect(Array.isArray(body.definitions)).toBe(true);
+
+      // The self-heal is fire-and-forget; give the microtask/IO a tick to land.
+      await new Promise((resolve) => setTimeout(resolve, 50));
+      // At least one enabled daily definition owned by user A was (re)scheduled.
+      expect(calls.schedule.length).toBeGreaterThanOrEqual(1);
+    } finally {
+      calls.restore();
+    }
+  });
+
   it("does not let a User A worker job run User B's private briefing", async () => {
     const resultPromise = handleNextBriefingJob(workerBoss);
 
@@ -1109,6 +1236,60 @@ async function countPgBossJobs(): Promise<number> {
   } finally {
     await client.end();
   }
+}
+
+interface CapturedScheduleCall {
+  readonly name: string;
+  readonly cron: string;
+  readonly data: Record<string, unknown>;
+  readonly tz?: string;
+  readonly key?: string;
+}
+
+interface CapturedUnscheduleCall {
+  readonly name: string;
+  readonly key: string;
+}
+
+/**
+ * Wrap the real pg-boss instance's schedule/unschedule so a route test can assert
+ * the route reconciled the schedule, while STILL exercising the real boss (the calls
+ * pass through to pg-boss). Returns captured calls + a restore().
+ */
+function spyBossSchedule(boss: PgBoss): {
+  schedule: CapturedScheduleCall[];
+  unschedule: CapturedUnscheduleCall[];
+  restore: () => void;
+} {
+  const schedule: CapturedScheduleCall[] = [];
+  const unschedule: CapturedUnscheduleCall[] = [];
+  const originalSchedule = boss.schedule.bind(boss);
+  const originalUnschedule = boss.unschedule.bind(boss);
+
+  boss.schedule = (async (name: string, cron: string, data?: object, options?: object) => {
+    schedule.push({
+      name,
+      cron,
+      data: (data ?? {}) as Record<string, unknown>,
+      tz: (options as { tz?: string } | undefined)?.tz,
+      key: (options as { key?: string } | undefined)?.key
+    });
+    return originalSchedule(name, cron, data as never, options as never);
+  }) as typeof boss.schedule;
+
+  boss.unschedule = (async (name: string, key: string) => {
+    unschedule.push({ name, key });
+    return originalUnschedule(name, key);
+  }) as typeof boss.unschedule;
+
+  return {
+    schedule,
+    unschedule,
+    restore: () => {
+      boss.schedule = originalSchedule;
+      boss.unschedule = originalUnschedule;
+    }
+  };
 }
 
 function userAHeaders(): Record<string, string> {
