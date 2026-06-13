@@ -3,9 +3,15 @@ import pg from "pg";
 import type { Kysely } from "kysely";
 
 import { DataContextRunner, createDatabase, type JarvisDatabase } from "@jarv1s/db";
+import { createActiveModulesResolver } from "@jarv1s/module-registry";
 
 import { SettingsRepository } from "../../packages/settings/src/repository.js";
 import { connectionStrings, ids, resetEmptyFoundationDatabase } from "./test-database.js";
+import {
+  instanceOnlyDisablableModule,
+  optionalModule,
+  requiredFixtureModule
+} from "./fixtures/optional-module.js";
 
 const { Client } = pg;
 
@@ -253,5 +259,115 @@ describe("SettingsRepository deny-list methods", () => {
       (db) => repo.listModuleDenyRowsForActor(db)
     );
     expect(bRows.some((r) => r.module_id === "rls-probe-user")).toBe(false);
+  });
+});
+
+describe("createActiveModulesResolver", () => {
+  let appDb: Kysely<JarvisDatabase>;
+  let runner: DataContextRunner;
+  let repo: SettingsRepository;
+
+  const fixtures = [optionalModule, instanceOnlyDisablableModule, requiredFixtureModule];
+
+  beforeAll(async () => {
+    const { resetFoundationDatabase } = await import("./test-database.js");
+    await resetFoundationDatabase();
+    appDb = createDatabase({ connectionString: connectionStrings.app, maxConnections: 1 });
+    runner = new DataContextRunner(appDb);
+    repo = new SettingsRepository();
+  });
+
+  afterAll(async () => {
+    await appDb.destroy();
+  });
+
+  function resolver() {
+    return createActiveModulesResolver({ dataContext: runner, manifests: fixtures });
+  }
+
+  it("empty store: all fixture modules are active (zero behavior-change baseline)", async () => {
+    const active = await resolver()(ids.userA);
+    expect(active.map((m) => m.id).sort()).toEqual(
+      ["tasks-fixture", "weather", "wellness"].sort()
+    );
+  });
+
+  it("instance deny row drops a non-required module for ALL actors", async () => {
+    await runner.withDataContext({ actorUserId: ids.adminUser, requestId: "r1" }, (db) =>
+      repo.setInstanceModuleDisabled(db, {
+        moduleId: "weather",
+        disabled: true,
+        actorUserId: ids.adminUser,
+        requestId: "r1"
+      })
+    );
+    expect((await resolver()(ids.userA)).map((m) => m.id)).not.toContain("weather");
+    expect((await resolver()(ids.userB)).map((m) => m.id)).not.toContain("weather");
+    // cleanup
+    await runner.withDataContext({ actorUserId: ids.adminUser, requestId: "r2" }, (db) =>
+      repo.setInstanceModuleDisabled(db, {
+        moduleId: "weather",
+        disabled: false,
+        actorUserId: ids.adminUser,
+        requestId: "r2"
+      })
+    );
+  });
+
+  it("user deny row drops the module only for that actor (RLS)", async () => {
+    await runner.withDataContext({ actorUserId: ids.userA, requestId: "r3" }, (db) =>
+      repo.setUserModuleDisabled(db, {
+        moduleId: "weather",
+        disabled: true,
+        actorUserId: ids.userA,
+        requestId: "r3"
+      })
+    );
+    expect((await resolver()(ids.userA)).map((m) => m.id)).not.toContain("weather");
+    expect((await resolver()(ids.userB)).map((m) => m.id)).toContain("weather");
+    await runner.withDataContext({ actorUserId: ids.userA, requestId: "r4" }, (db) =>
+      repo.setUserModuleDisabled(db, {
+        moduleId: "weather",
+        disabled: false,
+        actorUserId: ids.userA,
+        requestId: "r4"
+      })
+    );
+  });
+
+  it("supportsUserDisable:false ignores a user row but obeys an instance row", async () => {
+    // user row against wellness is ignored (per-user disable not supported)
+    await runner.withDataContext({ actorUserId: ids.userA, requestId: "r5" }, (db) =>
+      repo.setUserModuleDisabled(db, {
+        moduleId: "wellness",
+        disabled: true,
+        actorUserId: ids.userA,
+        requestId: "r5"
+      })
+    );
+    expect((await resolver()(ids.userA)).map((m) => m.id)).toContain("wellness");
+
+    // instance row against wellness still drops it
+    await runner.withDataContext({ actorUserId: ids.adminUser, requestId: "r6" }, (db) =>
+      repo.setInstanceModuleDisabled(db, {
+        moduleId: "wellness",
+        disabled: true,
+        actorUserId: ids.adminUser,
+        requestId: "r6"
+      })
+    );
+    expect((await resolver()(ids.userA)).map((m) => m.id)).not.toContain("wellness");
+  });
+
+  it("required modules are never droppable, even with a defensively-inserted instance row", async () => {
+    await runner.withDataContext({ actorUserId: ids.adminUser, requestId: "r7" }, (db) =>
+      repo.setInstanceModuleDisabled(db, {
+        moduleId: "tasks-fixture",
+        disabled: true,
+        actorUserId: ids.adminUser,
+        requestId: "r7"
+      })
+    );
+    expect((await resolver()(ids.userA)).map((m) => m.id)).toContain("tasks-fixture");
   });
 });
