@@ -231,6 +231,25 @@ export class TasksRepository {
       updates.completed_at = input.status === "done" ? new Date() : null;
     }
 
+    // List move: drop assignments whose tag does not belong to the destination list, BEFORE the
+    // move. Same ambient transaction as the rest of update() (withDataContext wraps the callback
+    // in one transaction; scopedDb.db is that Transaction), so this is atomic with the move —
+    // no nested transaction. Preserves the same-list invariant the task_tag_list_match trigger
+    // enforces at assignment time. Matches the delete-with-reassign drop rule (deleteList).
+    if (input.listId !== undefined) {
+      await scopedDb.db
+        .deleteFrom("app.task_tag_assignments")
+        .where("task_id", "=", taskId)
+        .where((eb) =>
+          eb(
+            "tag_id",
+            "not in",
+            eb.selectFrom("app.task_tags").select("id").where("list_id", "=", input.listId!)
+          )
+        )
+        .execute();
+    }
+
     const updated = await scopedDb.db
       .updateTable("app.tasks")
       .set(updates)

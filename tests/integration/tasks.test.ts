@@ -1276,4 +1276,32 @@ describe("Tasks module M1", () => {
       )
     ).rejects.toMatchObject({ statusCode: 404 });
   });
+
+  it("moving a task to another list drops tags foreign to the destination", async () => {
+    const listsRepo = new TaskListsRepository();
+    const listA = await dataContext.withDataContext(userAContext(), (db) =>
+      listsRepo.getOrCreate(db, "A1")
+    );
+    const listB = await dataContext.withDataContext(userAContext(), (db) =>
+      listsRepo.getOrCreate(db, "B1")
+    );
+    const tagA = await dataContext.withDataContext(userAContext(), (db) =>
+      listsRepo.createTag(db, listA.id, "only-A")
+    );
+    const task = await dataContext.withDataContext(userAContext(), (db) =>
+      repository.create(db, { title: "mover", listId: listA.id })
+    );
+    await dataContext.withDataContext(userAContext(), (db) =>
+      listsRepo.assignTag(db, task.id, tagA.id)
+    );
+
+    await dataContext.withDataContext(userAContext(), (db) =>
+      repository.update(db, task.id, { listId: listB.id })
+    );
+
+    const tags = await dataContext.withDataContext(userAContext(), (db) =>
+      repository.getTagsForTask(db, task.id)
+    );
+    expect(tags).toHaveLength(0); // tagA belonged to listA, dropped on move to listB
+  });
 });
