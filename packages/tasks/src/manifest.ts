@@ -59,7 +59,8 @@ export const tasksModuleManifest = {
     migrations: [
       "sql/0003_tasks_module.sql",
       "sql/0019_tasks_owner_or_share.sql",
-      "sql/0039_tasks_foundation.sql"
+      "sql/0039_tasks_foundation.sql",
+      "sql/0075_tasks_worker_recurrence_grant.sql"
     ],
     migrationDirectories: ["packages/tasks/sql"],
     ownedTables: ["app.tasks", "app.task_activity"]
