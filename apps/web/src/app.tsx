@@ -1,4 +1,5 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import type { ReactNode } from "react";
 import { BrowserRouter, Navigate, Route, Routes } from "react-router";
 
 import {
@@ -48,6 +49,12 @@ export function App() {
   });
   const disabledModuleIds =
     myModulesQuery.data?.modules.filter((m) => !m.active).map((m) => m.id) ?? [];
+  // A disabled module's SPA route must not render its UI on a deep-link, not just hide its
+  // nav entry — for a health-data module that means the page (and its API calls) never mount
+  // for a disabled actor. We can only decide once /api/me/modules has resolved; until then the
+  // gate shows a loader rather than flashing the page or wrongly redirecting.
+  const myModulesReady = myModulesQuery.isSuccess || myModulesQuery.isError;
+  const wellnessDisabled = disabledModuleIds.includes("wellness");
   const ownerForOnboarding = isBootstrapOwner(meQuery.data);
   const onboardingQuery = useQuery({
     enabled: ownerForOnboarding,
@@ -138,13 +145,35 @@ export function App() {
           <Route path="/calendar" element={<CalendarPage />} />
           <Route path="/email" element={<EmailPage />} />
           <Route path="/briefings" element={<BriefingsPage />} />
-          <Route path="/wellness" element={<WellnessPage />} />
+          <Route
+            path="/wellness"
+            element={
+              <ModuleGatedRoute ready={myModulesReady} disabled={wellnessDisabled}>
+                <WellnessPage />
+              </ModuleGatedRoute>
+            }
+          />
           <Route path="/settings" element={<SettingsPage me={meQuery.data} />} />
           <Route path="*" element={<Navigate to="/tasks" replace />} />
         </Routes>
       </AppShell>
     </BrowserRouter>
   );
+}
+
+/**
+ * Renders a module's SPA route only when the actor has the module enabled. While the
+ * per-actor module state is still loading we render nothing (a disabled actor must never
+ * see a flash of the gated UI); once loaded, a disabled actor is redirected to /tasks.
+ */
+function ModuleGatedRoute(props: {
+  readonly ready: boolean;
+  readonly disabled: boolean;
+  readonly children: ReactNode;
+}) {
+  if (!props.ready) return <LoadingScreen />;
+  if (props.disabled) return <Navigate to="/tasks" replace />;
+  return <>{props.children}</>;
 }
 
 function LoadingScreen() {
