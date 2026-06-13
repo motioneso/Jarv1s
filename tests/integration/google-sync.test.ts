@@ -1,16 +1,14 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { sql } from "kysely";
-import { DataContextRunner, createDatabase, type JarvisDatabase } from "@jarv1s/db";
+import { createDatabase, type JarvisDatabase } from "@jarv1s/db";
 import type { Kysely } from "kysely";
-import { connectionStrings, ids, resetFoundationDatabase } from "./test-database.js";
+import { connectionStrings, resetFoundationDatabase } from "./test-database.js";
 
 let appDb: Kysely<JarvisDatabase>;
-let dataContext: DataContextRunner;
 
 beforeAll(async () => {
   await resetFoundationDatabase();
   appDb = createDatabase({ connectionString: connectionStrings.app });
-  dataContext = new DataContextRunner(appDb);
 });
 
 afterAll(async () => {
@@ -46,5 +44,69 @@ describe("email_messages summary/signals columns (0067)", () => {
     `.execute(appDb);
     const defs = checks.rows.map((r) => r.definition).join(" | ");
     expect(defs).toMatch(/jsonb_typeof\(signals\)\s*=\s*'object'/);
+  });
+});
+
+// DEVIATION (vs plan A2 step 1): the plan's A2 tests call CalendarRepository.upsertCachedEvent,
+// which (a) does not exist until Task B1 and (b) cannot SUCCEED at A2 time even once it exists —
+// the relaxed INSERT WITH CHECK runs an EXISTS subquery over app.connector_accounts JOIN
+// app.connector_definitions as the worker role, but the worker's SELECT grant on those tables
+// only lands in Task A4 (0069). The plan masked this by ordering A2→A3→A4 BEFORE B1, so the
+// end-to-end worker INSERT first executes under A4's grants. To keep A2 a self-contained,
+// gate-green commit that genuinely verifies ITS OWN security-critical deliverable, A2 asserts
+// the relaxation at the catalog level: the worker grant is present, the INSERT policy now
+// applies to the worker role, owner-equality is preserved verbatim, and the EXISTS is relaxed
+// to provider_type IN ('calendar','google') with the google branch scope-gated on the Calendar
+// scope. The end-to-end worker INSERT (success + scope-guard rejection) is exercised once the
+// connector grants exist (Task A4 / the F2 handler integration test).
+describe("calendar RLS — worker role + google INSERT relax (0066)", () => {
+  it("grants the worker role SELECT/INSERT/UPDATE on app.calendar_events", async () => {
+    // aclexplode(relacl) is readable from any role and surfaces grants to OTHER roles
+    // (information_schema.role_table_grants is filtered to the current role only).
+    const grants = await sql<{ privilege_type: string }>`
+      SELECT a.privilege_type
+      FROM pg_class c
+      JOIN pg_namespace n ON n.oid = c.relnamespace
+      CROSS JOIN LATERAL aclexplode(c.relacl) AS a
+      JOIN pg_roles g ON g.oid = a.grantee
+      WHERE n.nspname = 'app' AND c.relname = 'calendar_events'
+        AND g.rolname = 'jarvis_worker_runtime'
+    `.execute(appDb);
+    const privileges = grants.rows.map((r) => r.privilege_type);
+    expect(privileges).toContain("SELECT");
+    expect(privileges).toContain("INSERT");
+    expect(privileges).toContain("UPDATE");
+  });
+
+  it("applies the INSERT policy to both the app and worker runtime roles", async () => {
+    // One row per granted role (unnest of polroles) avoids array-literal serialization.
+    const roles = await sql<{ rolname: string }>`
+      SELECT g.rolname
+      FROM pg_policy p
+      CROSS JOIN LATERAL unnest(p.polroles) AS r(oid)
+      JOIN pg_roles g ON g.oid = r.oid
+      WHERE p.polrelid = 'app.calendar_events'::regclass
+        AND p.polname = 'calendar_events_insert'
+    `.execute(appDb);
+    expect(new Set(roles.rows.map((r) => r.rolname))).toEqual(
+      new Set(["jarvis_app_runtime", "jarvis_worker_runtime"])
+    );
+  });
+
+  it("preserves owner-equality and adds a scope-gated google branch in the INSERT WITH CHECK", async () => {
+    const policy = await sql<{ withcheck: string }>`
+      SELECT pg_get_expr(p.polwithcheck, p.polrelid) AS withcheck
+      FROM pg_policy p
+      WHERE p.polrelid = 'app.calendar_events'::regclass AND p.polname = 'calendar_events_insert'
+    `.execute(appDb);
+    const withCheck = policy.rows[0]?.withcheck ?? "";
+    // Owner-equality preserved verbatim (the M-B1 owner-only guarantee is NOT weakened).
+    expect(withCheck).toMatch(/owner_user_id = app\.current_actor_user_id\(\)/);
+    // Relaxed to accept the unified google account in addition to a native calendar account.
+    expect(withCheck).toMatch(/provider_type = 'calendar'/);
+    expect(withCheck).toMatch(/provider_type = 'google'/);
+    // The google branch is scope-gated: only an account holding the Calendar scope qualifies.
+    expect(withCheck).toMatch(/https:\/\/www\.googleapis\.com\/auth\/calendar/);
+    expect(withCheck).toMatch(/ANY \(accounts\.scopes\)/);
   });
 });
