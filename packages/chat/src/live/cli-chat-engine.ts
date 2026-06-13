@@ -1,15 +1,15 @@
 /**
- * TmuxCliChatEngine — a persistent per-session CLI engine that drives the
- * `claude` (Claude Code) binary inside a long-lived tmux session and exposes it
- * via the CliChatEngine interface.
+ * CliChatEngineImpl — a persistent per-session CLI engine that drives a coding
+ * CLI (`claude`, `codex`, or `gemini`) inside a long-lived multiplexer session
+ * and exposes it via the CliChatEngine interface.
  *
- * Unlike the one-shot TmuxBridgeAdapter (which launches the CLI, reads one
- * reply, and is driven turn-by-turn from the worker), this engine keeps the tmux
- * session alive across turns: launch() once, then submit()/readNew() many times.
- *
- * I/O (subprocess, fs, timing) is injected via the shared `TmuxIo` seam from
- * @jarv1s/ai so the engine is unit-testable without a real tmux binary, a real
- * `claude` install, or Postgres.
+ * The engine is multiplexer-neutral: session lifecycle (open/submit/isAlive/kill)
+ * is delegated to an injected `Multiplexer` (tmux by default, herdr alternative),
+ * and the engine stores the OPAQUE handle that `open()` returns. The engine keeps
+ * owning file/transcript I/O via the shared `TmuxIo` seam from @jarv1s/ai, so it
+ * is unit-testable without a real tmux/herdr binary, a real CLI install, or
+ * Postgres. With no `mux` opt it defaults to a TmuxMultiplexer over the same io,
+ * reproducing the exact legacy tmux verb sequence.
  *
  * The Claude launch flags below are SECURITY-CRITICAL and were empirically
  * verified in the Phase 1 spike (docs/superpowers/spikes/2026-06-08-cli-capability-matrix.md):
@@ -22,33 +22,43 @@
  */
 
 import { randomUUID } from "node:crypto";
-import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-import { parseTranscript, transcriptGlobDir, type ProviderKind, type TmuxIo } from "@jarv1s/ai";
+import {
+  parseTranscript,
+  transcriptGlobDir,
+  TmuxMultiplexer,
+  type Multiplexer,
+  type MuxHandle,
+  type ProviderKind,
+  type TmuxIo
+} from "@jarv1s/ai";
 
+import { CliChatUnavailableError } from "./errors.js";
 import type { ChatRecordKind, CliChatEngine, EngineLaunchOpts, TranscriptRecord } from "./types.js";
 
-/** Session name prefix used for all Jarv1s live tmux sessions. */
+/** Session name prefix used for all Jarv1s live sessions (the multiplexer `name` hint). */
 const SESSION_PREFIX = "jarv1s-live-";
 
-export interface TmuxCliChatEngineOpts {
+export interface CliChatEngineOpts {
   /** ms to let the CLI TUI finish booting before the first paste. */
   readonly launchMs?: number;
-  /** ms to let a bracketed paste settle before sending Enter. */
+  /** ms to let a bracketed paste settle before sending Enter (passed to the default tmux backend). */
   readonly submitMs?: number;
+  /** Multiplexer backend; defaults to a TmuxMultiplexer over the same io (preserves legacy behavior). */
+  readonly mux?: Multiplexer;
 }
 
 /**
- * A persistent CLI session driven through tmux. One instance per live session.
- * Supports anthropic (Claude Code), openai-compatible (Codex), and google (Gemini).
+ * A persistent CLI session driven through a Multiplexer. One instance per live
+ * session. Supports anthropic (Claude Code), openai-compatible (Codex), and
+ * google (Gemini).
  */
-export class TmuxCliChatEngine implements CliChatEngine {
-  private readonly sessionName: string;
+export class CliChatEngineImpl implements CliChatEngine {
   private readonly launchMs: number;
-  private readonly submitMs: number;
-  /** Stable per-session temp prompt path, overwritten (not accumulated) per turn. */
-  private readonly promptFile: string;
+  private readonly mux: Multiplexer;
+  /** The opaque session handle returned by mux.open() at launch. */
+  private handle: MuxHandle | null = null;
 
   /** Set at launch: the exact JSONL transcript path (session-id pinned). */
   private storedTranscriptPath: string | null = null;
@@ -57,15 +67,10 @@ export class TmuxCliChatEngine implements CliChatEngine {
     public readonly provider: ProviderKind,
     private readonly threadKey: string,
     private readonly io: TmuxIo,
-    opts: TmuxCliChatEngineOpts = {}
+    opts: CliChatEngineOpts = {}
   ) {
-    this.sessionName = `${SESSION_PREFIX}${threadKey}`;
     this.launchMs = opts.launchMs ?? 3_000;
-    this.submitMs = opts.submitMs ?? 600;
-    // One stable temp file per session: each submit() overwrites it (written then
-    // immediately pasted before the next turn), so at most one prompt file exists
-    // per session at a time instead of accumulating one per turn.
-    this.promptFile = join(tmpdir(), `jarv1s-live-prompt-${this.sessionName}.txt`);
+    this.mux = opts.mux ?? new TmuxMultiplexer(io, { submitMs: opts.submitMs ?? 600 });
   }
 
   // ─── lifecycle ─────────────────────────────────────────────────────────────
@@ -100,21 +105,22 @@ export class TmuxCliChatEngine implements CliChatEngine {
       `${sessionId}.jsonl`
     );
 
-    // Start a detached tmux session (no command yet — we send the launch line
-    // below so we can `cd` into the neutral dir first within the shell).
-    await this.io.run("tmux", [
-      "new-session",
-      "-d",
-      "-s",
-      this.sessionName,
-      "-x",
-      "220",
-      "-y",
-      "50"
-    ]);
-
     const launchLine = this.buildLaunchCommand(opts, sessionId);
-    await this.io.run("tmux", ["send-keys", "-t", this.sessionName, launchLine, "Enter"]);
+    try {
+      this.handle = await this.mux.open({
+        name: `${SESSION_PREFIX}${this.threadKey}`,
+        cols: 220,
+        rows: 50,
+        launchLine
+      });
+    } catch (err) {
+      // A backend exit-code failure (missing binary via JARVIS_MULTIPLEXER override,
+      // herdr socket failure, unresolvable root pane, tmux new-session failure) throws
+      // a plain Error from mux.open(). Convert it to the 503-mapped error with a
+      // sanitized message; the raw cause is logged server-side by the route handler
+      // (Codex R2 #2). Never surface raw stderr to the client.
+      throw new CliChatUnavailableError("could not start the live chat session", { cause: err });
+    }
 
     // Let the CLI TUI finish booting before the first prompt is pasted.
     await this.io.sleep(this.launchMs);
@@ -122,27 +128,14 @@ export class TmuxCliChatEngine implements CliChatEngine {
 
   async submit(text: string): Promise<void> {
     const sanitized = sanitizeInput(text);
-
-    // Write to a single stable per-session temp file to avoid shell-escaping
-    // hazards with long/multiline prompts. Reusing one path (overwritten each
-    // turn) keeps at most one prompt file per session instead of leaking one per
-    // turn; the file is written then immediately pasted before the next turn.
-    // Then load + paste the buffer and send Enter as a SEPARATE step (bracketed
-    // paste needs a settle before Enter, or the Enter is absorbed).
-    await this.io.writeFile(this.promptFile, sanitized);
-
-    const bufferName = `jarv1s-live-${this.threadKey}`;
-    await this.io.run("tmux", ["load-buffer", "-b", bufferName, this.promptFile]);
-    await this.io.run("tmux", ["paste-buffer", "-b", bufferName, "-t", this.sessionName]);
-    await this.io.sleep(this.submitMs);
-    await this.io.run("tmux", ["send-keys", "-t", this.sessionName, "Enter"]);
+    await this.mux.submit(this.requireHandle(), sanitized);
   }
 
   async readNew(
     afterOffset: number
   ): Promise<{ records: TranscriptRecord[]; offset: number; complete: boolean }> {
     if (this.storedTranscriptPath === null) {
-      throw new Error("TmuxCliChatEngine.readNew called before launch()");
+      throw new Error("CliChatEngineImpl.readNew called before launch()");
     }
 
     let jsonl: string;
@@ -168,12 +161,13 @@ export class TmuxCliChatEngine implements CliChatEngine {
   }
 
   async isAlive(): Promise<boolean> {
-    const { code } = await this.io.run("tmux", ["has-session", "-t", this.sessionName]);
-    return code === 0;
+    if (this.handle === null) return false;
+    return this.mux.isAlive(this.handle);
   }
 
   async kill(): Promise<void> {
-    await this.io.run("tmux", ["kill-session", "-t", this.sessionName]);
+    if (this.handle === null) return;
+    await this.mux.kill(this.handle);
   }
 
   // ─── introspection (used by tests / callers needing the pinned path) ─────────
@@ -181,9 +175,16 @@ export class TmuxCliChatEngine implements CliChatEngine {
   /** The exact transcript path computed at launch, or throws if not launched. */
   transcriptPath(): string {
     if (this.storedTranscriptPath === null) {
-      throw new Error("TmuxCliChatEngine.transcriptPath called before launch()");
+      throw new Error("CliChatEngineImpl.transcriptPath called before launch()");
     }
     return this.storedTranscriptPath;
+  }
+
+  private requireHandle(): MuxHandle {
+    if (this.handle === null) {
+      throw new Error("CliChatEngineImpl.submit called before launch()");
+    }
+    return this.handle;
   }
 
   // ─── helpers ─────────────────────────────────────────────────────────────────
@@ -236,8 +237,9 @@ export class TmuxCliChatEngine implements CliChatEngine {
   private buildCodexCommand(opts: EngineLaunchOpts): string {
     const tokenEnvVar = "JARVIS_MCP_TOKEN";
     // Codex reads the Bearer token via bearer_token_env_var; there is no file-based injection
-    // equivalent. The token appears in the tmux send-keys command and ps output — accepted tradeoff
-    // for a local single-user session where the token is short-lived and process-scoped.
+    // equivalent, so the token appears in the launch line and ps output. Under the household
+    // model this is a shared-uid soft boundary (see the chat module README "Known security
+    // limitation"); the token is short-lived, process-scoped, and RLS-scoped server-side.
     const envPrefix = opts.mcpToken ? `${tokenEnvVar}=${opts.mcpToken} ` : "";
     const parts = [`cd ${shellQuote(opts.neutralDir)} &&`, `${envPrefix}codex`];
 
