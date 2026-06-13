@@ -5,6 +5,7 @@ import {
   focusBlockEventId,
   type FocusBlockInput
 } from "../../packages/calendar/src/focus-time.js";
+import { freezeRelativeDate } from "../../packages/calendar/src/tools.js";
 import type {
   CalendarWriteService,
   FocusBlockWindow,
@@ -169,6 +170,57 @@ describe("focusBlockEventId (outbound-write idempotency floor)", () => {
     expect(id.length).toBeLessThanOrEqual(1024);
   });
 });
+
+describe("freezeRelativeDate (card↔execute day agreement across midnight, Codex round 4)", () => {
+  const TZ_NY = "America/New_York";
+
+  it("stamps an absolute 'tomorrow' onto a relative input, frozen at the first (card) clock", () => {
+    // 23:30 local on 2026-06-16 (EDT, UTC-4) = 2026-06-17T03:30Z. "tomorrow" = 2026-06-17.
+    const beforeMidnight = new Date("2026-06-17T03:30:00Z");
+    const input: Record<string, unknown> = { partOfDay: "morning", durationMinutes: 120 };
+    freezeRelativeDate(input, beforeMidnight, TZ_NY);
+    expect(input.date).toBe("2026-06-17");
+  });
+
+  it("is a no-op once frozen: a later (after-midnight) execute clock cannot move the day", () => {
+    const input: Record<string, unknown> = { partOfDay: "morning", durationMinutes: 120 };
+    // Card created at 23:30 local 06-16 → freezes to 06-17.
+    freezeRelativeDate(input, new Date("2026-06-17T03:30:00Z"), TZ_NY);
+    const frozen = input.date;
+    // Approved at 00:30 local 06-17 (04:30Z) — naive "tomorrow" would now be 06-18.
+    freezeRelativeDate(input, new Date("2026-06-17T04:30:00Z"), TZ_NY);
+    expect(input.date).toBe(frozen);
+    expect(input.date).toBe("2026-06-17");
+    // resolveWindow on the frozen input gives the SAME day regardless of the execute clock —
+    // so the approval card, the inserted event, and the deterministic id all agree.
+    const w = resolveWindow(
+      readInputForTest(input),
+      new Date("2026-06-17T04:30:00Z"), // after-midnight execute clock
+      TZ_NY
+    );
+    expect(w.start.toISOString().slice(0, 10)).toBe("2026-06-17");
+  });
+
+  it("never overrides an explicit date or start", () => {
+    const withDate: Record<string, unknown> = { date: "2026-07-01", partOfDay: "morning" };
+    freezeRelativeDate(withDate, new Date("2026-06-17T03:30:00Z"), TZ_NY);
+    expect(withDate.date).toBe("2026-07-01");
+    const withStart: Record<string, unknown> = { start: "2026-07-01T18:00:00Z" };
+    freezeRelativeDate(withStart, new Date("2026-06-17T03:30:00Z"), TZ_NY);
+    expect(withStart.date).toBeUndefined();
+  });
+});
+
+// Mirror the tool's readInput shape for the resolveWindow assertion above (kept local to the test).
+function readInputForTest(input: Record<string, unknown>): FocusBlockInput {
+  return {
+    date: typeof input.date === "string" ? input.date : undefined,
+    partOfDay: input.partOfDay as FocusBlockInput["partOfDay"],
+    start: typeof input.start === "string" ? input.start : undefined,
+    durationMinutes: typeof input.durationMinutes === "number" ? input.durationMinutes : undefined,
+    title: typeof input.title === "string" ? input.title : undefined
+  };
+}
 
 describe("CalendarWriteService interface shape", () => {
   it("a fake impl satisfies the interface and returns a ProposeFocusResult", async () => {
