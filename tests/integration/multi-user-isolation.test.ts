@@ -4,7 +4,7 @@ import pg from "pg";
 
 import { createJarvisAuthRuntime, type JarvisAuthRuntime } from "@jarv1s/auth";
 import { createDatabase, DataContextRunner, type JarvisDatabase } from "@jarv1s/db";
-import type { Kysely } from "kysely";
+import { sql, type Kysely } from "kysely";
 import { createApiServer } from "../../apps/api/src/server.js";
 import { SettingsRepository } from "../../packages/settings/src/repository.js";
 import {
@@ -43,6 +43,17 @@ describe("multi-user isolation", () => {
 
   async function disableApproval() {
     await setInstanceSetting("registration.requires_approval", { value: false });
+  }
+
+  async function seedAsBootstrap(text: string, params: unknown[] = []): Promise<string> {
+    const client = new pg.Client({ connectionString: connectionStrings.bootstrap });
+    await client.connect();
+    try {
+      const res = await client.query(text, params);
+      return (res.rows[0]?.id as string) ?? "";
+    } finally {
+      await client.end();
+    }
   }
 
   beforeEach(async () => {
@@ -324,6 +335,323 @@ describe("multi-user isolation", () => {
       )
     ).resolves.toBeUndefined();
   });
+
+  it("a member's onboarding state is invisible to the founder/admin and to another member", async () => {
+    const admin = await signUp("Admin", "iso-admin@example.com"); // bootstrap owner + admin
+    await disableApproval();
+    const alice = await signUp("Alice", "iso-alice@example.com");
+    const bob = await signUp("Bob", "iso-bob@example.com");
+
+    // Alice completes her member onboarding (stamps her own app.member_onboarding row).
+    const complete = await server.inject({
+      method: "POST",
+      url: "/api/onboarding/complete",
+      headers: { cookie: alice.cookie }
+    });
+    expect(complete.statusCode).toBe(200);
+    expect((complete.json() as { completed: boolean }).completed).toBe(true);
+
+    // Alice sees her own completion.
+    const aliceStatus = await server.inject({
+      method: "GET",
+      url: "/api/onboarding/status",
+      headers: { cookie: alice.cookie }
+    });
+    expect((aliceStatus.json() as { completed: boolean }).completed).toBe(true);
+
+    // Bob's own status is independent (still false) — per-user, not instance-global.
+    const bobStatus = await server.inject({
+      method: "GET",
+      url: "/api/onboarding/status",
+      headers: { cookie: bob.cookie }
+    });
+    expect((bobStatus.json() as { role: string; completed: boolean }).role).toBe("member");
+    expect((bobStatus.json() as { completed: boolean }).completed).toBe(false);
+
+    // Admin user list NEVER exposes onboarding state (it doesn't ride the user row at all).
+    const list = await server.inject({
+      method: "GET",
+      url: "/api/admin/users",
+      headers: { cookie: admin.cookie }
+    });
+    expect(list.statusCode).toBe(200);
+    expect(JSON.stringify(list.json())).not.toMatch(/onboarding/i);
+
+    // CRITICAL no-admin-bypass backstop: under the ADMIN's GUC, a direct read of
+    // app.member_onboarding for Alice's id returns NO row — the table has no admin SELECT
+    // policy (unlike app.users after 0052), so Alice's stamped state is invisible to the admin.
+    const dataCtx = new DataContextRunner(appDb);
+    const adminSeesAlice = await dataCtx.withDataContext(
+      { actorUserId: admin.id, requestId: "iso-1a" },
+      (scopedDb) =>
+        scopedDb.db
+          .selectFrom("app.member_onboarding")
+          .select("user_id")
+          .where("user_id", "=", alice.id)
+          .execute()
+    );
+    expect(adminSeesAlice).toEqual([]);
+
+    // And under Bob's GUC, Alice's row is likewise invisible.
+    const bobSeesAlice = await dataCtx.withDataContext(
+      { actorUserId: bob.id, requestId: "iso-1b" },
+      (scopedDb) =>
+        scopedDb.db
+          .selectFrom("app.member_onboarding")
+          .select("user_id")
+          .where("user_id", "=", alice.id)
+          .execute()
+    );
+    expect(bobSeesAlice).toEqual([]);
+  });
+
+  it("lifecycle stitch: completing onboarding sets only the actor's own row", async () => {
+    await disableApproval();
+    const admin = await signUp("Admin", "iso2-admin@example.com");
+    void admin;
+    const a = await signUp("MemberA", "iso2-a@example.com");
+    const b = await signUp("MemberB", "iso2-b@example.com");
+
+    await server.inject({
+      method: "POST",
+      url: "/api/onboarding/complete",
+      headers: { cookie: a.cookie }
+    });
+
+    const dataCtx = new DataContextRunner(appDb);
+    const repo = new SettingsRepository();
+    const aState = await dataCtx.withDataContext(
+      { actorUserId: a.id, requestId: "iso-2a" },
+      (scopedDb) => repo.getMemberOnboardingState(scopedDb)
+    );
+    const bState = await dataCtx.withDataContext(
+      { actorUserId: b.id, requestId: "iso-2b" },
+      (scopedDb) => repo.getMemberOnboardingState(scopedDb)
+    );
+    expect(aState.completedAt).toBeInstanceOf(Date); // A read under A's GUC → set
+    expect(bState.completedAt).toBeNull(); // B read under B's GUC → still null
+  });
+
+  it("per-user connectors: a SEEDED Alice-owned account is invisible to member B and the admin (and no secrets leak)", async () => {
+    const admin = await signUp("Admin", "iso3-admin@example.com");
+    await disableApproval();
+    const alice = await signUp("Alice", "iso3-alice@example.com");
+    const bob = await signUp("Bob", "iso3-bob@example.com");
+
+    // Seed an Alice-owned connector account directly (cross-RLS bootstrap write). Schema:
+    // packages/connectors/sql/0009_connectors_module.sql — app.connector_accounts(id [no default],
+    // provider_id [FK→connector_definitions.provider_id], owner_user_id, scopes, status,
+    // encrypted_secret jsonb [must be a JSON object]). The connectors module seeds
+    // 'google-calendar' at migrate time; reference an existing definition via subquery for
+    // robustness. owner_user_id = alice.id is the load-bearing isolation column.
+    const aliceAccountId = await seedAsBootstrap(
+      `INSERT INTO app.connector_accounts (id, provider_id, owner_user_id, scopes, status, encrypted_secret)
+         SELECT gen_random_uuid(), d.provider_id, $1, ARRAY[]::text[], 'active', '{}'::jsonb
+           FROM app.connector_definitions d
+          ORDER BY d.provider_id LIMIT 1
+         RETURNING id`,
+      [alice.id]
+    );
+    expect(aliceAccountId).not.toBe("");
+
+    // Bob's app_runtime read cannot see Alice's seeded account.
+    const dataCtx = new DataContextRunner(appDb);
+    const bobSees = await dataCtx.withDataContext(
+      { actorUserId: bob.id, requestId: "iso-3a" },
+      (scopedDb) =>
+        scopedDb.db
+          .selectFrom("app.connector_accounts")
+          .select("id")
+          .where("id", "=", aliceAccountId)
+          .execute()
+    );
+    expect(bobSees).toEqual([]);
+    const adminSees = await dataCtx.withDataContext(
+      { actorUserId: admin.id, requestId: "iso-3b" },
+      (scopedDb) =>
+        scopedDb.db
+          .selectFrom("app.connector_accounts")
+          .select("id")
+          .where("id", "=", aliceAccountId)
+          .execute()
+    );
+    expect(adminSees).toEqual([]);
+
+    // The public endpoint never carries secret-shaped fields for any actor.
+    const adminAccounts = await server.inject({
+      method: "GET",
+      url: "/api/connectors/accounts",
+      headers: { cookie: admin.cookie }
+    });
+    expect(adminAccounts.statusCode).toBe(200);
+    expect(JSON.stringify(adminAccounts.json())).not.toMatch(
+      /encrypted_secret|access_token|refresh_token|client_secret/i
+    );
+  });
+
+  it("per-user AI keys: a SEEDED Alice-owned provider config is invisible to member B and the admin (and no secrets leak)", async () => {
+    const admin = await signUp("Admin", "iso4-admin@example.com");
+    await disableApproval();
+    const alice = await signUp("Alice", "iso4-alice@example.com");
+    const bob = await signUp("Bob", "iso4-bob@example.com");
+
+    // Seed an Alice-owned AI provider config (cross-RLS bootstrap write). Schema:
+    // packages/ai/sql/0013_ai_module.sql — app.ai_provider_configs(id [no default], owner_user_id,
+    // provider_kind [enum app.ai_provider_kind: 'openai-compatible'|'anthropic'|'google'|'ollama'|
+    // 'custom'], display_name [non-blank], status, encrypted_credential jsonb [must be an object]).
+    // owner_user_id = alice.id is load-bearing.
+    const aliceConfigId = await seedAsBootstrap(
+      `INSERT INTO app.ai_provider_configs (id, owner_user_id, provider_kind, display_name, status, encrypted_credential)
+         VALUES (gen_random_uuid(), $1, 'anthropic', 'Alice key', 'active', '{}'::jsonb)
+         RETURNING id`,
+      [alice.id]
+    );
+    expect(aliceConfigId).not.toBe("");
+
+    const dataCtx = new DataContextRunner(appDb);
+    const bobSees = await dataCtx.withDataContext(
+      { actorUserId: bob.id, requestId: "iso-4a" },
+      (scopedDb) =>
+        scopedDb.db
+          .selectFrom("app.ai_provider_configs")
+          .select("id")
+          .where("id", "=", aliceConfigId)
+          .execute()
+    );
+    expect(bobSees).toEqual([]);
+    const adminSees = await dataCtx.withDataContext(
+      { actorUserId: admin.id, requestId: "iso-4b" },
+      (scopedDb) =>
+        scopedDb.db
+          .selectFrom("app.ai_provider_configs")
+          .select("id")
+          .where("id", "=", aliceConfigId)
+          .execute()
+    );
+    expect(adminSees).toEqual([]);
+
+    const adminProviders = await server.inject({
+      method: "GET",
+      url: "/api/ai/providers",
+      headers: { cookie: admin.cookie }
+    });
+    expect(adminProviders.statusCode).toBe(200);
+    expect(JSON.stringify(adminProviders.json())).not.toMatch(
+      /encrypted_credential|api[_-]?key|secret/i
+    );
+  });
+
+  it("per-user chat: a SEEDED Alice-owned thread is invisible to member B and the admin", async () => {
+    const admin = await signUp("Admin", "iso5-admin@example.com");
+    await disableApproval();
+    const alice = await signUp("Alice", "iso5-alice@example.com");
+    const bob = await signUp("Bob", "iso5-bob@example.com");
+
+    // Seed an Alice-owned chat thread (cross-RLS bootstrap write). Schema:
+    // packages/chat/sql/0014_chat_module.sql — app.chat_threads(id [no default], owner_user_id,
+    // title [non-blank]). owner_user_id = alice.id is load-bearing.
+    const aliceThreadId = await seedAsBootstrap(
+      `INSERT INTO app.chat_threads (id, owner_user_id, title)
+         VALUES (gen_random_uuid(), $1, 'Alice private thread')
+         RETURNING id`,
+      [alice.id]
+    );
+    expect(aliceThreadId).not.toBe("");
+
+    const dataCtx = new DataContextRunner(appDb);
+    const bobSees = await dataCtx.withDataContext(
+      { actorUserId: bob.id, requestId: "iso-5a" },
+      (scopedDb) =>
+        scopedDb.db
+          .selectFrom("app.chat_threads")
+          .select("id")
+          .where("id", "=", aliceThreadId)
+          .execute()
+    );
+    expect(bobSees).toEqual([]);
+    const adminSees = await dataCtx.withDataContext(
+      { actorUserId: admin.id, requestId: "iso-5b" },
+      (scopedDb) =>
+        scopedDb.db
+          .selectFrom("app.chat_threads")
+          .select("id")
+          .where("id", "=", aliceThreadId)
+          .execute()
+    );
+    expect(adminSees).toEqual([]);
+  });
+
+  it("per-user memory: SEEDED Alice-owned memory_chunks AND chat_memory_facts are invisible to member B and the admin", async () => {
+    const admin = await signUp("Admin", "iso6-admin@example.com");
+    await disableApproval();
+    const alice = await signUp("Alice", "iso6-alice@example.com");
+    const bob = await signUp("Bob", "iso6-bob@example.com");
+
+    // Seed BOTH memory tables for Alice (two separate RLS-protected surfaces).
+    // app.memory_chunks (packages/memory/sql/0030_memory_index.sql): id [DEFAULT gen_random_uuid()],
+    // owner_user_id, source_kind ['vault'|'connector'], source_path, line_start>=0,
+    // line_end>=line_start, content_hash, text [NOT NULL]; embedding nullable (leave NULL).
+    // app.chat_memory_facts (packages/memory/sql/0041_memory_facts.sql): id [DEFAULT
+    // gen_random_uuid()], owner_user_id, category ['preference'|'fact'|'profile'|'goal'], content.
+    // owner_user_id = alice.id is load-bearing in each.
+    const aliceChunkId = await seedAsBootstrap(
+      `INSERT INTO app.memory_chunks
+           (owner_user_id, source_kind, source_path, line_start, line_end, content_hash, text)
+         VALUES ($1, 'vault', 'iso6/alice.md', 0, 1, 'iso6hash', 'alice secret chunk')
+         RETURNING id`,
+      [alice.id]
+    );
+    const aliceFactId = await seedAsBootstrap(
+      `INSERT INTO app.chat_memory_facts (owner_user_id, category, content)
+         VALUES ($1, 'fact', 'alice secret fact')
+         RETURNING id`,
+      [alice.id]
+    );
+    expect(aliceChunkId).not.toBe("");
+    expect(aliceFactId).not.toBe("");
+
+    const dataCtx = new DataContextRunner(appDb);
+
+    // memory_chunks is registered on JarvisDatabase → typed select.
+    for (const actor of [bob.id, admin.id]) {
+      const seen = await dataCtx.withDataContext(
+        { actorUserId: actor, requestId: `iso-6-chunks-${actor}` },
+        (scopedDb) =>
+          scopedDb.db
+            .selectFrom("app.memory_chunks")
+            .select("id")
+            .where("id", "=", aliceChunkId)
+            .execute()
+      );
+      expect(seen).toEqual([]);
+    }
+
+    // chat_memory_facts is NOT in JarvisDatabase → assert via raw SQL under each actor's GUC.
+    for (const actor of [bob.id, admin.id]) {
+      const seen = await dataCtx.withDataContext(
+        { actorUserId: actor, requestId: `iso-6-facts-${actor}` },
+        (scopedDb) =>
+          sql<{
+            id: string;
+          }>`SELECT id FROM app.chat_memory_facts WHERE id = ${aliceFactId}`.execute(scopedDb.db)
+      );
+      expect(seen.rows).toEqual([]);
+    }
+  });
+
+  // DEFERRED (spec §Open risks "Wellness surface assumption"): there is no wellness module/
+  // owner-scoped wellness table in the codebase as of this slice, so the per-user wellness
+  // isolation case is intentionally NOT asserted here. When a wellness module ships with real
+  // owner-scoped tables, add a case mirroring the per-user memory test above against those
+  // tables. Do NOT assert against a non-existent table.
+  it.skip("per-user wellness: member B cannot read member A's wellness data (deferred — no wellness module yet)", () => {
+    // Intentionally skipped; see comment above.
+  });
+
+  // Per-user vault: vault I/O goes through VaultContext (filesystem), not a DB table, and is
+  // owner-scoped by path. The vault.test.ts suite already proves VaultContext containment;
+  // cross-user vault isolation is covered there. (Spec §Testing lists vault among the surfaces;
+  // it is gated by the existing vault suite rather than duplicated here.)
 });
 
 function cookieHeader(headers: OutgoingHttpHeaders): string {
