@@ -1,3 +1,7 @@
+import { readFileSync } from "node:fs";
+import { dirname, join, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
+
 import Fastify from "fastify";
 import { sql, type Kysely } from "kysely";
 import pg from "pg";
@@ -735,5 +739,40 @@ describe("feelings taxonomy (browser-safe, in @jarv1s/shared)", () => {
     expect(isValidFeelingPath("scared", "not-a-secondary")).toBe(false);
     // a tertiary without its secondary is invalid
     expect(isValidFeelingPath("scared", null, "overwhelmed")).toBe(false);
+  });
+});
+
+describe("module isolation: wellness ⇄ tasks", () => {
+  const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
+
+  it("@jarv1s/wellness package.json does NOT depend on @jarv1s/tasks", () => {
+    const pkg = JSON.parse(
+      readFileSync(join(repoRoot, "packages/wellness/package.json"), "utf8")
+    ) as { dependencies?: Record<string, string> };
+    expect(Object.keys(pkg.dependencies ?? {})).not.toContain("@jarv1s/tasks");
+  });
+
+  it("@jarv1s/tasks package.json does NOT depend on @jarv1s/wellness", () => {
+    const pkg = JSON.parse(readFileSync(join(repoRoot, "packages/tasks/package.json"), "utf8")) as {
+      dependencies?: Record<string, string>;
+    };
+    expect(Object.keys(pkg.dependencies ?? {})).not.toContain("@jarv1s/wellness");
+  });
+
+  it("no wellness source file imports @jarv1s/tasks", () => {
+    const files = [
+      "manifest.ts",
+      "repository.ts",
+      "routes.ts",
+      "tools.ts",
+      "focus-signal.ts",
+      "recall-context.ts",
+      "schedule.ts",
+      "serialize.ts"
+    ];
+    for (const file of files) {
+      const src = readFileSync(join(repoRoot, "packages/wellness/src", file), "utf8");
+      expect(src.includes("@jarv1s/tasks")).toBe(false);
+    }
   });
 });
