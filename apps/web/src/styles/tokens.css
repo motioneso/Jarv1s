@@ -1,0 +1,216 @@
+/*
+ * Semantic token layer — the spine of the Jarv1s web shell's visual language.
+ *
+ * Design direction: "Chronological Flow / Ritual Model"
+ *   (docs/superpowers/specs/2026-06-13-p3-design-direction-ritual-design.md).
+ *
+ * THIS IS THE ONLY CSS FILE IN apps/web PERMITTED TO CONTAIN HEX / rgb() LITERALS.
+ * Every other stylesheet (styles.css, tasks.css, feature CSS) consumes the semantic
+ * `var(--token)` aliases defined here — never a raw colour, never a primitive ramp value.
+ *
+ * Three tiers:
+ *   1. PRIMITIVE RAMPS — raw scale values (neutrals, brand teal/green, amber, the
+ *      circadian time-of-day hue set). Defined once; components never reference these.
+ *   2. SEMANTIC TOKENS — purpose-named aliases components actually use. These point at
+ *      primitives. Re-pointing them is how a theme is built.
+ *   3. THEME OVERLAYS — [data-theme="dark"] / [data-theme="amber"] re-point the SEMANTIC
+ *      tokens only (never the primitives). The app SHIPS LIGHT-FIRST with no theme toggle
+ *      in this slice — the overlays are the documented forward seam so the circadian
+ *      "Morning Bright -> Evening Amber" spectrum is expressible later with zero component
+ *      churn (set data-theme on the root element).
+ */
+
+:root {
+  /* ----------------------------------------------------------------------- */
+  /* TIER 1 — PRIMITIVE RAMPS (raw values; never consumed by components)     */
+  /* ----------------------------------------------------------------------- */
+
+  /* Neutrals (cool grey ramp) */
+  --ramp-neutral-0: #ffffff;
+  --ramp-neutral-25: #f7fcfb;
+  --ramp-neutral-50: #f7f8fa;
+  --ramp-neutral-75: #f4faf8;
+  --ramp-neutral-100: #eef3f2;
+  --ramp-neutral-150: #eef1f4;
+  --ramp-neutral-175: #f3f4f6;
+  --ramp-neutral-200: #edf0f2;
+  --ramp-neutral-250: #e5e7eb;
+  --ramp-neutral-300: #d9dee3;
+  --ramp-neutral-350: #d1d5db;
+  --ramp-neutral-450: #9ca3af;
+  --ramp-neutral-600: #6b7280;
+  --ramp-neutral-650: #5d6874;
+  --ramp-neutral-900: #172026;
+
+  /* Brand teal/green (the "Ritual" accent) */
+  --ramp-teal-500: #0f766e;
+  --ramp-teal-600: #0b5f59;
+  --ramp-teal-rgb: 15 118 110;
+
+  /* Amber / circadian time-of-day hue set (morning bright -> evening amber) */
+  --ramp-amber-500: #b45309;
+  --ramp-amber-400: #ca8a04;
+  --ramp-amber-300: #ea580c;
+  --ramp-bucket-morning: #ca8a04;
+  --ramp-bucket-afternoon: #ea580c;
+  --ramp-bucket-evening: #b45309;
+
+  /* Signal hues (used sparingly; error-red is reserved for true errors only) */
+  --ramp-red-600: #be123c;
+  --ramp-red-500: #dc2626;
+  --ramp-blue-500: #2563eb;
+  --ramp-indigo-50: #eef2ff;
+
+  /* Composite ink ramps for translucent ink shadows / scrims */
+  --ramp-ink-rgb: 23 32 38;
+  --ramp-slate-rgb: 15 23 42;
+
+  /* ----------------------------------------------------------------------- */
+  /* TIER 2 — SEMANTIC TOKENS (light theme defaults; components use these)   */
+  /* ----------------------------------------------------------------------- */
+
+  /* Surfaces */
+  --surface: var(--ramp-neutral-50);
+  --surface-raised: var(--ramp-neutral-0);
+  --surface-subtle: var(--ramp-neutral-175);
+  --surface-active: var(--ramp-indigo-50);
+  --panel: var(--ramp-neutral-0);
+  --panel-subtle: var(--ramp-neutral-100);
+  --surface-track: var(--ramp-neutral-150);
+  --surface-divider: var(--ramp-neutral-200);
+  --surface-accent-soft: var(--ramp-neutral-75);
+  --surface-assistant: var(--ramp-neutral-25);
+
+  /* Text / ink */
+  --text: var(--ramp-neutral-900);
+  --ink: var(--ramp-neutral-900);
+  --text-muted: var(--ramp-neutral-600);
+  --muted: var(--ramp-neutral-650);
+  --text-on-accent: var(--ramp-neutral-0);
+
+  /* Borders */
+  --border: var(--ramp-neutral-300);
+  --border-default: var(--ramp-neutral-300);
+  --border-subtle: var(--ramp-neutral-175);
+
+  /* Accent (brand teal) */
+  --accent: var(--ramp-teal-500);
+  --accent-strong: var(--ramp-teal-600);
+  --accent-rgb: var(--ramp-teal-rgb);
+
+  /* State — ANTI-SHAME: normal human drift (slipped task, missed bucket, at-risk
+     commitment) renders amber/muted, NEVER error-red. Error-red (--danger) is for
+     true errors and destructive actions only. */
+  --state-attention: var(--ramp-amber-500);
+  --state-recovery: var(--ramp-amber-400);
+  --warning: var(--ramp-amber-500);
+  --danger: var(--ramp-red-600);
+
+  /* Time-bucket chronology accents (This Morning / Afternoon / Evening) */
+  --bucket-morning: var(--ramp-bucket-morning);
+  --bucket-afternoon: var(--ramp-bucket-afternoon);
+  --bucket-evening: var(--ramp-bucket-evening);
+
+  /* Tasks priority / Eisenhower-matrix accents (semantic, not raw hex) */
+  --priority-urgent: var(--ramp-red-500);
+  --priority-high: var(--ramp-amber-300);
+  --priority-medium: var(--ramp-amber-400);
+  --priority-low: var(--ramp-blue-500);
+  --priority-minimal: var(--ramp-neutral-600);
+  --priority-none: var(--ramp-neutral-350);
+  --matrix-eliminate: var(--ramp-neutral-450);
+
+  /* Governor — AI / unconfirmed content renders at this opacity (research §2:
+     "70% opacity for AI-generated drafts"). */
+  --provisional-opacity: 0.7;
+
+  /* Elevation (ink-based translucent shadows + scrims) */
+  --shadow-panel: 0 14px 36px rgb(var(--ramp-ink-rgb) / 0.08);
+  --shadow-control: 0 1px 3px rgb(var(--ramp-ink-rgb) / 0.12);
+  --shadow-drawer: -8px 0 24px rgb(var(--ramp-slate-rgb) / 0.12);
+  --scrim: rgb(var(--ramp-ink-rgb) / 0.36);
+  --topbar-bg: rgb(247 248 250 / 0.92);
+  --focus-ring: rgb(var(--ramp-teal-rgb) / 0.28);
+  --accent-soft-border: rgb(var(--ramp-teal-rgb) / 0.55);
+  --accent-soft-border-weak: rgb(var(--ramp-teal-rgb) / 0.45);
+}
+
+/* ------------------------------------------------------------------------- */
+/* TIER 3 — THEME OVERLAYS (re-point SEMANTIC tokens only; not shipped yet)  */
+/* ------------------------------------------------------------------------- */
+
+/* Dark theme — forward seam, not wired to any toggle in this slice. */
+[data-theme="dark"] {
+  --surface: #0c1416;
+  --surface-raised: #11201e;
+  --surface-subtle: #16211f;
+  --surface-active: #173a36;
+  --panel: #11201e;
+  --panel-subtle: #16211f;
+  --surface-track: #16211f;
+  --surface-divider: #1f2c2a;
+  --surface-accent-soft: #102e2a;
+  --surface-assistant: #0f1c1a;
+
+  --text: #e6edf0;
+  --ink: #e6edf0;
+  --text-muted: #9fb0b6;
+  --muted: #9fb0b6;
+  --text-on-accent: #06100e;
+
+  --border: #25342f;
+  --border-default: #25342f;
+  --border-subtle: #1c2826;
+
+  --accent: #2dd4bf;
+  --accent-strong: #14b8a6;
+  --accent-rgb: 45 212 191;
+
+  --state-attention: #f59e0b;
+  --state-recovery: #fbbf24;
+  --warning: #f59e0b;
+  --danger: #fb7185;
+
+  --topbar-bg: rgb(12 20 22 / 0.92);
+  --focus-ring: rgb(45 212 191 / 0.32);
+  --accent-soft-border: rgb(45 212 191 / 0.55);
+  --accent-soft-border-weak: rgb(45 212 191 / 0.45);
+}
+
+/* Amber evening overlay — circadian "Evening Amber" end of the spectrum (forward seam). */
+[data-theme="amber"] {
+  --surface: #1a1410;
+  --surface-raised: #221a13;
+  --surface-subtle: #251c14;
+  --surface-active: #3a2c14;
+  --panel: #221a13;
+  --panel-subtle: #251c14;
+  --surface-track: #251c14;
+  --surface-divider: #2e2419;
+  --surface-accent-soft: #2e2113;
+  --surface-assistant: #1f1810;
+
+  --text: #f1e7d8;
+  --ink: #f1e7d8;
+  --text-muted: #c4ad8c;
+  --muted: #c4ad8c;
+  --text-on-accent: #1a1208;
+
+  --border: #34291b;
+  --border-default: #34291b;
+  --border-subtle: #2a2116;
+
+  --accent: #d9a441;
+  --accent-strong: #c2862a;
+  --accent-rgb: 217 164 65;
+
+  --state-attention: #e8902c;
+  --state-recovery: #f0b35a;
+  --warning: #e8902c;
+  --danger: #e2715f;
+
+  --topbar-bg: rgb(26 20 16 / 0.92);
+  --focus-ring: rgb(217 164 65 / 0.32);
+  --accent-soft-border: rgb(217 164 65 / 0.55);
+  --accent-soft-border-weak: rgb(217 164 65 / 0.45);
+}

@@ -1,6 +1,8 @@
+/* Design tokens live in styles/tokens.css (the only file with hex/rgb literals),
+   imported before this file in main.tsx so the cascade resolves them first. */
 :root {
-  color: #172026;
-  background: #f7f8fa;
+  color: var(--text);
+  background: var(--surface);
   font-family:
     Inter,
     ui-sans-serif,
@@ -13,15 +15,6 @@
   line-height: 1.5;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
-  --accent: #0f766e;
-  --accent-strong: #0b5f59;
-  --border: #d9dee3;
-  --danger: #be123c;
-  --ink: #172026;
-  --muted: #5d6874;
-  --panel: #ffffff;
-  --panel-subtle: #eef3f2;
-  --warning: #b45309;
 }
 
 * {
@@ -68,7 +61,7 @@ a {
   border: 1px solid var(--border);
   border-radius: 8px;
   background: var(--panel);
-  box-shadow: 0 14px 36px rgb(23 32 38 / 0.08);
+  box-shadow: var(--shadow-panel);
 }
 
 .auth-panel {
@@ -121,7 +114,7 @@ textarea {
   min-height: 2.5rem;
   border: 1px solid var(--border);
   border-radius: 8px;
-  background: #ffffff;
+  background: var(--surface-raised);
   color: var(--ink);
   padding: 0.6rem 0.7rem;
 }
@@ -135,7 +128,7 @@ select:focus,
 textarea:focus,
 button:focus-visible,
 a:focus-visible {
-  outline: 3px solid rgb(15 118 110 / 0.28);
+  outline: 3px solid var(--focus-ring);
   outline-offset: 2px;
 }
 
@@ -156,7 +149,7 @@ a:focus-visible {
 
 .primary-button {
   background: var(--accent);
-  color: #ffffff;
+  color: var(--text-on-accent);
 }
 
 .primary-button:hover {
@@ -166,7 +159,7 @@ a:focus-visible {
 .secondary-button,
 .ghost-button,
 .icon-button {
-  background: #ffffff;
+  background: var(--surface-raised);
   border-color: var(--border);
   color: var(--ink);
 }
@@ -195,10 +188,10 @@ a:focus-visible {
   height: 1.15rem;
   display: grid;
   place-items: center;
-  border: 2px solid #ffffff;
+  border: 2px solid var(--surface-raised);
   border-radius: 999px;
   background: var(--danger);
-  color: #ffffff;
+  color: var(--text-on-accent);
   padding: 0 0.25rem;
   font-size: 0.68rem;
   font-weight: 850;
@@ -219,7 +212,7 @@ a:focus-visible {
   gap: 0.25rem;
   border: 1px solid var(--border);
   border-radius: 8px;
-  background: #eef1f4;
+  background: var(--surface-track);
   padding: 0.25rem;
 }
 
@@ -239,9 +232,9 @@ a:focus-visible {
 }
 
 .segmented-control button.active {
-  background: #ffffff;
+  background: var(--surface-raised);
   color: var(--ink);
-  box-shadow: 0 1px 3px rgb(23 32 38 / 0.12);
+  box-shadow: var(--shadow-control);
 }
 
 .segmented-control span {
@@ -270,7 +263,7 @@ a:focus-visible {
   grid-template-rows: auto 1fr;
   gap: 1.25rem;
   border-right: 1px solid var(--border);
-  background: #ffffff;
+  background: var(--surface-raised);
   padding: 1rem;
 }
 
@@ -288,7 +281,7 @@ a:focus-visible {
   place-items: center;
   border-radius: 8px;
   background: var(--accent);
-  color: #ffffff;
+  color: var(--text-on-accent);
   font-weight: 850;
 }
 
@@ -355,7 +348,7 @@ button.module-link {
   align-items: center;
   gap: 0.75rem;
   border-bottom: 1px solid var(--border);
-  background: rgb(247 248 250 / 0.92);
+  background: var(--topbar-bg);
   padding: 0.7rem 1rem;
   position: sticky;
   top: 0;
@@ -452,7 +445,7 @@ button.module-link {
   grid-template-columns: minmax(6rem, 0.55fr) minmax(0, 1fr);
   align-items: center;
   gap: 0.75rem;
-  border-bottom: 1px solid #edf0f2;
+  border-bottom: 1px solid var(--surface-divider);
   padding-bottom: 0.45rem;
 }
 
@@ -550,12 +543,12 @@ button.module-link {
   align-items: center;
   border: 1px solid var(--border);
   border-radius: 8px;
-  background: #ffffff;
+  background: var(--surface-raised);
   padding: 0.75rem;
 }
 
 .task-row.done {
-  background: #f4faf8;
+  background: var(--surface-accent-soft);
 }
 
 .ai-config-list,
@@ -573,7 +566,7 @@ button.module-link {
   align-items: center;
   border: 1px solid var(--border);
   border-radius: 8px;
-  background: #ffffff;
+  background: var(--surface-raised);
   padding: 0.75rem;
 }
 
@@ -612,7 +605,7 @@ button.module-link {
   gap: 0.55rem;
   border: 1px solid var(--border);
   border-radius: 8px;
-  background: #ffffff;
+  background: var(--surface-raised);
   padding: 0.6rem 0.7rem;
   font-weight: 750;
 }
@@ -642,15 +635,15 @@ button.module-link {
   gap: 0.15rem;
   border: 1px solid var(--border);
   border-radius: 8px;
-  background: #ffffff;
+  background: var(--surface-raised);
   color: var(--ink);
   padding: 0.65rem 0.75rem;
   text-align: left;
 }
 
 .chat-thread-button.active {
-  border-color: rgb(15 118 110 / 0.55);
-  background: #f4faf8;
+  border-color: var(--accent-soft-border);
+  background: var(--surface-accent-soft);
 }
 
 .chat-thread-button span {
@@ -670,12 +663,12 @@ button.module-link {
   gap: 0.65rem;
   border: 1px solid var(--border);
   border-radius: 8px;
-  background: #ffffff;
+  background: var(--surface-raised);
   padding: 0.75rem;
 }
 
 .chat-message.assistant {
-  background: #f7fcfb;
+  background: var(--surface-assistant);
 }
 
 .chat-message p {
@@ -695,8 +688,8 @@ button.module-link {
 }
 
 .notification-row.unread {
-  border-color: rgb(15 118 110 / 0.45);
-  background: #f7fcfb;
+  border-color: var(--accent-soft-border-weak);
+  background: var(--surface-assistant);
 }
 
 .task-status-icon {
@@ -738,7 +731,7 @@ button.module-link {
   align-items: center;
   gap: 0.25rem;
   border-radius: 999px;
-  background: #edf0f2;
+  background: var(--surface-divider);
   color: var(--muted);
   padding: 0.15rem 0.45rem;
   font-size: 0.75rem;
@@ -762,7 +755,7 @@ button.module-link {
   gap: 0.5rem;
   border: 1px dashed var(--border);
   border-radius: 8px;
-  background: #ffffff;
+  background: var(--surface-raised);
   color: var(--muted);
   padding: 1rem;
   text-align: center;
@@ -784,7 +777,7 @@ button.module-link {
 .loading-mark {
   width: 2.25rem;
   height: 2.25rem;
-  border: 4px solid #d9dee3;
+  border: 4px solid var(--border-default);
   border-top-color: var(--accent);
   border-radius: 999px;
   animation: spin 900ms linear infinite;
@@ -805,9 +798,9 @@ button.module-link {
   display: grid;
   grid-template-rows: auto auto 1fr auto auto;
   gap: 0.75rem;
-  background: var(--surface, #ffffff);
+  background: var(--surface-raised);
   border-left: 1px solid var(--border);
-  box-shadow: -8px 0 24px rgb(15 23 42 / 0.12);
+  box-shadow: var(--shadow-drawer);
   padding: 1rem;
   overflow-y: auto;
 }
@@ -830,7 +823,7 @@ button.module-link {
 
 .provider-indicator {
   border-radius: 999px;
-  background: #edf0f2;
+  background: var(--surface-divider);
   color: var(--muted);
   padding: 0.15rem 0.55rem;
   font-size: 0.75rem;
@@ -878,7 +871,7 @@ button.module-link {
     z-index: 15;
     display: block;
     border: 0;
-    background: rgb(23 32 38 / 0.36);
+    background: var(--scrim);
   }
 
   .mobile-only {
