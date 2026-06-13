@@ -4,13 +4,17 @@ import { sql } from "kysely";
 
 import type { AdminAuditEvent, InstanceSetting, ModuleEnablementRow, User } from "@jarv1s/db";
 import { assertDataContextDb, type DataContextDb } from "@jarv1s/db";
-import type { ChatMultiplexerChoice } from "@jarv1s/shared";
+import type { ChatMultiplexerChoice, OnboardingState } from "@jarv1s/shared";
 
 export interface UpsertInstanceSettingInput {
   readonly key: string;
   readonly value: Record<string, unknown>;
   readonly updatedByUserId: string;
   readonly requestId: string;
+  /** Override the audit action (default "instance_setting.upsert"). Keeps ONE audit row. */
+  readonly action?: string;
+  /** Override audit metadata (default { key }). */
+  readonly metadata?: Record<string, unknown>;
 }
 
 export interface SetUserStatusInput {
@@ -31,6 +35,12 @@ export interface SetUserAdminInput {
 export interface RegistrationSettings {
   readonly registrationEnabled: boolean;
   readonly requiresApproval: boolean;
+}
+
+export interface SetOnboardingStateInput {
+  readonly state: Exclude<OnboardingState, "pending">; // only complete/skip are written
+  readonly actorUserId: string;
+  readonly requestId: string;
 }
 
 export interface SetModuleDisabledInput {
@@ -199,11 +209,11 @@ export class SettingsRepository {
 
     await this.insertAuditEvent(scopedDb, {
       actorUserId: input.updatedByUserId,
-      action: "instance_setting.upsert",
+      action: input.action ?? "instance_setting.upsert",
       targetType: "instance_setting",
       targetId: input.key,
       requestId: input.requestId,
-      metadata: { key: input.key }
+      metadata: input.metadata ?? { key: input.key }
     });
 
     return setting;
@@ -344,6 +354,41 @@ export class SettingsRepository {
       requestId: input.requestId
     });
     return { multiplexer: input.multiplexer };
+  }
+
+  /** Read the single onboarding lifecycle state (default "pending" when absent). */
+  async readOnboardingState(scopedDb: DataContextDb): Promise<OnboardingState> {
+    assertDataContextDb(scopedDb);
+    const row = await scopedDb.db
+      .selectFrom("app.instance_settings")
+      .select("value")
+      .where("key", "=", "onboarding.state")
+      .executeTakeFirst();
+    const raw = (row?.value as { value?: unknown } | undefined)?.value;
+    return raw === "completed" || raw === "skipped" ? raw : "pending";
+  }
+
+  /**
+   * Set onboarding.state to "completed" or "skipped" through the shared audited upsert
+   * helper with an ACTION OVERRIDE, so there is exactly ONE audit row carrying the
+   * specific verb ("onboarding.complete"/"onboarding.skip"). A single enum key means the
+   * terminal state is never ambiguous (the prior two-boolean design allowed completed &&
+   * skipped both true); skip overwrites completed and vice-versa.
+   */
+  async setOnboardingState(
+    scopedDb: DataContextDb,
+    input: SetOnboardingStateInput
+  ): Promise<OnboardingState> {
+    assertDataContextDb(scopedDb);
+    await this.upsertInstanceSetting(scopedDb, {
+      key: "onboarding.state",
+      value: { value: input.state },
+      updatedByUserId: input.actorUserId,
+      requestId: input.requestId,
+      action: input.state === "completed" ? "onboarding.complete" : "onboarding.skip",
+      metadata: { state: input.state }
+    });
+    return input.state;
   }
 
   async listAdminAuditEvents(scopedDb: DataContextDb): Promise<AdminAuditEvent[]> {
