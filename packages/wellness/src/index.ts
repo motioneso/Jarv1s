@@ -17,3 +17,4 @@ export { computeSchedule } from "./schedule.js";
 export { registerWellnessRoutes } from "./routes.js";
 export type { WellnessRoutesDependencies } from "./routes.js";
 export { wellnessRecentCheckInsExecute, wellnessMedicationAdherenceExecute } from "./tools.js";
+export { deriveEnergyTrend, WellnessRecallContributor } from "./recall-context.js";
