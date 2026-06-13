@@ -14,9 +14,10 @@ import type { AccessContext, DataContextRunner } from "@jarv1s/db";
 import {
   HttpError,
   handleRouteError as handleModuleRouteError,
-  sessionRateLimitKey,
-  type JarvisModuleManifest
+  sessionRateLimitKey
 } from "@jarv1s/module-sdk";
+
+import type { ActiveModulesResolver } from "./gateway/types.js";
 import {
   createAiConfiguredModelRouteSchema,
   createAiProviderConfigRouteSchema,
@@ -68,7 +69,7 @@ import {
 export interface AiRoutesDependencies {
   readonly resolveAccessContext: (request: FastifyRequest) => Promise<AccessContext>;
   readonly dataContext: DataContextRunner;
-  readonly listModuleManifests: () => readonly JarvisModuleManifest[];
+  readonly resolveActiveModules: ActiveModulesResolver;
   readonly repository?: AiRepository;
   readonly secretCipher?: AiSecretCipher;
 }
@@ -359,9 +360,12 @@ export function registerAiRoutes(
     async (request, reply) => {
       try {
         const accessContext = await dependencies.resolveAccessContext(request);
-        const tools = await dependencies.dataContext.withDataContext(accessContext, async () =>
-          listAssistantToolsFromManifests(dependencies.listModuleManifests())
-        );
+        // resolveActiveModules opens its OWN withDataContext (RLS-scoped to the actor),
+        // so it must NOT be nested inside another withDataContext — that double-acquires
+        // the pool and deadlocks at maxConnections:1. listAssistantToolsFromManifests is a
+        // pure transform over the manifests (no DB), so no outer data context is needed.
+        const activeModules = await dependencies.resolveActiveModules(accessContext.actorUserId);
+        const tools = listAssistantToolsFromManifests(activeModules);
 
         return { tools };
       } catch (error) {
@@ -387,10 +391,8 @@ export function registerAiRoutes(
 
       try {
         const accessContext = await dependencies.resolveAccessContext(request);
-        tool = findAssistantToolFromManifests(
-          dependencies.listModuleManifests(),
-          request.params.name
-        );
+        const activeModules = await dependencies.resolveActiveModules(accessContext.actorUserId);
+        tool = findAssistantToolFromManifests(activeModules, request.params.name);
 
         if (!tool) {
           return reply.code(404).send({ error: "Assistant tool is not declared" });
@@ -426,8 +428,7 @@ export function registerAiRoutes(
         }
 
         const selectedTool = tool;
-        const manifestTool = dependencies
-          .listModuleManifests()
+        const manifestTool = activeModules
           .flatMap((m) => m.assistantTools ?? [])
           .find((t) => t.name === selectedTool.name);
 

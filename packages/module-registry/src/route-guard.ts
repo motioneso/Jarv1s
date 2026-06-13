@@ -64,6 +64,8 @@ export const PLATFORM_UNGUARDED_ROUTES: ReadonlySet<RouteKey> = new Set<RouteKey
   routeKey("PATCH", "/api/admin/settings/:key"),
   routeKey("GET", "/api/admin/registration"),
   routeKey("PUT", "/api/admin/registration"),
+  routeKey("GET", "/api/admin/chat-multiplexer"),
+  routeKey("PUT", "/api/admin/chat-multiplexer"),
   routeKey("GET", "/api/admin/audit-events"),
   // NOTE: /api/admin/connectors/accounts is NOT here — it is connector-OWNED (declared
   // in connectorsModuleManifest.routes[]) so it is guarded by the connectors module's

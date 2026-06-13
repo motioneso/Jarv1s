@@ -38,6 +38,7 @@ import {
   connectorsModuleSqlMigrationDirectory,
   registerConnectorsRoutes
 } from "@jarv1s/connectors";
+import type { ActiveModulesResolver } from "@jarv1s/ai";
 import type { AccessContext, DataContextRunner, JarvisDatabase } from "@jarv1s/db";
 import {
   emailModuleManifest,
@@ -69,6 +70,7 @@ import { assertModulesCompatible } from "./compat-gate.js";
 import { probeChatMultiplexerAvailability, resolveChatEngineFactory } from "./chat-multiplexer.js";
 
 export type { ChatEngineFactory } from "@jarv1s/chat";
+export type { JarvisModuleManifest } from "@jarv1s/module-sdk";
 
 export {
   createActiveModulesResolver,
@@ -99,6 +101,12 @@ export interface BuiltInRouteDependencies {
   readonly resolveAccessContext: (request: FastifyRequest) => Promise<AccessContext>;
   readonly listConfiguredAuthProviders: () => readonly AuthProviderStatusDto[];
   readonly listModuleManifests: () => readonly JarvisModuleManifest[];
+  /**
+   * Async, actor-filtered resolver (the enablement SEAM). Used by the tool surfaces
+   * (MCP gateway + AI REST tools) and the route guard. Distinct from
+   * listModuleManifests (the full registered set used by briefings + /api/modules).
+   */
+  readonly resolveActiveModules: ActiveModulesResolver;
   readonly dataContext: DataContextRunner;
   readonly boss: PgBoss;
   /** Override the live-chat engine factory (tests inject a fake); defaults to real tmux. */
@@ -180,7 +188,12 @@ const BUILT_IN_MODULES: readonly BuiltInModuleRegistration[] = [
     manifest: aiModuleManifest,
     sqlMigrationDirectories: [aiModuleSqlMigrationDirectory],
     queueDefinitions: [],
-    registerRoutes: registerAiRoutes
+    registerRoutes: (server, deps) =>
+      registerAiRoutes(server, {
+        resolveAccessContext: deps.resolveAccessContext,
+        dataContext: deps.dataContext,
+        resolveActiveModules: deps.resolveActiveModules
+      })
   },
   {
     manifest: chatModuleManifest,
@@ -191,10 +204,7 @@ const BUILT_IN_MODULES: readonly BuiltInModuleRegistration[] = [
         resolveAccessContext: deps.resolveAccessContext,
         dataContext: deps.dataContext,
         chatEngineFactory: deps.chatEngineFactory,
-        // Task 5 made ActiveModulesResolver async; the real DB-backed resolver lands in
-        // Task 6. Until then, adapt the sync manifest list to the async resolver shape so
-        // the live surface is byte-for-byte unchanged (every built-in active).
-        resolveActiveModules: async () => deps.listModuleManifests(),
+        resolveActiveModules: deps.resolveActiveModules,
         mcpServerUrl: `http://127.0.0.1:${process.env.PORT ?? 3000}/api/mcp`,
         boss: deps.boss
       }),
