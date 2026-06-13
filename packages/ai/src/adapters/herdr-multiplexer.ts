@@ -20,6 +20,7 @@
  */
 import type { TmuxIo } from "./tmux-bridge.js";
 import type { Multiplexer, MuxHandle, MuxOpenOpts } from "./multiplexer.js";
+import { redactSecrets } from "./redact.js";
 
 export interface HerdrMultiplexerOpts {
   /** Parent pane to split from; else JARVIS_HERDR_ROOT_PANE; else HERDR_PANE_ID. */
@@ -52,7 +53,7 @@ export class HerdrMultiplexer implements Multiplexer {
     ]);
     if (split.code !== 0) {
       throw new Error(
-        `HerdrMultiplexer.open: herdr pane split failed (code ${split.code}): ${split.stderr ?? ""}`
+        `HerdrMultiplexer.open: herdr pane split failed (code ${split.code}): ${redactSecrets(split.stderr)}`
       );
     }
     const paneId = paneIdFromInfo(split.stdout);
@@ -112,7 +113,9 @@ export class HerdrMultiplexer implements Multiplexer {
   private async runChecked(args: readonly string[], label: string): Promise<void> {
     const { code, stderr } = await this.io.run("herdr", args);
     if (code !== 0) {
-      throw new Error(`HerdrMultiplexer: herdr ${label} failed (code ${code}): ${stderr ?? ""}`);
+      throw new Error(
+        `HerdrMultiplexer: herdr ${label} failed (code ${code}): ${redactSecrets(stderr)}`
+      );
     }
   }
 }

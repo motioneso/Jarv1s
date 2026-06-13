@@ -447,6 +447,13 @@ export function registerAiRoutes(
         // Validate caller-supplied input before execution.
         // Invariant: validateToolInput gates every caller-supplied-input execute call on REST paths.
         const validatedInput = validateToolInput(manifestTool.inputSchema, body.input ?? {});
+        // The ToolServices (4th) arg is intentionally omitted here: this REST path only ever
+        // reaches execute() for read tools (every write/destructive tool 403s above with
+        // "confirmation_required"). Per the gateway's write→confirm floor (see
+        // AssistantToolGateway.servicesFor), a read tool receives NO services even when it runs
+        // — so omitting the arg matches the documented contract rather than contradicting it.
+        // Any service-backed (write-capable) tool must be invoked via the gateway/CLI path, which
+        // threads the per-tool ToolServices subset only after an Approve.
         const result = await dependencies.dataContext.withDataContext(accessContext, (scopedDb) =>
           manifestTool.execute!(scopedDb, validatedInput, {
             actorUserId: accessContext.actorUserId,

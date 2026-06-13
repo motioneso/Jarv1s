@@ -136,13 +136,16 @@ describe("HttpApiAdapter — google", () => {
   it("calls generateContent and maps candidates[0].content.parts[0].text", async () => {
     const fakeFetch = async (url: string | URL | Request, init?: RequestInit) => {
       const urlStr = typeof url === "string" ? url : url instanceof URL ? url.href : url.url;
-      // URL includes model id and API key as query param
+      // URL includes model id but the API key must NOT appear in the query string
+      // (a `?key=` param leaks to external proxy/APM/access logs).
       expect(urlStr).toContain("gemini-2.0-flash");
       expect(urlStr).toContain("generateContent");
-      expect(urlStr).toContain("key=sk-test-google");
+      expect(urlStr).not.toContain("key=");
+      expect(urlStr).not.toContain("sk-test-google");
 
-      // Key must be in URL, NOT in Authorization header
+      // Key travels in the x-goog-api-key header, never in the URL or Authorization header.
       const headers = new Headers(init?.headers);
+      expect(headers.get("x-goog-api-key")).toBe("sk-test-google");
       expect(headers.get("authorization")).toBeNull();
 
       const body = JSON.parse((init?.body as string) ?? "{}");

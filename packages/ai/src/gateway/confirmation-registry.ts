@@ -29,7 +29,21 @@ export class ConfirmationRegistry {
     });
   }
 
-  resolve(actionRequestId: string, status: ResolutionStatus): void {
-    this.waiters.get(actionRequestId)?.settle(status);
+  /**
+   * Settle the still-blocked call for this action, if one is live. Returns true when a
+   * live waiter was found and unblocked, false when none was (the call already timed out,
+   * was already resolved, or the server restarted mid-wait). The caller uses the false
+   * return to avoid recording a "confirmed" that can never execute (drawer/DB divergence).
+   */
+  resolve(actionRequestId: string, status: ResolutionStatus): boolean {
+    const waiter = this.waiters.get(actionRequestId);
+    if (!waiter) return false;
+    waiter.settle(status);
+    return true;
+  }
+
+  /** True while a call is still blocked awaiting resolution for this action. */
+  isAwaiting(actionRequestId: string): boolean {
+    return this.waiters.has(actionRequestId);
   }
 }

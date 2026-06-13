@@ -136,6 +136,48 @@ describe("AssistantToolGateway", () => {
     expect(emitted.map((entry) => entry.record.kind)).toEqual(["action_request", "action_result"]);
   });
 
+  it("an Approve arriving after the confirm timeout never executes and never marks the row confirmed", async () => {
+    // Short timeout so the wait expires before we Approve. confirmTimeoutMs is set per-gateway.
+    const fastTimeoutGateway = new AssistantToolGateway({
+      resolveActiveModules: async () => [exampleToolModule],
+      repository,
+      runner,
+      tokens,
+      confirmations,
+      notifier: { emit: (chatSessionId, record) => emitted.push({ chatSessionId, record }) },
+      confirmTimeoutMs: 20
+    });
+    const token = tokens.mint({
+      actorUserId: ids.userA,
+      chatSessionId: "s-timeout",
+      allowedToolNames: null
+    });
+
+    const res = await fastTimeoutGateway.callTool(token, "example.write", { value: "late" });
+    // The call gave up: timed-out denial, handler never ran.
+    expect(res).toEqual({
+      ok: false,
+      denied: true,
+      reason: "Timed out awaiting confirmation — still pending in your drawer."
+    });
+    expect(exampleToolCalls).toHaveLength(0);
+
+    const card = firstActionRequest();
+
+    // Operator clicks Approve after the timeout — must be a no-op (fails closed).
+    await fastTimeoutGateway.resolveActionRequest(ids.userA, card.actionRequestId, "confirmed");
+
+    // The handler still never ran...
+    expect(exampleToolCalls).toHaveLength(0);
+    // ...and the DB row was NOT flipped to 'confirmed' (no phantom-success divergence).
+    const rows = await runner.withDataContext(
+      { actorUserId: ids.userA, requestId: "r-timeout-check" },
+      (scopedDb) => repository.listAssistantActions(scopedDb)
+    );
+    const row = rows.find((r) => r.id === card.actionRequestId);
+    expect(row?.status).toBe("pending");
+  });
+
   it("returns a denied result without calling the handler", async () => {
     const token = tokens.mint({
       actorUserId: ids.userA,

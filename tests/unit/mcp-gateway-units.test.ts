@@ -115,7 +115,7 @@ describe("confirmation registry", () => {
   it("settles an awaited id with the resolved status", async () => {
     const registry = new ConfirmationRegistry();
     const pending = registry.awaitResolution("a1", 1000);
-    registry.resolve("a1", "confirmed");
+    expect(registry.resolve("a1", "confirmed")).toBe(true);
     await expect(pending).resolves.toBe("confirmed");
   });
 
@@ -127,6 +127,29 @@ describe("confirmation registry", () => {
   it("ignores resolve for an unknown id", () => {
     const registry = new ConfirmationRegistry();
     expect(() => registry.resolve("nope", "confirmed")).not.toThrow();
+    expect(registry.resolve("nope", "confirmed")).toBe(false);
+  });
+
+  it("reports isAwaiting only while a call is blocked", async () => {
+    const registry = new ConfirmationRegistry();
+    expect(registry.isAwaiting("a3")).toBe(false);
+
+    const pending = registry.awaitResolution("a3", 1000);
+    expect(registry.isAwaiting("a3")).toBe(true);
+
+    registry.resolve("a3", "confirmed");
+    await pending;
+    // Once settled, the waiter is gone — a later Approve would be a no-op.
+    expect(registry.isAwaiting("a3")).toBe(false);
+  });
+
+  it("resolve() returns false after the wait already timed out (confirm-after-timeout no-op)", async () => {
+    const registry = new ConfirmationRegistry();
+    // Wait expires; the waiter is deleted on timeout.
+    await expect(registry.awaitResolution("a4", 5)).resolves.toBe("timeout");
+    expect(registry.isAwaiting("a4")).toBe(false);
+    // An Approve arriving after the timeout finds no live waiter → false (never executes).
+    expect(registry.resolve("a4", "confirmed")).toBe(false);
   });
 });
 
