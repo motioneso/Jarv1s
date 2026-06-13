@@ -696,6 +696,148 @@ describe("IngestionService", () => {
   });
 });
 
+// ── MemoryRepository recency (listRecentChunks) + MemoryRetriever.retrieveRecent ──
+
+describe("MemoryRepository recency", () => {
+  const repo = new MemoryRepository();
+  const provider = new StubEmbeddingProvider();
+  const retriever = new MemoryRetriever(provider, repo);
+
+  // Dedicated user so recency ordering is not perturbed by earlier seeds.
+  const recencyUserId = "00000000-0000-4000-8000-000000000019";
+
+  async function makeChunks(
+    sourcePath: string,
+    texts: string[]
+  ): Promise<
+    Array<{
+      sourcePath: string;
+      lineStart: number;
+      lineEnd: number;
+      contentHash: string;
+      text: string;
+      embedding: number[];
+    }>
+  > {
+    return Promise.all(
+      texts.map(async (text, i) => ({
+        sourcePath,
+        lineStart: i * 10,
+        lineEnd: i * 10 + 5,
+        contentHash: Buffer.from(text).toString("hex"),
+        text,
+        embedding: await provider.embedDocument(text)
+      }))
+    );
+  }
+
+  beforeAll(async () => {
+    const client = new Client({ connectionString: connectionStrings.bootstrap });
+    await client.connect();
+    try {
+      await client.query(
+        `INSERT INTO app.users (id, email, is_instance_admin)
+         VALUES ($1, 'memory-recency@example.test', false)`,
+        [recencyUserId]
+      );
+    } finally {
+      await client.end();
+    }
+
+    // Seed an OLDER file and a NEWER file. ingested_at defaults to now(), so two
+    // upserts could land on the same timestamp — force a distinct past timestamp on
+    // the older file's index row to make the recency ordering deterministic.
+    await dataContext.withDataContext(ctx(recencyUserId), async (scopedDb) => {
+      const olderPath = "recency/older.md";
+      const newerPath = "recency/newer.md";
+      await repo.upsertFileChunks(
+        scopedDb,
+        recencyUserId,
+        olderPath,
+        await makeChunks(olderPath, ["Older vault note body"]),
+        "stub",
+        "0"
+      );
+      await repo.upsertFileIndex(
+        scopedDb,
+        recencyUserId,
+        "vault",
+        olderPath,
+        "h-old",
+        1,
+        "stub",
+        "0"
+      );
+      await sql`
+        UPDATE app.memory_file_index
+        SET ingested_at = now() - interval '1 day'
+        WHERE owner_user_id = ${recencyUserId}::uuid AND source_path = ${olderPath}
+      `.execute(scopedDb.db);
+
+      await repo.upsertFileChunks(
+        scopedDb,
+        recencyUserId,
+        newerPath,
+        await makeChunks(newerPath, ["Newer vault note body"]),
+        "stub",
+        "0"
+      );
+      await repo.upsertFileIndex(
+        scopedDb,
+        recencyUserId,
+        "vault",
+        newerPath,
+        "h-new",
+        1,
+        "stub",
+        "0"
+      );
+    });
+  });
+
+  it("lists recent vault chunks ordered by ingestion recency (newest first)", async () => {
+    await dataContext.withDataContext(ctx(recencyUserId), async (scopedDb) => {
+      const recent = await repo.listRecentChunks(scopedDb, 5, "vault");
+      expect(recent.length).toBeGreaterThanOrEqual(2);
+      const newerIdx = recent.findIndex((c) => c.sourcePath === "recency/newer.md");
+      const olderIdx = recent.findIndex((c) => c.sourcePath === "recency/older.md");
+      expect(newerIdx).toBeGreaterThanOrEqual(0);
+      expect(olderIdx).toBeGreaterThanOrEqual(0);
+      // newest source_path appears before the older one
+      expect(newerIdx).toBeLessThan(olderIdx);
+      // carries provenance (sourcePath, lineStart, lineEnd, text)
+      expect(recent[0]).toMatchObject({
+        sourcePath: expect.any(String),
+        lineStart: expect.any(Number),
+        lineEnd: expect.any(Number),
+        text: expect.any(String)
+      });
+    });
+  });
+
+  it("listRecentChunks is owner-scoped: another user sees none of this vault", async () => {
+    await dataContext.withDataContext(ctx(otherUserId), async (scopedDb) => {
+      const recent = await repo.listRecentChunks(scopedDb, 5, "vault");
+      expect(
+        recent.every(
+          (c) => c.sourcePath !== "recency/older.md" && c.sourcePath !== "recency/newer.md"
+        )
+      ).toBe(true);
+    });
+  });
+
+  it("retrieveRecent delegates to listRecentChunks (newest first)", async () => {
+    await dataContext.withDataContext(ctx(recencyUserId), async (scopedDb) => {
+      const recent = await retriever.retrieveRecent(scopedDb, 5, "vault");
+      const newerIdx = recent.findIndex((c) => c.sourcePath === "recency/newer.md");
+      const olderIdx = recent.findIndex((c) => c.sourcePath === "recency/older.md");
+      expect(newerIdx).toBeGreaterThanOrEqual(0);
+      expect(olderIdx).toBeGreaterThanOrEqual(0);
+      expect(newerIdx).toBeLessThan(olderIdx);
+    });
+  });
+});
+
 // ── MemoryRepository — assertDataContextDb guard ──────────────────────────────
 
 describe("MemoryRepository — assertDataContextDb guard", () => {

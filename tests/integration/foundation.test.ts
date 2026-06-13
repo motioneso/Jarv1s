@@ -173,6 +173,8 @@ describe("MVP foundation scaffold", () => {
         { version: "0067", name: "0067_email_summary_signals_columns.sql" },
         { version: "0068", name: "0068_email_worker_grants_and_google_insert.sql" },
         { version: "0069", name: "0069_connector_worker_runtime_grants.sql" },
+        { version: "0070", name: "0070_commitments_worker_grant.sql" },
+        { version: "0071", name: "0071_notifications_worker_insert_grant.sql" },
         { version: "0075", name: "0075_tasks_worker_recurrence_grant.sql" }
       ]);
     } finally {

@@ -202,9 +202,15 @@ importers:
       '@jarv1s/jobs':
         specifier: workspace:*
         version: link:../jobs
+      '@jarv1s/memory':
+        specifier: workspace:*
+        version: link:../memory
       '@jarv1s/module-sdk':
         specifier: workspace:*
         version: link:../module-sdk
+      '@jarv1s/notifications':
+        specifier: workspace:*
+        version: link:../notifications
       '@jarv1s/shared':
         specifier: workspace:*
         version: link:../shared

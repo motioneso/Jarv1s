@@ -1,8 +1,16 @@
 import { createHash } from "node:crypto";
 import type { PgBoss, WorkOptions } from "pg-boss";
 
+import { AiRepository, createAiSecretCipher, HttpApiAdapter } from "@jarv1s/ai";
+import type { AiSecretCipher, GenerateChatInput, ProviderKind } from "@jarv1s/ai";
 import type { DataContextDb, DataContextRunner } from "@jarv1s/db";
-import { MemoryRepository, type EmbeddingProvider, type NewChunkData } from "@jarv1s/memory";
+import {
+  ChatMemoryFactsRepository,
+  MemoryRepository,
+  type EmbeddingProvider,
+  type FactCategory,
+  type NewChunkData
+} from "@jarv1s/memory";
 import {
   registerDataContextWorker,
   type ActorScopedJobPayload,
@@ -95,26 +103,189 @@ export async function handleEmbedTurnJob(
 
 // ── Extract-facts handler ─────────────────────────────────────────────────────
 
+const FACT_CATEGORIES: ReadonlySet<FactCategory> = new Set([
+  "preference",
+  "fact",
+  "profile",
+  "goal"
+]);
+const MAX_FACTS_PER_TURN = 8;
+// Economy output budget for the extraction call — bounds cost on a side-effect job
+// that must never dominate a chat turn's spend (clamped by the adapter, see A5b).
+const EXTRACT_MAX_OUTPUT_TOKENS = 512;
+
+export interface ExtractFactsDeps {
+  readonly aiRepository: AiRepository;
+  readonly cipher: AiSecretCipher;
+  readonly factsRepository: ChatMemoryFactsRepository;
+  // Use the real GenerateChatInput so `maxOutputTokens` typechecks (no excess-property error).
+  readonly createAdapter?: (
+    kind: ProviderKind,
+    apiKey: string,
+    baseUrl: string | null
+  ) => { generateChat: (input: GenerateChatInput) => Promise<{ readonly text: string }> };
+}
+
 /**
- * LLM-driven fact extraction from recent turns. Stubbed until @jarv1s/ai
- * exposes a clean capability-router call for non-chat completions.
- * The queue is wired and the worker slot is registered — this handler runs
- * but performs no-op extraction until the AI utilities are plumbed through.
+ * LLM-driven durable-fact extraction from the most recent turn-pair. Synthesizes
+ * structured facts via the provider-agnostic capability router (summarization /
+ * economy tier), decrypts the credential in-process (never logged/forwarded), and
+ * upserts into chat_memory_facts. Idempotent (dedupes by normalized content within
+ * a category, F10) and grounded (supersedes ONLY a real, actor-owned active id, F11).
+ * No-op degrade: any failure (no model, no credential, throw, non-JSON) writes nothing
+ * and never throws — a flaky extraction must not block the chat turn.
  */
 export async function handleExtractFactsJob(
-  _scopedDb: DataContextDb,
-  _ownerUserId: string,
-  _threadId: string
+  scopedDb: DataContextDb,
+  ownerUserId: string,
+  threadId: string,
+  deps: ExtractFactsDeps,
+  chatRepository: ChatRepository = new ChatRepository()
 ): Promise<void> {
-  // TODO(phase3-facts): call capability router to extract structured facts
-  // from the most recent turn and upsert them into chat_memory_facts.
+  try {
+    const messages = await chatRepository.listMessages(scopedDb, threadId);
+    const stored = messages.filter((m) => m.status === "stored");
+    const lastTwo = stored.slice(-2);
+    const userMsg = lastTwo.find((m) => m.role === "user");
+    const assistantMsg = lastTwo.find((m) => m.role === "assistant");
+    if (!userMsg || !assistantMsg) return;
+
+    const model = await deps.aiRepository.selectModelForCapability(
+      scopedDb,
+      "summarization",
+      "economy"
+    );
+    if (!model) return;
+
+    const provider = await deps.aiRepository.selectProviderWithCredential(
+      scopedDb,
+      model.provider_config_id
+    );
+    if (!provider?.encrypted_credential) return;
+    const decrypted = deps.cipher.decryptJson(provider.encrypted_credential);
+    const apiKey = decrypted.apiKey;
+    if (typeof apiKey !== "string" || apiKey.length === 0) return;
+
+    // Ground supersession + dedupe against the actor's CURRENT active facts (F10/F11).
+    const activeFacts = await deps.factsRepository.listActiveFacts(scopedDb, ownerUserId);
+    const activeIds = new Set(activeFacts.map((f) => f.id));
+    const normalize = (s: string) => s.trim().toLowerCase().replace(/\s+/g, " ");
+    const existingByContent = new Set(
+      activeFacts.map((f) => `${f.category}::${normalize(f.content)}`)
+    );
+    // Expose ONLY the actor's real active-fact ids (bounded) so the model can supersede
+    // a grounded fact instead of inventing an arbitrary id.
+    const supersedableList = activeFacts
+      .slice(0, 30)
+      .map((f) => `${f.id} :: ${f.content.slice(0, 120)}`)
+      .join("\n");
+
+    const prompt =
+      "Extract durable facts about the user from this conversation turn. Return ONLY a JSON array; " +
+      'each item: {"category": "preference|fact|profile|goal", "content": string, ' +
+      '"importance": number 0..1, "supersedes": optional id}. The OPTIONAL supersedes id MUST be one ' +
+      "of the EXISTING FACT IDS listed below (omit it otherwise — never invent an id). No prose, no code fences.\n\n" +
+      `EXISTING FACT IDS (id :: content):\n${supersedableList || "(none)"}\n\n` +
+      `User: ${userMsg.body}\nAssistant: ${assistantMsg.body}`;
+
+    const adapter = (
+      deps.createAdapter ??
+      ((k, key, base) => new HttpApiAdapter(k, key, base ? { baseUrl: base } : {}))
+    )(model.provider_kind as ProviderKind, apiKey, provider.base_url);
+    const { text } = await adapter.generateChat({
+      model: { provider_kind: model.provider_kind, provider_model_id: model.provider_model_id },
+      messages: [{ role: "user", content: prompt }],
+      maxOutputTokens: EXTRACT_MAX_OUTPUT_TOKENS
+    });
+
+    const parsed = parseFacts(text);
+    for (const fact of parsed.slice(0, MAX_FACTS_PER_TURN)) {
+      // Supersede ONLY a grounded, actor-owned active id (ignore hallucinated ids — F11).
+      if (typeof fact.supersedes === "string" && activeIds.has(fact.supersedes)) {
+        await deps.factsRepository.supersedeFact(scopedDb, fact.supersedes);
+      }
+      // Dedupe: skip a fact whose (category, normalized content) already exists active (F10).
+      const contentKey = `${fact.category}::${normalize(fact.content)}`;
+      if (existingByContent.has(contentKey)) {
+        continue;
+      }
+      await deps.factsRepository.insertFact(scopedDb, ownerUserId, {
+        category: fact.category,
+        content: fact.content,
+        sourceThreadId: threadId,
+        importance: fact.importance
+      });
+      existingByContent.add(contentKey); // also dedupe within this same batch
+    }
+  } catch (error) {
+    const e = error instanceof Error ? error : new Error(String(error));
+    console.error(
+      JSON.stringify({
+        event: "chat_extract_facts_failed",
+        threadId,
+        error: e.name,
+        message: e.message.slice(0, 200)
+      })
+    );
+    // No-op degrade: never throw — a flaky extraction must not block the chat turn.
+  }
+}
+
+interface ParsedFact {
+  readonly category: FactCategory;
+  readonly content: string;
+  readonly importance: number;
+  readonly supersedes?: string;
+}
+
+function parseFacts(text: string): ParsedFact[] {
+  let json: unknown;
+  try {
+    json = JSON.parse(text.trim());
+  } catch {
+    return [];
+  }
+  if (!Array.isArray(json)) return [];
+  const out: ParsedFact[] = [];
+  for (const raw of json) {
+    if (!raw || typeof raw !== "object") continue;
+    const r = raw as Record<string, unknown>;
+    const category = r.category;
+    const content = r.content;
+    if (typeof category !== "string" || !FACT_CATEGORIES.has(category as FactCategory)) continue;
+    if (typeof content !== "string" || content.trim().length === 0) continue;
+    let importance = typeof r.importance === "number" ? r.importance : 0.5;
+    importance = Math.min(1, Math.max(0, importance));
+    out.push({
+      category: category as FactCategory,
+      content: content.trim(),
+      importance,
+      supersedes: typeof r.supersedes === "string" ? r.supersedes : undefined
+    });
+  }
+  return out;
 }
 
 // ── Worker registration ───────────────────────────────────────────────────────
 
 export interface RegisterChatJobWorkersOptions {
   readonly embeddingProvider: EmbeddingProvider;
+  /**
+   * AI deps for the extract-facts worker. Optional here so the module registry can
+   * land its injection in a follow-up (A13) without breaking this signature; when
+   * absent we build the real deps in-process (capability router + cipher + facts repo),
+   * mirroring the briefings worker's `composeDeps` default.
+   */
+  readonly extractFactsDeps?: ExtractFactsDeps;
   readonly workOptions?: WorkOptions;
+}
+
+function defaultExtractFactsDeps(): ExtractFactsDeps {
+  return {
+    aiRepository: new AiRepository(),
+    cipher: createAiSecretCipher(),
+    factsRepository: new ChatMemoryFactsRepository()
+  };
 }
 
 export async function registerChatJobWorkers(
@@ -124,6 +295,7 @@ export async function registerChatJobWorkers(
 ): Promise<string[]> {
   const memoryRepo = new MemoryRepository();
   const chatRepo = new ChatRepository();
+  const extractFactsDeps = options.extractFactsDeps ?? defaultExtractFactsDeps();
 
   const embedWorkId = await registerDataContextWorker<EmbedTurnJobPayload, void>(
     boss,
@@ -147,7 +319,13 @@ export async function registerChatJobWorkers(
     CHAT_EXTRACT_FACTS_QUEUE,
     dataContext,
     async (job, scopedDb) => {
-      await handleExtractFactsJob(scopedDb, job.data.actorUserId, job.data.threadId);
+      await handleExtractFactsJob(
+        scopedDb,
+        job.data.actorUserId,
+        job.data.threadId,
+        extractFactsDeps,
+        chatRepo
+      );
     },
     options.workOptions
   );

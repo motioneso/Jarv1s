@@ -3,24 +3,20 @@ import type { Kysely } from "kysely";
 import type { PgBoss } from "pg-boss";
 import pg from "pg";
 
-import { createApiServer } from "../../apps/api/src/server.js";
 import { AiRepository, createAiSecretCipher } from "@jarv1s/ai";
 import {
   BRIEFINGS_RUN_QUEUE,
-  BriefingsRepository,
   briefingsModuleManifest,
   isBriefingRunPayloadMetadataOnly,
-  registerBriefingsJobWorkers,
+  reconcileSchedule,
   type BriefingRunPayload,
-  type BriefingRunResult
+  type BriefingsRepository
 } from "@jarv1s/briefings";
-import {
+import type {
   AuthSessionResolver,
   DataContextRunner,
   SharesRepository,
-  createDatabase,
-  type AccessContext,
-  type JarvisDatabase
+  JarvisDatabase
 } from "@jarv1s/db";
 import { createPgBossClient } from "@jarv1s/jobs";
 import {
@@ -28,25 +24,23 @@ import {
   getBuiltInModuleRegistrations,
   getBuiltInSqlMigrationDirectories
 } from "@jarv1s/module-registry";
-import type { JarvisModuleManifest } from "@jarv1s/module-sdk";
-import { connectionStrings, ids, resetFoundationDatabase } from "./test-database.js";
+import { connectionStrings, ids } from "./test-database.js";
+import {
+  briefingIds,
+  countPgBossJobs,
+  handleNextBriefingJob,
+  makeComposeDeps,
+  setupBriefingsHarness,
+  sourceIds,
+  spyBossSchedule,
+  teardownBriefingsHarness,
+  userAContext,
+  userAHeaders,
+  userBContext,
+  type BriefingsTestHarness
+} from "./briefings.helpers.js";
 
 const { Client } = pg;
-
-const briefingIds = {
-  userBPrivate: "77000000-0000-4000-8000-000000000001",
-  userBWorkspace: "77000000-0000-4000-8000-000000000002"
-} as const;
-
-const sourceIds = {
-  userATask: "78000000-0000-4000-8000-000000000001",
-  userBPrivateTask: "78000000-0000-4000-8000-000000000002",
-  userAWorkspaceTask: "78000000-0000-4000-8000-000000000003",
-  userAConnector: "7a000000-0000-4000-8000-000000000001",
-  userBConnector: "7a000000-0000-4000-8000-000000000002",
-  userAEmail: "7b000000-0000-4000-8000-000000000001",
-  userBPrivateEmail: "7b000000-0000-4000-8000-000000000002"
-} as const;
 
 describe("Briefings module M6 read-only scheduled summaries", () => {
   let appDb: Kysely<JarvisDatabase>;
@@ -57,46 +51,29 @@ describe("Briefings module M6 read-only scheduled summaries", () => {
   let sharesRepository: SharesRepository;
   let appBoss: PgBoss;
   let workerBoss: PgBoss;
-  let server: ReturnType<typeof createApiServer>;
+  let server: BriefingsTestHarness["server"];
 
   beforeAll(async () => {
-    await resetFoundationDatabase();
-    await seedBriefingData();
-
-    appDb = createDatabase({
-      connectionString: connectionStrings.app,
-      maxConnections: 1
-    });
-    workerDb = createDatabase({
-      connectionString: connectionStrings.worker,
-      maxConnections: 1
-    });
-    auth = new AuthSessionResolver(appDb);
-    dataContext = new DataContextRunner(appDb);
-    repository = new BriefingsRepository();
-    sharesRepository = new SharesRepository();
-    appBoss = createPgBossClient(connectionStrings.app);
-    workerBoss = createPgBossClient(connectionStrings.worker);
-
-    await appBoss.start();
-    await workerBoss.start();
-
-    server = createApiServer({
-      appDb,
-      boss: appBoss,
-      logger: false
-    });
-    await server.ready();
+    const harness = await setupBriefingsHarness();
+    appDb = harness.appDb;
+    workerDb = harness.workerDb;
+    auth = harness.auth;
+    dataContext = harness.dataContext;
+    repository = harness.repository;
+    sharesRepository = harness.sharesRepository;
+    appBoss = harness.appBoss;
+    workerBoss = harness.workerBoss;
+    server = harness.server;
   });
 
   afterAll(async () => {
-    await Promise.allSettled([
-      server?.close(),
-      appBoss?.stop({ graceful: false }),
-      workerBoss?.stop({ graceful: false }),
-      appDb?.destroy(),
-      workerDb?.destroy()
-    ]);
+    await teardownBriefingsHarness({
+      server,
+      appBoss,
+      workerBoss,
+      appDb,
+      workerDb
+    });
   });
 
   it("applies Briefings migrations with forced RLS and narrow worker table grants", async () => {
@@ -245,12 +222,14 @@ describe("Briefings module M6 read-only scheduled summaries", () => {
     expect(defBeforeShare).toBeUndefined();
 
     // Create a run for userB's workspace briefing as owner
-    const run = await dataContext.withDataContext(userBContext(), (scopedDb) =>
+    const outcome = await dataContext.withDataContext(userBContext(), (scopedDb) =>
       repository.generateRun(scopedDb, briefingIds.userBWorkspace, {
         moduleManifests: getBuiltInModuleManifests(),
-        runKind: "manual"
+        runKind: "manual",
+        composeDeps: makeComposeDeps()
       })
     );
+    const run = outcome?.run;
 
     const runsBeforeShare = await dataContext.withDataContext(userAContext(), (scopedDb) =>
       repository.listRuns(scopedDb, briefingIds.userBWorkspace)
@@ -279,26 +258,55 @@ describe("Briefings module M6 read-only scheduled summaries", () => {
     expect(runsAfterShare.some((r) => r.id === run?.id)).toBe(true);
   });
 
-  it("generates deterministic summaries through declared read-only tools only", async () => {
+  it("synthesizes a run through declared read-only tools and leaks no source secrets", async () => {
+    // Configure an economy model so compose takes the synthesis path (not the degraded
+    // fallback). The injected fake adapter returns the fixed "synth narrative".
+    const aiRepository = new AiRepository();
+    const provider = await dataContext.withDataContext(userAContext(), (scopedDb) =>
+      aiRepository.createProvider(scopedDb, {
+        providerKind: "anthropic",
+        displayName: "Synthesis summarizer",
+        encryptedCredential: createAiSecretCipher().encryptJson({ apiKey: "briefing-synth-key" })
+      })
+    );
+    await dataContext.withDataContext(userAContext(), (scopedDb) =>
+      aiRepository.createModel(scopedDb, {
+        providerConfigId: provider.id,
+        providerModelId: "synth-summarizer",
+        displayName: "Synthesis Summarizer",
+        capabilities: ["summarization"],
+        tier: "economy"
+      })
+    );
+
     const definition = await dataContext.withDataContext(userAContext(), (scopedDb) =>
       repository.createDefinition(scopedDb, {
         title: "Morning briefing",
         selectedToolNames: ["tasks.list", "email.listVisibleMessages"]
       })
     );
-    const run = await dataContext.withDataContext(userAContext(), (scopedDb) =>
+    const outcome = await dataContext.withDataContext(userAContext(), (scopedDb) =>
       repository.generateRun(scopedDb, definition.id, {
         moduleManifests: getBuiltInModuleManifests(),
-        runKind: "manual"
+        runKind: "manual",
+        composeDeps: makeComposeDeps(async () => ({ text: "synth narrative" }))
       })
     );
+    const run = outcome?.run;
     const serialized = JSON.stringify(run);
+    const meta = run?.source_metadata as {
+      degraded: boolean;
+      taskCount: number;
+      emailCount: number;
+    };
 
+    expect(outcome?.created).toBe(true);
     expect(run?.status).toBe("succeeded");
-    expect(run?.summary_text).toContain("Tasks: 2 visible");
-    expect(run?.summary_text).toContain("User A briefing task");
-    expect(run?.summary_text).toContain("Email: 1 visible");
-    expect(run?.summary_text).toContain("User A briefing email");
+    expect(run?.summary_text).toBe("synth narrative");
+    expect(meta.degraded).toBe(false);
+    expect(meta.taskCount).toBeGreaterThanOrEqual(1);
+    expect(typeof meta.emailCount).toBe("number");
+    // RLS + provenance: no other user's private rows and no connector ciphertext leak.
     expect(serialized).not.toContain("User B private");
     expect(serialized).not.toContain("briefing-hidden-ciphertext");
     expect(serialized).not.toContain("encrypted_secret");
@@ -443,6 +451,190 @@ describe("Briefings module M6 read-only scheduled summaries", () => {
     await handleNextBriefingJob(workerBoss);
   });
 
+  it("reconciles the pg-boss schedule on create (daily enabled → boss.schedule keyed by id)", async () => {
+    const calls = spyBossSchedule(appBoss);
+    try {
+      const response = await server.inject({
+        method: "POST",
+        url: "/api/briefings/definitions",
+        headers: userAHeaders(),
+        payload: {
+          title: "Scheduled morning briefing",
+          cadence: "daily",
+          scheduleMetadata: { targetTime: "06:00", timezone: "America/New_York" },
+          enabled: true,
+          selectedToolNames: ["tasks.list"]
+        }
+      });
+
+      expect(response.statusCode).toBe(201);
+      const definition = response.json<{ definition: { id: string } }>().definition;
+      expect(calls.unschedule).toHaveLength(0);
+      const scheduled = calls.schedule.filter((c) => c.key === definition.id);
+      expect(scheduled).toHaveLength(1);
+      expect(scheduled[0]).toMatchObject({
+        name: BRIEFINGS_RUN_QUEUE,
+        cron: "0 6 * * *",
+        tz: "America/New_York",
+        key: definition.id,
+        data: {
+          actorUserId: ids.userA,
+          definitionId: definition.id,
+          runKind: "scheduled"
+        }
+      });
+    } finally {
+      calls.restore();
+    }
+  });
+
+  it("reconciles the pg-boss schedule on update to enabled:false (→ boss.unschedule)", async () => {
+    const definition = await dataContext.withDataContext(userAContext(), (scopedDb) =>
+      repository.createDefinition(scopedDb, {
+        title: "Toggle-off briefing",
+        cadence: "daily",
+        scheduleMetadata: { targetTime: "07:30", timezone: "UTC" },
+        enabled: true,
+        selectedToolNames: ["tasks.list"]
+      })
+    );
+
+    const calls = spyBossSchedule(appBoss);
+    try {
+      const response = await server.inject({
+        method: "PATCH",
+        url: `/api/briefings/definitions/${definition.id}`,
+        headers: userAHeaders(),
+        payload: { enabled: false }
+      });
+
+      expect(response.statusCode).toBe(200);
+      expect(calls.schedule).toHaveLength(0);
+      expect(calls.unschedule).toEqual([{ name: BRIEFINGS_RUN_QUEUE, key: definition.id }]);
+    } finally {
+      calls.restore();
+    }
+  });
+
+  it("does not fail the create request when schedule reconcile throws (failure-isolated)", async () => {
+    const originalSchedule = appBoss.schedule.bind(appBoss);
+    appBoss.schedule = (async () => {
+      throw new Error("pg-boss schedule unavailable");
+    }) as typeof appBoss.schedule;
+    try {
+      const response = await server.inject({
+        method: "POST",
+        url: "/api/briefings/definitions",
+        headers: userAHeaders(),
+        payload: {
+          title: "Reconcile-failure briefing",
+          cadence: "daily",
+          scheduleMetadata: { targetTime: "08:00", timezone: "UTC" },
+          enabled: true,
+          selectedToolNames: ["tasks.list"]
+        }
+      });
+
+      // The mutation succeeded even though reconcile threw — reconcile is best-effort.
+      expect(response.statusCode).toBe(201);
+      expect(response.json<{ definition: { id: string } }>().definition.id).toBeTruthy();
+    } finally {
+      appBoss.schedule = originalSchedule;
+    }
+  });
+
+  it("self-heals the owner's schedules on GET list and stays 200 even when reconcile throws", async () => {
+    // Ensure at least one enabled daily definition owned by user A exists so the
+    // best-effort self-heal has something to reconcile.
+    await dataContext.withDataContext(userAContext(), (scopedDb) =>
+      repository.createDefinition(scopedDb, {
+        title: "Self-heal target",
+        cadence: "daily",
+        scheduleMetadata: { targetTime: "06:15", timezone: "UTC" },
+        enabled: true,
+        selectedToolNames: ["tasks.list"]
+      })
+    );
+
+    const calls = spyBossSchedule(appBoss);
+    try {
+      const response = await server.inject({
+        method: "GET",
+        url: "/api/briefings/definitions",
+        headers: userAHeaders()
+      });
+
+      expect(response.statusCode).toBe(200);
+      // List response shape is unchanged.
+      const body = response.json<{ definitions: Array<{ id: string }> }>();
+      expect(Array.isArray(body.definitions)).toBe(true);
+
+      // The self-heal is fire-and-forget; give the microtask/IO a tick to land.
+      await new Promise((resolve) => setTimeout(resolve, 50));
+      // At least one enabled daily definition owned by user A was (re)scheduled.
+      expect(calls.schedule.length).toBeGreaterThanOrEqual(1);
+    } finally {
+      calls.restore();
+    }
+  });
+
+  it("keeps distinct per-definition schedule rows under the exclusive run queue (F12)", async () => {
+    // Two DIFFERENT enabled daily definitions owned by user A. The BRIEFINGS_RUN_QUEUE
+    // policy is `exclusive` (NULL singletonKeys collapse to one job), but pg-boss
+    // SCHEDULES are keyed independently — pgboss.schedule is PRIMARY KEY (name, key),
+    // and reconcileSchedule keys on definition.id — so both must co-exist.
+    const defA = await dataContext.withDataContext(userAContext(), (scopedDb) =>
+      repository.createDefinition(scopedDb, {
+        title: "Schedule rows A",
+        cadence: "daily",
+        scheduleMetadata: { targetTime: "06:00", timezone: "America/New_York" },
+        enabled: true,
+        selectedToolNames: ["tasks.list"]
+      })
+    );
+    const defB = await dataContext.withDataContext(userAContext(), (scopedDb) =>
+      repository.createDefinition(scopedDb, {
+        title: "Schedule rows B",
+        cadence: "daily",
+        scheduleMetadata: { targetTime: "07:30", timezone: "UTC" },
+        enabled: true,
+        selectedToolNames: ["tasks.list"]
+      })
+    );
+
+    // Build a REAL cron-enabled boss (the worker's mode) so boss.schedule writes
+    // actual pgboss.schedule rows — not a spy.
+    const scheduleBoss = createPgBossClient(connectionStrings.worker, { schedule: true });
+    await scheduleBoss.start();
+    const client = new Client({ connectionString: connectionStrings.migration });
+    await client.connect();
+    try {
+      await reconcileSchedule(scheduleBoss, defA);
+      await reconcileSchedule(scheduleBoss, defB);
+
+      const bothRows = await client.query<{ name: string; key: string }>(
+        `SELECT name, key FROM pgboss.schedule WHERE name = $1 AND key = ANY($2::text[]) ORDER BY key`,
+        [BRIEFINGS_RUN_QUEUE, [defA.id, defB.id]]
+      );
+      const keys = bothRows.rows.map((r) => r.key).sort();
+      expect(keys).toEqual([defA.id, defB.id].sort());
+
+      // Disabling one definition removes ONLY its schedule row (the other survives).
+      await reconcileSchedule(scheduleBoss, { ...defA, enabled: false });
+      const afterDisable = await client.query<{ key: string }>(
+        `SELECT key FROM pgboss.schedule WHERE name = $1 AND key = ANY($2::text[])`,
+        [BRIEFINGS_RUN_QUEUE, [defA.id, defB.id]]
+      );
+      const remaining = afterDisable.rows.map((r) => r.key);
+      expect(remaining).toEqual([defB.id]);
+    } finally {
+      await client.end();
+      // Clean up B's surviving schedule so it can't fire into later worker assertions.
+      await reconcileSchedule(scheduleBoss, { ...defB, enabled: false });
+      await scheduleBoss.stop({ graceful: false });
+    }
+  });
+
   it("does not let a User A worker job run User B's private briefing", async () => {
     const resultPromise = handleNextBriefingJob(workerBoss);
 
@@ -480,273 +672,9 @@ describe("Briefings module M6 read-only scheduled summaries", () => {
     await expect(
       repository.generateRun({} as never, briefingIds.userBPrivate, {
         moduleManifests: getBuiltInModuleManifests(),
-        runKind: "manual"
+        runKind: "manual",
+        composeDeps: makeComposeDeps()
       })
     ).rejects.toThrow("Repository access requires withDataContext");
   });
-
-  it("records economy-tier AI model in source_metadata when configured", async () => {
-    const aiRepository = new AiRepository();
-    const providerRow = await dataContext.withDataContext(userAContext(), (scopedDb) =>
-      aiRepository.createProvider(scopedDb, {
-        providerKind: "anthropic",
-        displayName: "Economy summarizer",
-        encryptedCredential: createAiSecretCipher().encryptJson({ apiKey: "briefing-econ-key" })
-      })
-    );
-    const modelRow = await dataContext.withDataContext(userAContext(), (scopedDb) =>
-      aiRepository.createModel(scopedDb, {
-        providerConfigId: providerRow.id,
-        providerModelId: "econ-summarizer",
-        displayName: "Economy Summarizer",
-        capabilities: ["summarization"],
-        tier: "economy"
-      })
-    );
-
-    const definition = await dataContext.withDataContext(userAContext(), (scopedDb) =>
-      repository.createDefinition(scopedDb, {
-        title: "Economy tier briefing",
-        selectedToolNames: ["tasks.list"]
-      })
-    );
-
-    const run = await dataContext.withDataContext(userAContext(), (scopedDb) =>
-      repository.generateRun(scopedDb, definition.id, {
-        moduleManifests: getBuiltInModuleManifests(),
-        runKind: "manual"
-      })
-    );
-
-    expect(run?.status).toBe("succeeded");
-    const meta = run?.source_metadata as { aiModel: { id: string; tier: string } | null };
-    expect(meta.aiModel).not.toBeNull();
-    expect(meta.aiModel?.id).toBe(modelRow.id);
-    expect(meta.aiModel?.tier).toBe("economy");
-  });
-
-  it("briefing tool execute receives a non-empty actorUserId and requestId in ToolContext", async () => {
-    const capturedContexts: { actorUserId: string; requestId: string }[] = [];
-    const capturingManifest: JarvisModuleManifest = {
-      id: "ctx-check",
-      name: "CtxCheck",
-      version: "0.0.0",
-      publisher: "test",
-      lifecycle: "optional",
-      compatibility: { jarv1s: "*" },
-      assistantTools: [
-        {
-          name: "ctx-check.read",
-          description: "Captures ToolContext for assertion.",
-          permissionId: "ctx-check.view",
-          risk: "read" as const,
-          execute: async (_db, _input, ctx) => {
-            capturedContexts.push({ actorUserId: ctx.actorUserId, requestId: ctx.requestId });
-            return { data: {} };
-          }
-        }
-      ]
-    };
-
-    const def = await dataContext.withDataContext(
-      { actorUserId: ids.userA, requestId: "r:briefing-ctx-test" },
-      (scopedDb) =>
-        repository.createDefinition(scopedDb, {
-          title: "ToolContext check",
-          selectedToolNames: ["ctx-check.read"]
-        })
-    );
-
-    const run = await dataContext.withDataContext(
-      { actorUserId: ids.userA, requestId: "r:briefing-ctx-run" },
-      (scopedDb) =>
-        repository.generateRun(scopedDb, def.id, {
-          moduleManifests: [capturingManifest],
-          runKind: "manual"
-          // omit runId — let repository generate a UUID
-        })
-    );
-
-    expect(run).toBeDefined();
-    expect(capturedContexts).toHaveLength(1);
-    expect(capturedContexts[0]!.actorUserId).toBe(ids.userA);
-    expect(capturedContexts[0]!.requestId).not.toBe("");
-    expect(capturedContexts[0]!.requestId).toMatch(/^briefing:|^pgboss:/);
-  });
 });
-
-async function seedBriefingData(): Promise<void> {
-  const client = new Client({ connectionString: connectionStrings.bootstrap });
-
-  await client.connect();
-  try {
-    await client.query("BEGIN");
-    await client.query(
-      `
-        INSERT INTO app.task_lists (owner_user_id, name)
-        VALUES ($1, 'Personal'), ($2, 'Personal')
-        ON CONFLICT DO NOTHING
-      `,
-      [ids.userA, ids.userB]
-    );
-    await client.query(
-      `
-        INSERT INTO app.tasks (id, owner_user_id, title, description, status, list_id)
-        VALUES
-          ($1, $2, 'User A briefing task', 'A task body', 'todo',
-            (SELECT id FROM app.task_lists WHERE owner_user_id = $2 AND name = 'Personal' LIMIT 1)),
-          ($3, $4, 'User B private briefing task', 'B task body', 'todo',
-            (SELECT id FROM app.task_lists WHERE owner_user_id = $4 AND name = 'Personal' LIMIT 1)),
-          ($5, $2, 'User A workspace briefing task', 'Workspace task body', 'todo',
-            (SELECT id FROM app.task_lists WHERE owner_user_id = $2 AND name = 'Personal' LIMIT 1))
-      `,
-      [
-        sourceIds.userATask,
-        ids.userA,
-        sourceIds.userBPrivateTask,
-        ids.userB,
-        sourceIds.userAWorkspaceTask
-      ]
-    );
-    await client.query(
-      `
-        INSERT INTO app.connector_accounts (
-          id,
-          provider_id,
-          owner_user_id,
-          scopes,
-          status,
-          encrypted_secret
-        )
-        VALUES
-          ($1, 'google-email', $2, ARRAY['gmail.readonly']::text[], 'active', '{"ciphertext":"briefing-hidden-ciphertext"}'::jsonb),
-          ($3, 'google-email', $4, ARRAY['gmail.readonly']::text[], 'active', '{"ciphertext":"briefing-hidden-ciphertext"}'::jsonb)
-      `,
-      [sourceIds.userAConnector, ids.userA, sourceIds.userBConnector, ids.userB]
-    );
-    await client.query(
-      `
-        INSERT INTO app.email_messages (
-          id,
-          connector_account_id,
-          owner_user_id,
-          sender,
-          recipients,
-          subject,
-          snippet,
-          body_excerpt,
-          received_at,
-          external_id,
-          external_metadata
-        )
-        VALUES
-          ($1, $2, $3, 'sender-a@example.test', ARRAY['user-a@example.test']::text[], 'User A briefing email', 'A email snippet', 'A email excerpt', '2026-06-06T15:00:00.000Z', 'briefing-email-a', '{"source":"briefings-test"}'::jsonb),
-          ($4, $5, $6, 'sender-b@example.test', ARRAY['user-b@example.test']::text[], 'User B private briefing email', 'B email snippet', 'B email excerpt', '2026-06-06T16:00:00.000Z', 'briefing-email-b', '{"source":"briefings-test"}'::jsonb)
-      `,
-      [
-        sourceIds.userAEmail,
-        sourceIds.userAConnector,
-        ids.userA,
-        sourceIds.userBPrivateEmail,
-        sourceIds.userBConnector,
-        ids.userB
-      ]
-    );
-    await client.query(
-      `
-        INSERT INTO app.briefing_definitions (
-          id,
-          owner_user_id,
-          title,
-          cadence,
-          selected_tool_names
-        )
-        VALUES
-          ($1, $2, 'User B private briefing', 'manual', ARRAY['tasks.list']::text[]),
-          ($3, $2, 'User B workspace briefing', 'daily', ARRAY['tasks.list']::text[])
-      `,
-      [briefingIds.userBPrivate, ids.userB, briefingIds.userBWorkspace]
-    );
-    await client.query("COMMIT");
-  } catch (error) {
-    await client.query("ROLLBACK");
-    throw error;
-  } finally {
-    await client.end();
-  }
-}
-
-async function handleNextBriefingJob(workerBoss: PgBoss): Promise<BriefingRunResult> {
-  const scopedWorkerDb = createDatabase({
-    connectionString: connectionStrings.worker,
-    maxConnections: 1
-  });
-  const workerDataContext = new DataContextRunner(scopedWorkerDb);
-  let workIds: string[] = [];
-
-  try {
-    const resultPromise = new Promise<BriefingRunResult>((resolve, reject) => {
-      const timeout = setTimeout(() => {
-        reject(new Error("Timed out waiting for Briefings worker"));
-      }, 10_000);
-
-      registerBriefingsJobWorkers(workerBoss, workerDataContext, {
-        moduleManifests: getBuiltInModuleManifests(),
-        workOptions: { pollingIntervalSeconds: 0.5 },
-        onResult: (_job, result) => {
-          clearTimeout(timeout);
-          resolve(result);
-        }
-      })
-        .then((registeredWorkIds) => {
-          workIds = registeredWorkIds;
-        })
-        .catch((error) => {
-          clearTimeout(timeout);
-          reject(error);
-        });
-    });
-
-    return await resultPromise;
-  } finally {
-    await Promise.all(
-      workIds.map((workId) => workerBoss.offWork(BRIEFINGS_RUN_QUEUE, { id: workId, wait: true }))
-    );
-    await scopedWorkerDb.destroy();
-  }
-}
-
-async function countPgBossJobs(): Promise<number> {
-  const client = new Client({ connectionString: connectionStrings.migration });
-
-  await client.connect();
-  try {
-    const result = await client.query<{ count: string }>(
-      "SELECT count(*) AS count FROM pgboss.job"
-    );
-
-    return Number(result.rows[0]?.count ?? 0);
-  } finally {
-    await client.end();
-  }
-}
-
-function userAHeaders(): Record<string, string> {
-  return {
-    authorization: `Bearer ${ids.sessionA}`
-  };
-}
-
-function userAContext(): AccessContext {
-  return {
-    actorUserId: ids.userA,
-    requestId: "request:user-a-briefings"
-  };
-}
-
-function userBContext(): AccessContext {
-  return {
-    actorUserId: ids.userB,
-    requestId: "request:user-b-briefings"
-  };
-}

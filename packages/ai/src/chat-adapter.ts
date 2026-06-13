@@ -15,6 +15,8 @@ export interface ChatActivityEvent {
 export interface GenerateChatInput {
   readonly model: { readonly provider_kind: string; readonly provider_model_id: string };
   readonly messages: readonly ChatTurn[];
+  /** Optional output-token ceiling. When set, clamps the provider's max_tokens. Omitted = provider default. */
+  readonly maxOutputTokens?: number;
   readonly onActivity?: (event: ChatActivityEvent) => void;
 }
 

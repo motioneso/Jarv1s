@@ -76,7 +76,8 @@ export class HttpApiAdapter implements ChatProviderAdapter {
           },
           body: {
             model: modelId,
-            max_tokens: 8192,
+            // Economy envelope: clamp to the caller's budget when present, else the default.
+            max_tokens: input.maxOutputTokens ?? 8192,
             messages: input.messages.map((m) => ({ role: m.role, content: m.content }))
           }
         };
@@ -91,6 +92,8 @@ export class HttpApiAdapter implements ChatProviderAdapter {
           },
           body: {
             model: modelId,
+            // No default existed for this provider — only set a cap when the caller asks.
+            ...(input.maxOutputTokens !== undefined ? { max_tokens: input.maxOutputTokens } : {}),
             messages: input.messages.map((m) => ({ role: m.role, content: m.content }))
           }
         };
@@ -107,7 +110,11 @@ export class HttpApiAdapter implements ChatProviderAdapter {
             contents: input.messages.map((m) => ({
               role: m.role === "assistant" ? "model" : "user",
               parts: [{ text: m.content }]
-            }))
+            })),
+            // No default existed for this provider — only set a cap when the caller asks.
+            ...(input.maxOutputTokens !== undefined
+              ? { generationConfig: { maxOutputTokens: input.maxOutputTokens } }
+              : {})
           }
         };
       }

@@ -3,6 +3,8 @@ import { fileURLToPath } from "node:url";
 import type { JarvisModuleManifest } from "@jarv1s/module-sdk";
 import { listChatThreadsResponseSchema } from "@jarv1s/shared";
 
+import { chatListTodaysTurnsExecute } from "./tools.js";
+
 export const CHAT_MODULE_ID = "chat";
 export const chatModuleSqlMigrationDirectory = fileURLToPath(new URL("../sql", import.meta.url));
 
@@ -96,5 +98,15 @@ export const chatModuleManifest = {
       permissionId: "chat.message"
     },
     { method: "POST", path: "/api/mcp", permissionId: "chat.message" }
+  ],
+  assistantTools: [
+    {
+      name: "chat.listTodaysTurns",
+      description: "List today's non-incognito chat turns for the active actor.",
+      permissionId: "chat.view",
+      risk: "read",
+      inputSchema: { type: "object", properties: {} },
+      execute: chatListTodaysTurnsExecute
+    }
   ]
 } satisfies JarvisModuleManifest;
