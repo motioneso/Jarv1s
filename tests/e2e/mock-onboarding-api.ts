@@ -1,9 +1,10 @@
 import type { Page, Route } from "@playwright/test";
-import type { OnboardingFounderStatus } from "@jarv1s/shared";
+import type { OnboardingFounderStatus, OnboardingStatusResponse } from "@jarv1s/shared";
 
 export interface MockOnboardingApiState {
-  // Phase 4 widened the status to a role union; this spine mock serves the FOUNDER variant.
-  onboardingStatus?: OnboardingFounderStatus;
+  // Phase 4 widened the status to a role union; the spine default is the FOUNDER variant, but a
+  // member spec can set the MEMBER variant ({ role: "member", completed, steps }) here directly.
+  onboardingStatus?: OnboardingStatusResponse;
 }
 
 export function defaultOnboardingStatus(
@@ -44,10 +45,20 @@ export async function registerMockOnboardingRoutes(
     });
   };
   const setState = (route: Route, next: "completed" | "skipped") => {
-    state.onboardingStatus = {
-      ...(state.onboardingStatus ?? defaultOnboardingStatus()),
-      state: next
-    };
+    const current = state.onboardingStatus ?? defaultOnboardingStatus();
+    if (current.role === "member") {
+      // Member: complete and skip are both terminal "onboarded" (no separate skipped lifecycle).
+      // Flip completed:true so the refetched status falls through to the shell, and respond with
+      // the member-shaped OnboardingMemberCompleteResponse ({ completed }).
+      state.onboardingStatus = { ...current, completed: true };
+      return route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({ completed: true }) // OnboardingMemberCompleteResponse
+      });
+    }
+    // Founder: instance-global lifecycle keyed on OnboardingState.
+    state.onboardingStatus = { ...current, state: next };
     return route.fulfill({
       status: 200,
       contentType: "application/json",
@@ -63,8 +74,14 @@ export async function registerMockOnboardingRoutes(
   // so existing specs that render that panel hit it without a body — handle GET separately
   // (return the current snapshot) instead of assuming every request is a write.
   await page.route(/\/api\/admin\/chat-multiplexer$/, (route) => {
+    // The chat-multiplexer adapter is FOUNDER-only machinery; narrow the role union to the
+    // founder variant (a member status carries no multiplexer step) before reading steps.
+    const founderSnapshot =
+      state.onboardingStatus?.role === "founder"
+        ? state.onboardingStatus
+        : defaultOnboardingStatus();
     if (route.request().method() === "GET") {
-      const snapshot = state.onboardingStatus ?? defaultOnboardingStatus();
+      const snapshot = founderSnapshot;
       return route.fulfill({
         status: 200,
         contentType: "application/json",
@@ -79,7 +96,7 @@ export async function registerMockOnboardingRoutes(
     }
     const body = route.request().postDataJSON() as { multiplexer: "auto" | "tmux" | "herdr" };
     const choice = body.multiplexer;
-    const prev = state.onboardingStatus ?? defaultOnboardingStatus();
+    const prev = founderSnapshot;
     // Reflect selection; mark done iff the chosen choice maps to a usable backend in the mock's
     // current snapshot (so e2e can drive both the usable and the not-yet-usable paths).
     const usable =
@@ -88,21 +105,22 @@ export async function registerMockOnboardingRoutes(
         : choice === "herdr"
           ? prev.steps.multiplexer.herdrUsable
           : prev.steps.multiplexer.tmuxUsable || prev.steps.multiplexer.herdrUsable;
-    state.onboardingStatus = {
+    const nextStatus: OnboardingFounderStatus = {
       ...prev,
       steps: {
         ...prev.steps,
         multiplexer: { ...prev.steps.multiplexer, done: usable, selected: choice }
       }
     };
+    state.onboardingStatus = nextStatus;
     return route.fulfill({
       status: 200,
       contentType: "application/json",
       body: JSON.stringify({
         multiplexer: choice,
         available: {
-          tmux: state.onboardingStatus.steps.multiplexer.tmuxUsable,
-          herdr: state.onboardingStatus.steps.multiplexer.herdrUsable
+          tmux: nextStatus.steps.multiplexer.tmuxUsable,
+          herdr: nextStatus.steps.multiplexer.herdrUsable
         }
       }) // ChatMultiplexerSettingsDto
     });
