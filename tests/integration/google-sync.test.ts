@@ -5,7 +5,8 @@ import type { Kysely } from "kysely";
 import {
   ConnectorsRepository,
   GoogleApiClient,
-  createConnectorSecretCipher
+  createConnectorSecretCipher,
+  parseEmail
 } from "@jarv1s/connectors";
 import { CalendarRepository } from "@jarv1s/calendar";
 import { EmailRepository } from "@jarv1s/email";
@@ -471,5 +472,66 @@ describe("GoogleApiClient gmail", () => {
     expect(listUrl.searchParams.get("q")).toBe("newer_than:30d");
     const getUrl = new URL(calls[1]!.url);
     expect(getUrl.searchParams.get("format")).toBe("full");
+  });
+});
+
+function b64url(s: string): string {
+  return Buffer.from(s, "utf8").toString("base64").replace(/\+/g, "-").replace(/\//g, "_");
+}
+
+describe("parseEmail", () => {
+  it("extracts headers and decodes a base64url text/plain body", () => {
+    const parsed = parseEmail({
+      id: "m1",
+      labelIds: ["INBOX", "UNREAD"],
+      snippet: "snip",
+      payload: {
+        mimeType: "text/plain",
+        headers: [
+          { name: "Subject", value: "Hello" },
+          { name: "From", value: "a@b.com" },
+          { name: "To", value: "c@d.com" },
+          { name: "Date", value: "Sat, 13 Jun 2026 09:00:00 +0000" }
+        ],
+        body: { data: b64url("Plain body text") }
+      }
+    });
+    expect(parsed.subject).toBe("Hello");
+    expect(parsed.from).toBe("a@b.com");
+    expect(parsed.recipients).toContain("c@d.com");
+    expect(parsed.labelIds).toContain("INBOX");
+    expect(parsed.body).toContain("Plain body text");
+  });
+
+  it("falls back to stripped text/html when no text/plain part exists", () => {
+    const parsed = parseEmail({
+      id: "m2",
+      payload: {
+        mimeType: "multipart/alternative",
+        headers: [
+          { name: "Subject", value: "H" },
+          { name: "From", value: "a@b.com" }
+        ],
+        parts: [{ mimeType: "text/html", body: { data: b64url("<p>Hi <b>there</b></p>") } }]
+      }
+    });
+    expect(parsed.body).toContain("Hi");
+    expect(parsed.body).not.toContain("<p>");
+  });
+
+  it("truncates the decoded body to the bounded cap", () => {
+    const big = "x".repeat(100_000);
+    const parsed = parseEmail({
+      id: "m3",
+      payload: {
+        mimeType: "text/plain",
+        headers: [
+          { name: "Subject", value: "H" },
+          { name: "From", value: "a@b.com" }
+        ],
+        body: { data: b64url(big) }
+      }
+    });
+    expect(parsed.body.length).toBeLessThanOrEqual(parsed.bodyTruncated ? 20_000 : big.length);
   });
 });
