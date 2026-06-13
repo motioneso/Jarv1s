@@ -170,7 +170,9 @@ describe("MVP foundation scaffold", () => {
         { version: "0064", name: "0064_chat_memory_facts_source_thread_idx.sql" },
         { version: "0065", name: "0065_module_enablement.sql" },
         { version: "0066", name: "0066_calendar_worker_grants_and_google_insert.sql" },
-        { version: "0067", name: "0067_email_summary_signals_columns.sql" }
+        { version: "0067", name: "0067_email_summary_signals_columns.sql" },
+        { version: "0068", name: "0068_email_worker_grants_and_google_insert.sql" },
+        { version: "0069", name: "0069_connector_worker_runtime_grants.sql" }
       ]);
     } finally {
       await client.end();
