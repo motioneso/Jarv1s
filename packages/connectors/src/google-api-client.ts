@@ -166,6 +166,14 @@ export class GoogleApiClient {
     end: string;
     timeZone?: string;
     extendedPrivateProperties?: Record<string, string>;
+    /**
+     * Optional caller-supplied event id (base32hex, 5..1024 chars per the Google id rule).
+     * When set, the insert is idempotent at Google: a second insert of the SAME id returns
+     * 409 Conflict instead of creating a duplicate event. The focus-time impl derives this
+     * deterministically from the approved proposal (actor + chosen slot + title) so a retry
+     * of the identical approved proposal cannot double-book the real calendar.
+     */
+    eventId?: string;
   }): Promise<GoogleInsertedEvent> {
     const calendarId = input.calendarId ?? "primary";
     const body: Record<string, unknown> = {
@@ -177,6 +185,9 @@ export class GoogleApiClient {
         ? { dateTime: input.end, timeZone: input.timeZone }
         : { dateTime: input.end }
     };
+    if (input.eventId) {
+      body.id = input.eventId;
+    }
     if (input.extendedPrivateProperties) {
       body.extendedProperties = { private: input.extendedPrivateProperties };
     }

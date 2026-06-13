@@ -1,6 +1,7 @@
 import { assertDataContextDb, type DataContextDb } from "@jarv1s/db";
 import {
   chooseSlot,
+  focusBlockEventId,
   type CalendarWriteService,
   type FocusBlockWindow,
   type ProposeFocusResult,
@@ -8,6 +9,7 @@ import {
   type CalendarRepository
 } from "@jarv1s/calendar";
 import {
+  GoogleApiError,
   GoogleConnectError,
   type GoogleConnectionService,
   type ConnectorsRepository,
@@ -32,7 +34,7 @@ export function buildCalendarWriteService(deps: CalendarWriteImplDeps): Calendar
   return {
     async proposeAndInsert(
       scopedDbRaw: unknown,
-      _ctx: ToolContext,
+      ctx: ToolContext,
       window: FocusBlockWindow
     ): Promise<ProposeFocusResult> {
       assertDataContextDb(scopedDbRaw);
@@ -124,8 +126,19 @@ export function buildCalendarWriteService(deps: CalendarWriteImplDeps): Calendar
         };
       }
 
-      // 4. Insert the event, tagged jarvisCreated.
-      let inserted;
+      // 4. Insert the event, tagged jarvisCreated, with a DETERMINISTIC event id so a retry of
+      // this exact approved proposal cannot double-book the real calendar. The id is derived from
+      // actor + chosen slot + title; Google rejects a duplicate id with 409 Conflict, which we
+      // treat as idempotent success (the event already exists from a prior attempt whose response
+      // was lost). This is the outbound-write idempotency floor — without it, "Couldn't create —
+      // try again" after a lost insert response would let a re-approve create a second event.
+      const eventId = focusBlockEventId({
+        actorUserId: ctx.actorUserId,
+        start: slot.start,
+        end: slot.end,
+        title: resolved.title
+      });
+      let inserted: { id: string; htmlLink?: string };
       try {
         inserted = await deps.googleApiClient.insertEvent({
           accessToken,
@@ -134,9 +147,27 @@ export function buildCalendarWriteService(deps: CalendarWriteImplDeps): Calendar
           // RFC3339 with 'Z' — the UTC instant is unambiguous; no timeZone field (see note above).
           start: slot.start.toISOString(),
           end: slot.end.toISOString(),
+          eventId,
           extendedPrivateProperties: { jarvisCreated: "true", jarvisTool: "proposeFocusBlock" }
         });
-      } catch {
+      } catch (error) {
+        // 409 Conflict = an event with this deterministic id already exists, i.e. this exact
+        // approved proposal was already inserted (a duplicate/retry). Idempotent success — the
+        // block is on the calendar; return created:true with the known id rather than prompting
+        // the user to "try again" (which would otherwise risk a second insert). The mirror below
+        // re-asserts the cache idempotently. Any other Google failure is a real failure.
+        if (error instanceof GoogleApiError && error.statusCode === 409) {
+          const dedupMirror = await mirrorEvent(deps, scopedDb, { id: eventId }, slot, resolved);
+          return {
+            created: true,
+            resolvedStart: slot.start.toISOString(),
+            resolvedEnd: slot.end.toISOString(),
+            shifted: slot.shifted,
+            conflict: slot.conflict === "none" ? "none" : "shifted",
+            googleEventId: eventId,
+            calendarMirror: dedupMirror
+          };
+        }
         return {
           created: false,
           resolvedStart: slot.start.toISOString(),

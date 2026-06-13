@@ -336,6 +336,42 @@ describe("Group B — GoogleApiClient.freeBusy + insertEvent", () => {
     expect(created.htmlLink).toBe("https://calendar.google.com/evt-123");
   });
 
+  it("insertEvent sends a caller-supplied eventId as the body 'id' (idempotency floor)", async () => {
+    const { calls, fetchFn } = captureFetch(() => ({ body: { id: "jfbdeadbeef" } }));
+    const client = new GoogleApiClient({ fetchFn });
+    await client.insertEvent({
+      accessToken: "tok",
+      calendarId: "primary",
+      summary: "Focus time",
+      start: "2026-06-17T09:00:00Z",
+      end: "2026-06-17T11:00:00Z",
+      eventId: "jfbdeadbeef"
+    });
+    const sentBody = JSON.parse(String(calls[0]!.init?.body));
+    // Google enforces id uniqueness per calendar — a duplicate id returns 409, not a 2nd event.
+    expect(sentBody.id).toBe("jfbdeadbeef");
+  });
+
+  it("insertEvent surfaces a 409 as a GoogleApiError with statusCode 409 (duplicate id)", async () => {
+    const { fetchFn } = captureFetch(() => ({ status: 409, body: { error: "duplicate" } }));
+    const client = new GoogleApiClient({ fetchFn });
+    await expect(
+      client
+        .insertEvent({
+          accessToken: "tok",
+          calendarId: "primary",
+          summary: "x",
+          start: "2026-06-17T09:00:00Z",
+          end: "2026-06-17T11:00:00Z",
+          eventId: "jfbdup"
+        })
+        .catch((e) => {
+          expect((e as { statusCode?: number }).statusCode).toBe(409);
+          throw e;
+        })
+    ).rejects.toThrow("Google calendar returned 409");
+  });
+
   it("insertEvent throws a body-free GoogleApiError on a non-2xx", async () => {
     const { fetchFn } = captureFetch(() => ({
       status: 500,
