@@ -78,7 +78,7 @@ export interface CreateChatSessionRuntimeDeps {
     readonly mint: (
       actorUserId: string,
       chatSessionId: string
-    ) => { token: string; mcpServerUrl: string };
+    ) => Promise<{ token: string; mcpServerUrl: string }>;
     readonly revoke: (chatSessionId: string) => void;
     /** Refresh a session token's TTL on activity (defaults to no-op if omitted). */
     readonly touch?: (chatSessionId: string) => void;

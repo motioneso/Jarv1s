@@ -49,7 +49,7 @@ describe("AssistantToolGateway", () => {
     tokens = new SessionTokenRegistry();
     confirmations = new ConfirmationRegistry();
     gateway = new AssistantToolGateway({
-      resolveActiveModules: () => [exampleToolModule],
+      resolveActiveModules: async () => [exampleToolModule],
       repository,
       runner,
       tokens,
@@ -59,12 +59,39 @@ describe("AssistantToolGateway", () => {
     });
   });
 
-  it("lists only tools that have an execute handler", () => {
-    const names = gateway.listToolsForActor(ids.userA).map((tool) => tool.name);
+  it("lists only tools that have an execute handler", async () => {
+    const names = (await gateway.listToolsForActor(ids.userA)).map((tool) => tool.name);
     expect(names).toContain("example.read");
     expect(names).toContain("example.write");
     expect(names).toContain("example.destroy");
     expect(names).not.toContain("example.declaration-only");
+  });
+
+  it("fails closed: a throwing resolveActiveModules rejects listToolsForActor and callTool", async () => {
+    let resolverCalls = 0;
+    const failing = new AssistantToolGateway({
+      resolveActiveModules: async () => {
+        resolverCalls += 1;
+        throw new Error("resolver/DB unavailable");
+      },
+      repository,
+      runner,
+      tokens, // SHARED registry from beforeEach, so the minted token below verifies
+      confirmations,
+      notifier: { emit: (chatSessionId, record) => emitted.push({ chatSessionId, record }) },
+      confirmTimeoutMs: 1000
+    });
+    // listToolsForActor reaches the resolver directly.
+    await expect(failing.listToolsForActor(ids.userA)).rejects.toThrow();
+    // callTool: mint a VALID token (allowedToolNames: null) so it clears token verification
+    // and proceeds into executableTools → resolver, which throws → reject (not a degraded set).
+    const token = tokens.mint({
+      actorUserId: ids.userA,
+      chatSessionId: "fail-closed",
+      allowedToolNames: null
+    });
+    await expect(failing.callTool(token, "example.read", {})).rejects.toThrow();
+    expect(resolverCalls).toBeGreaterThanOrEqual(2); // both surfaces actually invoked the resolver
   });
 
   it("runs a read tool immediately under the caller's RLS scope", async () => {
@@ -224,12 +251,13 @@ describe("AssistantToolGateway", () => {
     expect(exampleToolCalls).toHaveLength(1);
   });
 
-  it("listToolsForActor is actor-scoped — a different actor gets a different list", () => {
+  it("listToolsForActor is actor-scoped — a different actor gets a different list", async () => {
     // resolveActiveModules returns the example module ONLY for userA; userB gets nothing.
     // If listToolsForActor ignored its argument (the bug listTools() had), userB would
     // get the same non-empty list and this test would fail — which is exactly the point.
     const scopedGateway = new AssistantToolGateway({
-      resolveActiveModules: (actorUserId) => (actorUserId === ids.userA ? [exampleToolModule] : []),
+      resolveActiveModules: async (actorUserId) =>
+        actorUserId === ids.userA ? [exampleToolModule] : [],
       repository,
       runner,
       tokens,
@@ -238,8 +266,8 @@ describe("AssistantToolGateway", () => {
       confirmTimeoutMs: 1000
     });
 
-    const aNames = scopedGateway.listToolsForActor(ids.userA).map((tool) => tool.name);
-    const bNames = scopedGateway.listToolsForActor(ids.userB).map((tool) => tool.name);
+    const aNames = (await scopedGateway.listToolsForActor(ids.userA)).map((tool) => tool.name);
+    const bNames = (await scopedGateway.listToolsForActor(ids.userB)).map((tool) => tool.name);
 
     expect(aNames).toContain("example.read");
     expect(aNames).toContain("example.write");

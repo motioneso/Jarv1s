@@ -64,7 +64,7 @@ export interface ChatSessionManagerDeps {
   readonly mintMcpToken?: (
     actorUserId: string,
     chatSessionId: string
-  ) => { token: string; mcpServerUrl: string };
+  ) => Promise<{ token: string; mcpServerUrl: string }>;
   readonly revokeMcpToken?: (chatSessionId: string) => void;
   /** Refresh the session token's TTL on activity, so a live session's token never
    *  expires under the registry backstop (mirrors lastActivity / idle reaping). */
@@ -157,7 +157,7 @@ export class ChatSessionManager {
 
     const sessionKey = actorUserId;
     const engine = this.deps.engineFactory(provider, sessionKey);
-    const mcpConfig = this.deps.mintMcpToken?.(actorUserId, actorUserId);
+    const mcpConfig = await this.deps.mintMcpToken?.(actorUserId, actorUserId);
     await engine.launch({
       neutralDir,
       personaPath,
