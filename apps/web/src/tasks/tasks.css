@@ -103,6 +103,11 @@
 .task-line-title:hover {
   text-decoration: underline;
 }
+.task-line-tags {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
 .task-line-meta {
   display: flex;
   gap: 0.5rem;
