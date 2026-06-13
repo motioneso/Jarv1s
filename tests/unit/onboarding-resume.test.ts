@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import type { MeResponse, OnboardingStatusResponse } from "@jarv1s/shared";
+import type { MeResponse, OnboardingFounderStatus } from "@jarv1s/shared";
 
 import {
   STEP_KEYS,
@@ -10,9 +10,10 @@ import {
 } from "../../apps/web/src/onboarding/resume.js";
 
 function status(
-  overrides: Partial<OnboardingStatusResponse["steps"]> = {}
-): OnboardingStatusResponse {
+  overrides: Partial<OnboardingFounderStatus["steps"]> = {}
+): OnboardingFounderStatus {
   return {
+    role: "founder",
     state: "pending",
     steps: {
       multiplexer: { done: false, selected: null, tmuxUsable: false, herdrUsable: false },

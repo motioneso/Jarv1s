@@ -1,14 +1,16 @@
 import type { Page, Route } from "@playwright/test";
-import type { OnboardingStatusResponse } from "@jarv1s/shared";
+import type { OnboardingFounderStatus } from "@jarv1s/shared";
 
 export interface MockOnboardingApiState {
-  onboardingStatus?: OnboardingStatusResponse;
+  // Phase 4 widened the status to a role union; this spine mock serves the FOUNDER variant.
+  onboardingStatus?: OnboardingFounderStatus;
 }
 
 export function defaultOnboardingStatus(
-  overrides: Partial<OnboardingStatusResponse> = {}
-): OnboardingStatusResponse {
+  overrides: Partial<OnboardingFounderStatus> = {}
+): OnboardingFounderStatus {
   return {
+    role: "founder",
     state: "pending",
     steps: {
       multiplexer: { done: false, selected: null, tmuxUsable: false, herdrUsable: false },

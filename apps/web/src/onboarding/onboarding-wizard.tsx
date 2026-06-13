@@ -56,7 +56,9 @@ export function OnboardingWizard(props: {
 
   // No isLoading branch: initialData guarantees data is present from the first render
   // (app.tsx already waited). A background refetch error never blanks the wizard.
-  const steps = statusQuery.data.steps;
+  // Phase 4 widened the status to a role union; this spine wizard renders the FOUNDER steps,
+  // so narrow to the founder variant. (The member step array is mounted in a later Phase-4 task.)
+  const founderSteps = statusQuery.data.role === "founder" ? statusQuery.data.steps : undefined;
   const overlayEnabled = isOverlayEnabled(statusQuery.data);
 
   const currentKey = STEP_KEYS[stepIndex];
@@ -83,13 +85,15 @@ export function OnboardingWizard(props: {
 
         <div className="onboarding-step">
           {currentKey === "welcome" ? <WelcomeStep onSkipAll={() => skip.mutate()} /> : null}
-          {currentKey === "multiplexer" ? (
-            <MultiplexerStep step={steps.multiplexer} onRecheck={invalidateStatus} />
+          {currentKey === "multiplexer" && founderSteps ? (
+            <MultiplexerStep step={founderSteps.multiplexer} onRecheck={invalidateStatus} />
           ) : null}
-          {currentKey === "cliAuth" ? (
-            <CliAuthStep step={steps.cliAuth} onRecheck={invalidateStatus} />
+          {currentKey === "cliAuth" && founderSteps ? (
+            <CliAuthStep step={founderSteps.cliAuth} onRecheck={invalidateStatus} />
           ) : null}
-          {currentKey === "connectors" ? <ConnectorStep done={steps.connectors.done} /> : null}
+          {currentKey === "connectors" && founderSteps ? (
+            <ConnectorStep done={founderSteps.connectors.done} />
+          ) : null}
         </div>
 
         <footer className="onboarding-footer">
