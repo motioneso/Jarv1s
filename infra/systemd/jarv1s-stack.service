@@ -1,0 +1,29 @@
+# NOTE: `User=REPLACE_WITH_INSTALL_USER` and the `~/Jarv1s` paths follow the EXISTING repo
+# convention (`infra/systemd/jarv1s-backup.service` hardcodes the same) — this is a
+# single-operator household deploy (ADR 0007), not a portable distro package. An
+# operator on a different path/user edits these two lines (and the EnvironmentFile
+# path) at install time. The committed file IS the canonical install for this host.
+[Unit]
+Description=Jarv1s production stack (docker compose)
+After=network-online.target docker.service
+Wants=network-online.target
+Requires=docker.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+User=REPLACE_WITH_INSTALL_USER
+WorkingDirectory=~/Jarv1s
+# Operator env file: provides JARVIS_IMAGE_TAG (REQUIRED — the prod Compose errors
+# without it), host UID/GID, socket paths, and secrets, exported into this service's
+# environment so `docker compose` variable substitution resolves them. The leading
+# "-" tolerates absence at parse time, but the stack will fail to START if the file
+# is missing JARVIS_IMAGE_TAG — the operator MUST create it before `systemctl enable`.
+EnvironmentFile=-~/Jarv1s/infra/env.production.local
+ExecStart=/usr/bin/docker compose -f infra/docker-compose.prod.yml up -d
+ExecStop=/usr/bin/docker compose -f infra/docker-compose.prod.yml down
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target
