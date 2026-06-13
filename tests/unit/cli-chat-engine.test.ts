@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { TmuxCliChatEngine } from "../../packages/chat/src/live/cli-chat-engine.js";
+import { CliChatEngineImpl } from "../../packages/chat/src/live/cli-chat-engine.js";
 
 function makeIo() {
   return {
@@ -10,10 +10,10 @@ function makeIo() {
   };
 }
 
-describe("TmuxCliChatEngine — Claude MCP lockdown", () => {
+describe("CliChatEngineImpl — Claude MCP lockdown", () => {
   it("uses --allowedTools mcp__jarvis__* when mcpToken is provided", async () => {
     const io = makeIo();
-    const engine = new TmuxCliChatEngine("anthropic", "test-session", io);
+    const engine = new CliChatEngineImpl("anthropic", "test-session", io);
     await engine.launch({
       neutralDir: "/tmp/neutral",
       personaPath: "/tmp/persona.txt",
@@ -30,11 +30,13 @@ describe("TmuxCliChatEngine — Claude MCP lockdown", () => {
     expect(launchLine).toContain("mcp__jarvis__*");
     expect(launchLine).not.toContain('--tools ""');
     expect(launchLine).toContain("mcp-config");
+    expect(launchLine).toContain("--permission-mode default");
+    expect(launchLine).toContain("--strict-mcp-config");
   });
 
   it("falls back to --tools '' when no mcpToken is provided", async () => {
     const io = makeIo();
-    const engine = new TmuxCliChatEngine("anthropic", "test-session", io);
+    const engine = new CliChatEngineImpl("anthropic", "test-session", io);
     await engine.launch({ neutralDir: "/tmp/neutral", personaPath: "/tmp/persona.txt" });
 
     const sendKeysCall = (io.run as ReturnType<typeof vi.fn>).mock.calls.find(
@@ -43,13 +45,15 @@ describe("TmuxCliChatEngine — Claude MCP lockdown", () => {
     const launchLine = (sendKeysCall![1] as string[])[3];
     expect(launchLine).toContain('--tools ""');
     expect(launchLine).not.toContain("--allowedTools");
+    expect(launchLine).toContain("--permission-mode default");
+    expect(launchLine).toContain("--strict-mcp-config");
   });
 });
 
-describe("TmuxCliChatEngine — Codex launch", () => {
+describe("CliChatEngineImpl — Codex launch", () => {
   it("launches codex with MCP config -c flags and token in env", async () => {
     const io = makeIo();
-    const engine = new TmuxCliChatEngine("openai-compatible", "codex-session", io);
+    const engine = new CliChatEngineImpl("openai-compatible", "codex-session", io);
     await engine.launch({
       neutralDir: "/tmp/neutral",
       personaPath: "/tmp/persona.txt",
@@ -67,13 +71,14 @@ describe("TmuxCliChatEngine — Codex launch", () => {
     expect(launchLine).toContain("shell_tool=false");
     expect(launchLine).toContain("apply_patch_tool=false");
     expect(launchLine).toContain("sandbox read-only");
+    expect(launchLine).toContain("-a never");
   });
 });
 
-describe("TmuxCliChatEngine — Gemini launch", () => {
+describe("CliChatEngineImpl — Gemini launch", () => {
   it("writes .gemini/settings.json and launches gemini with MCP server name", async () => {
     const io = makeIo();
-    const engine = new TmuxCliChatEngine("google", "gemini-session", io);
+    const engine = new CliChatEngineImpl("google", "gemini-session", io);
     await engine.launch({
       neutralDir: "/tmp/neutral",
       personaPath: "/tmp/persona.txt",

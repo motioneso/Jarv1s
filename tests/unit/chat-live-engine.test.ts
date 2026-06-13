@@ -1,5 +1,5 @@
 /**
- * Unit tests for TmuxCliChatEngine — the persistent-session CLI engine that
+ * Unit tests for CliChatEngineImpl — the persistent-session CLI engine that
  * drives `claude` inside tmux and exposes it via the CliChatEngine interface.
  *
  * No Postgres, no real tmux, no real `claude` binary: the TmuxIo seam is faked
@@ -8,7 +8,7 @@
  */
 import { describe, expect, it } from "vitest";
 
-import { TmuxCliChatEngine } from "../../packages/chat/src/live/cli-chat-engine.js";
+import { CliChatEngineImpl } from "../../packages/chat/src/live/cli-chat-engine.js";
 import type { TmuxIo } from "../../packages/ai/src/adapters/tmux-bridge.js";
 
 // ─── anthropic / Claude Code transcript fixtures ─────────────────────────────
@@ -80,10 +80,10 @@ function flat(io: ReturnType<typeof fakeIo>): string {
   return io.runCalls.map((c) => [c.cmd, ...c.args].join(" ")).join("\n");
 }
 
-describe("TmuxCliChatEngine — launch", () => {
+describe("CliChatEngineImpl — launch", () => {
   it("launches `claude` with the security-critical flags from the spike matrix", async () => {
     const io = fakeIo();
-    const engine = new TmuxCliChatEngine("anthropic", "thread-launch", io, { launchMs: 0 });
+    const engine = new CliChatEngineImpl("anthropic", "thread-launch", io, { launchMs: 0 });
 
     await engine.launch({
       neutralDir: "/tmp/jarvis/thread-launch",
@@ -110,7 +110,7 @@ describe("TmuxCliChatEngine — launch", () => {
 
   it("computes a transcript path under the dash-encoded cwd with the session id (leading dash kept)", async () => {
     const io = fakeIo();
-    const engine = new TmuxCliChatEngine("anthropic", "thread-path", io, { launchMs: 0 });
+    const engine = new CliChatEngineImpl("anthropic", "thread-path", io, { launchMs: 0 });
 
     await engine.launch({
       neutralDir: "/tmp/jarvis/thread-path",
@@ -131,10 +131,10 @@ describe("TmuxCliChatEngine — launch", () => {
   });
 });
 
-describe("TmuxCliChatEngine — submit + readNew", () => {
+describe("CliChatEngineImpl — submit + readNew", () => {
   it("sanitizes a leading '!' before pasting (no bash-prefix escape hatch)", async () => {
     const io = fakeIo();
-    const engine = new TmuxCliChatEngine("anthropic", "thread-bang", io, {
+    const engine = new CliChatEngineImpl("anthropic", "thread-bang", io, {
       launchMs: 0,
       submitMs: 0
     });
@@ -151,7 +151,7 @@ describe("TmuxCliChatEngine — submit + readNew", () => {
 
   it("pastes the prompt buffer then sends Enter as a separate send-keys", async () => {
     const io = fakeIo();
-    const engine = new TmuxCliChatEngine("anthropic", "thread-paste", io, {
+    const engine = new CliChatEngineImpl("anthropic", "thread-paste", io, {
       launchMs: 0,
       submitMs: 0
     });
@@ -169,7 +169,7 @@ describe("TmuxCliChatEngine — submit + readNew", () => {
 
   it("readNew tolerates a missing transcript (returns empty, not complete)", async () => {
     const io = fakeIo();
-    const engine = new TmuxCliChatEngine("anthropic", "thread-empty", io, { launchMs: 0 });
+    const engine = new CliChatEngineImpl("anthropic", "thread-empty", io, { launchMs: 0 });
     await engine.launch({ neutralDir: "/tmp/jarvis/thread-empty", personaPath: "/p.md" });
 
     // transcript stays null → readFile throws ENOENT.
@@ -181,7 +181,7 @@ describe("TmuxCliChatEngine — submit + readNew", () => {
 
   it("readNew yields a reply record after the turn completes", async () => {
     const io = fakeIo();
-    const engine = new TmuxCliChatEngine("anthropic", "thread-reply", io, {
+    const engine = new CliChatEngineImpl("anthropic", "thread-reply", io, {
       launchMs: 0,
       submitMs: 0
     });
@@ -205,7 +205,7 @@ describe("TmuxCliChatEngine — submit + readNew", () => {
 
   it("readNew respects afterOffset (skips already-read bytes)", async () => {
     const io = fakeIo();
-    const engine = new TmuxCliChatEngine("anthropic", "thread-offset", io, { launchMs: 0 });
+    const engine = new CliChatEngineImpl("anthropic", "thread-offset", io, { launchMs: 0 });
     await engine.launch({ neutralDir: "/tmp/jarvis/thread-offset", personaPath: "/p.md" });
 
     const first = CLAUDE_THINKING + "\n";
@@ -220,10 +220,10 @@ describe("TmuxCliChatEngine — submit + readNew", () => {
   });
 });
 
-describe("TmuxCliChatEngine — lifecycle", () => {
+describe("CliChatEngineImpl — lifecycle", () => {
   it("isAlive() checks the tmux session via has-session", async () => {
     const io = fakeIo();
-    const engine = new TmuxCliChatEngine("anthropic", "thread-alive", io, { launchMs: 0 });
+    const engine = new CliChatEngineImpl("anthropic", "thread-alive", io, { launchMs: 0 });
     await engine.launch({ neutralDir: "/tmp/jarvis/thread-alive", personaPath: "/p.md" });
 
     io.runCalls.length = 0;
@@ -234,7 +234,7 @@ describe("TmuxCliChatEngine — lifecycle", () => {
 
   it("kill() kills the tmux session", async () => {
     const io = fakeIo();
-    const engine = new TmuxCliChatEngine("anthropic", "thread-kill", io, { launchMs: 0 });
+    const engine = new CliChatEngineImpl("anthropic", "thread-kill", io, { launchMs: 0 });
     await engine.launch({ neutralDir: "/tmp/jarvis/thread-kill", personaPath: "/p.md" });
 
     io.runCalls.length = 0;
