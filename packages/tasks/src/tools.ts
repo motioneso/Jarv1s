@@ -60,8 +60,12 @@ export const taskListExecute: ToolExecute = async (scopedDb, input, _ctx): Promi
     tasks = tasks.filter((t) => taggedSet.has(t.id));
   }
 
+  const tagMap = await repository.getTagsForTasks(
+    scopedDb,
+    tasks.map((t) => t.id)
+  );
   return {
-    data: { items: tasks.map((task) => serializeTask(task)) },
+    data: { items: tasks.map((task) => serializeTask(task, tagMap.get(task.id) ?? [])) },
     columnOrder: ["id", "title", "status", "dueAt", "priority"]
   };
 };
@@ -81,10 +85,18 @@ export const taskGetExecute: ToolExecute = async (scopedDb, input, _ctx): Promis
     return { data: { error: "Task not found" } };
   }
 
+  const [tags, subtaskTagMap] = await Promise.all([
+    repository.getTagsForTask(scopedDb, taskId),
+    repository.getTagsForTasks(
+      scopedDb,
+      subtasks.map((s) => s.id)
+    )
+  ]);
+
   return {
     data: {
-      task: serializeTask(task),
-      subtasks: subtasks.map((task) => serializeTask(task)),
+      task: serializeTask(task, tags),
+      subtasks: subtasks.map((s) => serializeTask(s, subtaskTagMap.get(s.id) ?? [])),
       activity: activity.slice(-10).map(serializeTaskActivity)
     }
   };
@@ -97,8 +109,12 @@ export const taskFocusExecute: ToolExecute = async (
 ): Promise<ToolResult> => {
   assertDataContextDb(scopedDb);
   const tasks = await drift.getFocus(scopedDb);
+  const tagMap = await repository.getTagsForTasks(
+    scopedDb,
+    tasks.map((t) => t.id)
+  );
   return {
-    data: { items: tasks.map((task) => serializeTask(task)) },
+    data: { items: tasks.map((task) => serializeTask(task, tagMap.get(task.id) ?? [])) },
     columnOrder: ["id", "title", "status", "dueAt", "priority"]
   };
 };
@@ -110,8 +126,12 @@ export const taskAtRiskExecute: ToolExecute = async (
 ): Promise<ToolResult> => {
   assertDataContextDb(scopedDb);
   const tasks = await drift.getAtRisk(scopedDb);
+  const tagMap = await repository.getTagsForTasks(
+    scopedDb,
+    tasks.map((t) => t.id)
+  );
   return {
-    data: { items: tasks.map((task) => serializeTask(task)) },
+    data: { items: tasks.map((task) => serializeTask(task, tagMap.get(task.id) ?? [])) },
     columnOrder: ["id", "title", "status", "dueAt", "priority"]
   };
 };
@@ -123,8 +143,12 @@ export const taskOverdueExecute: ToolExecute = async (
 ): Promise<ToolResult> => {
   assertDataContextDb(scopedDb);
   const tasks = await drift.getOverdue(scopedDb);
+  const tagMap = await repository.getTagsForTasks(
+    scopedDb,
+    tasks.map((t) => t.id)
+  );
   return {
-    data: { items: tasks.map((task) => serializeTask(task)) },
+    data: { items: tasks.map((task) => serializeTask(task, tagMap.get(task.id) ?? [])) },
     columnOrder: ["id", "title", "status", "dueAt", "priority"]
   };
 };
