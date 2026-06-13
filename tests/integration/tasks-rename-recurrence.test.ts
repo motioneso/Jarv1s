@@ -289,4 +289,46 @@ describe("Tasks module — rename/delete routes + recurrence reconcile", () => {
     const schedules = await appBoss.getSchedules(TASKS_RECURRENCE_QUEUE, ids.userA);
     expect(schedules).toHaveLength(1);
   });
+
+  it("GET /api/tasks/lists does NOT establish a schedule for an actor with no recurring series", async () => {
+    // userB has created no recurring task in this suite, so the self-heal must be GATED off:
+    // loading lists should leave zero schedule rows for them (no needless pg-boss upsert).
+    const before = await appBoss.getSchedules(TASKS_RECURRENCE_QUEUE, ids.userB);
+    expect(before).toHaveLength(0);
+
+    const res = await server.inject({
+      method: "GET",
+      url: "/api/tasks/lists",
+      headers: { authorization: `Bearer ${ids.sessionB}` }
+    });
+    expect(res.statusCode).toBe(200);
+
+    const after = await appBoss.getSchedules(TASKS_RECURRENCE_QUEUE, ids.userB);
+    expect(after).toHaveLength(0);
+  });
+
+  it("GET /api/tasks/lists DOES self-heal once the actor owns a recurring series", async () => {
+    // After userB creates a recurring task, the gate opens and the per-session self-heal
+    // establishes exactly one schedule row for them.
+    const create = await server.inject({
+      method: "POST",
+      url: "/api/tasks",
+      headers: { authorization: `Bearer ${ids.sessionB}` },
+      payload: {
+        title: "userB-recurring",
+        recurrence: { freq: "daily", interval: 1, occurrence_date: "2026-06-08" }
+      }
+    });
+    expect(create.statusCode).toBe(201);
+
+    const res = await server.inject({
+      method: "GET",
+      url: "/api/tasks/lists",
+      headers: { authorization: `Bearer ${ids.sessionB}` }
+    });
+    expect(res.statusCode).toBe(200);
+
+    const schedules = await appBoss.getSchedules(TASKS_RECURRENCE_QUEUE, ids.userB);
+    expect(schedules).toHaveLength(1);
+  });
 });

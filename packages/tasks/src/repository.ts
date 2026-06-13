@@ -79,6 +79,27 @@ export class TasksRepository {
       .executeTakeFirst();
   }
 
+  /**
+   * True iff the current actor OWNS at least one task in a recurrence series. RLS scopes the
+   * read to the actor, and the explicit owner predicate keeps a merely-shared recurring series
+   * (tasks_select is owner-OR-share) from counting. Used to gate the per-session schedule
+   * self-heal in GET /api/tasks/lists so non-recurrence users never open a pg-boss schedule
+   * upsert. Cheap: a single LIMIT 1 existence probe in the same RLS transaction as the lists read.
+   */
+  async hasRecurringSeries(scopedDb: DataContextDb): Promise<boolean> {
+    assertDataContextDb(scopedDb);
+
+    const row = await scopedDb.db
+      .selectFrom("app.tasks")
+      .select(sql<number>`1`.as("one"))
+      .where("recurrence_series_id", "is not", null)
+      .where(sql<boolean>`owner_user_id = app.current_actor_user_id()`)
+      .limit(1)
+      .executeTakeFirst();
+
+    return row != null;
+  }
+
   async create(scopedDb: DataContextDb, input: CreateTaskInput): Promise<Task> {
     assertDataContextDb(scopedDb);
 

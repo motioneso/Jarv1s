@@ -406,15 +406,24 @@ export function registerTasksRoutes(
     try {
       const accessContext = await dependencies.resolveAccessContext(request);
 
-      // Per-session self-heal: the Tasks page loads lists on mount, so this is a cheap
-      // (one upsert) opportunistic re-establish of the actor's recurrence schedule. It is
-      // failure-isolated (reconcileRecurrenceSchedule never throws), so it cannot affect latency
-      // beyond the upsert and never fails the request.
-      await reconcileRecurrenceSchedule(dependencies.boss, accessContext.actorUserId);
-
-      const lists = await dependencies.dataContext.withDataContext(accessContext, (scopedDb) =>
-        listsRepository.list(scopedDb)
+      // Per-session self-heal: the Tasks page loads lists on mount, so this is an
+      // opportunistic re-establish of the actor's recurrence schedule. GATED on the actor
+      // actually OWNING ≥1 recurring series — a user who never created a recurring task has
+      // no schedule to heal, so we skip the pg-boss schedule upsert entirely for them. The
+      // probe rides inside the same RLS transaction as the lists read (one extra LIMIT 1).
+      const { lists, hasRecurrence } = await dependencies.dataContext.withDataContext(
+        accessContext,
+        async (scopedDb) => ({
+          lists: await listsRepository.list(scopedDb),
+          hasRecurrence: await repository.hasRecurringSeries(scopedDb)
+        })
       );
+
+      if (hasRecurrence) {
+        // Failure-isolated (reconcileRecurrenceSchedule never throws), so it cannot fail the
+        // request; runs outside the data transaction so a schedule blip never rolls back the read.
+        await reconcileRecurrenceSchedule(dependencies.boss, accessContext.actorUserId);
+      }
 
       return { lists: lists.map(serializeTaskList) };
     } catch (error) {
