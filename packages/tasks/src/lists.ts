@@ -4,6 +4,8 @@ import { sql } from "kysely";
 
 import { assertDataContextDb, type DataContextDb, type TaskList, type TaskTag } from "@jarv1s/db";
 
+import { HttpError } from "./errors.js";
+
 export class TaskListsRepository {
   async getOrCreateDefault(db: DataContextDb): Promise<TaskList> {
     return this.getOrCreate(db, "Personal");
@@ -102,6 +104,65 @@ export class TaskListsRepository {
       .selectAll()
       .where("list_id", "=", listId)
       .orderBy("name")
+      .execute();
+  }
+
+  async assignTag(db: DataContextDb, taskId: string, tagId: string): Promise<void> {
+    assertDataContextDb(db);
+
+    // Deterministic precheck (Codex finding): map a missing/foreign task or tag to 404 instead
+    // of letting a raw RLS/FK failure surface as a 500. The task precheck requires OWNERSHIP
+    // (owner_user_id = app.current_actor_user_id()), NOT mere visibility — the
+    // task_tag_assignments_rw policy (0062_task_tag_assignments_ownership.sql) gates the INSERT
+    // on parent-task OWNERSHIP, so a manage-SHARED task is visible via tasks_select yet would
+    // fail the assignment WITH CHECK as a raw 500. Prechecking ownership returns a clean 404.
+    const task = await db.db
+      .selectFrom("app.tasks")
+      .select("id")
+      .where("id", "=", taskId)
+      .where(sql<boolean>`owner_user_id = app.current_actor_user_id()`)
+      .executeTakeFirst();
+    if (!task) throw new HttpError(404, "Task not found or not accessible");
+    const tag = await db.db
+      .selectFrom("app.task_tags")
+      .select("id")
+      .where("id", "=", tagId)
+      .where(sql<boolean>`owner_user_id = app.current_actor_user_id()`)
+      .executeTakeFirst();
+    if (!tag) throw new HttpError(404, "Tag not found or not accessible");
+
+    try {
+      await db.db
+        .insertInto("app.task_tag_assignments")
+        .values({ task_id: taskId, tag_id: tagId })
+        .onConflict((oc) => oc.doNothing())
+        .execute();
+    } catch (err: unknown) {
+      if (err instanceof HttpError) throw err;
+      const message = err instanceof Error ? err.message : String(err);
+      // task_tag_list_match trigger message is exactly: tag must belong to the task's list
+      if (message.includes("tag must belong to the task")) {
+        throw new HttpError(400, "tag must belong to the task's list");
+      }
+      throw err;
+    }
+  }
+
+  async unassignTag(db: DataContextDb, taskId: string, tagId: string): Promise<void> {
+    assertDataContextDb(db);
+    // Ownership precheck (Codex finding): a visible-but-not-owned task would otherwise yield a
+    // silent no-op delete + misleading 200. Require ownership and surface 404 deterministically.
+    const owned = await db.db
+      .selectFrom("app.tasks")
+      .select("id")
+      .where("id", "=", taskId)
+      .where(sql<boolean>`owner_user_id = app.current_actor_user_id()`)
+      .executeTakeFirst();
+    if (!owned) throw new HttpError(404, "Task not found or not accessible");
+    await db.db
+      .deleteFrom("app.task_tag_assignments")
+      .where("task_id", "=", taskId)
+      .where("tag_id", "=", tagId)
       .execute();
   }
 
