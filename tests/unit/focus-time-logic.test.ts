@@ -1,0 +1,125 @@
+import { describe, expect, it } from "vitest";
+import {
+  resolveWindow,
+  chooseSlot,
+  type FocusBlockInput
+} from "../../packages/calendar/src/focus-time.js";
+
+const TZ = "America/New_York";
+// Fixed "now": 2026-06-16T12:00:00Z (a Tuesday). "tomorrow" = 2026-06-17.
+const NOW = new Date("2026-06-16T12:00:00Z");
+
+describe("resolveWindow", () => {
+  it("morning maps to 09:00–12:00 local on the given date", () => {
+    const w = resolveWindow(
+      { date: "2026-06-17", partOfDay: "morning", durationMinutes: 120 },
+      NOW,
+      TZ
+    );
+    // 09:00 America/New_York on 2026-06-17 is 13:00Z (EDT, UTC-4).
+    expect(w.start.toISOString()).toBe("2026-06-17T13:00:00.000Z");
+    expect(w.end.toISOString()).toBe("2026-06-17T16:00:00.000Z");
+  });
+
+  it("afternoon maps to 12:00–17:00, evening to 17:00–21:00 local", () => {
+    const a = resolveWindow(
+      { date: "2026-06-17", partOfDay: "afternoon", durationMinutes: 60 },
+      NOW,
+      TZ
+    );
+    expect(a.start.toISOString()).toBe("2026-06-17T16:00:00.000Z"); // 12:00 EDT
+    const e = resolveWindow(
+      { date: "2026-06-17", partOfDay: "evening", durationMinutes: 60 },
+      NOW,
+      TZ
+    );
+    expect(e.start.toISOString()).toBe("2026-06-17T21:00:00.000Z"); // 17:00 EDT
+  });
+
+  it("defaults date to tomorrow when only partOfDay is given", () => {
+    const w = resolveWindow({ partOfDay: "morning", durationMinutes: 120 }, NOW, TZ);
+    expect(w.start.toISOString()).toBe("2026-06-17T13:00:00.000Z");
+  });
+
+  it("an explicit start sets a window of start..start+duration", () => {
+    const w = resolveWindow({ start: "2026-06-17T18:00:00.000Z", durationMinutes: 90 }, NOW, TZ);
+    expect(w.start.toISOString()).toBe("2026-06-17T18:00:00.000Z");
+    expect(w.end.toISOString()).toBe("2026-06-17T19:30:00.000Z");
+  });
+
+  it("clamps duration to 15..480 and defaults title to 'Focus time'", () => {
+    const lo = resolveWindow({ partOfDay: "morning", durationMinutes: 5 }, NOW, TZ);
+    expect(lo.durationMinutes).toBe(15);
+    const hi = resolveWindow({ partOfDay: "morning", durationMinutes: 9000 }, NOW, TZ);
+    expect(hi.durationMinutes).toBe(480);
+    expect(lo.title).toBe("Focus time");
+  });
+
+  it("rejects a malformed start and a malformed date (handler-side validation, Codex MED #5)", () => {
+    expect(() => resolveWindow({ start: "not-a-date", durationMinutes: 60 }, NOW, TZ)).toThrow(
+      /valid RFC3339/
+    );
+    expect(() => resolveWindow({ date: "06/17/2026", partOfDay: "morning" }, NOW, TZ)).toThrow(
+      /yyyy-mm-dd/
+    );
+  });
+
+  it("rejects a well-formed but impossible calendar date (overflow, Codex LOW #20)", () => {
+    // Date.UTC would silently normalize 2026-99-99 to a real date; resolveWindow must reject it.
+    expect(() => resolveWindow({ date: "2026-99-99", partOfDay: "morning" }, NOW, TZ)).toThrow(
+      /not a valid calendar date/
+    );
+    expect(() => resolveWindow({ date: "2026-02-30", partOfDay: "morning" }, NOW, TZ)).toThrow(
+      /not a valid calendar date/
+    );
+  });
+});
+
+describe("chooseSlot", () => {
+  const window = {
+    start: new Date("2026-06-17T13:00:00Z"),
+    end: new Date("2026-06-17T16:00:00Z"),
+    durationMinutes: 120,
+    title: "Focus time"
+  };
+
+  it("returns the requested slot unshifted when the window is clear", () => {
+    const r = chooseSlot(window, [], 120);
+    expect(r.conflict).toBe("none");
+    expect(r.shifted).toBe(false);
+    expect(r.start.toISOString()).toBe("2026-06-17T13:00:00.000Z");
+    expect(r.end.toISOString()).toBe("2026-06-17T15:00:00.000Z");
+  });
+
+  it("shifts forward past a busy interval to the next clear slot in the window", () => {
+    const busy = [{ start: "2026-06-17T13:00:00Z", end: "2026-06-17T13:30:00Z" }];
+    const r = chooseSlot(window, busy, 120);
+    expect(r.conflict).toBe("shifted");
+    expect(r.shifted).toBe(true);
+    expect(r.start.toISOString()).toBe("2026-06-17T13:30:00.000Z");
+    expect(r.end.toISOString()).toBe("2026-06-17T15:30:00.000Z");
+  });
+
+  it("returns no-clear-slot when the window cannot fit the duration", () => {
+    const busy = [{ start: "2026-06-17T13:00:00Z", end: "2026-06-17T16:00:00Z" }];
+    const r = chooseSlot(window, busy, 120);
+    expect(r.conflict).toBe("no-clear-slot");
+    expect(r.shifted).toBe(false);
+  });
+
+  it("chooses an exact-fit gap between two busy intervals", () => {
+    const busy = [
+      { start: "2026-06-17T13:00:00Z", end: "2026-06-17T13:30:00Z" },
+      { start: "2026-06-17T15:30:00Z", end: "2026-06-17T16:00:00Z" }
+    ];
+    const r = chooseSlot(window, busy, 120);
+    expect(r.conflict).toBe("shifted");
+    expect(r.start.toISOString()).toBe("2026-06-17T13:30:00.000Z");
+    expect(r.end.toISOString()).toBe("2026-06-17T15:30:00.000Z");
+  });
+});
+
+// Touch the imported type so the unused-import lint rule stays satisfied while
+// the file documents the public input shape it exercises.
+const _typeWitness: FocusBlockInput = { partOfDay: "morning", durationMinutes: 120 };
+void _typeWitness;
