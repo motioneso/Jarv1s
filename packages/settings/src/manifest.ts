@@ -1,4 +1,8 @@
+import { fileURLToPath } from "node:url";
+
 import type { JarvisModuleManifest } from "@jarv1s/module-sdk";
+
+export const settingsModuleSqlMigrationDirectory = fileURLToPath(new URL("../sql", import.meta.url));
 
 export const settingsModuleManifest: JarvisModuleManifest = {
   id: "settings",
