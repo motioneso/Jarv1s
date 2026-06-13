@@ -312,6 +312,77 @@ describe("CalendarRepository.upsertCachedEvent idempotency", () => {
   });
 });
 
+// Branch-review LOW (calendar/sql/0066:54 → 0087): the UPDATE policy's WITH CHECK
+// must mirror the INSERT policy's connector-account/scope EXISTS guard so a cached
+// event can only ever PERSIST behind a scoped connector account the actor owns —
+// not merely behind owner-equality.
+describe("calendar RLS — UPDATE WITH CHECK connector-scope parity (0087)", () => {
+  it("brings the UPDATE WITH CHECK to parity with INSERT (owner-equality + scope-gated google branch)", async () => {
+    const policy = await sql<{ withcheck: string }>`
+      SELECT pg_get_expr(p.polwithcheck, p.polrelid) AS withcheck
+      FROM pg_policy p
+      WHERE p.polrelid = 'app.calendar_events'::regclass AND p.polname = 'calendar_events_update'
+    `.execute(appDb);
+    const withCheck = policy.rows[0]?.withcheck ?? "";
+    // Owner-equality preserved verbatim.
+    expect(withCheck).toMatch(/owner_user_id = app\.current_actor_user_id\(\)/);
+    // The owner-or-share('manage') recipient path is preserved (unaffected by the guard).
+    expect(withCheck).toMatch(/has_share\('calendar_event'/);
+    // The connector-scope EXISTS guard is now present on UPDATE (was INSERT-only before 0087).
+    expect(withCheck).toMatch(/connector_accounts/);
+    expect(withCheck).toMatch(/provider_type = 'calendar'/);
+    expect(withCheck).toMatch(/provider_type = 'google'/);
+    expect(withCheck).toMatch(/https:\/\/www\.googleapis\.com\/auth\/calendar/);
+    expect(withCheck).toMatch(/ANY \(accounts\.scopes\)/);
+  });
+
+  it("rejects an UPDATE once the backing account loses the Calendar scope (end-to-end)", async () => {
+    // 1) Seed an account WITH the Calendar scope and INSERT an event (passes the guard).
+    const accountId = await seedGoogleAccount(["https://www.googleapis.com/auth/calendar"]);
+    const calendar = new CalendarRepository();
+    const ctx = { actorUserId: ids.userA, requestId: "test" };
+    await dataContext.withDataContext(ctx, (db) =>
+      calendar.upsertCachedEvent(db, {
+        connectorAccountId: accountId,
+        externalId: "scope-guard-1",
+        title: "v1",
+        startsAt: "2026-06-13T09:00:00.000Z",
+        endsAt: "2026-06-13T09:30:00.000Z"
+      })
+    );
+
+    // 2) Strip the Calendar scope from the SAME account (singleton overwrite keeps the id,
+    //    so the event's connector_account_id FK stays valid).
+    await seedGoogleAccount(["https://www.googleapis.com/auth/gmail.modify"]);
+
+    // 3) Re-upserting the same external_id triggers ON CONFLICT DO UPDATE. The UPDATE
+    //    WITH CHECK now re-validates the backing account's scope and must REJECT, because
+    //    the account no longer holds the Calendar scope. (Before 0087 this UPDATE succeeded
+    //    on owner-equality alone.)
+    await expect(
+      dataContext.withDataContext(ctx, (db) =>
+        calendar.upsertCachedEvent(db, {
+          connectorAccountId: accountId,
+          externalId: "scope-guard-1",
+          title: "v2-should-be-rejected",
+          startsAt: "2026-06-13T10:00:00.000Z",
+          endsAt: "2026-06-13T10:30:00.000Z"
+        })
+      )
+    ).rejects.toThrow(/row-level security/i);
+
+    // The row is unchanged: the rejected UPDATE never landed.
+    const row = await dataContext.withDataContext(ctx, (db) =>
+      db.db
+        .selectFrom("app.calendar_events")
+        .select("title")
+        .where("external_id", "=", "scope-guard-1")
+        .executeTakeFirstOrThrow()
+    );
+    expect(row.title).toBe("v1");
+  });
+});
+
 describe("EmailRepository.upsertCachedMessage idempotency + columns", () => {
   it("persists summary + signals and re-upserts in place", async () => {
     const accountId = await seedGoogleAccount(["https://www.googleapis.com/auth/gmail.modify"]);
