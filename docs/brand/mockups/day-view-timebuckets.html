@@ -1,0 +1,363 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Jarv1s — Day view / time buckets (mockup)</title>
+    <!--
+      DESIGN-GATE MOCKUP (Phase 3 · Ritual / Chronological-Flow lead).
+      Static, self-contained, openable directly in a browser (no build step).
+
+      Reuses the EXACT semantic token NAMES from apps/web/src/styles/tokens.css
+      so sign-off transfers 1:1 onto the React TimeBucket / Card / Badge /
+      ProvisionalRegion primitives. Hex lives only in :root; every rule consumes
+      var(--token).
+
+      This is the spine surface: a timeline-centric day grouped into
+      "This Morning / This Afternoon / This Evening" with circadian accents that
+      warm from morning gold -> afternoon orange -> evening amber
+      (--bucket-morning / --bucket-afternoon / --bucket-evening). A governor block
+      shows Jarvis's provisional plan at 70% opacity until confirmed.
+
+      HARD STOP list honored: no purple/blue AI-glow gradients, no sparkle/magic
+      icons, no mascots/therapeutic softness, no chat-first dominance, NO
+      horizontal pagination (the day flows in one vertical column). Anti-shame:
+      a slipped task renders amber/muted with recovery language — never error-red.
+    -->
+    <style>
+      :root {
+        /* TIER 1 — primitive ramps (the only hex in the file) */
+        --ramp-neutral-0: #ffffff;
+        --ramp-neutral-25: #f7fcfb;
+        --ramp-neutral-50: #f7f8fa;
+        --ramp-neutral-100: #eef3f2;
+        --ramp-neutral-175: #f3f4f6;
+        --ramp-neutral-300: #d9dee3;
+        --ramp-neutral-600: #6b7280;
+        --ramp-neutral-650: #5d6874;
+        --ramp-neutral-900: #172026;
+        --ramp-teal-500: #0f766e;
+        --ramp-teal-600: #0b5f59;
+        --ramp-teal-rgb: 15 118 110;
+        --ramp-amber-500: #b45309;
+        --ramp-amber-400: #ca8a04;
+        --ramp-bucket-morning: #ca8a04;
+        --ramp-bucket-afternoon: #ea580c;
+        --ramp-bucket-evening: #b45309;
+        --ramp-ink-rgb: 23 32 38;
+
+        /* TIER 2 — semantic tokens */
+        --surface: var(--ramp-neutral-50);
+        --surface-raised: var(--ramp-neutral-0);
+        --surface-subtle: var(--ramp-neutral-175);
+        --surface-accent-soft: var(--ramp-neutral-25);
+        --text: var(--ramp-neutral-900);
+        --text-muted: var(--ramp-neutral-600);
+        --muted: var(--ramp-neutral-650);
+        --border-default: var(--ramp-neutral-300);
+        --border-subtle: var(--ramp-neutral-175);
+        --accent: var(--ramp-teal-500);
+        --accent-strong: var(--ramp-teal-600);
+        --accent-rgb: var(--ramp-teal-rgb);
+        --state-attention: var(--ramp-amber-500);
+        --state-recovery: var(--ramp-amber-400);
+        --bucket-morning: var(--ramp-bucket-morning);
+        --bucket-afternoon: var(--ramp-bucket-afternoon);
+        --bucket-evening: var(--ramp-bucket-evening);
+        --provisional-opacity: 0.7;
+        --shadow-control: 0 1px 3px rgb(var(--ramp-ink-rgb) / 0.12);
+        --shadow-panel: 0 14px 36px rgb(var(--ramp-ink-rgb) / 0.08);
+        --focus-ring: rgb(var(--ramp-teal-rgb) / 0.28);
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        background: var(--surface);
+        color: var(--text);
+        font-family:
+          "Atkinson Hyperlegible",
+          system-ui,
+          -apple-system,
+          "Segoe UI",
+          Roboto,
+          sans-serif;
+        line-height: 1.5;
+        -webkit-font-smoothing: antialiased;
+      }
+
+      .day-frame {
+        max-width: 40rem;
+        margin: 0 auto;
+        padding: 2.5rem 1.25rem 5rem;
+      }
+
+      .day-header {
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: 1rem;
+        margin-bottom: 1.75rem;
+      }
+
+      .day-header__eyebrow {
+        margin: 0;
+        font-size: 0.72rem;
+        letter-spacing: 0.14em;
+        text-transform: uppercase;
+        color: var(--text-muted);
+      }
+
+      .day-header__title {
+        margin: 0.25rem 0 0;
+        font-size: 1.65rem;
+        font-weight: 700;
+      }
+
+      .sync-button {
+        flex-shrink: 0;
+        font: inherit;
+        font-size: 0.85rem;
+        font-weight: 600;
+        color: var(--accent-strong);
+        background: var(--surface-raised);
+        border: 1px solid var(--accent);
+        border-radius: 999px;
+        padding: 0.45rem 1rem;
+        cursor: pointer;
+        box-shadow: var(--shadow-control);
+      }
+
+      .sync-button:focus-visible {
+        outline: 3px solid var(--focus-ring);
+        outline-offset: 2px;
+      }
+
+      /* Governor — Jarvis's draft plan at 70% opacity until confirmed. */
+      .provisional {
+        opacity: var(--provisional-opacity);
+        background: var(--surface-accent-soft);
+        border: 1px solid var(--border-subtle);
+        border-radius: 12px;
+        padding: 0.9rem 1.1rem;
+        margin-bottom: 2rem;
+      }
+
+      .provisional__label {
+        margin: 0 0 0.4rem;
+        font-size: 0.66rem;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: var(--text-muted);
+      }
+
+      .provisional p {
+        margin: 0;
+        font-size: 0.95rem;
+        color: var(--text);
+      }
+
+      /* TimeBucket — one chronology section; the accent rule warms by time of day. */
+      .bucket {
+        margin-bottom: 2.25rem;
+      }
+
+      .bucket__header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 0.75rem;
+        padding-bottom: 0.4rem;
+        margin-bottom: 0.85rem;
+        border-bottom: 2px solid var(--accent);
+      }
+
+      .bucket--morning .bucket__header {
+        border-bottom-color: var(--bucket-morning);
+      }
+      .bucket--afternoon .bucket__header {
+        border-bottom-color: var(--bucket-afternoon);
+      }
+      .bucket--evening .bucket__header {
+        border-bottom-color: var(--bucket-evening);
+      }
+
+      .bucket__title {
+        margin: 0;
+        font-size: 0.98rem;
+        font-weight: 700;
+        letter-spacing: 0.02em;
+      }
+
+      .bucket--morning .bucket__title {
+        color: var(--bucket-morning);
+      }
+      .bucket--afternoon .bucket__title {
+        color: var(--bucket-afternoon);
+      }
+      .bucket--evening .bucket__title {
+        color: var(--bucket-evening);
+      }
+
+      .bucket__count {
+        font-size: 0.8rem;
+        color: var(--text-muted);
+      }
+
+      /* Card — one task / event row. */
+      .card {
+        display: flex;
+        align-items: baseline;
+        gap: 0.85rem;
+        background: var(--surface-raised);
+        border: 1px solid var(--border-default);
+        border-radius: 10px;
+        padding: 0.75rem 0.95rem;
+        margin-bottom: 0.6rem;
+        box-shadow: var(--shadow-control);
+      }
+
+      .card__time {
+        flex-shrink: 0;
+        width: 4.2rem;
+        font-variant-numeric: tabular-nums;
+        font-size: 0.85rem;
+        color: var(--text-muted);
+      }
+
+      .card__body {
+        flex: 1;
+      }
+
+      .card__title {
+        margin: 0;
+        font-size: 0.98rem;
+        font-weight: 600;
+      }
+
+      .card__meta {
+        margin: 0.15rem 0 0;
+        font-size: 0.82rem;
+        color: var(--text-muted);
+      }
+
+      /* Badge — status pill; tones map to semantic state tokens. */
+      .badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.3rem;
+        padding: 0.12rem 0.55rem;
+        border-radius: 999px;
+        border: 1px solid var(--border-default);
+        background: var(--surface-subtle);
+        font-size: 0.72rem;
+        font-weight: 600;
+        white-space: nowrap;
+      }
+
+      .badge--accent {
+        color: var(--accent-strong);
+        border-color: var(--accent);
+      }
+
+      .badge--attention {
+        color: var(--state-attention);
+        border-color: var(--state-attention);
+      }
+
+      /* Anti-shame: a slipped task is amber recovery, NOT error-red. */
+      .badge--recovery {
+        color: var(--state-recovery);
+        border-color: var(--state-recovery);
+      }
+    </style>
+  </head>
+  <body>
+    <main class="day-frame">
+      <header class="day-header">
+        <div>
+          <p class="day-header__eyebrow">Your day</p>
+          <h1 class="day-header__title">Saturday, 13 June</h1>
+        </div>
+        <button class="sync-button" type="button">Sync now</button>
+      </header>
+
+      <div class="provisional">
+        <p class="provisional__label">Provisional — not yet confirmed</p>
+        <p>
+          Jarvis grouped today from your calendar and inbox. Move anything that does not fit;
+          nothing is locked.
+        </p>
+      </div>
+
+      <section class="bucket bucket--morning">
+        <header class="bucket__header">
+          <h2 class="bucket__title">This Morning</h2>
+          <span class="bucket__count">3 items</span>
+        </header>
+        <div class="card">
+          <span class="card__time">9:00</span>
+          <div class="card__body">
+            <p class="card__title">Team standup</p>
+            <p class="card__meta">Calendar · 15 min · video</p>
+          </div>
+          <span class="badge badge--accent">Top 3</span>
+        </div>
+        <div class="card">
+          <span class="card__time">10:15</span>
+          <div class="card__body">
+            <p class="card__title">Pay contractor invoice</p>
+            <p class="card__meta">From Gmail · $2,400 · due Friday</p>
+          </div>
+          <span class="badge badge--attention">Money deadline</span>
+        </div>
+        <div class="card">
+          <span class="card__time">11:30</span>
+          <div class="card__body">
+            <p class="card__title">Quarterly review</p>
+            <p class="card__meta">Calendar · moved from yesterday</p>
+          </div>
+        </div>
+      </section>
+
+      <section class="bucket bucket--afternoon">
+        <header class="bucket__header">
+          <h2 class="bucket__title">This Afternoon</h2>
+          <span class="bucket__count">2 items</span>
+        </header>
+        <div class="card">
+          <span class="card__time">—</span>
+          <div class="card__body">
+            <p class="card__title">Draft the retro notes</p>
+            <p class="card__meta">Carried from earlier this week · room here now</p>
+          </div>
+          <span class="badge badge--recovery">Carried forward</span>
+        </div>
+        <div class="card">
+          <span class="card__time">2:00</span>
+          <div class="card__body">
+            <p class="card__title">Reply to venue about the offsite</p>
+            <p class="card__meta">Draft started · might get lost</p>
+          </div>
+        </div>
+      </section>
+
+      <section class="bucket bucket--evening">
+        <header class="bucket__header">
+          <h2 class="bucket__title">This Evening</h2>
+          <span class="bucket__count">1 item</span>
+        </header>
+        <div class="card">
+          <span class="card__time">—</span>
+          <div class="card__body">
+            <p class="card__title">Read one chapter</p>
+            <p class="card__meta">Wind-down · no deadline</p>
+          </div>
+        </div>
+      </section>
+    </main>
+  </body>
+</html>

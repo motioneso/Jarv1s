@@ -1,0 +1,390 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Jarv1s — Settings (form-heavy mockup)</title>
+    <!--
+      DESIGN-GATE MOCKUP (Phase 3 · Ritual / Chronological-Flow lead).
+      Static, self-contained, openable directly in a browser (no build step).
+
+      A deliberately form-heavy screen (Settings) to prove the token layer holds up
+      on dense, utility surfaces — not just the calm reading/day views. Reuses the
+      EXACT semantic token NAMES from apps/web/src/styles/tokens.css; hex lives only
+      in :root, every rule consumes var(--token).
+
+      HARD STOP list honored: no purple/blue AI-glow gradients, no sparkle/magic
+      icons, no mascots/therapeutic softness, no chat-first dominance, no horizontal
+      pagination. Form validation hints use neutral/attention amber, and only the
+      genuinely destructive "Disconnect" action uses --danger (error-red) — normal
+      drift never does.
+    -->
+    <style>
+      :root {
+        /* TIER 1 — primitive ramps (the only hex in the file) */
+        --ramp-neutral-0: #ffffff;
+        --ramp-neutral-25: #f7fcfb;
+        --ramp-neutral-50: #f7f8fa;
+        --ramp-neutral-100: #eef3f2;
+        --ramp-neutral-175: #f3f4f6;
+        --ramp-neutral-200: #edf0f2;
+        --ramp-neutral-300: #d9dee3;
+        --ramp-neutral-600: #6b7280;
+        --ramp-neutral-650: #5d6874;
+        --ramp-neutral-900: #172026;
+        --ramp-teal-500: #0f766e;
+        --ramp-teal-600: #0b5f59;
+        --ramp-teal-rgb: 15 118 110;
+        --ramp-amber-500: #b45309;
+        --ramp-amber-400: #ca8a04;
+        --ramp-red-600: #be123c;
+        --ramp-ink-rgb: 23 32 38;
+
+        /* TIER 2 — semantic tokens */
+        --surface: var(--ramp-neutral-50);
+        --surface-raised: var(--ramp-neutral-0);
+        --surface-subtle: var(--ramp-neutral-175);
+        --surface-accent-soft: var(--ramp-neutral-25);
+        --text: var(--ramp-neutral-900);
+        --text-muted: var(--ramp-neutral-600);
+        --muted: var(--ramp-neutral-650);
+        --border-default: var(--ramp-neutral-300);
+        --border-subtle: var(--ramp-neutral-175);
+        --accent: var(--ramp-teal-500);
+        --accent-strong: var(--ramp-teal-600);
+        --accent-rgb: var(--ramp-teal-rgb);
+        --text-on-accent: var(--ramp-neutral-0);
+        --state-attention: var(--ramp-amber-500);
+        --state-recovery: var(--ramp-amber-400);
+        --warning: var(--ramp-amber-500);
+        --danger: var(--ramp-red-600);
+        --provisional-opacity: 0.7;
+        --shadow-control: 0 1px 3px rgb(var(--ramp-ink-rgb) / 0.12);
+        --shadow-panel: 0 14px 36px rgb(var(--ramp-ink-rgb) / 0.08);
+        --focus-ring: rgb(var(--ramp-teal-rgb) / 0.28);
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        background: var(--surface);
+        color: var(--text);
+        font-family:
+          "Atkinson Hyperlegible",
+          system-ui,
+          -apple-system,
+          "Segoe UI",
+          Roboto,
+          sans-serif;
+        line-height: 1.5;
+        -webkit-font-smoothing: antialiased;
+      }
+
+      .settings-frame {
+        max-width: 42rem;
+        margin: 0 auto;
+        padding: 2.5rem 1.25rem 5rem;
+      }
+
+      .page-title {
+        margin: 0 0 0.3rem;
+        font-size: 1.7rem;
+        font-weight: 700;
+      }
+
+      .page-subtitle {
+        margin: 0 0 2rem;
+        color: var(--text-muted);
+      }
+
+      .panel {
+        background: var(--surface-raised);
+        border: 1px solid var(--border-default);
+        border-radius: 14px;
+        padding: 1.5rem 1.6rem;
+        margin-bottom: 1.5rem;
+        box-shadow: var(--shadow-panel);
+      }
+
+      .panel__title {
+        margin: 0 0 0.25rem;
+        font-size: 1.1rem;
+        font-weight: 700;
+      }
+
+      .panel__hint {
+        margin: 0 0 1.25rem;
+        font-size: 0.88rem;
+        color: var(--text-muted);
+      }
+
+      .field {
+        margin-bottom: 1.15rem;
+      }
+
+      .field__label {
+        display: block;
+        margin-bottom: 0.35rem;
+        font-size: 0.85rem;
+        font-weight: 600;
+      }
+
+      .field__input,
+      .field__select {
+        width: 100%;
+        font: inherit;
+        font-size: 0.95rem;
+        color: var(--text);
+        background: var(--surface-raised);
+        border: 1px solid var(--border-default);
+        border-radius: 8px;
+        padding: 0.6rem 0.75rem;
+      }
+
+      .field__input:focus-visible,
+      .field__select:focus-visible {
+        outline: 3px solid var(--focus-ring);
+        outline-offset: 1px;
+        border-color: var(--accent);
+      }
+
+      .field__note {
+        margin: 0.4rem 0 0;
+        font-size: 0.8rem;
+        color: var(--text-muted);
+      }
+
+      /* Validation hint: attention amber, never error-red, for an empty optional. */
+      .field__note--attention {
+        color: var(--state-attention);
+      }
+
+      .row {
+        display: flex;
+        gap: 1rem;
+      }
+
+      .row > .field {
+        flex: 1;
+      }
+
+      .toggle-row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 1rem;
+        padding: 0.85rem 0;
+        border-top: 1px solid var(--border-subtle);
+      }
+
+      .toggle-row:first-of-type {
+        border-top: none;
+      }
+
+      .toggle-row__copy h3 {
+        margin: 0;
+        font-size: 0.95rem;
+        font-weight: 600;
+      }
+
+      .toggle-row__copy p {
+        margin: 0.15rem 0 0;
+        font-size: 0.82rem;
+        color: var(--text-muted);
+      }
+
+      .switch {
+        flex-shrink: 0;
+        width: 2.6rem;
+        height: 1.5rem;
+        border-radius: 999px;
+        background: var(--accent);
+        position: relative;
+        border: none;
+        cursor: pointer;
+      }
+
+      .switch::after {
+        content: "";
+        position: absolute;
+        top: 2px;
+        right: 2px;
+        width: 1.1rem;
+        height: 1.1rem;
+        border-radius: 50%;
+        background: var(--text-on-accent);
+      }
+
+      .switch[aria-checked="false"] {
+        background: var(--border-default);
+      }
+
+      .switch[aria-checked="false"]::after {
+        right: auto;
+        left: 2px;
+      }
+
+      .actions {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 1rem;
+        margin-top: 0.5rem;
+      }
+
+      .button {
+        font: inherit;
+        font-size: 0.9rem;
+        font-weight: 600;
+        border-radius: 8px;
+        padding: 0.6rem 1.2rem;
+        cursor: pointer;
+      }
+
+      .button--primary {
+        color: var(--text-on-accent);
+        background: var(--accent);
+        border: 1px solid var(--accent-strong);
+      }
+
+      .button--ghost {
+        color: var(--text);
+        background: var(--surface-raised);
+        border: 1px solid var(--border-default);
+      }
+
+      /* The ONLY error-red affordance — a genuinely destructive action. */
+      .button--danger {
+        color: var(--danger);
+        background: var(--surface-raised);
+        border: 1px solid var(--danger);
+      }
+
+      .button:focus-visible {
+        outline: 3px solid var(--focus-ring);
+        outline-offset: 2px;
+      }
+
+      .connected-pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.35rem;
+        padding: 0.15rem 0.6rem;
+        border-radius: 999px;
+        border: 1px solid var(--accent);
+        color: var(--accent-strong);
+        background: var(--surface-subtle);
+        font-size: 0.74rem;
+        font-weight: 600;
+      }
+    </style>
+  </head>
+  <body>
+    <main class="settings-frame">
+      <h1 class="page-title">Settings</h1>
+      <p class="page-subtitle">Connections, model routing, and daily rhythm.</p>
+
+      <section class="panel">
+        <h2 class="panel__title">Google connection</h2>
+        <p class="panel__hint">
+          Read-only access to your primary calendar and inbox. Used to build your briefing and day
+          view. Revocable any time.
+        </p>
+        <div class="toggle-row">
+          <div class="toggle-row__copy">
+            <h3>Connected account</h3>
+            <p>you@example.com · scopes: calendar, gmail.modify</p>
+          </div>
+          <span class="connected-pill">Connected</span>
+        </div>
+        <div class="toggle-row">
+          <div class="toggle-row__copy">
+            <h3>Sync on connect</h3>
+            <p>Pull events and inbox automatically after you connect.</p>
+          </div>
+          <button class="switch" type="button" role="switch" aria-checked="true">
+            <span class="sr-only">Sync on connect</span>
+          </button>
+        </div>
+        <div class="actions">
+          <button class="button button--ghost" type="button">Sync now</button>
+          <button class="button button--danger" type="button">Disconnect</button>
+        </div>
+      </section>
+
+      <section class="panel">
+        <h2 class="panel__title">AI model routing</h2>
+        <p class="panel__hint">
+          Jarvis is provider-agnostic — it requests a capability and your configured model answers.
+          No provider is hardcoded.
+        </p>
+        <div class="row">
+          <div class="field">
+            <label class="field__label" for="economy-model">Economy tier (summaries)</label>
+            <select class="field__select" id="economy-model">
+              <option>Your configured economy model</option>
+              <option>Add a model…</option>
+            </select>
+            <p class="field__note">Used for email summary + signal extraction.</p>
+          </div>
+          <div class="field">
+            <label class="field__label" for="reasoning-model">Reasoning tier</label>
+            <select class="field__select" id="reasoning-model">
+              <option>Your configured reasoning model</option>
+              <option>Add a model…</option>
+            </select>
+            <p class="field__note">Used for planning and chat.</p>
+          </div>
+        </div>
+        <div class="field">
+          <label class="field__label" for="api-key">API credential</label>
+          <input
+            class="field__input"
+            id="api-key"
+            type="password"
+            value="••••••••••••••••"
+            autocomplete="off"
+          />
+          <p class="field__note">Encrypted at rest (AES-256-GCM). Never shown after saving.</p>
+        </div>
+        <div class="actions">
+          <span></span>
+          <button class="button button--primary" type="button">Save routing</button>
+        </div>
+      </section>
+
+      <section class="panel">
+        <h2 class="panel__title">Daily rhythm</h2>
+        <p class="panel__hint">When your morning, afternoon, and evening buckets begin.</p>
+        <div class="row">
+          <div class="field">
+            <label class="field__label" for="morning-start">Morning starts</label>
+            <input class="field__input" id="morning-start" type="time" value="06:30" />
+          </div>
+          <div class="field">
+            <label class="field__label" for="afternoon-start">Afternoon starts</label>
+            <input class="field__input" id="afternoon-start" type="time" value="12:00" />
+          </div>
+          <div class="field">
+            <label class="field__label" for="evening-start">Evening starts</label>
+            <input class="field__input" id="evening-start" type="time" value="18:00" />
+          </div>
+        </div>
+        <div class="field">
+          <label class="field__label" for="briefing-time">Briefing prepared at</label>
+          <input class="field__input" id="briefing-time" type="time" value="" />
+          <p class="field__note field__note--attention">
+            Not set — your briefing will be prepared on first open instead of on a schedule.
+          </p>
+        </div>
+        <div class="actions">
+          <span></span>
+          <button class="button button--primary" type="button">Save rhythm</button>
+        </div>
+      </section>
+    </main>
+  </body>
+</html>
