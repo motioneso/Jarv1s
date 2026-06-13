@@ -13,13 +13,14 @@ import {
   Settings,
   UserCircle
 } from "lucide-react";
-import { type ComponentType, type ReactNode, useMemo, useState } from "react";
+import { type ComponentType, type ReactNode, useCallback, useMemo, useState } from "react";
 import { NavLink } from "react-router";
 
-import { listNotifications, signOut } from "../api/client";
+import { listNotifications, sendChatTurn, signOut } from "../api/client";
 import { queryKeys } from "../api/query-keys";
 import { ChatDrawer } from "../chat/chat-drawer";
 import { useChatStream } from "../chat/use-chat-stream";
+import { ChatControlsProvider } from "./chat-controls-context";
 import type { MeResponse, ModuleDto, ModuleNavigationEntryDto } from "@jarv1s/shared";
 
 /** Module-nav id of the chat entry, which the shell renders as a drawer toggle. */
@@ -47,6 +48,10 @@ export function AppShell(props: AppShellProps) {
   const queryClient = useQueryClient();
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [chatOpen, setChatOpen] = useState(false);
+  const openChatWith = useCallback((prompt: string) => {
+    setChatOpen(true);
+    void sendChatTurn(prompt);
+  }, []);
   // Lifted to the shell so the SSE stream + transcript persist while the drawer is
   // closed and as the user navigates between pages — the chat follows the user.
   const { records, clearRecords } = useChatStream();
@@ -148,7 +153,9 @@ export function AppShell(props: AppShellProps) {
           </button>
         </header>
 
-        <main className="content-surface">{props.children}</main>
+        <main className="content-surface">
+          <ChatControlsProvider value={{ openChatWith }}>{props.children}</ChatControlsProvider>
+        </main>
       </div>
 
       <ChatDrawer
