@@ -31,7 +31,11 @@ export const connectorsModuleManifest = {
     required: true
   },
   database: {
-    migrations: ["sql/0009_connectors_module.sql", "sql/0010_connector_admin_safe_metadata.sql"],
+    migrations: [
+      "sql/0009_connectors_module.sql",
+      "sql/0010_connector_admin_safe_metadata.sql",
+      "sql/0069_connector_worker_runtime_grants.sql"
+    ],
     migrationDirectories: ["packages/connectors/sql"],
     ownedTables: ["app.connector_definitions", "app.connector_accounts"]
   },
