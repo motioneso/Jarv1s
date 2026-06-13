@@ -7,7 +7,7 @@ import {
   type QueueDefinition
 } from "@jarv1s/jobs";
 
-import { TASKS_DEFERRED_STATUS_QUEUE } from "./manifest.js";
+import { TASKS_DEFERRED_STATUS_QUEUE, TASKS_RECURRENCE_QUEUE } from "./manifest.js";
 import { TasksRepository } from "./repository.js";
 
 export interface DeferredTaskStatusPayload extends ActorScopedJobPayload {
@@ -34,6 +34,14 @@ export interface RegisterTasksJobWorkersOptions {
 export const TASKS_QUEUE_DEFINITIONS: readonly QueueDefinition[] = [
   {
     name: TASKS_DEFERRED_STATUS_QUEUE,
+    options: {
+      retryLimit: 0,
+      deleteAfterSeconds: 60,
+      retentionSeconds: 60
+    }
+  },
+  {
+    name: TASKS_RECURRENCE_QUEUE,
     options: {
       retryLimit: 0,
       deleteAfterSeconds: 60,
