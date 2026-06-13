@@ -86,6 +86,10 @@ export default defineConfig({
         replacement: fileURLToPath(
           new URL("./packages/structured-state/src/index.ts", import.meta.url)
         )
+      },
+      {
+        find: "@jarv1s/wellness",
+        replacement: fileURLToPath(new URL("./packages/wellness/src/index.ts", import.meta.url))
       }
     ]
   },
