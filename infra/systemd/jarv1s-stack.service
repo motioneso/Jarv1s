@@ -15,13 +15,18 @@ RemainAfterExit=yes
 User=REPLACE_WITH_INSTALL_USER
 WorkingDirectory=~/Jarv1s
 # Operator env file: provides JARVIS_IMAGE_TAG (REQUIRED — the prod Compose errors
-# without it), host UID/GID, socket paths, and secrets, exported into this service's
-# environment so `docker compose` variable substitution resolves them. The leading
-# "-" tolerates absence at parse time, but the stack will fail to START if the file
-# is missing JARVIS_IMAGE_TAG — the operator MUST create it before `systemctl enable`.
-EnvironmentFile=-~/Jarv1s/infra/env.production.local
-ExecStart=/usr/bin/docker compose -f infra/docker-compose.prod.yml up -d
-ExecStop=/usr/bin/docker compose -f infra/docker-compose.prod.yml down
+# without it), host UID/GID, socket paths, and secrets for `docker compose ${...}`
+# interpolation. We pass it to docker via `--env-file` (NOT systemd `EnvironmentFile=`)
+# for two reasons: (1) it exactly matches the documented manual deploy command
+# (`docker compose --env-file <file> ... up -d`), and (2) systemd's EnvironmentFile
+# parser and docker's --env-file parser treat `$` differently — a generated secret
+# (e.g. POSTGRES_PASSWORD / BETTER_AUTH_SECRET) containing `$` would need `$$` for
+# systemd but stays literal for docker, silently corrupting auth/crypto on reboot.
+# Letting docker read the file directly avoids that whole class of `$`-mangling.
+# The operator MUST create this file (with JARVIS_IMAGE_TAG) before `systemctl enable`;
+# if it is missing, the Compose `${...:?}` guards fail the start LOUDLY.
+ExecStart=/usr/bin/docker compose --env-file ~/Jarv1s/infra/env.production.local -f infra/docker-compose.prod.yml up -d
+ExecStop=/usr/bin/docker compose --env-file ~/Jarv1s/infra/env.production.local -f infra/docker-compose.prod.yml down
 StandardOutput=journal
 StandardError=journal
 
