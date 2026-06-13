@@ -436,10 +436,22 @@ export async function extractEmailSignals(
     // many short chunks; for the SINGLE-string summary, a 200+ char verbatim slice is enough.
     // Trade-off (accepted, fail-safe): a legitimate 200+ char summary that happens to be a
     // verbatim slice of a very short body is nulled → metadata-only row.
-    const isLongBodySubstring =
-      normalizedBody.length > 0 &&
-      normalizedSummary.length >= SUMMARY_BODY_SUBSTRING_FLOOR &&
-      normalizedBody.includes(normalizedSummary);
+    // Sliding-window scan: a summary that CONTAINS any verbatim body run at/above the floor is a
+    // body echo even when WRAPPED (e.g. "Summary: <200+ char verbatim body prefix>") or embedded —
+    // a whole-string `body.includes(summary)` misses those because the body lacks the wrapper text.
+    // (Surfaced by the cross-model Codex re-verify of the original prefix fix.)
+    const containsLongBodyRun = (): boolean => {
+      if (normalizedBody.length === 0 || normalizedSummary.length < SUMMARY_BODY_SUBSTRING_FLOOR) {
+        return false;
+      }
+      for (let i = 0; i + SUMMARY_BODY_SUBSTRING_FLOOR <= normalizedSummary.length; i += 1) {
+        if (normalizedBody.includes(normalizedSummary.slice(i, i + SUMMARY_BODY_SUBSTRING_FLOOR))) {
+          return true;
+        }
+      }
+      return false;
+    };
+    const isLongBodySubstring = containsLongBodyRun();
     const echoesBody =
       normalizedSummary === normalizedBody ||
       (normalizedBody.length > 0 && normalizedSummary.includes(normalizedBody)) ||

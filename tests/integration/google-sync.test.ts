@@ -884,6 +884,22 @@ describe("extractEmailSignals", () => {
     expect(result.summary).toBeNull();
   });
 
+  it("nulls a WRAPPER-PREFIXED 200+ char verbatim body run below 50% (sliding-window guard)", async () => {
+    // Codex re-verify gap: a model returns "Summary: <250-char verbatim body prefix> -- regards".
+    // body.includes(summary) is false (body lacks the wrapper) and summary.includes(body) is false
+    // (body is far longer), so ONLY the sliding-window scan over the summary catches the embedded
+    // 200+ char verbatim body run. The raw email text must NOT be persisted.
+    const body = "Sensitive confidential paragraph number. ".repeat(80); // ~3280 chars
+    const parsed = { ...PARSED, body, snippet: null };
+    const wrapped = `Summary: ${body.slice(0, 250)} -- regards`; // wrapper + ~7.6% verbatim run
+    const deps = fakeDeps({
+      replies: [JSON.stringify({ summary: wrapped, confidence: 0.9 })],
+      models: [{ tier: "economy" }]
+    });
+    const result = await extractEmailSignals(parsed, deps);
+    expect(result.summary).toBeNull();
+  });
+
   it("keeps a genuine short summary that is NOT a long verbatim body slice", async () => {
     // False-positive guard: a normal paraphrase of a long body survives the substring check.
     const body = "Sensitive paragraph. ".repeat(40);

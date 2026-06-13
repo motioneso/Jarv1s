@@ -55,7 +55,10 @@ describe("AssistantToolGateway", () => {
       tokens,
       confirmations,
       notifier: { emit: (chatSessionId, record) => emitted.push({ chatSessionId, record }) },
-      confirmTimeoutMs: 1000
+      // Generous so the approve always lands before the await times out, even under heavy
+      // full-suite DB load (vitest runs integration files concurrently). The post-timeout
+      // no-op path is covered separately by the 20ms `fastTimeoutGateway` test below.
+      confirmTimeoutMs: 30_000
     });
   });
 
