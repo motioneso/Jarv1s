@@ -2,15 +2,15 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Make the terminal-CLI chat engine portable by hiding the multiplexer behind a small `Multiplexer` seam (tmux + herdr backends), preserving the locked constrained-launch security posture exactly.
+**Goal:** Make the terminal-CLI chat engine portable by hiding the multiplexer behind a small `Multiplexer` seam (tmux + herdr backends), with the backend chosen by an **admin-configurable instance setting that auto-detects what is installed** — all while preserving the locked constrained-launch security posture exactly.
 
-**Architecture:** Introduce a 5-verb `Multiplexer` interface in `@jarv1s/ai`. The engine delegates session lifecycle (open/submit/isAlive/kill) to an injected `Multiplexer` and stores the **opaque handle** that `open()` returns (tmux: a stable session name; herdr: a server-assigned pane id). The engine keeps owning file/transcript I/O via the existing `TmuxIo` seam. The default backend is `TmuxMultiplexer(io)`, which reproduces today's exact tmux verb sequence — so every existing engine/manager test passes unchanged. The production factory selects the backend by PATH detection + env override.
+**Architecture:** Introduce a 5-verb `Multiplexer` interface in `@jarv1s/ai`. The engine delegates session lifecycle (open/submit/isAlive/kill) to an injected `Multiplexer` and stores the **opaque handle** that `open()` returns (tmux: a stable session name; herdr: a server-assigned pane id). The engine keeps owning file/transcript I/O via the existing `TmuxIo` seam. The backend is resolved **once at the composition root** (`@jarv1s/module-registry`) by a pure decision function: a `JARVIS_MULTIPLEXER` env override wins (deploy escape hatch, bypasses the probe); otherwise the admin `chat.multiplexer` instance setting (`auto`|`tmux`|`herdr`) is honored if that backend is **usable** (binary installed — and for herdr, a root pane resolvable from `HERDR_PANE_ID`/`JARVIS_HERDR_ROOT_PANE`); `auto` detects what is usable (tie-break: herdr when running inside herdr, else tmux, falling back to tmux if herdr has no root pane). The resolved `Multiplexer` is injected through the existing `chatEngineFactory` seam. Selection applies on restart. When neither multiplexer is installed, live chat is cleanly disabled (a factory that throws `CliChatUnavailableError` → HTTP 503), not a crash.
 
-**Tech Stack:** TypeScript (NodeNext ESM, `.js` import specifiers), Vitest (`describe/it/expect/vi`), pnpm workspaces, `execFile` (never shell) via `TmuxIo`.
+**Tech Stack:** TypeScript (NodeNext ESM, `.js` import specifiers), Vitest (`describe/it/expect/vi`), pnpm workspaces, `execFile` (never shell) via `TmuxIo`, React Query (admin UI).
 
-**Spec:** `docs/superpowers/specs/2026-06-12-p2-portable-cli-chat-adapter-design.md` (grounded on `5759b90`).
+**Spec:** `docs/superpowers/specs/2026-06-12-p2-portable-cli-chat-adapter-design.md` (grounded on `5759b90`). The admin-selectable + auto-detect multiplexer (Tasks 11–14) is a **grill-locked extension** beyond the spec's §4.2 (which described env/PATH selection only) — see "Key decisions & tradeoffs".
 
-**Execution note:** This plan will be executed via an Ultracode workflow (not a Codex handoff). Run `pnpm db:up` once before the gate task; new unit tests need no DB. Do **not** `git add -A` — there is an in-flight `docs/coordination/` edit in the tree; stage explicit paths only.
+**Execution note:** This plan will be executed via an Ultracode workflow (not a Codex handoff). Run `pnpm db:up` once before the gate task; the new unit tests need no DB, but the chat-multiplexer admin route is exercised by an integration test that does. Do **not** `git add -A` — there is an in-flight `docs/coordination/` edit in the tree; stage explicit paths only.
 
 ---
 
@@ -20,29 +20,47 @@
 
 - `packages/ai/src/adapters/multiplexer.ts` — `MuxHandle` type + `Multiplexer` interface (the seam).
 - `packages/ai/src/adapters/tmux-multiplexer.ts` — `TmuxMultiplexer` backend (default).
-- `packages/ai/src/adapters/herdr-multiplexer.ts` — `HerdrMultiplexer` backend.
-- `packages/ai/src/adapters/multiplexer-select.ts` — `selectMultiplexer(io)`: PATH/env backend choice.
-- `packages/chat/src/live/pretooluse-policy.ts` — agent-path PreToolUse policy provisioning.
+- `packages/ai/src/adapters/herdr-multiplexer.ts` — `HerdrMultiplexer` backend (JSON-parsing `herdr pane …`).
+- `packages/ai/src/adapters/binary-probe.ts` — `createBinaryProbe()`: PATH scan for tmux/herdr (no shell).
+- `packages/ai/src/adapters/multiplexer-resolve.ts` — `decideMultiplexer()` (pure) + `resolveMultiplexer()` (io-binding).
+- `packages/chat/src/live/errors.ts` — `CliChatUnavailableError` (dependency-free, shared by engine/runtime/routes; avoids an import cycle).
+- `packages/module-registry/src/chat-multiplexer.ts` — composition-root glue: pre-auth `chat.multiplexer` read + probe + `resolveChatEngineFactory()`.
 - `tests/unit/ai-tmux-multiplexer.test.ts`
 - `tests/unit/ai-herdr-multiplexer.test.ts`
-- `tests/unit/ai-multiplexer-select.test.ts`
-- `tests/unit/chat-pretooluse-policy.test.ts`
+- `tests/unit/ai-binary-probe.test.ts`
+- `tests/unit/ai-multiplexer-resolve.test.ts`
+- `tests/integration/chat-multiplexer-admin.test.ts` — admin GET/PUT of `chat.multiplexer` (RLS: read permissive, write admin-only).
 
 **Modified files**
 
 - `packages/ai/src/adapters/tmux-bridge.ts` — add optional `env`/`cwd` to `RunOptions`; add optional `homeBase` to `transcriptGlobDir`.
-- `packages/ai/src/index.ts` — barrel-export the new multiplexer modules.
-- `packages/chat/src/live/cli-chat-engine.ts` — delegate session verbs to `Multiplexer`; store handle; rename class; fix stale comments; provision policy at launch.
+- `packages/ai/src/index.ts` — barrel-export the new multiplexer/probe/resolve modules.
+- `packages/chat/src/live/cli-chat-engine.ts` — delegate session verbs to `Multiplexer`; store handle; rename class; fix stale comments.
 - `packages/chat/src/live/types.ts` — fix the stale "JWT" comment on `mcpToken`.
-- `packages/chat/src/live/runtime.ts` — factory constructs the engine with a selected multiplexer; update import to the renamed class.
+- `packages/chat/src/live/runtime.ts` — `createRealEngineFactory({ mux })` builder; `CliChatUnavailableError`; `unavailableEngineFactory`; rename import to the renamed class.
+- `packages/chat/src/index.ts` — barrel-export `createRealEngineFactory`, `unavailableEngineFactory`, `CliChatUnavailableError`.
+- `packages/chat/src/live-routes.ts` — map `CliChatUnavailableError` → HTTP 503 in `handleLiveRouteError` (the live launch path).
+- `packages/chat/src/routes.ts` — map `CliChatUnavailableError` → HTTP 503 in `handleRouteError` (REST symmetry).
+- `docs/DEVELOPMENT_STANDARDS.md` — record the bounded "pre-auth non-secret instance-config reads" exemption.
+- `docs/superpowers/specs/2026-06-12-p2-portable-cli-chat-adapter-design.md` — mark the PreToolUse policy (§6) Deferred.
 - `packages/chat/src/live/persona.ts` — create per-user neutral dir with mode `0700`.
-- `tests/unit/cli-chat-engine.test.ts`, `tests/unit/chat-live-engine.test.ts` — update the import to the renamed class (no behavioral change).
+- `packages/settings/src/repository.ts` — add `getChatMultiplexerSetting` / `setChatMultiplexerSetting` (mirror `getRegistrationSettings`).
+- `packages/settings/src/routes.ts` — add `GET`/`PUT /api/admin/chat-multiplexer` (mirror the registration routes); read injected availability.
+- `packages/shared/src/platform-api.ts` — `ChatMultiplexerChoice`, `ChatMultiplexerAvailability`, `ChatMultiplexerSettingsDto` + route schemas.
+- `packages/module-registry/src/index.ts` — compute availability (sync probe), inject it into the shared route deps, late-bind the resolved chat factory in an `onReady` hook; add `chatMultiplexerAvailability` to `BuiltInRouteDependencies`.
+- `packages/settings/src/routes.ts` (`SettingsRoutesDependencies`) — add optional `chatMultiplexerAvailability`.
+- `apps/web/src/api/client.ts` — `getChatMultiplexerSettings` / `setChatMultiplexerSettings`.
+- `apps/web/src/api/query-keys.ts` — add `settings.chatMultiplexer`.
+- `apps/web/src/settings/admin-users-panel.tsx` — a "Live chat multiplexer" `<select>` + availability badges + restart note.
+- `packages/chat/README.md` — shared-uid limitation + the **deferred** PreToolUse follow-up note.
+- `tests/unit/cli-chat-engine.test.ts`, `tests/unit/chat-live-engine.test.ts` — update the import to the renamed class.
 - `tests/unit/chat-live-persona.test.ts` — assert the `0700` mode.
 
-**Flagged for the `/grill-me-codex` review (scope/value calls, not gaps):**
+**Flagged for the `/grill-me-codex` review (resolved during the grill — recorded for context):**
 
-- **Task 8 (HerdrMultiplexer):** herdr has no direct "new detached session" primitive — `open()` must `pane split` from a root pane and parse a server-assigned id. Higher integration risk than tmux; unit-tested at the verb-sequence level only.
-- **Task 11 (PreToolUse policy):** the `!`-escape is **already** enforced on every programmatic path (all input funnels through `engine.submit` → `sanitizeInput`). The policy's only additive value is a tool-call denylist behind the already-locked `--tools ""` / MCP-allowlist. Lower value, provider-specific. Isolated as the last functional task so it can be cut cleanly if the review judges it YAGNI.
+- **HerdrMultiplexer (Task 4):** herdr has no "new detached session" primitive — `open()` `pane split`s from a root pane and parses a **server-assigned, opaque** `pane_id` out of herdr's JSON output. Higher integration risk than tmux; unit-tested at the verb/JSON level only.
+- **Q3 scope (Tasks 11–14):** the grill upgraded "env/PATH selection" to a persisted, admin-configurable, auto-detecting setting. This adds a setting, an admin route+contract, composition-root wiring, and a small UI — a deliberate, grill-locked scope increase.
+- **PreToolUse policy: DEFERRED out of v1** (was a task in the pre-grill plan). The `!`-escape is already neutralized on the one programmatic path (`engine.submit` → `sanitizeInput`), and `--tools ""` / MCP-allowlist already deny native tools. The hook's only additive value is agent-path defense-in-depth; it is filed as a follow-up (see Task 16), not built now.
 
 ---
 
@@ -73,9 +91,9 @@ export type MuxHandle = string;
 export interface MuxOpenOpts {
   /** A human-readable name hint. tmux uses it as the handle; herdr ignores it. */
   readonly name: string;
-  /** Terminal width in columns. */
+  /** Terminal width in columns. (tmux honors it; herdr auto-sizes and ignores it.) */
   readonly cols: number;
-  /** Terminal height in rows. */
+  /** Terminal height in rows. (tmux honors it; herdr auto-sizes and ignores it.) */
   readonly rows: number;
   /** The single shell line to run in the session (e.g. `cd <dir> && claude ...`). */
   readonly launchLine: string;
@@ -289,6 +307,13 @@ describe("TmuxMultiplexer", () => {
     const mux = new TmuxMultiplexer(makeIo());
     expect(mux.attachCommand("jarv1s-live-x")).toBe("tmux attach -t jarv1s-live-x");
   });
+
+  it("open() throws when new-session exits non-zero (e.g. binary missing / name clash)", async () => {
+    const io = makeIo();
+    io.run.mockResolvedValueOnce({ code: 1, stdout: "", stderr: "duplicate session" });
+    const mux = new TmuxMultiplexer(io);
+    await expect(mux.open({ name: "x", cols: 220, rows: 50, launchLine: "claude" })).rejects.toThrow(/new-session failed/);
+  });
 });
 ```
 
@@ -326,10 +351,16 @@ export class TmuxMultiplexer implements Multiplexer {
   }
 
   async open(opts: MuxOpenOpts): Promise<MuxHandle> {
-    await this.io.run("tmux", [
+    const created = await this.io.run("tmux", [
       "new-session", "-d", "-s", opts.name, "-x", String(opts.cols), "-y", String(opts.rows)
     ]);
-    await this.io.run("tmux", ["send-keys", "-t", opts.name, opts.launchLine, "Enter"]);
+    if (created.code !== 0) {
+      throw new Error(`TmuxMultiplexer.open: tmux new-session failed (code ${created.code}): ${created.stderr ?? ""}`);
+    }
+    const sent = await this.io.run("tmux", ["send-keys", "-t", opts.name, opts.launchLine, "Enter"]);
+    if (sent.code !== 0) {
+      throw new Error(`TmuxMultiplexer.open: tmux send-keys failed (code ${sent.code}): ${sent.stderr ?? ""}`);
+    }
     return opts.name;
   }
 
@@ -337,10 +368,17 @@ export class TmuxMultiplexer implements Multiplexer {
     const promptFile = join(tmpdir(), `jarv1s-live-prompt-${handle}.txt`);
     const bufferName = handle;
     await this.io.writeFile(promptFile, text);
-    await this.io.run("tmux", ["load-buffer", "-b", bufferName, promptFile]);
-    await this.io.run("tmux", ["paste-buffer", "-b", bufferName, "-t", handle]);
+    await this.runChecked(["load-buffer", "-b", bufferName, promptFile]);
+    await this.runChecked(["paste-buffer", "-b", bufferName, "-t", handle]);
     await this.io.sleep(this.submitMs);
-    await this.io.run("tmux", ["send-keys", "-t", handle, "Enter"]);
+    await this.runChecked(["send-keys", "-t", handle, "Enter"]);
+  }
+
+  private async runChecked(args: readonly string[]): Promise<void> {
+    const { code, stderr } = await this.io.run("tmux", args);
+    if (code !== 0) {
+      throw new Error(`TmuxMultiplexer: \`tmux ${args[0]}\` failed (code ${code}): ${stderr ?? ""}`);
+    }
   }
 
   async isAlive(handle: MuxHandle): Promise<boolean> {
@@ -374,100 +412,555 @@ git commit -m "feat(ai): add TmuxMultiplexer backend (behavior-preserving tmux e
 
 ---
 
-## Task 4: `selectMultiplexer` — PATH/env backend choice
+## Task 4: `HerdrMultiplexer` backend
+
+> **Integration risk (grill-flagged + Codex-hardened):** herdr has no "new detached session" verb. `open()` splits a pane from a **deliberately chosen** root pane and parses the server-assigned, opaque `pane_id` from herdr's **JSON** output (herdr v0.6.8 emits JSON by default — there is no `--json` flag; envelope `{"id":"cli:pane:X","result":{...},"type":"..."}`). `pane get` checks liveness; `pane close` kills. Launch is symmetric with tmux: `send-text <launchLine>` then `send-keys Enter` (we deliberately avoid `pane run`, whose shell-quoting semantics are unspecified). **Root pane is NEVER "the first pane in `pane list`"** — a real herdr server lists unrelated operator/Codex/Claude panes, so splitting from an arbitrary one is unsafe (Codex finding #4). Resolution is: `opts.rootPane` → `JARVIS_HERDR_ROOT_PANE` → `HERDR_PANE_ID` (the server's *own* pane, set by herdr when the API runs inside a pane) → hard error. Every `herdr` command's exit code is checked; a non-zero exit throws (Codex findings #3/#5). **Build this before Task 6 — the resolver imports it.**
 
 **Files:**
-- Create: `packages/ai/src/adapters/multiplexer-select.ts`
-- Test: `tests/unit/ai-multiplexer-select.test.ts`
+- Create: `packages/ai/src/adapters/herdr-multiplexer.ts`
+- Test: `tests/unit/ai-herdr-multiplexer.test.ts`
 
 - [ ] **Step 1: Write failing tests**
 
 ```ts
 import { describe, expect, it, vi } from "vitest";
-import { selectMultiplexer } from "../../packages/ai/src/adapters/multiplexer-select.js";
+import { HerdrMultiplexer } from "../../packages/ai/src/adapters/herdr-multiplexer.js";
 
-function makeIo() {
-  return {
-    run: vi.fn().mockResolvedValue({ code: 0, stdout: "", stderr: "" }),
-    sleep: vi.fn().mockResolvedValue(undefined),
-    readFile: vi.fn().mockResolvedValue(""),
-    writeFile: vi.fn().mockResolvedValue(undefined)
-  };
+function makeIo(overrides: Record<string, { code: number; stdout: string }> = {}) {
+  const run = vi.fn(async (cmd: string, args: readonly string[]) => {
+    const key = [cmd, ...args].join(" ");
+    for (const prefix of Object.keys(overrides)) {
+      if (key.startsWith(prefix)) return { code: overrides[prefix].code, stdout: overrides[prefix].stdout, stderr: "" };
+    }
+    return { code: 0, stdout: "", stderr: "" };
+  });
+  return { run, sleep: vi.fn().mockResolvedValue(undefined), readFile: vi.fn().mockResolvedValue(""), writeFile: vi.fn().mockResolvedValue(undefined) };
 }
 
-describe("selectMultiplexer", () => {
-  it("honors JARVIS_MULTIPLEXER=herdr", () => {
-    const mux = selectMultiplexer(makeIo(), { JARVIS_MULTIPLEXER: "herdr" });
-    expect(mux.kind).toBe("herdr");
+// Realistic herdr v0.6.8 envelopes; pane ids look like "p_51" (server/workspace-assigned).
+const SPLIT_JSON = '{"id":"cli:pane:split","result":{"pane":{"pane_id":"p_77"}},"type":"pane_info"}';
+
+describe("HerdrMultiplexer", () => {
+  it("open() splits from the explicit root pane, parses the new pane id, types the launch line, and returns the id", async () => {
+    const io = makeIo({ "herdr pane split": { code: 0, stdout: SPLIT_JSON } });
+    const mux = new HerdrMultiplexer(io, { rootPane: "p_51" });
+    const handle = await mux.open({ name: "jarv1s-live-x", cols: 220, rows: 50, launchLine: "cd '/n' && claude" });
+
+    expect(handle).toBe("p_77");
+    const flat = io.run.mock.calls.map((c: unknown[]) => [c[0], ...(c[1] as string[])].join(" "));
+    expect(flat.some((c) => c.startsWith("herdr pane split p_51 --direction down --no-focus"))).toBe(true);
+    const textIdx = flat.findIndex((c) => c.startsWith("herdr pane send-text p_77"));
+    const enterIdx = flat.findIndex((c) => c.startsWith("herdr pane send-keys p_77") && c.includes("Enter"));
+    expect(textIdx).toBeGreaterThanOrEqual(0);
+    expect(enterIdx).toBeGreaterThan(textIdx);
   });
 
-  it("honors JARVIS_MULTIPLEXER=tmux", () => {
-    const mux = selectMultiplexer(makeIo(), { JARVIS_MULTIPLEXER: "tmux" });
-    expect(mux.kind).toBe("tmux");
+  it("open() resolves the root pane from HERDR_PANE_ID when no override is given (NOT from `pane list`)", async () => {
+    const io = makeIo({ "herdr pane split": { code: 0, stdout: SPLIT_JSON } });
+    const mux = new HerdrMultiplexer(io, { env: { HERDR_PANE_ID: "p_51" } });
+    await mux.open({ name: "x", cols: 220, rows: 50, launchLine: "claude" });
+    const flat = io.run.mock.calls.map((c: unknown[]) => [c[0], ...(c[1] as string[])].join(" "));
+    expect(flat.some((c) => c.startsWith("herdr pane list"))).toBe(false); // never enumerates other operators' panes
+    expect(flat.some((c) => c.startsWith("herdr pane split p_51"))).toBe(true);
   });
 
-  it("defaults to tmux when no override is set", () => {
-    const mux = selectMultiplexer(makeIo(), {});
-    expect(mux.kind).toBe("tmux");
+  it("open() throws when no root pane can be resolved (no override, no env)", async () => {
+    const mux = new HerdrMultiplexer(makeIo(), { env: {} });
+    await expect(mux.open({ name: "x", cols: 1, rows: 1, launchLine: "c" })).rejects.toThrow(/root pane/i);
   });
 
-  it("throws a clear error on an unknown value", () => {
-    expect(() => selectMultiplexer(makeIo(), { JARVIS_MULTIPLEXER: "screen" })).toThrow(/JARVIS_MULTIPLEXER/);
+  it("open() throws a clear error when herdr returns non-JSON", async () => {
+    const io = makeIo({ "herdr pane split": { code: 0, stdout: "not json" } });
+    await expect(new HerdrMultiplexer(io, { rootPane: "p_51" }).open({ name: "x", cols: 1, rows: 1, launchLine: "c" })).rejects.toThrow(/herdr/i);
+  });
+
+  it("open() throws when `pane split` exits non-zero", async () => {
+    const io = makeIo({ "herdr pane split": { code: 1, stdout: "" } });
+    await expect(new HerdrMultiplexer(io, { rootPane: "p_51" }).open({ name: "x", cols: 1, rows: 1, launchLine: "c" })).rejects.toThrow(/split failed/i);
+  });
+
+  it("open() throws when send-text after split exits non-zero", async () => {
+    const io = makeIo({
+      "herdr pane split": { code: 0, stdout: SPLIT_JSON },
+      "herdr pane send-text": { code: 1, stdout: "" }
+    });
+    await expect(new HerdrMultiplexer(io, { rootPane: "p_51" }).open({ name: "x", cols: 1, rows: 1, launchLine: "c" })).rejects.toThrow(/send-text failed/i);
+  });
+
+  it("submit() sends text then Enter to the pane handle, checking exit codes", async () => {
+    const io = makeIo();
+    const mux = new HerdrMultiplexer(io, { rootPane: "p_51" });
+    await mux.submit("p_77", "hello");
+    const flat = io.run.mock.calls.map((c: unknown[]) => [c[0], ...(c[1] as string[])].join(" "));
+    const textIdx = flat.findIndex((c) => c.startsWith("herdr pane send-text p_77"));
+    const enterIdx = flat.findIndex((c) => c.startsWith("herdr pane send-keys p_77") && c.includes("Enter"));
+    expect(textIdx).toBeGreaterThanOrEqual(0);
+    expect(enterIdx).toBeGreaterThan(textIdx);
+  });
+
+  it("submit() throws when send-text exits non-zero", async () => {
+    const io = makeIo({ "herdr pane send-text": { code: 1, stdout: "" } });
+    await expect(new HerdrMultiplexer(io, { rootPane: "p_51" }).submit("p_77", "hi")).rejects.toThrow(/send-text failed/i);
+  });
+
+  it("isAlive() maps `pane get` exit code to a boolean", async () => {
+    const ioAlive = makeIo({ "herdr pane get p_77": { code: 0, stdout: "{}" } });
+    expect(await new HerdrMultiplexer(ioAlive, { rootPane: "p_51" }).isAlive("p_77")).toBe(true);
+    const ioDead = makeIo({ "herdr pane get p_77": { code: 1, stdout: "" } });
+    expect(await new HerdrMultiplexer(ioDead, { rootPane: "p_51" }).isAlive("p_77")).toBe(false);
+  });
+
+  it("kill() closes the pane and ignores the exit code (idempotent)", async () => {
+    const io = makeIo({ "herdr pane close p_77": { code: 1, stdout: "" } });
+    await expect(new HerdrMultiplexer(io, { rootPane: "p_51" }).kill("p_77")).resolves.toBeUndefined();
+    const flat = io.run.mock.calls.map((c: unknown[]) => [c[0], ...(c[1] as string[])].join(" "));
+    expect(flat.some((c) => c.startsWith("herdr pane close p_77"))).toBe(true);
+  });
+
+  it("attachCommand() returns a human-runnable herdr attach hint", () => {
+    const mux = new HerdrMultiplexer(makeIo(), { rootPane: "p_51" });
+    expect(mux.attachCommand("p_77")).toContain("herdr");
   });
 });
 ```
 
 - [ ] **Step 2: Run to verify failure**
 
-Run: `pnpm vitest run tests/unit/ai-multiplexer-select.test.ts`
+Run: `pnpm vitest run tests/unit/ai-herdr-multiplexer.test.ts`
 Expected: FAIL — module not found.
 
 - [ ] **Step 3: Implement**
 
 ```ts
 /**
- * Selects the Multiplexer backend for a live session. Explicit env override
- * (JARVIS_MULTIPLEXER=tmux|herdr) wins; otherwise default to tmux (least
- * surprise, matches pre-Phase-2 behavior). PATH auto-detection is layered in by
- * onboarding later; for now the default + override covers every deploy.
+ * HerdrMultiplexer — Multiplexer backend over the herdr terminal workspace
+ * manager (`herdr pane …` socket API, v0.6.8). herdr emits JSON by default
+ * (no --json flag): envelope { id, result, type }. Unlike tmux, herdr has no
+ * "new detached session" verb: a pane is split from a root pane and the server
+ * assigns an OPAQUE pane id. open() therefore returns that id as the handle; the
+ * engine stores it and never reconstructs it (the Multiplexer asymmetry).
+ * cols/rows and the `name` hint are tmux-specific and intentionally unused here —
+ * herdr auto-sizes and assigns its own id.
+ *
+ * Root pane resolution (NO "first pane in `pane list`" default — that could split
+ * from an unrelated operator/agent pane on a shared herdr server, Codex #4):
+ *   opts.rootPane → env.JARVIS_HERDR_ROOT_PANE → env.HERDR_PANE_ID (the server's
+ *   own pane, set by herdr when the API process runs inside a pane) → hard error.
+ *
+ * Every herdr command's exit code is checked; a non-zero exit throws (so a missing
+ * binary via the JARVIS_MULTIPLEXER override, or a transient socket failure, fails
+ * loudly instead of returning a dead handle — Codex #3/#5). kill() is the sole
+ * exception: it ignores the exit code (idempotent per the Multiplexer contract).
  */
 import type { TmuxIo } from "./tmux-bridge.js";
-import type { Multiplexer } from "./multiplexer.js";
-import { TmuxMultiplexer } from "./tmux-multiplexer.js";
-import { HerdrMultiplexer } from "./herdr-multiplexer.js";
+import type { Multiplexer, MuxHandle, MuxOpenOpts } from "./multiplexer.js";
 
-export function selectMultiplexer(io: TmuxIo, env: NodeJS.ProcessEnv = process.env): Multiplexer {
-  const choice = env.JARVIS_MULTIPLEXER?.trim().toLowerCase();
-  switch (choice) {
-    case undefined:
-    case "":
-    case "tmux":
-      return new TmuxMultiplexer(io);
-    case "herdr":
-      return new HerdrMultiplexer(io);
-    default:
-      throw new Error(`JARVIS_MULTIPLEXER must be "tmux" or "herdr"; got "${choice}"`);
+export interface HerdrMultiplexerOpts {
+  /** Parent pane to split from; else JARVIS_HERDR_ROOT_PANE; else HERDR_PANE_ID. */
+  readonly rootPane?: string;
+  readonly env?: NodeJS.ProcessEnv;
+}
+
+export class HerdrMultiplexer implements Multiplexer {
+  readonly kind = "herdr" as const;
+  private readonly rootPaneOverride?: string;
+  private readonly env: NodeJS.ProcessEnv;
+
+  constructor(private readonly io: TmuxIo, opts: HerdrMultiplexerOpts = {}) {
+    this.rootPaneOverride = opts.rootPane;
+    this.env = opts.env ?? process.env;
   }
+
+  async open(opts: MuxOpenOpts): Promise<MuxHandle> {
+    const root = this.resolveRootPane();
+    const split = await this.io.run("herdr", ["pane", "split", root, "--direction", "down", "--no-focus"]);
+    if (split.code !== 0) {
+      throw new Error(`HerdrMultiplexer.open: \`herdr pane split\` failed (code ${split.code}): ${split.stderr ?? ""}`);
+    }
+    const paneId = paneIdFromInfo(split.stdout);
+    if (!paneId) {
+      throw new Error("HerdrMultiplexer.open: could not parse pane_id from `herdr pane split` JSON");
+    }
+    // Launch symmetrically with tmux: type the launch line, then submit Enter.
+    await this.runChecked(["pane", "send-text", paneId, opts.launchLine], "send-text");
+    await this.runChecked(["pane", "send-keys", paneId, "Enter"], "send-keys");
+    return paneId;
+  }
+
+  async submit(handle: MuxHandle, text: string): Promise<void> {
+    await this.runChecked(["pane", "send-text", handle, text], "send-text");
+    await this.runChecked(["pane", "send-keys", handle, "Enter"], "send-keys");
+  }
+
+  async isAlive(handle: MuxHandle): Promise<boolean> {
+    const { code } = await this.io.run("herdr", ["pane", "get", handle]);
+    return code === 0;
+  }
+
+  async kill(handle: MuxHandle): Promise<void> {
+    // Idempotent per the Multiplexer contract: closing an absent pane is not an error.
+    await this.io.run("herdr", ["pane", "close", handle]);
+  }
+
+  attachCommand(handle: MuxHandle): string {
+    return `herdr   # then focus pane ${handle}`;
+  }
+
+  private resolveRootPane(): string {
+    const root =
+      this.rootPaneOverride?.trim() ||
+      this.env.JARVIS_HERDR_ROOT_PANE?.trim() ||
+      this.env.HERDR_PANE_ID?.trim();
+    if (!root) {
+      throw new Error(
+        "HerdrMultiplexer: no root pane (set JARVIS_HERDR_ROOT_PANE, or run the API inside a herdr pane so HERDR_PANE_ID is set)"
+      );
+    }
+    return root;
+  }
+
+  private async runChecked(args: readonly string[], label: string): Promise<void> {
+    const { code, stderr } = await this.io.run("herdr", args);
+    if (code !== 0) {
+      throw new Error(`HerdrMultiplexer: \`herdr ${label}\` failed (code ${code}): ${stderr ?? ""}`);
+    }
+  }
+}
+
+interface HerdrEnvelope {
+  result?: { pane?: { pane_id?: unknown } };
+}
+
+function parseHerdr(stdout: string): HerdrEnvelope | null {
+  const trimmed = stdout.trim();
+  if (!trimmed) return null;
+  try {
+    return JSON.parse(trimmed) as HerdrEnvelope;
+  } catch {
+    throw new Error(`HerdrMultiplexer: expected JSON from herdr, got: ${trimmed.slice(0, 120)}`);
+  }
+}
+
+/** `herdr pane split` → { result: { pane: { pane_id } }, type: "pane_info" }. */
+function paneIdFromInfo(stdout: string): string | null {
+  const id = parseHerdr(stdout)?.result?.pane?.pane_id;
+  return typeof id === "string" && id ? id : null;
 }
 ```
 
-> This imports `HerdrMultiplexer` (Task 8). Implement Task 8 before running this task's tests, or temporarily stub the import — recommended order is Task 8 then Task 4. (Listed here because it is the conceptual "selection" unit; execute Task 8 first.)
+- [ ] **Step 4: Run to verify pass**
 
-- [ ] **Step 4: Run to verify pass** (after Task 8 exists)
-
-Run: `pnpm vitest run tests/unit/ai-multiplexer-select.test.ts`
+Run: `pnpm vitest run tests/unit/ai-herdr-multiplexer.test.ts`
 Expected: PASS.
 
 - [ ] **Step 5: Commit**
 
 ```bash
-git add packages/ai/src/adapters/multiplexer-select.ts tests/unit/ai-multiplexer-select.test.ts
-git commit -m "feat(ai): add selectMultiplexer backend chooser (env override, tmux default)"
+git add packages/ai/src/adapters/herdr-multiplexer.ts tests/unit/ai-herdr-multiplexer.test.ts
+git commit -m "feat(ai): add HerdrMultiplexer backend (pane split → opaque handle, JSON-parsed)"
 ```
 
 ---
 
-## Task 5: Barrel-export the multiplexer modules
+## Task 5: `createBinaryProbe` — PATH availability scan
+
+Detects whether `tmux` / `herdr` are installed, with no shell and no `execFile` (a pure PATH scan over an injectable fs seam, so it is fully unit-testable).
+
+**Files:**
+- Create: `packages/ai/src/adapters/binary-probe.ts`
+- Test: `tests/unit/ai-binary-probe.test.ts`
+
+- [ ] **Step 1: Write failing tests**
+
+```ts
+import { describe, expect, it } from "vitest";
+import { createBinaryProbe } from "../../packages/ai/src/adapters/binary-probe.js";
+
+function fakeIo(installed: string[]) {
+  return { isExecutable: (p: string) => installed.includes(p) };
+}
+
+describe("createBinaryProbe", () => {
+  it("detects a binary present on PATH", () => {
+    const probe = createBinaryProbe({ PATH: "/a:/b" }, fakeIo(["/b/tmux"]));
+    expect(probe.has("tmux")).toBe(true);
+    expect(probe.has("herdr")).toBe(false);
+  });
+
+  it("reports both absent when PATH is empty", () => {
+    const probe = createBinaryProbe({ PATH: "" }, fakeIo([]));
+    expect(probe.has("tmux")).toBe(false);
+    expect(probe.has("herdr")).toBe(false);
+  });
+
+  it("detects herdr across multiple PATH dirs", () => {
+    const probe = createBinaryProbe({ PATH: "/x:/y:/z" }, fakeIo(["/z/herdr"]));
+    expect(probe.has("herdr")).toBe(true);
+  });
+});
+```
+
+- [ ] **Step 2: Run to verify failure**
+
+Run: `pnpm vitest run tests/unit/ai-binary-probe.test.ts`
+Expected: FAIL — module not found.
+
+- [ ] **Step 3: Implement**
+
+```ts
+/**
+ * createBinaryProbe — eagerly scans PATH once for the multiplexer binaries and
+ * caches the result. No shell, no execFile: it stats `${dir}/${bin}` for each PATH
+ * entry through an injectable fs seam, so it is deterministic and unit-testable.
+ */
+import { accessSync, constants } from "node:fs";
+import { delimiter, join } from "node:path";
+
+export interface BinaryProbe {
+  has(bin: "tmux" | "herdr"): boolean;
+}
+
+export interface BinaryProbeIo {
+  /** True if `path` exists and is executable by this process. */
+  isExecutable(path: string): boolean;
+}
+
+export function createRealBinaryProbeIo(): BinaryProbeIo {
+  return {
+    isExecutable(path: string): boolean {
+      try {
+        accessSync(path, constants.X_OK);
+        return true;
+      } catch {
+        return false;
+      }
+    }
+  };
+}
+
+export function createBinaryProbe(
+  env: NodeJS.ProcessEnv = process.env,
+  io: BinaryProbeIo = createRealBinaryProbeIo()
+): BinaryProbe {
+  const dirs = (env.PATH ?? "").split(delimiter).filter(Boolean);
+  const found = (bin: string): boolean => dirs.some((d) => io.isExecutable(join(d, bin)));
+  const cache = { tmux: found("tmux"), herdr: found("herdr") };
+  return { has: (bin) => cache[bin] };
+}
+```
+
+- [ ] **Step 4: Run to verify pass**
+
+Run: `pnpm vitest run tests/unit/ai-binary-probe.test.ts`
+Expected: PASS.
+
+- [ ] **Step 5: Commit**
+
+```bash
+git add packages/ai/src/adapters/binary-probe.ts tests/unit/ai-binary-probe.test.ts
+git commit -m "feat(ai): add createBinaryProbe (PATH scan for tmux/herdr)"
+```
+
+---
+
+## Task 6: `decideMultiplexer` (pure) + `resolveMultiplexer` (io-binding)
+
+The selection logic, split into a **pure decision** (no io — used by both the boot resolver and any future "what would auto pick?" surface) and a thin **io-binding wrapper** that instantiates the chosen backend.
+
+**Files:**
+- Modify: `packages/shared/src/platform-api.ts` (the single source of truth for the choice union)
+- Create: `packages/ai/src/adapters/multiplexer-resolve.ts`
+- Test: `tests/unit/ai-multiplexer-resolve.test.ts`
+
+- [ ] **Step 0: Define the choice union ONCE in `@jarv1s/shared`**
+
+To prevent type drift across `@jarv1s/ai`, `@jarv1s/settings`, and `@jarv1s/shared` (Codex finding #8), the union lives only in shared; ai and settings consume it. Add to `packages/shared/src/platform-api.ts` (`@jarv1s/ai` already depends on `@jarv1s/shared`):
+
+```ts
+/** The admin-selectable multiplexer choice. Single source of truth — ai/settings import this. */
+export type ChatMultiplexerChoice = "auto" | "tmux" | "herdr";
+```
+
+- [ ] **Step 1: Write failing tests**
+
+```ts
+import { describe, expect, it } from "vitest";
+import { decideMultiplexer, resolveMultiplexer } from "../../packages/ai/src/adapters/multiplexer-resolve.js";
+
+const both = () => true;
+const none = () => false;
+const only = (k: string) => (b: string) => b === k;
+const ROOT = { HERDR_PANE_ID: "p_51" }; // makes herdr "usable" (a root pane is resolvable)
+const io = { run: async () => ({ code: 0, stdout: "" }), sleep: async () => {}, readFile: async () => "", writeFile: async () => {} } as never;
+
+describe("decideMultiplexer", () => {
+  it("env override wins and bypasses the install probe", () => {
+    expect(decideMultiplexer({ env: { JARVIS_MULTIPLEXER: "herdr" }, configured: "auto", isInstalled: none }))
+      .toEqual({ ok: true, kind: "herdr", source: "env" });
+  });
+  it("throws on an invalid env override", () => {
+    expect(() => decideMultiplexer({ env: { JARVIS_MULTIPLEXER: "screen" }, configured: "auto", isInstalled: both }))
+      .toThrow(/JARVIS_MULTIPLEXER/);
+  });
+  it("honors an explicit herdr admin setting when installed AND a root pane is resolvable", () => {
+    expect(decideMultiplexer({ env: ROOT, configured: "herdr", isInstalled: only("herdr") }))
+      .toEqual({ ok: true, kind: "herdr", source: "configured" });
+  });
+  it("fails when herdr is selected and installed but NO root pane is resolvable", () => {
+    const d = decideMultiplexer({ env: {}, configured: "herdr", isInstalled: only("herdr") });
+    expect(d.ok).toBe(false);
+    expect(!d.ok && d.reason).toMatch(/root pane/i);
+  });
+  it("fails when the explicit admin setting is not installed", () => {
+    expect(decideMultiplexer({ env: {}, configured: "tmux", isInstalled: only("herdr") }).ok).toBe(false);
+  });
+  it("auto prefers tmux when both usable and not inside herdr", () => {
+    expect(decideMultiplexer({ env: ROOT, configured: "auto", isInstalled: both })).toMatchObject({ ok: true, kind: "tmux", source: "auto" });
+  });
+  it("auto prefers herdr when inside herdr (HERDR_ENV=1) and herdr is usable", () => {
+    expect(decideMultiplexer({ env: { ...ROOT, HERDR_ENV: "1" }, configured: "auto", isInstalled: both })).toMatchObject({ ok: true, kind: "herdr" });
+  });
+  it("auto FALLS BACK TO TMUX when herdr is installed but has no root pane (the R2-#1 fix)", () => {
+    // herdr binary present, but no HERDR_PANE_ID/JARVIS_HERDR_ROOT_PANE → herdr not usable.
+    expect(decideMultiplexer({ env: { HERDR_ENV: "1" }, configured: "auto", isInstalled: both })).toMatchObject({ ok: true, kind: "tmux" });
+  });
+  it("auto falls back to herdr when only herdr is usable", () => {
+    expect(decideMultiplexer({ env: ROOT, configured: "auto", isInstalled: only("herdr") })).toMatchObject({ ok: true, kind: "herdr" });
+  });
+  it("auto fails when neither is usable", () => {
+    expect(decideMultiplexer({ env: {}, configured: "auto", isInstalled: none }).ok).toBe(false);
+  });
+});
+
+describe("resolveMultiplexer", () => {
+  it("returns a Multiplexer of the decided kind", () => {
+    const r = resolveMultiplexer({ io, env: {}, configured: "auto", isInstalled: only("tmux") });
+    expect(r.ok && r.mux.kind).toBe("tmux");
+  });
+  it("propagates the unavailable reason", () => {
+    expect(resolveMultiplexer({ io, env: {}, configured: "auto", isInstalled: none }).ok).toBe(false);
+  });
+});
+```
+
+- [ ] **Step 2: Run to verify failure**
+
+Run: `pnpm vitest run tests/unit/ai-multiplexer-resolve.test.ts`
+Expected: FAIL — module not found.
+
+- [ ] **Step 3: Implement**
+
+```ts
+/**
+ * Multiplexer selection. Precedence (grill-locked):
+ *   1. JARVIS_MULTIPLEXER env override — wins, BYPASSES the install probe (a deploy
+ *      escape hatch; an invalid value is a fail-fast config error).
+ *   2. Explicit admin setting (chat.multiplexer = tmux|herdr) — honored only if
+ *      that binary is actually installed; otherwise unavailable.
+ *   3. auto — detect what is installed; tie-break herdr when running inside herdr
+ *      (HERDR_ENV=1), else tmux, else the other, else unavailable.
+ * decideMultiplexer is pure (no io); resolveMultiplexer binds the chosen backend.
+ */
+import type { ChatMultiplexerChoice } from "@jarv1s/shared";
+
+import type { TmuxIo } from "./tmux-bridge.js";
+import type { Multiplexer } from "./multiplexer.js";
+import { TmuxMultiplexer } from "./tmux-multiplexer.js";
+import { HerdrMultiplexer } from "./herdr-multiplexer.js";
+
+export type MultiplexerKind = "tmux" | "herdr";
+export type MultiplexerSource = "env" | "configured" | "auto";
+
+export interface MultiplexerDecisionInput {
+  readonly env: NodeJS.ProcessEnv;
+  readonly configured: ChatMultiplexerChoice;
+  readonly isInstalled: (bin: MultiplexerKind) => boolean;
+}
+
+export type MultiplexerDecision =
+  | { readonly ok: true; readonly kind: MultiplexerKind; readonly source: MultiplexerSource }
+  | { readonly ok: false; readonly reason: string };
+
+export function decideMultiplexer(input: MultiplexerDecisionInput): MultiplexerDecision {
+  const { env, configured, isInstalled } = input;
+
+  // herdr is only USABLE if its binary is present AND a root pane can be resolved
+  // (explicit JARVIS_HERDR_ROOT_PANE, or the server's own HERDR_PANE_ID). Without
+  // a root pane, picking herdr would boot a backend that only fails at launch — so
+  // it must not count as available for `auto`/`configured` resolution (Codex R2 #1).
+  const herdrRootAvailable = Boolean(env.JARVIS_HERDR_ROOT_PANE?.trim() || env.HERDR_PANE_ID?.trim());
+  const herdrUsable = isInstalled("herdr") && herdrRootAvailable;
+  const tmuxUsable = isInstalled("tmux");
+
+  // 1. Env override wins, BYPASSES the probe (deploy escape hatch). The operator owns
+  //    correctness; a missing binary or root pane fails loudly at launch (→ 503).
+  const override = env.JARVIS_MULTIPLEXER?.trim().toLowerCase();
+  if (override === "tmux" || override === "herdr") {
+    return { ok: true, kind: override, source: "env" };
+  }
+  if (override !== undefined && override !== "") {
+    throw new Error(`JARVIS_MULTIPLEXER must be "tmux" or "herdr"; got "${override}"`);
+  }
+
+  // 2. Explicit admin setting — honored only if actually usable.
+  if (configured === "tmux") {
+    return tmuxUsable
+      ? { ok: true, kind: "tmux", source: "configured" }
+      : { ok: false, reason: `multiplexer "tmux" is selected in admin settings but is not installed on this host` };
+  }
+  if (configured === "herdr") {
+    if (herdrUsable) return { ok: true, kind: "herdr", source: "configured" };
+    return {
+      ok: false,
+      reason: isInstalled("herdr")
+        ? `multiplexer "herdr" is selected but no root pane is available (set JARVIS_HERDR_ROOT_PANE or run the API inside a herdr pane)`
+        : `multiplexer "herdr" is selected in admin settings but is not installed on this host`
+    };
+  }
+
+  // 3. auto — tie-break herdr when inside herdr AND herdr is usable; else tmux; else herdr; else none.
+  if (env.HERDR_ENV === "1" && herdrUsable) return { ok: true, kind: "herdr", source: "auto" };
+  if (tmuxUsable) return { ok: true, kind: "tmux", source: "auto" };
+  if (herdrUsable) return { ok: true, kind: "herdr", source: "auto" };
+  return { ok: false, reason: "no usable terminal multiplexer found (install tmux, or install herdr and set a root pane)" };
+}
+
+export interface MultiplexerResolutionInput extends MultiplexerDecisionInput {
+  readonly io: TmuxIo;
+}
+
+export type MultiplexerResolution =
+  | { readonly ok: true; readonly mux: Multiplexer; readonly source: MultiplexerSource }
+  | { readonly ok: false; readonly reason: string };
+
+export function resolveMultiplexer(input: MultiplexerResolutionInput): MultiplexerResolution {
+  const decision = decideMultiplexer(input);
+  if (!decision.ok) return decision;
+  // Pass the SAME env the decision used, so the backend resolves the same root pane
+  // it was judged usable with (Codex R2 #5 — don't let it fall back to process.env).
+  const mux =
+    decision.kind === "herdr"
+      ? new HerdrMultiplexer(input.io, { env: input.env })
+      : new TmuxMultiplexer(input.io);
+  return { ok: true, mux, source: decision.source };
+}
+```
+
+- [ ] **Step 4: Run to verify pass**
+
+Run: `pnpm vitest run tests/unit/ai-multiplexer-resolve.test.ts`
+Expected: PASS.
+
+- [ ] **Step 5: Commit**
+
+```bash
+git add packages/shared/src/platform-api.ts packages/ai/src/adapters/multiplexer-resolve.ts tests/unit/ai-multiplexer-resolve.test.ts
+git commit -m "feat(ai): add ChatMultiplexerChoice (shared) + decideMultiplexer/resolveMultiplexer (env override, admin setting, root-pane-aware auto-detect)"
+```
+
+---
+
+## Task 7: Barrel-export the new `@jarv1s/ai` modules
 
 **Files:**
 - Modify: `packages/ai/src/index.ts`
@@ -480,7 +973,8 @@ After the existing `export * from "./adapters/tmux-bridge.js";` line, add:
 export * from "./adapters/multiplexer.js";
 export * from "./adapters/tmux-multiplexer.js";
 export * from "./adapters/herdr-multiplexer.js";
-export * from "./adapters/multiplexer-select.js";
+export * from "./adapters/binary-probe.js";
+export * from "./adapters/multiplexer-resolve.js";
 ```
 
 - [ ] **Step 2: Typecheck**
@@ -492,18 +986,38 @@ Expected: PASS.
 
 ```bash
 git add packages/ai/src/index.ts
-git commit -m "feat(ai): export multiplexer seam + backends from package barrel"
+git commit -m "feat(ai): export multiplexer seam, backends, probe, and resolver from the package barrel"
 ```
 
 ---
 
-## Task 6: Refactor the engine to delegate to `Multiplexer`
+## Task 8: Refactor the engine to delegate to `Multiplexer`
 
-The core task. The engine stops issuing tmux verbs inline and instead calls an injected `Multiplexer`, storing the handle `open()` returns. The default mux is `TmuxMultiplexer(io)`, so the external `io.run` call sequence is unchanged → all existing engine tests pass without edits (other than the rename import in Task 7).
+The core engine change. The engine stops issuing tmux verbs inline and instead calls an injected `Multiplexer`, storing the handle `open()` returns. The default mux is `TmuxMultiplexer(io)`, so the external `io.run` call sequence is unchanged → all existing engine tests pass without edits (other than the rename import in Task 9).
 
 **Files:**
+- Create: `packages/chat/src/live/errors.ts`
 - Modify: `packages/chat/src/live/cli-chat-engine.ts`
 - Modify: `packages/chat/src/live/types.ts`
+
+- [ ] **Step 0: Create the dependency-free error module**
+
+The engine throws this on launch failure, and `runtime.ts`/routes map it to 503. It lives in its own module (imported by nothing) so the engine can throw it without importing `runtime.ts` — which imports the engine, a cycle. Create `packages/chat/src/live/errors.ts`:
+
+```ts
+/**
+ * Thrown when a live CLI session cannot be hosted: no terminal multiplexer
+ * (tmux/herdr) is available/configured, OR the chosen multiplexer failed to launch
+ * the session. Both map to HTTP 503. `cause` carries the underlying error for
+ * server-side logging; the message is operator-safe (no secrets/stderr leakage).
+ */
+export class CliChatUnavailableError extends Error {
+  constructor(message: string, options?: { cause?: unknown }) {
+    super(message, options);
+    this.name = "CliChatUnavailableError";
+  }
+}
+```
 
 - [ ] **Step 1: Fix the `types.ts` stale comment**
 
@@ -523,11 +1037,9 @@ Replace the header comment (`:1-22`) — drop the stale `TmuxBridgeAdapter` refe
 Add imports:
 
 ```ts
-import { Multiplexer, MuxHandle } from "@jarv1s/ai";
-import { TmuxMultiplexer } from "@jarv1s/ai";
+import { TmuxMultiplexer, type Multiplexer, type MuxHandle } from "@jarv1s/ai";
+import { CliChatUnavailableError } from "./errors.js";
 ```
-
-(or a single `import { ..., TmuxMultiplexer, type Multiplexer, type MuxHandle } from "@jarv1s/ai";`)
 
 Rename `interface TmuxCliChatEngineOpts` → `CliChatEngineOpts` and add `mux`:
 
@@ -585,12 +1097,21 @@ Keep `randomUUID()`, the google `.gemini/settings.json` special-case, and `store
     );
 
     const launchLine = this.buildLaunchCommand(opts, sessionId);
-    this.handle = await this.mux.open({
-      name: `${SESSION_PREFIX}${this.threadKey}`,
-      cols: 220,
-      rows: 50,
-      launchLine
-    });
+    try {
+      this.handle = await this.mux.open({
+        name: `${SESSION_PREFIX}${this.threadKey}`,
+        cols: 220,
+        rows: 50,
+        launchLine
+      });
+    } catch (err) {
+      // A backend exit-code failure (missing binary via JARVIS_MULTIPLEXER override,
+      // herdr socket failure, unresolvable root pane, tmux new-session failure) throws
+      // a plain Error from mux.open(). Convert it to the 503-mapped error with a
+      // sanitized message; the raw cause is logged server-side by the route handler
+      // (Codex R2 #2). Never surface raw stderr to the client.
+      throw new CliChatUnavailableError("could not start the live chat session", { cause: err });
+    }
 
     await this.io.sleep(this.launchMs);
   }
@@ -644,18 +1165,18 @@ Do **not** change any flag in `buildClaudeCommand` / `buildCodexCommand` / `buil
 - [ ] **Step 6: Typecheck**
 
 Run: `pnpm typecheck`
-Expected: FAIL only in `runtime.ts` + the two test files that still import `TmuxCliChatEngine` (fixed in Tasks 7 & 9). The engine module itself must typecheck.
+Expected: FAIL only in `runtime.ts` + the two test files that still import `TmuxCliChatEngine` (fixed in Tasks 9 & 10). The engine module itself must typecheck.
 
 - [ ] **Step 7: Commit**
 
 ```bash
-git add packages/chat/src/live/cli-chat-engine.ts packages/chat/src/live/types.ts
+git add packages/chat/src/live/errors.ts packages/chat/src/live/cli-chat-engine.ts packages/chat/src/live/types.ts
 git commit -m "refactor(chat): engine delegates session verbs to Multiplexer; store opaque handle"
 ```
 
 ---
 
-## Task 7: Update engine tests to the renamed class (no behavior change)
+## Task 9: Update engine tests to the renamed class (no behavior change)
 
 **Files:**
 - Modify: `tests/unit/cli-chat-engine.test.ts`
@@ -682,237 +1203,708 @@ Replace every `new TmuxCliChatEngine(` with `new CliChatEngineImpl(`. The `{ lau
 Run: `pnpm vitest run tests/unit/cli-chat-engine.test.ts tests/unit/chat-live-engine.test.ts`
 Expected: PASS — the default `TmuxMultiplexer(io)` reproduces the exact `io.run` tmux verb sequence (`new-session`, `send-keys ... Enter`, `load-buffer`/`paste-buffer`, `has-session`, `kill-session`) and the prompt `writeFile`, so every existing assertion holds.
 
-- [ ] **Step 3: Commit**
+- [ ] **Step 3: Lock the remaining launch-flag posture with explicit assertions**
+
+The security posture must be guarded by tests, not just by the verbatim-preserve instruction (Codex finding #6). The existing tests already assert Claude `--allowedTools mcp__jarvis__*` / `--tools ""` fallback / `mcp-config`, Codex `shell_tool=false` / `apply_patch_tool=false` / `sandbox read-only`, and Gemini `--allowed-mcp-server-names jarvis`. Add the **three currently-unasserted** flags to the relevant existing cases in `tests/unit/cli-chat-engine.test.ts`:
+
+```ts
+// In the Claude launch-line cases (both the --allowedTools and --tools "" paths):
+expect(launchLine).toContain("--permission-mode default");
+expect(launchLine).toContain("--strict-mcp-config");
+
+// In the Codex launch-line case:
+expect(launchLine).toContain("-a never");
+```
+
+> If any of these assertions fails, that is a real posture regression, not a test bug — stop and confirm `buildClaudeCommand`/`buildCodexCommand` still emit them before adjusting anything. Do not weaken the assertion to make it pass.
+
+- [ ] **Step 4: Run + commit**
 
 ```bash
+pnpm vitest run tests/unit/cli-chat-engine.test.ts tests/unit/chat-live-engine.test.ts
 git add tests/unit/cli-chat-engine.test.ts tests/unit/chat-live-engine.test.ts
-git commit -m "test(chat): rename engine class refs to CliChatEngineImpl (no behavior change)"
+git commit -m "test(chat): rename engine refs to CliChatEngineImpl + lock full launch-flag posture"
 ```
 
 ---
 
-## Task 8: `HerdrMultiplexer` backend
+## Task 10: Chat runtime — injectable factory builder + unavailable state
 
-> **Review flag:** herdr has no direct "new detached session" verb. `open()` splits a pane from a root pane and parses the server-assigned, opaque `pane_id`; `pane get` checks liveness; `pane close` kills. Unit-tested at the verb-sequence level with a fake `TmuxIo`; the root-pane resolution + split-output parsing are the integration-risk surfaces.
+Turn the single hardcoded `realEngineFactory` into a builder that accepts the resolved `Multiplexer`, and add the typed "no multiplexer" state. The resolution itself happens at the composition root (Task 13).
 
 **Files:**
-- Create: `packages/ai/src/adapters/herdr-multiplexer.ts`
-- Test: `tests/unit/ai-herdr-multiplexer.test.ts`
+- Modify: `packages/chat/src/live/runtime.ts`
+- Modify: `packages/chat/src/index.ts`
+- Modify: `packages/chat/src/live-routes.ts` (503 mapping on the live launch path)
+- Modify: `packages/chat/src/routes.ts`
 
-- [ ] **Step 1: Write failing tests**
+- [ ] **Step 1: Write a failing test**
+
+Append to `tests/unit/chat-live-manager.test.ts` (or create `tests/unit/chat-runtime-factory.test.ts` if cleaner):
 
 ```ts
-import { describe, expect, it, vi } from "vitest";
-import { HerdrMultiplexer } from "../../packages/ai/src/adapters/herdr-multiplexer.js";
+import { describe, expect, it } from "vitest";
+import {
+  createRealEngineFactory,
+  unavailableEngineFactory,
+  CliChatUnavailableError
+} from "../../packages/chat/src/live/runtime.js";
 
-function makeIo(overrides: Record<string, { code: number; stdout: string }> = {}) {
-  const run = vi.fn(async (cmd: string, args: readonly string[]) => {
-    const key = [cmd, ...args].join(" ");
-    for (const prefix of Object.keys(overrides)) {
-      if (key.startsWith(prefix)) return { code: overrides[prefix].code, stdout: overrides[prefix].stdout, stderr: "" };
-    }
-    return { code: 0, stdout: "", stderr: "" };
+describe("createRealEngineFactory", () => {
+  it("builds an engine using the injected multiplexer kind", () => {
+    const mux = { kind: "herdr" as const, open: async () => "h", submit: async () => {}, isAlive: async () => true, kill: async () => {}, attachCommand: () => "herdr" };
+    const engine = createRealEngineFactory({ mux })("anthropic", "thread-1");
+    expect(engine).toBeDefined();
   });
-  return { run, sleep: vi.fn().mockResolvedValue(undefined), readFile: vi.fn().mockResolvedValue(""), writeFile: vi.fn().mockResolvedValue(undefined) };
-}
+});
 
-describe("HerdrMultiplexer", () => {
-  it("open() splits from the root pane, parses the new pane id, runs the launch line, and returns the id", async () => {
-    const io = makeIo({
-      "herdr pane list": { code: 0, stdout: "pane-root\n" },
-      "herdr pane split": { code: 0, stdout: "pane-new-123\n" }
-    });
-    const mux = new HerdrMultiplexer(io, { rootPane: "pane-root" });
-    const handle = await mux.open({ name: "jarv1s-live-x", cols: 220, rows: 50, launchLine: "cd '/n' && claude" });
-
-    expect(handle).toBe("pane-new-123");
-    const flat = io.run.mock.calls.map((c: unknown[]) => [c[0], ...(c[1] as string[])].join(" "));
-    expect(flat.some((c) => c.startsWith("herdr pane split pane-root"))).toBe(true);
-    expect(flat.some((c) => c.startsWith("herdr pane run pane-new-123"))).toBe(true);
-  });
-
-  it("submit() sends text then Enter to the pane handle", async () => {
-    const io = makeIo();
-    const mux = new HerdrMultiplexer(io, { rootPane: "pane-root" });
-    await mux.submit("pane-new-123", "hello");
-    const flat = io.run.mock.calls.map((c: unknown[]) => [c[0], ...(c[1] as string[])].join(" "));
-    const textIdx = flat.findIndex((c) => c.startsWith("herdr pane send-text pane-new-123"));
-    const enterIdx = flat.findIndex((c) => c.startsWith("herdr pane send-keys pane-new-123") && c.includes("Enter"));
-    expect(textIdx).toBeGreaterThanOrEqual(0);
-    expect(enterIdx).toBeGreaterThan(textIdx);
-  });
-
-  it("isAlive() maps `pane get` exit code to a boolean", async () => {
-    const ioAlive = makeIo({ "herdr pane get pane-x": { code: 0, stdout: "{}" } });
-    expect(await new HerdrMultiplexer(ioAlive, { rootPane: "r" }).isAlive("pane-x")).toBe(true);
-    const ioDead = makeIo({ "herdr pane get pane-x": { code: 1, stdout: "" } });
-    expect(await new HerdrMultiplexer(ioDead, { rootPane: "r" }).isAlive("pane-x")).toBe(false);
-  });
-
-  it("kill() closes the pane", async () => {
-    const io = makeIo();
-    await new HerdrMultiplexer(io, { rootPane: "r" }).kill("pane-x");
-    const flat = io.run.mock.calls.map((c: unknown[]) => [c[0], ...(c[1] as string[])].join(" "));
-    expect(flat.some((c) => c.startsWith("herdr pane close pane-x"))).toBe(true);
-  });
-
-  it("attachCommand() returns a human-runnable herdr attach hint", () => {
-    const mux = new HerdrMultiplexer(makeIo(), { rootPane: "r" });
-    expect(mux.attachCommand("pane-x")).toContain("herdr");
+describe("unavailableEngineFactory", () => {
+  it("throws CliChatUnavailableError when invoked", () => {
+    const factory = unavailableEngineFactory("no multiplexer");
+    expect(() => factory("anthropic", "t")).toThrow(CliChatUnavailableError);
   });
 });
 ```
 
 - [ ] **Step 2: Run to verify failure**
 
-Run: `pnpm vitest run tests/unit/ai-herdr-multiplexer.test.ts`
-Expected: FAIL — module not found.
+Run: `pnpm vitest run tests/unit/chat-live-manager.test.ts`
+Expected: FAIL — exports do not exist.
 
-- [ ] **Step 3: Implement**
+> Note: `packages/chat/src/live/errors.ts` (the `CliChatUnavailableError` class) was already created in **Task 8 Step 0** — `runtime.ts` only imports and re-exports it here. No new file in this task.
+
+- [ ] **Step 3: Implement in `runtime.ts`**
+
+Change the import (`:18`) to the renamed class and add `Multiplexer` to the `@jarv1s/ai` import (`:12`); import + re-export the error:
+
+```ts
+import { AiRepository, createRealTmuxIo, type Multiplexer, type ProviderKind } from "@jarv1s/ai";
+import { CliChatEngineImpl } from "./cli-chat-engine.js";
+import { CliChatUnavailableError } from "./errors.js";
+export { CliChatUnavailableError } from "./errors.js";
+```
+
+Replace `realEngineFactory` (`:44-45`) with the builder + unavailable state:
 
 ```ts
 /**
- * HerdrMultiplexer — Multiplexer backend over the herdr terminal workspace
- * manager (`herdr pane …` socket API). Unlike tmux, herdr has no "new detached
- * session" verb: a pane is split from an existing root pane and the server
- * assigns an OPAQUE pane id. open() therefore returns that id as the handle; the
- * engine stores it and never reconstructs it (the Multiplexer asymmetry).
- *
- * Root pane resolution: explicit opts.rootPane, else env JARVIS_HERDR_ROOT_PANE,
- * else the first id from `herdr pane list`.
+ * Builds the production engine factory. The multiplexer is resolved ONCE at the
+ * composition root (module-registry) and injected here, so every session shares
+ * one stateless backend. With no mux it defaults to tmux (preserves legacy
+ * single-host behavior for tests and standalone embedders).
  */
-import type { TmuxIo } from "./tmux-bridge.js";
-import type { Multiplexer, MuxHandle, MuxOpenOpts } from "./multiplexer.js";
-
-export interface HerdrMultiplexerOpts {
-  /** Parent pane to split from; else JARVIS_HERDR_ROOT_PANE; else first `pane list`. */
-  readonly rootPane?: string;
-  readonly env?: NodeJS.ProcessEnv;
+export function createRealEngineFactory(opts: { mux?: Multiplexer } = {}): ChatEngineFactory {
+  return (provider, sessionKey) =>
+    new CliChatEngineImpl(provider, sessionKey, createRealTmuxIo(), { mux: opts.mux });
 }
 
-export class HerdrMultiplexer implements Multiplexer {
-  readonly kind = "herdr" as const;
-  private readonly rootPaneOverride?: string;
-  private readonly env: NodeJS.ProcessEnv;
-
-  constructor(private readonly io: TmuxIo, opts: HerdrMultiplexerOpts = {}) {
-    this.rootPaneOverride = opts.rootPane;
-    this.env = opts.env ?? process.env;
-  }
-
-  async open(opts: MuxOpenOpts): Promise<MuxHandle> {
-    const root = await this.resolveRootPane();
-    const split = await this.io.run("herdr", ["pane", "split", root, "--direction", "down", "--no-focus"]);
-    const paneId = firstToken(split.stdout);
-    if (!paneId) throw new Error("HerdrMultiplexer.open: could not parse new pane id from `herdr pane split`");
-    await this.io.run("herdr", ["pane", "run", paneId, opts.launchLine]);
-    return paneId;
-  }
-
-  async submit(handle: MuxHandle, text: string): Promise<void> {
-    await this.io.run("herdr", ["pane", "send-text", handle, text]);
-    await this.io.run("herdr", ["pane", "send-keys", handle, "Enter"]);
-  }
-
-  async isAlive(handle: MuxHandle): Promise<boolean> {
-    const { code } = await this.io.run("herdr", ["pane", "get", handle]);
-    return code === 0;
-  }
-
-  async kill(handle: MuxHandle): Promise<void> {
-    await this.io.run("herdr", ["pane", "close", handle]);
-  }
-
-  attachCommand(handle: MuxHandle): string {
-    // herdr attaches to its persistent session; the pane lives inside it.
-    return `herdr   # then focus pane ${handle}`;
-  }
-
-  private async resolveRootPane(): Promise<string> {
-    if (this.rootPaneOverride) return this.rootPaneOverride;
-    const envRoot = this.env.JARVIS_HERDR_ROOT_PANE?.trim();
-    if (envRoot) return envRoot;
-    const list = await this.io.run("herdr", ["pane", "list"]);
-    const first = firstToken(list.stdout);
-    if (!first) throw new Error("HerdrMultiplexer: no root pane (set JARVIS_HERDR_ROOT_PANE)");
-    return first;
-  }
+/** A factory that refuses to launch: used when the host has no multiplexer installed. */
+export function unavailableEngineFactory(reason: string): ChatEngineFactory {
+  return () => {
+    throw new CliChatUnavailableError(reason);
+  };
 }
 
-/** First whitespace-delimited token of the first non-empty line. */
-function firstToken(stdout: string): string | null {
-  for (const line of stdout.split("\n")) {
-    const t = line.trim().split(/\s+/)[0];
-    if (t) return t;
+/** Back-compat default: tmux over a fresh io (unchanged behavior). */
+export const realEngineFactory: ChatEngineFactory = createRealEngineFactory();
+```
+
+- [ ] **Step 4: Export from the chat barrel**
+
+In `packages/chat/src/index.ts`, ensure these are re-exported (add to the existing runtime re-export, or add a line):
+
+```ts
+export {
+  createRealEngineFactory,
+  unavailableEngineFactory,
+  CliChatUnavailableError,
+  realEngineFactory,
+  type ChatEngineFactory
+} from "./live/runtime.js";
+```
+
+- [ ] **Step 5: Map `CliChatUnavailableError` → HTTP 503 on the LIVE path**
+
+The live-session launch flows through `handleLiveRouteError` in `packages/chat/src/live-routes.ts` (the function near `:164`), whose fallback turns any unrecognized error into a generic **500**. The engine factory throws `CliChatUnavailableError` synchronously when no multiplexer is installed, so without an explicit branch a no-multiplexer host returns a misleading 500 (Codex finding #2). Add the branch **before** the generic-500 fallback:
+
+```ts
+import { CliChatUnavailableError } from "./live/errors.js";
+// ...inside handleLiveRouteError, before the final reply.code(500):
+  if (error instanceof CliChatUnavailableError) {
+    // Log the underlying cause server-side; send a fixed, sanitized message (the
+    // error covers both "no multiplexer configured" and "launch failed").
+    reply.log?.warn?.({ err: error, cause: (error as { cause?: unknown }).cause }, "live chat unavailable");
+    return reply.code(503).send({ error: "Live chat is currently unavailable on this host." });
   }
-  return null;
+```
+
+Also add the same branch to `handleRouteError` in `packages/chat/src/routes.ts` (`:281`) for the REST chat routes, for symmetry:
+
+```ts
+import { CliChatUnavailableError } from "./live/errors.js";
+// ...inside handleRouteError, before the generic fallback:
+  if (error instanceof CliChatUnavailableError) {
+    reply.log?.warn?.({ err: error }, "live chat unavailable");
+    return reply.code(503).send({ error: "Live chat is currently unavailable on this host." });
+  }
+```
+
+- [ ] **Step 6: Add a route-level test for the 503**
+
+In the live-routes test suite (find it: `grep -rl "live-routes\|registerChatLiveRoutes\|/api/chat/live" tests/`), add a case where the injected `engineFactory` throws `CliChatUnavailableError` and assert the launch endpoint responds **503** (not 500):
+
+```ts
+it("returns 503 when no multiplexer is available", async () => {
+  const factory = () => { throw new CliChatUnavailableError("no terminal multiplexer (tmux/herdr) installed"); };
+  // build the live routes with { engineFactory: factory } via the suite's existing harness, then:
+  const res = await app.inject({ method: "POST", url: "<the live launch route>", headers: authHeaders, payload: { /* minimal valid launch body */ } });
+  expect(res.statusCode).toBe(503);
+});
+```
+
+> Use the suite's existing app/auth harness and the real launch route path + body shape — mirror an existing passing live-route test in that file.
+
+- [ ] **Step 7: Run the tests**
+
+Run: `pnpm vitest run tests/unit/chat-live-manager.test.ts && pnpm db:up && pnpm vitest run tests/integration/chat-live-api.test.ts`
+Expected: PASS (the new 503 case included).
+
+- [ ] **Step 8: Commit**
+
+```bash
+git add packages/chat/src/live/runtime.ts packages/chat/src/index.ts packages/chat/src/routes.ts packages/chat/src/live-routes.ts tests/unit/chat-live-manager.test.ts tests/integration/chat-live-api.test.ts
+git commit -m "feat(chat): injectable engine-factory builder + CliChatUnavailableError → 503 (live + REST)"
+```
+
+---
+
+## Task 11: `chat.multiplexer` instance setting (settings repository)
+
+Add typed read/write of the `chat.multiplexer` setting, mirroring `getRegistrationSettings`/`setRegistrationSettings`. Stored under key `chat.multiplexer` as `{ value: "auto"|"tmux"|"herdr" }`.
+
+**Files:**
+- Modify: `packages/settings/src/repository.ts`
+- Test: `tests/integration/chat-multiplexer-admin.test.ts` (read/write round-trip; full route test is Task 13's gate)
+
+- [ ] **Step 1: Write a failing test**
+
+Create `tests/integration/chat-multiplexer-admin.test.ts` (model it on the existing registration-settings integration test — find it with `grep -rl "getRegistrationSettings\|registration.enabled" tests/integration`). Cover: default is `"auto"` when unset; `setChatMultiplexerSetting` then `getChatMultiplexerSetting` round-trips a value; a non-admin actor's write is rejected by RLS (`WITH CHECK current_actor_is_admin()`).
+
+```ts
+// Shape (mirror the registration-settings integration test's harness exactly):
+it("defaults to auto and round-trips an admin write", async () => {
+  await dataContext.withDataContext(adminCtx, async (db) => {
+    expect((await repo.getChatMultiplexerSetting(db)).multiplexer).toBe("auto");
+    await repo.setChatMultiplexerSetting(db, { multiplexer: "herdr", actorUserId: adminCtx.actorUserId, requestId: adminCtx.requestId });
+    expect((await repo.getChatMultiplexerSetting(db)).multiplexer).toBe("herdr");
+  });
+});
+
+it("rejects a non-admin write (RLS WITH CHECK)", async () => {
+  await expect(
+    dataContext.withDataContext(memberCtx, async (db) =>
+      repo.setChatMultiplexerSetting(db, { multiplexer: "tmux", actorUserId: memberCtx.actorUserId, requestId: memberCtx.requestId })
+    )
+  ).rejects.toThrow();
+});
+```
+
+- [ ] **Step 2: Run to verify failure**
+
+Run: `pnpm db:up && pnpm vitest run tests/integration/chat-multiplexer-admin.test.ts`
+Expected: FAIL — methods do not exist.
+
+- [ ] **Step 3: Implement in `repository.ts`**
+
+Import the choice type from shared (do **not** redefine it — single source of truth, Task 6 Step 0), then add two methods (place them right after `setRegistrationSettings`):
+
+```ts
+import type { ChatMultiplexerChoice } from "@jarv1s/shared";
+
+async getChatMultiplexerSetting(scopedDb: DataContextDb): Promise<{ multiplexer: ChatMultiplexerChoice }> {
+  assertDataContextDb(scopedDb);
+  const row = await scopedDb.db
+    .selectFrom("app.instance_settings")
+    .select("value")
+    .where("key", "=", "chat.multiplexer")
+    .executeTakeFirst();
+  const raw = (row?.value as { value?: unknown } | undefined)?.value;
+  return { multiplexer: raw === "tmux" || raw === "herdr" ? raw : "auto" };
+}
+
+async setChatMultiplexerSetting(
+  scopedDb: DataContextDb,
+  input: { multiplexer: ChatMultiplexerChoice; actorUserId: string; requestId: string }
+): Promise<{ multiplexer: ChatMultiplexerChoice }> {
+  assertDataContextDb(scopedDb);
+  await this.upsertInstanceSetting(scopedDb, {
+    key: "chat.multiplexer",
+    value: { value: input.multiplexer },
+    updatedByUserId: input.actorUserId,
+    requestId: input.requestId
+  });
+  return { multiplexer: input.multiplexer };
 }
 ```
 
-> The exact `herdr pane split` / `pane list` stdout shapes are integration assumptions (parsed by `firstToken`). If herdr's real output differs (e.g. JSON), the parser is the single point to adjust — call this out in the README and the grill review.
-
 - [ ] **Step 4: Run to verify pass**
 
-Run: `pnpm vitest run tests/unit/ai-herdr-multiplexer.test.ts`
+Run: `pnpm vitest run tests/integration/chat-multiplexer-admin.test.ts`
 Expected: PASS.
 
 - [ ] **Step 5: Commit**
 
 ```bash
-git add packages/ai/src/adapters/herdr-multiplexer.ts tests/unit/ai-herdr-multiplexer.test.ts
-git commit -m "feat(ai): add HerdrMultiplexer backend (pane split → opaque handle)"
+git add packages/settings/src/repository.ts tests/integration/chat-multiplexer-admin.test.ts
+git commit -m "feat(settings): add chat.multiplexer instance-setting read/write (admin-gated)"
 ```
 
 ---
 
-## Task 9: Wire the factory to select the multiplexer
+## Task 12: Shared contract + admin route (`/api/admin/chat-multiplexer`)
+
+Add the DTOs/schemas and the `GET`/`PUT` admin routes, mirroring `/api/admin/registration`. The route returns the stored choice plus the boot-time availability snapshot injected by the composition root (Task 13).
 
 **Files:**
-- Modify: `packages/chat/src/live/runtime.ts`
+- Modify: `packages/shared/src/platform-api.ts`
+- Modify: `packages/settings/src/routes.ts`
 
-- [ ] **Step 1: Update import + factory**
+- [ ] **Step 1: Add the shared contract**
 
-Change the import (`:18`):
-
-```ts
-import { CliChatEngineImpl } from "./cli-chat-engine.js";
-```
-
-Add `createRealTmuxIo` and `selectMultiplexer` to the `@jarv1s/ai` import (`:12`):
+In `packages/shared/src/platform-api.ts`, near the registration schemas (`:345`, `:449`), add (the `ChatMultiplexerChoice` union was already added in Task 6 Step 0 — do **not** redefine it):
 
 ```ts
-import { AiRepository, createRealTmuxIo, selectMultiplexer, type ProviderKind } from "@jarv1s/ai";
+export interface ChatMultiplexerAvailability {
+  readonly tmux: boolean;
+  readonly herdr: boolean;
+}
+
+export interface ChatMultiplexerSettingsDto {
+  readonly multiplexer: ChatMultiplexerChoice;
+  readonly available: ChatMultiplexerAvailability;
+}
+
+export const chatMultiplexerSettingsSchema = {
+  type: "object",
+  required: ["multiplexer", "available"],
+  additionalProperties: false,
+  properties: {
+    multiplexer: { type: "string", enum: ["auto", "tmux", "herdr"] },
+    available: {
+      type: "object",
+      required: ["tmux", "herdr"],
+      additionalProperties: false,
+      properties: { tmux: { type: "boolean" }, herdr: { type: "boolean" } }
+    }
+  }
+} as const;
+
+export const getChatMultiplexerSettingsRouteSchema = {
+  response: { 200: chatMultiplexerSettingsSchema, 401: errorResponseSchema, 403: errorResponseSchema }
+} as const;
+
+export const putChatMultiplexerSettingsRouteSchema = {
+  body: {
+    type: "object",
+    required: ["multiplexer"],
+    additionalProperties: false,
+    properties: { multiplexer: { type: "string", enum: ["auto", "tmux", "herdr"] } }
+  },
+  response: { 200: chatMultiplexerSettingsSchema, 401: errorResponseSchema, 403: errorResponseSchema }
+} as const;
 ```
 
-Replace `realEngineFactory` (`:44-45`):
+- [ ] **Step 2: Add the routes in `settings/routes.ts`**
+
+Add `chatMultiplexerAvailability` to `SettingsRoutesDependencies`:
 
 ```ts
-export const realEngineFactory: ChatEngineFactory = (provider, sessionKey) => {
-  const io = createRealTmuxIo();
-  return new CliChatEngineImpl(provider, sessionKey, io, { mux: selectMultiplexer(io) });
-};
+  /** Boot-time availability snapshot, injected by the composition root (apply-on-restart). */
+  readonly chatMultiplexerAvailability?: { readonly tmux: boolean; readonly herdr: boolean };
 ```
 
-- [ ] **Step 2: Typecheck**
+Import the two new route schemas + `ChatMultiplexerChoice` from `@jarv1s/shared`. Register the routes (model them exactly on the existing `/api/admin/registration` GET/PUT handlers — same `resolveAccessContext` → `withDataContext` → `assertAdminUser` → `requireRequestId` shape):
+
+```ts
+server.get(
+  "/api/admin/chat-multiplexer",
+  { schema: getChatMultiplexerSettingsRouteSchema },
+  async (request, reply) => {
+    try {
+      const accessContext = await dependencies.resolveAccessContext(request);
+      return await dependencies.dataContext.withDataContext(accessContext, async (scopedDb) => {
+        await assertAdminUser(repository, scopedDb, accessContext.actorUserId);
+        const { multiplexer } = await repository.getChatMultiplexerSetting(scopedDb);
+        return { multiplexer, available: dependencies.chatMultiplexerAvailability ?? { tmux: false, herdr: false } };
+      });
+    } catch (error) {
+      return handleRouteError(error, reply);
+    }
+  }
+);
+
+server.put(
+  "/api/admin/chat-multiplexer",
+  { schema: putChatMultiplexerSettingsRouteSchema },
+  async (request, reply) => {
+    try {
+      const accessContext = await dependencies.resolveAccessContext(request);
+      const body = request.body as { multiplexer: ChatMultiplexerChoice };
+      return await dependencies.dataContext.withDataContext(accessContext, async (scopedDb) => {
+        await assertAdminUser(repository, scopedDb, accessContext.actorUserId);
+        const { multiplexer } = await repository.setChatMultiplexerSetting(scopedDb, {
+          multiplexer: body.multiplexer,
+          actorUserId: accessContext.actorUserId,
+          requestId: requireRequestId(accessContext)
+        });
+        return { multiplexer, available: dependencies.chatMultiplexerAvailability ?? { tmux: false, herdr: false } };
+      });
+    } catch (error) {
+      return handleRouteError(error, reply);
+    }
+  }
+);
+```
+
+> `assertAdminUser`, `requireRequestId`, and `handleRouteError` are the same helpers the registration routes use in this file — reuse them, do not re-declare.
+
+- [ ] **Step 3: Typecheck**
 
 Run: `pnpm typecheck`
-Expected: PASS (the rename + factory now resolve).
-
-- [ ] **Step 3: Run the manager + live-chat tests (fake engine path unaffected)**
-
-Run: `pnpm vitest run tests/unit/chat-live-manager.test.ts`
-Expected: PASS — the manager uses an injected fake engine; only the real factory changed.
+Expected: FAIL only at the module-registry call site (it must now provide `chatMultiplexerAvailability` — Task 13). The shared + settings packages typecheck.
 
 - [ ] **Step 4: Commit**
 
 ```bash
-git add packages/chat/src/live/runtime.ts
-git commit -m "feat(chat): real engine factory selects the multiplexer backend"
+git add packages/shared/src/platform-api.ts packages/settings/src/routes.ts
+git commit -m "feat(settings): add /api/admin/chat-multiplexer GET/PUT + shared contract"
 ```
 
 ---
 
-## Task 10: Create per-user neutral dir with mode `0700`
+## Task 13: Composition-root wiring (module-registry)
+
+Resolve the multiplexer once at boot and inject it. This is where the pieces meet: a **pre-auth read** of `chat.multiplexer` (mirroring the auth registration gate's raw `readBooleanSetting`), a **sync PATH probe** for the admin UI's availability hint, the **pure resolver**, a **late-bound** chat factory populated in `onReady`, and the disabled-state fallback.
+
+**Files:**
+- Create: `packages/module-registry/src/chat-multiplexer.ts`
+- Modify: `packages/module-registry/src/index.ts`
+
+- [ ] **Step 1: Write the glue module**
+
+Create `packages/module-registry/src/chat-multiplexer.ts`:
+
+```ts
+import type { Kysely } from "kysely";
+
+import type { JarvisDatabase } from "@jarv1s/db";
+import type { ChatMultiplexerChoice } from "@jarv1s/shared";
+import { createBinaryProbe, createRealTmuxIo, resolveMultiplexer } from "@jarv1s/ai";
+import {
+  createRealEngineFactory,
+  unavailableEngineFactory,
+  type ChatEngineFactory
+} from "@jarv1s/chat";
+
+export interface ChatMultiplexerAvailability {
+  readonly tmux: boolean;
+  readonly herdr: boolean;
+}
+
+/**
+ * Allowlist of NON-SECRET instance-config keys readable pre-auth via the raw appDb
+ * handle. This bounds the documented exemption (Codex finding #1): only these keys
+ * may be read this way, and they must never hold secrets (secrets live in the
+ * AES-256-GCM credential store, never in instance_settings).
+ */
+const PREAUTH_READABLE_SETTING_KEYS = new Set<string>(["chat.multiplexer"]);
+
+/** Sync PATH probe for the admin UI hint (apply-on-restart, so a boot snapshot is correct). */
+export function probeChatMultiplexerAvailability(env: NodeJS.ProcessEnv = process.env): ChatMultiplexerAvailability {
+  const probe = createBinaryProbe(env);
+  return { tmux: probe.has("tmux"), herdr: probe.has("herdr") };
+}
+
+/**
+ * Pre-auth read of the non-secret `chat.multiplexer` instance setting. This is the
+ * SAME sanctioned class of access already used by the auth registration gate
+ * (packages/auth/src/index.ts `readBooleanSetting` for `registration.enabled`): a
+ * raw read as jarvis_app_runtime with NO actor GUC. The instance_settings SELECT
+ * policy is USING (true) precisely so boot/pre-auth config reads work (migration
+ * 0059_admin_tables_rls.sql), while WRITES stay admin-gated
+ * (current_actor_is_admin()). It works on a fresh install with zero users (no actor
+ * exists yet), and reads only allowlisted non-secret keys.
+ *
+ * This is a documented, bounded exception to "DataContextDb only" — see
+ * docs/DEVELOPMENT_STANDARDS.md "Pre-auth non-secret instance-config reads" (added
+ * by this slice). The admin GET/PUT routes (Task 12) still go through DataContextDb
+ * + assertAdminUser; only this boot read bypasses it, and only for the allowlist.
+ */
+async function readMultiplexerChoice(appDb: Kysely<JarvisDatabase>): Promise<ChatMultiplexerChoice> {
+  const key = "chat.multiplexer";
+  if (!PREAUTH_READABLE_SETTING_KEYS.has(key)) {
+    throw new Error(`pre-auth instance-setting read not allowed for key "${key}"`);
+  }
+  const row = await appDb
+    .selectFrom("app.instance_settings")
+    .select("value")
+    .where("key", "=", key)
+    .executeTakeFirst();
+  const raw = (row?.value as { value?: unknown } | undefined)?.value;
+  return raw === "tmux" || raw === "herdr" ? raw : "auto";
+}
+
+/**
+ * Resolve the production chat engine factory at boot: env override > admin setting >
+ * auto-detect. On success returns a factory bound to the one shared Multiplexer; if
+ * no multiplexer is installed, returns a factory that throws CliChatUnavailableError
+ * (→ HTTP 503), and logs a clear warning. Never throws — live chat is disabled, not
+ * crashed.
+ */
+export async function resolveChatEngineFactory(deps: {
+  appDb: Kysely<JarvisDatabase>;
+  env?: NodeJS.ProcessEnv;
+  log?: (msg: string) => void;
+}): Promise<ChatEngineFactory> {
+  const env = deps.env ?? process.env;
+  const io = createRealTmuxIo();
+  const probe = createBinaryProbe(env);
+  const configured = await readMultiplexerChoice(deps.appDb);
+
+  let resolution;
+  try {
+    resolution = resolveMultiplexer({ io, env, configured, isInstalled: (b) => probe.has(b) });
+  } catch (err) {
+    // Only thrown for an invalid JARVIS_MULTIPLEXER value — a deploy config error.
+    const reason = err instanceof Error ? err.message : String(err);
+    deps.log?.(`[chat] live CLI chat disabled — ${reason}`);
+    return unavailableEngineFactory(reason);
+  }
+
+  if (!resolution.ok) {
+    deps.log?.(`[chat] live CLI chat disabled — ${resolution.reason}`);
+    return unavailableEngineFactory(resolution.reason);
+  }
+  deps.log?.(`[chat] live CLI chat multiplexer: ${resolution.mux.kind} (source: ${resolution.source})`);
+  return createRealEngineFactory({ mux: resolution.mux });
+}
+```
+
+- [ ] **Step 1b: Record the exemption in the security contract**
+
+The raw pre-auth read widens a documented invariant, so the contract must say so (Codex finding #1). In `docs/DEVELOPMENT_STANDARDS.md`, near the "DataContextDb only" rule, add a short subsection:
+
+```markdown
+### Pre-auth non-secret instance-config reads (bounded exemption)
+
+A small allowlist of NON-SECRET `app.instance_settings` keys may be read with the raw
+app Kysely handle (no `DataContextDb`, no actor GUC) when a value is needed before any
+actor exists — at boot, or on a pre-auth route. This is sanctioned because the
+`instance_settings` SELECT policy is `USING (true)` (migration 0059) and these keys hold
+only non-secret configuration; secrets live in the AES-256-GCM credential store. Current
+allowlist: `registration.enabled`, `registration.requires_approval` (auth registration
+gate), `chat.multiplexer` (composition-root multiplexer resolution). WRITES remain
+admin-gated (`current_actor_is_admin()`). Do **not** extend the allowlist to any key that
+could carry user data or secrets, and never use this path for per-user tables.
+```
+
+Then update the two now-stale "this is the ONLY exemption" comments so reviewers don't see contradictory invariants (Codex R2 #3):
+- `packages/module-registry/src/index.ts:66-69` ("the ONLY root-handle escape hatch in the route layer") — append: "…plus the bounded pre-auth non-secret instance-config reads documented in DEVELOPMENT_STANDARDS.md (registration gate + `chat.multiplexer` boot resolution)."
+- `packages/settings/src/bootstrap.ts:13` ("SOLE documented exemption") — same clarifying cross-reference.
+
+- [ ] **Step 2: Wire it in `registerBuiltInApiRoutes`**
+
+In `packages/module-registry/src/index.ts`:
+
+Add `chatMultiplexerAvailability` to `BuiltInRouteDependencies`:
+
+```ts
+  /** Boot-time multiplexer availability snapshot for the admin settings UI. */
+  readonly chatMultiplexerAvailability?: { readonly tmux: boolean; readonly herdr: boolean };
+```
+
+Import the glue + the error:
+
+```ts
+import { probeChatMultiplexerAvailability, resolveChatEngineFactory } from "./chat-multiplexer.js";
+import { CliChatUnavailableError, type ChatEngineFactory } from "@jarv1s/chat";
+```
+
+Rewrite `registerBuiltInApiRoutes` to compute availability (sync), late-bind the resolved factory, and inject both into the shared deps:
+
+```ts
+export function registerBuiltInApiRoutes(
+  server: FastifyInstance,
+  dependencies: BuiltInRouteDependencies
+): void {
+  const env = process.env;
+  const availability = probeChatMultiplexerAvailability(env);
+
+  // The factory is resolved asynchronously in onReady (a settings read), but routes
+  // register synchronously. Bridge with a late-bound wrapper: it is only ever invoked
+  // when a chat session launches, which is strictly after onReady. Tests/embedders
+  // that pass an explicit chatEngineFactory bypass resolution entirely.
+  let resolvedChatFactory: ChatEngineFactory | null = null;
+  const chatEngineFactory: ChatEngineFactory =
+    dependencies.chatEngineFactory ??
+    ((provider, key) => {
+      if (!resolvedChatFactory) {
+        throw new CliChatUnavailableError("chat engine factory is not resolved yet");
+      }
+      return resolvedChatFactory(provider, key);
+    });
+
+  const deps: BuiltInRouteDependencies = {
+    ...dependencies,
+    chatEngineFactory,
+    chatMultiplexerAvailability: availability
+  };
+
+  for (const module of BUILT_IN_MODULES) {
+    module.registerRoutes?.(server, deps);
+  }
+
+  if (!dependencies.chatEngineFactory) {
+    server.addHook("onReady", async () => {
+      resolvedChatFactory = await resolveChatEngineFactory({
+        appDb: dependencies.rootDb,
+        env,
+        log: (msg) => server.log.info(msg)
+      });
+    });
+  }
+}
+```
+
+> `dependencies.rootDb` is the raw Kysely already forwarded for the settings BootstrapHelper (the documented Kysely exemption) — reuse it; do **not** add a new appDb dependency. No `apps/api` change is required.
+
+- [ ] **Step 3: Typecheck**
+
+Run: `pnpm typecheck`
+Expected: PASS across all packages now (the settings call site receives `chatMultiplexerAvailability`).
+
+- [ ] **Step 4: Run the affected unit + integration tests**
+
+Run: `pnpm vitest run tests/unit/chat-live-manager.test.ts tests/integration/chat-live-api.test.ts tests/integration/chat-multiplexer-admin.test.ts`
+Expected: PASS. (`chat-live-api` injects a fake `chatEngineFactory`, so it bypasses resolution; the admin route test exercises the real GET/PUT.)
+
+- [ ] **Step 5: Commit**
+
+```bash
+git add packages/module-registry/src/chat-multiplexer.ts packages/module-registry/src/index.ts packages/settings/src/bootstrap.ts docs/DEVELOPMENT_STANDARDS.md
+git commit -m "feat(module-registry): resolve chat multiplexer at boot (env > admin setting > auto-detect)"
+```
+
+---
+
+## Task 14: Admin UI — multiplexer `<select>` + availability badges
+
+Add a "Live chat multiplexer" control to the admin settings panel, mirroring the existing registration query/mutation. Shows the dropdown (auto/tmux/herdr), badges for what's detected, the auto-rule, and a restart note.
+
+**Files:**
+- Modify: `apps/web/src/api/client.ts`
+- Modify: `apps/web/src/api/query-keys.ts`
+- Modify: `apps/web/src/settings/admin-users-panel.tsx`
+
+- [ ] **Step 1: Add the client methods**
+
+In `apps/web/src/api/client.ts`, import the DTO and add (mirroring `getRegistrationSettings`/`putRegistrationSettings`):
+
+```ts
+import type { /* …existing… */ ChatMultiplexerSettingsDto, ChatMultiplexerChoice } from "@jarv1s/shared";
+
+export async function getChatMultiplexerSettings(): Promise<ChatMultiplexerSettingsDto> {
+  return requestJson<ChatMultiplexerSettingsDto>("/api/admin/chat-multiplexer");
+}
+
+export async function setChatMultiplexerSettings(
+  multiplexer: ChatMultiplexerChoice
+): Promise<ChatMultiplexerSettingsDto> {
+  return requestJson<ChatMultiplexerSettingsDto>("/api/admin/chat-multiplexer", {
+    method: "PUT",
+    body: { multiplexer }
+  });
+}
+```
+
+- [ ] **Step 2: Add the query key**
+
+In `apps/web/src/api/query-keys.ts`, under `settings`, add (mirroring `registrationSettings`):
+
+```ts
+    chatMultiplexer: ["settings", "chat-multiplexer"] as const,
+```
+
+- [ ] **Step 3: Add the UI section**
+
+In `apps/web/src/settings/admin-users-panel.tsx`, mirror the registration query/mutation pattern:
+
+```tsx
+import { getChatMultiplexerSettings, setChatMultiplexerSettings } from "../api/client";
+import type { ChatMultiplexerChoice } from "@jarv1s/shared";
+
+// inside the component, beside regQuery / regMutation:
+const muxQuery = useQuery({
+  queryKey: queryKeys.settings.chatMultiplexer,
+  queryFn: getChatMultiplexerSettings
+});
+const muxMutation = useMutation({
+  mutationFn: (choice: ChatMultiplexerChoice) => setChatMultiplexerSettings(choice),
+  onSuccess: (data) => queryClient.setQueryData(queryKeys.settings.chatMultiplexer, data)
+});
+```
+
+Add a section (place after the Registration `<section>`), guarding on `muxQuery.data`:
+
+```tsx
+{muxQuery.data && (
+  <section className="panel" aria-labelledby="multiplexer-title">
+    <header>
+      <h2 id="multiplexer-title">Live chat multiplexer</h2>
+      <p>Which terminal multiplexer hosts live CLI chat sessions. Changes apply on server restart.</p>
+    </header>
+    <dl>
+      <dt>Backend</dt>
+      <dd>
+        <select
+          value={muxQuery.data.multiplexer}
+          disabled={muxMutation.isPending}
+          onChange={(e) => muxMutation.mutate(e.target.value as ChatMultiplexerChoice)}
+        >
+          <option value="auto">Auto-detect</option>
+          <option value="tmux">tmux</option>
+          <option value="herdr">herdr</option>
+        </select>
+      </dd>
+      <dt>Detected on this host</dt>
+      <dd>
+        <span>{`tmux: ${muxQuery.data.available.tmux ? "installed" : "not detected"}`}</span>
+        {" · "}
+        <span>{`herdr: ${muxQuery.data.available.herdr ? "installed" : "not detected"}`}</span>
+      </dd>
+    </dl>
+    <p>Auto picks herdr when the server runs inside herdr, otherwise tmux. If the selected backend isn’t installed, live chat is disabled until you install it and restart.</p>
+  </section>
+)}
+```
+
+> Match the file's existing class names / markup conventions (it uses `<section className="panel">` + `<dl>` for registration). Adjust the JSX to the surrounding style if it differs.
+
+- [ ] **Step 4: Typecheck the web app**
+
+Run: `pnpm typecheck`
+Expected: PASS.
+
+- [ ] **Step 5: Commit**
+
+```bash
+git add apps/web/src/api/client.ts apps/web/src/api/query-keys.ts apps/web/src/settings/admin-users-panel.tsx
+git commit -m "feat(web): admin multiplexer selector with availability hints"
+```
+
+---
+
+## Task 15: Create per-user neutral dir with mode `0700`
 
 **Files:**
 - Modify: `packages/chat/src/live/persona.ts`
@@ -979,152 +1971,40 @@ git commit -m "feat(chat): create per-user neutral dir with mode 0700"
 
 ---
 
-## Task 11: Agent-path PreToolUse policy (Claude path) — *review-flagged*
-
-> **Review flag (scope/value):** `--tools ""` already disables all native tools; `--allowedTools "mcp__jarvis__*"` limits to MCP tools that are RLS-scoped server-side; the `!`-escape is already stripped on the one programmatic input path by `sanitizeInput`. This task adds a **defense-in-depth** PreToolUse hook (denies any tool call that is not an allowlisted `mcp__jarvis__*` call) provisioned into the anthropic neutral dir. It is isolated as the last functional task; if the grill review judges it YAGNI for v1, cut this task wholesale — nothing else depends on it.
-
-**Files:**
-- Create: `packages/chat/src/live/pretooluse-policy.ts`
-- Test: `tests/unit/chat-pretooluse-policy.test.ts`
-- Modify: `packages/chat/src/live/cli-chat-engine.ts` (provision at launch, anthropic only)
-
-- [ ] **Step 1: Write failing tests**
-
-```ts
-import { describe, expect, it, vi } from "vitest";
-import { buildClaudePreToolUseSettings, provisionAgentPolicy } from "../../packages/chat/src/live/pretooluse-policy.js";
-
-describe("buildClaudePreToolUseSettings", () => {
-  it("emits a PreToolUse hook that denies non-jarvis tool calls", () => {
-    const settings = buildClaudePreToolUseSettings();
-    const json = JSON.stringify(settings);
-    expect(json).toContain("PreToolUse");
-    expect(json).toContain("mcp__jarvis__");
-  });
-});
-
-describe("provisionAgentPolicy", () => {
-  it("writes the settings file under the neutral dir for the anthropic provider", async () => {
-    const writes: Array<{ path: string; content: string }> = [];
-    const io = { run: vi.fn().mockResolvedValue({ code: 0, stdout: "" }), sleep: vi.fn(), readFile: vi.fn(), writeFile: vi.fn(async (p: string, c: string) => { writes.push({ path: p, content: c }); }) };
-    await provisionAgentPolicy(io, "anthropic", "/tmp/neutral");
-    expect(writes).toHaveLength(1);
-    expect(writes[0]?.path).toContain("/tmp/neutral/.claude/settings.json");
-  });
-
-  it("is a no-op for codex (sandbox read-only already blocks) and gemini", async () => {
-    const io = { run: vi.fn().mockResolvedValue({ code: 0, stdout: "" }), sleep: vi.fn(), readFile: vi.fn(), writeFile: vi.fn() };
-    await provisionAgentPolicy(io, "openai-compatible", "/tmp/n");
-    await provisionAgentPolicy(io, "google", "/tmp/n");
-    expect(io.writeFile).not.toHaveBeenCalled();
-  });
-});
-```
-
-- [ ] **Step 2: Run to verify failure**
-
-Run: `pnpm vitest run tests/unit/chat-pretooluse-policy.test.ts`
-Expected: FAIL — module not found.
-
-- [ ] **Step 3: Implement**
-
-```ts
-/**
- * Agent-path defense-in-depth: a Claude Code PreToolUse hook provisioned into the
- * per-user neutral dir. It denies any tool call that is not an allowlisted
- * mcp__jarvis__* call — a second lock behind `--tools ""` / `--allowedTools` in
- * case a flag ever regresses. This is AGENT-path only; it cannot constrain a human
- * who attaches to the shared-uid session (see the chat module README).
- *
- * Codex (`--sandbox read-only`, shell/apply_patch tools disabled) and Gemini
- * (`--allowed-mcp-server-names jarvis`) already deny native tools at launch, so
- * provisioning is a no-op for them in v1.
- */
-import { join } from "node:path";
-
-import type { ProviderKind, TmuxIo } from "@jarv1s/ai";
-
-/** A minimal deny-by-default PreToolUse hook config for Claude Code. */
-export function buildClaudePreToolUseSettings(): unknown {
-  return {
-    hooks: {
-      PreToolUse: [
-        {
-          matcher: "*",
-          hooks: [
-            {
-              type: "command",
-              // Allow only mcp__jarvis__* tools; deny everything else (exit 2 blocks the call).
-              command:
-                'jq -e \'.tool_name | startswith("mcp__jarvis__")\' >/dev/null 2>&1 && exit 0 || { echo "blocked by jarvis policy" >&2; exit 2; }'
-            }
-          ]
-        }
-      ]
-    }
-  };
-}
-
-export async function provisionAgentPolicy(io: TmuxIo, provider: ProviderKind, neutralDir: string): Promise<void> {
-  if (provider !== "anthropic") return; // codex/gemini blocked at launch flags in v1
-  const dir = join(neutralDir, ".claude");
-  await io.run("mkdir", ["-p", dir]);
-  await io.writeFile(join(dir, "settings.json"), JSON.stringify(buildClaudePreToolUseSettings(), null, 2));
-}
-```
-
-- [ ] **Step 4: Provision at launch**
-
-In `packages/chat/src/live/cli-chat-engine.ts` `launch()`, after `storedTranscriptPath` is set and before `mux.open`, add:
-
-```ts
-    await provisionAgentPolicy(this.io, this.provider, opts.neutralDir);
-```
-
-Import it: `import { provisionAgentPolicy } from "./pretooluse-policy.js";`
-
-> This adds one `mkdir` + one `writeFile` to the anthropic launch path. Verify the existing engine launch tests still pass (they assert on tmux `send-keys` / launch-line content and tolerate extra `io.run`/`writeFile` calls — confirm by re-running Task 7's tests).
-
-- [ ] **Step 5: Run policy tests + re-run engine tests**
-
-Run: `pnpm vitest run tests/unit/chat-pretooluse-policy.test.ts tests/unit/cli-chat-engine.test.ts tests/unit/chat-live-engine.test.ts`
-Expected: PASS. If an engine test asserted an exact `writeFile` count, relax it to `>=` or filter to the prompt file — note any such change in the commit.
-
-- [ ] **Step 6: Commit**
-
-```bash
-git add packages/chat/src/live/pretooluse-policy.ts tests/unit/chat-pretooluse-policy.test.ts packages/chat/src/live/cli-chat-engine.ts
-git commit -m "feat(chat): provision Claude PreToolUse deny-by-default policy (defense-in-depth)"
-```
-
----
-
-## Task 12: Document the shared-uid limitation
+## Task 16: Document the shared-uid limitation + the deferred PreToolUse follow-up
 
 **Files:**
 - Create or modify: `packages/chat/README.md`
 
-- [ ] **Step 1: Add the section**
+- [ ] **Step 1: Add the sections**
 
-Add (creating the README if absent) a "Known security limitation — shared-uid" section that states: all live chat sessions run as one OS user; the agent path is contained (`--tools ""` / MCP-allowlist + `--strict-mcp-config` + the PreToolUse policy give an injected prompt no file/shell primitive); a **human who already holds a shell as the shared uid** can attach to any session and read any user's neutral dir / CLI auth; mitigations today (host-shell access is the operator's own, `0700` neutral dirs, secrets AES-256-GCM at rest and never in prompts/payloads); the real fix is the deferred uid-per-user milestone. Link to `docs/superpowers/specs/2026-06-12-p2-portable-cli-chat-adapter-design.md` §8.
+Add (creating the README if absent):
 
-- [ ] **Step 2: Commit**
+**"Known security limitation — shared-uid":** all live chat sessions run as one OS user; the agent path is contained (`--tools ""` / MCP-allowlist + `--strict-mcp-config` give an injected prompt no file/shell primitive); a **human who already holds a shell as the shared uid** can attach to any session and read any user's neutral dir / CLI auth; mitigations today (host-shell access is the operator's own, `0700` neutral dirs, secrets AES-256-GCM at rest and never in prompts/payloads); the real fix is the deferred uid-per-user milestone. Link to `docs/superpowers/specs/2026-06-12-p2-portable-cli-chat-adapter-design.md` §8.
+
+**"Deferred — agent-path PreToolUse policy":** a Claude Code PreToolUse hook (deny any tool call that is not an allowlisted `mcp__jarvis__*` call), provisioned into the anthropic neutral dir, as defense-in-depth behind the already-locked `--tools ""` / `--allowedTools`. Deferred from v1 because the programmatic input path is already neutralized (`sanitizeInput` strips the `!`-escape) and native tools are already denied at launch flags; it is provider-specific (Claude only — Codex `--sandbox read-only` and Gemini `--allowed-mcp-server-names jarvis` already block at launch) and **fail-closed semantics + cross-engine scope need their own design**. Track as a follow-up issue under epic #47.
+
+- [ ] **Step 2: Record the deferral in the SPEC (it currently lists PreToolUse in-scope)**
+
+The approved spec marks the PreToolUse policy as in-scope (§6) and in its acceptance criteria, so the plan cannot silently treat it as documentation-only (Codex finding #7). In `docs/superpowers/specs/2026-06-12-p2-portable-cli-chat-adapter-design.md`, edit §6 and the corresponding acceptance criterion to state that the PreToolUse policy is **deferred to a follow-up under epic #47** per the 2026-06-12 grill decision (with the rationale above), so spec and plan agree. Do not delete the section — mark it Deferred and link to the follow-up.
+
+- [ ] **Step 3: Commit**
 
 ```bash
-git add packages/chat/README.md
-git commit -m "docs(chat): document the shared-uid soft boundary (Phase 2 §8)"
+git add packages/chat/README.md docs/superpowers/specs/2026-06-12-p2-portable-cli-chat-adapter-design.md
+git commit -m "docs(chat): document shared-uid boundary + defer PreToolUse in README and spec (Phase 2 §8/§6)"
 ```
 
 ---
 
-## Task 13: Full gate + final verification
+## Task 17: Full gate + final verification
 
 **Files:** none (verification only)
 
 - [ ] **Step 1: Ensure Postgres is up**
 
 Run: `pnpm db:up`
-Expected: Postgres healthy (integration tests need it; new unit tests do not).
+Expected: Postgres healthy (integration tests need it).
 
 - [ ] **Step 2: Run the maintainability gate**
 
@@ -1133,13 +2013,13 @@ Expected: PASS. `check:file-size` confirms `cli-chat-engine.ts` is comfortably u
 
 - [ ] **Step 3: Run the affected unit + integration suites**
 
-Run: `pnpm vitest run tests/unit/ tests/integration/chat-live-api.test.ts`
+Run: `pnpm vitest run tests/unit/ tests/integration/chat-live-api.test.ts tests/integration/chat-multiplexer-admin.test.ts`
 Expected: PASS. (Stop any `dev:worker` first — it steals pg-boss jobs.)
 
 - [ ] **Step 4: Full foundation gate**
 
 Run: `pnpm verify:foundation`
-Expected: PASS (lint, format, file-size, typecheck, db:migrate, integration). No new migration was added — this is code-only.
+Expected: PASS (lint, format, file-size, typecheck, db:migrate, integration). No new migration was added — `chat.multiplexer` reuses the existing `app.instance_settings` table.
 
 - [ ] **Step 5: Final commit (if any gate fixups were needed)**
 
@@ -1150,27 +2030,62 @@ git commit -m "chore(chat): gate fixups for portable CLI chat adapter"
 
 ---
 
+## Key decisions & tradeoffs (grill-locked)
+
+These are the contestable choices the grill resolved — named so the Codex review has something concrete to bite.
+
+1. **Multiplexer is admin-selectable AND auto-detecting (Q3).** Not env-only. Precedence: `JARVIS_MULTIPLEXER` env override (wins, **bypasses** the probe — a deploy escape hatch) → admin `chat.multiplexer` setting (honored only if that backend is **usable**: installed, and for herdr a resolvable root pane) → `auto` (detect usability; tie-break herdr when `HERDR_ENV=1`, else tmux, else the other usable one). *Tradeoff:* more surface (setting + route + UI + boot wiring) than a bare env var, accepted because hosts genuinely vary (the user may have neither tmux nor herdr).
+2. **Selection applies on restart, not live (Q3-i).** The factory is resolved once in `onReady`. *Tradeoff:* changing the admin setting needs a restart to take effect; in return the availability snapshot shown in the UI is honest (it's the boot snapshot) and there's no per-launch re-resolution cost or mid-flight backend swap.
+3. **`auto` tie-break = herdr iff `HERDR_ENV=1` (Q3-ii).** Running inside herdr is a strong signal herdr is the intended host; otherwise tmux is the lower-surprise default.
+4. **Boot read of `chat.multiplexer` is a pre-auth raw `appDb` read, not a DataContextDb read.** This is the *sanctioned* exception — it mirrors the auth registration gate's `readBooleanSetting`, and migration 0059 keeps `instance_settings` SELECT `USING (true)` precisely so boot/pre-auth config reads work (WRITES stay admin-gated via `current_actor_is_admin()`). It works on a fresh install with zero users (no actor exists yet). It reads only non-secret config; secrets live in the AES-256-GCM store. **Not** a weakening of "DataContextDb only" — the admin GET/PUT routes still go through DataContextDb + `assertAdminUser`.
+5. **One shared, stateless `Multiplexer` instance across all sessions.** The handle is per-session and passed per call; the backend holds only its stateless `io`. So resolving once at boot and sharing is correct and cheaper than per-session construction.
+6. **No multiplexer installed → disabled, not crashed.** `resolveChatEngineFactory` never throws; it returns `unavailableEngineFactory(reason)`, logs a clear warning, and a launch attempt returns HTTP 503. The rest of the app boots normally.
+7. **herdr launches via `send-text` + `send-keys Enter`, not `pane run`.** Symmetric with tmux and avoids `pane run`'s unspecified shell-quoting. herdr's JSON output is parsed for the opaque `pane_id`; non-JSON output throws a clear version-skew error.
+8. **herdr root pane is never "the first pane in `pane list`."** A shared herdr server lists unrelated operator/agent panes; splitting from an arbitrary one is unsafe. Resolution is `opts.rootPane` → `JARVIS_HERDR_ROOT_PANE` → `HERDR_PANE_ID` (the server's own pane) → hard error (Codex #4).
+9. **Backends check every command's exit code (kill excepted).** `open()`/`submit()` throw on a non-zero `tmux`/`herdr` exit, so a misconfigured `JARVIS_MULTIPLEXER` override (binary missing) or a transient socket failure fails loudly instead of returning a dead handle. This is the safety net that makes the grill-locked "env override bypasses the probe" decision acceptable (Codex #3/#5). `kill()` stays exit-code-agnostic (idempotent).
+10. **The choice union lives once, in `@jarv1s/shared`.** `ChatMultiplexerChoice` is defined in shared; ai and settings import it — no per-package redefinition (Codex #8).
+11. **The boot read is a bounded, documented exemption to "DataContextDb only."** It mirrors the existing auth registration gate (`readBooleanSetting`), is restricted to an allowlist of non-secret keys, and is recorded in `DEVELOPMENT_STANDARDS.md`. Admin GET/PUT still go through DataContextDb + `assertAdminUser` (Codex #1).
+12. **PreToolUse policy deferred out of v1 — in both README and spec.** The one programmatic input path is already sanitized and native tools are already denied at launch flags, so the hook is pure defense-in-depth, Claude-only, and needs its own fail-closed/cross-engine design. The spec §6 is updated to mark it Deferred so spec and plan agree (Codex #7).
+13. **Composition happens in `module-registry`, not `apps/api`.** `apps/api` doesn't depend on ai/chat/settings; `module-registry` already does and already forwards `rootDb`. Net `apps/api` change: zero (Codex confirmed this is mechanically sound).
+
+## Risks / open questions
+
+- **herdr JSON shape (v0.6.8) is an integration assumption.** Grounded against the live CLI, but a herdr upgrade could change the envelope. Mitigation: a single parse point that throws a clear error; the `auto` path still falls back to tmux on hosts where herdr isn't selected.
+- **herdr root-pane resolution** now requires an explicit pane (`opts.rootPane` / `JARVIS_HERDR_ROOT_PANE` / `HERDR_PANE_ID`) and errors otherwise — no "first pane" guessing. Residual: if the operator runs the API *outside* any herdr pane and sets no override, herdr selection is unavailable (it errors clearly, and `auto` falls back to tmux). Acceptable for v1.
+- **Live 503 mapping** is wired into the actual live error path (`handleLiveRouteError` in `live-routes.ts:~164`) plus the REST `handleRouteError`, with a route-level test asserting 503 — not left to a generic 500.
+
+## Out of scope
+
+- Real uid-per-user isolation (deferred milestone; the `0700` dirs + env/homeBase seams are the forward-compat hooks).
+- The PreToolUse agent-path policy (deferred follow-up — Task 16).
+- Live (no-restart) re-selection of the multiplexer.
+- A herdr/tmux install/onboarding flow (we detect and report; we don't install).
+
+---
+
 ## Self-Review
 
 **Spec coverage (spec §-by-§):**
-- §4 Multiplexer seam → Tasks 1, 3, 8, 5 (barrel). ✓
-- §4.1 opaque-handle return/store → Task 6 (`this.handle = await mux.open(...)`), Task 8 (herdr id). ✓
-- §4.2 backend selection (PATH/env, tmux default) → Task 4. ✓ (PATH auto-detect deferred to onboarding; env override + default ships now — noted in Task 4.)
-- §5.1 engine refactor, stale comments, sanitizeInput retained → Task 6. ✓
+- §4 Multiplexer seam → Tasks 1, 3, 4, 7 (barrel). ✓
+- §4.1 opaque-handle return/store → Task 8 (`this.handle = await mux.open(...)`), Task 4 (herdr id). ✓
+- §4.2 backend selection → **superseded by Q3** (grill): env override + admin setting + auto-detect → Tasks 5, 6, 11–14. ✓
+- §5.1 engine refactor, stale comments, sanitizeInput retained → Task 8. ✓
 - §5.2 TmuxIo env/cwd + transcriptGlobDir homeBase → Task 2. ✓
-- §5.3 types.ts JWT comment → Task 6 Step 1. ✓
-- §5.4 runtime factory → Task 9. ✓
-- §5.5 persona 0700 → Task 10. ✓
+- §5.3 types.ts JWT comment → Task 8 Step 1. ✓
+- §5.4 runtime factory → Tasks 10 (builder) + 13 (resolution). ✓
+- §5.5 persona 0700 → Task 15. ✓
 - §5.6 symmetric teardown unchanged → no code change; manager already calls kill+revoke (verified in spec). ✓
-- §6 PreToolUse policy → Task 11 (anthropic; codex/gemini blocked at flags). ✓
-- §7 attach posture → `attachCommand` in Tasks 3 & 8. ✓
-- §8 shared-uid limitation doc → Task 12. ✓
-- §9 deferred-milestone seams → Tasks 2 (env/homeBase), 6 & 8 (opaque handle), 10 (0700). ✓
-- §11 testing → every task is TDD; gate in Task 13. ✓
-- §13 acceptance criteria 1–7 → all mapped. ✓
+- §6 PreToolUse policy → **deferred** (Task 16 updates BOTH the chat README and the spec §6/acceptance criteria to mark it Deferred) per grill decision. ✓ (intentional cut, recorded in the spec — not a silent gap)
+- §7 attach posture → `attachCommand` in Tasks 3 & 4. ✓
+- §8 shared-uid limitation doc → Task 16. ✓
+- §9 deferred-milestone seams → Tasks 2 (env/homeBase), 8 & 4 (opaque handle), 15 (0700). ✓
+- §11 testing → every task is TDD; gate in Task 17. ✓
+- §13 acceptance criteria 1–7 → all mapped (multiplexer selection now via Q3 chain). ✓
 
-**Placeholder scan:** No TBD/TODO. The herdr stdout parser (`firstToken`) and PATH auto-detect are explicitly scoped as integration assumptions / onboarding-deferred, not placeholders.
+**Q3 (grill-locked) coverage:** instance setting + typed read/write → Task 11; shared contract + admin route → Task 12; binary probe → Task 5; pure decision + resolver → Task 6; boot resolution + late-bound injection + disabled state → Task 13; admin UI → Task 14. ✓
 
-**Type consistency:** `Multiplexer`/`MuxHandle`/`MuxOpenOpts` (Task 1) used identically in Tasks 3, 6, 8. Class renamed `TmuxCliChatEngine`→`CliChatEngineImpl` consistently across Tasks 6, 7, 9. `TmuxIo.run` 3-arg signature (Task 2) is backward-compatible with all existing 2-arg callers. `PersonaFs.mkdir(path, mode?)` (Task 10) is backward-compatible.
+**Placeholder scan:** No TBD/TODO. The herdr JSON shape and root-pane resolution are explicitly scoped as integration assumptions with documented mitigations, not placeholders. The live-routes 503 mapping has a concrete grep-and-add instruction (Task 10 Step 5).
 
-**Execution-order note:** Task 4 imports `HerdrMultiplexer` (Task 8) — run Task 8 before Task 4's tests. All other tasks are in dependency order.
+**Type consistency:** `Multiplexer`/`MuxHandle`/`MuxOpenOpts` (Task 1) used identically in Tasks 3, 4, 6, 8. `ChatMultiplexerChoice` is defined **once** in `@jarv1s/shared` (Task 6 Step 0) and imported by ai (Task 6), settings (Task 11), and the module-registry glue (Task 13); the schema `enum` (Task 12) and the `<select>` values (Task 14) use the same three literals `"auto"|"tmux"|"herdr"` — no per-package redefinition. Class renamed `TmuxCliChatEngine`→`CliChatEngineImpl` consistently across Tasks 8, 9, 10. `createRealEngineFactory({ mux })` (Task 10) is called identically in Task 13. `chatMultiplexerAvailability` shape `{ tmux, herdr }` is identical in `BuiltInRouteDependencies` (Task 13), `SettingsRoutesDependencies` (Task 12), and `ChatMultiplexerAvailability` (Task 12 shared). `TmuxIo.run` 3-arg signature (Task 2) is backward-compatible with all existing 2-arg callers. `PersonaFs.mkdir(path, mode?)` (Task 15) is backward-compatible.
+
+**Execution-order note:** Task 4 (HerdrMultiplexer) is built **before** Task 6 (resolver imports it). Task 10 (chat barrel exports) is before Task 13 (module-registry imports them). Task 12 leaves a deliberate typecheck failure at the module-registry call site that Task 13 closes. All other tasks are in dependency order.
