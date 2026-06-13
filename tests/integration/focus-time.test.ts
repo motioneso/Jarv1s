@@ -22,9 +22,18 @@ import {
   GoogleOAuthClient,
   createConnectorSecretCipher
 } from "@jarv1s/connectors";
-import { buildCalendarWriteService } from "@jarv1s/chat";
+import {
+  buildCalendarWriteService,
+  buildChatGatewayDependencies,
+  buildChatToolServices
+} from "@jarv1s/chat";
 import { calendarModuleManifest, CalendarRepository } from "@jarv1s/calendar";
 import type { ProposeFocusResult } from "@jarv1s/calendar";
+// registerMcpTransportRoute is NOT re-exported from @jarv1s/chat — import it via the deep src path
+// exactly as chat-mcp-transport.test.ts does (verified).
+import { registerMcpTransportRoute } from "../../packages/chat/src/mcp-transport.js";
+import Fastify from "fastify";
+import type { FastifyInstance } from "fastify";
 import type { Kysely } from "kysely";
 import { connectionStrings, ids, resetFoundationDatabase } from "./test-database.js";
 
@@ -818,5 +827,209 @@ describe("Group D — CalendarWriteService impl (faked Google fetch)", () => {
     );
     expect(res.created).toBe(true);
     expect(res.calendarMirror).toBe("skipped-error");
+  });
+});
+
+describe("Group D — buildChatToolServices wires calendarWrite into the gateway (MCP path)", () => {
+  let appDb: Kysely<JarvisDatabase>;
+  let dataContext: DataContextRunner;
+
+  beforeAll(async () => {
+    process.env.JARVIS_CONNECTOR_SECRET_KEY = "test-connector-secret-key";
+    await resetFoundationDatabase();
+    appDb = createDatabase({ connectionString: connectionStrings.app, maxConnections: 1 });
+    dataContext = new DataContextRunner(appDb);
+  });
+  afterAll(async () => {
+    await appDb.destroy();
+  });
+
+  async function seedGoogleAccount(ownerId: string, scopes: string[]): Promise<string> {
+    const cipher = createConnectorSecretCipher();
+    const repo = new ConnectorsRepository();
+    const account = await dataContext.withDataContext(
+      { actorUserId: ownerId, requestId: "seed" },
+      (scopedDb) =>
+        repo.upsertGoogleAccount(scopedDb, {
+          scopes,
+          encryptedSecret: cipher.encryptJson({
+            kind: "google-oauth",
+            clientId: "cid",
+            clientSecret: "csecret",
+            accessToken: "atoken",
+            refreshToken: "rtoken",
+            tokenExpiry: new Date(Date.now() + 3_600_000).toISOString(),
+            grantedScopes: scopes
+          })
+        })
+    );
+    return account.id;
+  }
+
+  // The plan harness uses a discarding notifier ({ emit() {} }), so the pending action id is
+  // discovered by reading the owner's pending action requests under their own RLS context.
+  async function waitForPendingActionId(
+    runner: DataContextRunner,
+    actorUserId: string
+  ): Promise<string> {
+    const repo = new AiRepository();
+    for (let i = 0; i < 200; i++) {
+      const pending = await runner.withDataContext(
+        { actorUserId, requestId: "wait-pending" },
+        (scopedDb) => repo.listAssistantActions(scopedDb)
+      );
+      const found = pending.find((a) => a.status === "pending");
+      if (found) return found.id;
+      await new Promise((resolve) => setTimeout(resolve, 10));
+    }
+    throw new Error("no pending action request appeared");
+  }
+
+  // Build an app whose gateway uses toolServices PRODUCED BY THE REAL FACTORY (not a literal).
+  function buildGatewayAppFromFactory(collaborators: {
+    googleConnectionService?: GoogleConnectionService;
+    googleApiClient?: GoogleApiClient;
+    connectorsRepository?: ConnectorsRepository;
+  }) {
+    const toolServices = buildChatToolServices(collaborators); // ← exercises D3's code path
+    const tokens = new SessionTokenRegistry();
+    const gateway = new AssistantToolGateway({
+      resolveActiveModules: async () => [calendarModuleManifest],
+      repository: new AiRepository(),
+      runner: dataContext,
+      tokens,
+      confirmations: new ConfirmationRegistry(),
+      notifier: { emit() {} },
+      confirmTimeoutMs: 150_000,
+      toolServices
+    });
+    const app = Fastify({ logger: false });
+    registerMcpTransportRoute(app, { gateway, tokens });
+    app.post<{ Params: { id: string }; Body: { status: string } }>(
+      "/api/chat/action-requests/:id/resolve",
+      async (request, reply) => {
+        await gateway.resolveActionRequest(
+          ids.userA,
+          request.params.id,
+          request.body.status as "confirmed"
+        );
+        return reply.code(204).send();
+      }
+    );
+    return { app, tokens };
+  }
+
+  async function mcp(app: FastifyInstance, token: string, method: string, params: unknown) {
+    const res = await app.inject({
+      method: "POST",
+      url: "/api/mcp",
+      headers: { authorization: `Bearer ${token}` },
+      body: { jsonrpc: "2.0", id: 1, method, params }
+    });
+    return res.json();
+  }
+
+  it("WITH collaborators: the factory yields calendarWrite; tools/list includes it and tools/call+resolve executes it", async () => {
+    await seedGoogleAccount(ids.userA, ["https://www.googleapis.com/auth/calendar"]);
+    // Real collaborators over a faked Google fetch — buildChatToolServices builds a real
+    // buildCalendarWriteService from them, so a successful tools/call proves the whole D3 chain.
+    const { fetchFn } = captureFetch((url) =>
+      url.includes("/freeBusy")
+        ? { body: { calendars: { primary: { busy: [] } } } }
+        : { body: { id: "evt-mcp", htmlLink: "https://x/evt-mcp" } }
+    );
+    const cipher = createConnectorSecretCipher();
+    const connectorsRepository = new ConnectorsRepository();
+    const { app, tokens } = buildGatewayAppFromFactory({
+      googleConnectionService: new GoogleConnectionService({
+        repository: connectorsRepository,
+        cipher,
+        oauthClient: new GoogleOAuthClient({ fetchFn })
+      }),
+      googleApiClient: new GoogleApiClient({ fetchFn }),
+      connectorsRepository
+    });
+    await app.ready();
+    const token = tokens.mint({
+      actorUserId: ids.userA,
+      chatSessionId: ids.userA,
+      allowedToolNames: null
+    });
+
+    const list = await mcp(app, token, "tools/list", {});
+    const names = (list.result.tools as Array<{ name: string }>).map((t) => t.name);
+    expect(names).toContain("calendar.proposeFocusBlock"); // factory produced calendarWrite ⇒ tool listed
+
+    const callP = mcp(app, token, "tools/call", {
+      name: "calendar.proposeFocusBlock",
+      arguments: { partOfDay: "morning", durationMinutes: 120 }
+    });
+    const actionId = await waitForPendingActionId(dataContext, ids.userA);
+    await app.inject({
+      method: "POST",
+      url: `/api/chat/action-requests/${actionId}/resolve`,
+      payload: { status: "confirmed" }
+    });
+    const callResult = await callP;
+    // tools/call surfaces the created event id once approved + executed via the real wired service.
+    expect(JSON.stringify(callResult)).toContain("evt-mcp");
+    await app.close();
+  });
+
+  it("WITHOUT collaborators: the factory yields {} so tools/list EXCLUDES the tool and tools/call is rejected", async () => {
+    const { app, tokens } = buildGatewayAppFromFactory({}); // factory returns {}
+    await app.ready();
+    const token = tokens.mint({
+      actorUserId: ids.userA,
+      chatSessionId: ids.userA,
+      allowedToolNames: null
+    });
+    const list = await mcp(app, token, "tools/list", {});
+    const names = (list.result.tools as Array<{ name: string }>).map((t) => t.name);
+    expect(names).not.toContain("calendar.proposeFocusBlock"); // fail-closed: hidden
+    const call = await mcp(app, token, "tools/call", {
+      name: "calendar.proposeFocusBlock",
+      arguments: {}
+    });
+    // gateway returns ok:false "Tool not available" → MCP surfaces an error, never reaches execute.
+    expect(JSON.stringify(call).toLowerCase()).toMatch(/not available|error/);
+    await app.close();
+  });
+
+  // Guards the "factory exists but registerChatRoutes forgot to pass toolServices" gap (Codex Round-4 MED):
+  // assert the EXACT dependency object registerChatRoutes builds carries toolServices from the factory.
+  it("buildChatGatewayDependencies (the helper registerChatRoutes uses) carries toolServices.calendarWrite", () => {
+    const { fetchFn } = captureFetch(() => ({ body: {} }));
+    const connectorsRepository = new ConnectorsRepository();
+    const deps = buildChatGatewayDependencies({
+      resolveActiveModules: async () => [calendarModuleManifest],
+      repository: new AiRepository(),
+      runner: dataContext,
+      tokens: new SessionTokenRegistry(),
+      confirmations: new ConfirmationRegistry(),
+      notifier: { emit() {} },
+      collaborators: {
+        googleConnectionService: new GoogleConnectionService({
+          repository: connectorsRepository,
+          cipher: createConnectorSecretCipher(),
+          oauthClient: new GoogleOAuthClient({ fetchFn })
+        }),
+        googleApiClient: new GoogleApiClient({ fetchFn }),
+        connectorsRepository
+      }
+    });
+    expect(deps.toolServices).toBeDefined();
+    expect((deps.toolServices as Record<string, unknown>).calendarWrite).toBeDefined();
+    // and WITHOUT collaborators, the same helper omits it:
+    const bare = buildChatGatewayDependencies({
+      resolveActiveModules: async () => [calendarModuleManifest],
+      repository: new AiRepository(),
+      runner: dataContext,
+      tokens: new SessionTokenRegistry(),
+      confirmations: new ConfirmationRegistry(),
+      notifier: { emit() {} },
+      collaborators: {}
+    });
+    expect((bare.toolServices as Record<string, unknown>).calendarWrite).toBeUndefined();
   });
 });

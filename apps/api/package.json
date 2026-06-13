@@ -10,6 +10,7 @@
   },
   "dependencies": {
     "@jarv1s/auth": "workspace:*",
+    "@jarv1s/connectors": "workspace:*",
     "@jarv1s/db": "workspace:*",
     "@jarv1s/jobs": "workspace:*",
     "@jarv1s/module-registry": "workspace:*",
