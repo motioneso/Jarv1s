@@ -184,6 +184,10 @@ describe("MVP foundation scaffold", () => {
         {
           version: "0086",
           name: "0086_module_enablement_instance_select_actor_guard.sql"
+        },
+        {
+          version: "0087",
+          name: "0087_calendar_events_update_connector_scope.sql"
         }
       ]);
     } finally {
