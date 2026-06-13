@@ -4,6 +4,7 @@ import {
   CalendarDays,
   CheckSquare,
   FileText,
+  HeartPulse,
   Layers3,
   LogOut,
   Mail,
@@ -31,6 +32,7 @@ interface AppShellProps {
   readonly me: MeResponse;
   readonly modules: readonly ModuleDto[];
   readonly modulesLoading: boolean;
+  readonly disabledModuleIds?: readonly string[];
 }
 
 const iconMap: Record<string, ComponentType<{ readonly size?: number }>> = {
@@ -38,6 +40,7 @@ const iconMap: Record<string, ComponentType<{ readonly size?: number }>> = {
   "calendar-days": CalendarDays,
   "check-square": CheckSquare,
   "file-text": FileText,
+  "heart-pulse": HeartPulse,
   mail: Mail,
   "message-square": MessageSquare,
   newspaper: Newspaper,
@@ -55,7 +58,10 @@ export function AppShell(props: AppShellProps) {
   // Lifted to the shell so the SSE stream + transcript persist while the drawer is
   // closed and as the user navigates between pages — the chat follows the user.
   const { records, clearRecords } = useChatStream();
-  const navigation = useMemo(() => readNavigation(props.modules), [props.modules]);
+  const navigation = useMemo(
+    () => readNavigation(props.modules, props.disabledModuleIds ?? []),
+    [props.modules, props.disabledModuleIds]
+  );
   const notificationsQuery = useQuery({
     queryKey: queryKeys.notifications.list,
     queryFn: () => listNotifications()
@@ -210,8 +216,13 @@ function ChatNavToggle(props: {
   );
 }
 
-function readNavigation(modules: readonly ModuleDto[]): ModuleNavigationEntryDto[] {
+function readNavigation(
+  modules: readonly ModuleDto[],
+  disabledModuleIds: readonly string[]
+): ModuleNavigationEntryDto[] {
+  const disabled = new Set(disabledModuleIds);
   return modules
+    .filter((module) => !disabled.has(module.id))
     .flatMap((module) => module.navigation)
     .sort((left, right) => {
       const leftOrder = left.order ?? Number.MAX_SAFE_INTEGER;

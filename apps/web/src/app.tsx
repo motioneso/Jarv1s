@@ -1,7 +1,14 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { BrowserRouter, Navigate, Route, Routes } from "react-router";
 
-import { ApiError, getBootstrapStatus, getMe, getModules, getOnboardingStatus } from "./api/client";
+import {
+  ApiError,
+  getBootstrapStatus,
+  getMe,
+  getModules,
+  getMyModules,
+  getOnboardingStatus
+} from "./api/client";
 import { queryKeys } from "./api/query-keys";
 import { AuthScreen } from "./auth/auth-screen";
 import { isBootstrapOwner, shouldShowOnboarding } from "./onboarding/resume";
@@ -14,6 +21,7 @@ import { SettingsPage } from "./settings/settings-page";
 import { AppShell } from "./shell/app-shell";
 import { TaskDetailPage } from "./tasks/task-detail-page";
 import { TasksPage } from "./tasks/tasks-page";
+import { WellnessPage } from "./wellness/wellness-page";
 
 export function App() {
   const queryClient = useQueryClient();
@@ -32,6 +40,14 @@ export function App() {
     queryFn: () => getModules(),
     retry: false
   });
+  const myModulesQuery = useQuery({
+    enabled: meQuery.isSuccess,
+    queryKey: queryKeys.myModules,
+    queryFn: () => getMyModules(),
+    retry: false
+  });
+  const disabledModuleIds =
+    myModulesQuery.data?.modules.filter((m) => !m.active).map((m) => m.id) ?? [];
   const ownerForOnboarding = isBootstrapOwner(meQuery.data);
   const onboardingQuery = useQuery({
     enabled: ownerForOnboarding,
@@ -112,6 +128,7 @@ export function App() {
         me={meQuery.data}
         modules={modulesQuery.data?.modules ?? []}
         modulesLoading={modulesQuery.isLoading}
+        disabledModuleIds={disabledModuleIds}
       >
         <Routes>
           <Route index element={<Navigate to="/tasks" replace />} />
@@ -121,6 +138,7 @@ export function App() {
           <Route path="/calendar" element={<CalendarPage />} />
           <Route path="/email" element={<EmailPage />} />
           <Route path="/briefings" element={<BriefingsPage />} />
+          <Route path="/wellness" element={<WellnessPage />} />
           <Route path="/settings" element={<SettingsPage me={meQuery.data} />} />
           <Route path="*" element={<Navigate to="/tasks" replace />} />
         </Routes>
