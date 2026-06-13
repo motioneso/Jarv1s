@@ -9,7 +9,13 @@ import {
   type JarvisDatabase
 } from "@jarv1s/db";
 import { WELLNESS_FEELING_CORES, createCheckinRequestSchema } from "@jarv1s/shared";
-import { WellnessRepository, wellnessModuleManifest, WELLNESS_MODULE_ID } from "@jarv1s/wellness";
+import {
+  WellnessRepository,
+  computeSchedule,
+  wellnessModuleManifest,
+  WELLNESS_MODULE_ID
+} from "@jarv1s/wellness";
+import type { Medication, MedicationLog } from "@jarv1s/db";
 
 import { connectionStrings, resetEmptyFoundationDatabase } from "./test-database.js";
 
@@ -239,5 +245,77 @@ describe("WellnessRepository", () => {
     await expect(
       repo.createCheckin(appDb as unknown as never, { feelingCore: "joyful" })
     ).rejects.toThrow("Repository access requires withDataContext");
+  });
+});
+
+describe("computeSchedule (pure)", () => {
+  const date = new Date("2026-06-15T00:00:00.000Z"); // Monday
+
+  function med(overrides: Partial<Medication>): Medication {
+    return {
+      id: "m1",
+      owner_user_id: userId,
+      name: "Med",
+      dosage: null,
+      form: null,
+      frequency_type: "once_daily",
+      times_per_day: null,
+      interval_hours: null,
+      weekdays: null,
+      schedule_times: null,
+      cycle_days_on: null,
+      cycle_days_off: null,
+      cycle_anchor_date: null,
+      active: true,
+      notes: null,
+      created_at: date,
+      updated_at: date,
+      ...overrides
+    } as Medication;
+  }
+
+  it("once_daily with schedule_times yields a slot per time", () => {
+    const slots = computeSchedule([med({ schedule_times: ["08:00", "20:00"] })], [], date);
+    expect(slots.filter((s) => !s.asNeeded).length).toBe(2);
+    expect(slots[0]?.status).toBe("pending");
+  });
+
+  it("specific_weekdays only yields slots on a matching weekday", () => {
+    const onMonday = computeSchedule(
+      [med({ frequency_type: "specific_weekdays", weekdays: [1], schedule_times: ["09:00"] })],
+      [],
+      date // Monday = ISO 1
+    );
+    expect(onMonday.filter((s) => !s.asNeeded).length).toBe(1);
+    const onTuesday = computeSchedule(
+      [med({ frequency_type: "specific_weekdays", weekdays: [2], schedule_times: ["09:00"] })],
+      [],
+      date
+    );
+    expect(onTuesday.filter((s) => !s.asNeeded).length).toBe(0);
+  });
+
+  it("as_needed yields a single asNeeded affordance, no fixed slot", () => {
+    const slots = computeSchedule([med({ frequency_type: "as_needed" })], [], date);
+    expect(slots.length).toBe(1);
+    expect(slots[0]?.asNeeded).toBe(true);
+  });
+
+  it("a matching same-day log marks the slot taken", () => {
+    const m = med({ id: "mx", schedule_times: ["08:00"] });
+    const scheduledFor = new Date("2026-06-15T08:00:00.000Z");
+    const log: MedicationLog = {
+      id: "l1",
+      medication_id: "mx",
+      owner_user_id: userId,
+      status: "taken",
+      dose: null,
+      prn_reason: null,
+      scheduled_for: scheduledFor,
+      logged_at: scheduledFor,
+      created_at: scheduledFor
+    } as MedicationLog;
+    const slots = computeSchedule([m], [log], date);
+    expect(slots.find((s) => !s.asNeeded)?.status).toBe("taken");
   });
 });

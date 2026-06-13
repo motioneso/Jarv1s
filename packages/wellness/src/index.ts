@@ -13,3 +13,4 @@ export type {
   LogDoseInput
 } from "./repository.js";
 export { serializeCheckin, serializeMedication, serializeMedicationLog } from "./serialize.js";
+export { computeSchedule } from "./schedule.js";
