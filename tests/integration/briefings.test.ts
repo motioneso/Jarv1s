@@ -647,6 +647,51 @@ describe("Briefings module M6 read-only scheduled summaries", () => {
     }
   });
 
+  it("API-process boss (schedule:false, app runtime role) can write+delete pgboss.schedule rows (grant 0002)", async () => {
+    // The existing route/reconcile assertions are best-effort and FAILURE-ISOLATED:
+    // the create route swallows a thrown reconcile (proven above), and the F12 row
+    // assertions run through a `schedule:true` WORKER-role boss. Neither proves the
+    // *API process* path — `appBoss` is built from connectionStrings.app
+    // (jarvis_app_runtime) with the default schedule:false, exactly as apps/api wires
+    // it — actually has the pgboss.schedule INSERT/DELETE privilege granted in
+    // infra/postgres/grants/0002_pgboss_cron_owner_grants.sql. If that grant were
+    // missing or revoked, the route path would silently swallow the permission error;
+    // this test calls reconcileSchedule against the real app-role boss with NO
+    // try/catch, so an insufficient runtime grant surfaces as a thrown error here.
+    const definition = await dataContext.withDataContext(userAContext(), (scopedDb) =>
+      repository.createDefinition(scopedDb, {
+        title: "API-process schedule grant probe",
+        cadence: "daily",
+        scheduleMetadata: { targetTime: "05:45", timezone: "UTC" },
+        enabled: true,
+        selectedToolNames: ["tasks.list"]
+      })
+    );
+
+    const client = new Client({ connectionString: connectionStrings.migration });
+    await client.connect();
+    try {
+      // INSERT path through jarvis_app_runtime — must not throw, and the row must land.
+      await reconcileSchedule(appBoss, definition);
+      const afterEnable = await client.query<{ key: string }>(
+        `SELECT key FROM pgboss.schedule WHERE name = $1 AND key = $2`,
+        [BRIEFINGS_RUN_QUEUE, definition.id]
+      );
+      expect(afterEnable.rows.map((r) => r.key)).toEqual([definition.id]);
+
+      // DELETE path through jarvis_app_runtime (enabled:false → boss.unschedule) —
+      // must not throw, and the row must be gone.
+      await reconcileSchedule(appBoss, { ...definition, enabled: false });
+      const afterDisable = await client.query<{ key: string }>(
+        `SELECT key FROM pgboss.schedule WHERE name = $1 AND key = $2`,
+        [BRIEFINGS_RUN_QUEUE, definition.id]
+      );
+      expect(afterDisable.rows).toHaveLength(0);
+    } finally {
+      await client.end();
+    }
+  });
+
   it("does not let a User A worker job run User B's private briefing", async () => {
     const resultPromise = handleNextBriefingJob(workerBoss);
 
