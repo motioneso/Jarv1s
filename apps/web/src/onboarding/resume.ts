@@ -5,7 +5,9 @@ export type StepKey = (typeof STEP_KEYS)[number];
 
 /** Per-step done map. welcome is always "done" for resume purposes; the rest are derived. */
 export function doneByStep(status: OnboardingStatusResponse | undefined): Record<StepKey, boolean> {
-  const steps = status?.steps;
+  // These founder spine steps (multiplexer/cliAuth) exist only on the founder variant.
+  // Phase 4 widened OnboardingStatusResponse to a role union, so narrow before reading them.
+  const steps = status?.role === "founder" ? status.steps : undefined;
   return {
     welcome: true,
     multiplexer: steps?.multiplexer.done ?? false,
@@ -29,7 +31,8 @@ export function firstIncompleteStepIndex(status: OnboardingStatusResponse | unde
  * requirement (Codex R1) — a selected-but-unusable herdr does not light the overlay.
  */
 export function isOverlayEnabled(status: OnboardingStatusResponse | undefined): boolean {
-  if (!status) return false;
+  // The CLI overlay is a founder-only spine surface (multiplexer + provider-CLI presence).
+  if (status?.role !== "founder") return false;
   return status.steps.multiplexer.done && status.steps.cliAuth.providers.some((p) => p.cliPresent);
 }
 
@@ -48,5 +51,6 @@ export function shouldShowOnboarding(
   me: MeResponse | undefined,
   status: OnboardingStatusResponse | undefined
 ): boolean {
-  return isBootstrapOwner(me) && status?.state === "pending";
+  // Founder-only branch: `state` lives on the founder variant of the role union (Phase 4).
+  return isBootstrapOwner(me) && status?.role === "founder" && status.state === "pending";
 }

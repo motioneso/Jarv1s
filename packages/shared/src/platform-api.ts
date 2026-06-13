@@ -403,20 +403,46 @@ export interface OnboardingStepsDto {
   readonly connectors: OnboardingConnectorStepDto;
 }
 
-export interface OnboardingStatusResponse {
+// --- Phase 4: role-tagged onboarding status. The "founder" variant is the Phase-2
+//     shape (instance-global provisioning, keyed on the OnboardingState lifecycle); the
+//     "member" variant is per-user (one row in app.member_onboarding). Consumers narrow on
+//     `role` before touching variant-specific fields. ---
+
+export interface OnboardingFounderStatus {
+  readonly role: "founder";
   readonly state: OnboardingState;
   readonly steps: OnboardingStepsDto;
 }
+
+/**
+ * Member step flags are DERIVED CLIENT-SIDE from the connectors / AI modules' own public
+ * endpoints (module isolation — packages/settings never reads another module's tables).
+ * The server returns neutral `false` defaults; the member wizard fills them in.
+ */
+export interface OnboardingMemberStepFlags {
+  readonly apiKeyOptOut: { readonly done: boolean };
+  readonly connectors: { readonly done: boolean };
+}
+
+export interface OnboardingMemberStatus {
+  readonly role: "member";
+  readonly completed: boolean;
+  readonly steps: OnboardingMemberStepFlags;
+}
+
+export type OnboardingStatusResponse = OnboardingFounderStatus | OnboardingMemberStatus;
 
 export interface OnboardingStateResponse {
   readonly state: OnboardingState;
 }
 
-const onboardingStatusResponseSchema = {
+// Phase 4: the founder branch is the unchanged Phase-2 shape with a `role` discriminant.
+const onboardingFounderStatusSchema = {
   type: "object",
   additionalProperties: false,
-  required: ["state", "steps"],
+  required: ["role", "state", "steps"],
   properties: {
+    role: { type: "string", enum: ["founder"] },
     state: { type: "string", enum: ["pending", "completed", "skipped"] },
     steps: {
       type: "object",
@@ -466,6 +492,40 @@ const onboardingStatusResponseSchema = {
       }
     }
   }
+} as const;
+
+// Phase 4: the member branch — per-user completion + client-derived step flags.
+const onboardingMemberStatusSchema = {
+  type: "object",
+  additionalProperties: false,
+  required: ["role", "completed", "steps"],
+  properties: {
+    role: { type: "string", enum: ["member"] },
+    completed: { type: "boolean" },
+    steps: {
+      type: "object",
+      additionalProperties: false,
+      required: ["apiKeyOptOut", "connectors"],
+      properties: {
+        apiKeyOptOut: {
+          type: "object",
+          additionalProperties: false,
+          required: ["done"],
+          properties: { done: { type: "boolean" } }
+        },
+        connectors: {
+          type: "object",
+          additionalProperties: false,
+          required: ["done"],
+          properties: { done: { type: "boolean" } }
+        }
+      }
+    }
+  }
+} as const;
+
+const onboardingStatusResponseSchema = {
+  oneOf: [onboardingFounderStatusSchema, onboardingMemberStatusSchema]
 } as const;
 
 const onboardingStateResponseSchema = {

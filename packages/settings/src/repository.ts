@@ -6,8 +6,8 @@ import type { AdminAuditEvent, InstanceSetting, ModuleEnablementRow, User } from
 import { assertDataContextDb, type DataContextDb } from "@jarv1s/db";
 import type {
   ChatMultiplexerChoice,
-  OnboardingState,
-  OnboardingStatusResponse
+  OnboardingFounderStatus,
+  OnboardingState
 } from "@jarv1s/shared";
 
 export interface UpsertInstanceSettingInput {
@@ -513,9 +513,11 @@ export class SettingsRepository {
    *     NOT enough for herdr (it needs a root pane) — usability is decided upstream.
    *  - cliAuth.done ⇔ at least one provider CLI is PRESENT (presence ≠ authenticated; floor).
    *  - connectors.done ⇔ a connector account exists.
-   * The `satisfies OnboardingStatusResponse` makes contract drift a compile error (Codex R1).
+   * The `satisfies OnboardingFounderStatus` makes contract drift a compile error (Codex R1).
+   * Phase 4: this assembler builds ONLY the founder variant of the role-tagged status union;
+   * the member branch is served separately from app.member_onboarding.
    */
-  assembleOnboardingStatus(input: AssembleOnboardingStatusInput): OnboardingStatusResponse {
+  assembleOnboardingStatus(input: AssembleOnboardingStatusInput): OnboardingFounderStatus {
     const { state, selected, availability, cliPresentByKind, connectorAccountExists } = input;
 
     const multiplexerDone =
@@ -533,6 +535,8 @@ export class SettingsRepository {
     }));
 
     return {
+      // Phase 4: tag the founder variant of the role-discriminated OnboardingStatusResponse.
+      role: "founder",
       state,
       steps: {
         multiplexer: {
@@ -547,7 +551,7 @@ export class SettingsRepository {
         },
         connectors: { done: connectorAccountExists }
       }
-    } satisfies OnboardingStatusResponse;
+    } satisfies OnboardingFounderStatus;
   }
 
   async listAdminAuditEvents(scopedDb: DataContextDb): Promise<AdminAuditEvent[]> {
