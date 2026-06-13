@@ -427,10 +427,18 @@ export async function extractEmailSignals(
   const normalizedBody = normalize(parsed.body);
   if (result.summary !== null) {
     const normalizedSummary = normalize(result.summary);
+    // A summary that is a verbatim contiguous slice of the body, at or above the absolute
+    // SUMMARY_BODY_SUBSTRING_FLOOR (200 chars), is a body echo regardless of WHAT FRACTION of
+    // the body it covers. We deliberately DROP the prior `>= body.length * FRACTION` requirement:
+    // a 200–600 char verbatim prefix of a LONG body (e.g. 200 chars of a 2000-char body) is below
+    // 50% and was slipping through to be persisted as raw email text in `summary`. The fraction
+    // gate is still used by the cumulative SIGNALS guard (stripIfBodyReconstructed), which sums
+    // many short chunks; for the SINGLE-string summary, a 200+ char verbatim slice is enough.
+    // Trade-off (accepted, fail-safe): a legitimate 200+ char summary that happens to be a
+    // verbatim slice of a very short body is nulled → metadata-only row.
     const isLongBodySubstring =
       normalizedBody.length > 0 &&
       normalizedSummary.length >= SUMMARY_BODY_SUBSTRING_FLOOR &&
-      normalizedSummary.length >= normalizedBody.length * BODY_RECONSTRUCTION_FRACTION &&
       normalizedBody.includes(normalizedSummary);
     const echoesBody =
       normalizedSummary === normalizedBody ||

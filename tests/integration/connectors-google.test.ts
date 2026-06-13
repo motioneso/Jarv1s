@@ -95,10 +95,10 @@ describe("GoogleOAuthClient.exchangeCode", () => {
     expect(params.get("client_secret")).toBe("secret");
   });
 
-  it("does not include token-endpoint error body in the thrown Error message", async () => {
-    const loggedErrors: Array<{ statusCode: number; detail: string }> = [];
+  it("does not include token-endpoint error body in the thrown Error message OR the log", async () => {
+    const loggedErrors: Array<{ statusCode: number; detail?: string }> = [];
     const fakeLogger = {
-      error: (data: { statusCode: number; detail: string }, _msg: string) => {
+      error: (data: { statusCode: number; detail?: string }, _msg: string) => {
         loggedErrors.push(data);
       }
     };
@@ -135,10 +135,13 @@ describe("GoogleOAuthClient.exchangeCode", () => {
     expect((caughtError as Error).message).not.toContain("invalid_client");
     expect((caughtError as Error).message).not.toContain("The OAuth client was not found");
 
-    // The detail must have been logged server-side.
+    // The status is logged server-side, but the error body detail is NOT logged at all
+    // (needless data exposure / could capture a future field) — status only.
     expect(loggedErrors.length).toBeGreaterThanOrEqual(1);
     expect(loggedErrors[0]?.statusCode).toBe(401);
-    expect(loggedErrors[0]?.detail).toContain("invalid_client");
+    expect(loggedErrors[0]?.detail).toBeUndefined();
+    expect(JSON.stringify(loggedErrors)).not.toContain("invalid_client");
+    expect(JSON.stringify(loggedErrors)).not.toContain("The OAuth client was not found");
   });
 });
 

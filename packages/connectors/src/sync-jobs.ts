@@ -1,4 +1,5 @@
 import type { Job, PgBoss, WorkOptions } from "pg-boss";
+import { sql } from "kysely";
 
 import type { ActorScopedJobPayload, QueueDefinition } from "@jarv1s/jobs";
 import type { DataContextDb, DataContextRunner } from "@jarv1s/db";
@@ -62,7 +63,22 @@ const GMAIL_SCOPE = "https://www.googleapis.com/auth/gmail.modify";
 const CALENDAR_WINDOW_PAST_MS = 7 * 24 * 60 * 60 * 1000;
 const CALENDAR_WINDOW_FUTURE_MS = 30 * 24 * 60 * 60 * 1000;
 const EMAIL_QUERY = "newer_than:30d";
-const EMAIL_MESSAGE_CAP = Number(process.env.JARVIS_EMAIL_SYNC_CAP ?? "50");
+const DEFAULT_EMAIL_MESSAGE_CAP = 50;
+
+/**
+ * Parse JARVIS_EMAIL_SYNC_CAP into a positive integer, falling back to the default when it is
+ * unset OR misconfigured. Previously `Number(... ?? "50")` returned NaN for a non-numeric value
+ * (e.g. "abc"), and `stubs.slice(0, NaN)` yields an EMPTY array — so a typo'd env var silently
+ * synced ZERO emails while reporting truncated=true. Guard against NaN / <=0 / non-integer.
+ */
+export function resolveEmailMessageCap(raw: string | undefined): number {
+  if (raw === undefined) return DEFAULT_EMAIL_MESSAGE_CAP;
+  const parsed = Number(raw);
+  if (!Number.isInteger(parsed) || parsed <= 0) return DEFAULT_EMAIL_MESSAGE_CAP;
+  return parsed;
+}
+
+const EMAIL_MESSAGE_CAP = resolveEmailMessageCap(process.env.JARVIS_EMAIL_SYNC_CAP);
 
 interface GoogleClientLike {
   listCalendarEvents(input: {
@@ -103,30 +119,118 @@ const NOOP_SYNC_LOGGER: SyncLogger = {
   info: (data, msg) => console.info(msg, data)
 };
 
+/** Mutable holder for the current access token, shared across the whole sync run. */
+interface TokenHolder {
+  token: string;
+}
+
 /**
  * Run one Google API operation, retrying ONCE on a 401 after forcing a token refresh.
  * Mirrors the standard expired-access-token recovery: the cached token may have been revoked
  * or expired between the >60s freshness check and the call. `GoogleApiError.statusCode` is the
  * 401 signal (see google-api-client.ts). Any non-401 error propagates to the per-section catch.
+ *
+ * The token lives in a shared mutable HOLDER: as soon as a forced refresh succeeds, the new
+ * token is written back to the holder BEFORE the retry runs. So even if the retried op throws
+ * (e.g. the message itself 404s after the refresh), the rotated token is NOT lost — the next
+ * message in the loop uses the fresh token instead of re-triggering a 401 → refresh on every
+ * remaining message (the mid-loop stale-token bug). On a non-401 error, the holder is untouched.
  */
 async function withTokenRetry<T>(
   scopedDb: DataContextDb,
   deps: GoogleSyncDeps,
-  initialToken: string,
+  holder: TokenHolder,
   op: (token: string) => Promise<T>
-): Promise<{ result: T; token: string }> {
+): Promise<T> {
   try {
-    return { result: await op(initialToken), token: initialToken };
+    return await op(holder.token);
   } catch (error) {
     const status = (error as { statusCode?: number }).statusCode;
     if (status !== 401) throw error;
-    const refreshed = await deps.getFreshAccessToken(scopedDb, { force: true });
-    return { result: await op(refreshed), token: refreshed };
+    // Capture the refreshed token into the shared holder immediately, so it survives even if
+    // the retried op below throws.
+    holder.token = await deps.getFreshAccessToken(scopedDb, { force: true });
+    return op(holder.token);
   }
 }
 
-function mapEventTimes(side: GoogleCalendarEvent["start"]): string {
-  return side?.dateTime ?? (side?.date ? `${side.date}T00:00:00.000Z` : new Date(0).toISOString());
+/**
+ * Run one DB write inside its OWN SAVEPOINT (a Kysely nested transaction compiles to
+ * SAVEPOINT / ROLLBACK TO SAVEPOINT). The whole sync runs in a SINGLE outer transaction
+ * (registerDataContextWorker → one rootDb.transaction()), so without this a single DB-level
+ * failure (e.g. a CHECK/unique/serialization error on one upsert) would ABORT the entire
+ * transaction; every later write then fails 25P02 and the per-item catch swallows it, yet the
+ * handler returns "success" with non-zero counts → silent total-sync data loss with fabricated
+ * counts. A SAVEPOINT confines a failure to the one item: it rolls back to the savepoint and
+ * the outer transaction stays usable, so committed counts are HONEST.
+ *
+ * The actor GUC (app.actor_user_id) is set with set_config(..., local=true) on the outer
+ * transaction and is unaffected by a SAVEPOINT rollback (savepoints don't reset transaction-local
+ * GUCs to a pre-savepoint value here — they're set once at the top of the transaction), so RLS
+ * still applies inside and after the savepoint. The work runs against the SAME branded
+ * DataContextDb (DataContextDb-only invariant preserved — no raw handle is exposed).
+ */
+let savepointCounter = 0;
+
+async function withSavepoint<T>(
+  scopedDb: DataContextDb,
+  work: (savepointDb: DataContextDb) => Promise<T>
+): Promise<T> {
+  // Kysely 0.29 disallows nested transactions / startTransaction() on a Transaction (both at the
+  // type level AND at runtime — "calling the controlled transaction method for a Transaction is
+  // not supported"). So we issue raw SAVEPOINT markers directly on the SAME transaction connection.
+  // The work still runs against `scopedDb` (same connection, same actor GUC, same RLS), so the
+  // upsert is just bracketed by SAVEPOINT/RELEASE. On failure we ROLLBACK TO SAVEPOINT, which
+  // leaves the OUTER transaction usable (the whole point: confine a per-item failure so it can't
+  // poison every other upsert and cause silent total-sync data loss under fabricated counts).
+  //
+  // The savepoint name is a fixed-prefix + monotonic counter (never user input → injection-safe).
+  savepointCounter += 1;
+  const name = `jarvis_sync_sp_${savepointCounter}`;
+  await sql.raw(`SAVEPOINT ${name}`).execute(scopedDb.db);
+  try {
+    const result = await work(scopedDb);
+    await sql.raw(`RELEASE SAVEPOINT ${name}`).execute(scopedDb.db);
+    return result;
+  } catch (error) {
+    await sql.raw(`ROLLBACK TO SAVEPOINT ${name}`).execute(scopedDb.db);
+    await sql.raw(`RELEASE SAVEPOINT ${name}`).execute(scopedDb.db);
+    throw error;
+  }
+}
+
+/**
+ * Map a Google event's start/end to cache instants, or return null to SKIP an event we can't
+ * place on a timeline. The prior impl mapped a missing start/end to `new Date(0)` (the 1970
+ * epoch): a dateTime-start event with a missing end produced end < start, violating the
+ * `ends_at >= starts_at` CHECK and aborting the whole sync transaction (the 25P02 landmine).
+ *
+ * Rules (fail-safe):
+ *  - Both sides carry `dateTime` → use them verbatim (RFC3339 instants).
+ *  - All-day (both sides carry `date`, no time) → map each date to UTC midnight. Google's
+ *    all-day `end.date` is EXCLUSIVE (the morning after), so end > start and the CHECK holds.
+ *    We tag it `allDay` in metadata; UTC-midnight..UTC-midnight is a consistent, valid range
+ *    (we deliberately don't guess the user's tz here — the sync job has no tz context).
+ *  - Anything else (missing or mixed/unusable start/end) → null (skip), never a fabricated
+ *    epoch instant. A skipped event simply isn't cached this run; it isn't silent data loss
+ *    of OTHER events the way a poisoned transaction was.
+ */
+function mapEventInstants(
+  event: Pick<GoogleCalendarEvent, "start" | "end">
+): { startsAt: string; endsAt: string; allDay: boolean } | null {
+  const start = event.start;
+  const end = event.end;
+  if (start?.dateTime && end?.dateTime) {
+    return { startsAt: start.dateTime, endsAt: end.dateTime, allDay: false };
+  }
+  if (start?.date && end?.date) {
+    return {
+      startsAt: `${start.date}T00:00:00.000Z`,
+      endsAt: `${end.date}T00:00:00.000Z`,
+      allDay: true
+    };
+  }
+  return null;
 }
 
 export async function runGoogleSync(
@@ -149,9 +253,13 @@ export async function runGoogleSync(
     return { calendarUpserted: 0, emailUpserted: 0, errors: ["no-active-connection"] };
   }
 
-  let accessToken: string;
+  // Single shared token holder for the whole run: withTokenRetry writes a refreshed token back
+  // here the instant it refreshes (even if the retried op then fails), so every later call —
+  // across the calendar AND email sections and every message in the loop — uses the fresh token
+  // rather than re-triggering a 401 → refresh per remaining message (mid-loop stale-token bug).
+  const tokenHolder: TokenHolder = { token: "" };
   try {
-    accessToken = await deps.getFreshAccessToken(scopedDb);
+    tokenHolder.token = await deps.getFreshAccessToken(scopedDb);
   } catch {
     // Never log the underlying auth error object (may carry client_secret/refresh_token).
     logger.warn({ actorScoped: true, stage: "auth" }, "google-sync auth failed");
@@ -162,36 +270,60 @@ export async function runGoogleSync(
   if (account.scopes.includes(CALENDAR_SCOPE) || account.scopes.includes("calendar")) {
     try {
       const ref = now().getTime();
-      const { result: events, token: rotated } = await withTokenRetry(
-        scopedDb,
-        deps,
-        accessToken,
-        (token) =>
-          deps.googleClient.listCalendarEvents({
-            accessToken: token,
-            calendarId: "primary",
-            timeMin: new Date(ref - CALENDAR_WINDOW_PAST_MS).toISOString(),
-            timeMax: new Date(ref + CALENDAR_WINDOW_FUTURE_MS).toISOString()
-          })
+      const events = await withTokenRetry(scopedDb, deps, tokenHolder, (token) =>
+        deps.googleClient.listCalendarEvents({
+          accessToken: token,
+          calendarId: "primary",
+          timeMin: new Date(ref - CALENDAR_WINDOW_PAST_MS).toISOString(),
+          timeMax: new Date(ref + CALENDAR_WINDOW_FUTURE_MS).toISOString()
+        })
       );
-      accessToken = rotated; // carry a refreshed token forward to the email section
       for (const event of events) {
         if (!event.id) continue;
-        await calendarRepo.upsertCachedEvent(scopedDb, {
-          connectorAccountId: account.id,
-          externalId: event.id,
-          title: event.summary ?? "(no title)",
-          startsAt: mapEventTimes(event.start),
-          endsAt: mapEventTimes(event.end),
-          location: event.location ?? null,
-          summary: event.description ? event.description.slice(0, 2000) : null,
-          externalMetadata: {
-            status: event.status ?? null,
-            htmlLink: event.htmlLink ?? null,
-            attendeeCount: event.attendees?.length ?? 0
-          }
-        });
-        calendarUpserted += 1;
+        const instants = mapEventInstants(event);
+        if (!instants) {
+          // Unusable/missing start or end — skip rather than fabricate a 1970-epoch instant
+          // that would violate the ends_at >= starts_at CHECK and poison the transaction.
+          logger.warn(
+            { stage: "calendar", reason: "unusable-event-times" },
+            "google-sync skipped a calendar event with no usable start/end"
+          );
+          continue;
+        }
+        try {
+          // SAVEPOINT-wrap each upsert: a single DB-level failure must NOT abort the whole
+          // sync transaction (which would silently roll back every other upsert while the job
+          // reports fabricated success counts).
+          await withSavepoint(scopedDb, (savepointDb) =>
+            calendarRepo.upsertCachedEvent(savepointDb, {
+              connectorAccountId: account.id,
+              externalId: event.id,
+              title: event.summary ?? "(no title)",
+              startsAt: instants.startsAt,
+              endsAt: instants.endsAt,
+              location: event.location ?? null,
+              summary: event.description ? event.description.slice(0, 2000) : null,
+              externalMetadata: {
+                status: event.status ?? null,
+                htmlLink: event.htmlLink ?? null,
+                attendeeCount: event.attendees?.length ?? 0,
+                allDay: instants.allDay
+              }
+            })
+          );
+          calendarUpserted += 1;
+        } catch (error) {
+          // Bounded error label: record once, not one per failing item.
+          if (!errors.includes("calendar-item-error")) errors.push("calendar-item-error");
+          logger.warn(
+            {
+              stage: "calendar-item",
+              name: (error as Error).name,
+              status: (error as { statusCode?: number }).statusCode ?? null
+            },
+            "google-sync calendar item upsert failed"
+          );
+        }
       }
     } catch (error) {
       logger.warn(
@@ -209,13 +341,9 @@ export async function runGoogleSync(
   // --- Email (independent) ---
   if (account.scopes.includes(GMAIL_SCOPE) || account.scopes.includes("gmail")) {
     try {
-      const { result: stubs, token: rotated } = await withTokenRetry(
-        scopedDb,
-        deps,
-        accessToken,
-        (token) => deps.googleClient.listMessageIds({ accessToken: token, query: EMAIL_QUERY })
+      const stubs = await withTokenRetry(scopedDb, deps, tokenHolder, (token) =>
+        deps.googleClient.listMessageIds({ accessToken: token, query: EMAIL_QUERY })
       );
-      accessToken = rotated;
       const capped = stubs.slice(0, EMAIL_MESSAGE_CAP);
       if (stubs.length > capped.length) truncated = true;
 
@@ -231,13 +359,9 @@ export async function runGoogleSync(
 
       for (const stub of capped) {
         try {
-          const { result: full, token: rotatedMsg } = await withTokenRetry(
-            scopedDb,
-            deps,
-            accessToken,
-            (token) => deps.googleClient.getMessage({ accessToken: token, id: stub.id })
+          const full = await withTokenRetry(scopedDb, deps, tokenHolder, (token) =>
+            deps.googleClient.getMessage({ accessToken: token, id: stub.id })
           );
-          accessToken = rotatedMsg;
           const parsed = parseEmail(full);
           // Skip the (costly) LLM pass + re-upsert ONLY when this message's historyId is
           // unchanged AND a usable summary is already stored. A null-summary prior row (no model
@@ -253,20 +377,24 @@ export async function runGoogleSync(
           // The full body lives only in `parsed.body` here; it is NEVER persisted — only the
           // model-derived summary + signals (+ snippet) are written, and body_excerpt is NOT
           // passed (stays null), so no body fragment lands in a column (privacy posture §6).
-          await emailRepo.upsertCachedMessage(scopedDb, {
-            connectorAccountId: account.id,
-            externalId: parsed.externalId,
-            sender: parsed.from,
-            recipients: parsed.recipients,
-            subject: parsed.subject,
-            snippet: parsed.snippet,
-            receivedAt: parsed.receivedAt,
-            externalMetadata: { labelIds: parsed.labelIds, historyId: parsed.historyId ?? null },
-            summary,
-            // EmailSignals is a structured interface (no index signature); the repository column
-            // is a jsonb object, so widen to Record<string, unknown> at this boundary.
-            signals: signals as Record<string, unknown>
-          });
+          // SAVEPOINT-wrap the upsert: a single DB-level failure must NOT abort the whole sync
+          // transaction (which would silently discard every other upsert under a fabricated count).
+          await withSavepoint(scopedDb, (savepointDb) =>
+            emailRepo.upsertCachedMessage(savepointDb, {
+              connectorAccountId: account.id,
+              externalId: parsed.externalId,
+              sender: parsed.from,
+              recipients: parsed.recipients,
+              subject: parsed.subject,
+              snippet: parsed.snippet,
+              receivedAt: parsed.receivedAt,
+              externalMetadata: { labelIds: parsed.labelIds, historyId: parsed.historyId ?? null },
+              summary,
+              // EmailSignals is a structured interface (no index signature); the repository column
+              // is a jsonb object, so widen to Record<string, unknown> at this boundary.
+              signals: signals as Record<string, unknown>
+            })
+          );
           emailUpserted += 1;
         } catch (error) {
           emailFailures += 1;

@@ -118,10 +118,12 @@ export class GoogleOAuthClient {
       body: new URLSearchParams(params).toString()
     });
     if (!response.ok) {
-      const detail = await response.text().catch(() => "");
-      // Log detail server-side for debugging. Do NOT embed it in the Error message —
-      // handleRouteError propagates Error.message to the HTTP response body (#141).
-      this.logger.error({ statusCode: response.status, detail }, "Google token exchange failed");
+      // Log the STATUS only. The token-endpoint error body is {error, error_description} (an
+      // OAuth status token like "invalid_grant" + a human string) — no credentials — but logging
+      // it is needless data exposure and could capture a future field, so we drop it entirely.
+      // Never embed it in the Error message either: handleRouteError propagates Error.message to
+      // the HTTP response body (#141).
+      this.logger.error({ statusCode: response.status }, "Google token exchange failed");
       throw new Error(`Google token endpoint returned ${response.status}`);
     }
     return (await response.json()) as GoogleTokenResponse;

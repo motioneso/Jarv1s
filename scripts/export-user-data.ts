@@ -315,6 +315,8 @@ function emailMessagesQuery(userId: string) {
       subject,
       snippet,
       body_excerpt AS "bodyExcerpt",
+      summary,
+      signals,
       received_at AS "receivedAt",
       external_id AS "externalId",
       external_metadata AS "externalMetadata",

@@ -89,6 +89,18 @@ describe("M7 release hardening lifecycle scripts", () => {
     expect(userExport.tables).toHaveProperty("entities");
     expect(userExport.tables).toHaveProperty("preferences");
 
+    // Portability: the LLM-derived email summary + signals (migration 0067) are personal data and
+    // MUST be in the export (GDPR/portability). The prior query omitted both columns.
+    expect(userExport.tables.emailMessages).toEqual([
+      expect.objectContaining({
+        id: releaseIds.emailMessage,
+        summary: "email-summary-sentinel",
+        signals: expect.objectContaining({ note: "email-signals-sentinel", importance: "high" })
+      })
+    ]);
+    expect(exportedJson).toContain("email-summary-sentinel");
+    expect(exportedJson).toContain("email-signals-sentinel");
+
     // Redaction: embedding and content_hash must never appear in the export JSON.
     expect(exportedJson).not.toContain('"embedding"');
     expect(exportedJson).not.toContain('"content_hash"');
@@ -771,11 +783,21 @@ async function seedLifecycleData(): Promise<void> {
           sender,
           subject,
           received_at,
-          external_id
+          external_id,
+          summary,
+          signals
         )
-        VALUES ($1, $2, $3, 'sender@example.test', 'Email item', now(), 'message-a')
+        VALUES (
+          $1, $2, $3, 'sender@example.test', 'Email item', now(), 'message-a',
+          'email-summary-sentinel', $4::jsonb
+        )
       `,
-      [releaseIds.emailMessage, releaseIds.connectorAccount, ids.userA]
+      [
+        releaseIds.emailMessage,
+        releaseIds.connectorAccount,
+        ids.userA,
+        JSON.stringify({ importance: "high", note: "email-signals-sentinel" })
+      ]
     );
     await client.query(
       `
