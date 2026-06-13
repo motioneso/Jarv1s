@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 
 import { sql } from "kysely";
 
-import type { AdminAuditEvent, InstanceSetting, User } from "@jarv1s/db";
+import type { AdminAuditEvent, InstanceSetting, ModuleEnablementRow, User } from "@jarv1s/db";
 import { assertDataContextDb, type DataContextDb } from "@jarv1s/db";
 import type { ChatMultiplexerChoice } from "@jarv1s/shared";
 
@@ -31,6 +31,13 @@ export interface SetUserAdminInput {
 export interface RegistrationSettings {
   readonly registrationEnabled: boolean;
   readonly requiresApproval: boolean;
+}
+
+export interface SetModuleDisabledInput {
+  readonly moduleId: string;
+  readonly disabled: boolean;
+  readonly actorUserId: string;
+  readonly requestId: string;
 }
 
 export class HttpRepositoryError extends Error {
@@ -62,6 +69,108 @@ export class SettingsRepository {
   async listInstanceSettings(scopedDb: DataContextDb): Promise<InstanceSetting[]> {
     assertDataContextDb(scopedDb);
     return scopedDb.db.selectFrom("app.instance_settings").selectAll().orderBy("key").execute();
+  }
+
+  /**
+   * All deny rows VISIBLE to the actor under RLS: instance rows (readable by all
+   * authed actors — the floor) plus this actor's own user rows (owner-only). Used by
+   * the resolver. One SELECT; RLS does the scoping.
+   */
+  async listModuleDenyRowsForActor(scopedDb: DataContextDb): Promise<ModuleEnablementRow[]> {
+    assertDataContextDb(scopedDb);
+    return scopedDb.db
+      .selectFrom("app.module_enablement")
+      .selectAll()
+      .orderBy("scope")
+      .orderBy("module_id")
+      .execute();
+  }
+
+  /** Instance rows only (admin GET surface). RLS returns only scope='instance'. */
+  async listInstanceModuleDenyRows(scopedDb: DataContextDb): Promise<ModuleEnablementRow[]> {
+    assertDataContextDb(scopedDb);
+    return scopedDb.db
+      .selectFrom("app.module_enablement")
+      .selectAll()
+      .where("scope", "=", "instance")
+      .orderBy("module_id")
+      .execute();
+  }
+
+  /**
+   * Admin: insert (disable) or delete (enable) the instance-scope deny row for a
+   * module. Insert is on-conflict-do-nothing (idempotent). Writes an admin audit
+   * event recording only the module id + actor + requestId (metadata-only invariant).
+   */
+  async setInstanceModuleDisabled(
+    scopedDb: DataContextDb,
+    input: SetModuleDisabledInput
+  ): Promise<void> {
+    assertDataContextDb(scopedDb);
+    if (input.disabled) {
+      await scopedDb.db
+        .insertInto("app.module_enablement")
+        .values({
+          scope: "instance",
+          module_id: input.moduleId,
+          user_id: null,
+          disabled_by_user_id: input.actorUserId,
+          created_at: new Date(),
+          updated_at: new Date()
+        })
+        .onConflict((oc) => oc.columns(["module_id"]).where("scope", "=", "instance").doNothing())
+        .execute();
+    } else {
+      await scopedDb.db
+        .deleteFrom("app.module_enablement")
+        .where("scope", "=", "instance")
+        .where("module_id", "=", input.moduleId)
+        .execute();
+    }
+
+    await this.insertAuditEvent(scopedDb, {
+      actorUserId: input.actorUserId,
+      action: input.disabled ? "module.instance_disable" : "module.instance_enable",
+      targetType: "module",
+      targetId: input.moduleId,
+      metadata: { moduleId: input.moduleId },
+      requestId: input.requestId
+    });
+  }
+
+  /**
+   * Owner-scoped: insert (disable) or delete (enable) the actor's own user-scope deny
+   * row. Self-service is not an admin act — no admin-audit row. RLS WITH CHECK enforces
+   * user_id = current actor, so an actor can only ever write their own row.
+   */
+  async setUserModuleDisabled(
+    scopedDb: DataContextDb,
+    input: SetModuleDisabledInput
+  ): Promise<void> {
+    assertDataContextDb(scopedDb);
+    if (input.disabled) {
+      await scopedDb.db
+        .insertInto("app.module_enablement")
+        .values({
+          scope: "user",
+          module_id: input.moduleId,
+          user_id: input.actorUserId,
+          disabled_by_user_id: input.actorUserId,
+          created_at: new Date(),
+          updated_at: new Date()
+        })
+        .onConflict((oc) =>
+          oc.columns(["module_id", "user_id"]).where("scope", "=", "user").doNothing()
+        )
+        .execute();
+    } else {
+      await scopedDb.db
+        .deleteFrom("app.module_enablement")
+        .where("scope", "=", "user")
+        .where("module_id", "=", input.moduleId)
+        .where("user_id", "=", input.actorUserId)
+        .execute();
+    }
   }
 
   async upsertInstanceSetting(
