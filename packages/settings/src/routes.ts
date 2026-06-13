@@ -16,16 +16,19 @@ import {
   adminRevokeSessionsRouteSchema,
   adminUserActionRouteSchema,
   bootstrapStatusRouteSchema,
+  getChatMultiplexerSettingsRouteSchema,
   getRegistrationSettingsRouteSchema,
   listAdminAuditEventsRouteSchema,
   listAuthProviderStatusesRouteSchema,
   listInstanceSettingsRouteSchema,
   listUsersRouteSchema,
   meRouteSchema,
+  putChatMultiplexerSettingsRouteSchema,
   putRegistrationSettingsRouteSchema,
   upsertInstanceSettingRouteSchema,
   type AdminAuditEventDto,
   type AuthProviderStatusDto,
+  type ChatMultiplexerChoice,
   type InstanceSettingDto,
   type UpsertInstanceSettingRequest,
   type UserDto
@@ -47,6 +50,8 @@ export interface SettingsRoutesDependencies {
   readonly repository?: SettingsRepository;
   readonly revokeUserSessions?: (userId: string) => Promise<number>;
   readonly bootstrapConnectionString?: string;
+  /** Boot-time availability snapshot, injected by the composition root (apply-on-restart). */
+  readonly chatMultiplexerAvailability?: { readonly tmux: boolean; readonly herdr: boolean };
 }
 
 interface SettingParams {
@@ -393,6 +398,51 @@ export function registerSettingsRoutes(
             actorUserId: accessContext.actorUserId,
             requestId: requireRequestId(accessContext)
           });
+        });
+      } catch (error) {
+        return handleRouteError(error, reply);
+      }
+    }
+  );
+
+  server.get(
+    "/api/admin/chat-multiplexer",
+    { schema: getChatMultiplexerSettingsRouteSchema },
+    async (request, reply) => {
+      try {
+        const accessContext = await dependencies.resolveAccessContext(request);
+        return await dependencies.dataContext.withDataContext(accessContext, async (scopedDb) => {
+          await assertAdminUser(repository, scopedDb, accessContext.actorUserId);
+          const { multiplexer } = await repository.getChatMultiplexerSetting(scopedDb);
+          return {
+            multiplexer,
+            available: dependencies.chatMultiplexerAvailability ?? { tmux: false, herdr: false }
+          };
+        });
+      } catch (error) {
+        return handleRouteError(error, reply);
+      }
+    }
+  );
+
+  server.put(
+    "/api/admin/chat-multiplexer",
+    { schema: putChatMultiplexerSettingsRouteSchema },
+    async (request, reply) => {
+      try {
+        const accessContext = await dependencies.resolveAccessContext(request);
+        const body = request.body as { multiplexer: ChatMultiplexerChoice };
+        return await dependencies.dataContext.withDataContext(accessContext, async (scopedDb) => {
+          await assertAdminUser(repository, scopedDb, accessContext.actorUserId);
+          const { multiplexer } = await repository.setChatMultiplexerSetting(scopedDb, {
+            multiplexer: body.multiplexer,
+            actorUserId: accessContext.actorUserId,
+            requestId: requireRequestId(accessContext)
+          });
+          return {
+            multiplexer,
+            available: dependencies.chatMultiplexerAvailability ?? { tmux: false, herdr: false }
+          };
         });
       } catch (error) {
         return handleRouteError(error, reply);

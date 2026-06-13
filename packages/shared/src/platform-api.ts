@@ -465,3 +465,50 @@ export const putRegistrationSettingsRouteSchema = {
     403: errorResponseSchema
   }
 } as const;
+
+export interface ChatMultiplexerAvailability {
+  readonly tmux: boolean;
+  readonly herdr: boolean;
+}
+
+export interface ChatMultiplexerSettingsDto {
+  readonly multiplexer: ChatMultiplexerChoice;
+  readonly available: ChatMultiplexerAvailability;
+}
+
+export const chatMultiplexerSettingsSchema = {
+  type: "object",
+  required: ["multiplexer", "available"],
+  additionalProperties: false,
+  properties: {
+    multiplexer: { type: "string", enum: ["auto", "tmux", "herdr"] },
+    available: {
+      type: "object",
+      required: ["tmux", "herdr"],
+      additionalProperties: false,
+      properties: { tmux: { type: "boolean" }, herdr: { type: "boolean" } }
+    }
+  }
+} as const;
+
+export const getChatMultiplexerSettingsRouteSchema = {
+  response: {
+    200: chatMultiplexerSettingsSchema,
+    401: errorResponseSchema,
+    403: errorResponseSchema
+  }
+} as const;
+
+export const putChatMultiplexerSettingsRouteSchema = {
+  body: {
+    type: "object",
+    required: ["multiplexer"],
+    additionalProperties: false,
+    properties: { multiplexer: { type: "string", enum: ["auto", "tmux", "herdr"] } }
+  },
+  response: {
+    200: chatMultiplexerSettingsSchema,
+    401: errorResponseSchema,
+    403: errorResponseSchema
+  }
+} as const;
