@@ -81,44 +81,44 @@ persist with status `succeeded`. Do NOT add a `degraded` enum value or a migrati
 
 ### New files
 
-| Path | Purpose |
-| --- | --- |
-| `packages/briefings/src/compose.ts` | Grounded LLM synthesis: gather sections, build prompt, synthesize, degraded fallback, persist metadata shape. |
-| `packages/briefings/src/schedule.ts` | Pure cron-mapping helpers (`cronExprFor`, `timezoneFor`) + `reconcileSchedule` / `reconcileOwnedSchedules`. |
-| `packages/structured-state/src/tools.ts` | `commitments.listVisible` read-tool `execute`. |
-| `packages/structured-state/sql/0065_commitments_worker_grant.sql` | Worker-role SELECT grant + owner-or-share policy on `app.commitments` (new migration; never edit applied ones). |
-| `packages/calendar/sql/<next>_calendar_worker_grant.sql`, `packages/email/sql/<next>_email_worker_grant.sql` | Worker-role SELECT grant + policy mirroring each table's app-role SELECT policy (so the worker can read today's calendar/email). |
-| `packages/chat/src/tools.ts` | `chat.listTodaysTurns` read-tool `execute` (non-incognito, today in user tz). |
-| `apps/web/src/styles/tokens.css` | Semantic token layer (primitive ramps → semantic tokens → dark/amber overlays). Only file with hex. |
-| `apps/web/src/ui/index.ts` | Barrel for UI primitives. |
-| `apps/web/src/ui/Card.tsx`, `Stack.tsx`, `SectionHeader.tsx`, `Badge.tsx`, `TimeBucket.tsx`, `ProvisionalRegion.tsx` | Presentational primitives. |
-| `apps/web/src/briefings/briefing-reading-view.tsx` | Editorial single-column reading surface for `BriefingRunDto.summaryText`. |
-| `apps/web/src/briefings/briefings.css` | Reading-surface styles. |
-| `docs/brand/mockups/briefing-reading.html`, `day-view-buckets.html`, `form-heavy.html` | Static taste-gate mockups (self-contained, no build step). |
-| `tests/e2e/briefing-reading.spec.ts` | (Post-gate) Playwright spec for the briefing reading path. |
+| Path                                                                                                                 | Purpose                                                                                                                          |
+| -------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
+| `packages/briefings/src/compose.ts`                                                                                  | Grounded LLM synthesis: gather sections, build prompt, synthesize, degraded fallback, persist metadata shape.                    |
+| `packages/briefings/src/schedule.ts`                                                                                 | Pure cron-mapping helpers (`cronExprFor`, `timezoneFor`) + `reconcileSchedule` / `reconcileOwnedSchedules`.                      |
+| `packages/structured-state/src/tools.ts`                                                                             | `commitments.listVisible` read-tool `execute`.                                                                                   |
+| `packages/structured-state/sql/0065_commitments_worker_grant.sql`                                                    | Worker-role SELECT grant + owner-or-share policy on `app.commitments` (new migration; never edit applied ones).                  |
+| `packages/calendar/sql/<next>_calendar_worker_grant.sql`, `packages/email/sql/<next>_email_worker_grant.sql`         | Worker-role SELECT grant + policy mirroring each table's app-role SELECT policy (so the worker can read today's calendar/email). |
+| `packages/chat/src/tools.ts`                                                                                         | `chat.listTodaysTurns` read-tool `execute` (non-incognito, today in user tz).                                                    |
+| `apps/web/src/styles/tokens.css`                                                                                     | Semantic token layer (primitive ramps → semantic tokens → dark/amber overlays). Only file with hex.                              |
+| `apps/web/src/ui/index.ts`                                                                                           | Barrel for UI primitives.                                                                                                        |
+| `apps/web/src/ui/Card.tsx`, `Stack.tsx`, `SectionHeader.tsx`, `Badge.tsx`, `TimeBucket.tsx`, `ProvisionalRegion.tsx` | Presentational primitives.                                                                                                       |
+| `apps/web/src/briefings/briefing-reading-view.tsx`                                                                   | Editorial single-column reading surface for `BriefingRunDto.summaryText`.                                                        |
+| `apps/web/src/briefings/briefings.css`                                                                               | Reading-surface styles.                                                                                                          |
+| `docs/brand/mockups/briefing-reading.html`, `day-view-buckets.html`, `form-heavy.html`                               | Static taste-gate mockups (self-contained, no build step).                                                                       |
+| `tests/e2e/briefing-reading.spec.ts`                                                                                 | (Post-gate) Playwright spec for the briefing reading path.                                                                       |
 
 ### Modified files
 
-| Path | Change |
-| --- | --- |
-| `apps/worker/src/worker.ts` | `createPgBossClient(connectionString, { schedule: true })` (cron engine in worker only). |
-| `packages/briefings/src/repository.ts` | `generateRun` delegates to `compose.ts`; remove deterministic `generateSummary` body; add local-day idempotency; add deps param. |
-| `packages/briefings/src/jobs.ts` | Mint `briefingRunId` for scheduled runs; thread synthesis + notification deps; fire notification on scheduled `succeeded`. |
-| `packages/briefings/src/routes.ts` | Reconcile schedule after create/update (failure-isolated). |
-| `packages/structured-state/src/manifest.ts` | Add `permissions` + `assistantTools` (`commitments.listVisible`); register new SQL migration. |
-| `packages/calendar/src/manifest.ts`, `packages/email/src/manifest.ts` | Register the new worker-grant SQL migrations. |
-| `packages/ai/src/chat-adapter.ts`, `packages/ai/src/adapters/http-api.ts` | Add optional `maxOutputTokens` to `GenerateChatInput`; clamp provider `max_tokens` (economy budget). |
-| `packages/jobs/src/pg-boss.ts` (+ barrel) | `export` `assertMetadataOnlyPayload` for the schedule-payload guard. |
-| `packages/chat/src/manifest.ts` | Add `assistantTools` (`chat.listTodaysTurns`). |
-| `packages/chat/src/jobs.ts` | Implement `handleExtractFactsJob`; thread AI deps through `RegisterChatJobWorkersOptions`. |
-| `packages/module-registry/src/index.ts` | Inject AI/cipher/fetch/memory/notifications deps into briefings + chat `registerWorkers`. |
-| `apps/web/src/styles.css` | Move hex into `tokens.css`; reference semantic `var()`; drop below 1000 lines. |
-| `apps/web/src/main.tsx` | Import `styles/tokens.css` first, then `styles.css`, then feature CSS. |
-| `apps/web/src/tasks/tasks.css` | (Post-gate) Replace hardcoded hex with semantic tokens; remove inline fallbacks. |
-| `apps/web/src/briefings/briefings-page.tsx` | (Post-gate) Render selected run via `BriefingRunView`. |
-| `apps/web/src/tasks/tasks-page.tsx`, settings/chat/notifications/auth pages | (Post-gate) Token-adoption restyle. |
-| `tests/integration/briefings.test.ts` | Update concat-expectation tests (282-306, 488-526); add synthesis/scheduling/notification/idempotency coverage. |
-| `tests/integration/chat.test.ts` (or `tests/integration/memory.test.ts` per existing suite layout) | Add `handleExtractFactsJob` coverage. |
+| Path                                                                                               | Change                                                                                                                           |
+| -------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
+| `apps/worker/src/worker.ts`                                                                        | `createPgBossClient(connectionString, { schedule: true })` (cron engine in worker only).                                         |
+| `packages/briefings/src/repository.ts`                                                             | `generateRun` delegates to `compose.ts`; remove deterministic `generateSummary` body; add local-day idempotency; add deps param. |
+| `packages/briefings/src/jobs.ts`                                                                   | Mint `briefingRunId` for scheduled runs; thread synthesis + notification deps; fire notification on scheduled `succeeded`.       |
+| `packages/briefings/src/routes.ts`                                                                 | Reconcile schedule after create/update (failure-isolated).                                                                       |
+| `packages/structured-state/src/manifest.ts`                                                        | Add `permissions` + `assistantTools` (`commitments.listVisible`); register new SQL migration.                                    |
+| `packages/calendar/src/manifest.ts`, `packages/email/src/manifest.ts`                              | Register the new worker-grant SQL migrations.                                                                                    |
+| `packages/ai/src/chat-adapter.ts`, `packages/ai/src/adapters/http-api.ts`                          | Add optional `maxOutputTokens` to `GenerateChatInput`; clamp provider `max_tokens` (economy budget).                             |
+| `packages/jobs/src/pg-boss.ts` (+ barrel)                                                          | `export` `assertMetadataOnlyPayload` for the schedule-payload guard.                                                             |
+| `packages/chat/src/manifest.ts`                                                                    | Add `assistantTools` (`chat.listTodaysTurns`).                                                                                   |
+| `packages/chat/src/jobs.ts`                                                                        | Implement `handleExtractFactsJob`; thread AI deps through `RegisterChatJobWorkersOptions`.                                       |
+| `packages/module-registry/src/index.ts`                                                            | Inject AI/cipher/fetch/memory/notifications deps into briefings + chat `registerWorkers`.                                        |
+| `apps/web/src/styles.css`                                                                          | Move hex into `tokens.css`; reference semantic `var()`; drop below 1000 lines.                                                   |
+| `apps/web/src/main.tsx`                                                                            | Import `styles/tokens.css` first, then `styles.css`, then feature CSS.                                                           |
+| `apps/web/src/tasks/tasks.css`                                                                     | (Post-gate) Replace hardcoded hex with semantic tokens; remove inline fallbacks.                                                 |
+| `apps/web/src/briefings/briefings-page.tsx`                                                        | (Post-gate) Render selected run via `BriefingRunView`.                                                                           |
+| `apps/web/src/tasks/tasks-page.tsx`, settings/chat/notifications/auth pages                        | (Post-gate) Token-adoption restyle.                                                                                              |
+| `tests/integration/briefings.test.ts`                                                              | Update concat-expectation tests (282-306, 488-526); add synthesis/scheduling/notification/idempotency coverage.                  |
+| `tests/integration/chat.test.ts` (or `tests/integration/memory.test.ts` per existing suite layout) | Add `handleExtractFactsJob` coverage.                                                                                            |
 
 > Before editing a test file, READ it first (Read tool) to confirm exact current assertions and helper
 > setup — the line numbers above are from grounding `aaf2ddf` and may have drifted.
@@ -466,19 +466,26 @@ it("exposes commitments.listVisible as a read tool returning owner-scoped commit
   expect(tool?.permissionId).toBeTruthy();
 
   // Seed a commitment as the owner, then read via the tool under the SAME actor.
-  await dataContext.withDataContext({ actorUserId: ownerId, requestId: "test" }, async (scopedDb) => {
-    await commitmentsRepository.create(scopedDb, {
-      title: "Pay invoice",
-      provenance: "manual"
-    });
-    const result = await tool!.execute!(scopedDb, {}, {
-      actorUserId: ownerId,
-      requestId: "test",
-      chatSessionId: ""
-    });
-    const commitments = (result.data as { commitments: unknown[] }).commitments;
-    expect(commitments.length).toBeGreaterThanOrEqual(1);
-  });
+  await dataContext.withDataContext(
+    { actorUserId: ownerId, requestId: "test" },
+    async (scopedDb) => {
+      await commitmentsRepository.create(scopedDb, {
+        title: "Pay invoice",
+        provenance: "manual"
+      });
+      const result = await tool!.execute!(
+        scopedDb,
+        {},
+        {
+          actorUserId: ownerId,
+          requestId: "test",
+          chatSessionId: ""
+        }
+      );
+      const commitments = (result.data as { commitments: unknown[] }).commitments;
+      expect(commitments.length).toBeGreaterThanOrEqual(1);
+    }
+  );
 });
 ```
 
@@ -597,10 +604,7 @@ export const structuredStateModuleManifest: JarvisModuleManifest = {
     required: true
   },
   database: {
-    migrations: [
-      "sql/0031_structured_state.sql",
-      "sql/0065_commitments_worker_grant.sql"
-    ],
+    migrations: ["sql/0031_structured_state.sql", "sql/0065_commitments_worker_grant.sql"],
     migrationDirectories: ["packages/structured-state/sql"],
     ownedTables: ["app.commitments", "app.entities", "app.preferences"]
   },
@@ -678,21 +682,31 @@ it("exposes chat.listTodaysTurns as a read tool excluding incognito threads", as
   );
   expect(tool?.risk).toBe("read");
 
-  await dataContext.withDataContext({ actorUserId: ownerId, requestId: "test" }, async (scopedDb) => {
-    const normal = await chatRepository.openNewThread(scopedDb, { title: "Today" });
-    const secret = await chatRepository.openNewThread(scopedDb, { title: "Secret", incognito: true });
-    await chatRepository.recordCompletedTurn(scopedDb, /* ...normal thread, user+assistant... */);
-    await chatRepository.recordCompletedTurn(scopedDb, /* ...secret thread... */);
+  await dataContext.withDataContext(
+    { actorUserId: ownerId, requestId: "test" },
+    async (scopedDb) => {
+      const normal = await chatRepository.openNewThread(scopedDb, { title: "Today" });
+      const secret = await chatRepository.openNewThread(scopedDb, {
+        title: "Secret",
+        incognito: true
+      });
+      await chatRepository.recordCompletedTurn(scopedDb /* ...normal thread, user+assistant... */);
+      await chatRepository.recordCompletedTurn(scopedDb /* ...secret thread... */);
 
-    const result = await tool!.execute!(scopedDb, {}, {
-      actorUserId: ownerId,
-      requestId: "test",
-      chatSessionId: ""
-    });
-    const turns = (result.data as { turns: Array<{ threadTitle: string }> }).turns;
-    expect(turns.some((t) => t.threadTitle === "Today")).toBe(true);
-    expect(turns.some((t) => t.threadTitle === "Secret")).toBe(false);
-  });
+      const result = await tool!.execute!(
+        scopedDb,
+        {},
+        {
+          actorUserId: ownerId,
+          requestId: "test",
+          chatSessionId: ""
+        }
+      );
+      const turns = (result.data as { turns: Array<{ threadTitle: string }> }).turns;
+      expect(turns.some((t) => t.threadTitle === "Today")).toBe(true);
+      expect(turns.some((t) => t.threadTitle === "Secret")).toBe(false);
+    }
+  );
 });
 ```
 
@@ -775,7 +789,8 @@ export const chatListTodaysTurnsExecute: ToolExecute = async (
   // today is NOT dropped by the scan cap. See MAX_THREADS_SCANNED note above.
   const threads = await repository.listThreadsByActivity(scopedDb, MAX_THREADS_SCANNED);
   const since = startOfTodayUtcWindow(new Date());
-  const turns: Array<{ role: string; excerpt: string; threadTitle: string; createdAt: string }> = [];
+  const turns: Array<{ role: string; excerpt: string; threadTitle: string; createdAt: string }> =
+    [];
 
   for (const thread of threads) {
     if (thread.incognito) {
@@ -789,7 +804,8 @@ export const chatListTodaysTurnsExecute: ToolExecute = async (
       if (message.role !== "user" && message.role !== "assistant") {
         continue;
       }
-      const createdAt = message.created_at instanceof Date ? message.created_at : new Date(message.created_at);
+      const createdAt =
+        message.created_at instanceof Date ? message.created_at : new Date(message.created_at);
       if (createdAt < since) {
         continue;
       }
@@ -944,12 +960,15 @@ filtered to `source_kind = 'vault'`. Skeleton:
 
 ```ts
 it("lists recent vault chunks ordered by ingestion recency", async () => {
-  await dataContext.withDataContext({ actorUserId: ownerId, requestId: "test" }, async (scopedDb) => {
-    // seed two vault files (upsertFileChunks + upsertFileIndex) — older then newer
-    const recent = await memoryRepository.listRecentChunks(scopedDb, 5, "vault");
-    expect(recent.length).toBeGreaterThanOrEqual(1);
-    // newest source_path appears before the older one
-  });
+  await dataContext.withDataContext(
+    { actorUserId: ownerId, requestId: "test" },
+    async (scopedDb) => {
+      // seed two vault files (upsertFileChunks + upsertFileIndex) — older then newer
+      const recent = await memoryRepository.listRecentChunks(scopedDb, 5, "vault");
+      expect(recent.length).toBeGreaterThanOrEqual(1);
+      // newest source_path appears before the older one
+    }
+  );
 });
 ```
 
@@ -1281,10 +1300,7 @@ function withinLocalDay(isoOrDate: unknown, now: Date, timeZone: string): boolea
   return fmt(ts) === fmt(now);
 }
 
-function findExecute(
-  manifests: readonly JarvisModuleManifest[],
-  toolName: string
-) {
+function findExecute(manifests: readonly JarvisModuleManifest[], toolName: string) {
   return manifests.flatMap((m) => m.assistantTools ?? []).find((t) => t.name === toolName);
 }
 
@@ -1384,48 +1400,87 @@ export async function composeBriefing(
   // local-day content window agree. No cross-user read: tz comes off this definition.
   const timeZone = timezoneFor(definition.schedule_metadata);
 
-  const commitments = await gatherToolSection(scopedDb, definition, input, deps, {
-    key: "commitments",
-    label: "COMMITMENTS",
-    toolName: "commitments.listVisible",
-    arrayKey: "commitments",
-    format: (c) => [str(c.title), str(c.status), str(c.dueAt), str(c.counterparty)].filter(Boolean).join(" · ")
-  }, gaps, now, timeZone);
+  const commitments = await gatherToolSection(
+    scopedDb,
+    definition,
+    input,
+    deps,
+    {
+      key: "commitments",
+      label: "COMMITMENTS",
+      toolName: "commitments.listVisible",
+      arrayKey: "commitments",
+      format: (c) =>
+        [str(c.title), str(c.status), str(c.dueAt), str(c.counterparty)].filter(Boolean).join(" · ")
+    },
+    gaps,
+    now,
+    timeZone
+  );
 
-  const tasks = await gatherToolSection(scopedDb, definition, input, deps, {
-    key: "tasks",
-    label: "TASKS",
-    toolName: "tasks.listVisible",
-    arrayKey: "items",
-    format: (t) => [str(t.title), str(t.status)].filter(Boolean).join(" · ")
-  }, gaps, now, timeZone);
+  const tasks = await gatherToolSection(
+    scopedDb,
+    definition,
+    input,
+    deps,
+    {
+      key: "tasks",
+      label: "TASKS",
+      toolName: "tasks.listVisible",
+      arrayKey: "items",
+      format: (t) => [str(t.title), str(t.status)].filter(Boolean).join(" · ")
+    },
+    gaps,
+    now,
+    timeZone
+  );
 
-  const calendar = await gatherToolSection(scopedDb, definition, input, deps, {
-    key: "calendar",
-    label: "CALENDAR",
-    toolName: "calendar.listVisibleEvents",
-    arrayKey: "events",
-    // "Today's calendar": bound to the definition's local day on the event start.
-    localDayField: "startsAt",
-    format: (e) => [str(e.startsAt), str(e.title)].filter(Boolean).join(" · ")
-  }, gaps, now, timeZone);
+  const calendar = await gatherToolSection(
+    scopedDb,
+    definition,
+    input,
+    deps,
+    {
+      key: "calendar",
+      label: "CALENDAR",
+      toolName: "calendar.listVisibleEvents",
+      arrayKey: "events",
+      // "Today's calendar": bound to the definition's local day on the event start.
+      localDayField: "startsAt",
+      format: (e) => [str(e.startsAt), str(e.title)].filter(Boolean).join(" · ")
+    },
+    gaps,
+    now,
+    timeZone
+  );
 
-  const email = await gatherToolSection(scopedDb, definition, input, deps, {
-    key: "email",
-    label: "EMAIL SUMMARIES + SIGNALS",
-    toolName: "email.listVisibleMessages",
-    arrayKey: "messages",
-    // Email "signals" = recent unread/important; keep the source's own recency
-    // (no day-bound — a 2-day-old unresolved thread is still a morning signal).
-    format: (m) => [str(m.sender), str(m.subject), str(m.snippet)].filter(Boolean).join(" · ")
-  }, gaps, now, timeZone);
+  const email = await gatherToolSection(
+    scopedDb,
+    definition,
+    input,
+    deps,
+    {
+      key: "email",
+      label: "EMAIL SUMMARIES + SIGNALS",
+      toolName: "email.listVisibleMessages",
+      arrayKey: "messages",
+      // Email "signals" = recent unread/important; keep the source's own recency
+      // (no day-bound — a 2-day-old unresolved thread is still a morning signal).
+      format: (m) => [str(m.sender), str(m.subject), str(m.snippet)].filter(Boolean).join(" · ")
+    },
+    gaps,
+    now,
+    timeZone
+  );
 
   // Vault: semantic ∪ recency, deduped by id/source path. Best-effort.
   const vaultLines: string[] = [];
   const vaultNotes: Array<{ path: string; id: string; excerpt: string }> = [];
   try {
     const query = [...commitments.lines, ...tasks.lines, ...calendar.lines].join(" ").slice(0, 500);
-    const semantic = query.trim() ? await deps.memoryRetriever.retrieve(scopedDb, query, VAULT_CHUNK_CAP, "vault") : [];
+    const semantic = query.trim()
+      ? await deps.memoryRetriever.retrieve(scopedDb, query, VAULT_CHUNK_CAP, "vault")
+      : [];
     const recent = await deps.memoryRetriever.retrieveRecent(scopedDb, VAULT_CHUNK_CAP, "vault");
     const seen = new Set<string>();
     for (const chunk of [...semantic, ...recent]) {
@@ -1442,47 +1497,119 @@ export async function composeBriefing(
     }
   } catch (error) {
     const e = error instanceof Error ? error : new Error(String(error));
-    console.error(JSON.stringify({ event: "briefing_tool_failed", tool: "vault", error: e.name, message: e.message.slice(0, 200) }));
+    console.error(
+      JSON.stringify({
+        event: "briefing_tool_failed",
+        tool: "vault",
+        error: e.name,
+        message: e.message.slice(0, 200)
+      })
+    );
     gaps.push({ source: "vault", reason: "tool_failed" });
   }
-  const vault: Section = { key: "vault", label: "VAULT", lines: vaultLines, count: vaultLines.length };
+  const vault: Section = {
+    key: "vault",
+    label: "VAULT",
+    lines: vaultLines,
+    count: vaultLines.length
+  };
 
-  const chats = await gatherToolSection(scopedDb, definition, input, deps, {
-    key: "chats",
-    label: "THE DAY'S CHATS",
-    toolName: "chat.listTodaysTurns",
-    arrayKey: "turns",
-    // Authoritative local-day bound on the turn timestamp (the tool over-includes 36h).
-    localDayField: "createdAt",
-    format: (t) => [str(t.role), str(t.excerpt)].filter(Boolean).join(": ")
-  }, gaps, now, timeZone);
+  const chats = await gatherToolSection(
+    scopedDb,
+    definition,
+    input,
+    deps,
+    {
+      key: "chats",
+      label: "THE DAY'S CHATS",
+      toolName: "chat.listTodaysTurns",
+      arrayKey: "turns",
+      // Authoritative local-day bound on the turn timestamp (the tool over-includes 36h).
+      localDayField: "createdAt",
+      format: (t) => [str(t.role), str(t.excerpt)].filter(Boolean).join(": ")
+    },
+    gaps,
+    now,
+    timeZone
+  );
 
   const sections: Section[] = [commitments, tasks, calendar, email, vault, chats];
 
   // ── Resolve the model (provider-agnostic) ────────────────────────────────────
-  const model = await deps.aiRepository.selectModelForCapability(scopedDb, "summarization", "economy");
+  const model = await deps.aiRepository.selectModelForCapability(
+    scopedDb,
+    "summarization",
+    "economy"
+  );
   if (!model) {
-    return fallback(sections, gaps, "no_model", commitments, tasks, calendar, email, vault, chats, vaultNotes);
+    return fallback(
+      sections,
+      gaps,
+      "no_model",
+      commitments,
+      tasks,
+      calendar,
+      email,
+      vault,
+      chats,
+      vaultNotes
+    );
   }
 
   // ── Decrypt credential in worker scope only ──────────────────────────────────
   let apiKey: string;
   let baseUrl: string | null = null;
   try {
-    const provider = await deps.aiRepository.selectProviderWithCredential(scopedDb, model.provider_config_id);
+    const provider = await deps.aiRepository.selectProviderWithCredential(
+      scopedDb,
+      model.provider_config_id
+    );
     if (!provider?.encrypted_credential) {
-      return fallback(sections, gaps, "credential_error", commitments, tasks, calendar, email, vault, chats, vaultNotes);
+      return fallback(
+        sections,
+        gaps,
+        "credential_error",
+        commitments,
+        tasks,
+        calendar,
+        email,
+        vault,
+        chats,
+        vaultNotes
+      );
     }
     const decrypted = deps.cipher.decryptJson(provider.encrypted_credential);
     const key = decrypted.apiKey;
     if (typeof key !== "string" || key.length === 0) {
-      return fallback(sections, gaps, "credential_error", commitments, tasks, calendar, email, vault, chats, vaultNotes);
+      return fallback(
+        sections,
+        gaps,
+        "credential_error",
+        commitments,
+        tasks,
+        calendar,
+        email,
+        vault,
+        chats,
+        vaultNotes
+      );
     }
     apiKey = key;
     baseUrl = provider.base_url;
   } catch {
     // Never log the raw error — it can carry the decrypted key.
-    return fallback(sections, gaps, "credential_error", commitments, tasks, calendar, email, vault, chats, vaultNotes);
+    return fallback(
+      sections,
+      gaps,
+      "credential_error",
+      commitments,
+      tasks,
+      calendar,
+      email,
+      vault,
+      chats,
+      vaultNotes
+    );
   }
 
   // ── Synthesize ───────────────────────────────────────────────────────────────
@@ -1515,7 +1642,18 @@ export async function composeBriefing(
       }
     };
   } catch {
-    return fallback(sections, gaps, "synthesis_failed", commitments, tasks, calendar, email, vault, chats, vaultNotes);
+    return fallback(
+      sections,
+      gaps,
+      "synthesis_failed",
+      commitments,
+      tasks,
+      calendar,
+      email,
+      vault,
+      chats,
+      vaultNotes
+    );
   }
 }
 
@@ -1529,11 +1667,12 @@ function buildMessages(sections: readonly Section[]): ChatTurn[] {
     "with light section headers. Ground strictly in the provided items; do not invent. Where a " +
     "section is empty, note it briefly. Keep it warm and non-judgmental about missed or at-risk items.";
   const body = sections
-    .map((s) => `## ${s.label}\n${s.lines.length > 0 ? s.lines.map((l) => `- ${l}`).join("\n") : "(none today)"}`)
+    .map(
+      (s) =>
+        `## ${s.label}\n${s.lines.length > 0 ? s.lines.map((l) => `- ${l}`).join("\n") : "(none today)"}`
+    )
     .join("\n\n");
-  return [
-    { role: "user", content: `${system}\n\n${body}` }
-  ];
+  return [{ role: "user", content: `${system}\n\n${body}` }];
 }
 
 function fallback(
@@ -1549,7 +1688,10 @@ function fallback(
   vaultNotes: Array<{ path: string; id: string; excerpt: string }>
 ): ComposeResult {
   const text = sections
-    .map((s) => `${s.label}: ${s.count} item${s.count === 1 ? "" : "s"}${s.lines.length > 0 ? `\n${s.lines.map((l) => `- ${l}`).join("\n")}` : ""}`)
+    .map(
+      (s) =>
+        `${s.label}: ${s.count} item${s.count === 1 ? "" : "s"}${s.lines.length > 0 ? `\n${s.lines.map((l) => `- ${l}`).join("\n")}` : ""}`
+    )
     .join("\n\n");
   return {
     status: "succeeded",
@@ -1861,9 +2003,10 @@ Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>"
 - Test: `tests/integration/briefings.test.ts` (extend; reuse the worker-job test at ≈336/446)
 
 **Step 1 — Write the failing test.** Add a worker-level test:
+
 - A scheduled job with no `briefingRunId` → handler mints one, the run persists, and exactly one
   "Your morning briefing is ready" notification owned by the actor with `metadata = { definitionId,
-  briefingRunId }` (no content) is created.
+briefingRunId }` (no content) is created.
 - A manual job → no notification created.
 
 > Read the existing worker-job test (≈336) for how it constructs `registerBriefingsJobWorkers` /
@@ -2045,21 +2188,23 @@ pnpm exec vitest run tests/integration/briefings.test.ts
   failure is logged (name+message only) and never fails the mutation:
 
 ```ts
-        const definition = await dependencies.dataContext.withDataContext(
-          accessContext,
-          (scopedDb) => repository.createDefinition(scopedDb, input)
-        );
+const definition = await dependencies.dataContext.withDataContext(accessContext, (scopedDb) =>
+  repository.createDefinition(scopedDb, input)
+);
 
-        await reconcileScheduleSafely(dependencies.boss, definition);
+await reconcileScheduleSafely(dependencies.boss, definition);
 
-        return reply.code(201).send({ definition: serializeDefinition(definition) });
+return reply.code(201).send({ definition: serializeDefinition(definition) });
 ```
 
 (and the analogous insertion after `updateDefinition`, guarded on `definition` being defined.) Add the
 helper at module scope:
 
 ```ts
-async function reconcileScheduleSafely(boss: PgBoss, definition: BriefingDefinition): Promise<void> {
+async function reconcileScheduleSafely(
+  boss: PgBoss,
+  definition: BriefingDefinition
+): Promise<void> {
   try {
     await reconcileSchedule(boss, definition);
   } catch (error) {
@@ -2088,35 +2233,29 @@ next visit. It MUST NOT block or fail the list response, and reconciles ONLY the
 (RLS-scoped via the repository) — no cross-user read.
 
 ```ts
-        const definitions = await dependencies.dataContext.withDataContext(
-          accessContext,
-          (scopedDb) => repository.listDefinitions(scopedDb)
-        );
+const definitions = await dependencies.dataContext.withDataContext(accessContext, (scopedDb) =>
+  repository.listDefinitions(scopedDb)
+);
 
-        // Best-effort self-heal: re-converge this owner's pg-boss schedules. Fire after
-        // building the response payload; never block or fail the read. reconcileOwnedSchedules
-        // already swallows + logs per-definition errors, but guard the whole call too.
-        void dependencies.dataContext
-          .withDataContext(accessContext, (scopedDb) =>
-            reconcileOwnedSchedules(
-              dependencies.boss,
-              scopedDb,
-              repository,
-              accessContext.actorUserId
-            )
-          )
-          .catch((error) => {
-            const e = error instanceof Error ? error : new Error(String(error));
-            console.error(
-              JSON.stringify({
-                event: "briefing_self_heal_failed",
-                error: e.name,
-                message: e.message.slice(0, 200)
-              })
-            );
-          });
+// Best-effort self-heal: re-converge this owner's pg-boss schedules. Fire after
+// building the response payload; never block or fail the read. reconcileOwnedSchedules
+// already swallows + logs per-definition errors, but guard the whole call too.
+void dependencies.dataContext
+  .withDataContext(accessContext, (scopedDb) =>
+    reconcileOwnedSchedules(dependencies.boss, scopedDb, repository, accessContext.actorUserId)
+  )
+  .catch((error) => {
+    const e = error instanceof Error ? error : new Error(String(error));
+    console.error(
+      JSON.stringify({
+        event: "briefing_self_heal_failed",
+        error: e.name,
+        message: e.message.slice(0, 200)
+      })
+    );
+  });
 
-        return reply.send({ definitions: definitions.map(serializeDefinition) });
+return reply.send({ definitions: definitions.map(serializeDefinition) });
 ```
 
 > Add `reconcileOwnedSchedules` to the `./schedule.js` import. READ the current GET handler first and
@@ -2178,17 +2317,14 @@ import { NotificationsRepository } from "@jarv1s/notifications";
 Update the briefings registration:
 
 ```ts
-    registerWorkers: (boss, dependencies) =>
-      registerBriefingsJobWorkers(boss, dependencies.dataContext, {
-        moduleManifests: getBuiltInModuleManifests(),
-        aiRepository: new AiRepository(),
-        cipher: createAiSecretCipher(),
-        memoryRetriever: new MemoryRetriever(
-          dependencies.embeddingProvider,
-          new MemoryRepository()
-        ),
-        notificationsRepository: new NotificationsRepository()
-      })
+registerWorkers: (boss, dependencies) =>
+  registerBriefingsJobWorkers(boss, dependencies.dataContext, {
+    moduleManifests: getBuiltInModuleManifests(),
+    aiRepository: new AiRepository(),
+    cipher: createAiSecretCipher(),
+    memoryRetriever: new MemoryRetriever(dependencies.embeddingProvider, new MemoryRepository()),
+    notificationsRepository: new NotificationsRepository()
+  });
 ```
 
 > Verify `NotificationsRepository` and `MemoryRepository`/`MemoryRetriever` are exported from their
@@ -2254,10 +2390,10 @@ pnpm exec vitest run apps/worker/test/worker.test.ts
 **Step 3 — Minimal implementation.** In `apps/worker/src/worker.ts`:
 
 ```ts
-  const boss = createPgBossClient(connectionString, { schedule: true });
-  // F14: make the cron owner observable. Exactly one process (this worker) runs the
-  // pg-boss cron engine; the API process stays schedule:false.
-  console.log(JSON.stringify({ event: "pgboss.schedule_mode", schedule: true }));
+const boss = createPgBossClient(connectionString, { schedule: true });
+// F14: make the cron owner observable. Exactly one process (this worker) runs the
+// pg-boss cron engine; the API process stays schedule:false.
+console.log(JSON.stringify({ event: "pgboss.schedule_mode", schedule: true }));
 ```
 
 Leave `supervise`/`migrate`/`createSchema` at their defaults (`false`). Do NOT change the API process
@@ -2296,6 +2432,7 @@ Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>"
 - Test: `tests/integration/chat.test.ts` (extend)
 
 **Step 1 — Write the failing test.** Add:
+
 - After a recorded non-incognito turn, running `handleExtractFactsJob` with a fake `generateChat` that
   returns JSON facts upserts rows into `app.chat_memory_facts` via `ChatMemoryFactsRepository`:
   categories constrained to `{preference, fact, profile, goal}`, `importance` in 0..1,
@@ -2325,7 +2462,12 @@ import { AiRepository, createAiSecretCipher, HttpApiAdapter } from "@jarv1s/ai";
 import type { AiSecretCipher, GenerateChatInput, ProviderKind } from "@jarv1s/ai";
 import { ChatMemoryFactsRepository, type FactCategory } from "@jarv1s/memory";
 
-const FACT_CATEGORIES: ReadonlySet<FactCategory> = new Set(["preference", "fact", "profile", "goal"]);
+const FACT_CATEGORIES: ReadonlySet<FactCategory> = new Set([
+  "preference",
+  "fact",
+  "profile",
+  "goal"
+]);
 const MAX_FACTS_PER_TURN = 8;
 
 export interface ExtractFactsDeps {
@@ -2355,10 +2497,17 @@ export async function handleExtractFactsJob(
     const assistantMsg = lastTwo.find((m) => m.role === "assistant");
     if (!userMsg || !assistantMsg) return;
 
-    const model = await deps.aiRepository.selectModelForCapability(scopedDb, "summarization", "economy");
+    const model = await deps.aiRepository.selectModelForCapability(
+      scopedDb,
+      "summarization",
+      "economy"
+    );
     if (!model) return;
 
-    const provider = await deps.aiRepository.selectProviderWithCredential(scopedDb, model.provider_config_id);
+    const provider = await deps.aiRepository.selectProviderWithCredential(
+      scopedDb,
+      model.provider_config_id
+    );
     if (!provider?.encrypted_credential) return;
     const decrypted = deps.cipher.decryptJson(provider.encrypted_credential);
     const apiKey = decrypted.apiKey;
@@ -2368,7 +2517,9 @@ export async function handleExtractFactsJob(
     const activeFacts = await deps.factsRepository.listActiveFacts(scopedDb, ownerUserId);
     const activeIds = new Set(activeFacts.map((f) => f.id));
     const normalize = (s: string) => s.trim().toLowerCase().replace(/\s+/g, " ");
-    const existingByContent = new Set(activeFacts.map((f) => `${f.category}::${normalize(f.content)}`));
+    const existingByContent = new Set(
+      activeFacts.map((f) => `${f.category}::${normalize(f.content)}`)
+    );
     // Expose ONLY the actor's real active-fact ids (bounded) so the model can supersede
     // a grounded fact instead of inventing an arbitrary id.
     const supersedableList = activeFacts
@@ -2378,18 +2529,16 @@ export async function handleExtractFactsJob(
 
     const prompt =
       "Extract durable facts about the user from this conversation turn. Return ONLY a JSON array; " +
-      "each item: {\"category\": \"preference|fact|profile|goal\", \"content\": string, " +
-      "\"importance\": number 0..1, \"supersedes\": optional id}. The OPTIONAL supersedes id MUST be one " +
+      'each item: {"category": "preference|fact|profile|goal", "content": string, ' +
+      '"importance": number 0..1, "supersedes": optional id}. The OPTIONAL supersedes id MUST be one ' +
       "of the EXISTING FACT IDS listed below (omit it otherwise — never invent an id). No prose, no code fences.\n\n" +
       `EXISTING FACT IDS (id :: content):\n${supersedableList || "(none)"}\n\n` +
       `User: ${userMsg.body}\nAssistant: ${assistantMsg.body}`;
 
-    const adapter =
-      (deps.createAdapter ?? ((k, key, base) => new HttpApiAdapter(k, key, base ? { baseUrl: base } : {})))(
-        model.provider_kind as ProviderKind,
-        apiKey,
-        provider.base_url
-      );
+    const adapter = (
+      deps.createAdapter ??
+      ((k, key, base) => new HttpApiAdapter(k, key, base ? { baseUrl: base } : {}))
+    )(model.provider_kind as ProviderKind, apiKey, provider.base_url);
     const { text } = await adapter.generateChat({
       model: { provider_kind: model.provider_kind, provider_model_id: model.provider_model_id },
       messages: [{ role: "user", content: prompt }],
@@ -2616,7 +2765,7 @@ purple/blue AI-glow):
   --danger: #b3261e; /* reserved for genuine system/validation failure only */
   --bucket-morning: #c8842b;
   --bucket-afternoon: #2f9e8f;
-  --bucket-evening: #7c5cbf;  /* circadian evening, NOT an AI-glow gradient */
+  --bucket-evening: #7c5cbf; /* circadian evening, NOT an AI-glow gradient */
   --provisional-opacity: 0.7;
 }
 
@@ -2749,7 +2898,8 @@ export function ProvisionalRegion({ children }: { children: ReactNode }) {
 
 Implement `Card`, `Stack`, `SectionHeader`, `Badge` (with a `tone: "recovery" | "attention" |
 "neutral" | "accent"` prop mapping to semantic state tokens — never error-red), and `TimeBucket` (label
-+ `--bucket-*` accent). Export all from `index.ts`.
+
+- `--bucket-*` accent). Export all from `index.ts`.
 
 **Step 4 — Run it, SEE it PASS:**
 
@@ -2999,41 +3149,41 @@ definition of done.
 
 ## Spec §-by-§ coverage — real-briefings spec
 
-| Spec § / component | Plan task(s) |
-| --- | --- |
-| Component 1 — enable cron engine (`schedule:true`, worker only) | A11 |
-| Component 2 — `schedule.ts` reconcile (cronExprFor/timezoneFor/reconcileSchedule/reconcileOwnedSchedules) | A1, A2 |
-| Component 3 — routes wire schedule lifecycle (failure-isolated) | A9 |
-| Component 4 — worker mints runId, fires notification | A8 |
-| Component 5 — `compose.ts` grounded synthesis + degraded fallback + local-day idempotency | A6, A7 |
-| Component 6 — worker composition injects deps | A10 |
-| Component 7a — `commitments.listVisible` + worker-role grant (owner-or-share) | A3 |
-| Component 7a' — calendar/email worker-role SELECT grants (so worker can read them) | A4b |
-| Component 7b — vault recency seam | A5 |
-| Component 7b' — economy output-token budget (`maxOutputTokens`) | A5b |
-| Component 7c — `chat.listTodaysTurns` + per-user local-day bound in compose | A4, A6 |
-| Component 8 — morning notification | A8 |
-| Component 9 — `handleExtractFactsJob` | A12, A13 |
-| Data flow (fixed priority order, caps, gaps) | A6 |
-| Error-handling table (no_model/credential_error/synthesis_failed/gaps/blocked/idempotency/reconcile/notification) | A6, A7, A8, A9 |
-| Testing strategy items 1–14 | A1–A12 tests |
-| Acceptance criteria 1–12 | A1–A12 |
-| Acceptance criterion 13 (gate) | A14 + final gate task |
+| Spec § / component                                                                                                | Plan task(s)          |
+| ----------------------------------------------------------------------------------------------------------------- | --------------------- |
+| Component 1 — enable cron engine (`schedule:true`, worker only)                                                   | A11                   |
+| Component 2 — `schedule.ts` reconcile (cronExprFor/timezoneFor/reconcileSchedule/reconcileOwnedSchedules)         | A1, A2                |
+| Component 3 — routes wire schedule lifecycle (failure-isolated)                                                   | A9                    |
+| Component 4 — worker mints runId, fires notification                                                              | A8                    |
+| Component 5 — `compose.ts` grounded synthesis + degraded fallback + local-day idempotency                         | A6, A7                |
+| Component 6 — worker composition injects deps                                                                     | A10                   |
+| Component 7a — `commitments.listVisible` + worker-role grant (owner-or-share)                                     | A3                    |
+| Component 7a' — calendar/email worker-role SELECT grants (so worker can read them)                                | A4b                   |
+| Component 7b — vault recency seam                                                                                 | A5                    |
+| Component 7b' — economy output-token budget (`maxOutputTokens`)                                                   | A5b                   |
+| Component 7c — `chat.listTodaysTurns` + per-user local-day bound in compose                                       | A4, A6                |
+| Component 8 — morning notification                                                                                | A8                    |
+| Component 9 — `handleExtractFactsJob`                                                                             | A12, A13              |
+| Data flow (fixed priority order, caps, gaps)                                                                      | A6                    |
+| Error-handling table (no_model/credential_error/synthesis_failed/gaps/blocked/idempotency/reconcile/notification) | A6, A7, A8, A9        |
+| Testing strategy items 1–14                                                                                       | A1–A12 tests          |
+| Acceptance criteria 1–12                                                                                          | A1–A12                |
+| Acceptance criterion 13 (gate)                                                                                    | A14 + final gate task |
 
 ## Spec §-by-§ coverage — design-direction spec
 
-| Spec § / criterion | Plan task(s) |
-| --- | --- |
-| tokens.css (3 tiers, only-hex file, dark/amber-ready) — criteria 1,2,3 | B1 |
-| styles.css split under cap — criterion 4 | B2 |
-| 4–6 UI primitives — criterion 5 | B3 |
-| Editorial reading surface, no DTO change — criterion 6 | B6 (post-gate) |
-| 2–3 mockups — criterion 7 | B4 |
-| Governor/anti-shame tokens — criterion 8 | B1, B4 |
-| HARD STOP list honored — criterion 9 | B1, B4 |
-| AWAIT BEN'S MOCKUP SIGN-OFF before app-wide restyle — criterion 10 | explicit gate between B5 and B6 |
-| Pre-gate deliverable gate-green — criterion 11 | B5 |
-| Post-gate briefing e2e — criterion 12 | B9 |
+| Spec § / criterion                                                     | Plan task(s)                    |
+| ---------------------------------------------------------------------- | ------------------------------- |
+| tokens.css (3 tiers, only-hex file, dark/amber-ready) — criteria 1,2,3 | B1                              |
+| styles.css split under cap — criterion 4                               | B2                              |
+| 4–6 UI primitives — criterion 5                                        | B3                              |
+| Editorial reading surface, no DTO change — criterion 6                 | B6 (post-gate)                  |
+| 2–3 mockups — criterion 7                                              | B4                              |
+| Governor/anti-shame tokens — criterion 8                               | B1, B4                          |
+| HARD STOP list honored — criterion 9                                   | B1, B4                          |
+| AWAIT BEN'S MOCKUP SIGN-OFF before app-wide restyle — criterion 10     | explicit gate between B5 and B6 |
+| Pre-gate deliverable gate-green — criterion 11                         | B5                              |
+| Post-gate briefing e2e — criterion 12                                  | B9                              |
 
 ## Placeholder scan
 

@@ -67,6 +67,7 @@
 ## Task 1: `Multiplexer` seam interface
 
 **Files:**
+
 - Create: `packages/ai/src/adapters/multiplexer.ts`
 
 - [ ] **Step 1: Write the interface**
@@ -133,6 +134,7 @@ git commit -m "feat(ai): add Multiplexer seam interface (Phase 2 portable chat a
 These additive options are no-ops today; they let the deferred uid-per-user milestone thread a per-user `HOME`/env without re-opening the seam (spec §5.2, §9).
 
 **Files:**
+
 - Modify: `packages/ai/src/adapters/tmux-bridge.ts`
 - Test: `tests/unit/ai-tmux-bridge.test.ts`
 
@@ -239,6 +241,7 @@ git commit -m "feat(ai): add optional env/cwd to TmuxIo.run and homeBase to tran
 Reproduces today's exact tmux verb sequence so it is a behavior-preserving extraction.
 
 **Files:**
+
 - Create: `packages/ai/src/adapters/tmux-multiplexer.ts`
 - Test: `tests/unit/ai-tmux-multiplexer.test.ts`
 
@@ -265,12 +268,21 @@ describe("TmuxMultiplexer", () => {
   it("open() creates a detached session and sends the launch line, returning the name as handle", async () => {
     const io = makeIo();
     const mux = new TmuxMultiplexer(io);
-    const handle = await mux.open({ name: "jarv1s-live-x", cols: 220, rows: 50, launchLine: "cd '/n' && claude --tools \"\"" });
+    const handle = await mux.open({
+      name: "jarv1s-live-x",
+      cols: 220,
+      rows: 50,
+      launchLine: "cd '/n' && claude --tools \"\""
+    });
 
     expect(handle).toBe("jarv1s-live-x");
     const flat = calls(io);
-    expect(flat.some((c) => c.startsWith("tmux new-session -d -s jarv1s-live-x -x 220 -y 50"))).toBe(true);
-    expect(flat.some((c) => c.startsWith("tmux send-keys -t jarv1s-live-x") && c.endsWith("Enter"))).toBe(true);
+    expect(
+      flat.some((c) => c.startsWith("tmux new-session -d -s jarv1s-live-x -x 220 -y 50"))
+    ).toBe(true);
+    expect(
+      flat.some((c) => c.startsWith("tmux send-keys -t jarv1s-live-x") && c.endsWith("Enter"))
+    ).toBe(true);
   });
 
   it("submit() loads+pastes a buffer then sends Enter as a separate step", async () => {
@@ -312,7 +324,9 @@ describe("TmuxMultiplexer", () => {
     const io = makeIo();
     io.run.mockResolvedValueOnce({ code: 1, stdout: "", stderr: "duplicate session" });
     const mux = new TmuxMultiplexer(io);
-    await expect(mux.open({ name: "x", cols: 220, rows: 50, launchLine: "claude" })).rejects.toThrow(/new-session failed/);
+    await expect(
+      mux.open({ name: "x", cols: 220, rows: 50, launchLine: "claude" })
+    ).rejects.toThrow(/new-session failed/);
   });
 });
 ```
@@ -346,20 +360,40 @@ export class TmuxMultiplexer implements Multiplexer {
   readonly kind = "tmux" as const;
   private readonly submitMs: number;
 
-  constructor(private readonly io: TmuxIo, opts: TmuxMultiplexerOpts = {}) {
+  constructor(
+    private readonly io: TmuxIo,
+    opts: TmuxMultiplexerOpts = {}
+  ) {
     this.submitMs = opts.submitMs ?? 600;
   }
 
   async open(opts: MuxOpenOpts): Promise<MuxHandle> {
     const created = await this.io.run("tmux", [
-      "new-session", "-d", "-s", opts.name, "-x", String(opts.cols), "-y", String(opts.rows)
+      "new-session",
+      "-d",
+      "-s",
+      opts.name,
+      "-x",
+      String(opts.cols),
+      "-y",
+      String(opts.rows)
     ]);
     if (created.code !== 0) {
-      throw new Error(`TmuxMultiplexer.open: tmux new-session failed (code ${created.code}): ${created.stderr ?? ""}`);
+      throw new Error(
+        `TmuxMultiplexer.open: tmux new-session failed (code ${created.code}): ${created.stderr ?? ""}`
+      );
     }
-    const sent = await this.io.run("tmux", ["send-keys", "-t", opts.name, opts.launchLine, "Enter"]);
+    const sent = await this.io.run("tmux", [
+      "send-keys",
+      "-t",
+      opts.name,
+      opts.launchLine,
+      "Enter"
+    ]);
     if (sent.code !== 0) {
-      throw new Error(`TmuxMultiplexer.open: tmux send-keys failed (code ${sent.code}): ${sent.stderr ?? ""}`);
+      throw new Error(
+        `TmuxMultiplexer.open: tmux send-keys failed (code ${sent.code}): ${sent.stderr ?? ""}`
+      );
     }
     return opts.name;
   }
@@ -377,7 +411,9 @@ export class TmuxMultiplexer implements Multiplexer {
   private async runChecked(args: readonly string[]): Promise<void> {
     const { code, stderr } = await this.io.run("tmux", args);
     if (code !== 0) {
-      throw new Error(`TmuxMultiplexer: \`tmux ${args[0]}\` failed (code ${code}): ${stderr ?? ""}`);
+      throw new Error(
+        `TmuxMultiplexer: \`tmux ${args[0]}\` failed (code ${code}): ${stderr ?? ""}`
+      );
     }
   }
 
@@ -414,9 +450,10 @@ git commit -m "feat(ai): add TmuxMultiplexer backend (behavior-preserving tmux e
 
 ## Task 4: `HerdrMultiplexer` backend
 
-> **Integration risk (grill-flagged + Codex-hardened):** herdr has no "new detached session" verb. `open()` splits a pane from a **deliberately chosen** root pane and parses the server-assigned, opaque `pane_id` from herdr's **JSON** output (herdr v0.6.8 emits JSON by default — there is no `--json` flag; envelope `{"id":"cli:pane:X","result":{...},"type":"..."}`). `pane get` checks liveness; `pane close` kills. Launch is symmetric with tmux: `send-text <launchLine>` then `send-keys Enter` (we deliberately avoid `pane run`, whose shell-quoting semantics are unspecified). **Root pane is NEVER "the first pane in `pane list`"** — a real herdr server lists unrelated operator/Codex/Claude panes, so splitting from an arbitrary one is unsafe (Codex finding #4). Resolution is: `opts.rootPane` → `JARVIS_HERDR_ROOT_PANE` → `HERDR_PANE_ID` (the server's *own* pane, set by herdr when the API runs inside a pane) → hard error. Every `herdr` command's exit code is checked; a non-zero exit throws (Codex findings #3/#5). **Build this before Task 6 — the resolver imports it.**
+> **Integration risk (grill-flagged + Codex-hardened):** herdr has no "new detached session" verb. `open()` splits a pane from a **deliberately chosen** root pane and parses the server-assigned, opaque `pane_id` from herdr's **JSON** output (herdr v0.6.8 emits JSON by default — there is no `--json` flag; envelope `{"id":"cli:pane:X","result":{...},"type":"..."}`). `pane get` checks liveness; `pane close` kills. Launch is symmetric with tmux: `send-text <launchLine>` then `send-keys Enter` (we deliberately avoid `pane run`, whose shell-quoting semantics are unspecified). **Root pane is NEVER "the first pane in `pane list`"** — a real herdr server lists unrelated operator/Codex/Claude panes, so splitting from an arbitrary one is unsafe (Codex finding #4). Resolution is: `opts.rootPane` → `JARVIS_HERDR_ROOT_PANE` → `HERDR_PANE_ID` (the server's _own_ pane, set by herdr when the API runs inside a pane) → hard error. Every `herdr` command's exit code is checked; a non-zero exit throws (Codex findings #3/#5). **Build this before Task 6 — the resolver imports it.**
 
 **Files:**
+
 - Create: `packages/ai/src/adapters/herdr-multiplexer.ts`
 - Test: `tests/unit/ai-herdr-multiplexer.test.ts`
 
@@ -430,27 +467,43 @@ function makeIo(overrides: Record<string, { code: number; stdout: string }> = {}
   const run = vi.fn(async (cmd: string, args: readonly string[]) => {
     const key = [cmd, ...args].join(" ");
     for (const prefix of Object.keys(overrides)) {
-      if (key.startsWith(prefix)) return { code: overrides[prefix].code, stdout: overrides[prefix].stdout, stderr: "" };
+      if (key.startsWith(prefix))
+        return { code: overrides[prefix].code, stdout: overrides[prefix].stdout, stderr: "" };
     }
     return { code: 0, stdout: "", stderr: "" };
   });
-  return { run, sleep: vi.fn().mockResolvedValue(undefined), readFile: vi.fn().mockResolvedValue(""), writeFile: vi.fn().mockResolvedValue(undefined) };
+  return {
+    run,
+    sleep: vi.fn().mockResolvedValue(undefined),
+    readFile: vi.fn().mockResolvedValue(""),
+    writeFile: vi.fn().mockResolvedValue(undefined)
+  };
 }
 
 // Realistic herdr v0.6.8 envelopes; pane ids look like "p_51" (server/workspace-assigned).
-const SPLIT_JSON = '{"id":"cli:pane:split","result":{"pane":{"pane_id":"p_77"}},"type":"pane_info"}';
+const SPLIT_JSON =
+  '{"id":"cli:pane:split","result":{"pane":{"pane_id":"p_77"}},"type":"pane_info"}';
 
 describe("HerdrMultiplexer", () => {
   it("open() splits from the explicit root pane, parses the new pane id, types the launch line, and returns the id", async () => {
     const io = makeIo({ "herdr pane split": { code: 0, stdout: SPLIT_JSON } });
     const mux = new HerdrMultiplexer(io, { rootPane: "p_51" });
-    const handle = await mux.open({ name: "jarv1s-live-x", cols: 220, rows: 50, launchLine: "cd '/n' && claude" });
+    const handle = await mux.open({
+      name: "jarv1s-live-x",
+      cols: 220,
+      rows: 50,
+      launchLine: "cd '/n' && claude"
+    });
 
     expect(handle).toBe("p_77");
     const flat = io.run.mock.calls.map((c: unknown[]) => [c[0], ...(c[1] as string[])].join(" "));
-    expect(flat.some((c) => c.startsWith("herdr pane split p_51 --direction down --no-focus"))).toBe(true);
+    expect(
+      flat.some((c) => c.startsWith("herdr pane split p_51 --direction down --no-focus"))
+    ).toBe(true);
     const textIdx = flat.findIndex((c) => c.startsWith("herdr pane send-text p_77"));
-    const enterIdx = flat.findIndex((c) => c.startsWith("herdr pane send-keys p_77") && c.includes("Enter"));
+    const enterIdx = flat.findIndex(
+      (c) => c.startsWith("herdr pane send-keys p_77") && c.includes("Enter")
+    );
     expect(textIdx).toBeGreaterThanOrEqual(0);
     expect(enterIdx).toBeGreaterThan(textIdx);
   });
@@ -466,17 +519,33 @@ describe("HerdrMultiplexer", () => {
 
   it("open() throws when no root pane can be resolved (no override, no env)", async () => {
     const mux = new HerdrMultiplexer(makeIo(), { env: {} });
-    await expect(mux.open({ name: "x", cols: 1, rows: 1, launchLine: "c" })).rejects.toThrow(/root pane/i);
+    await expect(mux.open({ name: "x", cols: 1, rows: 1, launchLine: "c" })).rejects.toThrow(
+      /root pane/i
+    );
   });
 
   it("open() throws a clear error when herdr returns non-JSON", async () => {
     const io = makeIo({ "herdr pane split": { code: 0, stdout: "not json" } });
-    await expect(new HerdrMultiplexer(io, { rootPane: "p_51" }).open({ name: "x", cols: 1, rows: 1, launchLine: "c" })).rejects.toThrow(/herdr/i);
+    await expect(
+      new HerdrMultiplexer(io, { rootPane: "p_51" }).open({
+        name: "x",
+        cols: 1,
+        rows: 1,
+        launchLine: "c"
+      })
+    ).rejects.toThrow(/herdr/i);
   });
 
   it("open() throws when `pane split` exits non-zero", async () => {
     const io = makeIo({ "herdr pane split": { code: 1, stdout: "" } });
-    await expect(new HerdrMultiplexer(io, { rootPane: "p_51" }).open({ name: "x", cols: 1, rows: 1, launchLine: "c" })).rejects.toThrow(/split failed/i);
+    await expect(
+      new HerdrMultiplexer(io, { rootPane: "p_51" }).open({
+        name: "x",
+        cols: 1,
+        rows: 1,
+        launchLine: "c"
+      })
+    ).rejects.toThrow(/split failed/i);
   });
 
   it("open() throws when send-text after split exits non-zero", async () => {
@@ -484,7 +553,14 @@ describe("HerdrMultiplexer", () => {
       "herdr pane split": { code: 0, stdout: SPLIT_JSON },
       "herdr pane send-text": { code: 1, stdout: "" }
     });
-    await expect(new HerdrMultiplexer(io, { rootPane: "p_51" }).open({ name: "x", cols: 1, rows: 1, launchLine: "c" })).rejects.toThrow(/send-text failed/i);
+    await expect(
+      new HerdrMultiplexer(io, { rootPane: "p_51" }).open({
+        name: "x",
+        cols: 1,
+        rows: 1,
+        launchLine: "c"
+      })
+    ).rejects.toThrow(/send-text failed/i);
   });
 
   it("submit() sends text then Enter to the pane handle, checking exit codes", async () => {
@@ -493,14 +569,18 @@ describe("HerdrMultiplexer", () => {
     await mux.submit("p_77", "hello");
     const flat = io.run.mock.calls.map((c: unknown[]) => [c[0], ...(c[1] as string[])].join(" "));
     const textIdx = flat.findIndex((c) => c.startsWith("herdr pane send-text p_77"));
-    const enterIdx = flat.findIndex((c) => c.startsWith("herdr pane send-keys p_77") && c.includes("Enter"));
+    const enterIdx = flat.findIndex(
+      (c) => c.startsWith("herdr pane send-keys p_77") && c.includes("Enter")
+    );
     expect(textIdx).toBeGreaterThanOrEqual(0);
     expect(enterIdx).toBeGreaterThan(textIdx);
   });
 
   it("submit() throws when send-text exits non-zero", async () => {
     const io = makeIo({ "herdr pane send-text": { code: 1, stdout: "" } });
-    await expect(new HerdrMultiplexer(io, { rootPane: "p_51" }).submit("p_77", "hi")).rejects.toThrow(/send-text failed/i);
+    await expect(
+      new HerdrMultiplexer(io, { rootPane: "p_51" }).submit("p_77", "hi")
+    ).rejects.toThrow(/send-text failed/i);
   });
 
   it("isAlive() maps `pane get` exit code to a boolean", async () => {
@@ -512,7 +592,9 @@ describe("HerdrMultiplexer", () => {
 
   it("kill() closes the pane and ignores the exit code (idempotent)", async () => {
     const io = makeIo({ "herdr pane close p_77": { code: 1, stdout: "" } });
-    await expect(new HerdrMultiplexer(io, { rootPane: "p_51" }).kill("p_77")).resolves.toBeUndefined();
+    await expect(
+      new HerdrMultiplexer(io, { rootPane: "p_51" }).kill("p_77")
+    ).resolves.toBeUndefined();
     const flat = io.run.mock.calls.map((c: unknown[]) => [c[0], ...(c[1] as string[])].join(" "));
     expect(flat.some((c) => c.startsWith("herdr pane close p_77"))).toBe(true);
   });
@@ -566,20 +648,34 @@ export class HerdrMultiplexer implements Multiplexer {
   private readonly rootPaneOverride?: string;
   private readonly env: NodeJS.ProcessEnv;
 
-  constructor(private readonly io: TmuxIo, opts: HerdrMultiplexerOpts = {}) {
+  constructor(
+    private readonly io: TmuxIo,
+    opts: HerdrMultiplexerOpts = {}
+  ) {
     this.rootPaneOverride = opts.rootPane;
     this.env = opts.env ?? process.env;
   }
 
   async open(opts: MuxOpenOpts): Promise<MuxHandle> {
     const root = this.resolveRootPane();
-    const split = await this.io.run("herdr", ["pane", "split", root, "--direction", "down", "--no-focus"]);
+    const split = await this.io.run("herdr", [
+      "pane",
+      "split",
+      root,
+      "--direction",
+      "down",
+      "--no-focus"
+    ]);
     if (split.code !== 0) {
-      throw new Error(`HerdrMultiplexer.open: \`herdr pane split\` failed (code ${split.code}): ${split.stderr ?? ""}`);
+      throw new Error(
+        `HerdrMultiplexer.open: \`herdr pane split\` failed (code ${split.code}): ${split.stderr ?? ""}`
+      );
     }
     const paneId = paneIdFromInfo(split.stdout);
     if (!paneId) {
-      throw new Error("HerdrMultiplexer.open: could not parse pane_id from `herdr pane split` JSON");
+      throw new Error(
+        "HerdrMultiplexer.open: could not parse pane_id from `herdr pane split` JSON"
+      );
     }
     // Launch symmetrically with tmux: type the launch line, then submit Enter.
     await this.runChecked(["pane", "send-text", paneId, opts.launchLine], "send-text");
@@ -622,7 +718,9 @@ export class HerdrMultiplexer implements Multiplexer {
   private async runChecked(args: readonly string[], label: string): Promise<void> {
     const { code, stderr } = await this.io.run("herdr", args);
     if (code !== 0) {
-      throw new Error(`HerdrMultiplexer: \`herdr ${label}\` failed (code ${code}): ${stderr ?? ""}`);
+      throw new Error(
+        `HerdrMultiplexer: \`herdr ${label}\` failed (code ${code}): ${stderr ?? ""}`
+      );
     }
   }
 }
@@ -667,6 +765,7 @@ git commit -m "feat(ai): add HerdrMultiplexer backend (pane split → opaque han
 Detects whether `tmux` / `herdr` are installed, with no shell and no `execFile` (a pure PATH scan over an injectable fs seam, so it is fully unit-testable).
 
 **Files:**
+
 - Create: `packages/ai/src/adapters/binary-probe.ts`
 - Test: `tests/unit/ai-binary-probe.test.ts`
 
@@ -768,6 +867,7 @@ git commit -m "feat(ai): add createBinaryProbe (PATH scan for tmux/herdr)"
 The selection logic, split into a **pure decision** (no io — used by both the boot resolver and any future "what would auto pick?" surface) and a thin **io-binding wrapper** that instantiates the chosen backend.
 
 **Files:**
+
 - Modify: `packages/shared/src/platform-api.ts` (the single source of truth for the choice union)
 - Create: `packages/ai/src/adapters/multiplexer-resolve.ts`
 - Test: `tests/unit/ai-multiplexer-resolve.test.ts`
@@ -785,26 +885,45 @@ export type ChatMultiplexerChoice = "auto" | "tmux" | "herdr";
 
 ```ts
 import { describe, expect, it } from "vitest";
-import { decideMultiplexer, resolveMultiplexer } from "../../packages/ai/src/adapters/multiplexer-resolve.js";
+import {
+  decideMultiplexer,
+  resolveMultiplexer
+} from "../../packages/ai/src/adapters/multiplexer-resolve.js";
 
 const both = () => true;
 const none = () => false;
 const only = (k: string) => (b: string) => b === k;
 const ROOT = { HERDR_PANE_ID: "p_51" }; // makes herdr "usable" (a root pane is resolvable)
-const io = { run: async () => ({ code: 0, stdout: "" }), sleep: async () => {}, readFile: async () => "", writeFile: async () => {} } as never;
+const io = {
+  run: async () => ({ code: 0, stdout: "" }),
+  sleep: async () => {},
+  readFile: async () => "",
+  writeFile: async () => {}
+} as never;
 
 describe("decideMultiplexer", () => {
   it("env override wins and bypasses the install probe", () => {
-    expect(decideMultiplexer({ env: { JARVIS_MULTIPLEXER: "herdr" }, configured: "auto", isInstalled: none }))
-      .toEqual({ ok: true, kind: "herdr", source: "env" });
+    expect(
+      decideMultiplexer({
+        env: { JARVIS_MULTIPLEXER: "herdr" },
+        configured: "auto",
+        isInstalled: none
+      })
+    ).toEqual({ ok: true, kind: "herdr", source: "env" });
   });
   it("throws on an invalid env override", () => {
-    expect(() => decideMultiplexer({ env: { JARVIS_MULTIPLEXER: "screen" }, configured: "auto", isInstalled: both }))
-      .toThrow(/JARVIS_MULTIPLEXER/);
+    expect(() =>
+      decideMultiplexer({
+        env: { JARVIS_MULTIPLEXER: "screen" },
+        configured: "auto",
+        isInstalled: both
+      })
+    ).toThrow(/JARVIS_MULTIPLEXER/);
   });
   it("honors an explicit herdr admin setting when installed AND a root pane is resolvable", () => {
-    expect(decideMultiplexer({ env: ROOT, configured: "herdr", isInstalled: only("herdr") }))
-      .toEqual({ ok: true, kind: "herdr", source: "configured" });
+    expect(
+      decideMultiplexer({ env: ROOT, configured: "herdr", isInstalled: only("herdr") })
+    ).toEqual({ ok: true, kind: "herdr", source: "configured" });
   });
   it("fails when herdr is selected and installed but NO root pane is resolvable", () => {
     const d = decideMultiplexer({ env: {}, configured: "herdr", isInstalled: only("herdr") });
@@ -812,20 +931,32 @@ describe("decideMultiplexer", () => {
     expect(!d.ok && d.reason).toMatch(/root pane/i);
   });
   it("fails when the explicit admin setting is not installed", () => {
-    expect(decideMultiplexer({ env: {}, configured: "tmux", isInstalled: only("herdr") }).ok).toBe(false);
+    expect(decideMultiplexer({ env: {}, configured: "tmux", isInstalled: only("herdr") }).ok).toBe(
+      false
+    );
   });
   it("auto prefers tmux when both usable and not inside herdr", () => {
-    expect(decideMultiplexer({ env: ROOT, configured: "auto", isInstalled: both })).toMatchObject({ ok: true, kind: "tmux", source: "auto" });
+    expect(decideMultiplexer({ env: ROOT, configured: "auto", isInstalled: both })).toMatchObject({
+      ok: true,
+      kind: "tmux",
+      source: "auto"
+    });
   });
   it("auto prefers herdr when inside herdr (HERDR_ENV=1) and herdr is usable", () => {
-    expect(decideMultiplexer({ env: { ...ROOT, HERDR_ENV: "1" }, configured: "auto", isInstalled: both })).toMatchObject({ ok: true, kind: "herdr" });
+    expect(
+      decideMultiplexer({ env: { ...ROOT, HERDR_ENV: "1" }, configured: "auto", isInstalled: both })
+    ).toMatchObject({ ok: true, kind: "herdr" });
   });
   it("auto FALLS BACK TO TMUX when herdr is installed but has no root pane (the R2-#1 fix)", () => {
     // herdr binary present, but no HERDR_PANE_ID/JARVIS_HERDR_ROOT_PANE → herdr not usable.
-    expect(decideMultiplexer({ env: { HERDR_ENV: "1" }, configured: "auto", isInstalled: both })).toMatchObject({ ok: true, kind: "tmux" });
+    expect(
+      decideMultiplexer({ env: { HERDR_ENV: "1" }, configured: "auto", isInstalled: both })
+    ).toMatchObject({ ok: true, kind: "tmux" });
   });
   it("auto falls back to herdr when only herdr is usable", () => {
-    expect(decideMultiplexer({ env: ROOT, configured: "auto", isInstalled: only("herdr") })).toMatchObject({ ok: true, kind: "herdr" });
+    expect(
+      decideMultiplexer({ env: ROOT, configured: "auto", isInstalled: only("herdr") })
+    ).toMatchObject({ ok: true, kind: "herdr" });
   });
   it("auto fails when neither is usable", () => {
     expect(decideMultiplexer({ env: {}, configured: "auto", isInstalled: none }).ok).toBe(false);
@@ -838,7 +969,9 @@ describe("resolveMultiplexer", () => {
     expect(r.ok && r.mux.kind).toBe("tmux");
   });
   it("propagates the unavailable reason", () => {
-    expect(resolveMultiplexer({ io, env: {}, configured: "auto", isInstalled: none }).ok).toBe(false);
+    expect(resolveMultiplexer({ io, env: {}, configured: "auto", isInstalled: none }).ok).toBe(
+      false
+    );
   });
 });
 ```
@@ -888,7 +1021,9 @@ export function decideMultiplexer(input: MultiplexerDecisionInput): MultiplexerD
   // (explicit JARVIS_HERDR_ROOT_PANE, or the server's own HERDR_PANE_ID). Without
   // a root pane, picking herdr would boot a backend that only fails at launch — so
   // it must not count as available for `auto`/`configured` resolution (Codex R2 #1).
-  const herdrRootAvailable = Boolean(env.JARVIS_HERDR_ROOT_PANE?.trim() || env.HERDR_PANE_ID?.trim());
+  const herdrRootAvailable = Boolean(
+    env.JARVIS_HERDR_ROOT_PANE?.trim() || env.HERDR_PANE_ID?.trim()
+  );
   const herdrUsable = isInstalled("herdr") && herdrRootAvailable;
   const tmuxUsable = isInstalled("tmux");
 
@@ -906,7 +1041,10 @@ export function decideMultiplexer(input: MultiplexerDecisionInput): MultiplexerD
   if (configured === "tmux") {
     return tmuxUsable
       ? { ok: true, kind: "tmux", source: "configured" }
-      : { ok: false, reason: `multiplexer "tmux" is selected in admin settings but is not installed on this host` };
+      : {
+          ok: false,
+          reason: `multiplexer "tmux" is selected in admin settings but is not installed on this host`
+        };
   }
   if (configured === "herdr") {
     if (herdrUsable) return { ok: true, kind: "herdr", source: "configured" };
@@ -922,7 +1060,11 @@ export function decideMultiplexer(input: MultiplexerDecisionInput): MultiplexerD
   if (env.HERDR_ENV === "1" && herdrUsable) return { ok: true, kind: "herdr", source: "auto" };
   if (tmuxUsable) return { ok: true, kind: "tmux", source: "auto" };
   if (herdrUsable) return { ok: true, kind: "herdr", source: "auto" };
-  return { ok: false, reason: "no usable terminal multiplexer found (install tmux, or install herdr and set a root pane)" };
+  return {
+    ok: false,
+    reason:
+      "no usable terminal multiplexer found (install tmux, or install herdr and set a root pane)"
+  };
 }
 
 export interface MultiplexerResolutionInput extends MultiplexerDecisionInput {
@@ -963,6 +1105,7 @@ git commit -m "feat(ai): add ChatMultiplexerChoice (shared) + decideMultiplexer/
 ## Task 7: Barrel-export the new `@jarv1s/ai` modules
 
 **Files:**
+
 - Modify: `packages/ai/src/index.ts`
 
 - [ ] **Step 1: Add exports**
@@ -996,6 +1139,7 @@ git commit -m "feat(ai): export multiplexer seam, backends, probe, and resolver 
 The core engine change. The engine stops issuing tmux verbs inline and instead calls an injected `Multiplexer`, storing the handle `open()` returns. The default mux is `TmuxMultiplexer(io)`, so the external `io.run` call sequence is unchanged → all existing engine tests pass without edits (other than the rename import in Task 9).
 
 **Files:**
+
 - Create: `packages/chat/src/live/errors.ts`
 - Modify: `packages/chat/src/live/cli-chat-engine.ts`
 - Modify: `packages/chat/src/live/types.ts`
@@ -1154,10 +1298,10 @@ Add a private guard near the other helpers:
 In `buildCodexCommand`, replace the comment at the old `:238-240` ("accepted tradeoff for a local single-user session…") with:
 
 ```ts
-    // Codex reads the Bearer token via bearer_token_env_var; there is no file-based injection
-    // equivalent, so the token appears in the launch line and ps output. Under the household
-    // model this is a shared-uid soft boundary (see the chat module README "Known security
-    // limitation"); the token is short-lived, process-scoped, and RLS-scoped server-side.
+// Codex reads the Bearer token via bearer_token_env_var; there is no file-based injection
+// equivalent, so the token appears in the launch line and ps output. Under the household
+// model this is a shared-uid soft boundary (see the chat module README "Known security
+// limitation"); the token is short-lived, process-scoped, and RLS-scoped server-side.
 ```
 
 Do **not** change any flag in `buildClaudeCommand` / `buildCodexCommand` / `buildGeminiCommand`.
@@ -1179,6 +1323,7 @@ git commit -m "refactor(chat): engine delegates session verbs to Multiplexer; st
 ## Task 9: Update engine tests to the renamed class (no behavior change)
 
 **Files:**
+
 - Modify: `tests/unit/cli-chat-engine.test.ts`
 - Modify: `tests/unit/chat-live-engine.test.ts`
 
@@ -1233,6 +1378,7 @@ git commit -m "test(chat): rename engine refs to CliChatEngineImpl + lock full l
 Turn the single hardcoded `realEngineFactory` into a builder that accepts the resolved `Multiplexer`, and add the typed "no multiplexer" state. The resolution itself happens at the composition root (Task 13).
 
 **Files:**
+
 - Modify: `packages/chat/src/live/runtime.ts`
 - Modify: `packages/chat/src/index.ts`
 - Modify: `packages/chat/src/live-routes.ts` (503 mapping on the live launch path)
@@ -1252,7 +1398,14 @@ import {
 
 describe("createRealEngineFactory", () => {
   it("builds an engine using the injected multiplexer kind", () => {
-    const mux = { kind: "herdr" as const, open: async () => "h", submit: async () => {}, isAlive: async () => true, kill: async () => {}, attachCommand: () => "herdr" };
+    const mux = {
+      kind: "herdr" as const,
+      open: async () => "h",
+      submit: async () => {},
+      isAlive: async () => true,
+      kill: async () => {},
+      attachCommand: () => "herdr"
+    };
     const engine = createRealEngineFactory({ mux })("anthropic", "thread-1");
     expect(engine).toBeDefined();
   });
@@ -1330,12 +1483,15 @@ The live-session launch flows through `handleLiveRouteError` in `packages/chat/s
 ```ts
 import { CliChatUnavailableError } from "./live/errors.js";
 // ...inside handleLiveRouteError, before the final reply.code(500):
-  if (error instanceof CliChatUnavailableError) {
-    // Log the underlying cause server-side; send a fixed, sanitized message (the
-    // error covers both "no multiplexer configured" and "launch failed").
-    reply.log?.warn?.({ err: error, cause: (error as { cause?: unknown }).cause }, "live chat unavailable");
-    return reply.code(503).send({ error: "Live chat is currently unavailable on this host." });
-  }
+if (error instanceof CliChatUnavailableError) {
+  // Log the underlying cause server-side; send a fixed, sanitized message (the
+  // error covers both "no multiplexer configured" and "launch failed").
+  reply.log?.warn?.(
+    { err: error, cause: (error as { cause?: unknown }).cause },
+    "live chat unavailable"
+  );
+  return reply.code(503).send({ error: "Live chat is currently unavailable on this host." });
+}
 ```
 
 Also add the same branch to `handleRouteError` in `packages/chat/src/routes.ts` (`:281`) for the REST chat routes, for symmetry:
@@ -1343,10 +1499,10 @@ Also add the same branch to `handleRouteError` in `packages/chat/src/routes.ts` 
 ```ts
 import { CliChatUnavailableError } from "./live/errors.js";
 // ...inside handleRouteError, before the generic fallback:
-  if (error instanceof CliChatUnavailableError) {
-    reply.log?.warn?.({ err: error }, "live chat unavailable");
-    return reply.code(503).send({ error: "Live chat is currently unavailable on this host." });
-  }
+if (error instanceof CliChatUnavailableError) {
+  reply.log?.warn?.({ err: error }, "live chat unavailable");
+  return reply.code(503).send({ error: "Live chat is currently unavailable on this host." });
+}
 ```
 
 - [ ] **Step 6: Add a route-level test for the 503**
@@ -1355,9 +1511,18 @@ In the live-routes test suite (find it: `grep -rl "live-routes\|registerChatLive
 
 ```ts
 it("returns 503 when no multiplexer is available", async () => {
-  const factory = () => { throw new CliChatUnavailableError("no terminal multiplexer (tmux/herdr) installed"); };
+  const factory = () => {
+    throw new CliChatUnavailableError("no terminal multiplexer (tmux/herdr) installed");
+  };
   // build the live routes with { engineFactory: factory } via the suite's existing harness, then:
-  const res = await app.inject({ method: "POST", url: "<the live launch route>", headers: authHeaders, payload: { /* minimal valid launch body */ } });
+  const res = await app.inject({
+    method: "POST",
+    url: "<the live launch route>",
+    headers: authHeaders,
+    payload: {
+      /* minimal valid launch body */
+    }
+  });
   expect(res.statusCode).toBe(503);
 });
 ```
@@ -1383,6 +1548,7 @@ git commit -m "feat(chat): injectable engine-factory builder + CliChatUnavailabl
 Add typed read/write of the `chat.multiplexer` setting, mirroring `getRegistrationSettings`/`setRegistrationSettings`. Stored under key `chat.multiplexer` as `{ value: "auto"|"tmux"|"herdr" }`.
 
 **Files:**
+
 - Modify: `packages/settings/src/repository.ts`
 - Test: `tests/integration/chat-multiplexer-admin.test.ts` (read/write round-trip; full route test is Task 13's gate)
 
@@ -1395,7 +1561,11 @@ Create `tests/integration/chat-multiplexer-admin.test.ts` (model it on the exist
 it("defaults to auto and round-trips an admin write", async () => {
   await dataContext.withDataContext(adminCtx, async (db) => {
     expect((await repo.getChatMultiplexerSetting(db)).multiplexer).toBe("auto");
-    await repo.setChatMultiplexerSetting(db, { multiplexer: "herdr", actorUserId: adminCtx.actorUserId, requestId: adminCtx.requestId });
+    await repo.setChatMultiplexerSetting(db, {
+      multiplexer: "herdr",
+      actorUserId: adminCtx.actorUserId,
+      requestId: adminCtx.requestId
+    });
     expect((await repo.getChatMultiplexerSetting(db)).multiplexer).toBe("herdr");
   });
 });
@@ -1403,7 +1573,11 @@ it("defaults to auto and round-trips an admin write", async () => {
 it("rejects a non-admin write (RLS WITH CHECK)", async () => {
   await expect(
     dataContext.withDataContext(memberCtx, async (db) =>
-      repo.setChatMultiplexerSetting(db, { multiplexer: "tmux", actorUserId: memberCtx.actorUserId, requestId: memberCtx.requestId })
+      repo.setChatMultiplexerSetting(db, {
+        multiplexer: "tmux",
+        actorUserId: memberCtx.actorUserId,
+        requestId: memberCtx.requestId
+      })
     )
   ).rejects.toThrow();
 });
@@ -1466,6 +1640,7 @@ git commit -m "feat(settings): add chat.multiplexer instance-setting read/write 
 Add the DTOs/schemas and the `GET`/`PUT` admin routes, mirroring `/api/admin/registration`. The route returns the stored choice plus the boot-time availability snapshot injected by the composition root (Task 13).
 
 **Files:**
+
 - Modify: `packages/shared/src/platform-api.ts`
 - Modify: `packages/settings/src/routes.ts`
 
@@ -1500,7 +1675,11 @@ export const chatMultiplexerSettingsSchema = {
 } as const;
 
 export const getChatMultiplexerSettingsRouteSchema = {
-  response: { 200: chatMultiplexerSettingsSchema, 401: errorResponseSchema, 403: errorResponseSchema }
+  response: {
+    200: chatMultiplexerSettingsSchema,
+    401: errorResponseSchema,
+    403: errorResponseSchema
+  }
 } as const;
 
 export const putChatMultiplexerSettingsRouteSchema = {
@@ -1510,7 +1689,11 @@ export const putChatMultiplexerSettingsRouteSchema = {
     additionalProperties: false,
     properties: { multiplexer: { type: "string", enum: ["auto", "tmux", "herdr"] } }
   },
-  response: { 200: chatMultiplexerSettingsSchema, 401: errorResponseSchema, 403: errorResponseSchema }
+  response: {
+    200: chatMultiplexerSettingsSchema,
+    401: errorResponseSchema,
+    403: errorResponseSchema
+  }
 } as const;
 ```
 
@@ -1535,7 +1718,10 @@ server.get(
       return await dependencies.dataContext.withDataContext(accessContext, async (scopedDb) => {
         await assertAdminUser(repository, scopedDb, accessContext.actorUserId);
         const { multiplexer } = await repository.getChatMultiplexerSetting(scopedDb);
-        return { multiplexer, available: dependencies.chatMultiplexerAvailability ?? { tmux: false, herdr: false } };
+        return {
+          multiplexer,
+          available: dependencies.chatMultiplexerAvailability ?? { tmux: false, herdr: false }
+        };
       });
     } catch (error) {
       return handleRouteError(error, reply);
@@ -1557,7 +1743,10 @@ server.put(
           actorUserId: accessContext.actorUserId,
           requestId: requireRequestId(accessContext)
         });
-        return { multiplexer, available: dependencies.chatMultiplexerAvailability ?? { tmux: false, herdr: false } };
+        return {
+          multiplexer,
+          available: dependencies.chatMultiplexerAvailability ?? { tmux: false, herdr: false }
+        };
       });
     } catch (error) {
       return handleRouteError(error, reply);
@@ -1587,6 +1776,7 @@ git commit -m "feat(settings): add /api/admin/chat-multiplexer GET/PUT + shared 
 Resolve the multiplexer once at boot and inject it. This is where the pieces meet: a **pre-auth read** of `chat.multiplexer` (mirroring the auth registration gate's raw `readBooleanSetting`), a **sync PATH probe** for the admin UI's availability hint, the **pure resolver**, a **late-bound** chat factory populated in `onReady`, and the disabled-state fallback.
 
 **Files:**
+
 - Create: `packages/module-registry/src/chat-multiplexer.ts`
 - Modify: `packages/module-registry/src/index.ts`
 
@@ -1620,7 +1810,9 @@ export interface ChatMultiplexerAvailability {
 const PREAUTH_READABLE_SETTING_KEYS = new Set<string>(["chat.multiplexer"]);
 
 /** Sync PATH probe for the admin UI hint (apply-on-restart, so a boot snapshot is correct). */
-export function probeChatMultiplexerAvailability(env: NodeJS.ProcessEnv = process.env): ChatMultiplexerAvailability {
+export function probeChatMultiplexerAvailability(
+  env: NodeJS.ProcessEnv = process.env
+): ChatMultiplexerAvailability {
   const probe = createBinaryProbe(env);
   return { tmux: probe.has("tmux"), herdr: probe.has("herdr") };
 }
@@ -1640,7 +1832,9 @@ export function probeChatMultiplexerAvailability(env: NodeJS.ProcessEnv = proces
  * by this slice). The admin GET/PUT routes (Task 12) still go through DataContextDb
  * + assertAdminUser; only this boot read bypasses it, and only for the allowlist.
  */
-async function readMultiplexerChoice(appDb: Kysely<JarvisDatabase>): Promise<ChatMultiplexerChoice> {
+async function readMultiplexerChoice(
+  appDb: Kysely<JarvisDatabase>
+): Promise<ChatMultiplexerChoice> {
   const key = "chat.multiplexer";
   if (!PREAUTH_READABLE_SETTING_KEYS.has(key)) {
     throw new Error(`pre-auth instance-setting read not allowed for key "${key}"`);
@@ -1685,7 +1879,9 @@ export async function resolveChatEngineFactory(deps: {
     deps.log?.(`[chat] live CLI chat disabled — ${resolution.reason}`);
     return unavailableEngineFactory(resolution.reason);
   }
-  deps.log?.(`[chat] live CLI chat multiplexer: ${resolution.mux.kind} (source: ${resolution.source})`);
+  deps.log?.(
+    `[chat] live CLI chat multiplexer: ${resolution.mux.kind} (source: ${resolution.source})`
+  );
   return createRealEngineFactory({ mux: resolution.mux });
 }
 ```
@@ -1709,6 +1905,7 @@ could carry user data or secrets, and never use this path for per-user tables.
 ```
 
 Then update the two now-stale "this is the ONLY exemption" comments so reviewers don't see contradictory invariants (Codex R2 #3):
+
 - `packages/module-registry/src/index.ts:66-69` ("the ONLY root-handle escape hatch in the route layer") — append: "…plus the bounded pre-auth non-secret instance-config reads documented in DEVELOPMENT_STANDARDS.md (registration gate + `chat.multiplexer` boot resolution)."
 - `packages/settings/src/bootstrap.ts:13` ("SOLE documented exemption") — same clarifying cross-reference.
 
@@ -1802,6 +1999,7 @@ git commit -m "feat(module-registry): resolve chat multiplexer at boot (env > ad
 Add a "Live chat multiplexer" control to the admin settings panel, mirroring the existing registration query/mutation. Shows the dropdown (auto/tmux/herdr), badges for what's detected, the auto-rule, and a restart note.
 
 **Files:**
+
 - Modify: `apps/web/src/api/client.ts`
 - Modify: `apps/web/src/api/query-keys.ts`
 - Modify: `apps/web/src/settings/admin-users-panel.tsx`
@@ -1811,7 +2009,10 @@ Add a "Live chat multiplexer" control to the admin settings panel, mirroring the
 In `apps/web/src/api/client.ts`, import the DTO and add (mirroring `getRegistrationSettings`/`putRegistrationSettings`):
 
 ```ts
-import type { /* …existing… */ ChatMultiplexerSettingsDto, ChatMultiplexerChoice } from "@jarv1s/shared";
+import type {
+  /* …existing… */ ChatMultiplexerSettingsDto,
+  ChatMultiplexerChoice
+} from "@jarv1s/shared";
 
 export async function getChatMultiplexerSettings(): Promise<ChatMultiplexerSettingsDto> {
   return requestJson<ChatMultiplexerSettingsDto>("/api/admin/chat-multiplexer");
@@ -1857,35 +2058,42 @@ const muxMutation = useMutation({
 Add a section (place after the Registration `<section>`), guarding on `muxQuery.data`:
 
 ```tsx
-{muxQuery.data && (
-  <section className="panel" aria-labelledby="multiplexer-title">
-    <header>
-      <h2 id="multiplexer-title">Live chat multiplexer</h2>
-      <p>Which terminal multiplexer hosts live CLI chat sessions. Changes apply on server restart.</p>
-    </header>
-    <dl>
-      <dt>Backend</dt>
-      <dd>
-        <select
-          value={muxQuery.data.multiplexer}
-          disabled={muxMutation.isPending}
-          onChange={(e) => muxMutation.mutate(e.target.value as ChatMultiplexerChoice)}
-        >
-          <option value="auto">Auto-detect</option>
-          <option value="tmux">tmux</option>
-          <option value="herdr">herdr</option>
-        </select>
-      </dd>
-      <dt>Detected on this host</dt>
-      <dd>
-        <span>{`tmux: ${muxQuery.data.available.tmux ? "installed" : "not detected"}`}</span>
-        {" · "}
-        <span>{`herdr: ${muxQuery.data.available.herdr ? "installed" : "not detected"}`}</span>
-      </dd>
-    </dl>
-    <p>Auto picks herdr when the server runs inside herdr, otherwise tmux. If the selected backend isn’t installed, live chat is disabled until you install it and restart.</p>
-  </section>
-)}
+{
+  muxQuery.data && (
+    <section className="panel" aria-labelledby="multiplexer-title">
+      <header>
+        <h2 id="multiplexer-title">Live chat multiplexer</h2>
+        <p>
+          Which terminal multiplexer hosts live CLI chat sessions. Changes apply on server restart.
+        </p>
+      </header>
+      <dl>
+        <dt>Backend</dt>
+        <dd>
+          <select
+            value={muxQuery.data.multiplexer}
+            disabled={muxMutation.isPending}
+            onChange={(e) => muxMutation.mutate(e.target.value as ChatMultiplexerChoice)}
+          >
+            <option value="auto">Auto-detect</option>
+            <option value="tmux">tmux</option>
+            <option value="herdr">herdr</option>
+          </select>
+        </dd>
+        <dt>Detected on this host</dt>
+        <dd>
+          <span>{`tmux: ${muxQuery.data.available.tmux ? "installed" : "not detected"}`}</span>
+          {" · "}
+          <span>{`herdr: ${muxQuery.data.available.herdr ? "installed" : "not detected"}`}</span>
+        </dd>
+      </dl>
+      <p>
+        Auto picks herdr when the server runs inside herdr, otherwise tmux. If the selected backend
+        isn’t installed, live chat is disabled until you install it and restart.
+      </p>
+    </section>
+  );
+}
 ```
 
 > Match the file's existing class names / markup conventions (it uses `<section className="panel">` + `<dl>` for registration). Adjust the JSX to the surrounding style if it differs.
@@ -1907,6 +2115,7 @@ git commit -m "feat(web): admin multiplexer selector with availability hints"
 ## Task 15: Create per-user neutral dir with mode `0700`
 
 **Files:**
+
 - Modify: `packages/chat/src/live/persona.ts`
 - Test: `tests/unit/chat-live-persona.test.ts`
 
@@ -1918,10 +2127,18 @@ The `PersonaFs.mkdir` seam takes only a path. Widen it to accept an optional mod
 it("creates the per-user neutral dir with mode 0700", async () => {
   const mkdirCalls: Array<{ path: string; mode?: number }> = [];
   const fs = {
-    mkdir: async (path: string, mode?: number) => { mkdirCalls.push({ path, mode }); },
+    mkdir: async (path: string, mode?: number) => {
+      mkdirCalls.push({ path, mode });
+    },
     writeFile: async () => {}
   };
-  await renderPersona(fs, { userId: "u1", userName: "Ben", provider: "anthropic", baseDir: "/tmp/base", persona: "hi" });
+  await renderPersona(fs, {
+    userId: "u1",
+    userName: "Ben",
+    provider: "anthropic",
+    baseDir: "/tmp/base",
+    persona: "hi"
+  });
   expect(mkdirCalls).toHaveLength(1);
   expect(mkdirCalls[0]?.mode).toBe(0o700);
 });
@@ -1946,7 +2163,7 @@ In `packages/chat/src/live/persona.ts`, widen the `PersonaFs.mkdir` member:
 In `renderPersona`, pass the mode:
 
 ```ts
-  await fs.mkdir(neutralDir, 0o700);
+await fs.mkdir(neutralDir, 0o700);
 ```
 
 In `createRealPersonaFs`, honor it:
@@ -1974,6 +2191,7 @@ git commit -m "feat(chat): create per-user neutral dir with mode 0700"
 ## Task 16: Document the shared-uid limitation + the deferred PreToolUse follow-up
 
 **Files:**
+
 - Create or modify: `packages/chat/README.md`
 
 - [ ] **Step 1: Add the sections**
@@ -2034,10 +2252,10 @@ git commit -m "chore(chat): gate fixups for portable CLI chat adapter"
 
 These are the contestable choices the grill resolved — named so the Codex review has something concrete to bite.
 
-1. **Multiplexer is admin-selectable AND auto-detecting (Q3).** Not env-only. Precedence: `JARVIS_MULTIPLEXER` env override (wins, **bypasses** the probe — a deploy escape hatch) → admin `chat.multiplexer` setting (honored only if that backend is **usable**: installed, and for herdr a resolvable root pane) → `auto` (detect usability; tie-break herdr when `HERDR_ENV=1`, else tmux, else the other usable one). *Tradeoff:* more surface (setting + route + UI + boot wiring) than a bare env var, accepted because hosts genuinely vary (the user may have neither tmux nor herdr).
-2. **Selection applies on restart, not live (Q3-i).** The factory is resolved once in `onReady`. *Tradeoff:* changing the admin setting needs a restart to take effect; in return the availability snapshot shown in the UI is honest (it's the boot snapshot) and there's no per-launch re-resolution cost or mid-flight backend swap.
+1. **Multiplexer is admin-selectable AND auto-detecting (Q3).** Not env-only. Precedence: `JARVIS_MULTIPLEXER` env override (wins, **bypasses** the probe — a deploy escape hatch) → admin `chat.multiplexer` setting (honored only if that backend is **usable**: installed, and for herdr a resolvable root pane) → `auto` (detect usability; tie-break herdr when `HERDR_ENV=1`, else tmux, else the other usable one). _Tradeoff:_ more surface (setting + route + UI + boot wiring) than a bare env var, accepted because hosts genuinely vary (the user may have neither tmux nor herdr).
+2. **Selection applies on restart, not live (Q3-i).** The factory is resolved once in `onReady`. _Tradeoff:_ changing the admin setting needs a restart to take effect; in return the availability snapshot shown in the UI is honest (it's the boot snapshot) and there's no per-launch re-resolution cost or mid-flight backend swap.
 3. **`auto` tie-break = herdr iff `HERDR_ENV=1` (Q3-ii).** Running inside herdr is a strong signal herdr is the intended host; otherwise tmux is the lower-surprise default.
-4. **Boot read of `chat.multiplexer` is a pre-auth raw `appDb` read, not a DataContextDb read.** This is the *sanctioned* exception — it mirrors the auth registration gate's `readBooleanSetting`, and migration 0059 keeps `instance_settings` SELECT `USING (true)` precisely so boot/pre-auth config reads work (WRITES stay admin-gated via `current_actor_is_admin()`). It works on a fresh install with zero users (no actor exists yet). It reads only non-secret config; secrets live in the AES-256-GCM store. **Not** a weakening of "DataContextDb only" — the admin GET/PUT routes still go through DataContextDb + `assertAdminUser`.
+4. **Boot read of `chat.multiplexer` is a pre-auth raw `appDb` read, not a DataContextDb read.** This is the _sanctioned_ exception — it mirrors the auth registration gate's `readBooleanSetting`, and migration 0059 keeps `instance_settings` SELECT `USING (true)` precisely so boot/pre-auth config reads work (WRITES stay admin-gated via `current_actor_is_admin()`). It works on a fresh install with zero users (no actor exists yet). It reads only non-secret config; secrets live in the AES-256-GCM store. **Not** a weakening of "DataContextDb only" — the admin GET/PUT routes still go through DataContextDb + `assertAdminUser`.
 5. **One shared, stateless `Multiplexer` instance across all sessions.** The handle is per-session and passed per call; the backend holds only its stateless `io`. So resolving once at boot and sharing is correct and cheaper than per-session construction.
 6. **No multiplexer installed → disabled, not crashed.** `resolveChatEngineFactory` never throws; it returns `unavailableEngineFactory(reason)`, logs a clear warning, and a launch attempt returns HTTP 503. The rest of the app boots normally.
 7. **herdr launches via `send-text` + `send-keys Enter`, not `pane run`.** Symmetric with tmux and avoids `pane run`'s unspecified shell-quoting. herdr's JSON output is parsed for the opaque `pane_id`; non-JSON output throws a clear version-skew error.
@@ -2051,7 +2269,7 @@ These are the contestable choices the grill resolved — named so the Codex revi
 ## Risks / open questions
 
 - **herdr JSON shape (v0.6.8) is an integration assumption.** Grounded against the live CLI, but a herdr upgrade could change the envelope. Mitigation: a single parse point that throws a clear error; the `auto` path still falls back to tmux on hosts where herdr isn't selected.
-- **herdr root-pane resolution** now requires an explicit pane (`opts.rootPane` / `JARVIS_HERDR_ROOT_PANE` / `HERDR_PANE_ID`) and errors otherwise — no "first pane" guessing. Residual: if the operator runs the API *outside* any herdr pane and sets no override, herdr selection is unavailable (it errors clearly, and `auto` falls back to tmux). Acceptable for v1.
+- **herdr root-pane resolution** now requires an explicit pane (`opts.rootPane` / `JARVIS_HERDR_ROOT_PANE` / `HERDR_PANE_ID`) and errors otherwise — no "first pane" guessing. Residual: if the operator runs the API _outside_ any herdr pane and sets no override, herdr selection is unavailable (it errors clearly, and `auto` falls back to tmux). Acceptable for v1.
 - **Live 503 mapping** is wired into the actual live error path (`handleLiveRouteError` in `live-routes.ts:~164`) plus the REST `handleRouteError`, with a route-level test asserting 503 — not left to a generic 500.
 
 ## Out of scope
@@ -2066,6 +2284,7 @@ These are the contestable choices the grill resolved — named so the Codex revi
 ## Self-Review
 
 **Spec coverage (spec §-by-§):**
+
 - §4 Multiplexer seam → Tasks 1, 3, 4, 7 (barrel). ✓
 - §4.1 opaque-handle return/store → Task 8 (`this.handle = await mux.open(...)`), Task 4 (herdr id). ✓
 - §4.2 backend selection → **superseded by Q3** (grill): env override + admin setting + auto-detect → Tasks 5, 6, 11–14. ✓

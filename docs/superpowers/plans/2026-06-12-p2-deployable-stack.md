@@ -12,7 +12,7 @@
 
 ## Grounding
 
-- **Grounded on:** local `main` contains `origin/main` (`5759b90`) plus local doc-only commits; spec baseline `a898533` is in history. Tree is ahead, not behind — acceptable per Grounding Discipline. The autonomous worker MUST run `pnpm audit:preflight` and abort if it reports the tree is *behind* before starting.
+- **Grounded on:** local `main` contains `origin/main` (`5759b90`) plus local doc-only commits; spec baseline `a898533` is in history. Tree is ahead, not behind — acceptable per Grounding Discipline. The autonomous worker MUST run `pnpm audit:preflight` and abort if it reports the tree is _behind_ before starting.
 - **Spec:** `docs/superpowers/specs/2026-06-12-p2-deployable-containerized-stack-design.md` (read in full; all §/AC references below point at it).
 - **Dependency state VERIFIED in code today (corrected — the seams already exist):** `transcriptGlobDir(provider, cwd, homeBase = homedir())` is ALREADY 3-arg with a `homeBase` default (`packages/ai/src/adapters/tmux-bridge.ts:89-108`); `TmuxIo.run(cmd, args, opts?: RunOptions)` ALREADY accepts `{ env?, cwd? }` and the real impl merges `{ ...process.env, ...opts.env }` and forwards `cwd` (`tmux-bridge.ts:11-31, 40-67`); a full multiplexer abstraction ALSO exists (`multiplexer.ts`, `tmux-multiplexer.ts`, `herdr-multiplexer.ts`, `multiplexer-resolve.ts`, `binary-probe.ts`) with env-based selection (`JARVIS_MULTIPLEXER`, `HERDR_PANE_ID`, `JARVIS_HERDR_ROOT_PANE`). **What is genuinely MISSING:** the live engine `packages/chat/src/live/cli-chat-engine.ts` still calls `transcriptGlobDir(provider, cwd)` 2-arg (line 99) and `runtime.ts` does NOT read `JARVIS_CLI_HOME_BASE` (line 45). So the prerequisite seam work collapses to ONE task — **Task 3 threads `homeBase` through the engine + runtime** (Tasks 1–2 are DELETED as already-implemented; re-writing them would be a no-op that conflicts with shipped code). The container also needs the multiplexer CLIENT binary (`tmux`) present so the engine's `tmux ...` execs work (Task 7).
 - **Architectural note (live engine drives a multiplexer; tmux is the default backend):** `cli-chat-engine.ts` is `CliChatEngineImpl`, already migrated onto the `Multiplexer` seam — it delegates session lifecycle to an injected `mux` (default `TmuxMultiplexer`), which execs `tmux new-session/send-keys/...` and the `claude`/`codex`/`gemini` launch line. So from inside the container the `tmux` CLIENT is execed against the host socket — the container MUST carry a `tmux` client (Task 7) for the default backend to function. Herdr-from-container is explicitly out of scope here (see Task 9 note); the default/supported containerized multiplexer is tmux (`JARVIS_MULTIPLEXER=tmux`).
@@ -20,7 +20,7 @@
 ## Hard Invariants honored (do not weaken)
 
 - **pgvector image** — prod Compose Postgres stays `pgvector/pgvector:pg17` (Task 8).
-- **Never edit applied migrations** — this slice adds NO SQL and edits no migration; it only *runs* the existing `scripts/migrate.ts` (as a `tsx` one-shot inside the prod image; NOT bundled — see Task 5).
+- **Never edit applied migrations** — this slice adds NO SQL and edits no migration; it only _runs_ the existing `scripts/migrate.ts` (as a `tsx` one-shot inside the prod image; NOT bundled — see Task 5).
 - **Secrets never escape / encrypted at rest** — secrets injected at runtime via `env_file`, never `COPY`'d into image layers; `.dockerignore` excludes `backups/`, `exports/`, `.git`, `*.env` (Task 4).
 - **No admin private-data bypass / RLS for all actors** — no role-grant changes; least-privilege per-role URLs unchanged.
 - **DataContextDb only / AccessContext shape** — no data-access code touched; `AccessContext` stays `{ actorUserId, requestId }`.
@@ -34,33 +34,33 @@
 
 ### New files
 
-| Path | Responsibility |
-| --- | --- |
-| `Dockerfile` | Multi-stage app image (deps → build → runtime). Runs api/worker/migrate by command. |
-| `apps/web/Dockerfile` | Multi-stage static-web image: `pnpm build:web` → nginx serving `apps/web/dist`. |
-| `infra/nginx/jarv1s-web.conf` | nginx server block: SPA history fallback + `/api`,`/health` reverse proxy to `api:3000`; SPA CSP. |
-| `.dockerignore` | Keep build context small; exclude `node_modules`, `.git`, `spikes/`, `docs/`, `backups/`, `exports/`, `**/dist`, `.codegraph/`, and ALL env files incl. `infra/env.production.local` (the `*.env`/`*.env.*` globs do NOT match a `foo.local` suffix — explicit lines are required). Must NOT exclude `infra/postgres/` (SQL assets the runtime image copies) — only `tests/` fixtures that aren't needed at build. |
-| `scripts/build-app.ts` | esbuild bundler producing `dist/server.js`, `dist/worker.js` only (used by `build:api`/`build:worker`). Migrate is NOT bundled — it runs as `tsx scripts/migrate.ts` (Task 5). |
-| `infra/docker-compose.prod.yml` | The deploy artifact: postgres + migrate + api + worker + web, pinned tags, named volumes, no source mounts. |
-| `infra/systemd/jarv1s-stack.service` | systemd unit running `docker compose -f infra/docker-compose.prod.yml up -d` at boot (`WantedBy=multi-user.target`). |
-| `scripts/verify-reboot-survival.sh` | Scripted reboot-survival check: stack up → `/health/ready` green + multiplexer liveness probe. |
-| `tests/unit/api-signal-shutdown.test.ts` | Unit test for the api SIGTERM/SIGINT graceful-shutdown handler. |
-| `tests/unit/prod-compose-plan.test.ts` | Unit test asserting the prod-compose smoke plan shape (composeFile, build step). |
+| Path                                     | Responsibility                                                                                                                                                                                                                                                                                                                                                                                                     |
+| ---------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `Dockerfile`                             | Multi-stage app image (deps → build → runtime). Runs api/worker/migrate by command.                                                                                                                                                                                                                                                                                                                                |
+| `apps/web/Dockerfile`                    | Multi-stage static-web image: `pnpm build:web` → nginx serving `apps/web/dist`.                                                                                                                                                                                                                                                                                                                                    |
+| `infra/nginx/jarv1s-web.conf`            | nginx server block: SPA history fallback + `/api`,`/health` reverse proxy to `api:3000`; SPA CSP.                                                                                                                                                                                                                                                                                                                  |
+| `.dockerignore`                          | Keep build context small; exclude `node_modules`, `.git`, `spikes/`, `docs/`, `backups/`, `exports/`, `**/dist`, `.codegraph/`, and ALL env files incl. `infra/env.production.local` (the `*.env`/`*.env.*` globs do NOT match a `foo.local` suffix — explicit lines are required). Must NOT exclude `infra/postgres/` (SQL assets the runtime image copies) — only `tests/` fixtures that aren't needed at build. |
+| `scripts/build-app.ts`                   | esbuild bundler producing `dist/server.js`, `dist/worker.js` only (used by `build:api`/`build:worker`). Migrate is NOT bundled — it runs as `tsx scripts/migrate.ts` (Task 5).                                                                                                                                                                                                                                     |
+| `infra/docker-compose.prod.yml`          | The deploy artifact: postgres + migrate + api + worker + web, pinned tags, named volumes, no source mounts.                                                                                                                                                                                                                                                                                                        |
+| `infra/systemd/jarv1s-stack.service`     | systemd unit running `docker compose -f infra/docker-compose.prod.yml up -d` at boot (`WantedBy=multi-user.target`).                                                                                                                                                                                                                                                                                               |
+| `scripts/verify-reboot-survival.sh`      | Scripted reboot-survival check: stack up → `/health/ready` green + multiplexer liveness probe.                                                                                                                                                                                                                                                                                                                     |
+| `tests/unit/api-signal-shutdown.test.ts` | Unit test for the api SIGTERM/SIGINT graceful-shutdown handler.                                                                                                                                                                                                                                                                                                                                                    |
+| `tests/unit/prod-compose-plan.test.ts`   | Unit test asserting the prod-compose smoke plan shape (composeFile, build step).                                                                                                                                                                                                                                                                                                                                   |
 
 > **Removed vs the first draft:** `tests/unit/transcript-home-base.test.ts` and `tests/unit/tmux-io-run-options.test.ts` are NOT created — the `homeBase` and `RunOptions` seams they would test already exist and are already covered (`packages/ai/src/adapters/tmux-bridge.ts`). Re-adding TDD tasks for shipped code would have a failing "verify it fails" step that actually passes. Task 3 (engine threading) is the only seam work left, and it carries its own test.
 
 ### Modified files
 
-| Path | Change |
-| --- | --- |
-| `apps/api/src/server.ts` | Extract a `shutdownOnSignal()` helper + register `SIGTERM`/`SIGINT` in the entrypoint (graceful `server.close()` → `exit(0)` with bounded timeout). |
-| `packages/chat/src/live/cli-chat-engine.ts` | Thread an optional `homeBase` through the engine into the EXISTING 3-arg `transcriptGlobDir`. (`tmux-bridge.ts` is NOT touched — the seam already exists there.) |
-| `packages/chat/src/live/runtime.ts` | Read `JARVIS_CLI_HOME_BASE` and pass it to the engine factory. |
-| `package.json` | Add `build:api`, `build:worker`, `smoke:compose:prod` scripts; add `esbuild` devDependency. |
-| `scripts/smoke-compose.ts` | Add an esbuild-free prod-compose plan variant (build images locally, then smoke `infra/docker-compose.prod.yml`). |
-| `.github/workflows/ci.yml` | Add a `publish` job (build both images; push to GHCR on `v*` tags; build-no-push on PRs; optional `:edge` on main) gated on `needs: [verify, compose-smoke]`. |
-| `infra/env.production.example` | Add model-cache (`HF_HOME`), host UID/GID, multiplexer/herdr socket path, neutral-dir base, image tag vars; document the CLI-auth-mount tradeoff (or link the doc). |
-| `docs/operations/dev-environment.md` | Document the prod stack, the §6 host-mount security tradeoff, the API-key-adapter-needs-nothing forward-compat, and the reboot-survival runbook. |
+| Path                                        | Change                                                                                                                                                              |
+| ------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `apps/api/src/server.ts`                    | Extract a `shutdownOnSignal()` helper + register `SIGTERM`/`SIGINT` in the entrypoint (graceful `server.close()` → `exit(0)` with bounded timeout).                 |
+| `packages/chat/src/live/cli-chat-engine.ts` | Thread an optional `homeBase` through the engine into the EXISTING 3-arg `transcriptGlobDir`. (`tmux-bridge.ts` is NOT touched — the seam already exists there.)    |
+| `packages/chat/src/live/runtime.ts`         | Read `JARVIS_CLI_HOME_BASE` and pass it to the engine factory.                                                                                                      |
+| `package.json`                              | Add `build:api`, `build:worker`, `smoke:compose:prod` scripts; add `esbuild` devDependency.                                                                         |
+| `scripts/smoke-compose.ts`                  | Add an esbuild-free prod-compose plan variant (build images locally, then smoke `infra/docker-compose.prod.yml`).                                                   |
+| `.github/workflows/ci.yml`                  | Add a `publish` job (build both images; push to GHCR on `v*` tags; build-no-push on PRs; optional `:edge` on main) gated on `needs: [verify, compose-smoke]`.       |
+| `infra/env.production.example`              | Add model-cache (`HF_HOME`), host UID/GID, multiplexer/herdr socket path, neutral-dir base, image tag vars; document the CLI-auth-mount tradeoff (or link the doc). |
+| `docs/operations/dev-environment.md`        | Document the prod stack, the §6 host-mount security tradeoff, the API-key-adapter-needs-nothing forward-compat, and the reboot-survival runbook.                    |
 
 ---
 
@@ -88,6 +88,7 @@
 Spec §6 "The env/home wiring" (`TmuxIo.run` env/cwd seam) + Open Risk #1. Add an optional 3rd `options?: { env?; cwd? }` argument to `TmuxIo.run`; the real impl forwards it to `execFile`. Omitted → identical behavior.
 
 **Files:**
+
 - Modify: `packages/ai/src/adapters/tmux-bridge.ts:11-53`
 - Test: `tests/unit/tmux-io-run-options.test.ts`
 
@@ -103,9 +104,13 @@ import { createRealTmuxIo } from "../../packages/ai/src/adapters/tmux-bridge.js"
 describe("createRealTmuxIo run() env/cwd seam", () => {
   it("forwards a custom env so the child sees the injected variable", async () => {
     const io = createRealTmuxIo();
-    const { code, stdout } = await io.run("node", ["-e", "process.stdout.write(process.env.JARV1S_PROBE ?? 'unset')"], {
-      env: { ...process.env, JARV1S_PROBE: "from-seam" }
-    });
+    const { code, stdout } = await io.run(
+      "node",
+      ["-e", "process.stdout.write(process.env.JARV1S_PROBE ?? 'unset')"],
+      {
+        env: { ...process.env, JARV1S_PROBE: "from-seam" }
+      }
+    );
     expect(code).toBe(0);
     expect(stdout.trim()).toBe("from-seam");
   });
@@ -212,6 +217,7 @@ Spec §6: `homeBase` must reach the EXISTING 3-arg `transcriptGlobDir` from the 
 > again, adapt to the names in the tree, do not edit blindly.
 
 **Files:**
+
 - Modify: `packages/chat/src/live/cli-chat-engine.ts` (`CliChatEngineOpts` + field + `launch()` call)
 - Modify: `packages/chat/src/live/runtime.ts` (`createRealEngineFactory`)
 - Test: `tests/unit/cli-chat-engine.test.ts` (extend — uses `makeIo()` + `CliChatEngineImpl`)
@@ -286,16 +292,16 @@ Add a private field and assign it in the constructor. After the `private handle:
 Inside the constructor body (after `this.mux = opts.mux ?? ...`), add:
 
 ```ts
-    this.homeBase = opts.homeBase;
+this.homeBase = opts.homeBase;
 ```
 
 In `launch()`, pass `homeBase` to `transcriptGlobDir` (the 2-arg call at line ~104):
 
 ```ts
-    this.storedTranscriptPath = join(
-      transcriptGlobDir(this.provider, opts.neutralDir, this.homeBase),
-      `${sessionId}.jsonl`
-    );
+this.storedTranscriptPath = join(
+  transcriptGlobDir(this.provider, opts.neutralDir, this.homeBase),
+  `${sessionId}.jsonl`
+);
 ```
 
 In `packages/chat/src/live/runtime.ts`, update `createRealEngineFactory` (lines 51-54) to read the env seam and pass it through (keep the `mux` injection intact):
@@ -339,6 +345,7 @@ Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>"
 Spec §1 "Depends on" + §Security. Keep the build context small and ensure no host artifacts (or env files) leak into the image.
 
 **Files:**
+
 - Create: `.dockerignore`
 
 - [ ] **Step 1: Write the file**
@@ -421,6 +428,7 @@ Spec §1 build stage + §2. Bundle the **long-running** entrypoints (`apps/api/s
 > never silently at deploy.
 
 **Files:**
+
 - Create: `scripts/build-app.ts` (bundles api + worker only)
 - Modify: `package.json:30` (scripts) + devDependencies
 - (No `scripts/migrate-entry.ts` — migrate is `tsx scripts/migrate.ts`, unchanged source.)
@@ -485,12 +493,7 @@ const ENTRYPOINTS: Record<Target, { entry: string; outfile: string }> = {
 
 // Packages that must NOT be bundled: they load native binaries or read files
 // relative to their own package dir at runtime. Resolved from node_modules instead.
-const EXTERNAL = [
-  "@huggingface/transformers",
-  "onnxruntime-node",
-  "sharp",
-  "pg-native"
-];
+const EXTERNAL = ["@huggingface/transformers", "onnxruntime-node", "sharp", "pg-native"];
 
 async function buildTarget(target: Target): Promise<void> {
   const { entry, outfile } = ENTRYPOINTS[target];
@@ -540,11 +543,13 @@ await main();
 - [ ] **Step 4: Build both resident entrypoints and assert runnable artifacts**
 
 Run:
+
 ```bash
 pnpm build:api && pnpm build:worker && \
   node --check dist/server.js && node --check dist/worker.js && \
   ! grep -RIl "from \"tsx\"\|require('tsx')" dist/ && echo BUILD_OK
 ```
+
 Expected: `built dist/server.js`, `built dist/worker.js`, then `BUILD_OK` — each artifact parses as valid Node ESM and contains no `tsx` import. (There is no `dist/migrate.js` — migrate runs via `tsx scripts/migrate.ts`; that path is proven by the in-image migrate smoke in Task 7 Step 3b / Task 11.)
 
 > If esbuild reports an unresolved `@jarv1s/*` import, the workspace symlink path is the cause: add a matching `alias` map in `build-app.ts` mirroring `tsconfig.json` `paths` (e.g. `{ "@jarv1s/db": resolve(root, "packages/db/src/index.ts") }`) and re-run. Do not switch to `tsc` — bundling is the chosen contract for the resident services (spec §1).
@@ -565,6 +570,7 @@ Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>"
 Spec §9 + AC#6. The api entrypoint has only crash handlers and no signal handling, so `docker stop` kills it by SIGKILL after the grace period. Add signal handlers that invoke `server.close()` (which runs the existing `onClose` teardown) then `exit(0)`, racing a bounded timeout — mirroring the worker (`worker.ts:151-157`).
 
 **Files:**
+
 - Modify: `apps/api/src/server.ts:179-207`
 - Test: `tests/unit/api-signal-shutdown.test.ts`
 
@@ -593,10 +599,10 @@ describe("shutdownOnSignal (api graceful shutdown)", () => {
       callOrder.push(`exit:${code}`);
     });
 
-    await shutdownOnSignal(
-      { close } as unknown as Parameters<typeof shutdownOnSignal>[0],
-      { timeoutMs: 5_000, exit: exit as unknown as (code: number) => never }
-    );
+    await shutdownOnSignal({ close } as unknown as Parameters<typeof shutdownOnSignal>[0], {
+      timeoutMs: 5_000,
+      exit: exit as unknown as (code: number) => never
+    });
 
     expect(close).toHaveBeenCalledTimes(1);
     expect(callOrder).toEqual(["close", "exit:0"]);
@@ -662,12 +668,12 @@ export async function shutdownOnSignal(
 Then, inside the entrypoint block, register the signal handlers. After the existing `process.on("uncaughtException", ...)` block (lines 202-204) and BEFORE `await server.listen(...)` (line 206), add:
 
 ```ts
-  process.once("SIGTERM", () => {
-    void shutdownOnSignal(server);
-  });
-  process.once("SIGINT", () => {
-    void shutdownOnSignal(server);
-  });
+process.once("SIGTERM", () => {
+  void shutdownOnSignal(server);
+});
+process.once("SIGINT", () => {
+  void shutdownOnSignal(server);
+});
 ```
 
 > Note: `server` here is the Fastify instance from `createApiServer()`; its `.close(cb)` callback form matches the `shutdownOnSignal` parameter shape. Fastify's `close` accepts a callback, so this compiles without changes to the structural type.
@@ -699,6 +705,7 @@ Spec §1 + AC#1. One image, three roles by command. deps → build → runtime; 
 Default `CMD` is the api; worker/migrate override `command` in Compose.
 
 **Files:**
+
 - Create: `Dockerfile`
 
 - [ ] **Step 1: Write the Dockerfile**
@@ -792,9 +799,11 @@ Expected: build succeeds through all stages; final image tagged `jarv1s-api:plan
 - [ ] **Step 3: Assert resident plain-node runtime, tmux client present, non-root**
 
 Run:
+
 ```bash
 docker run --rm jarv1s-api:plan-test sh -c 'node --check dist/server.js && node --check dist/worker.js && command -v tmux >/dev/null && test -f infra/postgres/bootstrap/0001_extensions.sql && id -u && echo RUNTIME_OK'
 ```
+
 Expected: prints the non-root uid (not `0`) and `RUNTIME_OK` — the resident entrypoints parse as plain node ESM, the `tmux` CLIENT binary is present (the engine needs it), and the SQL asset tree is on disk for migrate. (There is intentionally no `dist/migrate.js`.)
 
 - [ ] **Step 3b: In-image migrate smoke (Critical — proves SQL + workspace resolution)**
@@ -824,6 +833,7 @@ docker run --rm --network jarv1s-migsmoke \
 # trap then tears down and returns migrate's status). Echo only on success.
 echo MIGRATE_IN_IMAGE_OK
 ```
+
 Expected: prints `MIGRATE_IN_IMAGE_OK` ONLY if `tsx scripts/migrate.ts` exited 0 — it resolved the workspace + every module's `import.meta.url`-relative SQL dir + the `infra/postgres/*` dirs from inside the image and applied the full chain (bootstrap → app+module SQL → pg-boss → grants). Because `set -e` + the `trap cleanup EXIT` preserve the migrate exit status, a failed migrate makes the whole step exit non-zero (cleanup never masks it). **If this fails with ENOENT or a wrong SQL path, do NOT proceed — the runtime stage is not self-consistent; fix the Dockerfile (it must be `FROM build`) and re-run.**
 
 - [ ] **Step 4: Commit**
@@ -842,6 +852,7 @@ Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>"
 Spec §4 + AC#2. nginx serves `apps/web/dist` with SPA history fallback and reverse-proxies `/api` + `/health` to `api:3000`. The api keeps `default-src 'none'`; nginx sets the SPA's own scoped CSP for the document.
 
 **Files:**
+
 - Create: `infra/nginx/jarv1s-web.conf`
 - Create: `apps/web/Dockerfile`
 
@@ -929,10 +940,12 @@ EXPOSE 80
 - [ ] **Step 3: Build the web image + assert the bundle + nginx config**
 
 Run:
+
 ```bash
 docker build -t jarv1s-web:plan-test -f apps/web/Dockerfile . && \
   docker run --rm jarv1s-web:plan-test sh -c 'test -f /usr/share/nginx/html/index.html && nginx -t 2>&1 | grep -q "syntax is ok" && echo WEB_OK'
 ```
+
 Expected: build succeeds; prints `WEB_OK` (the SPA `index.html` is present and the nginx config is syntactically valid).
 
 - [ ] **Step 4: Commit**
@@ -951,6 +964,7 @@ Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>"
 Spec §5 + §6 + AC#3 + AC#7. The deploy artifact: postgres + migrate + api + worker + web, pinned tags, named volumes, `restart: unless-stopped`, NO source bind mounts. The api/worker carry the host-multiplexer bridge mounts (§6). Uses `env_file` for runtime secrets — never baked in.
 
 > **Scope of the host bridge in THIS slice:**
+>
 > - **Multiplexer = tmux only, from the container.** The containerized engine execs the
 >   `tmux` client (shipped in the image, Task 7) against the bind-mounted host tmux
 >   socket dir. **Herdr-from-container is OUT OF SCOPE here** — the compose mounts no
@@ -969,6 +983,7 @@ Spec §5 + §6 + AC#3 + AC#7. The deploy artifact: postgres + migrate + api + wo
 >   creation. migrate runs as the default `node` user (it only needs Postgres).
 
 **Files:**
+
 - Create: `infra/docker-compose.prod.yml`
 
 - [ ] **Step 1: Write the prod Compose file**
@@ -1131,6 +1146,7 @@ networks:
 - [ ] **Step 2: Validate the Compose config**
 
 Run:
+
 ```bash
 JARVIS_IMAGE_TAG=plan-test docker compose -f infra/docker-compose.prod.yml config --quiet && \
   echo "no-source-mount-check" && ! grep -q '\.\./workspace\|\.\.:/workspace' infra/docker-compose.prod.yml && \
@@ -1141,6 +1157,7 @@ JARVIS_IMAGE_TAG=plan-test docker compose -f infra/docker-compose.prod.yml confi
   ! grep -qE ':/host-home:ro' infra/docker-compose.prod.yml && \
   grep -q '/host-home/.claude:ro' infra/docker-compose.prod.yml && echo PROD_COMPOSE_OK
 ```
+
 Expected: `config --quiet` exits 0 (valid); prints `PROD_COMPOSE_OK` — no `..:/workspace` source mount, Postgres is pgvector, migrate gates api/worker via `service_completed_successfully`, `restart: unless-stopped` present, migrate uses the `tsx` one-shot command, the whole host HOME is NOT mounted (`:/host-home:ro` absent), and only the scoped `/host-home/.claude` (etc.) RO mounts are present.
 
 - [ ] **Step 3: Commit**
@@ -1159,6 +1176,7 @@ Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>"
 Spec §Testing strategy + AC#4. Extend `smoke-compose.ts` so it can target `infra/docker-compose.prod.yml` and build the images locally first (so the prod compose path is proven end-to-end without a registry round-trip).
 
 **Files:**
+
 - Modify: `scripts/smoke-compose.ts:21-57,75-83`
 - Test: `tests/unit/prod-compose-plan.test.ts`
 
@@ -1239,12 +1257,27 @@ export function createComposeSmokePlan(input: ComposeSmokePlanInput = {}): Compo
     ? [
         {
           command: "docker",
-          args: ["build", "-t", `ghcr.io/motioneso/jarv1s-api:${imageTag}`, "-f", "Dockerfile", "."],
-          description: "Build the app (api/worker/migrate) image locally and tag it to the prod GHCR ref"
+          args: [
+            "build",
+            "-t",
+            `ghcr.io/motioneso/jarv1s-api:${imageTag}`,
+            "-f",
+            "Dockerfile",
+            "."
+          ],
+          description:
+            "Build the app (api/worker/migrate) image locally and tag it to the prod GHCR ref"
         },
         {
           command: "docker",
-          args: ["build", "-t", `ghcr.io/motioneso/jarv1s-web:${imageTag}`, "-f", "apps/web/Dockerfile", "."],
+          args: [
+            "build",
+            "-t",
+            `ghcr.io/motioneso/jarv1s-web:${imageTag}`,
+            "-f",
+            "apps/web/Dockerfile",
+            "."
+          ],
           description: "Build the static-web image locally and tag it to the prod GHCR ref"
         }
       ]
@@ -1304,11 +1337,11 @@ function parseArgs(args: readonly string[]): {
 And thread `build` into the `main()` plan construction (lines 60-64):
 
 ```ts
-  const plan = createComposeSmokePlan({
-    apiPort: args.apiPort,
-    composeFile: args.composeFile,
-    build: args.build
-  });
+const plan = createComposeSmokePlan({
+  apiPort: args.apiPort,
+  composeFile: args.composeFile,
+  build: args.build
+});
 ```
 
 - [ ] **Step 4: Run test to verify it passes**
@@ -1332,6 +1365,7 @@ Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>"
 Spec §Testing strategy + AC#4. Run the new prod-compose smoke against locally built images and confirm `/health/ready` returns `{ ok:true, db:"ok", pgboss:"ok" }`. This is an executable verification, not a new test file.
 
 **Files:**
+
 - (No new files — verification of Tasks 7-10 working together.)
 
 - [ ] **Step 1: Create a minimal local env file for the smoke**
@@ -1370,6 +1404,7 @@ compose resolves (Task 10), so no manual `docker tag` is needed. Provide the sam
 `JARVIS_IMAGE_TAG` to both the build (via env, read by the plan) and the compose.
 
 Run:
+
 ```bash
 mkdir -p "$HOME/.claude" "$HOME/.codex" "$HOME/.gemini" "$HOME/.jarvis/chat"
 JARVIS_IMAGE_TAG=plan-test \
@@ -1381,6 +1416,7 @@ JARVIS_HOST_UID=$(id -u) JARVIS_HOST_GID=$(id -g) \
 JARVIS_CHAT_HOME="$HOME/.jarvis/chat" \
 pnpm smoke:compose:prod -- --api-port 3098
 ```
+
 Expected: builds BOTH images locally (tagged `ghcr.io/motioneso/jarv1s-{api,web}:plan-test`), brings postgres → migrate (the `tsx scripts/migrate.ts` one-shot) → api/web/worker up, then prints `Compose smoke passed: http://localhost:3098/health/ready` (the readiness probe asserts `{ ok:true, db:"ok", pgboss:"ok" }`). The migrate one-shot succeeding here is ALSO the prod-path proof that bundling-free SQL resolution works end to end.
 
 > NOTE: `/tmp/tmux-$(id -u)` may not exist on a CI host with no tmux server running.
@@ -1394,11 +1430,13 @@ Expected: builds BOTH images locally (tagged `ghcr.io/motioneso/jarv1s-{api,web}
 - [ ] **Step 3: Tear down the smoke stack**
 
 Run:
+
 ```bash
 JARVIS_IMAGE_TAG=plan-test JARVIS_ENV_FILE=./infra/env.production.local \
   docker compose -f infra/docker-compose.prod.yml down -v
 echo "torn down"
 ```
+
 Expected: stack + volumes removed.
 
 - [ ] **Step 4: Commit the .gitignore guard (if changed)**
@@ -1419,6 +1457,7 @@ Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>"
 Spec §7 + AC#5. New `publish` job: build both images, push to GHCR on `v*` tags, build-without-push on PRs, optional `:edge` on main; `permissions: packages: write`; gated on `needs: [verify, compose-smoke]`. Also add the `v*` tag trigger.
 
 **Files:**
+
 - Modify: `.github/workflows/ci.yml:3-10` (triggers/permissions) + append the `publish` job
 
 - [ ] **Step 1: Add the `v*` tag trigger**
@@ -1444,58 +1483,57 @@ runs the prod-compose smoke (which includes the in-image `tsx scripts/migrate.ts
 one-shot), and which `publish` then depends on:
 
 ```yaml
-
-  prod-compose-smoke:
-    name: Prod compose deployment smoke
-    runs-on: ubuntu-latest
-    timeout-minutes: 30
-    steps:
-      - name: Check out repository
-        uses: actions/checkout@v5
-      - name: Set up pnpm
-        uses: pnpm/action-setup@v4
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 24
-          cache: pnpm
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
-      - name: Assert .dockerignore excludes the secrets env file (before it exists)
-        run: |
-          grep -q '^infra/env.production.local$' .dockerignore \
-            || { echo "::error::.dockerignore must explicitly exclude infra/env.production.local before the smoke writes it"; exit 1; }
-      - name: Write smoke env file
-        run: |
-          cat > infra/env.production.local <<'EOF'
-          NODE_ENV=production
-          POSTGRES_PASSWORD=postgres
-          JARVIS_BOOTSTRAP_DATABASE_URL=postgres://postgres:postgres@postgres:5432/jarv1s
-          JARVIS_MIGRATION_DATABASE_URL=postgres://jarvis_migration_owner:migration_password@postgres:5432/jarv1s
-          JARVIS_APP_DATABASE_URL=postgres://jarvis_app_runtime:app_password@postgres:5432/jarv1s
-          JARVIS_AUTH_DATABASE_URL=postgres://jarvis_auth_runtime:auth_password@postgres:5432/jarv1s
-          JARVIS_WORKER_DATABASE_URL=postgres://jarvis_worker_runtime:worker_password@postgres:5432/jarv1s
-          BETTER_AUTH_SECRET=smoke-only-not-a-real-secret-0000000000
-          JARVIS_CONNECTOR_SECRET_KEY=00000000000000000000000000000000
-          JARVIS_AI_SECRET_KEY=11111111111111111111111111111111
-          JARVIS_EMBED_PROVIDER=stub
-          EOF
-      - name: Run prod compose smoke (builds images + in-image migrate)
-        env:
-          JARVIS_IMAGE_TAG: ci-${{ github.run_id }}
-          JARVIS_ENV_FILE: ./infra/env.production.local
-          # CI host has no CLI dirs / tmux server; create empty mount targets.
-          JARVIS_HOST_CLAUDE_DIR: ${{ github.workspace }}/.ci-claude
-          JARVIS_HOST_CODEX_DIR: ${{ github.workspace }}/.ci-codex
-          JARVIS_HOST_GEMINI_DIR: ${{ github.workspace }}/.ci-gemini
-          JARVIS_TMUX_SOCKET_DIR: ${{ github.workspace }}/.ci-tmux
-          JARVIS_CHAT_HOME: ${{ github.workspace }}/.ci-chat
-        run: |
-          mkdir -p .ci-claude .ci-codex .ci-gemini .ci-tmux .ci-chat
-          pnpm smoke:compose:prod
-      - name: Stop prod compose stack
-        if: always()
-        run: JARVIS_IMAGE_TAG=ci-${{ github.run_id }} JARVIS_ENV_FILE=./infra/env.production.local docker compose -f infra/docker-compose.prod.yml down -v
+prod-compose-smoke:
+  name: Prod compose deployment smoke
+  runs-on: ubuntu-latest
+  timeout-minutes: 30
+  steps:
+    - name: Check out repository
+      uses: actions/checkout@v5
+    - name: Set up pnpm
+      uses: pnpm/action-setup@v4
+    - name: Set up Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: 24
+        cache: pnpm
+    - name: Install dependencies
+      run: pnpm install --frozen-lockfile
+    - name: Assert .dockerignore excludes the secrets env file (before it exists)
+      run: |
+        grep -q '^infra/env.production.local$' .dockerignore \
+          || { echo "::error::.dockerignore must explicitly exclude infra/env.production.local before the smoke writes it"; exit 1; }
+    - name: Write smoke env file
+      run: |
+        cat > infra/env.production.local <<'EOF'
+        NODE_ENV=production
+        POSTGRES_PASSWORD=postgres
+        JARVIS_BOOTSTRAP_DATABASE_URL=postgres://postgres:postgres@postgres:5432/jarv1s
+        JARVIS_MIGRATION_DATABASE_URL=postgres://jarvis_migration_owner:migration_password@postgres:5432/jarv1s
+        JARVIS_APP_DATABASE_URL=postgres://jarvis_app_runtime:app_password@postgres:5432/jarv1s
+        JARVIS_AUTH_DATABASE_URL=postgres://jarvis_auth_runtime:auth_password@postgres:5432/jarv1s
+        JARVIS_WORKER_DATABASE_URL=postgres://jarvis_worker_runtime:worker_password@postgres:5432/jarv1s
+        BETTER_AUTH_SECRET=smoke-only-not-a-real-secret-0000000000
+        JARVIS_CONNECTOR_SECRET_KEY=00000000000000000000000000000000
+        JARVIS_AI_SECRET_KEY=11111111111111111111111111111111
+        JARVIS_EMBED_PROVIDER=stub
+        EOF
+    - name: Run prod compose smoke (builds images + in-image migrate)
+      env:
+        JARVIS_IMAGE_TAG: ci-${{ github.run_id }}
+        JARVIS_ENV_FILE: ./infra/env.production.local
+        # CI host has no CLI dirs / tmux server; create empty mount targets.
+        JARVIS_HOST_CLAUDE_DIR: ${{ github.workspace }}/.ci-claude
+        JARVIS_HOST_CODEX_DIR: ${{ github.workspace }}/.ci-codex
+        JARVIS_HOST_GEMINI_DIR: ${{ github.workspace }}/.ci-gemini
+        JARVIS_TMUX_SOCKET_DIR: ${{ github.workspace }}/.ci-tmux
+        JARVIS_CHAT_HOME: ${{ github.workspace }}/.ci-chat
+      run: |
+        mkdir -p .ci-claude .ci-codex .ci-gemini .ci-tmux .ci-chat
+        pnpm smoke:compose:prod
+    - name: Stop prod compose stack
+      if: always()
+      run: JARVIS_IMAGE_TAG=ci-${{ github.run_id }} JARVIS_ENV_FILE=./infra/env.production.local docker compose -f infra/docker-compose.prod.yml down -v
 ```
 
 - [ ] **Step 2b: Append the `publish` job**
@@ -1503,76 +1541,77 @@ one-shot), and which `publish` then depends on:
 Append to the end of `.github/workflows/ci.yml` (after the `prod-compose-smoke` job, keeping the top-level `permissions: contents: read` unchanged — the publish job sets its own job-scoped permissions):
 
 ```yaml
+publish:
+  name: Build and publish images
+  runs-on: ubuntu-latest
+  timeout-minutes: 30
+  needs: [verify, compose-smoke, prod-compose-smoke]
+  permissions:
+    contents: read
+    packages: write
 
-  publish:
-    name: Build and publish images
-    runs-on: ubuntu-latest
-    timeout-minutes: 30
-    needs: [verify, compose-smoke, prod-compose-smoke]
-    permissions:
-      contents: read
-      packages: write
+  steps:
+    - name: Check out repository
+      uses: actions/checkout@v5
 
-    steps:
-      - name: Check out repository
-        uses: actions/checkout@v5
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
 
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
+    - name: Log in to GHCR
+      if: startsWith(github.ref, 'refs/tags/v') || github.ref == 'refs/heads/main'
+      uses: docker/login-action@v3
+      with:
+        registry: ghcr.io
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Log in to GHCR
-        if: startsWith(github.ref, 'refs/tags/v') || github.ref == 'refs/heads/main'
-        uses: docker/login-action@v3
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
+    - name: Compute image tags
+      id: tags
+      run: |
+        if [[ "${GITHUB_REF}" == refs/tags/v* ]]; then
+          VERSION="${GITHUB_REF#refs/tags/}"
+          echo "api_tags=ghcr.io/motioneso/jarv1s-api:${VERSION}" >> "$GITHUB_OUTPUT"
+          echo "web_tags=ghcr.io/motioneso/jarv1s-web:${VERSION}" >> "$GITHUB_OUTPUT"
+          echo "push=true" >> "$GITHUB_OUTPUT"
+        elif [[ "${GITHUB_REF}" == refs/heads/main ]]; then
+          echo "api_tags=ghcr.io/motioneso/jarv1s-api:edge" >> "$GITHUB_OUTPUT"
+          echo "web_tags=ghcr.io/motioneso/jarv1s-web:edge" >> "$GITHUB_OUTPUT"
+          echo "push=true" >> "$GITHUB_OUTPUT"
+        else
+          echo "api_tags=ghcr.io/motioneso/jarv1s-api:pr-${{ github.run_id }}" >> "$GITHUB_OUTPUT"
+          echo "web_tags=ghcr.io/motioneso/jarv1s-web:pr-${{ github.run_id }}" >> "$GITHUB_OUTPUT"
+          echo "push=false" >> "$GITHUB_OUTPUT"
+        fi
 
-      - name: Compute image tags
-        id: tags
-        run: |
-          if [[ "${GITHUB_REF}" == refs/tags/v* ]]; then
-            VERSION="${GITHUB_REF#refs/tags/}"
-            echo "api_tags=ghcr.io/motioneso/jarv1s-api:${VERSION}" >> "$GITHUB_OUTPUT"
-            echo "web_tags=ghcr.io/motioneso/jarv1s-web:${VERSION}" >> "$GITHUB_OUTPUT"
-            echo "push=true" >> "$GITHUB_OUTPUT"
-          elif [[ "${GITHUB_REF}" == refs/heads/main ]]; then
-            echo "api_tags=ghcr.io/motioneso/jarv1s-api:edge" >> "$GITHUB_OUTPUT"
-            echo "web_tags=ghcr.io/motioneso/jarv1s-web:edge" >> "$GITHUB_OUTPUT"
-            echo "push=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "api_tags=ghcr.io/motioneso/jarv1s-api:pr-${{ github.run_id }}" >> "$GITHUB_OUTPUT"
-            echo "web_tags=ghcr.io/motioneso/jarv1s-web:pr-${{ github.run_id }}" >> "$GITHUB_OUTPUT"
-            echo "push=false" >> "$GITHUB_OUTPUT"
-          fi
+    - name: Build (and push on tag/main) app image
+      uses: docker/build-push-action@v6
+      with:
+        context: .
+        file: ./Dockerfile
+        push: ${{ steps.tags.outputs.push == 'true' }}
+        tags: ${{ steps.tags.outputs.api_tags }}
+        cache-from: type=gha
+        cache-to: type=gha,mode=max
 
-      - name: Build (and push on tag/main) app image
-        uses: docker/build-push-action@v6
-        with:
-          context: .
-          file: ./Dockerfile
-          push: ${{ steps.tags.outputs.push == 'true' }}
-          tags: ${{ steps.tags.outputs.api_tags }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-
-      - name: Build (and push on tag/main) web image
-        uses: docker/build-push-action@v6
-        with:
-          context: .
-          file: ./apps/web/Dockerfile
-          push: ${{ steps.tags.outputs.push == 'true' }}
-          tags: ${{ steps.tags.outputs.web_tags }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+    - name: Build (and push on tag/main) web image
+      uses: docker/build-push-action@v6
+      with:
+        context: .
+        file: ./apps/web/Dockerfile
+        push: ${{ steps.tags.outputs.push == 'true' }}
+        tags: ${{ steps.tags.outputs.web_tags }}
+        cache-from: type=gha
+        cache-to: type=gha,mode=max
 ```
 
 - [ ] **Step 3: Validate the workflow YAML**
 
 Run:
+
 ```bash
 python3 -c "import yaml,sys; d=yaml.safe_load(open('.github/workflows/ci.yml')); j=d['jobs']['publish']; assert set(j['needs'])=={'verify','compose-smoke','prod-compose-smoke'}, j['needs']; assert j['permissions']['packages']=='write'; assert 'prod-compose-smoke' in d['jobs']; print('CI_PUBLISH_OK')"
 ```
+
 Expected: prints `CI_PUBLISH_OK` (valid YAML; the `publish` job is gated on `verify`, the dev `compose-smoke`, AND the new `prod-compose-smoke`, and has `packages: write` — so a tag can only publish images that passed the production topology).
 
 - [ ] **Step 4: Commit**
@@ -1591,6 +1630,7 @@ Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>"
 Spec §8 + AC#8. Mirror `jarv1s-backup.service` (`User=ben`, `WorkingDirectory`, `After/Requires docker.service`) but run `docker compose up -d` and be `WantedBy=multi-user.target` so it starts at every boot.
 
 **Files:**
+
 - Create: `infra/systemd/jarv1s-stack.service`
 
 - [ ] **Step 1: Write the unit**
@@ -1598,10 +1638,15 @@ Spec §8 + AC#8. Mirror `jarv1s-backup.service` (`User=ben`, `WorkingDirectory`,
 Create `infra/systemd/jarv1s-stack.service`:
 
 # NOTE: `User=ben` and the `/home/ben/Jarv1s` paths follow the EXISTING repo
+
 # convention (`infra/systemd/jarv1s-backup.service` hardcodes the same) — this is a
+
 # single-operator household deploy (ADR 0007), not a portable distro package. An
+
 # operator on a different path/user edits these two lines (and the EnvironmentFile
+
 # path) at install time. The committed file IS the canonical install for this host.
+
 [Unit]
 Description=Jarv1s production stack (docker compose)
 After=network-online.target docker.service
@@ -1613,11 +1658,17 @@ Type=oneshot
 RemainAfterExit=yes
 User=ben
 WorkingDirectory=/home/ben/Jarv1s
+
 # Operator env file: provides JARVIS_IMAGE_TAG (REQUIRED — the prod Compose errors
+
 # without it), host UID/GID, socket paths, and secrets, exported into this service's
+
 # environment so `docker compose` variable substitution resolves them. The leading
+
 # "-" tolerates absence at parse time, but the stack will fail to START if the file
+
 # is missing JARVIS_IMAGE_TAG — the operator MUST create it before `systemctl enable`.
+
 EnvironmentFile=-/home/ben/Jarv1s/infra/env.production.local
 ExecStart=/usr/bin/docker compose -f infra/docker-compose.prod.yml up -d
 ExecStop=/usr/bin/docker compose -f infra/docker-compose.prod.yml down
@@ -1626,7 +1677,8 @@ StandardError=journal
 
 [Install]
 WantedBy=multi-user.target
-```
+
+````
 
 - [ ] **Step 2: Validate the unit shape**
 
@@ -1637,7 +1689,8 @@ grep -q 'WantedBy=multi-user.target' infra/systemd/jarv1s-stack.service && \
   grep -q 'Requires=docker.service' infra/systemd/jarv1s-stack.service && echo STACK_UNIT_OK
 # If systemd-analyze is available, verify the unit parses:
 command -v systemd-analyze >/dev/null && systemd-analyze verify infra/systemd/jarv1s-stack.service 2>&1 | grep -v '^$' || true
-```
+````
+
 Expected: prints `STACK_UNIT_OK`; `systemd-analyze verify` (if present) reports no fatal errors (warnings about the absolute exec path are acceptable).
 
 - [ ] **Step 3: Commit**
@@ -1656,6 +1709,7 @@ Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>"
 Spec §8 reboot-survival + AC#9. A scripted check: with the stack up, assert `/health/ready` is green AND a multiplexer liveness probe succeeds on the bridged socket. Used in the runbook and (optionally) CI (Docker-daemon restart as a reboot proxy).
 
 **Files:**
+
 - Create: `scripts/verify-reboot-survival.sh`
 
 - [ ] **Step 1: Write the script**
@@ -1728,9 +1782,11 @@ echo "[reboot-survival] PASS: stack healthy + a chat session can launch"
 - [ ] **Step 2: Make it executable + lint the shell**
 
 Run:
+
 ```bash
 chmod +x scripts/verify-reboot-survival.sh && bash -n scripts/verify-reboot-survival.sh && echo REBOOT_SCRIPT_OK
 ```
+
 Expected: prints `REBOOT_SCRIPT_OK` (no shell syntax errors; the script is executable).
 
 - [ ] **Step 3: Commit**
@@ -1749,6 +1805,7 @@ Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>"
 Spec §3, §5, §6, §8 + AC#10. Add the new vars (model cache `HF_HOME`, host UID/GID, tmux socket dir, the THREE scoped host CLI dirs `JARVIS_HOST_{CLAUDE,CODEX,GEMINI}_DIR`, `JARVIS_CLI_HOME_BASE`, neutral-dir base, image tag, env-file path, `JARVIS_MULTIPLEXER=tmux`) and document the CLI-auth-mount tradeoff (or link the doc). Herdr socket is RESERVED/commented (not wired this slice). No secret baked into any image — these are runtime env only.
 
 **Files:**
+
 - Modify: `infra/env.production.example` (append)
 
 - [ ] **Step 1: Append the new section**
@@ -1832,9 +1889,11 @@ JARVIS_EMBED_PROVIDER=local
 - [ ] **Step 2: Verify no real secret value is present**
 
 Run:
+
 ```bash
 grep -nE '^(BETTER_AUTH_SECRET|JARVIS_CONNECTOR_SECRET_KEY|JARVIS_AI_SECRET_KEY|POSTGRES_PASSWORD)=' infra/env.production.example | grep -vqE '<.*>|generate' && echo "LEAK" || echo NO_SECRET_LEAK
 ```
+
 Expected: prints `NO_SECRET_LEAK` (every secret var is a placeholder `<...>` / "generate" stub, never a real value).
 
 - [ ] **Step 3: Commit**
@@ -1853,6 +1912,7 @@ Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>"
 Spec §6 tradeoff + AC#12. Document the prod topology, the §6 host-mount security tradeoff, the API-key-adapter-needs-nothing forward-compat, and the reboot-survival runbook in `dev-environment.md`. (Linking from epic #47's exit criterion is a board action the human performs; this task ensures the doc exists to link.)
 
 **Files:**
+
 - Modify: `docs/operations/dev-environment.md` (append)
 
 - [ ] **Step 1: Append the production section**
@@ -1946,11 +2006,13 @@ socket). Non-zero exit means a component is down — it fails loudly, never fals
 - [ ] **Step 2: Verify the doc renders the required anchors**
 
 Run:
+
 ```bash
 grep -q "Host-multiplexer bridge (CLI chat from the container)" docs/operations/dev-environment.md && \
   grep -q "API-key adapter" docs/operations/dev-environment.md && \
   grep -q "Reboot-survival check" docs/operations/dev-environment.md && echo DOC_OK
 ```
+
 Expected: prints `DOC_OK` (the §6 tradeoff, the API-key forward-compat note, and the reboot runbook are all present).
 
 - [ ] **Step 3: Commit**
@@ -1969,7 +2031,6 @@ Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>"
 This is a checklist the worker runs against the finished work before the final gate. Do not skip; fix any gap inline (add a task or correct a file) then proceed.
 
 - [ ] **Step 1: Spec §-by-§ coverage** — confirm a task implements each spec section/AC:
-
   - §1 App image / AC#1 → Task 7 (Dockerfile: bundled api/worker `node dist/...`, tmux client, SQL assets, tsx-for-migrate), Task 5 (build scripts).
   - §2 Build scripts → Task 5 (`build:api`/`build:worker`, esbuild; migrate stays `tsx scripts/migrate.ts`).
   - §3 Worker runtime + model cache → Task 7 (`HF_HOME`, native binaries via `onlyBuiltDependencies`), Task 9 (`jarv1s-model-cache` volume), Task 15 (`HF_HOME` env).
@@ -1996,10 +2057,10 @@ This is a checklist the worker runs against the finished work before the final g
 ```bash
 git diff --name-only origin/main...HEAD | grep -vE '\.md$' | xargs grep -nE 'TODO|FIXME|TBD|implement later|fill in|similar to above' 2>/dev/null || echo NO_PLACEHOLDERS
 ```
+
 Expected: prints `NO_PLACEHOLDERS`. (Markdown plan/doc files are excluded — they legitimately discuss these words.)
 
 - [ ] **Step 3: Type consistency** — confirm the names introduced earlier are used identically later:
-
   - `transcriptGlobDir(provider, cwd, homeBase?)` — EXISTING signature (`tmux-bridge.ts:89`) == Task 3 call site.
   - `TmuxIo.run(cmd, args, opts?: RunOptions)` — EXISTING interface (`tmux-bridge.ts:18-24`) == real impl.
   - `CliChatEngineOpts.homeBase` — Task 3 field name (on `CliChatEngineImpl`) == `JARVIS_CLI_HOME_BASE` env read in `createRealEngineFactory` (`runtime.ts`).
@@ -2008,12 +2069,14 @@ Expected: prints `NO_PLACEHOLDERS`. (Markdown plan/doc files are excluded — th
   - `JARVIS_IMAGE_TAG`, `JARVIS_CLI_HOME_BASE`, `JARVIS_HOST_UID/GID`, `JARVIS_TMUX_SOCKET_DIR`, `JARVIS_HOST_CLAUDE_DIR/CODEX_DIR/GEMINI_DIR`, `JARVIS_CHAT_HOME`, `JARVIS_MULTIPLEXER`, `HF_HOME` — same spelling in Task 9 Compose, Task 15 env example, Task 16 doc. NOTE: `JARVIS_HOST_HOME` is GONE (replaced by the three scoped dirs).
 
   Run:
+
 ```bash
 grep -rn "JARVIS_CLI_HOME_BASE" infra/docker-compose.prod.yml infra/env.production.example packages/chat/src/live/runtime.ts && \
   grep -rn "JARVIS_IMAGE_TAG" infra/docker-compose.prod.yml infra/env.production.example && \
   grep -rn "JARVIS_HOST_CLAUDE_DIR" infra/docker-compose.prod.yml infra/env.production.example && \
   ! grep -rn "JARVIS_HOST_HOME" infra/docker-compose.prod.yml infra/env.production.example && echo NAMES_CONSISTENT
 ```
+
 Expected: each name appears in every place listed, `JARVIS_HOST_HOME` is absent, and it prints `NAMES_CONSISTENT`.
 
 - [ ] **Step 4: No commit** — this task makes no commit unless Step 1 surfaced a gap that required a fix (in which case commit that fix with its own message).
@@ -2025,14 +2088,17 @@ Expected: each name appears in every place listed, `JARVIS_HOST_HOME` is absent,
 Spec AC#11. The full gate must be green, file-size clean, release-hardening clean, and NO new SQL migration added or edited.
 
 **Files:**
+
 - (No new files — final verification.)
 
 - [ ] **Step 1: Confirm no migration was added or edited**
 
 Run:
+
 ```bash
 git diff --name-only origin/main...HEAD | grep -E 'infra/postgres/migrations/|/sql/.*\.sql$' && echo "MIGRATION_TOUCHED" || echo NO_MIGRATION_CHANGE
 ```
+
 Expected: prints `NO_MIGRATION_CHANGE` (this slice is infra/code only).
 
 - [ ] **Step 2: File-size gate**
@@ -2043,17 +2109,21 @@ Expected: exit 0 — no source file exceeds 1000 lines. (The api signal-handler 
 - [ ] **Step 3: Start the DB and run the full foundation gate**
 
 Run:
+
 ```bash
 pnpm db:up && pnpm verify:foundation
 ```
+
 Expected: exit 0 — lint, format:check, check:file-size, typecheck, test:unit (incl. the EXTENDED `cli-chat-engine` homeBase tests and the new `api-signal-shutdown`, `prod-compose-plan` tests — NOT `transcript-home-base`/`tmux-io-run-options`, which were deleted as already-covered), db:migrate, test:integration all pass. If `format:check` flags any new file, run `pnpm format`, re-stage, and amend the relevant commit.
 
 - [ ] **Step 4: Release-hardening gate**
 
 Run:
+
 ```bash
 pnpm test:release-hardening && pnpm audit:release-hardening
 ```
+
 Expected: both exit 0 — no `BYPASSRLS`, least-privilege roles intact, secrets posture unchanged (the topology does not alter role grants).
 
 - [ ] **Step 5: Final commit (only if Step 3 required a format fix)**

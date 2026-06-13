@@ -22,7 +22,7 @@ chat memory-facts migration `0064` is the global high-water mark). **Run `pnpm a
    "Wellness" briefing section. The read-tool seam already exists today, so the briefing section works
    the moment Wellness registers a read tool; Phase-3 only makes the surrounding briefing richer.
 3. **Phase-3 scheduler (cron + notifications)** — for ACTIVE medication reminders only. The reminder
-   *seam* is designed here; active reminders are a marked follow-up if the scheduler is absent.
+   _seam_ is designed here; active reminders are a marked follow-up if the scheduler is absent.
 
 ---
 
@@ -91,7 +91,7 @@ contribution point or public API:
 - **Per-user enable/disable** is the Phase-2 seam: setting `required:false` +
   `supportsUserDisable:true` on the manifest makes Wellness the first module the resolver can drop for
   an actor, the route guard 404s, and tools vanish — all behaviors already built and tested against a
-  *fixture* manifest in Phase 2. Wellness replaces the fixture with the first real optional module.
+  _fixture_ manifest in Phase 2. Wellness replaces the fixture with the first real optional module.
 
 **The single justified core change beyond the registry entry** is one generic focus-signal
 contribution point (Component 5: a `FocusSignalProvider` type in `module-sdk` + a consumer in the
@@ -123,7 +123,7 @@ to **tertiary** feelings (~72 leaf feelings total). Sources:
 The taxonomy ships as a **static TypeScript constant** in the wellness package (`feelings-wheel.ts`),
 shape `{ core: string; secondary: { name: string; tertiary: string[] }[] }[]`. It is reference data,
 NOT a DB table (the user does not edit the wheel; only their selections are stored). The component
-records the wheel *version* in the entry's metadata so a future wheel revision does not retroactively
+records the wheel _version_ in the entry's metadata so a future wheel revision does not retroactively
 mislabel old entries.
 
 **Research grounding — body sensations / interoception list.** To help identify emotions, the modal
@@ -135,7 +135,7 @@ Sources:
 [Interoception (Simply Psychology)](https://www.simplypsychology.org/interoception.html),
 [Interoception and the Body Chart Checklist](https://neuronsandsalads.wordpress.com/2016/09/13/interoception-and-the-body-chart-checklist/),
 [Interoception and Mental Health: A Roadmap (PMC)](https://pmc.ncbi.nlm.nih.gov/articles/PMC6054486/).
-This list also ships as a static constant (`body-sensations.ts`), not a table; the user's *selected*
+This list also ships as a static constant (`body-sensations.ts`), not a table; the user's _selected_
 sensations are stored as a `text[]` on the entry.
 
 **Data — `app.wellness_checkins`** (owner-only; new module-owned table). Columns:
@@ -225,7 +225,7 @@ covering the six locked types: once-daily, N-times/day, specific weekdays, every
 - `form text NULL` — e.g. tablet, capsule, liquid, injection (free text; no fixed enum, real-world
   forms are long-tailed).
 - `frequency_type text NOT NULL CHECK (frequency_type IN
-  ('once_daily','times_per_day','specific_weekdays','every_n_hours','as_needed','cyclical'))` —
+('once_daily','times_per_day','specific_weekdays','every_n_hours','as_needed','cyclical'))` —
   created via the same idempotent ENUM guard OR a CHECK constraint (CHECK preferred — easier to extend
   without a migration that alters an enum).
 - `times_per_day smallint NULL` — for `times_per_day` (e.g. 3).
@@ -315,9 +315,9 @@ export interface FocusSignal {
   readonly summary: string;
 }
 export type FocusSignalProvider = (
-  scopedDb: unknown,            // DataContextDb, narrowed by the implementing module (cf. ToolExecute)
+  scopedDb: unknown, // DataContextDb, narrowed by the implementing module (cf. ToolExecute)
   ctx: { readonly actorUserId: string; readonly requestId: string }
-) => Promise<FocusSignal | null>;  // null = no signal for this actor (e.g. no recent check-ins)
+) => Promise<FocusSignal | null>; // null = no signal for this actor (e.g. no recent check-ins)
 ```
 
 A module may declare `readonly focusSignal?: FocusSignalProvider;` on `JarvisModuleManifest`
@@ -338,7 +338,7 @@ implementation chooses the lightest-touch consumer that satisfies "re-weights fo
   field (additive to the response schema) and a `readinessAdjustedOrder` hint, computed by a generic
   helper in the **consumer** (not in wellness, not in tasks-business-logic) that down-weights or
   caps the focus list when aggregate `readiness` is low (e.g. "energy low → surface fewer, lighter
-  tasks"). Tasks does not know *why* readiness is low; it only consumes a generic number.
+  tasks"). Tasks does not know _why_ readiness is low; it only consumes a generic number.
 - This keeps the rule generic: a future "sleep" or "calendar-load" module could implement
   `FocusSignalProvider` and feed the same consumer with no new code.
 
@@ -388,7 +388,7 @@ cleaner one against the as-merged Phase-3 recall code; **prefer the generic cont
   small `RecallContextProvider` on the manifest (`(scopedDb, ctx) => Promise<FactSummary[]>`),
   aggregated by `RecallService` alongside `listActiveFacts`. This is a second tiny generic core seam;
   if the builder takes it, it is documented as a generic contribution point (same justification as
-  Component 5), and Wellness implements it in-package. *Use this only if it stays generic.*
+  Component 5), and Wellness implements it in-package. _Use this only if it stays generic._
 - **Fallback — write a real fact:** Wellness periodically (or on check-in) derives the trend and
   upserts a `category:'profile'` fact via the memory module's public `ChatMemoryFactsRepository`
   (`insertFact`/`supersedeFact`), so the existing recall path picks it up with **no chat/memory core
@@ -508,7 +508,7 @@ nav hides (web-shell honors `active`). Re-enable = DELETE the row. Other users u
   `execute`.
 - **Focus-signal provider:** a provider that throws or returns malformed data must NOT break focus.
   The consumer wraps each provider in try/catch and treats a failure/`null` as "no signal" (fail
-  soft — focus still works without the signal). A provider for a *disabled* module is never called.
+  soft — focus still works without the signal). A provider for a _disabled_ module is never called.
 - **In-modal chat:** reuse the chat-drawer error handling (`sendChatTurn` errors surfaced inline,
   `apps/web/src/chat/chat-drawer.tsx:243-247`). If the embedded chat fails, the user can still pick a
   feeling manually on the wheel — the assisted path is additive, never blocking.
@@ -533,7 +533,7 @@ Cites the CLAUDE.md Hard Invariants this slice touches.
 - **Secrets/health content never escape.** Raw feelings/medication content never reaches: frontend
   responses for another user (RLS), logs (the briefings failure log is name+truncated-message only,
   `repository.ts:285-294`), pg-boss payloads (reminder payload is `{actorUserId, medicationId,
-  scheduledFor, idempotencyKey}` — metadata only, Hard Invariant), or AI prompts **beyond what the
+scheduledFor, idempotencyKey}` — metadata only, Hard Invariant), or AI prompts **beyond what the
   user's own model needs**. The energy-trend recall fact and the focus-signal `summary` are
   deliberately **derived/abstracted** ("energy trended low 3 days"), not raw entries. The
   `wellness.medicationAdherence` tool returns counts/status, not a full medication list, unless the
@@ -592,7 +592,7 @@ All integration tests run via Vitest against the `db:up` Postgres (per CLAUDE.md
   `readiness` after low-intensity negative check-ins; the generic consumer down-weights/caps focus
   when readiness is low and attaches `signals[]`. **Isolation assertions:** `@jarv1s/wellness` does
   not depend on `@jarv1s/tasks` and `@jarv1s/tasks` does not depend on `@jarv1s/wellness` (grep
-  `package.json` deps + `import` statements in CI/test). A *disabled* Wellness contributes no signal.
+  `package.json` deps + `import` statements in CI/test). A _disabled_ Wellness contributes no signal.
 - **Recall context:** Wellness's energy-trend reaches the `<memory>` "What I know about you" block
   (assert via the chosen path — recall-context provider aggregated, or a `profile` fact picked up by
   `listActiveFacts`); the fact text is the abstracted trend, not raw feelings.
@@ -673,7 +673,7 @@ All integration tests run via Vitest against the `db:up` Postgres (per CLAUDE.md
 
 ## Out of scope / deferred
 
-- **Active medication reminders / notifications** — the *seam* is designed (metadata-only queue,
+- **Active medication reminders / notifications** — the _seam_ is designed (metadata-only queue,
   future `registerWellnessJobWorkers`), but firing reminders depends on the Phase-3 native
   per-definition pg-boss cron + the notifications module; deferred until that scheduler is present
   (the explicit STRETCH).

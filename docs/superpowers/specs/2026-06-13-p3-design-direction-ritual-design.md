@@ -24,7 +24,7 @@ pg-boss jobs, and no module-internal coupling**. The briefing reading surface re
 `BriefingRunDto.summaryText` (`packages/shared/src/briefings-api.ts:20-29`) in an editorial
 single-column layout; it does **not** add structured-section fields to the DTO — that is the job of the
 sibling "real briefings" slice (`docs/superpowers/specs/2026-06-13-phase3-real-briefings-design.md`),
-which keeps `summary_text` as the carrier and only adds light section headers *inside* that string.
+which keeps `summary_text` as the carrier and only adds light section headers _inside_ that string.
 
 There is a **hard taste gate**. The overnight deliverable is (1) this spec, (2) 2–3 self-contained
 static HTML mockups under `docs/brand/mockups/`, and (3) the taste-neutral semantic token scaffolding
@@ -77,13 +77,14 @@ day views need them; existing screens keep their current class-based markup exce
 restyle pass touches them.
 
 **4. File-size discipline.** `apps/web/src/styles.css` is **952 lines** (`check:file-size` fails at
->1000, `package.json` → `scripts/check-file-size.ts`). Adding tokens + briefing/day styles in place
-would breach the cap, so the slice **splits styles.css** along existing seams: a new
-`apps/web/src/styles/tokens.css` (token tiers + theme overlays), and feature CSS files
-(`apps/web/src/briefings/briefings.css`, plus day-view styles co-located with the tasks feature in the
-existing `apps/web/src/tasks/tasks.css` pattern). `apps/web/src/main.tsx:7-8` already imports
-`styles.css` and `tasks/tasks.css`; new files are added to that import list (tokens first, so cascade
-order keeps tokens before consumers). The 1000-line cap is honored for every resulting file.
+
+> 1000, `package.json` → `scripts/check-file-size.ts`). Adding tokens + briefing/day styles in place
+> would breach the cap, so the slice **splits styles.css** along existing seams: a new
+> `apps/web/src/styles/tokens.css` (token tiers + theme overlays), and feature CSS files
+> (`apps/web/src/briefings/briefings.css`, plus day-view styles co-located with the tasks feature in the
+> existing `apps/web/src/tasks/tasks.css` pattern). `apps/web/src/main.tsx:7-8` already imports
+> `styles.css` and `tasks/tasks.css`; new files are added to that import list (tokens first, so cascade
+> order keeps tokens before consumers). The 1000-line cap is honored for every resulting file.
 
 ---
 
@@ -93,6 +94,7 @@ order keeps tokens before consumers). The 1000-line cap is honored for every res
 > touches `fs`, or reaches the API beyond the existing typed client calls the page already makes.
 
 ### `apps/web/src/styles/tokens.css` (new — the semantic token layer)
+
 - **What it does:** defines the three token tiers (primitive ramps → semantic tokens → theme overlays)
   as CSS custom properties. The **only** file in the app permitted to contain hex literals. Defines
   **every** token the codebase references today — including the five `tasks.css` currently leaves
@@ -109,6 +111,7 @@ order keeps tokens before consumers). The 1000-line cap is honored for every res
 - **Depends on:** nothing. It is the root of the styling dependency graph.
 
 ### `apps/web/src/styles.css` (modified — base/layout, hex removed)
+
 - **What it does:** retains the structural/layout rules (app frame, sidebar, topbar, forms, buttons)
   but with all hardcoded hex (`#ffffff`, `#172026`, `rgb(...)` literals at lines 1-3, 124, 169, etc.)
   replaced by semantic `var()` references. Net line count drops below 1000 once tokens move out.
@@ -116,6 +119,7 @@ order keeps tokens before consumers). The 1000-line cap is honored for every res
 - **Depends on:** `tokens.css`.
 
 ### `apps/web/src/ui/` primitives (new — `Card`, `Stack`, `SectionHeader`, `Badge`, `TimeBucket`, `ProvisionalRegion`)
+
 - **What they do:** small, typed, presentational React components (no hooks beyond layout, no fetching).
   `TimeBucket` renders a chronology section header ("This Morning" / "This Afternoon" / "This Evening")
   with the corresponding `--bucket-*` accent. `ProvisionalRegion` wraps AI/unconfirmed content and
@@ -128,9 +132,10 @@ order keeps tokens before consumers). The 1000-line cap is honored for every res
   data DTOs, **no** API client imports.
 
 ### `apps/web/src/briefings/briefing-reading-view.tsx` + `briefings.css` (new — the editorial reading surface)
+
 - **What it does:** renders a single `BriefingRunDto.summaryText`
   (`packages/shared/src/briefings-api.ts:20-29`) in an **editorial single-column reading layout** — the
-  "Living Archive / editorial" supporting mode from the research, applied to the briefing *reading*
+  "Living Archive / editorial" supporting mode from the research, applied to the briefing _reading_
   surface (research §4: "Natural fit for the briefing reading surface"). Newsprint off-white surface,
   comfortable measure (max line length), serif-or-hyperlegible heading treatment via tokens, generous
   vertical rhythm. **Presentation-only:** it takes the run object the page already fetches and renders
@@ -147,13 +152,14 @@ order keeps tokens before consumers). The 1000-line cap is honored for every res
   else.
 
 ### Tasks / day view — time-bucket chronology (modified `apps/web/src/tasks/tasks-page.tsx` + `tasks.css`)
+
 - **What it does:** the coherent pass restyles the tasks surface toward the Ritual model. The existing
   page already has a `priority` and a `matrix` view selected via `TaskDefaultView`
   (`tasks-page.tsx:38-98`). This slice is **CSS + JSX presentation only**: it (a) replaces the
   hardcoded priority/matrix hex (`tasks.css:60-134`) with semantic tokens, and (b) **demonstrates** the
   time-bucket chronology (This Morning / This Afternoon / This Evening) in the **mockup** and as the
   visual treatment of grouped sections using `TimeBucket`. **It does not add a new persisted view mode,
-  a new `TaskDefaultView` value, or any scheduling/time-bucket *data* field** — bucketing data is out of
+  a new `TaskDefaultView` value, or any scheduling/time-bucket _data_ field** — bucketing data is out of
   scope and belongs to the task-vertical slices (recurrence/scheduling, epic #48 criterion #3). Where a
   real time-of-day field does not yet exist, the day view groups by a presentation-only derivation from
   existing task fields and is shown primarily in the mockup; the live restyle limits itself to token
@@ -163,6 +169,7 @@ order keeps tokens before consumers). The 1000-line cap is honored for every res
 - **Depends on:** `tokens.css`, `ui/` primitives.
 
 ### Coherent restyle pass — settings, chat drawer, notifications, auth, calendar, email
+
 - **What it does:** token adoption + Ritual polish across the remaining surfaces so the app reads as one
   language. Each is **token/class only**, no behavior change:
   - **Settings** (`settings-page.tsx`) — panels, definition lists, provider status rows to tokens.
@@ -182,6 +189,7 @@ order keeps tokens before consumers). The 1000-line cap is honored for every res
 - **Depends on:** `tokens.css`, `ui/` primitives.
 
 ### Mockups — `docs/brand/mockups/*.html` (new — the taste-gate deliverable)
+
 - **What it does:** 2–3 self-contained static HTML files (inline `<style>` using the same token names,
   no build step, openable directly in a browser) demonstrating the Ritual direction + the token
   palette: (1) **briefing reading view** (editorial single-column), (2) **tasks/day view with
@@ -197,7 +205,7 @@ order keeps tokens before consumers). The 1000-line cap is honored for every res
 
 ## Data flow
 
-There is **no new runtime data flow**. The slice changes how already-fetched data is *presented*:
+There is **no new runtime data flow**. The slice changes how already-fetched data is _presented_:
 
 1. **Briefing reading surface:** `BriefingsPage` already calls `listBriefingRuns(activeDefinitionId)`
    via React Query (`briefings-page.tsx:36-40`) and receives `BriefingRunDto[]`. The reading view
@@ -256,7 +264,7 @@ every relevant Hard Invariant from `CLAUDE.md`:
 - **Metadata-only job payloads.** No pg-boss payloads are created or modified.
 - **Provider-agnostic AI.** No provider/model is referenced anywhere in this slice. The chat drawer's
   static `"CLI"` provider indicator (`chat-drawer.tsx:44-46`) is **not** changed to name a model. The
-  governor `ProvisionalRegion` pattern surfaces *that* content is AI-provisional without naming any
+  governor `ProvisionalRegion` pattern surfaces _that_ content is AI-provisional without naming any
   provider. The briefing view is provider-agnostic by construction (it renders a stored string).
 - **DataContextDb only / AccessContext shape / never edit applied migrations / module SQL placement.**
   Not engaged — this slice authors **no** repository code, **no** migrations, and **no** SQL. (Called
@@ -348,7 +356,7 @@ every relevant Hard Invariant from `CLAUDE.md`:
   layer + primitives those pages will consume.
 - **A theme toggle / circadian auto-switching UI.** Tokens are authored dark/amber-ready, but the app
   ships light-first with no switcher. Wiring `data-theme` (manual or time-driven) is a follow-up.
-- **New task data: time-of-day buckets, scheduling, recurrence.** The time-bucket *layout* is
+- **New task data: time-of-day buckets, scheduling, recurrence.** The time-bucket _layout_ is
   demonstrated, but persisted bucket/scheduling data belongs to epic #48 criterion #3 (task verticals).
   No new `TaskDefaultView` value or persisted field is added here.
 - **Motion / animation language, logo/mark, public naming.** Open brand questions
@@ -361,7 +369,7 @@ every relevant Hard Invariant from `CLAUDE.md`:
 
 ## Open risks
 
-1. **Taste subjectivity (primary risk).** The direction is locked, but the *execution* (exact palette
+1. **Taste subjectivity (primary risk).** The direction is locked, but the _execution_ (exact palette
    values, type pairing, density) is a judgment call. Mitigation: the mockups are the gate; nothing
    app-wide ships until Ben signs off, and the restyle implements against the approved mockups.
 2. **Sibling-slice collision.** Three Phase-3 slices touch overlapping surfaces (this one, real-briefings,

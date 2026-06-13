@@ -81,7 +81,7 @@ routes/workers/tools are registered — i.e. validate/enable without executing t
 
 - **What it does:** exports `export const CORE_VERSION = "0.1.0";` (a single source of truth for the
   platform's module-API version) and `export function satisfiesCoreVersion(range: string, version =
-  CORE_VERSION): boolean`. The helper supports exactly the range forms in use plus the small set a
+CORE_VERSION): boolean`. The helper supports exactly the range forms in use plus the small set a
   near-future module needs: a bare exact version (`"0.1.0"`), and the comparator forms `>=`, `>`,
   `<=`, `<`, `=` against a single `major.minor.patch`. It does **not** implement full node-semver
   (no `^`/`~`/`||`/hyphen ranges) — ADR 0009 §5 explicitly skips per-module semver ranges; this is a
@@ -148,18 +148,18 @@ routes/workers/tools are registered — i.e. validate/enable without executing t
 - **RLS (mirror `instance_settings` policy from `0059_admin_tables_rls.sql:24-46`):**
   - `ENABLE ROW LEVEL SECURITY` + `FORCE ROW LEVEL SECURITY`.
   - **Instance rows** (`scope='instance'`): SELECT permissive to `jarvis_app_runtime,
-    jarvis_worker_runtime` `USING (scope = 'instance')` — readable by all authed actors so the
+jarvis_worker_runtime` `USING (scope = 'instance')` — readable by all authed actors so the
     resolver sees the floor; INSERT/UPDATE/DELETE `TO jarvis_app_runtime` gated on
     `app.current_actor_is_admin()` (writes are admin-only).
   - **User rows** (`scope='user'`): owner-only — SELECT/INSERT/UPDATE/DELETE
     `USING (user_id = app.current_actor_user_id())` / `WITH CHECK (user_id =
-    app.current_actor_user_id())` (mirror the owner-only pattern, e.g. `0002_app_rls.sql:107`).
+app.current_actor_user_id())` (mirror the owner-only pattern, e.g. `0002_app_rls.sql:107`).
   - The two scopes are expressed as separate policies (one set keyed on `scope='instance'`, one on
     `user_id = current_actor`) so the resolver's single SELECT returns instance-floor ∪ own-user
     rows in one query.
   - **Grants:** `GRANT SELECT, INSERT, UPDATE, DELETE ON app.module_enablement TO
-    jarvis_app_runtime;` and `GRANT SELECT ON app.module_enablement TO jarvis_worker_runtime;`
-    inside the migration file (the precedent for per-table app.* grants is in-migration, e.g.
+jarvis_app_runtime;` and `GRANT SELECT ON app.module_enablement TO jarvis_worker_runtime;`
+    inside the migration file (the precedent for per-table app.\* grants is in-migration, e.g.
     `packages/tasks/sql/0003_tasks_module.sql:93`; the `infra/postgres/grants/` dir is pgboss-only).
     Worker needs SELECT only (briefings worker resolves tools via manifests — see Component 6).
 - **Depends on:** `app.users`, `app.current_actor_is_admin()`, `app.current_actor_user_id()`,
@@ -170,10 +170,10 @@ routes/workers/tools are registered — i.e. validate/enable without executing t
 
 - **What it does:** a new exported factory
   `createActiveModulesResolver(deps: { dataContext: DataContextRunner; manifests: readonly
-  JarvisModuleManifest[] }): ActiveModulesResolver` that returns an **async** function
+JarvisModuleManifest[] }): ActiveModulesResolver` that returns an **async** function
   `async (actorUserId) => readonly JarvisModuleManifest[]`. Algorithm:
   1. `await dataContext.withDataContext({ actorUserId }, (scopedDb) =>
-     settingsRepository.listModuleDenyRowsForActor(scopedDb))` — RLS gives instance rows + this
+settingsRepository.listModuleDenyRowsForActor(scopedDb))` — RLS gives instance rows + this
      actor's user rows only.
   2. For each registered manifest, keep it **unless** a deny rule applies:
      - if `availability.required === true` → always keep (ignore any row; rows should never exist for
@@ -205,7 +205,7 @@ The `ActiveModulesResolver` type flips to async. The implementer MUST update **a
   `async executableTools(actorUserId): Promise<ExecutableTool[]>` and `await`s the resolver
   (`:181`). Its two callers become async:
   - `listToolsForActor(actorUserId)` (`:47`) → `async listToolsForActor(actorUserId):
-    Promise<AiAssistantToolDto[]>`.
+Promise<AiAssistantToolDto[]>`.
   - `callTool` (`:51`) already async — change `this.executableTools(actorUserId).find(...)` (`:55`)
     to `(await this.executableTools(actorUserId)).find(...)`.
 - **`packages/chat/src/routes.ts:96-104`** — the `mint` callback captures the allowlist via
@@ -214,7 +214,7 @@ The `ActiveModulesResolver` type flips to async. The implementer MUST update **a
   `(actorUserId, chatSessionId) => Promise<{ token; mcpServerUrl }>`.
 - **`packages/chat/src/live/chat-session-manager.ts:64,160`** — the `mintMcpToken` dep type becomes
   async; line 160 becomes `const mcpConfig = await this.deps.mintMcpToken?.(actorUserId,
-  actorUserId);`. `launchSession` is already `async` (`:147`), so this is a clean `await`.
+actorUserId);`. `launchSession` is already `async` (`:147`), so this is a clean `await`.
 - **`packages/ai/src/routes.ts:71,363,391,430`** — the AI REST assistant-tools surface
   (`GET /api/ai/assistant-tools`, `POST /api/ai/assistant-tools/:name/invoke`) currently uses the
   sync `listModuleManifests()`. To keep behavior consistent (a disabled module's REST tool surface
@@ -241,7 +241,7 @@ The `ActiveModulesResolver` type flips to async. The implementer MUST update **a
 - `listModuleManifests()` (sync, full registered set) → **briefings definition validation**
   (`packages/briefings/src/routes.ts:36,77,96` and worker `getBuiltInModuleManifests()`,
   `packages/module-registry/src/index.ts:168`) and `/api/modules` (`apps/api/src/server.ts:317`).
-  These describe what the platform *ships*, not what's active for one actor, so they stay on the full
+  These describe what the platform _ships_, not what's active for one actor, so they stay on the full
   set. The spec keeps the names distinct to prevent a future contributor collapsing them.
 
 ### 7. Request-time route-enablement guard (in `@jarv1s/module-registry`, registered by `server.ts`)
@@ -274,7 +274,7 @@ The `ActiveModulesResolver` type flips to async. The implementer MUST update **a
   - the new self-service enablement endpoints `/api/me/modules`, `/api/me/modules/:id`
   - The settings module's routes are platform routes (settings is `required:true` and owns the
     enablement surface) — list them explicitly rather than relying on a `required` shortcut, because
-    the allowlist is about *which routes the guard skips*, decided at boot from known platform paths.
+    the allowlist is about _which routes the guard skips_, decided at boot from known platform paths.
 - **How it's used:** registered in `server.ts` `after()` **after** `registerBuiltInApiRoutes` so all
   routes (and thus `request.routeOptions.url` patterns) exist; the index is built from
   `getBuiltInModuleManifests()` `routes[]` once.
@@ -307,7 +307,7 @@ Dedicated typed endpoints — **not** overloading `instance_settings`. All under
 via `admin_audit_events`:
 
 - `GET /api/admin/modules` → returns each registered module with `{ id, name, version, lifecycle,
-  required, supportsUserDisable, instanceDisabled }` (instanceDisabled from the deny-list). New
+required, supportsUserDisable, instanceDisabled }` (instanceDisabled from the deny-list). New
   shared DTO + route schema in `packages/shared/src/platform-api.ts` (mirror
   `listModulesRouteSchema`, `:234`).
 - `PATCH /api/admin/modules/:id` body `{ disabled: boolean }` → calls
@@ -321,7 +321,7 @@ via `admin_audit_events`:
 Owner-scoped, no admin gate — the actor manages their own per-user deny rows:
 
 - `GET /api/me/modules` → for the calling actor, each registered module with `{ id, name, active,
-  instanceDisabled, userDisabled, required, supportsUserDisable }`. `active` is computed identically
+instanceDisabled, userDisabled, required, supportsUserDisable }`. `active` is computed identically
   to the resolver (instance floor + user row + manifest rules) so the UI and the gateway never
   disagree.
 - `PATCH /api/me/modules/:id` body `{ disabled: boolean }` → calls `setUserModuleDisabled`.
@@ -392,7 +392,7 @@ Cites the CLAUDE.md Hard Invariants this slice touches:
   root-handle escape hatch.
 - **AccessContext shape.** The resolver constructs `{ actorUserId }` only (optionally `requestId`) —
   no new fields. (`AccessContext = { actorUserId, requestId? }`, `packages/db/src/data-context.ts:7`.)
-- **No admin private-data bypass / RLS applies to all.** Instance deny rows are admin-*writable* but
+- **No admin private-data bypass / RLS applies to all.** Instance deny rows are admin-_writable_ but
   this is configuration power, not a data bypass — RLS still gates writes via
   `app.current_actor_is_admin()`, no `BYPASSRLS`. Per-user rows are owner-only at the DB layer
   (`user_id = app.current_actor_user_id()`), so the resolver cannot leak one user's disabled set to
@@ -412,7 +412,7 @@ Cites the CLAUDE.md Hard Invariants this slice touches:
   content.
 - **`required:true` is an immutable floor.** Enforced in three places (defense in depth): the
   resolver ignores rows against required modules; both endpoints reject disabling them; (optionally)
-  a `CHECK`/trigger is *not* added at the DB layer because module ids are app-level, not enumerable
+  a `CHECK`/trigger is _not_ added at the DB layer because module ids are app-level, not enumerable
   in SQL — the app-layer triple-guard is the contract.
 
 ---
@@ -424,7 +424,7 @@ suites:
 
 - **Resolver unit/integration** (`tests/integration/module-enablement.test.ts`, new):
   - Empty store → all 11 modules active (zero behavior change baseline).
-  - Insert an instance deny row for a *hypothetical non-required* module fixture → resolver drops it
+  - Insert an instance deny row for a _hypothetical non-required_ module fixture → resolver drops it
     for all actors; required modules with a (defensively-inserted) row stay active.
   - Insert a user deny row for actor A only → dropped for A, present for actor B (RLS isolation).
   - `supportsUserDisable:false` + user row → still active for that user (per-user disable ignored);
@@ -458,7 +458,7 @@ suites:
 ## Acceptance criteria
 
 1. `@jarv1s/module-sdk` exports `CORE_VERSION` (single constant) and `satisfiesCoreVersion(range,
-   version?)`; unit tests cover bare-version and `>=,>,<=,<,=` forms and fail-closed on garbage.
+version?)`; unit tests cover bare-version and `>=,>,<=,<,=` forms and fail-closed on garbage.
 2. `module-registry` refuses to wire any built-in whose `compatibility.jarv1s` does not admit
    `CORE_VERSION`, **before** that module's routes/workers/tools register; a fixture-incompatible
    manifest throws at build with a message naming the module, range, and `CORE_VERSION`. All 11
@@ -466,9 +466,9 @@ suites:
 3. A new settings-owned migration under `packages/settings/sql/` (numbered by global landing order,
    not hardcoded; **not** in `infra/postgres/migrations/`) creates `app.module_enablement` with the
    scope/module_id/user_id schema, partial unique indexes, RLS (instance rows readable by all authed
-   + admin-only writes mirroring `0059` `instance_settings`; user rows owner-only), and runtime
-   grants. `settingsModuleSqlMigrationDirectory` is exported and wired into the settings
-   `BUILT_IN_MODULES` entry. `pnpm db:migrate` is idempotent (clean re-run).
+   - admin-only writes mirroring `0059` `instance_settings`; user rows owner-only), and runtime
+     grants. `settingsModuleSqlMigrationDirectory` is exported and wired into the settings
+     `BUILT_IN_MODULES` entry. `pnpm db:migrate` is idempotent (clean re-run).
 4. `ActiveModulesResolver` is **async**
    (`(actorUserId) => Promise<readonly JarvisModuleManifest[]>`) and every enumerated call site
    compiles and works: gateway (`executableTools`, `listToolsForActor`, `callTool`), chat
@@ -502,13 +502,13 @@ suites:
 ## Out of scope / deferred
 
 - **`defaultEnabled:false` allow-list semantics.** The store is deny-only; a module that ships
-  *off by default* (needing an explicit *enable* row) is a future extension. This slice asserts all
+  _off by default_ (needing an explicit _enable_ row) is a future extension. This slice asserts all
   built-ins are `defaultEnabled:true` and documents the seam.
 - **Workspace-scoped disable.** `supportsWorkspaceDisable` exists on the manifest but workspaces were
   removed (AccessContext has no `workspaceId`, Slice 1f). No workspace scope here.
 - **Web admin/settings UI.** API-first this slice. A thin admin "Modules" surface and a per-user
   settings toggle are a follow-up (the `/api/modules` + new endpoints already feed a UI). ADR 0009
-  consequence: Wellness (Phase 5) is the first real *optional* module to exercise the seam.
+  consequence: Wellness (Phase 5) is the first real _optional_ module to exercise the seam.
 - **Per-tool / per-permission enablement.** Enablement is per-module only.
 - **Out-of-process / remote MCP, full node-semver ranges, OSGi-style hot-swap.** Explicitly skipped
   by ADR 0009 §5.

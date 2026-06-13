@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** After the founder approves a household member, that member signs in and lands in the *same* `OnboardingWizard` route tree — parameterized by role — that walks them through an optional/skippable member flow (welcome / optional API-key opt-out / per-user Google connector / client-only section tour), recording completion **per user** in a new owner-only `app.member_onboarding` table (NOT a column on `app.users`), with the multi-user isolation gate extended to prove a member cannot reach the founder's or another member's private data — including a member's onboarding state, which not even an admin may read.
+**Goal:** After the founder approves a household member, that member signs in and lands in the _same_ `OnboardingWizard` route tree — parameterized by role — that walks them through an optional/skippable member flow (welcome / optional API-key opt-out / per-user Google connector / client-only section tour), recording completion **per user** in a new owner-only `app.member_onboarding` table (NOT a column on `app.users`), with the multi-user isolation gate extended to prove a member cannot reach the founder's or another member's private data — including a member's onboarding state, which not even an admin may read.
 
 **Architecture:** One wizard, parameterized by role — not a second wizard. We **reuse and generalize** the Phase-2 primary-onboarding spine (`apps/web/src/onboarding/` route tree, `GET /api/onboarding/status`, `POST /api/onboarding/complete` + `/skip`, the `queryKeys.onboarding` namespace, the `app.tsx` onboarding branch, the `OnboardingStatusResponse` shared contract).
 
@@ -30,32 +30,32 @@ This plan implements the approved spec **`docs/superpowers/specs/2026-06-13-p4-s
 
 ### New files
 
-| Path | Responsibility | Tested by |
-| --- | --- | --- |
+| Path                                                     | Responsibility                                                                                                                                                                                                                            | Tested by                                     |
+| -------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------- |
 | `infra/postgres/migrations/<NNNN>_member_onboarding.sql` | App-level DDL: `CREATE TABLE app.member_onboarding` (owner-only, ENABLE + FORCE RLS, self-row policies keyed on `user_id = app.current_actor_user_id()`, **no admin policy**). `<NNNN>` = next free global migration number (see Task 1). | `tests/integration/onboarding-member.test.ts` |
-| `tests/integration/onboarding-member.test.ts` | Integration: migration assertion, `getMemberOnboardingState`/`setMemberOnboardingComplete` repo methods, `GET /status` + `POST /complete` + `/skip` member branch, audit row, AccessContext unchanged. | itself |
-| `apps/web/src/onboarding/member-welcome-step.tsx` | Member welcome panel + skip affordance (no server I/O). | e2e |
-| `apps/web/src/onboarding/api-key-opt-out-step.tsx` | Optional/skippable: "use the shared assistant" skip + link to `AiSettingsPanel`. Writes nothing. Derives `apiKeyOptOut.done` client-side from `listAiProviders()` (module isolation — never a settings-side AI-table read). | e2e |
-| `apps/web/src/onboarding/member-connector-step.tsx` | Reuses `ConnectGooglePanel` verbatim; done client-side when `listConnectorAccounts()` ≥ 1. | e2e |
-| `apps/web/src/onboarding/section-tour-step.tsx` | Client-only section tour: one line each for the now-real sections; omits a line if its module/route is absent. | e2e |
-| `apps/web/src/onboarding/MOCKUP-feelings-wheel-modal.md` | **Early mockup placeholder** (see Task 6): documents that NO feelings-wheel/wellness UI is in scope for this slice and points to the absent-Wellness deferral. Prevents the autonomous worker from inventing one. | n/a (doc) |
-| `tests/e2e/onboarding-member.spec.ts` | Playwright: member step array (no CLI-auth/multiplexer), skippability, resumability, status-error fall-through; founder regression. | itself |
+| `tests/integration/onboarding-member.test.ts`            | Integration: migration assertion, `getMemberOnboardingState`/`setMemberOnboardingComplete` repo methods, `GET /status` + `POST /complete` + `/skip` member branch, audit row, AccessContext unchanged.                                    | itself                                        |
+| `apps/web/src/onboarding/member-welcome-step.tsx`        | Member welcome panel + skip affordance (no server I/O).                                                                                                                                                                                   | e2e                                           |
+| `apps/web/src/onboarding/api-key-opt-out-step.tsx`       | Optional/skippable: "use the shared assistant" skip + link to `AiSettingsPanel`. Writes nothing. Derives `apiKeyOptOut.done` client-side from `listAiProviders()` (module isolation — never a settings-side AI-table read).               | e2e                                           |
+| `apps/web/src/onboarding/member-connector-step.tsx`      | Reuses `ConnectGooglePanel` verbatim; done client-side when `listConnectorAccounts()` ≥ 1.                                                                                                                                                | e2e                                           |
+| `apps/web/src/onboarding/section-tour-step.tsx`          | Client-only section tour: one line each for the now-real sections; omits a line if its module/route is absent.                                                                                                                            | e2e                                           |
+| `apps/web/src/onboarding/MOCKUP-feelings-wheel-modal.md` | **Early mockup placeholder** (see Task 6): documents that NO feelings-wheel/wellness UI is in scope for this slice and points to the absent-Wellness deferral. Prevents the autonomous worker from inventing one.                         | n/a (doc)                                     |
+| `tests/e2e/onboarding-member.spec.ts`                    | Playwright: member step array (no CLI-auth/multiplexer), skippability, resumability, status-error fall-through; founder regression.                                                                                                       | itself                                        |
 
 ### Modified files
 
-| Path | Change |
-| --- | --- |
-| `packages/db/src/types.ts` | Add a new `MemberOnboardingTable` interface and register `"app.member_onboarding": MemberOnboardingTable` on `JarvisDatabase`. **Do NOT** add any field to `UsersTable`, `User`, or `UserDto` (onboarding state never rides the user row). |
-| `packages/shared/src/platform-api.ts` | Widen `OnboardingStatusResponse` to a `role`-discriminated union (`"founder" \| "member"`) + JSON schema variants. **Do not** add an onboarding field to `UserDto`. |
-| `packages/settings/src/repository.ts` | Add `getMemberOnboardingState(scopedDb)` (GUC-scoped, no id arg) + `setMemberOnboardingComplete(scopedDb, input)` (UPSERT keyed on the GUC actor; `input` is `{ actorUserId, requestId }` for the audit row only). |
-| `packages/settings/src/routes.ts` | Branch the existing `/api/onboarding/status`, `/complete`, `/skip` handlers on the server-read `is_bootstrap_owner` (from the SD-helper `getUserById`); relax the member status read to `requireKnownUser` (not `assertAdminUser`). Member completion reads/writes the actor's OWN `app.member_onboarding` row only. |
-| `apps/web/src/api/client.ts` | Widen the `getOnboardingStatus()` return type to the member union; no new endpoints. |
-| `apps/web/src/onboarding/onboarding-wizard.tsx` | Select the step array by role; mount the four new member steps for members. |
-| `apps/web/src/app.tsx` | Generalize the onboarding branch to also fire for an active member whose per-user onboarding is incomplete. |
+| Path                                             | Change                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| ------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `packages/db/src/types.ts`                       | Add a new `MemberOnboardingTable` interface and register `"app.member_onboarding": MemberOnboardingTable` on `JarvisDatabase`. **Do NOT** add any field to `UsersTable`, `User`, or `UserDto` (onboarding state never rides the user row).                                                                                                                                                                                                                                                               |
+| `packages/shared/src/platform-api.ts`            | Widen `OnboardingStatusResponse` to a `role`-discriminated union (`"founder" \| "member"`) + JSON schema variants. **Do not** add an onboarding field to `UserDto`.                                                                                                                                                                                                                                                                                                                                      |
+| `packages/settings/src/repository.ts`            | Add `getMemberOnboardingState(scopedDb)` (GUC-scoped, no id arg) + `setMemberOnboardingComplete(scopedDb, input)` (UPSERT keyed on the GUC actor; `input` is `{ actorUserId, requestId }` for the audit row only).                                                                                                                                                                                                                                                                                       |
+| `packages/settings/src/routes.ts`                | Branch the existing `/api/onboarding/status`, `/complete`, `/skip` handlers on the server-read `is_bootstrap_owner` (from the SD-helper `getUserById`); relax the member status read to `requireKnownUser` (not `assertAdminUser`). Member completion reads/writes the actor's OWN `app.member_onboarding` row only.                                                                                                                                                                                     |
+| `apps/web/src/api/client.ts`                     | Widen the `getOnboardingStatus()` return type to the member union; no new endpoints.                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| `apps/web/src/onboarding/onboarding-wizard.tsx`  | Select the step array by role; mount the four new member steps for members.                                                                                                                                                                                                                                                                                                                                                                                                                              |
+| `apps/web/src/app.tsx`                           | Generalize the onboarding branch to also fire for an active member whose per-user onboarding is incomplete.                                                                                                                                                                                                                                                                                                                                                                                              |
 | `tests/integration/multi-user-isolation.test.ts` | Add cases: per-user member-onboarding state invisible across users **and to an admin** (executable admin-context negative read, not just a policy-name check) + absent from admin user list; per-user connectors / AI keys / chat / memory (`memory_chunks` **and** `chat_memory_facts`) isolation — **each seeded with Alice-owned rows first**, then asserted invisible to Bob/admin; lifecycle stitch. (Wellness case explicitly deferred with a comment; vault covered by the existing vault suite.) |
-| `tests/e2e/mock-api.ts` | Extend the onboarding mock to serve the member status shape (driven by `isBootstrapOwner`). |
+| `tests/e2e/mock-api.ts`                          | Extend the onboarding mock to serve the member status shape (driven by `isBootstrapOwner`).                                                                                                                                                                                                                                                                                                                                                                                                              |
 
-> **Filenames in the spine are assumed from the sibling Phase-2 plan** (`onboarding-wizard.tsx`, `welcome-step.tsx`, `multiplexer-step.tsx`, `cli-auth-step.tsx`, `connector-step.tsx`). Task 0 verifies the actual names and pins them; subsequent tasks reference the pinned names. If a spine file's name differs, adapt the import paths (the *structure* — a wizard that iterates a step array and reads `getOnboardingStatus()` — is the contract, not the exact filenames).
+> **Filenames in the spine are assumed from the sibling Phase-2 plan** (`onboarding-wizard.tsx`, `welcome-step.tsx`, `multiplexer-step.tsx`, `cli-auth-step.tsx`, `connector-step.tsx`). Task 0 verifies the actual names and pins them; subsequent tasks reference the pinned names. If a spine file's name differs, adapt the import paths (the _structure_ — a wizard that iterates a step array and reads `getOnboardingStatus()` — is the contract, not the exact filenames).
 
 ---
 
@@ -70,6 +70,7 @@ This plan implements the approved spec **`docs/superpowers/specs/2026-06-13-p4-s
 ### Task 0: Preflight — verify the Phase-2 onboarding spine is present and pin its surface
 
 **Files:**
+
 - Modify: none (verification + pinning only; no commit unless escalation note needed)
 
 - [ ] **Step 0.1: Confirm tree freshness**
@@ -80,6 +81,7 @@ Expected: exit 0. Record the printed commit SHA; you will cite it in Task 1's co
 - [ ] **Step 0.2: Verify the spine exists**
 
 Run:
+
 ```bash
 ls apps/web/src/onboarding/ && \
 grep -rn "OnboardingStatusResponse" packages/shared/src/platform-api.ts && \
@@ -87,15 +89,17 @@ grep -rn "/api/onboarding/status" packages/settings/src/routes.ts && \
 grep -rn "onboarding:" apps/web/src/api/query-keys.ts && \
 grep -rn "OnboardingWizard\|onboardingStatusQuery\|queryKeys.onboarding" apps/web/src/app.tsx
 ```
+
 Expected: each command prints matches. If `apps/web/src/onboarding/` does not exist OR `OnboardingStatusResponse` is not in `platform-api.ts` OR `/api/onboarding/status` is not in `routes.ts`, the spine has **not** landed.
 
 - [ ] **Step 0.3: Escalation gate (if spine absent) — HARD BLOCK on Tasks 1–12**
 
-If Step 0.2 shows the spine is absent: **STOP. Tasks 1 through 12 are BLOCKED and MUST NOT be executed.** Task 0 is the *only* runnable task on a branch without the spine. This slice has a hard dependency (spec §Depends-on + §Open risks). Surface the blocker to the coordinator/operator: "Phase-2 primary-onboarding spine not present on this branch; secondary-user onboarding cannot be built until it merges (would create duplicate wizard/status/contract/app.tsx definitions)." Do not re-author the spine, the status route, the shared contract, the `app.tsx` branch, the `query-keys.onboarding` namespace, or the e2e onboarding mock. As of plan authoring the spine is confirmed **absent** on `phase2-portable-deploy` (verified: no `apps/web/src/onboarding/`, no `OnboardingStatusResponse`, no `/api/onboarding/*`), so the default expectation when executing this plan today is to halt at Task 0 and escalate.
+If Step 0.2 shows the spine is absent: **STOP. Tasks 1 through 12 are BLOCKED and MUST NOT be executed.** Task 0 is the _only_ runnable task on a branch without the spine. This slice has a hard dependency (spec §Depends-on + §Open risks). Surface the blocker to the coordinator/operator: "Phase-2 primary-onboarding spine not present on this branch; secondary-user onboarding cannot be built until it merges (would create duplicate wizard/status/contract/app.tsx definitions)." Do not re-author the spine, the status route, the shared contract, the `app.tsx` branch, the `query-keys.onboarding` namespace, or the e2e onboarding mock. As of plan authoring the spine is confirmed **absent** on `phase2-portable-deploy` (verified: no `apps/web/src/onboarding/`, no `OnboardingStatusResponse`, no `/api/onboarding/*`), so the default expectation when executing this plan today is to halt at Task 0 and escalate.
 
 - [ ] **Step 0.4: Pin the spine surface (if spine present)**
 
 Read and record (for reference by later tasks) the exact:
+
 - Wizard component file + the mechanism it uses to pick steps (step array, `me.isBootstrapOwner`, or `getOnboardingStatus().role`). Run: `sed -n '1,80p' apps/web/src/onboarding/onboarding-wizard.tsx`.
 - The `OnboardingStatusResponse` shape + the status route schema name in `platform-api.ts`. Run: `grep -n "OnboardingStatusResponse\|onboardingStatusResponseSchema\|getOnboardingStatusRouteSchema\|role" packages/shared/src/platform-api.ts`.
 - The status/complete/skip handler bodies in `routes.ts` (which auth helper they call). Run: `grep -n "/api/onboarding" packages/settings/src/routes.ts`.
@@ -109,6 +113,7 @@ No commit. This task gates the rest of the plan.
 ### Task 1: Migration — `app.member_onboarding` owner-only table (no admin SELECT/UPDATE)
 
 **Files:**
+
 - Create: `infra/postgres/migrations/<NNNN>_member_onboarding.sql`
 - Create: `tests/integration/onboarding-member.test.ts` (migration assertion block only this task)
 - Test: `tests/integration/onboarding-member.test.ts`
@@ -324,6 +329,7 @@ git commit -m "feat(db): add app.member_onboarding owner-only table for per-user
 ### Task 2: DB type — new `MemberOnboardingTable` registered on `JarvisDatabase`
 
 **Files:**
+
 - Modify: `packages/db/src/types.ts` (add `MemberOnboardingTable` interface; register on `JarvisDatabase`; do NOT touch `UsersTable`)
 - Test: covered by `pnpm typecheck` + consumed by Task 3's repo methods (no standalone runnable unit test for a type; the TDD proof is typecheck baseline → red consumption in Task 3 → green).
 
@@ -370,6 +376,7 @@ git commit -m "feat(db): type app.member_onboarding on JarvisDatabase (Phase 4)"
 ### Task 3: Repository — `getMemberOnboardingState` + `setMemberOnboardingComplete`
 
 **Files:**
+
 - Modify: `packages/settings/src/repository.ts`
 - Modify: `tests/integration/onboarding-member.test.ts` (add a repository describe block)
 - Test: `tests/integration/onboarding-member.test.ts`
@@ -455,10 +462,8 @@ describe("Phase 4 member onboarding — repository methods", () => {
 
   it("setMemberOnboardingComplete stamps the actor's own row and a re-read returns non-null", async () => {
     const repo = new SettingsRepository();
-    await dataContext.withDataContext(
-      { actorUserId: memberAId, requestId: "p4-r2" },
-      (scopedDb) =>
-        repo.setMemberOnboardingComplete(scopedDb, { actorUserId: memberAId, requestId: "p4-r2" })
+    await dataContext.withDataContext({ actorUserId: memberAId, requestId: "p4-r2" }, (scopedDb) =>
+      repo.setMemberOnboardingComplete(scopedDb, { actorUserId: memberAId, requestId: "p4-r2" })
     );
     const state = await dataContext.withDataContext(
       { actorUserId: memberAId, requestId: "p4-r3" },
@@ -624,6 +629,7 @@ git commit -m "feat(settings): getMemberOnboardingState + setMemberOnboardingCom
 ### Task 4: Shared contract — widen `OnboardingStatusResponse` to a role-discriminated union
 
 **Files:**
+
 - Modify: `packages/shared/src/platform-api.ts`
 - Test: `pnpm typecheck` + consumed by Tasks 5/7/8 (no standalone runnable type test; TDD proof = typecheck baseline → green after the change, plus the integration consumer in Task 5).
 
@@ -733,6 +739,7 @@ git commit -m "feat(shared): widen OnboardingStatusResponse to role-tagged union
 ### Task 5: Routes — branch `/api/onboarding/status`, `/complete`, `/skip` on role
 
 **Files:**
+
 - Modify: `packages/settings/src/routes.ts`
 - Modify: `tests/integration/onboarding-member.test.ts` (add a route-branch describe)
 - Test: `tests/integration/onboarding-member.test.ts`
@@ -870,46 +877,46 @@ In `packages/settings/src/routes.ts`, modify the spine's three onboarding handle
 **(a) `GET /api/onboarding/status`** — relax the gate to `requireKnownUser`, then branch on the server-read `is_bootstrap_owner`:
 
 ```ts
-  server.get(
-    "/api/onboarding/status",
-    { schema: getOnboardingStatusRouteSchema },
-    async (request, reply) => {
-      try {
-        const accessContext = await dependencies.resolveAccessContext(request);
-        const result = await dependencies.dataContext.withDataContext(
-          accessContext,
-          async (scopedDb) => {
-            // NOT admin-gated: a member must read its OWN onboarding status. requireKnownUser
-            // admits any active authenticated user; pending/deactivated users never reach here
-            // (resolveAccessContext throws first). Role is read from the server-side user row,
-            // never from the client.
-            const user = await requireKnownUser(repository, scopedDb, accessContext.actorUserId);
-            if (user.is_bootstrap_owner) {
-              // Founder branch — unchanged Phase-2 instance-global shape, tagged role: "founder".
-              const founder = await repository.getOnboardingStatus(scopedDb, onboardingProbes);
-              return { role: "founder" as const, ...founder };
-            }
-            // Member branch — per-user completion read from the member's OWN row
-            // (app.member_onboarding, GUC-scoped; no id argument — RLS + the GUC pick the row).
-            const state = await repository.getMemberOnboardingState(scopedDb);
-            // apiKeyOptOut.done + connectors.done are DERIVED CLIENT-SIDE (module isolation);
-            // the server returns neutral false defaults here.
-            return {
-              role: "member" as const,
-              completed: state.completedAt !== null,
-              steps: {
-                apiKeyOptOut: { done: false },
-                connectors: { done: false }
-              }
-            };
+server.get(
+  "/api/onboarding/status",
+  { schema: getOnboardingStatusRouteSchema },
+  async (request, reply) => {
+    try {
+      const accessContext = await dependencies.resolveAccessContext(request);
+      const result = await dependencies.dataContext.withDataContext(
+        accessContext,
+        async (scopedDb) => {
+          // NOT admin-gated: a member must read its OWN onboarding status. requireKnownUser
+          // admits any active authenticated user; pending/deactivated users never reach here
+          // (resolveAccessContext throws first). Role is read from the server-side user row,
+          // never from the client.
+          const user = await requireKnownUser(repository, scopedDb, accessContext.actorUserId);
+          if (user.is_bootstrap_owner) {
+            // Founder branch — unchanged Phase-2 instance-global shape, tagged role: "founder".
+            const founder = await repository.getOnboardingStatus(scopedDb, onboardingProbes);
+            return { role: "founder" as const, ...founder };
           }
-        );
-        return result;
-      } catch (error) {
-        return handleRouteError(error, reply);
-      }
+          // Member branch — per-user completion read from the member's OWN row
+          // (app.member_onboarding, GUC-scoped; no id argument — RLS + the GUC pick the row).
+          const state = await repository.getMemberOnboardingState(scopedDb);
+          // apiKeyOptOut.done + connectors.done are DERIVED CLIENT-SIDE (module isolation);
+          // the server returns neutral false defaults here.
+          return {
+            role: "member" as const,
+            completed: state.completedAt !== null,
+            steps: {
+              apiKeyOptOut: { done: false },
+              connectors: { done: false }
+            }
+          };
+        }
+      );
+      return result;
+    } catch (error) {
+      return handleRouteError(error, reply);
     }
-  );
+  }
+);
 ```
 
 > **`requireKnownUser` returns the SD-helper shape, NOT `onboarding_completed_at`.** `requireKnownUser` (`routes.ts:440-452`) resolves the user via `getUserById` → `app.get_user_by_id` (`repository.ts:55`), whose fixed return columns (`0050:59-69`) are identity/role only (`id, email, name, email_verified, image, is_instance_admin, status, is_bootstrap_owner, created_at, updated_at`) — they intentionally omit any onboarding field, and onboarding state lives in a separate table anyway. Use `user.is_bootstrap_owner` (present) to pick the branch; do NOT read an onboarding field off `user` (there isn't one). The member's completion comes solely from `repository.getMemberOnboardingState(scopedDb)`. `getOnboardingStatus` + `onboardingProbes` are the spine's founder-status method and injected probes (pinned in Task 0.4); the founder return spreads them and tags `role`. If the spine's founder status already carries no `role`, spreading `...founder` plus `role: "founder"` matches the union's founder variant. Reads only `accessContext.actorUserId` (AccessContext invariant). The `oneOf` response schema (Task 4) validates both branches.
@@ -917,76 +924,76 @@ In `packages/settings/src/routes.ts`, modify the spine's three onboarding handle
 **(b) `POST /api/onboarding/complete`** — branch on role:
 
 ```ts
-  server.post(
-    "/api/onboarding/complete",
-    { schema: onboardingCompleteRouteSchema },
-    async (request, reply) => {
-      try {
-        const accessContext = await dependencies.resolveAccessContext(request);
-        const result = await dependencies.dataContext.withDataContext(
-          accessContext,
-          async (scopedDb) => {
-            const user = await requireKnownUser(repository, scopedDb, accessContext.actorUserId);
-            if (user.is_bootstrap_owner) {
-              // Founder: unchanged Phase-2 instance-global completion (admin-gated upsert).
-              await assertAdminUser(repository, scopedDb, accessContext.actorUserId);
-              return repository.setOnboardingFlag(scopedDb, {
-                flag: "completed",
-                actorUserId: accessContext.actorUserId,
-                requestId: requireRequestId(accessContext)
-              });
-            }
-            // Member: stamp per-user completion on the member's own row (audited).
-            const state = await repository.setMemberOnboardingComplete(scopedDb, {
+server.post(
+  "/api/onboarding/complete",
+  { schema: onboardingCompleteRouteSchema },
+  async (request, reply) => {
+    try {
+      const accessContext = await dependencies.resolveAccessContext(request);
+      const result = await dependencies.dataContext.withDataContext(
+        accessContext,
+        async (scopedDb) => {
+          const user = await requireKnownUser(repository, scopedDb, accessContext.actorUserId);
+          if (user.is_bootstrap_owner) {
+            // Founder: unchanged Phase-2 instance-global completion (admin-gated upsert).
+            await assertAdminUser(repository, scopedDb, accessContext.actorUserId);
+            return repository.setOnboardingFlag(scopedDb, {
+              flag: "completed",
               actorUserId: accessContext.actorUserId,
               requestId: requireRequestId(accessContext)
             });
-            return { completed: state.completedAt !== null };
           }
-        );
-        return result;
-      } catch (error) {
-        return handleRouteError(error, reply);
-      }
+          // Member: stamp per-user completion on the member's own row (audited).
+          const state = await repository.setMemberOnboardingComplete(scopedDb, {
+            actorUserId: accessContext.actorUserId,
+            requestId: requireRequestId(accessContext)
+          });
+          return { completed: state.completedAt !== null };
+        }
+      );
+      return result;
+    } catch (error) {
+      return handleRouteError(error, reply);
     }
-  );
+  }
+);
 ```
 
 **(c) `POST /api/onboarding/skip`** — member skip == complete; founder keeps the distinct skipped key:
 
 ```ts
-  server.post(
-    "/api/onboarding/skip",
-    { schema: onboardingSkipRouteSchema },
-    async (request, reply) => {
-      try {
-        const accessContext = await dependencies.resolveAccessContext(request);
-        const result = await dependencies.dataContext.withDataContext(
-          accessContext,
-          async (scopedDb) => {
-            const user = await requireKnownUser(repository, scopedDb, accessContext.actorUserId);
-            if (user.is_bootstrap_owner) {
-              await assertAdminUser(repository, scopedDb, accessContext.actorUserId);
-              return repository.setOnboardingFlag(scopedDb, {
-                flag: "skipped",
-                actorUserId: accessContext.actorUserId,
-                requestId: requireRequestId(accessContext)
-              });
-            }
-            // For a member, skip is terminal "onboarded" — same as complete (no separate skipped state).
-            const state = await repository.setMemberOnboardingComplete(scopedDb, {
+server.post(
+  "/api/onboarding/skip",
+  { schema: onboardingSkipRouteSchema },
+  async (request, reply) => {
+    try {
+      const accessContext = await dependencies.resolveAccessContext(request);
+      const result = await dependencies.dataContext.withDataContext(
+        accessContext,
+        async (scopedDb) => {
+          const user = await requireKnownUser(repository, scopedDb, accessContext.actorUserId);
+          if (user.is_bootstrap_owner) {
+            await assertAdminUser(repository, scopedDb, accessContext.actorUserId);
+            return repository.setOnboardingFlag(scopedDb, {
+              flag: "skipped",
               actorUserId: accessContext.actorUserId,
               requestId: requireRequestId(accessContext)
             });
-            return { completed: state.completedAt !== null };
           }
-        );
-        return result;
-      } catch (error) {
-        return handleRouteError(error, reply);
-      }
+          // For a member, skip is terminal "onboarded" — same as complete (no separate skipped state).
+          const state = await repository.setMemberOnboardingComplete(scopedDb, {
+            actorUserId: accessContext.actorUserId,
+            requestId: requireRequestId(accessContext)
+          });
+          return { completed: state.completedAt !== null };
+        }
+      );
+      return result;
+    } catch (error) {
+      return handleRouteError(error, reply);
     }
-  );
+  }
+);
 ```
 
 > `setOnboardingFlag`, `getOnboardingStatusRouteSchema`, `onboardingCompleteRouteSchema`, `onboardingSkipRouteSchema` are the spine's exports (pinned in Task 0.4). `assertAdminUser`, `requireKnownUser`, `requireRequestId`, `handleRouteError` already exist in this file (lines 428-460, 523-541). The complete/skip response schemas are the spine's flag-response shapes; the member return `{ completed }` is a subset — if the spine's flag schema requires `skipped`, return `{ completed: state.completedAt !== null, skipped: false }` for the member branch to satisfy it (verify the spine's schema and match it exactly; do not add `additionalProperties`).
@@ -1008,10 +1015,11 @@ git commit -m "feat(settings): branch onboarding status/complete/skip on role; m
 ### Task 6: Early mockup — feelings-wheel / wellness scope note (NO UI build)
 
 **Files:**
+
 - Create: `apps/web/src/onboarding/MOCKUP-feelings-wheel-modal.md`
 - Test: n/a (documentation artifact; verified by `pnpm format:check` formatting only — markdown is excluded, so just `git add`)
 
-> **Why this task exists:** the orchestration template asked for "an early mockup task for the feelings-wheel modal" as part of a Wellness plan. **This spec has no Wellness module and no feelings-wheel.** Rather than silently drop the instruction (which could prompt an autonomous worker to invent a wellness build mid-run), this task records — as the "early mockup" — an explicit scope boundary so no one builds wellness UI under this slice. The section tour (Task 9) only *links* to a wellness route IF one exists, and omits the line otherwise.
+> **Why this task exists:** the orchestration template asked for "an early mockup task for the feelings-wheel modal" as part of a Wellness plan. **This spec has no Wellness module and no feelings-wheel.** Rather than silently drop the instruction (which could prompt an autonomous worker to invent a wellness build mid-run), this task records — as the "early mockup" — an explicit scope boundary so no one builds wellness UI under this slice. The section tour (Task 9) only _links_ to a wellness route IF one exists, and omits the line otherwise.
 
 - [ ] **Step 6.1: Create the scope-note mockup**
 
@@ -1052,6 +1060,7 @@ git commit -m "docs(onboarding): record feelings-wheel/wellness out-of-scope not
 ### Task 7: Web client — widen `getOnboardingStatus()` return type to the member union
 
 **Files:**
+
 - Modify: `apps/web/src/api/client.ts`
 - Test: `pnpm typecheck` + consumed by Tasks 8/9 + the e2e in Task 10.
 
@@ -1089,6 +1098,7 @@ git commit -m "refactor(web): getOnboardingStatus returns the role-tagged onboar
 ### Task 8: Wizard — select the member step array by role; mount member steps
 
 **Files:**
+
 - Create: `apps/web/src/onboarding/member-welcome-step.tsx`
 - Create: `apps/web/src/onboarding/api-key-opt-out-step.tsx`
 - Create: `apps/web/src/onboarding/member-connector-step.tsx` (section-tour step is Task 9)
@@ -1111,8 +1121,8 @@ export function MemberWelcomeStep(props: { readonly onSkipAll: () => void }) {
       </div>
       <p>
         You&apos;ve been added to this household instance. Your data is private to you — the
-        assistant already works out of the box. Connect your own accounts if you like; every step
-        is optional and you can skip setup at any time.
+        assistant already works out of the box. Connect your own accounts if you like; every step is
+        optional and you can skip setup at any time.
       </p>
       <button className="ghost-button" type="button" onClick={props.onSkipAll}>
         Skip setup
@@ -1269,6 +1279,7 @@ git commit -m "feat(web): role-selected member step array in OnboardingWizard (P
 ### Task 9: `SectionTourStep` — client-only section tour (omit absent modules)
 
 **Files:**
+
 - Modify: `apps/web/src/onboarding/section-tour-step.tsx` (replace the Task 8 stub)
 - Test: verified at runtime by Task 10 e2e; type-verified by `pnpm typecheck`.
 
@@ -1298,7 +1309,11 @@ interface TourSection {
 // route is enabled for this member (derived from the modules list — module isolation:
 // we read the modules registry's public endpoint, never another module's tables).
 const ALL_SECTIONS: readonly TourSection[] = [
-  { path: "/tasks", label: "Tasks", blurb: "Your single action surface — todos, commitments, and plans." },
+  {
+    path: "/tasks",
+    label: "Tasks",
+    blurb: "Your single action surface — todos, commitments, and plans."
+  },
   { path: "/calendar", label: "Calendar", blurb: "Events synced from your connected accounts." },
   { path: "/email", label: "Email", blurb: "Recent messages from your connected accounts." },
   { path: "/briefings", label: "Briefings", blurb: "Scheduled summaries grounded in your data." },
@@ -1369,6 +1384,7 @@ git commit -m "feat(web): client-only member section tour, omits absent sections
 ### Task 10: `app.tsx` branch + e2e — fire onboarding for an active member
 
 **Files:**
+
 - Modify: `apps/web/src/app.tsx`
 - Modify: `tests/e2e/mock-api.ts`
 - Create: `tests/e2e/onboarding-member.spec.ts`
@@ -1393,12 +1409,18 @@ function memberState(overrides: Partial<MockApiState> = {}): MockApiState {
     tasks: [],
     // Drive the member onboarding branch: not the bootstrap owner, onboarding incomplete.
     isBootstrapOwner: false,
-    onboardingStatus: { role: "member", completed: false, steps: { apiKeyOptOut: { done: false }, connectors: { done: false } } },
+    onboardingStatus: {
+      role: "member",
+      completed: false,
+      steps: { apiKeyOptOut: { done: false }, connectors: { done: false } }
+    },
     ...overrides
   } as MockApiState;
 }
 
-test("active member sees the member step array (no CLI-auth/multiplexer) and can finish", async ({ page }) => {
+test("active member sees the member step array (no CLI-auth/multiplexer) and can finish", async ({
+  page
+}) => {
   await mockApi(page, memberState());
   await page.goto("/");
   await expect(page.getByRole("heading", { name: "Welcome to Jarv1s" })).toBeVisible();
@@ -1419,7 +1441,11 @@ test("a completed member skips the wizard and sees the shell", async ({ page }) 
   await mockApi(
     page,
     memberState({
-      onboardingStatus: { role: "member", completed: true, steps: { apiKeyOptOut: { done: false }, connectors: { done: false } } }
+      onboardingStatus: {
+        role: "member",
+        completed: true,
+        steps: { apiKeyOptOut: { done: false }, connectors: { done: false } }
+      }
     })
   );
   await page.goto("/");
@@ -1471,23 +1497,23 @@ Expected: FAIL — `app.tsx` does not yet fire onboarding for a non-bootstrap me
 In `apps/web/src/app.tsx`, the spine added a founder onboarding branch firing for `isInstanceAdmin && isBootstrapOwner` (pinned in Task 0.4). Generalize it so it ALSO fires for an active member whose per-user onboarding is incomplete. The branch lives after `meQuery.data` is known (after line 76, before the `<BrowserRouter>` return). The structure:
 
 ```tsx
-  // (the spine already declares an onboardingStatusQuery keyed on queryKeys.onboarding.status,
-  //  enabled only for active users, retry: false. Keep it.)
-  const me = meQuery.data.user;
-  const onboarding = onboardingStatusQuery.data;
+// (the spine already declares an onboardingStatusQuery keyed on queryKeys.onboarding.status,
+//  enabled only for active users, retry: false. Keep it.)
+const me = meQuery.data.user;
+const onboarding = onboardingStatusQuery.data;
 
-  // Onboarding gate — fires for any ACTIVE user whose role-appropriate onboarding is incomplete.
-  // Founder: instance-global completed/skipped (spine). Member: per-user completed (this slice).
-  // On a status error, fall through to the shell (onboarding is optional; never trap the user).
-  if (me.status === "active" && onboarding && !onboardingStatusQuery.isError) {
-    const incomplete =
-      onboarding.role === "founder"
-        ? !onboarding.completed && !onboarding.skipped
-        : !onboarding.completed;
-    if (incomplete) {
-      return <OnboardingWizard />;
-    }
+// Onboarding gate — fires for any ACTIVE user whose role-appropriate onboarding is incomplete.
+// Founder: instance-global completed/skipped (spine). Member: per-user completed (this slice).
+// On a status error, fall through to the shell (onboarding is optional; never trap the user).
+if (me.status === "active" && onboarding && !onboardingStatusQuery.isError) {
+  const incomplete =
+    onboarding.role === "founder"
+      ? !onboarding.completed && !onboarding.skipped
+      : !onboarding.completed;
+  if (incomplete) {
+    return <OnboardingWizard />;
   }
+}
 ```
 
 > `OnboardingWizard`, `onboardingStatusQuery`, `queryKeys.onboarding.status` are the spine's (pinned in Task 0.4). The only change versus the spine is the predicate: the spine gated on `isInstanceAdmin && isBootstrapOwner`; this generalizes to "any active user, role-narrowed completion check." The `onboarding.role` discriminant (Task 4) drives the narrowing. On completion the wizard invalidates `queryKeys.onboarding.status` (spine behavior) and the branch falls through. **Does NOT touch `/api/bootstrap/status`** (OTNR-P4 #122).
@@ -1543,6 +1569,7 @@ git commit -m "feat(web): fire onboarding wizard for active members; e2e member 
 ### Task 11: Extend the multi-user isolation gate (exit criterion #3)
 
 **Files:**
+
 - Modify: `tests/integration/multi-user-isolation.test.ts`
 - Test: `tests/integration/multi-user-isolation.test.ts`
 
@@ -1555,335 +1582,335 @@ Append inside the existing `describe("multi-user isolation", ...)` block in `tes
 > **Seed-before-assert (Codex finding #7):** an isolation test that asserts "Bob sees an empty list" without first creating Alice-owned rows proves nothing — the list is empty because nothing was created, not because RLS filtered. Each case below **seeds an Alice-owned row directly via the bootstrap connection** (`connectionStrings.bootstrap`, which writes across RLS because it is the privileged migration/owner role), captures the seeded id, then asserts (a) Bob's app_runtime read cannot see that id, (b) the admin's app_runtime read cannot see that id, and (c) no secret-shaped field is exposed. Add a small seeding helper at the top of the describe:
 
 ```ts
-  async function seedAsBootstrap(text: string, params: unknown[] = []): Promise<string> {
-    const client = new pg.Client({ connectionString: connectionStrings.bootstrap });
-    await client.connect();
-    try {
-      const res = await client.query(text, params);
-      return (res.rows[0]?.id as string) ?? "";
-    } finally {
-      await client.end();
-    }
+async function seedAsBootstrap(text: string, params: unknown[] = []): Promise<string> {
+  const client = new pg.Client({ connectionString: connectionStrings.bootstrap });
+  await client.connect();
+  try {
+    const res = await client.query(text, params);
+    return (res.rows[0]?.id as string) ?? "";
+  } finally {
+    await client.end();
   }
+}
 ```
 
 ```ts
-  it("a member's onboarding state is invisible to the founder/admin and to another member", async () => {
-    const admin = await signUp("Admin", "iso-admin@example.com"); // bootstrap owner + admin
-    await disableApproval();
-    const alice = await signUp("Alice", "iso-alice@example.com");
-    const bob = await signUp("Bob", "iso-bob@example.com");
+it("a member's onboarding state is invisible to the founder/admin and to another member", async () => {
+  const admin = await signUp("Admin", "iso-admin@example.com"); // bootstrap owner + admin
+  await disableApproval();
+  const alice = await signUp("Alice", "iso-alice@example.com");
+  const bob = await signUp("Bob", "iso-bob@example.com");
 
-    // Alice completes her member onboarding (stamps her own app.member_onboarding row).
-    const complete = await server.inject({
-      method: "POST",
-      url: "/api/onboarding/complete",
-      headers: { cookie: alice.cookie }
-    });
-    expect(complete.statusCode).toBe(200);
-    expect((complete.json() as { completed: boolean }).completed).toBe(true);
+  // Alice completes her member onboarding (stamps her own app.member_onboarding row).
+  const complete = await server.inject({
+    method: "POST",
+    url: "/api/onboarding/complete",
+    headers: { cookie: alice.cookie }
+  });
+  expect(complete.statusCode).toBe(200);
+  expect((complete.json() as { completed: boolean }).completed).toBe(true);
 
-    // Alice sees her own completion.
-    const aliceStatus = await server.inject({
-      method: "GET",
-      url: "/api/onboarding/status",
-      headers: { cookie: alice.cookie }
-    });
-    expect((aliceStatus.json() as { completed: boolean }).completed).toBe(true);
+  // Alice sees her own completion.
+  const aliceStatus = await server.inject({
+    method: "GET",
+    url: "/api/onboarding/status",
+    headers: { cookie: alice.cookie }
+  });
+  expect((aliceStatus.json() as { completed: boolean }).completed).toBe(true);
 
-    // Bob's own status is independent (still false) — per-user, not instance-global.
-    const bobStatus = await server.inject({
-      method: "GET",
-      url: "/api/onboarding/status",
-      headers: { cookie: bob.cookie }
-    });
-    expect((bobStatus.json() as { role: string; completed: boolean }).role).toBe("member");
-    expect((bobStatus.json() as { completed: boolean }).completed).toBe(false);
+  // Bob's own status is independent (still false) — per-user, not instance-global.
+  const bobStatus = await server.inject({
+    method: "GET",
+    url: "/api/onboarding/status",
+    headers: { cookie: bob.cookie }
+  });
+  expect((bobStatus.json() as { role: string; completed: boolean }).role).toBe("member");
+  expect((bobStatus.json() as { completed: boolean }).completed).toBe(false);
 
-    // Admin user list NEVER exposes onboarding state (it doesn't ride the user row at all).
-    const list = await server.inject({
-      method: "GET",
-      url: "/api/admin/users",
-      headers: { cookie: admin.cookie }
-    });
-    expect(list.statusCode).toBe(200);
-    expect(JSON.stringify(list.json())).not.toMatch(/onboarding/i);
+  // Admin user list NEVER exposes onboarding state (it doesn't ride the user row at all).
+  const list = await server.inject({
+    method: "GET",
+    url: "/api/admin/users",
+    headers: { cookie: admin.cookie }
+  });
+  expect(list.statusCode).toBe(200);
+  expect(JSON.stringify(list.json())).not.toMatch(/onboarding/i);
 
-    // CRITICAL no-admin-bypass backstop: under the ADMIN's GUC, a direct read of
-    // app.member_onboarding for Alice's id returns NO row — the table has no admin SELECT
-    // policy (unlike app.users after 0052), so Alice's stamped state is invisible to the admin.
-    const dataCtx = new DataContextRunner(appDb);
-    const adminSeesAlice = await dataCtx.withDataContext(
-      { actorUserId: admin.id, requestId: "iso-1a" },
-      (scopedDb) =>
-        scopedDb.db
-          .selectFrom("app.member_onboarding")
-          .select("user_id")
-          .where("user_id", "=", alice.id)
-          .execute()
-    );
-    expect(adminSeesAlice).toEqual([]);
+  // CRITICAL no-admin-bypass backstop: under the ADMIN's GUC, a direct read of
+  // app.member_onboarding for Alice's id returns NO row — the table has no admin SELECT
+  // policy (unlike app.users after 0052), so Alice's stamped state is invisible to the admin.
+  const dataCtx = new DataContextRunner(appDb);
+  const adminSeesAlice = await dataCtx.withDataContext(
+    { actorUserId: admin.id, requestId: "iso-1a" },
+    (scopedDb) =>
+      scopedDb.db
+        .selectFrom("app.member_onboarding")
+        .select("user_id")
+        .where("user_id", "=", alice.id)
+        .execute()
+  );
+  expect(adminSeesAlice).toEqual([]);
 
-    // And under Bob's GUC, Alice's row is likewise invisible.
-    const bobSeesAlice = await dataCtx.withDataContext(
-      { actorUserId: bob.id, requestId: "iso-1b" },
-      (scopedDb) =>
-        scopedDb.db
-          .selectFrom("app.member_onboarding")
-          .select("user_id")
-          .where("user_id", "=", alice.id)
-          .execute()
-    );
-    expect(bobSeesAlice).toEqual([]);
+  // And under Bob's GUC, Alice's row is likewise invisible.
+  const bobSeesAlice = await dataCtx.withDataContext(
+    { actorUserId: bob.id, requestId: "iso-1b" },
+    (scopedDb) =>
+      scopedDb.db
+        .selectFrom("app.member_onboarding")
+        .select("user_id")
+        .where("user_id", "=", alice.id)
+        .execute()
+  );
+  expect(bobSeesAlice).toEqual([]);
+});
+
+it("lifecycle stitch: completing onboarding sets only the actor's own row", async () => {
+  await disableApproval();
+  const admin = await signUp("Admin", "iso2-admin@example.com");
+  void admin;
+  const a = await signUp("MemberA", "iso2-a@example.com");
+  const b = await signUp("MemberB", "iso2-b@example.com");
+
+  await server.inject({
+    method: "POST",
+    url: "/api/onboarding/complete",
+    headers: { cookie: a.cookie }
   });
 
-  it("lifecycle stitch: completing onboarding sets only the actor's own row", async () => {
-    await disableApproval();
-    const admin = await signUp("Admin", "iso2-admin@example.com");
-    void admin;
-    const a = await signUp("MemberA", "iso2-a@example.com");
-    const b = await signUp("MemberB", "iso2-b@example.com");
+  const dataCtx = new DataContextRunner(appDb);
+  const repo = new SettingsRepository();
+  const aState = await dataCtx.withDataContext(
+    { actorUserId: a.id, requestId: "iso-2a" },
+    (scopedDb) => repo.getMemberOnboardingState(scopedDb)
+  );
+  const bState = await dataCtx.withDataContext(
+    { actorUserId: b.id, requestId: "iso-2b" },
+    (scopedDb) => repo.getMemberOnboardingState(scopedDb)
+  );
+  expect(aState.completedAt).toBeInstanceOf(Date); // A read under A's GUC → set
+  expect(bState.completedAt).toBeNull(); // B read under B's GUC → still null
+});
 
-    await server.inject({
-      method: "POST",
-      url: "/api/onboarding/complete",
-      headers: { cookie: a.cookie }
-    });
+it("per-user connectors: a SEEDED Alice-owned account is invisible to member B and the admin (and no secrets leak)", async () => {
+  const admin = await signUp("Admin", "iso3-admin@example.com");
+  await disableApproval();
+  const alice = await signUp("Alice", "iso3-alice@example.com");
+  const bob = await signUp("Bob", "iso3-bob@example.com");
 
-    const dataCtx = new DataContextRunner(appDb);
-    const repo = new SettingsRepository();
-    const aState = await dataCtx.withDataContext(
-      { actorUserId: a.id, requestId: "iso-2a" },
-      (scopedDb) => repo.getMemberOnboardingState(scopedDb)
-    );
-    const bState = await dataCtx.withDataContext(
-      { actorUserId: b.id, requestId: "iso-2b" },
-      (scopedDb) => repo.getMemberOnboardingState(scopedDb)
-    );
-    expect(aState.completedAt).toBeInstanceOf(Date); // A read under A's GUC → set
-    expect(bState.completedAt).toBeNull(); // B read under B's GUC → still null
-  });
-
-  it("per-user connectors: a SEEDED Alice-owned account is invisible to member B and the admin (and no secrets leak)", async () => {
-    const admin = await signUp("Admin", "iso3-admin@example.com");
-    await disableApproval();
-    const alice = await signUp("Alice", "iso3-alice@example.com");
-    const bob = await signUp("Bob", "iso3-bob@example.com");
-
-    // Seed an Alice-owned connector account directly (cross-RLS bootstrap write). Schema:
-    // packages/connectors/sql/0009_connectors_module.sql — app.connector_accounts(id [no default],
-    // provider_id [FK→connector_definitions.provider_id], owner_user_id, scopes, status,
-    // encrypted_secret jsonb [must be a JSON object]). The connectors module seeds
-    // 'google-calendar' at migrate time; reference an existing definition via subquery for
-    // robustness. owner_user_id = alice.id is the load-bearing isolation column.
-    const aliceAccountId = await seedAsBootstrap(
-      `INSERT INTO app.connector_accounts (id, provider_id, owner_user_id, scopes, status, encrypted_secret)
+  // Seed an Alice-owned connector account directly (cross-RLS bootstrap write). Schema:
+  // packages/connectors/sql/0009_connectors_module.sql — app.connector_accounts(id [no default],
+  // provider_id [FK→connector_definitions.provider_id], owner_user_id, scopes, status,
+  // encrypted_secret jsonb [must be a JSON object]). The connectors module seeds
+  // 'google-calendar' at migrate time; reference an existing definition via subquery for
+  // robustness. owner_user_id = alice.id is the load-bearing isolation column.
+  const aliceAccountId = await seedAsBootstrap(
+    `INSERT INTO app.connector_accounts (id, provider_id, owner_user_id, scopes, status, encrypted_secret)
        SELECT gen_random_uuid(), d.provider_id, $1, ARRAY[]::text[], 'active', '{}'::jsonb
          FROM app.connector_definitions d
         ORDER BY d.provider_id LIMIT 1
        RETURNING id`,
-      [alice.id]
-    );
-    expect(aliceAccountId).not.toBe("");
+    [alice.id]
+  );
+  expect(aliceAccountId).not.toBe("");
 
-    // Bob's app_runtime read cannot see Alice's seeded account.
-    const dataCtx = new DataContextRunner(appDb);
-    const bobSees = await dataCtx.withDataContext(
-      { actorUserId: bob.id, requestId: "iso-3a" },
-      (scopedDb) =>
-        scopedDb.db
-          .selectFrom("app.connector_accounts")
-          .select("id")
-          .where("id", "=", aliceAccountId)
-          .execute()
-    );
-    expect(bobSees).toEqual([]);
-    const adminSees = await dataCtx.withDataContext(
-      { actorUserId: admin.id, requestId: "iso-3b" },
-      (scopedDb) =>
-        scopedDb.db
-          .selectFrom("app.connector_accounts")
-          .select("id")
-          .where("id", "=", aliceAccountId)
-          .execute()
-    );
-    expect(adminSees).toEqual([]);
+  // Bob's app_runtime read cannot see Alice's seeded account.
+  const dataCtx = new DataContextRunner(appDb);
+  const bobSees = await dataCtx.withDataContext(
+    { actorUserId: bob.id, requestId: "iso-3a" },
+    (scopedDb) =>
+      scopedDb.db
+        .selectFrom("app.connector_accounts")
+        .select("id")
+        .where("id", "=", aliceAccountId)
+        .execute()
+  );
+  expect(bobSees).toEqual([]);
+  const adminSees = await dataCtx.withDataContext(
+    { actorUserId: admin.id, requestId: "iso-3b" },
+    (scopedDb) =>
+      scopedDb.db
+        .selectFrom("app.connector_accounts")
+        .select("id")
+        .where("id", "=", aliceAccountId)
+        .execute()
+  );
+  expect(adminSees).toEqual([]);
 
-    // The public endpoint never carries secret-shaped fields for any actor.
-    const adminAccounts = await server.inject({
-      method: "GET",
-      url: "/api/connectors/accounts",
-      headers: { cookie: admin.cookie }
-    });
-    expect(adminAccounts.statusCode).toBe(200);
-    expect(JSON.stringify(adminAccounts.json())).not.toMatch(
-      /encrypted_secret|access_token|refresh_token|client_secret/i
-    );
+  // The public endpoint never carries secret-shaped fields for any actor.
+  const adminAccounts = await server.inject({
+    method: "GET",
+    url: "/api/connectors/accounts",
+    headers: { cookie: admin.cookie }
   });
+  expect(adminAccounts.statusCode).toBe(200);
+  expect(JSON.stringify(adminAccounts.json())).not.toMatch(
+    /encrypted_secret|access_token|refresh_token|client_secret/i
+  );
+});
 
-  it("per-user AI keys: a SEEDED Alice-owned provider config is invisible to member B and the admin (and no secrets leak)", async () => {
-    const admin = await signUp("Admin", "iso4-admin@example.com");
-    await disableApproval();
-    const alice = await signUp("Alice", "iso4-alice@example.com");
-    const bob = await signUp("Bob", "iso4-bob@example.com");
+it("per-user AI keys: a SEEDED Alice-owned provider config is invisible to member B and the admin (and no secrets leak)", async () => {
+  const admin = await signUp("Admin", "iso4-admin@example.com");
+  await disableApproval();
+  const alice = await signUp("Alice", "iso4-alice@example.com");
+  const bob = await signUp("Bob", "iso4-bob@example.com");
 
-    // Seed an Alice-owned AI provider config (cross-RLS bootstrap write). Schema:
-    // packages/ai/sql/0013_ai_module.sql — app.ai_provider_configs(id [no default], owner_user_id,
-    // provider_kind [enum app.ai_provider_kind: 'openai-compatible'|'anthropic'|'google'|'ollama'|
-    // 'custom'], display_name [non-blank], status, encrypted_credential jsonb [must be an object]).
-    // owner_user_id = alice.id is load-bearing.
-    const aliceConfigId = await seedAsBootstrap(
-      `INSERT INTO app.ai_provider_configs (id, owner_user_id, provider_kind, display_name, status, encrypted_credential)
+  // Seed an Alice-owned AI provider config (cross-RLS bootstrap write). Schema:
+  // packages/ai/sql/0013_ai_module.sql — app.ai_provider_configs(id [no default], owner_user_id,
+  // provider_kind [enum app.ai_provider_kind: 'openai-compatible'|'anthropic'|'google'|'ollama'|
+  // 'custom'], display_name [non-blank], status, encrypted_credential jsonb [must be an object]).
+  // owner_user_id = alice.id is load-bearing.
+  const aliceConfigId = await seedAsBootstrap(
+    `INSERT INTO app.ai_provider_configs (id, owner_user_id, provider_kind, display_name, status, encrypted_credential)
        VALUES (gen_random_uuid(), $1, 'anthropic', 'Alice key', 'active', '{}'::jsonb)
        RETURNING id`,
-      [alice.id]
-    );
-    expect(aliceConfigId).not.toBe("");
+    [alice.id]
+  );
+  expect(aliceConfigId).not.toBe("");
 
-    const dataCtx = new DataContextRunner(appDb);
-    const bobSees = await dataCtx.withDataContext(
-      { actorUserId: bob.id, requestId: "iso-4a" },
-      (scopedDb) =>
-        scopedDb.db
-          .selectFrom("app.ai_provider_configs")
-          .select("id")
-          .where("id", "=", aliceConfigId)
-          .execute()
-    );
-    expect(bobSees).toEqual([]);
-    const adminSees = await dataCtx.withDataContext(
-      { actorUserId: admin.id, requestId: "iso-4b" },
-      (scopedDb) =>
-        scopedDb.db
-          .selectFrom("app.ai_provider_configs")
-          .select("id")
-          .where("id", "=", aliceConfigId)
-          .execute()
-    );
-    expect(adminSees).toEqual([]);
+  const dataCtx = new DataContextRunner(appDb);
+  const bobSees = await dataCtx.withDataContext(
+    { actorUserId: bob.id, requestId: "iso-4a" },
+    (scopedDb) =>
+      scopedDb.db
+        .selectFrom("app.ai_provider_configs")
+        .select("id")
+        .where("id", "=", aliceConfigId)
+        .execute()
+  );
+  expect(bobSees).toEqual([]);
+  const adminSees = await dataCtx.withDataContext(
+    { actorUserId: admin.id, requestId: "iso-4b" },
+    (scopedDb) =>
+      scopedDb.db
+        .selectFrom("app.ai_provider_configs")
+        .select("id")
+        .where("id", "=", aliceConfigId)
+        .execute()
+  );
+  expect(adminSees).toEqual([]);
 
-    const adminProviders = await server.inject({
-      method: "GET",
-      url: "/api/ai/providers",
-      headers: { cookie: admin.cookie }
-    });
-    expect(adminProviders.statusCode).toBe(200);
-    expect(JSON.stringify(adminProviders.json())).not.toMatch(
-      /encrypted_credential|api[_-]?key|secret/i
-    );
+  const adminProviders = await server.inject({
+    method: "GET",
+    url: "/api/ai/providers",
+    headers: { cookie: admin.cookie }
   });
+  expect(adminProviders.statusCode).toBe(200);
+  expect(JSON.stringify(adminProviders.json())).not.toMatch(
+    /encrypted_credential|api[_-]?key|secret/i
+  );
+});
 
-  it("per-user chat: a SEEDED Alice-owned thread is invisible to member B and the admin", async () => {
-    const admin = await signUp("Admin", "iso5-admin@example.com");
-    await disableApproval();
-    const alice = await signUp("Alice", "iso5-alice@example.com");
-    const bob = await signUp("Bob", "iso5-bob@example.com");
+it("per-user chat: a SEEDED Alice-owned thread is invisible to member B and the admin", async () => {
+  const admin = await signUp("Admin", "iso5-admin@example.com");
+  await disableApproval();
+  const alice = await signUp("Alice", "iso5-alice@example.com");
+  const bob = await signUp("Bob", "iso5-bob@example.com");
 
-    // Seed an Alice-owned chat thread (cross-RLS bootstrap write). Schema:
-    // packages/chat/sql/0014_chat_module.sql — app.chat_threads(id [no default], owner_user_id,
-    // title [non-blank]). owner_user_id = alice.id is load-bearing.
-    const aliceThreadId = await seedAsBootstrap(
-      `INSERT INTO app.chat_threads (id, owner_user_id, title)
+  // Seed an Alice-owned chat thread (cross-RLS bootstrap write). Schema:
+  // packages/chat/sql/0014_chat_module.sql — app.chat_threads(id [no default], owner_user_id,
+  // title [non-blank]). owner_user_id = alice.id is load-bearing.
+  const aliceThreadId = await seedAsBootstrap(
+    `INSERT INTO app.chat_threads (id, owner_user_id, title)
        VALUES (gen_random_uuid(), $1, 'Alice private thread')
        RETURNING id`,
-      [alice.id]
-    );
-    expect(aliceThreadId).not.toBe("");
+    [alice.id]
+  );
+  expect(aliceThreadId).not.toBe("");
 
-    const dataCtx = new DataContextRunner(appDb);
-    const bobSees = await dataCtx.withDataContext(
-      { actorUserId: bob.id, requestId: "iso-5a" },
-      (scopedDb) =>
-        scopedDb.db
-          .selectFrom("app.chat_threads")
-          .select("id")
-          .where("id", "=", aliceThreadId)
-          .execute()
-    );
-    expect(bobSees).toEqual([]);
-    const adminSees = await dataCtx.withDataContext(
-      { actorUserId: admin.id, requestId: "iso-5b" },
-      (scopedDb) =>
-        scopedDb.db
-          .selectFrom("app.chat_threads")
-          .select("id")
-          .where("id", "=", aliceThreadId)
-          .execute()
-    );
-    expect(adminSees).toEqual([]);
-  });
+  const dataCtx = new DataContextRunner(appDb);
+  const bobSees = await dataCtx.withDataContext(
+    { actorUserId: bob.id, requestId: "iso-5a" },
+    (scopedDb) =>
+      scopedDb.db
+        .selectFrom("app.chat_threads")
+        .select("id")
+        .where("id", "=", aliceThreadId)
+        .execute()
+  );
+  expect(bobSees).toEqual([]);
+  const adminSees = await dataCtx.withDataContext(
+    { actorUserId: admin.id, requestId: "iso-5b" },
+    (scopedDb) =>
+      scopedDb.db
+        .selectFrom("app.chat_threads")
+        .select("id")
+        .where("id", "=", aliceThreadId)
+        .execute()
+  );
+  expect(adminSees).toEqual([]);
+});
 
-  it("per-user memory: SEEDED Alice-owned memory_chunks AND chat_memory_facts are invisible to member B and the admin", async () => {
-    const admin = await signUp("Admin", "iso6-admin@example.com");
-    await disableApproval();
-    const alice = await signUp("Alice", "iso6-alice@example.com");
-    const bob = await signUp("Bob", "iso6-bob@example.com");
+it("per-user memory: SEEDED Alice-owned memory_chunks AND chat_memory_facts are invisible to member B and the admin", async () => {
+  const admin = await signUp("Admin", "iso6-admin@example.com");
+  await disableApproval();
+  const alice = await signUp("Alice", "iso6-alice@example.com");
+  const bob = await signUp("Bob", "iso6-bob@example.com");
 
-    // Seed BOTH memory tables for Alice (two separate RLS-protected surfaces).
-    // app.memory_chunks (packages/memory/sql/0030_memory_index.sql): id [DEFAULT gen_random_uuid()],
-    // owner_user_id, source_kind ['vault'|'connector'], source_path, line_start>=0,
-    // line_end>=line_start, content_hash, text [NOT NULL]; embedding nullable (leave NULL).
-    // app.chat_memory_facts (packages/memory/sql/0041_memory_facts.sql): id [DEFAULT
-    // gen_random_uuid()], owner_user_id, category ['preference'|'fact'|'profile'|'goal'], content.
-    // owner_user_id = alice.id is load-bearing in each.
-    const aliceChunkId = await seedAsBootstrap(
-      `INSERT INTO app.memory_chunks
+  // Seed BOTH memory tables for Alice (two separate RLS-protected surfaces).
+  // app.memory_chunks (packages/memory/sql/0030_memory_index.sql): id [DEFAULT gen_random_uuid()],
+  // owner_user_id, source_kind ['vault'|'connector'], source_path, line_start>=0,
+  // line_end>=line_start, content_hash, text [NOT NULL]; embedding nullable (leave NULL).
+  // app.chat_memory_facts (packages/memory/sql/0041_memory_facts.sql): id [DEFAULT
+  // gen_random_uuid()], owner_user_id, category ['preference'|'fact'|'profile'|'goal'], content.
+  // owner_user_id = alice.id is load-bearing in each.
+  const aliceChunkId = await seedAsBootstrap(
+    `INSERT INTO app.memory_chunks
          (owner_user_id, source_kind, source_path, line_start, line_end, content_hash, text)
        VALUES ($1, 'vault', 'iso6/alice.md', 0, 1, 'iso6hash', 'alice secret chunk')
        RETURNING id`,
-      [alice.id]
-    );
-    const aliceFactId = await seedAsBootstrap(
-      `INSERT INTO app.chat_memory_facts (owner_user_id, category, content)
+    [alice.id]
+  );
+  const aliceFactId = await seedAsBootstrap(
+    `INSERT INTO app.chat_memory_facts (owner_user_id, category, content)
        VALUES ($1, 'fact', 'alice secret fact')
        RETURNING id`,
-      [alice.id]
+    [alice.id]
+  );
+  expect(aliceChunkId).not.toBe("");
+  expect(aliceFactId).not.toBe("");
+
+  const dataCtx = new DataContextRunner(appDb);
+
+  // memory_chunks is registered on JarvisDatabase → typed select.
+  for (const actor of [bob.id, admin.id]) {
+    const seen = await dataCtx.withDataContext(
+      { actorUserId: actor, requestId: `iso-6-chunks-${actor}` },
+      (scopedDb) =>
+        scopedDb.db
+          .selectFrom("app.memory_chunks")
+          .select("id")
+          .where("id", "=", aliceChunkId)
+          .execute()
     );
-    expect(aliceChunkId).not.toBe("");
-    expect(aliceFactId).not.toBe("");
+    expect(seen).toEqual([]);
+  }
 
-    const dataCtx = new DataContextRunner(appDb);
-
-    // memory_chunks is registered on JarvisDatabase → typed select.
-    for (const actor of [bob.id, admin.id]) {
-      const seen = await dataCtx.withDataContext(
-        { actorUserId: actor, requestId: `iso-6-chunks-${actor}` },
-        (scopedDb) =>
+  // chat_memory_facts is NOT in JarvisDatabase → assert via raw SQL under each actor's GUC.
+  for (const actor of [bob.id, admin.id]) {
+    const seen = await dataCtx.withDataContext(
+      { actorUserId: actor, requestId: `iso-6-facts-${actor}` },
+      (scopedDb) =>
+        sql<{ id: string }>`SELECT id FROM app.chat_memory_facts WHERE id = ${aliceFactId}`.execute(
           scopedDb.db
-            .selectFrom("app.memory_chunks")
-            .select("id")
-            .where("id", "=", aliceChunkId)
-            .execute()
-      );
-      expect(seen).toEqual([]);
-    }
+        )
+    );
+    expect(seen.rows).toEqual([]);
+  }
+});
 
-    // chat_memory_facts is NOT in JarvisDatabase → assert via raw SQL under each actor's GUC.
-    for (const actor of [bob.id, admin.id]) {
-      const seen = await dataCtx.withDataContext(
-        { actorUserId: actor, requestId: `iso-6-facts-${actor}` },
-        (scopedDb) =>
-          sql<{ id: string }>`SELECT id FROM app.chat_memory_facts WHERE id = ${aliceFactId}`.execute(
-            scopedDb.db
-          )
-      );
-      expect(seen.rows).toEqual([]);
-    }
-  });
+// DEFERRED (spec §Open risks "Wellness surface assumption"): there is no wellness module/
+// owner-scoped wellness table in the codebase as of this slice, so the per-user wellness
+// isolation case is intentionally NOT asserted here. When a wellness module ships with real
+// owner-scoped tables, add a case mirroring the per-user memory test above against those
+// tables. Do NOT assert against a non-existent table.
+it.skip("per-user wellness: member B cannot read member A's wellness data (deferred — no wellness module yet)", () => {
+  // Intentionally skipped; see comment above.
+});
 
-  // DEFERRED (spec §Open risks "Wellness surface assumption"): there is no wellness module/
-  // owner-scoped wellness table in the codebase as of this slice, so the per-user wellness
-  // isolation case is intentionally NOT asserted here. When a wellness module ships with real
-  // owner-scoped tables, add a case mirroring the per-user memory test above against those
-  // tables. Do NOT assert against a non-existent table.
-  it.skip("per-user wellness: member B cannot read member A's wellness data (deferred — no wellness module yet)", () => {
-    // Intentionally skipped; see comment above.
-  });
-
-  // Per-user vault: vault I/O goes through VaultContext (filesystem), not a DB table, and is
-  // owner-scoped by path. The vault.test.ts suite already proves VaultContext containment;
-  // cross-user vault isolation is covered there. (Spec §Testing lists vault among the surfaces;
-  // it is gated by the existing vault suite rather than duplicated here.)
+// Per-user vault: vault I/O goes through VaultContext (filesystem), not a DB table, and is
+// owner-scoped by path. The vault.test.ts suite already proves VaultContext containment;
+// cross-user vault isolation is covered there. (Spec §Testing lists vault among the surfaces;
+// it is gated by the existing vault suite rather than duplicated here.)
 ```
 
 > **Every seed INSERT above is grounded in the real schema as of plan authoring** (`connector_accounts` 0009, `ai_provider_configs` 0013, `chat_threads` 0014, `memory_chunks` 0030, `chat_memory_facts` 0041) — they are complete executable statements, not illustrations. Notes: `connector_accounts.id`, `ai_provider_configs.id`, and `chat_threads.id` have **no DB default**, so each INSERT supplies `gen_random_uuid()`; `memory_chunks.id` / `chat_memory_facts.id` default to `gen_random_uuid()` so they are omitted. `encrypted_secret` / `encrypted_credential` are `jsonb` with a `jsonb_typeof = 'object'` CHECK, so `'{}'::jsonb` (not `bytea`) is required. `connector_accounts.provider_id` is an FK to `connector_definitions.provider_id`, referenced via subquery against the module-seeded definitions. `provider_kind` is the `app.ai_provider_kind` enum (`'anthropic'` is valid). Only if a sibling migration has since altered one of these tables should the INSERT be adjusted — and never by weakening the isolation assertion. **Add `sql` to the kysely import** at the top of the suite — line 7 currently imports only `type { Kysely } from "kysely"`, so change it to `import { sql, type Kysely } from "kysely";` (the `chat_memory_facts` raw read needs it). `DataContextRunner`, `SettingsRepository`, `appDb`, `connectionStrings`, and `pg` are already imported (lines 3, 6, 9, 11). `app.memory_chunks` is in `JarvisDatabase`; `app.chat_memory_facts` is NOT, so it is read via the `sql` template (verified: no `"app.chat_memory_facts"` key in `packages/db/src/types.ts`).
@@ -1934,23 +1961,23 @@ No commit (gate-only). Report the gate result and the verified-clean state. Do N
 
 ### 1. Spec coverage (§-by-§)
 
-| Spec section / acceptance criterion | Implemented by |
-| --- | --- |
-| §Architecture — one wizard, role-parameterized | Task 8 (role-selected step array), Task 0 (reuse spine, no duplicate) |
-| §Architecture / Acceptance #1 — per-user onboarding state in an OWNER-ONLY `app.member_onboarding` table (NOT an `app.users` column, which 0052/0050 would leak to admins), ENABLE+FORCE RLS, self-row-only policies, no admin policy; `UsersTable`/`UserDto`/`serializeUser` untouched | Task 1 (migration + table/RLS/no-admin-policy + no-`app.users`-column assertions), Task 2 (new `MemberOnboardingTable` type; explicit no-touch on Users/UserDto) |
-| §Components 2 / Acceptance #2 — `GET /status` per-actor, member shape, `requireKnownUser` admits active member | Task 5 (status branch), Task 3 (`getMemberOnboardingState`) |
-| §Components 3 / Acceptance #3 — `/complete` + `/skip` member stamps column, audits `onboarding.member_complete`, AccessContext unchanged; founder unchanged | Task 3 (`setMemberOnboardingComplete` + audit), Task 5 (complete/skip branch) |
-| §Components 4 / Acceptance #4 — member step array (welcome / optional API-key opt-out / connector verbatim / client-only tour), founder-only steps hidden, no CLI-auth step | Task 8 (steps + array), Task 9 (tour) |
-| §Components 4 / Acceptance #5 — API-key opt-out optional/skippable, never gates (and derives `apiKeyOptOut.done` client-side from `listAiProviders()`); tour client-only, catalogues the seven sections one line each, rendering only those whose module/route is enabled (absent ones — e.g. Wellness today — omitted) | Task 8 (`ApiKeyOptOutStep` + AI derivation), Task 9 (`SectionTourStep` with module-filtered list) |
-| §Components 5 / Acceptance #6 — `app.tsx` fires for active member, mirrors pending branch, no `/api/bootstrap/status` touch | Task 10 (branch generalization) |
-| §Architecture / Acceptance #7 — connector-done + API-key-done derived client-side via public endpoints; settings never queries connectors/AI tables | Task 8 (`MemberConnectorStep` via `listConnectorAccounts`; `ApiKeyOptOutStep` via `listAiProviders`), Task 5 (server returns neutral `false` defaults for both flags) |
-| §Components 6 / Acceptance #8 — `OnboardingStatusResponse` role-discriminated union, barrel-exported; `UserDto` no onboarding field; `queryKeys.onboarding` reused | Task 4 (union + schema), Task 7 (client type) |
-| §Security / Acceptance #9 — no secret-shaped field; AccessContext unchanged; member completion audited; onboarding state read/written ONLY via the GUC-scoped self-row path on an owner-only table with no admin policy (an admin cannot read it) | Task 1 (no-admin-policy + auth-FORCE assertions), Task 3 (GUC-scoped read/UPSERT, audit, admin-context negative read test), Task 5 (no secret fields; reads only actorUserId/requestId), tests in Tasks 5/11 assert no secret regex + admin-cannot-see-Alice |
-| §Testing / Acceptance #10 — extend `multi-user-isolation` for onboarding + connectors/AI/chat/memory (+vault via existing suite, wellness deferred) | Task 11 |
-| §Testing / Acceptance #11 — `pnpm verify:foundation` green incl. new integration + extended isolation | Task 12 |
-| Acceptance #12 — Katherine manual acceptance | Explicitly out of scope for code (noted in §Out of scope below); a milestone checklist item, not a task |
-| §Out of scope — no member multiplexer/CLI step, no coachmark engine, no separate member "skipped" state, no admin-list surfacing, no re-run affordance, no Wellness build | Honored throughout; Task 6 records the wellness/feelings-wheel out-of-scope boundary; Task 5 collapses member skip→complete |
-| §Open risks — spine-first dependency; client-side connector + AI derivation; column-vs-table (resolved IN FAVOUR OF a separate owner-only table because of the 0052 admin SELECT leak); self-row GUC-scoped, not SD-helper; global migration number; wellness-absent; manual-acceptance-not-CI | Task 0 (spine HARD-BLOCK gate), Task 8 (client connector + AI derivation), Task 1 (owner-only table, no admin policy, SD-helper untouched), Task 1 (global number note: next free = 0066), Task 9/11 (wellness omitted/deferred), Task 12 (manual not gated) |
+| Spec section / acceptance criterion                                                                                                                                                                                                                                                                                     | Implemented by                                                                                                                                                                                                                                               |
+| ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| §Architecture — one wizard, role-parameterized                                                                                                                                                                                                                                                                          | Task 8 (role-selected step array), Task 0 (reuse spine, no duplicate)                                                                                                                                                                                        |
+| §Architecture / Acceptance #1 — per-user onboarding state in an OWNER-ONLY `app.member_onboarding` table (NOT an `app.users` column, which 0052/0050 would leak to admins), ENABLE+FORCE RLS, self-row-only policies, no admin policy; `UsersTable`/`UserDto`/`serializeUser` untouched                                 | Task 1 (migration + table/RLS/no-admin-policy + no-`app.users`-column assertions), Task 2 (new `MemberOnboardingTable` type; explicit no-touch on Users/UserDto)                                                                                             |
+| §Components 2 / Acceptance #2 — `GET /status` per-actor, member shape, `requireKnownUser` admits active member                                                                                                                                                                                                          | Task 5 (status branch), Task 3 (`getMemberOnboardingState`)                                                                                                                                                                                                  |
+| §Components 3 / Acceptance #3 — `/complete` + `/skip` member stamps column, audits `onboarding.member_complete`, AccessContext unchanged; founder unchanged                                                                                                                                                             | Task 3 (`setMemberOnboardingComplete` + audit), Task 5 (complete/skip branch)                                                                                                                                                                                |
+| §Components 4 / Acceptance #4 — member step array (welcome / optional API-key opt-out / connector verbatim / client-only tour), founder-only steps hidden, no CLI-auth step                                                                                                                                             | Task 8 (steps + array), Task 9 (tour)                                                                                                                                                                                                                        |
+| §Components 4 / Acceptance #5 — API-key opt-out optional/skippable, never gates (and derives `apiKeyOptOut.done` client-side from `listAiProviders()`); tour client-only, catalogues the seven sections one line each, rendering only those whose module/route is enabled (absent ones — e.g. Wellness today — omitted) | Task 8 (`ApiKeyOptOutStep` + AI derivation), Task 9 (`SectionTourStep` with module-filtered list)                                                                                                                                                            |
+| §Components 5 / Acceptance #6 — `app.tsx` fires for active member, mirrors pending branch, no `/api/bootstrap/status` touch                                                                                                                                                                                             | Task 10 (branch generalization)                                                                                                                                                                                                                              |
+| §Architecture / Acceptance #7 — connector-done + API-key-done derived client-side via public endpoints; settings never queries connectors/AI tables                                                                                                                                                                     | Task 8 (`MemberConnectorStep` via `listConnectorAccounts`; `ApiKeyOptOutStep` via `listAiProviders`), Task 5 (server returns neutral `false` defaults for both flags)                                                                                        |
+| §Components 6 / Acceptance #8 — `OnboardingStatusResponse` role-discriminated union, barrel-exported; `UserDto` no onboarding field; `queryKeys.onboarding` reused                                                                                                                                                      | Task 4 (union + schema), Task 7 (client type)                                                                                                                                                                                                                |
+| §Security / Acceptance #9 — no secret-shaped field; AccessContext unchanged; member completion audited; onboarding state read/written ONLY via the GUC-scoped self-row path on an owner-only table with no admin policy (an admin cannot read it)                                                                       | Task 1 (no-admin-policy + auth-FORCE assertions), Task 3 (GUC-scoped read/UPSERT, audit, admin-context negative read test), Task 5 (no secret fields; reads only actorUserId/requestId), tests in Tasks 5/11 assert no secret regex + admin-cannot-see-Alice |
+| §Testing / Acceptance #10 — extend `multi-user-isolation` for onboarding + connectors/AI/chat/memory (+vault via existing suite, wellness deferred)                                                                                                                                                                     | Task 11                                                                                                                                                                                                                                                      |
+| §Testing / Acceptance #11 — `pnpm verify:foundation` green incl. new integration + extended isolation                                                                                                                                                                                                                   | Task 12                                                                                                                                                                                                                                                      |
+| Acceptance #12 — Katherine manual acceptance                                                                                                                                                                                                                                                                            | Explicitly out of scope for code (noted in §Out of scope below); a milestone checklist item, not a task                                                                                                                                                      |
+| §Out of scope — no member multiplexer/CLI step, no coachmark engine, no separate member "skipped" state, no admin-list surfacing, no re-run affordance, no Wellness build                                                                                                                                               | Honored throughout; Task 6 records the wellness/feelings-wheel out-of-scope boundary; Task 5 collapses member skip→complete                                                                                                                                  |
+| §Open risks — spine-first dependency; client-side connector + AI derivation; column-vs-table (resolved IN FAVOUR OF a separate owner-only table because of the 0052 admin SELECT leak); self-row GUC-scoped, not SD-helper; global migration number; wellness-absent; manual-acceptance-not-CI                          | Task 0 (spine HARD-BLOCK gate), Task 8 (client connector + AI derivation), Task 1 (owner-only table, no admin policy, SD-helper untouched), Task 1 (global number note: next free = 0066), Task 9/11 (wellness omitted/deferred), Task 12 (manual not gated) |
 
 **Gaps:** none in code scope. Acceptance #12 (Katherine) is deliberately a manual milestone item, not a code task (spec §Testing "NOT a code task"). The wellness isolation case is deliberately deferred (spec §Open risks). Both are explicit, not omissions.
 

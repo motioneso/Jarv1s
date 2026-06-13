@@ -33,7 +33,7 @@ Follows the established **route → metadata-only pg-boss job → DataContext wo
   the Google OAuth bundle in-process, drives a new outbound **Google API client**, and upserts through the
   calendar/email module repositories' new production `upsert*` methods.
 - The email LLM pass is **provider-agnostic**: `AiRepository.selectModelForCapability(scopedDb,
-  "summarization", "economy")` → `selectProviderWithCredential` → decrypt AI credential →
+"summarization", "economy")` → `selectProviderWithCredential` → decrypt AI credential →
   `HttpApiAdapter.generateChat`. No provider/model is hardcoded.
 - **Role + RLS reach** is widened **additively** exactly as M-A3 did
   (`packages/chat/sql/0036_*.sql`, `packages/ai/sql/0037_*.sql`): new migrations add
@@ -62,54 +62,54 @@ Follows the established **route → metadata-only pg-boss job → DataContext wo
 
 ### New files
 
-| Path | Purpose |
-| --- | --- |
-| `packages/connectors/src/google-api-client.ts` | Outbound Google REST client (calendar.list, messages.list, messages.get) with injectable `fetch`. |
-| `packages/connectors/src/email-extract.ts` | MIME parse → `ParsedEmail`; LLM summary + signals pass (capability-routed). |
-| `packages/connectors/src/sync-jobs.ts` | `GOOGLE_SYNC_QUEUE`, queue defs, `GoogleSyncPayload`, `registerConnectorsJobWorkers` handler. |
-| `packages/connectors/sql/0068_connector_worker_runtime_grants.sql` | Worker SELECT/UPDATE on `connector_accounts`, SELECT on `connector_definitions` + policy role-widen. |
+| Path                                                                      | Purpose                                                                                                |
+| ------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
+| `packages/connectors/src/google-api-client.ts`                            | Outbound Google REST client (calendar.list, messages.list, messages.get) with injectable `fetch`.      |
+| `packages/connectors/src/email-extract.ts`                                | MIME parse → `ParsedEmail`; LLM summary + signals pass (capability-routed).                            |
+| `packages/connectors/src/sync-jobs.ts`                                    | `GOOGLE_SYNC_QUEUE`, queue defs, `GoogleSyncPayload`, `registerConnectorsJobWorkers` handler.          |
+| `packages/connectors/sql/0068_connector_worker_runtime_grants.sql`        | Worker SELECT/UPDATE on `connector_accounts`, SELECT on `connector_definitions` + policy role-widen.   |
 | `packages/calendar/sql/0065_calendar_worker_grants_and_google_insert.sql` | Worker grants + INSERT-policy relax (`provider_type IN ('calendar','google')` + calendar-scope guard). |
-| `packages/email/sql/0066_email_summary_signals_columns.sql` | Add `summary text` + `signals jsonb` columns. |
-| `packages/email/sql/0067_email_worker_grants_and_google_insert.sql` | Worker grants + INSERT-policy relax (`provider_type IN ('email','google')` + gmail-scope guard). |
-| `tests/integration/google-sync.test.ts` | Google client, email-extract, upsert idempotency, RLS, job/worker tests. |
-| `docs/brand/mockups/briefing-reading.html` | Design-gate mockup: editorial briefing reading view (Ritual). |
-| `docs/brand/mockups/day-view-timebuckets.html` | Design-gate mockup: tasks/day view with This Morning/Afternoon/Evening. |
-| `docs/brand/mockups/form-heavy.html` | Design-gate mockup: a form-heavy screen (settings/auth) on tokens. |
-| `apps/web/src/styles/tokens.css` | Semantic token layer (primitive ramps → semantic → theme overlays); only file with hex. |
-| `apps/web/src/ui/card.tsx` | Presentational `Card`/`Stack`/`SectionHeader` primitives. |
-| `apps/web/src/ui/badge.tsx` | `Badge` (tone → semantic state tokens; never error-red for drift). |
-| `apps/web/src/ui/provisional-region.tsx` | Governor wrapper (`--provisional-opacity`) for AI/unconfirmed content. |
-| `apps/web/src/ui/time-bucket.tsx` | `TimeBucket` chronology section header. |
-| `apps/web/src/calendar/calendar.css` | Calendar page styles (tokens only). |
-| `apps/web/src/email/email.css` | Email triage page styles (tokens only). |
-| `tests/e2e/calendar-email.spec.ts` | e2e: Calendar renders events; Email renders summary+signals (no body); Sync now. |
-| `tests/e2e/mock-calendar-email-api.ts` | e2e REST mocks for calendar/email/sync. |
+| `packages/email/sql/0066_email_summary_signals_columns.sql`               | Add `summary text` + `signals jsonb` columns.                                                          |
+| `packages/email/sql/0067_email_worker_grants_and_google_insert.sql`       | Worker grants + INSERT-policy relax (`provider_type IN ('email','google')` + gmail-scope guard).       |
+| `tests/integration/google-sync.test.ts`                                   | Google client, email-extract, upsert idempotency, RLS, job/worker tests.                               |
+| `docs/brand/mockups/briefing-reading.html`                                | Design-gate mockup: editorial briefing reading view (Ritual).                                          |
+| `docs/brand/mockups/day-view-timebuckets.html`                            | Design-gate mockup: tasks/day view with This Morning/Afternoon/Evening.                                |
+| `docs/brand/mockups/form-heavy.html`                                      | Design-gate mockup: a form-heavy screen (settings/auth) on tokens.                                     |
+| `apps/web/src/styles/tokens.css`                                          | Semantic token layer (primitive ramps → semantic → theme overlays); only file with hex.                |
+| `apps/web/src/ui/card.tsx`                                                | Presentational `Card`/`Stack`/`SectionHeader` primitives.                                              |
+| `apps/web/src/ui/badge.tsx`                                               | `Badge` (tone → semantic state tokens; never error-red for drift).                                     |
+| `apps/web/src/ui/provisional-region.tsx`                                  | Governor wrapper (`--provisional-opacity`) for AI/unconfirmed content.                                 |
+| `apps/web/src/ui/time-bucket.tsx`                                         | `TimeBucket` chronology section header.                                                                |
+| `apps/web/src/calendar/calendar.css`                                      | Calendar page styles (tokens only).                                                                    |
+| `apps/web/src/email/email.css`                                            | Email triage page styles (tokens only).                                                                |
+| `tests/e2e/calendar-email.spec.ts`                                        | e2e: Calendar renders events; Email renders summary+signals (no body); Sync now.                       |
+| `tests/e2e/mock-calendar-email-api.ts`                                    | e2e REST mocks for calendar/email/sync.                                                                |
 
 ### Modified files
 
-| Path | Change |
-| --- | --- |
-| `packages/connectors/src/index.ts` | Export `google-api-client.js`, `email-extract.js`, `sync-jobs.js`. |
-| `packages/connectors/package.json` | Add deps `@jarv1s/jobs`, `@jarv1s/ai`, `@jarv1s/calendar`, `@jarv1s/email`, `pg-boss`. |
-| `packages/connectors/src/routes.ts` | Add `boss` to deps; `POST /api/connectors/google/sync` (rate-limited, dedupe-aware); sync-on-connect enqueue with sanitized failure log. |
-| `packages/connectors/src/google-connection.ts` | Add optional `{ force }` to `getFreshAccessToken` (forced refresh for the 401-retry path; additive, default arg). |
-| `packages/connectors/src/manifest.ts` | Add the sync route + the new 0068 migration to `database.migrations`. |
-| `packages/shared/src/connectors-api.ts` | Add `GoogleSyncResponse` + `googleSyncRouteSchema`. |
-| `packages/calendar/src/repository.ts` | Add `upsertCachedEvent`. |
-| `packages/calendar/src/manifest.ts` | Add 0065 to `database.migrations`. |
-| `packages/email/src/repository.ts` | Add `upsertCachedMessage`; `summary`/`signals` in row I/O. |
-| `packages/email/src/routes.ts` | `serializeEmailMessage` exposes `summary` + `signals`. |
-| `packages/email/src/manifest.ts` | Add 0066 + 0067 to `database.migrations`. |
-| `packages/shared/src/email-api.ts` | Add `summary` + `signals` to `EmailMessageDto` + schema. |
-| `packages/db/src/*` (types) | Extend `EmailMessage`/`EmailMessagesTable` types with `summary`/`signals`. |
-| `packages/module-registry/src/index.ts` | connectors registration gains `queueDefinitions` + `registerWorkers`; route registration receives `boss`. |
-| `apps/worker/package.json` | Add deps `@jarv1s/connectors`, `@jarv1s/calendar`, `@jarv1s/email`, `@jarv1s/ai`. |
-| `apps/web/src/main.tsx` | Import `styles/tokens.css` first, then feature CSS. |
-| `apps/web/src/styles.css` | Replace hex with `var()`; net <1000 lines after token extraction. |
-| `apps/web/src/calendar/calendar-page.tsx` | Rebuild as real React-Query page. |
-| `apps/web/src/email/email-page.tsx` | Rebuild as triage page (summary + signals, no body). |
-| `apps/web/src/api/client.ts` | Add `syncGoogleConnector()` fetcher. |
-| `docs/operations/dev-environment.md` | Document `JARVIS_CONNECTOR_SECRET_KEY` + `JARVIS_AI_SECRET_KEY` in the worker env. |
+| Path                                           | Change                                                                                                                                   |
+| ---------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
+| `packages/connectors/src/index.ts`             | Export `google-api-client.js`, `email-extract.js`, `sync-jobs.js`.                                                                       |
+| `packages/connectors/package.json`             | Add deps `@jarv1s/jobs`, `@jarv1s/ai`, `@jarv1s/calendar`, `@jarv1s/email`, `pg-boss`.                                                   |
+| `packages/connectors/src/routes.ts`            | Add `boss` to deps; `POST /api/connectors/google/sync` (rate-limited, dedupe-aware); sync-on-connect enqueue with sanitized failure log. |
+| `packages/connectors/src/google-connection.ts` | Add optional `{ force }` to `getFreshAccessToken` (forced refresh for the 401-retry path; additive, default arg).                        |
+| `packages/connectors/src/manifest.ts`          | Add the sync route + the new 0068 migration to `database.migrations`.                                                                    |
+| `packages/shared/src/connectors-api.ts`        | Add `GoogleSyncResponse` + `googleSyncRouteSchema`.                                                                                      |
+| `packages/calendar/src/repository.ts`          | Add `upsertCachedEvent`.                                                                                                                 |
+| `packages/calendar/src/manifest.ts`            | Add 0065 to `database.migrations`.                                                                                                       |
+| `packages/email/src/repository.ts`             | Add `upsertCachedMessage`; `summary`/`signals` in row I/O.                                                                               |
+| `packages/email/src/routes.ts`                 | `serializeEmailMessage` exposes `summary` + `signals`.                                                                                   |
+| `packages/email/src/manifest.ts`               | Add 0066 + 0067 to `database.migrations`.                                                                                                |
+| `packages/shared/src/email-api.ts`             | Add `summary` + `signals` to `EmailMessageDto` + schema.                                                                                 |
+| `packages/db/src/*` (types)                    | Extend `EmailMessage`/`EmailMessagesTable` types with `summary`/`signals`.                                                               |
+| `packages/module-registry/src/index.ts`        | connectors registration gains `queueDefinitions` + `registerWorkers`; route registration receives `boss`.                                |
+| `apps/worker/package.json`                     | Add deps `@jarv1s/connectors`, `@jarv1s/calendar`, `@jarv1s/email`, `@jarv1s/ai`.                                                        |
+| `apps/web/src/main.tsx`                        | Import `styles/tokens.css` first, then feature CSS.                                                                                      |
+| `apps/web/src/styles.css`                      | Replace hex with `var()`; net <1000 lines after token extraction.                                                                        |
+| `apps/web/src/calendar/calendar-page.tsx`      | Rebuild as real React-Query page.                                                                                                        |
+| `apps/web/src/email/email-page.tsx`            | Rebuild as triage page (summary + signals, no body).                                                                                     |
+| `apps/web/src/api/client.ts`                   | Add `syncGoogleConnector()` fetcher.                                                                                                     |
+| `docs/operations/dev-environment.md`           | Document `JARVIS_CONNECTOR_SECRET_KEY` + `JARVIS_AI_SECRET_KEY` in the worker env.                                                       |
 
 > **Migration numbers are global by landing order — AND ARE ALREADY DRIFTING.** This plan's SQL files
 > are written as `0065`–`0068`, but a **concurrent Phase-2 slice has since landed
@@ -166,7 +166,7 @@ and more may land before you build. Before writing ANY SQL:
    - `N+1` → email summary/signals columns (Task A1; was `0066`)
    - `N+2` → email worker grants + google INSERT relax (Task A3; was `0067`)
    - `N+3` → connector worker runtime grants (Task A4; was `0068`)
-   (e.g. if the highest applied is `0065`, use `0066`–`0069`.)
+     (e.g. if the highest applied is `0065`, use `0066`–`0069`.)
 3. Build a one-line substitution map (placeholder → actual) and apply it consistently to: every SQL
    **filename**, every `"sql/NNNN_*.sql"` entry in the three manifest `database.migrations` arrays, and
    every reference in this plan's prose/tests (the `(0065)`/`(0066)`/etc. describe-block labels are
@@ -181,6 +181,7 @@ and more may land before you build. Before writing ANY SQL:
 ### Task A1 — Email summary/signals columns migration (0066)
 
 **Files**
+
 - Create: `packages/email/sql/0066_email_summary_signals_columns.sql`
 - Modify: `packages/email/src/manifest.ts` (append to `database.migrations`)
 - Test: `tests/integration/google-sync.test.ts` (new)
@@ -244,8 +245,8 @@ describe("email_messages summary/signals columns (0066)", () => {
 });
 ```
 
-   Run: `pnpm db:migrate && pnpm test:integration -- tests/integration/google-sync.test.ts` → **FAIL**
-   (columns do not exist).
+Run: `pnpm db:migrate && pnpm test:integration -- tests/integration/google-sync.test.ts` → **FAIL**
+(columns do not exist).
 
 2. Create `packages/email/sql/0066_email_summary_signals_columns.sql`:
 
@@ -277,7 +278,7 @@ ALTER TABLE app.email_messages
   },
 ```
 
-   Run: `pnpm db:migrate && pnpm test:integration -- tests/integration/google-sync.test.ts` → **PASS**.
+Run: `pnpm db:migrate && pnpm test:integration -- tests/integration/google-sync.test.ts` → **PASS**.
 
 4. Commit:
    `git add packages/email/sql/0066_email_summary_signals_columns.sql packages/email/src/manifest.ts tests/integration/google-sync.test.ts`
@@ -288,6 +289,7 @@ ALTER TABLE app.email_messages
 ### Task A2 — Calendar worker grants + Google INSERT relax (0065)
 
 **Files**
+
 - Create: `packages/calendar/sql/0065_calendar_worker_grants_and_google_insert.sql`
 - Modify: `packages/calendar/src/manifest.ts`
 - Test: `tests/integration/google-sync.test.ts`
@@ -327,24 +329,21 @@ async function seedGoogleAccount(
 ): Promise<string> {
   const cipher = createConnectorSecretCipher();
   const repo = new ConnectorsRepository();
-  return dataContext.withDataContext(
-    { actorUserId, requestId: "test" },
-    async (scopedDb) => {
-      const account = await repo.upsertGoogleAccount(scopedDb, {
-        scopes,
-        encryptedSecret: cipher.encryptJson({ kind: "google-oauth" })
-      });
-      // Prove the precondition: the stored scopes are exactly what this test seeded,
-      // so a later negative assertion cannot pass spuriously on a stale broad scope.
-      const stored = await scopedDb.db
-        .selectFrom("app.connector_accounts")
-        .select("scopes")
-        .where("id", "=", account.id)
-        .executeTakeFirstOrThrow();
-      expect(new Set(stored.scopes)).toEqual(new Set(scopes));
-      return account.id;
-    }
-  );
+  return dataContext.withDataContext({ actorUserId, requestId: "test" }, async (scopedDb) => {
+    const account = await repo.upsertGoogleAccount(scopedDb, {
+      scopes,
+      encryptedSecret: cipher.encryptJson({ kind: "google-oauth" })
+    });
+    // Prove the precondition: the stored scopes are exactly what this test seeded,
+    // so a later negative assertion cannot pass spuriously on a stale broad scope.
+    const stored = await scopedDb.db
+      .selectFrom("app.connector_accounts")
+      .select("scopes")
+      .where("id", "=", account.id)
+      .executeTakeFirstOrThrow();
+    expect(new Set(stored.scopes)).toEqual(new Set(scopes));
+    return account.id;
+  });
 }
 
 describe("calendar RLS — worker role + google account INSERT (0065)", () => {
@@ -374,26 +373,24 @@ describe("calendar RLS — worker role + google account INSERT (0065)", () => {
     );
     const calendar = new CalendarRepository();
     await expect(
-      workerDataContext.withDataContext(
-        { actorUserId: ids.userB, requestId: "test" },
-        (scopedDb) =>
-          calendar.upsertCachedEvent(scopedDb, {
-            connectorAccountId: accountId,
-            externalId: "evt-2",
-            title: "Blocked",
-            startsAt: "2026-06-13T09:00:00.000Z",
-            endsAt: "2026-06-13T09:15:00.000Z"
-          })
+      workerDataContext.withDataContext({ actorUserId: ids.userB, requestId: "test" }, (scopedDb) =>
+        calendar.upsertCachedEvent(scopedDb, {
+          connectorAccountId: accountId,
+          externalId: "evt-2",
+          title: "Blocked",
+          startsAt: "2026-06-13T09:00:00.000Z",
+          endsAt: "2026-06-13T09:15:00.000Z"
+        })
       )
     ).rejects.toThrow();
   });
 });
 ```
 
-   (These tests also exercise A2's policy and B's `upsertCachedEvent`; they FAIL now on the missing
-   worker grant AND the missing method — sequence A2 then B closes both. Run after each.)
+(These tests also exercise A2's policy and B's `upsertCachedEvent`; they FAIL now on the missing
+worker grant AND the missing method — sequence A2 then B closes both. Run after each.)
 
-   Run: `pnpm db:migrate && pnpm test:integration -- tests/integration/google-sync.test.ts` → **FAIL**.
+Run: `pnpm db:migrate && pnpm test:integration -- tests/integration/google-sync.test.ts` → **FAIL**.
 
 2. Create `packages/calendar/sql/0065_calendar_worker_grants_and_google_insert.sql`. This recreates the
    three policies from `0020_calendar_owner_or_share.sql` **verbatim** for the owner-or-share
@@ -490,6 +487,7 @@ WITH CHECK (
 ### Task A3 — Email worker grants + Google INSERT relax (0067)
 
 **Files**
+
 - Create: `packages/email/sql/0067_email_worker_grants_and_google_insert.sql`
 - Modify: `packages/email/src/manifest.ts`
 - Test: `tests/integration/google-sync.test.ts`
@@ -529,25 +527,23 @@ describe("email RLS — worker role + google account INSERT (0067)", () => {
     );
     const email = new EmailRepository();
     await expect(
-      workerDataContext.withDataContext(
-        { actorUserId: ids.userB, requestId: "test" },
-        (scopedDb) =>
-          email.upsertCachedMessage(scopedDb, {
-            connectorAccountId: accountId,
-            externalId: "msg-2",
-            sender: "a@b.com",
-            subject: "Blocked",
-            receivedAt: "2026-06-13T09:00:00.000Z",
-            summary: null,
-            signals: {}
-          })
+      workerDataContext.withDataContext({ actorUserId: ids.userB, requestId: "test" }, (scopedDb) =>
+        email.upsertCachedMessage(scopedDb, {
+          connectorAccountId: accountId,
+          externalId: "msg-2",
+          sender: "a@b.com",
+          subject: "Blocked",
+          receivedAt: "2026-06-13T09:00:00.000Z",
+          summary: null,
+          signals: {}
+        })
       )
     ).rejects.toThrow();
   });
 });
 ```
 
-   Run → **FAIL** (grant + method missing).
+Run → **FAIL** (grant + method missing).
 
 2. Create `packages/email/sql/0067_email_worker_grants_and_google_insert.sql` (mirror 0065 exactly,
    substituting `email`/`email_message`/gmail scope; recreate the three policies from
@@ -635,6 +631,7 @@ WITH CHECK (
 ### Task A4 — Connector worker grants (0068)
 
 **Files**
+
 - Create: `packages/connectors/sql/0068_connector_worker_runtime_grants.sql`
 - Modify: `packages/connectors/src/manifest.ts`
 - Test: `tests/integration/google-sync.test.ts`
@@ -672,10 +669,10 @@ describe("connector_accounts RLS — worker role (0068)", () => {
 });
 ```
 
-   (The positive case uses the `ids.userA` account seeded earlier; the cross-user case uses
-   `ids.adminUser`, a third authenticated user in `test-database.ts` that holds no connector account.)
+(The positive case uses the `ids.userA` account seeded earlier; the cross-user case uses
+`ids.adminUser`, a third authenticated user in `test-database.ts` that holds no connector account.)
 
-   Run → **FAIL** (worker lacks SELECT on `connector_accounts`).
+Run → **FAIL** (worker lacks SELECT on `connector_accounts`).
 
 2. Create `packages/connectors/sql/0068_connector_worker_runtime_grants.sql`. Recreate the three
    `connector_accounts` policies from `0022_connectors_owner_only.sql` **verbatim** for owner-equality,
@@ -728,8 +725,8 @@ WITH CHECK (
 );
 ```
 
-   > Note: the `connector_accounts_insert` policy is **not** recreated here — the worker is not granted
-   > INSERT, so it keeps the `0022` definition (app-runtime only). Do not touch it.
+> Note: the `connector_accounts_insert` policy is **not** recreated here — the worker is not granted
+> INSERT, so it keeps the `0022` definition (app-runtime only). Do not touch it.
 
 3. Append `"sql/0068_connector_worker_runtime_grants.sql"` to `packages/connectors/src/manifest.ts`
    `database.migrations` (after the two existing entries).
@@ -745,6 +742,7 @@ WITH CHECK (
 ### Task A5 — Extend `EmailMessage` DB type with summary/signals
 
 **Files**
+
 - Modify: the DB type for `email_messages` (find with
   `grep -rn "EmailMessagesTable\|interface EmailMessage" packages/db/src`)
 - Test: `pnpm typecheck` (the type is asserted by C's repository compile)
@@ -755,13 +753,13 @@ WITH CHECK (
    `packages/db/src/schema/*` or the generated kysely types). Add the two columns:
 
 ```ts
-  // app.email_messages (Phase 3 connector-sync)
-  summary: string | null;
-  signals: Record<string, unknown>;
+// app.email_messages (Phase 3 connector-sync)
+summary: string | null;
+signals: Record<string, unknown>;
 ```
 
-   Place `summary` and `signals` on the row type, matching the existing column-type conventions in that
-   file (use the same `ColumnType`/`Generated` wrappers the neighbours use — read the file before editing).
+Place `summary` and `signals` on the row type, matching the existing column-type conventions in that
+file (use the same `ColumnType`/`Generated` wrappers the neighbours use — read the file before editing).
 
 2. Run `pnpm typecheck` → expect it to pass for db; C will consume these fields. (No standalone test —
    this is a type-only change validated by C and the gate.)
@@ -775,6 +773,7 @@ WITH CHECK (
 ### Task B1 — `CalendarRepository.upsertCachedEvent`
 
 **Files**
+
 - Modify: `packages/calendar/src/repository.ts`
 - Test: `tests/integration/google-sync.test.ts`
 
@@ -820,7 +819,7 @@ describe("CalendarRepository.upsertCachedEvent idempotency", () => {
 });
 ```
 
-   Run → **FAIL** (`upsertCachedEvent` does not exist).
+Run → **FAIL** (`upsertCachedEvent` does not exist).
 
 2. Add to `packages/calendar/src/repository.ts`. Reuse the existing
    `CreateCachedCalendarEventInput` shape (it already covers all fields). Insert with an `onConflict`
@@ -870,7 +869,7 @@ describe("CalendarRepository.upsertCachedEvent idempotency", () => {
   }
 ```
 
-   Run → **PASS** (A2 success + reject + B1 idempotency all green).
+Run → **PASS** (A2 success + reject + B1 idempotency all green).
 
 3. Commit:
    `git add packages/calendar/src/repository.ts tests/integration/google-sync.test.ts`
@@ -883,6 +882,7 @@ describe("CalendarRepository.upsertCachedEvent idempotency", () => {
 ### Task C1 — `EmailRepository.upsertCachedMessage` + summary/signals I/O
 
 **Files**
+
 - Modify: `packages/email/src/repository.ts`
 - Test: `tests/integration/google-sync.test.ts`
 
@@ -939,36 +939,34 @@ describe("EmailRepository.upsertCachedMessage idempotency + columns", () => {
     // The A1 catalog test proves the CHECK exists; this proves it actually REJECTS.
     const accountId = await seedGoogleAccount(["https://www.googleapis.com/auth/gmail.modify"]);
     await expect(
-      dataContext.withDataContext(
-        { actorUserId: ids.userA, requestId: "test" },
-        (db) =>
-          db.db
-            .insertInto("app.email_messages")
-            .values({
-              id: "00000000-0000-0000-0000-0000000000aa",
-              connector_account_id: accountId,
-              owner_user_id: sql<string>`app.current_actor_user_id()`,
-              sender: "a@b.com",
-              recipients: [],
-              subject: "bad signals",
-              snippet: null,
-              body_excerpt: null,
-              received_at: "2026-06-13T09:00:00.000Z",
-              external_id: "bad-signals-1",
-              external_metadata: {},
-              summary: null,
-              signals: sql`'[]'::jsonb`,
-              created_at: new Date(),
-              updated_at: new Date()
-            })
-            .execute()
+      dataContext.withDataContext({ actorUserId: ids.userA, requestId: "test" }, (db) =>
+        db.db
+          .insertInto("app.email_messages")
+          .values({
+            id: "00000000-0000-0000-0000-0000000000aa",
+            connector_account_id: accountId,
+            owner_user_id: sql<string>`app.current_actor_user_id()`,
+            sender: "a@b.com",
+            recipients: [],
+            subject: "bad signals",
+            snippet: null,
+            body_excerpt: null,
+            received_at: "2026-06-13T09:00:00.000Z",
+            external_id: "bad-signals-1",
+            external_metadata: {},
+            summary: null,
+            signals: sql`'[]'::jsonb`,
+            created_at: new Date(),
+            updated_at: new Date()
+          })
+          .execute()
       )
     ).rejects.toThrow();
   });
 });
 ```
 
-   Run → **FAIL**.
+Run → **FAIL**.
 
 2. Extend `CreateCachedEmailMessageInput` and add `upsertCachedMessage` in
    `packages/email/src/repository.ts`. First extend the input interface:
@@ -990,10 +988,10 @@ export interface CreateCachedEmailMessageInput {
 }
 ```
 
-   Then add the method. Note the defensive cap on `body_excerpt`: the connector-sync handler never
-   passes a body excerpt (it stays null), but bounding it at the repository layer means no caller —
-   present or future — can smuggle a full email body into this column. A real excerpt is a short
-   preview, so 500 chars is generous (privacy posture, spec §6):
+Then add the method. Note the defensive cap on `body_excerpt`: the connector-sync handler never
+passes a body excerpt (it stays null), but bounding it at the repository layer means no caller —
+present or future — can smuggle a full email body into this column. A real excerpt is a short
+preview, so 500 chars is generous (privacy posture, spec §6):
 
 ```ts
   /** Hard cap on any persisted body excerpt — a preview, never a full body. */
@@ -1075,7 +1073,7 @@ export interface CreateCachedEmailMessageInput {
   }
 ```
 
-   Run → **PASS**.
+Run → **PASS**.
 
 3. Commit:
    `git add packages/email/src/repository.ts tests/integration/google-sync.test.ts`
@@ -1086,6 +1084,7 @@ export interface CreateCachedEmailMessageInput {
 ### Task C2 — `EmailMessageDto` + serializer expose summary/signals
 
 **Files**
+
 - Modify: `packages/shared/src/email-api.ts`
 - Modify: `packages/email/src/routes.ts`
 - Test: `tests/integration/calendar-email.test.ts` (extend the existing serializer/route test) or
@@ -1123,7 +1122,7 @@ it("serializes summary + signals onto EmailMessageDto", () => {
 });
 ```
 
-   Run → **FAIL** (`summary`/`signals` not on DTO).
+Run → **FAIL** (`summary`/`signals` not on DTO).
 
 2. In `packages/shared/src/email-api.ts`, add the fields to the interface, the `required` array, and the
    `properties` of `emailMessageDtoSchema`:
@@ -1139,7 +1138,7 @@ export interface EmailMessageDto {
 }
 ```
 
-   Add `"summary"`, `"signals"` to the `required` array (after `"bodyExcerpt"`), and to `properties`:
+Add `"summary"`, `"signals"` to the `required` array (after `"bodyExcerpt"`), and to `properties`:
 
 ```ts
     bodyExcerpt: nullableStringSchema,
@@ -1157,7 +1156,7 @@ export interface EmailMessageDto {
     receivedAt: toIsoString(message.received_at),
 ```
 
-   Run → **PASS** + `pnpm typecheck`.
+Run → **PASS** + `pnpm typecheck`.
 
 4. Commit:
    `git add packages/shared/src/email-api.ts packages/email/src/routes.ts tests/integration/calendar-email.test.ts`
@@ -1170,6 +1169,7 @@ export interface EmailMessageDto {
 ### Task D1 — `google-api-client.ts` (calendar + gmail reads)
 
 **Files**
+
 - Create: `packages/connectors/src/google-api-client.ts`
 - Modify: `packages/connectors/src/index.ts`
 - Test: `tests/integration/google-sync.test.ts`
@@ -1257,7 +1257,7 @@ describe("GoogleApiClient gmail", () => {
 });
 ```
 
-   Run → **FAIL** (`GoogleApiClient` does not exist).
+Run → **FAIL** (`GoogleApiClient` does not exist).
 
 2. Create `packages/connectors/src/google-api-client.ts`. Plain class with injectable `fetch` + minimal
    logger, mirroring `GoogleOAuthClient`. Never embed the response body in the thrown `Error.message`
@@ -1344,9 +1344,7 @@ export class GoogleApiClient {
     const events: GoogleCalendarEvent[] = [];
     let pageToken: string | undefined;
     for (let page = 0; page < maxPages; page += 1) {
-      const url = new URL(
-        `${CALENDAR_BASE}/calendars/${encodeURIComponent(calendarId)}/events`
-      );
+      const url = new URL(`${CALENDAR_BASE}/calendars/${encodeURIComponent(calendarId)}/events`);
       url.searchParams.set("singleEvents", "true");
       url.searchParams.set("orderBy", "startTime");
       url.searchParams.set("timeMin", input.timeMin);
@@ -1386,10 +1384,7 @@ export class GoogleApiClient {
     return stubs;
   }
 
-  async getMessage(input: {
-    accessToken: string;
-    id: string;
-  }): Promise<GmailMessageFull> {
+  async getMessage(input: { accessToken: string; id: string }): Promise<GmailMessageFull> {
     const url = new URL(`${GMAIL_BASE}/users/me/messages/${encodeURIComponent(input.id)}`);
     url.searchParams.set("format", "full");
     return this.getJson<GmailMessageFull>(url.toString(), input.accessToken, "gmail");
@@ -1417,7 +1412,7 @@ export class GoogleApiClient {
 export * from "./google-api-client.js";
 ```
 
-   Run → **PASS**.
+Run → **PASS**.
 
 4. Commit:
    `git add packages/connectors/src/google-api-client.ts packages/connectors/src/index.ts tests/integration/google-sync.test.ts`
@@ -1432,6 +1427,7 @@ export * from "./google-api-client.js";
 ### Task E1 — Add AI/jobs/calendar/email deps to connectors package
 
 **Files**
+
 - Modify: `packages/connectors/package.json`
 - Test: `pnpm install && pnpm typecheck` (no unit test; validated by E2/F compile)
 
@@ -1452,16 +1448,16 @@ export * from "./google-api-client.js";
     "pg-boss": "^12.18.2"
 ```
 
-   (Use the EXACT version already pinned across the workspace — `^12.18.2` in
-   `packages/jobs`, `packages/briefings`, `packages/tasks`, `packages/module-registry` as of grounding.
-   Re-confirm at build with `grep '"pg-boss"' packages/jobs/package.json` and match it verbatim; never
-   introduce a different range. `sync-jobs.ts` only needs pg-boss **types** (`PgBoss`, `Job`,
-   `WorkOptions`) — `boss` itself is injected — so a `devDependencies`-style type-only need is satisfied
-   by the runtime dep above, consistent with the other modules that list pg-boss as a dependency.)
+(Use the EXACT version already pinned across the workspace — `^12.18.2` in
+`packages/jobs`, `packages/briefings`, `packages/tasks`, `packages/module-registry` as of grounding.
+Re-confirm at build with `grep '"pg-boss"' packages/jobs/package.json` and match it verbatim; never
+introduce a different range. `sync-jobs.ts` only needs pg-boss **types** (`PgBoss`, `Job`,
+`WorkOptions`) — `boss` itself is injected — so a `devDependencies`-style type-only need is satisfied
+by the runtime dep above, consistent with the other modules that list pg-boss as a dependency.)
 
-   > Module-isolation note: connectors depending on calendar/email/ai is the **declared, justified**
-   > cross-module orchestration from the spec — connectors owns the credential + Google fan-out and calls
-   > only the public repository `upsert*` methods, never another module's tables directly.
+> Module-isolation note: connectors depending on calendar/email/ai is the **declared, justified**
+> cross-module orchestration from the spec — connectors owns the credential + Google fan-out and calls
+> only the public repository `upsert*` methods, never another module's tables directly.
 
 2. Run `pnpm install` then `pnpm typecheck` → expect success (no usages yet).
 
@@ -1472,6 +1468,7 @@ export * from "./google-api-client.js";
 ### Task E2 — MIME parser → `ParsedEmail`
 
 **Files**
+
 - Create: `packages/connectors/src/email-extract.ts`
 - Modify: `packages/connectors/src/index.ts`
 - Test: `tests/integration/google-sync.test.ts`
@@ -1516,10 +1513,11 @@ describe("parseEmail", () => {
       id: "m2",
       payload: {
         mimeType: "multipart/alternative",
-        headers: [{ name: "Subject", value: "H" }, { name: "From", value: "a@b.com" }],
-        parts: [
-          { mimeType: "text/html", body: { data: b64url("<p>Hi <b>there</b></p>") } }
-        ]
+        headers: [
+          { name: "Subject", value: "H" },
+          { name: "From", value: "a@b.com" }
+        ],
+        parts: [{ mimeType: "text/html", body: { data: b64url("<p>Hi <b>there</b></p>") } }]
       }
     });
     expect(parsed.body).toContain("Hi");
@@ -1532,7 +1530,10 @@ describe("parseEmail", () => {
       id: "m3",
       payload: {
         mimeType: "text/plain",
-        headers: [{ name: "Subject", value: "H" }, { name: "From", value: "a@b.com" }],
+        headers: [
+          { name: "Subject", value: "H" },
+          { name: "From", value: "a@b.com" }
+        ],
         body: { data: b64url(big) }
       }
     });
@@ -1541,7 +1542,7 @@ describe("parseEmail", () => {
 });
 ```
 
-   Run → **FAIL**.
+Run → **FAIL**.
 
 2. Create `packages/connectors/src/email-extract.ts` with the parser (the LLM pass is added in E3):
 
@@ -1659,7 +1660,7 @@ export function parseEmail(message: GmailMessageFull): ParsedEmail {
 export * from "./email-extract.js";
 ```
 
-   Run → **PASS**.
+Run → **PASS**.
 
 4. Commit:
    `git add packages/connectors/src/email-extract.ts packages/connectors/src/index.ts tests/integration/google-sync.test.ts`
@@ -1670,6 +1671,7 @@ export * from "./email-extract.js";
 ### Task E3 — LLM summary + signals pass (capability-routed, defensive)
 
 **Files**
+
 - Modify: `packages/connectors/src/email-extract.ts`
 - Test: `tests/integration/google-sync.test.ts`
 
@@ -1713,7 +1715,9 @@ describe("extractEmailSignals", () => {
       replies: [
         JSON.stringify({
           summary: "Utility bill $84.20 due 2026-06-30",
-          billsDue: [{ description: "Electric", amount: 84.2, currency: "USD", dueDate: "2026-06-30" }],
+          billsDue: [
+            { description: "Electric", amount: 84.2, currency: "USD", dueDate: "2026-06-30" }
+          ],
           actionItems: [],
           deadlines: [],
           mayGetLostInShuffle: false,
@@ -1770,7 +1774,7 @@ describe("extractEmailSignals", () => {
 });
 ```
 
-   Run → **FAIL**.
+Run → **FAIL**.
 
 2. Add to `packages/connectors/src/email-extract.ts`. Define the typed signals shape, an injectable deps
    seam (so the worker passes real router calls and tests pass fakes), a JSON-shaped prompt, and the
@@ -1846,7 +1850,7 @@ function buildPrompt(parsed: ParsedEmail): string {
     "no prose, matching this TypeScript type:",
     "{ summary: string, billsDue: {description:string, amount?:number, currency?:string, dueDate?:string}[],",
     " actionItems: {text:string, dueDate?:string}[], deadlines: {text:string, date?:string}[],",
-    " mayGetLostInShuffle: boolean, importance: \"low\"|\"normal\"|\"high\", confidence: number }",
+    ' mayGetLostInShuffle: boolean, importance: "low"|"normal"|"high", confidence: number }',
     "Use ISO dates. confidence is 0..1.",
     "",
     `Subject: ${parsed.subject}`,
@@ -1883,7 +1887,10 @@ function safeParseSignals(text: string): EmailExtractResult {
     };
   } catch {
     // A bad LLM reply must never fail the whole sync (spec §error handling).
-    return { summary: null, signals: { billsDue: [], actionItems: [], deadlines: [], confidence: 0 } };
+    return {
+      summary: null,
+      signals: { billsDue: [], actionItems: [], deadlines: [], confidence: 0 }
+    };
   }
 }
 
@@ -1893,8 +1900,7 @@ export async function extractEmailSignals(
   options: EmailExtractOptions = {}
 ): Promise<EmailExtractResult> {
   const threshold =
-    options.escalateConfidence ??
-    Number(process.env.JARVIS_EMAIL_ESCALATE_CONFIDENCE ?? "0.5");
+    options.escalateConfidence ?? Number(process.env.JARVIS_EMAIL_ESCALATE_CONFIDENCE ?? "0.5");
   const timeoutMs =
     options.callTimeoutMs ?? Number(process.env.JARVIS_EMAIL_LLM_TIMEOUT_MS ?? "20000");
 
@@ -1946,7 +1952,7 @@ export async function extractEmailSignals(
 }
 ```
 
-   Run → **PASS**.
+Run → **PASS**.
 
 3. Commit:
    `git add packages/connectors/src/email-extract.ts tests/integration/google-sync.test.ts`
@@ -1959,6 +1965,7 @@ export async function extractEmailSignals(
 ### Task F1 — Queue definitions + `GoogleSyncPayload` metadata-only assertion
 
 **Files**
+
 - Create: `packages/connectors/src/sync-jobs.ts`
 - Modify: `packages/connectors/src/index.ts`
 - Test: `tests/integration/google-sync.test.ts`
@@ -1997,7 +2004,7 @@ describe("google-sync queue contract", () => {
 });
 ```
 
-   Run → **FAIL**.
+Run → **FAIL**.
 
 2. Create `packages/connectors/src/sync-jobs.ts` with the queue + payload + result (handler added in F2):
 
@@ -2045,7 +2052,7 @@ export interface GoogleSyncResult {
 export * from "./sync-jobs.js";
 ```
 
-   Run → **PASS**.
+Run → **PASS**.
 
 4. Commit:
    `git add packages/connectors/src/sync-jobs.ts packages/connectors/src/index.ts tests/integration/google-sync.test.ts`
@@ -2056,6 +2063,7 @@ export * from "./sync-jobs.js";
 ### Task F2 — `registerConnectorsJobWorkers` orchestration handler
 
 **Files**
+
 - Modify: `packages/connectors/src/google-connection.ts` (add the `{ force }` refresh option)
 - Modify: `packages/connectors/src/sync-jobs.ts`
 - Test: `tests/integration/google-sync.test.ts`
@@ -2095,12 +2103,30 @@ describe("runGoogleSync handler", () => {
         getActiveAccount: async () => ({ id: accountId, scopes: ["calendar", "gmail"] }),
         googleClient: {
           listCalendarEvents: async () => [
-            { id: "g1", summary: "Standup", start: { dateTime: "2026-06-13T09:00:00Z" }, end: { dateTime: "2026-06-13T09:15:00Z" } }
+            {
+              id: "g1",
+              summary: "Standup",
+              start: { dateTime: "2026-06-13T09:00:00Z" },
+              end: { dateTime: "2026-06-13T09:15:00Z" }
+            }
           ],
           listMessageIds: async () => [{ id: "m1" }],
-          getMessage: async () => ({ id: "m1", payload: { headers: [{ name: "Subject", value: "S" }, { name: "From", value: "a@b.com" }], mimeType: "text/plain", body: { data: Buffer.from("hi").toString("base64") } } })
+          getMessage: async () => ({
+            id: "m1",
+            payload: {
+              headers: [
+                { name: "Subject", value: "S" },
+                { name: "From", value: "a@b.com" }
+              ],
+              mimeType: "text/plain",
+              body: { data: Buffer.from("hi").toString("base64") }
+            }
+          })
         },
-        emailExtractDeps: { selectModel: async () => undefined, runChat: async () => ({ text: "" }) },
+        emailExtractDeps: {
+          selectModel: async () => undefined,
+          runChat: async () => ({ text: "" })
+        },
         now: () => new Date("2026-06-13T12:00:00.000Z")
       })
     );
@@ -2114,10 +2140,19 @@ describe("runGoogleSync handler", () => {
     const ctx = { actorUserId: ids.userB, requestId: "pgboss:test" };
     const result = await dataContext.withDataContext(ctx, (scopedDb) =>
       runGoogleSync(scopedDb, {
-        getFreshAccessToken: async () => { throw new Error("No active Google connection"); },
+        getFreshAccessToken: async () => {
+          throw new Error("No active Google connection");
+        },
         getActiveAccount: async () => undefined,
-        googleClient: { listCalendarEvents: async () => [], listMessageIds: async () => [], getMessage: async () => ({ id: "x" }) },
-        emailExtractDeps: { selectModel: async () => undefined, runChat: async () => ({ text: "" }) },
+        googleClient: {
+          listCalendarEvents: async () => [],
+          listMessageIds: async () => [],
+          getMessage: async () => ({ id: "x" })
+        },
+        emailExtractDeps: {
+          selectModel: async () => undefined,
+          runChat: async () => ({ text: "" })
+        },
         now: () => new Date()
       })
     );
@@ -2136,7 +2171,10 @@ describe("runGoogleSync handler", () => {
         historyId: "H100",
         payload: {
           mimeType: "text/plain",
-          headers: [{ name: "Subject", value: "S" }, { name: "From", value: "a@b.com" }],
+          headers: [
+            { name: "Subject", value: "S" },
+            { name: "From", value: "a@b.com" }
+          ],
           body: { data: Buffer.from("hi").toString("base64") }
         }
       })
@@ -2174,7 +2212,10 @@ describe("runGoogleSync handler", () => {
         historyId: "H200",
         payload: {
           mimeType: "text/plain",
-          headers: [{ name: "Subject", value: "S" }, { name: "From", value: "a@b.com" }],
+          headers: [
+            { name: "Subject", value: "S" },
+            { name: "From", value: "a@b.com" }
+          ],
           body: { data: Buffer.from("hi").toString("base64") }
         }
       })
@@ -2185,7 +2226,10 @@ describe("runGoogleSync handler", () => {
         getFreshAccessToken: async () => "tok",
         getActiveAccount: async () => ({ id: accountId, scopes: ["gmail"] }),
         googleClient: client,
-        emailExtractDeps: { selectModel: async () => undefined, runChat: async () => ({ text: "" }) },
+        emailExtractDeps: {
+          selectModel: async () => undefined,
+          runChat: async () => ({ text: "" })
+        },
         now: () => new Date("2026-06-13T12:00:00.000Z")
       })
     );
@@ -2231,12 +2275,22 @@ describe("runGoogleSync handler", () => {
               e.statusCode = 401;
               throw e;
             }
-            return [{ id: "g1", summary: "X", start: { dateTime: "2026-06-13T09:00:00Z" }, end: { dateTime: "2026-06-13T09:15:00Z" } }];
+            return [
+              {
+                id: "g1",
+                summary: "X",
+                start: { dateTime: "2026-06-13T09:00:00Z" },
+                end: { dateTime: "2026-06-13T09:15:00Z" }
+              }
+            ];
           },
           listMessageIds: async () => [],
           getMessage: async () => ({ id: "x" })
         },
-        emailExtractDeps: { selectModel: async () => undefined, runChat: async () => ({ text: "" }) },
+        emailExtractDeps: {
+          selectModel: async () => undefined,
+          runChat: async () => ({ text: "" })
+        },
         now: () => new Date("2026-06-13T12:00:00.000Z")
       })
     );
@@ -2266,7 +2320,10 @@ describe("runGoogleSync handler", () => {
             id: "sentinel-1",
             payload: {
               mimeType: "text/plain",
-              headers: [{ name: "Subject", value: "S" }, { name: "From", value: "a@b.com" }],
+              headers: [
+                { name: "Subject", value: "S" },
+                { name: "From", value: "a@b.com" }
+              ],
               body: { data: Buffer.from(FULL_BODY).toString("base64") }
             }
           })
@@ -2298,7 +2355,7 @@ describe("runGoogleSync handler", () => {
 });
 ```
 
-   Run → **FAIL**.
+Run → **FAIL**.
 
 2. Add `runGoogleSync` + `registerConnectorsJobWorkers` to `packages/connectors/src/sync-jobs.ts`. The
    handler is pure over an injectable `GoogleSyncDeps` so tests are deterministic; the production worker
@@ -2320,7 +2377,11 @@ import { CalendarRepository } from "@jarv1s/calendar";
 import { EmailRepository } from "@jarv1s/email";
 
 import { createConnectorSecretCipher } from "./crypto.js";
-import { GoogleApiClient, type GoogleCalendarEvent, type GmailMessageFull } from "./google-api-client.js";
+import {
+  GoogleApiClient,
+  type GoogleCalendarEvent,
+  type GmailMessageFull
+} from "./google-api-client.js";
 import { GoogleConnectionService } from "./google-connection.js";
 import { GoogleOAuthClient, type GoogleConnectionSecret } from "./oauth.js";
 import { ConnectorsRepository } from "./repository.js";
@@ -2338,7 +2399,12 @@ const EMAIL_QUERY = "newer_than:30d";
 const EMAIL_MESSAGE_CAP = Number(process.env.JARVIS_EMAIL_SYNC_CAP ?? "50");
 
 interface GoogleClientLike {
-  listCalendarEvents(input: { accessToken: string; calendarId?: string; timeMin: string; timeMax: string }): Promise<GoogleCalendarEvent[]>;
+  listCalendarEvents(input: {
+    accessToken: string;
+    calendarId?: string;
+    timeMin: string;
+    timeMax: string;
+  }): Promise<GoogleCalendarEvent[]>;
   listMessageIds(input: { accessToken: string; query?: string }): Promise<Array<{ id: string }>>;
   getMessage(input: { accessToken: string; id: string }): Promise<GmailMessageFull>;
 }
@@ -2463,7 +2529,11 @@ export async function runGoogleSync(
       }
     } catch (error) {
       logger.warn(
-        { stage: "calendar", name: (error as Error).name, status: (error as { statusCode?: number }).statusCode ?? null },
+        {
+          stage: "calendar",
+          name: (error as Error).name,
+          status: (error as { statusCode?: number }).statusCode ?? null
+        },
         "google-sync calendar failed"
       );
       errors.push("calendar-error");
@@ -2533,7 +2603,11 @@ export async function runGoogleSync(
         } catch (error) {
           emailFailures += 1;
           logger.warn(
-            { stage: "email-message", name: (error as Error).name, status: (error as { statusCode?: number }).statusCode ?? null },
+            {
+              stage: "email-message",
+              name: (error as Error).name,
+              status: (error as { statusCode?: number }).statusCode ?? null
+            },
             "google-sync email message failed"
           );
           // Bounded error labels: record once, not one per message (keeps result metadata small).
@@ -2542,7 +2616,11 @@ export async function runGoogleSync(
       }
     } catch (error) {
       logger.warn(
-        { stage: "email", name: (error as Error).name, status: (error as { statusCode?: number }).statusCode ?? null },
+        {
+          stage: "email",
+          name: (error as Error).name,
+          status: (error as { statusCode?: number }).statusCode ?? null
+        },
         "google-sync email failed"
       );
       errors.push("email-error");
@@ -2550,7 +2628,14 @@ export async function runGoogleSync(
   }
 
   logger.info(
-    { calendarUpserted, emailUpserted, emailFailures, escalations, truncated, errorCount: errors.length },
+    {
+      calendarUpserted,
+      emailUpserted,
+      emailFailures,
+      escalations,
+      truncated,
+      errorCount: errors.length
+    },
     "google-sync complete"
   );
   return { calendarUpserted, emailUpserted, emailFailures, escalations, errors, truncated };
@@ -2591,7 +2676,10 @@ export async function registerConnectorsJobWorkers(
           // (verified: packages/ai/src/repository.ts AiConfiguredModelSafeRow). Load + decrypt
           // the provider credential in-process (never logged/forwarded), then call the adapter.
           const row = model as AiConfiguredModelSafeRow;
-          const provider = await aiRepo.selectProviderWithCredential(scopedDb, row.provider_config_id);
+          const provider = await aiRepo.selectProviderWithCredential(
+            scopedDb,
+            row.provider_config_id
+          );
           if (!provider) return { text: "" };
           const credential = aiCipher.decryptJson(provider.encrypted_credential) as {
             apiKey?: string;
@@ -2616,7 +2704,9 @@ export async function registerConnectorsJobWorkers(
         getActiveAccount: async (db) => {
           const secret = await connectorsRepo.getActiveGoogleAccountSecret(db);
           if (!secret) return undefined;
-          const bundle = connectorCipher.decryptJson(secret.encryptedSecret) as GoogleConnectionSecret;
+          const bundle = connectorCipher.decryptJson(
+            secret.encryptedSecret
+          ) as GoogleConnectionSecret;
           return { id: secret.id, scopes: bundle.grantedScopes ?? [] };
         },
         getFreshAccessToken: (db, opts) => googleService.getFreshAccessToken(db, opts),
@@ -2635,16 +2725,16 @@ export async function registerConnectorsJobWorkers(
 }
 ```
 
-   > Note the `selectModel`/`runChat` seam: `selectModel` returns the full `AiConfiguredModelSafeRow`
-   > (verified fields: `id`, `provider_config_id`, `provider_kind`, `provider_model_id`, `tier`,
-   > `capabilities` — `packages/ai/src/repository.ts`). The single `model as AiConfiguredModelSafeRow`
-   > cast bridges the abstract `EmailExtractDeps.selectModel` return type (`{ tier: string } | undefined`,
-   > kept minimal so tests need not construct a full row) to the concrete worker row. `runChat` uses
-   > `row.provider_config_id` for `selectProviderWithCredential` and `row.provider_kind` /
-   > `row.provider_model_id` directly. The AI credential decrypts to `{ apiKey?: string }` matching the
-   > `credentialPayload` the AI routes accept (`packages/shared/src/ai-api.ts:114`). No placeholders.
+> Note the `selectModel`/`runChat` seam: `selectModel` returns the full `AiConfiguredModelSafeRow`
+> (verified fields: `id`, `provider_config_id`, `provider_kind`, `provider_model_id`, `tier`,
+> `capabilities` — `packages/ai/src/repository.ts`). The single `model as AiConfiguredModelSafeRow`
+> cast bridges the abstract `EmailExtractDeps.selectModel` return type (`{ tier: string } | undefined`,
+> kept minimal so tests need not construct a full row) to the concrete worker row. `runChat` uses
+> `row.provider_config_id` for `selectProviderWithCredential` and `row.provider_kind` /
+> `row.provider_model_id` directly. The AI credential decrypts to `{ apiKey?: string }` matching the
+> `credentialPayload` the AI routes accept (`packages/shared/src/ai-api.ts:114`). No placeholders.
 
-   Run → **PASS** (handler tests green).
+Run → **PASS** (handler tests green).
 
 3. Commit:
    `git add packages/connectors/src/google-connection.ts packages/connectors/src/sync-jobs.ts tests/integration/google-sync.test.ts`
@@ -2657,6 +2747,7 @@ export async function registerConnectorsJobWorkers(
 ### Task G1 — Shared sync route schema
 
 **Files**
+
 - Modify: `packages/shared/src/connectors-api.ts`
 - Test: `tests/integration/google-sync.test.ts` (or a shared-schema assertion)
 
@@ -2676,7 +2767,7 @@ it("exposes a 202 google-sync route schema with enqueued/deduped/jobId", () => {
 });
 ```
 
-   Run → **FAIL**.
+Run → **FAIL**.
 
 2. Append to `packages/shared/src/connectors-api.ts`:
 
@@ -2705,7 +2796,7 @@ export const googleSyncRouteSchema = {
 } as const;
 ```
 
-   Run → **PASS** + `pnpm typecheck`.
+Run → **PASS** + `pnpm typecheck`.
 
 3. Commit:
    `git add packages/shared/src/connectors-api.ts tests/integration/google-sync.test.ts`
@@ -2716,6 +2807,7 @@ export const googleSyncRouteSchema = {
 ### Task G2 — Sync route + sync-on-connect + `boss` dependency
 
 **Files**
+
 - Modify: `packages/connectors/src/routes.ts`
 - Modify: `packages/connectors/src/manifest.ts` (add the route entry)
 - Test: `tests/integration/google-sync.test.ts` (route → 202 + enqueue; sync-on-connect best-effort)
@@ -2734,7 +2826,9 @@ export const googleSyncRouteSchema = {
 import Fastify from "fastify";
 import { registerConnectorsRoutes } from "@jarv1s/connectors";
 
-function fakeBoss(captured: { sends: Array<{ queue: string; payload: unknown; options?: unknown }> }) {
+function fakeBoss(captured: {
+  sends: Array<{ queue: string; payload: unknown; options?: unknown }>;
+}) {
   return {
     send: async (queue: string, payload: unknown, options?: unknown) => {
       captured.sends.push({ queue, payload, options });
@@ -2759,9 +2853,11 @@ it("POST /api/connectors/google/sync enqueues one metadata-only job and returns 
   expect(body.deduped).toBe(false);
   expect(captured.sends).toHaveLength(1);
   expect(captured.sends[0]!.queue).toBe("connectors.google-sync");
-  expect(Object.keys(captured.sends[0]!.payload).sort()).toEqual(
-    ["actorUserId", "idempotencyKey", "kind"]
-  );
+  expect(Object.keys(captured.sends[0]!.payload).sort()).toEqual([
+    "actorUserId",
+    "idempotencyKey",
+    "kind"
+  ]);
   await server.close();
 });
 
@@ -2785,7 +2881,7 @@ it("returns enqueued=false/deduped=true when an actor sync is already in flight 
 });
 ```
 
-   Run → **FAIL**.
+Run → **FAIL**.
 
 2. Modify `packages/connectors/src/routes.ts`:
    - Import `sendJob` from `@jarv1s/jobs`, `GOOGLE_SYNC_QUEUE` from `./sync-jobs.js`,
@@ -2795,69 +2891,73 @@ it("returns enqueued=false/deduped=true when an actor sync is already in flight 
      routes.ts:79) to add a sync-specific rate limit, mirroring the `/complete` precedent:
 
 ```ts
-  const syncMax = parsePositiveIntEnv(process.env.JARVIS_RL_GOOGLE_SYNC_MAX, 6);
+const syncMax = parsePositiveIntEnv(process.env.JARVIS_RL_GOOGLE_SYNC_MAX, 6);
 ```
 
-   - Add the route inside `registerConnectorsRoutes`, applying the rate limit via `config` exactly
-     like `/complete` (routes.ts:85), and mapping a null jobId (singletonKey collision) to a dedupe
-     response rather than a phantom enqueue:
+- Add the route inside `registerConnectorsRoutes`, applying the rate limit via `config` exactly
+  like `/complete` (routes.ts:85), and mapping a null jobId (singletonKey collision) to a dedupe
+  response rather than a phantom enqueue:
 
 ```ts
-  server.post(
-    "/api/connectors/google/sync",
-    {
-      schema: googleSyncRouteSchema,
-      config: { rateLimit: { max: syncMax, timeWindow: "1 minute" } }
-    },
-    async (request, reply) => {
-      try {
-        const accessContext = await dependencies.resolveAccessContext(request);
-        const idempotencyKey = randomUUID();
-        const jobId = await sendJob(
-          dependencies.boss,
-          GOOGLE_SYNC_QUEUE,
-          { actorUserId: accessContext.actorUserId, kind: "google-sync" as const, idempotencyKey },
-          // Per-actor singletonKey: a manual click racing sync-on-connect (or a second click)
-          // collapses to one in-flight job. A null jobId means the collision happened — report
-          // dedupe, not a fresh enqueue (briefings null-jobId precedent, routes.ts:158).
-          { singletonKey: accessContext.actorUserId }
-        );
-        return reply.code(202).send({
-          enqueued: jobId !== null,
-          deduped: jobId === null,
-          jobId
-        });
-      } catch (error) {
-        return handleRouteError(error, reply);
-      }
+server.post(
+  "/api/connectors/google/sync",
+  {
+    schema: googleSyncRouteSchema,
+    config: { rateLimit: { max: syncMax, timeWindow: "1 minute" } }
+  },
+  async (request, reply) => {
+    try {
+      const accessContext = await dependencies.resolveAccessContext(request);
+      const idempotencyKey = randomUUID();
+      const jobId = await sendJob(
+        dependencies.boss,
+        GOOGLE_SYNC_QUEUE,
+        { actorUserId: accessContext.actorUserId, kind: "google-sync" as const, idempotencyKey },
+        // Per-actor singletonKey: a manual click racing sync-on-connect (or a second click)
+        // collapses to one in-flight job. A null jobId means the collision happened — report
+        // dedupe, not a fresh enqueue (briefings null-jobId precedent, routes.ts:158).
+        { singletonKey: accessContext.actorUserId }
+      );
+      return reply.code(202).send({
+        enqueued: jobId !== null,
+        deduped: jobId === null,
+        jobId
+      });
+    } catch (error) {
+      return handleRouteError(error, reply);
     }
-  );
+  }
+);
 ```
 
-   - Add sync-on-connect inside the `/complete` handler, after the account is created and **before**
-     returning, wrapped best-effort so a send failure never fails the connect response:
+- Add sync-on-connect inside the `/complete` handler, after the account is created and **before**
+  returning, wrapped best-effort so a send failure never fails the connect response:
 
 ```ts
-        const account = await dependencies.dataContext.withDataContext(accessContext, (scopedDb) =>
-          googleService.completeAuthorization(scopedDb, { redirectUrl })
-        );
-        try {
-          await sendJob(
-            dependencies.boss,
-            GOOGLE_SYNC_QUEUE,
-            { actorUserId: accessContext.actorUserId, kind: "google-sync" as const, idempotencyKey: randomUUID() },
-            { singletonKey: accessContext.actorUserId }
-          );
-        } catch (error) {
-          // best-effort: the user can sync manually if the enqueue fails. Log a sanitized,
-          // structured event (name only — never the error object, which may carry connection
-          // strings) so a swallowed enqueue is still observable (Codex observability finding).
-          request.log.warn(
-            { event: "connectors.sync_on_connect_enqueue_failed", name: (error as Error).name },
-            "sync-on-connect enqueue failed; user can sync manually"
-          );
-        }
-        return reply.code(201).send({ account: serializeAccount(account) });
+const account = await dependencies.dataContext.withDataContext(accessContext, (scopedDb) =>
+  googleService.completeAuthorization(scopedDb, { redirectUrl })
+);
+try {
+  await sendJob(
+    dependencies.boss,
+    GOOGLE_SYNC_QUEUE,
+    {
+      actorUserId: accessContext.actorUserId,
+      kind: "google-sync" as const,
+      idempotencyKey: randomUUID()
+    },
+    { singletonKey: accessContext.actorUserId }
+  );
+} catch (error) {
+  // best-effort: the user can sync manually if the enqueue fails. Log a sanitized,
+  // structured event (name only — never the error object, which may carry connection
+  // strings) so a swallowed enqueue is still observable (Codex observability finding).
+  request.log.warn(
+    { event: "connectors.sync_on_connect_enqueue_failed", name: (error as Error).name },
+    "sync-on-connect enqueue failed; user can sync manually"
+  );
+}
+return reply.code(201).send({ account: serializeAccount(account) });
 ```
 
 3. Add the route to `packages/connectors/src/manifest.ts` `routes`:
@@ -2871,9 +2971,9 @@ it("returns enqueued=false/deduped=true when an actor sync is already in flight 
     },
 ```
 
-   (Import `googleSyncResponseSchema` in the manifest's `@jarv1s/shared` import block.)
+(Import `googleSyncResponseSchema` in the manifest's `@jarv1s/shared` import block.)
 
-   Run → **PASS**.
+Run → **PASS**.
 
 4. Commit:
    `git add packages/connectors/src/routes.ts packages/connectors/src/manifest.ts tests/integration/google-sync.test.ts`
@@ -2884,6 +2984,7 @@ it("returns enqueued=false/deduped=true when an actor sync is already in flight 
 ### Task G3 — Module-registry wiring (queue + workers + boss-bearing route registration)
 
 **Files**
+
 - Modify: `packages/module-registry/src/index.ts`
 - Modify: `apps/worker/package.json`
 - Test: existing registry/worker tests + `tests/integration/google-sync.test.ts` queue-presence check
@@ -2901,7 +3002,7 @@ it("registers the connectors.google-sync queue globally", () => {
 });
 ```
 
-   Run → **FAIL**.
+Run → **FAIL**.
 
 2. In `packages/module-registry/src/index.ts`:
    - Add imports from `@jarv1s/connectors`:
@@ -2925,9 +3026,9 @@ it("registers the connectors.google-sync queue globally", () => {
   },
 ```
 
-   > `GOOGLE_SYNC_QUEUE_DEFINITIONS` is `readonly QueueDefinition[]`; the field type already matches.
-   > Adding it to `queueDefinitions` puts the queue in `getAllQueueDefinitions()`, so `pnpm db:migrate`
-   > creates it and the worker startup guard (`apps/worker/src/worker.ts:61`) passes.
+> `GOOGLE_SYNC_QUEUE_DEFINITIONS` is `readonly QueueDefinition[]`; the field type already matches.
+> Adding it to `queueDefinitions` puts the queue in `getAllQueueDefinitions()`, so `pnpm db:migrate`
+> creates it and the worker startup guard (`apps/worker/src/worker.ts:61`) passes.
 
 3. Add worker deps to `apps/worker/package.json` `dependencies`:
 
@@ -2942,7 +3043,7 @@ it("registers the connectors.google-sync queue globally", () => {
     "@jarv1s/module-registry": "workspace:*"
 ```
 
-   Run `pnpm install`, then `pnpm db:migrate && pnpm test:integration -- tests/integration/google-sync.test.ts` → **PASS**.
+Run `pnpm install`, then `pnpm db:migrate && pnpm test:integration -- tests/integration/google-sync.test.ts` → **PASS**.
 
 4. Commit:
    `git add packages/module-registry/src/index.ts apps/worker/package.json pnpm-lock.yaml tests/integration/google-sync.test.ts`
@@ -2953,6 +3054,7 @@ it("registers the connectors.google-sync queue globally", () => {
 ### Task G4 — Document worker secret-env requirement
 
 **Files**
+
 - Modify: `docs/operations/dev-environment.md`
 - Test: none (doc); validated by `pnpm format:check` in the gate
 
@@ -2990,6 +3092,7 @@ it("registers the connectors.google-sync queue globally", () => {
 ### Task DG1 — `tokens.css` semantic token layer + styles.css split
 
 **Files**
+
 - Create: `apps/web/src/styles/tokens.css`
 - Modify: `apps/web/src/styles.css` (replace hex with `var()`; extract tokens out)
 - Modify: `apps/web/src/main.tsx` (import `tokens.css` first)
@@ -3036,6 +3139,7 @@ import "./tasks/tasks.css";
 ### Task DG2 — `ui/` presentational primitives
 
 **Files**
+
 - Create: `apps/web/src/ui/card.tsx`, `apps/web/src/ui/badge.tsx`,
   `apps/web/src/ui/provisional-region.tsx`, `apps/web/src/ui/time-bucket.tsx`
 - Test: `pnpm typecheck` (these are pure presentational components — typecheck is the gate; an e2e in
@@ -3062,6 +3166,7 @@ import "./tasks/tasks.css";
 ### Task DG3 — Static HTML mockups (the taste-gate artifact)
 
 **Files**
+
 - Create: `docs/brand/mockups/briefing-reading.html`,
   `docs/brand/mockups/day-view-timebuckets.html`, `docs/brand/mockups/form-heavy.html`
 - Test: none (visual artifact); `pnpm format:check` may ignore HTML — confirm and don't fight it
@@ -3108,6 +3213,7 @@ under `docs/brand/mockups/` and explicitly approved the visual direction.**
 ### Task H1 — `syncGoogleConnector()` client fetcher
 
 **Files**
+
 - Modify: `apps/web/src/api/client.ts`
 - Test: covered by the e2e in H4 (the fetcher is a thin `requestJson` wrapper); add a typecheck-level use
 
@@ -3129,6 +3235,7 @@ export async function syncGoogleConnector(): Promise<GoogleSyncResponse> {
 ### Task H2 — Calendar page (real React-Query, grouped by day)
 
 **Files**
+
 - Create: `apps/web/src/calendar/calendar.css`
 - Modify: `apps/web/src/calendar/calendar-page.tsx`
 - Test: e2e in H4
@@ -3152,6 +3259,7 @@ export async function syncGoogleConnector(): Promise<GoogleSyncResponse> {
 ### Task H3 — Email triage page (summary + signals, no body) + Sync now
 
 **Files**
+
 - Create: `apps/web/src/email/email.css`
 - Modify: `apps/web/src/email/email-page.tsx`
 - Test: e2e in H4
@@ -3159,7 +3267,7 @@ export async function syncGoogleConnector(): Promise<GoogleSyncResponse> {
 **Steps**
 
 1. Rebuild `apps/web/src/email/email-page.tsx`: `useQuery({ queryKey: queryKeys.email.list, queryFn:
-   listEmailMessages })`; render each message as a **triage card** (sender, subject, received time, and
+listEmailMessages })`; render each message as a **triage card** (sender, subject, received time, and
    the `summary` + `signals` — bills due with amounts/dates, action items, deadlines, a "may get lost"
    flag, importance, confidence) — **never the raw body** (there is none in the DTO). Add a "Sync now"
    button: `useMutation({ mutationFn: syncGoogleConnector, onSuccess: invalidate queryKeys.email.list })`
@@ -3177,6 +3285,7 @@ export async function syncGoogleConnector(): Promise<GoogleSyncResponse> {
 ### Task H4 — e2e: Calendar + Email pages with mocked REST
 
 **Files**
+
 - Create: `tests/e2e/mock-calendar-email-api.ts`
 - Create: `tests/e2e/calendar-email.spec.ts`
 - Test: `pnpm test:e2e -- calendar-email.spec.ts`
@@ -3214,18 +3323,18 @@ Do this as a written review pass (no code unless it finds a gap; if it does, fix
 
 **A. Spec §-by-§ coverage (every spec component + acceptance criterion):**
 
-| Spec ref | Covered by | Verify |
-| --- | --- | --- |
-| Component 1 (Google API client) | D1 | request shapes, paging, 401-detect via `GoogleApiError.statusCode`, no body in `Error.message` |
-| Component 2 (email-extract) | E2, E3 | MIME parse + LLM pass + one escalation + defensive parse |
-| Component 3 (sync job + handler) | F1, F2 | exclusive queue, metadata-only payload, partial-success |
-| Component 4 (route + on-connect) | G2 | 202 enqueue, sync-on-connect best-effort, scheduler seam doc |
-| Component 5 (calendar upsert + migration) | A2, B1 | onConflict, identity trigger preserved, worker grant + relax |
-| Component 6 (email columns + upsert) | A1, A3, C1, C2 | columns, upsert, DTO/serializer, no body column |
-| Component 7 (RLS provider_type relax) | A2, A3 | scope-gated `'google'` branch, owner-equality verbatim, negative tests |
-| Component 8 (web pages) | DG1–3, H1–H4 | tokens-first, primitives, triage view, e2e, no body |
-| Component 9 (worker wiring) | G3, G4 | queue in `getAllQueueDefinitions`, worker deps, secret env doc |
-| Acceptance #1–13 | mapped above | each has a passing test or a doc artifact |
+| Spec ref                                  | Covered by     | Verify                                                                                         |
+| ----------------------------------------- | -------------- | ---------------------------------------------------------------------------------------------- |
+| Component 1 (Google API client)           | D1             | request shapes, paging, 401-detect via `GoogleApiError.statusCode`, no body in `Error.message` |
+| Component 2 (email-extract)               | E2, E3         | MIME parse + LLM pass + one escalation + defensive parse                                       |
+| Component 3 (sync job + handler)          | F1, F2         | exclusive queue, metadata-only payload, partial-success                                        |
+| Component 4 (route + on-connect)          | G2             | 202 enqueue, sync-on-connect best-effort, scheduler seam doc                                   |
+| Component 5 (calendar upsert + migration) | A2, B1         | onConflict, identity trigger preserved, worker grant + relax                                   |
+| Component 6 (email columns + upsert)      | A1, A3, C1, C2 | columns, upsert, DTO/serializer, no body column                                                |
+| Component 7 (RLS provider_type relax)     | A2, A3         | scope-gated `'google'` branch, owner-equality verbatim, negative tests                         |
+| Component 8 (web pages)                   | DG1–3, H1–H4   | tokens-first, primitives, triage view, e2e, no body                                            |
+| Component 9 (worker wiring)               | G3, G4         | queue in `getAllQueueDefinitions`, worker deps, secret env doc                                 |
+| Acceptance #1–13                          | mapped above   | each has a passing test or a doc artifact                                                      |
 
 Confirm acceptance #13 (scheduler seam): the payload is metadata-only + idempotent and `runGoogleSync`
 needs no caller-specific state, so a future cron enqueues the identical job with no change — **documented
@@ -3251,6 +3360,7 @@ still match HEAD; the only intentional cast is the single `model as AiConfigured
 deliberately-minimal `EmailExtractDeps.selectModel` return type — no `as never`/`as { … }` guesses.
 
 **C. Type consistency:**
+
 - `EmailMessageDto.signals` (shared) ↔ `EmailSignals` (connectors) ↔ `signals jsonb` (DB) are all
   `Record<string, unknown>`-compatible objects; the serializer passes the row's `signals` straight
   through.
@@ -3299,7 +3409,7 @@ merge. If the scan or review finds any gap, fix it, then commit with an explicit
 pnpm verify:foundation
 ```
 
-   This runs `lint → format:check → check:file-size → typecheck → test:unit → db:migrate →
+This runs `lint → format:check → check:file-size → typecheck → test:unit → db:migrate →
    test:integration`. All must pass.
 
 3. Run `pnpm audit:release-hardening` → green.

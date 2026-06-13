@@ -99,7 +99,7 @@ metadata-only rows (subject/sender/snippet, null summary) rather than failing.
   injected `logger` and **never** embeds Google response bodies in thrown `Error.message`
   (`handleRouteError` propagates `Error.message` to HTTP responses — see the comment at
   `oauth.ts:122`). On non-2xx, log `{ statusCode }` server-side and throw `Google <api> returned
-  <status>`. A 401 triggers one token-refresh-and-retry via `getFreshAccessToken` (which already
+<status>`. A 401 triggers one token-refresh-and-retry via `getFreshAccessToken` (which already
   refreshes on <60s-to-expiry; M-B1 §7 step 5).
 
 ### 2. Email-message body→signals normalizer + LLM pass — `packages/connectors/src/email-extract.ts` (new)
@@ -138,7 +138,7 @@ metadata-only rows (subject/sender/snippet, null summary) rather than failing.
     mirror the briefings `exclusive` rationale at `packages/briefings/src/jobs.ts:36`),
     `retryLimit: 1`, bounded `deleteAfterSeconds`/`retentionSeconds`.
   - `GoogleSyncPayload extends ActorScopedJobPayload` = `{ actorUserId, kind: "google-sync",
-    idempotencyKey? }`. **All keys are already in `ALLOWED_PAYLOAD_KEYS`** (`actorUserId`, `kind`,
+idempotencyKey? }`. **All keys are already in `ALLOWED_PAYLOAD_KEYS`** (`actorUserId`, `kind`,
     `idempotencyKey` — see `packages/jobs/src/pg-boss.ts:45`), so `sendJob` accepts it with **no
     allowlist change required**. (Confirm at build; if a key is added, extend the allowlist + its
     test.)
@@ -157,7 +157,7 @@ metadata-only rows (subject/sender/snippet, null summary) rather than failing.
 
 - **What it does:** adds `POST /api/connectors/google/sync` (permission `connectors.manage`). It
   resolves `AccessContext`, then calls `sendJob(boss, GOOGLE_SYNC_QUEUE, { actorUserId, kind:
-  "google-sync", idempotencyKey })` and returns `202 { enqueued: true, jobId }`. The route needs
+"google-sync", idempotencyKey })` and returns `202 { enqueued: true, jobId }`. The route needs
   `boss: PgBoss` in `ConnectorsRoutesDependencies` (today it has none — add it; the
   module-registry already passes `deps.boss`, e.g. chat at `module-registry/src/index.ts:156`).
 - **Sync-on-connect:** after `completeAuthorization` succeeds in the `/complete` route handler, enqueue
@@ -188,7 +188,7 @@ metadata-only rows (subject/sender/snippet, null summary) rather than failing.
 
 - **What it does:**
   - **Schema:** add nullable `summary text` and `signals jsonb NOT NULL DEFAULT '{}'::jsonb CHECK
-    (jsonb_typeof(signals) = 'object')` to `app.email_messages` via a new additive migration. The
+(jsonb_typeof(signals) = 'object')` to `app.email_messages` via a new additive migration. The
     existing `snippet`, `body_excerpt` columns stay; **`body_excerpt` is optional and short** (a
     snippet-length excerpt only — never the full body). The full body is **never** a column.
   - `upsertCachedMessage(scopedDb, input)` — idempotent upsert on
@@ -222,7 +222,8 @@ metadata-only rows (subject/sender/snippet, null summary) rather than failing.
   independent security-review reflex at build (see Security & invariants).**
 
 ### 8. Web — Calendar + Email pages — `apps/web/src/calendar/calendar-page.tsx`,
-   `apps/web/src/email/email-page.tsx` (rebuild)
+
+`apps/web/src/email/email-page.tsx` (rebuild)
 
 - **What it does:** replace the `ComingSoon` stubs with real React-Query pages.
   - **Calendar:** `useQuery({ queryKey: queryKeys.calendar.list, queryFn: listCalendarEvents })`
@@ -278,7 +279,7 @@ under the actor's RLS.
    `GoogleConnectionService.getFreshAccessToken(scopedDb)` (refreshes + re-encrypts via UPDATE — needs
    worker UPDATE grant on `connector_accounts`).
 2. **Calendar:** `googleApiClient.listCalendarEvents({ calendarId:"primary", singleEvents:true,
-   timeMin: now-7d, timeMax: now+30d })`, paging until no `nextPageToken` → for each event,
+timeMin: now-7d, timeMax: now+30d })`, paging until no `nextPageToken` → for each event,
    `calendarRepository.upsertCachedEvent(scopedDb, …)` (INSERT/UPDATE on `calendar_events` under the
    relaxed `provider_type IN (...,'google')` policy; needs worker grant + policy).
 3. **Email:** `googleApiClient.listMessageIds({ query: "newer_than:30d" })` (window-bounded; tunable)
@@ -295,20 +296,21 @@ under the actor's RLS.
 
 **Migrations (additive, never edit applied files; module SQL in the owning module's `sql/`).** Next
 free global number is **0065** (highest applied is `0064_*`):
+
 - `packages/calendar/sql/0065_calendar_worker_grants_and_google_insert.sql` — `GRANT SELECT, INSERT,
-  UPDATE ON app.calendar_events TO jarvis_worker_runtime`; recreate `calendar_events_insert/select/
-  update` policies adding `jarvis_worker_runtime` to the role list and relaxing the INSERT EXISTS to
+UPDATE ON app.calendar_events TO jarvis_worker_runtime`; recreate `calendar_events_insert/select/
+update` policies adding `jarvis_worker_runtime` to the role list and relaxing the INSERT EXISTS to
   `provider_type IN ('calendar','google')` + calendar-scope guard for the `'google'` case. Preserve
   owner-or-share `USING`/`WITH CHECK` from `0020` verbatim.
 - `packages/email/sql/0066_email_summary_signals_columns.sql` — `ALTER TABLE app.email_messages ADD
-  COLUMN summary text`, `ADD COLUMN signals jsonb NOT NULL DEFAULT '{}'::jsonb CHECK (jsonb_typeof(
-  signals)='object')`.
+COLUMN summary text`, `ADD COLUMN signals jsonb NOT NULL DEFAULT '{}'::jsonb CHECK (jsonb_typeof(
+signals)='object')`.
 - `packages/email/sql/0067_email_worker_grants_and_google_insert.sql` — worker grants + policy relax
   mirroring 0065, INSERT EXISTS → `provider_type IN ('email','google')` + gmail-scope guard.
 - The connectors module needs **worker SELECT/UPDATE on `connector_accounts` + SELECT on
   `connector_definitions`**: `packages/connectors/sql/0068_connector_worker_runtime_grants.sql` —
   `GRANT SELECT ON app.connector_definitions TO jarvis_worker_runtime`; `GRANT SELECT, UPDATE ON
-  app.connector_accounts TO jarvis_worker_runtime`; recreate `connector_accounts_select/update` and
+app.connector_accounts TO jarvis_worker_runtime`; recreate `connector_accounts_select/update` and
   `connector_definitions_select` adding `jarvis_worker_runtime`, owner-scoped expressions preserved
   from `0022`. (Confirm exact next numbers at build time with
   `find . -name '[0-9][0-9][0-9][0-9]_*.sql'` — numbers are global by landing order; another slice may
@@ -406,36 +408,37 @@ trade Ben chose to make email a triage surface.
 ## Testing strategy
 
 All DB tests run via Vitest against the `pnpm db:up` Postgres, RLS-on (per CLAUDE.md). External Google
-+ AI HTTP calls are faked at the `fetch` boundary (injected `fetchFn`), never live in CI (the M-B1
-precedent — spec §11).
 
-- **Google API client (`tests/integration/connectors.test.ts` or a new `google-sync.test.ts`):**
+- AI HTTP calls are faked at the `fetch` boundary (injected `fetchFn`), never live in CI (the M-B1
+  precedent — spec §11).
+
+* **Google API client (`tests/integration/connectors.test.ts` or a new `google-sync.test.ts`):**
   inject a fake `fetch`; assert request shapes (calendar `singleEvents=true`, `timeMin/timeMax`
   window, `events.list` paging follows `nextPageToken`; gmail `messages.list` then `messages.get
-  format=full`); assert 401→refresh→retry; assert non-2xx throws without leaking the response body in
+format=full`); assert 401→refresh→retry; assert non-2xx throws without leaking the response body in
   `Error.message`.
-- **Email extract:** unit-test the MIME parser (plaintext, html-fallback, base64url); test the LLM
+* **Email extract:** unit-test the MIME parser (plaintext, html-fallback, base64url); test the LLM
   pass with a fake adapter returning (a) valid JSON, (b) garbage (→ null summary, empty signals,
   confidence 0, no throw), (c) high-importance/low-confidence → one escalation to the next tier.
-- **Calendar upsert idempotency:** insert an event, re-run with the same `external_id` → one row,
+* **Calendar upsert idempotency:** insert an event, re-run with the same `external_id` → one row,
   fields updated; identity-change attempt rejected by the trigger.
-- **Email upsert idempotency + columns:** same; assert `summary`/`signals` persist and round-trip
+* **Email upsert idempotency + columns:** same; assert `summary`/`signals` persist and round-trip
   through the DTO; assert **no full body** column exists / is written.
-- **RLS — the M-B1 blocker resolution:** with a `provider_type='google'` connector account holding the
+* **RLS — the M-B1 blocker resolution:** with a `provider_type='google'` connector account holding the
   calendar scope, an INSERT into `calendar_events` keyed to it **succeeds** (previously failed); with
   the gmail scope, an email INSERT succeeds; **without** the relevant scope, INSERT is **rejected**
   (the scope guard works). Cross-user INSERT (another owner's account id) rejected. Worker role
   (`jarvis_worker_runtime`) can SELECT `connector_accounts` and INSERT/UPDATE the caches under the
   actor; cannot see another user's rows.
-- **Job/worker:** `sendJob` accepts `GoogleSyncPayload` (allowlist) and rejects a payload with a body
+* **Job/worker:** `sendJob` accepts `GoogleSyncPayload` (allowlist) and rejects a payload with a body
   field; `registerDataContextWorker` builds the right AccessContext; the handler partial-fails one
   cache without aborting the other.
-- **Web:** Playwright e2e with mocked REST — Calendar page renders events; Email page renders
+* **Web:** Playwright e2e with mocked REST — Calendar page renders events; Email page renders
   summary + signals and **never** shows a raw body; "Sync now" posts the route and refetches.
-- **Gate:** `pnpm verify:foundation` (lint, format, file-size <1000 lines, typecheck, db:migrate,
+* **Gate:** `pnpm verify:foundation` (lint, format, file-size <1000 lines, typecheck, db:migrate,
   integration) + `pnpm audit:release-hardening` green. New module test scripts wired into the gate if
   a new suite file is added.
-- **Live round-trip (manual, headless box, like issue #12):** connect Ben's Google → sync → verify
+* **Live round-trip (manual, headless box, like issue #12):** connect Ben's Google → sync → verify
   both pages populate with real data → re-sync → no dupes → confirm no body persisted (grep the row).
 
 ---

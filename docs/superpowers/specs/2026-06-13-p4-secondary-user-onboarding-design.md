@@ -30,7 +30,7 @@ own migration"_). **This is that slice.**
 After the founder approves a household member (the `pending → active` lifecycle from
 `docs/superpowers/specs/2026-06-10-p2-multi-user-accounts-design.md`, enforced at
 `resolveRequestAccessContext`, `packages/auth/src/index.ts:314-329`), that member signs in and lands
-in the **member onboarding wizard** — the *same* `OnboardingWizard` route tree, parameterized by
+in the **member onboarding wizard** — the _same_ `OnboardingWizard` route tree, parameterized by
 role. The member does **not** repeat any founder provisioning: ADR 0007 §4 locks that members
 **inherit the shared host CLI subscription** the founder provisioned in Phase 2, so there is **no
 CLI-auth step** for members. The member's steps are: welcome/skip, an **optional, skippable** API-key
@@ -131,7 +131,7 @@ coupled settings to the connectors table — see §Open risks.
 ### 1. Migration: `app.users.onboarding_completed_at` (new app-level migration file)
 
 - **What it does:** `ALTER TABLE app.users ADD COLUMN IF NOT EXISTS onboarding_completed_at
-  timestamptz` (nullable; default NULL = not-yet-onboarded). NULL for every existing row on upgrade
+timestamptz` (nullable; default NULL = not-yet-onboarded). NULL for every existing row on upgrade
   — including the bootstrap owner, who never uses this column (the founder's completion stays
   instance-global). No backfill needed; the founder's app.tsx branch reads the instance-global keys,
   not this column.
@@ -168,8 +168,8 @@ coupled settings to the connectors table — see §Open risks.
     the member step `done` flags are best-effort (see below). The section tour is client-only and has
     no server-derived flag.
 - **Member-state read:** a new repository method `getMemberOnboardingState(scopedDb, actorUserId):
-  Promise<{ completedAt: Date | null }>` that does `scopedDb.db.selectFrom("app.users").select(
-  "onboarding_completed_at").where("id", "=", actorUserId).executeTakeFirst()` — the self-row SELECT
+Promise<{ completedAt: Date | null }>` that does `scopedDb.db.selectFrom("app.users").select(
+"onboarding_completed_at").where("id", "=", actorUserId).executeTakeFirst()` — the self-row SELECT
   policy returns exactly the actor's row. Must call `assertDataContextDb(scopedDb)` first
   (`repository.ts:47-53`) and take only `DataContextDb` (DataContextDb-only invariant).
 - **Member `apiKeyOptOut.done` derivation:** best-effort and **non-blocking** — the opt-out step is
@@ -202,8 +202,8 @@ coupled settings to the connectors table — see §Open risks.
   - **Founder:** unchanged — upserts the instance-global `onboarding.completed` key via the audited
     `upsertInstanceSetting` path (Phase-2).
   - **Member:** calls a new repository method `setMemberOnboardingComplete(scopedDb, { actorUserId,
-    requestId })` that does `updateTable("app.users").set({ onboarding_completed_at: new Date(),
-    updated_at: new Date() }).where("id", "=", actorUserId)` — the self-row UPDATE policy
+requestId })` that does `updateTable("app.users").set({ onboarding_completed_at: new Date(),
+updated_at: new Date() }).where("id", "=", actorUserId)` — the self-row UPDATE policy
     (`0045:96-102`) authorizes the actor's own row only. The method calls `assertDataContextDb` first
     and takes only `DataContextDb`.
 - **Member "skip" == "complete".** For a member there is no separate persisted "skipped" state: the
@@ -277,7 +277,7 @@ on a not-done step. Styling reuses the existing `panel` / `connect-steps` / `pri
 ### 5. `app.tsx` branch — generalized to fire for members
 
 - **What it does:** the Phase-2 onboarding branch (which fires only for `isInstanceAdmin &&
-  isBootstrapOwner`) is generalized so it **also** fires for an **active member** whose per-user
+isBootstrapOwner`) is generalized so it **also** fires for an **active member** whose per-user
   onboarding is incomplete. Concretely, after `meQuery` resolves to a user with `status === "active"`:
   - **Founder** (`isBootstrapOwner`): unchanged — run the founder `onboardingStatusQuery`; if
     `!completed && !skipped`, render `<OnboardingWizard/>` (Phase-2).
@@ -301,7 +301,7 @@ on a not-done step. Styling reuses the existing `panel` / `connect-steps` / `pri
 - **What changes:** the Phase-2 `OnboardingStatusResponse` is widened to a **discriminated union on
   `role`** (`"founder" | "member"`) — the founder variant keeps the Phase-2 fields; the member
   variant carries `{ role: "member", completed: boolean, steps: { apiKeyOptOut: { done: boolean },
-  connectors: { done: boolean } } }`. The complete/skip route schemas (Phase-2) are unchanged in
+connectors: { done: boolean } } }`. The complete/skip route schemas (Phase-2) are unchanged in
   shape (no body); their handlers branch on role server-side. Add the response-schema variant + the
   TS union; export from the barrel (`packages/shared/src/index.ts:14` already re-exports
   `platform-api`).

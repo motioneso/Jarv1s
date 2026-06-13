@@ -80,10 +80,11 @@ route resolves the booleans (bounded) and hands them to the pure assembler.
 
 TypeScript (strict), Fastify 5 routes with JSON-schema validation
 (`packages/shared/src/platform-api.ts`), Kysely repositories taking branded `DataContextDb`, React 18
-+ React Query (`@tanstack/react-query`) + React Router (`react-router`), Vitest for unit + integration
-tests, Playwright for e2e (mock REST via `tests/e2e/mock-*.ts`). The `@jarv1s/ai`
-`cli-availability.ts` presence-probe seam (`WhichDeps`) is reused for CLI/multiplexer detection.
-`@jarv1s/connectors` `ConnectorsRepository.listAccounts` is the connector-existence source.
+
+- React Query (`@tanstack/react-query`) + React Router (`react-router`), Vitest for unit + integration
+  tests, Playwright for e2e (mock REST via `tests/e2e/mock-*.ts`). The `@jarv1s/ai`
+  `cli-availability.ts` presence-probe seam (`WhichDeps`) is reused for CLI/multiplexer detection.
+  `@jarv1s/connectors` `ConnectorsRepository.listAccounts` is the connector-existence source.
 
 ### Hard-Invariant compliance (referenced throughout the tasks)
 
@@ -92,14 +93,14 @@ tests, Playwright for e2e (mock REST via `tests/e2e/mock-*.ts`). The `@jarv1s/ai
 - **AccessContext shape frozen** — new routes read only `accessContext.actorUserId` /
   `accessContext.requestId`; nothing added.
 - **No admin private-data bypass** — routes are admin-gated and read only instance-scoped settings +
-  presence booleans + connector-account *existence* (never contents). RLS unchanged.
+  presence booleans + connector-account _existence_ (never contents). RLS unchanged.
 - **Secrets never escape** — CLI-auth step is presence-only (never runs the CLI, never reads tokens);
   `getOnboardingStatus` returns only booleans + the `"auto"|"tmux"|"herdr"|null` enum; no
   secret-shaped field (the integration test asserts no `token|secret|password|credential` substring).
 - **Module isolation** — onboarding lives in `packages/settings`; it consumes the multiplexer-usability
   decision + CLI presence from `@jarv1s/ai` and the connector-existence check from `@jarv1s/connectors`'
   public API, all **injected as route dependencies** (no cross-module table reads, no settings→
-  ai/connectors *package* dep). The injection happens in `packages/module-registry`, which already
+  ai/connectors _package_ dep). The injection happens in `packages/module-registry`, which already
   imports both modules.
 - **Single ownership of `chat.multiplexer`** — onboarding NEVER writes that key directly. The
   multiplexer step calls the adapter slice's `PUT /api/admin/chat-multiplexer` (which routes through
@@ -141,36 +142,36 @@ db:migrate && test:integration`. It **does not** run `test:e2e` (Playwright). Th
 
 ### New files
 
-| Path | Purpose | Tested by |
-| --- | --- | --- |
-| `tests/unit/onboarding-cli-availability.test.ts` | unit test for `herdrAvailable` | itself |
-| `tests/unit/onboarding-resume.test.ts` | unit test for resume + overlay-gating + app-branch predicates (in gate) | itself |
-| `tests/integration/onboarding.test.ts` | integration tests for status/complete/skip + real connector | itself |
-| `apps/web/src/onboarding/resume.ts` | pure resume/overlay-gating/app-branch helpers (host-free, gate-tested) | unit |
-| `apps/web/src/onboarding/onboarding-wizard.tsx` | the spine wizard component | e2e |
-| `apps/web/src/onboarding/welcome-step.tsx` | step 1 | e2e |
-| `apps/web/src/onboarding/multiplexer-step.tsx` | step 2 (instructions + select + re-check) | e2e |
-| `apps/web/src/onboarding/cli-auth-step.tsx` | step 3 (instructions + re-check) | e2e |
-| `apps/web/src/onboarding/connector-step.tsx` | step 4 (reuses `ConnectGooglePanel`) | e2e |
-| `apps/web/src/onboarding/onboarding-chat-overlay.tsx` | optional Jarvis overlay | e2e |
-| `tests/e2e/mock-onboarding-api.ts` | Playwright mock for `/api/onboarding/*` | used by specs |
-| `tests/e2e/onboarding.spec.ts` | e2e wizard + app.tsx-branch behaviour | itself |
+| Path                                                  | Purpose                                                                 | Tested by     |
+| ----------------------------------------------------- | ----------------------------------------------------------------------- | ------------- |
+| `tests/unit/onboarding-cli-availability.test.ts`      | unit test for `herdrAvailable`                                          | itself        |
+| `tests/unit/onboarding-resume.test.ts`                | unit test for resume + overlay-gating + app-branch predicates (in gate) | itself        |
+| `tests/integration/onboarding.test.ts`                | integration tests for status/complete/skip + real connector             | itself        |
+| `apps/web/src/onboarding/resume.ts`                   | pure resume/overlay-gating/app-branch helpers (host-free, gate-tested)  | unit          |
+| `apps/web/src/onboarding/onboarding-wizard.tsx`       | the spine wizard component                                              | e2e           |
+| `apps/web/src/onboarding/welcome-step.tsx`            | step 1                                                                  | e2e           |
+| `apps/web/src/onboarding/multiplexer-step.tsx`        | step 2 (instructions + select + re-check)                               | e2e           |
+| `apps/web/src/onboarding/cli-auth-step.tsx`           | step 3 (instructions + re-check)                                        | e2e           |
+| `apps/web/src/onboarding/connector-step.tsx`          | step 4 (reuses `ConnectGooglePanel`)                                    | e2e           |
+| `apps/web/src/onboarding/onboarding-chat-overlay.tsx` | optional Jarvis overlay                                                 | e2e           |
+| `tests/e2e/mock-onboarding-api.ts`                    | Playwright mock for `/api/onboarding/*`                                 | used by specs |
+| `tests/e2e/onboarding.spec.ts`                        | e2e wizard + app.tsx-branch behaviour                                   | itself        |
 
 ### Modified files
 
-| Path | Change |
-| --- | --- |
-| `packages/ai/src/cli-availability.ts` | add `herdrAvailable(deps?)` (presence-only) |
-| `packages/shared/src/platform-api.ts` | add `OnboardingState` enum, `OnboardingStatusResponse` (+ DTO sub-shapes), 3 route schemas; **reuse existing `ChatMultiplexerChoice`** (do NOT add a `ChatMultiplexer` type) |
-| `packages/settings/src/repository.ts` | add `assembleOnboardingStatus(...)` (pure) + `readOnboardingState`/`setOnboardingState`; reuse `getChatMultiplexerSetting` |
-| `packages/settings/src/routes.ts` | add 3 onboarding routes; extend `SettingsRoutesDependencies` with injected `onboardingProbes` (bounded live usability/CLI-presence functions + connector-exists) |
-| `packages/module-registry/src/index.ts` | wrap `registerSettingsRoutes` — **spread/forward existing deps**, then add `onboardingProbes` (bounded live tmux/herdr-usability + CLI-presence functions + connector-exists check) |
-| `packages/module-registry/src/chat-multiplexer.ts` | add `boundedProbe` + `makeMultiplexerUsableProbe`/`makeCliPresentProbe` live bounded probes |
-| `apps/api/src/server.ts` | pass nothing new (registration owns the wiring) — verified, no change required |
-| `apps/web/src/api/query-keys.ts` | add `onboarding` namespace |
-| `apps/web/src/api/client.ts` | add `getOnboardingStatus`, `completeOnboarding`, `skipOnboarding`; reuse the existing `putChatMultiplexerSettings` client fn (add it if absent) — **no generic instance-setting writer for `chat.multiplexer`** |
-| `apps/web/src/app.tsx` | add the bootstrap-owner onboarding branch; pass status as `initialData` to the wizard |
-| `tests/e2e/mock-api.ts` | register the onboarding mock + add `onboardingStatus` to `MockApiState` |
+| Path                                               | Change                                                                                                                                                                                                          |
+| -------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `packages/ai/src/cli-availability.ts`              | add `herdrAvailable(deps?)` (presence-only)                                                                                                                                                                     |
+| `packages/shared/src/platform-api.ts`              | add `OnboardingState` enum, `OnboardingStatusResponse` (+ DTO sub-shapes), 3 route schemas; **reuse existing `ChatMultiplexerChoice`** (do NOT add a `ChatMultiplexer` type)                                    |
+| `packages/settings/src/repository.ts`              | add `assembleOnboardingStatus(...)` (pure) + `readOnboardingState`/`setOnboardingState`; reuse `getChatMultiplexerSetting`                                                                                      |
+| `packages/settings/src/routes.ts`                  | add 3 onboarding routes; extend `SettingsRoutesDependencies` with injected `onboardingProbes` (bounded live usability/CLI-presence functions + connector-exists)                                                |
+| `packages/module-registry/src/index.ts`            | wrap `registerSettingsRoutes` — **spread/forward existing deps**, then add `onboardingProbes` (bounded live tmux/herdr-usability + CLI-presence functions + connector-exists check)                             |
+| `packages/module-registry/src/chat-multiplexer.ts` | add `boundedProbe` + `makeMultiplexerUsableProbe`/`makeCliPresentProbe` live bounded probes                                                                                                                     |
+| `apps/api/src/server.ts`                           | pass nothing new (registration owns the wiring) — verified, no change required                                                                                                                                  |
+| `apps/web/src/api/query-keys.ts`                   | add `onboarding` namespace                                                                                                                                                                                      |
+| `apps/web/src/api/client.ts`                       | add `getOnboardingStatus`, `completeOnboarding`, `skipOnboarding`; reuse the existing `putChatMultiplexerSettings` client fn (add it if absent) — **no generic instance-setting writer for `chat.multiplexer`** |
+| `apps/web/src/app.tsx`                             | add the bootstrap-owner onboarding branch; pass status as `initialData` to the wizard                                                                                                                           |
+| `tests/e2e/mock-api.ts`                            | register the onboarding mock + add `onboardingStatus` to `MockApiState`                                                                                                                                         |
 
 > `apps/api/src/server.ts` and `packages/settings/package.json` are listed for completeness; the
 > dependency injection happens in `packages/module-registry/src/index.ts` (Task 6), which already has
@@ -190,6 +191,7 @@ db:migrate && test:integration`. It **does not** run `test:e2e` (Playwright). Th
 ### Task 1 — `herdrAvailable` presence probe in `cli-availability.ts`
 
 **Files**
+
 - Create: `tests/unit/onboarding-cli-availability.test.ts`
 - Modify: `packages/ai/src/cli-availability.ts`
 
@@ -254,6 +256,7 @@ export async function herdrAvailable(deps?: WhichDeps): Promise<boolean> {
 `pnpm vitest run tests/unit/onboarding-cli-availability.test.ts` → all green.
 
 **Step 1.5 — Commit.**
+
 ```
 git add packages/ai/src/cli-availability.ts tests/unit/onboarding-cli-availability.test.ts
 git commit -m "feat(ai): add herdrAvailable presence probe (Phase 2 onboarding)"
@@ -264,6 +267,7 @@ git commit -m "feat(ai): add herdrAvailable presence probe (Phase 2 onboarding)"
 ### Task 2 — Shared contracts: `OnboardingState`, `OnboardingStatusResponse`, route schemas
 
 **Files**
+
 - Modify: `packages/shared/src/platform-api.ts`
   (re-exported automatically by the barrel `packages/shared/src/index.ts:15`, no barrel edit needed)
 
@@ -440,6 +444,7 @@ export const onboardingSkipRouteSchema = {
 `pnpm typecheck` → PASS. The new symbols are exported via the barrel automatically.
 
 **Step 2.4 — Commit.**
+
 ```
 git add packages/shared/src/platform-api.ts
 git commit -m "feat(shared): add onboarding contracts (reuse ChatMultiplexerChoice) (Phase 2 onboarding)"
@@ -450,6 +455,7 @@ git commit -m "feat(shared): add onboarding contracts (reuse ChatMultiplexerChoi
 ### Task 3 — `SettingsRepository.readOnboardingState` / `setOnboardingState` (enum, audited via the existing upsert helper)
 
 **Files**
+
 - Modify: `packages/settings/src/repository.ts`
 - Test: covered by Task 5's integration test (`tests/integration/onboarding.test.ts`); this task
   ships the methods so Task 5's test can be written against them. To keep the TDD loop tight, Task 3's
@@ -491,14 +497,14 @@ export interface UpsertInstanceSettingInput {
 metadata):
 
 ```ts
-    await this.insertAuditEvent(scopedDb, {
-      actorUserId: input.updatedByUserId,
-      action: input.action ?? "instance_setting.upsert",
-      targetType: "instance_setting",
-      targetId: input.key,
-      requestId: input.requestId,
-      metadata: input.metadata ?? { key: input.key }
-    });
+await this.insertAuditEvent(scopedDb, {
+  actorUserId: input.updatedByUserId,
+  action: input.action ?? "instance_setting.upsert",
+  targetType: "instance_setting",
+  targetId: input.key,
+  requestId: input.requestId,
+  metadata: input.metadata ?? { key: input.key }
+});
 ```
 
 > This is backward-compatible: every existing caller (including `setChatMultiplexerSetting`) omits
@@ -565,6 +571,7 @@ multiplexer setting):
 `pnpm typecheck` → PASS.
 
 **Step 3.4 — Commit.**
+
 ```
 git add packages/settings/src/repository.ts
 git commit -m "feat(settings): add readOnboardingState/setOnboardingState (enum, audited) (Phase 2 onboarding)"
@@ -575,6 +582,7 @@ git commit -m "feat(settings): add readOnboardingState/setOnboardingState (enum,
 ### Task 4 — `GET /api/onboarding/status`: pure assembler + route + module-registry wiring + integration test
 
 **Files**
+
 - Create: `tests/integration/onboarding.test.ts` (read-path tests this task; write-path tests in Task 5)
 - Modify: `packages/settings/src/repository.ts`
 - Modify: `packages/settings/src/routes.ts`
@@ -584,7 +592,7 @@ git commit -m "feat(settings): add readOnboardingState/setOnboardingState (enum,
 > **Ordering note (Codex R2 #1):** the route fails closed (500) until the probes are injected, and the
 > integration tests run through `createApiServer` (→ module-registry). So the probe **wiring is part of
 > THIS task** (Step 4.4b), landing before the route-mounted assertions run green. Task 6 then only adds
-> the *real-connector-account* assertion (which needs a seeded account) — it does not first-introduce
+> the _real-connector-account_ assertion (which needs a seeded account) — it does not first-introduce
 > the wiring.
 
 The status is a **pure assembler** fed by: the persisted `onboarding.state` + `chat.multiplexer`
@@ -606,10 +614,7 @@ import { type Kysely } from "kysely";
 import { createApiServer } from "../../apps/api/src/server.js";
 import { createDatabase, DataContextRunner, type JarvisDatabase } from "@jarv1s/db";
 import { SettingsRepository } from "../../packages/settings/src/repository.js";
-import {
-  connectionStrings,
-  resetEmptyFoundationDatabase
-} from "./test-database.js";
+import { connectionStrings, resetEmptyFoundationDatabase } from "./test-database.js";
 
 // Canonical cookie extraction (mirrors tests/integration/auth-settings.test.ts) — strips
 // attributes so the joined header is a clean "name=value; name2=value2" string.
@@ -698,7 +703,14 @@ describe("Phase 2 onboarding — getOnboardingStatus (derived steps)", () => {
       headers: { cookie: ownerCookie }
     });
     const body = res.json() as {
-      steps: { multiplexer: { done: boolean; selected: string | null; tmuxUsable: boolean; herdrUsable: boolean } };
+      steps: {
+        multiplexer: {
+          done: boolean;
+          selected: string | null;
+          tmuxUsable: boolean;
+          herdrUsable: boolean;
+        };
+      };
     };
     // selected reflects the persisted choice ("auto"). done depends on host usability,
     // which is host-dependent in the real server; assert selected + that done is a boolean
@@ -945,54 +957,54 @@ shows bare presence); onboarding gets its own root-pane-aware usability probe:
 run inside `withDataContext`; the bounded host probes run **after**, outside the transaction (Codex R1):
 
 ```ts
-  server.get(
-    "/api/onboarding/status",
-    { schema: getOnboardingStatusRouteSchema },
-    async (request, reply) => {
-      try {
-        const probes = dependencies.onboardingProbes;
-        if (!probes) {
-          request.log.error("onboarding routes mounted without onboardingProbes — failing closed");
-          return reply.code(500).send({ error: "onboarding probes not configured" });
-        }
-        const accessContext = await dependencies.resolveAccessContext(request);
-
-        // DB reads + admin check + connector-exists share ONE transaction (slice-D).
-        const dbPart = await dependencies.dataContext.withDataContext(
-          accessContext,
-          async (scopedDb) => {
-            await assertAdminUser(repository, scopedDb, accessContext.actorUserId);
-            const [state, selected, connectorAccountExists] = await Promise.all([
-              repository.readOnboardingState(scopedDb),
-              repository.readChatMultiplexerChoiceOrNull(scopedDb),
-              probes.connectorAccountExists(scopedDb)
-            ]);
-            return { state, selected, connectorAccountExists };
-          }
-        );
-
-        // Bounded host probes OUTSIDE the transaction (each is timeout-capped → false in
-        // the injected impl, so this Promise.all resolves quickly even on a slow host).
-        const [tmuxUsable, herdrUsable, anthropic, openaiCompatible, google] = await Promise.all([
-          probes.multiplexerUsable("tmux"),
-          probes.multiplexerUsable("herdr"),
-          probes.cliPresent("anthropic"),
-          probes.cliPresent("openai-compatible"),
-          probes.cliPresent("google")
-        ]);
-
-        return repository.assembleOnboardingStatus({
-          state: dbPart.state,
-          selected: dbPart.selected,
-          availability: { tmuxUsable, herdrUsable }, // herdrUsable is root-pane-aware (Task 6)
-          cliPresentByKind: { anthropic, "openai-compatible": openaiCompatible, google },
-          connectorAccountExists: dbPart.connectorAccountExists
-        });
-      } catch (error) {
-        return handleRouteError(error, reply);
+server.get(
+  "/api/onboarding/status",
+  { schema: getOnboardingStatusRouteSchema },
+  async (request, reply) => {
+    try {
+      const probes = dependencies.onboardingProbes;
+      if (!probes) {
+        request.log.error("onboarding routes mounted without onboardingProbes — failing closed");
+        return reply.code(500).send({ error: "onboarding probes not configured" });
       }
+      const accessContext = await dependencies.resolveAccessContext(request);
+
+      // DB reads + admin check + connector-exists share ONE transaction (slice-D).
+      const dbPart = await dependencies.dataContext.withDataContext(
+        accessContext,
+        async (scopedDb) => {
+          await assertAdminUser(repository, scopedDb, accessContext.actorUserId);
+          const [state, selected, connectorAccountExists] = await Promise.all([
+            repository.readOnboardingState(scopedDb),
+            repository.readChatMultiplexerChoiceOrNull(scopedDb),
+            probes.connectorAccountExists(scopedDb)
+          ]);
+          return { state, selected, connectorAccountExists };
+        }
+      );
+
+      // Bounded host probes OUTSIDE the transaction (each is timeout-capped → false in
+      // the injected impl, so this Promise.all resolves quickly even on a slow host).
+      const [tmuxUsable, herdrUsable, anthropic, openaiCompatible, google] = await Promise.all([
+        probes.multiplexerUsable("tmux"),
+        probes.multiplexerUsable("herdr"),
+        probes.cliPresent("anthropic"),
+        probes.cliPresent("openai-compatible"),
+        probes.cliPresent("google")
+      ]);
+
+      return repository.assembleOnboardingStatus({
+        state: dbPart.state,
+        selected: dbPart.selected,
+        availability: { tmuxUsable, herdrUsable }, // herdrUsable is root-pane-aware (Task 6)
+        cliPresentByKind: { anthropic, "openai-compatible": openaiCompatible, google },
+        connectorAccountExists: dbPart.connectorAccountExists
+      });
+    } catch (error) {
+      return handleRouteError(error, reply);
     }
-  );
+  }
+);
 ```
 
 > Returns the pure assembler's `OnboardingStatusResponse` — shape matches
@@ -1109,6 +1121,7 @@ const cliPresent = makeCliPresentProbe();
 > bounded probes are injected in Step 4.4b.
 
 **Step 4.6 — Commit.**
+
 ```
 git add packages/settings/src/repository.ts packages/settings/src/routes.ts packages/module-registry/src/index.ts packages/module-registry/src/chat-multiplexer.ts tests/integration/onboarding.test.ts
 git commit -m "feat(settings): GET /api/onboarding/status — pure assembler, bounded live probes, fail-closed, wired (Phase 2 onboarding)"
@@ -1119,6 +1132,7 @@ git commit -m "feat(settings): GET /api/onboarding/status — pure assembler, bo
 ### Task 5 — `POST /api/onboarding/complete` + `POST /api/onboarding/skip` (audited)
 
 **Files**
+
 - Modify: `packages/settings/src/routes.ts`
 - Modify: `tests/integration/onboarding.test.ts` (add a write-path describe block)
 
@@ -1247,34 +1261,34 @@ In `packages/settings/src/routes.ts`, immediately after the `/api/onboarding/sta
 Task 4, add:
 
 ```ts
-  const onboardingStateAction = (verb: "complete" | "skip", state: "completed" | "skipped") =>
-    server.post(
-      `/api/onboarding/${verb}`,
-      { schema: verb === "complete" ? onboardingCompleteRouteSchema : onboardingSkipRouteSchema },
-      async (request, reply) => {
-        try {
-          const accessContext = await dependencies.resolveAccessContext(request);
-          const result = await dependencies.dataContext.withDataContext(
-            accessContext,
-            async (scopedDb) => {
-              await assertAdminUser(repository, scopedDb, accessContext.actorUserId);
-              const newState = await repository.setOnboardingState(scopedDb, {
-                state,
-                actorUserId: accessContext.actorUserId,
-                requestId: requireRequestId(accessContext)
-              });
-              return { state: newState };
-            }
-          );
-          return result;
-        } catch (error) {
-          return handleRouteError(error, reply);
-        }
+const onboardingStateAction = (verb: "complete" | "skip", state: "completed" | "skipped") =>
+  server.post(
+    `/api/onboarding/${verb}`,
+    { schema: verb === "complete" ? onboardingCompleteRouteSchema : onboardingSkipRouteSchema },
+    async (request, reply) => {
+      try {
+        const accessContext = await dependencies.resolveAccessContext(request);
+        const result = await dependencies.dataContext.withDataContext(
+          accessContext,
+          async (scopedDb) => {
+            await assertAdminUser(repository, scopedDb, accessContext.actorUserId);
+            const newState = await repository.setOnboardingState(scopedDb, {
+              state,
+              actorUserId: accessContext.actorUserId,
+              requestId: requireRequestId(accessContext)
+            });
+            return { state: newState };
+          }
+        );
+        return result;
+      } catch (error) {
+        return handleRouteError(error, reply);
       }
-    );
+    }
+  );
 
-  onboardingStateAction("complete", "completed");
-  onboardingStateAction("skip", "skipped");
+onboardingStateAction("complete", "completed");
+onboardingStateAction("skip", "skipped");
 ```
 
 > Admin check + upsert share one transaction (slice-D pattern). `requireRequestId(accessContext)`
@@ -1287,6 +1301,7 @@ Task 4, add:
 `pnpm vitest run tests/integration/onboarding.test.ts` → all green (both describes).
 
 **Step 5.5 — Commit.**
+
 ```
 git add packages/settings/src/routes.ts tests/integration/onboarding.test.ts
 git commit -m "feat(settings): POST /api/onboarding/complete + /skip (audited) (Phase 2 onboarding)"
@@ -1297,6 +1312,7 @@ git commit -m "feat(settings): POST /api/onboarding/complete + /skip (audited) (
 ### Task 6 — Prove the connector-existence wiring with a real account (integration)
 
 **Files**
+
 - Modify: `tests/integration/onboarding.test.ts`
 
 The probe wiring landed in Task 4 (Step 4.4b). This task adds the **real** wiring assertion Codex R1 #5
@@ -1321,29 +1337,29 @@ Append inside the **first** describe (after the multiplexer test), reusing that 
 `ownerUserId`/`ownerCookie`/`dataContext`:
 
 ```ts
-  it("derives connectors.done=true after a real connector account exists", async () => {
-    await dataContext.withDataContext(
-      { actorUserId: ownerUserId, requestId: "req-seed-connector" },
-      (scopedDb) =>
-        new ConnectorsRepository().createAccount(scopedDb, {
-          providerId: "google",
-          scopes: ["https://www.googleapis.com/auth/gmail.readonly"],
-          encryptedSecret: createConnectorSecretCipher().encryptJson({
-            accessToken: "seeded-token-not-asserted"
-          })
+it("derives connectors.done=true after a real connector account exists", async () => {
+  await dataContext.withDataContext(
+    { actorUserId: ownerUserId, requestId: "req-seed-connector" },
+    (scopedDb) =>
+      new ConnectorsRepository().createAccount(scopedDb, {
+        providerId: "google",
+        scopes: ["https://www.googleapis.com/auth/gmail.readonly"],
+        encryptedSecret: createConnectorSecretCipher().encryptJson({
+          accessToken: "seeded-token-not-asserted"
         })
-    );
+      })
+  );
 
-    const status = await server.inject({
-      method: "GET",
-      url: "/api/onboarding/status",
-      headers: { cookie: ownerCookie }
-    });
-    expect(status.statusCode).toBe(200);
-    const body = status.json() as { steps: { connectors: { done: boolean } } };
-    expect(body.steps.connectors.done).toBe(true); // proves connectorAccountExists is wired
-    expect(status.body).not.toMatch(/seeded-token-not-asserted|accessToken|ciphertext/i);
+  const status = await server.inject({
+    method: "GET",
+    url: "/api/onboarding/status",
+    headers: { cookie: ownerCookie }
   });
+  expect(status.statusCode).toBe(200);
+  const body = status.json() as { steps: { connectors: { done: boolean } } };
+  expect(body.steps.connectors.done).toBe(true); // proves connectorAccountExists is wired
+  expect(status.body).not.toMatch(/seeded-token-not-asserted|accessToken|ciphertext/i);
+});
 ```
 
 **Step 6.3 — Run (expect FAIL → PASS).**
@@ -1359,6 +1375,7 @@ that is fine: it confirms Task 4's wiring already satisfies the requirement.)
 > at rest; the secret never surfaces in the status payload (the last assertion proves it).
 
 **Step 6.4 — Commit.**
+
 ```
 git add tests/integration/onboarding.test.ts
 git commit -m "test(settings): prove onboarding connectors.done wiring with a real account (Phase 2 onboarding)"
@@ -1369,6 +1386,7 @@ git commit -m "test(settings): prove onboarding connectors.done wiring with a re
 ### Task 7 — Web API client functions + query-keys namespace
 
 **Files**
+
 - Modify: `apps/web/src/api/query-keys.ts`
 - Modify: `apps/web/src/api/client.ts`
 
@@ -1435,7 +1453,7 @@ export async function skipOnboarding(): Promise<OnboardingStateResponse> {
 ```
 
 > Confirm `requestJson` forwards `signal` to `fetch` (`grep -n "function requestJson\|signal\|fetch("
-> apps/web/src/api/client.ts`). If its options type does not yet accept `signal`, add
+apps/web/src/api/client.ts`). If its options type does not yet accept `signal`, add
 > `readonly signal?: AbortSignal` to that options type and pass it through to `fetch` (a one-line
 > addition; every other caller is unaffected). The timeout converts a hang into a fall-through, which
 > the app.tsx branch (Task 11) treats as "no wizard, render the shell".
@@ -1448,6 +1466,7 @@ export async function skipOnboarding(): Promise<OnboardingStateResponse> {
 `pnpm typecheck` → PASS.
 
 **Step 7.5 — Commit.**
+
 ```
 git add apps/web/src/api/query-keys.ts apps/web/src/api/client.ts
 git commit -m "feat(web): onboarding API client functions + query-keys namespace (Phase 2 onboarding)"
@@ -1458,6 +1477,7 @@ git commit -m "feat(web): onboarding API client functions + query-keys namespace
 ### Task 8 — Onboarding step components (welcome / multiplexer / cli-auth / connector)
 
 **Files**
+
 - Create: `apps/web/src/onboarding/welcome-step.tsx`
 - Create: `apps/web/src/onboarding/multiplexer-step.tsx`
 - Create: `apps/web/src/onboarding/cli-auth-step.tsx`
@@ -1536,8 +1556,8 @@ export function MultiplexerStep(props: {
       {!anyUsable ? (
         <>
           <p>
-            Jarv1s runs unprivileged, so we can&apos;t install software for you. Install one of these
-            on the host, then re-check. (herdr also needs a root pane — set
+            Jarv1s runs unprivileged, so we can&apos;t install software for you. Install one of
+            these on the host, then re-check. (herdr also needs a root pane — set
             <code>JARVIS_HERDR_ROOT_PANE</code> or run Jarv1s inside herdr.)
           </p>
           <ol className="connect-steps">
@@ -1616,8 +1636,8 @@ export function CliAuthStep(props: {
         <h2 id="onboarding-cli-title">Authenticate a CLI</h2>
       </div>
       <p>
-        Authenticate a coding CLI on the host shell, then re-check. We only detect whether the binary
-        is present — make sure you&apos;ve run its login command on the host.
+        Authenticate a coding CLI on the host shell, then re-check. We only detect whether the
+        binary is present — make sure you&apos;ve run its login command on the host.
       </p>
       <ul className="onboarding-cli-list">
         {props.step.providers.map((provider) => {
@@ -1629,7 +1649,9 @@ export function CliAuthStep(props: {
             <li key={provider.kind}>
               <strong>{label.name}</strong>{" "}
               {provider.cliPresent ? (
-                <span className="form-hint">detected — run its login on the host if you haven&apos;t</span>
+                <span className="form-hint">
+                  detected — run its login on the host if you haven&apos;t
+                </span>
               ) : (
                 <span className="form-hint">
                   not detected. Install it, then run <code>{label.loginCommand}</code>
@@ -1676,6 +1698,7 @@ export function ConnectorStep(props: { readonly done: boolean }) {
 `pnpm typecheck` → PASS.
 
 **Step 8.7 — Commit.**
+
 ```
 git add apps/web/src/onboarding/welcome-step.tsx apps/web/src/onboarding/multiplexer-step.tsx apps/web/src/onboarding/cli-auth-step.tsx apps/web/src/onboarding/connector-step.tsx
 git commit -m "feat(web): onboarding step components (Phase 2 onboarding)"
@@ -1686,6 +1709,7 @@ git commit -m "feat(web): onboarding step components (Phase 2 onboarding)"
 ### Task 9 — `OnboardingChatOverlay` (optional, gated, reuses chat surface)
 
 **Files**
+
 - Create: `apps/web/src/onboarding/onboarding-chat-overlay.tsx`
 
 Verified at runtime by the Task 11 e2e spec (toggle disabled until enabled; makes no chat call while
@@ -1741,9 +1765,7 @@ export function OnboardingChatOverlay(props: { readonly enabled: boolean }) {
 /** Mounted only when enabled+open, so the SSE stream connects only then. */
 function OnboardingChatPanel(props: { readonly onClose: () => void }) {
   const { records, clearRecords } = useChatStream();
-  return (
-    <ChatDrawer open onClose={props.onClose} records={records} clearRecords={clearRecords} />
-  );
+  return <ChatDrawer open onClose={props.onClose} records={records} clearRecords={clearRecords} />;
 }
 ```
 
@@ -1760,6 +1782,7 @@ function OnboardingChatPanel(props: { readonly onClose: () => void }) {
 `pnpm typecheck` → PASS.
 
 **Step 9.4 — Commit.**
+
 ```
 git add apps/web/src/onboarding/onboarding-chat-overlay.tsx
 git commit -m "feat(web): gated OnboardingChatOverlay reusing chat drawer/stream (Phase 2 onboarding)"
@@ -1770,6 +1793,7 @@ git commit -m "feat(web): gated OnboardingChatOverlay reusing chat drawer/stream
 ### Task 10 — Resume/overlay-gating helper (gate-tested) + `OnboardingWizard` spine
 
 **Files**
+
 - Create: `apps/web/src/onboarding/resume.ts` (pure, host-free)
 - Create: `tests/unit/onboarding-resume.test.ts` (runs under `verify:foundation`'s `test:unit`)
 - Create: `apps/web/src/onboarding/onboarding-wizard.tsx`
@@ -1794,7 +1818,9 @@ import {
   isOverlayEnabled
 } from "../../apps/web/src/onboarding/resume.js";
 
-function status(overrides: Partial<OnboardingStatusResponse["steps"]> = {}): OnboardingStatusResponse {
+function status(
+  overrides: Partial<OnboardingStatusResponse["steps"]> = {}
+): OnboardingStatusResponse {
   return {
     state: "pending",
     steps: {
@@ -2012,9 +2038,7 @@ export function OnboardingWizard(props: {
           {currentKey === "cliAuth" ? (
             <CliAuthStep step={steps.cliAuth} onRecheck={invalidateStatus} />
           ) : null}
-          {currentKey === "connectors" ? (
-            <ConnectorStep done={steps.connectors.done} />
-          ) : null}
+          {currentKey === "connectors" ? <ConnectorStep done={steps.connectors.done} /> : null}
         </div>
 
         <footer className="onboarding-footer">
@@ -2079,6 +2103,7 @@ optional and may be skipped; if added, include `apps/web/src/styles.css` in the 
 → PASS (fix any unused-import/var warnings; lint runs with `--max-warnings=0`).
 
 **Step 10.7 — Commit.**
+
 ```
 git add apps/web/src/onboarding/resume.ts tests/unit/onboarding-resume.test.ts apps/web/src/onboarding/onboarding-wizard.tsx
 # add apps/web/src/styles.css too ONLY if you added CSS in 10.5
@@ -2090,6 +2115,7 @@ git commit -m "feat(web): OnboardingWizard spine — steps, skip, resume, finish
 ### Task 11 — `app.tsx` onboarding branch (bootstrap-owner-only)
 
 **Files**
+
 - Modify: `apps/web/src/app.tsx`
 
 **Step 11.1 — Typecheck baseline.**
@@ -2169,13 +2195,13 @@ bootstrap owner** so household members never call it (the `enabled` flag means n
 fires for non-owners — proven by the in-gate `isBootstrapOwner` test + the e2e non-owner test):
 
 ```ts
-  const ownerForOnboarding = isBootstrapOwner(meQuery.data);
-  const onboardingQuery = useQuery({
-    enabled: ownerForOnboarding,
-    queryKey: queryKeys.onboarding.status,
-    queryFn: getOnboardingStatus,
-    retry: false // getOnboardingStatus is itself bounded by a 4s timeout (client.ts)
-  });
+const ownerForOnboarding = isBootstrapOwner(meQuery.data);
+const onboardingQuery = useQuery({
+  enabled: ownerForOnboarding,
+  queryKey: queryKeys.onboarding.status,
+  queryFn: getOnboardingStatus,
+  retry: false // getOnboardingStatus is itself bounded by a 4s timeout (client.ts)
+});
 ```
 
 (d) Add the branch **after** the `if (!meQuery.data) { ... }` block (before the
@@ -2220,6 +2246,7 @@ fires for non-owners — proven by the in-gate `isBootstrapOwner` test + the e2e
 `pnpm typecheck` → PASS. `pnpm lint` → PASS.
 
 **Step 11.4 — Commit.**
+
 ```
 git add apps/web/src/onboarding/resume.ts tests/unit/onboarding-resume.test.ts apps/web/src/app.tsx
 git commit -m "feat(web): app.tsx bootstrap-owner onboarding branch + gate-tested predicate (Phase 2 onboarding)"
@@ -2230,6 +2257,7 @@ git commit -m "feat(web): app.tsx bootstrap-owner onboarding branch + gate-teste
 ### Task 12 — e2e: mock `/api/onboarding/*` + wizard/branch behaviour spec
 
 **Files**
+
 - Create: `tests/e2e/mock-onboarding-api.ts`
 - Modify: `tests/e2e/mock-api.ts`
 - Create: `tests/e2e/onboarding.spec.ts`
@@ -2286,7 +2314,10 @@ export async function registerMockOnboardingRoutes(
     });
   };
   const setState = (route: Route, next: "completed" | "skipped") => {
-    state.onboardingStatus = { ...(state.onboardingStatus ?? defaultOnboardingStatus()), state: next };
+    state.onboardingStatus = {
+      ...(state.onboardingStatus ?? defaultOnboardingStatus()),
+      state: next
+    };
     return route.fulfill({
       status: 200,
       contentType: "application/json",
@@ -2312,7 +2343,10 @@ export async function registerMockOnboardingRoutes(
           : prev.steps.multiplexer.tmuxUsable || prev.steps.multiplexer.herdrUsable;
     state.onboardingStatus = {
       ...prev,
-      steps: { ...prev.steps, multiplexer: { ...prev.steps.multiplexer, done: usable, selected: choice } }
+      steps: {
+        ...prev.steps,
+        multiplexer: { ...prev.steps.multiplexer, done: usable, selected: choice }
+      }
     };
     return route.fulfill({
       status: 200,
@@ -2355,7 +2389,7 @@ export interface MockApiState
 `await registerMockChatRoutes(page, state);`):
 
 ```ts
-  await registerMockOnboardingRoutes(page, state);
+await registerMockOnboardingRoutes(page, state);
 ```
 
 > **Default preserves existing specs.** The `get` handler above already defaults to
@@ -2445,7 +2479,11 @@ test("a status-endpoint error falls through to the app shell", async ({ page }) 
   });
   // Override status to 500 AFTER mockApi registers its 200 handler (last route wins).
   await page.route("**/api/onboarding/status", (route) =>
-    route.fulfill({ status: 500, contentType: "application/json", body: JSON.stringify({ error: "down" }) })
+    route.fulfill({
+      status: 500,
+      contentType: "application/json",
+      body: JSON.stringify({ error: "down" })
+    })
   );
 
   await page.goto("/");
@@ -2464,6 +2502,7 @@ If the build host has no Playwright browser, run `pnpm lint` + `pnpm typecheck` 
 instead (the floor per the verification-scope note); the spec must be lint+type clean.
 
 **Step 12.5 — Commit.**
+
 ```
 git add tests/e2e/mock-onboarding-api.ts tests/e2e/mock-api.ts tests/e2e/onboarding.spec.ts
 git commit -m "test(e2e): onboarding wizard + app.tsx branch + status-error fall-through (Phase 2 onboarding)"
@@ -2508,6 +2547,7 @@ criteria 1–10) is satisfied:
 
 **Step 13.2 — Placeholder scan.** Grep the worktree for accidental placeholders introduced by this
 slice:
+
 ```
 grep -rn "TODO\|FIXME\|similar to above\|placeholder\|XXX" \
   packages/ai/src/cli-availability.ts \
@@ -2519,9 +2559,11 @@ grep -rn "TODO\|FIXME\|similar to above\|placeholder\|XXX" \
   tests/integration/onboarding.test.ts \
   tests/e2e/mock-onboarding-api.ts tests/e2e/onboarding.spec.ts
 ```
+
 Expected: no matches in the new/changed code (pre-existing TODOs elsewhere are out of scope).
 
 **Step 13.3 — Type-consistency check.** Confirm:
+
 - `assembleOnboardingStatus(...)` returns the shared `OnboardingStatusResponse` (enforced by
   `satisfies OnboardingStatusResponse`); the route returns it directly and the Fastify serializer
   validates it against `getOnboardingStatusRouteSchema`. No parallel local DTO exists.
@@ -2580,10 +2622,12 @@ typecheck of the specs) is the floor.
 **Step 14.4 — Final commit (only if `pnpm format` or `check:file-size` decomposition changed files).**
 If `pnpm format` rewrote files or a file needed decomposition to stay under 1000 lines, stage exactly
 those files explicitly and commit:
+
 ```
 git add <explicit paths that format/decomposition touched>
 git commit -m "chore(onboarding): formatting + file-size compliance (Phase 2 onboarding)"
 ```
+
 Otherwise no commit is needed — the gate is green on the existing commits.
 
 ---

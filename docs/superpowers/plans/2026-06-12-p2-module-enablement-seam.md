@@ -60,40 +60,40 @@ GUC (`app.actor_user_id`). No new runtime dependencies.
 
 **New files:**
 
-| Path | Purpose |
-| --- | --- |
-| `packages/module-sdk/src/core-version.ts` | `CORE_VERSION` const + `satisfiesCoreVersion()` helper |
-| `packages/module-sdk/test/core-version.test.ts` | Unit test for `satisfiesCoreVersion` |
-| `packages/settings/sql/0065_module_enablement.sql` | Creates `app.module_enablement`, indexes, RLS, grants (re-check prefix at build) |
-| `packages/module-registry/src/active-modules-resolver.ts` | `createActiveModulesResolver` factory (async resolver) |
-| `packages/module-registry/src/compat-gate.ts` | `assertModulesCompatible()` — compat + `defaultEnabled` validation at registration |
-| `packages/module-registry/src/route-guard.ts` | Route→module index, `registerRouteEnablementGuard`, `assertRouteCoverage`, `PLATFORM_UNGUARDED_ROUTES` |
-| `tests/integration/module-enablement.test.ts` | Resolver + repository + RLS isolation tests |
-| `tests/integration/route-guard.test.ts` | Guard 404/200 + coverage-assertion + endpoint tests |
-| `tests/integration/fixtures/optional-module.ts` | Test-only non-required / user-disablable manifest fixture mounting a real route |
+| Path                                                      | Purpose                                                                                                |
+| --------------------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
+| `packages/module-sdk/src/core-version.ts`                 | `CORE_VERSION` const + `satisfiesCoreVersion()` helper                                                 |
+| `packages/module-sdk/test/core-version.test.ts`           | Unit test for `satisfiesCoreVersion`                                                                   |
+| `packages/settings/sql/0065_module_enablement.sql`        | Creates `app.module_enablement`, indexes, RLS, grants (re-check prefix at build)                       |
+| `packages/module-registry/src/active-modules-resolver.ts` | `createActiveModulesResolver` factory (async resolver)                                                 |
+| `packages/module-registry/src/compat-gate.ts`             | `assertModulesCompatible()` — compat + `defaultEnabled` validation at registration                     |
+| `packages/module-registry/src/route-guard.ts`             | Route→module index, `registerRouteEnablementGuard`, `assertRouteCoverage`, `PLATFORM_UNGUARDED_ROUTES` |
+| `tests/integration/module-enablement.test.ts`             | Resolver + repository + RLS isolation tests                                                            |
+| `tests/integration/route-guard.test.ts`                   | Guard 404/200 + coverage-assertion + endpoint tests                                                    |
+| `tests/integration/fixtures/optional-module.ts`           | Test-only non-required / user-disablable manifest fixture mounting a real route                        |
 
 **Modified files:**
 
-| Path | Change |
-| --- | --- |
-| `packages/module-sdk/src/index.ts` | `export * from "./core-version.js";` |
-| `packages/ai/src/gateway/types.ts` | `ActiveModulesResolver` → async; update doc comment |
-| `packages/ai/src/gateway/gateway.ts` | `executableTools`, `listToolsForActor` async; `callTool` awaits |
-| `packages/chat/src/routes.ts` | `mint` callback async; awaits `listToolsForActor` |
-| `packages/chat/src/live/runtime.ts` | `mcpTokenLifecycle.mint` type → async |
-| `packages/chat/src/live/chat-session-manager.ts` | `mintMcpToken` dep type → async; `launchSession` awaits |
-| `packages/ai/src/routes.ts` | Swap `listModuleManifests` → `resolveActiveModules` (async) on the tool surfaces |
-| `packages/settings/src/repository.ts` | 4 new deny-list methods on `SettingsRepository` |
-| `packages/settings/src/manifest.ts` | Export `settingsModuleSqlMigrationDirectory`; add admin/self route entries |
-| `packages/settings/src/routes.ts` | Admin + self enablement endpoints |
-| `packages/db/src/types.ts` | `ModuleEnablementTable` + `JarvisDatabase` entry + `ModuleEnablementRow` export |
-| `packages/shared/src/platform-api.ts` | New DTOs + route schemas for admin/self module endpoints |
-| `packages/module-registry/src/index.ts` | Compat gate call; `resolveActiveModules` in deps + chat wiring; export new modules |
-| `packages/tasks/src/manifest.ts` | Add 3 undeclared routes to `routes[]` (preferences GET/PATCH, subtasks GET) |
-| `packages/chat/src/manifest.ts` | Add 8 undeclared API routes to `routes[]` |
-| `apps/api/src/server.ts` | Construct resolver; pass it in; register guard + coverage assertion after routes |
-| `tests/integration/mcp-gateway.test.ts` | Wrap stub resolvers in `async` |
-| `tests/integration/chat-mcp-transport.test.ts` | Wrap stub resolver in `async` (if present) |
+| Path                                             | Change                                                                             |
+| ------------------------------------------------ | ---------------------------------------------------------------------------------- |
+| `packages/module-sdk/src/index.ts`               | `export * from "./core-version.js";`                                               |
+| `packages/ai/src/gateway/types.ts`               | `ActiveModulesResolver` → async; update doc comment                                |
+| `packages/ai/src/gateway/gateway.ts`             | `executableTools`, `listToolsForActor` async; `callTool` awaits                    |
+| `packages/chat/src/routes.ts`                    | `mint` callback async; awaits `listToolsForActor`                                  |
+| `packages/chat/src/live/runtime.ts`              | `mcpTokenLifecycle.mint` type → async                                              |
+| `packages/chat/src/live/chat-session-manager.ts` | `mintMcpToken` dep type → async; `launchSession` awaits                            |
+| `packages/ai/src/routes.ts`                      | Swap `listModuleManifests` → `resolveActiveModules` (async) on the tool surfaces   |
+| `packages/settings/src/repository.ts`            | 4 new deny-list methods on `SettingsRepository`                                    |
+| `packages/settings/src/manifest.ts`              | Export `settingsModuleSqlMigrationDirectory`; add admin/self route entries         |
+| `packages/settings/src/routes.ts`                | Admin + self enablement endpoints                                                  |
+| `packages/db/src/types.ts`                       | `ModuleEnablementTable` + `JarvisDatabase` entry + `ModuleEnablementRow` export    |
+| `packages/shared/src/platform-api.ts`            | New DTOs + route schemas for admin/self module endpoints                           |
+| `packages/module-registry/src/index.ts`          | Compat gate call; `resolveActiveModules` in deps + chat wiring; export new modules |
+| `packages/tasks/src/manifest.ts`                 | Add 3 undeclared routes to `routes[]` (preferences GET/PATCH, subtasks GET)        |
+| `packages/chat/src/manifest.ts`                  | Add 8 undeclared API routes to `routes[]`                                          |
+| `apps/api/src/server.ts`                         | Construct resolver; pass it in; register guard + coverage assertion after routes   |
+| `tests/integration/mcp-gateway.test.ts`          | Wrap stub resolvers in `async`                                                     |
+| `tests/integration/chat-mcp-transport.test.ts`   | Wrap stub resolver in `async` (if present)                                         |
 
 ---
 
@@ -115,6 +115,7 @@ GUC (`app.actor_user_id`). No new runtime dependencies.
 ## Task 1 — `CORE_VERSION` + `satisfiesCoreVersion` in `@jarv1s/module-sdk`
 
 **Files**
+
 - Create: `packages/module-sdk/src/core-version.ts`
 - Create: `packages/module-sdk/test/core-version.test.ts`
 - Modify: `packages/module-sdk/src/index.ts`
@@ -288,6 +289,7 @@ git commit -m "feat(module-sdk): add CORE_VERSION + satisfiesCoreVersion compat 
 ## Task 2 — `app.module_enablement` migration + db types
 
 **Files**
+
 - Create: `packages/settings/sql/0065_module_enablement.sql`
 - Modify: `packages/settings/src/manifest.ts` (export `settingsModuleSqlMigrationDirectory`)
 - Modify: `packages/module-registry/src/index.ts` (wire the settings SQL dir)
@@ -514,7 +516,9 @@ import { fileURLToPath } from "node:url";
 
 import type { JarvisModuleManifest } from "@jarv1s/module-sdk";
 
-export const settingsModuleSqlMigrationDirectory = fileURLToPath(new URL("../sql", import.meta.url));
+export const settingsModuleSqlMigrationDirectory = fileURLToPath(
+  new URL("../sql", import.meta.url)
+);
 ```
 
 **(c)** Modify `packages/module-registry/src/index.ts`. Update the settings import and its
@@ -607,6 +611,7 @@ git commit -m "feat(settings): add app.module_enablement deny-list table, RLS, a
 ## Task 3 — `SettingsRepository` deny-list methods
 
 **Files**
+
 - Modify: `packages/settings/src/repository.ts`
 - Modify: `tests/integration/module-enablement.test.ts` (add a repository describe block)
 
@@ -645,51 +650,49 @@ describe("SettingsRepository deny-list methods", () => {
   });
 
   it("admin can disable then re-enable a module at instance scope (and audit is written)", async () => {
-    await runner.withDataContext(
-      { actorUserId: ids.adminUser, requestId: "req-admin-1" },
-      (db) =>
-        repo.setInstanceModuleDisabled(db, {
-          moduleId: "weather",
-          disabled: true,
-          actorUserId: ids.adminUser,
-          requestId: "req-admin-1"
-        })
+    await runner.withDataContext({ actorUserId: ids.adminUser, requestId: "req-admin-1" }, (db) =>
+      repo.setInstanceModuleDisabled(db, {
+        moduleId: "weather",
+        disabled: true,
+        actorUserId: ids.adminUser,
+        requestId: "req-admin-1"
+      })
     );
 
     const afterDisable = await runner.withDataContext(
       { actorUserId: ids.userA, requestId: "req-a-1" },
       (db) => repo.listModuleDenyRowsForActor(db)
     );
-    expect(afterDisable.some((r) => r.scope === "instance" && r.module_id === "weather")).toBe(true);
-
-    // Idempotent disable (insert-on-conflict-do-nothing) does not throw or duplicate.
-    await runner.withDataContext(
-      { actorUserId: ids.adminUser, requestId: "req-admin-2" },
-      (db) =>
-        repo.setInstanceModuleDisabled(db, {
-          moduleId: "weather",
-          disabled: true,
-          actorUserId: ids.adminUser,
-          requestId: "req-admin-2"
-        })
+    expect(afterDisable.some((r) => r.scope === "instance" && r.module_id === "weather")).toBe(
+      true
     );
 
-    await runner.withDataContext(
-      { actorUserId: ids.adminUser, requestId: "req-admin-3" },
-      (db) =>
-        repo.setInstanceModuleDisabled(db, {
-          moduleId: "weather",
-          disabled: false,
-          actorUserId: ids.adminUser,
-          requestId: "req-admin-3"
-        })
+    // Idempotent disable (insert-on-conflict-do-nothing) does not throw or duplicate.
+    await runner.withDataContext({ actorUserId: ids.adminUser, requestId: "req-admin-2" }, (db) =>
+      repo.setInstanceModuleDisabled(db, {
+        moduleId: "weather",
+        disabled: true,
+        actorUserId: ids.adminUser,
+        requestId: "req-admin-2"
+      })
+    );
+
+    await runner.withDataContext({ actorUserId: ids.adminUser, requestId: "req-admin-3" }, (db) =>
+      repo.setInstanceModuleDisabled(db, {
+        moduleId: "weather",
+        disabled: false,
+        actorUserId: ids.adminUser,
+        requestId: "req-admin-3"
+      })
     );
 
     const afterEnable = await runner.withDataContext(
       { actorUserId: ids.userA, requestId: "req-a-2" },
       (db) => repo.listModuleDenyRowsForActor(db)
     );
-    expect(afterEnable.some((r) => r.scope === "instance" && r.module_id === "weather")).toBe(false);
+    expect(afterEnable.some((r) => r.scope === "instance" && r.module_id === "weather")).toBe(
+      false
+    );
 
     const audit = await runner.withDataContext(
       { actorUserId: ids.adminUser, requestId: "req-admin-4" },
@@ -701,15 +704,13 @@ describe("SettingsRepository deny-list methods", () => {
   });
 
   it("user deny rows are owner-scoped (RLS isolates actors)", async () => {
-    await runner.withDataContext(
-      { actorUserId: ids.userA, requestId: "req-a-3" },
-      (db) =>
-        repo.setUserModuleDisabled(db, {
-          moduleId: "weather",
-          disabled: true,
-          actorUserId: ids.userA,
-          requestId: "req-a-3"
-        })
+    await runner.withDataContext({ actorUserId: ids.userA, requestId: "req-a-3" }, (db) =>
+      repo.setUserModuleDisabled(db, {
+        moduleId: "weather",
+        disabled: true,
+        actorUserId: ids.userA,
+        requestId: "req-a-3"
+      })
     );
 
     const aRows = await runner.withDataContext(
@@ -726,15 +727,13 @@ describe("SettingsRepository deny-list methods", () => {
   });
 
   it("listInstanceModuleDenyRows returns instance rows only", async () => {
-    await runner.withDataContext(
-      { actorUserId: ids.adminUser, requestId: "req-admin-5" },
-      (db) =>
-        repo.setInstanceModuleDisabled(db, {
-          moduleId: "wellness",
-          disabled: true,
-          actorUserId: ids.adminUser,
-          requestId: "req-admin-5"
-        })
+    await runner.withDataContext({ actorUserId: ids.adminUser, requestId: "req-admin-5" }, (db) =>
+      repo.setInstanceModuleDisabled(db, {
+        moduleId: "wellness",
+        disabled: true,
+        actorUserId: ids.adminUser,
+        requestId: "req-admin-5"
+      })
     );
     const rows = await runner.withDataContext(
       { actorUserId: ids.adminUser, requestId: "req-admin-6" },
@@ -953,6 +952,7 @@ Add the four methods inside the `SettingsRepository` class (e.g. after `listInst
 > if there were no constraint, would duplicate. Instead, attempt the bare INSERT and treat Postgres
 > error code `23505` (unique_violation) as success (the row already exists = already disabled =
 > idempotent). Concretely:
+>
 > ```ts
 > try {
 >   await scopedDb.db.insertInto("app.module_enablement").values({ ... }).execute();
@@ -961,6 +961,7 @@ Add the four methods inside the `SettingsRepository` class (e.g. after `listInst
 >   // already disabled — idempotent no-op
 > }
 > ```
+>
 > Either form keeps disable idempotent under concurrency. Do not use check-then-insert.
 
 ### Step 3.4 — Run (expected PASS)
@@ -982,6 +983,7 @@ git commit -m "feat(settings): add module-enablement deny-list repository method
 ## Task 4 — Compat gate in `@jarv1s/module-registry`
 
 **Files**
+
 - Create: `packages/module-registry/src/compat-gate.ts`
 - Modify: `packages/module-registry/src/index.ts` (call the gate at module-load time)
 - Create: `packages/module-registry/test/compat-gate.test.ts`
@@ -1119,6 +1121,7 @@ behavior (the resolver stub in tests just returns a Promise). The real DB-backed
 is Task 6.
 
 **Files**
+
 - Modify: `packages/ai/src/gateway/types.ts`
 - Modify: `packages/ai/src/gateway/gateway.ts`
 - Modify: `packages/chat/src/routes.ts`
@@ -1130,9 +1133,11 @@ is Task 6.
 
 > **Mandatory ripple gate (run BEFORE writing implementation, and again before Step 5.4).** Making
 > `listToolsForActor` async breaks every synchronous caller. Enumerate them all with:
+>
 > ```
 > rg -n "listToolsForActor|resolveActiveModules|ActiveModulesResolver|mintMcpToken|\.mint\(" packages apps tests
 > ```
+>
 > Every hit that consumes the return value synchronously (`.map`, `.find`, `.length`, spread, direct
 > property access) must be awaited. As of `a898533` the non-obvious one the file list above would miss
 > is `packages/chat/src/mcp-transport.ts:97` (the MCP `tools/list` branch). Do not proceed past this
@@ -1152,13 +1157,13 @@ the two stub resolvers to async and assert `listToolsForActor` returns a Promise
 - Update the "lists only tools that have an execute handler" test (line ~62) to await:
 
 ```ts
-  it("lists only tools that have an execute handler", async () => {
-    const names = (await gateway.listToolsForActor(ids.userA)).map((tool) => tool.name);
-    expect(names).toContain("example.read");
-    expect(names).toContain("example.write");
-    expect(names).toContain("example.destroy");
-    expect(names).not.toContain("example.declaration-only");
-  });
+it("lists only tools that have an execute handler", async () => {
+  const names = (await gateway.listToolsForActor(ids.userA)).map((tool) => tool.name);
+  expect(names).toContain("example.read");
+  expect(names).toContain("example.write");
+  expect(names).toContain("example.destroy");
+  expect(names).not.toContain("example.declaration-only");
+});
 ```
 
 - For the scoped-gateway test near line 228 that calls `listToolsForActor`, add `await` to those
@@ -1171,28 +1176,32 @@ the two stub resolvers to async and assert `listToolsForActor` returns a Promise
   and actually reaches the resolver (a bogus token would reject at verification and prove nothing):
 
 ```ts
-  it("fails closed: a throwing resolveActiveModules rejects listToolsForActor and callTool", async () => {
-    let resolverCalls = 0;
-    const failing = new AssistantToolGateway({
-      resolveActiveModules: async () => {
-        resolverCalls += 1;
-        throw new Error("resolver/DB unavailable");
-      },
-      repository,
-      runner,
-      tokens, // SHARED registry from beforeAll, so the minted token below verifies
-      confirmations,
-      notifier: { emit: (chatSessionId, record) => emitted.push({ chatSessionId, record }) },
-      confirmTimeoutMs: 1000
-    });
-    // listToolsForActor reaches the resolver directly.
-    await expect(failing.listToolsForActor(ids.userA)).rejects.toThrow();
-    // callTool: mint a VALID token (allowedToolNames: null) so it clears token verification
-    // and proceeds into executableTools → resolver, which throws → reject (not a degraded set).
-    const token = tokens.mint({ actorUserId: ids.userA, chatSessionId: "fail-closed", allowedToolNames: null });
-    await expect(failing.callTool(token, "example.read", {})).rejects.toThrow();
-    expect(resolverCalls).toBeGreaterThanOrEqual(2); // both surfaces actually invoked the resolver
+it("fails closed: a throwing resolveActiveModules rejects listToolsForActor and callTool", async () => {
+  let resolverCalls = 0;
+  const failing = new AssistantToolGateway({
+    resolveActiveModules: async () => {
+      resolverCalls += 1;
+      throw new Error("resolver/DB unavailable");
+    },
+    repository,
+    runner,
+    tokens, // SHARED registry from beforeAll, so the minted token below verifies
+    confirmations,
+    notifier: { emit: (chatSessionId, record) => emitted.push({ chatSessionId, record }) },
+    confirmTimeoutMs: 1000
   });
+  // listToolsForActor reaches the resolver directly.
+  await expect(failing.listToolsForActor(ids.userA)).rejects.toThrow();
+  // callTool: mint a VALID token (allowedToolNames: null) so it clears token verification
+  // and proceeds into executableTools → resolver, which throws → reject (not a degraded set).
+  const token = tokens.mint({
+    actorUserId: ids.userA,
+    chatSessionId: "fail-closed",
+    allowedToolNames: null
+  });
+  await expect(failing.callTool(token, "example.read", {})).rejects.toThrow();
+  expect(resolverCalls).toBeGreaterThanOrEqual(2); // both surfaces actually invoked the resolver
+});
 ```
 
 > `AssistantToolGateway`, `repository`, `runner`, `tokens`, `confirmations`, `emitted` are the same
@@ -1247,15 +1256,15 @@ have `callTool` await:
 - `callTool` line 55 — change:
 
 ```ts
-    const found = this.executableTools(actorUserId).find((entry) => entry.tool.name === toolName);
+const found = this.executableTools(actorUserId).find((entry) => entry.tool.name === toolName);
 ```
 
 to:
 
 ```ts
-    const found = (await this.executableTools(actorUserId)).find(
-      (entry) => entry.tool.name === toolName
-    );
+const found = (await this.executableTools(actorUserId)).find(
+  (entry) => entry.tool.name === toolName
+);
 ```
 
 - `executableTools` (line 180) — make async and await the resolver:
@@ -1316,30 +1325,30 @@ a try/catch returning a generic JSON-RPC `-32603` (internal error), logging deta
 Change:
 
 ```ts
-      if (method === "tools/list") {
-        return reply.code(200).send({
-          jsonrpc: "2.0",
-          id,
-          result: { tools: deps.gateway.listToolsForActor(identity.actorUserId).map(dtoToMcpTool) }
-        });
-      }
+if (method === "tools/list") {
+  return reply.code(200).send({
+    jsonrpc: "2.0",
+    id,
+    result: { tools: deps.gateway.listToolsForActor(identity.actorUserId).map(dtoToMcpTool) }
+  });
+}
 ```
 
 to:
 
 ```ts
-      if (method === "tools/list") {
-        let tools;
-        try {
-          tools = (await deps.gateway.listToolsForActor(identity.actorUserId)).map(dtoToMcpTool);
-        } catch (err) {
-          // FAIL CLOSED + scrub: a resolver/DB failure must not expose the tool surface
-          // nor leak err.message. Generic internal error; detail logged server-side.
-          request.log.error({ err }, "mcp tools/list resolver failed");
-          return reply.code(200).send(jsonRpcError(id, -32603, "Internal error"));
-        }
-        return reply.code(200).send({ jsonrpc: "2.0", id, result: { tools } });
-      }
+if (method === "tools/list") {
+  let tools;
+  try {
+    tools = (await deps.gateway.listToolsForActor(identity.actorUserId)).map(dtoToMcpTool);
+  } catch (err) {
+    // FAIL CLOSED + scrub: a resolver/DB failure must not expose the tool surface
+    // nor leak err.message. Generic internal error; detail logged server-side.
+    request.log.error({ err }, "mcp tools/list resolver failed");
+    return reply.code(200).send(jsonRpcError(id, -32603, "Internal error"));
+  }
+  return reply.code(200).send({ jsonrpc: "2.0", id, result: { tools } });
+}
 ```
 
 Also fix the existing `tools/call` catch (line ~109–112), which currently echoes `err.message`. Now
@@ -1401,13 +1410,13 @@ Dep type:
 In `launchSession` (line 160), change:
 
 ```ts
-    const mcpConfig = this.deps.mintMcpToken?.(actorUserId, actorUserId);
+const mcpConfig = this.deps.mintMcpToken?.(actorUserId, actorUserId);
 ```
 
 to:
 
 ```ts
-    const mcpConfig = await this.deps.mintMcpToken?.(actorUserId, actorUserId);
+const mcpConfig = await this.deps.mintMcpToken?.(actorUserId, actorUserId);
 ```
 
 **(f)** `tests/integration/chat-mcp-transport.test.ts` — verify whether it constructs a
@@ -1441,6 +1450,7 @@ git commit -m "refactor(ai,chat): make ActiveModulesResolver async (gateway + to
 ## Task 6 — The DB-backed async resolver factory
 
 **Files**
+
 - Create: `packages/module-registry/src/active-modules-resolver.ts`
 - Modify: `packages/module-registry/src/index.ts` (export it)
 - Create: `tests/integration/fixtures/optional-module.ts`
@@ -1530,9 +1540,7 @@ describe("createActiveModulesResolver", () => {
 
   it("empty store: all fixture modules are active (zero behavior-change baseline)", async () => {
     const active = await resolver()(ids.userA);
-    expect(active.map((m) => m.id).sort()).toEqual(
-      ["tasks-fixture", "weather", "wellness"].sort()
-    );
+    expect(active.map((m) => m.id).sort()).toEqual(["tasks-fixture", "weather", "wellness"].sort());
   });
 
   it("instance deny row drops a non-required module for ALL actors", async () => {
@@ -1647,13 +1655,14 @@ export interface ActiveModulesResolverDeps {
  * rule. The store is deny-only: absence of a row = enabled (honoring defaultEnabled,
  * true for all built-ins). required:true modules are never droppable.
  */
-export function createActiveModulesResolver(deps: ActiveModulesResolverDeps): ActiveModulesResolver {
+export function createActiveModulesResolver(
+  deps: ActiveModulesResolverDeps
+): ActiveModulesResolver {
   const repository = new SettingsRepository();
 
   return async (actorUserId: string): Promise<readonly JarvisModuleManifest[]> => {
-    const denyRows = await deps.dataContext.withDataContext(
-      { actorUserId },
-      (scopedDb) => repository.listModuleDenyRowsForActor(scopedDb)
+    const denyRows = await deps.dataContext.withDataContext({ actorUserId }, (scopedDb) =>
+      repository.listModuleDenyRowsForActor(scopedDb)
     );
 
     const instanceDisabled = new Set(
@@ -1719,9 +1728,11 @@ entries FIRST (per spec Risk #1 mitigation: do reconciliation before wiring the 
 > **Reconciliation is empirical, not from this list.** The set of under-declared routes below
 > reflects `a898533`; the load-bearing source of truth is the boot coverage assertion (Task 11). Before
 > writing entries, enumerate the actual registered API routes and diff against the manifests:
+>
 > ```
 > rg -n "server\.(get|post|patch|put|delete)\b" packages apps --glob '*routes*.ts' --glob '*transport*.ts'
 > ```
+>
 > Every registered `/api/*` route must land in its owning module's `routes[]` (preferred) or the
 > platform allowlist. The three known gaps as of `a898533`: tasks (preferences GET/PATCH, subtasks
 > GET), chat (8 live/memory/mcp routes), and **connectors** (the two Google OAuth POST routes —
@@ -1729,6 +1740,7 @@ entries FIRST (per spec Risk #1 mitigation: do reconciliation before wiring the 
 > `/api/connectors/google/complete`, which the connectors manifest does not yet declare).
 
 **Files**
+
 - Modify: `packages/tasks/src/manifest.ts`
 - Modify: `packages/chat/src/manifest.ts`
 - Modify: `packages/connectors/src/manifest.ts` (declare the two Google OAuth POST routes)
@@ -1841,42 +1853,42 @@ existing `/api/tasks/overdue` entry, before the closing `]`):
 Change:
 
 ```ts
-  routes: [
-    {
-      method: "GET",
-      path: "/api/chat/threads",
-      responseSchema: listChatThreadsResponseSchema,
-      permissionId: "chat.view"
-    }
-  ]
+routes: [
+  {
+    method: "GET",
+    path: "/api/chat/threads",
+    responseSchema: listChatThreadsResponseSchema,
+    permissionId: "chat.view"
+  }
+];
 ```
 
 to (verify each method/path against the registered routes at build time):
 
 ```ts
-  routes: [
-    {
-      method: "GET",
-      path: "/api/chat/threads",
-      responseSchema: listChatThreadsResponseSchema,
-      permissionId: "chat.view"
-    },
-    { method: "POST", path: "/api/chat/turn", permissionId: "chat.message" },
-    { method: "GET", path: "/api/chat/stream", permissionId: "chat.view" },
-    { method: "POST", path: "/api/chat/clear", permissionId: "chat.message" },
-    { method: "POST", path: "/api/chat/switch", permissionId: "chat.message" },
-    { method: "GET", path: "/api/chat/memory/settings", permissionId: "chat.view" },
-    { method: "PATCH", path: "/api/chat/memory/settings", permissionId: "chat.message" },
-    { method: "GET", path: "/api/chat/memory/facts", permissionId: "chat.view" },
-    { method: "DELETE", path: "/api/chat/memory/facts/:id", permissionId: "chat.message" },
-    { method: "PATCH", path: "/api/chat/memory/facts/:id", permissionId: "chat.message" },
-    {
-      method: "POST",
-      path: "/api/chat/action-requests/:id/resolve",
-      permissionId: "chat.message"
-    },
-    { method: "POST", path: "/api/mcp", permissionId: "chat.message" }
-  ]
+routes: [
+  {
+    method: "GET",
+    path: "/api/chat/threads",
+    responseSchema: listChatThreadsResponseSchema,
+    permissionId: "chat.view"
+  },
+  { method: "POST", path: "/api/chat/turn", permissionId: "chat.message" },
+  { method: "GET", path: "/api/chat/stream", permissionId: "chat.view" },
+  { method: "POST", path: "/api/chat/clear", permissionId: "chat.message" },
+  { method: "POST", path: "/api/chat/switch", permissionId: "chat.message" },
+  { method: "GET", path: "/api/chat/memory/settings", permissionId: "chat.view" },
+  { method: "PATCH", path: "/api/chat/memory/settings", permissionId: "chat.message" },
+  { method: "GET", path: "/api/chat/memory/facts", permissionId: "chat.view" },
+  { method: "DELETE", path: "/api/chat/memory/facts/:id", permissionId: "chat.message" },
+  { method: "PATCH", path: "/api/chat/memory/facts/:id", permissionId: "chat.message" },
+  {
+    method: "POST",
+    path: "/api/chat/action-requests/:id/resolve",
+    permissionId: "chat.message"
+  },
+  { method: "POST", path: "/api/mcp", permissionId: "chat.message" }
+];
 ```
 
 **(c)** `packages/connectors/src/manifest.ts` — add the two Google OAuth routes to the `routes:`
@@ -1922,6 +1934,7 @@ git commit -m "feat(tasks,chat,connectors): declare all registered API routes in
 ## Task 8 — Shared DTOs + route schemas for the enablement endpoints
 
 **Files**
+
 - Modify: `packages/shared/src/platform-api.ts`
 - Create: `packages/shared/test/platform-api.module-enablement.test.ts`
 
@@ -2153,6 +2166,7 @@ git commit -m "feat(shared): add module-enablement admin + self DTOs and route s
 ## Task 9 — Route-enablement guard + boot-time coverage assertion
 
 **Files**
+
 - Create: `packages/module-registry/src/route-guard.ts`
 - Modify: `packages/module-registry/src/index.ts` (export the guard + allowlist + assertion)
 - Create: `packages/module-registry/test/route-guard-index.test.ts` (pure index/allowlist unit test)
@@ -2555,6 +2569,7 @@ git commit -m "feat(module-registry): route→module index, enablement guard, co
 ## Task 10 — Admin + self enablement endpoints in `@jarv1s/settings`
 
 **Files**
+
 - Modify: `packages/settings/src/routes.ts` (add the endpoints + a manifest dependency)
 - Modify: `packages/module-registry/src/index.ts` (thread `listModuleManifests` into settings deps so the endpoints can enumerate modules)
 - Modify: `packages/settings/src/manifest.ts` (add the 4 new route entries to `routes[]`)
@@ -2578,7 +2593,11 @@ import type { Kysely } from "kysely";
 
 import { createApiServer } from "../../apps/api/src/server.js";
 import { createDatabase, type JarvisDatabase } from "@jarv1s/db";
-import { connectionStrings, resetEmptyFoundationDatabase, setInstanceSetting } from "./test-database.js";
+import {
+  connectionStrings,
+  resetEmptyFoundationDatabase,
+  setInstanceSetting
+} from "./test-database.js";
 
 function cookieHeader(headers: Record<string, unknown>): string {
   const raw = headers["set-cookie"];
@@ -2622,7 +2641,9 @@ describe("module enablement endpoints", () => {
       headers: { cookie: ownerCookie }
     });
     expect(res.statusCode).toBe(200);
-    const body = res.json<{ modules: { id: string; required: boolean; instanceDisabled: boolean }[] }>();
+    const body = res.json<{
+      modules: { id: string; required: boolean; instanceDisabled: boolean }[];
+    }>();
     const tasks = body.modules.find((m) => m.id === "tasks");
     expect(tasks?.required).toBe(true);
     expect(tasks?.instanceDisabled).toBe(false);
@@ -2676,7 +2697,11 @@ describe("module enablement endpoints", () => {
       method: "POST",
       url: "/api/auth/sign-up/email",
       headers: { "content-type": "application/json" },
-      payload: { name: "Member", email: "member@example.test", password: "correct horse battery staple x" }
+      payload: {
+        name: "Member",
+        email: "member@example.test",
+        password: "correct horse battery staple x"
+      }
     });
     const memberCookie = cookieHeader(signUp.headers as Record<string, unknown>);
     const res = await server.inject({
@@ -2693,7 +2718,11 @@ describe("module enablement endpoints", () => {
       method: "POST",
       url: "/api/auth/sign-up/email",
       headers: { "content-type": "application/json" },
-      payload: { name: "Member2", email: "member2@example.test", password: "correct horse battery staple y" }
+      payload: {
+        name: "Member2",
+        email: "member2@example.test",
+        password: "correct horse battery staple y"
+      }
     });
     const memberCookie = cookieHeader(signUp.headers as Record<string, unknown>);
     // Unknown module: an admin would get 404, a required module 409 — a non-admin must
@@ -2755,23 +2784,26 @@ Inside `registerSettingsRoutes`, after the existing audit-events route registrat
 closing `}` of the function), add:
 
 ```ts
-  function requireManifests(): readonly JarvisModuleManifest[] {
-    return dependencies.listModuleManifests?.() ?? [];
-  }
+function requireManifests(): readonly JarvisModuleManifest[] {
+  return dependencies.listModuleManifests?.() ?? [];
+}
 
-  function findManifest(id: string): JarvisModuleManifest | undefined {
-    return requireManifests().find((m) => m.id === id);
-  }
+function findManifest(id: string): JarvisModuleManifest | undefined {
+  return requireManifests().find((m) => m.id === id);
+}
 
-  function isRequired(m: JarvisModuleManifest): boolean {
-    return m.availability?.required === true;
-  }
+function isRequired(m: JarvisModuleManifest): boolean {
+  return m.availability?.required === true;
+}
 
-  function supportsUserDisable(m: JarvisModuleManifest): boolean {
-    return m.availability?.supportsUserDisable !== false;
-  }
+function supportsUserDisable(m: JarvisModuleManifest): boolean {
+  return m.availability?.supportsUserDisable !== false;
+}
 
-  server.get("/api/admin/modules", { schema: listAdminModulesRouteSchema }, async (request, reply) => {
+server.get(
+  "/api/admin/modules",
+  { schema: listAdminModulesRouteSchema },
+  async (request, reply) => {
     try {
       const accessContext = await dependencies.resolveAccessContext(request);
       const instanceRows = await dependencies.dataContext.withDataContext(
@@ -2795,103 +2827,104 @@ closing `}` of the function), add:
     } catch (error) {
       return handleRouteError(error, reply);
     }
-  });
+  }
+);
 
-  server.patch<{ Params: { id: string } }>(
-    "/api/admin/modules/:id",
-    { schema: patchModuleEnablementRouteSchema },
-    async (request, reply) => {
-      try {
-        const accessContext = await dependencies.resolveAccessContext(request);
-        const disabled = parseDisabledBody(request.body);
-        // SECURITY: authorize FIRST, before any manifest lookup or required/unknown
-        // check, so a non-admin can never distinguish unknown (404) vs required (409)
-        // modules — they always get the admin 403. assertAdminUser must run before the
-        // 404/409 branches. All checks live inside one withDataContext.
-        const dto = await dependencies.dataContext.withDataContext(
-          accessContext,
-          async (scopedDb) => {
-            await assertAdminUser(repository, scopedDb, accessContext.actorUserId);
-            const manifest = findManifest(request.params.id);
-            if (!manifest) throw new HttpError(404, "Module not found");
-            if (disabled && isRequired(manifest)) {
-              throw new HttpError(409, "Required modules cannot be disabled");
-            }
-            await repository.setInstanceModuleDisabled(scopedDb, {
-              moduleId: manifest.id,
-              disabled,
-              actorUserId: accessContext.actorUserId,
-              requestId: requireRequestId(accessContext)
-            });
-            return computeMyModuleDto(repository, scopedDb, manifest, accessContext.actorUserId);
-          }
-        );
-        return { module: dto };
-      } catch (error) {
-        return handleRouteError(error, reply);
-      }
-    }
-  );
-
-  server.get("/api/me/modules", { schema: listMyModulesRouteSchema }, async (request, reply) => {
+server.patch<{ Params: { id: string } }>(
+  "/api/admin/modules/:id",
+  { schema: patchModuleEnablementRouteSchema },
+  async (request, reply) => {
     try {
       const accessContext = await dependencies.resolveAccessContext(request);
-      const modules = await dependencies.dataContext.withDataContext(
+      const disabled = parseDisabledBody(request.body);
+      // SECURITY: authorize FIRST, before any manifest lookup or required/unknown
+      // check, so a non-admin can never distinguish unknown (404) vs required (409)
+      // modules — they always get the admin 403. assertAdminUser must run before the
+      // 404/409 branches. All checks live inside one withDataContext.
+      const dto = await dependencies.dataContext.withDataContext(
         accessContext,
         async (scopedDb) => {
-          const rows = await repository.listModuleDenyRowsForActor(scopedDb);
-          const instanceDisabled = new Set(
-            rows.filter((r) => r.scope === "instance").map((r) => r.module_id)
-          );
-          const userDisabled = new Set(
-            rows
-              .filter((r) => r.scope === "user" && r.user_id === accessContext.actorUserId)
-              .map((r) => r.module_id)
-          );
-          return requireManifests().map((m) =>
-            toMyModuleDto(m, instanceDisabled.has(m.id), userDisabled.has(m.id))
-          );
+          await assertAdminUser(repository, scopedDb, accessContext.actorUserId);
+          const manifest = findManifest(request.params.id);
+          if (!manifest) throw new HttpError(404, "Module not found");
+          if (disabled && isRequired(manifest)) {
+            throw new HttpError(409, "Required modules cannot be disabled");
+          }
+          await repository.setInstanceModuleDisabled(scopedDb, {
+            moduleId: manifest.id,
+            disabled,
+            actorUserId: accessContext.actorUserId,
+            requestId: requireRequestId(accessContext)
+          });
+          return computeMyModuleDto(repository, scopedDb, manifest, accessContext.actorUserId);
         }
       );
-      return { modules };
+      return { module: dto };
     } catch (error) {
       return handleRouteError(error, reply);
     }
-  });
+  }
+);
 
-  server.patch<{ Params: { id: string } }>(
-    "/api/me/modules/:id",
-    { schema: patchModuleEnablementRouteSchema },
-    async (request, reply) => {
-      try {
-        const accessContext = await dependencies.resolveAccessContext(request);
-        const disabled = parseDisabledBody(request.body);
-        const manifest = findManifest(request.params.id);
-        if (!manifest) throw new HttpError(404, "Module not found");
-        if (disabled && isRequired(manifest)) {
-          throw new HttpError(409, "Required modules cannot be disabled");
-        }
-        if (disabled && !supportsUserDisable(manifest)) {
-          throw new HttpError(422, "This module cannot be disabled per-user");
-        }
-        const dto = await dependencies.dataContext.withDataContext(
-          accessContext,
-          async (scopedDb) => {
-            await repository.setUserModuleDisabled(scopedDb, {
-              moduleId: manifest.id,
-              disabled,
-              actorUserId: accessContext.actorUserId,
-              requestId: requireRequestId(accessContext)
-            });
-            return computeMyModuleDto(repository, scopedDb, manifest, accessContext.actorUserId);
-          }
+server.get("/api/me/modules", { schema: listMyModulesRouteSchema }, async (request, reply) => {
+  try {
+    const accessContext = await dependencies.resolveAccessContext(request);
+    const modules = await dependencies.dataContext.withDataContext(
+      accessContext,
+      async (scopedDb) => {
+        const rows = await repository.listModuleDenyRowsForActor(scopedDb);
+        const instanceDisabled = new Set(
+          rows.filter((r) => r.scope === "instance").map((r) => r.module_id)
         );
-        return { module: dto };
-      } catch (error) {
-        return handleRouteError(error, reply);
+        const userDisabled = new Set(
+          rows
+            .filter((r) => r.scope === "user" && r.user_id === accessContext.actorUserId)
+            .map((r) => r.module_id)
+        );
+        return requireManifests().map((m) =>
+          toMyModuleDto(m, instanceDisabled.has(m.id), userDisabled.has(m.id))
+        );
       }
+    );
+    return { modules };
+  } catch (error) {
+    return handleRouteError(error, reply);
+  }
+});
+
+server.patch<{ Params: { id: string } }>(
+  "/api/me/modules/:id",
+  { schema: patchModuleEnablementRouteSchema },
+  async (request, reply) => {
+    try {
+      const accessContext = await dependencies.resolveAccessContext(request);
+      const disabled = parseDisabledBody(request.body);
+      const manifest = findManifest(request.params.id);
+      if (!manifest) throw new HttpError(404, "Module not found");
+      if (disabled && isRequired(manifest)) {
+        throw new HttpError(409, "Required modules cannot be disabled");
+      }
+      if (disabled && !supportsUserDisable(manifest)) {
+        throw new HttpError(422, "This module cannot be disabled per-user");
+      }
+      const dto = await dependencies.dataContext.withDataContext(
+        accessContext,
+        async (scopedDb) => {
+          await repository.setUserModuleDisabled(scopedDb, {
+            moduleId: manifest.id,
+            disabled,
+            actorUserId: accessContext.actorUserId,
+            requestId: requireRequestId(accessContext)
+          });
+          return computeMyModuleDto(repository, scopedDb, manifest, accessContext.actorUserId);
+        }
+      );
+      return { module: dto };
+    } catch (error) {
+      return handleRouteError(error, reply);
     }
-  );
+  }
+);
 ```
 
 Add these module-level helpers near the other top-level helpers at the bottom of the file (outside
@@ -2944,9 +2977,7 @@ async function computeMyModuleDto(
   actorUserId: string
 ): Promise<MyModuleDto> {
   const rows = await repository.listModuleDenyRowsForActor(scopedDb);
-  const instanceDisabled = rows.some(
-    (r) => r.scope === "instance" && r.module_id === manifest.id
-  );
+  const instanceDisabled = rows.some((r) => r.scope === "instance" && r.module_id === manifest.id);
   const userDisabled = rows.some(
     (r) => r.scope === "user" && r.module_id === manifest.id && r.user_id === actorUserId
   );
@@ -3031,6 +3062,7 @@ git commit -m "feat(settings): admin + self-service module-enablement endpoints"
 ## Task 11 — Wire the resolver + guard + coverage assertion into `server.ts`
 
 **Files**
+
 - Modify: `packages/module-registry/src/index.ts` (add `resolveActiveModules` to `BuiltInRouteDependencies`; use it in chat wiring)
 - Modify: `apps/api/src/server.ts` (construct resolver; pass it; register guard + coverage assertion)
 - Modify: `tests/integration/route-guard.test.ts` (add the guard-404 sections using the fixture module)
@@ -3305,11 +3337,11 @@ Update the three usages:
   `withDataContext` and pass them to `listAssistantToolsFromManifests`:
 
 ```ts
-        const tools = await dependencies.dataContext.withDataContext(accessContext, async () =>
-          listAssistantToolsFromManifests(
-            await dependencies.resolveActiveModules(accessContext.actorUserId)
-          )
-        );
+const tools = await dependencies.dataContext.withDataContext(accessContext, async () =>
+  listAssistantToolsFromManifests(
+    await dependencies.resolveActiveModules(accessContext.actorUserId)
+  )
+);
 ```
 
 - `POST /api/ai/assistant-tools/:name/invoke` — the two `dependencies.listModuleManifests()` calls
@@ -3317,34 +3349,31 @@ Update the three usages:
   `accessContext` is already in scope in that handler. Change:
 
 ```ts
-        tool = findAssistantToolFromManifests(
-          dependencies.listModuleManifests(),
-          request.params.name
-        );
+tool = findAssistantToolFromManifests(dependencies.listModuleManifests(), request.params.name);
 ```
 
 to:
 
 ```ts
-        const activeModules = await dependencies.resolveActiveModules(accessContext.actorUserId);
-        tool = findAssistantToolFromManifests(activeModules, request.params.name);
+const activeModules = await dependencies.resolveActiveModules(accessContext.actorUserId);
+tool = findAssistantToolFromManifests(activeModules, request.params.name);
 ```
 
 and change:
 
 ```ts
-        const manifestTool = dependencies
-          .listModuleManifests()
-          .flatMap((m) => m.assistantTools ?? [])
-          .find((t) => t.name === selectedTool.name);
+const manifestTool = dependencies
+  .listModuleManifests()
+  .flatMap((m) => m.assistantTools ?? [])
+  .find((t) => t.name === selectedTool.name);
 ```
 
 to:
 
 ```ts
-        const manifestTool = activeModules
-          .flatMap((m) => m.assistantTools ?? [])
-          .find((t) => t.name === selectedTool.name);
+const manifestTool = activeModules
+  .flatMap((m) => m.assistantTools ?? [])
+  .find((t) => t.name === selectedTool.name);
 ```
 
 > Remove the now-unused `listModuleManifests` field and the `JarvisModuleManifest` import if it is no
@@ -3374,61 +3403,61 @@ In `server.after()`, after `registerBuiltInApiRoutes(...)`, construct the resolv
 and add the guard + assertion. Replace the `registerBuiltInApiRoutes(server, {...})` block with:
 
 ```ts
-    const resolveActiveModules = createActiveModulesResolver({
-      dataContext,
-      manifests: getBuiltInModuleManifests()
-    });
+const resolveActiveModules = createActiveModulesResolver({
+  dataContext,
+  manifests: getBuiltInModuleManifests()
+});
 
-    registerBuiltInApiRoutes(server, {
-      rootDb: appDb,
-      resolveAccessContext: authRuntime.resolveAccessContext,
-      listConfiguredAuthProviders: authRuntime.listConfiguredProviders,
-      listModuleManifests: getBuiltInModuleManifests,
-      resolveActiveModules,
-      dataContext,
-      boss,
-      chatEngineFactory: options.chatEngineFactory,
-      revokeUserSessions: authRuntime.revokeUserSessions,
-      bootstrapConnectionString: ownsAppDb ? getJarvisDatabaseUrls().bootstrap : undefined
-    });
+registerBuiltInApiRoutes(server, {
+  rootDb: appDb,
+  resolveAccessContext: authRuntime.resolveAccessContext,
+  listConfiguredAuthProviders: authRuntime.listConfiguredProviders,
+  listModuleManifests: getBuiltInModuleManifests,
+  resolveActiveModules,
+  dataContext,
+  boss,
+  chatEngineFactory: options.chatEngineFactory,
+  revokeUserSessions: authRuntime.revokeUserSessions,
+  bootstrapConnectionString: ownsAppDb ? getJarvisDatabaseUrls().bootstrap : undefined
+});
 
-    // Test-only seam (ADR 0009 §4 verification): register synthetic guarded routes on a
-    // throwaway INACTIVE manifest so a test can prove the REAL server's guard 404s an
-    // inactive module's route. Ignored in production (option is undefined). The synthetic
-    // manifests are appended to the guard's manifest set AND the resolver excludes them
-    // (a deny row seeded by the test, or the resolver wrapper below filters them out).
-    const guardManifests = [
-      ...getBuiltInModuleManifests(),
-      ...(options.__testExtraGuardedRoutes?.manifests ?? [])
-    ];
-    if (options.__testExtraGuardedRoutes) {
-      for (const r of options.__testExtraGuardedRoutes.routes) {
-        server.route({ method: r.method, url: r.url, handler: async () => ({ ok: true }) });
-      }
-    }
+// Test-only seam (ADR 0009 §4 verification): register synthetic guarded routes on a
+// throwaway INACTIVE manifest so a test can prove the REAL server's guard 404s an
+// inactive module's route. Ignored in production (option is undefined). The synthetic
+// manifests are appended to the guard's manifest set AND the resolver excludes them
+// (a deny row seeded by the test, or the resolver wrapper below filters them out).
+const guardManifests = [
+  ...getBuiltInModuleManifests(),
+  ...(options.__testExtraGuardedRoutes?.manifests ?? [])
+];
+if (options.__testExtraGuardedRoutes) {
+  for (const r of options.__testExtraGuardedRoutes.routes) {
+    server.route({ method: r.method, url: r.url, handler: async () => ({ ok: true }) });
+  }
+}
 
-    // Register the route-enablement guard AFTER all routes exist so the onRequest hook
-    // can read request.routeOptions.url (the matched pattern). The guard 404s a request
-    // whose owning module is not active for the actor (never 403 — no existence leak).
-    registerRouteEnablementGuard(server, {
-      manifests: guardManifests,
-      resolveActiveModules,
-      resolveAccessContext: authRuntime.resolveAccessContext
-    });
+// Register the route-enablement guard AFTER all routes exist so the onRequest hook
+// can read request.routeOptions.url (the matched pattern). The guard 404s a request
+// whose owning module is not active for the actor (never 403 — no existence leak).
+registerRouteEnablementGuard(server, {
+  manifests: guardManifests,
+  resolveActiveModules,
+  resolveAccessContext: authRuntime.resolveAccessContext
+});
 ```
 
 After `server.after()` registers everything, add an `onReady` hook that runs the coverage assertion
 once the route tree is final. Add (next to the existing `onReady` boss-start hook):
 
 ```ts
-  server.addHook("onReady", async () => {
-    const registered = collectRegisteredRoutes(server);
-    assertRouteCoverage({
-      registered,
-      manifests: getBuiltInModuleManifests(),
-      platformAllowlist: PLATFORM_UNGUARDED_ROUTES
-    });
+server.addHook("onReady", async () => {
+  const registered = collectRegisteredRoutes(server);
+  assertRouteCoverage({
+    registered,
+    manifests: getBuiltInModuleManifests(),
+    platformAllowlist: PLATFORM_UNGUARDED_ROUTES
   });
+});
 ```
 
 Add the route-collection helper at module scope (near the other top-level helpers). Use an
@@ -3439,47 +3468,45 @@ accumulate, and have the `onReady` assertion read it. Concretely, inside `create
 `server.after(...)`:
 
 ```ts
-  const registeredRoutes: { method: string; url: string }[] = [];
-  server.addHook("onRoute", (routeOptions) => {
-    const methods = Array.isArray(routeOptions.method)
-      ? routeOptions.method
-      : [routeOptions.method];
-    for (const method of methods) {
-      // HEAD is folded into GET by routeKey (normalizeMethod), so an auto-HEAD route is
-      // already covered by its GET entry — skip it here to avoid asserting a separate
-      // "HEAD ..." key the index never holds. OPTIONS (CORS/preflight) is not module-gated.
-      if (method === "HEAD" || method === "OPTIONS") continue;
-      registeredRoutes.push({ method, url: routeOptions.url });
-    }
-  });
+const registeredRoutes: { method: string; url: string }[] = [];
+server.addHook("onRoute", (routeOptions) => {
+  const methods = Array.isArray(routeOptions.method) ? routeOptions.method : [routeOptions.method];
+  for (const method of methods) {
+    // HEAD is folded into GET by routeKey (normalizeMethod), so an auto-HEAD route is
+    // already covered by its GET entry — skip it here to avoid asserting a separate
+    // "HEAD ..." key the index never holds. OPTIONS (CORS/preflight) is not module-gated.
+    if (method === "HEAD" || method === "OPTIONS") continue;
+    registeredRoutes.push({ method, url: routeOptions.url });
+  }
+});
 ```
 
 and the `onReady` assertion uses `registeredRoutes`:
 
 ```ts
-  server.addHook("onReady", async () => {
-    assertRouteCoverage({
-      registered: registeredRoutes,
-      // Use the SAME manifest set the guard uses, so the test-only synthetic routes are
-      // "covered" by their synthetic manifest and the assertion does not flag them as
-      // orphans. In production __testExtraGuardedRoutes is undefined → identical to the
-      // built-in set.
-      manifests: guardManifestsForCoverage(),
-      platformAllowlist: PLATFORM_UNGUARDED_ROUTES
-    });
+server.addHook("onReady", async () => {
+  assertRouteCoverage({
+    registered: registeredRoutes,
+    // Use the SAME manifest set the guard uses, so the test-only synthetic routes are
+    // "covered" by their synthetic manifest and the assertion does not flag them as
+    // orphans. In production __testExtraGuardedRoutes is undefined → identical to the
+    // built-in set.
+    manifests: guardManifestsForCoverage(),
+    platformAllowlist: PLATFORM_UNGUARDED_ROUTES
   });
+});
 ```
 
 Define the option and the manifest accessor near the top of `createApiServer` (the accessor lets the
 `onReady` hook, which runs after `after()`, see the synthetic manifests):
 
 ```ts
-  // Test-only: extra routes + their synthetic (inactive) manifests, to verify the guard
-  // 404s an inactive module's route on the REAL server. Undefined in production.
-  const guardManifestsForCoverage = (): readonly JarvisModuleManifest[] => [
-    ...getBuiltInModuleManifests(),
-    ...(options.__testExtraGuardedRoutes?.manifests ?? [])
-  ];
+// Test-only: extra routes + their synthetic (inactive) manifests, to verify the guard
+// 404s an inactive module's route on the REAL server. Undefined in production.
+const guardManifestsForCoverage = (): readonly JarvisModuleManifest[] => [
+  ...getBuiltInModuleManifests(),
+  ...(options.__testExtraGuardedRoutes?.manifests ?? [])
+];
 ```
 
 And add to the `createApiServer` options interface (clearly marked test-only):
@@ -3547,6 +3574,7 @@ Some call sites pass `AiRoutesDependencies` or `BuiltInRouteDependencies` outsid
 root (e.g. AI integration tests construct `registerAiRoutes` directly). Update them to the new shape.
 
 **Files**
+
 - Modify: `tests/integration/ai-tools.test.ts` (and `ai.test.ts` if it constructs `registerAiRoutes`)
 - Modify: any other test passing `listModuleManifests` to `registerAiRoutes`
 
@@ -3599,29 +3627,29 @@ Add a FAIL-CLOSED test for the AI REST tool surfaces: a server wired with a thro
 error must surface as a 5xx, never a silent empty/all set. Add to `ai-tools.test.ts`:
 
 ```ts
-  it("fails closed: a throwing resolveActiveModules does not list or invoke tools", async () => {
-    const app = Fastify({ logger: false });
-    app.after(() =>
-      registerAiRoutes(app, {
-        resolveAccessContext, // reuse the test's stub returning a valid actor
-        dataContext,
-        resolveActiveModules: async () => {
-          throw new Error("resolver/DB unavailable");
-        }
-      })
-    );
-    await app.ready();
-    const list = await app.inject({ method: "GET", url: "/api/ai/assistant-tools" });
-    expect(list.statusCode).toBeGreaterThanOrEqual(500);
-    const invoke = await app.inject({
-      method: "POST",
-      url: "/api/ai/assistant-tools/example.read/invoke",
-      headers: { "content-type": "application/json" },
-      payload: { arguments: {} }
-    });
-    expect(invoke.statusCode).toBeGreaterThanOrEqual(500);
-    await app.close();
+it("fails closed: a throwing resolveActiveModules does not list or invoke tools", async () => {
+  const app = Fastify({ logger: false });
+  app.after(() =>
+    registerAiRoutes(app, {
+      resolveAccessContext, // reuse the test's stub returning a valid actor
+      dataContext,
+      resolveActiveModules: async () => {
+        throw new Error("resolver/DB unavailable");
+      }
+    })
+  );
+  await app.ready();
+  const list = await app.inject({ method: "GET", url: "/api/ai/assistant-tools" });
+  expect(list.statusCode).toBeGreaterThanOrEqual(500);
+  const invoke = await app.inject({
+    method: "POST",
+    url: "/api/ai/assistant-tools/example.read/invoke",
+    headers: { "content-type": "application/json" },
+    payload: { arguments: {} }
   });
+  expect(invoke.statusCode).toBeGreaterThanOrEqual(500);
+  await app.close();
+});
 ```
 
 > Adapt `resolveAccessContext` / `dataContext` to the construction the AI test file already uses. The
@@ -3720,7 +3748,8 @@ pnpm verify:foundation
 ```
 
 This runs lint (`eslint . --max-warnings=0`), `format:check`, `check:file-size` (no source file
->1000 lines), `typecheck`, `db:migrate` (idempotent), and `test:integration`. All must be green.
+
+> 1000 lines), `typecheck`, `db:migrate` (idempotent), and `test:integration`. All must be green.
 
 If `format:check` fails, run `pnpm format` and commit the formatting:
 
@@ -3758,19 +3787,19 @@ If no changes were needed in Step 14, there is nothing to commit here — the br
 
 ## Acceptance criteria → task map (final check)
 
-| AC | Tasks |
-| --- | --- |
-| 1 — CORE_VERSION + satisfiesCoreVersion | 1 |
-| 2 — compat gate refuses incompatible built-in before wiring | 4 |
-| 3 — settings-owned migration, RLS, grants, dir wired, idempotent | 2 |
-| 4 — ActiveModulesResolver async at every call site | 5, 6, 11, 12 |
-| 5 — zero behavior change with empty store | 2, 6, 11, 14 |
-| 6 — layered required/instance/user rule | 6 |
-| 7 — onRequest guard, 404-not-403, allowlist | 9, 11 |
-| 8 — boot coverage assertion both directions; real server boots clean | 7, 9, 11 |
-| 9 — admin + self endpoints, typed, reject required/!userDisable, audit | 8, 10 |
-| 10 — db types: ModuleEnablementTable + Selectable; DataContextDb-only repo | 2, 3 |
-| 11 — verify:foundation + release-hardening green; no file >1000 lines | 13, 14 |
+| AC                                                                         | Tasks        |
+| -------------------------------------------------------------------------- | ------------ |
+| 1 — CORE_VERSION + satisfiesCoreVersion                                    | 1            |
+| 2 — compat gate refuses incompatible built-in before wiring                | 4            |
+| 3 — settings-owned migration, RLS, grants, dir wired, idempotent           | 2            |
+| 4 — ActiveModulesResolver async at every call site                         | 5, 6, 11, 12 |
+| 5 — zero behavior change with empty store                                  | 2, 6, 11, 14 |
+| 6 — layered required/instance/user rule                                    | 6            |
+| 7 — onRequest guard, 404-not-403, allowlist                                | 9, 11        |
+| 8 — boot coverage assertion both directions; real server boots clean       | 7, 9, 11     |
+| 9 — admin + self endpoints, typed, reject required/!userDisable, audit     | 8, 10        |
+| 10 — db types: ModuleEnablementTable + Selectable; DataContextDb-only repo | 2, 3         |
+| 11 — verify:foundation + release-hardening green; no file >1000 lines      | 13, 14       |
 
 ## Out of scope (do not build)
 
