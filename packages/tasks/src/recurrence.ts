@@ -68,6 +68,104 @@ export function advanceDate(
 }
 
 /**
+ * Given a recurrence spec and a `today` (YYYY-MM-DD, UTC), return the first
+ * occurrence date at-or-after today, computed deterministically from the spec's
+ * stored occurrence_date by repeatedly applying computeNextOccurrenceDate.
+ *
+ * Boundary rule: an occurrence_date that EQUALS today is already "at or after" —
+ * it is returned unchanged (not rolled).
+ */
+export function nextOccurrenceAtOrAfter(spec: RecurrenceSpec, today: string): string {
+  let current = spec.occurrence_date;
+  // Guard against a pathological spec (interval 0) producing an infinite loop.
+  if (!spec.freq || !spec.interval || spec.interval < 1) {
+    return current;
+  }
+  let guard = 0;
+  while (current < today && guard < 10_000) {
+    current = computeNextOccurrenceDate({ ...spec, occurrence_date: current });
+    guard += 1;
+  }
+  return current;
+}
+
+/**
+ * Roll a single recurring series forward in place: if its one live (status='todo')
+ * instance has occurrence_date < today, advance occurrence_date/due_at/do_at to the
+ * next occurrence at-or-after today. One live instance, missed rolls forward without
+ * stacking (no new row). Idempotent: a series already at/after today is a no-op.
+ *
+ * Returns true if a row was advanced, false otherwise.
+ */
+export async function rollForwardRecurringSeries(
+  db: DataContextDb,
+  seriesId: string,
+  today: string = new Date().toISOString().slice(0, 10)
+): Promise<boolean> {
+  assertDataContextDb(db);
+
+  // OWNER-ONLY: explicit owner predicate, not just RLS (tasks_update is owner-OR-share;
+  // roll-forward must never touch a series merely shared to this actor). Select the single
+  // canonical live row (LIMIT 1, oldest occurrence first) so we update by id, never the
+  // whole series.
+  const live = await db.db
+    .selectFrom("app.tasks")
+    .selectAll()
+    .where("recurrence_series_id", "=", seriesId)
+    .where("status", "=", "todo")
+    .where(sql<boolean>`owner_user_id = app.current_actor_user_id()`)
+    .orderBy(sql`(recurrence->>'occurrence_date')`, "asc")
+    .limit(1)
+    .executeTakeFirst();
+
+  if (!live || live.recurrence == null) {
+    return false;
+  }
+
+  const spec = live.recurrence as unknown as RecurrenceSpec;
+  if (!spec.freq || !spec.interval || !spec.occurrence_date) {
+    return false;
+  }
+  if (spec.occurrence_date >= today) {
+    return false; // already current — no-op
+  }
+
+  const newOccurrence = nextOccurrenceAtOrAfter(spec, today);
+  if (newOccurrence === spec.occurrence_date) {
+    return false;
+  }
+
+  const nextRecurrence: RecurrenceSpec = {
+    freq: spec.freq,
+    interval: spec.interval,
+    occurrence_date: newOccurrence
+  };
+  const nextDueAt = advanceDate(live.due_at, spec.occurrence_date, newOccurrence);
+  const nextDoAt = advanceDate(live.do_at, spec.occurrence_date, newOccurrence);
+
+  // Convergent in-place update BY ID (never whole-series): a concurrent writer that has
+  // already advanced this row past `today` matches zero rows here. The status='todo' guard
+  // is CRITICAL — a concurrent completion (generateNext path) can flip this row to 'done'
+  // between our SELECT and UPDATE; without it we would mutate a completed historical row.
+  // Owner predicate restated for defense-in-depth.
+  const updated = await db.db
+    .updateTable("app.tasks")
+    .set({
+      recurrence: nextRecurrence as unknown as Record<string, unknown>,
+      due_at: nextDueAt,
+      do_at: nextDoAt,
+      updated_at: new Date()
+    })
+    .where("id", "=", live.id)
+    .where("status", "=", "todo")
+    .where(sql<boolean>`(recurrence->>'occurrence_date') < ${today}`)
+    .where(sql<boolean>`owner_user_id = app.current_actor_user_id()`)
+    .executeTakeFirst();
+
+  return Number(updated.numUpdatedRows ?? 0n) > 0;
+}
+
+/**
  * Generate the next instance of a recurring task in the same series.
  *
  * Idempotency: the `tasks_recurrence_occurrence_idx` unique index on
