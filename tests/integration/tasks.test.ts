@@ -1165,4 +1165,34 @@ describe("Tasks module M1", () => {
     expect(err.message).toBe("not found");
     expect(err).toBeInstanceOf(Error);
   });
+
+  it("getById and listVisible return joined tags (direct-insert assignment)", async () => {
+    const listsRepo = new TaskListsRepository();
+    const list = await dataContext.withDataContext(userAContext(), (db) =>
+      listsRepo.getOrCreate(db, "Travel")
+    );
+    const tag = await dataContext.withDataContext(userAContext(), (db) =>
+      listsRepo.createTag(db, list.id, "Urgent")
+    );
+    const task = await dataContext.withDataContext(userAContext(), (db) =>
+      repository.create(db, { title: "book flights", listId: list.id })
+    );
+    // assignTag lands in Task 17; insert the assignment directly so Task 14 runs in order.
+    await dataContext.withDataContext(userAContext(), (db) =>
+      db.db
+        .insertInto("app.task_tag_assignments")
+        .values({ task_id: task.id, tag_id: tag.id })
+        .execute()
+    );
+
+    const tags = await dataContext.withDataContext(userAContext(), (db) =>
+      repository.getTagsForTask(db, task.id)
+    );
+    expect(tags.map((t) => t.id)).toContain(tag.id);
+
+    const map = await dataContext.withDataContext(userAContext(), (db) =>
+      repository.getTagsForTasks(db, [task.id])
+    );
+    expect(map.get(task.id)?.length).toBe(1);
+  });
 });
