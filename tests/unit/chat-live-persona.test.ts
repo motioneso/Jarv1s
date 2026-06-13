@@ -23,7 +23,7 @@ function fakeFs(): {
   const writes: Record<string, string> = {};
   const calls: string[] = [];
   const fs: PersonaFs = {
-    mkdir: async (path: string) => {
+    mkdir: async (path: string, _mode?: number) => {
       mkdirs.push(path);
       calls.push(`mkdir:${path}`);
     },
@@ -160,5 +160,24 @@ describe("renderPersona", () => {
       if (prev === undefined) delete process.env.JARVIS_CHAT_HOME;
       else process.env.JARVIS_CHAT_HOME = prev;
     }
+  });
+
+  it("creates the per-user neutral dir with mode 0700", async () => {
+    const mkdirCalls: Array<{ path: string; mode?: number }> = [];
+    const fs = {
+      mkdir: async (path: string, mode?: number) => {
+        mkdirCalls.push({ path, mode });
+      },
+      writeFile: async () => {}
+    };
+    await renderPersona(fs, {
+      userId: "u1",
+      userName: "Ben",
+      provider: "anthropic",
+      baseDir: "/tmp/base",
+      persona: "hi"
+    });
+    expect(mkdirCalls).toHaveLength(1);
+    expect(mkdirCalls[0]?.mode).toBe(0o700);
   });
 });

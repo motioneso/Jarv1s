@@ -17,8 +17,8 @@ import type { ProviderKind } from "@jarv1s/ai";
 
 /** Minimal filesystem seam — injected so tests can avoid real disk writes. */
 export interface PersonaFs {
-  /** Create a directory and any missing parents (recursive). */
-  mkdir(path: string): Promise<void>;
+  /** Create a directory and any missing parents (recursive), with an optional mode. */
+  mkdir(path: string, mode?: number): Promise<void>;
   /** Write file content, overwriting if it exists. */
   writeFile(path: string, content: string): Promise<void>;
 }
@@ -88,7 +88,7 @@ export async function renderPersona(
   const personaPath = join(neutralDir, CONTEXT_FILENAME[input.provider]);
   const content = input.persona.replaceAll("{{userName}}", sanitizeUserName(input.userName));
 
-  await fs.mkdir(neutralDir);
+  await fs.mkdir(neutralDir, 0o700);
   await fs.writeFile(personaPath, content);
 
   return { neutralDir, personaPath };
@@ -97,8 +97,8 @@ export async function renderPersona(
 /** Real filesystem implementation backed by node:fs/promises. */
 export function createRealPersonaFs(): PersonaFs {
   return {
-    mkdir: async (path: string) => {
-      await mkdir(path, { recursive: true });
+    mkdir: async (path: string, mode?: number) => {
+      await mkdir(path, { recursive: true, mode });
     },
     writeFile: async (path: string, content: string) => {
       await writeFile(path, content, "utf8");
