@@ -1,0 +1,101 @@
+import { expect, test } from "@playwright/test";
+
+import { createMockConnectorProviders, mockApi, type MockApiState } from "./mock-api.js";
+import { defaultOnboardingStatus } from "./mock-onboarding-api.js";
+
+function memberState(overrides: Partial<MockApiState> = {}): MockApiState {
+  return {
+    authenticated: true,
+    isInstanceAdmin: false,
+    notifications: [],
+    tasks: [],
+    // The member connector / API-key-opt-out steps query these module endpoints (client-side
+    // `done` derivation); the connector mock state is required (not optional) on MockApiState.
+    connectorAccounts: [],
+    connectorProviders: createMockConnectorProviders(),
+    // Drive the member onboarding branch: not the bootstrap owner, onboarding incomplete.
+    isBootstrapOwner: false,
+    onboardingStatus: {
+      role: "member",
+      completed: false,
+      steps: { apiKeyOptOut: { done: false }, connectors: { done: false } }
+    },
+    ...overrides
+  };
+}
+
+test("active member sees the member step array (no CLI-auth/multiplexer) and can finish", async ({
+  page
+}) => {
+  await mockApi(page, memberState());
+  await page.goto("/");
+  await expect(page.getByRole("heading", { name: "Welcome to Jarv1s" })).toBeVisible();
+  // Member-specific steps exist; founder-only steps do NOT.
+  await expect(page.getByText(/CLI auth/i)).toHaveCount(0);
+  await expect(page.getByText(/multiplexer/i)).toHaveCount(0);
+
+  // Advancing into the API-key step renders a react-router <Link> — this MUST NOT crash the
+  // app (regression guard: the wizard must be inside a Router). If the wizard were rendered
+  // outside BrowserRouter, the <Link> would throw a context invariant here.
+  await page.getByRole("button", { name: "Next" }).click();
+  await expect(page.getByRole("heading", { name: "AI assistant" })).toBeVisible();
+  await expect(page.getByRole("link", { name: /Settings/i })).toBeVisible();
+});
+
+test('"Skip setup" reaches the app shell', async ({ page }) => {
+  await mockApi(page, memberState());
+  await page.goto("/");
+  await page.getByRole("button", { name: "Skip setup" }).first().click();
+  // After skip, the member completion path fires and the shell renders (Tasks land on /tasks).
+  await expect(page).toHaveURL(/\/tasks/);
+});
+
+test("a completed member skips the wizard and sees the shell", async ({ page }) => {
+  await mockApi(
+    page,
+    memberState({
+      onboardingStatus: {
+        role: "member",
+        completed: true,
+        steps: { apiKeyOptOut: { done: false }, connectors: { done: false } }
+      }
+    })
+  );
+  await page.goto("/");
+  await expect(page).toHaveURL(/\/tasks/);
+});
+
+test("founder still sees the founder wizard (regression)", async ({ page }) => {
+  await mockApi(page, {
+    authenticated: true,
+    isInstanceAdmin: true,
+    isBootstrapOwner: true,
+    notifications: [],
+    tasks: [],
+    connectorAccounts: [],
+    connectorProviders: createMockConnectorProviders(),
+    // Pending founder status drives the founder wizard (the mock defaults to "completed").
+    onboardingStatus: defaultOnboardingStatus()
+  });
+  await page.goto("/");
+  // Founder onboarding shape comes from the spine's mock; assert a founder-only step is visible.
+  await expect(page.getByRole("heading", { name: "Set up Jarv1s" })).toBeVisible();
+  await expect(page.getByText(/multiplexer/i)).toBeVisible();
+});
+
+test("status-error fall-through: a failing /api/onboarding/status does NOT trap the member", async ({
+  page
+}) => {
+  // Onboarding is OPTIONAL — if its status endpoint errors, the app must NOT block the member
+  // in the wizard. The app.tsx gate fires only when `!onboardingQuery.isError`, so a 500
+  // falls through to the shell (Task 10.3 predicate).
+  await mockApi(page, memberState());
+  // Override the onboarding status route to fail AFTER the base mock is installed.
+  await page.route("**/api/onboarding/status", async (route) => {
+    await route.fulfill({ status: 500, contentType: "application/json", body: "{}" });
+  });
+  await page.goto("/");
+  // The member is NOT trapped in the wizard; the shell renders (Tasks landing).
+  await expect(page).toHaveURL(/\/tasks/);
+  await expect(page.getByRole("heading", { name: "Welcome to Jarv1s" })).toHaveCount(0);
+});

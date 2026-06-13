@@ -511,7 +511,44 @@ export function registerSettingsRoutes(
         }
         const accessContext = await dependencies.resolveAccessContext(request);
 
-        // DB reads + admin check + connector-exists share ONE transaction (slice-D).
+        // Phase 4: status is no longer founder-only. We relax the gate to requireKnownUser
+        // (any active authenticated user — pending/deactivated never reach here, as
+        // resolveAccessContext throws first) and branch on the SERVER-READ is_bootstrap_owner.
+        // A member must read its OWN per-user onboarding status; role is taken from the
+        // server-side user row, never from the client.
+        //
+        // The member branch is cheap (one self-row read of app.member_onboarding) and does
+        // NOT run the founder's host probes, so we resolve the role first and only run the
+        // expensive probe path for the founder.
+        const memberStatus = await dependencies.dataContext.withDataContext(
+          accessContext,
+          async (scopedDb) => {
+            const user = await requireKnownUser(repository, scopedDb, accessContext.actorUserId);
+            if (user.is_bootstrap_owner) {
+              return null; // founder — fall through to the instance-global probe path below.
+            }
+            // Member branch — per-user completion from the member's OWN row (GUC-scoped;
+            // no id argument — RLS + the GUC pick the row). apiKeyOptOut.done +
+            // connectors.done are DERIVED CLIENT-SIDE (module isolation); the server returns
+            // neutral false defaults here.
+            const state = await repository.getMemberOnboardingState(scopedDb);
+            return {
+              role: "member" as const,
+              completed: state.completedAt !== null,
+              steps: {
+                apiKeyOptOut: { done: false },
+                connectors: { done: false }
+              }
+            };
+          }
+        );
+        if (memberStatus) {
+          return memberStatus;
+        }
+
+        // Founder branch — unchanged Phase-2 instance-global shape. DB reads + bootstrap-owner
+        // admin check + connector-exists share ONE transaction (slice-D). The owner admin
+        // check stays as defense-in-depth: only the bootstrap owner ever reaches this path.
         const dbPart = await dependencies.dataContext.withDataContext(
           accessContext,
           async (scopedDb) => {
@@ -558,13 +595,32 @@ export function registerSettingsRoutes(
           const result = await dependencies.dataContext.withDataContext(
             accessContext,
             async (scopedDb) => {
-              await assertBootstrapOwnerAdminUser(repository, scopedDb, accessContext.actorUserId);
-              const newState = await repository.setOnboardingState(scopedDb, {
-                state,
+              const user = await requireKnownUser(repository, scopedDb, accessContext.actorUserId);
+              if (user.is_bootstrap_owner) {
+                // Founder: unchanged Phase-2 instance-global lifecycle (bootstrap-owner
+                // admin-gated). Returns the { state } shape.
+                await assertBootstrapOwnerAdminUser(
+                  repository,
+                  scopedDb,
+                  accessContext.actorUserId
+                );
+                const newState = await repository.setOnboardingState(scopedDb, {
+                  state,
+                  actorUserId: accessContext.actorUserId,
+                  requestId: requireRequestId(accessContext)
+                });
+                return { state: newState };
+              }
+              // Member: both complete AND skip stamp the same terminal "onboarded" row on the
+              // member's OWN app.member_onboarding row (skip == complete for members — no
+              // separate skipped lifecycle). GUC-scoped UPSERT (no caller-supplied target id);
+              // the self-row INSERT/UPDATE policies authorize only user_id = current actor.
+              // Returns the { completed } shape.
+              const memberState = await repository.setMemberOnboardingComplete(scopedDb, {
                 actorUserId: accessContext.actorUserId,
                 requestId: requireRequestId(accessContext)
               });
-              return { state: newState };
+              return { completed: memberState.completedAt !== null };
             }
           );
           return result;

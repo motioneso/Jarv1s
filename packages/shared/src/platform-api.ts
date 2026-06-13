@@ -403,20 +403,57 @@ export interface OnboardingStepsDto {
   readonly connectors: OnboardingConnectorStepDto;
 }
 
-export interface OnboardingStatusResponse {
+// --- Phase 4: role-tagged onboarding status. The "founder" variant is the Phase-2
+//     shape (instance-global provisioning, keyed on the OnboardingState lifecycle); the
+//     "member" variant is per-user (one row in app.member_onboarding). Consumers narrow on
+//     `role` before touching variant-specific fields. ---
+
+export interface OnboardingFounderStatus {
+  readonly role: "founder";
   readonly state: OnboardingState;
   readonly steps: OnboardingStepsDto;
 }
+
+/**
+ * Member step flags are DERIVED CLIENT-SIDE from the connectors / AI modules' own public
+ * endpoints (module isolation — packages/settings never reads another module's tables).
+ * The server returns neutral `false` defaults; the member wizard fills them in.
+ */
+export interface OnboardingMemberStepFlags {
+  readonly apiKeyOptOut: { readonly done: boolean };
+  readonly connectors: { readonly done: boolean };
+}
+
+export interface OnboardingMemberStatus {
+  readonly role: "member";
+  readonly completed: boolean;
+  readonly steps: OnboardingMemberStepFlags;
+}
+
+export type OnboardingStatusResponse = OnboardingFounderStatus | OnboardingMemberStatus;
 
 export interface OnboardingStateResponse {
   readonly state: OnboardingState;
 }
 
-const onboardingStatusResponseSchema = {
+/**
+ * Phase 4: the member complete/skip response. A member's onboarding has no separate
+ * "skipped" lifecycle (skip == terminal "onboarded"), so the response carries a single
+ * `completed` boolean — distinct from the founder's instance-global `{ state }` shape.
+ */
+export interface OnboardingMemberCompleteResponse {
+  readonly completed: boolean;
+}
+
+export type OnboardingCompleteResponse = OnboardingStateResponse | OnboardingMemberCompleteResponse;
+
+// Phase 4: the founder branch is the unchanged Phase-2 shape with a `role` discriminant.
+const onboardingFounderStatusSchema = {
   type: "object",
   additionalProperties: false,
-  required: ["state", "steps"],
+  required: ["role", "state", "steps"],
   properties: {
+    role: { type: "string", enum: ["founder"] },
     state: { type: "string", enum: ["pending", "completed", "skipped"] },
     steps: {
       type: "object",
@@ -468,6 +505,40 @@ const onboardingStatusResponseSchema = {
   }
 } as const;
 
+// Phase 4: the member branch — per-user completion + client-derived step flags.
+const onboardingMemberStatusSchema = {
+  type: "object",
+  additionalProperties: false,
+  required: ["role", "completed", "steps"],
+  properties: {
+    role: { type: "string", enum: ["member"] },
+    completed: { type: "boolean" },
+    steps: {
+      type: "object",
+      additionalProperties: false,
+      required: ["apiKeyOptOut", "connectors"],
+      properties: {
+        apiKeyOptOut: {
+          type: "object",
+          additionalProperties: false,
+          required: ["done"],
+          properties: { done: { type: "boolean" } }
+        },
+        connectors: {
+          type: "object",
+          additionalProperties: false,
+          required: ["done"],
+          properties: { done: { type: "boolean" } }
+        }
+      }
+    }
+  }
+} as const;
+
+const onboardingStatusResponseSchema = {
+  oneOf: [onboardingFounderStatusSchema, onboardingMemberStatusSchema]
+} as const;
+
 const onboardingStateResponseSchema = {
   type: "object",
   additionalProperties: false,
@@ -475,6 +546,23 @@ const onboardingStateResponseSchema = {
   properties: {
     state: { type: "string", enum: ["pending", "completed", "skipped"] }
   }
+} as const;
+
+// Phase 4: the member complete/skip response — a single `completed` boolean.
+const onboardingMemberCompleteResponseSchema = {
+  type: "object",
+  additionalProperties: false,
+  required: ["completed"],
+  properties: {
+    completed: { type: "boolean" }
+  }
+} as const;
+
+// Phase 4: complete/skip now serve BOTH the founder `{ state }` shape and the member
+// `{ completed }` shape, branched on role inside the handler. The response is validated
+// against this role-tagged-by-shape union (each variant keeps additionalProperties:false).
+const onboardingCompleteResponseSchema = {
+  oneOf: [onboardingStateResponseSchema, onboardingMemberCompleteResponseSchema]
 } as const;
 
 export const getOnboardingStatusRouteSchema = {
@@ -487,7 +575,7 @@ export const getOnboardingStatusRouteSchema = {
 
 export const onboardingCompleteRouteSchema = {
   response: {
-    200: onboardingStateResponseSchema,
+    200: onboardingCompleteResponseSchema,
     401: errorResponseSchema,
     403: errorResponseSchema
   }
@@ -495,7 +583,7 @@ export const onboardingCompleteRouteSchema = {
 
 export const onboardingSkipRouteSchema = {
   response: {
-    200: onboardingStateResponseSchema,
+    200: onboardingCompleteResponseSchema,
     401: errorResponseSchema,
     403: errorResponseSchema
   }

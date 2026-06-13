@@ -4,7 +4,7 @@ import { BrowserRouter, Navigate, Route, Routes } from "react-router";
 import { ApiError, getBootstrapStatus, getMe, getModules, getOnboardingStatus } from "./api/client";
 import { queryKeys } from "./api/query-keys";
 import { AuthScreen } from "./auth/auth-screen";
-import { isBootstrapOwner, shouldShowOnboarding } from "./onboarding/resume";
+import { shouldShowOnboarding } from "./onboarding/resume";
 import { OnboardingWizard } from "./onboarding/onboarding-wizard";
 import { BriefingsPage } from "./briefings/briefings-page";
 import { CalendarPage } from "./calendar/calendar-page";
@@ -32,9 +32,12 @@ export function App() {
     queryFn: () => getModules(),
     retry: false
   });
-  const ownerForOnboarding = isBootstrapOwner(meQuery.data);
+  // Phase 4: onboarding is no longer founder-only. Any ACTIVE authenticated user fetches their
+  // role-appropriate status (founder = instance-global; member = per-user). Pending/deactivated
+  // identities never reach here (handled by the error branches below before the shell renders).
+  const activeForOnboarding = meQuery.data?.user.status === "active";
   const onboardingQuery = useQuery({
-    enabled: ownerForOnboarding,
+    enabled: activeForOnboarding,
     queryKey: queryKeys.onboarding.status,
     queryFn: getOnboardingStatus,
     retry: false // getOnboardingStatus is itself bounded by a 4s timeout (client.ts)
@@ -84,26 +87,43 @@ export function App() {
     );
   }
 
-  if (ownerForOnboarding) {
-    // A hung status read cannot trap the founder: getOnboardingStatus is bounded to 4s, so
+  if (activeForOnboarding) {
+    // A hung status read cannot trap the user: getOnboardingStatus is bounded to 4s, so
     // isLoading resolves to data-or-error within that window. We show a bounded loader only
-    // for the owner's first boot (avoids a shell flash before the wizard); on error/timeout
+    // on first boot (avoids a shell flash before the wizard); on error/timeout
     // onboardingQuery.data is undefined ⇒ we fall through to the app shell below.
     if (onboardingQuery.isLoading) {
       return <LoadingScreen />;
     }
     const onboardingStatus = onboardingQuery.data;
-    if (onboardingStatus && shouldShowOnboarding(meQuery.data, onboardingStatus)) {
+    // Phase 4: the gate fires for any active user whose role-appropriate onboarding is incomplete.
+    //   Founder: shouldShowOnboarding (bootstrap owner + instance-global state === "pending").
+    //   Member:  per-user completion — the wizard shows until app.member_onboarding.completed_at
+    //            is stamped (skip == complete).
+    // On a status error/timeout onboardingStatus is undefined ⇒ neither branch fires ⇒ shell.
+    const incomplete =
+      onboardingStatus !== undefined &&
+      (onboardingStatus.role === "founder"
+        ? shouldShowOnboarding(meQuery.data, onboardingStatus)
+        : !onboardingStatus.completed);
+    if (incomplete) {
+      // The wizard is wrapped in BrowserRouter because member steps (api-key-opt-out,
+      // section-tour) render react-router <Link> elements; rendering a <Link> outside a Router
+      // throws a context invariant and crashes the app the moment the member advances into
+      // those steps. The shell below mounts its own BrowserRouter — the two are never mounted
+      // at once (this is an early return), so there is no nested-router conflict.
       return (
-        <OnboardingWizard
-          initialStatus={onboardingStatus}
-          onDone={() =>
-            void queryClient.invalidateQueries({ queryKey: queryKeys.onboarding.status })
-          }
-        />
+        <BrowserRouter>
+          <OnboardingWizard
+            initialStatus={onboardingStatus}
+            onDone={() =>
+              void queryClient.invalidateQueries({ queryKey: queryKeys.onboarding.status })
+            }
+          />
+        </BrowserRouter>
       );
     }
-    // else: not pending (terminal state) OR errored/timed-out ⇒ fall through to the shell.
+    // else: terminal/complete state OR errored/timed-out ⇒ fall through to the shell.
   }
 
   return (
