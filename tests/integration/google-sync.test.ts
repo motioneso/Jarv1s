@@ -3,6 +3,7 @@ import { sql } from "kysely";
 import { DataContextRunner, createDatabase, type JarvisDatabase } from "@jarv1s/db";
 import type { Kysely } from "kysely";
 import { ConnectorsRepository, createConnectorSecretCipher } from "@jarv1s/connectors";
+import { CalendarRepository } from "@jarv1s/calendar";
 import { connectionStrings, ids, resetFoundationDatabase } from "./test-database.js";
 
 let appDb: Kysely<JarvisDatabase>;
@@ -283,5 +284,40 @@ describe("connector_accounts RLS — worker role (0069)", () => {
     expect(qual).toMatch(/owner_user_id = app\.current_actor_user_id\(\)/);
     // Secrets are never shared: no share-based read arm.
     expect(qual).not.toMatch(/has_share/);
+  });
+});
+
+describe("CalendarRepository.upsertCachedEvent idempotency", () => {
+  it("re-upserting the same external_id updates in place (one row, no duplicate)", async () => {
+    const accountId = await seedGoogleAccount(["https://www.googleapis.com/auth/calendar"]);
+    const calendar = new CalendarRepository();
+    const ctx = { actorUserId: ids.userA, requestId: "test" };
+    await dataContext.withDataContext(ctx, (db) =>
+      calendar.upsertCachedEvent(db, {
+        connectorAccountId: accountId,
+        externalId: "dup-1",
+        title: "v1",
+        startsAt: "2026-06-13T09:00:00.000Z",
+        endsAt: "2026-06-13T09:30:00.000Z"
+      })
+    );
+    const second = await dataContext.withDataContext(ctx, (db) =>
+      calendar.upsertCachedEvent(db, {
+        connectorAccountId: accountId,
+        externalId: "dup-1",
+        title: "v2",
+        startsAt: "2026-06-13T10:00:00.000Z",
+        endsAt: "2026-06-13T10:30:00.000Z"
+      })
+    );
+    expect(second.title).toBe("v2");
+    const rows = await dataContext.withDataContext(ctx, (db) =>
+      db.db
+        .selectFrom("app.calendar_events")
+        .select((eb) => eb.fn.countAll().as("n"))
+        .where("external_id", "=", "dup-1")
+        .executeTakeFirstOrThrow()
+    );
+    expect(Number(rows.n)).toBe(1);
   });
 });
