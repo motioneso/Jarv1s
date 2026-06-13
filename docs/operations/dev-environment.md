@@ -108,11 +108,11 @@ the worker service must carry both keys (alongside the API) in the same env file
 The sync has four optional tuning knobs (each with a built-in default), so an operator can bound
 sync cost and latency without code changes:
 
-| Variable                           | Default | Effect                                                                                        |
-| ---------------------------------- | ------- | --------------------------------------------------------------------------------------------- |
-| `JARVIS_RL_GOOGLE_SYNC_MAX`        | `6`     | Per-actor rate limit (per minute) on the manual `POST /api/connectors/google/sync` route.     |
-| `JARVIS_EMAIL_SYNC_CAP`            | `50`    | Max email messages summarized per sync run.                                                   |
-| `JARVIS_EMAIL_LLM_TIMEOUT_MS`      | `20000` | Per-LLM-call timeout (ms) for the summary/signals pass.                                       |
+| Variable                      | Default | Effect                                                                                    |
+| ----------------------------- | ------- | ----------------------------------------------------------------------------------------- |
+| `JARVIS_RL_GOOGLE_SYNC_MAX`   | `6`     | Per-actor rate limit (per minute) on the manual `POST /api/connectors/google/sync` route. |
+| `JARVIS_EMAIL_SYNC_CAP`       | `50`    | Max email messages summarized per sync run.                                               |
+| `JARVIS_EMAIL_LLM_TIMEOUT_MS` | `20000` | Per-LLM-call timeout (ms) for the summary/signals pass.                                   |
 
 ## Host-multiplexer bridge (CLI chat from the container)
 
