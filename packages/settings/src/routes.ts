@@ -515,7 +515,7 @@ export function registerSettingsRoutes(
         const dbPart = await dependencies.dataContext.withDataContext(
           accessContext,
           async (scopedDb) => {
-            await assertAdminUser(repository, scopedDb, accessContext.actorUserId);
+            await assertBootstrapOwnerAdminUser(repository, scopedDb, accessContext.actorUserId);
             const [state, selected, connectorAccountExists] = await Promise.all([
               repository.readOnboardingState(scopedDb),
               repository.readChatMultiplexerChoiceOrNull(scopedDb),
@@ -558,7 +558,7 @@ export function registerSettingsRoutes(
           const result = await dependencies.dataContext.withDataContext(
             accessContext,
             async (scopedDb) => {
-              await assertAdminUser(repository, scopedDb, accessContext.actorUserId);
+              await assertBootstrapOwnerAdminUser(repository, scopedDb, accessContext.actorUserId);
               const newState = await repository.setOnboardingState(scopedDb, {
                 state,
                 actorUserId: accessContext.actorUserId,
@@ -731,6 +731,24 @@ async function assertAdminUser(
   const user = await requireKnownUser(repository, scopedDb, userId);
   if (!user.is_instance_admin) {
     throw new HttpError(403, "Instance admin permission is required");
+  }
+  return user;
+}
+
+// Onboarding is founder/instance provisioning and writes the SINGLE instance-scoped
+// onboarding.state row, so it must be gated to the bootstrap owner — not merely any
+// instance admin. A promoted non-owner admin must NOT be able to read the owner's
+// onboarding status or complete/skip it out from under them (defense-in-depth at the
+// route, not only at the app.tsx trigger). Requires is_instance_admin AND
+// is_bootstrap_owner; same clean 403 as assertAdminUser for any other caller.
+async function assertBootstrapOwnerAdminUser(
+  repository: SettingsRepository,
+  scopedDb: DataContextDb,
+  userId: string
+): Promise<User> {
+  const user = await assertAdminUser(repository, scopedDb, userId);
+  if (!user.is_bootstrap_owner) {
+    throw new HttpError(403, "Bootstrap owner permission is required");
   }
   return user;
 }
