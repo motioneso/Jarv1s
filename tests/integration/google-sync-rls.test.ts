@@ -132,3 +132,69 @@ describe("scope-guard fails closed end-to-end via the worker role (I1.E)", () =>
     ).rejects.toThrow();
   });
 });
+
+// P3 real-briefings: the briefing pg-boss worker (jarvis_worker_runtime) reads today's calendar +
+// email via the calendar/email read tools, which call CalendarRepository.listVisible /
+// EmailRepository.listVisible under a worker-role DataContext scoped to the briefing owner. The
+// connector-sync slice already granted the worker SELECT (migrations 0066/0068) with owner-or-share
+// SELECT policies; these tests prove a FRESH worker-role SELECT (not just the INSERT RETURNING)
+// returns the owner's seeded rows, so the briefing path reads real data instead of degrading to an
+// empty gap. Owner-scoping is preserved: a different actor's worker SELECT must NOT see the rows.
+describe("worker-role read-through for the briefing path (P3 real-briefings)", () => {
+  it("the worker role reads the owner's calendar + email via listVisible, owner-scoped", async () => {
+    const calendarAccount = await seedGoogleAccount([CALENDAR_SCOPE], ids.userA);
+    const calendar = new CalendarRepository();
+    await workerDataContext.withDataContext(
+      { actorUserId: ids.userA, requestId: "test" },
+      (scopedDb) =>
+        calendar.upsertCachedEvent(scopedDb, {
+          connectorAccountId: calendarAccount,
+          externalId: "worker-read-evt",
+          title: "Briefing standup",
+          startsAt: "2026-06-13T09:00:00.000Z",
+          endsAt: "2026-06-13T09:15:00.000Z"
+        })
+    );
+
+    const emailAccount = await seedGoogleAccount([GMAIL_SCOPE], ids.userA);
+    const email = new EmailRepository();
+    await workerDataContext.withDataContext(
+      { actorUserId: ids.userA, requestId: "test" },
+      (scopedDb) =>
+        email.upsertCachedMessage(scopedDb, {
+          connectorAccountId: emailAccount,
+          externalId: "worker-read-msg",
+          sender: "a@b.com",
+          subject: "Invoice due",
+          receivedAt: "2026-06-13T09:00:00.000Z",
+          summary: null,
+          signals: {}
+        })
+    );
+
+    // Fresh worker-role SELECT scoped to the OWNER sees the seeded rows.
+    const ownerEvents = await workerDataContext.withDataContext(
+      { actorUserId: ids.userA, requestId: "test" },
+      (scopedDb) => calendar.listVisible(scopedDb)
+    );
+    const ownerMessages = await workerDataContext.withDataContext(
+      { actorUserId: ids.userA, requestId: "test" },
+      (scopedDb) => email.listVisible(scopedDb)
+    );
+    expect(ownerEvents.some((e) => e.external_id === "worker-read-evt")).toBe(true);
+    expect(ownerMessages.some((m) => m.external_id === "worker-read-msg")).toBe(true);
+
+    // A DIFFERENT actor's worker-role SELECT must NOT see another owner's rows (RLS owner-scoping
+    // holds for the worker role — no cross-user leak in the briefing read path).
+    const otherEvents = await workerDataContext.withDataContext(
+      { actorUserId: ids.userB, requestId: "test" },
+      (scopedDb) => calendar.listVisible(scopedDb)
+    );
+    const otherMessages = await workerDataContext.withDataContext(
+      { actorUserId: ids.userB, requestId: "test" },
+      (scopedDb) => email.listVisible(scopedDb)
+    );
+    expect(otherEvents.some((e) => e.external_id === "worker-read-evt")).toBe(false);
+    expect(otherMessages.some((m) => m.external_id === "worker-read-msg")).toBe(false);
+  });
+});
