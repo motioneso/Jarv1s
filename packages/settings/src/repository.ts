@@ -389,15 +389,29 @@ export class SettingsRepository {
    * authorize ONLY user_id = current actor; there is NO admin UPDATE policy, so an admin
    * actor cannot stamp another user's row. Idempotent (re-stamping is harmless). We do NOT
    * accept a target user id — the actor is taken from the GUC, closing finding #4 (admin
-   * stamping another user's row). Records an admin_audit_events row
-   * (action: "onboarding.member_complete"). Reads only requestId from the caller for the
-   * audit row's actor (AccessContext invariant: actorUserId/requestId only).
+   * stamping another user's row).
+   *
+   * NO admin_audit_events row is written. Member onboarding completion is PRIVATE per-user
+   * state — the headline invariant of this slice is that "not even an admin may read" it,
+   * which is why it lives in an owner-only table with no admin SELECT policy. app.admin_audit_events
+   * SELECT is admin-wide (0059), so emitting an "onboarding.member_complete" row keyed to the
+   * member would re-leak exactly that protected fact (member X onboarded at time T) through the
+   * admin audit log — a side-channel defeating the owner-only table. The durable record of
+   * completion IS app.member_onboarding.completed_at on the member's own row; no admin-readable
+   * audit is appropriate for a private self-action (cf. memory/chat/connectors, which likewise
+   * do not audit per-user private writes to the admin log). The founder's onboarding remains
+   * audited because founder onboarding is an instance-global ADMIN action, not private state.
+   *
+   * `input` ({ actorUserId, requestId }) is retained for AccessContext-shape parity with the
+   * other repo writers and possible future per-user (non-admin) audit surface; it is not used to
+   * write to the admin log here.
    */
   async setMemberOnboardingComplete(
     scopedDb: DataContextDb,
     input: SetMemberOnboardingCompleteInput
   ): Promise<{ completedAt: Date | null }> {
     assertDataContextDb(scopedDb);
+    void input; // intentionally not written to the admin-readable audit log (see doc above).
     const now = new Date();
     // UPSERT keyed on the GUC actor id — never on a caller-supplied target. The INSERT WITH
     // CHECK and UPDATE USING/WITH CHECK both require user_id = app.current_actor_user_id(),
@@ -413,15 +427,6 @@ export class SettingsRepository {
       .onConflict((oc) => oc.column("user_id").doUpdateSet({ completed_at: now, updated_at: now }))
       .returning("completed_at")
       .executeTakeFirst();
-
-    await this.insertAuditEvent(scopedDb, {
-      actorUserId: input.actorUserId,
-      action: "onboarding.member_complete",
-      targetType: "user",
-      targetId: input.actorUserId,
-      metadata: {},
-      requestId: input.requestId
-    });
 
     return { completedAt: upserted?.completed_at ?? null };
   }

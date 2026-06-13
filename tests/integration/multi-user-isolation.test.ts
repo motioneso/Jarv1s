@@ -403,6 +403,22 @@ describe("multi-user isolation", () => {
           .execute()
     );
     expect(bobSeesAlice).toEqual([]);
+
+    // SIDE-CHANNEL backstop: member completion must ALSO stay out of the admin audit log.
+    // app.admin_audit_events SELECT is admin-wide (0059); an "onboarding.member_complete" row
+    // keyed to Alice would re-leak her private completion fact + timestamp to the admin even
+    // though the table read above is blocked. Assert the admin sees no member-onboarding action.
+    const adminAudit = await server.inject({
+      method: "GET",
+      url: "/api/admin/audit-events",
+      headers: { cookie: admin.cookie }
+    });
+    expect(adminAudit.statusCode).toBe(200);
+    const auditActions = (
+      adminAudit.json() as { auditEvents: { action: string }[] }
+    ).auditEvents.map((e) => e.action);
+    expect(auditActions).not.toContain("onboarding.member_complete");
+    expect(JSON.stringify(adminAudit.json())).not.toMatch(/member.*onboard|onboard.*member/i);
   });
 
   it("lifecycle stitch: completing onboarding sets only the actor's own row", async () => {

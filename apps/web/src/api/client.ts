@@ -53,7 +53,7 @@ import type {
   MarkNotificationReadResponse,
   MeResponse,
   OnboardingStatusResponse,
-  OnboardingStateResponse,
+  OnboardingCompleteResponse,
   RevokeAiProviderConfigResponse,
   RevokeConnectorAccountResponse,
   LookupAiCapabilityRouteResponse,
@@ -129,12 +129,16 @@ export async function getOnboardingStatus(): Promise<OnboardingStatusResponse> {
   }
 }
 
-export async function completeOnboarding(): Promise<OnboardingStateResponse> {
-  return requestJson<OnboardingStateResponse>("/api/onboarding/complete", { method: "POST" });
+// Phase 4: complete/skip serve BOTH the founder { state } shape and the member { completed }
+// shape (branched on role server-side). The return type is the shared role-by-shape union, not
+// the founder-only OnboardingStateResponse — typing it { state } would make `.state` read as
+// undefined for a member and mislead any consumer that narrows on it.
+export async function completeOnboarding(): Promise<OnboardingCompleteResponse> {
+  return requestJson<OnboardingCompleteResponse>("/api/onboarding/complete", { method: "POST" });
 }
 
-export async function skipOnboarding(): Promise<OnboardingStateResponse> {
-  return requestJson<OnboardingStateResponse>("/api/onboarding/skip", { method: "POST" });
+export async function skipOnboarding(): Promise<OnboardingCompleteResponse> {
+  return requestJson<OnboardingCompleteResponse>("/api/onboarding/skip", { method: "POST" });
 }
 
 export async function signUpEmail(input: SignUpEmailRequest): Promise<void> {
