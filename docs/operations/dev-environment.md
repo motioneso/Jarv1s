@@ -89,6 +89,32 @@ service is `restart: unless-stopped`; the api keeps a `/health` HEALTHCHECK.
 first use into the `jarv1s-model-cache` named volume (`HF_HOME=/app/.cache/huggingface`);
 set `JARVIS_EMBED_PROVIDER=stub` to skip it.
 
+## Connector-sync worker secrets & tuning
+
+The Google connector-sync job runs in the **worker** process and decrypts two at-rest secrets,
+so the worker's environment MUST export both keys — and they MUST match the API process's
+values, because the secrets are encrypted by the API and decrypted by the worker:
+
+- `JARVIS_CONNECTOR_SECRET_KEY` — decrypts the stored Google OAuth bundle (access/refresh
+  token) before any Google API call.
+- `JARVIS_AI_SECRET_KEY` — decrypts the user's AI provider credential for the capability-routed
+  email summary/signals pass.
+
+If either key is missing or differs from the value the API used to encrypt, decryption fails.
+This is surfaced as a **sync error label** on the result, not a process crash (spec risk #4),
+so the rest of the app stays up while the sync reports the failure. In the containerized stack,
+the worker service must carry both keys (alongside the API) in the same env file.
+
+The sync has four optional tuning knobs (each with a built-in default), so an operator can bound
+sync cost and latency without code changes:
+
+| Variable                           | Default | Effect                                                                                        |
+| ---------------------------------- | ------- | --------------------------------------------------------------------------------------------- |
+| `JARVIS_RL_GOOGLE_SYNC_MAX`        | `6`     | Per-actor rate limit (per minute) on the manual `POST /api/connectors/google/sync` route.     |
+| `JARVIS_EMAIL_SYNC_CAP`            | `50`    | Max email messages summarized per sync run.                                                   |
+| `JARVIS_EMAIL_LLM_TIMEOUT_MS`      | `20000` | Per-LLM-call timeout (ms) for the summary/signals pass.                                       |
+| `JARVIS_EMAIL_ESCALATE_CONFIDENCE` | `0.5`   | Confidence floor below which a high-importance message escalates once to the next model tier. |
+
 ## Host-multiplexer bridge (CLI chat from the container)
 
 Live CLI chat drives `claude`/`codex`/`gemini` through tmux under the operator's personal
