@@ -708,6 +708,17 @@ describe("extractEmailSignals", () => {
     const result = await extractEmailSignals(PARSED, deps);
     expect(result.summary).toBeNull();
   });
+
+  it("nulls the summary when the model wraps the full body (Summary: <body> prefix)", async () => {
+    // A bad/jailbroken model prefixes the body to slip past exact-equality; the containment
+    // guard must still drop it so the full body is never persisted as summary (privacy).
+    const deps = fakeDeps({
+      replies: [JSON.stringify({ summary: `Summary: ${PARSED.body} -- regards`, confidence: 0.9 })],
+      models: [{ tier: "economy" }]
+    });
+    const result = await extractEmailSignals(PARSED, deps);
+    expect(result.summary).toBeNull();
+  });
 });
 
 describe("google-sync queue contract", () => {
