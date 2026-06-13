@@ -1,0 +1,138 @@
+// Minimal logger — avoids a pino/fastify dependency in the connectors package (mirrors oauth.ts).
+interface GoogleApiLogger {
+  error(data: Record<string, unknown>, message: string): void;
+}
+
+export interface GoogleApiClientDeps {
+  readonly fetchFn?: typeof fetch;
+  readonly logger?: GoogleApiLogger;
+}
+
+export class GoogleApiError extends Error {
+  constructor(
+    message: string,
+    readonly statusCode: number
+  ) {
+    super(message);
+    this.name = "GoogleApiError";
+  }
+}
+
+export interface GoogleCalendarEvent {
+  readonly id: string;
+  readonly summary?: string;
+  readonly description?: string;
+  readonly location?: string;
+  readonly status?: string;
+  readonly htmlLink?: string;
+  readonly start?: { readonly dateTime?: string; readonly date?: string };
+  readonly end?: { readonly dateTime?: string; readonly date?: string };
+  readonly attendees?: ReadonlyArray<unknown>;
+}
+
+export interface GmailMessageStub {
+  readonly id: string;
+  readonly threadId?: string;
+}
+
+export interface GmailMessageFull {
+  readonly id: string;
+  readonly threadId?: string;
+  readonly historyId?: string;
+  readonly labelIds?: readonly string[];
+  readonly snippet?: string;
+  readonly payload?: GmailPayloadPart;
+  readonly internalDate?: string;
+}
+
+export interface GmailPayloadPart {
+  readonly mimeType?: string;
+  readonly headers?: ReadonlyArray<{ readonly name: string; readonly value: string }>;
+  readonly body?: { readonly data?: string; readonly size?: number };
+  readonly parts?: readonly GmailPayloadPart[];
+}
+
+const CALENDAR_BASE = "https://www.googleapis.com/calendar/v3";
+const GMAIL_BASE = "https://gmail.googleapis.com/gmail/v1";
+
+export class GoogleApiClient {
+  private readonly fetchFn: typeof fetch;
+  private readonly logger: GoogleApiLogger;
+
+  constructor(deps: GoogleApiClientDeps = {}) {
+    this.fetchFn = deps.fetchFn ?? globalThis.fetch;
+    this.logger = deps.logger ?? { error: (data, msg) => console.error(msg, data) };
+  }
+
+  async listCalendarEvents(input: {
+    accessToken: string;
+    calendarId?: string;
+    timeMin: string;
+    timeMax: string;
+    maxPages?: number;
+  }): Promise<GoogleCalendarEvent[]> {
+    const calendarId = input.calendarId ?? "primary";
+    const maxPages = input.maxPages ?? 20;
+    const events: GoogleCalendarEvent[] = [];
+    let pageToken: string | undefined;
+    for (let page = 0; page < maxPages; page += 1) {
+      const url = new URL(`${CALENDAR_BASE}/calendars/${encodeURIComponent(calendarId)}/events`);
+      url.searchParams.set("singleEvents", "true");
+      url.searchParams.set("orderBy", "startTime");
+      url.searchParams.set("timeMin", input.timeMin);
+      url.searchParams.set("timeMax", input.timeMax);
+      if (pageToken) url.searchParams.set("pageToken", pageToken);
+      const json = await this.getJson<{
+        items?: GoogleCalendarEvent[];
+        nextPageToken?: string;
+      }>(url.toString(), input.accessToken, "calendar");
+      events.push(...(json.items ?? []));
+      if (!json.nextPageToken) break;
+      pageToken = json.nextPageToken;
+    }
+    return events;
+  }
+
+  async listMessageIds(input: {
+    accessToken: string;
+    query?: string;
+    maxPages?: number;
+  }): Promise<GmailMessageStub[]> {
+    const maxPages = input.maxPages ?? 10;
+    const stubs: GmailMessageStub[] = [];
+    let pageToken: string | undefined;
+    for (let page = 0; page < maxPages; page += 1) {
+      const url = new URL(`${GMAIL_BASE}/users/me/messages`);
+      if (input.query) url.searchParams.set("q", input.query);
+      if (pageToken) url.searchParams.set("pageToken", pageToken);
+      const json = await this.getJson<{
+        messages?: GmailMessageStub[];
+        nextPageToken?: string;
+      }>(url.toString(), input.accessToken, "gmail");
+      stubs.push(...(json.messages ?? []));
+      if (!json.nextPageToken) break;
+      pageToken = json.nextPageToken;
+    }
+    return stubs;
+  }
+
+  async getMessage(input: { accessToken: string; id: string }): Promise<GmailMessageFull> {
+    const url = new URL(`${GMAIL_BASE}/users/me/messages/${encodeURIComponent(input.id)}`);
+    url.searchParams.set("format", "full");
+    return this.getJson<GmailMessageFull>(url.toString(), input.accessToken, "gmail");
+  }
+
+  private async getJson<T>(url: string, accessToken: string, api: string): Promise<T> {
+    const response = await this.fetchFn(url, {
+      method: "GET",
+      headers: { authorization: `Bearer ${accessToken}` }
+    });
+    if (!response.ok) {
+      // Log status server-side only; NEVER embed the response body in Error.message —
+      // handleRouteError propagates Error.message to HTTP responses (oauth.ts:122).
+      this.logger.error({ statusCode: response.status, api }, "Google API call failed");
+      throw new GoogleApiError(`Google ${api} returned ${response.status}`, response.status);
+    }
+    return (await response.json()) as T;
+  }
+}
