@@ -86,7 +86,7 @@ describe("HerdrMultiplexer", () => {
     ).rejects.toThrow(/split failed/i);
   });
 
-  it("open() throws when send-text after split exits non-zero", async () => {
+  it("open() throws AND closes the just-split pane when send-text fails (no orphaned pane)", async () => {
     const io = makeIo({
       "herdr pane split": { code: 0, stdout: SPLIT_JSON },
       "herdr pane send-text": { code: 1, stdout: "" }
@@ -99,6 +99,9 @@ describe("HerdrMultiplexer", () => {
         launchLine: "c"
       })
     ).rejects.toThrow(/send-text failed/i);
+    // The split pane (p_77) must be closed so nothing is orphaned.
+    const flat = io.run.mock.calls.map((c: unknown[]) => [c[0], ...(c[1] as string[])].join(" "));
+    expect(flat.some((c) => c.startsWith("herdr pane close p_77"))).toBe(true);
   });
 
   it("submit() sends text then Enter to the pane handle, checking exit codes", async () => {

@@ -61,9 +61,19 @@ export class HerdrMultiplexer implements Multiplexer {
         "HerdrMultiplexer.open: could not parse pane_id from `herdr pane split` JSON"
       );
     }
-    // Launch symmetrically with tmux: type the launch line, then submit Enter.
-    await this.runChecked(["pane", "send-text", paneId, opts.launchLine], "send-text");
-    await this.runChecked(["pane", "send-keys", paneId, "Enter"], "send-keys");
+    // The pane now exists; any failure typing the launch line must close it so a
+    // half-launched pane is never orphaned (the caller only stores the handle on
+    // success, so it could never close it otherwise).
+    try {
+      // Launch symmetrically with tmux: type the launch line, then submit Enter.
+      await this.runChecked(["pane", "send-text", paneId, opts.launchLine], "send-text");
+      await this.runChecked(["pane", "send-keys", paneId, "Enter"], "send-keys");
+    } catch (err) {
+      await this.kill(paneId).catch(() => {
+        // ignore — the launch error is the one worth surfacing.
+      });
+      throw err;
+    }
     return paneId;
   }
 
