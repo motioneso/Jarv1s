@@ -8,7 +8,7 @@ import {
   type AccessContext,
   type JarvisDatabase
 } from "@jarv1s/db";
-import { ChatRepository } from "@jarv1s/chat";
+import { ChatRepository, chatModuleManifest } from "@jarv1s/chat";
 import { connectionStrings, ids, resetFoundationDatabase } from "./test-database.js";
 const { Client } = pg;
 
@@ -108,6 +108,92 @@ describe("chat live runtime repository (recency + executed-model stamp)", () => 
       repository.getCurrentThread(scopedDb, ids.userB)
     );
     expect(current).toBeUndefined();
+  });
+});
+
+describe("chat.listTodaysTurns read tool + listThreadsByActivity", () => {
+  let appDb: Kysely<JarvisDatabase>;
+  let dataContext: DataContextRunner;
+  let repository: ChatRepository;
+
+  beforeAll(async () => {
+    appDb = createDatabase({
+      connectionString: connectionStrings.app,
+      maxConnections: 1
+    });
+    dataContext = new DataContextRunner(appDb);
+    repository = new ChatRepository();
+  });
+
+  it("listThreadsByActivity orders by last_active_at (active-today thread ahead of idle threads)", async () => {
+    // An idle thread created/touched now, then an older thread re-activated AFTER it
+    // via touchThread — the re-activated (older-created) thread must sort first.
+    const idle = await dataContext.withDataContext(userAContext(), (scopedDb) =>
+      repository.openNewThread(scopedDb, { title: "Idle-by-activity" })
+    );
+    await new Promise((resolve) => setTimeout(resolve, 5));
+    const activeToday = await dataContext.withDataContext(userAContext(), (scopedDb) =>
+      repository.openNewThread(scopedDb, { title: "Active-today-by-activity" })
+    );
+    // Touch the idle one LAST so it has the most-recent last_active_at.
+    await new Promise((resolve) => setTimeout(resolve, 5));
+    await dataContext.withDataContext(userAContext(), (scopedDb) =>
+      repository.touchThread(scopedDb, idle.id)
+    );
+
+    const threads = await dataContext.withDataContext(userAContext(), (scopedDb) =>
+      repository.listThreadsByActivity(scopedDb, 20)
+    );
+    const idleIndex = threads.findIndex((t) => t.id === idle.id);
+    const activeIndex = threads.findIndex((t) => t.id === activeToday.id);
+    expect(idleIndex).toBeGreaterThanOrEqual(0);
+    expect(activeIndex).toBeGreaterThanOrEqual(0);
+    // idle was touched most recently, so it sorts before the earlier-touched thread.
+    expect(idleIndex).toBeLessThan(activeIndex);
+  });
+
+  it("exposes chat.listTodaysTurns as a read tool excluding incognito threads", async () => {
+    const tool = (chatModuleManifest.assistantTools ?? []).find(
+      (t) => t.name === "chat.listTodaysTurns"
+    );
+    expect(tool?.risk).toBe("read");
+    expect(tool?.permissionId).toBe("chat.view");
+
+    await dataContext.withDataContext(userAContext(), async (scopedDb) => {
+      const normal = await repository.openNewThread(scopedDb, { title: "Today-tool-normal" });
+      const secret = await repository.openNewThread(scopedDb, {
+        title: "Today-tool-secret",
+        incognito: true
+      });
+      await repository.recordCompletedTurn(scopedDb, normal.id, "hello today", "hi back", {
+        provider: "anthropic",
+        model: "claude-economy"
+      });
+      await repository.recordCompletedTurn(scopedDb, secret.id, "secret question", "secret reply", {
+        provider: "anthropic",
+        model: "claude-economy"
+      });
+
+      const result = await tool!.execute!(
+        scopedDb,
+        {},
+        {
+          actorUserId: ids.userA,
+          requestId: "request:user-a-chat-live",
+          chatSessionId: ""
+        }
+      );
+      const turns = (result.data as { turns: Array<{ threadTitle: string; role: string }> }).turns;
+      expect(turns.some((t) => t.threadTitle === "Today-tool-normal")).toBe(true);
+      expect(turns.some((t) => t.threadTitle === "Today-tool-secret")).toBe(false);
+      // both roles of the visible turn are present
+      expect(turns.some((t) => t.threadTitle === "Today-tool-normal" && t.role === "user")).toBe(
+        true
+      );
+      expect(
+        turns.some((t) => t.threadTitle === "Today-tool-normal" && t.role === "assistant")
+      ).toBe(true);
+    });
   });
 });
 
