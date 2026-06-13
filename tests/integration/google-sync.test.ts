@@ -6,7 +6,9 @@ import {
   ConnectorsRepository,
   GoogleApiClient,
   createConnectorSecretCipher,
-  parseEmail
+  extractEmailSignals,
+  parseEmail,
+  type EmailExtractDeps
 } from "@jarv1s/connectors";
 import { CalendarRepository } from "@jarv1s/calendar";
 import { EmailRepository } from "@jarv1s/email";
@@ -533,5 +535,94 @@ describe("parseEmail", () => {
       }
     });
     expect(parsed.body.length).toBeLessThanOrEqual(parsed.bodyTruncated ? 20_000 : big.length);
+  });
+});
+
+const PARSED = {
+  externalId: "m1",
+  historyId: null,
+  subject: "Electric bill",
+  from: "billing@utility.com",
+  recipients: ["me@x.com"],
+  receivedAt: "2026-06-13T09:00:00.000Z",
+  labelIds: ["INBOX"],
+  snippet: null,
+  body: "Your bill of $84.20 is due 2026-06-30.",
+  bodyTruncated: false
+};
+
+function fakeDeps(opts: {
+  replies: string[]; // one per generateChat call, in order
+  models: Array<{ tier: string } | undefined>; // per selectModelForCapability call
+}): EmailExtractDeps {
+  let replyIdx = 0;
+  let modelIdx = 0;
+  return {
+    selectModel: async () => opts.models[modelIdx++] as never,
+    runChat: async () => ({ text: opts.replies[replyIdx++] ?? "" })
+  };
+}
+
+describe("extractEmailSignals", () => {
+  it("parses a valid JSON reply into summary + signals", async () => {
+    const deps = fakeDeps({
+      replies: [
+        JSON.stringify({
+          summary: "Utility bill $84.20 due 2026-06-30",
+          billsDue: [
+            { description: "Electric", amount: 84.2, currency: "USD", dueDate: "2026-06-30" }
+          ],
+          actionItems: [],
+          deadlines: [],
+          mayGetLostInShuffle: false,
+          importance: "normal",
+          confidence: 0.9
+        })
+      ],
+      models: [{ tier: "economy" }]
+    });
+    const result = await extractEmailSignals(PARSED, deps);
+    expect(result.summary).toContain("84.20");
+    expect(result.signals.billsDue?.[0]?.amount).toBe(84.2);
+    expect(result.signals.confidence).toBe(0.9);
+  });
+
+  it("degrades to null summary / empty signals on a garbage reply (never throws)", async () => {
+    const deps = fakeDeps({ replies: ["not json at all"], models: [{ tier: "economy" }] });
+    const result = await extractEmailSignals(PARSED, deps);
+    expect(result.summary).toBeNull();
+    expect(result.signals.confidence).toBe(0);
+    expect(result.signals.billsDue ?? []).toEqual([]);
+  });
+
+  it("escalates exactly once on high importance + low confidence", async () => {
+    const deps = fakeDeps({
+      replies: [
+        JSON.stringify({ summary: "x", importance: "high", confidence: 0.2 }),
+        JSON.stringify({ summary: "escalated", importance: "high", confidence: 0.8 })
+      ],
+      models: [{ tier: "economy" }, { tier: "interactive" }]
+    });
+    const result = await extractEmailSignals(PARSED, deps, { escalateConfidence: 0.5 });
+    expect(result.summary).toBe("escalated");
+    expect(result.signals.confidence).toBe(0.8);
+  });
+
+  it("skips the LLM pass and returns metadata-only when no model is configured", async () => {
+    const deps = fakeDeps({ replies: [], models: [undefined] });
+    const result = await extractEmailSignals(PARSED, deps);
+    expect(result.summary).toBeNull();
+    expect(result.signals).toEqual({});
+  });
+
+  it("nulls the summary when a short-body model echoes the body verbatim", async () => {
+    // The model summary is byte-for-byte the parsed body (whitespace aside) — no summarization.
+    // The exact-echo guard must drop it so the raw body is never persisted as summary.
+    const deps = fakeDeps({
+      replies: [JSON.stringify({ summary: `  ${PARSED.body}  `, confidence: 0.9 })],
+      models: [{ tier: "economy" }]
+    });
+    const result = await extractEmailSignals(PARSED, deps);
+    expect(result.summary).toBeNull();
   });
 });
