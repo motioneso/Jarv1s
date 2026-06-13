@@ -215,7 +215,7 @@ describe("Briefings module M6 read-only scheduled summaries", () => {
     expect(adminRead).toBeUndefined();
   });
 
-  it("share grantee can see definition and its runs; non-grantee cannot", async () => {
+  it("share grantee can see the definition but NOT its runs; runs stay owner-only", async () => {
     // Use userBWorkspace definition to avoid polluting the worker-isolation test below
     // userA cannot see userB's workspace definition or its runs before share grant
     const defBeforeShare = await dataContext.withDataContext(userAContext(), (scopedDb) =>
@@ -232,6 +232,7 @@ describe("Briefings module M6 read-only scheduled summaries", () => {
       })
     );
     const run = outcome?.run;
+    expect(run?.id).toBeTruthy();
 
     const runsBeforeShare = await dataContext.withDataContext(userAContext(), (scopedDb) =>
       repository.listRuns(scopedDb, briefingIds.userBWorkspace)
@@ -249,7 +250,9 @@ describe("Briefings module M6 read-only scheduled summaries", () => {
       })
     );
 
-    // userA can now see the definition and its run via share
+    // userA can now see the definition via share — but the RUN CONTENT (grounded
+    // summary derived from userB's private data) stays owner-only (migration 0085).
+    // Definition sharing must NOT silently leak run output to a view-grantee.
     const defAfterShare = await dataContext.withDataContext(userAContext(), (scopedDb) =>
       repository.getDefinitionById(scopedDb, briefingIds.userBWorkspace)
     );
@@ -257,7 +260,14 @@ describe("Briefings module M6 read-only scheduled summaries", () => {
       repository.listRuns(scopedDb, briefingIds.userBWorkspace)
     );
     expect(defAfterShare?.id).toBe(briefingIds.userBWorkspace);
-    expect(runsAfterShare.some((r) => r.id === run?.id)).toBe(true);
+    expect(runsAfterShare).toEqual([]);
+    expect(runsAfterShare.some((r) => r.id === run?.id)).toBe(false);
+
+    // The owner still reads their own runs after sharing the definition.
+    const ownerRunsAfterShare = await dataContext.withDataContext(userBContext(), (scopedDb) =>
+      repository.listRuns(scopedDb, briefingIds.userBWorkspace)
+    );
+    expect(ownerRunsAfterShare.some((r) => r.id === run?.id)).toBe(true);
   });
 
   it("synthesizes a run through declared read-only tools and leaks no source secrets", async () => {
@@ -665,6 +675,53 @@ describe("Briefings module M6 read-only scheduled summaries", () => {
       created: false
     });
     expect(userBPrivateRuns).toEqual([]);
+  });
+
+  it("dedupes a blocked SCHEDULED run within the same local day (no orphan blocked rows)", async () => {
+    // A scheduled definition whose selected tools are NOT all read tools must still honor
+    // same-local-day idempotency: the blocked-tool guard now runs AFTER the scheduled
+    // local-day check, so the first cron fire persists ONE `blocked` run and every later
+    // fire that day dedupes against it (created:false) instead of orphaning a fresh
+    // blocked row per tick. Build the definition directly via the repo (the blocked-tool
+    // selection bypasses the route's read-only validation) using a write-risk tool name.
+    const definition = await dataContext.withDataContext(userAContext(), (scopedDb) =>
+      repository.createDefinition(scopedDb, {
+        title: "Blocked scheduled briefing",
+        cadence: "daily",
+        scheduleMetadata: { targetTime: "06:00", timezone: "UTC" },
+        enabled: true,
+        selectedToolNames: ["tasks.updateStatus"]
+      })
+    );
+
+    const first = await dataContext.withDataContext(userAContext(), (scopedDb) =>
+      repository.generateRun(scopedDb, definition.id, {
+        moduleManifests: getBuiltInModuleManifests(),
+        runKind: "scheduled",
+        composeDeps: makeComposeDeps()
+      })
+    );
+    expect(first?.created).toBe(true);
+    expect(first?.run.status).toBe("blocked");
+
+    const second = await dataContext.withDataContext(userAContext(), (scopedDb) =>
+      repository.generateRun(scopedDb, definition.id, {
+        moduleManifests: getBuiltInModuleManifests(),
+        runKind: "scheduled",
+        composeDeps: makeComposeDeps()
+      })
+    );
+    // Idempotent skip: the SAME blocked run is returned, not a fresh one.
+    expect(second?.created).toBe(false);
+    expect(second?.run.id).toBe(first?.run.id);
+
+    // Exactly one scheduled run row exists for the definition for the day.
+    const runs = await dataContext.withDataContext(userAContext(), (scopedDb) =>
+      repository.listRuns(scopedDb, definition.id)
+    );
+    const scheduledRuns = runs.filter((r) => r.run_kind === "scheduled");
+    expect(scheduledRuns).toHaveLength(1);
+    expect(scheduledRuns[0]?.status).toBe("blocked");
   });
 
   it("fails loudly when the Briefings repository is called without withDataContext", async () => {
