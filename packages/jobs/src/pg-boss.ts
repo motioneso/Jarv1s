@@ -107,12 +107,19 @@ function defaultOnPgBossError(error: Error): void {
   );
 }
 
-export function createPgBossClient(
+/**
+ * Resolve the full pg-boss ConstructorOptions for a client. Defaults keep every
+ * background engine OFF (schedule/supervise/migrate/createSchema = false) so that
+ * cron is opt-in per process — the one-cron-owner invariant (F14): only the worker
+ * passes `{ schedule: true }`; the API leaves the default, so exactly one process
+ * runs the cron engine. Pure + exported so call-site options are unit-testable
+ * without constructing a real PgBoss / connecting to Postgres.
+ */
+export function resolvePgBossConstructorOptions(
   connectionString: string,
-  overrides: Partial<ConstructorOptions> = {},
-  hooks: PgBossClientHooks = {}
-): PgBoss {
-  const boss = new PgBoss({
+  overrides: Partial<ConstructorOptions> = {}
+): ConstructorOptions {
+  return {
     connectionString,
     schema: PGBOSS_SCHEMA,
     schedule: false,
@@ -120,7 +127,15 @@ export function createPgBossClient(
     migrate: false,
     createSchema: false,
     ...overrides
-  });
+  };
+}
+
+export function createPgBossClient(
+  connectionString: string,
+  overrides: Partial<ConstructorOptions> = {},
+  hooks: PgBossClientHooks = {}
+): PgBoss {
+  const boss = new PgBoss(resolvePgBossConstructorOptions(connectionString, overrides));
 
   const onError = hooks.onError ?? defaultOnPgBossError;
   boss.on("error", (error: unknown) => {
