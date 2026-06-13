@@ -61,7 +61,7 @@ export const taskListExecute: ToolExecute = async (scopedDb, input, _ctx): Promi
   }
 
   return {
-    data: { items: tasks.map(serializeTask) },
+    data: { items: tasks.map((task) => serializeTask(task)) },
     columnOrder: ["id", "title", "status", "dueAt", "priority"]
   };
 };
@@ -84,7 +84,7 @@ export const taskGetExecute: ToolExecute = async (scopedDb, input, _ctx): Promis
   return {
     data: {
       task: serializeTask(task),
-      subtasks: subtasks.map(serializeTask),
+      subtasks: subtasks.map((task) => serializeTask(task)),
       activity: activity.slice(-10).map(serializeTaskActivity)
     }
   };
@@ -98,7 +98,7 @@ export const taskFocusExecute: ToolExecute = async (
   assertDataContextDb(scopedDb);
   const tasks = await drift.getFocus(scopedDb);
   return {
-    data: { items: tasks.map(serializeTask) },
+    data: { items: tasks.map((task) => serializeTask(task)) },
     columnOrder: ["id", "title", "status", "dueAt", "priority"]
   };
 };
@@ -111,7 +111,7 @@ export const taskAtRiskExecute: ToolExecute = async (
   assertDataContextDb(scopedDb);
   const tasks = await drift.getAtRisk(scopedDb);
   return {
-    data: { items: tasks.map(serializeTask) },
+    data: { items: tasks.map((task) => serializeTask(task)) },
     columnOrder: ["id", "title", "status", "dueAt", "priority"]
   };
 };
@@ -124,7 +124,7 @@ export const taskOverdueExecute: ToolExecute = async (
   assertDataContextDb(scopedDb);
   const tasks = await drift.getOverdue(scopedDb);
   return {
-    data: { items: tasks.map(serializeTask) },
+    data: { items: tasks.map((task) => serializeTask(task)) },
     columnOrder: ["id", "title", "status", "dueAt", "priority"]
   };
 };

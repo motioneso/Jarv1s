@@ -4,6 +4,14 @@ export const TASK_STATUSES = ["todo", "done", "archived"] as const;
 
 export type TaskApiStatus = (typeof TASK_STATUSES)[number];
 
+export interface TaskTagDto {
+  readonly id: string;
+  readonly ownerUserId: string;
+  readonly listId: string;
+  readonly name: string;
+  readonly createdAt: string | null;
+}
+
 export interface TaskDto {
   readonly id: string;
   readonly ownerUserId: string;
@@ -22,6 +30,7 @@ export interface TaskDto {
   readonly completedAt: string | null;
   readonly createdAt: string | null;
   readonly updatedAt: string | null;
+  readonly tags: readonly TaskTagDto[];
 }
 
 export interface TaskActivityDto {
@@ -126,6 +135,18 @@ const nullableEffortSchema = {
   anyOf: [{ type: "string", enum: ["quick", "medium", "large"] }, { type: "null" }]
 } as const;
 
+export const taskTagDtoSchema = {
+  type: "object",
+  required: ["id", "ownerUserId", "listId", "name", "createdAt"],
+  properties: {
+    id: { type: "string" },
+    ownerUserId: { type: "string" },
+    listId: { type: "string" },
+    name: { type: "string" },
+    createdAt: nullableStringSchema
+  }
+} as const;
+
 export const taskDtoSchema = {
   type: "object",
   required: [
@@ -145,7 +166,8 @@ export const taskDtoSchema = {
     "sourceRef",
     "completedAt",
     "createdAt",
-    "updatedAt"
+    "updatedAt",
+    "tags"
   ],
   properties: {
     id: { type: "string" },
@@ -164,7 +186,8 @@ export const taskDtoSchema = {
     sourceRef: nullableStringSchema,
     completedAt: nullableStringSchema,
     createdAt: nullableStringSchema,
-    updatedAt: nullableStringSchema
+    updatedAt: nullableStringSchema,
+    tags: { type: "array", items: taskTagDtoSchema }
   }
 } as const;
 
@@ -437,14 +460,6 @@ export const createTaskListRouteSchema = {
 
 // --- Task Tags ---
 
-export interface TaskTagDto {
-  readonly id: string;
-  readonly ownerUserId: string;
-  readonly listId: string;
-  readonly name: string;
-  readonly createdAt: string | null;
-}
-
 export interface ListTaskTagsResponse {
   readonly tags: readonly TaskTagDto[];
 }
@@ -456,18 +471,6 @@ export interface CreateTaskTagRequest {
 export interface CreateTaskTagResponse {
   readonly tag: TaskTagDto;
 }
-
-export const taskTagDtoSchema = {
-  type: "object",
-  required: ["id", "ownerUserId", "listId", "name", "createdAt"],
-  properties: {
-    id: { type: "string" },
-    ownerUserId: { type: "string" },
-    listId: { type: "string" },
-    name: { type: "string" },
-    createdAt: nullableStringSchema
-  }
-} as const;
 
 export const listTaskTagsResponseSchema = {
   type: "object",
