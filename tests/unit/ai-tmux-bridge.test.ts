@@ -5,7 +5,10 @@
 import { describe, expect, it } from "vitest";
 
 import { parseTranscript } from "../../packages/ai/src/adapters/transcript-reader.js";
-import { transcriptGlobDir } from "../../packages/ai/src/adapters/tmux-bridge.js";
+import {
+  createRealTmuxIo,
+  transcriptGlobDir
+} from "../../packages/ai/src/adapters/tmux-bridge.js";
 
 // ---------------------------------------------------------------------------
 // Fixtures: real JSONL schema per provider (discovered 2026-06-07)
@@ -227,5 +230,26 @@ describe("transcriptGlobDir (anthropic project-dir encoding)", () => {
   it("encodes dotted path segments with dashes (e.g. .claude worktrees)", () => {
     const dir = transcriptGlobDir("anthropic", "/home/ben/Jarv1s/.claude/worktrees/x");
     expect(dir.endsWith("/-home-ben-Jarv1s--claude-worktrees-x")).toBe(true);
+  });
+});
+
+describe("createRealTmuxIo — env/cwd passthrough", () => {
+  it("run() accepts an optional opts arg without throwing (env/cwd are optional)", async () => {
+    const io = createRealTmuxIo();
+    // `true` is a real binary that ignores args; opts must be accepted by the type + at runtime.
+    const res = await io.run("true", [], { env: { JARVIS_TEST: "1" }, cwd: "/tmp" });
+    expect(res.code).toBe(0);
+  });
+});
+
+describe("transcriptGlobDir — homeBase override", () => {
+  it("uses the provided homeBase instead of the OS homedir", () => {
+    const dir = transcriptGlobDir("anthropic", "/tmp/x", "/custom/home");
+    expect(dir.startsWith("/custom/home/.claude/projects/")).toBe(true);
+  });
+
+  it("defaults to the OS homedir when homeBase is omitted (unchanged behavior)", () => {
+    const dir = transcriptGlobDir("anthropic", "/home/ben/Jarv1s/apps/worker");
+    expect(dir).toContain("/.claude/projects/-home-ben-Jarv1s-apps-worker");
   });
 });

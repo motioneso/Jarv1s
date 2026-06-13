@@ -8,9 +8,20 @@ import { type ProviderKind } from "./transcript-reader.js";
 
 // ─── Public interface ────────────────────────────────────────────────────────
 
+export interface RunOptions {
+  /** Extra environment variables, merged over process.env. */
+  readonly env?: NodeJS.ProcessEnv;
+  /** Working directory for the child process. */
+  readonly cwd?: string;
+}
+
 export interface TmuxIo {
   /** Run an external command; resolve to { code, stdout }. */
-  run(cmd: string, args: readonly string[]): Promise<{ code: number; stdout: string }>;
+  run(
+    cmd: string,
+    args: readonly string[],
+    opts?: RunOptions
+  ): Promise<{ code: number; stdout: string; stderr?: string }>;
   /** Read a file path to a string (may throw if not yet created). */
   readFile(path: string): Promise<string>;
   /** Write a string to a file path (overwrites). */
@@ -28,16 +39,19 @@ const execFileAsync = promisify(execFile);
  */
 export function createRealTmuxIo(): TmuxIo {
   return {
-    async run(cmd: string, args: readonly string[]): Promise<{ code: number; stdout: string }> {
+    run: async (cmd, args, opts) => {
       // Use execFile (not exec) so arguments are passed directly to the process
       // without a shell re-parsing them. A shell join would mangle args containing
       // spaces, quotes, pipes, or redirects (e.g. the `bash -c "<pipeline>"` calls).
       try {
-        const { stdout } = await execFileAsync(cmd, [...args]);
-        return { code: 0, stdout: stdout ?? "" };
-      } catch (err: unknown) {
-        const e = err as { code?: number; stdout?: string };
-        return { code: e.code ?? 1, stdout: e.stdout ?? "" };
+        const { stdout, stderr } = await execFileAsync(cmd, [...args], {
+          env: opts?.env ? { ...process.env, ...opts.env } : process.env,
+          cwd: opts?.cwd
+        });
+        return { code: 0, stdout, stderr };
+      } catch (err) {
+        const e = err as { code?: number; stdout?: string; stderr?: string };
+        return { code: typeof e.code === "number" ? e.code : 1, stdout: e.stdout ?? "", stderr: e.stderr };
       }
     },
     async readFile(path: string): Promise<string> {
@@ -72,26 +86,26 @@ export function createRealTmuxIo(): TmuxIo {
  *     ~/.gemini/tmp/<project-hash>/chats/session-<ISO>-<uuid>.jsonl
  *     Use the newest file under the chats directory for the given project dir.
  */
-export function transcriptGlobDir(provider: ProviderKind, cwd: string): string {
+export function transcriptGlobDir(provider: ProviderKind, cwd: string, homeBase: string = homedir()): string {
   switch (provider) {
     case "anthropic": {
       // Claude Code encodes the project dir by replacing both "/" and "." with
       // "-", and KEEPS the leading "-" (an absolute path starts with "/").
       // e.g. /home/ben/Jarv1s/apps/worker -> -home-ben-Jarv1s-apps-worker
       const encoded = cwd.replace(/[/.]/g, "-");
-      return join(homedir(), ".claude", "projects", encoded);
+      return join(homeBase, ".claude", "projects", encoded);
     }
     case "openai-compatible": {
       const now = new Date();
       const y = now.getUTCFullYear();
       const m = String(now.getUTCMonth() + 1).padStart(2, "0");
       const d = String(now.getUTCDate()).padStart(2, "0");
-      return join(homedir(), ".codex", "sessions", String(y), m, d);
+      return join(homeBase, ".codex", "sessions", String(y), m, d);
     }
     case "google": {
       // Gemini uses a hash of the project dir; approximate by using a glob
       // under ~/.gemini/tmp — in practice we find the newest chats file
-      return join(homedir(), ".gemini", "tmp");
+      return join(homeBase, ".gemini", "tmp");
     }
   }
 }
