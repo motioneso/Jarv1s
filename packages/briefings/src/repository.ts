@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 
 import { sql, type Updateable } from "kysely";
 
-import { AiRepository, findAssistantToolFromManifests } from "@jarv1s/ai";
+import { findAssistantToolFromManifests } from "@jarv1s/ai";
 import {
   assertDataContextDb,
   type BriefingCadence,
@@ -14,7 +14,9 @@ import {
   type DataContextDb
 } from "@jarv1s/db";
 import type { JarvisModuleManifest } from "@jarv1s/module-sdk";
-import type { AiAssistantToolDto } from "@jarv1s/shared";
+
+import { composeBriefing, type ComposeDeps } from "./compose.js";
+import { timezoneFor } from "./schedule.js";
 
 export interface CreateBriefingDefinitionInput {
   readonly title: string;
@@ -41,27 +43,13 @@ export interface GenerateBriefingRunInput {
    * Used to form the requestId in ToolContext so execution is traceable.
    */
   readonly jobId?: string;
-}
-
-interface ToolSummary {
-  readonly name: string;
-  readonly status: "succeeded" | "blocked" | "failed";
-  readonly itemCount: number;
-  readonly excerpts: readonly string[];
-  readonly blockedReason?: string;
-}
-
-interface SummaryResult {
-  readonly status: BriefingRunStatus;
-  readonly summaryText: string;
-  readonly sourceMetadata: {
-    readonly tools: readonly ToolSummary[];
-    readonly aiModel: {
-      readonly id: string;
-      readonly displayName: string;
-      readonly tier: string;
-    } | null;
-  };
+  /**
+   * Synthesis dependencies (AI repository, credential cipher, memory retriever,
+   * module manifests). Required — the only production caller is the briefings
+   * worker, which always builds these. The deterministic degraded fallback lives
+   * inside `compose.ts`, so there is no provider-less variant here.
+   */
+  readonly composeDeps: ComposeDeps;
 }
 
 export class BriefingsRepository {
@@ -162,20 +150,78 @@ export class BriefingsRepository {
       .execute();
   }
 
+  /** `created:false` means an existing same-day scheduled run was returned (idempotent skip). */
   async generateRun(
     scopedDb: DataContextDb,
     definitionId: string,
     input: GenerateBriefingRunInput
-  ): Promise<BriefingRun | undefined> {
+  ): Promise<{ run: BriefingRun; created: boolean } | undefined> {
     assertDataContextDb(scopedDb);
 
     const definition = await this.getOwnedDefinitionById(scopedDb, definitionId);
-
     if (!definition) {
       return undefined;
     }
 
-    const summary = await generateSummary(scopedDb, definition, input);
+    // Blocked-tool guard preserved: a non-read selected tool blocks the run.
+    const blocked = definition.selected_tool_names.some((name) => {
+      const tool = findAssistantToolFromManifests(input.composeDeps.moduleManifests, name);
+      return !tool || tool.risk !== "read";
+    });
+    if (blocked) {
+      const run = await this.persistRun(scopedDb, definition, input, {
+        status: "blocked",
+        summaryText: "Briefing blocked because selected tools are not all declared read tools.",
+        sourceMetadata: { degraded: false, gaps: [], blockedReason: "non_read_tool" }
+      });
+      return { run, created: true };
+    }
+
+    // Capture ONE `now` so the lock-day, the existing-run comparison, and compose's
+    // local-day window all agree even across a local-midnight boundary.
+    const now = new Date();
+
+    // Scheduled local-day idempotency under a transaction-scoped advisory lock so two
+    // concurrent cron fires (multi-replica worker, or a retry overlapping the first)
+    // cannot both pass check-then-insert (F2). `scopedDb.db` is ALREADY the Kysely
+    // Transaction opened by withDataContext (DataContextDb.db: Transaction<...>), so we
+    // take the lock ON that existing transaction — do NOT open a nested transaction. The
+    // lock auto-releases when withDataContext's transaction commits/rolls back.
+    if (input.runKind === "scheduled") {
+      // hashtextextended(text, 0) → stable bigint key per (definition, local day).
+      const lockKey = `${definition.id}:${localDayString(definition, now)}`;
+      await sql`SELECT pg_advisory_xact_lock(hashtextextended(${lockKey}, 0))`.execute(scopedDb.db);
+      const existing = await this.findScheduledRunForLocalDay(scopedDb, definition, now);
+      if (existing) {
+        return { run: existing, created: false };
+      }
+    }
+
+    const composed = await composeBriefing(
+      scopedDb,
+      definition,
+      {
+        runKind: input.runKind,
+        runId: input.runId,
+        jobId: input.jobId,
+        now
+      },
+      input.composeDeps
+    );
+    const run = await this.persistRun(scopedDb, definition, input, composed);
+    return { run, created: true };
+  }
+
+  private async persistRun(
+    scopedDb: DataContextDb,
+    definition: BriefingDefinition,
+    input: GenerateBriefingRunInput,
+    composed: {
+      status: BriefingRunStatus;
+      summaryText: string;
+      sourceMetadata: Record<string, unknown>;
+    }
+  ): Promise<BriefingRun> {
     const createdAt = new Date();
     const run = await scopedDb.db
       .insertInto("app.briefing_runs")
@@ -183,10 +229,10 @@ export class BriefingsRepository {
         id: input.runId ?? randomUUID(),
         definition_id: definition.id,
         owner_user_id: definition.owner_user_id,
-        status: summary.status,
+        status: composed.status,
         run_kind: input.runKind,
-        summary_text: summary.summaryText,
-        source_metadata: summary.sourceMetadata,
+        summary_text: composed.summaryText,
+        source_metadata: composed.sourceMetadata,
         created_at: createdAt
       })
       .returningAll()
@@ -194,14 +240,41 @@ export class BriefingsRepository {
 
     await scopedDb.db
       .updateTable("app.briefing_definitions")
-      .set({
-        last_run_at: createdAt,
-        updated_at: createdAt
-      })
+      .set({ last_run_at: createdAt, updated_at: createdAt })
       .where("id", "=", definition.id)
       .execute();
 
     return run;
+  }
+
+  private async findScheduledRunForLocalDay(
+    scopedDb: DataContextDb,
+    definition: BriefingDefinition,
+    now: Date
+  ): Promise<BriefingRun | undefined> {
+    const timeZone = timezoneFor(definition.schedule_metadata);
+    const localDate = (d: Date): string =>
+      new Intl.DateTimeFormat("en-CA", {
+        timeZone,
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit"
+      }).format(d);
+    const today = localDayString(definition, now);
+
+    const recent = await scopedDb.db
+      .selectFrom("app.briefing_runs")
+      .selectAll()
+      .where("definition_id", "=", definition.id)
+      .where("run_kind", "=", "scheduled")
+      .orderBy("created_at", "desc")
+      .limit(5)
+      .execute();
+
+    return recent.find((run) => {
+      const created = run.created_at instanceof Date ? run.created_at : new Date(run.created_at);
+      return localDate(created) === today;
+    });
   }
 
   private async getOwnedDefinitionById(
@@ -217,234 +290,13 @@ export class BriefingsRepository {
   }
 }
 
-async function generateSummary(
-  scopedDb: DataContextDb,
-  definition: BriefingDefinition,
-  input: GenerateBriefingRunInput
-): Promise<SummaryResult> {
-  const tools = definition.selected_tool_names.map((name) =>
-    selectReadTool(input.moduleManifests, name)
-  );
-
-  if (tools.some((tool) => !tool || tool.risk !== "read")) {
-    return blockedSummary(
-      definition.selected_tool_names.map((name) => ({
-        name,
-        status: "blocked",
-        itemCount: 0,
-        excerpts: [],
-        blockedReason: "non_read_tool"
-      }))
-    );
-  }
-
-  const toolSummaries: ToolSummary[] = [];
-
-  for (const tool of tools) {
-    if (!tool) {
-      continue;
-    }
-
-    const manifestTool = input.moduleManifests
-      .flatMap((m) => m.assistantTools ?? [])
-      .find((t) => t.name === tool.name);
-
-    if (!manifestTool?.execute) {
-      toolSummaries.push({
-        name: tool.name,
-        status: "blocked",
-        itemCount: 0,
-        excerpts: [],
-        blockedReason: "unsupported_tool"
-      });
-      continue;
-    }
-
-    try {
-      const toolResult = await manifestTool.execute(
-        scopedDb,
-        // Hard-coded empty input — briefings always run tools with no caller-supplied input.
-        // validateToolInput is intentionally NOT called here; {} is not caller-supplied input.
-        {},
-        {
-          actorUserId: definition.owner_user_id,
-          requestId: input.jobId
-            ? `pgboss:${input.jobId}`
-            : `briefing:${input.runId ?? randomUUID()}`,
-          chatSessionId: ""
-        }
-      );
-      const result = toolResult.data ?? {};
-      toolSummaries.push(summarizeToolResult(tool, result));
-    } catch (error) {
-      // A failed read-tool degrades the briefing rather than failing the whole run, but the
-      // failure must still be observable (#150): emit a single-line structured log with only
-      // the tool name + error name/message — never the raw error (it can carry tool output or
-      // connection details). The user-facing surface stays the redacted "tool_failed" summary.
-      const e = error instanceof Error ? error : new Error(String(error));
-      console.error(
-        JSON.stringify({
-          event: "briefing_tool_failed",
-          tool: tool.name,
-          error: e.name,
-          // Bounded: an error message can still echo tool output or connection
-          // details, so cap it so a verbose provider error cannot dump payload to logs.
-          message: e.message.slice(0, 200)
-        })
-      );
-      toolSummaries.push({
-        name: tool.name,
-        status: "failed",
-        itemCount: 0,
-        excerpts: [],
-        blockedReason: "tool_failed"
-      });
-    }
-  }
-
-  const status = selectRunStatus(toolSummaries);
-  const summaryText = toolSummaries.map(formatToolSummary).join("\n");
-
-  const aiRepository = new AiRepository();
-  const aiModel = await aiRepository.selectModelForCapability(scopedDb, "summarization", "economy");
-
-  return {
-    status,
-    summaryText: summaryText || "Briefing did not produce visible source items.",
-    sourceMetadata: {
-      tools: toolSummaries,
-      aiModel: aiModel
-        ? { id: aiModel.id, displayName: aiModel.display_name, tier: aiModel.tier }
-        : null
-    }
-  };
-}
-
-function selectReadTool(
-  moduleManifests: readonly JarvisModuleManifest[],
-  toolName: string
-): AiAssistantToolDto | undefined {
-  return findAssistantToolFromManifests(moduleManifests, toolName);
-}
-
-function blockedSummary(toolSummaries: readonly ToolSummary[]): SummaryResult {
-  return {
-    status: "blocked",
-    summaryText: "Briefing blocked because selected tools are not all declared read tools.",
-    sourceMetadata: {
-      tools: toolSummaries,
-      aiModel: null
-    }
-  };
-}
-
-function selectRunStatus(toolSummaries: readonly ToolSummary[]): BriefingRunStatus {
-  if (toolSummaries.some((tool) => tool.status === "failed")) {
-    return "failed";
-  }
-  if (toolSummaries.some((tool) => tool.status === "blocked")) {
-    return "blocked";
-  }
-
-  return "succeeded";
-}
-
-function summarizeToolResult(
-  tool: AiAssistantToolDto,
-  result: Record<string, unknown>
-): ToolSummary {
-  switch (tool.name) {
-    case "tasks.listVisible":
-    case "tasks.list":
-      return summarizeNamedItems(tool.name, result.items, (item) => {
-        const task = item as { readonly title?: unknown; readonly status?: unknown };
-
-        return compactExcerpt([task.title, task.status]);
-      });
-    case "notifications.listVisible":
-      return summarizeNamedItems(tool.name, result.notifications, (item) => {
-        const notification = item as { readonly title?: unknown; readonly readAt?: unknown };
-        const state = notification.readAt ? "read" : "unread";
-
-        return compactExcerpt([notification.title, state]);
-      });
-    case "calendar.listVisibleEvents":
-      return summarizeNamedItems(tool.name, result.events, (item) => {
-        const event = item as { readonly title?: unknown; readonly startsAt?: unknown };
-
-        return compactExcerpt([event.startsAt, event.title]);
-      });
-    case "email.listVisibleMessages":
-      return summarizeNamedItems(tool.name, result.messages, (item) => {
-        const message = item as { readonly sender?: unknown; readonly subject?: unknown };
-
-        return compactExcerpt([message.sender, message.subject]);
-      });
-    default:
-      return summarizeUnknownResult(tool.name, result);
-  }
-}
-
-function summarizeNamedItems(
-  toolName: string,
-  value: unknown,
-  formatItem: (item: unknown) => string
-): ToolSummary {
-  const items = Array.isArray(value) ? value : [];
-
-  return {
-    name: toolName,
-    status: "succeeded",
-    itemCount: items.length,
-    excerpts: items.slice(0, 3).map(formatItem).filter(Boolean)
-  };
-}
-
-function summarizeUnknownResult(toolName: string, result: Record<string, unknown>): ToolSummary {
-  const firstArray = Object.values(result).find((value) => Array.isArray(value));
-  const itemCount = Array.isArray(firstArray) ? firstArray.length : 0;
-
-  return {
-    name: toolName,
-    status: "succeeded",
-    itemCount,
-    excerpts: []
-  };
-}
-
-function formatToolSummary(tool: ToolSummary): string {
-  if (tool.status !== "succeeded") {
-    return `${displayToolName(tool.name)}: ${tool.status}${
-      tool.blockedReason ? ` (${tool.blockedReason})` : ""
-    }`;
-  }
-
-  // "visible" is invariant of count — the former `itemCount === 1 ? "visible" : "visible"`
-  // ternary had identical branches (dead code), so it's inlined as a constant (#150).
-  const excerpts = tool.excerpts.length > 0 ? `; top: ${tool.excerpts.join("; ")}` : "";
-
-  return `${displayToolName(tool.name)}: ${tool.itemCount} visible${excerpts}`;
-}
-
-function displayToolName(toolName: string): string {
-  switch (toolName) {
-    case "tasks.listVisible":
-    case "tasks.list":
-      return "Tasks";
-    case "notifications.listVisible":
-      return "Notifications";
-    case "calendar.listVisibleEvents":
-      return "Calendar";
-    case "email.listVisibleMessages":
-      return "Email";
-    default:
-      return toolName;
-  }
-}
-
-function compactExcerpt(parts: readonly unknown[]): string {
-  return parts
-    .filter((part): part is string => typeof part === "string" && part.trim().length > 0)
-    .map((part) => part.trim().replace(/\s+/g, " ").slice(0, 120))
-    .join(" - ");
+/** Local calendar-day string ("YYYY-MM-DD") for `now` in the definition's IANA tz. */
+function localDayString(definition: BriefingDefinition, now: Date): string {
+  const timeZone = timezoneFor(definition.schedule_metadata);
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit"
+  }).format(now);
 }

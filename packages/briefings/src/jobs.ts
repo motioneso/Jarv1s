@@ -1,14 +1,17 @@
 import type { Job, PgBoss, WorkOptions } from "pg-boss";
 
-import type { DataContextRunner } from "@jarv1s/db";
+import { AiRepository, createAiSecretCipher } from "@jarv1s/ai";
+import type { DataContextDb, DataContextRunner } from "@jarv1s/db";
 import {
   registerDataContextWorker,
   type ActorScopedJobPayload,
   type QueueDefinition
 } from "@jarv1s/jobs";
+import type { RetrievedChunk } from "@jarv1s/memory";
 import type { JarvisModuleManifest } from "@jarv1s/module-sdk";
 import type { BriefingRunKind } from "@jarv1s/shared";
 
+import type { ComposeDeps } from "./compose.js";
 import { BRIEFINGS_RUN_QUEUE } from "./manifest.js";
 import { BriefingsRepository } from "./repository.js";
 
@@ -28,6 +31,13 @@ export interface BriefingRunResult {
 
 export interface RegisterBriefingsJobWorkersOptions {
   readonly moduleManifests: readonly JarvisModuleManifest[];
+  /**
+   * Synthesis dependencies forwarded to `generateRun`. When omitted, a metadata-only
+   * `composeDeps` is built from `moduleManifests` so the worker still gathers sections
+   * and takes the deterministic degraded fallback (no provider configured → no_model).
+   * A8 injects the full AI/cipher/memory/notification deps from the module registry.
+   */
+  readonly composeDeps?: ComposeDeps;
   readonly repository?: BriefingsRepository;
   readonly workOptions?: WorkOptions;
   readonly onResult?: (job: Job<BriefingRunPayload>, result: BriefingRunResult) => void;
@@ -66,12 +76,37 @@ export function isBriefingRunPayloadMetadataOnly(payload: Record<string, unknown
   return Object.keys(payload).every((key) => allowedKeys.has(key));
 }
 
+/**
+ * A vault retriever that returns nothing. Used as the default when no `composeDeps`
+ * is injected (A8 injects the registry-built `MemoryRetriever`). Keeping the default
+ * inert avoids pulling embedding-model init into the worker before A8 wires the real
+ * retriever — compose just records an `empty` vault gap, which is correct here.
+ */
+const noopMemoryRetriever = {
+  async retrieve(_scopedDb: DataContextDb, _query: string): Promise<RetrievedChunk[]> {
+    return [];
+  },
+  async retrieveRecent(_scopedDb: DataContextDb): Promise<RetrievedChunk[]> {
+    return [];
+  }
+} as ComposeDeps["memoryRetriever"];
+
+function defaultComposeDeps(moduleManifests: readonly JarvisModuleManifest[]): ComposeDeps {
+  return {
+    moduleManifests,
+    aiRepository: new AiRepository(),
+    cipher: createAiSecretCipher(),
+    memoryRetriever: noopMemoryRetriever
+  };
+}
+
 export async function registerBriefingsJobWorkers(
   boss: PgBoss,
   dataContext: DataContextRunner,
   options: RegisterBriefingsJobWorkersOptions
 ): Promise<string[]> {
   const repository = options.repository ?? new BriefingsRepository();
+  const composeDeps = options.composeDeps ?? defaultComposeDeps(options.moduleManifests);
   const workId = await registerDataContextWorker<BriefingRunPayload, BriefingRunResult>(
     boss,
     BRIEFINGS_RUN_QUEUE,
@@ -81,17 +116,18 @@ export async function registerBriefingsJobWorkers(
         throw new Error(`Briefing job ${job.id} contains non-metadata payload fields`);
       }
 
-      const run = await repository.generateRun(scopedDb, job.data.definitionId, {
+      const outcome = await repository.generateRun(scopedDb, job.data.definitionId, {
         moduleManifests: options.moduleManifests,
         runKind: job.data.runKind,
         runId: job.data.briefingRunId,
-        jobId: job.id
+        jobId: job.id,
+        composeDeps
       });
       const result = {
         definitionId: job.data.definitionId,
         runId: job.data.briefingRunId,
-        status: run?.status ?? null,
-        created: run !== undefined
+        status: outcome?.run.status ?? null,
+        created: outcome?.created ?? false
       };
 
       options.onResult?.(job, result);
