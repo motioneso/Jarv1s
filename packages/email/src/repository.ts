@@ -15,9 +15,14 @@ export interface CreateCachedEmailMessageInput {
   readonly receivedAt: Date | string;
   readonly externalId: string;
   readonly externalMetadata?: Record<string, unknown>;
+  readonly summary?: string | null;
+  readonly signals?: Record<string, unknown>;
 }
 
 export class EmailRepository {
+  /** Hard cap on any persisted body excerpt — a preview, never a full body. */
+  static readonly MAX_BODY_EXCERPT_CHARS = 500;
+
   async listVisible(scopedDb: DataContextDb): Promise<EmailMessage[]> {
     assertDataContextDb(scopedDb);
 
@@ -66,5 +71,79 @@ export class EmailRepository {
       })
       .returningAll()
       .executeTakeFirstOrThrow();
+  }
+
+  async upsertCachedMessage(
+    scopedDb: DataContextDb,
+    input: CreateCachedEmailMessageInput
+  ): Promise<EmailMessage> {
+    assertDataContextDb(scopedDb);
+
+    const now = new Date();
+    const bodyExcerpt =
+      input.bodyExcerpt != null
+        ? input.bodyExcerpt.slice(0, EmailRepository.MAX_BODY_EXCERPT_CHARS)
+        : null;
+
+    return scopedDb.db
+      .insertInto("app.email_messages")
+      .values({
+        id: input.id ?? randomUUID(),
+        connector_account_id: input.connectorAccountId,
+        owner_user_id: sql<string>`app.current_actor_user_id()`,
+        sender: input.sender,
+        recipients: [...(input.recipients ?? [])],
+        subject: input.subject,
+        snippet: input.snippet ?? null,
+        body_excerpt: bodyExcerpt,
+        received_at: input.receivedAt,
+        external_id: input.externalId,
+        external_metadata: input.externalMetadata ?? {},
+        summary: input.summary ?? null,
+        signals: input.signals ?? {},
+        created_at: now,
+        updated_at: now
+      })
+      .onConflict((oc) =>
+        oc.columns(["connector_account_id", "external_id"]).doUpdateSet({
+          sender: input.sender,
+          recipients: [...(input.recipients ?? [])],
+          subject: input.subject,
+          snippet: input.snippet ?? null,
+          body_excerpt: bodyExcerpt,
+          received_at: input.receivedAt,
+          external_metadata: input.externalMetadata ?? {},
+          summary: input.summary ?? null,
+          signals: input.signals ?? {},
+          updated_at: now
+        })
+      )
+      .returningAll()
+      .executeTakeFirstOrThrow();
+  }
+
+  /**
+   * Lightweight per-account sync markers for skip-unchanged: external_id, the stored Gmail
+   * historyId (read from external_metadata), AND whether a non-null summary already exists.
+   * The handler skips the (costly) LLM pass ONLY when historyId is unchanged AND a usable
+   * summary is already stored — so a message first cached before any model was configured (or
+   * after a failed extraction, summary=null) is correctly RE-summarized once a model exists.
+   * RLS-scoped to the actor via the worker SELECT grant (0068); returns only this account's rows.
+   */
+  async listSyncMarkers(
+    scopedDb: DataContextDb,
+    connectorAccountId: string
+  ): Promise<Array<{ externalId: string; historyId: string | null; hasSummary: boolean }>> {
+    assertDataContextDb(scopedDb);
+    const rows = await scopedDb.db
+      .selectFrom("app.email_messages")
+      .select(["external_id", "external_metadata", "summary"])
+      .where("connector_account_id", "=", connectorAccountId)
+      .execute();
+    return rows.map((r) => ({
+      externalId: r.external_id,
+      historyId: (r.external_metadata as { historyId?: string | null } | null)?.historyId ?? null,
+      hasSummary: r.summary !== null
+    }));
   }
 }
