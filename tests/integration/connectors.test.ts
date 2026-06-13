@@ -12,6 +12,7 @@ import {
 } from "@jarv1s/db";
 import {
   ConnectorsRepository,
+  GOOGLE_SYNC_QUEUE_DEFINITIONS,
   connectorsModuleManifest,
   createConnectorSecretCipher,
   type EncryptedConnectorSecret
@@ -127,7 +128,7 @@ describe("Connectors encrypted foundation", () => {
     }
   });
 
-  it("loads the built-in Connectors module manifest without queues", () => {
+  it("loads the built-in Connectors module manifest with the google-sync queue", () => {
     const manifests = getBuiltInModuleManifests();
     const registrations = getBuiltInModuleRegistrations();
     const registration = registrations.find(
@@ -169,7 +170,7 @@ describe("Connectors encrypted foundation", () => {
       "/settings/connectors",
       "/settings/admin/connectors"
     ]);
-    expect(registration?.queueDefinitions).toEqual([]);
+    expect(registration?.queueDefinitions).toEqual(GOOGLE_SYNC_QUEUE_DEFINITIONS);
     expect(getBuiltInSqlMigrationDirectories().at(-1)).toContain("packages/structured-state/sql");
     expect(getBuiltInSqlMigrationDirectories().at(-2)).toContain("packages/memory/sql");
     expect(getBuiltInSqlMigrationDirectories().at(-3)).toContain("packages/briefings/sql");

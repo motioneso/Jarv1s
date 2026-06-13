@@ -17,6 +17,7 @@ import {
   type GoogleSyncPayload
 } from "@jarv1s/connectors";
 import { ALLOWED_PAYLOAD_KEYS } from "@jarv1s/jobs";
+import { getAllQueueDefinitions } from "@jarv1s/module-registry";
 import { googleSyncRouteSchema, type GoogleSyncResponse } from "@jarv1s/shared";
 import { CalendarRepository } from "@jarv1s/calendar";
 import { EmailRepository } from "@jarv1s/email";
@@ -988,5 +989,12 @@ describe("POST /api/connectors/google/sync route (G2)", () => {
     expect(body.deduped).toBe(true);
     expect(body.jobId).toBeNull();
     await server.close();
+  });
+});
+
+describe("module-registry wiring (G3)", () => {
+  it("registers the connectors.google-sync queue globally", () => {
+    const names = getAllQueueDefinitions().map((q) => q.name);
+    expect(names).toContain("connectors.google-sync");
   });
 });
