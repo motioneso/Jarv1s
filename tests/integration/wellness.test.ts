@@ -22,6 +22,7 @@ import {
 import type { Medication, MedicationLog } from "@jarv1s/db";
 import type { ToolContext } from "@jarv1s/module-sdk";
 import { getBuiltInModuleManifests } from "@jarv1s/module-registry";
+import { BriefingsRepository } from "@jarv1s/briefings";
 
 import { connectionStrings, resetEmptyFoundationDatabase } from "./test-database.js";
 
@@ -479,5 +480,38 @@ describe("wellness registry integration", () => {
     const manifest = getBuiltInModuleManifests().find((m) => m.id === "wellness");
     const toolNames = (manifest?.assistantTools ?? []).map((t) => t.name);
     expect(toolNames).toContain("wellness.recentCheckIns");
+  });
+});
+
+describe("briefings Wellness section (existing read-tool seam, zero briefings change)", () => {
+  it("a briefing definition selecting wellness.recentCheckIns renders a section", async () => {
+    const briefings = new BriefingsRepository();
+
+    // Seed a check-in so the tool has data.
+    await dataContext.withDataContext(ctx(userId), (db) =>
+      new WellnessRepository().createCheckin(db, { feelingCore: "sad", intensity: 2 })
+    );
+
+    const definition = await dataContext.withDataContext(ctx(userId), (db) =>
+      briefings.createDefinition(db, {
+        title: "Daily Wellness",
+        cadence: "manual",
+        selectedToolNames: ["wellness.recentCheckIns"]
+      })
+    );
+
+    const run = await dataContext.withDataContext(ctx(userId), (db) =>
+      briefings.generateRun(db, definition.id, {
+        runKind: "manual",
+        moduleManifests: getBuiltInModuleManifests()
+      })
+    );
+
+    expect(run?.status).toBe("succeeded");
+    const tools =
+      (run?.source_metadata as { tools?: Array<{ name: string; status: string }> }).tools ?? [];
+    expect(tools.some((t) => t.name === "wellness.recentCheckIns" && t.status !== "failed")).toBe(
+      true
+    );
   });
 });
