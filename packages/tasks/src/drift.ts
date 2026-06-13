@@ -2,6 +2,8 @@ import { sql } from "kysely";
 
 import { assertDataContextDb, type DataContextDb, type Task } from "@jarv1s/db";
 
+import { rollForwardOwnedSeries } from "./recurrence.js";
+
 /**
  * Tasks with due_at within this many hours of now() are considered "at risk"
  * even if not yet overdue.
@@ -15,7 +17,14 @@ export class TaskDriftRepository {
    */
   async getOverdue(db: DataContextDb): Promise<Task[]> {
     assertDataContextDb(db);
+    // Lazy-on-view freshness: roll stale recurring series forward before reading the
+    // drift views so a rolled occurrence is no longer falsely overdue/at-risk. Idempotent
+    // and owner-only. getFocus calls the private query methods so this runs once per request.
+    await rollForwardOwnedSeries(db);
+    return this.queryOverdue(db);
+  }
 
+  private async queryOverdue(db: DataContextDb): Promise<Task[]> {
     return db.db
       .selectFrom("app.tasks")
       .selectAll()
@@ -49,7 +58,11 @@ export class TaskDriftRepository {
    */
   async getAtRisk(db: DataContextDb): Promise<Task[]> {
     assertDataContextDb(db);
+    await rollForwardOwnedSeries(db);
+    return this.queryAtRisk(db);
+  }
 
+  private async queryAtRisk(db: DataContextDb): Promise<Task[]> {
     return db.db
       .selectFrom("app.tasks as t")
       .selectAll("t")
@@ -92,7 +105,10 @@ export class TaskDriftRepository {
   async getFocus(db: DataContextDb): Promise<Task[]> {
     assertDataContextDb(db);
 
-    const [overdue, atRisk] = await Promise.all([this.getOverdue(db), this.getAtRisk(db)]);
+    // Single roll-forward per request: call it once here, then read via the private query
+    // methods (not the public getOverdue/getAtRisk, which would roll again redundantly).
+    await rollForwardOwnedSeries(db);
+    const [overdue, atRisk] = await Promise.all([this.queryOverdue(db), this.queryAtRisk(db)]);
 
     // Deduplicate: at-risk may overlap with overdue (overdue tasks with priority >= 3).
     const seen = new Set<string>();

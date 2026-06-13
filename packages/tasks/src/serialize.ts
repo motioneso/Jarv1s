@@ -59,7 +59,7 @@ export function serializeTaskTag(tag: TaskTag): TaskTagDto {
   };
 }
 
-export function serializeTask(task: Task): TaskDto {
+export function serializeTask(task: Task, tags: readonly TaskTag[] = []): TaskDto {
   return {
     id: task.id,
     ownerUserId: task.owner_user_id,
@@ -77,7 +77,8 @@ export function serializeTask(task: Task): TaskDto {
     sourceRef: task.source_ref,
     completedAt: serializeDate(task.completed_at),
     createdAt: serializeDate(task.created_at),
-    updatedAt: serializeDate(task.updated_at)
+    updatedAt: serializeDate(task.updated_at),
+    tags: tags.map(serializeTaskTag)
   };
 }
 

@@ -1,0 +1,119 @@
+import { describe, expect, it } from "vitest";
+import type { PgBoss } from "pg-boss";
+
+import {
+  computeNextOccurrenceDate,
+  advanceDate,
+  nextOccurrenceAtOrAfter,
+  recurrenceCronExpr,
+  reconcileRecurrenceSchedule
+} from "@jarv1s/tasks";
+
+describe("recurrence date helpers", () => {
+  it("computeNextOccurrenceDate advances weekly by interval", () => {
+    expect(
+      computeNextOccurrenceDate({ freq: "weekly", interval: 1, occurrence_date: "2026-06-08" })
+    ).toBe("2026-06-15");
+  });
+
+  it("computeNextOccurrenceDate clamps month-end overflow (Jan 31 -> Feb 28, not Mar 3)", () => {
+    expect(
+      computeNextOccurrenceDate({ freq: "monthly", interval: 1, occurrence_date: "2026-01-31" })
+    ).toBe("2026-02-28"); // 2026 is not a leap year
+    expect(
+      computeNextOccurrenceDate({ freq: "monthly", interval: 1, occurrence_date: "2028-01-31" })
+    ).toBe("2028-02-29"); // leap year clamps to the 29th
+  });
+
+  it("computeNextOccurrenceDate advances monthly without overflow when the day exists", () => {
+    expect(
+      computeNextOccurrenceDate({ freq: "monthly", interval: 1, occurrence_date: "2026-03-15" })
+    ).toBe("2026-04-15");
+  });
+
+  it("advanceDate shifts a Date by the occurrence delta", () => {
+    const shifted = advanceDate(new Date("2026-06-08T09:00:00.000Z"), "2026-06-08", "2026-06-15");
+    expect(shifted?.toISOString()).toBe("2026-06-15T09:00:00.000Z");
+  });
+});
+
+describe("nextOccurrenceAtOrAfter (roll-forward date math)", () => {
+  const spec = { freq: "weekly", interval: 1, occurrence_date: "2026-06-01" } as const;
+
+  it("returns the same date when occurrence is already at/after today", () => {
+    expect(nextOccurrenceAtOrAfter(spec, "2026-06-01")).toBe("2026-06-01");
+    expect(nextOccurrenceAtOrAfter(spec, "2026-05-31")).toBe("2026-06-01");
+  });
+
+  it("rolls a multi-skip series forward to the first occurrence >= today in one pass", () => {
+    // five weekly cadences in the past relative to today 2026-07-06:
+    expect(nextOccurrenceAtOrAfter(spec, "2026-07-06")).toBe("2026-07-06");
+  });
+
+  it("does not roll an occurrence that equals today (boundary)", () => {
+    expect(nextOccurrenceAtOrAfter(spec, "2026-06-01")).toBe("2026-06-01");
+  });
+});
+
+describe("nextOccurrenceAtOrAfter — monthly multi-skip + month-end clamp composition", () => {
+  it("monthly multi-skip across a year boundary advances to the first occurrence >= today in one pass", () => {
+    // Anchor Oct 31 2025, monthly. Roll forward to today 2026-03-01.
+    // The first clamp (Oct 31 -> Nov 30) degrades the moving anchor to day 30, so the
+    // chain is Oct 31 -> Nov 30 -> Dec 30 -> Jan 30 -> Feb 28 (clamp) -> Mar 28 (>= today).
+    expect(
+      nextOccurrenceAtOrAfter(
+        { freq: "monthly", interval: 1, occurrence_date: "2025-10-31" },
+        "2026-03-01"
+      )
+    ).toBe("2026-03-28");
+  });
+
+  it("monthly multi-skip from a month-end date keeps clamping correctly across several skips (never overflows the month)", () => {
+    // Anchor Jan 31 2026, monthly. The clamp composes through nextOccurrenceAtOrAfter:
+    // Jan 31 -> Feb 28 (clamp; 2026 is not a leap year) -> Mar 28 -> Apr 28 -> May 28 (>= today).
+    // Critically it never overflows into the wrong month (e.g. never lands on Mar 3 from Feb+31d).
+    expect(
+      nextOccurrenceAtOrAfter(
+        { freq: "monthly", interval: 1, occurrence_date: "2026-01-31" },
+        "2026-05-15"
+      )
+    ).toBe("2026-05-28");
+  });
+
+  it("monthly is a no-op when the stored occurrence is already at/after today (already current)", () => {
+    expect(
+      nextOccurrenceAtOrAfter(
+        { freq: "monthly", interval: 1, occurrence_date: "2026-06-15" },
+        "2026-06-01"
+      )
+    ).toBe("2026-06-15");
+  });
+
+  it("monthly does not roll an occurrence that equals today (today boundary)", () => {
+    expect(
+      nextOccurrenceAtOrAfter(
+        { freq: "monthly", interval: 1, occurrence_date: "2026-06-13" },
+        "2026-06-13"
+      )
+    ).toBe("2026-06-13");
+  });
+});
+
+describe("recurrenceCronExpr", () => {
+  it("returns the documented pre-dawn daily cron expression", () => {
+    expect(recurrenceCronExpr()).toBe("0 3 * * *");
+  });
+});
+
+describe("reconcileRecurrenceSchedule (failure isolation)", () => {
+  it("swallows boss.schedule errors and never throws to the caller", async () => {
+    const boss = {
+      schedule: async () => {
+        throw new Error("boom");
+      }
+    } as unknown as PgBoss;
+    await expect(
+      reconcileRecurrenceSchedule(boss, "11111111-1111-1111-1111-111111111111")
+    ).resolves.toBeUndefined();
+  });
+});

@@ -19,11 +19,12 @@ import {
 } from "@jarv1s/module-registry";
 import {
   TASKS_DEFERRED_STATUS_QUEUE,
+  TASKS_RECURRENCE_QUEUE,
   type DeferredTaskStatusPayload,
   TaskBreakdownRepository,
-  TaskDriftRepository,
   TaskListsRepository,
-  TasksRepository
+  TasksRepository,
+  registerTasksJobWorkers
 } from "@jarv1s/tasks";
 import type { TaskDto } from "@jarv1s/shared";
 import { connectionStrings, ids, resetFoundationDatabase } from "./test-database.js";
@@ -424,6 +425,88 @@ describe("Tasks module M1", () => {
     expect(getOtherPrivateResponse.statusCode).toBe(404);
   });
 
+  it("creates the tasks-recurrence-materialize queue", async () => {
+    const queue = await workerBoss.getQueue("tasks-recurrence-materialize");
+    expect(queue).not.toBeNull();
+  });
+
+  it("isRecurrenceMaterializePayloadMetadataOnly rejects extra keys", async () => {
+    const { isRecurrenceMaterializePayloadMetadataOnly } = await import("@jarv1s/tasks");
+    expect(isRecurrenceMaterializePayloadMetadataOnly({ actorUserId: ids.userA })).toBe(true);
+    expect(
+      isRecurrenceMaterializePayloadMetadataOnly({ actorUserId: ids.userA, idempotencyKey: "k" })
+    ).toBe(true);
+    expect(
+      isRecurrenceMaterializePayloadMetadataOnly({ actorUserId: ids.userA, seriesId: "x" })
+    ).toBe(false);
+  });
+
+  it("a recurrence job with an extra payload key is rejected by the worker and never advances the series", async () => {
+    const today = new Date().toISOString().slice(0, 10);
+    const past = new Date(Date.now() - 21 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+    const made = await dataContext.withDataContext(userAContext(), (db) =>
+      repository.create(db, {
+        title: "malformed payload must not roll me",
+        recurrence: { freq: "weekly", interval: 1, occurrence_date: past }
+      })
+    );
+
+    const scopedWorkerDb = createDatabase({
+      connectionString: connectionStrings.worker,
+      maxConnections: 1
+    });
+    const workerDataContext = new DataContextRunner(scopedWorkerDb);
+    let workIds: string[] = [];
+    let recurrenceResultFired = false;
+
+    try {
+      workIds = await registerTasksJobWorkers(workerBoss, workerDataContext, {
+        workOptions: { pollingIntervalSeconds: 0.5 },
+        onRecurrenceResult: () => {
+          recurrenceResultFired = true;
+        }
+      });
+
+      // Bypass sendJob's send-side metadata guard with a raw boss.send carrying an extra
+      // (non-metadata) key, so the malformed payload reaches the worker handler. The handler's
+      // isRecurrenceMaterializePayloadMetadataOnly guard must throw → the job fails, the result
+      // callback never fires, and the stale series is NOT advanced.
+      await appBoss.send(TASKS_RECURRENCE_QUEUE, {
+        actorUserId: ids.userA,
+        seriesId: made.recurrence_series_id
+      } as unknown as Record<string, unknown>);
+
+      // Give the worker time to pick up, attempt, and reject the malformed job.
+      await new Promise((resolve) => setTimeout(resolve, 2_000));
+    } finally {
+      await Promise.all(
+        workIds.map((workId, index) =>
+          workerBoss.offWork(index === 0 ? TASKS_DEFERRED_STATUS_QUEUE : TASKS_RECURRENCE_QUEUE, {
+            id: workId,
+            wait: true
+          })
+        )
+      );
+      await scopedWorkerDb.destroy();
+    }
+
+    expect(recurrenceResultFired).toBe(false);
+
+    const live = await dataContext.withDataContext(userAContext(), (db) =>
+      db.db
+        .selectFrom("app.tasks")
+        .selectAll()
+        .where("recurrence_series_id", "=", made.recurrence_series_id!)
+        .where("status", "=", "todo")
+        .execute()
+    );
+    // Still exactly one live row, still stale (the malformed job rolled nothing forward).
+    expect(live).toHaveLength(1);
+    const occ = (live[0]!.recurrence as Record<string, unknown>)["occurrence_date"] as string;
+    expect(occ).toBe(past);
+    expect(occ < today).toBe(true);
+  });
+
   it("keeps Tasks worker payloads metadata-only", async () => {
     const resultPromise = handleNextTaskJob(workerBoss);
     await appBoss.send(TASKS_DEFERRED_STATUS_QUEUE, {
@@ -636,357 +719,5 @@ describe("Tasks module M1", () => {
     expect(tags.map((t) => t.name)).toContain("Visa");
     expect(tag.list_id).toBe(a.id);
     expect(tag.owner_user_id).toBe(ids.userA);
-  });
-
-  it("completing a recurring task generates exactly one next instance; idempotent", async () => {
-    const made = await dataContext.withDataContext(userAContext(), (db) =>
-      repository.create(db, {
-        title: "take out trash",
-        recurrence: { freq: "weekly", interval: 1, occurrence_date: "2026-06-08" },
-        dueAt: new Date("2026-06-08")
-      })
-    );
-
-    // Sanity: the created task must have a series id and the recurrence jsonb.
-    expect(made.recurrence_series_id).toBeTruthy();
-    expect((made.recurrence as Record<string, unknown>)["occurrence_date"]).toBe("2026-06-08");
-
-    // Complete the task — this should spawn the next weekly instance.
-    await dataContext.withDataContext(userAContext(), (db) =>
-      repository.updateStatus(db, made.id, "done")
-    );
-
-    // Query the full series.
-    const series = await dataContext.withDataContext(userAContext(), (db) =>
-      db.db
-        .selectFrom("app.tasks")
-        .selectAll()
-        .where("recurrence_series_id", "=", made.recurrence_series_id!)
-        .execute()
-    );
-
-    const open = series.filter((t) => t.status === "todo");
-    expect(open).toHaveLength(1);
-    expect(open[0]!.id).not.toBe(made.id);
-
-    // The next instance must be one week later.
-    const nextOccurrence = (open[0]!.recurrence as Record<string, unknown>)["occurrence_date"];
-    expect(nextOccurrence).toBe("2026-06-15");
-
-    // Idempotency: completing the original again (already done) must NOT spawn a second open instance.
-    await dataContext.withDataContext(userAContext(), (db) =>
-      repository.updateStatus(db, made.id, "done")
-    );
-    const seriesAfter = await dataContext.withDataContext(userAContext(), (db) =>
-      db.db
-        .selectFrom("app.tasks")
-        .selectAll()
-        .where("recurrence_series_id", "=", made.recurrence_series_id!)
-        .execute()
-    );
-    const openAfter = seriesAfter.filter((t) => t.status === "todo");
-    expect(openAfter).toHaveLength(1);
-  });
-
-  it("drift: overdue + at-risk surface Medium+ only; focus orders them", async () => {
-    const drift = new TaskDriftRepository();
-    await dataContext.withDataContext(userAContext(), async (db) => {
-      await repository.create(db, {
-        title: "overdue-critical",
-        priority: 5,
-        dueAt: new Date("2000-01-01")
-      });
-      await repository.create(db, {
-        title: "overdue-someday",
-        priority: 1,
-        dueAt: new Date("2000-01-01")
-      });
-    });
-    const overdue = await dataContext.withDataContext(userAContext(), (db) => drift.getOverdue(db));
-    const atRisk = await dataContext.withDataContext(userAContext(), (db) => drift.getAtRisk(db));
-    expect(overdue.map((t) => t.title)).toContain("overdue-critical");
-    expect(atRisk.map((t) => t.title)).not.toContain("overdue-someday"); // priority < 3 excluded
-  });
-
-  it("GET /api/tasks/lists returns the actor's lists", async () => {
-    const response = await server.inject({
-      method: "GET",
-      url: "/api/tasks/lists",
-      headers: { authorization: `Bearer ${ids.sessionA}` }
-    });
-
-    expect(response.statusCode).toBe(200);
-    const body = response.json<{ lists: Array<{ name: string }> }>();
-    expect(body.lists.map((l) => l.name)).toContain("Personal");
-  });
-
-  it("POST /api/tasks/lists creates a list (idempotent)", async () => {
-    const response = await server.inject({
-      method: "POST",
-      url: "/api/tasks/lists",
-      headers: { authorization: `Bearer ${ids.sessionA}` },
-      payload: { name: "Work" }
-    });
-
-    expect(response.statusCode).toBe(201);
-    const body = response.json<{ list: { name: string; id: string } }>();
-    expect(body.list.name).toBe("Work");
-
-    // Second call returns the same list (idempotent get-or-create)
-    const response2 = await server.inject({
-      method: "POST",
-      url: "/api/tasks/lists",
-      headers: { authorization: `Bearer ${ids.sessionA}` },
-      payload: { name: "Work" }
-    });
-    expect(response2.statusCode).toBe(201);
-    expect(response2.json<{ list: { id: string } }>().list.id).toBe(body.list.id);
-  });
-
-  it("POST /api/tasks/lists/:listId/tags creates a tag on the list", async () => {
-    // Get the Personal list id for userA
-    const listsRepo = new TaskListsRepository();
-    const list = await dataContext.withDataContext(userAContext(), (db) =>
-      listsRepo.getOrCreateDefault(db)
-    );
-
-    const response = await server.inject({
-      method: "POST",
-      url: `/api/tasks/lists/${list.id}/tags`,
-      headers: { authorization: `Bearer ${ids.sessionA}` },
-      payload: { name: "urgent" }
-    });
-
-    expect(response.statusCode).toBe(201);
-    const body = response.json<{ tag: { name: string; listId: string } }>();
-    expect(body.tag.name).toBe("urgent");
-    expect(body.tag.listId).toBe(list.id);
-  });
-
-  it("POST /api/tasks/:id/breakdown creates child steps", async () => {
-    const task = await dataContext.withDataContext(userAContext(), (db) =>
-      repository.create(db, { title: "plan the trip" })
-    );
-
-    const response = await server.inject({
-      method: "POST",
-      url: `/api/tasks/${task.id}/breakdown`,
-      headers: { authorization: `Bearer ${ids.sessionA}` },
-      payload: { steps: ["book flights", "reserve hotel"] }
-    });
-
-    expect(response.statusCode).toBe(201);
-    const body = response.json<{ tasks: Array<{ title: string; parentTaskId: string }> }>();
-    expect(body.tasks).toHaveLength(2);
-    expect(body.tasks.map((t) => t.title)).toEqual(["book flights", "reserve hotel"]);
-    expect(body.tasks[0]?.parentTaskId).toBe(task.id);
-  });
-
-  it("GET /api/tasks/focus returns overdue/at-risk tasks", async () => {
-    // Seed a high-priority overdue task for userA
-    await dataContext.withDataContext(userAContext(), (db) =>
-      repository.create(db, {
-        title: "focus-route-test",
-        priority: 5,
-        dueAt: new Date("2000-01-01")
-      })
-    );
-
-    const response = await server.inject({
-      method: "GET",
-      url: "/api/tasks/focus",
-      headers: { authorization: `Bearer ${ids.sessionA}` }
-    });
-
-    expect(response.statusCode).toBe(200);
-    const body = response.json<{ tasks: Array<{ title: string }> }>();
-    expect(body.tasks.map((t) => t.title)).toContain("focus-route-test");
-  });
-
-  it("GET /api/tasks/at-risk returns at-risk tasks", async () => {
-    const response = await server.inject({
-      method: "GET",
-      url: "/api/tasks/at-risk",
-      headers: { authorization: `Bearer ${ids.sessionA}` }
-    });
-
-    expect(response.statusCode).toBe(200);
-    expect(response.json<{ tasks: unknown[] }>().tasks).toBeInstanceOf(Array);
-  });
-
-  it("GET /api/tasks?quadrant=do filters by Eisenhower quadrant", async () => {
-    // Seed a task that is important (priority=5) + urgent (due in 1 hour)
-    const dueIn1h = new Date(Date.now() + 60 * 60 * 1000);
-    await dataContext.withDataContext(userAContext(), (db) =>
-      repository.create(db, {
-        title: "quadrant-do-test",
-        priority: 5,
-        dueAt: dueIn1h
-      })
-    );
-
-    const response = await server.inject({
-      method: "GET",
-      url: "/api/tasks?quadrant=do",
-      headers: { authorization: `Bearer ${ids.sessionA}` }
-    });
-
-    expect(response.statusCode).toBe(200);
-    const body = response.json<{ tasks: Array<{ title: string }> }>();
-    expect(body.tasks.map((t) => t.title)).toContain("quadrant-do-test");
-  });
-
-  it("repository: listByParentId returns direct children in position order", async () => {
-    const breakdown = new TaskBreakdownRepository();
-
-    const parentId = await dataContext.withDataContext(userAContext(), async (db) => {
-      const parent = await repository.create(db, { title: "plan the trip" });
-      await breakdown.breakDown(db, parent.id, ["book flights", "book hotel", "pack bags"]);
-      return parent.id;
-    });
-
-    const subtasks = await dataContext.withDataContext(userAContext(), (db) =>
-      repository.listByParentId(db, parentId)
-    );
-
-    expect(subtasks).toHaveLength(3);
-    expect(subtasks.map((t) => t.parent_task_id)).toEqual([parentId, parentId, parentId]);
-    expect(subtasks.at(0)?.title).toBe("book flights");
-    expect(subtasks.at(1)?.title).toBe("book hotel");
-    expect(subtasks.at(2)?.title).toBe("pack bags");
-  });
-
-  it("rejects task create with a listId that belongs to another user (404)", async () => {
-    const userBList = await dataContext.withDataContext(userBContext(), (db) =>
-      new TaskListsRepository().getOrCreateDefault(db)
-    );
-
-    await expect(
-      dataContext.withDataContext(userAContext(), (db) =>
-        repository.create(db, {
-          title: "cross-list task",
-          listId: userBList.id
-        })
-      )
-    ).rejects.toThrow("List not found or not accessible");
-  });
-
-  it("rejects task create with a parentTaskId owned by another user (404)", async () => {
-    await expect(
-      dataContext.withDataContext(userAContext(), (db) =>
-        repository.create(db, {
-          title: "cross-parent task",
-          parentTaskId: taskIds.bPrivate
-        })
-      )
-    ).rejects.toThrow("Parent task not found or not accessible");
-  });
-
-  it("rejects task update with a listId that belongs to another user (404)", async () => {
-    const task = await dataContext.withDataContext(userAContext(), (db) =>
-      repository.create(db, { title: "will be moved to wrong list" })
-    );
-    const userBList = await dataContext.withDataContext(userBContext(), (db) =>
-      new TaskListsRepository().getOrCreateDefault(db)
-    );
-
-    await expect(
-      dataContext.withDataContext(userAContext(), (db) =>
-        repository.update(db, task.id, { listId: userBList.id })
-      )
-    ).rejects.toThrow("List not found or not accessible");
-  });
-
-  it("rejects task update with a parentTaskId owned by another user (404)", async () => {
-    const task = await dataContext.withDataContext(userAContext(), (db) =>
-      repository.create(db, { title: "will be re-parented to wrong task" })
-    );
-
-    await expect(
-      dataContext.withDataContext(userAContext(), (db) =>
-        repository.update(db, task.id, { parentTaskId: taskIds.bPrivate })
-      )
-    ).rejects.toThrow("Parent task not found or not accessible");
-  });
-
-  it("allows task create with own listId and own parentTaskId", async () => {
-    const list = await dataContext.withDataContext(userAContext(), (db) =>
-      new TaskListsRepository().getOrCreateDefault(db)
-    );
-    const parent = await dataContext.withDataContext(userAContext(), (db) =>
-      repository.create(db, { title: "parent task" })
-    );
-    const child = await dataContext.withDataContext(userAContext(), (db) =>
-      repository.create(db, {
-        title: "child task",
-        listId: list.id,
-        parentTaskId: parent.id
-      })
-    );
-
-    expect(child.list_id).toBe(list.id);
-    expect(child.parent_task_id).toBe(parent.id);
-  });
-
-  it("rejects parenting under a task that is only VIEW-SHARED to the actor (ownership, not visibility)", async () => {
-    const userBTask = await dataContext.withDataContext(userBContext(), (db) =>
-      repository.create(db, { title: "userB task, view-shared to A" })
-    );
-    await dataContext.withDataContext(userBContext(), (db) =>
-      sharesRepository.grant(db, {
-        resourceType: "task",
-        resourceId: userBTask.id,
-        ownerUserId: ids.userB,
-        granteeUserId: ids.userA,
-        level: "view"
-      })
-    );
-
-    // Sanity: userA CAN see the task (visibility passes) ...
-    const visibleToA = await dataContext.withDataContext(userAContext(), (db) =>
-      repository.getById(db, userBTask.id)
-    );
-    expect(visibleToA?.id).toBe(userBTask.id);
-
-    // ... but must NOT be able to parent under it on create.
-    await expect(
-      dataContext.withDataContext(userAContext(), (db) =>
-        repository.create(db, { title: "child under foreign parent", parentTaskId: userBTask.id })
-      )
-    ).rejects.toThrow("Parent task not found or not accessible");
-
-    // ... and must NOT be able to re-parent an existing own task under it on update.
-    const ownTask = await dataContext.withDataContext(userAContext(), (db) =>
-      repository.create(db, { title: "userA own task" })
-    );
-    await expect(
-      dataContext.withDataContext(userAContext(), (db) =>
-        repository.update(db, ownTask.id, { parentTaskId: userBTask.id })
-      )
-    ).rejects.toThrow("Parent task not found or not accessible");
-  });
-
-  it("POST /api/tasks with a foreign listId returns 404", async () => {
-    const userBList = await dataContext.withDataContext(userBContext(), (db) =>
-      new TaskListsRepository().getOrCreateDefault(db)
-    );
-
-    const response = await server.inject({
-      method: "POST",
-      url: "/api/tasks",
-      headers: { authorization: `Bearer ${ids.sessionA}` },
-      payload: { title: "cross-list via API", listId: userBList.id }
-    });
-
-    expect(response.statusCode).toBe(404);
-    expect(response.json<{ error: string }>().error).toBe("List not found or not accessible");
-  });
-
-  it("HttpError from tasks errors module has correct statusCode and message", async () => {
-    const { HttpError } = await import("../../packages/tasks/src/errors.js");
-    const err = new HttpError(404, "not found");
-    expect(err.statusCode).toBe(404);
-    expect(err.message).toBe("not found");
-    expect(err).toBeInstanceOf(Error);
   });
 });

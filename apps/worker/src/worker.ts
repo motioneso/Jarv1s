@@ -43,7 +43,11 @@ export async function buildWorker(deps?: { connectionString?: string }): Promise
   });
   const dataContext = new DataContextRunner(workerDb);
   const repository = new RlsProbeRepository();
-  const boss = createPgBossClient(connectionString);
+  // pg-boss cron engine is enabled ONLY here, in the single long-lived worker process,
+  // so scheduled jobs (recurrence materialization, scheduled briefings) fire in exactly
+  // one place. The API server's boss stays schedule:false. Shared foundation knob — see
+  // docs/superpowers/specs/2026-06-13-phase3-task-verticals-finished.md "Shared cron foundation".
+  const boss = createPgBossClient(connectionString, { schedule: true });
 
   // LOW (#165): createEmbeddingProvider is synchronous — drop the misleading await.
   const embeddingProvider = createEmbeddingProvider(getEmbeddingProviderConfig());

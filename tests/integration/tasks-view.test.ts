@@ -21,6 +21,7 @@ function task(partial: Partial<TaskDto>): TaskDto {
     completedAt: null,
     createdAt: null,
     updatedAt: null,
+    tags: [],
     ...partial
   };
 }
