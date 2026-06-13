@@ -133,7 +133,13 @@ jobs:
       - name: Run prod compose smoke (builds images + in-image migrate)
         env:
           JARVIS_IMAGE_TAG: ci-${{ github.run_id }}
-          JARVIS_ENV_FILE: ./infra/env.production.local
+          # Compose resolves a service `env_file:` relative to the compose file dir
+          # (infra/), so this is infra-relative — NOT ./infra/... (which would become
+          # infra/infra/... and fail). Codex deploy-code R1 #1.
+          JARVIS_ENV_FILE: ./env.production.local
+          # POSTGRES_PASSWORD is a Compose INTERPOLATION var (env_file does not feed
+          # it); the prod Compose now requires it (`:?`), so set it in the shell env.
+          POSTGRES_PASSWORD: postgres
           # CI host has no CLI dirs / tmux server; create empty mount targets.
           JARVIS_HOST_CLAUDE_DIR: ${{ github.workspace }}/.ci-claude
           JARVIS_HOST_CODEX_DIR: ${{ github.workspace }}/.ci-codex
@@ -145,7 +151,7 @@ jobs:
           pnpm smoke:compose:prod
       - name: Stop prod compose stack
         if: always()
-        run: JARVIS_IMAGE_TAG=ci-${{ github.run_id }} JARVIS_ENV_FILE=./infra/env.production.local docker compose -f infra/docker-compose.prod.yml down -v
+        run: JARVIS_IMAGE_TAG=ci-${{ github.run_id }} JARVIS_ENV_FILE=./env.production.local POSTGRES_PASSWORD=postgres docker compose -f infra/docker-compose.prod.yml down -v
 
   publish:
     name: Build and publish images

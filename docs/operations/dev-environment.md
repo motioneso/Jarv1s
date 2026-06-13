@@ -70,8 +70,13 @@ one-shot runs `tsx scripts/migrate.ts` (NOT bundled — module SQL dirs resolve 
 ```txt
 cp infra/env.production.example infra/env.production.local   # off-git; fill secrets/UIDs/tag
 # set JARVIS_IMAGE_TAG to a published version tag (never :edge/:latest)
-docker compose -f infra/docker-compose.prod.yml up -d
-# or, at boot: systemctl enable --now jarv1s-stack
+# NOTE: pass --env-file so Compose INTERPOLATION vars (JARVIS_IMAGE_TAG,
+# POSTGRES_PASSWORD, JARVIS_HOST_UID/GID, socket/dir paths) resolve — a service
+# `env_file:` only feeds the container's RUNTIME env, NOT `${...}` substitution, and
+# the prod Compose now fails loudly if JARVIS_IMAGE_TAG or POSTGRES_PASSWORD is unset.
+docker compose --env-file infra/env.production.local -f infra/docker-compose.prod.yml up -d
+# or, at boot: systemctl enable --now jarv1s-stack   (the unit's EnvironmentFile
+# exports the same vars into the service env, so interpolation resolves there too)
 ```
 
 Order: postgres (healthcheck) → migrate one-shot (`tsx scripts/migrate.ts`: bootstrap →
@@ -112,7 +117,9 @@ mounts (only on api/worker):
 uid/gid) so it can open the 0700 socket and read the three RO CLI dirs. Because that uid
 may differ from the image `node` uid, the writable named volumes (model cache, vault) are
 made world-writable at build (Task 7). If the uid does not match the socket owner, CLI chat
-silently breaks while REST stays green — the reboot-survival probe catches this.
+silently breaks while REST stays green — the reboot-survival probe catches this by execing
+`tmux ls` FROM INSIDE the running api container (not on the host), so a bad
+`JARVIS_HOST_UID`/`GID` or a broken socket mount surfaces as a probe failure.
 
 **Security tradeoff (accepted, documented):** mounting the three host CLI-auth dirs + the
 tmux socket means a container compromise can reach the operator's personal CLI credentials
@@ -131,6 +138,8 @@ After a host reboot (or `systemctl start jarv1s-stack`), confirm the stack survi
 JARVIS_API_PORT=3000 scripts/verify-reboot-survival.sh
 ```
 
-It asserts (1) `/health/ready` returns `{ ok:true, db:"ok", pgboss:"ok" }` and (2) a chat
-session can launch against the host multiplexer (tmux/herdr liveness on the bridged
-socket). Non-zero exit means a component is down — it fails loudly, never false-green.
+It asserts (1) `/health/ready` returns `{ ok:true, db:"ok", pgboss:"ok" }` and (2) the
+multiplexer bridge is live — when the containerized stack is running it execs `tmux ls`
+INSIDE the api container (proving the bind-mounted host socket is reachable as the mapped
+uid, not merely that host tmux is up); otherwise it falls back to a host-side tmux/herdr
+liveness check. Non-zero exit means a component is down — it fails loudly, never false-green.

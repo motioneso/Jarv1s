@@ -29,7 +29,13 @@ services:
     environment:
       POSTGRES_DB: jarv1s
       POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      # REQUIRED — fail loudly if unset. `env_file` does NOT feed Compose `${...}`
+      # interpolation, so this value comes from the SHELL env / `--env-file` (the
+      # documented deploy passes `--env-file`; CI/smoke export it). A `:-postgres`
+      # default would silently stand up the prod Postgres superuser with the weak
+      # dev password even when the operator set a strong one in the env file (it
+      # would only land in the app DB URLs, not here) — Codex deploy-code R1 #2.
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD (shell env or --env-file; env_file alone does not interpolate)}
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres -d jarv1s"]
       interval: 2s
