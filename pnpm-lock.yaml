@@ -72,6 +72,9 @@ importers:
       '@jarv1s/auth':
         specifier: workspace:*
         version: link:../../packages/auth
+      '@jarv1s/connectors':
+        specifier: workspace:*
+        version: link:../../packages/connectors
       '@jarv1s/db':
         specifier: workspace:*
         version: link:../../packages/db

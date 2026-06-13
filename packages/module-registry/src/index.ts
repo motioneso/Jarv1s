@@ -48,7 +48,9 @@ import {
   connectorsModuleManifest,
   connectorsModuleSqlMigrationDirectory,
   registerConnectorsJobWorkers,
-  registerConnectorsRoutes
+  registerConnectorsRoutes,
+  type GoogleApiClient,
+  type GoogleConnectionService
 } from "@jarv1s/connectors";
 import type { ActiveModulesResolver } from "@jarv1s/ai";
 import type { AccessContext, DataContextDb, DataContextRunner, JarvisDatabase } from "@jarv1s/db";
@@ -147,6 +149,9 @@ export interface BuiltInRouteDependencies {
   readonly chatEngineFactory?: ChatEngineFactory;
   readonly revokeUserSessions?: (userId: string) => Promise<number>;
   readonly bootstrapConnectionString?: string;
+  readonly googleConnectionService?: GoogleConnectionService;
+  readonly googleApiClient?: GoogleApiClient;
+  readonly connectorsRepository?: ConnectorsRepository;
   /** Boot-time multiplexer availability snapshot for the admin settings UI. */
   readonly chatMultiplexerAvailability?: { readonly tmux: boolean; readonly herdr: boolean };
   /**
@@ -264,7 +269,10 @@ const BUILT_IN_MODULES: readonly BuiltInModuleRegistration[] = [
         chatEngineFactory: deps.chatEngineFactory,
         resolveActiveModules: deps.resolveActiveModules,
         mcpServerUrl: `http://127.0.0.1:${process.env.PORT ?? 3000}/api/mcp`,
-        boss: deps.boss
+        boss: deps.boss,
+        googleConnectionService: deps.googleConnectionService,
+        googleApiClient: deps.googleApiClient,
+        connectorsRepository: deps.connectorsRepository
       }),
     registerWorkers: (boss, deps) =>
       registerChatJobWorkers(boss, deps.dataContext, {

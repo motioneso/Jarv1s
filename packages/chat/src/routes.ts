@@ -9,12 +9,20 @@ import {
   ConfirmationRegistry,
   SessionTokenRegistry,
   type ActiveModulesResolver,
+  type AssistantToolGatewayDependencies,
   type GatewaySessionRecord,
   type SessionNotifier
 } from "@jarv1s/ai";
+import { CalendarRepository } from "@jarv1s/calendar";
+import type {
+  ConnectorsRepository,
+  GoogleApiClient,
+  GoogleConnectionService
+} from "@jarv1s/connectors";
 import { ChatMemoryFactsRepository, type MemoryFact } from "@jarv1s/memory";
 import { handleRouteError as handleModuleRouteError } from "@jarv1s/module-sdk";
 
+import { buildCalendarWriteService } from "./calendar-write-impl.js";
 import { ChatGatewayNotifier } from "./gateway-notifier.js";
 import { registerChatLiveRoutes } from "./live-routes.js";
 import { CliChatUnavailableError } from "./live/errors.js";
@@ -36,6 +44,10 @@ export interface ChatRoutesDependencies {
   readonly mcpServerUrl?: string;
   /** pg-boss for enqueueing embed/extract-facts jobs after each completed turn. */
   readonly boss?: PgBoss;
+  /** Connector collaborators for the calendar focus-time write tool (composition host). */
+  readonly googleConnectionService?: GoogleConnectionService;
+  readonly googleApiClient?: GoogleApiClient;
+  readonly connectorsRepository?: ConnectorsRepository;
 }
 
 /**
@@ -72,15 +84,21 @@ export function registerChatRoutes(
     const confirmations = new ConfirmationRegistry();
     const aiRepository = new AiRepository();
 
-    gateway = new AssistantToolGateway({
-      resolveActiveModules: dependencies.resolveActiveModules,
-      repository: aiRepository,
-      runner: dependencies.dataContext,
-      tokens,
-      confirmations,
-      notifier: notifierProxy,
-      confirmTimeoutMs: 150_000
-    });
+    gateway = new AssistantToolGateway(
+      buildChatGatewayDependencies({
+        resolveActiveModules: dependencies.resolveActiveModules,
+        repository: aiRepository,
+        runner: dependencies.dataContext,
+        tokens,
+        confirmations,
+        notifier: notifierProxy,
+        collaborators: {
+          googleConnectionService: dependencies.googleConnectionService,
+          googleApiClient: dependencies.googleApiClient,
+          connectorsRepository: dependencies.connectorsRepository
+        }
+      })
+    );
   }
 
   const mcpServerUrl = dependencies.mcpServerUrl;
@@ -235,6 +253,60 @@ export function registerChatRoutes(
       return handleRouteError(error, reply);
     }
   });
+}
+
+/**
+ * Builds the gateway toolServices map from the optional connector collaborators. Returns {} when
+ * any collaborator is missing, so the gateway's fail-closed filter hides calendar.proposeFocusBlock
+ * rather than listing an unsatisfiable tool. Exported so the wiring is unit-testable without HTTP.
+ */
+export function buildChatToolServices(deps: {
+  googleConnectionService?: GoogleConnectionService;
+  googleApiClient?: GoogleApiClient;
+  connectorsRepository?: ConnectorsRepository;
+}): Record<string, unknown> {
+  if (deps.googleConnectionService && deps.googleApiClient && deps.connectorsRepository) {
+    return {
+      calendarWrite: buildCalendarWriteService({
+        googleService: deps.googleConnectionService,
+        googleApiClient: deps.googleApiClient,
+        connectorsRepository: deps.connectorsRepository,
+        calendarRepository: new CalendarRepository()
+      })
+    };
+  }
+  return {};
+}
+
+/**
+ * Assembles the AssistantToolGatewayDependencies registerChatRoutes uses, INCLUDING toolServices from
+ * buildChatToolServices. Exported so a test can assert the real construction path carries toolServices
+ * (i.e. that registerChatRoutes does not forget to pass it) — closing the "factory exists but isn't
+ * wired" gap. registerChatRoutes calls THIS, then `new AssistantToolGateway(deps)`.
+ */
+export function buildChatGatewayDependencies(args: {
+  resolveActiveModules: ActiveModulesResolver;
+  repository: AiRepository;
+  runner: DataContextRunner;
+  tokens: SessionTokenRegistry;
+  confirmations: ConfirmationRegistry;
+  notifier: SessionNotifier;
+  collaborators: {
+    googleConnectionService?: GoogleConnectionService;
+    googleApiClient?: GoogleApiClient;
+    connectorsRepository?: ConnectorsRepository;
+  };
+}): AssistantToolGatewayDependencies {
+  return {
+    resolveActiveModules: args.resolveActiveModules,
+    repository: args.repository,
+    runner: args.runner,
+    tokens: args.tokens,
+    confirmations: args.confirmations,
+    notifier: args.notifier,
+    confirmTimeoutMs: 150_000,
+    toolServices: buildChatToolServices(args.collaborators)
+  };
 }
 
 function serializeThread(thread: ChatThread): ChatThreadDto {
