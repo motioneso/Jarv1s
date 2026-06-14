@@ -12,6 +12,7 @@ export const queryKeys = {
     providers: ["settings", "providers"] as const,
     adminConnectorAccounts: ["settings", "admin", "connector-accounts"] as const,
     adminUsers: ["settings", "admin", "users"] as const,
+    adminModules: ["settings", "admin", "modules"] as const,
     registrationSettings: ["settings", "admin", "registration"] as const,
     chatMultiplexer: ["settings", "chat-multiplexer"] as const
   },
