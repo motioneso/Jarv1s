@@ -1,0 +1,38 @@
+<h2>Connected Accounts: Decision</h2>
+<p class="subtitle">
+  Keep provider setup separate from global data-source controls. Google is one current way to power
+  these sources, not the product concept.
+</p>
+
+<div class="mockup">
+  <div class="mockup-header">Provider-agnostic model</div>
+  <div class="mockup-body">
+    <div class="placeholder">
+      <strong>Accounts</strong><br />
+      Google now; Microsoft/other providers later. Shows authentication health, reconnect, revoke.
+    </div>
+    <div class="placeholder">
+      <strong>Calendar source</strong><br />
+      Global Jarvis calendar controls: include in planning, briefings, travel/focus signals,
+      write-back later.
+    </div>
+    <div class="placeholder">
+      <strong>Email source</strong><br />
+      Global Jarvis email controls: scan for commitments, summarize, include in briefings,
+      sensitivity thresholds.
+    </div>
+    <div class="placeholder">
+      <strong>Provider details</strong><br />
+      Which account backs each source, scopes granted, last sync, sync health. Details, not
+      top-level IA.
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <h3>Designer implication</h3>
+  <p>
+    Design around source types the user understands: Calendar, Email, and future data sources.
+    Providers are connection methods underneath each source.
+  </p>
+</div>

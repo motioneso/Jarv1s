@@ -1,0 +1,46 @@
+<h2>Admin / Setup Taxonomy</h2>
+<p class="subtitle">
+  Admin settings should govern the instance. Host/operator setup should be available, but not mixed
+  into the main people/access experience.
+</p>
+
+<div class="mockup">
+  <div class="mockup-header">Recommended admin grouping</div>
+  <div class="mockup-body">
+    <div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px">
+      <div class="placeholder">
+        <strong>People & access</strong><br />
+        Users, pending approvals, active/deactivated state, admin roles, revoke sessions.
+      </div>
+      <div class="placeholder">
+        <strong>Identity & registration</strong><br />
+        Allow registration, require approval, login provider status. Provider config itself is
+        env/setup.
+      </div>
+      <div class="placeholder">
+        <strong>Instance modules</strong><br />
+        Enable/disable optional modules across the whole instance; required modules locked.
+      </div>
+      <div class="placeholder">
+        <strong>Connector oversight</strong><br />
+        Safe metadata/health only. No private synced data and no secrets.
+      </div>
+      <div class="placeholder">
+        <strong>Audit & operations</strong><br />
+        Audit events, data export/delete references, backup/restore status or documentation links.
+      </div>
+      <div class="placeholder">
+        <strong>Advanced host setup</strong><br />
+        Multiplexer, CLI availability, local runtime checks. Advanced/setup area, not normal admin.
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <h3>Cut / move from current page</h3>
+  <p>
+    Auth provider status should not be a standalone card. Multiplexer should move to advanced setup.
+    Admin connector metadata should be health/oversight only, not a random compact list.
+  </p>
+</div>

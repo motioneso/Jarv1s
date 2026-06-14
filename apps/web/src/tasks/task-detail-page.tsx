@@ -19,6 +19,7 @@ import {
 } from "../api/client";
 import { queryKeys } from "../api/query-keys";
 import { effortLabel, fromDateInputValue, statusLabels, toDateInputValue } from "./task-format";
+import "./tasks.css";
 
 export function TaskDetailPage() {
   const { taskId } = useParams<{ readonly taskId: string }>();

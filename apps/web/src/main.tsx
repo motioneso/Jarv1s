@@ -4,9 +4,7 @@ import { createRoot } from "react-dom/client";
 
 import { App } from "./app";
 import { registerServiceWorker } from "./pwa/register-service-worker";
-import "./styles/tokens.css";
-import "./styles.css";
-import "./tasks/tasks.css";
+import "./styles/index.css";
 
 const queryClient = new QueryClient({
   defaultOptions: {

@@ -1,0 +1,12 @@
+/*
+ * Global web cascade, in ownership order:
+ * 1. design tokens
+ * 2. reusable component primitives
+ * 3. feature kits
+ * 4. app shell/base overrides
+ * 5. legacy task-screen compatibility styles
+ */
+@import "./tokens.css";
+@import "./components-core.css";
+@import "./components-jarvis.css";
+@import "../styles.css";

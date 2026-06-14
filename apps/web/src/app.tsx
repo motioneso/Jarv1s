@@ -1,5 +1,5 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import type { ReactNode } from "react";
+import { lazy, Suspense, type ReactNode } from "react";
 import { BrowserRouter, Navigate, Route, Routes } from "react-router";
 
 import {
@@ -10,18 +10,36 @@ import {
   getMyModules,
   getOnboardingStatus
 } from "./api/client";
+import { webRoutePath } from "./app-route-metadata";
 import { queryKeys } from "./api/query-keys";
 import { AuthScreen } from "./auth/auth-screen";
 import { shouldShowOnboarding } from "./onboarding/resume";
 import { OnboardingWizard } from "./onboarding/onboarding-wizard";
-import { BriefingsPage } from "./briefings/briefings-page";
-import { CalendarPage } from "./calendar/calendar-page";
-import { NotificationsPage } from "./notifications/notifications-page";
-import { SettingsPage } from "./settings/settings-page";
 import { AppShell } from "./shell/app-shell";
-import { TaskDetailPage } from "./tasks/task-detail-page";
-import { TasksPage } from "./tasks/tasks-page";
-import { WellnessPage } from "./wellness/wellness-page";
+
+const CalendarPage = lazy(() =>
+  import("./calendar/calendar-page").then((module) => ({ default: module.CalendarPage }))
+);
+const NotificationsPage = lazy(() =>
+  import("./notifications/notifications-page").then((module) => ({
+    default: module.NotificationsPage
+  }))
+);
+const SettingsPage = lazy(() =>
+  import("./settings/settings-page").then((module) => ({ default: module.SettingsPage }))
+);
+const TodayPage = lazy(() =>
+  import("./today/today-page").then((module) => ({ default: module.TodayPage }))
+);
+const TaskDetailPage = lazy(() =>
+  import("./tasks/task-detail-page").then((module) => ({ default: module.TaskDetailPage }))
+);
+const TasksPage = lazy(() =>
+  import("./tasks/tasks-page").then((module) => ({ default: module.TasksPage }))
+);
+const WellnessPage = lazy(() =>
+  import("./wellness/wellness-page").then((module) => ({ default: module.WellnessPage }))
+);
 
 export function App() {
   const queryClient = useQueryClient();
@@ -166,24 +184,26 @@ export function App() {
         modulesLoading={modulesQuery.isLoading}
         disabledModuleIds={disabledModuleIds}
       >
-        <Routes>
-          <Route index element={<Navigate to="/tasks" replace />} />
-          <Route path="/tasks" element={<TasksPage />} />
-          <Route path="/tasks/:taskId" element={<TaskDetailPage />} />
-          <Route path="/notifications" element={<NotificationsPage />} />
-          <Route path="/calendar" element={<CalendarPage />} />
-          <Route path="/briefings" element={<BriefingsPage />} />
-          <Route
-            path="/wellness"
-            element={
-              <ModuleGatedRoute gate={wellnessGate}>
-                <WellnessPage />
-              </ModuleGatedRoute>
-            }
-          />
-          <Route path="/settings" element={<SettingsPage me={meQuery.data} />} />
-          <Route path="*" element={<Navigate to="/tasks" replace />} />
-        </Routes>
+        <Suspense fallback={<LoadingScreen />}>
+          <Routes>
+            <Route index element={<Navigate to={webRoutePath("today")} replace />} />
+            <Route path={webRoutePath("today")} element={<TodayPage me={meQuery.data} />} />
+            <Route path={webRoutePath("tasks")} element={<TasksPage />} />
+            <Route path={webRoutePath("task-detail")} element={<TaskDetailPage />} />
+            <Route path={webRoutePath("notifications")} element={<NotificationsPage />} />
+            <Route path={webRoutePath("calendar")} element={<CalendarPage />} />
+            <Route
+              path={webRoutePath("wellness")}
+              element={
+                <ModuleGatedRoute gate={wellnessGate}>
+                  <WellnessPage />
+                </ModuleGatedRoute>
+              }
+            />
+            <Route path={webRoutePath("settings")} element={<SettingsPage me={meQuery.data} />} />
+            <Route path="*" element={<Navigate to={webRoutePath("today")} replace />} />
+          </Routes>
+        </Suspense>
       </AppShell>
     </BrowserRouter>
   );
