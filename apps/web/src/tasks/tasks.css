@@ -1,5 +1,135 @@
 /* Tasks UI styles (M-A5 Plan 3). Kept separate from styles.css to respect the 1000-line cap. */
 
+/* Editable task title in the modal header (replaces the static title + Task field). */
+.tk-modal__titlein {
+  width: 100%;
+  box-sizing: border-box;
+  border: 0;
+  background: transparent;
+  font-family: var(--font-serif);
+  font-size: 22px;
+  font-weight: 600;
+  letter-spacing: -0.012em;
+  line-height: 1.15;
+  color: var(--text);
+  margin-top: 4px;
+  padding: 0;
+}
+.tk-modal__titlein:focus {
+  outline: none;
+}
+.tk-modal__titlein::placeholder {
+  color: var(--text-faint);
+}
+
+/* Status split button: Complete (toggles done) + caret for Archive / Reopen. */
+.tk-statusctl {
+  position: relative;
+  display: inline-flex;
+}
+.tk-statusctl__main {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 36px;
+  padding: 0 16px;
+  border: 1px solid var(--accent);
+  border-radius: var(--radius-md) 0 0 var(--radius-md);
+  background: var(--accent);
+  color: var(--text-on-accent);
+  font-family: var(--font-sans);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: var(--transition-control);
+}
+.tk-statusctl__main:hover {
+  background: var(--accent-hover);
+  border-color: var(--accent-hover);
+}
+.tk-statusctl__main.is-done {
+  background: var(--accent-soft);
+  color: var(--accent-soft-fg);
+  border-color: transparent;
+}
+.tk-statusctl__main.is-done:hover {
+  background: var(--pine-soft-2);
+}
+.tk-statusctl__main.is-archived {
+  background: var(--surface-2);
+  color: var(--text-muted);
+  border-color: var(--border-strong);
+}
+.tk-statusctl__more {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 36px;
+  border: 1px solid var(--accent);
+  border-left: 1px solid var(--accent-hover);
+  border-radius: 0 var(--radius-md) var(--radius-md) 0;
+  background: var(--accent);
+  color: var(--text-on-accent);
+  cursor: pointer;
+  transition: var(--transition-control);
+}
+.tk-statusctl__more:hover {
+  background: var(--accent-hover);
+  border-color: var(--accent-hover);
+}
+/* Once complete/archived the button relaxes to a quieter, confirmed state. */
+.tk-statusctl__main.is-done + .tk-statusctl__more {
+  background: var(--accent-soft);
+  color: var(--accent-soft-fg);
+  border-color: transparent;
+  border-left-color: var(--pine-soft-2);
+}
+.tk-statusctl__main.is-archived + .tk-statusctl__more {
+  background: var(--surface-2);
+  color: var(--text-subtle);
+  border-color: var(--border-strong);
+  border-left-color: var(--border-strong);
+}
+.tk-statusctl__menu {
+  position: absolute;
+  top: auto; /* override .tk-tagmenu's top so it opens upward, not into the clipped modal edge */
+  bottom: calc(100% + 6px);
+  left: 0;
+  min-width: 180px;
+  z-index: 40;
+}
+
+/* Single effort dot (DS "fill" style): empty=quick, left-half=medium, full=large. */
+.tk-effort-fill {
+  display: inline-flex;
+  align-items: center;
+  color: var(--text-subtle);
+}
+
+/* Subtask quick-add input inside the Details modal (edit mode). */
+.tk-subadd {
+  display: flex;
+  align-items: center;
+  padding-left: 31px;
+}
+.tk-subadd input {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  background: transparent;
+  font-family: var(--font-sans);
+  font-size: 14px;
+  color: var(--text);
+  padding: 6px 0;
+}
+.tk-subadd input:focus {
+  outline: none;
+}
+.tk-subadd input::placeholder {
+  color: var(--text-faint);
+}
+
 .tasks-layout {
   display: grid;
   grid-template-columns: minmax(0, 1fr);

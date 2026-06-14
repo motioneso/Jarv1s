@@ -33,7 +33,7 @@ export function fromDateInputValue(value: string): string | null {
 }
 
 export const effortLabels: Record<"quick" | "medium" | "large", string> = {
-  quick: "Quick",
+  quick: "Small",
   medium: "Medium",
   large: "Large"
 };

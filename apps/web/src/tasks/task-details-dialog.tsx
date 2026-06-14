@@ -1,0 +1,461 @@
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { X } from "lucide-react";
+import { useEffect, useState } from "react";
+
+import { PRIORITY_LEVELS, type TaskApiStatus, type TaskListDto } from "@jarv1s/shared";
+
+import {
+  addTaskActivity,
+  assignTaskTag,
+  breakdownTask,
+  createTask,
+  createTaskTag,
+  getTask,
+  listSubtasks,
+  listTaskActivity,
+  listTaskTags,
+  unassignTaskTag,
+  updateTask
+} from "../api/client";
+import { queryKeys } from "../api/query-keys";
+import {
+  buildTaskFields,
+  blankTaskDetailsForm,
+  cleanSubtasks,
+  formFromTask,
+  normalizeTagName,
+  type Repeat,
+  type TaskDetailsFormState
+} from "./task-details-model";
+import {
+  AssignedPersonField,
+  TaskActivityPanel,
+  TaskStatusControl,
+  TaskSubtasksField,
+  TaskTagsField
+} from "./task-details-sections";
+
+const EFFORTS: readonly { readonly value: "quick" | "medium" | "large"; readonly label: string }[] =
+  [
+    { value: "quick", label: "Small" },
+    { value: "medium", label: "Medium" },
+    { value: "large", label: "Large" }
+  ];
+
+const REPEATS: readonly { readonly value: Repeat; readonly label: string }[] = [
+  { value: "never", label: "Never" },
+  { value: "daily", label: "Daily" },
+  { value: "weekly", label: "Weekly" },
+  { value: "monthly", label: "Monthly" }
+];
+
+export function TaskDetailsDialog(props: {
+  readonly open: boolean;
+  readonly taskId: string | null;
+  readonly defaultListId?: string;
+  readonly currentUserLabel: string;
+  readonly lists: readonly TaskListDto[];
+  readonly onClose: () => void;
+}) {
+  const isNew = props.taskId === null;
+  const requireTaskId = () => {
+    if (!props.taskId) throw new Error("Task id required for this operation");
+    return props.taskId;
+  };
+  const queryClient = useQueryClient();
+  const [form, setForm] = useState<TaskDetailsFormState>(() =>
+    blankTaskDetailsForm(props.defaultListId)
+  );
+  // New-task local collections (attached after the task is created).
+  const [newTags, setNewTags] = useState<string[]>([]);
+  const [newSubs, setNewSubs] = useState<string[]>([]);
+  const [tagDraft, setTagDraft] = useState("");
+  const [subDraft, setSubDraft] = useState("");
+  const [comment, setComment] = useState("");
+
+  const enabled = props.open && !isNew && props.taskId !== null;
+  const taskQuery = useQuery({
+    enabled,
+    queryKey: props.taskId ? queryKeys.tasks.detail(props.taskId) : ["tasks", "detail", "draft"],
+    queryFn: () => getTask(requireTaskId())
+  });
+  const subtasksQuery = useQuery({
+    enabled,
+    queryKey: props.taskId
+      ? queryKeys.tasks.subtasks(props.taskId)
+      : ["tasks", "subtasks", "draft"],
+    queryFn: () => listSubtasks(requireTaskId())
+  });
+  const activityQuery = useQuery({
+    enabled,
+    queryKey: props.taskId
+      ? queryKeys.tasks.activity(props.taskId)
+      : ["tasks", "activity", "draft"],
+    queryFn: () => listTaskActivity(requireTaskId())
+  });
+  const task = taskQuery.data?.task;
+  const tagsListId = task?.listId ?? form.listId;
+  const listTagsQuery = useQuery({
+    enabled: props.open && Boolean(tagsListId),
+    queryKey: queryKeys.tasks.tags(tagsListId),
+    queryFn: () => listTaskTags(tagsListId)
+  });
+
+  // Seed the form whenever the dialog opens (or the loaded task changes).
+  useEffect(() => {
+    if (!props.open) return;
+    if (isNew) {
+      setForm(blankTaskDetailsForm(props.defaultListId));
+      setNewTags([]);
+      setNewSubs([]);
+    } else if (task) {
+      setForm(formFromTask(task));
+    }
+    setTagDraft("");
+    setSubDraft("");
+    setComment("");
+  }, [props.open, isNew, task, props.defaultListId]);
+
+  const invalidateLists = () =>
+    Promise.all([
+      queryClient.invalidateQueries({ queryKey: queryKeys.tasks.list }),
+      props.taskId
+        ? queryClient.invalidateQueries({ queryKey: queryKeys.tasks.detail(props.taskId) })
+        : Promise.resolve()
+    ]);
+
+  const saveMutation = useMutation({
+    mutationFn: async () => {
+      const fields = buildTaskFields(form, props.defaultListId);
+      if (isNew) {
+        const created = await createTask(fields);
+        const newId = created.task.id;
+        const subs = cleanSubtasks(newSubs);
+        const addSubtasks =
+          subs.length > 0 ? breakdownTask(newId, { steps: subs }) : Promise.resolve();
+        const addTags = Promise.all(
+          newTags.map(async (name) => {
+            const { tag } = await createTaskTag(created.task.listId, { name });
+            await assignTaskTag(newId, { tagId: tag.id });
+          })
+        );
+        await Promise.all([addSubtasks, addTags]);
+        return;
+      }
+      await updateTask(requireTaskId(), fields);
+    },
+    onSuccess: async () => {
+      await invalidateLists();
+      props.onClose();
+    }
+  });
+
+  const toggleSubMutation = useMutation({
+    mutationFn: (vars: { readonly id: string; readonly status: TaskApiStatus }) =>
+      updateTask(vars.id, { status: vars.status }),
+    onSuccess: async () => {
+      if (props.taskId)
+        await queryClient.invalidateQueries({ queryKey: queryKeys.tasks.subtasks(props.taskId) });
+    }
+  });
+
+  const addSubMutation = useMutation({
+    mutationFn: (text: string) => breakdownTask(requireTaskId(), { steps: [text] }),
+    onSuccess: async () => {
+      setSubDraft("");
+      if (props.taskId)
+        await queryClient.invalidateQueries({ queryKey: queryKeys.tasks.subtasks(props.taskId) });
+    }
+  });
+
+  const assignTagMutation = useMutation({
+    mutationFn: async (name: string) => {
+      const existing = (listTagsQuery.data?.tags ?? []).find(
+        (t) => t.name.toLowerCase() === name.toLowerCase()
+      );
+      const tagId = existing ? existing.id : (await createTaskTag(tagsListId, { name })).tag.id;
+      return assignTaskTag(requireTaskId(), { tagId });
+    },
+    onSuccess: async () => {
+      setTagDraft("");
+      await Promise.all([
+        invalidateLists(),
+        queryClient.invalidateQueries({ queryKey: queryKeys.tasks.tags(tagsListId) })
+      ]);
+    }
+  });
+
+  const unassignTagMutation = useMutation({
+    mutationFn: (tagId: string) => unassignTaskTag(requireTaskId(), tagId),
+    onSuccess: invalidateLists
+  });
+
+  const commentMutation = useMutation({
+    mutationFn: (body: string) =>
+      addTaskActivity(requireTaskId(), { activityType: "comment", body }),
+    onSuccess: async () => {
+      setComment("");
+      if (props.taskId)
+        await queryClient.invalidateQueries({ queryKey: queryKeys.tasks.activity(props.taskId) });
+    }
+  });
+
+  if (!props.open) return null;
+
+  const subs = subtasksQuery.data?.tasks ?? [];
+  // Comment stream only — hide system entries like "Broken into N steps".
+  const activity = (activityQuery.data?.activity ?? []).filter(
+    (entry) => entry.activityType === "comment"
+  );
+  const tags = task?.tags ?? [];
+  const assignedNames = new Set(tags.map((t) => t.name.toLowerCase()));
+  const tagSuggestions = (listTagsQuery.data?.tags ?? [])
+    .filter((t) =>
+      isNew ? !newTags.includes(t.name.toLowerCase()) : !assignedNames.has(t.name.toLowerCase())
+    )
+    .slice(0, 8);
+
+  const commitTagDraft = () => {
+    const name = normalizeTagName(tagDraft);
+    if (!name) return;
+    if (isNew) {
+      setNewTags((t) => (t.includes(name) ? t : [...t, name]));
+      setTagDraft("");
+    } else {
+      assignTagMutation.mutate(name);
+    }
+  };
+
+  const addTagName = (rawName: string) => {
+    const name = normalizeTagName(rawName);
+    if (!name) return;
+    if (isNew) setNewTags((t) => (t.includes(name) ? t : [...t, name]));
+    else assignTagMutation.mutate(name);
+  };
+
+  const addExistingSubtask = () => {
+    const text = subDraft.trim();
+    if (text) addSubMutation.mutate(text);
+  };
+
+  return (
+    <div className="tk-modal-scrim" onClick={props.onClose}>
+      <div
+        className="tk-modal"
+        role="dialog"
+        aria-modal="true"
+        onClick={(event) => event.stopPropagation()}
+      >
+        <div className="tk-modal__head">
+          <div className="tk-modal__headmain">
+            <div className="tk-modal__eyebrow">{isNew ? "New task" : "Task details"}</div>
+            <input
+              className="tk-modal__titlein"
+              value={form.title}
+              autoFocus
+              placeholder="What needs doing?"
+              aria-label="Task title"
+              onChange={(event) => setForm((f) => ({ ...f, title: event.target.value }))}
+            />
+          </div>
+          <button className="tk-modal__x" onClick={props.onClose} aria-label="Close">
+            <X size={18} aria-hidden="true" />
+          </button>
+        </div>
+
+        <div className="tk-modal__body">
+          <div className="tk-form">
+            {/* Comment stream first — surface activity without scrolling. */}
+            {!isNew ? (
+              <div className="tk-field tk-field--full">
+                <span className="tk-flabel">Activity</span>
+                <TaskActivityPanel
+                  entries={activity}
+                  currentUserLabel={props.currentUserLabel}
+                  draft={comment}
+                  pending={commentMutation.isPending}
+                  onDraft={setComment}
+                  onPost={() => {
+                    const body = comment.trim();
+                    if (body) commentMutation.mutate(body);
+                  }}
+                />
+              </div>
+            ) : null}
+
+            <div className="tk-field tk-field--full">
+              <span className="tk-flabel">Notes</span>
+              <textarea
+                className="tk-textarea"
+                value={form.description}
+                placeholder="Context, links, anything worth remembering…"
+                onChange={(event) => setForm((f) => ({ ...f, description: event.target.value }))}
+              />
+            </div>
+
+            <div className="tk-field tk-field--full">
+              <span className="tk-flabel">Assigned to</span>
+              <AssignedPersonField currentUserLabel={props.currentUserLabel} />
+            </div>
+
+            <div className="tk-field">
+              <span className="tk-flabel">List</span>
+              <select
+                className="jds-select"
+                value={form.listId}
+                onChange={(event) => setForm((f) => ({ ...f, listId: event.target.value }))}
+              >
+                {props.lists.map((list) => (
+                  <option key={list.id} value={list.id}>
+                    {list.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="tk-field">
+              <span className="tk-flabel">Priority</span>
+              <select
+                className="jds-select"
+                value={form.priority}
+                onChange={(event) => setForm((f) => ({ ...f, priority: event.target.value }))}
+              >
+                <option value="">No priority</option>
+                {PRIORITY_LEVELS.map((level) => (
+                  <option key={level.value} value={level.value}>
+                    {level.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="tk-field">
+              <span className="tk-flabel">Due date</span>
+              <input
+                type="date"
+                className="tk-native"
+                value={form.dueAt}
+                onChange={(event) => setForm((f) => ({ ...f, dueAt: event.target.value }))}
+              />
+            </div>
+            <div className="tk-field">
+              <span className="tk-flabel">Reminder</span>
+              <input
+                type="date"
+                className="tk-native"
+                value={form.doAt}
+                onChange={(event) => setForm((f) => ({ ...f, doAt: event.target.value }))}
+              />
+            </div>
+
+            <div className="tk-field tk-field--full">
+              <span className="tk-flabel">Effort</span>
+              <div className="jds-segmented" role="group" aria-label="Effort">
+                {EFFORTS.map((option) => (
+                  <button
+                    key={option.value}
+                    type="button"
+                    className={`jds-segmented__opt ${form.effort === option.value ? "is-active" : ""}`}
+                    aria-pressed={form.effort === option.value}
+                    onClick={() =>
+                      setForm((f) => ({
+                        ...f,
+                        effort: f.effort === option.value ? "" : option.value
+                      }))
+                    }
+                  >
+                    {option.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="tk-field">
+              <span className="tk-flabel">Repeats</span>
+              <select
+                className="jds-select"
+                value={form.repeat}
+                onChange={(event) =>
+                  setForm((f) => ({ ...f, repeat: event.target.value as Repeat }))
+                }
+              >
+                {REPEATS.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+            {form.repeat !== "never" ? (
+              <div className="tk-field">
+                <span className="tk-flabel">Ends</span>
+                <input
+                  type="date"
+                  className="tk-native"
+                  value={form.repeatEnd}
+                  onChange={(event) => setForm((f) => ({ ...f, repeatEnd: event.target.value }))}
+                />
+              </div>
+            ) : (
+              <div className="tk-field" />
+            )}
+
+            <div className="tk-field tk-field--full">
+              <span className="tk-flabel">Tags</span>
+              <TaskTagsField
+                isNew={isNew}
+                newTags={newTags}
+                tags={tags}
+                tagSuggestions={tagSuggestions}
+                draft={tagDraft}
+                onDraft={setTagDraft}
+                onCommitDraft={commitTagDraft}
+                onAddSuggestion={addTagName}
+                onRemoveNewTag={(name) => setNewTags((t) => t.filter((x) => x !== name))}
+                onUnassignTag={(tagId) => unassignTagMutation.mutate(tagId)}
+              />
+            </div>
+
+            <div className="tk-field tk-field--full">
+              <span className="tk-flabel">Subtasks</span>
+              <TaskSubtasksField
+                isNew={isNew}
+                newSubs={newSubs}
+                subs={subs}
+                draft={subDraft}
+                onNewSubChange={(index, value) =>
+                  setNewSubs((s) => s.map((item, i) => (i === index ? value : item)))
+                }
+                onNewSubRemove={(index) => setNewSubs((s) => s.filter((_, i) => i !== index))}
+                onNewSubAdd={() => setNewSubs((s) => [...s, ""])}
+                onToggleExisting={(id, status) => toggleSubMutation.mutate({ id, status })}
+                onDraft={setSubDraft}
+                onAddExisting={addExistingSubtask}
+              />
+            </div>
+          </div>
+        </div>
+
+        <div className="tk-modal__foot">
+          {!isNew ? (
+            <TaskStatusControl
+              status={form.status}
+              onChange={(status) => setForm((f) => ({ ...f, status }))}
+            />
+          ) : null}
+          <span className="sp" style={{ flex: 1 }} />
+          <button type="button" className="jds-btn jds-btn--quiet" onClick={props.onClose}>
+            Cancel
+          </button>
+          <button
+            type="button"
+            className="jds-btn jds-btn--primary"
+            disabled={saveMutation.isPending}
+            onClick={() => saveMutation.mutate()}
+          >
+            {isNew ? "Add task" : "Save changes"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}

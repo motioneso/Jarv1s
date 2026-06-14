@@ -1,0 +1,56 @@
+import { describe, expect, it } from "vitest";
+
+import {
+  loadShellTheme,
+  saveShellTheme,
+  SHELL_THEME_STORAGE_KEY
+} from "../../apps/web/src/shell/theme-storage.js";
+
+describe("shell theme storage", () => {
+  it("uses a versioned storage key and falls back when reads throw", () => {
+    const storage = storageThatThrowsOnRead();
+
+    expect(SHELL_THEME_STORAGE_KEY).toBe("jarvis.theme:v1");
+    expect(loadShellTheme(storage)).toBe("light");
+  });
+
+  it("persists only valid theme values and ignores write failures", () => {
+    const storage = memoryStorage();
+
+    storage.setItem(SHELL_THEME_STORAGE_KEY, "solarized");
+    expect(loadShellTheme(storage)).toBe("light");
+
+    saveShellTheme("dark", storage);
+    expect(storage.getItem(SHELL_THEME_STORAGE_KEY)).toBe("dark");
+
+    expect(() => saveShellTheme("light", storageThatThrowsOnWrite())).not.toThrow();
+  });
+});
+
+function memoryStorage(): Pick<Storage, "getItem" | "setItem"> {
+  const values = new Map<string, string>();
+  return {
+    getItem: (key) => values.get(key) ?? null,
+    setItem: (key, value) => {
+      values.set(key, value);
+    }
+  };
+}
+
+function storageThatThrowsOnRead(): Pick<Storage, "getItem" | "setItem"> {
+  return {
+    getItem: () => {
+      throw new Error("storage disabled");
+    },
+    setItem: () => {}
+  };
+}
+
+function storageThatThrowsOnWrite(): Pick<Storage, "getItem" | "setItem"> {
+  return {
+    getItem: () => null,
+    setItem: () => {
+      throw new Error("quota exceeded");
+    }
+  };
+}

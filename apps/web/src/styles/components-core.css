@@ -1,0 +1,762 @@
+/* ============================================================
+   Jarvis — Component styles (ported verbatim from the Jarvis
+   Design System). Real interactive states for the jds-* classes,
+   against the token layer. The only literal swap from source is
+   #fff → var(--white) (apps/web keeps all literals in tokens.css).
+   ============================================================ */
+
+/* ---------------------------------------------------------------
+   BUTTON
+   --------------------------------------------------------------- */
+.jds-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  font-family: var(--font-sans);
+  font-weight: var(--weight-semibold);
+  font-size: var(--text-sm);
+  letter-spacing: var(--tracking-snug);
+  line-height: 1;
+  border: var(--border-w) solid transparent;
+  border-radius: var(--radius-md);
+  height: 36px;
+  padding: 0 var(--space-4);
+  cursor: pointer;
+  white-space: nowrap;
+  user-select: none;
+  transition: var(--transition-control);
+  text-decoration: none;
+}
+.jds-btn:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px var(--focus-ring);
+}
+.jds-btn .jds-btn__icon {
+  display: inline-flex;
+  flex: none;
+}
+.jds-btn .jds-btn__icon svg {
+  width: 1.05em;
+  height: 1.05em;
+  display: block;
+}
+
+.jds-btn--sm {
+  height: 30px;
+  padding: 0 var(--space-3);
+  font-size: var(--text-xs);
+  border-radius: var(--radius-sm);
+}
+.jds-btn--lg {
+  height: 44px;
+  padding: 0 var(--space-5);
+  font-size: var(--text-md);
+}
+.jds-btn--block {
+  width: 100%;
+}
+
+.jds-btn--primary {
+  background: var(--accent);
+  color: var(--text-on-accent);
+  border-color: var(--accent);
+}
+.jds-btn--primary:hover {
+  background: var(--accent-hover);
+  border-color: var(--accent-hover);
+}
+.jds-btn--primary:active {
+  background: var(--accent-active);
+  border-color: var(--accent-active);
+}
+
+.jds-btn--secondary {
+  background: var(--surface);
+  color: var(--text);
+  border-color: var(--border-strong);
+}
+.jds-btn--secondary:hover {
+  background: var(--surface-2);
+  border-color: var(--border-strong);
+}
+.jds-btn--secondary:active {
+  background: var(--surface-3);
+}
+
+.jds-btn--quiet {
+  background: transparent;
+  color: var(--text-muted);
+  border-color: transparent;
+}
+.jds-btn--quiet:hover {
+  background: var(--surface-2);
+  color: var(--text);
+}
+.jds-btn--quiet:active {
+  background: var(--surface-3);
+}
+
+.jds-btn--accentSoft {
+  background: var(--accent-soft);
+  color: var(--accent-soft-fg);
+  border-color: transparent;
+}
+.jds-btn--accentSoft:hover {
+  background: var(--pine-soft-2);
+}
+
+.jds-btn--danger {
+  background: var(--danger);
+  color: var(--white);
+  border-color: var(--danger);
+}
+.jds-btn--danger:hover {
+  background: var(--danger-hover);
+  border-color: var(--danger-hover);
+}
+
+.jds-btn[disabled],
+.jds-btn[aria-disabled="true"] {
+  opacity: 0.45;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
+/* ---------------------------------------------------------------
+   ICON BUTTON
+   --------------------------------------------------------------- */
+.jds-iconbtn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border: var(--border-w) solid transparent;
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: var(--transition-control);
+}
+.jds-iconbtn:hover {
+  background: var(--surface-2);
+  color: var(--text);
+}
+.jds-iconbtn:active {
+  background: var(--surface-3);
+}
+.jds-iconbtn:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px var(--focus-ring);
+}
+.jds-iconbtn svg {
+  width: 18px;
+  height: 18px;
+  display: block;
+}
+.jds-iconbtn--sm {
+  width: 30px;
+  height: 30px;
+  border-radius: var(--radius-sm);
+}
+.jds-iconbtn--sm svg {
+  width: 16px;
+  height: 16px;
+}
+.jds-iconbtn--lg {
+  width: 44px;
+  height: 44px;
+}
+.jds-iconbtn--lg svg {
+  width: 20px;
+  height: 20px;
+}
+.jds-iconbtn--secondary {
+  background: var(--surface);
+  border-color: var(--border-strong);
+  color: var(--text);
+}
+.jds-iconbtn--secondary:hover {
+  background: var(--surface-2);
+}
+.jds-iconbtn--active {
+  background: var(--accent-soft);
+  color: var(--accent-soft-fg);
+}
+.jds-iconbtn[disabled] {
+  opacity: 0.45;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
+/* ---------------------------------------------------------------
+   CARD
+   --------------------------------------------------------------- */
+.jds-card {
+  background: var(--surface);
+  border: var(--border-w) solid var(--border);
+  border-radius: var(--radius-card);
+  padding: var(--space-5);
+}
+.jds-card--sunken {
+  background: var(--surface-2);
+  border-color: var(--border-subtle);
+}
+.jds-card--flush {
+  padding: 0;
+  overflow: hidden;
+}
+.jds-card--pad-sm {
+  padding: var(--space-4);
+}
+.jds-card--pad-lg {
+  padding: var(--space-7);
+}
+.jds-card--raised {
+  box-shadow: var(--shadow-md);
+  border-color: var(--border-subtle);
+}
+.jds-card--interactive {
+  cursor: pointer;
+  transition: var(--transition-control);
+}
+.jds-card--interactive:hover {
+  border-color: var(--border-strong);
+  box-shadow: var(--shadow-sm);
+}
+
+/* ---------------------------------------------------------------
+   BADGE / CHIP
+   --------------------------------------------------------------- */
+.jds-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  font-family: var(--font-sans);
+  font-weight: var(--weight-semibold);
+  font-size: var(--text-2xs);
+  letter-spacing: var(--tracking-wide);
+  line-height: 1;
+  padding: 3px var(--space-2);
+  border-radius: var(--radius-sm);
+  border: var(--border-w) solid transparent;
+  white-space: nowrap;
+}
+.jds-badge svg {
+  width: 12px;
+  height: 12px;
+}
+.jds-badge--pill {
+  border-radius: var(--radius-pill);
+}
+.jds-badge--neutral {
+  background: var(--surface-2);
+  color: var(--text-muted);
+  border-color: var(--border);
+}
+.jds-badge--pine {
+  background: var(--pine-soft);
+  color: var(--pine-ink);
+}
+.jds-badge--amber {
+  background: var(--amber-soft);
+  color: var(--amber-ink);
+}
+.jds-badge--red {
+  background: var(--red-soft);
+  color: var(--red-ink);
+}
+.jds-badge--steel {
+  background: var(--steel-soft);
+  color: var(--steel-ink);
+}
+.jds-badge--solid-pine {
+  background: var(--accent);
+  color: var(--text-on-accent);
+}
+.jds-badge--solid-amber {
+  background: var(--amber);
+  color: var(--white);
+}
+.jds-badge--outline {
+  background: transparent;
+  border-color: var(--border-strong);
+  color: var(--text-muted);
+}
+
+/* Dot prefix for drift/status badges */
+.jds-badge__dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+  flex: none;
+}
+
+/* Removable chip */
+.jds-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-medium);
+  padding: var(--space-1) var(--space-1) var(--space-1) var(--space-3);
+  border-radius: var(--radius-pill);
+  background: var(--surface-2);
+  color: var(--text);
+  border: var(--border-w) solid var(--border);
+}
+.jds-chip__x {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  border: none;
+  background: transparent;
+  color: var(--text-subtle);
+  cursor: pointer;
+  transition: var(--transition-control);
+}
+.jds-chip__x:hover {
+  background: var(--surface-3);
+  color: var(--text);
+}
+.jds-chip__x svg {
+  width: 13px;
+  height: 13px;
+}
+
+/* ---------------------------------------------------------------
+   AVATAR
+   --------------------------------------------------------------- */
+.jds-avatar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: var(--radius-pill);
+  background: var(--pine-soft);
+  color: var(--pine-ink);
+  font-family: var(--font-sans);
+  font-weight: var(--weight-semibold);
+  font-size: var(--text-sm);
+  overflow: hidden;
+  flex: none;
+  user-select: none;
+  border: var(--border-w) solid var(--border-subtle);
+}
+.jds-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.jds-avatar--xs {
+  width: 24px;
+  height: 24px;
+  font-size: var(--text-2xs);
+}
+.jds-avatar--sm {
+  width: 30px;
+  height: 30px;
+  font-size: var(--text-xs);
+}
+.jds-avatar--lg {
+  width: 48px;
+  height: 48px;
+  font-size: var(--text-lg);
+}
+.jds-avatar--square {
+  border-radius: var(--radius-md);
+}
+
+/* ---------------------------------------------------------------
+   DIVIDER
+   --------------------------------------------------------------- */
+.jds-divider {
+  border: none;
+  border-top: var(--border-w) solid var(--border);
+  margin: 0;
+}
+.jds-divider--strong {
+  border-top-color: var(--border-strong);
+}
+.jds-divider--vertical {
+  border-top: none;
+  border-left: var(--border-w) solid var(--border);
+  align-self: stretch;
+  width: 0;
+}
+
+/* Eyebrow / section label utility */
+.jds-eyebrow {
+  font-family: var(--font-sans);
+  font-size: var(--text-2xs);
+  font-weight: var(--weight-semibold);
+  letter-spacing: var(--tracking-caps);
+  text-transform: uppercase;
+  color: var(--text-subtle);
+}
+
+/* ---------------------------------------------------------------
+   FORM CONTROLS — Input / Textarea / Select
+   --------------------------------------------------------------- */
+.jds-field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+.jds-label {
+  font-size: var(--text-sm);
+  font-weight: var(--weight-semibold);
+  color: var(--text);
+}
+.jds-hint {
+  font-size: var(--text-xs);
+  color: var(--text-subtle);
+}
+.jds-hint--error {
+  color: var(--danger-fg);
+}
+
+.jds-input,
+.jds-textarea,
+.jds-select {
+  font-family: var(--font-sans);
+  font-size: var(--text-md);
+  color: var(--text);
+  background: var(--surface);
+  border: var(--border-w) solid var(--border-strong);
+  border-radius: var(--radius-md);
+  padding: 0 var(--space-3);
+  height: 38px;
+  width: 100%;
+  transition: var(--transition-control);
+  -webkit-appearance: none;
+  appearance: none;
+}
+.jds-textarea {
+  height: auto;
+  min-height: 88px;
+  padding: var(--space-3);
+  line-height: var(--leading-normal);
+  resize: vertical;
+}
+.jds-input::placeholder,
+.jds-textarea::placeholder {
+  color: var(--text-faint);
+}
+.jds-input:hover,
+.jds-textarea:hover,
+.jds-select:hover {
+  border-color: var(--ink-3);
+}
+.jds-input:focus,
+.jds-textarea:focus,
+.jds-select:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--focus-ring);
+}
+.jds-input[aria-invalid="true"],
+.jds-textarea[aria-invalid="true"] {
+  border-color: var(--danger);
+  box-shadow: 0 0 0 3px var(--red-soft);
+}
+.jds-input[disabled],
+.jds-textarea[disabled],
+.jds-select[disabled] {
+  background: var(--surface-2);
+  color: var(--text-faint);
+  cursor: not-allowed;
+}
+.jds-input--sm {
+  height: 32px;
+  font-size: var(--text-sm);
+}
+
+/* Input with leading icon / addon */
+.jds-inputwrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+.jds-inputwrap .jds-input {
+  padding-left: 36px;
+}
+.jds-inputwrap__icon {
+  position: absolute;
+  left: 11px;
+  display: inline-flex;
+  color: var(--text-subtle);
+  pointer-events: none;
+}
+.jds-inputwrap__icon svg {
+  width: 16px;
+  height: 16px;
+}
+
+/* Select chevron */
+.jds-selectwrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+.jds-selectwrap .jds-select {
+  padding-right: 34px;
+}
+.jds-selectwrap__chev {
+  position: absolute;
+  right: 11px;
+  display: inline-flex;
+  color: var(--text-subtle);
+  pointer-events: none;
+}
+.jds-selectwrap__chev svg {
+  width: 16px;
+  height: 16px;
+}
+
+/* ---------------------------------------------------------------
+   CHECKBOX (custom)
+   --------------------------------------------------------------- */
+.jds-check {
+  display: inline-flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+  cursor: pointer;
+  font-size: var(--text-md);
+  color: var(--text);
+}
+.jds-check input {
+  position: absolute;
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+.jds-check__box {
+  width: 19px;
+  height: 19px;
+  flex: none;
+  margin-top: 1px;
+  border: var(--border-w-strong) solid var(--border-strong);
+  border-radius: var(--radius-xs);
+  background: var(--surface);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: var(--transition-control);
+  color: var(--white);
+}
+.jds-check__box svg {
+  width: 13px;
+  height: 13px;
+  opacity: 0;
+  transform: scale(0.7);
+  transition: var(--transition-control);
+}
+.jds-check input:checked + .jds-check__box {
+  background: var(--accent);
+  border-color: var(--accent);
+}
+.jds-check input:checked + .jds-check__box svg {
+  opacity: 1;
+  transform: scale(1);
+}
+.jds-check input:focus-visible + .jds-check__box {
+  box-shadow: 0 0 0 3px var(--focus-ring);
+}
+.jds-check input:disabled ~ * {
+  opacity: 0.5;
+}
+
+/* ---------------------------------------------------------------
+   SWITCH
+   --------------------------------------------------------------- */
+.jds-switch {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-3);
+  cursor: pointer;
+}
+.jds-switch input {
+  position: absolute;
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+.jds-switch__track {
+  width: 40px;
+  height: 23px;
+  border-radius: var(--radius-pill);
+  background: var(--surface-3);
+  border: var(--border-w) solid var(--border-strong);
+  position: relative;
+  transition: var(--transition-control);
+  flex: none;
+}
+.jds-switch__thumb {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 17px;
+  height: 17px;
+  border-radius: 50%;
+  background: var(--white);
+  box-shadow: var(--shadow-sm);
+  transition: transform var(--dur-base) var(--ease-out);
+}
+.jds-switch input:checked + .jds-switch__track {
+  background: var(--accent);
+  border-color: var(--accent);
+}
+.jds-switch input:checked + .jds-switch__track .jds-switch__thumb {
+  transform: translateX(17px);
+}
+.jds-switch input:focus-visible + .jds-switch__track {
+  box-shadow: 0 0 0 3px var(--focus-ring);
+}
+.jds-switch input:disabled + .jds-switch__track {
+  opacity: 0.5;
+}
+
+/* ---------------------------------------------------------------
+   SEGMENTED CONTROL
+   --------------------------------------------------------------- */
+.jds-segmented {
+  display: inline-flex;
+  padding: 3px;
+  gap: 2px;
+  background: var(--surface-2);
+  border: var(--border-w) solid var(--border);
+  border-radius: var(--radius-lg);
+}
+.jds-segmented__opt {
+  appearance: none;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  font-family: var(--font-sans);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-medium);
+  color: var(--text-muted);
+  padding: var(--space-1) var(--space-3);
+  height: 30px;
+  border-radius: var(--radius-md);
+  transition: var(--transition-control);
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+.jds-segmented__opt:hover {
+  color: var(--text);
+}
+.jds-segmented__opt[aria-pressed="true"],
+.jds-segmented__opt.is-active {
+  background: var(--surface);
+  color: var(--text);
+  font-weight: var(--weight-semibold);
+  box-shadow: var(--shadow-xs);
+}
+.jds-segmented__opt svg {
+  width: 15px;
+  height: 15px;
+}
+
+/* ---------------------------------------------------------------
+   TOOLTIP
+   --------------------------------------------------------------- */
+.jds-tooltip {
+  position: relative;
+  display: inline-flex;
+}
+.jds-tooltip__bubble {
+  position: absolute;
+  bottom: calc(100% + 8px);
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--ink);
+  color: var(--paper);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-medium);
+  line-height: 1.4;
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-sm);
+  white-space: nowrap;
+  box-shadow: var(--shadow-md);
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity var(--dur-fast) var(--ease-out);
+  z-index: 50;
+}
+.jds-tooltip:hover .jds-tooltip__bubble,
+.jds-tooltip:focus-within .jds-tooltip__bubble {
+  opacity: 1;
+}
+
+/* ---------------------------------------------------------------
+   INDICATOR LIGHT — glanceable peripheral status
+   --------------------------------------------------------------- */
+.jds-indicator {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+.jds-indicator__dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex: none;
+  position: relative;
+}
+.jds-indicator--ready .jds-indicator__dot {
+  background: var(--accent);
+}
+.jds-indicator--drift .jds-indicator__dot {
+  background: var(--amber);
+}
+.jds-indicator--error .jds-indicator__dot {
+  background: var(--danger);
+}
+.jds-indicator--idle .jds-indicator__dot {
+  background: var(--ink-4);
+}
+.jds-indicator--live .jds-indicator__dot::after {
+  content: "";
+  position: absolute;
+  inset: -4px;
+  border-radius: 50%;
+  background: currentColor;
+  opacity: 0.25;
+  animation: jds-pulse 2.4s var(--ease-quiet) infinite;
+}
+.jds-indicator--ready.jds-indicator--live .jds-indicator__dot {
+  color: var(--accent);
+}
+.jds-indicator--drift.jds-indicator--live .jds-indicator__dot {
+  color: var(--amber);
+}
+@keyframes jds-pulse {
+  0% {
+    transform: scale(0.8);
+    opacity: 0.3;
+  }
+  70% {
+    transform: scale(1.8);
+    opacity: 0;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .jds-indicator--live .jds-indicator__dot::after {
+    animation: none;
+  }
+}

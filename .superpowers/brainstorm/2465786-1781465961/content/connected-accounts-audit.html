@@ -1,0 +1,46 @@
+<h2>Set: Connected Accounts & Data Sources</h2>
+<p class="subtitle">
+  Users should see trusted external accounts and what Jarvis can use from them, not backend
+  connector provider records.
+</p>
+
+<div class="mockup">
+  <div class="mockup-header">Recommended grouping</div>
+  <div class="mockup-body">
+    <div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px">
+      <div class="placeholder">
+        <strong>Connected accounts</strong><br />
+        Google account identity, status, last sync, needs attention, reconnect, revoke.
+      </div>
+      <div class="placeholder">
+        <strong>Data categories</strong><br />
+        Calendar, Gmail, contacts/docs later. Show enabled/disabled and why Jarvis uses each.
+      </div>
+      <div class="placeholder">
+        <strong>Permissions / scopes</strong><br />
+        Human labels for access granted. Raw scopes can be tucked under details.
+      </div>
+      <div class="placeholder">
+        <strong>Use in Jarvis</strong><br />
+        Toggles for briefing inclusion, task inference, calendar planning, email signal extraction.
+      </div>
+      <div class="placeholder">
+        <strong>Add account</strong><br />
+        Single action opens a provider picker. Google now; Microsoft/others later.
+      </div>
+      <div class="placeholder">
+        <strong>Remove from default page</strong><br />
+        Connector Providers card, provider type badges, secret stored/no secret, mark error
+        controls.
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <h3>Designer implication</h3>
+  <p>
+    This section should communicate "what context have I volunteered to Jarvis?" It needs clear
+    status and revocation affordances, because trust matters more than configuration density.
+  </p>
+</div>

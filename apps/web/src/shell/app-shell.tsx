@@ -3,29 +3,40 @@ import {
   Bell,
   CalendarDays,
   CheckSquare,
+  ChevronUp,
   FileText,
   HeartPulse,
+  House,
   Layers3,
   LogOut,
   Mail,
   Menu,
   MessageSquare,
+  Moon,
   Newspaper,
   Settings,
-  UserCircle
+  Sun
 } from "lucide-react";
-import { type ComponentType, type ReactNode, useCallback, useMemo, useState } from "react";
-import { NavLink } from "react-router";
+import {
+  type ComponentType,
+  type ReactNode,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState
+} from "react";
+import { NavLink, useLocation, useNavigate } from "react-router";
 
 import { listNotifications, sendChatTurn, signOut } from "../api/client";
+import { buildShellNavigation, resolvePageHeading } from "../app-route-metadata";
 import { queryKeys } from "../api/query-keys";
 import { ChatDrawer } from "../chat/chat-drawer";
 import { useChatStream } from "../chat/use-chat-stream";
 import { ChatControlsProvider } from "./chat-controls-context";
+import { HeaderWeather } from "../today/header-weather";
+import { loadShellTheme, saveShellTheme, type ShellTheme } from "./theme-storage";
 import type { MeResponse, ModuleDto, ModuleNavigationEntryDto } from "@jarv1s/shared";
-
-/** Module-nav id of the chat entry, which the shell renders as a drawer toggle. */
-const CHAT_NAV_ID = "chat";
 
 interface AppShellProps {
   readonly children: ReactNode;
@@ -36,6 +47,7 @@ interface AppShellProps {
 }
 
 const iconMap: Record<string, ComponentType<{ readonly size?: number }>> = {
+  house: House,
   bell: Bell,
   "calendar-days": CalendarDays,
   "check-square": CheckSquare,
@@ -47,10 +59,29 @@ const iconMap: Record<string, ComponentType<{ readonly size?: number }>> = {
   settings: Settings
 };
 
+/** Strata mark — neutral bars in currentColor, the active stratum in Pine. */
+function BrandMark() {
+  return (
+    <svg viewBox="0 0 24 24" width="24" height="24" fill="none" aria-hidden="true">
+      <rect x="4" y="5.5" width="13" height="3" rx="1.5" fill="currentColor" />
+      <rect x="4" y="10.5" width="16" height="3" rx="1.5" fill="var(--accent)" />
+      <rect x="4" y="15.5" width="9" height="3" rx="1.5" fill="currentColor" />
+    </svg>
+  );
+}
+
 export function AppShell(props: AppShellProps) {
   const queryClient = useQueryClient();
+  const location = useLocation();
+  const navigate = useNavigate();
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [chatOpen, setChatOpen] = useState(false);
+  const [theme, setTheme] = useState<ShellTheme>(() => loadShellTheme());
+  useEffect(() => {
+    document.documentElement.setAttribute("data-theme", theme);
+    saveShellTheme(theme);
+  }, [theme]);
+
   const openChatWith = useCallback((prompt: string) => {
     setChatOpen(true);
     void sendChatTurn(prompt);
@@ -58,8 +89,8 @@ export function AppShell(props: AppShellProps) {
   // Lifted to the shell so the SSE stream + transcript persist while the drawer is
   // closed and as the user navigates between pages — the chat follows the user.
   const { records, clearRecords } = useChatStream();
-  const navigation = useMemo(
-    () => readNavigation(props.modules, props.disabledModuleIds ?? []),
+  const navSections = useMemo(
+    () => buildShellNavigation(props.modules, props.disabledModuleIds ?? []),
     [props.modules, props.disabledModuleIds]
   );
   const notificationsQuery = useQuery({
@@ -75,36 +106,45 @@ export function AppShell(props: AppShellProps) {
     }
   });
 
+  const { title, subtitle } = resolvePageHeading(location.pathname);
+  const closeMobileNav = () => setMobileNavOpen(false);
+
   return (
     <div className="app-frame">
       <aside className={`sidebar ${mobileNavOpen ? "open" : ""}`}>
         <div className="brand-lockup">
-          <div className="brand-mark" aria-hidden="true">
-            J
-          </div>
-          <div>
-            <p className="eyebrow">Jarv1s</p>
-          </div>
+          <span className="brand-mark">
+            <BrandMark />
+          </span>
+          <span className="brand-wordmark">Jarvis</span>
         </div>
 
         <nav className="module-nav" aria-label="Modules">
-          {navigation.map((entry) =>
-            entry.id === CHAT_NAV_ID ? (
-              <ChatNavToggle
-                key={entry.id}
-                entry={entry}
-                active={chatOpen}
-                onToggle={() => {
-                  setChatOpen((open) => !open);
-                  setMobileNavOpen(false);
-                }}
-              />
-            ) : (
-              <NavItem key={entry.id} entry={entry} onClick={() => setMobileNavOpen(false)} />
-            )
-          )}
+          {navSections.map((section) => (
+            <div className="nav-group" key={section.key}>
+              {section.label ? <p className="nav-group__label">{section.label}</p> : null}
+              {section.items.map((entry) => (
+                <NavItem key={entry.id} entry={entry} onClick={closeMobileNav} />
+              ))}
+            </div>
+          ))}
           {props.modulesLoading ? <span className="nav-loading">Loading modules</span> : null}
         </nav>
+
+        <div className="rail-foot">
+          <RailUserMenu
+            me={props.me}
+            theme={theme}
+            unreadCount={unreadCount}
+            signOutPending={signOutMutation.isPending}
+            onToggleTheme={() => setTheme((current) => (current === "dark" ? "light" : "dark"))}
+            onSignOut={() => signOutMutation.mutate()}
+            onNavigate={(to) => {
+              closeMobileNav();
+              navigate(to);
+            }}
+          />
+        </div>
       </aside>
 
       {mobileNavOpen ? (
@@ -112,7 +152,7 @@ export function AppShell(props: AppShellProps) {
           aria-label="Close navigation"
           className="sidebar-scrim"
           type="button"
-          onClick={() => setMobileNavOpen(false)}
+          onClick={closeMobileNav}
         />
       ) : null}
 
@@ -128,35 +168,29 @@ export function AppShell(props: AppShellProps) {
             <Menu size={20} aria-hidden="true" />
           </button>
 
-          <div className="topbar-account">
-            <UserCircle size={20} aria-hidden="true" />
-            <span>{props.me.user.email}</span>
+          <div className="topbar-titles">
+            <span className="topbar-title">{title}</span>
+            {subtitle ? <span className="topbar-subtitle">{subtitle}</span> : null}
           </div>
 
-          <NavLink
-            aria-label={unreadCount > 0 ? `Notifications, ${unreadCount} unread` : "Notifications"}
-            className={({ isActive }) =>
-              `icon-button notification-link ${isActive ? "active" : ""}`
-            }
-            title="Notifications"
-            to="/notifications"
-          >
-            <Bell size={19} aria-hidden="true" />
-            {unreadCount > 0 ? (
-              <span className="notification-badge">{formatUnreadCount(unreadCount)}</span>
-            ) : null}
-          </NavLink>
+          {location.pathname.startsWith("/today") ? (
+            <div className="topbar-context">
+              <HeaderWeather />
+            </div>
+          ) : null}
 
-          <button
-            className="ghost-button"
-            disabled={signOutMutation.isPending}
-            title={signOutMutation.error ? signOutMutation.error.message : undefined}
-            type="button"
-            onClick={() => signOutMutation.mutate()}
-          >
-            <LogOut size={18} aria-hidden="true" />
-            {signOutMutation.error ? "Sign out failed — retry?" : "Sign out"}
-          </button>
+          <div className="topbar-actions">
+            <button
+              aria-label="Chat with Jarvis"
+              aria-pressed={chatOpen}
+              className={`icon-button ${chatOpen ? "active" : ""}`}
+              title="Ask Jarvis"
+              type="button"
+              onClick={() => setChatOpen((open) => !open)}
+            >
+              <MessageSquare size={19} aria-hidden="true" />
+            </button>
+          </div>
         </header>
 
         <main className="content-surface">
@@ -178,6 +212,123 @@ function formatUnreadCount(unreadCount: number): string {
   return unreadCount > 99 ? "99+" : String(unreadCount);
 }
 
+function initialOf(value: string): string {
+  return (value.trim()[0] ?? "?").toUpperCase();
+}
+
+/** Account quick-menu at the rail foot: click the profile to open Notifications,
+    Settings, the dark-mode toggle, and Log out in a popover. */
+function RailUserMenu(props: {
+  readonly me: MeResponse;
+  readonly theme: "light" | "dark";
+  readonly unreadCount: number;
+  readonly signOutPending: boolean;
+  readonly onToggleTheme: () => void;
+  readonly onSignOut: () => void;
+  readonly onNavigate: (to: string) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!open) return;
+    const onDoc = (event: MouseEvent) => {
+      if (ref.current && !ref.current.contains(event.target as Node)) setOpen(false);
+    };
+    document.addEventListener("mousedown", onDoc);
+    return () => document.removeEventListener("mousedown", onDoc);
+  }, [open]);
+
+  const name = props.me.user.name.trim() || props.me.user.email;
+
+  return (
+    <div className={`jds-usermenu ${open ? "is-open" : ""}`} ref={ref}>
+      <button
+        className={`jds-usermenu__trigger ${open ? "is-open" : ""}`}
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+      >
+        <span className="jds-usermenu__av">
+          <span className="jds-avatar jds-avatar--sm">{initialOf(name)}</span>
+        </span>
+        <span className="jds-usermenu__id">
+          <span className="jds-usermenu__nm">{name}</span>
+          <span className="jds-usermenu__sub">{props.me.user.email}</span>
+        </span>
+        <span className="jds-usermenu__chev">
+          <ChevronUp size={16} aria-hidden="true" />
+        </span>
+      </button>
+      {open ? (
+        <div className="jds-usermenu__pop">
+          <div className="jds-usermenu__list">
+            <button
+              className="jds-usermenu__item"
+              type="button"
+              onClick={() => {
+                setOpen(false);
+                props.onNavigate("/notifications");
+              }}
+            >
+              <span className="jds-usermenu__ic">
+                <Bell size={16} aria-hidden="true" />
+              </span>
+              <span className="jds-usermenu__lbl">Notifications</span>
+              {props.unreadCount > 0 ? (
+                <span className="jds-usermenu__tr">
+                  <span className="jds-badge-count">{formatUnreadCount(props.unreadCount)}</span>
+                </span>
+              ) : null}
+            </button>
+            <button
+              className="jds-usermenu__item"
+              type="button"
+              onClick={() => {
+                setOpen(false);
+                props.onNavigate("/settings");
+              }}
+            >
+              <span className="jds-usermenu__ic">
+                <Settings size={16} aria-hidden="true" />
+              </span>
+              <span className="jds-usermenu__lbl">Settings &amp; permissions</span>
+            </button>
+            <button className="jds-usermenu__item" type="button" onClick={props.onToggleTheme}>
+              <span className="jds-usermenu__ic">
+                {props.theme === "dark" ? (
+                  <Sun size={16} aria-hidden="true" />
+                ) : (
+                  <Moon size={16} aria-hidden="true" />
+                )}
+              </span>
+              <span className="jds-usermenu__lbl">Dark mode</span>
+              <span className="jds-usermenu__tr">
+                <span
+                  className="jds-miniswitch"
+                  {...(props.theme === "dark" ? { "data-on": "" } : {})}
+                >
+                  <span />
+                </span>
+              </span>
+            </button>
+            <div className="jds-usermenu__div" />
+            <button
+              className="jds-usermenu__item is-danger"
+              type="button"
+              disabled={props.signOutPending}
+              onClick={props.onSignOut}
+            >
+              <span className="jds-usermenu__ic">
+                <LogOut size={16} aria-hidden="true" />
+              </span>
+              <span className="jds-usermenu__lbl">Log out</span>
+            </button>
+          </div>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 function NavItem(props: {
   readonly entry: ModuleNavigationEntryDto;
   readonly onClick: () => void;
@@ -190,44 +341,8 @@ function NavItem(props: {
       to={props.entry.path}
       onClick={props.onClick}
     >
-      <Icon size={18} />
+      <Icon size={17} />
       <span>{props.entry.label}</span>
     </NavLink>
   );
-}
-
-function ChatNavToggle(props: {
-  readonly entry: ModuleNavigationEntryDto;
-  readonly active: boolean;
-  readonly onToggle: () => void;
-}) {
-  const Icon = props.entry.icon ? (iconMap[props.entry.icon] ?? Layers3) : Layers3;
-
-  return (
-    <button
-      type="button"
-      className={`module-link ${props.active ? "active" : ""}`}
-      aria-pressed={props.active}
-      onClick={props.onToggle}
-    >
-      <Icon size={18} />
-      <span>{props.entry.label}</span>
-    </button>
-  );
-}
-
-function readNavigation(
-  modules: readonly ModuleDto[],
-  disabledModuleIds: readonly string[]
-): ModuleNavigationEntryDto[] {
-  const disabled = new Set(disabledModuleIds);
-  return modules
-    .filter((module) => !disabled.has(module.id))
-    .flatMap((module) => module.navigation)
-    .sort((left, right) => {
-      const leftOrder = left.order ?? Number.MAX_SAFE_INTEGER;
-      const rightOrder = right.order ?? Number.MAX_SAFE_INTEGER;
-
-      return leftOrder - rightOrder || left.label.localeCompare(right.label);
-    });
 }

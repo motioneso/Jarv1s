@@ -1,0 +1,76 @@
+<h2>Proposed Settings Taxonomy</h2>
+<p class="subtitle">
+  Split the experience into Personal Settings and Admin / Setup. The designer can choose layout, but
+  these are the product categories we should brief them on.
+</p>
+
+<div class="split">
+  <div class="mockup">
+    <div class="mockup-header">Personal Settings</div>
+    <div class="mockup-body">
+      <div class="placeholder">
+        <strong>Profile & account</strong><br />Email, display name, role, sign-out/security
+        affordances.
+      </div>
+      <div class="placeholder">
+        <strong>Connected accounts</strong><br />Google and future sources. Status, scopes,
+        reconnect, revoke.
+      </div>
+      <div class="placeholder">
+        <strong>Assistant & AI</strong><br />Shared assistant vs personal provider, configured
+        models, capability defaults.
+      </div>
+      <div class="placeholder">
+        <strong>Memory & context</strong><br />Recall, remembered facts, user corrections, what
+        Jarvis believes.
+      </div>
+      <div class="placeholder">
+        <strong>Modules & data sources</strong><br />Turn optional modules on/off for self;
+        understand what each module contributes.
+      </div>
+      <div class="placeholder">
+        <strong>Workflow preferences</strong><br />Task default view now; later notification
+        sensitivity, briefing preferences, tone/persona.
+      </div>
+    </div>
+  </div>
+
+  <div class="mockup">
+    <div class="mockup-header">Admin / Setup</div>
+    <div class="mockup-body">
+      <div class="placeholder">
+        <strong>People & access</strong><br />Users, pending approvals, active/deactivated state,
+        admin promotion/demotion.
+      </div>
+      <div class="placeholder">
+        <strong>Registration & identity</strong><br />Open registration, approval requirement, login
+        provider availability.
+      </div>
+      <div class="placeholder">
+        <strong>Instance modules</strong><br />Enable/disable optional modules across the instance;
+        required modules are locked.
+      </div>
+      <div class="placeholder">
+        <strong>Connector admin</strong><br />Safe metadata across connector accounts, not private
+        synced data or secrets.
+      </div>
+      <div class="placeholder">
+        <strong>Host setup</strong><br />Terminal multiplexer and other local runtime checks. Likely
+        setup/advanced, not daily settings.
+      </div>
+      <div class="placeholder">
+        <strong>Audit & operations</strong><br />Admin audit trail, exports/deletion references,
+        backup/restore references.
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <h3>Design Note</h3>
+  <p>
+    Avoid exposing backend nouns as top-level categories. Users should see control areas:
+    connections, assistant behavior, memory/context, modules, notifications, and access.
+    Provider/model/manifest/multiplexer details can exist inside advanced rows or setup flows.
+  </p>
+</div>

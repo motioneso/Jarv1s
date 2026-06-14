@@ -1,0 +1,720 @@
+/* ============================================================
+   Jarvis — UI-kit screen layouts (ported from the design system
+   prototype kit.css). Composes the DS tokens; consumed by the
+   rebuilt screens. Only literal swap from source: bare white -> var(--white).
+   ============================================================ */
+
+/* Jarvis app UI-kit layout — shell + screen scaffolding.
+   Composes the design-system tokens; not part of the shipped DS. */
+
+.app {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  grid-template-rows: minmax(0, 1fr);
+  height: 100vh;
+  background: var(--bg);
+  color: var(--text);
+  overflow: hidden;
+}
+.app__rail {
+  border-right: 1px solid var(--border);
+  background: var(--surface);
+  display: flex;
+  flex-direction: column;
+  padding: 16px 12px;
+  gap: 2px;
+  min-height: 0;
+  overflow-y: auto;
+}
+.app__brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 8px 16px;
+  color: var(--ink);
+}
+.app__brand .wm {
+  font-family: var(--font-sans);
+  font-size: 20px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+/* Placeholder screen for areas we'll build out next */
+.coming-wrap {
+  max-width: 560px;
+  margin: 9vh auto 0;
+  text-align: center;
+  padding: 0 40px;
+}
+.coming-mark {
+  width: 60px;
+  height: 60px;
+  border-radius: var(--radius-xl);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--accent-fg);
+  box-shadow: var(--shadow-xs);
+}
+.coming-title {
+  font-family: var(--font-serif);
+  font-size: 28px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  margin-top: 20px;
+}
+.coming-line {
+  font-family: var(--font-serif);
+  font-size: 17px;
+  color: var(--text-muted);
+  line-height: 1.6;
+  margin-top: 10px;
+}
+.coming-note {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--text-subtle);
+  letter-spacing: 0.03em;
+  margin-top: 22px;
+}
+.app__rail-foot {
+  margin-top: auto;
+  padding-top: 12px;
+  border-top: 1px solid var(--border-subtle);
+}
+.app__profile {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px;
+  border-radius: 10px;
+}
+.app__profile:hover {
+  background: var(--surface-2);
+}
+.app__profile .nm {
+  font-size: 13px;
+  font-weight: 600;
+}
+.app__profile .sub {
+  font-size: 11px;
+  color: var(--text-subtle);
+}
+
+.app__main {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+}
+.app__content {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+/* Reading-column briefing surface */
+.brief-wrap {
+  max-width: 760px;
+  margin: 0 auto;
+  padding: 36px 40px 80px;
+}
+.brief-hero {
+  padding-bottom: 8px;
+}
+.brief-hello {
+  font-family: var(--font-serif);
+  font-size: 40px;
+  font-weight: 600;
+  letter-spacing: -0.012em;
+  line-height: 1.08;
+}
+.brief-sub {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  color: var(--text-subtle);
+  letter-spacing: 0.04em;
+  margin-top: 8px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.brief-lede {
+  font-family: var(--font-serif);
+  font-size: 19px;
+  line-height: 1.6;
+  color: var(--text-muted);
+  max-width: 64ch;
+  margin-top: 18px;
+}
+.brief-lede b {
+  color: var(--text);
+  font-weight: 600;
+}
+
+.top3 {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-top: 8px;
+}
+
+/* Day view */
+.day-wrap {
+  max-width: 880px;
+  margin: 0 auto;
+  padding: 28px 40px 80px;
+}
+.bucket-group {
+  margin-bottom: 30px;
+}
+.bucket-tasks {
+  margin-top: 6px;
+}
+
+/* Generic page headers inside content */
+.page-pad {
+  padding: 28px 40px 80px;
+  max-width: 980px;
+  margin: 0 auto;
+}
+.section-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-card);
+}
+.section-card + .section-card {
+  margin-top: 16px;
+}
+.section-head {
+  padding: 18px 22px 14px;
+}
+.section-title {
+  font-family: var(--font-serif);
+  font-size: 20px;
+  font-weight: 600;
+  letter-spacing: -0.006em;
+}
+.section-desc {
+  font-size: 13px;
+  color: var(--text-subtle);
+  margin-top: 4px;
+  line-height: 1.5;
+  max-width: 70ch;
+}
+.section-body {
+  padding: 4px 22px 14px;
+}
+.row-list > * {
+  border-top: 1px solid var(--border-subtle);
+}
+.row-list > *:first-child {
+  border-top: none;
+}
+
+/* Settings rows */
+.set-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 20px;
+  padding: 16px 0;
+  border-top: 1px solid var(--border-subtle);
+}
+.set-row:first-child {
+  border-top: none;
+}
+.set-row__main {
+  flex: 1;
+  min-width: 0;
+}
+.set-row__name {
+  font-size: 15px;
+  font-weight: 600;
+}
+.set-row__desc {
+  font-size: 13px;
+  color: var(--text-subtle);
+  margin-top: 3px;
+  line-height: 1.5;
+  max-width: 58ch;
+}
+.set-row__control {
+  flex: none;
+}
+
+/* Evening interview */
+.eve-wrap {
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 32px 40px 80px;
+}
+.eve-msg {
+  display: flex;
+  gap: 14px;
+  padding: 14px 0;
+}
+.eve-msg__av {
+  flex: none;
+}
+.eve-bubble {
+  font-family: var(--font-serif);
+  font-size: 17px;
+  line-height: 1.6;
+  color: var(--text);
+}
+.eve-bubble--user {
+  background: var(--surface-2);
+  border: 1px solid var(--border-subtle);
+  border-radius: 14px 14px 14px 4px;
+  padding: 12px 16px;
+  font-family: var(--font-sans);
+  font-size: 15px;
+}
+.eve-composer {
+  position: sticky;
+  bottom: 0;
+  background: linear-gradient(to top, var(--bg) 70%, transparent);
+  padding: 16px 0 8px;
+}
+.eve-prompts {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
+}
+.eve-chip {
+  font-size: 13px;
+  padding: 7px 12px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: var(--transition-control);
+}
+.eve-chip:hover {
+  border-color: var(--border-strong);
+  color: var(--text);
+}
+
+.stat-row {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.stat {
+  flex: 1;
+  min-width: 120px;
+  background: var(--surface-2);
+  border-radius: 10px;
+  padding: 12px 14px;
+}
+.stat .k {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-subtle);
+}
+.stat .v {
+  font-family: var(--font-mono);
+  font-size: 22px;
+  font-weight: 500;
+  margin-top: 4px;
+}
+.stat .v.tnum {
+  font-variant-numeric: tabular-nums;
+}
+
+/* ===== Command-center Morning briefing ===== */
+.cmd-wrap {
+  max-width: 1220px;
+  margin: 0 auto;
+  padding: 30px 40px 80px;
+}
+.cmd-hero {
+  max-width: 70ch;
+}
+.cmd-eyebrow {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  letter-spacing: 0.06em;
+  color: var(--text-subtle);
+}
+.cmd-hello {
+  font-family: var(--font-serif);
+  font-size: 38px;
+  font-weight: 600;
+  letter-spacing: -0.012em;
+  line-height: 1.08;
+  margin: 8px 0 0;
+}
+.cmd-lede {
+  font-family: var(--font-serif);
+  font-size: 18px;
+  line-height: 1.55;
+  color: var(--text-muted);
+  margin-top: 14px;
+}
+.cmd-lede b {
+  color: var(--text);
+  font-weight: 600;
+}
+
+.cmd-stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(116px, 1fr));
+  gap: 10px;
+  margin-top: 22px;
+}
+.cmd-stat {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 11px 13px;
+}
+.cmd-stat .k {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-subtle);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.cmd-stat .v {
+  font-family: var(--font-mono);
+  font-size: 23px;
+  font-weight: 500;
+  margin-top: 5px;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.05;
+}
+.cmd-stat .v small {
+  font-size: 12px;
+  color: var(--text-subtle);
+}
+.cmd-stat--warn {
+  border-color: var(--amber-soft-2);
+  background: var(--amber-soft);
+}
+.cmd-stat--warn .v {
+  color: var(--amber-ink);
+}
+.cmd-stat--warn .k {
+  color: var(--amber-ink);
+}
+
+.cmd-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 336px;
+  gap: 44px;
+  align-items: start;
+  margin-top: 30px;
+}
+@media (max-width: 1080px) {
+  .cmd-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.cmd-aside {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  position: sticky;
+  top: 20px;
+}
+.inst {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 15px 16px 14px;
+}
+.inst__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+.inst__title {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-subtle);
+}
+.inst__meta {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text-faint);
+}
+
+/* schedule timeline */
+.sched-row {
+  display: grid;
+  grid-template-columns: 46px 1fr;
+  gap: 12px;
+}
+.sched-row__t {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--text-subtle);
+  text-align: right;
+  padding-top: 1px;
+  font-variant-numeric: tabular-nums;
+}
+.sched-row__body {
+  border-left: 2px solid var(--border);
+  padding: 0 0 14px 16px;
+  position: relative;
+}
+.sched-row:last-child .sched-row__body {
+  border-color: transparent;
+}
+.sched-row__body::before {
+  content: "";
+  position: absolute;
+  left: -6px;
+  top: 3px;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--surface);
+  border: 2px solid var(--border-strong);
+}
+.sched-row--now .sched-row__body::before {
+  background: var(--accent);
+  border-color: var(--accent);
+  box-shadow: 0 0 0 4px var(--pine-soft);
+}
+.sched-row--done .sched-row__body::before {
+  background: var(--accent);
+  border-color: var(--accent);
+}
+.sched-row__title {
+  font-size: 13.5px;
+  color: var(--text);
+  line-height: 1.35;
+}
+.sched-row--done .sched-row__title {
+  color: var(--text-subtle);
+  text-decoration: line-through;
+  text-decoration-color: var(--border-strong);
+}
+.sched-row__sub {
+  font-size: 11.5px;
+  color: var(--text-subtle);
+  margin-top: 1px;
+}
+.sched-now {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--accent-fg);
+  margin-top: 2px;
+}
+
+/* conditions / list rows */
+.inst-row {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  padding: 5px 0;
+  font-size: 13px;
+  color: var(--text-muted);
+}
+.inst-row .ic {
+  color: var(--text-subtle);
+  display: inline-flex;
+  flex: none;
+}
+.inst-row b {
+  color: var(--text);
+  font-weight: 600;
+}
+.inst-row__r {
+  margin-left: auto;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--text-subtle);
+}
+.inst-status {
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+}
+
+/* ===== Weather strip (top of Today) ===== */
+.wx {
+  display: flex;
+  align-items: stretch;
+  gap: 4px;
+  padding: 12px 40px 14px;
+  border-bottom: 1px solid var(--border-subtle);
+}
+.wx__place {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding-right: 18px;
+  margin-right: 8px;
+  border-right: 1px solid var(--border-subtle);
+  flex: none;
+}
+.wx__place .lbl {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+}
+.wx__place .city {
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--text);
+  margin-top: 2px;
+  white-space: nowrap;
+}
+.wx__days {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 4px;
+  flex: 1;
+  min-width: 0;
+}
+.wx__day {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  padding: 4px 6px 6px;
+  border-radius: var(--radius-md);
+  transition: var(--transition-control);
+  cursor: default;
+}
+.wx__day:hover {
+  background: var(--surface-2);
+}
+.wx__day.is-today {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow-xs);
+}
+.wx__d {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: var(--text-subtle);
+}
+.wx__day.is-today .wx__d {
+  color: var(--accent-fg);
+}
+.wx__ic {
+  display: inline-flex;
+}
+.wx__t {
+  font-family: var(--font-mono);
+  font-size: 12.5px;
+  font-variant-numeric: tabular-nums;
+  color: var(--text);
+}
+.wx__t .lo {
+  color: var(--text-faint);
+}
+.wx__note {
+  font-size: 10px;
+  color: var(--amber-ink);
+  white-space: nowrap;
+}
+
+/* ===== Actionable stat tiles ===== */
+.cmd-stat {
+  display: block;
+  width: 100%;
+  text-align: left;
+  font: inherit;
+  cursor: pointer;
+}
+.cmd-stat:hover {
+  border-color: var(--border-strong);
+  box-shadow: var(--shadow-xs);
+  transform: translateY(-1px);
+}
+.cmd-stat:active {
+  transform: translateY(0);
+}
+.cmd-stat__go {
+  margin-left: auto;
+  color: var(--text-faint);
+  display: inline-flex;
+  opacity: 0;
+  transition: var(--transition-control);
+}
+.cmd-stat:hover .cmd-stat__go {
+  opacity: 1;
+}
+.cmd-stat .k {
+  justify-content: flex-start;
+}
+
+/* accent name in hero */
+.cmd-hello .nm {
+  color: var(--accent-fg);
+}
+
+/* ===== Walking the day (meetings) ===== */
+.day-list {
+  display: flex;
+  flex-direction: column;
+  margin-top: 6px;
+}
+.day-ev {
+  display: grid;
+  grid-template-columns: 58px 1fr auto;
+  gap: 16px;
+  align-items: baseline;
+  padding: 13px 0;
+  border-top: 1px solid var(--border-subtle);
+}
+.day-ev:first-child {
+  border-top: none;
+}
+.day-ev__t {
+  font-family: var(--font-mono);
+  font-size: 14px;
+  font-variant-numeric: tabular-nums;
+  color: var(--text);
+  padding-top: 1px;
+}
+.day-ev__t .ap {
+  font-size: 11px;
+  color: var(--text-faint);
+}
+.day-ev__title {
+  font-family: var(--font-serif);
+  font-size: 17px;
+  color: var(--text);
+  line-height: 1.35;
+}
+.day-ev__where {
+  font-size: 13px;
+  color: var(--text-subtle);
+  margin-top: 2px;
+}
+.day-ev__who {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text-faint);
+  white-space: nowrap;
+  text-align: right;
+  padding-top: 3px;
+}
