@@ -1,0 +1,310 @@
+/* ============================================================
+   Settings hub — two-column (sub-nav + detail pane), Personal/
+   Admin toggle, Advanced switch, and pane scaffolding. Ported
+   from the Jarvis Design System kit (ui_kits/jarvis-app/settings.css).
+   Composes the token layer; no hex literals (those live in tokens.css).
+   Loaded by settings-page.tsx (component-level import, kit-* convention).
+   ============================================================ */
+
+/* ---- Base settings row (self-contained: kit-today.css is not loaded here) ---- */
+.set-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 20px;
+  padding: 16px 0;
+  border-top: 1px solid var(--border-subtle);
+}
+.set-row:first-child {
+  border-top: none;
+}
+.set-row__main {
+  flex: 1;
+  min-width: 0;
+}
+.set-row__name {
+  font-size: 15px;
+  font-weight: 600;
+}
+.set-row__desc {
+  font-size: 13px;
+  color: var(--text-subtle);
+  margin-top: 3px;
+  line-height: 1.5;
+  max-width: 58ch;
+}
+.set-row__control {
+  flex: none;
+}
+
+.set2 {
+  max-width: 1080px;
+  margin: 0 auto;
+  padding: 24px 40px 88px;
+}
+
+/* ---- Top bar: Personal/Admin toggle + Advanced switch ---- */
+.set2__bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  flex-wrap: wrap;
+  padding-bottom: 18px;
+  margin-bottom: 8px;
+  border-bottom: 1px solid var(--border-subtle);
+}
+.set2__adv {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  cursor: pointer;
+}
+.set2__adv-tx {
+  display: flex;
+  flex-direction: column;
+  text-align: right;
+}
+.set2__adv-t {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+}
+.set2__adv-d {
+  font-size: 11.5px;
+  color: var(--text-subtle);
+  margin-top: 1px;
+}
+
+/* ---- Grid ---- */
+.set2__grid {
+  display: grid;
+  grid-template-columns: 216px minmax(0, 1fr);
+  gap: 40px;
+  align-items: start;
+}
+@media (max-width: 860px) {
+  .set2__grid {
+    grid-template-columns: 1fr;
+    gap: 8px;
+  }
+}
+
+/* ---- Sub-nav ---- */
+.set2__nav {
+  position: sticky;
+  top: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+@media (max-width: 860px) {
+  .set2__nav {
+    position: static;
+    flex-direction: row;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-bottom: 12px;
+  }
+}
+.set2__navgroup {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+  padding: 4px 11px 8px;
+}
+@media (max-width: 860px) {
+  .set2__navgroup {
+    display: none;
+  }
+}
+.set2__navitem {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  width: 100%;
+  padding: 9px 11px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--text-muted);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: var(--transition-control);
+}
+.set2__navitem:hover {
+  background: var(--surface-2);
+  color: var(--text);
+}
+.set2__navitem.is-active {
+  background: var(--pine-soft);
+  border-color: var(--pine-soft-2);
+  color: var(--pine-ink);
+}
+.set2__navitem .ic {
+  display: inline-flex;
+  flex: none;
+  color: var(--text-faint);
+}
+.set2__navitem.is-active .ic {
+  color: var(--accent-fg);
+}
+.set2__navitem .lbl {
+  flex: 1;
+  min-width: 0;
+  font-size: 14px;
+  font-weight: 550;
+}
+.set2__navnote {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin-top: 14px;
+  padding: 9px 11px;
+  font-size: 11.5px;
+  color: var(--text-subtle);
+  border-top: 1px solid var(--border-subtle);
+}
+.set2__navnote svg {
+  color: var(--accent-fg);
+  flex: none;
+}
+@media (max-width: 860px) {
+  .set2__navnote {
+    display: none;
+  }
+}
+
+/* ---- Pane ---- */
+.set2__pane {
+  min-width: 0;
+}
+.pane__head {
+  margin-bottom: 4px;
+}
+.pane__title {
+  font-family: var(--font-serif);
+  font-size: 25px;
+  font-weight: 600;
+  letter-spacing: -0.012em;
+  margin: 0;
+}
+.pane__desc {
+  font-size: 14px;
+  color: var(--text-subtle);
+  line-height: 1.55;
+  margin: 8px 0 0;
+  max-width: 62ch;
+}
+
+.pane__card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-card);
+  margin-top: 18px;
+}
+.pane__cardhead {
+  display: flex;
+  align-items: flex-start;
+  gap: 16px;
+  padding: 16px 22px 12px;
+}
+.pane__cardheadmain {
+  flex: 1;
+  min-width: 0;
+}
+.pane__cardtitle {
+  font-family: var(--font-serif);
+  font-size: 18px;
+  font-weight: 600;
+  letter-spacing: -0.004em;
+  color: var(--text);
+}
+.pane__carddesc {
+  font-size: 12.5px;
+  color: var(--text-subtle);
+  margin-top: 3px;
+  line-height: 1.5;
+  max-width: 64ch;
+}
+.pane__cardaction {
+  flex: none;
+}
+.pane__cardbody {
+  padding: 0 22px 12px;
+}
+
+/* Compact the shared set-row inside cards */
+.pane__cardbody .set-row {
+  padding: 14px 0;
+  gap: 18px;
+}
+
+/* ---- Stacked fields ---- */
+.fld {
+  padding: 14px 0;
+  border-top: 1px solid var(--border-subtle);
+}
+.fld:first-child {
+  border-top: none;
+}
+.fld__lbl {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+  margin-bottom: 8px;
+}
+.fld__row {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+.fld__row > .jds-input,
+.fld__row > .jds-select,
+.fld__row > .jds-selectwrap,
+.fld__row > input,
+.fld__row > select {
+  flex: 0 1 340px;
+  min-width: 200px;
+}
+.fld__row > .jds-textarea,
+.fld__row > textarea {
+  flex: 1 1 100%;
+}
+.fld__choice {
+  margin-top: 2px;
+}
+.fld__hint {
+  font-size: 12px;
+  color: var(--text-subtle);
+  margin-top: 8px;
+  line-height: 1.45;
+  max-width: 60ch;
+}
+
+/* ---- Notice line ---- */
+.set2-note {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  margin: 14px 2px 0;
+  font-size: 12.5px;
+  color: var(--text-subtle);
+  line-height: 1.5;
+}
+.set2-note svg {
+  color: var(--text-faint);
+  flex: none;
+  margin-top: 2px;
+}
+.set2-note b {
+  color: var(--text);
+  font-weight: 600;
+}
