@@ -16,7 +16,6 @@ import { shouldShowOnboarding } from "./onboarding/resume";
 import { OnboardingWizard } from "./onboarding/onboarding-wizard";
 import { BriefingsPage } from "./briefings/briefings-page";
 import { CalendarPage } from "./calendar/calendar-page";
-import { EmailPage } from "./email/email-page";
 import { NotificationsPage } from "./notifications/notifications-page";
 import { SettingsPage } from "./settings/settings-page";
 import { AppShell } from "./shell/app-shell";
@@ -173,7 +172,6 @@ export function App() {
           <Route path="/tasks/:taskId" element={<TaskDetailPage />} />
           <Route path="/notifications" element={<NotificationsPage />} />
           <Route path="/calendar" element={<CalendarPage />} />
-          <Route path="/email" element={<EmailPage />} />
           <Route path="/briefings" element={<BriefingsPage />} />
           <Route
             path="/wellness"

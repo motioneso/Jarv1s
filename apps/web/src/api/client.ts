@@ -30,7 +30,6 @@ import type {
   CreateTaskTagRequest,
   CreateTaskTagResponse,
   GetCalendarEventResponse,
-  GetEmailMessageResponse,
   GetTaskPreferencesResponse,
   GoogleAuthorizeRequest,
   GoogleAuthorizeResponse,
@@ -52,7 +51,6 @@ import type {
   ListChatThreadsResponse,
   ListConnectorAccountsResponse,
   ListConnectorProvidersResponse,
-  ListEmailMessagesResponse,
   ListMedicationsResponse,
   ListModulesResponse,
   ListMyModulesResponse,
@@ -399,10 +397,6 @@ export async function getCalendarEvent(id: string): Promise<GetCalendarEventResp
   return requestJson<GetCalendarEventResponse>(`/api/calendar/events/${encodeURIComponent(id)}`);
 }
 
-export async function listEmailMessages(): Promise<ListEmailMessagesResponse> {
-  return requestJson<ListEmailMessagesResponse>("/api/email/messages");
-}
-
 export async function listChatThreads(): Promise<ListChatThreadsResponse> {
   return requestJson<ListChatThreadsResponse>("/api/chat/threads");
 }
@@ -467,10 +461,6 @@ export async function resolveActionRequest(
     `/api/chat/action-requests/${encodeURIComponent(actionRequestId)}/resolve`,
     { method: "POST", body: { status } }
   );
-}
-
-export async function getEmailMessage(id: string): Promise<GetEmailMessageResponse> {
-  return requestJson<GetEmailMessageResponse>(`/api/email/messages/${encodeURIComponent(id)}`);
 }
 
 export async function listConnectorProviders(): Promise<ListConnectorProvidersResponse> {

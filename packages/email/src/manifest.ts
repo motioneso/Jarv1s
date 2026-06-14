@@ -30,16 +30,10 @@ export const emailModuleManifest = {
     migrationDirectories: ["packages/email/sql"],
     ownedTables: ["app.email_messages"]
   },
-  navigation: [
-    {
-      id: "email",
-      label: "Email",
-      path: "/email",
-      icon: "mail",
-      order: 40,
-      permissionId: "email.view"
-    }
-  ],
+  // No user-facing surface: email is an ingestion source for Jarv1s (assistant tools +
+  // cache), not a screen the user browses. The viewer was retired; the assistant tool and
+  // REST cache APIs remain so Jarvis can read/learn from messages.
+  navigation: [],
   permissions: [
     {
       id: "email.view",

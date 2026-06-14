@@ -20,10 +20,8 @@ const ALL_SECTIONS: readonly TourSection[] = [
     blurb: "Your single action surface — todos, commitments, and plans."
   },
   { path: "/calendar", label: "Calendar", blurb: "Events synced from your connected accounts." },
-  { path: "/email", label: "Email", blurb: "Recent messages from your connected accounts." },
   { path: "/briefings", label: "Briefings", blurb: "Scheduled summaries grounded in your data." },
   { path: "/wellness", label: "Wellness", blurb: "Your private well-being check-ins." },
-  { path: "/notifications", label: "Notifications", blurb: "What needs your attention." },
   { path: "/settings", label: "Settings", blurb: "Connect accounts, AI, and manage your profile." }
 ];
 

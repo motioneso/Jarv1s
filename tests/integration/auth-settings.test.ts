@@ -238,9 +238,7 @@ describe("M3 auth, users, settings", () => {
     expect(modules.flatMap((module) => module.navigation).map((entry) => entry.path)).toEqual([
       "/settings",
       "/tasks",
-      "/notifications",
       "/calendar",
-      "/email",
       "/chat",
       "/briefings",
       "/wellness"
