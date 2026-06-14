@@ -1,0 +1,64 @@
+<h2>Settings Surface: Current Inventory</h2>
+<p class="subtitle">
+  This is a product map of what the current core platform settings page contains, plus the major
+  backend settings surfaces that are not yet exposed in the UI.
+</p>
+
+<div class="mockup">
+  <div class="mockup-header">Current /settings page</div>
+  <div class="mockup-body">
+    <div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px">
+      <div class="placeholder">
+        <strong>Profile</strong><br>
+        Email, name, role. Read-only identity summary.
+      </div>
+      <div class="placeholder">
+        <strong>Connectors</strong><br>
+        Provider catalog, connected accounts, manual Google setup, revoke/status controls.
+      </div>
+      <div class="placeholder">
+        <strong>AI Configuration</strong><br>
+        Providers, credentials, models, capabilities, routing lookup, assistant tool list.
+      </div>
+      <div class="placeholder">
+        <strong>Admin Identity</strong><br>
+        Auth provider status, users, pending approvals, registration toggles.
+      </div>
+      <div class="placeholder">
+        <strong>Host / Ops</strong><br>
+        Live chat multiplexer selection and local host availability.
+      </div>
+      <div class="placeholder">
+        <strong>Missing from UI</strong><br>
+        Module enablement, audit events, memory controls, task prefs, notification sensitivity.
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <h3>Early Sorting Hypothesis</h3>
+  <div class="options" data-multiselect>
+    <div class="option" data-choice="personal" onclick="toggleSelect(this)">
+      <div class="letter">1</div>
+      <div class="content">
+        <h3>Personal Settings</h3>
+        <p>Identity, connected accounts, personal AI provider, memory/context, notifications, modules.</p>
+      </div>
+    </div>
+    <div class="option" data-choice="admin" onclick="toggleSelect(this)">
+      <div class="letter">2</div>
+      <div class="content">
+        <h3>Instance Admin</h3>
+        <p>Users, approvals, registration policy, instance modules, auth provider status, audit trail.</p>
+      </div>
+    </div>
+    <div class="option" data-choice="ops" onclick="toggleSelect(this)">
+      <div class="letter">3</div>
+      <div class="content">
+        <h3>Setup / Operations</h3>
+        <p>Host-only controls like tmux/herdr and connector developer setup that should not dominate daily settings.</p>
+      </div>
+    </div>
+  </div>
+</div>
