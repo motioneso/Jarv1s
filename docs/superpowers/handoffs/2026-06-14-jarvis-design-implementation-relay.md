@@ -29,19 +29,19 @@ Bring the **Jarvis Design System prototype** into the real web app (`apps/web`) 
 
 ## Screens
 
-| # | Screen | Status |
-| - | ------ | ------ |
-| 1 | Foundation (tokens + components.css + kit.css) | ✅ |
-| 2 | **Tasks** | ✅ |
-| 3 | **Today / briefing** | ✅ |
-| 4 | **Settings** | ⏳ NEXT |
-| 5 | **Calendar + Wellness** | ⏳ |
+| #   | Screen                                         | Status  |
+| --- | ---------------------------------------------- | ------- |
+| 1   | Foundation (tokens + components.css + kit.css) | ✅      |
+| 2   | **Tasks**                                      | ✅      |
+| 3   | **Today / briefing**                           | ✅      |
+| 4   | **Settings**                                   | ⏳ NEXT |
+| 5   | **Calendar + Wellness**                        | ⏳      |
 
 ### Tasks (done) — `apps/web/src/tasks/`
 
 - **Panel layout** (`tasks--panels`): priority groups as `tk-panel` cards.
 - **Single-dot effort** (`EffortDot`): empty=quick, left-half=medium, full=large. Effort labels relabeled **Small/Medium/Large** (`task-format.ts effortLabels.quick="Small"`).
-- **Control bar:** status segmented · prototype **tri-state ListFilterMenu** (include→solo→exclude) · **TagFilter** field + active chips · List/Matrix view toggle. List/tag *creation* removed from the bar (prototype has none); tags created inline in the modal.
+- **Control bar:** status segmented · prototype **tri-state ListFilterMenu** (include→solo→exclude) · **TagFilter** field + active chips · List/Matrix view toggle. List/tag _creation_ removed from the bar (prototype has none); tags created inline in the modal.
 - **`tk-add` quick-add** (`task-capture.tsx`): Add task (creates) + Details (opens modal).
 - **Details modal** (`task-details-dialog.tsx`): editable title at top of header; **Activity/comment stream first** (filtered to `activityType==="comment"` — hides "Broken into N steps"); Notes; Assigned-to (display-only "You" — no backend assignee); List/Priority; Due/Reminder(=doAt); Effort segmented; **Repeats + conditional Ends**; **Tags** type-to-add + suggestion chips; **Subtasks** (toggle/add via breakdownTask); **Status split-button in the FOOTER** (Complete + caret→Archive/Reopen) styled as the **accent CTA**. Wired to real task/subtask/tag/activity APIs.
 - **Today→Tasks focus filters** (`tasks/focus.ts`): `?focus=priorities|atrisk|donetoday` → clearable "Focus" chip; status click clears it.
