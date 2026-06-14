@@ -35,6 +35,7 @@ import { ChatDrawer } from "../chat/chat-drawer";
 import { useChatStream } from "../chat/use-chat-stream";
 import { ChatControlsProvider } from "./chat-controls-context";
 import { HeaderWeather } from "../today/header-weather";
+import { loadShellTheme, saveShellTheme, type ShellTheme } from "./theme-storage";
 import type { MeResponse, ModuleDto, ModuleNavigationEntryDto } from "@jarv1s/shared";
 
 interface AppShellProps {
@@ -75,12 +76,10 @@ export function AppShell(props: AppShellProps) {
   const navigate = useNavigate();
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [chatOpen, setChatOpen] = useState(false);
-  const [theme, setTheme] = useState<"light" | "dark">(() =>
-    localStorage.getItem("jarvis.theme") === "dark" ? "dark" : "light"
-  );
+  const [theme, setTheme] = useState<ShellTheme>(() => loadShellTheme());
   useEffect(() => {
     document.documentElement.setAttribute("data-theme", theme);
-    localStorage.setItem("jarvis.theme", theme);
+    saveShellTheme(theme);
   }, [theme]);
 
   const openChatWith = useCallback((prompt: string) => {

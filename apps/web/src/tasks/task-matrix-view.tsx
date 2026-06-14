@@ -1,8 +1,9 @@
 import { LayoutGrid } from "lucide-react";
 
-import { QUADRANTS, quadrantTasks, type TaskDto, type TaskListDto } from "@jarv1s/shared";
+import { QUADRANTS, type TaskDto, type TaskListDto } from "@jarv1s/shared";
 
 import { listColorMap, TaskRow } from "./task-list-view";
+import { groupTasksByQuadrant } from "./task-view-model";
 
 /** Mono kicker per Eisenhower quadrant (importance × urgency). */
 const QUAD_TAG: Record<string, string> = {
@@ -20,6 +21,7 @@ export function TaskMatrixView(props: {
   readonly onOpen: (task: TaskDto) => void;
 }) {
   const listMeta = listColorMap(props.lists);
+  const tasksByQuadrant = groupTasksByQuadrant(props.tasks);
 
   return (
     <div>
@@ -31,7 +33,7 @@ export function TaskMatrixView(props: {
       </div>
       <div className="tk-matrix" role="grid" aria-label="Eisenhower matrix">
         {QUADRANTS.map((quadrant) => {
-          const tasks = quadrantTasks(props.tasks, quadrant.key);
+          const tasks = tasksByQuadrant[quadrant.key];
           return (
             <div className={`tk-quad tk-quad--${quadrant.key}`} key={quadrant.key} role="gridcell">
               <div className="tk-quad__head">

@@ -6,6 +6,7 @@ import { useMemo } from "react";
 import { listCalendarEvents } from "../api/client";
 import { queryKeys } from "../api/query-keys";
 import { Card, SectionHeader, Stack } from "../ui/card";
+import "../styles/kit-calendar.css";
 
 import "./calendar.css";
 
