@@ -1,0 +1,635 @@
+/* ---- Details modal (wider than the DS Dialog, scrollable) ---- */
+.tk-modal-scrim {
+  position: fixed;
+  inset: 0;
+  background: var(--scrim);
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  z-index: 120;
+  animation: kbar-fade 0.14s ease both;
+}
+.tk-modal {
+  width: 100%;
+  max-width: 620px;
+  max-height: 88vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-xl);
+  animation: kbar-in 0.18s cubic-bezier(0.32, 0.72, 0, 1) both;
+}
+.tk-modal__head {
+  flex: none;
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 20px 24px 14px;
+  border-bottom: 1px solid var(--border-subtle);
+}
+.tk-modal__headmain {
+  flex: 1;
+  min-width: 0;
+}
+.tk-modal__eyebrow {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--accent-fg);
+}
+.tk-modal__title {
+  font-family: var(--font-serif);
+  font-size: 22px;
+  font-weight: 600;
+  letter-spacing: -0.012em;
+  margin-top: 4px;
+  line-height: 1.15;
+}
+.tk-modal__x {
+  flex: none;
+  width: 34px;
+  height: 34px;
+  border-radius: var(--radius-md);
+  border: 0;
+  background: transparent;
+  color: var(--text-subtle);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: var(--transition-control);
+}
+.tk-modal__x:hover {
+  background: var(--surface-2);
+  color: var(--text);
+}
+.tk-modal__body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 18px 24px 22px;
+}
+.tk-modal__foot {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 24px;
+  border-top: 1px solid var(--border-subtle);
+}
+.tk-modal__foot .sp {
+  flex: 1;
+}
+
+/* form */
+.tk-form {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+.tk-field {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  min-width: 0;
+}
+.tk-field--full {
+  grid-column: 1 / -1;
+}
+.tk-flabel {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-subtle);
+}
+.tk-titlein {
+  width: 100%;
+  box-sizing: border-box;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 11px 13px;
+  font-family: var(--font-serif);
+  font-size: 18px;
+  color: var(--text);
+  background: var(--surface);
+}
+.tk-titlein:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--pine-soft);
+}
+.tk-textarea {
+  width: 100%;
+  box-sizing: border-box;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 10px 13px;
+  font-family: var(--font-sans);
+  font-size: 14px;
+  color: var(--text);
+  background: var(--surface);
+  resize: vertical;
+  min-height: 58px;
+  line-height: 1.5;
+}
+.tk-textarea:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--pine-soft);
+}
+.tk-native {
+  width: 100%;
+  box-sizing: border-box;
+  height: 40px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 0 12px;
+  font-family: var(--font-sans);
+  font-size: 14px;
+  color: var(--text);
+  background: var(--surface);
+}
+.tk-native:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--pine-soft);
+}
+.tk-modal .jds-select,
+.tk-modal .jds-selectwrap {
+  width: 100%;
+}
+.tk-modal .jds-segmented {
+  display: flex;
+}
+.tk-modal .jds-segmented__opt {
+  flex: 1;
+  justify-content: center;
+}
+
+/* tags editor */
+.tk-tagedit {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 7px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 8px 10px;
+  background: var(--surface);
+}
+.tk-tagedit:focus-within {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--pine-soft);
+}
+.tk-tagedit input {
+  flex: 1;
+  min-width: 90px;
+  border: 0;
+  background: transparent;
+  font-family: var(--font-sans);
+  font-size: 13.5px;
+  color: var(--text);
+}
+.tk-tagedit input:focus {
+  outline: none;
+}
+.tk-tagsugg {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
+}
+.tk-tagsugg__btn {
+  border: 1px dashed var(--border-strong);
+  background: transparent;
+  color: var(--text-subtle);
+  border-radius: var(--radius-pill);
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  padding: 3px 9px;
+  cursor: pointer;
+  transition: var(--transition-control);
+}
+.tk-tagsugg__btn:hover {
+  border-color: var(--accent);
+  color: var(--accent-fg);
+  border-style: solid;
+}
+
+/* subtasks */
+.tk-subs {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.tk-sub {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 5px 2px;
+}
+.tk-sub__box {
+  width: 19px;
+  height: 19px;
+  border-radius: 5px;
+  border: 1.5px solid var(--border-strong);
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--white);
+  cursor: pointer;
+  transition: var(--transition-control);
+}
+.tk-sub__box.is-on {
+  background: var(--accent);
+  border-color: var(--accent);
+}
+.tk-sub__box svg {
+  width: 12px;
+  height: 12px;
+}
+.tk-sub input {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  border-bottom: 1px solid transparent;
+  background: transparent;
+  font-family: var(--font-sans);
+  font-size: 14px;
+  color: var(--text);
+  padding: 3px 2px;
+}
+.tk-sub input:focus {
+  outline: none;
+  border-bottom-color: var(--border-strong);
+}
+.tk-sub--done input {
+  color: var(--text-subtle);
+  text-decoration: line-through;
+  text-decoration-color: var(--border-strong);
+}
+.tk-sub__rm {
+  flex: none;
+  border: 0;
+  background: transparent;
+  color: var(--text-faint);
+  cursor: pointer;
+  display: inline-flex;
+  padding: 4px;
+  border-radius: var(--radius-sm);
+}
+.tk-sub__rm:hover {
+  background: var(--surface-3);
+  color: var(--text);
+}
+.tk-sub__add {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  align-self: flex-start;
+  margin-top: 4px;
+  border: 0;
+  background: transparent;
+  color: var(--accent-fg);
+  font-family: var(--font-sans);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 4px 2px;
+}
+.tk-sub__add:hover {
+  text-decoration: underline;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tk-modal,
+  .tk-modal-scrim {
+    animation: none;
+  }
+}
+
+/* ---- People picker (multi-assignee) ---- */
+.tk-ava {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  color: var(--white);
+  font-family: var(--font-sans);
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  flex: none;
+}
+.tk-people {
+  position: relative;
+}
+.tk-peoplefield {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  min-height: 40px;
+  box-sizing: border-box;
+  padding: 6px 9px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+}
+.tk-peoplefield:focus-within {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--pine-soft);
+}
+.tk-peoplefield input {
+  flex: 1;
+  min-width: 110px;
+  border: 0;
+  background: transparent;
+  font-family: var(--font-sans);
+  font-size: 13.5px;
+  color: var(--text);
+}
+.tk-peoplefield input:focus,
+.tk-peoplefield input:focus-visible {
+  outline: none;
+  box-shadow: none;
+}
+.tk-person {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 4px 7px 4px 5px;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-pill);
+  background: var(--surface-2);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+}
+.tk-person:hover {
+  border-color: var(--border-strong);
+}
+.tk-person__nm {
+  white-space: nowrap;
+}
+.tk-person__me {
+  color: var(--text-faint);
+  font-weight: 500;
+}
+.tk-person__x {
+  border: 0;
+  background: transparent;
+  color: var(--text-faint);
+  cursor: pointer;
+  display: inline-flex;
+  padding: 1px;
+  border-radius: 50%;
+}
+.tk-person__x:hover {
+  background: var(--surface-3);
+  color: var(--text);
+}
+.tk-people__menu {
+  position: absolute;
+  z-index: 50;
+  top: calc(100% + 6px);
+  left: 0;
+  min-width: 230px;
+  max-height: 240px;
+  overflow-y: auto;
+  padding: 6px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-lg);
+}
+.tk-people__item {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  width: 100%;
+  text-align: left;
+  padding: 7px 9px;
+  border: 0;
+  background: transparent;
+  border-radius: var(--radius-sm);
+  font-family: var(--font-sans);
+  font-size: 13.5px;
+  color: var(--text);
+  cursor: pointer;
+  white-space: nowrap;
+}
+.tk-people__item:hover {
+  background: var(--pine-soft);
+  color: var(--pine-ink);
+}
+
+/* ---- Activity / journal log ---- */
+.tk-activity {
+  display: flex;
+  flex-direction: column;
+}
+.tk-act-list {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  margin-bottom: 14px;
+}
+.tk-act {
+  display: flex;
+  gap: 11px;
+}
+.tk-act__body {
+  flex: 1;
+  min-width: 0;
+}
+.tk-act__head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 5px;
+}
+.tk-act__who {
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--text);
+  white-space: nowrap;
+}
+.tk-act__bot {
+  margin-left: 6px;
+  font-family: var(--font-mono);
+  font-size: 8.5px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--accent-fg);
+  background: var(--pine-soft);
+  border: 1px solid var(--pine-soft-2);
+  padding: 1px 5px;
+  border-radius: var(--radius-pill);
+  vertical-align: middle;
+}
+.tk-act__when {
+  margin-left: auto;
+  flex: none;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text-faint);
+  white-space: nowrap;
+}
+.tk-act__text {
+  font-size: 14px;
+  color: var(--text-muted);
+  line-height: 1.55;
+  text-wrap: pretty;
+  background: var(--surface-2);
+  border: 1px solid var(--border-subtle);
+  border-radius: 3px 12px 12px 12px;
+  padding: 9px 13px;
+}
+.tk-act__text .mention {
+  color: var(--accent-fg);
+  font-weight: 600;
+}
+.tk-act--jarvis .tk-act__text {
+  background: var(--pine-soft);
+  border-color: var(--pine-soft-2);
+  color: var(--pine-ink);
+}
+.tk-act__typing {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--accent-fg);
+  background: var(--pine-soft);
+  border: 1px solid var(--pine-soft-2);
+  border-radius: 3px 12px 12px 12px;
+  padding: 9px 13px;
+}
+.tk-dots {
+  display: inline-flex;
+  gap: 3px;
+}
+.tk-dots i {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--accent-fg);
+  animation: tk-pulse 1s infinite ease-in-out;
+}
+.tk-dots i:nth-child(2) {
+  animation-delay: 0.15s;
+}
+.tk-dots i:nth-child(3) {
+  animation-delay: 0.3s;
+}
+@keyframes tk-pulse {
+  0%,
+  100% {
+    opacity: 0.3;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+.tk-act-empty {
+  font-size: 13px;
+  color: var(--text-subtle);
+  line-height: 1.5;
+  padding: 2px 0 14px;
+}
+.tk-act-empty b {
+  color: var(--accent-fg);
+}
+.tk-act-composer {
+  position: relative;
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+  padding: 7px 7px 7px 12px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+}
+.tk-act-composer:focus-within {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--pine-soft);
+  background: var(--surface);
+}
+.tk-act-composer textarea {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  background: transparent;
+  resize: none;
+  font-family: var(--font-sans);
+  font-size: 13.5px;
+  line-height: 1.5;
+  color: var(--text);
+  padding: 5px 0;
+  max-height: 110px;
+}
+.tk-act-composer textarea:focus,
+.tk-act-composer textarea:focus-visible {
+  outline: none;
+  box-shadow: none;
+}
+.tk-act-composer textarea::placeholder {
+  color: var(--text-faint);
+}
+.tk-act-send {
+  flex: none;
+  width: 32px;
+  height: 32px;
+  border-radius: var(--radius-md);
+  border: 0;
+  background: var(--accent);
+  color: var(--white);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: var(--transition-control);
+}
+.tk-act-send:hover {
+  background: var(--accent-hover);
+}
+.tk-act-send:disabled {
+  background: var(--border-strong);
+  cursor: default;
+}
+.tk-act-mention-menu {
+  position: absolute;
+  z-index: 60;
+  bottom: calc(100% + 6px);
+  left: 0;
+  min-width: 220px;
+  max-height: 200px;
+  overflow-y: auto;
+  padding: 6px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-lg);
+}
+.tk-act-hint {
+  font-size: 11px;
+  color: var(--text-faint);
+  margin-top: 7px;
+}
+
+/* Inner fields live inside a focus-within container that already shows the ring —
+   suppress the global :where(:focus-visible) box-shadow so they don't double up. */
+.tk-add input:focus-visible,
+.tk-tagfield input:focus-visible,
+.tk-tagedit input:focus-visible,
+.tk-sub input:focus-visible {
+  outline: none;
+  box-shadow: none;
+}

@@ -1,0 +1,776 @@
+/* ---------------------------------------------------------------
+   AMBIENT TOAST — quiet, non-interruptive
+   --------------------------------------------------------------- */
+.jds-toast {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+  background: var(--surface);
+  border: var(--border-w) solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-lg);
+  padding: var(--space-3) var(--space-4);
+  max-width: 380px;
+}
+.jds-toast__icon {
+  color: var(--text-subtle);
+  display: inline-flex;
+  margin-top: 1px;
+}
+.jds-toast__icon svg {
+  width: 17px;
+  height: 17px;
+}
+.jds-toast--ready .jds-toast__icon {
+  color: var(--accent-fg);
+}
+.jds-toast--drift .jds-toast__icon {
+  color: var(--warn-fg);
+}
+.jds-toast__body {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.jds-toast__title {
+  font-size: var(--text-sm);
+  font-weight: var(--weight-semibold);
+  color: var(--text);
+}
+.jds-toast__msg {
+  font-size: var(--text-sm);
+  color: var(--text-muted);
+  line-height: var(--leading-snug);
+}
+
+/* ---------------------------------------------------------------
+   DIALOG / SHEET
+   --------------------------------------------------------------- */
+.jds-dialog-scrim {
+  position: fixed;
+  inset: 0;
+  background: var(--scrim);
+  display: grid;
+  place-items: center;
+  padding: var(--space-5);
+  z-index: 100;
+}
+.jds-dialog {
+  background: var(--surface);
+  border: var(--border-w) solid var(--border);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-xl);
+  width: 100%;
+  max-width: 460px;
+  overflow: hidden;
+}
+.jds-dialog__head {
+  padding: var(--space-5) var(--space-6) var(--space-3);
+}
+.jds-dialog__title {
+  font-family: var(--font-serif);
+  font-size: var(--text-xl);
+  font-weight: var(--weight-semibold);
+  letter-spacing: var(--tracking-snug);
+}
+.jds-dialog__desc {
+  font-size: var(--text-sm);
+  color: var(--text-muted);
+  margin-top: var(--space-2);
+  line-height: var(--leading-normal);
+}
+.jds-dialog__body {
+  padding: 0 var(--space-6);
+}
+.jds-dialog__foot {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-3);
+  padding: var(--space-5) var(--space-6);
+}
+
+/* ---------------------------------------------------------------
+   PROGRESS LINE — thin, calm
+   --------------------------------------------------------------- */
+.jds-progress {
+  height: 5px;
+  border-radius: var(--radius-pill);
+  background: var(--surface-3);
+  overflow: hidden;
+}
+.jds-progress__fill {
+  height: 100%;
+  border-radius: inherit;
+  background: var(--accent);
+  transition: width var(--dur-slow) var(--ease-out);
+}
+.jds-progress--amber .jds-progress__fill {
+  background: var(--amber);
+}
+
+/* ---------------------------------------------------------------
+   TABS
+   --------------------------------------------------------------- */
+.jds-tabs {
+  display: flex;
+  gap: var(--space-5);
+  border-bottom: var(--border-w) solid var(--border);
+}
+.jds-tab {
+  appearance: none;
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-family: var(--font-sans);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-medium);
+  color: var(--text-muted);
+  padding: var(--space-3) 0;
+  position: relative;
+  top: 1px;
+  border-bottom: 2px solid transparent;
+  transition: var(--transition-control);
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+.jds-tab:hover {
+  color: var(--text);
+}
+.jds-tab[aria-selected="true"] {
+  color: var(--text);
+  font-weight: var(--weight-semibold);
+  border-bottom-color: var(--accent);
+}
+.jds-tab svg {
+  width: 15px;
+  height: 15px;
+}
+.jds-tab__count {
+  font-family: var(--font-mono);
+  font-size: var(--text-2xs);
+  color: var(--text-subtle);
+}
+
+/* ---------------------------------------------------------------
+   TIME-BUCKET SECTION HEADER
+   --------------------------------------------------------------- */
+.jds-bucket {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-3);
+  padding-bottom: var(--space-3);
+}
+.jds-bucket__mark {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--accent);
+  flex: none;
+  align-self: center;
+}
+.jds-bucket--afternoon .jds-bucket__mark {
+  background: var(--steel);
+}
+.jds-bucket--evening .jds-bucket__mark {
+  background: var(--amber);
+}
+.jds-bucket--past .jds-bucket__mark {
+  background: var(--ink-4);
+}
+.jds-bucket__name {
+  flex: none;
+  font-family: var(--font-serif);
+  font-size: var(--text-xl);
+  font-weight: var(--weight-semibold);
+  letter-spacing: var(--tracking-snug);
+  color: var(--text);
+  white-space: nowrap;
+}
+.jds-bucket__range {
+  flex: none;
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  color: var(--text-subtle);
+  letter-spacing: var(--tracking-wide);
+  white-space: nowrap;
+}
+.jds-bucket__rule {
+  flex: 1;
+  border: none;
+  border-top: var(--border-w) solid var(--border);
+  height: 0;
+  align-self: center;
+}
+.jds-bucket__count {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  color: var(--text-subtle);
+}
+
+/* ---------------------------------------------------------------
+   GOVERNOR BLOCK — provisional / unconfirmed AI content
+   --------------------------------------------------------------- */
+.jds-governor {
+  position: relative;
+  border: var(--border-w) dashed var(--border-strong);
+  border-radius: var(--radius-lg);
+  padding: var(--space-4) var(--space-5);
+  background: color-mix(in srgb, var(--surface-2) 60%, transparent);
+  transition: var(--transition-governor);
+}
+.jds-governor__content {
+  opacity: var(--governor-opacity);
+  transition: var(--transition-governor);
+}
+.jds-governor__tag {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  font-size: var(--text-2xs);
+  font-weight: var(--weight-semibold);
+  letter-spacing: var(--tracking-wide);
+  color: var(--text-subtle);
+  margin-bottom: var(--space-2);
+}
+.jds-governor__tag svg {
+  width: 12px;
+  height: 12px;
+}
+.jds-governor__actions {
+  display: flex;
+  gap: var(--space-2);
+  margin-top: var(--space-3);
+}
+.jds-governor.is-confirmed {
+  border-style: solid;
+  border-color: var(--pine-soft-2);
+  background: transparent;
+}
+.jds-governor.is-confirmed .jds-governor__content {
+  opacity: 1;
+}
+.jds-governor.is-confirmed .jds-governor__tag {
+  color: var(--accent-fg);
+}
+
+/* ---------------------------------------------------------------
+   DRIFT BADGE — system-owned urgency (distinct from user priority)
+   --------------------------------------------------------------- */
+.jds-drift {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  font-size: var(--text-2xs);
+  font-weight: var(--weight-semibold);
+  letter-spacing: var(--tracking-wide);
+  padding: 3px var(--space-2);
+  border-radius: var(--radius-sm);
+  white-space: nowrap;
+}
+.jds-drift__dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+  flex: none;
+}
+.jds-drift--due {
+  background: var(--steel-soft);
+  color: var(--steel-ink);
+}
+.jds-drift--today {
+  background: var(--pine-soft);
+  color: var(--pine-ink);
+}
+.jds-drift--atrisk {
+  background: var(--amber-soft);
+  color: var(--amber-ink);
+}
+.jds-drift--overdue {
+  background: var(--amber-soft-2);
+  color: var(--amber-ink);
+}
+.jds-drift--stale {
+  background: var(--surface-2);
+  color: var(--text-subtle);
+  border: var(--border-w) solid var(--border);
+}
+
+/* ---------------------------------------------------------------
+   TASK ROW (compact DS primitive)
+   --------------------------------------------------------------- */
+.jds-task {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-3) var(--space-3) var(--space-2);
+  border-radius: var(--radius-md);
+  transition: var(--transition-control);
+  border: var(--border-w) solid transparent;
+}
+.jds-task:hover {
+  background: var(--surface-2);
+}
+.jds-task__check {
+  margin-top: 1px;
+}
+.jds-task__main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+.jds-task__title {
+  font-size: var(--text-md);
+  color: var(--text);
+  line-height: var(--leading-snug);
+}
+.jds-task__meta {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+.jds-task__source {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  font-size: var(--text-xs);
+  color: var(--text-subtle);
+}
+.jds-task__source svg {
+  width: 12px;
+  height: 12px;
+}
+.jds-task__time {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  color: var(--text-subtle);
+}
+.jds-task--done .jds-task__title {
+  color: var(--text-subtle);
+  text-decoration: line-through;
+  text-decoration-color: var(--border-strong);
+}
+.jds-task__prio {
+  width: 3px;
+  align-self: stretch;
+  border-radius: var(--radius-pill);
+  flex: none;
+  background: transparent;
+}
+.jds-task--p1 .jds-task__prio {
+  background: var(--accent);
+}
+.jds-task--p2 .jds-task__prio {
+  background: var(--ink-4);
+}
+
+/* ---------------------------------------------------------------
+   BRIEFING SECTION BLOCK
+   --------------------------------------------------------------- */
+.jds-brief {
+  padding: var(--space-5) 0;
+  border-top: var(--border-w) solid var(--border);
+}
+.jds-brief:first-child {
+  border-top: none;
+}
+.jds-brief__head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  margin-bottom: var(--space-3);
+}
+.jds-brief__kicker {
+  font-family: var(--font-sans);
+  font-size: var(--text-2xs);
+  font-weight: var(--weight-semibold);
+  letter-spacing: var(--tracking-caps);
+  text-transform: uppercase;
+  color: var(--text-subtle);
+}
+.jds-brief__title {
+  font-family: var(--font-serif);
+  font-size: var(--text-2xl);
+  font-weight: var(--weight-semibold);
+  letter-spacing: var(--tracking-snug);
+  line-height: var(--leading-tight);
+}
+.jds-brief__body {
+  font-family: var(--font-serif);
+  font-size: var(--text-lg);
+  line-height: var(--leading-relaxed);
+  color: var(--text-muted);
+  max-width: var(--measure);
+}
+.jds-brief__updated {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  font-size: var(--text-2xs);
+  font-weight: var(--weight-semibold);
+  color: var(--accent-fg);
+}
+.jds-brief__updated .jds-badge__dot {
+  width: 5px;
+  height: 5px;
+}
+
+/* ---------------------------------------------------------------
+   RATIONALE CHIP ("why this?")
+   --------------------------------------------------------------- */
+.jds-why {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  font-size: var(--text-xs);
+  color: var(--text-subtle);
+  padding: 2px var(--space-2);
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+}
+.jds-why svg {
+  width: 12px;
+  height: 12px;
+  color: var(--text-faint);
+}
+
+/* ---------------------------------------------------------------
+   FACT ROW — confirmed fact vs inferred pattern
+   --------------------------------------------------------------- */
+.jds-fact {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+  padding: var(--space-3) 0;
+  border-top: var(--border-w) solid var(--border-subtle);
+}
+.jds-fact__icon {
+  width: 28px;
+  height: 28px;
+  border-radius: var(--radius-sm);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+}
+.jds-fact--confirmed .jds-fact__icon {
+  background: var(--pine-soft);
+  color: var(--pine-ink);
+}
+.jds-fact--inferred .jds-fact__icon {
+  background: var(--surface-2);
+  color: var(--text-subtle);
+  border: var(--border-w) dashed var(--border-strong);
+}
+.jds-fact__icon svg {
+  width: 15px;
+  height: 15px;
+}
+.jds-fact__main {
+  flex: 1;
+  min-width: 0;
+}
+.jds-fact__text {
+  font-size: var(--text-md);
+  color: var(--text);
+}
+.jds-fact--inferred .jds-fact__text {
+  color: var(--text-muted);
+}
+.jds-fact__sub {
+  font-size: var(--text-xs);
+  color: var(--text-subtle);
+  margin-top: 2px;
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+.jds-fact__conf {
+  font-family: var(--font-mono);
+}
+.jds-fact__actions {
+  display: flex;
+  gap: var(--space-1);
+}
+
+/* ---------------------------------------------------------------
+   PERMISSION ROW — data-access vs action-authority
+   --------------------------------------------------------------- */
+.jds-perm {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  padding: var(--space-4) 0;
+  border-top: var(--border-w) solid var(--border-subtle);
+}
+.jds-perm__main {
+  flex: 1;
+  min-width: 0;
+}
+.jds-perm__name {
+  display: block;
+  font-size: var(--text-md);
+  font-weight: var(--weight-semibold);
+  color: var(--text);
+}
+.jds-perm__desc {
+  display: block;
+  font-size: var(--text-sm);
+  color: var(--text-subtle);
+  margin-top: 2px;
+  line-height: var(--leading-snug);
+}
+.jds-perm__controls {
+  display: flex;
+  align-items: center;
+  gap: var(--space-5);
+}
+.jds-perm__crud {
+  display: flex;
+  gap: var(--space-1);
+}
+.jds-perm__crud-cell {
+  width: 26px;
+  height: 26px;
+  border-radius: var(--radius-sm);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--font-mono);
+  font-size: var(--text-2xs);
+  font-weight: var(--weight-semibold);
+  border: var(--border-w) solid var(--border);
+  color: var(--text-faint);
+  background: var(--surface);
+  cursor: pointer;
+  transition: var(--transition-control);
+}
+.jds-perm__crud-cell.is-on {
+  background: var(--pine-soft);
+  color: var(--pine-ink);
+  border-color: transparent;
+}
+
+/* ---------------------------------------------------------------
+   RECOVERY NOTE — anti-shame drift treatment
+   --------------------------------------------------------------- */
+.jds-recovery {
+  display: flex;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  border-radius: var(--radius-lg);
+  background: var(--amber-soft);
+  border: var(--border-w) solid var(--amber-soft-2);
+}
+.jds-recovery__icon {
+  color: var(--warn-fg);
+  display: inline-flex;
+  flex: none;
+  margin-top: 1px;
+}
+.jds-recovery__icon svg {
+  width: 18px;
+  height: 18px;
+}
+.jds-recovery__title {
+  font-size: var(--text-md);
+  font-weight: var(--weight-semibold);
+  color: var(--amber-ink);
+}
+.jds-recovery__msg {
+  font-size: var(--text-sm);
+  color: var(--amber-ink);
+  opacity: 0.9;
+  margin-top: 2px;
+  line-height: var(--leading-normal);
+}
+.jds-recovery__actions {
+  display: flex;
+  gap: var(--space-2);
+  margin-top: var(--space-3);
+}
+
+/* ---------------------------------------------------------------
+   USER QUICK-MENU (rail foot account popover)
+   --------------------------------------------------------------- */
+.jds-usermenu {
+  position: relative;
+}
+.jds-usermenu__trigger {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 8px;
+  border: 0;
+  background: transparent;
+  border-radius: var(--radius-lg);
+  cursor: pointer;
+  text-align: left;
+  color: var(--text);
+  transition: var(--transition-control);
+}
+.jds-usermenu__trigger:hover,
+.jds-usermenu__trigger.is-open {
+  background: var(--surface-2);
+}
+.jds-usermenu__av {
+  flex: none;
+  display: inline-flex;
+}
+.jds-usermenu__id {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  flex: 1;
+}
+.jds-usermenu__nm {
+  font-size: var(--text-sm);
+  font-weight: var(--weight-semibold);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  line-height: 1.25;
+}
+.jds-usermenu__sub {
+  font-size: var(--text-xs);
+  color: var(--text-subtle);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.jds-usermenu__chev {
+  flex: none;
+  color: var(--text-faint);
+  display: inline-flex;
+}
+.jds-usermenu__pop {
+  position: absolute;
+  bottom: calc(100% + 10px);
+  left: 0;
+  width: 252px;
+  background: var(--surface);
+  border: var(--border-w) solid var(--border);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-lg);
+  padding: 6px;
+  z-index: 70;
+  transform-origin: bottom left;
+  animation: jds-menu-in 0.14s cubic-bezier(0.32, 0.72, 0, 1) both;
+}
+@keyframes jds-menu-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px) scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.jds-usermenu__list {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+.jds-usermenu__item {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  width: 100%;
+  padding: 9px 10px;
+  border: 0;
+  background: transparent;
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  font-family: var(--font-sans);
+  font-size: var(--text-sm);
+  color: var(--text);
+  text-align: left;
+  transition: var(--transition-control);
+}
+.jds-usermenu__item:hover {
+  background: var(--surface-2);
+}
+.jds-usermenu__ic {
+  display: inline-flex;
+  flex: none;
+  color: var(--text-subtle);
+}
+.jds-usermenu__ic svg {
+  width: 16px;
+  height: 16px;
+}
+.jds-usermenu__lbl {
+  flex: 1;
+  white-space: nowrap;
+}
+.jds-usermenu__tr {
+  flex: none;
+}
+.jds-usermenu__item.is-danger {
+  color: var(--danger);
+}
+.jds-usermenu__item.is-danger .jds-usermenu__ic {
+  color: var(--danger);
+}
+.jds-usermenu__item.is-danger:hover {
+  background: var(--danger-soft);
+}
+.jds-usermenu__div {
+  height: 1px;
+  background: var(--border-subtle);
+  margin: 6px 4px;
+}
+.jds-badge-count {
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: var(--radius-pill);
+  background: var(--accent);
+  color: var(--text-on-accent);
+  font-family: var(--font-sans);
+  font-size: var(--text-2xs);
+  font-weight: var(--weight-semibold);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.jds-miniswitch {
+  width: 30px;
+  height: 18px;
+  border-radius: var(--radius-pill);
+  background: var(--border-strong);
+  position: relative;
+  flex: none;
+  transition: var(--transition-control);
+}
+.jds-miniswitch[data-on] {
+  background: var(--accent);
+}
+.jds-miniswitch > span {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--white);
+  box-shadow: var(--shadow-xs);
+  transition: left 0.18s cubic-bezier(0.32, 0.72, 0, 1);
+}
+.jds-miniswitch[data-on] > span {
+  left: 14px;
+}
+@media (prefers-reduced-motion: reduce) {
+  .jds-usermenu__pop,
+  .jds-miniswitch > span {
+    animation: none;
+    transition: none;
+  }
+}
