@@ -1,139 +1,213 @@
 import { useQuery } from "@tanstack/react-query";
-import { Bot, Brain, LoaderCircle, Plus, Send, UserCircle, X } from "lucide-react";
-import { type FormEvent, useState } from "react";
+import { ArrowUp, ChevronDown, History, MessageSquare, Sparkles, SquarePen, X } from "lucide-react";
+import { type KeyboardEvent, useState } from "react";
 
-import { clearChat, listChatThreads, sendChatTurn } from "../api/client";
+import {
+  clearChat,
+  listCalendarEvents,
+  listChatThreads,
+  listTasks,
+  sendChatTurn
+} from "../api/client";
 import { queryKeys } from "../api/query-keys";
 import { ActionRequestCard } from "./action-request-card";
-import { MemoryPanel } from "./memory-panel";
-import type { TranscriptRecord } from "./use-chat-stream";
+import { buildChatSeeds } from "./seeds";
+import type { ChatRecordKind, TranscriptRecord } from "./use-chat-stream";
 
 /**
- * Live chat drawer: a global slide-out panel mounted in the app shell. Sends user turns
- * to POST /api/chat/turn; the SSE stream (use-chat-stream) is the single source of truth
- * for rendered records. The backend emits both the user echo and the assistant reply
- * over the stream, so Send only POSTs the turn — it does NOT append the POST response,
- * which would double-render every turn.
+ * Live chat drawer, styled to the Jarvis Design System (`chatd-*`). A global slide-out
+ * panel mounted in the app shell. Sends user turns to POST /api/chat/turn; the SSE stream
+ * (use-chat-stream, lifted to the shell) is the single source of truth for rendered
+ * records, so Send only POSTs the turn — it does NOT append the POST response.
  *
- * The stream + records live in the shell (lifted above this component) so the transcript
- * keeps streaming and persists while the drawer is closed and as the user navigates
- * between pages — the chat follows the user. This component only renders the chrome.
+ * Non-modal by design: no full-screen scrim, so the rest of the app (including nav) stays
+ * interactive and the chat keeps following the user across pages.
+ *
+ * Two views: `chat` (the live conversation + composer) and `history` (the session list —
+ * new or past). Resuming a past session is a follow-up slice (#218); for now the history
+ * view lists threads but does not load them.
  */
+type DrawerView = "chat" | "history";
+
 export function ChatDrawer(props: {
   readonly open: boolean;
   readonly onClose: () => void;
   readonly records: readonly TranscriptRecord[];
   readonly clearRecords: () => void;
 }) {
-  const [showMemory, setShowMemory] = useState(false);
+  const [view, setView] = useState<DrawerView>("chat");
+  const [resuming, setResuming] = useState<string | null>(null);
+  const threadsQuery = useQuery({
+    queryKey: queryKeys.chat.threads,
+    queryFn: () => listChatThreads(),
+    enabled: props.open
+  });
+  const threads = threadsQuery.data?.threads ?? [];
 
   if (!props.open) {
     return null;
   }
 
-  // Non-modal: no full-screen scrim. The drawer floats over the right edge while the
-  // rest of the app (including the nav) stays interactive, so it can stay open as the
-  // user moves between pages — a support-chat-style widget. Close via the X or the toggle.
+  const startNewChat = () => {
+    void clearChat();
+    props.clearRecords();
+    setResuming(null);
+    setView("chat");
+  };
+
+  // Stub seam for session resumption (#218): selecting a past thread flips to the chat
+  // view and shows a placeholder. Loading the thread's stored messages + seeding the CLI
+  // with a summary is the follow-up slice; this just wires the click.
+  const handleResume = (thread: { readonly title: string }) => {
+    setResuming(thread.title);
+    setView("chat");
+  };
+
   return (
-    <aside className="chat-drawer" aria-label="Live chat">
-      <div className="chat-drawer-header">
-        <div className="panel-heading">
-          <Bot size={20} aria-hidden="true" />
-          <h2>Live chat</h2>
-        </div>
-        <span className="provider-indicator" aria-label="Active provider">
-          CLI
+    <aside className="chatd" role="dialog" aria-label="Chat with Jarvis">
+      <div className="chatd__head">
+        <span className="chatd__mark">
+          <Sparkles size={16} aria-hidden="true" />
         </span>
+        <div className="chatd__id">
+          <div className="chatd__name">{view === "history" ? "Past chats" : "Jarvis"}</div>
+          <div className="chatd__status">
+            {view === "history"
+              ? `${threads.length} ${threads.length === 1 ? "conversation" : "conversations"}`
+              : "Here when you need me"}
+          </div>
+        </div>
+        {view === "chat" ? (
+          <button
+            aria-label="Past chats"
+            className="chatd__hbtn"
+            title="Past chats"
+            type="button"
+            onClick={() => setView("history")}
+          >
+            <History size={17} aria-hidden="true" />
+          </button>
+        ) : (
+          <button
+            aria-label="New chat"
+            className="chatd__hbtn is-on"
+            title="New chat"
+            type="button"
+            onClick={startNewChat}
+          >
+            <SquarePen size={16} aria-hidden="true" />
+          </button>
+        )}
         <button
-          aria-label="My Memory"
-          className="icon-button"
-          type="button"
-          onClick={() => setShowMemory((v) => !v)}
-        >
-          <Brain size={18} aria-hidden="true" />
-        </button>
-        <button
-          aria-label="Close live chat"
-          className="icon-button"
+          aria-label="Close chat"
+          className="chatd__hbtn"
+          title="Close"
           type="button"
           onClick={props.onClose}
         >
-          <X size={18} aria-hidden="true" />
+          <X size={17} aria-hidden="true" />
         </button>
       </div>
 
-      {showMemory ? (
-        <MemoryPanel onClose={() => setShowMemory(false)} />
-      ) : (
-        <>
-          <NewChatButton onCleared={props.clearRecords} />
-          <RecordLog records={props.records} />
-          <ThreadHistory />
-          <DrawerComposer />
-        </>
-      )}
+      <div className="chatd__body">
+        {view === "history" ? (
+          <SessionList threads={threads} onResume={handleResume} />
+        ) : props.records.length > 0 ? (
+          <Thread records={props.records} />
+        ) : resuming ? (
+          <ResumeNotice title={resuming} />
+        ) : (
+          <EmptyState />
+        )}
+      </div>
+
+      {view === "chat" ? <Composer /> : null}
     </aside>
   );
 }
 
-function NewChatButton(props: { readonly onCleared: () => void }) {
-  const [pending, setPending] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  const handleClick = async (incognito?: boolean) => {
-    setPending(true);
-    setError(null);
-    try {
-      await clearChat(incognito ? { incognito: true } : undefined);
-      props.onCleared();
-    } catch (caught) {
-      setError(caught instanceof Error ? caught.message : "Could not start a new chat");
-    } finally {
-      setPending(false);
-    }
-  };
-
+/** The live conversation. Consecutive behind-the-scenes records (thinking/tool/status and
+ *  resolved action results) collapse into one peek; replies and pending action requests
+ *  stay front-and-centre. */
+function Thread(props: { readonly records: readonly TranscriptRecord[] }) {
   return (
-    <div className="chat-drawer-actions">
-      <button
-        className="ghost-button"
-        disabled={pending}
-        type="button"
-        onClick={() => void handleClick()}
-      >
-        {pending ? (
-          <LoaderCircle className="spin" size={16} aria-hidden="true" />
+    <div className="chatd-thread" aria-live="polite">
+      {groupRecords(props.records).map((item, index) =>
+        item.type === "activity" ? (
+          <ActivityPeek key={index} records={item.records} />
         ) : (
-          <Plus size={16} aria-hidden="true" />
-        )}
-        New chat
-      </button>
-      <button
-        className="ghost-button"
-        disabled={pending}
-        type="button"
-        onClick={() => void handleClick(true)}
-        title="Temporary — not saved to memory"
-      >
-        Temporary
-      </button>
-      {error ? <p className="form-error">{error}</p> : null}
+          <RecordRow key={index} record={item.record} />
+        )
+      )}
     </div>
   );
 }
 
-function RecordLog(props: { readonly records: readonly TranscriptRecord[] }) {
-  if (props.records.length === 0) {
-    return <div className="empty-state">Send a message to start chatting</div>;
-  }
+const ACTIVITY_KINDS: ReadonlySet<ChatRecordKind> = new Set<ChatRecordKind>([
+  "thinking",
+  "tool",
+  "status",
+  "action_result"
+]);
 
+type RenderItem =
+  | { readonly type: "record"; readonly record: TranscriptRecord }
+  | { readonly type: "activity"; readonly records: readonly TranscriptRecord[] };
+
+/** Coalesce runs of behind-the-scenes records into a single collapsible group. A pending
+ *  action_request (interactive) flushes the run so it always renders visibly. */
+function groupRecords(records: readonly TranscriptRecord[]): RenderItem[] {
+  const items: RenderItem[] = [];
+  let buffer: TranscriptRecord[] = [];
+
+  const flush = () => {
+    if (buffer.length > 0) {
+      items.push({ type: "activity", records: buffer });
+      buffer = [];
+    }
+  };
+
+  for (const record of records) {
+    if (ACTIVITY_KINDS.has(record.kind) && record.kind !== "action_request") {
+      buffer.push(record);
+    } else {
+      flush();
+      items.push({ type: "record", record });
+    }
+  }
+  flush();
+  return items;
+}
+
+function ActivityPeek(props: { readonly records: readonly TranscriptRecord[] }) {
+  const count = props.records.length;
   return (
-    <div className="chat-messages" aria-live="polite">
-      {props.records.map((record, index) => (
-        <RecordRow key={index} record={record} />
-      ))}
-    </div>
+    <details className="chatd-peek">
+      <summary className="chatd-peek__summary">
+        <Sparkles size={13} aria-hidden="true" />
+        <span className="chatd-peek__label">Behind the scenes</span>
+        <span className="chatd-peek__count">
+          {count} {count === 1 ? "step" : "steps"}
+        </span>
+        <ChevronDown className="chatd-peek__chev" size={14} aria-hidden="true" />
+      </summary>
+      <div className="chatd-peek__body">
+        {props.records.map((record, index) => (
+          <div className="chatd-peek__line" key={index}>
+            <span className="chatd-peek__kind">{activityVerb(record)}</span>
+            {record.text}
+          </div>
+        ))}
+      </div>
+    </details>
   );
+}
+
+function activityVerb(record: TranscriptRecord): string {
+  if (record.kind === "action_result") {
+    return record.outcome === "executed" ? "Executed" : "Denied";
+  }
+  return `${record.kind} ·`;
 }
 
 function RecordRow(props: { readonly record: TranscriptRecord }) {
@@ -143,44 +217,17 @@ function RecordRow(props: { readonly record: TranscriptRecord }) {
     return (
       <ActionRequestCard
         actionRequestId={props.record.actionRequestId}
-        toolName={props.record.toolName ?? kind}
         summary={props.record.summary ?? text}
+        toolName={props.record.toolName ?? kind}
       />
-    );
-  }
-
-  if (kind === "action_result") {
-    const verb = props.record.outcome === "executed" ? "Executed" : "Denied";
-    return (
-      <p className="muted-text chat-activity-line">
-        {verb}: {props.record.toolName ?? "tool"}
-      </p>
     );
   }
 
   if (kind === "user") {
     return (
-      <article className="chat-message user">
-        <div className="chat-message-icon" aria-hidden="true">
-          <UserCircle size={18} />
-        </div>
-        <div>
-          <p>{text}</p>
-        </div>
-      </article>
-    );
-  }
-
-  if (kind === "reply") {
-    return (
-      <article className="chat-message assistant">
-        <div className="chat-message-icon" aria-hidden="true">
-          <Bot size={18} />
-        </div>
-        <div>
-          <p>{text}</p>
-        </div>
-      </article>
+      <div className="chatd-msg chatd-msg--me">
+        <div className="chatd-bubble">{text}</div>
+      </div>
     );
   }
 
@@ -188,87 +235,181 @@ function RecordRow(props: { readonly record: TranscriptRecord }) {
     return <p className="form-error">{text}</p>;
   }
 
+  // reply (and any unforeseen non-activity kind) — assistant bubble.
   return (
-    <p className="muted-text chat-activity-line">
-      {kind}: {text}
-    </p>
+    <div className="chatd-msg">
+      <span className="chatd-msg__av">
+        <Sparkles size={14} aria-hidden="true" />
+      </span>
+      <div className="chatd-bubble">{text}</div>
+    </div>
   );
 }
 
-function ThreadHistory() {
-  const threadsQuery = useQuery({
-    queryKey: queryKeys.chat.threads,
-    queryFn: () => listChatThreads()
+function EmptyState() {
+  const tasksQuery = useQuery({ queryKey: queryKeys.tasks.list, queryFn: () => listTasks() });
+  const eventsQuery = useQuery({
+    queryKey: queryKeys.calendar.list,
+    queryFn: () => listCalendarEvents()
   });
-  const threads = threadsQuery.data?.threads ?? [];
 
-  if (threads.length === 0) {
-    return null;
+  const seeds = buildChatSeeds(tasksQuery.data?.tasks ?? [], eventsQuery.data?.events ?? []);
+
+  return (
+    <div className="chatd-empty">
+      <span className="chatd-empty__mark">
+        <Sparkles size={22} aria-hidden="true" />
+      </span>
+      <div className="chatd-empty__title">What can I help with?</div>
+      <div className="chatd-empty__sub">
+        Ask about your day, your tasks, or anything you&apos;ve told me.
+      </div>
+      <div className="chatd-sugg">
+        {seeds.map((seed) => (
+          <button
+            className="chatd-sugg__btn"
+            key={seed}
+            type="button"
+            onClick={() => void sendChatTurn(seed)}
+          >
+            {seed}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+interface ThreadSummary {
+  readonly id: string;
+  readonly title: string;
+  readonly updatedAt: string;
+}
+
+function SessionList(props: {
+  readonly threads: readonly ThreadSummary[];
+  readonly onResume: (thread: ThreadSummary) => void;
+}) {
+  if (props.threads.length === 0) {
+    return <div className="chatd-empty__sub chatd-sess__empty">No past conversations yet.</div>;
   }
 
   return (
-    <details className="chat-history">
-      <summary>History ({threads.length})</summary>
-      <div className="chat-thread-list">
-        {threads.map((thread) => (
-          <div className="chat-thread-button" key={thread.id}>
-            <span>{thread.title}</span>
+    <div className="chatd-sess">
+      <div className="chatd-sess__hd">Resume a conversation</div>
+      {props.threads.map((thread) => (
+        <button
+          className="chatd-sess__row"
+          key={thread.id}
+          type="button"
+          onClick={() => props.onResume(thread)}
+        >
+          <span className="chatd-sess__ic">
+            <MessageSquare size={15} aria-hidden="true" />
+          </span>
+          <div className="chatd-sess__main">
+            <div className="chatd-sess__title">{thread.title}</div>
           </div>
-        ))}
-      </div>
-    </details>
+          <span className="chatd-sess__when">{relativeWhen(thread.updatedAt)}</span>
+        </button>
+      ))}
+    </div>
   );
 }
 
-function DrawerComposer() {
+/** Placeholder shown after selecting a past session. Real message loading lands in #218. */
+function ResumeNotice(props: { readonly title: string }) {
+  return (
+    <div className="chatd-empty">
+      <span className="chatd-empty__mark">
+        <MessageSquare size={20} aria-hidden="true" />
+      </span>
+      <div className="chatd-empty__title">{props.title}</div>
+      <div className="chatd-empty__sub">
+        Picking up where you left off — your earlier messages will load here soon. Send a message to
+        keep the conversation going.
+      </div>
+    </div>
+  );
+}
+
+function Composer() {
   const [text, setText] = useState("");
-  const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
+  const send = async () => {
     const trimmed = text.trim();
-    if (!trimmed || pending) {
+    if (!trimmed) {
       return;
     }
-
-    setPending(true);
-    setError(null);
     setText("");
-
+    setError(null);
     try {
-      // Fire-and-render: the user echo and the assistant reply both arrive over
-      // the SSE stream (the single source of truth), so we do not append the POST
-      // response here — doing so would render every turn twice.
+      // Fire-and-render: the user echo and the assistant reply both arrive over the SSE
+      // stream (the single source of truth), so we do not append the POST response here.
       await sendChatTurn(trimmed);
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "Could not send message");
-    } finally {
-      setPending(false);
+    }
+  };
+
+  const onKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
+    if (event.key === "Enter" && !event.shiftKey) {
+      event.preventDefault();
+      void send();
     }
   };
 
   return (
-    <form className="chat-composer" onSubmit={(event) => void handleSubmit(event)}>
-      <label>
-        Message
-        <input
-          aria-label="Message"
+    <div className="chatd__composer">
+      {error ? <p className="form-error">{error}</p> : null}
+      <div className="chatd-input">
+        <textarea
+          aria-label="Message Jarvis"
           onChange={(event) => setText(event.target.value)}
-          placeholder="Type a message"
-          type="text"
+          onKeyDown={onKeyDown}
+          placeholder="Message Jarvis…"
+          rows={1}
           value={text}
         />
-      </label>
-      {error ? <p className="form-error">{error}</p> : null}
-      <button className="primary-button" disabled={pending} type="submit">
-        {pending ? (
-          <LoaderCircle className="spin" size={18} aria-hidden="true" />
-        ) : (
-          <Send size={18} aria-hidden="true" />
-        )}
-        Send
-      </button>
-    </form>
+        <button
+          aria-label="Send"
+          className="chatd-send"
+          disabled={!text.trim()}
+          type="button"
+          onClick={() => void send()}
+        >
+          <ArrowUp size={17} aria-hidden="true" />
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function relativeWhen(iso: string): string {
+  const then = new Date(iso).getTime();
+  if (Number.isNaN(then)) {
+    return "";
+  }
+  const minutes = Math.floor((Date.now() - then) / 60000);
+  if (minutes < 1) {
+    return "now";
+  }
+  if (minutes < 60) {
+    return `${minutes}m`;
+  }
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) {
+    return `${hours}h`;
+  }
+  const days = Math.floor(hours / 24);
+  if (days === 1) {
+    return "Yesterday";
+  }
+  if (days < 7) {
+    return `${days}d`;
+  }
+  return new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric" }).format(
+    new Date(iso)
   );
 }

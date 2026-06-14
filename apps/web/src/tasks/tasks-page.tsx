@@ -1,47 +1,56 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import type { TaskDefaultView, TaskDto, TaskTagDto } from "@jarv1s/shared";
+import type { TaskDefaultView, TaskDto } from "@jarv1s/shared";
 import {
-  Check,
+  CheckCheck,
+  ChevronDown,
+  Layers,
   LayoutGrid,
   List as ListIcon,
   LoaderCircle,
-  Pencil,
-  Plus,
   Search,
-  Trash2,
-  X
+  Tag
 } from "lucide-react";
-import { type FormEvent, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { useSearchParams } from "react-router";
 
 import {
-  ApiError,
-  createTaskList,
-  createTaskTag,
-  deleteTaskList,
-  deleteTaskTag,
   getTaskPreferences,
   listTaskLists,
   listTasks,
-  listTaskTags,
-  renameTaskList,
-  renameTaskTag,
   updateTask,
   updateTaskPreferences
 } from "../api/client";
 import { queryKeys } from "../api/query-keys";
+import { FOCUS_LABELS, isTaskFocus, matchesFocus } from "./focus";
 import { TaskCapture } from "./task-capture";
+import { TaskDetailsDialog } from "./task-details-dialog";
 import { TaskListView } from "./task-list-view";
 import { TaskMatrixView } from "./task-matrix-view";
 import { statusLabels } from "./task-format";
 
 const statusFilters = ["all", "todo", "done", "archived"] as const;
 type StatusFilter = (typeof statusFilters)[number];
+type ListState = "included" | "solo" | "excluded";
 
 export function TasksPage() {
   const queryClient = useQueryClient();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const focusParam = searchParams.get("focus");
+  const focus = isTaskFocus(focusParam) ? focusParam : null;
+  const clearFocus = () =>
+    setSearchParams(
+      (prev) => {
+        prev.delete("focus");
+        return prev;
+      },
+      { replace: true }
+    );
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("todo");
   const [search, setSearch] = useState("");
-  const [activeListId, setActiveListId] = useState<string | null>(null);
+  const [listStates, setListStates] = useState<Record<string, ListState>>({});
+  const [tagFilter, setTagFilter] = useState<string[]>([]);
+  // Modal: null = closed; { id: string } = edit; { id: null } = create.
+  const [dialog, setDialog] = useState<{ readonly id: string | null } | null>(null);
 
   const tasksQuery = useQuery({ queryKey: queryKeys.tasks.list, queryFn: () => listTasks() });
   const listsQuery = useQuery({ queryKey: queryKeys.tasks.lists, queryFn: listTaskLists });
@@ -51,6 +60,8 @@ export function TasksPage() {
   });
 
   const view: TaskDefaultView = prefsQuery.data?.preferences.defaultView ?? "priority";
+  const lists = listsQuery.data?.lists ?? [];
+  const allTasks = tasksQuery.data?.tasks ?? [];
 
   const viewMutation = useMutation({
     mutationFn: (next: TaskDefaultView) => updateTaskPreferences({ defaultView: next }),
@@ -67,12 +78,32 @@ export function TasksPage() {
     }
   });
 
+  const stateOf = (listId: string): ListState => listStates[listId] ?? "included";
+  const soloIds = lists.filter((list) => stateOf(list.id) === "solo").map((list) => list.id);
+  const anySolo = soloIds.length > 0;
+
+  // All tag names present across the loaded tasks (the filterable universe).
+  const allTags = useMemo(() => {
+    const set = new Set<string>();
+    for (const task of allTasks) for (const tag of task.tags) set.add(tag.name);
+    return [...set].sort((a, b) => a.localeCompare(b));
+  }, [allTasks]);
+
   const visibleTasks = useMemo(() => {
     const needle = search.trim().toLowerCase();
-    return (tasksQuery.data?.tasks ?? []).filter((task) => {
-      if (task.parentTaskId !== null) return false; // subtasks render on the detail page
-      if (activeListId && task.listId !== activeListId) return false;
-      if (statusFilter !== "all" && task.status !== statusFilter) return false;
+    return allTasks.filter((task) => {
+      if (task.parentTaskId !== null) return false; // subtasks live in the detail modal
+      if (focus) {
+        if (!matchesFocus(task, focus)) return false; // focus preset owns the status logic
+      } else if (statusFilter !== "all" && task.status !== statusFilter) {
+        return false;
+      }
+      const st = listStates[task.listId] ?? "included";
+      if (st === "excluded") return false;
+      if (anySolo && st !== "solo") return false;
+      if (tagFilter.length && !tagFilter.some((name) => task.tags.some((t) => t.name === name))) {
+        return false;
+      }
       if (
         needle &&
         !task.title.toLowerCase().includes(needle) &&
@@ -82,455 +113,374 @@ export function TasksPage() {
       }
       return true;
     });
-  }, [activeListId, search, statusFilter, tasksQuery.data?.tasks]);
+  }, [allTasks, anySolo, focus, listStates, search, statusFilter, tagFilter]);
+
+  // Per-list counts for the dropdown — respect status + tag filters, ignore the list filter.
+  const listCounts = useMemo(() => {
+    const base = allTasks.filter(
+      (task) =>
+        task.parentTaskId === null &&
+        (statusFilter === "all" || task.status === statusFilter) &&
+        (!tagFilter.length || tagFilter.some((name) => task.tags.some((t) => t.name === name)))
+    );
+    const counts: Record<string, number> = {};
+    for (const list of lists) counts[list.id] = base.filter((t) => t.listId === list.id).length;
+    return { counts, total: base.length };
+  }, [allTasks, lists, statusFilter, tagFilter]);
+
+  const cycleList = (id: string) =>
+    setListStates((s) => {
+      const cur = s[id] ?? "included";
+      const next: ListState =
+        cur === "included" ? "solo" : cur === "solo" ? "excluded" : "included";
+      return { ...s, [id]: next };
+    });
 
   return (
-    <section className="page-stack" aria-labelledby="tasks-title">
-      <div className="page-heading">
-        <div>
-          <p className="eyebrow">Tasks</p>
-          <h1 id="tasks-title">Tasks</h1>
+    <section className="tasks-wrap tasks--comfortable tasks--panels" aria-label="Tasks">
+      <div className="tk-bar">
+        <div className="jds-segmented" role="group" aria-label="Status filter">
+          {statusFilters.map((status) => (
+            <button
+              aria-pressed={!focus && statusFilter === status}
+              className={`jds-segmented__opt ${!focus && statusFilter === status ? "is-active" : ""}`}
+              key={status}
+              onClick={() => {
+                setStatusFilter(status);
+                clearFocus();
+              }}
+              type="button"
+            >
+              {status === "all" ? "All" : statusLabels[status]}
+            </button>
+          ))}
         </div>
-        <div className="segmented-control" role="group" aria-label="View">
+
+        <span className="tk-bar__sep" />
+
+        <ListFilterMenu
+          lists={lists}
+          stateOf={stateOf}
+          soloIds={soloIds}
+          counts={listCounts.counts}
+          allCount={listCounts.total}
+          onCycle={cycleList}
+          onReset={() => setListStates({})}
+        />
+
+        <TagFilter
+          all={allTags}
+          active={tagFilter}
+          onAdd={(name) => setTagFilter((a) => (a.includes(name) ? a : [...a, name]))}
+        />
+
+        <label className="tk-tagfield">
+          <span className="ic">
+            <Search size={14} aria-hidden="true" />
+          </span>
+          <input
+            aria-label="Search tasks"
+            onChange={(event) => setSearch(event.target.value)}
+            placeholder="Search tasks…"
+            type="search"
+            value={search}
+          />
+        </label>
+
+        <span className="tk-bar__spacer" />
+
+        <div className="jds-segmented" role="group" aria-label="View">
           <button
             aria-pressed={view === "priority"}
-            className={view === "priority" ? "active" : ""}
+            className={`jds-segmented__opt ${view === "priority" ? "is-active" : ""}`}
             disabled={viewMutation.isPending}
             onClick={() => viewMutation.mutate("priority")}
             type="button"
           >
-            <ListIcon size={16} aria-hidden="true" /> Priority
+            <ListIcon size={15} aria-hidden="true" /> List
           </button>
           <button
             aria-pressed={view === "matrix"}
-            className={view === "matrix" ? "active" : ""}
+            className={`jds-segmented__opt ${view === "matrix" ? "is-active" : ""}`}
             disabled={viewMutation.isPending}
             onClick={() => viewMutation.mutate("matrix")}
             type="button"
           >
-            <LayoutGrid size={16} aria-hidden="true" /> Matrix
+            <LayoutGrid size={15} aria-hidden="true" /> Matrix
           </button>
         </div>
       </div>
 
-      <div className="panel">
-        <TaskCapture defaultListId={activeListId ?? undefined} />
-      </div>
-
-      <div className="tasks-body">
-        <aside className="tasks-sidebar" aria-label="Lists">
-          <ListSidebar
-            activeListId={activeListId}
-            lists={listsQuery.data?.lists ?? []}
-            onSelect={setActiveListId}
-          />
-        </aside>
-
-        <div className="tasks-main">
-          <section className="task-toolbar" aria-label="Filters">
-            <div className="segmented-control wide" aria-label="Status filter">
-              {statusFilters.map((status) => (
-                <button
-                  className={statusFilter === status ? "active" : ""}
-                  key={status}
-                  onClick={() => setStatusFilter(status)}
-                  type="button"
-                >
-                  {status === "all" ? "All" : statusLabels[status]}
-                </button>
-              ))}
-            </div>
-            <label className="search-box">
-              <Search size={18} aria-hidden="true" />
-              <input
-                aria-label="Search tasks"
-                onChange={(event) => setSearch(event.target.value)}
-                placeholder="Search tasks"
-                type="search"
-                value={search}
-              />
-            </label>
-          </section>
-
-          {tasksQuery.isLoading ? (
-            <div className="empty-state">
-              <LoaderCircle className="spin" size={22} aria-hidden="true" />
-              <p>Loading tasks</p>
-            </div>
-          ) : visibleTasks.length === 0 ? (
-            <div className="empty-state">
-              <p>No tasks</p>
-            </div>
-          ) : view === "matrix" ? (
-            <TaskMatrixView
-              tasks={visibleTasks}
-              isUpdating={updateMutation.isPending}
-              onToggleDone={(task) => updateMutation.mutate(task)}
-            />
-          ) : (
-            <TaskListView
-              tasks={visibleTasks}
-              isUpdating={updateMutation.isPending}
-              onToggleDone={(task) => updateMutation.mutate(task)}
-            />
-          )}
+      {focus ? (
+        <div className="tk-activetags">
+          <span className="tk-activetags__lbl">Focus</span>
+          <span className="jds-chip">
+            {FOCUS_LABELS[focus]}
+            <button
+              type="button"
+              className="jds-chip__x"
+              aria-label="Clear focus"
+              onClick={clearFocus}
+            >
+              <svg
+                viewBox="0 0 24 24"
+                width="13"
+                height="13"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2.2"
+                strokeLinecap="round"
+              >
+                <path d="M18 6 6 18M6 6l12 12" />
+              </svg>
+            </button>
+          </span>
         </div>
-      </div>
+      ) : null}
+
+      {tagFilter.length > 0 ? (
+        <div className="tk-activetags">
+          <span className="tk-activetags__lbl">Tags</span>
+          {tagFilter.map((name) => (
+            <span key={name} className="jds-chip">
+              <span style={{ fontFamily: "var(--font-mono)", color: "var(--text-faint)" }}>#</span>
+              {name}
+              <button
+                type="button"
+                className="jds-chip__x"
+                aria-label={`Remove ${name}`}
+                onClick={() => setTagFilter((a) => a.filter((x) => x !== name))}
+              >
+                <svg
+                  viewBox="0 0 24 24"
+                  width="13"
+                  height="13"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2.2"
+                  strokeLinecap="round"
+                >
+                  <path d="M18 6 6 18M6 6l12 12" />
+                </svg>
+              </button>
+            </span>
+          ))}
+          <button type="button" className="tk-activetags__clear" onClick={() => setTagFilter([])}>
+            Clear
+          </button>
+        </div>
+      ) : null}
+
+      <TaskCapture
+        defaultListId={soloIds.length === 1 ? soloIds[0] : undefined}
+        onDetails={() => setDialog({ id: null })}
+      />
+
+      {tasksQuery.isLoading ? (
+        <div className="tk-empty">
+          <span className="tk-empty__mark">
+            <LoaderCircle className="spin" size={24} aria-hidden="true" />
+          </span>
+          <div className="tk-empty__title">Loading tasks</div>
+        </div>
+      ) : visibleTasks.length === 0 ? (
+        <div className="tk-empty">
+          <span className="tk-empty__mark">
+            <CheckCheck size={24} aria-hidden="true" />
+          </span>
+          <div className="tk-empty__title">No tasks match</div>
+          <div className="tk-empty__sub">Try clearing a filter or two.</div>
+        </div>
+      ) : view === "matrix" ? (
+        <TaskMatrixView
+          tasks={visibleTasks}
+          lists={lists}
+          isUpdating={updateMutation.isPending}
+          onToggleDone={(task) => updateMutation.mutate(task)}
+          onOpen={(task) => setDialog({ id: task.id })}
+        />
+      ) : (
+        <TaskListView
+          tasks={visibleTasks}
+          lists={lists}
+          isUpdating={updateMutation.isPending}
+          onToggleDone={(task) => updateMutation.mutate(task)}
+          onOpen={(task) => setDialog({ id: task.id })}
+        />
+      )}
+
+      {dialog ? (
+        <TaskDetailsDialog
+          open
+          taskId={dialog.id}
+          defaultListId={soloIds.length === 1 ? soloIds[0] : lists[0]?.id}
+          currentUserLabel="You"
+          lists={lists}
+          onClose={() => setDialog(null)}
+        />
+      ) : null}
     </section>
   );
 }
 
-function ListSidebar(props: {
+/** Lists filter — tri-state per list: include → solo (focus, dim others) → exclude (hide). */
+function ListFilterMenu(props: {
   readonly lists: readonly { readonly id: string; readonly name: string }[];
-  readonly activeListId: string | null;
-  readonly onSelect: (id: string | null) => void;
+  readonly stateOf: (id: string) => ListState;
+  readonly soloIds: readonly string[];
+  readonly counts: Record<string, number>;
+  readonly allCount: number;
+  readonly onCycle: (id: string) => void;
+  readonly onReset: () => void;
 }) {
-  const queryClient = useQueryClient();
-  const [newList, setNewList] = useState("");
-  const [newTag, setNewTag] = useState("");
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
 
-  const createListMutation = useMutation({
-    mutationFn: () => createTaskList({ name: newList.trim() }),
-    onSuccess: async () => {
-      setNewList("");
-      await queryClient.invalidateQueries({ queryKey: queryKeys.tasks.lists });
-    }
-  });
+  useEffect(() => {
+    if (!open) return;
+    const onDoc = (event: MouseEvent) => {
+      if (ref.current && !ref.current.contains(event.target as Node)) setOpen(false);
+    };
+    document.addEventListener("mousedown", onDoc);
+    return () => document.removeEventListener("mousedown", onDoc);
+  }, [open]);
 
-  const tagsQuery = useQuery({
-    enabled: Boolean(props.activeListId),
-    queryKey: queryKeys.tasks.tags(props.activeListId ?? ""),
-    queryFn: () => listTaskTags(props.activeListId ?? "")
-  });
+  const excluded = props.lists.filter((list) => props.stateOf(list.id) === "excluded");
+  const anySolo = props.soloIds.length > 0;
+  const clean = !anySolo && excluded.length === 0;
+  const soloed = props.lists.filter((list) => props.stateOf(list.id) === "solo");
 
-  const createTagMutation = useMutation({
-    mutationFn: () => createTaskTag(props.activeListId ?? "", { name: newTag.trim() }),
-    onSuccess: async () => {
-      setNewTag("");
-      if (props.activeListId) {
-        await queryClient.invalidateQueries({ queryKey: queryKeys.tasks.tags(props.activeListId) });
-      }
-    }
-  });
-
-  const submitList = (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    if (newList.trim()) createListMutation.mutate();
-  };
-  const submitTag = (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    if (newTag.trim() && props.activeListId) createTagMutation.mutate();
-  };
+  let label = "All lists";
+  let hidden = 0;
+  if (soloed.length === 1) label = soloed[0]?.name ?? "All lists";
+  else if (soloed.length > 1) label = `${soloed.length} lists`;
+  else if (excluded.length) hidden = excluded.length;
 
   return (
-    <>
-      <h2 className="sidebar-title">Lists</h2>
-      <ul className="list-nav">
-        <li>
+    <div className="tk-listfilter" ref={ref}>
+      <button
+        type="button"
+        className={`tk-listbtn ${open ? "is-open" : ""} ${!clean ? "is-on" : ""}`}
+        onClick={() => setOpen((o) => !o)}
+      >
+        <Layers size={14} aria-hidden="true" />
+        {label}
+        {hidden ? <span className="tk-listbtn__hidden"> · {hidden} hidden</span> : null}
+        <span className="tk-listbtn__chev">
+          <ChevronDown size={14} aria-hidden="true" />
+        </span>
+      </button>
+      {open ? (
+        <div className="tk-tagmenu" style={{ minWidth: 234 }}>
           <button
-            className={props.activeListId === null ? "active" : ""}
-            onClick={() => props.onSelect(null)}
             type="button"
+            className={`tk-tagmenu__item ${clean ? "is-active" : ""}`}
+            onClick={props.onReset}
           >
-            All
+            <Layers size={14} aria-hidden="true" />
+            <span className="nm">All lists</span>
+            <span className="ct">{props.allCount}</span>
           </button>
-        </li>
-        {props.lists.map((list) => (
-          <ListRow
-            activeListId={props.activeListId}
-            allLists={props.lists}
-            key={list.id}
-            list={list}
-            onSelect={props.onSelect}
-          />
-        ))}
-      </ul>
-
-      <form className="sidebar-form" onSubmit={submitList}>
-        <input
-          aria-label="New list name"
-          onChange={(event) => setNewList(event.target.value)}
-          placeholder="New list"
-          type="text"
-          value={newList}
-        />
-        <button
-          aria-label="Add list"
-          className="icon-button"
-          disabled={createListMutation.isPending}
-          type="submit"
-        >
-          <Plus size={16} aria-hidden="true" />
-        </button>
-      </form>
-
-      {props.activeListId ? (
-        <div className="sidebar-tags">
-          <h3 className="sidebar-subtitle">Tags</h3>
-          <ul className="tag-list">
-            {(tagsQuery.data?.tags ?? []).map((tag) => (
-              <TagRow key={tag.id} listId={props.activeListId ?? ""} tag={tag} />
-            ))}
-          </ul>
-          <form className="sidebar-form" onSubmit={submitTag}>
-            <input
-              aria-label="New tag name"
-              onChange={(event) => setNewTag(event.target.value)}
-              placeholder="New tag"
-              type="text"
-              value={newTag}
-            />
-            <button
-              aria-label="Add tag"
-              className="icon-button"
-              disabled={createTagMutation.isPending}
-              type="submit"
-            >
-              <Plus size={16} aria-hidden="true" />
-            </button>
-          </form>
+          <div className="tk-tagmenu__hd">Your lists</div>
+          {props.lists.map((list) => {
+            const st = props.stateOf(list.id);
+            const cls =
+              st === "solo"
+                ? "is-solo"
+                : st === "excluded"
+                  ? "is-excluded"
+                  : anySolo
+                    ? "is-dim"
+                    : "";
+            return (
+              <button
+                key={list.id}
+                type="button"
+                className={`tk-tagmenu__item ${cls}`}
+                onClick={() => props.onCycle(list.id)}
+              >
+                <span className="tk-listbtn__dot" style={{ background: "var(--pine)" }} />
+                <span className="nm">{list.name}</span>
+                {st === "solo" ? (
+                  <span className="tk-liststate tk-liststate--only">Only</span>
+                ) : st === "excluded" ? (
+                  <span className="tk-liststate tk-liststate--hidden">Hidden</span>
+                ) : null}
+                <span className="ct">{props.counts[list.id] ?? 0}</span>
+              </button>
+            );
+          })}
+          <div className="tk-tagmenu__hint">
+            Click to focus a list · again to hide it · again to reset
+          </div>
         </div>
       ) : null}
-    </>
+    </div>
   );
 }
 
-function ListRow(props: {
-  readonly list: { readonly id: string; readonly name: string };
-  readonly allLists: readonly { readonly id: string; readonly name: string }[];
-  readonly activeListId: string | null;
-  readonly onSelect: (id: string | null) => void;
+/** Tag filter — type to narrow, pick to add (OR across selected tags). */
+function TagFilter(props: {
+  readonly all: readonly string[];
+  readonly active: readonly string[];
+  readonly onAdd: (name: string) => void;
 }) {
-  const { list } = props;
-  const queryClient = useQueryClient();
-  const [editing, setEditing] = useState(false);
-  const [name, setName] = useState(list.name);
-  const [notEmpty, setNotEmpty] = useState(false);
-  const [reassignTo, setReassignTo] = useState("");
+  const [query, setQuery] = useState("");
+  const [open, setOpen] = useState(false);
+  const matches = props.all.filter(
+    (name) => !props.active.includes(name) && name.includes(query.trim().toLowerCase())
+  );
 
-  const otherLists = props.allLists.filter((other) => other.id !== list.id);
-
-  const renameMutation = useMutation({
-    mutationFn: () => renameTaskList(list.id, { name: name.trim() }),
-    onSuccess: async () => {
-      setEditing(false);
-      await queryClient.invalidateQueries({ queryKey: queryKeys.tasks.lists });
-    }
-  });
-
-  const deleteMutation = useMutation({
-    mutationFn: (reassignToListId?: string) =>
-      deleteTaskList(list.id, reassignToListId ? { reassignToListId } : undefined),
-    onSuccess: async () => {
-      setNotEmpty(false);
-      if (props.activeListId === list.id) props.onSelect(null);
-      await Promise.all([
-        queryClient.invalidateQueries({ queryKey: queryKeys.tasks.lists }),
-        queryClient.invalidateQueries({ queryKey: queryKeys.tasks.list })
-      ]);
-    },
-    onError: (error) => {
-      if (error instanceof ApiError && error.status === 409) {
-        setNotEmpty(true);
-      }
-    }
-  });
-
-  if (editing) {
-    return (
-      <li className="list-row editing">
-        <form
-          className="sidebar-form"
-          onSubmit={(event) => {
-            event.preventDefault();
-            if (name.trim()) renameMutation.mutate();
-          }}
-        >
-          <input
-            aria-label={`Rename list ${list.name}`}
-            onChange={(event) => setName(event.target.value)}
-            type="text"
-            value={name}
-          />
-          <button aria-label="Save list name" className="icon-button" type="submit">
-            <Check size={16} aria-hidden="true" />
-          </button>
-          <button
-            aria-label="Cancel rename"
-            className="icon-button"
-            onClick={() => {
-              setEditing(false);
-              setName(list.name);
-            }}
-            type="button"
-          >
-            <X size={16} aria-hidden="true" />
-          </button>
-        </form>
-      </li>
-    );
-  }
+  const pick = (name: string) => {
+    props.onAdd(name);
+    setQuery("");
+    setOpen(false);
+  };
 
   return (
-    <li className="list-row">
-      <button
-        className={props.activeListId === list.id ? "active" : ""}
-        onClick={() => props.onSelect(list.id)}
-        type="button"
-      >
-        {list.name}
-      </button>
-      <button
-        aria-label={`Rename list ${list.name}`}
-        className="icon-button"
-        onClick={() => {
-          setName(list.name);
-          setEditing(true);
-        }}
-        type="button"
-      >
-        <Pencil size={14} aria-hidden="true" />
-      </button>
-      <button
-        aria-label={`Delete list ${list.name}`}
-        className="icon-button"
-        disabled={deleteMutation.isPending}
-        onClick={() => deleteMutation.mutate(undefined)}
-        type="button"
-      >
-        <Trash2 size={14} aria-hidden="true" />
-      </button>
-      {notEmpty ? (
-        <div className="list-reassign" role="alert">
-          <p className="form-error">List is not empty.</p>
-          {otherLists.length > 0 ? (
-            <form
-              className="sidebar-form"
-              onSubmit={(event) => {
-                event.preventDefault();
-                if (reassignTo) deleteMutation.mutate(reassignTo);
-              }}
-            >
-              <select
-                aria-label="Reassign tasks to list"
-                onChange={(event) => setReassignTo(event.target.value)}
-                value={reassignTo}
-              >
-                <option value="">Move tasks to…</option>
-                {otherLists.map((other) => (
-                  <option key={other.id} value={other.id}>
-                    {other.name}
-                  </option>
-                ))}
-              </select>
+    <div className="tk-tagfilter">
+      <div className="tk-tagfield">
+        <span className="ic">
+          <Tag size={14} aria-hidden="true" />
+        </span>
+        <input
+          value={query}
+          placeholder="Filter by tag…"
+          onFocus={() => setOpen(true)}
+          onBlur={() => setTimeout(() => setOpen(false), 140)}
+          onChange={(event) => {
+            setQuery(event.target.value);
+            setOpen(true);
+          }}
+          onKeyDown={(event) => {
+            if (event.key === "Enter" && matches.length) {
+              event.preventDefault();
+              pick(matches[0] ?? "");
+            }
+          }}
+        />
+      </div>
+      {open ? (
+        <div className="tk-tagmenu">
+          <div className="tk-tagmenu__hd">{query ? "Matching tags" : "All tags"}</div>
+          {matches.length ? (
+            matches.map((name) => (
               <button
-                className="icon-button"
-                aria-label="Confirm delete and reassign"
-                disabled={!reassignTo || deleteMutation.isPending}
-                type="submit"
+                key={name}
+                type="button"
+                className="tk-tagmenu__item"
+                onMouseDown={(event) => event.preventDefault()}
+                onClick={() => pick(name)}
               >
-                <Check size={16} aria-hidden="true" />
+                <span className="hash">#</span>
+                {name}
               </button>
-            </form>
+            ))
           ) : (
-            <p className="empty-hint">No other list to move tasks to.</p>
+            <div className="tk-tagmenu__empty">No more tags{query ? ` for “${query}”` : ""}.</div>
           )}
         </div>
       ) : null}
-    </li>
-  );
-}
-
-function TagRow(props: { readonly listId: string; readonly tag: TaskTagDto }) {
-  const { listId, tag } = props;
-  const queryClient = useQueryClient();
-  const [editing, setEditing] = useState(false);
-  const [name, setName] = useState(tag.name);
-
-  const invalidate = () =>
-    queryClient.invalidateQueries({ queryKey: queryKeys.tasks.tags(listId) });
-
-  const renameMutation = useMutation({
-    mutationFn: () => renameTaskTag(listId, tag.id, { name: name.trim() }),
-    onSuccess: async () => {
-      setEditing(false);
-      // Task cards render tag names from cached TaskDto.tags, so the task list/detail
-      // caches must be refreshed too — not just the sidebar tags query (mirrors delete).
-      await Promise.all([
-        invalidate(),
-        queryClient.invalidateQueries({ queryKey: queryKeys.tasks.list })
-      ]);
-    }
-  });
-
-  const deleteMutation = useMutation({
-    mutationFn: () => deleteTaskTag(listId, tag.id),
-    onSuccess: async () => {
-      await Promise.all([
-        invalidate(),
-        queryClient.invalidateQueries({ queryKey: queryKeys.tasks.list })
-      ]);
-    }
-  });
-
-  if (editing) {
-    return (
-      <li className="tag-chip editing">
-        <form
-          className="tag-edit-form"
-          onSubmit={(event) => {
-            event.preventDefault();
-            if (name.trim()) renameMutation.mutate();
-          }}
-        >
-          <input
-            aria-label={`Rename tag ${tag.name}`}
-            onChange={(event) => setName(event.target.value)}
-            type="text"
-            value={name}
-          />
-          <button aria-label="Save tag name" className="tag-chip-action" type="submit">
-            <Check size={12} aria-hidden="true" />
-          </button>
-          <button
-            aria-label="Cancel rename"
-            className="tag-chip-action"
-            onClick={() => {
-              setEditing(false);
-              setName(tag.name);
-            }}
-            type="button"
-          >
-            <X size={12} aria-hidden="true" />
-          </button>
-        </form>
-      </li>
-    );
-  }
-
-  return (
-    <li className="tag-chip">
-      {tag.name}
-      <button
-        aria-label={`Rename tag ${tag.name}`}
-        className="tag-chip-action"
-        onClick={() => {
-          setName(tag.name);
-          setEditing(true);
-        }}
-        type="button"
-      >
-        <Pencil size={12} aria-hidden="true" />
-      </button>
-      <button
-        aria-label={`Delete tag ${tag.name}`}
-        className="tag-chip-action"
-        disabled={deleteMutation.isPending}
-        onClick={() => deleteMutation.mutate()}
-        type="button"
-      >
-        <X size={12} aria-hidden="true" />
-      </button>
-    </li>
+    </div>
   );
 }

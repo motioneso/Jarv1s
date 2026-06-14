@@ -14,11 +14,11 @@ import { queryKeys } from "./api/query-keys";
 import { AuthScreen } from "./auth/auth-screen";
 import { shouldShowOnboarding } from "./onboarding/resume";
 import { OnboardingWizard } from "./onboarding/onboarding-wizard";
-import { BriefingsPage } from "./briefings/briefings-page";
 import { CalendarPage } from "./calendar/calendar-page";
 import { NotificationsPage } from "./notifications/notifications-page";
 import { SettingsPage } from "./settings/settings-page";
 import { AppShell } from "./shell/app-shell";
+import { TodayPage } from "./today/today-page";
 import { TaskDetailPage } from "./tasks/task-detail-page";
 import { TasksPage } from "./tasks/tasks-page";
 import { WellnessPage } from "./wellness/wellness-page";
@@ -167,12 +167,12 @@ export function App() {
         disabledModuleIds={disabledModuleIds}
       >
         <Routes>
-          <Route index element={<Navigate to="/tasks" replace />} />
+          <Route index element={<Navigate to="/today" replace />} />
+          <Route path="/today" element={<TodayPage me={meQuery.data} />} />
           <Route path="/tasks" element={<TasksPage />} />
           <Route path="/tasks/:taskId" element={<TaskDetailPage />} />
           <Route path="/notifications" element={<NotificationsPage />} />
           <Route path="/calendar" element={<CalendarPage />} />
-          <Route path="/briefings" element={<BriefingsPage />} />
           <Route
             path="/wellness"
             element={
@@ -182,7 +182,7 @@ export function App() {
             }
           />
           <Route path="/settings" element={<SettingsPage me={meQuery.data} />} />
-          <Route path="*" element={<Navigate to="/tasks" replace />} />
+          <Route path="*" element={<Navigate to="/today" replace />} />
         </Routes>
       </AppShell>
     </BrowserRouter>

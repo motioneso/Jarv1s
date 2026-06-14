@@ -1,0 +1,587 @@
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+  ArrowUpRight,
+  BookOpen,
+  CalendarDays,
+  Check,
+  CheckCircle2,
+  ClipboardCheck,
+  Clock,
+  Cpu,
+  FileText,
+  Flag,
+  GitCommitHorizontal,
+  HeartPulse,
+  Image as ImageIcon,
+  Info,
+  Leaf,
+  Megaphone,
+  Newspaper,
+  Pill,
+  Target
+} from "lucide-react";
+import { useMemo } from "react";
+import { Link, useNavigate } from "react-router";
+
+import type { CalendarEventDto, MeResponse, TaskDto } from "@jarv1s/shared";
+
+import { listCalendarEvents, listTasks, updateTask } from "../api/client";
+import { queryKeys } from "../api/query-keys";
+import {
+  DEMO_INTERESTS,
+  DEMO_NEWS,
+  DEMO_OVERNIGHT,
+  DEMO_SPORTS,
+  DEMO_SPORTS_QUIET,
+  type FeedTone
+} from "./demo-data";
+import { isAtRisk, isDoFirst, isDoneToday } from "../tasks/focus";
+
+/** Today — the all-day home: an editorial brief over the user's real tasks + calendar. */
+export function TodayPage(props: { readonly me: MeResponse }) {
+  const queryClient = useQueryClient();
+  const navigate = useNavigate();
+  const tasksQuery = useQuery({ queryKey: queryKeys.tasks.list, queryFn: () => listTasks() });
+  const eventsQuery = useQuery({
+    queryKey: queryKeys.calendar.list,
+    queryFn: () => listCalendarEvents()
+  });
+  const toggleMutation = useMutation({
+    mutationFn: (task: TaskDto) =>
+      updateTask(task.id, { status: task.status === "done" ? "todo" : "done" }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.tasks.list })
+  });
+
+  const tasks = tasksQuery.data?.tasks ?? [];
+  const events = eventsQuery.data?.events ?? [];
+
+  const open = tasks.filter((t) => t.parentTaskId === null && t.status === "todo");
+  // "Priorities" = Do First (important + urgent); "At risk" = due today/soon or overdue.
+  const priorities = open.filter(isDoFirst);
+  const atRisk = open.filter(isAtRisk);
+  const todayEvents = useMemo(() => events.filter(isToday).sort(byStart), [events]);
+  const upcoming = useMemo(
+    () => todayEvents.filter((e) => new Date(e.endsAt).getTime() >= Date.now()),
+    [todayEvents]
+  );
+  const doneToday = tasks.filter(isDoneToday).length;
+
+  // "Start here": top open tasks by priority, then nearest due.
+  const startHere = [...open]
+    .sort((a, b) => (b.priority ?? 0) - (a.priority ?? 0) || dueTs(a) - dueTs(b))
+    .slice(0, 3);
+  const looseEnds = atRisk.slice(0, 5);
+
+  const name = firstName(props.me.user.name, props.me.user.email);
+  const lede = buildLede(priorities.length, atRisk.length, todayEvents.length);
+
+  return (
+    <div className="cmd-wrap">
+      <header className="cmd-hero">
+        <h1 className="cmd-hello">
+          {greeting()}, <span className="nm">{name}</span>.
+        </h1>
+        <p className="cmd-lede" dangerouslySetInnerHTML={{ __html: lede }} />
+      </header>
+
+      <div className="cmd-stats">
+        <Stat
+          k="Priorities"
+          v={priorities.length}
+          icon={<Target size={12} />}
+          onClick={() => navigate("/tasks?focus=priorities")}
+        />
+        <Stat
+          k="At risk"
+          v={atRisk.length}
+          warn={atRisk.length > 0}
+          icon={<Clock size={12} />}
+          onClick={() => navigate("/tasks?focus=atrisk")}
+        />
+        <Stat
+          k="Events"
+          v={todayEvents.length}
+          icon={<CalendarDays size={12} />}
+          onClick={() => navigate("/calendar")}
+        />
+        <Stat
+          k="Done today"
+          v={doneToday}
+          icon={<CheckCircle2 size={12} />}
+          onClick={() => navigate("/tasks?focus=donetoday")}
+        />
+      </div>
+
+      <div className="cmd-grid">
+        <div>
+          <section className="jds-brief">
+            <div className="jds-brief__head">
+              <span className="jds-brief__kicker">Start here</span>
+            </div>
+            <div className="jds-brief__title">The few things that matter most</div>
+            <p className="cmd-leadin">
+              Pulled from your open tasks and recent captures — Jarvis marks where each came from.
+            </p>
+            <div className="top3" style={{ marginTop: 4 }}>
+              {startHere.length > 0 ? (
+                startHere.map((task) => (
+                  <BriefTaskRow
+                    key={task.id}
+                    task={task}
+                    onToggle={() => toggleMutation.mutate(task)}
+                  />
+                ))
+              ) : (
+                <p className="cmd-empty">Nothing pressing right now — a clear runway.</p>
+              )}
+            </div>
+            {startHere.length > 0 ? (
+              <div style={{ marginTop: 12 }}>
+                <span className="jds-why">
+                  <Info size={12} aria-hidden="true" />
+                  Ranked by priority, then by what&apos;s due first.
+                </span>
+              </div>
+            ) : null}
+          </section>
+
+          <OvernightSection />
+
+          <section className="jds-brief">
+            <div className="jds-brief__head">
+              <span className="jds-brief__kicker">Walking the day</span>
+            </div>
+            <div className="jds-brief__title">What's on the calendar</div>
+            {todayEvents.length > 0 ? (
+              <div className="day-list">
+                {todayEvents.map((event) => (
+                  <div className="day-ev" key={event.id}>
+                    <div className="day-ev__t">
+                      {timeLabel(event.startsAt)}
+                      <span className="ap"> {ampm(event.startsAt)}</span>
+                    </div>
+                    <div>
+                      <div className="day-ev__title">{event.title}</div>
+                      {event.location ? (
+                        <div className="day-ev__where">{event.location}</div>
+                      ) : null}
+                    </div>
+                    <div className="day-ev__who">{durationLabel(event)}</div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="cmd-empty">No events today — the day is yours to shape.</p>
+            )}
+          </section>
+
+          <SportsDesk />
+          <NewsDesk />
+
+          {looseEnds.length > 0 ? (
+            <section className="jds-brief">
+              <div className="jds-brief__head">
+                <span className="jds-brief__kicker">Loose ends</span>
+              </div>
+              <div className="jds-brief__title">Things I'm keeping an eye on</div>
+              <div className="loose">
+                {looseEnds.map((task) => {
+                  const drift = driftOf(task);
+                  return (
+                    <Link className="loose-row" key={task.id} to={`/tasks/${task.id}`}>
+                      <span className="loose-row__ic">
+                        <Flag size={15} aria-hidden="true" />
+                      </span>
+                      <div className="loose-row__main">
+                        <div className="loose-row__title">{task.title}</div>
+                        <div className="loose-row__meta">{task.source}</div>
+                      </div>
+                      <div className="loose-row__act">
+                        <span className={`jds-drift jds-drift--${drift}`}>
+                          <span className="jds-drift__dot" />
+                          {drift === "overdue" ? "Overdue" : "At risk"}
+                        </span>
+                      </div>
+                    </Link>
+                  );
+                })}
+              </div>
+            </section>
+          ) : null}
+        </div>
+
+        <aside className="cmd-aside">
+          <div className="inst">
+            <div className="inst__head">
+              <span className="inst__title">Today's agenda</span>
+              <span className="inst__meta">{upcoming.length} left</span>
+            </div>
+            {upcoming.length > 0 ? (
+              <div>
+                {upcoming.map((event, index) => (
+                  <div
+                    className={`sched-row ${index === 0 ? "sched-row--now" : ""}`}
+                    key={event.id}
+                  >
+                    <div className="sched-row__t">{timeLabel(event.startsAt)}</div>
+                    <div className="sched-row__body">
+                      <div className="sched-row__title">{event.title}</div>
+                      {event.location ? (
+                        <div className="sched-row__sub">{event.location}</div>
+                      ) : null}
+                      {index === 0 ? (
+                        <span className="sched-now">
+                          <span
+                            style={{
+                              width: 5,
+                              height: 5,
+                              borderRadius: 9,
+                              background: "var(--accent)"
+                            }}
+                          />
+                          Next up
+                        </span>
+                      ) : null}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="agenda-clear">
+                Nothing left on the calendar today. <b>Enjoy the evening.</b>
+              </div>
+            )}
+          </div>
+
+          <div className="well">
+            <div className="well__head">
+              <span className="ic">
+                <HeartPulse size={15} aria-hidden="true" />
+              </span>
+              <span className="well__title">Wellness</span>
+            </div>
+            <div className="well__actions">
+              <button className="well__btn well__btn--meds" onClick={() => navigate("/wellness")}>
+                <span className="lead">
+                  <span className="ic">
+                    <Pill size={15} aria-hidden="true" />
+                  </span>
+                  Meds
+                </span>
+              </button>
+              <button className="well__btn" onClick={() => navigate("/wellness")}>
+                <span className="ic">
+                  <ClipboardCheck size={15} aria-hidden="true" />
+                </span>
+                Check in
+              </button>
+            </div>
+          </div>
+        </aside>
+      </div>
+    </div>
+  );
+}
+
+function Stat(props: {
+  readonly k: string;
+  readonly v: number;
+  readonly icon: React.ReactNode;
+  readonly warn?: boolean;
+  readonly onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      className={`cmd-stat ${props.warn ? "cmd-stat--warn" : ""}`}
+      onClick={props.onClick}
+    >
+      <div className="k">
+        {props.icon}
+        {props.k}
+        <span className="cmd-stat__go">
+          <ArrowUpRight size={13} aria-hidden="true" />
+        </span>
+      </div>
+      <div className="v">{props.v}</div>
+    </button>
+  );
+}
+
+function BriefTaskRow(props: { readonly task: TaskDto; readonly onToggle: () => void }) {
+  const { task } = props;
+  const done = task.status === "done";
+  const drift = driftOf(task);
+  const p1 = (task.priority ?? 0) >= 4;
+  return (
+    <div
+      className={`jds-task ${p1 ? "jds-task--p1" : "jds-task--p2"} ${done ? "jds-task--done" : ""}`}
+    >
+      <span className="jds-task__prio" />
+      <span className="jds-task__check">
+        <label className="jds-check">
+          <input
+            type="checkbox"
+            checked={done}
+            onChange={props.onToggle}
+            aria-label={done ? `Reopen ${task.title}` : `Complete ${task.title}`}
+          />
+          <span className="jds-check__box">
+            <Check size={13} aria-hidden="true" />
+          </span>
+        </label>
+      </span>
+      <Link className="jds-task__main" to={`/tasks/${task.id}`} style={{ textDecoration: "none" }}>
+        <div className="jds-task__title">{task.title}</div>
+        <div className="jds-task__meta">
+          {drift ? (
+            <span className={`jds-drift jds-drift--${drift}`}>
+              <span className="jds-drift__dot" />
+              {drift === "overdue" ? "Overdue" : "At risk"}
+            </span>
+          ) : null}
+          <span className="jds-task__source">
+            <GitCommitHorizontal size={12} aria-hidden="true" />
+            {task.source}
+          </span>
+          {task.dueAt ? <span className="jds-task__time">{shortDate(task.dueAt)}</span> : null}
+        </div>
+      </Link>
+    </div>
+  );
+}
+
+// ---- editorial feed sections (demo data; no backend yet) ----
+const FEED_BADGE: Record<FeedTone, string> = {
+  pine: "jds-badge--pine",
+  amber: "jds-badge--amber",
+  steel: "jds-badge--steel",
+  red: "jds-badge--red",
+  neutral: "jds-badge--neutral"
+};
+
+function OvernightSection() {
+  return (
+    <section className="jds-brief">
+      <div className="jds-brief__head">
+        <span className="jds-brief__kicker">Overnight</span>
+      </div>
+      <div className="jds-brief__title">What changed since last night</div>
+      <div className="overnight">
+        {DEMO_OVERNIGHT.map((item) => (
+          <div className="overnight__row" key={item.tag + item.text}>
+            <span className={`jds-badge ${FEED_BADGE[item.tone]}`}>{item.tag}</span>
+            <span className="tx">{item.text}</span>
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function SportsDesk() {
+  const hero = DEMO_SPORTS[0];
+  const rest = DEMO_SPORTS.slice(1);
+  if (!hero) return null;
+  const crest = (team: string) => team.slice(0, 2).toUpperCase();
+  const outClass = (s: (typeof DEMO_SPORTS)[number]) =>
+    s.kind === "news" ? "news" : s.outcome === "W" ? "w" : s.outcome === "L" ? "l" : "d";
+  return (
+    <section className="jds-brief">
+      <div className="jds-brief__head">
+        <span className="jds-brief__kicker">Sports desk</span>
+      </div>
+      <div className="jds-brief__title">From your teams, last night</div>
+      <div className="np-hero">
+        <div className="np-photo">
+          <div className="np-photo__ph">
+            <ImageIcon size={22} aria-hidden="true" />
+            <span className="np-photo__cap">Match photo</span>
+          </div>
+          <div className="np-photo__crest" style={{ background: hero.color }}>
+            {crest(hero.team)}
+          </div>
+        </div>
+        <div className="np-hero__body">
+          <div className="np-kicker">
+            {hero.team} · {hero.league}{" "}
+            <span className="out">
+              {hero.outcome === "D" ? "DRAW" : hero.outcome === "W" ? "WIN" : ""}
+            </span>
+          </div>
+          <h3 className="np-headline">{hero.headline}</h3>
+          {hero.score ? <div className="np-score">{hero.score}</div> : null}
+          {hero.detail ? <p className="np-dek">{hero.detail}</p> : null}
+        </div>
+      </div>
+      <div className="np-list">
+        {rest.map((s) => (
+          <div className="np-row" key={s.headline}>
+            <div className="np-row__lead crest" style={{ background: s.color }}>
+              {crest(s.team)}
+            </div>
+            <div className="np-row__main">
+              <div className="np-row__title">{s.headline}</div>
+              <div className="np-row__sub">
+                {s.team} · {s.league}
+                {s.score ? ` — ${s.score}` : ""}
+              </div>
+            </div>
+            <div className={`np-row__out ${outClass(s)}`}>
+              {s.kind === "news" ? <Megaphone size={12} aria-hidden="true" /> : s.outcome}
+            </div>
+          </div>
+        ))}
+      </div>
+      <div className="np-quiet">Quiet night for {DEMO_SPORTS_QUIET.join(" and ")}.</div>
+    </section>
+  );
+}
+
+const INTEREST_ICONS = { cpu: Cpu, leaf: Leaf, book: BookOpen } as const;
+
+function NewsDesk() {
+  const hero = DEMO_NEWS[0];
+  const rest = DEMO_NEWS.slice(1);
+  if (!hero) return null;
+  return (
+    <section className="jds-brief">
+      <div className="jds-brief__head">
+        <span className="jds-brief__kicker">The desk</span>
+      </div>
+      <div className="jds-brief__title">News &amp; your interests</div>
+      <div className="np-hero">
+        <div className="np-photo np-photo--news">
+          <div className="np-photo__ph">
+            <Newspaper size={22} aria-hidden="true" />
+            <span className="np-photo__cap">Story image</span>
+          </div>
+        </div>
+        <div className="np-hero__body">
+          <div className="np-kicker">{hero.source}</div>
+          <h3 className="np-headline">{hero.title}</h3>
+          {hero.dek ? <p className="np-dek">{hero.dek}</p> : null}
+          <div className="np-meta">{hero.meta}</div>
+        </div>
+      </div>
+      <div className="np-list">
+        {rest.map((n) => (
+          <div className="np-row" key={n.title}>
+            <div className="np-row__lead src">
+              <FileText size={15} aria-hidden="true" />
+            </div>
+            <div className="np-row__main">
+              <div className="np-row__title">{n.title}</div>
+              <div className="np-row__sub">
+                <span className="src">{n.source}</span> · {n.meta}
+              </div>
+            </div>
+          </div>
+        ))}
+        {DEMO_INTERESTS.map((n) => {
+          const Ico = INTEREST_ICONS[n.icon];
+          return (
+            <div className="np-row" key={n.title}>
+              <div className="np-row__lead src">
+                <Ico size={15} aria-hidden="true" />
+              </div>
+              <div className="np-row__main">
+                <div className="np-row__title">{n.title}</div>
+                <div className="np-row__sub">
+                  <span className="np-topic">Following · {n.topic}</span>
+                </div>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </section>
+  );
+}
+
+// ---- helpers ----
+function firstName(name: string, email: string): string {
+  const source = name.trim() || email.split("@")[0] || "there";
+  const base = source.split(/\s+/)[0] ?? source;
+  return base.charAt(0).toUpperCase() + base.slice(1);
+}
+
+function greeting(): string {
+  const h = new Date().getHours();
+  if (h < 12) return "Good morning";
+  if (h < 18) return "Good afternoon";
+  return "Good evening";
+}
+
+function buildLede(priorities: number, atRisk: number, events: number): string {
+  const parts: string[] = [];
+  parts.push(
+    priorities > 0
+      ? `You have <b>${priorities} ${priorities === 1 ? "priority" : "priorities"}</b> to move today`
+      : "Nothing is screaming for attention today"
+  );
+  if (events > 0) parts.push(`${events} ${events === 1 ? "event" : "events"} on the calendar`);
+  if (atRisk > 0)
+    parts.push(
+      `${atRisk} ${atRisk === 1 ? "thing has" : "things have"} slipped — we can reset without rushing`
+    );
+  return `${parts.join(", and ")}.`;
+}
+
+function driftOf(task: TaskDto): "atrisk" | "overdue" | null {
+  if (!task.dueAt || task.status === "done") return null;
+  const now = new Date();
+  const startToday = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+  const due = new Date(task.dueAt);
+  const startDue = new Date(due.getFullYear(), due.getMonth(), due.getDate()).getTime();
+  if (startDue < startToday) return "overdue";
+  if (startDue - startToday <= 86_400_000 * 2) return "atrisk";
+  return null;
+}
+
+function dueTs(task: TaskDto): number {
+  return task.dueAt ? new Date(task.dueAt).getTime() : Number.MAX_SAFE_INTEGER;
+}
+
+function isSameDay(date: Date, ref: Date = new Date()): boolean {
+  return (
+    date.getFullYear() === ref.getFullYear() &&
+    date.getMonth() === ref.getMonth() &&
+    date.getDate() === ref.getDate()
+  );
+}
+
+function isToday(event: CalendarEventDto): boolean {
+  return isSameDay(new Date(event.startsAt));
+}
+
+function byStart(a: CalendarEventDto, b: CalendarEventDto): number {
+  return new Date(a.startsAt).getTime() - new Date(b.startsAt).getTime();
+}
+
+function timeLabel(iso: string): string {
+  return new Intl.DateTimeFormat(undefined, { hour: "numeric", minute: "2-digit", hour12: true })
+    .format(new Date(iso))
+    .replace(/\s?[AP]M$/i, "");
+}
+
+function ampm(iso: string): string {
+  return new Date(iso).getHours() < 12 ? "am" : "pm";
+}
+
+function durationLabel(event: CalendarEventDto): string {
+  const mins = Math.round(
+    (new Date(event.endsAt).getTime() - new Date(event.startsAt).getTime()) / 60000
+  );
+  if (mins <= 0) return "";
+  if (mins < 60) return `${mins}m`;
+  const h = Math.floor(mins / 60);
+  const m = mins % 60;
+  return m ? `${h}h ${m}m` : `${h}h`;
+}
+
+function shortDate(iso: string): string {
+  return new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric" }).format(
+    new Date(iso)
+  );
+}
