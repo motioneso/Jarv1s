@@ -16,6 +16,7 @@ export function TaskCapture(props: { readonly defaultListId?: string }) {
   const [showMore, setShowMore] = useState(false);
   const [listId, setListId] = useState("");
   const [priority, setPriority] = useState("");
+  const [dueAt, setDueAt] = useState("");
   const [doAt, setDoAt] = useState("");
   const [effort, setEffort] = useState("");
   const [repeats, setRepeats] = useState<Repeats>("");
@@ -29,6 +30,7 @@ export function TaskCapture(props: { readonly defaultListId?: string }) {
         title: title.trim(),
         listId: listId || props.defaultListId || undefined,
         priority: priority ? Number(priority) : null,
+        dueAt: fromDateInputValue(dueAt),
         doAt: fromDateInputValue(doAt),
         effort: (effort || null) as "quick" | "medium" | "large" | null,
         recurrence: repeats ? { freq: repeats, interval: 1 } : null
@@ -36,6 +38,7 @@ export function TaskCapture(props: { readonly defaultListId?: string }) {
     onSuccess: async () => {
       setTitle("");
       setPriority("");
+      setDueAt("");
       setDoAt("");
       setEffort("");
       setRepeats("");
@@ -110,6 +113,10 @@ export function TaskCapture(props: { readonly defaultListId?: string }) {
                 </option>
               ))}
             </select>
+          </label>
+          <label>
+            Due date
+            <input onChange={(event) => setDueAt(event.target.value)} type="date" value={dueAt} />
           </label>
           <label>
             Do on

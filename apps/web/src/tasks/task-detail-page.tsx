@@ -94,6 +94,21 @@ export function TaskDetailPage() {
       }
     }
   });
+  // Inline subtask completion: tick the checkbox to close (or reopen) a subtask straight from
+  // the list, without opening its detail page. Subtasks are full tasks, so this is a status-only
+  // partial update on the subtask's own id.
+  const toggleSubtaskMutation = useMutation({
+    mutationFn: (vars: { readonly id: string; readonly status: TaskApiStatus }) =>
+      updateTask(vars.id, { status: vars.status }),
+    onSuccess: async () => {
+      if (taskId) {
+        await Promise.all([
+          queryClient.invalidateQueries({ queryKey: queryKeys.tasks.subtasks(taskId) }),
+          queryClient.invalidateQueries({ queryKey: queryKeys.tasks.list })
+        ]);
+      }
+    }
+  });
   const activityMutation = useMutation({
     mutationFn: () => {
       if (!taskId) {
@@ -275,6 +290,21 @@ export function TaskDetailPage() {
             <ul className="subtask-list">
               {subtasksQuery.data.tasks.map((sub) => (
                 <li className={`subtask-item ${sub.status === "done" ? "done" : ""}`} key={sub.id}>
+                  <input
+                    type="checkbox"
+                    className="subtask-check"
+                    aria-label={
+                      sub.status === "done" ? `Reopen ${sub.title}` : `Complete ${sub.title}`
+                    }
+                    checked={sub.status === "done"}
+                    disabled={toggleSubtaskMutation.isPending}
+                    onChange={() =>
+                      toggleSubtaskMutation.mutate({
+                        id: sub.id,
+                        status: sub.status === "done" ? "todo" : "done"
+                      })
+                    }
+                  />
                   <Link to={`/tasks/${sub.id}`}>{sub.title}</Link>
                   {effortLabel(sub.effort) ? (
                     <span className="task-effort">{effortLabel(sub.effort)}</span>
