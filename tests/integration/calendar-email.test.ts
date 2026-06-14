@@ -183,11 +183,9 @@ describe("Calendar and Email connector-backed read modules", () => {
       path: "/calendar",
       permissionId: "calendar.view"
     });
-    expect(emailModuleManifest.navigation?.[0]).toMatchObject({
-      id: "email",
-      path: "/email",
-      permissionId: "email.view"
-    });
+    // Email has no user-facing surface: the viewer was retired and the module is now an
+    // ingestion source only (assistant tool + cache APIs), so it declares no sidebar nav.
+    expect(emailModuleManifest.navigation).toEqual([]);
     expect(calendarRegistration?.queueDefinitions).toEqual([]);
     expect(emailRegistration?.queueDefinitions).toEqual([]);
     expect(getBuiltInSqlMigrationDirectories()).toContainEqual(

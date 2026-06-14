@@ -35,16 +35,9 @@ export const notificationsModuleManifest = {
     migrationDirectories: ["packages/notifications/sql"],
     ownedTables: ["app.notifications", "app.notification_reads"]
   },
-  navigation: [
-    {
-      id: "notifications",
-      label: "Notifications",
-      path: "/notifications",
-      icon: "bell",
-      order: 30,
-      permissionId: "notifications.view"
-    }
-  ],
+  // No sidebar nav entry: notifications are reached via the topbar bell (AppShell), which
+  // links to /notifications and shows the unread badge. The route + APIs remain registered.
+  navigation: [],
   permissions: [
     {
       id: "notifications.view",

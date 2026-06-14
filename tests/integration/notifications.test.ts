@@ -176,11 +176,9 @@ describe("Notifications module M5", () => {
       "app.notifications",
       "app.notification_reads"
     ]);
-    expect(manifest?.navigation?.[0]).toMatchObject({
-      id: "notifications",
-      path: "/notifications",
-      permissionId: "notifications.view"
-    });
+    // No sidebar nav entry: notifications are reached via the topbar bell (AppShell).
+    // The route + APIs remain registered; only the module-nav link was retired.
+    expect(manifest?.navigation).toEqual([]);
     expect(manifest?.settings ?? []).toEqual([]);
     expect(registration?.queueDefinitions).toEqual([]);
     expect(getBuiltInSqlMigrationDirectories()).toContainEqual(
