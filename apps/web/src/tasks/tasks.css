@@ -253,6 +253,10 @@
   text-decoration: line-through;
   color: var(--text-muted);
 }
+.subtask-check {
+  flex-shrink: 0;
+  cursor: pointer;
+}
 .subtask-form {
   display: flex;
   flex-direction: column;
