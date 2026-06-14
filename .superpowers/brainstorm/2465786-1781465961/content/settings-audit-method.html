@@ -1,36 +1,36 @@
 <h2>Settings Audit Method</h2>
 <p class="subtitle">
-  We will go category by category. The key decision is not "can the backend do this?" but
-  "does this belong in a user-facing settings experience?"
+  We will go category by category. The key decision is not "can the backend do this?" but "does this
+  belong in a user-facing settings experience?"
 </p>
 
 <div class="mockup">
   <div class="mockup-header">Current Settings: Likely Disposition</div>
   <div class="mockup-body">
-    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px">
+    <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px">
       <div class="placeholder">
-        <strong>Keep, but redesign</strong><br><br>
-        Profile identity<br>
-        Connected accounts<br>
-        AI/personal provider setup<br>
-        User management<br>
+        <strong>Keep, but redesign</strong><br /><br />
+        Profile identity<br />
+        Connected accounts<br />
+        AI/personal provider setup<br />
+        User management<br />
         Registration policy
       </div>
       <div class="placeholder">
-        <strong>Move / reframe</strong><br><br>
-        Task default view<br>
-        Chat memory settings<br>
-        Module enablement<br>
-        Auth provider status<br>
-        Connector admin metadata<br>
+        <strong>Move / reframe</strong><br /><br />
+        Task default view<br />
+        Chat memory settings<br />
+        Module enablement<br />
+        Auth provider status<br />
+        Connector admin metadata<br />
         Multiplexer host setup
       </div>
       <div class="placeholder">
-        <strong>Remove from normal settings</strong><br><br>
-        Connector provider catalog<br>
-        Capability route lookup<br>
-        Assistant tool risk list<br>
-        Raw credential JSON as primary UI<br>
+        <strong>Remove from normal settings</strong><br /><br />
+        Connector provider catalog<br />
+        Capability route lookup<br />
+        Assistant tool risk list<br />
+        Raw credential JSON as primary UI<br />
         "Mark connector error" style test controls
       </div>
     </div>
@@ -42,15 +42,24 @@
   <div class="options" data-multiselect>
     <div class="option" data-choice="what-user-controls" onclick="toggleSelect(this)">
       <div class="letter">A</div>
-      <div class="content"><h3>What can the user control?</h3><p>Only controls that change Jarvis behavior or account access.</p></div>
+      <div class="content">
+        <h3>What can the user control?</h3>
+        <p>Only controls that change Jarvis behavior or account access.</p>
+      </div>
     </div>
     <div class="option" data-choice="what-status" onclick="toggleSelect(this)">
       <div class="letter">B</div>
-      <div class="content"><h3>What status should be visible?</h3><p>Connection health, enabled state, policy state, last sync, pending action.</p></div>
+      <div class="content">
+        <h3>What status should be visible?</h3>
+        <p>Connection health, enabled state, policy state, last sync, pending action.</p>
+      </div>
     </div>
     <div class="option" data-choice="what-advanced" onclick="toggleSelect(this)">
       <div class="letter">C</div>
-      <div class="content"><h3>What is advanced/setup only?</h3><p>Host/runtime/developer details should not dominate the everyday page.</p></div>
+      <div class="content">
+        <h3>What is advanced/setup only?</h3>
+        <p>Host/runtime/developer details should not dominate the everyday page.</p>
+      </div>
     </div>
   </div>
 </div>

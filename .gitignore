@@ -23,3 +23,6 @@ infra/env.production.local
 
 # Claude Code per-machine local settings (never commit)
 .claude/settings.local.json
+
+# Superpowers local server/runtime state; content snapshots may be committed intentionally.
+.superpowers/**/state/

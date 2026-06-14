@@ -1,14 +1,8 @@
 import { useQuery } from "@tanstack/react-query";
-import { ArrowUp, ChevronDown, History, MessageSquare, Sparkles, SquarePen, X } from "lucide-react";
+import { ArrowUp, ChevronDown, Sparkles, SquarePen, X } from "lucide-react";
 import { type KeyboardEvent, useState } from "react";
 
-import {
-  clearChat,
-  listCalendarEvents,
-  listChatThreads,
-  listTasks,
-  sendChatTurn
-} from "../api/client";
+import { clearChat, listCalendarEvents, listTasks, sendChatTurn } from "../api/client";
 import { queryKeys } from "../api/query-keys";
 import { ActionRequestCard } from "./action-request-card";
 import { buildChatSeeds } from "./seeds";
@@ -22,28 +16,13 @@ import type { ChatRecordKind, TranscriptRecord } from "./use-chat-stream";
  *
  * Non-modal by design: no full-screen scrim, so the rest of the app (including nav) stays
  * interactive and the chat keeps following the user across pages.
- *
- * Two views: `chat` (the live conversation + composer) and `history` (the session list —
- * new or past). Resuming a past session is a follow-up slice (#218); for now the history
- * view lists threads but does not load them.
  */
-type DrawerView = "chat" | "history";
-
 export function ChatDrawer(props: {
   readonly open: boolean;
   readonly onClose: () => void;
   readonly records: readonly TranscriptRecord[];
   readonly clearRecords: () => void;
 }) {
-  const [view, setView] = useState<DrawerView>("chat");
-  const [resuming, setResuming] = useState<string | null>(null);
-  const threadsQuery = useQuery({
-    queryKey: queryKeys.chat.threads,
-    queryFn: () => listChatThreads(),
-    enabled: props.open
-  });
-  const threads = threadsQuery.data?.threads ?? [];
-
   if (!props.open) {
     return null;
   }
@@ -51,16 +30,6 @@ export function ChatDrawer(props: {
   const startNewChat = () => {
     void clearChat();
     props.clearRecords();
-    setResuming(null);
-    setView("chat");
-  };
-
-  // Stub seam for session resumption (#218): selecting a past thread flips to the chat
-  // view and shows a placeholder. Loading the thread's stored messages + seeding the CLI
-  // with a summary is the follow-up slice; this just wires the click.
-  const handleResume = (thread: { readonly title: string }) => {
-    setResuming(thread.title);
-    setView("chat");
   };
 
   return (
@@ -70,34 +39,18 @@ export function ChatDrawer(props: {
           <Sparkles size={16} aria-hidden="true" />
         </span>
         <div className="chatd__id">
-          <div className="chatd__name">{view === "history" ? "Past chats" : "Jarvis"}</div>
-          <div className="chatd__status">
-            {view === "history"
-              ? `${threads.length} ${threads.length === 1 ? "conversation" : "conversations"}`
-              : "Here when you need me"}
-          </div>
+          <div className="chatd__name">Jarvis</div>
+          <div className="chatd__status">Here when you need me</div>
         </div>
-        {view === "chat" ? (
-          <button
-            aria-label="Past chats"
-            className="chatd__hbtn"
-            title="Past chats"
-            type="button"
-            onClick={() => setView("history")}
-          >
-            <History size={17} aria-hidden="true" />
-          </button>
-        ) : (
-          <button
-            aria-label="New chat"
-            className="chatd__hbtn is-on"
-            title="New chat"
-            type="button"
-            onClick={startNewChat}
-          >
-            <SquarePen size={16} aria-hidden="true" />
-          </button>
-        )}
+        <button
+          aria-label="New chat"
+          className="chatd__hbtn"
+          title="New chat"
+          type="button"
+          onClick={startNewChat}
+        >
+          <SquarePen size={16} aria-hidden="true" />
+        </button>
         <button
           aria-label="Close chat"
           className="chatd__hbtn"
@@ -110,18 +63,10 @@ export function ChatDrawer(props: {
       </div>
 
       <div className="chatd__body">
-        {view === "history" ? (
-          <SessionList threads={threads} onResume={handleResume} />
-        ) : props.records.length > 0 ? (
-          <Thread records={props.records} />
-        ) : resuming ? (
-          <ResumeNotice title={resuming} />
-        ) : (
-          <EmptyState />
-        )}
+        {props.records.length > 0 ? <Thread records={props.records} /> : <EmptyState />}
       </div>
 
-      {view === "chat" ? <Composer /> : null}
+      <Composer />
     </aside>
   );
 }
@@ -280,59 +225,6 @@ function EmptyState() {
   );
 }
 
-interface ThreadSummary {
-  readonly id: string;
-  readonly title: string;
-  readonly updatedAt: string;
-}
-
-function SessionList(props: {
-  readonly threads: readonly ThreadSummary[];
-  readonly onResume: (thread: ThreadSummary) => void;
-}) {
-  if (props.threads.length === 0) {
-    return <div className="chatd-empty__sub chatd-sess__empty">No past conversations yet.</div>;
-  }
-
-  return (
-    <div className="chatd-sess">
-      <div className="chatd-sess__hd">Resume a conversation</div>
-      {props.threads.map((thread) => (
-        <button
-          className="chatd-sess__row"
-          key={thread.id}
-          type="button"
-          onClick={() => props.onResume(thread)}
-        >
-          <span className="chatd-sess__ic">
-            <MessageSquare size={15} aria-hidden="true" />
-          </span>
-          <div className="chatd-sess__main">
-            <div className="chatd-sess__title">{thread.title}</div>
-          </div>
-          <span className="chatd-sess__when">{relativeWhen(thread.updatedAt)}</span>
-        </button>
-      ))}
-    </div>
-  );
-}
-
-/** Placeholder shown after selecting a past session. Real message loading lands in #218. */
-function ResumeNotice(props: { readonly title: string }) {
-  return (
-    <div className="chatd-empty">
-      <span className="chatd-empty__mark">
-        <MessageSquare size={20} aria-hidden="true" />
-      </span>
-      <div className="chatd-empty__title">{props.title}</div>
-      <div className="chatd-empty__sub">
-        Picking up where you left off — your earlier messages will load here soon. Send a message to
-        keep the conversation going.
-      </div>
-    </div>
-  );
-}
-
 function Composer() {
   const [text, setText] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -383,33 +275,5 @@ function Composer() {
         </button>
       </div>
     </div>
-  );
-}
-
-function relativeWhen(iso: string): string {
-  const then = new Date(iso).getTime();
-  if (Number.isNaN(then)) {
-    return "";
-  }
-  const minutes = Math.floor((Date.now() - then) / 60000);
-  if (minutes < 1) {
-    return "now";
-  }
-  if (minutes < 60) {
-    return `${minutes}m`;
-  }
-  const hours = Math.floor(minutes / 60);
-  if (hours < 24) {
-    return `${hours}h`;
-  }
-  const days = Math.floor(hours / 24);
-  if (days === 1) {
-    return "Yesterday";
-  }
-  if (days < 7) {
-    return `${days}d`;
-  }
-  return new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric" }).format(
-    new Date(iso)
   );
 }

@@ -27,20 +27,14 @@ import type { CalendarEventDto, MeResponse, TaskDto } from "@jarv1s/shared";
 
 import { listCalendarEvents, listTasks, updateTask } from "../api/client";
 import { queryKeys } from "../api/query-keys";
-import {
-  DEMO_INTERESTS,
-  DEMO_NEWS,
-  DEMO_OVERNIGHT,
-  DEMO_SPORTS,
-  DEMO_SPORTS_QUIET,
-  type FeedTone
-} from "./demo-data";
+import { createEmptyTodayFeed, type FeedTone, type TodayFeed } from "./feed-source";
 import { isAtRisk, isDoFirst, isDoneToday } from "../tasks/focus";
 
 /** Today — the all-day home: an editorial brief over the user's real tasks + calendar. */
-export function TodayPage(props: { readonly me: MeResponse }) {
+export function TodayPage(props: { readonly me: MeResponse; readonly feed?: TodayFeed }) {
   const queryClient = useQueryClient();
   const navigate = useNavigate();
+  const feed = props.feed ?? createEmptyTodayFeed();
   const tasksQuery = useQuery({ queryKey: queryKeys.tasks.list, queryFn: () => listTasks() });
   const eventsQuery = useQuery({
     queryKey: queryKeys.calendar.list,
@@ -145,7 +139,7 @@ export function TodayPage(props: { readonly me: MeResponse }) {
             ) : null}
           </section>
 
-          <OvernightSection />
+          {feed.overnight.length > 0 ? <OvernightSection items={feed.overnight} /> : null}
 
           <section className="jds-brief">
             <div className="jds-brief__head">
@@ -175,8 +169,12 @@ export function TodayPage(props: { readonly me: MeResponse }) {
             )}
           </section>
 
-          <SportsDesk />
-          <NewsDesk />
+          {feed.sports.items.length > 0 ? (
+            <SportsDesk items={feed.sports.items} quietTeams={feed.sports.quietTeams} />
+          ) : null}
+          {feed.news.length > 0 || feed.interests.length > 0 ? (
+            <NewsDesk news={feed.news} interests={feed.interests} />
+          ) : null}
 
           {looseEnds.length > 0 ? (
             <section className="jds-brief">
@@ -360,7 +358,7 @@ const FEED_BADGE: Record<FeedTone, string> = {
   neutral: "jds-badge--neutral"
 };
 
-function OvernightSection() {
+function OvernightSection(props: { readonly items: TodayFeed["overnight"] }) {
   return (
     <section className="jds-brief">
       <div className="jds-brief__head">
@@ -368,7 +366,7 @@ function OvernightSection() {
       </div>
       <div className="jds-brief__title">What changed since last night</div>
       <div className="overnight">
-        {DEMO_OVERNIGHT.map((item) => (
+        {props.items.map((item) => (
           <div className="overnight__row" key={item.tag + item.text}>
             <span className={`jds-badge ${FEED_BADGE[item.tone]}`}>{item.tag}</span>
             <span className="tx">{item.text}</span>
@@ -379,12 +377,15 @@ function OvernightSection() {
   );
 }
 
-function SportsDesk() {
-  const hero = DEMO_SPORTS[0];
-  const rest = DEMO_SPORTS.slice(1);
+function SportsDesk(props: {
+  readonly items: TodayFeed["sports"]["items"];
+  readonly quietTeams: TodayFeed["sports"]["quietTeams"];
+}) {
+  const hero = props.items[0];
+  const rest = props.items.slice(1);
   if (!hero) return null;
   const crest = (team: string) => team.slice(0, 2).toUpperCase();
-  const outClass = (s: (typeof DEMO_SPORTS)[number]) =>
+  const outClass = (s: TodayFeed["sports"]["items"][number]) =>
     s.kind === "news" ? "news" : s.outcome === "W" ? "w" : s.outcome === "L" ? "l" : "d";
   return (
     <section className="jds-brief">
@@ -433,37 +434,43 @@ function SportsDesk() {
           </div>
         ))}
       </div>
-      <div className="np-quiet">Quiet night for {DEMO_SPORTS_QUIET.join(" and ")}.</div>
+      {props.quietTeams.length > 0 ? (
+        <div className="np-quiet">Quiet night for {props.quietTeams.join(" and ")}.</div>
+      ) : null}
     </section>
   );
 }
 
 const INTEREST_ICONS = { cpu: Cpu, leaf: Leaf, book: BookOpen } as const;
 
-function NewsDesk() {
-  const hero = DEMO_NEWS[0];
-  const rest = DEMO_NEWS.slice(1);
-  if (!hero) return null;
+function NewsDesk(props: {
+  readonly news: TodayFeed["news"];
+  readonly interests: TodayFeed["interests"];
+}) {
+  const hero = props.news[0];
+  const rest = props.news.slice(1);
   return (
     <section className="jds-brief">
       <div className="jds-brief__head">
         <span className="jds-brief__kicker">The desk</span>
       </div>
       <div className="jds-brief__title">News &amp; your interests</div>
-      <div className="np-hero">
-        <div className="np-photo np-photo--news">
-          <div className="np-photo__ph">
-            <Newspaper size={22} aria-hidden="true" />
-            <span className="np-photo__cap">Story image</span>
+      {hero ? (
+        <div className="np-hero">
+          <div className="np-photo np-photo--news">
+            <div className="np-photo__ph">
+              <Newspaper size={22} aria-hidden="true" />
+              <span className="np-photo__cap">Story image</span>
+            </div>
+          </div>
+          <div className="np-hero__body">
+            <div className="np-kicker">{hero.source}</div>
+            <h3 className="np-headline">{hero.title}</h3>
+            {hero.dek ? <p className="np-dek">{hero.dek}</p> : null}
+            <div className="np-meta">{hero.meta}</div>
           </div>
         </div>
-        <div className="np-hero__body">
-          <div className="np-kicker">{hero.source}</div>
-          <h3 className="np-headline">{hero.title}</h3>
-          {hero.dek ? <p className="np-dek">{hero.dek}</p> : null}
-          <div className="np-meta">{hero.meta}</div>
-        </div>
-      </div>
+      ) : null}
       <div className="np-list">
         {rest.map((n) => (
           <div className="np-row" key={n.title}>
@@ -478,7 +485,7 @@ function NewsDesk() {
             </div>
           </div>
         ))}
-        {DEMO_INTERESTS.map((n) => {
+        {props.interests.map((n) => {
           const Ico = INTEREST_ICONS[n.icon];
           return (
             <div className="np-row" key={n.title}>
