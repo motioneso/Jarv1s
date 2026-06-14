@@ -144,4 +144,69 @@ describe("HerdrMultiplexer", () => {
     const mux = new HerdrMultiplexer(makeIo(), { rootPane: "p_51" });
     expect(mux.attachCommand("p_77")).toContain("herdr");
   });
+
+  const TAB_LIST = (label: string | null) =>
+    JSON.stringify({
+      result: { tabs: label ? [{ tab_id: "w:4", label }] : [], type: "tab_list" }
+    });
+  const PANE_LIST = JSON.stringify({
+    result: { panes: [{ pane_id: "p_root4", tab_id: "w:4" }], type: "pane_list" }
+  });
+
+  it("open() with JARVIS_HERDR_ROOT_TAB splits a pane inside the existing labelled tab", async () => {
+    const io = makeIo({
+      "herdr tab list": { code: 0, stdout: TAB_LIST("Jarvis") },
+      "herdr pane list": { code: 0, stdout: PANE_LIST },
+      "herdr pane split": { code: 0, stdout: SPLIT_JSON }
+    });
+    const mux = new HerdrMultiplexer(io, { env: { JARVIS_HERDR_ROOT_TAB: "Jarvis" } });
+    const handle = await mux.open({ name: "x", cols: 220, rows: 50, launchLine: "claude" });
+
+    expect(handle).toBe("p_77");
+    const flat = io.run.mock.calls.map((c: unknown[]) => [c[0], ...(c[1] as string[])].join(" "));
+    // Splits from the tab's pane (p_root4), never creates the tab (it already exists).
+    expect(flat.some((c) => c.startsWith("herdr pane split p_root4"))).toBe(true);
+    expect(flat.some((c) => c.startsWith("herdr tab create"))).toBe(false);
+  });
+
+  it("open() creates the tab when the label is missing, then splits inside it (self-heal)", async () => {
+    let created = false;
+    const io = {
+      run: vi.fn(async (cmd: string, args: readonly string[]) => {
+        const key = [cmd, ...args].join(" ");
+        if (key.startsWith("herdr tab list")) {
+          return { code: 0, stdout: TAB_LIST(created ? "Jarvis" : null), stderr: "" };
+        }
+        if (key.startsWith("herdr tab create")) {
+          created = true;
+          return { code: 0, stdout: "{}", stderr: "" };
+        }
+        if (key.startsWith("herdr pane list")) return { code: 0, stdout: PANE_LIST, stderr: "" };
+        if (key.startsWith("herdr pane split")) return { code: 0, stdout: SPLIT_JSON, stderr: "" };
+        return { code: 0, stdout: "", stderr: "" };
+      }),
+      sleep: vi.fn().mockResolvedValue(undefined),
+      readFile: vi.fn().mockResolvedValue(""),
+      writeFile: vi.fn().mockResolvedValue(undefined)
+    };
+    const mux = new HerdrMultiplexer(io, { env: { JARVIS_HERDR_ROOT_TAB: "Jarvis" } });
+    const handle = await mux.open({ name: "x", cols: 220, rows: 50, launchLine: "claude" });
+
+    expect(handle).toBe("p_77");
+    const flat = io.run.mock.calls.map((c: unknown[]) => [c[0], ...(c[1] as string[])].join(" "));
+    expect(flat.some((c) => c.startsWith("herdr tab create --label Jarvis --no-focus"))).toBe(true);
+    expect(flat.some((c) => c.startsWith("herdr pane split p_root4"))).toBe(true);
+  });
+
+  it("explicit rootPane wins over JARVIS_HERDR_ROOT_TAB (no tab lookup)", async () => {
+    const io = makeIo({ "herdr pane split": { code: 0, stdout: SPLIT_JSON } });
+    const mux = new HerdrMultiplexer(io, {
+      rootPane: "p_51",
+      env: { JARVIS_HERDR_ROOT_TAB: "Jarvis" }
+    });
+    await mux.open({ name: "x", cols: 1, rows: 1, launchLine: "c" });
+    const flat = io.run.mock.calls.map((c: unknown[]) => [c[0], ...(c[1] as string[])].join(" "));
+    expect(flat.some((c) => c.startsWith("herdr tab list"))).toBe(false);
+    expect(flat.some((c) => c.startsWith("herdr pane split p_51"))).toBe(true);
+  });
 });
