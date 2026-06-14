@@ -1,7 +1,7 @@
 import { Cloud, CloudRain, CloudSnow, CloudSun, Sun, Wind } from "lucide-react";
 import type { ComponentType } from "react";
 
-import { DEMO_WEATHER, type WeatherIcon } from "./demo-data";
+import { createEmptyTodayFeed, type WeatherFeed, type WeatherIcon } from "./feed-source";
 
 const ICONS: Record<
   WeatherIcon,
@@ -26,8 +26,12 @@ const TONE: Record<"amber" | "steel" | "slate", string> = {
  * (server-side IP-geo default + manual Settings override; browser geolocation
  * only works in a secure context, so it's a poor fit for plain-HTTP self-hosts).
  */
-export function HeaderWeather() {
-  const { place, days } = DEMO_WEATHER;
+export function HeaderWeather(props: { readonly weather?: WeatherFeed | null }) {
+  const { place, days } = props.weather ??
+    createEmptyTodayFeed().weather ?? {
+      place: "",
+      days: []
+    };
   const today = days[0];
   if (!today) return null;
   const Now = ICONS[today.icon];

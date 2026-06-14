@@ -50,7 +50,7 @@ Bring the **Jarvis Design System prototype** into the real web app (`apps/web`) 
 ### Today (done) — `apps/web/src/today/`
 
 - `today-page.tsx` — editorial `cmd-*` layout: serif hero (greeting uses **`me.user.name`** first word) + lede from real counts; **stat cards** (Priorities=**Do First**/important+urgent, At risk=due today/soon or overdue, Events, Done today=completed today) that **link to filtered Tasks** via `?focus=` (or `/calendar`); reading column (Start here w/ source lead-in + ranking rationale chip · Overnight · Walking the day · Sports desk · News desk · Loose ends); sticky aside rail (agenda timeline locked below topbar · wellness widget).
-- Real data: tasks + calendar (`listTasks`, `listCalendarEvents`). **Demo feeds** (weather/overnight/sports/news) isolated in **`today/demo-data.ts`** — the single wiring point for real sources.
+- Real data: tasks + calendar (`listTasks`, `listCalendarEvents`). Weather/overnight/sports/news now render only through the explicit `today/feed-source.ts` contract; no demo feed data is kept in the repo.
 - **Header weather** = `today/header-weather.tsx`, **demo only** (shows city). Real weather is **issue #217** (server-side IP-geo default + manual Settings override; browser geolocation unfit for plain-HTTP self-hosts).
 - Route: index → `/today`; "Today" (house) pinned to nav top.
 

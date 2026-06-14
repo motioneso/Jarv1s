@@ -4,21 +4,7 @@ import { createRoot } from "react-dom/client";
 
 import { App } from "./app";
 import { registerServiceWorker } from "./pwa/register-service-worker";
-import "./styles/tokens.css";
-// Component primitives, then screen layouts. Split from the original components.css /
-// kit.css monoliths to stay under the 1000-line source limit; import order is preserved
-// verbatim so the cascade is identical to the bundles they replaced.
-import "./styles/components-core.css";
-import "./styles/components-jarvis.css";
-import "./styles/kit-today.css";
-import "./styles/kit-today-feeds.css";
-import "./styles/kit-chat.css";
-import "./styles/kit-today-misc.css";
-import "./styles/kit-tasks.css";
-import "./styles/kit-tasks-modal.css";
-import "./styles/kit-calendar.css";
-import "./styles.css";
-import "./tasks/tasks.css";
+import "./styles/index.css";
 
 const queryClient = new QueryClient({
   defaultOptions: {

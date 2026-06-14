@@ -10,6 +10,7 @@ import {
   getMyModules,
   getOnboardingStatus
 } from "./api/client";
+import { webRoutePath } from "./app-route-metadata";
 import { queryKeys } from "./api/query-keys";
 import { AuthScreen } from "./auth/auth-screen";
 import { shouldShowOnboarding } from "./onboarding/resume";
@@ -167,22 +168,22 @@ export function App() {
         disabledModuleIds={disabledModuleIds}
       >
         <Routes>
-          <Route index element={<Navigate to="/today" replace />} />
-          <Route path="/today" element={<TodayPage me={meQuery.data} />} />
-          <Route path="/tasks" element={<TasksPage />} />
-          <Route path="/tasks/:taskId" element={<TaskDetailPage />} />
-          <Route path="/notifications" element={<NotificationsPage />} />
-          <Route path="/calendar" element={<CalendarPage />} />
+          <Route index element={<Navigate to={webRoutePath("today")} replace />} />
+          <Route path={webRoutePath("today")} element={<TodayPage me={meQuery.data} />} />
+          <Route path={webRoutePath("tasks")} element={<TasksPage />} />
+          <Route path={webRoutePath("task-detail")} element={<TaskDetailPage />} />
+          <Route path={webRoutePath("notifications")} element={<NotificationsPage />} />
+          <Route path={webRoutePath("calendar")} element={<CalendarPage />} />
           <Route
-            path="/wellness"
+            path={webRoutePath("wellness")}
             element={
               <ModuleGatedRoute gate={wellnessGate}>
                 <WellnessPage />
               </ModuleGatedRoute>
             }
           />
-          <Route path="/settings" element={<SettingsPage me={meQuery.data} />} />
-          <Route path="*" element={<Navigate to="/today" replace />} />
+          <Route path={webRoutePath("settings")} element={<SettingsPage me={meQuery.data} />} />
+          <Route path="*" element={<Navigate to={webRoutePath("today")} replace />} />
         </Routes>
       </AppShell>
     </BrowserRouter>

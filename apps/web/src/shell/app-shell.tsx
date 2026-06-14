@@ -29,28 +29,13 @@ import {
 import { NavLink, useLocation, useNavigate } from "react-router";
 
 import { listNotifications, sendChatTurn, signOut } from "../api/client";
+import { buildShellNavigation, resolvePageHeading } from "../app-route-metadata";
 import { queryKeys } from "../api/query-keys";
 import { ChatDrawer } from "../chat/chat-drawer";
 import { useChatStream } from "../chat/use-chat-stream";
 import { ChatControlsProvider } from "./chat-controls-context";
 import { HeaderWeather } from "../today/header-weather";
 import type { MeResponse, ModuleDto, ModuleNavigationEntryDto } from "@jarv1s/shared";
-
-/** Module-nav id of the chat entry, which the shell surfaces as a top-bar toggle. */
-const CHAT_NAV_ID = "chat";
-
-/**
- * Grouped rail structure (Design System "Chronological Flow" spine). Nav entries
- * come from the backend module registry; this maps each entry into a section.
- * Anything unmapped falls into the unlabeled top group so nothing disappears.
- */
-const SECTION_OF: Record<string, string> = {
-  tasks: "Plan",
-  calendar: "Plan",
-  wellness: "You"
-};
-const TOP_SECTION = "__top";
-const SECTION_ORDER = [TOP_SECTION, "Plan", "You"];
 
 interface AppShellProps {
   readonly children: ReactNode;
@@ -106,7 +91,7 @@ export function AppShell(props: AppShellProps) {
   // closed and as the user navigates between pages — the chat follows the user.
   const { records, clearRecords } = useChatStream();
   const navSections = useMemo(
-    () => groupNavigation(props.modules, props.disabledModuleIds ?? []),
+    () => buildShellNavigation(props.modules, props.disabledModuleIds ?? []),
     [props.modules, props.disabledModuleIds]
   );
   const notificationsQuery = useQuery({
@@ -361,97 +346,4 @@ function NavItem(props: {
       <span>{props.entry.label}</span>
     </NavLink>
   );
-}
-
-interface NavSection {
-  readonly key: string;
-  readonly label: string | null;
-  readonly items: readonly ModuleNavigationEntryDto[];
-}
-
-function groupNavigation(
-  modules: readonly ModuleDto[],
-  disabledModuleIds: readonly string[]
-): NavSection[] {
-  const disabled = new Set(disabledModuleIds);
-  const entries = modules
-    .filter((module) => !disabled.has(module.id))
-    .flatMap((module) => module.navigation)
-    // Chat is a top-bar affordance (a tool inside the product), never the spine.
-    // Briefings (the definition manager) is retired from the spine — a briefings
-    // section will live under Settings later. Settings + Notifications live in the
-    // rail-foot user menu, not the spine.
-    .filter(
-      (entry) =>
-        entry.id !== CHAT_NAV_ID &&
-        entry.id !== "briefings" &&
-        entry.id !== "settings" &&
-        entry.id !== "notifications"
-    )
-    .sort((left, right) => {
-      const leftOrder = left.order ?? Number.MAX_SAFE_INTEGER;
-      const rightOrder = right.order ?? Number.MAX_SAFE_INTEGER;
-      return leftOrder - rightOrder || left.label.localeCompare(right.label);
-    });
-
-  // "Today" is a shell-level home (not a backend module) — pin it to the top.
-  const bySection = new Map<string, ModuleNavigationEntryDto[]>();
-  bySection.set(TOP_SECTION, [
-    { id: "today", label: "Today", path: "/today", icon: "house", order: -1 }
-  ]);
-  for (const entry of entries) {
-    const section = SECTION_OF[entry.id] ?? TOP_SECTION;
-    const bucket = bySection.get(section) ?? [];
-    bucket.push(entry);
-    bySection.set(section, bucket);
-  }
-
-  // Render known sections in spine order, then any custom sections that appeared.
-  const orderedKeys = [
-    ...SECTION_ORDER.filter((key) => bySection.has(key)),
-    ...[...bySection.keys()].filter((key) => !SECTION_ORDER.includes(key))
-  ];
-
-  return orderedKeys.map((key) => ({
-    key,
-    label: key === TOP_SECTION ? null : key,
-    items: bySection.get(key) ?? []
-  }));
-}
-
-/** Mono uppercase date eyebrow, e.g. "THU · JUN 13". */
-function dateEyebrow(): string {
-  const now = new Date();
-  const weekday = now.toLocaleDateString("en-US", { weekday: "short" });
-  const month = now.toLocaleDateString("en-US", { month: "short" });
-  return `${weekday} · ${month} ${now.getDate()}`.toUpperCase();
-}
-
-/** Mono time eyebrow, e.g. "7:42". */
-function timeEyebrow(): string {
-  return new Intl.DateTimeFormat(undefined, { hour: "numeric", minute: "2-digit", hour12: true })
-    .format(new Date())
-    .replace(/\s?[AP]M$/i, "");
-}
-
-/** Serif command-center title + mono eyebrow for the current route. */
-function resolvePageHeading(pathname: string): { title: string; subtitle: string } {
-  if (pathname.startsWith("/today") || pathname === "/") {
-    return { title: "Today", subtitle: `${dateEyebrow()} · ${timeEyebrow()}` };
-  }
-  if (pathname.startsWith("/tasks/")) return { title: "Task", subtitle: dateEyebrow() };
-  if (pathname.startsWith("/tasks")) return { title: "Tasks", subtitle: dateEyebrow() };
-  if (pathname.startsWith("/calendar")) return { title: "Calendar", subtitle: monthEyebrow() };
-  if (pathname.startsWith("/wellness")) return { title: "Wellness", subtitle: "PRIVATE" };
-  if (pathname.startsWith("/settings")) {
-    return { title: "Settings & permissions", subtitle: "PRIVATE WORKSPACE" };
-  }
-  if (pathname.startsWith("/notifications")) return { title: "Notifications", subtitle: "" };
-  return { title: "Today", subtitle: `${dateEyebrow()} · ${timeEyebrow()}` };
-}
-
-/** Mono uppercase month eyebrow, e.g. "JUNE 2026". */
-function monthEyebrow(): string {
-  const now = new Date();
-  return now.toLocaleDateString("en-US", { month: "long", year: "numeric" }).toUpperCase();
 }
