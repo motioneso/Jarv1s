@@ -29,6 +29,9 @@ import { listCalendarEvents, listTasks, updateTask } from "../api/client";
 import { queryKeys } from "../api/query-keys";
 import { createEmptyTodayFeed, type FeedTone, type TodayFeed } from "./feed-source";
 import { isAtRisk, isDoFirst, isDoneToday } from "../tasks/focus";
+import "../styles/kit-today.css";
+import "../styles/kit-today-feeds.css";
+import "../styles/kit-today-misc.css";
 
 /** Today — the all-day home: an editorial brief over the user's real tasks + calendar. */
 export function TodayPage(props: { readonly me: MeResponse; readonly feed?: TodayFeed }) {

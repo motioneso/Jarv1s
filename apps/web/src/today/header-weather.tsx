@@ -2,6 +2,7 @@ import { Cloud, CloudRain, CloudSnow, CloudSun, Sun, Wind } from "lucide-react";
 import type { ComponentType } from "react";
 
 import { createEmptyTodayFeed, type WeatherFeed, type WeatherIcon } from "./feed-source";
+import "../styles/kit-weather.css";
 
 const ICONS: Record<
   WeatherIcon,

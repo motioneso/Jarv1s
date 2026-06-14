@@ -10,7 +10,7 @@ import {
   Search,
   Tag
 } from "lucide-react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "react-router";
 
 import {
@@ -21,16 +21,21 @@ import {
   updateTaskPreferences
 } from "../api/client";
 import { queryKeys } from "../api/query-keys";
-import { FOCUS_LABELS, isTaskFocus, matchesFocus } from "./focus";
+import { FOCUS_LABELS, isTaskFocus } from "./focus";
 import { TaskCapture } from "./task-capture";
 import { TaskDetailsDialog } from "./task-details-dialog";
 import { TaskListView } from "./task-list-view";
 import { TaskMatrixView } from "./task-matrix-view";
 import { statusLabels } from "./task-format";
-
-const statusFilters = ["all", "todo", "done", "archived"] as const;
-type StatusFilter = (typeof statusFilters)[number];
-type ListState = "included" | "solo" | "excluded";
+import {
+  deriveTaskFilters,
+  statusFilters,
+  type ListState,
+  type StatusFilter
+} from "./task-view-model";
+import "../styles/kit-tasks.css";
+import "../styles/kit-tasks-modal.css";
+import "./tasks.css";
 
 export function TasksPage() {
   const queryClient = useQueryClient();
@@ -62,6 +67,7 @@ export function TasksPage() {
   const view: TaskDefaultView = prefsQuery.data?.preferences.defaultView ?? "priority";
   const lists = listsQuery.data?.lists ?? [];
   const allTasks = tasksQuery.data?.tasks ?? [];
+  const deferredSearch = useDeferredValue(search);
 
   const viewMutation = useMutation({
     mutationFn: (next: TaskDefaultView) => updateTaskPreferences({ defaultView: next }),
@@ -78,55 +84,21 @@ export function TasksPage() {
     }
   });
 
+  const derived = useMemo(
+    () =>
+      deriveTaskFilters({
+        tasks: allTasks,
+        lists,
+        statusFilter,
+        focus,
+        listStates,
+        tagFilter,
+        search: deferredSearch
+      }),
+    [allTasks, deferredSearch, focus, listStates, lists, statusFilter, tagFilter]
+  );
+  const { allTags, listCounts, listCountTotal, soloIds, visibleTasks } = derived;
   const stateOf = (listId: string): ListState => listStates[listId] ?? "included";
-  const soloIds = lists.filter((list) => stateOf(list.id) === "solo").map((list) => list.id);
-  const anySolo = soloIds.length > 0;
-
-  // All tag names present across the loaded tasks (the filterable universe).
-  const allTags = useMemo(() => {
-    const set = new Set<string>();
-    for (const task of allTasks) for (const tag of task.tags) set.add(tag.name);
-    return [...set].sort((a, b) => a.localeCompare(b));
-  }, [allTasks]);
-
-  const visibleTasks = useMemo(() => {
-    const needle = search.trim().toLowerCase();
-    return allTasks.filter((task) => {
-      if (task.parentTaskId !== null) return false; // subtasks live in the detail modal
-      if (focus) {
-        if (!matchesFocus(task, focus)) return false; // focus preset owns the status logic
-      } else if (statusFilter !== "all" && task.status !== statusFilter) {
-        return false;
-      }
-      const st = listStates[task.listId] ?? "included";
-      if (st === "excluded") return false;
-      if (anySolo && st !== "solo") return false;
-      if (tagFilter.length && !tagFilter.some((name) => task.tags.some((t) => t.name === name))) {
-        return false;
-      }
-      if (
-        needle &&
-        !task.title.toLowerCase().includes(needle) &&
-        !(task.description?.toLowerCase().includes(needle) ?? false)
-      ) {
-        return false;
-      }
-      return true;
-    });
-  }, [allTasks, anySolo, focus, listStates, search, statusFilter, tagFilter]);
-
-  // Per-list counts for the dropdown — respect status + tag filters, ignore the list filter.
-  const listCounts = useMemo(() => {
-    const base = allTasks.filter(
-      (task) =>
-        task.parentTaskId === null &&
-        (statusFilter === "all" || task.status === statusFilter) &&
-        (!tagFilter.length || tagFilter.some((name) => task.tags.some((t) => t.name === name)))
-    );
-    const counts: Record<string, number> = {};
-    for (const list of lists) counts[list.id] = base.filter((t) => t.listId === list.id).length;
-    return { counts, total: base.length };
-  }, [allTasks, lists, statusFilter, tagFilter]);
 
   const cycleList = (id: string) =>
     setListStates((s) => {
@@ -162,8 +134,8 @@ export function TasksPage() {
           lists={lists}
           stateOf={stateOf}
           soloIds={soloIds}
-          counts={listCounts.counts}
-          allCount={listCounts.total}
+          counts={listCounts}
+          allCount={listCountTotal}
           onCycle={cycleList}
           onReset={() => setListStates({})}
         />

@@ -535,14 +535,6 @@ button.module-link {
   margin-left: 1rem;
   border-left: 1px solid var(--border-subtle);
 }
-.wx-mini__city {
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--text);
-  white-space: nowrap;
-  padding-right: 4px;
-}
-
 /* Rail-foot user menu: keep the popover within the (overflow-clipped) rail. */
 .rail-foot .jds-usermenu__pop {
   left: 0;

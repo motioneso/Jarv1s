@@ -7,6 +7,7 @@ import { queryKeys } from "../api/query-keys";
 import { ActionRequestCard } from "./action-request-card";
 import { buildChatSeeds } from "./seeds";
 import type { ChatRecordKind, TranscriptRecord } from "./use-chat-stream";
+import "../styles/kit-chat.css";
 
 /**
  * Live chat drawer, styled to the Jarvis Design System (`chatd-*`). A global slide-out
