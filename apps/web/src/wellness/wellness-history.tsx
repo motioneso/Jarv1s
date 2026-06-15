@@ -88,15 +88,6 @@ function PencilIcon() {
   );
 }
 
-function isoToDisplayDate(iso: string): { dow: string; mo: string; day: number } {
-  const d = new Date(iso + "T12:00:00");
-  return {
-    dow: d.toLocaleDateString("en-US", { weekday: "long" }),
-    mo: d.toLocaleDateString("en-US", { month: "short" }),
-    day: d.getDate()
-  };
-}
-
 function todayIso(): string {
   const now = new Date();
   return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
@@ -122,14 +113,11 @@ export function WellnessHistory({
 
   const today = todayIso();
 
-  let rows = checkins
-    .filter((c) => (c.checkedInAt ?? c.createdAt ?? "").slice(0, 10) !== today)
-    .slice()
-    .sort((a, b) => {
-      const da = a.checkedInAt ?? a.createdAt ?? "";
-      const db = b.checkedInAt ?? b.createdAt ?? "";
-      return db < da ? -1 : 1;
-    });
+  let rows = checkins.slice().sort((a, b) => {
+    const da = a.checkedInAt ?? a.createdAt ?? "";
+    const db = b.checkedInAt ?? b.createdAt ?? "";
+    return db < da ? -1 : 1;
+  });
 
   if (filter === "notes") {
     rows = rows.filter((c) => c.note && (c.feelingCore === "sad" || c.feelingCore === "anger"));
@@ -188,8 +176,21 @@ export function WellnessHistory({
           </div>
         ) : null}
         {shown.map((ck) => {
-          const iso = (ck.checkedInAt ?? ck.createdAt ?? "").slice(0, 10);
-          const { dow, mo, day } = isoToDisplayDate(iso);
+          const fullIso = ck.checkedInAt ?? ck.createdAt ?? "";
+          const iso = fullIso.slice(0, 10);
+          const isToday = iso === today;
+          const dow = isToday
+            ? "Today"
+            : new Date(iso + "T12:00:00").toLocaleDateString("en-US", { weekday: "long" });
+          const mo = new Date(iso + "T12:00:00").toLocaleDateString("en-US", { month: "short" });
+          const day = new Date(iso + "T12:00:00").getDate();
+          const timeStr =
+            isToday && fullIso.length > 10
+              ? new Date(fullIso).toLocaleTimeString(undefined, {
+                  hour: "numeric",
+                  minute: "2-digit"
+                })
+              : null;
           const c = emoColor(ck.feelingCore, theme);
           const v = moodIndex(ck.feelingCore, ck.intensity ?? 3);
           const band = moodBand(v);
@@ -204,10 +205,14 @@ export function WellnessHistory({
               >
                 <span className="wl-hrow__date">
                   <span className="dow">{dow}</span>
-                  <span className="md">
-                    {" "}
-                    {mo} {day}
-                  </span>
+                  {isToday && timeStr ? (
+                    <span className="md"> {timeStr}</span>
+                  ) : (
+                    <span className="md">
+                      {" "}
+                      {mo} {day}
+                    </span>
+                  )}
                 </span>
                 <span className="wl-hrow__emo">
                   <span className="d" style={{ background: c.tint }} />

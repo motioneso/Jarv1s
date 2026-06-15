@@ -23,6 +23,7 @@ import {
 import {
   WellnessRepository,
   computeSchedule,
+  computeInsights,
   wellnessModuleManifest,
   WELLNESS_MODULE_ID,
   wellnessRecentCheckInsExecute,
@@ -839,6 +840,78 @@ describe("feelings taxonomy (browser-safe, in @jarv1s/shared)", () => {
 
 // Phase 2 tests (taxonomy, therapy notes, listLogsRange, insights) live in wellness-phase2.test.ts
 // to keep this file under the 1000-line limit.
+
+describe("today visibility — B2 + F3 backend confirmation", () => {
+  const repo = new WellnessRepository();
+
+  it("checkin created today appears in listCheckins (backend does not filter by date)", async () => {
+    let createdId = "";
+    await dataContext.withDataContext(ctx(userId), async (scopedDb) => {
+      const ck = await repo.createCheckin(scopedDb, {
+        feelingCore: "happy",
+        feelingSecondary: "Content",
+        sensations: [],
+        intensity: 3,
+        note: null,
+        identifiedVia: "wheel"
+      });
+      createdId = ck.id;
+    });
+    const list = await dataContext.withDataContext(ctx(userId), (scopedDb) =>
+      repo.listCheckins(scopedDb, { limit: 50 })
+    );
+    expect(list.map((c) => c.id)).toContain(createdId);
+  });
+
+  it("two checkins created on the same day both appear in list (F3)", async () => {
+    const ids: string[] = [];
+    await dataContext.withDataContext(ctx(userId), async (scopedDb) => {
+      const ck1 = await repo.createCheckin(scopedDb, { feelingCore: "happy", intensity: 3 });
+      const ck2 = await repo.createCheckin(scopedDb, { feelingCore: "happy", intensity: 4 });
+      ids.push(ck1.id, ck2.id);
+    });
+    const list = await dataContext.withDataContext(ctx(userId), (scopedDb) =>
+      repo.listCheckins(scopedDb, { limit: 50 })
+    );
+    const listIds = list.map((c) => c.id);
+    expect(listIds).toContain(ids[0]);
+    expect(listIds).toContain(ids[1]);
+  });
+});
+
+describe("computeInsights — low-data guard (Q1)", () => {
+  const now = new Date("2026-06-15T12:00:00Z");
+
+  it("returns empty array when fewer than 7 check-ins", () => {
+    const checkins = [
+      { feeling_core: "happy", intensity: 3, checked_in_at: "2026-06-14T10:00:00Z", note: null }
+    ] as unknown as Parameters<typeof computeInsights>[0];
+    const result = computeInsights(checkins, [], [], now);
+    expect(result).toEqual([]);
+  });
+
+  it("returns empty array when 7 check-ins but all within last 6 days", () => {
+    const checkins = Array.from({ length: 7 }, (_, i) => ({
+      feeling_core: "happy",
+      intensity: 3,
+      checked_in_at: new Date(now.getTime() - i * 86400000).toISOString(),
+      note: null
+    })) as unknown as Parameters<typeof computeInsights>[0];
+    const result = computeInsights(checkins, [], [], now);
+    expect(result).toEqual([]);
+  });
+
+  it("returns insights when ≥7 check-ins spanning ≥7 days", () => {
+    const checkins = Array.from({ length: 7 }, (_, i) => ({
+      feeling_core: "happy",
+      intensity: 3,
+      checked_in_at: new Date(now.getTime() - (i + 7) * 86400000).toISOString(),
+      note: null
+    })) as unknown as Parameters<typeof computeInsights>[0];
+    const result = computeInsights(checkins, [], [], now);
+    expect(result.length).toBeGreaterThan(0);
+  });
+});
 
 describe("module isolation: wellness ⇄ tasks", () => {
   const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "../..");

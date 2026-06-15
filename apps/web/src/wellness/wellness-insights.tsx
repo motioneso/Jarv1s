@@ -183,7 +183,7 @@ export function WellnessInsights({ onReviewNotes }: Props) {
         ) : insights.length === 0 ? (
           <div className="wl-insight" style={{ padding: "16px 0" }}>
             <span style={{ fontSize: 13, color: "var(--text-subtle)" }}>
-              Keep checking in — insights appear once you have some history.
+              Insights appear after about a week of check-ins. Keep going.
             </span>
           </div>
         ) : (
