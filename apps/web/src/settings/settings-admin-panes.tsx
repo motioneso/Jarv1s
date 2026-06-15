@@ -35,7 +35,11 @@ import {
   setAdminModuleDisabled
 } from "../api/client";
 import { queryKeys } from "../api/query-keys";
-import { adminUserActions, type AdminUserAction } from "./settings-admin-policy";
+import {
+  adminUserActions,
+  createAdminUserPolicyContext,
+  type AdminUserAction
+} from "./settings-admin-policy";
 import { useFeedback } from "./settings-feedback";
 import { moduleDescription, readError, type PaneProps } from "./settings-types";
 import {
@@ -258,6 +262,7 @@ export function PeoplePane({ me }: PaneProps) {
   const users = usersQuery.data?.users ?? [];
   const pending = users.filter((user) => user.status === "pending");
   const members = users.filter((user) => user.status !== "pending");
+  const policy = createAdminUserPolicyContext(members);
 
   return (
     <>
@@ -312,7 +317,7 @@ export function PeoplePane({ me }: PaneProps) {
                 key={user.id}
                 user={user}
                 isCurrent={user.id === me.user.id}
-                actions={adminUserActions(user, me.user, members)}
+                actions={adminUserActions(user, me.user, policy)}
                 onAction={onAction}
               />
             ))

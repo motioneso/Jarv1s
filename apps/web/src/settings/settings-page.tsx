@@ -18,40 +18,28 @@ import {
   Users,
   type LucideIcon
 } from "lucide-react";
-import { useEffect, useState, type ReactNode } from "react";
+import { lazy, Suspense, useEffect, useState, type ComponentType } from "react";
 import { useNavigate } from "react-router";
 
 import { FeedbackProvider } from "./settings-feedback";
-import {
-  AuditPane,
-  HostPane,
-  IdentityPane,
-  InstanceModulesPane,
-  OversightPane,
-  PeoplePane
-} from "./settings-admin-panes";
-import {
-  AssistantPane,
-  ConnectedPane,
-  GeneralPane,
-  MemoryPane,
-  ModulesPane,
-  ProfilePane,
-  SourcesPane
-} from "./settings-personal-panes";
+import { ProfilePane } from "./settings-personal-panes";
 import { coerceSettingsSectionId } from "./settings-navigation";
+import {
+  browserSettingsStorage,
+  readSettingsStorage,
+  writeSettingsStorage
+} from "./settings-storage";
+import type { PaneProps } from "./settings-types";
 import { Segmented, Switch } from "./settings-ui";
 import type { MeResponse } from "@jarv1s/shared";
+
+type SettingsPane = ComponentType<PaneProps>;
 
 interface SettingsSection<Id extends string> {
   readonly id: Id;
   readonly icon: LucideIcon;
   readonly label: string;
-  readonly Pane: (props: {
-    readonly advanced: boolean;
-    readonly me: MeResponse;
-    readonly onNavigate: (path: string) => void;
-  }) => ReactNode;
+  readonly Pane: SettingsPane;
 }
 
 type PersonalSectionId =
@@ -64,6 +52,48 @@ type PersonalSectionId =
   | "general";
 
 type AdminSectionId = "people" | "identity" | "instmods" | "audit" | "oversight" | "host";
+
+function lazyPane(loader: () => Promise<{ default: SettingsPane }>) {
+  return lazy(loader);
+}
+
+const AssistantPane = lazyPane(() =>
+  import("./settings-ai-pane").then((module) => ({ default: module.AssistantPane }))
+);
+const MemoryPane = lazyPane(() =>
+  import("./settings-memory-pane").then((module) => ({ default: module.MemoryPane }))
+);
+const ConnectedPane = lazyPane(() =>
+  import("./settings-personal-data-panes").then((module) => ({ default: module.ConnectedPane }))
+);
+const SourcesPane = lazyPane(() =>
+  import("./settings-personal-data-panes").then((module) => ({ default: module.SourcesPane }))
+);
+const ModulesPane = lazyPane(() =>
+  import("./settings-personal-data-panes").then((module) => ({ default: module.ModulesPane }))
+);
+const GeneralPane = lazyPane(() =>
+  import("./settings-personal-data-panes").then((module) => ({ default: module.GeneralPane }))
+);
+
+const PeoplePane = lazyPane(() =>
+  import("./settings-admin-panes").then((module) => ({ default: module.PeoplePane }))
+);
+const IdentityPane = lazyPane(() =>
+  import("./settings-admin-panes").then((module) => ({ default: module.IdentityPane }))
+);
+const InstanceModulesPane = lazyPane(() =>
+  import("./settings-admin-panes").then((module) => ({ default: module.InstanceModulesPane }))
+);
+const AuditPane = lazyPane(() =>
+  import("./settings-admin-panes").then((module) => ({ default: module.AuditPane }))
+);
+const OversightPane = lazyPane(() =>
+  import("./settings-admin-panes").then((module) => ({ default: module.OversightPane }))
+);
+const HostPane = lazyPane(() =>
+  import("./settings-admin-panes").then((module) => ({ default: module.HostPane }))
+);
 
 const PERSONAL_SECTIONS = [
   { id: "profile", icon: UserRound, label: "Profile & account", Pane: ProfilePane },
@@ -84,13 +114,6 @@ const ADMIN_SECTIONS = [
   { id: "host", icon: ServerCog, label: "Advanced host setup", Pane: HostPane }
 ] as const satisfies readonly SettingsSection<AdminSectionId>[];
 
-const STORAGE = {
-  mode: "jarvis.set.mode",
-  advanced: "jarvis.set.adv",
-  categoryPersonal: "jarvis.set.catP",
-  categoryAdmin: "jarvis.set.catA"
-} as const;
-
 interface SettingsPageProps {
   readonly me: MeResponse;
 }
@@ -98,27 +121,34 @@ interface SettingsPageProps {
 export function SettingsPage({ me }: SettingsPageProps) {
   const navigate = useNavigate();
   const isAdmin = me.user.isInstanceAdmin;
+  const storage = browserSettingsStorage();
 
   const [mode, setMode] = useState<"personal" | "admin">(() =>
-    isAdmin && localStorage.getItem(STORAGE.mode) === "admin" ? "admin" : "personal"
+    isAdmin && readSettingsStorage(storage, "mode") === "admin" ? "admin" : "personal"
   );
   const [advanced, setAdvanced] = useState<boolean>(
-    () => localStorage.getItem(STORAGE.advanced) === "1"
+    () => readSettingsStorage(storage, "advanced") === "1"
   );
   const [categoryPersonal, setCategoryPersonal] = useState<PersonalSectionId>(() =>
-    coerceSettingsSectionId(PERSONAL_SECTIONS, localStorage.getItem(STORAGE.categoryPersonal))
+    coerceSettingsSectionId(PERSONAL_SECTIONS, readSettingsStorage(storage, "categoryPersonal"))
   );
   const [categoryAdmin, setCategoryAdmin] = useState<AdminSectionId>(() =>
-    coerceSettingsSectionId(ADMIN_SECTIONS, localStorage.getItem(STORAGE.categoryAdmin))
+    coerceSettingsSectionId(ADMIN_SECTIONS, readSettingsStorage(storage, "categoryAdmin"))
   );
 
-  useEffect(() => localStorage.setItem(STORAGE.mode, mode), [mode]);
-  useEffect(() => localStorage.setItem(STORAGE.advanced, advanced ? "1" : "0"), [advanced]);
+  useEffect(() => writeSettingsStorage(storage, "mode", mode), [mode, storage]);
+  useEffect(() => writeSettingsStorage(storage, "advanced", advanced ? "1" : "0"), [
+    advanced,
+    storage
+  ]);
   useEffect(
-    () => localStorage.setItem(STORAGE.categoryPersonal, categoryPersonal),
-    [categoryPersonal]
+    () => writeSettingsStorage(storage, "categoryPersonal", categoryPersonal),
+    [categoryPersonal, storage]
   );
-  useEffect(() => localStorage.setItem(STORAGE.categoryAdmin, categoryAdmin), [categoryAdmin]);
+  useEffect(() => writeSettingsStorage(storage, "categoryAdmin", categoryAdmin), [
+    categoryAdmin,
+    storage
+  ]);
 
   const adminMode = isAdmin && mode === "admin";
   const sections = adminMode ? ADMIN_SECTIONS : PERSONAL_SECTIONS;
@@ -190,7 +220,9 @@ export function SettingsPage({ me }: SettingsPageProps) {
           </nav>
 
           <div className="set2__pane">
-            <Pane advanced={advanced} me={me} onNavigate={(path) => navigate(path)} />
+            <Suspense fallback={<div className="pane__loading">Loading settings...</div>}>
+              <Pane advanced={advanced} me={me} onNavigate={(path) => navigate(path)} />
+            </Suspense>
           </div>
         </div>
       </div>
