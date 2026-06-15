@@ -47,7 +47,8 @@ then squash). The wellness work (Phases 1–3) already lives only on this branch
 - [ ] Remediation commit lands; `git show --stat` shows ONLY intended paths (agent ran repo-wide
       `pnpm format` — confirm no unrelated files swept into the commit).
 - [x] `pnpm verify:foundation` REAL exit 0 — independently confirmed at `6ebda42`+manifest (335 unit + 725 integration, 2 skipped). MUST RE-RUN after round-2 fixes land.
-- [ ] 2nd Codex pass (session `019eca17`) → **ROUND 2 = DO-NOT-MERGE, BLOCKERS:1** (all 9 original findings confirmed fixed, but 4 regressions introduced — see escalations). Round-3 re-review needed after fixes.
+- [x] Codex pass (session `019eca17`): R2 DO-NOT-MERGE(4) → R3 DO-NOT-MERGE(1, same bug class) → **ROUND 4 = MERGE-READY, BLOCKERS:0** on `cd15341`. C1 (partial-update bug class) + C2 confirmed resolved.
+- [ ] Gate4 (independent, on `cd15341`) REAL exit 0 — IN PROGRESS (unit 335 green, integration running). Merge ONLY after this confirms exit 0.
 - [ ] Independent coordinated-qa pass green (sensitive tier: + invariant check).
 - [ ] Then autonomous merge to `main` + GitHub bookkeeping (epic #50 progress comment — slice, do
       NOT close epic) + agentmemory lesson + remove `wellness-web` worktree.
