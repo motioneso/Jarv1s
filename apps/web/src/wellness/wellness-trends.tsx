@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
-import { EMOTIONS, type DayAdherenceSummaryDto } from "@jarv1s/shared";
+import { EMOTIONS, type CheckinDto, type DayAdherenceSummaryDto } from "@jarv1s/shared";
 import { queryKeys } from "../api/query-keys";
 import { listWellnessCheckins, getMedicationAdherenceSummary } from "../api/client";
 import { emoColor, type Theme } from "./emotion-taxonomy";
@@ -78,11 +78,12 @@ export function WellnessTrends({ theme = "light" }: Props) {
     summaryByDate[d.date] = d;
   });
 
-  // Build checkin lookup by date (most-recent check-in per day)
-  const checkinByDate: Record<string, (typeof checkins)[0]> = {};
+  // Build checkin lookup by date (all check-ins per day; list is newest-first)
+  const checkinsByDate: Record<string, CheckinDto[]> = {};
   checkins.forEach((c) => {
     const d = (c.checkedInAt ?? c.createdAt ?? "").slice(0, 10);
-    if (d && !checkinByDate[d]) checkinByDate[d] = c;
+    if (!d) return;
+    (checkinsByDate[d] ??= []).push(c);
   });
 
   const todayStr = isoDate(0);
@@ -94,7 +95,8 @@ export function WellnessTrends({ theme = "light" }: Props) {
       date: iso,
       label: shortLabel(iso),
       isToday: iso === todayStr,
-      checkin: checkinByDate[iso] ?? null,
+      checkin: (checkinsByDate[iso] ?? [])[0] ?? null,
+      checkins: checkinsByDate[iso] ?? [],
       medFrac:
         summary && summary.scheduledCount > 0 ? summary.takenCount / summary.scheduledCount : 0,
       medTaken: summary?.takenCount ?? 0,
