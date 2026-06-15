@@ -10,25 +10,39 @@ import {
   listMedicationsRouteSchema,
   medicationScheduleRouteSchema,
   updateMedicationRouteSchema,
-  WELLNESS_FEELING_CORES,
+  wellnessInsightsRouteSchema,
+  listTherapyNotesRouteSchema,
+  createTherapyNoteRouteSchema,
+  deleteTherapyNoteRouteSchema,
+  medicationAdherenceSummaryRouteSchema,
+  updateCheckinRouteSchema,
+  WELLNESS_EMOTION_CORES,
   MEDICATION_FREQUENCY_TYPES,
   MEDICATION_LOG_STATUSES,
   isValidFeelingPath,
   type MedicationFrequencyTypeApi,
   type MedicationLogStatusApi,
-  type WellnessFeelingCore
+  type WellnessEmotionCore as WellnessFeelingCore
 } from "@jarv1s/shared";
 
 import type {
   CreateCheckinInput,
+  UpdateCheckinInput,
   CreateMedicationInput,
+  CreateTherapyNoteInput,
   LogDoseInput,
   UpdateMedicationInput
 } from "./repository.js";
 import { WellnessRepository } from "./repository.js";
 import { WellnessRecallContributor } from "./recall-context.js";
 import { computeSchedule } from "./schedule.js";
-import { serializeCheckin, serializeMedication, serializeMedicationLog } from "./serialize.js";
+import {
+  serializeCheckin,
+  serializeMedication,
+  serializeMedicationLog,
+  serializeTherapyNote
+} from "./serialize.js";
+import { computeInsights } from "./insights.js";
 
 export interface WellnessRoutesDependencies {
   readonly resolveAccessContext: (request: FastifyRequest) => Promise<AccessContext>;
@@ -83,6 +97,31 @@ export function registerWellnessRoutes(
           repo.listCheckins(scopedDb, { since, limit })
         );
         return { checkins: checkins.map(serializeCheckin) };
+      } catch (error) {
+        return handleRouteError(error, reply);
+      }
+    }
+  );
+
+  server.patch<{ Params: { id: string } }>(
+    "/api/wellness/checkins/:id",
+    { schema: updateCheckinRouteSchema },
+    async (request, reply) => {
+      try {
+        const accessContext = await dependencies.resolveAccessContext(request);
+        const input = parseUpdateCheckinBody(request.body);
+        const checkin = await dependencies.dataContext.withDataContext(
+          accessContext,
+          async (scopedDb) => {
+            const updated = await repo.updateCheckin(scopedDb, request.params.id, input);
+            if (updated && input.energy !== undefined) {
+              await recallContributor.refreshEnergyTrendFact(scopedDb, accessContext.actorUserId);
+            }
+            return updated;
+          }
+        );
+        if (!checkin) return reply.code(404).send({ error: "Check-in not found" });
+        return { checkin: serializeCheckin(checkin) };
       } catch (error) {
         return handleRouteError(error, reply);
       }
@@ -193,6 +232,162 @@ export function registerWellnessRoutes(
       }
     }
   );
+
+  // ── Insights ─────────────────────────────────────────────────────────────
+  server.get(
+    "/api/wellness/insights",
+    { schema: wellnessInsightsRouteSchema },
+    async (request, reply) => {
+      try {
+        const accessContext = await dependencies.resolveAccessContext(request);
+        const now = new Date();
+        const sinceDays = 30;
+        const { checkins, logs, meds } = await dependencies.dataContext.withDataContext(
+          accessContext,
+          async (scopedDb) => ({
+            checkins: await repo.listRecentCheckinsForInsights(scopedDb, sinceDays),
+            logs: await repo.listLogsRange(scopedDb, { sinceDays }),
+            meds: await repo.listMedications(scopedDb)
+          })
+        );
+        // Count expected scheduled slots across the 30-day window so missed doses
+        // are included in the adherence denominator (not just logged rows).
+        let totalExpectedSlots = 0;
+        for (let i = sinceDays - 1; i >= 0; i--) {
+          const ts = now.getTime() - i * 86_400_000;
+          const day = new Date(
+            Date.UTC(
+              new Date(ts).getUTCFullYear(),
+              new Date(ts).getUTCMonth(),
+              new Date(ts).getUTCDate()
+            )
+          );
+          const dayEnd = new Date(day.getTime() + 86_400_000);
+          const dayLogs = logs.filter((l) => {
+            const sf = l.scheduled_for ? new Date(l.scheduled_for as string | Date) : null;
+            return sf && sf >= day && sf < dayEnd;
+          });
+          const slots = computeSchedule(meds, dayLogs, day);
+          totalExpectedSlots += slots.filter((s) => !s.asNeeded).length;
+        }
+        const insights = computeInsights(checkins, logs, meds, now, totalExpectedSlots);
+        return { insights };
+      } catch (error) {
+        return handleRouteError(error, reply);
+      }
+    }
+  );
+
+  // ── Therapy notes ────────────────────────────────────────────────────────
+  server.get(
+    "/api/wellness/therapy-notes",
+    { schema: listTherapyNotesRouteSchema },
+    async (request, reply) => {
+      try {
+        const accessContext = await dependencies.resolveAccessContext(request);
+        const notes = await dependencies.dataContext.withDataContext(accessContext, (scopedDb) =>
+          repo.listTherapyNotes(scopedDb)
+        );
+        return { notes: notes.map(serializeTherapyNote) };
+      } catch (error) {
+        return handleRouteError(error, reply);
+      }
+    }
+  );
+
+  server.post(
+    "/api/wellness/therapy-notes",
+    { schema: createTherapyNoteRouteSchema },
+    async (request, reply) => {
+      try {
+        const accessContext = await dependencies.resolveAccessContext(request);
+        const input = parseTherapyNoteBody(request.body);
+        const note = await dependencies.dataContext.withDataContext(accessContext, (scopedDb) =>
+          repo.createTherapyNote(scopedDb, input)
+        );
+        return reply.code(201).send({ note: serializeTherapyNote(note) });
+      } catch (error) {
+        // P0001: SECURITY INVOKER trigger rejects cross-owner linkedCheckinId (treat as not found).
+        // 23503: FK violation — linkedCheckinId doesn't exist at all. Both → 404 (no ownership leak).
+        if (isRaisedException(error) || isFkViolation(error)) {
+          return reply.code(404).send({ error: "linked check-in not found" });
+        }
+        return handleRouteError(error, reply);
+      }
+    }
+  );
+
+  server.delete<{ Params: { id: string } }>(
+    "/api/wellness/therapy-notes/:id",
+    { schema: deleteTherapyNoteRouteSchema },
+    async (request, reply) => {
+      try {
+        const accessContext = await dependencies.resolveAccessContext(request);
+        const deleted = await dependencies.dataContext.withDataContext(accessContext, (scopedDb) =>
+          repo.deleteTherapyNote(scopedDb, request.params.id)
+        );
+        if (!deleted) return reply.code(404).send({ error: "Therapy note not found" });
+        return { deleted: true };
+      } catch (error) {
+        return handleRouteError(error, reply);
+      }
+    }
+  );
+
+  // ── Medication adherence summary ─────────────────────────────────────────
+  // Replaces raw-logs endpoint: returns per-day adherence computed server-side via
+  // computeSchedule so missed doses count in the denominator and no raw dose/prnReason leak.
+  server.get(
+    "/api/wellness/medications/logs",
+    { schema: medicationAdherenceSummaryRouteSchema },
+    async (request, reply) => {
+      try {
+        const accessContext = await dependencies.resolveAccessContext(request);
+        const query = request.query as Record<string, unknown>;
+        const sinceDays = parseSinceDays(query["sinceDays"]);
+        const { meds, logs } = await dependencies.dataContext.withDataContext(
+          accessContext,
+          async (scopedDb) => ({
+            meds: await repo.listMedications(scopedDb),
+            logs: await repo.listLogsRange(scopedDb, { sinceDays })
+          })
+        );
+        const now = new Date();
+        const days = [];
+        for (let i = sinceDays - 1; i >= 0; i--) {
+          const ts = now.getTime() - i * 86_400_000;
+          const day = new Date(
+            Date.UTC(
+              new Date(ts).getUTCFullYear(),
+              new Date(ts).getUTCMonth(),
+              new Date(ts).getUTCDate()
+            )
+          );
+          const dayEnd = new Date(day.getTime() + 86_400_000);
+          const dayLogs = logs.filter((l) => {
+            const sf = l.scheduled_for ? new Date(l.scheduled_for as string | Date) : null;
+            return sf && sf >= day && sf < dayEnd;
+          });
+          const slots = computeSchedule(meds, dayLogs, day);
+          const dateStr = day.toISOString().slice(0, 10);
+          days.push({
+            date: dateStr,
+            scheduledCount: slots.filter((s) => !s.asNeeded).length,
+            takenCount: slots.filter((s) => !s.asNeeded && s.status === "taken").length,
+            doses: slots.map((s) => ({
+              medicationId: s.medicationId,
+              name: s.name,
+              status: s.status,
+              prn: s.asNeeded
+            }))
+          });
+        }
+        return { days };
+      } catch (error) {
+        return handleRouteError(error, reply);
+      }
+    }
+  );
 }
 
 function isUniqueViolation(error: unknown): boolean {
@@ -202,13 +397,26 @@ function isUniqueViolation(error: unknown): boolean {
   );
 }
 
+function isFkViolation(error: unknown): boolean {
+  return (
+    typeof error === "object" && error !== null && (error as { code?: string }).code === "23503"
+  );
+}
+
+function isRaisedException(error: unknown): boolean {
+  // SQLSTATE P0001: RAISE EXCEPTION from a trigger (e.g. cross-owner linkedCheckinId rejection).
+  return (
+    typeof error === "object" && error !== null && (error as { code?: string }).code === "P0001"
+  );
+}
+
 // ── Body parsers ─────────────────────────────────────────────────────────────
 
 function parseCheckinBody(body: unknown): CreateCheckinInput {
   const value = requireObject(body);
   const feelingCore = value["feelingCore"];
   if (!isFeelingCore(feelingCore)) {
-    throw new HttpError(400, `feelingCore must be one of ${WELLNESS_FEELING_CORES.join(", ")}`);
+    throw new HttpError(400, `feelingCore must be one of ${WELLNESS_EMOTION_CORES.join(", ")}`);
   }
   const intensity = value["intensity"];
   if (intensity !== undefined && intensity !== null) {
@@ -251,6 +459,48 @@ function parseCheckinBody(body: unknown): CreateCheckinInput {
     energy: energy === undefined ? undefined : (energy as number | null),
     note: optionalNullableString(value["note"], "note"),
     identifiedVia: identifiedVia as "wheel" | "assisted" | undefined
+  };
+}
+
+function parseUpdateCheckinBody(body: unknown): UpdateCheckinInput {
+  const value = requireObject(body);
+  const feelingCore = value["feelingCore"];
+  if (!isFeelingCore(feelingCore)) {
+    throw new HttpError(400, `feelingCore must be one of ${WELLNESS_EMOTION_CORES.join(", ")}`);
+  }
+  const feelingSecondary = optionalNullableString(value["feelingSecondary"], "feelingSecondary");
+  const feelingTertiary = optionalNullableString(value["feelingTertiary"], "feelingTertiary");
+  if (!isValidFeelingPath(feelingCore, feelingSecondary ?? null, feelingTertiary ?? null)) {
+    throw new HttpError(
+      400,
+      "feelingSecondary/feelingTertiary must form a valid path under feelingCore"
+    );
+  }
+  const intensity = value["intensity"];
+  if (intensity !== undefined && intensity !== null) {
+    if (
+      typeof intensity !== "number" ||
+      !Number.isInteger(intensity) ||
+      intensity < 1 ||
+      intensity > 5
+    ) {
+      throw new HttpError(400, "intensity must be an integer from 1 to 5");
+    }
+  }
+  const energy = value["energy"];
+  if (energy !== undefined && energy !== null) {
+    if (typeof energy !== "number" || !Number.isInteger(energy) || energy < 1 || energy > 5) {
+      throw new HttpError(400, "energy must be an integer from 1 to 5");
+    }
+  }
+  return {
+    feelingCore,
+    feelingSecondary,
+    // Omitted sensations → undefined (preserve existing); explicit [] → clear; non-empty → set.
+    sensations: parseOptionalStringArray(value["sensations"], "sensations"),
+    intensity: intensity === undefined ? undefined : (intensity as number | null),
+    energy: energy === undefined ? undefined : (energy as number | null),
+    note: optionalNullableString(value["note"], "note")
   };
 }
 
@@ -373,8 +623,44 @@ function parseLogDoseBody(body: unknown): LogDoseInput {
   };
 }
 
+function parseTherapyNoteBody(body: unknown): CreateTherapyNoteInput {
+  const value = requireObject(body);
+  const bodyText = requiredString(value["body"], "body");
+  const linkedCheckinId =
+    value["linkedCheckinId"] === undefined
+      ? undefined
+      : value["linkedCheckinId"] === null
+        ? null
+        : typeof value["linkedCheckinId"] === "string"
+          ? value["linkedCheckinId"]
+          : (() => {
+              throw new HttpError(400, "linkedCheckinId must be a UUID string or null");
+            })();
+  const linkedEmotion =
+    value["linkedEmotion"] === undefined
+      ? undefined
+      : value["linkedEmotion"] === null
+        ? null
+        : isFeelingCore(value["linkedEmotion"])
+          ? (value["linkedEmotion"] as WellnessFeelingCore)
+          : (() => {
+              throw new HttpError(
+                400,
+                `linkedEmotion must be one of ${WELLNESS_EMOTION_CORES.join(", ")}`
+              );
+            })();
+  return { body: bodyText, linkedCheckinId, linkedEmotion };
+}
+
+function parseSinceDays(value: unknown): number {
+  if (value === undefined || value === null || value === "") return 30;
+  const n = Number(value);
+  if (!Number.isInteger(n) || n < 1 || n > 90) throw new HttpError(400, "sinceDays must be 1–90");
+  return n;
+}
+
 function isFeelingCore(value: unknown): value is WellnessFeelingCore {
-  return typeof value === "string" && (WELLNESS_FEELING_CORES as readonly string[]).includes(value);
+  return typeof value === "string" && (WELLNESS_EMOTION_CORES as readonly string[]).includes(value);
 }
 function isFrequencyType(value: unknown): value is MedicationFrequencyTypeApi {
   return (
@@ -421,6 +707,14 @@ function optionalNumberArray(value: unknown): number[] | null | undefined {
 }
 function parseStringArray(value: unknown, field: string): string[] {
   if (value === undefined || value === null) return [];
+  if (!Array.isArray(value) || value.some((s) => typeof s !== "string")) {
+    throw new HttpError(400, `${field} must be an array of strings`);
+  }
+  return value as string[];
+}
+// Variant for PATCH bodies: omitted field returns undefined (leave unchanged), explicit [] clears.
+function parseOptionalStringArray(value: unknown, field: string): string[] | undefined {
+  if (value === undefined) return undefined;
   if (!Array.isArray(value) || value.some((s) => typeof s !== "string")) {
     throw new HttpError(400, `${field} must be an array of strings`);
   }

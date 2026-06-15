@@ -1,5 +1,5 @@
-import type { Medication, MedicationLog, WellnessCheckin } from "@jarv1s/db";
-import type { CheckinDto, MedicationDto, MedicationLogDto } from "@jarv1s/shared";
+import type { Medication, MedicationLog, WellnessCheckin, WellnessTherapyNote } from "@jarv1s/db";
+import type { CheckinDto, MedicationDto, MedicationLogDto, TherapyNoteDto } from "@jarv1s/shared";
 
 function toIso(value: Date | string | null | undefined): string | null {
   if (value === null || value === undefined) return null;
@@ -55,5 +55,17 @@ export function serializeMedicationLog(row: MedicationLog): MedicationLogDto {
     prnReason: row.prn_reason,
     scheduledFor: toIso(row.scheduled_for),
     loggedAt: toIso(row.logged_at)
+  };
+}
+
+export function serializeTherapyNote(row: WellnessTherapyNote): TherapyNoteDto {
+  return {
+    id: row.id,
+    ownerUserId: row.owner_user_id,
+    body: row.body,
+    linkedCheckinId: row.linked_checkin_id,
+    linkedEmotion: row.linked_emotion,
+    createdAt: toIso(row.created_at),
+    updatedAt: toIso(row.updated_at)
   };
 }

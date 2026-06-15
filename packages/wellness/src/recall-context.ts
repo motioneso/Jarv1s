@@ -17,7 +17,7 @@ const ENERGY_TREND_LOCK_NAMESPACE = 0x77656c6c; // 'well'
  * an energy-level abstraction (privacy posture / no health-content leakage).
  */
 export function deriveEnergyTrend(
-  recent: ReadonlyArray<Pick<WellnessCheckin, "energy" | "feeling_core">>
+  recent: ReadonlyArray<Pick<WellnessCheckin, "energy">>
 ): string | null {
   const energies = recent.map((c) => c.energy).filter((n): n is number => typeof n === "number");
   if (energies.length === 0) return null;
@@ -54,14 +54,12 @@ export class WellnessRecallContributor {
     );
     const recent = await scopedDb.db
       .selectFrom("app.wellness_checkins")
-      .select(["energy", "feeling_core"])
+      .select(["energy"])
       .orderBy("checked_in_at", "desc")
       .limit(7)
       .execute();
 
-    const trend = deriveEnergyTrend(
-      recent as Array<Pick<WellnessCheckin, "energy" | "feeling_core">>
-    );
+    const trend = deriveEnergyTrend(recent as Array<Pick<WellnessCheckin, "energy">>);
 
     const active = await this.facts.listActiveFacts(scopedDb, ownerUserId);
     for (const fact of active) {
