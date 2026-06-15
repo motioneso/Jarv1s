@@ -4,6 +4,7 @@ import pg from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { DataContextRunner, createDatabase, type AccessContext } from "@jarv1s/db";
+import { ChatMemoryFactsRepository } from "@jarv1s/memory";
 import { moodIndex, moodBand } from "@jarv1s/shared";
 import { WellnessRepository, registerWellnessRoutes } from "@jarv1s/wellness";
 
@@ -383,8 +384,99 @@ describe("PATCH /api/wellness/checkins/:id — partial-update semantics (R1 regr
   });
 });
 
+describe("PATCH /api/wellness/checkins/:id — partial-update bug class (C1 remediation)", () => {
+  it("PATCH omitting feelingSecondary retains existing value", async () => {
+    const repo = new WellnessRepository();
+    let checkinId = "";
+    await dataContext.withDataContext(ctx(userId), async (db) => {
+      const c = await repo.createCheckin(db, { feelingCore: "happy", feelingSecondary: "Joy" });
+      checkinId = c.id;
+    });
+    const app = Fastify();
+    registerWellnessRoutes(app, {
+      resolveAccessContext: async () => ({
+        actorUserId: userId,
+        requestId: "req:c1-secondary-retain"
+      }),
+      dataContext
+    });
+    await app.ready();
+    try {
+      const res = await app.inject({
+        method: "PATCH",
+        url: `/api/wellness/checkins/${checkinId}`,
+        payload: { feelingCore: "happy" }
+      });
+      expect(res.statusCode).toBe(200);
+      // feelingSecondary omitted from PATCH — must not be erased
+      expect(res.json().checkin.feelingSecondary).toBe("Joy");
+    } finally {
+      await app.close();
+    }
+  });
+
+  it("PATCH with feelingSecondary: null explicitly clears it", async () => {
+    const repo = new WellnessRepository();
+    let checkinId = "";
+    await dataContext.withDataContext(ctx(userId), async (db) => {
+      const c = await repo.createCheckin(db, { feelingCore: "happy", feelingSecondary: "Joy" });
+      checkinId = c.id;
+    });
+    const app = Fastify();
+    registerWellnessRoutes(app, {
+      resolveAccessContext: async () => ({
+        actorUserId: userId,
+        requestId: "req:c1-secondary-clear"
+      }),
+      dataContext
+    });
+    await app.ready();
+    try {
+      const res = await app.inject({
+        method: "PATCH",
+        url: `/api/wellness/checkins/${checkinId}`,
+        payload: { feelingCore: "happy", feelingSecondary: null }
+      });
+      expect(res.statusCode).toBe(200);
+      expect(res.json().checkin.feelingSecondary).toBeNull();
+    } finally {
+      await app.close();
+    }
+  });
+
+  it("PATCH omitting intensity retains existing value", async () => {
+    const repo = new WellnessRepository();
+    let checkinId = "";
+    await dataContext.withDataContext(ctx(userId), async (db) => {
+      const c = await repo.createCheckin(db, { feelingCore: "sad", intensity: 4 });
+      checkinId = c.id;
+    });
+    const app = Fastify();
+    registerWellnessRoutes(app, {
+      resolveAccessContext: async () => ({
+        actorUserId: userId,
+        requestId: "req:c1-intensity-retain"
+      }),
+      dataContext
+    });
+    await app.ready();
+    try {
+      const res = await app.inject({
+        method: "PATCH",
+        url: `/api/wellness/checkins/${checkinId}`,
+        payload: { feelingCore: "sad" }
+      });
+      expect(res.statusCode).toBe(200);
+      // intensity omitted from PATCH — must not be erased
+      expect(res.json().checkin.intensity).toBe(4);
+    } finally {
+      await app.close();
+    }
+  });
+});
+
 describe("PATCH /api/wellness/checkins/:id — energy triggers recall refresh (R2 regression)", () => {
-  it("PATCH with energy field completes without error (recall contributor called)", async () => {
+  it("PATCH with energy field stores [wellness:energy-trend] fact in recall (C2 deepened)", async () => {
     const repo = new WellnessRepository();
     let checkinId = "";
     await dataContext.withDataContext(ctx(userId), async (db) => {
@@ -406,6 +498,16 @@ describe("PATCH /api/wellness/checkins/:id — energy triggers recall refresh (R
       expect(res.statusCode).toBe(200);
       const body = res.json();
       expect(body.checkin.energy).toBe(5);
+
+      // Verify the [wellness:energy-trend] fact was actually inserted/updated in the recall store,
+      // not just that the HTTP response succeeded (this would catch a deleted refreshEnergyTrendFact).
+      const facts = new ChatMemoryFactsRepository();
+      const active = await dataContext.withDataContext(ctx(userId), (db) =>
+        facts.listActiveFacts(db, userId)
+      );
+      const trendFact = active.find((f) => f.content.includes("[wellness:energy-trend]"));
+      expect(trendFact).toBeDefined();
+      expect(trendFact?.category).toBe("profile");
     } finally {
       await app.close();
     }

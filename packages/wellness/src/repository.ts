@@ -8,11 +8,13 @@ import {
   type WellnessCheckin,
   type WellnessTherapyNote
 } from "@jarv1s/db";
+import { HttpError } from "@jarv1s/module-sdk";
 import type {
   MedicationFrequencyTypeApi,
   MedicationLogStatusApi,
   WellnessEmotionCore as WellnessFeelingCore
 } from "@jarv1s/shared";
+import { isValidFeelingPath } from "@jarv1s/shared";
 
 export interface CreateCheckinInput {
   readonly feelingCore: WellnessFeelingCore;
@@ -314,15 +316,37 @@ export class WellnessRepository {
     input: UpdateCheckinInput
   ): Promise<WellnessCheckin | undefined> {
     assertDataContextDb(scopedDb);
+    const existing = await scopedDb.db
+      .selectFrom("app.wellness_checkins")
+      .selectAll()
+      .where("id", "=", id)
+      .executeTakeFirst();
+    if (!existing) return undefined;
+
+    // Validate the combined feeling path: patch value if provided, else the stored value.
+    // Prevents a feelingCore change from leaving a stale feelingSecondary from the old core.
+    const effectiveSecondary =
+      input.feelingSecondary !== undefined
+        ? input.feelingSecondary
+        : (existing.feeling_secondary as string | null);
+    if (!isValidFeelingPath(input.feelingCore, effectiveSecondary, null)) {
+      throw new HttpError(
+        400,
+        `feelingSecondary '${effectiveSecondary}' is not valid under feelingCore '${input.feelingCore}'`
+      );
+    }
+
     const updates: Record<string, unknown> = {
       feeling_core: input.feelingCore,
-      feeling_secondary: input.feelingSecondary ?? null,
-      feeling_tertiary: null
+      feeling_tertiary: null // taxonomy invariant: 2-level only
     };
+    // Only include optional fields when explicitly provided; omitted ⇒ preserve existing value.
+    if (input.feelingSecondary !== undefined) updates["feeling_secondary"] = input.feelingSecondary;
     if (input.sensations !== undefined) updates["sensations"] = [...input.sensations];
     if (input.intensity !== undefined) updates["intensity"] = input.intensity ?? null;
     if (input.energy !== undefined) updates["energy"] = input.energy ?? null;
     if (input.note !== undefined) updates["note"] = input.note ?? null;
+
     const row = await scopedDb.db
       .updateTable("app.wellness_checkins")
       .set(updates)
