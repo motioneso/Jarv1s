@@ -96,8 +96,29 @@ Make Ben's **dev** account instance admin once it exists (dev `jarv1s` currently
 `*@example.test` seed users). Also file GitHub issue: owner/primary account should auto-be instance
 admin. Wait for Ben.
 
+## Active agents (round-3 fix cycle)
+
+- **Wellness-Remediation-R3**, session `0ee817f5` — fixing C1 (partial-update data-loss bug CLASS:
+  all omitted optional fields preserved in `updateCheckin`) + C2 (deepen energy-trend test). Reads
+  `docs/superpowers/handoffs/2026-06-15-wellness-remediation-round3-relay.md`. Builds on `6e23402`.
+  After: independent gate (REAL exit) + **round-4 Codex (session `019eca17`) — HARD STOP**; clean +
+  green → autonomous-merge + closeout + trigger calendar coordinator; still blocked → escalate Ben.
+
+## Process lesson (for calendar run + future)
+
+**Do NOT hand a new task to a build agent that's already context-low (>~80%).** Round-2 agent
+`3bc2277f` reported done at 65%, was given the round-3 fixes, climbed to 100% and **died at the
+context limit before it could read the queued relay nudge** (a relay message queued BEHIND a task
+message won't be seen until the agent finishes the task — by then it's too late). Correct pattern:
+when an agent reports done while already climbing, **relay it FIRST** (fresh successor), then assign
+the next task to the successor. Saved here only because the dead agent had committed `6e23402` and
+made no uncommitted edits, so a clean successor resumed from the handoff doc.
+
 ## Reaped sessions
 
+- `w653f42bef3ac02-?` / label `Wellness-Remediation`, session `3bc2277f` — round-1/2 build agent,
+  **died at context limit** mid round-3 (no relay; queued relay nudge unseen). Reaped 2026-06-15
+  after verifying clean tree (committed `6e23402`, no uncommitted edits). Successor: `0ee817f5`.
 - `w653f42bef3ac02-2` / label `Coordinator`, session `a6291c05` — prior (Ben-session) coordinator,
   reaped 2026-06-15 after confirming successor (this session) driving. (Bootstrap's stale reap
   target `-4` had reflowed to Ben's Jarvis chat — NOT reaped; identified real target by session id.)
