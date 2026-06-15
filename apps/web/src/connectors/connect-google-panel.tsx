@@ -1,40 +1,9 @@
-import { useState } from "react";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Cable, LoaderCircle } from "lucide-react";
 
-import { authorizeGoogleConnection, completeGoogleConnection } from "../api/client";
-import { queryKeys } from "../api/query-keys";
+import { useGoogleConnectFlow } from "./use-google-connect-flow";
 
 export function ConnectGooglePanel() {
-  const queryClient = useQueryClient();
-  const [clientId, setClientId] = useState("");
-  const [clientSecret, setClientSecret] = useState("");
-  const [authUrl, setAuthUrl] = useState<string | null>(null);
-  const [redirectUrl, setRedirectUrl] = useState("");
-  const [error, setError] = useState<string | null>(null);
-
-  const authorize = useMutation({
-    mutationFn: () =>
-      authorizeGoogleConnection({ clientId: clientId.trim(), clientSecret: clientSecret.trim() }),
-    onSuccess: (r) => {
-      setAuthUrl(r.authUrl);
-      setError(null);
-    },
-    onError: (e: Error) => setError(e.message)
-  });
-
-  const complete = useMutation({
-    mutationFn: () => completeGoogleConnection({ redirectUrl: redirectUrl.trim() }),
-    onSuccess: async () => {
-      setAuthUrl(null);
-      setRedirectUrl("");
-      setClientId("");
-      setClientSecret("");
-      setError(null);
-      await queryClient.invalidateQueries({ queryKey: queryKeys.connectors.accounts });
-    },
-    onError: (e: Error) => setError(e.message)
-  });
+  const flow = useGoogleConnectFlow();
 
   return (
     <section className="panel" aria-labelledby="connect-google-title">
@@ -55,50 +24,50 @@ export function ConnectGooglePanel() {
       </ol>
       <label>
         Client ID
-        <input value={clientId} onChange={(e) => setClientId(e.target.value)} />
+        <input value={flow.clientId} onChange={(e) => flow.setClientId(e.target.value)} />
       </label>
       <label>
         Client secret
         <input
           type="password"
-          value={clientSecret}
-          onChange={(e) => setClientSecret(e.target.value)}
+          value={flow.clientSecret}
+          onChange={(e) => flow.setClientSecret(e.target.value)}
         />
       </label>
       <button
         className="primary-button"
-        disabled={authorize.isPending || !clientId.trim() || !clientSecret.trim()}
-        onClick={() => authorize.mutate()}
+        disabled={flow.authorizationPending || !flow.clientId.trim() || !flow.clientSecret.trim()}
+        onClick={flow.startAuthorization}
       >
-        {authorize.isPending ? <LoaderCircle className="spin" size={18} /> : null} Start
+        {flow.authorizationPending ? <LoaderCircle className="spin" size={18} /> : null} Start
         authorization
       </button>
-      {authUrl ? (
+      {flow.authUrl ? (
         <>
           <p>
-            <a href={authUrl} target="_blank" rel="noreferrer">
+            <a href={flow.authUrl} target="_blank" rel="noreferrer">
               Open Google consent ↗
             </a>
           </p>
           <label>
             Pasted redirect URL
             <input
-              value={redirectUrl}
-              onChange={(e) => setRedirectUrl(e.target.value)}
+              value={flow.redirectUrl}
+              onChange={(e) => flow.setRedirectUrl(e.target.value)}
               placeholder="http://localhost:1/?code=..."
             />
           </label>
           <button
             className="primary-button"
-            disabled={complete.isPending || !redirectUrl.trim()}
-            onClick={() => complete.mutate()}
+            disabled={flow.completionPending || !flow.redirectUrl.trim()}
+            onClick={flow.finishConnection}
           >
-            {complete.isPending ? <LoaderCircle className="spin" size={18} /> : null} Finish
+            {flow.completionPending ? <LoaderCircle className="spin" size={18} /> : null} Finish
             connecting
           </button>
         </>
       ) : null}
-      {error ? <p className="form-error">{error}</p> : null}
+      {flow.error ? <p className="form-error">{flow.error}</p> : null}
     </section>
   );
 }
