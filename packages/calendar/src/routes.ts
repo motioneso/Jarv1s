@@ -1,14 +1,14 @@
 import type { FastifyInstance, FastifyRequest } from "fastify";
 
 import { handleRouteError } from "@jarv1s/module-sdk";
-import type { AccessContext, CalendarEvent, DataContextRunner } from "@jarv1s/db";
+import type { AccessContext, DataContextRunner } from "@jarv1s/db";
 import {
   getCalendarEventRouteSchema,
-  listCalendarEventsRouteSchema,
-  type CalendarEventDto
+  listCalendarEventsRouteSchema
 } from "@jarv1s/shared";
 
 import { CalendarRepository } from "./repository.js";
+import { serializeCalendarEvent } from "./serialize.js";
 
 export interface CalendarRoutesDependencies {
   readonly resolveAccessContext: (request: FastifyRequest) => Promise<AccessContext>;
@@ -63,26 +63,4 @@ export function registerCalendarRoutes(
       }
     }
   );
-}
-
-export function serializeCalendarEvent(event: CalendarEvent): CalendarEventDto {
-  return {
-    id: event.id,
-    connectorAccountId: event.connector_account_id,
-    ownerUserId: event.owner_user_id,
-    title: event.title,
-    startsAt: toIsoString(event.starts_at),
-    endsAt: toIsoString(event.ends_at),
-    location: event.location,
-    summary: event.summary,
-    bodyExcerpt: event.body_excerpt,
-    externalId: event.external_id,
-    externalMetadata: event.external_metadata,
-    createdAt: toIsoString(event.created_at),
-    updatedAt: toIsoString(event.updated_at)
-  };
-}
-
-function toIsoString(value: Date | string): string {
-  return value instanceof Date ? value.toISOString() : value;
 }
