@@ -22,11 +22,27 @@ export interface CalendarViewEvent {
 
 export const DOW_SHORT = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"] as const;
 export const DOW_LONG = [
-  "Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"
+  "Sunday",
+  "Monday",
+  "Tuesday",
+  "Wednesday",
+  "Thursday",
+  "Friday",
+  "Saturday"
 ] as const;
 export const MONTH_NAMES = [
-  "January", "February", "March", "April", "May", "June",
-  "July", "August", "September", "October", "November", "December"
+  "January",
+  "February",
+  "March",
+  "April",
+  "May",
+  "June",
+  "July",
+  "August",
+  "September",
+  "October",
+  "November",
+  "December"
 ] as const;
 
 export function fmtTime(min: number): string {
@@ -51,13 +67,7 @@ export function fmtDur(mins: number): string {
 }
 
 export function fmtDateLabel(date: Date): string {
-  return (
-    DOW_LONG[date.getDay()] +
-    ", " +
-    MONTH_NAMES[date.getMonth()] +
-    " " +
-    date.getDate()
-  );
+  return DOW_LONG[date.getDay()] + ", " + MONTH_NAMES[date.getMonth()] + " " + date.getDate();
 }
 
 export function isToday(date: Date): boolean {
@@ -147,11 +157,7 @@ export function buildMonthCells(cursor: Date): Date[] {
   return cells;
 }
 
-export function navigateCursor(
-  cursor: Date,
-  view: CalendarView,
-  dir: -1 | 1
-): Date {
+export function navigateCursor(cursor: Date, view: CalendarView, dir: -1 | 1): Date {
   const d = new Date(cursor);
   if (view === "day") {
     d.setDate(d.getDate() + dir);
@@ -166,11 +172,7 @@ export function navigateCursor(
 export function rangeLabel(cursor: Date, view: CalendarView, days: Date[]): string {
   if (view === "day") {
     return (
-      DOW_LONG[cursor.getDay()] +
-      ", " +
-      MONTH_NAMES[cursor.getMonth()] +
-      " " +
-      cursor.getDate()
+      DOW_LONG[cursor.getDay()] + ", " + MONTH_NAMES[cursor.getMonth()] + " " + cursor.getDate()
     );
   }
   if (view === "week" && days.length >= 2) {

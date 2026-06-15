@@ -44,17 +44,17 @@ frontend (audit #145 LOW — unallowlisted egress of synced third-party content)
 
 ### What the backend can faithfully source (verified)
 
-| Design concept | Backend source | Decision |
-| --- | --- | --- |
-| Jarvis-held **block** vs hard **event** | **`external_id` starts with `jfb`** — the Google event id minted by `focusBlockEventId()` (`focus-time.ts:172-195`, fixed `jfb` tag) and stored as `externalId` on the local mirror (`calendar-write-impl.ts:99-101`, `externalId: inserted.id`). The Google event id is the upsert **conflict key**, so it is **immutable across re-syncs**. | **Derive** `isJarvisBlock = /^jfb[0-9a-v]{32}$/.test(externalId)` |
-| **all-day** | `external_metadata.allDay` (set by sync at `sync-jobs.ts:310`) | **Derive** `allDay` |
-| attendees | `external_metadata.attendeeCount` (a **count**, no PII) | **Derive** `attendeeCount` |
-| event status | `external_metadata.status` (confirmed/tentative/cancelled) | **Derive** `status` |
-| block **subtype** (focus/prep/buffer/travel/ritual/admin) | only `proposeFocusBlock` exists → **focus only** | **Do not fabricate** subtypes; all Jarvis blocks render with the single focus/Governor treatment |
-| **category** (work / personal / family) | **not sourced anywhere** | **Do not fabricate**; external events get one "committed" treatment (no invented per-event color) |
-| **moved / rescheduled** flag + note | **not tracked** | **Omit** (no fabrication) |
-| `where` (location) | `calendar_events.location` column | map to `where` |
-| `who` (named attendees) | **not stored** (only a count) | show count-only ("3 people"), never names |
+| Design concept                                            | Backend source                                                                                                                                                                                                                                                                                                                                | Decision                                                                                          |
+| --------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------- |
+| Jarvis-held **block** vs hard **event**                   | **`external_id` starts with `jfb`** — the Google event id minted by `focusBlockEventId()` (`focus-time.ts:172-195`, fixed `jfb` tag) and stored as `externalId` on the local mirror (`calendar-write-impl.ts:99-101`, `externalId: inserted.id`). The Google event id is the upsert **conflict key**, so it is **immutable across re-syncs**. | **Derive** `isJarvisBlock = /^jfb[0-9a-v]{32}$/.test(externalId)`                                 |
+| **all-day**                                               | `external_metadata.allDay` (set by sync at `sync-jobs.ts:310`)                                                                                                                                                                                                                                                                                | **Derive** `allDay`                                                                               |
+| attendees                                                 | `external_metadata.attendeeCount` (a **count**, no PII)                                                                                                                                                                                                                                                                                       | **Derive** `attendeeCount`                                                                        |
+| event status                                              | `external_metadata.status` (confirmed/tentative/cancelled)                                                                                                                                                                                                                                                                                    | **Derive** `status`                                                                               |
+| block **subtype** (focus/prep/buffer/travel/ritual/admin) | only `proposeFocusBlock` exists → **focus only**                                                                                                                                                                                                                                                                                              | **Do not fabricate** subtypes; all Jarvis blocks render with the single focus/Governor treatment  |
+| **category** (work / personal / family)                   | **not sourced anywhere**                                                                                                                                                                                                                                                                                                                      | **Do not fabricate**; external events get one "committed" treatment (no invented per-event color) |
+| **moved / rescheduled** flag + note                       | **not tracked**                                                                                                                                                                                                                                                                                                                               | **Omit** (no fabrication)                                                                         |
+| `where` (location)                                        | `calendar_events.location` column                                                                                                                                                                                                                                                                                                             | map to `where`                                                                                    |
+| `who` (named attendees)                                   | **not stored** (only a count)                                                                                                                                                                                                                                                                                                                 | show count-only ("3 people"), never names                                                         |
 
 This is a **UI-honesty** boundary (Phase-1 principle): the port renders only what the backend can
 source. No fabricated categories, block subtypes, or reschedule history.
@@ -107,7 +107,7 @@ source. No fabricated categories, block subtypes, or reschedule history.
 
 1. **DTO becomes a derived view model, not a column mirror.** In `packages/shared/src/calendar-api.ts`,
    `CalendarEventDto` keeps `id, connectorAccountId, ownerUserId, title, startsAt, endsAt,
-   location|null, summary|null, bodyExcerpt|null, externalId, createdAt, updatedAt` and **replaces
+location|null, summary|null, bodyExcerpt|null, externalId, createdAt, updatedAt` and **replaces
    the raw `externalMetadata` field** with the allowlisted derived fields, each **type-narrowed**
    (never pass a raw value through under an allowlisted key — Codex R1 BLOCKER 2):
    - `isJarvisBlock: boolean` — `/^jfb[0-9a-v]{32}$/.test(externalId)` — the **exact** minted
@@ -117,8 +117,8 @@ source. No fabricated categories, block subtypes, or reschedule history.
    - `allDay: boolean` — `external_metadata.allDay === true` (strict `=== true`)
    - `attendeeCount: number` — `typeof md.attendeeCount === 'number' && Number.isFinite(md.attendeeCount) ? md.attendeeCount : 0`
    - `status: string | null` — `typeof md.status === 'string' ? md.status : null`
-   Update `calendarEventDtoSchema` accordingly. Browser-safe: **no `node:*` imports** (this file is
-   Vite-bundled — see the Shared Browser Bundle memory).
+     Update `calendarEventDtoSchema` accordingly. Browser-safe: **no `node:*` imports** (this file is
+     Vite-bundled — see the Shared Browser Bundle memory).
 2. **New `packages/calendar/src/serialize.ts`** — a pure `serializeCalendarEvent(row): CalendarEventDto`
    that performs the allowlisted derivation above. It is the **single** place `external_metadata` is
    read; the raw blob never leaves this function. `routes.ts` and `tools.ts` both import from here
@@ -159,10 +159,10 @@ source. No fabricated categories, block subtypes, or reschedule history.
      attendee count, holding note).
    - `calendar-model.ts` — real-date helpers (range build, day-of-week, fmtTime/fmtHour/fmtDur) +
      DTO→view mapping. Browser-only.
-   These render via the existing **className-based** DS classes (`segmented-control`, button classes,
-   the `cal-*` rules in `kit-calendar.css`) — there are no `SegmentedControl`/`IconButton` React
-   components in the web app; use plain elements + classNames (the wellness/settings passes
-   established this).
+     These render via the existing **className-based** DS classes (`segmented-control`, button classes,
+     the `cal-*` rules in `kit-calendar.css`) — there are no `SegmentedControl`/`IconButton` React
+     components in the web app; use plain elements + classNames (the wellness/settings passes
+     established this).
 8. **Styles.** Reuse / extend the existing `apps/web/src/styles/kit-calendar.css` (already imported
    by the page). Port any missing `cal-*` rules from the design's CSS. Keep the file < 1000 lines
    (split a `kit-calendar-grid.css` if needed, preserving import order).
@@ -172,10 +172,12 @@ source. No fabricated categories, block subtypes, or reschedule history.
 ## Architecture (deltas only)
 
 ### A. Shared contract (`packages/shared/src/calendar-api.ts`)
+
 - `CalendarEventDto`: drop `externalMetadata`; add `isJarvisBlock`, `allDay`, `attendeeCount`,
   `status`. Update `calendarEventDtoSchema` + the route response schemas. Keep browser-safe.
 
 ### B. Calendar package (`packages/calendar/src/`)
+
 - **`serialize.ts`** (new): `serializeCalendarEvent(row)` — the only reader of `external_metadata`;
   key-allowlist + per-value type-narrowing (Decision 1/3); `isJarvisBlock` from `externalId`
   `jfb`-prefix.
@@ -190,6 +192,7 @@ source. No fabricated categories, block subtypes, or reschedule history.
 - `manifest.ts`: unchanged (routes already declared).
 
 ### C. Web (`apps/web/src/calendar/` + styles)
+
 - Replace the feed with `calendar-page.tsx` + `calendar-time-grid.tsx` + `calendar-month.tsx` +
   `calendar-peek.tsx` + `calendar-model.ts` (Decision 7). Wire to existing
   `listCalendarEvents()` / `queryKeys.calendar.list`. View/cursor/work-week persisted to
@@ -210,15 +213,16 @@ source. No fabricated categories, block subtypes, or reschedule history.
 
 Extend `tests/integration/calendar-email.test.ts` (**`pnpm test:calendar-email`** — the real suite;
 there is no `test:calendar` script) — **egress / value-shape focus**:
+
 - **Serialize / egress allowlist (the security-critical test):** a row with `external_id`
   not-`jfb` whose `external_metadata` contains `{ allDay:true, attendeeCount:3, status:'confirmed',
-  historyId:'x', labelIds:[...], htmlLink:'…', secretJunk:'should-not-leak' }` serializes to a DTO
+historyId:'x', labelIds:[...], htmlLink:'…', secretJunk:'should-not-leak' }` serializes to a DTO
   with exactly `allDay=true, attendeeCount=3, status='confirmed', isJarvisBlock=false` and **no**
   `historyId`, `labelIds`, `htmlLink`, `secretJunk`, or any `externalMetadata` key. A row with no
   metadata → `isJarvisBlock=false, allDay=false, attendeeCount=0, status=null`.
 - **Value-shape narrowing (Codex R1 BLOCKER 2):** a row whose allowlisted keys hold WRONG types —
   `{ status:{nested:'blob'}, attendeeCount:'12', allDay:'yes' }` — serializes to `status=null,
-  attendeeCount=0, allDay=false` (no object/blob passed through under an allowlisted key).
+attendeeCount=0, allDay=false` (no object/blob passed through under an allowlisted key).
 - **Jarvis-block marker robustness + false-positive (Codex R1 B1 / R2):** a real minted id
   (`jfb`+32 base32hex) → `isJarvisBlock=true` **even when `external_metadata` has NO `jarvisCreated`**
   (post-sync row, metadata overwritten); a normal Google id → `false`; and a **false-positive guard**:
@@ -296,6 +300,6 @@ there is no `test:calendar` script) — **egress / value-shape focus**:
    approaching 1000 lines, preserving import order (see the File-size gate memory).
 5. **DTO field rename breaking other callers.** ✅ Pre-verified at spec time: a repo-wide grep found
    **no consumer reads `CalendarEventDto.externalMetadata`** — all other `externalMetadata` hits are
-   the unrelated *email* DTO or the calendar **write path** (`sync-jobs.ts`,
+   the unrelated _email_ DTO or the calendar **write path** (`sync-jobs.ts`,
    `calendar-write-impl.ts`, repo input), which stay. Build agent re-confirms before removing the DTO
    field.

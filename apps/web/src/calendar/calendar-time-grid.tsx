@@ -34,8 +34,7 @@ function EventBlock({ e, hourH, dense, onPick }: EventBlockProps) {
   const isBlock = e.kind === "block";
   const showTime = height >= 34;
   const showWhere = height >= 58 && !dense && e.where;
-  const cls =
-    "cal-ev" + (isBlock ? " cal-ev--block cal-ev--ghost" : " cal-ev--hard");
+  const cls = "cal-ev" + (isBlock ? " cal-ev--block cal-ev--ghost" : " cal-ev--hard");
 
   return (
     <button
@@ -62,9 +61,7 @@ function EventBlock({ e, hourH, dense, onPick }: EventBlockProps) {
           ) : null}
           {e.title}
         </span>
-        {showTime ? (
-          <span className="cal-ev__meta">{fmtTime(e.startMin)}</span>
-        ) : null}
+        {showTime ? <span className="cal-ev__meta">{fmtTime(e.startMin)}</span> : null}
         {showWhere ? <span className="cal-ev__where">{e.where}</span> : null}
       </span>
     </button>
@@ -91,10 +88,7 @@ export function CalendarTimeGrid({ days, hourH, onPick }: TimeGridProps) {
   const todayNowMin = nowMin();
 
   return (
-    <div
-      className="cal-tg"
-      style={{ "--cal-h": hourH + "px" } as React.CSSProperties}
-    >
+    <div className="cal-tg" style={{ "--cal-h": hourH + "px" } as React.CSSProperties}>
       <div className="cal-tg__head" style={{ gridTemplateColumns: tmpl }}>
         <div className="cal-tg__corner" />
         {days.map((d) => (
@@ -122,8 +116,7 @@ export function CalendarTimeGrid({ days, hourH, onPick }: TimeGridProps) {
                     className="cal-allchip"
                     style={
                       {
-                        "--ev":
-                          e.kind === "block" ? "var(--accent)" : "var(--steel)"
+                        "--ev": e.kind === "block" ? "var(--accent)" : "var(--steel)"
                       } as React.CSSProperties
                     }
                     onClick={() => onPick(e)}
@@ -138,18 +131,11 @@ export function CalendarTimeGrid({ days, hourH, onPick }: TimeGridProps) {
       ) : null}
 
       <div className="cal-tg__scroll" ref={scrollRef}>
-        <div
-          className="cal-tg__body"
-          style={{ gridTemplateColumns: tmpl, height: 24 * hourH }}
-        >
+        <div className="cal-tg__body" style={{ gridTemplateColumns: tmpl, height: 24 * hourH }}>
           <div className="cal-tg__gutter">
             {Array.from({ length: 24 }, (_, h) =>
               h === 0 ? null : (
-                <span
-                  key={h}
-                  className="cal-tg__hr"
-                  style={{ top: h * hourH }}
-                >
+                <span key={h} className="cal-tg__hr" style={{ top: h * hourH }}>
                   {fmtHour(h)}
                 </span>
               )
@@ -173,10 +159,7 @@ export function CalendarTimeGrid({ days, hourH, onPick }: TimeGridProps) {
                   />
                 ))}
                 {todayCol ? (
-                  <div
-                    className="cal-now"
-                    style={{ top: todayNowMin * (hourH / 60) }}
-                  >
+                  <div className="cal-now" style={{ top: todayNowMin * (hourH / 60) }}>
                     <span className="cal-now__dot" />
                     <span className="cal-now__line" />
                   </div>

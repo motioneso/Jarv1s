@@ -2,10 +2,7 @@ import type { FastifyInstance, FastifyRequest } from "fastify";
 
 import { handleRouteError } from "@jarv1s/module-sdk";
 import type { AccessContext, DataContextRunner } from "@jarv1s/db";
-import {
-  getCalendarEventRouteSchema,
-  listCalendarEventsRouteSchema
-} from "@jarv1s/shared";
+import { getCalendarEventRouteSchema, listCalendarEventsRouteSchema } from "@jarv1s/shared";
 
 import { CalendarRepository } from "./repository.js";
 import { serializeCalendarEvent } from "./serialize.js";

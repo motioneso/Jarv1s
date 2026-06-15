@@ -519,9 +519,22 @@ describe("Calendar and Email connector-backed read modules", () => {
       expect("htmlLink" in dto).toBe(false);
       expect("secretJunk" in dto).toBe(false);
       expect(Object.keys(dto).sort()).toEqual([
-        "allDay", "attendeeCount", "bodyExcerpt", "connectorAccountId",
-        "createdAt", "endsAt", "externalId", "id", "isJarvisBlock",
-        "location", "ownerUserId", "startsAt", "status", "summary", "title", "updatedAt"
+        "allDay",
+        "attendeeCount",
+        "bodyExcerpt",
+        "connectorAccountId",
+        "createdAt",
+        "endsAt",
+        "externalId",
+        "id",
+        "isJarvisBlock",
+        "location",
+        "ownerUserId",
+        "startsAt",
+        "status",
+        "summary",
+        "title",
+        "updatedAt"
       ]);
     });
 
