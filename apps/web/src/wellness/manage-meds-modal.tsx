@@ -64,7 +64,16 @@ export function ManageMedsModal({ open, onClose, theme = "light" }: Props) {
   const queryClient = useQueryClient();
   const [name, setName] = useState("");
   const [dose, setDose] = useState("");
-  const [freq, setFreq] = useState<MedicationFrequencyTypeApi>("once_daily");
+  const [freqType, setFreqType] = useState<MedicationFrequencyTypeApi>("once_daily");
+  const [timesPerDay, setTimesPerDay] = useState(2);
+  const [scheduleTimes, setScheduleTimes] = useState<string[]>(["08:00"]);
+
+  const handleFreqChange = (f: MedicationFrequencyTypeApi) => {
+    setFreqType(f);
+    if (f === "once_daily") setScheduleTimes(["08:00"]);
+    else if (f === "times_per_day") setScheduleTimes(["08:00", "20:00"]);
+    else setScheduleTimes([]);
+  };
 
   const medsQuery = useQuery({
     queryKey: queryKeys.wellness.medications,
@@ -74,20 +83,18 @@ export function ManageMedsModal({ open, onClose, theme = "light" }: Props) {
 
   const addMutation = useMutation({
     mutationFn: () => {
-      const isTPD = freq === "times_per_day";
-      const isPRN = freq === "as_needed";
-      return createMedication({
-        name: name.trim(),
-        dosage: dose.trim() || null,
-        frequencyType: freq,
-        timesPerDay: isTPD ? 2 : null,
-        scheduleTimes: isPRN ? null : isTPD ? ["08:00", "20:00"] : ["08:00"],
-        intervalHours: null,
-        weekdays: null,
-        cycleAnchorDate: null,
-        cycleDaysOn: null,
-        cycleDaysOff: null
-      });
+      const base = { name: name.trim(), dosage: dose.trim() || null, frequencyType: freqType };
+      if (freqType === "as_needed") {
+        return createMedication(base);
+      }
+      if (freqType === "times_per_day") {
+        return createMedication({
+          ...base,
+          timesPerDay,
+          scheduleTimes: scheduleTimes.slice(0, timesPerDay)
+        });
+      }
+      return createMedication({ ...base, scheduleTimes });
     },
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: queryKeys.wellness.medications });
@@ -96,6 +103,9 @@ export function ManageMedsModal({ open, onClose, theme = "light" }: Props) {
       void queryClient.invalidateQueries({ queryKey: queryKeys.wellness.insights });
       setName("");
       setDose("");
+      setFreqType("once_daily");
+      setScheduleTimes(["08:00"]);
+      setTimesPerDay(2);
     }
   });
 
@@ -208,31 +218,118 @@ export function ManageMedsModal({ open, onClose, theme = "light" }: Props) {
                 }}
               />
             </div>
-            <div
-              style={{
-                display: "flex",
-                gap: 10,
-                marginTop: 10,
-                alignItems: "center"
-              }}
-            >
-              <select
-                value={freq}
-                onChange={(e) => setFreq(e.target.value as MedicationFrequencyTypeApi)}
-                style={{
-                  flex: 1,
-                  border: "1px solid var(--border)",
-                  borderRadius: "var(--radius-md)",
-                  padding: "8px 12px",
-                  fontSize: 14,
-                  background: "var(--surface)",
-                  color: "var(--text)"
-                }}
+            <div style={{ marginTop: 10 }}>
+              <div className="wl-hdetail__lbl" style={{ marginBottom: 6 }}>
+                Frequency
+              </div>
+              <div style={{ display: "flex", gap: 6 }}>
+                {(["once_daily", "times_per_day", "as_needed"] as const).map((f) => (
+                  <button
+                    key={f}
+                    type="button"
+                    onClick={() => handleFreqChange(f)}
+                    style={{
+                      flex: 1,
+                      padding: "7px 0",
+                      fontSize: 13,
+                      borderRadius: "var(--radius-md)",
+                      border: `1.5px solid ${freqType === f ? "var(--accent)" : "var(--border)"}`,
+                      background: freqType === f ? "var(--accent-subtle)" : "var(--surface)",
+                      color: freqType === f ? "var(--accent-fg)" : "var(--text)",
+                      cursor: "pointer"
+                    }}
+                  >
+                    {f === "once_daily" ? "Once daily" : f === "times_per_day" ? "Multiple/day" : "As needed"}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {freqType === "times_per_day" ? (
+              <div style={{ marginTop: 10 }}>
+                <div className="wl-hdetail__lbl" style={{ marginBottom: 6 }}>
+                  Times per day
+                </div>
+                <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                  <button
+                    type="button"
+                    className="ghost-button"
+                    style={{ fontSize: 14, padding: "4px 12px", minHeight: "unset" }}
+                    disabled={timesPerDay <= 2}
+                    onClick={() => {
+                      const n = timesPerDay - 1;
+                      setTimesPerDay(n);
+                      setScheduleTimes((t) => t.slice(0, n));
+                    }}
+                  >
+                    −
+                  </button>
+                  <span style={{ fontSize: 15, minWidth: 20, textAlign: "center" }}>
+                    {timesPerDay}
+                  </span>
+                  <button
+                    type="button"
+                    className="ghost-button"
+                    style={{ fontSize: 14, padding: "4px 12px", minHeight: "unset" }}
+                    disabled={timesPerDay >= 6}
+                    onClick={() => {
+                      const n = timesPerDay + 1;
+                      setTimesPerDay(n);
+                      setScheduleTimes((t) => {
+                        const copy = [...t];
+                        while (copy.length < n) copy.push("12:00");
+                        return copy;
+                      });
+                    }}
+                  >
+                    +
+                  </button>
+                </div>
+              </div>
+            ) : null}
+
+            {freqType !== "as_needed" ? (
+              <div style={{ marginTop: 10 }}>
+                <div className="wl-hdetail__lbl" style={{ marginBottom: 6 }}>
+                  {freqType === "once_daily" ? "Time of day" : "Times of day"}
+                </div>
+                <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                  {scheduleTimes
+                    .slice(0, freqType === "once_daily" ? 1 : timesPerDay)
+                    .map((t, i) => (
+                      <input
+                        key={i}
+                        type="time"
+                        value={t}
+                        onChange={(e) =>
+                          setScheduleTimes((prev) => {
+                            const copy = [...prev];
+                            copy[i] = e.target.value;
+                            return copy;
+                          })
+                        }
+                        aria-label={`Dose time ${i + 1}`}
+                        style={{
+                          border: "1px solid var(--border)",
+                          borderRadius: "var(--radius-md)",
+                          padding: "7px 12px",
+                          fontSize: 14,
+                          background: "var(--surface)",
+                          color: "var(--text)"
+                        }}
+                      />
+                    ))}
+                </div>
+              </div>
+            ) : (
+              <div
+                style={{ marginTop: 10, fontSize: 13, color: "var(--text-subtle)", fontStyle: "italic" }}
               >
-                <option value="once_daily">Morning (once daily)</option>
-                <option value="times_per_day">Evening (twice daily)</option>
-                <option value="as_needed">As needed (PRN)</option>
-              </select>
+                As-needed medications have no fixed schedule.
+              </div>
+            )}
+
+            <div style={{ marginTop: 12 }}>
               <button
                 type="button"
                 className="secondary-button"
@@ -241,7 +338,7 @@ export function ManageMedsModal({ open, onClose, theme = "light" }: Props) {
                 onClick={() => addMutation.mutate()}
               >
                 <PlusIcon />
-                Add
+                Add medication
               </button>
             </div>
           </div>
