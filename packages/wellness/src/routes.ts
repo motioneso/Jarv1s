@@ -10,6 +10,11 @@ import {
   listMedicationsRouteSchema,
   medicationScheduleRouteSchema,
   updateMedicationRouteSchema,
+  wellnessInsightsRouteSchema,
+  listTherapyNotesRouteSchema,
+  createTherapyNoteRouteSchema,
+  deleteTherapyNoteRouteSchema,
+  medicationLogsRouteSchema,
   WELLNESS_EMOTION_CORES,
   MEDICATION_FREQUENCY_TYPES,
   MEDICATION_LOG_STATUSES,
@@ -22,13 +27,20 @@ import {
 import type {
   CreateCheckinInput,
   CreateMedicationInput,
+  CreateTherapyNoteInput,
   LogDoseInput,
   UpdateMedicationInput
 } from "./repository.js";
 import { WellnessRepository } from "./repository.js";
 import { WellnessRecallContributor } from "./recall-context.js";
 import { computeSchedule } from "./schedule.js";
-import { serializeCheckin, serializeMedication, serializeMedicationLog } from "./serialize.js";
+import {
+  serializeCheckin,
+  serializeMedication,
+  serializeMedicationLog,
+  serializeTherapyNote
+} from "./serialize.js";
+import { computeInsights } from "./insights.js";
 
 export interface WellnessRoutesDependencies {
   readonly resolveAccessContext: (request: FastifyRequest) => Promise<AccessContext>;
@@ -193,12 +205,116 @@ export function registerWellnessRoutes(
       }
     }
   );
+
+  // ── Insights ─────────────────────────────────────────────────────────────
+  server.get(
+    "/api/wellness/insights",
+    { schema: wellnessInsightsRouteSchema },
+    async (request, reply) => {
+      try {
+        const accessContext = await dependencies.resolveAccessContext(request);
+        const now = new Date();
+        const sinceDays = 30;
+        const { checkins, logs, meds } = await dependencies.dataContext.withDataContext(
+          accessContext,
+          async (scopedDb) => ({
+            checkins: await repo.listRecentCheckinsForInsights(scopedDb, sinceDays),
+            logs: await repo.listLogsRange(scopedDb, { sinceDays }),
+            meds: await repo.listMedications(scopedDb)
+          })
+        );
+        const insights = computeInsights(checkins, logs, meds, now);
+        return { insights };
+      } catch (error) {
+        return handleRouteError(error, reply);
+      }
+    }
+  );
+
+  // ── Therapy notes ────────────────────────────────────────────────────────
+  server.get(
+    "/api/wellness/therapy-notes",
+    { schema: listTherapyNotesRouteSchema },
+    async (request, reply) => {
+      try {
+        const accessContext = await dependencies.resolveAccessContext(request);
+        const notes = await dependencies.dataContext.withDataContext(accessContext, (scopedDb) =>
+          repo.listTherapyNotes(scopedDb)
+        );
+        return { notes: notes.map(serializeTherapyNote) };
+      } catch (error) {
+        return handleRouteError(error, reply);
+      }
+    }
+  );
+
+  server.post(
+    "/api/wellness/therapy-notes",
+    { schema: createTherapyNoteRouteSchema },
+    async (request, reply) => {
+      try {
+        const accessContext = await dependencies.resolveAccessContext(request);
+        const input = parseTherapyNoteBody(request.body);
+        const note = await dependencies.dataContext.withDataContext(accessContext, (scopedDb) =>
+          repo.createTherapyNote(scopedDb, input)
+        );
+        return reply.code(201).send({ note: serializeTherapyNote(note) });
+      } catch (error) {
+        if (isFkViolation(error)) {
+          return reply.code(404).send({ error: "linked_checkin_id not found" });
+        }
+        return handleRouteError(error, reply);
+      }
+    }
+  );
+
+  server.delete<{ Params: { id: string } }>(
+    "/api/wellness/therapy-notes/:id",
+    { schema: deleteTherapyNoteRouteSchema },
+    async (request, reply) => {
+      try {
+        const accessContext = await dependencies.resolveAccessContext(request);
+        const deleted = await dependencies.dataContext.withDataContext(accessContext, (scopedDb) =>
+          repo.deleteTherapyNote(scopedDb, request.params.id)
+        );
+        if (!deleted) return reply.code(404).send({ error: "Therapy note not found" });
+        return { deleted: true };
+      } catch (error) {
+        return handleRouteError(error, reply);
+      }
+    }
+  );
+
+  // ── Medication logs range ────────────────────────────────────────────────
+  server.get(
+    "/api/wellness/medications/logs",
+    { schema: medicationLogsRouteSchema },
+    async (request, reply) => {
+      try {
+        const accessContext = await dependencies.resolveAccessContext(request);
+        const query = request.query as Record<string, unknown>;
+        const sinceDays = parseSinceDays(query["sinceDays"]);
+        const logs = await dependencies.dataContext.withDataContext(accessContext, (scopedDb) =>
+          repo.listLogsRange(scopedDb, { sinceDays })
+        );
+        return { logs: logs.map(serializeMedicationLog) };
+      } catch (error) {
+        return handleRouteError(error, reply);
+      }
+    }
+  );
 }
 
 function isUniqueViolation(error: unknown): boolean {
   // Postgres unique_violation. The driver surfaces `.code` on the error object.
   return (
     typeof error === "object" && error !== null && (error as { code?: string }).code === "23505"
+  );
+}
+
+function isFkViolation(error: unknown): boolean {
+  return (
+    typeof error === "object" && error !== null && (error as { code?: string }).code === "23503"
   );
 }
 
@@ -371,6 +487,42 @@ function parseLogDoseBody(body: unknown): LogDoseInput {
     prnReason,
     scheduledFor
   };
+}
+
+function parseTherapyNoteBody(body: unknown): CreateTherapyNoteInput {
+  const value = requireObject(body);
+  const bodyText = requiredString(value["body"], "body");
+  const linkedCheckinId =
+    value["linkedCheckinId"] === undefined
+      ? undefined
+      : value["linkedCheckinId"] === null
+        ? null
+        : typeof value["linkedCheckinId"] === "string"
+          ? value["linkedCheckinId"]
+          : (() => {
+              throw new HttpError(400, "linkedCheckinId must be a UUID string or null");
+            })();
+  const linkedEmotion =
+    value["linkedEmotion"] === undefined
+      ? undefined
+      : value["linkedEmotion"] === null
+        ? null
+        : isFeelingCore(value["linkedEmotion"])
+          ? (value["linkedEmotion"] as WellnessFeelingCore)
+          : (() => {
+              throw new HttpError(
+                400,
+                `linkedEmotion must be one of ${WELLNESS_EMOTION_CORES.join(", ")}`
+              );
+            })();
+  return { body: bodyText, linkedCheckinId, linkedEmotion };
+}
+
+function parseSinceDays(value: unknown): number {
+  if (value === undefined || value === null || value === "") return 30;
+  const n = Number(value);
+  if (!Number.isInteger(n) || n < 1 || n > 90) throw new HttpError(400, "sinceDays must be 1–90");
+  return n;
 }
 
 function isFeelingCore(value: unknown): value is WellnessFeelingCore {

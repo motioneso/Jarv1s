@@ -7,13 +7,20 @@ export {
 export { WellnessRepository } from "./repository.js";
 export type {
   CreateCheckinInput,
+  CreateTherapyNoteInput,
   ListCheckinsOptions,
   CreateMedicationInput,
   UpdateMedicationInput,
   LogDoseInput
 } from "./repository.js";
-export { serializeCheckin, serializeMedication, serializeMedicationLog } from "./serialize.js";
+export {
+  serializeCheckin,
+  serializeMedication,
+  serializeMedicationLog,
+  serializeTherapyNote
+} from "./serialize.js";
 export { computeSchedule } from "./schedule.js";
+export { computeInsights } from "./insights.js";
 export { registerWellnessRoutes } from "./routes.js";
 export type { WellnessRoutesDependencies } from "./routes.js";
 export { wellnessRecentCheckInsExecute, wellnessMedicationAdherenceExecute } from "./tools.js";

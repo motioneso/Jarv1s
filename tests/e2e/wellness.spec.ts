@@ -117,10 +117,10 @@ test.beforeEach(async ({ page }) => {
             id: "c1",
             ownerUserId: "user-1",
             checkedInAt: new Date().toISOString(),
-            feelingCore: "joyful",
+            feelingCore: "happy",
             feelingSecondary: null,
             feelingTertiary: null,
-            wheelVersion: "willcox-1982",
+            wheelVersion: "jarvis-emotion-v1",
             sensations: [],
             intensity: null,
             energy: null,
@@ -145,7 +145,7 @@ test("wellness page renders and a check-in can be saved", async ({ page }) => {
 
   await page.getByRole("button", { name: "Log how you feel" }).click();
   // The picker is a plain <select> (basic UI) — choose the core feeling by value.
-  await page.getByLabel("Core feeling").selectOption("joyful");
+  await page.getByLabel("Core feeling").selectOption("happy");
 
   const [request] = await Promise.all([
     page.waitForRequest((r) => r.url().includes("/api/wellness/checkins") && r.method() === "POST"),

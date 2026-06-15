@@ -112,7 +112,7 @@ describe("wellness_checkins table + RLS", () => {
       scopedDb.db.selectFrom("app.wellness_checkins").selectAll().execute()
     );
     expect(ownRows.length).toBe(2);
-    expect(ownRows[0]?.wheel_version).toBe("willcox-1982");
+    expect(ownRows[0]?.wheel_version).toBe("jarvis-emotion-v1");
 
     const otherRows = await dataContext.withDataContext(ctx(otherUserId), (scopedDb) =>
       scopedDb.db.selectFrom("app.wellness_checkins").selectAll().execute()
@@ -837,6 +837,9 @@ describe("feelings taxonomy (browser-safe, in @jarv1s/shared)", () => {
   });
 });
 
+// Phase 2 tests (taxonomy, therapy notes, listLogsRange, insights) live in wellness-phase2.test.ts
+// to keep this file under the 1000-line limit.
+
 describe("module isolation: wellness ⇄ tasks", () => {
   const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
 
@@ -863,7 +866,8 @@ describe("module isolation: wellness ⇄ tasks", () => {
       "focus-signal.ts",
       "recall-context.ts",
       "schedule.ts",
-      "serialize.ts"
+      "serialize.ts",
+      "insights.ts"
     ];
     for (const file of files) {
       const src = readFileSync(join(repoRoot, "packages/wellness/src", file), "utf8");
