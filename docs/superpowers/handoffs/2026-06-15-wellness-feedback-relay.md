@@ -17,6 +17,7 @@
 - Messaged coordinator for approval. **Plan is APPROVED.**
 
 **Commits so far:**
+
 - `6756209` — spec + original handoff doc (from coordinator, pre-build)
 - `906d85b` — approved implementation plan `docs/superpowers/plans/2026-06-15-wellness-feedback-pass.md`
 
@@ -37,30 +38,38 @@ Execute the plan at `docs/superpowers/plans/2026-06-15-wellness-feedback-pass.md
 ## Key findings from code review (save tokens — don't re-read these files)
 
 ### B2 root cause
+
 `apps/web/src/wellness/wellness-history.tsx` lines ~148–154:
+
 ```js
-let rows = checkins
-  .filter((c) => (c.checkedInAt ?? c.createdAt ?? "").slice(0, 10) !== today)  // BUG: removes today
+let rows = checkins.filter((c) => (c.checkedInAt ?? c.createdAt ?? "").slice(0, 10) !== today); // BUG: removes today
 ```
+
 Fix: remove the `!== today` filter.
 
 ### B1 root cause
+
 The frontend `manage-meds-modal.tsx` PRN path sends `scheduleTimes: null`, `timesPerDay: null` etc. The backend rejects these via the PRN validation that checks `if (value[f] != null)`. However, `null != null` is false in JS so these should pass... The likely real fix is in F2 redesign which builds a clean discriminated payload. The cleanest PRN payload is `{name, dosage, frequencyType: "as_needed"}` with NO scheduling fields at all (omit rather than null). The backend test `{name: "Prn", frequencyType: "as_needed"}` confirms this works.
 
 ### Q1
+
 `packages/wellness/src/insights.ts` — `computeInsights` always returns insights regardless of data volume. Add guard at top: if `checkins.length < 7` OR earliest checkin < 7 days ago, return `[]`. Frontend `wellness-insights.tsx` already has empty-state rendering.
 
 ### F3
+
 `wellness-today.tsx` `CheckinToday` component uses a single `todayCheckin: CheckinDto | null` prop. Change to `todayCheckins: readonly CheckinDto[]`, derive `latestCheckin = todayCheckins[0]`. Show latest + "Check in again" button.
 `wellness-page.tsx` `openTodayEdit` needs to target the most recent same-day check-in (sort descending, take first).
 
 ### D3 — TWEAK FLAG STATUS
+
 The design bundle (`WellnessCheckin.jsx`) uses `style` prop with values `'Guided' | 'Radial' | 'Palette'`. The real app's `checkin-modal.tsx` already has `const [pickerStyle] = useState<PickerStyle>("Guided")` with comment "Radial is deferred". There is NO existing `radial` tweak flag in the real app — escalate [DESIGN-FORK] to coordinator per the coordinator's instruction.
 
 ### Q2/Q3
+
 `apps/web/src/today/today-page.tsx` wellness aside buttons both call `navigate("/wellness")`. Need inline modals. `MedToday` in `wellness-today.tsx` is not exported; needs `export`.
 
 ## Process
+
 - No migration needed
 - DB: `jarv1s` on :55433 (tests use this); Ben's live app uses `jarv1s_dev` (separate)
 - Gate: `pnpm verify:foundation` — REAL exit code

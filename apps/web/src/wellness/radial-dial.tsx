@@ -6,14 +6,7 @@ function pol(cx: number, cy: number, r: number, deg: number): [number, number] {
   return [cx + r * Math.cos(a), cy + r * Math.sin(a)];
 }
 
-function sector(
-  cx: number,
-  cy: number,
-  ri: number,
-  ro: number,
-  a0: number,
-  a1: number
-): string {
+function sector(cx: number, cy: number, ri: number, ro: number, a0: number, a1: number): string {
   const [x0o, y0o] = pol(cx, cy, ro, a0);
   const [x1o, y1o] = pol(cx, cy, ro, a1);
   const [x0i, y0i] = pol(cx, cy, ri, a0);
@@ -38,11 +31,7 @@ export function RadialDial({ value, onPick, theme }: RadialDialProps) {
 
   return (
     <div className="wl-dial">
-      <svg
-        viewBox="0 0 300 300"
-        className="wl-dial__svg"
-        style={{ width: "100%", maxWidth: 300 }}
-      >
+      <svg viewBox="0 0 300 300" className="wl-dial__svg" style={{ width: "100%", maxWidth: 300 }}>
         {EMOTIONS.map((e, i) => {
           const a0 = i * (360 / n) + pad;
           const a1 = (i + 1) * (360 / n) - pad;

@@ -288,10 +288,7 @@ export function TodayPage(props: { readonly me: MeResponse; readonly feed?: Toda
               <span className="well__title">Wellness</span>
             </div>
             <div className="well__actions">
-              <button
-                className="well__btn well__btn--meds"
-                onClick={() => setMedsModalOpen(true)}
-              >
+              <button className="well__btn well__btn--meds" onClick={() => setMedsModalOpen(true)}>
                 <span className="lead">
                   <span className="ic">
                     <Pill size={15} aria-hidden="true" />

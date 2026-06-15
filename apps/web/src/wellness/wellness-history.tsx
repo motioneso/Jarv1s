@@ -113,13 +113,11 @@ export function WellnessHistory({
 
   const today = todayIso();
 
-  let rows = checkins
-    .slice()
-    .sort((a, b) => {
-      const da = a.checkedInAt ?? a.createdAt ?? "";
-      const db = b.checkedInAt ?? b.createdAt ?? "";
-      return db < da ? -1 : 1;
-    });
+  let rows = checkins.slice().sort((a, b) => {
+    const da = a.checkedInAt ?? a.createdAt ?? "";
+    const db = b.checkedInAt ?? b.createdAt ?? "";
+    return db < da ? -1 : 1;
+  });
 
   if (filter === "notes") {
     rows = rows.filter((c) => c.note && (c.feelingCore === "sad" || c.feelingCore === "anger"));

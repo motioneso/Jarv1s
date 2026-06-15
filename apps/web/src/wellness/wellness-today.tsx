@@ -373,7 +373,14 @@ interface CheckinTodayProps {
   onEdit: () => void;
 }
 
-function CheckinToday({ todayCheckins, theme, streak, onStart, onSeed, onEdit }: CheckinTodayProps) {
+function CheckinToday({
+  todayCheckins,
+  theme,
+  streak,
+  onStart,
+  onSeed,
+  onEdit
+}: CheckinTodayProps) {
   const latestCheckin = todayCheckins.length > 0 ? todayCheckins[0] : null;
 
   const StreakChip =

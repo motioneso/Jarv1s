@@ -260,7 +260,14 @@ export function CheckinModal({
       <div>
         <div className="wl-q">What are you feeling?</div>
         <div className="wl-qsub">Tap your core emotion on the wheel.</div>
-        <RadialDial value={emotion} onPick={(k) => { pickEmotion(k); setStep(1); }} theme={theme} />
+        <RadialDial
+          value={emotion}
+          onPick={(k) => {
+            pickEmotion(k);
+            setStep(1);
+          }}
+          theme={theme}
+        />
         {emotion && feeling ? (
           <div
             style={{

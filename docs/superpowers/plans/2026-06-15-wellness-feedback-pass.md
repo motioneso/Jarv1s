@@ -12,19 +12,19 @@
 
 ## File Map
 
-| File | Action | Purpose |
-|---|---|---|
-| `apps/web/src/wellness/wellness-history.tsx` | Modify | B2+F3: remove today-exclusion filter, add timestamp display |
-| `packages/wellness/src/insights.ts` | Modify | Q1: low-data guard before generating insights |
-| `apps/web/src/wellness/wellness-today.tsx` | Modify | F3: multi-checkin today card (latest + "Check in again") |
-| `apps/web/src/wellness/wellness-page.tsx` | Modify | F3: `openTodayCheckin` creates new; `openTodayEdit` edits latest |
-| `apps/web/src/wellness/manage-meds-modal.tsx` | Modify | B1+F2: redesign frequency+time-of-day UI, fix PRN payload |
-| `apps/web/src/wellness/radial-dial.tsx` | Create | D3: RadialDial SVG component |
-| `apps/web/src/wellness/wellness-prefs.ts` | Create | D3: `useWellnessPrefs` hook (localStorage toggle for radial picker) |
-| `apps/web/src/wellness/checkin-modal.tsx` | Modify | D3: wire pickerStyle to prefs, add Radial case |
-| `apps/web/src/today/today-page.tsx` | Modify | Q2+Q3: inline meds log modal + inline checkin modal |
-| `tests/integration/wellness.test.ts` | Modify | B2+F3 test coverage |
-| `tests/integration/wellness-medications.test.ts` | Modify | B1+F2 test coverage |
+| File                                             | Action | Purpose                                                             |
+| ------------------------------------------------ | ------ | ------------------------------------------------------------------- |
+| `apps/web/src/wellness/wellness-history.tsx`     | Modify | B2+F3: remove today-exclusion filter, add timestamp display         |
+| `packages/wellness/src/insights.ts`              | Modify | Q1: low-data guard before generating insights                       |
+| `apps/web/src/wellness/wellness-today.tsx`       | Modify | F3: multi-checkin today card (latest + "Check in again")            |
+| `apps/web/src/wellness/wellness-page.tsx`        | Modify | F3: `openTodayCheckin` creates new; `openTodayEdit` edits latest    |
+| `apps/web/src/wellness/manage-meds-modal.tsx`    | Modify | B1+F2: redesign frequency+time-of-day UI, fix PRN payload           |
+| `apps/web/src/wellness/radial-dial.tsx`          | Create | D3: RadialDial SVG component                                        |
+| `apps/web/src/wellness/wellness-prefs.ts`        | Create | D3: `useWellnessPrefs` hook (localStorage toggle for radial picker) |
+| `apps/web/src/wellness/checkin-modal.tsx`        | Modify | D3: wire pickerStyle to prefs, add Radial case                      |
+| `apps/web/src/today/today-page.tsx`              | Modify | Q2+Q3: inline meds log modal + inline checkin modal                 |
+| `tests/integration/wellness.test.ts`             | Modify | B2+F3 test coverage                                                 |
+| `tests/integration/wellness-medications.test.ts` | Modify | B1+F2 test coverage                                                 |
 
 ---
 
@@ -38,6 +38,7 @@
 ```
 
 **Files:**
+
 - Modify: `apps/web/src/wellness/wellness-history.tsx`
 - Modify: `tests/integration/wellness.test.ts`
 
@@ -98,13 +99,11 @@ let rows = checkins
   .sort(/* ... */);
 
 // AFTER — remove the exclusion filter entirely:
-let rows = checkins
-  .slice()
-  .sort((a, b) => {
-    const da = a.checkedInAt ?? a.createdAt ?? "";
-    const db = b.checkedInAt ?? b.createdAt ?? "";
-    return db < da ? -1 : 1;
-  });
+let rows = checkins.slice().sort((a, b) => {
+  const da = a.checkedInAt ?? a.createdAt ?? "";
+  const db = b.checkedInAt ?? b.createdAt ?? "";
+  return db < da ? -1 : 1;
+});
 ```
 
 Also add a time label to rows so today's entries show "Today, 2:34 PM" instead of just the date. Modify `isoToDisplayDate` to accept today's date and return a time label when the entry is from today:
@@ -142,9 +141,10 @@ const dow = isToday
   : new Date(iso + "T12:00:00").toLocaleDateString("en-US", { weekday: "long" });
 const mo = new Date(iso + "T12:00:00").toLocaleDateString("en-US", { month: "short" });
 const day = new Date(iso + "T12:00:00").getDate();
-const timeStr = isToday && fullIso.length > 10
-  ? new Date(fullIso).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" })
-  : null;
+const timeStr =
+  isToday && fullIso.length > 10
+    ? new Date(fullIso).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" })
+    : null;
 ```
 
 And in the date display JSX, show the time for today entries:
@@ -155,7 +155,10 @@ And in the date display JSX, show the time for today entries:
   {isToday && timeStr ? (
     <span className="md"> {timeStr}</span>
   ) : (
-    <span className="md"> {mo} {day}</span>
+    <span className="md">
+      {" "}
+      {mo} {day}
+    </span>
   )}
 </span>
 ```
@@ -189,10 +192,12 @@ Co-Authored-By: Claude Sonnet 4.6 <noreply@anthropic.com>"
 **Problem:** `computeInsights` generates adherence/pattern insights with near-zero data (e.g., 1 check-in → "0% adherence"). Must suppress all insights until ≥7 check-ins spanning at least 7 days.
 
 **Threshold (documented):** Suppress all insights if:
+
 - fewer than 7 total check-ins, OR
 - the earliest check-in is less than 7 days before `_now`
 
 **Files:**
+
 - Modify: `packages/wellness/src/insights.ts`
 - Modify: `tests/integration/wellness.test.ts` (or a unit test directly on `computeInsights`)
 
@@ -318,6 +323,7 @@ Co-Authored-By: Claude Sonnet 4.6 <noreply@anthropic.com>"
 **Changes:** `CheckinToday` card shows latest check-in + "Check in again" action. History already fixed (Task 1). Wellness page's `openTodayEdit` targets the latest same-day check-in, leaving others editable via history.
 
 **Files:**
+
 - Modify: `apps/web/src/wellness/wellness-today.tsx`
 - Modify: `apps/web/src/wellness/wellness-page.tsx`
 
@@ -410,7 +416,15 @@ Add a `PlusIcon` SVG at the top of the file alongside the other icons:
 ```tsx
 function PlusIcon() {
   return (
-    <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round">
+    <svg
+      viewBox="0 0 24 24"
+      width="13"
+      height="13"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2.2"
+      strokeLinecap="round"
+    >
       <path d="M12 5v14M5 12h14" />
     </svg>
   );
@@ -422,7 +436,14 @@ function PlusIcon() {
 In `WellnessToday`, derive the array and sort by timestamp descending:
 
 ```tsx
-export function WellnessToday({ checkins, streak, theme, onManage, onModalOpen, onModalEdit }: WellnessTodayProps) {
+export function WellnessToday({
+  checkins,
+  streak,
+  theme,
+  onManage,
+  onModalOpen,
+  onModalEdit
+}: WellnessTodayProps) {
   const todayStr = todayIso();
   const todayCheckins = checkins
     .filter((c) => (c.checkedInAt ?? c.createdAt ?? "").slice(0, 10) === todayStr)
@@ -485,12 +506,26 @@ it("creates two check-ins in the same day and both appear in list", async () => 
     note: null,
     identifiedVia: "wheel"
   };
-  const r1 = await app.inject({ method: "POST", url: "/api/wellness/checkins", headers: actor.authHeaders, payload });
-  const r2 = await app.inject({ method: "POST", url: "/api/wellness/checkins", headers: actor.authHeaders, payload });
+  const r1 = await app.inject({
+    method: "POST",
+    url: "/api/wellness/checkins",
+    headers: actor.authHeaders,
+    payload
+  });
+  const r2 = await app.inject({
+    method: "POST",
+    url: "/api/wellness/checkins",
+    headers: actor.authHeaders,
+    payload
+  });
   expect(r1.statusCode).toBe(201);
   expect(r2.statusCode).toBe(201);
 
-  const list = await app.inject({ method: "GET", url: "/api/wellness/checkins", headers: actor.authHeaders });
+  const list = await app.inject({
+    method: "GET",
+    url: "/api/wellness/checkins",
+    headers: actor.authHeaders
+  });
   expect(list.statusCode).toBe(200);
   const { checkins } = JSON.parse(list.body) as { checkins: { id: string }[] };
   expect(checkins.length).toBeGreaterThanOrEqual(2);
@@ -525,11 +560,13 @@ Co-Authored-By: Claude Sonnet 4.6 <noreply@anthropic.com>"
 **Problem (B1):** PRN medications fail to be added. **Root (F2):** The dropdown conflates frequency with time-of-day (e.g., "Evening" implies "twice daily"). Redesign separates them.
 
 **New UI flow:**
+
 1. **Frequency** selector: `once_daily` | `times_per_day` (with a stepper 2–4) | `as_needed`
 2. **Time(s)** section: shown only for `once_daily` (one time picker) and `times_per_day` (N time pickers). Hidden for `as_needed`.
 3. PRN sends only `{name, dosage, frequencyType: "as_needed"}` — no scheduling fields. This fixes B1.
 
 **Files:**
+
 - Modify: `apps/web/src/wellness/manage-meds-modal.tsx`
 - Modify: `tests/integration/wellness-medications.test.ts`
 
@@ -547,7 +584,9 @@ it("POST a PRN medication with no scheduling fields succeeds", async () => {
     payload: { name: "Ibuprofen PRN", frequencyType: "as_needed" }
   });
   expect(res.statusCode).toBe(201);
-  const body = JSON.parse(res.body) as { medication: { frequencyType: string; scheduleTimes: null } };
+  const body = JSON.parse(res.body) as {
+    medication: { frequencyType: string; scheduleTimes: null };
+  };
   expect(body.medication.frequencyType).toBe("as_needed");
   expect(body.medication.scheduleTimes).toBeNull();
 });
@@ -569,7 +608,12 @@ it("POST times_per_day=2 with 2 schedule times succeeds", async () => {
     method: "POST",
     url: "/api/wellness/medications",
     headers: actor.authHeaders,
-    payload: { name: "2x Med", frequencyType: "times_per_day", timesPerDay: 2, scheduleTimes: ["08:00", "20:00"] }
+    payload: {
+      name: "2x Med",
+      frequencyType: "times_per_day",
+      timesPerDay: 2,
+      scheduleTimes: ["08:00", "20:00"]
+    }
   });
   expect(res.statusCode).toBe(201);
 });
@@ -643,9 +687,13 @@ const addMutation = useMutation({
 Replace the single `<select>` with a two-section form inside `wl-modal__body`. Remove the old conflated `<select>`. Add:
 
 ```tsx
-{/* Frequency selector — three options, no time conflation */}
+{
+  /* Frequency selector — three options, no time conflation */
+}
 <div style={{ marginTop: 10 }}>
-  <div className="wl-hdetail__lbl" style={{ marginBottom: 6 }}>Frequency</div>
+  <div className="wl-hdetail__lbl" style={{ marginBottom: 6 }}>
+    Frequency
+  </div>
   <div style={{ display: "flex", gap: 6 }}>
     {(["once_daily", "times_per_day", "as_needed"] as const).map((f) => (
       <button
@@ -667,75 +715,95 @@ Replace the single `<select>` with a two-section form inside `wl-modal__body`. R
       </button>
     ))}
   </div>
-</div>
+</div>;
 
-{/* Times per day stepper — only for times_per_day */}
-{freqType === "times_per_day" ? (
-  <div style={{ marginTop: 10 }}>
-    <div className="wl-hdetail__lbl" style={{ marginBottom: 6 }}>Times per day</div>
-    <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-      <button type="button" className="ghost-button"
-        style={{ fontSize: 14, padding: "4px 12px", minHeight: "unset" }}
-        disabled={timesPerDay <= 2}
-        onClick={() => {
-          const n = timesPerDay - 1;
-          setTimesPerDay(n);
-          setScheduleTimes((t) => t.slice(0, n));
-        }}>−</button>
-      <span style={{ fontSize: 15, minWidth: 20, textAlign: "center" }}>{timesPerDay}</span>
-      <button type="button" className="ghost-button"
-        style={{ fontSize: 14, padding: "4px 12px", minHeight: "unset" }}
-        disabled={timesPerDay >= 6}
-        onClick={() => {
-          const n = timesPerDay + 1;
-          setTimesPerDay(n);
-          setScheduleTimes((t) => {
-            const copy = [...t];
-            while (copy.length < n) copy.push("12:00");
-            return copy;
-          });
-        }}>+</button>
-    </div>
-  </div>
-) : null}
-
-{/* Time slot inputs — hidden for PRN */}
-{freqType !== "as_needed" ? (
-  <div style={{ marginTop: 10 }}>
-    <div className="wl-hdetail__lbl" style={{ marginBottom: 6 }}>
-      {freqType === "once_daily" ? "Time of day" : "Times of day"}
-    </div>
-    <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-      {scheduleTimes.slice(0, freqType === "once_daily" ? 1 : timesPerDay).map((t, i) => (
-        <input
-          key={i}
-          type="time"
-          value={t}
-          onChange={(e) =>
-            setScheduleTimes((prev) => {
-              const copy = [...prev];
-              copy[i] = e.target.value;
-              return copy;
-            })
-          }
-          aria-label={`Dose time ${i + 1}`}
-          style={{
-            border: "1px solid var(--border)",
-            borderRadius: "var(--radius-md)",
-            padding: "7px 12px",
-            fontSize: 14,
-            background: "var(--surface)",
-            color: "var(--text)"
+{
+  /* Times per day stepper — only for times_per_day */
+}
+{
+  freqType === "times_per_day" ? (
+    <div style={{ marginTop: 10 }}>
+      <div className="wl-hdetail__lbl" style={{ marginBottom: 6 }}>
+        Times per day
+      </div>
+      <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+        <button
+          type="button"
+          className="ghost-button"
+          style={{ fontSize: 14, padding: "4px 12px", minHeight: "unset" }}
+          disabled={timesPerDay <= 2}
+          onClick={() => {
+            const n = timesPerDay - 1;
+            setTimesPerDay(n);
+            setScheduleTimes((t) => t.slice(0, n));
           }}
-        />
-      ))}
+        >
+          −
+        </button>
+        <span style={{ fontSize: 15, minWidth: 20, textAlign: "center" }}>{timesPerDay}</span>
+        <button
+          type="button"
+          className="ghost-button"
+          style={{ fontSize: 14, padding: "4px 12px", minHeight: "unset" }}
+          disabled={timesPerDay >= 6}
+          onClick={() => {
+            const n = timesPerDay + 1;
+            setTimesPerDay(n);
+            setScheduleTimes((t) => {
+              const copy = [...t];
+              while (copy.length < n) copy.push("12:00");
+              return copy;
+            });
+          }}
+        >
+          +
+        </button>
+      </div>
     </div>
-  </div>
-) : (
-  <div style={{ marginTop: 10, fontSize: 13, color: "var(--text-subtle)", fontStyle: "italic" }}>
-    As-needed medications have no fixed schedule.
-  </div>
-)}
+  ) : null;
+}
+
+{
+  /* Time slot inputs — hidden for PRN */
+}
+{
+  freqType !== "as_needed" ? (
+    <div style={{ marginTop: 10 }}>
+      <div className="wl-hdetail__lbl" style={{ marginBottom: 6 }}>
+        {freqType === "once_daily" ? "Time of day" : "Times of day"}
+      </div>
+      <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+        {scheduleTimes.slice(0, freqType === "once_daily" ? 1 : timesPerDay).map((t, i) => (
+          <input
+            key={i}
+            type="time"
+            value={t}
+            onChange={(e) =>
+              setScheduleTimes((prev) => {
+                const copy = [...prev];
+                copy[i] = e.target.value;
+                return copy;
+              })
+            }
+            aria-label={`Dose time ${i + 1}`}
+            style={{
+              border: "1px solid var(--border)",
+              borderRadius: "var(--radius-md)",
+              padding: "7px 12px",
+              fontSize: 14,
+              background: "var(--surface)",
+              color: "var(--text)"
+            }}
+          />
+        ))}
+      </div>
+    </div>
+  ) : (
+    <div style={{ marginTop: 10, fontSize: 13, color: "var(--text-subtle)", fontStyle: "italic" }}>
+      As-needed medications have no fixed schedule.
+    </div>
+  );
+}
 ```
 
 - [ ] **Step 6: Run typecheck**
@@ -782,6 +850,7 @@ Co-Authored-By: Claude Sonnet 4.6 <noreply@anthropic.com>"
 **Change:** The "Meds" button in `TodayPage`'s wellness aside opens an inline modal with today's medication schedule instead of navigating to /wellness.
 
 **Files:**
+
 - Modify: `apps/web/src/today/today-page.tsx`
 
 Note: `MedToday` from `wellness-today.tsx` already provides the full schedule + log interaction as a self-contained card. We'll render it inside a modal scrim.
@@ -850,34 +919,58 @@ const [manageMedsOpen, setManageMedsOpen] = useState(false);
 After the `</div>` that closes the main `cmd-wrap`, add:
 
 ```tsx
-{medsModalOpen ? (
-  <div
-    className="wl-modal-scrim"
-    onMouseDown={(ev) => { if (ev.target === ev.currentTarget) setMedsModalOpen(false); }}
-  >
-    <div className="wl-modal" role="dialog" aria-modal="true" aria-labelledby="today-meds-title"
-      style={{ maxWidth: 480 }}>
-      <div className="wl-modal__head">
-        <div className="hm">
-          <div className="wl-modal__eyebrow">Today</div>
-          <div className="wl-modal__title" id="today-meds-title">Medications</div>
+{
+  medsModalOpen ? (
+    <div
+      className="wl-modal-scrim"
+      onMouseDown={(ev) => {
+        if (ev.target === ev.currentTarget) setMedsModalOpen(false);
+      }}
+    >
+      <div
+        className="wl-modal"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="today-meds-title"
+        style={{ maxWidth: 480 }}
+      >
+        <div className="wl-modal__head">
+          <div className="hm">
+            <div className="wl-modal__eyebrow">Today</div>
+            <div className="wl-modal__title" id="today-meds-title">
+              Medications
+            </div>
+          </div>
+          <button
+            type="button"
+            className="wl-modal__x"
+            aria-label="Close"
+            onClick={() => setMedsModalOpen(false)}
+          >
+            <XIcon />
+          </button>
         </div>
-        <button type="button" className="wl-modal__x" aria-label="Close" onClick={() => setMedsModalOpen(false)}>
-          <XIcon />
-        </button>
-      </div>
-      <div className="wl-modal__body" style={{ padding: "0 0 8px" }}>
-        <MedToday theme={theme} onManage={() => { setMedsModalOpen(false); setManageMedsOpen(true); }} />
-      </div>
-      <div className="wl-modal__foot">
-        <span className="spacer" />
-        <button type="button" className="primary-button" onClick={() => setMedsModalOpen(false)}>Done</button>
+        <div className="wl-modal__body" style={{ padding: "0 0 8px" }}>
+          <MedToday
+            theme={theme}
+            onManage={() => {
+              setMedsModalOpen(false);
+              setManageMedsOpen(true);
+            }}
+          />
+        </div>
+        <div className="wl-modal__foot">
+          <span className="spacer" />
+          <button type="button" className="primary-button" onClick={() => setMedsModalOpen(false)}>
+            Done
+          </button>
+        </div>
       </div>
     </div>
-  </div>
-) : null}
+  ) : null;
+}
 
-<ManageMedsModal open={manageMedsOpen} onClose={() => setManageMedsOpen(false)} theme={theme} />
+<ManageMedsModal open={manageMedsOpen} onClose={() => setManageMedsOpen(false)} theme={theme} />;
 ```
 
 Add `XIcon` SVG component local to `today-page.tsx` (or import from a shared location if one exists):
@@ -885,7 +978,15 @@ Add `XIcon` SVG component local to `today-page.tsx` (or import from a shared loc
 ```tsx
 function XIcon() {
   return (
-    <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round">
+    <svg
+      viewBox="0 0 24 24"
+      width="18"
+      height="18"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2.2"
+      strokeLinecap="round"
+    >
       <path d="M18 6 6 18M6 6l12 12" />
     </svg>
   );
@@ -916,6 +1017,7 @@ Co-Authored-By: Claude Sonnet 4.6 <noreply@anthropic.com>"
 **Change:** The "Check in" button opens `CheckinModal` inline in today-page, wired to the same create-checkin mutation as the wellness page.
 
 **Files:**
+
 - Modify: `apps/web/src/today/today-page.tsx`
 
 - [ ] **Step 1: Import CheckinModal and mutation dependencies**
@@ -1010,6 +1112,7 @@ Co-Authored-By: Claude Sonnet 4.6 <noreply@anthropic.com>"
 **Design reference:** `/home/ben/.claude/jobs/914af5c0/tmp/design/jarvis-design-system/project/ui_kits/jarvis-app/WellnessCheckin.jsx` — `RadialDial` component (lines ~18–57).
 
 **Files:**
+
 - Create: `apps/web/src/wellness/radial-dial.tsx`
 - Create: `apps/web/src/wellness/wellness-prefs.ts`
 - Modify: `apps/web/src/wellness/checkin-modal.tsx`
@@ -1080,9 +1183,7 @@ function pol(cx: number, cy: number, r: number, deg: number): [number, number] {
   return [cx + r * Math.cos(a), cy + r * Math.sin(a)];
 }
 
-function sector(
-  cx: number, cy: number, ri: number, ro: number, a0: number, a1: number
-): string {
+function sector(cx: number, cy: number, ri: number, ro: number, a0: number, a1: number): string {
   const [x0o, y0o] = pol(cx, cy, ro, a0);
   const [x1o, y1o] = pol(cx, cy, ro, a1);
   const [x0i, y0i] = pol(cx, cy, ri, a0);
@@ -1098,7 +1199,11 @@ interface RadialDialProps {
 }
 
 export function RadialDial({ value, onPick, theme }: RadialDialProps) {
-  const cx = 150, cy = 150, ri = 92, ro = 130, pad = 2.4;
+  const cx = 150,
+    cy = 150,
+    ri = 92,
+    ro = 130,
+    pad = 2.4;
   const n = EMOTIONS.length;
 
   return (
@@ -1112,19 +1217,22 @@ export function RadialDial({ value, onPick, theme }: RadialDialProps) {
           const on = value === e.core;
           const [lx, ly] = pol(cx, cy, (ri + ro) / 2, mid);
           return (
-            <g key={e.core} className="wl-dial__seg" onClick={() => onPick(e.core)}
-               style={{ cursor: "pointer" }}>
+            <g
+              key={e.core}
+              className="wl-dial__seg"
+              onClick={() => onPick(e.core)}
+              style={{ cursor: "pointer" }}
+            >
               <path
                 d={sector(cx, cy, ri, ro, a0, a1)}
                 fill={on ? c.tint : c.soft}
                 stroke="var(--surface)"
                 strokeWidth="2.5"
               />
-              {on ? (
-                <path d={sector(cx, cy, ro + 3, ro + 5, a0, a1)} fill={c.tint} />
-              ) : null}
+              {on ? <path d={sector(cx, cy, ro + 3, ro + 5, a0, a1)} fill={c.tint} /> : null}
               <text
-                x={lx} y={ly + 3.5}
+                x={lx}
+                y={ly + 3.5}
                 textAnchor="middle"
                 fontSize="11"
                 fontFamily="inherit"
@@ -1153,11 +1261,19 @@ Add CSS to `apps/web/src/styles/wellness-2.css` (the existing wellness CSS file 
 
 ```css
 /* Radial dial */
-.wl-dial { position: relative; display: flex; flex-direction: column; align-items: center; }
-.wl-dial__svg { display: block; }
+.wl-dial {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+.wl-dial__svg {
+  display: block;
+}
 .wl-dial__hub {
   position: absolute;
-  top: 50%; left: 50%;
+  top: 50%;
+  left: 50%;
   transform: translate(-50%, -50%);
   text-align: center;
   pointer-events: none;
@@ -1237,9 +1353,20 @@ const [prefs, updatePrefs] = useWellnessPrefs();
 Add a small toggle below the streak stat in the hero:
 
 ```tsx
-{/* Feeling-wheel toggle — below wl-hero__stat */}
+{
+  /* Feeling-wheel toggle — below wl-hero__stat */
+}
 <div style={{ marginTop: 10, display: "flex", alignItems: "center", gap: 8 }}>
-  <label style={{ fontSize: 12, color: "var(--text-subtle)", display: "flex", alignItems: "center", gap: 6, cursor: "pointer" }}>
+  <label
+    style={{
+      fontSize: 12,
+      color: "var(--text-subtle)",
+      display: "flex",
+      alignItems: "center",
+      gap: 6,
+      cursor: "pointer"
+    }}
+  >
     <input
       type="checkbox"
       checked={prefs.radial}
@@ -1248,7 +1375,7 @@ Add a small toggle below the streak stat in the hero:
     />
     Feeling wheel
   </label>
-</div>
+</div>;
 ```
 
 - [ ] **Step 5: Typecheck and lint**
@@ -1302,15 +1429,15 @@ Send SHA + gate result to `Wellness-Coordinator` via `herdr-pane-message` skill.
 
 ## Spec Coverage Check
 
-| Item | Task |
-|---|---|
-| B1 — PRN add broken | Task 4 (payload fix + test) |
-| B2 — today's check-in not in history | Task 1 (filter removal) |
-| Q1 — insights low-data empty state | Task 2 (backend guard + frontend message) |
-| Q2 — Today Meds inline modal | Task 5 |
-| Q3 — Today Check-in inline modal | Task 6 |
-| F2 — frequency separate from time-of-day | Task 4 (modal redesign) |
-| F3 — multiple check-ins per day | Task 3 (today card + history) |
-| D3 — radial feeling-wheel picker | Task 7 |
+| Item                                     | Task                                      |
+| ---------------------------------------- | ----------------------------------------- |
+| B1 — PRN add broken                      | Task 4 (payload fix + test)               |
+| B2 — today's check-in not in history     | Task 1 (filter removal)                   |
+| Q1 — insights low-data empty state       | Task 2 (backend guard + frontend message) |
+| Q2 — Today Meds inline modal             | Task 5                                    |
+| Q3 — Today Check-in inline modal         | Task 6                                    |
+| F2 — frequency separate from time-of-day | Task 4 (modal redesign)                   |
+| F3 — multiple check-ins per day          | Task 3 (today card + history)             |
+| D3 — radial feeling-wheel picker         | Task 7                                    |
 
 All 8 spec items covered. Tests for B1, B2, F2, F3 as required by spec. ✓

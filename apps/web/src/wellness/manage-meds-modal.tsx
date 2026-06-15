@@ -239,7 +239,11 @@ export function ManageMedsModal({ open, onClose, theme = "light" }: Props) {
                       cursor: "pointer"
                     }}
                   >
-                    {f === "once_daily" ? "Once daily" : f === "times_per_day" ? "Multiple/day" : "As needed"}
+                    {f === "once_daily"
+                      ? "Once daily"
+                      : f === "times_per_day"
+                        ? "Multiple/day"
+                        : "As needed"}
                   </button>
                 ))}
               </div>
@@ -323,7 +327,12 @@ export function ManageMedsModal({ open, onClose, theme = "light" }: Props) {
               </div>
             ) : (
               <div
-                style={{ marginTop: 10, fontSize: 13, color: "var(--text-subtle)", fontStyle: "italic" }}
+                style={{
+                  marginTop: 10,
+                  fontSize: 13,
+                  color: "var(--text-subtle)",
+                  fontStyle: "italic"
+                }}
               >
                 As-needed medications have no fixed schedule.
               </div>

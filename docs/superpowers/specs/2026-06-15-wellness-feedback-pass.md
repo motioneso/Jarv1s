@@ -47,6 +47,7 @@ opens the check-in modal in place (see D3 — it should use the radial picker wh
 **F2 (#2) — medication frequency model: separate frequency from time-of-day.** Today's dropdown
 conflates them ("Morning (once daily)", "Evening (twice daily)", "As needed (PRN)") — Ben: "Evening
 doesn't necessarily mean twice daily." Redesign `manage-meds-modal.tsx`:
+
 - Pick **frequency** independently: `once_daily`, `times_per_day` (choose N), `as_needed` (PRN).
   (These already exist in `MEDICATION_FREQUENCY_TYPES`.)
 - Pick **time(s) of day** separately: for `once_daily` one time (e.g. a time input or morning/evening
@@ -56,6 +57,7 @@ doesn't necessarily mean twice daily." Redesign `manage-meds-modal.tsx`:
 
 **F3 (#7) — multiple check-ins per day.** Ben: "Check-ins aren't just once a day — the user should be
 able to check in any time." Backend already supports this (no migration). Update the UI:
+
 - The `<CheckinToday>` "Today's check-in" card should not imply a single daily check-in. Allow adding
   a NEW check-in any time (a "Check in" action that creates a new timestamped row), while keeping the
   existing per-check-in Edit (PATCH) for correcting a specific entry.
