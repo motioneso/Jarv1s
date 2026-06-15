@@ -89,7 +89,10 @@ export function createMockCalendarEvent(
     summary: null,
     bodyExcerpt: null,
     externalId: id,
-    externalMetadata: {},
+    isJarvisBlock: false,
+    allDay: false,
+    attendeeCount: 0,
+    status: null,
     createdAt: "2026-06-06T12:00:00.000Z",
     updatedAt: "2026-06-06T12:00:00.000Z",
     ...overrides
