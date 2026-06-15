@@ -3,10 +3,10 @@
 **Spec (approved):** docs/superpowers/specs/2026-06-15-wellness-radial-default.md
 **GitHub issue:** (none — owner-directed feedback pass; reference annotations mqflamxi-hg6ud9 + mqflb9g2-a5esw6)
 **Risk tier:** `routine` (frontend-only, wellness web; no schema/auth/secret/RLS) → auto-merge after green gate + Codex review (Ben's standing authorization 2026-06-15).
-**Worktree:** /home/ben/Jarv1s/.claude/worktrees/wellness-radial-default   **Branch:** wellness-radial-default (off origin/main @ 2a72ce1)
+**Worktree:** /home/ben/Jarv1s/.claude/worktrees/wellness-radial-default **Branch:** wellness-radial-default (off origin/main @ 2a72ce1)
 **Build skill path (absolute):** /home/ben/Jarv1s/.claude/worktrees/wellness-radial-default/.claude/skills/coordinated-build/SKILL.md
-**Coordinator label:** `Wellness-Coordinator`   (UNIQUE — escalate via the two-call `herdr pane send-text` then `herdr pane send-keys <pane> Enter`. Re-resolve the live pane by label from `herdr pane list` each time; never reuse a `…-N` number.)
-**Coordinator session id:** `6cf61f00-9c15-4936-9d6a-f9ae0bf4523e`   (immutable authority; label is routing, pane number is ephemeral.)
+**Coordinator label:** `Wellness-Coordinator` (UNIQUE — escalate via the two-call `herdr pane send-text` then `herdr pane send-keys <pane> Enter`. Re-resolve the live pane by label from `herdr pane list` each time; never reuse a `…-N` number.)
+**Coordinator session id:** `6cf61f00-9c15-4936-9d6a-f9ae0bf4523e` (immutable authority; label is routing, pane number is ephemeral.)
 **Relay threshold:** countable events — ~80–100k tokens OR a compaction summary in your own context (then relay immediately). This is a SMALL task; you should not approach it.
 
 ## Start
