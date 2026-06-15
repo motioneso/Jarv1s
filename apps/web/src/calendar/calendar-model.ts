@@ -97,6 +97,17 @@ export function dtoToViewEvent(dto: CalendarEventDto): CalendarViewEvent | null 
     ? startMin + 60
     : endsAt.getHours() * 60 + endsAt.getMinutes();
 
+  // `date` is the calendar day an event belongs to — it drives day grouping
+  // (groupEventsByDay → dayKey, read with LOCAL components) and the peek's date
+  // label. All-day events are synced as UTC-midnight (connectors sync-jobs.ts), so
+  // reading that instant with local components shifts them into the previous day in
+  // western timezones. Anchor all-day events to a local Date built from their UTC
+  // date-only components so every local-component consumer buckets them correctly;
+  // timed events keep the local day of their start instant.
+  const date = dto.allDay
+    ? new Date(startsAt.getUTCFullYear(), startsAt.getUTCMonth(), startsAt.getUTCDate())
+    : startsAt;
+
   return {
     id: dto.id,
     title: dto.title,
@@ -104,7 +115,7 @@ export function dtoToViewEvent(dto: CalendarEventDto): CalendarViewEvent | null 
     allDay: dto.allDay,
     startMin,
     endMin,
-    date: startsAt,
+    date,
     startsAt,
     endsAt,
     where: dto.location,
