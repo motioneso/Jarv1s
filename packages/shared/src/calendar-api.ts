@@ -1,4 +1,4 @@
-import { errorResponseSchema, jsonObjectSchema, nullableStringSchema } from "./schema-fragments.js";
+import { errorResponseSchema, nullableStringSchema } from "./schema-fragments.js";
 
 export interface CalendarEventDto {
   readonly id: string;
@@ -11,7 +11,10 @@ export interface CalendarEventDto {
   readonly summary: string | null;
   readonly bodyExcerpt: string | null;
   readonly externalId: string;
-  readonly externalMetadata: Record<string, unknown>;
+  readonly isJarvisBlock: boolean;
+  readonly allDay: boolean;
+  readonly attendeeCount: number;
+  readonly status: string | null;
   readonly createdAt: string;
   readonly updatedAt: string;
 }
@@ -46,7 +49,10 @@ export const calendarEventDtoSchema = {
     "summary",
     "bodyExcerpt",
     "externalId",
-    "externalMetadata",
+    "isJarvisBlock",
+    "allDay",
+    "attendeeCount",
+    "status",
     "createdAt",
     "updatedAt"
   ],
@@ -61,7 +67,10 @@ export const calendarEventDtoSchema = {
     summary: nullableStringSchema,
     bodyExcerpt: nullableStringSchema,
     externalId: { type: "string" },
-    externalMetadata: jsonObjectSchema,
+    isJarvisBlock: { type: "boolean" },
+    allDay: { type: "boolean" },
+    attendeeCount: { type: "number" },
+    status: nullableStringSchema,
     createdAt: { type: "string" },
     updatedAt: { type: "string" }
   }
