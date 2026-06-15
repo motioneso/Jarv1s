@@ -232,6 +232,19 @@ describe("WellnessRepository — listLogsRange", () => {
 describe("wellness insights — owner-scoped", () => {
   it("GET /api/wellness/insights returns ONLY actor-owned data (not other user's)", async () => {
     const repo = new WellnessRepository();
+    // Seed actor with 7 backdated check-ins spanning 8 days so the low-data guard passes.
+    await dataContext.withDataContext(ctx(userId), async (db) => {
+      for (let i = 7; i >= 1; i--) {
+        await db.db
+          .insertInto("app.wellness_checkins")
+          .values({
+            owner_user_id: sql<string>`app.current_actor_user_id()`,
+            feeling_core: "happy",
+            checked_in_at: new Date(Date.now() - i * 24 * 60 * 60 * 1000)
+          })
+          .execute();
+      }
+    });
     // Seed other user with a med + taken dose so their adherence takenCount > 0
     await dataContext.withDataContext(ctx(otherUserId), async (db) => {
       await repo.createCheckin(db, { feelingCore: "happy", intensity: 5 });

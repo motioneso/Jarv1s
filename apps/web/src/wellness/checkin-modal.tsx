@@ -89,7 +89,7 @@ export function CheckinModal({
   theme = "light"
 }: Props) {
   const [prefs] = useWellnessPrefs();
-  const pickerStyle: PickerStyle = prefs.radial ? "Radial" : "Guided";
+  const pickerStyle = (prefs.radial ? "Radial" : "Guided") as PickerStyle;
   const [emotion, setEmotion] = useState<WellnessEmotionCore | null>(null);
   const [feeling, setFeeling] = useState<string | null>(null);
   const [sensations, setSensations] = useState<string[]>([]);

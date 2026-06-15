@@ -884,30 +884,30 @@ describe("computeInsights — low-data guard (Q1)", () => {
 
   it("returns empty array when fewer than 7 check-ins", () => {
     const checkins = [
-      { feeling_core: "joy", intensity: 3, checked_in_at: "2026-06-14T10:00:00Z", note: null }
-    ] as Parameters<typeof computeInsights>[0];
+      { feeling_core: "happy", intensity: 3, checked_in_at: "2026-06-14T10:00:00Z", note: null }
+    ] as unknown as Parameters<typeof computeInsights>[0];
     const result = computeInsights(checkins, [], [], now);
     expect(result).toEqual([]);
   });
 
   it("returns empty array when 7 check-ins but all within last 6 days", () => {
     const checkins = Array.from({ length: 7 }, (_, i) => ({
-      feeling_core: "joy",
+      feeling_core: "happy",
       intensity: 3,
       checked_in_at: new Date(now.getTime() - i * 86400000).toISOString(),
       note: null
-    })) as Parameters<typeof computeInsights>[0];
+    })) as unknown as Parameters<typeof computeInsights>[0];
     const result = computeInsights(checkins, [], [], now);
     expect(result).toEqual([]);
   });
 
   it("returns insights when ≥7 check-ins spanning ≥7 days", () => {
     const checkins = Array.from({ length: 7 }, (_, i) => ({
-      feeling_core: "joy",
+      feeling_core: "happy",
       intensity: 3,
       checked_in_at: new Date(now.getTime() - (i + 7) * 86400000).toISOString(),
       note: null
-    })) as Parameters<typeof computeInsights>[0];
+    })) as unknown as Parameters<typeof computeInsights>[0];
     const result = computeInsights(checkins, [], [], now);
     expect(result.length).toBeGreaterThan(0);
   });
