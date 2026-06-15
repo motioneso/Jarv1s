@@ -20,8 +20,11 @@ import {
   Wallet,
   type LucideIcon
 } from "lucide-react";
+import { useState } from "react";
 
 import {
+  authorizeGoogleConnection,
+  completeGoogleConnection,
   getModules,
   getMyModules,
   listConnectorAccounts,
@@ -31,7 +34,7 @@ import {
 import { queryKeys } from "../api/query-keys";
 import { useFeedback } from "./settings-feedback";
 import { moduleDescription, readError, type PaneProps } from "./settings-types";
-import { Badge, Field, Group, Indicator, Note, PaneHead, Row, Select, Switch } from "./settings-ui";
+import { Badge, Field, Group, Indicator, Note, PaneHead, Row, Switch } from "./settings-ui";
 import type { ConnectorAccountDto } from "@jarv1s/shared";
 
 const MODULE_ICONS: Record<string, LucideIcon> = {
@@ -101,6 +104,10 @@ function AccountRow(props: {
 function ConnectedPane() {
   const queryClient = useQueryClient();
   const { toast, confirm } = useFeedback();
+  const [clientId, setClientId] = useState("");
+  const [clientSecret, setClientSecret] = useState("");
+  const [authUrl, setAuthUrl] = useState<string | null>(null);
+  const [redirectUrl, setRedirectUrl] = useState("");
   const accountsQuery = useQuery({
     queryKey: queryKeys.connectors.accounts,
     queryFn: listConnectorAccounts,
@@ -111,6 +118,27 @@ function ConnectedPane() {
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: queryKeys.connectors.accounts });
       toast("Access revoked", { tone: "drift", icon: <Unlink size={17} /> });
+    },
+    onError: (error) => toast(readError(error), { tone: "drift" })
+  });
+  const authorizeMutation = useMutation({
+    mutationFn: () =>
+      authorizeGoogleConnection({ clientId: clientId.trim(), clientSecret: clientSecret.trim() }),
+    onSuccess: (response) => {
+      setAuthUrl(response.authUrl);
+      toast("Google authorization link ready", { icon: <Link2 size={17} /> });
+    },
+    onError: (error) => toast(readError(error), { tone: "drift" })
+  });
+  const completeMutation = useMutation({
+    mutationFn: () => completeGoogleConnection({ redirectUrl: redirectUrl.trim() }),
+    onSuccess: () => {
+      setAuthUrl(null);
+      setRedirectUrl("");
+      setClientId("");
+      setClientSecret("");
+      void queryClient.invalidateQueries({ queryKey: queryKeys.connectors.accounts });
+      toast("Google account connected", { icon: <Link2 size={17} /> });
     },
     onError: (error) => toast(readError(error), { tone: "drift" })
   });
@@ -128,17 +156,57 @@ function ConnectedPane() {
           <button
             type="button"
             className="jds-btn jds-btn--secondary jds-btn--sm"
-            onClick={() =>
-              toast("Opening sign-in to connect a new account…", { icon: <Link2 size={17} /> })
-            }
+            onClick={() => authorizeMutation.mutate()}
+            disabled={!clientId.trim() || !clientSecret.trim() || authorizeMutation.isPending}
           >
             <span className="jds-btn__icon">
               <Plus size={15} />
             </span>
-            Connect account
+            Start Google connect
           </button>
         }
       >
+        <Field label="Google OAuth desktop client">
+          <input
+            className="jds-input"
+            value={clientId}
+            onChange={(event) => setClientId(event.target.value)}
+            placeholder="Client ID"
+            aria-label="Google client ID"
+          />
+          <input
+            className="jds-input"
+            type="password"
+            value={clientSecret}
+            onChange={(event) => setClientSecret(event.target.value)}
+            placeholder="Client secret"
+            aria-label="Google client secret"
+          />
+        </Field>
+        {authUrl ? (
+          <div className="google-connect">
+            <a className="modrow__link" href={authUrl} target="_blank" rel="noreferrer">
+              Open Google consent <ArrowUpRight size={14} aria-hidden="true" />
+            </a>
+            <Field label="Pasted redirect URL">
+              <input
+                className="jds-input"
+                value={redirectUrl}
+                onChange={(event) => setRedirectUrl(event.target.value)}
+                placeholder="http://localhost:1/?code=..."
+                aria-label="Pasted redirect URL"
+              />
+              <button
+                type="button"
+                className="jds-btn jds-btn--primary jds-btn--sm"
+                disabled={!redirectUrl.trim() || completeMutation.isPending}
+                onClick={() => completeMutation.mutate()}
+              >
+                Finish connecting
+              </button>
+            </Field>
+          </div>
+        ) : null}
         {accounts.length === 0 ? (
           <Row
             name="No accounts connected"
@@ -284,18 +352,7 @@ function SourcesPane() {
             desc={source.powered}
           >
             {source.behaviors.map((behavior) => (
-              <Row
-                key={behavior.k}
-                name={behavior.name}
-                desc={behavior.desc}
-                coming={behavior.coming}
-                control={
-                  <Switch
-                    ariaLabel={`${source.name} — ${behavior.name}`}
-                    defaultChecked={behavior.on}
-                  />
-                }
-              />
+              <Row key={behavior.k} name={behavior.name} desc={behavior.desc} coming />
             ))}
           </Group>
         );
@@ -444,55 +501,17 @@ function GeneralPane() {
     <>
       <PaneHead title="General" desc="The few things that apply across all of Jarvis." />
       <Group title="Locale">
-        <Field label="Time zone">
-          <Select defaultValue="America/Los_Angeles" aria-label="Time zone">
-            <option value="America/Los_Angeles">Pacific — America/Los_Angeles</option>
-            <option value="America/New_York">Eastern — America/New_York</option>
-            <option value="Europe/London">GMT — Europe/London</option>
-            <option value="Europe/Berlin">CET — Europe/Berlin</option>
-          </Select>
-        </Field>
-        <Field label="Language & region">
-          <Select defaultValue="English (United States)" aria-label="Language & region">
-            <option>English (United States)</option>
-            <option>English (United Kingdom)</option>
-            <option>Français (France)</option>
-            <option>Deutsch (Deutschland)</option>
-          </Select>
-        </Field>
-        <Field label="Date & time format">
-          <Select defaultValue="24" aria-label="Date & time format">
-            <option value="24">13 Jun · 24-hour</option>
-            <option value="12">Jun 13 · 12-hour</option>
-          </Select>
-        </Field>
+        <Row name="Time zone" desc="Pacific — America/Los_Angeles" coming />
+        <Row name="Language & region" desc="English (United States)" coming />
+        <Row name="Date & time format" desc="13 Jun · 24-hour" coming />
       </Group>
 
       <Group
         title="Quiet hours"
         desc="Jarvis stays silent during these hours — no nudges unless something is genuinely urgent."
       >
-        <Row
-          name="Enable quiet hours"
-          control={<Switch ariaLabel="Enable quiet hours" defaultChecked />}
-        />
-        <Field label="From / to">
-          <input
-            className="jds-input"
-            type="time"
-            defaultValue="21:00"
-            aria-label="Quiet hours from"
-            style={{ flex: "0 0 130px", minWidth: 0 }}
-          />
-          <span style={{ color: "var(--text-faint)" }}>→</span>
-          <input
-            className="jds-input"
-            type="time"
-            defaultValue="07:00"
-            aria-label="Quiet hours to"
-            style={{ flex: "0 0 130px", minWidth: 0 }}
-          />
-        </Field>
+        <Row name="Enable quiet hours" desc="Silence routine nudges overnight." coming />
+        <Row name="From / to" desc="21:00 → 07:00" coming />
       </Group>
       <Note>Saving locale and quiet hours is coming soon — these don't persist yet.</Note>
     </>

@@ -43,6 +43,7 @@ import type {
   ListAiConfiguredModelsResponse,
   ListAiProviderConfigsResponse,
   ListAdminConnectorAccountsResponse,
+  ListAdminAuditEventsResponse,
   ListAuthProviderStatusesResponse,
   ListBriefingDefinitionsResponse,
   ListBriefingRunsResponse,
@@ -661,6 +662,10 @@ export async function listAuthProviderStatuses(): Promise<ListAuthProviderStatus
 
 export async function listAdminConnectorAccounts(): Promise<ListAdminConnectorAccountsResponse> {
   return requestJson<ListAdminConnectorAccountsResponse>("/api/admin/connectors/accounts");
+}
+
+export async function listAdminAuditEvents(): Promise<ListAdminAuditEventsResponse> {
+  return requestJson<ListAdminAuditEventsResponse>("/api/admin/audit-events");
 }
 
 export async function listAdminUsers(): Promise<ListUsersResponse> {

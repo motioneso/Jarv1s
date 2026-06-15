@@ -378,8 +378,8 @@ Cites CLAUDE.md "Hard Invariants" this slice touches:
 ## Out of scope / deferred
 
 - **API-key entry in onboarding.** Locked decision: CLI-only this phase. API-key chat is deferred;
-  API-key entry remains available in normal Settings via the shipped `AiSettingsPanel`
-  (`apps/web/src/ai/ai-settings-panel.tsx`), but onboarding does not feature it. (Epic #47 #6 lists
+  API-key entry remains available in normal Settings via the shipped Assistant & AI advanced pane,
+  but onboarding does not feature it. (Epic #47 #6 lists
   "CLI-auth **or** API-key"; this slice ships the CLI-auth path only and defers the API-key onboarding
   branch.)
 - **Auto-installing the multiplexer or the CLIs.** The API runs unprivileged (ADR 0008 §2; the
