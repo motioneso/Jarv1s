@@ -46,8 +46,8 @@ then squash). The wellness work (Phases 1–3) already lives only on this branch
 
 - [ ] Remediation commit lands; `git show --stat` shows ONLY intended paths (agent ran repo-wide
       `pnpm format` — confirm no unrelated files swept into the commit).
-- [ ] `pnpm verify:foundation` REAL exit 0 (never `| tail`-masked).
-- [ ] 2nd Codex pass (session `019eca17`) → BLOCKERS:0 / VERDICT MERGE-READY on diff `da992f1..HEAD`.
+- [x] `pnpm verify:foundation` REAL exit 0 — independently confirmed at `6ebda42`+manifest (335 unit + 725 integration, 2 skipped). MUST RE-RUN after round-2 fixes land.
+- [ ] 2nd Codex pass (session `019eca17`) → **ROUND 2 = DO-NOT-MERGE, BLOCKERS:1** (all 9 original findings confirmed fixed, but 4 regressions introduced — see escalations). Round-3 re-review needed after fixes.
 - [ ] Independent coordinated-qa pass green (sensitive tier: + invariant check).
 - [ ] Then autonomous merge to `main` + GitHub bookkeeping (epic #50 progress comment — slice, do
       NOT close epic) + agentmemory lesson + remove `wellness-web` worktree.
@@ -76,7 +76,15 @@ wellness, without Ben's input." Concretely:
 
 ## Outstanding escalations
 
-- [ ] (none open)
+- [ ] **Codex round-2 rework (QA cycle 1 of 2)** — routed to agent `3bc2277f` 2026-06-15. Fixes in
+      flight, then round-3 Codex re-review + gate re-run. Findings:
+  - R1 [HIGH/BLOCKER] PATCH checkin omitted-sensations → `[]` erases history; needs partial-update
+    parser preserving `undefined` + regression test.
+  - R2 [MED] PATCH energy doesn't call `refreshEnergyTrendFact` → stale recall facts.
+  - R3 [LOW] e2e mock still old `{logs:[]}` shape (not adherence summary).
+  - R4 [LOW] dead `medicationLogsRouteSchema`/`MedicationLogsResponse` still exported.
+  - **Failure budget:** if round-3 Codex still DO-NOT-MERGE → that's cycle 2 → STOP lane, escalate
+    to Ben (do not loop indefinitely).
 
 ## Paused side-task (Ben, from relay doc §3)
 
