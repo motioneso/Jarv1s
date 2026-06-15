@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 
-const PREFS_KEY = "jarvis.wellness.prefs";
+export const PREFS_KEY = "jarvis.wellness.prefs";
+export const PREFS_EVENT = "jarvis:wellness-prefs";
 
 export interface WellnessPrefs {
   radial: boolean;
@@ -8,7 +9,7 @@ export interface WellnessPrefs {
 
 const DEFAULTS: WellnessPrefs = { radial: false };
 
-function readPrefs(): WellnessPrefs {
+export function readPrefs(): WellnessPrefs {
   try {
     const raw = window.localStorage.getItem(PREFS_KEY);
     if (!raw) return DEFAULTS;
@@ -18,9 +19,10 @@ function readPrefs(): WellnessPrefs {
   }
 }
 
-function writePrefs(prefs: WellnessPrefs): void {
+export function writePrefs(prefs: WellnessPrefs): void {
   try {
     window.localStorage.setItem(PREFS_KEY, JSON.stringify(prefs));
+    window.dispatchEvent(new CustomEvent(PREFS_EVENT));
   } catch {
     // localStorage may be unavailable; prefs stay in-memory
   }
@@ -31,6 +33,14 @@ export function useWellnessPrefs(): [WellnessPrefs, (patch: Partial<WellnessPref
 
   useEffect(() => {
     setPrefs(readPrefs());
+
+    const sync = () => setPrefs(readPrefs());
+    window.addEventListener("storage", sync);
+    window.addEventListener(PREFS_EVENT, sync);
+    return () => {
+      window.removeEventListener("storage", sync);
+      window.removeEventListener(PREFS_EVENT, sync);
+    };
   }, []);
 
   const update = (patch: Partial<WellnessPrefs>) => {
