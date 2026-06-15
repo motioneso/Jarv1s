@@ -1,174 +1,208 @@
+import { useMemo, useState, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
-import type { CalendarEventDto } from "@jarv1s/shared";
-import { CalendarDays, Clock, Inbox, LoaderCircle, MapPin } from "lucide-react";
-import { useMemo } from "react";
-
-import { listCalendarEvents } from "../api/client";
-import { queryKeys } from "../api/query-keys";
-import { Card, SectionHeader, Stack } from "../ui/card";
+import { ChevronLeft, ChevronRight, Inbox, LoaderCircle } from "lucide-react";
+import { listCalendarEvents } from "../api/client.js";
+import { queryKeys } from "../api/query-keys.js";
 import "../styles/kit-calendar.css";
+import {
+  buildWeekDays,
+  dtoToViewEvent,
+  groupEventsByDay,
+  isToday,
+  loadPersistedCursor,
+  loadPersistedView,
+  loadPersistedWorkWeek,
+  navigateCursor,
+  rangeLabel,
+  DOW_SHORT,
+  type CalendarView,
+  type CalendarViewEvent
+} from "./calendar-model.js";
+import { CalendarTimeGrid, type DayData } from "./calendar-time-grid.js";
+import { CalendarMonth } from "./calendar-month.js";
+import { CalendarPeek } from "./calendar-peek.js";
 
-import "./calendar.css";
-
-interface CalendarDayGroup {
-  readonly key: string;
-  readonly label: string;
-  readonly events: readonly CalendarEventDto[];
-}
+const HOUR_H = 58;
 
 export function CalendarPage() {
+  const [view, setView] = useState<CalendarView>(loadPersistedView);
+  const [cursor, setCursor] = useState<Date>(loadPersistedCursor);
+  const [workWeek, setWorkWeek] = useState<boolean>(loadPersistedWorkWeek);
+  const [peek, setPeek] = useState<CalendarViewEvent | null>(null);
+
+  useEffect(() => {
+    localStorage.setItem("jarvis.cal.view", view);
+  }, [view]);
+  useEffect(() => {
+    localStorage.setItem("jarvis.cal.cursor", cursor.toISOString());
+  }, [cursor]);
+  useEffect(() => {
+    localStorage.setItem("jarvis.cal.workweek", workWeek ? "1" : "0");
+  }, [workWeek]);
+
   const calendarQuery = useQuery({
     queryKey: queryKeys.calendar.list,
     queryFn: () => listCalendarEvents()
   });
 
-  const dayGroups = useMemo(
-    () => groupEventsByDay(calendarQuery.data?.events ?? []),
-    [calendarQuery.data?.events]
+  const allViewEvents = useMemo(
+    () =>
+      (calendarQuery.data?.events ?? [])
+        .map(dtoToViewEvent)
+        .filter((e): e is CalendarViewEvent => e !== null),
+    [calendarQuery.data]
   );
 
-  const eventCount = calendarQuery.data?.events.length ?? 0;
+  const eventsByDay = useMemo(() => groupEventsByDay(allViewEvents), [allViewEvents]);
+
+  const weekDays = useMemo(
+    () => (view === "week" ? buildWeekDays(cursor, workWeek) : []),
+    [view, cursor, workWeek]
+  );
+
+  const dayObjs: DayData[] = useMemo(() => {
+    const activeDays = view === "day" ? [cursor] : view === "week" ? weekDays : [];
+    return activeDays.map((d) => ({
+      date: d,
+      events: eventsByDay.get(`${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`) ?? []
+    }));
+  }, [view, cursor, weekDays, eventsByDay]);
+
+  const label = rangeLabel(cursor, view, view === "week" ? weekDays : [cursor]);
+
+  const heldToday = useMemo(() => {
+    const now = new Date();
+    const key = `${now.getFullYear()}-${now.getMonth()}-${now.getDate()}`;
+    return (eventsByDay.get(key) ?? []).filter((e) => e.kind === "block").length;
+  }, [eventsByDay]);
+
+  function go(dir: -1 | 1) {
+    setCursor((c) => navigateCursor(c, view, dir));
+  }
+  function pickDay(date: Date) {
+    setCursor(date);
+    setView("day");
+  }
+
+  if (calendarQuery.isLoading)
+    return (
+      <div className="empty-state">
+        <LoaderCircle className="spin" size={22} aria-hidden="true" />
+        <p>Loading calendar</p>
+      </div>
+    );
+  if (calendarQuery.error)
+    return (
+      <div className="empty-state">
+        <Inbox size={22} aria-hidden="true" />
+        <p>{calendarQuery.error.message}</p>
+      </div>
+    );
 
   return (
-    <section className="page-stack" aria-labelledby="calendar-title">
-      <div className="page-heading">
-        <div>
-          <p className="eyebrow">Calendar</p>
-          <h1 id="calendar-title">Calendar</h1>
+    <div className="cal-wrap" style={{ "--cal-h": HOUR_H + "px" } as React.CSSProperties}>
+      <div className="cal-toolbar">
+        <div className="cal-toolbar__left">
+          <button
+            type="button"
+            className="jds-btn jds-btn--secondary jds-btn--sm"
+            onClick={() => setCursor(new Date())}
+          >
+            Today
+          </button>
+          <div className="cal-nav">
+            <button
+              type="button"
+              className="jds-iconbtn jds-iconbtn--sm"
+              aria-label="Previous"
+              onClick={() => go(-1)}
+            >
+              <ChevronLeft size={18} />
+            </button>
+            <button
+              type="button"
+              className="jds-iconbtn jds-iconbtn--sm"
+              aria-label="Next"
+              onClick={() => go(1)}
+            >
+              <ChevronRight size={18} />
+            </button>
+          </div>
+          <h2 className="cal-range">
+            {view === "day" ? (
+              <>
+                <span className="cal-range__dow">{DOW_SHORT[cursor.getDay()]}</span>
+                {label.replace(/^\S+,?\s*/, "")}
+              </>
+            ) : (
+              label
+            )}
+          </h2>
+        </div>
+        <div className="cal-toolbar__right">
+          {view === "week" ? (
+            <div className="segmented-control" aria-label="Week type">
+              <button
+                type="button"
+                className={workWeek ? "active" : ""}
+                onClick={() => setWorkWeek(true)}
+              >
+                Work week
+              </button>
+              <button
+                type="button"
+                className={!workWeek ? "active" : ""}
+                onClick={() => setWorkWeek(false)}
+              >
+                Full week
+              </button>
+            </div>
+          ) : null}
+          <div className="segmented-control" aria-label="View">
+            {(["day", "week", "month"] as const).map((v) => (
+              <button
+                key={v}
+                type="button"
+                className={view === v ? "active" : ""}
+                onClick={() => setView(v)}
+              >
+                {v.charAt(0).toUpperCase() + v.slice(1)}
+              </button>
+            ))}
+          </div>
         </div>
       </div>
-
-      <section className="calendar-feed" aria-live="polite">
-        {calendarQuery.isLoading ? (
-          <EmptyState loading title="Loading calendar" />
-        ) : calendarQuery.error ? (
-          <EmptyState title={calendarQuery.error.message} />
-        ) : eventCount === 0 ? (
-          <EmptyState title="No upcoming events" />
-        ) : (
-          dayGroups.map((group) => (
-            <Card className="calendar-day" key={group.key}>
-              <Stack gap={0.75}>
-                <SectionHeader
-                  eyebrow="Day"
-                  title={group.label}
-                  trailing={
-                    <span className="calendar-day-count">
-                      {group.events.length} {group.events.length === 1 ? "event" : "events"}
-                    </span>
-                  }
-                />
-                <Stack gap={0.5}>
-                  {group.events.map((event) => (
-                    <CalendarEventRow event={event} key={event.id} />
-                  ))}
-                </Stack>
-              </Stack>
-            </Card>
-          ))
-        )}
-      </section>
-    </section>
-  );
-}
-
-function CalendarEventRow(props: { readonly event: CalendarEventDto }) {
-  const { event } = props;
-
-  return (
-    <article className="calendar-event">
-      <div className="calendar-event-icon" aria-hidden="true">
-        <CalendarDays size={20} />
-      </div>
-      <div className="calendar-event-main">
-        <strong className="calendar-event-title">{event.title}</strong>
-        <div className="calendar-event-meta">
-          <span className="calendar-event-time">
-            <Clock size={14} aria-hidden="true" />
-            {formatEventTimeRange(event.startsAt, event.endsAt)}
+      {view !== "month" ? (
+        <div className="cal-legend">
+          <span className="cal-legend__item">
+            <span className="cal-legend__sw cal-legend__sw--hard" />
+            Committed
           </span>
-          {event.location ? (
-            <span className="calendar-event-location">
-              <MapPin size={14} aria-hidden="true" />
-              {event.location}
+          <span className="cal-legend__item">
+            <span className="cal-legend__sw cal-legend__sw--hold" />
+            Jarvis holding
+          </span>
+          {view === "day" && isToday(cursor) && heldToday > 0 ? (
+            <span className="cal-legend__note">
+              Jarvis is holding {heldToday} block{heldToday === 1 ? "" : "s"} around what matters
+              today.
             </span>
           ) : null}
         </div>
+      ) : null}
+      <div className="cal-body">
+        {view === "month" ? (
+          <CalendarMonth
+            cursor={cursor}
+            eventsByDay={eventsByDay}
+            onPickDay={pickDay}
+            onPick={setPeek}
+          />
+        ) : (
+          <CalendarTimeGrid days={dayObjs} hourH={HOUR_H} onPick={setPeek} />
+        )}
       </div>
-    </article>
-  );
-}
-
-function EmptyState(props: { readonly loading?: boolean; readonly title: string }) {
-  return (
-    <div className="empty-state">
-      {props.loading ? (
-        <LoaderCircle className="spin" size={22} aria-hidden="true" />
-      ) : (
-        <Inbox size={22} aria-hidden="true" />
-      )}
-      <p>{props.title}</p>
+      <CalendarPeek event={peek} onClose={() => setPeek(null)} />
     </div>
   );
-}
-
-function groupEventsByDay(events: readonly CalendarEventDto[]): readonly CalendarDayGroup[] {
-  const sorted = [...events].sort(
-    (a, b) => new Date(a.startsAt).getTime() - new Date(b.startsAt).getTime()
-  );
-
-  const groups = new Map<string, CalendarEventDto[]>();
-  for (const event of sorted) {
-    const key = dayKey(event.startsAt);
-    const bucket = groups.get(key);
-    if (bucket) {
-      bucket.push(event);
-    } else {
-      groups.set(key, [event]);
-    }
-  }
-
-  return [...groups.entries()].map(([key, dayEvents]) => ({
-    key,
-    label: formatDayLabel(dayEvents[0]!.startsAt),
-    events: dayEvents
-  }));
-}
-
-function dayKey(value: string): string {
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) {
-    return value;
-  }
-
-  return `${date.getFullYear()}-${date.getMonth()}-${date.getDate()}`;
-}
-
-function formatDayLabel(value: string): string {
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) {
-    return "Unknown date";
-  }
-
-  return new Intl.DateTimeFormat(undefined, {
-    weekday: "long",
-    month: "long",
-    day: "numeric"
-  }).format(date);
-}
-
-function formatEventTimeRange(startsAt: string, endsAt: string): string {
-  const start = new Date(startsAt);
-  const end = new Date(endsAt);
-  if (Number.isNaN(start.getTime())) {
-    return "All day";
-  }
-
-  const timeFormat = new Intl.DateTimeFormat(undefined, { timeStyle: "short" });
-  const startLabel = timeFormat.format(start);
-  if (Number.isNaN(end.getTime())) {
-    return startLabel;
-  }
-
-  return `${startLabel} – ${timeFormat.format(end)}`;
 }
