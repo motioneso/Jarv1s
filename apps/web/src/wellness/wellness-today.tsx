@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { EMOTIONS, moodIndex, type CheckinDto } from "@jarv1s/shared";
+import { EMOTIONS, moodIndex, moodBand, type CheckinDto } from "@jarv1s/shared";
 import { getMedicationSchedule, logMedicationDose } from "../api/client";
 import { queryKeys } from "../api/query-keys";
 import { emoColor, coreLabel, type WellnessEmotionCore, type Theme } from "./emotion-taxonomy";
@@ -398,7 +398,7 @@ function CheckinToday({
           <span className="ic">
             <HeartPulseIcon />
           </span>
-          <span className="t">Today&apos;s check-in</span>
+          <span className="t">Today&apos;s mood</span>
           {StreakChip ? <span className="r">{StreakChip}</span> : null}
         </div>
         <div className="wl-checkin__prompt">
@@ -460,6 +460,18 @@ function CheckinToday({
   const core = latestCheckin.feelingCore;
   const c = emoColor(core, theme);
   const v = moodIndex(core, latestCheckin.intensity ?? 3);
+  const avgV =
+    todayCheckins.length > 1
+      ? Math.round(
+          (todayCheckins.reduce(
+            (sum, ck) => sum + moodIndex(ck.feelingCore, ck.intensity ?? 3),
+            0
+          ) /
+            todayCheckins.length) *
+            10
+        ) / 10
+      : v;
+  const avgBandLabel = moodBand(avgV);
 
   return (
     <div
@@ -476,7 +488,7 @@ function CheckinToday({
         <span className="ic">
           <HeartPulseIcon />
         </span>
-        <span className="t">Today&apos;s check-in</span>
+        <span className="t">Today&apos;s mood</span>
         <span className="r" style={{ display: "flex", alignItems: "center", gap: 8 }}>
           {StreakChip}
           <button
@@ -507,12 +519,21 @@ function CheckinToday({
           </span>
           <span className="wl-done__feeling">{latestCheckin.feelingSecondary}</span>
           <span className="wl-done__mood">
-            <span className="k">Mood</span>
+            <span className="k">{todayCheckins.length > 1 ? "Now" : "Mood"}</span>
             <span className="v">
               {v > 0 ? "+" : ""}
               {v}
             </span>
           </span>
+          {todayCheckins.length > 1 ? (
+            <span className="wl-done__mood">
+              <span className="k">Avg</span>
+              <span className="v">
+                {avgV > 0 ? "+" : ""}
+                {avgV} · {avgBandLabel}
+              </span>
+            </span>
+          ) : null}
         </div>
         {latestCheckin.sensations && latestCheckin.sensations.length > 0 ? (
           <div className="wl-senrow">
