@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 
-import { readSettingsStorage, writeSettingsStorage } from "../../apps/web/src/settings/settings-storage.js";
+import {
+  readSettingsStorage,
+  writeSettingsStorage
+} from "../../apps/web/src/settings/settings-storage.js";
 
 describe("settings storage", () => {
   it("uses versioned keys and returns null when a key is absent", () => {

@@ -70,10 +70,6 @@ describe("settings admin user action policy", () => {
     const policy = createAdminUserPolicyContext([current, target]);
 
     expect(policy.activeAdminCount).toBe(2);
-    expect(adminUserActions(target, current, policy)).toEqual([
-      "admin",
-      "deactivate",
-      "remove"
-    ]);
+    expect(adminUserActions(target, current, policy)).toEqual(["admin", "deactivate", "remove"]);
   });
 });
