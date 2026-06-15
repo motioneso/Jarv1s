@@ -60,6 +60,19 @@ export interface ListCheckinsResponse {
   readonly checkins: readonly CheckinDto[];
 }
 
+export interface UpdateCheckinRequest {
+  readonly feelingCore: WellnessEmotionCore;
+  readonly feelingSecondary?: string | null;
+  readonly feelingTertiary?: string | null;
+  readonly sensations?: readonly string[];
+  readonly intensity?: number | null;
+  readonly energy?: number | null;
+  readonly note?: string | null;
+}
+export interface UpdateCheckinResponse {
+  readonly checkin: CheckinDto;
+}
+
 export interface MedicationDto {
   readonly id: string;
   readonly ownerUserId: string;
@@ -148,6 +161,25 @@ export interface MedicationScheduleResponse {
 
 export interface MedicationLogsResponse {
   readonly logs: readonly MedicationLogDto[];
+}
+
+// ── Adherence Summary DTOs ─────────────────────────────────────────────────
+export interface AdherenceDoseSummaryItemDto {
+  readonly medicationId: string;
+  readonly name: string;
+  readonly status: "pending" | "taken" | "skipped";
+  readonly prn: boolean;
+}
+
+export interface DayAdherenceSummaryDto {
+  readonly date: string;
+  readonly scheduledCount: number;
+  readonly takenCount: number;
+  readonly doses: readonly AdherenceDoseSummaryItemDto[];
+}
+
+export interface MedicationAdherenceSummaryResponse {
+  readonly days: readonly DayAdherenceSummaryDto[];
 }
 
 // ── Wellness Insights DTOs ────────────────────────────────────────────────
@@ -306,6 +338,49 @@ export const medicationLogsResponseSchema = {
   properties: { logs: { type: "array", items: medicationLogDtoSchema } }
 } as const;
 
+export const adherenceDoseSummaryItemDtoSchema = {
+  type: "object",
+  required: ["medicationId", "name", "status", "prn"],
+  properties: {
+    medicationId: { type: "string" },
+    name: { type: "string" },
+    status: { type: "string", enum: ["pending", "taken", "skipped"] },
+    prn: { type: "boolean" }
+  }
+} as const;
+
+export const dayAdherenceSummaryDtoSchema = {
+  type: "object",
+  required: ["date", "scheduledCount", "takenCount", "doses"],
+  properties: {
+    date: { type: "string" },
+    scheduledCount: { type: "number" },
+    takenCount: { type: "number" },
+    doses: { type: "array", items: adherenceDoseSummaryItemDtoSchema }
+  }
+} as const;
+
+export const medicationAdherenceSummaryResponseSchema = {
+  type: "object",
+  required: ["days"],
+  properties: { days: { type: "array", items: dayAdherenceSummaryDtoSchema } }
+} as const;
+
+export const updateCheckinRequestSchema = {
+  type: "object",
+  additionalProperties: false,
+  required: ["feelingCore"],
+  properties: {
+    feelingCore: feelingCoreSchema,
+    feelingSecondary: nullableStringSchema,
+    feelingTertiary: nullableStringSchema,
+    sensations: stringArraySchema,
+    intensity: nullableIntensitySchema,
+    energy: nullableIntensitySchema,
+    note: nullableStringSchema
+  }
+} as const;
+
 export const checkinDtoSchema = {
   type: "object",
   required: [
@@ -338,6 +413,12 @@ export const checkinDtoSchema = {
     identifiedVia: { type: "string", enum: ["wheel", "assisted"] },
     createdAt: nullableStringSchema
   }
+} as const;
+
+export const updateCheckinResponseSchema = {
+  type: "object",
+  required: ["checkin"],
+  properties: { checkin: checkinDtoSchema }
 } as const;
 
 export const createCheckinRequestSchema = {
@@ -549,6 +630,13 @@ export const deleteTherapyNoteRouteSchema = {
 } as const;
 export const medicationLogsRouteSchema = {
   response: { 200: medicationLogsResponseSchema }
+} as const;
+export const medicationAdherenceSummaryRouteSchema = {
+  response: { 200: medicationAdherenceSummaryResponseSchema }
+} as const;
+export const updateCheckinRouteSchema = {
+  body: updateCheckinRequestSchema,
+  response: { 200: updateCheckinResponseSchema, 400: errorResponseSchema, 404: errorResponseSchema }
 } as const;
 
 // ── Browser-safe reference taxonomy ──────────────────────────────────────────

@@ -87,7 +87,9 @@ import type {
   UpdateTaskPreferencesResponse,
   UpdateTaskRequest,
   UpdateTaskResponse,
-  MedicationLogsResponse,
+  MedicationAdherenceSummaryResponse,
+  UpdateCheckinRequest,
+  UpdateCheckinResponse,
   WellnessInsightsResponse,
   ListTherapyNotesResponse,
   CreateTherapyNoteRequest,
@@ -445,10 +447,22 @@ export async function deleteTherapyNote(id: string): Promise<DeleteTherapyNoteRe
   );
 }
 
-export async function listMedicationLogs(sinceDays: number): Promise<MedicationLogsResponse> {
-  return requestJson<MedicationLogsResponse>(
+export async function getMedicationAdherenceSummary(
+  sinceDays: number
+): Promise<MedicationAdherenceSummaryResponse> {
+  return requestJson<MedicationAdherenceSummaryResponse>(
     `/api/wellness/medications/logs?sinceDays=${sinceDays}`
   );
+}
+
+export async function updateWellnessCheckin(
+  id: string,
+  input: UpdateCheckinRequest
+): Promise<UpdateCheckinResponse> {
+  return requestJson<UpdateCheckinResponse>(`/api/wellness/checkins/${encodeURIComponent(id)}`, {
+    method: "PATCH",
+    body: input
+  });
 }
 
 export async function listNotifications(): Promise<ListNotificationsResponse> {

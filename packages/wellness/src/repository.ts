@@ -60,6 +60,15 @@ export interface LogDoseInput {
   readonly scheduledFor?: string | null;
 }
 
+export interface UpdateCheckinInput {
+  readonly feelingCore: WellnessFeelingCore;
+  readonly feelingSecondary?: string | null;
+  readonly sensations?: readonly string[];
+  readonly intensity?: number | null;
+  readonly energy?: number | null;
+  readonly note?: string | null;
+}
+
 export interface CreateTherapyNoteInput {
   readonly body: string;
   readonly linkedCheckinId?: string | null;
@@ -297,6 +306,30 @@ export class WellnessRepository {
       .orderBy("logged_at", "desc")
       .execute();
     return rows as MedicationLog[];
+  }
+
+  async updateCheckin(
+    scopedDb: DataContextDb,
+    id: string,
+    input: UpdateCheckinInput
+  ): Promise<WellnessCheckin | undefined> {
+    assertDataContextDb(scopedDb);
+    const updates: Record<string, unknown> = {
+      feeling_core: input.feelingCore,
+      feeling_secondary: input.feelingSecondary ?? null,
+      feeling_tertiary: null
+    };
+    if (input.sensations !== undefined) updates["sensations"] = [...input.sensations];
+    if (input.intensity !== undefined) updates["intensity"] = input.intensity ?? null;
+    if (input.energy !== undefined) updates["energy"] = input.energy ?? null;
+    if (input.note !== undefined) updates["note"] = input.note ?? null;
+    const row = await scopedDb.db
+      .updateTable("app.wellness_checkins")
+      .set(updates)
+      .where("id", "=", id)
+      .returningAll()
+      .executeTakeFirst();
+    return row as WellnessCheckin | undefined;
   }
 
   // ── Therapy notes ──────────────────────────────────────────────────────

@@ -174,6 +174,12 @@ export function WellnessInsights({ onReviewNotes }: Props) {
               Loading insights&hellip;
             </span>
           </div>
+        ) : insightsQuery.isError ? (
+          <div className="wl-insight">
+            <span style={{ fontSize: 13, color: "var(--text-subtle)" }}>
+              Couldn&apos;t load insights — try refreshing.
+            </span>
+          </div>
         ) : insights.length === 0 ? (
           <div className="wl-insight" style={{ padding: "16px 0" }}>
             <span style={{ fontSize: 13, color: "var(--text-subtle)" }}>

@@ -10,6 +10,7 @@ Ben is delegating and away/intermittent — proceed autonomously, but do NOT pus
 without his OK (he reviews the look/design later — "functionality vs design passes").
 
 ## Where the work lives
+
 - **Primary worktree/branch:** `/home/ben/Jarv1s/.claude/worktrees/feat+wellness-design` →
   branch `worktree-feat+wellness-design`, HEAD `476f943`. `node_modules` present (skip `pnpm install`).
 - **Second worktree (already merged in):** `/home/ben/Jarv1s/.claude/worktrees/wellness-web`
@@ -19,6 +20,7 @@ without his OK (he reviews the look/design later — "functionality vs design pa
   are ALREADY APPLIED to this dev DB — do NOT edit those files (hash-check invariant).
 
 ## Reference docs (in the primary worktree)
+
 - Spec: `docs/superpowers/specs/2026-06-14-p5-wellness-design-taxonomy-insights.md`
 - Build plan: `docs/superpowers/plans/2026-06-14-wellness-design-taxonomy-build.md`
 - **Codex-APPROVED plan:** `PLAN.md` (worktree root) — survived 3 plan-review rounds.
@@ -26,6 +28,7 @@ without his OK (he reviews the look/design later — "functionality vs design pa
 - Design bundle (read-only reference): `/home/ben/.claude/jobs/914af5c0/tmp/design/jarvis-design-system/project/ui_kits/jarvis-app/` (`Wellness.jsx`, `WellnessCheckin.jsx`, `WellnessCharts.jsx`, `wellness.css`, `wellness-data.js`)
 
 ## What's done (commits on the branch)
+
 1. `19aa46c` Phase 1 — shared contract (new emotion taxonomy + polarity + moodIndex + DTOs), `packages/db/types.ts`, migrations `0088` (enum swap, fail-loud + re-run-safe) + `0089` (therapy_notes table + SECURITY INVOKER owner trigger + RLS), manifest (routes/ownedTables/`wellness.delete`).
 2. `291412c` Phase 2 — `insights.ts`, therapy-notes CRUD, `listLogsRange`, routes, serialize, `tools.ts` moodIndex; integration tests (`wellness.test.ts`, new `wellness-phase2.test.ts`, `wellness-medications.test.ts`, `foundation.test.ts` migration count).
 3. `d186cbe` Phase 3 — full web port `apps/web/src/wellness/*` (decomposed <1000 lines), `client.ts`/`query-keys.ts`, CSS split `wellness-1.css`/`wellness-2.css`, e2e `wellness.spec.ts`. Removed dead placeholders. Radial picker deferred (stretch).
@@ -39,6 +42,7 @@ REAL exit code, never a wrapped one.
 ## REMAINING WORK (your job)
 
 ### 1. Remediate the Codex thermonuclear CODE review — `VERDICT: DO-NOT-MERGE`, `BLOCKERS: 3`
+
 Full critique captured at `/home/ben/.claude/jobs/914af5c0/tmp/codex9-full.txt`. Ben approved doing
 ALL findings (the 3 LOWs too) with the decisions below. Dispatch a Sonnet remediation agent in the
 primary worktree; then re-verify; then a 2nd Codex pass.
@@ -86,12 +90,14 @@ da992f1..HEAD, end with BLOCKERS:n / VERDICT". Herdr-pane gotchas (see memory `h
 placeholder ≠ typed text; large paste needs a 2nd Enter; detect done via `agent_status` not VERDICT grep.
 
 ### 2. Only after Codex is MERGE-READY + gate green
+
 - Update GitHub epic #50 (progress comment — this is a slice, not the whole epic; don't close it).
 - Save an agentmemory lesson (taxonomy migration, the 9 review fixes, the adherence-summary pattern).
 - Remove the `wellness-web` worktree.
 - Do NOT push/PR/merge to main without Ben's explicit OK.
 
 ### 3. PAUSED side-task (Ben said "wait on my thing")
+
 Make Ben's **dev** account admin: `admin = app.users.is_instance_admin` (boolean). Dev DB `jarv1s`
 (localhost:55433, `postgres:postgres`) currently has ONLY integration-test seed users
 (`user-a/b@example.test`, `admin@example.test`) — the test runs reseed `jarv1s`, so there is **no Ben
@@ -100,6 +106,7 @@ account** to promote yet. When Ben returns: confirm how his dev account is creat
 account shouldn't get stuck as non-admin — the first/owner user should auto-be instance admin."
 
 ## Invariants / traps (do not relearn the hard way)
+
 - **Never edit applied migrations** (`0088`/`0089` are applied to dev) — fix at the route/repo layer.
 - Migration numbers are GLOBAL by landing order (re-check before any new one).
 - **Verification discipline:** never trust an agent's "done"; run the full gate with the REAL exit code.

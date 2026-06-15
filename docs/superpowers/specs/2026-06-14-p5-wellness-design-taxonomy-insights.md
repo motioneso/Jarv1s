@@ -265,3 +265,4 @@ Extend `tests/integration/wellness.test.ts` (`pnpm test:wellness`):
 5. **Mood-index vs energy confusion.** Two 1–5-ish scales in one modal could confuse. Mitigation:
    intensity is primary (drives the visible mood band preview); energy is an optional, clearly-labeled
    secondary control, easy to cut.
+6. **`0088` fails on non-empty `wellness_checkins`.** The enum-swap migration uses `ALTER COLUMN … TYPE … USING` with a `CASE` that aborts if any existing row maps to an unrecognized value. This is intentional fail-loud behavior — silent data corruption is worse than a failed migration. For a first deploy to a populated env, a forward-remap migration must be authored first (map old values → new enum values row by row, then run `0088`). No `0088` edit is needed; the solution is a new migration added before it in the apply order. Dev-only data means blast radius is zero today.

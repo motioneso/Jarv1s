@@ -196,6 +196,8 @@ function MedToday({ theme: _theme, onManage }: MedTodayProps) {
       }),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: queryKeys.wellness.schedule(date) });
+      void queryClient.invalidateQueries({ queryKey: ["wellness", "adherence-summary"] });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.wellness.insights });
     }
   });
 
@@ -243,67 +245,73 @@ function MedToday({ theme: _theme, onManage }: MedTodayProps) {
         </span>
       </div>
       <div className="wl-medlist">
-        {groups.map((g) => {
-          if (!g.rows.length) return null;
-          return (
-            <div key={g.key} className="wl-medgrp">
-              <div className="wl-medgrp__lbl">
-                <span className="ic">{g.icon}</span>
-                {g.label}
-              </div>
-              {g.rows.map((slot, i) => {
-                const on = slot.status === "taken";
-                return (
-                  <div
-                    key={`${slot.medicationId}-${i}`}
-                    className={`wl-medrow wl-medrow--tight${on ? " is-on" : ""}`}
-                    role="button"
-                    tabIndex={0}
-                    onClick={() => {
-                      if (slot.asNeeded) return;
-                      logMutation.mutate({
-                        medicationId: slot.medicationId,
-                        status: on ? "skipped" : "taken",
-                        scheduledFor: slot.scheduledFor ?? null
-                      });
-                    }}
-                    onKeyDown={(ev) => {
-                      if (ev.key === "Enter" || ev.key === " ") {
-                        ev.preventDefault();
-                        if (!slot.asNeeded) {
-                          logMutation.mutate({
-                            medicationId: slot.medicationId,
-                            status: on ? "skipped" : "taken",
-                            scheduledFor: slot.scheduledFor ?? null
-                          });
+        {scheduleQuery.isError ? (
+          <p style={{ fontSize: 13, color: "var(--text-subtle)", padding: "4px 0" }}>
+            Couldn&apos;t load schedule — try refreshing.
+          </p>
+        ) : null}
+        {!scheduleQuery.isError &&
+          groups.map((g) => {
+            if (!g.rows.length) return null;
+            return (
+              <div key={g.key} className="wl-medgrp">
+                <div className="wl-medgrp__lbl">
+                  <span className="ic">{g.icon}</span>
+                  {g.label}
+                </div>
+                {g.rows.map((slot, i) => {
+                  const on = slot.status === "taken";
+                  return (
+                    <div
+                      key={`${slot.medicationId}-${i}`}
+                      className={`wl-medrow wl-medrow--tight${on ? " is-on" : ""}`}
+                      role="button"
+                      tabIndex={0}
+                      onClick={() => {
+                        if (slot.asNeeded) return;
+                        logMutation.mutate({
+                          medicationId: slot.medicationId,
+                          status: on ? "skipped" : "taken",
+                          scheduledFor: slot.scheduledFor ?? null
+                        });
+                      }}
+                      onKeyDown={(ev) => {
+                        if (ev.key === "Enter" || ev.key === " ") {
+                          ev.preventDefault();
+                          if (!slot.asNeeded) {
+                            logMutation.mutate({
+                              medicationId: slot.medicationId,
+                              status: on ? "skipped" : "taken",
+                              scheduledFor: slot.scheduledFor ?? null
+                            });
+                          }
                         }
-                      }
-                    }}
-                  >
-                    <span className="wl-medrow__box">{on ? <CheckIcon size={14} /> : null}</span>
-                    <span className="wl-medrow__main">
-                      <span className="wl-medrow__name">
-                        {slot.name}
-                        {slot.asNeeded ? <span className="wl-medrow__prn">as needed</span> : null}
+                      }}
+                    >
+                      <span className="wl-medrow__box">{on ? <CheckIcon size={14} /> : null}</span>
+                      <span className="wl-medrow__main">
+                        <span className="wl-medrow__name">
+                          {slot.name}
+                          {slot.asNeeded ? <span className="wl-medrow__prn">as needed</span> : null}
+                        </span>
                       </span>
-                    </span>
-                    {on ? (
-                      <span className="wl-medrow__taken">
-                        <CheckIcon size={12} />
-                        Taken
-                      </span>
-                    ) : (
-                      <span className="wl-medrow__time">
-                        {slot.scheduledFor ? slot.scheduledFor.slice(11, 16) : ""}
-                      </span>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-          );
-        })}
-        {slots.length === 0 ? (
+                      {on ? (
+                        <span className="wl-medrow__taken">
+                          <CheckIcon size={12} />
+                          Taken
+                        </span>
+                      ) : (
+                        <span className="wl-medrow__time">
+                          {slot.scheduledFor ? slot.scheduledFor.slice(11, 16) : ""}
+                        </span>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            );
+          })}
+        {!scheduleQuery.isError && slots.length === 0 ? (
           <p style={{ fontSize: 13, color: "var(--text-subtle)", padding: "4px 0" }}>
             No medications scheduled.
           </p>

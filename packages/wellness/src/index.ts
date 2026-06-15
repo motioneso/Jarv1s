@@ -7,6 +7,7 @@ export {
 export { WellnessRepository } from "./repository.js";
 export type {
   CreateCheckinInput,
+  UpdateCheckinInput,
   CreateTherapyNoteInput,
   ListCheckinsOptions,
   CreateMedicationInput,

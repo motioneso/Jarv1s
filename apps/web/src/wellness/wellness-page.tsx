@@ -2,8 +2,14 @@ import "../styles/wellness-1.css";
 import "../styles/wellness-2.css";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useRef, useState } from "react";
-import { moodIndex, moodBand, type CheckinDto, type WellnessEmotionCore } from "@jarv1s/shared";
-import { createWellnessCheckin, listWellnessCheckins } from "../api/client";
+import {
+  moodIndex,
+  moodBand,
+  type CheckinDto,
+  type WellnessEmotionCore,
+  type UpdateCheckinRequest
+} from "@jarv1s/shared";
+import { createWellnessCheckin, listWellnessCheckins, updateWellnessCheckin } from "../api/client";
 import { queryKeys } from "../api/query-keys";
 import { MOOD_BAND_LABELS } from "./emotion-taxonomy";
 import { WellnessToday } from "./wellness-today";
@@ -91,6 +97,23 @@ export function WellnessPage() {
       }),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: queryKeys.wellness.checkins });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.wellness.insights });
+    }
+  });
+
+  const updateCheckinMutation = useMutation({
+    mutationFn: (val: CheckinFormValue) =>
+      updateWellnessCheckin(editCheckin!.id, {
+        feelingCore: val.emotion,
+        feelingSecondary: val.feeling || null,
+        feelingTertiary: null,
+        sensations: val.sensations,
+        intensity: val.intensity,
+        note: val.note || null
+      } satisfies UpdateCheckinRequest),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: queryKeys.wellness.checkins });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.wellness.insights });
     }
   });
 
@@ -157,7 +180,11 @@ export function WellnessPage() {
 
   // IMPORTANT: never call mutation inside a setState updater — StrictMode double-fires → double mutation.
   const handleSave = (val: CheckinFormValue) => {
-    createCheckinMutation.mutate(val);
+    if (editCheckin) {
+      updateCheckinMutation.mutate(val);
+    } else {
+      createCheckinMutation.mutate(val);
+    }
   };
 
   const initialCheckinValue: CheckinFormValue | null = editCheckin

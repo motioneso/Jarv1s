@@ -22,7 +22,8 @@ export function computeInsights(
   checkins: readonly WellnessCheckin[],
   logs: readonly MedicationLog[],
   meds: readonly Medication[],
-  _now: Date
+  _now: Date,
+  totalExpectedSlots?: number
 ): WellnessInsightDto[] {
   const results: WellnessInsightDto[] = [];
 
@@ -164,7 +165,9 @@ export function computeInsights(
     (l) => l.scheduled_for !== null && scheduledMedIds.has(l.medication_id)
   );
   const takenCount = scheduledLogs.filter((l) => l.status === "taken").length;
-  const totalScheduled = scheduledLogs.length;
+  // Use pre-computed expected slots (from computeSchedule across window) when provided so
+  // missed doses (no log row) are counted in the denominator — not just logged rows.
+  const totalScheduled = totalExpectedSlots ?? scheduledLogs.length;
   const adh = totalScheduled > 0 ? Math.round((takenCount / totalScheduled) * 100) : 0;
   const adhTone: WellnessInsightDto["tone"] = adh >= 85 ? "pine" : "amber";
   results.push({

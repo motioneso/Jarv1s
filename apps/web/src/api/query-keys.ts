@@ -63,6 +63,6 @@ export const queryKeys = {
     schedule: (date: string) => ["wellness", "schedule", date] as const,
     insights: ["wellness", "insights"] as const,
     therapyNotes: ["wellness", "therapy-notes"] as const,
-    logs: (sinceDays: number) => ["wellness", "logs", sinceDays] as const
+    adherenceSummary: (sinceDays: number) => ["wellness", "adherence-summary", sinceDays] as const
   }
 };

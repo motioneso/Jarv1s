@@ -156,7 +156,13 @@ export function WellnessTherapyNotes({ theme = "light" }: Props) {
           </span>
         </div>
         <div className="wl-tnotes">
-          {notes.length === 0 ? (
+          {notesQuery.isError ? (
+            <div className="wl-tdone">
+              <span style={{ fontSize: 13, color: "var(--text-subtle)" }}>
+                Couldn&apos;t load notes — try refreshing.
+              </span>
+            </div>
+          ) : notes.length === 0 ? (
             <div className="wl-tdone">
               <span className="ic">
                 <CheckSmallIcon />

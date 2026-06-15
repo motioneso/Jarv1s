@@ -149,6 +149,30 @@ describe("WellnessRepository — therapy notes", () => {
     ).rejects.toThrow();
   });
 
+  it("POST therapy note with cross-owner linkedCheckinId → 404 (not 500)", async () => {
+    let otherCheckinId = "";
+    await dataContext.withDataContext(ctx(otherUserId), async (db) => {
+      const c = await new WellnessRepository().createCheckin(db, { feelingCore: "happy" });
+      otherCheckinId = c.id;
+    });
+    const app = Fastify();
+    registerWellnessRoutes(app, {
+      resolveAccessContext: async () => ({ actorUserId: userId, requestId: "req:m4-test" }),
+      dataContext
+    });
+    await app.ready();
+    try {
+      const res = await app.inject({
+        method: "POST",
+        url: "/api/wellness/therapy-notes",
+        payload: { body: "test note", linkedCheckinId: otherCheckinId }
+      });
+      expect(res.statusCode).toBe(404);
+    } finally {
+      await app.close();
+    }
+  });
+
   it("linked_checkin_id set to null when check-in is deleted (ON DELETE SET NULL)", async () => {
     let checkinId = "";
     let noteId = "";
@@ -205,10 +229,24 @@ describe("WellnessRepository — listLogsRange", () => {
 });
 
 describe("wellness insights — owner-scoped", () => {
-  it("GET /api/wellness/insights returns owner-scoped insights", async () => {
+  it("GET /api/wellness/insights returns ONLY actor-owned data (not other user's)", async () => {
+    const repo = new WellnessRepository();
+    // Seed other user with a med + taken dose so their adherence takenCount > 0
+    await dataContext.withDataContext(ctx(otherUserId), async (db) => {
+      await repo.createCheckin(db, { feelingCore: "happy", intensity: 5 });
+      const med = await repo.createMedication(db, {
+        name: "OtherMed",
+        frequencyType: "once_daily",
+        scheduleTimes: ["08:00"]
+      });
+      await repo.logDose(db, med.id, {
+        status: "taken",
+        scheduledFor: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000).toISOString()
+      });
+    });
     const app = Fastify();
     registerWellnessRoutes(app, {
-      resolveAccessContext: async () => ({ actorUserId: userId, requestId: "req:insights-test" }),
+      resolveAccessContext: async () => ({ actorUserId: userId, requestId: "req:insights-scope" }),
       dataContext
     });
     await app.ready();
@@ -217,8 +255,104 @@ describe("wellness insights — owner-scoped", () => {
       expect(res.statusCode).toBe(200);
       const body = res.json();
       expect(Array.isArray(body.insights)).toBe(true);
-      // adherence insight always present
       expect(body.insights.some((i: { key: string }) => i.key === "adherence")).toBe(true);
+      // adherence insight lead should NOT reflect other user's data (they have 100%)
+      const adh = body.insights.find((i: { key: string }) => i.key === "adherence");
+      // other user has 1 taken/1 scheduled = 100%; if RLS leaks, actor would show 100% too
+      expect(adh?.lead).toBeDefined();
+      expect(adh?.lead).not.toContain("100%");
+    } finally {
+      await app.close();
+    }
+  });
+});
+
+describe("PATCH /api/wellness/checkins/:id", () => {
+  it("updates own checkin and returns 200", async () => {
+    const repo = new WellnessRepository();
+    let checkinId = "";
+    await dataContext.withDataContext(ctx(userId), async (db) => {
+      const c = await repo.createCheckin(db, { feelingCore: "sad" });
+      checkinId = c.id;
+    });
+    const app = Fastify();
+    registerWellnessRoutes(app, {
+      resolveAccessContext: async () => ({ actorUserId: userId, requestId: "req:patch-ck" }),
+      dataContext
+    });
+    await app.ready();
+    try {
+      const res = await app.inject({
+        method: "PATCH",
+        url: `/api/wellness/checkins/${checkinId}`,
+        payload: { feelingCore: "happy", feelingSecondary: "Joy" }
+      });
+      expect(res.statusCode).toBe(200);
+      const body = res.json();
+      expect(body.checkin.feelingCore).toBe("happy");
+      expect(body.checkin.feelingSecondary).toBe("Joy");
+      expect(body.checkin.feelingTertiary).toBeNull();
+    } finally {
+      await app.close();
+    }
+  });
+
+  it("returns 404 for non-existent or other-user checkin", async () => {
+    const app = Fastify();
+    registerWellnessRoutes(app, {
+      resolveAccessContext: async () => ({ actorUserId: userId, requestId: "req:patch-404" }),
+      dataContext
+    });
+    await app.ready();
+    try {
+      const res = await app.inject({
+        method: "PATCH",
+        url: "/api/wellness/checkins/00000000-0000-4000-8000-000000000999",
+        payload: { feelingCore: "happy" }
+      });
+      expect(res.statusCode).toBe(404);
+    } finally {
+      await app.close();
+    }
+  });
+});
+
+describe("GET /api/wellness/medications/logs — adherence summary", () => {
+  it("returns per-day summary without dose/prnReason fields", async () => {
+    const app = Fastify();
+    registerWellnessRoutes(app, {
+      resolveAccessContext: async () => ({ actorUserId: userId, requestId: "req:adh-summary" }),
+      dataContext
+    });
+    await app.ready();
+    try {
+      const res = await app.inject({
+        method: "GET",
+        url: "/api/wellness/medications/logs?sinceDays=7"
+      });
+      expect(res.statusCode).toBe(200);
+      const body = res.json();
+      expect(Array.isArray(body.days)).toBe(true);
+      expect(body.days.length).toBe(7);
+      // verify structure — no raw dose/prnReason on any dose item
+      for (const day of body.days as Array<{
+        date: string;
+        scheduledCount: number;
+        takenCount: number;
+        doses: Array<Record<string, unknown>>;
+      }>) {
+        expect(typeof day.date).toBe("string");
+        expect(typeof day.scheduledCount).toBe("number");
+        expect(typeof day.takenCount).toBe("number");
+        expect(Array.isArray(day.doses)).toBe(true);
+        for (const dos of day.doses) {
+          expect(dos).not.toHaveProperty("dose");
+          expect(dos).not.toHaveProperty("prnReason");
+          expect(typeof dos["medicationId"]).toBe("string");
+          expect(typeof dos["name"]).toBe("string");
+          expect(typeof dos["prn"]).toBe("boolean");
+        }
+      }
     } finally {
       await app.close();
     }

@@ -1,8 +1,8 @@
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
-import { EMOTIONS } from "@jarv1s/shared";
+import { EMOTIONS, type DayAdherenceSummaryDto } from "@jarv1s/shared";
 import { queryKeys } from "../api/query-keys";
-import { listWellnessCheckins, listMedicationLogs, listMedications } from "../api/client";
+import { listWellnessCheckins, getMedicationAdherenceSummary } from "../api/client";
 import { emoColor, type Theme } from "./emotion-taxonomy";
 import { WellnessChart, type DayPoint } from "./wellness-chart";
 
@@ -65,28 +65,17 @@ export function WellnessTrends({ theme = "light" }: Props) {
     queryKey: [...queryKeys.wellness.checkins, range],
     queryFn: () => listWellnessCheckins(range * 3) // over-fetch; we filter by date below
   });
-  const logsQuery = useQuery({
-    queryKey: queryKeys.wellness.logs(range),
-    queryFn: () => listMedicationLogs(range)
-  });
-  const medsQuery = useQuery({
-    queryKey: queryKeys.wellness.medications,
-    queryFn: listMedications
+  const adherenceQuery = useQuery({
+    queryKey: queryKeys.wellness.adherenceSummary(range),
+    queryFn: () => getMedicationAdherenceSummary(range)
   });
 
   const checkins = checkinsQuery.data?.checkins ?? [];
-  const logs = logsQuery.data?.logs ?? [];
-  const meds = medsQuery.data?.medications ?? [];
-  const scheduledMeds = meds.filter((m) => m.frequencyType !== "as_needed");
-  const denom = Math.max(1, scheduledMeds.length);
 
-  // Build log counts per date (taken only)
-  const logsByDate: Record<string, number> = {};
-  logs.forEach((log) => {
-    if (log.status === "taken") {
-      const d = (log.scheduledFor ?? log.loggedAt ?? "").slice(0, 10);
-      if (d) logsByDate[d] = (logsByDate[d] ?? 0) + 1;
-    }
+  // Build adherence lookup by date
+  const summaryByDate: Record<string, DayAdherenceSummaryDto> = {};
+  (adherenceQuery.data?.days ?? []).forEach((d) => {
+    summaryByDate[d.date] = d;
   });
 
   // Build checkin lookup by date (most-recent check-in per day)
@@ -100,15 +89,17 @@ export function WellnessTrends({ theme = "light" }: Props) {
 
   const days: DayPoint[] = Array.from({ length: range }, (_, i) => {
     const iso = isoDate(range - 1 - i);
-    const taken = logsByDate[iso] ?? 0;
+    const summary = summaryByDate[iso] ?? null;
     return {
       date: iso,
       label: shortLabel(iso),
       isToday: iso === todayStr,
       checkin: checkinByDate[iso] ?? null,
-      medFrac: taken / denom,
-      medTaken: taken,
-      medDenom: denom
+      medFrac:
+        summary && summary.scheduledCount > 0 ? summary.takenCount / summary.scheduledCount : 0,
+      medTaken: summary?.takenCount ?? 0,
+      medDenom: summary?.scheduledCount ?? 0,
+      doses: summary?.doses ?? []
     };
   });
 
@@ -156,63 +147,71 @@ export function WellnessTrends({ theme = "light" }: Props) {
         </div>
       </div>
 
-      <div className="wl-chartcard">
-        <div className="wl-chart__hd">
-          <div>
-            <div className="wl-chart__title">
-              <span className="ic">
-                <TrendingUpIcon />
-              </span>
-              Mood &amp; medication
-              <span className="wl-help">
-                <button
-                  type="button"
-                  className={`wl-help__btn${helpOpen ? " is-on" : ""}`}
-                  aria-label="How to read this chart"
-                  aria-expanded={helpOpen}
-                  onClick={() => setHelpOpen((o) => !o)}
-                >
-                  <HelpCircleIcon />
-                </button>
-                {helpOpen ? (
-                  <>
-                    <div className="wl-help__scrim" onClick={() => setHelpOpen(false)} />
-                    <div className="wl-help__pop" role="dialog">
-                      <div className="wl-help__row">
-                        <span className="wl-help__k">Mood line</span>
-                        <span className="wl-help__v">
-                          Each check-in becomes a number from <strong>Heavy</strong> (−5) to{" "}
-                          <strong>Bright</strong> (+5). The dot&apos;s color is the emotion you
-                          logged.
-                        </span>
+      {checkinsQuery.isError || adherenceQuery.isError ? (
+        <div className="wl-chartcard" style={{ padding: "16px 20px" }}>
+          <span style={{ fontSize: 13, color: "var(--text-subtle)" }}>
+            Couldn&apos;t load trend data — try refreshing.
+          </span>
+        </div>
+      ) : (
+        <div className="wl-chartcard">
+          <div className="wl-chart__hd">
+            <div>
+              <div className="wl-chart__title">
+                <span className="ic">
+                  <TrendingUpIcon />
+                </span>
+                Mood &amp; medication
+                <span className="wl-help">
+                  <button
+                    type="button"
+                    className={`wl-help__btn${helpOpen ? " is-on" : ""}`}
+                    aria-label="How to read this chart"
+                    aria-expanded={helpOpen}
+                    onClick={() => setHelpOpen((o) => !o)}
+                  >
+                    <HelpCircleIcon />
+                  </button>
+                  {helpOpen ? (
+                    <>
+                      <div className="wl-help__scrim" onClick={() => setHelpOpen(false)} />
+                      <div className="wl-help__pop" role="dialog">
+                        <div className="wl-help__row">
+                          <span className="wl-help__k">Mood line</span>
+                          <span className="wl-help__v">
+                            Each check-in becomes a number from <strong>Heavy</strong> (−5) to{" "}
+                            <strong>Bright</strong> (+5). The dot&apos;s color is the emotion you
+                            logged.
+                          </span>
+                        </div>
+                        <div className="wl-help__row">
+                          <span className="wl-help__k">Meds dots</span>
+                          <span className="wl-help__v">
+                            One dot per day for how much of your regimen you logged. Hover any day
+                            for the full list.
+                          </span>
+                        </div>
                       </div>
-                      <div className="wl-help__row">
-                        <span className="wl-help__k">Meds dots</span>
-                        <span className="wl-help__v">
-                          One dot per day for how much of your regimen you logged. Hover any day for
-                          the full list.
-                        </span>
-                      </div>
-                    </div>
-                  </>
-                ) : null}
-              </span>
+                    </>
+                  ) : null}
+                </span>
+              </div>
+            </div>
+            <div className="wl-chart__legend">
+              {EMOTIONS.map((em) => {
+                const c = emoColor(em.core, theme);
+                return (
+                  <span key={em.core} className="wl-leg">
+                    <span className="wl-leg__dot" style={{ background: c.tint }} />
+                    {em.core.charAt(0).toUpperCase() + em.core.slice(1)}
+                  </span>
+                );
+              })}
             </div>
           </div>
-          <div className="wl-chart__legend">
-            {EMOTIONS.map((em) => {
-              const c = emoColor(em.core, theme);
-              return (
-                <span key={em.core} className="wl-leg">
-                  <span className="wl-leg__dot" style={{ background: c.tint }} />
-                  {em.core.charAt(0).toUpperCase() + em.core.slice(1)}
-                </span>
-              );
-            })}
-          </div>
+          <WellnessChart days={days} theme={theme} />
         </div>
-        <WellnessChart days={days} theme={theme} />
-      </div>
+      )}
     </section>
   );
 }

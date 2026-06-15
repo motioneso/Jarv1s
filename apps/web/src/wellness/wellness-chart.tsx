@@ -1,4 +1,9 @@
-import { moodIndex, moodBand, type CheckinDto } from "@jarv1s/shared";
+import {
+  moodIndex,
+  moodBand,
+  type CheckinDto,
+  type AdherenceDoseSummaryItemDto
+} from "@jarv1s/shared";
 import { emoColor, MOOD_BAND_LABELS, type Theme } from "./emotion-taxonomy";
 import { useState } from "react";
 
@@ -12,6 +17,7 @@ export interface DayPoint {
   medFrac: number; // 0–1 adherence fraction
   medTaken: number;
   medDenom: number;
+  doses?: readonly AdherenceDoseSummaryItemDto[];
 }
 
 interface Props {
@@ -277,6 +283,20 @@ export function WellnessChart({ days, theme = "light" }: Props) {
                     {d.isToday ? " so far" : " taken"}
                   </strong>
                 </div>
+                {d.doses && d.doses.filter((dos) => !dos.prn).length > 0
+                  ? d.doses
+                      .filter((dos) => !dos.prn)
+                      .map((dos, j) => (
+                        <div
+                          key={j}
+                          className="wl-tiprow"
+                          style={{ opacity: dos.status === "taken" ? 1 : 0.5 }}
+                        >
+                          <span>{dos.name}</span>
+                          <span style={{ textTransform: "capitalize" }}>{dos.status}</span>
+                        </div>
+                      ))
+                  : null}
                 {isPinned ? (
                   <div className="wl-tiprow wl-tiprow--more">Click the day again to dismiss</div>
                 ) : null}

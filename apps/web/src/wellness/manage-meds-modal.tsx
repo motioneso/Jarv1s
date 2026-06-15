@@ -73,21 +73,27 @@ export function ManageMedsModal({ open, onClose, theme = "light" }: Props) {
   });
 
   const addMutation = useMutation({
-    mutationFn: () =>
-      createMedication({
+    mutationFn: () => {
+      const isTPD = freq === "times_per_day";
+      const isPRN = freq === "as_needed";
+      return createMedication({
         name: name.trim(),
         dosage: dose.trim() || null,
         frequencyType: freq,
-        scheduleTimes: freq !== "as_needed" ? ["08:00"] : null,
-        timesPerDay: null,
+        timesPerDay: isTPD ? 2 : null,
+        scheduleTimes: isPRN ? null : isTPD ? ["08:00", "20:00"] : ["08:00"],
         intervalHours: null,
         weekdays: null,
         cycleAnchorDate: null,
         cycleDaysOn: null,
         cycleDaysOff: null
-      }),
+      });
+    },
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: queryKeys.wellness.medications });
+      void queryClient.invalidateQueries({ queryKey: ["wellness", "schedule"] });
+      void queryClient.invalidateQueries({ queryKey: ["wellness", "adherence-summary"] });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.wellness.insights });
       setName("");
       setDose("");
     }
@@ -97,6 +103,9 @@ export function ManageMedsModal({ open, onClose, theme = "light" }: Props) {
     mutationFn: (id: string) => updateMedication(id, { active: false }),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: queryKeys.wellness.medications });
+      void queryClient.invalidateQueries({ queryKey: ["wellness", "schedule"] });
+      void queryClient.invalidateQueries({ queryKey: ["wellness", "adherence-summary"] });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.wellness.insights });
     }
   });
 

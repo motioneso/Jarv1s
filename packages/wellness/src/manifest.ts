@@ -12,9 +12,10 @@ import {
   listCheckinsResponseSchema,
   listMedicationsResponseSchema,
   listTherapyNotesRouteSchema,
-  medicationLogsRouteSchema,
+  medicationAdherenceSummaryRouteSchema,
   medicationResponseSchema,
   medicationScheduleResponseSchema,
+  updateCheckinRouteSchema,
   updateMedicationRequestSchema,
   wellnessInsightsRouteSchema
 } from "@jarv1s/shared";
@@ -113,6 +114,13 @@ export const wellnessModuleManifest = {
       permissionId: "wellness.view"
     },
     {
+      method: "PATCH",
+      path: "/api/wellness/checkins/:id",
+      requestSchema: updateCheckinRouteSchema.body,
+      responseSchema: updateCheckinRouteSchema.response[200],
+      permissionId: "wellness.update"
+    },
+    {
       method: "GET",
       path: "/api/wellness/medications",
       responseSchema: listMedicationsResponseSchema,
@@ -173,7 +181,7 @@ export const wellnessModuleManifest = {
     {
       method: "GET",
       path: "/api/wellness/medications/logs",
-      responseSchema: medicationLogsRouteSchema.response[200],
+      responseSchema: medicationAdherenceSummaryRouteSchema.response[200],
       permissionId: "wellness.view"
     }
   ],
