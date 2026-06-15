@@ -1,0 +1,48 @@
+/* Deterministic persona voice preview. No model call — turns the four dials
+   into a concrete sample of how Jarvis would sound, so the abstract controls
+   have a visible effect. Ported verbatim from the design kit (personaSample).
+   The real voice will be system-prompt-driven once persona is persisted (🔌). */
+
+export type ToneDial = "Warm" | "Neutral" | "Crisp";
+export type DirectnessDial = "Gentle" | "Balanced" | "Direct";
+export type HumorDial = "None" | "Dry" | "Playful";
+export type RecoveryDial = "Encouraging" | "Matter-of-fact" | "Firm";
+
+export interface PersonaDials {
+  readonly tone: ToneDial;
+  readonly directness: DirectnessDial;
+  readonly humor: HumorDial;
+  readonly recovery: RecoveryDial;
+}
+
+export interface PersonaPreview {
+  readonly greeting: string;
+  readonly recovery: string;
+}
+
+export function personaSample(p: PersonaDials, who: string): PersonaPreview {
+  const open: Record<ToneDial, string> = {
+    Warm: `Morning, ${who}.`,
+    Neutral: "Good morning.",
+    Crisp: "Morning."
+  };
+  const body: Record<DirectnessDial, string> = {
+    Gentle: "Whenever you're ready — here's the shape of your day.",
+    Balanced: "Here's the shape of your day.",
+    Direct: "Three things actually matter today."
+  };
+  const aside: Record<HumorDial, string> = {
+    None: "",
+    Dry: " Two meetings — one of which could've been an email.",
+    Playful: " It's a full one, but nothing we can't handle."
+  };
+  const recovery: Record<RecoveryDial, string> = {
+    Encouraging: "And yesterday's two open items? No drama — want them on today?",
+    "Matter-of-fact": "Two items from yesterday are still open. Move them to today?",
+    Firm: "Two items slipped yesterday. Let's clear those first."
+  };
+  return {
+    greeting: `${open[p.tone]} ${body[p.directness]}${aside[p.humor]}`,
+    recovery: recovery[p.recovery]
+  };
+}

@@ -1,16 +1,20 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
+  ArrowRight,
   ArrowUpRight,
   Bell,
   Boxes,
   BrainCircuit,
   CalendarDays,
+  FolderCheck,
   FolderOpen,
   FolderSearch,
   HeartPulse,
-  Link2,
+  Info,
   ListChecks,
+  Lock,
   Mail,
+  MessagesSquare,
   NotebookText,
   Plus,
   RefreshCw,
@@ -20,6 +24,7 @@ import {
   Wallet,
   type LucideIcon
 } from "lucide-react";
+import { useState } from "react";
 
 import {
   getModules,
@@ -29,7 +34,18 @@ import {
   setMyModuleDisabled
 } from "../api/client";
 import { queryKeys } from "../api/query-keys";
-import { useGoogleConnectFlow } from "../connectors/use-google-connect-flow";
+import { GoogleConnect } from "./settings-google-connect";
+import {
+  BriefingSettings,
+  ChatSettingsView,
+  NotificationSettings
+} from "./settings-module-subviews";
+import {
+  DEFAULT_VAULT,
+  SERVER_FS,
+  VAULT_BEHAVIORS,
+  type VaultBehavior
+} from "./settings-sample-data";
 import {
   sourceBehaviorStatus,
   type DataSource as DataSourceModel
@@ -37,13 +53,25 @@ import {
 import { useFeedback } from "./settings-feedback";
 import { settingsModuleControlModel } from "./settings-module-view-model";
 import { moduleDescription, readError, type PaneProps } from "./settings-types";
-import { Badge, Field, Group, Indicator, Note, PaneHead, Row, Switch } from "./settings-ui";
+import {
+  Badge,
+  Group,
+  Indicator,
+  NotWired,
+  Note,
+  PaneHead,
+  Row,
+  Select,
+  Switch
+} from "./settings-ui";
+import { VaultChooser } from "./settings-vault-chooser";
 import type { ConnectorAccountDto } from "@jarv1s/shared";
 
 const MODULE_ICONS: Record<string, LucideIcon> = {
   tasks: ListChecks,
   calendar: CalendarDays,
   briefings: Sunrise,
+  chat: MessagesSquare,
   knowledge: BrainCircuit,
   wellness: HeartPulse,
   notifications: Bell,
@@ -68,7 +96,9 @@ function AccountRow(props: {
   const label = health === "ready" ? "Healthy" : health === "error" ? "Needs attention" : "Revoked";
   return (
     <div className="acct">
-      <div className="acct__logo">{account.providerDisplayName[0]?.toUpperCase() ?? "?"}</div>
+      <div className="acct__logo" style={{ background: "var(--text-faint)" }}>
+        {account.providerDisplayName[0]?.toUpperCase() ?? "?"}
+      </div>
       <div className="acct__main">
         <div className="acct__name">{account.providerDisplayName}</div>
         <div className="acct__sub">
@@ -104,15 +134,49 @@ function AccountRow(props: {
   );
 }
 
+const CONNECT_SERVICES: readonly { name: string; go?: boolean }[] = [
+  { name: "Google", go: true },
+  { name: "GitHub" },
+  { name: "Apple" },
+  { name: "Other (OAuth)" }
+];
+
+function ServicePicker(props: { readonly onGoogle: () => void }) {
+  const { toast } = useFeedback();
+  return (
+    <div className="provpick" style={{ marginTop: 14 }}>
+      <div className="provpick__hd">Connect an account</div>
+      <div className="provpick__grid">
+        {CONNECT_SERVICES.map((s) => (
+          <button
+            key={s.name}
+            type="button"
+            className="provpick__item"
+            onClick={() =>
+              s.go
+                ? props.onGoogle()
+                : toast(`${s.name} uses the same OAuth flow — coming soon`, {
+                    icon: <Plus size={17} />
+                  })
+            }
+          >
+            <span className="provpick__dot" />
+            {s.name}
+          </button>
+        ))}
+      </div>
+      <div className="provpick__foot">
+        Google connects through a developer OAuth app you create and own. The others connect the
+        same way.
+      </div>
+    </div>
+  );
+}
+
 function ConnectedPane() {
   const queryClient = useQueryClient();
   const { toast, confirm } = useFeedback();
-  const googleConnect = useGoogleConnectFlow({
-    onAuthorizationReady: () =>
-      toast("Google authorization link ready", { icon: <Link2 size={17} /> }),
-    onConnected: () => toast("Google account connected", { icon: <Link2 size={17} /> }),
-    onError: (message) => toast(message, { tone: "drift" })
-  });
+  const [flow, setFlow] = useState<null | "picker" | "google">(null);
   const accountsQuery = useQuery({
     queryKey: queryKeys.connectors.accounts,
     queryFn: listConnectorAccounts,
@@ -128,6 +192,10 @@ function ConnectedPane() {
   });
   const accounts = accountsQuery.data?.accounts ?? [];
 
+  if (flow === "google") {
+    return <GoogleConnect onBack={() => setFlow(null)} />;
+  }
+
   return (
     <>
       <PaneHead
@@ -140,66 +208,15 @@ function ConnectedPane() {
           <button
             type="button"
             className="jds-btn jds-btn--secondary jds-btn--sm"
-            onClick={googleConnect.startAuthorization}
-            disabled={
-              !googleConnect.clientId.trim() ||
-              !googleConnect.clientSecret.trim() ||
-              googleConnect.authorizationPending
-            }
+            onClick={() => setFlow((f) => (f === "picker" ? null : "picker"))}
           >
             <span className="jds-btn__icon">
               <Plus size={15} />
             </span>
-            Start Google connect
+            Connect account
           </button>
         }
       >
-        <Field label="Google OAuth desktop client">
-          <input
-            className="jds-input"
-            value={googleConnect.clientId}
-            onChange={(event) => googleConnect.setClientId(event.target.value)}
-            placeholder="Client ID"
-            aria-label="Google client ID"
-          />
-          <input
-            className="jds-input"
-            type="password"
-            value={googleConnect.clientSecret}
-            onChange={(event) => googleConnect.setClientSecret(event.target.value)}
-            placeholder="Client secret"
-            aria-label="Google client secret"
-          />
-        </Field>
-        {googleConnect.authUrl ? (
-          <div className="google-connect">
-            <a
-              className="modrow__link"
-              href={googleConnect.authUrl}
-              target="_blank"
-              rel="noreferrer"
-            >
-              Open Google consent <ArrowUpRight size={14} aria-hidden="true" />
-            </a>
-            <Field label="Pasted redirect URL">
-              <input
-                className="jds-input"
-                value={googleConnect.redirectUrl}
-                onChange={(event) => googleConnect.setRedirectUrl(event.target.value)}
-                placeholder="http://localhost:1/?code=..."
-                aria-label="Pasted redirect URL"
-              />
-              <button
-                type="button"
-                className="jds-btn jds-btn--primary jds-btn--sm"
-                disabled={!googleConnect.redirectUrl.trim() || googleConnect.completionPending}
-                onClick={googleConnect.finishConnection}
-              >
-                Finish connecting
-              </button>
-            </Field>
-          </div>
-        ) : null}
         {accounts.length === 0 ? (
           <Row
             name="No accounts connected"
@@ -228,6 +245,7 @@ function ConnectedPane() {
             />
           ))
         )}
+        {flow === "picker" ? <ServicePicker onGoogle={() => setFlow("google")} /> : null}
       </Group>
       <Note icon={<ShieldCheck size={13} />}>
         These are your accounts and their trust state — not backend provider definitions. What each
@@ -312,8 +330,73 @@ const DATA_SOURCES: readonly DataSource[] = [
   }
 ];
 
+interface VaultState {
+  linked: boolean;
+  folder: string;
+  fileCount: number;
+  writable: boolean;
+}
+
+function folderNoteCount(folder: string): number {
+  const node = SERVER_FS.tree[folder] ?? [];
+  const direct = node.reduce((n, c) => n + (c.mdCount ?? 0), 0);
+  if (direct) return direct;
+  const parent = folder.slice(0, folder.lastIndexOf("/"));
+  const self = (SERVER_FS.tree[parent] ?? []).find(
+    (c) => c.name === folder.slice(folder.lastIndexOf("/") + 1)
+  );
+  return self?.mdCount ?? 0;
+}
+
 function SourcesPane() {
-  const { toast } = useFeedback();
+  const { toast, confirm } = useFeedback();
+  const [vault, setVault] = useState<VaultState>({
+    linked: DEFAULT_VAULT.linked,
+    folder: DEFAULT_VAULT.folder,
+    fileCount: DEFAULT_VAULT.fileCount,
+    writable: DEFAULT_VAULT.writable
+  });
+  const [behaviors, setBehaviors] = useState<Record<string, boolean>>(() =>
+    Object.fromEntries(VAULT_BEHAVIORS.map((b: VaultBehavior) => [b.k, b.on]))
+  );
+  const [choosing, setChoosing] = useState(false);
+
+  // BACKEND-TODO: persist the linked vault folder + notes behavior toggles (and the calendar/email
+  // source behaviors above, which are illustrative). Today all local state.
+  const choose = (folder: string) => {
+    const root = SERVER_FS.roots.find((r) => folder.indexOf(r.name) === 0);
+    setVault((v) => ({
+      ...v,
+      linked: true,
+      folder,
+      fileCount: folderNoteCount(folder) || v.fileCount,
+      writable: root ? root.writable : false
+    }));
+    setChoosing(false);
+    toast(`Linked ${folder}`, { icon: <FolderCheck size={17} /> });
+  };
+  const unlink = () =>
+    confirm({
+      title: "Unlink this folder?",
+      description: "Jarvis will stop reading your notes. Your files are untouched.",
+      confirmLabel: "Unlink",
+      danger: true,
+      onConfirm: () => {
+        setVault((v) => ({ ...v, linked: false }));
+        toast("Folder unlinked", { tone: "drift", icon: <Unlink size={17} /> });
+      }
+    });
+
+  if (choosing) {
+    return (
+      <VaultChooser
+        current={vault.linked ? vault.folder : ""}
+        onCancel={() => setChoosing(false)}
+        onChoose={choose}
+      />
+    );
+  }
+
   return (
     <>
       <PaneHead
@@ -355,36 +438,74 @@ function SourcesPane() {
             Notes &amp; documents
           </span>
         }
-        desc="Point Jarvis at a folder of notes — a Markdown vault, a plain folder of text files, anything. Tool-agnostic by design."
+        desc="Point Jarvis at a folder of notes on this server — a Markdown vault, a plain folder of text files, anything. Tool-agnostic by design."
       >
+        <NotWired>The linked folder and these toggles aren't persisted yet.</NotWired>
         <div className="vault">
           <span className="vault__ic">
-            <FolderOpen size={18} aria-hidden="true" />
+            {vault.linked ? (
+              <FolderCheck size={18} aria-hidden="true" />
+            ) : (
+              <FolderOpen size={18} aria-hidden="true" />
+            )}
           </span>
           <div className="vault__main">
-            <div className="vault__path vault__path--empty">No folder linked</div>
-            <div className="vault__meta">Choose a folder to include your notes as context.</div>
+            {vault.linked ? (
+              <>
+                <div className="vault__path">
+                  {vault.folder}
+                  {!vault.writable ? (
+                    <span className="vault__ro">
+                      <Lock size={11} aria-hidden="true" />
+                      read-only
+                    </span>
+                  ) : null}
+                </div>
+                <div className="vault__meta">
+                  {vault.fileCount} Markdown files · last read 6 min ago
+                </div>
+              </>
+            ) : (
+              <>
+                <div className="vault__path vault__path--empty">No folder linked</div>
+                <div className="vault__meta">
+                  Choose a folder on the server to include your notes as context.
+                </div>
+              </>
+            )}
           </div>
           <div className="vault__act">
             <button
               type="button"
               className="jds-btn jds-btn--secondary jds-btn--sm"
-              onClick={() =>
-                toast("Folder linking is coming soon", { icon: <FolderOpen size={17} /> })
-              }
+              onClick={() => setChoosing(true)}
             >
               <span className="jds-btn__icon">
                 <FolderSearch size={15} />
               </span>
-              Browse…
+              {vault.linked ? "Change folder" : "Browse…"}
             </button>
+            {vault.linked ? (
+              <button type="button" className="jds-btn jds-btn--quiet jds-btn--sm" onClick={unlink}>
+                Unlink
+              </button>
+            ) : null}
           </div>
         </div>
-        <Row
-          name="Use for context & answers"
-          desc="Read your notes to ground answers and the briefing in what you already know."
-          coming
-        />
+        {VAULT_BEHAVIORS.map((b) => (
+          <Row
+            key={b.k}
+            name={b.name}
+            desc={b.desc}
+            control={
+              <Switch
+                ariaLabel={`Notes — ${b.name}`}
+                checked={behaviors[b.k] ?? false}
+                onChange={(v) => setBehaviors((cur) => ({ ...cur, [b.k]: v }))}
+              />
+            }
+          />
+        ))}
       </Group>
       <Note icon={<ShieldCheck size={13} />}>
         Jarvis only reads your notes — it never moves, edits, or deletes your files.
@@ -395,9 +516,28 @@ function SourcesPane() {
 
 /* ------------------------------------------------------------- Modules */
 
-function ModulesPane({ onNavigate }: PaneProps) {
+const CONFIG_IDS = new Set(["briefings", "chat", "notifications"]);
+const CAT_BY_ID: Record<string, string> = { knowledge: "memory" };
+// The modules a person actually uses/configures, in the order the design shows
+// them. Everything else the registry exposes is internal infrastructure.
+const USER_FACING_MODULES = new Set([
+  "tasks",
+  "calendar",
+  "briefings",
+  "chat",
+  "notifications",
+  "knowledge",
+  "wellness",
+  "finance"
+]);
+// The extras a person opts into. Everything else user-facing is core (always on).
+const OPTIONAL_MODULES = new Set(["wellness", "finance"]);
+type ModuleSub = "briefings" | "chat" | "notifications";
+
+function ModulesPane({ onNavigate, onSelectSection }: PaneProps) {
   const queryClient = useQueryClient();
   const { toast } = useFeedback();
+  const [view, setView] = useState<ModuleSub | null>(null);
   const myQuery = useQuery({ queryKey: queryKeys.myModules, queryFn: getMyModules, retry: false });
   const modulesQuery = useQuery({ queryKey: queryKeys.modules, queryFn: getModules, retry: false });
   const toggleMutation = useMutation({
@@ -407,28 +547,76 @@ function ModulesPane({ onNavigate }: PaneProps) {
     onError: (error) => toast(readError(error), { tone: "drift" })
   });
 
-  const modules = myQuery.data?.modules ?? [];
-  const core = modules.filter((module) => !module.supportsUserDisable);
-  const optional = modules.filter((module) => module.supportsUserDisable);
+  if (view === "briefings") return <BriefingSettings onBack={() => setView(null)} />;
+  if (view === "chat") return <ChatSettingsView onBack={() => setView(null)} />;
+  if (view === "notifications")
+    return <NotificationSettings onBack={() => setView(null)} onCat={onSelectSection} />;
+
+  // Curated to the user-facing module set. The registry also carries internal
+  // infrastructure modules (settings, connectors, email, ai, memory,
+  // structured-state) that are not something a person configures here.
+  const modules = (myQuery.data?.modules ?? []).filter((m) => USER_FACING_MODULES.has(m.id));
+  const core = modules.filter((m) => !OPTIONAL_MODULES.has(m.id));
+  const optional = modules.filter((m) => OPTIONAL_MODULES.has(m.id));
+  const hasChat = modules.some((m) => m.id === "chat");
   const pathFor = (id: string): string | null =>
-    modulesQuery.data?.modules.find((module) => module.id === id)?.navigation[0]?.path ?? null;
+    modulesQuery.data?.modules.find((m) => m.id === id)?.navigation[0]?.path ?? null;
 
   const renderRow = (module: (typeof modules)[number]) => {
     const Icon = moduleIcon(module.id);
-    const path = pathFor(module.id);
     const control = settingsModuleControlModel(module);
-    const badge =
-      control.kind === "required" ? (
-        <Badge tone="neutral">{control.label}</Badge>
-      ) : control.kind === "locked" ? (
-        <Badge tone="amber">{control.label}</Badge>
-      ) : module.active ? (
-        <Badge tone="pine" dot>
-          Enabled
-        </Badge>
-      ) : null;
+    const locked = control.kind === "locked";
+    const available = module.active || control.kind === "required";
+    const config = CONFIG_IDS.has(module.id);
+    const cat = CAT_BY_ID[module.id];
+    const path = pathFor(module.id);
+
+    // Core modules are all required/always-on, so no status tag — only optional
+    // (toggleable) modules show an Enabled badge, and instance-off ones show Unavailable.
+    const badge = locked ? (
+      <Badge tone="neutral">Unavailable</Badge>
+    ) : control.kind === "toggle" && module.active ? (
+      <Badge tone="pine" dot>
+        Enabled
+      </Badge>
+    ) : null;
+
+    let action: React.ReactNode = null;
+    if (locked) {
+      action = (
+        <span className="modrow__locked">
+          <Lock size={13} aria-hidden="true" />
+          Off for this instance
+        </span>
+      );
+    } else if (!available) {
+      action = <span className="modrow__disabled">Switch on to set up</span>;
+    } else if (config) {
+      action = (
+        <button
+          type="button"
+          className="modrow__link"
+          onClick={() => setView(module.id as ModuleSub)}
+        >
+          Configure <ArrowRight size={14} aria-hidden="true" />
+        </button>
+      );
+    } else if (cat) {
+      action = (
+        <button type="button" className="modrow__link" onClick={() => onSelectSection?.(cat)}>
+          Configure <ArrowRight size={14} aria-hidden="true" />
+        </button>
+      );
+    } else if (path) {
+      action = (
+        <button type="button" className="modrow__link" onClick={() => onNavigate(path)}>
+          Open <ArrowUpRight size={14} aria-hidden="true" />
+        </button>
+      );
+    }
+
     return (
-      <div className="modrow" key={module.id}>
+      <div className={`modrow${locked ? " modrow--locked" : ""}`} key={module.id}>
         <div className="modrow__ic">
           <Icon size={19} aria-hidden="true" />
         </div>
@@ -437,29 +625,21 @@ function ModulesPane({ onNavigate }: PaneProps) {
             {module.name}
             {badge}
           </div>
-          <div className="modrow__desc">{moduleDescription(module.id)}</div>
+          <div className="modrow__desc">
+            {locked
+              ? "An admin has turned this off for the whole instance."
+              : moduleDescription(module.id)}
+          </div>
         </div>
         <div className="modrow__act">
-          {control.kind === "toggle" ? (
+          {OPTIONAL_MODULES.has(module.id) && control.kind === "toggle" ? (
             <Switch
               ariaLabel={`Use ${module.name}`}
               checked={control.checked}
               onChange={(value) => toggleMutation.mutate({ id: module.id, disabled: !value })}
             />
           ) : null}
-          {path && control.canOpenSettings ? (
-            <button type="button" className="modrow__link" onClick={() => onNavigate(path)}>
-              Open settings <ArrowUpRight size={14} aria-hidden="true" />
-            </button>
-          ) : (
-            <span className="modrow__disabled">
-              {control.kind === "locked"
-                ? control.label
-                : module.active
-                  ? "No settings"
-                  : "Enable to set up"}
-            </span>
-          )}
+          {action}
         </div>
       </div>
     );
@@ -469,10 +649,30 @@ function ModulesPane({ onNavigate }: PaneProps) {
     <>
       <PaneHead
         title="Modules"
-        desc="Choose which optional modules you personally use. Each module keeps its own settings — open it to tune the details."
+        desc="The parts of Jarvis you use, and how each one behaves. Settings-only modules configure right here; the rest open their own screen."
       />
-      <Group title="Active modules" desc="Core to Jarvis — open any one to tune its own settings.">
-        {core.length ? core.map(renderRow) : <Row name="Loading modules…" />}
+      <Group title="Core modules" desc="Core to Jarvis — always on.">
+        {core.length ? (
+          core.map(renderRow)
+        ) : (
+          <Row name={myQuery.isLoading ? "Loading modules…" : "No modules"} />
+        )}
+        {!hasChat ? (
+          <div className="modrow" key="chat-synthetic">
+            <div className="modrow__ic">
+              <MessagesSquare size={19} aria-hidden="true" />
+            </div>
+            <div className="modrow__main">
+              <div className="modrow__name">Chat</div>
+              <div className="modrow__desc">{moduleDescription("chat")}</div>
+            </div>
+            <div className="modrow__act">
+              <button type="button" className="modrow__link" onClick={() => setView("chat")}>
+                Configure <ArrowRight size={14} aria-hidden="true" />
+              </button>
+            </div>
+          </div>
+        ) : null}
       </Group>
       <Group title="Optional modules" desc="Switch on the extras you want to use.">
         {optional.length ? (
@@ -484,9 +684,9 @@ function ModulesPane({ onNavigate }: PaneProps) {
           />
         )}
       </Group>
-      <Note>
-        Per-module settings — task views, briefing cadence, notification sensitivity — live inside
-        each module, not here.
+      <Note icon={<Info size={13} />}>
+        Real app screens open in place; settings-only modules — Briefings, Chat, Notifications —
+        configure right here.
       </Note>
     </>
   );
@@ -498,19 +698,71 @@ function GeneralPane() {
   return (
     <>
       <PaneHead title="General" desc="The few things that apply across all of Jarvis." />
+      <NotWired>None of these persist yet.</NotWired>
       <Group title="Locale">
-        <Row name="Time zone" desc="Pacific — America/Los_Angeles" coming />
-        <Row name="Language & region" desc="English (United States)" coming />
-        <Row name="Date & time format" desc="13 Jun · 24-hour" coming />
+        <div className="fld">
+          <div className="fld__lbl">Time zone</div>
+          <div className="fld__row">
+            <Select defaultValue="America/Los_Angeles" aria-label="Time zone">
+              <option value="America/Los_Angeles">Pacific — America/Los_Angeles</option>
+              <option value="America/New_York">Eastern — America/New_York</option>
+              <option value="Europe/London">GMT — Europe/London</option>
+              <option value="Europe/Berlin">CET — Europe/Berlin</option>
+            </Select>
+          </div>
+        </div>
+        <div className="fld">
+          <div className="fld__lbl">Language &amp; region</div>
+          <div className="fld__row">
+            <Select defaultValue="English (United States)" aria-label="Language and region">
+              <option>English (United States)</option>
+              <option>English (United Kingdom)</option>
+              <option>Français (France)</option>
+              <option>Deutsch (Deutschland)</option>
+            </Select>
+          </div>
+        </div>
+        <div className="fld">
+          <div className="fld__lbl">Date &amp; time format</div>
+          <div className="fld__row">
+            <Select defaultValue="24" aria-label="Date and time format">
+              <option value="24">13 Jun · 24-hour</option>
+              <option value="12">Jun 13 · 12-hour</option>
+            </Select>
+          </div>
+        </div>
       </Group>
 
       <Group
         title="Quiet hours"
         desc="Jarvis stays silent during these hours — no nudges unless something is genuinely urgent."
       >
-        <Row name="Enable quiet hours" desc="Silence routine nudges overnight." coming />
-        <Row name="From / to" desc="21:00 → 07:00" coming />
+        <Row
+          name="Enable quiet hours"
+          control={<Switch ariaLabel="Enable quiet hours" checked onChange={() => undefined} />}
+        />
+        <div className="fld">
+          <div className="fld__lbl">From / to</div>
+          <div className="fld__row">
+            <input
+              className="jds-input"
+              type="time"
+              defaultValue="21:00"
+              aria-label="Quiet hours from"
+              style={{ flex: "0 0 130px", minWidth: 0 }}
+            />
+            <span style={{ color: "var(--text-faint)" }}>→</span>
+            <input
+              className="jds-input"
+              type="time"
+              defaultValue="07:00"
+              aria-label="Quiet hours to"
+              style={{ flex: "0 0 130px", minWidth: 0 }}
+            />
+          </div>
+        </div>
       </Group>
+      {/* BACKEND-TODO: persist locale (time zone / language / date format) + quiet-hours window. */}
       <Note>Saving locale and quiet hours is coming soon — these don't persist yet.</Note>
     </>
   );

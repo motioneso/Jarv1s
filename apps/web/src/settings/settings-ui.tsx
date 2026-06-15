@@ -1,5 +1,20 @@
-import { ChevronDown, Info } from "lucide-react";
+import { ChevronDown, Info, TriangleAlert } from "lucide-react";
 import { useState, type ReactNode, type SelectHTMLAttributes } from "react";
+
+/* Deliberately loud, deliberately ugly. Marks a surface that is a design
+   placeholder and not wired to the backend, so it's unmistakable during review.
+   See docs/settings-design-backend-followups.md (BACKEND-TODO markers). */
+export function NotWired(props: { readonly children?: ReactNode }) {
+  return (
+    <div className="not-wired" role="note">
+      <TriangleAlert size={15} aria-hidden="true" />
+      <span>
+        <b>DEMO — NOT WIRED.</b>{" "}
+        {props.children ?? "Changes here don't persist or take effect yet."}
+      </span>
+    </div>
+  );
+}
 
 /* Settings shared UI — pane scaffolding (PaneHead/Group/Row/Field/Choice/Note/
    Locked) and thin wrappers over the app's JDS CSS primitives, reused by every

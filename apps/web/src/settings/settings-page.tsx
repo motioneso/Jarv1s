@@ -1,5 +1,7 @@
 import "../styles/settings.css";
 import "../styles/settings-panes.css";
+import "../styles/settings-panes-2.css";
+import "../styles/settings-panes-3.css";
 
 import {
   Activity,
@@ -51,7 +53,14 @@ type PersonalSectionId =
   | "modules"
   | "general";
 
-type AdminSectionId = "people" | "identity" | "instmods" | "audit" | "oversight" | "host";
+type AdminSectionId =
+  | "people"
+  | "identity"
+  | "aiproviders"
+  | "instmods"
+  | "audit"
+  | "oversight"
+  | "host";
 
 function lazyPane(loader: () => Promise<{ default: SettingsPane }>) {
   return lazy(loader);
@@ -79,6 +88,9 @@ const GeneralPane = lazyPane(() =>
 const PeoplePane = lazyPane(() =>
   import("./settings-admin-panes").then((module) => ({ default: module.PeoplePane }))
 );
+const AiProvidersPane = lazyPane(() =>
+  import("./settings-ai-admin-pane").then((module) => ({ default: module.AiProvidersPane }))
+);
 const IdentityPane = lazyPane(() =>
   import("./settings-admin-panes").then((module) => ({ default: module.IdentityPane }))
 );
@@ -86,7 +98,7 @@ const InstanceModulesPane = lazyPane(() =>
   import("./settings-admin-panes").then((module) => ({ default: module.InstanceModulesPane }))
 );
 const AuditPane = lazyPane(() =>
-  import("./settings-admin-panes").then((module) => ({ default: module.AuditPane }))
+  import("./settings-audit-pane").then((module) => ({ default: module.AuditPane }))
 );
 const OversightPane = lazyPane(() =>
   import("./settings-admin-panes").then((module) => ({ default: module.OversightPane }))
@@ -108,6 +120,7 @@ const PERSONAL_SECTIONS = [
 const ADMIN_SECTIONS = [
   { id: "people", icon: Users, label: "People & access", Pane: PeoplePane },
   { id: "identity", icon: Fingerprint, label: "Identity & registration", Pane: IdentityPane },
+  { id: "aiproviders", icon: Sparkles, label: "Assistant & AI", Pane: AiProvidersPane },
   { id: "instmods", icon: Package, label: "Instance modules", Pane: InstanceModulesPane },
   { id: "audit", icon: ScrollText, label: "Audit & operations", Pane: AuditPane },
   { id: "oversight", icon: Activity, label: "Connector oversight", Pane: OversightPane },
@@ -221,7 +234,12 @@ export function SettingsPage({ me }: SettingsPageProps) {
 
           <div className="set2__pane">
             <Suspense fallback={<div className="pane__loading">Loading settings...</div>}>
-              <Pane advanced={advanced} me={me} onNavigate={(path) => navigate(path)} />
+              <Pane
+                advanced={advanced}
+                me={me}
+                onNavigate={(path) => navigate(path)}
+                onSelectSection={(id) => setActiveSection(id as PersonalSectionId | AdminSectionId)}
+              />
             </Suspense>
           </div>
         </div>
