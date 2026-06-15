@@ -187,7 +187,10 @@ export function App() {
         <Suspense fallback={<LoadingScreen />}>
           <Routes>
             <Route index element={<Navigate to={webRoutePath("today")} replace />} />
-            <Route path={webRoutePath("today")} element={<TodayPage me={meQuery.data} />} />
+            <Route
+              path={webRoutePath("today")}
+              element={<TodayPage me={meQuery.data} wellnessEnabled={wellnessGate === "enabled"} />}
+            />
             <Route path={webRoutePath("tasks")} element={<TasksPage />} />
             <Route path={webRoutePath("task-detail")} element={<TaskDetailPage />} />
             <Route path={webRoutePath("notifications")} element={<NotificationsPage />} />

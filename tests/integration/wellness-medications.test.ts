@@ -233,6 +233,56 @@ describe("wellness REST routes", () => {
     }
   });
 
+  it("POST a PRN medication with no scheduling fields succeeds (B1)", async () => {
+    const app = await buildApp(userId);
+    try {
+      const res = await app.inject({
+        method: "POST",
+        url: "/api/wellness/medications",
+        payload: { name: "Ibuprofen PRN", frequencyType: "as_needed" }
+      });
+      expect(res.statusCode).toBe(201);
+      const body = res.json() as { medication: { frequencyType: string; scheduleTimes: null } };
+      expect(body.medication.frequencyType).toBe("as_needed");
+      expect(body.medication.scheduleTimes).toBeNull();
+    } finally {
+      await app.close();
+    }
+  });
+
+  it("POST once_daily medication with a single schedule time succeeds", async () => {
+    const app = await buildApp(userId);
+    try {
+      const res = await app.inject({
+        method: "POST",
+        url: "/api/wellness/medications",
+        payload: { name: "Once Med", frequencyType: "once_daily", scheduleTimes: ["08:00"] }
+      });
+      expect(res.statusCode).toBe(201);
+    } finally {
+      await app.close();
+    }
+  });
+
+  it("POST times_per_day=2 with 2 schedule times succeeds", async () => {
+    const app = await buildApp(userId);
+    try {
+      const res = await app.inject({
+        method: "POST",
+        url: "/api/wellness/medications",
+        payload: {
+          name: "2x Med",
+          frequencyType: "times_per_day",
+          timesPerDay: 2,
+          scheduleTimes: ["08:00", "20:00"]
+        }
+      });
+      expect(res.statusCode).toBe(201);
+    } finally {
+      await app.close();
+    }
+  });
+
   it("POST out-of-range cycleDaysOn is a friendly 400, not a DB-CHECK 500", async () => {
     const app = await buildApp(userId);
     try {

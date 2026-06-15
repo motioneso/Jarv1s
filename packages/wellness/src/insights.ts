@@ -25,6 +25,19 @@ export function computeInsights(
   _now: Date,
   totalExpectedSlots?: number
 ): WellnessInsightDto[] {
+  // Low-data guard: suppress all insights until there is at least a week's
+  // worth of check-ins. Threshold: ≥7 check-ins AND earliest is ≥7 days ago.
+  // Rationale: adherence/pattern insights derived from <7 data points produce
+  // misleading numbers (e.g. "0% adherence" with 0 scheduled meds).
+  const MIN_CHECKINS = 7;
+  const MIN_DAYS = 7;
+  if (checkins.length < MIN_CHECKINS) return [];
+  const earliest = checkins
+    .map((c) => (c.checked_in_at ? new Date(c.checked_in_at).getTime() : Infinity))
+    .reduce((a, b) => Math.min(a, b), Infinity);
+  const daysSinceFirst = (_now.getTime() - earliest) / 86_400_000;
+  if (daysSinceFirst < MIN_DAYS) return [];
+
   const results: WellnessInsightDto[] = [];
 
   // ── 1. Most-logged emotion (key: 'common') ─────────────────────────────
