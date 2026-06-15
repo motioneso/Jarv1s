@@ -79,7 +79,7 @@ describe("wellness-prefs — reactive event bridge", () => {
     vi.unstubAllGlobals();
   });
 
-  it("writePrefs persists the pref and dispatches the custom event", async () => {
+  it("writePrefs persists the pref and dispatches the custom event exactly once", async () => {
     const { writePrefs } = await import("../../apps/web/src/wellness/wellness-prefs.js");
 
     writePrefs({ radial: true });

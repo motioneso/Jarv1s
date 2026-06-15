@@ -1,7 +1,7 @@
 # Plan — Wellness Codex remediation (4 blockers + nit)
 
-**Branch:** `wellness-feedback-pass`  
-**Handoff:** `docs/superpowers/handoffs/2026-06-15-wellness-feedback-codex-remediation.md`  
+**Branch:** `wellness-feedback-pass`
+**Handoff:** `docs/superpowers/handoffs/2026-06-15-wellness-feedback-codex-remediation.md`
 **Gate:** `pnpm verify:foundation` real exit 0
 
 ---

@@ -44,11 +44,9 @@ export function useWellnessPrefs(): [WellnessPrefs, (patch: Partial<WellnessPref
   }, []);
 
   const update = (patch: Partial<WellnessPrefs>) => {
-    setPrefs((prev) => {
-      const next = { ...prev, ...patch };
-      writePrefs(next);
-      return next;
-    });
+    const next = { ...prefs, ...patch };
+    writePrefs(next);
+    setPrefs(next);
   };
 
   return [prefs, update];
