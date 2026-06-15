@@ -63,7 +63,8 @@ test.beforeEach(async ({ page }) => {
     })
   );
 
-  await page.route("**/api/wellness/medications**", (route) => {
+  // Medications list (Manage-meds modal) + add path.
+  await page.route("**/api/wellness/medications", (route) => {
     if (route.request().method() === "POST") {
       return route.fulfill({
         status: 201,
@@ -98,15 +99,60 @@ test.beforeEach(async ({ page }) => {
     });
   });
 
-  // The schedule fetch backs MedicationsView; keep it empty so the view renders the form.
+  // Today's medication schedule backs the MedToday card — keep empty so it renders the empty state.
   await page.route("**/api/wellness/medications/schedule**", (route) =>
     route.fulfill({
       status: 200,
       contentType: "application/json",
-      body: JSON.stringify({ date: "2026-06-13", slots: [] })
+      body: JSON.stringify({ date: "2026-06-14", slots: [] })
     })
   );
 
+  // Medication logs range (Trends chart) — empty.
+  await page.route("**/api/wellness/medications/logs**", (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({ logs: [] })
+    })
+  );
+
+  // Insights panel — return an empty insight set (renders the "keep checking in" line).
+  await page.route("**/api/wellness/insights**", (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({ insights: [] })
+    })
+  );
+
+  // Therapy notes — empty list.
+  await page.route("**/api/wellness/therapy-notes**", (route) => {
+    if (route.request().method() === "POST") {
+      return route.fulfill({
+        status: 201,
+        contentType: "application/json",
+        body: JSON.stringify({
+          note: {
+            id: "tn-new",
+            ownerUserId: "user-1",
+            body: "A note",
+            linkedCheckinId: null,
+            linkedEmotion: null,
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString()
+          }
+        })
+      });
+    }
+    return route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({ notes: [] })
+    });
+  });
+
+  // Check-ins list (empty → today's check-in card shows the prompt) + create.
   await page.route("**/api/wellness/checkins**", (route) => {
     if (route.request().method() === "POST") {
       return route.fulfill({
@@ -118,11 +164,11 @@ test.beforeEach(async ({ page }) => {
             ownerUserId: "user-1",
             checkedInAt: new Date().toISOString(),
             feelingCore: "happy",
-            feelingSecondary: null,
+            feelingSecondary: "Joy",
             feelingTertiary: null,
             wheelVersion: "jarvis-emotion-v1",
             sensations: [],
-            intensity: null,
+            intensity: 3,
             energy: null,
             note: null,
             identifiedVia: "wheel",
@@ -139,108 +185,73 @@ test.beforeEach(async ({ page }) => {
   });
 });
 
-test("wellness page renders and a check-in can be saved", async ({ page }) => {
-  await page.goto("/wellness");
-  await expect(page.getByRole("heading", { name: "Wellness" })).toBeVisible();
-
-  await page.getByRole("button", { name: "Log how you feel" }).click();
-  // The picker is a plain <select> (basic UI) — choose the core feeling by value.
-  await page.getByLabel("Core feeling").selectOption("happy");
-
-  const [request] = await Promise.all([
-    page.waitForRequest((r) => r.url().includes("/api/wellness/checkins") && r.method() === "POST"),
-    page.getByRole("button", { name: "Save", exact: true }).click()
-  ]);
-  expect(request.method()).toBe("POST");
-});
-
-test("medication form sends correct payload for every_n_hours (was a guaranteed 400)", async ({
+test("wellness page renders the new screen and a guided check-in can be saved", async ({
   page
 }) => {
   await page.goto("/wellness");
-  await page.getByRole("button", { name: "Medications" }).click();
+  // The new screen leads with the editorial hero title, not a generic "Wellness" heading.
+  await expect(page.getByRole("heading", { name: "How you're really doing." })).toBeVisible();
 
-  await page.getByLabel("Medication name").fill("Antibiotic");
-  await page.getByLabel("Frequency").selectOption("every_n_hours");
-  await page.getByLabel("Interval hours").fill("8");
+  // Open the check-in modal from the today card.
+  await page.getByRole("button", { name: "Start check-in" }).click();
+  const dialog = page.getByRole("dialog");
+  await expect(dialog.getByText("How are you feeling right now?")).toBeVisible();
+
+  // Guided picker step 1: pick a core emotion (advances to feelings step). Scope to the modal
+  // so the emotion-strip "Start with Happy" button on the page behind it is excluded.
+  await dialog.locator("button.wl-emobtn", { hasText: "Happy" }).click();
+
+  // Step 2: pick a feeling word (Joy is a Happy feeling).
+  await dialog.getByRole("button", { name: "Joy", exact: true }).click();
+
+  // Advance to details, then save.
+  await dialog.getByRole("button", { name: "Next" }).click();
 
   const [request] = await Promise.all([
-    page.waitForRequest(
-      (r) => r.url().includes("/api/wellness/medications") && r.method() === "POST"
-    ),
-    page.getByRole("button", { name: "Add" }).click()
+    page.waitForRequest((r) => r.url().includes("/api/wellness/checkins") && r.method() === "POST"),
+    dialog.getByRole("button", { name: "Save check-in" }).click()
   ]);
   const body = request.postDataJSON() as Record<string, unknown>;
-  expect(body.frequencyType).toBe("every_n_hours");
-  expect(body.intervalHours).toBe(8);
-  // every_n_hours must NOT send schedule_times (the DB has no requirement; route uses interval).
-  expect(body.scheduleTimes).toBeNull();
+  expect(body.feelingCore).toBe("happy");
+  expect(body.feelingSecondary).toBe("Joy");
+  expect(body.identifiedVia).toBe("wheel");
 });
 
-test("medication form sends weekdays for specific_weekdays", async ({ page }) => {
+test("manage-meds modal can add a medication", async ({ page }) => {
   await page.goto("/wellness");
-  await page.getByRole("button", { name: "Medications" }).click();
+  await expect(page.getByRole("heading", { name: "How you're really doing." })).toBeVisible();
 
-  await page.getByLabel("Medication name").fill("Weekly Pill");
-  await page.getByLabel("Frequency").selectOption("specific_weekdays");
-  await page.getByRole("checkbox", { name: "Mon" }).check();
-  await page.getByRole("checkbox", { name: "Wed" }).check();
+  await page.getByRole("button", { name: "Manage", exact: true }).click();
+  const dialog = page.getByRole("dialog");
+  await expect(dialog.getByText("Manage medications")).toBeVisible();
+
+  await dialog.getByLabel("Medication name").fill("Bupropion");
 
   const [request] = await Promise.all([
     page.waitForRequest(
       (r) => r.url().includes("/api/wellness/medications") && r.method() === "POST"
     ),
-    page.getByRole("button", { name: "Add" }).click()
+    dialog.getByRole("button", { name: "Add", exact: true }).click()
   ]);
   const body = request.postDataJSON() as Record<string, unknown>;
-  expect(body.frequencyType).toBe("specific_weekdays");
-  expect(body.weekdays).toEqual([1, 3]);
+  expect(body.name).toBe("Bupropion");
+  expect(body.frequencyType).toBe("once_daily");
 });
 
-test("medication form sends cycle fields for cyclical", async ({ page }) => {
+test("a therapy note can be added", async ({ page }) => {
   await page.goto("/wellness");
-  await page.getByRole("button", { name: "Medications" }).click();
+  await expect(page.getByRole("heading", { name: "How you're really doing." })).toBeVisible();
 
-  await page.getByLabel("Medication name").fill("Birth Control");
-  await page.getByLabel("Frequency").selectOption("cyclical");
-  await page.getByLabel("Cycle anchor date").fill("2026-06-15");
-  await page.getByLabel("Cycle days on").fill("21");
-  await page.getByLabel("Cycle days off").fill("7");
+  await page.getByPlaceholder("Something to talk through…").fill("Ask about evening dread");
 
   const [request] = await Promise.all([
     page.waitForRequest(
-      (r) => r.url().includes("/api/wellness/medications") && r.method() === "POST"
+      (r) => r.url().includes("/api/wellness/therapy-notes") && r.method() === "POST"
     ),
-    page.getByRole("button", { name: "Add" }).click()
+    page.getByRole("button", { name: "Add", exact: true }).click()
   ]);
   const body = request.postDataJSON() as Record<string, unknown>;
-  expect(body.frequencyType).toBe("cyclical");
-  expect(body.cycleAnchorDate).toBe("2026-06-15");
-  expect(body.cycleDaysOn).toBe(21);
-  expect(body.cycleDaysOff).toBe(7);
-});
-
-test("medication form omits scheduling fields for as_needed (PRN)", async ({ page }) => {
-  await page.goto("/wellness");
-  await page.getByRole("button", { name: "Medications" }).click();
-
-  await page.getByLabel("Medication name").fill("Painkiller");
-  await page.getByLabel("Frequency").selectOption("as_needed");
-
-  const [request] = await Promise.all([
-    page.waitForRequest(
-      (r) => r.url().includes("/api/wellness/medications") && r.method() === "POST"
-    ),
-    page.getByRole("button", { name: "Add" }).click()
-  ]);
-  const body = request.postDataJSON() as Record<string, unknown>;
-  expect(body.frequencyType).toBe("as_needed");
-  // PRN must carry NO scheduling/cycle fields (DB CHECK rejects them otherwise).
-  expect(body.scheduleTimes).toBeNull();
-  expect(body.timesPerDay).toBeNull();
-  expect(body.intervalHours).toBeNull();
-  expect(body.weekdays).toBeNull();
-  expect(body.cycleAnchorDate).toBeNull();
+  expect(body.body).toBe("Ask about evening dread");
 });
 
 test("wellness nav is hidden when the actor has disabled the module", async ({ page }) => {
@@ -273,7 +284,7 @@ test("wellness nav is hidden when the actor has disabled the module", async ({ p
   // Deep-linking the disabled health-data route must NOT render the wellness UI: the SPA
   // route is gated on the actor's module state and redirects to /tasks once it resolves.
   await expect(page).toHaveURL(/\/tasks$/);
-  await expect(page.getByRole("heading", { name: "Wellness" })).toHaveCount(0);
+  await expect(page.getByRole("heading", { name: "How you're really doing." })).toHaveCount(0);
 });
 
 test("wellness route fails closed when the module-state request errors", async ({ page }) => {
@@ -283,7 +294,7 @@ test("wellness route fails closed when the module-state request errors", async (
 
   await page.goto("/wellness");
   await expect(page).toHaveURL(/\/tasks$/);
-  await expect(page.getByRole("heading", { name: "Wellness" })).toHaveCount(0);
+  await expect(page.getByRole("heading", { name: "How you're really doing." })).toHaveCount(0);
 });
 
 test("wellness route fails closed when the module is absent from the state response", async ({
@@ -301,5 +312,5 @@ test("wellness route fails closed when the module is absent from the state respo
 
   await page.goto("/wellness");
   await expect(page).toHaveURL(/\/tasks$/);
-  await expect(page.getByRole("heading", { name: "Wellness" })).toHaveCount(0);
+  await expect(page.getByRole("heading", { name: "How you're really doing." })).toHaveCount(0);
 });

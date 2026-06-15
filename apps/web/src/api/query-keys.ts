@@ -60,6 +60,9 @@ export const queryKeys = {
   wellness: {
     checkins: ["wellness", "checkins"] as const,
     medications: ["wellness", "medications"] as const,
-    schedule: (date: string) => ["wellness", "schedule", date] as const
+    schedule: (date: string) => ["wellness", "schedule", date] as const,
+    insights: ["wellness", "insights"] as const,
+    therapyNotes: ["wellness", "therapy-notes"] as const,
+    logs: (sinceDays: number) => ["wellness", "logs", sinceDays] as const
   }
 };
