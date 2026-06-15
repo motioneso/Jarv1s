@@ -43,6 +43,7 @@ import type {
   ListAiConfiguredModelsResponse,
   ListAiProviderConfigsResponse,
   ListAdminConnectorAccountsResponse,
+  ListAdminAuditEventsResponse,
   ListAuthProviderStatusesResponse,
   ListBriefingDefinitionsResponse,
   ListBriefingRunsResponse,
@@ -52,8 +53,10 @@ import type {
   ListConnectorAccountsResponse,
   ListConnectorProvidersResponse,
   ListMedicationsResponse,
+  ListAdminModulesResponse,
   ListModulesResponse,
   ListMyModulesResponse,
+  MyModuleDto,
   ListNotificationsResponse,
   ListTaskActivityResponse,
   ListTaskListsResponse,
@@ -126,6 +129,32 @@ export async function getModules(): Promise<ListModulesResponse> {
 
 export async function getMyModules(): Promise<ListMyModulesResponse> {
   return requestJson<ListMyModulesResponse>("/api/me/modules");
+}
+
+export async function listAdminModules(): Promise<ListAdminModulesResponse> {
+  return requestJson<ListAdminModulesResponse>("/api/admin/modules");
+}
+
+/** Self-service: enable/disable an optional module for the current user. */
+export async function setMyModuleDisabled(
+  id: string,
+  disabled: boolean
+): Promise<{ module: MyModuleDto }> {
+  return requestJson<{ module: MyModuleDto }>(`/api/me/modules/${encodeURIComponent(id)}`, {
+    method: "PATCH",
+    body: { disabled }
+  });
+}
+
+/** Admin: enable/disable an optional module instance-wide. */
+export async function setAdminModuleDisabled(
+  id: string,
+  disabled: boolean
+): Promise<{ module: MyModuleDto }> {
+  return requestJson<{ module: MyModuleDto }>(`/api/admin/modules/${encodeURIComponent(id)}`, {
+    method: "PATCH",
+    body: { disabled }
+  });
 }
 
 /** Bounded so a hung status read can never trap the founder before the app shell (Codex R2 #2). */
@@ -633,6 +662,10 @@ export async function listAuthProviderStatuses(): Promise<ListAuthProviderStatus
 
 export async function listAdminConnectorAccounts(): Promise<ListAdminConnectorAccountsResponse> {
   return requestJson<ListAdminConnectorAccountsResponse>("/api/admin/connectors/accounts");
+}
+
+export async function listAdminAuditEvents(): Promise<ListAdminAuditEventsResponse> {
+  return requestJson<ListAdminAuditEventsResponse>("/api/admin/audit-events");
 }
 
 export async function listAdminUsers(): Promise<ListUsersResponse> {

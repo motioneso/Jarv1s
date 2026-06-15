@@ -2,6 +2,14 @@ import { expect, test } from "@playwright/test";
 
 import { createMockConnectorProviders, createMockTask, mockApi } from "./mock-api.js";
 
+const urgentTag = {
+  id: "tag-urgent",
+  ownerUserId: "user-1",
+  listId: "list-1",
+  name: "urgent",
+  createdAt: null
+};
+
 test.beforeEach(async ({ page }) => {
   await mockApi(page, {
     authenticated: true,
@@ -13,7 +21,7 @@ test.beforeEach(async ({ page }) => {
         priority: 5,
         dueAt: new Date(Date.now() + 12 * 3600 * 1000).toISOString()
       }),
-      createMockTask("t-someday", "Learn cello", { priority: 1 })
+      createMockTask("t-someday", "Learn cello", { priority: 1, tags: [urgentTag] })
     ]
   });
 });
@@ -21,24 +29,22 @@ test.beforeEach(async ({ page }) => {
 test("priority view groups tasks by priority level", async ({ page }) => {
   await page.goto("/tasks");
   // Default filter is "todo" so both tasks (status: "todo") should appear
-  // Priority view is the default (preference mock returns "priority")
-  await expect(page.getByRole("button", { name: "Priority" })).toHaveAttribute(
+  // List view is backed by the priority-grouped view model by default.
+  await expect(page.getByRole("button", { name: "List", exact: true })).toHaveAttribute(
     "aria-pressed",
     "true"
   );
-  // "File taxes" is Critical (priority 5) — the group section has aria-label="Critical priority"
-  await expect(page.getByRole("region", { name: "Critical priority" })).toBeVisible();
+  await expect(page.getByText("Critical")).toBeVisible();
+  await expect(page.getByText("File taxes")).toBeVisible();
 });
 
 test("matrix toggle switches to matrix view", async ({ page }) => {
   await page.goto("/tasks");
-  // Wait for initial priority view to settle
-  await expect(page.getByRole("button", { name: "Priority" })).toHaveAttribute(
+  await expect(page.getByRole("button", { name: "List", exact: true })).toHaveAttribute(
     "aria-pressed",
     "true"
   );
   await page.getByRole("button", { name: "Matrix" }).click();
-  // After clicking Matrix, the Matrix button should be pressed and the Eisenhower grid visible
   await expect(page.getByRole("button", { name: "Matrix" })).toHaveAttribute(
     "aria-pressed",
     "true"
@@ -56,21 +62,24 @@ test("assigning a tag from the detail page renders a chip", async ({ page }) => 
   await expect(page.getByRole("button", { name: "Remove tag urgent" })).toBeVisible();
 });
 
-test("renaming a list in the sidebar renders the new name", async ({ page }) => {
+test("list filter can focus a single list", async ({ page }) => {
   await page.goto("/tasks");
-  await expect(page.getByRole("button", { name: "Rename list Personal" })).toBeVisible();
-  await page.getByRole("button", { name: "Rename list Personal" }).click();
-  const input = page.getByLabel("Rename list Personal");
-  await input.fill("Work");
-  await page.getByRole("button", { name: "Save list name" }).click();
-  await expect(page.getByRole("button", { name: "Work", exact: true })).toBeVisible();
+  await page.getByRole("button", { name: /All lists/ }).click();
+  await page.getByRole("button", { name: /Personal/ }).click();
+
+  await expect(page.getByRole("button", { name: "Personal", exact: true })).toBeVisible();
+  await expect(page.getByText("File taxes")).toBeVisible();
 });
 
-test("deleting a tag in the sidebar removes it", async ({ page }) => {
+test("tag filter narrows visible tasks and can be cleared", async ({ page }) => {
   await page.goto("/tasks");
-  // Select the list so the sidebar Tags section renders.
-  await page.getByRole("button", { name: "Personal", exact: true }).click();
-  await expect(page.getByRole("button", { name: "Delete tag urgent" })).toBeVisible();
-  await page.getByRole("button", { name: "Delete tag urgent" }).click();
-  await expect(page.getByRole("button", { name: "Delete tag urgent" })).toHaveCount(0);
+  await page.getByPlaceholder("Filter by tag…").click();
+  await page.getByRole("button", { name: /urgent/ }).click();
+
+  await expect(page.getByRole("button", { name: "Remove urgent" })).toBeVisible();
+  await expect(page.getByText("File taxes")).toHaveCount(0);
+  await expect(page.getByText("Learn cello")).toBeVisible();
+
+  await page.getByRole("button", { name: "Clear", exact: true }).click();
+  await expect(page.getByText("File taxes")).toBeVisible();
 });

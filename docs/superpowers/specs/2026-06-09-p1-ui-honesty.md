@@ -21,13 +21,13 @@ then they must be disabled, clearly marked "coming soon", or removed. Investigat
    **confirmed no-op** (`packages/chat/src/jobs.ts:104-111`: TODO, returns immediately). So the panel
    **always shows "No facts stored yet."** (The _Recall_ toggle and recall feature ARE real — Phase 3
    Recall landed; only the **facts extraction** half is stubbed.)
-4. **Legacy connector token-paste form** — `CreateConnectorForm` in
-   `apps/web/src/connectors/connectors-panel.tsx:104-189`, default `{"accessToken":"placeholder"}`
-   textarea. This is dev scaffolding that sits **right next to the real per-user OAuth flow**
+4. **Legacy connector token-paste form** — the former `CreateConnectorForm` in the now-removed
+   connectors settings panel used a default `{"accessToken":"placeholder"}` textarea. This was dev
+   scaffolding that sat **right next to the real per-user OAuth flow**
    (`connect-google-panel.tsx`, M-B1, fully functional). Pasting a placeholder token creates a junk
    connector account with no real credential.
-5. **AI provider `{"apiKey":"placeholder"}` panel** — `CreateAiProviderForm` in
-   `apps/web/src/ai/ai-settings-panel.tsx:118-226`, default credential textarea `{"apiKey":"placeholder"}`.
+5. **AI provider `{"apiKey":"placeholder"}` panel** — the former AI settings panel's provider form
+   used a default credential textarea `{"apiKey":"placeholder"}`.
    **Nuance:** unlike calendar/email/facts, the AI provider+model backend is **REAL** (M-A3 — provider
    CRUD, capability routing, encrypted credentials all work). The problem here is **not "no backend"**;
    it is a crude raw-JSON dev affordance with a misleading placeholder default, next to the real flow.
@@ -93,12 +93,9 @@ This pass touches `apps/web` broadly (calendar, email, chat, connectors, ai) and
   (`memory-facts` section) with a coming-soon note; disable the "Remember facts about me" checkbox
   (add `disabled` + a "coming soon" hint). Leave `getMemoryFacts`/`deleteMemoryFact` wiring untouched
   in `client.ts` (no dead-code churn needed; just stop rendering the list).
-- **`apps/web/src/connectors/connectors-panel.tsx`** — **delete `CreateConnectorForm`** and its mount
-  at the "Connector Accounts" panel; the panel keeps the real account **list** (revoke/activate are
-  real) and the real OAuth flow lives in `connect-google-panel.tsx`. Remove now-unused imports
-  (`createConnectorAccount`, `parseTokenPayload`, `parseScopes`, related state). Verify no other caller
-  of `createConnectorAccount`; if unused, optionally drop it from `client.ts` (confirm).
-- **`apps/web/src/ai/ai-settings-panel.tsx`** — change the `credentialPayload` default from
+- **Former connectors settings panel** — **delete `CreateConnectorForm`** and its mount at the
+  "Connector Accounts" panel; the real OAuth flow lives in `connect-google-panel.tsx`.
+- **Former AI settings panel** — change the `credentialPayload` default from
   `'{"apiKey":"placeholder"}'` to `'{}'` (or `''`) and add a non-secret `placeholder=` hint on the
   textarea (e.g. `{"apiKey":"sk-..."}` as a _placeholder attribute_, not a value). Backend untouched.
 - **e2e:** update `tests/e2e/*` and any `mock-api.ts` expectations that asserted the calendar/email
