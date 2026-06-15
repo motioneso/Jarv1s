@@ -56,10 +56,10 @@ describe("wellness REST routes", () => {
       const created = await app.inject({
         method: "POST",
         url: "/api/wellness/checkins",
-        payload: { feelingCore: "joyful", intensity: 5, sensations: ["warmth"] }
+        payload: { feelingCore: "happy", intensity: 5, sensations: ["warmth"] }
       });
       expect(created.statusCode).toBe(201);
-      expect(created.json().checkin.feelingCore).toBe("joyful");
+      expect(created.json().checkin.feelingCore).toBe("happy");
 
       const listed = await app.inject({ method: "GET", url: "/api/wellness/checkins?limit=5" });
       expect(listed.statusCode).toBe(200);
@@ -77,8 +77,8 @@ describe("wellness REST routes", () => {
         method: "POST",
         url: "/api/wellness/checkins",
         payload: {
-          feelingCore: "scared",
-          feelingSecondary: "anxious",
+          feelingCore: "fear",
+          feelingSecondary: "Anxious",
           feelingTertiary: "not-a-leaf"
         }
       });

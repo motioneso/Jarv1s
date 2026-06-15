@@ -5,13 +5,16 @@ import {
   type DataContextDb,
   type Medication,
   type MedicationLog,
-  type WellnessCheckin
+  type WellnessCheckin,
+  type WellnessTherapyNote
 } from "@jarv1s/db";
+import { HttpError } from "@jarv1s/module-sdk";
 import type {
   MedicationFrequencyTypeApi,
   MedicationLogStatusApi,
-  WellnessFeelingCore
+  WellnessEmotionCore as WellnessFeelingCore
 } from "@jarv1s/shared";
+import { isValidFeelingPath } from "@jarv1s/shared";
 
 export interface CreateCheckinInput {
   readonly feelingCore: WellnessFeelingCore;
@@ -59,6 +62,21 @@ export interface LogDoseInput {
   readonly scheduledFor?: string | null;
 }
 
+export interface UpdateCheckinInput {
+  readonly feelingCore: WellnessFeelingCore;
+  readonly feelingSecondary?: string | null;
+  readonly sensations?: readonly string[];
+  readonly intensity?: number | null;
+  readonly energy?: number | null;
+  readonly note?: string | null;
+}
+
+export interface CreateTherapyNoteInput {
+  readonly body: string;
+  readonly linkedCheckinId?: string | null;
+  readonly linkedEmotion?: WellnessFeelingCore | null;
+}
+
 export class WellnessRepository {
   // ── Check-ins ──────────────────────────────────────────────────────────
   async createCheckin(
@@ -72,7 +90,7 @@ export class WellnessRepository {
         owner_user_id: sql<string>`app.current_actor_user_id()`,
         feeling_core: input.feelingCore,
         feeling_secondary: input.feelingSecondary ?? null,
-        feeling_tertiary: input.feelingTertiary ?? null,
+        feeling_tertiary: null,
         sensations: [...(input.sensations ?? [])],
         intensity: input.intensity ?? null,
         energy: input.energy ?? null,
@@ -260,5 +278,137 @@ export class WellnessRepository {
       .where("scheduled_for", "<", dayEnd)
       .execute();
     return rows as MedicationLog[];
+  }
+
+  /**
+   * Logs over a rolling window for insights/adherence computation.
+   *
+   * Bucketing rules:
+   *   - SCHEDULED logs (scheduled_for IS NOT NULL): included when scheduled_for >= since.
+   *     This mirrors listLogsForDate — the slot's civil moment, NOT when the user tapped "taken".
+   *   - PRN logs (scheduled_for IS NULL): included when logged_at >= since.
+   *     PRN doses are unscheduled by definition, so logged_at is the only anchor.
+   */
+  async listLogsRange(
+    scopedDb: DataContextDb,
+    options: { readonly sinceDays?: number } = {}
+  ): Promise<MedicationLog[]> {
+    assertDataContextDb(scopedDb);
+    const sinceDays = options.sinceDays ?? 30;
+    const since = new Date(Date.now() - sinceDays * 24 * 60 * 60 * 1000);
+    const rows = await scopedDb.db
+      .selectFrom("app.medication_logs")
+      .selectAll()
+      .where((eb) =>
+        eb.or([
+          eb.and([eb("scheduled_for", "is not", null), eb("scheduled_for", ">=", since)]),
+          eb.and([eb("scheduled_for", "is", null), eb("logged_at", ">=", since)])
+        ])
+      )
+      .orderBy("logged_at", "desc")
+      .execute();
+    return rows as MedicationLog[];
+  }
+
+  async updateCheckin(
+    scopedDb: DataContextDb,
+    id: string,
+    input: UpdateCheckinInput
+  ): Promise<WellnessCheckin | undefined> {
+    assertDataContextDb(scopedDb);
+    const existing = await scopedDb.db
+      .selectFrom("app.wellness_checkins")
+      .selectAll()
+      .where("id", "=", id)
+      .executeTakeFirst();
+    if (!existing) return undefined;
+
+    // Validate the combined feeling path: patch value if provided, else the stored value.
+    // Prevents a feelingCore change from leaving a stale feelingSecondary from the old core.
+    const effectiveSecondary =
+      input.feelingSecondary !== undefined
+        ? input.feelingSecondary
+        : (existing.feeling_secondary as string | null);
+    if (!isValidFeelingPath(input.feelingCore, effectiveSecondary, null)) {
+      throw new HttpError(
+        400,
+        `feelingSecondary '${effectiveSecondary}' is not valid under feelingCore '${input.feelingCore}'`
+      );
+    }
+
+    const updates: Record<string, unknown> = {
+      feeling_core: input.feelingCore,
+      feeling_tertiary: null // taxonomy invariant: 2-level only
+    };
+    // Only include optional fields when explicitly provided; omitted ⇒ preserve existing value.
+    if (input.feelingSecondary !== undefined) updates["feeling_secondary"] = input.feelingSecondary;
+    if (input.sensations !== undefined) updates["sensations"] = [...input.sensations];
+    if (input.intensity !== undefined) updates["intensity"] = input.intensity ?? null;
+    if (input.energy !== undefined) updates["energy"] = input.energy ?? null;
+    if (input.note !== undefined) updates["note"] = input.note ?? null;
+
+    const row = await scopedDb.db
+      .updateTable("app.wellness_checkins")
+      .set(updates)
+      .where("id", "=", id)
+      .returningAll()
+      .executeTakeFirst();
+    return row as WellnessCheckin | undefined;
+  }
+
+  // ── Therapy notes ──────────────────────────────────────────────────────
+
+  async createTherapyNote(
+    scopedDb: DataContextDb,
+    input: CreateTherapyNoteInput
+  ): Promise<WellnessTherapyNote> {
+    assertDataContextDb(scopedDb);
+    const row = await scopedDb.db
+      .insertInto("app.wellness_therapy_notes")
+      .values({
+        owner_user_id: sql<string>`app.current_actor_user_id()`,
+        body: input.body,
+        linked_checkin_id: input.linkedCheckinId ?? null,
+        linked_emotion: input.linkedEmotion ?? null
+      })
+      .returningAll()
+      .executeTakeFirstOrThrow();
+    return row as WellnessTherapyNote;
+  }
+
+  async listTherapyNotes(scopedDb: DataContextDb): Promise<WellnessTherapyNote[]> {
+    assertDataContextDb(scopedDb);
+    const rows = await scopedDb.db
+      .selectFrom("app.wellness_therapy_notes")
+      .selectAll()
+      .orderBy("created_at", "desc")
+      .execute();
+    return rows as WellnessTherapyNote[];
+  }
+
+  async deleteTherapyNote(scopedDb: DataContextDb, id: string): Promise<boolean> {
+    assertDataContextDb(scopedDb);
+    const result = await scopedDb.db
+      .deleteFrom("app.wellness_therapy_notes")
+      .where("id", "=", id)
+      .executeTakeFirst();
+    return (result.numDeletedRows ?? 0n) > 0n;
+  }
+
+  // ── Insights data ──────────────────────────────────────────────────────
+
+  async listRecentCheckinsForInsights(
+    scopedDb: DataContextDb,
+    sinceDays: number
+  ): Promise<WellnessCheckin[]> {
+    assertDataContextDb(scopedDb);
+    const since = new Date(Date.now() - sinceDays * 24 * 60 * 60 * 1000);
+    const rows = await scopedDb.db
+      .selectFrom("app.wellness_checkins")
+      .selectAll()
+      .where("checked_in_at", ">=", since)
+      .orderBy("checked_in_at", "asc")
+      .execute();
+    return rows as WellnessCheckin[];
   }
 }

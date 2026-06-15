@@ -480,11 +480,13 @@ export interface PreferencesTable {
   updated_at: TimestampColumn;
 }
 
+export type WellnessEmotionCore = "happy" | "sad" | "fear" | "anger" | "disgust" | "surprise";
+
 export interface WellnessCheckinsTable {
   id: ColumnType<string, string | undefined, string>;
   owner_user_id: string;
   checked_in_at: TimestampColumn;
-  feeling_core: "mad" | "sad" | "scared" | "joyful" | "powerful" | "peaceful";
+  feeling_core: WellnessEmotionCore;
   feeling_secondary: string | null;
   feeling_tertiary: string | null;
   wheel_version: ColumnType<string, string | undefined, string>;
@@ -542,6 +544,16 @@ export interface MedicationLogsTable {
   created_at: TimestampColumn;
 }
 
+export interface WellnessTherapyNotesTable {
+  id: ColumnType<string, string | undefined, string>;
+  owner_user_id: string;
+  body: string;
+  linked_checkin_id: string | null;
+  linked_emotion: WellnessEmotionCore | null;
+  created_at: TimestampColumn;
+  updated_at: TimestampColumn;
+}
+
 export interface JarvisDatabase {
   "app.schema_migrations": SchemaMigrationsTable;
   "app.users": UsersTable;
@@ -584,6 +596,7 @@ export interface JarvisDatabase {
   "app.wellness_checkins": WellnessCheckinsTable;
   "app.medications": MedicationsTable;
   "app.medication_logs": MedicationLogsTable;
+  "app.wellness_therapy_notes": WellnessTherapyNotesTable;
 }
 
 export type User = Selectable<UsersTable>;
@@ -619,3 +632,4 @@ export type Preference = Selectable<PreferencesTable>;
 export type WellnessCheckin = Selectable<WellnessCheckinsTable>;
 export type Medication = Selectable<MedicationsTable>;
 export type MedicationLog = Selectable<MedicationLogsTable>;
+export type WellnessTherapyNote = Selectable<WellnessTherapyNotesTable>;

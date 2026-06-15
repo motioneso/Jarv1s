@@ -1,5 +1,6 @@
 import { assertDataContextDb } from "@jarv1s/db";
 import type { ToolExecute, ToolResult } from "@jarv1s/module-sdk";
+import { moodIndex } from "@jarv1s/shared";
 
 import { WellnessRepository } from "./repository.js";
 import { serializeCheckin } from "./serialize.js";
@@ -21,11 +22,12 @@ export const wellnessRecentCheckInsExecute: ToolExecute = async (
           checkedInAt: dto.checkedInAt,
           feelingCore: dto.feelingCore,
           feelingSecondary: dto.feelingSecondary,
-          intensity: dto.intensity
+          intensity: dto.intensity,
+          moodIndex: dto.intensity != null ? moodIndex(dto.feelingCore, dto.intensity) : null
         };
       })
     },
-    columnOrder: ["checkedInAt", "feelingCore", "feelingSecondary", "intensity"]
+    columnOrder: ["checkedInAt", "feelingCore", "feelingSecondary", "intensity", "moodIndex"]
   };
 };
 

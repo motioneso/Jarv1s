@@ -1,49 +1,274 @@
-import { useState } from "react";
+import "../styles/wellness-1.css";
+import "../styles/wellness-2.css";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useRef, useState } from "react";
+import {
+  moodIndex,
+  moodBand,
+  type CheckinDto,
+  type WellnessEmotionCore,
+  type UpdateCheckinRequest
+} from "@jarv1s/shared";
+import { createWellnessCheckin, listWellnessCheckins, updateWellnessCheckin } from "../api/client";
+import { queryKeys } from "../api/query-keys";
+import { MOOD_BAND_LABELS } from "./emotion-taxonomy";
+import { WellnessToday } from "./wellness-today";
+import { WellnessInsights } from "./wellness-insights";
+import { WellnessTrends } from "./wellness-trends";
+import { WellnessHistory } from "./wellness-history";
+import { WellnessTherapyNotes } from "./wellness-therapy-notes";
+import { CheckinModal, type CheckinFormValue } from "./checkin-modal";
+import { ManageMedsModal } from "./manage-meds-modal";
 
-import { FeelingsCheckinModal } from "./feelings-checkin-modal";
-import { MedicationsView } from "./medications-view";
+function useTheme(): "light" | "dark" {
+  return document.documentElement.getAttribute("data-theme") === "dark" ? "dark" : "light";
+}
 
-type Tab = "feelings" | "medications";
+function FlameIcon({ size = 15 }: { size?: number }) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      width={size}
+      height={size}
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <path d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 0 0 2.5 2.5z" />
+    </svg>
+  );
+}
+
+function todayIso(): string {
+  const now = new Date();
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+}
+
+function computeStreak(checkins: readonly CheckinDto[]): number {
+  // Build a set of ISO dates with check-ins
+  const seen = new Set<string>();
+  checkins.forEach((c) => {
+    const d = (c.checkedInAt ?? c.createdAt ?? "").slice(0, 10);
+    if (d) seen.add(d);
+  });
+  // Walk backward from yesterday
+  let s = 0;
+  const today = new Date();
+  for (let i = 1; i <= 90; i++) {
+    const d = new Date(today);
+    d.setDate(d.getDate() - i);
+    const iso = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+    if (seen.has(iso)) s++;
+    else break;
+  }
+  return s;
+}
 
 export function WellnessPage() {
-  const [tab, setTab] = useState<Tab>("feelings");
+  const theme = useTheme();
+  const queryClient = useQueryClient();
+  const histRef = useRef<HTMLDivElement>(null);
+
   const [modalOpen, setModalOpen] = useState(false);
+  const [editCheckin, setEditCheckin] = useState<CheckinDto | null>(null);
+  const [seedEmotion, setSeedEmotion] = useState<WellnessEmotionCore | null>(null);
+  const [manageOpen, setManageOpen] = useState(false);
+  const [histFilter, setHistFilter] = useState<"notes" | null>(null);
+
+  const checkinsQuery = useQuery({
+    queryKey: queryKeys.wellness.checkins,
+    queryFn: () => listWellnessCheckins()
+  });
+
+  const checkins = checkinsQuery.data?.checkins ?? [];
+
+  const createCheckinMutation = useMutation({
+    mutationFn: (val: CheckinFormValue) =>
+      createWellnessCheckin({
+        feelingCore: val.emotion,
+        feelingSecondary: val.feeling,
+        feelingTertiary: null,
+        sensations: val.sensations,
+        intensity: val.intensity,
+        note: val.note || null,
+        identifiedVia: "wheel"
+      }),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: queryKeys.wellness.checkins });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.wellness.insights });
+    }
+  });
+
+  const updateCheckinMutation = useMutation({
+    mutationFn: (val: CheckinFormValue) =>
+      updateWellnessCheckin(editCheckin!.id, {
+        feelingCore: val.emotion,
+        feelingSecondary: val.feeling || null,
+        feelingTertiary: null,
+        sensations: val.sensations,
+        intensity: val.intensity,
+        note: val.note || null
+      } satisfies UpdateCheckinRequest),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: queryKeys.wellness.checkins });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.wellness.insights });
+    }
+  });
+
+  // Hero stats
+  const today = todayIso();
+
+  const last14 = checkins
+    .filter((c) => {
+      const d = (c.checkedInAt ?? c.createdAt ?? "").slice(0, 10);
+      return d && d < today;
+    })
+    .slice(0, 14);
+
+  const avgMood = last14.length
+    ? Math.round(
+        (last14.reduce((s, c) => s + moodIndex(c.feelingCore, c.intensity ?? 3), 0) /
+          last14.length) *
+          10
+      ) / 10
+    : 0;
+
+  const avgBand = moodBand(avgMood);
+  const streak = computeStreak(checkins);
+
+  const openFresh = () => {
+    setEditCheckin(null);
+    setSeedEmotion(null);
+    setModalOpen(true);
+  };
+
+  const openSeeded = (em: WellnessEmotionCore) => {
+    setEditCheckin(null);
+    setSeedEmotion(em);
+    setModalOpen(true);
+  };
+
+  const openEdit = (id: string) => {
+    const c = checkins.find((x) => x.id === id);
+    if (c) {
+      setEditCheckin(c);
+      setSeedEmotion(null);
+      setModalOpen(true);
+    }
+  };
+
+  const openTodayEdit = () => {
+    const todayCk = checkins.find(
+      (c) => (c.checkedInAt ?? c.createdAt ?? "").slice(0, 10) === today
+    );
+    if (todayCk) {
+      setEditCheckin(todayCk);
+      setSeedEmotion(null);
+      setModalOpen(true);
+    }
+  };
+
+  const reviewNotes = () => {
+    setHistFilter("notes");
+    // Scroll after React re-render
+    setTimeout(() => {
+      histRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }, 50);
+  };
+
+  // IMPORTANT: never call mutation inside a setState updater — StrictMode double-fires → double mutation.
+  const handleSave = (val: CheckinFormValue) => {
+    if (editCheckin) {
+      updateCheckinMutation.mutate(val);
+    } else {
+      createCheckinMutation.mutate(val);
+    }
+  };
+
+  const initialCheckinValue: CheckinFormValue | null = editCheckin
+    ? {
+        emotion: editCheckin.feelingCore,
+        feeling: editCheckin.feelingSecondary ?? "",
+        sensations: (editCheckin.sensations as string[]) ?? [],
+        intensity: editCheckin.intensity ?? 3,
+        note: editCheckin.note ?? ""
+      }
+    : null;
 
   return (
-    <section className="page-stack" aria-labelledby="wellness-title">
-      <div className="page-heading">
-        <div>
-          <p className="eyebrow">Wellness</p>
-          <h1 id="wellness-title">Wellness</h1>
+    <div className="wl-wrap">
+      <header className="wl-hero">
+        <div className="wl-hero__main">
+          <h1 className="wl-title">How you&apos;re really doing.</h1>
+          <p className="wl-lede">
+            Take your medication, name what you&apos;re feeling, and watch the quiet patterns
+            surface over time.
+          </p>
         </div>
-        <div className="segmented-control" role="group" aria-label="Wellness view">
-          <button
-            type="button"
-            className={tab === "feelings" ? "active" : ""}
-            onClick={() => setTab("feelings")}
-          >
-            Feelings
-          </button>
-          <button
-            type="button"
-            className={tab === "medications" ? "active" : ""}
-            onClick={() => setTab("medications")}
-          >
-            Medications
-          </button>
+        <div className="wl-hero__stat">
+          <div className="wl-herostat">
+            <div className="k">Mood &middot; 14d</div>
+            <div className="v">
+              {avgMood > 0 ? "+" : ""}
+              {avgMood}
+              <small> {MOOD_BAND_LABELS[avgBand] ?? avgBand}</small>
+            </div>
+          </div>
+          <div className="wl-herostat wl-herostat--streak">
+            <div className="k">Check-in streak</div>
+            <div className="v">
+              <FlameIcon size={15} />
+              {streak}
+              <small> {streak === 1 ? "day" : "days"}</small>
+            </div>
+          </div>
         </div>
+      </header>
+
+      <section className="wl-sec">
+        <WellnessToday
+          checkins={checkins}
+          streak={streak}
+          theme={theme}
+          onManage={() => setManageOpen(true)}
+          onModalOpen={(em) => {
+            if (em) openSeeded(em);
+            else openFresh();
+          }}
+          onModalEdit={openTodayEdit}
+        />
+      </section>
+
+      <section className="wl-sec">
+        <WellnessInsights onReviewNotes={reviewNotes} />
+      </section>
+
+      <WellnessTrends theme={theme} />
+
+      <div ref={histRef}>
+        <WellnessHistory
+          checkins={checkins}
+          theme={theme}
+          filter={histFilter}
+          onClearFilter={() => setHistFilter(null)}
+          onEdit={openEdit}
+        />
       </div>
 
-      {tab === "feelings" ? (
-        <div className="wellness-feelings">
-          <button type="button" className="primary-button" onClick={() => setModalOpen(true)}>
-            Log how you feel
-          </button>
-          <FeelingsCheckinModal open={modalOpen} onClose={() => setModalOpen(false)} />
-        </div>
-      ) : (
-        <MedicationsView />
-      )}
-    </section>
+      <WellnessTherapyNotes theme={theme} />
+
+      <CheckinModal
+        open={modalOpen}
+        onClose={() => setModalOpen(false)}
+        onSave={handleSave}
+        initial={initialCheckinValue}
+        seedEmotion={seedEmotion}
+        theme={theme}
+      />
+
+      <ManageMedsModal open={manageOpen} onClose={() => setManageOpen(false)} theme={theme} />
+    </div>
   );
 }

@@ -86,7 +86,15 @@ import type {
   UpdateTaskPreferencesRequest,
   UpdateTaskPreferencesResponse,
   UpdateTaskRequest,
-  UpdateTaskResponse
+  UpdateTaskResponse,
+  MedicationAdherenceSummaryResponse,
+  UpdateCheckinRequest,
+  UpdateCheckinResponse,
+  WellnessInsightsResponse,
+  ListTherapyNotesResponse,
+  CreateTherapyNoteRequest,
+  CreateTherapyNoteResponse,
+  DeleteTherapyNoteResponse
 } from "@jarv1s/shared";
 
 export interface SignUpEmailRequest {
@@ -362,8 +370,9 @@ export async function updateTaskPreferences(
   });
 }
 
-export async function listWellnessCheckins(): Promise<ListCheckinsResponse> {
-  return requestJson<ListCheckinsResponse>("/api/wellness/checkins?limit=50");
+export async function listWellnessCheckins(limitHint?: number): Promise<ListCheckinsResponse> {
+  const limit = limitHint ?? 50;
+  return requestJson<ListCheckinsResponse>(`/api/wellness/checkins?limit=${limit}`);
 }
 
 export async function createWellnessCheckin(
@@ -412,6 +421,48 @@ export async function logMedicationDose(
     `/api/wellness/medications/${encodeURIComponent(medicationId)}/logs`,
     { method: "POST", body: input }
   );
+}
+
+export async function getWellnessInsights(): Promise<WellnessInsightsResponse> {
+  return requestJson<WellnessInsightsResponse>("/api/wellness/insights");
+}
+
+export async function listTherapyNotes(): Promise<ListTherapyNotesResponse> {
+  return requestJson<ListTherapyNotesResponse>("/api/wellness/therapy-notes");
+}
+
+export async function createTherapyNote(
+  input: CreateTherapyNoteRequest
+): Promise<CreateTherapyNoteResponse> {
+  return requestJson<CreateTherapyNoteResponse>("/api/wellness/therapy-notes", {
+    method: "POST",
+    body: input
+  });
+}
+
+export async function deleteTherapyNote(id: string): Promise<DeleteTherapyNoteResponse> {
+  return requestJson<DeleteTherapyNoteResponse>(
+    `/api/wellness/therapy-notes/${encodeURIComponent(id)}`,
+    { method: "DELETE" }
+  );
+}
+
+export async function getMedicationAdherenceSummary(
+  sinceDays: number
+): Promise<MedicationAdherenceSummaryResponse> {
+  return requestJson<MedicationAdherenceSummaryResponse>(
+    `/api/wellness/medications/logs?sinceDays=${sinceDays}`
+  );
+}
+
+export async function updateWellnessCheckin(
+  id: string,
+  input: UpdateCheckinRequest
+): Promise<UpdateCheckinResponse> {
+  return requestJson<UpdateCheckinResponse>(`/api/wellness/checkins/${encodeURIComponent(id)}`, {
+    method: "PATCH",
+    body: input
+  });
 }
 
 export async function listNotifications(): Promise<ListNotificationsResponse> {
