@@ -70,10 +70,21 @@ export function ManageMedsModal({ open, onClose, theme = "light" }: Props) {
 
   const handleFreqChange = (f: MedicationFrequencyTypeApi) => {
     setFreqType(f);
-    if (f === "once_daily") setScheduleTimes(["08:00"]);
-    else if (f === "times_per_day") setScheduleTimes(["08:00", "20:00"]);
-    else setScheduleTimes([]);
+    if (f === "once_daily") {
+      setScheduleTimes(["08:00"]);
+    } else if (f === "times_per_day") {
+      setTimesPerDay(2);
+      setScheduleTimes(["08:00", "20:00"]);
+    } else {
+      setScheduleTimes([]);
+    }
   };
+
+  const isValidTime = (t: string) =>
+    /^\d{2}:\d{2}$/.test(t) && t >= "00:00" && t <= "23:59";
+
+  const timesInvalid =
+    freqType !== "as_needed" && scheduleTimes.slice(0, freqType === "once_daily" ? 1 : timesPerDay).some((t) => !isValidTime(t));
 
   const medsQuery = useQuery({
     queryKey: queryKeys.wellness.medications,
@@ -301,27 +312,37 @@ export function ManageMedsModal({ open, onClose, theme = "light" }: Props) {
                   {scheduleTimes
                     .slice(0, freqType === "once_daily" ? 1 : timesPerDay)
                     .map((t, i) => (
-                      <input
-                        key={i}
-                        type="time"
-                        value={t}
-                        onChange={(e) =>
-                          setScheduleTimes((prev) => {
-                            const copy = [...prev];
-                            copy[i] = e.target.value;
-                            return copy;
-                          })
-                        }
-                        aria-label={`Dose time ${i + 1}`}
-                        style={{
-                          border: "1px solid var(--border)",
-                          borderRadius: "var(--radius-md)",
-                          padding: "7px 12px",
-                          fontSize: 14,
-                          background: "var(--surface)",
-                          color: "var(--text)"
-                        }}
-                      />
+                      <div key={i}>
+                        <input
+                          type="time"
+                          value={t}
+                          onChange={(e) =>
+                            setScheduleTimes((prev) => {
+                              const copy = [...prev];
+                              copy[i] = e.target.value;
+                              return copy;
+                            })
+                          }
+                          aria-label={`Dose time ${i + 1}`}
+                          style={{
+                            border: `1px solid ${!isValidTime(t) && t !== "" ? "var(--color-error, #e53e3e)" : "var(--border)"}`,
+                            borderRadius: "var(--radius-md)",
+                            padding: "7px 12px",
+                            fontSize: 14,
+                            background: "var(--surface)",
+                            color: "var(--text)",
+                            width: "100%",
+                            boxSizing: "border-box"
+                          }}
+                        />
+                        {!isValidTime(t) && t !== "" ? (
+                          <div
+                            style={{ fontSize: 12, color: "var(--color-error, #e53e3e)", marginTop: 2 }}
+                          >
+                            Enter a valid time (HH:MM)
+                          </div>
+                        ) : null}
+                      </div>
                     ))}
                 </div>
               </div>
@@ -343,7 +364,7 @@ export function ManageMedsModal({ open, onClose, theme = "light" }: Props) {
                 type="button"
                 className="secondary-button"
                 style={{ gap: 6, fontSize: 13, padding: "6px 14px", minHeight: "unset" }}
-                disabled={!name.trim() || addMutation.isPending}
+                disabled={!name.trim() || timesInvalid || addMutation.isPending}
                 onClick={() => addMutation.mutate()}
               >
                 <PlusIcon />

@@ -88,7 +88,7 @@ describe("wellness-prefs — reactive event bridge", () => {
 
     expect(storageMap.get(PREFS_KEY)).toBe(JSON.stringify({ radial: true }));
     expect(bus.dispatched).toHaveLength(1);
-    expect(bus.dispatched[0].type).toBe(PREFS_EVENT);
+    expect(bus.dispatched[0]?.type).toBe(PREFS_EVENT);
   });
 
   it("readPrefs sees value written by writePrefs without remount", async () => {
