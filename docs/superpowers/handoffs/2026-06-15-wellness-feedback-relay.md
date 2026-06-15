@@ -1,10 +1,10 @@
 # Relay handoff — Wellness feedback pass (build)
 
-**Date:** 2026-06-15  
-**Worktree:** `/home/ben/Jarv1s/.claude/worktrees/wellness-feedback`  
-**Branch:** `wellness-feedback-pass`  
-**Base:** `origin/main` `a061766`  
-**Coordinator:** label `Wellness-Coordinator`, session `ea8e89af-52a7-4c41-9c63-09a3866ace1b`  
+**Date:** 2026-06-15
+**Worktree:** `/home/ben/Jarv1s/.claude/worktrees/wellness-feedback`
+**Branch:** `wellness-feedback-pass`
+**Base:** `origin/main` `a061766`
+**Coordinator:** label `Wellness-Coordinator`, session `ea8e89af-52a7-4c41-9c63-09a3866ace1b`
 **Relay reason:** Session at ~68% context before any code was built — relaying to preserve full build capacity.
 
 ## What was done in this session
