@@ -4,7 +4,7 @@ import type { ToolContext, ToolExecute, ToolResult, ToolServices } from "@jarv1s
 import type { CalendarWriteService } from "./calendar-write-service.js";
 import { resolveWindow, type FocusBlockInput, type PartOfDay } from "./focus-time.js";
 import { CalendarRepository } from "./repository.js";
-import { serializeCalendarEvent } from "./routes.js";
+import { serializeCalendarEvent } from "./serialize.js";
 
 const repository = new CalendarRepository();
 

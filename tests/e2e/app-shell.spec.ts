@@ -128,8 +128,10 @@ test("Calendar page renders its real empty data view", async ({ page }) => {
   });
 
   await page.goto("/calendar");
-  await expect(page.getByRole("heading", { name: "Calendar", level: 1 })).toBeVisible();
-  await expect(page.getByText("No upcoming events")).toBeVisible();
+  await expect(page.getByRole("button", { name: "Today" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Day", exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Week", exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Month", exact: true })).toBeVisible();
   await expect(page.getByText("Calendar is coming soon.")).toHaveCount(0);
 });
 
