@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   adminUserActions,
   canRemoveAdminUser,
+  createAdminUserPolicyContext,
   type AdminUserActionPolicyUser
 } from "../../apps/web/src/settings/settings-admin-policy.js";
 
@@ -59,6 +60,19 @@ describe("settings admin user action policy", () => {
     expect(adminUserActions(target, current, [current, target])).toEqual([
       "admin",
       "reactivate",
+      "remove"
+    ]);
+  });
+
+  it("reuses a precomputed active-admin count for row action checks", () => {
+    const current = member({ id: "current", isInstanceAdmin: true });
+    const target = member({ id: "target", isInstanceAdmin: true });
+    const policy = createAdminUserPolicyContext([current, target]);
+
+    expect(policy.activeAdminCount).toBe(2);
+    expect(adminUserActions(target, current, policy)).toEqual([
+      "admin",
+      "deactivate",
       "remove"
     ]);
   });

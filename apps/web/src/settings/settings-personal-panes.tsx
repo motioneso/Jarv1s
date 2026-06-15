@@ -1,15 +1,6 @@
 import { Avatar, Badge, Field, Group, PaneHead, Row } from "./settings-ui";
 import type { PaneProps } from "./settings-types";
 
-export { AssistantPane } from "./settings-ai-pane";
-export { MemoryPane } from "./settings-memory-pane";
-export {
-  ConnectedPane,
-  GeneralPane,
-  ModulesPane,
-  SourcesPane
-} from "./settings-personal-data-panes";
-
 export function ProfilePane({ me }: PaneProps) {
   const user = me.user;
   const role = user.isBootstrapOwner ? "Owner" : user.isInstanceAdmin ? "Admin" : "Member";

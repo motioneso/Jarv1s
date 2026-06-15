@@ -3,8 +3,30 @@ import type { UserDto } from "@jarv1s/shared";
 export type AdminUserActionPolicyUser = UserDto;
 export type AdminUserAction = "admin" | "deactivate" | "reactivate" | "remove";
 
-function activeAdminCount(users: readonly AdminUserActionPolicyUser[]): number {
+export interface AdminUserPolicyContext {
+  readonly activeAdminCount: number;
+}
+
+export type AdminUserPolicySource =
+  | readonly AdminUserActionPolicyUser[]
+  | AdminUserPolicyContext;
+
+export function createAdminUserPolicyContext(
+  users: readonly AdminUserActionPolicyUser[]
+): AdminUserPolicyContext {
+  return { activeAdminCount: countActiveAdmins(users) };
+}
+
+function countActiveAdmins(users: readonly AdminUserActionPolicyUser[]): number {
   return users.filter((user) => user.isInstanceAdmin && user.status === "active").length;
+}
+
+function isAdminUserPolicyContext(source: AdminUserPolicySource): source is AdminUserPolicyContext {
+  return !Array.isArray(source);
+}
+
+function activeAdminCount(source: AdminUserPolicySource): number {
+  return isAdminUserPolicyContext(source) ? source.activeAdminCount : countActiveAdmins(source);
 }
 
 function isCurrentUser(
@@ -16,51 +38,51 @@ function isCurrentUser(
 
 function protectsOnlyActiveAdmin(
   user: AdminUserActionPolicyUser,
-  users: readonly AdminUserActionPolicyUser[]
+  policy: AdminUserPolicySource
 ): boolean {
-  return user.isInstanceAdmin && user.status === "active" && activeAdminCount(users) <= 1;
+  return user.isInstanceAdmin && user.status === "active" && activeAdminCount(policy) <= 1;
 }
 
 export function canToggleAdminRole(
   user: AdminUserActionPolicyUser,
   currentUser: AdminUserActionPolicyUser,
-  users: readonly AdminUserActionPolicyUser[]
+  policy: AdminUserPolicySource
 ): boolean {
   if (isCurrentUser(user, currentUser) || user.isBootstrapOwner) return false;
   if (!user.isInstanceAdmin) return true;
-  return !protectsOnlyActiveAdmin(user, users);
+  return !protectsOnlyActiveAdmin(user, policy);
 }
 
 export function canChangeAdminUserStatus(
   user: AdminUserActionPolicyUser,
   currentUser: AdminUserActionPolicyUser,
-  users: readonly AdminUserActionPolicyUser[]
+  policy: AdminUserPolicySource
 ): boolean {
   if (isCurrentUser(user, currentUser) || user.isBootstrapOwner) return false;
   if (user.status === "deactivated") return true;
   if (user.status !== "active") return false;
-  return !protectsOnlyActiveAdmin(user, users);
+  return !protectsOnlyActiveAdmin(user, policy);
 }
 
 export function canRemoveAdminUser(
   user: AdminUserActionPolicyUser,
   currentUser: AdminUserActionPolicyUser,
-  users: readonly AdminUserActionPolicyUser[]
+  policy: AdminUserPolicySource
 ): boolean {
   if (isCurrentUser(user, currentUser) || user.isBootstrapOwner) return false;
-  return !protectsOnlyActiveAdmin(user, users);
+  return !protectsOnlyActiveAdmin(user, policy);
 }
 
 export function adminUserActions(
   user: AdminUserActionPolicyUser,
   currentUser: AdminUserActionPolicyUser,
-  users: readonly AdminUserActionPolicyUser[]
+  policy: AdminUserPolicySource
 ): readonly AdminUserAction[] {
   const actions: AdminUserAction[] = [];
-  if (canToggleAdminRole(user, currentUser, users)) actions.push("admin");
-  if (canChangeAdminUserStatus(user, currentUser, users)) {
+  if (canToggleAdminRole(user, currentUser, policy)) actions.push("admin");
+  if (canChangeAdminUserStatus(user, currentUser, policy)) {
     actions.push(user.status === "deactivated" ? "reactivate" : "deactivate");
   }
-  if (canRemoveAdminUser(user, currentUser, users)) actions.push("remove");
+  if (canRemoveAdminUser(user, currentUser, policy)) actions.push("remove");
   return actions;
 }
