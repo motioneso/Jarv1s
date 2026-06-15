@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { EMOTIONS } from "@jarv1s/shared";
 import { emVars, coreLabel, type WellnessEmotionCore, type Theme } from "./emotion-taxonomy";
 import { CheckinDetailFields } from "./checkin-detail-fields";
@@ -50,6 +50,8 @@ export function CheckinModal({
   const [sensations, setSensations] = useState<string[]>([]);
   const [intensity, setIntensity] = useState(3);
   const [note, setNote] = useState("");
+  const [search, setSearch] = useState("");
+  const [searchFocused, setSearchFocused] = useState(false);
 
   useEffect(() => {
     if (!open) return;
@@ -72,7 +74,25 @@ export function CheckinModal({
       setIntensity(3);
       setNote("");
     }
+    setSearch("");
   }, [open, initial, seedEmotion]);
+
+  const searchResults = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    if (!q) return [];
+    const hits: Array<{ core: WellnessEmotionCore; label: string; isCore: boolean }> = [];
+    for (const e of EMOTIONS) {
+      if (coreLabel(e.core).toLowerCase().includes(q)) {
+        hits.push({ core: e.core, label: coreLabel(e.core), isCore: true });
+      }
+      for (const f of e.feelings) {
+        if (f.label.toLowerCase().includes(q)) {
+          hits.push({ core: e.core, label: f.label, isCore: false });
+        }
+      }
+    }
+    return hits.slice(0, 8);
+  }, [search]);
 
   if (!open) return null;
 
@@ -83,6 +103,13 @@ export function CheckinModal({
     setEmotion(k);
     setFeeling(null);
     setSensations([]);
+  };
+
+  const pickFromSearch = (hit: { core: WellnessEmotionCore; label: string; isCore: boolean }) => {
+    setEmotion(hit.core);
+    setFeeling(hit.isCore ? null : hit.label);
+    setSensations([]);
+    setSearch("");
   };
 
   const toggleSensation = (s: string) => {
@@ -137,8 +164,40 @@ export function CheckinModal({
         <div className="wl-modal__body">
           <div>
             <div className="wl-q">What are you feeling?</div>
-            <div className="wl-qsub">Tap your core emotion on the wheel.</div>
-            <RadialDial value={emotion} onPick={pickEmotion} theme={theme} />
+            <div className="wl-qsub">Search by name or tap your core emotion on the wheel.</div>
+            <div className="wl-search">
+              <input
+                type="text"
+                className="wl-search__input"
+                placeholder="Search feelings…"
+                value={search}
+                autoComplete="off"
+                onChange={(ev) => setSearch(ev.target.value)}
+                onFocus={() => setSearchFocused(true)}
+                onBlur={() => setTimeout(() => setSearchFocused(false), 150)}
+              />
+              {searchFocused && searchResults.length > 0 && (
+                <div className="wl-search__results">
+                  {searchResults.map((hit, i) => (
+                    <button
+                      key={i}
+                      type="button"
+                      className="wl-search__item"
+                      onClick={() => pickFromSearch(hit)}
+                    >
+                      <span className="wl-search__core">
+                        {hit.isCore ? hit.label : coreLabel(hit.core)}
+                      </span>
+                      {!hit.isCore && <span className="wl-search__arrow">›</span>}
+                      {!hit.isCore && <span className="wl-search__label">{hit.label}</span>}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+            <div className="wl-dial-wrap">
+              <RadialDial value={emotion} onPick={pickEmotion} theme={theme} />
+            </div>
             {emotion && feeling ? (
               <div
                 style={{

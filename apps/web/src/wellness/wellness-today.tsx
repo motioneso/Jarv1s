@@ -530,8 +530,9 @@ function CheckinToday({
               <span className="k">Avg</span>
               <span className="v">
                 {avgV > 0 ? "+" : ""}
-                {avgV} · {avgBandLabel}
+                {avgV}
               </span>
+              <span className="k">{avgBandLabel}</span>
             </span>
           ) : null}
         </div>

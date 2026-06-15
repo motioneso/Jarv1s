@@ -447,6 +447,10 @@
   color: var(--text-muted);
 }
 .wl-done__mood {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 1px;
   margin-left: auto;
   text-align: right;
 }
