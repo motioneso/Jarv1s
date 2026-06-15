@@ -27,7 +27,7 @@ Open both and match the radial's geometry, colors, center treatment, and labels 
 
 ## Decisions (locked)
 
-- **D1 — Radial is the default check-in picker.** Remove the "radial" tweak as a *gating* mechanism
+- **D1 — Radial is the default check-in picker.** Remove the "radial" tweak as a _gating_ mechanism
   so the feeling-wheel renders by default in `CheckinModal` (and anywhere the check-in picker
   appears) without the user enabling any tweak. Current gate: `prefs.radial` checkbox in
   `apps/web/src/wellness/wellness-page.tsx:247` ("Feeling wheel" label). Remove the toggle and the
