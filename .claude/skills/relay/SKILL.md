@@ -50,10 +50,18 @@ pnpm store); re-installing is wasted time/tokens. Bootstrap should say `[ -d nod
   <slug>; `[ -d node_modules ] || pnpm install`; read `docs/.../<slug>-relay.md` IN FULL and resume
   via `coordinated-build`."
 - **Coordinator:** new pane; bootstrap = "you are the new coordinator for run <run-id>; read
-  `docs/coordination/<run-id>.md` IN FULL, invoke `coordinate`, re-confirm the pane-id lock line
-  (record your own `$HERDR_PANE_ID`), re-adopt the live fleet (`herdr pane list` + labels), confirm
-  you are driving, then reap the old coordinator pane." (No `pnpm install` — the coordinator pane
-  doesn't build.)
+  `docs/coordination/<run-id>.md` IN FULL, invoke `coordinate`, re-confirm the **session-id
+  authority line** (your own pane's `agent_session.value` from `herdr pane list` — session id is
+  authority; label is routing; the `…-N` pane number is ephemeral and reflows), re-adopt the live
+  fleet (`herdr pane list` + labels), confirm you are driving, then reap the old coordinator —
+  **resolving it fresh by label + session id, never by a `…-N` number written in this doc**." (No
+  `pnpm install` — the coordinator pane doesn't build.)
+
+  **⚠️ Never bake a `…-N` pane number into the bootstrap or the doc as a reap/address target.** Pane
+  numbers reflow the instant any pane opens or closes, so a number written here is very likely stale
+  by the time the successor reads it — it can point at an unrelated live session (a real near-miss:
+  a baked-in reap number had become the user's chat pane). Identify panes by **label + session id**
+  and have the successor resolve the number at read time.
 
 **3. Verify the successor is actually driving** before you go (`herdr pane read <pane>` — it
 should be reading the doc / re-adopting, not stuck on a trust prompt). Answer any prompt with
@@ -62,8 +70,9 @@ should be reading the doc / re-adopting, not stuck on a trust prompt). Answer an
 **4. Request reap.** Tell whoever reaps you:
 - **Build agent:** message the **coordinator** "relayed to <successor pane/label>, safe to reap me."
   The coordinator kills your pane.
-- **Coordinator:** the **successor** kills your old pane once it confirms it's driving
-  (`herdr pane` close/kill on your old pane id) — that instruction is in its bootstrap.
+- **Coordinator:** the **successor** kills your old pane once it confirms it's driving — it
+  **resolves your pane fresh by label + session id and verifies the session id before closing**
+  (never a bare `…-N` number from the bootstrap — it reflows). That instruction is in its bootstrap.
 
 ## Quick reference
 
@@ -73,7 +82,7 @@ should be reading the doc / re-adopting, not stuck on a trust prompt). Answer an
 | Flush coordinator state | update + commit `docs/coordination/<run-id>.md` |
 | Spawn successor | `herdr-handoff` skill |
 | Confirm it's driving | `herdr pane read <pane> --source visible --lines 20` |
-| Reap a spent pane | coordinator kills build agents; successor coordinator kills old coordinator |
+| Reap a spent pane | resolve target fresh by label + session id, verify session id, then close (never a baked `…-N` number) |
 
 ## Common mistakes
 
@@ -85,3 +94,7 @@ should be reading the doc / re-adopting, not stuck on a trust prompt). Answer an
 - **Walking away before the successor is confirmed driving.** Always `herdr pane read` it first.
 - **Two sessions live on the same work.** The reap must happen — don't leave the spent session
   running alongside its successor.
+- **Reaping by a stale pane number.** Pane `…-N` numbers reflow on every open/close, so a number
+  baked into a doc/bootstrap is likely pointing somewhere else by read time (a baked-in reap target
+  once became the user's chat pane). Before any `herdr pane close`, resolve the target fresh by
+  **label + session id** and confirm the session id matches what you intend to kill.
