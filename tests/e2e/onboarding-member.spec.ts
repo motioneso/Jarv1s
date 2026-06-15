@@ -46,8 +46,8 @@ test('"Skip setup" reaches the app shell', async ({ page }) => {
   await mockApi(page, memberState());
   await page.goto("/");
   await page.getByRole("button", { name: "Skip setup" }).first().click();
-  // After skip, the member completion path fires and the shell renders (Tasks land on /tasks).
-  await expect(page).toHaveURL(/\/tasks/);
+  await expect(page).toHaveURL(/\/today/);
+  await expect(page.locator(".module-nav").getByRole("link", { name: "Today" })).toBeVisible();
 });
 
 test("a completed member skips the wizard and sees the shell", async ({ page }) => {
@@ -62,7 +62,8 @@ test("a completed member skips the wizard and sees the shell", async ({ page }) 
     })
   );
   await page.goto("/");
-  await expect(page).toHaveURL(/\/tasks/);
+  await expect(page).toHaveURL(/\/today/);
+  await expect(page.locator(".module-nav").getByRole("link", { name: "Today" })).toBeVisible();
 });
 
 test("founder still sees the founder wizard (regression)", async ({ page }) => {
@@ -95,7 +96,7 @@ test("status-error fall-through: a failing /api/onboarding/status does NOT trap 
     await route.fulfill({ status: 500, contentType: "application/json", body: "{}" });
   });
   await page.goto("/");
-  // The member is NOT trapped in the wizard; the shell renders (Tasks landing).
-  await expect(page).toHaveURL(/\/tasks/);
+  await expect(page).toHaveURL(/\/today/);
+  await expect(page.locator(".module-nav").getByRole("link", { name: "Today" })).toBeVisible();
   await expect(page.getByRole("heading", { name: "Welcome to Jarv1s" })).toHaveCount(0);
 });
