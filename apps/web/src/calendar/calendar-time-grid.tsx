@@ -78,9 +78,10 @@ export function CalendarTimeGrid({ days, hourH, onPick }: TimeGridProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    if (scrollRef.current) {
-      scrollRef.current.scrollTop = 7 * hourH - 6;
-    }
+    const el = scrollRef.current;
+    if (!el) return;
+    const nowPx = nowMin() * (hourH / 60);
+    el.scrollTop = Math.max(0, nowPx - el.clientHeight / 2);
   }, [hourH]);
 
   const tmpl = `60px repeat(${days.length}, minmax(0, 1fr))`;
