@@ -8,6 +8,8 @@ import {
   type Theme
 } from "./emotion-taxonomy";
 import { CheckinDetailFields } from "./checkin-detail-fields";
+import { useWellnessPrefs } from "./wellness-prefs";
+import { RadialDial } from "./radial-dial";
 
 export interface CheckinFormValue {
   emotion: WellnessEmotionCore;
@@ -76,7 +78,7 @@ function XIcon() {
   );
 }
 
-type PickerStyle = "Guided" | "Palette";
+type PickerStyle = "Guided" | "Palette" | "Radial";
 
 export function CheckinModal({
   open,
@@ -86,9 +88,8 @@ export function CheckinModal({
   seedEmotion,
   theme = "light"
 }: Props) {
-  // Fixed picker style: Guided default, Palette available.
-  // Radial is deferred (spec: stretch).
-  const [pickerStyle] = useState<PickerStyle>("Guided");
+  const [prefs] = useWellnessPrefs();
+  const pickerStyle: PickerStyle = prefs.radial ? "Radial" : "Guided";
   const [emotion, setEmotion] = useState<WellnessEmotionCore | null>(null);
   const [feeling, setFeeling] = useState<string | null>(null);
   const [sensations, setSensations] = useState<string[]>([]);
@@ -239,6 +240,54 @@ export function CheckinModal({
               onNote={setNote}
               theme={theme}
             />
+          </div>
+        ) : null}
+      </div>
+    );
+    foot = (
+      <>
+        <span className="spacer" />
+        <button type="button" className="ghost-button" onClick={onClose}>
+          Cancel
+        </button>
+        <button type="button" className="primary-button" disabled={!canSave} onClick={save}>
+          {initial ? "Update check-in" : "Save check-in"}
+        </button>
+      </>
+    );
+  } else if (pickerStyle === "Radial") {
+    body = (
+      <div>
+        <div className="wl-q">What are you feeling?</div>
+        <div className="wl-qsub">Tap your core emotion on the wheel.</div>
+        <RadialDial value={emotion} onPick={(k) => { pickEmotion(k); setStep(1); }} theme={theme} />
+        {emotion && feeling ? (
+          <div
+            style={{
+              marginTop: 22,
+              paddingTop: 20,
+              borderTop: "1px solid var(--border-subtle)",
+              ...emVars(emotion, theme)
+            }}
+          >
+            <CheckinDetailFields
+              emotion={emotion}
+              feeling={feeling}
+              sensations={sensations}
+              intensity={intensity}
+              note={note}
+              onSensation={toggleSensation}
+              onIntensity={setIntensity}
+              onNote={setNote}
+              theme={theme}
+            />
+          </div>
+        ) : emotion ? (
+          <div style={{ marginTop: 18 }}>
+            <div className="wl-q" style={{ fontSize: 15 }}>
+              Which shade of {coreLabel(emotion)}?
+            </div>
+            <FeelingChips />
           </div>
         ) : null}
       </div>
