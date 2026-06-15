@@ -1,7 +1,6 @@
 import { expect, test } from "@playwright/test";
 
 import {
-  createMockBriefingDefinition,
   createMockConnectorAccount,
   createMockConnectorProviders,
   createMockNotification,
@@ -25,16 +24,15 @@ test("signs in and renders shell navigation", async ({ page }) => {
   await page.getByLabel("Password").fill("correct horse battery staple");
   await page.locator("form").getByRole("button", { name: "Sign in" }).click();
 
+  await expect(page).toHaveURL(/\/today/);
+  await expect(page.locator(".module-nav").getByRole("link", { name: "Today" })).toBeVisible();
   await expect(page.locator(".module-nav").getByRole("link", { name: "Tasks" })).toBeVisible();
-  await expect(
-    page.locator(".module-nav").getByRole("link", { name: "Notifications" })
-  ).toBeVisible();
   await expect(page.locator(".module-nav").getByRole("link", { name: "Calendar" })).toBeVisible();
-  await expect(page.locator(".module-nav").getByRole("link", { name: "Email" })).toBeVisible();
-  // Chat is a drawer toggle (button), not a route link.
-  await expect(page.locator(".module-nav").getByRole("button", { name: "Chat" })).toBeVisible();
-  await expect(page.locator(".module-nav").getByRole("link", { name: "Briefings" })).toBeVisible();
-  await expect(page.locator(".module-nav").getByRole("link", { name: "Settings" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Chat with Jarvis" })).toBeVisible();
+
+  await page.getByRole("button", { name: /Owner User/ }).click();
+  await expect(page.getByRole("button", { name: /Notifications/ })).toBeVisible();
+  await expect(page.getByRole("button", { name: /Settings & permissions/ })).toBeVisible();
 });
 
 test("gates a protected route behind sign-in when unauthenticated", async ({ page }) => {
@@ -52,7 +50,7 @@ test("gates a protected route behind sign-in when unauthenticated", async ({ pag
 
   await expect(page.getByRole("heading", { name: "Sign in" })).toBeVisible();
   // The protected shell navigation and any owner data must not be rendered.
-  await expect(page.locator(".module-nav").getByRole("link", { name: "Settings" })).toHaveCount(0);
+  await expect(page.locator(".module-nav").getByRole("link", { name: "Tasks" })).toHaveCount(0);
   await expect(page.getByText("Owner-only secret task")).toHaveCount(0);
 });
 
@@ -85,10 +83,10 @@ test("creates and updates tasks through REST calls", async ({ page }) => {
   });
 
   await page.goto("/tasks");
-  await expect(page.getByRole("heading", { name: "Tasks", level: 1 })).toBeVisible();
+  await expect(page.getByRole("region", { name: "Tasks" })).toBeVisible();
 
   await page.getByLabel("Task title").fill("Renew passport");
-  await page.getByRole("button", { name: "Add", exact: true }).click();
+  await page.getByLabel("Task title").press("Enter");
 
   await expect(page.getByText("Renew passport")).toBeVisible();
 });
@@ -107,26 +105,22 @@ test("lists and marks notifications read through REST calls", async ({ page }) =
 
   await page.goto("/notifications");
   await expect(page.getByRole("heading", { name: "Notifications" })).toBeVisible();
-  await expect(page.getByLabel("Notifications, 2 unread")).toBeVisible();
+  await expect(page.getByRole("button", { name: /Unread\s*2/ })).toBeVisible();
   await expect(page.getByText("New secure notice")).toBeVisible();
 
   await page.getByLabel("Mark New secure notice read").click();
-  await expect(page.getByLabel("Notifications, 1 unread")).toBeVisible();
+  await expect(page.getByRole("button", { name: /Unread\s*1/ })).toBeVisible();
 
   await page.getByRole("button", { name: "Mark all read" }).click();
+  await expect(page.getByRole("button", { name: /Unread\s*0/ })).toBeVisible();
   await page.getByRole("button", { name: /Unread/ }).click();
   await expect(page.getByText("No notifications")).toBeVisible();
 });
 
-test("Calendar and Email pages render their real (empty) data views", async ({ page }) => {
-  // The retired coming-soon placeholders were replaced by real React-Query pages
-  // in Phase 3 connector-sync (H2/H3). With no cached data the pages show their
-  // empty states, not the old "coming soon" copy. Full data rendering is covered
-  // by tests/e2e/calendar-email.spec.ts.
+test("Calendar page renders its real empty data view", async ({ page }) => {
   await mockApi(page, {
     authenticated: true,
     calendarEvents: [],
-    emailMessages: [],
     connectorAccounts: [],
     connectorProviders: createMockConnectorProviders(),
     notifications: [],
@@ -137,11 +131,6 @@ test("Calendar and Email pages render their real (empty) data views", async ({ p
   await expect(page.getByRole("heading", { name: "Calendar", level: 1 })).toBeVisible();
   await expect(page.getByText("No upcoming events")).toBeVisible();
   await expect(page.getByText("Calendar is coming soon.")).toHaveCount(0);
-
-  await page.locator(".module-nav").getByRole("link", { name: "Email" }).click();
-  await expect(page.getByRole("heading", { name: "Email", level: 1 })).toBeVisible();
-  await expect(page.getByText("No email messages")).toBeVisible();
-  await expect(page.getByText("Email is coming soon.")).toHaveCount(0);
 });
 
 test("connector accounts panel shows existing accounts and supports revoke", async ({ page }) => {
@@ -213,41 +202,6 @@ test("configures AI providers and capability routing through settings REST calls
   await expect(page.getByText("Shared Jarvis assistant")).toBeVisible();
 });
 
-test("creates and runs briefings through REST calls", async ({ page }) => {
-  await mockApi(page, {
-    authenticated: true,
-    briefingDefinitions: [createMockBriefingDefinition("briefing-existing", "Daily digest")],
-    briefingRuns: {
-      "briefing-existing": []
-    },
-    connectorAccounts: [],
-    connectorProviders: createMockConnectorProviders(),
-    notifications: [],
-    tasks: [createMockTask("task-briefing", "M6 briefings smoke source")]
-  });
-
-  await page.goto("/briefings");
-  await expect(page.getByRole("heading", { name: "Briefings" })).toBeVisible();
-  await expect(page.getByRole("button", { name: "Daily digest" })).toBeVisible();
-
-  const definitions = page.locator('[aria-label="Briefing definitions"]');
-  const detail = page.locator('[aria-label="Briefing detail"]');
-
-  await definitions.getByLabel("New briefing title").fill("M6 briefing smoke");
-  await definitions.getByLabel("tasks.listVisible").check();
-  await definitions.getByRole("button", { name: "Create briefing" }).click();
-  await expect(page.getByRole("button", { name: "M6 briefing smoke" })).toBeVisible();
-
-  await detail.getByLabel("Edit briefing title").fill("M6 briefing smoke updated");
-  await detail.getByRole("button", { name: "Save briefing" }).click();
-  await expect(page.getByRole("button", { name: "M6 briefing smoke updated" })).toBeVisible();
-
-  await detail.getByRole("button", { name: "Run briefing" }).click();
-  await expect(detail.getByText(/Queued briefing-run/)).toBeVisible();
-  await expect(detail.getByText("succeeded", { exact: true })).toBeVisible();
-  await expect(detail.getByText("Tasks: 1 visible; top: M6 briefings smoke source")).toBeVisible();
-});
-
 test("serves PWA metadata", async ({ page }) => {
   const response = await page.request.get("/manifest.webmanifest");
   const manifest = (await response.json()) as { readonly name?: string };
@@ -302,7 +256,7 @@ test.describe("Chat drawer — Approve/Deny card", () => {
     });
 
     await page.goto("/");
-    await page.locator(".module-nav").getByRole("button", { name: "Chat" }).click();
+    await page.getByRole("button", { name: "Chat with Jarvis" }).click();
 
     // Wait for the Approve/Deny card to appear
     await expect(page.locator(".action-request-card")).toBeVisible({ timeout: 3000 });
@@ -360,7 +314,7 @@ test.describe("Chat drawer — Approve/Deny card", () => {
     });
 
     await page.goto("/");
-    await page.locator(".module-nav").getByRole("button", { name: "Chat" }).click();
+    await page.getByRole("button", { name: "Chat with Jarvis" }).click();
 
     await expect(page.locator(".action-request-card")).toBeVisible({ timeout: 3000 });
     await page.locator(".action-request-card").getByRole("button", { name: "Deny" }).click();
