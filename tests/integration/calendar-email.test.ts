@@ -1,5 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { randomUUID } from "node:crypto";
 import type { Kysely } from "kysely";
+import { sql } from "kysely";
 import pg from "pg";
 
 import { createApiServer } from "../../apps/api/src/server.js";
@@ -7,11 +9,17 @@ import {
   AuthSessionResolver,
   DataContextRunner,
   SharesRepository,
+  assertDataContextDb,
   createDatabase,
   type AccessContext,
+  type DataContextDb,
   type JarvisDatabase
 } from "@jarv1s/db";
-import { CalendarRepository, calendarModuleManifest } from "@jarv1s/calendar";
+import {
+  CalendarRepository,
+  calendarModuleManifest,
+  serializeCalendarEvent
+} from "@jarv1s/calendar";
 import { EmailRepository, emailModuleManifest, serializeEmailMessage } from "@jarv1s/email";
 import {
   getBuiltInModuleManifests,
@@ -21,6 +29,41 @@ import {
 import { connectionStrings, ids, resetFoundationDatabase } from "./test-database.js";
 
 const { Client } = pg;
+
+async function insertCalendarEventForTest(
+  scopedDb: DataContextDb,
+  input: {
+    connectorAccountId: string;
+    title: string;
+    startsAt: string;
+    endsAt: string;
+    externalId: string;
+    externalMetadata?: Record<string, unknown>;
+    id?: string;
+  }
+) {
+  assertDataContextDb(scopedDb);
+  const now = new Date();
+  return scopedDb.db
+    .insertInto("app.calendar_events")
+    .values({
+      id: input.id ?? randomUUID(),
+      connector_account_id: input.connectorAccountId,
+      owner_user_id: sql<string>`app.current_actor_user_id()`,
+      title: input.title,
+      starts_at: input.startsAt,
+      ends_at: input.endsAt,
+      location: null,
+      summary: null,
+      body_excerpt: null,
+      external_id: input.externalId,
+      external_metadata: input.externalMetadata ?? {},
+      created_at: now,
+      updated_at: now
+    })
+    .returningAll()
+    .executeTakeFirstOrThrow();
+}
 
 const connectorAccountIds = {
   aCalendar: "60000000-0000-4000-8000-000000000001",
@@ -207,7 +250,7 @@ describe("Calendar and Email connector-backed read modules", () => {
 
   it("creates local cache rows only for connector accounts owned by the active actor", async () => {
     const event = await dataContext.withDataContext(userAContext(), (scopedDb) =>
-      calendarRepository.createCachedEventForTest(scopedDb, {
+      insertCalendarEventForTest(scopedDb, {
         connectorAccountId: connectorAccountIds.aCalendar,
         title: "Repository cached event",
         startsAt: "2026-06-07T10:00:00.000Z",
@@ -228,7 +271,7 @@ describe("Calendar and Email connector-backed read modules", () => {
 
     await expect(
       dataContext.withDataContext(userAContext(), (scopedDb) =>
-        calendarRepository.createCachedEventForTest(scopedDb, {
+        insertCalendarEventForTest(scopedDb, {
           connectorAccountId: connectorAccountIds.aEmail,
           title: "Wrong provider event",
           startsAt: "2026-06-07T10:00:00.000Z",
@@ -257,7 +300,7 @@ describe("Calendar and Email connector-backed read modules", () => {
     // context for private rows — only the connector-account integrity check and
     // owner_user_id match are enforced.
     const event = await dataContext.withDataContext(userAContext(), (scopedDb) =>
-      calendarRepository.createCachedEventForTest(scopedDb, {
+      insertCalendarEventForTest(scopedDb, {
         connectorAccountId: connectorAccountIds.aCalendar,
         title: "Owner private event no workspace",
         startsAt: "2026-06-07T13:00:00.000Z",
@@ -441,6 +484,141 @@ describe("Calendar and Email connector-backed read modules", () => {
     await expect(emailRepository.listVisible({} as never)).rejects.toThrow(
       "Repository access requires withDataContext"
     );
+  });
+
+  describe("serialize.ts — egress allowlist and value-shape narrowing", () => {
+    it("drops all unknown metadata keys and projects only the allowlisted derived fields", async () => {
+      const row = await dataContext.withDataContext(userAContext(), (scopedDb) =>
+        insertCalendarEventForTest(scopedDb, {
+          connectorAccountId: connectorAccountIds.aCalendar,
+          title: "Egress test event",
+          startsAt: "2026-06-15T10:00:00.000Z",
+          endsAt: "2026-06-15T11:00:00.000Z",
+          externalId: "egress-test-event-1",
+          externalMetadata: {
+            allDay: true,
+            attendeeCount: 3,
+            status: "confirmed",
+            historyId: "secret-history-id",
+            labelIds: ["INBOX"],
+            htmlLink: "https://calendar.google.com/secret-link",
+            secretJunk: "should-not-leak"
+          }
+        })
+      );
+
+      const dto = serializeCalendarEvent(row);
+
+      expect(dto.allDay).toBe(true);
+      expect(dto.attendeeCount).toBe(3);
+      expect(dto.status).toBe("confirmed");
+      expect(dto.isJarvisBlock).toBe(false);
+      expect("externalMetadata" in dto).toBe(false);
+      expect("historyId" in dto).toBe(false);
+      expect("labelIds" in dto).toBe(false);
+      expect("htmlLink" in dto).toBe(false);
+      expect("secretJunk" in dto).toBe(false);
+      expect(Object.keys(dto).sort()).toEqual([
+        "allDay", "attendeeCount", "bodyExcerpt", "connectorAccountId",
+        "createdAt", "endsAt", "externalId", "id", "isJarvisBlock",
+        "location", "ownerUserId", "startsAt", "status", "summary", "title", "updatedAt"
+      ]);
+    });
+
+    it("serializes a row with no metadata to safe defaults", async () => {
+      const row = await dataContext.withDataContext(userAContext(), (scopedDb) =>
+        insertCalendarEventForTest(scopedDb, {
+          connectorAccountId: connectorAccountIds.aCalendar,
+          title: "No-metadata event",
+          startsAt: "2026-06-15T12:00:00.000Z",
+          endsAt: "2026-06-15T13:00:00.000Z",
+          externalId: "no-metadata-event-1",
+          externalMetadata: {}
+        })
+      );
+
+      const dto = serializeCalendarEvent(row);
+
+      expect(dto.isJarvisBlock).toBe(false);
+      expect(dto.allDay).toBe(false);
+      expect(dto.attendeeCount).toBe(0);
+      expect(dto.status).toBeNull();
+    });
+
+    it("coerces wrong-typed allowlisted values to safe defaults (value-shape narrowing)", async () => {
+      const row = await dataContext.withDataContext(userAContext(), (scopedDb) =>
+        insertCalendarEventForTest(scopedDb, {
+          connectorAccountId: connectorAccountIds.aCalendar,
+          title: "Wrong-typed metadata event",
+          startsAt: "2026-06-15T14:00:00.000Z",
+          endsAt: "2026-06-15T15:00:00.000Z",
+          externalId: "wrong-typed-event-1",
+          externalMetadata: {
+            status: { nested: "blob" },
+            attendeeCount: "12",
+            allDay: "yes"
+          }
+        })
+      );
+
+      const dto = serializeCalendarEvent(row);
+
+      expect(dto.status).toBeNull();
+      expect(dto.attendeeCount).toBe(0);
+      expect(dto.allDay).toBe(false);
+    });
+
+    it("isJarvisBlock=true for exact jfb+32-char id even when metadata has no jarvisCreated flag", async () => {
+      const realJfbId = "jfb" + "a".repeat(32);
+      const row = await dataContext.withDataContext(userAContext(), (scopedDb) =>
+        insertCalendarEventForTest(scopedDb, {
+          connectorAccountId: connectorAccountIds.aCalendar,
+          title: "Focus block re-synced",
+          startsAt: "2026-06-15T08:00:00.000Z",
+          endsAt: "2026-06-15T09:00:00.000Z",
+          externalId: realJfbId,
+          externalMetadata: {}
+        })
+      );
+
+      const dto = serializeCalendarEvent(row);
+
+      expect(dto.isJarvisBlock).toBe(true);
+    });
+
+    it("isJarvisBlock=false for a normal Google event id (not jfb shape)", async () => {
+      const row = await dataContext.withDataContext(userAContext(), (scopedDb) =>
+        insertCalendarEventForTest(scopedDb, {
+          connectorAccountId: connectorAccountIds.aCalendar,
+          title: "Normal external event",
+          startsAt: "2026-06-15T09:00:00.000Z",
+          endsAt: "2026-06-15T10:00:00.000Z",
+          externalId: "abc123xyz_google_event_id",
+          externalMetadata: {}
+        })
+      );
+
+      const dto = serializeCalendarEvent(row);
+
+      expect(dto.isJarvisBlock).toBe(false);
+    });
+
+    it("false-positive guard: jfbMEETING_2026 is NOT a Jarvis block (wrong shape)", async () => {
+      const row = await dataContext.withDataContext(userAContext(), (scopedDb) =>
+        insertCalendarEventForTest(scopedDb, {
+          connectorAccountId: connectorAccountIds.aCalendar,
+          title: "Meeting with jfb prefix",
+          startsAt: "2026-06-15T10:30:00.000Z",
+          endsAt: "2026-06-15T11:30:00.000Z",
+          externalId: "jfbMEETING_2026",
+          externalMetadata: {}
+        })
+      );
+
+      const dto = serializeCalendarEvent(row);
+
+      expect(dto.isJarvisBlock).toBe(false);
+    });
   });
 });
 

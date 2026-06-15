@@ -39,35 +39,6 @@ export class CalendarRepository {
       .executeTakeFirst();
   }
 
-  async createCachedEventForTest(
-    scopedDb: DataContextDb,
-    input: CreateCachedCalendarEventInput
-  ): Promise<CalendarEvent> {
-    assertDataContextDb(scopedDb);
-
-    const now = new Date();
-
-    return scopedDb.db
-      .insertInto("app.calendar_events")
-      .values({
-        id: input.id ?? randomUUID(),
-        connector_account_id: input.connectorAccountId,
-        owner_user_id: sql<string>`app.current_actor_user_id()`,
-        title: input.title,
-        starts_at: input.startsAt,
-        ends_at: input.endsAt,
-        location: input.location ?? null,
-        summary: input.summary ?? null,
-        body_excerpt: input.bodyExcerpt ?? null,
-        external_id: input.externalId,
-        external_metadata: input.externalMetadata ?? {},
-        created_at: now,
-        updated_at: now
-      })
-      .returningAll()
-      .executeTakeFirstOrThrow();
-  }
-
   async upsertCachedEvent(
     scopedDb: DataContextDb,
     input: CreateCachedCalendarEventInput
