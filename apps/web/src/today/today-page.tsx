@@ -20,12 +20,15 @@ import {
   Pill,
   Target
 } from "lucide-react";
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router";
 
 import type { CalendarEventDto, MeResponse, TaskDto } from "@jarv1s/shared";
 
-import { listCalendarEvents, listTasks, updateTask } from "../api/client";
+import { createWellnessCheckin, listCalendarEvents, listTasks, updateTask } from "../api/client";
+import { MedToday } from "../wellness/wellness-today";
+import { ManageMedsModal } from "../wellness/manage-meds-modal";
+import { CheckinModal, type CheckinFormValue } from "../wellness/checkin-modal";
 import { queryKeys } from "../api/query-keys";
 import { createEmptyTodayFeed, type FeedTone, type TodayFeed } from "./feed-source";
 import { isAtRisk, isDoFirst, isDoneToday } from "../tasks/focus";
@@ -47,6 +50,29 @@ export function TodayPage(props: { readonly me: MeResponse; readonly feed?: Toda
     mutationFn: (task: TaskDto) =>
       updateTask(task.id, { status: task.status === "done" ? "todo" : "done" }),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.tasks.list })
+  });
+
+  const theme = document.documentElement.getAttribute("data-theme") === "dark" ? "dark" : "light";
+  const [medsModalOpen, setMedsModalOpen] = useState(false);
+  const [manageMedsOpen, setManageMedsOpen] = useState(false);
+  const [checkinModalOpen, setCheckinModalOpen] = useState(false);
+
+  const createCheckinMutation = useMutation({
+    mutationFn: (val: CheckinFormValue) =>
+      createWellnessCheckin({
+        feelingCore: val.emotion,
+        feelingSecondary: val.feeling,
+        feelingTertiary: null,
+        sensations: val.sensations,
+        intensity: val.intensity,
+        note: val.note || null,
+        identifiedVia: "wheel"
+      }),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: queryKeys.wellness.checkins });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.wellness.insights });
+      setCheckinModalOpen(false);
+    }
   });
 
   const tasks = tasksQuery.data?.tasks ?? [];
@@ -262,7 +288,10 @@ export function TodayPage(props: { readonly me: MeResponse; readonly feed?: Toda
               <span className="well__title">Wellness</span>
             </div>
             <div className="well__actions">
-              <button className="well__btn well__btn--meds" onClick={() => navigate("/wellness")}>
+              <button
+                className="well__btn well__btn--meds"
+                onClick={() => setMedsModalOpen(true)}
+              >
                 <span className="lead">
                   <span className="ic">
                     <Pill size={15} aria-hidden="true" />
@@ -270,7 +299,7 @@ export function TodayPage(props: { readonly me: MeResponse; readonly feed?: Toda
                   Meds
                 </span>
               </button>
-              <button className="well__btn" onClick={() => navigate("/wellness")}>
+              <button className="well__btn" onClick={() => setCheckinModalOpen(true)}>
                 <span className="ic">
                   <ClipboardCheck size={15} aria-hidden="true" />
                 </span>
@@ -280,7 +309,90 @@ export function TodayPage(props: { readonly me: MeResponse; readonly feed?: Toda
           </div>
         </aside>
       </div>
+      {medsModalOpen ? (
+        <div
+          className="wl-modal-scrim"
+          onMouseDown={(ev) => {
+            if (ev.target === ev.currentTarget) setMedsModalOpen(false);
+          }}
+        >
+          <div
+            className="wl-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="today-meds-title"
+            style={{ maxWidth: 480 }}
+          >
+            <div className="wl-modal__head">
+              <div className="hm">
+                <div className="wl-modal__eyebrow">Today</div>
+                <div className="wl-modal__title" id="today-meds-title">
+                  Medications
+                </div>
+              </div>
+              <button
+                type="button"
+                className="wl-modal__x"
+                aria-label="Close"
+                onClick={() => setMedsModalOpen(false)}
+              >
+                <XIcon />
+              </button>
+            </div>
+            <div className="wl-modal__body" style={{ padding: "0 0 8px" }}>
+              <MedToday
+                theme={theme}
+                onManage={() => {
+                  setMedsModalOpen(false);
+                  setManageMedsOpen(true);
+                }}
+              />
+            </div>
+            <div className="wl-modal__foot">
+              <span className="spacer" />
+              <button
+                type="button"
+                className="primary-button"
+                onClick={() => setMedsModalOpen(false)}
+              >
+                Done
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      <ManageMedsModal
+        open={manageMedsOpen}
+        onClose={() => setManageMedsOpen(false)}
+        theme={theme}
+      />
+
+      <CheckinModal
+        open={checkinModalOpen}
+        onClose={() => setCheckinModalOpen(false)}
+        onSave={(val) => createCheckinMutation.mutate(val)}
+        initial={null}
+        seedEmotion={null}
+        theme={theme}
+      />
     </div>
+  );
+}
+
+function XIcon() {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      width="18"
+      height="18"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2.2"
+      strokeLinecap="round"
+    >
+      <path d="M18 6 6 18M6 6l12 12" />
+    </svg>
   );
 }
 
