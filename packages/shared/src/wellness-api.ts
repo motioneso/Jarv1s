@@ -159,10 +159,6 @@ export interface MedicationScheduleResponse {
   readonly slots: readonly ScheduleSlotDto[];
 }
 
-export interface MedicationLogsResponse {
-  readonly logs: readonly MedicationLogDto[];
-}
-
 // ── Adherence Summary DTOs ─────────────────────────────────────────────────
 export interface AdherenceDoseSummaryItemDto {
   readonly medicationId: string;
@@ -330,12 +326,6 @@ export const medicationLogDtoSchema = {
     scheduledFor: nullableStringSchema,
     loggedAt: nullableStringSchema
   }
-} as const;
-
-export const medicationLogsResponseSchema = {
-  type: "object",
-  required: ["logs"],
-  properties: { logs: { type: "array", items: medicationLogDtoSchema } }
 } as const;
 
 export const adherenceDoseSummaryItemDtoSchema = {
@@ -627,9 +617,6 @@ export const createTherapyNoteRouteSchema = {
 } as const;
 export const deleteTherapyNoteRouteSchema = {
   response: { 200: deleteTherapyNoteResponseSchema, 404: errorResponseSchema }
-} as const;
-export const medicationLogsRouteSchema = {
-  response: { 200: medicationLogsResponseSchema }
 } as const;
 export const medicationAdherenceSummaryRouteSchema = {
   response: { 200: medicationAdherenceSummaryResponseSchema }

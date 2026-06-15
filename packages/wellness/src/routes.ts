@@ -110,8 +110,15 @@ export function registerWellnessRoutes(
       try {
         const accessContext = await dependencies.resolveAccessContext(request);
         const input = parseUpdateCheckinBody(request.body);
-        const checkin = await dependencies.dataContext.withDataContext(accessContext, (scopedDb) =>
-          repo.updateCheckin(scopedDb, request.params.id, input)
+        const checkin = await dependencies.dataContext.withDataContext(
+          accessContext,
+          async (scopedDb) => {
+            const updated = await repo.updateCheckin(scopedDb, request.params.id, input);
+            if (updated && input.energy !== undefined) {
+              await recallContributor.refreshEnergyTrendFact(scopedDb, accessContext.actorUserId);
+            }
+            return updated;
+          }
         );
         if (!checkin) return reply.code(404).send({ error: "Check-in not found" });
         return { checkin: serializeCheckin(checkin) };
@@ -489,7 +496,8 @@ function parseUpdateCheckinBody(body: unknown): UpdateCheckinInput {
   return {
     feelingCore,
     feelingSecondary,
-    sensations: parseStringArray(value["sensations"], "sensations"),
+    // Omitted sensations → undefined (preserve existing); explicit [] → clear; non-empty → set.
+    sensations: parseOptionalStringArray(value["sensations"], "sensations"),
     intensity: intensity === undefined ? undefined : (intensity as number | null),
     energy: energy === undefined ? undefined : (energy as number | null),
     note: optionalNullableString(value["note"], "note")
@@ -699,6 +707,14 @@ function optionalNumberArray(value: unknown): number[] | null | undefined {
 }
 function parseStringArray(value: unknown, field: string): string[] {
   if (value === undefined || value === null) return [];
+  if (!Array.isArray(value) || value.some((s) => typeof s !== "string")) {
+    throw new HttpError(400, `${field} must be an array of strings`);
+  }
+  return value as string[];
+}
+// Variant for PATCH bodies: omitted field returns undefined (leave unchanged), explicit [] clears.
+function parseOptionalStringArray(value: unknown, field: string): string[] | undefined {
+  if (value === undefined) return undefined;
   if (!Array.isArray(value) || value.some((s) => typeof s !== "string")) {
     throw new HttpError(400, `${field} must be an array of strings`);
   }

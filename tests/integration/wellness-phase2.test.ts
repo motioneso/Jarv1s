@@ -317,6 +317,101 @@ describe("PATCH /api/wellness/checkins/:id", () => {
   });
 });
 
+describe("PATCH /api/wellness/checkins/:id — partial-update semantics (R1 regression)", () => {
+  it("PATCH without sensations retains original sensations array", async () => {
+    const repo = new WellnessRepository();
+    let checkinId = "";
+    const originalSensations = ["tight chest", "racing heart"];
+    await dataContext.withDataContext(ctx(userId), async (db) => {
+      const c = await repo.createCheckin(db, {
+        feelingCore: "fear",
+        sensations: originalSensations
+      });
+      checkinId = c.id;
+    });
+    const app = Fastify();
+    registerWellnessRoutes(app, {
+      resolveAccessContext: async () => ({ actorUserId: userId, requestId: "req:partial-sens" }),
+      dataContext
+    });
+    await app.ready();
+    try {
+      // PATCH with only feelingCore — sensations omitted
+      const res = await app.inject({
+        method: "PATCH",
+        url: `/api/wellness/checkins/${checkinId}`,
+        payload: { feelingCore: "sad" }
+      });
+      expect(res.statusCode).toBe(200);
+      const body = res.json();
+      expect(body.checkin.feelingCore).toBe("sad");
+      // sensations must be PRESERVED (not cleared)
+      expect(body.checkin.sensations).toEqual(originalSensations);
+    } finally {
+      await app.close();
+    }
+  });
+
+  it("PATCH with sensations:[] clears the array", async () => {
+    const repo = new WellnessRepository();
+    let checkinId = "";
+    await dataContext.withDataContext(ctx(userId), async (db) => {
+      const c = await repo.createCheckin(db, {
+        feelingCore: "anger",
+        sensations: ["clenched jaw"]
+      });
+      checkinId = c.id;
+    });
+    const app = Fastify();
+    registerWellnessRoutes(app, {
+      resolveAccessContext: async () => ({ actorUserId: userId, requestId: "req:clear-sens" }),
+      dataContext
+    });
+    await app.ready();
+    try {
+      const res = await app.inject({
+        method: "PATCH",
+        url: `/api/wellness/checkins/${checkinId}`,
+        payload: { feelingCore: "anger", sensations: [] }
+      });
+      expect(res.statusCode).toBe(200);
+      const body = res.json();
+      expect(body.checkin.sensations).toEqual([]);
+    } finally {
+      await app.close();
+    }
+  });
+});
+
+describe("PATCH /api/wellness/checkins/:id — energy triggers recall refresh (R2 regression)", () => {
+  it("PATCH with energy field completes without error (recall contributor called)", async () => {
+    const repo = new WellnessRepository();
+    let checkinId = "";
+    await dataContext.withDataContext(ctx(userId), async (db) => {
+      const c = await repo.createCheckin(db, { feelingCore: "happy", energy: 3 });
+      checkinId = c.id;
+    });
+    const app = Fastify();
+    registerWellnessRoutes(app, {
+      resolveAccessContext: async () => ({ actorUserId: userId, requestId: "req:energy-recall" }),
+      dataContext
+    });
+    await app.ready();
+    try {
+      const res = await app.inject({
+        method: "PATCH",
+        url: `/api/wellness/checkins/${checkinId}`,
+        payload: { feelingCore: "happy", energy: 5 }
+      });
+      expect(res.statusCode).toBe(200);
+      const body = res.json();
+      expect(body.checkin.energy).toBe(5);
+    } finally {
+      await app.close();
+    }
+  });
+});
+
 describe("GET /api/wellness/medications/logs — adherence summary", () => {
   it("returns per-day summary without dose/prnReason fields", async () => {
     const app = Fastify();

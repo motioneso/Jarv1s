@@ -108,12 +108,24 @@ test.beforeEach(async ({ page }) => {
     })
   );
 
-  // Medication logs range (Trends chart) — empty.
+  // Medication adherence summary (Trends chart) — one day with partial adherence.
   await page.route("**/api/wellness/medications/logs**", (route) =>
     route.fulfill({
       status: 200,
       contentType: "application/json",
-      body: JSON.stringify({ logs: [] })
+      body: JSON.stringify({
+        days: [
+          {
+            date: "2026-06-14",
+            scheduledCount: 2,
+            takenCount: 1,
+            doses: [
+              { medicationId: "m-1", name: "MedA", status: "taken", prn: false },
+              { medicationId: "m-1", name: "MedA", status: "pending", prn: false }
+            ]
+          }
+        ]
+      })
     })
   );
 
@@ -295,6 +307,17 @@ test("wellness route fails closed when the module-state request errors", async (
   await page.goto("/wellness");
   await expect(page).toHaveURL(/\/tasks$/);
   await expect(page.getByRole("heading", { name: "How you're really doing." })).toHaveCount(0);
+});
+
+test("trends chart renders using adherence summary shape (days[] not logs[])", async ({ page }) => {
+  await page.goto("/wellness");
+  await expect(page.getByRole("heading", { name: "How you're really doing." })).toBeVisible();
+  // The Trends section renders a chart card — assert the heading text is present.
+  await expect(page.getByText("Mood & medication")).toBeVisible();
+  // The chart SVG renders (no crash from mismatched shape).
+  await expect(
+    page.locator(".wl-chart__plot svg[aria-label='Mood trend with daily medication adherence']")
+  ).toBeVisible();
 });
 
 test("wellness route fails closed when the module is absent from the state response", async ({
