@@ -5,7 +5,7 @@ import {
   type AdherenceDoseSummaryItemDto
 } from "@jarv1s/shared";
 import { emoColor, MOOD_BAND_LABELS, type Theme } from "./emotion-taxonomy";
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 
 const VW = 760; // SVG viewBox width
 
@@ -79,6 +79,18 @@ export function WellnessChart({ days, theme = "light" }: Props) {
   const [hover, setHover] = useState<number | null>(null);
   const [pinned, setPinned] = useState<number | null>(null);
   const active = pinned != null ? pinned : hover;
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (pinned === null) return;
+    const handler = (ev: PointerEvent) => {
+      if (containerRef.current && !containerRef.current.contains(ev.target as Node)) {
+        setPinned(null);
+      }
+    };
+    document.addEventListener("pointerdown", handler);
+    return () => document.removeEventListener("pointerdown", handler);
+  }, [pinned]);
 
   const left = 44;
   const right = 12;
@@ -135,7 +147,7 @@ export function WellnessChart({ days, theme = "light" }: Props) {
   };
 
   return (
-    <div className="wl-chart__plot">
+    <div className="wl-chart__plot" ref={containerRef}>
       <svg
         viewBox={`0 0 ${VW} ${H}`}
         role="img"
