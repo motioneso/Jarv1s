@@ -39,10 +39,15 @@ import "../styles/kit-today-feeds.css";
 import "../styles/kit-today-misc.css";
 
 /** Today — the all-day home: an editorial brief over the user's real tasks + calendar. */
-export function TodayPage(props: { readonly me: MeResponse; readonly feed?: TodayFeed }) {
+export function TodayPage(props: {
+  readonly me: MeResponse;
+  readonly feed?: TodayFeed;
+  readonly wellnessEnabled?: boolean;
+}) {
   const queryClient = useQueryClient();
   const navigate = useNavigate();
   const feed = props.feed ?? createEmptyTodayFeed();
+  const wellnessEnabled = props.wellnessEnabled ?? false;
   const tasksQuery = useQuery({ queryKey: queryKeys.tasks.list, queryFn: () => listTasks() });
   const eventsQuery = useQuery({
     queryKey: queryKeys.calendar.list,
@@ -282,33 +287,38 @@ export function TodayPage(props: { readonly me: MeResponse; readonly feed?: Toda
             )}
           </div>
 
-          <div className="well">
-            <div className="well__head">
-              <span className="ic">
-                <HeartPulse size={15} aria-hidden="true" />
-              </span>
-              <span className="well__title">Wellness</span>
-            </div>
-            <div className="well__actions">
-              <button className="well__btn well__btn--meds" onClick={() => setMedsModalOpen(true)}>
-                <span className="lead">
-                  <span className="ic">
-                    <Pill size={15} aria-hidden="true" />
-                  </span>
-                  Meds
-                </span>
-              </button>
-              <button className="well__btn" onClick={() => setCheckinModalOpen(true)}>
+          {wellnessEnabled ? (
+            <div className="well">
+              <div className="well__head">
                 <span className="ic">
-                  <ClipboardCheck size={15} aria-hidden="true" />
+                  <HeartPulse size={15} aria-hidden="true" />
                 </span>
-                Check in
-              </button>
+                <span className="well__title">Wellness</span>
+              </div>
+              <div className="well__actions">
+                <button
+                  className="well__btn well__btn--meds"
+                  onClick={() => setMedsModalOpen(true)}
+                >
+                  <span className="lead">
+                    <span className="ic">
+                      <Pill size={15} aria-hidden="true" />
+                    </span>
+                    Meds
+                  </span>
+                </button>
+                <button className="well__btn" onClick={() => setCheckinModalOpen(true)}>
+                  <span className="ic">
+                    <ClipboardCheck size={15} aria-hidden="true" />
+                  </span>
+                  Check in
+                </button>
+              </div>
             </div>
-          </div>
+          ) : null}
         </aside>
       </div>
-      {medsModalOpen ? (
+      {wellnessEnabled && medsModalOpen ? (
         <div
           className="wl-modal-scrim"
           onMouseDown={(ev) => {
@@ -361,20 +371,24 @@ export function TodayPage(props: { readonly me: MeResponse; readonly feed?: Toda
         </div>
       ) : null}
 
-      <ManageMedsModal
-        open={manageMedsOpen}
-        onClose={() => setManageMedsOpen(false)}
-        theme={theme}
-      />
+      {wellnessEnabled ? (
+        <ManageMedsModal
+          open={manageMedsOpen}
+          onClose={() => setManageMedsOpen(false)}
+          theme={theme}
+        />
+      ) : null}
 
-      <CheckinModal
-        open={checkinModalOpen}
-        onClose={() => setCheckinModalOpen(false)}
-        onSave={(val) => createCheckinMutation.mutate(val)}
-        initial={null}
-        seedEmotion={null}
-        theme={theme}
-      />
+      {wellnessEnabled ? (
+        <CheckinModal
+          open={checkinModalOpen}
+          onClose={() => setCheckinModalOpen(false)}
+          onSave={(val) => createCheckinMutation.mutate(val)}
+          initial={null}
+          seedEmotion={null}
+          theme={theme}
+        />
+      ) : null}
     </div>
   );
 }
