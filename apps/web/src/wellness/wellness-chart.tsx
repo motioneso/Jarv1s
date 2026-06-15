@@ -5,7 +5,7 @@ import {
   type AdherenceDoseSummaryItemDto
 } from "@jarv1s/shared";
 import { emoColor, MOOD_BAND_LABELS, type Theme } from "./emotion-taxonomy";
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 
 const VW = 760; // SVG viewBox width
 
@@ -13,7 +13,8 @@ export interface DayPoint {
   date: string;
   label: string;
   isToday: boolean;
-  checkin: CheckinDto | null;
+  checkin: CheckinDto | null; // most-recent (color + feeling label)
+  checkins: readonly CheckinDto[]; // all check-ins this day (for average)
   medFrac: number; // 0–1 adherence fraction
   medTaken: number;
   medDenom: number;
@@ -65,10 +66,31 @@ function HoverCols({
   );
 }
 
+function avgMood(cks: readonly CheckinDto[]): number | null {
+  if (cks.length === 0) return null;
+  return (
+    Math.round(
+      (cks.reduce((s, ck) => s + moodIndex(ck.feelingCore, ck.intensity ?? 3), 0) / cks.length) * 10
+    ) / 10
+  );
+}
+
 export function WellnessChart({ days, theme = "light" }: Props) {
   const [hover, setHover] = useState<number | null>(null);
   const [pinned, setPinned] = useState<number | null>(null);
   const active = pinned != null ? pinned : hover;
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (pinned === null) return;
+    const handler = (ev: PointerEvent) => {
+      if (containerRef.current && !containerRef.current.contains(ev.target as Node)) {
+        setPinned(null);
+      }
+    };
+    document.addEventListener("pointerdown", handler);
+    return () => document.removeEventListener("pointerdown", handler);
+  }, [pinned]);
 
   const left = 44;
   const right = 12;
@@ -92,16 +114,10 @@ export function WellnessChart({ days, theme = "light" }: Props) {
   const guides = [5, 2.5, 0, -2.5, -5];
 
   const pts = days
-    .map((d, i) =>
-      d.checkin
-        ? {
-            i,
-            xPos: x(i),
-            v: moodIndex(d.checkin.feelingCore, d.checkin.intensity ?? 3),
-            d
-          }
-        : null
-    )
+    .map((d, i) => {
+      const v = avgMood(d.checkins);
+      return v != null ? { i, xPos: x(i), v, d } : null;
+    })
     .filter((p): p is NonNullable<typeof p> => p !== null);
 
   const linePath = pts.map((p, k) => `${k ? "L" : "M"}${p.xPos} ${moodY(p.v)}`).join(" ");
@@ -131,7 +147,7 @@ export function WellnessChart({ days, theme = "light" }: Props) {
   };
 
   return (
-    <div className="wl-chart__plot">
+    <div className="wl-chart__plot" ref={containerRef}>
       <svg
         viewBox={`0 0 ${VW} ${H}`}
         role="img"
@@ -234,10 +250,10 @@ export function WellnessChart({ days, theme = "light" }: Props) {
         ? (() => {
             const d = days[active]!;
             const hasCk = !!d.checkin;
-            const v = hasCk ? moodIndex(d.checkin!.feelingCore, d.checkin!.intensity ?? 3) : null;
+            const v = avgMood(d.checkins);
             const c = hasCk ? emoColor(d.checkin!.feelingCore, theme) : null;
             const band = v != null ? moodBand(v) : null;
-            const tipY = hasCk && v != null ? moodY(v) : moodTop + 10;
+            const tipY = v != null ? moodY(v) : moodTop + 10;
             const isPinned = pinned === active;
             return (
               <div
