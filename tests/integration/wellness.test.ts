@@ -14,9 +14,9 @@ import {
   type JarvisDatabase
 } from "@jarv1s/db";
 import {
-  WELLNESS_FEELING_CORES,
+  WELLNESS_EMOTION_CORES,
   createCheckinRequestSchema,
-  FEELINGS_WHEEL,
+  EMOTIONS,
   BODY_SENSATIONS,
   isValidFeelingPath
 } from "@jarv1s/shared";
@@ -98,7 +98,7 @@ describe("wellness_checkins table + RLS", () => {
           .insertInto("app.wellness_checkins")
           .values({
             owner_user_id: sql<string>`app.current_actor_user_id()`,
-            feeling_core: "scared",
+            feeling_core: "fear",
             feeling_secondary: "anxious",
             sensations: sql<string[]>`ARRAY['tight chest']::text[]`,
             intensity: 4,
@@ -211,14 +211,14 @@ describe("medications + medication_logs tables + RLS", () => {
 });
 
 describe("wellness shared contract", () => {
-  it("exposes the six Willcox cores and a create-checkin request schema", () => {
-    expect(WELLNESS_FEELING_CORES).toEqual([
-      "mad",
+  it("exposes the six emotion cores and a create-checkin request schema", () => {
+    expect(WELLNESS_EMOTION_CORES).toEqual([
+      "happy",
       "sad",
-      "scared",
-      "joyful",
-      "powerful",
-      "peaceful"
+      "fear",
+      "anger",
+      "disgust",
+      "surprise"
     ]);
     expect(createCheckinRequestSchema.required).toContain("feelingCore");
     expect(createCheckinRequestSchema.additionalProperties).toBe(false);
@@ -231,9 +231,9 @@ describe("WellnessRepository", () => {
   it("createCheckin persists the full wheel path + sensations; listCheckins is owner-scoped", async () => {
     await dataContext.withDataContext(ctx(userId), async (scopedDb) => {
       await repo.createCheckin(scopedDb, {
-        feelingCore: "scared",
-        feelingSecondary: "anxious",
-        feelingTertiary: "overwhelmed",
+        feelingCore: "fear",
+        feelingSecondary: "Anxious",
+        feelingTertiary: null,
         sensations: ["tight chest", "racing heart"],
         intensity: 4,
         note: "deadline",
@@ -241,8 +241,8 @@ describe("WellnessRepository", () => {
       });
       const list = await repo.listCheckins(scopedDb, { limit: 10 });
       const latest = list[0];
-      expect(latest?.feeling_core).toBe("scared");
-      expect(latest?.feeling_tertiary).toBe("overwhelmed");
+      expect(latest?.feeling_core).toBe("fear");
+      expect(latest?.feeling_tertiary).toBeNull();
       expect(latest?.sensations).toEqual(["tight chest", "racing heart"]);
       expect(latest?.identified_via).toBe("assisted");
     });
@@ -302,7 +302,7 @@ describe("WellnessRepository", () => {
 
   it("createCheckin throws on an unbranded handle (DataContextDb guard)", async () => {
     await expect(
-      repo.createCheckin(appDb as unknown as never, { feelingCore: "joyful" })
+      repo.createCheckin(appDb as unknown as never, { feelingCore: "happy" })
     ).rejects.toThrow("Repository access requires withDataContext");
   });
 });
@@ -450,7 +450,7 @@ describe("wellness AI read tools", () => {
     expect(tool?.execute).toBeDefined();
 
     await dataContext.withDataContext(ctx(userId), (db) =>
-      new WellnessRepository().createCheckin(db, { feelingCore: "peaceful", intensity: 4 })
+      new WellnessRepository().createCheckin(db, { feelingCore: "happy", intensity: 4 })
     );
     const result = await dataContext.withDataContext(ctx(userId), (db) =>
       wellnessRecentCheckInsExecute(db, {}, toolCtx(userId))
@@ -554,14 +554,14 @@ describe("wellness chat recall energy-trend fact", () => {
   it("deriveEnergyTrend produces an abstracted, non-clinical trend string (no raw feelings)", () => {
     const trend = deriveEnergyTrend([
       { energy: 2, feeling_core: "sad" } as never,
-      { energy: 1, feeling_core: "scared" } as never,
+      { energy: 1, feeling_core: "fear" } as never,
       { energy: 2, feeling_core: "sad" } as never
     ]);
     expect(trend).not.toBeNull();
     expect(trend?.toLowerCase()).toContain("energy");
-    // Must NOT contain a raw feeling word.
+    // Must NOT contain a raw emotion word.
     expect(trend?.toLowerCase()).not.toContain("sad");
-    expect(trend?.toLowerCase()).not.toContain("scared");
+    expect(trend?.toLowerCase()).not.toContain("fear");
   });
 
   it("deriveEnergyTrend returns null when there are no recent check-ins", () => {
@@ -579,7 +579,7 @@ describe("wellness chat recall energy-trend fact", () => {
         energy: 1
       });
       await new WellnessRepository().createCheckin(db, {
-        feelingCore: "scared",
+        feelingCore: "fear",
         intensity: 2,
         energy: 2
       });
@@ -657,7 +657,7 @@ describe("focus-signal contribution point", () => {
     await dataContext.withDataContext(ctx(userId), async (db) => {
       const repo = new WellnessRepository();
       await repo.createCheckin(db, { feelingCore: "sad", intensity: 1, energy: 1 });
-      await repo.createCheckin(db, { feelingCore: "scared", intensity: 1, energy: 1 });
+      await repo.createCheckin(db, { feelingCore: "fear", intensity: 1, energy: 1 });
     });
     const signal = await dataContext.withDataContext(ctx(userId), (db) =>
       wellnessFocusSignal(db, { actorUserId: userId, requestId: "req:focus" })
@@ -803,20 +803,20 @@ describe("focus providers honor per-user enablement (Phase-2 seam is LANDED)", (
 });
 
 describe("feelings taxonomy (browser-safe, in @jarv1s/shared)", () => {
-  it("has the six cores, each with secondary→tertiary leaves", () => {
-    expect(FEELINGS_WHEEL.map((c) => c.core)).toEqual([
-      "mad",
+  it("has the six emotion cores, each with feelings+sensations", () => {
+    expect(EMOTIONS.map((e) => e.core)).toEqual([
+      "happy",
       "sad",
-      "scared",
-      "joyful",
-      "powerful",
-      "peaceful"
+      "fear",
+      "anger",
+      "disgust",
+      "surprise"
     ]);
-    for (const core of FEELINGS_WHEEL) {
-      expect(core.secondary.length).toBeGreaterThan(0);
-      for (const sec of core.secondary) {
-        expect(typeof sec.name).toBe("string");
-        expect(Array.isArray(sec.tertiary)).toBe(true);
+    for (const entry of EMOTIONS) {
+      expect(entry.feelings.length).toBeGreaterThan(0);
+      for (const feeling of entry.feelings) {
+        expect(typeof feeling.label).toBe("string");
+        expect(Array.isArray(feeling.sensations)).toBe(true);
       }
     }
   });
@@ -826,14 +826,14 @@ describe("feelings taxonomy (browser-safe, in @jarv1s/shared)", () => {
     expect(BODY_SENSATIONS).toContain("Tight chest");
   });
 
-  it("isValidFeelingPath accepts valid paths and rejects mismatches", () => {
-    expect(isValidFeelingPath("scared")).toBe(true);
-    expect(isValidFeelingPath("scared", "anxious")).toBe(true);
-    expect(isValidFeelingPath("scared", "anxious", "overwhelmed")).toBe(true);
-    expect(isValidFeelingPath("scared", "anxious", "not-a-leaf")).toBe(false);
-    expect(isValidFeelingPath("scared", "not-a-secondary")).toBe(false);
-    // a tertiary without its secondary is invalid
-    expect(isValidFeelingPath("scared", null, "overwhelmed")).toBe(false);
+  it("isValidFeelingPath accepts valid paths and rejects mismatches (2-level taxonomy)", () => {
+    expect(isValidFeelingPath("fear")).toBe(true);
+    expect(isValidFeelingPath("fear", "Anxious")).toBe(true);
+    // tertiary is disallowed in the 2-level taxonomy
+    expect(isValidFeelingPath("fear", "Anxious", "overwhelmed")).toBe(false);
+    expect(isValidFeelingPath("fear", "not-a-feeling")).toBe(false);
+    // a tertiary without secondary is invalid
+    expect(isValidFeelingPath("fear", null, "overwhelmed")).toBe(false);
   });
 });
 

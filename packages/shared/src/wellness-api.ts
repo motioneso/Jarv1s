@@ -1,15 +1,15 @@
 // Wellness REST contract. Part of the Vite-bundled @jarv1s/shared package — NO node:* imports.
 import { errorResponseSchema, nullableStringSchema } from "./schema-fragments.js";
 
-export const WELLNESS_FEELING_CORES = [
-  "mad",
+export const WELLNESS_EMOTION_CORES = [
+  "happy",
   "sad",
-  "scared",
-  "joyful",
-  "powerful",
-  "peaceful"
+  "fear",
+  "anger",
+  "disgust",
+  "surprise"
 ] as const;
-export type WellnessFeelingCore = (typeof WELLNESS_FEELING_CORES)[number];
+export type WellnessEmotionCore = (typeof WELLNESS_EMOTION_CORES)[number];
 
 export const MEDICATION_FREQUENCY_TYPES = [
   "once_daily",
@@ -30,7 +30,7 @@ export interface CheckinDto {
   readonly id: string;
   readonly ownerUserId: string;
   readonly checkedInAt: string | null;
-  readonly feelingCore: WellnessFeelingCore;
+  readonly feelingCore: WellnessEmotionCore;
   readonly feelingSecondary: string | null;
   readonly feelingTertiary: string | null;
   readonly wheelVersion: string;
@@ -43,7 +43,7 @@ export interface CheckinDto {
 }
 
 export interface CreateCheckinRequest {
-  readonly feelingCore: WellnessFeelingCore;
+  readonly feelingCore: WellnessEmotionCore;
   readonly feelingSecondary?: string | null;
   readonly feelingTertiary?: string | null;
   readonly sensations?: readonly string[];
@@ -146,6 +146,56 @@ export interface MedicationScheduleResponse {
   readonly slots: readonly ScheduleSlotDto[];
 }
 
+export interface MedicationLogsResponse {
+  readonly logs: readonly MedicationLogDto[];
+}
+
+// ── Wellness Insights DTOs ────────────────────────────────────────────────
+
+export interface WellnessInsightDto {
+  readonly key: string;
+  readonly icon: string;
+  readonly tone: "pine" | "amber" | "steel";
+  readonly lead: string;
+  readonly rest: string;
+  readonly emotion?: WellnessEmotionCore;
+  readonly action?: string;
+}
+
+export interface WellnessInsightsResponse {
+  readonly insights: readonly WellnessInsightDto[];
+}
+
+// ── Therapy Notes DTOs ────────────────────────────────────────────────────
+
+export interface TherapyNoteDto {
+  readonly id: string;
+  readonly ownerUserId: string;
+  readonly body: string;
+  readonly linkedCheckinId: string | null;
+  readonly linkedEmotion: WellnessEmotionCore | null;
+  readonly createdAt: string | null;
+  readonly updatedAt: string | null;
+}
+
+export interface CreateTherapyNoteRequest {
+  readonly body: string;
+  readonly linkedCheckinId?: string | null;
+  readonly linkedEmotion?: WellnessEmotionCore | null;
+}
+
+export interface CreateTherapyNoteResponse {
+  readonly note: TherapyNoteDto;
+}
+
+export interface ListTherapyNotesResponse {
+  readonly notes: readonly TherapyNoteDto[];
+}
+
+export interface DeleteTherapyNoteResponse {
+  readonly deleted: boolean;
+}
+
 // ── JSON schemas ────────────────────────────────────────────────────────────
 
 const stringArraySchema = { type: "array", items: { type: "string" } } as const;
@@ -153,7 +203,7 @@ const nullableIntensitySchema = {
   anyOf: [{ type: "integer", minimum: 1, maximum: 5 }, { type: "null" }]
 } as const;
 
-export const feelingCoreSchema = { type: "string", enum: WELLNESS_FEELING_CORES } as const;
+export const feelingCoreSchema = { type: "string", enum: WELLNESS_EMOTION_CORES } as const;
 export const medicationFrequencyTypeSchema = {
   type: "string",
   enum: MEDICATION_FREQUENCY_TYPES
@@ -161,6 +211,99 @@ export const medicationFrequencyTypeSchema = {
 export const medicationLogStatusSchema = {
   type: "string",
   enum: MEDICATION_LOG_STATUSES
+} as const;
+
+const insightToneSchema = { type: "string", enum: ["pine", "amber", "steel"] } as const;
+
+export const wellnessInsightDtoSchema = {
+  type: "object",
+  required: ["key", "icon", "tone", "lead", "rest"],
+  properties: {
+    key: { type: "string" },
+    icon: { type: "string" },
+    tone: insightToneSchema,
+    lead: { type: "string" },
+    rest: { type: "string" },
+    emotion: feelingCoreSchema,
+    action: { type: "string" }
+  }
+} as const;
+
+export const wellnessInsightsResponseSchema = {
+  type: "object",
+  required: ["insights"],
+  properties: { insights: { type: "array", items: wellnessInsightDtoSchema } }
+} as const;
+
+export const therapyNoteDtoSchema = {
+  type: "object",
+  required: [
+    "id",
+    "ownerUserId",
+    "body",
+    "linkedCheckinId",
+    "linkedEmotion",
+    "createdAt",
+    "updatedAt"
+  ],
+  properties: {
+    id: { type: "string" },
+    ownerUserId: { type: "string" },
+    body: { type: "string" },
+    linkedCheckinId: nullableStringSchema,
+    linkedEmotion: { anyOf: [feelingCoreSchema, { type: "null" }] },
+    createdAt: nullableStringSchema,
+    updatedAt: nullableStringSchema
+  }
+} as const;
+
+export const createTherapyNoteRequestSchema = {
+  type: "object",
+  additionalProperties: false,
+  required: ["body"],
+  properties: {
+    body: { type: "string" },
+    linkedCheckinId: nullableStringSchema,
+    linkedEmotion: { anyOf: [feelingCoreSchema, { type: "null" }] }
+  }
+} as const;
+
+export const createTherapyNoteResponseSchema = {
+  type: "object",
+  required: ["note"],
+  properties: { note: therapyNoteDtoSchema }
+} as const;
+
+export const listTherapyNotesResponseSchema = {
+  type: "object",
+  required: ["notes"],
+  properties: { notes: { type: "array", items: therapyNoteDtoSchema } }
+} as const;
+
+export const deleteTherapyNoteResponseSchema = {
+  type: "object",
+  required: ["deleted"],
+  properties: { deleted: { type: "boolean" } }
+} as const;
+
+export const medicationLogDtoSchema = {
+  type: "object",
+  required: ["id", "medicationId", "status", "dose", "prnReason", "scheduledFor", "loggedAt"],
+  properties: {
+    id: { type: "string" },
+    medicationId: { type: "string" },
+    status: medicationLogStatusSchema,
+    dose: nullableStringSchema,
+    prnReason: nullableStringSchema,
+    scheduledFor: nullableStringSchema,
+    loggedAt: nullableStringSchema
+  }
+} as const;
+
+export const medicationLogsResponseSchema = {
+  type: "object",
+  required: ["logs"],
+  properties: { logs: { type: "array", items: medicationLogDtoSchema } }
 } as const;
 
 export const checkinDtoSchema = {
@@ -328,20 +471,6 @@ export const createMedicationLogRequestSchema = {
   }
 } as const;
 
-export const medicationLogDtoSchema = {
-  type: "object",
-  required: ["id", "medicationId", "status", "dose", "prnReason", "scheduledFor", "loggedAt"],
-  properties: {
-    id: { type: "string" },
-    medicationId: { type: "string" },
-    status: medicationLogStatusSchema,
-    dose: nullableStringSchema,
-    prnReason: nullableStringSchema,
-    scheduledFor: nullableStringSchema,
-    loggedAt: nullableStringSchema
-  }
-} as const;
-
 export const createMedicationLogResponseSchema = {
   type: "object",
   required: ["log"],
@@ -401,77 +530,151 @@ export const createMedicationLogRouteSchema = {
     409: errorResponseSchema
   }
 } as const;
+export const wellnessInsightsRouteSchema = {
+  response: { 200: wellnessInsightsResponseSchema }
+} as const;
+export const listTherapyNotesRouteSchema = {
+  response: { 200: listTherapyNotesResponseSchema }
+} as const;
+export const createTherapyNoteRouteSchema = {
+  body: createTherapyNoteRequestSchema,
+  response: {
+    201: createTherapyNoteResponseSchema,
+    400: errorResponseSchema,
+    404: errorResponseSchema
+  }
+} as const;
+export const deleteTherapyNoteRouteSchema = {
+  response: { 200: deleteTherapyNoteResponseSchema, 404: errorResponseSchema }
+} as const;
+export const medicationLogsRouteSchema = {
+  response: { 200: medicationLogsResponseSchema }
+} as const;
 
 // ── Browser-safe reference taxonomy ──────────────────────────────────────────
 // Lives in @jarv1s/shared (NOT @jarv1s/wellness) so the web bundle never imports the
 // server-only wellness index, whose manifest pulls `node:url` (Codex R1: bundle bloat/break).
-// Reference data — NOT user-editable, NOT a table. Adapted SUBSET of the Willcox (1982)
-// Feeling Wheel (not the exhaustive wheel — labeled as a subset, Codex R1).
+// Emotion taxonomy (core emotion → feelings → body sensations) adapted from an
+// emotion–sensation reference wheel. Values are original to this design.
 
-export const WHEEL_VERSION = "willcox-1982";
+export const WHEEL_VERSION = "jarvis-emotion-v1";
 
-export interface FeelingsWheelSecondary {
-  readonly name: string;
-  readonly tertiary: readonly string[];
+/** polarity × intensity(1-5) → mood index (−5…+5) */
+export const EMOTION_POLARITY: Readonly<Record<WellnessEmotionCore, number>> = {
+  happy: 1.0,
+  sad: -1.0,
+  fear: -0.8,
+  anger: -0.7,
+  disgust: -0.7,
+  surprise: 0.2
+};
+
+/** mood index = round(polarity × intensity, 1). Range −5…+5. */
+export function moodIndex(core: WellnessEmotionCore, intensity: number): number {
+  const polarity = EMOTION_POLARITY[core] ?? 0;
+  return Math.round(polarity * intensity * 10) / 10;
 }
-export interface FeelingsWheelCore {
-  readonly core: WellnessFeelingCore;
-  readonly secondary: readonly FeelingsWheelSecondary[];
+
+export type MoodBand = "bright" | "lifted" | "even" | "low" | "heavy";
+
+/** Map a mood-index value to a named band. */
+export function moodBand(x: number): MoodBand {
+  if (x >= 3) return "bright";
+  if (x >= 1) return "lifted";
+  if (x > -1) return "even";
+  if (x > -3) return "low";
+  return "heavy";
 }
 
-export const FEELINGS_WHEEL: readonly FeelingsWheelCore[] = [
+export interface EmotionFeeling {
+  readonly label: string;
+  readonly sensations: readonly string[];
+}
+
+export interface EmotionEntry {
+  readonly core: WellnessEmotionCore;
+  readonly polarity: number;
+  readonly blurb: string;
+  readonly feelings: readonly EmotionFeeling[];
+}
+
+export const EMOTIONS: readonly EmotionEntry[] = [
   {
-    core: "mad",
-    secondary: [
-      { name: "hurt", tertiary: ["embarrassed", "devastated"] },
-      { name: "hostile", tertiary: ["irritated", "resentful"] },
-      { name: "angry", tertiary: ["furious", "frustrated"] },
-      { name: "critical", tertiary: ["skeptical", "dismissive"] }
+    core: "happy",
+    polarity: 1.0,
+    blurb: "open, warm, at ease",
+    feelings: [
+      { label: "Joy", sensations: ["Open", "Energetic"] },
+      { label: "Curious", sensations: ["Awake", "Brow-furrow"] },
+      { label: "Proud", sensations: ["Inflated", "Tall"] },
+      { label: "Satisfied", sensations: ["Soft", "Calm"] },
+      { label: "Courageous", sensations: ["Jaw set", "Steady"] },
+      { label: "Peaceful", sensations: ["Relaxed", "Still"] },
+      { label: "Intimate", sensations: ["Sensitive", "Warm"] },
+      { label: "Optimistic", sensations: ["Light", "Buzzing"] }
     ]
   },
   {
     core: "sad",
-    secondary: [
-      { name: "lonely", tertiary: ["isolated", "abandoned"] },
-      { name: "depressed", tertiary: ["empty", "hopeless"] },
-      { name: "guilty", tertiary: ["ashamed", "remorseful"] },
-      { name: "tired", tertiary: ["sleepy", "drained"] }
+    polarity: -1.0,
+    blurb: "heavy, slow, withdrawn",
+    feelings: [
+      { label: "Guilt", sensations: ["Looking down", "Empty"] },
+      { label: "Abandoned", sensations: ["Curling up", "Slouching"] },
+      { label: "Despair", sensations: ["Crying", "Body aches"] },
+      { label: "Depressed", sensations: ["Tiredness", "Hollow feeling"] },
+      { label: "Lonely", sensations: ["Slow heart", "Heaviness"] },
+      { label: "Apathetic", sensations: ["Weak", "Eye rolls"] }
     ]
   },
   {
-    core: "scared",
-    secondary: [
-      { name: "anxious", tertiary: ["overwhelmed", "worried"] },
-      { name: "insecure", tertiary: ["inadequate", "inferior"] },
-      { name: "rejected", tertiary: ["excluded", "persecuted"] },
-      { name: "confused", tertiary: ["bewildered", "discouraged"] }
+    core: "fear",
+    polarity: -0.8,
+    blurb: "braced, jittery, unsure",
+    feelings: [
+      { label: "Scared", sensations: ["Trembling", "Numb hands"] },
+      { label: "Anxious", sensations: ["Fidgety", "Foot-tapping"] },
+      { label: "Insecure", sensations: ["Racing heart", "Quiet"] },
+      { label: "Inferior", sensations: ["Frozen", "Tense"] },
+      { label: "Unwanted", sensations: ["Cold", "Unsteady"] },
+      { label: "Embarrassed", sensations: ["Blushing", "Tender"] }
     ]
   },
   {
-    core: "joyful",
-    secondary: [
-      { name: "excited", tertiary: ["energetic", "eager"] },
-      { name: "content", tertiary: ["satisfied", "grateful"] },
-      { name: "proud", tertiary: ["confident", "successful"] },
-      { name: "playful", tertiary: ["cheerful", "creative"] }
+    core: "anger",
+    polarity: -0.7,
+    blurb: "hot, tight, pushed",
+    feelings: [
+      { label: "Hurt", sensations: ["Lip-tremble", "Limp"] },
+      { label: "Insecure", sensations: ["Hiding", "Hot"] },
+      { label: "Hateful", sensations: ["Scowl", "Turning away"] },
+      { label: "Mad", sensations: ["Loud words", "Flushed"] },
+      { label: "Aggressive", sensations: ["Racing heart", "Clenching"] },
+      { label: "Irritated", sensations: ["Tight jaw", "Headache"] },
+      { label: "Distant", sensations: ["Numb", "Gut-turning"] },
+      { label: "Critical", sensations: ["Feeling hot", "Lip curled"] }
     ]
   },
   {
-    core: "powerful",
-    secondary: [
-      { name: "respected", tertiary: ["valued", "appreciated"] },
-      { name: "confident", tertiary: ["worthy", "capable"] },
-      { name: "hopeful", tertiary: ["optimistic", "inspired"] },
-      { name: "faithful", tertiary: ["intimate", "courageous"] }
+    core: "disgust",
+    polarity: -0.7,
+    blurb: "recoiling, queasy, done",
+    feelings: [
+      { label: "Disapproval", sensations: ["Shuddering", "Writhing"] },
+      { label: "Disappointed", sensations: ["Need to move", "Face-scrunched"] },
+      { label: "Awful", sensations: ["Nausea", "Lump in throat"] },
+      { label: "Aversion", sensations: ["Queasy", "Turn away"] }
     ]
   },
   {
-    core: "peaceful",
-    secondary: [
-      { name: "content", tertiary: ["thoughtful", "relaxed"] },
-      { name: "thankful", tertiary: ["loving", "trusting"] },
-      { name: "secure", tertiary: ["calm", "at ease"] },
-      { name: "responsive", tertiary: ["engaged", "present"] }
+    core: "surprise",
+    polarity: 0.2,
+    blurb: "wide-eyed, alert, struck",
+    feelings: [
+      { label: "Shock", sensations: ["Jumpy", "Sweaty palms"] },
+      { label: "Confusion", sensations: ["Breathless", "Speechless"] },
+      { label: "Awe", sensations: ["Jaw drop", "Eyebrows up"] },
+      { label: "Excitement", sensations: ["Electrified", "Jumpy"] }
     ]
   }
 ];
@@ -493,20 +696,19 @@ export const BODY_SENSATIONS: readonly string[] = [
 ];
 
 /**
- * Validate a (core, secondary?, tertiary?) selection against FEELINGS_WHEEL. Returns true
- * for a bare core, a core+valid-secondary, or a core+secondary+valid-tertiary. Browser-safe
- * (no node:*). This is the path-validation helper referenced by the data model.
+ * Validate a (core, secondary?, tertiary?) selection against EMOTIONS. Returns true
+ * for a bare core or a core+valid-secondary. Tertiary MUST be null/undefined — the new
+ * taxonomy is 2-level only (core → feeling). Browser-safe (no node:*).
  */
 export function isValidFeelingPath(
-  core: WellnessFeelingCore,
+  core: WellnessEmotionCore,
   secondary?: string | null,
   tertiary?: string | null
 ): boolean {
-  const coreNode = FEELINGS_WHEEL.find((c) => c.core === core);
-  if (!coreNode) return false;
-  if (secondary == null) return tertiary == null;
-  const secNode = coreNode.secondary.find((s) => s.name === secondary);
-  if (!secNode) return false;
-  if (tertiary == null) return true;
-  return secNode.tertiary.includes(tertiary);
+  // tertiary is disallowed in the new 2-level taxonomy
+  if (tertiary != null) return false;
+  const coreEntry = EMOTIONS.find((e) => e.core === core);
+  if (!coreEntry) return false;
+  if (secondary == null) return true;
+  return coreEntry.feelings.some((f) => f.label === secondary);
 }

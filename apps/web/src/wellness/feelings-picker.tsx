@@ -1,10 +1,11 @@
-import { FEELINGS_WHEEL, WELLNESS_FEELING_CORES } from "@jarv1s/shared";
-import type { WellnessFeelingCore } from "@jarv1s/shared";
+import { EMOTIONS, WELLNESS_EMOTION_CORES } from "@jarv1s/shared";
+import type { WellnessEmotionCore } from "@jarv1s/shared";
 
 export interface FeelingsSelection {
-  readonly core: WellnessFeelingCore;
+  readonly core: WellnessEmotionCore;
   readonly secondary: string | null;
-  readonly tertiary: string | null;
+  /** Always null in the 2-level taxonomy (core → feeling only). */
+  readonly tertiary: null;
 }
 
 interface FeelingsPickerProps {
@@ -13,18 +14,15 @@ interface FeelingsPickerProps {
 }
 
 /**
- * BASIC, functional feelings picker — three dependent <select>s (core → secondary →
- * tertiary). Deliberately NOT a polished colored wheel (deferred to a Ben UI session). Data
- * comes from the browser-safe @jarv1s/shared taxonomy, so restyling never touches logic.
+ * BASIC, functional feelings picker — two dependent <select>s (core → feeling).
+ * Uses the new jarvis-emotion-v1 taxonomy (2-level: no tertiary). Data comes from
+ * the browser-safe @jarv1s/shared EMOTIONS list. Phase-3 will replace with the
+ * polished palette/wheel UI from the design.
  */
 export function FeelingsPicker(props: FeelingsPickerProps) {
-  const coreNode = props.value
-    ? (FEELINGS_WHEEL.find((c) => c.core === props.value!.core) ?? null)
+  const coreEntry = props.value
+    ? (EMOTIONS.find((e) => e.core === props.value!.core) ?? null)
     : null;
-  const secNode =
-    coreNode && props.value?.secondary
-      ? (coreNode.secondary.find((s) => s.name === props.value!.secondary) ?? null)
-      : null;
 
   return (
     <div className="feelings-picker">
@@ -34,17 +32,17 @@ export function FeelingsPicker(props: FeelingsPickerProps) {
           value={props.value?.core ?? ""}
           onChange={(e) =>
             props.onChange({
-              core: e.target.value as WellnessFeelingCore,
+              core: e.target.value as WellnessEmotionCore,
               secondary: null,
               tertiary: null
             })
           }
-          aria-label="Core feeling"
+          aria-label="Core emotion"
         >
           <option value="" disabled>
             Choose…
           </option>
-          {WELLNESS_FEELING_CORES.map((core) => (
+          {WELLNESS_EMOTION_CORES.map((core) => (
             <option key={core} value={core}>
               {capitalize(core)}
             </option>
@@ -52,48 +50,24 @@ export function FeelingsPicker(props: FeelingsPickerProps) {
         </select>
       </label>
 
-      {coreNode ? (
+      {coreEntry ? (
         <label className="field-label">
           More specific (optional)
           <select
             value={props.value?.secondary ?? ""}
             onChange={(e) =>
               props.onChange({
-                core: coreNode.core,
+                core: coreEntry.core,
                 secondary: e.target.value || null,
                 tertiary: null
               })
             }
-            aria-label="Secondary feeling"
+            aria-label="Feeling"
           >
             <option value="">—</option>
-            {coreNode.secondary.map((sec) => (
-              <option key={sec.name} value={sec.name}>
-                {capitalize(sec.name)}
-              </option>
-            ))}
-          </select>
-        </label>
-      ) : null}
-
-      {secNode ? (
-        <label className="field-label">
-          Even more specific (optional)
-          <select
-            value={props.value?.tertiary ?? ""}
-            onChange={(e) =>
-              props.onChange({
-                core: coreNode!.core,
-                secondary: secNode.name,
-                tertiary: e.target.value || null
-              })
-            }
-            aria-label="Tertiary feeling"
-          >
-            <option value="">—</option>
-            {secNode.tertiary.map((t) => (
-              <option key={t} value={t}>
-                {capitalize(t)}
+            {coreEntry.feelings.map((f) => (
+              <option key={f.label} value={f.label}>
+                {f.label}
               </option>
             ))}
           </select>

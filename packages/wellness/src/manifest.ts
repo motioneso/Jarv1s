@@ -7,11 +7,16 @@ import {
   createMedicationLogRequestSchema,
   createMedicationLogResponseSchema,
   createMedicationRequestSchema,
+  createTherapyNoteRouteSchema,
+  deleteTherapyNoteRouteSchema,
   listCheckinsResponseSchema,
   listMedicationsResponseSchema,
+  listTherapyNotesRouteSchema,
+  medicationLogsRouteSchema,
   medicationResponseSchema,
   medicationScheduleResponseSchema,
-  updateMedicationRequestSchema
+  updateMedicationRequestSchema,
+  wellnessInsightsRouteSchema
 } from "@jarv1s/shared";
 
 import { wellnessFocusSignal } from "./focus-signal.js";
@@ -41,10 +46,17 @@ export const wellnessModuleManifest = {
     migrations: [
       "sql/0082_wellness_checkins.sql",
       "sql/0083_wellness_medications.sql",
-      "sql/0084_wellness_medication_logs.sql"
+      "sql/0084_wellness_medication_logs.sql",
+      "sql/0088_wellness_emotion_taxonomy.sql",
+      "sql/0089_wellness_therapy_notes.sql"
     ],
     migrationDirectories: ["packages/wellness/sql"],
-    ownedTables: ["app.wellness_checkins", "app.medications", "app.medication_logs"]
+    ownedTables: [
+      "app.wellness_checkins",
+      "app.medications",
+      "app.medication_logs",
+      "app.wellness_therapy_notes"
+    ]
   },
   navigation: [
     {
@@ -77,6 +89,13 @@ export const wellnessModuleManifest = {
       description: "Update the active actor's own medications.",
       scope: "user",
       actions: ["update"]
+    },
+    {
+      id: "wellness.delete",
+      label: "Delete wellness",
+      description: "Delete the active actor's own therapy notes.",
+      scope: "user",
+      actions: ["delete"]
     }
   ],
   routes: [
@@ -125,6 +144,37 @@ export const wellnessModuleManifest = {
       requestSchema: createMedicationLogRequestSchema,
       responseSchema: createMedicationLogResponseSchema,
       permissionId: "wellness.create"
+    },
+    {
+      method: "GET",
+      path: "/api/wellness/insights",
+      responseSchema: wellnessInsightsRouteSchema.response[200],
+      permissionId: "wellness.view"
+    },
+    {
+      method: "GET",
+      path: "/api/wellness/therapy-notes",
+      responseSchema: listTherapyNotesRouteSchema.response[200],
+      permissionId: "wellness.view"
+    },
+    {
+      method: "POST",
+      path: "/api/wellness/therapy-notes",
+      requestSchema: createTherapyNoteRouteSchema.body,
+      responseSchema: createTherapyNoteRouteSchema.response[201],
+      permissionId: "wellness.create"
+    },
+    {
+      method: "DELETE",
+      path: "/api/wellness/therapy-notes/:id",
+      responseSchema: deleteTherapyNoteRouteSchema.response[200],
+      permissionId: "wellness.delete"
+    },
+    {
+      method: "GET",
+      path: "/api/wellness/medications/logs",
+      responseSchema: medicationLogsRouteSchema.response[200],
+      permissionId: "wellness.view"
     }
   ],
   jobs: [

@@ -10,7 +10,7 @@ import {
 import type {
   MedicationFrequencyTypeApi,
   MedicationLogStatusApi,
-  WellnessFeelingCore
+  WellnessEmotionCore as WellnessFeelingCore
 } from "@jarv1s/shared";
 
 export interface CreateCheckinInput {

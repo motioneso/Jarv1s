@@ -10,13 +10,13 @@ import {
   listMedicationsRouteSchema,
   medicationScheduleRouteSchema,
   updateMedicationRouteSchema,
-  WELLNESS_FEELING_CORES,
+  WELLNESS_EMOTION_CORES,
   MEDICATION_FREQUENCY_TYPES,
   MEDICATION_LOG_STATUSES,
   isValidFeelingPath,
   type MedicationFrequencyTypeApi,
   type MedicationLogStatusApi,
-  type WellnessFeelingCore
+  type WellnessEmotionCore as WellnessFeelingCore
 } from "@jarv1s/shared";
 
 import type {
@@ -208,7 +208,7 @@ function parseCheckinBody(body: unknown): CreateCheckinInput {
   const value = requireObject(body);
   const feelingCore = value["feelingCore"];
   if (!isFeelingCore(feelingCore)) {
-    throw new HttpError(400, `feelingCore must be one of ${WELLNESS_FEELING_CORES.join(", ")}`);
+    throw new HttpError(400, `feelingCore must be one of ${WELLNESS_EMOTION_CORES.join(", ")}`);
   }
   const intensity = value["intensity"];
   if (intensity !== undefined && intensity !== null) {
@@ -374,7 +374,7 @@ function parseLogDoseBody(body: unknown): LogDoseInput {
 }
 
 function isFeelingCore(value: unknown): value is WellnessFeelingCore {
-  return typeof value === "string" && (WELLNESS_FEELING_CORES as readonly string[]).includes(value);
+  return typeof value === "string" && (WELLNESS_EMOTION_CORES as readonly string[]).includes(value);
 }
 function isFrequencyType(value: unknown): value is MedicationFrequencyTypeApi {
   return (
