@@ -20,11 +20,8 @@ import {
   Wallet,
   type LucideIcon
 } from "lucide-react";
-import { useState } from "react";
 
 import {
-  authorizeGoogleConnection,
-  completeGoogleConnection,
   getModules,
   getMyModules,
   listConnectorAccounts,
@@ -32,7 +29,13 @@ import {
   setMyModuleDisabled
 } from "../api/client";
 import { queryKeys } from "../api/query-keys";
+import { useGoogleConnectFlow } from "../connectors/use-google-connect-flow";
+import {
+  sourceBehaviorStatus,
+  type DataSource as DataSourceModel
+} from "./settings-data-source-model";
 import { useFeedback } from "./settings-feedback";
+import { settingsModuleControlModel } from "./settings-module-view-model";
 import { moduleDescription, readError, type PaneProps } from "./settings-types";
 import { Badge, Field, Group, Indicator, Note, PaneHead, Row, Switch } from "./settings-ui";
 import type { ConnectorAccountDto } from "@jarv1s/shared";
@@ -104,10 +107,12 @@ function AccountRow(props: {
 function ConnectedPane() {
   const queryClient = useQueryClient();
   const { toast, confirm } = useFeedback();
-  const [clientId, setClientId] = useState("");
-  const [clientSecret, setClientSecret] = useState("");
-  const [authUrl, setAuthUrl] = useState<string | null>(null);
-  const [redirectUrl, setRedirectUrl] = useState("");
+  const googleConnect = useGoogleConnectFlow({
+    onAuthorizationReady: () =>
+      toast("Google authorization link ready", { icon: <Link2 size={17} /> }),
+    onConnected: () => toast("Google account connected", { icon: <Link2 size={17} /> }),
+    onError: (message) => toast(message, { tone: "drift" })
+  });
   const accountsQuery = useQuery({
     queryKey: queryKeys.connectors.accounts,
     queryFn: listConnectorAccounts,
@@ -118,27 +123,6 @@ function ConnectedPane() {
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: queryKeys.connectors.accounts });
       toast("Access revoked", { tone: "drift", icon: <Unlink size={17} /> });
-    },
-    onError: (error) => toast(readError(error), { tone: "drift" })
-  });
-  const authorizeMutation = useMutation({
-    mutationFn: () =>
-      authorizeGoogleConnection({ clientId: clientId.trim(), clientSecret: clientSecret.trim() }),
-    onSuccess: (response) => {
-      setAuthUrl(response.authUrl);
-      toast("Google authorization link ready", { icon: <Link2 size={17} /> });
-    },
-    onError: (error) => toast(readError(error), { tone: "drift" })
-  });
-  const completeMutation = useMutation({
-    mutationFn: () => completeGoogleConnection({ redirectUrl: redirectUrl.trim() }),
-    onSuccess: () => {
-      setAuthUrl(null);
-      setRedirectUrl("");
-      setClientId("");
-      setClientSecret("");
-      void queryClient.invalidateQueries({ queryKey: queryKeys.connectors.accounts });
-      toast("Google account connected", { icon: <Link2 size={17} /> });
     },
     onError: (error) => toast(readError(error), { tone: "drift" })
   });
@@ -156,8 +140,12 @@ function ConnectedPane() {
           <button
             type="button"
             className="jds-btn jds-btn--secondary jds-btn--sm"
-            onClick={() => authorizeMutation.mutate()}
-            disabled={!clientId.trim() || !clientSecret.trim() || authorizeMutation.isPending}
+            onClick={googleConnect.startAuthorization}
+            disabled={
+              !googleConnect.clientId.trim() ||
+              !googleConnect.clientSecret.trim() ||
+              googleConnect.authorizationPending
+            }
           >
             <span className="jds-btn__icon">
               <Plus size={15} />
@@ -169,38 +157,43 @@ function ConnectedPane() {
         <Field label="Google OAuth desktop client">
           <input
             className="jds-input"
-            value={clientId}
-            onChange={(event) => setClientId(event.target.value)}
+            value={googleConnect.clientId}
+            onChange={(event) => googleConnect.setClientId(event.target.value)}
             placeholder="Client ID"
             aria-label="Google client ID"
           />
           <input
             className="jds-input"
             type="password"
-            value={clientSecret}
-            onChange={(event) => setClientSecret(event.target.value)}
+            value={googleConnect.clientSecret}
+            onChange={(event) => googleConnect.setClientSecret(event.target.value)}
             placeholder="Client secret"
             aria-label="Google client secret"
           />
         </Field>
-        {authUrl ? (
+        {googleConnect.authUrl ? (
           <div className="google-connect">
-            <a className="modrow__link" href={authUrl} target="_blank" rel="noreferrer">
+            <a
+              className="modrow__link"
+              href={googleConnect.authUrl}
+              target="_blank"
+              rel="noreferrer"
+            >
               Open Google consent <ArrowUpRight size={14} aria-hidden="true" />
             </a>
             <Field label="Pasted redirect URL">
               <input
                 className="jds-input"
-                value={redirectUrl}
-                onChange={(event) => setRedirectUrl(event.target.value)}
+                value={googleConnect.redirectUrl}
+                onChange={(event) => googleConnect.setRedirectUrl(event.target.value)}
                 placeholder="http://localhost:1/?code=..."
                 aria-label="Pasted redirect URL"
               />
               <button
                 type="button"
                 className="jds-btn jds-btn--primary jds-btn--sm"
-                disabled={!redirectUrl.trim() || completeMutation.isPending}
-                onClick={() => completeMutation.mutate()}
+                disabled={!googleConnect.redirectUrl.trim() || googleConnect.completionPending}
+                onClick={googleConnect.finishConnection}
               >
                 Finish connecting
               </button>
@@ -246,19 +239,8 @@ function ConnectedPane() {
 
 /* ----------------------------------------------------------- Data sources */
 
-interface SourceBehavior {
-  readonly k: string;
-  readonly name: string;
-  readonly desc: string;
-  readonly on?: boolean;
-  readonly coming?: boolean;
-}
-interface DataSource {
-  readonly id: string;
-  readonly name: string;
+interface DataSource extends DataSourceModel {
   readonly icon: LucideIcon;
-  readonly powered: string;
-  readonly behaviors: readonly SourceBehavior[];
 }
 
 const DATA_SOURCES: readonly DataSource[] = [
@@ -270,28 +252,28 @@ const DATA_SOURCES: readonly DataSource[] = [
       "What Jarvis is allowed to do with your calendar — independent of whichever service powers it.",
     behaviors: [
       {
-        k: "briefings",
+        id: "briefings",
         name: "Include in briefings",
-        desc: "Surface today's events in the morning reading.",
-        on: true
+        description: "Surface today's events in the morning reading.",
+        status: "default-on"
       },
       {
-        k: "planning",
+        id: "planning",
         name: "Use for planning",
-        desc: "Jarvis schedules its own focus blocks around your events.",
-        on: true
+        description: "Jarvis schedules its own focus blocks around your events.",
+        status: "default-on"
       },
       {
-        k: "detect",
+        id: "detect",
         name: "Detect commitments",
-        desc: "Turn “let's meet Tuesday” into a tracked commitment.",
-        on: true
+        description: "Turn “let's meet Tuesday” into a tracked commitment.",
+        status: "default-on"
       },
       {
-        k: "writeback",
+        id: "writeback",
         name: "Write events back",
-        desc: "Let Jarvis create and move calendar events for you.",
-        coming: true
+        description: "Let Jarvis create and move calendar events for you.",
+        status: "coming-soon"
       }
     ]
   },
@@ -303,28 +285,28 @@ const DATA_SOURCES: readonly DataSource[] = [
       "What Jarvis is allowed to do with your email — independent of whichever service powers it.",
     behaviors: [
       {
-        k: "briefings",
+        id: "briefings",
         name: "Include in briefings",
-        desc: "Flag threads that need a reply today.",
-        on: true
+        description: "Flag threads that need a reply today.",
+        status: "default-on"
       },
       {
-        k: "capture",
+        id: "capture",
         name: "Capture tasks",
-        desc: "Turn emails into tasks when they imply an action.",
-        on: true
+        description: "Turn emails into tasks when they imply an action.",
+        status: "default-on"
       },
       {
-        k: "summaries",
+        id: "summaries",
         name: "Thread summaries",
-        desc: "Condense long threads before you open them.",
-        on: false
+        description: "Condense long threads before you open them.",
+        status: "default-off"
       },
       {
-        k: "send",
+        id: "send",
         name: "Send on my behalf",
-        desc: "Draft and send replies, with your approval.",
-        coming: true
+        description: "Draft and send replies, with your approval.",
+        status: "coming-soon"
       }
     ]
   }
@@ -351,9 +333,17 @@ function SourcesPane() {
             }
             desc={source.powered}
           >
-            {source.behaviors.map((behavior) => (
-              <Row key={behavior.k} name={behavior.name} desc={behavior.desc} coming />
-            ))}
+            {source.behaviors.map((behavior) => {
+              const status = sourceBehaviorStatus(behavior);
+              return (
+                <Row
+                  key={behavior.id}
+                  name={behavior.name}
+                  desc={behavior.description}
+                  control={<Badge tone={status.tone}>{status.label}</Badge>}
+                />
+              );
+            })}
           </Group>
         );
       })}
@@ -426,13 +416,17 @@ function ModulesPane({ onNavigate }: PaneProps) {
   const renderRow = (module: (typeof modules)[number]) => {
     const Icon = moduleIcon(module.id);
     const path = pathFor(module.id);
-    const badge = module.required ? (
-      <Badge tone="neutral">Required</Badge>
-    ) : module.active ? (
-      <Badge tone="pine" dot>
-        Enabled
-      </Badge>
-    ) : null;
+    const control = settingsModuleControlModel(module);
+    const badge =
+      control.kind === "required" ? (
+        <Badge tone="neutral">{control.label}</Badge>
+      ) : control.kind === "locked" ? (
+        <Badge tone="amber">{control.label}</Badge>
+      ) : module.active ? (
+        <Badge tone="pine" dot>
+          Enabled
+        </Badge>
+      ) : null;
     return (
       <div className="modrow" key={module.id}>
         <div className="modrow__ic">
@@ -446,20 +440,24 @@ function ModulesPane({ onNavigate }: PaneProps) {
           <div className="modrow__desc">{moduleDescription(module.id)}</div>
         </div>
         <div className="modrow__act">
-          {module.supportsUserDisable ? (
+          {control.kind === "toggle" ? (
             <Switch
               ariaLabel={`Use ${module.name}`}
-              checked={module.active}
+              checked={control.checked}
               onChange={(value) => toggleMutation.mutate({ id: module.id, disabled: !value })}
             />
           ) : null}
-          {path && module.active ? (
+          {path && control.canOpenSettings ? (
             <button type="button" className="modrow__link" onClick={() => onNavigate(path)}>
               Open settings <ArrowUpRight size={14} aria-hidden="true" />
             </button>
           ) : (
             <span className="modrow__disabled">
-              {module.active ? "No settings" : "Enable to set up"}
+              {control.kind === "locked"
+                ? control.label
+                : module.active
+                  ? "No settings"
+                  : "Enable to set up"}
             </span>
           )}
         </div>

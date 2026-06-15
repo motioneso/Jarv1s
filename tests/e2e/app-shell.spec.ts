@@ -57,8 +57,7 @@ test("gates a protected route behind sign-in when unauthenticated", async ({ pag
 });
 
 test("hides admin-only settings sections for a non-admin user", async ({ page }) => {
-  // isInstanceAdmin:false must hide admin surfaces (Auth Providers, Admin Users)
-  // and the API rejects the admin fetch with 403 (#171).
+  // isInstanceAdmin:false must hide the Admin / Setup mode entirely (#171).
   await mockApi(page, {
     authenticated: true,
     isInstanceAdmin: false,
@@ -70,12 +69,10 @@ test("hides admin-only settings sections for a non-admin user", async ({ page })
 
   await page.goto("/settings");
 
-  await expect(page.getByRole("heading", { name: "Account", level: 1 })).toBeVisible();
-  // Role reads "User", not "Instance admin".
-  await expect(page.locator("dd", { hasText: /^User$/ })).toBeVisible();
-  // Admin-only panels are absent.
-  await expect(page.getByRole("heading", { name: "Auth Providers" })).toHaveCount(0);
-  await expect(page.getByRole("heading", { name: "Users" })).toHaveCount(0);
+  await expect(page.getByRole("heading", { name: "Profile & account" })).toBeVisible();
+  await expect(page.getByText("Member of this instance.")).toBeVisible();
+  await expect(page.getByRole("button", { name: "Admin / Setup" })).toHaveCount(0);
+  await expect(page.getByText("People & access")).toHaveCount(0);
 });
 
 test("creates and updates tasks through REST calls", async ({ page }) => {
@@ -164,17 +161,17 @@ test("connector accounts panel shows existing accounts and supports revoke", asy
   });
 
   await page.goto("/settings");
-  await expect(page.getByRole("heading", { name: "Connector Providers" })).toBeVisible();
+  await page.getByRole("button", { name: "Connected accounts" }).click();
+  await expect(page.getByRole("heading", { name: "Connected accounts" })).toBeVisible();
 
-  const connectorAccounts = page.getByRole("region", { name: "Connector Accounts" });
-
-  await expect(connectorAccounts.getByText("Google Email")).toBeVisible();
-
-  await connectorAccounts.getByRole("button", { name: "Mark error" }).click();
-  await expect(connectorAccounts.getByText(/error - gmail\.readonly/)).toBeVisible();
-
-  await connectorAccounts.getByRole("button", { name: "Revoke" }).click();
-  await expect(connectorAccounts.getByText("Revoked", { exact: true })).toBeVisible();
+  await expect(page.getByText("Google Email")).toBeVisible();
+  await expect(page.getByText(/gmail\.readonly/)).toBeVisible();
+  await page.getByRole("button", { name: "Revoke" }).click();
+  await page
+    .getByRole("dialog", { name: "Revoke Google Email access?" })
+    .getByRole("button", { name: "Revoke" })
+    .click();
+  await expect(page.getByText("Revoked", { exact: true })).toBeVisible();
 });
 
 test("configures AI providers and capability routing through settings REST calls", async ({
@@ -191,32 +188,29 @@ test("configures AI providers and capability routing through settings REST calls
   });
 
   await page.goto("/settings");
+  await page.locator(".set2__adv").click();
+  await page.getByRole("button", { name: "Assistant & AI" }).click();
 
-  const aiProviders = page.getByRole("region", { name: "AI Providers" });
-  const aiModels = page.getByRole("region", { name: "AI Models" });
-  const aiRouting = page.getByRole("region", { name: "Capability Routing" });
+  await expect(page.getByRole("heading", { name: "Assistant & AI" })).toBeVisible();
+  await page.getByRole("button", { name: "Add provider" }).click();
+  await page.getByRole("button", { name: "Anthropic" }).click();
+  await expect(page.locator(".provcfg__name", { hasText: "Anthropic" })).toBeVisible();
 
-  await expect(aiProviders).toBeVisible();
-  await aiProviders.getByLabel("Provider").selectOption("anthropic");
-  await aiProviders.getByLabel("Display name").fill("Anthropic Smoke");
-  await aiProviders.getByLabel("Credential JSON").fill('{"apiKey":"secret"}');
-  await aiProviders.getByRole("button", { name: "Add AI provider" }).click();
-  await expect(aiProviders.getByText("Anthropic Smoke")).toBeVisible();
+  await page.getByLabel("Provider").selectOption("ai-provider-1");
+  await page.getByLabel("Model id").fill("claude-smoke");
+  await page.getByLabel("Display name").fill("Haiku Smoke");
+  await page.getByLabel("tool-use").check();
+  await page.getByRole("button", { name: "Add model" }).click();
+  await expect(page.getByText("Haiku Smoke", { exact: true })).toBeVisible();
+  await expect(page.getByText("Haiku Smoke via Anthropic")).toBeVisible();
+  await expect(page.getByText("tasks.updateStatus")).toBeVisible();
 
-  await aiModels.getByLabel("Provider").selectOption("ai-provider-1");
-  await aiModels.getByLabel("Model id").fill("claude-smoke");
-  await aiModels.getByLabel("Display name").fill("Haiku Smoke");
-  await aiModels.getByLabel("tool-use").check();
-  await aiModels.getByRole("button", { name: "Add model" }).click();
-  await expect(aiModels.getByText("Haiku Smoke")).toBeVisible();
-  await expect(aiRouting.getByText("Haiku Smoke via Anthropic Smoke")).toBeVisible();
-  await expect(aiRouting.getByText("tasks.updateStatus")).toBeVisible();
+  await page.getByRole("button", { name: "Disable" }).first().click();
+  await expect(page.getByText("disabled")).toBeVisible();
 
-  await aiProviders.getByRole("button", { name: "Deactivate" }).click();
-  await expect(aiProviders.getByText(/anthropic - disabled/)).toBeVisible();
-
-  await aiProviders.getByRole("button", { name: "Revoke" }).click();
-  await expect(aiProviders.getByText("Revoked", { exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "Remove provider" }).click();
+  await page.getByRole("button", { name: "Remove", exact: true }).click();
+  await expect(page.getByText("Shared Jarvis assistant")).toBeVisible();
 });
 
 test("creates and runs briefings through REST calls", async ({ page }) => {

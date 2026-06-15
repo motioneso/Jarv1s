@@ -13,11 +13,12 @@ test("connects Google via the settings flow", async ({ page }) => {
   });
 
   await page.goto("/settings");
-  await expect(page.getByRole("heading", { name: "Connect Google" })).toBeVisible();
+  await page.getByRole("button", { name: "Connected accounts" }).click();
+  await expect(page.getByRole("heading", { name: "Connected accounts" })).toBeVisible();
 
-  await page.getByLabel("Client ID").fill("cid.apps.googleusercontent.com");
-  await page.getByLabel("Client secret").fill("my-client-secret");
-  await page.getByRole("button", { name: "Start authorization" }).click();
+  await page.getByLabel("Google client ID").fill("cid.apps.googleusercontent.com");
+  await page.getByLabel("Google client secret").fill("my-client-secret");
+  await page.getByRole("button", { name: "Start Google connect" }).click();
 
   await expect(page.getByRole("link", { name: /Open Google consent/ })).toBeVisible();
 
