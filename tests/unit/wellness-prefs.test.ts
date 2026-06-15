@@ -80,9 +80,7 @@ describe("wellness-prefs — reactive event bridge", () => {
   });
 
   it("writePrefs persists the pref and dispatches the custom event", async () => {
-    const { writePrefs, readPrefs } = await import(
-      "../../apps/web/src/wellness/wellness-prefs.js"
-    );
+    const { writePrefs } = await import("../../apps/web/src/wellness/wellness-prefs.js");
 
     writePrefs({ radial: true });
 
@@ -92,9 +90,7 @@ describe("wellness-prefs — reactive event bridge", () => {
   });
 
   it("readPrefs sees value written by writePrefs without remount", async () => {
-    const { writePrefs, readPrefs } = await import(
-      "../../apps/web/src/wellness/wellness-prefs.js"
-    );
+    const { writePrefs, readPrefs } = await import("../../apps/web/src/wellness/wellness-prefs.js");
 
     expect(readPrefs().radial).toBe(false);
     writePrefs({ radial: true });
@@ -102,9 +98,7 @@ describe("wellness-prefs — reactive event bridge", () => {
   });
 
   it("event listener receives update when writePrefs fires", async () => {
-    const { writePrefs, readPrefs } = await import(
-      "../../apps/web/src/wellness/wellness-prefs.js"
-    );
+    const { writePrefs, readPrefs } = await import("../../apps/web/src/wellness/wellness-prefs.js");
 
     // Simulate a second hook instance subscribing to the custom event.
     let seenRadial = readPrefs().radial;

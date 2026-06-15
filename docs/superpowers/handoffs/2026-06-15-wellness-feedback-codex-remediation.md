@@ -5,6 +5,7 @@
 existing branch. **Do NOT push/PR/merge or touch `docs/coordination/`.** Stage only changed paths.
 
 ## Worktree / branch
+
 - CWD: `/home/ben/Jarv1s/.claude/worktrees/wellness-feedback`, branch `wellness-feedback-pass`, HEAD
   `0c4218d`. `node_modules` present — do NOT `pnpm install`.
 - Context: the 8-item feedback pass is built + locally gate-green, but Codex review = DO-NOT-MERGE on
@@ -47,6 +48,7 @@ switch-back and cleared-time cases.
 (`git diff --check` flags it). Strip it.
 
 ## Process
+
 1. Read this + the spec (`docs/superpowers/specs/2026-06-15-wellness-feedback-pass.md`). Invoke
    `coordinated-build`; post a brief plan to `Wellness-Coordinator` (resolve fresh by label; two-call
    `send-text` then `send-keys Enter`); on approval, build. (Decisions are locked above — confirm, not
@@ -58,6 +60,7 @@ switch-back and cleared-time cases.
    merges.
 
 ## Critical
+
 - **RELAY (don't `/compact`) before ~80k tokens** — two agents died at the context limit this run by
   not relaying in time. Commit per-finding so progress survives.
 - Don't regress the partial-update PATCH semantics. No applied-migration edits. 1000-line file limit.

@@ -80,11 +80,13 @@ export function ManageMedsModal({ open, onClose, theme = "light" }: Props) {
     }
   };
 
-  const isValidTime = (t: string) =>
-    /^\d{2}:\d{2}$/.test(t) && t >= "00:00" && t <= "23:59";
+  const isValidTime = (t: string) => /^\d{2}:\d{2}$/.test(t) && t >= "00:00" && t <= "23:59";
 
   const timesInvalid =
-    freqType !== "as_needed" && scheduleTimes.slice(0, freqType === "once_daily" ? 1 : timesPerDay).some((t) => !isValidTime(t));
+    freqType !== "as_needed" &&
+    scheduleTimes
+      .slice(0, freqType === "once_daily" ? 1 : timesPerDay)
+      .some((t) => !isValidTime(t));
 
   const medsQuery = useQuery({
     queryKey: queryKeys.wellness.medications,
@@ -337,7 +339,11 @@ export function ManageMedsModal({ open, onClose, theme = "light" }: Props) {
                         />
                         {!isValidTime(t) && t !== "" ? (
                           <div
-                            style={{ fontSize: 12, color: "var(--color-error, #e53e3e)", marginTop: 2 }}
+                            style={{
+                              fontSize: 12,
+                              color: "var(--color-error, #e53e3e)",
+                              marginTop: 2
+                            }}
                           >
                             Enter a valid time (HH:MM)
                           </div>
