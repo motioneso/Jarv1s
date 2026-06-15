@@ -33,7 +33,7 @@ describe("web route metadata", () => {
     });
     expect(resolvePageHeading("/settings", new Date("2026-06-14T16:42:00Z"))).toMatchObject({
       title: "Settings & permissions",
-      subtitle: "PRIVATE WORKSPACE"
+      subtitle: ""
     });
   });
 
