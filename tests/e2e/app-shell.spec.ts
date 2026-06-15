@@ -177,29 +177,28 @@ test("configures AI providers and capability routing through settings REST calls
   });
 
   await page.goto("/settings");
-  await page.locator(".set2__adv").click();
+  // Provider roster + capability routing live under Admin -> Assistant & AI.
+  await page.getByRole("button", { name: "Admin / Setup" }).click();
   await page.getByRole("button", { name: "Assistant & AI" }).click();
 
   await expect(page.getByRole("heading", { name: "Assistant & AI" })).toBeVisible();
   await page.getByRole("button", { name: "Add provider" }).click();
-  await page.getByRole("button", { name: "Anthropic" }).click();
-  await expect(page.locator(".provcfg__name", { hasText: "Anthropic" })).toBeVisible();
+  await page.getByRole("button", { name: "Anthropic", exact: true }).click();
+  await expect(page.locator(".prov__name", { hasText: "Anthropic" })).toBeVisible();
 
-  await page.getByLabel("Provider").selectOption("ai-provider-1");
+  // Register a model on the provider card (auto-detect on connect is pending).
+  await page.locator(".prov__sync").click();
   await page.getByLabel("Model id").fill("claude-smoke");
   await page.getByLabel("Display name").fill("Haiku Smoke");
-  await page.getByLabel("tool-use").check();
   await page.getByRole("button", { name: "Add model" }).click();
-  await expect(page.getByText("Haiku Smoke", { exact: true })).toBeVisible();
-  await expect(page.getByText("Haiku Smoke via Anthropic")).toBeVisible();
-  await expect(page.getByText("tasks.updateStatus")).toBeVisible();
+  await expect(page.getByText("claude-smoke", { exact: true })).toBeVisible();
 
-  await page.getByRole("button", { name: "Disable" }).first().click();
-  await expect(page.getByText("disabled")).toBeVisible();
+  // Capability routing now lists the registered model.
+  await expect(page.getByText("Capability routing")).toBeVisible();
 
-  await page.getByRole("button", { name: "Remove provider" }).click();
+  await page.getByRole("button", { name: "Remove Anthropic" }).click();
   await page.getByRole("button", { name: "Remove", exact: true }).click();
-  await expect(page.getByText("Shared Jarvis assistant")).toBeVisible();
+  await expect(page.getByText("No providers yet")).toBeVisible();
 });
 
 test("serves PWA metadata", async ({ page }) => {

@@ -69,12 +69,13 @@ export function FeedbackProvider(props: { readonly children: ReactNode }) {
   const api = useMemo<FeedbackApi>(() => ({ toast, confirm }), [toast, confirm]);
 
   const closeDialog = useCallback(() => setDialog(null), []);
+  // Run onConfirm OUTSIDE the state updater: a setState updater must be pure, and
+  // React StrictMode double-invokes it in dev — which previously fired the action
+  // (and its toast) twice. `dialog` is in scope where the confirm button renders.
   const runConfirm = useCallback(() => {
-    setDialog((current) => {
-      current?.onConfirm();
-      return null;
-    });
-  }, []);
+    dialog?.onConfirm();
+    setDialog(null);
+  }, [dialog]);
 
   return (
     <FeedbackContext.Provider value={api}>

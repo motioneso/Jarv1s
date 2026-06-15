@@ -1,590 +1,279 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import {
-  CircleOff,
-  KeyRound,
-  Plus,
-  RotateCcw,
-  SearchCheck,
-  Settings2,
-  Sparkles,
-  Terminal,
-  X
-} from "lucide-react";
-import { useState, type FormEvent } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { Check, CornerDownRight, PencilLine, Sparkles } from "lucide-react";
+import { useMemo, useState } from "react";
 
-import {
-  createAiModel,
-  createAiProvider,
-  listAiAssistantTools,
-  listAiModels,
-  listAiProviders,
-  lookupAiCapabilityRoute,
-  revokeAiProvider,
-  updateAiModel,
-  updateAiProvider
-} from "../api/client";
+import { listAiModels } from "../api/client";
 import { queryKeys } from "../api/query-keys";
 import { useFeedback } from "./settings-feedback";
-import { readError, type PaneProps } from "./settings-types";
-import { Badge, Choice, Field, Group, Note, PaneHead, Row, Segmented, Select } from "./settings-ui";
-import type {
-  AiAuthMethod,
-  AiConfiguredModelDto,
-  AiModelCapability,
-  AiModelStatus,
-  AiModelTier,
-  AiProviderConfigDto,
-  AiProviderKind,
-  AiProviderStatus
-} from "@jarv1s/shared";
+import {
+  personaSample,
+  type DirectnessDial,
+  type HumorDial,
+  type RecoveryDial,
+  type ToneDial
+} from "./settings-persona-preview";
+import { type PaneProps } from "./settings-types";
+import { Choice, Field, Group, NotWired, Note, PaneHead, Select } from "./settings-ui";
 
-const PROVIDER_OPTIONS: readonly { readonly label: string; readonly kind: AiProviderKind }[] = [
-  { label: "Anthropic", kind: "anthropic" },
-  { label: "OpenAI", kind: "openai-compatible" },
-  { label: "Google", kind: "google" },
-  { label: "Mistral", kind: "openai-compatible" },
-  { label: "Local (Ollama)", kind: "ollama" },
-  { label: "OpenAI-compatible", kind: "openai-compatible" }
-];
-
-function ProviderPicker(props: {
-  readonly onChoose: (option: { label: string; kind: AiProviderKind }) => void;
-}) {
-  return (
-    <div className="provpick">
-      <div className="provpick__hd">Choose a provider</div>
-      <div className="provpick__grid">
-        {PROVIDER_OPTIONS.map((option) => (
-          <button
-            key={option.label}
-            type="button"
-            className="provpick__item"
-            onClick={() => props.onChoose(option)}
-          >
-            <span className="provpick__dot" />
-            {option.label}
-          </button>
-        ))}
-      </div>
-      <div className="provpick__foot">
-        Jarvis routes through this provider once a compatible model is registered.
-      </div>
-    </div>
-  );
+interface PersonaState {
+  name: string;
+  description: string;
+  tone: ToneDial;
+  directness: DirectnessDial;
+  humor: HumorDial;
+  recovery: RecoveryDial;
 }
 
-function ProviderConfig(props: {
-  readonly provider: AiProviderConfigDto;
-  readonly onAuth: (method: AiAuthMethod) => void;
-  readonly onStatus: (status: Exclude<AiProviderStatus, "revoked">) => void;
-}) {
-  const { provider } = props;
-  const nextStatus = provider.status === "disabled" ? "active" : "disabled";
-  return (
-    <div className="provcfg">
-      <div className="provcfg__name">
-        <span className="provcfg__mark">
-          <Sparkles size={16} aria-hidden="true" />
-        </span>
-        {provider.displayName}
-        <Badge tone={provider.status === "active" ? "pine" : "neutral"} dot>
-          {provider.status === "active" ? "Active" : provider.status}
-        </Badge>
-      </div>
+const PERSONA_STORAGE_KEY = "jarvis.settings.persona";
+const DEFAULT_DESCRIPTION =
+  "Be direct and a little dry — skip the pep talks. Hold me to commitments I've actually made, but ease off when I've had a rough day. Lead with what matters and keep it short.";
 
-      <Field
-        label="Authentication"
-        hint="CLI uses your existing subscription - no key to manage. Switch to API key only if you'd rather bill usage directly."
-      >
-        <Segmented<AiAuthMethod>
-          value={provider.authMethod}
-          options={[
-            { value: "cli", label: "CLI subscription" },
-            { value: "api_key", label: "API key" }
-          ]}
-          ariaLabel="Authentication method"
-          onChange={props.onAuth}
-        />
-      </Field>
-
-      {provider.authMethod === "cli" ? (
-        <div className="provcfg__cli">
-          <span className="provcfg__cli-ic">
-            <Terminal size={16} aria-hidden="true" />
-          </span>
-          <div className="provcfg__cli-main">
-            <div className="provcfg__cli-t">
-              Signed in via the {provider.displayName} CLI{" "}
-              {provider.cliAvailable ? (
-                <Badge tone="pine" dot>
-                  Available
-                </Badge>
-              ) : (
-                <Badge tone="amber" dot>
-                  Not detected
-                </Badge>
-              )}
-            </div>
-            <div className="provcfg__cli-d">
-              Routes through your authenticated CLI subscription. No API key needed.
-            </div>
-          </div>
-        </div>
-      ) : (
-        <div className="provcfg__cli">
-          <span className="provcfg__cli-ic">
-            <KeyRound size={16} aria-hidden="true" />
-          </span>
-          <div className="provcfg__cli-main">
-            <div className="provcfg__cli-t">
-              API key authentication{" "}
-              <Badge tone={provider.hasCredential ? "pine" : "amber"} dot>
-                {provider.hasCredential ? "Credential stored" : "No credential"}
-              </Badge>
-            </div>
-            <div className="provcfg__cli-d">
-              {provider.baseUrl ?? "Default provider endpoint"}. Updating encrypted credentials
-              needs the full provider form.
-            </div>
-          </div>
-        </div>
-      )}
-      <div className="provcfg__actions">
-        <button
-          type="button"
-          className="jds-btn jds-btn--quiet jds-btn--sm"
-          onClick={() => props.onStatus(nextStatus)}
-        >
-          <span className="jds-btn__icon">
-            <RotateCcw size={15} />
-          </span>
-          {nextStatus === "active" ? "Activate" : "Disable"}
-        </button>
-      </div>
-    </div>
-  );
+function initialPersona(): PersonaState {
+  const base: PersonaState = {
+    name: "Jarvis",
+    description: DEFAULT_DESCRIPTION,
+    tone: "Warm",
+    directness: "Balanced",
+    humor: "Dry",
+    recovery: "Encouraging"
+  };
+  if (typeof window === "undefined") return base;
+  try {
+    const raw = window.localStorage.getItem(PERSONA_STORAGE_KEY);
+    return raw ? { ...base, ...(JSON.parse(raw) as Partial<PersonaState>) } : base;
+  } catch {
+    return base;
+  }
 }
 
-const AI_CAPABILITIES: readonly AiModelCapability[] = [
-  "chat",
-  "tool-use",
-  "json",
-  "vision",
-  "summarization"
-];
-
-const MODEL_TIERS: readonly AiModelTier[] = ["reasoning", "interactive", "economy"];
-
-function AiModelsGroup(props: {
-  readonly providers: readonly AiProviderConfigDto[];
-  readonly models: readonly AiConfiguredModelDto[];
-}) {
-  const queryClient = useQueryClient();
+function Persona({ who }: { readonly who: string }) {
   const { toast } = useFeedback();
-  const activeProviders = props.providers.filter((provider) => provider.status !== "revoked");
-  const [providerConfigId, setProviderConfigId] = useState(activeProviders[0]?.id ?? "");
-  const [providerModelId, setProviderModelId] = useState("");
-  const [displayName, setDisplayName] = useState("");
-  const [tier, setTier] = useState<AiModelTier>("interactive");
-  const [capabilities, setCapabilities] = useState<readonly AiModelCapability[]>(["chat"]);
+  const [p, setP] = useState<PersonaState>(initialPersona);
+  const [saved, setSaved] = useState<PersonaState>(p);
+  const [rev, setRev] = useState(0);
+  const set = <K extends keyof PersonaState>(k: K, v: PersonaState[K]) =>
+    setP((s) => ({ ...s, [k]: v }));
+  const dirty = JSON.stringify(p) !== JSON.stringify(saved);
+  const sample = useMemo(() => personaSample(p, who), [p, who]);
 
-  const createMutation = useMutation({
-    mutationFn: () =>
-      createAiModel({
-        providerConfigId,
-        providerModelId,
-        displayName,
-        tier,
-        capabilities
-      }),
-    onSuccess: () => {
-      setProviderModelId("");
-      setDisplayName("");
-      setCapabilities(["chat"]);
-      void Promise.all([
-        queryClient.invalidateQueries({ queryKey: queryKeys.ai.models }),
-        queryClient.invalidateQueries({ queryKey: queryKeys.ai.capabilities })
-      ]);
-      toast("Model added", { icon: <Sparkles size={17} /> });
-    },
-    onError: (error) => toast(readError(error), { tone: "drift" })
-  });
-  const statusMutation = useMutation({
-    mutationFn: (input: { id: string; status: AiModelStatus }) =>
-      updateAiModel(input.id, { status: input.status }),
-    onSuccess: () =>
-      void Promise.all([
-        queryClient.invalidateQueries({ queryKey: queryKeys.ai.models }),
-        queryClient.invalidateQueries({ queryKey: queryKeys.ai.capabilities })
-      ]),
-    onError: (error) => toast(readError(error), { tone: "drift" })
-  });
-
-  const submit = (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    if (!providerConfigId || !providerModelId.trim() || !displayName.trim()) return;
-    createMutation.mutate();
+  const save = () => {
+    setSaved(p);
+    setRev((r) => r + 1);
+    try {
+      window.localStorage.setItem(PERSONA_STORAGE_KEY, JSON.stringify(p));
+    } catch {
+      /* BACKEND-TODO: persist persona + dials and feed them into the system prompt; local storage until then */
+    }
+    toast("Persona saved — your next briefing and replies use this voice", {
+      icon: <Sparkles size={17} />
+    });
+  };
+  const discard = () => {
+    setP(saved);
+    setRev((r) => r + 1);
   };
 
   return (
-    <Group title="Models" desc="Configured models and the capabilities they can serve.">
-      {props.models.length ? (
-        props.models.map((model) => {
-          const nextStatus: AiModelStatus = model.status === "disabled" ? "active" : "disabled";
-          return (
-            <Row
-              key={model.id}
-              name={model.displayName}
-              desc={`${model.providerDisplayName} / ${model.providerModelId} / ${model.tier} / ${model.capabilities.join(", ")}`}
-              control={
-                <button
-                  type="button"
-                  className="jds-btn jds-btn--quiet jds-btn--sm"
-                  onClick={() => statusMutation.mutate({ id: model.id, status: nextStatus })}
-                >
-                  <span className="jds-btn__icon">
-                    <CircleOff size={15} />
-                  </span>
-                  {nextStatus === "active" ? "Activate" : "Disable"}
-                </button>
-              }
-            />
-          );
-        })
-      ) : (
-        <Row name="No configured models" desc="Add a provider, then register at least one model." />
-      )}
+    <Group
+      title="Persona"
+      desc="How Jarvis sounds and carries itself. This is fed into every briefing and reply — the preview shows the effect."
+    >
+      <NotWired>
+        Saves locally only — not yet fed into the system prompt. The preview is illustrative.
+      </NotWired>
+      <Field
+        label="Assistant name"
+        hint="What you call your assistant. Used in chat and the briefing."
+      >
+        <input
+          className="jds-input"
+          value={p.name}
+          onChange={(e) => set("name", e.target.value)}
+          aria-label="Assistant name"
+        />
+      </Field>
+      <Field
+        label="In your own words"
+        hint="How should Jarvis interact with you? Its style, what to lean into, what to avoid."
+      >
+        <textarea
+          className="jds-textarea"
+          rows={3}
+          value={p.description}
+          onChange={(e) => set("description", e.target.value)}
+          aria-label="Persona"
+          placeholder="e.g. Be direct and a little dry. Skip the pep talks. Push me on commitments, but ease off on a rough day."
+        />
+      </Field>
+      <Choice
+        key={`tone${rev}`}
+        label="Tone"
+        value={p.tone}
+        options={["Warm", "Neutral", "Crisp"]}
+        onChange={(v) => set("tone", v as ToneDial)}
+      />
+      <Choice
+        key={`dir${rev}`}
+        label="Directness"
+        value={p.directness}
+        options={["Gentle", "Balanced", "Direct"]}
+        onChange={(v) => set("directness", v as DirectnessDial)}
+      />
+      <Choice
+        key={`hum${rev}`}
+        label="Humor"
+        value={p.humor}
+        options={["None", "Dry", "Playful"]}
+        onChange={(v) => set("humor", v as HumorDial)}
+      />
+      <Choice
+        key={`rec${rev}`}
+        label="Recovery & accountability"
+        hint="How Jarvis responds when you fall behind. Never shaming — that's a promise of the product."
+        value={p.recovery}
+        options={["Encouraging", "Matter-of-fact", "Firm"]}
+        onChange={(v) => set("recovery", v as RecoveryDial)}
+      />
 
-      <form className="ai-model-form" onSubmit={submit}>
-        <Field label="Provider">
-          <Select
-            value={providerConfigId}
-            onChange={(event) => setProviderConfigId(event.target.value)}
-            aria-label="Provider"
-          >
-            <option value="">Choose provider</option>
-            {activeProviders.map((provider) => (
-              <option key={provider.id} value={provider.id}>
-                {provider.displayName}
-              </option>
-            ))}
-          </Select>
-        </Field>
-        <Field label="Model id">
-          <input
-            className="jds-input"
-            value={providerModelId}
-            onChange={(event) => setProviderModelId(event.target.value)}
-            placeholder="provider-model-id"
-            aria-label="Model id"
-          />
-        </Field>
-        <Field label="Display name">
-          <input
-            className="jds-input"
-            value={displayName}
-            onChange={(event) => setDisplayName(event.target.value)}
-            placeholder="Claude Sonnet"
-            aria-label="Display name"
-          />
-        </Field>
-        <Field label="Tier">
-          <Segmented<AiModelTier>
-            value={tier}
-            options={MODEL_TIERS}
-            ariaLabel="Model tier"
-            onChange={setTier}
-          />
-        </Field>
-        <div className="cap-list" aria-label="Model capabilities">
-          {AI_CAPABILITIES.map((capability) => (
-            <label className="cap-list__item" key={capability}>
-              <input
-                type="checkbox"
-                checked={capabilities.includes(capability)}
-                onChange={(event) =>
-                  setCapabilities((current) =>
-                    event.target.checked
-                      ? [...current, capability]
-                      : current.filter((item) => item !== capability)
-                  )
-                }
-              />
-              {capability}
-            </label>
-          ))}
+      <div className="ppv">
+        <div className="ppv__hd">
+          <Sparkles size={13} aria-hidden="true" />
+          How {p.name || "Jarvis"} would sound
         </div>
-        <button
-          type="submit"
-          className="jds-btn jds-btn--secondary jds-btn--sm"
-          disabled={!providerConfigId || !providerModelId.trim() || !displayName.trim()}
-        >
-          <span className="jds-btn__icon">
-            <Plus size={15} />
-          </span>
-          Add model
-        </button>
-      </form>
+        <div className="ppv__bubble ppv__bubble--main">
+          <div className="ppv__cap">Morning briefing</div>
+          <p className="ppv__say">{sample.greeting}</p>
+        </div>
+        <div className="ppv__bubble">
+          <div className="ppv__cap">When you fall behind</div>
+          <p className="ppv__say">{sample.recovery}</p>
+        </div>
+        <div className="ppv__foot">
+          <CornerDownRight size={12} aria-hidden="true" />A live illustration of your settings — not
+          a recorded reply.
+        </div>
+      </div>
+
+      <div className={`psona-save${dirty ? " is-dirty" : ""}`}>
+        <span className="psona-save__state">
+          {dirty ? (
+            <PencilLine size={14} aria-hidden="true" />
+          ) : (
+            <Check size={14} aria-hidden="true" />
+          )}
+          {dirty ? "Unsaved changes" : "Saved — this is Jarvis's current voice"}
+        </span>
+        <span className="psona-save__acts">
+          {dirty ? (
+            <button type="button" className="jds-btn jds-btn--quiet jds-btn--sm" onClick={discard}>
+              Discard
+            </button>
+          ) : null}
+          <button
+            type="button"
+            className="jds-btn jds-btn--primary jds-btn--sm"
+            disabled={!dirty}
+            onClick={save}
+          >
+            Save persona
+          </button>
+        </span>
+      </div>
     </Group>
   );
 }
 
-function CapabilityRoutingGroup() {
-  const [capability, setCapability] = useState<AiModelCapability>("chat");
-  const routeQuery = useQuery({
-    queryKey: queryKeys.ai.capability(capability),
-    queryFn: () => lookupAiCapabilityRoute(capability),
-    retry: false
-  });
-  const toolsQuery = useQuery({
-    queryKey: queryKeys.ai.assistantTools,
-    queryFn: listAiAssistantTools,
-    retry: false
-  });
-  const route = routeQuery.data?.route;
-  const tools = toolsQuery.data?.tools ?? [];
+const CHAT_MODEL_STORAGE_KEY = "jarvis.settings.chatModel";
 
-  return (
-    <>
-      <Group title="Capability routing" desc="Which active model serves each assistant capability.">
-        <Field label="Capability">
-          <Segmented<AiModelCapability>
-            value={capability}
-            options={AI_CAPABILITIES}
-            ariaLabel="Capability"
-            onChange={setCapability}
-          />
-        </Field>
-        <Row
-          name="Selected route"
-          desc={
-            route?.model
-              ? `${route.model.displayName} via ${route.model.providerDisplayName}`
-              : routeQuery.isLoading
-                ? "Checking route..."
-                : "No active model can serve this capability."
-          }
-          control={<SearchCheck size={17} aria-hidden="true" />}
-        />
-      </Group>
-      <Group title="Assistant tools" desc="Registered tools exposed to the assistant router.">
-        {tools.length ? (
-          tools.map((tool) => (
-            <Row
-              key={`${tool.moduleId}:${tool.name}`}
-              name={tool.name}
-              desc={`${tool.moduleName} / ${tool.permissionId}`}
-              control={<Badge tone={tool.risk === "read" ? "pine" : "amber"}>{tool.risk}</Badge>}
-            />
-          ))
-        ) : (
-          <Row name={toolsQuery.isLoading ? "Loading tools..." : "No assistant tools"} />
-        )}
-      </Group>
-    </>
-  );
-}
-
-function AdvancedAiSource() {
-  const queryClient = useQueryClient();
-  const { toast, confirm } = useFeedback();
-  const [pick, setPick] = useState(false);
-  const providersQuery = useQuery({
-    queryKey: queryKeys.ai.providers,
-    queryFn: listAiProviders,
-    retry: false
-  });
+function ChatModel() {
+  const { toast } = useFeedback();
   const modelsQuery = useQuery({
     queryKey: queryKeys.ai.models,
     queryFn: listAiModels,
     retry: false
   });
-  const providers = (providersQuery.data?.providers ?? []).filter(
-    (item) => item.status !== "revoked"
+  const chatModels = (modelsQuery.data?.models ?? []).filter(
+    (m) => m.status !== "disabled" && m.capabilities.includes("chat")
   );
-  const models = modelsQuery.data?.models ?? [];
+  const [choice, setChoice] = useState<string>(() => {
+    if (typeof window === "undefined") return "default";
+    return window.localStorage.getItem(CHAT_MODEL_STORAGE_KEY) ?? "default";
+  });
 
-  const createMutation = useMutation({
-    mutationFn: (option: { label: string; kind: AiProviderKind }) =>
-      createAiProvider({ providerKind: option.kind, displayName: option.label, authMethod: "cli" }),
-    onSuccess: (_data, option) => {
-      setPick(false);
-      void Promise.all([
-        queryClient.invalidateQueries({ queryKey: queryKeys.ai.providers }),
-        queryClient.invalidateQueries({ queryKey: queryKeys.ai.capabilities })
-      ]);
-      toast(`Added ${option.label}`, { icon: <Sparkles size={17} /> });
-    },
-    onError: (error) => toast(readError(error), { tone: "drift", icon: <X size={17} /> })
-  });
-  const revokeMutation = useMutation({
-    mutationFn: (id: string) => revokeAiProvider(id),
-    onSuccess: () => {
-      void Promise.all([
-        queryClient.invalidateQueries({ queryKey: queryKeys.ai.providers }),
-        queryClient.invalidateQueries({ queryKey: queryKeys.ai.models }),
-        queryClient.invalidateQueries({ queryKey: queryKeys.ai.capabilities })
-      ]);
-      toast("Provider removed", { tone: "drift", icon: <X size={17} /> });
-    },
-    onError: (error) => toast(readError(error), { tone: "drift" })
-  });
-  const authMutation = useMutation({
-    mutationFn: (input: { id: string; authMethod: AiAuthMethod }) =>
-      updateAiProvider(input.id, { authMethod: input.authMethod }),
-    onSuccess: () =>
-      void Promise.all([
-        queryClient.invalidateQueries({ queryKey: queryKeys.ai.providers }),
-        queryClient.invalidateQueries({ queryKey: queryKeys.ai.capabilities })
-      ]),
-    onError: (error) => toast(readError(error), { tone: "drift" })
-  });
-  const statusMutation = useMutation({
-    mutationFn: (input: { id: string; status: Exclude<AiProviderStatus, "revoked"> }) =>
-      updateAiProvider(input.id, { status: input.status }),
-    onSuccess: () =>
-      void Promise.all([
-        queryClient.invalidateQueries({ queryKey: queryKeys.ai.providers }),
-        queryClient.invalidateQueries({ queryKey: queryKeys.ai.capabilities })
-      ]),
-    onError: (error) => toast(readError(error), { tone: "drift" })
-  });
+  const onChange = (value: string) => {
+    setChoice(value);
+    try {
+      window.localStorage.setItem(CHAT_MODEL_STORAGE_KEY, value);
+    } catch {
+      /* BACKEND-TODO: per-user chat-model override endpoint (decision: allow override or read-only?); local storage until then */
+    }
+    const label =
+      value === "default"
+        ? "the instance default"
+        : chatModels.find((m) => m.id === value)?.displayName;
+    toast(`Chat now uses ${label ?? "the selected model"}`, { icon: <Sparkles size={17} /> });
+  };
 
   return (
-    <>
-      <Group
-        title="AI providers"
-        desc="Use the shared assistant, or bring one or more provider accounts."
-        action={
-          <button
-            type="button"
-            className="jds-btn jds-btn--secondary jds-btn--sm"
-            onClick={() => setPick((open) => !open)}
+    <Group
+      title="Chat model"
+      desc="Which assistant answers when you chat with Jarvis. Providers and instance-wide routing are managed by an admin."
+    >
+      {chatModels.length ? (
+        <>
+          <NotWired>
+            Your override is remembered on this device only — it doesn't change routing yet.
+          </NotWired>
+          <Field
+            label="Powering your chat"
+            hint="Defaults to the instance routing your admin set. Override it to a specific model for your own conversations."
           >
-            <span className="jds-btn__icon">
-              <Plus size={15} />
-            </span>
-            Add provider
-          </button>
-        }
-      >
-        {providers.length ? (
-          providers.map((provider) => (
-            <div className="provider-block" key={provider.id}>
-              <ProviderConfig
-                provider={provider}
-                onAuth={(method) => authMutation.mutate({ id: provider.id, authMethod: method })}
-                onStatus={(status) => statusMutation.mutate({ id: provider.id, status })}
-              />
-              <button
-                type="button"
-                className="jds-btn jds-btn--quiet jds-btn--sm provider-block__remove"
-                onClick={() =>
-                  confirm({
-                    title: `Remove ${provider.displayName}?`,
-                    description: "Models tied to this provider will stop routing through it.",
-                    confirmLabel: "Remove",
-                    danger: true,
-                    onConfirm: () => revokeMutation.mutate(provider.id)
-                  })
-                }
-              >
-                <span className="jds-btn__icon">
-                  <X size={15} />
-                </span>
-                Remove provider
-              </button>
-            </div>
-          ))
-        ) : (
-          <div className="ai-src">
-            <div className="ai-src__ic">
-              <Sparkles size={20} aria-hidden="true" />
-            </div>
-            <div className="ai-src__main">
-              <div className="ai-src__name">
-                Shared Jarvis assistant{" "}
-                <Badge tone="pine" dot>
-                  Active
-                </Badge>
-              </div>
-              <div className="ai-src__sub">
-                The default. Add a provider to route Jarvis through your own account instead.
-              </div>
+            <Select
+              value={choice}
+              onChange={(e) => onChange(e.target.value)}
+              aria-label="Chat model"
+            >
+              <option value="default">Instance default</option>
+              {chatModels.map((m) => (
+                <option key={m.id} value={m.id}>
+                  {m.providerDisplayName} · {m.providerModelId}
+                </option>
+              ))}
+            </Select>
+          </Field>
+          <Note>
+            Providers, credentials and which model handles each kind of work live in{" "}
+            <b>Admin → Assistant &amp; AI</b>.
+          </Note>
+        </>
+      ) : (
+        <div className="ai-empty">
+          <div className="ai-empty__ic">
+            <Sparkles size={20} aria-hidden="true" />
+          </div>
+          <div className="ai-empty__main">
+            <div className="ai-empty__t">No assistant configured yet</div>
+            <div className="ai-empty__d">
+              An admin needs to add an AI provider before Jarvis can chat. Ask whoever set up this
+              instance — or, if that's you, add one under <b>Admin → Assistant &amp; AI</b>.
             </div>
           </div>
-        )}
-        {pick ? <ProviderPicker onChoose={(option) => createMutation.mutate(option)} /> : null}
-      </Group>
-      <AiModelsGroup providers={providers} models={models} />
-      <CapabilityRoutingGroup />
-    </>
+        </div>
+      )}
+    </Group>
   );
 }
 
-export function AssistantPane({ advanced }: PaneProps) {
+export function AssistantPane({ me }: PaneProps) {
+  const who = (me.user.name ?? "").split(/\s+/)[0] || "there";
   return (
     <>
       <PaneHead
         title="Assistant & AI"
-        desc="Tune how Jarvis sounds and carries itself. These shape the briefing voice and every reply."
+        desc="Tune how Jarvis sounds, and choose which assistant powers your chat."
       />
-
-      <Group title="Persona">
-        <Field
-          label="Assistant name"
-          hint="What you call your assistant. Used in chat and the briefing."
-        >
-          <input className="jds-input" defaultValue="Jarvis" aria-label="Assistant name" />
-        </Field>
-        <Field
-          label="Persona"
-          hint="In your own words, how should Jarvis interact with you? Its style, what to lean into, what to avoid."
-        >
-          <textarea
-            className="jds-textarea"
-            rows={3}
-            aria-label="Persona"
-            placeholder="e.g. Be direct and a little dry. Skip the pep talks. Push me on commitments, but ease off on a rough day."
-          />
-        </Field>
-        <Choice label="Tone" value="Warm" options={["Warm", "Neutral", "Crisp"]} />
-        <Choice label="Directness" value="Balanced" options={["Gentle", "Balanced", "Direct"]} />
-        <Choice label="Humor" value="Dry" options={["None", "Dry", "Playful"]} />
-        <Choice
-          label="Recovery & accountability"
-          hint="How Jarvis responds when you fall behind. Never shaming - that's a promise of the product."
-          value="Encouraging"
-          options={["Encouraging", "Matter-of-fact", "Firm"]}
-        />
-      </Group>
-
-      {advanced ? (
-        <AdvancedAiSource />
-      ) : (
-        <Group title="AI source">
-          <div className="ai-src">
-            <div className="ai-src__ic">
-              <Sparkles size={20} aria-hidden="true" />
-            </div>
-            <div className="ai-src__main">
-              <div className="ai-src__name">
-                Shared Jarvis assistant{" "}
-                <Badge tone="pine" dot>
-                  Active
-                </Badge>
-              </div>
-              <div className="ai-src__sub">
-                Jarvis works out of the box on this instance's assistant - nothing to set up.
-              </div>
-            </div>
-          </div>
-          <Note icon={<Settings2 size={13} />}>
-            Bringing your own provider - keys, models, CLI - lives under <b>Advanced</b> at the top.
-            Most people never need it.
-          </Note>
-        </Group>
-      )}
+      <Persona who={who} />
+      <ChatModel />
     </>
   );
 }

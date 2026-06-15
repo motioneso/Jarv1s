@@ -5,8 +5,10 @@ export interface PaneProps {
   /** The persistent Advanced switch — reveals provider/host/developer detail. */
   readonly advanced: boolean;
   readonly me: MeResponse;
-  /** Navigate to an in-app route (used by "Open settings →" module links). */
+  /** Navigate to an in-app route (used by "Open ↗" module links). */
   readonly onNavigate: (path: string) => void;
+  /** Jump to another settings section (e.g. Modules → Memory & context). */
+  readonly onSelectSection?: (id: string) => void;
 }
 
 /** Editorial one-liners for modules (the module DTOs carry no description). */

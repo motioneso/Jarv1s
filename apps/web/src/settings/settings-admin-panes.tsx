@@ -1,6 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
-  Download,
   KeyRound,
   MoreHorizontal,
   RefreshCw,
@@ -22,7 +21,6 @@ import {
   demoteUser,
   getChatMultiplexerSettings,
   getRegistrationSettings,
-  listAdminAuditEvents,
   listAdminConnectorAccounts,
   listAdminModules,
   listAdminUsers,
@@ -48,6 +46,7 @@ import {
   Group,
   Indicator,
   Locked,
+  NotWired,
   Note,
   PaneHead,
   Row,
@@ -428,47 +427,47 @@ export function InstanceModulesPane() {
   const toggleMutation = useMutation({
     mutationFn: (input: { id: string; disabled: boolean }) =>
       setAdminModuleDisabled(input.id, input.disabled),
+    // Also refresh myModules/modules so the side-nav (driven by `active`) updates
+    // live for the admin — disabling instance-wide drops the nav entry immediately.
     onSuccess: () =>
-      void queryClient.invalidateQueries({ queryKey: queryKeys.settings.adminModules }),
+      void Promise.all([
+        queryClient.invalidateQueries({ queryKey: queryKeys.settings.adminModules }),
+        queryClient.invalidateQueries({ queryKey: queryKeys.myModules }),
+        queryClient.invalidateQueries({ queryKey: queryKeys.modules })
+      ]),
     onError: (error) => toast(readError(error), { tone: "drift" })
   });
-  const modules = modulesQuery.data?.modules ?? [];
+  // Only optional modules are shown — required ones are always on and can't be
+  // toggled, so there's nothing for the admin to do with them.
+  const modules = (modulesQuery.data?.modules ?? []).filter((module) => !module.required);
 
   return (
     <>
       <PaneHead
         title="Instance modules"
-        desc="Turn optional modules on or off for everyone. Required modules are always on."
+        desc="Turn optional modules on or off for everyone. Core modules are always on and aren't listed."
       />
-      <Group title="Modules">
+      <Group title="Optional modules">
         {modules.length ? (
           modules.map((module) => (
             <Row
               key={module.id}
-              name={
-                <span className="module-title-with-badge">
-                  {module.name}
-                  {module.required ? <Badge tone="neutral">Required</Badge> : null}
-                </span>
-              }
+              name={module.name}
               desc={moduleDescription(module.id)}
               control={
-                module.required ? (
-                  <Badge tone="pine" dot>
-                    On
-                  </Badge>
-                ) : (
-                  <Switch
-                    ariaLabel={module.name}
-                    checked={!module.instanceDisabled}
-                    onChange={(value) => toggleMutation.mutate({ id: module.id, disabled: !value })}
-                  />
-                )
+                <Switch
+                  ariaLabel={module.name}
+                  checked={!module.instanceDisabled}
+                  onChange={(value) => toggleMutation.mutate({ id: module.id, disabled: !value })}
+                />
               }
             />
           ))
         ) : (
-          <Row name={modulesQuery.isLoading ? "Loading modules…" : "No modules"} />
+          <Row
+            name={modulesQuery.isLoading ? "Loading modules…" : "No optional modules"}
+            desc={modulesQuery.isLoading ? undefined : "Every module on this instance is core."}
+          />
         )}
       </Group>
       <Note>
@@ -479,67 +478,8 @@ export function InstanceModulesPane() {
   );
 }
 
-/* ---------------------------------------------------------- Audit & operations */
-
-export function AuditPane() {
-  const { toast } = useFeedback();
-  const auditQuery = useQuery({
-    queryKey: queryKeys.settings.adminAuditEvents,
-    queryFn: listAdminAuditEvents,
-    retry: false
-  });
-  const events = auditQuery.data?.auditEvents ?? [];
-  return (
-    <>
-      <PaneHead
-        title="Audit & operations"
-        desc="A record of what's changed, and the operational levers for this instance."
-      />
-      <Group
-        title="Recent activity"
-        action={
-          <button
-            type="button"
-            className="jds-btn jds-btn--quiet jds-btn--sm"
-            onClick={() => toast("Audit export is coming soon", { icon: <Download size={17} /> })}
-          >
-            <span className="jds-btn__icon">
-              <Download size={15} />
-            </span>
-            Export log
-          </button>
-        }
-      >
-        <div className="aud">
-          {events.length ? (
-            events.map((event) => (
-              <div className="aud__row" key={event.id}>
-                <div className="aud__when">{new Date(event.createdAt).toLocaleString()}</div>
-                <div className="aud__what">
-                  <b>{event.action}</b> on {event.targetType}
-                  {event.targetId ? ` ${event.targetId}` : ""}
-                </div>
-              </div>
-            ))
-          ) : (
-            <Row
-              name={auditQuery.isLoading ? "Loading activity…" : "No audit events"}
-              desc="Admin and system actions appear here once recorded."
-            />
-          )}
-        </div>
-      </Group>
-      <Group title="Data & backups">
-        <Row
-          name="Export instance data"
-          desc="A full export of all data held on this instance."
-          coming
-        />
-        <Row name="Backup & restore" desc="Scheduled backups and point-in-time restore." coming />
-      </Group>
-    </>
-  );
-}
+/* Audit & operations now lives in ./settings-audit-pane (AuditPane) — it gained
+   filters, category tags and CSV export against the AdminAuditEventDto shape. */
 
 /* ---------------------------------------------------------- Connector oversight */
 
@@ -680,6 +620,7 @@ export function HostPane({ advanced }: PaneProps) {
         />
       </Group>
       <Group title="Diagnostics">
+        <NotWired>Verbose logging, restart and diagnostics are placeholders.</NotWired>
         <Row name="Verbose logging" desc="Capture detailed logs for troubleshooting." coming />
         <Row
           name="Restart-required settings"
