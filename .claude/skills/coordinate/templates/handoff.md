@@ -5,7 +5,8 @@
 **Risk tier:** `routine` | `sensitive` | `security`  (set by content triggers — see `coordinate` Risk tiering. `security` ⇒ this PR gets cross-model QA + Ben merge sign-off; build to that bar.)
 **Worktree:** <repo>/.claude/worktrees/<slug>   **Branch:** <branch off origin/main>
 **Build skill path (absolute):** <repo>/.claude/skills/coordinated-build/SKILL.md   (use this exact path if `coordinated-build` does not resolve by name in your spawn env)
-**Coordinator label:** `Coordinator`   (UNIQUE — escalate via `herdr-pane-message`; before messaging, verify `herdr pane list` shows EXACTLY ONE pane with this label. Never guess a `…-N` pane-id — they reflow when panes close.)
+**Coordinator label:** `Coordinator`   (UNIQUE — escalate via `herdr-pane-message`; before messaging, verify `herdr pane list` shows EXACTLY ONE pane with this label. Never guess or reuse a `…-N` pane-id — they reflow when any pane opens/closes; re-resolve the live pane by label from `herdr pane list` each time.)
+**Coordinator session id:** `<agent_session.value>`   (the immutable authority for this coordinator — label is routing, the `…-N` number is ephemeral. Confirm this session id is still live before relying on the coordinator; it survives pane renumbering.)
 **Relay threshold:** countable events — ~80–100k tokens OR a compaction summary in your own context (then relay immediately).
 
 ## Start
