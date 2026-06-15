@@ -31,7 +31,11 @@ export function RadialDial({ value, onPick, theme }: RadialDialProps) {
 
   return (
     <div className="wl-dial">
-      <svg viewBox="0 0 300 300" className="wl-dial__svg" style={{ width: "100%", maxWidth: 300 }}>
+      <svg
+        viewBox="0 0 300 300"
+        className="wl-dial__svg"
+        style={{ width: "100%", maxWidth: 300, height: "auto", aspectRatio: "1" }}
+      >
         {EMOTIONS.map((e, i) => {
           const a0 = i * (360 / n) + pad;
           const a1 = (i + 1) * (360 / n) - pad;
