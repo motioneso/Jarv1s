@@ -1,96 +1,231 @@
-import { useQuery } from "@tanstack/react-query";
-import { ShieldCheck, UsersRound } from "lucide-react";
+import "../styles/settings.css";
+import "../styles/settings-panes.css";
 
-import { listAuthProviderStatuses } from "../api/client";
-import { queryKeys } from "../api/query-keys";
-import { AiSettingsPanel } from "../ai/ai-settings-panel";
-import { ConnectGooglePanel } from "../connectors/connect-google-panel";
-import { ConnectorsPanel } from "../connectors/connectors-panel";
-import { AdminUsersPanel } from "./admin-users-panel";
+import {
+  Activity,
+  Boxes,
+  Brain,
+  Database,
+  Fingerprint,
+  Link2,
+  Package,
+  ScrollText,
+  ServerCog,
+  ShieldCheck,
+  SlidersHorizontal,
+  Sparkles,
+  UserRound,
+  Users,
+  type LucideIcon
+} from "lucide-react";
+import { lazy, Suspense, useEffect, useState, type ComponentType } from "react";
+import { useNavigate } from "react-router";
+
+import { FeedbackProvider } from "./settings-feedback";
+import { ProfilePane } from "./settings-personal-panes";
+import { coerceSettingsSectionId } from "./settings-navigation";
+import {
+  browserSettingsStorage,
+  readSettingsStorage,
+  writeSettingsStorage
+} from "./settings-storage";
+import type { PaneProps } from "./settings-types";
+import { Segmented, Switch } from "./settings-ui";
 import type { MeResponse } from "@jarv1s/shared";
+
+type SettingsPane = ComponentType<PaneProps>;
+
+interface SettingsSection<Id extends string> {
+  readonly id: Id;
+  readonly icon: LucideIcon;
+  readonly label: string;
+  readonly Pane: SettingsPane;
+}
+
+type PersonalSectionId =
+  | "profile"
+  | "assistant"
+  | "memory"
+  | "connected"
+  | "sources"
+  | "modules"
+  | "general";
+
+type AdminSectionId = "people" | "identity" | "instmods" | "audit" | "oversight" | "host";
+
+function lazyPane(loader: () => Promise<{ default: SettingsPane }>) {
+  return lazy(loader);
+}
+
+const AssistantPane = lazyPane(() =>
+  import("./settings-ai-pane").then((module) => ({ default: module.AssistantPane }))
+);
+const MemoryPane = lazyPane(() =>
+  import("./settings-memory-pane").then((module) => ({ default: module.MemoryPane }))
+);
+const ConnectedPane = lazyPane(() =>
+  import("./settings-personal-data-panes").then((module) => ({ default: module.ConnectedPane }))
+);
+const SourcesPane = lazyPane(() =>
+  import("./settings-personal-data-panes").then((module) => ({ default: module.SourcesPane }))
+);
+const ModulesPane = lazyPane(() =>
+  import("./settings-personal-data-panes").then((module) => ({ default: module.ModulesPane }))
+);
+const GeneralPane = lazyPane(() =>
+  import("./settings-personal-data-panes").then((module) => ({ default: module.GeneralPane }))
+);
+
+const PeoplePane = lazyPane(() =>
+  import("./settings-admin-panes").then((module) => ({ default: module.PeoplePane }))
+);
+const IdentityPane = lazyPane(() =>
+  import("./settings-admin-panes").then((module) => ({ default: module.IdentityPane }))
+);
+const InstanceModulesPane = lazyPane(() =>
+  import("./settings-admin-panes").then((module) => ({ default: module.InstanceModulesPane }))
+);
+const AuditPane = lazyPane(() =>
+  import("./settings-admin-panes").then((module) => ({ default: module.AuditPane }))
+);
+const OversightPane = lazyPane(() =>
+  import("./settings-admin-panes").then((module) => ({ default: module.OversightPane }))
+);
+const HostPane = lazyPane(() =>
+  import("./settings-admin-panes").then((module) => ({ default: module.HostPane }))
+);
+
+const PERSONAL_SECTIONS = [
+  { id: "profile", icon: UserRound, label: "Profile & account", Pane: ProfilePane },
+  { id: "assistant", icon: Sparkles, label: "Assistant & AI", Pane: AssistantPane },
+  { id: "memory", icon: Brain, label: "Memory & context", Pane: MemoryPane },
+  { id: "connected", icon: Link2, label: "Connected accounts", Pane: ConnectedPane },
+  { id: "sources", icon: Database, label: "Data sources", Pane: SourcesPane },
+  { id: "modules", icon: Boxes, label: "Modules", Pane: ModulesPane },
+  { id: "general", icon: SlidersHorizontal, label: "General", Pane: GeneralPane }
+] as const satisfies readonly SettingsSection<PersonalSectionId>[];
+
+const ADMIN_SECTIONS = [
+  { id: "people", icon: Users, label: "People & access", Pane: PeoplePane },
+  { id: "identity", icon: Fingerprint, label: "Identity & registration", Pane: IdentityPane },
+  { id: "instmods", icon: Package, label: "Instance modules", Pane: InstanceModulesPane },
+  { id: "audit", icon: ScrollText, label: "Audit & operations", Pane: AuditPane },
+  { id: "oversight", icon: Activity, label: "Connector oversight", Pane: OversightPane },
+  { id: "host", icon: ServerCog, label: "Advanced host setup", Pane: HostPane }
+] as const satisfies readonly SettingsSection<AdminSectionId>[];
 
 interface SettingsPageProps {
   readonly me: MeResponse;
 }
 
-export function SettingsPage(props: SettingsPageProps) {
-  const providersQuery = useQuery({
-    enabled: props.me.user.isInstanceAdmin,
-    queryKey: queryKeys.settings.providers,
-    queryFn: listAuthProviderStatuses,
-    retry: false
-  });
+export function SettingsPage({ me }: SettingsPageProps) {
+  const navigate = useNavigate();
+  const isAdmin = me.user.isInstanceAdmin;
+  const storage = browserSettingsStorage();
+
+  const [mode, setMode] = useState<"personal" | "admin">(() =>
+    isAdmin && readSettingsStorage(storage, "mode") === "admin" ? "admin" : "personal"
+  );
+  const [advanced, setAdvanced] = useState<boolean>(
+    () => readSettingsStorage(storage, "advanced") === "1"
+  );
+  const [categoryPersonal, setCategoryPersonal] = useState<PersonalSectionId>(() =>
+    coerceSettingsSectionId(PERSONAL_SECTIONS, readSettingsStorage(storage, "categoryPersonal"))
+  );
+  const [categoryAdmin, setCategoryAdmin] = useState<AdminSectionId>(() =>
+    coerceSettingsSectionId(ADMIN_SECTIONS, readSettingsStorage(storage, "categoryAdmin"))
+  );
+
+  useEffect(() => writeSettingsStorage(storage, "mode", mode), [mode, storage]);
+  useEffect(
+    () => writeSettingsStorage(storage, "advanced", advanced ? "1" : "0"),
+    [advanced, storage]
+  );
+  useEffect(
+    () => writeSettingsStorage(storage, "categoryPersonal", categoryPersonal),
+    [categoryPersonal, storage]
+  );
+  useEffect(
+    () => writeSettingsStorage(storage, "categoryAdmin", categoryAdmin),
+    [categoryAdmin, storage]
+  );
+
+  const adminMode = isAdmin && mode === "admin";
+  const sections = adminMode ? ADMIN_SECTIONS : PERSONAL_SECTIONS;
+  const active = adminMode ? categoryAdmin : categoryPersonal;
+  const activeSection = sections.find((section) => section.id === active) ?? sections[0]!;
+  const Pane = activeSection.Pane;
+
+  const setActiveSection = (id: PersonalSectionId | AdminSectionId) => {
+    if (adminMode) {
+      setCategoryAdmin(coerceSettingsSectionId(ADMIN_SECTIONS, id));
+    } else {
+      setCategoryPersonal(coerceSettingsSectionId(PERSONAL_SECTIONS, id));
+    }
+  };
+
   return (
-    <section className="page-stack" aria-labelledby="settings-title">
-      <div className="page-heading">
-        <div>
-          <p className="eyebrow">Settings</p>
-          <h1 id="settings-title">Account</h1>
+    <FeedbackProvider>
+      <div className="set2">
+        <div className="set2__bar">
+          {isAdmin ? (
+            <Segmented
+              value={mode === "admin" ? "admin" : "personal"}
+              options={[
+                { value: "personal", label: "Personal" },
+                { value: "admin", label: "Admin / Setup" }
+              ]}
+              ariaLabel="Settings mode"
+              onChange={(value) => setMode(value)}
+            />
+          ) : (
+            <span />
+          )}
+          <label className="set2__adv">
+            <span className="set2__adv-tx">
+              <span className="set2__adv-t">Advanced</span>
+              <span className="set2__adv-d">Show provider, host &amp; developer detail</span>
+            </span>
+            <Switch ariaLabel="Advanced settings" checked={advanced} onChange={setAdvanced} />
+          </label>
         </div>
-      </div>
 
-      <div className="settings-grid">
-        <section className="panel" aria-labelledby="profile-title">
-          <div className="panel-heading">
-            <UsersRound size={20} aria-hidden="true" />
-            <h2 id="profile-title">Profile</h2>
+        <div className="set2__grid">
+          <nav className="set2__nav" aria-label="Settings categories">
+            <div className="set2__navgroup">
+              {adminMode ? "Admin / Setup" : "Personal settings"}
+            </div>
+            {sections.map((item) => {
+              const Icon = item.icon;
+              return (
+                <button
+                  key={item.id}
+                  type="button"
+                  className={`set2__navitem${active === item.id ? " is-active" : ""}`}
+                  aria-current={active === item.id}
+                  onClick={() => setActiveSection(item.id)}
+                >
+                  <span className="ic">
+                    <Icon size={17} aria-hidden="true" />
+                  </span>
+                  <span className="lbl">{item.label}</span>
+                </button>
+              );
+            })}
+            {adminMode ? (
+              <div className="set2__navnote">
+                <ShieldCheck size={13} aria-hidden="true" /> You have owner access
+              </div>
+            ) : null}
+          </nav>
+
+          <div className="set2__pane">
+            <Suspense fallback={<div className="pane__loading">Loading settings...</div>}>
+              <Pane advanced={advanced} me={me} onNavigate={(path) => navigate(path)} />
+            </Suspense>
           </div>
-          <dl className="definition-list">
-            <div>
-              <dt>Email</dt>
-              <dd>{props.me.user.email}</dd>
-            </div>
-            <div>
-              <dt>Name</dt>
-              <dd>{props.me.user.name || "Unnamed"}</dd>
-            </div>
-            <div>
-              <dt>Role</dt>
-              <dd>{props.me.user.isInstanceAdmin ? "Instance admin" : "User"}</dd>
-            </div>
-          </dl>
-        </section>
-      </div>
-
-      <div className="settings-grid">
-        <ConnectorsPanel isAdmin={props.me.user.isInstanceAdmin} />
-        <ConnectGooglePanel />
-      </div>
-
-      <div className="settings-grid">
-        <AiSettingsPanel />
-      </div>
-
-      {props.me.user.isInstanceAdmin ? (
-        <div className="settings-grid">
-          <section className="panel" aria-labelledby="providers-title">
-            <div className="panel-heading">
-              <ShieldCheck size={20} aria-hidden="true" />
-              <h2 id="providers-title">Auth Providers</h2>
-            </div>
-            <div className="compact-list">
-              {(providersQuery.data?.providers ?? []).map((provider) => (
-                <div className="compact-row" key={provider.id}>
-                  <span>{provider.displayName}</span>
-                  <strong className={provider.enabled ? "status-good" : "status-muted"}>
-                    {provider.enabled ? "Enabled" : "Off"}
-                  </strong>
-                </div>
-              ))}
-              {providersQuery.isLoading ? <p className="muted-text">Loading providers</p> : null}
-              {providersQuery.error ? (
-                <p className="form-error">{providersQuery.error.message}</p>
-              ) : null}
-            </div>
-          </section>
         </div>
-      ) : null}
-
-      {props.me.user.isInstanceAdmin ? (
-        <div className="settings-grid">
-          <AdminUsersPanel currentUserId={props.me.user.id} />
-        </div>
-      ) : null}
-    </section>
+      </div>
+    </FeedbackProvider>
   );
 }

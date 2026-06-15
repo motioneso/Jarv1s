@@ -11,7 +11,9 @@ export const queryKeys = {
   settings: {
     providers: ["settings", "providers"] as const,
     adminConnectorAccounts: ["settings", "admin", "connector-accounts"] as const,
+    adminAuditEvents: ["settings", "admin", "audit-events"] as const,
     adminUsers: ["settings", "admin", "users"] as const,
+    adminModules: ["settings", "admin", "modules"] as const,
     registrationSettings: ["settings", "admin", "registration"] as const,
     chatMultiplexer: ["settings", "chat-multiplexer"] as const
   },
@@ -22,6 +24,7 @@ export const queryKeys = {
   ai: {
     providers: ["ai", "providers"] as const,
     models: ["ai", "models"] as const,
+    capabilities: ["ai", "capability"] as const,
     capability: (capability: string) => ["ai", "capability", capability] as const,
     assistantTools: ["ai", "assistant-tools"] as const
   },
