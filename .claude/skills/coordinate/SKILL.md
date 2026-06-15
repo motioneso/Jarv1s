@@ -325,9 +325,12 @@ already failed.
 
 1. Flush the manifest fully (every agent's status/pane/branch/PR, merge order, ci_waivers, open
    escalations); add a one-line "mid-doing" continuation note. Commit it.
-2. Use **`relay`**: `herdr-handoff` a **new coordinator** pane, bootstrap = "you are the new
-   coordinator for run <run-id>; read `docs/coordination/<run-id>.md` IN FULL, invoke `coordinate`,
-   re-adopt the live fleet (`herdr pane list` + labels), confirm you're driving, then kill my pane."
+2. Use **`relay`**: `herdr-handoff` a **new coordinator** pane **in the SAME TAB as your own pane**
+   (NOT the agents tab, NOT a new tab). The successor opens in the same tab you're in, then closes
+   you — that way there's never two coordinator tabs.
+   Bootstrap = "you are the new coordinator for run <run-id>; read `docs/coordination/<run-id>.md`
+   IN FULL, invoke `coordinate`, re-adopt the live fleet (`herdr pane list` + labels), confirm
+   you're driving, then close my pane."
 3. Confirm the successor is driving (`herdr pane read`); it reaps you. The fleet keeps running —
    the manifest is what lets a coordinator you didn't spawn adopt this run.
 
@@ -365,7 +368,7 @@ already failed.
 | Isolated worktree | `git worktree add .claude/worktrees/<slug> -b <slug> origin/main` |
 | Spawn build agent (shared Agents tab) | `herdr agent start "<Label>" --tab <ws>:<agents-tab> --cwd <path> --no-focus -- claude …` (2×2 for 4-agent / 3×1 for 3-agent waves) |
 | Spawn QA agent (native subagent) | `Agent(description: "QA: <slug>", subagent_type: "coordinated-qa", run_in_background: true, isolation: "worktree", prompt: "...")` |
-| Spawn relay coordinator (own tab OK) | `herdr agent start "Coordinator" --tab <own tab> …` — only successor may share your window |
+| Spawn relay coordinator (SAME tab as yours) | `herdr agent start "Coordinator" --tab <your own tab> …` — successor opens in your tab, then closes you |
 | Talk to an agent (two-call path) | `herdr pane send-text <pane> "<msg>"` **then** `herdr pane send-keys <pane> Enter` (`herdr agent send`/`pane message` can silently not-send) |
 | Liveness sweep | `herdr pane list` · `herdr pane read <pane> --source visible --lines 20` |
 | Reap a spent pane / worktree | kill pane · `git worktree remove .claude/worktrees/<slug>` |
