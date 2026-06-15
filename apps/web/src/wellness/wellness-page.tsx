@@ -12,7 +12,6 @@ import {
 import { createWellnessCheckin, listWellnessCheckins, updateWellnessCheckin } from "../api/client";
 import { queryKeys } from "../api/query-keys";
 import { MOOD_BAND_LABELS } from "./emotion-taxonomy";
-import { useWellnessPrefs } from "./wellness-prefs";
 import { WellnessToday } from "./wellness-today";
 import { WellnessInsights } from "./wellness-insights";
 import { WellnessTrends } from "./wellness-trends";
@@ -69,7 +68,6 @@ function computeStreak(checkins: readonly CheckinDto[]): number {
 
 export function WellnessPage() {
   const theme = useTheme();
-  const [prefs, updatePrefs] = useWellnessPrefs();
   const queryClient = useQueryClient();
   const histRef = useRef<HTMLDivElement>(null);
 
@@ -230,26 +228,6 @@ export function WellnessPage() {
               {streak}
               <small> {streak === 1 ? "day" : "days"}</small>
             </div>
-          </div>
-          <div style={{ marginTop: 10 }}>
-            <label
-              style={{
-                fontSize: 12,
-                color: "var(--text-subtle)",
-                display: "flex",
-                alignItems: "center",
-                gap: 6,
-                cursor: "pointer"
-              }}
-            >
-              <input
-                type="checkbox"
-                checked={prefs.radial}
-                onChange={(e) => updatePrefs({ radial: e.target.checked })}
-                style={{ accentColor: "var(--accent)" }}
-              />
-              Feeling wheel
-            </label>
           </div>
         </div>
       </header>
