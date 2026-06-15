@@ -160,11 +160,16 @@ export function WellnessPage() {
   };
 
   const openTodayEdit = () => {
-    const todayCk = checkins.find(
-      (c) => (c.checkedInAt ?? c.createdAt ?? "").slice(0, 10) === today
-    );
-    if (todayCk) {
-      setEditCheckin(todayCk);
+    const todayCks = checkins
+      .filter((c) => (c.checkedInAt ?? c.createdAt ?? "").slice(0, 10) === today)
+      .sort((a, b) => {
+        const da = a.checkedInAt ?? a.createdAt ?? "";
+        const db = b.checkedInAt ?? b.createdAt ?? "";
+        return db < da ? -1 : 1;
+      });
+    const latest = todayCks[0];
+    if (latest) {
+      setEditCheckin(latest);
       setSeedEmotion(null);
       setModalOpen(true);
     }

@@ -114,6 +114,21 @@ function FlameIcon({ size = 13 }: { size?: number }) {
     </svg>
   );
 }
+function PlusIcon() {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      width="13"
+      height="13"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2.2"
+      strokeLinecap="round"
+    >
+      <path d="M12 5v14M5 12h14" />
+    </svg>
+  );
+}
 function PencilIcon() {
   return (
     <svg
@@ -350,7 +365,7 @@ function MedToday({ theme: _theme, onManage }: MedTodayProps) {
 
 /* ─── CheckinToday card ─── */
 interface CheckinTodayProps {
-  todayCheckin: CheckinDto | null;
+  todayCheckins: readonly CheckinDto[];
   theme: Theme;
   streak: number;
   onStart: () => void;
@@ -358,7 +373,9 @@ interface CheckinTodayProps {
   onEdit: () => void;
 }
 
-function CheckinToday({ todayCheckin, theme, streak, onStart, onSeed, onEdit }: CheckinTodayProps) {
+function CheckinToday({ todayCheckins, theme, streak, onStart, onSeed, onEdit }: CheckinTodayProps) {
+  const latestCheckin = todayCheckins.length > 0 ? todayCheckins[0] : null;
+
   const StreakChip =
     streak > 0 ? (
       <span className="wl-streakchip" title={`${streak}-day check-in streak`}>
@@ -367,7 +384,7 @@ function CheckinToday({ todayCheckin, theme, streak, onStart, onSeed, onEdit }: 
       </span>
     ) : null;
 
-  if (!todayCheckin) {
+  if (!latestCheckin) {
     return (
       <div className="wl-card wl-checkin">
         <div className="wl-card__hd">
@@ -433,9 +450,9 @@ function CheckinToday({ todayCheckin, theme, streak, onStart, onSeed, onEdit }: 
     );
   }
 
-  const core = todayCheckin.feelingCore;
+  const core = latestCheckin.feelingCore;
   const c = emoColor(core, theme);
-  const v = moodIndex(core, todayCheckin.intensity ?? 3);
+  const v = moodIndex(core, latestCheckin.intensity ?? 3);
 
   return (
     <div
@@ -459,6 +476,15 @@ function CheckinToday({ todayCheckin, theme, streak, onStart, onSeed, onEdit }: 
             type="button"
             className="ghost-button"
             style={{ fontSize: 12, padding: "4px 10px", minHeight: "unset", gap: 5 }}
+            onClick={onStart}
+          >
+            <PlusIcon />
+            Check in again
+          </button>
+          <button
+            type="button"
+            className="ghost-button"
+            style={{ fontSize: 12, padding: "4px 10px", minHeight: "unset", gap: 5 }}
             onClick={onEdit}
           >
             <PencilIcon />
@@ -472,7 +498,7 @@ function CheckinToday({ todayCheckin, theme, streak, onStart, onSeed, onEdit }: 
             <span className="d" style={{ background: c.tint }} />
             {coreLabel(core)}
           </span>
-          <span className="wl-done__feeling">{todayCheckin.feelingSecondary}</span>
+          <span className="wl-done__feeling">{latestCheckin.feelingSecondary}</span>
           <span className="wl-done__mood">
             <span className="k">Mood</span>
             <span className="v">
@@ -481,9 +507,9 @@ function CheckinToday({ todayCheckin, theme, streak, onStart, onSeed, onEdit }: 
             </span>
           </span>
         </div>
-        {todayCheckin.sensations && todayCheckin.sensations.length > 0 ? (
+        {latestCheckin.sensations && latestCheckin.sensations.length > 0 ? (
           <div className="wl-senrow">
-            {(todayCheckin.sensations as string[]).map((s) => (
+            {(latestCheckin.sensations as string[]).map((s) => (
               <span key={s} className="wl-sentag">
                 {s}
               </span>
@@ -498,18 +524,23 @@ function CheckinToday({ todayCheckin, theme, streak, onStart, onSeed, onEdit }: 
                 key={n}
                 className="wl-intens__pip"
                 style={{
-                  background: n <= (todayCheckin.intensity ?? 0) ? c.tint : "var(--surface-3)"
+                  background: n <= (latestCheckin.intensity ?? 0) ? c.tint : "var(--surface-3)"
                 }}
               />
             ))}
           </span>
         </div>
-        {todayCheckin.note ? (
+        {latestCheckin.note ? (
           <div className="wl-hdetail__note" style={{ "--em-tint": c.tint } as React.CSSProperties}>
-            {todayCheckin.note}
+            {latestCheckin.note}
           </div>
         ) : null}
       </div>
+      {todayCheckins.length > 1 ? (
+        <div style={{ fontSize: 12, color: "var(--text-subtle)", padding: "4px 16px 12px" }}>
+          {todayCheckins.length} check-ins today
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -533,17 +564,19 @@ export function WellnessToday({
   onModalEdit
 }: WellnessTodayProps) {
   const todayStr = todayIso();
-  const todayCheckin =
-    checkins.find((c) => {
-      const d = (c.checkedInAt ?? c.createdAt ?? "").slice(0, 10);
-      return d === todayStr;
-    }) ?? null;
+  const todayCheckins = checkins
+    .filter((c) => (c.checkedInAt ?? c.createdAt ?? "").slice(0, 10) === todayStr)
+    .sort((a, b) => {
+      const da = a.checkedInAt ?? a.createdAt ?? "";
+      const db = b.checkedInAt ?? b.createdAt ?? "";
+      return db < da ? -1 : 1;
+    });
 
   return (
     <div className="wl-today">
       <MedToday theme={theme} onManage={onManage} />
       <CheckinToday
-        todayCheckin={todayCheckin}
+        todayCheckins={todayCheckins}
         theme={theme}
         streak={streak}
         onStart={() => onModalOpen(null)}
@@ -553,3 +586,5 @@ export function WellnessToday({
     </div>
   );
 }
+
+export { MedToday };
