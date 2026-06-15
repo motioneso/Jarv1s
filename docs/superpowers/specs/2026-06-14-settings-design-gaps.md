@@ -20,16 +20,14 @@ toast), so nothing looks broken — they're visual placeholders for the work bel
 
 ### 1.1 Assistant & AI — provider & model management
 
-**What:** The backend already supports multiple AI providers, and **multiple configured models per
+**What:** The backend supports multiple AI providers, and **multiple configured models per
 provider**, each with capabilities (chat / tool-use / json / vision / summarization), a tier
 (reasoning / interactive / economy), and a **capability router** (which model serves which
-capability). The old `ai-settings-panel` exposed all of this. The new design only shows **one
-provider with a single editable "Model" text field** — so most of the real capability is invisible.
+capability). The settings pane now exposes provider/model/routing management, but credential editing
+still needs a designed, non-raw-JSON flow.
 
-**Workflow to design:** add provider → pick auth (CLI vs API key) → add one or more models to that
-provider → tag each model's capabilities + tier → (optionally) see/override which model the router
-picks per capability. Today the shipped pane does add-provider / remove-provider / CLI↔API-key
-toggle for real; model management is the missing surface.
+**Workflow to design:** edit provider credentials safely → validate/test the provider → preserve the
+existing provider/model/capability routing controls without exposing raw secret JSON.
 
 ### 1.2 Connected accounts — connecting a new account (Google OAuth)
 
@@ -149,7 +147,7 @@ results).
 
 ---
 
-**Superseded code still in the tree:** `ai-settings-panel`, `connectors-panel`,
-`connect-google-panel`, `admin-users-panel` are unreferenced by the new settings page but kept for
-now — they hold the real flows behind §1.1 / §1.2 (multi-model AI config, the manual Google OAuth
-flow). Delete once those surfaces are redesigned and re-wired.
+**Code ownership update:** the new settings panes now own the AI provider/model/routing surfaces,
+Google connect handoff, admin user actions, audit list, and host multiplexer control. The old
+settings-only panels were removed; `connect-google-panel` remains because onboarding still embeds
+that flow.

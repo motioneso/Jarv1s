@@ -1,5 +1,5 @@
 import { ChevronDown, Info } from "lucide-react";
-import { useId, useState, type ReactNode, type SelectHTMLAttributes } from "react";
+import { useState, type ReactNode, type SelectHTMLAttributes } from "react";
 
 /* Settings shared UI — pane scaffolding (PaneHead/Group/Row/Field/Choice/Note/
    Locked) and thin wrappers over the app's JDS CSS primitives, reused by every
@@ -9,21 +9,17 @@ import { useId, useState, type ReactNode, type SelectHTMLAttributes } from "reac
 
 export function Switch(props: {
   readonly ariaLabel: string;
-  readonly checked?: boolean;
-  readonly defaultChecked?: boolean;
+  readonly checked: boolean;
   readonly disabled?: boolean;
   readonly onChange?: (checked: boolean) => void;
 }) {
-  const controlled = props.checked !== undefined;
   return (
     <label className="jds-switch">
       <input
         type="checkbox"
         aria-label={props.ariaLabel}
         disabled={props.disabled}
-        {...(controlled
-          ? { checked: props.checked }
-          : { defaultChecked: props.defaultChecked ?? false })}
+        checked={props.checked}
         onChange={(event) => props.onChange?.(event.target.checked)}
       />
       <span className="jds-switch__track">
@@ -197,7 +193,6 @@ export function Choice(props: {
   readonly onChange?: (value: string) => void;
 }) {
   const [value, setValue] = useState(props.value);
-  useId();
   return (
     <div className="fld">
       <div className="fld__lbl">{props.label}</div>

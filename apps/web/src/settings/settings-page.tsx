@@ -18,39 +18,71 @@ import {
   Users,
   type LucideIcon
 } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { useNavigate } from "react-router";
 
 import { FeedbackProvider } from "./settings-feedback";
-import { ADMIN_PANES } from "./settings-admin-panes";
-import { PERSONAL_PANES } from "./settings-personal-panes";
+import {
+  AuditPane,
+  HostPane,
+  IdentityPane,
+  InstanceModulesPane,
+  OversightPane,
+  PeoplePane
+} from "./settings-admin-panes";
+import {
+  AssistantPane,
+  ConnectedPane,
+  GeneralPane,
+  MemoryPane,
+  ModulesPane,
+  ProfilePane,
+  SourcesPane
+} from "./settings-personal-panes";
+import { coerceSettingsSectionId } from "./settings-navigation";
 import { Segmented, Switch } from "./settings-ui";
 import type { MeResponse } from "@jarv1s/shared";
 
-interface NavItem {
-  readonly id: string;
+interface SettingsSection<Id extends string> {
+  readonly id: Id;
   readonly icon: LucideIcon;
   readonly label: string;
+  readonly Pane: (props: {
+    readonly advanced: boolean;
+    readonly me: MeResponse;
+    readonly onNavigate: (path: string) => void;
+  }) => ReactNode;
 }
 
-const PERSONAL_NAV: readonly NavItem[] = [
-  { id: "profile", icon: UserRound, label: "Profile & account" },
-  { id: "assistant", icon: Sparkles, label: "Assistant & AI" },
-  { id: "memory", icon: Brain, label: "Memory & context" },
-  { id: "connected", icon: Link2, label: "Connected accounts" },
-  { id: "sources", icon: Database, label: "Data sources" },
-  { id: "modules", icon: Boxes, label: "Modules" },
-  { id: "general", icon: SlidersHorizontal, label: "General" }
-];
+type PersonalSectionId =
+  | "profile"
+  | "assistant"
+  | "memory"
+  | "connected"
+  | "sources"
+  | "modules"
+  | "general";
 
-const ADMIN_NAV: readonly NavItem[] = [
-  { id: "people", icon: Users, label: "People & access" },
-  { id: "identity", icon: Fingerprint, label: "Identity & registration" },
-  { id: "instmods", icon: Package, label: "Instance modules" },
-  { id: "audit", icon: ScrollText, label: "Audit & operations" },
-  { id: "oversight", icon: Activity, label: "Connector oversight" },
-  { id: "host", icon: ServerCog, label: "Advanced host setup" }
-];
+type AdminSectionId = "people" | "identity" | "instmods" | "audit" | "oversight" | "host";
+
+const PERSONAL_SECTIONS = [
+  { id: "profile", icon: UserRound, label: "Profile & account", Pane: ProfilePane },
+  { id: "assistant", icon: Sparkles, label: "Assistant & AI", Pane: AssistantPane },
+  { id: "memory", icon: Brain, label: "Memory & context", Pane: MemoryPane },
+  { id: "connected", icon: Link2, label: "Connected accounts", Pane: ConnectedPane },
+  { id: "sources", icon: Database, label: "Data sources", Pane: SourcesPane },
+  { id: "modules", icon: Boxes, label: "Modules", Pane: ModulesPane },
+  { id: "general", icon: SlidersHorizontal, label: "General", Pane: GeneralPane }
+] as const satisfies readonly SettingsSection<PersonalSectionId>[];
+
+const ADMIN_SECTIONS = [
+  { id: "people", icon: Users, label: "People & access", Pane: PeoplePane },
+  { id: "identity", icon: Fingerprint, label: "Identity & registration", Pane: IdentityPane },
+  { id: "instmods", icon: Package, label: "Instance modules", Pane: InstanceModulesPane },
+  { id: "audit", icon: ScrollText, label: "Audit & operations", Pane: AuditPane },
+  { id: "oversight", icon: Activity, label: "Connector oversight", Pane: OversightPane },
+  { id: "host", icon: ServerCog, label: "Advanced host setup", Pane: HostPane }
+] as const satisfies readonly SettingsSection<AdminSectionId>[];
 
 const STORAGE = {
   mode: "jarvis.set.mode",
@@ -67,15 +99,17 @@ export function SettingsPage({ me }: SettingsPageProps) {
   const navigate = useNavigate();
   const isAdmin = me.user.isInstanceAdmin;
 
-  const [mode, setMode] = useState<string>(() => localStorage.getItem(STORAGE.mode) ?? "personal");
+  const [mode, setMode] = useState<"personal" | "admin">(() =>
+    isAdmin && localStorage.getItem(STORAGE.mode) === "admin" ? "admin" : "personal"
+  );
   const [advanced, setAdvanced] = useState<boolean>(
     () => localStorage.getItem(STORAGE.advanced) === "1"
   );
-  const [categoryPersonal, setCategoryPersonal] = useState<string>(
-    () => localStorage.getItem(STORAGE.categoryPersonal) ?? "profile"
+  const [categoryPersonal, setCategoryPersonal] = useState<PersonalSectionId>(() =>
+    coerceSettingsSectionId(PERSONAL_SECTIONS, localStorage.getItem(STORAGE.categoryPersonal))
   );
-  const [categoryAdmin, setCategoryAdmin] = useState<string>(
-    () => localStorage.getItem(STORAGE.categoryAdmin) ?? "people"
+  const [categoryAdmin, setCategoryAdmin] = useState<AdminSectionId>(() =>
+    coerceSettingsSectionId(ADMIN_SECTIONS, localStorage.getItem(STORAGE.categoryAdmin))
   );
 
   useEffect(() => localStorage.setItem(STORAGE.mode, mode), [mode]);
@@ -87,11 +121,18 @@ export function SettingsPage({ me }: SettingsPageProps) {
   useEffect(() => localStorage.setItem(STORAGE.categoryAdmin, categoryAdmin), [categoryAdmin]);
 
   const adminMode = isAdmin && mode === "admin";
-  const nav = adminMode ? ADMIN_NAV : PERSONAL_NAV;
+  const sections = adminMode ? ADMIN_SECTIONS : PERSONAL_SECTIONS;
   const active = adminMode ? categoryAdmin : categoryPersonal;
-  const setActive = adminMode ? setCategoryAdmin : setCategoryPersonal;
-  const panes = adminMode ? ADMIN_PANES : PERSONAL_PANES;
-  const Pane = panes[active] ?? panes[nav[0]!.id]!;
+  const activeSection = sections.find((section) => section.id === active) ?? sections[0]!;
+  const Pane = activeSection.Pane;
+
+  const setActiveSection = (id: PersonalSectionId | AdminSectionId) => {
+    if (adminMode) {
+      setCategoryAdmin(coerceSettingsSectionId(ADMIN_SECTIONS, id));
+    } else {
+      setCategoryPersonal(coerceSettingsSectionId(PERSONAL_SECTIONS, id));
+    }
+  };
 
   return (
     <FeedbackProvider>
@@ -124,7 +165,7 @@ export function SettingsPage({ me }: SettingsPageProps) {
             <div className="set2__navgroup">
               {adminMode ? "Admin / Setup" : "Personal settings"}
             </div>
-            {nav.map((item) => {
+            {sections.map((item) => {
               const Icon = item.icon;
               return (
                 <button
@@ -132,7 +173,7 @@ export function SettingsPage({ me }: SettingsPageProps) {
                   type="button"
                   className={`set2__navitem${active === item.id ? " is-active" : ""}`}
                   aria-current={active === item.id}
-                  onClick={() => setActive(item.id)}
+                  onClick={() => setActiveSection(item.id)}
                 >
                   <span className="ic">
                     <Icon size={17} aria-hidden="true" />

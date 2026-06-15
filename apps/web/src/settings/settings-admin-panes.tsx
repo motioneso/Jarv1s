@@ -13,7 +13,7 @@ import {
   UserMinus,
   UserPlus
 } from "lucide-react";
-import { useState, type ComponentType } from "react";
+import { useState } from "react";
 
 import {
   approveUser,
@@ -22,6 +22,7 @@ import {
   demoteUser,
   getChatMultiplexerSettings,
   getRegistrationSettings,
+  listAdminAuditEvents,
   listAdminConnectorAccounts,
   listAdminModules,
   listAdminUsers,
@@ -30,9 +31,11 @@ import {
   putRegistrationSettings,
   reactivateUser,
   rejectUser,
+  setChatMultiplexerSettings,
   setAdminModuleDisabled
 } from "../api/client";
 import { queryKeys } from "../api/query-keys";
+import { adminUserActions, type AdminUserAction } from "./settings-admin-policy";
 import { useFeedback } from "./settings-feedback";
 import { moduleDescription, readError, type PaneProps } from "./settings-types";
 import {
@@ -44,9 +47,10 @@ import {
   Note,
   PaneHead,
   Row,
+  Segmented,
   Switch
 } from "./settings-ui";
-import type { RegistrationSettingsDto, UserDto } from "@jarv1s/shared";
+import type { ChatMultiplexerChoice, RegistrationSettingsDto, UserDto } from "@jarv1s/shared";
 
 function roleLabel(user: UserDto): string {
   return user.isBootstrapOwner ? "Owner" : user.isInstanceAdmin ? "Admin" : "Member";
@@ -54,20 +58,25 @@ function roleLabel(user: UserDto): string {
 
 /* --------------------------------------------------------- People & access */
 
-type PersonAction = "admin" | "deactivate" | "reactivate" | "remove";
-
 function PersonRow(props: {
   readonly user: UserDto;
-  readonly isYou: boolean;
-  readonly onAction: (action: PersonAction, user: UserDto) => void;
+  readonly isCurrent: boolean;
+  readonly actions: readonly AdminUserAction[];
+  readonly onAction: (action: AdminUserAction, user: UserDto) => void;
 }) {
   const { user } = props;
   const [menu, setMenu] = useState(false);
   const off = user.status === "deactivated";
-  const act = (action: PersonAction) => {
+  const act = (action: AdminUserAction) => {
     setMenu(false);
     props.onAction(action, user);
   };
+  const canAdmin = props.actions.includes("admin");
+  const statusAction = props.actions.find(
+    (action) => action === "deactivate" || action === "reactivate"
+  );
+  const canRemove = props.actions.includes("remove");
+  const rowLabel = props.isCurrent ? "You" : props.actions.length === 0 ? "Protected" : null;
   return (
     <div className={`ppl__row${off ? " ppl__row--off" : ""}`}>
       <div className="ppl__id">
@@ -75,7 +84,7 @@ function PersonRow(props: {
         <div className="ppl__idmain">
           <div className="ppl__name">
             {user.name || "Unnamed"}
-            {props.isYou ? <span className="ppl__you">You</span> : null}
+            {rowLabel ? <span className="ppl__you">{rowLabel}</span> : null}
           </div>
           <div className="ppl__email">{user.email}</div>
         </div>
@@ -93,7 +102,7 @@ function PersonRow(props: {
         )}
       </div>
       <div className="ppl__actions">
-        {props.isYou ? null : (
+        {props.actions.length === 0 ? null : (
           <div className="ppl__menu">
             <button
               type="button"
@@ -107,27 +116,35 @@ function PersonRow(props: {
               <>
                 <div className="ppl__menuscrim" onClick={() => setMenu(false)} />
                 <div className="ppl__menupop" role="menu">
-                  <button className="ppl__menuitem" role="menuitem" onClick={() => act("admin")}>
-                    <ShieldCheck size={15} />
-                    {user.isInstanceAdmin ? "Revoke admin" : "Make admin"}
-                  </button>
-                  <button
-                    className="ppl__menuitem"
-                    role="menuitem"
-                    onClick={() => act(off ? "reactivate" : "deactivate")}
-                  >
-                    {off ? <UserCheck size={15} /> : <UserMinus size={15} />}
-                    {off ? "Reactivate" : "Deactivate"}
-                  </button>
-                  <div className="ppl__menusep" />
-                  <button
-                    className="ppl__menuitem ppl__menuitem--danger"
-                    role="menuitem"
-                    onClick={() => act("remove")}
-                  >
-                    <Trash2 size={15} />
-                    Remove from instance
-                  </button>
+                  {canAdmin ? (
+                    <button className="ppl__menuitem" role="menuitem" onClick={() => act("admin")}>
+                      <ShieldCheck size={15} />
+                      {user.isInstanceAdmin ? "Revoke admin" : "Make admin"}
+                    </button>
+                  ) : null}
+                  {statusAction ? (
+                    <button
+                      className="ppl__menuitem"
+                      role="menuitem"
+                      onClick={() => act(statusAction)}
+                    >
+                      {off ? <UserCheck size={15} /> : <UserMinus size={15} />}
+                      {off ? "Reactivate" : "Deactivate"}
+                    </button>
+                  ) : null}
+                  {canRemove ? (
+                    <>
+                      <div className="ppl__menusep" />
+                      <button
+                        className="ppl__menuitem ppl__menuitem--danger"
+                        role="menuitem"
+                        onClick={() => act("remove")}
+                      >
+                        <Trash2 size={15} />
+                        Remove from instance
+                      </button>
+                    </>
+                  ) : null}
                 </div>
               </>
             ) : null}
@@ -178,7 +195,7 @@ interface ActionVars {
   readonly tone?: "ready" | "drift";
 }
 
-function PeoplePane({ me }: PaneProps) {
+export function PeoplePane({ me }: PaneProps) {
   const queryClient = useQueryClient();
   const { toast, confirm } = useFeedback();
   const usersQuery = useQuery({
@@ -195,7 +212,7 @@ function PeoplePane({ me }: PaneProps) {
     onError: (error) => toast(readError(error), { tone: "drift" })
   });
 
-  const onAction = (action: PersonAction, user: UserDto) => {
+  const onAction = (action: AdminUserAction, user: UserDto) => {
     const name = user.name || user.email;
     if (action === "admin") {
       actionMutation.mutate({
@@ -294,7 +311,8 @@ function PeoplePane({ me }: PaneProps) {
               <PersonRow
                 key={user.id}
                 user={user}
-                isYou={user.id === me.user.id}
+                isCurrent={user.id === me.user.id}
+                actions={adminUserActions(user, me.user, members)}
                 onAction={onAction}
               />
             ))
@@ -312,7 +330,7 @@ function PeoplePane({ me }: PaneProps) {
 
 /* ---------------------------------------------------- Identity & registration */
 
-function IdentityPane() {
+export function IdentityPane() {
   const queryClient = useQueryClient();
   const { toast } = useFeedback();
   const regQuery = useQuery({
@@ -394,7 +412,7 @@ function IdentityPane() {
 
 /* ----------------------------------------------------------- Instance modules */
 
-function InstanceModulesPane() {
+export function InstanceModulesPane() {
   const queryClient = useQueryClient();
   const { toast } = useFeedback();
   const modulesQuery = useQuery({
@@ -423,7 +441,7 @@ function InstanceModulesPane() {
             <Row
               key={module.id}
               name={
-                <span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
+                <span className="module-title-with-badge">
                   {module.name}
                   {module.required ? <Badge tone="neutral">Required</Badge> : null}
                 </span>
@@ -458,8 +476,14 @@ function InstanceModulesPane() {
 
 /* ---------------------------------------------------------- Audit & operations */
 
-function AuditPane() {
+export function AuditPane() {
   const { toast } = useFeedback();
+  const auditQuery = useQuery({
+    queryKey: queryKeys.settings.adminAuditEvents,
+    queryFn: listAdminAuditEvents,
+    retry: false
+  });
+  const events = auditQuery.data?.auditEvents ?? [];
   return (
     <>
       <PaneHead
@@ -481,11 +505,24 @@ function AuditPane() {
           </button>
         }
       >
-        <Row
-          name="Activity log"
-          desc="A timeline of admin and system actions on this instance."
-          coming
-        />
+        <div className="aud">
+          {events.length ? (
+            events.map((event) => (
+              <div className="aud__row" key={event.id}>
+                <div className="aud__when">{new Date(event.createdAt).toLocaleString()}</div>
+                <div className="aud__what">
+                  <b>{event.action}</b> on {event.targetType}
+                  {event.targetId ? ` ${event.targetId}` : ""}
+                </div>
+              </div>
+            ))
+          ) : (
+            <Row
+              name={auditQuery.isLoading ? "Loading activity…" : "No audit events"}
+              desc="Admin and system actions appear here once recorded."
+            />
+          )}
+        </div>
       </Group>
       <Group title="Data & backups">
         <Row
@@ -501,7 +538,7 @@ function AuditPane() {
 
 /* ---------------------------------------------------------- Connector oversight */
 
-function OversightPane() {
+export function OversightPane() {
   const accountsQuery = useQuery({
     queryKey: queryKeys.settings.adminConnectorAccounts,
     queryFn: listAdminConnectorAccounts,
@@ -564,13 +601,19 @@ function OversightPane() {
 
 /* --------------------------------------------------------- Advanced host setup */
 
-function HostPane({ advanced }: PaneProps) {
+export function HostPane({ advanced }: PaneProps) {
   const { toast, confirm } = useFeedback();
+  const queryClient = useQueryClient();
   const muxQuery = useQuery({
     queryKey: queryKeys.settings.chatMultiplexer,
     queryFn: getChatMultiplexerSettings,
     enabled: advanced,
     retry: false
+  });
+  const muxMutation = useMutation({
+    mutationFn: (choice: ChatMultiplexerChoice) => setChatMultiplexerSettings(choice),
+    onSuccess: (data) => queryClient.setQueryData(queryKeys.settings.chatMultiplexer, data),
+    onError: (error) => toast(readError(error), { tone: "drift" })
   });
 
   if (!advanced) {
@@ -600,9 +643,16 @@ function HostPane({ advanced }: PaneProps) {
           name="Session multiplexer"
           desc="The backend that hosts your chat sessions."
           control={
-            <Badge tone="pine" dot>
-              {mux ? mux.multiplexer : "…"}
-            </Badge>
+            <Segmented<ChatMultiplexerChoice>
+              value={mux?.multiplexer ?? "auto"}
+              options={[
+                { value: "auto", label: "Auto" },
+                { value: "tmux", label: "tmux" },
+                { value: "herdr", label: "herdr" }
+              ]}
+              ariaLabel="Session multiplexer"
+              onChange={(value) => muxMutation.mutate(value)}
+            />
           }
         />
         <Row
@@ -632,7 +682,7 @@ function HostPane({ advanced }: PaneProps) {
           control={<Badge tone="amber">Restart needed</Badge>}
         />
       </Group>
-      <div style={{ display: "flex", gap: 10, marginTop: 18 }}>
+      <div className="host-actions">
         <button
           type="button"
           className="jds-btn jds-btn--secondary jds-btn--sm"
@@ -670,12 +720,3 @@ function HostPane({ advanced }: PaneProps) {
     </>
   );
 }
-
-export const ADMIN_PANES: Record<string, ComponentType<PaneProps>> = {
-  people: PeoplePane,
-  identity: IdentityPane,
-  instmods: InstanceModulesPane,
-  audit: AuditPane,
-  oversight: OversightPane,
-  host: HostPane
-};

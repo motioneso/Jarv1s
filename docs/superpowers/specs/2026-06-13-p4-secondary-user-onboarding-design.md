@@ -246,8 +246,8 @@ New member step components:
 - **`ApiKeyOptOutStep`** — **optional and skippable**. Locked decision: members inherit the shared
   host CLI subscription, so AI chat already works for them with **no setup**. This step exists only
   to let a member who wants their **own** API key opt out of the shared CLI path; it is a single
-  "Skip — I'll use the shared assistant" affordance plus a link/teaser to the existing
-  `AiSettingsPanel` (`apps/web/src/ai/ai-settings-panel.tsx`) for entering a personal key. It is
+  "Skip — I'll use the shared assistant" affordance plus a link/teaser to the Assistant & AI
+  advanced settings pane for entering a personal key. It is
   **never required** and never gates progress. It writes nothing itself (key entry, if chosen, flows
   through the shipped per-user AI settings, whose keys are AES-256-GCM encrypted at rest and never
   returned to the client). For the member, this step is the closest equivalent to the founder's
@@ -330,7 +330,8 @@ connectors: { done: boolean } } }`. The complete/skip route schemas (Phase-2) ar
    with the **member step array**. The member works steps:
    - `MemberWelcomeStep`: read-only welcome + skip.
    - `ApiKeyOptOutStep` (optional): skip to use the inherited shared CLI, or follow the link into
-     `AiSettingsPanel` to enter a personal key (encrypted at rest by the shipped AI settings path).
+     Assistant & AI advanced settings to enter a personal key (encrypted at rest by the shipped AI
+     settings path).
    - `MemberConnectorStep`: `ConnectGooglePanel` OAuth → a per-user connector account is created
      (`owner_user_id = app.current_actor_user_id()`); the client marks the step done when
      `listConnectorAccounts()` returns ≥1.
@@ -372,7 +373,7 @@ connectors: { done: boolean } } }`. The complete/skip route schemas (Phase-2) ar
 - **Connector OAuth failure** in `MemberConnectorStep`: handled entirely by the reused
   `ConnectGooglePanel` (`setError`, `connect-google-panel.tsx:14,101`). Onboarding adds nothing.
 - **API-key opt-out:** never makes a failing call — it either skips (no I/O) or links into the
-  shipped `AiSettingsPanel`, whose own error handling applies.
+  shipped Assistant & AI advanced settings pane, whose own error handling applies.
 
 ---
 
@@ -416,8 +417,8 @@ Cites the CLAUDE.md "Hard Invariants" this slice touches:
   (`onboarding.member_complete`) via the settings audit path, so every onboarding terminal action
   (founder and member) is durably recorded.
 - **Provider-agnostic AI.** The optional API-key opt-out and the inherited shared-CLI path hardcode
-  no provider or model — key entry flows through the existing provider-agnostic `AiSettingsPanel` /
-  capability router; onboarding requests no specific provider.
+  no provider or model — key entry flows through the existing provider-agnostic Assistant & AI
+  advanced settings pane / capability router; onboarding requests no specific provider.
 
 ---
 

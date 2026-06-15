@@ -1,6 +1,5 @@
-/* Settings pane components — profile/AI-source/accounts/modules/people/
-   audit/oversight/provider-config/vault blocks. Split from settings.css for
-   the 1000-line file-size gate; imported immediately after it. */
+/* Settings pane components grouped by ownership: personal profile/AI/account/module
+   blocks, admin people/audit/oversight/host blocks, and settings-local feedback. */
 
 /* ---- Profile header ---- */
 .prof {
@@ -665,6 +664,58 @@
 .provcfg .fld:first-child {
   border-top: none;
 }
+.provcfg__actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 10px;
+}
+.provider-block {
+  border-top: 1px solid var(--border-subtle);
+  padding: 12px 0;
+}
+.provider-block:first-child {
+  border-top: none;
+}
+.provider-block__remove {
+  margin-left: auto;
+}
+.ai-model-form {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0 16px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border-subtle);
+}
+.ai-model-form > .cap-list,
+.ai-model-form > button {
+  grid-column: 1 / -1;
+}
+.cap-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 12px 0;
+}
+.cap-list__item {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 7px 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  font-size: 12.5px;
+  color: var(--text-muted);
+}
+.google-connect {
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--border-subtle);
+  margin-bottom: 4px;
+}
+.memory-count {
+  font-family: var(--font-mono);
+  font-weight: 600;
+  color: var(--text);
+}
 
 /* ---- Notes / vault folder picker ---- */
 .vault {
@@ -711,4 +762,14 @@
   align-items: center;
   gap: 8px;
   flex: none;
+}
+.module-title-with-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+.host-actions {
+  display: flex;
+  gap: 10px;
+  margin-top: 18px;
 }
