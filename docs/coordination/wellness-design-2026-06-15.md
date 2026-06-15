@@ -76,15 +76,19 @@ wellness, without Ben's input." Concretely:
 
 ## Outstanding escalations
 
-- [ ] **Codex round-2 rework (QA cycle 1 of 2)** — routed to agent `3bc2277f` 2026-06-15. Fixes in
-      flight, then round-3 Codex re-review + gate re-run. Findings:
-  - R1 [HIGH/BLOCKER] PATCH checkin omitted-sensations → `[]` erases history; needs partial-update
-    parser preserving `undefined` + regression test.
-  - R2 [MED] PATCH energy doesn't call `refreshEnergyTrendFact` → stale recall facts.
-  - R3 [LOW] e2e mock still old `{logs:[]}` shape (not adherence summary).
-  - R4 [LOW] dead `medicationLogsRouteSchema`/`MedicationLogsResponse` still exported.
-  - **Failure budget:** if round-3 Codex still DO-NOT-MERGE → that's cycle 2 → STOP lane, escalate
-    to Ben (do not loop indefinitely).
+- **[LANE STOPPED — escalated to Ben 2026-06-15]** QA cycle 2 (Codex round-3) returned
+  **DO-NOT-MERGE, BLOCKERS:1**. Per failure budget, lane is halted pending Ben's decision.
+  - Round-2 (cycle 1, commit `6ebda42`): 4 regressions found (R1 HIGH data-loss, R2 MED stale fact,
+    R3/R4 LOW) — all reported fixed in commit `6e23402`.
+  - Round-3 (cycle 2, commit `6e23402`): **HIGH** `repository.ts:317` — R1 fixed for `sensations`
+    but the SAME partial-update clearing bug remains on **`feelingSecondary`** (omitted → `?? null`
+    erases existing feeling word). **LOW** — R2 test is shallow (passes even if refresh call
+    removed; should assert `[wellness:energy-trend]` fact updated after PATCH).
+  - Convergence: 9 → 4 → 1. The blocker is narrow + same-pattern as R1 (mechanical fix). Meta-flag
+    for Ben: agent fixed the reported instance but not the bug CLASS — relevant to whether the
+    Calendar run should merge fully autonomously.
+  - Independent gate at `6e23402`: unit 335 green; integration run was in progress (Codex blocks
+    merge regardless).
 
 ## Paused side-task (Ben, from relay doc §3)
 
