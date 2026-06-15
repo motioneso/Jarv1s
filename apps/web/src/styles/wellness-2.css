@@ -869,23 +869,3 @@
   letter-spacing: 0.04em;
   fill: var(--text-subtle);
 }
-
-/* ===================== RADIAL DIAL ===================== */
-.wl-dial {
-  position: relative;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-}
-.wl-dial__svg {
-  display: block;
-}
-.wl-dial__hub {
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  text-align: center;
-  pointer-events: none;
-  width: 80px;
-}
