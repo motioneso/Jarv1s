@@ -7,9 +7,7 @@ export interface AdminUserPolicyContext {
   readonly activeAdminCount: number;
 }
 
-export type AdminUserPolicySource =
-  | readonly AdminUserActionPolicyUser[]
-  | AdminUserPolicyContext;
+export type AdminUserPolicySource = readonly AdminUserActionPolicyUser[] | AdminUserPolicyContext;
 
 export function createAdminUserPolicyContext(
   users: readonly AdminUserActionPolicyUser[]

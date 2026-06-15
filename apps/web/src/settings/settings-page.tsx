@@ -137,18 +137,18 @@ export function SettingsPage({ me }: SettingsPageProps) {
   );
 
   useEffect(() => writeSettingsStorage(storage, "mode", mode), [mode, storage]);
-  useEffect(() => writeSettingsStorage(storage, "advanced", advanced ? "1" : "0"), [
-    advanced,
-    storage
-  ]);
+  useEffect(
+    () => writeSettingsStorage(storage, "advanced", advanced ? "1" : "0"),
+    [advanced, storage]
+  );
   useEffect(
     () => writeSettingsStorage(storage, "categoryPersonal", categoryPersonal),
     [categoryPersonal, storage]
   );
-  useEffect(() => writeSettingsStorage(storage, "categoryAdmin", categoryAdmin), [
-    categoryAdmin,
-    storage
-  ]);
+  useEffect(
+    () => writeSettingsStorage(storage, "categoryAdmin", categoryAdmin),
+    [categoryAdmin, storage]
+  );
 
   const adminMode = isAdmin && mode === "admin";
   const sections = adminMode ? ADMIN_SECTIONS : PERSONAL_SECTIONS;
