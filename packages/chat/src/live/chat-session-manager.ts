@@ -56,7 +56,7 @@ export interface ChatSessionManagerDeps {
   /** Base dir for renderPersona (per-user neutral dirs are created under it). */
   readonly neutralBase: string;
   /** Persona text (may contain a {{userName}} token). */
-  readonly persona: string;
+  readonly persona: string | ((actorUserId: string, userName: string) => Promise<string>);
   /** Delay between readNew polls (default 25ms; tests pass 0). */
   readonly pollMs?: number;
   /** Cap on readNew polls per turn before a turn is treated as timed out (default 2000). */
@@ -146,13 +146,17 @@ export class ChatSessionManager {
 
   private async launchSession(actorUserId: string, userName: string): Promise<UserSession> {
     const { provider, model } = await this.deps.persistence.resolveActiveProvider(actorUserId);
+    const persona =
+      typeof this.deps.persona === "string"
+        ? this.deps.persona
+        : await this.deps.persona(actorUserId, userName);
 
     const { neutralDir, personaPath } = await renderPersona(this.deps.personaFs, {
       userId: actorUserId,
       userName,
       provider,
       baseDir: this.deps.neutralBase,
-      persona: this.deps.persona
+      persona
     });
 
     const sessionKey = actorUserId;

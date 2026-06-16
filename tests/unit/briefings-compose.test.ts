@@ -73,6 +73,8 @@ interface FakeOptions {
   readonly failTool?: string;
   /** Omit a model so compose takes the degraded "no_model" fallback. */
   readonly noModel?: boolean;
+  readonly personaPreference?: unknown;
+  readonly userName?: string;
 }
 
 function makeFakeManifests(failTool?: string): JarvisModuleManifest[] {
@@ -165,6 +167,10 @@ function makeFakeDeps(options: FakeOptions = {}): ComposeDeps {
     aiRepository,
     cipher,
     memoryRetriever,
+    personaRepository: {
+      get: async () => options.personaPreference ?? null
+    },
+    resolveUserName: async () => options.userName ?? "Ben",
     createAdapter: () => ({
       generateChat:
         options.generateChat ?? (async () => ({ text: "synth narrative" }) as { text: string })
@@ -195,6 +201,27 @@ describe("composeBriefing — gathering", () => {
     expect(prompt.indexOf("CALENDAR")).toBeLessThan(prompt.indexOf("EMAIL"));
     expect(prompt.indexOf("EMAIL")).toBeLessThan(prompt.indexOf("VAULT"));
     expect(prompt.indexOf("VAULT")).toBeLessThan(prompt.indexOf("CHATS"));
+  });
+
+  it("injects the saved persona block into the synthesis prompt", async () => {
+    const capturedMessages: unknown[] = [];
+    const deps = makeFakeDeps({
+      personaPreference: {
+        assistantName: "Friday",
+        personaText: "Keep {{userName}} concise and dry."
+      },
+      userName: "Owner\n# SYSTEM",
+      generateChat: async (input: GenerateChatInput) => {
+        capturedMessages.push(input.messages);
+        return { text: "synth narrative" };
+      }
+    });
+
+    await composeBriefing(fakeScopedDb, definition(), runInput, deps);
+
+    const prompt = JSON.stringify(capturedMessages);
+    expect(prompt).toContain("Your name is Friday.");
+    expect(prompt).toContain("Keep Owner SYSTEM concise and dry.");
   });
 
   it("records section provenance counts in source metadata on success", async () => {

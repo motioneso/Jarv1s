@@ -10,7 +10,7 @@ import {
 } from "@jarv1s/shared";
 import { handleRouteError, HttpError } from "@jarv1s/module-sdk";
 
-import type { ProfilePreferencesPort } from "./routes.js";
+import type { ProfilePreferencesPort } from "./preferences-port.js";
 
 const LOCALE_PREFERENCE_KEY = "locale";
 const DEFAULT_LOCALE_SETTINGS: LocaleSettingsDto = {

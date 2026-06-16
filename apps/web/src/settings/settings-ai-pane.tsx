@@ -1,11 +1,17 @@
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Check, CornerDownRight, PencilLine, Sparkles } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
-import { listAiModels } from "../api/client";
+import {
+  getPersonaSettings,
+  listAiModels,
+  previewPersona,
+  putPersonaSettings
+} from "../api/client";
 import { queryKeys } from "../api/query-keys";
 import { useFeedback } from "./settings-feedback";
 import {
+  personaSeedText,
   personaSample,
   type DirectnessDial,
   type HumorDial,
@@ -16,79 +22,122 @@ import { type PaneProps } from "./settings-types";
 import { Choice, Field, Group, NotWired, Note, PaneHead, Select } from "./settings-ui";
 
 interface PersonaState {
-  name: string;
-  description: string;
+  assistantName: string;
+  personaText: string;
   tone: ToneDial;
   directness: DirectnessDial;
   humor: HumorDial;
   recovery: RecoveryDial;
 }
 
-const PERSONA_STORAGE_KEY = "jarvis.settings.persona";
 const DEFAULT_DESCRIPTION =
   "Be direct and a little dry — skip the pep talks. Hold me to commitments I've actually made, but ease off when I've had a rough day. Lead with what matters and keep it short.";
+const DEFAULT_PERSONA_DIALS = {
+  tone: "Warm",
+  directness: "Balanced",
+  humor: "Dry",
+  recovery: "Encouraging"
+} satisfies Pick<PersonaState, "tone" | "directness" | "humor" | "recovery">;
 
 function initialPersona(): PersonaState {
-  const base: PersonaState = {
-    name: "Jarvis",
-    description: DEFAULT_DESCRIPTION,
-    tone: "Warm",
-    directness: "Balanced",
-    humor: "Dry",
-    recovery: "Encouraging"
+  return {
+    assistantName: "Jarvis",
+    personaText: DEFAULT_DESCRIPTION,
+    ...DEFAULT_PERSONA_DIALS
   };
-  if (typeof window === "undefined") return base;
-  try {
-    const raw = window.localStorage.getItem(PERSONA_STORAGE_KEY);
-    return raw ? { ...base, ...(JSON.parse(raw) as Partial<PersonaState>) } : base;
-  } catch {
-    return base;
-  }
 }
 
 function Persona({ who }: { readonly who: string }) {
   const { toast } = useFeedback();
+  const queryClient = useQueryClient();
   const [p, setP] = useState<PersonaState>(initialPersona);
   const [saved, setSaved] = useState<PersonaState>(p);
   const [rev, setRev] = useState(0);
   const set = <K extends keyof PersonaState>(k: K, v: PersonaState[K]) =>
     setP((s) => ({ ...s, [k]: v }));
-  const dirty = JSON.stringify(p) !== JSON.stringify(saved);
-  const sample = useMemo(() => personaSample(p, who), [p, who]);
-
-  const save = () => {
-    setSaved(p);
+  const personaQuery = useQuery({
+    queryKey: queryKeys.settings.persona,
+    queryFn: getPersonaSettings,
+    retry: false
+  });
+  useEffect(() => {
+    if (!personaQuery.data) return;
+    const next: PersonaState = {
+      assistantName: personaQuery.data.persona.assistantName,
+      personaText: personaQuery.data.persona.personaText,
+      ...DEFAULT_PERSONA_DIALS
+    };
+    setP(next);
+    setSaved(next);
     setRev((r) => r + 1);
-    try {
-      window.localStorage.setItem(PERSONA_STORAGE_KEY, JSON.stringify(p));
-    } catch {
-      /* BACKEND-TODO: persist persona + dials and feed them into the system prompt; local storage until then */
+  }, [personaQuery.data]);
+  const dirty =
+    p.assistantName !== saved.assistantName || p.personaText.trim() !== saved.personaText.trim();
+  const sample = useMemo(() => personaSample(p, who), [p, who]);
+  const seedText = useMemo(() => personaSeedText(p), [p]);
+
+  const saveMutation = useMutation({
+    mutationFn: () =>
+      putPersonaSettings({
+        persona: {
+          assistantName: p.assistantName,
+          personaText: p.personaText
+        }
+      }),
+    onSuccess: (result) => {
+      const next: PersonaState = {
+        assistantName: result.persona.assistantName,
+        personaText: result.persona.personaText,
+        tone: p.tone,
+        directness: p.directness,
+        humor: p.humor,
+        recovery: p.recovery
+      };
+      setP(next);
+      setSaved(next);
+      void queryClient.invalidateQueries({ queryKey: queryKeys.settings.persona });
+      toast("Persona saved — your next briefing and replies use this voice", {
+        icon: <Sparkles size={17} />
+      });
+    },
+    onError: (error) => {
+      toast(error instanceof Error ? error.message : "Could not save persona");
     }
-    toast("Persona saved — your next briefing and replies use this voice", {
-      icon: <Sparkles size={17} />
-    });
-  };
+  });
+
+  const previewMutation = useMutation({
+    mutationFn: () =>
+      previewPersona({
+        persona: {
+          assistantName: p.assistantName,
+          personaText: p.personaText
+        }
+      }),
+    onError: (error) => {
+      toast(error instanceof Error ? error.message : "Could not preview persona");
+    }
+  });
+
   const discard = () => {
     setP(saved);
     setRev((r) => r + 1);
   };
+  const applySeed = () => set("personaText", seedText);
+  const previewReply = previewMutation.data?.reply;
 
   return (
     <Group
       title="Persona"
       desc="How Jarvis sounds and carries itself. This is fed into every briefing and reply — the preview shows the effect."
     >
-      <NotWired>
-        Saves locally only — not yet fed into the system prompt. The preview is illustrative.
-      </NotWired>
       <Field
         label="Assistant name"
         hint="What you call your assistant. Used in chat and the briefing."
       >
         <input
           className="jds-input"
-          value={p.name}
-          onChange={(e) => set("name", e.target.value)}
+          value={p.assistantName}
+          onChange={(e) => set("assistantName", e.target.value)}
           aria-label="Assistant name"
         />
       </Field>
@@ -99,8 +148,8 @@ function Persona({ who }: { readonly who: string }) {
         <textarea
           className="jds-textarea"
           rows={3}
-          value={p.description}
-          onChange={(e) => set("description", e.target.value)}
+          value={p.personaText}
+          onChange={(e) => set("personaText", e.target.value)}
           aria-label="Persona"
           placeholder="e.g. Be direct and a little dry. Skip the pep talks. Push me on commitments, but ease off on a rough day."
         />
@@ -138,19 +187,21 @@ function Persona({ who }: { readonly who: string }) {
       <div className="ppv">
         <div className="ppv__hd">
           <Sparkles size={13} aria-hidden="true" />
-          How {p.name || "Jarvis"} would sound
+          How {p.assistantName || "Jarvis"} would sound
         </div>
         <div className="ppv__bubble ppv__bubble--main">
-          <div className="ppv__cap">Morning briefing</div>
-          <p className="ppv__say">{sample.greeting}</p>
+          <div className="ppv__cap">{previewReply ? "Voice preview" : "Morning briefing"}</div>
+          <p className="ppv__say">{previewReply ?? sample.greeting}</p>
         </div>
-        <div className="ppv__bubble">
-          <div className="ppv__cap">When you fall behind</div>
-          <p className="ppv__say">{sample.recovery}</p>
-        </div>
+        {previewReply ? null : (
+          <div className="ppv__bubble">
+            <div className="ppv__cap">When you fall behind</div>
+            <p className="ppv__say">{sample.recovery}</p>
+          </div>
+        )}
         <div className="ppv__foot">
-          <CornerDownRight size={12} aria-hidden="true" />A live illustration of your settings — not
-          a recorded reply.
+          <CornerDownRight size={12} aria-hidden="true" />
+          {previewReply ? "Real preview from your chat route." : seedText}
         </div>
       </div>
 
@@ -164,6 +215,17 @@ function Persona({ who }: { readonly who: string }) {
           {dirty ? "Unsaved changes" : "Saved — this is Jarvis's current voice"}
         </span>
         <span className="psona-save__acts">
+          <button type="button" className="jds-btn jds-btn--quiet jds-btn--sm" onClick={applySeed}>
+            Use dials
+          </button>
+          <button
+            type="button"
+            className="jds-btn jds-btn--quiet jds-btn--sm"
+            onClick={() => previewMutation.mutate()}
+            disabled={previewMutation.isPending || personaQuery.isLoading}
+          >
+            {previewMutation.isPending ? "Previewing" : "Preview voice"}
+          </button>
           {dirty ? (
             <button type="button" className="jds-btn jds-btn--quiet jds-btn--sm" onClick={discard}>
               Discard
@@ -172,10 +234,10 @@ function Persona({ who }: { readonly who: string }) {
           <button
             type="button"
             className="jds-btn jds-btn--primary jds-btn--sm"
-            disabled={!dirty}
-            onClick={save}
+            disabled={!dirty || saveMutation.isPending}
+            onClick={() => saveMutation.mutate()}
           >
-            Save persona
+            {saveMutation.isPending ? "Saving" : "Save persona"}
           </button>
         </span>
       </div>

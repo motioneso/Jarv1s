@@ -27,6 +27,7 @@ import { ChatGatewayNotifier } from "./gateway-notifier.js";
 import { registerChatLiveRoutes } from "./live-routes.js";
 import { CliChatUnavailableError } from "./live/errors.js";
 import { createChatSessionRuntime, type ChatEngineFactory } from "./live/runtime.js";
+import type { PersonaPreferencesPort } from "./live/runtime.js";
 import {
   ChatUserMemorySettingsRepository,
   type UserMemorySettings
@@ -44,6 +45,7 @@ export interface ChatRoutesDependencies {
   readonly mcpServerUrl?: string;
   /** pg-boss for enqueueing embed/extract-facts jobs after each completed turn. */
   readonly boss?: PgBoss;
+  readonly personaPreferences?: PersonaPreferencesPort;
   /** Connector collaborators for the calendar focus-time write tool (composition host). */
   readonly googleConnectionService?: GoogleConnectionService;
   readonly googleApiClient?: GoogleApiClient;
@@ -106,6 +108,7 @@ export function registerChatRoutes(
     dataContext: dependencies.dataContext,
     engineFactory: dependencies.chatEngineFactory,
     boss: dependencies.boss,
+    personaPreferences: dependencies.personaPreferences,
     mcpTokenLifecycle:
       tokens && mcpServerUrl
         ? {

@@ -14,4 +14,5 @@ export * from "./tasks-api.js";
 export * from "./tasks-view.js";
 export * from "./wellness-api.js";
 export * from "./platform-api.js";
+export * from "./persona-api.js";
 export * from "./env.js";
