@@ -731,6 +731,77 @@ describe("Memory controls REST API", () => {
     expect(facts.find((f) => f.id === fact.id)).toBeUndefined();
   });
 
+  it("POST /api/chat/memory/facts/:id/confirm promotes an inferred fact", async () => {
+    const fact = await dataContext.withDataContext(ctx(ids.userA), (scopedDb) =>
+      factsRepo.insertFact(scopedDb, ids.userA, {
+        category: "preference",
+        content: "Confirm route test",
+        provenance: "inferred"
+      })
+    );
+
+    const res = await server.inject({
+      method: "POST",
+      url: `/api/chat/memory/facts/${fact.id}/confirm`,
+      headers: { authorization: `Bearer ${ids.sessionA}` }
+    });
+    expect(res.statusCode).toBe(204);
+
+    const facts = await dataContext.withDataContext(ctx(ids.userA), (scopedDb) =>
+      factsRepo.listActiveFacts(scopedDb, ids.userA)
+    );
+    expect(facts.find((f) => f.id === fact.id)?.provenance).toBe("confirmed");
+  });
+
+  it("POST /api/chat/memory/facts/:id/reject deletes inferred fact and writes suppression", async () => {
+    const fact = await dataContext.withDataContext(ctx(ids.userA), (scopedDb) =>
+      factsRepo.insertFact(scopedDb, ids.userA, {
+        category: "goal",
+        content: "Reject route test",
+        provenance: "inferred"
+      })
+    );
+
+    const res = await server.inject({
+      method: "POST",
+      url: `/api/chat/memory/facts/${fact.id}/reject`,
+      headers: { authorization: `Bearer ${ids.sessionA}` }
+    });
+    expect(res.statusCode).toBe(204);
+
+    await dataContext.withDataContext(ctx(ids.userA), async (scopedDb) => {
+      const facts = await factsRepo.listActiveFacts(scopedDb, ids.userA);
+      expect(facts.find((f) => f.id === fact.id)).toBeUndefined();
+      const suppressions = new ChatMemorySuppressionsRepository();
+      await expect(
+        suppressions.isSuppressed(
+          scopedDb,
+          ids.userA,
+          createMemoryFactSignature("goal", "Reject route test")
+        )
+      ).resolves.toBe(true);
+    });
+  });
+
+  it("non-owner cannot confirm or reject another user's fact", async () => {
+    const fact = await dataContext.withDataContext(ctx(ids.userA), (scopedDb) =>
+      factsRepo.insertFact(scopedDb, ids.userA, {
+        category: "preference",
+        content: "Non-owner route test",
+        provenance: "inferred"
+      })
+    );
+
+    for (const action of ["confirm", "reject"] as const) {
+      const res = await server.inject({
+        method: "POST",
+        url: `/api/chat/memory/facts/${fact.id}/${action}`,
+        headers: { authorization: `Bearer ${ids.sessionB}` }
+      });
+      expect(res.statusCode).toBe(404);
+    }
+  });
+
   it("PATCH /api/chat/memory/facts/:id with invalid importance returns 400", async () => {
     const res = await server.inject({
       method: "PATCH",

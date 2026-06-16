@@ -92,6 +92,8 @@ export const chatModuleManifest = {
     { method: "GET", path: "/api/chat/memory/facts", permissionId: "chat.view" },
     { method: "DELETE", path: "/api/chat/memory/facts/:id", permissionId: "chat.message" },
     { method: "PATCH", path: "/api/chat/memory/facts/:id", permissionId: "chat.message" },
+    { method: "POST", path: "/api/chat/memory/facts/:id/confirm", permissionId: "chat.message" },
+    { method: "POST", path: "/api/chat/memory/facts/:id/reject", permissionId: "chat.message" },
     {
       method: "POST",
       path: "/api/chat/action-requests/:id/resolve",

@@ -30,6 +30,8 @@ describe("manifest routes[] reconciliation", () => {
       { method: "GET", path: "/api/chat/memory/facts" },
       { method: "DELETE", path: "/api/chat/memory/facts/:id" },
       { method: "PATCH", path: "/api/chat/memory/facts/:id" },
+      { method: "POST", path: "/api/chat/memory/facts/:id/confirm" },
+      { method: "POST", path: "/api/chat/memory/facts/:id/reject" },
       { method: "POST", path: "/api/chat/action-requests/:id/resolve" },
       { method: "POST", path: "/api/mcp" }
     ]) {
