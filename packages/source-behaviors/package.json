@@ -1,0 +1,16 @@
+{
+  "name": "@jarv1s/source-behaviors",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@jarv1s/db": "workspace:*",
+    "@jarv1s/module-sdk": "workspace:*"
+  }
+}

@@ -466,6 +466,15 @@ importers:
 
   packages/shared: {}
 
+  packages/source-behaviors:
+    dependencies:
+      '@jarv1s/db':
+        specifier: workspace:*
+        version: link:../db
+      '@jarv1s/module-sdk':
+        specifier: workspace:*
+        version: link:../module-sdk
+
   packages/structured-state:
     dependencies:
       '@jarv1s/db':

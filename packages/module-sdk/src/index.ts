@@ -231,6 +231,27 @@ export interface ModuleSettingsSurfaceManifest {
   readonly featureFlagId?: string;
 }
 
+export type SourceBehaviorDefault = "default-on" | "default-off" | "coming-soon";
+export type SourceBehaviorKind =
+  | "include-in-briefings"
+  | "planning"
+  | "detect-commitments"
+  | "write-events-back"
+  | "capture-tasks"
+  | "thread-summaries"
+  | "send-on-behalf";
+
+export interface SourceBehaviorDecl {
+  readonly id: string;
+  readonly sourceId: string;
+  readonly sourceName: string;
+  readonly sourceDescription: string;
+  readonly name: string;
+  readonly description: string;
+  readonly kind: SourceBehaviorKind;
+  readonly default: SourceBehaviorDefault;
+}
+
 export interface ModuleAssistantToolManifest {
   readonly name: string;
   readonly description: string;
@@ -267,6 +288,7 @@ export interface JarvisModuleManifest {
   readonly jobs?: readonly ModuleJobManifest[];
   readonly shareableResources?: readonly ModuleShareableResourceManifest[];
   readonly assistantTools?: readonly ModuleAssistantToolManifest[];
+  readonly sourceBehaviors?: readonly SourceBehaviorDecl[];
   readonly focusSignal?: FocusSignalProvider;
 }
 
