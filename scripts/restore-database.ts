@@ -5,6 +5,9 @@ import { fileURLToPath } from "node:url";
 
 import { getJarvisDatabaseUrls } from "@jarv1s/db";
 
+const POSTGRES_CONTAINER = "jarv1s-postgres";
+const RESTORE_DUMP_PATH = "/tmp/restore.dump";
+
 export interface RestorePlanInput {
   readonly backupFile: string;
   readonly confirmDatabase?: string;
@@ -17,10 +20,13 @@ export interface RestorePlan {
   readonly args: readonly string[];
   readonly backupFile: string;
   readonly command: "pg_restore";
+  readonly copyArgs: readonly string[];
   readonly database: string;
+  readonly dockerCommand: "docker";
   readonly env: Readonly<Record<"PGPASSWORD", string>>;
   readonly execute: boolean;
   readonly host: string;
+  readonly restoreArgs: readonly string[];
 }
 
 export function createRestorePlan(input: RestorePlanInput): RestorePlan {
@@ -53,22 +59,45 @@ export function createRestorePlan(input: RestorePlanInput): RestorePlan {
     );
   }
 
+  const args = [
+    "--host",
+    url.hostname,
+    "--port",
+    url.port || "5432",
+    "--username",
+    username,
+    "--dbname",
+    database,
+    "--clean",
+    "--if-exists",
+    "--no-owner",
+    "--no-privileges",
+    input.backupFile
+  ];
+  const dockerPgRestoreArgs = [
+    "--username",
+    username,
+    "--dbname",
+    database,
+    "--clean",
+    "--if-exists",
+    "--no-owner",
+    "--no-privileges",
+    RESTORE_DUMP_PATH
+  ];
+
   return {
     command: "pg_restore",
-    args: [
-      "--host",
-      url.hostname,
-      "--port",
-      url.port || "5432",
-      "--username",
-      username,
-      "--dbname",
-      database,
-      "--clean",
-      "--if-exists",
-      "--no-owner",
-      "--no-privileges",
-      input.backupFile
+    args,
+    copyArgs: ["cp", input.backupFile, `${POSTGRES_CONTAINER}:${RESTORE_DUMP_PATH}`],
+    dockerCommand: "docker",
+    restoreArgs: [
+      "exec",
+      "--env",
+      "PGPASSWORD",
+      POSTGRES_CONTAINER,
+      "pg_restore",
+      ...dockerPgRestoreArgs
     ],
     backupFile: input.backupFile,
     database,
@@ -90,7 +119,8 @@ async function main(): Promise<void> {
       "Restore drill plan only. Add --execute --confirm-restore " +
         `--confirm-database ${plan.database} to run pg_restore.`
     );
-    console.log(`${plan.command} ${plan.args.join(" ")}`);
+    console.log(`${plan.dockerCommand} ${plan.copyArgs.join(" ")}`);
+    console.log(`${plan.dockerCommand} ${plan.restoreArgs.join(" ")}`);
     return;
   }
 
@@ -98,7 +128,8 @@ async function main(): Promise<void> {
   console.log(
     `Restoring database "${plan.database}" on host "${plan.host}" from sensitive backup ${plan.backupFile}`
   );
-  await runCommand(plan.command, plan.args, plan.env);
+  await runCommand(plan.dockerCommand, plan.copyArgs, {});
+  await runCommand(plan.dockerCommand, plan.restoreArgs, plan.env);
   console.log(`Restore complete from ${plan.backupFile}`);
 }
 
