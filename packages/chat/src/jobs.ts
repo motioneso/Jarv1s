@@ -9,6 +9,7 @@ import {
   MemoryRepository,
   type EmbeddingProvider,
   type FactCategory,
+  type FactProvenance,
   type NewChunkData
 } from "@jarv1s/memory";
 import {
@@ -109,6 +110,7 @@ const FACT_CATEGORIES: ReadonlySet<FactCategory> = new Set([
   "profile",
   "goal"
 ]);
+const EXTRACT_FACT_PROVENANCE: ReadonlySet<FactProvenance> = new Set(["volunteered", "inferred"]);
 const MAX_FACTS_PER_TURN = 8;
 // Economy output budget for the extraction call — bounds cost on a side-effect job
 // that must never dominate a chat turn's spend (clamped by the adapter, see A5b).
@@ -183,7 +185,9 @@ export async function handleExtractFactsJob(
     const prompt =
       "Extract durable facts about the user from this conversation turn. Return ONLY a JSON array; " +
       'each item: {"category": "preference|fact|profile|goal", "content": string, ' +
-      '"importance": number 0..1, "supersedes": optional id}. The OPTIONAL supersedes id MUST be one ' +
+      '"importance": number 0..1, "provenance": "volunteered|inferred", "supersedes": optional id}. ' +
+      'Use "volunteered" only when the user directly stated the fact; otherwise use "inferred". ' +
+      "The OPTIONAL supersedes id MUST be one " +
       "of the EXISTING FACT IDS listed below (omit it otherwise — never invent an id). No prose, no code fences.\n\n" +
       `EXISTING FACT IDS (id :: content):\n${supersedableList || "(none)"}\n\n` +
       `User: ${userMsg.body}\nAssistant: ${assistantMsg.body}`;
@@ -213,7 +217,8 @@ export async function handleExtractFactsJob(
         category: fact.category,
         content: fact.content,
         sourceThreadId: threadId,
-        importance: fact.importance
+        importance: fact.importance,
+        provenance: fact.provenance
       });
       existingByContent.add(contentKey); // also dedupe within this same batch
     }
@@ -235,6 +240,7 @@ interface ParsedFact {
   readonly category: FactCategory;
   readonly content: string;
   readonly importance: number;
+  readonly provenance: FactProvenance;
   readonly supersedes?: string;
 }
 
@@ -256,10 +262,14 @@ function parseFacts(text: string): ParsedFact[] {
     if (typeof content !== "string" || content.trim().length === 0) continue;
     let importance = typeof r.importance === "number" ? r.importance : 0.5;
     importance = Math.min(1, Math.max(0, importance));
+    const provenance = EXTRACT_FACT_PROVENANCE.has(r.provenance as FactProvenance)
+      ? (r.provenance as FactProvenance)
+      : "inferred";
     out.push({
       category: category as FactCategory,
       content: content.trim(),
       importance,
+      provenance,
       supersedes: typeof r.supersedes === "string" ? r.supersedes : undefined
     });
   }

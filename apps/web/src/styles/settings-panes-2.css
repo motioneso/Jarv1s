@@ -889,6 +889,39 @@
   padding-top: 2px;
 }
 
+.memory-fact__provenance {
+  flex-shrink: 0;
+  min-width: 64px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1.35;
+  text-align: center;
+  text-transform: uppercase;
+  color: var(--text);
+  background: var(--surface-2, var(--surface));
+  border: 1px solid var(--border-subtle, var(--border));
+}
+
+.memory-fact__provenance--said {
+  color: #14532d;
+  background: #dcfce7;
+  border-color: #86efac;
+}
+
+.memory-fact__provenance--inferred {
+  color: #713f12;
+  background: #fef3c7;
+  border-color: #facc15;
+}
+
+.memory-fact__provenance--confirmed {
+  color: #1e3a8a;
+  background: #dbeafe;
+  border-color: #93c5fd;
+}
+
 .memory-facts-empty {
   padding: 10px 16px;
   font-size: 13px;

@@ -333,6 +333,7 @@ function serializeFact(f: MemoryFact) {
     category: f.category,
     content: f.content,
     importance: f.importance,
+    provenance: f.provenance,
     sourceThreadId: f.sourceThreadId,
     createdAt: toIsoString(f.createdAt)
   };
