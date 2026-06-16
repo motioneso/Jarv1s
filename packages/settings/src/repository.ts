@@ -36,6 +36,11 @@ export interface SetUserAdminInput {
   readonly requestId: string;
 }
 
+export interface UpdateSelfNameInput {
+  readonly actorUserId: string;
+  readonly name: string;
+}
+
 export interface RegistrationSettings {
   readonly registrationEnabled: boolean;
   readonly requiresApproval: boolean;
@@ -329,6 +334,16 @@ export class SettingsRepository {
     });
 
     return updated;
+  }
+
+  async updateSelfName(scopedDb: DataContextDb, input: UpdateSelfNameInput): Promise<User> {
+    assertDataContextDb(scopedDb);
+    return scopedDb.db
+      .updateTable("app.users")
+      .set({ name: input.name, updated_at: new Date() })
+      .where("id", "=", input.actorUserId)
+      .returningAll()
+      .executeTakeFirstOrThrow();
   }
 
   async getRegistrationSettings(scopedDb: DataContextDb): Promise<RegistrationSettings> {

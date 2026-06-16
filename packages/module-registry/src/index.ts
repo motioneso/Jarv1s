@@ -18,6 +18,7 @@ import {
   type EmbeddingProvider
 } from "@jarv1s/memory";
 import {
+  PreferencesRepository,
   structuredStateModuleManifest,
   structuredStateSqlMigrationDirectory
 } from "@jarv1s/structured-state";
@@ -202,7 +203,8 @@ const BUILT_IN_MODULES: readonly BuiltInModuleRegistration[] = [
         revokeUserSessions: deps.revokeUserSessions,
         bootstrapConnectionString: deps.bootstrapConnectionString,
         chatMultiplexerAvailability: deps.chatMultiplexerAvailability,
-        onboardingProbes: deps.onboardingProbes
+        onboardingProbes: deps.onboardingProbes,
+        preferencesRepository: new PreferencesRepository()
       })
   },
   {
