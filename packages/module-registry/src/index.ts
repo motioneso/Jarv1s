@@ -378,6 +378,10 @@ const BUILT_IN_MODULES: readonly BuiltInModuleRegistration[] = [
           aiRepository: new AiRepository(),
           cipher: createAiSecretCipher(),
           personaRepository: new PreferencesRepository(),
+          sourceBehaviorPolicy: {
+            manifests: getBuiltInModuleManifests(),
+            preferencesRepository: new PreferencesRepository()
+          },
           resolveUserName: async (scopedDb, actorUserId) => {
             const row = await scopedDb.db
               .selectFrom("app.users")
