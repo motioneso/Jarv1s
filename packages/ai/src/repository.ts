@@ -26,6 +26,10 @@ import {
   type ChatModelOverrideCandidate
 } from "./chat-model-override.js";
 
+function jsonb(value: unknown) {
+  return sql<Record<string, unknown>>`${JSON.stringify(value)}::jsonb`;
+}
+
 export interface AiProviderConfigSafeRow {
   readonly id: string;
   readonly owner_user_id: string;
@@ -418,12 +422,12 @@ export class AiRepository {
         .values({
           owner_user_id: sql<string>`app.current_actor_user_id()`,
           key: CHAT_MODEL_OVERRIDE_PREFERENCE_KEY,
-          value_json: JSON.stringify(modelId),
+          value_json: jsonb(modelId),
           updated_at: new Date()
         })
         .onConflict((oc) =>
           oc.columns(["owner_user_id", "key"]).doUpdateSet({
-            value_json: JSON.stringify(modelId),
+            value_json: jsonb(modelId),
             updated_at: new Date()
           })
         )

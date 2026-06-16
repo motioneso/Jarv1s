@@ -8,8 +8,8 @@ type NullableTimestampColumn = ColumnType<
 >;
 type JsonColumn = ColumnType<
   Record<string, unknown>,
-  Record<string, unknown> | string | undefined,
-  Record<string, unknown> | string
+  Record<string, unknown> | undefined,
+  Record<string, unknown>
 >;
 type TextArrayColumn = ColumnType<
   string[],

@@ -1,6 +1,10 @@
 import { sql } from "kysely";
 import { assertDataContextDb, type DataContextDb } from "@jarv1s/db";
 
+function jsonb(value: unknown) {
+  return sql<Record<string, unknown>>`${JSON.stringify(value)}::jsonb`;
+}
+
 export class PreferencesRepository {
   async upsert(scopedDb: DataContextDb, key: string, value: unknown): Promise<void> {
     assertDataContextDb(scopedDb);
@@ -9,12 +13,12 @@ export class PreferencesRepository {
       .values({
         owner_user_id: sql<string>`app.current_actor_user_id()`,
         key,
-        value_json: JSON.stringify(value),
+        value_json: jsonb(value),
         updated_at: new Date()
       })
       .onConflict((oc) =>
         oc.columns(["owner_user_id", "key"]).doUpdateSet({
-          value_json: JSON.stringify(value),
+          value_json: jsonb(value),
           updated_at: new Date()
         })
       )

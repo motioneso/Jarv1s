@@ -2,6 +2,10 @@ import { sql } from "kysely";
 import { assertDataContextDb, type DataContextDb, type Entity } from "@jarv1s/db";
 import type { EntityType, ProvenanceKind } from "./types.js";
 
+function jsonb(value: unknown) {
+  return sql<Record<string, unknown>>`${JSON.stringify(value)}::jsonb`;
+}
+
 export interface CreateEntityInput {
   readonly type: EntityType;
   readonly name: string;
@@ -31,9 +35,9 @@ export class EntitiesRepository {
         type: input.type,
         name: input.name,
         provenance: input.provenance,
-        attributes: JSON.stringify(input.attributes ?? {}),
+        attributes: jsonb(input.attributes ?? {}),
         vault_note_path: input.vaultNotePath ?? null,
-        connector_refs: input.connectorRefs ? JSON.stringify(input.connectorRefs) : null,
+        connector_refs: input.connectorRefs ? jsonb(input.connectorRefs) : null,
         life_area: input.lifeArea ?? null
       })
       .returningAll()
@@ -69,11 +73,11 @@ export class EntitiesRepository {
     assertDataContextDb(scopedDb);
     const updates: Record<string, unknown> = { updated_at: new Date() };
     if (input.name !== undefined) updates["name"] = input.name;
-    if (input.attributes !== undefined) updates["attributes"] = JSON.stringify(input.attributes);
+    if (input.attributes !== undefined) updates["attributes"] = jsonb(input.attributes);
     if (input.provenance !== undefined) updates["provenance"] = input.provenance;
     if (input.vaultNotePath !== undefined) updates["vault_note_path"] = input.vaultNotePath;
     if (input.connectorRefs !== undefined)
-      updates["connector_refs"] = input.connectorRefs ? JSON.stringify(input.connectorRefs) : null;
+      updates["connector_refs"] = input.connectorRefs ? jsonb(input.connectorRefs) : null;
     if (input.lifeArea !== undefined) updates["life_area"] = input.lifeArea;
 
     const row = await scopedDb.db
