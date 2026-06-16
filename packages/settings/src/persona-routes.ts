@@ -1,0 +1,143 @@
+import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
+
+import type { AccessContext, DataContextDb, DataContextRunner, User } from "@jarv1s/db";
+import { handleRouteError, HttpError, sessionRateLimitKey } from "@jarv1s/module-sdk";
+import {
+  getPersonaSettingsRouteSchema,
+  normalizePersonaSettings,
+  parsePositiveIntEnv,
+  previewPersonaRouteSchema,
+  putPersonaSettingsRouteSchema,
+  type PreviewPersonaRequest,
+  type PutPersonaSettingsRequest
+} from "@jarv1s/shared";
+
+import type { ProfilePreferencesPort, PersonaPreviewInput } from "./preferences-port.js";
+import type { SettingsRepository } from "./repository.js";
+
+const PERSONA_PREFERENCE_KEY = "persona.bundle";
+const PERSONA_PREVIEW_MAX = parsePositiveIntEnv(process.env.JARVIS_RL_PERSONA_PREVIEW_MAX, 10);
+
+interface PersonaRoutesDependencies {
+  readonly dataContext: DataContextRunner;
+  readonly resolveAccessContext: (request: FastifyRequest) => Promise<AccessContext>;
+  readonly preferencesRepository: ProfilePreferencesPort;
+  readonly repository: SettingsRepository;
+  readonly personaPreview?: (input: PersonaPreviewInput) => Promise<string>;
+}
+
+export function registerPersonaRoutes(
+  server: FastifyInstance,
+  dependencies: PersonaRoutesDependencies
+): void {
+  server.get(
+    "/api/me/persona",
+    { schema: getPersonaSettingsRouteSchema },
+    async (request, reply) => {
+      try {
+        const accessContext = await dependencies.resolveAccessContext(request);
+        const persona = await dependencies.dataContext.withDataContext(
+          accessContext,
+          async (scopedDb) => {
+            await requireKnownUser(dependencies.repository, scopedDb, accessContext.actorUserId);
+            return normalizePersonaSettings(
+              await dependencies.preferencesRepository.get(scopedDb, PERSONA_PREFERENCE_KEY)
+            );
+          }
+        );
+        return { persona };
+      } catch (error) {
+        return handleSettingsRouteError(error, reply);
+      }
+    }
+  );
+
+  server.put(
+    "/api/me/persona",
+    { schema: putPersonaSettingsRouteSchema },
+    async (request, reply) => {
+      try {
+        const accessContext = await dependencies.resolveAccessContext(request);
+        const body = request.body as PutPersonaSettingsRequest;
+        const persona = normalizePersonaSettings(body.persona);
+        await dependencies.dataContext.withDataContext(accessContext, async (scopedDb) => {
+          await requireKnownUser(dependencies.repository, scopedDb, accessContext.actorUserId);
+          await dependencies.preferencesRepository.upsert(
+            scopedDb,
+            PERSONA_PREFERENCE_KEY,
+            persona
+          );
+        });
+        return { persona };
+      } catch (error) {
+        return handleSettingsRouteError(error, reply);
+      }
+    }
+  );
+
+  server.post(
+    "/api/me/persona/preview",
+    {
+      schema: previewPersonaRouteSchema,
+      config: {
+        rateLimit: {
+          max: PERSONA_PREVIEW_MAX,
+          timeWindow: "1 minute",
+          keyGenerator: sessionRateLimitKey
+        }
+      }
+    },
+    async (request, reply) => {
+      try {
+        const accessContext = await dependencies.resolveAccessContext(request);
+        const body = request.body as PreviewPersonaRequest;
+        const persona = normalizePersonaSettings(body.persona);
+        const user = await dependencies.dataContext.withDataContext(accessContext, (scopedDb) =>
+          requireKnownUser(dependencies.repository, scopedDb, accessContext.actorUserId)
+        );
+        if (!dependencies.personaPreview) {
+          throw new HttpError(503, "Persona preview is not configured");
+        }
+        const replyText = await dependencies.personaPreview({
+          actorUserId: accessContext.actorUserId,
+          userName: user.name,
+          assistantName: persona.assistantName,
+          personaText: persona.personaText
+        });
+        return { reply: replyText };
+      } catch (error) {
+        return handleSettingsRouteError(error, reply);
+      }
+    }
+  );
+}
+
+async function requireKnownUser(
+  repository: SettingsRepository,
+  scopedDb: DataContextDb,
+  userId: string
+): Promise<User> {
+  const user = await repository.getUserById(scopedDb, userId);
+
+  if (!user) {
+    throw new HttpError(401, "Session is missing or expired");
+  }
+
+  return user;
+}
+
+function handleSettingsRouteError(error: unknown, reply: FastifyReply) {
+  return handleRouteError(error, reply, {
+    mappers: [
+      (e, r) => {
+        if (e instanceof Error) {
+          const code = (e as Error & { code?: string }).code;
+          if (code === "account_pending_approval" || code === "account_deactivated") {
+            return r.code(403).send({ error: e.message, code });
+          }
+        }
+        return undefined;
+      }
+    ]
+  });
+}

@@ -48,12 +48,9 @@ import { HttpError, handleRouteError as handleModuleRouteError } from "@jarv1s/m
 import { deleteUserData, LastActiveAdminError } from "../../../scripts/delete-user-data.js";
 import { BootstrapHelper } from "./bootstrap.js";
 import { registerLocaleRoutes } from "./locale-routes.js";
+import { registerPersonaRoutes } from "./persona-routes.js";
+import type { ProfilePreferencesPort, PersonaPreviewInput } from "./preferences-port.js";
 import { HttpRepositoryError, SettingsRepository } from "./repository.js";
-
-export interface ProfilePreferencesPort {
-  get(scopedDb: DataContextDb, key: string): Promise<unknown>;
-  upsert(scopedDb: DataContextDb, key: string, value: unknown): Promise<void>;
-}
 
 export interface SettingsRoutesDependencies {
   // Kysely exemption: only BootstrapHelper uses rootDb before any actor/session exists.
@@ -63,6 +60,7 @@ export interface SettingsRoutesDependencies {
   readonly listConfiguredAuthProviders?: () => readonly AuthProviderStatusDto[];
   readonly listModuleManifests?: () => readonly JarvisModuleManifest[];
   readonly preferencesRepository?: ProfilePreferencesPort;
+  readonly personaPreview?: (input: PersonaPreviewInput) => Promise<string>;
   readonly repository?: SettingsRepository;
   readonly revokeUserSessions?: (userId: string) => Promise<number>;
   readonly bootstrapConnectionString?: string;
@@ -94,6 +92,7 @@ export function registerSettingsRoutes(
   };
   const bootstrapHelper = new BootstrapHelper(dependencies.rootDb);
   registerLocaleRoutes(server, { ...dependencies, preferencesRepository });
+  registerPersonaRoutes(server, { ...dependencies, repository, preferencesRepository });
   server.get("/api/bootstrap/status", { schema: bootstrapStatusRouteSchema }, async () => {
     // Return only the boolean the client needs. The raw user count is an instance-wide
     // metric exposed on an UNAUTHENTICATED route — do not leak it (OTNR-P4 #122).

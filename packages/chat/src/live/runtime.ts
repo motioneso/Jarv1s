@@ -10,7 +10,8 @@ import { homedir } from "node:os";
 import { join } from "node:path";
 
 import { AiRepository, createRealTmuxIo, type Multiplexer, type ProviderKind } from "@jarv1s/ai";
-import type { DataContextRunner } from "@jarv1s/db";
+import type { DataContextDb, DataContextRunner } from "@jarv1s/db";
+import { normalizePersonaSettings, renderPersonaText } from "@jarv1s/shared";
 import type { PgBoss } from "pg-boss";
 
 import type { RecallPort } from "../recall-port.js";
@@ -41,6 +42,10 @@ export const DEFAULT_JARVIS_PERSONA = [
 ].join("\n");
 
 export type ChatEngineFactory = (provider: ProviderKind, sessionKey: string) => CliChatEngine;
+
+export interface PersonaPreferencesPort {
+  get(scopedDb: DataContextDb, key: string): Promise<unknown>;
+}
 
 /**
  * Builds the production engine factory. The multiplexer is resolved ONCE at the
@@ -77,6 +82,7 @@ export interface CreateChatSessionRuntimeDeps {
   readonly boss?: PgBoss;
   /** Phase 3: optional recall service — injects <memory> seed at session launch. */
   readonly recall?: RecallPort;
+  readonly personaPreferences?: PersonaPreferencesPort;
   /** Phase 2: MCP token lifecycle hooks — mint on engine launch, revoke on reap. */
   readonly mcpTokenLifecycle?: {
     readonly mint: (
@@ -113,7 +119,7 @@ export function createChatSessionRuntime(deps: CreateChatSessionRuntimeDeps): Ch
     clock: { now: () => Date.now() },
     idleMs: deps.idleMs ?? DEFAULT_IDLE_MS,
     neutralBase: resolveNeutralBase(),
-    persona: DEFAULT_JARVIS_PERSONA,
+    persona: (actorUserId, userName) => resolveChatPersona(deps, actorUserId, userName),
     mintMcpToken: deps.mcpTokenLifecycle?.mint,
     revokeMcpToken: deps.mcpTokenLifecycle?.revoke,
     touchMcpToken: deps.mcpTokenLifecycle?.touch,
@@ -124,6 +130,26 @@ export function createChatSessionRuntime(deps: CreateChatSessionRuntimeDeps): Ch
     manager,
     resolveUserName: (actorUserId) => persistence.resolveUserName(actorUserId)
   };
+}
+
+async function resolveChatPersona(
+  deps: CreateChatSessionRuntimeDeps,
+  actorUserId: string,
+  userName: string
+): Promise<string> {
+  const stored = deps.personaPreferences
+    ? await deps.dataContext.withDataContext(
+        { actorUserId, requestId: "chat-live:resolve-persona" },
+        (scopedDb) => deps.personaPreferences!.get(scopedDb, "persona.bundle")
+      )
+    : null;
+  const persona = normalizePersonaSettings(stored);
+  const personaBlock = renderPersonaText({
+    assistantName: persona.assistantName,
+    personaText: persona.personaText,
+    userName
+  });
+  return [DEFAULT_JARVIS_PERSONA, personaBlock].filter(Boolean).join("\n\n");
 }
 
 /** Base dir for per-user neutral chat dirs (mirrors renderPersona's own default). */

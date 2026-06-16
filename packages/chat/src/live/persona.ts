@@ -14,6 +14,7 @@ import { homedir } from "node:os";
 import { join } from "node:path";
 
 import type { ProviderKind } from "@jarv1s/ai";
+import { sanitizePersonaName } from "@jarv1s/shared";
 
 /** Minimal filesystem seam — injected so tests can avoid real disk writes. */
 export interface PersonaFs {
@@ -33,9 +34,6 @@ export interface RenderPersonaInput {
   readonly persona: string;
 }
 
-/** Upper bound on a substituted display name — a name is a short inline token. */
-const MAX_USERNAME_LENGTH = 80;
-
 /**
  * Sanitize a user-controlled display name before it is substituted into the
  * persona system-prompt file (#136).
@@ -49,18 +47,7 @@ const MAX_USERNAME_LENGTH = 80;
  * to a neutral token if nothing printable survives.
  */
 export function sanitizeUserName(rawName: string): string {
-  const cleaned = rawName
-    // Control characters (newlines, tabs, NUL, DEL, C1) — a display name is single-line.
-    .replace(/\p{Cc}+/gu, " ")
-    // Markup/structural characters that could start a heading, code span, link,
-    // emphasis, or an injected framing tag inside the persona file.
-    .replace(/[<>#`*_~[\]{}|]/g, "")
-    .replace(/\s+/g, " ")
-    .trim()
-    .slice(0, MAX_USERNAME_LENGTH)
-    .trim();
-
-  return cleaned.length > 0 ? cleaned : "there";
+  return sanitizePersonaName(rawName);
 }
 
 /** Provider → CLI context filename auto-loaded from the working directory. */

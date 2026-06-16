@@ -6,6 +6,7 @@ import type { ChatTurn, GenerateChatInput, ProviderKind } from "@jarv1s/ai";
 import type { BriefingDefinition, BriefingRunStatus, DataContextDb } from "@jarv1s/db";
 import type { MemoryRetriever } from "@jarv1s/memory";
 import type { JarvisModuleManifest } from "@jarv1s/module-sdk";
+import { normalizePersonaSettings, renderPersonaText } from "@jarv1s/shared";
 
 import { timezoneFor } from "./schedule.js";
 
@@ -27,6 +28,10 @@ export interface ComposeDeps {
   readonly aiRepository: AiRepository;
   readonly cipher: AiSecretCipher;
   readonly memoryRetriever: MemoryRetriever;
+  readonly personaRepository?: {
+    get(scopedDb: DataContextDb, key: string): Promise<unknown>;
+  };
+  readonly resolveUserName?: (scopedDb: DataContextDb, actorUserId: string) => Promise<string>;
   /** Injectable for tests; defaults to constructing a real HttpApiAdapter. */
   readonly createAdapter?: (
     kind: ProviderKind,
@@ -413,7 +418,7 @@ export async function composeBriefing(
   }
 
   // ── Synthesize ───────────────────────────────────────────────────────────────
-  const messages = buildMessages(sections);
+  const messages = await buildMessages(scopedDb, definition, sections, deps);
   try {
     const adapter = (deps.createAdapter ?? defaultCreateAdapter)(
       model.provider_kind as ProviderKind,
@@ -461,18 +466,44 @@ function defaultCreateAdapter(kind: ProviderKind, apiKey: string, baseUrl: strin
   return new HttpApiAdapter(kind, apiKey, baseUrl ? { baseUrl } : {});
 }
 
-function buildMessages(sections: readonly Section[]): ChatTurn[] {
+async function buildMessages(
+  scopedDb: DataContextDb,
+  definition: BriefingDefinition,
+  sections: readonly Section[],
+  deps: ComposeDeps
+): Promise<ChatTurn[]> {
   const system =
     "You are a calm morning-briefing writer. Synthesize a concise, scannable morning briefing " +
     "with light section headers. Ground strictly in the provided items; do not invent. Where a " +
     "section is empty, note it briefly. Keep it warm and non-judgmental about missed or at-risk items.";
+  const personaBlock = await buildPersonaBlock(scopedDb, definition, deps);
   const body = sections
     .map(
       (s) =>
         `## ${s.label}\n${s.lines.length > 0 ? s.lines.map((l) => `- ${l}`).join("\n") : "(none today)"}`
     )
     .join("\n\n");
-  return [{ role: "user", content: `${system}\n\n${body}` }];
+  return [{ role: "user", content: [system, personaBlock, body].filter(Boolean).join("\n\n") }];
+}
+
+async function buildPersonaBlock(
+  scopedDb: DataContextDb,
+  definition: BriefingDefinition,
+  deps: ComposeDeps
+): Promise<string> {
+  if (!deps.personaRepository || !deps.resolveUserName) {
+    return "";
+  }
+  const [stored, userName] = await Promise.all([
+    deps.personaRepository.get(scopedDb, "persona.bundle"),
+    deps.resolveUserName(scopedDb, definition.owner_user_id)
+  ]);
+  const persona = normalizePersonaSettings(stored);
+  return renderPersonaText({
+    assistantName: persona.assistantName,
+    personaText: persona.personaText,
+    userName
+  });
 }
 
 function fallback(
