@@ -46,3 +46,28 @@ export function personaSample(p: PersonaDials, who: string): PersonaPreview {
     recovery: recovery[p.recovery]
   };
 }
+
+export function personaSeedText(p: PersonaDials): string {
+  const tone: Record<ToneDial, string> = {
+    Warm: "Keep responses warm and steady",
+    Neutral: "Keep responses clear and neutral",
+    Crisp: "Keep responses crisp and economical"
+  };
+  const directness: Record<DirectnessDial, string> = {
+    Gentle: "nudge me without pressure",
+    Balanced: "be direct when priorities are clear",
+    Direct: "lead with what matters and skip throat-clearing"
+  };
+  const humor: Record<HumorDial, string> = {
+    None: "avoid jokes",
+    Dry: "use dry humor sparingly",
+    Playful: "allow light playful asides"
+  };
+  const recovery: Record<RecoveryDial, string> = {
+    Encouraging: "when I fall behind, make it easy to restart",
+    "Matter-of-fact": "when I fall behind, state the miss plainly and suggest the next step",
+    Firm: "when I fall behind, push me to clear the slipped item first"
+  };
+
+  return `${tone[p.tone]}; ${directness[p.directness]}; ${humor[p.humor]}; ${recovery[p.recovery]}.`;
+}

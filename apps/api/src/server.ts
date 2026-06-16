@@ -43,6 +43,12 @@ export interface CreateApiServerOptions {
   readonly logger?: boolean;
   /** Override the live-chat engine factory (tests inject a fake); defaults to real tmux. */
   readonly chatEngineFactory?: ChatEngineFactory;
+  readonly personaPreview?: (input: {
+    readonly actorUserId: string;
+    readonly userName: string;
+    readonly assistantName: string;
+    readonly personaText: string;
+  }) => Promise<string>;
   /**
    * TEST-ONLY. Synthetic guarded routes + their manifests, used to prove the real
    * server's route-enablement guard 404s a route owned by an INACTIVE module. Never set
@@ -252,6 +258,7 @@ export function createApiServer(options: CreateApiServerOptions = {}) {
       dataContext,
       boss,
       chatEngineFactory: options.chatEngineFactory,
+      personaPreview: options.personaPreview,
       revokeUserSessions: authRuntime.revokeUserSessions,
       bootstrapConnectionString: ownsAppDb ? getJarvisDatabaseUrls().bootstrap : undefined,
       googleConnectionService,

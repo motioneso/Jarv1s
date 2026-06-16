@@ -4,10 +4,12 @@ import type { PgBoss } from "pg-boss";
 
 import {
   AiRepository,
+  HttpApiAdapter,
   aiModuleManifest,
   aiModuleSqlMigrationDirectory,
   createAiSecretCipher,
-  registerAiRoutes
+  registerAiRoutes,
+  type ProviderKind
 } from "@jarv1s/ai";
 import {
   ChatMemoryFactsRepository,
@@ -61,6 +63,7 @@ import {
   registerEmailRoutes
 } from "@jarv1s/email";
 import { FOUNDATION_QUEUES, type QueueDefinition } from "@jarv1s/jobs";
+import { HttpError } from "@jarv1s/module-sdk";
 import type { JarvisModuleManifest, RegisteredFocusSignal } from "@jarv1s/module-sdk";
 import {
   NotificationsRepository,
@@ -68,11 +71,12 @@ import {
   notificationsModuleSqlMigrationDirectory,
   registerNotificationsRoutes
 } from "@jarv1s/notifications";
-import type { AuthProviderStatusDto } from "@jarv1s/shared";
+import { renderPersonaText, type AuthProviderStatusDto } from "@jarv1s/shared";
 import {
   registerSettingsRoutes,
   settingsModuleManifest,
-  settingsModuleSqlMigrationDirectory
+  settingsModuleSqlMigrationDirectory,
+  type PersonaPreviewInput
 } from "@jarv1s/settings";
 import {
   TASKS_QUEUE_DEFINITIONS,
@@ -157,6 +161,7 @@ export interface BuiltInRouteDependencies {
   readonly connectorsRepository?: ConnectorsRepository;
   /** Boot-time multiplexer availability snapshot for the admin settings UI. */
   readonly chatMultiplexerAvailability?: { readonly tmux: boolean; readonly herdr: boolean };
+  readonly personaPreview?: (input: PersonaPreviewInput) => Promise<string>;
   /**
    * Bounded, live onboarding probes (Phase 2). Built inside registerBuiltInApiRoutes (sync,
    * no boot-time probing) and forwarded to the settings module so it keeps no @jarv1s/ai /
@@ -188,6 +193,71 @@ export interface BuiltInModuleRegistration {
   ) => Promise<readonly string[]>;
 }
 
+const PERSONA_PREVIEW_SAMPLE_TURN =
+  "Give me a two-sentence morning check-in for a day with one important task and one slipped commitment.";
+const PERSONA_PREVIEW_MAX_OUTPUT_TOKENS = 180;
+
+function createDefaultPersonaPreview(
+  dataContext: DataContextRunner
+): (input: PersonaPreviewInput) => Promise<string> {
+  const aiRepository = new AiRepository();
+  const cipher = createAiSecretCipher();
+
+  return async (input) =>
+    dataContext.withDataContext(
+      { actorUserId: input.actorUserId, requestId: "settings:persona-preview" },
+      async (scopedDb) => {
+        const model = await aiRepository.selectModelForCapability(scopedDb, "chat");
+        if (!model) {
+          throw new HttpError(503, "No active chat-capable model is configured");
+        }
+
+        const provider = await aiRepository.selectProviderWithCredential(
+          scopedDb,
+          model.provider_config_id
+        );
+        if (!provider?.encrypted_credential) {
+          throw new HttpError(503, "Chat model credential is not configured");
+        }
+
+        let apiKey: string;
+        try {
+          const decrypted = cipher.decryptJson(provider.encrypted_credential);
+          const key = decrypted.apiKey;
+          if (typeof key !== "string" || key.length === 0) {
+            throw new Error("missing api key");
+          }
+          apiKey = key;
+        } catch {
+          throw new HttpError(503, "Chat model credential is not configured");
+        }
+
+        const personaBlock = renderPersonaText({
+          assistantName: input.assistantName,
+          personaText: input.personaText,
+          userName: input.userName
+        });
+        const adapter = new HttpApiAdapter(model.provider_kind as ProviderKind, apiKey, {
+          baseUrl: provider.base_url ?? undefined
+        });
+        const { text } = await adapter.generateChat({
+          model: {
+            provider_kind: model.provider_kind,
+            provider_model_id: model.provider_model_id
+          },
+          messages: [
+            {
+              role: "user",
+              content: `${personaBlock}\n\n${PERSONA_PREVIEW_SAMPLE_TURN}`
+            }
+          ],
+          maxOutputTokens: PERSONA_PREVIEW_MAX_OUTPUT_TOKENS
+        });
+        return text;
+      }
+    );
+}
+
 const BUILT_IN_MODULES: readonly BuiltInModuleRegistration[] = [
   {
     manifest: settingsModuleManifest,
@@ -204,6 +274,7 @@ const BUILT_IN_MODULES: readonly BuiltInModuleRegistration[] = [
         bootstrapConnectionString: deps.bootstrapConnectionString,
         chatMultiplexerAvailability: deps.chatMultiplexerAvailability,
         onboardingProbes: deps.onboardingProbes,
+        personaPreview: deps.personaPreview ?? createDefaultPersonaPreview(deps.dataContext),
         preferencesRepository: new PreferencesRepository()
       })
   },
@@ -274,6 +345,7 @@ const BUILT_IN_MODULES: readonly BuiltInModuleRegistration[] = [
         resolveActiveModules: deps.resolveActiveModules,
         mcpServerUrl: `http://127.0.0.1:${process.env.PORT ?? 3000}/api/mcp`,
         boss: deps.boss,
+        personaPreferences: new PreferencesRepository(),
         googleConnectionService: deps.googleConnectionService,
         googleApiClient: deps.googleApiClient,
         connectorsRepository: deps.connectorsRepository
@@ -305,6 +377,16 @@ const BUILT_IN_MODULES: readonly BuiltInModuleRegistration[] = [
           moduleManifests: getBuiltInModuleManifests(),
           aiRepository: new AiRepository(),
           cipher: createAiSecretCipher(),
+          personaRepository: new PreferencesRepository(),
+          resolveUserName: async (scopedDb, actorUserId) => {
+            const row = await scopedDb.db
+              .selectFrom("app.users")
+              .select("name")
+              .where("id", "=", actorUserId)
+              .executeTakeFirst();
+            const name = row?.name?.trim();
+            return name && name.length > 0 ? name : actorUserId;
+          },
           memoryRetriever: new MemoryRetriever(
             dependencies.embeddingProvider,
             new MemoryRepository()

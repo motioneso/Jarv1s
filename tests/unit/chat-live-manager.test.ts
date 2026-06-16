@@ -323,6 +323,27 @@ describe("ChatSessionManager", () => {
     expect(engines[0]?.submitted).toEqual(["hello", "again"]);
   });
 
+  it("renders the user-specific persona when launching the chat context file", async () => {
+    const writes: Record<string, string> = {};
+    const personaFs: PersonaFs = {
+      async mkdir() {},
+      async writeFile(path, content) {
+        writes[path] = content;
+      }
+    };
+    const { manager } = makeManager({
+      persona: async (_actorUserId, userName) =>
+        `Base instructions.\n\nYour name is Friday.\n\nKeep ${userName} focused.`,
+      personaFs
+    });
+
+    await manager.submitTurn("user-1", "Ben", "hello");
+
+    expect(writes["/tmp/jarvis-test/user-1/CLAUDE.md"]).toBe(
+      "Base instructions.\n\nYour name is Friday.\n\nKeep Ben focused."
+    );
+  });
+
   it("emits records to subscribers, returns the reply, and persists the turn", async () => {
     const { manager, persistence } = makeManager();
 

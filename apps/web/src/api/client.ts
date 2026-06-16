@@ -13,11 +13,16 @@ import type {
   BootstrapStatusResponse,
   ChatMultiplexerChoice,
   ChatMultiplexerSettingsDto,
+  GetPersonaSettingsResponse,
   GetLocaleSettingsResponse,
   ListUsersResponse,
   RegistrationSettingsDto,
+  PreviewPersonaRequest,
+  PreviewPersonaResponse,
   PutLocaleSettingsRequest,
   PutLocaleSettingsResponse,
+  PutPersonaSettingsRequest,
+  PutPersonaSettingsResponse,
   UserDto,
   BreakdownTaskRequest,
   BreakdownTaskResponse,
@@ -151,6 +156,26 @@ export async function putLocaleSettings(
 ): Promise<PutLocaleSettingsResponse> {
   return requestJson<PutLocaleSettingsResponse>("/api/me/locale", {
     method: "PUT",
+    body
+  });
+}
+
+export async function getPersonaSettings(): Promise<GetPersonaSettingsResponse> {
+  return requestJson<GetPersonaSettingsResponse>("/api/me/persona");
+}
+
+export async function putPersonaSettings(
+  body: PutPersonaSettingsRequest
+): Promise<PutPersonaSettingsResponse> {
+  return requestJson<PutPersonaSettingsResponse>("/api/me/persona", {
+    method: "PUT",
+    body
+  });
+}
+
+export async function previewPersona(body: PreviewPersonaRequest): Promise<PreviewPersonaResponse> {
+  return requestJson<PreviewPersonaResponse>("/api/me/persona/preview", {
+    method: "POST",
     body
   });
 }

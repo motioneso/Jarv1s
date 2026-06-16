@@ -82,6 +82,21 @@ export const settingsModuleManifest: JarvisModuleManifest = {
     },
     {
       method: "GET",
+      path: "/api/me/persona",
+      permissionId: "settings.view"
+    },
+    {
+      method: "PUT",
+      path: "/api/me/persona",
+      permissionId: "settings.view"
+    },
+    {
+      method: "POST",
+      path: "/api/me/persona/preview",
+      permissionId: "settings.view"
+    },
+    {
+      method: "GET",
       path: "/api/admin/auth/providers",
       permissionId: "settings.manage"
     },
