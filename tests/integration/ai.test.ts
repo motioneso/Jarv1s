@@ -10,7 +10,6 @@ import {
   type EncryptedAiSecret
 } from "@jarv1s/ai";
 import {
-  AuthSessionResolver,
   DataContextRunner,
   createDatabase,
   type AccessContext,
@@ -27,7 +26,6 @@ const { Client } = pg;
 
 describe("AI provider foundation", () => {
   let appDb: Kysely<JarvisDatabase>;
-  let auth: AuthSessionResolver;
   let dataContext: DataContextRunner;
   let repository: AiRepository;
   let server: ReturnType<typeof createApiServer>;
@@ -44,7 +42,6 @@ describe("AI provider foundation", () => {
       connectionString: connectionStrings.app,
       maxConnections: 1
     });
-    auth = new AuthSessionResolver(appDb);
     dataContext = new DataContextRunner(appDb);
     repository = new AiRepository();
     server = createApiServer({
