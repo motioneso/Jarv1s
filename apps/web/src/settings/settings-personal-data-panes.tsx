@@ -27,9 +27,11 @@ import {
 import { useState } from "react";
 
 import {
+  getLocaleSettings,
   getModules,
   getMyModules,
   listConnectorAccounts,
+  putLocaleSettings,
   revokeConnectorAccount,
   setMyModuleDisabled
 } from "../api/client";
@@ -65,7 +67,7 @@ import {
   Switch
 } from "./settings-ui";
 import { VaultChooser } from "./settings-vault-chooser";
-import type { ConnectorAccountDto } from "@jarv1s/shared";
+import type { ConnectorAccountDto, LocaleSettingsDto } from "@jarv1s/shared";
 
 const MODULE_ICONS: Record<string, LucideIcon> = {
   tasks: ListChecks,
@@ -77,6 +79,12 @@ const MODULE_ICONS: Record<string, LucideIcon> = {
   notifications: Bell,
   finance: Wallet,
   email: Mail
+};
+
+const DEFAULT_LOCALE_SETTINGS: LocaleSettingsDto = {
+  timezone: "America/Los_Angeles",
+  region: "en-US",
+  dateFormat: "24"
 };
 
 function moduleIcon(id: string): LucideIcon {
@@ -695,15 +703,38 @@ function ModulesPane({ onNavigate, onSelectSection }: PaneProps) {
 /* ------------------------------------------------------------- General */
 
 function GeneralPane() {
+  const queryClient = useQueryClient();
+  const { toast } = useFeedback();
+  const localeQuery = useQuery({
+    queryKey: queryKeys.settings.locale,
+    queryFn: getLocaleSettings,
+    retry: false
+  });
+  const locale = localeQuery.data?.locale ?? DEFAULT_LOCALE_SETTINGS;
+  const localeMutation = useMutation({
+    mutationFn: (next: LocaleSettingsDto) => putLocaleSettings({ locale: next }),
+    onSuccess: (data) => {
+      queryClient.setQueryData(queryKeys.settings.locale, data);
+    },
+    onError: (error) => toast(readError(error), { tone: "drift" })
+  });
+  const updateLocale = (patch: Partial<LocaleSettingsDto>) => {
+    localeMutation.mutate({ ...locale, ...patch });
+  };
+
   return (
     <>
       <PaneHead title="General" desc="The few things that apply across all of Jarvis." />
-      <NotWired>None of these persist yet.</NotWired>
       <Group title="Locale">
         <div className="fld">
           <div className="fld__lbl">Time zone</div>
           <div className="fld__row">
-            <Select defaultValue="America/Los_Angeles" aria-label="Time zone">
+            <Select
+              value={locale.timezone}
+              aria-label="Time zone"
+              disabled={localeQuery.isLoading || localeMutation.isPending}
+              onChange={(event) => updateLocale({ timezone: event.currentTarget.value })}
+            >
               <option value="America/Los_Angeles">Pacific — America/Los_Angeles</option>
               <option value="America/New_York">Eastern — America/New_York</option>
               <option value="Europe/London">GMT — Europe/London</option>
@@ -714,18 +745,32 @@ function GeneralPane() {
         <div className="fld">
           <div className="fld__lbl">Language &amp; region</div>
           <div className="fld__row">
-            <Select defaultValue="English (United States)" aria-label="Language and region">
-              <option>English (United States)</option>
-              <option>English (United Kingdom)</option>
-              <option>Français (France)</option>
-              <option>Deutsch (Deutschland)</option>
+            <Select
+              value={locale.region}
+              aria-label="Language and region"
+              disabled={localeQuery.isLoading || localeMutation.isPending}
+              onChange={(event) => updateLocale({ region: event.currentTarget.value })}
+            >
+              <option value="en-US">English (United States)</option>
+              <option value="en-GB">English (United Kingdom)</option>
+              <option value="fr-FR">Français (France)</option>
+              <option value="de-DE">Deutsch (Deutschland)</option>
             </Select>
           </div>
         </div>
         <div className="fld">
           <div className="fld__lbl">Date &amp; time format</div>
           <div className="fld__row">
-            <Select defaultValue="24" aria-label="Date and time format">
+            <Select
+              value={locale.dateFormat}
+              aria-label="Date and time format"
+              disabled={localeQuery.isLoading || localeMutation.isPending}
+              onChange={(event) =>
+                updateLocale({
+                  dateFormat: event.currentTarget.value as LocaleSettingsDto["dateFormat"]
+                })
+              }
+            >
               <option value="24">13 Jun · 24-hour</option>
               <option value="12">Jun 13 · 12-hour</option>
             </Select>
@@ -762,8 +807,8 @@ function GeneralPane() {
           </div>
         </div>
       </Group>
-      {/* BACKEND-TODO: persist locale (time zone / language / date format) + quiet-hours window. */}
-      <Note>Saving locale and quiet hours is coming soon — these don't persist yet.</Note>
+      {/* BACKEND-TODO: persist quiet-hours window. */}
+      <Note>Saving quiet hours is coming soon — these don't persist yet.</Note>
     </>
   );
 }
