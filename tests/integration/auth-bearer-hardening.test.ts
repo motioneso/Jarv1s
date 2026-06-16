@@ -242,4 +242,35 @@ describe("Legacy session-bearer auth hardening (#113)", () => {
       expect([r1.statusCode, r2.statusCode]).not.toContain(429);
     });
   });
+
+  // OTNR-P6 #128: a malformed Authorization header must produce a clean rejection (→ 401),
+  // never a raw Postgres uuid-cast error (Fix 1) and never a thrown control-flow error for a
+  // mere header-format failure (Fix 2). Both collapse to the same "Session is missing or
+  // expired" rejection that the API layer maps to 401.
+  describe("malformed / non-bearer Authorization (OTNR-P6 #128)", () => {
+    let appDb: Kysely<JarvisDatabase>;
+    let runtime: ReturnType<typeof createJarvisAuthRuntime>;
+
+    beforeAll(async () => {
+      await resetFoundationDatabase();
+      appDb = createDatabase({ connectionString: connectionStrings.app, maxConnections: 1 });
+      runtime = createJarvisAuthRuntime({
+        appDb,
+        runner: new DataContextRunner(appDb)
+      });
+    });
+
+    afterAll(async () => {
+      await runtime.close();
+      await appDb.destroy();
+    });
+
+    // Fix 1: a well-formed `Bearer <token>` whose token is not UUID-shaped reaches the
+    // `::uuid` cast in AuthSessionResolver and (pre-fix) throws a raw Postgres 22P02 error.
+    it("rejects a well-formed but non-UUID bearer token with a clean error (no raw DB cast error)", async () => {
+      await expect(
+        runtime.resolveAccessContext({ headers: { authorization: "Bearer not-a-uuid" } })
+      ).rejects.toThrow("Session is missing or expired");
+    });
+  });
 });
