@@ -72,9 +72,10 @@ unless stated. When you build one, remove its `BACKEND-TODO` marker and tick it 
 
 ## General
 
-- [ ] **Locale + quiet hours persistence** — time zone, language/region, date format, quiet-hours
-      enable + window. Today uncontrolled defaults, no persistence. `settings-personal-data-panes.tsx`
-      (`GeneralPane`).
+- [x] **Locale persistence** — time zone, language/region, and date format are wired to
+      `GET/PUT /api/me/locale`. `settings-personal-data-panes.tsx` (`GeneralPane`).
+- [ ] **Quiet hours persistence** — quiet-hours enable + window. Today uncontrolled defaults,
+      no persistence. `settings-personal-data-panes.tsx` (`GeneralPane`).
 
 ## Admin — host
 

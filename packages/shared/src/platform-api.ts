@@ -79,7 +79,19 @@ export interface PatchMeProfileRequest {
   readonly name: string;
   readonly addressed: string;
 }
-
+export type LocaleDateFormat = "24" | "12";
+export interface LocaleSettingsDto {
+  readonly timezone: string;
+  readonly region: string;
+  readonly dateFormat: LocaleDateFormat;
+}
+export interface GetLocaleSettingsResponse {
+  readonly locale: LocaleSettingsDto;
+}
+export interface PutLocaleSettingsRequest {
+  readonly locale: LocaleSettingsDto;
+}
+export type PutLocaleSettingsResponse = GetLocaleSettingsResponse;
 export interface ListUsersResponse {
   readonly users: readonly UserDto[];
 }
@@ -316,6 +328,51 @@ export const patchMeProfileRouteSchema = {
             addressed: { type: ["string", "null"] }
           }
         }
+      }
+    },
+    400: errorResponseSchema,
+    401: errorResponseSchema
+  }
+} as const;
+const localeSettingsSchema = {
+  type: "object",
+  additionalProperties: false,
+  required: ["timezone", "region", "dateFormat"],
+  properties: {
+    timezone: { type: "string", minLength: 1, maxLength: 100 },
+    region: { type: "string", minLength: 1, maxLength: 35 },
+    dateFormat: { type: "string", enum: ["24", "12"] }
+  }
+} as const;
+export const getLocaleSettingsRouteSchema = {
+  response: {
+    200: {
+      type: "object",
+      additionalProperties: false,
+      required: ["locale"],
+      properties: {
+        locale: localeSettingsSchema
+      }
+    },
+    401: errorResponseSchema
+  }
+} as const;
+export const putLocaleSettingsRouteSchema = {
+  body: {
+    type: "object",
+    additionalProperties: false,
+    required: ["locale"],
+    properties: {
+      locale: localeSettingsSchema
+    }
+  },
+  response: {
+    200: {
+      type: "object",
+      additionalProperties: false,
+      required: ["locale"],
+      properties: {
+        locale: localeSettingsSchema
       }
     },
     400: errorResponseSchema,
