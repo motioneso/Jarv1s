@@ -209,16 +209,14 @@ test("wellness page renders the new screen and a guided check-in can be saved", 
   const dialog = page.getByRole("dialog");
   await expect(dialog.getByText("How are you feeling right now?")).toBeVisible();
 
-  // Guided picker step 1: pick a core emotion (advances to feelings step). Scope to the modal
-  // so the emotion-strip "Start with Happy" button on the page behind it is excluded.
-  await dialog.locator("button.wl-emobtn", { hasText: "Happy" }).click();
+  // Guided picker step 1: pick a core emotion from the radial dial. Scope to the modal
+  // so the emotion-strip buttons on the page behind it are excluded.
+  await dialog.locator(".wl-dial__seg", { hasText: "Happy" }).click();
 
-  // Step 2: pick a feeling word (Joy is a Happy feeling).
+  // Step 2: pick a feeling word (Joy is a Happy feeling) from the feeling chips.
   await dialog.getByRole("button", { name: "Joy", exact: true }).click();
 
-  // Advance to details, then save.
-  await dialog.getByRole("button", { name: "Next" }).click();
-
+  // No "Next" step — detail fields appear inline once both emotion and feeling are set.
   const [request] = await Promise.all([
     page.waitForRequest((r) => r.url().includes("/api/wellness/checkins") && r.method() === "POST"),
     dialog.getByRole("button", { name: "Save check-in" }).click()
@@ -243,7 +241,7 @@ test("manage-meds modal can add a medication", async ({ page }) => {
     page.waitForRequest(
       (r) => r.url().includes("/api/wellness/medications") && r.method() === "POST"
     ),
-    dialog.getByRole("button", { name: "Add", exact: true }).click()
+    dialog.getByRole("button", { name: "Add medication", exact: true }).click()
   ]);
   const body = request.postDataJSON() as Record<string, unknown>;
   expect(body.name).toBe("Bupropion");
