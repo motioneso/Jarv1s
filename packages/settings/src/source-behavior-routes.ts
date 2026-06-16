@@ -8,6 +8,7 @@ import {
   putSourceBehaviorRouteSchema,
   type ListSourceBehaviorsResponse,
   type PutSourceBehaviorRequest,
+  type SourceBehaviorDto,
   type SourceBehaviorSourceDto
 } from "@jarv1s/shared";
 import {
@@ -85,7 +86,10 @@ export function registerSourceBehaviorRoutes(
 }
 
 function toResponse(states: readonly SourceBehaviorState[]): ListSourceBehaviorsResponse {
-  const bySource = new Map<string, SourceBehaviorSourceDto>();
+  const bySource = new Map<
+    string,
+    Omit<SourceBehaviorSourceDto, "behaviors"> & { behaviors: SourceBehaviorDto[] }
+  >();
   for (const state of states) {
     const source = bySource.get(state.sourceId) ?? {
       id: state.sourceId,
