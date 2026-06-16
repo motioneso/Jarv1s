@@ -17,7 +17,6 @@ import {
   adminUserActionRouteSchema,
   bootstrapStatusRouteSchema,
   getChatMultiplexerSettingsRouteSchema,
-  getOnboardingStatusRouteSchema,
   getRegistrationSettingsRouteSchema,
   listAdminAuditEventsRouteSchema,
   listAdminModulesRouteSchema,
@@ -26,9 +25,6 @@ import {
   listMyModulesRouteSchema,
   listUsersRouteSchema,
   meRouteSchema,
-  onboardingCompleteRouteSchema,
-  onboardingProviderCheckRouteSchema,
-  onboardingSkipRouteSchema,
   patchModuleEnablementRouteSchema,
   patchMeProfileRouteSchema,
   putChatMultiplexerSettingsRouteSchema,
@@ -40,9 +36,6 @@ import {
   type ChatMultiplexerChoice,
   type InstanceSettingDto,
   type MyModuleDto,
-  type OnboardingProviderCheckRequest,
-  type OnboardingProviderCheckResponse,
-  type OnboardingProviderKind,
   type UpsertInstanceSettingRequest,
   type UserDto
 } from "@jarv1s/shared";
@@ -52,6 +45,7 @@ import { HttpError, handleRouteError as handleModuleRouteError } from "@jarv1s/m
 import { deleteUserData, LastActiveAdminError } from "../../../scripts/delete-user-data.js";
 import { BootstrapHelper } from "./bootstrap.js";
 import { registerLocaleRoutes } from "./locale-routes.js";
+import { registerOnboardingRoutes, type OnboardingProbes } from "./onboarding-routes.js";
 import { registerPersonaRoutes } from "./persona-routes.js";
 import type { ProfilePreferencesPort, PersonaPreviewInput } from "./preferences-port.js";
 import { HttpRepositoryError, SettingsRepository } from "./repository.js";
@@ -72,18 +66,7 @@ export interface SettingsRoutesDependencies {
   /** Boot-time availability snapshot, injected by the composition root (apply-on-restart). */
   readonly chatMultiplexerAvailability?: { readonly tmux: boolean; readonly herdr: boolean };
   /** Onboarding probes; injected to preserve module isolation and fail closed if absent. */
-  readonly onboardingProbes?: {
-    /** Bounded live probe; herdr accounts for the root-pane requirement. */
-    readonly multiplexerUsable: (kind: "tmux" | "herdr") => Promise<boolean>;
-    /** Provider CLI presence (presence-only). Bounded live probe. */
-    readonly cliPresent: (kind: OnboardingProviderKind) => Promise<boolean>;
-    /** Explicit provider auth/connection check. Bounded live probe; never run by status. */
-    readonly testProviderConnection: (
-      kind: OnboardingProviderKind
-    ) => Promise<OnboardingProviderCheckResponse>;
-    /** Connector-account existence — a scoped read (needs the request's RLS scope). */
-    readonly connectorAccountExists: (scopedDb: DataContextDb) => Promise<boolean>;
-  };
+  readonly onboardingProbes?: OnboardingProbes;
 }
 
 interface SettingParams {
@@ -538,166 +521,17 @@ export function registerSettingsRoutes(
     }
   );
 
-  server.get(
-    "/api/onboarding/status",
-    { schema: getOnboardingStatusRouteSchema },
-    async (request, reply) => {
-      try {
-        const probes = dependencies.onboardingProbes;
-        if (!probes) {
-          request.log.error("onboarding routes mounted without onboardingProbes — failing closed");
-          // Fail CLOSED (500) rather than silently reporting all-not-done (Codex R1 masking).
-          // Throw so the shared error handler maps it — the typed per-route reply only
-          // declares 200/401/403, and a misconfiguration is a generic internal error.
-          throw new HttpError(500, "onboarding probes not configured");
-        }
-        const accessContext = await dependencies.resolveAccessContext(request);
-
-        // Phase 4: status is no longer founder-only. We relax the gate to requireKnownUser
-        // (any active authenticated user — pending/deactivated never reach here, as
-        // resolveAccessContext throws first) and branch on the SERVER-READ is_bootstrap_owner.
-        // A member must read its OWN per-user onboarding status; role is taken from the
-        // server-side user row, never from the client.
-        //
-        // The member branch is cheap (one self-row read of app.member_onboarding) and does
-        // NOT run the founder's host probes, so we resolve the role first and only run the
-        // expensive probe path for the founder.
-        const memberStatus = await dependencies.dataContext.withDataContext(
-          accessContext,
-          async (scopedDb) => {
-            const user = await requireKnownUser(repository, scopedDb, accessContext.actorUserId);
-            if (user.is_bootstrap_owner) {
-              return null; // founder — fall through to the instance-global probe path below.
-            }
-            // Member branch — per-user completion from the member's OWN row (GUC-scoped;
-            // no id argument — RLS + the GUC pick the row). apiKeyOptOut.done +
-            // connectors.done are DERIVED CLIENT-SIDE (module isolation); the server returns
-            // neutral false defaults here.
-            const state = await repository.getMemberOnboardingState(scopedDb);
-            return {
-              role: "member" as const,
-              completed: state.completedAt !== null,
-              steps: {
-                apiKeyOptOut: { done: false },
-                connectors: { done: false }
-              }
-            };
-          }
-        );
-        if (memberStatus) {
-          return memberStatus;
-        }
-
-        // Founder branch — unchanged Phase-2 instance-global shape. DB reads + bootstrap-owner
-        // admin check + connector-exists share ONE transaction (slice-D). The owner admin
-        // check stays as defense-in-depth: only the bootstrap owner ever reaches this path.
-        const dbPart = await dependencies.dataContext.withDataContext(
-          accessContext,
-          async (scopedDb) => {
-            await assertBootstrapOwnerAdminUser(repository, scopedDb, accessContext.actorUserId);
-            const [state, selected, connectorAccountExists] = await Promise.all([
-              repository.readOnboardingState(scopedDb),
-              repository.readChatMultiplexerChoiceOrNull(scopedDb),
-              probes.connectorAccountExists(scopedDb)
-            ]);
-            return { state, selected, connectorAccountExists };
-          }
-        );
-
-        // Bounded host probes OUTSIDE the transaction (each is timeout-capped → false in
-        // the injected impl, so this Promise.all resolves quickly even on a slow host).
-        const [tmuxUsable, herdrUsable, anthropic, openaiCompatible, google] = await Promise.all([
-          probes.multiplexerUsable("tmux"),
-          probes.multiplexerUsable("herdr"),
-          probes.cliPresent("anthropic"),
-          probes.cliPresent("openai-compatible"),
-          probes.cliPresent("google")
-        ]);
-
-        return repository.assembleOnboardingStatus({
-          state: dbPart.state,
-          selected: dbPart.selected,
-          availability: { tmuxUsable, herdrUsable }, // herdrUsable is root-pane-aware (Task 6)
-          cliPresentByKind: { anthropic, "openai-compatible": openaiCompatible, google },
-          connectorAccountExists: dbPart.connectorAccountExists
-        });
-      } catch (error) {
-        return handleRouteError(error, reply);
-      }
-    }
-  );
-
-  server.post(
-    "/api/onboarding/provider-check",
-    { schema: onboardingProviderCheckRouteSchema },
-    async (request, reply) => {
-      try {
-        const probes = dependencies.onboardingProbes;
-        if (!probes) {
-          request.log.error("onboarding provider-check route mounted without onboardingProbes");
-          throw new HttpError(500, "onboarding probes not configured");
-        }
-
-        const body = parseOnboardingProviderCheckBody(request.body);
-        const accessContext = await dependencies.resolveAccessContext(request);
-        await dependencies.dataContext.withDataContext(accessContext, async (scopedDb) => {
-          await assertBootstrapOwnerAdminUser(repository, scopedDb, accessContext.actorUserId);
-        });
-
-        return await probes.testProviderConnection(body.providerKind);
-      } catch (error) {
-        return handleRouteError(error, reply);
-      }
-    }
-  );
-
-  const onboardingStateAction = (verb: "complete" | "skip", state: "completed" | "skipped") =>
-    server.post(
-      `/api/onboarding/${verb}`,
-      { schema: verb === "complete" ? onboardingCompleteRouteSchema : onboardingSkipRouteSchema },
-      async (request, reply) => {
-        try {
-          const accessContext = await dependencies.resolveAccessContext(request);
-          const result = await dependencies.dataContext.withDataContext(
-            accessContext,
-            async (scopedDb) => {
-              const user = await requireKnownUser(repository, scopedDb, accessContext.actorUserId);
-              if (user.is_bootstrap_owner) {
-                // Founder: unchanged Phase-2 instance-global lifecycle (bootstrap-owner
-                // admin-gated). Returns the { state } shape.
-                await assertBootstrapOwnerAdminUser(
-                  repository,
-                  scopedDb,
-                  accessContext.actorUserId
-                );
-                const newState = await repository.setOnboardingState(scopedDb, {
-                  state,
-                  actorUserId: accessContext.actorUserId,
-                  requestId: requireRequestId(accessContext)
-                });
-                return { state: newState };
-              }
-              // Member: both complete AND skip stamp the same terminal "onboarded" row on the
-              // member's OWN app.member_onboarding row (skip == complete for members — no
-              // separate skipped lifecycle). GUC-scoped UPSERT (no caller-supplied target id);
-              // the self-row INSERT/UPDATE policies authorize only user_id = current actor.
-              // Returns the { completed } shape.
-              const memberState = await repository.setMemberOnboardingComplete(scopedDb, {
-                actorUserId: accessContext.actorUserId,
-                requestId: requireRequestId(accessContext)
-              });
-              return { completed: memberState.completedAt !== null };
-            }
-          );
-          return result;
-        } catch (error) {
-          return handleRouteError(error, reply);
-        }
-      }
-    );
-
-  onboardingStateAction("complete", "completed");
-  onboardingStateAction("skip", "skipped");
+  registerOnboardingRoutes(server, {
+    dataContext: dependencies.dataContext,
+    resolveAccessContext: dependencies.resolveAccessContext,
+    onboardingProbes: dependencies.onboardingProbes,
+    repository,
+    requireKnownUser: (scopedDb, userId) => requireKnownUser(repository, scopedDb, userId),
+    assertBootstrapOwnerAdminUser: (scopedDb, userId) =>
+      assertBootstrapOwnerAdminUser(repository, scopedDb, userId),
+    requireRequestId,
+    handleRouteError
+  });
 
   function requireManifests(): readonly JarvisModuleManifest[] {
     return dependencies.listModuleManifests?.() ?? [];
@@ -908,19 +742,6 @@ function parseInstanceSettingBody(body: unknown): UpsertInstanceSettingRequest {
   return {
     value: settingValue as Record<string, unknown>
   };
-}
-
-function parseOnboardingProviderCheckBody(body: unknown): OnboardingProviderCheckRequest {
-  const value = requireObject(body);
-  const providerKind = value.providerKind;
-  if (
-    providerKind !== "anthropic" &&
-    providerKind !== "openai-compatible" &&
-    providerKind !== "google"
-  ) {
-    throw new HttpError(400, "providerKind must be anthropic, openai-compatible, or google");
-  }
-  return { providerKind };
 }
 
 function requireObject(value: unknown): Record<string, unknown> {
