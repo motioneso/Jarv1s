@@ -44,6 +44,7 @@ morning review. Keep ALL dev standards. **Do NOT wait for input; Ben is asleep.*
 until the queue is dry, then write the HTML report (see END CONDITION).
 
 **ONE-BRANCH MODEL (no `main` merges overnight):**
+
 - Integration branch = **`overnight-batch-2026-06-16`** (pushed; base = origin/main `8594d2d`).
   Worktree `.claude/worktrees/overnight-batch`.
 - Each completed+QA'd lane is merged (`git merge --no-ff <lane-branch>`) **INTO the batch branch**,
@@ -57,10 +58,11 @@ until the queue is dry, then write the HTML report (see END CONDITION).
   in the AM. Track state here + in the final report.
 
 **MODEL-BY-TIME (hard rule):**
+
 - Coordinator = **Sonnet** always (relay successors spawned `claude --model sonnet`).
 - Dev builders **before 00:45 PDT 2026-06-16** = **Claude `--model sonnet`**.
 - Dev builders **at/after 00:45 PDT 2026-06-16** = **Codex ONLY** (`herdr agent start … -- codex
-  exec --dangerously-bypass-approvals-and-sandbox`), for as long as Codex quota lasts; fall back to
+exec --dangerously-bypass-approvals-and-sandbox`), for as long as Codex quota lasts; fall back to
   Sonnet only if Codex is exhausted again. Compare `date` (machine IS PDT) at each spawn.
 - One-shot internal subagents: Sonnet for mechanical, Opus only for genuine security/design
   adjudication.
@@ -114,7 +116,7 @@ Bake this instruction into every handoff/spawn prompt.
 - **GeminiCopyPass** (gemini, tab `:3`, pane resolve by label) — copy/brand pass: de-AI user-facing
   text. Isolated worktree `.claude/worktrees/copy-pass`, branch `overnight-copy-pass-2026-06-16`
   (rules in that worktree's `GEMINI_RULES.md`). Scope = UI copy + user docs; OUT: onboarding/**,
-  docs/coordination/**, docs/superpowers/**, tests, migrations, the in-flight dev-lane files. Opens
+  docs/coordination/**, docs/superpowers/\*\*, tests, migrations, the in-flight dev-lane files. Opens
   its own PR → coordinator integrates its branch into `overnight-batch` LAST (after dev lanes;
   resolve conflicts keep-both: dev logic + Gemini copy). It reaches the coordinator via the
   `Coordinator` label.
@@ -125,7 +127,7 @@ Bake this instruction into every handoff/spawn prompt.
   overnight one-branch plan — finish its onboarding-provider-check work, then get its changes onto a
   branch for integration into `overnight-batch` (it SHARES the main worktree with the coordinator,
   so it must stage ONLY its own `apps/web/src/onboarding/**` paths and must NOT disturb the
-  coordinator's `docs/coordination/` manifest commits or run `git add -A`). It owns onboarding/** —
+  coordinator's `docs/coordination/` manifest commits or run `git add -A`). It owns onboarding/\*\* —
   dev lanes still banned from editing there.
 
 ## Spec status (Ben directive 2026-06-15)
@@ -137,11 +139,11 @@ it enters the queue.
 
 ## Queue
 
-| Spec / contract | Issue | Tier | Status | Agent label | Pane | Branch | PR |
-| --------------- | ----- | ---- | ------ | ----------- | ---- | ------ | -- |
-| follow-ups doc → Memory review/forget; issue #245 | #245 | sensitive | **MERGED** (#264 squash, origin/main bae32ce) | — | — | — | #264 ✓ |
-| follow-ups doc → Profile identity; issue #235 | #235 | sensitive | **MERGED** (#265 squash, main 7d27dba; CI green) | — | — | #265 ✓ |
-| follow-ups doc → Locale; issue #249 | #249 | routine | **MERGED** (#267 squash, main 46680a3; locale-routes.ts new file, routes.ts 999) | — | — | #267 ✓ |
+| Spec / contract                                   | Issue | Tier      | Status                                                                           | Agent label | Pane | Branch | PR     |
+| ------------------------------------------------- | ----- | --------- | -------------------------------------------------------------------------------- | ----------- | ---- | ------ | ------ |
+| follow-ups doc → Memory review/forget; issue #245 | #245  | sensitive | **MERGED** (#264 squash, origin/main bae32ce)                                    | —           | —    | —      | #264 ✓ |
+| follow-ups doc → Profile identity; issue #235     | #235  | sensitive | **MERGED** (#265 squash, main 7d27dba; CI green)                                 | —           | —    | #265 ✓ |
+| follow-ups doc → Locale; issue #249               | #249  | routine   | **MERGED** (#267 squash, main 46680a3; locale-routes.ts new file, routes.ts 999) | —           | —    | #267 ✓ |
 
 **✅ WAVE 1 COMPLETE** (2026-06-15): #245 + #235 + #249 all merged (+ #266 e2e CI fix). All
 no-spec/low-risk settings-wiring done. main green, CI trustworthy.
@@ -150,11 +152,11 @@ no-spec/low-risk settings-wiring done. main green, CI trustworthy.
 
 **🔨 WAVE 3 IN PROGRESS** (coordinator `aef38af5`): **lanes TRANSFERRED Codex→Claude 2026-06-15 ~23:35 PDT** (Ben directive — Codex quota window; the 3 Codex builders were stopped mid-finish, all work was already COMMITTED on-branch so nothing lost). Now 3 **Claude (Sonnet 4.6)** builders in Agents tab `w653f42bef3ac02:6` finishing + opening PRs via coordinated-build/wrap-up. New session ids below. ⚠️ Pane numbers reflow — always resolve by label. **⚠️ BUILDER MODEL = SONNET (Ben, always): spawn Claude build agents with `claude --model sonnet …` — cost over speed. (Opus slip caught+corrected 2026-06-15; weekly at 79%.)**
 
-| Spec | Issue | Tier | Status | Agent label | Session id (stable) | Branch | DB | PR |
-| ---- | ----- | ---- | ------ | ----------- | ------------------- | ------ | -- | -- |
-| chat-model-override | #241 | sensitive | **✅ INTEGRATED** into overnight-batch PR #273 (7ec9cfe). PR #274 closed. Issue #241 closed. QA GREEN (ad7c56208d68b5ff7). Migration 0091 placeholder. | ChatModel-241 | `f439e37e-f715-42f0-9596-d96056ddc291` | chat-model-override-241 | jarvis_build_chatmodel241 | #274 closed → #273 |
-| inferred-patterns | #243 | sensitive | **✅ INTEGRATED** into overnight-batch PR #273 (00:25 PDT). Per-lane PR #271 closed. CI green (VF PASS 6m45s, both smokes PASS). QA green. Migration 0092 placeholder (assign at batch→main merge). | Inferred-243 | `8d17dc42-9979-4352-9e9c-5a0e62930235` | inferred-patterns-243 | jarvis_build_inferred243 | #271 closed → #273 |
-| source-behavior-policy | #247 | **security** | **✅ INTEGRATED** into overnight-batch PR #273 (Ben sign-off 2026-06-16 AM). PR #272 closed. Merge conflict resolved: kept both 0092+0093 in foundation.test.ts. Migration placeholder 0093. Fast-follow: add worker-role RLS test for app.preferences. | SourceBhv-247 | `1320d63a-eed8-4db5-9c58-d4b311afb80e` | source-behavior-policy-247 | jarvis_build_sourcebhv247 | #272 closed → #273 |
+| Spec                   | Issue | Tier         | Status                                                                                                                                                                                                                                                  | Agent label   | Session id (stable)                    | Branch                     | DB                        | PR                 |
+| ---------------------- | ----- | ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------- | -------------------------------------- | -------------------------- | ------------------------- | ------------------ |
+| chat-model-override    | #241  | sensitive    | **✅ INTEGRATED** into overnight-batch PR #273 (7ec9cfe). PR #274 closed. Issue #241 closed. QA GREEN (ad7c56208d68b5ff7). Migration 0091 placeholder.                                                                                                  | ChatModel-241 | `f439e37e-f715-42f0-9596-d96056ddc291` | chat-model-override-241    | jarvis_build_chatmodel241 | #274 closed → #273 |
+| inferred-patterns      | #243  | sensitive    | **✅ INTEGRATED** into overnight-batch PR #273 (00:25 PDT). Per-lane PR #271 closed. CI green (VF PASS 6m45s, both smokes PASS). QA green. Migration 0092 placeholder (assign at batch→main merge).                                                     | Inferred-243  | `8d17dc42-9979-4352-9e9c-5a0e62930235` | inferred-patterns-243      | jarvis_build_inferred243  | #271 closed → #273 |
+| source-behavior-policy | #247  | **security** | **✅ INTEGRATED** into overnight-batch PR #273 (Ben sign-off 2026-06-16 AM). PR #272 closed. Merge conflict resolved: kept both 0092+0093 in foundation.test.ts. Migration placeholder 0093. Fast-follow: add worker-role RLS test for app.preferences. | SourceBhv-247 | `1320d63a-eed8-4db5-9c58-d4b311afb80e` | source-behavior-policy-247 | jarvis_build_sourcebhv247 | #272 closed → #273 |
 
 ### 🔁 RELAY → continuation note for successor coordinator (`0dadd466` → successor)
 
@@ -174,10 +176,10 @@ no-spec/low-risk settings-wiring done. main green, CI trustworthy.
 - **Cross-session constraint:** onboarding Codex (`OnboardingProviderCheck` pane, unrelated) owns `apps/web/src/onboarding/**` — ban all agent edits there.
 - **merges_since_relay = 0** (reset at successor adoption).
 
-| Spec | Issue | Tier | Status | PR |
-| ---- | ----- | ---- | ------ | -- |
-| persona-personalization | #240 | sensitive | **✅ MERGED** (#269 squash, origin/main `8594d2d`; no migration; rebased keep-both on #268; issue #240 closed; worktree+branch reaped). QA aa1317e green (no conflict markers, keep-both confirmed, all sensitive invariants incl. preview rate-limit+401). DB `jarvis_build_persona240`. | #269 ✓ |
-| memory-provenance | #242 | sensitive | **✅ MERGED** (#268 squash, origin/main `6770046`; migration `0090_chat_memory_facts_provenance.sql` landed; issue #242 closed; reaped). QA a35b73ba green, all invariants pass. DB `jarvis_build_memprov242`. | #268 ✓ |
+| Spec                    | Issue | Tier      | Status                                                                                                                                                                                                                                                                                    | PR     |
+| ----------------------- | ----- | --------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------ |
+| persona-personalization | #240  | sensitive | **✅ MERGED** (#269 squash, origin/main `8594d2d`; no migration; rebased keep-both on #268; issue #240 closed; worktree+branch reaped). QA aa1317e green (no conflict markers, keep-both confirmed, all sensitive invariants incl. preview rate-limit+401). DB `jarvis_build_persona240`. | #269 ✓ |
+| memory-provenance       | #242  | sensitive | **✅ MERGED** (#268 squash, origin/main `6770046`; migration `0090_chat_memory_facts_provenance.sql` landed; issue #242 closed; reaped). QA a35b73ba green, all invariants pass. DB `jarvis_build_memprov242`.                                                                            | #268 ✓ |
 
 **merges_since_relay = 2** (#268 + #269, both sensitive) → **RELAY EXECUTED 2026-06-15** by `bac25ddc`.
 **⚠️ Backend collision pattern (confirmed AGAIN):** specs in different frontend clusters STILL collide
@@ -205,7 +207,7 @@ for #241/#243 — serialize their MERGES (rebase the 2nd), don't merge blind.**
 - **Unspecced (grill before queueing):** #252/#253 admin AI, #254 connector health, #255 host;
   #246 OAuth = own milestone.
 - **Cross-session constraint STILL LIVE:** an onboarding Codex is editing `apps/web/src/onboarding/**`
-  + onboarding tests — keep banning edits there in every handoff (no settings spec needs it).
+  - onboarding tests — keep banning edits there in every handoff (no settings spec needs it).
 - **Build flow that worked:** Codex `exec --dangerously-bypass-approvals-and-sandbox` per lane, locked
   spec = approved plan (no interactive plan handshake — codex is one-shot, exits after opening PR →
   poll for PRs). Per-lane `JARVIS_PGDATABASE`. QA = bg `Agent` (general-purpose, run_in_background,
@@ -282,7 +284,7 @@ Status vocabulary: `queued` → `building` → `awaiting-plan-approval` → `blo
   `*_worker_runtime_grants` pattern (chat 0036, connectors 0069, briefings 0085): NEW migration in
   `packages/structured-state/sql/` — `GRANT SELECT … TO jarvis_worker_runtime` + extend
   `preferences_select` policy to the worker role, owner-scoped `owner_user_id =
-  app.current_actor_user_id()`, no BYPASSRLS, SELECT-only. **Retiers #247 to security** (Opus QA +
+app.current_actor_user_id()`, no BYPASSRLS, SELECT-only. **Retiers #247 to security** (Opus QA +
   Ben sign-off). Migration # claimed at merge. Worker must set the actor GUC before SELECT.
 
 ## Backlog (gated — not yet queued)
@@ -313,9 +315,9 @@ time**, and rebase the migration number before merge to avoid hash-conflict coll
 
 ## CI waivers
 
-| Check | PR | Proven red on `main` @ SHA | Proof | Ben-approved |
-| ----- | -- | -------------------------- | ----- | ------------ |
-| ~~Verify-foundation / 2 wellness e2e~~ — **MOOT/RESOLVED**: root-caused as stale selectors after picker redesign; fixed by **#266** (test-only) merged to main (`f6ab159`). No waiver needed; prof rebased on green main. | #265 | n/a | #266 fix merged; main CI green | resolved — no waiver |
+| Check                                                                                                                                                                                                                     | PR   | Proven red on `main` @ SHA | Proof                          | Ben-approved         |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---- | -------------------------- | ------------------------------ | -------------------- |
+| ~~Verify-foundation / 2 wellness e2e~~ — **MOOT/RESOLVED**: root-caused as stale selectors after picker redesign; fixed by **#266** (test-only) merged to main (`f6ab159`). No waiver needed; prof rebased on green main. | #265 | n/a                        | #266 fix merged; main CI green | resolved — no waiver |
 
 ## Outstanding escalations
 
@@ -328,7 +330,7 @@ time**, and rebase the migration number before merge to avoid hash-conflict coll
       `coordinated-qa` **skill** via the Skill tool. (mem-245 QA = bg agent a7a8.)
 - [x] #240 persona — spec written + Ben-approved.
 - [~] #241 chat-model override — Q1=admin-gated (C); **awaiting Ben's Q2 (gate granularity:
-      global / per-model allowlist / per-user)**; recommended per-model allowlist.
+  global / per-model allowlist / per-user)**; recommended per-model allowlist.
 
 ## Reaped sessions
 
@@ -339,6 +341,7 @@ time**, and rebase the migration number before merge to avoid hash-conflict coll
 **Relaying 2026-06-16 ~06:50 PDT.** Ben is AWAKE and actively working. Keep queuing lanes.
 
 **mid-doing:**
+
 - **#247 integrated** into overnight-batch PR #273 (Ben sign-off). PR #272 closed.
 - **#243 integrated** into overnight-batch PR #273. PR #271 closed.
 - **#131 vault** — SUPERSEDED (all findings already fixed in current code).
@@ -349,7 +352,7 @@ time**, and rebase the migration number before merge to avoid hash-conflict coll
 - **merges_since_relay = 1** (#70). Next merge hits 2 → relay again immediately after.
 - **Next queue (after #241+#128 integrate):** #158 jobs, #125 db, #114 vault/secrets — see overnight-queue-2026-06-16.md. Use Codex builders (Ben directive).
 - **Overnight-batch PR #273** open (overnight-batch-2026-06-16 → main). Do NOT merge to main.
-- **OnboardingProviderCheck** (Codex pane resolve by label) — working in main worktree on onboarding-provider-check-2026-06-16 branch. Stage only apps/web/src/onboarding/**. Do not disturb.
+- **OnboardingProviderCheck** (Codex pane resolve by label) — working in main worktree on onboarding-provider-check-2026-06-16 branch. Stage only apps/web/src/onboarding/\*\*. Do not disturb.
 - **GeminiCopyPass** — integrate LAST after all dev lanes.
 - **Queue** — after #241 and #70 integrate, continue with #145 → #128 → #158 → etc. per `docs/coordination/overnight-queue-2026-06-16.md`. Do relevance check per lane FIRST.
 - **Batch PR #273** — open, `overnight-batch-2026-06-16 → main`. Do NOT merge to main; Ben reviews.
@@ -366,6 +369,7 @@ time**, and rebase the migration number before merge to avoid hash-conflict coll
 **OVERNIGHT AUTONOMOUS — Ben awake; keep queuing lanes; use Codex builders; write HTML report when queue is dry.**
 
 **mid-doing:**
+
 - **#241 chat-model-override** — **✅ INTEGRATED** into overnight-batch PR #273 @ 7ec9cfe. PR #274 closed. Issue #241 closed. QA GREEN. Migration 0091 placeholder (claim at batch→main merge).
 - **#128 auth-128** — **✅ INTEGRATED** into overnight-batch PR #273 @ 14d8336. PR #276 closed. Issue #128 closed. QA GREEN. Follow-up issue #277 filed.
 - **overnight-batch HEAD: 14d8336** (overnight-batch-2026-06-16, pushed).
