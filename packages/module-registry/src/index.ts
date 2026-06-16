@@ -71,7 +71,12 @@ import {
   notificationsModuleSqlMigrationDirectory,
   registerNotificationsRoutes
 } from "@jarv1s/notifications";
-import { renderPersonaText, type AuthProviderStatusDto } from "@jarv1s/shared";
+import {
+  renderPersonaText,
+  type AuthProviderStatusDto,
+  type OnboardingProviderCheckResponse,
+  type OnboardingProviderKind
+} from "@jarv1s/shared";
 import {
   registerSettingsRoutes,
   settingsModuleManifest,
@@ -95,6 +100,7 @@ import { assertModulesCompatible } from "./compat-gate.js";
 import {
   makeCliPresentProbe,
   makeMultiplexerUsableProbe,
+  makeProviderConnectionCheckProbe,
   probeChatMultiplexerAvailability,
   resolveChatEngineFactory
 } from "./chat-multiplexer.js";
@@ -169,7 +175,10 @@ export interface BuiltInRouteDependencies {
    */
   readonly onboardingProbes?: {
     readonly multiplexerUsable: (kind: "tmux" | "herdr") => Promise<boolean>;
-    readonly cliPresent: (kind: "anthropic" | "openai-compatible" | "google") => Promise<boolean>;
+    readonly cliPresent: (kind: OnboardingProviderKind) => Promise<boolean>;
+    readonly testProviderConnection: (
+      kind: OnboardingProviderKind
+    ) => Promise<OnboardingProviderCheckResponse>;
     readonly connectorAccountExists: (scopedDb: DataContextDb) => Promise<boolean>;
   };
 }
@@ -466,12 +475,6 @@ export function registerBuiltInApiRoutes(
   // settings module. Each function probes lazily, per request, bounded by a short timeout.
   const multiplexerUsable = makeMultiplexerUsableProbe(env);
   const cliPresent = makeCliPresentProbe();
-  const onboardingProbes = {
-    multiplexerUsable,
-    cliPresent,
-    connectorAccountExists: async (scopedDb: DataContextDb) =>
-      (await new ConnectorsRepository().listAccounts(scopedDb)).length > 0
-  };
 
   // The factory is resolved asynchronously in onReady (a settings read), but routes
   // register synchronously. Bridge with a late-bound wrapper: it is only ever invoked
@@ -486,6 +489,18 @@ export function registerBuiltInApiRoutes(
       }
       return resolvedChatFactory(provider, key);
     });
+
+  const onboardingProbes = {
+    multiplexerUsable,
+    cliPresent,
+    testProviderConnection: makeProviderConnectionCheckProbe({
+      engineFactory: chatEngineFactory,
+      cliPresent,
+      skipInstallCheck: dependencies.chatEngineFactory !== undefined
+    }),
+    connectorAccountExists: async (scopedDb: DataContextDb) =>
+      (await new ConnectorsRepository().listAccounts(scopedDb)).length > 0
+  };
 
   const deps: BuiltInRouteDependencies = {
     ...dependencies,

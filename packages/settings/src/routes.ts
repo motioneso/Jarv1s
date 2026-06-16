@@ -27,6 +27,7 @@ import {
   listUsersRouteSchema,
   meRouteSchema,
   onboardingCompleteRouteSchema,
+  onboardingProviderCheckRouteSchema,
   onboardingSkipRouteSchema,
   patchModuleEnablementRouteSchema,
   patchMeProfileRouteSchema,
@@ -39,6 +40,9 @@ import {
   type ChatMultiplexerChoice,
   type InstanceSettingDto,
   type MyModuleDto,
+  type OnboardingProviderCheckRequest,
+  type OnboardingProviderCheckResponse,
+  type OnboardingProviderKind,
   type UpsertInstanceSettingRequest,
   type UserDto
 } from "@jarv1s/shared";
@@ -71,9 +75,13 @@ export interface SettingsRoutesDependencies {
   readonly onboardingProbes?: {
     /** Bounded live probe; herdr accounts for the root-pane requirement. */
     readonly multiplexerUsable: (kind: "tmux" | "herdr") => Promise<boolean>;
-    /** Bounded provider CLI presence probe. */
-    readonly cliPresent: (kind: "anthropic" | "openai-compatible" | "google") => Promise<boolean>;
-    /** Scoped connector-account existence read under the request's RLS scope. */
+    /** Provider CLI presence (presence-only). Bounded live probe. */
+    readonly cliPresent: (kind: OnboardingProviderKind) => Promise<boolean>;
+    /** Explicit provider auth/connection check. Bounded live probe; never run by status. */
+    readonly testProviderConnection: (
+      kind: OnboardingProviderKind
+    ) => Promise<OnboardingProviderCheckResponse>;
+    /** Connector-account existence — a scoped read (needs the request's RLS scope). */
     readonly connectorAccountExists: (scopedDb: DataContextDb) => Promise<boolean>;
   };
 }
@@ -619,6 +627,30 @@ export function registerSettingsRoutes(
     }
   );
 
+  server.post(
+    "/api/onboarding/provider-check",
+    { schema: onboardingProviderCheckRouteSchema },
+    async (request, reply) => {
+      try {
+        const probes = dependencies.onboardingProbes;
+        if (!probes) {
+          request.log.error("onboarding provider-check route mounted without onboardingProbes");
+          throw new HttpError(500, "onboarding probes not configured");
+        }
+
+        const body = parseOnboardingProviderCheckBody(request.body);
+        const accessContext = await dependencies.resolveAccessContext(request);
+        await dependencies.dataContext.withDataContext(accessContext, async (scopedDb) => {
+          await assertBootstrapOwnerAdminUser(repository, scopedDb, accessContext.actorUserId);
+        });
+
+        return await probes.testProviderConnection(body.providerKind);
+      } catch (error) {
+        return handleRouteError(error, reply);
+      }
+    }
+  );
+
   const onboardingStateAction = (verb: "complete" | "skip", state: "completed" | "skipped") =>
     server.post(
       `/api/onboarding/${verb}`,
@@ -876,6 +908,19 @@ function parseInstanceSettingBody(body: unknown): UpsertInstanceSettingRequest {
   return {
     value: settingValue as Record<string, unknown>
   };
+}
+
+function parseOnboardingProviderCheckBody(body: unknown): OnboardingProviderCheckRequest {
+  const value = requireObject(body);
+  const providerKind = value.providerKind;
+  if (
+    providerKind !== "anthropic" &&
+    providerKind !== "openai-compatible" &&
+    providerKind !== "google"
+  ) {
+    throw new HttpError(400, "providerKind must be anthropic, openai-compatible, or google");
+  }
+  return { providerKind };
 }
 
 function requireObject(value: unknown): Record<string, unknown> {

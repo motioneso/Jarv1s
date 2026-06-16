@@ -15,10 +15,15 @@ export function MemberConnectorStep(props: { readonly onSkipStep: () => void }) 
   const done = (accountsQuery.data?.accounts.length ?? 0) > 0;
 
   return (
-    <section className="panel" aria-labelledby="member-connector-title">
-      <div className="panel-heading">
-        <h2 id="member-connector-title">Connect your accounts (optional)</h2>
-      </div>
+    <section className="onb-step" aria-labelledby="member-connector-title">
+      <p className="onb-eyebrow">Step 2 · Optional</p>
+      <h1 id="member-connector-title" className="onb-title">
+        Connect your accounts, if you like.
+      </h1>
+      <p className="onb-lede">
+        Optional. Connecting Google lets me read your calendar for context and watch email for
+        things worth turning into tasks.
+      </p>
       {done ? (
         <p className="form-hint">Connected. You can connect more accounts in Settings later.</p>
       ) : (

@@ -9,6 +9,8 @@ const ignoredDirectories = new Set([
   "coverage",
   "dist",
   "docs",
+  "fable-transcripts",
+  "Jarvis Design System",
   "node_modules",
   "playwright-report",
   "test-results"

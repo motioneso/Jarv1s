@@ -29,7 +29,12 @@ test("active member sees the member step array (no CLI-auth/multiplexer) and can
 }) => {
   await mockApi(page, memberState());
   await page.goto("/");
-  await expect(page.getByRole("heading", { name: "Welcome to Jarv1s" })).toBeVisible();
+  await expect(page.getByText("Getting started")).toBeVisible();
+  await expect(page.getByLabel("Onboarding progress").getByText("Member")).toBeVisible();
+  await expect(page.getByRole("heading", { name: "You’ve got your own Jarvis." })).toBeVisible();
+  await expect(page.getByText("Your data and connections stay private to you.")).toBeVisible();
+  await expect(page.getByText("Skips the whole setup and opens the app.")).toBeVisible();
+  await expect(page.getByText("Tweaks")).toHaveCount(0);
   // Member-specific steps exist; founder-only steps do NOT.
   await expect(page.getByText(/CLI auth/i)).toHaveCount(0);
   await expect(page.getByText(/multiplexer/i)).toHaveCount(0);
@@ -37,8 +42,10 @@ test("active member sees the member step array (no CLI-auth/multiplexer) and can
   // Advancing into the API-key step renders a react-router <Link> — this MUST NOT crash the
   // app (regression guard: the wizard must be inside a Router). If the wizard were rendered
   // outside BrowserRouter, the <Link> would throw a context invariant here.
-  await page.getByRole("button", { name: "Next" }).click();
-  await expect(page.getByRole("heading", { name: "AI assistant" })).toBeVisible();
+  await page.getByRole("button", { name: /Start setup/ }).click();
+  await expect(
+    page.getByRole("heading", { name: "I already work, out of the box." })
+  ).toBeVisible();
   await expect(page.getByRole("link", { name: /Settings/i })).toBeVisible();
 });
 
@@ -80,8 +87,10 @@ test("founder still sees the founder wizard (regression)", async ({ page }) => {
   });
   await page.goto("/");
   // Founder onboarding shape comes from the spine's mock; assert a founder-only step is visible.
-  await expect(page.getByRole("heading", { name: "Set up Jarv1s" })).toBeVisible();
-  await expect(page.getByText(/multiplexer/i)).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Let’s get your Jarvis set up." })).toBeVisible();
+  await expect(
+    page.getByLabel("Onboarding progress").getByRole("button", { name: /Control channel/ })
+  ).toBeVisible();
 });
 
 test("status-error fall-through: a failing /api/onboarding/status does NOT trap the member", async ({
@@ -98,5 +107,5 @@ test("status-error fall-through: a failing /api/onboarding/status does NOT trap 
   await page.goto("/");
   await expect(page).toHaveURL(/\/today/);
   await expect(page.locator(".module-nav").getByRole("link", { name: "Today" })).toBeVisible();
-  await expect(page.getByRole("heading", { name: "Welcome to Jarv1s" })).toHaveCount(0);
+  await expect(page.getByRole("heading", { name: "You’ve got your own Jarvis." })).toHaveCount(0);
 });

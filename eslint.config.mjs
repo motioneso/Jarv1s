@@ -19,7 +19,9 @@ export default tseslint.config(
       ".claude/worktrees/**",
       ".claude/workflows/**",
       "docs/audit/**",
-      "docs/audits/**"
+      "docs/audits/**",
+      "fable-transcripts/**",
+      "Jarvis Design System/**"
     ]
   },
   {

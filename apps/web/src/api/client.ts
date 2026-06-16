@@ -83,6 +83,8 @@ import type {
   MeResponse,
   OnboardingStatusResponse,
   OnboardingCompleteResponse,
+  OnboardingProviderCheckRequest,
+  OnboardingProviderCheckResponse,
   RevokeAiProviderConfigResponse,
   RevokeConnectorAccountResponse,
   LookupAiCapabilityRouteResponse,
@@ -265,6 +267,15 @@ export async function completeOnboarding(): Promise<OnboardingCompleteResponse> 
 
 export async function skipOnboarding(): Promise<OnboardingCompleteResponse> {
   return requestJson<OnboardingCompleteResponse>("/api/onboarding/skip", { method: "POST" });
+}
+
+export async function testOnboardingProviderConnection(
+  input: OnboardingProviderCheckRequest
+): Promise<OnboardingProviderCheckResponse> {
+  return requestJson<OnboardingProviderCheckResponse>("/api/onboarding/provider-check", {
+    method: "POST",
+    body: input
+  });
 }
 
 export async function signUpEmail(input: SignUpEmailRequest): Promise<void> {

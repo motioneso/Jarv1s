@@ -1,5 +1,5 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { LoaderCircle } from "lucide-react";
+import { ExternalLink, LoaderCircle } from "lucide-react";
 
 import type { ChatMultiplexerChoice, OnboardingMultiplexerStepDto } from "@jarv1s/shared";
 
@@ -27,10 +27,15 @@ export function MultiplexerStep(props: {
   const anyUsable = props.step.tmuxUsable || props.step.herdrUsable;
 
   return (
-    <section className="panel" aria-labelledby="onboarding-multiplexer-title">
-      <div className="panel-heading">
-        <h2 id="onboarding-multiplexer-title">Terminal multiplexer</h2>
-      </div>
+    <section className="onb-step" aria-labelledby="onboarding-multiplexer-title">
+      <p className="onb-eyebrow">Step 1 · A safe way to reach your machine</p>
+      <h1 id="onboarding-multiplexer-title" className="onb-title">
+        Give Jarvis a control channel.
+      </h1>
+      <p className="onb-lede">
+        I run on your computer. To do that safely, I keep my work inside a single, inspectable
+        terminal session, so everything I run is in one place you can watch or stop.
+      </p>
       {props.step.selected ? (
         <p className="form-hint">
           Selected: <strong>{props.step.selected}</strong>
@@ -54,7 +59,7 @@ export function MultiplexerStep(props: {
           </ol>
         </>
       ) : (
-        <div className="onboarding-choice-row">
+        <div className="onboarding-choice-row onb-option-actions">
           <button
             className="primary-button"
             type="button"
@@ -82,9 +87,24 @@ export function MultiplexerStep(props: {
           </button>
         </div>
       )}
-      <button className="ghost-button" type="button" onClick={props.onRecheck}>
-        Re-check
-      </button>
+      <div className="onb-install-links" aria-label="Official installation links">
+        <span>Download:</span>
+        <a href="https://github.com/tmux/tmux" target="_blank" rel="noreferrer">
+          tmux <ExternalLink size={14} />
+        </a>
+        <a href="https://herdr.dev/docs/install/" target="_blank" rel="noreferrer">
+          herdr <ExternalLink size={14} />
+        </a>
+      </div>
+      <div className="onb-recheck">
+        <p>
+          Status reflects what is installed on the host, not what is running. You can change this
+          later in Settings.
+        </p>
+        <button className="ghost-button" type="button" onClick={props.onRecheck}>
+          Re-check host
+        </button>
+      </div>
     </section>
   );
 }

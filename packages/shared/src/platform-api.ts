@@ -489,10 +489,28 @@ export interface OnboardingMultiplexerStepDto {
   readonly herdrUsable: boolean;
 }
 
+export type OnboardingProviderKind = "anthropic" | "openai-compatible" | "google";
+
 export interface OnboardingCliProviderDto {
-  readonly kind: "anthropic" | "openai-compatible" | "google";
+  readonly kind: OnboardingProviderKind;
   /** Presence-only: the binary is on PATH. NOT a claim of authentication. */
   readonly cliPresent: boolean;
+}
+
+export interface OnboardingProviderCheckRequest {
+  readonly providerKind: OnboardingProviderKind;
+}
+
+export type OnboardingProviderCheckStatus =
+  | "ready"
+  | "needs_login"
+  | "not_installed"
+  | "multiplexer_unavailable"
+  | "error";
+
+export interface OnboardingProviderCheckResponse {
+  readonly status: OnboardingProviderCheckStatus;
+  readonly message?: string;
 }
 
 export interface OnboardingCliAuthStepDto {
@@ -647,6 +665,31 @@ const onboardingStatusResponseSchema = {
   oneOf: [onboardingFounderStatusSchema, onboardingMemberStatusSchema]
 } as const;
 
+const onboardingProviderCheckRequestSchema = {
+  type: "object",
+  additionalProperties: false,
+  required: ["providerKind"],
+  properties: {
+    providerKind: {
+      type: "string",
+      enum: ["anthropic", "openai-compatible", "google"]
+    }
+  }
+} as const;
+
+const onboardingProviderCheckResponseSchema = {
+  type: "object",
+  additionalProperties: false,
+  required: ["status"],
+  properties: {
+    status: {
+      type: "string",
+      enum: ["ready", "needs_login", "not_installed", "multiplexer_unavailable", "error"]
+    },
+    message: { type: "string" }
+  }
+} as const;
+
 const onboardingStateResponseSchema = {
   type: "object",
   additionalProperties: false,
@@ -676,6 +719,16 @@ const onboardingCompleteResponseSchema = {
 export const getOnboardingStatusRouteSchema = {
   response: {
     200: onboardingStatusResponseSchema,
+    401: errorResponseSchema,
+    403: errorResponseSchema
+  }
+} as const;
+
+export const onboardingProviderCheckRouteSchema = {
+  body: onboardingProviderCheckRequestSchema,
+  response: {
+    200: onboardingProviderCheckResponseSchema,
+    400: errorResponseSchema,
     401: errorResponseSchema,
     403: errorResponseSchema
   }

@@ -51,6 +51,11 @@ describe("manifest routes[] reconciliation", () => {
     expect(paths).toContainEqual({ method: "POST", path: "/api/connectors/google/complete" });
   });
 
+  it("settings manifest declares onboarding provider connection test route", () => {
+    const paths = manifestPaths("settings");
+    expect(paths).toContainEqual({ method: "POST", path: "/api/onboarding/provider-check" });
+  });
+
   it("every manifest API route uses Fastify :param syntax (not {param})", () => {
     for (const manifest of getBuiltInModuleManifests()) {
       for (const route of manifest.routes ?? []) {

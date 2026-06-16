@@ -32,14 +32,17 @@ export function SectionTourStep(props: { readonly onDone: () => void }) {
   const sections = buildTourSections(modulesQuery.data?.modules ?? [], disabledModuleIds);
 
   return (
-    <section className="panel" aria-labelledby="member-tour-title">
-      <div className="panel-heading">
-        <h2 id="member-tour-title">A quick tour</h2>
-      </div>
-      <p>Here&apos;s what you can do. Everything below is private to you.</p>
-      <ul className="connect-steps">
+    <section className="onb-step" aria-labelledby="member-tour-title">
+      <p className="onb-eyebrow">Step 3 · Where to go</p>
+      <h1 id="member-tour-title" className="onb-title">
+        Here’s where to start.
+      </h1>
+      <p className="onb-lede">
+        A short orientation. Each part of Jarvis has a job. Here’s what to reach for, and when.
+      </p>
+      <ul className="connect-steps onb-tour">
         {sections.map((s) => (
-          <li key={s.path}>
+          <li key={s.path} className="onb-tour__row">
             <Link to={s.path}>
               <strong>{s.label}</strong>
             </Link>
