@@ -487,8 +487,11 @@ function readBearerToken(headers: Headers): string | undefined {
 
   const [scheme, token] = authorization.split(/\s+/, 2);
 
+  // Total: anything that is not a well-formed `Bearer <token>` (wrong scheme, missing space,
+  // empty token) yields `undefined` so the request falls through to cookie auth or produces a
+  // single clean 401 — never a thrown control-flow error for a mere header-format failure.
   if (scheme?.toLowerCase() !== "bearer" || !token) {
-    throw new Error("Invalid bearer token");
+    return undefined;
   }
 
   return token;

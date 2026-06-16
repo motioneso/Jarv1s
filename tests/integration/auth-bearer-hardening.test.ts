@@ -272,5 +272,20 @@ describe("Legacy session-bearer auth hardening (#113)", () => {
         runtime.resolveAccessContext({ headers: { authorization: "Bearer not-a-uuid" } })
       ).rejects.toThrow("Session is missing or expired");
     });
+
+    // Fix 2: readBearerToken is total — any header that is not a well-formed `Bearer <token>`
+    // yields `undefined` (falls through to cookie auth → a single clean 401), never a thrown
+    // control-flow error. Pre-fix these threw "Invalid bearer token" instead.
+    it("treats a non-bearer scheme as no token (falls through to cookie auth → clean 401)", async () => {
+      await expect(
+        runtime.resolveAccessContext({ headers: { authorization: "Basic dXNlcjpwYXNz" } })
+      ).rejects.toThrow("Session is missing or expired");
+    });
+
+    it("treats an empty bearer token as no token (falls through to cookie auth → clean 401)", async () => {
+      await expect(
+        runtime.resolveAccessContext({ headers: { authorization: "Bearer " } })
+      ).rejects.toThrow("Session is missing or expired");
+    });
   });
 });
