@@ -29,6 +29,7 @@ import {
   onboardingCompleteRouteSchema,
   onboardingSkipRouteSchema,
   patchModuleEnablementRouteSchema,
+  patchMeProfileRouteSchema,
   putChatMultiplexerSettingsRouteSchema,
   putRegistrationSettingsRouteSchema,
   upsertInstanceSettingRouteSchema,
@@ -48,33 +49,31 @@ import { deleteUserData, LastActiveAdminError } from "../../../scripts/delete-us
 import { BootstrapHelper } from "./bootstrap.js";
 import { HttpRepositoryError, SettingsRepository } from "./repository.js";
 
+interface ProfilePreferencesPort {
+  get(scopedDb: DataContextDb, key: string): Promise<unknown>;
+  upsert(scopedDb: DataContextDb, key: string, value: unknown): Promise<void>;
+}
+
 export interface SettingsRoutesDependencies {
-  // Documented Kysely< exemption: rootDb exists ONLY to construct BootstrapHelper
-  // (countUsers — runs before any session/actor exists, so withDataContext cannot be used).
-  // See the SOLE-exemption comment in packages/settings/src/bootstrap.ts.
+  // Kysely exemption: only BootstrapHelper uses rootDb before any actor/session exists.
   readonly rootDb: Kysely<JarvisDatabase>;
   readonly dataContext: DataContextRunner;
   readonly resolveAccessContext: (request: FastifyRequest) => Promise<AccessContext>;
   readonly listConfiguredAuthProviders?: () => readonly AuthProviderStatusDto[];
   readonly listModuleManifests?: () => readonly JarvisModuleManifest[];
+  readonly preferencesRepository?: ProfilePreferencesPort;
   readonly repository?: SettingsRepository;
   readonly revokeUserSessions?: (userId: string) => Promise<number>;
   readonly bootstrapConnectionString?: string;
   /** Boot-time availability snapshot, injected by the composition root (apply-on-restart). */
   readonly chatMultiplexerAvailability?: { readonly tmux: boolean; readonly herdr: boolean };
-  /**
-   * Onboarding probes (Phase 2). Injected so packages/settings keeps no @jarv1s/ai /
-   * @jarv1s/connectors PACKAGE dependency (module isolation); wired in packages/module-registry.
-   * REQUIRED on any server that mounts the onboarding routes — when absent the routes fail
-   * closed (500 + logged) rather than silently reporting all-not-done (Codex R1 masking finding).
-   * Each function below is BOUNDED (timeout → false) and called OUTSIDE the DB transaction.
-   */
+  /** Onboarding probes; injected to preserve module isolation and fail closed if absent. */
   readonly onboardingProbes?: {
-    /** Multiplexer usability (herdr accounts for the root-pane requirement). Bounded live probe. */
+    /** Bounded live probe; herdr accounts for the root-pane requirement. */
     readonly multiplexerUsable: (kind: "tmux" | "herdr") => Promise<boolean>;
-    /** Provider CLI presence (presence-only). Bounded live probe. */
+    /** Bounded provider CLI presence probe. */
     readonly cliPresent: (kind: "anthropic" | "openai-compatible" | "google") => Promise<boolean>;
-    /** Connector-account existence — a scoped read (needs the request's RLS scope). */
+    /** Scoped connector-account existence read under the request's RLS scope. */
     readonly connectorAccountExists: (scopedDb: DataContextDb) => Promise<boolean>;
   };
 }
@@ -88,6 +87,10 @@ export function registerSettingsRoutes(
   dependencies: SettingsRoutesDependencies
 ): void {
   const repository = dependencies.repository ?? new SettingsRepository();
+  const preferencesRepository: ProfilePreferencesPort = dependencies.preferencesRepository ?? {
+    get: async () => null,
+    upsert: async () => undefined
+  };
   const bootstrapHelper = new BootstrapHelper(dependencies.rootDb);
 
   server.get("/api/bootstrap/status", { schema: bootstrapStatusRouteSchema }, async () => {
@@ -103,13 +106,42 @@ export function registerSettingsRoutes(
   server.get("/api/me", { schema: meRouteSchema }, async (request, reply) => {
     try {
       const accessContext = await dependencies.resolveAccessContext(request);
-      const user = await dependencies.dataContext.withDataContext(accessContext, (scopedDb) =>
-        requireKnownUser(repository, scopedDb, accessContext.actorUserId)
+      const { user, addressed } = await dependencies.dataContext.withDataContext(
+        accessContext,
+        async (scopedDb) => ({
+          user: await requireKnownUser(repository, scopedDb, accessContext.actorUserId),
+          addressed: await preferencesRepository.get(scopedDb, "profile.addressed")
+        })
       );
 
       return {
-        user: serializeUser(user)
+        user: serializeUser(user),
+        profilePrefs: { addressed: typeof addressed === "string" ? addressed : null }
       };
+    } catch (error) {
+      return handleRouteError(error, reply);
+    }
+  });
+
+  server.patch("/api/me/profile", { schema: patchMeProfileRouteSchema }, async (request, reply) => {
+    try {
+      const accessContext = await dependencies.resolveAccessContext(request);
+      const body = request.body as { name: string; addressed: string };
+      const name = body.name.trim();
+      const addressed = body.addressed.trim();
+      if (name.length === 0) throw new HttpError(400, "Display name is required");
+      const user = await dependencies.dataContext.withDataContext(
+        accessContext,
+        async (scopedDb) => {
+          const updated = await repository.updateSelfName(scopedDb, {
+            actorUserId: accessContext.actorUserId,
+            name
+          });
+          await preferencesRepository.upsert(scopedDb, "profile.addressed", addressed);
+          return updated;
+        }
+      );
+      return { user: serializeUser(user), profilePrefs: { addressed } };
     } catch (error) {
       return handleRouteError(error, reply);
     }
