@@ -100,7 +100,8 @@ const meResponse: MeResponse = {
     isBootstrapOwner: true,
     createdAt: "2026-06-06T12:00:00.000Z",
     updatedAt: "2026-06-06T12:00:00.000Z"
-  }
+  },
+  profilePrefs: { addressed: null }
 };
 
 function meResponseFor(state: MockApiState): MeResponse {
@@ -114,7 +115,8 @@ function meResponseFor(state: MockApiState): MeResponse {
       // owner, so the default keeps the fixture coherent.
       isBootstrapOwner:
         state.isBootstrapOwner ?? (isInstanceAdmin && meResponse.user.isBootstrapOwner)
-    }
+    },
+    profilePrefs: meResponse.profilePrefs
   };
 }
 

@@ -66,8 +66,18 @@ export interface BootstrapStatusResponse {
   readonly needsBootstrap: boolean;
 }
 
+export interface ProfilePrefs {
+  readonly addressed: string | null;
+}
+
 export interface MeResponse {
   readonly user: UserDto;
+  readonly profilePrefs: ProfilePrefs;
+}
+
+export interface PatchMeProfileRequest {
+  readonly name: string;
+  readonly addressed: string;
 }
 
 export interface ListUsersResponse {
@@ -264,11 +274,51 @@ export const meRouteSchema = {
     200: {
       type: "object",
       additionalProperties: false,
-      required: ["user"],
+      required: ["user", "profilePrefs"],
       properties: {
-        user: userSchema
+        user: userSchema,
+        profilePrefs: {
+          type: "object",
+          additionalProperties: false,
+          required: ["addressed"],
+          properties: {
+            addressed: { type: ["string", "null"] }
+          }
+        }
       }
     },
+    401: errorResponseSchema
+  }
+} as const;
+
+export const patchMeProfileRouteSchema = {
+  body: {
+    type: "object",
+    additionalProperties: false,
+    required: ["name", "addressed"],
+    properties: {
+      name: { type: "string", minLength: 1, maxLength: 100 },
+      addressed: { type: "string", maxLength: 100 }
+    }
+  },
+  response: {
+    200: {
+      type: "object",
+      additionalProperties: false,
+      required: ["user", "profilePrefs"],
+      properties: {
+        user: userSchema,
+        profilePrefs: {
+          type: "object",
+          additionalProperties: false,
+          required: ["addressed"],
+          properties: {
+            addressed: { type: ["string", "null"] }
+          }
+        }
+      }
+    },
+    400: errorResponseSchema,
     401: errorResponseSchema
   }
 } as const;
