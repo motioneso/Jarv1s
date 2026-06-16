@@ -392,6 +392,7 @@ time**, and rebase the migration number before merge to avoid hash-conflict coll
 **merges_since_relay hit 2** — #278 db-125 + #280 memory-146 both sensitive. overnight-batch HEAD = `cdb543c`.
 
 **Successor bootstrap:**
+
 - Lock: set coordinator lock line to YOUR session id, reset `merges_since_relay=0`, commit.
 - Mode: **OVERNIGHT AUTONOMOUS — Ben awake and working. Run the OTNR queue loop. Builders = Codex (`codex -a never "..."`). Do NOT wait for input.**
 - PR #279 (OnboardingProviderCheck): CI should be green now (prettier fix pushed @ 458f6a6 → 0a98657). Integrate into overnight-batch AFTER all OTNR dev lanes; needs Ben review (feature not OTNR fix, touches shared files).
@@ -400,6 +401,7 @@ time**, and rebase the migration number before merge to avoid hash-conflict coll
 - Memory-146 worktree (`.claude/worktrees/memory-146`) can be reaped: `git worktree remove .claude/worktrees/memory-146 && git branch -d memory-146`.
 
 **Next OTNR lanes (in queue order, do relevance check first each):**
+
 - **#136 chat** — extract-facts no-op guard, manifest migration array, UUID-noise recall query
 - **#159 module-registry** — `assertModuleRegistryConsistency` test
 - **#167 integration tests** — test coverage gaps
@@ -411,4 +413,4 @@ time**, and rebase the migration number before merge to avoid hash-conflict coll
 - **#147 email** — email module fixes
 - **#163 web** — web shell fixes
 - **#123 AI** — AI module fixes
-Full details in `docs/coordination/overnight-queue-2026-06-16.md`.
+  Full details in `docs/coordination/overnight-queue-2026-06-16.md`.
