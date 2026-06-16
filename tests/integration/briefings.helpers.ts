@@ -429,3 +429,10 @@ export function userBContext(): AccessContext {
     requestId: "request:user-b-briefings"
   };
 }
+
+export function adminContext(): AccessContext {
+  return {
+    actorUserId: ids.adminUser,
+    requestId: "request:admin-briefings"
+  };
+}

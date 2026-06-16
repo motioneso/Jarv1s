@@ -10,7 +10,7 @@ import { parsePositiveIntEnv } from "@jarv1s/shared";
 // Override the limit via env: JARVIS_RL_AI_TOOLS_MAX=<n> (requests per minute, default 60).
 const AI_TOOLS_MAX = parsePositiveIntEnv(process.env.JARVIS_RL_AI_TOOLS_MAX, 60);
 
-import type { AccessContext, DataContextRunner } from "@jarv1s/db";
+import type { AccessContext, DataContextDb, DataContextRunner } from "@jarv1s/db";
 import {
   HttpError,
   handleRouteError as handleModuleRouteError,
@@ -21,12 +21,15 @@ import type { ActiveModulesResolver } from "./gateway/types.js";
 import {
   createAiConfiguredModelRouteSchema,
   createAiProviderConfigRouteSchema,
+  getChatModelOverrideSettingsRouteSchema,
   invokeAiAssistantToolRouteSchema,
   listAiAssistantActionsRouteSchema,
   listAiAssistantToolsRouteSchema,
   listAiConfiguredModelsRouteSchema,
   listAiProviderConfigsRouteSchema,
   lookupAiCapabilityRouteRouteSchema,
+  putAdminChatModelOverrideSettingsRouteSchema,
+  putChatModelOverrideSettingsRouteSchema,
   resolveAiAssistantActionRouteSchema,
   revokeAiProviderConfigRouteSchema,
   updateAiConfiguredModelRouteSchema,
@@ -47,6 +50,8 @@ import {
   type CreateAiConfiguredModelRequest,
   type CreateAiProviderConfigRequest,
   type InvokeAiAssistantToolRequest,
+  type PutAdminChatModelOverrideRequest,
+  type PutChatModelOverrideRequest,
   type ResolveAiAssistantActionRequest,
   type UpdateAiConfiguredModelRequest,
   type UpdateAiProviderConfigRequest
@@ -62,6 +67,7 @@ import { createAiSecretCipher, type AiSecretCipher } from "./crypto.js";
 import {
   AiRepository,
   type AiAssistantActionRequestSafeRow,
+  type ChatModelOverrideSettings,
   type AiConfiguredModelSafeRow,
   type AiProviderConfigSafeRow
 } from "./repository.js";
@@ -147,15 +153,19 @@ export function registerAiRoutes(
           authMethod === "cli"
             ? secretCipher.encryptJson({ cli: true })
             : secretCipher.encryptJson(body.credentialPayload ?? {});
-        const provider = await dependencies.dataContext.withDataContext(accessContext, (scopedDb) =>
-          repository.createProvider(scopedDb, {
-            providerKind: body.providerKind,
-            displayName: body.displayName,
-            baseUrl: body.baseUrl ?? null,
-            status: body.status ?? "active",
-            authMethod,
-            encryptedCredential
-          })
+        const provider = await dependencies.dataContext.withDataContext(
+          accessContext,
+          async (scopedDb) => {
+            await assertInstanceAdmin(repository, scopedDb, accessContext.actorUserId);
+            return repository.createProvider(scopedDb, {
+              providerKind: body.providerKind,
+              displayName: body.displayName,
+              baseUrl: body.baseUrl ?? null,
+              status: body.status ?? "active",
+              authMethod,
+              encryptedCredential
+            });
+          }
         );
 
         return reply.code(201).send({ provider: await serializeProvider(provider) });
@@ -176,15 +186,19 @@ export function registerAiRoutes(
           body.credentialPayload === undefined
             ? undefined
             : secretCipher.encryptJson(body.credentialPayload);
-        const provider = await dependencies.dataContext.withDataContext(accessContext, (scopedDb) =>
-          repository.updateProvider(scopedDb, request.params.id, {
-            providerKind: body.providerKind,
-            displayName: body.displayName,
-            baseUrl: body.baseUrl,
-            status: body.status,
-            authMethod: body.authMethod,
-            encryptedCredential
-          })
+        const provider = await dependencies.dataContext.withDataContext(
+          accessContext,
+          async (scopedDb) => {
+            await assertInstanceAdmin(repository, scopedDb, accessContext.actorUserId);
+            return repository.updateProvider(scopedDb, request.params.id, {
+              providerKind: body.providerKind,
+              displayName: body.displayName,
+              baseUrl: body.baseUrl,
+              status: body.status,
+              authMethod: body.authMethod,
+              encryptedCredential
+            });
+          }
         );
 
         if (!provider) {
@@ -205,8 +219,12 @@ export function registerAiRoutes(
       try {
         const accessContext = await dependencies.resolveAccessContext(request);
         const encryptedCredential = secretCipher.encryptJson({ revoked: true });
-        const provider = await dependencies.dataContext.withDataContext(accessContext, (scopedDb) =>
-          repository.revokeProvider(scopedDb, request.params.id, encryptedCredential)
+        const provider = await dependencies.dataContext.withDataContext(
+          accessContext,
+          async (scopedDb) => {
+            await assertInstanceAdmin(repository, scopedDb, accessContext.actorUserId);
+            return repository.revokeProvider(scopedDb, request.params.id, encryptedCredential);
+          }
         );
 
         if (!provider) {
@@ -244,15 +262,20 @@ export function registerAiRoutes(
       try {
         const accessContext = await dependencies.resolveAccessContext(request);
         const body = parseCreateModelBody(request.body);
-        const model = await dependencies.dataContext.withDataContext(accessContext, (scopedDb) =>
-          repository.createModel(scopedDb, {
-            providerConfigId: body.providerConfigId,
-            providerModelId: body.providerModelId,
-            displayName: body.displayName,
-            capabilities: body.capabilities,
-            status: body.status ?? "active",
-            tier: body.tier
-          })
+        const model = await dependencies.dataContext.withDataContext(
+          accessContext,
+          async (scopedDb) => {
+            await assertInstanceAdmin(repository, scopedDb, accessContext.actorUserId);
+            return repository.createModel(scopedDb, {
+              providerConfigId: body.providerConfigId,
+              providerModelId: body.providerModelId,
+              displayName: body.displayName,
+              capabilities: body.capabilities,
+              status: body.status ?? "active",
+              tier: body.tier,
+              allowUserOverride: body.allowUserOverride
+            });
+          }
         );
 
         return reply.code(201).send({ model: serializeModel(model) });
@@ -269,14 +292,19 @@ export function registerAiRoutes(
       try {
         const accessContext = await dependencies.resolveAccessContext(request);
         const body = parseUpdateModelBody(request.body);
-        const model = await dependencies.dataContext.withDataContext(accessContext, (scopedDb) =>
-          repository.updateModel(scopedDb, request.params.id, {
-            providerModelId: body.providerModelId,
-            displayName: body.displayName,
-            capabilities: body.capabilities,
-            status: body.status,
-            tier: body.tier
-          })
+        const model = await dependencies.dataContext.withDataContext(
+          accessContext,
+          async (scopedDb) => {
+            await assertInstanceAdmin(repository, scopedDb, accessContext.actorUserId);
+            return repository.updateModel(scopedDb, request.params.id, {
+              providerModelId: body.providerModelId,
+              displayName: body.displayName,
+              capabilities: body.capabilities,
+              status: body.status,
+              tier: body.tier,
+              allowUserOverride: body.allowUserOverride
+            });
+          }
         );
 
         if (!model) {
@@ -309,6 +337,77 @@ export function registerAiRoutes(
             model: model ? serializeModel(model) : null
           }
         };
+      } catch (error) {
+        return handleRouteError(error, reply);
+      }
+    }
+  );
+
+  server.get(
+    "/api/ai/chat-model-override",
+    { schema: getChatModelOverrideSettingsRouteSchema },
+    async (request, reply) => {
+      try {
+        const accessContext = await dependencies.resolveAccessContext(request);
+        const settings = await dependencies.dataContext.withDataContext(accessContext, (scopedDb) =>
+          repository.getChatModelOverrideSettings(scopedDb)
+        );
+
+        return { settings: serializeChatModelOverrideSettings(settings) };
+      } catch (error) {
+        return handleRouteError(error, reply);
+      }
+    }
+  );
+
+  server.put(
+    "/api/ai/chat-model-override",
+    { schema: putChatModelOverrideSettingsRouteSchema },
+    async (request, reply) => {
+      try {
+        const accessContext = await dependencies.resolveAccessContext(request);
+        const body = parsePutChatModelOverrideBody(request.body);
+        const settings = await dependencies.dataContext.withDataContext(
+          accessContext,
+          async (scopedDb) => {
+            if (body.modelId !== null) {
+              const current = await repository.getChatModelOverrideSettings(scopedDb);
+              const allowed = current.allowedModels.some((model) => model.id === body.modelId);
+              if (!current.overrideEnabled || !allowed) {
+                throw new HttpError(400, "Chat model override is not allowed for this model");
+              }
+            }
+
+            return repository.setChatModelOverridePreference(scopedDb, body.modelId);
+          }
+        );
+
+        return { settings: serializeChatModelOverrideSettings(settings) };
+      } catch (error) {
+        return handleRouteError(error, reply);
+      }
+    }
+  );
+
+  server.put(
+    "/api/admin/ai/chat-model-override",
+    { schema: putAdminChatModelOverrideSettingsRouteSchema },
+    async (request, reply) => {
+      try {
+        const accessContext = await dependencies.resolveAccessContext(request);
+        const body = parsePutAdminChatModelOverrideBody(request.body);
+        const settings = await dependencies.dataContext.withDataContext(
+          accessContext,
+          async (scopedDb) => {
+            await assertInstanceAdmin(repository, scopedDb, accessContext.actorUserId);
+            return repository.setChatModelOverrideEnabled(scopedDb, {
+              enabled: body.enabled,
+              actorUserId: accessContext.actorUserId
+            });
+          }
+        );
+
+        return { settings: serializeChatModelOverrideSettings(settings) };
       } catch (error) {
         return handleRouteError(error, reply);
       }
@@ -524,7 +623,8 @@ function parseCreateModelBody(body: unknown): CreateAiConfiguredModelRequest {
     displayName: requiredString(value.displayName, "displayName"),
     capabilities: requiredCapabilities(value.capabilities, "capabilities"),
     status: optionalModelStatus(value.status),
-    tier: optionalModelTier(value.tier)
+    tier: optionalModelTier(value.tier),
+    allowUserOverride: optionalBoolean(value.allowUserOverride, "allowUserOverride")
   };
 }
 
@@ -539,7 +639,8 @@ function parseUpdateModelBody(body: unknown): UpdateAiConfiguredModelRequest {
         ? undefined
         : requiredCapabilities(value.capabilities, "capabilities"),
     status: optionalModelStatus(value.status),
-    tier: optionalModelTier(value.tier)
+    tier: optionalModelTier(value.tier),
+    allowUserOverride: optionalBoolean(value.allowUserOverride, "allowUserOverride")
   };
 }
 
@@ -560,6 +661,24 @@ function parseResolveAssistantActionBody(body: unknown): ResolveAiAssistantActio
 
   return {
     status: requiredResolvableAssistantActionStatus(value.status)
+  };
+}
+
+function parsePutChatModelOverrideBody(body: unknown): PutChatModelOverrideRequest {
+  const value = requireObject(body);
+  const modelId = value.modelId;
+  if (modelId !== null && typeof modelId !== "string") {
+    throw new HttpError(400, "modelId must be a string or null");
+  }
+
+  return { modelId };
+}
+
+function parsePutAdminChatModelOverrideBody(body: unknown): PutAdminChatModelOverrideRequest {
+  const value = requireObject(body);
+
+  return {
+    enabled: requiredBoolean(value.enabled, "enabled")
   };
 }
 
@@ -653,8 +772,20 @@ function serializeModel(model: AiConfiguredModelSafeRow): AiConfiguredModelDto {
     capabilities: model.capabilities.map(parseCapability),
     status: model.status,
     tier: model.tier,
+    allowUserOverride: model.allow_user_override,
     createdAt: serializeDate(model.created_at),
     updatedAt: serializeDate(model.updated_at)
+  };
+}
+
+function serializeChatModelOverrideSettings(settings: ChatModelOverrideSettings) {
+  return {
+    overrideEnabled: settings.overrideEnabled,
+    currentOverrideModelId: settings.currentOverrideModelId,
+    effectiveOverrideModelId: settings.effectiveOverrideModelId,
+    defaultModel: settings.defaultModel ? serializeModel(settings.defaultModel) : null,
+    selectedModel: settings.selectedModel ? serializeModel(settings.selectedModel) : null,
+    allowedModels: settings.allowedModels.map(serializeModel)
   };
 }
 
@@ -706,6 +837,26 @@ function optionalNullableString(value: unknown, fieldName: string): string | nul
   }
 
   return optionalString(value, fieldName);
+}
+
+function optionalBoolean(value: unknown, fieldName: string): boolean | undefined {
+  if (value === undefined) {
+    return undefined;
+  }
+  if (typeof value !== "boolean") {
+    throw new HttpError(400, `${fieldName} must be a boolean`);
+  }
+
+  return value;
+}
+
+function requiredBoolean(value: unknown, fieldName: string): boolean {
+  const parsed = optionalBoolean(value, fieldName);
+  if (parsed === undefined) {
+    throw new HttpError(400, `${fieldName} is required`);
+  }
+
+  return parsed;
 }
 
 function requiredProviderKind(value: unknown, fieldName: string): AiProviderKind {
@@ -815,4 +966,19 @@ function handleRouteError(error: unknown, reply: FastifyReply) {
     ],
     invalidRequestMessage: "AI configuration request is invalid"
   });
+}
+
+async function assertInstanceAdmin(
+  repository: AiRepository,
+  scopedDb: DataContextDb,
+  userId: string
+): Promise<void> {
+  const user = await repository.getUserById(scopedDb, userId);
+
+  if (!user) {
+    throw new HttpError(401, "Session is missing or expired");
+  }
+  if (!user.is_instance_admin) {
+    throw new HttpError(403, "Instance admin permission is required");
+  }
 }

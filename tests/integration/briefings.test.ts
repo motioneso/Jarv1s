@@ -34,6 +34,7 @@ import {
   makeComposeDeps,
   setupBriefingsHarness,
   sourceIds,
+  adminContext,
   spyBossSchedule,
   teardownBriefingsHarness,
   userAContext,
@@ -276,14 +277,14 @@ describe("Briefings module M6 read-only scheduled summaries", () => {
     // Configure an economy model so compose takes the synthesis path (not the degraded
     // fallback). The injected fake adapter returns the fixed "synth narrative".
     const aiRepository = new AiRepository();
-    const provider = await dataContext.withDataContext(userAContext(), (scopedDb) =>
+    const provider = await dataContext.withDataContext(adminContext(), (scopedDb) =>
       aiRepository.createProvider(scopedDb, {
         providerKind: "anthropic",
         displayName: "Synthesis summarizer",
         encryptedCredential: createAiSecretCipher().encryptJson({ apiKey: "briefing-synth-key" })
       })
     );
-    await dataContext.withDataContext(userAContext(), (scopedDb) =>
+    await dataContext.withDataContext(adminContext(), (scopedDb) =>
       aiRepository.createModel(scopedDb, {
         providerConfigId: provider.id,
         providerModelId: "synth-summarizer",

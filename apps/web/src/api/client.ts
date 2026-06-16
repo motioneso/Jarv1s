@@ -14,11 +14,14 @@ import type {
   ChatMultiplexerChoice,
   ChatMultiplexerSettingsDto,
   GetPersonaSettingsResponse,
+  GetChatModelOverrideSettingsResponse,
   GetLocaleSettingsResponse,
   ListUsersResponse,
   RegistrationSettingsDto,
   PreviewPersonaRequest,
   PreviewPersonaResponse,
+  PutAdminChatModelOverrideRequest,
+  PutChatModelOverrideRequest,
   PutLocaleSettingsRequest,
   PutLocaleSettingsResponse,
   PutPersonaSettingsRequest,
@@ -688,6 +691,28 @@ export async function lookupAiCapabilityRoute(
   return requestJson<LookupAiCapabilityRouteResponse>(
     `/api/ai/capability-route/${encodeURIComponent(capability)}`
   );
+}
+
+export async function getChatModelOverrideSettings(): Promise<GetChatModelOverrideSettingsResponse> {
+  return requestJson<GetChatModelOverrideSettingsResponse>("/api/ai/chat-model-override");
+}
+
+export async function putChatModelOverride(
+  input: PutChatModelOverrideRequest
+): Promise<GetChatModelOverrideSettingsResponse> {
+  return requestJson<GetChatModelOverrideSettingsResponse>("/api/ai/chat-model-override", {
+    method: "PUT",
+    body: input
+  });
+}
+
+export async function putAdminChatModelOverrideEnabled(
+  input: PutAdminChatModelOverrideRequest
+): Promise<GetChatModelOverrideSettingsResponse> {
+  return requestJson<GetChatModelOverrideSettingsResponse>("/api/admin/ai/chat-model-override", {
+    method: "PUT",
+    body: input
+  });
 }
 
 export async function listAiAssistantTools(): Promise<ListAiAssistantToolsResponse> {

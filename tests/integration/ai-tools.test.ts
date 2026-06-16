@@ -415,7 +415,7 @@ describe("AI read-only assistant tool execution foundation", () => {
     const providerResponse = await server.inject({
       method: "POST",
       url: "/api/ai/providers",
-      headers: userAHeaders(),
+      headers: adminHeaders(),
       payload: {
         providerKind: "custom",
         displayName: "Tool Secret Provider",

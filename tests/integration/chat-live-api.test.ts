@@ -71,6 +71,7 @@ describe("Chat live API (turn / clear / switch / stream)", () => {
   let repository: ChatRepository;
   let server: ReturnType<typeof createApiServer>;
   let originalSecretKey: string | undefined;
+  let providerId: string;
 
   beforeAll(async () => {
     originalSecretKey = process.env.JARVIS_AI_SECRET_KEY;
@@ -92,14 +93,14 @@ describe("Chat live API (turn / clear / switch / stream)", () => {
     const providerResponse = await server.inject({
       method: "POST",
       url: "/api/ai/providers",
-      headers: { authorization: `Bearer ${ids.sessionA}` },
+      headers: { authorization: `Bearer ${ids.sessionAdmin}` },
       payload: { providerKind: "anthropic", displayName: "Live API Provider", authMethod: "cli" }
     });
-    const providerId = providerResponse.json<{ provider: { id: string } }>().provider.id;
+    providerId = providerResponse.json<{ provider: { id: string } }>().provider.id;
     await server.inject({
       method: "POST",
       url: "/api/ai/models",
-      headers: { authorization: `Bearer ${ids.sessionA}` },
+      headers: { authorization: `Bearer ${ids.sessionAdmin}` },
       payload: {
         providerConfigId: providerId,
         providerModelId: "claude-live",
@@ -147,6 +148,91 @@ describe("Chat live API (turn / clear / switch / stream)", () => {
     expect(metadata.executed?.provider).toBe("anthropic");
   });
 
+  it("POST /api/chat/turn uses the user's allowed chat model override when enabled", async () => {
+    const overrideModel = await server.inject({
+      method: "POST",
+      url: "/api/ai/models",
+      headers: { authorization: `Bearer ${ids.sessionAdmin}` },
+      payload: {
+        providerConfigId: providerId,
+        providerModelId: "claude-override",
+        displayName: "Claude Override",
+        capabilities: ["chat"],
+        tier: "economy"
+      }
+    });
+    const overrideId = overrideModel.json<{ model: { id: string } }>().model.id;
+
+    const enabled = await server.inject({
+      method: "PUT",
+      url: "/api/admin/ai/chat-model-override",
+      headers: { authorization: `Bearer ${ids.sessionAdmin}` },
+      payload: { enabled: true }
+    });
+    const saved = await server.inject({
+      method: "PUT",
+      url: "/api/ai/chat-model-override",
+      headers: { authorization: `Bearer ${ids.sessionA}` },
+      payload: { modelId: overrideId }
+    });
+    await server.inject({
+      method: "POST",
+      url: "/api/chat/switch",
+      headers: { authorization: `Bearer ${ids.sessionA}` }
+    });
+    const overrideTurn = await server.inject({
+      method: "POST",
+      url: "/api/chat/turn",
+      headers: { authorization: `Bearer ${ids.sessionA}` },
+      payload: { text: "override model" }
+    });
+
+    const disabled = await server.inject({
+      method: "PUT",
+      url: "/api/admin/ai/chat-model-override",
+      headers: { authorization: `Bearer ${ids.sessionAdmin}` },
+      payload: { enabled: false }
+    });
+    await server.inject({
+      method: "POST",
+      url: "/api/chat/switch",
+      headers: { authorization: `Bearer ${ids.sessionA}` }
+    });
+    const defaultTurn = await server.inject({
+      method: "POST",
+      url: "/api/chat/turn",
+      headers: { authorization: `Bearer ${ids.sessionA}` },
+      payload: { text: "default model" }
+    });
+
+    const messages = await dataContext.withDataContext(userAContext(), async (scopedDb) => {
+      const thread = await repository.getCurrentThread(scopedDb, ids.userA);
+      expect(thread).toBeDefined();
+      return repository.listMessages(scopedDb, thread!.id);
+    });
+    const overrideAssistant = messages.find(
+      (m) => m.role === "assistant" && m.body === "echo:override model"
+    );
+    const defaultAssistant = messages.find(
+      (m) => m.role === "assistant" && m.body === "echo:default model"
+    );
+    const overrideMetadata = overrideAssistant?.model_metadata as {
+      executed?: { model?: string };
+    };
+    const defaultMetadata = defaultAssistant?.model_metadata as {
+      executed?: { model?: string };
+    };
+
+    expect(overrideModel.statusCode).toBe(201);
+    expect(enabled.statusCode).toBe(200);
+    expect(saved.statusCode).toBe(200);
+    expect(overrideTurn.statusCode).toBe(200);
+    expect(overrideMetadata.executed?.model).toBe("claude-override");
+    expect(disabled.statusCode).toBe(200);
+    expect(defaultTurn.statusCode).toBe(200);
+    expect(defaultMetadata.executed?.model).toBe("claude-live");
+  });
+
   it("POST /api/chat/turn without a session returns 401", async () => {
     const response = await server.inject({
       method: "POST",
@@ -157,23 +243,16 @@ describe("Chat live API (turn / clear / switch / stream)", () => {
     expect(response.statusCode).toBe(401);
   });
 
-  it("POST /api/chat/turn for a user with NO active chat model returns a sanitized 4xx (not 500)", async () => {
-    // userB has a valid session but no configured chat-capable model, so
-    // resolveActiveProvider throws. The route must map that to a sanitized 4xx
-    // rather than letting the raw error reach Fastify's default 500 handler.
+  it("POST /api/chat/turn lets another user use the admin-configured instance default", async () => {
     const response = await server.inject({
       method: "POST",
       url: "/api/chat/turn",
       headers: { authorization: `Bearer ${ids.sessionB}` },
-      payload: { text: "hello jarvis" }
+      payload: { text: "hello from user b" }
     });
 
-    expect(response.statusCode).toBeGreaterThanOrEqual(400);
-    expect(response.statusCode).toBeLessThan(500);
-    const body = response.json<{ error: string }>();
-    expect(body.error).toBe("No active chat-capable model is configured.");
-    // The raw internal error string/stack must not leak.
-    expect(JSON.stringify(body)).not.toMatch(/stack|at Object|\.ts:/i);
+    expect(response.statusCode).toBe(200);
+    expect(response.json<{ reply: string }>().reply).toBe("echo:hello from user b");
   });
 
   it("subscriptions are per-actor: user B's stream never receives user A's records", async () => {
@@ -235,14 +314,14 @@ describe("Chat live API — no multiplexer available", () => {
     const providerResponse = await server.inject({
       method: "POST",
       url: "/api/ai/providers",
-      headers: { authorization: `Bearer ${ids.sessionA}` },
+      headers: { authorization: `Bearer ${ids.sessionAdmin}` },
       payload: { providerKind: "anthropic", displayName: "Live API Provider", authMethod: "cli" }
     });
     const providerId = providerResponse.json<{ provider: { id: string } }>().provider.id;
     await server.inject({
       method: "POST",
       url: "/api/ai/models",
-      headers: { authorization: `Bearer ${ids.sessionA}` },
+      headers: { authorization: `Bearer ${ids.sessionAdmin}` },
       payload: {
         providerConfigId: providerId,
         providerModelId: "claude-live",

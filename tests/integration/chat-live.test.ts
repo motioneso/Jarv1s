@@ -213,14 +213,14 @@ describe("handleExtractFactsJob — durable fact upsert + no-op degrade", () => 
   // A summarization/economy model + credentialed provider so the handler reaches the
   // (injected) adapter path instead of returning early on a missing model/credential.
   async function seedEconomyModel(label: string): Promise<void> {
-    const provider = await dataContext.withDataContext(userAContext(), (scopedDb) =>
+    const provider = await dataContext.withDataContext(adminContext(), (scopedDb) =>
       aiRepository.createProvider(scopedDb, {
         providerKind: "anthropic",
         displayName: `Facts summarizer ${label}`,
         encryptedCredential: createAiSecretCipher().encryptJson({ apiKey: "facts-extract-key" })
       })
     );
-    await dataContext.withDataContext(userAContext(), (scopedDb) =>
+    await dataContext.withDataContext(adminContext(), (scopedDb) =>
       aiRepository.createModel(scopedDb, {
         providerConfigId: provider.id,
         providerModelId: `facts-summarizer-${label}`,
@@ -527,5 +527,12 @@ function userBContext(): AccessContext {
   return {
     actorUserId: ids.userB,
     requestId: "request:user-b-chat-live"
+  };
+}
+
+function adminContext(): AccessContext {
+  return {
+    actorUserId: ids.adminUser,
+    requestId: "request:admin-chat-live"
   };
 }

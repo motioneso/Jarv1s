@@ -3,9 +3,10 @@ import { Check, CornerDownRight, PencilLine, Sparkles } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 
 import {
+  getChatModelOverrideSettings,
   getPersonaSettings,
-  listAiModels,
   previewPersona,
+  putChatModelOverride,
   putPersonaSettings
 } from "../api/client";
 import { queryKeys } from "../api/query-keys";
@@ -19,7 +20,7 @@ import {
   type ToneDial
 } from "./settings-persona-preview";
 import { type PaneProps } from "./settings-types";
-import { Choice, Field, Group, NotWired, Note, PaneHead, Select } from "./settings-ui";
+import { Choice, Field, Group, Note, PaneHead, Select } from "./settings-ui";
 
 interface PersonaState {
   assistantName: string;
@@ -245,64 +246,82 @@ function Persona({ who }: { readonly who: string }) {
   );
 }
 
-const CHAT_MODEL_STORAGE_KEY = "jarvis.settings.chatModel";
-
 function ChatModel() {
   const { toast } = useFeedback();
-  const modelsQuery = useQuery({
-    queryKey: queryKeys.ai.models,
-    queryFn: listAiModels,
+  const queryClient = useQueryClient();
+  const settingsQuery = useQuery({
+    queryKey: queryKeys.ai.chatModelOverride,
+    queryFn: getChatModelOverrideSettings,
     retry: false
   });
-  const chatModels = (modelsQuery.data?.models ?? []).filter(
-    (m) => m.status !== "disabled" && m.capabilities.includes("chat")
-  );
-  const [choice, setChoice] = useState<string>(() => {
-    if (typeof window === "undefined") return "default";
-    return window.localStorage.getItem(CHAT_MODEL_STORAGE_KEY) ?? "default";
-  });
-
-  const onChange = (value: string) => {
-    setChoice(value);
-    try {
-      window.localStorage.setItem(CHAT_MODEL_STORAGE_KEY, value);
-    } catch {
-      /* BACKEND-TODO: per-user chat-model override endpoint (decision: allow override or read-only?); local storage until then */
+  const settings = settingsQuery.data?.settings;
+  const mutation = useMutation({
+    mutationFn: (modelId: string | null) => putChatModelOverride({ modelId }),
+    onSuccess: (result) => {
+      queryClient.setQueryData(queryKeys.ai.chatModelOverride, result);
+      const model = result.settings.effectiveOverrideModelId
+        ? result.settings.selectedModel
+        : result.settings.defaultModel;
+      toast(`Chat now uses ${model?.displayName ?? "the instance default"}`, {
+        icon: <Sparkles size={17} />
+      });
+    },
+    onError: (error) => {
+      toast(error instanceof Error ? error.message : "Could not update chat model");
     }
-    const label =
-      value === "default"
-        ? "the instance default"
-        : chatModels.find((m) => m.id === value)?.displayName;
-    toast(`Chat now uses ${label ?? "the selected model"}`, { icon: <Sparkles size={17} /> });
-  };
+  });
+  const defaultModel = settings?.defaultModel ?? null;
+  const allowedModels = settings?.allowedModels ?? [];
+  const allowedIds = new Set(allowedModels.map((m) => m.id));
+  const currentOverride =
+    settings?.currentOverrideModelId && allowedIds.has(settings.currentOverrideModelId)
+      ? settings.currentOverrideModelId
+      : null;
+  const value = currentOverride ?? "default";
 
   return (
     <Group
       title="Chat model"
       desc="Which assistant answers when you chat with Jarvis. Providers and instance-wide routing are managed by an admin."
     >
-      {chatModels.length ? (
+      {defaultModel ? (
         <>
-          <NotWired>
-            Your override is remembered on this device only — it doesn't change routing yet.
-          </NotWired>
-          <Field
-            label="Powering your chat"
-            hint="Defaults to the instance routing your admin set. Override it to a specific model for your own conversations."
-          >
-            <Select
-              value={choice}
-              onChange={(e) => onChange(e.target.value)}
-              aria-label="Chat model"
+          {settings?.overrideEnabled ? (
+            <Field
+              label="Powering your chat"
+              hint="Defaults to the instance routing your admin set. Override it to a specific model for your own conversations."
             >
-              <option value="default">Instance default</option>
-              {chatModels.map((m) => (
-                <option key={m.id} value={m.id}>
-                  {m.providerDisplayName} · {m.providerModelId}
-                </option>
-              ))}
-            </Select>
-          </Field>
+              <Select
+                value={value}
+                disabled={mutation.isPending || settingsQuery.isLoading}
+                onChange={(e) =>
+                  mutation.mutate(e.target.value === "default" ? null : e.target.value)
+                }
+                aria-label="Chat model"
+              >
+                <option value="default">Instance default · {defaultModel.providerModelId}</option>
+                {allowedModels
+                  .filter((m) => m.id !== defaultModel.id)
+                  .map((m) => (
+                    <option key={m.id} value={m.id}>
+                      {m.providerDisplayName} · {m.providerModelId}
+                    </option>
+                  ))}
+              </Select>
+            </Field>
+          ) : (
+            <Field
+              label="Powering your chat"
+              hint="Your admin has locked chat to the instance default."
+            >
+              <input
+                className="jds-input"
+                value={`${defaultModel.providerDisplayName} · ${defaultModel.providerModelId}`}
+                readOnly
+                aria-label="Chat model"
+              />
+            </Field>
+          )}
           <Note>
             Providers, credentials and which model handles each kind of work live in{" "}
             <b>Admin → Assistant &amp; AI</b>.
