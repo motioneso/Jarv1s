@@ -17,6 +17,7 @@ import {
   makeComposeDeps,
   setupBriefingsHarness,
   teardownBriefingsHarness,
+  adminContext,
   userAContext,
   userBContext,
   type BriefingsTestHarness
@@ -54,16 +55,48 @@ describe("Briefings synthesis, scheduling, and notification path (P3 real-briefi
     });
   });
 
+  it("falls back deterministically (degraded, status succeeded) when no model is configured", async () => {
+    // No AI model configured yet (clean DB from beforeAll reset) → compose takes the
+    // deterministic degraded fallback. Status stays "succeeded" (there is no
+    // "degraded" enum value — degraded is a source_metadata boolean).
+    const definition = await dataContext.withDataContext(userBContext(), (scopedDb) =>
+      repository.createDefinition(scopedDb, {
+        title: "Degraded briefing",
+        selectedToolNames: ["tasks.list"]
+      })
+    );
+    const outcome = await dataContext.withDataContext(userBContext(), (scopedDb) =>
+      repository.generateRun(scopedDb, definition.id, {
+        moduleManifests: getBuiltInModuleManifests(),
+        runKind: "manual",
+        composeDeps: makeComposeDeps(async () => {
+          throw new Error("synthesis must not be called when there is no model");
+        })
+      })
+    );
+    const run = outcome?.run;
+    const meta = run?.source_metadata as {
+      degraded: boolean;
+      degradedReason: string;
+      aiModel: unknown;
+    };
+
+    expect(run?.status).toBe("succeeded");
+    expect(meta.degraded).toBe(true);
+    expect(meta.degradedReason).toBe("no_model");
+    expect(meta.aiModel).toBeNull();
+  });
+
   it("records economy-tier AI model in source_metadata when configured", async () => {
     const aiRepository = new AiRepository();
-    const providerRow = await dataContext.withDataContext(userAContext(), (scopedDb) =>
+    const providerRow = await dataContext.withDataContext(adminContext(), (scopedDb) =>
       aiRepository.createProvider(scopedDb, {
         providerKind: "anthropic",
         displayName: "Economy summarizer",
         encryptedCredential: createAiSecretCipher().encryptJson({ apiKey: "briefing-econ-key" })
       })
     );
-    const modelRow = await dataContext.withDataContext(userAContext(), (scopedDb) =>
+    const modelRow = await dataContext.withDataContext(adminContext(), (scopedDb) =>
       aiRepository.createModel(scopedDb, {
         providerConfigId: providerRow.id,
         providerModelId: "econ-summarizer",
@@ -154,48 +187,16 @@ describe("Briefings synthesis, scheduling, and notification path (P3 real-briefi
     expect(capturedContexts[0]!.requestId).toMatch(/^briefing:|^pgboss:/);
   });
 
-  it("falls back deterministically (degraded, status succeeded) when no model is configured", async () => {
-    // No AI model configured for this fresh definition's owner → compose takes the
-    // deterministic degraded fallback. Status stays "succeeded" (there is no
-    // "degraded" enum value — degraded is a source_metadata boolean).
-    const definition = await dataContext.withDataContext(userBContext(), (scopedDb) =>
-      repository.createDefinition(scopedDb, {
-        title: "Degraded briefing",
-        selectedToolNames: ["tasks.list"]
-      })
-    );
-    const outcome = await dataContext.withDataContext(userBContext(), (scopedDb) =>
-      repository.generateRun(scopedDb, definition.id, {
-        moduleManifests: getBuiltInModuleManifests(),
-        runKind: "manual",
-        composeDeps: makeComposeDeps(async () => {
-          throw new Error("synthesis must not be called when there is no model");
-        })
-      })
-    );
-    const run = outcome?.run;
-    const meta = run?.source_metadata as {
-      degraded: boolean;
-      degradedReason: string;
-      aiModel: unknown;
-    };
-
-    expect(run?.status).toBe("succeeded");
-    expect(meta.degraded).toBe(true);
-    expect(meta.degradedReason).toBe("no_model");
-    expect(meta.aiModel).toBeNull();
-  });
-
   it("never leaks the decrypted provider credential into a synthesized run", async () => {
     const aiRepository = new AiRepository();
-    const provider = await dataContext.withDataContext(userBContext(), (scopedDb) =>
+    const provider = await dataContext.withDataContext(adminContext(), (scopedDb) =>
       aiRepository.createProvider(scopedDb, {
         providerKind: "anthropic",
         displayName: "Secret summarizer",
         encryptedCredential: createAiSecretCipher().encryptJson({ apiKey: "sk-SECRET-123" })
       })
     );
-    await dataContext.withDataContext(userBContext(), (scopedDb) =>
+    await dataContext.withDataContext(adminContext(), (scopedDb) =>
       aiRepository.createModel(scopedDb, {
         providerConfigId: provider.id,
         providerModelId: "secret-summarizer",
