@@ -4,7 +4,7 @@
 **Coordinator lock:** label `Coordinator`, **stable anchor = Claude session id `9e61c873-2ed8-47e9-82a4-05357a342163`** (match `agent_session.value` in `herdr pane list`). _(Predecessor `50bba9e9` relayed 2026-06-15; `bac25ddc` relayed 2026-06-15; `0dadd466` adopted 2026-06-15, relayed 2026-06-15; `aef38af5` adopted 2026-06-15 mid-Wave-3, relayed 2026-06-16; `a5665490` adopted 2026-06-16 overnight, relayed 2026-06-16; `465f51d1` adopted 2026-06-16, relayed 2026-06-16; `ce8b93c5` adopted 2026-06-16, relayed 2026-06-16; `9e61c873` adopted 2026-06-16 — successor must update this line.)_ Single-coordinator lock — exactly one pane labelled `Coordinator` whose session id matches this anchor holds authority for the life of the run. ⚠️ **Pane numbers (`w…-N`) reflow on every restart/split/reap — do NOT trust any pane number written in this file as an identifier; resolve the pane fresh by label+session at read time.** Agents escalate to the **label** (routing, re-claimable); the coordinator merges only when its own pane's **session id** (immutable, NOT the pane number) matches this recorded anchor.
 **Merge policy:** autonomous-after-verified-QA for `routine`/`sensitive`; **`security`-tier needs Ben's explicit merge sign-off**
 **Relay threshold:** security-tier merge → relay immediately after Phase 3 step 7; routine/sensitive `merges_since_relay` ≥ 2 → relay. No deferral. Compaction summary = already past safe → relay, merge nothing.
-**merges_since_relay:** 1 (#278 db-125 sensitive @ 2831ea5). Relay triggers at 2. #146 QA in flight → expect merge → 2 → RELAY. Prior: 1 (#275 backup-restore-70, routine). Relay executed 2026-06-16 ~06:50 PDT by `a5665490`. THERMAL: strict one-gate-at-a-time (96°C alert). Future gates: `nice -n 15` / `--no-file-parallelism`. Ben awake, actively working. Prior history
+**merges_since_relay:** 2 (#278 db-125 sensitive @ 2831ea5, #280 memory-146 sensitive @ cdb543c). **RELAY TRIGGERED → successor coordinator adopting.** Prior: 1 (#275 backup-restore-70, routine). Relay executed 2026-06-16 ~06:50 PDT by `a5665490`. THERMAL: strict one-gate-at-a-time (96°C alert). Future gates: `nice -n 15` / `--no-file-parallelism`. Ben awake, actively working. Prior history
 (pre-relay, predecessor `50bba9e9`): 3 merges (#245/#264, #235/#265, #249/#267) + #266 e2e fix + 8
 specs banked.
 
@@ -380,9 +380,35 @@ time**, and rebase the migration number before merge to avoid hash-conflict coll
 - **#125 db** — **✅ MERGED** into overnight-batch @ 2831ea5 (PR #278 merged, issue #125 closed). CI 3/3 green. Sensitive.
 - **#114 vault/secrets** — **SUPERSEDED** (`assertNoSymlinkEscape` in vault-ops.ts already does full realpath walk; GCM: already fixed in secret-cipher.ts).
 - **#117 RLS** — **SUPERSEDED** (migration 0059_admin_tables_rls.sql already has ENABLE+FORCE RLS on instance_settings and admin_audit_events).
-- **#146 memory** — **QA in flight** (PR #280, branch `memory-146`, commit `555baf9`). Gate: `pnpm verify:foundation` GREEN (53 integration files / 789 tests). Migration `0094_chat_memory_facts_rls_roles.sql`. Sensitive tier.
+- **#146 memory** — ✅ **MERGED** into overnight-batch @ cdb543c (PR #280, CI 4/4 green). Migration `0094_chat_memory_facts_rls_roles.sql` landed. Issue #146 close pending Ben's batch→main merge.
 - **OnboardingProviderCheck** — **PR #279 open** (`onboarding-provider-check-2026-06-16 → overnight-batch`). ⚠️ Includes coordination doc + plan files (swept in due to shared-worktree soft-reset collision — functionally correct on branch). Needs Ben review before integrating (feature, not OTNR fix; touches shared files: settings/routes.ts, module-registry, shared/platform-api). Integrate AFTER all OTNR dev lanes and BEFORE GeminiCopyPass.
 - **GeminiCopyPass** — integrate LAST. Branch `overnight-copy-pass-2026-06-16`, worktree `copy-pass`.
-- **Migration counter** — next free = 0094. Claim at merge not author time. ⚠️ Memory-146 migration uses placeholder 0094 — rebase to real number before integrating.
+- **Migration counter** — next free = **0095** (0094 landed via #280 memory-146). Claim at merge not author time.
 - **THERMAL** — strict one-gate-at-a-time. `nice -n 15` prefix on gate spawns. Alert at sustained ≥96°C.
 - **Per-merge digest to Ben:** PR #274 (sensitive, QA green, migration 0091); PR #276 (routine, QA green, auth hardening fix).
+
+### 🔁 RELAY → continuation note for successor coordinator (`9e61c873` → successor)
+
+**merges_since_relay hit 2** — #278 db-125 + #280 memory-146 both sensitive. overnight-batch HEAD = `cdb543c`.
+
+**Successor bootstrap:**
+- Lock: set coordinator lock line to YOUR session id, reset `merges_since_relay=0`, commit.
+- Mode: **OVERNIGHT AUTONOMOUS — Ben awake and working. Run the OTNR queue loop. Builders = Codex (`codex -a never "..."`). Do NOT wait for input.**
+- PR #279 (OnboardingProviderCheck): CI should be green now (prettier fix pushed @ 458f6a6 → 0a98657). Integrate into overnight-batch AFTER all OTNR dev lanes; needs Ben review (feature not OTNR fix, touches shared files).
+- PR #273 (overnight-batch → main): batch review PR, all green. Ben reviews in AM.
+- Fleet: OnboardingProviderCheck-2 (Codex, idle, pane label `OnboardingProviderCheck-2`) — its work is on branch `onboarding-provider-check-2026-06-16`, PR #279 open.
+- Memory-146 worktree (`.claude/worktrees/memory-146`) can be reaped: `git worktree remove .claude/worktrees/memory-146 && git branch -d memory-146`.
+
+**Next OTNR lanes (in queue order, do relevance check first each):**
+- **#136 chat** — extract-facts no-op guard, manifest migration array, UUID-noise recall query
+- **#159 module-registry** — `assertModuleRegistryConsistency` test
+- **#167 integration tests** — test coverage gaps
+- **#143 connectors** — connector sync hardening
+- **#142 tasks** — task queue fixes
+- **#169 standards** — dev standards enforcement
+- **#150 briefings** — briefing module fixes
+- **#122 API security** — security hardening
+- **#147 email** — email module fixes
+- **#163 web** — web shell fixes
+- **#123 AI** — AI module fixes
+Full details in `docs/coordination/overnight-queue-2026-06-16.md`.
