@@ -351,7 +351,7 @@ describe("Notifications module M5", () => {
       url: "/api/notifications"
     });
 
-    // Wrong scheme ("Basic") → readBearerToken throws "Invalid bearer token" → handleRouteError → 401
+    // Wrong scheme ("Basic") → readBearerToken returns undefined → cookie auth finds no session → 401
     const wrongSchemeResponse = await server.inject({
       method: "GET",
       url: "/api/notifications",
