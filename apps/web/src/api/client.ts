@@ -527,6 +527,7 @@ export interface MemoryFact {
   readonly category: string;
   readonly content: string;
   readonly importance: number;
+  readonly provenance: "volunteered" | "inferred" | "confirmed";
   readonly sourceThreadId: string | null;
   readonly createdAt: string;
 }

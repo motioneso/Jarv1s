@@ -190,7 +190,8 @@ describe("MVP foundation scaffold", () => {
           name: "0087_calendar_events_update_connector_scope.sql"
         },
         { version: "0088", name: "0088_wellness_emotion_taxonomy.sql" },
-        { version: "0089", name: "0089_wellness_therapy_notes.sql" }
+        { version: "0089", name: "0089_wellness_therapy_notes.sql" },
+        { version: "0090", name: "0090_chat_memory_facts_provenance.sql" }
       ]);
     } finally {
       await client.end();

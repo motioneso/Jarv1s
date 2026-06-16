@@ -4,6 +4,7 @@ import type { DataContextDb } from "@jarv1s/db";
 
 export type FactCategory = "preference" | "fact" | "profile" | "goal";
 export type FactStatus = "active" | "superseded";
+export type FactProvenance = "volunteered" | "inferred" | "confirmed";
 
 export interface MemoryFact {
   readonly id: string;
@@ -12,6 +13,7 @@ export interface MemoryFact {
   readonly content: string;
   readonly sourceThreadId: string | null;
   readonly importance: number;
+  readonly provenance: FactProvenance;
   readonly status: FactStatus;
   readonly supersededAt: Date | null;
   readonly createdAt: Date;
@@ -23,6 +25,7 @@ export interface NewFactData {
   readonly content: string;
   readonly sourceThreadId?: string;
   readonly importance?: number;
+  readonly provenance?: FactProvenance;
 }
 
 export class ChatMemoryFactsRepository {
@@ -38,17 +41,19 @@ export class ChatMemoryFactsRepository {
       content: string;
       source_thread_id: string | null;
       importance: number;
+      provenance: FactProvenance;
       status: FactStatus;
       superseded_at: Date | null;
       created_at: Date;
       updated_at: Date;
     }>`
       INSERT INTO app.chat_memory_facts
-        (owner_user_id, category, content, source_thread_id, importance)
+        (owner_user_id, category, content, source_thread_id, importance, provenance)
       VALUES
         (${ownerUserId}::uuid, ${data.category}, ${data.content},
          ${data.sourceThreadId ?? null}::uuid,
-         ${data.importance ?? 0.5})
+         ${data.importance ?? 0.5},
+         ${data.provenance ?? "inferred"}::app.provenance_kind)
       RETURNING *
     `.execute(scopedDb.db);
 
@@ -70,6 +75,7 @@ export class ChatMemoryFactsRepository {
       content: string;
       source_thread_id: string | null;
       importance: number;
+      provenance: FactProvenance;
       status: FactStatus;
       superseded_at: Date | null;
       created_at: Date;
@@ -118,6 +124,7 @@ export class ChatMemoryFactsRepository {
     importance: number;
     status: FactStatus;
     superseded_at: Date | null;
+    provenance: FactProvenance;
     created_at: Date;
     updated_at: Date;
   }): MemoryFact {
@@ -128,6 +135,7 @@ export class ChatMemoryFactsRepository {
       content: r.content,
       sourceThreadId: r.source_thread_id,
       importance: Number(r.importance),
+      provenance: r.provenance,
       status: r.status,
       supersededAt: r.superseded_at,
       createdAt: r.created_at,
