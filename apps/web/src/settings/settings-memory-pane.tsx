@@ -1,16 +1,19 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Trash2 } from "lucide-react";
+import { Check, Trash2, X } from "lucide-react";
 
 import {
+  confirmMemoryFact,
   deleteMemoryFact,
   getMemoryFacts,
   getMemorySettings,
   patchMemorySettings,
+  rejectMemoryFact,
   type MemoryFact,
   type MemorySettings
 } from "../api/client";
 import { queryKeys } from "../api/query-keys";
+import { partitionMemoryFacts } from "./memory-facts-view";
 import { getMemoryFactProvenanceLabel, getMemoryFactProvenanceTone } from "./memory-provenance";
 import { useFeedback } from "./settings-feedback";
 import { readError, type PaneProps } from "./settings-types";
@@ -20,6 +23,7 @@ export function MemoryPane(_props: PaneProps) {
   const queryClient = useQueryClient();
   const { toast, confirm } = useFeedback();
   const [expanded, setExpanded] = useState(false);
+  const [inferredExpanded, setInferredExpanded] = useState(false);
 
   const settingsQuery = useQuery({
     queryKey: queryKeys.chat.memorySettings,
@@ -44,10 +48,27 @@ export function MemoryPane(_props: PaneProps) {
     },
     onError: (error) => toast(readError(error), { tone: "drift" })
   });
+  const confirmMutation = useMutation({
+    mutationFn: (id: string) => confirmMemoryFact(id),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: queryKeys.chat.memoryFacts });
+      toast("Pattern confirmed");
+    },
+    onError: (error) => toast(readError(error), { tone: "drift" })
+  });
+  const rejectMutation = useMutation({
+    mutationFn: (id: string) => rejectMemoryFact(id),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: queryKeys.chat.memoryFacts });
+      toast("Pattern rejected");
+    },
+    onError: (error) => toast(readError(error), { tone: "drift" })
+  });
 
   const settings = settingsQuery.data;
   const facts: MemoryFact[] = factsQuery.data?.facts ?? [];
-  const factCount = facts.length;
+  const { remembered: rememberedFacts, inferred: inferredFacts } = partitionMemoryFacts(facts);
+  const factCount = rememberedFacts.length;
 
   function handleForget(fact: MemoryFact) {
     const preview = fact.content.length > 120 ? `${fact.content.slice(0, 120)}…` : fact.content;
@@ -57,6 +78,17 @@ export function MemoryPane(_props: PaneProps) {
       confirmLabel: "Forget",
       danger: true,
       onConfirm: () => deleteMutation.mutate(fact.id)
+    });
+  }
+
+  function handleReject(fact: MemoryFact) {
+    const preview = fact.content.length > 120 ? `${fact.content.slice(0, 120)}…` : fact.content;
+    confirm({
+      title: "Reject this pattern?",
+      description: preview,
+      confirmLabel: "Reject",
+      danger: true,
+      onConfirm: () => rejectMutation.mutate(fact.id)
     });
   }
 
@@ -108,8 +140,50 @@ export function MemoryPane(_props: PaneProps) {
         <Row
           name="Inferred patterns"
           desc="Guesses from your behaviour, awaiting your yes or no."
-          coming
+          control={
+            <button
+              type="button"
+              className="jds-btn jds-btn--quiet jds-btn--sm"
+              onClick={() => setInferredExpanded((v) => !v)}
+            >
+              {inferredExpanded ? "Hide" : `Review (${inferredFacts.length})`}
+            </button>
+          }
         />
+        {inferredExpanded ? (
+          <div className="memory-facts-list">
+            {inferredFacts.length === 0 ? (
+              <p className="memory-facts-empty">No inferred patterns waiting.</p>
+            ) : (
+              inferredFacts.map((fact) => (
+                <div key={fact.id} className="memory-fact">
+                  <span className="memory-fact__category">{fact.category}</span>
+                  <span className="memory-fact__content">{fact.content}</span>
+                  <span className="memory-fact__actions">
+                    <button
+                      type="button"
+                      className="jds-btn jds-btn--quiet jds-btn--sm"
+                      aria-label={`Confirm inferred pattern: ${fact.content}`}
+                      onClick={() => confirmMutation.mutate(fact.id)}
+                      disabled={confirmMutation.isPending || rejectMutation.isPending}
+                    >
+                      <Check size={14} />
+                    </button>
+                    <button
+                      type="button"
+                      className="jds-btn jds-btn--quiet jds-btn--sm"
+                      aria-label={`Reject inferred pattern: ${fact.content}`}
+                      onClick={() => handleReject(fact)}
+                      disabled={confirmMutation.isPending || rejectMutation.isPending}
+                    >
+                      <X size={14} />
+                    </button>
+                  </span>
+                </div>
+              ))
+            )}
+          </div>
+        ) : null}
         <Row
           name="Corrections"
           desc="Times you've put Jarvis right. It learns from every one."
@@ -133,10 +207,10 @@ export function MemoryPane(_props: PaneProps) {
         />
         {expanded ? (
           <div className="memory-facts-list">
-            {facts.length === 0 ? (
-              <p className="memory-facts-empty">No memories stored yet.</p>
+            {rememberedFacts.length === 0 ? (
+              <p className="memory-facts-empty">No remembered facts stored yet.</p>
             ) : (
-              facts.map((fact) => (
+              rememberedFacts.map((fact) => (
                 <div key={fact.id} className="memory-fact">
                   <span className="memory-fact__category">{fact.category}</span>
                   <span
