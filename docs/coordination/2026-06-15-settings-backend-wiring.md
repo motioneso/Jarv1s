@@ -376,9 +376,9 @@ time**, and rebase the migration number before merge to avoid hash-conflict coll
 - **#125 db** — **✅ MERGED** into overnight-batch @ 2831ea5 (PR #278 merged, issue #125 closed). CI 3/3 green. Sensitive.
 - **#114 vault/secrets** — **SUPERSEDED** (`assertNoSymlinkEscape` in vault-ops.ts already does full realpath walk; GCM: already fixed in secret-cipher.ts).
 - **#117 RLS** — **SUPERSEDED** (migration 0059_admin_tables_rls.sql already has ENABLE+FORCE RLS on instance_settings and admin_audit_events).
-- **#146 memory** — **building** (worktree `.claude/worktrees/memory-146`, branch `memory-146`). Live: RLS policies for `chat_memory_facts` need `TO jarvis_app_runtime, jarvis_worker_runtime` clauses (new migration, claim number at merge). Agent: `Memory-146`, Codex.
-- **OnboardingProviderCheck** (Codex pane, resolve by label `OnboardingProviderCheck-2`) — working in main worktree on branch `onboarding-provider-check-2026-06-16`. Stage only `apps/web/src/onboarding/**`. Do NOT disturb. Owns onboarding/**; ban all dev lane edits there.
-- **GeminiCopyPass** — integrate LAST after all dev lanes. Branch `overnight-copy-pass-2026-06-16`, worktree `copy-pass`.
-- **Migration counter** — next free = 0094. Claim at merge not author time.
+- **#146 memory** — **building** (worktree `.claude/worktrees/memory-146`, branch `memory-146`). Live: RLS policies for `chat_memory_facts` need `TO jarvis_app_runtime, jarvis_worker_runtime` clauses (new migration, claim number at merge). Agent: `Memory-146` pane resolved by label, Codex. Gate running (approve sandbox prompts as they appear).
+- **OnboardingProviderCheck** — **PR #279 open** (`onboarding-provider-check-2026-06-16 → overnight-batch`). ⚠️ Includes coordination doc + plan files (swept in due to shared-worktree soft-reset collision — functionally correct on branch). Needs Ben review before integrating (feature, not OTNR fix; touches shared files: settings/routes.ts, module-registry, shared/platform-api). Integrate AFTER all OTNR dev lanes and BEFORE GeminiCopyPass.
+- **GeminiCopyPass** — integrate LAST. Branch `overnight-copy-pass-2026-06-16`, worktree `copy-pass`.
+- **Migration counter** — next free = 0094. Claim at merge not author time. ⚠️ Memory-146 migration uses placeholder 0094 — rebase to real number before integrating.
 - **THERMAL** — strict one-gate-at-a-time. `nice -n 15` prefix on gate spawns. Alert at sustained ≥96°C.
 - **Per-merge digest to Ben:** PR #274 (sensitive, QA green, migration 0091); PR #276 (routine, QA green, auth hardening fix).
