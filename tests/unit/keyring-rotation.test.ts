@@ -222,6 +222,19 @@ describe("resolveKeyring — legacyCandidates", () => {
     expect(keyring.legacyCandidates[0]).toEqual(makeKeyBuffer("new-secret")); // current first
     expect(keyring.legacyCandidates[1]).toEqual(makeKeyBuffer("old-secret")); // retired second
   });
+
+  it("does not duplicate or overwrite current key when retired keys include current id", () => {
+    const keyring = resolveKeyring("K", "KID", "KS", "dev-default", {
+      K: "new-secret",
+      KID: "v2",
+      KS: JSON.stringify({ v1: "old-secret", v2: "stale-duplicate-current-secret" })
+    } as NodeJS.ProcessEnv);
+
+    expect(keyring.keys.get("v2")).toEqual(makeKeyBuffer("new-secret"));
+    expect(keyring.legacyCandidates).toHaveLength(2);
+    expect(keyring.legacyCandidates[0]).toEqual(makeKeyBuffer("new-secret")); // current first
+    expect(keyring.legacyCandidates[1]).toEqual(makeKeyBuffer("old-secret")); // retired second
+  });
 });
 
 // ---------------------------------------------------------------------------
