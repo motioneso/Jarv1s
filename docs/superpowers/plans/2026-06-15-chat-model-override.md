@@ -36,6 +36,7 @@ Existing AI config rows are owner-scoped. The approved spec says "admin-configur
 ## Task 1: Pure Resolver
 
 **Files:**
+
 - Create: `tests/unit/ai-chat-model-override.test.ts`
 - Create: `packages/ai/src/chat-model-override.ts`
 - Modify: `packages/ai/src/index.ts`
@@ -43,6 +44,7 @@ Existing AI config rows are owner-scoped. The approved spec says "admin-configur
 - [ ] **Step 1: Write failing truth-table tests**
 
 Cover these test names:
+
 - `returns default when global override is disabled`
 - `returns override when global override is enabled and model is allowed`
 - `returns default when override model is disallowed`
@@ -50,6 +52,7 @@ Cover these test names:
 - `keeps instance default selectable even when its allow flag is false`
 
 Run:
+
 ```bash
 pnpm test:unit -- tests/unit/ai-chat-model-override.test.ts
 ```
@@ -63,6 +66,7 @@ Create `resolveChatModelOverride(input)` with inputs: `defaultModel`, `requested
 - [ ] **Step 3: Verify green**
 
 Run:
+
 ```bash
 pnpm test:unit -- tests/unit/ai-chat-model-override.test.ts
 ```
@@ -81,6 +85,7 @@ Co-Authored-By: Claude Sonnet 4.6 <noreply@anthropic.com>"
 ## Task 2: DB + Shared Contract
 
 **Files:**
+
 - Modify: `docs/superpowers/specs/2026-06-15-chat-model-override.md` only if untracked
 - Create: `packages/ai/sql/0091_chat_model_override.sql`
 - Modify: `packages/ai/src/manifest.ts`
@@ -93,6 +98,7 @@ Co-Authored-By: Claude Sonnet 4.6 <noreply@anthropic.com>"
 In `tests/integration/ai.test.ts`, add assertions that migration `0091_chat_model_override.sql` applies, `app.ai_configured_models.allow_user_override` exists with default true, model DTOs include `allowUserOverride`, create defaults it to true, PATCH can set false, non-admin model writes return 403, and non-admin safe reads do not contain `encrypted_credential`/`ciphertext`.
 
 Run:
+
 ```bash
 JARVIS_PGDATABASE=jarvis_build_chatmodel241 pnpm test:ai
 ```
@@ -102,6 +108,7 @@ Expected: FAIL because migration/DTO/schema fields are absent and non-admin writ
 - [ ] **Step 2: Add migration**
 
 `0091_chat_model_override.sql` must:
+
 - `ALTER TABLE app.ai_configured_models ADD COLUMN IF NOT EXISTS allow_user_override boolean NOT NULL DEFAULT true;`
 - Replace `ai_provider_configs_select` and `ai_configured_models_select` to allow authenticated reads for `jarvis_app_runtime` and `jarvis_worker_runtime`.
 - Replace insert/update policies on both AI config tables so `app.current_actor_is_admin()` is required for writes.
@@ -114,6 +121,7 @@ Add `allow_user_override` to `AiConfiguredModelsTable`; add `allowUserOverride` 
 - [ ] **Step 4: Verify focused green**
 
 Run:
+
 ```bash
 JARVIS_PGDATABASE=jarvis_build_chatmodel241 pnpm db:migrate
 JARVIS_PGDATABASE=jarvis_build_chatmodel241 pnpm test:ai
@@ -133,6 +141,7 @@ Co-Authored-By: Claude Sonnet 4.6 <noreply@anthropic.com>"
 ## Task 3: Repository + Routes
 
 **Files:**
+
 - Modify: `packages/ai/src/repository.ts`
 - Modify: `packages/ai/src/routes.ts`
 - Modify: `packages/ai/src/manifest.ts`
@@ -141,6 +150,7 @@ Co-Authored-By: Claude Sonnet 4.6 <noreply@anthropic.com>"
 - [ ] **Step 1: Write failing route/resolution tests**
 
 Add tests for:
+
 - `GET /api/ai/chat-model-override` default OFF returns default model, no picker, and current override null.
 - `PUT /api/admin/ai/chat-model-override` toggles global setting and rejects non-admin with 403.
 - `PUT /api/ai/chat-model-override` persists user A override and user B sees null.
@@ -148,6 +158,7 @@ Add tests for:
 - Disallowing/removing selected model silently falls back to default.
 
 Run:
+
 ```bash
 JARVIS_PGDATABASE=jarvis_build_chatmodel241 pnpm test:ai
 ```
@@ -161,6 +172,7 @@ Add constants for setting/preference keys, `getChatModelOverrideSettings`, `setC
 - [ ] **Step 3: Implement routes**
 
 Add:
+
 - `GET /api/ai/chat-model-override` for current user.
 - `PUT /api/ai/chat-model-override` with `{ modelId: string | null }`.
 - `PUT /api/admin/ai/chat-model-override` with `{ enabled: boolean }`.
@@ -170,6 +182,7 @@ Admin-gate existing provider/model POST/PATCH/revoke routes before writes. Seria
 - [ ] **Step 4: Verify focused green**
 
 Run:
+
 ```bash
 JARVIS_PGDATABASE=jarvis_build_chatmodel241 pnpm test:ai
 ```
@@ -188,6 +201,7 @@ Co-Authored-By: Claude Sonnet 4.6 <noreply@anthropic.com>"
 ## Task 4: Live Chat Uses Override
 
 **Files:**
+
 - Modify: `packages/chat/src/live/persistence.ts`
 - Test: `tests/integration/chat-live-api.test.ts`
 
@@ -196,6 +210,7 @@ Co-Authored-By: Claude Sonnet 4.6 <noreply@anthropic.com>"
 Seed admin provider/models `claude-default` and `claude-override`, enable global override, set user A override to `claude-override`, submit `/api/chat/turn`, then assert assistant message metadata executed model is `claude-override`. Add a second assertion that when global OFF the executed model is default.
 
 Run:
+
 ```bash
 JARVIS_PGDATABASE=jarvis_build_chatmodel241 vitest run tests/integration/chat-live-api.test.ts
 ```
@@ -209,6 +224,7 @@ Change `DataContextChatPersistence.resolveActiveProvider` to call `this.ai.selec
 - [ ] **Step 3: Verify focused green**
 
 Run:
+
 ```bash
 JARVIS_PGDATABASE=jarvis_build_chatmodel241 vitest run tests/integration/chat-live-api.test.ts
 ```
@@ -227,6 +243,7 @@ Co-Authored-By: Claude Sonnet 4.6 <noreply@anthropic.com>"
 ## Task 5: Web Client + UI
 
 **Files:**
+
 - Modify: `apps/web/src/api/client.ts`
 - Modify: `apps/web/src/api/query-keys.ts`
 - Modify: `apps/web/src/settings/settings-ai-admin-pane.tsx`
@@ -235,6 +252,7 @@ Co-Authored-By: Claude Sonnet 4.6 <noreply@anthropic.com>"
 - [ ] **Step 1: Run typecheck before UI edit**
 
 Run:
+
 ```bash
 pnpm typecheck
 ```
@@ -256,6 +274,7 @@ Remove localStorage state, `CHAT_MODEL_STORAGE_KEY`, `NotWired`, and backend TOD
 - [ ] **Step 5: Verify focused frontend**
 
 Run:
+
 ```bash
 pnpm typecheck
 pnpm lint

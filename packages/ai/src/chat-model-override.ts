@@ -26,9 +26,8 @@ export function resolveChatModelOverride<T extends ChatModelOverrideCandidate>(
   input: ResolveChatModelOverrideInput<T>
 ): ResolveChatModelOverrideResult<T> {
   const candidates = input.models.filter(isActiveChatModel);
-  const defaultModel = input.defaultModel && isActiveChatModel(input.defaultModel)
-    ? input.defaultModel
-    : null;
+  const defaultModel =
+    input.defaultModel && isActiveChatModel(input.defaultModel) ? input.defaultModel : null;
   const allowed = candidates.filter((model) => model.allowUserOverride);
   const allowedModels =
     defaultModel && !allowed.some((model) => model.id === defaultModel.id)

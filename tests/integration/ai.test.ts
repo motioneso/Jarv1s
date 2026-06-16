@@ -367,7 +367,9 @@ describe("AI provider foundation", () => {
       }
     });
     expect(userModels.statusCode).toBe(200);
-    expect(userModels.json<{ models: Array<{ id: string; allowUserOverride: boolean }> }>().models).toContainEqual(
+    expect(
+      userModels.json<{ models: Array<{ id: string; allowUserOverride: boolean }> }>().models
+    ).toContainEqual(
       expect.objectContaining({
         id: modelId,
         allowUserOverride: true

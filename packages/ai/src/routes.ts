@@ -349,9 +349,8 @@ export function registerAiRoutes(
     async (request, reply) => {
       try {
         const accessContext = await dependencies.resolveAccessContext(request);
-        const settings = await dependencies.dataContext.withDataContext(
-          accessContext,
-          (scopedDb) => repository.getChatModelOverrideSettings(scopedDb)
+        const settings = await dependencies.dataContext.withDataContext(accessContext, (scopedDb) =>
+          repository.getChatModelOverrideSettings(scopedDb)
         );
 
         return { settings: serializeChatModelOverrideSettings(settings) };

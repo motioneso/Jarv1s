@@ -19,7 +19,7 @@ yet.
 1. **Global admin toggle** "Allow users to override their chat model" — instance-level, **default
    OFF**. OFF ⇒ the user pane shows a **read-only** line (the instance default model), no picker.
 2. **Per-model allow flag** — only relevant when the global toggle is ON. **Default: every
-   chat-capable model is available for override.** The admin can toggle *individual* models OFF to
+   chat-capable model is available for override.** The admin can toggle _individual_ models OFF to
    exclude them (e.g. a costly subscription model). Rationale: one switch to enable; per-model
    exclusions are opt-in so the admin never has to micromanage.
 3. **User override** — when allowed, the user picks from the allowed set (the instance default is
