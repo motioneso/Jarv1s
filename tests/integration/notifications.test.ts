@@ -28,7 +28,8 @@ const { Client } = pg;
 const notificationIds = {
   aPrivate: "60000000-0000-4000-8000-000000000001",
   bPrivate: "60000000-0000-4000-8000-000000000002",
-  aWorkspaceSeed: "60000000-0000-4000-8000-000000000003"
+  aWorkspaceSeed: "60000000-0000-4000-8000-000000000003",
+  forgedForUserA: "60000000-0000-4000-8000-000000000004"
 } as const;
 
 describe("Notifications module M5", () => {
@@ -188,6 +189,24 @@ describe("Notifications module M5", () => {
 
   it("denies notification reads when no data context is set", async () => {
     await expect(appDb.selectFrom("app.notifications").select("id").execute()).resolves.toEqual([]);
+  });
+
+  it("forbids inserting a notification that claims another actor and recipient", async () => {
+    await expect(
+      dataContext.withDataContext(userBContext(), (scopedDb) =>
+        scopedDb.db
+          .insertInto("app.notifications")
+          .values({
+            id: notificationIds.forgedForUserA,
+            actor_user_id: ids.userA,
+            recipient_user_id: ids.userA,
+            title: "Forged cross-actor notification",
+            body: "User B must not create this for User A",
+            metadata: { source: "integration-test" }
+          })
+          .execute()
+      )
+    ).rejects.toThrow(/row-level security/i);
   });
 
   it("creates private notifications for the active actor by default", async () => {
