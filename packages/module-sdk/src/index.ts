@@ -175,7 +175,7 @@ export interface ModuleDatabaseManifest {
 }
 
 export interface ModuleRouteManifest {
-  readonly method: "GET" | "POST" | "PATCH" | "DELETE";
+  readonly method: "GET" | "POST" | "PATCH" | "PUT" | "DELETE";
   readonly path: string;
   readonly requestSchema?: JsonSchema;
   readonly responseSchema?: JsonSchema;

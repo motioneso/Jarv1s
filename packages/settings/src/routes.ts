@@ -47,9 +47,10 @@ import { HttpError, handleRouteError as handleModuleRouteError } from "@jarv1s/m
 
 import { deleteUserData, LastActiveAdminError } from "../../../scripts/delete-user-data.js";
 import { BootstrapHelper } from "./bootstrap.js";
+import { registerLocaleRoutes } from "./locale-routes.js";
 import { HttpRepositoryError, SettingsRepository } from "./repository.js";
 
-interface ProfilePreferencesPort {
+export interface ProfilePreferencesPort {
   get(scopedDb: DataContextDb, key: string): Promise<unknown>;
   upsert(scopedDb: DataContextDb, key: string, value: unknown): Promise<void>;
 }
@@ -92,7 +93,7 @@ export function registerSettingsRoutes(
     upsert: async () => undefined
   };
   const bootstrapHelper = new BootstrapHelper(dependencies.rootDb);
-
+  registerLocaleRoutes(server, { ...dependencies, preferencesRepository });
   server.get("/api/bootstrap/status", { schema: bootstrapStatusRouteSchema }, async () => {
     // Return only the boolean the client needs. The raw user count is an instance-wide
     // metric exposed on an UNAUTHENTICATED route — do not leak it (OTNR-P4 #122).

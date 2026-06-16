@@ -13,8 +13,11 @@ import type {
   BootstrapStatusResponse,
   ChatMultiplexerChoice,
   ChatMultiplexerSettingsDto,
+  GetLocaleSettingsResponse,
   ListUsersResponse,
   RegistrationSettingsDto,
+  PutLocaleSettingsRequest,
+  PutLocaleSettingsResponse,
   UserDto,
   BreakdownTaskRequest,
   BreakdownTaskResponse,
@@ -135,6 +138,19 @@ export async function getMe(): Promise<MeResponse> {
 export async function updateMyProfile(body: PatchMeProfileRequest): Promise<MeResponse> {
   return requestJson<MeResponse>("/api/me/profile", {
     method: "PATCH",
+    body
+  });
+}
+
+export async function getLocaleSettings(): Promise<GetLocaleSettingsResponse> {
+  return requestJson<GetLocaleSettingsResponse>("/api/me/locale");
+}
+
+export async function putLocaleSettings(
+  body: PutLocaleSettingsRequest
+): Promise<PutLocaleSettingsResponse> {
+  return requestJson<PutLocaleSettingsResponse>("/api/me/locale", {
+    method: "PUT",
     body
   });
 }

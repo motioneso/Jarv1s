@@ -1,0 +1,102 @@
+import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
+
+import type { AccessContext, DataContextRunner } from "@jarv1s/db";
+import {
+  getLocaleSettingsRouteSchema,
+  putLocaleSettingsRouteSchema,
+  type LocaleDateFormat,
+  type LocaleSettingsDto,
+  type PutLocaleSettingsRequest
+} from "@jarv1s/shared";
+import { handleRouteError, HttpError } from "@jarv1s/module-sdk";
+
+import type { ProfilePreferencesPort } from "./routes.js";
+
+const LOCALE_PREFERENCE_KEY = "locale";
+const DEFAULT_LOCALE_SETTINGS: LocaleSettingsDto = {
+  timezone: "America/Los_Angeles",
+  region: "en-US",
+  dateFormat: "24"
+};
+
+interface LocaleRoutesDependencies {
+  readonly dataContext: DataContextRunner;
+  readonly resolveAccessContext: (request: FastifyRequest) => Promise<AccessContext>;
+  readonly preferencesRepository: ProfilePreferencesPort;
+}
+
+export function registerLocaleRoutes(
+  server: FastifyInstance,
+  dependencies: LocaleRoutesDependencies
+): void {
+  server.get("/api/me/locale", { schema: getLocaleSettingsRouteSchema }, async (request, reply) => {
+    try {
+      const accessContext = await dependencies.resolveAccessContext(request);
+      const locale = await dependencies.dataContext.withDataContext(accessContext, (scopedDb) =>
+        dependencies.preferencesRepository.get(scopedDb, LOCALE_PREFERENCE_KEY)
+      );
+      return { locale: normalizeLocale(locale) };
+    } catch (error) {
+      return handleSettingsRouteError(error, reply);
+    }
+  });
+
+  server.put("/api/me/locale", { schema: putLocaleSettingsRouteSchema }, async (request, reply) => {
+    try {
+      const accessContext = await dependencies.resolveAccessContext(request);
+      const body = request.body as PutLocaleSettingsRequest;
+      const locale = sanitizeLocale(body.locale);
+      await dependencies.dataContext.withDataContext(accessContext, (scopedDb) =>
+        dependencies.preferencesRepository.upsert(scopedDb, LOCALE_PREFERENCE_KEY, locale)
+      );
+      return { locale };
+    } catch (error) {
+      return handleSettingsRouteError(error, reply);
+    }
+  });
+}
+
+function normalizeLocale(value: unknown): LocaleSettingsDto {
+  if (!value || typeof value !== "object") return DEFAULT_LOCALE_SETTINGS;
+  const record = value as Record<string, unknown>;
+  const timezone =
+    typeof record.timezone === "string" && record.timezone.length <= 100 && record.timezone.trim()
+      ? record.timezone
+      : DEFAULT_LOCALE_SETTINGS.timezone;
+  const region =
+    typeof record.region === "string" && record.region.length <= 35 && record.region.trim()
+      ? record.region
+      : DEFAULT_LOCALE_SETTINGS.region;
+  const dateFormat = isLocaleDateFormat(record.dateFormat)
+    ? record.dateFormat
+    : DEFAULT_LOCALE_SETTINGS.dateFormat;
+  return { timezone, region, dateFormat };
+}
+
+function sanitizeLocale(locale: LocaleSettingsDto): LocaleSettingsDto {
+  const timezone = locale.timezone.trim();
+  const region = locale.region.trim();
+  if (timezone.length === 0) throw new HttpError(400, "Time zone is required");
+  if (region.length === 0) throw new HttpError(400, "Language and region is required");
+  return { timezone, region, dateFormat: locale.dateFormat };
+}
+
+function isLocaleDateFormat(value: unknown): value is LocaleDateFormat {
+  return value === "24" || value === "12";
+}
+
+function handleSettingsRouteError(error: unknown, reply: FastifyReply) {
+  return handleRouteError(error, reply, {
+    mappers: [
+      (e, r) => {
+        if (e instanceof Error) {
+          const code = (e as Error & { code?: string }).code;
+          if (code === "account_pending_approval" || code === "account_deactivated") {
+            return r.code(403).send({ error: e.message, code });
+          }
+        }
+        return undefined;
+      }
+    ]
+  });
+}
