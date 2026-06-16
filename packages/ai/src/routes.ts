@@ -21,12 +21,15 @@ import type { ActiveModulesResolver } from "./gateway/types.js";
 import {
   createAiConfiguredModelRouteSchema,
   createAiProviderConfigRouteSchema,
+  getChatModelOverrideSettingsRouteSchema,
   invokeAiAssistantToolRouteSchema,
   listAiAssistantActionsRouteSchema,
   listAiAssistantToolsRouteSchema,
   listAiConfiguredModelsRouteSchema,
   listAiProviderConfigsRouteSchema,
   lookupAiCapabilityRouteRouteSchema,
+  putAdminChatModelOverrideSettingsRouteSchema,
+  putChatModelOverrideSettingsRouteSchema,
   resolveAiAssistantActionRouteSchema,
   revokeAiProviderConfigRouteSchema,
   updateAiConfiguredModelRouteSchema,
@@ -47,6 +50,8 @@ import {
   type CreateAiConfiguredModelRequest,
   type CreateAiProviderConfigRequest,
   type InvokeAiAssistantToolRequest,
+  type PutAdminChatModelOverrideRequest,
+  type PutChatModelOverrideRequest,
   type ResolveAiAssistantActionRequest,
   type UpdateAiConfiguredModelRequest,
   type UpdateAiProviderConfigRequest
@@ -62,6 +67,7 @@ import { createAiSecretCipher, type AiSecretCipher } from "./crypto.js";
 import {
   AiRepository,
   type AiAssistantActionRequestSafeRow,
+  type ChatModelOverrideSettings,
   type AiConfiguredModelSafeRow,
   type AiProviderConfigSafeRow
 } from "./repository.js";
@@ -338,6 +344,78 @@ export function registerAiRoutes(
   );
 
   server.get(
+    "/api/ai/chat-model-override",
+    { schema: getChatModelOverrideSettingsRouteSchema },
+    async (request, reply) => {
+      try {
+        const accessContext = await dependencies.resolveAccessContext(request);
+        const settings = await dependencies.dataContext.withDataContext(
+          accessContext,
+          (scopedDb) => repository.getChatModelOverrideSettings(scopedDb)
+        );
+
+        return { settings: serializeChatModelOverrideSettings(settings) };
+      } catch (error) {
+        return handleRouteError(error, reply);
+      }
+    }
+  );
+
+  server.put(
+    "/api/ai/chat-model-override",
+    { schema: putChatModelOverrideSettingsRouteSchema },
+    async (request, reply) => {
+      try {
+        const accessContext = await dependencies.resolveAccessContext(request);
+        const body = parsePutChatModelOverrideBody(request.body);
+        const settings = await dependencies.dataContext.withDataContext(
+          accessContext,
+          async (scopedDb) => {
+            if (body.modelId !== null) {
+              const current = await repository.getChatModelOverrideSettings(scopedDb);
+              const allowed = current.allowedModels.some((model) => model.id === body.modelId);
+              if (!current.overrideEnabled || !allowed) {
+                throw new HttpError(400, "Chat model override is not allowed for this model");
+              }
+            }
+
+            return repository.setChatModelOverridePreference(scopedDb, body.modelId);
+          }
+        );
+
+        return { settings: serializeChatModelOverrideSettings(settings) };
+      } catch (error) {
+        return handleRouteError(error, reply);
+      }
+    }
+  );
+
+  server.put(
+    "/api/admin/ai/chat-model-override",
+    { schema: putAdminChatModelOverrideSettingsRouteSchema },
+    async (request, reply) => {
+      try {
+        const accessContext = await dependencies.resolveAccessContext(request);
+        const body = parsePutAdminChatModelOverrideBody(request.body);
+        const settings = await dependencies.dataContext.withDataContext(
+          accessContext,
+          async (scopedDb) => {
+            await assertInstanceAdmin(repository, scopedDb, accessContext.actorUserId);
+            return repository.setChatModelOverrideEnabled(scopedDb, {
+              enabled: body.enabled,
+              actorUserId: accessContext.actorUserId
+            });
+          }
+        );
+
+        return { settings: serializeChatModelOverrideSettings(settings) };
+      } catch (error) {
+        return handleRouteError(error, reply);
+      }
+    }
+  );
+
+  server.get(
     "/api/ai/assistant-actions",
     { schema: listAiAssistantActionsRouteSchema },
     async (request, reply) => {
@@ -587,6 +665,24 @@ function parseResolveAssistantActionBody(body: unknown): ResolveAiAssistantActio
   };
 }
 
+function parsePutChatModelOverrideBody(body: unknown): PutChatModelOverrideRequest {
+  const value = requireObject(body);
+  const modelId = value.modelId;
+  if (modelId !== null && typeof modelId !== "string") {
+    throw new HttpError(400, "modelId must be a string or null");
+  }
+
+  return { modelId };
+}
+
+function parsePutAdminChatModelOverrideBody(body: unknown): PutAdminChatModelOverrideRequest {
+  const value = requireObject(body);
+
+  return {
+    enabled: requiredBoolean(value.enabled, "enabled")
+  };
+}
+
 function requiredResolvableAssistantActionStatus(
   value: unknown
 ): Exclude<AiAssistantActionStatus, "pending"> {
@@ -683,6 +779,17 @@ function serializeModel(model: AiConfiguredModelSafeRow): AiConfiguredModelDto {
   };
 }
 
+function serializeChatModelOverrideSettings(settings: ChatModelOverrideSettings) {
+  return {
+    overrideEnabled: settings.overrideEnabled,
+    currentOverrideModelId: settings.currentOverrideModelId,
+    effectiveOverrideModelId: settings.effectiveOverrideModelId,
+    defaultModel: settings.defaultModel ? serializeModel(settings.defaultModel) : null,
+    selectedModel: settings.selectedModel ? serializeModel(settings.selectedModel) : null,
+    allowedModels: settings.allowedModels.map(serializeModel)
+  };
+}
+
 function requireObject(value: unknown): Record<string, unknown> {
   if (!value || typeof value !== "object" || Array.isArray(value)) {
     throw new HttpError(400, "Expected JSON object body");
@@ -742,6 +849,15 @@ function optionalBoolean(value: unknown, fieldName: string): boolean | undefined
   }
 
   return value;
+}
+
+function requiredBoolean(value: unknown, fieldName: string): boolean {
+  const parsed = optionalBoolean(value, fieldName);
+  if (parsed === undefined) {
+    throw new HttpError(400, `${fieldName} is required`);
+  }
+
+  return parsed;
 }
 
 function requiredProviderKind(value: unknown, fieldName: string): AiProviderKind {

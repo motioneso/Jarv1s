@@ -6,6 +6,7 @@ import {
   createAiConfiguredModelResponseSchema,
   createAiProviderConfigRequestSchema,
   createAiProviderConfigResponseSchema,
+  getChatModelOverrideSettingsResponseSchema,
   invokeAiAssistantToolRequestSchema,
   invokeAiAssistantToolResponseSchema,
   listAiAssistantActionsResponseSchema,
@@ -13,6 +14,8 @@ import {
   listAiConfiguredModelsResponseSchema,
   listAiProviderConfigsResponseSchema,
   lookupAiCapabilityRouteResponseSchema,
+  putAdminChatModelOverrideRequestSchema,
+  putChatModelOverrideRequestSchema,
   resolveAiAssistantActionRequestSchema,
   resolveAiAssistantActionResponseSchema,
   revokeAiProviderConfigResponseSchema,
@@ -156,6 +159,26 @@ export const aiModuleManifest = {
       path: "/api/ai/capability-route/:capability",
       responseSchema: lookupAiCapabilityRouteResponseSchema,
       permissionId: "ai.route"
+    },
+    {
+      method: "GET",
+      path: "/api/ai/chat-model-override",
+      responseSchema: getChatModelOverrideSettingsResponseSchema,
+      permissionId: "ai.view"
+    },
+    {
+      method: "PUT",
+      path: "/api/ai/chat-model-override",
+      requestSchema: putChatModelOverrideRequestSchema,
+      responseSchema: getChatModelOverrideSettingsResponseSchema,
+      permissionId: "ai.route"
+    },
+    {
+      method: "PUT",
+      path: "/api/admin/ai/chat-model-override",
+      requestSchema: putAdminChatModelOverrideRequestSchema,
+      responseSchema: getChatModelOverrideSettingsResponseSchema,
+      permissionId: "ai.manage"
     },
     {
       method: "GET",

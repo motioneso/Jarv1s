@@ -19,6 +19,12 @@ import {
 import type { AiModelCapability } from "@jarv1s/shared";
 
 import type { EncryptedAiSecret } from "./crypto.js";
+import {
+  CHAT_MODEL_OVERRIDE_PREFERENCE_KEY,
+  CHAT_MODEL_OVERRIDE_SETTING_KEY,
+  resolveChatModelOverride,
+  type ChatModelOverrideCandidate
+} from "./chat-model-override.js";
 
 export interface AiProviderConfigSafeRow {
   readonly id: string;
@@ -107,6 +113,15 @@ export interface CreateAiAssistantActionInput {
 
 export interface ResolveAiAssistantActionInput {
   readonly status: Exclude<AiAssistantActionStatus, "pending">;
+}
+
+export interface ChatModelOverrideSettings {
+  readonly overrideEnabled: boolean;
+  readonly currentOverrideModelId: string | null;
+  readonly effectiveOverrideModelId: string | null;
+  readonly defaultModel: AiConfiguredModelSafeRow | null;
+  readonly selectedModel: AiConfiguredModelSafeRow | null;
+  readonly allowedModels: readonly AiConfiguredModelSafeRow[];
 }
 
 export class AiRepository {
@@ -328,6 +343,96 @@ export class AiRepository {
       .executeTakeFirst();
   }
 
+  async selectChatModelForUser(scopedDb: DataContextDb): Promise<AiConfiguredModelSafeRow | null> {
+    const settings = await this.getChatModelOverrideSettings(scopedDb);
+    return settings.selectedModel;
+  }
+
+  async getChatModelOverrideSettings(scopedDb: DataContextDb): Promise<ChatModelOverrideSettings> {
+    assertDataContextDb(scopedDb);
+
+    const [defaultModel, models, overrideEnabled, requestedModelId] = await Promise.all([
+      this.selectModelForCapability(scopedDb, "chat"),
+      this.listModels(scopedDb),
+      this.getChatModelOverrideEnabled(scopedDb),
+      this.getChatModelOverridePreference(scopedDb)
+    ]);
+    const resolved = resolveChatModelOverride({
+      defaultModel: defaultModel ? toOverrideCandidate(defaultModel) : null,
+      requestedModelId,
+      overrideEnabled,
+      models: models.map(toOverrideCandidate)
+    });
+
+    return {
+      overrideEnabled,
+      currentOverrideModelId: requestedModelId,
+      effectiveOverrideModelId: resolved.effectiveOverrideModelId,
+      defaultModel: defaultModel ?? null,
+      selectedModel: resolved.selectedModel,
+      allowedModels: resolved.allowedModels
+    };
+  }
+
+  async setChatModelOverrideEnabled(
+    scopedDb: DataContextDb,
+    input: { readonly enabled: boolean; readonly actorUserId: string }
+  ): Promise<ChatModelOverrideSettings> {
+    assertDataContextDb(scopedDb);
+
+    await scopedDb.db
+      .insertInto("app.instance_settings")
+      .values({
+        key: CHAT_MODEL_OVERRIDE_SETTING_KEY,
+        value: { value: input.enabled },
+        updated_by_user_id: input.actorUserId,
+        created_at: new Date(),
+        updated_at: new Date()
+      })
+      .onConflict((oc) =>
+        oc.column("key").doUpdateSet({
+          value: { value: input.enabled },
+          updated_by_user_id: input.actorUserId,
+          updated_at: new Date()
+        })
+      )
+      .execute();
+
+    return this.getChatModelOverrideSettings(scopedDb);
+  }
+
+  async setChatModelOverridePreference(
+    scopedDb: DataContextDb,
+    modelId: string | null
+  ): Promise<ChatModelOverrideSettings> {
+    assertDataContextDb(scopedDb);
+
+    if (modelId === null) {
+      await scopedDb.db
+        .deleteFrom("app.preferences")
+        .where("key", "=", CHAT_MODEL_OVERRIDE_PREFERENCE_KEY)
+        .execute();
+    } else {
+      await scopedDb.db
+        .insertInto("app.preferences")
+        .values({
+          owner_user_id: sql<string>`app.current_actor_user_id()`,
+          key: CHAT_MODEL_OVERRIDE_PREFERENCE_KEY,
+          value_json: JSON.stringify(modelId),
+          updated_at: new Date()
+        })
+        .onConflict((oc) =>
+          oc.columns(["owner_user_id", "key"]).doUpdateSet({
+            value_json: JSON.stringify(modelId),
+            updated_at: new Date()
+          })
+        )
+        .execute();
+    }
+
+    return this.getChatModelOverrideSettings(scopedDb);
+  }
+
   /**
    * Returns the provider config row including the raw encrypted credential for use
    * in the pg-boss worker (credential is decrypted in-process; never logged or forwarded).
@@ -504,4 +609,33 @@ export class AiRepository {
       .orderBy("requested_at", "desc")
       .orderBy("id");
   }
+
+  private async getChatModelOverrideEnabled(scopedDb: DataContextDb): Promise<boolean> {
+    const row = await scopedDb.db
+      .selectFrom("app.instance_settings")
+      .select("value")
+      .where("key", "=", CHAT_MODEL_OVERRIDE_SETTING_KEY)
+      .executeTakeFirst();
+    const value = (row?.value as { value?: unknown } | undefined)?.value;
+    return typeof value === "boolean" ? value : false;
+  }
+
+  private async getChatModelOverridePreference(scopedDb: DataContextDb): Promise<string | null> {
+    const row = await scopedDb.db
+      .selectFrom("app.preferences")
+      .select("value_json")
+      .where("key", "=", CHAT_MODEL_OVERRIDE_PREFERENCE_KEY)
+      .executeTakeFirst();
+    return typeof row?.value_json === "string" ? row.value_json : null;
+  }
+}
+
+function toOverrideCandidate(
+  model: AiConfiguredModelSafeRow
+): AiConfiguredModelSafeRow & ChatModelOverrideCandidate {
+  return {
+    ...model,
+    providerStatus: model.provider_status,
+    allowUserOverride: model.allow_user_override
+  };
 }

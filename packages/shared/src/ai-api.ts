@@ -171,6 +171,31 @@ export interface LookupAiCapabilityRouteResponse {
   readonly route: AiCapabilityRouteDto;
 }
 
+export interface ChatModelOverrideSettingsDto {
+  readonly overrideEnabled: boolean;
+  readonly currentOverrideModelId: string | null;
+  readonly effectiveOverrideModelId: string | null;
+  readonly defaultModel: AiConfiguredModelDto | null;
+  readonly selectedModel: AiConfiguredModelDto | null;
+  readonly allowedModels: readonly AiConfiguredModelDto[];
+}
+
+export interface GetChatModelOverrideSettingsResponse {
+  readonly settings: ChatModelOverrideSettingsDto;
+}
+
+export interface PutChatModelOverrideRequest {
+  readonly modelId: string | null;
+}
+
+export interface PutChatModelOverrideSettingsResponse {
+  readonly settings: ChatModelOverrideSettingsDto;
+}
+
+export interface PutAdminChatModelOverrideRequest {
+  readonly enabled: boolean;
+}
+
 export interface ListAiAssistantToolsResponse {
   readonly tools: readonly AiAssistantToolDto[];
 }
@@ -568,6 +593,54 @@ export const lookupAiCapabilityRouteResponseSchema = {
   }
 } as const;
 
+const chatModelOverrideSettingsSchema = {
+  type: "object",
+  additionalProperties: false,
+  required: [
+    "overrideEnabled",
+    "currentOverrideModelId",
+    "effectiveOverrideModelId",
+    "defaultModel",
+    "selectedModel",
+    "allowedModels"
+  ],
+  properties: {
+    overrideEnabled: { type: "boolean" },
+    currentOverrideModelId: { type: ["string", "null"] },
+    effectiveOverrideModelId: { type: ["string", "null"] },
+    defaultModel: { anyOf: [aiConfiguredModelSchema, { type: "null" }] },
+    selectedModel: { anyOf: [aiConfiguredModelSchema, { type: "null" }] },
+    allowedModels: { type: "array", items: aiConfiguredModelSchema }
+  }
+} as const;
+
+export const getChatModelOverrideSettingsResponseSchema = {
+  type: "object",
+  additionalProperties: false,
+  required: ["settings"],
+  properties: {
+    settings: chatModelOverrideSettingsSchema
+  }
+} as const;
+
+export const putChatModelOverrideRequestSchema = {
+  type: "object",
+  additionalProperties: false,
+  required: ["modelId"],
+  properties: {
+    modelId: { type: ["string", "null"] }
+  }
+} as const;
+
+export const putAdminChatModelOverrideRequestSchema = {
+  type: "object",
+  additionalProperties: false,
+  required: ["enabled"],
+  properties: {
+    enabled: { type: "boolean" }
+  }
+} as const;
+
 export const listAiAssistantToolsResponseSchema = {
   type: "object",
   additionalProperties: false,
@@ -678,6 +751,33 @@ export const lookupAiCapabilityRouteRouteSchema = {
     200: lookupAiCapabilityRouteResponseSchema,
     400: errorResponseSchema,
     401: errorResponseSchema
+  }
+} as const;
+
+export const getChatModelOverrideSettingsRouteSchema = {
+  response: {
+    200: getChatModelOverrideSettingsResponseSchema,
+    401: errorResponseSchema
+  }
+} as const;
+
+export const putChatModelOverrideSettingsRouteSchema = {
+  body: putChatModelOverrideRequestSchema,
+  response: {
+    200: getChatModelOverrideSettingsResponseSchema,
+    400: errorResponseSchema,
+    401: errorResponseSchema,
+    403: errorResponseSchema
+  }
+} as const;
+
+export const putAdminChatModelOverrideSettingsRouteSchema = {
+  body: putAdminChatModelOverrideRequestSchema,
+  response: {
+    200: getChatModelOverrideSettingsResponseSchema,
+    400: errorResponseSchema,
+    401: errorResponseSchema,
+    403: errorResponseSchema
   }
 } as const;
 

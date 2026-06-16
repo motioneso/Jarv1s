@@ -400,6 +400,182 @@ describe("AI provider foundation", () => {
     expect(providerResponse.statusCode).toBe(403);
   });
 
+  it("persists per-user chat model overrides and falls back when globally disabled or disallowed", async () => {
+    const providerResponse = await server.inject({
+      method: "POST",
+      url: "/api/ai/providers",
+      headers: {
+        authorization: `Bearer ${ids.sessionA}`
+      },
+      payload: {
+        providerKind: "anthropic",
+        displayName: "Override Provider",
+        credentialPayload: {
+          apiKey: "override-secret"
+        }
+      }
+    });
+    const providerId = providerResponse.json<{ provider: { id: string } }>().provider.id;
+    const overrideResponse = await server.inject({
+      method: "POST",
+      url: "/api/ai/models",
+      headers: {
+        authorization: `Bearer ${ids.sessionA}`
+      },
+      payload: {
+        providerConfigId: providerId,
+        providerModelId: "claude-override",
+        displayName: "Claude Override",
+        capabilities: ["chat"]
+      }
+    });
+    const defaultResponse = await server.inject({
+      method: "POST",
+      url: "/api/ai/models",
+      headers: {
+        authorization: `Bearer ${ids.sessionA}`
+      },
+      payload: {
+        providerConfigId: providerId,
+        providerModelId: "claude-default",
+        displayName: "Claude Default",
+        capabilities: ["chat"]
+      }
+    });
+    const overrideId = overrideResponse.json<{ model: { id: string } }>().model.id;
+    const defaultId = defaultResponse.json<{ model: { id: string } }>().model.id;
+
+    const initial = await server.inject({
+      method: "GET",
+      url: "/api/ai/chat-model-override",
+      headers: {
+        authorization: `Bearer ${ids.sessionB}`
+      }
+    });
+    const deniedAdminWrite = await server.inject({
+      method: "PUT",
+      url: "/api/admin/ai/chat-model-override",
+      headers: {
+        authorization: `Bearer ${ids.sessionB}`
+      },
+      payload: {
+        enabled: true
+      }
+    });
+    const enabled = await server.inject({
+      method: "PUT",
+      url: "/api/admin/ai/chat-model-override",
+      headers: {
+        authorization: `Bearer ${ids.sessionA}`
+      },
+      payload: {
+        enabled: true
+      }
+    });
+    const saved = await server.inject({
+      method: "PUT",
+      url: "/api/ai/chat-model-override",
+      headers: {
+        authorization: `Bearer ${ids.sessionB}`
+      },
+      payload: {
+        modelId: overrideId
+      }
+    });
+    const userASettings = await server.inject({
+      method: "GET",
+      url: "/api/ai/chat-model-override",
+      headers: {
+        authorization: `Bearer ${ids.sessionA}`
+      }
+    });
+    const userAPreferenceRows = await dataContext.withDataContext(userAContext(), (scopedDb) =>
+      scopedDb.db
+        .selectFrom("app.preferences")
+        .select(["key", "value_json"])
+        .where("key", "=", "chat.modelOverride")
+        .execute()
+    );
+    const disabledModel = await server.inject({
+      method: "PATCH",
+      url: `/api/ai/models/${overrideId}`,
+      headers: {
+        authorization: `Bearer ${ids.sessionA}`
+      },
+      payload: {
+        allowUserOverride: false
+      }
+    });
+    const afterDisallow = await server.inject({
+      method: "GET",
+      url: "/api/ai/chat-model-override",
+      headers: {
+        authorization: `Bearer ${ids.sessionB}`
+      }
+    });
+    const disabledGlobal = await server.inject({
+      method: "PUT",
+      url: "/api/admin/ai/chat-model-override",
+      headers: {
+        authorization: `Bearer ${ids.sessionA}`
+      },
+      payload: {
+        enabled: false
+      }
+    });
+
+    expect(providerResponse.statusCode).toBe(201);
+    expect(overrideResponse.statusCode).toBe(201);
+    expect(defaultResponse.statusCode).toBe(201);
+    expect(initial.statusCode).toBe(200);
+    expect(initial.json()).toMatchObject({
+      settings: {
+        overrideEnabled: false,
+        currentOverrideModelId: null,
+        effectiveOverrideModelId: null,
+        selectedModel: {
+          id: defaultId,
+          providerModelId: "claude-default"
+        }
+      }
+    });
+    expect(deniedAdminWrite.statusCode).toBe(403);
+    expect(enabled.statusCode).toBe(200);
+    expect(enabled.json()).toMatchObject({ settings: { overrideEnabled: true } });
+    expect(saved.statusCode).toBe(200);
+    expect(saved.json()).toMatchObject({
+      settings: {
+        currentOverrideModelId: overrideId,
+        effectiveOverrideModelId: overrideId,
+        selectedModel: {
+          id: overrideId,
+          providerModelId: "claude-override"
+        }
+      }
+    });
+    expect(userASettings.json()).toMatchObject({
+      settings: {
+        currentOverrideModelId: null,
+        selectedModel: {
+          id: defaultId
+        }
+      }
+    });
+    expect(userAPreferenceRows).toEqual([]);
+    expect(disabledModel.statusCode).toBe(200);
+    expect(afterDisallow.json()).toMatchObject({
+      settings: {
+        currentOverrideModelId: overrideId,
+        effectiveOverrideModelId: null,
+        selectedModel: {
+          id: defaultId
+        }
+      }
+    });
+    expect(disabledGlobal.statusCode).toBe(200);
+    expect(disabledGlobal.json()).toMatchObject({ settings: { overrideEnabled: false } });
+  });
+
   it("selects an active configured model by capability without returning secrets", async () => {
     const providerResponse = await server.inject({
       method: "POST",
