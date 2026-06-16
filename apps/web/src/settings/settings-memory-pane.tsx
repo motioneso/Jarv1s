@@ -1,9 +1,13 @@
+import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { Trash2 } from "lucide-react";
 
 import {
+  deleteMemoryFact,
   getMemoryFacts,
   getMemorySettings,
   patchMemorySettings,
+  type MemoryFact,
   type MemorySettings
 } from "../api/client";
 import { queryKeys } from "../api/query-keys";
@@ -13,7 +17,9 @@ import { Group, PaneHead, Row, Switch } from "./settings-ui";
 
 export function MemoryPane(_props: PaneProps) {
   const queryClient = useQueryClient();
-  const { toast } = useFeedback();
+  const { toast, confirm } = useFeedback();
+  const [expanded, setExpanded] = useState(false);
+
   const settingsQuery = useQuery({
     queryKey: queryKeys.chat.memorySettings,
     queryFn: getMemorySettings,
@@ -29,8 +35,29 @@ export function MemoryPane(_props: PaneProps) {
     onSuccess: (data) => queryClient.setQueryData(queryKeys.chat.memorySettings, data),
     onError: (error) => toast(readError(error), { tone: "drift" })
   });
+  const deleteMutation = useMutation({
+    mutationFn: (id: string) => deleteMemoryFact(id),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: queryKeys.chat.memoryFacts });
+      toast("Memory forgotten");
+    },
+    onError: (error) => toast(readError(error), { tone: "drift" })
+  });
+
   const settings = settingsQuery.data;
-  const factCount = factsQuery.data?.facts.length ?? 0;
+  const facts: MemoryFact[] = factsQuery.data?.facts ?? [];
+  const factCount = facts.length;
+
+  function handleForget(fact: MemoryFact) {
+    const preview = fact.content.length > 120 ? `${fact.content.slice(0, 120)}…` : fact.content;
+    confirm({
+      title: "Forget this memory?",
+      description: preview,
+      confirmLabel: "Forget",
+      danger: true,
+      onConfirm: () => deleteMutation.mutate(fact.id)
+    });
+  }
 
   return (
     <>
@@ -94,8 +121,39 @@ export function MemoryPane(_props: PaneProps) {
         <Row
           name="Review & delete memories"
           desc="See everything Jarvis holds and remove anything you'd rather it forgot."
-          coming
+          control={
+            <button
+              type="button"
+              className="jds-btn jds-btn--quiet jds-btn--sm"
+              onClick={() => setExpanded((v) => !v)}
+            >
+              {expanded ? "Hide" : `Review (${factCount})`}
+            </button>
+          }
         />
+        {expanded ? (
+          <div className="memory-facts-list">
+            {facts.length === 0 ? (
+              <p className="memory-facts-empty">No memories stored yet.</p>
+            ) : (
+              facts.map((fact) => (
+                <div key={fact.id} className="memory-fact">
+                  <span className="memory-fact__category">{fact.category}</span>
+                  <span className="memory-fact__content">{fact.content}</span>
+                  <button
+                    type="button"
+                    className="jds-btn jds-btn--quiet jds-btn--sm"
+                    aria-label={`Forget: ${fact.content}`}
+                    onClick={() => handleForget(fact)}
+                    disabled={deleteMutation.isPending}
+                  >
+                    <Trash2 size={14} />
+                  </button>
+                </div>
+              ))
+            )}
+          </div>
+        ) : null}
         <Row
           name="Memory retention window"
           desc="Automatically forget low-value details after a set time."
