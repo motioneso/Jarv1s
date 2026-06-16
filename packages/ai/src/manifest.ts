@@ -42,7 +42,10 @@ export const aiModuleManifest = {
     migrations: [
       "sql/0013_ai_module.sql",
       "sql/0016_ai_assistant_actions.sql",
-      "sql/0033_ai_auth_method.sql"
+      "sql/0033_ai_auth_method.sql",
+      "sql/0037_ai_worker_read_grants.sql",
+      "sql/0048_ai_model_tier.sql",
+      "sql/0091_chat_model_override.sql"
     ],
     migrationDirectories: ["packages/ai/sql"],
     ownedTables: [

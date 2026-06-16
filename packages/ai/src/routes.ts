@@ -10,7 +10,7 @@ import { parsePositiveIntEnv } from "@jarv1s/shared";
 // Override the limit via env: JARVIS_RL_AI_TOOLS_MAX=<n> (requests per minute, default 60).
 const AI_TOOLS_MAX = parsePositiveIntEnv(process.env.JARVIS_RL_AI_TOOLS_MAX, 60);
 
-import type { AccessContext, DataContextRunner } from "@jarv1s/db";
+import type { AccessContext, DataContextDb, DataContextRunner } from "@jarv1s/db";
 import {
   HttpError,
   handleRouteError as handleModuleRouteError,
@@ -147,15 +147,19 @@ export function registerAiRoutes(
           authMethod === "cli"
             ? secretCipher.encryptJson({ cli: true })
             : secretCipher.encryptJson(body.credentialPayload ?? {});
-        const provider = await dependencies.dataContext.withDataContext(accessContext, (scopedDb) =>
-          repository.createProvider(scopedDb, {
-            providerKind: body.providerKind,
-            displayName: body.displayName,
-            baseUrl: body.baseUrl ?? null,
-            status: body.status ?? "active",
-            authMethod,
-            encryptedCredential
-          })
+        const provider = await dependencies.dataContext.withDataContext(
+          accessContext,
+          async (scopedDb) => {
+            await assertInstanceAdmin(repository, scopedDb, accessContext.actorUserId);
+            return repository.createProvider(scopedDb, {
+              providerKind: body.providerKind,
+              displayName: body.displayName,
+              baseUrl: body.baseUrl ?? null,
+              status: body.status ?? "active",
+              authMethod,
+              encryptedCredential
+            });
+          }
         );
 
         return reply.code(201).send({ provider: await serializeProvider(provider) });
@@ -176,15 +180,19 @@ export function registerAiRoutes(
           body.credentialPayload === undefined
             ? undefined
             : secretCipher.encryptJson(body.credentialPayload);
-        const provider = await dependencies.dataContext.withDataContext(accessContext, (scopedDb) =>
-          repository.updateProvider(scopedDb, request.params.id, {
-            providerKind: body.providerKind,
-            displayName: body.displayName,
-            baseUrl: body.baseUrl,
-            status: body.status,
-            authMethod: body.authMethod,
-            encryptedCredential
-          })
+        const provider = await dependencies.dataContext.withDataContext(
+          accessContext,
+          async (scopedDb) => {
+            await assertInstanceAdmin(repository, scopedDb, accessContext.actorUserId);
+            return repository.updateProvider(scopedDb, request.params.id, {
+              providerKind: body.providerKind,
+              displayName: body.displayName,
+              baseUrl: body.baseUrl,
+              status: body.status,
+              authMethod: body.authMethod,
+              encryptedCredential
+            });
+          }
         );
 
         if (!provider) {
@@ -205,8 +213,12 @@ export function registerAiRoutes(
       try {
         const accessContext = await dependencies.resolveAccessContext(request);
         const encryptedCredential = secretCipher.encryptJson({ revoked: true });
-        const provider = await dependencies.dataContext.withDataContext(accessContext, (scopedDb) =>
-          repository.revokeProvider(scopedDb, request.params.id, encryptedCredential)
+        const provider = await dependencies.dataContext.withDataContext(
+          accessContext,
+          async (scopedDb) => {
+            await assertInstanceAdmin(repository, scopedDb, accessContext.actorUserId);
+            return repository.revokeProvider(scopedDb, request.params.id, encryptedCredential);
+          }
         );
 
         if (!provider) {
@@ -244,15 +256,20 @@ export function registerAiRoutes(
       try {
         const accessContext = await dependencies.resolveAccessContext(request);
         const body = parseCreateModelBody(request.body);
-        const model = await dependencies.dataContext.withDataContext(accessContext, (scopedDb) =>
-          repository.createModel(scopedDb, {
-            providerConfigId: body.providerConfigId,
-            providerModelId: body.providerModelId,
-            displayName: body.displayName,
-            capabilities: body.capabilities,
-            status: body.status ?? "active",
-            tier: body.tier
-          })
+        const model = await dependencies.dataContext.withDataContext(
+          accessContext,
+          async (scopedDb) => {
+            await assertInstanceAdmin(repository, scopedDb, accessContext.actorUserId);
+            return repository.createModel(scopedDb, {
+              providerConfigId: body.providerConfigId,
+              providerModelId: body.providerModelId,
+              displayName: body.displayName,
+              capabilities: body.capabilities,
+              status: body.status ?? "active",
+              tier: body.tier,
+              allowUserOverride: body.allowUserOverride
+            });
+          }
         );
 
         return reply.code(201).send({ model: serializeModel(model) });
@@ -269,14 +286,19 @@ export function registerAiRoutes(
       try {
         const accessContext = await dependencies.resolveAccessContext(request);
         const body = parseUpdateModelBody(request.body);
-        const model = await dependencies.dataContext.withDataContext(accessContext, (scopedDb) =>
-          repository.updateModel(scopedDb, request.params.id, {
-            providerModelId: body.providerModelId,
-            displayName: body.displayName,
-            capabilities: body.capabilities,
-            status: body.status,
-            tier: body.tier
-          })
+        const model = await dependencies.dataContext.withDataContext(
+          accessContext,
+          async (scopedDb) => {
+            await assertInstanceAdmin(repository, scopedDb, accessContext.actorUserId);
+            return repository.updateModel(scopedDb, request.params.id, {
+              providerModelId: body.providerModelId,
+              displayName: body.displayName,
+              capabilities: body.capabilities,
+              status: body.status,
+              tier: body.tier,
+              allowUserOverride: body.allowUserOverride
+            });
+          }
         );
 
         if (!model) {
@@ -524,7 +546,8 @@ function parseCreateModelBody(body: unknown): CreateAiConfiguredModelRequest {
     displayName: requiredString(value.displayName, "displayName"),
     capabilities: requiredCapabilities(value.capabilities, "capabilities"),
     status: optionalModelStatus(value.status),
-    tier: optionalModelTier(value.tier)
+    tier: optionalModelTier(value.tier),
+    allowUserOverride: optionalBoolean(value.allowUserOverride, "allowUserOverride")
   };
 }
 
@@ -539,7 +562,8 @@ function parseUpdateModelBody(body: unknown): UpdateAiConfiguredModelRequest {
         ? undefined
         : requiredCapabilities(value.capabilities, "capabilities"),
     status: optionalModelStatus(value.status),
-    tier: optionalModelTier(value.tier)
+    tier: optionalModelTier(value.tier),
+    allowUserOverride: optionalBoolean(value.allowUserOverride, "allowUserOverride")
   };
 }
 
@@ -653,6 +677,7 @@ function serializeModel(model: AiConfiguredModelSafeRow): AiConfiguredModelDto {
     capabilities: model.capabilities.map(parseCapability),
     status: model.status,
     tier: model.tier,
+    allowUserOverride: model.allow_user_override,
     createdAt: serializeDate(model.created_at),
     updatedAt: serializeDate(model.updated_at)
   };
@@ -706,6 +731,17 @@ function optionalNullableString(value: unknown, fieldName: string): string | nul
   }
 
   return optionalString(value, fieldName);
+}
+
+function optionalBoolean(value: unknown, fieldName: string): boolean | undefined {
+  if (value === undefined) {
+    return undefined;
+  }
+  if (typeof value !== "boolean") {
+    throw new HttpError(400, `${fieldName} must be a boolean`);
+  }
+
+  return value;
 }
 
 function requiredProviderKind(value: unknown, fieldName: string): AiProviderKind {
@@ -815,4 +851,19 @@ function handleRouteError(error: unknown, reply: FastifyReply) {
     ],
     invalidRequestMessage: "AI configuration request is invalid"
   });
+}
+
+async function assertInstanceAdmin(
+  repository: AiRepository,
+  scopedDb: DataContextDb,
+  userId: string
+): Promise<void> {
+  const user = await repository.getUserById(scopedDb, userId);
+
+  if (!user) {
+    throw new HttpError(401, "Session is missing or expired");
+  }
+  if (!user.is_instance_admin) {
+    throw new HttpError(403, "Instance admin permission is required");
+  }
 }

@@ -46,11 +46,17 @@ export interface AiConfiguredModelSafeRow {
   readonly capabilities: string[];
   readonly status: AiModelStatus;
   readonly tier: AiModelTier;
+  readonly allow_user_override: boolean;
   readonly created_at: Date;
   readonly updated_at: Date;
 }
 
 export type AiAssistantActionRequestSafeRow = AiAssistantActionRequest;
+
+export interface AiAdminUserCheckRow {
+  readonly id: string;
+  readonly is_instance_admin: boolean;
+}
 
 export interface CreateAiProviderInput {
   readonly providerKind: AiProviderKind;
@@ -77,6 +83,7 @@ export interface CreateAiModelInput {
   readonly capabilities: readonly AiModelCapability[];
   readonly status?: AiModelStatus;
   readonly tier?: AiModelTier;
+  readonly allowUserOverride?: boolean;
 }
 
 export interface UpdateAiModelInput {
@@ -85,6 +92,7 @@ export interface UpdateAiModelInput {
   readonly capabilities?: readonly AiModelCapability[];
   readonly status?: AiModelStatus;
   readonly tier?: AiModelTier;
+  readonly allowUserOverride?: boolean;
 }
 
 export interface CreateAiAssistantActionInput {
@@ -102,6 +110,19 @@ export interface ResolveAiAssistantActionInput {
 }
 
 export class AiRepository {
+  async getUserById(
+    scopedDb: DataContextDb,
+    userId: string
+  ): Promise<AiAdminUserCheckRow | undefined> {
+    assertDataContextDb(scopedDb);
+
+    const result = await sql<AiAdminUserCheckRow>`
+      SELECT id, is_instance_admin FROM app.get_user_by_id(${userId}::uuid)
+    `.execute(scopedDb.db);
+
+    return result.rows[0];
+  }
+
   async listProviders(scopedDb: DataContextDb): Promise<AiProviderConfigSafeRow[]> {
     assertDataContextDb(scopedDb);
 
@@ -223,6 +244,7 @@ export class AiRepository {
         capabilities: [...input.capabilities],
         status: input.status ?? "active",
         tier: input.tier ?? "interactive",
+        allow_user_override: input.allowUserOverride ?? true,
         created_at: now,
         updated_at: now
       })
@@ -257,6 +279,9 @@ export class AiRepository {
     }
     if (input.tier !== undefined) {
       updates.tier = input.tier;
+    }
+    if (input.allowUserOverride !== undefined) {
+      updates.allow_user_override = input.allowUserOverride;
     }
 
     const updated = await scopedDb.db
@@ -464,6 +489,7 @@ export class AiRepository {
         "models.capabilities as capabilities",
         "models.status as status",
         "models.tier as tier",
+        "models.allow_user_override as allow_user_override",
         "models.created_at as created_at",
         "models.updated_at as updated_at"
       ])

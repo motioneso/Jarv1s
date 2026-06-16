@@ -38,6 +38,7 @@ describe("AI provider foundation", () => {
     process.env.JARVIS_AI_SECRET_KEY = "test-ai-secret-key";
 
     await resetFoundationDatabase();
+    await setUserAInstanceAdmin();
 
     appDb = createDatabase({
       connectionString: connectionStrings.app,
@@ -71,8 +72,20 @@ describe("AI provider foundation", () => {
         `
           SELECT version, name
           FROM app.schema_migrations
-          WHERE version IN ('0013', '0016')
+          WHERE version IN ('0013', '0016', '0091')
           ORDER BY version
+        `
+      );
+      const overrideColumn = await client.query<{
+        column_default: string | null;
+        is_nullable: string;
+      }>(
+        `
+          SELECT column_default, is_nullable
+          FROM information_schema.columns
+          WHERE table_schema = 'app'
+            AND table_name = 'ai_configured_models'
+            AND column_name = 'allow_user_override'
         `
       );
       const tables = await client.query<{
@@ -108,7 +121,14 @@ describe("AI provider foundation", () => {
 
       expect(migrations.rows).toEqual([
         { version: "0013", name: "0013_ai_module.sql" },
-        { version: "0016", name: "0016_ai_assistant_actions.sql" }
+        { version: "0016", name: "0016_ai_assistant_actions.sql" },
+        { version: "0091", name: "0091_chat_model_override.sql" }
+      ]);
+      expect(overrideColumn.rows).toEqual([
+        expect.objectContaining({
+          column_default: "true",
+          is_nullable: "NO"
+        })
       ]);
       // The chat-execution worker (jarvis_worker_runtime) resolves the active chat
       // model and reads the provider config (with encrypted credential) to make the
@@ -272,43 +292,112 @@ describe("AI provider foundation", () => {
     expect(listResponse.body).not.toContain("ciphertext");
   });
 
-  it("keeps provider and model rows isolated by owner and does not give admins a bypass", async () => {
-    const userBProvider = await dataContext.withDataContext(userBContext(), (scopedDb) =>
+  it("exposes safe instance provider and model metadata without giving access to credentials", async () => {
+    const userAProvider = await dataContext.withDataContext(userAContext(), (scopedDb) =>
       repository.createProvider(scopedDb, {
         providerKind: "custom",
-        displayName: "User B private provider",
-        baseUrl: "https://user-b.example.test",
+        displayName: "Instance metadata provider",
+        baseUrl: "https://instance.example.test",
         encryptedCredential: createAiSecretCipher().encryptJson({
-          apiKey: "user-b-ai-secret"
+          apiKey: "instance-ai-secret"
         })
       })
     );
-    await dataContext.withDataContext(userBContext(), (scopedDb) =>
+    await dataContext.withDataContext(userAContext(), (scopedDb) =>
       repository.createModel(scopedDb, {
-        providerConfigId: userBProvider.id,
-        providerModelId: "user-b-model",
-        displayName: "User B model",
+        providerConfigId: userAProvider.id,
+        providerModelId: "instance-model",
+        displayName: "Instance model",
         capabilities: ["chat"]
       })
     );
-    const userAProviders = await dataContext.withDataContext(userAContext(), (scopedDb) =>
+    const userBProviders = await dataContext.withDataContext(userBContext(), (scopedDb) =>
       repository.listProviders(scopedDb)
     );
-    const userAModels = await dataContext.withDataContext(userAContext(), (scopedDb) =>
-      repository.listModels(scopedDb)
-    );
-    const adminContext = await auth.resolveAccessContext(ids.sessionAdmin, "request:admin-ai");
-    const adminProviders = await dataContext.withDataContext(adminContext, (scopedDb) =>
-      repository.listProviders(scopedDb)
-    );
-    const adminModels = await dataContext.withDataContext(adminContext, (scopedDb) =>
+    const userBModels = await dataContext.withDataContext(userBContext(), (scopedDb) =>
       repository.listModels(scopedDb)
     );
 
-    expect(userAProviders.some((provider) => provider.id === userBProvider.id)).toBe(false);
-    expect(userAModels.some((model) => model.provider_config_id === userBProvider.id)).toBe(false);
-    expect(adminProviders.some((provider) => provider.id === userBProvider.id)).toBe(false);
-    expect(adminModels.some((model) => model.provider_config_id === userBProvider.id)).toBe(false);
+    expect(userBProviders.some((provider) => provider.id === userAProvider.id)).toBe(true);
+    expect(userBModels.some((model) => model.provider_config_id === userAProvider.id)).toBe(true);
+    expect(JSON.stringify(userBProviders)).not.toContain("instance-ai-secret");
+    expect(JSON.stringify(userBProviders)).not.toContain("encrypted_credential");
+  });
+
+  it("lets authenticated users read safe instance AI metadata without credentials", async () => {
+    const adminProvider = await server.inject({
+      method: "POST",
+      url: "/api/ai/providers",
+      headers: {
+        authorization: `Bearer ${ids.sessionAdmin}`
+      },
+      payload: {
+        providerKind: "anthropic",
+        displayName: "Instance Provider",
+        credentialPayload: {
+          apiKey: "instance-secret"
+        }
+      }
+    });
+    const providerId = adminProvider.json<{ provider: { id: string } }>().provider.id;
+    const adminModel = await server.inject({
+      method: "POST",
+      url: "/api/ai/models",
+      headers: {
+        authorization: `Bearer ${ids.sessionAdmin}`
+      },
+      payload: {
+        providerConfigId: providerId,
+        providerModelId: "claude-instance",
+        displayName: "Claude Instance",
+        capabilities: ["chat"]
+      }
+    });
+    const modelId = adminModel.json<{ model: { id: string } }>().model.id;
+    const userModels = await server.inject({
+      method: "GET",
+      url: "/api/ai/models",
+      headers: {
+        authorization: `Bearer ${ids.sessionA}`
+      }
+    });
+
+    expect(adminProvider.statusCode).toBe(201);
+    expect(adminModel.statusCode).toBe(201);
+    expect(adminModel.json()).toMatchObject({
+      model: {
+        allowUserOverride: true
+      }
+    });
+    expect(userModels.statusCode).toBe(200);
+    expect(userModels.json<{ models: Array<{ id: string; allowUserOverride: boolean }> }>().models).toContainEqual(
+      expect.objectContaining({
+        id: modelId,
+        allowUserOverride: true
+      })
+    );
+    expect(userModels.body).not.toContain("instance-secret");
+    expect(userModels.body).not.toContain("encrypted_credential");
+    expect(userModels.body).not.toContain("ciphertext");
+  });
+
+  it("requires an instance admin for AI provider and model writes", async () => {
+    const providerResponse = await server.inject({
+      method: "POST",
+      url: "/api/ai/providers",
+      headers: {
+        authorization: `Bearer ${ids.sessionB}`
+      },
+      payload: {
+        providerKind: "anthropic",
+        displayName: "Member Provider",
+        credentialPayload: {
+          apiKey: "member-secret"
+        }
+      }
+    });
+
+    expect(providerResponse.statusCode).toBe(403);
   });
 
   it("selects an active configured model by capability without returning secrets", async () => {
@@ -631,6 +720,7 @@ describe("AI capability tier routing", () => {
 
   beforeAll(async () => {
     await resetFoundationDatabase();
+    await setUserAInstanceAdmin();
     appDb = createDatabase({ connectionString: connectionStrings.app, maxConnections: 1 });
     dataContext = new DataContextRunner(appDb);
     repository = new AiRepository();
@@ -802,4 +892,15 @@ function userBContext(): AccessContext {
     actorUserId: ids.userB,
     requestId: "request:user-b-ai"
   };
+}
+
+async function setUserAInstanceAdmin(): Promise<void> {
+  const client = new Client({ connectionString: connectionStrings.bootstrap });
+
+  await client.connect();
+  try {
+    await client.query(`UPDATE app.users SET is_instance_admin = true WHERE id = $1`, [ids.userA]);
+  } finally {
+    await client.end();
+  }
 }

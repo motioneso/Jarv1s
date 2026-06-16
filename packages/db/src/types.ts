@@ -332,6 +332,7 @@ export interface AiConfiguredModelsTable {
   capabilities: TextArrayColumn;
   status: AiModelStatus;
   tier: AiModelTier;
+  allow_user_override: ColumnType<boolean, boolean | undefined, boolean>;
   created_at: TimestampColumn;
   updated_at: TimestampColumn;
 }

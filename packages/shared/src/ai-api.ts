@@ -38,6 +38,7 @@ export interface AiConfiguredModelDto {
   readonly capabilities: readonly AiModelCapability[];
   readonly status: AiModelStatus;
   readonly tier: AiModelTier;
+  readonly allowUserOverride: boolean;
   readonly createdAt: string;
   readonly updatedAt: string;
 }
@@ -146,6 +147,7 @@ export interface CreateAiConfiguredModelRequest {
   readonly capabilities: readonly AiModelCapability[];
   readonly status?: AiModelStatus;
   readonly tier?: AiModelTier;
+  readonly allowUserOverride?: boolean;
 }
 
 export interface CreateAiConfiguredModelResponse {
@@ -158,6 +160,7 @@ export interface UpdateAiConfiguredModelRequest {
   readonly capabilities?: readonly AiModelCapability[];
   readonly status?: AiModelStatus;
   readonly tier?: AiModelTier;
+  readonly allowUserOverride?: boolean;
 }
 
 export interface UpdateAiConfiguredModelResponse {
@@ -286,6 +289,7 @@ const aiConfiguredModelSchema = {
     "capabilities",
     "status",
     "tier",
+    "allowUserOverride",
     "createdAt",
     "updatedAt"
   ],
@@ -300,6 +304,7 @@ const aiConfiguredModelSchema = {
     capabilities: { type: "array", items: aiModelCapabilitySchema },
     status: aiModelStatusSchema,
     tier: aiModelTierSchema,
+    allowUserOverride: { type: "boolean" },
     createdAt: { type: "string" },
     updatedAt: { type: "string" }
   }
@@ -474,7 +479,8 @@ export const createAiConfiguredModelRequestSchema = {
       items: aiModelCapabilitySchema
     },
     status: aiModelStatusSchema,
-    tier: aiModelTierSchema
+    tier: aiModelTierSchema,
+    allowUserOverride: { type: "boolean" }
   }
 } as const;
 
@@ -490,7 +496,8 @@ export const updateAiConfiguredModelRequestSchema = {
       items: aiModelCapabilitySchema
     },
     status: aiModelStatusSchema,
-    tier: aiModelTierSchema
+    tier: aiModelTierSchema,
+    allowUserOverride: { type: "boolean" }
   }
 } as const;
 
@@ -609,7 +616,8 @@ export const createAiProviderConfigRouteSchema = {
   response: {
     201: createAiProviderConfigResponseSchema,
     400: errorResponseSchema,
-    401: errorResponseSchema
+    401: errorResponseSchema,
+    403: errorResponseSchema
   }
 } as const;
 
@@ -620,6 +628,7 @@ export const updateAiProviderConfigRouteSchema = {
     200: updateAiProviderConfigResponseSchema,
     400: errorResponseSchema,
     401: errorResponseSchema,
+    403: errorResponseSchema,
     404: errorResponseSchema
   }
 } as const;
@@ -629,6 +638,7 @@ export const revokeAiProviderConfigRouteSchema = {
   response: {
     200: revokeAiProviderConfigResponseSchema,
     401: errorResponseSchema,
+    403: errorResponseSchema,
     404: errorResponseSchema
   }
 } as const;
@@ -645,7 +655,8 @@ export const createAiConfiguredModelRouteSchema = {
   response: {
     201: createAiConfiguredModelResponseSchema,
     400: errorResponseSchema,
-    401: errorResponseSchema
+    401: errorResponseSchema,
+    403: errorResponseSchema
   }
 } as const;
 
@@ -656,6 +667,7 @@ export const updateAiConfiguredModelRouteSchema = {
     200: updateAiConfiguredModelResponseSchema,
     400: errorResponseSchema,
     401: errorResponseSchema,
+    403: errorResponseSchema,
     404: errorResponseSchema
   }
 } as const;
