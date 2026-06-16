@@ -36,9 +36,9 @@ unless stated. When you build one, remove its `BACKEND-TODO` marker and tick it 
 
 ## Profile & account
 
-- [ ] **Profile update endpoint** — persist Display name + "How Jarvis addresses you". Today
-      debounced auto-save to local storage (`useProfileAutoSave`); does not update the real
-      account name. `settings-personal-panes.tsx`.
+- [x] **Profile update endpoint** — persist Display name + "How Jarvis addresses you". Wired:
+      `PATCH /api/me/profile` (name → `app.users`, addressed → `app.preferences`). `GET /api/me`
+      now returns `profilePrefs.addressed`.
 - [ ] **Data export** — server-side archive build → poll-for-ready → signed download URL. Today
       the job lifecycle is simulated client-side and "Download" emits a fixed-content JSON, not a
       real archive. `settings-profile-subviews.tsx` (`DataExport`).

@@ -1,49 +1,47 @@
+import { useQueryClient } from "@tanstack/react-query";
+import type { MeResponse } from "@jarv1s/shared";
 import { Check, LoaderCircle } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
+import { updateMyProfile } from "../api/client";
+import { queryKeys } from "../api/query-keys";
 import { DataExport, Sessions } from "./settings-profile-subviews";
 import type { PaneProps } from "./settings-types";
-import { Avatar, Badge, Field, Group, NotWired, PaneHead, Row } from "./settings-ui";
+import { Avatar, Badge, Field, Group, PaneHead, Row } from "./settings-ui";
 
-const PROFILE_STORAGE_KEY = "jarvis.settings.profile";
-type SaveStatus = "idle" | "saving" | "saved";
+type SaveStatus = "idle" | "saving" | "saved" | "error";
 
 interface ProfileFields {
   name: string;
   addressed: string;
 }
 
-/* Debounced auto-save for the identity fields. Persists to local storage today;
-   swaps to a profile-update endpoint once one exists (🔌 backend). */
 function useProfileAutoSave(initial: ProfileFields) {
-  const [fields, setFields] = useState<ProfileFields>(() => {
-    if (typeof window === "undefined") return initial;
-    try {
-      const raw = window.localStorage.getItem(PROFILE_STORAGE_KEY);
-      return raw ? { ...initial, ...(JSON.parse(raw) as Partial<ProfileFields>) } : initial;
-    } catch {
-      return initial;
-    }
-  });
+  const [fields, setFields] = useState<ProfileFields>(initial);
   const [status, setStatus] = useState<SaveStatus>("idle");
   const dirty = useRef(false);
   const clearTimer = useRef<number | null>(null);
+  const queryClient = useQueryClient();
 
   useEffect(() => {
     if (!dirty.current) return;
     setStatus("saving");
     const save = window.setTimeout(() => {
-      try {
-        window.localStorage.setItem(PROFILE_STORAGE_KEY, JSON.stringify(fields));
-      } catch {
-        /* BACKEND-TODO: profile-update endpoint for display name + addressed; local storage until then */
-      }
-      setStatus("saved");
-      if (clearTimer.current) window.clearTimeout(clearTimer.current);
-      clearTimer.current = window.setTimeout(() => setStatus("idle"), 1600);
+      updateMyProfile({ name: fields.name, addressed: fields.addressed })
+        .then((data: MeResponse) => {
+          queryClient.setQueryData(queryKeys.auth.me, data);
+          setStatus("saved");
+          if (clearTimer.current) window.clearTimeout(clearTimer.current);
+          clearTimer.current = window.setTimeout(() => setStatus("idle"), 1600);
+        })
+        .catch(() => {
+          setStatus("error");
+          if (clearTimer.current) window.clearTimeout(clearTimer.current);
+          clearTimer.current = window.setTimeout(() => setStatus("idle"), 3000);
+        });
     }, 600);
     return () => window.clearTimeout(save);
-  }, [fields]);
+  }, [fields, queryClient]);
 
   useEffect(
     () => () => {
@@ -61,6 +59,13 @@ function useProfileAutoSave(initial: ProfileFields) {
 
 function SaveStatusChip({ status }: { readonly status: SaveStatus }) {
   if (status === "idle") return null;
+  if (status === "error") {
+    return (
+      <span className="psona-save__state" style={{ fontSize: 12, color: "var(--color-error)" }}>
+        Save failed
+      </span>
+    );
+  }
   return (
     <span className="psona-save__state" style={{ fontSize: 12 }}>
       {status === "saving" ? (
@@ -84,7 +89,7 @@ export function ProfilePane({ me }: PaneProps) {
   const firstName = (user.name ?? "").split(/\s+/)[0] ?? "";
   const { fields, set, status } = useProfileAutoSave({
     name: user.name ?? "",
-    addressed: firstName
+    addressed: me.profilePrefs.addressed ?? firstName
   });
 
   return (
@@ -94,7 +99,6 @@ export function ProfilePane({ me }: PaneProps) {
         desc="Who you are to Jarvis — your identity and account status. How Jarvis sounds and behaves lives in Assistant & AI."
       />
       <Group title="Identity" action={<SaveStatusChip status={status} />}>
-        <NotWired>Saves locally only — doesn't update your real account yet.</NotWired>
         <div className="prof">
           <Avatar name={fields.name || user.email} size="lg" />
           <div className="prof__main">

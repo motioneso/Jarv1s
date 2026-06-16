@@ -94,7 +94,8 @@ import type {
   ListTherapyNotesResponse,
   CreateTherapyNoteRequest,
   CreateTherapyNoteResponse,
-  DeleteTherapyNoteResponse
+  DeleteTherapyNoteResponse,
+  PatchMeProfileRequest
 } from "@jarv1s/shared";
 
 export interface SignUpEmailRequest {
@@ -129,6 +130,13 @@ export async function getBootstrapStatus(): Promise<BootstrapStatusResponse> {
 
 export async function getMe(): Promise<MeResponse> {
   return requestJson<MeResponse>("/api/me");
+}
+
+export async function updateMyProfile(body: PatchMeProfileRequest): Promise<MeResponse> {
+  return requestJson<MeResponse>("/api/me/profile", {
+    method: "PATCH",
+    body
+  });
 }
 
 export async function getModules(): Promise<ListModulesResponse> {
