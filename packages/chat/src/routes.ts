@@ -19,7 +19,12 @@ import type {
   GoogleApiClient,
   GoogleConnectionService
 } from "@jarv1s/connectors";
-import { ChatMemoryFactsRepository, type MemoryFact } from "@jarv1s/memory";
+import {
+  ChatMemoryFactsRepository,
+  ChatMemorySuppressionsRepository,
+  createMemoryFactSignature,
+  type MemoryFact
+} from "@jarv1s/memory";
 import { handleRouteError as handleModuleRouteError } from "@jarv1s/module-sdk";
 
 import { buildCalendarWriteService } from "./calendar-write-impl.js";
@@ -68,6 +73,7 @@ export function registerChatRoutes(
   const repository = dependencies.repository ?? new ChatRepository();
   const memorySettingsRepo = new ChatUserMemorySettingsRepository();
   const factsRepo = new ChatMemoryFactsRepository();
+  const suppressionsRepo = new ChatMemorySuppressionsRepository();
 
   // Phase 2: proxy notifier — created before gateway so the gateway has a notifier
   // reference; real target is set after the manager is created.
@@ -234,6 +240,51 @@ export function registerChatRoutes(
         await dependencies.dataContext.withDataContext(access, (scopedDb) =>
           factsRepo.deleteFact(scopedDb, request.params.id)
         );
+        return reply.code(204).send();
+      } catch (error) {
+        return handleRouteError(error, reply);
+      }
+    }
+  );
+
+  server.post<{ Params: { id: string } }>(
+    "/api/chat/memory/facts/:id/confirm",
+    async (request, reply) => {
+      try {
+        const access = await dependencies.resolveAccessContext(request);
+        const confirmed = await dependencies.dataContext.withDataContext(access, (scopedDb) =>
+          factsRepo.confirmFact(scopedDb, request.params.id)
+        );
+        if (!confirmed) return reply.code(404).send({ error: "Memory fact not found" });
+        return reply.code(204).send();
+      } catch (error) {
+        return handleRouteError(error, reply);
+      }
+    }
+  );
+
+  server.post<{ Params: { id: string } }>(
+    "/api/chat/memory/facts/:id/reject",
+    async (request, reply) => {
+      try {
+        const access = await dependencies.resolveAccessContext(request);
+        const rejected = await dependencies.dataContext.withDataContext(
+          access,
+          async (scopedDb) => {
+            const fact = await factsRepo.getActiveFact(scopedDb, request.params.id);
+            if (!fact || fact.provenance !== "inferred") return false;
+
+            await suppressionsRepo.insertSuppression(scopedDb, access.actorUserId, {
+              signature: createMemoryFactSignature(fact.category, fact.content),
+              category: fact.category,
+              content: fact.content,
+              reason: "rejected"
+            });
+            await factsRepo.deleteFact(scopedDb, fact.id);
+            return true;
+          }
+        );
+        if (!rejected) return reply.code(404).send({ error: "Memory fact not found" });
         return reply.code(204).send();
       } catch (error) {
         return handleRouteError(error, reply);

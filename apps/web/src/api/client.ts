@@ -575,6 +575,18 @@ export async function deleteMemoryFact(id: string): Promise<void> {
   });
 }
 
+export async function confirmMemoryFact(id: string): Promise<void> {
+  await requestJson<unknown>(`/api/chat/memory/facts/${encodeURIComponent(id)}/confirm`, {
+    method: "POST"
+  });
+}
+
+export async function rejectMemoryFact(id: string): Promise<void> {
+  await requestJson<unknown>(`/api/chat/memory/facts/${encodeURIComponent(id)}/reject`, {
+    method: "POST"
+  });
+}
+
 export async function switchChatProvider(): Promise<void> {
   await requestJson<unknown>("/api/chat/switch", { method: "POST" });
 }

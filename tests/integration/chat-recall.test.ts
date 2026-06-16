@@ -8,7 +8,11 @@ import {
   type AccessContext,
   type JarvisDatabase
 } from "@jarv1s/db";
-import { ChatMemoryFactsRepository } from "@jarv1s/memory";
+import {
+  ChatMemoryFactsRepository,
+  ChatMemorySuppressionsRepository,
+  createMemoryFactSignature
+} from "@jarv1s/memory";
 import { ChatRepository, ChatUserMemorySettingsRepository } from "@jarv1s/chat";
 import { createApiServer } from "../../apps/api/src/server.js";
 import {
@@ -108,6 +112,56 @@ describe("Phase 3 Recall migrations", () => {
     }
   });
 
+  it("0092: chat_memory_suppressions table exists with owner-scoped signature columns", async () => {
+    const client = new Client({ connectionString: connectionStrings.migration });
+    await client.connect();
+    try {
+      const res = await client.query(
+        `SELECT column_name FROM information_schema.columns
+         WHERE table_schema = 'app' AND table_name = 'chat_memory_suppressions'
+         ORDER BY column_name`
+      );
+      const cols = res.rows.map((r: { column_name: string }) => r.column_name);
+      expect(cols).toEqual(
+        expect.arrayContaining([
+          "id",
+          "owner_user_id",
+          "signature",
+          "category",
+          "content",
+          "reason",
+          "created_at"
+        ])
+      );
+    } finally {
+      await client.end();
+    }
+  });
+
+  it("0092: chat_memory_suppressions grants app and worker runtime access", async () => {
+    const client = new Client({ connectionString: connectionStrings.migration });
+    await client.connect();
+    try {
+      const res = await client.query(
+        `SELECT grantee, privilege_type
+         FROM information_schema.role_table_grants
+         WHERE table_schema = 'app'
+           AND table_name = 'chat_memory_suppressions'
+           AND grantee IN ('jarvis_app_runtime', 'jarvis_worker_runtime')`
+      );
+      expect(res.rows).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ grantee: "jarvis_app_runtime", privilege_type: "SELECT" }),
+          expect.objectContaining({ grantee: "jarvis_app_runtime", privilege_type: "INSERT" }),
+          expect.objectContaining({ grantee: "jarvis_worker_runtime", privilege_type: "SELECT" }),
+          expect.objectContaining({ grantee: "jarvis_worker_runtime", privilege_type: "INSERT" })
+        ])
+      );
+    } finally {
+      await client.end();
+    }
+  });
+
   it("0042: chat_user_memory_settings table exists", async () => {
     const client = new Client({ connectionString: connectionStrings.migration });
     await client.connect();
@@ -187,6 +241,33 @@ describe("ChatMemoryFactsRepository", () => {
 
       const facts = await repo.listActiveFacts(scopedDb, userId);
       expect(facts.find((f) => f.id === fact.id)?.provenance).toBe("volunteered");
+    });
+  });
+
+  it("creates stable signatures from normalized category and content", () => {
+    expect(createMemoryFactSignature("preference", "  Prefers   direct Answers ")).toBe(
+      createMemoryFactSignature("preference", "prefers direct answers")
+    );
+    expect(createMemoryFactSignature("goal", "prefers direct answers")).not.toBe(
+      createMemoryFactSignature("preference", "prefers direct answers")
+    );
+  });
+
+  it("records rejected signatures and checks them owner-locally", async () => {
+    const suppressions = new ChatMemorySuppressionsRepository();
+    await dataContext.withDataContext(ctx(userId), async (scopedDb) => {
+      const signature = createMemoryFactSignature("preference", "Prefers direct answers");
+      await suppressions.insertSuppression(scopedDb, userId, {
+        signature,
+        category: "preference",
+        content: "Prefers direct answers",
+        reason: "rejected"
+      });
+      await expect(suppressions.isSuppressed(scopedDb, userId, signature)).resolves.toBe(true);
+    });
+    await dataContext.withDataContext(ctx(ids.userB), async (scopedDb) => {
+      const signature = createMemoryFactSignature("preference", "Prefers direct answers");
+      await expect(suppressions.isSuppressed(scopedDb, ids.userB, signature)).resolves.toBe(false);
     });
   });
 
@@ -648,6 +729,77 @@ describe("Memory controls REST API", () => {
       factsRepo.listActiveFacts(scopedDb, ids.userA)
     );
     expect(facts.find((f) => f.id === fact.id)).toBeUndefined();
+  });
+
+  it("POST /api/chat/memory/facts/:id/confirm promotes an inferred fact", async () => {
+    const fact = await dataContext.withDataContext(ctx(ids.userA), (scopedDb) =>
+      factsRepo.insertFact(scopedDb, ids.userA, {
+        category: "preference",
+        content: "Confirm route test",
+        provenance: "inferred"
+      })
+    );
+
+    const res = await server.inject({
+      method: "POST",
+      url: `/api/chat/memory/facts/${fact.id}/confirm`,
+      headers: { authorization: `Bearer ${ids.sessionA}` }
+    });
+    expect(res.statusCode).toBe(204);
+
+    const facts = await dataContext.withDataContext(ctx(ids.userA), (scopedDb) =>
+      factsRepo.listActiveFacts(scopedDb, ids.userA)
+    );
+    expect(facts.find((f) => f.id === fact.id)?.provenance).toBe("confirmed");
+  });
+
+  it("POST /api/chat/memory/facts/:id/reject deletes inferred fact and writes suppression", async () => {
+    const fact = await dataContext.withDataContext(ctx(ids.userA), (scopedDb) =>
+      factsRepo.insertFact(scopedDb, ids.userA, {
+        category: "goal",
+        content: "Reject route test",
+        provenance: "inferred"
+      })
+    );
+
+    const res = await server.inject({
+      method: "POST",
+      url: `/api/chat/memory/facts/${fact.id}/reject`,
+      headers: { authorization: `Bearer ${ids.sessionA}` }
+    });
+    expect(res.statusCode).toBe(204);
+
+    await dataContext.withDataContext(ctx(ids.userA), async (scopedDb) => {
+      const facts = await factsRepo.listActiveFacts(scopedDb, ids.userA);
+      expect(facts.find((f) => f.id === fact.id)).toBeUndefined();
+      const suppressions = new ChatMemorySuppressionsRepository();
+      await expect(
+        suppressions.isSuppressed(
+          scopedDb,
+          ids.userA,
+          createMemoryFactSignature("goal", "Reject route test")
+        )
+      ).resolves.toBe(true);
+    });
+  });
+
+  it("non-owner cannot confirm or reject another user's fact", async () => {
+    const fact = await dataContext.withDataContext(ctx(ids.userA), (scopedDb) =>
+      factsRepo.insertFact(scopedDb, ids.userA, {
+        category: "preference",
+        content: "Non-owner route test",
+        provenance: "inferred"
+      })
+    );
+
+    for (const action of ["confirm", "reject"] as const) {
+      const res = await server.inject({
+        method: "POST",
+        url: `/api/chat/memory/facts/${fact.id}/${action}`,
+        headers: { authorization: `Bearer ${ids.sessionB}` }
+      });
+      expect(res.statusCode).toBe(404);
+    }
   });
 
   it("PATCH /api/chat/memory/facts/:id with invalid importance returns 400", async () => {
