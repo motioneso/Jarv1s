@@ -51,6 +51,7 @@ import { registerLocaleRoutes } from "./locale-routes.js";
 import { registerPersonaRoutes } from "./persona-routes.js";
 import type { ProfilePreferencesPort, PersonaPreviewInput } from "./preferences-port.js";
 import { HttpRepositoryError, SettingsRepository } from "./repository.js";
+import { registerSourceBehaviorRoutes } from "./source-behavior-routes.js";
 
 export interface SettingsRoutesDependencies {
   // Kysely exemption: only BootstrapHelper uses rootDb before any actor/session exists.
@@ -93,6 +94,7 @@ export function registerSettingsRoutes(
   const bootstrapHelper = new BootstrapHelper(dependencies.rootDb);
   registerLocaleRoutes(server, { ...dependencies, preferencesRepository });
   registerPersonaRoutes(server, { ...dependencies, repository, preferencesRepository });
+  registerSourceBehaviorRoutes(server, { ...dependencies, preferencesRepository });
   server.get("/api/bootstrap/status", { schema: bootstrapStatusRouteSchema }, async () => {
     // Return only the boolean the client needs. The raw user count is an instance-wide
     // metric exposed on an UNAUTHENTICATED route — do not leak it (OTNR-P4 #122).

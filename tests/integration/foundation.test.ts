@@ -192,7 +192,8 @@ describe("MVP foundation scaffold", () => {
         { version: "0088", name: "0088_wellness_emotion_taxonomy.sql" },
         { version: "0089", name: "0089_wellness_therapy_notes.sql" },
         { version: "0090", name: "0090_chat_memory_facts_provenance.sql" },
-        { version: "0092", name: "0092_inferred_patterns_suppression.sql" }
+        { version: "0092", name: "0092_inferred_patterns_suppression.sql" },
+        { version: "0093", name: "0093_preferences_worker_runtime_grants.sql" }
       ]);
     } finally {
       await client.end();

@@ -23,6 +23,8 @@ import type {
   PutLocaleSettingsResponse,
   PutPersonaSettingsRequest,
   PutPersonaSettingsResponse,
+  PutSourceBehaviorRequest,
+  PutSourceBehaviorResponse,
   UserDto,
   BreakdownTaskRequest,
   BreakdownTaskResponse,
@@ -64,6 +66,7 @@ import type {
   ListAdminModulesResponse,
   ListModulesResponse,
   ListMyModulesResponse,
+  ListSourceBehaviorsResponse,
   MyModuleDto,
   ListNotificationsResponse,
   ListTaskActivityResponse,
@@ -158,6 +161,23 @@ export async function putLocaleSettings(
     method: "PUT",
     body
   });
+}
+
+export async function listSourceBehaviors(): Promise<ListSourceBehaviorsResponse> {
+  return requestJson<ListSourceBehaviorsResponse>("/api/me/source-behaviors");
+}
+
+export async function putSourceBehavior(
+  id: string,
+  body: PutSourceBehaviorRequest
+): Promise<PutSourceBehaviorResponse> {
+  return requestJson<PutSourceBehaviorResponse>(
+    `/api/me/source-behaviors/${encodeURIComponent(id)}`,
+    {
+      method: "PUT",
+      body
+    }
+  );
 }
 
 export async function getPersonaSettings(): Promise<GetPersonaSettingsResponse> {

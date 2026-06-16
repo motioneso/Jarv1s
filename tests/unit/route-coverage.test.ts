@@ -17,6 +17,12 @@ describe("manifest routes[] reconciliation", () => {
     expect(paths).toContainEqual({ method: "GET", path: "/api/tasks/:id/activity" });
   });
 
+  it("settings manifest declares source behavior routes", () => {
+    const paths = manifestPaths("settings");
+    expect(paths).toContainEqual({ method: "GET", path: "/api/me/source-behaviors" });
+    expect(paths).toContainEqual({ method: "PUT", path: "/api/me/source-behaviors/:id" });
+  });
+
   it("chat manifest declares every chat API route the routes module registers", () => {
     const paths = manifestPaths("chat");
     for (const expected of [

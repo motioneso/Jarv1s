@@ -1,25 +1,16 @@
+import type { SourceBehaviorDto, SourceBehaviorSourceDto } from "@jarv1s/shared";
+
 export type SourceBehaviorTone = "neutral" | "pine" | "steel";
-export type DataSourceBehaviorStatus = "default-on" | "default-off" | "coming-soon";
 
-export interface DataSourceBehavior {
-  readonly id: string;
-  readonly name: string;
-  readonly description: string;
-  readonly status: DataSourceBehaviorStatus;
-}
+export type DataSourceBehavior = SourceBehaviorDto;
 
-export interface DataSource {
-  readonly id: string;
-  readonly name: string;
-  readonly powered: string;
-  readonly behaviors: readonly DataSourceBehavior[];
-}
+export type DataSource = SourceBehaviorSourceDto;
 
 export function sourceBehaviorStatus(behavior: DataSourceBehavior): {
   readonly tone: SourceBehaviorTone;
   readonly label: string;
 } {
-  if (behavior.status === "default-on") return { tone: "pine", label: "Default on" };
-  if (behavior.status === "default-off") return { tone: "neutral", label: "Default off" };
+  if (behavior.toggleable && behavior.enabled) return { tone: "pine", label: "On" };
+  if (behavior.toggleable) return { tone: "neutral", label: "Off" };
   return { tone: "steel", label: "Coming soon" };
 }

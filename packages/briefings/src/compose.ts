@@ -6,6 +6,7 @@ import type { ChatTurn, GenerateChatInput, ProviderKind } from "@jarv1s/ai";
 import type { BriefingDefinition, BriefingRunStatus, DataContextDb } from "@jarv1s/db";
 import type { MemoryRetriever } from "@jarv1s/memory";
 import type { JarvisModuleManifest } from "@jarv1s/module-sdk";
+import { isBehaviorEnabled, type SourceBehaviorPolicyDeps } from "@jarv1s/source-behaviors";
 import { normalizePersonaSettings, renderPersonaText } from "@jarv1s/shared";
 
 import { timezoneFor } from "./schedule.js";
@@ -31,6 +32,7 @@ export interface ComposeDeps {
   readonly personaRepository?: {
     get(scopedDb: DataContextDb, key: string): Promise<unknown>;
   };
+  readonly sourceBehaviorPolicy?: SourceBehaviorPolicyDeps;
   readonly resolveUserName?: (scopedDb: DataContextDb, actorUserId: string) => Promise<string>;
   /** Injectable for tests; defaults to constructing a real HttpApiAdapter. */
   readonly createAdapter?: (
@@ -121,6 +123,21 @@ function capLines(lines: string[]): { lines: string[]; truncated: boolean } {
     total += line.length;
   }
   return { lines: out, truncated };
+}
+
+function emptySection(key: string, label: string): Section {
+  return { key, label, lines: [], count: 0 };
+}
+
+async function sourceIncludedInBriefings(
+  scopedDb: DataContextDb,
+  deps: ComposeDeps,
+  behaviorId: string
+): Promise<boolean> {
+  if (!deps.sourceBehaviorPolicy) {
+    return true;
+  }
+  return isBehaviorEnabled(scopedDb, deps.sourceBehaviorPolicy, behaviorId);
 }
 
 /** Gather one tool-backed section; never throws — failures become gaps. */
@@ -240,43 +257,49 @@ export async function composeBriefing(
     timeZone
   );
 
-  const calendar = await gatherToolSection(
-    scopedDb,
-    definition,
-    input,
-    deps,
-    {
-      key: "calendar",
-      label: "CALENDAR",
-      toolName: "calendar.listVisibleEvents",
-      arrayKey: "events",
-      // "Today's calendar": bound to the definition's local day on the event start.
-      localDayField: "startsAt",
-      format: (e) => [str(e.startsAt), str(e.title)].filter(Boolean).join(" · ")
-    },
-    gaps,
-    now,
-    timeZone
-  );
+  const includeCalendar = await sourceIncludedInBriefings(scopedDb, deps, "calendar.briefings");
+  const calendar = includeCalendar
+    ? await gatherToolSection(
+        scopedDb,
+        definition,
+        input,
+        deps,
+        {
+          key: "calendar",
+          label: "CALENDAR",
+          toolName: "calendar.listVisibleEvents",
+          arrayKey: "events",
+          // "Today's calendar": bound to the definition's local day on the event start.
+          localDayField: "startsAt",
+          format: (e) => [str(e.startsAt), str(e.title)].filter(Boolean).join(" · ")
+        },
+        gaps,
+        now,
+        timeZone
+      )
+    : emptySection("calendar", "CALENDAR");
 
-  const email = await gatherToolSection(
-    scopedDb,
-    definition,
-    input,
-    deps,
-    {
-      key: "email",
-      label: "EMAIL SUMMARIES + SIGNALS",
-      toolName: "email.listVisibleMessages",
-      arrayKey: "messages",
-      // Email "signals" = recent unread/important; keep the source's own recency
-      // (no day-bound — a 2-day-old unresolved thread is still a morning signal).
-      format: (m) => [str(m.sender), str(m.subject), str(m.snippet)].filter(Boolean).join(" · ")
-    },
-    gaps,
-    now,
-    timeZone
-  );
+  const includeEmail = await sourceIncludedInBriefings(scopedDb, deps, "email.briefings");
+  const email = includeEmail
+    ? await gatherToolSection(
+        scopedDb,
+        definition,
+        input,
+        deps,
+        {
+          key: "email",
+          label: "EMAIL SUMMARIES + SIGNALS",
+          toolName: "email.listVisibleMessages",
+          arrayKey: "messages",
+          // Email "signals" = recent unread/important; keep the source's own recency
+          // (no day-bound — a 2-day-old unresolved thread is still a morning signal).
+          format: (m) => [str(m.sender), str(m.subject), str(m.snippet)].filter(Boolean).join(" · ")
+        },
+        gaps,
+        now,
+        timeZone
+      )
+    : emptySection("email", "EMAIL SUMMARIES + SIGNALS");
 
   // Vault: semantic ∪ recency, deduped by id/source path. Best-effort.
   const vaultLines: string[] = [];

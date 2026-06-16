@@ -24,6 +24,8 @@ import {
   getBuiltInModuleRegistrations,
   getBuiltInSqlMigrationDirectories
 } from "@jarv1s/module-registry";
+import { SOURCE_BEHAVIOR_PREFERENCE_KEY } from "@jarv1s/source-behaviors";
+import { PreferencesRepository } from "@jarv1s/structured-state";
 import { connectionStrings, ids } from "./test-database.js";
 import {
   briefingIds,
@@ -323,6 +325,32 @@ describe("Briefings module M6 read-only scheduled summaries", () => {
     expect(serialized).not.toContain("briefing-hidden-ciphertext");
     expect(serialized).not.toContain("encrypted_secret");
     expect(serialized).not.toContain("ciphertext");
+  });
+
+  it("omits email from generated briefings when the user disables that source behavior", async () => {
+    const prefs = new PreferencesRepository();
+    await dataContext.withDataContext(userAContext(), (scopedDb) =>
+      prefs.upsert(scopedDb, SOURCE_BEHAVIOR_PREFERENCE_KEY, { "email.briefings": false })
+    );
+    const definition = await dataContext.withDataContext(userAContext(), (scopedDb) =>
+      repository.createDefinition(scopedDb, {
+        title: "Policy-filtered briefing",
+        selectedToolNames: ["tasks.list", "email.listVisibleMessages"]
+      })
+    );
+    const outcome = await dataContext.withDataContext(userAContext(), (scopedDb) =>
+      repository.generateRun(scopedDb, definition.id, {
+        moduleManifests: getBuiltInModuleManifests(),
+        runKind: "manual",
+        composeDeps: makeComposeDeps()
+      })
+    );
+    const run = outcome?.run;
+    const meta = run?.source_metadata as { emailCount: number };
+
+    expect(outcome?.created).toBe(true);
+    expect(meta.emailCount).toBe(0);
+    expect(JSON.stringify(run)).not.toContain("User A briefing email");
   });
 
   it("rejects write tool names and does not mutate source modules or enqueue jobs", async () => {
