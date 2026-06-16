@@ -257,11 +257,7 @@ export async function composeBriefing(
     timeZone
   );
 
-  const includeCalendar = await sourceIncludedInBriefings(
-    scopedDb,
-    deps,
-    "calendar.briefings"
-  );
+  const includeCalendar = await sourceIncludedInBriefings(scopedDb, deps, "calendar.briefings");
   const calendar = includeCalendar
     ? await gatherToolSection(
         scopedDb,
@@ -297,9 +293,7 @@ export async function composeBriefing(
           arrayKey: "messages",
           // Email "signals" = recent unread/important; keep the source's own recency
           // (no day-bound — a 2-day-old unresolved thread is still a morning signal).
-          format: (m) => [str(m.sender), str(m.subject), str(m.snippet)]
-            .filter(Boolean)
-            .join(" · ")
+          format: (m) => [str(m.sender), str(m.subject), str(m.snippet)].filter(Boolean).join(" · ")
         },
         gaps,
         now,

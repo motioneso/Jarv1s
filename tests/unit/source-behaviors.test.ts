@@ -71,7 +71,9 @@ describe("source behavior policy", () => {
     const enabled = await isBehaviorEnabled(
       fakeScopedDb,
       {
-        manifests: [manifestWithBehavior("calendar", "Calendar", "calendar.briefings", "default-on")],
+        manifests: [
+          manifestWithBehavior("calendar", "Calendar", "calendar.briefings", "default-on")
+        ],
         preferencesRepository: prefRepo({
           [SOURCE_BEHAVIOR_PREFERENCE_KEY]: { "calendar.briefings": false }
         })

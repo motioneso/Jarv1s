@@ -26,6 +26,7 @@
 ## Task 0: Restore Approved Spec Into This Branch
 
 **Files:**
+
 - Create: `docs/superpowers/specs/2026-06-15-source-behavior-policy.md`
 
 - [ ] **Step 1: Restore exact approved spec from local commit**
@@ -58,6 +59,7 @@ git commit -m "docs(spec): restore source behavior policy spec" -m "Co-Authored-
 ## Task 1: Manifest Contract And Policy Helper
 
 **Files:**
+
 - Modify: `packages/module-sdk/src/index.ts`
 - Create: `packages/source-behaviors/package.json`
 - Create: `packages/source-behaviors/src/index.ts`
@@ -75,26 +77,60 @@ Cases:
 it("collects source behaviors from every module manifest in source/name order", () => {
   const behaviors = collectSourceBehaviors([
     manifestWithBehavior("email", "Email", "email.briefings", "include-in-briefings", "default-on"),
-    manifestWithBehavior("calendar", "Calendar", "calendar.briefings", "include-in-briefings", "default-on")
+    manifestWithBehavior(
+      "calendar",
+      "Calendar",
+      "calendar.briefings",
+      "include-in-briefings",
+      "default-on"
+    )
   ]);
 
   expect(behaviors.map((b) => b.id)).toEqual(["calendar.briefings", "email.briefings"]);
 });
 
 it("uses user override before declared default", async () => {
-  const enabled = await isBehaviorEnabled(fakeScopedDb, {
-    manifests: [manifestWithBehavior("calendar", "Calendar", "calendar.briefings", "include-in-briefings", "default-on")],
-    preferencesRepository: prefRepo({ [SOURCE_BEHAVIOR_PREFERENCE_KEY]: { "calendar.briefings": false } })
-  }, "calendar.briefings");
+  const enabled = await isBehaviorEnabled(
+    fakeScopedDb,
+    {
+      manifests: [
+        manifestWithBehavior(
+          "calendar",
+          "Calendar",
+          "calendar.briefings",
+          "include-in-briefings",
+          "default-on"
+        )
+      ],
+      preferencesRepository: prefRepo({
+        [SOURCE_BEHAVIOR_PREFERENCE_KEY]: { "calendar.briefings": false }
+      })
+    },
+    "calendar.briefings"
+  );
 
   expect(enabled).toBe(false);
 });
 
 it("always returns false for coming-soon behaviors even if stored true", async () => {
-  const enabled = await isBehaviorEnabled(fakeScopedDb, {
-    manifests: [manifestWithBehavior("calendar", "Calendar", "calendar.writeback", "write-events-back", "coming-soon")],
-    preferencesRepository: prefRepo({ [SOURCE_BEHAVIOR_PREFERENCE_KEY]: { "calendar.writeback": true } })
-  }, "calendar.writeback");
+  const enabled = await isBehaviorEnabled(
+    fakeScopedDb,
+    {
+      manifests: [
+        manifestWithBehavior(
+          "calendar",
+          "Calendar",
+          "calendar.writeback",
+          "write-events-back",
+          "coming-soon"
+        )
+      ],
+      preferencesRepository: prefRepo({
+        [SOURCE_BEHAVIOR_PREFERENCE_KEY]: { "calendar.writeback": true }
+      })
+    },
+    "calendar.writeback"
+  );
 
   expect(enabled).toBe(false);
 });
@@ -114,7 +150,14 @@ Add to `packages/module-sdk/src/index.ts`:
 
 ```typescript
 export type SourceBehaviorDefault = "default-on" | "default-off" | "coming-soon";
-export type SourceBehaviorKind = "include-in-briefings" | "planning" | "detect-commitments" | "write-events-back" | "capture-tasks" | "thread-summaries" | "send-on-behalf";
+export type SourceBehaviorKind =
+  | "include-in-briefings"
+  | "planning"
+  | "detect-commitments"
+  | "write-events-back"
+  | "capture-tasks"
+  | "thread-summaries"
+  | "send-on-behalf";
 
 export interface SourceBehaviorDecl {
   readonly id: string;
@@ -152,7 +195,9 @@ export interface SourceBehaviorPolicyDeps {
   readonly preferencesRepository: SourceBehaviorPreferencesPort;
 }
 
-export function collectSourceBehaviors(manifests: readonly JarvisModuleManifest[]): SourceBehaviorDecl[] {
+export function collectSourceBehaviors(
+  manifests: readonly JarvisModuleManifest[]
+): SourceBehaviorDecl[] {
   return manifests
     .flatMap((manifest) => manifest.sourceBehaviors ?? [])
     .slice()
@@ -167,7 +212,7 @@ export async function isBehaviorEnabled(
   const behavior = collectSourceBehaviors(deps.manifests).find((item) => item.id === behaviorId);
   if (!behavior || behavior.default === "coming-soon") return false;
   const stored = await deps.preferencesRepository.get(scopedDb, SOURCE_BEHAVIOR_PREFERENCE_KEY);
-  const overrides = stored && typeof stored === "object" ? stored as Record<string, unknown> : {};
+  const overrides = stored && typeof stored === "object" ? (stored as Record<string, unknown>) : {};
   const override = overrides[behaviorId];
   if (typeof override === "boolean") return override;
   return behavior.default === "default-on";
@@ -200,6 +245,7 @@ git commit -m "feat(source-behaviors): add manifest-driven policy helper" -m "Co
 ## Task 2: Calendar And Email Declarations
 
 **Files:**
+
 - Modify: `packages/calendar/src/manifest.ts`
 - Modify: `packages/email/src/manifest.ts`
 - Test: `tests/unit/source-behaviors.test.ts`
@@ -209,7 +255,9 @@ git commit -m "feat(source-behaviors): add manifest-driven policy helper" -m "Co
 Append a test that imports `calendarModuleManifest` and `emailModuleManifest`, then expects IDs:
 
 ```typescript
-expect(collectSourceBehaviors([calendarModuleManifest, emailModuleManifest]).map((b) => b.id)).toEqual([
+expect(
+  collectSourceBehaviors([calendarModuleManifest, emailModuleManifest]).map((b) => b.id)
+).toEqual([
   "calendar.briefings",
   "calendar.planning",
   "calendar.detect-commitments",
@@ -244,22 +292,102 @@ Calendar declarations:
 
 ```typescript
 sourceBehaviors: [
-  { id: "calendar.briefings", sourceId: "calendar", sourceName: "Calendar", sourceDescription: "What Jarvis is allowed to do with your calendar — independent of whichever service powers it.", name: "Include in briefings", description: "Surface today's events in the morning reading.", kind: "include-in-briefings", default: "default-on" },
-  { id: "calendar.planning", sourceId: "calendar", sourceName: "Calendar", sourceDescription: "What Jarvis is allowed to do with your calendar — independent of whichever service powers it.", name: "Use for planning", description: "Jarvis schedules its own focus blocks around your events.", kind: "planning", default: "coming-soon" },
-  { id: "calendar.detect-commitments", sourceId: "calendar", sourceName: "Calendar", sourceDescription: "What Jarvis is allowed to do with your calendar — independent of whichever service powers it.", name: "Detect commitments", description: "Turn meeting language into a tracked commitment.", kind: "detect-commitments", default: "coming-soon" },
-  { id: "calendar.writeback", sourceId: "calendar", sourceName: "Calendar", sourceDescription: "What Jarvis is allowed to do with your calendar — independent of whichever service powers it.", name: "Write events back", description: "Let Jarvis create and move calendar events for you.", kind: "write-events-back", default: "coming-soon" }
-]
+  {
+    id: "calendar.briefings",
+    sourceId: "calendar",
+    sourceName: "Calendar",
+    sourceDescription:
+      "What Jarvis is allowed to do with your calendar — independent of whichever service powers it.",
+    name: "Include in briefings",
+    description: "Surface today's events in the morning reading.",
+    kind: "include-in-briefings",
+    default: "default-on"
+  },
+  {
+    id: "calendar.planning",
+    sourceId: "calendar",
+    sourceName: "Calendar",
+    sourceDescription:
+      "What Jarvis is allowed to do with your calendar — independent of whichever service powers it.",
+    name: "Use for planning",
+    description: "Jarvis schedules its own focus blocks around your events.",
+    kind: "planning",
+    default: "coming-soon"
+  },
+  {
+    id: "calendar.detect-commitments",
+    sourceId: "calendar",
+    sourceName: "Calendar",
+    sourceDescription:
+      "What Jarvis is allowed to do with your calendar — independent of whichever service powers it.",
+    name: "Detect commitments",
+    description: "Turn meeting language into a tracked commitment.",
+    kind: "detect-commitments",
+    default: "coming-soon"
+  },
+  {
+    id: "calendar.writeback",
+    sourceId: "calendar",
+    sourceName: "Calendar",
+    sourceDescription:
+      "What Jarvis is allowed to do with your calendar — independent of whichever service powers it.",
+    name: "Write events back",
+    description: "Let Jarvis create and move calendar events for you.",
+    kind: "write-events-back",
+    default: "coming-soon"
+  }
+];
 ```
 
 Email declarations:
 
 ```typescript
 sourceBehaviors: [
-  { id: "email.briefings", sourceId: "email", sourceName: "Email", sourceDescription: "What Jarvis is allowed to do with your email — independent of whichever service powers it.", name: "Include in briefings", description: "Flag threads that need a reply today.", kind: "include-in-briefings", default: "default-on" },
-  { id: "email.capture-tasks", sourceId: "email", sourceName: "Email", sourceDescription: "What Jarvis is allowed to do with your email — independent of whichever service powers it.", name: "Capture tasks", description: "Turn emails into tasks when they imply an action.", kind: "capture-tasks", default: "coming-soon" },
-  { id: "email.thread-summaries", sourceId: "email", sourceName: "Email", sourceDescription: "What Jarvis is allowed to do with your email — independent of whichever service powers it.", name: "Thread summaries", description: "Condense long threads before you open them.", kind: "thread-summaries", default: "coming-soon" },
-  { id: "email.send-on-behalf", sourceId: "email", sourceName: "Email", sourceDescription: "What Jarvis is allowed to do with your email — independent of whichever service powers it.", name: "Send on my behalf", description: "Draft and send replies, with your approval.", kind: "send-on-behalf", default: "coming-soon" }
-]
+  {
+    id: "email.briefings",
+    sourceId: "email",
+    sourceName: "Email",
+    sourceDescription:
+      "What Jarvis is allowed to do with your email — independent of whichever service powers it.",
+    name: "Include in briefings",
+    description: "Flag threads that need a reply today.",
+    kind: "include-in-briefings",
+    default: "default-on"
+  },
+  {
+    id: "email.capture-tasks",
+    sourceId: "email",
+    sourceName: "Email",
+    sourceDescription:
+      "What Jarvis is allowed to do with your email — independent of whichever service powers it.",
+    name: "Capture tasks",
+    description: "Turn emails into tasks when they imply an action.",
+    kind: "capture-tasks",
+    default: "coming-soon"
+  },
+  {
+    id: "email.thread-summaries",
+    sourceId: "email",
+    sourceName: "Email",
+    sourceDescription:
+      "What Jarvis is allowed to do with your email — independent of whichever service powers it.",
+    name: "Thread summaries",
+    description: "Condense long threads before you open them.",
+    kind: "thread-summaries",
+    default: "coming-soon"
+  },
+  {
+    id: "email.send-on-behalf",
+    sourceId: "email",
+    sourceName: "Email",
+    sourceDescription:
+      "What Jarvis is allowed to do with your email — independent of whichever service powers it.",
+    name: "Send on my behalf",
+    description: "Draft and send replies, with your approval.",
+    kind: "send-on-behalf",
+    default: "coming-soon"
+  }
+];
 ```
 
 - [ ] **Step 4: Run GREEN**
@@ -278,6 +406,7 @@ git commit -m "feat(modules): declare source behaviors in manifests" -m "Co-Auth
 ## Task 3: Settings API Routes
 
 **Files:**
+
 - Modify: `packages/shared/src/platform-api.ts`
 - Create: `packages/settings/src/source-behavior-routes.ts`
 - Modify: `packages/settings/src/routes.ts`
@@ -293,29 +422,62 @@ Create `tests/integration/source-behaviors.test.ts` using the existing integrati
 
 ```typescript
 it("lists declared source behaviors with current per-user values", async () => {
-  const response = await server.inject({ method: "GET", url: "/api/me/source-behaviors", headers: userAHeaders() });
+  const response = await server.inject({
+    method: "GET",
+    url: "/api/me/source-behaviors",
+    headers: userAHeaders()
+  });
   expect(response.statusCode).toBe(200);
   expect(response.json().sources.map((s) => s.id)).toContain("calendar");
-  expect(findBehavior(response.json(), "calendar.briefings")).toMatchObject({ enabled: true, default: "default-on", toggleable: true });
-  expect(findBehavior(response.json(), "calendar.writeback")).toMatchObject({ enabled: false, default: "coming-soon", toggleable: false });
+  expect(findBehavior(response.json(), "calendar.briefings")).toMatchObject({
+    enabled: true,
+    default: "default-on",
+    toggleable: true
+  });
+  expect(findBehavior(response.json(), "calendar.writeback")).toMatchObject({
+    enabled: false,
+    default: "coming-soon",
+    toggleable: false
+  });
 });
 
 it("lets a non-admin set only their own live source-behavior toggles", async () => {
-  const put = await server.inject({ method: "PUT", url: "/api/me/source-behaviors/calendar.briefings", headers: userAHeaders(), payload: { enabled: false } });
+  const put = await server.inject({
+    method: "PUT",
+    url: "/api/me/source-behaviors/calendar.briefings",
+    headers: userAHeaders(),
+    payload: { enabled: false }
+  });
   expect(put.statusCode).toBe(200);
   expect(findBehavior(put.json(), "calendar.briefings").enabled).toBe(false);
-  const userB = await server.inject({ method: "GET", url: "/api/me/source-behaviors", headers: userBHeaders() });
+  const userB = await server.inject({
+    method: "GET",
+    url: "/api/me/source-behaviors",
+    headers: userBHeaders()
+  });
   expect(findBehavior(userB.json(), "calendar.briefings").enabled).toBe(true);
 });
 
 it("rejects coming-soon writes", async () => {
-  const response = await server.inject({ method: "PUT", url: "/api/me/source-behaviors/email.capture-tasks", headers: userAHeaders(), payload: { enabled: true } });
+  const response = await server.inject({
+    method: "PUT",
+    url: "/api/me/source-behaviors/email.capture-tasks",
+    headers: userAHeaders(),
+    payload: { enabled: true }
+  });
   expect(response.statusCode).toBe(422);
 });
 
 it("includes newly declared test-module behavior in list API", async () => {
-  const response = await serverWithExtraManifest.inject({ method: "GET", url: "/api/me/source-behaviors", headers: userAHeaders() });
-  expect(findBehavior(response.json(), "test-source.briefings")).toMatchObject({ sourceId: "test-source", enabled: false });
+  const response = await serverWithExtraManifest.inject({
+    method: "GET",
+    url: "/api/me/source-behaviors",
+    headers: userAHeaders()
+  });
+  expect(findBehavior(response.json(), "test-source.briefings")).toMatchObject({
+    sourceId: "test-source",
+    enabled: false
+  });
 });
 ```
 
@@ -360,6 +522,7 @@ git commit -m "feat(settings): expose per-user source behavior policy" -m "Co-Au
 ## Task 4: Briefings Enforcement
 
 **Files:**
+
 - Modify: `packages/briefings/src/compose.ts`
 - Modify: `packages/briefings/src/jobs.ts`
 - Modify: `packages/briefings/package.json`
@@ -373,7 +536,9 @@ Add test:
 
 ```typescript
 it("omits calendar and email sections when include-in-briefings behaviors are disabled", async () => {
-  const deps = makeFakeDeps({ disabledBehaviors: new Set(["calendar.briefings", "email.briefings"]) });
+  const deps = makeFakeDeps({
+    disabledBehaviors: new Set(["calendar.briefings", "email.briefings"])
+  });
   const result = await composeBriefing(fakeScopedDb, definition(), runInput, deps);
   expect(result.sourceMetadata.calendarCount).toBe(0);
   expect(result.sourceMetadata.emailCount).toBe(0);
@@ -429,6 +594,7 @@ git commit -m "feat(briefings): honor source behavior policy" -m "Co-Authored-By
 ## Task 5: Web API And Settings UI
 
 **Files:**
+
 - Modify: `apps/web/src/api/client.ts`
 - Modify: `apps/web/src/api/query-keys.ts`
 - Modify: `apps/web/src/settings/settings-data-source-model.ts`
@@ -440,9 +606,36 @@ git commit -m "feat(briefings): honor source behavior policy" -m "Co-Authored-By
 Update `web-settings-data-source-model.test.ts` to cover server DTO mapping:
 
 ```typescript
-expect(sourceBehaviorStatus({ id: "calendar.briefings", name: "Include in briefings", description: "...", default: "default-on", enabled: true, toggleable: true })).toEqual({ tone: "pine", label: "On" });
-expect(sourceBehaviorStatus({ id: "calendar.briefings", name: "Include in briefings", description: "...", default: "default-on", enabled: false, toggleable: true })).toEqual({ tone: "neutral", label: "Off" });
-expect(sourceBehaviorStatus({ id: "calendar.writeback", name: "Write events back", description: "...", default: "coming-soon", enabled: false, toggleable: false })).toEqual({ tone: "steel", label: "Coming soon" });
+expect(
+  sourceBehaviorStatus({
+    id: "calendar.briefings",
+    name: "Include in briefings",
+    description: "...",
+    default: "default-on",
+    enabled: true,
+    toggleable: true
+  })
+).toEqual({ tone: "pine", label: "On" });
+expect(
+  sourceBehaviorStatus({
+    id: "calendar.briefings",
+    name: "Include in briefings",
+    description: "...",
+    default: "default-on",
+    enabled: false,
+    toggleable: true
+  })
+).toEqual({ tone: "neutral", label: "Off" });
+expect(
+  sourceBehaviorStatus({
+    id: "calendar.writeback",
+    name: "Write events back",
+    description: "...",
+    default: "coming-soon",
+    enabled: false,
+    toggleable: false
+  })
+).toEqual({ tone: "steel", label: "Coming soon" });
 ```
 
 - [ ] **Step 2: Run RED**
@@ -460,8 +653,14 @@ export async function listSourceBehaviors(): Promise<ListSourceBehaviorsResponse
   return requestJson<ListSourceBehaviorsResponse>("/api/me/source-behaviors");
 }
 
-export async function putSourceBehavior(id: string, body: PutSourceBehaviorRequest): Promise<PutSourceBehaviorResponse> {
-  return requestJson<PutSourceBehaviorResponse>(`/api/me/source-behaviors/${encodeURIComponent(id)}`, { method: "PUT", body });
+export async function putSourceBehavior(
+  id: string,
+  body: PutSourceBehaviorRequest
+): Promise<PutSourceBehaviorResponse> {
+  return requestJson<PutSourceBehaviorResponse>(
+    `/api/me/source-behaviors/${encodeURIComponent(id)}`,
+    { method: "PUT", body }
+  );
 }
 ```
 
@@ -488,6 +687,7 @@ git commit -m "feat(web): wire source behavior controls to API" -m "Co-Authored-
 ## Task 6: Full Verification And PR Closeout
 
 **Files:**
+
 - No planned source edits; only fixes from verification if needed.
 
 - [ ] **Step 1: Run targeted suites**
