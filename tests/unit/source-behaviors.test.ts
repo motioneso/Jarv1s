@@ -6,6 +6,8 @@ import type {
   SourceBehaviorDecl,
   SourceBehaviorDefault
 } from "@jarv1s/module-sdk";
+import { calendarModuleManifest } from "@jarv1s/calendar";
+import { emailModuleManifest } from "@jarv1s/email";
 import {
   collectSourceBehaviors,
   isBehaviorEnabled,
@@ -121,5 +123,33 @@ describe("source behavior policy", () => {
     );
 
     expect(enabled).toBe(false);
+  });
+
+  it("collects calendar and email source behaviors from their owning manifests", () => {
+    const behaviors = collectSourceBehaviors([calendarModuleManifest, emailModuleManifest]);
+    const byId = new Map(behaviors.map((behavior) => [behavior.id, behavior]));
+
+    expect([...byId.keys()].sort()).toEqual([
+      "calendar.briefings",
+      "calendar.detect-commitments",
+      "calendar.planning",
+      "calendar.writeback",
+      "email.briefings",
+      "email.capture-tasks",
+      "email.send-on-behalf",
+      "email.thread-summaries"
+    ]);
+    expect(byId.get("calendar.briefings")).toMatchObject({
+      sourceId: "calendar",
+      kind: "include-in-briefings",
+      default: "default-on"
+    });
+    expect(byId.get("email.briefings")).toMatchObject({
+      sourceId: "email",
+      kind: "include-in-briefings",
+      default: "default-on"
+    });
+    expect(byId.get("calendar.planning")?.default).toBe("coming-soon");
+    expect(byId.get("email.capture-tasks")?.default).toBe("coming-soon");
   });
 });
