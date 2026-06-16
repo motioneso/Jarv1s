@@ -262,7 +262,12 @@ describe("handleExtractFactsJob — durable fact upsert + no-op degrade", () => 
 
       const deps = makeDeps(async () => ({
         text: JSON.stringify([
-          { category: "preference", content: "Eats vegetarian", importance: 0.8 },
+          {
+            category: "preference",
+            content: "Eats vegetarian",
+            importance: 0.8,
+            provenance: "volunteered"
+          },
           { category: "goal", content: "Run a marathon", importance: 0.7 }
         ])
       }));
@@ -272,10 +277,12 @@ describe("handleExtractFactsJob — durable fact upsert + no-op degrade", () => 
       const veggie = facts.find((f) => f.content === "Eats vegetarian");
       const marathon = facts.find((f) => f.content === "Run a marathon");
       expect(veggie?.category).toBe("preference");
+      expect(veggie?.provenance).toBe("volunteered");
       expect(veggie?.importance).toBeGreaterThan(0);
       expect(veggie?.importance).toBeLessThanOrEqual(1);
       expect(veggie?.sourceThreadId).toBe(thread.id);
       expect(marathon?.category).toBe("goal");
+      expect(marathon?.provenance).toBe("inferred");
     });
   });
 

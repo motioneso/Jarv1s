@@ -11,6 +11,7 @@ import {
   type MemorySettings
 } from "../api/client";
 import { queryKeys } from "../api/query-keys";
+import { getMemoryFactProvenanceLabel, getMemoryFactProvenanceTone } from "./memory-provenance";
 import { useFeedback } from "./settings-feedback";
 import { readError, type PaneProps } from "./settings-types";
 import { Group, PaneHead, Row, Switch } from "./settings-ui";
@@ -92,7 +93,6 @@ export function MemoryPane(_props: PaneProps) {
         <Row
           name="Show provenance"
           desc="Always show where a belief came from - what you said, or what was inferred."
-          coming
         />
       </Group>
 
@@ -139,6 +139,13 @@ export function MemoryPane(_props: PaneProps) {
               facts.map((fact) => (
                 <div key={fact.id} className="memory-fact">
                   <span className="memory-fact__category">{fact.category}</span>
+                  <span
+                    className={`memory-fact__provenance ${getMemoryFactProvenanceTone(
+                      fact.provenance
+                    )}`}
+                  >
+                    {getMemoryFactProvenanceLabel(fact.provenance)}
+                  </span>
                   <span className="memory-fact__content">{fact.content}</span>
                   <button
                     type="button"

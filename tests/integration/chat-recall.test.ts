@@ -79,6 +79,30 @@ describe("Phase 3 Recall migrations", () => {
       expect(cols).toContain("content");
       expect(cols).toContain("status");
       expect(cols).toContain("importance");
+      expect(cols).toContain("provenance");
+    } finally {
+      await client.end();
+    }
+  });
+
+  it("0090: chat_memory_facts provenance defaults to inferred", async () => {
+    const client = new Client({ connectionString: connectionStrings.migration });
+    await client.connect();
+    try {
+      const res = await client.query(
+        `SELECT column_default, is_nullable, data_type, udt_schema, udt_name
+         FROM information_schema.columns
+         WHERE table_schema = 'app'
+           AND table_name = 'chat_memory_facts'
+           AND column_name = 'provenance'`
+      );
+      expect(res.rowCount).toBe(1);
+      expect(res.rows[0].column_default).toContain("'inferred'");
+      expect(res.rows[0].is_nullable).toBe("NO");
+      expect([
+        res.rows[0].data_type,
+        `${res.rows[0].udt_schema}.${res.rows[0].udt_name}`
+      ]).toContain("app.provenance_kind");
     } finally {
       await client.end();
     }
@@ -144,9 +168,25 @@ describe("ChatMemoryFactsRepository", () => {
       expect(fact.content).toBe("Prefers dark mode");
       expect(fact.status).toBe("active");
       expect(fact.importance).toBeCloseTo(0.8, 2);
+      expect(fact.provenance).toBe("inferred");
 
       const facts = await repo.listActiveFacts(scopedDb, userId);
       expect(facts.some((f) => f.id === fact.id)).toBe(true);
+    });
+  });
+
+  it("preserves explicitly volunteered provenance", async () => {
+    await dataContext.withDataContext(ctx(userId), async (scopedDb) => {
+      const fact = await repo.insertFact(scopedDb, userId, {
+        category: "preference",
+        content: "Prefers direct answers",
+        provenance: "volunteered"
+      });
+
+      expect(fact.provenance).toBe("volunteered");
+
+      const facts = await repo.listActiveFacts(scopedDb, userId);
+      expect(facts.find((f) => f.id === fact.id)?.provenance).toBe("volunteered");
     });
   });
 
@@ -557,6 +597,36 @@ describe("Memory controls REST API", () => {
     });
     expect(res.statusCode).toBe(200);
     expect(res.json<{ facts: unknown[] }>().facts).toHaveLength(0);
+  });
+
+  it("GET /api/chat/memory/facts includes provenance and remains owner-scoped", async () => {
+    await dataContext.withDataContext(ctx(ids.userA), (scopedDb) =>
+      factsRepo.insertFact(scopedDb, ids.userA, {
+        category: "preference",
+        content: "REST provenance test",
+        provenance: "volunteered"
+      })
+    );
+
+    const userARes = await server.inject({
+      method: "GET",
+      url: "/api/chat/memory/facts",
+      headers: { authorization: `Bearer ${ids.sessionA}` }
+    });
+    expect(userARes.statusCode).toBe(200);
+    const userAFacts = userARes.json<{ facts: { content: string; provenance: string }[] }>().facts;
+    expect(userAFacts).toContainEqual(
+      expect.objectContaining({ content: "REST provenance test", provenance: "volunteered" })
+    );
+
+    const userBRes = await server.inject({
+      method: "GET",
+      url: "/api/chat/memory/facts",
+      headers: { authorization: `Bearer ${ids.sessionB}` }
+    });
+    expect(userBRes.statusCode).toBe(200);
+    const userBFacts = userBRes.json<{ facts: { content: string; provenance?: string }[] }>().facts;
+    expect(userBFacts.some((fact) => fact.content === "REST provenance test")).toBe(false);
   });
 
   it("DELETE /api/chat/memory/facts/:id removes a fact", async () => {
