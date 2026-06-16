@@ -66,6 +66,11 @@ export const settingsModuleManifest: JarvisModuleManifest = {
       permissionId: "settings.view"
     },
     {
+      method: "PATCH",
+      path: "/api/me/profile",
+      permissionId: "settings.view"
+    },
+    {
       method: "GET",
       path: "/api/admin/auth/providers",
       permissionId: "settings.manage"
