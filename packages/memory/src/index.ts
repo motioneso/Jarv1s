@@ -27,10 +27,7 @@ export type {
   FactProvenance
 } from "./facts-repository.js";
 export { ChatMemoryFactsRepository } from "./facts-repository.js";
-export {
-  createMemoryFactSignature,
-  normalizeMemoryFactContent
-} from "./fact-signature.js";
+export { createMemoryFactSignature, normalizeMemoryFactContent } from "./fact-signature.js";
 export type {
   MemorySuppression,
   MemorySuppressionReason,

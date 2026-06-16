@@ -502,15 +502,14 @@ describe("handleExtractFactsJob — durable fact upsert + no-op degrade", () => 
         ids.userA,
         thread.id,
         makeDeps(async () => ({
-          text: JSON.stringify([
-            { category: "goal", content: "Run a 10k", provenance: "inferred" }
-          ])
+          text: JSON.stringify([{ category: "goal", content: "Run a 10k", provenance: "inferred" }])
         }))
       );
       const facts = await factsRepository.listActiveFacts(scopedDb, ids.userA);
       expect(
         facts.some(
-          (f) => f.category === "goal" && f.content === "Run a 10k" && f.sourceThreadId === thread.id
+          (f) =>
+            f.category === "goal" && f.content === "Run a 10k" && f.sourceThreadId === thread.id
         )
       ).toBe(true);
     });

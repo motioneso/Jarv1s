@@ -268,19 +268,22 @@ export function registerChatRoutes(
     async (request, reply) => {
       try {
         const access = await dependencies.resolveAccessContext(request);
-        const rejected = await dependencies.dataContext.withDataContext(access, async (scopedDb) => {
-          const fact = await factsRepo.getActiveFact(scopedDb, request.params.id);
-          if (!fact || fact.provenance !== "inferred") return false;
+        const rejected = await dependencies.dataContext.withDataContext(
+          access,
+          async (scopedDb) => {
+            const fact = await factsRepo.getActiveFact(scopedDb, request.params.id);
+            if (!fact || fact.provenance !== "inferred") return false;
 
-          await suppressionsRepo.insertSuppression(scopedDb, access.actorUserId, {
-            signature: createMemoryFactSignature(fact.category, fact.content),
-            category: fact.category,
-            content: fact.content,
-            reason: "rejected"
-          });
-          await factsRepo.deleteFact(scopedDb, fact.id);
-          return true;
-        });
+            await suppressionsRepo.insertSuppression(scopedDb, access.actorUserId, {
+              signature: createMemoryFactSignature(fact.category, fact.content),
+              category: fact.category,
+              content: fact.content,
+              reason: "rejected"
+            });
+            await factsRepo.deleteFact(scopedDb, fact.id);
+            return true;
+          }
+        );
         if (!rejected) return reply.code(404).send({ error: "Memory fact not found" });
         return reply.code(204).send();
       } catch (error) {

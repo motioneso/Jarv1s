@@ -30,6 +30,7 @@
 ## Task 1: Suppression Store And Signature Helper
 
 **Files:**
+
 - Create: `packages/memory/sql/0092_inferred_patterns_suppression.sql`
 - Create: `packages/memory/src/fact-signature.ts`
 - Create: `packages/memory/src/suppressions-repository.ts`
@@ -41,55 +42,55 @@
 Add tests in `tests/integration/chat-recall.test.ts` under `describe("Phase 3 Recall migrations", ...)`:
 
 ```ts
-  it("0092: chat_memory_suppressions table exists with owner-scoped signature columns", async () => {
-    const client = new Client({ connectionString: connectionStrings.migration });
-    await client.connect();
-    try {
-      const res = await client.query(
-        `SELECT column_name FROM information_schema.columns
+it("0092: chat_memory_suppressions table exists with owner-scoped signature columns", async () => {
+  const client = new Client({ connectionString: connectionStrings.migration });
+  await client.connect();
+  try {
+    const res = await client.query(
+      `SELECT column_name FROM information_schema.columns
          WHERE table_schema = 'app' AND table_name = 'chat_memory_suppressions'
          ORDER BY column_name`
-      );
-      const cols = res.rows.map((r: { column_name: string }) => r.column_name);
-      expect(cols).toEqual(
-        expect.arrayContaining([
-          "id",
-          "owner_user_id",
-          "signature",
-          "category",
-          "content",
-          "reason",
-          "created_at"
-        ])
-      );
-    } finally {
-      await client.end();
-    }
-  });
+    );
+    const cols = res.rows.map((r: { column_name: string }) => r.column_name);
+    expect(cols).toEqual(
+      expect.arrayContaining([
+        "id",
+        "owner_user_id",
+        "signature",
+        "category",
+        "content",
+        "reason",
+        "created_at"
+      ])
+    );
+  } finally {
+    await client.end();
+  }
+});
 
-  it("0092: chat_memory_suppressions grants app and worker runtime access", async () => {
-    const client = new Client({ connectionString: connectionStrings.migration });
-    await client.connect();
-    try {
-      const res = await client.query(
-        `SELECT grantee, privilege_type
+it("0092: chat_memory_suppressions grants app and worker runtime access", async () => {
+  const client = new Client({ connectionString: connectionStrings.migration });
+  await client.connect();
+  try {
+    const res = await client.query(
+      `SELECT grantee, privilege_type
          FROM information_schema.role_table_grants
          WHERE table_schema = 'app'
            AND table_name = 'chat_memory_suppressions'
            AND grantee IN ('jarvis_app_runtime', 'jarvis_worker_runtime')`
-      );
-      expect(res.rows).toEqual(
-        expect.arrayContaining([
-          expect.objectContaining({ grantee: "jarvis_app_runtime", privilege_type: "SELECT" }),
-          expect.objectContaining({ grantee: "jarvis_app_runtime", privilege_type: "INSERT" }),
-          expect.objectContaining({ grantee: "jarvis_worker_runtime", privilege_type: "SELECT" }),
-          expect.objectContaining({ grantee: "jarvis_worker_runtime", privilege_type: "INSERT" })
-        ])
-      );
-    } finally {
-      await client.end();
-    }
-  });
+    );
+    expect(res.rows).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ grantee: "jarvis_app_runtime", privilege_type: "SELECT" }),
+        expect.objectContaining({ grantee: "jarvis_app_runtime", privilege_type: "INSERT" }),
+        expect.objectContaining({ grantee: "jarvis_worker_runtime", privilege_type: "SELECT" }),
+        expect.objectContaining({ grantee: "jarvis_worker_runtime", privilege_type: "INSERT" })
+      ])
+    );
+  } finally {
+    await client.end();
+  }
+});
 ```
 
 - [ ] **Step 2: Run tests to verify they fail**
@@ -153,32 +154,32 @@ import {
 Add repository tests under `describe("ChatMemoryFactsRepository", ...)` or a new adjacent `describe("ChatMemorySuppressionsRepository", ...)`:
 
 ```ts
-  it("creates stable signatures from normalized category and content", () => {
-    expect(createMemoryFactSignature("preference", "  Prefers   direct Answers ")).toBe(
-      createMemoryFactSignature("preference", "prefers direct answers")
-    );
-    expect(createMemoryFactSignature("goal", "prefers direct answers")).not.toBe(
-      createMemoryFactSignature("preference", "prefers direct answers")
-    );
-  });
+it("creates stable signatures from normalized category and content", () => {
+  expect(createMemoryFactSignature("preference", "  Prefers   direct Answers ")).toBe(
+    createMemoryFactSignature("preference", "prefers direct answers")
+  );
+  expect(createMemoryFactSignature("goal", "prefers direct answers")).not.toBe(
+    createMemoryFactSignature("preference", "prefers direct answers")
+  );
+});
 
-  it("records rejected signatures and checks them owner-locally", async () => {
-    const suppressions = new ChatMemorySuppressionsRepository();
-    await dataContext.withDataContext(ctx(userId), async (scopedDb) => {
-      const signature = createMemoryFactSignature("preference", "Prefers direct answers");
-      await suppressions.insertSuppression(scopedDb, userId, {
-        signature,
-        category: "preference",
-        content: "Prefers direct answers",
-        reason: "rejected"
-      });
-      await expect(suppressions.isSuppressed(scopedDb, userId, signature)).resolves.toBe(true);
+it("records rejected signatures and checks them owner-locally", async () => {
+  const suppressions = new ChatMemorySuppressionsRepository();
+  await dataContext.withDataContext(ctx(userId), async (scopedDb) => {
+    const signature = createMemoryFactSignature("preference", "Prefers direct answers");
+    await suppressions.insertSuppression(scopedDb, userId, {
+      signature,
+      category: "preference",
+      content: "Prefers direct answers",
+      reason: "rejected"
     });
-    await dataContext.withDataContext(ctx(ids.userB), async (scopedDb) => {
-      const signature = createMemoryFactSignature("preference", "Prefers direct answers");
-      await expect(suppressions.isSuppressed(scopedDb, ids.userB, signature)).resolves.toBe(false);
-    });
+    await expect(suppressions.isSuppressed(scopedDb, userId, signature)).resolves.toBe(true);
   });
+  await dataContext.withDataContext(ctx(ids.userB), async (scopedDb) => {
+    const signature = createMemoryFactSignature("preference", "Prefers direct answers");
+    await expect(suppressions.isSuppressed(scopedDb, ids.userB, signature)).resolves.toBe(false);
+  });
+});
 ```
 
 - [ ] **Step 5: Run tests to verify repository tests fail**
@@ -230,6 +231,7 @@ git commit -m "feat(memory): add rejected fact suppression store" -m "Co-Authore
 ## Task 2: Confirm And Reject REST Routes
 
 **Files:**
+
 - Modify: `packages/memory/src/facts-repository.ts`
 - Modify: `packages/chat/src/routes.ts`
 - Modify: `packages/chat/src/manifest.ts`
@@ -248,71 +250,71 @@ Add route coverage expectations for:
 Add integration tests:
 
 ```ts
-  it("POST /api/chat/memory/facts/:id/confirm promotes an inferred fact", async () => {
-    const fact = await dataContext.withDataContext(ctx(ids.userA), (scopedDb) =>
-      factsRepo.insertFact(scopedDb, ids.userA, {
-        category: "preference",
-        content: "Confirm route test",
-        provenance: "inferred"
-      })
-    );
+it("POST /api/chat/memory/facts/:id/confirm promotes an inferred fact", async () => {
+  const fact = await dataContext.withDataContext(ctx(ids.userA), (scopedDb) =>
+    factsRepo.insertFact(scopedDb, ids.userA, {
+      category: "preference",
+      content: "Confirm route test",
+      provenance: "inferred"
+    })
+  );
+  const res = await server.inject({
+    method: "POST",
+    url: `/api/chat/memory/facts/${fact.id}/confirm`,
+    headers: { authorization: `Bearer ${ids.sessionA}` }
+  });
+  expect(res.statusCode).toBe(204);
+  const facts = await dataContext.withDataContext(ctx(ids.userA), (scopedDb) =>
+    factsRepo.listActiveFacts(scopedDb, ids.userA)
+  );
+  expect(facts.find((f) => f.id === fact.id)?.provenance).toBe("confirmed");
+});
+
+it("POST /api/chat/memory/facts/:id/reject deletes inferred fact and writes suppression", async () => {
+  const fact = await dataContext.withDataContext(ctx(ids.userA), (scopedDb) =>
+    factsRepo.insertFact(scopedDb, ids.userA, {
+      category: "goal",
+      content: "Reject route test",
+      provenance: "inferred"
+    })
+  );
+  const res = await server.inject({
+    method: "POST",
+    url: `/api/chat/memory/facts/${fact.id}/reject`,
+    headers: { authorization: `Bearer ${ids.sessionA}` }
+  });
+  expect(res.statusCode).toBe(204);
+  await dataContext.withDataContext(ctx(ids.userA), async (scopedDb) => {
+    const facts = await factsRepo.listActiveFacts(scopedDb, ids.userA);
+    expect(facts.find((f) => f.id === fact.id)).toBeUndefined();
+    const suppressions = new ChatMemorySuppressionsRepository();
+    await expect(
+      suppressions.isSuppressed(
+        scopedDb,
+        ids.userA,
+        createMemoryFactSignature("goal", "Reject route test")
+      )
+    ).resolves.toBe(true);
+  });
+});
+
+it("non-owner cannot confirm or reject another user's fact", async () => {
+  const fact = await dataContext.withDataContext(ctx(ids.userA), (scopedDb) =>
+    factsRepo.insertFact(scopedDb, ids.userA, {
+      category: "preference",
+      content: "Non-owner route test",
+      provenance: "inferred"
+    })
+  );
+  for (const action of ["confirm", "reject"] as const) {
     const res = await server.inject({
       method: "POST",
-      url: `/api/chat/memory/facts/${fact.id}/confirm`,
-      headers: { authorization: `Bearer ${ids.sessionA}` }
+      url: `/api/chat/memory/facts/${fact.id}/${action}`,
+      headers: { authorization: `Bearer ${ids.sessionB}` }
     });
-    expect(res.statusCode).toBe(204);
-    const facts = await dataContext.withDataContext(ctx(ids.userA), (scopedDb) =>
-      factsRepo.listActiveFacts(scopedDb, ids.userA)
-    );
-    expect(facts.find((f) => f.id === fact.id)?.provenance).toBe("confirmed");
-  });
-
-  it("POST /api/chat/memory/facts/:id/reject deletes inferred fact and writes suppression", async () => {
-    const fact = await dataContext.withDataContext(ctx(ids.userA), (scopedDb) =>
-      factsRepo.insertFact(scopedDb, ids.userA, {
-        category: "goal",
-        content: "Reject route test",
-        provenance: "inferred"
-      })
-    );
-    const res = await server.inject({
-      method: "POST",
-      url: `/api/chat/memory/facts/${fact.id}/reject`,
-      headers: { authorization: `Bearer ${ids.sessionA}` }
-    });
-    expect(res.statusCode).toBe(204);
-    await dataContext.withDataContext(ctx(ids.userA), async (scopedDb) => {
-      const facts = await factsRepo.listActiveFacts(scopedDb, ids.userA);
-      expect(facts.find((f) => f.id === fact.id)).toBeUndefined();
-      const suppressions = new ChatMemorySuppressionsRepository();
-      await expect(
-        suppressions.isSuppressed(
-          scopedDb,
-          ids.userA,
-          createMemoryFactSignature("goal", "Reject route test")
-        )
-      ).resolves.toBe(true);
-    });
-  });
-
-  it("non-owner cannot confirm or reject another user's fact", async () => {
-    const fact = await dataContext.withDataContext(ctx(ids.userA), (scopedDb) =>
-      factsRepo.insertFact(scopedDb, ids.userA, {
-        category: "preference",
-        content: "Non-owner route test",
-        provenance: "inferred"
-      })
-    );
-    for (const action of ["confirm", "reject"] as const) {
-      const res = await server.inject({
-        method: "POST",
-        url: `/api/chat/memory/facts/${fact.id}/${action}`,
-        headers: { authorization: `Bearer ${ids.sessionB}` }
-      });
-      expect(res.statusCode).toBe(404);
-    }
-  });
+    expect(res.statusCode).toBe(404);
+  }
+});
 ```
 
 - [ ] **Step 2: Run tests to verify failure**
@@ -384,6 +386,7 @@ git commit -m "feat(chat): confirm or reject inferred memory facts" -m "Co-Autho
 ## Task 3: Extraction Suppression Guard
 
 **Files:**
+
 - Modify: `packages/chat/src/jobs.ts`
 - Test: `tests/integration/chat-live.test.ts`
 
@@ -392,73 +395,79 @@ git commit -m "feat(chat): confirm or reject inferred memory facts" -m "Co-Autho
 In `tests/integration/chat-live.test.ts`, add:
 
 ```ts
-  it("skips suppressed inferred facts by stable signature", async () => {
-    await seedEconomyModel("suppressed-inferred");
-    await dataContext.withDataContext(userAContext(), async (scopedDb) => {
-      const thread = await repository.openNewThread(scopedDb, { title: "Facts-suppressed" });
-      await repository.recordCompletedTurn(
-        scopedDb,
-        thread.id,
-        "I keep accepting 8am meetings.",
-        "Noted.",
-        { provider: "anthropic", model: "claude-economy" }
-      );
-      const suppressions = new ChatMemorySuppressionsRepository();
-      await suppressions.insertSuppression(scopedDb, ids.userA, {
-        signature: createMemoryFactSignature("preference", "Accepts 8am meetings"),
-        category: "preference",
-        content: "Accepts 8am meetings",
-        reason: "rejected"
-      });
-      await handleExtractFactsJob(
-        scopedDb,
-        ids.userA,
-        thread.id,
-        makeDeps(async () => ({
-          text: JSON.stringify([
-            {
-              category: "preference",
-              content: "  accepts   8AM meetings ",
-              importance: 0.6,
-              provenance: "inferred"
-            }
-          ])
-        }))
-      );
-      const facts = await factsRepository.listActiveFacts(scopedDb, ids.userA);
-      expect(facts.some((f) => createMemoryFactSignature(f.category, f.content) === createMemoryFactSignature("preference", "Accepts 8am meetings"))).toBe(false);
+it("skips suppressed inferred facts by stable signature", async () => {
+  await seedEconomyModel("suppressed-inferred");
+  await dataContext.withDataContext(userAContext(), async (scopedDb) => {
+    const thread = await repository.openNewThread(scopedDb, { title: "Facts-suppressed" });
+    await repository.recordCompletedTurn(
+      scopedDb,
+      thread.id,
+      "I keep accepting 8am meetings.",
+      "Noted.",
+      { provider: "anthropic", model: "claude-economy" }
+    );
+    const suppressions = new ChatMemorySuppressionsRepository();
+    await suppressions.insertSuppression(scopedDb, ids.userA, {
+      signature: createMemoryFactSignature("preference", "Accepts 8am meetings"),
+      category: "preference",
+      content: "Accepts 8am meetings",
+      reason: "rejected"
     });
+    await handleExtractFactsJob(
+      scopedDb,
+      ids.userA,
+      thread.id,
+      makeDeps(async () => ({
+        text: JSON.stringify([
+          {
+            category: "preference",
+            content: "  accepts   8AM meetings ",
+            importance: 0.6,
+            provenance: "inferred"
+          }
+        ])
+      }))
+    );
+    const facts = await factsRepository.listActiveFacts(scopedDb, ids.userA);
+    expect(
+      facts.some(
+        (f) =>
+          createMemoryFactSignature(f.category, f.content) ===
+          createMemoryFactSignature("preference", "Accepts 8am meetings")
+      )
+    ).toBe(false);
   });
+});
 
-  it("does not let one user's suppression block another user's extraction", async () => {
-    await seedEconomyModel("suppressed-other-user");
-    await dataContext.withDataContext(userAContext(), async (scopedDb) => {
-      const suppressions = new ChatMemorySuppressionsRepository();
-      await suppressions.insertSuppression(scopedDb, ids.userA, {
-        signature: createMemoryFactSignature("goal", "Run a 10k"),
-        category: "goal",
-        content: "Run a 10k",
-        reason: "rejected"
-      });
-    });
-    await dataContext.withDataContext(userBContext(), async (scopedDb) => {
-      const thread = await repository.openNewThread(scopedDb, { title: "Facts-other-user" });
-      await repository.recordCompletedTurn(scopedDb, thread.id, "I want to run a 10k.", "Noted.", {
-        provider: "anthropic",
-        model: "claude-economy"
-      });
-      await handleExtractFactsJob(
-        scopedDb,
-        ids.userB,
-        thread.id,
-        makeDeps(async () => ({
-          text: JSON.stringify([{ category: "goal", content: "Run a 10k", provenance: "inferred" }])
-        }))
-      );
-      const facts = await factsRepository.listActiveFacts(scopedDb, ids.userB);
-      expect(facts.some((f) => f.category === "goal" && f.content === "Run a 10k")).toBe(true);
+it("does not let one user's suppression block another user's extraction", async () => {
+  await seedEconomyModel("suppressed-other-user");
+  await dataContext.withDataContext(userAContext(), async (scopedDb) => {
+    const suppressions = new ChatMemorySuppressionsRepository();
+    await suppressions.insertSuppression(scopedDb, ids.userA, {
+      signature: createMemoryFactSignature("goal", "Run a 10k"),
+      category: "goal",
+      content: "Run a 10k",
+      reason: "rejected"
     });
   });
+  await dataContext.withDataContext(userBContext(), async (scopedDb) => {
+    const thread = await repository.openNewThread(scopedDb, { title: "Facts-other-user" });
+    await repository.recordCompletedTurn(scopedDb, thread.id, "I want to run a 10k.", "Noted.", {
+      provider: "anthropic",
+      model: "claude-economy"
+    });
+    await handleExtractFactsJob(
+      scopedDb,
+      ids.userB,
+      thread.id,
+      makeDeps(async () => ({
+        text: JSON.stringify([{ category: "goal", content: "Run a 10k", provenance: "inferred" }])
+      }))
+    );
+    const facts = await factsRepository.listActiveFacts(scopedDb, ids.userB);
+    expect(facts.some((f) => f.category === "goal" && f.content === "Run a 10k")).toBe(true);
+  });
+});
 ```
 
 - [ ] **Step 2: Run tests to verify failure**
@@ -487,6 +496,7 @@ git commit -m "feat(chat): suppress rejected inferred fact extraction" -m "Co-Au
 ## Task 4: Settings Pane Confirm/Reject UI
 
 **Files:**
+
 - Modify: `apps/web/src/api/client.ts`
 - Modify: `apps/web/src/settings/settings-memory-pane.tsx`
 - Modify: `apps/web/src/styles/settings-panes-2.css`
@@ -555,6 +565,7 @@ git commit -m "feat(web): manage inferred patterns from memory settings" -m "Co-
 ## Task 5: Focused Integration Sweep And Full Gates
 
 **Files:**
+
 - No new files expected; fixes only as required by red tests.
 
 - [ ] **Step 1: Run focused suites**
