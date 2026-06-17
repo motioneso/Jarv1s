@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import type { TaskActivityDto, TaskApiStatus, TaskDto } from "@jarv1s/shared";
+import type { TaskActivityDto, TaskApiStatus, TaskDto, TaskEffort } from "@jarv1s/shared";
 import { PRIORITY_LEVELS } from "@jarv1s/shared";
 import { ArrowLeft, ListTree, LoaderCircle, MessageSquarePlus, Save, Tag, X } from "lucide-react";
 import { type FormEvent, useEffect, useState } from "react";
@@ -21,6 +21,17 @@ import { queryKeys } from "../api/query-keys";
 import { effortLabel, fromDateInputValue, statusLabels, toDateInputValue } from "./task-format";
 import "./tasks.css";
 
+function readTaskEffort(value: string): TaskEffort | "" {
+  switch (value) {
+    case "quick":
+    case "medium":
+    case "large":
+      return value;
+    default:
+      return "";
+  }
+}
+
 export function TaskDetailPage() {
   const { taskId } = useParams<{ readonly taskId: string }>();
   const queryClient = useQueryClient();
@@ -32,7 +43,7 @@ export function TaskDetailPage() {
   const [activityBody, setActivityBody] = useState("");
   const [activitySaved, setActivitySaved] = useState(false);
   const [doAt, setDoAt] = useState("");
-  const [effort, setEffort] = useState("");
+  const [effort, setEffort] = useState<TaskEffort | "">("");
   const [listId, setListId] = useState("");
   const [steps, setSteps] = useState("");
   const taskQuery = useQuery({
@@ -64,7 +75,7 @@ export function TaskDetailPage() {
         dueAt: fromDateInputValue(dueAt),
         doAt: fromDateInputValue(doAt),
         priority: priority ? Number(priority) : null,
-        effort: (effort || null) as "quick" | "medium" | "large" | null,
+        effort: effort || null,
         listId: listId || undefined
       });
     },
@@ -255,7 +266,10 @@ export function TaskDetailPage() {
 
             <label>
               Effort
-              <select onChange={(event) => setEffort(event.target.value)} value={effort}>
+              <select
+                onChange={(event) => setEffort(readTaskEffort(event.target.value))}
+                value={effort}
+              >
                 <option value="">—</option>
                 <option value="quick">Quick</option>
                 <option value="medium">Medium</option>

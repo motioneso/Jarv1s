@@ -21,6 +21,22 @@ export interface TranscriptRecord {
   readonly outcome?: "executed" | "denied" | "error";
 }
 
+function isChatRecordKind(value: string): value is ChatRecordKind {
+  switch (value) {
+    case "user":
+    case "thinking":
+    case "tool":
+    case "status":
+    case "reply":
+    case "error":
+    case "action_request":
+    case "action_result":
+      return true;
+    default:
+      return false;
+  }
+}
+
 /**
  * Opens an EventSource against /api/chat/stream and accumulates the live transcript
  * records the backend emits (one JSON record per `data:` event). EventSource handles
@@ -57,8 +73,9 @@ export function parseRecord(data: unknown): TranscriptRecord | null {
   try {
     const parsed = JSON.parse(data) as Record<string, unknown>;
     if (typeof parsed.kind !== "string" || typeof parsed.text !== "string") return null;
+    if (!isChatRecordKind(parsed.kind)) return null;
     return {
-      kind: parsed.kind as ChatRecordKind,
+      kind: parsed.kind,
       text: parsed.text,
       actionRequestId:
         typeof parsed.actionRequestId === "string" ? parsed.actionRequestId : undefined,

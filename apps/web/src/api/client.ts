@@ -393,18 +393,6 @@ export async function breakdownTask(
   });
 }
 
-export async function listFocusTasks(): Promise<ListTasksResponse> {
-  return requestJson<ListTasksResponse>("/api/tasks/focus");
-}
-
-export async function listAtRiskTasks(): Promise<ListTasksResponse> {
-  return requestJson<ListTasksResponse>("/api/tasks/at-risk");
-}
-
-export async function listOverdueTasks(): Promise<ListTasksResponse> {
-  return requestJson<ListTasksResponse>("/api/tasks/overdue");
-}
-
 export async function listTaskLists(): Promise<ListTaskListsResponse> {
   return requestJson<ListTaskListsResponse>("/api/tasks/lists");
 }

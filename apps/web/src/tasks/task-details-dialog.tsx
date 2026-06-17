@@ -2,7 +2,12 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { X } from "lucide-react";
 import { useEffect, useState } from "react";
 
-import { PRIORITY_LEVELS, type TaskApiStatus, type TaskListDto } from "@jarv1s/shared";
+import {
+  PRIORITY_LEVELS,
+  type TaskApiStatus,
+  type TaskEffort,
+  type TaskListDto
+} from "@jarv1s/shared";
 
 import {
   addTaskActivity,
@@ -35,12 +40,11 @@ import {
   TaskTagsField
 } from "./task-details-sections";
 
-const EFFORTS: readonly { readonly value: "quick" | "medium" | "large"; readonly label: string }[] =
-  [
-    { value: "quick", label: "Small" },
-    { value: "medium", label: "Medium" },
-    { value: "large", label: "Large" }
-  ];
+const EFFORTS: readonly { readonly value: TaskEffort; readonly label: string }[] = [
+  { value: "quick", label: "Small" },
+  { value: "medium", label: "Medium" },
+  { value: "large", label: "Large" }
+];
 
 const REPEATS: readonly { readonly value: Repeat; readonly label: string }[] = [
   { value: "never", label: "Never" },
