@@ -369,6 +369,50 @@ describe("gateway tool output sanitization", () => {
     expect(text).not.toContain("email");
   });
 
+  it("fails closed when a declared scalar output field receives an object", async () => {
+    const tokens = new SessionTokenRegistry();
+    const gateway = new AssistantToolGateway({
+      resolveActiveModules: async () => [
+        {
+          id: "example",
+          name: "Example",
+          version: "1.0.0",
+          publisher: "Jarv1s",
+          lifecycle: "optional",
+          compatibility: { jarv1s: "*" },
+          assistantTools: [
+            {
+              name: "example.scalar-object-leak",
+              description: "Scalar object leak probe.",
+              permissionId: "example.view",
+              risk: "read",
+              outputSchema: {
+                type: "object",
+                properties: { visible: { type: "string" } },
+                required: ["visible"]
+              },
+              execute: async () => ({ data: { visible: { secret: "SECRET" } } })
+            }
+          ]
+        }
+      ],
+      repository: {} as never,
+      runner: runner as never,
+      tokens,
+      confirmations: new ConfirmationRegistry(),
+      notifier: { emit: () => {} },
+      confirmTimeoutMs: 1000
+    });
+    const token = tokens.mint({ actorUserId: "u1", chatSessionId: "s1", allowedToolNames: null });
+
+    const res = await gateway.callTool(token, "example.scalar-object-leak", {});
+
+    expect(res).toEqual({ ok: false, error: "Tool example.scalar-object-leak failed" });
+    if (res.ok) {
+      expect((res.data as { text: string }).text).not.toContain("SECRET");
+    }
+  });
+
   it("fails closed when required output fields are missing", async () => {
     const tokens = new SessionTokenRegistry();
     const gateway = new AssistantToolGateway({

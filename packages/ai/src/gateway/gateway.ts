@@ -46,6 +46,13 @@ interface ExecutableTool {
 
 const MAX_RENDERED_TOOL_RESULT_CHARS = 16_000;
 const TOOL_RESULT_TRUNCATION_SUFFIX = "\n...[truncated tool result]";
+const JSON_SCALAR_TYPE_OF: Record<string, (value: unknown) => boolean> = {
+  string: (value) => typeof value === "string",
+  number: (value) => typeof value === "number",
+  integer: (value) => Number.isInteger(value),
+  boolean: (value) => typeof value === "boolean",
+  null: (value) => value === null
+};
 
 /**
  * The single chokepoint between Jarvis and every module's real operations. Lists
@@ -307,6 +314,12 @@ function sanitizeToolOutputValue(schema: JsonSchema, value: unknown): unknown {
       throw new Error("Tool result output field must be an array");
     }
     return value.map((item) => sanitizeToolOutputValue(itemSchema, item));
+  }
+  if (typeof schema.type === "string") {
+    const check = JSON_SCALAR_TYPE_OF[schema.type];
+    if (check && !check(value)) {
+      throw new Error(`Tool result output field must be a ${schema.type}`);
+    }
   }
   return value;
 }
