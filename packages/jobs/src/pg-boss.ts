@@ -61,7 +61,10 @@ export const ALLOWED_PAYLOAD_KEYS: ReadonlySet<string> = new Set([
   "idempotencyKey"
 ]);
 
-export function assertMetadataOnlyPayload(payload: Record<string, unknown>): void {
+export function assertMetadataOnlyPayload(payload: unknown): void {
+  if (payload === null || typeof payload !== "object" || Array.isArray(payload)) {
+    throw new Error("Job payload must be an object containing metadata keys only");
+  }
   const forbidden = Object.keys(payload).filter((k) => !ALLOWED_PAYLOAD_KEYS.has(k));
   if (forbidden.length > 0) {
     throw new Error(
@@ -81,7 +84,7 @@ export async function sendJob<T extends ActorScopedJobPayload>(
   payload: T,
   options?: SendOptions
 ): Promise<string | null> {
-  assertMetadataOnlyPayload(payload as unknown as Record<string, unknown>);
+  assertMetadataOnlyPayload(payload);
   return options === undefined ? boss.send(queue, payload) : boss.send(queue, payload, options);
 }
 
