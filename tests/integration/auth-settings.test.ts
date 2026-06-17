@@ -124,6 +124,46 @@ describe("M3 auth, users, settings", () => {
     expect(bootstrapEvent?.actorUserId).toBe(ownerUserId);
   });
 
+  it("bootstrap audit event is written by the SECURITY DEFINER helper", async () => {
+    if (!ownerUserId) {
+      const signUpResponse = await server.inject({
+        method: "POST",
+        url: "/api/auth/sign-up/email",
+        headers: {
+          "content-type": "application/json"
+        },
+        payload: {
+          name: "Owner User",
+          email: "owner-helper@example.test",
+          password: "correct horse battery staple"
+        }
+      });
+
+      expect(signUpResponse.statusCode).toBe(200);
+      ownerCookie = cookieHeader(signUpResponse.headers);
+      ownerUserId = signUpResponse.json<{ user: { id: string } }>().user.id;
+    }
+
+    const client = new pg.Client({ connectionString: connectionStrings.bootstrap });
+
+    await client.connect();
+    try {
+      const helper = await client.query<{ count: string }>(
+        `
+          SELECT count(*)::text AS count
+          FROM app.admin_audit_events
+          WHERE action = 'bootstrap_owner_created'
+            AND metadata ? 'recordedBy'
+            AND metadata->>'recordedBy' = 'record_bootstrap_owner_audit_event'
+        `
+      );
+
+      expect(Number(helper.rows[0]?.count ?? 0)).toBe(1);
+    } finally {
+      await client.end();
+    }
+  });
+
   it("recordAuditEvent writes an audit row via the public settings API", async () => {
     // ownerUserId is set by the preceding bootstrap test — use it as the actor so
     // the GUC-scoped insert passes RLS on app.admin_audit_events.

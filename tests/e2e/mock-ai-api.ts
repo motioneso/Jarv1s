@@ -243,6 +243,7 @@ export function createMockAiModel(
     capabilities: ["chat"],
     status: "active",
     tier: "interactive",
+    allowUserOverride: true,
     createdAt: "2026-06-06T12:00:00.000Z",
     updatedAt: "2026-06-06T12:00:00.000Z",
     ...overrides

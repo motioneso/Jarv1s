@@ -75,6 +75,7 @@ interface FakeOptions {
   readonly noModel?: boolean;
   readonly personaPreference?: unknown;
   readonly userName?: string;
+  readonly disabledBehaviors?: ReadonlySet<string>;
 }
 
 function makeFakeManifests(failTool?: string): JarvisModuleManifest[] {
@@ -109,7 +110,35 @@ function makeFakeManifests(failTool?: string): JarvisModuleManifest[] {
       publisher: "test",
       lifecycle: "required",
       compatibility: { jarv1s: ">=0.0.0" },
-      assistantTools
+      assistantTools,
+      sourceBehaviors: [
+        {
+          id: "calendar",
+          name: "Calendar",
+          description: "Calendar source",
+          behaviors: [
+            {
+              id: "calendar.briefings",
+              name: "Include in briefings",
+              description: "Calendar in briefings",
+              default: "default-on"
+            }
+          ]
+        },
+        {
+          id: "email",
+          name: "Email",
+          description: "Email source",
+          behaviors: [
+            {
+              id: "email.briefings",
+              name: "Include in briefings",
+              description: "Email in briefings",
+              default: "default-on"
+            }
+          ]
+        }
+      ]
     }
   ];
 }
@@ -171,6 +200,18 @@ function makeFakeDeps(options: FakeOptions = {}): ComposeDeps {
       get: async () => options.personaPreference ?? null
     },
     resolveUserName: async () => options.userName ?? "Ben",
+    sourceBehaviorPolicy: {
+      manifests: makeFakeManifests(options.failTool),
+      preferencesRepository: {
+        get: async () =>
+          options.disabledBehaviors
+            ? Object.fromEntries(
+                [...options.disabledBehaviors].map((behaviorId) => [behaviorId, false])
+              )
+            : null,
+        upsert: async () => undefined
+      }
+    },
     createAdapter: () => ({
       generateChat:
         options.generateChat ?? (async () => ({ text: "synth narrative" }) as { text: string })
@@ -234,6 +275,25 @@ describe("composeBriefing — gathering", () => {
     expect(md.emailCount).toBe(1);
     expect(md.chatTurnCount).toBe(1);
     expect(md.degraded).toBe(false);
+  });
+
+  it("omits calendar and email when include-in-briefings behaviors are disabled", async () => {
+    const capturedMessages: unknown[] = [];
+    const deps = makeFakeDeps({
+      disabledBehaviors: new Set(["calendar.briefings", "email.briefings"]),
+      generateChat: async (input: GenerateChatInput) => {
+        capturedMessages.push(input.messages);
+        return { text: "synth narrative" };
+      }
+    });
+
+    const result = await composeBriefing(fakeScopedDb, definition(), runInput, deps);
+    const prompt = JSON.stringify(capturedMessages);
+
+    expect(result.sourceMetadata.calendarCount).toBe(0);
+    expect(result.sourceMetadata.emailCount).toBe(0);
+    expect(prompt).not.toContain("Standup");
+    expect(prompt).not.toContain("budget");
   });
 
   it("records a gaps[] entry for a failing source and does not throw", async () => {

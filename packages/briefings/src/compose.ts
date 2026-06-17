@@ -6,6 +6,7 @@ import type { ChatTurn, GenerateChatInput, ProviderKind } from "@jarv1s/ai";
 import type { BriefingDefinition, BriefingRunStatus, DataContextDb } from "@jarv1s/db";
 import type { MemoryRetriever } from "@jarv1s/memory";
 import type { JarvisModuleManifest } from "@jarv1s/module-sdk";
+import { isBehaviorEnabled, type SourceBehaviorPolicyDeps } from "@jarv1s/source-behaviors";
 import { normalizePersonaSettings, renderPersonaText } from "@jarv1s/shared";
 
 import { timezoneFor } from "./schedule.js";
@@ -31,6 +32,7 @@ export interface ComposeDeps {
   readonly personaRepository?: {
     get(scopedDb: DataContextDb, key: string): Promise<unknown>;
   };
+  readonly sourceBehaviorPolicy?: SourceBehaviorPolicyDeps;
   readonly resolveUserName?: (scopedDb: DataContextDb, actorUserId: string) => Promise<string>;
   /** Injectable for tests; defaults to constructing a real HttpApiAdapter. */
   readonly createAdapter?: (
@@ -123,6 +125,25 @@ function capLines(lines: string[]): { lines: string[]; truncated: boolean } {
   return { lines: out, truncated };
 }
 
+function emptySection(key: string, label: string): Section {
+  return { key, label, lines: [], count: 0 };
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+async function sourceIncludedInBriefings(
+  scopedDb: DataContextDb,
+  deps: ComposeDeps,
+  behaviorId: string
+): Promise<boolean> {
+  if (!deps.sourceBehaviorPolicy) {
+    return true;
+  }
+  return isBehaviorEnabled(scopedDb, deps.sourceBehaviorPolicy, behaviorId);
+}
+
 /** Gather one tool-backed section; never throws — failures become gaps. */
 async function gatherToolSection(
   scopedDb: DataContextDb,
@@ -133,7 +154,14 @@ async function gatherToolSection(
     readonly key: string;
     readonly label: string;
     readonly toolName: string;
+    /** Explicit key in the tool's `data` that holds the row array (verified per manifest). */
     readonly arrayKey: string;
+    /**
+     * Explicit per-source field allow-list. Only the fields named here cross the trust
+     * boundary into the AI prompt — the projection is never inferred from the DTO shape,
+     * so adding a field to a tool's DTO can never silently leak private content (e.g.
+     * email bodyExcerpt, chat thread titles, or LLM-derived summary/signals).
+     */
     readonly format: (item: Record<string, unknown>) => string;
     /** When set, items are filtered to the definition's local day on this field. */
     readonly localDayField?: string;
@@ -149,9 +177,9 @@ async function gatherToolSection(
   }
   try {
     const result = await tool.execute(scopedDb, {}, ctxFor(definition, input));
-    const data = result.data ?? {};
-    const raw = (data as Record<string, unknown>)[args.arrayKey];
-    let items = Array.isArray(raw) ? (raw as Record<string, unknown>[]) : [];
+    const data = isRecord(result.data) ? result.data : {};
+    const raw = data[args.arrayKey];
+    let items = Array.isArray(raw) ? raw.filter(isRecord) : [];
     // Authoritative per-user local-day bound (tools return all visible rows; sync
     // slice not built yet so there is no source-side date filter — compose enforces it).
     if (args.localDayField) {
@@ -164,7 +192,7 @@ async function gatherToolSection(
       gaps.push({ source: args.key, reason: "empty" });
       return { key: args.key, label: args.label, lines: [], count: 0 };
     }
-    const allLines = items.map(args.format).filter((l) => l.length > 0);
+    const allLines = items.map(args.format).filter((line) => line.length > 0);
     const { lines, truncated } = capLines(allLines);
     if (truncated) {
       gaps.push({ source: args.key, reason: "truncated" });
@@ -240,43 +268,50 @@ export async function composeBriefing(
     timeZone
   );
 
-  const calendar = await gatherToolSection(
-    scopedDb,
-    definition,
-    input,
-    deps,
-    {
-      key: "calendar",
-      label: "CALENDAR",
-      toolName: "calendar.listVisibleEvents",
-      arrayKey: "events",
-      // "Today's calendar": bound to the definition's local day on the event start.
-      localDayField: "startsAt",
-      format: (e) => [str(e.startsAt), str(e.title)].filter(Boolean).join(" · ")
-    },
-    gaps,
-    now,
-    timeZone
-  );
+  const includeCalendar = await sourceIncludedInBriefings(scopedDb, deps, "calendar.briefings");
+  const calendar = includeCalendar
+    ? await gatherToolSection(
+        scopedDb,
+        definition,
+        input,
+        deps,
+        {
+          key: "calendar",
+          label: "CALENDAR",
+          toolName: "calendar.listVisibleEvents",
+          arrayKey: "events",
+          // "Today's calendar": bound to the definition's local day on the event start.
+          localDayField: "startsAt",
+          format: (e) => [str(e.startsAt), str(e.title)].filter(Boolean).join(" · ")
+        },
+        gaps,
+        now,
+        timeZone
+      )
+    : emptySection("calendar", "CALENDAR");
 
-  const email = await gatherToolSection(
-    scopedDb,
-    definition,
-    input,
-    deps,
-    {
-      key: "email",
-      label: "EMAIL SUMMARIES + SIGNALS",
-      toolName: "email.listVisibleMessages",
-      arrayKey: "messages",
-      // Email "signals" = recent unread/important; keep the source's own recency
-      // (no day-bound — a 2-day-old unresolved thread is still a morning signal).
-      format: (m) => [str(m.sender), str(m.subject), str(m.snippet)].filter(Boolean).join(" · ")
-    },
-    gaps,
-    now,
-    timeZone
-  );
+  const includeEmail = await sourceIncludedInBriefings(scopedDb, deps, "email.briefings");
+  const email = includeEmail
+    ? await gatherToolSection(
+        scopedDb,
+        definition,
+        input,
+        deps,
+        {
+          key: "email",
+          label: "EMAIL SUMMARIES + SIGNALS",
+          toolName: "email.listVisibleMessages",
+          arrayKey: "messages",
+          // Email "signals" = recent unread/important; keep the source's own recency
+          // (no day-bound — a 2-day-old unresolved thread is still a morning signal).
+          // Allow-list: sender/subject/snippet only — never bodyExcerpt/summary/signals.
+          format: (m) => [str(m.sender), str(m.subject), str(m.snippet)].filter(Boolean).join(" · ")
+        },
+        gaps,
+        now,
+        timeZone
+      )
+    : emptySection("email", "EMAIL SUMMARIES + SIGNALS");
 
   // Vault: semantic ∪ recency, deduped by id/source path. Best-effort.
   const vaultLines: string[] = [];
@@ -331,6 +366,7 @@ export async function composeBriefing(
       arrayKey: "turns",
       // Authoritative local-day bound on the turn timestamp (the tool over-includes 36h).
       localDayField: "createdAt",
+      // Allow-list: role + excerpt only — never the user-authored threadTitle.
       format: (t) => [str(t.role), str(t.excerpt)].filter(Boolean).join(": ")
     },
     gaps,

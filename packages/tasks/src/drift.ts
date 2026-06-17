@@ -2,13 +2,8 @@ import { sql } from "kysely";
 
 import { assertDataContextDb, type DataContextDb, type Task } from "@jarv1s/db";
 
+import { TASK_URGENCY_WINDOW_HOURS } from "./classification.js";
 import { rollForwardOwnedSeries } from "./recurrence.js";
-
-/**
- * Tasks with due_at within this many hours of now() are considered "at risk"
- * even if not yet overdue.
- */
-const AT_RISK_WINDOW_HOURS = 48;
 
 export class TaskDriftRepository {
   /**
@@ -75,7 +70,7 @@ export class TaskDriftRepository {
             eb(
               "t.due_at",
               "<",
-              sql<Date>`now() + (${AT_RISK_WINDOW_HOURS.toString()} || ' hours')::interval`
+              sql<Date>`now() + (${TASK_URGENCY_WINDOW_HOURS.toString()} || ' hours')::interval`
             )
           ]),
           eb.and([eb("t.do_at", "is not", null), eb("t.do_at", "<", sql<Date>`now()`)])

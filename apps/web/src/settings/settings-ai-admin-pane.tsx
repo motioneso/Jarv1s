@@ -16,16 +16,30 @@ import { useState, type FormEvent } from "react";
 import {
   createAiModel,
   createAiProvider,
+  getChatModelOverrideSettings,
   listAiModels,
   listAiProviders,
   lookupAiCapabilityRoute,
+  putAdminChatModelOverrideEnabled,
   revokeAiProvider,
+  updateAiModel,
   updateAiProvider
 } from "../api/client";
 import { queryKeys } from "../api/query-keys";
 import { useFeedback } from "./settings-feedback";
 import { readError } from "./settings-types";
-import { Badge, Field, Group, NotWired, Note, PaneHead, Segmented, Select } from "./settings-ui";
+import {
+  Badge,
+  Field,
+  Group,
+  NotWired,
+  Note,
+  PaneHead,
+  Row,
+  Segmented,
+  Select,
+  Switch
+} from "./settings-ui";
 import type {
   AiAuthMethod,
   AiConfiguredModelDto,
@@ -90,8 +104,13 @@ const ROUTER_CAPABILITIES: readonly { k: AiModelCapability; name: string; desc: 
 
 /* ----------------------------------------------------------- Provider card */
 
-function ModelLine({ model }: { readonly model: AiConfiguredModelDto }) {
+function ModelLine(props: {
+  readonly model: AiConfiguredModelDto;
+  readonly onOverrideChange: (model: AiConfiguredModelDto, allowed: boolean) => void;
+}) {
+  const { model } = props;
   const tier = TIERS[model.tier];
+  const isChatModel = model.capabilities.includes("chat");
   return (
     <div className="mdl">
       <div className="mdl__id">{model.providerModelId}</div>
@@ -105,6 +124,13 @@ function ModelLine({ model }: { readonly model: AiConfiguredModelDto }) {
           </span>
         ))}
       </div>
+      {isChatModel ? (
+        <Switch
+          ariaLabel={`${model.displayName} available for user chat override`}
+          checked={model.allowUserOverride}
+          onChange={(allowed) => props.onOverrideChange(model, allowed)}
+        />
+      ) : null}
     </div>
   );
 }
@@ -213,6 +239,7 @@ function ProviderCard(props: {
   readonly onEdit: (id: string | null) => void;
   readonly onAuth: (id: string, method: AiAuthMethod) => void;
   readonly onCredential: (id: string, input: { baseUrl: string; apiKey: string }) => void;
+  readonly onModelOverride: (model: AiConfiguredModelDto, allowed: boolean) => void;
   readonly onRemove: () => void;
 }) {
   const { provider } = props;
@@ -367,7 +394,9 @@ function ProviderCard(props: {
         </div>
         <div className="prov__modellist">
           {props.models.length ? (
-            props.models.map((m) => <ModelLine key={m.id} model={m} />)
+            props.models.map((m) => (
+              <ModelLine key={m.id} model={m} onOverrideChange={props.onModelOverride} />
+            ))
           ) : (
             <div className="prov__synced" style={{ marginTop: 0 }}>
               No models registered yet — add one to bring this provider online.
@@ -455,6 +484,11 @@ export function AiProvidersPane() {
     queryFn: listAiModels,
     retry: false
   });
+  const overrideQuery = useQuery({
+    queryKey: queryKeys.ai.chatModelOverride,
+    queryFn: getChatModelOverrideSettings,
+    retry: false
+  });
   const providers = (providersQuery.data?.providers ?? []).filter((p) => p.status !== "revoked");
   const models = modelsQuery.data?.models ?? [];
   const connected = providers.map((p) => p.displayName);
@@ -463,6 +497,7 @@ export function AiProvidersPane() {
     Promise.all([
       queryClient.invalidateQueries({ queryKey: queryKeys.ai.providers }),
       queryClient.invalidateQueries({ queryKey: queryKeys.ai.models }),
+      queryClient.invalidateQueries({ queryKey: queryKeys.ai.chatModelOverride }),
       queryClient.invalidateQueries({ queryKey: queryKeys.ai.capabilities })
     ]);
 
@@ -497,6 +532,25 @@ export function AiProvidersPane() {
     },
     onError: (error) => toast(readError(error), { tone: "drift" })
   });
+  const overrideToggleMutation = useMutation({
+    mutationFn: (enabled: boolean) => putAdminChatModelOverrideEnabled({ enabled }),
+    onSuccess: () => {
+      void invalidate();
+      toast("Chat override setting updated", { icon: <Sparkles size={17} /> });
+    },
+    onError: (error) => toast(readError(error), { tone: "drift" })
+  });
+  const modelOverrideMutation = useMutation({
+    mutationFn: (input: { model: AiConfiguredModelDto; allowed: boolean }) =>
+      updateAiModel(input.model.id, { allowUserOverride: input.allowed }),
+    onSuccess: (_data, input) => {
+      void invalidate();
+      toast(`${input.model.displayName} override access updated`, {
+        icon: <Sparkles size={17} />
+      });
+    },
+    onError: (error) => toast(readError(error), { tone: "drift" })
+  });
 
   return (
     <>
@@ -504,6 +558,23 @@ export function AiProvidersPane() {
         title="Assistant & AI"
         desc="The AI providers this instance runs on, and which model handles each kind of work. Everyone's Jarvis draws from what you set up here."
       />
+      <Group
+        title="User chat override"
+        desc="Let each person choose which allowed chat-capable model answers their own conversations."
+      >
+        <Row
+          name="Allow user override"
+          desc="When off, Personal → Assistant & AI shows the instance default as read-only."
+          control={
+            <Switch
+              ariaLabel="Allow users to override their chat model"
+              checked={overrideQuery.data?.settings.overrideEnabled ?? false}
+              disabled={overrideQuery.isLoading || overrideToggleMutation.isPending}
+              onChange={(enabled) => overrideToggleMutation.mutate(enabled)}
+            />
+          }
+        />
+      </Group>
       <Group
         title="Providers"
         desc="Add provider accounts for the whole instance. Jarvis reads each one's models — registered here until auto-detect on connect lands."
@@ -554,6 +625,9 @@ export function AiProvidersPane() {
                     },
                     message: `Credentials updated for ${provider.displayName}`
                   })
+                }
+                onModelOverride={(model, allowed) =>
+                  modelOverrideMutation.mutate({ model, allowed })
                 }
                 onRemove={() =>
                   confirm({

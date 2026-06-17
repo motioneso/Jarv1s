@@ -59,6 +59,40 @@ export const emailModuleManifest = {
       defaultEnabled: true
     }
   ],
+  sourceBehaviors: [
+    {
+      id: "email",
+      name: "Email",
+      description:
+        "What Jarvis is allowed to do with your email — independent of whichever service powers it.",
+      behaviors: [
+        {
+          id: "email.briefings",
+          name: "Include in briefings",
+          description: "Flag threads that need a reply today.",
+          default: "default-on"
+        },
+        {
+          id: "email.capture-tasks",
+          name: "Capture tasks",
+          description: "Turn emails into tasks when they imply an action.",
+          default: "coming-soon"
+        },
+        {
+          id: "email.thread-summaries",
+          name: "Thread summaries",
+          description: "Condense long threads before you open them.",
+          default: "coming-soon"
+        },
+        {
+          id: "email.send-on-behalf",
+          name: "Send on my behalf",
+          description: "Draft and send replies, with your approval.",
+          default: "coming-soon"
+        }
+      ]
+    }
+  ],
   routes: [
     {
       method: "GET",

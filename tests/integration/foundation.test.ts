@@ -191,7 +191,50 @@ describe("MVP foundation scaffold", () => {
         },
         { version: "0088", name: "0088_wellness_emotion_taxonomy.sql" },
         { version: "0089", name: "0089_wellness_therapy_notes.sql" },
-        { version: "0090", name: "0090_chat_memory_facts_provenance.sql" }
+        { version: "0090", name: "0090_chat_memory_facts_provenance.sql" },
+        { version: "0091", name: "0091_chat_model_override.sql" },
+        { version: "0092", name: "0092_inferred_patterns_suppression.sql" },
+        { version: "0093", name: "0093_preferences_worker_runtime_grants.sql" },
+        { version: "0094", name: "0094_chat_memory_facts_rls_roles.sql" },
+        { version: "0095", name: "0095_bootstrap_audit_security_definer.sql" }
+      ]);
+    } finally {
+      await client.end();
+    }
+  });
+
+  it("exposes only the narrow bootstrap audit SECURITY DEFINER helper to app runtime", async () => {
+    const client = new Client({ connectionString: connectionStrings.bootstrap });
+
+    await client.connect();
+    try {
+      const result = await client.query<{
+        proname: string;
+        prosecdef: boolean;
+        owner: string;
+        app_can_execute: boolean;
+      }>(`
+        SELECT p.proname,
+               p.prosecdef,
+               pg_get_userbyid(p.proowner) AS owner,
+               has_function_privilege(
+                 'jarvis_app_runtime',
+                 p.oid,
+                 'EXECUTE'
+               ) AS app_can_execute
+        FROM pg_proc p
+        JOIN pg_namespace n ON n.oid = p.pronamespace
+        WHERE n.nspname = 'app'
+          AND p.proname = 'record_bootstrap_owner_audit_event'
+      `);
+
+      expect(result.rows).toEqual([
+        {
+          proname: "record_bootstrap_owner_audit_event",
+          prosecdef: true,
+          owner: "jarvis_migration_owner",
+          app_can_execute: true
+        }
       ]);
     } finally {
       await client.end();
@@ -397,8 +440,7 @@ describe("MVP foundation scaffold", () => {
     expect(result.ownItemVisible).toBe(true);
     // itemBGrantedToA is visible via an app.shares 'view' row seeded in beforeAll
     expect(result.grantedItemVisible).toBe(true);
-    // itemBWorkspacePrivate has no share to userA — must remain invisible
-    expect(result.workspacePrivateItemVisible).toBe(false);
+    expect(result.secondPrivateItemVisible).toBe(false);
   });
 
   it("confirms workspace/grant tables are absent after DROP migration", async () => {
@@ -675,7 +717,7 @@ interface ProbeJobResult {
   readonly targetItemVisible: boolean;
   readonly ownItemVisible: boolean;
   readonly grantedItemVisible: boolean;
-  readonly workspacePrivateItemVisible: boolean;
+  readonly secondPrivateItemVisible: boolean;
 }
 
 async function handleNextProbeJob(
@@ -704,18 +746,18 @@ async function handleNextProbeJob(
           try {
             expect(job.data.targetItemId).toBe(expectedTargetItemId);
 
-            const [targetItem, ownItem, grantedItem, workspacePrivateItem] = await Promise.all([
+            const [targetItem, ownItem, grantedItem, secondPrivateItem] = await Promise.all([
               repository.getById(scopedDb, job.data.targetItemId),
               repository.getById(scopedDb, ids.itemAOwnPrivate),
               repository.getById(scopedDb, ids.itemBGrantedToA),
-              repository.getById(scopedDb, ids.itemBWorkspacePrivate)
+              repository.getById(scopedDb, ids.itemBSecondPrivate)
             ]);
 
             const result = {
               targetItemVisible: targetItem !== undefined,
               ownItemVisible: ownItem !== undefined,
               grantedItemVisible: grantedItem !== undefined,
-              workspacePrivateItemVisible: workspacePrivateItem !== undefined
+              secondPrivateItemVisible: secondPrivateItem !== undefined
             };
 
             clearTimeout(timeout);

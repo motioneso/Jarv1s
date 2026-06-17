@@ -19,7 +19,12 @@ import type {
   GoogleApiClient,
   GoogleConnectionService
 } from "@jarv1s/connectors";
-import { ChatMemoryFactsRepository, type MemoryFact } from "@jarv1s/memory";
+import {
+  ChatMemoryFactsRepository,
+  ChatMemorySuppressionsRepository,
+  createMemoryFactSignature,
+  type MemoryFact
+} from "@jarv1s/memory";
 import { handleRouteError as handleModuleRouteError } from "@jarv1s/module-sdk";
 
 import { buildCalendarWriteService } from "./calendar-write-impl.js";
@@ -68,6 +73,7 @@ export function registerChatRoutes(
   const repository = dependencies.repository ?? new ChatRepository();
   const memorySettingsRepo = new ChatUserMemorySettingsRepository();
   const factsRepo = new ChatMemoryFactsRepository();
+  const suppressionsRepo = new ChatMemorySuppressionsRepository();
 
   // Phase 2: proxy notifier — created before gateway so the gateway has a notifier
   // reference; real target is set after the manager is created.
@@ -78,63 +84,69 @@ export function registerChatRoutes(
   };
   let realNotifier: ChatGatewayNotifier | null = null;
 
-  let tokens: SessionTokenRegistry | undefined;
-  let gateway: AssistantToolGateway | undefined;
-
-  if (dependencies.resolveActiveModules && dependencies.mcpServerUrl) {
-    tokens = new SessionTokenRegistry();
-    const confirmations = new ConfirmationRegistry();
-    const aiRepository = new AiRepository();
-
-    gateway = new AssistantToolGateway(
-      buildChatGatewayDependencies({
-        resolveActiveModules: dependencies.resolveActiveModules,
-        repository: aiRepository,
-        runner: dependencies.dataContext,
-        tokens,
-        confirmations,
-        notifier: notifierProxy,
-        collaborators: {
-          googleConnectionService: dependencies.googleConnectionService,
-          googleApiClient: dependencies.googleApiClient,
-          connectorsRepository: dependencies.connectorsRepository
-        }
-      })
-    );
-  }
-
+  const resolveActiveModules = dependencies.resolveActiveModules;
   const mcpServerUrl = dependencies.mcpServerUrl;
+  const wiring =
+    resolveActiveModules && mcpServerUrl
+      ? (() => {
+          const tokens = new SessionTokenRegistry();
+          const confirmations = new ConfirmationRegistry();
+          const aiRepository = new AiRepository();
+
+          const gateway = new AssistantToolGateway(
+            buildChatGatewayDependencies({
+              resolveActiveModules,
+              repository: aiRepository,
+              runner: dependencies.dataContext,
+              tokens,
+              confirmations,
+              notifier: notifierProxy,
+              collaborators: {
+                googleConnectionService: dependencies.googleConnectionService,
+                googleApiClient: dependencies.googleApiClient,
+                connectorsRepository: dependencies.connectorsRepository
+              }
+            })
+          );
+
+          return { tokens, gateway, mcpServerUrl };
+        })()
+      : null;
+
   const runtime = createChatSessionRuntime({
     dataContext: dependencies.dataContext,
     engineFactory: dependencies.chatEngineFactory,
     boss: dependencies.boss,
     personaPreferences: dependencies.personaPreferences,
-    mcpTokenLifecycle:
-      tokens && mcpServerUrl
-        ? {
-            mint: async (actorUserId: string) => {
-              // Capture the actor's current executable tool set as the per-session allowlist.
-              // Bare tool names (e.g. "example.read") — same format as tools/list and tools/call params.name.
-              // The mcp__jarvis__<name> prefix is a client-side CLI convention that never reaches the server.
-              const allowedToolNames = new Set(
-                (await gateway!.listToolsForActor(actorUserId)).map((tool) => tool.name)
-              );
-              return {
-                token: tokens!.mint({ actorUserId, chatSessionId: actorUserId, allowedToolNames }),
-                mcpServerUrl
-              };
-            },
-            revoke: (chatSessionId: string) => tokens!.revokeBySessionId(chatSessionId),
-            touch: (chatSessionId: string) => tokens!.touchBySessionId(chatSessionId)
-          }
-        : undefined
+    mcpTokenLifecycle: wiring
+      ? {
+          mint: async (actorUserId: string) => {
+            // Capture the actor's current executable tool set as the per-session allowlist.
+            // Bare tool names (e.g. "example.read") — same format as tools/list and tools/call params.name.
+            // The mcp__jarvis__<name> prefix is a client-side CLI convention that never reaches the server.
+            const allowedToolNames = new Set(
+              (await wiring.gateway.listToolsForActor(actorUserId)).map((tool) => tool.name)
+            );
+            return {
+              token: wiring.tokens.mint({
+                actorUserId,
+                chatSessionId: actorUserId,
+                allowedToolNames
+              }),
+              mcpServerUrl: wiring.mcpServerUrl
+            };
+          },
+          revoke: (chatSessionId: string) => wiring.tokens.revokeBySessionId(chatSessionId),
+          touch: (chatSessionId: string) => wiring.tokens.touchBySessionId(chatSessionId)
+        }
+      : undefined
   });
 
   // Wire real notifier now that manager is available.
   realNotifier = new ChatGatewayNotifier(runtime.manager);
 
-  if (gateway && tokens) {
-    registerMcpTransportRoute(server, { gateway, tokens });
+  if (wiring) {
+    registerMcpTransportRoute(server, { gateway: wiring.gateway, tokens: wiring.tokens });
 
     server.post<{ Params: { id: string }; Body: { status: string } }>(
       "/api/chat/action-requests/:id/resolve",
@@ -155,7 +167,7 @@ export function registerChatRoutes(
         }
 
         try {
-          await gateway!.resolveActionRequest(access.actorUserId, id, rawStatus);
+          await wiring.gateway.resolveActionRequest(access.actorUserId, id, rawStatus);
           return reply.code(204).send();
         } catch {
           return reply.code(400).send({ error: "Could not resolve action request" });
@@ -231,9 +243,55 @@ export function registerChatRoutes(
     async (request, reply) => {
       try {
         const access = await dependencies.resolveAccessContext(request);
-        await dependencies.dataContext.withDataContext(access, (scopedDb) =>
+        const deleted = await dependencies.dataContext.withDataContext(access, (scopedDb) =>
           factsRepo.deleteFact(scopedDb, request.params.id)
         );
+        if (!deleted) return reply.code(404).send({ error: "Memory fact not found" });
+        return reply.code(204).send();
+      } catch (error) {
+        return handleRouteError(error, reply);
+      }
+    }
+  );
+
+  server.post<{ Params: { id: string } }>(
+    "/api/chat/memory/facts/:id/confirm",
+    async (request, reply) => {
+      try {
+        const access = await dependencies.resolveAccessContext(request);
+        const confirmed = await dependencies.dataContext.withDataContext(access, (scopedDb) =>
+          factsRepo.confirmFact(scopedDb, request.params.id)
+        );
+        if (!confirmed) return reply.code(404).send({ error: "Memory fact not found" });
+        return reply.code(204).send();
+      } catch (error) {
+        return handleRouteError(error, reply);
+      }
+    }
+  );
+
+  server.post<{ Params: { id: string } }>(
+    "/api/chat/memory/facts/:id/reject",
+    async (request, reply) => {
+      try {
+        const access = await dependencies.resolveAccessContext(request);
+        const rejected = await dependencies.dataContext.withDataContext(
+          access,
+          async (scopedDb) => {
+            const fact = await factsRepo.getActiveFact(scopedDb, request.params.id);
+            if (!fact || fact.provenance !== "inferred") return false;
+
+            await suppressionsRepo.insertSuppression(scopedDb, access.actorUserId, {
+              signature: createMemoryFactSignature(fact.category, fact.content),
+              category: fact.category,
+              content: fact.content,
+              reason: "rejected"
+            });
+            await factsRepo.deleteFact(scopedDb, fact.id);
+            return true;
+          }
+        );
+        if (!rejected) return reply.code(404).send({ error: "Memory fact not found" });
         return reply.code(204).send();
       } catch (error) {
         return handleRouteError(error, reply);
@@ -248,9 +306,10 @@ export function registerChatRoutes(
       if (typeof importance !== "number" || importance < 0 || importance > 1) {
         return reply.code(400).send({ error: "importance must be a number between 0 and 1" });
       }
-      await dependencies.dataContext.withDataContext(access, (scopedDb) =>
+      const updated = await dependencies.dataContext.withDataContext(access, (scopedDb) =>
         factsRepo.updateFactImportance(scopedDb, request.params.id, importance)
       );
+      if (!updated) return reply.code(404).send({ error: "Memory fact not found" });
       return reply.code(204).send();
     } catch (error) {
       return handleRouteError(error, reply);

@@ -37,6 +37,7 @@ export class EmailRepository {
   async getById(scopedDb: DataContextDb, messageId: string): Promise<EmailMessage | undefined> {
     assertDataContextDb(scopedDb);
 
+    // Visibility is intentionally enforced by forced RLS; unauthorized rows read as absent.
     return scopedDb.db
       .selectFrom("app.email_messages")
       .selectAll()

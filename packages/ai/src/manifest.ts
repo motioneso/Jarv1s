@@ -6,6 +6,7 @@ import {
   createAiConfiguredModelResponseSchema,
   createAiProviderConfigRequestSchema,
   createAiProviderConfigResponseSchema,
+  getChatModelOverrideSettingsResponseSchema,
   invokeAiAssistantToolRequestSchema,
   invokeAiAssistantToolResponseSchema,
   listAiAssistantActionsResponseSchema,
@@ -13,6 +14,8 @@ import {
   listAiConfiguredModelsResponseSchema,
   listAiProviderConfigsResponseSchema,
   lookupAiCapabilityRouteResponseSchema,
+  putAdminChatModelOverrideRequestSchema,
+  putChatModelOverrideRequestSchema,
   resolveAiAssistantActionRequestSchema,
   resolveAiAssistantActionResponseSchema,
   revokeAiProviderConfigResponseSchema,
@@ -42,7 +45,10 @@ export const aiModuleManifest = {
     migrations: [
       "sql/0013_ai_module.sql",
       "sql/0016_ai_assistant_actions.sql",
-      "sql/0033_ai_auth_method.sql"
+      "sql/0033_ai_auth_method.sql",
+      "sql/0037_ai_worker_read_grants.sql",
+      "sql/0048_ai_model_tier.sql",
+      "sql/0091_chat_model_override.sql"
     ],
     migrationDirectories: ["packages/ai/sql"],
     ownedTables: [
@@ -153,6 +159,26 @@ export const aiModuleManifest = {
       path: "/api/ai/capability-route/:capability",
       responseSchema: lookupAiCapabilityRouteResponseSchema,
       permissionId: "ai.route"
+    },
+    {
+      method: "GET",
+      path: "/api/ai/chat-model-override",
+      responseSchema: getChatModelOverrideSettingsResponseSchema,
+      permissionId: "ai.view"
+    },
+    {
+      method: "PUT",
+      path: "/api/ai/chat-model-override",
+      requestSchema: putChatModelOverrideRequestSchema,
+      responseSchema: getChatModelOverrideSettingsResponseSchema,
+      permissionId: "ai.route"
+    },
+    {
+      method: "PUT",
+      path: "/api/admin/ai/chat-model-override",
+      requestSchema: putAdminChatModelOverrideRequestSchema,
+      responseSchema: getChatModelOverrideSettingsResponseSchema,
+      permissionId: "ai.manage"
     },
     {
       method: "GET",

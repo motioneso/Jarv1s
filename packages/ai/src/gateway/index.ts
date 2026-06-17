@@ -10,6 +10,11 @@ export {
   type AwaitOutcome
 } from "./confirmation-registry.js";
 export { validateToolInput, ToolInputValidationError } from "./input-validation.js";
+export {
+  sanitizeAssistantToolResult,
+  boundedAssistantToolResultData,
+  capRenderedToolResult
+} from "./output-validation.js";
 export type {
   ActiveModulesResolver,
   SessionNotifier,

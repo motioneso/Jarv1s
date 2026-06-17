@@ -15,7 +15,7 @@ import {
   type DataContextRunner,
   type JarvisDatabase
 } from "@jarv1s/db";
-import { recordAuditEvent as settingsRecordAuditEvent } from "@jarv1s/settings";
+import { recordBootstrapOwnerAuditEvent as settingsRecordBootstrapOwnerAuditEvent } from "@jarv1s/settings";
 import type { AuthProviderStatusDto } from "@jarv1s/shared";
 
 const { Pool } = pg;
@@ -83,7 +83,7 @@ interface BetterAuthUser {
 // admin audit events exclusively through this public API, never through the settings
 // repository class or by writing the settings-owned audit table directly (#101).
 type BootstrapSettings = {
-  readonly recordAuditEvent: typeof settingsRecordAuditEvent;
+  readonly recordBootstrapOwnerAuditEvent: typeof settingsRecordBootstrapOwnerAuditEvent;
 };
 
 export function createJarvisAuthRuntime(
@@ -98,7 +98,7 @@ export function createJarvisAuthRuntime(
   const legacySessions = new AuthSessionResolver(options.appDb);
   const auth = betterAuth(
     createBetterAuthOptions(pool, options.appDb, env, options.runner, {
-      recordAuditEvent: settingsRecordAuditEvent
+      recordBootstrapOwnerAuditEvent: settingsRecordBootstrapOwnerAuditEvent
     })
   );
 
@@ -435,13 +435,10 @@ async function bootstrapFirstJarvisUser(
       }
 
       // Auth must not write the settings-owned audit table directly. Record the
-      // bootstrap event through the @jarv1s/settings public API (#101).
-      await settings.recordAuditEvent(scopedDb, {
+      // bootstrap event through the @jarv1s/settings SECURITY DEFINER helper (#122).
+      await settings.recordBootstrapOwnerAuditEvent(scopedDb, {
         actorUserId: user.id,
-        action: "bootstrap_owner_created",
-        targetType: "user", // NOT NULL in schema
-        targetId: user.id,
-        metadata: {},
+        targetUserId: user.id,
         requestId: `bootstrap:${user.id}`
       });
     }
@@ -487,8 +484,11 @@ function readBearerToken(headers: Headers): string | undefined {
 
   const [scheme, token] = authorization.split(/\s+/, 2);
 
+  // Total: anything that is not a well-formed `Bearer <token>` (wrong scheme, missing space,
+  // empty token) yields `undefined` so the request falls through to cookie auth or produces a
+  // single clean 401 — never a thrown control-flow error for a mere header-format failure.
   if (scheme?.toLowerCase() !== "bearer" || !token) {
-    throw new Error("Invalid bearer token");
+    return undefined;
   }
 
   return token;

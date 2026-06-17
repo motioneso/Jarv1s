@@ -23,7 +23,11 @@ export const structuredStateModuleManifest: JarvisModuleManifest = {
     required: true
   },
   database: {
-    migrations: ["sql/0031_structured_state.sql", "sql/0070_commitments_worker_grant.sql"],
+    migrations: [
+      "sql/0031_structured_state.sql",
+      "sql/0070_commitments_worker_grant.sql",
+      "sql/0093_preferences_worker_runtime_grants.sql"
+    ],
     migrationDirectories: ["packages/structured-state/sql"],
     ownedTables: ["app.commitments", "app.entities", "app.preferences"]
   },

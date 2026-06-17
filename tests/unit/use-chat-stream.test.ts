@@ -40,6 +40,10 @@ describe("parseRecord", () => {
     expect(parseRecord("not-json")).toBeNull();
   });
 
+  it("returns null for records with an unknown kind", () => {
+    expect(parseRecord(JSON.stringify({ kind: "foreign_kind", text: "Hello" }))).toBeNull();
+  });
+
   it("strips unknown outcome values", () => {
     const data = JSON.stringify({ kind: "action_result", text: "x", outcome: "unknown-value" });
     const record = parseRecord(data);

@@ -1,9 +1,13 @@
 import { spawn } from "node:child_process";
+import { createWriteStream } from "node:fs";
 import { mkdir } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
+import { pipeline } from "node:stream/promises";
 import { fileURLToPath } from "node:url";
 
 import { getJarvisDatabaseUrls } from "@jarv1s/db";
+
+const POSTGRES_CONTAINER = "jarv1s-postgres";
 
 export interface BackupPlanInput {
   readonly connectionString?: string;
@@ -12,8 +16,8 @@ export interface BackupPlanInput {
 }
 
 export interface BackupPlan {
-  readonly args: readonly string[];
-  readonly command: "pg_dump";
+  readonly dockerArgs: readonly string[];
+  readonly dockerCommand: "docker";
   readonly env: Readonly<Record<"PGPASSWORD", string>>;
   readonly outputFile: string;
 }
@@ -31,22 +35,26 @@ export function createBackupPlan(input: BackupPlanInput = {}): BackupPlan {
     throw new Error("Backup database URL must include a username");
   }
 
+  const dockerPgDumpArgs = [
+    "--username",
+    username,
+    "--dbname",
+    database,
+    "--format=custom",
+    "--no-owner",
+    "--no-privileges"
+  ];
+
   return {
-    command: "pg_dump",
-    args: [
-      "--host",
-      url.hostname,
-      "--port",
-      url.port || "5432",
-      "--username",
-      username,
-      "--dbname",
-      database,
-      "--format=custom",
-      "--no-owner",
-      "--no-privileges",
-      "--file",
-      outputFile
+    dockerCommand: "docker",
+    dockerArgs: [
+      "exec",
+      "-i",
+      "--env",
+      "PGPASSWORD",
+      POSTGRES_CONTAINER,
+      "pg_dump",
+      ...dockerPgDumpArgs
     ],
     env: {
       PGPASSWORD: decodeURIComponent(url.password)
@@ -63,7 +71,7 @@ async function main(): Promise<void> {
 
   await mkdir(dirname(plan.outputFile), { recursive: true });
   console.log(`Writing sensitive database backup to ${plan.outputFile}`);
-  await runCommand(plan.command, plan.args, plan.env);
+  await runCommandToFile(plan.dockerCommand, plan.dockerArgs, plan.env, plan.outputFile);
   console.log(`Backup complete: ${plan.outputFile}`);
 }
 
@@ -94,20 +102,25 @@ function readFlag(args: readonly string[], name: string): string | undefined {
   return value;
 }
 
-function runCommand(
+async function runCommandToFile(
   command: string,
   args: readonly string[],
-  env: Readonly<Record<string, string>>
+  env: Readonly<Record<string, string>>,
+  outputFile: string
 ): Promise<void> {
-  return new Promise((resolvePromise, reject) => {
-    const child = spawn(command, [...args], {
-      env: {
-        ...process.env,
-        ...env
-      },
-      stdio: "inherit"
-    });
+  const child = spawn(command, [...args], {
+    env: {
+      ...process.env,
+      ...env
+    },
+    stdio: ["ignore", "pipe", "inherit"]
+  });
 
+  if (!child.stdout) {
+    throw new Error(`${command} did not expose stdout for backup output`);
+  }
+
+  const exit = new Promise<void>((resolvePromise, reject) => {
     child.on("error", reject);
     child.on("exit", (code) => {
       if (code === 0) {
@@ -117,6 +130,13 @@ function runCommand(
       reject(new Error(`${command} exited with status ${code ?? "unknown"}`));
     });
   });
+
+  try {
+    await Promise.all([pipeline(child.stdout, createWriteStream(outputFile)), exit]);
+  } catch (error) {
+    child.kill();
+    throw error;
+  }
 }
 
 if (process.argv[1] && fileURLToPath(import.meta.url) === resolve(process.argv[1])) {

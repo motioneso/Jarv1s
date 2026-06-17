@@ -23,6 +23,12 @@ Treat backup files as sensitive operator artifacts. A full backup contains priva
 Better Auth tables, pg-boss operational rows, and encrypted connector/AI secret ciphertext. Store it
 outside git, encrypt it off host, and restrict filesystem access.
 
+User vault notes are plaintext markdown files by design. Vault confidentiality comes from per-user
+vault roots, `0700` directories, `0600` files, and `VaultContext` path containment, not
+application-level note encryption. Treat vault volumes, filesystem backups, and exported archives as
+sensitive private data. Connector and AI credentials remain separate from vault notes and continue to
+use AES-256-GCM envelopes at rest.
+
 ## Production Environment Example
 
 Use `infra/env.production.example` as the production environment checklist:

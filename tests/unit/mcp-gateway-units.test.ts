@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  AssistantToolGateway,
   ConfirmationRegistry,
   InvalidSessionTokenError,
   resolvePolicy,
@@ -9,6 +10,7 @@ import {
   validateToolInput
 } from "@jarv1s/ai";
 import type { ModuleAssistantToolManifest, ToolContext, ToolResult } from "@jarv1s/module-sdk";
+import { tasksModuleManifest } from "@jarv1s/tasks";
 
 describe("module-sdk tool contract", () => {
   it("lets a module declare a tool with an execute handler", async () => {
@@ -177,5 +179,367 @@ describe("tool input validation", () => {
 
   it("accepts anything when no schema is declared", () => {
     expect(validateToolInput(undefined, { whatever: true })).toEqual({ whatever: true });
+  });
+});
+
+describe("gateway tool output sanitization", () => {
+  const runner = {
+    withDataContext: async (_access: unknown, work: (db: unknown) => Promise<unknown>) => work({})
+  };
+
+  it("accepts real task list-family output schemas for items-shaped tool results", async () => {
+    const listFamilyTools = [
+      "tasks.list",
+      "tasks.focus",
+      "tasks.atRisk",
+      "tasks.overdue",
+      "tasks.listLists",
+      "tasks.listTags"
+    ];
+    const taskTools = tasksModuleManifest.assistantTools ?? [];
+    const tools = listFamilyTools.map((name) => {
+      const tool = taskTools.find((candidate) => candidate.name === name);
+      if (!tool) throw new Error(`missing ${name}`);
+      return {
+        ...tool,
+        execute: async () => ({ data: { items: [] }, columnOrder: ["id"] })
+      } satisfies ModuleAssistantToolManifest;
+    });
+    const tokens = new SessionTokenRegistry();
+    const gateway = new AssistantToolGateway({
+      resolveActiveModules: async () => [
+        {
+          id: "tasks",
+          name: "Tasks",
+          version: "1.0.0",
+          publisher: "Jarv1s",
+          lifecycle: "required",
+          compatibility: { jarv1s: "*" },
+          assistantTools: tools
+        }
+      ],
+      repository: {} as never,
+      runner: runner as never,
+      tokens,
+      confirmations: new ConfirmationRegistry(),
+      notifier: { emit: () => {} },
+      confirmTimeoutMs: 1000
+    });
+    const token = tokens.mint({ actorUserId: "u1", chatSessionId: "s1", allowedToolNames: null });
+
+    for (const toolName of listFamilyTools) {
+      const res = await gateway.callTool(
+        token,
+        toolName,
+        toolName === "tasks.listTags" ? { listId: "l1" } : {}
+      );
+
+      expect(res.ok).toBe(true);
+      if (!res.ok) throw new Error(`expected ${toolName} ok`);
+      expect((res.data as { text: string }).text).toContain("items");
+    }
+  });
+
+  it("drops undeclared output fields before rendering a tool result", async () => {
+    const tokens = new SessionTokenRegistry();
+    const gateway = new AssistantToolGateway({
+      resolveActiveModules: async () => [
+        {
+          id: "example",
+          name: "Example",
+          version: "1.0.0",
+          publisher: "Jarv1s",
+          lifecycle: "optional",
+          compatibility: { jarv1s: "*" },
+          assistantTools: [
+            {
+              name: "example.safe",
+              description: "Safe output.",
+              permissionId: "example.view",
+              risk: "read",
+              outputSchema: {
+                type: "object",
+                properties: { visible: { type: "string" } },
+                required: ["visible"]
+              },
+              execute: async () => ({
+                data: { visible: "ok", secret: "SECRET", nested: { token: "TOKEN" } }
+              })
+            }
+          ]
+        }
+      ],
+      repository: {} as never,
+      runner: runner as never,
+      tokens,
+      confirmations: new ConfirmationRegistry(),
+      notifier: { emit: () => {} },
+      confirmTimeoutMs: 1000
+    });
+    const token = tokens.mint({ actorUserId: "u1", chatSessionId: "s1", allowedToolNames: null });
+
+    const res = await gateway.callTool(token, "example.safe", {});
+
+    expect(res.ok).toBe(true);
+    if (!res.ok) throw new Error("expected ok");
+    const text = (res.data as { text: string }).text;
+    expect(text).toContain("visible");
+    expect(text).toContain("ok");
+    expect(text).not.toContain("SECRET");
+    expect(text).not.toContain("TOKEN");
+    expect(text).not.toContain("secret");
+    expect(text).not.toContain("nested");
+  });
+
+  it("drops undeclared nested fields under declared output fields", async () => {
+    const tokens = new SessionTokenRegistry();
+    const gateway = new AssistantToolGateway({
+      resolveActiveModules: async () => [
+        {
+          id: "example",
+          name: "Example",
+          version: "1.0.0",
+          publisher: "Jarv1s",
+          lifecycle: "optional",
+          compatibility: { jarv1s: "*" },
+          assistantTools: [
+            {
+              name: "example.nested-safe",
+              description: "Nested safe output.",
+              permissionId: "example.view",
+              risk: "read",
+              outputSchema: {
+                type: "object",
+                properties: {
+                  messages: {
+                    type: "array",
+                    items: {
+                      type: "object",
+                      properties: {
+                        id: { type: "string" },
+                        text: { type: "string" },
+                        author: {
+                          type: "object",
+                          properties: { displayName: { type: "string" } },
+                          required: ["displayName"]
+                        }
+                      },
+                      required: ["id", "text", "author"]
+                    }
+                  }
+                },
+                required: ["messages"]
+              },
+              execute: async () => ({
+                data: {
+                  messages: [
+                    {
+                      id: "m1",
+                      text: "hello",
+                      author: { displayName: "Ada", email: "ada@example.test", token: "TOKEN" },
+                      privateNote: "SECRET"
+                    }
+                  ]
+                }
+              })
+            }
+          ]
+        }
+      ],
+      repository: {} as never,
+      runner: runner as never,
+      tokens,
+      confirmations: new ConfirmationRegistry(),
+      notifier: { emit: () => {} },
+      confirmTimeoutMs: 1000
+    });
+    const token = tokens.mint({ actorUserId: "u1", chatSessionId: "s1", allowedToolNames: null });
+
+    const res = await gateway.callTool(token, "example.nested-safe", {});
+
+    expect(res.ok).toBe(true);
+    if (!res.ok) throw new Error("expected ok");
+    const text = (res.data as { text: string }).text;
+    expect(text).toContain("messages");
+    expect(text).toContain("hello");
+    expect(text).toContain("Ada");
+    expect(text).not.toContain("SECRET");
+    expect(text).not.toContain("TOKEN");
+    expect(text).not.toContain("privateNote");
+    expect(text).not.toContain("email");
+  });
+
+  it("fails closed when a declared scalar output field receives an object", async () => {
+    const tokens = new SessionTokenRegistry();
+    const gateway = new AssistantToolGateway({
+      resolveActiveModules: async () => [
+        {
+          id: "example",
+          name: "Example",
+          version: "1.0.0",
+          publisher: "Jarv1s",
+          lifecycle: "optional",
+          compatibility: { jarv1s: "*" },
+          assistantTools: [
+            {
+              name: "example.scalar-object-leak",
+              description: "Scalar object leak probe.",
+              permissionId: "example.view",
+              risk: "read",
+              outputSchema: {
+                type: "object",
+                properties: { visible: { type: "string" } },
+                required: ["visible"]
+              },
+              execute: async () => ({ data: { visible: { secret: "SECRET" } } })
+            }
+          ]
+        }
+      ],
+      repository: {} as never,
+      runner: runner as never,
+      tokens,
+      confirmations: new ConfirmationRegistry(),
+      notifier: { emit: () => {} },
+      confirmTimeoutMs: 1000
+    });
+    const token = tokens.mint({ actorUserId: "u1", chatSessionId: "s1", allowedToolNames: null });
+
+    const res = await gateway.callTool(token, "example.scalar-object-leak", {});
+
+    expect(res).toEqual({ ok: false, error: "Tool example.scalar-object-leak failed" });
+    if (res.ok) {
+      expect((res.data as { text: string }).text).not.toContain("SECRET");
+    }
+  });
+
+  it("fails closed when a nullable scalar output field receives an object", async () => {
+    const tokens = new SessionTokenRegistry();
+    const gateway = new AssistantToolGateway({
+      resolveActiveModules: async () => [
+        {
+          id: "example",
+          name: "Example",
+          version: "1.0.0",
+          publisher: "Jarv1s",
+          lifecycle: "optional",
+          compatibility: { jarv1s: "*" },
+          assistantTools: [
+            {
+              name: "example.nullable-scalar-object-leak",
+              description: "Nullable scalar object leak probe.",
+              permissionId: "example.view",
+              risk: "read",
+              outputSchema: {
+                type: "object",
+                properties: { visible: { anyOf: [{ type: "string" }, { type: "null" }] } },
+                required: ["visible"]
+              },
+              execute: async () => ({ data: { visible: { secret: "SECRET" } } })
+            }
+          ]
+        }
+      ],
+      repository: {} as never,
+      runner: runner as never,
+      tokens,
+      confirmations: new ConfirmationRegistry(),
+      notifier: { emit: () => {} },
+      confirmTimeoutMs: 1000
+    });
+    const token = tokens.mint({ actorUserId: "u1", chatSessionId: "s1", allowedToolNames: null });
+
+    const res = await gateway.callTool(token, "example.nullable-scalar-object-leak", {});
+
+    expect(res).toEqual({ ok: false, error: "Tool example.nullable-scalar-object-leak failed" });
+    if (res.ok) {
+      expect((res.data as { text: string }).text).not.toContain("SECRET");
+    }
+  });
+
+  it("fails closed when required output fields are missing", async () => {
+    const tokens = new SessionTokenRegistry();
+    const gateway = new AssistantToolGateway({
+      resolveActiveModules: async () => [
+        {
+          id: "example",
+          name: "Example",
+          version: "1.0.0",
+          publisher: "Jarv1s",
+          lifecycle: "optional",
+          compatibility: { jarv1s: "*" },
+          assistantTools: [
+            {
+              name: "example.invalid-output",
+              description: "Invalid output.",
+              permissionId: "example.view",
+              risk: "read",
+              outputSchema: {
+                type: "object",
+                properties: { visible: { type: "string" } },
+                required: ["visible"]
+              },
+              execute: async () => ({ data: { other: "value" } })
+            }
+          ]
+        }
+      ],
+      repository: {} as never,
+      runner: runner as never,
+      tokens,
+      confirmations: new ConfirmationRegistry(),
+      notifier: { emit: () => {} },
+      confirmTimeoutMs: 1000
+    });
+    const token = tokens.mint({ actorUserId: "u1", chatSessionId: "s1", allowedToolNames: null });
+
+    const res = await gateway.callTool(token, "example.invalid-output", {});
+
+    expect(res).toEqual({ ok: false, error: "Tool example.invalid-output failed" });
+  });
+
+  it("caps rendered tool output before returning it to the model", async () => {
+    const tokens = new SessionTokenRegistry();
+    const gateway = new AssistantToolGateway({
+      resolveActiveModules: async () => [
+        {
+          id: "example",
+          name: "Example",
+          version: "1.0.0",
+          publisher: "Jarv1s",
+          lifecycle: "optional",
+          compatibility: { jarv1s: "*" },
+          assistantTools: [
+            {
+              name: "example.large-output",
+              description: "Large output.",
+              permissionId: "example.view",
+              risk: "read",
+              outputSchema: {
+                type: "object",
+                properties: { visible: { type: "string" } },
+                required: ["visible"]
+              },
+              execute: async () => ({ data: { visible: "x".repeat(20_000) } })
+            }
+          ]
+        }
+      ],
+      repository: {} as never,
+      runner: runner as never,
+      tokens,
+      confirmations: new ConfirmationRegistry(),
+      notifier: { emit: () => {} },
+      confirmTimeoutMs: 1000
+    });
+    const token = tokens.mint({ actorUserId: "u1", chatSessionId: "s1", allowedToolNames: null });
+
+    const res = await gateway.callTool(token, "example.large-output", {});
+
+    expect(res.ok).toBe(true);
+    if (!res.ok) throw new Error("expected ok");
+    const text = (res.data as { text: string }).text;
+    expect(text.length).toBeLessThanOrEqual(16_000);
+    expect(text).toContain("[truncated tool result]");
   });
 });

@@ -13,6 +13,7 @@ import {
   type JarvisDatabase
 } from "@jarv1s/db";
 import { EmailRepository } from "@jarv1s/email";
+import type { JarvisModuleManifest } from "@jarv1s/module-sdk";
 import { getAllQueueDefinitions } from "@jarv1s/module-registry";
 import { getBuiltInModuleManifests } from "@jarv1s/module-registry";
 import { NotificationsRepository } from "@jarv1s/notifications";
@@ -415,7 +416,7 @@ describe("AI read-only assistant tool execution foundation", () => {
     const providerResponse = await server.inject({
       method: "POST",
       url: "/api/ai/providers",
-      headers: userAHeaders(),
+      headers: adminHeaders(),
       payload: {
         providerKind: "custom",
         displayName: "Tool Secret Provider",
@@ -494,6 +495,167 @@ describe("AI read-only assistant tool execution foundation", () => {
     });
     expect(invoke.statusCode).toBeGreaterThanOrEqual(500);
     await app.close();
+  });
+
+  it("sanitizes REST assistant tool output before returning it to the frontend", async () => {
+    const module: JarvisModuleManifest = {
+      id: "security-probe",
+      name: "Security Probe",
+      version: "1.0.0",
+      publisher: "Jarv1s",
+      lifecycle: "optional",
+      compatibility: { jarv1s: "*" },
+      assistantTools: [
+        {
+          name: "security.nested",
+          description: "Nested output probe.",
+          permissionId: "security.view",
+          risk: "read",
+          outputSchema: {
+            type: "object",
+            properties: {
+              items: {
+                type: "array",
+                items: {
+                  type: "object",
+                  properties: {
+                    id: { type: "string" },
+                    owner: {
+                      type: "object",
+                      properties: { displayName: { type: "string" } },
+                      required: ["displayName"]
+                    }
+                  },
+                  required: ["id", "owner"]
+                }
+              }
+            },
+            required: ["items"]
+          },
+          execute: async () => ({
+            data: {
+              items: [
+                {
+                  id: "safe-id",
+                  owner: {
+                    displayName: "Visible Owner",
+                    token: "REST_NESTED_SECRET"
+                  },
+                  privateNote: "REST_PRIVATE_NOTE"
+                }
+              ],
+              topSecret: "REST_TOP_SECRET"
+            }
+          })
+        },
+        {
+          name: "security.scalar",
+          description: "Scalar output probe.",
+          permissionId: "security.view",
+          risk: "read",
+          outputSchema: {
+            type: "object",
+            properties: { visible: { type: "string" } },
+            required: ["visible"]
+          },
+          execute: async () => ({
+            data: { visible: { secret: "REST_SCALAR_SECRET" } }
+          })
+        }
+      ]
+    };
+    const app = Fastify({ logger: false });
+    app.after(() =>
+      registerAiRoutes(app, {
+        resolveAccessContext: async () => userAContext(),
+        dataContext,
+        resolveActiveModules: async () => [module]
+      })
+    );
+    await app.ready();
+
+    try {
+      const nestedResponse = await app.inject({
+        method: "POST",
+        url: "/api/ai/assistant-tools/security.nested/invoke",
+        headers: { "content-type": "application/json" },
+        payload: { input: {} }
+      });
+      const scalarResponse = await app.inject({
+        method: "POST",
+        url: "/api/ai/assistant-tools/security.scalar/invoke",
+        headers: { "content-type": "application/json" },
+        payload: { input: {} }
+      });
+
+      expect(nestedResponse.statusCode).toBe(200);
+      expect(nestedResponse.body).toContain("safe-id");
+      expect(nestedResponse.body).toContain("Visible Owner");
+      expect(nestedResponse.body).not.toContain("REST_NESTED_SECRET");
+      expect(nestedResponse.body).not.toContain("REST_PRIVATE_NOTE");
+      expect(nestedResponse.body).not.toContain("REST_TOP_SECRET");
+      expect(nestedResponse.body).not.toContain("privateNote");
+      expect(nestedResponse.body).not.toContain("topSecret");
+      expect(scalarResponse.statusCode).toBeGreaterThanOrEqual(500);
+      expect(scalarResponse.body).not.toContain("REST_SCALAR_SECRET");
+    } finally {
+      await app.close();
+    }
+  });
+
+  it("caps oversized REST assistant tool output after sanitizing it", async () => {
+    const module: JarvisModuleManifest = {
+      id: "security-cap-probe",
+      name: "Security Cap Probe",
+      version: "1.0.0",
+      publisher: "Jarv1s",
+      lifecycle: "optional",
+      compatibility: { jarv1s: "*" },
+      assistantTools: [
+        {
+          name: "security.largeOutput",
+          description: "Large output probe.",
+          permissionId: "security.view",
+          risk: "read",
+          outputSchema: {
+            type: "object",
+            properties: { visible: { type: "string" } },
+            required: ["visible"]
+          },
+          execute: async () => ({
+            data: { visible: `${"x".repeat(20_000)}REST_OVERSIZED_TAIL` }
+          })
+        }
+      ]
+    };
+    const app = Fastify({ logger: false });
+    app.after(() =>
+      registerAiRoutes(app, {
+        resolveAccessContext: async () => userAContext(),
+        dataContext,
+        resolveActiveModules: async () => [module]
+      })
+    );
+    await app.ready();
+
+    try {
+      const response = await app.inject({
+        method: "POST",
+        url: "/api/ai/assistant-tools/security.largeOutput/invoke",
+        headers: { "content-type": "application/json" },
+        payload: { input: {} }
+      });
+
+      expect(response.statusCode).toBe(200);
+      expect(response.body.length).toBeLessThan(18_000);
+      expect(response.body).toContain("[truncated tool result]");
+      expect(response.body).not.toContain("REST_OVERSIZED_TAIL");
+
+      const result = response.json<InvocationResponse>().invocation.result;
+      expect(JSON.stringify(result).length).toBeLessThanOrEqual(16_500);
+    } finally {
+      await app.close();
+    }
   });
 
   async function invokeTool(

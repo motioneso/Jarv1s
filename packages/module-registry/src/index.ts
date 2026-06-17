@@ -152,6 +152,8 @@ export interface BuiltInRouteDependencies {
     readonly actorUserId: string;
     readonly requestId: string;
   }) => Promise<readonly { moduleId: string; readiness: number; summary: string }[]>;
+  /** Resolved MCP endpoint advertised to CLI chat engines. Owned by API composition config. */
+  readonly mcpServerUrl: string;
   /** Override the live-chat engine factory (tests inject a fake); defaults to real tmux. */
   readonly chatEngineFactory?: ChatEngineFactory;
   readonly revokeUserSessions?: (userId: string) => Promise<number>;
@@ -343,7 +345,7 @@ const BUILT_IN_MODULES: readonly BuiltInModuleRegistration[] = [
         dataContext: deps.dataContext,
         chatEngineFactory: deps.chatEngineFactory,
         resolveActiveModules: deps.resolveActiveModules,
-        mcpServerUrl: `http://127.0.0.1:${process.env.PORT ?? 3000}/api/mcp`,
+        mcpServerUrl: deps.mcpServerUrl,
         boss: deps.boss,
         personaPreferences: new PreferencesRepository(),
         googleConnectionService: deps.googleConnectionService,
@@ -378,6 +380,10 @@ const BUILT_IN_MODULES: readonly BuiltInModuleRegistration[] = [
           aiRepository: new AiRepository(),
           cipher: createAiSecretCipher(),
           personaRepository: new PreferencesRepository(),
+          sourceBehaviorPolicy: {
+            manifests: getBuiltInModuleManifests(),
+            preferencesRepository: new PreferencesRepository()
+          },
           resolveUserName: async (scopedDb, actorUserId) => {
             const row = await scopedDb.db
               .selectFrom("app.users")
@@ -421,6 +427,51 @@ const BUILT_IN_MODULES: readonly BuiltInModuleRegistration[] = [
 // CORE_VERSION at load time, before any registration path runs. Throws if a module is
 // incompatible or not defaultEnabled, naming the offender.
 assertModulesCompatible(BUILT_IN_MODULES.map((module) => module.manifest));
+assertModuleRegistryConsistency(BUILT_IN_MODULES);
+
+export function assertModuleRegistryConsistency(
+  registrations: readonly BuiltInModuleRegistration[] = BUILT_IN_MODULES
+): void {
+  const moduleIds = new Map<string, string>();
+  const queueNames = new Map<string, string>(
+    FOUNDATION_QUEUES.map((queue) => [queue.name, "foundation"])
+  );
+  const routeKeys = new Map<string, string>();
+  const ownedTables = new Map<string, string>();
+
+  for (const registration of registrations) {
+    const moduleId = registration.manifest.id;
+
+    assertUniqueRegistryKey(moduleIds, moduleId, moduleId, "module id");
+
+    for (const queue of registration.queueDefinitions) {
+      assertUniqueRegistryKey(queueNames, queue.name, moduleId, "queue name");
+    }
+
+    for (const route of registration.manifest.routes ?? []) {
+      assertUniqueRegistryKey(routeKeys, `${route.method} ${route.path}`, moduleId, "route");
+    }
+
+    for (const table of registration.manifest.database?.ownedTables ?? []) {
+      assertUniqueRegistryKey(ownedTables, table, moduleId, "owned table");
+    }
+  }
+}
+
+function assertUniqueRegistryKey(
+  seen: Map<string, string>,
+  key: string,
+  owner: string,
+  label: string
+): void {
+  const existingOwner = seen.get(key);
+  if (existingOwner) {
+    throw new Error(
+      `Duplicate ${label} "${key}" in module registry: ${existingOwner} and ${owner}`
+    );
+  }
+  seen.set(key, owner);
+}
 
 export function getBuiltInModuleRegistrations(): readonly BuiltInModuleRegistration[] {
   return BUILT_IN_MODULES;

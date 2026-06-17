@@ -6,7 +6,7 @@ import {
   addTaskActivityResponseSchema,
   assignTaskTagRequestSchema,
   assignTaskTagRouteSchema,
-  atRiskTasksRouteSchema,
+  atRiskTasksResponseSchema,
   breakdownTaskRequestSchema,
   breakdownTaskResponseSchema,
   createTaskListRequestSchema,
@@ -21,17 +21,20 @@ import {
   deleteTaskListRequestSchema,
   deleteTaskListRouteSchema,
   deleteTaskTagRouteSchema,
-  focusTasksRouteSchema,
+  focusTasksResponseSchema,
   getTaskResponseSchema,
   listTaskListsResponseSchema,
   listTaskTagsResponseSchema,
   listTasksResponseSchema,
-  overdueTasksRouteSchema,
+  overdueTasksResponseSchema,
   renameTaskListRequestSchema,
   renameTaskListRouteSchema,
   renameTaskTagRequestSchema,
   renameTaskTagRouteSchema,
+  taskDtoSchema,
+  taskListDtoSchema,
   taskStatusSchema,
+  taskTagDtoSchema,
   unassignTaskTagRouteSchema,
   updateTaskRequestSchema,
   updateTaskResponseSchema
@@ -45,13 +48,38 @@ import {
   taskListExecute,
   taskListListsExecute,
   taskListTagsExecute,
-  taskOverdueExecute
+  taskOverdueExecute,
+  taskUpdateStatusExecute
 } from "./tools.js";
 
 export const TASKS_MODULE_ID = "tasks";
 export const TASKS_DEFERRED_STATUS_QUEUE = "tasks-deferred-status";
 export const TASKS_RECURRENCE_QUEUE = "tasks-recurrence-materialize";
 export const tasksModuleSqlMigrationDirectory = fileURLToPath(new URL("../sql", import.meta.url));
+
+const taskItemsToolOutputSchema = {
+  type: "object",
+  required: ["items"],
+  properties: {
+    items: { type: "array", items: taskDtoSchema }
+  }
+} as const;
+
+const taskListItemsToolOutputSchema = {
+  type: "object",
+  required: ["items"],
+  properties: {
+    items: { type: "array", items: taskListDtoSchema }
+  }
+} as const;
+
+const taskTagItemsToolOutputSchema = {
+  type: "object",
+  required: ["items"],
+  properties: {
+    items: { type: "array", items: taskTagDtoSchema }
+  }
+} as const;
 
 export const tasksModuleManifest = {
   id: TASKS_MODULE_ID,
@@ -252,19 +280,19 @@ export const tasksModuleManifest = {
     {
       method: "GET",
       path: "/api/tasks/focus",
-      responseSchema: focusTasksRouteSchema.response[200],
+      responseSchema: focusTasksResponseSchema,
       permissionId: "tasks.view"
     },
     {
       method: "GET",
       path: "/api/tasks/at-risk",
-      responseSchema: atRiskTasksRouteSchema.response[200],
+      responseSchema: atRiskTasksResponseSchema,
       permissionId: "tasks.view"
     },
     {
       method: "GET",
       path: "/api/tasks/overdue",
-      responseSchema: overdueTasksRouteSchema.response[200],
+      responseSchema: overdueTasksResponseSchema,
       permissionId: "tasks.view"
     },
     {
@@ -321,7 +349,7 @@ export const tasksModuleManifest = {
           quadrant: { type: "string", enum: ["do", "schedule", "delegate", "eliminate"] }
         }
       },
-      outputSchema: listTasksResponseSchema,
+      outputSchema: taskItemsToolOutputSchema,
       execute: taskListExecute
     },
     {
@@ -346,7 +374,7 @@ export const tasksModuleManifest = {
       permissionId: "tasks.view",
       risk: "read",
       inputSchema: { type: "object", properties: {} },
-      outputSchema: focusTasksRouteSchema.response[200],
+      outputSchema: taskItemsToolOutputSchema,
       execute: taskFocusExecute
     },
     {
@@ -356,7 +384,7 @@ export const tasksModuleManifest = {
       permissionId: "tasks.view",
       risk: "read",
       inputSchema: { type: "object", properties: {} },
-      outputSchema: atRiskTasksRouteSchema.response[200],
+      outputSchema: taskItemsToolOutputSchema,
       execute: taskAtRiskExecute
     },
     {
@@ -366,7 +394,7 @@ export const tasksModuleManifest = {
       permissionId: "tasks.view",
       risk: "read",
       inputSchema: { type: "object", properties: {} },
-      outputSchema: overdueTasksRouteSchema.response[200],
+      outputSchema: taskItemsToolOutputSchema,
       execute: taskOverdueExecute
     },
     {
@@ -375,7 +403,7 @@ export const tasksModuleManifest = {
       permissionId: "tasks.view",
       risk: "read",
       inputSchema: { type: "object", properties: {} },
-      outputSchema: listTaskListsResponseSchema,
+      outputSchema: taskListItemsToolOutputSchema,
       execute: taskListListsExecute
     },
     {
@@ -390,7 +418,7 @@ export const tasksModuleManifest = {
           listId: { type: "string" }
         }
       },
-      outputSchema: listTaskTagsResponseSchema,
+      outputSchema: taskTagItemsToolOutputSchema,
       execute: taskListTagsExecute
     },
     {
@@ -421,7 +449,8 @@ export const tasksModuleManifest = {
           idempotencyKey: { type: "string" }
         }
       },
-      outputSchema: getTaskResponseSchema
+      outputSchema: getTaskResponseSchema,
+      execute: taskUpdateStatusExecute
     }
   ]
 } satisfies JarvisModuleManifest;

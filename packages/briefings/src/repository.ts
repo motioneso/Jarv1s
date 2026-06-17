@@ -282,10 +282,11 @@ export class BriefingsRepository {
     });
   }
 
-  private async getOwnedDefinitionById(
+  async getOwnedDefinitionById(
     scopedDb: DataContextDb,
     definitionId: string
   ): Promise<BriefingDefinition | undefined> {
+    assertDataContextDb(scopedDb);
     return scopedDb.db
       .selectFrom("app.briefing_definitions")
       .selectAll()

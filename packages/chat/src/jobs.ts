@@ -6,7 +6,9 @@ import type { AiSecretCipher, GenerateChatInput, ProviderKind } from "@jarv1s/ai
 import type { DataContextDb, DataContextRunner } from "@jarv1s/db";
 import {
   ChatMemoryFactsRepository,
+  ChatMemorySuppressionsRepository,
   MemoryRepository,
+  createMemoryFactSignature,
   type EmbeddingProvider,
   type FactCategory,
   type FactProvenance,
@@ -120,6 +122,7 @@ export interface ExtractFactsDeps {
   readonly aiRepository: AiRepository;
   readonly cipher: AiSecretCipher;
   readonly factsRepository: ChatMemoryFactsRepository;
+  readonly suppressionsRepository?: ChatMemorySuppressionsRepository;
   // Use the real GenerateChatInput so `maxOutputTokens` typechecks (no excess-property error).
   readonly createAdapter?: (
     kind: ProviderKind,
@@ -145,6 +148,8 @@ export async function handleExtractFactsJob(
   chatRepository: ChatRepository = new ChatRepository()
 ): Promise<void> {
   try {
+    const suppressionsRepository =
+      deps.suppressionsRepository ?? new ChatMemorySuppressionsRepository();
     const messages = await chatRepository.listMessages(scopedDb, threadId);
     const stored = messages.filter((m) => m.status === "stored");
     const lastTwo = stored.slice(-2);
@@ -204,6 +209,13 @@ export async function handleExtractFactsJob(
 
     const parsed = parseFacts(text);
     for (const fact of parsed.slice(0, MAX_FACTS_PER_TURN)) {
+      const signature = createMemoryFactSignature(fact.category, fact.content);
+      if (
+        fact.provenance === "inferred" &&
+        (await suppressionsRepository.isSuppressed(scopedDb, ownerUserId, signature))
+      ) {
+        continue;
+      }
       // Supersede ONLY a grounded, actor-owned active id (ignore hallucinated ids — F11).
       if (typeof fact.supersedes === "string" && activeIds.has(fact.supersedes)) {
         await deps.factsRepository.supersedeFact(scopedDb, fact.supersedes);

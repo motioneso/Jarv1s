@@ -14,15 +14,20 @@ import type {
   ChatMultiplexerChoice,
   ChatMultiplexerSettingsDto,
   GetPersonaSettingsResponse,
+  GetChatModelOverrideSettingsResponse,
   GetLocaleSettingsResponse,
   ListUsersResponse,
   RegistrationSettingsDto,
   PreviewPersonaRequest,
   PreviewPersonaResponse,
+  PutAdminChatModelOverrideRequest,
+  PutChatModelOverrideRequest,
   PutLocaleSettingsRequest,
   PutLocaleSettingsResponse,
   PutPersonaSettingsRequest,
   PutPersonaSettingsResponse,
+  PutSourceBehaviorRequest,
+  PutSourceBehaviorResponse,
   UserDto,
   BreakdownTaskRequest,
   BreakdownTaskResponse,
@@ -64,6 +69,7 @@ import type {
   ListAdminModulesResponse,
   ListModulesResponse,
   ListMyModulesResponse,
+  ListSourceBehaviorsResponse,
   MyModuleDto,
   ListNotificationsResponse,
   ListTaskActivityResponse,
@@ -158,6 +164,23 @@ export async function putLocaleSettings(
     method: "PUT",
     body
   });
+}
+
+export async function listSourceBehaviors(): Promise<ListSourceBehaviorsResponse> {
+  return requestJson<ListSourceBehaviorsResponse>("/api/me/source-behaviors");
+}
+
+export async function putSourceBehavior(
+  id: string,
+  body: PutSourceBehaviorRequest
+): Promise<PutSourceBehaviorResponse> {
+  return requestJson<PutSourceBehaviorResponse>(
+    `/api/me/source-behaviors/${encodeURIComponent(id)}`,
+    {
+      method: "PUT",
+      body
+    }
+  );
 }
 
 export async function getPersonaSettings(): Promise<GetPersonaSettingsResponse> {
@@ -370,18 +393,6 @@ export async function breakdownTask(
   });
 }
 
-export async function listFocusTasks(): Promise<ListTasksResponse> {
-  return requestJson<ListTasksResponse>("/api/tasks/focus");
-}
-
-export async function listAtRiskTasks(): Promise<ListTasksResponse> {
-  return requestJson<ListTasksResponse>("/api/tasks/at-risk");
-}
-
-export async function listOverdueTasks(): Promise<ListTasksResponse> {
-  return requestJson<ListTasksResponse>("/api/tasks/overdue");
-}
-
 export async function listTaskLists(): Promise<ListTaskListsResponse> {
   return requestJson<ListTaskListsResponse>("/api/tasks/lists");
 }
@@ -575,6 +586,18 @@ export async function deleteMemoryFact(id: string): Promise<void> {
   });
 }
 
+export async function confirmMemoryFact(id: string): Promise<void> {
+  await requestJson<unknown>(`/api/chat/memory/facts/${encodeURIComponent(id)}/confirm`, {
+    method: "POST"
+  });
+}
+
+export async function rejectMemoryFact(id: string): Promise<void> {
+  await requestJson<unknown>(`/api/chat/memory/facts/${encodeURIComponent(id)}/reject`, {
+    method: "POST"
+  });
+}
+
 export async function switchChatProvider(): Promise<void> {
   await requestJson<unknown>("/api/chat/switch", { method: "POST" });
 }
@@ -656,6 +679,28 @@ export async function lookupAiCapabilityRoute(
   return requestJson<LookupAiCapabilityRouteResponse>(
     `/api/ai/capability-route/${encodeURIComponent(capability)}`
   );
+}
+
+export async function getChatModelOverrideSettings(): Promise<GetChatModelOverrideSettingsResponse> {
+  return requestJson<GetChatModelOverrideSettingsResponse>("/api/ai/chat-model-override");
+}
+
+export async function putChatModelOverride(
+  input: PutChatModelOverrideRequest
+): Promise<GetChatModelOverrideSettingsResponse> {
+  return requestJson<GetChatModelOverrideSettingsResponse>("/api/ai/chat-model-override", {
+    method: "PUT",
+    body: input
+  });
+}
+
+export async function putAdminChatModelOverrideEnabled(
+  input: PutAdminChatModelOverrideRequest
+): Promise<GetChatModelOverrideSettingsResponse> {
+  return requestJson<GetChatModelOverrideSettingsResponse>("/api/admin/ai/chat-model-override", {
+    method: "PUT",
+    body: input
+  });
 }
 
 export async function listAiAssistantTools(): Promise<ListAiAssistantToolsResponse> {

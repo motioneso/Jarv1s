@@ -53,7 +53,7 @@ export class DataContextChatPersistence implements ChatPersistencePort {
     actorUserId: string
   ): Promise<{ provider: ProviderKind; model: string }> {
     const model = await this.run(actorUserId, "resolve-provider", (scopedDb) =>
-      this.ai.selectModelForCapability(scopedDb, "chat")
+      this.ai.selectChatModelForUser(scopedDb)
     );
 
     if (!model) {

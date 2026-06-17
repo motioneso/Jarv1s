@@ -28,6 +28,7 @@
       "@jarv1s/notifications": ["packages/notifications/src/index.ts"],
       "@jarv1s/settings": ["packages/settings/src/index.ts"],
       "@jarv1s/shared": ["packages/shared/src/index.ts"],
+      "@jarv1s/source-behaviors": ["packages/source-behaviors/src/index.ts"],
       "@jarv1s/tasks": ["packages/tasks/src/index.ts"],
       "@jarv1s/memory": ["packages/memory/src/index.ts"],
       "@jarv1s/vault": ["packages/vault/src/index.ts"],

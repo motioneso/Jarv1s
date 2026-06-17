@@ -38,6 +38,7 @@ export interface AiConfiguredModelDto {
   readonly capabilities: readonly AiModelCapability[];
   readonly status: AiModelStatus;
   readonly tier: AiModelTier;
+  readonly allowUserOverride: boolean;
   readonly createdAt: string;
   readonly updatedAt: string;
 }
@@ -146,6 +147,7 @@ export interface CreateAiConfiguredModelRequest {
   readonly capabilities: readonly AiModelCapability[];
   readonly status?: AiModelStatus;
   readonly tier?: AiModelTier;
+  readonly allowUserOverride?: boolean;
 }
 
 export interface CreateAiConfiguredModelResponse {
@@ -158,6 +160,7 @@ export interface UpdateAiConfiguredModelRequest {
   readonly capabilities?: readonly AiModelCapability[];
   readonly status?: AiModelStatus;
   readonly tier?: AiModelTier;
+  readonly allowUserOverride?: boolean;
 }
 
 export interface UpdateAiConfiguredModelResponse {
@@ -166,6 +169,31 @@ export interface UpdateAiConfiguredModelResponse {
 
 export interface LookupAiCapabilityRouteResponse {
   readonly route: AiCapabilityRouteDto;
+}
+
+export interface ChatModelOverrideSettingsDto {
+  readonly overrideEnabled: boolean;
+  readonly currentOverrideModelId: string | null;
+  readonly effectiveOverrideModelId: string | null;
+  readonly defaultModel: AiConfiguredModelDto | null;
+  readonly selectedModel: AiConfiguredModelDto | null;
+  readonly allowedModels: readonly AiConfiguredModelDto[];
+}
+
+export interface GetChatModelOverrideSettingsResponse {
+  readonly settings: ChatModelOverrideSettingsDto;
+}
+
+export interface PutChatModelOverrideRequest {
+  readonly modelId: string | null;
+}
+
+export interface PutChatModelOverrideSettingsResponse {
+  readonly settings: ChatModelOverrideSettingsDto;
+}
+
+export interface PutAdminChatModelOverrideRequest {
+  readonly enabled: boolean;
 }
 
 export interface ListAiAssistantToolsResponse {
@@ -286,6 +314,7 @@ const aiConfiguredModelSchema = {
     "capabilities",
     "status",
     "tier",
+    "allowUserOverride",
     "createdAt",
     "updatedAt"
   ],
@@ -300,6 +329,7 @@ const aiConfiguredModelSchema = {
     capabilities: { type: "array", items: aiModelCapabilitySchema },
     status: aiModelStatusSchema,
     tier: aiModelTierSchema,
+    allowUserOverride: { type: "boolean" },
     createdAt: { type: "string" },
     updatedAt: { type: "string" }
   }
@@ -474,7 +504,8 @@ export const createAiConfiguredModelRequestSchema = {
       items: aiModelCapabilitySchema
     },
     status: aiModelStatusSchema,
-    tier: aiModelTierSchema
+    tier: aiModelTierSchema,
+    allowUserOverride: { type: "boolean" }
   }
 } as const;
 
@@ -490,7 +521,8 @@ export const updateAiConfiguredModelRequestSchema = {
       items: aiModelCapabilitySchema
     },
     status: aiModelStatusSchema,
-    tier: aiModelTierSchema
+    tier: aiModelTierSchema,
+    allowUserOverride: { type: "boolean" }
   }
 } as const;
 
@@ -561,6 +593,54 @@ export const lookupAiCapabilityRouteResponseSchema = {
   }
 } as const;
 
+const chatModelOverrideSettingsSchema = {
+  type: "object",
+  additionalProperties: false,
+  required: [
+    "overrideEnabled",
+    "currentOverrideModelId",
+    "effectiveOverrideModelId",
+    "defaultModel",
+    "selectedModel",
+    "allowedModels"
+  ],
+  properties: {
+    overrideEnabled: { type: "boolean" },
+    currentOverrideModelId: { type: ["string", "null"] },
+    effectiveOverrideModelId: { type: ["string", "null"] },
+    defaultModel: { anyOf: [aiConfiguredModelSchema, { type: "null" }] },
+    selectedModel: { anyOf: [aiConfiguredModelSchema, { type: "null" }] },
+    allowedModels: { type: "array", items: aiConfiguredModelSchema }
+  }
+} as const;
+
+export const getChatModelOverrideSettingsResponseSchema = {
+  type: "object",
+  additionalProperties: false,
+  required: ["settings"],
+  properties: {
+    settings: chatModelOverrideSettingsSchema
+  }
+} as const;
+
+export const putChatModelOverrideRequestSchema = {
+  type: "object",
+  additionalProperties: false,
+  required: ["modelId"],
+  properties: {
+    modelId: { type: ["string", "null"] }
+  }
+} as const;
+
+export const putAdminChatModelOverrideRequestSchema = {
+  type: "object",
+  additionalProperties: false,
+  required: ["enabled"],
+  properties: {
+    enabled: { type: "boolean" }
+  }
+} as const;
+
 export const listAiAssistantToolsResponseSchema = {
   type: "object",
   additionalProperties: false,
@@ -609,7 +689,8 @@ export const createAiProviderConfigRouteSchema = {
   response: {
     201: createAiProviderConfigResponseSchema,
     400: errorResponseSchema,
-    401: errorResponseSchema
+    401: errorResponseSchema,
+    403: errorResponseSchema
   }
 } as const;
 
@@ -620,6 +701,7 @@ export const updateAiProviderConfigRouteSchema = {
     200: updateAiProviderConfigResponseSchema,
     400: errorResponseSchema,
     401: errorResponseSchema,
+    403: errorResponseSchema,
     404: errorResponseSchema
   }
 } as const;
@@ -629,6 +711,7 @@ export const revokeAiProviderConfigRouteSchema = {
   response: {
     200: revokeAiProviderConfigResponseSchema,
     401: errorResponseSchema,
+    403: errorResponseSchema,
     404: errorResponseSchema
   }
 } as const;
@@ -645,7 +728,8 @@ export const createAiConfiguredModelRouteSchema = {
   response: {
     201: createAiConfiguredModelResponseSchema,
     400: errorResponseSchema,
-    401: errorResponseSchema
+    401: errorResponseSchema,
+    403: errorResponseSchema
   }
 } as const;
 
@@ -656,6 +740,7 @@ export const updateAiConfiguredModelRouteSchema = {
     200: updateAiConfiguredModelResponseSchema,
     400: errorResponseSchema,
     401: errorResponseSchema,
+    403: errorResponseSchema,
     404: errorResponseSchema
   }
 } as const;
@@ -666,6 +751,33 @@ export const lookupAiCapabilityRouteRouteSchema = {
     200: lookupAiCapabilityRouteResponseSchema,
     400: errorResponseSchema,
     401: errorResponseSchema
+  }
+} as const;
+
+export const getChatModelOverrideSettingsRouteSchema = {
+  response: {
+    200: getChatModelOverrideSettingsResponseSchema,
+    401: errorResponseSchema
+  }
+} as const;
+
+export const putChatModelOverrideSettingsRouteSchema = {
+  body: putChatModelOverrideRequestSchema,
+  response: {
+    200: getChatModelOverrideSettingsResponseSchema,
+    400: errorResponseSchema,
+    401: errorResponseSchema,
+    403: errorResponseSchema
+  }
+} as const;
+
+export const putAdminChatModelOverrideSettingsRouteSchema = {
+  body: putAdminChatModelOverrideRequestSchema,
+  response: {
+    200: getChatModelOverrideSettingsResponseSchema,
+    400: errorResponseSchema,
+    401: errorResponseSchema,
+    403: errorResponseSchema
   }
 } as const;
 

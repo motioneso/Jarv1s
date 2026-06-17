@@ -30,8 +30,10 @@ import {
   getLocaleSettings,
   getModules,
   getMyModules,
+  listSourceBehaviors,
   listConnectorAccounts,
   putLocaleSettings,
+  putSourceBehavior,
   revokeConnectorAccount,
   setMyModuleDisabled
 } from "../api/client";
@@ -50,7 +52,8 @@ import {
 } from "./settings-sample-data";
 import {
   sourceBehaviorStatus,
-  type DataSource as DataSourceModel
+  type DataSource as DataSourceModel,
+  type DataSourceBehavior
 } from "./settings-data-source-model";
 import { useFeedback } from "./settings-feedback";
 import { settingsModuleControlModel } from "./settings-module-view-model";
@@ -265,79 +268,6 @@ function ConnectedPane() {
 
 /* ----------------------------------------------------------- Data sources */
 
-interface DataSource extends DataSourceModel {
-  readonly icon: LucideIcon;
-}
-
-const DATA_SOURCES: readonly DataSource[] = [
-  {
-    id: "calendar",
-    name: "Calendar",
-    icon: CalendarDays,
-    powered:
-      "What Jarvis is allowed to do with your calendar — independent of whichever service powers it.",
-    behaviors: [
-      {
-        id: "briefings",
-        name: "Include in briefings",
-        description: "Surface today's events in the morning reading.",
-        status: "default-on"
-      },
-      {
-        id: "planning",
-        name: "Use for planning",
-        description: "Jarvis schedules its own focus blocks around your events.",
-        status: "default-on"
-      },
-      {
-        id: "detect",
-        name: "Detect commitments",
-        description: "Turn “let's meet Tuesday” into a tracked commitment.",
-        status: "default-on"
-      },
-      {
-        id: "writeback",
-        name: "Write events back",
-        description: "Let Jarvis create and move calendar events for you.",
-        status: "coming-soon"
-      }
-    ]
-  },
-  {
-    id: "email",
-    name: "Email",
-    icon: Mail,
-    powered:
-      "What Jarvis is allowed to do with your email — independent of whichever service powers it.",
-    behaviors: [
-      {
-        id: "briefings",
-        name: "Include in briefings",
-        description: "Flag threads that need a reply today.",
-        status: "default-on"
-      },
-      {
-        id: "capture",
-        name: "Capture tasks",
-        description: "Turn emails into tasks when they imply an action.",
-        status: "default-on"
-      },
-      {
-        id: "summaries",
-        name: "Thread summaries",
-        description: "Condense long threads before you open them.",
-        status: "default-off"
-      },
-      {
-        id: "send",
-        name: "Send on my behalf",
-        description: "Draft and send replies, with your approval.",
-        status: "coming-soon"
-      }
-    ]
-  }
-];
-
 interface VaultState {
   linked: boolean;
   folder: string;
@@ -357,7 +287,22 @@ function folderNoteCount(folder: string): number {
 }
 
 function SourcesPane() {
+  const queryClient = useQueryClient();
   const { toast, confirm } = useFeedback();
+  const sourcesQuery = useQuery({
+    queryKey: queryKeys.settings.sourceBehaviors,
+    queryFn: listSourceBehaviors,
+    retry: false
+  });
+  const sourceMutation = useMutation({
+    mutationFn: (input: { readonly id: string; readonly enabled: boolean }) =>
+      putSourceBehavior(input.id, { enabled: input.enabled }),
+    onSuccess: (data) => {
+      queryClient.setQueryData(queryKeys.settings.sourceBehaviors, data);
+      toast("Source behavior saved", { icon: <ShieldCheck size={17} /> });
+    },
+    onError: (error) => toast(readError(error), { tone: "drift" })
+  });
   const [vault, setVault] = useState<VaultState>({
     linked: DEFAULT_VAULT.linked,
     folder: DEFAULT_VAULT.folder,
@@ -369,8 +314,7 @@ function SourcesPane() {
   );
   const [choosing, setChoosing] = useState(false);
 
-  // BACKEND-TODO: persist the linked vault folder + notes behavior toggles (and the calendar/email
-  // source behaviors above, which are illustrative). Today all local state.
+  // BACKEND-TODO: persist the linked vault folder + notes behavior toggles.
   const choose = (folder: string) => {
     const root = SERVER_FS.roots.find((r) => folder.indexOf(r.name) === 0);
     setVault((v) => ({
@@ -411,8 +355,18 @@ function SourcesPane() {
         title="Data sources"
         desc="Calendar, email and your notes as Jarvis sees them. Not provider settings — what Jarvis is allowed to do with each source."
       />
-      {DATA_SOURCES.map((source) => {
-        const Icon = source.icon;
+      {sourcesQuery.isLoading ? (
+        <Group title="Sources" desc="Loading source behavior policy.">
+          <Row name="Loading" desc="Fetching current source permissions." />
+        </Group>
+      ) : null}
+      {sourcesQuery.isError ? (
+        <Group title="Sources" desc="Could not load source behavior policy.">
+          <Row name="Unavailable" desc={readError(sourcesQuery.error)} />
+        </Group>
+      ) : null}
+      {(sourcesQuery.data?.sources ?? []).map((source: DataSourceModel) => {
+        const Icon = moduleIcon(source.id);
         return (
           <Group
             key={source.id}
@@ -422,16 +376,27 @@ function SourcesPane() {
                 {source.name}
               </span>
             }
-            desc={source.powered}
+            desc={source.description}
           >
-            {source.behaviors.map((behavior) => {
+            {source.behaviors.map((behavior: DataSourceBehavior) => {
               const status = sourceBehaviorStatus(behavior);
               return (
                 <Row
                   key={behavior.id}
                   name={behavior.name}
                   desc={behavior.description}
-                  control={<Badge tone={status.tone}>{status.label}</Badge>}
+                  control={
+                    behavior.toggleable ? (
+                      <Switch
+                        ariaLabel={`${source.name} — ${behavior.name}`}
+                        checked={behavior.enabled}
+                        disabled={sourceMutation.isPending}
+                        onChange={(enabled) => sourceMutation.mutate({ id: behavior.id, enabled })}
+                      />
+                    ) : (
+                      <Badge tone={status.tone}>{status.label}</Badge>
+                    )
+                  }
                 />
               );
             })}

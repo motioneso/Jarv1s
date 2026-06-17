@@ -877,6 +877,7 @@
   font-size: 13px;
   line-height: 1.45;
   color: var(--text-2, var(--text));
+  min-width: 0;
 }
 
 .memory-fact__category {
@@ -920,6 +921,12 @@
   color: #1e3a8a;
   background: #dbeafe;
   border-color: #93c5fd;
+}
+
+.memory-fact__actions {
+  display: flex;
+  flex-shrink: 0;
+  gap: 6px;
 }
 
 .memory-facts-empty {

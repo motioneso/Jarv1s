@@ -71,6 +71,40 @@ export const calendarModuleManifest = {
       defaultEnabled: true
     }
   ],
+  sourceBehaviors: [
+    {
+      id: "calendar",
+      name: "Calendar",
+      description:
+        "What Jarvis is allowed to do with your calendar — independent of whichever service powers it.",
+      behaviors: [
+        {
+          id: "calendar.briefings",
+          name: "Include in briefings",
+          description: "Surface today's events in the morning reading.",
+          default: "default-on"
+        },
+        {
+          id: "calendar.planning",
+          name: "Use for planning",
+          description: "Jarvis schedules its own focus blocks around your events.",
+          default: "coming-soon"
+        },
+        {
+          id: "calendar.detect-commitments",
+          name: "Detect commitments",
+          description: "Turn meeting language into a tracked commitment.",
+          default: "coming-soon"
+        },
+        {
+          id: "calendar.writeback",
+          name: "Write events back",
+          description: "Let Jarvis create and move calendar events for you.",
+          default: "coming-soon"
+        }
+      ]
+    }
+  ],
   routes: [
     {
       method: "GET",

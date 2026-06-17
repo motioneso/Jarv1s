@@ -8,8 +8,8 @@ type NullableTimestampColumn = ColumnType<
 >;
 type JsonColumn = ColumnType<
   Record<string, unknown>,
-  Record<string, unknown> | string | undefined,
-  Record<string, unknown> | string
+  Record<string, unknown> | undefined,
+  Record<string, unknown>
 >;
 type TextArrayColumn = ColumnType<
   string[],
@@ -332,6 +332,7 @@ export interface AiConfiguredModelsTable {
   capabilities: TextArrayColumn;
   status: AiModelStatus;
   tier: AiModelTier;
+  allow_user_override: ColumnType<boolean, boolean | undefined, boolean>;
   created_at: TimestampColumn;
   updated_at: TimestampColumn;
 }

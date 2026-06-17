@@ -77,6 +77,9 @@ export function resolveKeyring(
       if (typeof secret !== "string" || secret === "") {
         throw new Error(`${keysEnvVar} entry "${id}" must be a non-empty string secret`);
       }
+      if (id === currentKeyId) {
+        continue;
+      }
       const buf = createHash("sha256").update(secret).digest();
       keys.set(id, buf);
       retiredBuffers.push(buf);

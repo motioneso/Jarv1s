@@ -1,7 +1,9 @@
 import {
   PgBoss,
+  type CommandResponse,
   type ConstructorOptions,
   type Job,
+  type JobWithMetadata,
   type Queue,
   type SendOptions,
   type WorkOptions
@@ -25,6 +27,8 @@ export interface QueueDefinition {
   readonly name: string;
   readonly options?: Omit<Queue, "name">;
 }
+
+type UpdatableQueueOptions = Exclude<Parameters<PgBoss["updateQueue"]>[1], undefined>;
 
 export const FOUNDATION_QUEUES: readonly QueueDefinition[] = [
   {
@@ -57,7 +61,10 @@ export const ALLOWED_PAYLOAD_KEYS: ReadonlySet<string> = new Set([
   "idempotencyKey"
 ]);
 
-export function assertMetadataOnlyPayload(payload: Record<string, unknown>): void {
+export function assertMetadataOnlyPayload(payload: unknown): void {
+  if (payload === null || typeof payload !== "object" || Array.isArray(payload)) {
+    throw new Error("Job payload must be an object containing metadata keys only");
+  }
   const forbidden = Object.keys(payload).filter((k) => !ALLOWED_PAYLOAD_KEYS.has(k));
   if (forbidden.length > 0) {
     throw new Error(
@@ -77,8 +84,51 @@ export async function sendJob<T extends ActorScopedJobPayload>(
   payload: T,
   options?: SendOptions
 ): Promise<string | null> {
-  assertMetadataOnlyPayload(payload as unknown as Record<string, unknown>);
+  assertMetadataOnlyPayload(payload);
   return options === undefined ? boss.send(queue, payload) : boss.send(queue, payload, options);
+}
+
+/**
+ * Actor-scoped wrapper for client-supplied job ids. Use this instead of raw
+ * boss.getJobById() whenever the id came from an API/client boundary.
+ */
+export async function getOwnedJob<T extends ActorScopedJobPayload>(
+  boss: PgBoss,
+  queue: string,
+  jobId: string,
+  actorUserId: string
+): Promise<JobWithMetadata<T> | null> {
+  assertUuid(actorUserId, "actorUserId");
+
+  const job = await boss.getJobById<T>(queue, jobId);
+  if (!job) {
+    return null;
+  }
+
+  if (job.data.actorUserId !== actorUserId) {
+    throw new Error(`Job ${jobId} is not owned by actor ${actorUserId}`);
+  }
+
+  return job;
+}
+
+/**
+ * Actor-scoped cancellation wrapper. Missing jobs return null; wrong-actor jobs
+ * throw before cancellation so raw boss.cancel() is never invoked on an
+ * untrusted id.
+ */
+export async function cancelOwnedJob(
+  boss: PgBoss,
+  queue: string,
+  jobId: string,
+  actorUserId: string
+): Promise<CommandResponse | null> {
+  const job = await getOwnedJob(boss, queue, jobId, actorUserId);
+  if (!job) {
+    return null;
+  }
+
+  return boss.cancel(queue, jobId);
 }
 
 export interface PgBossClientHooks {
@@ -145,13 +195,20 @@ export function createPgBossClient(
   return boss;
 }
 
+function toUpdatableQueueOptions(options?: Omit<Queue, "name">): UpdatableQueueOptions | null {
+  const { policy: _policy, partition: _partition, ...updatable } = options ?? {};
+  return Object.keys(updatable).length > 0 ? updatable : null;
+}
+
 export async function migratePgBoss(
   connectionString: string,
-  queues: readonly QueueDefinition[] = FOUNDATION_QUEUES
+  queues: readonly QueueDefinition[] = FOUNDATION_QUEUES,
+  overrides: Partial<ConstructorOptions> = {}
 ): Promise<void> {
   const boss = createPgBossClient(connectionString, {
     migrate: true,
-    createSchema: true
+    createSchema: true,
+    ...overrides
   });
 
   await boss.start();
@@ -187,12 +244,16 @@ export async function migratePgBoss(
         // already-created policy-bearing queue (e.g. briefings `exclusive`) stays
         // idempotent — the migrate contract requires exit 0 on every run, not just the
         // first. The policy-change case is handled above by drop+recreate.
-        const { policy: _policy, partition: _partition, ...updatable } = queue.options ?? {};
-        if (Object.keys(updatable).length > 0) {
+        const updatable = toUpdatableQueueOptions(queue.options);
+        if (updatable) {
           await boss.updateQueue(queue.name, updatable);
         }
       } else {
         await boss.createQueue(queue.name, queue.options);
+        const updatable = toUpdatableQueueOptions(queue.options);
+        if (updatable) {
+          await boss.updateQueue(queue.name, updatable);
+        }
       }
     }
   } finally {
