@@ -4,6 +4,7 @@ import {
   groupByPriority,
   type TaskApiStatus,
   type TaskDto,
+  type TaskEffort,
   type TaskListDto
 } from "@jarv1s/shared";
 
@@ -49,7 +50,7 @@ function priorityColor(value: number | null): string {
   }
 }
 
-const EFFORT_TICKS: Record<"quick" | "medium" | "large", number> = {
+const EFFORT_TICKS: Record<TaskEffort, number> = {
   quick: 1,
   medium: 2,
   large: 3
@@ -83,7 +84,7 @@ function dueInfo(task: TaskDto): DueInfo | null {
 }
 
 /** Single effort dot: empty = quick, left-half = medium, full = large (DS "fill" style). */
-function EffortDot(props: { readonly effort: "quick" | "medium" | "large" }) {
+function EffortDot(props: { readonly effort: TaskEffort }) {
   const ticks = EFFORT_TICKS[props.effort];
   const title = `${effortLabels[props.effort]} effort`;
   return (

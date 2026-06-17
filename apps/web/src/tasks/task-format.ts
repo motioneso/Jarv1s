@@ -1,4 +1,4 @@
-import type { TaskApiStatus, TaskDto } from "@jarv1s/shared";
+import type { TaskApiStatus, TaskDto, TaskEffort } from "@jarv1s/shared";
 
 export const statusLabels: Record<TaskApiStatus, string> = {
   todo: "Open",
@@ -32,13 +32,13 @@ export function fromDateInputValue(value: string): string | null {
   return new Date(`${value}T12:00:00.000Z`).toISOString();
 }
 
-export const effortLabels: Record<"quick" | "medium" | "large", string> = {
+export const effortLabels: Record<TaskEffort, string> = {
   quick: "Small",
   medium: "Medium",
   large: "Large"
 };
 
-export function effortLabel(effort: "quick" | "medium" | "large" | null): string | null {
+export function effortLabel(effort: TaskEffort | null): string | null {
   return effort ? effortLabels[effort] : null;
 }
 

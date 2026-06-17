@@ -1,8 +1,10 @@
 import { nullableStringSchema } from "./schema-fragments.js";
 
 export const TASK_STATUSES = ["todo", "done", "archived"] as const;
+export const TASK_EFFORTS = ["quick", "medium", "large"] as const;
 
 export type TaskApiStatus = (typeof TASK_STATUSES)[number];
+export type TaskEffort = (typeof TASK_EFFORTS)[number];
 
 export interface TaskTagDto {
   readonly id: string;
@@ -24,7 +26,7 @@ export interface TaskDto {
   readonly position: number;
   readonly dueAt: string | null;
   readonly doAt: string | null;
-  readonly effort: "quick" | "medium" | "large" | null;
+  readonly effort: TaskEffort | null;
   readonly source: string;
   readonly sourceRef: string | null;
   readonly completedAt: string | null;
@@ -54,7 +56,7 @@ export interface CreateTaskRequest {
   readonly dueAt?: string | null;
   readonly listId?: string;
   readonly doAt?: string | null;
-  readonly effort?: "quick" | "medium" | "large" | null;
+  readonly effort?: TaskEffort | null;
   readonly parentTaskId?: string | null;
   readonly recurrence?: Record<string, unknown> | null;
 }
@@ -75,7 +77,7 @@ export interface UpdateTaskRequest {
   readonly dueAt?: string | null;
   readonly listId?: string;
   readonly doAt?: string | null;
-  readonly effort?: "quick" | "medium" | "large" | null;
+  readonly effort?: TaskEffort | null;
   readonly parentTaskId?: string | null;
   readonly recurrence?: Record<string, unknown> | null;
 }
