@@ -457,18 +457,26 @@ describe("M7 release hardening lifecycle scripts", () => {
       composeFile: "infra/docker-compose.yml"
     });
 
-    expect(backupPlan.command).toBe("pg_dump");
-    expect(backupPlan.args).toContain("backups/jarv1s-test.dump");
+    // Assert the command vectors that main() actually executes (docker exec), not a
+    // legacy field, so a regression that leaked the password into argv would be caught.
+    expect(backupPlan.dockerArgs).toContain("pg_dump");
+    expect(backupPlan.dockerArgs).toContain("--no-owner");
+    expect(backupPlan.dockerArgs).toContain("--no-privileges");
+    expect(backupPlan.outputFile).toBe("backups/jarv1s-test.dump");
     expect(backupPlan.env.PGPASSWORD).toBe("super-secret");
-    expect(`${backupPlan.command} ${backupPlan.args.join(" ")}`).not.toContain("super-secret");
-    expect(restorePlan.command).toBe("pg_restore");
-    expect(restorePlan.args).toContain("--clean");
-    expect(restorePlan.args).toContain("--if-exists");
-    expect(restorePlan.args).toContain("--no-owner");
-    expect(restorePlan.args).toContain("--no-privileges");
-    expect(restorePlan.args).toContain("backups/jarv1s-test.dump");
+    // The password travels only via env (docker --env PGPASSWORD), never the argv.
+    expect(backupPlan.dockerArgs.join(" ")).not.toContain("super-secret");
+
+    expect(restorePlan.restoreArgs).toContain("pg_restore");
+    expect(restorePlan.restoreArgs).toContain("--clean");
+    expect(restorePlan.restoreArgs).toContain("--if-exists");
+    expect(restorePlan.restoreArgs).toContain("--no-owner");
+    expect(restorePlan.restoreArgs).toContain("--no-privileges");
+    // Dump is streamed over stdin — never staged as a plaintext file inside the container.
+    expect(restorePlan.restoreArgs.join(" ")).not.toContain("/tmp/restore.dump");
+    expect(restorePlan.backupFile).toBe("backups/jarv1s-test.dump");
     expect(restorePlan.env.PGPASSWORD).toBe("super-secret");
-    expect(`${restorePlan.command} ${restorePlan.args.join(" ")}`).not.toContain("super-secret");
+    expect(restorePlan.restoreArgs.join(" ")).not.toContain("super-secret");
     expect(composePlan.healthUrl).toBe("http://localhost:3900/health/ready");
     expect(JSON.stringify(composePlan.commands)).toContain("infra/docker-compose.yml");
     expect(JSON.stringify(composePlan.commands)).not.toContain("postgres://");

@@ -34,8 +34,9 @@ import { sendJob } from "@jarv1s/jobs";
 import { handleRouteError } from "@jarv1s/module-sdk";
 
 import { HttpError } from "./errors.js";
-import { type DeferredTaskStatusPayload, isDeferredTaskStatusPayloadMetadataOnly } from "./jobs.js";
+import type { DeferredTaskStatusPayload } from "./jobs.js";
 import { TASKS_DEFERRED_STATUS_QUEUE } from "./manifest.js";
+import { parseRecurrenceSpec, type RecurrenceSpec } from "./recurrence.js";
 import { reconcileRecurrenceSchedule } from "./recurrence-schedule.js";
 import { TaskBreakdownRepository } from "./breakdown.js";
 import { TaskDriftRepository } from "./drift.js";
@@ -43,7 +44,6 @@ import { TaskListsRepository } from "./lists.js";
 import { TaskPreferencesRepository } from "./preferences.js";
 import { TasksRepository } from "./repository.js";
 import {
-  filterByQuadrant,
   serializeTask,
   serializeTaskActivity,
   serializeTaskList,
@@ -106,12 +106,7 @@ export function registerTasksRoutes(
       const { tasks, tagMap } = await dependencies.dataContext.withDataContext(
         accessContext,
         async (scopedDb) => {
-          let rows = await repository.listVisible(scopedDb);
-          // tagId filter (RLS-scoped): restrict to tasks carrying this tag before serialization.
-          if (tagId !== undefined) {
-            const taggedIds = await repository.taskIdsWithTag(scopedDb, tagId);
-            rows = rows.filter((r) => taggedIds.has(r.id));
-          }
+          const rows = await repository.listFiltered(scopedDb, { tagId, quadrant });
           const map = await repository.getTagsForTasks(
             scopedDb,
             rows.map((r) => r.id)
@@ -120,9 +115,7 @@ export function registerTasksRoutes(
         }
       );
 
-      const filtered = quadrant ? filterByQuadrant(tasks, quadrant) : tasks;
-
-      return { tasks: filtered.map((task) => serializeTask(task, tagMap.get(task.id) ?? [])) };
+      return { tasks: tasks.map((task) => serializeTask(task, tagMap.get(task.id) ?? [])) };
     } catch (error) {
       return handleRouteError(error, reply);
     }
@@ -384,12 +377,6 @@ export function registerTasksRoutes(
           requestedStatus: body.status,
           idempotencyKey: body.idempotencyKey
         };
-
-        if (
-          !isDeferredTaskStatusPayloadMetadataOnly(payload as unknown as Record<string, unknown>)
-        ) {
-          throw new HttpError(500, "Task job payload contains non-metadata fields");
-        }
 
         const jobId = await sendJob(dependencies.boss, TASKS_DEFERRED_STATUS_QUEUE, payload);
 
@@ -777,14 +764,21 @@ function optionalEffort(value: unknown): "quick" | "medium" | "large" | null | u
   throw new HttpError(400, "effort must be quick, medium, or large");
 }
 
-function optionalRecurrence(value: unknown): Record<string, unknown> | null | undefined {
+function optionalRecurrence(value: unknown): RecurrenceSpec | null | undefined {
   if (value === undefined) return undefined;
   // Treat empty string as null (AJV coerces JSON null → "" for anyOf:[object,null] schemas).
   if (value === null || value === "") return null;
   if (typeof value !== "object" || Array.isArray(value)) {
     throw new HttpError(400, "recurrence must be an object");
   }
-  return value as Record<string, unknown>;
+  const parsed = parseRecurrenceSpec(value);
+  if (!parsed) {
+    throw new HttpError(
+      400,
+      "recurrence must include freq daily, weekly, or monthly; positive integer interval; and YYYY-MM-DD occurrence_date"
+    );
+  }
+  return parsed;
 }
 
 function requiredTaskStatus(value: unknown): TaskStatus {

@@ -10,6 +10,57 @@ export interface RecurrenceSpec {
   occurrence_date: string; // YYYY-MM-DD
 }
 
+const RECURRENCE_OCCURRENCE_CONSTRAINT = "tasks_recurrence_occurrence_idx";
+const PG_UNIQUE_VIOLATION = "23505";
+
+export function parseRecurrenceSpec(value: unknown): RecurrenceSpec | null {
+  if (value == null || typeof value !== "object" || Array.isArray(value)) {
+    return null;
+  }
+
+  const record = value as Record<string, unknown>;
+  const freq = record["freq"];
+  const interval = record["interval"];
+  const occurrenceDate = record["occurrence_date"];
+
+  if (freq !== "daily" && freq !== "weekly" && freq !== "monthly") {
+    return null;
+  }
+  if (typeof interval !== "number" || !Number.isInteger(interval) || interval < 1) {
+    return null;
+  }
+  if (typeof occurrenceDate !== "string" || !isValidOccurrenceDate(occurrenceDate)) {
+    return null;
+  }
+
+  return { freq, interval, occurrence_date: occurrenceDate };
+}
+
+export function isTasksRecurrenceOccurrenceConflict(error: unknown): boolean {
+  if (error == null || typeof error !== "object") {
+    return false;
+  }
+
+  const record = error as { code?: unknown; constraint?: unknown; cause?: unknown };
+  if (
+    record.code === PG_UNIQUE_VIOLATION &&
+    record.constraint === RECURRENCE_OCCURRENCE_CONSTRAINT
+  ) {
+    return true;
+  }
+
+  return isTasksRecurrenceOccurrenceConflict(record.cause);
+}
+
+function isValidOccurrenceDate(value: string): boolean {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+    return false;
+  }
+
+  const date = new Date(`${value}T00:00:00.000Z`);
+  return !Number.isNaN(date.getTime()) && date.toISOString().slice(0, 10) === value;
+}
+
 /**
  * Compute the next occurrence_date given a RecurrenceSpec.
  *
@@ -122,8 +173,8 @@ export async function rollForwardRecurringSeries(
     return false;
   }
 
-  const spec = live.recurrence as unknown as RecurrenceSpec;
-  if (!spec.freq || !spec.interval || !spec.occurrence_date) {
+  const spec = parseRecurrenceSpec(live.recurrence);
+  if (!spec) {
     return false;
   }
   if (spec.occurrence_date >= today) {
@@ -161,7 +212,7 @@ export async function rollForwardRecurringSeries(
     const updated = await db.db
       .updateTable("app.tasks")
       .set({
-        recurrence: nextRecurrence as unknown as Record<string, unknown>,
+        recurrence: { ...nextRecurrence },
         due_at: nextDueAt,
         do_at: nextDoAt,
         updated_at: new Date()
@@ -174,8 +225,7 @@ export async function rollForwardRecurringSeries(
 
     return Number(updated.numUpdatedRows ?? 0n) > 0;
   } catch (err: unknown) {
-    const message = err instanceof Error ? err.message : String(err);
-    if (message.includes("tasks_recurrence_occurrence_idx") || message.includes("unique")) {
+    if (isTasksRecurrenceOccurrenceConflict(err)) {
       return false;
     }
     throw err;
@@ -234,8 +284,8 @@ export async function generateNext(db: DataContextDb, task: Task): Promise<Task 
     return null;
   }
 
-  const spec = task.recurrence as unknown as RecurrenceSpec;
-  if (!spec.freq || !spec.interval || !spec.occurrence_date) {
+  const spec = parseRecurrenceSpec(task.recurrence);
+  if (!spec) {
     return null;
   }
 
@@ -272,7 +322,7 @@ export async function generateNext(db: DataContextDb, task: Task): Promise<Task 
         source: "recurrence",
         source_ref: null,
         external_key: null,
-        recurrence: nextRecurrence as unknown as Record<string, unknown>,
+        recurrence: { ...nextRecurrence },
         recurrence_series_id: task.recurrence_series_id,
         completed_at: null,
         created_at: now,
@@ -285,8 +335,7 @@ export async function generateNext(db: DataContextDb, task: Task): Promise<Task 
   } catch (err: unknown) {
     // Unique index violation on (recurrence_series_id, occurrence_date) means
     // the next instance already exists — treat as no-op.
-    const message = err instanceof Error ? err.message : String(err);
-    if (message.includes("tasks_recurrence_occurrence_idx") || message.includes("unique")) {
+    if (isTasksRecurrenceOccurrenceConflict(err)) {
       return null;
     }
     throw err;

@@ -587,7 +587,6 @@ export function createMockEmailMessage(
 ): EmailMessageDto {
   return {
     id,
-    connectorAccountId: "connector-email-1",
     ownerUserId: "user-1",
     sender: "sender@example.test",
     recipients: [],
@@ -598,7 +597,6 @@ export function createMockEmailMessage(
     signals: {},
     receivedAt: "2026-06-06T12:00:00.000Z",
     externalId: id,
-    externalMetadata: {},
     createdAt: "2026-06-06T12:00:00.000Z",
     updatedAt: "2026-06-06T12:00:00.000Z",
     ...overrides

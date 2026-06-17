@@ -7,6 +7,8 @@ import type {
   TaskTagDto
 } from "@jarv1s/shared";
 
+import { classifyTaskQuadrant, type TaskQuadrant } from "./classification.js";
+
 export function serializeDate(value: Date | string | null): string | null {
   if (value === null) {
     return null;
@@ -14,28 +16,16 @@ export function serializeDate(value: Date | string | null): string | null {
   return value instanceof Date ? value.toISOString() : value;
 }
 
-export function getQuadrant(task: Task): "do" | "schedule" | "delegate" | "eliminate" {
-  const important = task.priority !== null && task.priority >= 4;
-  let urgent = false;
-
-  if (task.due_at) {
-    const dueMs = (task.due_at instanceof Date ? task.due_at : new Date(task.due_at)).getTime();
-    const nowMs = Date.now();
-    const hoursUntilDue = (dueMs - nowMs) / (1000 * 60 * 60);
-    urgent = hoursUntilDue <= 48;
-  }
-
-  if (important && urgent) return "do";
-  if (important && !urgent) return "schedule";
-  if (!important && urgent) return "delegate";
-  return "eliminate";
+export function getQuadrant(task: Task, now: Date = new Date()): TaskQuadrant {
+  return classifyTaskQuadrant(task, now);
 }
 
 export function filterByQuadrant(
   tasks: Task[],
-  quadrant: "do" | "schedule" | "delegate" | "eliminate"
+  quadrant: TaskQuadrant,
+  now: Date = new Date()
 ): Task[] {
-  return tasks.filter((t) => getQuadrant(t) === quadrant);
+  return tasks.filter((t) => getQuadrant(t, now) === quadrant);
 }
 
 export function serializeTaskList(list: TaskList): TaskListDto {

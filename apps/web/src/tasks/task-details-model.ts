@@ -1,9 +1,14 @@
-import type { CreateTaskRequest, TaskApiStatus, TaskDto, UpdateTaskRequest } from "@jarv1s/shared";
+import type {
+  CreateTaskRequest,
+  TaskApiStatus,
+  TaskDto,
+  TaskEffort,
+  UpdateTaskRequest
+} from "@jarv1s/shared";
 
 import { fromDateInputValue, toDateInputValue } from "./task-format.js";
 
 export type Repeat = "never" | "daily" | "weekly" | "monthly";
-export type TaskEffort = "quick" | "medium" | "large";
 
 export interface TaskDetailsFormState {
   readonly title: string;

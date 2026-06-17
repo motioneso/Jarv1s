@@ -62,7 +62,10 @@ export const DEFERRED_TASK_STATUS_PAYLOAD_KEYS = [
   "idempotencyKey"
 ] as const;
 
-export function isDeferredTaskStatusPayloadMetadataOnly(payload: Record<string, unknown>): boolean {
+export function isDeferredTaskStatusPayloadMetadataOnly(payload: unknown): boolean {
+  if (payload == null || typeof payload !== "object" || Array.isArray(payload)) {
+    return false;
+  }
   const allowedKeys = new Set<string>(DEFERRED_TASK_STATUS_PAYLOAD_KEYS);
 
   return Object.keys(payload).every((key) => allowedKeys.has(key));
@@ -78,9 +81,10 @@ export interface RecurrenceMaterializeResult {
 
 export const RECURRENCE_MATERIALIZE_PAYLOAD_KEYS = ["actorUserId", "idempotencyKey"] as const;
 
-export function isRecurrenceMaterializePayloadMetadataOnly(
-  payload: Record<string, unknown>
-): boolean {
+export function isRecurrenceMaterializePayloadMetadataOnly(payload: unknown): boolean {
+  if (payload == null || typeof payload !== "object" || Array.isArray(payload)) {
+    return false;
+  }
   const allowedKeys = new Set<string>(RECURRENCE_MATERIALIZE_PAYLOAD_KEYS);
 
   return Object.keys(payload).every((key) => allowedKeys.has(key));
@@ -100,9 +104,7 @@ export async function registerTasksJobWorkers(
     TASKS_DEFERRED_STATUS_QUEUE,
     dataContext,
     async (job, scopedDb) => {
-      if (
-        !isDeferredTaskStatusPayloadMetadataOnly(job.data as unknown as Record<string, unknown>)
-      ) {
+      if (!isDeferredTaskStatusPayloadMetadataOnly(job.data)) {
         throw new Error(`Task job ${job.id} contains non-metadata payload fields`);
       }
 
@@ -133,9 +135,7 @@ export async function registerTasksJobWorkers(
     TASKS_RECURRENCE_QUEUE,
     dataContext,
     async (job, scopedDb) => {
-      if (
-        !isRecurrenceMaterializePayloadMetadataOnly(job.data as unknown as Record<string, unknown>)
-      ) {
+      if (!isRecurrenceMaterializePayloadMetadataOnly(job.data)) {
         throw new Error(`Recurrence job ${job.id} contains non-metadata payload fields`);
       }
 

@@ -22,6 +22,7 @@ import {
 } from "@jarv1s/db";
 import { createPgBossClient } from "@jarv1s/jobs";
 import { NotificationsRepository } from "@jarv1s/notifications";
+import { PreferencesRepository } from "@jarv1s/structured-state";
 import { getBuiltInModuleManifests } from "@jarv1s/module-registry";
 import type { JarvisModuleManifest } from "@jarv1s/module-sdk";
 import { connectionStrings, ids, resetFoundationDatabase } from "./test-database.js";
@@ -138,6 +139,10 @@ export function makeComposeDeps(
     aiRepository: new AiRepository(),
     cipher: createAiSecretCipher(),
     memoryRetriever: noopRetriever,
+    sourceBehaviorPolicy: {
+      manifests: moduleManifests,
+      preferencesRepository: new PreferencesRepository()
+    },
     createAdapter: () => ({
       generateChat: generateChat ?? (async () => ({ text: "synth narrative" }))
     })
@@ -422,5 +427,12 @@ export function userBContext(): AccessContext {
   return {
     actorUserId: ids.userB,
     requestId: "request:user-b-briefings"
+  };
+}
+
+export function adminContext(): AccessContext {
+  return {
+    actorUserId: ids.adminUser,
+    requestId: "request:admin-briefings"
   };
 }

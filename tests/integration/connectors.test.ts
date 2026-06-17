@@ -166,7 +166,16 @@ describe("Connectors encrypted foundation", () => {
     ]);
     expect(manifest?.database?.ownedTables).toEqual([
       "app.connector_definitions",
-      "app.connector_accounts"
+      "app.connector_accounts",
+      "app.connector_oauth_pending"
+    ]);
+    expect(manifest?.database?.migrations).toEqual([
+      "sql/0009_connectors_module.sql",
+      "sql/0010_connector_admin_safe_metadata.sql",
+      "sql/0022_connectors_owner_only.sql",
+      "sql/0043_connector_google_enum.sql",
+      "sql/0044_google_unified_connection.sql",
+      "sql/0069_connector_worker_runtime_grants.sql"
     ]);
     expect(manifest?.settings?.map((surface) => surface.path)).toEqual([
       "/settings/connectors",

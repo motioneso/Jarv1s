@@ -4,7 +4,9 @@ import type { PgBoss } from "pg-boss";
 import { AiRepository, createAiSecretCipher } from "@jarv1s/ai";
 import {
   BRIEFINGS_RUN_QUEUE,
+  composeBriefing,
   type BriefingRunPayload,
+  type ComposeDeps,
   type BriefingsRepository
 } from "@jarv1s/briefings";
 import type { DataContextRunner } from "@jarv1s/db";
@@ -17,6 +19,7 @@ import {
   makeComposeDeps,
   setupBriefingsHarness,
   teardownBriefingsHarness,
+  adminContext,
   userAContext,
   userBContext,
   type BriefingsTestHarness
@@ -54,16 +57,48 @@ describe("Briefings synthesis, scheduling, and notification path (P3 real-briefi
     });
   });
 
+  it("falls back deterministically (degraded, status succeeded) when no model is configured", async () => {
+    // No AI model configured yet (clean DB from beforeAll reset) → compose takes the
+    // deterministic degraded fallback. Status stays "succeeded" (there is no
+    // "degraded" enum value — degraded is a source_metadata boolean).
+    const definition = await dataContext.withDataContext(userBContext(), (scopedDb) =>
+      repository.createDefinition(scopedDb, {
+        title: "Degraded briefing",
+        selectedToolNames: ["tasks.list"]
+      })
+    );
+    const outcome = await dataContext.withDataContext(userBContext(), (scopedDb) =>
+      repository.generateRun(scopedDb, definition.id, {
+        moduleManifests: getBuiltInModuleManifests(),
+        runKind: "manual",
+        composeDeps: makeComposeDeps(async () => {
+          throw new Error("synthesis must not be called when there is no model");
+        })
+      })
+    );
+    const run = outcome?.run;
+    const meta = run?.source_metadata as {
+      degraded: boolean;
+      degradedReason: string;
+      aiModel: unknown;
+    };
+
+    expect(run?.status).toBe("succeeded");
+    expect(meta.degraded).toBe(true);
+    expect(meta.degradedReason).toBe("no_model");
+    expect(meta.aiModel).toBeNull();
+  });
+
   it("records economy-tier AI model in source_metadata when configured", async () => {
     const aiRepository = new AiRepository();
-    const providerRow = await dataContext.withDataContext(userAContext(), (scopedDb) =>
+    const providerRow = await dataContext.withDataContext(adminContext(), (scopedDb) =>
       aiRepository.createProvider(scopedDb, {
         providerKind: "anthropic",
         displayName: "Economy summarizer",
         encryptedCredential: createAiSecretCipher().encryptJson({ apiKey: "briefing-econ-key" })
       })
     );
-    const modelRow = await dataContext.withDataContext(userAContext(), (scopedDb) =>
+    const modelRow = await dataContext.withDataContext(adminContext(), (scopedDb) =>
       aiRepository.createModel(scopedDb, {
         providerConfigId: providerRow.id,
         providerModelId: "econ-summarizer",
@@ -154,48 +189,74 @@ describe("Briefings synthesis, scheduling, and notification path (P3 real-briefi
     expect(capturedContexts[0]!.requestId).toMatch(/^briefing:|^pgboss:/);
   });
 
-  it("falls back deterministically (degraded, status succeeded) when no model is configured", async () => {
-    // No AI model configured for this fresh definition's owner → compose takes the
-    // deterministic degraded fallback. Status stays "succeeded" (there is no
-    // "degraded" enum value — degraded is a source_metadata boolean).
-    const definition = await dataContext.withDataContext(userBContext(), (scopedDb) =>
-      repository.createDefinition(scopedDb, {
-        title: "Degraded briefing",
-        selectedToolNames: ["tasks.list"]
-      })
-    );
-    const outcome = await dataContext.withDataContext(userBContext(), (scopedDb) =>
-      repository.generateRun(scopedDb, definition.id, {
-        moduleManifests: getBuiltInModuleManifests(),
-        runKind: "manual",
-        composeDeps: makeComposeDeps(async () => {
-          throw new Error("synthesis must not be called when there is no model");
-        })
-      })
-    );
-    const run = outcome?.run;
-    const meta = run?.source_metadata as {
-      degraded: boolean;
-      degradedReason: string;
-      aiModel: unknown;
+  it("projects only allow-listed fields from a tool's declared array, never undeclared content", async () => {
+    const genericManifest: JarvisModuleManifest = {
+      id: "generic-section",
+      name: "GenericSection",
+      version: "0.0.0",
+      publisher: "test",
+      lifecycle: "optional",
+      compatibility: { jarv1s: "*" },
+      assistantTools: [
+        {
+          name: "commitments.listVisible",
+          description: "Returns the declared array plus an undeclared field that must not leak.",
+          permissionId: "commitments.view",
+          risk: "read" as const,
+          execute: async () => ({
+            data: {
+              commitments: [
+                "ignored primitive",
+                {
+                  title: "Generic commitment",
+                  status: "blocked",
+                  secretNote: "undeclared field must never reach the prompt"
+                },
+                null
+              ]
+            }
+          })
+        }
+      ]
     };
+    const deps: ComposeDeps = {
+      ...makeComposeDeps(undefined, [genericManifest]),
+      aiRepository: {
+        selectModelForCapability: async () => null
+      } as unknown as AiRepository
+    };
+    const definition = await dataContext.withDataContext(userAContext(), (scopedDb) =>
+      repository.createDefinition(scopedDb, {
+        title: "Generic extractor check",
+        selectedToolNames: ["commitments.listVisible"]
+      })
+    );
 
-    expect(run?.status).toBe("succeeded");
-    expect(meta.degraded).toBe(true);
-    expect(meta.degradedReason).toBe("no_model");
-    expect(meta.aiModel).toBeNull();
+    const composed = await dataContext.withDataContext(userAContext(), (scopedDb) =>
+      composeBriefing(
+        scopedDb,
+        definition,
+        { runKind: "manual", runId: "generic-extractor-run" },
+        deps
+      )
+    );
+
+    expect(composed.summaryText).toContain("COMMITMENTS: 1 item");
+    expect(composed.summaryText).toContain("Generic commitment · blocked");
+    // The undeclared field is not in the per-source allow-list, so it never reaches the prompt.
+    expect(composed.summaryText).not.toContain("undeclared field must never reach the prompt");
   });
 
   it("never leaks the decrypted provider credential into a synthesized run", async () => {
     const aiRepository = new AiRepository();
-    const provider = await dataContext.withDataContext(userBContext(), (scopedDb) =>
+    const provider = await dataContext.withDataContext(adminContext(), (scopedDb) =>
       aiRepository.createProvider(scopedDb, {
         providerKind: "anthropic",
         displayName: "Secret summarizer",
         encryptedCredential: createAiSecretCipher().encryptJson({ apiKey: "sk-SECRET-123" })
       })
     );
-    await dataContext.withDataContext(userBContext(), (scopedDb) =>
+    await dataContext.withDataContext(adminContext(), (scopedDb) =>
       aiRepository.createModel(scopedDb, {
         providerConfigId: provider.id,
         providerModelId: "secret-summarizer",

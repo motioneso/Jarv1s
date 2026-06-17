@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 
 import type { DataContextDb } from "@jarv1s/db";
 
-import type { ConnectorSecretCipher } from "./crypto.js";
+import type { ConnectorSecretCipher, EncryptedConnectorSecret } from "./crypto.js";
 import {
   GOOGLE_LOOPBACK_REDIRECT,
   GOOGLE_SCOPES,
@@ -28,7 +28,13 @@ export interface GoogleConnectionServiceDeps {
   readonly now?: () => Date;
 }
 
+interface GooglePendingCredentials {
+  readonly clientId: string;
+  readonly clientSecret: string;
+}
+
 export class GoogleConnectionService {
+  private readonly refreshes = new Map<string, Promise<string>>();
   private readonly generateState: () => string;
   private readonly now: () => Date;
 
@@ -74,10 +80,7 @@ export class GoogleConnectionService {
         "Authorization state did not match — please retry the connect flow"
       );
     }
-    const creds = this.deps.cipher.decryptJson(pending.encryptedSecret) as {
-      clientId: string;
-      clientSecret: string;
-    };
+    const creds = decryptPendingCredentials(this.deps.cipher, pending.encryptedSecret);
     const tokens = await this.deps.oauthClient.exchangeCode({
       clientId: creds.clientId,
       clientSecret: creds.clientSecret,
@@ -115,12 +118,30 @@ export class GoogleConnectionService {
     if (!stored) {
       throw new GoogleConnectError("No active Google connection");
     }
-    const bundle = this.deps.cipher.decryptJson(stored.encryptedSecret) as GoogleConnectionSecret;
+    const bundle = decryptGoogleConnectionSecret(this.deps.cipher, stored.encryptedSecret);
     // More than 60 s remaining — return the cached token without a network round-trip.
     // `force` (used by the sync 401-retry path) bypasses this fast path to force a refresh.
     if (!opts.force && new Date(bundle.tokenExpiry).getTime() - this.now().getTime() > 60_000) {
       return bundle.accessToken;
     }
+    const existingRefresh = this.refreshes.get(stored.id);
+    if (existingRefresh) {
+      return existingRefresh;
+    }
+
+    const refresh = this.refreshAndStoreAccessToken(scopedDb, bundle);
+    this.refreshes.set(stored.id, refresh);
+    try {
+      return await refresh;
+    } finally {
+      this.refreshes.delete(stored.id);
+    }
+  }
+
+  private async refreshAndStoreAccessToken(
+    scopedDb: DataContextDb,
+    bundle: GoogleConnectionSecret
+  ): Promise<string> {
     const refreshed = await this.deps.oauthClient.refreshAccessToken({
       clientId: bundle.clientId,
       clientSecret: bundle.clientSecret,
@@ -137,4 +158,54 @@ export class GoogleConnectionService {
     });
     return refreshed.access_token;
   }
+}
+
+function decryptPendingCredentials(
+  cipher: ConnectorSecretCipher,
+  encryptedSecret: EncryptedConnectorSecret
+): GooglePendingCredentials {
+  const value = cipher.decryptJson(encryptedSecret);
+
+  if (typeof value.clientId !== "string" || typeof value.clientSecret !== "string") {
+    throw new GoogleConnectError("Stored Google authorization credentials are invalid");
+  }
+
+  return {
+    clientId: value.clientId,
+    clientSecret: value.clientSecret
+  };
+}
+
+function decryptGoogleConnectionSecret(
+  cipher: ConnectorSecretCipher,
+  encryptedSecret: EncryptedConnectorSecret
+): GoogleConnectionSecret {
+  const value = cipher.decryptJson(encryptedSecret);
+
+  if (
+    value.kind !== "google-oauth" ||
+    typeof value.clientId !== "string" ||
+    typeof value.clientSecret !== "string" ||
+    typeof value.accessToken !== "string" ||
+    typeof value.refreshToken !== "string" ||
+    typeof value.tokenExpiry !== "string" ||
+    Number.isNaN(Date.parse(value.tokenExpiry)) ||
+    !isStringArray(value.grantedScopes)
+  ) {
+    throw new GoogleConnectError("Stored Google connection credentials are invalid");
+  }
+
+  return {
+    kind: "google-oauth",
+    clientId: value.clientId,
+    clientSecret: value.clientSecret,
+    accessToken: value.accessToken,
+    refreshToken: value.refreshToken,
+    tokenExpiry: value.tokenExpiry,
+    grantedScopes: value.grantedScopes
+  };
+}
+
+function isStringArray(value: unknown): value is string[] {
+  return Array.isArray(value) && value.every((item) => typeof item === "string");
 }

@@ -10,6 +10,13 @@ import { VaultPathError, resolveVaultPath } from "./vault-path.js";
 const VAULT_FILE_MODE = 0o600;
 const VAULT_DIR_MODE = 0o700;
 
+function isMissingPathError(error: unknown): boolean {
+  if (!(error instanceof Error) || !("code" in error)) {
+    return false;
+  }
+  return error.code === "ENOENT" || error.code === "ENOTDIR";
+}
+
 async function assertNoSymlinkEscape(fullPath: string, vaultRoot: string): Promise<void> {
   // Walk up ancestor chain to find the deepest existing path, then realpath that.
   // Pre-write targets may have several non-existent ancestor segments.
@@ -77,7 +84,10 @@ export async function vaultFileExists(ctx: VaultContext, relativePath: string): 
   try {
     await stat(fullPath);
     return true;
-  } catch {
+  } catch (error) {
+    if (!isMissingPathError(error)) {
+      throw error;
+    }
     return false;
   }
 }

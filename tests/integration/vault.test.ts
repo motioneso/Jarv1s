@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { mkdir, rm, symlink, writeFile } from "node:fs/promises";
+import { chmod, mkdir, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterAll, describe, expect, it } from "vitest";
@@ -123,6 +123,28 @@ describe("vault file operations", () => {
       expect(await vaultFileExists(ctx, "notes/new.md")).toBe(false);
       await writeVaultFile(ctx, "notes/new.md", "content");
       expect(await vaultFileExists(ctx, "notes/new.md")).toBe(true);
+    });
+  });
+
+  it("vaultFileExists returns false when a parent segment is a file", async () => {
+    await opsRunner.withVaultContext({ actorUserId: opsUserId }, async (ctx) => {
+      await writeVaultFile(ctx, "not-a-dir.md", "plain file");
+      expect(await vaultFileExists(ctx, "not-a-dir.md/child.md")).toBe(false);
+    });
+  });
+
+  it("vaultFileExists rethrows unexpected stat errors", async () => {
+    await opsRunner.withVaultContext({ actorUserId: opsUserId }, async (ctx) => {
+      await writeVaultFile(ctx, "locked/secret.md", "secret");
+      const lockedDir = join(ctx.vaultRoot, "locked");
+      await chmod(lockedDir, 0o000);
+      try {
+        await expect(vaultFileExists(ctx, "locked/secret.md")).rejects.toMatchObject({
+          code: "EACCES"
+        });
+      } finally {
+        await chmod(lockedDir, 0o700);
+      }
     });
   });
 

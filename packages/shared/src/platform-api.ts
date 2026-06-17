@@ -334,6 +334,7 @@ export const patchMeProfileRouteSchema = {
     401: errorResponseSchema
   }
 } as const;
+
 const localeSettingsSchema = {
   type: "object",
   additionalProperties: false,

@@ -85,7 +85,10 @@ export const BRIEFING_RUN_PAYLOAD_KEYS = [
   "idempotencyKey"
 ] as const;
 
-export function isBriefingRunPayloadMetadataOnly(payload: Record<string, unknown>): boolean {
+export function isBriefingRunPayloadMetadataOnly(payload: unknown): boolean {
+  if (payload === null || typeof payload !== "object" || Array.isArray(payload)) {
+    return false;
+  }
   const allowedKeys = new Set<string>(BRIEFING_RUN_PAYLOAD_KEYS);
 
   return Object.keys(payload).every((key) => allowedKeys.has(key));
@@ -127,7 +130,7 @@ export async function registerBriefingsJobWorkers(
     BRIEFINGS_RUN_QUEUE,
     dataContext,
     async (job, scopedDb) => {
-      if (!isBriefingRunPayloadMetadataOnly(job.data as unknown as Record<string, unknown>)) {
+      if (!isBriefingRunPayloadMetadataOnly(job.data)) {
         throw new Error(`Briefing job ${job.id} contains non-metadata payload fields`);
       }
 

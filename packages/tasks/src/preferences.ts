@@ -16,7 +16,9 @@ export class TaskPreferencesRepository {
       .returningAll()
       .executeTakeFirst();
 
-    return inserted ?? this.getOrCreate(db);
+    if (inserted) return inserted;
+
+    return db.db.selectFrom("app.task_preferences").selectAll().executeTakeFirstOrThrow();
   }
 
   async update(db: DataContextDb, defaultView: "priority" | "matrix"): Promise<TaskPreferences> {

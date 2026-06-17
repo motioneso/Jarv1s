@@ -89,6 +89,27 @@ export class ChatMemoryFactsRepository {
     return result.rows.map((r) => this.#mapRow(r));
   }
 
+  async getActiveFact(scopedDb: DataContextDb, id: string): Promise<MemoryFact | undefined> {
+    const result = await sql<{
+      id: string;
+      owner_user_id: string;
+      category: FactCategory;
+      content: string;
+      source_thread_id: string | null;
+      importance: number;
+      provenance: FactProvenance;
+      status: FactStatus;
+      superseded_at: Date | null;
+      created_at: Date;
+      updated_at: Date;
+    }>`
+      SELECT * FROM app.chat_memory_facts
+      WHERE id = ${id}::uuid
+        AND status = 'active'
+    `.execute(scopedDb.db);
+    return result.rows[0] ? this.#mapRow(result.rows[0]) : undefined;
+  }
+
   async supersedeFact(scopedDb: DataContextDb, id: string): Promise<void> {
     await sql`
       UPDATE app.chat_memory_facts
@@ -97,22 +118,40 @@ export class ChatMemoryFactsRepository {
     `.execute(scopedDb.db);
   }
 
-  async deleteFact(scopedDb: DataContextDb, id: string): Promise<void> {
-    await sql`
-      DELETE FROM app.chat_memory_facts WHERE id = ${id}::uuid
+  async deleteFact(scopedDb: DataContextDb, id: string): Promise<boolean> {
+    const result = await sql<{ id: string }>`
+      DELETE FROM app.chat_memory_facts
+      WHERE id = ${id}::uuid
+      RETURNING id
     `.execute(scopedDb.db);
+    return result.rows.length > 0;
+  }
+
+  async confirmFact(scopedDb: DataContextDb, id: string): Promise<boolean> {
+    const result = await sql<{ id: string }>`
+      UPDATE app.chat_memory_facts
+      SET provenance = 'confirmed'::app.provenance_kind,
+          updated_at = now()
+      WHERE id = ${id}::uuid
+        AND status = 'active'
+        AND provenance = 'inferred'
+      RETURNING id
+    `.execute(scopedDb.db);
+    return result.rows.length > 0;
   }
 
   async updateFactImportance(
     scopedDb: DataContextDb,
     id: string,
     importance: number
-  ): Promise<void> {
-    await sql`
+  ): Promise<boolean> {
+    const result = await sql<{ id: string }>`
       UPDATE app.chat_memory_facts
       SET importance = ${importance}, updated_at = now()
       WHERE id = ${id}::uuid
+      RETURNING id
     `.execute(scopedDb.db);
+    return result.rows.length > 0;
   }
 
   #mapRow(r: {

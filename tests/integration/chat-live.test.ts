@@ -10,7 +10,11 @@ import {
 } from "@jarv1s/db";
 import { ChatRepository, chatModuleManifest, handleExtractFactsJob } from "@jarv1s/chat";
 import { AiRepository, createAiSecretCipher, type GenerateChatInput } from "@jarv1s/ai";
-import { ChatMemoryFactsRepository } from "@jarv1s/memory";
+import {
+  ChatMemoryFactsRepository,
+  ChatMemorySuppressionsRepository,
+  createMemoryFactSignature
+} from "@jarv1s/memory";
 import { connectionStrings, ids, resetFoundationDatabase } from "./test-database.js";
 const { Client } = pg;
 
@@ -209,14 +213,14 @@ describe("handleExtractFactsJob — durable fact upsert + no-op degrade", () => 
   // A summarization/economy model + credentialed provider so the handler reaches the
   // (injected) adapter path instead of returning early on a missing model/credential.
   async function seedEconomyModel(label: string): Promise<void> {
-    const provider = await dataContext.withDataContext(userAContext(), (scopedDb) =>
+    const provider = await dataContext.withDataContext(adminContext(), (scopedDb) =>
       aiRepository.createProvider(scopedDb, {
         providerKind: "anthropic",
         displayName: `Facts summarizer ${label}`,
         encryptedCredential: createAiSecretCipher().encryptJson({ apiKey: "facts-extract-key" })
       })
     );
-    await dataContext.withDataContext(userAContext(), (scopedDb) =>
+    await dataContext.withDataContext(adminContext(), (scopedDb) =>
       aiRepository.createModel(scopedDb, {
         providerConfigId: provider.id,
         providerModelId: `facts-summarizer-${label}`,
@@ -238,6 +242,7 @@ describe("handleExtractFactsJob — durable fact upsert + no-op degrade", () => 
   }
 
   beforeAll(async () => {
+    await resetFoundationDatabase();
     appDb = createDatabase({
       connectionString: connectionStrings.app,
       maxConnections: 1
@@ -274,8 +279,12 @@ describe("handleExtractFactsJob — durable fact upsert + no-op degrade", () => 
       await handleExtractFactsJob(scopedDb, ids.userA, thread.id, deps);
 
       const facts = await factsRepository.listActiveFacts(scopedDb, ids.userA);
-      const veggie = facts.find((f) => f.content === "Eats vegetarian");
-      const marathon = facts.find((f) => f.content === "Run a marathon");
+      const veggie = facts.find(
+        (f) => f.content === "Eats vegetarian" && f.sourceThreadId === thread.id
+      );
+      const marathon = facts.find(
+        (f) => f.content === "Run a marathon" && f.sourceThreadId === thread.id
+      );
       expect(veggie?.category).toBe("preference");
       expect(veggie?.provenance).toBe("volunteered");
       expect(veggie?.importance).toBeGreaterThan(0);
@@ -429,6 +438,82 @@ describe("handleExtractFactsJob — durable fact upsert + no-op degrade", () => 
       expect(active.some((f) => f.id === unrelated.id)).toBe(true); // still active
     });
   });
+
+  it("skips suppressed inferred facts by stable signature", async () => {
+    await seedEconomyModel("suppressed-inferred");
+    await dataContext.withDataContext(userAContext(), async (scopedDb) => {
+      const thread = await repository.openNewThread(scopedDb, { title: "Facts-suppressed" });
+      await repository.recordCompletedTurn(
+        scopedDb,
+        thread.id,
+        "I keep accepting 8am meetings.",
+        "Noted.",
+        { provider: "anthropic", model: "claude-economy" }
+      );
+      const suppressions = new ChatMemorySuppressionsRepository();
+      await suppressions.insertSuppression(scopedDb, ids.userA, {
+        signature: createMemoryFactSignature("preference", "Accepts 8am meetings"),
+        category: "preference",
+        content: "Accepts 8am meetings",
+        reason: "rejected"
+      });
+      await handleExtractFactsJob(
+        scopedDb,
+        ids.userA,
+        thread.id,
+        makeDeps(async () => ({
+          text: JSON.stringify([
+            {
+              category: "preference",
+              content: "  accepts   8AM meetings ",
+              importance: 0.6,
+              provenance: "inferred"
+            }
+          ])
+        }))
+      );
+      const suppressedSignature = createMemoryFactSignature("preference", "Accepts 8am meetings");
+      const facts = await factsRepository.listActiveFacts(scopedDb, ids.userA);
+      expect(
+        facts.some((f) => createMemoryFactSignature(f.category, f.content) === suppressedSignature)
+      ).toBe(false);
+    });
+  });
+
+  it("does not let another user's suppression block extraction", async () => {
+    await seedEconomyModel("suppressed-other-user");
+    await dataContext.withDataContext(userBContext(), async (scopedDb) => {
+      const suppressions = new ChatMemorySuppressionsRepository();
+      await suppressions.insertSuppression(scopedDb, ids.userB, {
+        signature: createMemoryFactSignature("goal", "Run a 10k"),
+        category: "goal",
+        content: "Run a 10k",
+        reason: "rejected"
+      });
+    });
+    await dataContext.withDataContext(userAContext(), async (scopedDb) => {
+      const thread = await repository.openNewThread(scopedDb, { title: "Facts-other-user" });
+      await repository.recordCompletedTurn(scopedDb, thread.id, "I want to run a 10k.", "Noted.", {
+        provider: "anthropic",
+        model: "claude-economy"
+      });
+      await handleExtractFactsJob(
+        scopedDb,
+        ids.userA,
+        thread.id,
+        makeDeps(async () => ({
+          text: JSON.stringify([{ category: "goal", content: "Run a 10k", provenance: "inferred" }])
+        }))
+      );
+      const facts = await factsRepository.listActiveFacts(scopedDb, ids.userA);
+      expect(
+        facts.some(
+          (f) =>
+            f.category === "goal" && f.content === "Run a 10k" && f.sourceThreadId === thread.id
+        )
+      ).toBe(true);
+    });
+  });
 });
 
 function userAContext(): AccessContext {
@@ -442,5 +527,12 @@ function userBContext(): AccessContext {
   return {
     actorUserId: ids.userB,
     requestId: "request:user-b-chat-live"
+  };
+}
+
+function adminContext(): AccessContext {
+  return {
+    actorUserId: ids.adminUser,
+    requestId: "request:admin-chat-live"
   };
 }

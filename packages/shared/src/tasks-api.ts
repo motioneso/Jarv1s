@@ -1,8 +1,10 @@
 import { nullableStringSchema } from "./schema-fragments.js";
 
 export const TASK_STATUSES = ["todo", "done", "archived"] as const;
+export const TASK_EFFORTS = ["quick", "medium", "large"] as const;
 
 export type TaskApiStatus = (typeof TASK_STATUSES)[number];
+export type TaskEffort = (typeof TASK_EFFORTS)[number];
 
 export interface TaskTagDto {
   readonly id: string;
@@ -24,7 +26,7 @@ export interface TaskDto {
   readonly position: number;
   readonly dueAt: string | null;
   readonly doAt: string | null;
-  readonly effort: "quick" | "medium" | "large" | null;
+  readonly effort: TaskEffort | null;
   readonly source: string;
   readonly sourceRef: string | null;
   readonly completedAt: string | null;
@@ -54,7 +56,7 @@ export interface CreateTaskRequest {
   readonly dueAt?: string | null;
   readonly listId?: string;
   readonly doAt?: string | null;
-  readonly effort?: "quick" | "medium" | "large" | null;
+  readonly effort?: TaskEffort | null;
   readonly parentTaskId?: string | null;
   readonly recurrence?: Record<string, unknown> | null;
 }
@@ -75,7 +77,7 @@ export interface UpdateTaskRequest {
   readonly dueAt?: string | null;
   readonly listId?: string;
   readonly doAt?: string | null;
-  readonly effort?: "quick" | "medium" | "large" | null;
+  readonly effort?: TaskEffort | null;
   readonly parentTaskId?: string | null;
   readonly recurrence?: Record<string, unknown> | null;
 }
@@ -244,6 +246,9 @@ export interface FocusTasksResponse {
   readonly tasks: readonly TaskDto[];
   readonly signals?: readonly FocusSignalDto[];
 }
+
+export const atRiskTasksResponseSchema = listTasksResponseSchema;
+export const overdueTasksResponseSchema = listTasksResponseSchema;
 
 export const createTaskRequestSchema = {
   type: "object",
@@ -587,13 +592,13 @@ export const focusTasksRouteSchema = {
 
 export const atRiskTasksRouteSchema = {
   response: {
-    200: listTasksResponseSchema
+    200: atRiskTasksResponseSchema
   }
 } as const;
 
 export const overdueTasksRouteSchema = {
   response: {
-    200: listTasksResponseSchema
+    200: overdueTasksResponseSchema
   }
 } as const;
 

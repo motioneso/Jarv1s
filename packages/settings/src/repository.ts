@@ -719,3 +719,21 @@ export async function recordAuditEvent(
   assertDataContextDb(scopedDb);
   await new SettingsRepository().insertAuditEvent(scopedDb, event);
 }
+
+export async function recordBootstrapOwnerAuditEvent(
+  scopedDb: DataContextDb,
+  event: {
+    readonly actorUserId: string;
+    readonly targetUserId: string;
+    readonly requestId: string;
+  }
+): Promise<void> {
+  assertDataContextDb(scopedDb);
+  await sql`
+    SELECT app.record_bootstrap_owner_audit_event(
+      ${event.actorUserId}::uuid,
+      ${event.targetUserId}::uuid,
+      ${event.requestId}
+    )
+  `.execute(scopedDb.db);
+}

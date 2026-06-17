@@ -10,6 +10,7 @@ import {
 import type { ToolContext } from "@jarv1s/module-sdk";
 import type { TaskDto } from "@jarv1s/shared";
 import {
+  getQuadrant,
   TaskBreakdownRepository,
   TaskListsRepository,
   TasksRepository,
@@ -51,6 +52,17 @@ describe("Tasks module — assistant read tools", () => {
   function getTool(name: string) {
     return tasksModuleManifest.assistantTools?.find((t) => t.name === name);
   }
+
+  it("tasks.updateStatus: execute is defined for confirmation-gated writes", () => {
+    const tool = getTool("tasks.updateStatus");
+
+    expect(tool).toMatchObject({
+      name: "tasks.updateStatus",
+      risk: "write",
+      permissionId: "tasks.update"
+    });
+    expect(tool?.execute).toBeDefined();
+  });
 
   // ── tasks.list ───────────────────────────────────────────────────────────
 
@@ -97,6 +109,16 @@ describe("Tasks module — assistant read tools", () => {
       tool!.execute!(db, { quadrant: "eliminate" }, toolCtx(ids.userA))
     );
     expect((elimResult.data.items as TaskDto[]).map((t) => t.id)).not.toContain(doTask.id);
+  });
+
+  it("getQuadrant classifies urgency from the injected clock", () => {
+    const task = {
+      priority: 5,
+      due_at: "2026-06-18T00:00:00.000Z"
+    };
+
+    expect(getQuadrant(task as never, new Date("2026-06-16T12:00:00.000Z"))).toBe("do");
+    expect(getQuadrant(task as never, new Date("2026-06-10T12:00:00.000Z"))).toBe("schedule");
   });
 
   // ── tasks.get ────────────────────────────────────────────────────────────
@@ -197,6 +219,44 @@ describe("Tasks module — assistant read tools", () => {
     );
     const returned = (result.data.items as TaskDto[]).find((t) => t.id === task.id);
     expect(returned?.tags.map((t) => t.id)).toContain(tag.id);
+  });
+
+  it("repository listFiltered applies list, status, and tag predicates together", async () => {
+    const list = await dataContext.withDataContext(userAContext(), (db) =>
+      listsRepo.getOrCreate(db, "Filtered-list")
+    );
+    const tag = await dataContext.withDataContext(userAContext(), (db) =>
+      listsRepo.createTag(db, list.id, "filtered-tag")
+    );
+    const matching = await dataContext.withDataContext(userAContext(), (db) =>
+      repository.create(db, { title: "filtered match", listId: list.id, status: "todo" })
+    );
+    const wrongStatus = await dataContext.withDataContext(userAContext(), (db) =>
+      repository.create(db, { title: "filtered wrong status", listId: list.id, status: "done" })
+    );
+    await dataContext.withDataContext(userAContext(), async (db) => {
+      await db.db
+        .insertInto("app.task_tag_assignments")
+        .values({ task_id: matching.id, tag_id: tag.id })
+        .execute();
+      await db.db
+        .insertInto("app.task_tag_assignments")
+        .values({ task_id: wrongStatus.id, tag_id: tag.id })
+        .execute();
+    });
+
+    const rows = await dataContext.withDataContext(userAContext(), (db) =>
+      (
+        repository as never as TasksRepository & {
+          listFiltered: (
+            scopedDb: typeof db,
+            criteria: { listId: string; status: "todo"; tagId: string }
+          ) => Promise<readonly { id: string }[]>;
+        }
+      ).listFiltered(db, { listId: list.id, status: "todo", tagId: tag.id })
+    );
+
+    expect(rows.map((t) => t.id)).toEqual([matching.id]);
   });
 
   // ── tasks.focus / tasks.atRisk / tasks.overdue ───────────────────────────
