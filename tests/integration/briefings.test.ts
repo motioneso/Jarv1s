@@ -876,6 +876,9 @@ describe("Briefings module M6 read-only scheduled summaries", () => {
       "Repository access requires withDataContext"
     );
     await expect(
+      repository.getOwnedDefinitionById({} as never, briefingIds.userBPrivate)
+    ).rejects.toThrow("Repository access requires withDataContext");
+    await expect(
       repository.generateRun({} as never, briefingIds.userBPrivate, {
         moduleManifests: getBuiltInModuleManifests(),
         runKind: "manual",

@@ -286,6 +286,7 @@ export class BriefingsRepository {
     scopedDb: DataContextDb,
     definitionId: string
   ): Promise<BriefingDefinition | undefined> {
+    assertDataContextDb(scopedDb);
     return scopedDb.db
       .selectFrom("app.briefing_definitions")
       .selectAll()
