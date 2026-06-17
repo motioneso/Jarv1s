@@ -2,10 +2,12 @@ import { randomUUID } from "node:crypto";
 
 import type { AccessContext, DataContextDb, DataContextRunner } from "@jarv1s/db";
 import type {
+  JsonSchema,
   JarvisModuleManifest,
   ModuleAssistantToolManifest,
   ToolContext,
   ToolExecute,
+  ToolResult,
   ToolServices
 } from "@jarv1s/module-sdk";
 import { renderToolResult } from "@jarv1s/module-sdk";
@@ -41,6 +43,9 @@ interface ExecutableTool {
   readonly execute: ToolExecute;
   readonly dto: AiAssistantToolDto;
 }
+
+const MAX_RENDERED_TOOL_RESULT_CHARS = 16_000;
+const TOOL_RESULT_TRUNCATION_SUFFIX = "\n...[truncated tool result]";
 
 /**
  * The single chokepoint between Jarvis and every module's real operations. Lists
@@ -148,7 +153,8 @@ export class AssistantToolGateway {
       const result = await this.deps.runner.withDataContext(access, (scopedDb: DataContextDb) =>
         found.execute(scopedDb, input, ctx, services)
       );
-      return { ok: true, data: { text: renderToolResult(result) } };
+      const sanitized = sanitizeToolResult(found.tool.outputSchema, result);
+      return { ok: true, data: { text: capRenderedToolResult(renderToolResult(sanitized)) } };
     } catch {
       // never leak internals/secrets from a handler throw
       return { ok: false, error: `Tool ${found.dto.name} failed` };
@@ -263,4 +269,50 @@ export class AssistantToolGateway {
     }
     return out;
   }
+}
+
+function sanitizeToolResult(schema: JsonSchema | undefined, result: ToolResult): ToolResult {
+  if (!isPlainObject(result.data)) {
+    throw new Error("Tool result data must be an object");
+  }
+  if (!schema || schema.type !== "object" || !isPlainObject(schema.properties)) {
+    return result;
+  }
+
+  const allowedKeys = new Set(Object.keys(schema.properties));
+  for (const key of getRequiredKeys(schema)) {
+    if (!(key in result.data)) {
+      throw new Error(`Tool result missing required output field "${key}"`);
+    }
+  }
+
+  const data: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(result.data)) {
+    if (allowedKeys.has(key)) {
+      data[key] = value;
+    }
+  }
+
+  return {
+    data,
+    columnOrder: result.columnOrder?.filter((key) => allowedKeys.has(key))
+  };
+}
+
+function getRequiredKeys(schema: JsonSchema): string[] {
+  return Array.isArray(schema.required)
+    ? schema.required.filter((key): key is string => typeof key === "string")
+    : [];
+}
+
+function capRenderedToolResult(text: string): string {
+  if (text.length <= MAX_RENDERED_TOOL_RESULT_CHARS) {
+    return text;
+  }
+  const keep = Math.max(0, MAX_RENDERED_TOOL_RESULT_CHARS - TOOL_RESULT_TRUNCATION_SUFFIX.length);
+  return `${text.slice(0, keep)}${TOOL_RESULT_TRUNCATION_SUFFIX}`;
+}
+
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
 }

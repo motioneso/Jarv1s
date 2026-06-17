@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  AssistantToolGateway,
   ConfirmationRegistry,
   InvalidSessionTokenError,
   resolvePolicy,
@@ -177,5 +178,148 @@ describe("tool input validation", () => {
 
   it("accepts anything when no schema is declared", () => {
     expect(validateToolInput(undefined, { whatever: true })).toEqual({ whatever: true });
+  });
+});
+
+describe("gateway tool output sanitization", () => {
+  const runner = {
+    withDataContext: async (_access: unknown, work: (db: unknown) => Promise<unknown>) => work({})
+  };
+
+  it("drops undeclared output fields before rendering a tool result", async () => {
+    const tokens = new SessionTokenRegistry();
+    const gateway = new AssistantToolGateway({
+      resolveActiveModules: async () => [
+        {
+          id: "example",
+          name: "Example",
+          version: "1.0.0",
+          publisher: "Jarv1s",
+          lifecycle: "optional",
+          compatibility: { jarv1s: "*" },
+          assistantTools: [
+            {
+              name: "example.safe",
+              description: "Safe output.",
+              permissionId: "example.view",
+              risk: "read",
+              outputSchema: {
+                type: "object",
+                properties: { visible: { type: "string" } },
+                required: ["visible"]
+              },
+              execute: async () => ({
+                data: { visible: "ok", secret: "SECRET", nested: { token: "TOKEN" } }
+              })
+            }
+          ]
+        }
+      ],
+      repository: {} as never,
+      runner: runner as never,
+      tokens,
+      confirmations: new ConfirmationRegistry(),
+      notifier: { emit: () => {} },
+      confirmTimeoutMs: 1000
+    });
+    const token = tokens.mint({ actorUserId: "u1", chatSessionId: "s1", allowedToolNames: null });
+
+    const res = await gateway.callTool(token, "example.safe", {});
+
+    expect(res.ok).toBe(true);
+    if (!res.ok) throw new Error("expected ok");
+    const text = (res.data as { text: string }).text;
+    expect(text).toContain("visible");
+    expect(text).toContain("ok");
+    expect(text).not.toContain("SECRET");
+    expect(text).not.toContain("TOKEN");
+    expect(text).not.toContain("secret");
+    expect(text).not.toContain("nested");
+  });
+
+  it("fails closed when required output fields are missing", async () => {
+    const tokens = new SessionTokenRegistry();
+    const gateway = new AssistantToolGateway({
+      resolveActiveModules: async () => [
+        {
+          id: "example",
+          name: "Example",
+          version: "1.0.0",
+          publisher: "Jarv1s",
+          lifecycle: "optional",
+          compatibility: { jarv1s: "*" },
+          assistantTools: [
+            {
+              name: "example.invalid-output",
+              description: "Invalid output.",
+              permissionId: "example.view",
+              risk: "read",
+              outputSchema: {
+                type: "object",
+                properties: { visible: { type: "string" } },
+                required: ["visible"]
+              },
+              execute: async () => ({ data: { other: "value" } })
+            }
+          ]
+        }
+      ],
+      repository: {} as never,
+      runner: runner as never,
+      tokens,
+      confirmations: new ConfirmationRegistry(),
+      notifier: { emit: () => {} },
+      confirmTimeoutMs: 1000
+    });
+    const token = tokens.mint({ actorUserId: "u1", chatSessionId: "s1", allowedToolNames: null });
+
+    const res = await gateway.callTool(token, "example.invalid-output", {});
+
+    expect(res).toEqual({ ok: false, error: "Tool example.invalid-output failed" });
+  });
+
+  it("caps rendered tool output before returning it to the model", async () => {
+    const tokens = new SessionTokenRegistry();
+    const gateway = new AssistantToolGateway({
+      resolveActiveModules: async () => [
+        {
+          id: "example",
+          name: "Example",
+          version: "1.0.0",
+          publisher: "Jarv1s",
+          lifecycle: "optional",
+          compatibility: { jarv1s: "*" },
+          assistantTools: [
+            {
+              name: "example.large-output",
+              description: "Large output.",
+              permissionId: "example.view",
+              risk: "read",
+              outputSchema: {
+                type: "object",
+                properties: { visible: { type: "string" } },
+                required: ["visible"]
+              },
+              execute: async () => ({ data: { visible: "x".repeat(20_000) } })
+            }
+          ]
+        }
+      ],
+      repository: {} as never,
+      runner: runner as never,
+      tokens,
+      confirmations: new ConfirmationRegistry(),
+      notifier: { emit: () => {} },
+      confirmTimeoutMs: 1000
+    });
+    const token = tokens.mint({ actorUserId: "u1", chatSessionId: "s1", allowedToolNames: null });
+
+    const res = await gateway.callTool(token, "example.large-output", {});
+
+    expect(res.ok).toBe(true);
+    if (!res.ok) throw new Error("expected ok");
+    const text = (res.data as { text: string }).text;
+    expect(text.length).toBeLessThanOrEqual(16_000);
+    expect(text).toContain("[truncated tool result]");
   });
 });
