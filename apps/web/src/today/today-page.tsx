@@ -150,7 +150,7 @@ export function TodayPage(props: {
             </div>
             <div className="jds-brief__title">The few things that matter most</div>
             <p className="cmd-leadin">
-              Pulled from your open tasks and recent captures — Jarvis marks where each came from.
+              Pulled from your tasks and recent notes: sources are noted for each.
             </p>
             <div className="top3" style={{ marginTop: 4 }}>
               {startHere.length > 0 ? (
@@ -162,7 +162,7 @@ export function TodayPage(props: {
                   />
                 ))
               ) : (
-                <p className="cmd-empty">Nothing pressing right now — a clear runway.</p>
+                <p className="cmd-empty">Nothing pressing right now.</p>
               )}
             </div>
             {startHere.length > 0 ? (
@@ -201,7 +201,7 @@ export function TodayPage(props: {
                 ))}
               </div>
             ) : (
-              <p className="cmd-empty">No events today — the day is yours to shape.</p>
+              <p className="cmd-empty">No events today.</p>
             )}
           </section>
 
@@ -653,12 +653,12 @@ function buildLede(priorities: number, atRisk: number, events: number): string {
   parts.push(
     priorities > 0
       ? `You have <b>${priorities} ${priorities === 1 ? "priority" : "priorities"}</b> to move today`
-      : "Nothing is screaming for attention today"
+      : "Nothing pressing right now"
   );
   if (events > 0) parts.push(`${events} ${events === 1 ? "event" : "events"} on the calendar`);
   if (atRisk > 0)
     parts.push(
-      `${atRisk} ${atRisk === 1 ? "thing has" : "things have"} slipped — we can reset without rushing`
+      `${atRisk} ${atRisk === 1 ? "thing has" : "things have"} slipped: we can reset without rushing`
     );
   return `${parts.join(", and ")}.`;
 }
