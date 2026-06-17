@@ -1,21 +1,12 @@
 import { errorResponseSchema } from "./schema-fragments.js";
 
 export type SourceBehaviorDefault = "default-on" | "default-off" | "coming-soon";
-export type SourceBehaviorKind =
-  | "include-in-briefings"
-  | "planning"
-  | "detect-commitments"
-  | "write-events-back"
-  | "capture-tasks"
-  | "thread-summaries"
-  | "send-on-behalf";
 
 export interface SourceBehaviorDto {
   readonly id: string;
   readonly sourceId: string;
   readonly name: string;
   readonly description: string;
-  readonly kind: SourceBehaviorKind;
   readonly default: SourceBehaviorDefault;
   readonly enabled: boolean;
   readonly toggleable: boolean;
@@ -43,29 +34,15 @@ const sourceBehaviorDefaultSchema = {
   enum: ["default-on", "default-off", "coming-soon"]
 } as const;
 
-const sourceBehaviorKindSchema = {
-  type: "string",
-  enum: [
-    "include-in-briefings",
-    "planning",
-    "detect-commitments",
-    "write-events-back",
-    "capture-tasks",
-    "thread-summaries",
-    "send-on-behalf"
-  ]
-} as const;
-
 const sourceBehaviorSchema = {
   type: "object",
   additionalProperties: false,
-  required: ["id", "sourceId", "name", "description", "kind", "default", "enabled", "toggleable"],
+  required: ["id", "sourceId", "name", "description", "default", "enabled", "toggleable"],
   properties: {
     id: { type: "string" },
     sourceId: { type: "string" },
     name: { type: "string" },
     description: { type: "string" },
-    kind: sourceBehaviorKindSchema,
     default: sourceBehaviorDefaultSchema,
     enabled: { type: "boolean" },
     toggleable: { type: "boolean" }

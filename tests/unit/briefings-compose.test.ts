@@ -113,24 +113,30 @@ function makeFakeManifests(failTool?: string): JarvisModuleManifest[] {
       assistantTools,
       sourceBehaviors: [
         {
-          id: "calendar.briefings",
-          sourceId: "calendar",
-          sourceName: "Calendar",
-          sourceDescription: "Calendar source",
-          name: "Include in briefings",
-          description: "Calendar in briefings",
-          kind: "include-in-briefings",
-          default: "default-on"
+          id: "calendar",
+          name: "Calendar",
+          description: "Calendar source",
+          behaviors: [
+            {
+              id: "calendar.briefings",
+              name: "Include in briefings",
+              description: "Calendar in briefings",
+              default: "default-on"
+            }
+          ]
         },
         {
-          id: "email.briefings",
-          sourceId: "email",
-          sourceName: "Email",
-          sourceDescription: "Email source",
-          name: "Include in briefings",
-          description: "Email in briefings",
-          kind: "include-in-briefings",
-          default: "default-on"
+          id: "email",
+          name: "Email",
+          description: "Email source",
+          behaviors: [
+            {
+              id: "email.briefings",
+              name: "Include in briefings",
+              description: "Email in briefings",
+              default: "default-on"
+            }
+          ]
         }
       ]
     }

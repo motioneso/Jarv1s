@@ -232,24 +232,25 @@ export interface ModuleSettingsSurfaceManifest {
 }
 
 export type SourceBehaviorDefault = "default-on" | "default-off" | "coming-soon";
-export type SourceBehaviorKind =
-  | "include-in-briefings"
-  | "planning"
-  | "detect-commitments"
-  | "write-events-back"
-  | "capture-tasks"
-  | "thread-summaries"
-  | "send-on-behalf";
 
+/** One toggleable behavior Jarvis can perform with a source. */
 export interface SourceBehaviorDecl {
   readonly id: string;
-  readonly sourceId: string;
-  readonly sourceName: string;
-  readonly sourceDescription: string;
   readonly name: string;
   readonly description: string;
-  readonly kind: SourceBehaviorKind;
   readonly default: SourceBehaviorDefault;
+}
+
+/**
+ * A data source and the behaviors Jarvis may perform with it. Source identity
+ * (name/description) is declared once here and owns its behaviors — never repeated
+ * on every behavior row, so the route layer never has to guess a source's identity.
+ */
+export interface SourceBehaviorSourceDecl {
+  readonly id: string;
+  readonly name: string;
+  readonly description: string;
+  readonly behaviors: readonly SourceBehaviorDecl[];
 }
 
 export interface ModuleAssistantToolManifest {
@@ -288,7 +289,7 @@ export interface JarvisModuleManifest {
   readonly jobs?: readonly ModuleJobManifest[];
   readonly shareableResources?: readonly ModuleShareableResourceManifest[];
   readonly assistantTools?: readonly ModuleAssistantToolManifest[];
-  readonly sourceBehaviors?: readonly SourceBehaviorDecl[];
+  readonly sourceBehaviors?: readonly SourceBehaviorSourceDecl[];
   readonly focusSignal?: FocusSignalProvider;
 }
 

@@ -35,14 +35,17 @@ function testManifest(): JarvisModuleManifest {
     compatibility: { jarv1s: ">=0.0.0" },
     sourceBehaviors: [
       {
-        id: "test-source.briefings",
-        sourceId: "test-source",
-        sourceName: "Test source",
-        sourceDescription: "Synthetic source behavior for integration coverage.",
-        name: "Include in briefings",
-        description: "Proves settings lists manifest-declared behaviors dynamically.",
-        kind: "include-in-briefings",
-        default: "default-off"
+        id: "test-source",
+        name: "Test source",
+        description: "Synthetic source behavior for integration coverage.",
+        behaviors: [
+          {
+            id: "test-source.briefings",
+            name: "Include in briefings",
+            description: "Proves settings lists manifest-declared behaviors dynamically.",
+            default: "default-off"
+          }
+        ]
       }
     ]
   };

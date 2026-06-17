@@ -1,12 +1,13 @@
 import { spawn } from "node:child_process";
+import { createReadStream } from "node:fs";
 import { access } from "node:fs/promises";
 import { resolve } from "node:path";
+import { pipeline } from "node:stream/promises";
 import { fileURLToPath } from "node:url";
 
 import { getJarvisDatabaseUrls } from "@jarv1s/db";
 
 const POSTGRES_CONTAINER = "jarv1s-postgres";
-const RESTORE_DUMP_PATH = "/tmp/restore.dump";
 
 export interface RestorePlanInput {
   readonly backupFile: string;
@@ -17,10 +18,7 @@ export interface RestorePlanInput {
 }
 
 export interface RestorePlan {
-  readonly args: readonly string[];
   readonly backupFile: string;
-  readonly command: "pg_restore";
-  readonly copyArgs: readonly string[];
   readonly database: string;
   readonly dockerCommand: "docker";
   readonly env: Readonly<Record<"PGPASSWORD", string>>;
@@ -59,21 +57,9 @@ export function createRestorePlan(input: RestorePlanInput): RestorePlan {
     );
   }
 
-  const args = [
-    "--host",
-    url.hostname,
-    "--port",
-    url.port || "5432",
-    "--username",
-    username,
-    "--dbname",
-    database,
-    "--clean",
-    "--if-exists",
-    "--no-owner",
-    "--no-privileges",
-    input.backupFile
-  ];
+  // The dump is streamed into the container over stdin (`docker exec -i … pg_restore`
+  // reading the archive from stdin), so we never stage a plaintext copy of the sensitive
+  // backup inside the long-lived Postgres container. No `--file`/path arg → reads stdin.
   const dockerPgRestoreArgs = [
     "--username",
     username,
@@ -82,17 +68,14 @@ export function createRestorePlan(input: RestorePlanInput): RestorePlan {
     "--clean",
     "--if-exists",
     "--no-owner",
-    "--no-privileges",
-    RESTORE_DUMP_PATH
+    "--no-privileges"
   ];
 
   return {
-    command: "pg_restore",
-    args,
-    copyArgs: ["cp", input.backupFile, `${POSTGRES_CONTAINER}:${RESTORE_DUMP_PATH}`],
     dockerCommand: "docker",
     restoreArgs: [
       "exec",
+      "-i",
       "--env",
       "PGPASSWORD",
       POSTGRES_CONTAINER,
@@ -119,8 +102,7 @@ async function main(): Promise<void> {
       "Restore drill plan only. Add --execute --confirm-restore " +
         `--confirm-database ${plan.database} to run pg_restore.`
     );
-    console.log(`${plan.dockerCommand} ${plan.copyArgs.join(" ")}`);
-    console.log(`${plan.dockerCommand} ${plan.restoreArgs.join(" ")}`);
+    console.log(`${plan.backupFile} | ${plan.dockerCommand} ${plan.restoreArgs.join(" ")}`);
     return;
   }
 
@@ -128,8 +110,7 @@ async function main(): Promise<void> {
   console.log(
     `Restoring database "${plan.database}" on host "${plan.host}" from sensitive backup ${plan.backupFile}`
   );
-  await runCommand(plan.dockerCommand, plan.copyArgs, {});
-  await runCommand(plan.dockerCommand, plan.restoreArgs, plan.env);
+  await runCommandFromFile(plan.dockerCommand, plan.restoreArgs, plan.env, plan.backupFile);
   console.log(`Restore complete from ${plan.backupFile}`);
 }
 
@@ -173,20 +154,25 @@ function readRequiredFlag(args: readonly string[], name: string): string {
   return value;
 }
 
-function runCommand(
+async function runCommandFromFile(
   command: string,
   args: readonly string[],
-  env: Readonly<Record<string, string>>
+  env: Readonly<Record<string, string>>,
+  inputFile: string
 ): Promise<void> {
-  return new Promise((resolvePromise, reject) => {
-    const child = spawn(command, [...args], {
-      env: {
-        ...process.env,
-        ...env
-      },
-      stdio: "inherit"
-    });
+  const child = spawn(command, [...args], {
+    env: {
+      ...process.env,
+      ...env
+    },
+    stdio: ["pipe", "inherit", "inherit"]
+  });
 
+  if (!child.stdin) {
+    throw new Error(`${command} did not expose stdin for restore input`);
+  }
+
+  const exit = new Promise<void>((resolvePromise, reject) => {
     child.on("error", reject);
     child.on("exit", (code) => {
       if (code === 0) {
@@ -196,6 +182,13 @@ function runCommand(
       reject(new Error(`${command} exited with status ${code ?? "unknown"}`));
     });
   });
+
+  try {
+    await Promise.all([pipeline(createReadStream(inputFile), child.stdin), exit]);
+  } catch (error) {
+    child.kill();
+    throw error;
+  }
 }
 
 if (process.argv[1] && fileURLToPath(import.meta.url) === resolve(process.argv[1])) {

@@ -16,8 +16,6 @@ export interface BackupPlanInput {
 }
 
 export interface BackupPlan {
-  readonly args: readonly string[];
-  readonly command: "pg_dump";
   readonly dockerArgs: readonly string[];
   readonly dockerCommand: "docker";
   readonly env: Readonly<Record<"PGPASSWORD", string>>;
@@ -48,22 +46,6 @@ export function createBackupPlan(input: BackupPlanInput = {}): BackupPlan {
   ];
 
   return {
-    command: "pg_dump",
-    args: [
-      "--host",
-      url.hostname,
-      "--port",
-      url.port || "5432",
-      "--username",
-      username,
-      "--dbname",
-      database,
-      "--format=custom",
-      "--no-owner",
-      "--no-privileges",
-      "--file",
-      outputFile
-    ],
     dockerCommand: "docker",
     dockerArgs: [
       "exec",

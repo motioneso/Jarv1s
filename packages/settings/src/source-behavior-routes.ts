@@ -7,15 +7,13 @@ import {
   listSourceBehaviorsRouteSchema,
   putSourceBehaviorRouteSchema,
   type ListSourceBehaviorsResponse,
-  type PutSourceBehaviorRequest,
-  type SourceBehaviorDto,
-  type SourceBehaviorSourceDto
+  type PutSourceBehaviorRequest
 } from "@jarv1s/shared";
 import {
   listSourceBehaviorStates,
   setSourceBehaviorOverride,
   type SourceBehaviorPreferencesPort,
-  type SourceBehaviorState
+  type SourceBehaviorSourceState
 } from "@jarv1s/source-behaviors";
 
 interface SourceBehaviorRoutesDependencies {
@@ -85,34 +83,23 @@ export function registerSourceBehaviorRoutes(
   );
 }
 
-function toResponse(states: readonly SourceBehaviorState[]): ListSourceBehaviorsResponse {
-  const bySource = new Map<
-    string,
-    Omit<SourceBehaviorSourceDto, "behaviors"> & { behaviors: SourceBehaviorDto[] }
-  >();
-  for (const state of states) {
-    const source = bySource.get(state.sourceId) ?? {
-      id: state.sourceId,
-      name: state.sourceName,
-      description: state.sourceDescription,
-      behaviors: []
-    };
-    source.behaviors = [
-      ...source.behaviors,
-      {
-        id: state.id,
-        sourceId: state.sourceId,
-        name: state.name,
-        description: state.description,
-        kind: state.kind,
-        default: state.default,
-        enabled: state.enabled,
-        toggleable: state.toggleable
-      }
-    ];
-    bySource.set(state.sourceId, source);
-  }
-  return { sources: [...bySource.values()] };
+function toResponse(sources: readonly SourceBehaviorSourceState[]): ListSourceBehaviorsResponse {
+  return {
+    sources: sources.map((source) => ({
+      id: source.id,
+      name: source.name,
+      description: source.description,
+      behaviors: source.behaviors.map((behavior) => ({
+        id: behavior.id,
+        sourceId: source.id,
+        name: behavior.name,
+        description: behavior.description,
+        default: behavior.default,
+        enabled: behavior.enabled,
+        toggleable: behavior.toggleable
+      }))
+    }))
+  };
 }
 
 function handleSettingsRouteError(error: unknown, reply: FastifyReply) {

@@ -3,13 +3,13 @@ import { describe, expect, it } from "vitest";
 import type { DataContextDb } from "@jarv1s/db";
 import type {
   JarvisModuleManifest,
-  SourceBehaviorDecl,
+  SourceBehaviorSourceDecl,
   SourceBehaviorDefault
 } from "@jarv1s/module-sdk";
 import { calendarModuleManifest } from "@jarv1s/calendar";
 import { emailModuleManifest } from "@jarv1s/email";
 import {
-  collectSourceBehaviors,
+  collectSourceBehaviorSources,
   isBehaviorEnabled,
   SOURCE_BEHAVIOR_PREFERENCE_KEY,
   type SourceBehaviorPreferencesPort
@@ -32,15 +32,18 @@ function manifestWithBehavior(
     compatibility: { jarv1s: ">=0.0.0" },
     sourceBehaviors: [
       {
-        id: behaviorId,
-        sourceId: moduleId,
-        sourceName,
-        sourceDescription: `${sourceName} description`,
-        name: "Include in briefings",
-        description: `${sourceName} briefing behavior`,
-        kind: "include-in-briefings",
-        default: defaultValue
-      } satisfies SourceBehaviorDecl
+        id: moduleId,
+        name: sourceName,
+        description: `${sourceName} description`,
+        behaviors: [
+          {
+            id: behaviorId,
+            name: "Include in briefings",
+            description: `${sourceName} briefing behavior`,
+            default: defaultValue
+          }
+        ]
+      } satisfies SourceBehaviorSourceDecl
     ]
   };
 }
@@ -55,13 +58,14 @@ function prefRepo(values: Record<string, unknown>): SourceBehaviorPreferencesPor
 }
 
 describe("source behavior policy", () => {
-  it("collects source behaviors from every module manifest in source/name order", () => {
-    const behaviors = collectSourceBehaviors([
+  it("collects sources from every module manifest in source-name order", () => {
+    const sources = collectSourceBehaviorSources([
       manifestWithBehavior("email", "Email", "email.briefings", "default-on"),
       manifestWithBehavior("calendar", "Calendar", "calendar.briefings", "default-on")
     ]);
 
-    expect(behaviors.map((behavior) => behavior.id)).toEqual([
+    expect(sources.map((source) => source.id)).toEqual(["calendar", "email"]);
+    expect(sources.flatMap((source) => source.behaviors).map((behavior) => behavior.id)).toEqual([
       "calendar.briefings",
       "email.briefings"
     ]);
@@ -128,8 +132,11 @@ describe("source behavior policy", () => {
   });
 
   it("collects calendar and email source behaviors from their owning manifests", () => {
-    const behaviors = collectSourceBehaviors([calendarModuleManifest, emailModuleManifest]);
-    const byId = new Map(behaviors.map((behavior) => [behavior.id, behavior]));
+    const sources = collectSourceBehaviorSources([calendarModuleManifest, emailModuleManifest]);
+    const behaviorsBySourceId = new Map(sources.map((source) => [source.id, source]));
+    const byId = new Map(
+      sources.flatMap((source) => source.behaviors).map((behavior) => [behavior.id, behavior])
+    );
 
     expect([...byId.keys()].sort()).toEqual([
       "calendar.briefings",
@@ -141,16 +148,10 @@ describe("source behavior policy", () => {
       "email.send-on-behalf",
       "email.thread-summaries"
     ]);
-    expect(byId.get("calendar.briefings")).toMatchObject({
-      sourceId: "calendar",
-      kind: "include-in-briefings",
-      default: "default-on"
-    });
-    expect(byId.get("email.briefings")).toMatchObject({
-      sourceId: "email",
-      kind: "include-in-briefings",
-      default: "default-on"
-    });
+    expect(behaviorsBySourceId.get("calendar")?.name).toBe("Calendar");
+    expect(behaviorsBySourceId.get("email")?.name).toBe("Email");
+    expect(byId.get("calendar.briefings")).toMatchObject({ default: "default-on" });
+    expect(byId.get("email.briefings")).toMatchObject({ default: "default-on" });
     expect(byId.get("calendar.planning")?.default).toBe("coming-soon");
     expect(byId.get("email.capture-tasks")?.default).toBe("coming-soon");
   });

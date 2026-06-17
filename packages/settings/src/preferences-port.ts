@@ -1,9 +1,7 @@
-import type { DataContextDb } from "@jarv1s/db";
+import type { PreferencesPort } from "@jarv1s/db";
 
-export interface ProfilePreferencesPort {
-  get(scopedDb: DataContextDb, key: string): Promise<unknown>;
-  upsert(scopedDb: DataContextDb, key: string, value: unknown): Promise<void>;
-}
+/** The settings profile uses the shared scoped KV preferences port. */
+export type ProfilePreferencesPort = PreferencesPort;
 
 export interface PersonaPreviewInput {
   readonly actorUserId: string;

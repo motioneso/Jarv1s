@@ -33,6 +33,17 @@ export interface DataContextDb {
   readonly [dataContextBrand]: true;
 }
 
+/**
+ * A scoped key/value preferences accessor over a DataContextDb. The single shared
+ * shape for "read/write a user's stored preference blob" — features alias this rather
+ * than re-declaring the same two methods (e.g. ProfilePreferencesPort in @jarv1s/settings,
+ * SourceBehaviorPreferencesPort in @jarv1s/source-behaviors).
+ */
+export interface PreferencesPort {
+  get(scopedDb: DataContextDb, key: string): Promise<unknown>;
+  upsert(scopedDb: DataContextDb, key: string, value: unknown): Promise<void>;
+}
+
 export class DataContextRunner {
   constructor(private readonly rootDb: Kysely<JarvisDatabase>) {}
 

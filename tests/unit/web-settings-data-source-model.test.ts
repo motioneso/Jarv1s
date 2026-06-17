@@ -10,7 +10,6 @@ describe("settings data source model", () => {
       sourceId: "calendar",
       name: "Include in briefings",
       description: "Surface today's events in the morning reading.",
-      kind: "include-in-briefings",
       default: "default-on",
       enabled: true,
       toggleable: true
@@ -25,7 +24,6 @@ describe("settings data source model", () => {
       sourceId: "email",
       name: "Thread summaries",
       description: "Condense long threads before you open them.",
-      kind: "include-in-briefings",
       default: "default-on",
       enabled: false,
       toggleable: true
@@ -40,7 +38,6 @@ describe("settings data source model", () => {
       sourceId: "email",
       name: "Send on my behalf",
       description: "Draft and send replies, with your approval.",
-      kind: "send-on-behalf",
       default: "coming-soon",
       enabled: false,
       toggleable: false

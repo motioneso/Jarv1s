@@ -13,7 +13,12 @@ import {
 } from "@jarv1s/db";
 
 import { HttpError } from "./errors.js";
-import { TASK_URGENCY_WINDOW_MS, type TaskQuadrant } from "./classification.js";
+import {
+  TASK_IMPORTANT_PRIORITY_MIN,
+  TASK_QUADRANT_AXES,
+  TASK_URGENCY_WINDOW_MS,
+  type TaskQuadrant
+} from "./classification.js";
 import { TaskListsRepository } from "./lists.js";
 import { generateNext, rollForwardOwnedSeries, type RecurrenceSpec } from "./recurrence.js";
 
@@ -123,20 +128,16 @@ export class TasksRepository {
       const urgentBefore = new Date(
         (criteria.now ?? new Date()).getTime() + TASK_URGENCY_WINDOW_MS
       );
-      const important = sql<boolean>`t.priority is not null and t.priority >= 4`;
-      const unimportant = sql<boolean>`(t.priority is null or t.priority < 4)`;
-      const urgent = sql<boolean>`t.due_at is not null and t.due_at <= ${urgentBefore}`;
-      const notUrgent = sql<boolean>`(t.due_at is null or t.due_at > ${urgentBefore})`;
-
-      if (criteria.quadrant === "do") {
-        query = query.where(important).where(urgent);
-      } else if (criteria.quadrant === "schedule") {
-        query = query.where(important).where(notUrgent);
-      } else if (criteria.quadrant === "delegate") {
-        query = query.where(unimportant).where(urgent);
-      } else {
-        query = query.where(unimportant).where(notUrgent);
-      }
+      // Derive the predicate from the one quadrant matrix + shared threshold, so the SQL
+      // filter cannot diverge from classifyTaskQuadrant. Each axis is expressed once.
+      const axes = TASK_QUADRANT_AXES[criteria.quadrant];
+      const importantExpr = axes.important
+        ? sql<boolean>`t.priority is not null and t.priority >= ${TASK_IMPORTANT_PRIORITY_MIN}`
+        : sql<boolean>`(t.priority is null or t.priority < ${TASK_IMPORTANT_PRIORITY_MIN})`;
+      const urgentExpr = axes.urgent
+        ? sql<boolean>`t.due_at is not null and t.due_at <= ${urgentBefore}`
+        : sql<boolean>`(t.due_at is null or t.due_at > ${urgentBefore})`;
+      query = query.where(importantExpr).where(urgentExpr);
     }
 
     return query.execute();

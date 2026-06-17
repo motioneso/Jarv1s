@@ -73,48 +73,36 @@ export const calendarModuleManifest = {
   ],
   sourceBehaviors: [
     {
-      id: "calendar.briefings",
-      sourceId: "calendar",
-      sourceName: "Calendar",
-      sourceDescription:
+      id: "calendar",
+      name: "Calendar",
+      description:
         "What Jarvis is allowed to do with your calendar — independent of whichever service powers it.",
-      name: "Include in briefings",
-      description: "Surface today's events in the morning reading.",
-      kind: "include-in-briefings",
-      default: "default-on"
-    },
-    {
-      id: "calendar.planning",
-      sourceId: "calendar",
-      sourceName: "Calendar",
-      sourceDescription:
-        "What Jarvis is allowed to do with your calendar — independent of whichever service powers it.",
-      name: "Use for planning",
-      description: "Jarvis schedules its own focus blocks around your events.",
-      kind: "planning",
-      default: "coming-soon"
-    },
-    {
-      id: "calendar.detect-commitments",
-      sourceId: "calendar",
-      sourceName: "Calendar",
-      sourceDescription:
-        "What Jarvis is allowed to do with your calendar — independent of whichever service powers it.",
-      name: "Detect commitments",
-      description: "Turn meeting language into a tracked commitment.",
-      kind: "detect-commitments",
-      default: "coming-soon"
-    },
-    {
-      id: "calendar.writeback",
-      sourceId: "calendar",
-      sourceName: "Calendar",
-      sourceDescription:
-        "What Jarvis is allowed to do with your calendar — independent of whichever service powers it.",
-      name: "Write events back",
-      description: "Let Jarvis create and move calendar events for you.",
-      kind: "write-events-back",
-      default: "coming-soon"
+      behaviors: [
+        {
+          id: "calendar.briefings",
+          name: "Include in briefings",
+          description: "Surface today's events in the morning reading.",
+          default: "default-on"
+        },
+        {
+          id: "calendar.planning",
+          name: "Use for planning",
+          description: "Jarvis schedules its own focus blocks around your events.",
+          default: "coming-soon"
+        },
+        {
+          id: "calendar.detect-commitments",
+          name: "Detect commitments",
+          description: "Turn meeting language into a tracked commitment.",
+          default: "coming-soon"
+        },
+        {
+          id: "calendar.writeback",
+          name: "Write events back",
+          description: "Let Jarvis create and move calendar events for you.",
+          default: "coming-soon"
+        }
+      ]
     }
   ],
   routes: [

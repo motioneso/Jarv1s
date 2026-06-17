@@ -189,7 +189,7 @@ describe("Briefings synthesis, scheduling, and notification path (P3 real-briefi
     expect(capturedContexts[0]!.requestId).toMatch(/^briefing:|^pgboss:/);
   });
 
-  it("extracts tool section rows from the first object array without module-owned shape casts", async () => {
+  it("projects only allow-listed fields from a tool's declared array, never undeclared content", async () => {
     const genericManifest: JarvisModuleManifest = {
       id: "generic-section",
       name: "GenericSection",
@@ -200,14 +200,18 @@ describe("Briefings synthesis, scheduling, and notification path (P3 real-briefi
       assistantTools: [
         {
           name: "commitments.listVisible",
-          description: "Returns a non-standard output key.",
+          description: "Returns the declared array plus an undeclared field that must not leak.",
           permissionId: "commitments.view",
           risk: "read" as const,
           execute: async () => ({
             data: {
-              arbitraryRows: [
+              commitments: [
                 "ignored primitive",
-                { title: "Generic commitment", status: "blocked", ignoredEmpty: "   " },
+                {
+                  title: "Generic commitment",
+                  status: "blocked",
+                  secretNote: "undeclared field must never reach the prompt"
+                },
                 null
               ]
             }
@@ -239,6 +243,8 @@ describe("Briefings synthesis, scheduling, and notification path (P3 real-briefi
 
     expect(composed.summaryText).toContain("COMMITMENTS: 1 item");
     expect(composed.summaryText).toContain("Generic commitment · blocked");
+    // The undeclared field is not in the per-source allow-list, so it never reaches the prompt.
+    expect(composed.summaryText).not.toContain("undeclared field must never reach the prompt");
   });
 
   it("never leaks the decrypted provider credential into a synthesized run", async () => {

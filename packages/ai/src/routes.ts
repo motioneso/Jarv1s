@@ -62,7 +62,10 @@ import {
   findAssistantToolFromManifests,
   listAssistantToolsFromManifests
 } from "./assistant-tools.js";
-import { boundedAssistantToolResultData, sanitizeAssistantToolResult } from "./gateway/gateway.js";
+import {
+  boundedAssistantToolResultData,
+  sanitizeAssistantToolResult
+} from "./gateway/output-validation.js";
 import { ToolInputValidationError, validateToolInput } from "./gateway/input-validation.js";
 import { cliAvailable, type ProviderKind as CliProviderKind } from "./cli-availability.js";
 import { createAiSecretCipher, type AiSecretCipher } from "./crypto.js";
