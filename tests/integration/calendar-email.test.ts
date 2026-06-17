@@ -477,6 +477,53 @@ describe("Calendar and Email connector-backed read modules", () => {
     expect(emailSharedReadResponse.body).not.toContain("encrypted_secret");
   });
 
+  it("serves email-derived fields as inert strings without internal metadata", async () => {
+    const htmlSubject = `<img src=x onerror="alert('subject')">`;
+    const htmlSnippet = `<script>alert('snippet')</script>`;
+    const htmlBodyExcerpt = `<a href="javascript:alert('body')">open</a>`;
+
+    const row = await dataContext.withDataContext(userAContext(), (scopedDb) =>
+      emailRepository.upsertCachedMessage(scopedDb, {
+        connectorAccountId: connectorAccountIds.aEmail,
+        sender: `"Bad <script>alert('sender')</script>" <bad@example.test>`,
+        recipients: ["owner@example.test"],
+        subject: htmlSubject,
+        snippet: htmlSnippet,
+        bodyExcerpt: htmlBodyExcerpt,
+        receivedAt: "2026-06-09T09:00:00.000Z",
+        externalId: "html-payload-message",
+        externalMetadata: {
+          historyId: "secret-history",
+          providerToken: "must-not-leak"
+        }
+      })
+    );
+
+    const response = await server.inject({
+      method: "GET",
+      url: `/api/email/messages/${row.id}`,
+      headers: { authorization: `Bearer ${ids.sessionA}` }
+    });
+
+    expect(response.statusCode).toBe(200);
+    const payload = response.json<{
+      message: {
+        sender: string;
+        subject: string;
+        snippet: string | null;
+        bodyExcerpt: string | null;
+      };
+    }>();
+    expect(payload.message.subject).toBe(htmlSubject);
+    expect(payload.message.snippet).toBe(htmlSnippet);
+    expect(payload.message.bodyExcerpt).toBe(htmlBodyExcerpt);
+    expect(payload.message.sender).toContain("<script>");
+    expect(response.body).not.toContain("connectorAccountId");
+    expect(response.body).not.toContain("externalMetadata");
+    expect(response.body).not.toContain("secret-history");
+    expect(response.body).not.toContain("providerToken");
+  });
+
   it("fails loudly when repositories are called without withDataContext", async () => {
     await expect(calendarRepository.listVisible({} as never)).rejects.toThrow(
       "Repository access requires withDataContext"
@@ -656,6 +703,50 @@ describe("serializeEmailMessage summary/signals (C2)", () => {
     } as never);
     expect(dto.summary).toBe("concise");
     expect((dto.signals as { importance?: string }).importance).toBe("high");
+  });
+
+  it("omits connector account ids and raw external metadata from EmailMessageDto", () => {
+    const dto = serializeEmailMessage({
+      id: "00000000-0000-0000-0000-000000000001",
+      connector_account_id: "00000000-0000-0000-0000-000000000002",
+      owner_user_id: "00000000-0000-0000-0000-000000000003",
+      sender: "sender@example.test",
+      recipients: ["owner@example.test"],
+      subject: "Subject",
+      snippet: "Snippet",
+      body_excerpt: "Excerpt",
+      received_at: new Date("2026-06-13T09:00:00.000Z"),
+      external_id: "provider-message-id",
+      external_metadata: {
+        historyId: "secret-history-id",
+        labelIds: ["INBOX"],
+        providerToken: "must-not-leak"
+      },
+      summary: "concise",
+      signals: { importance: "high" },
+      created_at: new Date("2026-06-13T09:00:00.000Z"),
+      updated_at: new Date("2026-06-13T09:00:00.000Z")
+    } as never);
+
+    expect("connectorAccountId" in dto).toBe(false);
+    expect("externalMetadata" in dto).toBe(false);
+    expect("historyId" in dto).toBe(false);
+    expect("providerToken" in dto).toBe(false);
+    expect(Object.keys(dto).sort()).toEqual([
+      "bodyExcerpt",
+      "createdAt",
+      "externalId",
+      "id",
+      "ownerUserId",
+      "receivedAt",
+      "recipients",
+      "sender",
+      "signals",
+      "snippet",
+      "subject",
+      "summary",
+      "updatedAt"
+    ]);
   });
 });
 
