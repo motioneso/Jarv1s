@@ -118,10 +118,13 @@ export class ChatMemoryFactsRepository {
     `.execute(scopedDb.db);
   }
 
-  async deleteFact(scopedDb: DataContextDb, id: string): Promise<void> {
-    await sql`
-      DELETE FROM app.chat_memory_facts WHERE id = ${id}::uuid
+  async deleteFact(scopedDb: DataContextDb, id: string): Promise<boolean> {
+    const result = await sql<{ id: string }>`
+      DELETE FROM app.chat_memory_facts
+      WHERE id = ${id}::uuid
+      RETURNING id
     `.execute(scopedDb.db);
+    return result.rows.length > 0;
   }
 
   async confirmFact(scopedDb: DataContextDb, id: string): Promise<boolean> {
@@ -141,12 +144,14 @@ export class ChatMemoryFactsRepository {
     scopedDb: DataContextDb,
     id: string,
     importance: number
-  ): Promise<void> {
-    await sql`
+  ): Promise<boolean> {
+    const result = await sql<{ id: string }>`
       UPDATE app.chat_memory_facts
       SET importance = ${importance}, updated_at = now()
       WHERE id = ${id}::uuid
+      RETURNING id
     `.execute(scopedDb.db);
+    return result.rows.length > 0;
   }
 
   #mapRow(r: {

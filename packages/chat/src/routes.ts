@@ -243,9 +243,10 @@ export function registerChatRoutes(
     async (request, reply) => {
       try {
         const access = await dependencies.resolveAccessContext(request);
-        await dependencies.dataContext.withDataContext(access, (scopedDb) =>
+        const deleted = await dependencies.dataContext.withDataContext(access, (scopedDb) =>
           factsRepo.deleteFact(scopedDb, request.params.id)
         );
+        if (!deleted) return reply.code(404).send({ error: "Memory fact not found" });
         return reply.code(204).send();
       } catch (error) {
         return handleRouteError(error, reply);
@@ -305,9 +306,10 @@ export function registerChatRoutes(
       if (typeof importance !== "number" || importance < 0 || importance > 1) {
         return reply.code(400).send({ error: "importance must be a number between 0 and 1" });
       }
-      await dependencies.dataContext.withDataContext(access, (scopedDb) =>
+      const updated = await dependencies.dataContext.withDataContext(access, (scopedDb) =>
         factsRepo.updateFactImportance(scopedDb, request.params.id, importance)
       );
+      if (!updated) return reply.code(404).send({ error: "Memory fact not found" });
       return reply.code(204).send();
     } catch (error) {
       return handleRouteError(error, reply);
