@@ -6,9 +6,6 @@
  * The engineFactory is injectable so integration tests can swap in an in-memory
  * fake engine (no real tmux / `claude` binary). Everything else is real.
  */
-import { homedir } from "node:os";
-import { join } from "node:path";
-
 import { AiRepository, createRealTmuxIo, type Multiplexer, type ProviderKind } from "@jarv1s/ai";
 import type { DataContextDb, DataContextRunner } from "@jarv1s/db";
 import { normalizePersonaSettings, renderPersonaText } from "@jarv1s/shared";
@@ -16,6 +13,7 @@ import type { PgBoss } from "pg-boss";
 
 import type { RecallPort } from "../recall-port.js";
 
+import { resolveChatHome } from "./chat-home.js";
 import { CliChatEngineImpl } from "./cli-chat-engine.js";
 import { CliChatUnavailableError } from "./errors.js";
 export { CliChatUnavailableError } from "./errors.js";
@@ -118,7 +116,7 @@ export function createChatSessionRuntime(deps: CreateChatSessionRuntimeDeps): Ch
     personaFs: createRealPersonaFs(),
     clock: { now: () => Date.now() },
     idleMs: deps.idleMs ?? DEFAULT_IDLE_MS,
-    neutralBase: resolveNeutralBase(),
+    neutralBase: resolveChatHome(),
     persona: (actorUserId, userName) => resolveChatPersona(deps, actorUserId, userName),
     mintMcpToken: deps.mcpTokenLifecycle?.mint,
     revokeMcpToken: deps.mcpTokenLifecycle?.revoke,
@@ -150,9 +148,4 @@ async function resolveChatPersona(
     userName
   });
   return [DEFAULT_JARVIS_PERSONA, personaBlock].filter(Boolean).join("\n\n");
-}
-
-/** Base dir for per-user neutral chat dirs (mirrors renderPersona's own default). */
-function resolveNeutralBase(): string {
-  return process.env.JARVIS_CHAT_HOME ?? join(homedir(), ".jarvis", "chat");
 }
