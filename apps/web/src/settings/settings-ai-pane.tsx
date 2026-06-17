@@ -272,7 +272,7 @@ function ChatModel() {
   });
   const defaultModel = settings?.defaultModel ?? null;
   const allowedModels = settings?.allowedModels ?? [];
-  const allowedIds = new Set(allowedModels.map((m) => m.id));
+  const allowedIds = useMemo(() => new Set(allowedModels.map((m) => m.id)), [allowedModels]);
   const currentOverride =
     settings?.currentOverrideModelId && allowedIds.has(settings.currentOverrideModelId)
       ? settings.currentOverrideModelId
