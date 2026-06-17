@@ -27,6 +27,7 @@ import {
   TaskListsRepository,
   TasksRepository,
   registerTasksJobWorkers,
+  isTasksRecurrenceOccurrenceConflict,
   rollForwardRecurringSeries
 } from "@jarv1s/tasks";
 import type { TaskDto } from "@jarv1s/shared";
@@ -430,6 +431,23 @@ describe("Tasks module M1", () => {
     expect(getOtherPrivateResponse.statusCode).toBe(404);
   });
 
+  it("rejects invalid recurrence specs at the route boundary", async () => {
+    const response = await server.inject({
+      method: "POST",
+      url: "/api/tasks",
+      headers: {
+        authorization: `Bearer ${ids.sessionA}`
+      },
+      payload: {
+        title: "invalid recurrence",
+        recurrence: { freq: "fortnightly", interval: -3, occurrence_date: "not-a-date" }
+      }
+    });
+
+    expect(response.statusCode).toBe(400);
+    expect(response.json<{ error: string }>().error).toContain("recurrence");
+  });
+
   it("creates the tasks-recurrence-materialize queue", async () => {
     const queue = await workerBoss.getQueue("tasks-recurrence-materialize");
     expect(queue).not.toBeNull();
@@ -567,6 +585,24 @@ describe("Tasks module M1", () => {
     );
     expect(liveAfter.status).toBe("todo");
     expect((liveAfter.recurrence as Record<string, unknown>)["occurrence_date"]).toBe(sevenDaysAgo);
+  });
+
+  it("recognizes only the recurrence occurrence unique constraint as an idempotent conflict", () => {
+    expect(
+      isTasksRecurrenceOccurrenceConflict({
+        code: "23505",
+        constraint: "tasks_recurrence_occurrence_idx",
+        message: "duplicate key value violates unique constraint"
+      })
+    ).toBe(true);
+    expect(
+      isTasksRecurrenceOccurrenceConflict({
+        code: "23505",
+        constraint: "tasks_source_external_key_idx",
+        message: "duplicate key value violates unique constraint"
+      })
+    ).toBe(false);
+    expect(isTasksRecurrenceOccurrenceConflict(new Error("unique"))).toBe(false);
   });
 
   it("keeps Tasks worker payloads metadata-only", async () => {

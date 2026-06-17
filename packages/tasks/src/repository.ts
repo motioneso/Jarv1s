@@ -13,8 +13,9 @@ import {
 } from "@jarv1s/db";
 
 import { HttpError } from "./errors.js";
+import { TASK_URGENCY_WINDOW_MS, type TaskQuadrant } from "./classification.js";
 import { TaskListsRepository } from "./lists.js";
-import { generateNext, rollForwardOwnedSeries } from "./recurrence.js";
+import { generateNext, rollForwardOwnedSeries, type RecurrenceSpec } from "./recurrence.js";
 
 export interface CreateTaskInput {
   readonly title: string;
@@ -29,7 +30,7 @@ export interface CreateTaskInput {
   readonly source?: string;
   readonly sourceRef?: string | null;
   readonly externalKey?: string | null;
-  readonly recurrence?: Record<string, unknown> | null;
+  readonly recurrence?: RecurrenceSpec | null;
 }
 
 export interface UpdateTaskInput {
@@ -42,12 +43,23 @@ export interface UpdateTaskInput {
   readonly doAt?: Date | string | null;
   readonly effort?: "quick" | "medium" | "large" | null;
   readonly parentTaskId?: string | null;
-  readonly recurrence?: Record<string, unknown> | null;
+  readonly recurrence?: RecurrenceSpec | null;
 }
 
 export interface AddTaskActivityInput {
   readonly activityType: string;
   readonly body?: string | null;
+}
+
+export interface ListTasksCriteria {
+  readonly listId?: string;
+  readonly tagId?: string;
+  readonly status?: TaskStatus;
+  readonly priority?: number;
+  readonly dueBefore?: Date;
+  readonly dueAfter?: Date;
+  readonly quadrant?: TaskQuadrant;
+  readonly now?: Date;
 }
 
 export class TasksRepository {
@@ -67,6 +79,67 @@ export class TasksRepository {
       .orderBy("updated_at", "desc")
       .orderBy("id")
       .execute();
+  }
+
+  async listFiltered(scopedDb: DataContextDb, criteria: ListTasksCriteria = {}): Promise<Task[]> {
+    assertDataContextDb(scopedDb);
+
+    await rollForwardOwnedSeries(scopedDb);
+
+    let query = scopedDb.db
+      .selectFrom("app.tasks as t")
+      .selectAll("t")
+      .orderBy("t.updated_at", "desc")
+      .orderBy("t.id");
+
+    if (criteria.listId !== undefined) {
+      query = query.where("t.list_id", "=", criteria.listId);
+    }
+    if (criteria.status !== undefined) {
+      query = query.where("t.status", "=", criteria.status);
+    }
+    if (criteria.priority !== undefined) {
+      query = query.where("t.priority", "=", criteria.priority);
+    }
+    if (criteria.dueBefore !== undefined) {
+      query = query.where("t.due_at", "is not", null).where("t.due_at", "<", criteria.dueBefore);
+    }
+    if (criteria.dueAfter !== undefined) {
+      query = query.where("t.due_at", "is not", null).where("t.due_at", ">", criteria.dueAfter);
+    }
+    if (criteria.tagId !== undefined) {
+      const tagId = criteria.tagId;
+      query = query.where((eb) =>
+        eb.exists(
+          eb
+            .selectFrom("app.task_tag_assignments as a")
+            .select(sql<number>`1`.as("one"))
+            .whereRef("a.task_id", "=", "t.id")
+            .where("a.tag_id", "=", tagId)
+        )
+      );
+    }
+    if (criteria.quadrant !== undefined) {
+      const urgentBefore = new Date(
+        (criteria.now ?? new Date()).getTime() + TASK_URGENCY_WINDOW_MS
+      );
+      const important = sql<boolean>`t.priority is not null and t.priority >= 4`;
+      const unimportant = sql<boolean>`(t.priority is null or t.priority < 4)`;
+      const urgent = sql<boolean>`t.due_at is not null and t.due_at <= ${urgentBefore}`;
+      const notUrgent = sql<boolean>`(t.due_at is null or t.due_at > ${urgentBefore})`;
+
+      if (criteria.quadrant === "do") {
+        query = query.where(important).where(urgent);
+      } else if (criteria.quadrant === "schedule") {
+        query = query.where(important).where(notUrgent);
+      } else if (criteria.quadrant === "delegate") {
+        query = query.where(unimportant).where(urgent);
+      } else {
+        query = query.where(unimportant).where(notUrgent);
+      }
+    }
+
+    return query.execute();
   }
 
   async getById(scopedDb: DataContextDb, taskId: string): Promise<Task | undefined> {
@@ -145,7 +218,7 @@ export class TasksRepository {
     const completedAt = status === "done" ? now : null;
 
     // Recurrence: assign a series id and ensure occurrence_date is present in the jsonb.
-    let recurrenceValue: Record<string, unknown> | null = null;
+    let recurrenceValue: RecurrenceSpec | null = null;
     let recurrenceSeriesId: string | null = null;
     if (input.recurrence != null) {
       recurrenceSeriesId = randomUUID();
@@ -181,7 +254,7 @@ export class TasksRepository {
         source,
         source_ref: input.sourceRef ?? null,
         external_key: input.externalKey ?? null,
-        recurrence: recurrenceValue,
+        recurrence: recurrenceValue ? { ...recurrenceValue } : null,
         recurrence_series_id: recurrenceSeriesId,
         completed_at: completedAt,
         created_at: now,

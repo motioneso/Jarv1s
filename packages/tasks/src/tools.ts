@@ -5,7 +5,6 @@ import { TaskDriftRepository } from "./drift.js";
 import { TaskListsRepository } from "./lists.js";
 import { TasksRepository } from "./repository.js";
 import {
-  filterByQuadrant,
   serializeTask,
   serializeTaskActivity,
   serializeTaskList,
@@ -19,8 +18,6 @@ const lists = new TaskListsRepository();
 export const taskListExecute: ToolExecute = async (scopedDb, input, _ctx): Promise<ToolResult> => {
   assertDataContextDb(scopedDb);
 
-  let tasks = await repository.listVisible(scopedDb);
-
   const { listId, tagId, status, priority, dueBefore, dueAfter, quadrant } = input as {
     listId?: string;
     tagId?: string;
@@ -31,34 +28,21 @@ export const taskListExecute: ToolExecute = async (scopedDb, input, _ctx): Promi
     quadrant?: string;
   };
 
-  if (listId) tasks = tasks.filter((t) => t.list_id === listId);
-  if (status) tasks = tasks.filter((t) => t.status === status);
-  if (priority !== undefined) tasks = tasks.filter((t) => t.priority === priority);
-  if (dueBefore) {
-    const before = new Date(dueBefore);
-    tasks = tasks.filter((t) => t.due_at !== null && new Date(t.due_at as Date | string) < before);
-  }
-  if (dueAfter) {
-    const after = new Date(dueAfter);
-    tasks = tasks.filter((t) => t.due_at !== null && new Date(t.due_at as Date | string) > after);
-  }
-  if (
-    quadrant === "do" ||
-    quadrant === "schedule" ||
-    quadrant === "delegate" ||
-    quadrant === "eliminate"
-  ) {
-    tasks = filterByQuadrant(tasks, quadrant);
-  }
-  if (tagId) {
-    const tagged = await scopedDb.db
-      .selectFrom("app.task_tag_assignments")
-      .select("task_id")
-      .where("tag_id", "=", tagId)
-      .execute();
-    const taggedSet = new Set(tagged.map((r) => r.task_id));
-    tasks = tasks.filter((t) => taggedSet.has(t.id));
-  }
+  const tasks = await repository.listFiltered(scopedDb, {
+    listId,
+    tagId,
+    status: status === "todo" || status === "done" || status === "archived" ? status : undefined,
+    priority,
+    dueBefore: dueBefore ? new Date(dueBefore) : undefined,
+    dueAfter: dueAfter ? new Date(dueAfter) : undefined,
+    quadrant:
+      quadrant === "do" ||
+      quadrant === "schedule" ||
+      quadrant === "delegate" ||
+      quadrant === "eliminate"
+        ? quadrant
+        : undefined
+  });
 
   const tagMap = await repository.getTagsForTasks(
     scopedDb,
@@ -183,4 +167,25 @@ export const taskActivityExecute: ToolExecute = async (
   const { taskId } = input as { taskId: string };
   const activity = await repository.listActivity(scopedDb, taskId);
   return { data: { items: activity.map(serializeTaskActivity) } };
+};
+
+export const taskUpdateStatusExecute: ToolExecute = async (
+  scopedDb,
+  input,
+  _ctx
+): Promise<ToolResult> => {
+  assertDataContextDb(scopedDb);
+
+  const { taskId, status } = input as { taskId: string; status: unknown; idempotencyKey?: string };
+  if (status !== "todo" && status !== "done" && status !== "archived") {
+    return { data: { error: "Invalid status" } };
+  }
+
+  const task = await repository.updateStatus(scopedDb, taskId, status);
+  if (!task) {
+    return { data: { error: "Task not found" } };
+  }
+
+  const tags = await repository.getTagsForTask(scopedDb, task.id);
+  return { data: { task: serializeTask(task, tags) } };
 };
