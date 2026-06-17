@@ -31,7 +31,10 @@ import {
   renameTaskListRouteSchema,
   renameTaskTagRequestSchema,
   renameTaskTagRouteSchema,
+  taskDtoSchema,
+  taskListDtoSchema,
   taskStatusSchema,
+  taskTagDtoSchema,
   unassignTaskTagRouteSchema,
   updateTaskRequestSchema,
   updateTaskResponseSchema
@@ -53,6 +56,30 @@ export const TASKS_MODULE_ID = "tasks";
 export const TASKS_DEFERRED_STATUS_QUEUE = "tasks-deferred-status";
 export const TASKS_RECURRENCE_QUEUE = "tasks-recurrence-materialize";
 export const tasksModuleSqlMigrationDirectory = fileURLToPath(new URL("../sql", import.meta.url));
+
+const taskItemsToolOutputSchema = {
+  type: "object",
+  required: ["items"],
+  properties: {
+    items: { type: "array", items: taskDtoSchema }
+  }
+} as const;
+
+const taskListItemsToolOutputSchema = {
+  type: "object",
+  required: ["items"],
+  properties: {
+    items: { type: "array", items: taskListDtoSchema }
+  }
+} as const;
+
+const taskTagItemsToolOutputSchema = {
+  type: "object",
+  required: ["items"],
+  properties: {
+    items: { type: "array", items: taskTagDtoSchema }
+  }
+} as const;
 
 export const tasksModuleManifest = {
   id: TASKS_MODULE_ID,
@@ -322,7 +349,7 @@ export const tasksModuleManifest = {
           quadrant: { type: "string", enum: ["do", "schedule", "delegate", "eliminate"] }
         }
       },
-      outputSchema: listTasksResponseSchema,
+      outputSchema: taskItemsToolOutputSchema,
       execute: taskListExecute
     },
     {
@@ -347,7 +374,7 @@ export const tasksModuleManifest = {
       permissionId: "tasks.view",
       risk: "read",
       inputSchema: { type: "object", properties: {} },
-      outputSchema: focusTasksResponseSchema,
+      outputSchema: taskItemsToolOutputSchema,
       execute: taskFocusExecute
     },
     {
@@ -357,7 +384,7 @@ export const tasksModuleManifest = {
       permissionId: "tasks.view",
       risk: "read",
       inputSchema: { type: "object", properties: {} },
-      outputSchema: atRiskTasksResponseSchema,
+      outputSchema: taskItemsToolOutputSchema,
       execute: taskAtRiskExecute
     },
     {
@@ -367,7 +394,7 @@ export const tasksModuleManifest = {
       permissionId: "tasks.view",
       risk: "read",
       inputSchema: { type: "object", properties: {} },
-      outputSchema: overdueTasksResponseSchema,
+      outputSchema: taskItemsToolOutputSchema,
       execute: taskOverdueExecute
     },
     {
@@ -376,7 +403,7 @@ export const tasksModuleManifest = {
       permissionId: "tasks.view",
       risk: "read",
       inputSchema: { type: "object", properties: {} },
-      outputSchema: listTaskListsResponseSchema,
+      outputSchema: taskListItemsToolOutputSchema,
       execute: taskListListsExecute
     },
     {
@@ -391,7 +418,7 @@ export const tasksModuleManifest = {
           listId: { type: "string" }
         }
       },
-      outputSchema: listTaskTagsResponseSchema,
+      outputSchema: taskTagItemsToolOutputSchema,
       execute: taskListTagsExecute
     },
     {

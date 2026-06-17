@@ -10,6 +10,7 @@ import {
   validateToolInput
 } from "@jarv1s/ai";
 import type { ModuleAssistantToolManifest, ToolContext, ToolResult } from "@jarv1s/module-sdk";
+import { tasksModuleManifest } from "@jarv1s/tasks";
 
 describe("module-sdk tool contract", () => {
   it("lets a module declare a tool with an execute handler", async () => {
@@ -185,6 +186,59 @@ describe("gateway tool output sanitization", () => {
   const runner = {
     withDataContext: async (_access: unknown, work: (db: unknown) => Promise<unknown>) => work({})
   };
+
+  it("accepts real task list-family output schemas for items-shaped tool results", async () => {
+    const listFamilyTools = [
+      "tasks.list",
+      "tasks.focus",
+      "tasks.atRisk",
+      "tasks.overdue",
+      "tasks.listLists",
+      "tasks.listTags"
+    ];
+    const taskTools = tasksModuleManifest.assistantTools ?? [];
+    const tools = listFamilyTools.map((name) => {
+      const tool = taskTools.find((candidate) => candidate.name === name);
+      if (!tool) throw new Error(`missing ${name}`);
+      return {
+        ...tool,
+        execute: async () => ({ data: { items: [] }, columnOrder: ["id"] })
+      } satisfies ModuleAssistantToolManifest;
+    });
+    const tokens = new SessionTokenRegistry();
+    const gateway = new AssistantToolGateway({
+      resolveActiveModules: async () => [
+        {
+          id: "tasks",
+          name: "Tasks",
+          version: "1.0.0",
+          publisher: "Jarv1s",
+          lifecycle: "required",
+          compatibility: { jarv1s: "*" },
+          assistantTools: tools
+        }
+      ],
+      repository: {} as never,
+      runner: runner as never,
+      tokens,
+      confirmations: new ConfirmationRegistry(),
+      notifier: { emit: () => {} },
+      confirmTimeoutMs: 1000
+    });
+    const token = tokens.mint({ actorUserId: "u1", chatSessionId: "s1", allowedToolNames: null });
+
+    for (const toolName of listFamilyTools) {
+      const res = await gateway.callTool(
+        token,
+        toolName,
+        toolName === "tasks.listTags" ? { listId: "l1" } : {}
+      );
+
+      expect(res.ok).toBe(true);
+      if (!res.ok) throw new Error(`expected ${toolName} ok`);
+      expect((res.data as { text: string }).text).toContain("items");
+    }
+  });
 
   it("drops undeclared output fields before rendering a tool result", async () => {
     const tokens = new SessionTokenRegistry();
