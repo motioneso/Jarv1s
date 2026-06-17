@@ -802,6 +802,38 @@ describe("Memory controls REST API", () => {
     }
   });
 
+  it("non-owner cannot delete or patch another user's fact", async () => {
+    const fact = await dataContext.withDataContext(ctx(ids.userA), (scopedDb) =>
+      factsRepo.insertFact(scopedDb, ids.userA, {
+        category: "preference",
+        content: "Non-owner mutation route test",
+        importance: 0.4
+      })
+    );
+
+    const delRes = await server.inject({
+      method: "DELETE",
+      url: `/api/chat/memory/facts/${fact.id}`,
+      headers: { authorization: `Bearer ${ids.sessionB}` }
+    });
+    expect(delRes.statusCode).toBe(404);
+    expect(delRes.json<{ error: string }>().error).toBe("Memory fact not found");
+
+    const patchRes = await server.inject({
+      method: "PATCH",
+      url: `/api/chat/memory/facts/${fact.id}`,
+      headers: { authorization: `Bearer ${ids.sessionB}` },
+      payload: { importance: 0.9 }
+    });
+    expect(patchRes.statusCode).toBe(404);
+    expect(patchRes.json<{ error: string }>().error).toBe("Memory fact not found");
+
+    const facts = await dataContext.withDataContext(ctx(ids.userA), (scopedDb) =>
+      factsRepo.listActiveFacts(scopedDb, ids.userA)
+    );
+    expect(facts.find((f) => f.id === fact.id)?.importance).toBeCloseTo(0.4, 2);
+  });
+
   it("PATCH /api/chat/memory/facts/:id with invalid importance returns 400", async () => {
     const res = await server.inject({
       method: "PATCH",
