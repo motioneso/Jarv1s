@@ -69,7 +69,7 @@ export class RecallService implements RecallPort {
     actorUserId: string,
     accessCtx: { actorUserId: string; requestId: string }
   ): Promise<EpisodicChunk[]> {
-    const query = `${actorUserId} past conversations`;
+    const query = "past conversations";
     const queryEmbedding = await this.embeddingProvider.embedQuery(query);
 
     const candidates: RetrievedChunk[] = await this.dataContext.withDataContext(accessCtx, (db) =>
