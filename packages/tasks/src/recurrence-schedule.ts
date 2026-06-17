@@ -35,7 +35,7 @@ export async function reconcileRecurrenceSchedule(
     // (Hard Invariant: metadata-only job payloads). `actorUserId` is in ALLOWED_PAYLOAD_KEYS
     // today; this catches a future payload drift at the source. A throw here is caught by the
     // surrounding failure-isolation catch and logged, never surfaced to the HTTP caller.
-    assertMetadataOnlyPayload(data as unknown as Record<string, unknown>);
+    assertMetadataOnlyPayload(data);
     await boss.schedule(TASKS_RECURRENCE_QUEUE, recurrenceCronExpr(), data, {
       tz: RECURRENCE_SCHEDULE_TZ,
       key: actorUserId
