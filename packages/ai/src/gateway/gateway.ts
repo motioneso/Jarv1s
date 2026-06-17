@@ -53,6 +53,7 @@ const JSON_SCALAR_TYPE_OF: Record<string, (value: unknown) => boolean> = {
   boolean: (value) => typeof value === "boolean",
   null: (value) => value === null
 };
+const JSON_NON_NULL_SCALAR_TYPES = new Set(["string", "number", "integer", "boolean"]);
 
 /**
  * The single chokepoint between Jarvis and every module's real operations. Lists
@@ -315,10 +316,11 @@ function sanitizeToolOutputValue(schema: JsonSchema, value: unknown): unknown {
     }
     return value.map((item) => sanitizeToolOutputValue(itemSchema, item));
   }
-  if (typeof schema.type === "string") {
-    const check = JSON_SCALAR_TYPE_OF[schema.type];
-    if (check && !check(value)) {
-      throw new Error(`Tool result output field must be a ${schema.type}`);
+  const scalarTypes = getScalarTypes(schema);
+  if (scalarTypes.length > 0) {
+    const matches = scalarTypes.some((type) => JSON_SCALAR_TYPE_OF[type]?.(value));
+    if (!matches) {
+      throw new Error(`Tool result output field must be a ${scalarTypes.join(" or ")}`);
     }
   }
   return value;
@@ -356,6 +358,40 @@ function getRequiredKeys(schema: JsonSchema): string[] {
   return Array.isArray(schema.required)
     ? schema.required.filter((key): key is string => typeof key === "string")
     : [];
+}
+
+function getScalarTypes(schema: JsonSchema): string[] {
+  if (typeof schema.type === "string" && isJsonScalarType(schema.type)) {
+    return [schema.type];
+  }
+
+  if (!Array.isArray(schema.anyOf)) {
+    return [];
+  }
+
+  const types = schema.anyOf
+    .filter(isJsonSchema)
+    .map((candidate) => candidate.type)
+    .filter((type): type is string => typeof type === "string");
+  const nonNullScalarTypes = types.filter((type) => JSON_NON_NULL_SCALAR_TYPES.has(type));
+
+  if (
+    types.length === schema.anyOf.length &&
+    types.length === 2 &&
+    types.includes("null") &&
+    nonNullScalarTypes.length === 1
+  ) {
+    const [nonNullScalarType] = nonNullScalarTypes;
+    if (nonNullScalarType) {
+      return [nonNullScalarType, "null"];
+    }
+  }
+
+  return [];
+}
+
+function isJsonScalarType(type: string): type is keyof typeof JSON_SCALAR_TYPE_OF {
+  return Object.prototype.hasOwnProperty.call(JSON_SCALAR_TYPE_OF, type);
 }
 
 function capRenderedToolResult(text: string): string {

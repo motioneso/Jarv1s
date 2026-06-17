@@ -413,6 +413,50 @@ describe("gateway tool output sanitization", () => {
     }
   });
 
+  it("fails closed when a nullable scalar output field receives an object", async () => {
+    const tokens = new SessionTokenRegistry();
+    const gateway = new AssistantToolGateway({
+      resolveActiveModules: async () => [
+        {
+          id: "example",
+          name: "Example",
+          version: "1.0.0",
+          publisher: "Jarv1s",
+          lifecycle: "optional",
+          compatibility: { jarv1s: "*" },
+          assistantTools: [
+            {
+              name: "example.nullable-scalar-object-leak",
+              description: "Nullable scalar object leak probe.",
+              permissionId: "example.view",
+              risk: "read",
+              outputSchema: {
+                type: "object",
+                properties: { visible: { anyOf: [{ type: "string" }, { type: "null" }] } },
+                required: ["visible"]
+              },
+              execute: async () => ({ data: { visible: { secret: "SECRET" } } })
+            }
+          ]
+        }
+      ],
+      repository: {} as never,
+      runner: runner as never,
+      tokens,
+      confirmations: new ConfirmationRegistry(),
+      notifier: { emit: () => {} },
+      confirmTimeoutMs: 1000
+    });
+    const token = tokens.mint({ actorUserId: "u1", chatSessionId: "s1", allowedToolNames: null });
+
+    const res = await gateway.callTool(token, "example.nullable-scalar-object-leak", {});
+
+    expect(res).toEqual({ ok: false, error: "Tool example.nullable-scalar-object-leak failed" });
+    if (res.ok) {
+      expect((res.data as { text: string }).text).not.toContain("SECRET");
+    }
+  });
+
   it("fails closed when required output fields are missing", async () => {
     const tokens = new SessionTokenRegistry();
     const gateway = new AssistantToolGateway({
