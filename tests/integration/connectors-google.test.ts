@@ -238,7 +238,7 @@ describe("GoogleConnectionService", () => {
   beforeAll(async () => {
     process.env.JARVIS_CONNECTOR_SECRET_KEY = "test-connector-secret-key";
     await resetFoundationDatabase();
-    appDb = createDatabase({ connectionString: connectionStrings.app, maxConnections: 1 });
+    appDb = createDatabase({ connectionString: connectionStrings.app, maxConnections: 4 });
     dataContext = new DataContextRunner(appDb);
   });
   afterAll(async () => {
@@ -312,6 +312,83 @@ describe("GoogleConnectionService", () => {
           redirectUrl: "http://localhost:1/?code=4/abc&state=WRONG"
         })
       )
+    ).rejects.toThrow(GoogleConnectError);
+  });
+
+  it("completeAuthorization rejects malformed pending credentials with GoogleConnectError", async () => {
+    const oauthClient = new GoogleOAuthClient({
+      fetchFn: (async () =>
+        ({
+          ok: true,
+          status: 200,
+          json: async () => ({
+            access_token: "at",
+            refresh_token: "rt",
+            expires_in: 3600,
+            scope: "https://www.googleapis.com/auth/calendar",
+            token_type: "Bearer"
+          }),
+          text: async () => ""
+        }) as Response) as unknown as typeof fetch
+    });
+    const service = new GoogleConnectionService({
+      repository: new ConnectorsRepository(),
+      cipher: createConnectorSecretCipher(),
+      oauthClient,
+      generateState: () => "bad-pending"
+    });
+    await dataContext.withDataContext(userA(), (db) =>
+      new ConnectorsRepository().upsertGooglePending(db, {
+        state: "bad-pending",
+        encryptedSecret: createConnectorSecretCipher().encryptJson({ clientId: "cid" })
+      })
+    );
+
+    await expect(
+      dataContext.withDataContext(userA(), (db) =>
+        service.completeAuthorization(db, {
+          redirectUrl: "http://localhost:1/?code=4/abc&state=bad-pending"
+        })
+      )
+    ).rejects.toThrow(GoogleConnectError);
+  });
+
+  it("getFreshAccessToken rejects malformed stored google credentials with GoogleConnectError", async () => {
+    const oauthClient = new GoogleOAuthClient({
+      fetchFn: (async () =>
+        ({
+          ok: true,
+          status: 200,
+          json: async () => ({
+            access_token: "refreshed-at",
+            expires_in: 3600,
+            scope: "https://www.googleapis.com/auth/calendar",
+            token_type: "Bearer"
+          }),
+          text: async () => ""
+        }) as Response) as unknown as typeof fetch
+    });
+    const service = new GoogleConnectionService({
+      repository: new ConnectorsRepository(),
+      cipher: createConnectorSecretCipher(),
+      oauthClient
+    });
+    await dataContext.withDataContext(userA(), (db) =>
+      new ConnectorsRepository().upsertGoogleAccount(db, {
+        scopes: ["https://www.googleapis.com/auth/calendar"],
+        encryptedSecret: createConnectorSecretCipher().encryptJson({
+          kind: "google-oauth",
+          clientId: "cid",
+          clientSecret: "sec",
+          accessToken: "at",
+          tokenExpiry: new Date(Date.now() - 60_000).toISOString(),
+          grantedScopes: ["https://www.googleapis.com/auth/calendar"]
+        })
+      })
+    );
+
+    await expect(
+      dataContext.withDataContext(userA(), (db) => service.getFreshAccessToken(db))
     ).rejects.toThrow(GoogleConnectError);
   });
 
@@ -392,6 +469,57 @@ describe("GoogleConnectionService", () => {
     );
     expect(refreshCalls).toBe(1);
     expect(forced).toBe("refreshed-at");
+  });
+
+  it("deduplicates concurrent refreshes for the same google account", async () => {
+    let refreshCalls = 0;
+    const oauthClient = new GoogleOAuthClient({
+      fetchFn: (async (_url: string, init?: RequestInit) => {
+        const body = String(init?.body ?? "");
+        const isRefresh = body.includes("grant_type=refresh_token");
+        if (isRefresh) {
+          refreshCalls += 1;
+          await new Promise((resolve) => setTimeout(resolve, 250));
+        }
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({
+            access_token: isRefresh ? "single-flight-at" : "initial-at",
+            refresh_token: "rt",
+            expires_in: 3600,
+            scope: "https://www.googleapis.com/auth/calendar",
+            token_type: "Bearer"
+          }),
+          text: async () => ""
+        } as Response;
+      }) as unknown as typeof fetch
+    });
+    const service = new GoogleConnectionService({
+      repository: new ConnectorsRepository(),
+      cipher: createConnectorSecretCipher(),
+      oauthClient,
+      generateState: () => "single-flight-state",
+      now: () => new Date("2026-06-16T00:00:00.000Z")
+    });
+    await dataContext.withDataContext(userA(), (db) =>
+      service.startAuthorization(db, { clientId: "cid", clientSecret: "sec" })
+    );
+    await dataContext.withDataContext(userA(), (db) =>
+      service.completeAuthorization(db, {
+        redirectUrl: "http://localhost:1/?code=4/abc&state=single-flight-state"
+      })
+    );
+
+    const results = await Promise.all([
+      dataContext.withDataContext(userA(), (db) =>
+        service.getFreshAccessToken(db, { force: true })
+      ),
+      dataContext.withDataContext(userA(), (db) => service.getFreshAccessToken(db, { force: true }))
+    ]);
+
+    expect(results).toEqual(["single-flight-at", "single-flight-at"]);
+    expect(refreshCalls).toBe(1);
   });
 });
 
