@@ -195,7 +195,46 @@ describe("MVP foundation scaffold", () => {
         { version: "0091", name: "0091_chat_model_override.sql" },
         { version: "0092", name: "0092_inferred_patterns_suppression.sql" },
         { version: "0093", name: "0093_preferences_worker_runtime_grants.sql" },
-        { version: "0094", name: "0094_chat_memory_facts_rls_roles.sql" }
+        { version: "0094", name: "0094_chat_memory_facts_rls_roles.sql" },
+        { version: "0095", name: "0095_bootstrap_audit_security_definer.sql" }
+      ]);
+    } finally {
+      await client.end();
+    }
+  });
+
+  it("exposes only the narrow bootstrap audit SECURITY DEFINER helper to app runtime", async () => {
+    const client = new Client({ connectionString: connectionStrings.bootstrap });
+
+    await client.connect();
+    try {
+      const result = await client.query<{
+        proname: string;
+        prosecdef: boolean;
+        owner: string;
+        app_can_execute: boolean;
+      }>(`
+        SELECT p.proname,
+               p.prosecdef,
+               pg_get_userbyid(p.proowner) AS owner,
+               has_function_privilege(
+                 'jarvis_app_runtime',
+                 p.oid,
+                 'EXECUTE'
+               ) AS app_can_execute
+        FROM pg_proc p
+        JOIN pg_namespace n ON n.oid = p.pronamespace
+        WHERE n.nspname = 'app'
+          AND p.proname = 'record_bootstrap_owner_audit_event'
+      `);
+
+      expect(result.rows).toEqual([
+        {
+          proname: "record_bootstrap_owner_audit_event",
+          prosecdef: true,
+          owner: "jarvis_migration_owner",
+          app_can_execute: true
+        }
       ]);
     } finally {
       await client.end();
