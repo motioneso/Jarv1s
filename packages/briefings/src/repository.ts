@@ -282,7 +282,7 @@ export class BriefingsRepository {
     });
   }
 
-  private async getOwnedDefinitionById(
+  async getOwnedDefinitionById(
     scopedDb: DataContextDb,
     definitionId: string
   ): Promise<BriefingDefinition | undefined> {
