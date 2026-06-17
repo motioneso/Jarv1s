@@ -2,8 +2,11 @@ import { errorResponseSchema, jsonObjectSchema, nullableStringSchema } from "./s
 
 export interface EmailMessageDto {
   readonly id: string;
-  readonly connectorAccountId: string;
   readonly ownerUserId: string;
+  /**
+   * Email-derived strings are untrusted provider content. Render only as text nodes or escaped
+   * attributes; never pass these fields to raw HTML, Markdown, or linkification without a sanitizer.
+   */
   readonly sender: string;
   readonly recipients: readonly string[];
   readonly subject: string;
@@ -13,7 +16,6 @@ export interface EmailMessageDto {
   readonly signals: Record<string, unknown>;
   readonly receivedAt: string;
   readonly externalId: string;
-  readonly externalMetadata: Record<string, unknown>;
   readonly createdAt: string;
   readonly updatedAt: string;
 }
@@ -39,7 +41,6 @@ export const emailMessageDtoSchema = {
   additionalProperties: false,
   required: [
     "id",
-    "connectorAccountId",
     "ownerUserId",
     "sender",
     "recipients",
@@ -50,13 +51,11 @@ export const emailMessageDtoSchema = {
     "signals",
     "receivedAt",
     "externalId",
-    "externalMetadata",
     "createdAt",
     "updatedAt"
   ],
   properties: {
     id: { type: "string" },
-    connectorAccountId: { type: "string" },
     ownerUserId: { type: "string" },
     sender: { type: "string" },
     recipients: { type: "array", items: { type: "string" } },
@@ -67,7 +66,6 @@ export const emailMessageDtoSchema = {
     signals: jsonObjectSchema,
     receivedAt: { type: "string" },
     externalId: { type: "string" },
-    externalMetadata: jsonObjectSchema,
     createdAt: { type: "string" },
     updatedAt: { type: "string" }
   }

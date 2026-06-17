@@ -68,7 +68,6 @@ export function registerEmailRoutes(
 export function serializeEmailMessage(message: EmailMessage): EmailMessageDto {
   return {
     id: message.id,
-    connectorAccountId: message.connector_account_id,
     ownerUserId: message.owner_user_id,
     sender: message.sender,
     recipients: message.recipients,
@@ -79,7 +78,6 @@ export function serializeEmailMessage(message: EmailMessage): EmailMessageDto {
     signals: message.signals,
     receivedAt: toIsoString(message.received_at),
     externalId: message.external_id,
-    externalMetadata: message.external_metadata,
     createdAt: toIsoString(message.created_at),
     updatedAt: toIsoString(message.updated_at)
   };
