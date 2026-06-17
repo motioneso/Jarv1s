@@ -401,8 +401,7 @@ describe("MVP foundation scaffold", () => {
     expect(result.ownItemVisible).toBe(true);
     // itemBGrantedToA is visible via an app.shares 'view' row seeded in beforeAll
     expect(result.grantedItemVisible).toBe(true);
-    // itemBWorkspacePrivate has no share to userA — must remain invisible
-    expect(result.workspacePrivateItemVisible).toBe(false);
+    expect(result.secondPrivateItemVisible).toBe(false);
   });
 
   it("confirms workspace/grant tables are absent after DROP migration", async () => {
@@ -679,7 +678,7 @@ interface ProbeJobResult {
   readonly targetItemVisible: boolean;
   readonly ownItemVisible: boolean;
   readonly grantedItemVisible: boolean;
-  readonly workspacePrivateItemVisible: boolean;
+  readonly secondPrivateItemVisible: boolean;
 }
 
 async function handleNextProbeJob(
@@ -708,18 +707,18 @@ async function handleNextProbeJob(
           try {
             expect(job.data.targetItemId).toBe(expectedTargetItemId);
 
-            const [targetItem, ownItem, grantedItem, workspacePrivateItem] = await Promise.all([
+            const [targetItem, ownItem, grantedItem, secondPrivateItem] = await Promise.all([
               repository.getById(scopedDb, job.data.targetItemId),
               repository.getById(scopedDb, ids.itemAOwnPrivate),
               repository.getById(scopedDb, ids.itemBGrantedToA),
-              repository.getById(scopedDb, ids.itemBWorkspacePrivate)
+              repository.getById(scopedDb, ids.itemBSecondPrivate)
             ]);
 
             const result = {
               targetItemVisible: targetItem !== undefined,
               ownItemVisible: ownItem !== undefined,
               grantedItemVisible: grantedItem !== undefined,
-              workspacePrivateItemVisible: workspacePrivateItem !== undefined
+              secondPrivateItemVisible: secondPrivateItem !== undefined
             };
 
             clearTimeout(timeout);

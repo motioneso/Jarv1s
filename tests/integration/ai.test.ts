@@ -24,6 +24,10 @@ import { connectionStrings, ids, resetFoundationDatabase } from "./test-database
 
 const { Client } = pg;
 
+const actionRequestIds = {
+  forgedForUserA: "62000000-0000-4000-8000-000000000001"
+} as const;
+
 describe("AI provider foundation", () => {
   let appDb: Kysely<JarvisDatabase>;
   let dataContext: DataContextRunner;
@@ -199,6 +203,28 @@ describe("AI provider foundation", () => {
     expect(getBuiltInSqlMigrationDirectories()).toContainEqual(
       expect.stringContaining("packages/ai/sql")
     );
+  });
+
+  it("forbids inserting an assistant action request that claims another owner", async () => {
+    await expect(
+      dataContext.withDataContext(userBContext(), (scopedDb) =>
+        scopedDb.db
+          .insertInto("app.ai_assistant_action_requests")
+          .values({
+            id: actionRequestIds.forgedForUserA,
+            owner_user_id: ids.userA,
+            tool_module_id: "tasks",
+            tool_module_name: "Tasks",
+            tool_name: "tasks.updateStatus",
+            permission_id: "tasks.update",
+            risk: "write",
+            status: "pending",
+            input_summary: { taskId: "forged-cross-actor" },
+            request_id: "request:forged-action"
+          })
+          .execute()
+      )
+    ).rejects.toThrow(/row-level security/i);
   });
 
   it("requires an explicit AI secret key in production", () => {

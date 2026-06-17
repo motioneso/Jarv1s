@@ -22,8 +22,7 @@ export const ids = {
   itemAOwnPrivate: "10000000-0000-4000-8000-000000000001",
   itemBPrivate: "10000000-0000-4000-8000-000000000002",
   itemBGrantedToA: "10000000-0000-4000-8000-000000000003",
-  itemBWorkspaceShared: "10000000-0000-4000-8000-000000000004",
-  itemBWorkspacePrivate: "10000000-0000-4000-8000-000000000005"
+  itemBSecondPrivate: "10000000-0000-4000-8000-000000000004"
 } as const;
 
 export async function resetFoundationDatabase(): Promise<void> {
@@ -123,8 +122,7 @@ async function seedProbeData(): Promise<void> {
           ($1, $2, 'user A private item'),
           ($3, $4, 'user B private item'),
           ($5, $4, 'user B item granted to user A'),
-          ($6, $4, 'user B workspace-shared item'),
-          ($7, $4, 'user B private item inside workspace')
+          ($6, $4, 'user B second private item')
       `,
       [
         ids.itemAOwnPrivate,
@@ -132,8 +130,7 @@ async function seedProbeData(): Promise<void> {
         ids.itemBPrivate,
         ids.userB,
         ids.itemBGrantedToA,
-        ids.itemBWorkspaceShared,
-        ids.itemBWorkspacePrivate
+        ids.itemBSecondPrivate
       ]
     );
 
