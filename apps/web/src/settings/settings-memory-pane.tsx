@@ -96,7 +96,7 @@ export function MemoryPane(_props: PaneProps) {
     <>
       <PaneHead
         title="Memory & context"
-        desc="Everything Jarvis remembers, believes and infers - in the open, and yours to correct."
+        desc="Everything Jarvis remembers, believes, and infers: in the open, and yours to correct."
       />
 
       <Group title="What Jarvis can use">
@@ -124,7 +124,7 @@ export function MemoryPane(_props: PaneProps) {
         />
         <Row
           name="Show provenance"
-          desc="Always show where a belief came from - what you said, or what was inferred."
+          desc="Always show where a belief came from: what you said, or what was inferred."
         />
       </Group>
 
@@ -139,7 +139,7 @@ export function MemoryPane(_props: PaneProps) {
         />
         <Row
           name="Inferred patterns"
-          desc="Guesses from your behaviour, awaiting your yes or no."
+          desc="Guesses from your behaviour, awaiting your confirmation."
           control={
             <button
               type="button"

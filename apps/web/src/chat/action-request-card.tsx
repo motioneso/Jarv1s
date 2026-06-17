@@ -50,7 +50,7 @@ export function ActionRequestCard(props: ActionRequestCardProps) {
             onClick={() => void resolve("rejected")}
           >
             <XCircle size={16} aria-hidden="true" />
-            Deny
+            Reject
           </button>
           {error ? <p className="form-error">{error}</p> : null}
         </div>

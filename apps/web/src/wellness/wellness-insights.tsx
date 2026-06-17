@@ -177,7 +177,7 @@ export function WellnessInsights({ onReviewNotes }: Props) {
         ) : insightsQuery.isError ? (
           <div className="wl-insight">
             <span style={{ fontSize: 13, color: "var(--text-subtle)" }}>
-              Couldn&apos;t load insights — try refreshing.
+              Couldn&apos;t load insights. Try refreshing.
             </span>
           </div>
         ) : insights.length === 0 ? (
