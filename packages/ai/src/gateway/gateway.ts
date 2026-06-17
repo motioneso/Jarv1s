@@ -305,6 +305,14 @@ export function sanitizeAssistantToolResult(
   };
 }
 
+export function boundedAssistantToolResultData(result: ToolResult): Record<string, unknown> {
+  const rendered = renderToolResult(result);
+  if (rendered.length <= MAX_RENDERED_TOOL_RESULT_CHARS) {
+    return result.data;
+  }
+  return { text: capRenderedToolResult(rendered) };
+}
+
 function sanitizeToolOutputValue(schema: JsonSchema, value: unknown): unknown {
   if (schema.type === "object" && isPlainObject(schema.properties)) {
     if (!isPlainObject(value)) {

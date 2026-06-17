@@ -62,7 +62,7 @@ import {
   findAssistantToolFromManifests,
   listAssistantToolsFromManifests
 } from "./assistant-tools.js";
-import { sanitizeAssistantToolResult } from "./gateway/gateway.js";
+import { boundedAssistantToolResultData, sanitizeAssistantToolResult } from "./gateway/gateway.js";
 import { ToolInputValidationError, validateToolInput } from "./gateway/input-validation.js";
 import { cliAvailable, type ProviderKind as CliProviderKind } from "./cli-availability.js";
 import { createAiSecretCipher, type AiSecretCipher } from "./crypto.js";
@@ -562,7 +562,8 @@ export function registerAiRoutes(
             chatSessionId: ""
           }).then((rawResult): Record<string, unknown> => {
             const toolResult: ToolResult = { ...rawResult, data: rawResult.data ?? {} };
-            return sanitizeAssistantToolResult(manifestTool.outputSchema, toolResult).data;
+            const sanitized = sanitizeAssistantToolResult(manifestTool.outputSchema, toolResult);
+            return boundedAssistantToolResultData(sanitized);
           })
         );
 

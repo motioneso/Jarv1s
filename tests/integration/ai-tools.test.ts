@@ -603,6 +603,61 @@ describe("AI read-only assistant tool execution foundation", () => {
     }
   });
 
+  it("caps oversized REST assistant tool output after sanitizing it", async () => {
+    const module: JarvisModuleManifest = {
+      id: "security-cap-probe",
+      name: "Security Cap Probe",
+      version: "1.0.0",
+      publisher: "Jarv1s",
+      lifecycle: "optional",
+      compatibility: { jarv1s: "*" },
+      assistantTools: [
+        {
+          name: "security.largeOutput",
+          description: "Large output probe.",
+          permissionId: "security.view",
+          risk: "read",
+          outputSchema: {
+            type: "object",
+            properties: { visible: { type: "string" } },
+            required: ["visible"]
+          },
+          execute: async () => ({
+            data: { visible: `${"x".repeat(20_000)}REST_OVERSIZED_TAIL` }
+          })
+        }
+      ]
+    };
+    const app = Fastify({ logger: false });
+    app.after(() =>
+      registerAiRoutes(app, {
+        resolveAccessContext: async () => userAContext(),
+        dataContext,
+        resolveActiveModules: async () => [module]
+      })
+    );
+    await app.ready();
+
+    try {
+      const response = await app.inject({
+        method: "POST",
+        url: "/api/ai/assistant-tools/security.largeOutput/invoke",
+        headers: { "content-type": "application/json" },
+        payload: { input: {} }
+      });
+
+      expect(response.statusCode).toBe(200);
+      expect(response.body.length).toBeLessThan(18_000);
+      expect(response.body).toContain("[truncated tool result]");
+      expect(response.body).not.toContain("REST_OVERSIZED_TAIL");
+
+      const result = response.json<InvocationResponse>().invocation.result;
+      expect(JSON.stringify(result).length).toBeLessThanOrEqual(16_500);
+    } finally {
+      await app.close();
+    }
+  });
+
   async function invokeTool(
     toolName: string,
     headers: Record<string, string> = userAHeaders()
