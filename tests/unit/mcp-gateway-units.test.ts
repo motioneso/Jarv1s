@@ -237,6 +237,84 @@ describe("gateway tool output sanitization", () => {
     expect(text).not.toContain("nested");
   });
 
+  it("drops undeclared nested fields under declared output fields", async () => {
+    const tokens = new SessionTokenRegistry();
+    const gateway = new AssistantToolGateway({
+      resolveActiveModules: async () => [
+        {
+          id: "example",
+          name: "Example",
+          version: "1.0.0",
+          publisher: "Jarv1s",
+          lifecycle: "optional",
+          compatibility: { jarv1s: "*" },
+          assistantTools: [
+            {
+              name: "example.nested-safe",
+              description: "Nested safe output.",
+              permissionId: "example.view",
+              risk: "read",
+              outputSchema: {
+                type: "object",
+                properties: {
+                  messages: {
+                    type: "array",
+                    items: {
+                      type: "object",
+                      properties: {
+                        id: { type: "string" },
+                        text: { type: "string" },
+                        author: {
+                          type: "object",
+                          properties: { displayName: { type: "string" } },
+                          required: ["displayName"]
+                        }
+                      },
+                      required: ["id", "text", "author"]
+                    }
+                  }
+                },
+                required: ["messages"]
+              },
+              execute: async () => ({
+                data: {
+                  messages: [
+                    {
+                      id: "m1",
+                      text: "hello",
+                      author: { displayName: "Ada", email: "ada@example.test", token: "TOKEN" },
+                      privateNote: "SECRET"
+                    }
+                  ]
+                }
+              })
+            }
+          ]
+        }
+      ],
+      repository: {} as never,
+      runner: runner as never,
+      tokens,
+      confirmations: new ConfirmationRegistry(),
+      notifier: { emit: () => {} },
+      confirmTimeoutMs: 1000
+    });
+    const token = tokens.mint({ actorUserId: "u1", chatSessionId: "s1", allowedToolNames: null });
+
+    const res = await gateway.callTool(token, "example.nested-safe", {});
+
+    expect(res.ok).toBe(true);
+    if (!res.ok) throw new Error("expected ok");
+    const text = (res.data as { text: string }).text;
+    expect(text).toContain("messages");
+    expect(text).toContain("hello");
+    expect(text).toContain("Ada");
+    expect(text).not.toContain("SECRET");
+    expect(text).not.toContain("TOKEN");
+    expect(text).not.toContain("privateNote");
+    expect(text).not.toContain("email");
+  });
+
   it("fails closed when required output fields are missing", async () => {
     const tokens = new SessionTokenRegistry();
     const gateway = new AssistantToolGateway({

@@ -275,28 +275,68 @@ function sanitizeToolResult(schema: JsonSchema | undefined, result: ToolResult):
   if (!isPlainObject(result.data)) {
     throw new Error("Tool result data must be an object");
   }
-  if (!schema || schema.type !== "object" || !isPlainObject(schema.properties)) {
+  if (!schema) {
     return result;
   }
 
-  const allowedKeys = new Set(Object.keys(schema.properties));
+  const data = sanitizeToolOutputValue(schema, result.data);
+  if (!isPlainObject(data)) {
+    throw new Error("Tool result data must be an object");
+  }
+  const allowedKeys = getDeclaredObjectKeys(schema);
+
+  return {
+    data,
+    columnOrder:
+      allowedKeys === null
+        ? result.columnOrder
+        : result.columnOrder?.filter((key) => allowedKeys.has(key))
+  };
+}
+
+function sanitizeToolOutputValue(schema: JsonSchema, value: unknown): unknown {
+  if (schema.type === "object" && isPlainObject(schema.properties)) {
+    if (!isPlainObject(value)) {
+      throw new Error("Tool result output field must be an object");
+    }
+    return sanitizeToolOutputObject(schema, value);
+  }
+  const itemSchema = schema.items;
+  if (schema.type === "array" && isJsonSchema(itemSchema)) {
+    if (!Array.isArray(value)) {
+      throw new Error("Tool result output field must be an array");
+    }
+    return value.map((item) => sanitizeToolOutputValue(itemSchema, item));
+  }
+  return value;
+}
+
+function sanitizeToolOutputObject(
+  schema: JsonSchema,
+  value: Record<string, unknown>
+): Record<string, unknown> {
   for (const key of getRequiredKeys(schema)) {
-    if (!(key in result.data)) {
+    if (!(key in value)) {
       throw new Error(`Tool result missing required output field "${key}"`);
     }
   }
 
   const data: Record<string, unknown> = {};
-  for (const [key, value] of Object.entries(result.data)) {
-    if (allowedKeys.has(key)) {
-      data[key] = value;
+  const properties = schema.properties as Record<string, unknown>;
+  for (const [key, propertySchema] of Object.entries(properties)) {
+    if (key in value) {
+      data[key] = isJsonSchema(propertySchema)
+        ? sanitizeToolOutputValue(propertySchema, value[key])
+        : value[key];
     }
   }
+  return data;
+}
 
-  return {
-    data,
-    columnOrder: result.columnOrder?.filter((key) => allowedKeys.has(key))
-  };
+function getDeclaredObjectKeys(schema: JsonSchema): Set<string> | null {
+  return schema.type === "object" && isPlainObject(schema.properties)
+    ? new Set(Object.keys(schema.properties))
+    : null;
 }
 
 function getRequiredKeys(schema: JsonSchema): string[] {
@@ -315,4 +355,8 @@ function capRenderedToolResult(text: string): string {
 
 function isPlainObject(value: unknown): value is Record<string, unknown> {
   return Boolean(value) && typeof value === "object" && !Array.isArray(value);
+}
+
+function isJsonSchema(value: unknown): value is JsonSchema {
+  return isPlainObject(value);
 }
