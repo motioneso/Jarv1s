@@ -297,7 +297,7 @@ function parseCreateAccountBody(body: unknown): CreateConnectorAccountRequest {
     providerId: requiredString(value.providerId, "providerId"),
     scopes: optionalStringArray(value.scopes, "scopes"),
     status: optionalWritableAccountStatus(value.status),
-    tokenPayload: requiredJsonObject(value.tokenPayload, "tokenPayload")
+    tokenPayload: requireObject(value.tokenPayload, "tokenPayload")
   };
 }
 
@@ -310,7 +310,7 @@ function parseUpdateAccountBody(body: unknown): UpdateConnectorAccountRequest {
     tokenPayload:
       value.tokenPayload === undefined
         ? undefined
-        : requiredJsonObject(value.tokenPayload, "tokenPayload")
+        : requireObject(value.tokenPayload, "tokenPayload")
   };
 }
 
@@ -336,8 +336,8 @@ function serializeProvider(provider: ConnectorProvider): ConnectorProviderDto {
     displayName: provider.display_name,
     status: provider.status,
     defaultScopes: provider.default_scopes,
-    createdAt: serializeDate(provider.created_at),
-    updatedAt: serializeDate(provider.updated_at)
+    createdAt: serializeRequiredDate(provider.created_at),
+    updatedAt: serializeRequiredDate(provider.updated_at)
   };
 }
 
@@ -352,23 +352,18 @@ function serializeAccount(account: ConnectorAccountSafeRow): ConnectorAccountDto
     scopes: account.scopes,
     status: account.status,
     hasSecret: account.has_secret,
-    revokedAt: toIsoString(account.revoked_at),
-    createdAt: serializeDate(account.created_at),
-    updatedAt: serializeDate(account.updated_at)
+    revokedAt: serializeNullableDate(account.revoked_at),
+    createdAt: serializeRequiredDate(account.created_at),
+    updatedAt: serializeRequiredDate(account.updated_at)
   };
 }
 
-function requireObject(value: unknown): Record<string, unknown> {
+function requireObject(value: unknown, label = "body"): Record<string, unknown> {
   if (!value || typeof value !== "object" || Array.isArray(value)) {
-    throw new HttpError(400, "Expected JSON object body");
-  }
-
-  return value as Record<string, unknown>;
-}
-
-function requiredJsonObject(value: unknown, fieldName: string): Record<string, unknown> {
-  if (!value || typeof value !== "object" || Array.isArray(value)) {
-    throw new HttpError(400, `${fieldName} must be a JSON object`);
+    throw new HttpError(
+      400,
+      label === "body" ? "Expected JSON object body" : `${label} must be a JSON object`
+    );
   }
 
   return value as Record<string, unknown>;
@@ -426,16 +421,16 @@ function optionalWritableAccountStatus(
   throw new HttpError(400, "status must be active or error");
 }
 
-function serializeDate(value: Date | string): string {
-  return value instanceof Date ? value.toISOString() : value;
-}
-
-function toIsoString(value: Date | string | null): string | null {
+function serializeNullableDate(value: Date | string | null): string | null {
   if (!value) {
     return null;
   }
 
   return value instanceof Date ? value.toISOString() : value;
+}
+
+function serializeRequiredDate(value: Date | string): string {
+  return serializeNullableDate(value) ?? "";
 }
 
 function handleRouteError(error: unknown, reply: FastifyReply) {
