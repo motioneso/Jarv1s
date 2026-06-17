@@ -32,7 +32,7 @@ interface PersonaState {
 }
 
 const DEFAULT_DESCRIPTION =
-  "Be direct and a little dry — skip the pep talks. Hold me to commitments I've actually made, but ease off when I've had a rough day. Lead with what matters and keep it short.";
+  "Be direct and a little dry: skip the pep talks. Hold me to commitments I've actually made, but ease off when I've had a rough day. Lead with what matters and keep it short.";
 const DEFAULT_PERSONA_DIALS = {
   tone: "Warm",
   directness: "Balanced",
@@ -97,7 +97,7 @@ function Persona({ who }: { readonly who: string }) {
       setP(next);
       setSaved(next);
       void queryClient.invalidateQueries({ queryKey: queryKeys.settings.persona });
-      toast("Persona saved — your next briefing and replies use this voice", {
+      toast("Persona saved. Your next briefing and replies will use this voice.", {
         icon: <Sparkles size={17} />
       });
     },
@@ -129,7 +129,7 @@ function Persona({ who }: { readonly who: string }) {
   return (
     <Group
       title="Persona"
-      desc="How Jarvis sounds and carries itself. This is fed into every briefing and reply — the preview shows the effect."
+      desc="How Jarvis sounds and carries itself. This is fed into every briefing and reply; the preview shows the effect."
     >
       <Field
         label="Assistant name"
@@ -179,7 +179,7 @@ function Persona({ who }: { readonly who: string }) {
       <Choice
         key={`rec${rev}`}
         label="Recovery & accountability"
-        hint="How Jarvis responds when you fall behind. Never shaming — that's a promise of the product."
+        hint="How Jarvis responds when you fall behind. Never shaming: that's a promise of the product."
         value={p.recovery}
         options={["Encouraging", "Matter-of-fact", "Firm"]}
         onChange={(v) => set("recovery", v as RecoveryDial)}
@@ -213,7 +213,7 @@ function Persona({ who }: { readonly who: string }) {
           ) : (
             <Check size={14} aria-hidden="true" />
           )}
-          {dirty ? "Unsaved changes" : "Saved — this is Jarvis's current voice"}
+          {dirty ? "Unsaved changes" : "Saved. This is Jarvis's current voice."}
         </span>
         <span className="psona-save__acts">
           <button type="button" className="jds-btn jds-btn--quiet jds-btn--sm" onClick={applySeed}>
@@ -282,7 +282,7 @@ function ChatModel() {
   return (
     <Group
       title="Chat model"
-      desc="Which assistant answers when you chat with Jarvis. Providers and instance-wide routing are managed by an admin."
+      desc="The assistant that answers when you chat with Jarvis. Admins manage providers and routing."
     >
       {defaultModel ? (
         <>
@@ -336,7 +336,7 @@ function ChatModel() {
             <div className="ai-empty__t">No assistant configured yet</div>
             <div className="ai-empty__d">
               An admin needs to add an AI provider before Jarvis can chat. Ask whoever set up this
-              instance — or, if that's you, add one under <b>Admin → Assistant &amp; AI</b>.
+              instance. If that's you, add one under <b>Admin → Assistant &amp; AI</b>.
             </div>
           </div>
         </div>

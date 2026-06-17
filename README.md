@@ -1,9 +1,6 @@
 # Jarv1s
 
-Jarv1s is a modular AI personal assistant OS. The repository is currently an early
-platform-first alpha scaffold: backend, worker, web shell, database migrations, core modules,
-security/RLS substrate, and M7 release-hardening operator scripts are implemented, but real
-provider integrations and broad product surfaces remain intentionally out of scope.
+Jarv1s is a modular AI personal assistant OS. This repository contains the platform-first alpha scaffold: backend, worker, web shell, database migrations, and core modules. It also includes the security substrate and release-hardening scripts. Real provider integrations and the full product experience are currently out of scope.
 
 ## Current State
 
