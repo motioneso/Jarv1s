@@ -1,4 +1,5 @@
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import Fastify from "fastify";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import type { Kysely } from "kysely";
 import type { PgBoss } from "pg-boss";
 import pg from "pg";
@@ -9,11 +10,15 @@ import {
   briefingsModuleManifest,
   isBriefingRunPayloadMetadataOnly,
   reconcileSchedule,
+  registerBriefingsRoutes,
   type BriefingRunPayload,
   type BriefingsRepository
 } from "@jarv1s/briefings";
 import type {
+  AccessContext,
   AuthSessionResolver,
+  BriefingDefinition,
+  DataContextDb,
   DataContextRunner,
   SharesRepository,
   JarvisDatabase
@@ -440,6 +445,74 @@ describe("Briefings module M6 read-only scheduled summaries", () => {
     }
   });
 
+  it("authorizes run-now through the owner-scoped repository lookup", async () => {
+    const routeDefinition: BriefingDefinition = {
+      id: "77000000-0000-4000-8000-000000000150",
+      owner_user_id: ids.userA,
+      title: "Owner-scoped route briefing",
+      cadence: "manual",
+      schedule_metadata: {},
+      enabled: true,
+      selected_tool_names: ["tasks.list"],
+      last_run_at: null,
+      created_at: new Date("2026-06-16T12:00:00.000Z"),
+      updated_at: new Date("2026-06-16T12:00:00.000Z")
+    };
+    const getDefinitionById = vi.fn(async () => {
+      throw new Error("route must not use shared definition lookup for run authorization");
+    });
+    const getOwnedDefinitionById = vi.fn(async () => routeDefinition);
+    const bossSend = vi.fn(async () => "job-route-owner-lookup");
+    const routeServer = Fastify({ logger: false });
+
+    registerBriefingsRoutes(routeServer, {
+      resolveAccessContext: async () => ({
+        actorUserId: ids.userA,
+        requestId: "request:route-owner-lookup"
+      }),
+      dataContext: {
+        withDataContext: async <T>(
+          _ctx: AccessContext,
+          work: (scopedDb: DataContextDb) => Promise<T>
+        ) => work({} as DataContextDb)
+      } as unknown as DataContextRunner,
+      listModuleManifests: () => [],
+      boss: { send: bossSend } as unknown as PgBoss,
+      repository: {
+        getDefinitionById,
+        getOwnedDefinitionById
+      } as unknown as BriefingsRepository
+    });
+    await routeServer.ready();
+
+    try {
+      const response = await routeServer.inject({
+        method: "POST",
+        url: `/api/briefings/definitions/${routeDefinition.id}/run`,
+        headers: userAHeaders(),
+        payload: { idempotencyKey: "owner-scoped-route-lookup" }
+      });
+
+      expect(response.statusCode).toBe(202);
+      expect(getOwnedDefinitionById).toHaveBeenCalledWith(expect.anything(), routeDefinition.id);
+      expect(getDefinitionById).not.toHaveBeenCalled();
+      expect(bossSend).toHaveBeenCalledWith(
+        BRIEFINGS_RUN_QUEUE,
+        expect.objectContaining({
+          actorUserId: ids.userA,
+          definitionId: routeDefinition.id,
+          runKind: "manual",
+          idempotencyKey: "owner-scoped-route-lookup"
+        }),
+        expect.objectContaining({
+          singletonKey: `${routeDefinition.id}:key:owner-scoped-route-lookup`
+        })
+      );
+    } finally {
+      await routeServer.close();
+    }
+  });
+
   it("dedupes concurrent run-now submits sharing an idempotency key (#150)", async () => {
     // A double-submit (retry / double-click) before the worker consumes must
     // collapse to ONE queued job. pg-boss returns null on the singletonKey
@@ -802,6 +875,9 @@ describe("Briefings module M6 read-only scheduled summaries", () => {
     await expect(repository.listDefinitions({} as never)).rejects.toThrow(
       "Repository access requires withDataContext"
     );
+    await expect(
+      repository.getOwnedDefinitionById({} as never, briefingIds.userBPrivate)
+    ).rejects.toThrow("Repository access requires withDataContext");
     await expect(
       repository.generateRun({} as never, briefingIds.userBPrivate, {
         moduleManifests: getBuiltInModuleManifests(),

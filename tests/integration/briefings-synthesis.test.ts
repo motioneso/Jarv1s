@@ -4,7 +4,9 @@ import type { PgBoss } from "pg-boss";
 import { AiRepository, createAiSecretCipher } from "@jarv1s/ai";
 import {
   BRIEFINGS_RUN_QUEUE,
+  composeBriefing,
   type BriefingRunPayload,
+  type ComposeDeps,
   type BriefingsRepository
 } from "@jarv1s/briefings";
 import type { DataContextRunner } from "@jarv1s/db";
@@ -185,6 +187,58 @@ describe("Briefings synthesis, scheduling, and notification path (P3 real-briefi
     expect(capturedContexts[0]!.actorUserId).toBe(ids.userA);
     expect(capturedContexts[0]!.requestId).not.toBe("");
     expect(capturedContexts[0]!.requestId).toMatch(/^briefing:|^pgboss:/);
+  });
+
+  it("extracts tool section rows from the first object array without module-owned shape casts", async () => {
+    const genericManifest: JarvisModuleManifest = {
+      id: "generic-section",
+      name: "GenericSection",
+      version: "0.0.0",
+      publisher: "test",
+      lifecycle: "optional",
+      compatibility: { jarv1s: "*" },
+      assistantTools: [
+        {
+          name: "commitments.listVisible",
+          description: "Returns a non-standard output key.",
+          permissionId: "commitments.view",
+          risk: "read" as const,
+          execute: async () => ({
+            data: {
+              arbitraryRows: [
+                "ignored primitive",
+                { title: "Generic commitment", status: "blocked", ignoredEmpty: "   " },
+                null
+              ]
+            }
+          })
+        }
+      ]
+    };
+    const deps: ComposeDeps = {
+      ...makeComposeDeps(undefined, [genericManifest]),
+      aiRepository: {
+        selectModelForCapability: async () => null
+      } as unknown as AiRepository
+    };
+    const definition = await dataContext.withDataContext(userAContext(), (scopedDb) =>
+      repository.createDefinition(scopedDb, {
+        title: "Generic extractor check",
+        selectedToolNames: ["commitments.listVisible"]
+      })
+    );
+
+    const composed = await dataContext.withDataContext(userAContext(), (scopedDb) =>
+      composeBriefing(
+        scopedDb,
+        definition,
+        { runKind: "manual", runId: "generic-extractor-run" },
+        deps
+      )
+    );
+
+    expect(composed.summaryText).toContain("COMMITMENTS: 1 item");
+    expect(composed.summaryText).toContain("Generic commitment · blocked");
   });
 
   it("never leaks the decrypted provider credential into a synthesized run", async () => {

@@ -129,6 +129,28 @@ function emptySection(key: string, label: string): Section {
   return { key, label, lines: [], count: 0 };
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function firstObjectArray(data: Record<string, unknown>): Record<string, unknown>[] {
+  for (const value of Object.values(data)) {
+    if (Array.isArray(value)) {
+      return value.filter(isRecord);
+    }
+  }
+  return [];
+}
+
+function formatGenericItem(item: Record<string, unknown>): string {
+  return Object.entries(item)
+    .filter(([key]) => !/(^id$|Id$|_id$|metadata|secret|credential|ciphertext)/i.test(key))
+    .map(([, value]) => str(value))
+    .filter(Boolean)
+    .slice(0, 4)
+    .join(" · ");
+}
+
 async function sourceIncludedInBriefings(
   scopedDb: DataContextDb,
   deps: ComposeDeps,
@@ -150,8 +172,6 @@ async function gatherToolSection(
     readonly key: string;
     readonly label: string;
     readonly toolName: string;
-    readonly arrayKey: string;
-    readonly format: (item: Record<string, unknown>) => string;
     /** When set, items are filtered to the definition's local day on this field. */
     readonly localDayField?: string;
   },
@@ -166,9 +186,8 @@ async function gatherToolSection(
   }
   try {
     const result = await tool.execute(scopedDb, {}, ctxFor(definition, input));
-    const data = result.data ?? {};
-    const raw = (data as Record<string, unknown>)[args.arrayKey];
-    let items = Array.isArray(raw) ? (raw as Record<string, unknown>[]) : [];
+    const data = isRecord(result.data) ? result.data : {};
+    let items = firstObjectArray(data);
     // Authoritative per-user local-day bound (tools return all visible rows; sync
     // slice not built yet so there is no source-side date filter — compose enforces it).
     if (args.localDayField) {
@@ -181,7 +200,7 @@ async function gatherToolSection(
       gaps.push({ source: args.key, reason: "empty" });
       return { key: args.key, label: args.label, lines: [], count: 0 };
     }
-    const allLines = items.map(args.format).filter((l) => l.length > 0);
+    const allLines = items.map(formatGenericItem).filter((line) => line.length > 0);
     const { lines, truncated } = capLines(allLines);
     if (truncated) {
       gaps.push({ source: args.key, reason: "truncated" });
@@ -228,10 +247,7 @@ export async function composeBriefing(
     {
       key: "commitments",
       label: "COMMITMENTS",
-      toolName: "commitments.listVisible",
-      arrayKey: "commitments",
-      format: (c) =>
-        [str(c.title), str(c.status), str(c.dueAt), str(c.counterparty)].filter(Boolean).join(" · ")
+      toolName: "commitments.listVisible"
     },
     gaps,
     now,
@@ -246,11 +262,8 @@ export async function composeBriefing(
     {
       key: "tasks",
       label: "TASKS",
-      // The visible-tasks read tool is `tasks.list` (returns repository.listVisible as
-      // `items`); there is no `tasks.listVisible` tool (verified against tasks/manifest.ts).
-      toolName: "tasks.list",
-      arrayKey: "items",
-      format: (t) => [str(t.title), str(t.status)].filter(Boolean).join(" · ")
+      // There is no `tasks.listVisible` tool (verified against tasks/manifest.ts).
+      toolName: "tasks.list"
     },
     gaps,
     now,
@@ -268,10 +281,8 @@ export async function composeBriefing(
           key: "calendar",
           label: "CALENDAR",
           toolName: "calendar.listVisibleEvents",
-          arrayKey: "events",
           // "Today's calendar": bound to the definition's local day on the event start.
-          localDayField: "startsAt",
-          format: (e) => [str(e.startsAt), str(e.title)].filter(Boolean).join(" · ")
+          localDayField: "startsAt"
         },
         gaps,
         now,
@@ -289,11 +300,9 @@ export async function composeBriefing(
         {
           key: "email",
           label: "EMAIL SUMMARIES + SIGNALS",
-          toolName: "email.listVisibleMessages",
-          arrayKey: "messages",
           // Email "signals" = recent unread/important; keep the source's own recency
           // (no day-bound — a 2-day-old unresolved thread is still a morning signal).
-          format: (m) => [str(m.sender), str(m.subject), str(m.snippet)].filter(Boolean).join(" · ")
+          toolName: "email.listVisibleMessages"
         },
         gaps,
         now,
@@ -351,10 +360,8 @@ export async function composeBriefing(
       key: "chats",
       label: "THE DAY'S CHATS",
       toolName: "chat.listTodaysTurns",
-      arrayKey: "turns",
       // Authoritative local-day bound on the turn timestamp (the tool over-includes 36h).
-      localDayField: "createdAt",
-      format: (t) => [str(t.role), str(t.excerpt)].filter(Boolean).join(": ")
+      localDayField: "createdAt"
     },
     gaps,
     now,

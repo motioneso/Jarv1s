@@ -26,7 +26,7 @@ import {
 
 import { sendJob } from "@jarv1s/jobs";
 
-import { type BriefingRunPayload, isBriefingRunPayloadMetadataOnly } from "./jobs.js";
+import { type BriefingRunPayload } from "./jobs.js";
 import { BRIEFINGS_RUN_QUEUE } from "./manifest.js";
 import { BriefingsRepository } from "./repository.js";
 import { reconcileOwnedSchedules, reconcileSchedule } from "./schedule.js";
@@ -154,10 +154,10 @@ export function registerBriefingsRoutes(
         const body = parseRunDefinitionBody(request.body);
         const definition = await dependencies.dataContext.withDataContext(
           accessContext,
-          (scopedDb) => repository.getDefinitionById(scopedDb, request.params.id)
+          (scopedDb) => repository.getOwnedDefinitionById(scopedDb, request.params.id)
         );
 
-        if (!definition || definition.owner_user_id !== accessContext.actorUserId) {
+        if (!definition) {
           return reply.code(404).send({ error: "Briefing definition not found" });
         }
 
@@ -169,10 +169,6 @@ export function registerBriefingsRoutes(
           runKind: "manual",
           idempotencyKey: body.idempotencyKey
         };
-
-        if (!isBriefingRunPayloadMetadataOnly(payload as unknown as Record<string, unknown>)) {
-          throw new HttpError(500, "Briefing job payload contains non-metadata fields");
-        }
 
         // A client-supplied idempotency key must actually dedupe the job, not just
         // ride along in the payload (#150). The BRIEFINGS_RUN_QUEUE uses the
