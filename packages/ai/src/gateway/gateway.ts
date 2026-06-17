@@ -161,7 +161,7 @@ export class AssistantToolGateway {
       const result = await this.deps.runner.withDataContext(access, (scopedDb: DataContextDb) =>
         found.execute(scopedDb, input, ctx, services)
       );
-      const sanitized = sanitizeToolResult(found.tool.outputSchema, result);
+      const sanitized = sanitizeAssistantToolResult(found.tool.outputSchema, result);
       return { ok: true, data: { text: capRenderedToolResult(renderToolResult(sanitized)) } };
     } catch {
       // never leak internals/secrets from a handler throw
@@ -279,7 +279,10 @@ export class AssistantToolGateway {
   }
 }
 
-function sanitizeToolResult(schema: JsonSchema | undefined, result: ToolResult): ToolResult {
+export function sanitizeAssistantToolResult(
+  schema: JsonSchema | undefined,
+  result: ToolResult
+): ToolResult {
   if (!isPlainObject(result.data)) {
     throw new Error("Tool result data must be an object");
   }

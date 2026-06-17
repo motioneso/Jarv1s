@@ -14,7 +14,8 @@ import type { AccessContext, DataContextDb, DataContextRunner } from "@jarv1s/db
 import {
   HttpError,
   handleRouteError as handleModuleRouteError,
-  sessionRateLimitKey
+  sessionRateLimitKey,
+  type ToolResult
 } from "@jarv1s/module-sdk";
 
 import type { ActiveModulesResolver } from "./gateway/types.js";
@@ -61,6 +62,7 @@ import {
   findAssistantToolFromManifests,
   listAssistantToolsFromManifests
 } from "./assistant-tools.js";
+import { sanitizeAssistantToolResult } from "./gateway/gateway.js";
 import { ToolInputValidationError, validateToolInput } from "./gateway/input-validation.js";
 import { cliAvailable, type ProviderKind as CliProviderKind } from "./cli-availability.js";
 import { createAiSecretCipher, type AiSecretCipher } from "./crypto.js";
@@ -558,7 +560,10 @@ export function registerAiRoutes(
             actorUserId: accessContext.actorUserId,
             requestId: accessContext.requestId ?? "",
             chatSessionId: ""
-          }).then((r) => r.data ?? {})
+          }).then((rawResult): Record<string, unknown> => {
+            const toolResult: ToolResult = { ...rawResult, data: rawResult.data ?? {} };
+            return sanitizeAssistantToolResult(manifestTool.outputSchema, toolResult).data;
+          })
         );
 
         return {
