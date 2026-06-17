@@ -42,10 +42,10 @@ export interface HandleRouteErrorOptions {
 }
 
 /**
- * The ONLY two error messages that map to 401. A route is unauthenticated only
+ * The ONLY error message that maps to 401. A route is unauthenticated only
  * when session resolution itself failed — never as a catch-all.
  */
-const AUTH_401_MESSAGES = new Set(["Session is missing or expired", "Invalid bearer token"]);
+const AUTH_401_MESSAGES = new Set(["Session is missing or expired"]);
 
 const DB_CONSTRAINT_FRAGMENTS = [
   "foreign key",
