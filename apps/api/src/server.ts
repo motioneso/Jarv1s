@@ -41,6 +41,7 @@ export interface CreateApiServerOptions {
   readonly boss?: PgBoss;
   readonly authRuntime?: JarvisAuthRuntime;
   readonly logger?: boolean;
+  readonly apiServerConfig?: ApiServerConfig;
   /** Override the live-chat engine factory (tests inject a fake); defaults to real tmux. */
   readonly chatEngineFactory?: ChatEngineFactory;
   readonly personaPreview?: (input: {
@@ -64,7 +65,24 @@ export interface CreateApiServerOptions {
   };
 }
 
+export interface ApiServerConfig {
+  readonly host: string;
+  readonly port: number;
+  readonly mcpServerUrl: string;
+}
+
+export function resolveApiServerConfig(env: NodeJS.ProcessEnv = process.env): ApiServerConfig {
+  const port = Number(env.PORT ?? 3000);
+  const host = env.HOST ?? "0.0.0.0";
+  return {
+    host,
+    port,
+    mcpServerUrl: `http://127.0.0.1:${port}/api/mcp`
+  };
+}
+
 export function createApiServer(options: CreateApiServerOptions = {}) {
+  const apiServerConfig = options.apiServerConfig ?? resolveApiServerConfig();
   const appDb =
     options.appDb ??
     createDatabase({
@@ -228,6 +246,7 @@ export function createApiServer(options: CreateApiServerOptions = {}) {
       listConfiguredAuthProviders: authRuntime.listConfiguredProviders,
       listModuleManifests: getBuiltInModuleManifests,
       resolveActiveModules,
+      mcpServerUrl: apiServerConfig.mcpServerUrl,
       focusSignals: async (ctx) => {
         // 1) Resolve THIS actor's active manifests (honors per-user/instance disable) — its
         //    own short context, exactly like the AI route surfaces do. A disabled module is
@@ -349,9 +368,10 @@ export async function shutdownOnSignal(
 }
 
 if (import.meta.url === `file://${process.argv[1]}`) {
-  const server = createApiServer();
-  const port = Number(process.env.PORT ?? 3000);
-  const host = process.env.HOST ?? "0.0.0.0";
+  const apiServerConfig = resolveApiServerConfig();
+  const server = createApiServer({ apiServerConfig });
+  const port = apiServerConfig.port;
+  const host = apiServerConfig.host;
 
   const handleCrash = (label: string, err: unknown): void => {
     server.log.error({ err, label }, "Process crash — exiting");

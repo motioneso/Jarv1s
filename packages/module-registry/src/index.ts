@@ -152,6 +152,8 @@ export interface BuiltInRouteDependencies {
     readonly actorUserId: string;
     readonly requestId: string;
   }) => Promise<readonly { moduleId: string; readiness: number; summary: string }[]>;
+  /** Resolved MCP endpoint advertised to CLI chat engines. Owned by API composition config. */
+  readonly mcpServerUrl: string;
   /** Override the live-chat engine factory (tests inject a fake); defaults to real tmux. */
   readonly chatEngineFactory?: ChatEngineFactory;
   readonly revokeUserSessions?: (userId: string) => Promise<number>;
@@ -343,7 +345,7 @@ const BUILT_IN_MODULES: readonly BuiltInModuleRegistration[] = [
         dataContext: deps.dataContext,
         chatEngineFactory: deps.chatEngineFactory,
         resolveActiveModules: deps.resolveActiveModules,
-        mcpServerUrl: `http://127.0.0.1:${process.env.PORT ?? 3000}/api/mcp`,
+        mcpServerUrl: deps.mcpServerUrl,
         boss: deps.boss,
         personaPreferences: new PreferencesRepository(),
         googleConnectionService: deps.googleConnectionService,
