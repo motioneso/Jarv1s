@@ -84,63 +84,69 @@ export function registerChatRoutes(
   };
   let realNotifier: ChatGatewayNotifier | null = null;
 
-  let tokens: SessionTokenRegistry | undefined;
-  let gateway: AssistantToolGateway | undefined;
-
-  if (dependencies.resolveActiveModules && dependencies.mcpServerUrl) {
-    tokens = new SessionTokenRegistry();
-    const confirmations = new ConfirmationRegistry();
-    const aiRepository = new AiRepository();
-
-    gateway = new AssistantToolGateway(
-      buildChatGatewayDependencies({
-        resolveActiveModules: dependencies.resolveActiveModules,
-        repository: aiRepository,
-        runner: dependencies.dataContext,
-        tokens,
-        confirmations,
-        notifier: notifierProxy,
-        collaborators: {
-          googleConnectionService: dependencies.googleConnectionService,
-          googleApiClient: dependencies.googleApiClient,
-          connectorsRepository: dependencies.connectorsRepository
-        }
-      })
-    );
-  }
-
+  const resolveActiveModules = dependencies.resolveActiveModules;
   const mcpServerUrl = dependencies.mcpServerUrl;
+  const wiring =
+    resolveActiveModules && mcpServerUrl
+      ? (() => {
+          const tokens = new SessionTokenRegistry();
+          const confirmations = new ConfirmationRegistry();
+          const aiRepository = new AiRepository();
+
+          const gateway = new AssistantToolGateway(
+            buildChatGatewayDependencies({
+              resolveActiveModules,
+              repository: aiRepository,
+              runner: dependencies.dataContext,
+              tokens,
+              confirmations,
+              notifier: notifierProxy,
+              collaborators: {
+                googleConnectionService: dependencies.googleConnectionService,
+                googleApiClient: dependencies.googleApiClient,
+                connectorsRepository: dependencies.connectorsRepository
+              }
+            })
+          );
+
+          return { tokens, gateway, mcpServerUrl };
+        })()
+      : null;
+
   const runtime = createChatSessionRuntime({
     dataContext: dependencies.dataContext,
     engineFactory: dependencies.chatEngineFactory,
     boss: dependencies.boss,
     personaPreferences: dependencies.personaPreferences,
-    mcpTokenLifecycle:
-      tokens && mcpServerUrl
-        ? {
-            mint: async (actorUserId: string) => {
-              // Capture the actor's current executable tool set as the per-session allowlist.
-              // Bare tool names (e.g. "example.read") — same format as tools/list and tools/call params.name.
-              // The mcp__jarvis__<name> prefix is a client-side CLI convention that never reaches the server.
-              const allowedToolNames = new Set(
-                (await gateway!.listToolsForActor(actorUserId)).map((tool) => tool.name)
-              );
-              return {
-                token: tokens!.mint({ actorUserId, chatSessionId: actorUserId, allowedToolNames }),
-                mcpServerUrl
-              };
-            },
-            revoke: (chatSessionId: string) => tokens!.revokeBySessionId(chatSessionId),
-            touch: (chatSessionId: string) => tokens!.touchBySessionId(chatSessionId)
-          }
-        : undefined
+    mcpTokenLifecycle: wiring
+      ? {
+          mint: async (actorUserId: string) => {
+            // Capture the actor's current executable tool set as the per-session allowlist.
+            // Bare tool names (e.g. "example.read") — same format as tools/list and tools/call params.name.
+            // The mcp__jarvis__<name> prefix is a client-side CLI convention that never reaches the server.
+            const allowedToolNames = new Set(
+              (await wiring.gateway.listToolsForActor(actorUserId)).map((tool) => tool.name)
+            );
+            return {
+              token: wiring.tokens.mint({
+                actorUserId,
+                chatSessionId: actorUserId,
+                allowedToolNames
+              }),
+              mcpServerUrl: wiring.mcpServerUrl
+            };
+          },
+          revoke: (chatSessionId: string) => wiring.tokens.revokeBySessionId(chatSessionId),
+          touch: (chatSessionId: string) => wiring.tokens.touchBySessionId(chatSessionId)
+        }
+      : undefined
   });
 
   // Wire real notifier now that manager is available.
   realNotifier = new ChatGatewayNotifier(runtime.manager);
 
-  if (gateway && tokens) {
-    registerMcpTransportRoute(server, { gateway, tokens });
+  if (wiring) {
+    registerMcpTransportRoute(server, { gateway: wiring.gateway, tokens: wiring.tokens });
 
     server.post<{ Params: { id: string }; Body: { status: string } }>(
       "/api/chat/action-requests/:id/resolve",
@@ -161,7 +167,7 @@ export function registerChatRoutes(
         }
 
         try {
-          await gateway!.resolveActionRequest(access.actorUserId, id, rawStatus);
+          await wiring.gateway.resolveActionRequest(access.actorUserId, id, rawStatus);
           return reply.code(204).send();
         } catch {
           return reply.code(400).send({ error: "Could not resolve action request" });

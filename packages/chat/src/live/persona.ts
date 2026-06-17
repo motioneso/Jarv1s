@@ -10,11 +10,12 @@
  * unit-testable without touching the real disk.
  */
 import { mkdir, writeFile } from "node:fs/promises";
-import { homedir } from "node:os";
 import { join } from "node:path";
 
 import type { ProviderKind } from "@jarv1s/ai";
 import { sanitizePersonaName } from "@jarv1s/shared";
+
+import { resolveChatHome } from "./chat-home.js";
 
 /** Minimal filesystem seam — injected so tests can avoid real disk writes. */
 export interface PersonaFs {
@@ -57,12 +58,6 @@ const CONTEXT_FILENAME: Record<ProviderKind, string> = {
   google: "GEMINI.md"
 };
 
-/** Resolve the base directory for per-user neutral chat dirs. */
-function resolveBaseDir(override?: string): string {
-  if (override !== undefined) return override;
-  return process.env.JARVIS_CHAT_HOME ?? join(homedir(), ".jarvis", "chat");
-}
-
 /**
  * Ensure the user's neutral dir exists and write the persona into the
  * provider's context filename. Returns the resolved dir and file path.
@@ -71,7 +66,7 @@ export async function renderPersona(
   fs: PersonaFs,
   input: RenderPersonaInput
 ): Promise<{ neutralDir: string; personaPath: string }> {
-  const neutralDir = join(resolveBaseDir(input.baseDir), input.userId);
+  const neutralDir = join(resolveChatHome(input.baseDir), input.userId);
   const personaPath = join(neutralDir, CONTEXT_FILENAME[input.provider]);
   const content = input.persona.replaceAll("{{userName}}", sanitizeUserName(input.userName));
 
