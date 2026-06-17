@@ -191,16 +191,16 @@ describe("Notifications module M5", () => {
     await expect(appDb.selectFrom("app.notifications").select("id").execute()).resolves.toEqual([]);
   });
 
-  it("forbids inserting a notification that claims another actor and recipient", async () => {
+  it("forbids inserting a notification for another recipient with the current actor", async () => {
     await expect(
       dataContext.withDataContext(userBContext(), (scopedDb) =>
         scopedDb.db
           .insertInto("app.notifications")
           .values({
             id: notificationIds.forgedForUserA,
-            actor_user_id: ids.userA,
+            actor_user_id: ids.userB,
             recipient_user_id: ids.userA,
-            title: "Forged cross-actor notification",
+            title: "Forged cross-recipient notification",
             body: "User B must not create this for User A",
             metadata: { source: "integration-test" }
           })
