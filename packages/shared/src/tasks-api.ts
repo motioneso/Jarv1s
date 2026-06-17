@@ -245,6 +245,9 @@ export interface FocusTasksResponse {
   readonly signals?: readonly FocusSignalDto[];
 }
 
+export const atRiskTasksResponseSchema = listTasksResponseSchema;
+export const overdueTasksResponseSchema = listTasksResponseSchema;
+
 export const createTaskRequestSchema = {
   type: "object",
   additionalProperties: false,
@@ -587,13 +590,13 @@ export const focusTasksRouteSchema = {
 
 export const atRiskTasksRouteSchema = {
   response: {
-    200: listTasksResponseSchema
+    200: atRiskTasksResponseSchema
   }
 } as const;
 
 export const overdueTasksRouteSchema = {
   response: {
-    200: listTasksResponseSchema
+    200: overdueTasksResponseSchema
   }
 } as const;
 

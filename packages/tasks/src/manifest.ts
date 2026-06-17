@@ -6,7 +6,7 @@ import {
   addTaskActivityResponseSchema,
   assignTaskTagRequestSchema,
   assignTaskTagRouteSchema,
-  atRiskTasksRouteSchema,
+  atRiskTasksResponseSchema,
   breakdownTaskRequestSchema,
   breakdownTaskResponseSchema,
   createTaskListRequestSchema,
@@ -21,12 +21,12 @@ import {
   deleteTaskListRequestSchema,
   deleteTaskListRouteSchema,
   deleteTaskTagRouteSchema,
-  focusTasksRouteSchema,
+  focusTasksResponseSchema,
   getTaskResponseSchema,
   listTaskListsResponseSchema,
   listTaskTagsResponseSchema,
   listTasksResponseSchema,
-  overdueTasksRouteSchema,
+  overdueTasksResponseSchema,
   renameTaskListRequestSchema,
   renameTaskListRouteSchema,
   renameTaskTagRequestSchema,
@@ -45,7 +45,8 @@ import {
   taskListExecute,
   taskListListsExecute,
   taskListTagsExecute,
-  taskOverdueExecute
+  taskOverdueExecute,
+  taskUpdateStatusExecute
 } from "./tools.js";
 
 export const TASKS_MODULE_ID = "tasks";
@@ -252,19 +253,19 @@ export const tasksModuleManifest = {
     {
       method: "GET",
       path: "/api/tasks/focus",
-      responseSchema: focusTasksRouteSchema.response[200],
+      responseSchema: focusTasksResponseSchema,
       permissionId: "tasks.view"
     },
     {
       method: "GET",
       path: "/api/tasks/at-risk",
-      responseSchema: atRiskTasksRouteSchema.response[200],
+      responseSchema: atRiskTasksResponseSchema,
       permissionId: "tasks.view"
     },
     {
       method: "GET",
       path: "/api/tasks/overdue",
-      responseSchema: overdueTasksRouteSchema.response[200],
+      responseSchema: overdueTasksResponseSchema,
       permissionId: "tasks.view"
     },
     {
@@ -346,7 +347,7 @@ export const tasksModuleManifest = {
       permissionId: "tasks.view",
       risk: "read",
       inputSchema: { type: "object", properties: {} },
-      outputSchema: focusTasksRouteSchema.response[200],
+      outputSchema: focusTasksResponseSchema,
       execute: taskFocusExecute
     },
     {
@@ -356,7 +357,7 @@ export const tasksModuleManifest = {
       permissionId: "tasks.view",
       risk: "read",
       inputSchema: { type: "object", properties: {} },
-      outputSchema: atRiskTasksRouteSchema.response[200],
+      outputSchema: atRiskTasksResponseSchema,
       execute: taskAtRiskExecute
     },
     {
@@ -366,7 +367,7 @@ export const tasksModuleManifest = {
       permissionId: "tasks.view",
       risk: "read",
       inputSchema: { type: "object", properties: {} },
-      outputSchema: overdueTasksRouteSchema.response[200],
+      outputSchema: overdueTasksResponseSchema,
       execute: taskOverdueExecute
     },
     {
@@ -421,7 +422,8 @@ export const tasksModuleManifest = {
           idempotencyKey: { type: "string" }
         }
       },
-      outputSchema: getTaskResponseSchema
+      outputSchema: getTaskResponseSchema,
+      execute: taskUpdateStatusExecute
     }
   ]
 } satisfies JarvisModuleManifest;
