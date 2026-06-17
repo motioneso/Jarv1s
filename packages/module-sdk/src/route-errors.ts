@@ -63,7 +63,7 @@ const DB_CONSTRAINT_FRAGMENTS = [
  *
  *  1. module-specific `mappers` (if provided)
  *  2. `HttpError` -> its own status code
- *  3. genuine auth failures -> 401 (ONLY the two messages above)
+ *  3. genuine auth failures -> 401 (ONLY the message above)
  *  4. DB-constraint violations -> 400 (only when `invalidRequestMessage` is set)
  *  5. anything else -> a SCRUBBED 500: the original error is logged server-side
  *     but never echoed to the client, so internal details (stack fragments, SQL,
