@@ -43,13 +43,13 @@
 
 ## Gate Fix Lane
 
-| Scope                                     | Tier    | Status   | Agent label       | Pane   | Branch             | PR  |
-| ----------------------------------------- | ------- | -------- | ----------------- | ------ | ------------------ | --- |
-| briefing integration timeout baseline fix | routine | building | GateFix-Briefings | w1:p1M | gate-fix-briefings | —   |
+| Scope                                     | Tier    | Status                                          | Agent label       | Pane   | Branch             | PR  |
+| ----------------------------------------- | ------- | ----------------------------------------------- | ----------------- | ------ | ------------------ | --- |
+| briefing integration timeout baseline fix | routine | complete: environment collision, no code change | GateFix-Briefings | w1:p1M | gate-fix-briefings | —   |
 
 ## Dependency / Merge Order
 
-- **Hard blockers before deploy feature spawn:** green integrated gate; briefing timeout fix.
+- **Hard blockers before deploy feature spawn:** cleared if feature agents use isolated `JARVIS_PGDATABASE` values. Briefing timeout root cause was shared `jarv1s` DB contention with a live `dev:worker`, not a code failure.
 - **Serialized security chain A:** #117 → #114. Reason: deployment secret/bootstrap hardening should land before adjacent secret/vault residual work.
 - **Serialized security chain B:** #207 → #123. Reason: shared auth/token/rate-limit/MCP/AI tool surface; #123 depends on token-launch hardening not fighting rate-limit policy changes.
 - **Serialized account/session chain C:** #237 → #230 → #236. Reason: #230 exposes admin revoke sessions UI and #236 may link to real active sessions if #237 has landed.
@@ -67,8 +67,9 @@ No waivers.
 
 ## Outstanding Escalations
 
-- [ ] Briefing integration timeout gate is red; dispatch `gate-fix-briefings` before deploy feature
-      lanes.
+- [x] Briefing integration timeout gate investigated. Root cause was shared `jarv1s` DB contention
+      with a live `dev:worker`; `JARVIS_PGDATABASE=jarv1s_gatefix pnpm test:briefings` passed 5x.
+      Feature lanes must use isolated `JARVIS_PGDATABASE` values.
 - [ ] #306 is manual-acceptance only; no build agent should be spawned for it.
 
 ## Reaped Sessions
