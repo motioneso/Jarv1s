@@ -57,12 +57,14 @@ export function buildTaskFields(
   form: TaskDetailsFormState,
   defaultListId?: string
 ): CreateTaskRequest & UpdateTaskRequest {
+  const dueAt = fromDateInputValue(form.dueAt);
+
   return {
     title: form.title.trim() || "Untitled task",
     description: form.description || null,
     status: form.status,
     priority: form.priority ? Number(form.priority) : null,
-    dueAt: fromDateInputValue(form.dueAt),
+    dueAt,
     doAt: fromDateInputValue(form.doAt),
     effort: form.effort || null,
     listId: form.listId || defaultListId || undefined,
@@ -72,9 +74,13 @@ export function buildTaskFields(
         : {
             freq: form.repeat,
             interval: 1,
-            ...(form.repeatEnd ? { until: fromDateInputValue(form.repeatEnd) } : {})
+            occurrence_date: recurrenceOccurrenceDate(dueAt)
           }
   };
+}
+
+function recurrenceOccurrenceDate(dueAt: string | null): string {
+  return (dueAt ?? new Date().toISOString()).slice(0, 10);
 }
 
 export function normalizeTagName(value: string): string {

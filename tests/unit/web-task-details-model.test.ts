@@ -30,11 +30,12 @@ describe("task details model", () => {
       listId: "list-a",
       recurrence: {
         freq: "weekly",
-        interval: 1
+        interval: 1,
+        occurrence_date: "2026-07-01"
       }
     });
     expect(fields.dueAt).toContain("2026-07-01");
-    expect(fields.recurrence).toMatchObject({ until: expect.stringContaining("2026-08-01") });
+    expect(fields.recurrence).not.toHaveProperty("until");
   });
 
   it("falls back to a default list and clears recurrence when repeat is never", () => {

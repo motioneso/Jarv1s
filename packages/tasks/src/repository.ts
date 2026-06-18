@@ -218,23 +218,12 @@ export class TasksRepository {
     const status = input.status ?? "todo";
     const completedAt = status === "done" ? now : null;
 
-    // Recurrence: assign a series id and ensure occurrence_date is present in the jsonb.
+    // Recurrence specs are normalized at the route boundary by parseRecurrenceSpec.
     let recurrenceValue: RecurrenceSpec | null = null;
     let recurrenceSeriesId: string | null = null;
     if (input.recurrence != null) {
       recurrenceSeriesId = randomUUID();
-      // Derive a default occurrence_date from dueAt or today if not supplied.
-      const existingOccurrenceDate = input.recurrence["occurrence_date"] as string | undefined;
-      let occurrenceDate: string;
-      if (existingOccurrenceDate) {
-        occurrenceDate = existingOccurrenceDate;
-      } else if (input.dueAt != null) {
-        const d = typeof input.dueAt === "string" ? new Date(input.dueAt) : input.dueAt;
-        occurrenceDate = d.toISOString().slice(0, 10);
-      } else {
-        occurrenceDate = now.toISOString().slice(0, 10);
-      }
-      recurrenceValue = { ...input.recurrence, occurrence_date: occurrenceDate };
+      recurrenceValue = { ...input.recurrence };
     }
 
     const row = await scopedDb.db

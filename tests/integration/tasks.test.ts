@@ -441,7 +441,7 @@ describe("Tasks module M1", () => {
       },
       payload: {
         title: "invalid recurrence",
-        recurrence: { freq: "fortnightly", interval: -3, occurrence_date: "not-a-date" }
+        recurrence: { freq: "weekly", interval: 1, occurrence_date: "2026-02-30" }
       }
     });
 

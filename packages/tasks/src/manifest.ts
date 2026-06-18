@@ -445,8 +445,7 @@ export const tasksModuleManifest = {
         required: ["taskId", "status"],
         properties: {
           taskId: { type: "string" },
-          status: taskStatusSchema,
-          idempotencyKey: { type: "string" }
+          status: taskStatusSchema
         }
       },
       outputSchema: getTaskResponseSchema,
