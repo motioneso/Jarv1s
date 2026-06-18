@@ -84,6 +84,12 @@
   `~/Jarv1s/.claude/worktrees/owner-bootstrap-260`, branch `owner-bootstrap-260`, Codex
   session id `019edc11-4db3-7b23-92c5-cab42aaf0d8a`. Agent is instructed to plan first and
   escalate to `Coordinator` before coding. #260 project item is `In progress`.
+- PR #309 (#260 owner bootstrap recovery) merged on 2026-06-18 at merge commit `e075312`; Ben gave
+  explicit security-tier merge sign-off. Local gate evidence on final branch: `VF_EXIT=0`, 68 unit
+  files / 413 tests, 55 integration files / 825 passed / 2 skipped; `AUDIT_EXIT=0`; final
+  pre-push trio green. Security QA subagent `019edc8a-215a-72a1-950c-b0c6d03b5df7` posted GREEN
+  verdict with 0 blocking findings and 1 non-blocking test-hardening gap. Issue #260 is closed and
+  project status is Done. Local branch/worktree and build pane were reaped; remote branch deleted.
 - Local verification for CI repair:
   - `pnpm vitest run tests/unit/ai-tmux-bridge.test.ts` green.
   - `TZ=UTC pnpm vitest run tests/unit/ai-tmux-bridge.test.ts` green.
@@ -115,17 +121,17 @@
 
 ## Queue
 
-| Spec / contract                                               | Issue | Tier      | Status                        | Agent label                                                    | Pane | Branch                            | PR   |
-| ------------------------------------------------------------- | ----- | --------- | ----------------------------- | -------------------------------------------------------------- | ---- | --------------------------------- | ---- |
-| CI repair: timezone-safe Codex transcript date test           | —     | routine   | pushed-to-main; local gate ok | —                                                              | —    | main @ `ff0ba95`                  | —    |
-| CI repair: isolate onboarding provider-check test             | —     | routine   | pushed-to-main; local gate ok | —                                                              | —    | main @ `4eb41fe`                  | —    |
-| Relay manifest flush                                          | —     | routine   | pushed-to-main; local gate ok | —                                                              | —    | main @ `4eaf647`                  | —    |
-| CI repair: Approve/Reject e2e label                           | —     | routine   | pushed; local gate ok         | —                                                              | —    | main @ `d8aa546`                  | —    |
-| issue body: validate recurrence JSONB boundary                | #297  | routine   | merged                        | TasksRecurrence-297                                            | —    | main @ `2cbea96`                  | #303 |
-| issue body: #299 tasks-only mechanical subset after #297      | #299  | routine   | merged                        | TasksMinors-299-Codex (`019edb87-3696-75b0-a87b-da944a54b02f`) | —    | main @ `e9e6b87`                  | #304 |
-| issue body: #299 settings/scripts/jobs mechanical subset      | #299  | routine   | merged                        | InfraMinors-299                                                | —    | main @ `d002958`                  | #302 |
-| docs/superpowers/specs/2026-06-15-corrections-log.md          | #244  | sensitive | merged                        | Corrections-244 (`019edbdf-ec6c-7be0-be0a-43081fc9eaa6`)       | —    | main @ `bd43a0f`                  | #305 |
-| docs/superpowers/specs/2026-06-18-owner-bootstrap-recovery.md | #260  | security  | wrapping up                   | OwnerBootstrap-260 (`019edc11-4db3-7b23-92c5-cab42aaf0d8a`)    | —    | `owner-bootstrap-260` @ `e3cd0b5` | —    |
+| Spec / contract                                               | Issue | Tier      | Status                        | Agent label                                                    | Pane | Branch           | PR   |
+| ------------------------------------------------------------- | ----- | --------- | ----------------------------- | -------------------------------------------------------------- | ---- | ---------------- | ---- |
+| CI repair: timezone-safe Codex transcript date test           | —     | routine   | pushed-to-main; local gate ok | —                                                              | —    | main @ `ff0ba95` | —    |
+| CI repair: isolate onboarding provider-check test             | —     | routine   | pushed-to-main; local gate ok | —                                                              | —    | main @ `4eb41fe` | —    |
+| Relay manifest flush                                          | —     | routine   | pushed-to-main; local gate ok | —                                                              | —    | main @ `4eaf647` | —    |
+| CI repair: Approve/Reject e2e label                           | —     | routine   | pushed; local gate ok         | —                                                              | —    | main @ `d8aa546` | —    |
+| issue body: validate recurrence JSONB boundary                | #297  | routine   | merged                        | TasksRecurrence-297                                            | —    | main @ `2cbea96` | #303 |
+| issue body: #299 tasks-only mechanical subset after #297      | #299  | routine   | merged                        | TasksMinors-299-Codex (`019edb87-3696-75b0-a87b-da944a54b02f`) | —    | main @ `e9e6b87` | #304 |
+| issue body: #299 settings/scripts/jobs mechanical subset      | #299  | routine   | merged                        | InfraMinors-299                                                | —    | main @ `d002958` | #302 |
+| docs/superpowers/specs/2026-06-15-corrections-log.md          | #244  | sensitive | merged                        | Corrections-244 (`019edbdf-ec6c-7be0-be0a-43081fc9eaa6`)       | —    | main @ `bd43a0f` | #305 |
+| docs/superpowers/specs/2026-06-18-owner-bootstrap-recovery.md | #260  | security  | merged                        | OwnerBootstrap-260 (`019edc11-4db3-7b23-92c5-cab42aaf0d8a`)    | —    | main @ `e075312` | #309 |
 
 ## Excluded / Held
 
@@ -142,9 +148,9 @@
 - Serialized tasks chain: #297 → #299 tasks subset. Reason: both touch tasks recurrence/contracts; #297 owns the recurrence JSONB boundary first.
 - Final sensitive lane: #244 after lower-risk lanes. Reason: migration/shared memory lifecycle work; depends on #243 shared suppression store already landed as `0092`.
 - Merge order: CI repair already on main → #297 → #299 tasks subset → #299 infra/settings/scripts subset → #244.
-- Current active lane after Ben follow-up: #260 owner bootstrap recovery. Next coordinator action is
-  to review/approve the `OwnerBootstrap-260` plan when it escalates. Because #260 is security-tier,
-  do not merge without explicit Ben sign-off after independent QA.
+- Current active lane after Ben follow-up: #260 owner bootstrap recovery is merged and reaped.
+  Because #260 was security-tier, the next coordinator action is immediate relay after this manifest
+  flush.
 
 ## CI Waivers
 
@@ -170,16 +176,16 @@ No waivers. Any red required check is stop-the-line unless proven red on `main` 
   `Coordinator` lock. The old coordinator was resolved by label plus session id
   `019edba6-76f5-7d13-9de9-2b5a8b4e5d1f`, relabelled `Coordinator-RelayOld`, then closed after the
   lock update was committed and pushed. Do not trust pane numbers.
-- **Next action:** continue #260 coordination. `OwnerBootstrap-260` plan was reviewed and approved
-  by coordinator session `019edc14-46cc-7fe3-b383-e33a66cc8e18`; agent committed
-  `e3cd0b5` (`fix: recover bootstrap owner signup`) after green focused recovery test, full
-  `auth-settings` integration suite, `pnpm format:check`, `pnpm lint`, and `pnpm typecheck`. Agent
-  reported `pnpm verify:foundation` green with 68 unit files / 413 tests and 54 integration files /
-  823 passed / 2 skipped, plus green `pnpm audit:release-hardening`. Agent is in coordinated
-  wrap-up and rebased cleanly onto `origin/main`. Rebased `pnpm verify:foundation` failed once in
-  unrelated `tests/integration/tasks-tools.test.ts` activity ordering; focused rerun passed, so the
-  agent is rerunning the full gate for clean evidence before PR. Independent security-tier QA is
-  required after PR. Security-tier merge requires explicit Ben sign-off.
+- **Relay reason 5:** coordinator merged security-tier PR #309 for #260 after Ben's explicit
+  sign-off. Security-tier merge triggers immediate relay. Active coordinator session
+  `019edc14-46cc-7fe3-b383-e33a66cc8e18` should hand off to a successor coordinator. The successor
+  must read this file in full, invoke/use `coordinate`, confirm its own Codex session id from
+  `herdr pane list`, update the Coordinator lock to its own session id, then resolve and close the
+  old coordinator by label `Coordinator` plus session id
+  `019edc14-46cc-7fe3-b383-e33a66cc8e18` after confirming it is driving. Do not trust pane numbers.
+- **Next action:** relay now. Do not merge anything else from this coordinator session. After
+  takeover, successor should reconcile the main worktree's unrelated local commits from other panes
+  before further manifest pushes.
 - **If local gate is green:** spawn #297 first and #299 infra/settings/scripts if collision scan still shows no overlap. Hold #299 tasks subset until #297 lands. Hold #244 until the lower-risk lanes are done.
 - **If latest CI is red:** pull the exact failing job log and continue systematic debugging. Do not spawn the fleet on red `main`.
 - **Untracked files in main worktree:** `docs/superpowers/handoffs/2026-06-18-onboarding-service-testing-webwright.md` and `docs/superpowers/specs/2026-06-15-corrections-log.md` existed before this run; do not sweep them with broad staging.
@@ -205,3 +211,9 @@ No waivers. Any red required check is stop-the-line unless proven red on `main` 
   pane/worktree were reaped.
 - `QA-305-Corrections` subagent session `019edbfa-10b6-7460-81a9-44f7abe98e1f`: posted GREEN
   verdict with 0 findings and was closed.
+- `OwnerBootstrap-260` Codex pane session `019edc11-4db3-7b23-92c5-cab42aaf0d8a`: PR #309 merged
+  and pane/worktree were reaped.
+- `QA-309-OwnerBootstrap` subagents `019edc2a-a9e0-71c1-b643-6de0f3ad404e`,
+  `019edc79-61b2-7221-bfb6-1aae49b284cf`, and `019edc8a-215a-72a1-950c-b0c6d03b5df7`: two RED
+  verdicts drove security fixes; final verdict was GREEN with 0 blocking findings. Subagents were
+  closed.
