@@ -6,7 +6,7 @@
 **Worktree:** `~/Jarv1s/.claude/worktrees/overnight-297-recurrence-jsonb` **Branch:** `overnight-297-recurrence-jsonb`
 **Build skill path (absolute):** `~/Jarv1s/.claude/skills/coordinated-build/SKILL.md`
 **Coordinator label:** `Coordinator`
-**Coordinator session id:** `019ed994-3159-7961-b750-f5c74c9c5fc3`
+**Coordinator session id:** `019edb62-d2f6-77c0-b451-f8dae62ea049`
 **Relay threshold:** countable events — about 80-100k tokens or a compaction summary in your own context.
 
 ## Start
