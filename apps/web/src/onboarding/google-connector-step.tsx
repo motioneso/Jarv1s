@@ -1,0 +1,453 @@
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useState } from "react";
+import {
+  ArrowRight,
+  CalendarDays,
+  Check,
+  Clock,
+  ExternalLink,
+  Fingerprint,
+  KeyRound,
+  Link2,
+  Mail,
+  Monitor,
+  Plus,
+  ShieldCheck,
+  Upload
+} from "lucide-react";
+import type { ChangeEvent } from "react";
+
+import { listConnectorAccounts, revokeConnectorAccount } from "../api/client";
+import { queryKeys } from "../api/query-keys";
+import { useGoogleConnectFlow } from "../connectors/use-google-connect-flow";
+import { FootNote, StepHeader } from "./onboarding-ui";
+
+const SOON_PROVIDERS = [
+  { id: "outlook", name: "Outlook", tile: "O" },
+  { id: "m365", name: "Microsoft 365", tile: "M" },
+  { id: "proton", name: "Proton Mail", tile: "P" },
+  { id: "icloud", name: "iCloud", tile: "i" },
+  { id: "yahoo", name: "Yahoo Mail", tile: "Y" },
+  { id: "fastmail", name: "Fastmail", tile: "F" }
+] as const;
+
+export function GoogleConnectorStep(props: {
+  readonly eyebrow: string;
+  readonly title: string;
+  readonly lede: string;
+  readonly privacy: string;
+  readonly done?: boolean;
+}) {
+  const [mode, setMode] = useState<"picker" | "connecting" | "connected">(
+    props.done ? "connected" : "picker"
+  );
+  const [jsonImportStatus, setJsonImportStatus] = useState<string | null>(null);
+  const queryClient = useQueryClient();
+  const accountsQuery = useQuery({
+    queryKey: queryKeys.connectors.accounts,
+    queryFn: () => listConnectorAccounts(),
+    retry: false
+  });
+  const google = useGoogleConnectFlow({
+    onConnected: () => setMode("connected")
+  });
+  const revoke = useMutation({
+    mutationFn: (id: string) => revokeConnectorAccount(id),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.connectors.accounts })
+  });
+  const accounts = accountsQuery.data?.accounts ?? [];
+  const connected = props.done || accounts.length > 0;
+  const cidOk = google.clientId.trim().length > 8;
+  const csecOk = google.clientSecret.trim().length > 6;
+  const credsReady = cidOk && csecOk;
+  const redirectReady =
+    google.authUrl !== null &&
+    /localhost(:\d+)?/i.test(google.redirectUrl) &&
+    /code=/.test(google.redirectUrl);
+
+  const importCredentialsJson = async (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (!file) return;
+    try {
+      const payload = JSON.parse(await file.text()) as unknown;
+      const credentials = extractGoogleClientCredentials(payload);
+      if (!credentials) {
+        setJsonImportStatus("That file does not look like a Google OAuth client JSON file.");
+        return;
+      }
+      google.setClientId(credentials.clientId);
+      google.setClientSecret(credentials.clientSecret);
+      setJsonImportStatus("Credentials imported from JSON.");
+    } catch {
+      setJsonImportStatus("Could not read that JSON file.");
+    }
+  };
+
+  if (mode === "connecting") {
+    return (
+      <section className="onb-step" aria-labelledby="google-connector-title">
+        <StepHeader eyebrow={props.eyebrow} title={props.title} lede={props.lede} />
+        <div className="onb-connector">
+          <div className="onb-connector__head">
+            <span className="onb-connector__g">G</span>
+            <div className="onb-connector__t">
+              <div className="onb-connector__title">Connect with your own Google app</div>
+              <div className="onb-connector__sub">A one-time setup. About two minutes.</div>
+            </div>
+          </div>
+          <div className="onb-guide__intro">
+            <span className="ic">
+              <ShieldCheck size={15} aria-hidden="true" />
+            </span>
+            <span>
+              Jarvis reaches Google through <b>an OAuth app you own</b>, so your calendar and email
+              never pass through anyone else&apos;s servers. You build it once and paste two values.
+            </span>
+          </div>
+          <ol className="onb-guide">
+            <li className="onb-guide__step">
+              <span className="onb-guide__n">1</span>
+              <div className="onb-guide__body">
+                <div className="onb-guide__t">
+                  Open the <b>Google Cloud Console</b> and create a project, or pick one you already
+                  have.
+                </div>
+                <a
+                  className="onb-guide__link"
+                  href="https://console.cloud.google.com/projectcreate"
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  Open console <ExternalLink size={13} aria-hidden="true" />
+                </a>
+              </div>
+            </li>
+            <li className="onb-guide__step">
+              <span className="onb-guide__n">2</span>
+              <div className="onb-guide__body">
+                <div className="onb-guide__t">
+                  Enable the <b>Gmail API</b> and <b>Google Calendar API</b>, then add yourself as a
+                  test user on the OAuth consent screen.
+                </div>
+              </div>
+            </li>
+            <li className="onb-guide__step">
+              <span className="onb-guide__n">3</span>
+              <div className="onb-guide__body">
+                <div className="onb-guide__t">
+                  Go to <b>Credentials → Create credentials → OAuth client ID</b>. For{" "}
+                  <b>Application type</b>, pick{" "}
+                  <span className="onb-guide__pill">
+                    <Monitor size={12} aria-hidden="true" /> Desktop app
+                  </span>
+                  .
+                </div>
+              </div>
+            </li>
+          </ol>
+          <div className="onb-cred">
+            <div className="onb-cred__hd">1 · Paste your client credentials</div>
+            <label className="onb-json-upload">
+              <input type="file" accept="application/json,.json" onChange={importCredentialsJson} />
+              <span className="onb-json-upload__icon">
+                <Upload size={15} aria-hidden="true" />
+              </span>
+              <span className="onb-json-upload__main">
+                <span className="onb-json-upload__title">Upload credentials JSON</span>
+                <span className="onb-json-upload__sub">
+                  I’ll extract the client ID and secret automatically.
+                </span>
+              </span>
+            </label>
+            {jsonImportStatus ? (
+              <div className="onb-json-upload__status">{jsonImportStatus}</div>
+            ) : null}
+            <label className="onb-cred__field">
+              <span className="onb-cred__lbl">Client ID</span>
+              <span className="onb-cred__in">
+                <span className="ic">
+                  <Fingerprint size={15} aria-hidden="true" />
+                </span>
+                <input
+                  value={google.clientId}
+                  onChange={(event) => google.setClientId(event.target.value)}
+                  placeholder="000000-xxxx.apps.googleusercontent.com"
+                  spellCheck={false}
+                />
+                {cidOk ? <Check className="onb-cred__ok" size={15} aria-hidden="true" /> : null}
+              </span>
+            </label>
+            <label className="onb-cred__field">
+              <span className="onb-cred__lbl">Client secret</span>
+              <span className="onb-cred__in">
+                <span className="ic">
+                  <KeyRound size={15} aria-hidden="true" />
+                </span>
+                <input
+                  type="password"
+                  value={google.clientSecret}
+                  onChange={(event) => google.setClientSecret(event.target.value)}
+                  placeholder="GOCSPX-…"
+                  spellCheck={false}
+                />
+                {csecOk ? <Check className="onb-cred__ok" size={15} aria-hidden="true" /> : null}
+              </span>
+            </label>
+            <div className="onb-cred__actions">
+              {google.authUrl ? (
+                <a
+                  className="jds-btn jds-btn--primary jds-btn--sm"
+                  href={google.authUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  Open consent screen <ExternalLink size={13} aria-hidden="true" />
+                </a>
+              ) : (
+                <button
+                  className="jds-btn jds-btn--primary jds-btn--sm"
+                  type="button"
+                  disabled={!credsReady || google.authorizationPending}
+                  onClick={google.startAuthorization}
+                >
+                  Open consent screen
+                </button>
+              )}
+              <button
+                className="jds-btn jds-btn--quiet jds-btn--sm"
+                type="button"
+                onClick={() => setMode("picker")}
+              >
+                Cancel
+              </button>
+              <span className="onb-cred__hint">
+                Stored encrypted on this server. Never shown in briefings or logs.
+              </span>
+            </div>
+          </div>
+          {google.authUrl ? (
+            <div className="onb-cred gflow__phase">
+              <div className="onb-cred__hd">2 · Finish the connection</div>
+              <p className="gflow__p">
+                After approving, copy the full address from your browser&apos;s bar. It starts with{" "}
+                <code>http://localhost:1/</code>.
+              </p>
+              <label className="onb-cred__field">
+                <span className="onb-cred__lbl">Redirect URL</span>
+                <span className="onb-cred__in">
+                  <span className="ic">
+                    <Link2 size={15} aria-hidden="true" />
+                  </span>
+                  <input
+                    value={google.redirectUrl}
+                    onChange={(event) => google.setRedirectUrl(event.target.value)}
+                    placeholder="http://localhost:1/?code=4/0Ab…&scope=…"
+                    spellCheck={false}
+                  />
+                  {redirectReady ? (
+                    <Check className="onb-cred__ok" size={15} aria-hidden="true" />
+                  ) : null}
+                </span>
+              </label>
+              <div className="onb-cred__actions">
+                <button
+                  className="jds-btn jds-btn--primary jds-btn--sm"
+                  type="button"
+                  disabled={!redirectReady || google.completionPending}
+                  onClick={google.finishConnection}
+                >
+                  Finish connection
+                </button>
+                <span className="onb-cred__hint">
+                  Authorize first, then paste the redirect you land on.
+                </span>
+              </div>
+            </div>
+          ) : null}
+          {google.error ? <p className="form-error">{google.error}</p> : null}
+        </div>
+      </section>
+    );
+  }
+
+  if (mode === "connected" || connected) {
+    return (
+      <section className="onb-step" aria-labelledby="google-connected-title">
+        <div className="onb-eyebrow">Connected</div>
+        <div className="onb-confirm">
+          <span className="onb-confirm__mark">
+            <Check size={22} strokeWidth={2.5} aria-hidden="true" />
+          </span>
+          <div className="onb-confirm__main">
+            <h1 id="google-connected-title" className="onb-confirm__t">
+              {accounts.length > 1
+                ? `${accounts.length} Google accounts connected`
+                : "Google connected"}
+            </h1>
+            <div className="onb-confirm__s">
+              Calendar and email are syncing now — I’ll start using them for context right away.
+            </div>
+          </div>
+        </div>
+        <div className="onb-acctlist">
+          <div className="onb-acctlist__hd">
+            <span className="onb-acctlist__lbl">Connected accounts</span>
+            <span className="onb-acctlist__ct">
+              {Math.max(accounts.length, props.done ? 1 : 0)}
+            </span>
+          </div>
+          {accounts.length > 0 ? (
+            accounts.map((account) => (
+              <div className="onb-acct" key={account.id}>
+                <span className="onb-acct__tile">G</span>
+                <div className="onb-acct__main">
+                  <div className="onb-acct__email">{account.providerDisplayName}</div>
+                  <div className="onb-acct__meta">
+                    <span className="onb-acct__health">
+                      <span className="dot" />{" "}
+                      {account.status === "active" ? "Connected · syncing" : account.status}
+                    </span>
+                    <span className="onb-acct__sep">·</span>
+                    <span className="onb-acct__scopes">{formatScopes(account.scopes)}</span>
+                  </div>
+                </div>
+                <button
+                  className="onb-acct__x"
+                  type="button"
+                  disabled={revoke.isPending}
+                  onClick={() => revoke.mutate(account.id)}
+                >
+                  Disconnect
+                </button>
+              </div>
+            ))
+          ) : (
+            <div className="onb-acct">
+              <span className="onb-acct__tile">G</span>
+              <div className="onb-acct__main">
+                <div className="onb-acct__email">Google</div>
+                <div className="onb-acct__meta">
+                  <span className="onb-acct__health">
+                    <span className="dot" /> Connected · syncing
+                  </span>
+                  <span className="onb-acct__sep">·</span>
+                  <span className="onb-acct__scopes">Calendar · Email</span>
+                </div>
+              </div>
+            </div>
+          )}
+          <button className="onb-addmore" type="button" onClick={() => setMode("picker")}>
+            <span className="onb-addmore__ic">
+              <Plus size={16} aria-hidden="true" />
+            </span>
+            <span className="onb-addmore__main">
+              <span className="onb-addmore__t">Connect another account</span>
+              <span className="onb-addmore__s">
+                Add a second Google account, or a service coming soon.
+              </span>
+            </span>
+          </button>
+        </div>
+        <FootNote icon={<ShieldCheck size={15} aria-hidden="true" />}>{props.privacy}</FootNote>
+      </section>
+    );
+  }
+
+  return (
+    <section className="onb-step" aria-labelledby="google-picker-title">
+      <StepHeader eyebrow={props.eyebrow} title={props.title} lede={props.lede} />
+      <div className="onb-uses">
+        <div className="onb-use">
+          <span className="onb-use__ic">
+            <CalendarDays size={17} aria-hidden="true" />
+          </span>
+          <div className="onb-use__main">
+            <div className="onb-use__label">Calendar</div>
+            <div className="onb-use__sub">
+              Read events so I can plan around what’s already there.
+            </div>
+          </div>
+        </div>
+        <div className="onb-use">
+          <span className="onb-use__ic">
+            <Mail size={17} aria-hidden="true" />
+          </span>
+          <div className="onb-use__main">
+            <div className="onb-use__label">Email</div>
+            <div className="onb-use__sub">
+              Read for context and task capture. Sending always needs your approval.
+            </div>
+          </div>
+        </div>
+      </div>
+      <div className="onb-privacy">
+        <ShieldCheck size={16} aria-hidden="true" />
+        <span>{props.privacy}</span>
+      </div>
+      <div className="onb-pickhd">
+        <span className="onb-pickhd__lbl">Choose a service to connect</span>
+      </div>
+      <button className="onb-prov" type="button" onClick={() => setMode("connecting")}>
+        <span className="onb-prov__tile">G</span>
+        <span className="onb-prov__main">
+          <span className="onb-prov__name">Google</span>
+          <span className="onb-prov__desc">Gmail &amp; Calendar · available now</span>
+        </span>
+        <span className="onb-prov__cta">
+          Connect Google <ArrowRight size={15} aria-hidden="true" />
+        </span>
+      </button>
+      <div className="onb-provsec">
+        <div className="onb-provsec__hd">
+          <span className="onb-provsec__lbl">More services</span>
+          <span className="onb-provsec__note">On the way</span>
+        </div>
+        <div className="onb-provgrid">
+          {SOON_PROVIDERS.map((provider) => (
+            <div className="onb-provmini" key={provider.id} aria-disabled="true">
+              <span className="onb-provmini__tile">{provider.tile}</span>
+              <span className="onb-provmini__main">
+                <span className="onb-provmini__name">{provider.name}</span>
+                <span className="onb-provmini__soon">
+                  <Clock size={10} aria-hidden="true" /> Soon
+                </span>
+              </span>
+            </div>
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function extractGoogleClientCredentials(
+  payload: unknown
+): { clientId: string; clientSecret: string } | null {
+  if (!isRecord(payload)) return null;
+  const root = isRecord(payload.installed)
+    ? payload.installed
+    : isRecord(payload.web)
+      ? payload.web
+      : payload;
+  const clientId = root.client_id;
+  const clientSecret = root.client_secret;
+  if (typeof clientId !== "string" || typeof clientSecret !== "string") return null;
+  if (!clientId.trim() || !clientSecret.trim()) return null;
+  return { clientId: clientId.trim(), clientSecret: clientSecret.trim() };
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function formatScopes(scopes: readonly string[]): string {
+  if (scopes.length === 0) return "Calendar · Email";
+  const hasCalendar = scopes.some((scope) => /calendar/i.test(scope));
+  const hasMail = scopes.some((scope) => /mail|gmail/i.test(scope));
+  if (hasCalendar && hasMail) return "Calendar · Email";
+  if (hasCalendar) return "Calendar";
+  if (hasMail) return "Email";
+  if (scopes.length === 1) return scopes[0] ?? "Connected";
+  return `${scopes.length} scopes`;
+}

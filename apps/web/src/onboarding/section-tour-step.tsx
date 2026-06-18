@@ -1,9 +1,18 @@
 import { useQuery } from "@tanstack/react-query";
-import { Link } from "react-router";
+import { CalendarDays, Compass, HeartPulse, House, ListChecks, Settings } from "lucide-react";
 
 import { getModules, getMyModules } from "../api/client";
 import { queryKeys } from "../api/query-keys";
-import { buildTourSections } from "./section-tour-model";
+import { buildTourSections, type TourSection } from "./section-tour-model";
+import { FootNote, StepHeader } from "./onboarding-ui";
+
+const ICONS: Record<TourSection["icon"], typeof House> = {
+  House,
+  ListChecks,
+  CalendarDays,
+  HeartPulse,
+  Settings
+};
 
 export function SectionTourStep(props: { readonly onDone: () => void }) {
   const modulesQuery = useQuery({
@@ -33,26 +42,32 @@ export function SectionTourStep(props: { readonly onDone: () => void }) {
 
   return (
     <section className="onb-step" aria-labelledby="member-tour-title">
-      <p className="onb-eyebrow">Step 3 · Where to go</p>
-      <h1 id="member-tour-title" className="onb-title">
-        Here’s where to start.
-      </h1>
-      <p className="onb-lede">
-        A short orientation. Each part of Jarvis has a job. Here’s what to reach for, and when.
-      </p>
-      <ul className="connect-steps onb-tour">
-        {sections.map((s) => (
-          <li key={s.path} className="onb-tour__row">
-            <Link to={s.path}>
-              <strong>{s.label}</strong>
-            </Link>
-            {" — "}
-            {s.blurb}
-          </li>
-        ))}
-      </ul>
-      <button className="primary-button" type="button" onClick={props.onDone}>
-        Finish
+      <StepHeader
+        eyebrow="Step 3 · Where to go"
+        title="Here’s where to start."
+        lede="A short orientation. Each part of Jarvis has a job — here’s what to reach for, and when."
+      />
+      <div className="onb-tour">
+        {sections.map((section) => {
+          const Icon = ICONS[section.icon];
+          return (
+            <div key={section.path} className="onb-tour__row">
+              <span className="onb-tour__ic">
+                <Icon size={19} aria-hidden="true" />
+              </span>
+              <div className="onb-tour__main">
+                <div className="onb-tour__name">{section.label}</div>
+                <div className="onb-tour__job">{section.blurb}</div>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+      <FootNote icon={<Compass size={15} aria-hidden="true" />}>
+        Only the parts of Jarvis turned on for you are shown. More appear here as they’re enabled.
+      </FootNote>
+      <button className="onb-inline-skip" type="button" onClick={props.onDone}>
+        Continue
       </button>
     </section>
   );

@@ -15,7 +15,8 @@ import {
   createBinaryProbe,
   createRealTmuxIo,
   decideMultiplexer,
-  resolveMultiplexer
+  resolveMultiplexer,
+  type TmuxIo
 } from "@jarv1s/ai";
 import {
   CliChatUnavailableError,
@@ -79,13 +80,15 @@ export function makeCliPresentProbe(): (kind: OnboardingProviderKind) => Promise
 
 const PROVIDER_CHECK_PROMPT = "Reply with exactly OK.";
 const PROVIDER_CHECK_PERSONA = "You are running a Jarvis provider connection check.";
-const PROVIDER_CHECK_TIMEOUT_MS = 12_000;
+const PROVIDER_CHECK_TIMEOUT_MS = 25_000;
 const PROVIDER_CHECK_POLL_MS = 250;
+const PROVIDER_PROMPT_ACK_MS = 1_000;
 
 export function makeProviderConnectionCheckProbe(deps: {
   readonly engineFactory: ChatEngineFactory;
   readonly cliPresent: (kind: OnboardingProviderKind) => Promise<boolean>;
   readonly skipInstallCheck?: boolean;
+  readonly commandIo?: Pick<TmuxIo, "run">;
 }): (kind: OnboardingProviderKind) => Promise<OnboardingProviderCheckResponse> {
   return async (kind) => {
     if (!deps.skipInstallCheck && !(await deps.cliPresent(kind))) {
@@ -99,11 +102,30 @@ export function makeProviderConnectionCheckProbe(deps: {
       const personaPath = join(neutralDir, "persona.md");
       await writeFile(personaPath, PROVIDER_CHECK_PERSONA, "utf8");
 
+      if (kind === "anthropic") {
+        return await checkAnthropicProviderWithClaudeAuthStatus(
+          deps.commandIo ?? createRealTmuxIo()
+        );
+      }
+      if (kind === "openai-compatible") {
+        return await checkOpenAiCompatibleProviderWithCodexLoginStatus(
+          deps.commandIo ?? createRealTmuxIo()
+        );
+      }
+      if (kind === "google") {
+        return await checkGoogleProviderWithAgyPrint(
+          neutralDir,
+          deps.commandIo ?? createRealTmuxIo()
+        );
+      }
+
       engine = deps.engineFactory(kind, `onboarding-check-${kind}`);
       await withTimeout(engine.launch({ neutralDir, personaPath }), PROVIDER_CHECK_TIMEOUT_MS);
+      await acknowledgeProviderPromptIfNeeded(engine, kind);
+      await waitForProviderTranscriptIfNeeded(engine, kind, PROVIDER_CHECK_TIMEOUT_MS);
       await withTimeout(engine.submit(PROVIDER_CHECK_PROMPT), PROVIDER_CHECK_TIMEOUT_MS);
 
-      const ready = await waitForProviderReply(engine, PROVIDER_CHECK_TIMEOUT_MS);
+      const ready = await waitForProviderReply(engine, kind, PROVIDER_CHECK_TIMEOUT_MS);
       return ready ? { status: "ready" } : { status: "needs_login" };
     } catch (error) {
       if (error instanceof CliChatUnavailableError) {
@@ -121,12 +143,88 @@ export function makeProviderConnectionCheckProbe(deps: {
   };
 }
 
+async function checkAnthropicProviderWithClaudeAuthStatus(
+  io: Pick<TmuxIo, "run">
+): Promise<OnboardingProviderCheckResponse> {
+  const result = await withTimeout(io.run("claude", ["auth", "status"]), PROVIDER_CHECK_TIMEOUT_MS);
+  if (result.code !== 0) {
+    return isAuthenticationOutput(`${result.stdout}\n${result.stderr ?? ""}`)
+      ? { status: "needs_login" }
+      : { status: "error" };
+  }
+
+  try {
+    const parsed = JSON.parse(result.stdout) as { loggedIn?: unknown };
+    return parsed.loggedIn === true ? { status: "ready" } : { status: "needs_login" };
+  } catch {
+    return { status: "error" };
+  }
+}
+
+async function checkOpenAiCompatibleProviderWithCodexLoginStatus(
+  io: Pick<TmuxIo, "run">
+): Promise<OnboardingProviderCheckResponse> {
+  const result = await withTimeout(io.run("codex", ["login", "status"]), PROVIDER_CHECK_TIMEOUT_MS);
+  const output = `${result.stdout}\n${result.stderr ?? ""}`;
+  if (result.code === 0 && /\blogged in\b/i.test(output)) {
+    return { status: "ready" };
+  }
+  return { status: "needs_login" };
+}
+
+async function checkGoogleProviderWithAgyPrint(
+  neutralDir: string,
+  io: Pick<TmuxIo, "run">
+): Promise<OnboardingProviderCheckResponse> {
+  const result = await withTimeout(
+    io.run("agy", ["--print", PROVIDER_CHECK_PROMPT], { cwd: neutralDir }),
+    PROVIDER_CHECK_TIMEOUT_MS
+  );
+  const output = `${result.stdout}\n${result.stderr ?? ""}`;
+  if (result.code === 0 && isProviderCheckOk(result.stdout)) {
+    return { status: "ready" };
+  }
+  if (isAuthenticationOutput(output)) {
+    return { status: "needs_login" };
+  }
+  return { status: "needs_login" };
+}
+
+async function acknowledgeProviderPromptIfNeeded(
+  engine: ReturnType<ChatEngineFactory>,
+  kind: OnboardingProviderKind
+): Promise<void> {
+  if (kind === "anthropic" || kind === "google") return;
+  await withTimeout(engine.submit(""), PROVIDER_CHECK_TIMEOUT_MS).catch(() => undefined);
+  await sleep(PROVIDER_CHECK_POLL_MS);
+}
+
+async function waitForProviderTranscriptIfNeeded(
+  engine: ReturnType<ChatEngineFactory>,
+  kind: OnboardingProviderKind,
+  timeoutMs: number
+): Promise<void> {
+  if (kind !== "google") return;
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    const result = await engine.readNew(0).catch(() => ({
+      records: [],
+      offset: 0,
+      complete: false
+    }));
+    if (result.offset > 0 || result.records.length > 0 || result.complete) return;
+    await sleep(PROVIDER_CHECK_POLL_MS);
+  }
+}
+
 async function waitForProviderReply(
   engine: ReturnType<ChatEngineFactory>,
+  kind: OnboardingProviderKind,
   timeoutMs: number
 ): Promise<boolean> {
   const deadline = Date.now() + timeoutMs;
   let offset = 0;
+  let lastAckAt = 0;
   while (Date.now() < deadline) {
     const result = await engine.readNew(offset).catch(() => ({
       records: [],
@@ -134,15 +232,28 @@ async function waitForProviderReply(
       complete: false
     }));
     offset = result.offset;
-    if (result.records.some((record) => record.kind === "reply")) {
+    if (result.records.some((record) => isProviderCheckOk(record.text))) {
       return true;
     }
+    if (result.records.some((record) => record.kind === "reply")) return true;
     if (result.complete && result.records.some((record) => record.kind === "error")) {
       return false;
+    }
+    if (kind !== "anthropic" && Date.now() - lastAckAt >= PROVIDER_PROMPT_ACK_MS) {
+      lastAckAt = Date.now();
+      await engine.submit("").catch(() => undefined);
     }
     await sleep(PROVIDER_CHECK_POLL_MS);
   }
   return false;
+}
+
+function isProviderCheckOk(text: string): boolean {
+  return text.trim().toUpperCase() === "OK";
+}
+
+function isAuthenticationOutput(text: string): boolean {
+  return /\b(auth|authentication|authorization|login|sign in)\b/i.test(text);
 }
 
 async function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {

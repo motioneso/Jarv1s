@@ -14,7 +14,12 @@ describe("member onboarding section tour", () => {
       []
     );
 
-    expect(sections.map((section) => section.path)).toEqual(["/tasks", "/calendar", "/settings"]);
+    expect(sections.map((section) => section.path)).toEqual([
+      "/today",
+      "/tasks",
+      "/calendar",
+      "/settings"
+    ]);
   });
 
   it("still respects per-user disabled modules for routable sections", () => {
@@ -26,7 +31,7 @@ describe("member onboarding section tour", () => {
       ["wellness"]
     );
 
-    expect(sections.map((section) => section.path)).toEqual(["/tasks", "/settings"]);
+    expect(sections.map((section) => section.path)).toEqual(["/today", "/tasks", "/settings"]);
   });
 });
 

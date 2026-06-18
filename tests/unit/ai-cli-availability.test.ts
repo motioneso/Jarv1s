@@ -14,8 +14,8 @@ describe("cliAvailable", () => {
     expect(await cliAvailable("openai-compatible", deps)).toBe(true);
   });
 
-  it("maps google to gemini binary and returns true when found", async () => {
-    const deps = { which: async (bin: string) => (bin === "gemini" ? "/usr/bin/gemini" : null) };
+  it("maps google to agy binary and returns true when found", async () => {
+    const deps = { which: async (bin: string) => (bin === "agy" ? "/usr/bin/agy" : null) };
     expect(await cliAvailable("google", deps)).toBe(true);
   });
 

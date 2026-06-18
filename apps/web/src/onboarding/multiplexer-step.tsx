@@ -1,16 +1,42 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { ExternalLink, LoaderCircle } from "lucide-react";
+import { useEffect, useState } from "react";
+import { Check, Download, ExternalLink, LoaderCircle, RefreshCw } from "lucide-react";
 
 import type { ChatMultiplexerChoice, OnboardingMultiplexerStepDto } from "@jarv1s/shared";
 
 import { setChatMultiplexerSettings } from "../api/client";
 import { queryKeys } from "../api/query-keys";
+import { OptionCard, StatusChip, StatusHint, StepHeader } from "./onboarding-ui";
+
+const OPTIONS = [
+  {
+    id: "auto",
+    name: "Auto",
+    mono: "recommended",
+    desc: "Use whatever this host already has set up. I’ll pick the best available."
+  },
+  {
+    id: "tmux",
+    name: "tmux",
+    mono: "multiplexer",
+    desc: "A widely-used terminal multiplexer. Must be installed on the host."
+  },
+  {
+    id: "herdr",
+    name: "herdr",
+    mono: "multiplexer",
+    desc: "Needs to be installed and have a root pane configured."
+  }
+] as const;
 
 export function MultiplexerStep(props: {
   readonly step: OnboardingMultiplexerStepDto;
   readonly onRecheck: () => void;
 }) {
   const queryClient = useQueryClient();
+  const [selectedChoice, setSelectedChoice] = useState<ChatMultiplexerChoice>(
+    props.step.selected ?? "auto"
+  );
   const select = useMutation({
     // Reuse the EXISTING audited writer — single owner of chat.multiplexer.
     mutationFn: (choice: ChatMultiplexerChoice) => setChatMultiplexerSettings(choice),
@@ -25,68 +51,70 @@ export function MultiplexerStep(props: {
   });
 
   const anyUsable = props.step.tmuxUsable || props.step.herdrUsable;
+  const selected = select.isPending ? selectedChoice : (props.step.selected ?? selectedChoice);
+
+  useEffect(() => {
+    if (!select.isPending) setSelectedChoice(props.step.selected ?? "auto");
+  }, [props.step.selected, select.isPending]);
 
   return (
     <section className="onb-step" aria-labelledby="onboarding-multiplexer-title">
-      <p className="onb-eyebrow">Step 1 · A safe way to reach your machine</p>
-      <h1 id="onboarding-multiplexer-title" className="onb-title">
-        Give Jarvis a control channel.
-      </h1>
-      <p className="onb-lede">
-        I run on your computer. To do that safely, I keep my work inside a single, inspectable
-        terminal session, so everything I run is in one place you can watch or stop.
-      </p>
-      {props.step.selected ? (
-        <p className="form-hint">
-          Selected: <strong>{props.step.selected}</strong>
-          {props.step.done ? " (usable)" : " (selected, but not usable on this host yet)"}
-        </p>
-      ) : null}
-      {!anyUsable ? (
-        <>
-          <p>
-            Jarv1s runs unprivileged, so we can&apos;t install software for you. Install one of
-            these on the host, then re-check. (herdr also needs a root pane — set
-            <code>JARVIS_HERDR_ROOT_PANE</code> or run Jarv1s inside herdr.)
-          </p>
-          <ol className="connect-steps">
-            <li>
-              <code>sudo apt install tmux</code>
-            </li>
-            <li>
-              Or install herdr: <code>curl -fsSL https://herdr.dev/install.sh | sh</code>
-            </li>
-          </ol>
-        </>
-      ) : (
-        <div className="onboarding-choice-row onb-option-actions">
-          <button
-            className="primary-button"
-            type="button"
-            disabled={!props.step.tmuxUsable || select.isPending}
-            onClick={() => select.mutate("tmux")}
-          >
-            {select.isPending ? <LoaderCircle className="spin" size={18} /> : null} Use tmux
-          </button>
-          <button
-            className="primary-button"
-            type="button"
-            disabled={!props.step.herdrUsable || select.isPending}
-            onClick={() => select.mutate("herdr")}
-          >
-            {select.isPending ? <LoaderCircle className="spin" size={18} /> : null} Use herdr
-          </button>
-          <button
-            className="ghost-button"
-            type="button"
-            disabled={select.isPending}
-            onClick={() => select.mutate("auto")}
-            title="Let Jarv1s pick whichever usable multiplexer is installed"
-          >
-            Auto-detect
-          </button>
-        </div>
-      )}
+      <StepHeader
+        eyebrow="Step 1 · A safe way to reach your machine"
+        title="Give Jarvis a control channel."
+        lede="I run on your computer. To do that safely, I keep my work inside a single, inspectable terminal session — so everything I run is in one place you can watch or stop. Choose how that session is managed."
+      />
+      <div className="onb-opts">
+        {OPTIONS.map((option) => {
+          const state = option.id === "herdr" ? props.step.herdrUsable : props.step.tmuxUsable;
+          const autoReady = option.id === "auto" && anyUsable;
+          const ready = autoReady || state;
+          const tone = ready ? "pine" : option.id === "auto" ? "steel" : "amber";
+          const label = ready
+            ? option.id === "auto"
+              ? "Ready — host detected"
+              : "Detected on this host"
+            : option.id === "auto"
+              ? "Will use what’s available"
+              : "Not installed";
+          const hint =
+            !ready && option.id === "tmux"
+              ? "Install tmux on the host, then re-check."
+              : !ready && option.id === "herdr"
+                ? "Install herdr and configure a root pane."
+                : undefined;
+          return (
+            <OptionCard
+              key={option.id}
+              selected={selected === option.id}
+              disabled={select.isPending}
+              onClick={() => {
+                setSelectedChoice(option.id);
+                select.mutate(option.id);
+              }}
+              name={option.name}
+              mono={option.mono}
+              desc={option.desc}
+            >
+              <StatusChip
+                tone={tone}
+                icon={
+                  select.isPending && selected === option.id ? (
+                    <LoaderCircle className="spin" size={14} aria-hidden="true" />
+                  ) : ready ? (
+                    <Check size={14} aria-hidden="true" />
+                  ) : (
+                    <Download size={14} aria-hidden="true" />
+                  )
+                }
+              >
+                {select.isPending && selected === option.id ? "Saving…" : label}
+              </StatusChip>
+              <StatusHint>{hint}</StatusHint>
+            </OptionCard>
+          );
+        })}
+      </div>
       <div className="onb-install-links" aria-label="Official installation links">
         <span>Download:</span>
         <a href="https://github.com/tmux/tmux" target="_blank" rel="noreferrer">
@@ -97,11 +125,15 @@ export function MultiplexerStep(props: {
         </a>
       </div>
       <div className="onb-recheck">
-        <p>
-          Status reflects what is installed on the host, not what is running. You can change this
-          later in Settings.
-        </p>
-        <button className="ghost-button" type="button" onClick={props.onRecheck}>
+        <div className="onb-recheck__main">
+          Services auto-detected on load. Install and check again if any are missing.
+        </div>
+        <button
+          className="jds-btn jds-btn--secondary jds-btn--sm"
+          type="button"
+          onClick={props.onRecheck}
+        >
+          <RefreshCw size={14} aria-hidden="true" />
           Re-check host
         </button>
       </div>

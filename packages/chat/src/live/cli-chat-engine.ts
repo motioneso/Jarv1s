@@ -84,6 +84,9 @@ export class CliChatEngineImpl implements CliChatEngine {
    */
   private transcriptDir: string | null = null;
 
+  /** The cwd used to launch the CLI; Codex records it in session_meta.cwd. */
+  private neutralDir: string | null = null;
+
   /** Optional host-HOME base for transcript resolution (containerized bridge). */
   private readonly homeBase?: string;
 
@@ -106,6 +109,7 @@ export class CliChatEngineImpl implements CliChatEngine {
     // Codex/Gemini don't accept a session-id, so their transcript path is resolved
     // lazily in readNew() (newest .jsonl under the glob dir).
     const sessionId = randomUUID();
+    this.neutralDir = opts.neutralDir;
 
     if (this.provider === "google" && opts.mcpToken && opts.mcpServerUrl) {
       const settingsDir = join(opts.neutralDir, ".gemini");
@@ -253,14 +257,39 @@ export class CliChatEngineImpl implements CliChatEngine {
     // `ls -t` sorts by mtime, newest first; tolerate a not-yet-created dir (nonzero exit).
     const listed = await this.io.run("ls", ["-t", this.transcriptDir]);
     if (listed.code !== 0) return null;
-    const newest = listed.stdout
+    const candidates = listed.stdout
       .split("\n")
       .map((line) => line.trim())
-      .find((name) => name.endsWith(".jsonl"));
+      .filter((name) => name.endsWith(".jsonl"));
+
+    let newest: string | undefined;
+    if (this.provider === "openai-compatible" && this.neutralDir !== null) {
+      newest = await this.findCodexTranscriptForCwd(candidates);
+    } else {
+      newest = candidates[0];
+    }
     if (!newest) return null;
 
     this.storedTranscriptPath = join(this.transcriptDir, newest);
     return this.storedTranscriptPath;
+  }
+
+  private async findCodexTranscriptForCwd(
+    candidates: readonly string[]
+  ): Promise<string | undefined> {
+    for (const candidate of candidates.slice(0, 20)) {
+      const path = join(this.transcriptDir ?? "", candidate);
+      let jsonl: string;
+      try {
+        jsonl = await this.io.readFile(path);
+      } catch {
+        continue;
+      }
+      if (codexTranscriptMatchesCwd(jsonl, this.neutralDir ?? "")) {
+        return candidate;
+      }
+    }
+    return undefined;
   }
 
   private requireHandle(): MuxHandle {
@@ -342,11 +371,7 @@ export class CliChatEngineImpl implements CliChatEngine {
 
   private buildGeminiCommand(opts: EngineLaunchOpts): string {
     // Token is already injected via .gemini/settings.json Authorization header — no env var needed.
-    const parts = [
-      `cd ${shellQuote(opts.neutralDir)} &&`,
-      "gemini",
-      "--allowed-mcp-server-names jarvis"
-    ];
+    const parts = [`cd ${shellQuote(opts.neutralDir)} &&`, "agy", "--sandbox"];
     return parts.join(" ");
   }
 }
@@ -360,6 +385,27 @@ export class CliChatEngineImpl implements CliChatEngine {
  */
 function sanitizeInput(text: string): string {
   return text.replace(/^(\s*)!+/, "$1");
+}
+
+function codexTranscriptMatchesCwd(jsonl: string, expectedCwd: string): boolean {
+  for (const line of jsonl.split("\n").slice(0, 50)) {
+    if (!line.trim()) continue;
+    let record: Record<string, unknown>;
+    try {
+      record = JSON.parse(line) as Record<string, unknown>;
+    } catch {
+      continue;
+    }
+    if (record["type"] !== "session_meta") continue;
+    const payload = record["payload"];
+    if (!isRecord(payload)) continue;
+    return payload["cwd"] === expectedCwd;
+  }
+  return false;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
 /** Minimal POSIX single-quote shell quoting for paths embedded in a send-keys line. */

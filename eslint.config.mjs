@@ -16,6 +16,7 @@ export default tseslint.config(
       "**/.turbo/**",
       "playwright-report/**",
       "test-results/**",
+      "Jarvis Design System/**",
       ".claude/worktrees/**",
       ".claude/workflows/**",
       "docs/audit/**",

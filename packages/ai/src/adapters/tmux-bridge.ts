@@ -1,6 +1,6 @@
 import { execFile } from "node:child_process";
 import { readFile, writeFile } from "node:fs/promises";
-import { join } from "node:path";
+import { basename, join } from "node:path";
 import { homedir } from "node:os";
 import { promisify } from "node:util";
 
@@ -87,7 +87,7 @@ export function createRealTmuxIo(): TmuxIo {
  *
  * - google / Gemini CLI:
  *     Writes session chats under
- *     ~/.gemini/tmp/<project-hash>/chats/session-<ISO>-<uuid>.jsonl
+ *     ~/.gemini/tmp/<lowercase-project-dir-basename>/chats/session-<ISO>-<uuid>.jsonl
  *     Use the newest file under the chats directory for the given project dir.
  */
 export function transcriptGlobDir(
@@ -105,15 +105,14 @@ export function transcriptGlobDir(
     }
     case "openai-compatible": {
       const now = new Date();
-      const y = now.getUTCFullYear();
-      const m = String(now.getUTCMonth() + 1).padStart(2, "0");
-      const d = String(now.getUTCDate()).padStart(2, "0");
+      const y = now.getFullYear();
+      const m = String(now.getMonth() + 1).padStart(2, "0");
+      const d = String(now.getDate()).padStart(2, "0");
       return join(homeBase, ".codex", "sessions", String(y), m, d);
     }
     case "google": {
-      // Gemini uses a hash of the project dir; approximate by using a glob
-      // under ~/.gemini/tmp — in practice we find the newest chats file
-      return join(homeBase, ".gemini", "tmp");
+      const projectDir = basename(cwd).toLowerCase();
+      return join(homeBase, ".gemini", "tmp", projectDir, "chats");
     }
   }
 }

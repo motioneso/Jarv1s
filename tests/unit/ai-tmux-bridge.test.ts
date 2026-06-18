@@ -2,7 +2,7 @@
  * Unit tests for transcript-reader and TmuxBridgeAdapter.
  * No Postgres — all I/O boundaries are mocked.
  */
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import { parseTranscript } from "../../packages/ai/src/adapters/transcript-reader.js";
 import { createRealTmuxIo, transcriptGlobDir } from "../../packages/ai/src/adapters/tmux-bridge.js";
@@ -248,5 +248,20 @@ describe("transcriptGlobDir — homeBase override", () => {
   it("defaults to the OS homedir when homeBase is omitted (unchanged behavior)", () => {
     const dir = transcriptGlobDir("anthropic", "/home/ben/Jarv1s/apps/worker");
     expect(dir).toContain("/.claude/projects/-home-ben-Jarv1s-apps-worker");
+  });
+});
+
+describe("transcriptGlobDir — Codex date directory", () => {
+  it("uses the host local date for Codex session directories", () => {
+    vi.useFakeTimers();
+    try {
+      // 2026-06-18T05:30Z is still 2026-06-17 in the dev host's PDT timezone,
+      // and Codex writes under the local-date directory.
+      vi.setSystemTime(new Date("2026-06-18T05:30:00.000Z"));
+      const dir = transcriptGlobDir("openai-compatible", "/tmp/x", "/custom/home");
+      expect(dir).toBe("/custom/home/.codex/sessions/2026/06/17");
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });
