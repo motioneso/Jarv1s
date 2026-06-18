@@ -1,11 +1,11 @@
 # Coordination Run — 2026-06-18-overnight-automation
 
 **Date:** 2026-06-18
-**Coordinator lock:** label `Coordinator`, **stable anchor = Codex session id `019edc14-46cc-7fe3-b383-e33a66cc8e18`** (match `agent_session.value` in `herdr pane list`). Single-coordinator lock — exactly one pane labelled `Coordinator` whose session id matches this anchor holds authority for the life of the run. Pane numbers (`w…-N`) reflow on every restart/split/reap; do not trust any pane number written in this file as an identifier. Agents escalate to the label; the coordinator merges only when its own pane's session id matches this recorded anchor.
+**Coordinator lock:** label `Coordinator`, **stable anchor = Codex session id `019edcbd-30fe-7d71-9e48-ded1258b8d98`** (match `agent_session.value` in `herdr pane list`). Single-coordinator lock — exactly one pane labelled `Coordinator` whose session id matches this anchor holds authority for the life of the run. Pane numbers (`w…-N`) reflow on every restart/split/reap; do not trust any pane number written in this file as an identifier. Agents escalate to the label; the coordinator merges only when its own pane's session id matches this recorded anchor.
 **Merge policy:** autonomous-after-verified-QA for `routine`/`sensitive`; `security`-tier needs Ben's explicit merge sign-off.
 **Relay threshold:** security-tier merge → relay immediately after Phase 3 step 7; routine/sensitive `merges_since_relay` >= 2 → relay. Compaction summary = already past safe → relay, merge nothing.
 **Additional context ceiling:** coordinator self-reads `herdr pane read "$HERDR_PANE_ID" --source visible --lines 5` after major events and before every spawn/merge wave. If the visible status line reports >= 500K used, flush this manifest, write the mid-doing continuation note, and relay before more work.
-**merges_since_relay:** 1
+**merges_since_relay:** 0
 
 > This is the coordinator's externalized memory. Keep it current. GitHub is the source of truth for issue/board status; this file holds in-flight operational state.
 
@@ -46,6 +46,11 @@
 - Old `Coordinator-RelayOld` pane for Codex session id
   `019edba6-76f5-7d13-9de9-2b5a8b4e5d1f` is closed; `herdr pane list` shows exactly one
   `Coordinator`, session id `019edc14-46cc-7fe3-b383-e33a66cc8e18`.
+- Fifth successor coordinator claimed the lock on 2026-06-18 with Codex session id
+  `019edcbd-30fe-7d71-9e48-ded1258b8d98`; `herdr pane list` showed exactly one pane labelled
+  `Coordinator`. Old coordinator was relabelled `Coordinator-RelayOld` after matching label
+  `Coordinator` plus Codex session id `019edc14-46cc-7fe3-b383-e33a66cc8e18`; close it after this
+  lock update is committed and pushed.
 - Tab layout corrected after takeover: coordinator session
   `019edc14-46cc-7fe3-b383-e33a66cc8e18` is alone in tab `Coordinator`; `OwnerBootstrap-260` is
   alone in tab `Agents`.
@@ -178,14 +183,13 @@ No waivers. Any red required check is stop-the-line unless proven red on `main` 
   lock update was committed and pushed. Do not trust pane numbers.
 - **Relay reason 5:** coordinator merged security-tier PR #309 for #260 after Ben's explicit
   sign-off. Security-tier merge triggers immediate relay. Active coordinator session
-  `019edc14-46cc-7fe3-b383-e33a66cc8e18` should hand off to a successor coordinator. The successor
-  must read this file in full, invoke/use `coordinate`, confirm its own Codex session id from
-  `herdr pane list`, update the Coordinator lock to its own session id, then resolve and close the
-  old coordinator by label `Coordinator` plus session id
-  `019edc14-46cc-7fe3-b383-e33a66cc8e18` after confirming it is driving. Do not trust pane numbers.
-- **Next action:** relay now. Do not merge anything else from this coordinator session. After
-  takeover, successor should reconcile the main worktree's unrelated local commits from other panes
-  before further manifest pushes.
+  `019edc14-46cc-7fe3-b383-e33a66cc8e18` handed off to successor coordinator session
+  `019edcbd-30fe-7d71-9e48-ded1258b8d98`. The successor read this file in full, invoked/used
+  `coordinate`, confirmed its own Codex session id from `herdr pane list`, relabelled the old
+  coordinator to `Coordinator-RelayOld`, and updated this lock. Do not trust pane numbers.
+- **Next action:** close old `Coordinator-RelayOld` session
+  `019edc14-46cc-7fe3-b383-e33a66cc8e18`, then write the overnight report. Reconcile the main
+  worktree's unrelated local commits from other panes before further manifest pushes.
 - **If local gate is green:** spawn #297 first and #299 infra/settings/scripts if collision scan still shows no overlap. Hold #299 tasks subset until #297 lands. Hold #244 until the lower-risk lanes are done.
 - **If latest CI is red:** pull the exact failing job log and continue systematic debugging. Do not spawn the fleet on red `main`.
 - **Untracked files in main worktree:** `docs/superpowers/handoffs/2026-06-18-onboarding-service-testing-webwright.md` and `docs/superpowers/specs/2026-06-15-corrections-log.md` existed before this run; do not sweep them with broad staging.
