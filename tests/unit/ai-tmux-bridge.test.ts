@@ -255,11 +255,13 @@ describe("transcriptGlobDir — Codex date directory", () => {
   it("uses the host local date for Codex session directories", () => {
     vi.useFakeTimers();
     try {
-      // 2026-06-18T05:30Z is still 2026-06-17 in the dev host's PDT timezone,
-      // and Codex writes under the local-date directory.
-      vi.setSystemTime(new Date("2026-06-18T05:30:00.000Z"));
+      const now = new Date("2026-06-18T05:30:00.000Z");
+      vi.setSystemTime(now);
       const dir = transcriptGlobDir("openai-compatible", "/tmp/x", "/custom/home");
-      expect(dir).toBe("/custom/home/.codex/sessions/2026/06/17");
+      const localYear = now.getFullYear();
+      const localMonth = String(now.getMonth() + 1).padStart(2, "0");
+      const localDay = String(now.getDate()).padStart(2, "0");
+      expect(dir).toBe(`/custom/home/.codex/sessions/${localYear}/${localMonth}/${localDay}`);
     } finally {
       vi.useRealTimers();
     }
