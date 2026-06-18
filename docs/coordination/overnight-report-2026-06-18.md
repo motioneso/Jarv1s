@@ -15,7 +15,7 @@ CI-equivalent evidence recorded in the run manifest.
 | #299 settings/scripts/jobs cleanup        | #299  | #302 | `d002958`    | Merged; residual issue remains |
 | Memory corrections log                    | #244  | #305 | `bd43a0f`    | Merged; issue closed/Done      |
 | Owner bootstrap recovery, security-tier   | #260  | #309 | `e075312`    | Merged after Ben sign-off      |
-| Final coordinator lock/report bookkeeping | —     | —    | `1107c53`+   | Pushed to `main`               |
+| Final coordinator lock/report bookkeeping | —     | —    | `255949a`    | Pushed to `main`               |
 | Onboarding copy refresh, outside queue    | —     | #310 | `95a3b60`    | Merged; branch deleted         |
 
 ## Verification
