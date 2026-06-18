@@ -29,6 +29,8 @@ export type {
 export { ChatMemoryFactsRepository } from "./facts-repository.js";
 export { createMemoryFactSignature, normalizeMemoryFactContent } from "./fact-signature.js";
 export type {
+  MemoryCorrection,
+  MemoryCorrectionSource,
   MemorySuppression,
   MemorySuppressionReason,
   NewMemorySuppression

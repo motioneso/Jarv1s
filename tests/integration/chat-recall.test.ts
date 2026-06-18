@@ -162,6 +162,37 @@ describe("Phase 3 Recall migrations", () => {
     }
   });
 
+  it("0096: chat_memory_suppressions supports corrections log metadata", async () => {
+    const client = new Client({ connectionString: connectionStrings.migration });
+    await client.connect();
+    try {
+      const cols = await client.query(
+        `SELECT column_name FROM information_schema.columns
+         WHERE table_schema = 'app' AND table_name = 'chat_memory_suppressions'
+         ORDER BY column_name`
+      );
+      expect(cols.rows.map((r: { column_name: string }) => r.column_name)).toEqual(
+        expect.arrayContaining(["source", "fact_id", "before_content", "after_content"])
+      );
+
+      const checks = await client.query(
+        `SELECT pg_get_constraintdef(c.oid) AS def
+         FROM pg_constraint c
+         JOIN pg_class t ON t.oid = c.conrelid
+         JOIN pg_namespace n ON n.oid = t.relnamespace
+         WHERE n.nspname = 'app'
+           AND t.relname = 'chat_memory_suppressions'
+           AND c.contype = 'c'`
+      );
+      const defs = checks.rows.map((r: { def: string }) => r.def).join("\n");
+      expect(defs).toContain("corrected");
+      expect(defs).toContain("pattern-reject");
+      expect(defs).toContain("chat");
+    } finally {
+      await client.end();
+    }
+  });
+
   it("0042: chat_user_memory_settings table exists", async () => {
     const client = new Client({ connectionString: connectionStrings.migration });
     await client.connect();
