@@ -13,6 +13,7 @@ import type {
   BootstrapStatusResponse,
   ChatMultiplexerChoice,
   ChatMultiplexerSettingsDto,
+  HostDiagnosticsDto,
   GetPersonaSettingsResponse,
   GetChatModelOverrideSettingsResponse,
   GetLocaleSettingsResponse,
@@ -851,6 +852,10 @@ export async function setChatMultiplexerSettings(
     method: "PUT",
     body: { multiplexer }
   });
+}
+
+export async function getHostDiagnostics(): Promise<HostDiagnosticsDto> {
+  return requestJson<HostDiagnosticsDto>("/api/admin/host/diagnostics");
 }
 
 export async function requestJson<T>(path: string, options: ApiRequestOptions = {}): Promise<T> {
