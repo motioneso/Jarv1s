@@ -433,6 +433,68 @@ describe("multi-user registration + lifecycle (Phase 2 Slice A)", () => {
     });
   });
 
+  it("bootstraps signup as owner when existing users have no bootstrap owner", async () => {
+    const seed = new pg.Client({ connectionString: connectionStrings.bootstrap });
+    await seed.connect();
+    try {
+      await seed.query(
+        `
+          INSERT INTO app.users (id, email, name, is_instance_admin, is_bootstrap_owner, status)
+          VALUES (
+            '00000000-0000-4000-8000-000000002601',
+            'seeded-non-owner@example.com',
+            'Seeded Non Owner',
+            false,
+            false,
+            'active'
+          )
+        `
+      );
+    } finally {
+      await seed.end();
+    }
+
+    const signUpRes = await signUp({
+      name: "Recovered Owner",
+      email: "recovered-owner@example.com",
+      password: "password12345"
+    });
+    expect(signUpRes.statusCode).toBe(200);
+    const recoveredOwnerId = signUpRes.json<{ user: { id: string } }>().user.id;
+
+    const rows = await sql<{
+      is_instance_admin: boolean;
+      is_bootstrap_owner: boolean;
+      status: string;
+    }>`SELECT is_instance_admin, is_bootstrap_owner, status FROM app.get_user_by_id(${recoveredOwnerId}::uuid)`.execute(
+      appDb
+    );
+
+    expect(rows.rows[0]).toMatchObject({
+      is_instance_admin: true,
+      is_bootstrap_owner: true,
+      status: "active"
+    });
+
+    const audit = new pg.Client({ connectionString: connectionStrings.bootstrap });
+    await audit.connect();
+    try {
+      const auditRows = await audit.query<{ count: string }>(
+        `
+          SELECT count(*)::text AS count
+          FROM app.admin_audit_events
+          WHERE action = 'bootstrap_owner_created'
+            AND actor_user_id = $1
+            AND target_id = $2
+        `,
+        [recoveredOwnerId, recoveredOwnerId]
+      );
+      expect(Number(auditRows.rows[0]?.count ?? 0)).toBe(1);
+    } finally {
+      await audit.end();
+    }
+  });
+
   it("marks subsequent sign-up as pending when requires_approval is true", async () => {
     await signUp({ name: "Owner", email: "owner@example.com", password: "password12345" });
 
