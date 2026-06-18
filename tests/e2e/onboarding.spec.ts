@@ -18,21 +18,27 @@ test("bootstrap owner with incomplete onboarding sees the wizard, then the app s
   });
 
   await page.goto("/");
-  await expect(page.getByRole("heading", { name: "Set up Jarv1s" })).toBeVisible();
-  // Ask Jarvis is disabled until a multiplexer is selected + a CLI is present.
-  await expect(page.getByRole("button", { name: /Ask Jarvis/ })).toBeDisabled();
+  await expect(page.getByText("Jarvis setup")).toBeVisible();
+  await expect(page.getByLabel("Onboarding progress").getByText("Owner")).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Let’s get your Jarvis set up." })).toBeVisible();
+  await expect(
+    page.getByText("A safe, inspectable, interactive way for me to connect to your LLM.")
+  ).toBeVisible();
+  await expect(page.getByText("Skips the whole setup and opens the app.")).toBeVisible();
+  await expect(page.getByText("Tweaks")).toHaveCount(0);
+  await expect(page.getByRole("button", { name: /Ask Jarvis/ })).toHaveCount(0);
 
-  // Advance to the last step and finish. The wizard resumes at the first INCOMPLETE step
-  // (firstIncompleteStepIndex) — with a fresh pending status that is the multiplexer step, not
-  // welcome — so click "Next" until the last step ("Finish") rather than a fixed count.
-  const nextButton = page.getByRole("button", { name: "Next" });
-  while (await nextButton.isVisible()) {
-    await nextButton.click();
+  await page.getByRole("button", { name: /Start setup/ }).click();
+  const continueButton = page.getByRole("button", { name: /Continue/ });
+  while (await continueButton.isVisible()) {
+    await continueButton.click();
   }
-  await page.getByRole("button", { name: "Finish" }).click();
+  await page.getByLabel("Onboarding step").getByRole("button", { name: "Finish" }).click();
 
   // After finish the status mock returns state:"completed"; the app.tsx branch falls through.
-  await expect(page.getByRole("heading", { name: "Set up Jarv1s" })).not.toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: "Let’s get your Jarvis set up." })
+  ).not.toBeVisible();
 });
 
 test("Skip setup on the first step reaches the app shell", async ({ page }) => {
@@ -48,9 +54,47 @@ test("Skip setup on the first step reaches the app shell", async ({ page }) => {
   });
 
   await page.goto("/");
-  await expect(page.getByRole("heading", { name: "Set up Jarv1s" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Let’s get your Jarvis set up." })).toBeVisible();
   await page.getByRole("button", { name: "Skip setup" }).first().click();
-  await expect(page.getByRole("heading", { name: "Set up Jarv1s" })).not.toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: "Let’s get your Jarvis set up." })
+  ).not.toBeVisible();
+});
+
+test("provider auth test is an explicit installed-provider action", async ({ page }) => {
+  await mockApi(page, {
+    authenticated: true,
+    isInstanceAdmin: true,
+    chatThreads: [],
+    connectorAccounts: [],
+    connectorProviders: createMockConnectorProviders(),
+    notifications: [],
+    tasks: [],
+    onboardingStatus: defaultOnboardingStatus({
+      steps: {
+        multiplexer: { done: false, selected: null, tmuxUsable: false, herdrUsable: false },
+        cliAuth: {
+          done: true,
+          providers: [
+            { kind: "anthropic", cliPresent: true },
+            { kind: "openai-compatible", cliPresent: false },
+            { kind: "google", cliPresent: false }
+          ]
+        },
+        connectors: { done: false }
+      }
+    })
+  });
+
+  await page.goto("/");
+  await page.getByRole("button", { name: /Continue/ }).click();
+  await expect(
+    page.getByRole("heading", { name: "Connect the assistant I’ll run." })
+  ).toBeVisible();
+  await expect(page.getByRole("button", { name: "Install first" })).toHaveCount(2);
+
+  await page.getByRole("button", { name: "Test connection" }).click();
+  await expect(page.getByText("Connection ready.")).toBeVisible();
 });
 
 test("a non-owner never sees the wizard", async ({ page }) => {
@@ -66,7 +110,9 @@ test("a non-owner never sees the wizard", async ({ page }) => {
   });
 
   await page.goto("/");
-  await expect(page.getByRole("heading", { name: "Set up Jarv1s" })).not.toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: "Let’s get your Jarvis set up." })
+  ).not.toBeVisible();
 });
 
 test("a status-endpoint error falls through to the app shell", async ({ page }) => {
@@ -89,5 +135,7 @@ test("a status-endpoint error falls through to the app shell", async ({ page }) 
   );
 
   await page.goto("/");
-  await expect(page.getByRole("heading", { name: "Set up Jarv1s" })).not.toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: "Let’s get your Jarvis set up." })
+  ).not.toBeVisible();
 });

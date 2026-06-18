@@ -3,8 +3,14 @@ import type { OutgoingHttpHeaders } from "node:http";
 import { type Kysely } from "kysely";
 
 import { createApiServer } from "../../apps/api/src/server.js";
+import type {
+  CliChatEngine,
+  EngineLaunchOpts,
+  TranscriptRecord
+} from "../../packages/chat/src/live/types.js";
 import { createDatabase, DataContextRunner, type JarvisDatabase } from "@jarv1s/db";
 import { ConnectorsRepository, createConnectorSecretCipher } from "@jarv1s/connectors";
+import type { ChatEngineFactory } from "@jarv1s/module-registry";
 import { SettingsRepository } from "../../packages/settings/src/repository.js";
 import { connectionStrings, resetEmptyFoundationDatabase } from "./test-database.js";
 
@@ -19,6 +25,34 @@ function cookieHeader(headers: OutgoingHttpHeaders): string {
       : [];
   return cookies.map((cookie) => cookie.split(";", 1)[0]).join("; ");
 }
+
+class FakeProviderCheckEngine implements CliChatEngine {
+  private submitted = false;
+
+  constructor(public readonly provider: CliChatEngine["provider"]) {}
+
+  async launch(_opts: EngineLaunchOpts): Promise<void> {}
+
+  async submit(_text: string): Promise<void> {
+    this.submitted = true;
+  }
+
+  async readNew(
+    afterOffset: number
+  ): Promise<{ records: TranscriptRecord[]; offset: number; complete: boolean }> {
+    if (!this.submitted) return { records: [], offset: afterOffset, complete: false };
+    return { records: [{ kind: "reply", text: "OK" }], offset: afterOffset + 1, complete: true };
+  }
+
+  async isAlive(): Promise<boolean> {
+    return true;
+  }
+
+  async kill(): Promise<void> {}
+}
+
+const fakeProviderCheckFactory: ChatEngineFactory = (provider) =>
+  new FakeProviderCheckEngine(provider);
 
 describe("Phase 2 onboarding — getOnboardingStatus (derived steps)", () => {
   let appDb: Kysely<JarvisDatabase>;
@@ -197,6 +231,51 @@ describe("Phase 2 onboarding — getOnboardingStatus (derived steps)", () => {
       headers: { cookie: memberCookie }
     });
     expect([401, 403]).toContain(res.statusCode);
+  });
+});
+
+describe("Phase 2 onboarding — provider connection check", () => {
+  let appDb: Kysely<JarvisDatabase>;
+  let server: ReturnType<typeof createApiServer>;
+  let ownerCookie: string;
+
+  beforeAll(async () => {
+    await resetEmptyFoundationDatabase();
+    appDb = createDatabase({ connectionString: connectionStrings.app, maxConnections: 1 });
+    server = createApiServer({
+      appDb,
+      logger: false,
+      chatEngineFactory: fakeProviderCheckFactory
+    });
+    await server.ready();
+
+    const signUp = await server.inject({
+      method: "POST",
+      url: "/api/auth/sign-up/email",
+      headers: { "content-type": "application/json" },
+      payload: {
+        name: "Owner",
+        email: "owner-provider-check@onboarding.test",
+        password: "correct horse battery staple"
+      }
+    });
+    ownerCookie = cookieHeader(signUp.headers);
+  });
+
+  afterAll(async () => {
+    await Promise.allSettled([server?.close(), appDb?.destroy()]);
+  });
+
+  it("returns ready when the selected provider CLI launches and replies", async () => {
+    const res = await server.inject({
+      method: "POST",
+      url: "/api/onboarding/provider-check",
+      headers: { cookie: ownerCookie, "content-type": "application/json" },
+      payload: { providerKind: "anthropic" }
+    });
+
+    expect(res.statusCode).toBe(200);
+    expect(res.json()).toEqual({ status: "ready" });
   });
 });
 

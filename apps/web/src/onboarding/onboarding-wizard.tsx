@@ -1,5 +1,6 @@
-import { useEffect, useState } from "react";
+import { type ReactNode, useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { ArrowLeft, ArrowRight, Check, Flag, LogIn, Minus, Play } from "lucide-react";
 
 import type { OnboardingStatusResponse } from "@jarv1s/shared";
 
@@ -11,13 +12,35 @@ import { ConnectorStep } from "./connector-step";
 import { MemberConnectorStep } from "./member-connector-step";
 import { MemberWelcomeStep } from "./member-welcome-step";
 import { MultiplexerStep } from "./multiplexer-step";
-import { OnboardingChatOverlay } from "./onboarding-chat-overlay";
 import { SectionTourStep } from "./section-tour-step";
 import { WelcomeStep } from "./welcome-step";
-import { STEP_KEYS, firstIncompleteStepIndex, isOverlayEnabled } from "./resume";
+import { STEP_KEYS, firstIncompleteStepIndex } from "./resume";
 
 /** The member wizard has a fixed, client-derived step array (welcome / API-key opt-out / connector / tour). */
 const MEMBER_STEP_COUNT = 4;
+
+interface RailStep {
+  readonly key: string;
+  readonly label: string;
+  readonly mono: string;
+  readonly optional?: boolean;
+}
+
+const FOUNDER_RAIL: readonly RailStep[] = [
+  { key: "welcome", label: "Welcome", mono: "Start" },
+  { key: "multiplexer", label: "Control channel", mono: "01" },
+  { key: "cliAuth", label: "Assistant", mono: "02" },
+  { key: "connectors", label: "Google", mono: "03", optional: true },
+  { key: "finish", label: "Finish", mono: "Done" }
+];
+
+const MEMBER_RAIL: readonly RailStep[] = [
+  { key: "welcome", label: "Welcome", mono: "Start" },
+  { key: "assistant", label: "Your assistant", mono: "01" },
+  { key: "accounts", label: "Accounts", mono: "02", optional: true },
+  { key: "tour", label: "A look around", mono: "03" },
+  { key: "finish", label: "Finish", mono: "Done" }
+];
 
 /**
  * Resume index. Founders resume at their first not-done spine step. Members always start at the
@@ -26,6 +49,14 @@ const MEMBER_STEP_COUNT = 4;
  */
 function resumeStepIndex(status: OnboardingStatusResponse): number {
   return status.role === "member" ? 0 : firstIncompleteStepIndex(status);
+}
+
+function dotContent(step: RailStep, state: string): ReactNode {
+  if (state === "done") return <Check size={13} strokeWidth={2.5} />;
+  if (state === "skipped") return <Minus size={13} strokeWidth={2.5} />;
+  if (step.mono === "Start") return <Play size={11} />;
+  if (step.mono === "Done") return <Flag size={12} />;
+  return step.mono;
 }
 
 export function OnboardingWizard(props: {
@@ -43,6 +74,7 @@ export function OnboardingWizard(props: {
 
   const [stepIndex, setStepIndex] = useState(() => resumeStepIndex(props.initialStatus));
   const [resumed, setResumed] = useState(false);
+  const [skippedSteps, setSkippedSteps] = useState<ReadonlySet<string>>(() => new Set());
 
   // If the first server refresh arrives, resume once at the first not-done step.
   useEffect(() => {
@@ -76,13 +108,40 @@ export function OnboardingWizard(props: {
   // the member step array is selected below (Task 8). One wizard, parameterized by role.
   const founderSteps = statusQuery.data.role === "founder" ? statusQuery.data.steps : undefined;
   const isMember = statusQuery.data.role === "member";
-  const overlayEnabled = isOverlayEnabled(statusQuery.data);
 
   // Phase 4: the member wizard mounts its OWN step array (no multiplexer/CLI-auth — ADR 0007 §4
   // members inherit the shared host CLI). Every step is optional/skippable; Finish and "Skip
   // setup" both POST to /complete and /skip, which Task-5 routes to setMemberOnboardingComplete.
   const stepCount = isMember ? MEMBER_STEP_COUNT : STEP_KEYS.length;
+  const rail = isMember ? MEMBER_RAIL : FOUNDER_RAIL;
+  const roleLabel = isMember ? "Member" : "Owner";
+  const progressLabel = isMember ? "Getting started" : "Jarvis setup";
   const goNext = () => setStepIndex((i) => Math.min(stepCount - 1, i + 1));
+  const currentRailKey = rail[Math.min(stepIndex, stepCount - 1)]?.key ?? "welcome";
+  const skipCurrentStep = () => {
+    setSkippedSteps((current) => new Set(current).add(currentRailKey));
+    if (isLast) {
+      finish.mutate();
+    } else {
+      goNext();
+    }
+  };
+  const continueStep = () => {
+    setSkippedSteps((current) => {
+      const next = new Set(current);
+      next.delete(currentRailKey);
+      return next;
+    });
+    goNext();
+  };
+  const completedCount = Math.min(stepIndex + 1, stepCount);
+  const railState = (index: number, step: RailStep) => {
+    if (step.key === "finish") return stepIndex === stepCount - 1 ? "idle" : "locked";
+    if (skippedSteps.has(step.key)) return "skipped";
+    if (index === stepIndex) return "current";
+    if (index < stepIndex) return "done";
+    return "locked";
+  };
   const memberSteps = isMember
     ? [
         <MemberWelcomeStep key="welcome" onSkipAll={() => skip.mutate()} />,
@@ -96,17 +155,72 @@ export function OnboardingWizard(props: {
   const isLast = stepIndex === stepCount - 1;
 
   return (
-    <main className="onboarding-shell center-screen">
-      <section className="onboarding-panel">
-        <header className="onboarding-header">
-          <h1>Set up Jarv1s</h1>
-          <p className="form-hint">
-            Step {stepIndex + 1} of {stepCount}
-          </p>
-          <button className="ghost-button" type="button" onClick={() => skip.mutate()}>
-            Skip setup
+    <main className="onb" data-onb-role={isMember ? "member" : "founder"}>
+      <aside className="onb__rail" aria-label="Onboarding progress">
+        <div className="onb__brand">
+          <span className="onb__mark" aria-hidden="true">
+            J
+          </span>
+          <span className="onb__wordmark">Jarvis</span>
+          <span className="onb__role">{roleLabel}</span>
+        </div>
+        <div className="onb__progresshd">
+          <span className="lbl">{progressLabel}</span>
+          <span className="ct">
+            {completedCount} / {stepCount}
+          </span>
+        </div>
+        <ul className="onb__steps">
+          {rail.map((step, index) => {
+            const state = railState(index, step);
+            return (
+              <li key={step.key}>
+                <button
+                  className={`onb__step is-${state}`}
+                  disabled={state === "locked" || step.key === "finish"}
+                  type="button"
+                  onClick={() => setStepIndex(Math.min(index, stepCount - 1))}
+                >
+                  <span className="onb__step__dot">{dotContent(step, state)}</span>
+                  <span className="onb__step__main">
+                    <span className="onb__step__label">{step.label}</span>
+                    {state === "current" ? (
+                      <span className="onb__step__state">In progress</span>
+                    ) : null}
+                    {state === "skipped" ? (
+                      <span className="onb__step__state is-skip">Skipped · set up later</span>
+                    ) : null}
+                  </span>
+                  {step.optional && state !== "skipped" ? (
+                    <span className="onb__step__opt">Optional</span>
+                  ) : null}
+                </button>
+              </li>
+            );
+          })}
+        </ul>
+        <div className="onb__rail-foot">
+          <button className="onb__skipall" type="button" onClick={() => skip.mutate()}>
+            <LogIn size={15} /> Skip setup
           </button>
-        </header>
+          <p className="onb__skiphint">
+            Skips the whole setup and opens the app. Nothing is required now. Finish later from
+            Settings.
+          </p>
+        </div>
+      </aside>
+
+      <section className="onb__stage" aria-label="Onboarding step">
+        <div className="onb__mobilebar">
+          <span className="onb__wordmark">Jarvis</span>
+          <span className="onb__role">{roleLabel}</span>
+          <span className="onb__mbar-prog">
+            {completedCount} / {stepCount}
+          </span>
+          <button className="onb__mbar-skip" type="button" onClick={() => skip.mutate()}>
+            Skip
+          </button>
+        </div>
 
         {statusQuery.isError ? (
           <p className="form-error">
@@ -114,7 +228,7 @@ export function OnboardingWizard(props: {
           </p>
         ) : null}
 
-        <div className="onboarding-step">
+        <div className="onb__content">
           {isMember ? (
             memberSteps[stepIndex]
           ) : (
@@ -133,34 +247,30 @@ export function OnboardingWizard(props: {
           )}
         </div>
 
-        <footer className="onboarding-footer">
-          <button
-            className="ghost-button"
-            type="button"
-            disabled={stepIndex === 0}
-            onClick={() => setStepIndex((i) => Math.max(0, i - 1))}
-          >
-            Back
-          </button>
-          <button
-            className="ghost-button"
-            type="button"
-            onClick={() => (isLast ? finish.mutate() : goNext())}
-          >
-            Skip this step
-          </button>
-          {isLast ? (
-            <button className="primary-button" type="button" onClick={() => finish.mutate()}>
-              Finish
+        <footer className="onb-nav">
+          <div className="onb-nav__inner">
+            <button
+              className="onb-nav__back"
+              type="button"
+              disabled={stepIndex === 0}
+              onClick={() => setStepIndex((i) => Math.max(0, i - 1))}
+            >
+              <ArrowLeft size={15} /> Back
             </button>
-          ) : (
-            <button className="primary-button" type="button" onClick={goNext}>
-              Next
+            <button className="onb-nav__skipstep" type="button" onClick={skipCurrentStep}>
+              Skip this step <span>· set up later</span>
             </button>
-          )}
+            {isLast ? (
+              <button className="primary-button" type="button" onClick={() => finish.mutate()}>
+                Finish
+              </button>
+            ) : (
+              <button className="primary-button" type="button" onClick={continueStep}>
+                {currentRailKey === "welcome" ? "Start setup" : "Continue"} <ArrowRight size={16} />
+              </button>
+            )}
+          </div>
         </footer>
-
-        <OnboardingChatOverlay enabled={Boolean(overlayEnabled)} />
       </section>
     </main>
   );

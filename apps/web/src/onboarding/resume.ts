@@ -19,21 +19,11 @@ export function doneByStep(status: OnboardingStatusResponse | undefined): Record
 /** Index of the first not-done step; the last step index when everything is done. */
 export function firstIncompleteStepIndex(status: OnboardingStatusResponse | undefined): number {
   const done = doneByStep(status);
+  if (!done.multiplexer && !done.cliAuth && !done.connectors) {
+    return STEP_KEYS.indexOf("welcome");
+  }
   const idx = STEP_KEYS.findIndex((k) => !done[k]);
   return idx === -1 ? STEP_KEYS.length - 1 : idx;
-}
-
-/**
- * The optional Jarvis overlay is enabled ONLY when a usable CLI chat path exists:
- * the multiplexer step is DONE (i.e. the chosen multiplexer is USABLE — tmux installed,
- * herdr installed+root-pane, or auto with one usable) AND at least one provider CLI is
- * PRESENT. Gating on `multiplexer.done` (not bare `selected`) honours herdr's root-pane
- * requirement (Codex R1) — a selected-but-unusable herdr does not light the overlay.
- */
-export function isOverlayEnabled(status: OnboardingStatusResponse | undefined): boolean {
-  // The CLI overlay is a founder-only spine surface (multiplexer + provider-CLI presence).
-  if (status?.role !== "founder") return false;
-  return status.steps.multiplexer.done && status.steps.cliAuth.providers.some((p) => p.cliPresent);
 }
 
 /** Bootstrap owner ⇔ instance admin AND bootstrap owner. Used to gate the onboarding fetch+branch. */
