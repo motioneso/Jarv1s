@@ -1,5 +1,8 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import type { OutgoingHttpHeaders } from "node:http";
+import { chmod, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { type Kysely } from "kysely";
 
 import { createApiServer } from "../../apps/api/src/server.js";
@@ -238,9 +241,22 @@ describe("Phase 2 onboarding — provider connection check", () => {
   let appDb: Kysely<JarvisDatabase>;
   let server: ReturnType<typeof createApiServer>;
   let ownerCookie: string;
+  let originalPath: string | undefined;
+  let fakeBinDir: string | null = null;
 
   beforeAll(async () => {
     await resetEmptyFoundationDatabase();
+    originalPath = process.env.PATH;
+    fakeBinDir = await mkdtemp(join(tmpdir(), "jarv1s-onboarding-provider-bin-"));
+    const fakeClaudePath = join(fakeBinDir, "claude");
+    await writeFile(
+      fakeClaudePath,
+      "#!/usr/bin/env node\nconsole.log(JSON.stringify({ loggedIn: true }));\n",
+      "utf8"
+    );
+    await chmod(fakeClaudePath, 0o755);
+    process.env.PATH = `${fakeBinDir}:${originalPath ?? ""}`;
+
     appDb = createDatabase({ connectionString: connectionStrings.app, maxConnections: 1 });
     server = createApiServer({
       appDb,
@@ -264,6 +280,10 @@ describe("Phase 2 onboarding — provider connection check", () => {
 
   afterAll(async () => {
     await Promise.allSettled([server?.close(), appDb?.destroy()]);
+    process.env.PATH = originalPath;
+    if (fakeBinDir) {
+      await rm(fakeBinDir, { recursive: true, force: true });
+    }
   });
 
   it("returns ready when the selected provider CLI launches and replies", async () => {
