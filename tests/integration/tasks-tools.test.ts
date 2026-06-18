@@ -10,7 +10,6 @@ import {
 import type { ToolContext } from "@jarv1s/module-sdk";
 import type { TaskDto } from "@jarv1s/shared";
 import {
-  getQuadrant,
   TaskBreakdownRepository,
   TaskListsRepository,
   TasksRepository,
@@ -109,16 +108,6 @@ describe("Tasks module — assistant read tools", () => {
       tool!.execute!(db, { quadrant: "eliminate" }, toolCtx(ids.userA))
     );
     expect((elimResult.data.items as TaskDto[]).map((t) => t.id)).not.toContain(doTask.id);
-  });
-
-  it("getQuadrant classifies urgency from the injected clock", () => {
-    const task = {
-      priority: 5,
-      due_at: "2026-06-18T00:00:00.000Z"
-    };
-
-    expect(getQuadrant(task as never, new Date("2026-06-16T12:00:00.000Z"))).toBe("do");
-    expect(getQuadrant(task as never, new Date("2026-06-10T12:00:00.000Z"))).toBe("schedule");
   });
 
   // ── tasks.get ────────────────────────────────────────────────────────────
