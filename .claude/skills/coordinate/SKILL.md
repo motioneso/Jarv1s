@@ -179,11 +179,12 @@ predecessor to land):
 4. **Verify it actually started** (not stuck on a trust prompt): `herdr pane read <pane> --source
    visible --lines 20`; answer prompts with `herdr pane send-keys <pane> Enter`.
 
-   **⚠️ Messaging agents — two-call path.** In some environments `herdr agent send` / `herdr pane
-   message` silently fail to deliver (the agent never sees Enter, so the message sits unsent — Ben
-   flagged this 2026-06-10). The **reliable** path is two separate calls: `herdr pane send-text
-   <pane> "<msg>"` **followed by** `herdr pane send-keys <pane> Enter`. Use that for every message to
-   an agent pane.
+   **⚠️ Messaging agents — preferred path.** Use `herdr pane run <pane> "<msg>"` for messages to
+   agent panes; it types the text and submits Enter in one command. Afterward, verify with
+   `herdr pane read <pane> --source visible --lines 12`. If the raw text is still sitting in the
+   input box, send one separate `herdr pane send-keys <pane> Enter`. Treat `herdr pane send-text`
+   and `herdr agent send` as fallbacks only, because they write literal text and can leave messages
+   unsubmitted unless followed by Enter.
 5. **Record** agent label/pane/branch in the manifest; set status `building`.
 
 Launch parallel-safe specs together; hold serialized ones until their predecessor merges.
@@ -375,7 +376,7 @@ already failed.
 | Spawn build agent (shared Agents tab) | `herdr agent start "<Label>" --tab <ws>:<agents-tab> --cwd <path> --no-focus -- claude …` (2×2 for 4-agent / 3×1 for 3-agent waves) |
 | Spawn QA agent (native subagent) | `Agent(description: "QA: <slug>", subagent_type: "coordinated-qa", run_in_background: true, isolation: "worktree", prompt: "...")` |
 | Spawn relay coordinator (SAME tab as yours) | `herdr agent start "Coordinator" --tab <your own tab> … -- claude --permission-mode bypassPermissions "<boot>"` or `… -- codex -s danger-full-access -a never "<boot>"` — successor opens in your tab, then closes you |
-| Talk to an agent (two-call path) | `herdr pane send-text <pane> "<msg>"` **then** `herdr pane send-keys <pane> Enter` (`herdr agent send`/`pane message` can silently not-send) |
+| Talk to an agent | `herdr pane run <pane> "<msg>"`, then verify with `herdr pane read`; use `send-text` + Enter only as fallback |
 | Liveness sweep | `herdr pane list` · `herdr pane read <pane> --source visible --lines 20` |
 | Reap a spent pane / worktree | kill pane · `git worktree remove .claude/worktrees/<slug>` |
 | Session-id authority (pre-merge) | re-read manifest lock line · confirm your pane's `agent_session.value` matches (NOT the pane number — it reflows) |
