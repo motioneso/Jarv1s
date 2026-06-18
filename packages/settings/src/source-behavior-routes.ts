@@ -20,7 +20,7 @@ import { handleSettingsRouteError } from "./route-error.js";
 interface SourceBehaviorRoutesDependencies {
   readonly dataContext: DataContextRunner;
   readonly resolveAccessContext: (request: FastifyRequest) => Promise<AccessContext>;
-  readonly listModuleManifests?: () => readonly JarvisModuleManifest[];
+  readonly listModuleManifests: () => readonly JarvisModuleManifest[];
   readonly preferencesRepository: SourceBehaviorPreferencesPort;
 }
 
@@ -43,7 +43,7 @@ export function registerSourceBehaviorRoutes(
           async (scopedDb) =>
             toResponse(
               await listSourceBehaviorStates(scopedDb, {
-                manifests: dependencies.listModuleManifests?.() ?? [],
+                manifests: dependencies.listModuleManifests(),
                 preferencesRepository: dependencies.preferencesRepository
               })
             )
@@ -68,7 +68,7 @@ export function registerSourceBehaviorRoutes(
               await setSourceBehaviorOverride(
                 scopedDb,
                 {
-                  manifests: dependencies.listModuleManifests?.() ?? [],
+                  manifests: dependencies.listModuleManifests(),
                   preferencesRepository: dependencies.preferencesRepository
                 },
                 request.params.id,
