@@ -1,7 +1,7 @@
 # Coordination Run — 2026-06-18-overnight-automation
 
 **Date:** 2026-06-18
-**Coordinator lock:** label `Coordinator`, **stable anchor = Codex session id `019edba6-76f5-7d13-9de9-2b5a8b4e5d1f`** (match `agent_session.value` in `herdr pane list`). Single-coordinator lock — exactly one pane labelled `Coordinator` whose session id matches this anchor holds authority for the life of the run. Pane numbers (`w…-N`) reflow on every restart/split/reap; do not trust any pane number written in this file as an identifier. Agents escalate to the label; the coordinator merges only when its own pane's session id matches this recorded anchor.
+**Coordinator lock:** label `Coordinator`, **stable anchor = Codex session id `019edc14-46cc-7fe3-b383-e33a66cc8e18`** (match `agent_session.value` in `herdr pane list`). Single-coordinator lock — exactly one pane labelled `Coordinator` whose session id matches this anchor holds authority for the life of the run. Pane numbers (`w…-N`) reflow on every restart/split/reap; do not trust any pane number written in this file as an identifier. Agents escalate to the label; the coordinator merges only when its own pane's session id matches this recorded anchor.
 **Merge policy:** autonomous-after-verified-QA for `routine`/`sensitive`; `security`-tier needs Ben's explicit merge sign-off.
 **Relay threshold:** security-tier merge → relay immediately after Phase 3 step 7; routine/sensitive `merges_since_relay` >= 2 → relay. Compaction summary = already past safe → relay, merge nothing.
 **Additional context ceiling:** coordinator self-reads `herdr pane read "$HERDR_PANE_ID" --source visible --lines 5` after major events and before every spawn/merge wave. If the visible status line reports >= 500K used, flush this manifest, write the mid-doing continuation note, and relay before more work.
@@ -39,6 +39,10 @@
 - Old `Coordinator-RelayOld` pane for Codex session id
   `019edba0-be98-7f90-99b0-64d7802f4ca3` is closed; `herdr pane list` shows exactly one
   `Coordinator`, session id `019edba6-76f5-7d13-9de9-2b5a8b4e5d1f`.
+- Fourth successor coordinator claimed the lock on 2026-06-18 with Codex session id
+  `019edc14-46cc-7fe3-b383-e33a66cc8e18`; `herdr pane list` showed exactly one pane labelled
+  `Coordinator`. Old coordinator was relabelled `Coordinator-RelayOld` after matching label
+  `Coordinator` plus Codex session id `019edba6-76f5-7d13-9de9-2b5a8b4e5d1f`.
 - Coordinator relay permission docs were clarified in `702a0a8`: Codex coordinator successors must
   launch with `codex -s danger-full-access -a never`; Claude coordinator successors use
   `claude --permission-mode bypassPermissions`.
@@ -156,11 +160,10 @@ No waivers. Any red required check is stop-the-line unless proven red on `main` 
 - **Relay reason 3:** coordinator merged two routine PRs (#304 and #302), so
   `merges_since_relay` reached 2. Relay immediately before any #244 work.
 - **Relay reason 4:** Ben requested coordinator relay after #260 was spawned and began planning.
-  Active coordinator session `019edba6-76f5-7d13-9de9-2b5a8b4e5d1f` should hand off to a successor
-  coordinator. The successor must read this file in full, invoke/use `coordinate`, confirm its own
-  Codex session id from `herdr pane list`, update the Coordinator lock to its own session id, then
-  resolve and close the old coordinator by label `Coordinator` plus session id
-  `019edba6-76f5-7d13-9de9-2b5a8b4e5d1f` after confirming it is driving. Do not trust pane numbers.
+  Successor coordinator session `019edc14-46cc-7fe3-b383-e33a66cc8e18` has claimed the
+  `Coordinator` lock. The old coordinator was resolved by label plus session id
+  `019edba6-76f5-7d13-9de9-2b5a8b4e5d1f` and relabelled `Coordinator-RelayOld`; close that pane
+  after confirming the manifest update is committed and pushed. Do not trust pane numbers.
 - **Next action:** continue #260 coordination. `OwnerBootstrap-260` is live and currently preparing
   a plan. Review its plan, approve or flag forks, then wait for PR. Independent QA is required after
   PR. Security-tier merge requires explicit Ben sign-off.
