@@ -31,6 +31,7 @@
 ## Task 1: Schema + Repository Read Model
 
 **Files:**
+
 - Create: `packages/memory/sql/0096_chat_memory_corrections_log.sql`
 - Modify: `packages/memory/src/suppressions-repository.ts`
 - Modify: `packages/memory/src/index.ts`
@@ -206,6 +207,7 @@ Co-Authored-By: Claude Sonnet 4.6"
 ## Task 2: Corrections REST Contract + Owner-Scoped Route
 
 **Files:**
+
 - Modify: `packages/shared/src/chat-api.ts`
 - Modify: `packages/chat/src/routes.ts`
 - Modify: `packages/chat/src/manifest.ts`
@@ -384,6 +386,7 @@ Co-Authored-By: Claude Sonnet 4.6"
 ## Task 3: Chat Extraction Corrections
 
 **Files:**
+
 - Modify: `packages/chat/src/jobs.ts`
 - Test: `tests/integration/chat-live.test.ts`
 
@@ -534,9 +537,9 @@ Change prompt contract from only facts to facts plus optional correction:
 
 ```ts
 'each item: {"category": "preference|fact|profile|goal", "content": string, ' +
-'"importance": number 0..1, "provenance": "volunteered|inferred", "supersedes": optional id, ' +
-'"correction": optional {"supersedes": id, "before": string, "after": string}}. ' +
-"Use correction ONLY when the user explicitly corrects an existing listed belief and the replacement content should become the new durable fact. "
+  '"importance": number 0..1, "provenance": "volunteered|inferred", "supersedes": optional id, ' +
+  '"correction": optional {"supersedes": id, "before": string, "after": string}}. ' +
+  "Use correction ONLY when the user explicitly corrects an existing listed belief and the replacement content should become the new durable fact. ";
 ```
 
 Also keep: ids must be from listed active facts; never invent ids.
@@ -608,6 +611,7 @@ Co-Authored-By: Claude Sonnet 4.6"
 ## Task 4: Web API Client + Settings Corrections UI
 
 **Files:**
+
 - Create: `apps/web/src/api/memory-client.ts`
 - Modify: `apps/web/src/api/client.ts`
 - Modify: `apps/web/src/api/query-keys.ts`
@@ -661,11 +665,7 @@ export async function getMemoryCorrections(): Promise<{ corrections: MemoryCorre
 In `client.ts`, change `async function requestJson` to `export async function requestJson`, delete old memory interfaces/functions, and add:
 
 ```ts
-export type {
-  MemoryCorrection,
-  MemoryFact,
-  MemorySettings
-} from "./memory-client";
+export type { MemoryCorrection, MemoryFact, MemorySettings } from "./memory-client";
 export {
   confirmMemoryFact,
   deleteMemoryFact,
@@ -682,7 +682,7 @@ export {
 In `query-keys.ts`:
 
 ```ts
-memoryCorrections: ["chat", "memory-corrections"] as const
+memoryCorrections: ["chat", "memory-corrections"] as const;
 ```
 
 In `settings-memory-pane.tsx`, import `getMemoryCorrections` and `type MemoryCorrection`, add query:
@@ -792,6 +792,7 @@ Co-Authored-By: Claude Sonnet 4.6"
 ## Task 5: Full Spec Verification + Wrap-Up Prep
 
 **Files:**
+
 - Any fixes from focused failures.
 
 - [ ] **Step 1: Run lane DB migration and targeted suites**

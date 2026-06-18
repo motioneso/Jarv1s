@@ -532,9 +532,9 @@ describe("handleExtractFactsJob — durable fact upsert + no-op degrade", () => 
         ids.userA,
         { limit: 10, offset: 0 }
       );
-      expect(
-        corrections.some((row) => row.factId === "11111111-1111-4111-8111-111111111111")
-      ).toBe(false);
+      expect(corrections.some((row) => row.factId === "11111111-1111-4111-8111-111111111111")).toBe(
+        false
+      );
     });
   });
 
