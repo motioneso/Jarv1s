@@ -46,6 +46,13 @@ disk, not in your context:
 **2. Spawn your successor with `herdr-handoff`.** A fresh session in the appropriate place. The
 successor **skips `pnpm install`** — `node_modules` already exists in the reused worktree (shared
 pnpm store); re-installing is wasted time/tokens. Bootstrap should say `[ -d node_modules ] || pnpm install`.
+Use unattended full-access launch permissions for coordinator relays:
+- Claude coordinator: `claude --permission-mode bypassPermissions`
+- Codex coordinator: `codex -s danger-full-access -a never`
+
+Do **not** spawn a Codex coordinator with the default, `read-only`, or `workspace-write` sandbox.
+The coordinator must be able to update/push the manifest, run Herdr pane operations, and run local
+verification without approval prompts.
 - **Build agent:** same worktree/branch (your work continues there), bootstrap = "continue
   <slug>; `[ -d node_modules ] || pnpm install`; read `docs/.../<slug>-relay.md` IN FULL and resume
   via `coordinated-build`."
@@ -80,7 +87,7 @@ should be reading the doc / re-adopting, not stuck on a trust prompt). Answer an
 | ---- | --------------- |
 | Flush build state | commit work + write `docs/superpowers/handoffs/<date>-<slug>-relay.md` |
 | Flush coordinator state | update + commit `docs/coordination/<run-id>.md` |
-| Spawn successor | `herdr-handoff` skill |
+| Spawn successor | `herdr-handoff` skill; coordinator relays use `claude --permission-mode bypassPermissions` or `codex -s danger-full-access -a never` |
 | Confirm it's driving | `herdr pane read <pane> --source visible --lines 20` |
 | Reap a spent pane | resolve target fresh by label + session id, verify session id, then close (never a baked `…-N` number) |
 
