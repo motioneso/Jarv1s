@@ -814,6 +814,44 @@ describe("Memory controls REST API", () => {
     });
   });
 
+  it("GET /api/chat/memory/corrections returns only the actor's chronological corrections", async () => {
+    const suppressions = new ChatMemorySuppressionsRepository();
+    await dataContext.withDataContext(ctx(ids.userA), async (scopedDb) => {
+      await suppressions.insertSuppression(scopedDb, ids.userA, {
+        signature: createMemoryFactSignature("goal", "Owner correction route A"),
+        category: "goal",
+        content: "Owner correction route A",
+        reason: "rejected"
+      });
+    });
+    await dataContext.withDataContext(ctx(ids.userB), async (scopedDb) => {
+      await suppressions.insertSuppression(scopedDb, ids.userB, {
+        signature: createMemoryFactSignature("goal", "Foreign correction route B"),
+        category: "goal",
+        content: "Foreign correction route B",
+        reason: "rejected"
+      });
+    });
+
+    const res = await server.inject({
+      method: "GET",
+      url: "/api/chat/memory/corrections?limit=10",
+      headers: { authorization: `Bearer ${ids.sessionA}` }
+    });
+    expect(res.statusCode).toBe(200);
+    const body = res.json<{ corrections: { content: string; reason: string; source: string }[] }>();
+    expect(body.corrections).toContainEqual(
+      expect.objectContaining({
+        content: "Owner correction route A",
+        reason: "rejected",
+        source: "pattern-reject"
+      })
+    );
+    expect(body.corrections.some((row) => row.content === "Foreign correction route B")).toBe(
+      false
+    );
+  });
+
   it("non-owner cannot confirm or reject another user's fact", async () => {
     const fact = await dataContext.withDataContext(ctx(ids.userA), (scopedDb) =>
       factsRepo.insertFact(scopedDb, ids.userA, {

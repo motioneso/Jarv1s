@@ -50,6 +50,25 @@ export interface ListChatThreadsResponse {
   readonly threads: readonly ChatThreadDto[];
 }
 
+export type MemoryCorrectionReasonDto = "rejected" | "corrected";
+export type MemoryCorrectionSourceDto = "chat" | "pattern-reject";
+
+export interface MemoryCorrectionDto {
+  readonly id: string;
+  readonly category: string;
+  readonly content: string;
+  readonly reason: MemoryCorrectionReasonDto;
+  readonly source: MemoryCorrectionSourceDto;
+  readonly factId: string | null;
+  readonly beforeContent: string | null;
+  readonly afterContent: string | null;
+  readonly createdAt: string;
+}
+
+export interface ListMemoryCorrectionsResponse {
+  readonly corrections: readonly MemoryCorrectionDto[];
+}
+
 export interface CreateChatThreadRequest {
   readonly title: string;
 }
@@ -84,6 +103,49 @@ export const listChatThreadsResponseSchema = {
 export const listChatThreadsRouteSchema = {
   response: {
     200: listChatThreadsResponseSchema,
+    401: errorResponseSchema
+  }
+} as const;
+
+export const memoryCorrectionSchema = {
+  type: "object",
+  additionalProperties: false,
+  required: [
+    "id",
+    "category",
+    "content",
+    "reason",
+    "source",
+    "factId",
+    "beforeContent",
+    "afterContent",
+    "createdAt"
+  ],
+  properties: {
+    id: { type: "string" },
+    category: { type: "string" },
+    content: { type: "string" },
+    reason: { type: "string", enum: ["rejected", "corrected"] },
+    source: { type: "string", enum: ["chat", "pattern-reject"] },
+    factId: { anyOf: [{ type: "string" }, { type: "null" }] },
+    beforeContent: { anyOf: [{ type: "string" }, { type: "null" }] },
+    afterContent: { anyOf: [{ type: "string" }, { type: "null" }] },
+    createdAt: { type: "string" }
+  }
+} as const;
+
+export const listMemoryCorrectionsResponseSchema = {
+  type: "object",
+  additionalProperties: false,
+  required: ["corrections"],
+  properties: {
+    corrections: { type: "array", items: memoryCorrectionSchema }
+  }
+} as const;
+
+export const listMemoryCorrectionsRouteSchema = {
+  response: {
+    200: listMemoryCorrectionsResponseSchema,
     401: errorResponseSchema
   }
 } as const;
