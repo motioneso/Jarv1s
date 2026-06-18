@@ -23,11 +23,11 @@ export function ApiKeyOptOutStep(props: { readonly onSkipStep: () => void }) {
     <section className="onb-step" aria-labelledby="member-apikey-title">
       <StepHeader
         eyebrow="Step 1 · Your assistant"
-        title="I already work, out of the box."
+        title="Jarvis is ready to use."
         lede={
           done
-            ? "You’ve added your own AI provider. You can manage it in Settings anytime."
-            : "I run on a shared setup, so there’s nothing for you to install. If you’d rather I use your own AI key — for your own usage and limits — you can add one. Most people don’t need to."
+            ? "You have added a custom AI provider. You can manage it in Settings at any time."
+            : "Jarvis runs on a shared server, so there is nothing to install on your computer. If you want to use your own API key to manage your usage limits, you can add it here. Most users do not need to."
         }
       />
       <div className="onb-opts">
@@ -36,14 +36,14 @@ export function ApiKeyOptOutStep(props: { readonly onSkipStep: () => void }) {
           onClick={() => setAssistant("shared")}
           name="Use the shared setup"
           mono="recommended"
-          desc="I run on the shared assistant. Simplest, and already working."
+          desc="Run Jarvis on the shared system. Easiest option, with no setup required."
         />
         <OptionCard
           selected={assistant === "personal"}
           onClick={() => setAssistant("personal")}
           name="Add a personal key"
           mono="optional"
-          desc="Bring your own AI key, kept private to you. You can add it in Settings."
+          desc="Use your own AI key. Kept secure and private to your account."
         />
       </div>
       {assistant === "personal" ? (
@@ -61,13 +61,13 @@ export function ApiKeyOptOutStep(props: { readonly onSkipStep: () => void }) {
             spellCheck={false}
           />
           <div className="onb-keyfield__hint">
-            Optional. You can paste it now or add it later under Settings → Assistant. Nothing is
-            shared with anyone else.
+            You can paste your key now or add it later under {"Settings > Assistant"}. This key is
+            private.
           </div>
         </div>
       ) : null}
       <FootNote icon={<Lock size={15} aria-hidden="true" />}>
-        You can switch later in Settings. Either way, your conversations stay private to you.
+        You can change this later in Settings. In either case, your conversations remain private.
       </FootNote>
     </section>
   );

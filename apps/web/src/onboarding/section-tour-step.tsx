@@ -45,7 +45,7 @@ export function SectionTourStep(props: { readonly onDone: () => void }) {
       <StepHeader
         eyebrow="Step 3 · Where to go"
         title="Here’s where to start."
-        lede="A short orientation. Each part of Jarvis has a job — here’s what to reach for, and when."
+        lede="A brief orientation to help you find your way around Jarvis."
       />
       <div className="onb-tour">
         {sections.map((section) => {
@@ -64,7 +64,8 @@ export function SectionTourStep(props: { readonly onDone: () => void }) {
         })}
       </div>
       <FootNote icon={<Compass size={15} aria-hidden="true" />}>
-        Only the parts of Jarvis turned on for you are shown. More appear here as they’re enabled.
+        Only the modules enabled for your account are shown. Others will appear as they are turned
+        on.
       </FootNote>
       <button className="onb-inline-skip" type="button" onClick={props.onDone}>
         Continue
