@@ -5,7 +5,7 @@
 **Merge policy:** autonomous-after-verified-QA for `routine`/`sensitive`; `security`-tier needs Ben's explicit merge sign-off.
 **Relay threshold:** security-tier merge → relay immediately after Phase 3 step 7; routine/sensitive `merges_since_relay` >= 2 → relay. Compaction summary = already past safe → relay, merge nothing.
 **Additional context ceiling:** coordinator self-reads `herdr pane read "$HERDR_PANE_ID" --source visible --lines 5` after major events and before every spawn/merge wave. If the visible status line reports >= 500K used, flush this manifest, write the mid-doing continuation note, and relay before more work.
-**merges_since_relay:** 1
+**merges_since_relay:** 2
 
 > This is the coordinator's externalized memory. Keep it current. GitHub is the source of truth for issue/board status; this file holds in-flight operational state.
 
@@ -43,6 +43,8 @@
   `019edb9d-3434-7da1-8212-cf179ff2f1a1` posted GREEN verdict to PR #304 with 0 findings.
 - PR #304 (#299 tasks-only mechanical subset) was rebased cleanly onto `origin/main` and merged on
   2026-06-18 at merge commit `e9e6b87`; local branch/worktree and build pane were reaped.
+- PR #302 (#299 settings/scripts/jobs mechanical subset) was rebased cleanly onto `origin/main` and
+  merged on 2026-06-18 at merge commit `d002958`; local branch/worktree and build pane were reaped.
 - Local verification for CI repair:
   - `pnpm vitest run tests/unit/ai-tmux-bridge.test.ts` green.
   - `TZ=UTC pnpm vitest run tests/unit/ai-tmux-bridge.test.ts` green.
@@ -70,16 +72,16 @@
 
 ## Queue
 
-| Spec / contract                                          | Issue | Tier      | Status                        | Agent label                                                    | Pane   | Branch                        | PR   |
-| -------------------------------------------------------- | ----- | --------- | ----------------------------- | -------------------------------------------------------------- | ------ | ----------------------------- | ---- |
-| CI repair: timezone-safe Codex transcript date test      | —     | routine   | pushed-to-main; local gate ok | —                                                              | —      | main @ `ff0ba95`              | —    |
-| CI repair: isolate onboarding provider-check test        | —     | routine   | pushed-to-main; local gate ok | —                                                              | —      | main @ `4eb41fe`              | —    |
-| Relay manifest flush                                     | —     | routine   | pushed-to-main; local gate ok | —                                                              | —      | main @ `4eaf647`              | —    |
-| CI repair: Approve/Reject e2e label                      | —     | routine   | pushed; local gate ok         | —                                                              | —      | main @ `d8aa546`              | —    |
-| issue body: validate recurrence JSONB boundary           | #297  | routine   | merged                        | TasksRecurrence-297                                            | —      | main @ `2cbea96`              | #303 |
-| issue body: #299 tasks-only mechanical subset after #297 | #299  | routine   | merged                        | TasksMinors-299-Codex (`019edb87-3696-75b0-a87b-da944a54b02f`) | —      | main @ `e9e6b87`              | #304 |
-| issue body: #299 settings/scripts/jobs mechanical subset | #299  | routine   | QA green; merge next          | InfraMinors-299                                                | w1:p12 | overnight-299-infra-minors    | #302 |
-| docs/superpowers/specs/2026-06-15-corrections-log.md     | #244  | sensitive | queued after lower-risk lanes | Corrections-244                                                | —      | overnight-244-corrections-log | —    |
+| Spec / contract                                          | Issue | Tier      | Status                        | Agent label                                                    | Pane | Branch                        | PR   |
+| -------------------------------------------------------- | ----- | --------- | ----------------------------- | -------------------------------------------------------------- | ---- | ----------------------------- | ---- |
+| CI repair: timezone-safe Codex transcript date test      | —     | routine   | pushed-to-main; local gate ok | —                                                              | —    | main @ `ff0ba95`              | —    |
+| CI repair: isolate onboarding provider-check test        | —     | routine   | pushed-to-main; local gate ok | —                                                              | —    | main @ `4eb41fe`              | —    |
+| Relay manifest flush                                     | —     | routine   | pushed-to-main; local gate ok | —                                                              | —    | main @ `4eaf647`              | —    |
+| CI repair: Approve/Reject e2e label                      | —     | routine   | pushed; local gate ok         | —                                                              | —    | main @ `d8aa546`              | —    |
+| issue body: validate recurrence JSONB boundary           | #297  | routine   | merged                        | TasksRecurrence-297                                            | —    | main @ `2cbea96`              | #303 |
+| issue body: #299 tasks-only mechanical subset after #297 | #299  | routine   | merged                        | TasksMinors-299-Codex (`019edb87-3696-75b0-a87b-da944a54b02f`) | —    | main @ `e9e6b87`              | #304 |
+| issue body: #299 settings/scripts/jobs mechanical subset | #299  | routine   | merged                        | InfraMinors-299                                                | —    | main @ `d002958`              | #302 |
+| docs/superpowers/specs/2026-06-15-corrections-log.md     | #244  | sensitive | queued after lower-risk lanes | Corrections-244                                                | —    | overnight-244-corrections-log | —    |
 
 ## Excluded / Held
 
@@ -113,7 +115,12 @@ No waivers. Any red required check is stop-the-line unless proven red on `main` 
 - **Relay reason:** coordinator self-read showed ~474K used at 2026-06-18 00:10 PDT, close to Ben's explicit 500K ceiling. Relay before spawning any build lanes.
 - **Relay reason 2:** successor coordinator self-read showed ~822K used before merging PR #304.
   Relay before merge per the manifest ceiling. This relay resets `merges_since_relay` to 0.
-- **Next action:** merge QA-green PR #302. #244 remains held until lower-risk lanes are complete.
+- **Relay reason 3:** coordinator merged two routine PRs (#304 and #302), so
+  `merges_since_relay` reached 2. Relay immediately before any #244 work.
+- **Next action:** successor must claim the Coordinator lock with its own session id, close this
+  coordinator by label+session id `019edba0-be98-7f90-99b0-64d7802f4ca3`, then decide the next
+  lower-risk-complete step for #244. #244 was held until #304/#302 completed; those lower-risk
+  lanes are now merged.
 - **If local gate is green:** spawn #297 first and #299 infra/settings/scripts if collision scan still shows no overlap. Hold #299 tasks subset until #297 lands. Hold #244 until the lower-risk lanes are done.
 - **If latest CI is red:** pull the exact failing job log and continue systematic debugging. Do not spawn the fleet on red `main`.
 - **Untracked files in main worktree:** `docs/superpowers/handoffs/2026-06-18-onboarding-service-testing-webwright.md` and `docs/superpowers/specs/2026-06-15-corrections-log.md` existed before this run; do not sweep them with broad staging.
@@ -130,3 +137,5 @@ No waivers. Any red required check is stop-the-line unless proven red on `main` 
   verdict to PR #304 and was closed.
 - `TasksMinors-299-Codex` Codex pane session `019edb87-3696-75b0-a87b-da944a54b02f`: PR #304
   merged and pane/worktree were reaped.
+- `InfraMinors-299` Claude pane session `e99aac65-fdd3-4b7f-99f8-8ad4821fd3e2`: PR #302 merged
+  and pane/worktree were reaped.
