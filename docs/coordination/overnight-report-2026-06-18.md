@@ -16,6 +16,7 @@ CI-equivalent evidence recorded in the run manifest.
 | Memory corrections log                    | #244  | #305 | `bd43a0f`    | Merged; issue closed/Done      |
 | Owner bootstrap recovery, security-tier   | #260  | #309 | `e075312`    | Merged after Ben sign-off      |
 | Final coordinator lock/report bookkeeping | —     | —    | `1107c53`+   | Pushed to `main`               |
+| Onboarding copy refresh, outside queue    | —     | #310 | `95a3b60`    | Merged; branch deleted         |
 
 ## Verification
 
@@ -30,6 +31,9 @@ CI-equivalent evidence recorded in the run manifest.
 - PR #309 final evidence: `VF_EXIT=0`, 68 unit files / 413 tests, 55 integration files / 825 passed
   / 2 skipped; `AUDIT_EXIT=0`; pre-push trio green; final security QA GREEN with 0 blocking
   findings. Two earlier security QA RED verdicts found real gaps and drove fixes before merge.
+- PR #310 evidence after rebase onto current `origin/main`: Prettier check green, ESLint green,
+  `pnpm test:e2e tests/e2e/onboarding.spec.ts` 5 passed, and
+  `pnpm test:e2e tests/e2e/onboarding-member.spec.ts` 5 passed.
 
 ## Decisions
 
@@ -47,9 +51,7 @@ CI-equivalent evidence recorded in the run manifest.
   visibility/API privacy work until a dedicated provider-model spec is approved.
 - Held items remain out of this unattended run: #238, #239, #237, #251, #252, #253, and broad #218
   chat session resumption.
-- A separate Antigravity onboarding-copy task is active outside this manifest queue. The coordinator
-  instructed it to move staged changes onto a dedicated `onboarding-copy-refresh` branch from
-  `origin/main`, preserve the scoped paths only, and open a PR.
+- The separate Antigravity onboarding-copy task was merged as PR #310 after focused verification.
 
 ## Coordinator State
 

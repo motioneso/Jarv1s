@@ -97,6 +97,10 @@
   pre-push trio green. Security QA subagent `019edc8a-215a-72a1-950c-b0c6d03b5df7` posted GREEN
   verdict with 0 blocking findings and 1 non-blocking test-hardening gap. Issue #260 is closed and
   project status is Done. Local branch/worktree and build pane were reaped; remote branch deleted.
+- PR #310 (Antigravity onboarding copy refresh, outside the approved overnight queue) merged on
+  2026-06-18 at merge commit `95a3b60`; focused evidence after rebase onto current `origin/main`:
+  Prettier check green, ESLint green, owner onboarding e2e 5 passed, member onboarding e2e 5
+  passed. Remote branch `onboarding-copy-refresh` was deleted.
 - Local verification for CI repair:
   - `pnpm vitest run tests/unit/ai-tmux-bridge.test.ts` green.
   - `TZ=UTC pnpm vitest run tests/unit/ai-tmux-bridge.test.ts` green.
@@ -189,7 +193,7 @@ No waivers. Any red required check is stop-the-line unless proven red on `main` 
   `019edcbd-30fe-7d71-9e48-ded1258b8d98`. The successor read this file in full, invoked/used
   `coordinate`, confirmed its own Codex session id from `herdr pane list`, relabelled the old
   coordinator to `Coordinator-RelayOld`, and updated this lock. Do not trust pane numbers.
-- **Next action:** overnight report written at
+- **Next action:** overnight report written and updated with PR #310 at
   `docs/coordination/overnight-report-2026-06-18.md`. Reconcile the main worktree's unrelated local
   commits from other panes before further manifest pushes.
 - **If local gate is green:** spawn #297 first and #299 infra/settings/scripts if collision scan still shows no overlap. Hold #299 tasks subset until #297 lands. Hold #244 until the lower-risk lanes are done.
