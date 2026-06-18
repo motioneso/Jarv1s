@@ -5,13 +5,15 @@ import { Check, Trash2, X } from "lucide-react";
 import {
   confirmMemoryFact,
   deleteMemoryFact,
+  getMemoryCorrections,
   getMemoryFacts,
   getMemorySettings,
   patchMemorySettings,
   rejectMemoryFact,
+  type MemoryCorrection,
   type MemoryFact,
   type MemorySettings
-} from "../api/client";
+} from "../api/memory-client";
 import { queryKeys } from "../api/query-keys";
 import { partitionMemoryFacts } from "./memory-facts-view";
 import { getMemoryFactProvenanceLabel, getMemoryFactProvenanceTone } from "./memory-provenance";
@@ -33,6 +35,11 @@ export function MemoryPane(_props: PaneProps) {
   const factsQuery = useQuery({
     queryKey: queryKeys.chat.memoryFacts,
     queryFn: getMemoryFacts,
+    retry: false
+  });
+  const correctionsQuery = useQuery({
+    queryKey: queryKeys.chat.memoryCorrections,
+    queryFn: getMemoryCorrections,
     retry: false
   });
   const patchMutation = useMutation({
@@ -60,6 +67,7 @@ export function MemoryPane(_props: PaneProps) {
     mutationFn: (id: string) => rejectMemoryFact(id),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: queryKeys.chat.memoryFacts });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.chat.memoryCorrections });
       toast("Pattern rejected");
     },
     onError: (error) => toast(readError(error), { tone: "drift" })
@@ -67,6 +75,7 @@ export function MemoryPane(_props: PaneProps) {
 
   const settings = settingsQuery.data;
   const facts: MemoryFact[] = factsQuery.data?.facts ?? [];
+  const corrections: MemoryCorrection[] = correctionsQuery.data?.corrections ?? [];
   const { remembered: rememberedFacts, inferred: inferredFacts } = partitionMemoryFacts(facts);
   const factCount = rememberedFacts.length;
 
@@ -187,8 +196,28 @@ export function MemoryPane(_props: PaneProps) {
         <Row
           name="Corrections"
           desc="Times you've put Jarvis right. It learns from every one."
-          coming
+          control={<span className="memory-count">{corrections.length}</span>}
         />
+        <div className="memory-corrections-list">
+          {corrections.length === 0 ? (
+            <p className="memory-facts-empty">No corrections logged yet.</p>
+          ) : (
+            corrections.map((correction) => (
+              <div key={correction.id} className="memory-correction">
+                <span className="memory-fact__category">
+                  {correction.reason === "corrected" ? "corrected" : "rejected"}
+                </span>
+                <span className="memory-fact__content">
+                  {correction.reason === "corrected" && correction.afterContent
+                    ? `${correction.beforeContent ?? correction.content} -> ${
+                        correction.afterContent
+                      }`
+                    : correction.content}
+                </span>
+              </div>
+            ))
+          )}
+        </div>
       </Group>
 
       <Group title="Forget">

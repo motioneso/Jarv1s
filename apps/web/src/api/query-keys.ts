@@ -43,7 +43,8 @@ export const queryKeys = {
   chat: {
     threads: ["chat", "threads"] as const,
     memorySettings: ["chat", "memory-settings"] as const,
-    memoryFacts: ["chat", "memory-facts"] as const
+    memoryFacts: ["chat", "memory-facts"] as const,
+    memoryCorrections: ["chat", "memory-corrections"] as const
   },
   email: {
     list: ["email", "list"] as const,

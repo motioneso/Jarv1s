@@ -1,4 +1,4 @@
-import type { MemoryFact } from "../api/client.js";
+import type { MemoryFact } from "../api/memory-client.js";
 
 export interface PartitionedMemoryFacts {
   readonly remembered: MemoryFact[];
