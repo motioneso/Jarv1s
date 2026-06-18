@@ -22,7 +22,7 @@ test("bootstrap owner with incomplete onboarding sees the wizard, then the app s
   await expect(page.getByLabel("Onboarding progress").getByText("Owner")).toBeVisible();
   await expect(page.getByRole("heading", { name: "Let’s get your Jarvis set up." })).toBeVisible();
   await expect(
-    page.getByText("A safe, inspectable, interactive way for me to connect to your LLM.")
+    page.getByText("A safe, inspectable way for me to reach your computer.")
   ).toBeVisible();
   await expect(page.getByText("Skips the whole setup and opens the app.")).toBeVisible();
   await expect(page.getByText("Tweaks")).toHaveCount(0);
@@ -33,7 +33,12 @@ test("bootstrap owner with incomplete onboarding sees the wizard, then the app s
   while (await continueButton.isVisible()) {
     await continueButton.click();
   }
-  await page.getByLabel("Onboarding step").getByRole("button", { name: "Finish" }).click();
+  await expect(page.getByRole("heading", { name: "Jarvis is ready." })).toBeVisible();
+  await expect(page.getByLabel("Onboarding step").getByText("Control channel")).toBeVisible();
+  await expect(
+    page.getByLabel("Onboarding step").getByText("Provider", { exact: true })
+  ).toBeVisible();
+  await page.getByRole("button", { name: "Open today’s brief" }).click();
 
   // After finish the status mock returns state:"completed"; the app.tsx branch falls through.
   await expect(
@@ -89,12 +94,12 @@ test("provider auth test is an explicit installed-provider action", async ({ pag
   await page.goto("/");
   await page.getByRole("button", { name: /Continue/ }).click();
   await expect(
-    page.getByRole("heading", { name: "Connect the assistant I’ll run." })
+    page.getByRole("heading", { name: "Choose the provider I’ll run on." })
   ).toBeVisible();
-  await expect(page.getByRole("button", { name: "Install first" })).toHaveCount(2);
+  await expect(page.getByText("Not installed")).toHaveCount(2);
 
-  await page.getByRole("button", { name: "Test connection" }).click();
-  await expect(page.getByText("Connection ready.")).toBeVisible();
+  await page.getByRole("button", { name: "Test login" }).click();
+  await expect(page.getByText("Signed in & ready")).toBeVisible();
 });
 
 test("a non-owner never sees the wizard", async ({ page }) => {

@@ -1,4 +1,5 @@
 .onb {
+  height: 100vh;
   min-height: 100vh;
   display: grid;
   grid-template-columns: 19.5rem minmax(0, 1fr);
@@ -188,6 +189,49 @@
   padding-top: 1.25rem;
 }
 
+.onb__rail-actions {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.35fr);
+  gap: 0.55rem;
+  margin-bottom: 0.85rem;
+}
+
+.onb__rail-actions .primary-button {
+  width: 100%;
+  justify-content: center;
+}
+
+.onb__rail-back,
+.onb__rail-skipstep {
+  width: 100%;
+  min-height: 2.3rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.45rem;
+  border: 0;
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--text-subtle);
+  padding: 0.5rem 0.65rem;
+  font-weight: 700;
+}
+
+.onb__rail-skipstep {
+  grid-column: 1 / -1;
+}
+
+.onb__rail-back:hover,
+.onb__rail-skipstep:hover {
+  background: var(--surface-2);
+  color: var(--text);
+}
+
+.onb__rail-back:disabled {
+  opacity: 0.38;
+  pointer-events: none;
+}
+
 .onb__skipall {
   width: 100%;
   min-height: 2.4rem;
@@ -218,12 +262,17 @@
 .onb__stage {
   min-width: 0;
   min-height: 0;
+  height: 100vh;
   display: flex;
   flex-direction: column;
+  overflow: hidden;
 }
 
 .onb__content {
   width: min(41.25rem, 100%);
+  min-height: 0;
+  flex: 1;
+  overflow-y: auto;
   margin: 0 auto;
   padding: 3.25rem 3rem 8rem;
 }
@@ -487,6 +536,8 @@
 }
 
 .onb-nav {
+  display: none;
+  flex: none;
   position: sticky;
   bottom: 0;
   margin-top: auto;
@@ -580,6 +631,7 @@
   }
 
   .onb-nav {
+    display: block;
     padding: 0.85rem 1.25rem;
   }
 

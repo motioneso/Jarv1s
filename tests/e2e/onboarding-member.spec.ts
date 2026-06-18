@@ -46,7 +46,9 @@ test("active member sees the member step array (no CLI-auth/multiplexer) and can
   await expect(
     page.getByRole("heading", { name: "I already work, out of the box." })
   ).toBeVisible();
-  await expect(page.getByRole("link", { name: /Settings/i })).toBeVisible();
+  await expect(page.getByRole("button", { name: /Use the shared setup/i })).toBeVisible();
+  await page.getByRole("button", { name: /Add a personal key/i }).click();
+  await expect(page.getByLabel("Personal AI key")).toBeVisible();
 });
 
 test('"Skip setup" reaches the app shell', async ({ page }) => {

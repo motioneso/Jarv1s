@@ -78,7 +78,7 @@ describe("CliChatEngineImpl — Codex launch", () => {
 });
 
 describe("CliChatEngineImpl — Gemini launch", () => {
-  it("writes .gemini/settings.json and launches gemini with MCP server name", async () => {
+  it("writes .gemini/settings.json and launches agy with supported flags", async () => {
     const io = makeIo();
     const engine = new CliChatEngineImpl("google", "gemini-session", io);
     await engine.launch({
@@ -100,8 +100,10 @@ describe("CliChatEngineImpl — Gemini launch", () => {
       (c: unknown[]) => c[0] === "tmux" && (c[1] as string[])[0] === "send-keys"
     );
     const launchLine = (sendKeysCall![1] as string[])[3];
-    expect(launchLine).toContain("gemini");
-    expect(launchLine).toContain("--allowed-mcp-server-names jarvis");
+    expect(launchLine).toContain("agy");
+    expect(launchLine).not.toContain("gemini");
+    expect(launchLine).toContain("--sandbox");
+    expect(launchLine).not.toContain("--allowed-mcp-server-names");
   });
 });
 
@@ -186,6 +188,63 @@ describe("CliChatEngineImpl — non-Claude transcript resolution", () => {
     expect(readPath.endsWith("rollout-2026-06-13T10-00-00-abcdef.jsonl")).toBe(true);
   });
 
+  it("Codex skips newer transcripts from other cwd values when resolving provider-check output", async () => {
+    const io = makeIo();
+    const engine = new CliChatEngineImpl("openai-compatible", "codex-session", io, {
+      homeBase: "/host-home"
+    });
+    await engine.launch({
+      neutralDir: "/tmp/jarv1s-provider-check-abc123",
+      personaPath: "/tmp/persona.txt",
+      mcpToken: "jst_codex",
+      mcpServerUrl: "http://127.0.0.1:3000/api/mcp"
+    });
+
+    io.run.mockImplementation(async (cmd: string) => {
+      if (cmd === "ls") {
+        return {
+          code: 0,
+          stdout:
+            "rollout-2026-06-13T10-01-00-active-codex-session.jsonl\n" +
+            "rollout-2026-06-13T10-00-00-provider-check.jsonl\n",
+          stderr: ""
+        };
+      }
+      return { code: 0, stdout: "", stderr: "" };
+    });
+    io.readFile.mockImplementation(async (path: string) => {
+      if (path.endsWith("active-codex-session.jsonl")) {
+        return [
+          JSON.stringify({
+            type: "session_meta",
+            payload: { cwd: "~/Jarv1s" }
+          }),
+          JSON.stringify({
+            type: "event_msg",
+            payload: { type: "agent_message", message: "unrelated" }
+          })
+        ].join("\n");
+      }
+      return [
+        JSON.stringify({
+          type: "session_meta",
+          payload: { cwd: "/tmp/jarv1s-provider-check-abc123" }
+        }),
+        JSON.stringify({
+          type: "event_msg",
+          payload: { type: "task_complete", last_agent_message: "OK" }
+        })
+      ].join("\n");
+    });
+
+    const result = await engine.readNew(0);
+
+    const readPath = io.readFile.mock.calls.at(-1)?.[0] as string;
+    expect(readPath.endsWith("rollout-2026-06-13T10-00-00-provider-check.jsonl")).toBe(true);
+    expect(result.complete).toBe(true);
+    expect(result.records.at(-1)).toEqual({ kind: "reply", text: "OK" });
+  });
+
   it("Codex readNew tolerates an empty glob dir (no .jsonl yet)", async () => {
     const io = makeIo();
     const engine = new CliChatEngineImpl("openai-compatible", "codex-empty", io);
@@ -204,13 +263,13 @@ describe("CliChatEngineImpl — non-Claude transcript resolution", () => {
     expect(io.readFile).not.toHaveBeenCalled();
   });
 
-  it("Gemini resolves the newest .jsonl under ~/.gemini/tmp", async () => {
+  it("Gemini resolves the newest .jsonl under the cwd-specific ~/.gemini/tmp project chats dir", async () => {
     const io = makeIo();
     const engine = new CliChatEngineImpl("google", "gemini-session", io, {
       homeBase: "/host-home"
     });
     await engine.launch({
-      neutralDir: "/tmp/neutral",
+      neutralDir: "/tmp/jarv1s-provider-check-AbC123",
       personaPath: "/tmp/persona.txt",
       mcpToken: "jst_gemini",
       mcpServerUrl: "http://127.0.0.1:3000/api/mcp"
@@ -227,7 +286,7 @@ describe("CliChatEngineImpl — non-Claude transcript resolution", () => {
     await engine.readNew(0);
 
     const readPath = io.readFile.mock.calls[0]?.[0] as string;
-    expect(readPath).toContain("/host-home/.gemini/tmp/");
+    expect(readPath).toContain("/host-home/.gemini/tmp/jarv1s-provider-check-abc123/chats/");
     expect(readPath.endsWith("session-2026-06-13T10-00-00-xyz.jsonl")).toBe(true);
   });
 });

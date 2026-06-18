@@ -1,5 +1,16 @@
 import { useState } from "react";
-import { LoaderCircle } from "lucide-react";
+import {
+  CircleCheck,
+  CircleDashed,
+  ExternalLink,
+  Info,
+  LoaderCircle,
+  LogIn,
+  LogOut,
+  Radar,
+  RefreshCw,
+  ShieldCheck
+} from "lucide-react";
 
 import type {
   OnboardingCliAuthStepDto,
@@ -8,11 +19,12 @@ import type {
 } from "@jarv1s/shared";
 
 import { testOnboardingProviderConnection } from "../api/client";
+import { StepHeader } from "./onboarding-ui";
 
 const CLI_LABELS: Record<string, { name: string; loginCommand: string }> = {
   anthropic: { name: "Claude", loginCommand: "claude login" },
   "openai-compatible": { name: "Codex", loginCommand: "codex login" },
-  google: { name: "Gemini", loginCommand: "gemini" }
+  google: { name: "Antigravity", loginCommand: "agy" }
 };
 
 export function CliAuthStep(props: {
@@ -38,15 +50,31 @@ export function CliAuthStep(props: {
 
   return (
     <section className="onb-step" aria-labelledby="onboarding-cli-title">
-      <p className="onb-eyebrow">Step 2 · The assistant</p>
-      <h1 id="onboarding-cli-title" className="onb-title">
-        Connect the assistant I’ll run.
-      </h1>
-      <p className="onb-lede">
-        Jarvis works through an AI command-line tool on your computer. I can see whether it is
-        installed. Only you can sign in to it, there on the host.
-      </p>
-      <ul className="onboarding-cli-list onb-status-list">
+      <StepHeader
+        eyebrow="Step 2 · Your provider"
+        title="Choose the provider I’ll run on."
+        lede="Jarvis runs through an AI command-line tool on your machine. I detect which ones are installed automatically — then you can test whether you’re signed in, right here."
+      />
+      <div className="onb-scan">
+        <span className="onb-scan__ic">
+          <Radar size={18} aria-hidden="true" />
+        </span>
+        <div className="onb-scan__main">
+          <div className="onb-scan__t">
+            Detected {props.step.providers.filter((provider) => provider.cliPresent).length} of{" "}
+            {props.step.providers.length} assistants installed
+          </div>
+        </div>
+        <button
+          className="jds-btn jds-btn--secondary jds-btn--sm"
+          type="button"
+          onClick={props.onRecheck}
+        >
+          <RefreshCw size={14} aria-hidden="true" />
+          Re-scan
+        </button>
+      </div>
+      <div className="onb-clis">
         {props.step.providers.map((provider) => {
           const label = CLI_LABELS[provider.kind] ?? {
             name: provider.kind,
@@ -54,46 +82,107 @@ export function CliAuthStep(props: {
           };
           const isChecking = checkingKind === provider.kind;
           const result = results[provider.kind];
+          const ready = result?.status === "ready";
+          const needsLogin = result !== undefined && result.status !== "ready";
           return (
-            <li className="onb-cli-provider" key={provider.kind}>
-              <div>
-                <strong>{label.name}</strong>{" "}
+            <div
+              className={`onb-cli${provider.cliPresent ? "" : " is-off"}${ready ? " is-sel" : ""}`}
+              key={provider.kind}
+            >
+              <span className="onb-cli__radio">
+                {ready ? <CircleCheck size={12} strokeWidth={3} aria-hidden="true" /> : null}
+              </span>
+              <div className="onb-cli__body">
+                <div className="onb-cli__top">
+                  <span className="onb-cli__name">{label.name}</span>
+                  <span className="onb-cli__cmd">{label.loginCommand.split(" ")[0]}</span>
+                  <span className="onb-cli__sp" />
+                  <span className={`onb-detect onb-detect--${provider.cliPresent ? "on" : "off"}`}>
+                    {provider.cliPresent ? (
+                      <CircleCheck size={13} aria-hidden="true" />
+                    ) : (
+                      <CircleDashed size={13} aria-hidden="true" />
+                    )}
+                    {provider.cliPresent ? "Installed" : "Not installed"}
+                  </span>
+                </div>
                 {provider.cliPresent ? (
-                  <span className="form-hint">
-                    detected — sign in on the host if you have not already
-                  </span>
-                ) : (
-                  <span className="form-hint">
-                    not detected. Install it, then run <code>{label.loginCommand}</code>
-                  </span>
-                )}
-                {result ? (
-                  <div className="form-hint onb-provider-check-result">
-                    {providerCheckMessage(result)}
+                  <div className="onb-auth">
+                    {result === undefined && !isChecking ? (
+                      <>
+                        <button
+                          className="onb-auth__btn"
+                          type="button"
+                          disabled={checkingKind !== null}
+                          onClick={() => void checkProvider(provider.kind)}
+                        >
+                          <LogIn size={14} aria-hidden="true" /> Test login
+                        </button>
+                        <span className="onb-auth__note">
+                          Checks whether you’re signed in on the host.
+                        </span>
+                      </>
+                    ) : null}
+                    {isChecking ? (
+                      <span className="onb-auth__testing">
+                        <LoaderCircle className="spin" size={14} aria-hidden="true" /> Testing
+                        login…
+                      </span>
+                    ) : null}
+                    {ready ? (
+                      <>
+                        <span className="onb-auth__res onb-auth__res--in">
+                          <ShieldCheck size={14} aria-hidden="true" /> Signed in &amp; ready
+                        </span>
+                        <button
+                          className="onb-auth__re"
+                          type="button"
+                          disabled={checkingKind !== null}
+                          onClick={() => void checkProvider(provider.kind)}
+                        >
+                          Re-test
+                        </button>
+                      </>
+                    ) : null}
+                    {needsLogin ? (
+                      <div className="onb-auth__outwrap">
+                        <div className="onb-auth__outhd">
+                          <span className="onb-auth__res onb-auth__res--out">
+                            <LogOut size={14} aria-hidden="true" /> Not signed in
+                          </span>
+                          <button
+                            className="onb-auth__re"
+                            type="button"
+                            disabled={checkingKind !== null}
+                            onClick={() => void checkProvider(provider.kind)}
+                          >
+                            Re-test
+                          </button>
+                        </div>
+                        <div className="onb-auth__hint">{providerCheckMessage(result)}</div>
+                      </div>
+                    ) : null}
                   </div>
-                ) : null}
+                ) : (
+                  <div className="onb-cli__install">
+                    <span className="onb-cli__installhint">
+                      <Info size={14} aria-hidden="true" />
+                      Not detected. Install it, then run <code>{label.loginCommand}</code>.
+                    </span>
+                    <a
+                      className="onb-cli__guide"
+                      href="https://github.com"
+                      target="_blank"
+                      rel="noreferrer"
+                    >
+                      Install guide <ExternalLink size={12} aria-hidden="true" />
+                    </a>
+                  </div>
+                )}
               </div>
-              <button
-                className="ghost-button onb-mini-button"
-                type="button"
-                disabled={checkingKind !== null || !provider.cliPresent}
-                onClick={() => void checkProvider(provider.kind)}
-              >
-                {isChecking ? <LoaderCircle className="spin" size={16} /> : null}
-                {provider.cliPresent ? "Test connection" : "Install first"}
-              </button>
-            </li>
+            </div>
           );
         })}
-      </ul>
-      <div className="onb-recheck">
-        <p>
-          These checks confirm the program is installed on the host. Sign-in still happens in that
-          tool&apos;s own terminal session.
-        </p>
-        <button className="ghost-button" type="button" onClick={props.onRecheck}>
-          Re-check host
-        </button>
       </div>
     </section>
   );

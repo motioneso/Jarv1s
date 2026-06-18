@@ -26,3 +26,7 @@ infra/env.production.local
 
 # Superpowers local server/runtime state; content snapshots may be committed intentionally.
 .superpowers/**/state/
+
+# Local design-system archive/import
+Jarvis Design System.zip
+Jarvis Design System/
