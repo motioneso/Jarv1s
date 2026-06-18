@@ -128,7 +128,7 @@ export {
 } from "./route-guard.js";
 
 export interface BuiltInRouteDependencies {
-  // Raw root handle forwarded to settings' BootstrapHelper (pre-session countUsers).
+  // Raw root handle forwarded to settings' BootstrapHelper (pre-session bootstrap status).
   // Documented Kysely< exemption — see packages/settings/src/bootstrap.ts. This is the
   // ONLY root-handle escape hatch in the route layer; module admin checks run through
   // DataContextDb (connectors' admin check was converted off appDb in Audit B3) — plus

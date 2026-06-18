@@ -251,7 +251,7 @@ function createBetterAuthOptions(
       user: {
         create: {
           before: (user) => registrationGate(appDb, user),
-          after: (user) => bootstrapFirstJarvisUser(runner, settings, user as BetterAuthUser)
+          after: (user) => bootstrapFirstJarvisUser(pool, runner, settings, user as BetterAuthUser)
         }
       }
     },
@@ -333,11 +333,7 @@ async function registrationGate(
   appDb: Kysely<JarvisDatabase>,
   _user: BetterAuthUser
 ): Promise<void> {
-  const countResult = await sql<{ count: string }>`SELECT app.count_all_users() AS count`.execute(
-    appDb
-  );
-  const existingCount = Number(countResult.rows[0]?.count ?? 0);
-  if (existingCount === 0) return;
+  if (!(await bootstrapOwnerExists(appDb))) return;
 
   const enabled = await readBooleanSetting(appDb, "registration.enabled", true);
   if (!enabled) {
@@ -382,7 +378,20 @@ async function readBooleanSetting(
   return typeof parsed.value === "boolean" ? parsed.value : defaultValue;
 }
 
+async function bootstrapOwnerExists(appDb: Kysely<JarvisDatabase>): Promise<boolean> {
+  const result = await sql<{ exists: boolean }>`
+    SELECT EXISTS (
+      SELECT 1
+      FROM app.list_all_users()
+      WHERE is_bootstrap_owner = true
+    ) AS "exists"
+  `.execute(appDb);
+
+  return result.rows[0]?.exists ?? false;
+}
+
 async function bootstrapFirstJarvisUser(
+  authPool: pg.Pool,
   runner: DataContextRunner,
   settings: BootstrapSettings,
   user: BetterAuthUser
@@ -399,16 +408,26 @@ async function bootstrapFirstJarvisUser(
         scopedDb.db
       );
 
-      // app.count_all_users() is a SECURITY DEFINER function owned by jarvis_auth_runtime,
-      // which has a USING(true) policy on users under FORCE RLS. This gives an accurate
-      // total count even though app_runtime's own self-row policy would return count=1.
-      const countResult = await sql<{
-        count: string;
-      }>`SELECT app.count_all_users() AS count`.execute(scopedDb.db);
-      const isFirstUser = Number(countResult.rows[0]?.count ?? 0) === 1;
+      // Use the existing SECURITY DEFINER all-users read helper here. A direct
+      // app.users query under app_runtime would be RLS-scoped to the signup's own row
+      // and would miss an existing bootstrap owner.
+      const shouldBootstrapOwner = !(await bootstrapOwnerExists(scopedDb.db));
 
       let status: "active" | "pending" = "active";
-      if (!isFirstUser) {
+      if (!shouldBootstrapOwner) {
+        const registrationEnabled = await readBooleanSetting(
+          scopedDb.db,
+          "registration.enabled",
+          true
+        );
+        if (!registrationEnabled) {
+          await deleteRejectedBootstrapRaceLoser(authPool, user.id);
+          throw new APIError("FORBIDDEN", {
+            message: "Registration is disabled",
+            code: "registration_disabled"
+          });
+        }
+
         const requiresApproval = await readBooleanSetting(
           scopedDb.db,
           "registration.requires_approval",
@@ -422,15 +441,15 @@ async function bootstrapFirstJarvisUser(
         .set({
           name: user.name ?? "",
           email: user.email,
-          is_instance_admin: isFirstUser,
-          is_bootstrap_owner: isFirstUser,
+          is_instance_admin: shouldBootstrapOwner,
+          is_bootstrap_owner: shouldBootstrapOwner,
           status,
           updated_at: new Date()
         })
         .where("id", "=", user.id)
         .execute();
 
-      if (!isFirstUser) {
+      if (!shouldBootstrapOwner) {
         return;
       }
 
@@ -443,6 +462,10 @@ async function bootstrapFirstJarvisUser(
       });
     }
   );
+}
+
+async function deleteRejectedBootstrapRaceLoser(authPool: pg.Pool, userId: string): Promise<void> {
+  await authPool.query("DELETE FROM app.users WHERE id = $1", [userId]);
 }
 
 function toWebHeaders(headers: Headers | IncomingHttpHeaders): Headers {
