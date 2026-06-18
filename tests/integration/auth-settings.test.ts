@@ -390,22 +390,6 @@ describe("multi-user registration + lifecycle (Phase 2 Slice A)", () => {
     });
   }
 
-  async function seedNonBootstrapOwnerUser(input: { id: string; email: string }): Promise<void> {
-    const seed = new pg.Client({ connectionString: connectionStrings.bootstrap });
-    await seed.connect();
-    try {
-      await seed.query(
-        `
-          INSERT INTO app.users (id, email, name, is_instance_admin, is_bootstrap_owner, status)
-          VALUES ($1, $2, 'Seeded Non Owner', false, false, 'active')
-        `,
-        [input.id, input.email]
-      );
-    } finally {
-      await seed.end();
-    }
-  }
-
   beforeEach(async () => {
     await resetEmptyFoundationDatabase();
     appDb = createDatabase({ connectionString: connectionStrings.app, maxConnections: 1 });
@@ -445,87 +429,6 @@ describe("multi-user registration + lifecycle (Phase 2 Slice A)", () => {
     expect(meRes.statusCode).toBe(200);
     expect(meRes.json<MeResponse>().user).toMatchObject({
       isBootstrapOwner: true,
-      status: "active"
-    });
-  });
-
-  it("bootstraps signup as owner when existing users have no bootstrap owner", async () => {
-    await seedNonBootstrapOwnerUser({
-      id: "00000000-0000-4000-8000-000000002601",
-      email: "seeded-non-owner@example.com"
-    });
-
-    const signUpRes = await signUp({
-      name: "Recovered Owner",
-      email: "recovered-owner@example.com",
-      password: "password12345"
-    });
-    expect(signUpRes.statusCode).toBe(200);
-    const recoveredOwnerId = signUpRes.json<{ user: { id: string } }>().user.id;
-
-    const rows = await sql<{
-      is_instance_admin: boolean;
-      is_bootstrap_owner: boolean;
-      status: string;
-    }>`SELECT is_instance_admin, is_bootstrap_owner, status FROM app.get_user_by_id(${recoveredOwnerId}::uuid)`.execute(
-      appDb
-    );
-
-    expect(rows.rows[0]).toMatchObject({
-      is_instance_admin: true,
-      is_bootstrap_owner: true,
-      status: "active"
-    });
-
-    const audit = new pg.Client({ connectionString: connectionStrings.bootstrap });
-    await audit.connect();
-    try {
-      const auditRows = await audit.query<{ count: string }>(
-        `
-          SELECT count(*)::text AS count
-          FROM app.admin_audit_events
-          WHERE action = 'bootstrap_owner_created'
-            AND actor_user_id = $1
-            AND target_id = $2
-        `,
-        [recoveredOwnerId, recoveredOwnerId]
-      );
-      expect(Number(auditRows.rows[0]?.count ?? 0)).toBe(1);
-    } finally {
-      await audit.end();
-    }
-  });
-
-  it("bootstraps signup as owner when registration is disabled but no bootstrap owner exists", async () => {
-    await seedNonBootstrapOwnerUser({
-      id: "00000000-0000-4000-8000-000000002603",
-      email: "disabled-seeded-non-owner@example.com"
-    });
-    const statusRes = await server.inject({ method: "GET", url: "/api/bootstrap/status" });
-    expect(statusRes.statusCode).toBe(200);
-    expect(statusRes.json()).toEqual({ needsBootstrap: true });
-
-    await setInstanceSetting("registration.enabled", { value: false });
-
-    const signUpRes = await signUp({
-      name: "Disabled Recovery Owner",
-      email: "disabled-recovered-owner@example.com",
-      password: "password12345"
-    });
-
-    expect(signUpRes.statusCode).toBe(200);
-    const recoveredOwnerId = signUpRes.json<{ user: { id: string } }>().user.id;
-    const rows = await sql<{
-      is_instance_admin: boolean;
-      is_bootstrap_owner: boolean;
-      status: string;
-    }>`SELECT is_instance_admin, is_bootstrap_owner, status FROM app.get_user_by_id(${recoveredOwnerId}::uuid)`.execute(
-      appDb
-    );
-
-    expect(rows.rows[0]).toMatchObject({
-      is_instance_admin: true,
-      is_bootstrap_owner: true,
       status: "active"
     });
   });

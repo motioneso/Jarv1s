@@ -251,7 +251,7 @@ function createBetterAuthOptions(
       user: {
         create: {
           before: (user) => registrationGate(appDb, user),
-          after: (user) => bootstrapFirstJarvisUser(runner, settings, user as BetterAuthUser)
+          after: (user) => bootstrapFirstJarvisUser(pool, runner, settings, user as BetterAuthUser)
         }
       }
     },
@@ -391,6 +391,7 @@ async function bootstrapOwnerExists(appDb: Kysely<JarvisDatabase>): Promise<bool
 }
 
 async function bootstrapFirstJarvisUser(
+  authPool: pg.Pool,
   runner: DataContextRunner,
   settings: BootstrapSettings,
   user: BetterAuthUser
@@ -414,6 +415,19 @@ async function bootstrapFirstJarvisUser(
 
       let status: "active" | "pending" = "active";
       if (!shouldBootstrapOwner) {
+        const registrationEnabled = await readBooleanSetting(
+          scopedDb.db,
+          "registration.enabled",
+          true
+        );
+        if (!registrationEnabled) {
+          await deleteRejectedBootstrapRaceLoser(authPool, user.id);
+          throw new APIError("FORBIDDEN", {
+            message: "Registration is disabled",
+            code: "registration_disabled"
+          });
+        }
+
         const requiresApproval = await readBooleanSetting(
           scopedDb.db,
           "registration.requires_approval",
@@ -448,6 +462,10 @@ async function bootstrapFirstJarvisUser(
       });
     }
   );
+}
+
+async function deleteRejectedBootstrapRaceLoser(authPool: pg.Pool, userId: string): Promise<void> {
+  await authPool.query("DELETE FROM app.users WHERE id = $1", [userId]);
 }
 
 function toWebHeaders(headers: Headers | IncomingHttpHeaders): Headers {
