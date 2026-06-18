@@ -56,7 +56,11 @@ export function TodayPage(props: {
   const toggleMutation = useMutation({
     mutationFn: (task: TaskDto) =>
       updateTask(task.id, { status: task.status === "done" ? "todo" : "done" }),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.tasks.list })
+    onSuccess: () => {
+      setTimeout(() => {
+        void queryClient.invalidateQueries({ queryKey: queryKeys.tasks.list });
+      }, 500);
+    }
   });
 
   const theme = document.documentElement.getAttribute("data-theme") === "dark" ? "dark" : "light";
@@ -436,7 +440,8 @@ function Stat(props: {
 
 function BriefTaskRow(props: { readonly task: TaskDto; readonly onToggle: () => void }) {
   const { task } = props;
-  const done = task.status === "done";
+  const [optimisticDone, setOptimisticDone] = useState(task.status === "done");
+  const done = optimisticDone;
   const drift = driftOf(task);
   const p1 = (task.priority ?? 0) >= 4;
   return (
@@ -449,7 +454,10 @@ function BriefTaskRow(props: { readonly task: TaskDto; readonly onToggle: () => 
           <input
             type="checkbox"
             checked={done}
-            onChange={props.onToggle}
+            onChange={() => {
+              setOptimisticDone(!optimisticDone);
+              props.onToggle();
+            }}
             aria-label={done ? `Reopen ${task.title}` : `Complete ${task.title}`}
           />
           <span className="jds-check__box">
