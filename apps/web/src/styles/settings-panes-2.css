@@ -860,6 +860,10 @@
   padding: 4px 0 8px;
 }
 
+.memory-corrections-list {
+  padding: 4px 0 8px;
+}
+
 .memory-fact {
   display: flex;
   align-items: flex-start;
@@ -869,6 +873,19 @@
 }
 
 .memory-fact:first-child {
+  border-top: none;
+}
+
+.memory-correction {
+  display: grid;
+  grid-template-columns: minmax(5rem, auto) minmax(0, 1fr);
+  align-items: start;
+  gap: 10px;
+  padding: 8px 16px;
+  border-top: 1px solid var(--border-subtle, var(--border));
+}
+
+.memory-correction:first-child {
   border-top: none;
 }
 

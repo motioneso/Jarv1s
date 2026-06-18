@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { partitionMemoryFacts } from "../../apps/web/src/settings/memory-facts-view.js";
-import type { MemoryFact } from "../../apps/web/src/api/client.js";
+import type { MemoryFact } from "../../apps/web/src/api/memory-client.js";
 
 function fact(id: string, provenance: MemoryFact["provenance"]): MemoryFact {
   return {
