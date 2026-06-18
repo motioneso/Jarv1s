@@ -43,6 +43,9 @@
   `019edc14-46cc-7fe3-b383-e33a66cc8e18`; `herdr pane list` showed exactly one pane labelled
   `Coordinator`. Old coordinator was relabelled `Coordinator-RelayOld` after matching label
   `Coordinator` plus Codex session id `019edba6-76f5-7d13-9de9-2b5a8b4e5d1f`.
+- Old `Coordinator-RelayOld` pane for Codex session id
+  `019edba6-76f5-7d13-9de9-2b5a8b4e5d1f` is closed; `herdr pane list` shows exactly one
+  `Coordinator`, session id `019edc14-46cc-7fe3-b383-e33a66cc8e18`.
 - Coordinator relay permission docs were clarified in `702a0a8`: Codex coordinator successors must
   launch with `codex -s danger-full-access -a never`; Claude coordinator successors use
   `claude --permission-mode bypassPermissions`.
@@ -162,8 +165,8 @@ No waivers. Any red required check is stop-the-line unless proven red on `main` 
 - **Relay reason 4:** Ben requested coordinator relay after #260 was spawned and began planning.
   Successor coordinator session `019edc14-46cc-7fe3-b383-e33a66cc8e18` has claimed the
   `Coordinator` lock. The old coordinator was resolved by label plus session id
-  `019edba6-76f5-7d13-9de9-2b5a8b4e5d1f` and relabelled `Coordinator-RelayOld`; close that pane
-  after confirming the manifest update is committed and pushed. Do not trust pane numbers.
+  `019edba6-76f5-7d13-9de9-2b5a8b4e5d1f`, relabelled `Coordinator-RelayOld`, then closed after the
+  lock update was committed and pushed. Do not trust pane numbers.
 - **Next action:** continue #260 coordination. `OwnerBootstrap-260` is live and currently preparing
   a plan. Review its plan, approve or flag forks, then wait for PR. Independent QA is required after
   PR. Security-tier merge requires explicit Ben sign-off.
