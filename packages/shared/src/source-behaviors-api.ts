@@ -1,5 +1,14 @@
 import { errorResponseSchema } from "./schema-fragments.js";
 
+/**
+ * Default activation state for a source behavior:
+ * - `default-on`: enabled unless the user opts out (toggleable).
+ * - `default-off`: opt-in — disabled unless the user enables it (toggleable). No shipped manifest
+ *   uses this yet; it is forward-compat for opt-in behaviors and is covered by source-behaviors.test.ts.
+ * - `coming-soon`: shown but not yet available (not toggleable).
+ *
+ * NOTE: this union is mirrored in @jarv1s/module-sdk (SourceBehaviorDefault) — keep both in sync.
+ */
 export type SourceBehaviorDefault = "default-on" | "default-off" | "coming-soon";
 
 export interface SourceBehaviorDto {

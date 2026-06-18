@@ -701,9 +701,11 @@ export class SettingsRepository {
 }
 
 /**
- * Public cross-module API for recording admin audit events.
- * Called by packages/auth via @jarv1s/settings — auth must never import
- * SettingsRepository directly or write app.admin_audit_events directly.
+ * Sanctioned generic cross-module API for recording admin audit events. Exists so callers
+ * outside @jarv1s/settings (e.g. @jarv1s/auth) never import SettingsRepository or write
+ * app.admin_audit_events directly (module-isolation invariant). Auth currently writes only via
+ * the bootstrap-specific recordBootstrapOwnerAuditEvent; this generic entry is the path for any
+ * future cross-module audit write and is covered by tests/integration/auth-settings.test.ts.
  */
 export async function recordAuditEvent(
   scopedDb: DataContextDb,

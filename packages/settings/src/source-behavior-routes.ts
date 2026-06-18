@@ -1,8 +1,7 @@
-import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
+import type { FastifyInstance, FastifyRequest } from "fastify";
 
 import type { AccessContext, DataContextRunner } from "@jarv1s/db";
 import type { JarvisModuleManifest } from "@jarv1s/module-sdk";
-import { handleRouteError } from "@jarv1s/module-sdk";
 import {
   listSourceBehaviorsRouteSchema,
   putSourceBehaviorRouteSchema,
@@ -16,10 +15,12 @@ import {
   type SourceBehaviorSourceState
 } from "@jarv1s/source-behaviors";
 
+import { handleSettingsRouteError } from "./route-error.js";
+
 interface SourceBehaviorRoutesDependencies {
   readonly dataContext: DataContextRunner;
   readonly resolveAccessContext: (request: FastifyRequest) => Promise<AccessContext>;
-  readonly listModuleManifests?: () => readonly JarvisModuleManifest[];
+  readonly listModuleManifests: () => readonly JarvisModuleManifest[];
   readonly preferencesRepository: SourceBehaviorPreferencesPort;
 }
 
@@ -42,7 +43,7 @@ export function registerSourceBehaviorRoutes(
           async (scopedDb) =>
             toResponse(
               await listSourceBehaviorStates(scopedDb, {
-                manifests: dependencies.listModuleManifests?.() ?? [],
+                manifests: dependencies.listModuleManifests(),
                 preferencesRepository: dependencies.preferencesRepository
               })
             )
@@ -67,7 +68,7 @@ export function registerSourceBehaviorRoutes(
               await setSourceBehaviorOverride(
                 scopedDb,
                 {
-                  manifests: dependencies.listModuleManifests?.() ?? [],
+                  manifests: dependencies.listModuleManifests(),
                   preferencesRepository: dependencies.preferencesRepository
                 },
                 request.params.id,
@@ -100,20 +101,4 @@ function toResponse(sources: readonly SourceBehaviorSourceState[]): ListSourceBe
       }))
     }))
   };
-}
-
-function handleSettingsRouteError(error: unknown, reply: FastifyReply) {
-  return handleRouteError(error, reply, {
-    mappers: [
-      (e, r) => {
-        if (e instanceof Error) {
-          const code = (e as Error & { code?: string }).code;
-          if (code === "account_pending_approval" || code === "account_deactivated") {
-            return r.code(403).send({ error: e.message, code });
-          }
-        }
-        return undefined;
-      }
-    ]
-  });
 }

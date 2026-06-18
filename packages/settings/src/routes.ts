@@ -57,7 +57,7 @@ export interface SettingsRoutesDependencies {
   readonly dataContext: DataContextRunner;
   readonly resolveAccessContext: (request: FastifyRequest) => Promise<AccessContext>;
   readonly listConfiguredAuthProviders?: () => readonly AuthProviderStatusDto[];
-  readonly listModuleManifests?: () => readonly JarvisModuleManifest[];
+  readonly listModuleManifests: () => readonly JarvisModuleManifest[];
   readonly preferencesRepository?: ProfilePreferencesPort;
   readonly personaPreview?: (input: PersonaPreviewInput) => Promise<string>;
   readonly repository?: SettingsRepository;
@@ -534,7 +534,7 @@ export function registerSettingsRoutes(
   });
 
   function requireManifests(): readonly JarvisModuleManifest[] {
-    return dependencies.listModuleManifests?.() ?? [];
+    return dependencies.listModuleManifests();
   }
 
   function findManifest(id: string): JarvisModuleManifest | undefined {
