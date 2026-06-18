@@ -214,11 +214,21 @@
    --------------------------------------------------------------- */
 .jds-governor {
   position: relative;
-  border: var(--border-w) dashed var(--border-strong);
+  border: var(--border-w) solid var(--line-strong);
   border-radius: var(--radius-lg);
   padding: var(--space-4) var(--space-5);
   background: color-mix(in srgb, var(--surface-2) 60%, transparent);
-  transition: var(--transition-governor);
+  background-image: repeating-linear-gradient(
+    45deg,
+    transparent,
+    transparent 10px,
+    var(--line-subtle) 10px,
+    var(--line-subtle) 11px
+  );
+  transition:
+    var(--transition-governor),
+    border-color var(--dur-fast) var(--ease-out),
+    background-image var(--dur-fast) var(--ease-out);
 }
 .jds-governor__content {
   opacity: var(--governor-opacity);
@@ -247,6 +257,7 @@
   border-style: solid;
   border-color: var(--pine-soft-2);
   background: transparent;
+  background-image: none;
 }
 .jds-governor.is-confirmed .jds-governor__content {
   opacity: 1;
@@ -312,6 +323,8 @@
 }
 .jds-task:hover {
   background: var(--surface-2);
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-sm);
 }
 .jds-task__check {
   margin-top: 1px;
@@ -349,6 +362,11 @@
   font-family: var(--font-mono);
   font-size: var(--text-xs);
   color: var(--text-subtle);
+}
+.jds-task--done {
+  transform: scale(0.98);
+  opacity: 0.8;
+  background: var(--surface-2);
 }
 .jds-task--done .jds-task__title {
   color: var(--text-subtle);

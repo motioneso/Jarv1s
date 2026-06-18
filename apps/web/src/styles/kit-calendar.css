@@ -287,7 +287,7 @@
   display: flex;
   flex-direction: column;
   gap: 1px;
-  transition: box-shadow 0.12s ease;
+  transition: var(--transition-control);
 }
 .cal-ev__bar {
   position: absolute;
@@ -337,6 +337,7 @@
 }
 .cal-ev:hover {
   box-shadow: var(--shadow-md);
+  transform: translateY(-2px);
   z-index: 5;
 }
 
@@ -346,14 +347,35 @@
   border-color: color-mix(in srgb, var(--ev) 26%, var(--border));
 }
 
+/* tentative human event (needs RSVP) */
+.cal-ev--tentative {
+  background: var(--surface);
+  border: 1px dashed color-mix(in srgb, var(--steel) 50%, var(--border));
+}
+.cal-ev--tentative .cal-ev__bar {
+  background: var(--steel);
+  opacity: 0.5;
+}
+.cal-ev--tentative .cal-ev__title {
+  color: var(--steel-ink);
+  font-style: italic;
+}
+
 /* Jarvis-held block — governor treatment */
 .cal-ev--block .cal-ev__title {
   color: var(--pine-ink);
 }
 .cal-ev--ghost {
-  background: color-mix(in srgb, var(--pine-soft) 58%, var(--surface));
-  border: 1px dashed color-mix(in srgb, var(--accent) 52%, var(--border));
   padding-left: 9px;
+  border: 1px solid color-mix(in srgb, var(--accent) 34%, var(--border));
+  background-color: var(--surface);
+  background-image: repeating-linear-gradient(
+    45deg,
+    color-mix(in srgb, var(--pine-soft) 80%, transparent) 0,
+    color-mix(in srgb, var(--pine-soft) 80%, transparent) 7px,
+    transparent 7px,
+    transparent 14px
+  );
 }
 .cal-ev--ghost .cal-ev__bar {
   display: none;
@@ -535,8 +557,8 @@
   flex: none;
 }
 .cal-mchip.is-block {
-  background: transparent;
-  border: 1px dashed color-mix(in srgb, var(--accent) 42%, var(--border));
+  background: color-mix(in srgb, var(--pine-soft) 50%, transparent);
+  border: 1px solid color-mix(in srgb, var(--accent) 30%, var(--border));
 }
 .cal-mchip.is-block .cal-mchip__dot {
   background: transparent;

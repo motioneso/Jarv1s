@@ -176,7 +176,7 @@ export function CalendarPage() {
         <div className="cal-legend">
           <span className="cal-legend__item">
             <span className="cal-legend__sw cal-legend__sw--hard" />
-            Committed
+            Accepted
           </span>
           <span className="cal-legend__item">
             <span className="cal-legend__sw cal-legend__sw--hold" />
