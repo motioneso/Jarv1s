@@ -1,7 +1,7 @@
 # Coordination Run — 2026-06-18-overnight-automation
 
 **Date:** 2026-06-18
-**Coordinator lock:** label `Coordinator`, **stable anchor = Codex session id `019edba0-be98-7f90-99b0-64d7802f4ca3`** (match `agent_session.value` in `herdr pane list`). Single-coordinator lock — exactly one pane labelled `Coordinator` whose session id matches this anchor holds authority for the life of the run. Pane numbers (`w…-N`) reflow on every restart/split/reap; do not trust any pane number written in this file as an identifier. Agents escalate to the label; the coordinator merges only when its own pane's session id matches this recorded anchor.
+**Coordinator lock:** label `Coordinator`, **stable anchor = Codex session id `019edba6-76f5-7d13-9de9-2b5a8b4e5d1f`** (match `agent_session.value` in `herdr pane list`). Single-coordinator lock — exactly one pane labelled `Coordinator` whose session id matches this anchor holds authority for the life of the run. Pane numbers (`w…-N`) reflow on every restart/split/reap; do not trust any pane number written in this file as an identifier. Agents escalate to the label; the coordinator merges only when its own pane's session id matches this recorded anchor.
 **Merge policy:** autonomous-after-verified-QA for `routine`/`sensitive`; `security`-tier needs Ben's explicit merge sign-off.
 **Relay threshold:** security-tier merge → relay immediately after Phase 3 step 7; routine/sensitive `merges_since_relay` >= 2 → relay. Compaction summary = already past safe → relay, merge nothing.
 **Additional context ceiling:** coordinator self-reads `herdr pane read "$HERDR_PANE_ID" --source visible --lines 5` after major events and before every spawn/merge wave. If the visible status line reports >= 500K used, flush this manifest, write the mid-doing continuation note, and relay before more work.
@@ -32,6 +32,10 @@
   `019edba0-be98-7f90-99b0-64d7802f4ca3`; `herdr pane list` showed exactly one pane labelled
   `Coordinator`. Old coordinator pane was closed after matching label `Coordinator` plus Codex
   session id `019edb62-d2f6-77c0-b451-f8dae62ea049`.
+- Third successor coordinator claimed the lock on 2026-06-18 with Codex session id
+  `019edba6-76f5-7d13-9de9-2b5a8b4e5d1f`; `herdr pane list` showed exactly one pane labelled
+  `Coordinator`. Old coordinator was relabelled `Coordinator-RelayOld` after matching label
+  `Coordinator` plus Codex session id `019edba0-be98-7f90-99b0-64d7802f4ca3`.
 - Old relay coordinator pane was closed after matching label `Coordinator-RelayOld` plus Codex
   session id `019ed994-3159-7961-b750-f5c74c9c5fc3`.
 - PR #303 (#297 recurrence JSONB boundary regression coverage) merged on 2026-06-18 at merge
@@ -117,8 +121,8 @@ No waivers. Any red required check is stop-the-line unless proven red on `main` 
   Relay before merge per the manifest ceiling. This relay resets `merges_since_relay` to 0.
 - **Relay reason 3:** coordinator merged two routine PRs (#304 and #302), so
   `merges_since_relay` reached 2. Relay immediately before any #244 work.
-- **Next action:** successor must claim the Coordinator lock with its own session id, close this
-  coordinator by label+session id `019edba0-be98-7f90-99b0-64d7802f4ca3`, then decide the next
+- **Next action:** active coordinator session `019edba6-76f5-7d13-9de9-2b5a8b4e5d1f` should close
+  old `Coordinator-RelayOld` session `019edba0-be98-7f90-99b0-64d7802f4ca3`, then decide the next
   lower-risk-complete step for #244. #244 was held until #304/#302 completed; those lower-risk
   lanes are now merged.
 - **If local gate is green:** spawn #297 first and #299 infra/settings/scripts if collision scan still shows no overlap. Hold #299 tasks subset until #297 lands. Hold #244 until the lower-risk lanes are done.
