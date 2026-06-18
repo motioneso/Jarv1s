@@ -28,7 +28,8 @@ import {
   TasksRepository,
   registerTasksJobWorkers,
   isTasksRecurrenceOccurrenceConflict,
-  rollForwardRecurringSeries
+  rollForwardRecurringSeries,
+  generateNext
 } from "@jarv1s/tasks";
 import type { TaskDto } from "@jarv1s/shared";
 import { connectionStrings, ids, resetFoundationDatabase } from "./test-database.js";
@@ -585,6 +586,68 @@ describe("Tasks module M1", () => {
     );
     expect(liveAfter.status).toBe("todo");
     expect((liveAfter.recurrence as Record<string, unknown>)["occurrence_date"]).toBe(sevenDaysAgo);
+  });
+
+  it("treats a malformed persisted recurrence JSONB as a safe no-op (read boundary)", async () => {
+    // A corrupt/legacy row: interval is a string, freq is unknown — the kind of shape the
+    // route guard would reject, but which could exist in persisted data. The series id is
+    // self-consistent so the row is selectable; only the spec payload is malformed. The
+    // parseRecurrenceSpec guard at the read boundary must reject it without throwing.
+    const seriesId = randomUUID();
+    const anchor = await dataContext.withDataContext(userAContext(), (db) =>
+      repository.create(db, { title: "malformed-anchor" })
+    );
+
+    const malformedId = randomUUID();
+    await dataContext.withDataContext(userAContext(), (db) =>
+      db.db
+        .insertInto("app.tasks")
+        .values({
+          id: malformedId,
+          owner_user_id: sql<string>`app.current_actor_user_id()`,
+          list_id: anchor.list_id,
+          title: "malformed-recurrence",
+          status: "todo",
+          position: 0,
+          source: "recurrence",
+          recurrence: { freq: "weekly-ish", interval: "soon" } as unknown as Record<
+            string,
+            unknown
+          >,
+          recurrence_series_id: seriesId
+        })
+        .execute()
+    );
+
+    // rollForwardRecurringSeries must not throw and must report "nothing advanced".
+    const rolled = await dataContext.withDataContext(userAContext(), (db) =>
+      rollForwardRecurringSeries(db, seriesId, "2026-06-18")
+    );
+    expect(rolled).toBe(false);
+
+    // generateNext on the same malformed row must not throw and must return null (no new instance).
+    const malformedRow = await dataContext.withDataContext(userAContext(), (db) =>
+      db.db
+        .selectFrom("app.tasks")
+        .selectAll()
+        .where("id", "=", malformedId)
+        .executeTakeFirstOrThrow()
+    );
+    const generated = await dataContext.withDataContext(userAContext(), (db) =>
+      generateNext(db, malformedRow)
+    );
+    expect(generated).toBeNull();
+
+    // The malformed row is untouched — not corrupted, not advanced, still todo.
+    const after = await dataContext.withDataContext(userAContext(), (db) =>
+      db.db
+        .selectFrom("app.tasks")
+        .selectAll()
+        .where("id", "=", malformedId)
+        .executeTakeFirstOrThrow()
+    );
+    expect(after.status).toBe("todo");
+    expect(after.recurrence).toEqual({ freq: "weekly-ish", interval: "soon" });
   });
 
   it("recognizes only the recurrence occurrence unique constraint as an idempotent conflict", () => {

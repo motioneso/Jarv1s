@@ -6,7 +6,8 @@ import {
   advanceDate,
   nextOccurrenceAtOrAfter,
   recurrenceCronExpr,
-  reconcileRecurrenceSchedule
+  reconcileRecurrenceSchedule,
+  parseRecurrenceSpec
 } from "@jarv1s/tasks";
 
 describe("recurrence date helpers", () => {
@@ -133,5 +134,88 @@ describe("reconcileRecurrenceSchedule (failure isolation)", () => {
     expect(captured).toEqual({ actorUserId: "11111111-1111-1111-1111-111111111111" });
     // Only the allowed metadata key — no content/secret drift.
     expect(Object.keys(captured ?? {})).toEqual(["actorUserId"]);
+  });
+});
+
+describe("parseRecurrenceSpec — valid persisted shapes", () => {
+  it("accepts a daily spec and returns a normalized object", () => {
+    expect(
+      parseRecurrenceSpec({ freq: "daily", interval: 1, occurrence_date: "2026-06-08" })
+    ).toEqual({ freq: "daily", interval: 1, occurrence_date: "2026-06-08" });
+  });
+
+  it("accepts weekly and monthly freqs", () => {
+    expect(
+      parseRecurrenceSpec({ freq: "weekly", interval: 2, occurrence_date: "2026-06-08" })
+    ).toEqual({ freq: "weekly", interval: 2, occurrence_date: "2026-06-08" });
+    expect(
+      parseRecurrenceSpec({ freq: "monthly", interval: 3, occurrence_date: "2026-01-31" })
+    ).toEqual({ freq: "monthly", interval: 3, occurrence_date: "2026-01-31" });
+  });
+
+  it("strips unknown keys, returning only the three canonical fields", () => {
+    expect(
+      parseRecurrenceSpec({
+        freq: "daily",
+        interval: 1,
+        occurrence_date: "2026-06-08",
+        injected: "ignore-me",
+        occurrence_count: 99
+      })
+    ).toEqual({ freq: "daily", interval: 1, occurrence_date: "2026-06-08" });
+  });
+});
+
+describe("parseRecurrenceSpec — malformed persisted shapes return null", () => {
+  it("rejects nullish and non-object values", () => {
+    expect(parseRecurrenceSpec(null)).toBeNull();
+    expect(parseRecurrenceSpec(undefined)).toBeNull();
+    expect(parseRecurrenceSpec("not-an-object")).toBeNull();
+    expect(parseRecurrenceSpec(42)).toBeNull();
+    expect(parseRecurrenceSpec(["freq", "daily"])).toBeNull();
+  });
+
+  it("rejects unknown or missing freq", () => {
+    expect(parseRecurrenceSpec({ interval: 1, occurrence_date: "2026-06-08" })).toBeNull();
+    expect(
+      parseRecurrenceSpec({ freq: "yearly", interval: 1, occurrence_date: "2026-06-08" })
+    ).toBeNull();
+    expect(
+      parseRecurrenceSpec({ freq: "", interval: 1, occurrence_date: "2026-06-08" })
+    ).toBeNull();
+  });
+
+  it("rejects non-positive, non-integer, or non-numeric interval", () => {
+    expect(
+      parseRecurrenceSpec({ freq: "daily", interval: 0, occurrence_date: "2026-06-08" })
+    ).toBeNull();
+    expect(
+      parseRecurrenceSpec({ freq: "daily", interval: -1, occurrence_date: "2026-06-08" })
+    ).toBeNull();
+    expect(
+      parseRecurrenceSpec({ freq: "daily", interval: 1.5, occurrence_date: "2026-06-08" })
+    ).toBeNull();
+    expect(
+      parseRecurrenceSpec({ freq: "daily", interval: "1", occurrence_date: "2026-06-08" })
+    ).toBeNull();
+  });
+
+  it("rejects a missing, mistyped, or malformed occurrence_date", () => {
+    expect(parseRecurrenceSpec({ freq: "daily", interval: 1 })).toBeNull();
+    expect(
+      parseRecurrenceSpec({ freq: "daily", interval: 1, occurrence_date: 20260608 })
+    ).toBeNull();
+    expect(
+      parseRecurrenceSpec({ freq: "daily", interval: 1, occurrence_date: "2026-6-8" })
+    ).toBeNull();
+    expect(
+      parseRecurrenceSpec({ freq: "daily", interval: 1, occurrence_date: "2026-13-01" })
+    ).toBeNull();
+    expect(
+      parseRecurrenceSpec({ freq: "daily", interval: 1, occurrence_date: "2026-02-30" })
+    ).toBeNull();
+    expect(
+      parseRecurrenceSpec({ freq: "daily", interval: 1, occurrence_date: "not-a-date" })
+    ).toBeNull();
   });
 });
