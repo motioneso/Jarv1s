@@ -28,13 +28,13 @@
 
 ## Queue
 
-| Spec / contract | Issue | Tier | Status | Agent label | Pane | Branch | PR |
-| ---- | ----- | ---- | ------ | ----------- | ---- | ------ | -- |
-| CI repair: timezone-safe Codex transcript date test | — | routine | pushed-to-main; awaiting CI | — | — | main @ `ff0ba95` | — |
-| issue body: validate recurrence JSONB boundary | #297 | routine | queued | TasksRecurrence-297 | — | overnight-297-recurrence-jsonb | — |
-| issue body: #299 tasks-only mechanical subset after #297 | #299 | routine | queued | TasksMinors-299 | — | overnight-299-tasks-minors | — |
-| issue body: #299 settings/scripts/jobs mechanical subset | #299 | routine | queued | InfraMinors-299 | — | overnight-299-infra-minors | — |
-| docs/superpowers/specs/2026-06-15-corrections-log.md | #244 | sensitive | queued after lower-risk lanes | Corrections-244 | — | overnight-244-corrections-log | — |
+| Spec / contract                                          | Issue | Tier      | Status                        | Agent label         | Pane | Branch                         | PR  |
+| -------------------------------------------------------- | ----- | --------- | ----------------------------- | ------------------- | ---- | ------------------------------ | --- |
+| CI repair: timezone-safe Codex transcript date test      | —     | routine   | pushed-to-main; awaiting CI   | —                   | —    | main @ `ff0ba95`               | —   |
+| issue body: validate recurrence JSONB boundary           | #297  | routine   | queued                        | TasksRecurrence-297 | —    | overnight-297-recurrence-jsonb | —   |
+| issue body: #299 tasks-only mechanical subset after #297 | #299  | routine   | queued                        | TasksMinors-299     | —    | overnight-299-tasks-minors     | —   |
+| issue body: #299 settings/scripts/jobs mechanical subset | #299  | routine   | queued                        | InfraMinors-299     | —    | overnight-299-infra-minors     | —   |
+| docs/superpowers/specs/2026-06-15-corrections-log.md     | #244  | sensitive | queued after lower-risk lanes | Corrections-244     | —    | overnight-244-corrections-log  | —   |
 
 ## Excluded / Held
 
@@ -55,9 +55,9 @@
 
 No waivers. Any red required check is stop-the-line unless proven red on `main` at same SHA and Ben-approved; Ben is signed off, so default is no waiver.
 
-| Check | PR | Proven red on `main` @ SHA | Proof | Ben-approved |
-| ----- | -- | -------------------------- | ----- | ------------ |
-| <none> | — | — | — | — |
+| Check  | PR  | Proven red on `main` @ SHA | Proof | Ben-approved |
+| ------ | --- | -------------------------- | ----- | ------------ |
+| <none> | —   | —                          | —     | —            |
 
 ## Outstanding Escalations
 
