@@ -81,6 +81,7 @@ import {
   registerSettingsRoutes,
   settingsModuleManifest,
   settingsModuleSqlMigrationDirectory,
+  type HostDiagnosticsProvider,
   type PersonaPreviewInput
 } from "@jarv1s/settings";
 import {
@@ -169,6 +170,8 @@ export interface BuiltInRouteDependencies {
   readonly connectorsRepository?: ConnectorsRepository;
   /** Boot-time multiplexer availability snapshot for the admin settings UI. */
   readonly chatMultiplexerAvailability?: { readonly tmux: boolean; readonly herdr: boolean };
+  /** Host diagnostics runtime-facts provider (#255), built by the API composition root. */
+  readonly hostDiagnostics?: HostDiagnosticsProvider;
   readonly personaPreview?: (input: PersonaPreviewInput) => Promise<string>;
   /**
    * Bounded, live onboarding probes (Phase 2). Built inside registerBuiltInApiRoutes (sync,
@@ -284,6 +287,7 @@ const BUILT_IN_MODULES: readonly BuiltInModuleRegistration[] = [
         revokeUserSessions: deps.revokeUserSessions,
         bootstrapConnectionString: deps.bootstrapConnectionString,
         chatMultiplexerAvailability: deps.chatMultiplexerAvailability,
+        hostDiagnostics: deps.hostDiagnostics,
         onboardingProbes: deps.onboardingProbes,
         personaPreview: deps.personaPreview ?? createDefaultPersonaPreview(deps.dataContext),
         preferencesRepository: new PreferencesRepository()
