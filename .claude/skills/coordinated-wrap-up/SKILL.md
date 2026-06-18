@@ -1,6 +1,6 @@
 ---
 name: coordinated-wrap-up
-description: Use when you are a BUILD AGENT under a dev coordinator and your spec's work is done — close out YOUR slice only. Derived from the `wrap-up` skill but scoped down: clean tree, your own green gate, push your branch, open the PR, then report the PR + verified evidence to the coordinator. You do NOT touch the board, milestones, or merge — those are the coordinator's.
+description: "Use when you are a BUILD AGENT under a dev coordinator and your spec's work is done — close out YOUR slice only. Derived from the `wrap-up` skill but scoped down: clean tree, your own green gate, push your branch, open the PR, then report the PR + verified evidence to the coordinator. You do NOT touch the board, milestones, or merge — those are the coordinator's."
 ---
 
 # coordinated-wrap-up — close out your slice and hand it to the coordinator
