@@ -5,7 +5,7 @@
 **Merge policy:** autonomous-after-verified-QA for `routine`/`sensitive`; `security`-tier needs Ben's explicit merge sign-off.
 **Relay threshold:** security-tier merge → relay immediately after Phase 3 step 7; routine/sensitive `merges_since_relay` >= 2 → relay. Compaction summary = already past safe → relay, merge nothing.
 **Additional context ceiling:** coordinator self-reads `herdr pane read "$HERDR_PANE_ID" --source visible --lines 5` after major events and before every spawn/merge wave. If the visible status line reports >= 500K used, flush this manifest, write the mid-doing continuation note, and relay before more work.
-**merges_since_relay:** 0
+**merges_since_relay:** 1
 
 > This is the coordinator's externalized memory. Keep it current. GitHub is the source of truth for issue/board status; this file holds in-flight operational state.
 
@@ -101,6 +101,7 @@
   2026-06-18 at merge commit `95a3b60`; focused evidence after rebase onto current `origin/main`:
   Prettier check green, ESLint green, owner onboarding e2e 5 passed, member onboarding e2e 5
   passed. Remote branch `onboarding-copy-refresh` was deleted.
+- Coordinator bookkeeping for PR #310 committed in `255949a` (`docs: record onboarding copy merge`).
 - Local verification for CI repair:
   - `pnpm vitest run tests/unit/ai-tmux-bridge.test.ts` green.
   - `TZ=UTC pnpm vitest run tests/unit/ai-tmux-bridge.test.ts` green.
