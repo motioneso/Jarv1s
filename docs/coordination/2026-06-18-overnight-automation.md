@@ -17,16 +17,30 @@
 - Manifest formatting committed to `main`: `0b39d7f` (`docs: format overnight automation manifest`).
 - Onboarding provider-check isolation committed to `main`: `4eb41fe` (`test: isolate onboarding provider check from host auth`).
 - Coordinator relay manifest flush committed to `main`: `4eaf647` (`docs: flush overnight automation state before relay`).
-- CI repair prepared: Playwright smoke on `4eaf647` failed because `tests/e2e/app-shell.spec.ts`
+- CI repair pushed: Playwright smoke on `4eaf647` failed because `tests/e2e/app-shell.spec.ts`
   still looked for the old `Deny` action-request button after commit `46986c8` renamed the UI label
-  to `Reject`.
+  to `Reject`. Fixed in `d8aa546`; local `pnpm test:e2e` passed 36/36.
+- GitHub Actions is billing-blocked on `d8aa546`: run `27743608700` failed twice before runner
+  assignment. All required jobs have zero steps and annotation: "The job was not started because
+  recent account payments have failed or your spending limit needs to be increased. Please check the
+  'Billing & plans' section in your settings".
+- Ben approved using the local CI-equivalent gate while GitHub Actions is disabled.
 - Local verification for CI repair:
   - `pnpm vitest run tests/unit/ai-tmux-bridge.test.ts` green.
   - `TZ=UTC pnpm vitest run tests/unit/ai-tmux-bridge.test.ts` green.
   - `pnpm verify:foundation` green: 67 unit files / 402 tests; 54 integration files / 816 passed, 2 skipped.
-- Must wait for a new GitHub Actions run after the Approve/Reject e2e repair to finish green before
-  spawning build lanes. Run `27743093022` on `4eaf647` failed in Playwright smoke; run `27743056244`
-  for `4eb41fe` is superseded by the relay manifest flush.
+- Local CI-equivalent gate on `d8aa546` passed 2026-06-18:
+  - `pnpm verify:foundation` green: lint, format, file-size, typecheck, 67 unit files / 402 tests,
+    migrations current, 54 integration files / 816 passed, 2 skipped.
+  - `pnpm test:release-hardening` green: 17 tests.
+  - `pnpm audit:release-hardening` green (`passed: true`).
+  - `pnpm build:web` green.
+  - `pnpm test:e2e` green: 36 passed.
+  - `JARVIS_API_PORT=3099 JARVIS_WEB_PORT=5180 pnpm smoke:compose -- --api-port 3099` green.
+  - Prod compose smoke green with local port override: `JARVIS_API_PORT=3099 JARVIS_WEB_PORT=5181
+... pnpm smoke:compose:prod -- --api-port 3099`. First prod attempt only failed because local
+    port `5173` was already occupied; rerun with `JARVIS_WEB_PORT=5181` passed.
+- Local gate replaces GitHub Actions for this run until Actions billing/spending is restored.
 
 ## Decisions
 
@@ -40,10 +54,10 @@
 
 | Spec / contract                                          | Issue | Tier      | Status                        | Agent label         | Pane | Branch                         | PR  |
 | -------------------------------------------------------- | ----- | --------- | ----------------------------- | ------------------- | ---- | ------------------------------ | --- |
-| CI repair: timezone-safe Codex transcript date test      | —     | routine   | pushed-to-main; awaiting CI   | —                   | —    | main @ `ff0ba95`               | —   |
-| CI repair: isolate onboarding provider-check test        | —     | routine   | pushed-to-main; awaiting CI   | —                   | —    | main @ `4eb41fe`               | —   |
-| Relay manifest flush                                     | —     | routine   | pushed-to-main; CI red        | —                   | —    | main @ `4eaf647`               | —   |
-| CI repair: Approve/Reject e2e label                      | —     | routine   | local green; ready to push    | —                   | —    | main                           | —   |
+| CI repair: timezone-safe Codex transcript date test      | —     | routine   | pushed-to-main; local gate ok | —                   | —    | main @ `ff0ba95`               | —   |
+| CI repair: isolate onboarding provider-check test        | —     | routine   | pushed-to-main; local gate ok | —                   | —    | main @ `4eb41fe`               | —   |
+| Relay manifest flush                                     | —     | routine   | pushed-to-main; local gate ok | —                   | —    | main @ `4eaf647`               | —   |
+| CI repair: Approve/Reject e2e label                      | —     | routine   | pushed; local gate ok         | —                   | —    | main @ `d8aa546`               | —   |
 | issue body: validate recurrence JSONB boundary           | #297  | routine   | queued                        | TasksRecurrence-297 | —    | overnight-297-recurrence-jsonb | —   |
 | issue body: #299 tasks-only mechanical subset after #297 | #299  | routine   | queued                        | TasksMinors-299     | —    | overnight-299-tasks-minors     | —   |
 | issue body: #299 settings/scripts/jobs mechanical subset | #299  | routine   | queued                        | InfraMinors-299     | —    | overnight-299-infra-minors     | —   |
@@ -58,7 +72,7 @@
 
 ## Dependency / Merge Order
 
-- First: CI repair must be green on GitHub Actions.
+- First: CI repair must be green on the approved local CI-equivalent gate while GitHub Actions is disabled.
 - Parallel group 1 after green main: #297 and #299 infra/settings/scripts subset can build in parallel if file collision scan confirms no overlap.
 - Serialized tasks chain: #297 → #299 tasks subset. Reason: both touch tasks recurrence/contracts; #297 owns the recurrence JSONB boundary first.
 - Final sensitive lane: #244 after lower-risk lanes. Reason: migration/shared memory lifecycle work; depends on #243 shared suppression store already landed as `0092`.
@@ -74,14 +88,13 @@ No waivers. Any red required check is stop-the-line unless proven red on `main` 
 
 ## Outstanding Escalations
 
-- [ ] Push Approve/Reject e2e repair and await the new GitHub Actions run.
+- [x] Local CI-equivalent gate passed on `d8aa546`; GitHub Actions remains billing-blocked until Ben/account owner fixes billing/spending.
 
 ## Continuation Note
 
 - **Relay reason:** coordinator self-read showed ~474K used at 2026-06-18 00:10 PDT, close to Ben's explicit 500K ceiling. Relay before spawning any build lanes.
-- **Next action:** push Approve/Reject e2e repair, then watch the new latest `main` CI run. If
-  green, spawn #297 first and #299 infra/settings/scripts if collision scan still shows no overlap.
-- **If latest CI is green:** spawn #297 first and #299 infra/settings/scripts if collision scan still shows no overlap. Hold #299 tasks subset until #297 lands. Hold #244 until the lower-risk lanes are done.
+- **Next action:** spawn #297 first and #299 infra/settings/scripts if collision scan still shows no overlap.
+- **If local gate is green:** spawn #297 first and #299 infra/settings/scripts if collision scan still shows no overlap. Hold #299 tasks subset until #297 lands. Hold #244 until the lower-risk lanes are done.
 - **If latest CI is red:** pull the exact failing job log and continue systematic debugging. Do not spawn the fleet on red `main`.
 - **Untracked files in main worktree:** `docs/superpowers/handoffs/2026-06-18-onboarding-service-testing-webwright.md` and `docs/superpowers/specs/2026-06-15-corrections-log.md` existed before this run; do not sweep them with broad staging.
 
