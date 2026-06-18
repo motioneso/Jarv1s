@@ -5,7 +5,7 @@
 **Merge policy:** autonomous-after-verified-QA for `routine`/`sensitive`; `security`-tier needs Ben's explicit merge sign-off.
 **Relay threshold:** security-tier merge → relay immediately after Phase 3 step 7; routine/sensitive `merges_since_relay` >= 2 → relay. Compaction summary = already past safe → relay, merge nothing.
 **Additional context ceiling:** coordinator self-reads `herdr pane read "$HERDR_PANE_ID" --source visible --lines 5` after major events and before every spawn/merge wave. If the visible status line reports >= 500K used, flush this manifest, write the mid-doing continuation note, and relay before more work.
-**merges_since_relay:** 2
+**merges_since_relay:** 0
 
 > This is the coordinator's externalized memory. Keep it current. GitHub is the source of truth for issue/board status; this file holds in-flight operational state.
 
@@ -36,6 +36,15 @@
   `019edba6-76f5-7d13-9de9-2b5a8b4e5d1f`; `herdr pane list` showed exactly one pane labelled
   `Coordinator`. Old coordinator was relabelled `Coordinator-RelayOld` after matching label
   `Coordinator` plus Codex session id `019edba0-be98-7f90-99b0-64d7802f4ca3`.
+- Old `Coordinator-RelayOld` pane for Codex session id
+  `019edba0-be98-7f90-99b0-64d7802f4ca3` is closed; `herdr pane list` shows exactly one
+  `Coordinator`, session id `019edba6-76f5-7d13-9de9-2b5a8b4e5d1f`.
+- Coordinator relay permission docs were clarified in `702a0a8`: Codex coordinator successors must
+  launch with `codex -s danger-full-access -a never`; Claude coordinator successors use
+  `claude --permission-mode bypassPermissions`.
+- GitHub issue bookkeeping on 2026-06-18: #297 closed/Done; #299 commented with completed PR #304
+  and #302 subsets and kept open/Backlog for residual items; #244 commented and moved to In
+  progress for the corrections-log lane.
 - Old relay coordinator pane was closed after matching label `Coordinator-RelayOld` plus Codex
   session id `019ed994-3159-7961-b750-f5c74c9c5fc3`.
 - PR #303 (#297 recurrence JSONB boundary regression coverage) merged on 2026-06-18 at merge
@@ -85,7 +94,7 @@
 | issue body: validate recurrence JSONB boundary           | #297  | routine   | merged                        | TasksRecurrence-297                                            | —    | main @ `2cbea96`              | #303 |
 | issue body: #299 tasks-only mechanical subset after #297 | #299  | routine   | merged                        | TasksMinors-299-Codex (`019edb87-3696-75b0-a87b-da944a54b02f`) | —    | main @ `e9e6b87`              | #304 |
 | issue body: #299 settings/scripts/jobs mechanical subset | #299  | routine   | merged                        | InfraMinors-299                                                | —    | main @ `d002958`              | #302 |
-| docs/superpowers/specs/2026-06-15-corrections-log.md     | #244  | sensitive | queued after lower-risk lanes | Corrections-244                                                | —    | overnight-244-corrections-log | —    |
+| docs/superpowers/specs/2026-06-15-corrections-log.md     | #244  | sensitive | ready to spawn                | Corrections-244                                                | —    | overnight-244-corrections-log | —    |
 
 ## Excluded / Held
 
@@ -124,7 +133,8 @@ No waivers. Any red required check is stop-the-line unless proven red on `main` 
 - **Next action:** active coordinator session `019edba6-76f5-7d13-9de9-2b5a8b4e5d1f` should close
   old `Coordinator-RelayOld` session `019edba0-be98-7f90-99b0-64d7802f4ca3`, then decide the next
   lower-risk-complete step for #244. #244 was held until #304/#302 completed; those lower-risk
-  lanes are now merged.
+  lanes are now merged. This is complete; next action is to create/verify the #244 handoff and spawn
+  `Corrections-244`.
 - **If local gate is green:** spawn #297 first and #299 infra/settings/scripts if collision scan still shows no overlap. Hold #299 tasks subset until #297 lands. Hold #244 until the lower-risk lanes are done.
 - **If latest CI is red:** pull the exact failing job log and continue systematic debugging. Do not spawn the fleet on red `main`.
 - **Untracked files in main worktree:** `docs/superpowers/handoffs/2026-06-18-onboarding-service-testing-webwright.md` and `docs/superpowers/specs/2026-06-15-corrections-log.md` existed before this run; do not sweep them with broad staging.
@@ -143,3 +153,6 @@ No waivers. Any red required check is stop-the-line unless proven red on `main` 
   merged and pane/worktree were reaped.
 - `InfraMinors-299` Claude pane session `e99aac65-fdd3-4b7f-99f8-8ad4821fd3e2`: PR #302 merged
   and pane/worktree were reaped.
+- `Coordinator-RelayOld` Codex pane session `019edba0-be98-7f90-99b0-64d7802f4ca3`: relabelled
+  during takeover and closed after successor session `019edba6-76f5-7d13-9de9-2b5a8b4e5d1f`
+  confirmed the lock.
