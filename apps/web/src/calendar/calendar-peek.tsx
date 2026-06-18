@@ -17,6 +17,7 @@ interface CalendarPeekProps {
 export function CalendarPeek({ event, onClose }: CalendarPeekProps) {
   if (!event) return null;
   const isBlock = event.kind === "block";
+  const isTentative = event.status === "needsAction" || event.status === "tentative";
   const evColor = isBlock ? "var(--accent)" : "var(--steel)";
 
   return (
@@ -32,7 +33,7 @@ export function CalendarPeek({ event, onClose }: CalendarPeekProps) {
           ) : (
             <span className="cal-peek__kind">
               <CalendarCheck size={13} />
-              On your calendar
+              {isTentative ? "Awaiting RSVP" : "On your calendar"}
             </span>
           )}
           <button type="button" className="cal-peek__x" aria-label="Close" onClick={onClose}>
@@ -82,7 +83,9 @@ export function CalendarPeek({ event, onClose }: CalendarPeekProps) {
             <span className="ic" style={{ paddingTop: 2 }}>
               <span className="cal-peek__catdot" style={{ background: evColor }} />
             </span>
-            <div className="cal-peek__rowmain">{isBlock ? "Jarvis focus block" : "Committed"}</div>
+            <div className="cal-peek__rowmain">
+              {isBlock ? "Jarvis focus block" : isTentative ? "Pending RSVP" : "Accepted"}
+            </div>
           </div>
         </div>
         {isBlock ? (
