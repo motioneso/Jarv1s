@@ -249,6 +249,9 @@ export async function migratePgBoss(
           await boss.updateQueue(queue.name, updatable);
         }
       } else {
+        // Apply updatable options after create so two migrators racing the same fresh queue still
+        // converge on identical options: whichever createQueue wins, both then updateQueue. The
+        // create-vs-update split is required because updateQueue rejects policy/partition keys.
         await boss.createQueue(queue.name, queue.options);
         const updatable = toUpdatableQueueOptions(queue.options);
         if (updatable) {

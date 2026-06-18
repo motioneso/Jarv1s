@@ -1,7 +1,7 @@
-import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
+import type { FastifyInstance, FastifyRequest } from "fastify";
 
 import type { AccessContext, DataContextDb, DataContextRunner, User } from "@jarv1s/db";
-import { handleRouteError, HttpError, sessionRateLimitKey } from "@jarv1s/module-sdk";
+import { HttpError, sessionRateLimitKey } from "@jarv1s/module-sdk";
 import {
   getPersonaSettingsRouteSchema,
   normalizePersonaSettings,
@@ -14,6 +14,7 @@ import {
 
 import type { ProfilePreferencesPort, PersonaPreviewInput } from "./preferences-port.js";
 import type { SettingsRepository } from "./repository.js";
+import { handleSettingsRouteError } from "./route-error.js";
 
 const PERSONA_PREFERENCE_KEY = "persona.bundle";
 const PERSONA_PREVIEW_MAX = parsePositiveIntEnv(process.env.JARVIS_RL_PERSONA_PREVIEW_MAX, 10);
@@ -124,20 +125,4 @@ async function requireKnownUser(
   }
 
   return user;
-}
-
-function handleSettingsRouteError(error: unknown, reply: FastifyReply) {
-  return handleRouteError(error, reply, {
-    mappers: [
-      (e, r) => {
-        if (e instanceof Error) {
-          const code = (e as Error & { code?: string }).code;
-          if (code === "account_pending_approval" || code === "account_deactivated") {
-            return r.code(403).send({ error: e.message, code });
-          }
-        }
-        return undefined;
-      }
-    ]
-  });
 }

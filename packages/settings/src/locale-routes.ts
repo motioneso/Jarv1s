@@ -1,4 +1,4 @@
-import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
+import type { FastifyInstance, FastifyRequest } from "fastify";
 
 import type { AccessContext, DataContextRunner } from "@jarv1s/db";
 import {
@@ -8,9 +8,10 @@ import {
   type LocaleSettingsDto,
   type PutLocaleSettingsRequest
 } from "@jarv1s/shared";
-import { handleRouteError, HttpError } from "@jarv1s/module-sdk";
+import { HttpError } from "@jarv1s/module-sdk";
 
 import type { ProfilePreferencesPort } from "./preferences-port.js";
+import { handleSettingsRouteError } from "./route-error.js";
 
 const LOCALE_PREFERENCE_KEY = "locale";
 const DEFAULT_LOCALE_SETTINGS: LocaleSettingsDto = {
@@ -83,20 +84,4 @@ function sanitizeLocale(locale: LocaleSettingsDto): LocaleSettingsDto {
 
 function isLocaleDateFormat(value: unknown): value is LocaleDateFormat {
   return value === "24" || value === "12";
-}
-
-function handleSettingsRouteError(error: unknown, reply: FastifyReply) {
-  return handleRouteError(error, reply, {
-    mappers: [
-      (e, r) => {
-        if (e instanceof Error) {
-          const code = (e as Error & { code?: string }).code;
-          if (code === "account_pending_approval" || code === "account_deactivated") {
-            return r.code(403).send({ error: e.message, code });
-          }
-        }
-        return undefined;
-      }
-    ]
-  });
 }

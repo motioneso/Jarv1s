@@ -231,6 +231,15 @@ export interface ModuleSettingsSurfaceManifest {
   readonly featureFlagId?: string;
 }
 
+/**
+ * Default activation state for a source behavior:
+ * - `default-on`: enabled unless the user opts out (toggleable).
+ * - `default-off`: opt-in — disabled unless the user enables it (toggleable). No shipped manifest
+ *   uses this yet; forward-compat for opt-in behaviors, exercised by source-behaviors.test.ts.
+ * - `coming-soon`: shown but not yet available (not toggleable).
+ *
+ * Mirrored in @jarv1s/shared source-behaviors-api.ts — keep both in sync.
+ */
 export type SourceBehaviorDefault = "default-on" | "default-off" | "coming-soon";
 
 /** One toggleable behavior Jarvis can perform with a source. */

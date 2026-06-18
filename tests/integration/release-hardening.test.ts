@@ -546,6 +546,24 @@ describe("M7 release hardening lifecycle scripts", () => {
     ).toThrow("Restore database URL must include a username");
   });
 
+  it("rejects backup and restore connection strings missing a password", () => {
+    // An empty password silently forwards an empty PGPASSWORD, which can fall through to
+    // trust/peer auth on a misconfigured host; require the URL to carry a password (#299).
+    expect(() =>
+      createBackupPlan({
+        connectionString: "postgres://jarv1s@db.example.test:5432/jarv1s",
+        outputFile: "backups/jarv1s-test.dump"
+      })
+    ).toThrow("Backup database URL must include a password");
+
+    expect(() =>
+      createRestorePlan({
+        backupFile: "backups/jarv1s-test.dump",
+        connectionString: "postgres://jarv1s@db.example.test:5432/jarv1s"
+      })
+    ).toThrow("Restore database URL must include a password");
+  });
+
   it("keeps Docker Compose node installs isolated from host node_modules", async () => {
     const composeFile = await readFile("infra/docker-compose.yml", "utf8");
 
