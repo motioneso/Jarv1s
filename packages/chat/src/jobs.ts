@@ -190,8 +190,10 @@ export async function handleExtractFactsJob(
     const prompt =
       "Extract durable facts about the user from this conversation turn. Return ONLY a JSON array; " +
       'each item: {"category": "preference|fact|profile|goal", "content": string, ' +
-      '"importance": number 0..1, "provenance": "volunteered|inferred", "supersedes": optional id}. ' +
+      '"importance": number 0..1, "provenance": "volunteered|inferred", "supersedes": optional id, ' +
+      '"correction": optional {"supersedes": id, "before": string, "after": string}}. ' +
       'Use "volunteered" only when the user directly stated the fact; otherwise use "inferred". ' +
+      "Use correction ONLY when the user explicitly corrects an existing listed belief and the replacement content should become the new durable fact. " +
       "The OPTIONAL supersedes id MUST be one " +
       "of the EXISTING FACT IDS listed below (omit it otherwise — never invent an id). No prose, no code fences.\n\n" +
       `EXISTING FACT IDS (id :: content):\n${supersedableList || "(none)"}\n\n` +
@@ -216,22 +218,39 @@ export async function handleExtractFactsJob(
       ) {
         continue;
       }
-      // Supersede ONLY a grounded, actor-owned active id (ignore hallucinated ids — F11).
-      if (typeof fact.supersedes === "string" && activeIds.has(fact.supersedes)) {
-        await deps.factsRepository.supersedeFact(scopedDb, fact.supersedes);
-      }
+
       // Dedupe: skip a fact whose (category, normalized content) already exists active (F10).
       const contentKey = `${fact.category}::${normalize(fact.content)}`;
       if (existingByContent.has(contentKey)) {
         continue;
       }
-      await deps.factsRepository.insertFact(scopedDb, ownerUserId, {
+      const supersedesId = fact.correction?.supersedes ?? fact.supersedes;
+      const oldFact =
+        typeof supersedesId === "string" && activeIds.has(supersedesId)
+          ? activeFacts.find((candidate) => candidate.id === supersedesId)
+          : undefined;
+
+      // Supersede ONLY a grounded, actor-owned active id (ignore hallucinated ids — F11).
+      if (oldFact) {
+        await deps.factsRepository.supersedeFact(scopedDb, oldFact.id);
+      }
+      const inserted = await deps.factsRepository.insertFact(scopedDb, ownerUserId, {
         category: fact.category,
         content: fact.content,
         sourceThreadId: threadId,
         importance: fact.importance,
         provenance: fact.provenance
       });
+      if (oldFact && fact.correction) {
+        await suppressionsRepository.insertCorrection(scopedDb, ownerUserId, {
+          signature: createMemoryFactSignature(oldFact.category, oldFact.content),
+          category: oldFact.category,
+          content: oldFact.content,
+          factId: oldFact.id,
+          beforeContent: fact.correction.before,
+          afterContent: fact.correction.after || inserted.content
+        });
+      }
       existingByContent.add(contentKey); // also dedupe within this same batch
     }
   } catch (error) {
@@ -254,6 +273,13 @@ interface ParsedFact {
   readonly importance: number;
   readonly provenance: FactProvenance;
   readonly supersedes?: string;
+  readonly correction?: ParsedCorrection;
+}
+
+interface ParsedCorrection {
+  readonly supersedes: string;
+  readonly before: string;
+  readonly after: string;
 }
 
 function parseFacts(text: string): ParsedFact[] {
@@ -277,15 +303,36 @@ function parseFacts(text: string): ParsedFact[] {
     const provenance = EXTRACT_FACT_PROVENANCE.has(r.provenance as FactProvenance)
       ? (r.provenance as FactProvenance)
       : "inferred";
+    const correction = parseCorrection(r.correction);
     out.push({
       category: category as FactCategory,
       content: content.trim(),
       importance,
       provenance,
-      supersedes: typeof r.supersedes === "string" ? r.supersedes : undefined
+      supersedes: typeof r.supersedes === "string" ? r.supersedes : undefined,
+      correction
     });
   }
   return out;
+}
+
+function parseCorrection(value: unknown): ParsedCorrection | undefined {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return undefined;
+  const correction = value as Record<string, unknown>;
+  if (typeof correction.supersedes !== "string" || correction.supersedes.trim().length === 0) {
+    return undefined;
+  }
+  if (typeof correction.before !== "string" || correction.before.trim().length === 0) {
+    return undefined;
+  }
+  if (typeof correction.after !== "string" || correction.after.trim().length === 0) {
+    return undefined;
+  }
+  return {
+    supersedes: correction.supersedes,
+    before: correction.before.trim(),
+    after: correction.after.trim()
+  };
 }
 
 // ── Worker registration ───────────────────────────────────────────────────────
