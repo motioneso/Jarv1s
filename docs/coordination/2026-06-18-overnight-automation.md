@@ -42,6 +42,8 @@
 - Coordinator relay permission docs were clarified in `702a0a8`: Codex coordinator successors must
   launch with `codex -s danger-full-access -a never`; Claude coordinator successors use
   `claude --permission-mode bypassPermissions`.
+- #244 spec/handoff committed in `3a325a0`; coordinated-wrap-up skill metadata fixed in `d1ff489`
+  so build agents can resolve the skill cleanly.
 - GitHub issue bookkeeping on 2026-06-18: #297 closed/Done; #299 commented with completed PR #304
   and #302 subsets and kept open/Backlog for residual items; #244 commented and moved to In
   progress for the corrections-log lane.
@@ -94,7 +96,7 @@
 | issue body: validate recurrence JSONB boundary           | #297  | routine   | merged                        | TasksRecurrence-297                                            | —    | main @ `2cbea96`              | #303 |
 | issue body: #299 tasks-only mechanical subset after #297 | #299  | routine   | merged                        | TasksMinors-299-Codex (`019edb87-3696-75b0-a87b-da944a54b02f`) | —    | main @ `e9e6b87`              | #304 |
 | issue body: #299 settings/scripts/jobs mechanical subset | #299  | routine   | merged                        | InfraMinors-299                                                | —    | main @ `d002958`              | #302 |
-| docs/superpowers/specs/2026-06-15-corrections-log.md     | #244  | sensitive | ready to spawn                | Corrections-244                                                | —    | overnight-244-corrections-log | —    |
+| docs/superpowers/specs/2026-06-15-corrections-log.md     | #244  | sensitive | planning                      | Corrections-244 (`019edbdf-ec6c-7be0-be0a-43081fc9eaa6`)       | —    | overnight-244-corrections-log | —    |
 
 ## Excluded / Held
 
@@ -133,8 +135,8 @@ No waivers. Any red required check is stop-the-line unless proven red on `main` 
 - **Next action:** active coordinator session `019edba6-76f5-7d13-9de9-2b5a8b4e5d1f` should close
   old `Coordinator-RelayOld` session `019edba0-be98-7f90-99b0-64d7802f4ca3`, then decide the next
   lower-risk-complete step for #244. #244 was held until #304/#302 completed; those lower-risk
-  lanes are now merged. This is complete; next action is to create/verify the #244 handoff and spawn
-  `Corrections-244`.
+  lanes are now merged. This is complete; #244 handoff is committed and `Corrections-244` is
+  planning. Next action is to review/approve or reject the build plan when the agent escalates.
 - **If local gate is green:** spawn #297 first and #299 infra/settings/scripts if collision scan still shows no overlap. Hold #299 tasks subset until #297 lands. Hold #244 until the lower-risk lanes are done.
 - **If latest CI is red:** pull the exact failing job log and continue systematic debugging. Do not spawn the fleet on red `main`.
 - **Untracked files in main worktree:** `docs/superpowers/handoffs/2026-06-18-onboarding-service-testing-webwright.md` and `docs/superpowers/specs/2026-06-15-corrections-log.md` existed before this run; do not sweep them with broad staging.
