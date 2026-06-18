@@ -333,11 +333,7 @@ async function registrationGate(
   appDb: Kysely<JarvisDatabase>,
   _user: BetterAuthUser
 ): Promise<void> {
-  const countResult = await sql<{ count: string }>`SELECT app.count_all_users() AS count`.execute(
-    appDb
-  );
-  const existingCount = Number(countResult.rows[0]?.count ?? 0);
-  if (existingCount === 0) return;
+  if (!(await bootstrapOwnerExists(appDb))) return;
 
   const enabled = await readBooleanSetting(appDb, "registration.enabled", true);
   if (!enabled) {
