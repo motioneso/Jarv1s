@@ -162,6 +162,37 @@ describe("Phase 3 Recall migrations", () => {
     }
   });
 
+  it("0096: chat_memory_suppressions supports corrections log metadata", async () => {
+    const client = new Client({ connectionString: connectionStrings.migration });
+    await client.connect();
+    try {
+      const cols = await client.query(
+        `SELECT column_name FROM information_schema.columns
+         WHERE table_schema = 'app' AND table_name = 'chat_memory_suppressions'
+         ORDER BY column_name`
+      );
+      expect(cols.rows.map((r: { column_name: string }) => r.column_name)).toEqual(
+        expect.arrayContaining(["source", "fact_id", "before_content", "after_content"])
+      );
+
+      const checks = await client.query(
+        `SELECT pg_get_constraintdef(c.oid) AS def
+         FROM pg_constraint c
+         JOIN pg_class t ON t.oid = c.conrelid
+         JOIN pg_namespace n ON n.oid = t.relnamespace
+         WHERE n.nspname = 'app'
+           AND t.relname = 'chat_memory_suppressions'
+           AND c.contype = 'c'`
+      );
+      const defs = checks.rows.map((r: { def: string }) => r.def).join("\n");
+      expect(defs).toContain("corrected");
+      expect(defs).toContain("pattern-reject");
+      expect(defs).toContain("chat");
+    } finally {
+      await client.end();
+    }
+  });
+
   it("0042: chat_user_memory_settings table exists", async () => {
     const client = new Client({ connectionString: connectionStrings.migration });
     await client.connect();
@@ -781,6 +812,44 @@ describe("Memory controls REST API", () => {
         )
       ).resolves.toBe(true);
     });
+  });
+
+  it("GET /api/chat/memory/corrections returns only the actor's chronological corrections", async () => {
+    const suppressions = new ChatMemorySuppressionsRepository();
+    await dataContext.withDataContext(ctx(ids.userA), async (scopedDb) => {
+      await suppressions.insertSuppression(scopedDb, ids.userA, {
+        signature: createMemoryFactSignature("goal", "Owner correction route A"),
+        category: "goal",
+        content: "Owner correction route A",
+        reason: "rejected"
+      });
+    });
+    await dataContext.withDataContext(ctx(ids.userB), async (scopedDb) => {
+      await suppressions.insertSuppression(scopedDb, ids.userB, {
+        signature: createMemoryFactSignature("goal", "Foreign correction route B"),
+        category: "goal",
+        content: "Foreign correction route B",
+        reason: "rejected"
+      });
+    });
+
+    const res = await server.inject({
+      method: "GET",
+      url: "/api/chat/memory/corrections?limit=10",
+      headers: { authorization: `Bearer ${ids.sessionA}` }
+    });
+    expect(res.statusCode).toBe(200);
+    const body = res.json<{ corrections: { content: string; reason: string; source: string }[] }>();
+    expect(body.corrections).toContainEqual(
+      expect.objectContaining({
+        content: "Owner correction route A",
+        reason: "rejected",
+        source: "pattern-reject"
+      })
+    );
+    expect(body.corrections.some((row) => row.content === "Foreign correction route B")).toBe(
+      false
+    );
   });
 
   it("non-owner cannot confirm or reject another user's fact", async () => {

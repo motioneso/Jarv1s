@@ -439,6 +439,105 @@ describe("handleExtractFactsJob — durable fact upsert + no-op degrade", () => 
     });
   });
 
+  it("logs a corrected row only when a grounded active fact is superseded and replaced", async () => {
+    await seedEconomyModel("corrected");
+    await dataContext.withDataContext(userAContext(), async (scopedDb) => {
+      const thread = await repository.openNewThread(scopedDb, { title: "Facts-corrected" });
+      const old = await factsRepository.insertFact(scopedDb, ids.userA, {
+        category: "preference",
+        content: "Prefers tea",
+        sourceThreadId: thread.id,
+        provenance: "volunteered"
+      });
+      await repository.recordCompletedTurn(
+        scopedDb,
+        thread.id,
+        "No, I prefer coffee, not tea.",
+        "Got it.",
+        { provider: "anthropic", model: "claude-economy" }
+      );
+
+      await handleExtractFactsJob(
+        scopedDb,
+        ids.userA,
+        thread.id,
+        makeDeps(async () => ({
+          text: JSON.stringify([
+            {
+              category: "preference",
+              content: "Prefers coffee",
+              importance: 0.8,
+              provenance: "volunteered",
+              correction: {
+                supersedes: old.id,
+                before: "Prefers tea",
+                after: "Prefers coffee"
+              }
+            }
+          ])
+        }))
+      );
+
+      const active = await factsRepository.listActiveFacts(scopedDb, ids.userA);
+      expect(active.some((fact) => fact.id === old.id)).toBe(false);
+      expect(active.some((fact) => fact.content === "Prefers coffee")).toBe(true);
+
+      const corrections = await new ChatMemorySuppressionsRepository().listCorrections(
+        scopedDb,
+        ids.userA,
+        { limit: 10, offset: 0 }
+      );
+      expect(corrections).toContainEqual(
+        expect.objectContaining({
+          reason: "corrected",
+          source: "chat",
+          factId: old.id,
+          beforeContent: "Prefers tea",
+          afterContent: "Prefers coffee"
+        })
+      );
+    });
+  });
+
+  it("does not log a correction for hallucinated correction ids", async () => {
+    await seedEconomyModel("correction-hallucinated");
+    await dataContext.withDataContext(userAContext(), async (scopedDb) => {
+      const thread = await repository.openNewThread(scopedDb, { title: "Facts-correction-fake" });
+      await repository.recordCompletedTurn(scopedDb, thread.id, "Maybe I like coffee.", "Noted.", {
+        provider: "anthropic",
+        model: "claude-economy"
+      });
+
+      await handleExtractFactsJob(
+        scopedDb,
+        ids.userA,
+        thread.id,
+        makeDeps(async () => ({
+          text: JSON.stringify([
+            {
+              category: "preference",
+              content: "May like coffee",
+              correction: {
+                supersedes: "11111111-1111-4111-8111-111111111111",
+                before: "Prefers tea",
+                after: "May like coffee"
+              }
+            }
+          ])
+        }))
+      );
+
+      const corrections = await new ChatMemorySuppressionsRepository().listCorrections(
+        scopedDb,
+        ids.userA,
+        { limit: 10, offset: 0 }
+      );
+      expect(corrections.some((row) => row.factId === "11111111-1111-4111-8111-111111111111")).toBe(
+        false
+      );
+    });
+  });
+
   it("skips suppressed inferred facts by stable signature", async () => {
     await seedEconomyModel("suppressed-inferred");
     await dataContext.withDataContext(userAContext(), async (scopedDb) => {

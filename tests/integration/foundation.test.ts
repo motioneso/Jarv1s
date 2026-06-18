@@ -196,7 +196,9 @@ describe("MVP foundation scaffold", () => {
         { version: "0092", name: "0092_inferred_patterns_suppression.sql" },
         { version: "0093", name: "0093_preferences_worker_runtime_grants.sql" },
         { version: "0094", name: "0094_chat_memory_facts_rls_roles.sql" },
-        { version: "0095", name: "0095_bootstrap_audit_security_definer.sql" }
+        { version: "0095", name: "0095_bootstrap_audit_security_definer.sql" },
+        { version: "0096", name: "0096_chat_memory_corrections_log.sql" },
+        { version: "0097", name: "0097_chat_memory_corrections_update_grant.sql" }
       ]);
     } finally {
       await client.end();

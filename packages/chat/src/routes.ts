@@ -2,7 +2,11 @@ import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import type { PgBoss } from "pg-boss";
 
 import type { AccessContext, ChatThread, DataContextRunner } from "@jarv1s/db";
-import { listChatThreadsRouteSchema, type ChatThreadDto } from "@jarv1s/shared";
+import {
+  listChatThreadsRouteSchema,
+  listMemoryCorrectionsRouteSchema,
+  type ChatThreadDto
+} from "@jarv1s/shared";
 import {
   AiRepository,
   AssistantToolGateway,
@@ -23,6 +27,7 @@ import {
   ChatMemoryFactsRepository,
   ChatMemorySuppressionsRepository,
   createMemoryFactSignature,
+  type MemoryCorrection,
   type MemoryFact
 } from "@jarv1s/memory";
 import { handleRouteError as handleModuleRouteError } from "@jarv1s/module-sdk";
@@ -238,6 +243,23 @@ export function registerChatRoutes(
     }
   });
 
+  server.get(
+    "/api/chat/memory/corrections",
+    { schema: listMemoryCorrectionsRouteSchema },
+    async (request, reply) => {
+      try {
+        const access = await dependencies.resolveAccessContext(request);
+        const { limit, offset } = parsePagination(request.query);
+        const corrections = await dependencies.dataContext.withDataContext(access, (scopedDb) =>
+          suppressionsRepo.listCorrections(scopedDb, access.actorUserId, { limit, offset })
+        );
+        return { corrections: corrections.map(serializeCorrection) };
+      } catch (error) {
+        return handleRouteError(error, reply);
+      }
+    }
+  );
+
   server.delete<{ Params: { id: string } }>(
     "/api/chat/memory/facts/:id",
     async (request, reply) => {
@@ -398,6 +420,30 @@ function serializeFact(f: MemoryFact) {
     provenance: f.provenance,
     sourceThreadId: f.sourceThreadId,
     createdAt: toIsoString(f.createdAt)
+  };
+}
+
+function serializeCorrection(c: MemoryCorrection) {
+  return {
+    id: c.id,
+    category: c.category,
+    content: c.content,
+    reason: c.reason,
+    source: c.source,
+    factId: c.factId,
+    beforeContent: c.beforeContent,
+    afterContent: c.afterContent,
+    createdAt: toIsoString(c.createdAt)
+  };
+}
+
+function parsePagination(query: unknown): { limit: number; offset: number } {
+  const q = query && typeof query === "object" ? (query as Record<string, unknown>) : {};
+  const rawLimit = Number(q.limit ?? 25);
+  const rawOffset = Number(q.offset ?? 0);
+  return {
+    limit: Number.isInteger(rawLimit) ? Math.min(100, Math.max(1, rawLimit)) : 25,
+    offset: Number.isInteger(rawOffset) ? Math.max(0, rawOffset) : 0
   };
 }
 

@@ -1,7 +1,7 @@
 import { fileURLToPath } from "node:url";
 
 import type { JarvisModuleManifest } from "@jarv1s/module-sdk";
-import { listChatThreadsResponseSchema } from "@jarv1s/shared";
+import { listChatThreadsResponseSchema, listMemoryCorrectionsResponseSchema } from "@jarv1s/shared";
 
 import { chatListTodaysTurnsExecute } from "./tools.js";
 
@@ -95,6 +95,12 @@ export const chatModuleManifest = {
     { method: "GET", path: "/api/chat/memory/settings", permissionId: "chat.view" },
     { method: "PATCH", path: "/api/chat/memory/settings", permissionId: "chat.message" },
     { method: "GET", path: "/api/chat/memory/facts", permissionId: "chat.view" },
+    {
+      method: "GET",
+      path: "/api/chat/memory/corrections",
+      responseSchema: listMemoryCorrectionsResponseSchema,
+      permissionId: "chat.view"
+    },
     { method: "DELETE", path: "/api/chat/memory/facts/:id", permissionId: "chat.message" },
     { method: "PATCH", path: "/api/chat/memory/facts/:id", permissionId: "chat.message" },
     { method: "POST", path: "/api/chat/memory/facts/:id/confirm", permissionId: "chat.message" },

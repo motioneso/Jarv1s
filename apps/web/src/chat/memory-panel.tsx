@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Brain, X } from "lucide-react";
 
-import { getMemorySettings, patchMemorySettings } from "../api/client";
+import { getMemorySettings, patchMemorySettings } from "../api/memory-client";
 import { queryKeys } from "../api/query-keys";
 
 export function MemoryPanel(props: { readonly onClose: () => void }) {
