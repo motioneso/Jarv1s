@@ -5,6 +5,12 @@ export interface MockOnboardingApiState {
   // Phase 4 widened the status to a role union; the spine default is the FOUNDER variant, but a
   // member spec can set the MEMBER variant ({ role: "member", completed, steps }) here directly.
   onboardingStatus?: OnboardingStatusResponse;
+  onboardingProviderCheckStatus?:
+    | "ready"
+    | "needs_login"
+    | "not_installed"
+    | "multiplexer_unavailable"
+    | "error";
 }
 
 export function defaultOnboardingStatus(
@@ -66,6 +72,13 @@ export async function registerMockOnboardingRoutes(
     });
   };
   await page.route("**/api/onboarding/status", (route) => get(route));
+  await page.route("**/api/onboarding/provider-check", (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({ status: state.onboardingProviderCheckStatus ?? "ready" })
+    })
+  );
   await page.route("**/api/onboarding/complete", (route) => setState(route, "completed"));
   await page.route("**/api/onboarding/skip", (route) => setState(route, "skipped"));
   // The multiplexer step writes via the DEDICATED adapter route PUT /api/admin/chat-multiplexer

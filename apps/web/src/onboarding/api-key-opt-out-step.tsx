@@ -17,22 +17,23 @@ export function ApiKeyOptOutStep(props: { readonly onSkipStep: () => void }) {
   const done = (providersQuery.data?.providers.length ?? 0) > 0;
 
   return (
-    <section className="panel" aria-labelledby="member-apikey-title">
-      <div className="panel-heading">
-        <h2 id="member-apikey-title">AI assistant</h2>
-      </div>
+    <section className="onb-step" aria-labelledby="member-apikey-title">
+      <p className="onb-eyebrow">Step 1 · Your assistant</p>
+      <h1 id="member-apikey-title" className="onb-title">
+        I already work, out of the box.
+      </h1>
       {done ? (
         <p className="form-hint">
           You&apos;ve added your own AI provider. You can manage it in Settings anytime.
         </p>
       ) : (
-        <p>
-          You can use the shared assistant this household already set up — no setup needed. If you
-          prefer to use your own API key instead, you can add one in AI settings. This step is
-          optional.
+        <p className="onb-lede">
+          I run on a shared setup, so there is nothing for you to install. If you would rather I use
+          your own AI key for your own usage and limits, you can add one. Most people do not need
+          to.
         </p>
       )}
-      <div className="connect-steps">
+      <div className="connect-steps onb-option-actions">
         <Link className="primary-button" to="/settings">
           {done ? "Manage my AI provider in Settings" : "Add my own API key in Settings"}
         </Link>

@@ -1,7 +1,15 @@
+import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+
 import type { Kysely } from "kysely";
 
 import type { JarvisDatabase } from "@jarv1s/db";
-import type { ChatMultiplexerChoice } from "@jarv1s/shared";
+import type {
+  ChatMultiplexerChoice,
+  OnboardingProviderCheckResponse,
+  OnboardingProviderKind
+} from "@jarv1s/shared";
 import {
   cliAvailable,
   createBinaryProbe,
@@ -10,6 +18,7 @@ import {
   resolveMultiplexer
 } from "@jarv1s/ai";
 import {
+  CliChatUnavailableError,
   createRealEngineFactory,
   unavailableEngineFactory,
   type ChatEngineFactory
@@ -64,10 +73,94 @@ export function makeMultiplexerUsableProbe(
 }
 
 /** Live, bounded provider-CLI presence (presence-only). Re-reads PATH each call. */
-export function makeCliPresentProbe(): (
-  kind: "anthropic" | "openai-compatible" | "google"
-) => Promise<boolean> {
+export function makeCliPresentProbe(): (kind: OnboardingProviderKind) => Promise<boolean> {
   return (kind) => boundedProbe(cliAvailable(kind));
+}
+
+const PROVIDER_CHECK_PROMPT = "Reply with exactly OK.";
+const PROVIDER_CHECK_PERSONA = "You are running a Jarvis provider connection check.";
+const PROVIDER_CHECK_TIMEOUT_MS = 12_000;
+const PROVIDER_CHECK_POLL_MS = 250;
+
+export function makeProviderConnectionCheckProbe(deps: {
+  readonly engineFactory: ChatEngineFactory;
+  readonly cliPresent: (kind: OnboardingProviderKind) => Promise<boolean>;
+  readonly skipInstallCheck?: boolean;
+}): (kind: OnboardingProviderKind) => Promise<OnboardingProviderCheckResponse> {
+  return async (kind) => {
+    if (!deps.skipInstallCheck && !(await deps.cliPresent(kind))) {
+      return { status: "not_installed" };
+    }
+
+    let neutralDir: string | null = null;
+    let engine: ReturnType<ChatEngineFactory> | null = null;
+    try {
+      neutralDir = await mkdtemp(join(tmpdir(), "jarv1s-provider-check-"));
+      const personaPath = join(neutralDir, "persona.md");
+      await writeFile(personaPath, PROVIDER_CHECK_PERSONA, "utf8");
+
+      engine = deps.engineFactory(kind, `onboarding-check-${kind}`);
+      await withTimeout(engine.launch({ neutralDir, personaPath }), PROVIDER_CHECK_TIMEOUT_MS);
+      await withTimeout(engine.submit(PROVIDER_CHECK_PROMPT), PROVIDER_CHECK_TIMEOUT_MS);
+
+      const ready = await waitForProviderReply(engine, PROVIDER_CHECK_TIMEOUT_MS);
+      return ready ? { status: "ready" } : { status: "needs_login" };
+    } catch (error) {
+      if (error instanceof CliChatUnavailableError) {
+        return { status: "multiplexer_unavailable" };
+      }
+      return { status: "error" };
+    } finally {
+      if (engine) {
+        await engine.kill().catch(() => undefined);
+      }
+      if (neutralDir) {
+        await rm(neutralDir, { recursive: true, force: true }).catch(() => undefined);
+      }
+    }
+  };
+}
+
+async function waitForProviderReply(
+  engine: ReturnType<ChatEngineFactory>,
+  timeoutMs: number
+): Promise<boolean> {
+  const deadline = Date.now() + timeoutMs;
+  let offset = 0;
+  while (Date.now() < deadline) {
+    const result = await engine.readNew(offset).catch(() => ({
+      records: [],
+      offset,
+      complete: false
+    }));
+    offset = result.offset;
+    if (result.records.some((record) => record.kind === "reply")) {
+      return true;
+    }
+    if (result.complete && result.records.some((record) => record.kind === "error")) {
+      return false;
+    }
+    await sleep(PROVIDER_CHECK_POLL_MS);
+  }
+  return false;
+}
+
+async function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    return await Promise.race([
+      promise,
+      new Promise<T>((_, reject) => {
+        timer = setTimeout(() => reject(new Error("provider check timed out")), ms);
+      })
+    ]);
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 /**
