@@ -189,8 +189,9 @@ No waivers. Any red required check is stop-the-line unless proven red on `main` 
   `019edcbd-30fe-7d71-9e48-ded1258b8d98`. The successor read this file in full, invoked/used
   `coordinate`, confirmed its own Codex session id from `herdr pane list`, relabelled the old
   coordinator to `Coordinator-RelayOld`, and updated this lock. Do not trust pane numbers.
-- **Next action:** write the overnight report. Reconcile the main worktree's unrelated local commits
-  from other panes before further manifest pushes.
+- **Next action:** overnight report written at
+  `docs/coordination/overnight-report-2026-06-18.md`. Reconcile the main worktree's unrelated local
+  commits from other panes before further manifest pushes.
 - **If local gate is green:** spawn #297 first and #299 infra/settings/scripts if collision scan still shows no overlap. Hold #299 tasks subset until #297 lands. Hold #244 until the lower-risk lanes are done.
 - **If latest CI is red:** pull the exact failing job log and continue systematic debugging. Do not spawn the fleet on red `main`.
 - **Untracked files in main worktree:** `docs/superpowers/handoffs/2026-06-18-onboarding-service-testing-webwright.md` and `docs/superpowers/specs/2026-06-15-corrections-log.md` existed before this run; do not sweep them with broad staging.

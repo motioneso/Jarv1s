@@ -1,65 +1,61 @@
-# Overnight Report — 2026-06-18 Automation
+# Overnight Automation Report — 2026-06-18
 
 ## Summary
 
-The approved overnight queue completed. GitHub Actions stayed billing-blocked for the run, so merges
-used Ben-approved local CI-equivalent evidence plus independent QA.
+Run `2026-06-18-overnight-automation` completed the approved queue through the security-tier owner
+bootstrap recovery lane. GitHub Actions remained billing-blocked, so merges used Ben-approved local
+CI-equivalent evidence recorded in the run manifest.
 
-## Merged
+## Landed
 
-- PR #303 / issue #297 — recurrence JSONB boundary regression coverage.
-  - Merge: `2cbea96`
-  - Evidence: `VF297_EXIT=0`; 67 unit files / 409 tests; 54 integration files / 817 passed, 2
-    skipped.
-- PR #304 / issue #299 tasks subset — mechanical tasks cleanup.
-  - Merge: `e9e6b87`
-  - Evidence: `VF_EXIT=0`, `AUDIT_EXIT=0`, pre-push format/lint/typecheck green.
-  - QA: `QA-304-TasksMinors` GREEN, 0 findings.
-- PR #302 / issue #299 settings/scripts/jobs subset — mechanical settings/scripts/pg-boss cleanup.
-  - Merge: `d002958`
-  - Evidence: `VF_EXIT=0`, `AUDIT_EXIT=0`, pre-push trio green.
-- PR #305 / issue #244 — memory corrections log.
-  - Merge: `bd43a0f`
-  - Evidence: `VF_EXIT=0`, `AUDIT_EXIT=0`; 68 unit files / 413 tests; 54 integration files / 822
-    passed, 2 skipped.
-  - QA: `QA-305-Corrections` GREEN, 0 findings.
-
-## GitHub State
-
-- #297 closed and Done.
-- #244 closed and Done.
-- #299 remains open/Backlog with a status comment: the tasks and settings/scripts/jobs subsets
-  landed; AI/chat, memory/file-size, frontend quadrant mirror, and provider-list-vs-RLS design
-  question remain.
-
-## Decisions
-
-- Used the approved local CI-equivalent gate while GitHub Actions is billing-blocked.
-- Kept #299 provider-list route vs RLS widening out of unattended scope; it still needs a
-  Ben/product-security decision.
-- Treated #244 as `sensitive`, not `security`: it touched memory lifecycle and owner-scoped RLS, but
-  did not introduce auth/session/token/secret policy surfaces.
-- Fixed coordinator relay instructions so Codex successor coordinators launch with
-  `codex -s danger-full-access -a never`, preventing sandbox-blocked Herdr operations.
+| Area                                      | Issue | PR   | Merge commit | Result                         |
+| ----------------------------------------- | ----- | ---- | ------------ | ------------------------------ |
+| Recurrence JSONB boundary regression      | #297  | #303 | `2cbea96`    | Merged; issue closed/Done      |
+| #299 tasks-only mechanical cleanup        | #299  | #304 | `e9e6b87`    | Merged; residual issue remains |
+| #299 settings/scripts/jobs cleanup        | #299  | #302 | `d002958`    | Merged; residual issue remains |
+| Memory corrections log                    | #244  | #305 | `bd43a0f`    | Merged; issue closed/Done      |
+| Owner bootstrap recovery, security-tier   | #260  | #309 | `e075312`    | Merged after Ben sign-off      |
+| Final coordinator lock/report bookkeeping | —     | —    | `1107c53`+   | Pushed to `main`               |
 
 ## Verification
 
-- CI repair local gate on `d8aa546`: `verify:foundation`, release-hardening tests/audit,
-  `build:web`, e2e, compose smoke, and prod compose smoke all passed.
-- Each merged lane carried local full-gate evidence in its PR body or manifest entry.
-- Independent QA was run for #304 and #305 before merge.
+- Local CI-equivalent baseline on `d8aa546` passed: `pnpm verify:foundation`,
+  `pnpm test:release-hardening`, `pnpm audit:release-hardening`, `pnpm build:web`, `pnpm test:e2e`,
+  dev compose smoke, and prod compose smoke with local port override.
+- PR #303 gate evidence: `VF297_EXIT=0`, 67 unit files / 409 tests, 54 integration files / 817
+  passed, 2 skipped.
+- PR #304 evidence: `VF_EXIT=0`, `AUDIT_EXIT=0`, pre-push trio green, independent QA GREEN.
+- PR #305 evidence: `VF_EXIT=0`, `AUDIT_EXIT=0`, 68 unit files / 413 tests, 54 integration files /
+  822 passed, 2 skipped, independent QA GREEN.
+- PR #309 final evidence: `VF_EXIT=0`, 68 unit files / 413 tests, 55 integration files / 825 passed
+  / 2 skipped; `AUDIT_EXIT=0`; pre-push trio green; final security QA GREEN with 0 blocking
+  findings. Two earlier security QA RED verdicts found real gaps and drove fixes before merge.
 
-## Skipped / Held
+## Decisions
 
-- #299 AI/chat minors, memory/file-size, frontend quadrant mirror: still open on #299.
-- #299 provider-list vs RLS widening: held for Ben/product-security.
-- #260, #238, #239, #237, #251, #252, #253: held because they touch auth/sessions/credentials/admin
-  or delete/export surfaces.
-- #218: held as too broad without a tighter approved spec/handoff.
+- Kept GitHub Actions as blocked by billing/spending and did not treat red Actions as product/test
+  failures after Ben approved local CI-equivalent gating for this run.
+- For #260, used the simplified first-owner recovery rule Ben approved: if no bootstrap owner
+  exists, the signup gets first-run onboarding and becomes owner/admin without the pending approval
+  gate; once an owner exists, normal approval behavior applies.
+- Security-tier #260 was not auto-merged. It merged only after independent security QA posted a
+  GREEN verdict and Ben gave explicit sign-off.
 
-## Environment Notes
+## Remaining Work
 
-- GitHub Actions still reports no usable checks because account billing/spending blocks runner
-  assignment.
-- The main worktree still has one pre-existing untracked file:
-  `docs/superpowers/handoffs/2026-06-18-onboarding-service-testing-webwright.md`.
+- #299 remains open for the provider-model/provider-list design question. Do not implement provider
+  visibility/API privacy work until a dedicated provider-model spec is approved.
+- Held items remain out of this unattended run: #238, #239, #237, #251, #252, #253, and broad #218
+  chat session resumption.
+- A separate Antigravity onboarding-copy task is active outside this manifest queue. The coordinator
+  instructed it to move staged changes onto a dedicated `onboarding-copy-refresh` branch from
+  `origin/main`, preserve the scoped paths only, and open a PR.
+
+## Coordinator State
+
+- Active coordinator lock after relay: label `Coordinator`, Codex session
+  `019edcbd-30fe-7d71-9e48-ded1258b8d98`.
+- Old relay coordinator session `019edc14-46cc-7fe3-b383-e33a66cc8e18` was closed after the lock
+  update was pushed.
+- Main worktree still contains unrelated local commits/changes from other panes; avoid broad
+  staging or pull/reset operations there.
