@@ -63,9 +63,9 @@
 | CI repair: isolate onboarding provider-check test        | —     | routine   | pushed-to-main; local gate ok | —                   | —      | main @ `4eb41fe`               | —   |
 | Relay manifest flush                                     | —     | routine   | pushed-to-main; local gate ok | —                   | —      | main @ `4eaf647`               | —   |
 | CI repair: Approve/Reject e2e label                      | —     | routine   | pushed; local gate ok         | —                   | —      | main @ `d8aa546`               | —   |
-| issue body: validate recurrence JSONB boundary           | #297  | routine   | building                      | TasksRecurrence-297 | w1:p11 | overnight-297-recurrence-jsonb | —   |
+| issue body: validate recurrence JSONB boundary           | #297  | routine   | plan approved; building       | TasksRecurrence-297 | w1:p11 | overnight-297-recurrence-jsonb | —   |
 | issue body: #299 tasks-only mechanical subset after #297 | #299  | routine   | queued                        | TasksMinors-299     | —      | overnight-299-tasks-minors     | —   |
-| issue body: #299 settings/scripts/jobs mechanical subset | #299  | routine   | building                      | InfraMinors-299     | w1:p12 | overnight-299-infra-minors     | —   |
+| issue body: #299 settings/scripts/jobs mechanical subset | #299  | routine   | plan approved; building       | InfraMinors-299     | w1:p12 | overnight-299-infra-minors     | —   |
 | docs/superpowers/specs/2026-06-15-corrections-log.md     | #244  | sensitive | queued after lower-risk lanes | Corrections-244     | —      | overnight-244-corrections-log  | —   |
 
 ## Excluded / Held
