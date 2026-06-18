@@ -1,7 +1,7 @@
 # Coordination Run — 2026-06-18-overnight-automation
 
 **Date:** 2026-06-18
-**Coordinator lock:** label `Coordinator`, **stable anchor = Codex session id `019edb62-d2f6-77c0-b451-f8dae62ea049`** (match `agent_session.value` in `herdr pane list`). Single-coordinator lock — exactly one pane labelled `Coordinator` whose session id matches this anchor holds authority for the life of the run. Pane numbers (`w…-N`) reflow on every restart/split/reap; do not trust any pane number written in this file as an identifier. Agents escalate to the label; the coordinator merges only when its own pane's session id matches this recorded anchor.
+**Coordinator lock:** label `Coordinator`, **stable anchor = Codex session id `019edba0-be98-7f90-99b0-64d7802f4ca3`** (match `agent_session.value` in `herdr pane list`). Single-coordinator lock — exactly one pane labelled `Coordinator` whose session id matches this anchor holds authority for the life of the run. Pane numbers (`w…-N`) reflow on every restart/split/reap; do not trust any pane number written in this file as an identifier. Agents escalate to the label; the coordinator merges only when its own pane's session id matches this recorded anchor.
 **Merge policy:** autonomous-after-verified-QA for `routine`/`sensitive`; `security`-tier needs Ben's explicit merge sign-off.
 **Relay threshold:** security-tier merge → relay immediately after Phase 3 step 7; routine/sensitive `merges_since_relay` >= 2 → relay. Compaction summary = already past safe → relay, merge nothing.
 **Additional context ceiling:** coordinator self-reads `herdr pane read "$HERDR_PANE_ID" --source visible --lines 5` after major events and before every spawn/merge wave. If the visible status line reports >= 500K used, flush this manifest, write the mid-doing continuation note, and relay before more work.
@@ -28,6 +28,10 @@
 - Successor coordinator claimed the lock on 2026-06-18 with Codex session id
   `019edb62-d2f6-77c0-b451-f8dae62ea049`; `herdr pane list` showed exactly one pane labelled
   `Coordinator`.
+- Second successor coordinator claimed the lock on 2026-06-18 with Codex session id
+  `019edba0-be98-7f90-99b0-64d7802f4ca3`; `herdr pane list` showed exactly one pane labelled
+  `Coordinator`. Old coordinator pane was closed after matching label `Coordinator` plus Codex
+  session id `019edb62-d2f6-77c0-b451-f8dae62ea049`.
 - Old relay coordinator pane was closed after matching label `Coordinator-RelayOld` plus Codex
   session id `019ed994-3159-7961-b750-f5c74c9c5fc3`.
 - PR #303 (#297 recurrence JSONB boundary regression coverage) merged on 2026-06-18 at merge
@@ -107,10 +111,8 @@ No waivers. Any red required check is stop-the-line unless proven red on `main` 
 - **Relay reason:** coordinator self-read showed ~474K used at 2026-06-18 00:10 PDT, close to Ben's explicit 500K ceiling. Relay before spawning any build lanes.
 - **Relay reason 2:** successor coordinator self-read showed ~822K used before merging PR #304.
   Relay before merge per the manifest ceiling. This relay resets `merges_since_relay` to 0.
-- **Next action:** successor must claim the Coordinator lock with its own session id, re-adopt live
-  panes, close old Coordinator by label+session id `019edb62-d2f6-77c0-b451-f8dae62ea049`, then
-  merge QA-green PR #304 first. After #304 lands, update main/worktrees, then merge-order next is
-  QA-green PR #302. #244 remains held until lower-risk lanes are complete.
+- **Next action:** merge QA-green PR #304 first. After #304 lands, update main/worktrees, then
+  merge-order next is QA-green PR #302. #244 remains held until lower-risk lanes are complete.
 - **If local gate is green:** spawn #297 first and #299 infra/settings/scripts if collision scan still shows no overlap. Hold #299 tasks subset until #297 lands. Hold #244 until the lower-risk lanes are done.
 - **If latest CI is red:** pull the exact failing job log and continue systematic debugging. Do not spawn the fleet on red `main`.
 - **Untracked files in main worktree:** `docs/superpowers/handoffs/2026-06-18-onboarding-service-testing-webwright.md` and `docs/superpowers/specs/2026-06-15-corrections-log.md` existed before this run; do not sweep them with broad staging.
