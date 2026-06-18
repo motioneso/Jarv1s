@@ -55,6 +55,7 @@
 ### Task 1: Recurrence DTO Contract
 
 **Files:**
+
 - Modify: `packages/shared/src/tasks-api.ts`
 - Modify: `tests/unit/shared-contract-schemas.test.ts`
 
@@ -65,7 +66,7 @@ Add imports in `tests/unit/shared-contract-schemas.test.ts`:
 ```ts
 import {
   createTaskRequestSchema,
-  updateTaskRequestSchema,
+  updateTaskRequestSchema
   // existing imports unchanged
 } from "@jarv1s/shared";
 ```
@@ -73,40 +74,40 @@ import {
 Add tests after the existing create-required-field test:
 
 ```ts
-  it("createTaskRequestSchema accepts normalized recurrence and strips nested unknown keys", async () => {
-    const { status, body } = await parseBody(createTaskRequestSchema, {
-      title: "T",
-      recurrence: {
-        freq: "weekly",
-        interval: 1,
-        occurrence_date: "2026-06-08",
-        extra: "drop-me"
-      }
-    });
-
-    expect(status).toBe(200);
-    expect(body?.recurrence).toEqual({
+it("createTaskRequestSchema accepts normalized recurrence and strips nested unknown keys", async () => {
+  const { status, body } = await parseBody(createTaskRequestSchema, {
+    title: "T",
+    recurrence: {
       freq: "weekly",
       interval: 1,
-      occurrence_date: "2026-06-08"
-    });
+      occurrence_date: "2026-06-08",
+      extra: "drop-me"
+    }
   });
 
-  it("updateTaskRequestSchema rejects malformed recurrence DTOs", async () => {
-    const missingOccurrence = await parseBody(updateTaskRequestSchema, {
-      recurrence: { freq: "weekly", interval: 1 }
-    });
-    const badFreq = await parseBody(updateTaskRequestSchema, {
-      recurrence: { freq: "yearly", interval: 1, occurrence_date: "2026-06-08" }
-    });
-    const badInterval = await parseBody(updateTaskRequestSchema, {
-      recurrence: { freq: "weekly", interval: 0, occurrence_date: "2026-06-08" }
-    });
-
-    expect(missingOccurrence.status).toBe(400);
-    expect(badFreq.status).toBe(400);
-    expect(badInterval.status).toBe(400);
+  expect(status).toBe(200);
+  expect(body?.recurrence).toEqual({
+    freq: "weekly",
+    interval: 1,
+    occurrence_date: "2026-06-08"
   });
+});
+
+it("updateTaskRequestSchema rejects malformed recurrence DTOs", async () => {
+  const missingOccurrence = await parseBody(updateTaskRequestSchema, {
+    recurrence: { freq: "weekly", interval: 1 }
+  });
+  const badFreq = await parseBody(updateTaskRequestSchema, {
+    recurrence: { freq: "yearly", interval: 1, occurrence_date: "2026-06-08" }
+  });
+  const badInterval = await parseBody(updateTaskRequestSchema, {
+    recurrence: { freq: "weekly", interval: 0, occurrence_date: "2026-06-08" }
+  });
+
+  expect(missingOccurrence.status).toBe(400);
+  expect(badFreq.status).toBe(400);
+  expect(badInterval.status).toBe(400);
+});
 ```
 
 - [ ] **Step 2: Run test to verify it fails**
@@ -159,7 +160,7 @@ Replace create/update recurrence schema with:
 
 ```ts
 recurrence: {
-  anyOf: [recurrenceSpecDtoSchema, { type: "null" }]
+  anyOf: [recurrenceSpecDtoSchema, { type: "null" }];
 }
 ```
 
@@ -183,6 +184,7 @@ git commit -m "fix(tasks): tighten recurrence request contract" -m "Co-Authored-
 ### Task 2: Dead Serializer Quadrant Surface
 
 **Files:**
+
 - Modify: `packages/tasks/src/serialize.ts`
 - Modify: `tests/integration/tasks-tools.test.ts`
 
@@ -191,15 +193,15 @@ git commit -m "fix(tasks): tighten recurrence request contract" -m "Co-Authored-
 In `tests/integration/tasks-tools.test.ts`, remove `getQuadrant` from the `@jarv1s/tasks` import and delete:
 
 ```ts
-  it("getQuadrant classifies urgency from the injected clock", () => {
-    const task = {
-      priority: 5,
-      due_at: "2026-06-18T00:00:00.000Z"
-    };
+it("getQuadrant classifies urgency from the injected clock", () => {
+  const task = {
+    priority: 5,
+    due_at: "2026-06-18T00:00:00.000Z"
+  };
 
-    expect(getQuadrant(task as never, new Date("2026-06-16T12:00:00.000Z"))).toBe("do");
-    expect(getQuadrant(task as never, new Date("2026-06-10T12:00:00.000Z"))).toBe("schedule");
-  });
+  expect(getQuadrant(task as never, new Date("2026-06-16T12:00:00.000Z"))).toBe("do");
+  expect(getQuadrant(task as never, new Date("2026-06-10T12:00:00.000Z"))).toBe("schedule");
+});
 ```
 
 - [ ] **Step 2: Verify current production callers**
@@ -252,6 +254,7 @@ git commit -m "fix(tasks): remove dead quadrant serializer helpers" -m "Co-Autho
 ### Task 3: Repository Recurrence Branch
 
 **Files:**
+
 - Modify: `packages/tasks/src/repository.ts`
 - Existing tests: `tests/unit/tasks-recurrence-rollforward.test.ts`, `tests/integration/tasks-rename-recurrence.test.ts`, `tests/integration/tasks-verticals.test.ts`
 
@@ -270,13 +273,13 @@ Expected: PASS, including `parseRecurrenceSpec({ freq: "daily", interval: 1 })` 
 In `packages/tasks/src/repository.ts`, replace the recurrence create block with:
 
 ```ts
-    // Recurrence specs are normalized at the route boundary by parseRecurrenceSpec.
-    let recurrenceValue: RecurrenceSpec | null = null;
-    let recurrenceSeriesId: string | null = null;
-    if (input.recurrence != null) {
-      recurrenceSeriesId = randomUUID();
-      recurrenceValue = { ...input.recurrence };
-    }
+// Recurrence specs are normalized at the route boundary by parseRecurrenceSpec.
+let recurrenceValue: RecurrenceSpec | null = null;
+let recurrenceSeriesId: string | null = null;
+if (input.recurrence != null) {
+  recurrenceSeriesId = randomUUID();
+  recurrenceValue = { ...input.recurrence };
+}
 ```
 
 - [ ] **Step 3: Run recurrence-focused tests**
@@ -300,6 +303,7 @@ git commit -m "fix(tasks): rely on normalized recurrence specs" -m "Co-Authored-
 ### Task 4: Drop Unused Tool Idempotency Parameter
 
 **Files:**
+
 - Modify: `packages/tasks/src/tools.ts`
 - Modify: `packages/tasks/src/manifest.ts`
 - Modify: `tests/integration/tasks-tools.test.ts`
@@ -309,9 +313,9 @@ git commit -m "fix(tasks): rely on normalized recurrence specs" -m "Co-Authored-
 In the existing `tasks.updateStatus: execute is defined for confirmation-gated writes` test, add:
 
 ```ts
-    expect(
-      (tool?.inputSchema as { properties?: Record<string, unknown> } | undefined)?.properties
-    ).not.toHaveProperty("idempotencyKey");
+expect(
+  (tool?.inputSchema as { properties?: Record<string, unknown> } | undefined)?.properties
+).not.toHaveProperty("idempotencyKey");
 ```
 
 - [ ] **Step 2: Run test to verify it fails**
@@ -338,7 +342,7 @@ In `packages/tasks/src/manifest.ts`, change the `tasks.updateStatus` input schem
 In `packages/tasks/src/tools.ts`, change:
 
 ```ts
-  const { taskId, status } = input as { taskId: string; status: unknown };
+const { taskId, status } = input as { taskId: string; status: unknown };
 ```
 
 - [ ] **Step 4: Run focused integration test**
@@ -361,6 +365,7 @@ git commit -m "fix(tasks): drop unused update-status tool idempotency key" -m "C
 ### Task 5: Share Quadrant Constants With Frontend
 
 **Files:**
+
 - Modify: `packages/shared/src/tasks-view.ts`
 - Modify: `packages/tasks/src/classification.ts`
 - Modify: `tests/integration/tasks-view.test.ts`
@@ -385,16 +390,16 @@ import {
 Add:
 
 ```ts
-  it("exports the quadrant matrix and thresholds used by quadrantOf", () => {
-    expect(TASK_IMPORTANT_PRIORITY_MIN).toBe(4);
-    expect(TASK_URGENCY_WINDOW_HOURS).toBe(48);
-    expect(TASK_QUADRANT_AXES).toEqual({
-      do: { important: true, urgent: true },
-      schedule: { important: true, urgent: false },
-      delegate: { important: false, urgent: true },
-      eliminate: { important: false, urgent: false }
-    });
+it("exports the quadrant matrix and thresholds used by quadrantOf", () => {
+  expect(TASK_IMPORTANT_PRIORITY_MIN).toBe(4);
+  expect(TASK_URGENCY_WINDOW_HOURS).toBe(48);
+  expect(TASK_QUADRANT_AXES).toEqual({
+    do: { important: true, urgent: true },
+    schedule: { important: true, urgent: false },
+    delegate: { important: false, urgent: true },
+    eliminate: { important: false, urgent: false }
   });
+});
 ```
 
 - [ ] **Step 2: Run test to verify it fails**
