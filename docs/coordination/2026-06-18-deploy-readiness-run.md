@@ -74,4 +74,5 @@ No waivers.
 
 ## Reaped Sessions
 
-- <none>
+- `GateFix-Briefings` (`w1:p1M`) — reaped after completing environment-collision diagnosis; worktree
+  `.claude/worktrees/gate-fix-briefings` removed.
