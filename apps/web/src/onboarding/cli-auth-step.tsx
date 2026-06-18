@@ -52,8 +52,8 @@ export function CliAuthStep(props: {
     <section className="onb-step" aria-labelledby="onboarding-cli-title">
       <StepHeader
         eyebrow="Step 2 · Your provider"
-        title="Choose the provider I’ll run on."
-        lede="Jarvis runs through an AI command-line tool on your machine. I detect which ones are installed automatically — then you can test whether you’re signed in, right here."
+        title="Choose your AI provider."
+        lede="Jarvis uses AI command-line tools on your computer. We automatically check what is installed so you can verify your connection below."
       />
       <div className="onb-scan">
         <span className="onb-scan__ic">
@@ -119,7 +119,7 @@ export function CliAuthStep(props: {
                           <LogIn size={14} aria-hidden="true" /> Test login
                         </button>
                         <span className="onb-auth__note">
-                          Checks whether you’re signed in on the host.
+                          Checks your sign-in status on your computer.
                         </span>
                       </>
                     ) : null}
@@ -194,11 +194,11 @@ function providerCheckMessage(result: OnboardingProviderCheckResponse): string {
     case "ready":
       return "Connection ready.";
     case "needs_login":
-      return "Sign in on the host, then test again.";
+      return "Log in on your computer, then test again.";
     case "not_installed":
-      return "Install the CLI on the host first.";
+      return "Install the AI tool on your computer first.";
     case "multiplexer_unavailable":
-      return "Start the selected multiplexer, then test again.";
+      return "Ensure the terminal multiplexer is running, then test again.";
     case "error":
       return "Connection test failed. Try again.";
   }

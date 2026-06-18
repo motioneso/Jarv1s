@@ -245,8 +245,7 @@ export function OnboardingWizard(props: {
             <LogIn size={15} /> Skip setup
           </button>
           <p className="onb__skiphint">
-            Skips the whole setup and opens the app. Nothing is required now. Finish later from
-            Settings.
+            Skip setup and open the app. You can complete the configuration later in Settings.
           </p>
         </div>
       </aside>
@@ -335,11 +334,11 @@ function FinishStep(props: {
   const isMember = props.role === "member";
   const recap = isMember
     ? [
-        { k: "Assistant", v: "Shared setup", mono: "already working" },
+        { k: "Assistant", v: "Shared setup", mono: "ready" },
         props.skippedSteps.has("accounts")
           ? { k: "Accounts", v: "Skipped for now", skip: true }
-          : { k: "Accounts", v: "Google optional", mono: "private to you" },
-        { k: "Tour", v: "You know where to start" }
+          : { k: "Accounts", v: "Google integration", mono: "private" },
+        { k: "Tour", v: "Tour finished" }
       ]
     : [
         {
@@ -368,8 +367,8 @@ function FinishStep(props: {
       <h1 className="onb-finish__title">{isMember ? "You’re all set." : "Jarvis is ready."}</h1>
       <p className="onb-finish__lede">
         {isMember
-          ? "That’s everything. I’ll keep the rest quiet until it’s useful."
-          : "Here’s what’s configured. None of it is locked in — you can revisit any of it in Settings."}
+          ? "Setup complete. You are ready to start using Jarvis."
+          : "Here is your setup summary. You can change any of these configurations later in Settings."}
       </p>
       <div className="onb-recap">
         {recap.map((item) => (
@@ -409,7 +408,7 @@ function FinishStep(props: {
         </button>
       </div>
       <div className="onb-signoff">
-        {isMember ? "Good to have you here." : "I’ll take it from here."}
+        {isMember ? "Welcome to Jarvis." : "Your setup is complete."}
       </div>
     </div>
   );

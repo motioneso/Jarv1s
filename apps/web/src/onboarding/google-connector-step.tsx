@@ -101,8 +101,9 @@ export function GoogleConnectorStep(props: {
               <ShieldCheck size={15} aria-hidden="true" />
             </span>
             <span>
-              Jarvis reaches Google through <b>an OAuth app you own</b>, so your calendar and email
-              never pass through anyone else&apos;s servers. You build it once and paste two values.
+              Jarvis connects to Google using an OAuth application under your control. This ensures
+              your calendar and email data never pass through third-party servers. You only need to
+              set this up once and copy two values.
             </span>
           </div>
           <ol className="onb-guide">
@@ -110,8 +111,7 @@ export function GoogleConnectorStep(props: {
               <span className="onb-guide__n">1</span>
               <div className="onb-guide__body">
                 <div className="onb-guide__t">
-                  Open the <b>Google Cloud Console</b> and create a project, or pick one you already
-                  have.
+                  Open the <b>Google Cloud Console</b> and create or select a project.
                 </div>
                 <a
                   className="onb-guide__link"
@@ -127,8 +127,8 @@ export function GoogleConnectorStep(props: {
               <span className="onb-guide__n">2</span>
               <div className="onb-guide__body">
                 <div className="onb-guide__t">
-                  Enable the <b>Gmail API</b> and <b>Google Calendar API</b>, then add yourself as a
-                  test user on the OAuth consent screen.
+                  Enable the <b>Gmail API</b> and <b>Google Calendar API</b>, then add your email as
+                  a test user on the OAuth consent screen.
                 </div>
               </div>
             </li>
@@ -136,8 +136,8 @@ export function GoogleConnectorStep(props: {
               <span className="onb-guide__n">3</span>
               <div className="onb-guide__body">
                 <div className="onb-guide__t">
-                  Go to <b>Credentials → Create credentials → OAuth client ID</b>. For{" "}
-                  <b>Application type</b>, pick{" "}
+                  Go to <b>Credentials → Create credentials → OAuth client ID</b>. Set the{" "}
+                  <b>Application type</b> to{" "}
                   <span className="onb-guide__pill">
                     <Monitor size={12} aria-hidden="true" /> Desktop app
                   </span>
@@ -156,7 +156,7 @@ export function GoogleConnectorStep(props: {
               <span className="onb-json-upload__main">
                 <span className="onb-json-upload__title">Upload credentials JSON</span>
                 <span className="onb-json-upload__sub">
-                  I’ll extract the client ID and secret automatically.
+                  We will extract the client ID and client secret automatically.
                 </span>
               </span>
             </label>
@@ -222,7 +222,7 @@ export function GoogleConnectorStep(props: {
                 Cancel
               </button>
               <span className="onb-cred__hint">
-                Stored encrypted on this server. Never shown in briefings or logs.
+                Encrypted at rest. Stored securely and never shown in logs or briefings.
               </span>
             </div>
           </div>
@@ -230,8 +230,8 @@ export function GoogleConnectorStep(props: {
             <div className="onb-cred gflow__phase">
               <div className="onb-cred__hd">2 · Finish the connection</div>
               <p className="gflow__p">
-                After approving, copy the full address from your browser&apos;s bar. It starts with{" "}
-                <code>http://localhost:1/</code>.
+                Once authorized, copy the full URL from your browser&apos;s address bar. It should
+                begin with <code>http://localhost:1/</code>.
               </p>
               <label className="onb-cred__field">
                 <span className="onb-cred__lbl">Redirect URL</span>
@@ -286,7 +286,7 @@ export function GoogleConnectorStep(props: {
                 : "Google connected"}
             </h1>
             <div className="onb-confirm__s">
-              Calendar and email are syncing now — I’ll start using them for context right away.
+              Calendar and email are now syncing. Jarvis will use them to provide better context.
             </div>
           </div>
         </div>
@@ -344,7 +344,7 @@ export function GoogleConnectorStep(props: {
             <span className="onb-addmore__main">
               <span className="onb-addmore__t">Connect another account</span>
               <span className="onb-addmore__s">
-                Add a second Google account, or a service coming soon.
+                Connect another Google account or preview upcoming services.
               </span>
             </span>
           </button>
@@ -365,7 +365,7 @@ export function GoogleConnectorStep(props: {
           <div className="onb-use__main">
             <div className="onb-use__label">Calendar</div>
             <div className="onb-use__sub">
-              Read events so I can plan around what’s already there.
+              Read events to schedule tasks around your existing calendar.
             </div>
           </div>
         </div>
@@ -376,7 +376,8 @@ export function GoogleConnectorStep(props: {
           <div className="onb-use__main">
             <div className="onb-use__label">Email</div>
             <div className="onb-use__sub">
-              Read for context and task capture. Sending always needs your approval.
+              Scan emails for context and new tasks. Jarvis will never send emails without your
+              approval.
             </div>
           </div>
         </div>

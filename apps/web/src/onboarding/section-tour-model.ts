@@ -14,26 +14,26 @@ const ALL_SECTIONS: readonly TourSection[] = [
   {
     path: webRoutePath("today"),
     label: "Today",
-    blurb: "Start here each morning. Your day, your priorities, and what changed overnight.",
+    blurb: "Start here to review your morning dashboard, priorities, and overnight changes.",
     icon: "House"
   },
   {
     path: webRoutePath("tasks"),
     label: "Tasks",
     blurb:
-      "Everything you’re tracking, ordered by when it matters. I add what I notice; you stay in charge.",
+      "Track your tasks ordered by priority. Jarvis logs items automatically, but you remain in control.",
     icon: "ListChecks"
   },
   {
     path: webRoutePath("calendar"),
     label: "Calendar",
-    blurb: "Your week at a glance. I plan around what’s already on it.",
+    blurb: "View your schedule. Jarvis plans tasks around your existing calendar events.",
     icon: "CalendarDays"
   },
   {
     path: webRoutePath("wellness"),
     label: "Wellness",
-    blurb: "Optional and private. A quick check-in shapes how heavy I make your day.",
+    blurb: "Optional and private. Check in to adjust your daily workload based on how you feel.",
     icon: "HeartPulse"
   },
   {

@@ -6,8 +6,8 @@ export function ConnectorStep(props: { readonly done: boolean }) {
       done={props.done}
       eyebrow="Step 3 · Optional"
       title="Connect to email and calendar"
-      lede="Connect your preferred email and calendar services below. Multiple accounts are supported."
-      privacy="Nothing leaves your machine, and you can disconnect anytime."
+      lede="Connect your email and calendar accounts below. You can link multiple accounts."
+      privacy="Your data never leaves your computer, and you can disconnect at any time."
     />
   );
 }
