@@ -87,12 +87,13 @@ export function registerSettingsRoutes(
   registerPersonaRoutes(server, { ...dependencies, repository, preferencesRepository });
   registerSourceBehaviorRoutes(server, { ...dependencies, preferencesRepository });
   server.get("/api/bootstrap/status", { schema: bootstrapStatusRouteSchema }, async () => {
-    // Return only the boolean the client needs. The raw user count is an instance-wide
-    // metric exposed on an UNAUTHENTICATED route — do not leak it (OTNR-P4 #122).
-    const userCount = await bootstrapHelper.countUsers();
+    // Return only the boolean the client needs. User count and owner identity are
+    // instance-wide data exposed on an UNAUTHENTICATED route — do not leak them
+    // (OTNR-P4 #122).
+    const ownerExists = await bootstrapHelper.bootstrapOwnerExists();
 
     return {
-      needsBootstrap: userCount === 0
+      needsBootstrap: !ownerExists
     };
   });
 
