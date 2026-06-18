@@ -211,8 +211,8 @@ test("serves PWA metadata", async ({ page }) => {
   expect(manifest.name).toBe("Jarv1s");
 });
 
-test.describe("Chat drawer — Approve/Deny card", () => {
-  test("renders Approve/Deny card and resolves on Approve", async ({ page }) => {
+test.describe("Chat drawer — Approve/Reject card", () => {
+  test("renders Approve/Reject card and resolves on Approve", async ({ page }) => {
     await mockApi(page, {
       authenticated: true,
       connectorAccounts: [],
@@ -259,7 +259,7 @@ test.describe("Chat drawer — Approve/Deny card", () => {
     await page.goto("/");
     await page.getByRole("button", { name: "Chat with Jarvis" }).click();
 
-    // Wait for the Approve/Deny card to appear
+    // Wait for the Approve/Reject card to appear
     await expect(page.locator(".action-request-card")).toBeVisible({ timeout: 3000 });
     await expect(page.locator(".action-request-tool")).toContainText("example.write");
     await expect(page.locator(".action-request-summary")).toContainText("Write the value 'test'");
@@ -275,7 +275,7 @@ test.describe("Chat drawer — Approve/Deny card", () => {
     expect(resolveUrl).toContain("/api/chat/action-requests/ar_test_1/resolve");
   });
 
-  test("Deny resolves the card", async ({ page }) => {
+  test("Reject resolves the card", async ({ page }) => {
     await mockApi(page, {
       authenticated: true,
       connectorAccounts: [],
@@ -318,7 +318,7 @@ test.describe("Chat drawer — Approve/Deny card", () => {
     await page.getByRole("button", { name: "Chat with Jarvis" }).click();
 
     await expect(page.locator(".action-request-card")).toBeVisible({ timeout: 3000 });
-    await page.locator(".action-request-card").getByRole("button", { name: "Deny" }).click();
+    await page.locator(".action-request-card").getByRole("button", { name: "Reject" }).click();
     await expect(page.locator(".action-request-card")).toContainText("Resolved.");
 
     // Assert the rejection decision and the path's action-request id actually went over the wire.
