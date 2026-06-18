@@ -13,19 +13,19 @@ const OPTIONS = [
     id: "auto",
     name: "Auto",
     mono: "recommended",
-    desc: "Use whatever this host already has set up. I’ll pick the best available."
+    desc: "Detect and use the best available multiplexer on your computer."
   },
   {
     id: "tmux",
     name: "tmux",
     mono: "multiplexer",
-    desc: "A widely-used terminal multiplexer. Must be installed on the host."
+    desc: "A standard terminal multiplexer. Must be installed on your computer."
   },
   {
     id: "herdr",
     name: "herdr",
     mono: "multiplexer",
-    desc: "Needs to be installed and have a root pane configured."
+    desc: "A project-oriented multiplexer. Requires a running root pane."
   }
 ] as const;
 
@@ -61,8 +61,8 @@ export function MultiplexerStep(props: {
     <section className="onb-step" aria-labelledby="onboarding-multiplexer-title">
       <StepHeader
         eyebrow="Step 1 · A safe way to reach your machine"
-        title="Give Jarvis a control channel."
-        lede="I run on your computer. To do that safely, I keep my work inside a single, inspectable terminal session — so everything I run is in one place you can watch or stop. Choose how that session is managed."
+        title="Choose how Jarvis runs."
+        lede="Jarvis runs commands on your computer. For security, all tasks execute inside a single, inspectable terminal session that you can monitor or stop at any time. Choose how to manage this session."
       />
       <div className="onb-opts">
         {OPTIONS.map((option) => {
@@ -126,7 +126,7 @@ export function MultiplexerStep(props: {
       </div>
       <div className="onb-recheck">
         <div className="onb-recheck__main">
-          Services auto-detected on load. Install and check again if any are missing.
+          Available multiplexers are scanned automatically. Re-check if you install one now.
         </div>
         <button
           className="jds-btn jds-btn--secondary jds-btn--sm"

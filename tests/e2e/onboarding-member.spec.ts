@@ -32,8 +32,8 @@ test("active member sees the member step array (no CLI-auth/multiplexer) and can
   await expect(page.getByText("Getting started")).toBeVisible();
   await expect(page.getByLabel("Onboarding progress").getByText("Member")).toBeVisible();
   await expect(page.getByRole("heading", { name: "You’ve got your own Jarvis." })).toBeVisible();
-  await expect(page.getByText("Your data and connections stay private to you.")).toBeVisible();
-  await expect(page.getByText("Skips the whole setup and opens the app.")).toBeVisible();
+  await expect(page.getByText("Your tasks and account connections remain private.")).toBeVisible();
+  await expect(page.getByText("Skip setup and open the app.")).toBeVisible();
   await expect(page.getByText("Tweaks")).toHaveCount(0);
   // Member-specific steps exist; founder-only steps do NOT.
   await expect(page.getByText(/CLI auth/i)).toHaveCount(0);
@@ -43,9 +43,7 @@ test("active member sees the member step array (no CLI-auth/multiplexer) and can
   // app (regression guard: the wizard must be inside a Router). If the wizard were rendered
   // outside BrowserRouter, the <Link> would throw a context invariant here.
   await page.getByRole("button", { name: /Start setup/ }).click();
-  await expect(
-    page.getByRole("heading", { name: "I already work, out of the box." })
-  ).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Jarvis is ready to use." })).toBeVisible();
   await expect(page.getByRole("button", { name: /Use the shared setup/i })).toBeVisible();
   await page.getByRole("button", { name: /Add a personal key/i }).click();
   await expect(page.getByLabel("Personal AI key")).toBeVisible();

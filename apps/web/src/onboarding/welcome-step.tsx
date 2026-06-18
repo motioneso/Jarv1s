@@ -10,9 +10,9 @@ export function WelcomeStep(props: { readonly onSkipAll: () => void }) {
         title="Let’s get your Jarvis set up."
         lede={
           <>
-            A couple of things are yours to configure: a safe way for me to reach your computer, and
-            the AI provider I’ll run on it. It takes a few minutes, and you can skip anything and
-            come back to it later.
+            You just need to configure a couple of things: a secure connection to your computer, and
+            the AI provider you want to run. It only takes a few minutes, and you can skip any step
+            to finish it later.
           </>
         }
       />
@@ -22,10 +22,8 @@ export function WelcomeStep(props: { readonly onSkipAll: () => void }) {
             <Radio size={19} aria-hidden="true" />
           </span>
           <div className="onb-ahead__main">
-            <div className="onb-ahead__label">A control channel</div>
-            <div className="onb-ahead__sub">
-              A safe, inspectable way for me to reach your computer.
-            </div>
+            <div className="onb-ahead__label">Control channel</div>
+            <div className="onb-ahead__sub">A secure, inspectable connection to your machine.</div>
           </div>
           <span className="onb-ahead__n">01</span>
         </div>
@@ -34,9 +32,9 @@ export function WelcomeStep(props: { readonly onSkipAll: () => void }) {
             <Terminal size={19} aria-hidden="true" />
           </span>
           <div className="onb-ahead__main">
-            <div className="onb-ahead__label">Your provider</div>
+            <div className="onb-ahead__label">AI provider</div>
             <div className="onb-ahead__sub">
-              The AI tool I run on your machine — I detect it, you test sign-in.
+              Select the AI tool you want to run. We'll check if it's installed.
             </div>
           </div>
           <span className="onb-ahead__n">02</span>
@@ -46,16 +44,16 @@ export function WelcomeStep(props: { readonly onSkipAll: () => void }) {
             <Plug size={19} aria-hidden="true" />
           </span>
           <div className="onb-ahead__main">
-            <div className="onb-ahead__label">Google</div>
+            <div className="onb-ahead__label">Google integration</div>
             <div className="onb-ahead__sub">
-              Optional. Calendar for context, email for task capture.
+              Optional. Sync calendar events and capture tasks from email.
             </div>
           </div>
           <span className="onb-ahead__n">03</span>
         </div>
       </div>
       <FootNote icon={<ShieldCheck size={15} aria-hidden="true" />}>
-        Everything here is optional. If you skip, Jarvis still opens — you just configure later.
+        All setup steps are optional. If you skip, you can configure everything later in Settings.
       </FootNote>
       <button className="onb-inline-skip" type="button" onClick={props.onSkipAll}>
         Skip for now

@@ -21,10 +21,8 @@ test("bootstrap owner with incomplete onboarding sees the wizard, then the app s
   await expect(page.getByText("Jarvis setup")).toBeVisible();
   await expect(page.getByLabel("Onboarding progress").getByText("Owner")).toBeVisible();
   await expect(page.getByRole("heading", { name: "Let’s get your Jarvis set up." })).toBeVisible();
-  await expect(
-    page.getByText("A safe, inspectable way for me to reach your computer.")
-  ).toBeVisible();
-  await expect(page.getByText("Skips the whole setup and opens the app.")).toBeVisible();
+  await expect(page.getByText("A secure, inspectable connection to your machine.")).toBeVisible();
+  await expect(page.getByText("Skip setup and open the app.")).toBeVisible();
   await expect(page.getByText("Tweaks")).toHaveCount(0);
   await expect(page.getByRole("button", { name: /Ask Jarvis/ })).toHaveCount(0);
 
@@ -93,9 +91,7 @@ test("provider auth test is an explicit installed-provider action", async ({ pag
 
   await page.goto("/");
   await page.getByRole("button", { name: /Continue/ }).click();
-  await expect(
-    page.getByRole("heading", { name: "Choose the provider I’ll run on." })
-  ).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Choose your AI provider." })).toBeVisible();
   await expect(page.getByText("Not installed")).toHaveCount(2);
 
   await page.getByRole("button", { name: "Test login" }).click();
