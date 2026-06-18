@@ -38,12 +38,16 @@ export function createRestorePlan(input: RestorePlanInput): RestorePlan {
   const url = new URL(input.connectionString ?? getJarvisDatabaseUrls().bootstrap);
   const database = url.pathname.replace(/^\//, "");
   const username = decodeURIComponent(url.username);
+  const password = decodeURIComponent(url.password);
 
   if (!database) {
     throw new Error("Restore database URL must include a database name");
   }
   if (!username) {
     throw new Error("Restore database URL must include a username");
+  }
+  if (!password) {
+    throw new Error("Restore database URL must include a password");
   }
 
   // `--clean --if-exists` drops and recreates objects in the target database, so a
@@ -86,7 +90,7 @@ export function createRestorePlan(input: RestorePlanInput): RestorePlan {
     database,
     host: url.hostname,
     env: {
-      PGPASSWORD: decodeURIComponent(url.password)
+      PGPASSWORD: password
     },
     execute: input.execute ?? false
   };

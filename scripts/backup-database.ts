@@ -27,12 +27,16 @@ export function createBackupPlan(input: BackupPlanInput = {}): BackupPlan {
   const outputFile = input.outputFile ?? defaultBackupFile(input.now ?? new Date());
   const database = url.pathname.replace(/^\//, "");
   const username = decodeURIComponent(url.username);
+  const password = decodeURIComponent(url.password);
 
   if (!database) {
     throw new Error("Backup database URL must include a database name");
   }
   if (!username) {
     throw new Error("Backup database URL must include a username");
+  }
+  if (!password) {
+    throw new Error("Backup database URL must include a password");
   }
 
   const dockerPgDumpArgs = [
@@ -57,7 +61,7 @@ export function createBackupPlan(input: BackupPlanInput = {}): BackupPlan {
       ...dockerPgDumpArgs
     ],
     env: {
-      PGPASSWORD: decodeURIComponent(url.password)
+      PGPASSWORD: password
     },
     outputFile
   };
