@@ -60,16 +60,16 @@
 
 ## Queue
 
-| Spec / contract                                          | Issue | Tier      | Status                         | Agent label         | Pane   | Branch                        | PR   |
-| -------------------------------------------------------- | ----- | --------- | ------------------------------ | ------------------- | ------ | ----------------------------- | ---- |
-| CI repair: timezone-safe Codex transcript date test      | —     | routine   | pushed-to-main; local gate ok  | —                   | —      | main @ `ff0ba95`              | —    |
-| CI repair: isolate onboarding provider-check test        | —     | routine   | pushed-to-main; local gate ok  | —                   | —      | main @ `4eb41fe`              | —    |
-| Relay manifest flush                                     | —     | routine   | pushed-to-main; local gate ok  | —                   | —      | main @ `4eaf647`              | —    |
-| CI repair: Approve/Reject e2e label                      | —     | routine   | pushed; local gate ok          | —                   | —      | main @ `d8aa546`              | —    |
-| issue body: validate recurrence JSONB boundary           | #297  | routine   | merged                         | TasksRecurrence-297 | —      | main @ `2cbea96`              | #303 |
-| issue body: #299 tasks-only mechanical subset after #297 | #299  | routine   | queued                         | TasksMinors-299     | —      | overnight-299-tasks-minors    | —    |
-| issue body: #299 settings/scripts/jobs mechanical subset | #299  | routine   | QA green; held for merge order | InfraMinors-299     | w1:p12 | overnight-299-infra-minors    | #302 |
-| docs/superpowers/specs/2026-06-15-corrections-log.md     | #244  | sensitive | queued after lower-risk lanes  | Corrections-244     | —      | overnight-244-corrections-log | —    |
+| Spec / contract                                          | Issue | Tier      | Status                         | Agent label                                                    | Pane   | Branch                        | PR   |
+| -------------------------------------------------------- | ----- | --------- | ------------------------------ | -------------------------------------------------------------- | ------ | ----------------------------- | ---- |
+| CI repair: timezone-safe Codex transcript date test      | —     | routine   | pushed-to-main; local gate ok  | —                                                              | —      | main @ `ff0ba95`              | —    |
+| CI repair: isolate onboarding provider-check test        | —     | routine   | pushed-to-main; local gate ok  | —                                                              | —      | main @ `4eb41fe`              | —    |
+| Relay manifest flush                                     | —     | routine   | pushed-to-main; local gate ok  | —                                                              | —      | main @ `4eaf647`              | —    |
+| CI repair: Approve/Reject e2e label                      | —     | routine   | pushed; local gate ok          | —                                                              | —      | main @ `d8aa546`              | —    |
+| issue body: validate recurrence JSONB boundary           | #297  | routine   | merged                         | TasksRecurrence-297                                            | —      | main @ `2cbea96`              | #303 |
+| issue body: #299 tasks-only mechanical subset after #297 | #299  | routine   | building                       | TasksMinors-299-Codex (`019edb87-3696-75b0-a87b-da944a54b02f`) | w1:p14 | overnight-299-tasks-minors    | —    |
+| issue body: #299 settings/scripts/jobs mechanical subset | #299  | routine   | QA green; held for merge order | InfraMinors-299                                                | w1:p12 | overnight-299-infra-minors    | #302 |
+| docs/superpowers/specs/2026-06-15-corrections-log.md     | #244  | sensitive | queued after lower-risk lanes  | Corrections-244                                                | —      | overnight-244-corrections-log | —    |
 
 ## Excluded / Held
 
@@ -112,4 +112,5 @@ No waivers. Any red required check is stop-the-line unless proven red on `main` 
 
 ## Reaped Sessions
 
-- <none yet>
+- `TasksMinors-299` Claude pane session `2f0178c2-b6c5-4208-ae1c-5b15999d4c63`: weekly-limit
+  blocked before reading the handoff; replaced by `TasksMinors-299-Codex`.
