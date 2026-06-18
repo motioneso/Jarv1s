@@ -79,8 +79,10 @@ export function TasksPage() {
   const updateMutation = useMutation({
     mutationFn: (task: TaskDto) =>
       updateTask(task.id, { status: task.status === "done" ? "todo" : "done" }),
-    onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: queryKeys.tasks.list });
+    onSuccess: () => {
+      setTimeout(() => {
+        void queryClient.invalidateQueries({ queryKey: queryKeys.tasks.list });
+      }, 500);
     }
   });
 

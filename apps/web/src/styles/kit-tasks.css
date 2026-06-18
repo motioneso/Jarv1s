@@ -535,9 +535,12 @@
   padding: 11px 10px 11px 8px;
   border-radius: var(--radius-md);
   border: 1px solid transparent;
+  transition: var(--transition-control);
 }
 .tk-task:hover {
   background: var(--surface-2);
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-sm);
 }
 .tk-task--dim {
   opacity: 0.4;
@@ -574,6 +577,10 @@
   font-size: 15px;
   color: var(--text);
   line-height: 1.4;
+}
+.tk-task--done {
+  opacity: 0.7;
+  transform: scale(0.98);
 }
 .tk-task--done .tk-task__title {
   color: var(--text-subtle);

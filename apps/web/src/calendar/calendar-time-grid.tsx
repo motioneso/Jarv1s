@@ -34,7 +34,14 @@ function EventBlock({ e, hourH, dense, onPick }: EventBlockProps) {
   const isBlock = e.kind === "block";
   const showTime = height >= 34;
   const showWhere = height >= 58 && !dense && e.where;
-  const cls = "cal-ev" + (isBlock ? " cal-ev--block cal-ev--ghost" : " cal-ev--hard");
+  const isTentative = e.status === "needsAction" || e.status === "tentative";
+  const cls =
+    "cal-ev" +
+    (isBlock
+      ? " cal-ev--block cal-ev--ghost"
+      : isTentative
+        ? " cal-ev--tentative"
+        : " cal-ev--hard");
 
   return (
     <button

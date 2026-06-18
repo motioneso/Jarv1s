@@ -19,9 +19,9 @@
 .page-heading h1,
 .coming-title,
 .topbar-title {
-  font-family: var(--font-serif);
-  font-weight: 600;
-  letter-spacing: -0.01em;
+  font-family: var(--font-sans);
+  font-weight: 700;
+  letter-spacing: var(--tracking-tight);
 }
 
 /* Numerics / timestamps / durations are tabular mono (instrument seasoning). */
@@ -40,6 +40,8 @@ body {
   min-width: 320px;
   min-height: 100vh;
   margin: 0;
+  background-color: var(--bg);
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)' opacity='0.03'/%3E%3C/svg%3E");
 }
 
 button,
@@ -151,8 +153,16 @@ select:focus,
 textarea:focus,
 button:focus-visible,
 a:focus-visible {
-  outline: 3px solid var(--focus-ring);
-  outline-offset: 2px;
+  outline: none;
+  box-shadow: 0 0 0 3px var(--focus-ring);
+}
+
+input,
+select,
+textarea,
+button,
+a {
+  transition: box-shadow 0.1s var(--ease-out);
 }
 
 .primary-button,
@@ -501,7 +511,7 @@ button.module-link {
 
 .content-surface {
   min-width: 0;
-  padding: 1rem;
+  padding: var(--space-7) var(--space-6);
 }
 
 /* Today editorial empty-state line */
@@ -545,7 +555,7 @@ button.module-link {
 .page-stack {
   width: min(76rem, 100%);
   display: grid;
-  gap: 1rem;
+  gap: var(--space-6);
   margin: 0 auto;
 }
 

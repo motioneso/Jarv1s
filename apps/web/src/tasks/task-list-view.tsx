@@ -1,4 +1,5 @@
 import { AlertCircle, Calendar, Check, GitCommitHorizontal, PanelRight } from "lucide-react";
+import { useState } from "react";
 
 import {
   groupByPriority,
@@ -160,7 +161,8 @@ export function TaskRow(props: {
   readonly onOpen: (task: TaskDto) => void;
 }) {
   const { task, compact = false } = props;
-  const done = task.status === "done";
+  const [optimisticDone, setOptimisticDone] = useState(task.status === "done");
+  const done = optimisticDone;
   const due = dueInfo(task);
   const tags = compact ? [] : (task.tags ?? []);
   const jarvis = !compact && isJarvisSource(task.source);
@@ -174,7 +176,10 @@ export function TaskRow(props: {
             type="checkbox"
             checked={done}
             disabled={props.isUpdating}
-            onChange={() => props.onToggleDone(task)}
+            onChange={() => {
+              setOptimisticDone(!optimisticDone);
+              props.onToggleDone(task);
+            }}
             aria-label={done ? `Reopen ${task.title}` : `Complete ${task.title}`}
           />
           <span className="jds-check__box">
