@@ -176,7 +176,9 @@ No waivers. Any red required check is stop-the-line unless proven red on `main` 
   `auth-settings` integration suite, `pnpm format:check`, `pnpm lint`, and `pnpm typecheck`. Agent
   reported `pnpm verify:foundation` green with 68 unit files / 413 tests and 54 integration files /
   823 passed / 2 skipped, plus green `pnpm audit:release-hardening`. Agent is in coordinated
-  wrap-up and must rebase onto `origin/main` before opening PR. Independent security-tier QA is
+  wrap-up and rebased cleanly onto `origin/main`. Rebased `pnpm verify:foundation` failed once in
+  unrelated `tests/integration/tasks-tools.test.ts` activity ordering; focused rerun passed, so the
+  agent is rerunning the full gate for clean evidence before PR. Independent security-tier QA is
   required after PR. Security-tier merge requires explicit Ben sign-off.
 - **If local gate is green:** spawn #297 first and #299 infra/settings/scripts if collision scan still shows no overlap. Hold #299 tasks subset until #297 lands. Hold #244 until the lower-risk lanes are done.
 - **If latest CI is red:** pull the exact failing job log and continue systematic debugging. Do not spawn the fleet on red `main`.
