@@ -60,6 +60,9 @@ describe("Tasks module — assistant read tools", () => {
       risk: "write",
       permissionId: "tasks.update"
     });
+    expect(
+      (tool?.inputSchema as { properties?: Record<string, unknown> } | undefined)?.properties
+    ).not.toHaveProperty("idempotencyKey");
     expect(tool?.execute).toBeDefined();
   });
 

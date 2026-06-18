@@ -176,7 +176,7 @@ export const taskUpdateStatusExecute: ToolExecute = async (
 ): Promise<ToolResult> => {
   assertDataContextDb(scopedDb);
 
-  const { taskId, status } = input as { taskId: string; status: unknown; idempotencyKey?: string };
+  const { taskId, status } = input as { taskId: string; status: unknown };
   if (status !== "todo" && status !== "done" && status !== "archived") {
     return { data: { error: "Invalid status" } };
   }
