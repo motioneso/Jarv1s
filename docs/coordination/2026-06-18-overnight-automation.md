@@ -46,6 +46,9 @@
 - Old `Coordinator-RelayOld` pane for Codex session id
   `019edba6-76f5-7d13-9de9-2b5a8b4e5d1f` is closed; `herdr pane list` shows exactly one
   `Coordinator`, session id `019edc14-46cc-7fe3-b383-e33a66cc8e18`.
+- Tab layout corrected after takeover: coordinator session
+  `019edc14-46cc-7fe3-b383-e33a66cc8e18` is alone in tab `Coordinator`; `OwnerBootstrap-260` is
+  alone in tab `Agents`.
 - Coordinator relay permission docs were clarified in `702a0a8`: Codex coordinator successors must
   launch with `codex -s danger-full-access -a never`; Claude coordinator successors use
   `claude --permission-mode bypassPermissions`.
@@ -122,7 +125,7 @@
 | issue body: #299 tasks-only mechanical subset after #297      | #299  | routine   | merged                        | TasksMinors-299-Codex (`019edb87-3696-75b0-a87b-da944a54b02f`) | —    | main @ `e9e6b87`      | #304 |
 | issue body: #299 settings/scripts/jobs mechanical subset      | #299  | routine   | merged                        | InfraMinors-299                                                | —    | main @ `d002958`      | #302 |
 | docs/superpowers/specs/2026-06-15-corrections-log.md          | #244  | sensitive | merged                        | Corrections-244 (`019edbdf-ec6c-7be0-be0a-43081fc9eaa6`)       | —    | main @ `bd43a0f`      | #305 |
-| docs/superpowers/specs/2026-06-18-owner-bootstrap-recovery.md | #260  | security  | planning                      | OwnerBootstrap-260 (`019edc11-4db3-7b23-92c5-cab42aaf0d8a`)    | —    | `owner-bootstrap-260` | —    |
+| docs/superpowers/specs/2026-06-18-owner-bootstrap-recovery.md | #260  | security  | building; plan approved       | OwnerBootstrap-260 (`019edc11-4db3-7b23-92c5-cab42aaf0d8a`)    | —    | `owner-bootstrap-260` | —    |
 
 ## Excluded / Held
 
@@ -167,9 +170,10 @@ No waivers. Any red required check is stop-the-line unless proven red on `main` 
   `Coordinator` lock. The old coordinator was resolved by label plus session id
   `019edba6-76f5-7d13-9de9-2b5a8b4e5d1f`, relabelled `Coordinator-RelayOld`, then closed after the
   lock update was committed and pushed. Do not trust pane numbers.
-- **Next action:** continue #260 coordination. `OwnerBootstrap-260` is live and currently preparing
-  a plan. Review its plan, approve or flag forks, then wait for PR. Independent QA is required after
-  PR. Security-tier merge requires explicit Ben sign-off.
+- **Next action:** continue #260 coordination. `OwnerBootstrap-260` plan was reviewed and approved
+  by coordinator session `019edc14-46cc-7fe3-b383-e33a66cc8e18`; agent is building and running
+  focused tests. Wait for PR. Independent security-tier QA is required after PR. Security-tier merge
+  requires explicit Ben sign-off.
 - **If local gate is green:** spawn #297 first and #299 infra/settings/scripts if collision scan still shows no overlap. Hold #299 tasks subset until #297 lands. Hold #244 until the lower-risk lanes are done.
 - **If latest CI is red:** pull the exact failing job log and continue systematic debugging. Do not spawn the fleet on red `main`.
 - **Untracked files in main worktree:** `docs/superpowers/handoffs/2026-06-18-onboarding-service-testing-webwright.md` and `docs/superpowers/specs/2026-06-15-corrections-log.md` existed before this run; do not sweep them with broad staging.
