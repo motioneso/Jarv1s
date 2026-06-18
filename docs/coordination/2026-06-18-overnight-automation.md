@@ -5,7 +5,7 @@
 **Merge policy:** autonomous-after-verified-QA for `routine`/`sensitive`; `security`-tier needs Ben's explicit merge sign-off.
 **Relay threshold:** security-tier merge → relay immediately after Phase 3 step 7; routine/sensitive `merges_since_relay` >= 2 → relay. Compaction summary = already past safe → relay, merge nothing.
 **Additional context ceiling:** coordinator self-reads `herdr pane read "$HERDR_PANE_ID" --source visible --lines 5` after major events and before every spawn/merge wave. If the visible status line reports >= 500K used, flush this manifest, write the mid-doing continuation note, and relay before more work.
-**merges_since_relay:** 0
+**merges_since_relay:** 1
 
 > This is the coordinator's externalized memory. Keep it current. GitHub is the source of truth for issue/board status; this file holds in-flight operational state.
 
@@ -30,6 +30,9 @@
   `Coordinator`.
 - Old relay coordinator pane was closed after matching label `Coordinator-RelayOld` plus Codex
   session id `019ed994-3159-7961-b750-f5c74c9c5fc3`.
+- PR #303 (#297 recurrence JSONB boundary regression coverage) merged on 2026-06-18 at merge
+  commit `2cbea96`; local gate evidence: `VF297_EXIT=0` with 67 unit files / 409 tests and 54
+  integration files / 817 passed, 2 skipped.
 - Local verification for CI repair:
   - `pnpm vitest run tests/unit/ai-tmux-bridge.test.ts` green.
   - `TZ=UTC pnpm vitest run tests/unit/ai-tmux-bridge.test.ts` green.
@@ -57,16 +60,16 @@
 
 ## Queue
 
-| Spec / contract                                          | Issue | Tier      | Status                         | Agent label         | Pane   | Branch                         | PR   |
-| -------------------------------------------------------- | ----- | --------- | ------------------------------ | ------------------- | ------ | ------------------------------ | ---- |
-| CI repair: timezone-safe Codex transcript date test      | —     | routine   | pushed-to-main; local gate ok  | —                   | —      | main @ `ff0ba95`               | —    |
-| CI repair: isolate onboarding provider-check test        | —     | routine   | pushed-to-main; local gate ok  | —                   | —      | main @ `4eb41fe`               | —    |
-| Relay manifest flush                                     | —     | routine   | pushed-to-main; local gate ok  | —                   | —      | main @ `4eaf647`               | —    |
-| CI repair: Approve/Reject e2e label                      | —     | routine   | pushed; local gate ok          | —                   | —      | main @ `d8aa546`               | —    |
-| issue body: validate recurrence JSONB boundary           | #297  | routine   | PR open; QA running            | TasksRecurrence-297 | w1:p11 | overnight-297-recurrence-jsonb | #303 |
-| issue body: #299 tasks-only mechanical subset after #297 | #299  | routine   | queued                         | TasksMinors-299     | —      | overnight-299-tasks-minors     | —    |
-| issue body: #299 settings/scripts/jobs mechanical subset | #299  | routine   | QA green; held for merge order | InfraMinors-299     | w1:p12 | overnight-299-infra-minors     | #302 |
-| docs/superpowers/specs/2026-06-15-corrections-log.md     | #244  | sensitive | queued after lower-risk lanes  | Corrections-244     | —      | overnight-244-corrections-log  | —    |
+| Spec / contract                                          | Issue | Tier      | Status                         | Agent label         | Pane   | Branch                        | PR   |
+| -------------------------------------------------------- | ----- | --------- | ------------------------------ | ------------------- | ------ | ----------------------------- | ---- |
+| CI repair: timezone-safe Codex transcript date test      | —     | routine   | pushed-to-main; local gate ok  | —                   | —      | main @ `ff0ba95`              | —    |
+| CI repair: isolate onboarding provider-check test        | —     | routine   | pushed-to-main; local gate ok  | —                   | —      | main @ `4eb41fe`              | —    |
+| Relay manifest flush                                     | —     | routine   | pushed-to-main; local gate ok  | —                   | —      | main @ `4eaf647`              | —    |
+| CI repair: Approve/Reject e2e label                      | —     | routine   | pushed; local gate ok          | —                   | —      | main @ `d8aa546`              | —    |
+| issue body: validate recurrence JSONB boundary           | #297  | routine   | merged                         | TasksRecurrence-297 | —      | main @ `2cbea96`              | #303 |
+| issue body: #299 tasks-only mechanical subset after #297 | #299  | routine   | queued                         | TasksMinors-299     | —      | overnight-299-tasks-minors    | —    |
+| issue body: #299 settings/scripts/jobs mechanical subset | #299  | routine   | QA green; held for merge order | InfraMinors-299     | w1:p12 | overnight-299-infra-minors    | #302 |
+| docs/superpowers/specs/2026-06-15-corrections-log.md     | #244  | sensitive | queued after lower-risk lanes  | Corrections-244     | —      | overnight-244-corrections-log | —    |
 
 ## Excluded / Held
 
