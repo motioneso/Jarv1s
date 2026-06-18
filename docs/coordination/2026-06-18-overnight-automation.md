@@ -1,7 +1,7 @@
 # Coordination Run — 2026-06-18-overnight-automation
 
 **Date:** 2026-06-18
-**Coordinator lock:** label `Coordinator`, **stable anchor = Codex session id `019ed994-3159-7961-b750-f5c74c9c5fc3`** (match `agent_session.value` in `herdr pane list`). Single-coordinator lock — exactly one pane labelled `Coordinator` whose session id matches this anchor holds authority for the life of the run. Pane numbers (`w…-N`) reflow on every restart/split/reap; do not trust any pane number written in this file as an identifier. Agents escalate to the label; the coordinator merges only when its own pane's session id matches this recorded anchor.
+**Coordinator lock:** label `Coordinator`, **stable anchor = Codex session id `019edb62-d2f6-77c0-b451-f8dae62ea049`** (match `agent_session.value` in `herdr pane list`). Single-coordinator lock — exactly one pane labelled `Coordinator` whose session id matches this anchor holds authority for the life of the run. Pane numbers (`w…-N`) reflow on every restart/split/reap; do not trust any pane number written in this file as an identifier. Agents escalate to the label; the coordinator merges only when its own pane's session id matches this recorded anchor.
 **Merge policy:** autonomous-after-verified-QA for `routine`/`sensitive`; `security`-tier needs Ben's explicit merge sign-off.
 **Relay threshold:** security-tier merge → relay immediately after Phase 3 step 7; routine/sensitive `merges_since_relay` >= 2 → relay. Compaction summary = already past safe → relay, merge nothing.
 **Additional context ceiling:** coordinator self-reads `herdr pane read "$HERDR_PANE_ID" --source visible --lines 5` after major events and before every spawn/merge wave. If the visible status line reports >= 500K used, flush this manifest, write the mid-doing continuation note, and relay before more work.
@@ -25,6 +25,11 @@
   recent account payments have failed or your spending limit needs to be increased. Please check the
   'Billing & plans' section in your settings".
 - Ben approved using the local CI-equivalent gate while GitHub Actions is disabled.
+- Successor coordinator claimed the lock on 2026-06-18 with Codex session id
+  `019edb62-d2f6-77c0-b451-f8dae62ea049`; `herdr pane list` showed exactly one pane labelled
+  `Coordinator`.
+- Old relay coordinator pane was closed after matching label `Coordinator-RelayOld` plus Codex
+  session id `019ed994-3159-7961-b750-f5c74c9c5fc3`.
 - Local verification for CI repair:
   - `pnpm vitest run tests/unit/ai-tmux-bridge.test.ts` green.
   - `TZ=UTC pnpm vitest run tests/unit/ai-tmux-bridge.test.ts` green.
@@ -52,16 +57,16 @@
 
 ## Queue
 
-| Spec / contract                                          | Issue | Tier      | Status                        | Agent label         | Pane | Branch                         | PR  |
-| -------------------------------------------------------- | ----- | --------- | ----------------------------- | ------------------- | ---- | ------------------------------ | --- |
-| CI repair: timezone-safe Codex transcript date test      | —     | routine   | pushed-to-main; local gate ok | —                   | —    | main @ `ff0ba95`               | —   |
-| CI repair: isolate onboarding provider-check test        | —     | routine   | pushed-to-main; local gate ok | —                   | —    | main @ `4eb41fe`               | —   |
-| Relay manifest flush                                     | —     | routine   | pushed-to-main; local gate ok | —                   | —    | main @ `4eaf647`               | —   |
-| CI repair: Approve/Reject e2e label                      | —     | routine   | pushed; local gate ok         | —                   | —    | main @ `d8aa546`               | —   |
-| issue body: validate recurrence JSONB boundary           | #297  | routine   | queued                        | TasksRecurrence-297 | —    | overnight-297-recurrence-jsonb | —   |
-| issue body: #299 tasks-only mechanical subset after #297 | #299  | routine   | queued                        | TasksMinors-299     | —    | overnight-299-tasks-minors     | —   |
-| issue body: #299 settings/scripts/jobs mechanical subset | #299  | routine   | queued                        | InfraMinors-299     | —    | overnight-299-infra-minors     | —   |
-| docs/superpowers/specs/2026-06-15-corrections-log.md     | #244  | sensitive | queued after lower-risk lanes | Corrections-244     | —    | overnight-244-corrections-log  | —   |
+| Spec / contract                                          | Issue | Tier      | Status                        | Agent label         | Pane   | Branch                         | PR  |
+| -------------------------------------------------------- | ----- | --------- | ----------------------------- | ------------------- | ------ | ------------------------------ | --- |
+| CI repair: timezone-safe Codex transcript date test      | —     | routine   | pushed-to-main; local gate ok | —                   | —      | main @ `ff0ba95`               | —   |
+| CI repair: isolate onboarding provider-check test        | —     | routine   | pushed-to-main; local gate ok | —                   | —      | main @ `4eb41fe`               | —   |
+| Relay manifest flush                                     | —     | routine   | pushed-to-main; local gate ok | —                   | —      | main @ `4eaf647`               | —   |
+| CI repair: Approve/Reject e2e label                      | —     | routine   | pushed; local gate ok         | —                   | —      | main @ `d8aa546`               | —   |
+| issue body: validate recurrence JSONB boundary           | #297  | routine   | building                      | TasksRecurrence-297 | w1:p11 | overnight-297-recurrence-jsonb | —   |
+| issue body: #299 tasks-only mechanical subset after #297 | #299  | routine   | queued                        | TasksMinors-299     | —      | overnight-299-tasks-minors     | —   |
+| issue body: #299 settings/scripts/jobs mechanical subset | #299  | routine   | building                      | InfraMinors-299     | w1:p12 | overnight-299-infra-minors     | —   |
+| docs/superpowers/specs/2026-06-15-corrections-log.md     | #244  | sensitive | queued after lower-risk lanes | Corrections-244     | —      | overnight-244-corrections-log  | —   |
 
 ## Excluded / Held
 
