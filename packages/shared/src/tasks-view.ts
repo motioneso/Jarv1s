@@ -2,6 +2,17 @@ import type { TaskDto } from "./tasks-api.js";
 
 export type TaskQuadrant = "do" | "schedule" | "delegate" | "eliminate";
 
+export const TASK_URGENCY_WINDOW_HOURS = 48;
+export const TASK_URGENCY_WINDOW_MS = TASK_URGENCY_WINDOW_HOURS * 60 * 60 * 1000;
+export const TASK_IMPORTANT_PRIORITY_MIN = 4;
+
+export const TASK_QUADRANT_AXES: Record<TaskQuadrant, { important: boolean; urgent: boolean }> = {
+  do: { important: true, urgent: true },
+  schedule: { important: true, urgent: false },
+  delegate: { important: false, urgent: true },
+  eliminate: { important: false, urgent: false }
+};
+
 export interface PriorityLevel {
   readonly value: 1 | 2 | 3 | 4 | 5;
   readonly label: string;
@@ -34,18 +45,17 @@ export const QUADRANTS: readonly QuadrantMeta[] = [
   { key: "eliminate", title: "Later", subtitle: "Neither" }
 ];
 
-/** Mirrors backend serialize.ts getQuadrant: important = priority>=4; urgent = due within 48h (incl. overdue). */
+/** Classifies important × urgent using the shared quadrant matrix. */
 export function quadrantOf(task: TaskDto): TaskQuadrant {
-  const important = task.priority !== null && task.priority >= 4;
+  const important = task.priority !== null && task.priority >= TASK_IMPORTANT_PRIORITY_MIN;
   let urgent = false;
   if (task.dueAt) {
-    const hoursUntilDue = (new Date(task.dueAt).getTime() - Date.now()) / 3_600_000;
-    urgent = hoursUntilDue <= 48;
+    urgent = new Date(task.dueAt).getTime() - Date.now() <= TASK_URGENCY_WINDOW_MS;
   }
-  if (important && urgent) return "do";
-  if (important && !urgent) return "schedule";
-  if (!important && urgent) return "delegate";
-  return "eliminate";
+  const quadrant = (Object.keys(TASK_QUADRANT_AXES) as TaskQuadrant[]).find(
+    (q) => TASK_QUADRANT_AXES[q].important === important && TASK_QUADRANT_AXES[q].urgent === urgent
+  );
+  return quadrant ?? "eliminate";
 }
 
 export interface PriorityGroup {

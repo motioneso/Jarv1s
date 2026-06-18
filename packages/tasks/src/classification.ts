@@ -1,24 +1,25 @@
 import type { Task } from "@jarv1s/db";
-
-export const TASK_URGENCY_WINDOW_HOURS = 48;
-export const TASK_URGENCY_WINDOW_MS = TASK_URGENCY_WINDOW_HOURS * 60 * 60 * 1000;
-export const TASK_IMPORTANT_PRIORITY_MIN = 4;
-
-export type TaskQuadrant = "do" | "schedule" | "delegate" | "eliminate";
+import {
+  TASK_IMPORTANT_PRIORITY_MIN,
+  TASK_QUADRANT_AXES,
+  TASK_URGENCY_WINDOW_MS,
+  type TaskQuadrant
+} from "@jarv1s/shared";
 
 /**
  * The single definition of the Eisenhower quadrants in terms of the two axes
  * (important × urgent). Both the in-memory classifier ({@link classifyTaskQuadrant})
  * and the SQL filter in the repository derive from this matrix and the shared
- * threshold/window constants — change the rule here and both paths follow, so the
- * backend cannot drift from itself (and stays in step with the frontend mirror).
+ * threshold/window constants — change the rule in @jarv1s/shared and both paths
+ * follow, so the backend cannot drift from itself or the frontend.
  */
-export const TASK_QUADRANT_AXES: Record<TaskQuadrant, { important: boolean; urgent: boolean }> = {
-  do: { important: true, urgent: true },
-  schedule: { important: true, urgent: false },
-  delegate: { important: false, urgent: true },
-  eliminate: { important: false, urgent: false }
-};
+export {
+  TASK_IMPORTANT_PRIORITY_MIN,
+  TASK_QUADRANT_AXES,
+  TASK_URGENCY_WINDOW_HOURS,
+  TASK_URGENCY_WINDOW_MS,
+  type TaskQuadrant
+} from "@jarv1s/shared";
 
 export function isTaskImportant(task: Pick<Task, "priority">): boolean {
   return task.priority !== null && task.priority >= TASK_IMPORTANT_PRIORITY_MIN;

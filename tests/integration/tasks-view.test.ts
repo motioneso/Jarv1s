@@ -1,6 +1,14 @@
 import { describe, expect, it } from "vitest";
 
-import { groupByPriority, PRIORITY_LEVELS, quadrantOf, type TaskDto } from "@jarv1s/shared";
+import {
+  groupByPriority,
+  PRIORITY_LEVELS,
+  quadrantOf,
+  TASK_IMPORTANT_PRIORITY_MIN,
+  TASK_QUADRANT_AXES,
+  TASK_URGENCY_WINDOW_HOURS,
+  type TaskDto
+} from "@jarv1s/shared";
 
 function task(partial: Partial<TaskDto>): TaskDto {
   return {
@@ -41,6 +49,17 @@ describe("tasks-view", () => {
     expect(quadrantOf(task({ priority: 2, dueAt: soon }))).toBe("delegate");
     expect(quadrantOf(task({ priority: 1, dueAt: far }))).toBe("eliminate");
     expect(quadrantOf(task({ priority: null, dueAt: null }))).toBe("eliminate");
+  });
+
+  it("exports the quadrant matrix and thresholds used by quadrantOf", () => {
+    expect(TASK_IMPORTANT_PRIORITY_MIN).toBe(4);
+    expect(TASK_URGENCY_WINDOW_HOURS).toBe(48);
+    expect(TASK_QUADRANT_AXES).toEqual({
+      do: { important: true, urgent: true },
+      schedule: { important: true, urgent: false },
+      delegate: { important: false, urgent: true },
+      eliminate: { important: false, urgent: false }
+    });
   });
 
   it("groupByPriority returns 5..1 then null, each sorted by due then title", () => {
