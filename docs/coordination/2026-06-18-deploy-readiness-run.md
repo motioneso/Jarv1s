@@ -41,6 +41,12 @@
 | `docs/superpowers/specs/2026-06-18-connector-health-monitoring.md`                  | #254  | sensitive | queued: held for green main             | —           | —    | —      | —   |
 | `docs/superpowers/specs/2026-06-18-phase-2-deploy-checkpoint-final-gate.md`         | #306  | manual    | blocked: final gate after prerequisites | —           | —    | —      | —   |
 
+## Gate Fix Lane
+
+| Scope                                     | Tier    | Status   | Agent label       | Pane   | Branch             | PR  |
+| ----------------------------------------- | ------- | -------- | ----------------- | ------ | ------------------ | --- |
+| briefing integration timeout baseline fix | routine | building | GateFix-Briefings | w1:p1M | gate-fix-briefings | —   |
+
 ## Dependency / Merge Order
 
 - **Hard blockers before deploy feature spawn:** green integrated gate; briefing timeout fix.
