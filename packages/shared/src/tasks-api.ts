@@ -5,6 +5,14 @@ export const TASK_EFFORTS = ["quick", "medium", "large"] as const;
 
 export type TaskApiStatus = (typeof TASK_STATUSES)[number];
 export type TaskEffort = (typeof TASK_EFFORTS)[number];
+export const RECURRENCE_FREQUENCIES = ["daily", "weekly", "monthly"] as const;
+export type RecurrenceFrequencyDto = (typeof RECURRENCE_FREQUENCIES)[number];
+
+export interface RecurrenceSpecDto {
+  readonly freq: RecurrenceFrequencyDto;
+  readonly interval: number;
+  readonly occurrence_date: string;
+}
 
 export interface TaskTagDto {
   readonly id: string;
@@ -58,7 +66,7 @@ export interface CreateTaskRequest {
   readonly doAt?: string | null;
   readonly effort?: TaskEffort | null;
   readonly parentTaskId?: string | null;
-  readonly recurrence?: Record<string, unknown> | null;
+  readonly recurrence?: RecurrenceSpecDto | null;
 }
 
 export interface CreateTaskResponse {
@@ -79,7 +87,7 @@ export interface UpdateTaskRequest {
   readonly doAt?: string | null;
   readonly effort?: TaskEffort | null;
   readonly parentTaskId?: string | null;
-  readonly recurrence?: Record<string, unknown> | null;
+  readonly recurrence?: RecurrenceSpecDto | null;
 }
 
 export interface UpdateTaskResponse {
@@ -122,6 +130,17 @@ const nullableNumberSchema = {
 export const taskStatusSchema = {
   type: "string",
   enum: TASK_STATUSES
+} as const;
+
+export const recurrenceSpecDtoSchema = {
+  type: "object",
+  additionalProperties: false,
+  required: ["freq", "interval", "occurrence_date"],
+  properties: {
+    freq: { type: "string", enum: RECURRENCE_FREQUENCIES },
+    interval: { type: "integer", minimum: 1 },
+    occurrence_date: { type: "string", pattern: "^\\d{4}-\\d{2}-\\d{2}$" }
+  }
 } as const;
 
 export const taskParamsSchema = {
@@ -267,7 +286,7 @@ export const createTaskRequestSchema = {
     effort: nullableEffortSchema,
     parentTaskId: nullableStringSchema,
     recurrence: {
-      anyOf: [{ type: "object", additionalProperties: true }, { type: "null" }]
+      anyOf: [recurrenceSpecDtoSchema, { type: "null" }]
     }
   }
 } as const;
@@ -298,7 +317,7 @@ export const updateTaskRequestSchema = {
     effort: nullableEffortSchema,
     parentTaskId: nullableStringSchema,
     recurrence: {
-      anyOf: [{ type: "object", additionalProperties: true }, { type: "null" }]
+      anyOf: [recurrenceSpecDtoSchema, { type: "null" }]
     }
   }
 } as const;
