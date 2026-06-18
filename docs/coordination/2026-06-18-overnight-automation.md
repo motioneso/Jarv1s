@@ -65,6 +65,15 @@
   passed, 2 skipped. QA subagent `019edbfa-10b6-7460-81a9-44f7abe98e1f` posted GREEN verdict with
   0 findings. Issue #244 is closed and project status is Done. Local branch/worktree and build pane
   were reaped.
+- Ben approved proceeding on #260 with the simplified first-owner recovery rule: if no
+  bootstrap owner exists, the signup gets first-run onboarding and becomes owner/admin without the
+  pending approval gate; once an owner exists, normal approval behavior applies.
+- #260 spec/handoff committed in `2a1ac6e`: `docs/superpowers/specs/2026-06-18-owner-bootstrap-recovery.md`
+  and `docs/superpowers/handoffs/2026-06-18-owner-bootstrap-recovery-260.md`.
+- #260 build agent `OwnerBootstrap-260` spawned in worktree
+  `/home/ben/Jarv1s/.claude/worktrees/owner-bootstrap-260`, branch `owner-bootstrap-260`, Codex
+  session id `019edc11-4db3-7b23-92c5-cab42aaf0d8a`. Agent is instructed to plan first and
+  escalate to `Coordinator` before coding. #260 project item is `In progress`.
 - Local verification for CI repair:
   - `pnpm vitest run tests/unit/ai-tmux-bridge.test.ts` green.
   - `TZ=UTC pnpm vitest run tests/unit/ai-tmux-bridge.test.ts` green.
@@ -89,24 +98,30 @@
 - The first manifest push failed CI because the Markdown table was not Prettier-formatted; fixed by formatting-only commit `0b39d7f`.
 - No agents spawn while `main` is red or while the repair run is still pending.
 - Overnight scope stays inside the approved queue: #297, #299 mechanical/minor subsets, then #244. Security/design-question issues are excluded from unattended merge.
+- #260 scope is security-tier but approved for build after Ben clarified the product decision. Merge
+  still requires explicit Ben sign-off.
+- #299 provider-model direction is clarified but still needs a dedicated provider-model spec before
+  provider-list/API privacy work. Mechanical AI/memory cleanup can be split separately.
 
 ## Queue
 
-| Spec / contract                                          | Issue | Tier      | Status                        | Agent label                                                    | Pane | Branch           | PR   |
-| -------------------------------------------------------- | ----- | --------- | ----------------------------- | -------------------------------------------------------------- | ---- | ---------------- | ---- |
-| CI repair: timezone-safe Codex transcript date test      | —     | routine   | pushed-to-main; local gate ok | —                                                              | —    | main @ `ff0ba95` | —    |
-| CI repair: isolate onboarding provider-check test        | —     | routine   | pushed-to-main; local gate ok | —                                                              | —    | main @ `4eb41fe` | —    |
-| Relay manifest flush                                     | —     | routine   | pushed-to-main; local gate ok | —                                                              | —    | main @ `4eaf647` | —    |
-| CI repair: Approve/Reject e2e label                      | —     | routine   | pushed; local gate ok         | —                                                              | —    | main @ `d8aa546` | —    |
-| issue body: validate recurrence JSONB boundary           | #297  | routine   | merged                        | TasksRecurrence-297                                            | —    | main @ `2cbea96` | #303 |
-| issue body: #299 tasks-only mechanical subset after #297 | #299  | routine   | merged                        | TasksMinors-299-Codex (`019edb87-3696-75b0-a87b-da944a54b02f`) | —    | main @ `e9e6b87` | #304 |
-| issue body: #299 settings/scripts/jobs mechanical subset | #299  | routine   | merged                        | InfraMinors-299                                                | —    | main @ `d002958` | #302 |
-| docs/superpowers/specs/2026-06-15-corrections-log.md     | #244  | sensitive | merged                        | Corrections-244 (`019edbdf-ec6c-7be0-be0a-43081fc9eaa6`)       | —    | main @ `bd43a0f` | #305 |
+| Spec / contract                                               | Issue | Tier      | Status                        | Agent label                                                    | Pane | Branch                | PR   |
+| ------------------------------------------------------------- | ----- | --------- | ----------------------------- | -------------------------------------------------------------- | ---- | --------------------- | ---- |
+| CI repair: timezone-safe Codex transcript date test           | —     | routine   | pushed-to-main; local gate ok | —                                                              | —    | main @ `ff0ba95`      | —    |
+| CI repair: isolate onboarding provider-check test             | —     | routine   | pushed-to-main; local gate ok | —                                                              | —    | main @ `4eb41fe`      | —    |
+| Relay manifest flush                                          | —     | routine   | pushed-to-main; local gate ok | —                                                              | —    | main @ `4eaf647`      | —    |
+| CI repair: Approve/Reject e2e label                           | —     | routine   | pushed; local gate ok         | —                                                              | —    | main @ `d8aa546`      | —    |
+| issue body: validate recurrence JSONB boundary                | #297  | routine   | merged                        | TasksRecurrence-297                                            | —    | main @ `2cbea96`      | #303 |
+| issue body: #299 tasks-only mechanical subset after #297      | #299  | routine   | merged                        | TasksMinors-299-Codex (`019edb87-3696-75b0-a87b-da944a54b02f`) | —    | main @ `e9e6b87`      | #304 |
+| issue body: #299 settings/scripts/jobs mechanical subset      | #299  | routine   | merged                        | InfraMinors-299                                                | —    | main @ `d002958`      | #302 |
+| docs/superpowers/specs/2026-06-15-corrections-log.md          | #244  | sensitive | merged                        | Corrections-244 (`019edbdf-ec6c-7be0-be0a-43081fc9eaa6`)       | —    | main @ `bd43a0f`      | #305 |
+| docs/superpowers/specs/2026-06-18-owner-bootstrap-recovery.md | #260  | security  | planning                      | OwnerBootstrap-260 (`019edc11-4db3-7b23-92c5-cab42aaf0d8a`)    | —    | `owner-bootstrap-260` | —    |
 
 ## Excluded / Held
 
-- #299 design question about AI provider list route vs RLS widening: held for Ben/product-security decision.
-- #260 owner/admin bootstrap: auth/admin surface plus unresolved policy choice; security-tier/design input.
+- #299 provider-model/provider-list work: Ben clarified direction; hold implementation until a
+  dedicated provider-model spec session captures supported providers, admin-owned provider
+  semantics, safe user visibility, and user override behavior.
 - #238, #239, #237, #251, #252, #253: sessions/export/delete/auth/credentials/admin surfaces; not unattended.
 - #218 chat session resumption: actionable but too broad for this cleanup batch without a tighter approved spec/handoff.
 
@@ -117,6 +132,9 @@
 - Serialized tasks chain: #297 → #299 tasks subset. Reason: both touch tasks recurrence/contracts; #297 owns the recurrence JSONB boundary first.
 - Final sensitive lane: #244 after lower-risk lanes. Reason: migration/shared memory lifecycle work; depends on #243 shared suppression store already landed as `0092`.
 - Merge order: CI repair already on main → #297 → #299 tasks subset → #299 infra/settings/scripts subset → #244.
+- Current active lane after Ben follow-up: #260 owner bootstrap recovery. Next coordinator action is
+  to review/approve the `OwnerBootstrap-260` plan when it escalates. Because #260 is security-tier,
+  do not merge without explicit Ben sign-off after independent QA.
 
 ## CI Waivers
 
@@ -137,11 +155,15 @@ No waivers. Any red required check is stop-the-line unless proven red on `main` 
   Relay before merge per the manifest ceiling. This relay resets `merges_since_relay` to 0.
 - **Relay reason 3:** coordinator merged two routine PRs (#304 and #302), so
   `merges_since_relay` reached 2. Relay immediately before any #244 work.
-- **Next action:** active coordinator session `019edba6-76f5-7d13-9de9-2b5a8b4e5d1f` should close
-  old `Coordinator-RelayOld` session `019edba0-be98-7f90-99b0-64d7802f4ca3`, then decide the next
-  lower-risk-complete step for #244. #244 was held until #304/#302 completed; those lower-risk
-  lanes are now merged. This is complete; #244 merged via PR #305. Next action is final report and
-  wrap-up because approved overnight queue is dry.
+- **Relay reason 4:** Ben requested coordinator relay after #260 was spawned and began planning.
+  Active coordinator session `019edba6-76f5-7d13-9de9-2b5a8b4e5d1f` should hand off to a successor
+  coordinator. The successor must read this file in full, invoke/use `coordinate`, confirm its own
+  Codex session id from `herdr pane list`, update the Coordinator lock to its own session id, then
+  resolve and close the old coordinator by label `Coordinator` plus session id
+  `019edba6-76f5-7d13-9de9-2b5a8b4e5d1f` after confirming it is driving. Do not trust pane numbers.
+- **Next action:** continue #260 coordination. `OwnerBootstrap-260` is live and currently preparing
+  a plan. Review its plan, approve or flag forks, then wait for PR. Independent QA is required after
+  PR. Security-tier merge requires explicit Ben sign-off.
 - **If local gate is green:** spawn #297 first and #299 infra/settings/scripts if collision scan still shows no overlap. Hold #299 tasks subset until #297 lands. Hold #244 until the lower-risk lanes are done.
 - **If latest CI is red:** pull the exact failing job log and continue systematic debugging. Do not spawn the fleet on red `main`.
 - **Untracked files in main worktree:** `docs/superpowers/handoffs/2026-06-18-onboarding-service-testing-webwright.md` and `docs/superpowers/specs/2026-06-15-corrections-log.md` existed before this run; do not sweep them with broad staging.
