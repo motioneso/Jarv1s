@@ -80,9 +80,9 @@ herdr pane read <their_pane_id> --source recent --lines 30
 | List panes (JSON: pane_id, label, agent, status) | `herdr pane list`                                                                  |
 | Get one pane                                     | `herdr pane get <pane_id>`                                                         |
 | List / get agents                                | `herdr agent list` · `herdr agent get <label>`                                     |
-| Send by pane + Enter (preferred)                 | `herdr pane run <pane_id> "<text>"`                                                |
-| Send by label (no Enter — needs step 3)          | `herdr agent send "<label>" "<text>"`                                              |
-| Literal text, no Enter                           | `herdr pane send-text <pane_id> "<text>"`                                          |
+| Send by pane + Enter (preferred/default)         | `herdr pane run <pane_id> "<text>"`                                                |
+| Send by label (no Enter — fallback only)         | `herdr agent send "<label>" "<text>"`                                              |
+| Literal text, no Enter (fallback only)           | `herdr pane send-text <pane_id> "<text>"`                                          |
 | Submit / send a key                              | `herdr pane send-keys <pane_id> Enter`                                             |
 | Read output                                      | `herdr pane read <pane_id> --source visible\|recent\|recent-unwrapped [--lines N]` |
 | Rename a pane label                              | `herdr pane rename <pane_id> "<label>"`                                            |
