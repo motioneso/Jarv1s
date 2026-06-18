@@ -610,7 +610,10 @@ describe("Tasks module M1", () => {
           status: "todo",
           position: 0,
           source: "recurrence",
-          recurrence: { freq: "weekly-ish", interval: "soon" } as unknown as Record<string, unknown>,
+          recurrence: { freq: "weekly-ish", interval: "soon" } as unknown as Record<
+            string,
+            unknown
+          >,
           recurrence_series_id: seriesId
         })
         .execute()

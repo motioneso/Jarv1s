@@ -180,7 +180,9 @@ describe("parseRecurrenceSpec — malformed persisted shapes return null", () =>
     expect(
       parseRecurrenceSpec({ freq: "yearly", interval: 1, occurrence_date: "2026-06-08" })
     ).toBeNull();
-    expect(parseRecurrenceSpec({ freq: "", interval: 1, occurrence_date: "2026-06-08" })).toBeNull();
+    expect(
+      parseRecurrenceSpec({ freq: "", interval: 1, occurrence_date: "2026-06-08" })
+    ).toBeNull();
   });
 
   it("rejects non-positive, non-integer, or non-numeric interval", () => {
@@ -200,8 +202,12 @@ describe("parseRecurrenceSpec — malformed persisted shapes return null", () =>
 
   it("rejects a missing, mistyped, or malformed occurrence_date", () => {
     expect(parseRecurrenceSpec({ freq: "daily", interval: 1 })).toBeNull();
-    expect(parseRecurrenceSpec({ freq: "daily", interval: 1, occurrence_date: 20260608 })).toBeNull();
-    expect(parseRecurrenceSpec({ freq: "daily", interval: 1, occurrence_date: "2026-6-8" })).toBeNull();
+    expect(
+      parseRecurrenceSpec({ freq: "daily", interval: 1, occurrence_date: 20260608 })
+    ).toBeNull();
+    expect(
+      parseRecurrenceSpec({ freq: "daily", interval: 1, occurrence_date: "2026-6-8" })
+    ).toBeNull();
     expect(
       parseRecurrenceSpec({ freq: "daily", interval: 1, occurrence_date: "2026-13-01" })
     ).toBeNull();

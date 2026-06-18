@@ -4,7 +4,7 @@
 
 **Goal:** Lock in safe runtime validation at the persisted recurrence JSONB boundary with focused regression tests for valid and malformed persisted shapes.
 
-**Architecture:** The unsafe `as unknown as RecurrenceSpec` double-cast that issue #297 targets was **already removed** in commit `e197216` (#273 overnight batch) and replaced with a runtime guard, `parseRecurrenceSpec(value: unknown): RecurrenceSpec | null`, used at all three boundaries: route input (`optionalRecurrence`), `generateNext`, and `rollForwardRecurringSeries`. The genuine residual is **test coverage**: the guard itself has no direct unit test, and there is no test proving a malformed *persisted* row is handled as a safe no-op. This plan adds those tests; no production code change is required.
+**Architecture:** The unsafe `as unknown as RecurrenceSpec` double-cast that issue #297 targets was **already removed** in commit `e197216` (#273 overnight batch) and replaced with a runtime guard, `parseRecurrenceSpec(value: unknown): RecurrenceSpec | null`, used at all three boundaries: route input (`optionalRecurrence`), `generateNext`, and `rollForwardRecurringSeries`. The genuine residual is **test coverage**: the guard itself has no direct unit test, and there is no test proving a malformed _persisted_ row is handled as a safe no-op. This plan adds those tests; no production code change is required.
 
 **Tech Stack:** TypeScript, Vitest, Kysely, Postgres (integration via `pnpm db:up`), `@jarv1s/tasks`.
 
@@ -21,10 +21,12 @@
 ### Task 1: Direct unit tests for `parseRecurrenceSpec` — valid shapes
 
 **Files:**
+
 - Modify: `tests/unit/tasks-recurrence-rollforward.test.ts` (add `parseRecurrenceSpec` to the existing `@jarv1s/tasks` import; append a new `describe` block)
 - Test: same file
 
 **Interfaces:**
+
 - Consumes: `parseRecurrenceSpec` from `@jarv1s/tasks` (exported via `recurrence.js` → `index.ts`). Signature: `parseRecurrenceSpec(value: unknown): RecurrenceSpec | null`. `RecurrenceSpec = { freq: "daily" | "weekly" | "monthly"; interval: number; occurrence_date: string }`.
 - Produces: nothing consumed by later tasks.
 
@@ -50,9 +52,9 @@ Append at the end of the file:
 ```ts
 describe("parseRecurrenceSpec — valid persisted shapes", () => {
   it("accepts a daily spec and returns a normalized object", () => {
-    expect(parseRecurrenceSpec({ freq: "daily", interval: 1, occurrence_date: "2026-06-08" })).toEqual(
-      { freq: "daily", interval: 1, occurrence_date: "2026-06-08" }
-    );
+    expect(
+      parseRecurrenceSpec({ freq: "daily", interval: 1, occurrence_date: "2026-06-08" })
+    ).toEqual({ freq: "daily", interval: 1, occurrence_date: "2026-06-08" });
   });
 
   it("accepts weekly and monthly freqs", () => {
@@ -95,10 +97,12 @@ git commit -m "test(tasks): cover parseRecurrenceSpec valid persisted shapes (#2
 ### Task 2: Unit tests for `parseRecurrenceSpec` — malformed shapes return null
 
 **Files:**
+
 - Modify: `tests/unit/tasks-recurrence-rollforward.test.ts` (append a second `describe` block)
 - Test: same file
 
 **Interfaces:**
+
 - Consumes: `parseRecurrenceSpec` (imported in Task 1).
 - Produces: nothing.
 
@@ -127,19 +131,37 @@ describe("parseRecurrenceSpec — malformed persisted shapes return null", () =>
   });
 
   it("rejects non-positive, non-integer, or non-numeric interval", () => {
-    expect(parseRecurrenceSpec({ freq: "daily", interval: 0, occurrence_date: "2026-06-08" })).toBeNull();
-    expect(parseRecurrenceSpec({ freq: "daily", interval: -1, occurrence_date: "2026-06-08" })).toBeNull();
-    expect(parseRecurrenceSpec({ freq: "daily", interval: 1.5, occurrence_date: "2026-06-08" })).toBeNull();
-    expect(parseRecurrenceSpec({ freq: "daily", interval: "1", occurrence_date: "2026-06-08" })).toBeNull();
+    expect(
+      parseRecurrenceSpec({ freq: "daily", interval: 0, occurrence_date: "2026-06-08" })
+    ).toBeNull();
+    expect(
+      parseRecurrenceSpec({ freq: "daily", interval: -1, occurrence_date: "2026-06-08" })
+    ).toBeNull();
+    expect(
+      parseRecurrenceSpec({ freq: "daily", interval: 1.5, occurrence_date: "2026-06-08" })
+    ).toBeNull();
+    expect(
+      parseRecurrenceSpec({ freq: "daily", interval: "1", occurrence_date: "2026-06-08" })
+    ).toBeNull();
   });
 
   it("rejects a missing, mistyped, or malformed occurrence_date", () => {
     expect(parseRecurrenceSpec({ freq: "daily", interval: 1 })).toBeNull();
-    expect(parseRecurrenceSpec({ freq: "daily", interval: 1, occurrence_date: 20260608 })).toBeNull();
-    expect(parseRecurrenceSpec({ freq: "daily", interval: 1, occurrence_date: "2026-6-8" })).toBeNull();
-    expect(parseRecurrenceSpec({ freq: "daily", interval: 1, occurrence_date: "2026-13-01" })).toBeNull();
-    expect(parseRecurrenceSpec({ freq: "daily", interval: 1, occurrence_date: "2026-02-30" })).toBeNull();
-    expect(parseRecurrenceSpec({ freq: "daily", interval: 1, occurrence_date: "not-a-date" })).toBeNull();
+    expect(
+      parseRecurrenceSpec({ freq: "daily", interval: 1, occurrence_date: 20260608 })
+    ).toBeNull();
+    expect(
+      parseRecurrenceSpec({ freq: "daily", interval: 1, occurrence_date: "2026-6-8" })
+    ).toBeNull();
+    expect(
+      parseRecurrenceSpec({ freq: "daily", interval: 1, occurrence_date: "2026-13-01" })
+    ).toBeNull();
+    expect(
+      parseRecurrenceSpec({ freq: "daily", interval: 1, occurrence_date: "2026-02-30" })
+    ).toBeNull();
+    expect(
+      parseRecurrenceSpec({ freq: "daily", interval: 1, occurrence_date: "not-a-date" })
+    ).toBeNull();
   });
 });
 ```
@@ -163,10 +185,12 @@ git commit -m "test(tasks): cover parseRecurrenceSpec malformed persisted shapes
 ### Task 3: Integration test — malformed persisted recurrence is a safe no-op at the read boundary
 
 **Files:**
+
 - Modify: `tests/integration/tasks.test.ts` (add one `it` inside the existing recurrence-related `describe`; reuse existing helpers `dataContext`, `userAContext`, `repository`, `rollForwardRecurringSeries`, `sql`, `randomUUID`)
 - Test: same file
 
 **Interfaces:**
+
 - Consumes: `rollForwardRecurringSeries(db: DataContextDb, seriesId: string, today?: string): Promise<boolean>` and `generateNext(db, task): Promise<Task | null>` from `@jarv1s/tasks`; existing suite fixtures.
 - Produces: nothing.
 
@@ -216,7 +240,11 @@ it("treats a malformed persisted recurrence JSONB as a safe no-op (read boundary
 
   // generateNext on the same malformed row must not throw and must return null (no new instance).
   const malformedRow = await dataContext.withDataContext(userAContext(), (db) =>
-    db.db.selectFrom("app.tasks").selectAll().where("id", "=", malformedId).executeTakeFirstOrThrow()
+    db.db
+      .selectFrom("app.tasks")
+      .selectAll()
+      .where("id", "=", malformedId)
+      .executeTakeFirstOrThrow()
   );
   const generated = await dataContext.withDataContext(userAContext(), (db) =>
     generateNext(db, malformedRow)
@@ -225,7 +253,11 @@ it("treats a malformed persisted recurrence JSONB as a safe no-op (read boundary
 
   // The malformed row is untouched — not corrupted, not advanced, still todo.
   const after = await dataContext.withDataContext(userAContext(), (db) =>
-    db.db.selectFrom("app.tasks").selectAll().where("id", "=", malformedId).executeTakeFirstOrThrow()
+    db.db
+      .selectFrom("app.tasks")
+      .selectAll()
+      .where("id", "=", malformedId)
+      .executeTakeFirstOrThrow()
   );
   expect(after.status).toBe("todo");
   expect(after.recurrence).toEqual({ freq: "weekly-ish", interval: "soon" });
@@ -264,6 +296,7 @@ pnpm db:up
 vitest run tests/unit/tasks-recurrence-rollforward.test.ts
 vitest run tests/integration/tasks.test.ts
 ```
+
 Expected: all green.
 
 - [ ] **Step 3: Hand off to `coordinated-wrap-up`** (open PR, report PR + evidence to `Coordinator`). Do not touch board/milestone/merge.
@@ -273,9 +306,10 @@ Expected: all green.
 ## Self-Review
 
 **1. Spec coverage (#297):**
+
 - "Parse and validate recurrence JSONB into RecurrenceSpec once at the boundary with a small guard" → already satisfied by `parseRecurrenceSpec` (#273); Tasks 1–2 lock it with direct tests.
 - "Remove the unsafe double-cast" → already removed in `e197216`; verified absent from the tree. Documented in Architecture so the coordinator/reviewer sees the scope reduction.
-- "Add focused tests covering valid recurrence specs and malformed persisted shapes" → Tasks 1 (valid), 2 (malformed inputs to the guard), 3 (malformed *persisted* shape end-to-end).
+- "Add focused tests covering valid recurrence specs and malformed persisted shapes" → Tasks 1 (valid), 2 (malformed inputs to the guard), 3 (malformed _persisted_ shape end-to-end).
 - "Preserve existing recurrence scheduling semantics for valid rows" → no production change; existing valid-row tests untouched.
 - "Avoid migrations unless relevance proves necessary" → relevance check done: column already `jsonb`; no migration.
 
