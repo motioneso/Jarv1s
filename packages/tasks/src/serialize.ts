@@ -7,25 +7,11 @@ import type {
   TaskTagDto
 } from "@jarv1s/shared";
 
-import { classifyTaskQuadrant, type TaskQuadrant } from "./classification.js";
-
 export function serializeDate(value: Date | string | null): string | null {
   if (value === null) {
     return null;
   }
   return value instanceof Date ? value.toISOString() : value;
-}
-
-export function getQuadrant(task: Task, now: Date = new Date()): TaskQuadrant {
-  return classifyTaskQuadrant(task, now);
-}
-
-export function filterByQuadrant(
-  tasks: Task[],
-  quadrant: TaskQuadrant,
-  now: Date = new Date()
-): Task[] {
-  return tasks.filter((t) => getQuadrant(t, now) === quadrant);
 }
 
 export function serializeTaskList(list: TaskList): TaskListDto {

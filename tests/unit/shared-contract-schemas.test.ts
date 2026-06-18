@@ -86,6 +86,41 @@ describe("tasks request schemas strip unknown body keys (additionalProperties: f
     const { status } = await parseBody(createTaskRequestSchema, {});
     expect(status).toBe(400);
   });
+
+  it("createTaskRequestSchema accepts normalized recurrence and strips nested unknown keys", async () => {
+    const { status, body } = await parseBody(createTaskRequestSchema, {
+      title: "T",
+      recurrence: {
+        freq: "weekly",
+        interval: 1,
+        occurrence_date: "2026-06-08",
+        extra: "drop-me"
+      }
+    });
+
+    expect(status).toBe(200);
+    expect(body?.recurrence).toEqual({
+      freq: "weekly",
+      interval: 1,
+      occurrence_date: "2026-06-08"
+    });
+  });
+
+  it("updateTaskRequestSchema rejects malformed recurrence DTOs", async () => {
+    const missingOccurrence = await parseBody(updateTaskRequestSchema, {
+      recurrence: { freq: "weekly", interval: 1 }
+    });
+    const badFreq = await parseBody(updateTaskRequestSchema, {
+      recurrence: { freq: "yearly", interval: 1, occurrence_date: "2026-06-08" }
+    });
+    const badInterval = await parseBody(updateTaskRequestSchema, {
+      recurrence: { freq: "weekly", interval: 0, occurrence_date: "2026-06-08" }
+    });
+
+    expect(missingOccurrence.status).toBe(400);
+    expect(badFreq.status).toBe(400);
+    expect(badInterval.status).toBe(400);
+  });
 });
 
 describe("tasks params schemas are closed (additionalProperties: false)", () => {
