@@ -82,7 +82,6 @@ export interface PatchMeProfileRequest {
 }
 
 export type MeSessionDeviceKind = "laptop" | "desktop" | "phone" | "tablet";
-
 /**
  * Safe metadata for one of the current user's active sessions. NEVER carries the
  * session token, cookie value, bearer secret, or any token fingerprint (#237).
