@@ -187,6 +187,54 @@ describe("AssistantToolGateway", () => {
     expect(emitted.map((entry) => entry.record.kind)).toEqual(["action_request", "action_result"]);
   });
 
+  it("runs a write:auto tool immediately without an action_request", async () => {
+    const token = tokens.mint({
+      actorUserId: ids.userA,
+      chatSessionId: "s-auto-write",
+      allowedToolNames: null
+    });
+
+    const res = await gateway.callTool(token, "example.autoWrite", { value: "quiet" });
+
+    expect(res.ok).toBe(true);
+    expect(exampleToolCalls).toEqual([
+      { name: "example.autoWrite", input: { value: "quiet" }, actorUserId: ids.userA }
+    ]);
+    expect(emitted).toHaveLength(0);
+  });
+
+  it("always confirms destructive tools even if executionPolicy is auto", async () => {
+    const destructiveAutoModule = {
+      ...exampleToolModule,
+      assistantTools: exampleToolModule.assistantTools?.map((tool) =>
+        tool.name === "example.destroy" ? { ...tool, executionPolicy: "auto" as const } : tool
+      )
+    };
+    const destructiveGateway = new AssistantToolGateway({
+      resolveActiveModules: async () => [destructiveAutoModule],
+      repository,
+      runner,
+      tokens,
+      confirmations,
+      notifier: { emit: (chatSessionId, record) => emitted.push({ chatSessionId, record }) },
+      confirmTimeoutMs: 30_000
+    });
+    const token = tokens.mint({
+      actorUserId: ids.userA,
+      chatSessionId: "s-destructive-auto",
+      allowedToolNames: null
+    });
+
+    const call = destructiveGateway.callTool(token, "example.destroy", { value: "boom" });
+    await tick();
+
+    const request = firstActionRequest();
+    expect(request.toolName).toBe("example.destroy");
+    expect(exampleToolCalls).toHaveLength(0);
+    await destructiveGateway.resolveActionRequest(ids.userA, request.actionRequestId, "cancelled");
+    await call;
+  });
+
   it("does not lose an Approve emitted immediately with the action_request", async () => {
     const eagerGateway = new AssistantToolGateway({
       resolveActiveModules: async () => [exampleToolModule],

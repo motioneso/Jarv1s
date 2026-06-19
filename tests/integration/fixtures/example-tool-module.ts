@@ -45,6 +45,19 @@ export const exampleToolModule: JarvisModuleManifest = {
       summarize: (input) => `Write the value "${String(input.value)}"`
     },
     {
+      name: "example.autoWrite",
+      description: "Auto write fixture.",
+      permissionId: "example.update",
+      risk: "write",
+      executionPolicy: "auto",
+      inputSchema: {
+        type: "object",
+        required: ["value"],
+        properties: { value: { type: "string" } }
+      },
+      execute: (db, input, ctx) => record("example.autoWrite", db as DataContextDb, input, ctx)
+    },
+    {
       name: "example.destroy",
       description: "Destroy fixture.",
       permissionId: "example.delete",
