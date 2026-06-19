@@ -1,6 +1,8 @@
 import { afterEach, describe, expect, it } from "vitest";
 
 import {
+  isBlockedIp,
+  setWebHttpTransportForTests,
   setWebFetchForTests,
   setWebHostResolverForTests,
   setWebSearchProviderForTests,
@@ -11,6 +13,7 @@ import {
 
 afterEach(() => {
   setWebFetchForTests(undefined);
+  setWebHttpTransportForTests(undefined);
   setWebHostResolverForTests(undefined);
   setWebSearchProviderForTests(undefined);
 });
@@ -139,6 +142,66 @@ describe("web.read", () => {
       fetchedUrlCount: 0,
       skippedUrlCount: 1
     });
+  });
+
+  it("connects to the checked DNS address while preserving the original host", async () => {
+    const requests: Array<{ connectHost: string; hostHeader: string; servername?: string }> = [];
+    setWebHostResolverForTests(async () => [{ address: "93.184.216.34", family: 4 }]);
+    setWebHttpTransportForTests(async (request) => {
+      requests.push({
+        connectHost: request.connectHost,
+        hostHeader: request.hostHeader,
+        servername: request.servername
+      });
+      return new Response("<title>ok</title><main>safe</main>", { status: 200 });
+    });
+
+    const result = await webReadExecute(
+      {},
+      { urls: ["https://example.com/a"] },
+      { actorUserId: "u", requestId: "r", chatSessionId: "c" }
+    );
+
+    expect(result.data.documents).toHaveLength(1);
+    expect(requests).toEqual([
+      {
+        connectHost: "93.184.216.34",
+        hostHeader: "example.com",
+        servername: "example.com"
+      }
+    ]);
+  });
+
+  it("blocks IPv4-mapped IPv6 private and loopback addresses", async () => {
+    let fetchCalls = 0;
+    setWebFetchForTests(async () => {
+      fetchCalls += 1;
+      return new Response("ok");
+    });
+
+    const result = await webReadExecute(
+      {},
+      {
+        urls: [
+          "http://[::ffff:127.0.0.1]/",
+          "http://[::ffff:10.0.0.1]/",
+          "http://[::ffff:169.254.1.1]/",
+          "http://[fc00::1]/",
+          "http://[fe80::1]/",
+          "http://[::1]/"
+        ]
+      },
+      { actorUserId: "u", requestId: "r", chatSessionId: "c" }
+    );
+
+    expect(isBlockedIp("[::ffff:7f00:1]")).toBe(true);
+    expect(result.data.documents).toHaveLength(0);
+    expect(result.data.trace).toMatchObject({
+      requestedUrlCount: 6,
+      fetchedUrlCount: 0,
+      skippedUrlCount: 6
+    });
+    expect(fetchCalls).toBe(0);
   });
 });
 

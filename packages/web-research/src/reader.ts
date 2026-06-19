@@ -1,16 +1,32 @@
+import { request as httpRequest } from "node:http";
+import { request as httpsRequest } from "node:https";
+import type { IncomingHttpHeaders, IncomingMessage } from "node:http";
+import { Readable } from "node:stream";
+
 import { DEFAULT_WEB_RESEARCH_CONFIG } from "./config.js";
 import { type HostResolver, validateHttpUrl } from "./url-safety.js";
 
 type WebFetch = typeof fetch;
+export interface WebHttpTransportRequest {
+  readonly url: URL;
+  readonly connectHost: string;
+  readonly family: number;
+  readonly hostHeader: string;
+  readonly servername?: string;
+  readonly signal: AbortSignal;
+}
+
+export type WebHttpTransport = (request: WebHttpTransportRequest) => Promise<Response>;
 
 let testFetch: WebFetch | undefined;
+let testHttpTransport: WebHttpTransport | undefined;
 
 export function setWebFetchForTests(fetchImpl: WebFetch | undefined): void {
   testFetch = fetchImpl;
 }
 
-function activeFetch(): WebFetch {
-  return testFetch ?? fetch;
+export function setWebHttpTransportForTests(transport: WebHttpTransport | undefined): void {
+  testHttpTransport = transport;
 }
 
 function isRedirect(status: number): boolean {
@@ -74,15 +90,88 @@ async function fetchWithSafeRedirects(
 ): Promise<Response> {
   let current = startUrl;
   for (let redirects = 0; redirects <= DEFAULT_WEB_RESEARCH_CONFIG.redirectLimit; redirects += 1) {
-    const response = await activeFetch()(current, { redirect: "manual", signal: options.signal });
+    const safe = await validateHttpUrl(current.toString(), options.resolveHost);
+    if (!safe.ok) throw new Error(safe.reason);
+    const response = await requestCheckedUrl(safe.url, options.signal);
     if (!isRedirect(response.status)) return response;
     const location = response.headers.get("location");
     if (!location) return response;
-    const next = await validateHttpUrl(new URL(location, current).toString(), options.resolveHost);
-    if (!next.ok) throw new Error(next.reason);
-    current = next.url;
+    current = new URL(location, current);
   }
   throw new Error("Redirect limit exceeded");
+}
+
+async function requestCheckedUrl(url: URL, signal: AbortSignal): Promise<Response> {
+  const checked = await validateHttpUrl(url.toString());
+  if (!checked.ok) throw new Error(checked.reason);
+  const hostHeader = checked.url.host;
+  const servername =
+    checked.url.protocol === "https:" ? stripIpv6Brackets(checked.url.hostname) : undefined;
+  const request = {
+    url: checked.url,
+    connectHost: checked.address,
+    family: checked.family,
+    hostHeader,
+    servername,
+    signal
+  };
+  if (testHttpTransport) return testHttpTransport(request);
+  if (testFetch) {
+    return testFetch(checked.url, {
+      redirect: "manual",
+      signal,
+      headers: { host: hostHeader }
+    });
+  }
+  return nodeHttpTransport(request);
+}
+
+function stripIpv6Brackets(hostname: string): string {
+  return hostname.startsWith("[") && hostname.endsWith("]") ? hostname.slice(1, -1) : hostname;
+}
+
+function headersFromIncoming(headers: IncomingHttpHeaders): Headers {
+  const out = new Headers();
+  for (const [key, value] of Object.entries(headers)) {
+    if (Array.isArray(value)) out.set(key, value.join(", "));
+    else if (value !== undefined) out.set(key, String(value));
+  }
+  return out;
+}
+
+async function nodeHttpTransport(input: WebHttpTransportRequest): Promise<Response> {
+  const isHttps = input.url.protocol === "https:";
+  const request = isHttps ? httpsRequest : httpRequest;
+  return new Promise((resolve, reject) => {
+    const req = request(
+      {
+        protocol: input.url.protocol,
+        hostname: input.connectHost,
+        port: input.url.port || (isHttps ? 443 : 80),
+        path: `${input.url.pathname}${input.url.search}`,
+        method: "GET",
+        headers: {
+          host: input.hostHeader,
+          "user-agent": "Jarvis-WebResearch/0.1"
+        },
+        servername: input.servername,
+        lookup: (_hostname, _options, callback) => callback(null, input.connectHost, input.family)
+      },
+      (res: IncomingMessage) => {
+        resolve(
+          new Response(Readable.toWeb(res) as ReadableStream<Uint8Array>, {
+            status: res.statusCode ?? 0,
+            headers: headersFromIncoming(res.headers)
+          })
+        );
+      }
+    );
+    req.on("error", reject);
+    input.signal.addEventListener("abort", () => req.destroy(new Error("Request aborted")), {
+      once: true
+    });
+    req.end();
+  });
 }
 
 export async function readWebPage(rawUrl: string): Promise<
