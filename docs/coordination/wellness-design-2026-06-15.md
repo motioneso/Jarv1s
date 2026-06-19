@@ -29,6 +29,7 @@ immediately; compaction summary in own context → relay, merge nothing first.
 | Spec                                                      | Issue            | Tier      | Status   | Agent label          | Session id | Branch                        | PR                                                  |
 | --------------------------------------------------------- | ---------------- | --------- | -------- | -------------------- | ---------- | ----------------------------- | --------------------------------------------------- |
 | Codex code-review remediation (9 findings) — relay doc §1 | epic #50 (slice) | sensitive | building | Wellness-Remediation | `3bc2277f` | worktree-feat+wellness-design | — (no PR; in-worktree commit, merge by coordinator) |
+| docs/superpowers/specs/2026-06-18-wellness-adversarial-remediations.md | epic #50 (slice) | routine   | queued   | Wellness-Adversarial | —          | worktree-feat+wellness-design | —                                                   |
 
 **Tier rationale (sensitive):** med-data exposure reduction (H2+M5 drops dose/prnReason), new
 owner-scoped `PATCH /api/wellness/checkins/:id` (RLS-applicable), cross-owner leakage handling (M4).
