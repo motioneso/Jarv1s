@@ -1,4 +1,8 @@
+import pg from "pg";
+
 import type { JarvisDatabaseUrls } from "./urls.js";
+
+const { Client } = pg;
 
 export interface RolePasswordEntry {
   readonly role: string;
@@ -61,4 +65,40 @@ export function buildRolePasswordPlan(
 
     return { role, password };
   });
+}
+
+/**
+ * Build the idempotent `ALTER ROLE` statement that assigns one role's password.
+ * The role name and password are escaped via the `pg` client's
+ * `escapeIdentifier`/`escapeLiteral` so arbitrary configured secrets cannot break
+ * out of the statement.
+ */
+export function buildAlterRoleStatement(client: pg.Client, entry: RolePasswordEntry): string {
+  return (
+    `ALTER ROLE ${client.escapeIdentifier(entry.role)} ` +
+    `WITH LOGIN PASSWORD ${client.escapeLiteral(entry.password)}`
+  );
+}
+
+/**
+ * Apply a role-password plan against the bootstrap (superuser) connection.
+ *
+ * Roles are created without passwords by the bootstrap SQL; this step assigns
+ * each role its configured password. It is idempotent — re-running re-applies the
+ * same configured secret, so repeated `pnpm db:migrate` runs never reset a role to
+ * a development default.
+ */
+export async function applyRolePasswords(
+  connectionString: string,
+  plan: RolePasswordEntry[]
+): Promise<void> {
+  const client = new Client({ connectionString });
+  await client.connect();
+  try {
+    for (const entry of plan) {
+      await client.query(buildAlterRoleStatement(client, entry));
+    }
+  } finally {
+    await client.end();
+  }
 }

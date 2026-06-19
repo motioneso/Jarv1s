@@ -1,27 +1,33 @@
+-- Role passwords are intentionally NOT set here. This bootstrap file is committed
+-- and re-run on every `pnpm db:migrate`, so embedding password literals would let a
+-- production migration silently reset runtime roles to development credentials.
+-- Each role's password is assigned by the migration runner (applyRolePasswords in
+-- @jarv1s/db) from the configured connection URLs, which are the single source of
+-- truth and fail closed in production. See docs/operations/release-hardening.md.
 DO $$
 BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'jarvis_migration_owner') THEN
-    CREATE ROLE jarvis_migration_owner LOGIN PASSWORD 'migration_password';
+    CREATE ROLE jarvis_migration_owner LOGIN;
   ELSE
-    ALTER ROLE jarvis_migration_owner WITH LOGIN PASSWORD 'migration_password';
+    ALTER ROLE jarvis_migration_owner WITH LOGIN;
   END IF;
 
   IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'jarvis_app_runtime') THEN
-    CREATE ROLE jarvis_app_runtime LOGIN PASSWORD 'app_password';
+    CREATE ROLE jarvis_app_runtime LOGIN;
   ELSE
-    ALTER ROLE jarvis_app_runtime WITH LOGIN PASSWORD 'app_password';
+    ALTER ROLE jarvis_app_runtime WITH LOGIN;
   END IF;
 
   IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'jarvis_worker_runtime') THEN
-    CREATE ROLE jarvis_worker_runtime LOGIN PASSWORD 'worker_password';
+    CREATE ROLE jarvis_worker_runtime LOGIN;
   ELSE
-    ALTER ROLE jarvis_worker_runtime WITH LOGIN PASSWORD 'worker_password';
+    ALTER ROLE jarvis_worker_runtime WITH LOGIN;
   END IF;
 
   IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'jarvis_auth_runtime') THEN
-    CREATE ROLE jarvis_auth_runtime LOGIN PASSWORD 'auth_password';
+    CREATE ROLE jarvis_auth_runtime LOGIN;
   ELSE
-    ALTER ROLE jarvis_auth_runtime WITH LOGIN PASSWORD 'auth_password';
+    ALTER ROLE jarvis_auth_runtime WITH LOGIN;
   END IF;
 END
 $$;

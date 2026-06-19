@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
+import pg from "pg";
 
 import {
   RUNTIME_ROLE_PASSWORD_DEFAULTS,
+  buildAlterRoleStatement,
   buildRolePasswordPlan,
   getJarvisDatabaseUrls
 } from "@jarv1s/db";
@@ -63,5 +65,19 @@ describe("buildRolePasswordPlan", () => {
       /jarvis_migration_owner.*development-default/
     );
     expect(RUNTIME_ROLE_PASSWORD_DEFAULTS.has("app_password")).toBe(true);
+  });
+});
+
+describe("buildAlterRoleStatement", () => {
+  it("escapes the identifier and password literal", () => {
+    const client = new pg.Client();
+    const sql = buildAlterRoleStatement(client, {
+      role: "jarvis_app_runtime",
+      password: "a'b\\c"
+    });
+    expect(sql).toContain('"jarvis_app_runtime"');
+    expect(sql).toContain("WITH LOGIN PASSWORD ");
+    // The raw, unescaped password must never appear verbatim in the statement.
+    expect(sql).not.toContain("a'b\\c");
   });
 });
