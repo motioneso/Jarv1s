@@ -13,7 +13,7 @@ since the native `Agent(model:opus)` path is Claude-only. Currently-running Clau
 Gate-314, Build-237) finish as-is — do not kill warm work; only NEW spawns are Codex.
 **Relay threshold:** security-tier merge → relay immediately after Phase 3 step 7; routine/sensitive `merges_since_relay` >= 2 → relay. No deferral. Compaction summary = already past safe → relay, merge nothing.
 **merges_since_relay:** 0 (reset after successor adopted post-#313 security-tier relay)
-**last_alive:** 2026-06-19T02:15Z (Codex coordinator `019edda0…` — #315 GREEN; awaiting Ben sign-off)
+**last_alive:** 2026-06-19T02:24Z (Codex coordinator `019edda0…` — #315 RED; Build-237 fixing bearer id leak)
 **Gate serialization policy (2026-06-18):** run mechanical gates ~1–2 at a time. Concurrent
 `verify:foundation` runs collide on cluster-global role grants → false-RED "tuple concurrently
 updated", EVEN with isolated `JARVIS_PGDATABASE` (db:migrate grants touch shared `pg_authid`).
@@ -68,15 +68,15 @@ DONE THIS SESSION (Claude `eaadc7f5…`):
 LIVE FLEET (resolve panes fresh by label; numbers reflow):
 - `Build-237-Sessions` (`w1:p1S`, Claude) — DONE/standby in `.claude/worktrees/deploy-237-active-sessions`.
   #315 was rebased/pushed to `cd2f5b2` on top of current `origin/main` `0592fe7`; fresh Codex
-  re-QA GREEN (`#issuecomment-4747834636`). Ben sign-off pending. Non-blocking: cookie-session current-id path
-  `session-service.ts:62` untested — may task Build-237 to add the me-sessions test if Ben wants it
-  pre-merge. Owning agent for any #315 re-fix; reap after #315 merges.
-  QA pane/worktree reaped after verdict.
+  re-QA initially GREEN (`#issuecomment-4747834636`) but independent GLM 5.2 review found a
+  CRITICAL blocker: bearer `app.auth_sessions.id` is a token secret and was emitted as
+  `MeSessionDto.id`. PR/issue corrected RED comments: `#issuecomment-4747900428` /
+  `#issuecomment-4747900461`. Build-237 is fixing. Prior QA pane/worktree reaped.
 
-GATE SERIALIZATION RIGHT NOW: no CI-equiv gate is running. #315 re-QA is complete; waiting for
-Ben's security-tier merge sign-off.
+GATE SERIALIZATION RIGHT NOW: no CI-equiv gate is running. #315 is in fix cycle; next needs push,
+GLM re-review, fresh Codex security re-QA, then Ben sign-off if GREEN.
 
-PENDING SIGN-OFFS (all security tier, all need Ben): #315 has grounded CODEX re-QA GREEN and needs Ben sign-off. Then serialized successors per chains A/B/C and the held queue (#114, #123, #230, #236,
+PENDING SIGN-OFFS (all security tier, all need Ben): none currently ready. #315 RED/fixing; after patch it needs GLM re-review + fresh CODEX re-QA, then Ben sign-off. Then serialized successors per chains A/B/C and the held queue (#114, #123, #230, #236,
 #254, then #306 manual). Preferred merge order: #117(#313), #114, #207(#314 ✅done), #123, #237(#315),
 #230, #236, #255(#312 ✅done), #254, then #306.
 
@@ -118,7 +118,7 @@ need a clean worktree + a pre-existing isolated DB. Per-merge digest:
 | `docs/superpowers/specs/2026-06-18-route-local-junk-credential-rate-limit-gates.md` | #207  | security  | **MERGED** (squash `b0c59ef` @ 01:09Z, Ben sign-off). Issue closed; board Done. | — (reaped) | — | (deleted) | #314 |
 | `docs/superpowers/specs/2026-06-18-otnr-p3-ai-gateway-residual-hardening.md`        | #123  | security  | queued: held for green gate             | —                   | —      | —                           | —    |
 | `docs/superpowers/specs/2026-06-18-people-access-approval-revoke-sessions.md`       | #230  | security  | queued: held for green gate             | —                   | —      | —                           | —    |
-| `docs/superpowers/specs/2026-06-18-active-sessions-list-revoke.md`                  | #237  | security  | CODEX re-QA GREEN at `cd2f5b2` (`VF=0`, `AUDIT=0`, `#issuecomment-4747834636`); awaiting Ben sign-off | Build-237-Sessions | w1:p1S | deploy-237-active-sessions | #315 |
+| `docs/superpowers/specs/2026-06-18-active-sessions-list-revoke.md`                  | #237  | security  | RED: GLM found bearer `auth_sessions.id` token leak; Build-237 fixing (`#issuecomment-4747900428`) | Build-237-Sessions | w1:p1S | deploy-237-active-sessions | #315 |
 | `docs/superpowers/specs/2026-06-18-account-card-real-status.md`                     | #236  | security  | queued: held for green gate             | —                   | —      | —                           | —    |
 | `docs/superpowers/specs/2026-06-18-host-diagnostics-safe-ops.md`                    | #255  | security  | **MERGED** (squash @ 2026-06-19T00:47Z, Ben sign-off). Issue closed. **Board move to Done still TODO (successor).** | — (reaped) | — | (deleted) | #312 |
 | `docs/superpowers/specs/2026-06-18-connector-health-monitoring.md`                  | #254  | sensitive | queued: held for green main             | —                   | —      | —                           | —    |
@@ -180,7 +180,10 @@ No waivers.
       `@jarv1s/module-registry` typecheck green, pushed, and posted progress comment
       `#issuecomment-4747787641`. Fresh Codex re-QA GREEN in `QA-315-Sessions-ReQA`: VF_EXIT=0,
       AUDIT_EXIT=0, 0 blocking findings; verdict `#issuecomment-4747834636`; issue update
-      `#issuecomment-4747838200`. Awaiting Ben sign-off.
+      `#issuecomment-4747838200`. Ben requested GLM 5.2 review before sign-off; GLM returned RED:
+      `app.auth_sessions.id` is the bearer token secret but was emitted as public session id.
+      Corrected RED comments posted to PR/issue (`#issuecomment-4747900428` /
+      `#issuecomment-4747900461`); Build-237 fixing.
 - [ ] #306 is manual-acceptance only; no build agent should be spawned for it.
 
 ## Reaped Sessions
