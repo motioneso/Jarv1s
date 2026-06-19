@@ -3,6 +3,9 @@
 **Date:** 2026-06-18
 **Coordinator lock:** label `Coordinator`, **stable anchor = Codex session id `019eddce-2ab2-78f0-88b1-fa5d8295b493`** (match `agent_session.value` in `herdr pane list`; pane `w1:p2E`, tab `w1:t7`). _Authority transferred 2026-06-19 from relaying Codex coordinator `019edda0-17e4-77b0-82c9-8e35a9f6dfc8` to this Codex successor; old pane retired. Earlier: 2026-06-19 from relaying Codex coordinator `019edd71-d7fa-7d23-894d-c00bf8ed98ee`; 2026-06-19 from the relaying Claude coordinator (session `eaadc7f5-27f0-4128-909b-55134bba34e2`, old pane `w1:p24`); 2026-06-19 from relaying Claude coordinator `ec808db4-8b97-48fb-9130-07e7d726634b`; 2026-06-18 from relaying Codex coordinator `019edcbd-30fe-7d71-9e48-ded1258b8d98`._ Single-coordinator lock — exactly one pane labelled `Coordinator` whose session id matches this anchor holds authority for the life of the run. Pane numbers (`w…-N`) reflow on every restart/split/reap — do not trust any pane number written in this file as an identifier; resolve the pane fresh by label+session at read time. Agents escalate to the **label**; the coordinator merges only when its own pane's session id matches this recorded anchor.
 **Merge policy:** autonomous-after-verified-QA for `routine`/`sensitive`; **`security`-tier needs Ben's explicit merge sign-off**
+**Ben security merge instruction (2026-06-19):** Ben is stepping away for a few hours; for security
+lanes, run extra GLM 5.2 review and treat merge as approved once GLM 5.2 is GREEN and the normal
+local CI-equivalent/Codex security QA evidence is GREEN. Do not merge on GLM alone.
 **⚠️ ALL NEW AGENTS = CODEX (Ben directive 2026-06-19, supersedes the Claude-fallback note):** spawn
 **every** new agent — build, gate-runner, QA, and the coordinator successor — as **Codex**
 (`codex -s danger-full-access -a never "<boot>"`), NOT Claude, until Codex hits a usage window (then
@@ -13,7 +16,7 @@ since the native `Agent(model:opus)` path is Claude-only. Currently-running Clau
 Gate-314, Build-237) finish as-is — do not kill warm work; only NEW spawns are Codex.
 **Relay threshold:** security-tier merge → relay immediately after Phase 3 step 7; routine/sensitive `merges_since_relay` >= 2 → relay. No deferral. Compaction summary = already past safe → relay, merge nothing.
 **merges_since_relay:** 0 (successor reset after security-tier merge #315 relay)
-**last_alive:** 2026-06-19T03:00Z (Codex coordinator `019eddce…` — spawned #114/#123/#230 build wave)
+**last_alive:** 2026-06-19T03:06Z (Codex coordinator `019eddce…` — approved #123 plan, assigned AI migration 0098)
 **Gate serialization policy (2026-06-18):** run mechanical gates ~1–2 at a time. Concurrent
 `verify:foundation` runs collide on cluster-global role grants → false-RED "tuple concurrently
 updated", EVEN with isolated `JARVIS_PGDATABASE` (db:migrate grants touch shared `pg_authid`).
@@ -78,13 +81,14 @@ DONE THIS SESSION (Claude `eaadc7f5…`):
 LIVE FLEET (resolve panes fresh by label; numbers reflow):
 - `Build-114-SecretResiduals` — Codex, pane `w1:p2G`, session `019eddd0-cf93-79a2-ac84-c8df2a9030f7`,
   worktree `.claude/worktrees/deploy-114-secret-residuals`, branch `deploy-114-secret-residuals`;
-  building/awaiting plan.
+  plan approved; building.
 - `Build-123-AIGateway` — Codex, pane `w1:p2H`, session `019eddd0-cf56-7b51-86d5-56bed1e8b7e1`,
   worktree `.claude/worktrees/deploy-123-ai-gateway-hardening`, branch
-  `deploy-123-ai-gateway-hardening`; building/awaiting plan.
+  `deploy-123-ai-gateway-hardening`; plan approved; building. Assigned migration
+  `packages/ai/sql/0098_ai_cancel_stale_assistant_actions.sql`.
 - `Build-230-PeopleAccess` — Codex, pane `w1:p2J`, session `019eddd0-cfbf-7f83-849a-2d1dbea73abf`,
   worktree `.claude/worktrees/deploy-230-people-access-sessions`, branch
-  `deploy-230-people-access-sessions`; building/awaiting plan.
+  `deploy-230-people-access-sessions`; plan approved; building.
 - GLM 5.2 pane `w1:p28` is not a deploy build lane; it may still be open for
   unrelated/adversarial-review work.
 
@@ -128,10 +132,10 @@ need a clean worktree + a pre-existing isolated DB. Per-merge digest:
 | Spec                                                                                | Issue | Tier      | Status                                  | Agent label         | Pane   | Branch                      | PR   |
 | ----------------------------------------------------------------------------------- | ----- | --------- | --------------------------------------- | ------------------- | ------ | --------------------------- | ---- |
 | `docs/superpowers/specs/2026-06-18-otnr-p1-bootstrap-role-passwords.md`             | #117  | security  | **MERGED** (squash `0592fe7` @ 02:02Z, Ben sign-off). Issue closed; branch/worktrees/panes reaped. | — (reaped) | — | (deleted) | #313 |
-| `docs/superpowers/specs/2026-06-18-otnr-p2-secrets-vault-residuals.md`              | #114  | security  | building: awaiting plan                 | Build-114-SecretResiduals | w1:p2G | deploy-114-secret-residuals | —    |
+| `docs/superpowers/specs/2026-06-18-otnr-p2-secrets-vault-residuals.md`              | #114  | security  | building: plan approved                 | Build-114-SecretResiduals | w1:p2G | deploy-114-secret-residuals | —    |
 | `docs/superpowers/specs/2026-06-18-route-local-junk-credential-rate-limit-gates.md` | #207  | security  | **MERGED** (squash `b0c59ef` @ 01:09Z, Ben sign-off). Issue closed; board Done. | — (reaped) | — | (deleted) | #314 |
-| `docs/superpowers/specs/2026-06-18-otnr-p3-ai-gateway-residual-hardening.md`        | #123  | security  | building: awaiting plan                 | Build-123-AIGateway | w1:p2H | deploy-123-ai-gateway-hardening | —    |
-| `docs/superpowers/specs/2026-06-18-people-access-approval-revoke-sessions.md`       | #230  | security  | building: awaiting plan                 | Build-230-PeopleAccess | w1:p2J | deploy-230-people-access-sessions | —    |
+| `docs/superpowers/specs/2026-06-18-otnr-p3-ai-gateway-residual-hardening.md`        | #123  | security  | building: plan approved (AI migration `0098_ai_cancel_stale_assistant_actions.sql`) | Build-123-AIGateway | w1:p2H | deploy-123-ai-gateway-hardening | —    |
+| `docs/superpowers/specs/2026-06-18-people-access-approval-revoke-sessions.md`       | #230  | security  | building: plan approved                 | Build-230-PeopleAccess | w1:p2J | deploy-230-people-access-sessions | —    |
 | `docs/superpowers/specs/2026-06-18-active-sessions-list-revoke.md`                  | #237  | security  | **MERGED** (squash `14793b7` @ 02:53Z, Ben sign-off). Issue closed; branch/worktrees/panes reaped. | — (reaped) | — | (deleted) | #315 |
 | `docs/superpowers/specs/2026-06-18-account-card-real-status.md`                     | #236  | security  | queued: held for green gate             | —                   | —      | —                           | —    |
 | `docs/superpowers/specs/2026-06-18-host-diagnostics-safe-ops.md`                    | #255  | security  | **MERGED** (squash @ 2026-06-19T00:47Z, Ben sign-off). Issue closed. **Board move to Done still TODO (successor).** | — (reaped) | — | (deleted) | #312 |
