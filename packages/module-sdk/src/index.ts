@@ -13,6 +13,7 @@ export type ModuleLifecycle = "required" | "optional" | "user-toggleable" | "wor
 export type ModuleScope = "user" | "admin" | "system";
 export type ModulePermissionAction = "view" | "create" | "update" | "delete" | "manage" | "execute";
 export type ModuleAssistantToolRisk = "read" | "write" | "destructive";
+export type ModuleAssistantToolExecutionPolicy = "auto" | "confirm";
 
 export interface JsonSchema {
   readonly [key: string]: unknown;
@@ -267,6 +268,7 @@ export interface ModuleAssistantToolManifest {
   readonly description: string;
   readonly permissionId: string;
   readonly risk: ModuleAssistantToolRisk;
+  readonly executionPolicy?: ModuleAssistantToolExecutionPolicy;
   readonly inputSchema?: JsonSchema;
   readonly outputSchema?: JsonSchema;
   readonly featureFlagId?: string;
