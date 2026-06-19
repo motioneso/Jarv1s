@@ -21,7 +21,7 @@ the GLM 5.2 review (Codex unavailable) — security merge per Ben's standing ins
 prefer Codex again for cross-model QA. Do not kill warm Codex lanes; they're idle/out-of-usage and will
 be reaped.
 **Relay threshold:** security-tier merge → relay immediately after Phase 3 step 7; routine/sensitive `merges_since_relay` >= 2 → relay. No deferral. Compaction summary = already past safe → relay, merge nothing.
-**merges_since_relay:** 0 (successor adopted after security-tier merge #324/#236 relay)
+**merges_since_relay:** 1 (#254/#325 sensitive merged `f4d0499` 2026-06-19T06:13Z by Claude coord; threshold not yet hit — security #114 next will trigger relay)
 **last_alive:** 2026-06-19T05:56Z (Claude coordinator `2a076d28…` adopted from out-of-usage Codex `019ede31…`; #254 build DONE → PR #325 OPEN/MERGEABLE, spawning QA)
 **Gate serialization policy (2026-06-18):** run mechanical gates ~1–2 at a time. Concurrent
 `verify:foundation` runs collide on cluster-global role grants → false-RED "tuple concurrently
@@ -238,7 +238,7 @@ need a clean worktree + a pre-existing isolated DB. Per-merge digest:
 | `docs/superpowers/specs/2026-06-18-active-sessions-list-revoke.md`                  | #237  | security  | **MERGED** (squash `14793b7` @ 02:53Z, Ben sign-off). Issue closed; branch/worktrees/panes reaped.                  | — (reaped)                | —      | (deleted)                   | #315 |
 | `docs/superpowers/specs/2026-06-18-account-card-real-status.md`                     | #236  | security  | **MERGED** (squash `00c2c84` @ 04:41Z, Ben standing sign-off). Issue closed; branch/worktrees/panes reaped.         | — (reaped)                | —      | (deleted)                   | #324 |
 | `docs/superpowers/specs/2026-06-18-host-diagnostics-safe-ops.md`                    | #255  | security  | **MERGED** (squash @ 2026-06-19T00:47Z, Ben sign-off). Issue closed. **Board move to Done still TODO (successor).** | — (reaped)                | —      | (deleted)                   | #312 |
-| `docs/superpowers/specs/2026-06-18-connector-health-monitoring.md`                  | #254  | sensitive | **build DONE → PR #325 OPEN/MERGEABLE** (build self-report: VF green 855pass/2skip, AUDIT_EXIT=0, migrations 0099/0100 no collision, rebased on main no-op). QA spawning (Claude).            | Coordinator (was Build-R3) | w1:p2Y | deploy-254-connector-health | #325 |
+| `docs/superpowers/specs/2026-06-18-connector-health-monitoring.md`                  | #254  | sensitive | **MERGED** (squash `f4d0499` @ 06:13Z, autonomous after GREEN Claude QA). Issue closed w/ merge-ref comment. 4 non-blocking findings → followup polish issue. | — (merged) | — | (deleted) | #325 |
 | `docs/superpowers/specs/2026-06-18-phase-2-deploy-checkpoint-final-gate.md`         | #306  | manual    | blocked: final gate after prerequisites                                                                             | —                         | —      | —                           | —    |
 
 ## Gate Fix Lane
