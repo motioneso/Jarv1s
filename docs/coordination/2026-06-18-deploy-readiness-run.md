@@ -35,7 +35,7 @@
 | `docs/superpowers/specs/2026-06-18-route-local-junk-credential-rate-limit-gates.md` | #207  | security  | qa                                      | Build-207-RateLimit | w1:p1R | deploy-207-rate-limit       | #314 |
 | `docs/superpowers/specs/2026-06-18-otnr-p3-ai-gateway-residual-hardening.md`        | #123  | security  | queued: held for green gate             | —                   | —      | —                           | —    |
 | `docs/superpowers/specs/2026-06-18-people-access-approval-revoke-sessions.md`       | #230  | security  | queued: held for green gate             | —                   | —      | —                           | —    |
-| `docs/superpowers/specs/2026-06-18-active-sessions-list-revoke.md`                  | #237  | security  | building                                | Build-237-Sessions  | w1:p1S | deploy-237-active-sessions  | —    |
+| `docs/superpowers/specs/2026-06-18-active-sessions-list-revoke.md`                  | #237  | security  | qa                                      | Build-237-Sessions  | w1:p1S | deploy-237-active-sessions  | #315 |
 | `docs/superpowers/specs/2026-06-18-account-card-real-status.md`                     | #236  | security  | queued: held for green gate             | —                   | —      | —                           | —    |
 | `docs/superpowers/specs/2026-06-18-host-diagnostics-safe-ops.md`                    | #255  | security  | awaiting-ci-comment-signoff             | Build-255-HostDiag  | w1:p1P | deploy-255-host-diagnostics | #312 |
 | `docs/superpowers/specs/2026-06-18-connector-health-monitoring.md`                  | #254  | sensitive | queued: held for green main             | —                   | —      | —                           | —    |
@@ -76,6 +76,8 @@ No waivers.
 - [ ] #313 security QA running in `QA-313-RolePw` (`w1:p1V`); `gh pr checks 313` reported no checks,
       so QA is using CI-unavailable local-verification mode.
 - [ ] #314 security QA running in `QA-314-RateLimit` (`w1:p1Y`); `gh pr checks 314` reported no
+      checks, so QA is using CI-unavailable local-verification mode.
+- [ ] #315 security QA running in `QA-315-Sessions` (`w1:p1Z`); `gh pr checks 315` reported no
       checks, so QA is using CI-unavailable local-verification mode.
 - [ ] #306 is manual-acceptance only; no build agent should be spawned for it.
 
