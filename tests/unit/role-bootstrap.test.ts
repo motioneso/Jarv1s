@@ -40,6 +40,24 @@ describe("buildRolePasswordPlan", () => {
     ]);
   });
 
+  it("percent-decodes role passwords so they match what the pg driver authenticates with", () => {
+    // The configured password is `p@ss:w%rd` (reserved `@`/`:` plus a literal `%`), which is
+    // percent-encoded in the URL userinfo as `p%40ss%3Aw%25rd`. The pg driver decodes this with
+    // decodeURIComponent at connect time, so the bootstrap must ALTER ROLE with the decoded value
+    // or the runtime role can never authenticate.
+    const env = {
+      NODE_ENV: "production",
+      JARVIS_BOOTSTRAP_DATABASE_URL: "postgres://postgres:rootpw@db/prod",
+      JARVIS_MIGRATION_DATABASE_URL: "postgres://jarvis_migration_owner:p%40ss%3Aw%25rd@db/prod",
+      JARVIS_APP_DATABASE_URL: "postgres://jarvis_app_runtime:app-secret@db/prod",
+      JARVIS_AUTH_DATABASE_URL: "postgres://jarvis_auth_runtime:auth-secret@db/prod",
+      JARVIS_WORKER_DATABASE_URL: "postgres://jarvis_worker_runtime:worker-secret@db/prod"
+    } as NodeJS.ProcessEnv;
+    const plan = buildRolePasswordPlan(getJarvisDatabaseUrls(env), env);
+    const migration = plan.find((e) => e.role === "jarvis_migration_owner");
+    expect(migration?.password).toBe("p@ss:w%rd");
+  });
+
   it("refuses in production when a role password is missing", () => {
     const env = {
       NODE_ENV: "production",

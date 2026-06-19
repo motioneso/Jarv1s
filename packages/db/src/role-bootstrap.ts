@@ -48,7 +48,11 @@ export function buildRolePasswordPlan(
   const isProduction = env.NODE_ENV === "production";
 
   return ROLE_URL_SOURCES.map(({ role, url }) => {
-    const password = new URL(urls[url]).password;
+    // `URL.password` is the percent-encoded userinfo component. The pg driver decodes it via
+    // decodeURIComponent when it connects (pg-connection-string), so decode here too — otherwise
+    // a role password containing URL-reserved characters would be ALTER ROLE'd in its encoded form
+    // while the runtime authenticates with the decoded form, and the role could never log in.
+    const password = decodeURIComponent(new URL(urls[url]).password);
 
     if (isProduction) {
       if (!password) {
