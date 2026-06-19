@@ -12,8 +12,8 @@ adversarial coverage (satisfies the cross-model requirement). NEW QA spawns use 
 since the native `Agent(model:opus)` path is Claude-only. Currently-running Claude lanes (Fix-313,
 Gate-314, Build-237) finish as-is — do not kill warm work; only NEW spawns are Codex.
 **Relay threshold:** security-tier merge → relay immediately after Phase 3 step 7; routine/sensitive `merges_since_relay` >= 2 → relay. No deferral. Compaction summary = already past safe → relay, merge nothing.
-**merges_since_relay:** 0 (reset after successor adopted post-#313 security-tier relay)
-**last_alive:** 2026-06-19T02:49Z (Codex coordinator `019edda0…` — #315 GREEN; awaiting exact merge sign-off)
+**merges_since_relay:** 1 (security-tier merge #315 → relay NOW per threshold; successor resets to 0)
+**last_alive:** 2026-06-19T02:54Z (Codex coordinator `019edda0…` — #315 merged; relaying per security-merge threshold)
 **Gate serialization policy (2026-06-18):** run mechanical gates ~1–2 at a time. Concurrent
 `verify:foundation` runs collide on cluster-global role grants → false-RED "tuple concurrently
 updated", EVEN with isolated `JARVIS_PGDATABASE` (db:migrate grants touch shared `pg_authid`).
@@ -33,13 +33,23 @@ SUCCESSOR FIRST STEPS (you are a CODEX coordinator): (1) claim the `Coordinator`
 pane (`herdr pane rename <your-pane> Coordinator`); verify exactly one `Coordinator` pane = you.
 (2) re-confirm this lock line then **rewrite the authority anchor to YOUR Codex session id**
 (`agent_session.value` for your pane in `herdr pane list`). (3) **close my pane** (the relaying Codex
-coordinator `019edd71-d7fa-7d23-894d-c00bf8ed98ee`) after verifying its session id — resolve it
-fresh by label `Coordinator-relaying` or by session id `019edd71…`. (4) re-adopt the live fleet
+coordinator `019edda0-17e4-77b0-82c9-8e35a9f6dfc8`) after verifying its session id — resolve it
+fresh by label `Coordinator-relaying` or by session id `019edda0…`. (4) re-adopt the run state
 below; confirm you are driving. `ci_status: unavailable` — judge merge-readiness off local
 CI-equivalent evidence; **no security-tier merge without Ben's explicit per-merge sign-off** (Ben
 has standing approval of the CI-equivalent gating policy). **Update each finished issue with a
-merge-ref comment + close it.** Mid-doing: #313 just merged; next is #315 rebase onto `0592fe7`,
-push, fresh Codex security re-QA, then Ben sign-off.
+merge-ref comment + close it.** Mid-doing: #315 just merged as squash `14793b7`; this security
+merge triggered relay. Next coordinator should reset `merges_since_relay` to 0, verify no live
+#315 panes/worktrees remain, then continue the queued security lanes (likely #114/#123/#230/#236
+per manifest order) without starting any manual #306 lane.
+
+DONE THIS SESSION (Codex `019edda0…`, adopted after #313 relay):
+- **#315/#237 MERGED** (squash `14793b7` @ 02:53Z, Ben sign-off). Security tier. Branch head
+  `73aa1b9`; GLM 5.2 spot re-review GREEN (`#issuecomment-4748012560`); fresh Codex security QA
+  GREEN (`#issuecomment-4748047908`, VF_EXIT=0, AUDIT_EXIT=0, no findings). Issue #237 had already
+  closed; merge-ref comment posted (`#issuecomment-4748072559`). Remote branch
+  `deploy-237-active-sessions` deleted; Build-237 pane/worktree and QA worktrees reaped. This
+  security merge triggers immediate relay.
 
 DONE THIS SESSION (Codex `019edd71…`, adopted after #314 relay):
 - **#313/#117 MERGED** (squash `0592fe7` @ 02:02Z, Ben sign-off). Security tier. Fresh Codex
@@ -66,28 +76,12 @@ DONE THIS SESSION (Claude `eaadc7f5…`):
   path as part of this relay flush. If still uncommitted when you read this, commit them by path.
 
 LIVE FLEET (resolve panes fresh by label; numbers reflow):
-- `Build-237-Sessions` (`w1:p1S`, Claude) — DONE/standby in `.claude/worktrees/deploy-237-active-sessions`.
-  #315 was patched/pushed to `f07e5f3` on top of current `origin/main` `0592fe7` after independent
-  GLM 5.2 review found a CRITICAL blocker: bearer `app.auth_sessions.id` is a token secret and was
-  emitted as `MeSessionDto.id`. Build-237 fixed by exposing one-way bearer handles and resolving
-  handles under actor scope for revoke; focused me-sessions tests 8/8 + typecheck green.
-  PR/issue progress comments: `#issuecomment-4747937703` / `#issuecomment-4747937709`.
-- GLM 5.2 (`w1:p28`) — re-review GREEN at `f07e5f3`; prior bearer-token leak blocker resolved.
-  Non-blocking: cookie-auth current-session/revoke-others path lacks direct integration coverage.
-  PR/issue comments: `#issuecomment-4747952881` / `#issuecomment-4747952880`.
-- `Build-237-Sessions` fixed fresh Codex QA RED by adding real Better Auth cookie path coverage;
-  pushed `73aa1b9`. Focused me-sessions 9/9, typecheck, changed-file format/lint green. PR/issue
-  comments: `#issuecomment-4748000470` / `#issuecomment-4748000475`.
-- `QA-315-Sessions-Cookie` (`w1:p2D`, Codex session `019eddc1-821a-7bb1-a601-47bbee893d6a`) —
-  GREEN security re-QA posted to PR #315 (`#issuecomment-4748047908`): VF_EXIT=0, AUDIT_EXIT=0,
-  no blocking/non-blocking findings; pane/worktree reaped. Issue update `#issuecomment-4748050610`.
-- GLM 5.2 (`w1:p28`) — spot re-review GREEN at `73aa1b9`; cookie-auth coverage closes last GLM
-  gap. PR/issue comments: `#issuecomment-4748012560` / `#issuecomment-4748012562`.
+- No active build/QA lane for #315. GLM 5.2 pane `w1:p28` is not a deploy build lane; it may still
+  be open for unrelated/adversarial-review work.
 
-GATE SERIALIZATION RIGHT NOW: no CI-equiv gate is running. #315 has GLM GREEN + Codex QA GREEN;
-awaiting exact Ben security-tier merge sign-off.
+GATE SERIALIZATION RIGHT NOW: no CI-equiv gate is running. #315 merged; relay now.
 
-PENDING SIGN-OFFS (all security tier, all need Ben): #315 is GREEN at `73aa1b9` and needs exact Ben merge sign-off. Then serialized successors per chains A/B/C and the held queue (#114, #123, #230, #236,
+PENDING SIGN-OFFS (all security tier, all need Ben): none currently ready. Continue serialized successors per chains A/B/C and the held queue (#114, #123, #230, #236,
 #254, then #306 manual). Preferred merge order: #117(#313), #114, #207(#314 ✅done), #123, #237(#315),
 #230, #236, #255(#312 ✅done), #254, then #306.
 
@@ -129,7 +123,7 @@ need a clean worktree + a pre-existing isolated DB. Per-merge digest:
 | `docs/superpowers/specs/2026-06-18-route-local-junk-credential-rate-limit-gates.md` | #207  | security  | **MERGED** (squash `b0c59ef` @ 01:09Z, Ben sign-off). Issue closed; board Done. | — (reaped) | — | (deleted) | #314 |
 | `docs/superpowers/specs/2026-06-18-otnr-p3-ai-gateway-residual-hardening.md`        | #123  | security  | queued: held for green gate             | —                   | —      | —                           | —    |
 | `docs/superpowers/specs/2026-06-18-people-access-approval-revoke-sessions.md`       | #230  | security  | queued: held for green gate             | —                   | —      | —                           | —    |
-| `docs/superpowers/specs/2026-06-18-active-sessions-list-revoke.md`                  | #237  | security  | GREEN at `73aa1b9`: GLM GREEN + CODEX QA GREEN; awaiting Ben sign-off | Build-237-Sessions | w1:p1S | deploy-237-active-sessions | #315 |
+| `docs/superpowers/specs/2026-06-18-active-sessions-list-revoke.md`                  | #237  | security  | **MERGED** (squash `14793b7` @ 02:53Z, Ben sign-off). Issue closed; branch/worktrees/panes reaped. | — (reaped) | — | (deleted) | #315 |
 | `docs/superpowers/specs/2026-06-18-account-card-real-status.md`                     | #236  | security  | queued: held for green gate             | —                   | —      | —                           | —    |
 | `docs/superpowers/specs/2026-06-18-host-diagnostics-safe-ops.md`                    | #255  | security  | **MERGED** (squash @ 2026-06-19T00:47Z, Ben sign-off). Issue closed. **Board move to Done still TODO (successor).** | — (reaped) | — | (deleted) | #312 |
 | `docs/superpowers/specs/2026-06-18-connector-health-monitoring.md`                  | #254  | sensitive | queued: held for green main             | —                   | —      | —                           | —    |
@@ -182,7 +176,7 @@ No waivers.
       **MERGED** squash `b0c59ef` @ 01:09Z with Ben sign-off; issue #207 closed + board Done; Gate-314 reaped.
       Non-blocking spec-drift `rate-limit-key.ts:52` (malformed-bearer→cookie, no fresh-bucket bypass)
       recorded in the issue as a followup.
-- [ ] #315 security QA review **CLEAN** (previous verdict; invariants ok; 1 non-blocking: cookie-session current-id
+- [x] #315/#237 **MERGED** (squash `14793b7` @ 02:53Z, Ben sign-off). Security QA history: previous verdict; invariants ok; 1 non-blocking: cookie-session current-id
       path `session-service.ts:62` untested). RED was stale-branch only; Build-237 rebased to `4271bb6`
       before #314 merged. Coordinator locally rebased #315 onto current `origin/main` (`b0c59ef`):
       new HEAD `7d2b989`, stale docs commits dropped, one trivial import conflict resolved,
@@ -208,7 +202,8 @@ No waivers.
       (`#issuecomment-4748012560` / `#issuecomment-4748012562`). Fresh Codex re-QA GREEN:
       VF_EXIT=0, AUDIT_EXIT=0, 0 blocking/non-blocking findings, verdict
       `#issuecomment-4748047908`; issue update `#issuecomment-4748050610`. Awaiting exact Ben
-      merge sign-off.
+      merge sign-off. **MERGED** squash `14793b7`; issue #237 closed with merge-ref comment; branch,
+      Build-237 pane/worktree, and QA worktrees reaped. This security merge triggers immediate relay.
 - [ ] #306 is manual-acceptance only; no build agent should be spawned for it.
 
 ## Reaped Sessions
