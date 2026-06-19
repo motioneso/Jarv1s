@@ -1,7 +1,7 @@
 # Coordination Run — 2026-06-18-deploy-readiness
 
 **Date:** 2026-06-18
-**Coordinator lock:** label `Coordinator`, **stable anchor = Codex session id `019edd71-d7fa-7d23-894d-c00bf8ed98ee`** (match `agent_session.value` in `herdr pane list`; pane `w1:p26`, tab `w1:t7`). _Authority transferred 2026-06-19 from the relaying Claude coordinator (session `eaadc7f5-27f0-4128-909b-55134bba34e2`, old pane `w1:p24`) to this Codex successor; old pane retired. Earlier: 2026-06-19 from relaying Claude coordinator `ec808db4-8b97-48fb-9130-07e7d726634b`; 2026-06-18 from relaying Codex coordinator `019edcbd-30fe-7d71-9e48-ded1258b8d98`._ Single-coordinator lock — exactly one pane labelled `Coordinator` whose session id matches this anchor holds authority for the life of the run. Pane numbers (`w…-N`) reflow on every restart/split/reap — do not trust any pane number written in this file as an identifier; resolve the pane fresh by label+session at read time. Agents escalate to the **label**; the coordinator merges only when its own pane's session id matches this recorded anchor.
+**Coordinator lock:** label `Coordinator`, **stable anchor = Codex session id `019edda0-17e4-77b0-82c9-8e35a9f6dfc8`** (match `agent_session.value` in `herdr pane list`; pane `w1:p2A`, tab `w1:t7`). _Authority transferred 2026-06-19 from relaying Codex coordinator `019edd71-d7fa-7d23-894d-c00bf8ed98ee` to this Codex successor; old pane retired. Earlier: 2026-06-19 from the relaying Claude coordinator (session `eaadc7f5-27f0-4128-909b-55134bba34e2`, old pane `w1:p24`); 2026-06-19 from relaying Claude coordinator `ec808db4-8b97-48fb-9130-07e7d726634b`; 2026-06-18 from relaying Codex coordinator `019edcbd-30fe-7d71-9e48-ded1258b8d98`._ Single-coordinator lock — exactly one pane labelled `Coordinator` whose session id matches this anchor holds authority for the life of the run. Pane numbers (`w…-N`) reflow on every restart/split/reap — do not trust any pane number written in this file as an identifier; resolve the pane fresh by label+session at read time. Agents escalate to the **label**; the coordinator merges only when its own pane's session id matches this recorded anchor.
 **Merge policy:** autonomous-after-verified-QA for `routine`/`sensitive`; **`security`-tier needs Ben's explicit merge sign-off**
 **⚠️ ALL NEW AGENTS = CODEX (Ben directive 2026-06-19, supersedes the Claude-fallback note):** spawn
 **every** new agent — build, gate-runner, QA, and the coordinator successor — as **Codex**
@@ -12,8 +12,8 @@ adversarial coverage (satisfies the cross-model requirement). NEW QA spawns use 
 since the native `Agent(model:opus)` path is Claude-only. Currently-running Claude lanes (Fix-313,
 Gate-314, Build-237) finish as-is — do not kill warm work; only NEW spawns are Codex.
 **Relay threshold:** security-tier merge → relay immediately after Phase 3 step 7; routine/sensitive `merges_since_relay` >= 2 → relay. No deferral. Compaction summary = already past safe → relay, merge nothing.
-**merges_since_relay:** 1 (security-tier merge #313 → relay NOW per threshold; successor resets to 0)
-**last_alive:** 2026-06-19T02:03Z (Codex coordinator `019edd71…` — #313 merged; relaying per security-merge threshold)
+**merges_since_relay:** 0 (reset after successor adopted post-#313 security-tier relay)
+**last_alive:** 2026-06-19T02:07Z (Codex coordinator `019edda0…` — #315 rebased/pushed; Codex re-QA running)
 **Gate serialization policy (2026-06-18):** run mechanical gates ~1–2 at a time. Concurrent
 `verify:foundation` runs collide on cluster-global role grants → false-RED "tuple concurrently
 updated", EVEN with isolated `JARVIS_PGDATABASE` (db:migrate grants touch shared `pg_authid`).
@@ -46,9 +46,9 @@ DONE THIS SESSION (Codex `019edd71…`, adopted after #314 relay):
   security re-QA on rebased HEAD `159c447`: VF_EXIT=0, AUDIT_EXIT=0, no blocking findings, verdict
   posted to PR #313 (`#issuecomment-4747694739`). Issue #117 closed with merge-ref comment; branch
   deleted; QA/Fix panes and worktrees reaped. This security merge triggers immediate relay.
-- **#315/#237** was rebased/pushed to `7d2b989` on top of previous `origin/main` `b0c59ef`, but #313
-  now advanced main to `0592fe7`. Successor must rebase #315 again onto `0592fe7`, run the narrow
-  conflict/typecheck as needed, push, then spawn fresh Codex security re-QA before Ben sign-off.
+- **#315/#237** rebased/pushed to `cd2f5b2` on current `origin/main` `0592fe7`; narrow
+  `@jarv1s/module-registry` typecheck passed. Fresh Codex security re-QA is being spawned before
+  Ben sign-off.
 
 DONE THIS SESSION (Claude `eaadc7f5…`):
 - Adopted authority from `ec808db4…`; closed old pane `w1:p10`; lock anchor rewritten to me.
@@ -67,10 +67,12 @@ DONE THIS SESSION (Claude `eaadc7f5…`):
 
 LIVE FLEET (resolve panes fresh by label; numbers reflow):
 - `Build-237-Sessions` (`w1:p1S`, Claude) — DONE/standby in `.claude/worktrees/deploy-237-active-sessions`.
-  #315 was rebased/pushed to `7d2b989` on top of `b0c59ef`; after #313 merged, current `origin/main`
-  is `0592fe7`, so #315 must be rebased again before re-QA. Non-blocking: cookie-session current-id path
+  #315 was rebased/pushed to `cd2f5b2` on top of current `origin/main` `0592fe7`; fresh Codex
+  re-QA pending. Non-blocking: cookie-session current-id path
   `session-service.ts:62` untested — may task Build-237 to add the me-sessions test if Ben wants it
   pre-merge. Owning agent for any #315 re-fix; reap after #315 merges.
+- `QA-315-Sessions-ReQA` (`w1:p2B`, Codex session `019edda2-a6db-7002-9436-01d2b8042438`) — running
+  security re-QA in `.claude/worktrees/qa-315-active-sessions-reqa`; must post verdict to PR #315.
 
 GATE SERIALIZATION RIGHT NOW: no CI-equiv gate is running. Successor should rebase #315 onto
 `0592fe7`, push, then spawn fresh Codex re-QA.
@@ -117,7 +119,7 @@ need a clean worktree + a pre-existing isolated DB. Per-merge digest:
 | `docs/superpowers/specs/2026-06-18-route-local-junk-credential-rate-limit-gates.md` | #207  | security  | **MERGED** (squash `b0c59ef` @ 01:09Z, Ben sign-off). Issue closed; board Done. | — (reaped) | — | (deleted) | #314 |
 | `docs/superpowers/specs/2026-06-18-otnr-p3-ai-gateway-residual-hardening.md`        | #123  | security  | queued: held for green gate             | —                   | —      | —                           | —    |
 | `docs/superpowers/specs/2026-06-18-people-access-approval-revoke-sessions.md`       | #230  | security  | queued: held for green gate             | —                   | —      | —                           | —    |
-| `docs/superpowers/specs/2026-06-18-active-sessions-list-revoke.md`                  | #237  | security  | rebased/pushed to `7d2b989`, now stale behind #313 merge `0592fe7`; rebase + fresh CODEX re-QA pending | Build-237-Sessions | w1:p1S | deploy-237-active-sessions | #315 |
+| `docs/superpowers/specs/2026-06-18-active-sessions-list-revoke.md`                  | #237  | security  | rebased/pushed to `cd2f5b2` on `0592fe7`; fresh CODEX re-QA running (`QA-315-Sessions-ReQA`) | Build-237-Sessions | w1:p1S | deploy-237-active-sessions | #315 |
 | `docs/superpowers/specs/2026-06-18-account-card-real-status.md`                     | #236  | security  | queued: held for green gate             | —                   | —      | —                           | —    |
 | `docs/superpowers/specs/2026-06-18-host-diagnostics-safe-ops.md`                    | #255  | security  | **MERGED** (squash @ 2026-06-19T00:47Z, Ben sign-off). Issue closed. **Board move to Done still TODO (successor).** | — (reaped) | — | (deleted) | #312 |
 | `docs/superpowers/specs/2026-06-18-connector-health-monitoring.md`                  | #254  | sensitive | queued: held for green main             | —                   | —      | —                           | —    |
@@ -170,13 +172,15 @@ No waivers.
       **MERGED** squash `b0c59ef` @ 01:09Z with Ben sign-off; issue #207 closed + board Done; Gate-314 reaped.
       Non-blocking spec-drift `rate-limit-key.ts:52` (malformed-bearer→cookie, no fresh-bucket bypass)
       recorded in the issue as a followup.
-- [ ] #315 security QA review **CLEAN** (invariants ok; 1 non-blocking: cookie-session current-id
+- [ ] #315 security QA review **CLEAN** (previous verdict; invariants ok; 1 non-blocking: cookie-session current-id
       path `session-service.ts:62` untested). RED was stale-branch only; Build-237 rebased to `4271bb6`
       before #314 merged. Coordinator locally rebased #315 onto current `origin/main` (`b0c59ef`):
       new HEAD `7d2b989`, stale docs commits dropped, one trivial import conflict resolved,
       `@jarv1s/module-registry` typecheck green, and pushed. #313 then merged as `0592fe7`, so
-      #315 is stale again. Rebase onto `0592fe7`, push, spawn fresh Codex re-QA, post updated
-      verdict to PR #315. After GREEN → Ben sign-off.
+      #315 was stale again. Successor rebased cleanly onto `0592fe7`, new HEAD `cd2f5b2`, reran
+      `@jarv1s/module-registry` typecheck green, pushed, and posted progress comment
+      `#issuecomment-4747787641`. Fresh Codex re-QA running in `QA-315-Sessions-ReQA`; after
+      GREEN → Ben sign-off.
 - [ ] #306 is manual-acceptance only; no build agent should be spawned for it.
 
 ## Reaped Sessions
