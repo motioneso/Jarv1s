@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { KeyRound, Lock } from "lucide-react";
 
-import { listAiProviders } from "../api/client";
+import { getAiSummary } from "../api/client";
 import { queryKeys } from "../api/query-keys";
 import { FootNote, OptionCard, StepHeader } from "./onboarding-ui";
 
@@ -12,12 +12,12 @@ export function ApiKeyOptOutStep(props: { readonly onSkipStep: () => void }) {
   // endpoint is the source of truth — settings/onboarding NEVER reads an AI table directly.
   // "done" means the member has already configured at least one of their own AI providers
   // (i.e. opted IN to a personal key); a member who uses the shared assistant simply skips.
-  const providersQuery = useQuery({
-    queryKey: queryKeys.ai.providers,
-    queryFn: () => listAiProviders(),
+  const summaryQuery = useQuery({
+    queryKey: queryKeys.ai.summary,
+    queryFn: () => getAiSummary(),
     retry: false
   });
-  const done = (providersQuery.data?.providers.length ?? 0) > 0;
+  const done = summaryQuery.data?.summary.hasPersonalAiProvider ?? false;
 
   return (
     <section className="onb-step" aria-labelledby="member-apikey-title">

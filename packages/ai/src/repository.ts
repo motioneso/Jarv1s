@@ -171,6 +171,19 @@ export class AiRepository {
     return this.safeProviderQuery(scopedDb).execute();
   }
 
+  async hasPersonalProvider(scopedDb: DataContextDb, userId: string): Promise<boolean> {
+    assertDataContextDb(scopedDb);
+
+    const row = await scopedDb.db
+      .selectFrom("app.ai_provider_configs")
+      .select(sql<boolean>`true`.as("has_it"))
+      .where("owner_user_id", "=", userId)
+      .where("status", "!=", "revoked")
+      .executeTakeFirst();
+
+    return row?.has_it ?? false;
+  }
+
   async createProvider(
     scopedDb: DataContextDb,
     input: CreateAiProviderInput
