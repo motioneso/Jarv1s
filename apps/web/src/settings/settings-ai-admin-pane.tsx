@@ -32,17 +32,7 @@ import {
 import { queryKeys } from "../api/query-keys";
 import { useFeedback } from "./settings-feedback";
 import { readError } from "./settings-types";
-import {
-  Badge,
-  Field,
-  Group,
-  Note,
-  PaneHead,
-  Row,
-  Segmented,
-  Select,
-  Switch
-} from "./settings-ui";
+import { Badge, Field, Group, Note, PaneHead, Row, Segmented, Select, Switch } from "./settings-ui";
 import type {
   AiAuthMethod,
   AiConfiguredModelDto,

@@ -31,6 +31,7 @@ No migration. `instance_settings` already exists, has admin-gated writes, and is
 ### Task 1: Backend Resolver + Persistence
 
 **Files:**
+
 - Modify: `packages/ai/src/repository.ts`
 - Test: `tests/integration/ai.test.ts`
 
@@ -39,106 +40,106 @@ No migration. `instance_settings` already exists, has admin-gated writes, and is
 Add tests inside `describe("AI capability tier routing", ...)` after the existing tier tests:
 
 ```ts
-  it("uses a valid manual capability route before automatic tier selection", async () => {
-    const autoRes = await server.inject({
-      method: "POST",
-      url: "/api/ai/models",
-      headers: { authorization: `Bearer ${ids.sessionA}` },
-      payload: {
-        providerConfigId: sharedProviderId,
-        providerModelId: "manual-json-auto",
-        displayName: "Manual JSON Auto",
-        capabilities: ["json"],
-        tier: "interactive"
-      }
-    });
-    const manualRes = await server.inject({
-      method: "POST",
-      url: "/api/ai/models",
-      headers: { authorization: `Bearer ${ids.sessionA}` },
-      payload: {
-        providerConfigId: sharedProviderId,
-        providerModelId: "manual-json-selected",
-        displayName: "Manual JSON Selected",
-        capabilities: ["json"],
-        tier: "reasoning"
-      }
-    });
-    const manualId = manualRes.json<{ model: { id: string } }>().model.id;
+it("uses a valid manual capability route before automatic tier selection", async () => {
+  const autoRes = await server.inject({
+    method: "POST",
+    url: "/api/ai/models",
+    headers: { authorization: `Bearer ${ids.sessionA}` },
+    payload: {
+      providerConfigId: sharedProviderId,
+      providerModelId: "manual-json-auto",
+      displayName: "Manual JSON Auto",
+      capabilities: ["json"],
+      tier: "interactive"
+    }
+  });
+  const manualRes = await server.inject({
+    method: "POST",
+    url: "/api/ai/models",
+    headers: { authorization: `Bearer ${ids.sessionA}` },
+    payload: {
+      providerConfigId: sharedProviderId,
+      providerModelId: "manual-json-selected",
+      displayName: "Manual JSON Selected",
+      capabilities: ["json"],
+      tier: "reasoning"
+    }
+  });
+  const manualId = manualRes.json<{ model: { id: string } }>().model.id;
 
-    await dataContext.withDataContext(userAContext(), (scopedDb) =>
-      repository.setCapabilityRoute(scopedDb, {
-        capability: "json",
-        modelId: manualId,
-        actorUserId: ids.userA
-      })
-    );
+  await dataContext.withDataContext(userAContext(), (scopedDb) =>
+    repository.setCapabilityRoute(scopedDb, {
+      capability: "json",
+      modelId: manualId,
+      actorUserId: ids.userA
+    })
+  );
 
-    const resolved = await dataContext.withDataContext(userAContext(), (scopedDb) =>
-      repository.resolveModelForCapability(scopedDb, "json", "interactive")
-    );
-    const selected = await dataContext.withDataContext(userAContext(), (scopedDb) =>
-      repository.selectModelForCapability(scopedDb, "json", "interactive")
-    );
+  const resolved = await dataContext.withDataContext(userAContext(), (scopedDb) =>
+    repository.resolveModelForCapability(scopedDb, "json", "interactive")
+  );
+  const selected = await dataContext.withDataContext(userAContext(), (scopedDb) =>
+    repository.selectModelForCapability(scopedDb, "json", "interactive")
+  );
 
-    expect(autoRes.statusCode).toBe(201);
-    expect(manualRes.statusCode).toBe(201);
-    expect(resolved.reason).toBe("manual-route");
-    expect(resolved.model?.id).toBe(manualId);
-    expect(selected?.id).toBe(manualId);
+  expect(autoRes.statusCode).toBe(201);
+  expect(manualRes.statusCode).toBe(201);
+  expect(resolved.reason).toBe("manual-route");
+  expect(resolved.model?.id).toBe(manualId);
+  expect(selected?.id).toBe(manualId);
+});
+
+it("falls back when a manual capability route becomes incompatible", async () => {
+  const compatibleRes = await server.inject({
+    method: "POST",
+    url: "/api/ai/models",
+    headers: { authorization: `Bearer ${ids.sessionA}` },
+    payload: {
+      providerConfigId: sharedProviderId,
+      providerModelId: "manual-vision-compatible",
+      displayName: "Manual Vision Compatible",
+      capabilities: ["vision"],
+      tier: "interactive"
+    }
+  });
+  const staleRes = await server.inject({
+    method: "POST",
+    url: "/api/ai/models",
+    headers: { authorization: `Bearer ${ids.sessionA}` },
+    payload: {
+      providerConfigId: sharedProviderId,
+      providerModelId: "manual-vision-stale",
+      displayName: "Manual Vision Stale",
+      capabilities: ["vision"],
+      tier: "reasoning"
+    }
+  });
+  const compatibleId = compatibleRes.json<{ model: { id: string } }>().model.id;
+  const staleId = staleRes.json<{ model: { id: string } }>().model.id;
+
+  await dataContext.withDataContext(userAContext(), (scopedDb) =>
+    repository.setCapabilityRoute(scopedDb, {
+      capability: "vision",
+      modelId: staleId,
+      actorUserId: ids.userA
+    })
+  );
+  await server.inject({
+    method: "PATCH",
+    url: `/api/ai/models/${staleId}`,
+    headers: { authorization: `Bearer ${ids.sessionA}` },
+    payload: { status: "disabled" }
   });
 
-  it("falls back when a manual capability route becomes incompatible", async () => {
-    const compatibleRes = await server.inject({
-      method: "POST",
-      url: "/api/ai/models",
-      headers: { authorization: `Bearer ${ids.sessionA}` },
-      payload: {
-        providerConfigId: sharedProviderId,
-        providerModelId: "manual-vision-compatible",
-        displayName: "Manual Vision Compatible",
-        capabilities: ["vision"],
-        tier: "interactive"
-      }
-    });
-    const staleRes = await server.inject({
-      method: "POST",
-      url: "/api/ai/models",
-      headers: { authorization: `Bearer ${ids.sessionA}` },
-      payload: {
-        providerConfigId: sharedProviderId,
-        providerModelId: "manual-vision-stale",
-        displayName: "Manual Vision Stale",
-        capabilities: ["vision"],
-        tier: "reasoning"
-      }
-    });
-    const compatibleId = compatibleRes.json<{ model: { id: string } }>().model.id;
-    const staleId = staleRes.json<{ model: { id: string } }>().model.id;
+  const resolved = await dataContext.withDataContext(userAContext(), (scopedDb) =>
+    repository.resolveModelForCapability(scopedDb, "vision", "interactive")
+  );
 
-    await dataContext.withDataContext(userAContext(), (scopedDb) =>
-      repository.setCapabilityRoute(scopedDb, {
-        capability: "vision",
-        modelId: staleId,
-        actorUserId: ids.userA
-      })
-    );
-    await server.inject({
-      method: "PATCH",
-      url: `/api/ai/models/${staleId}`,
-      headers: { authorization: `Bearer ${ids.sessionA}` },
-      payload: { status: "disabled" }
-    });
-
-    const resolved = await dataContext.withDataContext(userAContext(), (scopedDb) =>
-      repository.resolveModelForCapability(scopedDb, "vision", "interactive")
-    );
-
-    expect(compatibleRes.statusCode).toBe(201);
-    expect(staleRes.statusCode).toBe(201);
-    expect(resolved.reason).toBe("manual-route-unavailable-fallback");
-    expect(resolved.model?.id).toBe(compatibleId);
-  });
+  expect(compatibleRes.statusCode).toBe(201);
+  expect(staleRes.statusCode).toBe(201);
+  expect(resolved.reason).toBe("manual-route-unavailable-fallback");
+  expect(resolved.model?.id).toBe(compatibleId);
+});
 ```
 
 - [ ] **Step 2: Run tests to verify failure**
@@ -345,6 +346,7 @@ git commit -m "feat(ai): persist capability route resolver" -m "Co-Authored-By: 
 ### Task 2: API Contracts + Routes
 
 **Files:**
+
 - Modify: `packages/shared/src/ai-api.ts`
 - Modify: `packages/ai/src/routes.ts`
 - Modify: `packages/ai/src/manifest.ts`
@@ -355,65 +357,65 @@ git commit -m "feat(ai): persist capability route resolver" -m "Co-Authored-By: 
 Add tests inside `describe("AI capability tier routing", ...)`:
 
 ```ts
-  it("lets an admin set, read, use, and clear a manual capability route", async () => {
-    const modelRes = await server.inject({
-      method: "POST",
-      url: "/api/ai/models",
-      headers: { authorization: `Bearer ${ids.sessionA}` },
-      payload: {
-        providerConfigId: sharedProviderId,
-        providerModelId: "route-api-chat",
-        displayName: "Route API Chat",
-        capabilities: ["chat"],
-        tier: "interactive"
-      }
-    });
-    const modelId = modelRes.json<{ model: { id: string } }>().model.id;
+it("lets an admin set, read, use, and clear a manual capability route", async () => {
+  const modelRes = await server.inject({
+    method: "POST",
+    url: "/api/ai/models",
+    headers: { authorization: `Bearer ${ids.sessionA}` },
+    payload: {
+      providerConfigId: sharedProviderId,
+      providerModelId: "route-api-chat",
+      displayName: "Route API Chat",
+      capabilities: ["chat"],
+      tier: "interactive"
+    }
+  });
+  const modelId = modelRes.json<{ model: { id: string } }>().model.id;
 
-    const putRes = await server.inject({
-      method: "PUT",
-      url: "/api/ai/capability-routes/chat",
-      headers: { authorization: `Bearer ${ids.sessionA}` },
-      payload: { modelId }
-    });
-    const listRes = await server.inject({
-      method: "GET",
-      url: "/api/ai/capability-routes",
-      headers: { authorization: `Bearer ${ids.sessionA}` }
-    });
-    const lookupRes = await server.inject({
-      method: "GET",
-      url: "/api/ai/capability-route/chat",
-      headers: { authorization: `Bearer ${ids.sessionA}` }
-    });
-    const clearRes = await server.inject({
-      method: "PUT",
-      url: "/api/ai/capability-routes/chat",
-      headers: { authorization: `Bearer ${ids.sessionA}` },
-      payload: { modelId: null }
-    });
-
-    expect(modelRes.statusCode).toBe(201);
-    expect(putRes.statusCode).toBe(200);
-    expect(putRes.json()).toMatchObject({ route: { capability: "chat", modelId } });
-    expect(listRes.json()).toMatchObject({ routes: { chat: modelId } });
-    expect(lookupRes.json()).toMatchObject({
-      route: { capability: "chat", reason: "manual-route", model: { id: modelId } }
-    });
-    expect(lookupRes.body).not.toContain("encrypted_credential");
-    expect(clearRes.json()).toMatchObject({ route: { capability: "chat", modelId: null } });
+  const putRes = await server.inject({
+    method: "PUT",
+    url: "/api/ai/capability-routes/chat",
+    headers: { authorization: `Bearer ${ids.sessionA}` },
+    payload: { modelId }
+  });
+  const listRes = await server.inject({
+    method: "GET",
+    url: "/api/ai/capability-routes",
+    headers: { authorization: `Bearer ${ids.sessionA}` }
+  });
+  const lookupRes = await server.inject({
+    method: "GET",
+    url: "/api/ai/capability-route/chat",
+    headers: { authorization: `Bearer ${ids.sessionA}` }
+  });
+  const clearRes = await server.inject({
+    method: "PUT",
+    url: "/api/ai/capability-routes/chat",
+    headers: { authorization: `Bearer ${ids.sessionA}` },
+    payload: { modelId: null }
   });
 
-  it("rejects non-admin capability route writes", async () => {
-    const response = await server.inject({
-      method: "PUT",
-      url: "/api/ai/capability-routes/chat",
-      headers: { authorization: `Bearer ${ids.sessionB}` },
-      payload: { modelId: null }
-    });
-
-    expect(response.statusCode).toBe(403);
+  expect(modelRes.statusCode).toBe(201);
+  expect(putRes.statusCode).toBe(200);
+  expect(putRes.json()).toMatchObject({ route: { capability: "chat", modelId } });
+  expect(listRes.json()).toMatchObject({ routes: { chat: modelId } });
+  expect(lookupRes.json()).toMatchObject({
+    route: { capability: "chat", reason: "manual-route", model: { id: modelId } }
   });
+  expect(lookupRes.body).not.toContain("encrypted_credential");
+  expect(clearRes.json()).toMatchObject({ route: { capability: "chat", modelId: null } });
+});
+
+it("rejects non-admin capability route writes", async () => {
+  const response = await server.inject({
+    method: "PUT",
+    url: "/api/ai/capability-routes/chat",
+    headers: { authorization: `Bearer ${ids.sessionB}` },
+    payload: { modelId: null }
+  });
+
+  expect(response.statusCode).toBe(403);
+});
 ```
 
 - [ ] **Step 2: Run tests to verify failure**
@@ -553,57 +555,57 @@ export const putAiCapabilityRouteRouteSchema = {
 In `packages/ai/src/routes.ts`, import new schemas/types and add after single-route lookup:
 
 ```ts
-  server.get(
-    "/api/ai/capability-routes",
-    { schema: listAiCapabilityRoutesRouteSchema },
-    async (request, reply) => {
-      try {
-        const accessContext = await dependencies.resolveAccessContext(request);
-        const routes = await dependencies.dataContext.withDataContext(accessContext, (scopedDb) =>
-          repository.listCapabilityRoutes(scopedDb)
-        );
-        return { routes };
-      } catch (error) {
-        return handleRouteError(error, reply);
-      }
+server.get(
+  "/api/ai/capability-routes",
+  { schema: listAiCapabilityRoutesRouteSchema },
+  async (request, reply) => {
+    try {
+      const accessContext = await dependencies.resolveAccessContext(request);
+      const routes = await dependencies.dataContext.withDataContext(accessContext, (scopedDb) =>
+        repository.listCapabilityRoutes(scopedDb)
+      );
+      return { routes };
+    } catch (error) {
+      return handleRouteError(error, reply);
     }
-  );
+  }
+);
 
-  server.put<{ Params: CapabilityParams }>(
-    "/api/ai/capability-routes/:capability",
-    { schema: putAiCapabilityRouteRouteSchema },
-    async (request, reply) => {
-      try {
-        const accessContext = await dependencies.resolveAccessContext(request);
-        const capability = parseCapability(request.params.capability);
-        const body = parsePutCapabilityRouteBody(request.body);
-        await dependencies.dataContext.withDataContext(accessContext, async (scopedDb) => {
-          await assertInstanceAdmin(repository, scopedDb, accessContext.actorUserId);
-          if (body.modelId !== null) {
-            const models = await repository.listModels(scopedDb);
-            const valid = models.some(
-              (model) =>
-                model.id === body.modelId &&
-                model.status === "active" &&
-                model.provider_status === "active" &&
-                model.capabilities.includes(capability)
-            );
-            if (!valid) {
-              throw new HttpError(400, "modelId must reference an active compatible model");
-            }
+server.put<{ Params: CapabilityParams }>(
+  "/api/ai/capability-routes/:capability",
+  { schema: putAiCapabilityRouteRouteSchema },
+  async (request, reply) => {
+    try {
+      const accessContext = await dependencies.resolveAccessContext(request);
+      const capability = parseCapability(request.params.capability);
+      const body = parsePutCapabilityRouteBody(request.body);
+      await dependencies.dataContext.withDataContext(accessContext, async (scopedDb) => {
+        await assertInstanceAdmin(repository, scopedDb, accessContext.actorUserId);
+        if (body.modelId !== null) {
+          const models = await repository.listModels(scopedDb);
+          const valid = models.some(
+            (model) =>
+              model.id === body.modelId &&
+              model.status === "active" &&
+              model.provider_status === "active" &&
+              model.capabilities.includes(capability)
+          );
+          if (!valid) {
+            throw new HttpError(400, "modelId must reference an active compatible model");
           }
-          await repository.setCapabilityRoute(scopedDb, {
-            capability,
-            modelId: body.modelId,
-            actorUserId: accessContext.actorUserId
-          });
+        }
+        await repository.setCapabilityRoute(scopedDb, {
+          capability,
+          modelId: body.modelId,
+          actorUserId: accessContext.actorUserId
         });
-        return { route: { capability, modelId: body.modelId } };
-      } catch (error) {
-        return handleRouteError(error, reply);
-      }
+      });
+      return { route: { capability, modelId: body.modelId } };
+    } catch (error) {
+      return handleRouteError(error, reply);
     }
-  );
+  }
+);
 ```
 
 Change existing single-route lookup to use:
@@ -679,6 +681,7 @@ git commit -m "feat(ai): expose capability route overrides" -m "Co-Authored-By: 
 ### Task 3: Admin UI Wiring
 
 **Files:**
+
 - Modify: `apps/web/src/api/client.ts`
 - Modify: `apps/web/src/api/query-keys.ts`
 - Modify: `apps/web/src/settings/settings-ai-admin-pane.tsx`
@@ -730,11 +733,11 @@ In `apps/web/src/settings/settings-ai-admin-pane.tsx`, import the new helpers:
 In `AiProvidersPane`, add:
 
 ```ts
-  const routesQuery = useQuery({
-    queryKey: queryKeys.ai.capabilityRoutes,
-    queryFn: listAiCapabilityRoutes,
-    retry: false
-  });
+const routesQuery = useQuery({
+  queryKey: queryKeys.ai.capabilityRoutes,
+  queryFn: listAiCapabilityRoutes,
+  retry: false
+});
 ```
 
 Update `invalidate()` to include:
@@ -787,29 +790,27 @@ Inside `RouterRow`, add:
 Replace the `<Select>` with:
 
 ```tsx
-          <Select
-            value={selectedId}
-            aria-label={`Model for ${props.capability.name}`}
-            disabled={routeMutation.isPending}
-            onChange={(e) =>
-              routeMutation.mutate(e.target.value === "automatic" ? null : e.target.value)
-            }
-          >
-            <option value="automatic">
-              Automatic{effectiveId ? ` · ${routeQuery.data?.route.model?.providerModelId}` : ""}
-            </option>
-            {props.models.map((m) => {
-              const compatible =
-                m.status === "active" &&
-                m.providerStatus === "active" &&
-                m.capabilities.includes(props.capability.k);
-              return (
-                <option key={m.id} value={m.id} disabled={!compatible}>
-                  {m.providerModelId} · {TIERS[m.tier].label}
-                </option>
-              );
-            })}
-          </Select>
+<Select
+  value={selectedId}
+  aria-label={`Model for ${props.capability.name}`}
+  disabled={routeMutation.isPending}
+  onChange={(e) => routeMutation.mutate(e.target.value === "automatic" ? null : e.target.value)}
+>
+  <option value="automatic">
+    Automatic{effectiveId ? ` · ${routeQuery.data?.route.model?.providerModelId}` : ""}
+  </option>
+  {props.models.map((m) => {
+    const compatible =
+      m.status === "active" &&
+      m.providerStatus === "active" &&
+      m.capabilities.includes(props.capability.k);
+    return (
+      <option key={m.id} value={m.id} disabled={!compatible}>
+        {m.providerModelId} · {TIERS[m.tier].label}
+      </option>
+    );
+  })}
+</Select>
 ```
 
 Keep the `No added model can do this yet` branch only when `props.models.length === 0`; otherwise Automatic remains available.
@@ -821,12 +822,10 @@ Remove the routing `NotWired` block and remove "routing dropdowns" from the `BAC
 If `tests/e2e` hits Settings AI admin, update `tests/e2e/mock-ai-api.ts` with:
 
 ```ts
-  await page.route("**/api/ai/capability-routes", (route) =>
-    fulfillJson(route, 200, { routes: {} })
-  );
-  await page.route(/\/api\/ai\/capability-routes\/[^/]+$/, (route) =>
-    fulfillJson(route, 200, { route: { capability: "chat", modelId: null } })
-  );
+await page.route("**/api/ai/capability-routes", (route) => fulfillJson(route, 200, { routes: {} }));
+await page.route(/\/api\/ai\/capability-routes\/[^/]+$/, (route) =>
+  fulfillJson(route, 200, { route: { capability: "chat", modelId: null } })
+);
 ```
 
 - [ ] **Step 4: Run web checks**
@@ -852,6 +851,7 @@ git commit -m "feat(web): persist AI capability routing choices" -m "Co-Authored
 ### Task 4: Final Gate + Closeout Prep
 
 **Files:**
+
 - No implementation edits expected.
 
 - [ ] **Step 1: Create isolated DB if absent**
