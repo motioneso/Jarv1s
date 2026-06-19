@@ -85,3 +85,64 @@ test("opens the live chat drawer from the nav and renders the streamed records o
   await drawer.getByRole("button", { name: "New chat" }).click();
   await expect(drawer.getByText("What can I help with?")).toBeVisible();
 });
+
+test("clicking a history row renders stored messages read-only", async ({ page }) => {
+  await mockApi(page, {
+    authenticated: true,
+    chatThreads: [
+      {
+        id: "thread-old",
+        ownerUserId: "user-1",
+        title: "Planning notes",
+        createdAt: "2026-06-05T12:00:00.000Z",
+        updatedAt: "2026-06-05T12:00:00.000Z"
+      }
+    ],
+    chatMessages: {
+      "thread-old": [
+        {
+          id: "msg-user",
+          threadId: "thread-old",
+          ownerUserId: "user-1",
+          role: "user",
+          status: "stored",
+          body: "What did we decide?",
+          modelRoute: null,
+          tools: [],
+          activity: [],
+          createdAt: "2026-06-05T12:01:00.000Z",
+          updatedAt: "2026-06-05T12:01:00.000Z"
+        },
+        {
+          id: "msg-assistant",
+          threadId: "thread-old",
+          ownerUserId: "user-1",
+          role: "assistant",
+          status: "stored",
+          body: "We chose the small path.",
+          modelRoute: null,
+          tools: [],
+          activity: [{ kind: "tool", text: "Looked up prior notes" }],
+          createdAt: "2026-06-05T12:02:00.000Z",
+          updatedAt: "2026-06-05T12:02:00.000Z"
+        }
+      ]
+    },
+    connectorAccounts: [],
+    connectorProviders: createMockConnectorProviders(),
+    notifications: [],
+    tasks: []
+  });
+
+  await page.goto("/");
+  await page.getByRole("button", { name: "Chat with Jarvis" }).click();
+  const drawer = page.getByRole("dialog", { name: "Chat with Jarvis" });
+
+  await drawer.getByRole("button", { name: "Planning notes" }).click();
+
+  await expect(drawer.getByText("What did we decide?")).toBeVisible();
+  await expect(drawer.getByText("We chose the small path.")).toBeVisible();
+  await drawer.getByText("Behind the scenes").click();
+  await expect(drawer.getByText("Looked up prior notes")).toBeVisible();
+  await expect(drawer.getByLabel("Message Jarvis")).toBeDisabled();
+});

@@ -215,6 +215,10 @@
 .chatd-sess__row:hover {
   background: var(--surface-2);
 }
+.chatd-sess__row.is-selected {
+  background: var(--pine-soft);
+  border-color: var(--accent);
+}
 .chatd-sess__ic {
   color: var(--text-faint);
   display: inline-flex;
@@ -255,6 +259,11 @@
   color: var(--text-faint);
   padding: 4px 10px 8px;
 }
+.chatd-review {
+  margin-bottom: 12px;
+  color: var(--text-subtle);
+  font-size: 12px;
+}
 
 /* composer */
 .chatd__composer {
@@ -276,6 +285,9 @@
   border-color: var(--accent);
   box-shadow: 0 0 0 3px var(--pine-soft);
   background: var(--surface);
+}
+.chatd-input.is-readonly {
+  opacity: 0.72;
 }
 .chatd-input textarea {
   flex: 1;

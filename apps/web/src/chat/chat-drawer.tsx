@@ -1,9 +1,17 @@
 import { useQuery } from "@tanstack/react-query";
-import { ArrowUp, ChevronDown, Sparkles, SquarePen, X } from "lucide-react";
+import { ArrowUp, ChevronDown, MessageSquareText, Sparkles, SquarePen, X } from "lucide-react";
 import { type KeyboardEvent, useState } from "react";
 
-import { clearChat, listCalendarEvents, listTasks, sendChatTurn } from "../api/client";
+import {
+  clearChat,
+  listCalendarEvents,
+  listChatThreadMessages,
+  listChatThreads,
+  listTasks,
+  sendChatTurn
+} from "../api/client";
 import { queryKeys } from "../api/query-keys";
+import type { ChatMessageDto } from "@jarv1s/shared";
 import { ActionRequestCard } from "./action-request-card";
 import { buildChatSeeds } from "./seeds";
 import type { ChatRecordKind, TranscriptRecord } from "./use-chat-stream";
@@ -24,14 +32,34 @@ export function ChatDrawer(props: {
   readonly records: readonly TranscriptRecord[];
   readonly clearRecords: () => void;
 }) {
+  const [reviewThreadId, setReviewThreadId] = useState<string | null>(null);
+  const threadsQuery = useQuery({
+    queryKey: queryKeys.chat.threads,
+    queryFn: () => listChatThreads(),
+    enabled: props.open
+  });
+  const messagesQuery = useQuery({
+    queryKey: queryKeys.chat.messages(reviewThreadId ?? ""),
+    queryFn: () => listChatThreadMessages(reviewThreadId ?? ""),
+    enabled: props.open && reviewThreadId !== null
+  });
+
   if (!props.open) {
     return null;
   }
 
   const startNewChat = () => {
+    setReviewThreadId(null);
     void clearChat();
     props.clearRecords();
   };
+  const reviewing = reviewThreadId !== null;
+  const displayRecords = reviewing
+    ? recordsFromMessages(messagesQuery.data?.messages ?? [])
+    : props.records;
+  const selectedThread = (threadsQuery.data?.threads ?? []).find(
+    (item) => item.id === reviewThreadId
+  );
 
   return (
     <aside className="chatd" role="dialog" aria-label="Chat with Jarvis">
@@ -64,11 +92,52 @@ export function ChatDrawer(props: {
       </div>
 
       <div className="chatd__body">
-        {props.records.length > 0 ? <Thread records={props.records} /> : <EmptyState />}
+        <HistoryList
+          selectedThreadId={reviewThreadId}
+          threads={threadsQuery.data?.threads ?? []}
+          onSelect={setReviewThreadId}
+        />
+        {reviewing ? (
+          <div className="chatd-review">Reviewing {selectedThread?.title ?? "past chat"}</div>
+        ) : null}
+        {displayRecords.length > 0 ? <Thread records={displayRecords} /> : <EmptyState />}
       </div>
 
-      <Composer />
+      <Composer readOnly={reviewing} />
     </aside>
+  );
+}
+
+function HistoryList(props: {
+  readonly threads: readonly {
+    readonly id: string;
+    readonly title: string;
+    readonly updatedAt: string;
+  }[];
+  readonly selectedThreadId: string | null;
+  readonly onSelect: (threadId: string) => void;
+}) {
+  if (props.threads.length === 0) return null;
+  return (
+    <div className="chatd-sess">
+      <div className="chatd-sess__hd">History</div>
+      {props.threads.map((thread) => (
+        <button
+          className={`chatd-sess__row${props.selectedThreadId === thread.id ? " is-selected" : ""}`}
+          key={thread.id}
+          type="button"
+          onClick={() => props.onSelect(thread.id)}
+        >
+          <span className="chatd-sess__ic">
+            <MessageSquareText size={14} aria-hidden="true" />
+          </span>
+          <span className="chatd-sess__main">
+            <span className="chatd-sess__title">{thread.title}</span>
+          </span>
+          <span className="chatd-sess__when">{formatShortDate(thread.updatedAt)}</span>
+        </button>
+      ))}
+    </div>
   );
 }
 
@@ -192,6 +261,41 @@ function RecordRow(props: { readonly record: TranscriptRecord }) {
   );
 }
 
+function recordsFromMessages(messages: readonly ChatMessageDto[]): TranscriptRecord[] {
+  return messages.flatMap((message) => [
+    ...message.activity.map((event) => ({
+      kind: safeActivityKind(event.kind),
+      text: event.text
+    })),
+    ...message.tools.map((tool) => ({
+      kind: "tool" as const,
+      text: tool.name
+    })),
+    {
+      kind:
+        message.role === "user"
+          ? ("user" as const)
+          : message.status === "error"
+            ? ("error" as const)
+            : ("reply" as const),
+      text: message.body
+    }
+  ]);
+}
+
+function safeActivityKind(kind: string): ChatRecordKind {
+  if (kind === "thinking" || kind === "tool" || kind === "status" || kind === "action_result") {
+    return kind;
+  }
+  return "status";
+}
+
+function formatShortDate(value: string): string {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  return date.toLocaleDateString(undefined, { month: "short", day: "numeric" });
+}
+
 function EmptyState() {
   const tasksQuery = useQuery({ queryKey: queryKeys.tasks.list, queryFn: () => listTasks() });
   const eventsQuery = useQuery({
@@ -226,11 +330,12 @@ function EmptyState() {
   );
 }
 
-function Composer() {
+function Composer(props: { readonly readOnly: boolean }) {
   const [text, setText] = useState("");
   const [error, setError] = useState<string | null>(null);
 
   const send = async () => {
+    if (props.readOnly) return;
     const trimmed = text.trim();
     if (!trimmed) {
       return;
@@ -256,19 +361,20 @@ function Composer() {
   return (
     <div className="chatd__composer">
       {error ? <p className="form-error">{error}</p> : null}
-      <div className="chatd-input">
+      <div className={`chatd-input${props.readOnly ? " is-readonly" : ""}`}>
         <textarea
           aria-label="Message Jarvis"
+          disabled={props.readOnly}
           onChange={(event) => setText(event.target.value)}
           onKeyDown={onKeyDown}
-          placeholder="Message Jarvis…"
+          placeholder={props.readOnly ? "Read-only history" : "Message Jarvis…"}
           rows={1}
           value={text}
         />
         <button
           aria-label="Send"
           className="chatd-send"
-          disabled={!text.trim()}
+          disabled={props.readOnly || !text.trim()}
           type="button"
           onClick={() => void send()}
         >

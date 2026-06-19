@@ -67,6 +67,7 @@ import type {
   ListBriefingRunsResponse,
   ListCalendarEventsResponse,
   ListCheckinsResponse,
+  ListChatThreadMessagesResponse,
   ListChatThreadsResponse,
   ListConnectorAccountsResponse,
   ListConnectorProvidersResponse,
@@ -571,6 +572,14 @@ export async function getCalendarEvent(id: string): Promise<GetCalendarEventResp
 
 export async function listChatThreads(): Promise<ListChatThreadsResponse> {
   return requestJson<ListChatThreadsResponse>("/api/chat/threads");
+}
+
+export async function listChatThreadMessages(
+  threadId: string
+): Promise<ListChatThreadMessagesResponse> {
+  return requestJson<ListChatThreadMessagesResponse>(
+    `/api/chat/threads/${encodeURIComponent(threadId)}/messages`
+  );
 }
 
 export async function sendChatTurn(text: string): Promise<{ reply: string }> {
