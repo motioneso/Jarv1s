@@ -69,6 +69,7 @@ function cannedToolData(toolName: string): Record<string, unknown> {
 
 interface FakeOptions {
   readonly generateChat?: GenerateChatFn;
+  readonly credentialPayload?: Record<string, unknown>;
   /** Tool name whose execute throws, to exercise the gaps path. */
   readonly failTool?: string;
   /** Omit a model so compose takes the degraded "no_model" fallback. */
@@ -169,7 +170,7 @@ function makeFakeDeps(options: FakeOptions = {}): ComposeDeps {
 
   const cipher = {
     decryptJson() {
-      return { apiKey: "fake-key" };
+      return options.credentialPayload ?? { apiKey: "fake-key" };
     }
   } as unknown as AiSecretCipher;
 
@@ -327,6 +328,15 @@ describe("composeBriefing — degraded fallback", () => {
     expect(result.status).toBe("succeeded");
     expect(result.sourceMetadata.degraded).toBe(true);
     expect(result.sourceMetadata.degradedReason).toBe("synthesis_failed");
+  });
+
+  it("falls back when the stored AI credential payload is malformed", async () => {
+    const deps = makeFakeDeps({ credentialPayload: { token: "do-not-log" } });
+    const result = await composeBriefing(fakeScopedDb, definition(), runInput, deps);
+    expect(result.status).toBe("succeeded");
+    expect(result.sourceMetadata.degraded).toBe(true);
+    expect(result.sourceMetadata.degradedReason).toBe("credential_error");
+    expect(JSON.stringify(result)).not.toContain("do-not-log");
   });
 });
 

@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 
 import type { AiRepository, AiSecretCipher } from "@jarv1s/ai";
-import { HttpApiAdapter } from "@jarv1s/ai";
+import { HttpApiAdapter, parseAiApiKeyCredential } from "@jarv1s/ai";
 import type { ChatTurn, GenerateChatInput, ProviderKind } from "@jarv1s/ai";
 import type { BriefingDefinition, BriefingRunStatus, DataContextDb } from "@jarv1s/db";
 import type { MemoryRetriever } from "@jarv1s/memory";
@@ -419,9 +419,10 @@ export async function composeBriefing(
         vaultNotes
       );
     }
-    const decrypted = deps.cipher.decryptJson(provider.encrypted_credential);
-    const key = decrypted.apiKey;
-    if (typeof key !== "string" || key.length === 0) {
+    const credential = parseAiApiKeyCredential(
+      deps.cipher.decryptJson(provider.encrypted_credential)
+    );
+    if (!credential) {
       return fallback(
         sections,
         gaps,
@@ -435,7 +436,7 @@ export async function composeBriefing(
         vaultNotes
       );
     }
-    apiKey = key;
+    apiKey = credential.apiKey;
     baseUrl = provider.base_url;
   } catch {
     // Never log the raw error — it can carry the decrypted key.
