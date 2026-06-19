@@ -56,11 +56,6 @@ export interface AiCapabilityRouteDto {
 
 export type AiCapabilityRouteMapDto = Partial<Record<AiModelCapability, string | null>>;
 
-export interface AiCapabilityRouteSettingDto {
-  readonly capability: AiModelCapability;
-  readonly modelId: string | null;
-}
-
 export interface AiProviderTestResultDto {
   readonly ok: boolean;
   readonly providerKind: AiProviderKind;
@@ -204,7 +199,10 @@ export interface PutAiCapabilityRouteRequest {
 }
 
 export interface PutAiCapabilityRouteResponse {
-  readonly route: AiCapabilityRouteSettingDto;
+  readonly route: {
+    readonly capability: AiModelCapability;
+    readonly modelId: string | null;
+  };
 }
 
 export interface TestAiProviderConfigResponse {

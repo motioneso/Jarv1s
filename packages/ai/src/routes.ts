@@ -25,13 +25,10 @@ import {
   createAiProviderConfigRouteSchema,
   getChatModelOverrideSettingsRouteSchema,
   invokeAiAssistantToolRouteSchema,
-  listAiCapabilityRoutesRouteSchema,
   listAiAssistantActionsRouteSchema,
   listAiAssistantToolsRouteSchema,
   listAiConfiguredModelsRouteSchema,
   listAiProviderConfigsRouteSchema,
-  lookupAiCapabilityRouteRouteSchema,
-  putAiCapabilityRouteRouteSchema,
   putAdminChatModelOverrideSettingsRouteSchema,
   putChatModelOverrideSettingsRouteSchema,
   resolveAiAssistantActionRouteSchema,
@@ -55,7 +52,6 @@ import {
   type CreateAiProviderConfigRequest,
   type InvokeAiAssistantToolRequest,
   type PutAdminChatModelOverrideRequest,
-  type PutAiCapabilityRouteRequest,
   type PutChatModelOverrideRequest,
   type ResolveAiAssistantActionRequest,
   type UpdateAiConfiguredModelRequest,
@@ -72,6 +68,7 @@ import {
 } from "./gateway/output-validation.js";
 import { ToolInputValidationError, validateToolInput } from "./gateway/input-validation.js";
 import { cliAvailable, type ProviderKind as CliProviderKind } from "./cli-availability.js";
+import { registerAiCapabilityRouteRoutes } from "./capability-route-routes.js";
 import { createAiSecretCipher, type AiSecretCipher } from "./crypto.js";
 import { registerAiProviderValidationRoutes } from "./provider-validation-routes.js";
 import {
@@ -91,7 +88,6 @@ export interface AiRoutesDependencies {
 }
 
 type IdParams = { readonly id: string };
-type CapabilityParams = { readonly capability: string };
 type AssistantToolParams = { readonly name: string };
 
 const AI_PROVIDER_KINDS = new Set<AiProviderKind>([
@@ -327,88 +323,7 @@ export function registerAiRoutes(
     }
   );
 
-  server.get<{ Params: CapabilityParams }>(
-    "/api/ai/capability-route/:capability",
-    { schema: lookupAiCapabilityRouteRouteSchema },
-    async (request, reply) => {
-      try {
-        const accessContext = await dependencies.resolveAccessContext(request);
-        const capability = parseCapability(request.params.capability);
-        const route = await dependencies.dataContext.withDataContext(accessContext, (scopedDb) =>
-          repository.resolveModelForCapability(scopedDb, capability)
-        );
-
-        return {
-          route: {
-            capability,
-            available: Boolean(route.model),
-            reason: route.reason,
-            model: route.model ? serializeModel(route.model) : null
-          }
-        };
-      } catch (error) {
-        return handleRouteError(error, reply);
-      }
-    }
-  );
-
-  server.get(
-    "/api/ai/capability-routes",
-    { schema: listAiCapabilityRoutesRouteSchema },
-    async (request, reply) => {
-      try {
-        const accessContext = await dependencies.resolveAccessContext(request);
-        const routes = await dependencies.dataContext.withDataContext(accessContext, (scopedDb) =>
-          repository.listCapabilityRoutes(scopedDb)
-        );
-
-        return { routes };
-      } catch (error) {
-        return handleRouteError(error, reply);
-      }
-    }
-  );
-
-  server.put<{ Params: CapabilityParams }>(
-    "/api/ai/capability-routes/:capability",
-    { schema: putAiCapabilityRouteRouteSchema },
-    async (request, reply) => {
-      try {
-        const accessContext = await dependencies.resolveAccessContext(request);
-        const capability = parseCapability(request.params.capability);
-        const body = parsePutCapabilityRouteBody(request.body);
-
-        await dependencies.dataContext.withDataContext(accessContext, async (scopedDb) => {
-          await assertInstanceAdmin(repository, scopedDb, accessContext.actorUserId);
-
-          if (body.modelId !== null) {
-            const models = await repository.listModels(scopedDb);
-            const valid = models.some(
-              (model) =>
-                model.id === body.modelId &&
-                model.status === "active" &&
-                model.provider_status === "active" &&
-                model.capabilities.includes(capability)
-            );
-
-            if (!valid) {
-              throw new HttpError(400, "modelId must reference an active compatible model");
-            }
-          }
-
-          await repository.setCapabilityRoute(scopedDb, {
-            capability,
-            modelId: body.modelId,
-            actorUserId: accessContext.actorUserId
-          });
-        });
-
-        return { route: { capability, modelId: body.modelId } };
-      } catch (error) {
-        return handleRouteError(error, reply);
-      }
-    }
-  );
+  registerAiCapabilityRouteRoutes(server, dependencies, repository);
 
   server.get(
     "/api/ai/chat-model-override",
@@ -736,16 +651,6 @@ function parseResolveAssistantActionBody(body: unknown): ResolveAiAssistantActio
 }
 
 function parsePutChatModelOverrideBody(body: unknown): PutChatModelOverrideRequest {
-  const value = requireObject(body);
-  const modelId = value.modelId;
-  if (modelId !== null && typeof modelId !== "string") {
-    throw new HttpError(400, "modelId must be a string or null");
-  }
-
-  return { modelId };
-}
-
-function parsePutCapabilityRouteBody(body: unknown): PutAiCapabilityRouteRequest {
   const value = requireObject(body);
   const modelId = value.modelId;
   if (modelId !== null && typeof modelId !== "string") {

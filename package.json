@@ -35,7 +35,7 @@
     "start:worker": "pnpm --filter @jarv1s/worker start",
     "test:unit": "vitest run tests/unit",
     "test:integration": "vitest run tests/integration",
-    "test:ai": "vitest run tests/integration/ai.test.ts",
+    "test:ai": "vitest run tests/integration/ai.test.ts tests/integration/ai-capability-routes.test.ts",
     "test:ai-tools": "vitest run tests/integration/ai-tools.test.ts",
     "test:briefings": "vitest run tests/integration/briefings.test.ts tests/integration/briefings-synthesis.test.ts",
     "test:chat": "vitest run tests/integration/chat-live.test.ts",
