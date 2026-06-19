@@ -156,12 +156,16 @@ export function registerChatRoutes(
 
   server.addHook("onReady", async () => {
     if (!wiring) return;
-    const count = await wiring.aiRepository.cancelStalePendingAssistantActions(
-      dependencies.rootDb,
-      { olderThan: new Date(Date.now() - STALE_ACTION_GRACE_MS) }
-    );
-    if (count > 0) {
-      server.log.info({ count }, "cancelled stale assistant action requests");
+    try {
+      const count = await wiring.aiRepository.cancelStalePendingAssistantActions(
+        dependencies.rootDb,
+        { olderThan: new Date(Date.now() - STALE_ACTION_GRACE_MS) }
+      );
+      if (count > 0) {
+        server.log.info({ count }, "cancelled stale assistant action requests");
+      }
+    } catch (err) {
+      server.log.warn({ err }, "stale assistant action cleanup failed");
     }
   });
 
