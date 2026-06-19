@@ -16,7 +16,7 @@ since the native `Agent(model:opus)` path is Claude-only. Currently-running Clau
 Gate-314, Build-237) finish as-is — do not kill warm work; only NEW spawns are Codex.
 **Relay threshold:** security-tier merge → relay immediately after Phase 3 step 7; routine/sensitive `merges_since_relay` >= 2 → relay. No deferral. Compaction summary = already past safe → relay, merge nothing.
 **merges_since_relay:** 0 (successor reset after security-tier merge #315 relay)
-**last_alive:** 2026-06-19T03:29Z (Codex coordinator `019eddce…` — DNS recovered; #321 GLM GREEN and QA RED comments posted; #322 GLM review started; #123 fixing foundation.test.ts gate failure)
+**last_alive:** 2026-06-19T03:35Z (Codex coordinator `019eddce…` — #322 GLM GREEN posted; #123 full gate rerun still in integrations; #322 Codex QA pending gate slot)
 **Gate serialization policy (2026-06-18):** run mechanical gates ~1–2 at a time. Concurrent
 `verify:foundation` runs collide on cluster-global role grants → false-RED "tuple concurrently
 updated", EVEN with isolated `JARVIS_PGDATABASE` (db:migrate grants touch shared `pg_authid`).
@@ -116,8 +116,12 @@ LIVE FLEET (resolve panes fresh by label; numbers reflow):
   `deploy-230-people-access-sessions`; local-ready at `85e078f` (format/lint/typecheck/unit green;
   focused e2e green before scoped Prettier; post-format e2e retry hit local EMFILE watcher, not app
   assertion). Pushed/current after DNS recovery; PR #322 open. Issue update
-  `#issuecomment-4748201877`. GLM 5.2 security review started in pane `w1:p28`; Codex QA not yet
-  started because #123 gate/fix cycle is occupying the serialized local gate slot.
+  `#issuecomment-4748201877`. GLM 5.2 security review GREEN and posted to PR #322
+  (`#issuecomment-4748280238`): no blocking findings; real backend route and server-side admin
+  enforcement confirmed; fake Invite removed; no session/token leakage found; non-blocking notes
+  are typed response threading, optional backend self-revoke guard, and Codex QA should confirm the
+  e2e after prior local EMFILE. Codex QA not yet started because #123 gate/fix cycle is occupying
+  the serialized local gate slot.
 - GLM 5.2 pane `w1:p28` is not a deploy build lane; it may still be open for
   unrelated/adversarial-review work.
 
@@ -164,7 +168,7 @@ need a clean worktree + a pre-existing isolated DB. Per-merge digest:
 | `docs/superpowers/specs/2026-06-18-otnr-p2-secrets-vault-residuals.md`              | #114  | security  | QA RED: full gate VF=1 racer timeout; GLM GREEN; DNS blocks comments | Build-114-SecretResiduals | w1:p2G | deploy-114-secret-residuals | #321 |
 | `docs/superpowers/specs/2026-06-18-route-local-junk-credential-rate-limit-gates.md` | #207  | security  | **MERGED** (squash `b0c59ef` @ 01:09Z, Ben sign-off). Issue closed; board Done. | — (reaped) | — | (deleted) | #314 |
 | `docs/superpowers/specs/2026-06-18-otnr-p3-ai-gateway-residual-hardening.md`        | #123  | security  | building: implementation commits through `b131b64`; fixing foundation.test.ts gate failure; migration `0098_ai_cancel_stale_assistant_actions.sql` assigned | Build-123-AIGateway | w1:p2H | deploy-123-ai-gateway-hardening | —    |
-| `docs/superpowers/specs/2026-06-18-people-access-approval-revoke-sessions.md`       | #230  | security  | PR ready; GLM review running; Codex QA pending gate slot | Build-230-PeopleAccess | w1:p2J | deploy-230-people-access-sessions | #322 |
+| `docs/superpowers/specs/2026-06-18-people-access-approval-revoke-sessions.md`       | #230  | security  | PR ready; GLM GREEN posted; Codex QA pending gate slot | Build-230-PeopleAccess | w1:p2J | deploy-230-people-access-sessions | #322 |
 | `docs/superpowers/specs/2026-06-18-active-sessions-list-revoke.md`                  | #237  | security  | **MERGED** (squash `14793b7` @ 02:53Z, Ben sign-off). Issue closed; branch/worktrees/panes reaped. | — (reaped) | — | (deleted) | #315 |
 | `docs/superpowers/specs/2026-06-18-account-card-real-status.md`                     | #236  | security  | queued: held for green gate             | —                   | —      | —                           | —    |
 | `docs/superpowers/specs/2026-06-18-host-diagnostics-safe-ops.md`                    | #255  | security  | **MERGED** (squash @ 2026-06-19T00:47Z, Ben sign-off). Issue closed. **Board move to Done still TODO (successor).** | — (reaped) | — | (deleted) | #312 |
