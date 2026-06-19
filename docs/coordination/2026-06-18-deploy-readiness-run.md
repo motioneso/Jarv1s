@@ -16,7 +16,7 @@ since the native `Agent(model:opus)` path is Claude-only. Currently-running Clau
 Gate-314, Build-237) finish as-is — do not kill warm work; only NEW spawns are Codex.
 **Relay threshold:** security-tier merge → relay immediately after Phase 3 step 7; routine/sensitive `merges_since_relay` >= 2 → relay. No deferral. Compaction summary = already past safe → relay, merge nothing.
 **merges_since_relay:** 0 (successor reset after security-tier merge #315 relay)
-**last_alive:** 2026-06-19T03:35Z (Codex coordinator `019eddce…` — #322 GLM GREEN posted; #123 full gate rerun still in integrations; #322 Codex QA pending gate slot)
+**last_alive:** 2026-06-19T03:43Z (Codex coordinator `019eddce…` — #123 PR #323 ready and QA-323 running; #322 GLM GREEN posted; #322 Codex QA pending gate slot)
 **Gate serialization policy (2026-06-18):** run mechanical gates ~1–2 at a time. Concurrent
 `verify:foundation` runs collide on cluster-global role grants → false-RED "tuple concurrently
 updated", EVEN with isolated `JARVIS_PGDATABASE` (db:migrate grants touch shared `pg_authid`).
@@ -101,10 +101,17 @@ LIVE FLEET (resolve panes fresh by label; numbers reflow):
   (immediate-approve red→green); Task 2 committed `77f6f36` (stale pending cleanup red→green,
   migration-owner SELECT/UPDATE policies under FORCE RLS); Task 3 committed `8f29273` (Codex token
   env file 0600 + rm on kill, redaction preserved); verification cleanup committed `b131b64`.
-  Earlier fetch/rebase against `origin/main` blocked twice by DNS; DNS has recovered and agent was
-  notified to retry after current fixes/checks. Local full gate found a `foundation.test.ts` failure;
-  agent is applying a scoped fix and running targeted failing-file checks. Assigned migration
-  `packages/ai/sql/0098_ai_cancel_stale_assistant_actions.sql`.
+  Scoped startup fix committed `49b1078` (stale cleanup is nonfatal when DB is down). PR #323 open:
+  https://github.com/motioneso/Jarv1s/pull/323, head `49b10785ec76a43db7088ac8bb98312835f3050f`,
+  mergeStateStatus CLEAN. Build evidence: VF_EXIT=0 on rerun with
+  `JARVIS_PGDATABASE=jarv1s_deploy123`; AUDIT_EXIT=0; focused
+  mcp-gateway/chat-mcp-transport/chat-live integration PASS; cli/mux/redact/gateway unit PASS.
+  First full VF hit unrelated auth-bootstrap racer timeout; focused auth-bootstrap-recovery rerun
+  PASS and second full VF PASS. Issue #123 progress comment posted (`#issuecomment-4748313718`).
+  Assigned migration `packages/ai/sql/0098_ai_cancel_stale_assistant_actions.sql`.
+- `QA-323-AIGateway` — Codex, pane `w1:p2M`, session `019eddfa-720a-7341-aef6-5e1a23f57e00`,
+  worktree `.claude/worktrees/qa-323-ai-gateway-hardening`, detached at PR #323 head `49b1078`;
+  security QA running with CI-unavailable local gate requirement (`JARVIS_PGDATABASE=jarv1s_qa_323`).
 - `QA-321-SecretResiduals` — Codex, pane `w1:p2K`, session `019edde0-e277-7962-b29f-e0bc30ad1407`,
   worktree `.claude/worktrees/qa-321-secret-residuals`, detached at PR #321 head `27972b7`;
   security QA returned RED with CI-unavailable local gate requirement: after an initial missing-DB
@@ -167,7 +174,7 @@ need a clean worktree + a pre-existing isolated DB. Per-merge digest:
 | `docs/superpowers/specs/2026-06-18-otnr-p1-bootstrap-role-passwords.md`             | #117  | security  | **MERGED** (squash `0592fe7` @ 02:02Z, Ben sign-off). Issue closed; branch/worktrees/panes reaped. | — (reaped) | — | (deleted) | #313 |
 | `docs/superpowers/specs/2026-06-18-otnr-p2-secrets-vault-residuals.md`              | #114  | security  | QA RED: full gate VF=1 racer timeout; GLM GREEN; DNS blocks comments | Build-114-SecretResiduals | w1:p2G | deploy-114-secret-residuals | #321 |
 | `docs/superpowers/specs/2026-06-18-route-local-junk-credential-rate-limit-gates.md` | #207  | security  | **MERGED** (squash `b0c59ef` @ 01:09Z, Ben sign-off). Issue closed; board Done. | — (reaped) | — | (deleted) | #314 |
-| `docs/superpowers/specs/2026-06-18-otnr-p3-ai-gateway-residual-hardening.md`        | #123  | security  | building: implementation commits through `b131b64`; fixing foundation.test.ts gate failure; migration `0098_ai_cancel_stale_assistant_actions.sql` assigned | Build-123-AIGateway | w1:p2H | deploy-123-ai-gateway-hardening | —    |
+| `docs/superpowers/specs/2026-06-18-otnr-p3-ai-gateway-residual-hardening.md`        | #123  | security  | PR #323 ready; QA-323 running; migration `0098_ai_cancel_stale_assistant_actions.sql` assigned | Build-123-AIGateway / QA-323-AIGateway | w1:p2H / w1:p2M | deploy-123-ai-gateway-hardening | #323 |
 | `docs/superpowers/specs/2026-06-18-people-access-approval-revoke-sessions.md`       | #230  | security  | PR ready; GLM GREEN posted; Codex QA pending gate slot | Build-230-PeopleAccess | w1:p2J | deploy-230-people-access-sessions | #322 |
 | `docs/superpowers/specs/2026-06-18-active-sessions-list-revoke.md`                  | #237  | security  | **MERGED** (squash `14793b7` @ 02:53Z, Ben sign-off). Issue closed; branch/worktrees/panes reaped. | — (reaped) | — | (deleted) | #315 |
 | `docs/superpowers/specs/2026-06-18-account-card-real-status.md`                     | #236  | security  | queued: held for green gate             | —                   | —      | —                           | —    |
