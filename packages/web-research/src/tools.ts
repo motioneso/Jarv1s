@@ -2,6 +2,7 @@ import type { ToolExecute } from "@jarv1s/module-sdk";
 
 import { DEFAULT_WEB_RESEARCH_CONFIG } from "./config.js";
 import { getDefaultWebSearchProvider } from "./providers.js";
+import { readWebPage } from "./reader.js";
 
 function domainFor(rawUrl: string): string {
   try {
@@ -52,9 +53,33 @@ export const webSearchExecute: ToolExecute = async (_scopedDb, input) => {
   };
 };
 
-export const webReadExecute: ToolExecute = async () => ({
-  data: {
-    documents: [],
-    trace: { requestedUrlCount: 0, fetchedUrlCount: 0, skippedUrlCount: 0, documents: [] }
-  }
-});
+export const webReadExecute: ToolExecute = async (_scopedDb, input) => {
+  const rawUrls = Array.isArray(input.urls)
+    ? input.urls.filter((url) => typeof url === "string")
+    : [];
+  const urls = rawUrls.slice(0, DEFAULT_WEB_RESEARCH_CONFIG.maxReadUrls);
+  const results = await Promise.all(urls.map((url) => readWebPage(url)));
+  const documents = results.flatMap((result) => (result.ok ? [result.document] : []));
+  const skipped = results.flatMap((result) =>
+    result.ok ? [] : [{ url: result.url, status: "skipped", reason: result.reason }]
+  );
+  return {
+    data: {
+      documents,
+      trace: {
+        requestedUrlCount: rawUrls.length,
+        fetchedUrlCount: documents.length,
+        skippedUrlCount: skipped.length + Math.max(0, rawUrls.length - urls.length),
+        urlLimitApplied: rawUrls.length > urls.length,
+        documents: [
+          ...documents.map((document) => ({
+            url: document.url,
+            status: document.status,
+            truncated: document.truncated
+          })),
+          ...skipped
+        ]
+      }
+    }
+  };
+};
