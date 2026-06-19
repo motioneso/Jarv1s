@@ -97,6 +97,26 @@ describe("Connectors encrypted foundation", () => {
           ORDER BY c.relname
         `
       );
+      const healthColumns = await client.query<{
+        column_name: string;
+        is_nullable: string;
+        column_default: string | null;
+      }>(
+        `
+          SELECT column_name, is_nullable, column_default
+          FROM information_schema.columns
+          WHERE table_schema = 'app'
+            AND table_name = 'connector_accounts'
+            AND column_name IN (
+              'last_sync_started_at',
+              'last_sync_finished_at',
+              'last_sync_status',
+              'last_sync_error',
+              'last_sync_counts'
+            )
+          ORDER BY column_name
+        `
+      );
 
       expect(migrations.rows).toEqual([
         { version: "0009", name: "0009_connectors_module.sql" },
@@ -122,6 +142,13 @@ describe("Connectors encrypted foundation", () => {
           owner: "jarvis_migration_owner",
           worker_can_select: true
         }
+      ]);
+      expect(healthColumns.rows).toEqual([
+        { column_name: "last_sync_counts", is_nullable: "YES", column_default: null },
+        { column_name: "last_sync_error", is_nullable: "YES", column_default: null },
+        { column_name: "last_sync_finished_at", is_nullable: "YES", column_default: null },
+        { column_name: "last_sync_started_at", is_nullable: "YES", column_default: null },
+        { column_name: "last_sync_status", is_nullable: "YES", column_default: null }
       ]);
     } finally {
       await client.end();
@@ -175,7 +202,8 @@ describe("Connectors encrypted foundation", () => {
       "sql/0022_connectors_owner_only.sql",
       "sql/0043_connector_google_enum.sql",
       "sql/0044_google_unified_connection.sql",
-      "sql/0069_connector_worker_runtime_grants.sql"
+      "sql/0069_connector_worker_runtime_grants.sql",
+      "sql/0099_connector_health_metadata.sql"
     ]);
     expect(manifest?.settings?.map((surface) => surface.path)).toEqual([
       "/settings/connectors",
