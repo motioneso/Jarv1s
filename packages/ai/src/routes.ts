@@ -2,10 +2,11 @@ import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 
 import { parsePositiveIntEnv } from "@jarv1s/shared";
 
-// Per-user rate-limit key for the assistant-tools invoke endpoint: hashed
-// session-token/cookie via the shared module-sdk helper (a one-way fingerprint, never the
-// raw secret) so each LAN user gets a separate counter. Unauthenticated requests fall back
-// to IP (they will get a 401 before any AI spend).
+// Per-user rate-limit key for the assistant-tools invoke endpoint via the shared module-sdk
+// helper: a UUID-shaped session bearer or a valid session cookie is hashed (a one-way
+// fingerprint, never the raw secret) so each LAN user gets a separate counter. Any other
+// bearer shape (or none) falls back to the shared per-IP bucket so junk credentials can't
+// mint fresh buckets (#207); such requests get a 401 before any AI spend.
 //
 // Override the limit via env: JARVIS_RL_AI_TOOLS_MAX=<n> (requests per minute, default 60).
 const AI_TOOLS_MAX = parsePositiveIntEnv(process.env.JARVIS_RL_AI_TOOLS_MAX, 60);

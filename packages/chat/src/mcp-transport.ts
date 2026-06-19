@@ -1,15 +1,16 @@
 import type { FastifyInstance } from "fastify";
 
 import type { AssistantToolGateway, GatewayToolResponse, SessionTokenRegistry } from "@jarv1s/ai";
-import { sessionRateLimitKey } from "@jarv1s/module-sdk";
+import { mcpSessionRateLimitKey } from "@jarv1s/module-sdk";
 import { parsePositiveIntEnv, type AiAssistantToolDto } from "@jarv1s/shared";
 
 const MCP_PROTOCOL_VERSION = "2024-11-05";
 
-// Per-session rate-limit key: hashed MCP Bearer token via the shared module-sdk helper
-// (a one-way fingerprint, never the raw token; one token per user/chat session).
-// Unauthenticated requests have no token and fall back to IP; they will get a 401 before
-// consuming any AI spend.
+// Per-session rate-limit key: only a jst_<uuid> MCP Bearer token earns a per-session bucket
+// (hashed to a one-way fingerprint, never the raw token; one token per user/chat session).
+// Any other bearer shape — including a malformed/junk token — falls back to the shared
+// per-IP bucket, so a caller cannot vary the bearer to mint fresh route-local buckets (#207);
+// such requests get a 401 before consuming any AI spend.
 //
 // Override the limit via env: JARVIS_RL_MCP_MAX=<n> (requests per minute, default 120).
 // tools/call is the only method that drives actual AI work; other methods (initialize,
@@ -53,7 +54,7 @@ export function registerMcpTransportRoute(
         rateLimit: {
           max: MCP_MAX,
           timeWindow: "1 minute",
-          keyGenerator: sessionRateLimitKey
+          keyGenerator: mcpSessionRateLimitKey
         }
       }
     },
