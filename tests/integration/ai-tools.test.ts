@@ -32,7 +32,7 @@ const taskIds = {
 const notificationIds = {
   aPrivate: "73000000-0000-4000-8000-000000000001",
   bPrivate: "73000000-0000-4000-8000-000000000002",
-  workspace: "73000000-0000-4000-8000-000000000003"
+  forUserB: "73000000-0000-4000-8000-000000000003"
 } as const;
 
 const connectorAccountIds = {
@@ -181,8 +181,8 @@ describe("AI read-only assistant tool execution foundation", () => {
 
     expect(readIds(tasks.result, "items")).toEqual([taskIds.aPrivate, taskIds.bGrantedToA]);
     expect(readIds(notifications.result, "notifications")).toEqual([notificationIds.aPrivate]);
-    // notificationIds.workspace is seeded with recipient=userB, so userA must NOT see it
-    expect(readIds(notifications.result, "notifications")).not.toContain(notificationIds.workspace);
+    // notificationIds.forUserB is seeded with recipient=userB, so userA must NOT see it
+    expect(readIds(notifications.result, "notifications")).not.toContain(notificationIds.forUserB);
     expect(readIds(calendar.result, "events")).toEqual([calendarEventIds.aPrivate]);
     expect(readIds(email.result, "messages")).toEqual([emailMessageIds.aPrivate]);
     // Tasks are owner-or-share only now (not workspace-scoped): the workspace context
@@ -758,7 +758,7 @@ async function seedNotifications(client: pg.Client): Promise<void> {
       VALUES
         ($1, $4, $2, 'User A assistant notification', 'Private for User A', $3::jsonb),
         ($5, $2, $4, 'User B private notification', 'Private for User B', $6::jsonb),
-        ($7, $4, $4, 'Workspace assistant notification', 'Workspace visible summary', $8::jsonb)
+        ($7, $4, $4, 'User B actor-scoped notification', 'Recipient-only summary for User B', $8::jsonb)
     `,
     [
       notificationIds.aPrivate,
@@ -767,8 +767,8 @@ async function seedNotifications(client: pg.Client): Promise<void> {
       ids.userB,
       notificationIds.bPrivate,
       JSON.stringify({ source: "assistant-tools-test" }),
-      notificationIds.workspace,
-      JSON.stringify({ source: "assistant-tools-test", workspaceScoped: true })
+      notificationIds.forUserB,
+      JSON.stringify({ source: "assistant-tools-test" })
     ]
   );
 }
