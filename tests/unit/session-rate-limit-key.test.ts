@@ -24,8 +24,12 @@ describe("sessionRateLimitKey (UUID-shaped session bearer policy)", () => {
   });
 
   it("falls back to the shared per-IP bucket for a malformed (non-UUID) Bearer token", () => {
-    const a = sessionRateLimitKey(req({ authorization: "Bearer junk-token-1", ip: "198.51.100.4" }));
-    const b = sessionRateLimitKey(req({ authorization: "Bearer junk-token-2", ip: "198.51.100.4" }));
+    const a = sessionRateLimitKey(
+      req({ authorization: "Bearer junk-token-1", ip: "198.51.100.4" })
+    );
+    const b = sessionRateLimitKey(
+      req({ authorization: "Bearer junk-token-2", ip: "198.51.100.4" })
+    );
     // Two DIFFERENT junk tokens from the same peer must collapse to one bucket — no minting.
     expect(a).toBe("ip:198.51.100.4");
     expect(b).toBe("ip:198.51.100.4");

@@ -49,18 +49,20 @@ MCP generator; chat-turn / assistant-tools / persona-preview stay on the session
 ### Task 1: Shape-gated key generators in `@jarv1s/module-sdk`
 
 **Files:**
+
 - Modify: `packages/module-sdk/src/rate-limit-key.ts`
 - Modify: `packages/module-sdk/src/index.ts` (export `mcpSessionRateLimitKey`)
 - Test: `tests/unit/session-rate-limit-key.test.ts`
 
 **Interfaces:**
+
 - Produces: `sessionRateLimitKey(request: FastifyRequest): string` (unchanged signature; new
   UUID-gated behavior), `mcpSessionRateLimitKey(request: FastifyRequest): string`.
 - Internal: `credentialOrIpRateLimitKey(request, policy)` where
   `policy = { bearerMatches: (token: string) => boolean; bearerNamespace: string; allowCookie: boolean }`.
 
 - [ ] **Step 1: Write/extend failing unit tests.** In `tests/unit/session-rate-limit-key.test.ts`
-  import both `sessionRateLimitKey` and `mcpSessionRateLimitKey`. Assert:
+      import both `sessionRateLimitKey` and `mcpSessionRateLimitKey`. Assert:
   - UUID bearer → `bearer:<hash(uuid)>`, key excludes raw token.
   - two DIFFERENT non-UUID bearers from same IP → both equal `ip:<ip>` (shared bucket).
   - valid better-auth cookie (plain + `__Secure-` prefix) → `cookie:<hash>`.
@@ -70,50 +72,52 @@ MCP generator; chat-turn / assistant-tools / persona-preview stay on the session
     NON-`jst` bearers same IP → shared `ip:<ip>`; `jst_` + non-uuid suffix → `ip:<ip>`; no
     credential → `ip:<ip>`; raw token absent from key.
 - [ ] **Step 2: Run, verify fail.** `JARVIS_PGDATABASE=jarv1s_207_rate_limit pnpm test:unit` →
-  FAIL (new behavior / missing export).
+      FAIL (new behavior / missing export).
 - [ ] **Step 3: Implement.** Add local `SESSION_UUID` and `MCP_TOKEN` (`/^jst_<uuid>$/i`) regexes
-  with a "kept in sync with apps/api copy" comment. Implement `credentialOrIpRateLimitKey`: if
-  `Bearer <token>` present and non-empty and `policy.bearerMatches(token)` → `<bearerNamespace>:<hash(token)>`;
-  else if `policy.allowCookie` and a session cookie value present → `cookie:<hash(value)>`; else
-  `ip:<request.ip>`. Re-express `sessionRateLimitKey` via UUID policy (`allowCookie: true`,
-  namespace `bearer`) and `mcpSessionRateLimitKey` via MCP policy (`allowCookie: false`, namespace
-  `mcp`). Rewrite the file's doc comment so it no longer claims arbitrary bearers get per-session
-  buckets — state the shape gate + IP fallback.
+      with a "kept in sync with apps/api copy" comment. Implement `credentialOrIpRateLimitKey`: if
+      `Bearer <token>` present and non-empty and `policy.bearerMatches(token)` → `<bearerNamespace>:<hash(token)>`;
+      else if `policy.allowCookie` and a session cookie value present → `cookie:<hash(value)>`; else
+      `ip:<request.ip>`. Re-express `sessionRateLimitKey` via UUID policy (`allowCookie: true`,
+      namespace `bearer`) and `mcpSessionRateLimitKey` via MCP policy (`allowCookie: false`, namespace
+      `mcp`). Rewrite the file's doc comment so it no longer claims arbitrary bearers get per-session
+      buckets — state the shape gate + IP fallback.
 - [ ] **Step 4: Run, verify pass.** `JARVIS_PGDATABASE=jarv1s_207_rate_limit pnpm test:unit` → PASS.
 - [ ] **Step 5: Commit** (`packages/module-sdk/src/rate-limit-key.ts`,
-  `packages/module-sdk/src/index.ts`, `tests/unit/session-rate-limit-key.test.ts`).
+      `packages/module-sdk/src/index.ts`, `tests/unit/session-rate-limit-key.test.ts`).
 
 ### Task 2: Route wiring + comments
 
 **Files:**
+
 - Modify: `packages/chat/src/mcp-transport.ts` (import + use `mcpSessionRateLimitKey`; update comment)
 - Modify: `packages/chat/src/live-routes.ts` (comment only — keep `sessionRateLimitKey`)
 - Modify: `packages/ai/src/routes.ts` (comment only — keep `sessionRateLimitKey`)
 - Modify: `packages/settings/src/persona-routes.ts` (comment only — keep `sessionRateLimitKey`)
 
 - [ ] **Step 1: Swap MCP keyGenerator** to `mcpSessionRateLimitKey`; update any nearby comment that
-  implies arbitrary bearers get per-session buckets.
+      implies arbitrary bearers get per-session buckets.
 - [ ] **Step 2: Update stale comments** on the three session routes to state UUID-gating + IP
-  fallback (no behavior change). Audit confirms persona-preview is a browser/session route → keeps
-  UUID policy.
+      fallback (no behavior change). Audit confirms persona-preview is a browser/session route → keeps
+      UUID policy.
 - [ ] **Step 3: typecheck** `pnpm typecheck` → PASS.
 - [ ] **Step 4: Commit** the four route files.
 
 ### Task 3: Integration coverage (route-local 429 under junk bearers)
 
 **Files:**
+
 - Modify: `tests/integration/chat-live-api.test.ts` (or sibling) — chat-turn junk-bearer 429
 - Modify: `tests/integration/chat-mcp-transport.test.ts` — MCP junk-bearer 429
 
 - [ ] **Step 1: Write failing integration tests.** Chat: with low `JARVIS_RL_CHAT_MAX`, send 3+
-  DIFFERENT malformed (non-UUID) bearers from the same peer to `POST /api/chat/turn` → they share
-  the `ip:` bucket and hit `429` by the threshold; a valid UUID session bearer keeps its own bucket.
-  MCP: with low `JARVIS_RL_MCP_MAX`, 3+ different malformed (non-`jst`) bearers from same peer →
-  shared `ip:` bucket → `429`; a valid `jst_<uuid>` token keeps per-session separation. (Set the env
-  knob before `createApiServer`; restore after — match existing env-restore pattern in these files.)
+      DIFFERENT malformed (non-UUID) bearers from the same peer to `POST /api/chat/turn` → they share
+      the `ip:` bucket and hit `429` by the threshold; a valid UUID session bearer keeps its own bucket.
+      MCP: with low `JARVIS_RL_MCP_MAX`, 3+ different malformed (non-`jst`) bearers from same peer →
+      shared `ip:` bucket → `429`; a valid `jst_<uuid>` token keeps per-session separation. (Set the env
+      knob before `createApiServer`; restore after — match existing env-restore pattern in these files.)
 - [ ] **Step 2: Run, verify fail** (or fail before Task 1/2 land — if run after, confirm they
-  exercise the new path). `JARVIS_PGDATABASE=jarv1s_207_rate_limit pnpm db:up && pnpm db:migrate`
-  then `JARVIS_PGDATABASE=jarv1s_207_rate_limit vitest run tests/integration/chat-mcp-transport.test.ts tests/integration/chat-live-api.test.ts`.
+      exercise the new path). `JARVIS_PGDATABASE=jarv1s_207_rate_limit pnpm db:up && pnpm db:migrate`
+      then `JARVIS_PGDATABASE=jarv1s_207_rate_limit vitest run tests/integration/chat-mcp-transport.test.ts tests/integration/chat-live-api.test.ts`.
 - [ ] **Step 3: Assert no raw credential leakage** in the 429 response body/headers in these tests.
 - [ ] **Step 4: Run, verify pass.**
 - [ ] **Step 5: Commit** the integration test files.
@@ -121,7 +125,7 @@ MCP generator; chat-turn / assistant-tools / persona-preview stay on the session
 ### Task 4: Gate
 
 - [ ] Pre-push trio + rebase, then full gate:
-  `JARVIS_PGDATABASE=jarv1s_207_rate_limit pnpm verify:foundation`. Hand off to coordinated-wrap-up.
+      `JARVIS_PGDATABASE=jarv1s_207_rate_limit pnpm verify:foundation`. Hand off to coordinated-wrap-up.
 
 ## Self-review
 
