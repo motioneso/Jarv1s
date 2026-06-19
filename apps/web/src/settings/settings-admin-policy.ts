@@ -1,7 +1,12 @@
 import type { UserDto } from "@jarv1s/shared";
 
 export type AdminUserActionPolicyUser = UserDto;
-export type AdminUserAction = "admin" | "deactivate" | "reactivate" | "remove";
+export type AdminUserAction =
+  | "admin"
+  | "deactivate"
+  | "reactivate"
+  | "remove"
+  | "revokeSessions";
 
 export interface AdminUserPolicyContext {
   readonly activeAdminCount: number;
@@ -71,6 +76,13 @@ export function canRemoveAdminUser(
   return !protectsOnlyActiveAdmin(user, policy);
 }
 
+export function canRevokeAdminUserSessions(
+  user: AdminUserActionPolicyUser,
+  currentUser: AdminUserActionPolicyUser
+): boolean {
+  return !isCurrentUser(user, currentUser) && user.status !== "pending";
+}
+
 export function adminUserActions(
   user: AdminUserActionPolicyUser,
   currentUser: AdminUserActionPolicyUser,
@@ -81,6 +93,7 @@ export function adminUserActions(
   if (canChangeAdminUserStatus(user, currentUser, policy)) {
     actions.push(user.status === "deactivated" ? "reactivate" : "deactivate");
   }
+  if (canRevokeAdminUserSessions(user, currentUser)) actions.push("revokeSessions");
   if (canRemoveAdminUser(user, currentUser, policy)) actions.push("remove");
   return actions;
 }
