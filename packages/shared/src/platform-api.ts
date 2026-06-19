@@ -115,6 +115,12 @@ export interface RevokeMyOtherSessionsResponse {
   readonly success: boolean;
   readonly count: number;
 }
+
+export interface AdminRevokeSessionsResponse {
+  readonly success: boolean;
+  readonly count: number;
+}
+
 export type LocaleDateFormat = "24" | "12";
 export interface LocaleSettingsDto {
   readonly timezone: string;
