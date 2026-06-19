@@ -21,12 +21,20 @@ has two distinct boundaries:
 **Mitigations today:** host-shell access is the operator's own (the operator already controls the
 box); per-user neutral dirs are created with mode `0700`; connector/AI secrets are AES-256-GCM
 encrypted at rest and never placed in prompts, pg-boss payloads, logs, or exports.
+Codex MCP tokens are written to a per-session env file under the neutral dir with mode `0600`,
+referenced by path from the launch command, and removed when the session is killed.
 
 **The real fix is the deferred uid-per-user milestone** — true OS-user isolation per chat user. The
 `0700` neutral dirs and the `TmuxIo` env/cwd + `transcriptGlobDir` homeBase seams are the
 forward-compatibility hooks for that work.
 
 See `docs/superpowers/specs/2026-06-12-p2-portable-cli-chat-adapter-design.md` §8.
+
+## Assistant action restart cleanup
+
+Pending write/destructive tool approvals are in-memory waits. On API startup, Jarv1s cancels
+pending action requests older than the startup grace window so a restart leaves visible terminal
+`cancelled` rows instead of approvals that can never resume. Fresh pending rows stay pending.
 
 ## Deferred — agent-path PreToolUse policy
 
