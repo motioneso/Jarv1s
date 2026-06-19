@@ -68,9 +68,14 @@ const userScopedCountQueries: ReadonlyArray<readonly [table: string, predicate: 
   ["app.briefing_definitions", "owner_user_id = $1::uuid"],
   ["app.briefing_runs", "owner_user_id = $1::uuid"],
   // Tasks foundation (#39): owner-scoped lists/tags/preferences cascade on user delete.
+  // task_tag_assignments has no owner_user_id column (it links tasks↔tags); its rows
+  // are transitively cascade-deleted via the owning task, so count via that join.
   ["app.task_lists", "owner_user_id = $1::uuid"],
   ["app.task_tags", "owner_user_id = $1::uuid"],
-  ["app.task_tag_assignments", "owner_user_id = $1::uuid"],
+  [
+    "app.task_tag_assignments",
+    "task_id IN (SELECT id FROM app.tasks WHERE owner_user_id = $1::uuid)"
+  ],
   ["app.task_preferences", "owner_user_id = $1::uuid"],
   // Shares: a user's deletion removes shares they granted AND shares granted to them
   // (both FKs are ON DELETE CASCADE — 0017).
