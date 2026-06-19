@@ -546,30 +546,43 @@ export function OversightPane() {
         <div className="cono">
           {accounts.length ? (
             accounts.map((account) => {
+              // Health now derives from durable sync outcome, not just `status`. Revoked wins;
+              // a partial run shows "Partial"; a failed run or an error status needs attention;
+              // otherwise healthy. The bounded error label shows only for partial/failed.
               const health =
-                account.status === "active"
-                  ? "ready"
-                  : account.status === "error"
-                    ? "error"
-                    : "idle";
+                account.status === "revoked"
+                  ? { label: "Revoked", tone: "neutral" as const, indicator: "idle" as const }
+                  : account.lastSyncStatus === "partial"
+                    ? { label: "Partial", tone: "amber" as const, indicator: "error" as const }
+                    : account.lastSyncStatus === "failed" || account.status === "error"
+                      ? {
+                          label: "Needs attention",
+                          tone: "amber" as const,
+                          indicator: "error" as const
+                        }
+                      : { label: "Healthy", tone: "pine" as const, indicator: "ready" as const };
+              const lastFinished = account.lastSyncFinishedAt
+                ? new Date(account.lastSyncFinishedAt).toLocaleString()
+                : null;
+              const errorLabel =
+                (account.lastSyncStatus === "partial" || account.lastSyncStatus === "failed") &&
+                account.lastSyncError
+                  ? account.lastSyncError
+                  : null;
               return (
                 <div className="cono__row" key={account.id}>
                   <div className="cono__name">
-                    <Indicator status={health} /> {account.providerDisplayName}
+                    <Indicator status={health.indicator} /> {account.providerDisplayName}
                   </div>
-                  <div className="cono__meta">{account.providerType}</div>
+                  <div className="cono__meta">
+                    {account.providerType}
+                    {lastFinished ? ` · ${lastFinished}` : ""}
+                    {errorLabel ? ` · ${errorLabel}` : ""}
+                  </div>
                   <div className="cono__err">
-                    {account.status === "error" ? (
-                      <Badge tone="amber">Needs attention</Badge>
-                    ) : account.status === "revoked" ? (
-                      <Badge tone="neutral" dot>
-                        Revoked
-                      </Badge>
-                    ) : (
-                      <Badge tone="pine" dot>
-                        Healthy
-                      </Badge>
-                    )}
+                    <Badge tone={health.tone} dot={health.tone !== "amber"}>
+                      {health.label}
+                    </Badge>
                   </div>
                 </div>
               );

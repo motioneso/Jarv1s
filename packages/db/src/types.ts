@@ -149,6 +149,7 @@ export type ShareLevel = "view" | "contribute" | "manage";
 export type ConnectorProviderType = "calendar" | "email" | "google";
 export type ConnectorProviderStatus = "available" | "disabled";
 export type ConnectorAccountStatus = "active" | "error" | "revoked";
+export type ConnectorSyncStatus = "success" | "partial" | "failed";
 export type AiProviderKind = "openai-compatible" | "anthropic" | "google" | "ollama" | "custom";
 export type AiProviderStatus = "active" | "error" | "disabled" | "revoked";
 export type AiModelStatus = "active" | "disabled";
@@ -256,6 +257,11 @@ export interface ConnectorAccountsTable {
   status: ConnectorAccountStatus;
   encrypted_secret: JsonColumn;
   revoked_at: NullableTimestampColumn;
+  last_sync_started_at: NullableTimestampColumn;
+  last_sync_finished_at: NullableTimestampColumn;
+  last_sync_status: ConnectorSyncStatus | null;
+  last_sync_error: string | null;
+  last_sync_counts: JsonColumn | null;
   created_at: TimestampColumn;
   updated_at: TimestampColumn;
 }
