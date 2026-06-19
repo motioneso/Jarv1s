@@ -29,7 +29,7 @@ prefer Codex again for cross-model QA. Do not kill warm Codex lanes; they're idl
 be reaped.
 **Relay threshold:** security-tier merge → relay immediately after Phase 3 step 7; routine/sensitive `merges_since_relay` >= 2 → relay. No deferral. Compaction summary = already past safe → relay, merge nothing.
 **merges_since_relay:** 0 (reset on Codex adoption 2026-06-19T07:43Z after relay from Claude coordinator `2a076d28…`).
-**last_alive:** 2026-06-19T07:43Z (Codex coordinator `019eded5…`; adopted feature-complete run; **#114/#321 MERGED `ccc65e7` — ALL 9 deploy-readiness specs now MERGED; run FEATURE-COMPLETE**; only #306 manual final-gate remains = Ben acceptance)
+**last_alive:** 2026-06-19T07:47Z (Codex coordinator `019eded5…`; #306 final-gate attempt blocked before prod smoke: `docker compose --env-file /home/ben/Jarv1s/infra/env.production.local -f infra/docker-compose.prod.yml config --quiet` exits 15 because `JARVIS_IMAGE_TAG` is missing from operator env; issue comment `#issuecomment-4749550247`)
 **🏁 RUN FEATURE-COMPLETE (2026-06-19T~06:40Z):** every queued spec merged — #117, #114, #207, #123, #237, #230, #236, #255, #254. Remaining: **#306** (manual deploy checkpoint / final gate — Ben acceptance, no build agent) + followup polish issue **#327** (non-blocking connector-health findings, backlog). Codex coordinator successor at 23:43 should: (a) run/confirm the #306 final acceptance gate when Ben directs, (b) handle any NEW overnight specs Ben queues under the OVERNIGHT SECURITY CONSENSUS PROTOCOL above, (c) reset `merges_since_relay` to 0.
 **⚠️ CLAUDE WEEKLY USAGE ~86% (2026-06-19T06:18Z, resets Jun 20 11am PT):** approaching max — per Ben rule 3, swap to GLM 5.2 (Opencode) agents for build/gate/QA if Claude stalls or usage climbs. Coordinator handoff to Codex at 23:43 PDT (rule 4) will move the resident loop off Claude. Gate-114 (Claude) DID stall on API retries → rebase+gate moved to GLM 5.2 (`w1:p28`).
 **AGENT ROSTER (Ben 2026-06-19):** spawn support agents from any of — **GLM 5.2** (Opencode, pane `w1:p28`), **Gemini Pro** via the **`agy`** agent (pane `w1:p5`, idle), **Claude** (native `Agent` tool or Herdr; limited by 86% weekly), **Codex** (out until 23:43, then preferred for cross-model QA). Prefer GLM/Gemini for heavy build/gate work while Claude is near its weekly cap. Builder agents → Agents tab `w1:tA`.
@@ -254,7 +254,7 @@ need a clean worktree + a pre-existing isolated DB. Per-merge digest:
 | `docs/superpowers/specs/2026-06-18-account-card-real-status.md`                     | #236  | security  | **MERGED** (squash `00c2c84` @ 04:41Z, Ben standing sign-off). Issue closed; branch/worktrees/panes reaped.         | — (reaped)                | —      | (deleted)                   | #324 |
 | `docs/superpowers/specs/2026-06-18-host-diagnostics-safe-ops.md`                    | #255  | security  | **MERGED** (squash @ 2026-06-19T00:47Z, Ben sign-off). Issue closed. **Board move to Done still TODO (successor).** | — (reaped)                | —      | (deleted)                   | #312 |
 | `docs/superpowers/specs/2026-06-18-connector-health-monitoring.md`                  | #254  | sensitive | **MERGED** (squash `f4d0499` @ 06:13Z, autonomous after GREEN Claude QA). Issue closed w/ merge-ref comment. 4 non-blocking findings → followup polish issue. | — (merged) | — | (deleted) | #325 |
-| `docs/superpowers/specs/2026-06-18-phase-2-deploy-checkpoint-final-gate.md`         | #306  | manual    | blocked: final gate after prerequisites                                                                             | —                         | —      | —                           | —    |
+| `docs/superpowers/specs/2026-06-18-phase-2-deploy-checkpoint-final-gate.md`         | #306  | manual    | blocked: prod Compose config exits 15 because `JARVIS_IMAGE_TAG` is missing from operator env; issue comment `#issuecomment-4749550247` | —                         | —      | —                           | —    |
 
 ## Gate Fix Lane
 
@@ -331,7 +331,10 @@ No waivers.
       `#issuecomment-4748047908`; issue update `#issuecomment-4748050610`. Awaiting exact Ben
       merge sign-off. **MERGED** squash `14793b7`; issue #237 closed with merge-ref comment; branch,
       Build-237 pane/worktree, and QA worktrees reaped. This security merge triggers immediate relay.
-- [ ] #306 is manual-acceptance only; no build agent should be spawned for it.
+- [ ] #306 is manual-acceptance only; no build agent should be spawned for it. 2026-06-19T07:43Z
+      attempt on complete `origin/main` `ccc65e7` blocked before prod smoke: prod Compose config
+      exits 15 because `/home/ben/Jarv1s/infra/env.production.local` lacks `JARVIS_IMAGE_TAG`;
+      status posted to #306 (`#issuecomment-4749550247`).
 
 ## Reaped Sessions
 
