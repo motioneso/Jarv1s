@@ -37,7 +37,7 @@
 | `docs/superpowers/specs/2026-06-18-people-access-approval-revoke-sessions.md`       | #230  | security  | queued: held for green gate             | —                   | —      | —                           | —    |
 | `docs/superpowers/specs/2026-06-18-active-sessions-list-revoke.md`                  | #237  | security  | building                                | Build-237-Sessions  | w1:p1S | deploy-237-active-sessions  | —    |
 | `docs/superpowers/specs/2026-06-18-account-card-real-status.md`                     | #236  | security  | queued: held for green gate             | —                   | —      | —                           | —    |
-| `docs/superpowers/specs/2026-06-18-host-diagnostics-safe-ops.md`                    | #255  | security  | qa                                      | Build-255-HostDiag  | w1:p1P | deploy-255-host-diagnostics | #312 |
+| `docs/superpowers/specs/2026-06-18-host-diagnostics-safe-ops.md`                    | #255  | security  | awaiting-ci-comment-signoff             | Build-255-HostDiag  | w1:p1P | deploy-255-host-diagnostics | #312 |
 | `docs/superpowers/specs/2026-06-18-connector-health-monitoring.md`                  | #254  | sensitive | queued: held for green main             | —                   | —      | —                           | —    |
 | `docs/superpowers/specs/2026-06-18-phase-2-deploy-checkpoint-final-gate.md`         | #306  | manual    | blocked: final gate after prerequisites | —                   | —      | —                           | —    |
 
@@ -70,6 +70,9 @@ No waivers.
 - [x] Briefing integration timeout gate investigated. Root cause was shared `jarv1s` DB contention
       with a live `dev:worker`; `JARVIS_PGDATABASE=jarv1s_gatefix pnpm test:briefings` passed 5x.
       Feature lanes must use isolated `JARVIS_PGDATABASE` values.
+- [ ] #312 security QA returned GREEN, but GitHub API is unreachable from QA and coordinator. Before
+      merge: confirm `gh pr checks 312`, post `.claude/worktrees/qa-312-host-diagnostics/.qa-verdict-pr312.md`
+      to PR #312, then request Ben security-tier merge sign-off.
 - [ ] #306 is manual-acceptance only; no build agent should be spawned for it.
 
 ## Reaped Sessions
