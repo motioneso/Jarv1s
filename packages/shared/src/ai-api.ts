@@ -11,7 +11,11 @@ export type AiAuthMethod = "cli" | "api_key";
 export type AiModelStatus = "active" | "disabled";
 export type AiModelTier = "reasoning" | "interactive" | "economy";
 export type AiModelCapability = "chat" | "tool-use" | "json" | "vision" | "summarization";
-export type AiCapabilityRouteReason = "matched-active-model" | "no-active-model";
+export type AiCapabilityRouteReason =
+  | "manual-route"
+  | "manual-route-unavailable-fallback"
+  | "matched-active-model"
+  | "no-active-model";
 
 export interface AiProviderConfigDto {
   readonly id: string;
@@ -48,6 +52,13 @@ export interface AiCapabilityRouteDto {
   readonly available: boolean;
   readonly reason: AiCapabilityRouteReason;
   readonly model: AiConfiguredModelDto | null;
+}
+
+export type AiCapabilityRouteMapDto = Partial<Record<AiModelCapability, string | null>>;
+
+export interface AiCapabilityRouteSettingDto {
+  readonly capability: AiModelCapability;
+  readonly modelId: string | null;
 }
 
 export interface AiProviderTestResultDto {
@@ -182,6 +193,18 @@ export interface UpdateAiConfiguredModelResponse {
 
 export interface LookupAiCapabilityRouteResponse {
   readonly route: AiCapabilityRouteDto;
+}
+
+export interface ListAiCapabilityRoutesResponse {
+  readonly routes: AiCapabilityRouteMapDto;
+}
+
+export interface PutAiCapabilityRouteRequest {
+  readonly modelId: string | null;
+}
+
+export interface PutAiCapabilityRouteResponse {
+  readonly route: AiCapabilityRouteSettingDto;
 }
 
 export interface TestAiProviderConfigResponse {
@@ -363,10 +386,40 @@ const aiCapabilityRouteSchema = {
   properties: {
     capability: aiModelCapabilitySchema,
     available: { type: "boolean" },
-    reason: { type: "string", enum: ["matched-active-model", "no-active-model"] },
+    reason: {
+      type: "string",
+      enum: [
+        "manual-route",
+        "manual-route-unavailable-fallback",
+        "matched-active-model",
+        "no-active-model"
+      ]
+    },
     model: {
       anyOf: [aiConfiguredModelSchema, { type: "null" }]
     }
+  }
+} as const;
+
+const aiCapabilityRouteMapSchema = {
+  type: "object",
+  additionalProperties: false,
+  properties: {
+    chat: { type: ["string", "null"] },
+    "tool-use": { type: ["string", "null"] },
+    json: { type: ["string", "null"] },
+    vision: { type: ["string", "null"] },
+    summarization: { type: ["string", "null"] }
+  }
+} as const;
+
+const aiCapabilityRouteSettingSchema = {
+  type: "object",
+  additionalProperties: false,
+  required: ["capability", "modelId"],
+  properties: {
+    capability: aiModelCapabilitySchema,
+    modelId: { type: ["string", "null"] }
   }
 } as const;
 
@@ -655,6 +708,33 @@ export const lookupAiCapabilityRouteResponseSchema = {
   }
 } as const;
 
+export const listAiCapabilityRoutesResponseSchema = {
+  type: "object",
+  additionalProperties: false,
+  required: ["routes"],
+  properties: {
+    routes: aiCapabilityRouteMapSchema
+  }
+} as const;
+
+export const putAiCapabilityRouteRequestSchema = {
+  type: "object",
+  additionalProperties: false,
+  required: ["modelId"],
+  properties: {
+    modelId: { type: ["string", "null"] }
+  }
+} as const;
+
+export const putAiCapabilityRouteResponseSchema = {
+  type: "object",
+  additionalProperties: false,
+  required: ["route"],
+  properties: {
+    route: aiCapabilityRouteSettingSchema
+  }
+} as const;
+
 const chatModelOverrideSettingsSchema = {
   type: "object",
   additionalProperties: false,
@@ -835,6 +915,24 @@ export const lookupAiCapabilityRouteRouteSchema = {
     200: lookupAiCapabilityRouteResponseSchema,
     400: errorResponseSchema,
     401: errorResponseSchema
+  }
+} as const;
+
+export const listAiCapabilityRoutesRouteSchema = {
+  response: {
+    200: listAiCapabilityRoutesResponseSchema,
+    401: errorResponseSchema
+  }
+} as const;
+
+export const putAiCapabilityRouteRouteSchema = {
+  params: aiCapabilityParamsSchema,
+  body: putAiCapabilityRouteRequestSchema,
+  response: {
+    200: putAiCapabilityRouteResponseSchema,
+    400: errorResponseSchema,
+    401: errorResponseSchema,
+    403: errorResponseSchema
   }
 } as const;
 

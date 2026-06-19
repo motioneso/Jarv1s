@@ -1004,6 +1004,66 @@ describe("AI capability tier routing", () => {
     expect(resolved.reason).toBe("manual-route-unavailable-fallback");
     expect(resolved.model?.id).toBe(compatibleId);
   });
+
+  it("lets an admin set, read, use, and clear a manual capability route", async () => {
+    const modelRes = await server.inject({
+      method: "POST",
+      url: "/api/ai/models",
+      headers: { authorization: `Bearer ${ids.sessionA}` },
+      payload: {
+        providerConfigId: sharedProviderId,
+        providerModelId: "route-api-chat",
+        displayName: "Route API Chat",
+        capabilities: ["chat"],
+        tier: "interactive"
+      }
+    });
+    const modelId = modelRes.json<{ model: { id: string } }>().model.id;
+
+    const putRes = await server.inject({
+      method: "PUT",
+      url: "/api/ai/capability-routes/chat",
+      headers: { authorization: `Bearer ${ids.sessionA}` },
+      payload: { modelId }
+    });
+    const listRes = await server.inject({
+      method: "GET",
+      url: "/api/ai/capability-routes",
+      headers: { authorization: `Bearer ${ids.sessionA}` }
+    });
+    const lookupRes = await server.inject({
+      method: "GET",
+      url: "/api/ai/capability-route/chat",
+      headers: { authorization: `Bearer ${ids.sessionA}` }
+    });
+    const clearRes = await server.inject({
+      method: "PUT",
+      url: "/api/ai/capability-routes/chat",
+      headers: { authorization: `Bearer ${ids.sessionA}` },
+      payload: { modelId: null }
+    });
+
+    expect(modelRes.statusCode).toBe(201);
+    expect(putRes.statusCode).toBe(200);
+    expect(putRes.json()).toMatchObject({ route: { capability: "chat", modelId } });
+    expect(listRes.json()).toMatchObject({ routes: { chat: modelId } });
+    expect(lookupRes.json()).toMatchObject({
+      route: { capability: "chat", reason: "manual-route", model: { id: modelId } }
+    });
+    expect(lookupRes.body).not.toContain("encrypted_credential");
+    expect(clearRes.json()).toMatchObject({ route: { capability: "chat", modelId: null } });
+  });
+
+  it("rejects non-admin capability route writes", async () => {
+    const response = await server.inject({
+      method: "PUT",
+      url: "/api/ai/capability-routes/chat",
+      headers: { authorization: `Bearer ${ids.sessionB}` },
+      payload: { modelId: null }
+    });
+
+    expect(response.statusCode).toBe(403);
+  });
 });
 
 function userAContext(): AccessContext {
