@@ -1,7 +1,11 @@
 import { fileURLToPath } from "node:url";
 
 import type { JarvisModuleManifest } from "@jarv1s/module-sdk";
-import { listChatThreadsResponseSchema, listMemoryCorrectionsResponseSchema } from "@jarv1s/shared";
+import {
+  listChatThreadMessagesResponseSchema,
+  listChatThreadsResponseSchema,
+  listMemoryCorrectionsResponseSchema
+} from "@jarv1s/shared";
 
 import { chatListTodaysTurnsExecute } from "./tools.js";
 
@@ -86,6 +90,12 @@ export const chatModuleManifest = {
       method: "GET",
       path: "/api/chat/threads",
       responseSchema: listChatThreadsResponseSchema,
+      permissionId: "chat.view"
+    },
+    {
+      method: "GET",
+      path: "/api/chat/threads/:id/messages",
+      responseSchema: listChatThreadMessagesResponseSchema,
       permissionId: "chat.view"
     },
     { method: "POST", path: "/api/chat/turn", permissionId: "chat.message" },

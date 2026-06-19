@@ -345,6 +345,7 @@ describe("Tasks module — assistant read tools", () => {
     const taskId = await dataContext.withDataContext(userAContext(), async (db) => {
       const t = await repository.create(db, { title: "activity-tool task" });
       await repository.addActivity(db, t.id, { activityType: "comment", body: "first" });
+      await new Promise((resolve) => setTimeout(resolve, 5));
       await repository.addActivity(db, t.id, { activityType: "comment", body: "second" });
       return t.id;
     });

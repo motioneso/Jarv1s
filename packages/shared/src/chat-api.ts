@@ -50,6 +50,10 @@ export interface ListChatThreadsResponse {
   readonly threads: readonly ChatThreadDto[];
 }
 
+export interface ListChatThreadMessagesResponse {
+  readonly messages: readonly ChatMessageDto[];
+}
+
 export type MemoryCorrectionReasonDto = "rejected" | "corrected";
 export type MemoryCorrectionSourceDto = "chat" | "pattern-reject";
 
@@ -91,6 +95,75 @@ const chatThreadSchema = {
   }
 } as const;
 
+const chatActivityEventSchema = {
+  type: "object",
+  additionalProperties: false,
+  required: ["kind", "text"],
+  properties: {
+    kind: { type: "string" },
+    text: { type: "string" }
+  }
+} as const;
+
+const chatSelectedToolMetadataSchema = {
+  type: "object",
+  additionalProperties: false,
+  required: ["moduleId", "moduleName", "name", "permissionId", "risk"],
+  properties: {
+    moduleId: { type: "string" },
+    moduleName: { type: "string" },
+    name: { type: "string" },
+    permissionId: { type: "string" },
+    risk: { type: "string", enum: ["read", "write", "destructive"] }
+  }
+} as const;
+
+const chatModelRouteSchema = {
+  type: "object",
+  additionalProperties: false,
+  required: ["capability", "available", "reason", "model"],
+  properties: {
+    capability: { type: "string", enum: ["chat"] },
+    available: { type: "boolean" },
+    reason: { type: "string" },
+    model: { anyOf: [{ type: "object", additionalProperties: true }, { type: "null" }] }
+  }
+} as const;
+
+const chatMessageSchema = {
+  type: "object",
+  additionalProperties: false,
+  required: [
+    "id",
+    "threadId",
+    "ownerUserId",
+    "role",
+    "status",
+    "body",
+    "modelRoute",
+    "tools",
+    "activity",
+    "createdAt",
+    "updatedAt"
+  ],
+  properties: {
+    id: { type: "string" },
+    threadId: { type: "string" },
+    ownerUserId: { type: "string" },
+    role: { type: "string", enum: ["user", "assistant"] },
+    status: {
+      type: "string",
+      enum: ["stored", "pending", "blocked", "no_model", "working", "error"]
+    },
+    body: { type: "string" },
+    modelRoute: { anyOf: [chatModelRouteSchema, { type: "null" }] },
+    tools: { type: "array", items: chatSelectedToolMetadataSchema },
+    activity: { type: "array", items: chatActivityEventSchema },
+    createdAt: { type: "string" },
+    updatedAt: { type: "string" }
+  }
+} as const;
+
 export const listChatThreadsResponseSchema = {
   type: "object",
   additionalProperties: false,
@@ -104,6 +177,23 @@ export const listChatThreadsRouteSchema = {
   response: {
     200: listChatThreadsResponseSchema,
     401: errorResponseSchema
+  }
+} as const;
+
+export const listChatThreadMessagesResponseSchema = {
+  type: "object",
+  additionalProperties: false,
+  required: ["messages"],
+  properties: {
+    messages: { type: "array", items: chatMessageSchema }
+  }
+} as const;
+
+export const listChatThreadMessagesRouteSchema = {
+  response: {
+    200: listChatThreadMessagesResponseSchema,
+    401: errorResponseSchema,
+    404: errorResponseSchema
   }
 } as const;
 
