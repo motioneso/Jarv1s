@@ -5,6 +5,9 @@
 **Merge policy:** autonomous-after-verified-QA for `routine`/`sensitive`; **`security`-tier needs Ben's explicit merge sign-off**
 **Relay threshold:** security-tier merge → relay immediately after Phase 3 step 7; routine/sensitive `merges_since_relay` >= 2 → relay. No deferral. Compaction summary = already past safe → relay, merge nothing.
 **merges_since_relay:** 0
+**Continuation note:** Codex coordinator is relaying at `5h 10% left`. Successor should adopt the
+live fleet, use Claude for new build/QA agents until Codex's 5-hour window resets, and continue with
+security QA/sign-off for PRs #312, #313, #314, #315 before merging anything.
 
 > Coordinator memory for the deploy-readiness RFA queue in
 > `docs/coordination/2026-06-18-deploy-readiness-rfa-order.md`. GitHub is source of truth for
@@ -16,6 +19,8 @@
 - Codex usage watch: self pane read on 2026-06-18 showed `5h 27% left`. If this drops near zero
   before the Codex 5-hour window resets, hand off coordination to a Claude coordinator in the same
   Herdr tab and instruct it to spawn/use Claude build and QA agents until Codex resets.
+- Codex usage watch update: self pane read later showed `5h 10% left`; coordinator relay to Claude is
+  in progress.
 - Main gate: **blocked**. Ben's wrap-up reports local `pnpm verify:foundation` exit 1 from briefing
   worker timeouts in `tests/integration/briefings-synthesis.test.ts` and
   `tests/integration/briefings.test.ts`; `pnpm audit:release-hardening` exit 0.
