@@ -11,38 +11,56 @@ const SESSION_COOKIE_NAMES = [
   "__Secure-better-auth.session_token="
 ] as const;
 
+// Session bearer tokens are UUIDs. Kept in sync with the global limiter's `SESSION_UUID`
+// in apps/api/src/server.ts — the route-local limiters must gate on the same shape so a
+// caller cannot vary `Authorization: Bearer <junk-N>` to mint fresh per-route buckets.
+const SESSION_UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+// Per-session MCP bearer tokens are minted as `jst_<uuid>` (see
+// packages/ai/src/gateway/session-tokens.ts). Anything else on the MCP route is unmatched.
+const MCP_TOKEN = /^jst_[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+interface RateLimitKeyPolicy {
+  /** Returns true when the raw bearer token matches this route's accepted credential shape. */
+  readonly bearerMatches: (token: string) => boolean;
+  /** Namespace prefix for a matched, hashed bearer token (e.g. `bearer`, `mcp`). */
+  readonly bearerNamespace: string;
+  /** Whether an unmatched/absent bearer may fall back to the Better Auth session cookie. */
+  readonly allowCookie: boolean;
+}
+
 /**
- * Per-principal rate-limit key for a module route's throttle. Prefer the presented
- * credential so each LAN user / bearer client gets its own bucket; otherwise key on the
- * real peer IP.
+ * Shared route-local rate-limit key builder. Prefer the presented credential so each valid
+ * caller gets its own bucket; a credential whose shape does NOT match the route's policy is
+ * treated as unauthenticated and keyed on the real peer IP, so varying malformed bearer
+ * values cannot mint distinct buckets (the abuse #207 closed).
  *
- * The bearer token and session cookie are session secrets, so each is hashed to a
+ * Matched bearer tokens and session cookies are session secrets, so each is hashed to a
  * one-way fingerprint — never used raw as a limiter key — keeping it out of the limiter's
- * in-memory store and any error/header output (the discipline #113 established for the
- * global throttle class). Namespaced prefixes prevent a bearer hash from ever colliding
- * with a cookie hash or an IP literal.
+ * in-memory store and any error/header output (the discipline #113 established). Namespaced
+ * prefixes prevent a bearer/MCP hash from ever colliding with a cookie hash or an IP literal.
  *
- * Unlike the global `authPrincipalRateLimitKey`, this does NOT gate on the token shape:
- * these routes key on any presented credential as the per-session identity and 401 an
- * invalid one in the handler before any AI spend, so a bogus token mints (at worst) a
- * short-lived bucket that never reaches the protected work.
+ * Internal: callers use the exported {@link sessionRateLimitKey} / {@link mcpSessionRateLimitKey}.
  */
-export function sessionRateLimitKey(request: FastifyRequest): string {
+function credentialOrIpRateLimitKey(request: FastifyRequest, policy: RateLimitKeyPolicy): string {
   const authorization = request.headers.authorization ?? "";
   if (authorization.startsWith("Bearer ")) {
     const token = authorization.slice("Bearer ".length).trim();
-    if (token) {
-      return `bearer:${hash(token)}`;
+    if (token && policy.bearerMatches(token)) {
+      return `${policy.bearerNamespace}:${hash(token)}`;
     }
+    // A present-but-unmatched (malformed/wrong-shape) bearer falls through to cookie/IP below.
   }
 
-  const cookieParts = (request.headers.cookie ?? "").split(";").map((part) => part.trim());
-  for (const name of SESSION_COOKIE_NAMES) {
-    const match = cookieParts.find((part) => part.startsWith(name));
-    if (match) {
-      const value = match.slice(name.length).split(";")[0];
-      if (value) {
-        return `cookie:${hash(value)}`;
+  if (policy.allowCookie) {
+    const cookieParts = (request.headers.cookie ?? "").split(";").map((part) => part.trim());
+    for (const name of SESSION_COOKIE_NAMES) {
+      const match = cookieParts.find((part) => part.startsWith(name));
+      if (match) {
+        const value = match.slice(name.length).split(";")[0];
+        if (value) {
+          return `cookie:${hash(value)}`;
+        }
       }
     }
   }
@@ -50,6 +68,34 @@ export function sessionRateLimitKey(request: FastifyRequest): string {
   // When JARVIS_TRUST_PROXY is set, Fastify resolves request.ip from the verified XFF
   // chain; otherwise it is the socket remote address and client-supplied XFF is ignored.
   return `ip:${request.ip}`;
+}
+
+/**
+ * Per-principal rate-limit key for Better Auth / session-backed HTTP routes (chat turn,
+ * assistant-tool invoke, persona preview). A UUID-shaped bearer hashes into the `bearer:`
+ * namespace; a valid session cookie hashes into the `cookie:` namespace; any other bearer
+ * shape (or none) falls back to `ip:<peer>`. Mirrors the global `authPrincipalRateLimitKey`.
+ */
+export function sessionRateLimitKey(request: FastifyRequest): string {
+  return credentialOrIpRateLimitKey(request, {
+    bearerMatches: (token) => SESSION_UUID.test(token),
+    bearerNamespace: "bearer",
+    allowCookie: true
+  });
+}
+
+/**
+ * Per-session rate-limit key for the MCP transport route. Only a `jst_<uuid>` token hashes
+ * into the distinct `mcp:` namespace (kept separate from session bearers so the two token
+ * kinds are never interchangeable); any other bearer shape (or none) falls back to
+ * `ip:<peer>`. MCP carries no cookie identity, so cookie fallback is disabled.
+ */
+export function mcpSessionRateLimitKey(request: FastifyRequest): string {
+  return credentialOrIpRateLimitKey(request, {
+    bearerMatches: (token) => MCP_TOKEN.test(token),
+    bearerNamespace: "mcp",
+    allowCookie: false
+  });
 }
 
 function hash(value: string): string {

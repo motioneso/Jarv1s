@@ -5,7 +5,7 @@ export {
   type HandleRouteErrorOptions
 } from "./route-errors.js";
 
-export { sessionRateLimitKey } from "./rate-limit-key.js";
+export { sessionRateLimitKey, mcpSessionRateLimitKey } from "./rate-limit-key.js";
 
 export { CORE_VERSION, satisfiesCoreVersion } from "./core-version.js";
 

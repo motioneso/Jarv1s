@@ -1,11 +1,11 @@
-import { createHash } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 
 import type { FastifyRequest } from "fastify";
 import { describe, expect, it } from "vitest";
 
-import { sessionRateLimitKey } from "@jarv1s/module-sdk";
+import { mcpSessionRateLimitKey, sessionRateLimitKey } from "@jarv1s/module-sdk";
 
-// Build a minimal FastifyRequest stand-in carrying only the fields the helper reads.
+// Build a minimal FastifyRequest stand-in carrying only the fields the helpers read.
 function req(opts: { authorization?: string; cookie?: string; ip?: string }): FastifyRequest {
   return {
     headers: { authorization: opts.authorization, cookie: opts.cookie },
@@ -15,12 +15,25 @@ function req(opts: { authorization?: string; cookie?: string; ip?: string }): Fa
 
 const hash = (value: string) => createHash("sha256").update(value).digest("hex").slice(0, 32);
 
-describe("sessionRateLimitKey", () => {
-  it("hashes a Bearer token into the bearer namespace and never leaks the raw token", () => {
-    const token = "secret-session-token-abc123";
+describe("sessionRateLimitKey (UUID-shaped session bearer policy)", () => {
+  it("hashes a UUID-shaped Bearer token into the bearer namespace, never leaking the raw token", () => {
+    const token = "40000000-0000-4000-8000-000000000001";
     const key = sessionRateLimitKey(req({ authorization: `Bearer ${token}` }));
     expect(key).toBe(`bearer:${hash(token)}`);
     expect(key).not.toContain(token);
+  });
+
+  it("falls back to the shared per-IP bucket for a malformed (non-UUID) Bearer token", () => {
+    const a = sessionRateLimitKey(
+      req({ authorization: "Bearer junk-token-1", ip: "198.51.100.4" })
+    );
+    const b = sessionRateLimitKey(
+      req({ authorization: "Bearer junk-token-2", ip: "198.51.100.4" })
+    );
+    // Two DIFFERENT junk tokens from the same peer must collapse to one bucket — no minting.
+    expect(a).toBe("ip:198.51.100.4");
+    expect(b).toBe("ip:198.51.100.4");
+    expect(a).toBe(b);
   });
 
   it("hashes the better-auth session cookie into the cookie namespace", () => {
@@ -36,12 +49,20 @@ describe("sessionRateLimitKey", () => {
     expect(key).toBe(`cookie:${hash(value)}`);
   });
 
-  it("prefers the Bearer token over a session cookie when both are present", () => {
-    const token = "bearer-wins";
+  it("prefers a UUID Bearer token over a session cookie when both are present", () => {
+    const token = "40000000-0000-4000-8000-000000000002";
     const key = sessionRateLimitKey(
       req({ authorization: `Bearer ${token}`, cookie: "better-auth.session_token=ignored" })
     );
     expect(key).toBe(`bearer:${hash(token)}`);
+  });
+
+  it("falls back to the session cookie when the Bearer token is malformed but a cookie is present", () => {
+    const value = "real-cookie";
+    const key = sessionRateLimitKey(
+      req({ authorization: "Bearer not-a-uuid", cookie: `better-auth.session_token=${value}` })
+    );
+    expect(key).toBe(`cookie:${hash(value)}`);
   });
 
   it("falls back to the per-IP namespace when no credential is presented", () => {
@@ -54,11 +75,50 @@ describe("sessionRateLimitKey", () => {
     );
   });
 
-  it("is stable for the same credential and distinct across credentials", () => {
-    const a = sessionRateLimitKey(req({ authorization: "Bearer tok-A" }));
-    const a2 = sessionRateLimitKey(req({ authorization: "Bearer tok-A" }));
-    const b = sessionRateLimitKey(req({ authorization: "Bearer tok-B" }));
-    expect(a).toBe(a2);
-    expect(a).not.toBe(b);
+  it("is stable for the same UUID credential and distinct across UUID credentials", () => {
+    const a = sessionRateLimitKey(req({ authorization: `Bearer ${randomUUID()}` }));
+    const a2Token = "40000000-0000-4000-8000-00000000000a";
+    const a2 = sessionRateLimitKey(req({ authorization: `Bearer ${a2Token}` }));
+    const a2again = sessionRateLimitKey(req({ authorization: `Bearer ${a2Token}` }));
+    expect(a2).toBe(a2again);
+    expect(a).not.toBe(a2);
+  });
+});
+
+describe("mcpSessionRateLimitKey (jst_<uuid> MCP token policy)", () => {
+  it("hashes a jst_<uuid> token into the distinct mcp namespace, never leaking the raw token", () => {
+    const token = `jst_${randomUUID()}`;
+    const key = mcpSessionRateLimitKey(req({ authorization: `Bearer ${token}` }));
+    expect(key).toBe(`mcp:${hash(token)}`);
+    expect(key).not.toContain(token);
+    // MCP tokens must NOT collide with the session-bearer namespace.
+    expect(key.startsWith("bearer:")).toBe(false);
+  });
+
+  it("falls back to the shared per-IP bucket for different malformed (non-jst) Bearer tokens", () => {
+    const a = mcpSessionRateLimitKey(req({ authorization: "Bearer junk-1", ip: "198.51.100.20" }));
+    const b = mcpSessionRateLimitKey(req({ authorization: "Bearer junk-2", ip: "198.51.100.20" }));
+    expect(a).toBe("ip:198.51.100.20");
+    expect(b).toBe("ip:198.51.100.20");
+    expect(a).toBe(b);
+  });
+
+  it("falls back to per-IP for a jst_ prefix with a non-UUID suffix", () => {
+    expect(
+      mcpSessionRateLimitKey(req({ authorization: "Bearer jst_not-a-uuid", ip: "198.51.100.21" }))
+    ).toBe("ip:198.51.100.21");
+  });
+
+  it("does NOT grant a UUID-only (session-shaped) bearer an MCP bucket", () => {
+    // A bare session UUID is not an MCP token; it must not earn a per-principal mcp bucket.
+    expect(
+      mcpSessionRateLimitKey(
+        req({ authorization: "Bearer 40000000-0000-4000-8000-000000000001", ip: "198.51.100.22" })
+      )
+    ).toBe("ip:198.51.100.22");
+  });
+
+  it("falls back to the per-IP namespace when no credential is presented", () => {
+    expect(mcpSessionRateLimitKey(req({ ip: "198.51.100.23" }))).toBe("ip:198.51.100.23");
   });
 });
