@@ -22,7 +22,8 @@ prefer Codex again for cross-model QA. Do not kill warm Codex lanes; they're idl
 be reaped.
 **Relay threshold:** security-tier merge → relay immediately after Phase 3 step 7; routine/sensitive `merges_since_relay` >= 2 → relay. No deferral. Compaction summary = already past safe → relay, merge nothing.
 **merges_since_relay:** 1 (#254/#325 sensitive merged `f4d0499` 2026-06-19T06:13Z by Claude coord; threshold not yet hit — security #114 next will trigger relay)
-**last_alive:** 2026-06-19T05:56Z (Claude coordinator `2a076d28…` adopted from out-of-usage Codex `019ede31…`; #254 build DONE → PR #325 OPEN/MERGEABLE, spawning QA)
+**last_alive:** 2026-06-19T06:18Z (Claude coordinator `2a076d28…`; #254/#325 MERGED `f4d0499`; Gate-114 rebase+gate agent spawned `w1:p20` tab `w1:tA`)
+**⚠️ CLAUDE WEEKLY USAGE ~86% (2026-06-19T06:18Z, resets Jun 20 11am PT):** approaching max — per Ben rule 3, swap to GLM 5.2 (Opencode) agents for build/gate/QA if Claude stalls or usage climbs. Coordinator handoff to Codex at 23:43 PDT (rule 4) will move the resident loop off Claude. Gate-114 (Claude) seen hitting transient API retries; watch — if it stalls, redo the rebase+gate on GLM 5.2.
 **Gate serialization policy (2026-06-18):** run mechanical gates ~1–2 at a time. Concurrent
 `verify:foundation` runs collide on cluster-global role grants → false-RED "tuple concurrently
 updated", EVEN with isolated `JARVIS_PGDATABASE` (db:migrate grants touch shared `pg_authid`).
