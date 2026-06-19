@@ -9,8 +9,10 @@ import {
   type ConnectorProvider,
   type ConnectorProviderStatus,
   type ConnectorProviderType,
+  type ConnectorSyncStatus,
   type DataContextDb
 } from "@jarv1s/db";
+import type { ConnectorSyncCounts } from "@jarv1s/shared";
 
 import type { EncryptedConnectorSecret } from "./crypto.js";
 
@@ -35,6 +37,11 @@ export interface ConnectorAccountSafeRow {
   readonly revoked_at: Date | null;
   readonly created_at: Date;
   readonly updated_at: Date;
+  readonly last_sync_started_at: Date | null;
+  readonly last_sync_finished_at: Date | null;
+  readonly last_sync_status: ConnectorSyncStatus | null;
+  readonly last_sync_error: string | null;
+  readonly last_sync_counts: ConnectorSyncCounts | null;
 }
 
 export interface CreateConnectorAccountInput {
@@ -187,6 +194,57 @@ export class ConnectorsRepository {
     return updated ? this.requireVisibleAccount(scopedDb, updated.id) : undefined;
   }
 
+  /**
+   * Stamp the start of a sync run on the actor's own account row. Touches only the
+   * health/`updated_at` columns — never `status` or `revoked_at`, so an in-flight sync can
+   * never silently un-revoke a revoked account. The `id` predicate runs under owner RLS, so
+   * only the actor's visible row is affected.
+   */
+  async markSyncStarted(
+    scopedDb: DataContextDb,
+    accountId: string,
+    startedAt: Date
+  ): Promise<void> {
+    assertDataContextDb(scopedDb);
+    await scopedDb.db
+      .updateTable("app.connector_accounts")
+      .set({
+        last_sync_started_at: startedAt,
+        updated_at: startedAt
+      })
+      .where("id", "=", accountId)
+      .execute();
+  }
+
+  /**
+   * Stamp the outcome of a sync run with aggregate-only health. Writes the bounded status,
+   * a bounded error label (or null), and the small counts object. Like markSyncStarted it
+   * never touches `status`/`revoked_at`.
+   */
+  async markSyncFinished(
+    scopedDb: DataContextDb,
+    accountId: string,
+    input: {
+      finishedAt: Date;
+      status: ConnectorSyncStatus;
+      error: string | null;
+      counts: Record<string, number | boolean>;
+    }
+  ): Promise<void> {
+    assertDataContextDb(scopedDb);
+    await scopedDb.db
+      .updateTable("app.connector_accounts")
+      .set({
+        last_sync_finished_at: input.finishedAt,
+        last_sync_status: input.status,
+        last_sync_error: input.error,
+        last_sync_counts: input.counts,
+        updated_at: input.finishedAt
+      })
+      .where("id", "=", accountId)
+      .execute();
+  }
+
   async upsertGooglePending(
     scopedDb: DataContextDb,
     input: { state: string; encryptedSecret: EncryptedConnectorSecret }
@@ -325,7 +383,12 @@ export class ConnectorsRepository {
         sql<boolean>`accounts.encrypted_secret IS NOT NULL`.as("has_secret"),
         "accounts.revoked_at as revoked_at",
         "accounts.created_at as created_at",
-        "accounts.updated_at as updated_at"
+        "accounts.updated_at as updated_at",
+        "accounts.last_sync_started_at as last_sync_started_at",
+        "accounts.last_sync_finished_at as last_sync_finished_at",
+        "accounts.last_sync_status as last_sync_status",
+        "accounts.last_sync_error as last_sync_error",
+        "accounts.last_sync_counts as last_sync_counts"
       ])
       .orderBy("accounts.created_at", "desc")
       .orderBy("accounts.id");

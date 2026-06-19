@@ -354,7 +354,12 @@ function serializeAccount(account: ConnectorAccountSafeRow): ConnectorAccountDto
     hasSecret: account.has_secret,
     revokedAt: serializeNullableDate(account.revoked_at),
     createdAt: serializeRequiredDate(account.created_at),
-    updatedAt: serializeRequiredDate(account.updated_at)
+    updatedAt: serializeRequiredDate(account.updated_at),
+    lastSyncStartedAt: serializeNullableDate(account.last_sync_started_at),
+    lastSyncFinishedAt: serializeNullableDate(account.last_sync_finished_at),
+    lastSyncStatus: account.last_sync_status,
+    lastSyncError: account.last_sync_error,
+    lastSyncCounts: account.last_sync_counts
   };
 }
 

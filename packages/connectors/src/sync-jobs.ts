@@ -2,7 +2,7 @@ import type { Job, PgBoss, WorkOptions } from "pg-boss";
 import { sql } from "kysely";
 
 import type { ActorScopedJobPayload, QueueDefinition } from "@jarv1s/jobs";
-import type { DataContextDb, DataContextRunner } from "@jarv1s/db";
+import type { ConnectorSyncStatus, DataContextDb, DataContextRunner } from "@jarv1s/db";
 import { registerDataContextWorker } from "@jarv1s/jobs";
 import {
   AiRepository,
@@ -104,6 +104,7 @@ export interface GoogleSyncDeps {
   readonly now?: () => Date;
   readonly calendarRepository?: CalendarRepository;
   readonly emailRepository?: EmailRepository;
+  readonly connectorsRepository?: ConnectorsRepository;
   /** Structured, sanitized sync logger (never token/body content). Defaults to a console shim. */
   readonly logger?: SyncLogger;
 }
@@ -241,6 +242,7 @@ export async function runGoogleSync(
   const logger = deps.logger ?? NOOP_SYNC_LOGGER;
   const calendarRepo = deps.calendarRepository ?? new CalendarRepository();
   const emailRepo = deps.emailRepository ?? new EmailRepository();
+  const connectorsRepo = deps.connectorsRepository ?? new ConnectorsRepository();
   const errors: string[] = [];
   let calendarUpserted = 0;
   let emailUpserted = 0;
@@ -253,6 +255,9 @@ export async function runGoogleSync(
     return { calendarUpserted: 0, emailUpserted: 0, errors: ["no-active-connection"] };
   }
 
+  // Stamp the start of the run on the account row (health metadata only — never status).
+  await connectorsRepo.markSyncStarted(scopedDb, account.id, now());
+
   // Single shared token holder for the whole run: withTokenRetry writes a refreshed token back
   // here the instant it refreshes (even if the retried op then fails), so every later call —
   // across the calendar AND email sections and every message in the loop — uses the fresh token
@@ -263,6 +268,19 @@ export async function runGoogleSync(
   } catch {
     // Never log the underlying auth error object (may carry client_secret/refresh_token).
     logger.warn({ actorScoped: true, stage: "auth" }, "google-sync auth failed");
+    // Record a failed run with the bounded auth label only — never the raw provider error.
+    await connectorsRepo.markSyncFinished(scopedDb, account.id, {
+      finishedAt: now(),
+      status: "failed",
+      error: "auth-error",
+      counts: {
+        calendarUpserted: 0,
+        emailUpserted: 0,
+        emailFailures: 0,
+        escalations: 0,
+        truncated: false
+      }
+    });
     return { calendarUpserted: 0, emailUpserted: 0, errors: ["auth-error"] };
   }
 
@@ -434,6 +452,16 @@ export async function runGoogleSync(
     },
     "google-sync complete"
   );
+  // Bounded item errors (calendar/email section or per-item labels) make the run `partial`;
+  // a clean run is `success`. A thrown top-level failure (auth) is recorded as `failed` above.
+  // The persisted error is the first bounded label only — never raw provider/error text.
+  const status: ConnectorSyncStatus = errors.length > 0 ? "partial" : "success";
+  await connectorsRepo.markSyncFinished(scopedDb, account.id, {
+    finishedAt: now(),
+    status,
+    error: errors[0] ?? null,
+    counts: { calendarUpserted, emailUpserted, emailFailures, escalations, truncated }
+  });
   return { calendarUpserted, emailUpserted, emailFailures, escalations, errors, truncated };
 }
 
