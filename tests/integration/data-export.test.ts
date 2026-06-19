@@ -1,12 +1,12 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-import { createDatabase, type JarvisDatabase } from "@jarv1s/db";
+import { createDatabase, DataContextRunner, type JarvisDatabase } from "@jarv1s/db";
 import type { Kysely } from "kysely";
 
 import { fastify, type FastifyInstance } from "fastify";
+import { getBuiltInModuleManifests } from "@jarv1s/module-registry";
 import { connectionStrings, ids, resetFoundationDatabase } from "./test-database.js";
-import { registerDataExportRoutes } from "../../packages/settings/src/data-export-routes.js";
-import { DataContextRunner } from "@jarv1s/db";
+import { registerSettingsRoutes } from "../../packages/settings/src/routes.js";
 
 import { HttpError } from "@jarv1s/module-sdk";
 
@@ -21,7 +21,7 @@ describe("Data export", () => {
     authDb = createDatabase({ connectionString: connectionStrings.auth, maxConnections: 1 });
     server = fastify();
 
-    registerDataExportRoutes(server, {
+    registerSettingsRoutes(server, {
       rootDb: appDb,
       dataContext: new DataContextRunner(appDb),
       resolveAccessContext: async (request) => {
@@ -34,7 +34,8 @@ describe("Data export", () => {
           throw new HttpError(401, "Unauthorized");
         }
         return { actorUserId: ids.userA, requestId: "req:test" };
-      }
+      },
+      listModuleManifests: () => getBuiltInModuleManifests()
     });
 
     await server.ready();
@@ -80,5 +81,16 @@ describe("Data export", () => {
     });
 
     expect(res.statusCode).toBe(401);
+  });
+
+  it("declares the data-export route in the settings manifest so the route guard exposes it", () => {
+    const settingsManifest = getBuiltInModuleManifests().find(
+      (manifest) => manifest.id === "settings"
+    );
+    expect(settingsManifest?.routes).toContainEqual({
+      method: "GET",
+      path: "/api/settings/me/data-export",
+      permissionId: "settings.view"
+    });
   });
 });

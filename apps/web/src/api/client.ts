@@ -967,7 +967,9 @@ export async function requestJson<T>(path: string, options: ApiRequestOptions = 
   return text ? (JSON.parse(text) as T) : (undefined as T);
 }
 
-async function readErrorBody(response: Response): Promise<{ message: string; code?: string }> {
+export async function readErrorBody(
+  response: Response
+): Promise<{ message: string; code?: string }> {
   const text = await response.text();
 
   if (!text) {
