@@ -13,7 +13,7 @@ since the native `Agent(model:opus)` path is Claude-only. Currently-running Clau
 Gate-314, Build-237) finish as-is — do not kill warm work; only NEW spawns are Codex.
 **Relay threshold:** security-tier merge → relay immediately after Phase 3 step 7; routine/sensitive `merges_since_relay` >= 2 → relay. No deferral. Compaction summary = already past safe → relay, merge nothing.
 **merges_since_relay:** 0 (reset after successor adopted post-#313 security-tier relay)
-**last_alive:** 2026-06-19T02:31Z (Codex coordinator `019edda0…` — #315 patched; GLM + Codex re-QA running)
+**last_alive:** 2026-06-19T02:33Z (Codex coordinator `019edda0…` — #315 GLM GREEN; Codex re-QA running)
 **Gate serialization policy (2026-06-18):** run mechanical gates ~1–2 at a time. Concurrent
 `verify:foundation` runs collide on cluster-global role grants → false-RED "tuple concurrently
 updated", EVEN with isolated `JARVIS_PGDATABASE` (db:migrate grants touch shared `pg_authid`).
@@ -74,12 +74,14 @@ LIVE FLEET (resolve panes fresh by label; numbers reflow):
   PR/issue progress comments: `#issuecomment-4747937703` / `#issuecomment-4747937709`.
 - `QA-315-Sessions-Fix` (`w1:p2C`, Codex session `019eddb7-db77-7d62-86c1-d2f50ddbe69c`) —
   running fresh security re-QA in `.claude/worktrees/qa-315-active-sessions-fix`.
-- GLM 5.2 (`w1:p28`) — re-reviewing patched #315 at `f07e5f3` on the four-point checklist.
+- GLM 5.2 (`w1:p28`) — re-review GREEN at `f07e5f3`; prior bearer-token leak blocker resolved.
+  Non-blocking: cookie-auth current-session/revoke-others path lacks direct integration coverage.
+  PR/issue comments: `#issuecomment-4747952881` / `#issuecomment-4747952880`.
 
 GATE SERIALIZATION RIGHT NOW: one CI-equiv gate may run via `QA-315-Sessions-Fix`; GLM re-review is
 read-only. After both GREEN, ask Ben for #315 security-tier sign-off.
 
-PENDING SIGN-OFFS (all security tier, all need Ben): none currently ready. #315 patched at `f07e5f3`; awaiting GLM re-review + fresh CODEX re-QA, then Ben sign-off if GREEN. Then serialized successors per chains A/B/C and the held queue (#114, #123, #230, #236,
+PENDING SIGN-OFFS (all security tier, all need Ben): none currently ready. #315 patched at `f07e5f3`; GLM re-review GREEN, awaiting fresh CODEX re-QA, then Ben sign-off if GREEN. Then serialized successors per chains A/B/C and the held queue (#114, #123, #230, #236,
 #254, then #306 manual). Preferred merge order: #117(#313), #114, #207(#314 ✅done), #123, #237(#315),
 #230, #236, #255(#312 ✅done), #254, then #306.
 
@@ -121,7 +123,7 @@ need a clean worktree + a pre-existing isolated DB. Per-merge digest:
 | `docs/superpowers/specs/2026-06-18-route-local-junk-credential-rate-limit-gates.md` | #207  | security  | **MERGED** (squash `b0c59ef` @ 01:09Z, Ben sign-off). Issue closed; board Done. | — (reaped) | — | (deleted) | #314 |
 | `docs/superpowers/specs/2026-06-18-otnr-p3-ai-gateway-residual-hardening.md`        | #123  | security  | queued: held for green gate             | —                   | —      | —                           | —    |
 | `docs/superpowers/specs/2026-06-18-people-access-approval-revoke-sessions.md`       | #230  | security  | queued: held for green gate             | —                   | —      | —                           | —    |
-| `docs/superpowers/specs/2026-06-18-active-sessions-list-revoke.md`                  | #237  | security  | patched at `f07e5f3`; GLM re-review + fresh CODEX re-QA running | Build-237-Sessions | w1:p1S | deploy-237-active-sessions | #315 |
+| `docs/superpowers/specs/2026-06-18-active-sessions-list-revoke.md`                  | #237  | security  | patched at `f07e5f3`; GLM GREEN; fresh CODEX re-QA running | Build-237-Sessions | w1:p1S | deploy-237-active-sessions | #315 |
 | `docs/superpowers/specs/2026-06-18-account-card-real-status.md`                     | #236  | security  | queued: held for green gate             | —                   | —      | —                           | —    |
 | `docs/superpowers/specs/2026-06-18-host-diagnostics-safe-ops.md`                    | #255  | security  | **MERGED** (squash @ 2026-06-19T00:47Z, Ben sign-off). Issue closed. **Board move to Done still TODO (successor).** | — (reaped) | — | (deleted) | #312 |
 | `docs/superpowers/specs/2026-06-18-connector-health-monitoring.md`                  | #254  | sensitive | queued: held for green main             | —                   | —      | —                           | —    |
@@ -189,7 +191,8 @@ No waivers.
       `#issuecomment-4747900461`). Build-237 fixed and pushed `f07e5f3`: bearer rows expose
       one-way handles, raw bearer revoke 404s, focused me-sessions tests 8/8, typecheck green;
       progress comments `#issuecomment-4747937703` / `#issuecomment-4747937709`. GLM re-review and
-      fresh Codex security re-QA running.
+      fresh Codex security re-QA started. GLM re-review GREEN (`#issuecomment-4747952881` /
+      `#issuecomment-4747952880`); fresh Codex security re-QA still running.
 - [ ] #306 is manual-acceptance only; no build agent should be spawned for it.
 
 ## Reaped Sessions
