@@ -314,6 +314,7 @@ export function createApiServer(options: CreateApiServerOptions = {}) {
       chatEngineFactory: options.chatEngineFactory,
       personaPreview: options.personaPreview,
       revokeUserSessions: authRuntime.revokeUserSessions,
+      meSessions: authRuntime.meSessions,
       bootstrapConnectionString: ownsAppDb ? getJarvisDatabaseUrls().bootstrap : undefined,
       googleConnectionService,
       googleApiClient,

@@ -79,6 +79,42 @@ export interface PatchMeProfileRequest {
   readonly name: string;
   readonly addressed: string;
 }
+
+export type MeSessionDeviceKind = "laptop" | "desktop" | "phone" | "tablet";
+
+/**
+ * Safe metadata for one of the current user's active sessions. NEVER carries the
+ * session token, cookie value, bearer secret, or any token fingerprint (#237).
+ * Covers both cookie sessions (rich UA/IP metadata) and legacy bearer/CLI sessions
+ * (minimal metadata — UA/IP null, generic device label).
+ */
+export interface MeSessionDto {
+  readonly id: string;
+  readonly isCurrent: boolean;
+  readonly createdAt: string;
+  /** Derived from the session row's updated_at; falls back to createdAt when absent. */
+  readonly lastSeenAt: string;
+  readonly expiresAt: string;
+  readonly ipAddress: string | null;
+  readonly userAgent: string | null;
+  readonly deviceLabel: string;
+  readonly browser: string | null;
+  readonly os: string | null;
+  readonly deviceKind: MeSessionDeviceKind;
+}
+
+export interface ListMySessionsResponse {
+  readonly sessions: readonly MeSessionDto[];
+}
+
+export interface RevokeMySessionResponse {
+  readonly success: boolean;
+}
+
+export interface RevokeMyOtherSessionsResponse {
+  readonly success: boolean;
+  readonly count: number;
+}
 export type LocaleDateFormat = "24" | "12";
 export interface LocaleSettingsDto {
   readonly timezone: string;
@@ -331,6 +367,88 @@ export const patchMeProfileRouteSchema = {
       }
     },
     400: errorResponseSchema,
+    401: errorResponseSchema
+  }
+} as const;
+
+const meSessionSchema = {
+  type: "object",
+  additionalProperties: false,
+  required: [
+    "id",
+    "isCurrent",
+    "createdAt",
+    "lastSeenAt",
+    "expiresAt",
+    "ipAddress",
+    "userAgent",
+    "deviceLabel",
+    "browser",
+    "os",
+    "deviceKind"
+  ],
+  properties: {
+    id: { type: "string" },
+    isCurrent: { type: "boolean" },
+    createdAt: { type: "string" },
+    lastSeenAt: { type: "string" },
+    expiresAt: { type: "string" },
+    ipAddress: { type: ["string", "null"] },
+    userAgent: { type: ["string", "null"] },
+    deviceLabel: { type: "string" },
+    browser: { type: ["string", "null"] },
+    os: { type: ["string", "null"] },
+    deviceKind: { type: "string", enum: ["laptop", "desktop", "phone", "tablet"] }
+  }
+} as const;
+
+export const listMySessionsRouteSchema = {
+  response: {
+    200: {
+      type: "object",
+      additionalProperties: false,
+      required: ["sessions"],
+      properties: {
+        sessions: { type: "array", items: meSessionSchema }
+      }
+    },
+    401: errorResponseSchema
+  }
+} as const;
+
+export const revokeMySessionRouteSchema = {
+  params: {
+    type: "object",
+    additionalProperties: false,
+    required: ["id"],
+    properties: { id: { type: "string" } }
+  },
+  response: {
+    200: {
+      type: "object",
+      additionalProperties: false,
+      required: ["success"],
+      properties: { success: { type: "boolean" } }
+    },
+    401: errorResponseSchema,
+    // 404: unknown / cross-user-guessed session id (no existence leak).
+    404: errorResponseSchema,
+    // 422: refusing to revoke the request's own current session via this surface.
+    422: errorResponseSchema
+  }
+} as const;
+
+export const revokeMyOtherSessionsRouteSchema = {
+  response: {
+    200: {
+      type: "object",
+      additionalProperties: false,
+      required: ["success", "count"],
+      properties: {
+        success: { type: "boolean" },
+        count: { type: "number" }
+      }
+    },
     401: errorResponseSchema
   }
 } as const;

@@ -17,7 +17,10 @@ import type {
   GetPersonaSettingsResponse,
   GetChatModelOverrideSettingsResponse,
   GetLocaleSettingsResponse,
+  ListMySessionsResponse,
   ListUsersResponse,
+  RevokeMyOtherSessionsResponse,
+  RevokeMySessionResponse,
   RegistrationSettingsDto,
   PreviewPersonaRequest,
   PreviewPersonaResponse,
@@ -153,6 +156,22 @@ export async function updateMyProfile(body: PatchMeProfileRequest): Promise<MeRe
   return requestJson<MeResponse>("/api/me/profile", {
     method: "PATCH",
     body
+  });
+}
+
+export async function listMySessions(): Promise<ListMySessionsResponse> {
+  return requestJson<ListMySessionsResponse>("/api/me/sessions");
+}
+
+export async function revokeMySession(id: string): Promise<RevokeMySessionResponse> {
+  return requestJson<RevokeMySessionResponse>(`/api/me/sessions/${encodeURIComponent(id)}`, {
+    method: "DELETE"
+  });
+}
+
+export async function revokeMyOtherSessions(): Promise<RevokeMyOtherSessionsResponse> {
+  return requestJson<RevokeMyOtherSessionsResponse>("/api/me/sessions/others", {
+    method: "DELETE"
   });
 }
 
