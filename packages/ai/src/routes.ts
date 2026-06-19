@@ -70,6 +70,7 @@ import {
 import { ToolInputValidationError, validateToolInput } from "./gateway/input-validation.js";
 import { cliAvailable, type ProviderKind as CliProviderKind } from "./cli-availability.js";
 import { createAiSecretCipher, type AiSecretCipher } from "./crypto.js";
+import { registerAiProviderValidationRoutes } from "./provider-validation-routes.js";
 import {
   AiRepository,
   type AiAssistantActionRequestSafeRow,
@@ -86,17 +87,9 @@ export interface AiRoutesDependencies {
   readonly secretCipher?: AiSecretCipher;
 }
 
-interface IdParams {
-  readonly id: string;
-}
-
-interface CapabilityParams {
-  readonly capability: string;
-}
-
-interface AssistantToolParams {
-  readonly name: string;
-}
+type IdParams = { readonly id: string };
+type CapabilityParams = { readonly capability: string };
+type AssistantToolParams = { readonly name: string };
 
 const AI_PROVIDER_KINDS = new Set<AiProviderKind>([
   "openai-compatible",
@@ -243,6 +236,13 @@ export function registerAiRoutes(
       }
     }
   );
+
+  registerAiProviderValidationRoutes(server, {
+    resolveAccessContext: dependencies.resolveAccessContext,
+    dataContext: dependencies.dataContext,
+    repository,
+    secretCipher
+  });
 
   server.get(
     "/api/ai/models",

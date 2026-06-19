@@ -50,6 +50,19 @@ export interface AiCapabilityRouteDto {
   readonly model: AiConfiguredModelDto | null;
 }
 
+export interface AiProviderTestResultDto {
+  readonly ok: boolean;
+  readonly providerKind: AiProviderKind;
+  readonly message: string;
+}
+
+export interface AiProviderDiscoveredModelDto {
+  readonly providerModelId: string;
+  readonly displayName: string;
+  readonly capabilities: readonly AiModelCapability[];
+  readonly tier: AiModelTier;
+}
+
 export interface AiAssistantToolDto {
   readonly moduleId: string;
   readonly moduleName: string;
@@ -169,6 +182,14 @@ export interface UpdateAiConfiguredModelResponse {
 
 export interface LookupAiCapabilityRouteResponse {
   readonly route: AiCapabilityRouteDto;
+}
+
+export interface TestAiProviderConfigResponse {
+  readonly result: AiProviderTestResultDto;
+}
+
+export interface DiscoverAiProviderModelsResponse {
+  readonly models: readonly AiProviderDiscoveredModelDto[];
 }
 
 export interface ChatModelOverrideSettingsDto {
@@ -346,6 +367,29 @@ const aiCapabilityRouteSchema = {
     model: {
       anyOf: [aiConfiguredModelSchema, { type: "null" }]
     }
+  }
+} as const;
+
+const aiProviderTestResultSchema = {
+  type: "object",
+  additionalProperties: false,
+  required: ["ok", "providerKind", "message"],
+  properties: {
+    ok: { type: "boolean" },
+    providerKind: aiProviderKindSchema,
+    message: { type: "string" }
+  }
+} as const;
+
+const aiProviderDiscoveredModelSchema = {
+  type: "object",
+  additionalProperties: false,
+  required: ["providerModelId", "displayName", "capabilities", "tier"],
+  properties: {
+    providerModelId: { type: "string" },
+    displayName: { type: "string" },
+    capabilities: { type: "array", minItems: 1, items: aiModelCapabilitySchema },
+    tier: aiModelTierSchema
   }
 } as const;
 
@@ -564,6 +608,24 @@ export const createAiProviderConfigResponseSchema = {
 export const updateAiProviderConfigResponseSchema = createAiProviderConfigResponseSchema;
 export const revokeAiProviderConfigResponseSchema = createAiProviderConfigResponseSchema;
 
+export const testAiProviderConfigResponseSchema = {
+  type: "object",
+  additionalProperties: false,
+  required: ["result"],
+  properties: {
+    result: aiProviderTestResultSchema
+  }
+} as const;
+
+export const discoverAiProviderModelsResponseSchema = {
+  type: "object",
+  additionalProperties: false,
+  required: ["models"],
+  properties: {
+    models: { type: "array", items: aiProviderDiscoveredModelSchema }
+  }
+} as const;
+
 export const listAiConfiguredModelsResponseSchema = {
   type: "object",
   additionalProperties: false,
@@ -710,6 +772,28 @@ export const revokeAiProviderConfigRouteSchema = {
   params: idParamsSchema,
   response: {
     200: revokeAiProviderConfigResponseSchema,
+    401: errorResponseSchema,
+    403: errorResponseSchema,
+    404: errorResponseSchema
+  }
+} as const;
+
+export const testAiProviderConfigRouteSchema = {
+  params: idParamsSchema,
+  response: {
+    200: testAiProviderConfigResponseSchema,
+    400: errorResponseSchema,
+    401: errorResponseSchema,
+    403: errorResponseSchema,
+    404: errorResponseSchema
+  }
+} as const;
+
+export const discoverAiProviderModelsRouteSchema = {
+  params: idParamsSchema,
+  response: {
+    200: discoverAiProviderModelsResponseSchema,
+    400: errorResponseSchema,
     401: errorResponseSchema,
     403: errorResponseSchema,
     404: errorResponseSchema

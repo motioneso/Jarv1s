@@ -243,8 +243,16 @@ test("configures AI providers and capability routing through settings REST calls
   await page.getByRole("button", { name: "Anthropic", exact: true }).click();
   await expect(page.locator(".prov__name", { hasText: "Anthropic" })).toBeVisible();
 
-  // Register a model on the provider card (auto-detect on connect is pending).
-  await page.locator(".prov__sync").click();
+  await page.getByRole("button", { name: "Test", exact: true }).click();
+  await expect(page.getByText("Provider credential is valid.")).toBeVisible();
+
+  await page.getByRole("button", { name: "Discover" }).click();
+  await expect(page.getByText("gpt-4o", { exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "Add gpt-4o" }).click();
+  await expect(page.locator(".mdl__id", { hasText: "gpt-4o" })).toBeVisible();
+
+  // Manual model registration remains available after discovery.
+  await page.getByRole("button", { name: "Add", exact: true }).click();
   await page.getByLabel("Model id").fill("claude-smoke");
   await page.getByLabel("Display name").fill("Haiku Smoke");
   await page.getByRole("button", { name: "Add model" }).click();

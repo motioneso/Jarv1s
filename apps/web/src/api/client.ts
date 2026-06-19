@@ -8,6 +8,7 @@ import type {
   CreateAiConfiguredModelResponse,
   CreateAiProviderConfigRequest,
   CreateAiProviderConfigResponse,
+  DiscoverAiProviderModelsResponse,
   AddTaskActivityResponse,
   AiModelCapability,
   AdminRevokeSessionsResponse,
@@ -93,6 +94,7 @@ import type {
   OnboardingProviderCheckResponse,
   RevokeAiProviderConfigResponse,
   RevokeConnectorAccountResponse,
+  TestAiProviderConfigResponse,
   LookupAiCapabilityRouteResponse,
   RunBriefingDefinitionRequest,
   RunBriefingDefinitionResponse,
@@ -642,6 +644,22 @@ export async function updateAiProvider(
 export async function revokeAiProvider(id: string): Promise<RevokeAiProviderConfigResponse> {
   return requestJson<RevokeAiProviderConfigResponse>(
     `/api/ai/providers/${encodeURIComponent(id)}/revoke`,
+    { method: "POST" }
+  );
+}
+
+export async function testAiProvider(id: string): Promise<TestAiProviderConfigResponse> {
+  return requestJson<TestAiProviderConfigResponse>(
+    `/api/ai/providers/${encodeURIComponent(id)}/test`,
+    { method: "POST" }
+  );
+}
+
+export async function discoverAiProviderModels(
+  id: string
+): Promise<DiscoverAiProviderModelsResponse> {
+  return requestJson<DiscoverAiProviderModelsResponse>(
+    `/api/ai/providers/${encodeURIComponent(id)}/discover-models`,
     { method: "POST" }
   );
 }
