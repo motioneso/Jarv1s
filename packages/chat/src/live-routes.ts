@@ -16,10 +16,11 @@
  *   POST /api/chat/switch            → 200         re-launch on the now-active provider
  *   GET  /api/chat/stream            → SSE         live transcript records for the actor
  *
- * Rate limiting: POST /api/chat/turn is throttled per session token (per user on a
+ * Rate limiting: POST /api/chat/turn is throttled per session principal (per user on a
  * LAN multi-user deployment). Limit: JARVIS_RL_CHAT_MAX requests per minute
- * (default 20). Falls back to IP when no session token is present so unauthenticated
- * abuse is still capped.
+ * (default 20). Only a UUID-shaped session bearer or a valid session cookie earns a
+ * per-principal bucket; any other bearer shape (or none) falls back to the shared per-IP
+ * bucket so junk-credential abuse cannot mint fresh buckets (#207) and is still capped.
  */
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 
@@ -31,9 +32,11 @@ import { ChatTurnInFlightError } from "./live/chat-session-manager.js";
 import { CliChatUnavailableError } from "./live/errors.js";
 import type { ChatSessionRuntime } from "./live/runtime.js";
 
-// Per-user rate-limit key: hashed session-token/cookie via the shared module-sdk helper
-// (a one-way fingerprint, never the raw secret), falling back to IP so unauthenticated
-// requests are still capped (they get a 401 from the handler before any AI spend).
+// Per-user rate-limit key via the shared module-sdk helper: a UUID-shaped session bearer or
+// a valid session cookie is hashed (a one-way fingerprint, never the raw secret) to a
+// per-principal bucket; any other bearer shape (or none) falls back to the shared per-IP
+// bucket so junk-credential abuse can't mint buckets (#207) and is still capped (the handler
+// 401s before any AI spend).
 //
 // Override the limit via env: JARVIS_RL_CHAT_MAX=<n> (requests per minute, default 20).
 const CHAT_MAX = parsePositiveIntEnv(process.env.JARVIS_RL_CHAT_MAX, 20);
