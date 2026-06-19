@@ -11,6 +11,7 @@ import type {
   TaskDto,
   TaskListDto,
   TaskTagDto,
+  UserDto,
   UpdateTaskRequest
 } from "@jarv1s/shared";
 
@@ -46,7 +47,9 @@ export interface MockApiState
   chatMessages?: Record<string, ChatMessageDto[]>;
   chatThreads?: ChatThreadDto[];
   emailMessages?: EmailMessageDto[];
+  adminUsers?: UserDto[];
   notifications: NotificationDto[];
+  revokedAdminSessionCount?: number;
   tasks: TaskDto[];
   taskDefaultView?: TaskDefaultView;
   /**
@@ -120,6 +123,16 @@ function meResponseFor(state: MockApiState): MeResponse {
   };
 }
 
+function adminUsersFor(state: MockApiState): UserDto[] {
+  if (!state.adminUsers) {
+    state.adminUsers = [
+      meResponseFor(state).user,
+      createMockUser("member-1", "Member User", "member@example.test")
+    ];
+  }
+  return state.adminUsers;
+}
+
 export async function mockApi(page: Page, state: MockApiState): Promise<void> {
   await page.route("**/api/bootstrap/status", (route) =>
     fulfillJson(route, 200, { needsBootstrap: false })
@@ -174,6 +187,10 @@ export async function mockApi(page: Page, state: MockApiState): Promise<void> {
   await registerMockBriefingsRoutes(page, state);
   await registerMockChatRoutes(page, state);
   await registerMockOnboardingRoutes(page, state);
+  await page.route("**/api/admin/users", (route) => handleAdminUsersRoute(route, state));
+  await page.route("**/api/admin/users/*/revoke-sessions", (route) =>
+    handleAdminUserRevokeSessionsRoute(route, state)
+  );
   await page.route(/\/api\/calendar\/events\/[^/]+$/, (route) =>
     handleCalendarEventDetailRoute(route, state)
   );
@@ -280,6 +297,32 @@ async function handleEmailMessageDetailRoute(route: Route, state: MockApiState):
   }
 
   return fulfillJson(route, 200, { message });
+}
+
+async function handleAdminUsersRoute(route: Route, state: MockApiState): Promise<void> {
+  if (route.request().method() !== "GET") {
+    return fulfillJson(route, 405, { error: "Method not allowed" });
+  }
+
+  return fulfillJson(route, 200, { users: adminUsersFor(state) });
+}
+
+async function handleAdminUserRevokeSessionsRoute(
+  route: Route,
+  state: MockApiState
+): Promise<void> {
+  const request = route.request();
+  const userId = decodeURIComponent(new URL(request.url()).pathname.split("/").at(-2) ?? "");
+
+  if (request.method() !== "POST") {
+    return fulfillJson(route, 405, { error: "Method not allowed" });
+  }
+
+  if (!adminUsersFor(state).some((user) => user.id === userId)) {
+    return fulfillJson(route, 404, { error: "User not found" });
+  }
+
+  return fulfillJson(route, 200, { success: true, count: state.revokedAdminSessionCount ?? 2 });
 }
 
 async function handleNotificationListRoute(route: Route, state: MockApiState): Promise<void> {
@@ -597,6 +640,25 @@ export function createMockEmailMessage(
     signals: {},
     receivedAt: "2026-06-06T12:00:00.000Z",
     externalId: id,
+    createdAt: "2026-06-06T12:00:00.000Z",
+    updatedAt: "2026-06-06T12:00:00.000Z",
+    ...overrides
+  };
+}
+
+export function createMockUser(
+  id: string,
+  name: string,
+  email: string,
+  overrides: Partial<UserDto> = {}
+): UserDto {
+  return {
+    id,
+    email,
+    name,
+    isInstanceAdmin: false,
+    status: "active",
+    isBootstrapOwner: false,
     createdAt: "2026-06-06T12:00:00.000Z",
     updatedAt: "2026-06-06T12:00:00.000Z",
     ...overrides
