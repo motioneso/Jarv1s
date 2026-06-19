@@ -1,22 +1,22 @@
 # Coordination Run — 2026-06-18-deploy-readiness
 
 **Date:** 2026-06-18
-**Coordinator lock:** label `Coordinator`, **stable anchor = Codex session id `019ede31-803b-7dd1-8f59-a6a341df0c3e`** (match `agent_session.value` in `herdr pane list`; pane `w1:p2T`, tab `w1:t7`). _Authority transferred 2026-06-19 from relaying Codex coordinator `019ede13-b12a-7c30-9ad9-5a0bcf5ca85f` to this Codex successor; old pane retired. Earlier: 2026-06-19 from relaying Codex coordinator `019ede06-8606-7ff3-82e3-56679ea64161`; 2026-06-19 from relaying Codex coordinator `019eddce-2ab2-78f0-88b1-fa5d8295b493`; 2026-06-19 from relaying Codex coordinator `019edda0-17e4-77b0-82c9-8e35a9f6dfc8`; 2026-06-19 from relaying Codex coordinator `019edd71-d7fa-7d23-894d-c00bf8ed98ee`; 2026-06-19 from the relaying Claude coordinator (session `eaadc7f5-27f0-4128-909b-55134bba34e2`, old pane `w1:p24`); 2026-06-19 from relaying Claude coordinator `ec808db4-8b97-48fb-9130-07e7d726634b`; 2026-06-18 from relaying Codex coordinator `019edcbd-30fe-7d71-9e48-ded1258b8d98`._ Single-coordinator lock — exactly one pane labelled `Coordinator` whose session id matches this anchor holds authority for the life of the run. Pane numbers (`w…-N`) reflow on every restart/split/reap — do not trust any pane number written in this file as an identifier; resolve the pane fresh by label+session at read time. Agents escalate to the **label**; the coordinator merges only when its own pane's session id matches this recorded anchor.
+**Coordinator lock:** label `Coordinator`, **stable anchor = Claude session id `2a076d28-3e7a-4fe9-9223-d0793d73027e`** (match `agent_session.value` in `herdr pane list`; pane `w1:p2Y`, tab `w1:t7`). _Authority transferred 2026-06-19 from the idle Codex coordinator `019ede31-803b-7dd1-8f59-a6a341df0c3e` (out of usage until 23:43, exited) to this CLAUDE coordinator — Ben directive: Codex 5h window exhausted, pick up with Claude + GLM 5.2 (Opencode) until reset. Old Codex coordinator pane `w1:p2T` renamed `Coordinator-stale`, to be reaped. Earlier: 2026-06-19 from relaying Codex coordinator `019ede13-b12a-7c30-9ad9-5a0bcf5ca85f`; old pane retired. Earlier: 2026-06-19 from relaying Codex coordinator `019ede06-8606-7ff3-82e3-56679ea64161`; 2026-06-19 from relaying Codex coordinator `019eddce-2ab2-78f0-88b1-fa5d8295b493`; 2026-06-19 from relaying Codex coordinator `019edda0-17e4-77b0-82c9-8e35a9f6dfc8`; 2026-06-19 from relaying Codex coordinator `019edd71-d7fa-7d23-894d-c00bf8ed98ee`; 2026-06-19 from the relaying Claude coordinator (session `eaadc7f5-27f0-4128-909b-55134bba34e2`, old pane `w1:p24`); 2026-06-19 from relaying Claude coordinator `ec808db4-8b97-48fb-9130-07e7d726634b`; 2026-06-18 from relaying Codex coordinator `019edcbd-30fe-7d71-9e48-ded1258b8d98`._ Single-coordinator lock — exactly one pane labelled `Coordinator` whose session id matches this anchor holds authority for the life of the run. Pane numbers (`w…-N`) reflow on every restart/split/reap — do not trust any pane number written in this file as an identifier; resolve the pane fresh by label+session at read time. Agents escalate to the **label**; the coordinator merges only when its own pane's session id matches this recorded anchor.
 **Merge policy:** autonomous-after-verified-QA for `routine`/`sensitive`; **`security`-tier needs Ben's explicit merge sign-off**
 **Ben security merge instruction (2026-06-19):** Ben is stepping away for a few hours; for security
 lanes, run extra GLM 5.2 review and treat merge as approved once GLM 5.2 is GREEN and the normal
 local CI-equivalent/Codex security QA evidence is GREEN. Do not merge on GLM alone.
-**⚠️ ALL NEW AGENTS = CODEX (Ben directive 2026-06-19, supersedes the Claude-fallback note):** spawn
-**every** new agent — build, gate-runner, QA, and the coordinator successor — as **Codex**
-(`codex -s danger-full-access -a never "<boot>"`), NOT Claude, until Codex hits a usage window (then
-fall back to Claude). The Codex 5-h window is back. Security-tier QA via Codex = genuine cross-model
-adversarial coverage (satisfies the cross-model requirement). NEW QA spawns use the Herdr path
-(`herdr agent start "QA-..." --tab <agents-tab> -- codex -s danger-full-access -a never "<qa prompt>"`)
-since the native `Agent(model:opus)` path is Claude-only. Currently-running Claude lanes (Fix-313,
-Gate-314, Build-237) finish as-is — do not kill warm work; only NEW spawns are Codex.
+**⚠️ NEW AGENTS = CLAUDE + GLM 5.2 (Ben directive 2026-06-19T~05:55Z, Codex 5h window EXHAUSTED until 23:43 PDT):**
+Codex is out of usage. Spawn new build/gate/QA agents as **Claude** (native `Agent` tool, or
+`herdr agent start ... -- claude --permission-mode bypassPermissions`) and use the **GLM 5.2 Opencode**
+pane for adversarial cross-model review. For **security-tier** QA the cross-model requirement is met by
+the GLM 5.2 review (Codex unavailable) — security merge per Ben's standing instruction: GLM 5.2 GREEN
+**and** a clean local CI-equivalent gate GREEN, plus Ben's per-merge sign-off. Once Codex resets (23:43)
+prefer Codex again for cross-model QA. Do not kill warm Codex lanes; they're idle/out-of-usage and will
+be reaped.
 **Relay threshold:** security-tier merge → relay immediately after Phase 3 step 7; routine/sensitive `merges_since_relay` >= 2 → relay. No deferral. Compaction summary = already past safe → relay, merge nothing.
 **merges_since_relay:** 0 (successor adopted after security-tier merge #324/#236 relay)
-**last_alive:** 2026-06-19T04:59Z (Codex coordinator `019ede31…` — #254 Task 1 GREEN at `f5c84c6`; R2 relay requested due low usage)
+**last_alive:** 2026-06-19T05:56Z (Claude coordinator `2a076d28…` adopted from out-of-usage Codex `019ede31…`; #254 build DONE → PR #325 OPEN/MERGEABLE, spawning QA)
 **Gate serialization policy (2026-06-18):** run mechanical gates ~1–2 at a time. Concurrent
 `verify:foundation` runs collide on cluster-global role grants → false-RED "tuple concurrently
 updated", EVEN with isolated `JARVIS_PGDATABASE` (db:migrate grants touch shared `pg_authid`).
@@ -232,7 +232,7 @@ need a clean worktree + a pre-existing isolated DB. Per-merge digest:
 | `docs/superpowers/specs/2026-06-18-active-sessions-list-revoke.md`                  | #237  | security  | **MERGED** (squash `14793b7` @ 02:53Z, Ben sign-off). Issue closed; branch/worktrees/panes reaped.                  | — (reaped)                | —      | (deleted)                   | #315 |
 | `docs/superpowers/specs/2026-06-18-account-card-real-status.md`                     | #236  | security  | **MERGED** (squash `00c2c84` @ 04:41Z, Ben standing sign-off). Issue closed; branch/worktrees/panes reaped.         | — (reaped)                | —      | (deleted)                   | #324 |
 | `docs/superpowers/specs/2026-06-18-host-diagnostics-safe-ops.md`                    | #255  | security  | **MERGED** (squash @ 2026-06-19T00:47Z, Ben sign-off). Issue closed. **Board move to Done still TODO (successor).** | — (reaped)                | —      | (deleted)                   | #312 |
-| `docs/superpowers/specs/2026-06-18-connector-health-monitoring.md`                  | #254  | sensitive | building: Task 1 GREEN at `f5c84c6`; R2 relay requested due low usage                                               | Build-254-ConnectorHealth-R2 | w1:p2W | deploy-254-connector-health | —    |
+| `docs/superpowers/specs/2026-06-18-connector-health-monitoring.md`                  | #254  | sensitive | **build DONE → PR #325 OPEN/MERGEABLE** (build self-report: VF green 855pass/2skip, AUDIT_EXIT=0, migrations 0099/0100 no collision, rebased on main no-op). QA spawning (Claude).            | Coordinator (was Build-R3) | w1:p2Y | deploy-254-connector-health | #325 |
 | `docs/superpowers/specs/2026-06-18-phase-2-deploy-checkpoint-final-gate.md`         | #306  | manual    | blocked: final gate after prerequisites                                                                             | —                         | —      | —                           | —    |
 
 ## Gate Fix Lane
