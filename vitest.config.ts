@@ -80,6 +80,10 @@ export default defineConfig({
         replacement: fileURLToPath(new URL("./packages/tasks/src/index.ts", import.meta.url))
       },
       {
+        find: "@jarv1s/web-research",
+        replacement: fileURLToPath(new URL("./packages/web-research/src/index.ts", import.meta.url))
+      },
+      {
         find: "@jarv1s/memory",
         replacement: fileURLToPath(new URL("./packages/memory/src/index.ts", import.meta.url))
       },

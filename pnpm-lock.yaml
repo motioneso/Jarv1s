@@ -412,6 +412,9 @@ importers:
       '@jarv1s/tasks':
         specifier: workspace:*
         version: link:../tasks
+      '@jarv1s/web-research':
+        specifier: workspace:*
+        version: link:../web-research
       '@jarv1s/wellness':
         specifier: workspace:*
         version: link:../wellness
@@ -525,6 +528,12 @@ importers:
       '@jarv1s/db':
         specifier: workspace:*
         version: link:../db
+
+  packages/web-research:
+    dependencies:
+      '@jarv1s/module-sdk':
+        specifier: workspace:*
+        version: link:../module-sdk
 
   packages/wellness:
     dependencies:
