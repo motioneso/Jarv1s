@@ -1,4 +1,7 @@
 import { describe, expect, it } from "vitest";
+import { readFile, readdir } from "node:fs/promises";
+import { fileURLToPath } from "node:url";
+import { dirname, join } from "node:path";
 import pg from "pg";
 
 import {
@@ -79,5 +82,24 @@ describe("buildAlterRoleStatement", () => {
     expect(sql).toContain("WITH LOGIN PASSWORD ");
     // The raw, unescaped password must never appear verbatim in the statement.
     expect(sql).not.toContain("a'b\\c");
+  });
+});
+
+describe("bootstrap SQL", () => {
+  it("contains no committed Jarvis role-password literals", async () => {
+    const bootstrapDir = join(
+      dirname(fileURLToPath(import.meta.url)),
+      "../../infra/postgres/bootstrap"
+    );
+    const files = (await readdir(bootstrapDir)).filter((f) => f.endsWith(".sql"));
+    expect(files.length).toBeGreaterThan(0);
+
+    for (const file of files) {
+      const sql = await readFile(join(bootstrapDir, file), "utf8");
+      for (const literal of RUNTIME_ROLE_PASSWORD_DEFAULTS) {
+        expect(sql, `${file} must not contain ${literal}`).not.toContain(literal);
+      }
+      expect(sql, `${file} must not assign role passwords`).not.toMatch(/PASSWORD\s+'/i);
+    }
   });
 });
