@@ -18,10 +18,12 @@ import {
   createAiProvider,
   discoverAiProviderModels,
   getChatModelOverrideSettings,
+  listAiCapabilityRoutes,
   listAiModels,
   listAiProviders,
   lookupAiCapabilityRoute,
   putAdminChatModelOverrideEnabled,
+  putAiCapabilityRoute,
   revokeAiProvider,
   testAiProvider,
   updateAiModel,
@@ -34,7 +36,6 @@ import {
   Badge,
   Field,
   Group,
-  NotWired,
   Note,
   PaneHead,
   Row,
@@ -139,7 +140,7 @@ function ModelLine(props: {
 }
 
 // BACKEND-TODO: auto-detect models on connect (provider returns models + tier/caps); this manual
-// form, the Test buttons, and the routing dropdowns (RouterRow) are all stand-ins until then.
+// form and the Test buttons are stand-ins until then.
 function AddModelForm(props: { readonly providerConfigId: string; readonly onClose: () => void }) {
   const queryClient = useQueryClient();
   const { toast } = useFeedback();
@@ -495,18 +496,32 @@ function ProviderCard(props: {
 function RouterRow(props: {
   readonly capability: { k: AiModelCapability; name: string; desc: string };
   readonly models: readonly AiConfiguredModelDto[];
+  readonly configuredModelId: string | null;
 }) {
   const { toast } = useFeedback();
+  const queryClient = useQueryClient();
   const routeQuery = useQuery({
     queryKey: queryKeys.ai.capability(props.capability.k),
     queryFn: () => lookupAiCapabilityRoute(props.capability.k),
     retry: false
   });
-  const opts = props.models.filter(
-    (m) => m.status !== "disabled" && m.capabilities.includes(props.capability.k)
-  );
-  const routedId = routeQuery.data?.route?.model?.id ?? "";
-  const value = opts.some((m) => m.id === routedId) ? routedId : (opts[0]?.id ?? "");
+  const routeMutation = useMutation({
+    mutationFn: (modelId: string | null) => putAiCapabilityRoute(props.capability.k, { modelId }),
+    onSuccess: () => {
+      void Promise.all([
+        queryClient.invalidateQueries({ queryKey: queryKeys.ai.capabilityRoutes }),
+        queryClient.invalidateQueries({ queryKey: queryKeys.ai.capability(props.capability.k) }),
+        queryClient.invalidateQueries({ queryKey: queryKeys.ai.capabilities })
+      ]);
+      toast("Route updated", { icon: <Sparkles size={17} /> });
+    },
+    onError: (error) => toast(readError(error), { tone: "drift" })
+  });
+  const effectiveModel = routeQuery.data?.route?.model ?? null;
+  const value =
+    props.configuredModelId && props.models.some((m) => m.id === props.configuredModelId)
+      ? props.configuredModelId
+      : "automatic";
 
   return (
     <div className="rt">
@@ -515,19 +530,29 @@ function RouterRow(props: {
         <div className="rt__desc">{props.capability.desc}</div>
       </div>
       <div className="rt__pick">
-        {opts.length ? (
+        {props.models.length ? (
           <Select
             value={value}
             aria-label={`Model for ${props.capability.name}`}
-            onChange={() =>
-              toast("Manual routing override is coming soon", { icon: <Sparkles size={17} /> })
+            disabled={routeMutation.isPending}
+            onChange={(event) =>
+              routeMutation.mutate(event.target.value === "automatic" ? null : event.target.value)
             }
           >
-            {opts.map((m) => (
-              <option key={m.id} value={m.id}>
-                {m.providerModelId} · {TIERS[m.tier].label}
-              </option>
-            ))}
+            <option value="automatic">
+              Automatic{effectiveModel ? ` · ${effectiveModel.providerModelId}` : ""}
+            </option>
+            {props.models.map((m) => {
+              const compatible =
+                m.status === "active" &&
+                m.providerStatus === "active" &&
+                m.capabilities.includes(props.capability.k);
+              return (
+                <option key={m.id} value={m.id} disabled={!compatible}>
+                  {m.providerModelId} · {TIERS[m.tier].label}
+                </option>
+              );
+            })}
           </Select>
         ) : (
           <span className="rt__none">
@@ -557,6 +582,11 @@ export function AiProvidersPane() {
     queryFn: listAiModels,
     retry: false
   });
+  const routesQuery = useQuery({
+    queryKey: queryKeys.ai.capabilityRoutes,
+    queryFn: listAiCapabilityRoutes,
+    retry: false
+  });
   const overrideQuery = useQuery({
     queryKey: queryKeys.ai.chatModelOverride,
     queryFn: getChatModelOverrideSettings,
@@ -571,6 +601,7 @@ export function AiProvidersPane() {
       queryClient.invalidateQueries({ queryKey: queryKeys.ai.providers }),
       queryClient.invalidateQueries({ queryKey: queryKeys.ai.models }),
       queryClient.invalidateQueries({ queryKey: queryKeys.ai.chatModelOverride }),
+      queryClient.invalidateQueries({ queryKey: queryKeys.ai.capabilityRoutes }),
       queryClient.invalidateQueries({ queryKey: queryKeys.ai.capabilities })
     ]);
 
@@ -750,12 +781,13 @@ export function AiProvidersPane() {
           title="Capability routing"
           desc="Send each kind of work to the model that's best for it — the right tool for the job, instead of one model for everything. This applies instance-wide."
         >
-          <NotWired>
-            Routing override + Test connection aren't wired; the dropdowns reflect the computed
-            route only.
-          </NotWired>
           {ROUTER_CAPABILITIES.map((capability) => (
-            <RouterRow key={capability.k} capability={capability} models={models} />
+            <RouterRow
+              key={capability.k}
+              capability={capability}
+              models={models}
+              configuredModelId={routesQuery.data?.routes[capability.k] ?? null}
+            />
           ))}
         </Group>
       ) : null}
