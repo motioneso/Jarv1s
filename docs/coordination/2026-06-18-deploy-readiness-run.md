@@ -5,7 +5,13 @@
 **Merge policy:** autonomous-after-verified-QA for `routine`/`sensitive`; **`security`-tier needs Ben's explicit merge sign-off**
 **Relay threshold:** security-tier merge → relay immediately after Phase 3 step 7; routine/sensitive `merges_since_relay` >= 2 → relay. No deferral. Compaction summary = already past safe → relay, merge nothing.
 **merges_since_relay:** 0
-**last_alive:** 2026-06-19T00:30Z (Claude coordinator `ec808db4…`)
+**last_alive:** 2026-06-19T01:05Z (Claude coordinator `ec808db4…`)
+**Gate serialization policy (2026-06-18):** run mechanical gates ~1–2 at a time. Concurrent
+`verify:foundation` runs collide on cluster-global role grants → false-RED "tuple concurrently
+updated", EVEN with isolated `JARVIS_PGDATABASE` (db:migrate grants touch shared `pg_authid`).
+Gating agents instructed to RETRY verify:foundation on that signature. Gate-runners must run on a
+clean worktree (stray untracked `.md` breaks format:check) and ensure their isolated DB exists
+(db:migrate does not create it). See agentmemory `mem_mqk7fojw`.
 **ci_status:** unavailable — `gh pr checks` reports no checks on deploy branches (GitHub Actions not the gate this run); judge merge-readiness off local CI-equivalent evidence per Ben's standing approval; security tier still needs per-merge Ben sign-off.
 **Continuation note:** Claude coordinator (`ec808db4…`) adopted the run 2026-06-18 from the relaying
 Codex coordinator. Live fleet adopted: QA-313 (`w1:p1V`), QA-314 (`w1:p1Y`), QA-315 (`w1:p1Z`) all
@@ -41,12 +47,12 @@ the Codex 5-hour window resets.** Pending security work: #312 needs `gh pr check
 | ----------------------------------------------------------------------------------- | ----- | --------- | --------------------------------------- | ------------------- | ------ | --------------------------- | ---- |
 | `docs/superpowers/specs/2026-06-18-otnr-p1-bootstrap-role-passwords.md`             | #117  | security  | qa-RED: fix lane re-opened (decode bug) | Fix-313-RolePw      | (spawning) | deploy-117-role-passwords | #313 |
 | `docs/superpowers/specs/2026-06-18-otnr-p2-secrets-vault-residuals.md`              | #114  | security  | queued: held for green gate             | —                   | —      | —                           | —    |
-| `docs/superpowers/specs/2026-06-18-route-local-junk-credential-rate-limit-gates.md` | #207  | security  | qa                                      | Build-207-RateLimit | w1:p1R | deploy-207-rate-limit       | #314 |
+| `docs/superpowers/specs/2026-06-18-route-local-junk-credential-rate-limit-gates.md` | #207  | security  | review CLEAN; RED was env (grants contention) — needs clean re-gate | Build-207-RateLimit (reaped) | — | deploy-207-rate-limit | #314 |
 | `docs/superpowers/specs/2026-06-18-otnr-p3-ai-gateway-residual-hardening.md`        | #123  | security  | queued: held for green gate             | —                   | —      | —                           | —    |
 | `docs/superpowers/specs/2026-06-18-people-access-approval-revoke-sessions.md`       | #230  | security  | queued: held for green gate             | —                   | —      | —                           | —    |
-| `docs/superpowers/specs/2026-06-18-active-sessions-list-revoke.md`                  | #237  | security  | qa                                      | Build-237-Sessions  | w1:p1S | deploy-237-active-sessions  | #315 |
+| `docs/superpowers/specs/2026-06-18-active-sessions-list-revoke.md`                  | #237  | security  | review CLEAN; RED was stale branch (behind 1) — Build-237 rebasing, then re-QA | Build-237-Sessions | w1:p1S | deploy-237-active-sessions | #315 |
 | `docs/superpowers/specs/2026-06-18-account-card-real-status.md`                     | #236  | security  | queued: held for green gate             | —                   | —      | —                           | —    |
-| `docs/superpowers/specs/2026-06-18-host-diagnostics-safe-ops.md`                    | #255  | security  | GREEN verdict posted to PR; needs CI-equiv gate-runner + Ben sign-off | Build-255-HostDiag (reaped) | — | deploy-255-host-diagnostics | #312 |
+| `docs/superpowers/specs/2026-06-18-host-diagnostics-safe-ops.md`                    | #255  | security  | **READY — GREEN review + GREEN gate (VF_EXIT=0/AUDIT_EXIT=0 @ b4b61e5, both posted to PR). AWAITING BEN SIGN-OFF.** | Build-255-HostDiag (reaped) | — | deploy-255-host-diagnostics | #312 |
 | `docs/superpowers/specs/2026-06-18-connector-health-monitoring.md`                  | #254  | sensitive | queued: held for green main             | —                   | —      | —                           | —    |
 | `docs/superpowers/specs/2026-06-18-phase-2-deploy-checkpoint-final-gate.md`         | #306  | manual    | blocked: final gate after prerequisites | —                   | —      | —                           | —    |
 
@@ -89,10 +95,14 @@ No waivers.
       re-opened as `Fix-313-RolePw` (Claude) in `deploy-117-role-passwords` per
       `docs/coordination/handoffs/2026-06-18-fix313-role-password-decode.md`. Re-QA after fix.
       (Failure budget: 1 of 2 used on this lane.)
-- [ ] #314 security QA running in `QA-314-RateLimit` (`w1:p1Y`); `gh pr checks 314` reported no
-      checks, so QA is using CI-unavailable local-verification mode.
-- [ ] #315 security QA running in `QA-315-Sessions` (`w1:p1Z`); `gh pr checks 315` reported no
-      checks, so QA is using CI-unavailable local-verification mode.
+- [ ] #314 security QA review **CLEAN** (0 blocking; 1 non-blocking spec-drift `rate-limit-key.ts:52`
+      malformed-bearer→cookie vs spec ip, no fresh-bucket bypass). RED was env grants-contention only.
+      Clean re-gate running as `Gate-314-RateLimit` (`w1:p23`, Claude) on current branch. After GREEN
+      gate → Ben sign-off. Failure budget: 0 real code failures.
+- [ ] #315 security QA review **CLEAN** (invariants ok; 1 non-blocking: cookie-session current-id
+      path `session-service.ts:62` untested). RED was stale-branch only; Build-237 rebased to `4271bb6`
+      (0 behind, grounded). **Re-QA queued for next clear gate window** (Opus, grounded on 4271bb6;
+      post updated verdict to PR #315). After GREEN → Ben sign-off.
 - [ ] #306 is manual-acceptance only; no build agent should be spawned for it.
 
 ## Reaped Sessions
@@ -110,3 +120,9 @@ No waivers.
   in place for later cleanup.
 - Codex coordinator (`019edcbd…`, old pane `w1:p1J`) — closed 2026-06-18 after authority transfer to
   Claude coordinator `ec808db4…`.
+- `Gate-312-HostDiag` (`w1:p22`, Claude) — CI-equiv gate-runner; GREEN (VF_EXIT=0/AUDIT_EXIT=0 @
+  b4b61e5), posted to PR #312, reaped.
+- `QA-314-RateLimit` (`w1:p1Y`, codex) — reaped after CLEAN review verdict posted to PR #314; worktree
+  `.claude/worktrees/qa-314-rate-limit` removed.
+- `QA-315-Sessions` (`w1:p1Z`, codex) — reaped after CLEAN review verdict posted to PR #315; worktree
+  `.claude/worktrees/qa-315-active-sessions` removal hit permission error (codex-owned), left for cleanup.
