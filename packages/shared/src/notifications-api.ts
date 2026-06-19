@@ -1,12 +1,27 @@
 import { nullableStringSchema } from "./schema-fragments.js";
 
+/**
+ * A bounded primitive value permitted inside notification metadata.
+ * Producers may only emit these JSON primitives; nested objects / arrays are dropped by
+ * the projection helper (see `projectNotificationMetadata` in @jarv1s/notifications).
+ */
+export type NotificationMetadataValue = string | number | boolean | null;
+
+/**
+ * Bounded notification metadata: at most 16 keys (matching `^[a-zA-Z_][a-zA-Z0-9_]{0,63}$`),
+ * each with a primitive value, total serialized size ≤ 4096 bytes, string values ≤ 256 chars.
+ * The runtime projection (input + output) and the DB-level size CHECK (migration 0101)
+ * enforce this contract; the schema below declares it honestly to clients.
+ */
+export type NotificationMetadata = Record<string, NotificationMetadataValue>;
+
 export interface NotificationDto {
   readonly id: string;
   readonly actorUserId: string | null;
   readonly recipientUserId: string | null;
   readonly title: string;
   readonly body: string | null;
-  readonly metadata: Record<string, unknown>;
+  readonly metadata: NotificationMetadata;
   readonly readAt: string | null;
   readonly createdAt: string | null;
 }
@@ -26,7 +41,16 @@ export interface MarkAllNotificationsReadResponse {
 
 const metadataSchema = {
   type: "object",
-  additionalProperties: true
+  maxProperties: 16,
+  additionalProperties: {
+    anyOf: [
+      { type: "string", maxLength: 256 },
+      { type: "number" },
+      { type: "boolean" },
+      { type: "null" }
+    ]
+  },
+  propertyNames: { pattern: "^[a-zA-Z_][a-zA-Z0-9_]{0,63}$" }
 } as const;
 
 export const notificationParamsSchema = {

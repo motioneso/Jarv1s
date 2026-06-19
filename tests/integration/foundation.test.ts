@@ -204,6 +204,14 @@ describe("MVP foundation scaffold", () => {
         {
           version: "0100",
           name: "0100_connector_admin_safe_metadata_health.sql"
+        },
+        {
+          version: "0101",
+          name: "0101_notifications_metadata_size_check.sql"
+        },
+        {
+          version: "0102",
+          name: "0102_notifications_defense_in_depth_comments.sql"
         }
       ]);
     } finally {

@@ -9,6 +9,31 @@ import {
 
 import { notificationsListVisibleExecute } from "./tools.js";
 
+/**
+ * Notifications V1 — delivery model (LOCKED, see spec
+ * 2026-06-19-notifications-actor-scoped-hardening.md).
+ *
+ * - V1 is **in-app, actor-scoped delivery**. `app.notifications.recipient_user_id` is
+ *   always `app.current_actor_user_id()`, set by the active actor's `DataContextRunner`
+ *   scope. `assertDataContextDb` is the gate.
+ * - App and worker code may create notifications **only inside the active actor's
+ *   `DataContextRunner` scope**; there is no system-emitter / NULL-`actor_user_id`
+ *   producer path in V1. The repository API exposes no recipient/actor override.
+ * - It is **not** a generic cross-user or system-broadcast mechanism. There is no
+ *   "share", "broadcast", or "send-to" surface.
+ * - V1 covers **no** external push / email / SMS delivery. The only delivery surface is
+ *   the in-app bell + the GET /api/notifications route + the
+ *   `notifications.listVisible` assistant tool.
+ * - The briefings worker is the reference producer path (see
+ *   `packages/briefings/src/jobs.ts`): it calls `NotificationsRepository.create`
+ *   inside `withDataContext` with a metadata-only payload.
+ *
+ * Information-egress non-goals: `metadata` is bounded (16 keys, primitive values,
+ * ≤256-char strings, ≤4096 bytes) and re-projected at the `serializeNotification`
+ * chokepoint before any client exposure (REST or assistant tool). The route handler
+ * answers `404 Notification not found` for BOTH absent and RLS-invisible ids — the
+ * two cases are intentionally indistinguishable so callers cannot probe for existence.
+ */
 export const NOTIFICATIONS_MODULE_ID = "notifications";
 export const notificationsModuleSqlMigrationDirectory = fileURLToPath(
   new URL("../sql", import.meta.url)
@@ -30,7 +55,9 @@ export const notificationsModuleManifest = {
   database: {
     migrations: [
       "sql/0008_notifications_module.sql",
-      "sql/0071_notifications_worker_insert_grant.sql"
+      "sql/0071_notifications_worker_insert_grant.sql",
+      "sql/0101_notifications_metadata_size_check.sql",
+      "sql/0102_notifications_defense_in_depth_comments.sql"
     ],
     migrationDirectories: ["packages/notifications/sql"],
     ownedTables: ["app.notifications", "app.notification_reads"]
