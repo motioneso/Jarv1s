@@ -48,6 +48,7 @@ import { registerDataExportRoutes } from "./data-export-routes.js";
 import type { HostDiagnosticsProvider } from "./host-diagnostics.js";
 import { registerHostDiagnosticsRoutes } from "./host-diagnostics-routes.js";
 import { registerLocaleRoutes } from "./locale-routes.js";
+import { registerMeAccountRoutes, readHasPasswordCredential, type VerifySelfPasswordPort } from "./me-account-routes.js";
 import { registerMeSessionsRoutes, type MeSessionsService } from "./me-sessions-routes.js";
 import { registerOnboardingRoutes, type OnboardingProbes } from "./onboarding-routes.js";
 import { registerPersonaRoutes } from "./persona-routes.js";
@@ -68,6 +69,12 @@ export interface SettingsRoutesDependencies {
   readonly revokeUserSessions?: (userId: string) => Promise<number>;
   /** Auth-owned current-user session list/revoke service (#237). */
   readonly meSessions?: MeSessionsService;
+  /**
+   * Auth-owned password re-verification for self-service account deletion (#239).
+   * Absent in deployments without an auth runtime; the route fails closed for
+   * password-bearing accounts when this is unset.
+   */
+  readonly verifySelfPassword?: VerifySelfPasswordPort;
   readonly bootstrapConnectionString?: string;
   /** Boot-time availability snapshot, injected by the composition root (apply-on-restart). */
   readonly chatMultiplexerAvailability?: { readonly tmux: boolean; readonly herdr: boolean };
@@ -96,6 +103,13 @@ export function registerSettingsRoutes(
     resolveAccessContext: dependencies.resolveAccessContext,
     meSessions: dependencies.meSessions
   });
+  registerMeAccountRoutes(server, {
+    resolveAccessContext: dependencies.resolveAccessContext,
+    dataContext: dependencies.dataContext,
+    repository,
+    bootstrapConnectionString: dependencies.bootstrapConnectionString,
+    verifySelfPassword: dependencies.verifySelfPassword
+  });
   registerPersonaRoutes(server, { ...dependencies, repository, preferencesRepository });
   registerSourceBehaviorRoutes(server, { ...dependencies, preferencesRepository });
   registerDataExportRoutes(server, {
@@ -117,17 +131,22 @@ export function registerSettingsRoutes(
   server.get("/api/me", { schema: meRouteSchema }, async (request, reply) => {
     try {
       const accessContext = await dependencies.resolveAccessContext(request);
-      const { user, addressed } = await dependencies.dataContext.withDataContext(
+      const { user, addressed, hasPasswordCredential } = await dependencies.dataContext.withDataContext(
         accessContext,
         async (scopedDb) => ({
           user: await requireKnownUser(repository, scopedDb, accessContext.actorUserId),
-          addressed: await preferencesRepository.get(scopedDb, "profile.addressed")
+          addressed: await preferencesRepository.get(scopedDb, "profile.addressed"),
+          hasPasswordCredential: await readHasPasswordCredential(
+            scopedDb,
+            accessContext.actorUserId
+          )
         })
       );
 
       return {
         user: serializeUser(user),
-        profilePrefs: { addressed: typeof addressed === "string" ? addressed : null }
+        profilePrefs: { addressed: typeof addressed === "string" ? addressed : null },
+        hasPasswordCredential
       };
     } catch (error) {
       return handleRouteError(error, reply);
