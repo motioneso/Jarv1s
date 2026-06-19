@@ -128,7 +128,10 @@ describe("AI chat model override", () => {
         overrideEnabled: false,
         currentOverrideModelId: null,
         effectiveOverrideModelId: null,
-        selectedModel: { id: defaultId, providerModelId: "claude-default" }
+        selectedModel: {
+          id: defaultId,
+          providerModelId: null
+        }
       }
     });
     expect(deniedAdminWrite.statusCode).toBe(403);
@@ -139,7 +142,10 @@ describe("AI chat model override", () => {
       settings: {
         currentOverrideModelId: overrideId,
         effectiveOverrideModelId: overrideId,
-        selectedModel: { id: overrideId, providerModelId: "claude-override" }
+        selectedModel: {
+          id: overrideId,
+          providerModelId: null
+        }
       }
     });
     expect(userASettings.json()).toMatchObject({

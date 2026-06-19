@@ -27,8 +27,6 @@ import {
   invokeAiAssistantToolRouteSchema,
   listAiAssistantActionsRouteSchema,
   listAiAssistantToolsRouteSchema,
-  listAiConfiguredModelsRouteSchema,
-  listAiProviderConfigsRouteSchema,
   putAdminChatModelOverrideSettingsRouteSchema,
   putChatModelOverrideSettingsRouteSchema,
   resolveAiAssistantActionRouteSchema,
@@ -69,6 +67,7 @@ import {
 import { ToolInputValidationError, validateToolInput } from "./gateway/input-validation.js";
 import { cliAvailable, type ProviderKind as CliProviderKind } from "./cli-availability.js";
 import { registerAiCapabilityRouteRoutes } from "./capability-route-routes.js";
+import { registerProviderVisibilityRoutes } from "./provider-visibility-routes.js";
 import { createAiSecretCipher, type AiSecretCipher } from "./crypto.js";
 import { registerAiProviderValidationRoutes } from "./provider-validation-routes.js";
 import {
@@ -121,23 +120,7 @@ export function registerAiRoutes(
   const repository = dependencies.repository ?? new AiRepository();
   const secretCipher = dependencies.secretCipher ?? createAiSecretCipher();
 
-  server.get(
-    "/api/ai/providers",
-    { schema: listAiProviderConfigsRouteSchema },
-    async (request, reply) => {
-      try {
-        const accessContext = await dependencies.resolveAccessContext(request);
-        const providers = await dependencies.dataContext.withDataContext(
-          accessContext,
-          (scopedDb) => repository.listProviders(scopedDb)
-        );
-
-        return { providers: await Promise.all(providers.map(serializeProvider)) };
-      } catch (error) {
-        return handleRouteError(error, reply);
-      }
-    }
-  );
+  registerProviderVisibilityRoutes(server, dependencies, repository);
 
   server.post(
     "/api/ai/providers",
@@ -243,23 +226,6 @@ export function registerAiRoutes(
     secretCipher
   });
 
-  server.get(
-    "/api/ai/models",
-    { schema: listAiConfiguredModelsRouteSchema },
-    async (request, reply) => {
-      try {
-        const accessContext = await dependencies.resolveAccessContext(request);
-        const models = await dependencies.dataContext.withDataContext(accessContext, (scopedDb) =>
-          repository.listModels(scopedDb)
-        );
-
-        return { models: models.map(serializeModel) };
-      } catch (error) {
-        return handleRouteError(error, reply);
-      }
-    }
-  );
-
   server.post(
     "/api/ai/models",
     { schema: createAiConfiguredModelRouteSchema },
@@ -283,7 +249,7 @@ export function registerAiRoutes(
           }
         );
 
-        return reply.code(201).send({ model: serializeModel(model) });
+        return reply.code(201).send({ model: serializeModel(model, accessContext.actorUserId) });
       } catch (error) {
         return handleRouteError(error, reply);
       }
@@ -316,7 +282,7 @@ export function registerAiRoutes(
           return reply.code(404).send({ error: "AI model config not found" });
         }
 
-        return { model: serializeModel(model) };
+        return { model: serializeModel(model, accessContext.actorUserId) };
       } catch (error) {
         return handleRouteError(error, reply);
       }
@@ -335,7 +301,9 @@ export function registerAiRoutes(
           repository.getChatModelOverrideSettings(scopedDb)
         );
 
-        return { settings: serializeChatModelOverrideSettings(settings) };
+        return {
+          settings: serializeChatModelOverrideSettings(settings, accessContext.actorUserId)
+        };
       } catch (error) {
         return handleRouteError(error, reply);
       }
@@ -364,7 +332,9 @@ export function registerAiRoutes(
           }
         );
 
-        return { settings: serializeChatModelOverrideSettings(settings) };
+        return {
+          settings: serializeChatModelOverrideSettings(settings, accessContext.actorUserId)
+        };
       } catch (error) {
         return handleRouteError(error, reply);
       }
@@ -389,7 +359,9 @@ export function registerAiRoutes(
           }
         );
 
-        return { settings: serializeChatModelOverrideSettings(settings) };
+        return {
+          settings: serializeChatModelOverrideSettings(settings, accessContext.actorUserId)
+        };
       } catch (error) {
         return handleRouteError(error, reply);
       }
@@ -725,7 +697,9 @@ function summarizeAssistantToolInput(input: Record<string, unknown>): Record<str
   };
 }
 
-async function serializeProvider(provider: AiProviderConfigSafeRow): Promise<AiProviderConfigDto> {
+export async function serializeProvider(
+  provider: AiProviderConfigSafeRow
+): Promise<AiProviderConfigDto> {
   const isCli = provider.auth_method === "cli";
   const isCliProvider = CLI_PROVIDER_KINDS.has(provider.provider_kind as CliProviderKind);
   const cliAvailableFlag =
@@ -746,14 +720,19 @@ async function serializeProvider(provider: AiProviderConfigSafeRow): Promise<AiP
   };
 }
 
-function serializeModel(model: AiConfiguredModelSafeRow): AiConfiguredModelDto {
+export function serializeModel(
+  model: AiConfiguredModelSafeRow,
+  actorUserId: string
+): AiConfiguredModelDto {
+  const isOwner = model.owner_user_id === actorUserId;
+  const displayProviderName = isOwner ? model.provider_display_name : "Instance default";
   return {
     id: model.id,
-    providerConfigId: model.provider_config_id,
-    providerKind: model.provider_kind,
-    providerDisplayName: model.provider_display_name,
+    providerConfigId: isOwner ? model.provider_config_id : null,
+    providerKind: isOwner ? model.provider_kind : null,
+    providerDisplayName: displayProviderName,
     providerStatus: model.provider_status,
-    providerModelId: model.provider_model_id,
+    providerModelId: isOwner ? model.provider_model_id : null,
     displayName: model.display_name,
     capabilities: model.capabilities.map(parseCapability),
     status: model.status,
@@ -764,14 +743,19 @@ function serializeModel(model: AiConfiguredModelSafeRow): AiConfiguredModelDto {
   };
 }
 
-function serializeChatModelOverrideSettings(settings: ChatModelOverrideSettings) {
+function serializeChatModelOverrideSettings(
+  settings: ChatModelOverrideSettings,
+  actorUserId: string
+) {
   return {
     overrideEnabled: settings.overrideEnabled,
     currentOverrideModelId: settings.currentOverrideModelId,
     effectiveOverrideModelId: settings.effectiveOverrideModelId,
-    defaultModel: settings.defaultModel ? serializeModel(settings.defaultModel) : null,
-    selectedModel: settings.selectedModel ? serializeModel(settings.selectedModel) : null,
-    allowedModels: settings.allowedModels.map(serializeModel)
+    defaultModel: settings.defaultModel ? serializeModel(settings.defaultModel, actorUserId) : null,
+    selectedModel: settings.selectedModel
+      ? serializeModel(settings.selectedModel, actorUserId)
+      : null,
+    allowedModels: settings.allowedModels.map((m) => serializeModel(m, actorUserId))
   };
 }
 
@@ -944,7 +928,7 @@ function toIsoString(value: Date | string | null): string | null {
   return value instanceof Date ? value.toISOString() : value;
 }
 
-function handleRouteError(error: unknown, reply: FastifyReply) {
+export function handleRouteError(error: unknown, reply: FastifyReply) {
   return handleModuleRouteError(error, reply, {
     mappers: [
       (e, r) =>
@@ -954,7 +938,7 @@ function handleRouteError(error: unknown, reply: FastifyReply) {
   });
 }
 
-async function assertInstanceAdmin(
+export async function assertInstanceAdmin(
   repository: AiRepository,
   scopedDb: DataContextDb,
   userId: string

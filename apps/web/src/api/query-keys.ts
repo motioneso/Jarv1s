@@ -27,6 +27,7 @@ export const queryKeys = {
     accounts: ["connectors", "accounts"] as const
   },
   ai: {
+    summary: ["ai", "summary"] as const,
     providers: ["ai", "providers"] as const,
     models: ["ai", "models"] as const,
     chatModelOverride: ["ai", "chat-model-override"] as const,

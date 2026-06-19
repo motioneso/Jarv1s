@@ -19,6 +19,7 @@ import type {
   GetPersonaSettingsResponse,
   GetChatModelOverrideSettingsResponse,
   GetLocaleSettingsResponse,
+  GetAiSummaryResponse,
   ListAiCapabilityRoutesResponse,
   ListMySessionsResponse,
   ListUsersResponse,
@@ -619,6 +620,10 @@ export async function resolveActionRequest(
 
 export async function listConnectorProviders(): Promise<ListConnectorProvidersResponse> {
   return requestJson<ListConnectorProvidersResponse>("/api/connectors/providers");
+}
+
+export async function getAiSummary(): Promise<GetAiSummaryResponse> {
+  return requestJson<GetAiSummaryResponse>("/api/ai/summary");
 }
 
 export async function listAiProviders(): Promise<ListAiProviderConfigsResponse> {
