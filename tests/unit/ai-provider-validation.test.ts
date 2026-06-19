@@ -36,8 +36,7 @@ describe("AI provider validation", () => {
       authMethod: "api_key",
       baseUrl: null,
       credential: { apiKey: "sk-secret" },
-      fetch: (async () =>
-        new Response("raw body with sk-secret", { status: 401 })) as typeof fetch
+      fetch: (async () => new Response("raw body with sk-secret", { status: 401 })) as typeof fetch
     });
 
     expect(result.ok).toBe(false);

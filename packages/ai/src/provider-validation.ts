@@ -28,7 +28,11 @@ export async function testProviderCredential(
   try {
     const response = await fetchModels(input, apiKey);
     if (response.ok) {
-      return { ok: true, providerKind: input.providerKind, message: "Provider credential is valid." };
+      return {
+        ok: true,
+        providerKind: input.providerKind,
+        message: "Provider credential is valid."
+      };
     }
     return fail(
       input.providerKind,

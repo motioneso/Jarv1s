@@ -27,6 +27,7 @@
 ## Task 1: Shared Contracts
 
 **Files:**
+
 - Modify: `packages/shared/src/ai-api.ts`
 
 - [ ] **Step 1: Write failing type/schema usage**
@@ -154,6 +155,7 @@ Use normal verification before push; `--no-verify` only avoids committing a know
 ## Task 2: Provider Validation Helper
 
 **Files:**
+
 - Create: `packages/ai/src/provider-validation.ts`
 - Test: `tests/unit/ai-provider-validation.test.ts`
 
@@ -163,7 +165,10 @@ Create `tests/unit/ai-provider-validation.test.ts`:
 
 ```ts
 import { describe, expect, it } from "vitest";
-import { discoverProviderModels, testProviderCredential } from "../../packages/ai/src/provider-validation.js";
+import {
+  discoverProviderModels,
+  testProviderCredential
+} from "../../packages/ai/src/provider-validation.js";
 
 describe("AI provider validation", () => {
   it("tests openai-compatible providers with Authorization header and baseUrl", async () => {
@@ -294,7 +299,12 @@ export async function testProviderCredential(
   try {
     const response = await fetchModels(input, apiKey);
     if (response.ok) return ok(input.providerKind);
-    return fail(input.providerKind, response.status === 401 || response.status === 403 ? "Provider rejected the credential." : "Provider test failed.");
+    return fail(
+      input.providerKind,
+      response.status === 401 || response.status === 403
+        ? "Provider rejected the credential."
+        : "Provider test failed."
+    );
   } catch {
     return fail(input.providerKind, "Provider test failed.");
   }
@@ -355,11 +365,15 @@ function readApiKey(credential: unknown): string | null {
 }
 
 function extractModelIds(json: unknown): string[] {
-  const data = (json as { data?: Array<{ id?: unknown }>; models?: Array<{ name?: unknown }> }).data;
-  if (Array.isArray(data)) return data.map((item) => item.id).filter((id): id is string => typeof id === "string");
+  const data = (json as { data?: Array<{ id?: unknown }>; models?: Array<{ name?: unknown }> })
+    .data;
+  if (Array.isArray(data))
+    return data.map((item) => item.id).filter((id): id is string => typeof id === "string");
   const models = (json as { models?: Array<{ name?: unknown }> }).models;
   if (Array.isArray(models)) {
-    return models.map((item) => typeof item.name === "string" ? item.name.replace(/^models\//, "") : null).filter((id): id is string => Boolean(id));
+    return models
+      .map((item) => (typeof item.name === "string" ? item.name.replace(/^models\//, "") : null))
+      .filter((id): id is string => Boolean(id));
   }
   return [];
 }
@@ -370,7 +384,12 @@ function suggestModel(providerModelId: string): AiProviderDiscoveredModelDto {
   if (lower.includes("vision") || lower.includes("gpt-4o") || lower.includes("gemini")) {
     capabilities.push("vision");
   }
-  const tier: AiModelTier = lower.includes("mini") || lower.includes("haiku") || lower.includes("flash") ? "economy" : lower.includes("opus") || lower.includes("reason") ? "reasoning" : "interactive";
+  const tier: AiModelTier =
+    lower.includes("mini") || lower.includes("haiku") || lower.includes("flash")
+      ? "economy"
+      : lower.includes("opus") || lower.includes("reason")
+        ? "reasoning"
+        : "interactive";
   return { providerModelId, displayName: providerModelId, capabilities, tier };
 }
 ```
@@ -391,6 +410,7 @@ git commit -m "feat(ai): add safe provider validation helper"
 ## Task 3: Admin API Routes
 
 **Files:**
+
 - Modify: `packages/ai/src/routes.ts`
 - Modify: `packages/ai/src/manifest.ts`
 - Modify: `packages/ai/src/index.ts`
@@ -454,13 +474,17 @@ it("discovers model candidates without inserting model rows", async () => {
     })
   );
 
-  const before = await dataContext.withDataContext(userAContext(), (scopedDb) => repository.listModels(scopedDb));
+  const before = await dataContext.withDataContext(userAContext(), (scopedDb) =>
+    repository.listModels(scopedDb)
+  );
   const response = await server.inject({
     method: "POST",
     url: `/api/ai/providers/${provider.id}/discover-models`,
     headers: { authorization: `Bearer ${ids.sessionA}` }
   });
-  const after = await dataContext.withDataContext(userAContext(), (scopedDb) => repository.listModels(scopedDb));
+  const after = await dataContext.withDataContext(userAContext(), (scopedDb) =>
+    repository.listModels(scopedDb)
+  );
 
   expect(response.statusCode).toBe(200);
   expect(response.json()).toMatchObject({
@@ -478,8 +502,19 @@ server = createApiServer({
   appDb,
   logger: false,
   aiProviderValidator: {
-    test: async (provider) => ({ ok: true, providerKind: provider.provider_kind, message: "Provider credential is valid." }),
-    discoverModels: async () => [{ providerModelId: "gpt-4o", displayName: "gpt-4o", capabilities: ["chat"], tier: "interactive" }]
+    test: async (provider) => ({
+      ok: true,
+      providerKind: provider.provider_kind,
+      message: "Provider credential is valid."
+    }),
+    discoverModels: async () => [
+      {
+        providerModelId: "gpt-4o",
+        displayName: "gpt-4o",
+        capabilities: ["chat"],
+        tier: "interactive"
+      }
+    ]
   }
 });
 ```
@@ -530,9 +565,13 @@ server.post<{ Params: IdParams }>(
         accessContext,
         async (scopedDb) => {
           await assertInstanceAdmin(repository, scopedDb, accessContext.actorUserId);
-          const provider = await repository.selectProviderWithCredential(scopedDb, request.params.id);
+          const provider = await repository.selectProviderWithCredential(
+            scopedDb,
+            request.params.id
+          );
           if (!provider) throw new HttpError(404, "AI provider config not found");
-          if (provider.status === "revoked") throw new HttpError(400, "AI provider config is revoked");
+          if (provider.status === "revoked")
+            throw new HttpError(400, "AI provider config is revoked");
           return providerValidator.test({
             providerKind: provider.provider_kind,
             authMethod: provider.auth_method,
@@ -584,6 +623,7 @@ git commit -m "feat(ai): expose provider test and discovery routes"
 ## Task 4: Admin UI Wiring
 
 **Files:**
+
 - Modify: `apps/web/src/api/client.ts`
 - Modify: `apps/web/src/api/query-keys.ts` only if needed
 - Modify: `apps/web/src/settings/settings-ai-admin-pane.tsx`
@@ -638,10 +678,25 @@ In `tests/e2e/mock-ai-api.ts`, route `test` and `discover-models` before generic
 
 ```ts
 await page.route(/\/api\/ai\/providers\/[^/]+\/test$/, (route) =>
-  fulfillJson(route, 200, { result: { ok: true, providerKind: "openai-compatible", message: "Provider credential is valid." } })
+  fulfillJson(route, 200, {
+    result: {
+      ok: true,
+      providerKind: "openai-compatible",
+      message: "Provider credential is valid."
+    }
+  })
 );
 await page.route(/\/api\/ai\/providers\/[^/]+\/discover-models$/, (route) =>
-  fulfillJson(route, 200, { models: [{ providerModelId: "gpt-4o", displayName: "gpt-4o", capabilities: ["chat", "tool-use", "json", "summarization"], tier: "interactive" }] })
+  fulfillJson(route, 200, {
+    models: [
+      {
+        providerModelId: "gpt-4o",
+        displayName: "gpt-4o",
+        capabilities: ["chat", "tool-use", "json", "summarization"],
+        tier: "interactive"
+      }
+    ]
+  })
 );
 ```
 
@@ -705,6 +760,7 @@ git commit -m "feat(web): wire AI provider test and discovery"
 ## Task 5: Focused Verification And Cleanup
 
 **Files:**
+
 - Modify only files needed for fixes found by checks.
 
 - [ ] **Step 1: Run focused checks**
