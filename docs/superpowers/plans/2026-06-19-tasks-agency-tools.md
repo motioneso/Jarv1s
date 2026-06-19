@@ -25,6 +25,7 @@
 ## Task 1: Gateway Execution Policy
 
 **Files:**
+
 - Modify: `packages/module-sdk/src/index.ts`
 - Modify: `packages/ai/src/gateway/policy.ts`
 - Modify: `packages/ai/src/gateway/gateway.ts`
@@ -166,6 +167,7 @@ git commit -m "feat: add assistant tool execution policy" -m "Co-Authored-By: Co
 ## Task 2: Task Mutation Executors
 
 **Files:**
+
 - Modify: `packages/tasks/src/tools.ts`
 - Modify: `packages/tasks/src/manifest.ts`
 - Modify: `tests/integration/tasks-tools.test.ts`
@@ -338,6 +340,7 @@ git commit -m "feat: add task agency write tools" -m "Co-Authored-By: Codex <cod
 ## Task 3: Gateway Tests For Real Task Agency
 
 **Files:**
+
 - Create: `tests/integration/tasks-agency-tools.test.ts`
 
 - [ ] **Step 1: Write gateway tests**
@@ -399,7 +402,11 @@ describe("Tasks agency tools through AssistantToolGateway", () => {
   });
 
   function tokenFor(userId: string) {
-    return tokens.mint({ actorUserId: userId, chatSessionId: `tasks-${userId}`, allowedToolNames: null });
+    return tokens.mint({
+      actorUserId: userId,
+      chatSessionId: `tasks-${userId}`,
+      allowedToolNames: null
+    });
   }
 
   it("auto-runs non-destructive task writes without action_request", async () => {
@@ -427,7 +434,9 @@ describe("Tasks agency tools through AssistantToolGateway", () => {
     expect(response.ok).toBe(true);
     expect(emitted).toHaveLength(0);
     if (!response.ok) throw new Error("expected ok");
-    expect((response.data as { text: string }).text).toContain("Archived task: archive via gateway");
+    expect((response.data as { text: string }).text).toContain(
+      "Archived task: archive via gateway"
+    );
   });
 
   it("does not let one actor update another actor's private task", async () => {
@@ -470,6 +479,7 @@ git commit -m "test: cover task agency gateway writes" -m "Co-Authored-By: Codex
 ## Task 4: Destructive List/Tag Tools
 
 **Files:**
+
 - Modify: `packages/tasks/src/tools.ts`
 - Modify: `packages/tasks/src/manifest.ts`
 - Modify: `tests/integration/tasks-agency-tools.test.ts`
@@ -494,7 +504,8 @@ it("requires confirmation for destructive task list deletion and does not execut
 
   const stillThere = await runner.withDataContext(
     { actorUserId: ids.userA, requestId: "check-list-before-confirm" },
-    (db) => db.db.selectFrom("app.task_lists").select("id").where("id", "=", listId).executeTakeFirst()
+    (db) =>
+      db.db.selectFrom("app.task_lists").select("id").where("id", "=", listId).executeTakeFirst()
   );
   expect(stillThere).toBeDefined();
 
@@ -548,6 +559,7 @@ git commit -m "feat: gate destructive task list and tag tools" -m "Co-Authored-B
 ## Task 5: Focused Gate And Cleanup
 
 **Files:**
+
 - Verify only.
 
 - [ ] **Step 1: Run focused tests**

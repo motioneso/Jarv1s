@@ -31,9 +31,18 @@ describe("module-sdk tool contract", () => {
 
 describe("gateway policy", () => {
   it("runs reads, confirms writes, always confirms destructive", () => {
-    expect(resolvePolicy("read")).toBe("run");
-    expect(resolvePolicy("write")).toBe("confirm");
-    expect(resolvePolicy("destructive")).toBe("confirm");
+    const tool = (risk: ModuleAssistantToolManifest["risk"]) =>
+      ({
+        name: `example.${risk}`,
+        description: "Fixture.",
+        permissionId: "example.use",
+        risk
+      }) satisfies ModuleAssistantToolManifest;
+
+    expect(resolvePolicy(tool("read"))).toBe("run");
+    expect(resolvePolicy(tool("write"))).toBe("confirm");
+    expect(resolvePolicy({ ...tool("write"), executionPolicy: "auto" })).toBe("run");
+    expect(resolvePolicy({ ...tool("destructive"), executionPolicy: "auto" })).toBe("confirm");
   });
 });
 

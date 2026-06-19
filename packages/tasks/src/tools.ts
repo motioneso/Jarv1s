@@ -182,15 +182,23 @@ export const taskActivityExecute: ToolExecute = async (
   return { data: { items: activity.map(serializeTaskActivity) } };
 };
 
-export const taskCreateExecute: ToolExecute = async (scopedDb, input, _ctx): Promise<ToolResult> => {
+export const taskCreateExecute: ToolExecute = async (
+  scopedDb,
+  input,
+  _ctx
+): Promise<ToolResult> => {
   assertDataContextDb(scopedDb);
-  const task = await repository.create(scopedDb, input as CreateTaskInput);
+  const task = await repository.create(scopedDb, input as unknown as CreateTaskInput);
   return { data: { summary: `Created task: ${task.title}`, task: await taskData(scopedDb, task) } };
 };
 
-export const taskUpdateExecute: ToolExecute = async (scopedDb, input, _ctx): Promise<ToolResult> => {
+export const taskUpdateExecute: ToolExecute = async (
+  scopedDb,
+  input,
+  _ctx
+): Promise<ToolResult> => {
   assertDataContextDb(scopedDb);
-  const { taskId, ...updates } = input as { taskId: string } & UpdateTaskInput;
+  const { taskId, ...updates } = input as unknown as { taskId: string } & UpdateTaskInput;
   const task = await repository.update(scopedDb, taskId, updates);
   if (!task) return { data: { error: "Task not found" } };
   return { data: { summary: `Updated task: ${task.title}`, task: await taskData(scopedDb, task) } };
@@ -213,7 +221,9 @@ export const taskUpdateStatusExecute: ToolExecute = async (
     return { data: { error: "Task not found" } };
   }
 
-  return { data: { summary: statusSummary(status, task.title), task: await taskData(scopedDb, task) } };
+  return {
+    data: { summary: statusSummary(status, task.title), task: await taskData(scopedDb, task) }
+  };
 };
 
 export const taskBreakDownExecute: ToolExecute = async (
