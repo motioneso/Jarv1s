@@ -2,7 +2,9 @@ import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import {
+  applyRolePasswords,
   assertUniqueMigrationVersions,
+  buildRolePasswordPlan,
   getJarvisDatabaseUrls,
   loadMigrationFiles,
   runSqlFiles,
@@ -19,6 +21,11 @@ const migrationsDirectory = join(root, "infra/postgres/migrations");
 const grantsDirectory = join(root, "infra/postgres/grants");
 
 await runSqlFiles(urls.bootstrap, bootstrapDirectory);
+
+// Assign runtime role passwords from the configured connection URLs. The plan
+// fails closed in production when a role password is missing or still a dev
+// default, so this must run before any runtime-role connection below.
+await applyRolePasswords(urls.bootstrap, buildRolePasswordPlan(urls));
 
 const allMigrationDirectories = [migrationsDirectory, ...getBuiltInSqlMigrationDirectories()];
 const allMigrationFiles = (

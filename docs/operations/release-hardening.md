@@ -54,6 +54,33 @@ login identity only; connector scopes remain separate from login scopes.
 Database URL variables should use distinct role passwords for bootstrap, migration owner, app
 runtime, and worker runtime. Do not reuse the local Compose defaults for production.
 
+### Database role passwords
+
+Runtime DB role passwords are **not** stored in the committed bootstrap SQL. The bootstrap file
+`infra/postgres/bootstrap/0000_roles.sql` only creates the roles (with `LOGIN`) and sets their
+hardening attributes and grants — it assigns no passwords. The single source of truth for each
+role's password is its configured connection URL:
+
+- **Production** (`NODE_ENV=production`): the explicit `JARVIS_MIGRATION_DATABASE_URL`,
+  `JARVIS_APP_DATABASE_URL`, `JARVIS_WORKER_DATABASE_URL`, and `JARVIS_AUTH_DATABASE_URL` secrets.
+- **Local development**: the host/port/database-parameterized fallbacks in `getJarvisDatabaseUrls`,
+  which carry the well-known dev passwords so `pnpm db:migrate` is zero-friction.
+
+On every `pnpm db:migrate`, the migration runner derives a role-password plan from these URLs and
+re-applies each role's password from the configured secret (an idempotent `ALTER ROLE … PASSWORD`).
+This is deliberately a **set-from-configured-secret-every-run** model:
+
+- Re-running `pnpm db:migrate` never resets a runtime role to a development default — it re-applies
+  the same configured secret.
+- In production the plan **fails closed before any role is touched**: it refuses if any runtime
+  role's password is missing from its connection URL, or is still one of the development defaults
+  (`migration_password`, `app_password`, `worker_password`, `auth_password`).
+
+**Rotating a role password:** update that role's `JARVIS_*_DATABASE_URL` secret with the new value
+and re-run `pnpm db:migrate`. The runner applies the new password to the role and the same URL is
+what the runtime uses to connect, so the two cannot drift. Rotate the role's password in Postgres
+and its connection URL together; never edit `0000_roles.sql` to carry a password.
+
 ## Restore Drill
 
 Preview the restore command for an existing custom-format backup:
