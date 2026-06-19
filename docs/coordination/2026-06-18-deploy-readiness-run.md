@@ -25,19 +25,21 @@ its linked GitHub issue — post a progress comment at key transitions (PR ready
 merge) and CLOSE the issue at merge. GitHub is source of truth; do not let issues drift behind the
 agents. Issue↔PR map: #117↔#313, #207↔#314, #237↔#315, #236, #230, #123, #114, #254, #255↔#312 (closed).
 **ci_status:** unavailable — `gh pr checks` reports no checks on deploy branches (GitHub Actions not the gate this run); judge merge-readiness off local CI-equivalent evidence per Ben's standing approval; security tier still needs per-merge Ben sign-off.
-**Continuation note (RELAY 2026-06-19T01:11Z — Claude coordinator `eaadc7f5…` relaying after the
-security-tier merge of #314, per the no-deferral relay threshold). SUCCESSOR MUST BE CODEX (Ben
+**Continuation note (RELAY 2026-06-19T02:03Z — Codex coordinator `019edd71…` relaying after the
+security-tier merge of #313, per the no-deferral relay threshold). SUCCESSOR MUST BE CODEX (Ben
 directive — see ALL NEW AGENTS = CODEX above).**
 
 SUCCESSOR FIRST STEPS (you are a CODEX coordinator): (1) claim the `Coordinator` label on your own
 pane (`herdr pane rename <your-pane> Coordinator`); verify exactly one `Coordinator` pane = you.
 (2) re-confirm this lock line then **rewrite the authority anchor to YOUR Codex session id**
-(`agent_session.value` for your pane in `herdr pane list`). (3) **close my pane** (the relaying Claude
-coordinator `eaadc7f5…`) after verifying its session id — resolve it fresh by label `Coordinator`
-before I rename, or by session id `eaadc7f5…`. (4) re-adopt the live fleet below; confirm you are
-driving. `ci_status: unavailable` — judge merge-readiness off local CI-equivalent evidence; **no
-security-tier merge without Ben's explicit per-merge sign-off** (Ben has standing approval of the
-CI-equivalent gating policy). **Update each finished issue with a merge-ref comment + close it.**
+(`agent_session.value` for your pane in `herdr pane list`). (3) **close my pane** (the relaying Codex
+coordinator `019edd71-d7fa-7d23-894d-c00bf8ed98ee`) after verifying its session id — resolve it
+fresh by label `Coordinator-relaying` or by session id `019edd71…`. (4) re-adopt the live fleet
+below; confirm you are driving. `ci_status: unavailable` — judge merge-readiness off local
+CI-equivalent evidence; **no security-tier merge without Ben's explicit per-merge sign-off** (Ben
+has standing approval of the CI-equivalent gating policy). **Update each finished issue with a
+merge-ref comment + close it.** Mid-doing: #313 just merged; next is #315 rebase onto `0592fe7`,
+push, fresh Codex security re-QA, then Ben sign-off.
 
 DONE THIS SESSION (Codex `019edd71…`, adopted after #314 relay):
 - **#313/#117 MERGED** (squash `0592fe7` @ 02:02Z, Ben sign-off). Security tier. Fresh Codex
