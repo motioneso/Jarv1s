@@ -903,6 +903,107 @@ describe("AI capability tier routing", () => {
     expect(updateRes.statusCode).toBe(200);
     expect(updateRes.json<{ model: { tier: string } }>().model.tier).toBe("interactive");
   });
+
+  it("uses a valid manual capability route before automatic tier selection", async () => {
+    const automaticRes = await server.inject({
+      method: "POST",
+      url: "/api/ai/models",
+      headers: { authorization: `Bearer ${ids.sessionA}` },
+      payload: {
+        providerConfigId: sharedProviderId,
+        providerModelId: "manual-json-auto",
+        displayName: "Manual JSON Auto",
+        capabilities: ["json"],
+        tier: "interactive"
+      }
+    });
+    const manualRes = await server.inject({
+      method: "POST",
+      url: "/api/ai/models",
+      headers: { authorization: `Bearer ${ids.sessionA}` },
+      payload: {
+        providerConfigId: sharedProviderId,
+        providerModelId: "manual-json-selected",
+        displayName: "Manual JSON Selected",
+        capabilities: ["json"],
+        tier: "reasoning"
+      }
+    });
+    const manualId = manualRes.json<{ model: { id: string } }>().model.id;
+
+    await dataContext.withDataContext(userAContext(), (scopedDb) =>
+      repository.setCapabilityRoute(scopedDb, {
+        capability: "json",
+        modelId: manualId,
+        actorUserId: ids.userA
+      })
+    );
+
+    const resolved = await dataContext.withDataContext(userAContext(), (scopedDb) =>
+      repository.resolveModelForCapability(scopedDb, "json", "interactive")
+    );
+    const selected = await dataContext.withDataContext(userAContext(), (scopedDb) =>
+      repository.selectModelForCapability(scopedDb, "json", "interactive")
+    );
+
+    expect(automaticRes.statusCode).toBe(201);
+    expect(manualRes.statusCode).toBe(201);
+    expect(resolved.reason).toBe("manual-route");
+    expect(resolved.model?.id).toBe(manualId);
+    expect(selected?.id).toBe(manualId);
+  });
+
+  it("falls back when a manual capability route becomes incompatible", async () => {
+    const compatibleRes = await server.inject({
+      method: "POST",
+      url: "/api/ai/models",
+      headers: { authorization: `Bearer ${ids.sessionA}` },
+      payload: {
+        providerConfigId: sharedProviderId,
+        providerModelId: "manual-vision-compatible",
+        displayName: "Manual Vision Compatible",
+        capabilities: ["vision"],
+        tier: "interactive"
+      }
+    });
+    const staleRes = await server.inject({
+      method: "POST",
+      url: "/api/ai/models",
+      headers: { authorization: `Bearer ${ids.sessionA}` },
+      payload: {
+        providerConfigId: sharedProviderId,
+        providerModelId: "manual-vision-stale",
+        displayName: "Manual Vision Stale",
+        capabilities: ["vision"],
+        tier: "reasoning"
+      }
+    });
+    const compatibleId = compatibleRes.json<{ model: { id: string } }>().model.id;
+    const staleId = staleRes.json<{ model: { id: string } }>().model.id;
+
+    await dataContext.withDataContext(userAContext(), (scopedDb) =>
+      repository.setCapabilityRoute(scopedDb, {
+        capability: "vision",
+        modelId: staleId,
+        actorUserId: ids.userA
+      })
+    );
+    await server.inject({
+      method: "PATCH",
+      url: `/api/ai/models/${staleId}`,
+      headers: { authorization: `Bearer ${ids.sessionA}` },
+      payload: { status: "disabled" }
+    });
+
+    const resolved = await dataContext.withDataContext(userAContext(), (scopedDb) =>
+      repository.resolveModelForCapability(scopedDb, "vision", "interactive")
+    );
+
+    expect(compatibleRes.statusCode).toBe(201);
+    expect(staleRes.statusCode).toBe(201);
+    expect(resolved.reason).toBe("manual-route-unavailable-fallback");
+    expect(resolved.model?.id).toBe(compatibleId);
+  });
 });
 
 function userAContext(): AccessContext {
