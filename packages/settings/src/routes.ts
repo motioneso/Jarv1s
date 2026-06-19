@@ -831,6 +831,7 @@ function serializeUser(user: User): UserDto {
   return {
     id: user.id,
     email: user.email,
+    emailVerified: user.email_verified,
     name: user.name,
     isInstanceAdmin: user.is_instance_admin,
     status: user.status,

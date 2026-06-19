@@ -107,6 +107,7 @@ describe("M3 auth, users, settings", () => {
     expect(me.user).toMatchObject({
       id: ownerUserId,
       email: "owner@example.test",
+      emailVerified: false,
       isInstanceAdmin: true
     });
   });
@@ -321,11 +322,17 @@ describe("M3 auth, users, settings", () => {
     expect(allowedResponse.statusCode).toBe(200);
     expect(
       allowedResponse
-        .json<{ users: Array<{ email: string; isInstanceAdmin: boolean }> }>()
-        .users.map((user) => [user.email, user.isInstanceAdmin])
+        .json<{
+          users: Array<{ email: string; emailVerified: boolean; isInstanceAdmin: boolean }>;
+        }>()
+        .users.map((user) => ({
+          email: user.email,
+          emailVerified: user.emailVerified,
+          isInstanceAdmin: user.isInstanceAdmin
+        }))
     ).toEqual([
-      ["owner@example.test", true],
-      ["member@example.test", false]
+      { email: "owner@example.test", emailVerified: false, isInstanceAdmin: true },
+      { email: "member@example.test", emailVerified: false, isInstanceAdmin: false }
     ]);
   });
 

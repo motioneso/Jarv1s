@@ -3,6 +3,7 @@ import { errorResponseSchema } from "./schema-fragments.js";
 export interface UserDto {
   readonly id: string;
   readonly email: string;
+  readonly emailVerified: boolean;
   readonly name: string;
   readonly isInstanceAdmin: boolean;
   readonly status: "pending" | "active" | "deactivated";
@@ -223,6 +224,7 @@ const userSchema = {
   required: [
     "id",
     "email",
+    "emailVerified",
     "name",
     "isInstanceAdmin",
     "status",
@@ -233,6 +235,7 @@ const userSchema = {
   properties: {
     id: { type: "string" },
     email: { type: "string" },
+    emailVerified: { type: "boolean" },
     name: { type: "string" },
     isInstanceAdmin: { type: "boolean" },
     status: { type: "string", enum: ["pending", "active", "deactivated"] },
