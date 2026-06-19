@@ -11,6 +11,7 @@ const { Client } = pg;
 
 export interface DeleteUserDataOptions {
   readonly actorUserId?: string | null;
+  readonly auditAction?: string;
   readonly bootstrapConnectionString?: string;
   readonly confirmUserId?: string;
   readonly dryRun?: boolean;
@@ -71,6 +72,7 @@ export async function deleteUserData(
   options: DeleteUserDataOptions
 ): Promise<DeleteUserDataResult> {
   const dryRun = options.dryRun ?? true;
+  const auditAction = options.auditAction ?? "user.delete";
 
   if (!dryRun && options.confirmUserId !== options.userId) {
     throw new Error("Confirmation user id must match the target user id");
@@ -141,16 +143,17 @@ export async function deleteUserData(
         VALUES (
           $1,
           $2,
-          'user.delete',
-          'user',
           $3,
-          $4::jsonb,
-          $5
+          'user',
+          $4,
+          $5::jsonb,
+          $6
         )
       `,
       [
         auditEventId,
         options.actorUserId ?? null,
+        auditAction,
         options.userId,
         JSON.stringify({
           countsBeforeDelete: counts,
