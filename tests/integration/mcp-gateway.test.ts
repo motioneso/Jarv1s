@@ -139,6 +139,47 @@ describe("AssistantToolGateway", () => {
     expect(emitted.map((entry) => entry.record.kind)).toEqual(["action_request", "action_result"]);
   });
 
+  it("does not lose an Approve emitted immediately with the action_request", async () => {
+    let eagerGateway: AssistantToolGateway;
+    eagerGateway = new AssistantToolGateway({
+      resolveActiveModules: async () => [exampleToolModule],
+      repository,
+      runner,
+      tokens,
+      confirmations,
+      notifier: {
+        emit: (chatSessionId, record) => {
+          emitted.push({ chatSessionId, record });
+          if (record.kind === "action_request") {
+            void eagerGateway.resolveActionRequest(
+              ids.userA,
+              record.actionRequestId,
+              "confirmed"
+            );
+          }
+        }
+      },
+      confirmTimeoutMs: 1_000
+    });
+    const token = tokens.mint({
+      actorUserId: ids.userA,
+      chatSessionId: "s-eager",
+      allowedToolNames: null
+    });
+
+    const res = await eagerGateway.callTool(token, "example.write", { value: "eager" });
+
+    expect(res.ok).toBe(true);
+    expect(exampleToolCalls).toHaveLength(1);
+    const rows = await runner.withDataContext(
+      { actorUserId: ids.userA, requestId: "r-eager-check" },
+      (scopedDb) => repository.listAssistantActions(scopedDb)
+    );
+    expect(rows.find((r) => r.id === firstActionRequest().actionRequestId)?.status).toBe(
+      "confirmed"
+    );
+  });
+
   it("an Approve arriving after the confirm timeout never executes and never marks the row confirmed", async () => {
     // Short timeout so the wait expires before we Approve. confirmTimeoutMs is set per-gateway.
     const fastTimeoutGateway = new AssistantToolGateway({

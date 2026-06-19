@@ -176,6 +176,11 @@ export class AssistantToolGateway {
       })
     );
 
+    const pendingResolution = this.deps.confirmations.awaitResolution(
+      action.id,
+      this.deps.confirmTimeoutMs
+    );
+
     this.deps.notifier.emit(ctx.chatSessionId, {
       kind: "action_request",
       actionRequestId: action.id,
@@ -183,10 +188,7 @@ export class AssistantToolGateway {
       summary: this.summaryFor(found.tool, input, ctx)
     });
 
-    const outcome = await this.deps.confirmations.awaitResolution(
-      action.id,
-      this.deps.confirmTimeoutMs
-    );
+    const outcome = await pendingResolution;
 
     if (outcome !== "confirmed") {
       this.deps.notifier.emit(ctx.chatSessionId, {
