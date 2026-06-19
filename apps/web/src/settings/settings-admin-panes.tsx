@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Copy,
   KeyRound,
+  LogOut,
   MoreHorizontal,
   ServerCog,
   ShieldCheck,
@@ -9,8 +10,7 @@ import {
   Terminal,
   Trash2,
   UserCheck,
-  UserMinus,
-  UserPlus
+  UserMinus
 } from "lucide-react";
 import { useState } from "react";
 
@@ -29,6 +29,7 @@ import {
   promoteUser,
   putRegistrationSettings,
   reactivateUser,
+  revokeAdminUserSessions,
   rejectUser,
   setChatMultiplexerSettings,
   setAdminModuleDisabled
@@ -104,6 +105,7 @@ function PersonRow(props: {
   const statusAction = props.actions.find(
     (action) => action === "deactivate" || action === "reactivate"
   );
+  const canRevokeSessions = props.actions.includes("revokeSessions");
   const canRemove = props.actions.includes("remove");
   const rowLabel = props.isCurrent ? "You" : props.actions.length === 0 ? "Protected" : null;
   return (
@@ -161,18 +163,26 @@ function PersonRow(props: {
                       {off ? "Reactivate" : "Deactivate"}
                     </button>
                   ) : null}
+                  {canRevokeSessions || canRemove ? <div className="ppl__menusep" /> : null}
+                  {canRevokeSessions ? (
+                    <button
+                      className="ppl__menuitem ppl__menuitem--danger"
+                      role="menuitem"
+                      onClick={() => act("revokeSessions")}
+                    >
+                      <LogOut size={15} />
+                      Sign out everywhere
+                    </button>
+                  ) : null}
                   {canRemove ? (
-                    <>
-                      <div className="ppl__menusep" />
-                      <button
-                        className="ppl__menuitem ppl__menuitem--danger"
-                        role="menuitem"
-                        onClick={() => act("remove")}
-                      >
-                        <Trash2 size={15} />
-                        Remove from instance
-                      </button>
-                    </>
+                    <button
+                      className="ppl__menuitem ppl__menuitem--danger"
+                      role="menuitem"
+                      onClick={() => act("remove")}
+                    >
+                      <Trash2 size={15} />
+                      Remove from instance
+                    </button>
                   ) : null}
                 </div>
               </>
@@ -220,8 +230,9 @@ function PendingRow(props: {
 interface ActionVars {
   readonly fn: (id: string) => Promise<unknown>;
   readonly id: string;
-  readonly message: string;
+  readonly message: string | ((data: unknown) => string);
   readonly tone?: "ready" | "drift";
+  readonly refetchUsers?: boolean;
 }
 
 export function PeoplePane({ me }: PaneProps) {
@@ -234,9 +245,13 @@ export function PeoplePane({ me }: PaneProps) {
   });
   const actionMutation = useMutation({
     mutationFn: (vars: ActionVars) => vars.fn(vars.id),
-    onSuccess: (_data, vars) => {
-      void queryClient.invalidateQueries({ queryKey: queryKeys.settings.adminUsers });
-      toast(vars.message, { tone: vars.tone });
+    onSuccess: (data, vars) => {
+      if (vars.refetchUsers ?? true) {
+        void queryClient.invalidateQueries({ queryKey: queryKeys.settings.adminUsers });
+      }
+      toast(typeof vars.message === "function" ? vars.message(data) : vars.message, {
+        tone: vars.tone
+      });
     },
     onError: (error) => toast(readError(error), { tone: "drift" })
   });
@@ -264,6 +279,25 @@ export function PeoplePane({ me }: PaneProps) {
             id: user.id,
             message: `${name} deactivated`,
             tone: "drift"
+          })
+      });
+    } else if (action === "revokeSessions") {
+      confirm({
+        title: `Sign out ${name} everywhere?`,
+        description:
+          "This ends their active sessions without changing their role, status, or history.",
+        confirmLabel: "Sign out everywhere",
+        danger: true,
+        onConfirm: () =>
+          actionMutation.mutate({
+            fn: revokeAdminUserSessions,
+            id: user.id,
+            message: (data) => {
+              const count = (data as { count: number }).count;
+              return `${name} signed out everywhere (${count} session${count === 1 ? "" : "s"} revoked)`;
+            },
+            tone: "drift",
+            refetchUsers: false
           })
       });
     } else {
@@ -322,18 +356,7 @@ export function PeoplePane({ me }: PaneProps) {
       ) : null}
       <Group
         title="Members"
-        action={
-          <button
-            type="button"
-            className="jds-btn jds-btn--secondary jds-btn--sm"
-            onClick={() => toast("Invitations are coming soon", { icon: <UserPlus size={17} /> })}
-          >
-            <span className="jds-btn__icon">
-              <UserPlus size={15} />
-            </span>
-            Invite
-          </button>
-        }
+        desc="New people create an account, then wait for approval here."
       >
         <div className="ppl">
           {members.length ? (
