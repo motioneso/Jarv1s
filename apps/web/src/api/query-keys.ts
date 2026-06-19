@@ -18,7 +18,8 @@ export const queryKeys = {
     persona: ["settings", "persona"] as const,
     sourceBehaviors: ["settings", "source-behaviors"] as const,
     registrationSettings: ["settings", "admin", "registration"] as const,
-    chatMultiplexer: ["settings", "chat-multiplexer"] as const
+    chatMultiplexer: ["settings", "chat-multiplexer"] as const,
+    hostDiagnostics: ["settings", "host-diagnostics"] as const
   },
   connectors: {
     providers: ["connectors", "providers"] as const,

@@ -99,6 +99,15 @@ export class HttpRepositoryError extends Error {
 export class SettingsRepository {
   // No db in constructor — DataContextDb is passed per method via withDataContext.
 
+  /**
+   * Cheap connectivity probe for host diagnostics (#255). Runs `SELECT 1` on the
+   * actor-scoped handle; throws if the database is unreachable. Returns no rows/data.
+   */
+  async pingDatabase(scopedDb: DataContextDb): Promise<void> {
+    assertDataContextDb(scopedDb);
+    await sql`SELECT 1`.execute(scopedDb.db);
+  }
+
   async getUserById(scopedDb: DataContextDb, userId: string): Promise<User | undefined> {
     assertDataContextDb(scopedDb);
     const result = await sql<User>`SELECT * FROM app.get_user_by_id(${userId}::uuid)`.execute(

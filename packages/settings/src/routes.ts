@@ -44,6 +44,8 @@ import { HttpError, handleRouteError as handleModuleRouteError } from "@jarv1s/m
 
 import { deleteUserData, LastActiveAdminError } from "../../../scripts/delete-user-data.js";
 import { BootstrapHelper } from "./bootstrap.js";
+import type { HostDiagnosticsProvider } from "./host-diagnostics.js";
+import { registerHostDiagnosticsRoutes } from "./host-diagnostics-routes.js";
 import { registerLocaleRoutes } from "./locale-routes.js";
 import { registerOnboardingRoutes, type OnboardingProbes } from "./onboarding-routes.js";
 import { registerPersonaRoutes } from "./persona-routes.js";
@@ -67,6 +69,8 @@ export interface SettingsRoutesDependencies {
   readonly chatMultiplexerAvailability?: { readonly tmux: boolean; readonly herdr: boolean };
   /** Onboarding probes; injected to preserve module isolation and fail closed if absent. */
   readonly onboardingProbes?: OnboardingProbes;
+  /** Host diagnostics runtime-facts provider (#255); injected by the composition root. */
+  readonly hostDiagnostics?: HostDiagnosticsProvider;
 }
 
 interface SettingParams {
@@ -531,6 +535,16 @@ export function registerSettingsRoutes(
     assertBootstrapOwnerAdminUser: (scopedDb, userId) =>
       assertBootstrapOwnerAdminUser(repository, scopedDb, userId),
     requireRequestId,
+    handleRouteError
+  });
+
+  registerHostDiagnosticsRoutes(server, {
+    dataContext: dependencies.dataContext,
+    resolveAccessContext: dependencies.resolveAccessContext,
+    repository,
+    chatMultiplexerAvailability: dependencies.chatMultiplexerAvailability,
+    hostDiagnostics: dependencies.hostDiagnostics,
+    assertAdminUser: (scopedDb, userId) => assertAdminUser(repository, scopedDb, userId),
     handleRouteError
   });
 

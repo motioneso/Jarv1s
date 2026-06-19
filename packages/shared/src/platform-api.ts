@@ -621,6 +621,111 @@ export const putChatMultiplexerSettingsRouteSchema = {
   }
 } as const;
 
+// ── Host diagnostics (admin-only, read-only, secret-safe) ───────────────────
+
+/** Pass/warn/fail status for a single diagnostic check. */
+export type HostDiagnosticStatus = "pass" | "warn" | "fail";
+
+/** One diagnostic check. `detail` is a short, fixed, secret-free message. */
+export interface HostDiagnosticCheckDto {
+  readonly id: string;
+  readonly label: string;
+  readonly status: HostDiagnosticStatus;
+  readonly detail: string;
+}
+
+/**
+ * Sync runtime facts supplied by the API composition root. Every field is an
+ * explicit allowlisted, non-secret value — never an env-var value, connection
+ * string, secret, token, or user-data path.
+ */
+export interface HostDiagnosticsInfo {
+  readonly uptimeSeconds: number;
+  readonly environment: "production" | "development" | "test" | "unknown";
+  /** App version if the deployment sets JARVIS_APP_VERSION, else null. */
+  readonly version: string | null;
+  /** Short commit if the deployment sets JARVIS_GIT_COMMIT, else null. */
+  readonly commit: string | null;
+  /** Bind host (e.g. "0.0.0.0") — a config value, not a secret. */
+  readonly host: string;
+  readonly port: number;
+  /** Configured log level readout (env-configured; not a runtime toggle). */
+  readonly logLevel: string;
+  readonly deployMode: "compose" | "systemd" | "dev" | "unknown";
+  /** Documented operator restart command for the deploy mode, or null. */
+  readonly restartCommand: string | null;
+  readonly moduleCount: number;
+  readonly routeCount: number;
+}
+
+export interface HostDiagnosticsDto extends HostDiagnosticsInfo {
+  readonly multiplexer: ChatMultiplexerChoice;
+  readonly available: ChatMultiplexerAvailability;
+  readonly checks: readonly HostDiagnosticCheckDto[];
+}
+
+const hostDiagnosticCheckSchema = {
+  type: "object",
+  required: ["id", "label", "status", "detail"],
+  additionalProperties: false,
+  properties: {
+    id: { type: "string" },
+    label: { type: "string" },
+    status: { type: "string", enum: ["pass", "warn", "fail"] },
+    detail: { type: "string" }
+  }
+} as const;
+
+export const hostDiagnosticsSchema = {
+  type: "object",
+  required: [
+    "uptimeSeconds",
+    "environment",
+    "version",
+    "commit",
+    "host",
+    "port",
+    "logLevel",
+    "deployMode",
+    "restartCommand",
+    "moduleCount",
+    "routeCount",
+    "multiplexer",
+    "available",
+    "checks"
+  ],
+  additionalProperties: false,
+  properties: {
+    uptimeSeconds: { type: "number" },
+    environment: { type: "string", enum: ["production", "development", "test", "unknown"] },
+    version: { type: ["string", "null"] },
+    commit: { type: ["string", "null"] },
+    host: { type: "string" },
+    port: { type: "number" },
+    logLevel: { type: "string" },
+    deployMode: { type: "string", enum: ["compose", "systemd", "dev", "unknown"] },
+    restartCommand: { type: ["string", "null"] },
+    moduleCount: { type: "number" },
+    routeCount: { type: "number" },
+    multiplexer: { type: "string", enum: ["auto", "tmux", "herdr"] },
+    available: {
+      type: "object",
+      required: ["tmux", "herdr"],
+      additionalProperties: false,
+      properties: { tmux: { type: "boolean" }, herdr: { type: "boolean" } }
+    },
+    checks: { type: "array", items: hostDiagnosticCheckSchema }
+  }
+} as const;
+
+export const getHostDiagnosticsRouteSchema = {
+  response: {
+    200: hostDiagnosticsSchema,
+    401: errorResponseSchema,
+    403: errorResponseSchema
+  }
+} as const;
+
 // ── Module enablement (admin + self-service) ────────────────────────────────
 
 export interface AdminModuleDto {

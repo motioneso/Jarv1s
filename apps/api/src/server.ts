@@ -34,7 +34,12 @@ import {
   type ChatEngineFactory,
   type JarvisModuleManifest
 } from "@jarv1s/module-registry";
-import { listModulesRouteSchema, parsePositiveIntEnv, type ModuleDto } from "@jarv1s/shared";
+import {
+  listModulesRouteSchema,
+  parsePositiveIntEnv,
+  type HostDiagnosticsInfo,
+  type ModuleDto
+} from "@jarv1s/shared";
 
 export interface CreateApiServerOptions {
   readonly appDb?: Kysely<JarvisDatabase>;
@@ -240,6 +245,36 @@ export function createApiServer(options: CreateApiServerOptions = {}) {
     });
     const googleApiClient = new GoogleApiClient();
 
+    // Host diagnostics (#255): a read-only, secret-safe runtime-facts provider injected
+    // into the settings admin route. info() returns only explicit, non-secret config
+    // values (never env-var values or connection strings); pgBossInstalled() is a cheap
+    // connectivity probe. The DTO is assembled + secret-guarded inside @jarv1s/settings.
+    const hostDiagnostics = {
+      info: (): HostDiagnosticsInfo => {
+        const manifests = getBuiltInModuleManifests();
+        const commit = process.env.JARVIS_GIT_COMMIT;
+        const deployMode = resolveDeployMode(process.env.JARVIS_DEPLOY_MODE);
+        return {
+          uptimeSeconds: Math.round(process.uptime()),
+          environment: mapEnvMode(process.env.NODE_ENV),
+          version: process.env.JARVIS_APP_VERSION ?? null,
+          commit: commit ? commit.slice(0, 12) : null,
+          host: apiServerConfig.host,
+          port: apiServerConfig.port,
+          logLevel: process.env.LOG_LEVEL ?? "info",
+          deployMode,
+          restartCommand: restartCommandFor(deployMode),
+          moduleCount: manifests.length,
+          routeCount: manifests.reduce((sum, m) => sum + (m.routes?.length ?? 0), 0)
+        };
+      },
+      pgBossInstalled: (): Promise<boolean> =>
+        boss
+          .isInstalled()
+          .then((v) => v === true)
+          .catch(() => false)
+    };
+
     registerBuiltInApiRoutes(server, {
       rootDb: appDb,
       resolveAccessContext: authRuntime.resolveAccessContext,
@@ -282,7 +317,8 @@ export function createApiServer(options: CreateApiServerOptions = {}) {
       bootstrapConnectionString: ownsAppDb ? getJarvisDatabaseUrls().bootstrap : undefined,
       googleConnectionService,
       googleApiClient,
-      connectorsRepository
+      connectorsRepository,
+      hostDiagnostics
     });
 
     // Test-only seam (ADR 0009 §4 verification): register synthetic guarded routes on a
@@ -505,6 +541,45 @@ function registerBetterAuthRoutes(
     },
     handler: (request, reply) => handleBetterAuthRequest(request, reply, authRuntime)
   });
+}
+
+function mapEnvMode(nodeEnv: string | undefined): HostDiagnosticsInfo["environment"] {
+  switch (nodeEnv) {
+    case "production":
+      return "production";
+    case "development":
+      return "development";
+    case "test":
+      return "test";
+    default:
+      return "unknown";
+  }
+}
+
+function resolveDeployMode(raw: string | undefined): HostDiagnosticsInfo["deployMode"] {
+  switch (raw) {
+    case "compose":
+    case "systemd":
+    case "dev":
+      return raw;
+    default:
+      return "unknown";
+  }
+}
+
+// Documented, fixed operator command per deploy mode. There is NO in-process restart
+// endpoint (#255): restart is operator-managed, so we only surface the command to run.
+function restartCommandFor(mode: HostDiagnosticsInfo["deployMode"]): string | null {
+  switch (mode) {
+    case "compose":
+      return "docker compose restart api";
+    case "systemd":
+      return "systemctl restart jarvis-api";
+    case "dev":
+      return "restart the dev process (Ctrl-C, then re-run)";
+    default:
+      return null;
+  }
 }
 
 function registerPlatformRoutes(server: FastifyInstance, authRuntime: JarvisAuthRuntime): void {

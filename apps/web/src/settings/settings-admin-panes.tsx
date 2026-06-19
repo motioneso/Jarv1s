@@ -1,8 +1,8 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
+  Copy,
   KeyRound,
   MoreHorizontal,
-  RefreshCw,
   ServerCog,
   ShieldCheck,
   Stethoscope,
@@ -20,6 +20,7 @@ import {
   deleteAdminUser,
   demoteUser,
   getChatMultiplexerSettings,
+  getHostDiagnostics,
   getRegistrationSettings,
   listAdminConnectorAccounts,
   listAdminModules,
@@ -46,17 +47,42 @@ import {
   Group,
   Indicator,
   Locked,
-  NotWired,
   Note,
   PaneHead,
   Row,
   Segmented,
-  Switch
+  Switch,
+  type BadgeTone
 } from "./settings-ui";
-import type { ChatMultiplexerChoice, RegistrationSettingsDto, UserDto } from "@jarv1s/shared";
+import type {
+  ChatMultiplexerChoice,
+  HostDiagnosticStatus,
+  RegistrationSettingsDto,
+  UserDto
+} from "@jarv1s/shared";
 
 function roleLabel(user: UserDto): string {
   return user.isBootstrapOwner ? "Owner" : user.isInstanceAdmin ? "Admin" : "Member";
+}
+
+function diagnosticTone(status: HostDiagnosticStatus): BadgeTone {
+  return status === "pass" ? "pine" : status === "warn" ? "amber" : "red";
+}
+
+function diagnosticLabel(status: HostDiagnosticStatus): string {
+  return status === "pass" ? "Pass" : status === "warn" ? "Warn" : "Fail";
+}
+
+function formatUptime(totalSeconds: number): string {
+  const s = Math.max(0, Math.floor(totalSeconds));
+  const days = Math.floor(s / 86400);
+  const hours = Math.floor((s % 86400) / 3600);
+  const minutes = Math.floor((s % 3600) / 60);
+  const parts: string[] = [];
+  if (days) parts.push(`${days}d`);
+  if (hours) parts.push(`${hours}h`);
+  if (minutes || parts.length === 0) parts.push(`${minutes}m`);
+  return parts.join(" ");
 }
 
 /* --------------------------------------------------------- People & access */
@@ -547,12 +573,19 @@ export function OversightPane() {
 /* --------------------------------------------------------- Advanced host setup */
 
 export function HostPane({ advanced }: PaneProps) {
-  const { toast, confirm } = useFeedback();
+  const { toast } = useFeedback();
   const queryClient = useQueryClient();
+  const [ranDiagnostics, setRanDiagnostics] = useState(false);
   const muxQuery = useQuery({
     queryKey: queryKeys.settings.chatMultiplexer,
     queryFn: getChatMultiplexerSettings,
     enabled: advanced,
+    retry: false
+  });
+  const diagQuery = useQuery({
+    queryKey: queryKeys.settings.hostDiagnostics,
+    queryFn: getHostDiagnostics,
+    enabled: advanced && ranDiagnostics,
     retry: false
   });
   const muxMutation = useMutation({
@@ -560,6 +593,15 @@ export function HostPane({ advanced }: PaneProps) {
     onSuccess: (data) => queryClient.setQueryData(queryKeys.settings.chatMultiplexer, data),
     onError: (error) => toast(readError(error), { tone: "drift" })
   });
+
+  const runDiagnostics = () => {
+    setRanDiagnostics(true);
+    void diagQuery.refetch();
+  };
+  const copyCommand = (command: string) => {
+    void navigator.clipboard?.writeText(command);
+    toast("Copied restart command");
+  };
 
   if (!advanced) {
     return (
@@ -577,6 +619,7 @@ export function HostPane({ advanced }: PaneProps) {
   }
 
   const mux = muxQuery.data;
+  const diag = diagQuery.data;
   return (
     <>
       <PaneHead
@@ -619,50 +662,94 @@ export function HostPane({ advanced }: PaneProps) {
           }
         />
       </Group>
-      <Group title="Diagnostics">
-        <NotWired>Verbose logging, restart and diagnostics are placeholders.</NotWired>
-        <Row name="Verbose logging" desc="Capture detailed logs for troubleshooting." coming />
+      <Group
+        title="Diagnostics"
+        desc="A safe, read-only health check of this host. No secrets, env values, or paths."
+        action={
+          <button
+            type="button"
+            className="jds-btn jds-btn--secondary jds-btn--sm"
+            onClick={runDiagnostics}
+            disabled={diagQuery.isFetching}
+          >
+            <span className="jds-btn__icon">
+              <Stethoscope size={15} />
+            </span>
+            {diagQuery.isFetching ? "Running…" : "Run diagnostics"}
+          </button>
+        }
+      >
+        {!ranDiagnostics ? (
+          <Row name="Not run yet" desc="Run diagnostics to check this host." />
+        ) : diagQuery.isError ? (
+          <Row name="Couldn't run diagnostics" desc={readError(diagQuery.error)} />
+        ) : !diag ? (
+          <Row name="Running diagnostics…" />
+        ) : (
+          <>
+            {diag.checks.map((check) => (
+              <Row
+                key={check.id}
+                name={check.label}
+                desc={check.detail}
+                control={
+                  <Badge tone={diagnosticTone(check.status)} dot={check.status === "pass"}>
+                    {diagnosticLabel(check.status)}
+                  </Badge>
+                }
+              />
+            ))}
+            <Row name="Uptime" control={formatUptime(diag.uptimeSeconds)} />
+            <Row name="Environment" control={diag.environment} />
+            <Row name="Version" control={diag.version ?? "—"} />
+            <Row name="Commit" control={diag.commit ?? "—"} />
+            <Row name="Bind address" control={`${diag.host}:${diag.port}`} />
+            <Row
+              name="Modules"
+              desc="Registered modules / declared module routes"
+              control={`${diag.moduleCount} / ${diag.routeCount}`}
+            />
+          </>
+        )}
+      </Group>
+      <Group title="Logging">
         <Row
-          name="Restart-required settings"
-          desc="A few changes wait for the next restart to apply."
-          control={<Badge tone="amber">Restart needed</Badge>}
+          name="Log level"
+          desc="Set with the LOG_LEVEL environment variable. Changing it takes effect after a restart."
+          control={<Badge tone="neutral">{diag?.logLevel ?? "Run diagnostics to view"}</Badge>}
         />
       </Group>
-      <div className="host-actions">
-        <button
-          type="button"
-          className="jds-btn jds-btn--secondary jds-btn--sm"
-          onClick={() =>
-            confirm({
-              title: "Restart the server?",
-              description:
-                "Active sessions will briefly disconnect and reconnect. This usually takes a few seconds.",
-              confirmLabel: "Restart",
-              danger: true,
-              onConfirm: () =>
-                toast("Server restart is coming soon", {
-                  tone: "drift",
-                  icon: <RefreshCw size={17} />
-                })
-            })
+      <Group title="Restart">
+        <Row
+          name="Restart"
+          desc="Restart is operator-managed — there is no in-app restart. Some changes apply only after the next restart."
+          control={<Badge tone="amber">Operator-managed</Badge>}
+        />
+        <Row
+          name="Deployment mode"
+          control={<Badge tone="neutral">{diag?.deployMode ?? "—"}</Badge>}
+        />
+        <Row
+          name="Restart command"
+          desc={diag?.restartCommand ?? "Run diagnostics to detect the documented command."}
+          control={
+            diag?.restartCommand ? (
+              <button
+                type="button"
+                className="jds-btn jds-btn--quiet jds-btn--sm"
+                onClick={() => copyCommand(diag.restartCommand as string)}
+              >
+                <span className="jds-btn__icon">
+                  <Copy size={15} />
+                </span>
+                Copy
+              </button>
+            ) : (
+              <Badge tone="neutral">—</Badge>
+            )
           }
-        >
-          <span className="jds-btn__icon">
-            <RefreshCw size={15} />
-          </span>
-          Restart server
-        </button>
-        <button
-          type="button"
-          className="jds-btn jds-btn--quiet jds-btn--sm"
-          onClick={() => toast("Diagnostics are coming soon", { icon: <Stethoscope size={17} /> })}
-        >
-          <span className="jds-btn__icon">
-            <Stethoscope size={15} />
-          </span>
-          Run diagnostics
-        </button>
-      </div>
+        />
+      </Group>
     </>
   );
 }
