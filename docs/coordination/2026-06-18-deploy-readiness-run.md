@@ -1,55 +1,92 @@
 # Coordination Run — 2026-06-18-deploy-readiness
 
 **Date:** 2026-06-18
-**Coordinator lock:** label `Coordinator`, **stable anchor = Claude session id `ec808db4-8b97-48fb-9130-07e7d726634b`** (match `agent_session.value` in `herdr pane list`; pane `w1:p10`, tab `w1:t7`). _Authority transferred 2026-06-18 from the relaying Codex coordinator (session `019edcbd-30fe-7d71-9e48-ded1258b8d98`, old pane `w1:p1J`) to this Claude successor; old pane retired._ Single-coordinator lock — exactly one pane labelled `Coordinator` whose session id matches this anchor holds authority for the life of the run. Pane numbers (`w…-N`) reflow on every restart/split/reap — do not trust any pane number written in this file as an identifier; resolve the pane fresh by label+session at read time. Agents escalate to the **label**; the coordinator merges only when its own pane's session id matches this recorded anchor.
+**Coordinator lock:** label `Coordinator`, **stable anchor = Claude session id `eaadc7f5-27f0-4128-909b-55134bba34e2`** (match `agent_session.value` in `herdr pane list`; pane `w1:p24`, tab `w1:t7`). _Authority transferred 2026-06-19 from the relaying Claude coordinator (session `ec808db4-8b97-48fb-9130-07e7d726634b`, old pane `w1:p10`) to this Claude successor; old pane retired. (Earlier: 2026-06-18 from the relaying Codex coordinator `019edcbd-30fe-7d71-9e48-ded1258b8d98`.)_ Single-coordinator lock — exactly one pane labelled `Coordinator` whose session id matches this anchor holds authority for the life of the run. Pane numbers (`w…-N`) reflow on every restart/split/reap — do not trust any pane number written in this file as an identifier; resolve the pane fresh by label+session at read time. Agents escalate to the **label**; the coordinator merges only when its own pane's session id matches this recorded anchor.
 **Merge policy:** autonomous-after-verified-QA for `routine`/`sensitive`; **`security`-tier needs Ben's explicit merge sign-off**
+**⚠️ ALL NEW AGENTS = CODEX (Ben directive 2026-06-19, supersedes the Claude-fallback note):** spawn
+**every** new agent — build, gate-runner, QA, and the coordinator successor — as **Codex**
+(`codex -s danger-full-access -a never "<boot>"`), NOT Claude, until Codex hits a usage window (then
+fall back to Claude). The Codex 5-h window is back. Security-tier QA via Codex = genuine cross-model
+adversarial coverage (satisfies the cross-model requirement). NEW QA spawns use the Herdr path
+(`herdr agent start "QA-..." --tab <agents-tab> -- codex -s danger-full-access -a never "<qa prompt>"`)
+since the native `Agent(model:opus)` path is Claude-only. Currently-running Claude lanes (Fix-313,
+Gate-314, Build-237) finish as-is — do not kill warm work; only NEW spawns are Codex.
 **Relay threshold:** security-tier merge → relay immediately after Phase 3 step 7; routine/sensitive `merges_since_relay` >= 2 → relay. No deferral. Compaction summary = already past safe → relay, merge nothing.
-**merges_since_relay:** 1 (security-tier merge #312 → relay NOW per threshold)
-**last_alive:** 2026-06-19T01:10Z (Claude coordinator `ec808db4…` — relaying)
+**merges_since_relay:** 1 (security-tier merge #314 → relay NOW per threshold; successor resets to 0)
+**last_alive:** 2026-06-19T01:11Z (Claude coordinator `eaadc7f5…` — relaying after #314 security merge)
 **Gate serialization policy (2026-06-18):** run mechanical gates ~1–2 at a time. Concurrent
 `verify:foundation` runs collide on cluster-global role grants → false-RED "tuple concurrently
 updated", EVEN with isolated `JARVIS_PGDATABASE` (db:migrate grants touch shared `pg_authid`).
 Gating agents instructed to RETRY verify:foundation on that signature. Gate-runners must run on a
 clean worktree (stray untracked `.md` breaks format:check) and ensure their isolated DB exists
 (db:migrate does not create it). See agentmemory `mem_mqk7fojw`.
+**⚠️ KEEP GITHUB ISSUES UPDATED (Ben directive 2026-06-19):** as each agent finishes a slice, update
+its linked GitHub issue — post a progress comment at key transitions (PR ready-for-QA, QA verdict,
+merge) and CLOSE the issue at merge. GitHub is source of truth; do not let issues drift behind the
+agents. Issue↔PR map: #117↔#313, #207↔#314, #237↔#315, #236, #230, #123, #114, #254, #255↔#312 (closed).
 **ci_status:** unavailable — `gh pr checks` reports no checks on deploy branches (GitHub Actions not the gate this run); judge merge-readiness off local CI-equivalent evidence per Ben's standing approval; security tier still needs per-merge Ben sign-off.
-**Continuation note (RELAY 2026-06-19T01:10Z — Claude coordinator `ec808db4…` relaying after the
-security-tier merge of #312, per the no-deferral relay threshold):**
+**Continuation note (RELAY 2026-06-19T01:11Z — Claude coordinator `eaadc7f5…` relaying after the
+security-tier merge of #314, per the no-deferral relay threshold). SUCCESSOR MUST BE CODEX (Ben
+directive — see ALL NEW AGENTS = CODEX above).**
 
-SUCCESSOR FIRST STEPS: (1) claim the `Coordinator` label on your own pane, (2) re-confirm this lock
-line then **rewrite the authority anchor to YOUR Claude session id**, (3) **close my pane `w1:p10`**
-(the old coordinator) after verifying its session is `ec808db4…`, (4) re-adopt the live fleet below.
-**Use Claude for any NEW build/QA agents until the Codex 5-h window resets.** `ci_status: unavailable`
-— judge merge-readiness off local CI-equivalent evidence; **no security-tier merge without Ben
-sign-off** (Ben has standing approval of the CI-equivalent gating policy).
+SUCCESSOR FIRST STEPS (you are a CODEX coordinator): (1) claim the `Coordinator` label on your own
+pane (`herdr pane rename <your-pane> Coordinator`); verify exactly one `Coordinator` pane = you.
+(2) re-confirm this lock line then **rewrite the authority anchor to YOUR Codex session id**
+(`agent_session.value` for your pane in `herdr pane list`). (3) **close my pane** (the relaying Claude
+coordinator `eaadc7f5…`) after verifying its session id — resolve it fresh by label `Coordinator`
+before I rename, or by session id `eaadc7f5…`. (4) re-adopt the live fleet below; confirm you are
+driving. `ci_status: unavailable` — judge merge-readiness off local CI-equivalent evidence; **no
+security-tier merge without Ben's explicit per-merge sign-off** (Ben has standing approval of the
+CI-equivalent gating policy). **Update each finished issue with a merge-ref comment + close it.**
 
-REMAINING BOOKKEEPING (deferred to you per no-deferral rule):
-- **#312/#255: move the board item to Done** (merge + issue-close already done). Phase-2 epic is #47.
+DONE THIS SESSION (Claude `eaadc7f5…`):
+- Adopted authority from `ec808db4…`; closed old pane `w1:p10`; lock anchor rewritten to me.
+- **#312/#255 board → Done**: verified already Done (project 2 "Issue and Roadmap Work", auto on close).
+- **#314/#207 MERGED** (squash `b0c59ef` @ 01:09Z, Ben sign-off). Security tier. Independent review
+  CLEAN + independent CI-equiv gate GREEN on integrated result (rebased clean onto post-#312 main,
+  HEAD `6692f31`, VF=0/AUDIT=0/840 passed). Issue #207 closed w/ merge-ref comment; board auto-Done;
+  Gate-314 worktree+branch+pane reaped. Non-blocking followup noted in the issue:
+  `rate-limit-key.ts:52` malformed-bearer→cookie fallback (QA confirmed NO fresh-bucket bypass).
+- `w1:p1N` skill-hardening session: committed its 7 `.claude/skills/` files as `48577ef` (by Ben's
+  decision), pane reaped.
+- **Uncommitted in shared tree (`ui-improvement-plan`)**: my manifest edits to THIS file +
+  `docs/coordination/wellness-design-2026-06-15.md` (M) + `docs/superpowers/specs/2026-06-18-wellness-adversarial-remediations.md` (??).
+  Ben says all are known committable session work (no foreign surprises) — I commit them by explicit
+  path as part of this relay flush. If still uncommitted when you read this, commit them by path.
 
 LIVE FLEET (resolve panes fresh by label; numbers reflow):
-- `Fix-313-RolePw` (`w1:p21`, Claude) — WORKING. Implementing approved 1-line `decodeURIComponent`
-  fix + TDD for the role-password percent-encoding bug (real defect). On report (VF/AUDIT exit codes
-  + head SHA): spawn **security re-QA (Opus)** on PR #313, post verdict, then Ben sign-off. Failure
-  budget 1/2 used.
-- `Gate-314-RateLimit` (`w1:p23`, Claude) — WORKING. CI-equiv re-gate of PR #314 (review already
-  CLEAN, 0 blocking; prior RED was env grants-contention). On GREEN gate report → Ben sign-off.
-  Non-blocking spec-drift note `rate-limit-key.ts:52` (malformed-bearer→cookie vs spec ip; no
-  fresh-bucket bypass) — surface to Ben at sign-off.
-- `Build-237-Sessions` (`w1:p1S`, Claude) — DONE/standby. #315 rebased to `4271bb6` (grounded, 0
-  behind). **Spawn #315 security re-QA (Opus) grounded on 4271bb6**, post updated verdict to PR #315,
-  then Ben sign-off. Non-blocking: cookie-session current-id path `session-service.ts:62` untested —
-  may task Build-237 to add the me-sessions test if Ben wants it pre-merge.
-- `w1:p1N` (Claude, idle, unlabelled, on `ui-improvement-plan` in shared tree) — UNIDENTIFIED; asked
-  Ben whether to reap. Do not close blindly.
+- `QA-313-RolePw` (Codex, spawned `w1:p25`, Agents tab `w1:t8`) — RUNNING the #313 security re-QA on
+  PR #313 / branch `deploy-117-role-passwords` HEAD `3c8d0c7` (detached worktree
+  `.claude/worktrees/qa-313-rolepw`, `JARVIS_PGDATABASE=jarvis_qa_313`). It runs CI-equiv gate +
+  /security-review + adversarial pass and **posts its verdict to PR #313**. On its compact verdict:
+  if GREEN → take to Ben for #313 sign-off; if RED → relay findings to `Fix-313-RolePw` (failure
+  budget 1/2 used → 1 left). Then reap QA-313 + its worktree.
+- `Fix-313-RolePw` (`w1:p21`, Claude) — DONE/standby in `.claude/worktrees/deploy-117-role-passwords`.
+  Fix landed: `role-bootstrap.ts` now `decodeURIComponent(url.password)` (reserved chars @ : / %
+  round-trip), TDD red→green +1 unit test, VF=0/AUDIT=0, rebased on main HEAD `3c8d0c7`, PR #313
+  updated. Owning agent for any QA-313 re-fix. Reap after #313 merges.
+- `Build-237-Sessions` (`w1:p1S`, Claude) — DONE/standby in `.claude/worktrees/deploy-237-active-sessions`.
+  #315 rebased to `4271bb6` (0 behind, grounded). **Spawn #315 security re-QA (CODEX) grounded on
+  `4271bb6`** (its review was already CLEAN; RED was stale-branch only — now fixed), post updated
+  verdict to PR #315, then Ben sign-off. Non-blocking: cookie-session current-id path
+  `session-service.ts:62` untested — may task Build-237 to add the me-sessions test if Ben wants it
+  pre-merge. Owning agent for any #315 re-fix; reap after #315 merges.
 
-PENDING SIGN-OFFS (all security tier, all need Ben): #313 (after fix+re-QA), #314 (after green
-gate), #315 (after grounded re-QA). Then serialized successors per chains B/C and the held queue
-(#114, #123, #230, #236, #254, #306).
+GATE SERIALIZATION RIGHT NOW: QA-313 is running its CI-equiv gate. Before spawning the #315 Codex
+re-QA gate, keep to ~1–2 concurrent verify:foundation runs (isolated DBs + retry on "tuple
+concurrently updated"). Safe to spawn #315 re-QA alongside QA-313 (2 concurrent) or wait for QA-313.
+
+PENDING SIGN-OFFS (all security tier, all need Ben): #313 (after QA-313 verdict), #315 (after grounded
+CODEX re-QA). Then serialized successors per chains A/B/C and the held queue (#114, #123, #230, #236,
+#254, then #306 manual). Preferred merge order: #117(#313), #114, #207(#314 ✅done), #123, #237(#315),
+#230, #236, #255(#312 ✅done), #254, then #306.
 
 GATE DISCIPLINE: serialize mechanical gates ~1–2 at a time; retry verify:foundation on "tuple
 concurrently updated" (cluster-global grants contention — see agentmemory `mem_mqk7fojw`); gate-runners
-need a clean worktree + a pre-existing isolated DB. Per-merge digest: **#312 host-diagnostics → MERGED,
-security, VF_EXIT=0/AUDIT_EXIT=0 @ b4b61e5, Ben-signed.**
+need a clean worktree + a pre-existing isolated DB. Per-merge digest:
+- **#312 host-diagnostics (#255) → MERGED**, security, VF=0/AUDIT=0 @ b4b61e5, Ben-signed.
+- **#314 rate-limit gates (#207) → MERGED** squash `b0c59ef` @ 2026-06-19T01:09Z, security, VF=0/AUDIT=0
+  on integrated result `6692f31`, Ben-signed. Issue closed; board auto-Done.
 
 > Coordinator memory for the deploy-readiness RFA queue in
 > `docs/coordination/2026-06-18-deploy-readiness-rfa-order.md`. GitHub is source of truth for
@@ -77,12 +114,12 @@ security, VF_EXIT=0/AUDIT_EXIT=0 @ b4b61e5, Ben-signed.**
 
 | Spec                                                                                | Issue | Tier      | Status                                  | Agent label         | Pane   | Branch                      | PR   |
 | ----------------------------------------------------------------------------------- | ----- | --------- | --------------------------------------- | ------------------- | ------ | --------------------------- | ---- |
-| `docs/superpowers/specs/2026-06-18-otnr-p1-bootstrap-role-passwords.md`             | #117  | security  | qa-RED: fix lane re-opened (decode bug) | Fix-313-RolePw      | (spawning) | deploy-117-role-passwords | #313 |
+| `docs/superpowers/specs/2026-06-18-otnr-p1-bootstrap-role-passwords.md`             | #117  | security  | fix landed (decode); CODEX re-QA RUNNING on `3c8d0c7` (QA-313, w1:p25) | Fix-313-RolePw      | w1:p21 | deploy-117-role-passwords | #313 |
 | `docs/superpowers/specs/2026-06-18-otnr-p2-secrets-vault-residuals.md`              | #114  | security  | queued: held for green gate             | —                   | —      | —                           | —    |
-| `docs/superpowers/specs/2026-06-18-route-local-junk-credential-rate-limit-gates.md` | #207  | security  | review CLEAN; RED was env (grants contention) — needs clean re-gate | Build-207-RateLimit (reaped) | — | deploy-207-rate-limit | #314 |
+| `docs/superpowers/specs/2026-06-18-route-local-junk-credential-rate-limit-gates.md` | #207  | security  | **MERGED** (squash `b0c59ef` @ 01:09Z, Ben sign-off). Issue closed; board Done. | — (reaped) | — | (deleted) | #314 |
 | `docs/superpowers/specs/2026-06-18-otnr-p3-ai-gateway-residual-hardening.md`        | #123  | security  | queued: held for green gate             | —                   | —      | —                           | —    |
 | `docs/superpowers/specs/2026-06-18-people-access-approval-revoke-sessions.md`       | #230  | security  | queued: held for green gate             | —                   | —      | —                           | —    |
-| `docs/superpowers/specs/2026-06-18-active-sessions-list-revoke.md`                  | #237  | security  | review CLEAN; RED was stale branch (behind 1) — Build-237 rebasing, then re-QA | Build-237-Sessions | w1:p1S | deploy-237-active-sessions | #315 |
+| `docs/superpowers/specs/2026-06-18-active-sessions-list-revoke.md`                  | #237  | security  | review CLEAN; rebased to `4271bb6` (0 behind). **CODEX re-QA pending** grounded on `4271bb6` | Build-237-Sessions | w1:p1S | deploy-237-active-sessions | #315 |
 | `docs/superpowers/specs/2026-06-18-account-card-real-status.md`                     | #236  | security  | queued: held for green gate             | —                   | —      | —                           | —    |
 | `docs/superpowers/specs/2026-06-18-host-diagnostics-safe-ops.md`                    | #255  | security  | **MERGED** (squash @ 2026-06-19T00:47Z, Ben sign-off). Issue closed. **Board move to Done still TODO (successor).** | — (reaped) | — | (deleted) | #312 |
 | `docs/superpowers/specs/2026-06-18-connector-health-monitoring.md`                  | #254  | sensitive | queued: held for green main             | —                   | —      | —                           | —    |
@@ -122,15 +159,15 @@ No waivers.
       REMAINING before merge: (a) spawn a CI-equivalent gate-runner to produce GREEN
       `verify:foundation`+`audit:release-hardening` on the #312 merge result (QA did not run the
       mechanical gate locally), then (b) Ben's explicit security-tier merge sign-off.
-- [ ] #313 security QA returned **RED** (`#issuecomment-4747228352`, grounded `3ca0767`). Blocking:
-      `role-bootstrap.ts:51` percent-encoded password vs pg-decoded runtime connect. Fix lane
-      re-opened as `Fix-313-RolePw` (Claude) in `deploy-117-role-passwords` per
-      `docs/coordination/handoffs/2026-06-18-fix313-role-password-decode.md`. Re-QA after fix.
-      (Failure budget: 1 of 2 used on this lane.)
-- [ ] #314 security QA review **CLEAN** (0 blocking; 1 non-blocking spec-drift `rate-limit-key.ts:52`
-      malformed-bearer→cookie vs spec ip, no fresh-bucket bypass). RED was env grants-contention only.
-      Clean re-gate running as `Gate-314-RateLimit` (`w1:p23`, Claude) on current branch. After GREEN
-      gate → Ben sign-off. Failure budget: 0 real code failures.
+- [ ] #313 prior security QA was RED (decode bug). **FIX LANDED** by `Fix-313-RolePw`:
+      `role-bootstrap.ts` now `decodeURIComponent(url.password)`, TDD red→green +1 unit test, VF=0/AUDIT=0,
+      rebased on main HEAD `3c8d0c7`, PR #313 updated. **CODEX re-QA RUNNING** (`QA-313-RolePw`, w1:p25,
+      worktree `.claude/worktrees/qa-313-rolepw`, ground `3c8d0c7`) — will post verdict to PR #313. On
+      verdict: GREEN → Ben sign-off; RED → Fix-313 (failure budget 1/2 used, 1 left). (SUCCESSOR owns this.)
+- [x] #314 security QA review **CLEAN**; clean re-gate GREEN on integrated result (`6692f31`, VF=0/AUDIT=0).
+      **MERGED** squash `b0c59ef` @ 01:09Z with Ben sign-off; issue #207 closed + board Done; Gate-314 reaped.
+      Non-blocking spec-drift `rate-limit-key.ts:52` (malformed-bearer→cookie, no fresh-bucket bypass)
+      recorded in the issue as a followup.
 - [ ] #315 security QA review **CLEAN** (invariants ok; 1 non-blocking: cookie-session current-id
       path `session-service.ts:62` untested). RED was stale-branch only; Build-237 rebased to `4271bb6`
       (0 behind, grounded). **Re-QA queued for next clear gate window** (Opus, grounded on 4271bb6;
@@ -158,3 +195,10 @@ No waivers.
   `.claude/worktrees/qa-314-rate-limit` removed.
 - `QA-315-Sessions` (`w1:p1Z`, codex) — reaped after CLEAN review verdict posted to PR #315; worktree
   `.claude/worktrees/qa-315-active-sessions` removal hit permission error (codex-owned), left for cleanup.
+- `Gate-314-RateLimit` (`w1:p23`, Claude) — CI-equiv gate-runner; rebased #314 on integrated main +
+  re-gated GREEN (VF=0/AUDIT=0 @ `6692f31`), posted to PR #314; reaped after #314 merged; worktree
+  `.claude/worktrees/deploy-207-rate-limit` removed + branch deleted.
+- `w1:p1N` skill-hardening session (`200d1a20`, Claude) — committed its 7 `.claude/skills/` files as
+  `48577ef` (Ben's decision), then pane reaped 2026-06-19.
+- Claude coordinator (`eaadc7f5…`, pane `w1:p24`/`w1:t7`) — relayed 2026-06-19T01:11Z to a CODEX
+  successor after the #314 security-tier merge; reaped by successor.
