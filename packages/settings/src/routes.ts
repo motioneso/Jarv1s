@@ -44,6 +44,7 @@ import { HttpError, handleRouteError as handleModuleRouteError } from "@jarv1s/m
 
 import { deleteUserData, LastActiveAdminError } from "../../../scripts/delete-user-data.js";
 import { BootstrapHelper } from "./bootstrap.js";
+import { registerDataExportRoutes } from "./data-export-routes.js";
 import type { HostDiagnosticsProvider } from "./host-diagnostics.js";
 import { registerHostDiagnosticsRoutes } from "./host-diagnostics-routes.js";
 import { registerLocaleRoutes } from "./locale-routes.js";
@@ -97,6 +98,11 @@ export function registerSettingsRoutes(
   });
   registerPersonaRoutes(server, { ...dependencies, repository, preferencesRepository });
   registerSourceBehaviorRoutes(server, { ...dependencies, preferencesRepository });
+  registerDataExportRoutes(server, {
+    dataContext: dependencies.dataContext,
+    resolveAccessContext: dependencies.resolveAccessContext,
+    rootDb: dependencies.rootDb
+  });
   server.get("/api/bootstrap/status", { schema: bootstrapStatusRouteSchema }, async () => {
     // Return only the boolean the client needs. User count and owner identity are
     // instance-wide data exposed on an UNAUTHENTICATED route — do not leak them
