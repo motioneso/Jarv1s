@@ -354,10 +354,7 @@ export function PeoplePane({ me }: PaneProps) {
           ))}
         </Group>
       ) : null}
-      <Group
-        title="Members"
-        desc="New people create an account, then wait for approval here."
-      >
+      <Group title="Members" desc="New people create an account, then wait for approval here.">
         <div className="ppl">
           {members.length ? (
             members.map((user) => (

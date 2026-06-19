@@ -25,6 +25,7 @@
 ### Task 1: Policy Action
 
 **Files:**
+
 - Modify: `apps/web/src/settings/settings-admin-policy.ts`
 - Test: `tests/unit/web-settings-admin-policy.test.ts`
 
@@ -33,28 +34,24 @@
 Add these cases to `tests/unit/web-settings-admin-policy.test.ts`:
 
 ```ts
-  it("offers session revoke for active and deactivated non-current members", () => {
-    const current = member({ id: "current", isInstanceAdmin: true });
-    const active = member({ id: "active" });
-    const deactivated = member({ id: "deactivated", status: "deactivated" });
+it("offers session revoke for active and deactivated non-current members", () => {
+  const current = member({ id: "current", isInstanceAdmin: true });
+  const active = member({ id: "active" });
+  const deactivated = member({ id: "deactivated", status: "deactivated" });
 
-    expect(adminUserActions(active, current, [current, active])).toContain("revokeSessions");
-    expect(adminUserActions(deactivated, current, [current, deactivated])).toContain(
-      "revokeSessions"
-    );
-  });
+  expect(adminUserActions(active, current, [current, active])).toContain("revokeSessions");
+  expect(adminUserActions(deactivated, current, [current, deactivated])).toContain(
+    "revokeSessions"
+  );
+});
 
-  it("does not offer session revoke for current or pending users", () => {
-    const current = member({ id: "current", isInstanceAdmin: true });
-    const pending = member({ id: "pending", status: "pending" });
+it("does not offer session revoke for current or pending users", () => {
+  const current = member({ id: "current", isInstanceAdmin: true });
+  const pending = member({ id: "pending", status: "pending" });
 
-    expect(adminUserActions(current, current, [current, pending])).not.toContain(
-      "revokeSessions"
-    );
-    expect(adminUserActions(pending, current, [current, pending])).not.toContain(
-      "revokeSessions"
-    );
-  });
+  expect(adminUserActions(current, current, [current, pending])).not.toContain("revokeSessions");
+  expect(adminUserActions(pending, current, [current, pending])).not.toContain("revokeSessions");
+});
 ```
 
 - [ ] **Step 2: Run test to verify failure**
@@ -72,12 +69,7 @@ Expected: TypeScript/Vitest fails because `"revokeSessions"` is not part of `Adm
 In `apps/web/src/settings/settings-admin-policy.ts`, change the action type and add helper:
 
 ```ts
-export type AdminUserAction =
-  | "admin"
-  | "deactivate"
-  | "reactivate"
-  | "remove"
-  | "revokeSessions";
+export type AdminUserAction = "admin" | "deactivate" | "reactivate" | "remove" | "revokeSessions";
 
 export function canRevokeAdminUserSessions(
   user: AdminUserActionPolicyUser,
@@ -90,7 +82,7 @@ export function canRevokeAdminUserSessions(
 Then append the action in `adminUserActions` before `remove`:
 
 ```ts
-  if (canRevokeAdminUserSessions(user, currentUser)) actions.push("revokeSessions");
+if (canRevokeAdminUserSessions(user, currentUser)) actions.push("revokeSessions");
 ```
 
 Update existing expected arrays in policy tests:
@@ -144,6 +136,7 @@ git commit -m "feat: add admin session revoke policy" -m "Co-Authored-By: Codex 
 ### Task 2: Typed Client
 
 **Files:**
+
 - Modify: `packages/shared/src/platform-api.ts`
 - Modify: `apps/web/src/api/client.ts`
 
@@ -163,9 +156,7 @@ export interface AdminRevokeSessionsResponse {
 In `apps/web/src/api/client.ts`, import `AdminRevokeSessionsResponse` from `@jarv1s/shared` and add near other admin user functions:
 
 ```ts
-export async function revokeAdminUserSessions(
-  id: string
-): Promise<AdminRevokeSessionsResponse> {
+export async function revokeAdminUserSessions(id: string): Promise<AdminRevokeSessionsResponse> {
   return requestJson<AdminRevokeSessionsResponse>(
     `/api/admin/users/${encodeURIComponent(id)}/revoke-sessions`,
     { method: "POST" }
@@ -195,6 +186,7 @@ git commit -m "feat: add admin revoke sessions client" -m "Co-Authored-By: Codex
 ### Task 3: People Pane UI
 
 **Files:**
+
 - Modify: `apps/web/src/settings/settings-admin-panes.tsx`
 
 - [ ] **Step 1: Implement UI action**
@@ -237,22 +229,24 @@ Update `onSuccess`:
 In `PersonRow`, add:
 
 ```ts
-  const canRevokeSessions = props.actions.includes("revokeSessions");
+const canRevokeSessions = props.actions.includes("revokeSessions");
 ```
 
 Render menu item before destructive remove separator:
 
 ```tsx
-                  {canRevokeSessions ? (
-                    <button
-                      className="ppl__menuitem ppl__menuitem--danger"
-                      role="menuitem"
-                      onClick={() => act("revokeSessions")}
-                    >
-                      <LogOut size={15} />
-                      Sign out everywhere
-                    </button>
-                  ) : null}
+{
+  canRevokeSessions ? (
+    <button
+      className="ppl__menuitem ppl__menuitem--danger"
+      role="menuitem"
+      onClick={() => act("revokeSessions")}
+    >
+      <LogOut size={15} />
+      Sign out everywhere
+    </button>
+  ) : null;
+}
 ```
 
 Handle the action in `onAction` before remove:
@@ -308,6 +302,7 @@ git commit -m "feat: add people session revoke action" -m "Co-Authored-By: Codex
 ### Task 4: E2E Coverage
 
 **Files:**
+
 - Modify: `tests/e2e/mock-api.ts`
 - Modify: `tests/e2e/app-shell.spec.ts`
 
@@ -323,10 +318,10 @@ In `tests/e2e/mock-api.ts`, import `UserDto`, add to `MockApiState`:
 In `mockApi`, register routes before task routes:
 
 ```ts
-  await page.route("**/api/admin/users", (route) => handleAdminUsersRoute(route, state));
-  await page.route("**/api/admin/users/*/revoke-sessions", (route) =>
-    handleAdminUserRevokeSessionsRoute(route, state)
-  );
+await page.route("**/api/admin/users", (route) => handleAdminUsersRoute(route, state));
+await page.route("**/api/admin/users/*/revoke-sessions", (route) =>
+  handleAdminUserRevokeSessionsRoute(route, state)
+);
 ```
 
 Add helpers:
@@ -432,14 +427,18 @@ test("people access uses approval model and revokes member sessions", async ({ p
 
   await page.getByRole("button", { name: "Actions for Member User" }).click();
   await page.getByRole("menuitem", { name: "Sign out everywhere" }).click();
-  await expect(page.getByRole("dialog", { name: "Sign out Member User everywhere?" })).toBeVisible();
+  await expect(
+    page.getByRole("dialog", { name: "Sign out Member User everywhere?" })
+  ).toBeVisible();
   await page
     .getByRole("dialog", { name: "Sign out Member User everywhere?" })
     .getByRole("button", { name: "Sign out everywhere" })
     .click();
 
   await expect.poll(() => revokeUrl).toContain("/api/admin/users/member-1/revoke-sessions");
-  await expect(page.getByText("Member User signed out everywhere (3 sessions revoked)")).toBeVisible();
+  await expect(
+    page.getByText("Member User signed out everywhere (3 sessions revoked)")
+  ).toBeVisible();
   await expect(page.getByText(/session-/i)).toHaveCount(0);
 });
 ```
@@ -466,6 +465,7 @@ git commit -m "test: cover people access session revoke" -m "Co-Authored-By: Cod
 ### Task 5: Focused Gate
 
 **Files:**
+
 - Verify only
 
 - [ ] **Step 1: Run focused checks**

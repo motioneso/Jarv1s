@@ -1,12 +1,7 @@
 import type { UserDto } from "@jarv1s/shared";
 
 export type AdminUserActionPolicyUser = UserDto;
-export type AdminUserAction =
-  | "admin"
-  | "deactivate"
-  | "reactivate"
-  | "remove"
-  | "revokeSessions";
+export type AdminUserAction = "admin" | "deactivate" | "reactivate" | "remove" | "revokeSessions";
 
 export interface AdminUserPolicyContext {
   readonly activeAdminCount: number;

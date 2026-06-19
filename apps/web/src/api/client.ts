@@ -848,9 +848,7 @@ export async function deleteAdminUser(id: string): Promise<{ deletedUserId: stri
   });
 }
 
-export async function revokeAdminUserSessions(
-  id: string
-): Promise<AdminRevokeSessionsResponse> {
+export async function revokeAdminUserSessions(id: string): Promise<AdminRevokeSessionsResponse> {
   return requestJson<AdminRevokeSessionsResponse>(
     `/api/admin/users/${encodeURIComponent(id)}/revoke-sessions`,
     { method: "POST" }

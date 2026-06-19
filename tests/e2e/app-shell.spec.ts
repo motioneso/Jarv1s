@@ -113,7 +113,9 @@ test("people access uses approval model and revokes member sessions", async ({ p
 
   await page.getByRole("button", { name: "Actions for Member User" }).click();
   await page.getByRole("menuitem", { name: "Sign out everywhere" }).click();
-  await expect(page.getByRole("dialog", { name: "Sign out Member User everywhere?" })).toBeVisible();
+  await expect(
+    page.getByRole("dialog", { name: "Sign out Member User everywhere?" })
+  ).toBeVisible();
   await page
     .getByRole("dialog", { name: "Sign out Member User everywhere?" })
     .getByRole("button", { name: "Sign out everywhere" })

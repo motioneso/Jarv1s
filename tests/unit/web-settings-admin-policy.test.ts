@@ -97,11 +97,7 @@ describe("settings admin user action policy", () => {
     const current = member({ id: "current", isInstanceAdmin: true });
     const pending = member({ id: "pending", status: "pending" });
 
-    expect(adminUserActions(current, current, [current, pending])).not.toContain(
-      "revokeSessions"
-    );
-    expect(adminUserActions(pending, current, [current, pending])).not.toContain(
-      "revokeSessions"
-    );
+    expect(adminUserActions(current, current, [current, pending])).not.toContain("revokeSessions");
+    expect(adminUserActions(pending, current, [current, pending])).not.toContain("revokeSessions");
   });
 });
