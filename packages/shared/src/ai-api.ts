@@ -33,11 +33,11 @@ export interface AiProviderConfigDto {
 
 export interface AiConfiguredModelDto {
   readonly id: string;
-  readonly providerConfigId: string;
-  readonly providerKind: AiProviderKind;
+  readonly providerConfigId: string | null;
+  readonly providerKind: AiProviderKind | null;
   readonly providerDisplayName: string;
   readonly providerStatus: AiProviderStatus;
-  readonly providerModelId: string;
+  readonly providerModelId: string | null;
   readonly displayName: string;
   readonly capabilities: readonly AiModelCapability[];
   readonly status: AiModelStatus;
@@ -361,12 +361,12 @@ const aiConfiguredModelSchema = {
     "updatedAt"
   ],
   properties: {
-    id: { type: "string" },
-    providerConfigId: { type: "string" },
-    providerKind: aiProviderKindSchema,
+    id: { type: "string", format: "uuid" },
+    providerConfigId: { anyOf: [{ type: "string", format: "uuid" }, { type: "null" }] },
+    providerKind: { anyOf: [aiProviderKindSchema, { type: "null" }] },
     providerDisplayName: { type: "string" },
     providerStatus: aiProviderStatusSchema,
-    providerModelId: { type: "string" },
+    providerModelId: { anyOf: [{ type: "string" }, { type: "null" }] },
     displayName: { type: "string" },
     capabilities: { type: "array", items: aiModelCapabilitySchema },
     status: aiModelStatusSchema,

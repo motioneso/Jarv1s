@@ -724,15 +724,15 @@ export function serializeModel(
   model: AiConfiguredModelSafeRow,
   actorUserId: string
 ): AiConfiguredModelDto {
-  const displayProviderName =
-    model.owner_user_id === actorUserId ? model.provider_display_name : "Instance default";
+  const isOwner = model.owner_user_id === actorUserId;
+  const displayProviderName = isOwner ? model.provider_display_name : "Instance default";
   return {
     id: model.id,
-    providerConfigId: model.provider_config_id,
-    providerKind: model.provider_kind,
+    providerConfigId: isOwner ? model.provider_config_id : null,
+    providerKind: isOwner ? model.provider_kind : null,
     providerDisplayName: displayProviderName,
     providerStatus: model.provider_status,
-    providerModelId: model.provider_model_id,
+    providerModelId: isOwner ? model.provider_model_id : null,
     displayName: model.display_name,
     capabilities: model.capabilities.map(parseCapability),
     status: model.status,

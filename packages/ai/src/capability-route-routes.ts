@@ -6,13 +6,12 @@ import {
   listAiCapabilityRoutesRouteSchema,
   lookupAiCapabilityRouteRouteSchema,
   putAiCapabilityRouteRouteSchema,
-  type AiConfiguredModelDto,
   type AiModelCapability,
   type PutAiCapabilityRouteRequest
 } from "@jarv1s/shared";
 
-import type { AiConfiguredModelSafeRow, AiRepository } from "./repository.js";
-import type { AiRoutesDependencies } from "./routes.js";
+import type { AiRepository } from "./repository.js";
+import { type AiRoutesDependencies, serializeModel } from "./routes.js";
 
 type CapabilityParams = { readonly capability: string };
 
@@ -45,7 +44,7 @@ export function registerAiCapabilityRouteRoutes(
             capability,
             available: Boolean(route.model),
             reason: route.reason,
-            model: route.model ? serializeModel(route.model) : null
+            model: route.model ? serializeModel(route.model, accessContext.actorUserId) : null
           }
         };
       } catch (error) {
@@ -137,28 +136,6 @@ function parseCapability(value: string): AiModelCapability {
   }
 
   throw new HttpError(400, "capability is not supported");
-}
-
-function serializeModel(model: AiConfiguredModelSafeRow): AiConfiguredModelDto {
-  return {
-    id: model.id,
-    providerConfigId: model.provider_config_id,
-    providerKind: model.provider_kind,
-    providerDisplayName: model.provider_display_name,
-    providerStatus: model.provider_status,
-    providerModelId: model.provider_model_id,
-    displayName: model.display_name,
-    capabilities: model.capabilities.map(parseCapability),
-    status: model.status,
-    tier: model.tier,
-    allowUserOverride: model.allow_user_override,
-    createdAt: serializeDate(model.created_at),
-    updatedAt: serializeDate(model.updated_at)
-  };
-}
-
-function serializeDate(value: Date | string): string {
-  return value instanceof Date ? value.toISOString() : value;
 }
 
 function handleRouteError(error: unknown, reply: FastifyReply) {
