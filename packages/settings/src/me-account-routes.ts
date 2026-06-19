@@ -123,10 +123,7 @@ export function registerMeAccountRoutes(
 
           // Confirmation factors — any miss yields a SINGLE generic 400 (no
           // per-factor detail, to avoid aiding a session-hijacking attacker).
-          const hasPasswordCredential = await readHasPasswordCredential(
-            scopedDb,
-            actorUserId
-          );
+          const hasPasswordCredential = await readHasPasswordCredential(scopedDb, actorUserId);
           const emailMatch =
             body.confirmEmail.trim().toLowerCase() === user.email.trim().toLowerCase();
           const phraseMatch = body.confirmPhrase === DELETE_MY_ACCOUNT_PHRASE;
@@ -135,8 +132,10 @@ export function registerMeAccountRoutes(
           const passwordOk = hasPasswordCredential
             ? typeof body.password === "string" &&
               body.password.length > 0 &&
-              (await dependencies.verifySelfPassword?.({ actorUserId, password: body.password })) ===
-                true
+              (await dependencies.verifySelfPassword?.({
+                actorUserId,
+                password: body.password
+              })) === true
             : true;
           if (!emailMatch || !phraseMatch || !passwordOk) {
             throw new HttpError(400, "Confirmation does not match");

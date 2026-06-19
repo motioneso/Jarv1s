@@ -48,7 +48,11 @@ import { registerDataExportRoutes } from "./data-export-routes.js";
 import type { HostDiagnosticsProvider } from "./host-diagnostics.js";
 import { registerHostDiagnosticsRoutes } from "./host-diagnostics-routes.js";
 import { registerLocaleRoutes } from "./locale-routes.js";
-import { registerMeAccountRoutes, readHasPasswordCredential, type VerifySelfPasswordPort } from "./me-account-routes.js";
+import {
+  registerMeAccountRoutes,
+  readHasPasswordCredential,
+  type VerifySelfPasswordPort
+} from "./me-account-routes.js";
 import { registerMeSessionsRoutes, type MeSessionsService } from "./me-sessions-routes.js";
 import { registerOnboardingRoutes, type OnboardingProbes } from "./onboarding-routes.js";
 import { registerPersonaRoutes } from "./persona-routes.js";
@@ -131,17 +135,15 @@ export function registerSettingsRoutes(
   server.get("/api/me", { schema: meRouteSchema }, async (request, reply) => {
     try {
       const accessContext = await dependencies.resolveAccessContext(request);
-      const { user, addressed, hasPasswordCredential } = await dependencies.dataContext.withDataContext(
-        accessContext,
-        async (scopedDb) => ({
+      const { user, addressed, hasPasswordCredential } =
+        await dependencies.dataContext.withDataContext(accessContext, async (scopedDb) => ({
           user: await requireKnownUser(repository, scopedDb, accessContext.actorUserId),
           addressed: await preferencesRepository.get(scopedDb, "profile.addressed"),
           hasPasswordCredential: await readHasPasswordCredential(
             scopedDb,
             accessContext.actorUserId
           )
-        })
-      );
+        }));
 
       return {
         user: serializeUser(user),
