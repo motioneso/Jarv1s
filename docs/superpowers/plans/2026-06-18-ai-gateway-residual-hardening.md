@@ -28,6 +28,7 @@
 ## Task 1: Confirmation Waiter Ordering
 
 **Files:**
+
 - Modify: `packages/ai/src/gateway/gateway.ts`
 - Test: `tests/integration/mcp-gateway.test.ts`
 
@@ -47,11 +48,7 @@ it("does not lose an Approve emitted immediately with the action_request", async
       emit: (chatSessionId, record) => {
         emitted.push({ chatSessionId, record });
         if (record.kind === "action_request") {
-          void eagerGateway.resolveActionRequest(
-            ids.userA,
-            record.actionRequestId,
-            "confirmed"
-          );
+          void eagerGateway.resolveActionRequest(ids.userA, record.actionRequestId, "confirmed");
         }
       }
     },
@@ -71,9 +68,7 @@ it("does not lose an Approve emitted immediately with the action_request", async
     { actorUserId: ids.userA, requestId: "r-eager-check" },
     (scopedDb) => repository.listAssistantActions(scopedDb)
   );
-  expect(rows.find((r) => r.id === firstActionRequest().actionRequestId)?.status).toBe(
-    "confirmed"
-  );
+  expect(rows.find((r) => r.id === firstActionRequest().actionRequestId)?.status).toBe("confirmed");
 });
 ```
 
@@ -120,6 +115,7 @@ git commit -m "fix(ai): register confirmation waiter before notify" \
 ## Task 2: Stale Pending Action Cleanup
 
 **Files:**
+
 - Create: `packages/ai/sql/<coordinator-assigned>_ai_cancel_stale_assistant_actions.sql`
 - Modify: `packages/ai/src/manifest.ts`
 - Modify: `packages/ai/src/repository.ts`
@@ -280,10 +276,9 @@ const STALE_ACTION_GRACE_MS = 5 * 60_000;
 server.addHook("onReady", async () => {
   if (!wiring) return;
   const cutoff = new Date(Date.now() - STALE_ACTION_GRACE_MS);
-  const count = await wiring.aiRepository.cancelStalePendingAssistantActions(
-    dependencies.rootDb,
-    { olderThan: cutoff }
-  );
+  const count = await wiring.aiRepository.cancelStalePendingAssistantActions(dependencies.rootDb, {
+    olderThan: cutoff
+  });
   if (count > 0) server.log.info({ count }, "cancelled stale assistant action requests");
 });
 ```
@@ -317,6 +312,7 @@ git commit -m "fix(ai): cancel stale assistant action requests" \
 ## Task 3: Codex Token File Launch Hygiene
 
 **Files:**
+
 - Modify: `packages/chat/src/live/cli-chat-engine.ts`
 - Modify: `packages/chat/README.md`
 - Test: `tests/unit/cli-chat-engine.test.ts`
@@ -415,6 +411,7 @@ git commit -m "fix(chat): keep codex mcp token out of launch line" \
 ## Task 4: Focused Regression And Gate
 
 **Files:**
+
 - No new source unless previous tasks expose compile failures.
 
 - [ ] **Step 1: Run focused checks**

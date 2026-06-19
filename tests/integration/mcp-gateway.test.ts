@@ -147,8 +147,7 @@ describe("AssistantToolGateway", () => {
   });
 
   it("does not lose an Approve emitted immediately with the action_request", async () => {
-    let eagerGateway: AssistantToolGateway;
-    eagerGateway = new AssistantToolGateway({
+    const eagerGateway = new AssistantToolGateway({
       resolveActiveModules: async () => [exampleToolModule],
       repository,
       runner,
@@ -158,11 +157,7 @@ describe("AssistantToolGateway", () => {
         emit: (chatSessionId, record) => {
           emitted.push({ chatSessionId, record });
           if (record.kind === "action_request") {
-            void eagerGateway.resolveActionRequest(
-              ids.userA,
-              record.actionRequestId,
-              "confirmed"
-            );
+            void eagerGateway.resolveActionRequest(ids.userA, record.actionRequestId, "confirmed");
           }
         }
       },
