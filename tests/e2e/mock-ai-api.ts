@@ -1,16 +1,19 @@
 import type { Page, Route } from "@playwright/test";
 import type {
   AiAssistantToolDto,
+  AiCapabilityRouteMapDto,
   AiConfiguredModelDto,
   AiModelCapability,
   AiProviderConfigDto,
   CreateAiConfiguredModelRequest,
   CreateAiProviderConfigRequest,
+  PutAiCapabilityRouteRequest,
   UpdateAiConfiguredModelRequest,
   UpdateAiProviderConfigRequest
 } from "@jarv1s/shared";
 
 export interface MockAiApiState {
+  aiCapabilityRoutes?: AiCapabilityRouteMapDto;
   aiModels?: AiConfiguredModelDto[];
   aiProviders?: AiProviderConfigDto[];
 }
@@ -48,6 +51,12 @@ export async function registerMockAiRoutes(page: Page, state: MockAiApiState): P
   await page.route("**/api/ai/models", (route) => handleAiModelsRoute(route, state));
   await page.route(/\/api\/ai\/capability-route\/[^/]+$/, (route) =>
     handleAiCapabilityRoute(route, state)
+  );
+  await page.route("**/api/ai/capability-routes", (route) =>
+    handleAiCapabilityRoutes(route, state)
+  );
+  await page.route(/\/api\/ai\/capability-routes\/[^/]+$/, (route) =>
+    handleAiCapabilityRouteDetail(route, state)
   );
   await page.route("**/api/ai/assistant-tools", (route) =>
     fulfillJson(route, 200, { tools: createMockAiAssistantTools() })
@@ -208,26 +217,77 @@ async function handleAiCapabilityRoute(route: Route, state: MockAiApiState): Pro
   const capability = decodeURIComponent(
     new URL(route.request().url()).pathname.split("/").pop() ?? ""
   ) as AiModelCapability;
+  const manualModelId = state.aiCapabilityRoutes?.[capability] ?? null;
+  const manualModel = manualModelId
+    ? findCompatibleModel(state, capability, manualModelId)
+    : undefined;
+  if (manualModel) {
+    return fulfillJson(route, 200, {
+      route: {
+        capability,
+        available: true,
+        reason: "manual-route",
+        model: manualModel
+      }
+    });
+  }
   const model =
-    (state.aiModels ?? []).find((item) => {
-      const provider = (state.aiProviders ?? []).find(
-        (providerConfig) => providerConfig.id === item.providerConfigId
-      );
-
-      return (
-        item.status === "active" &&
-        item.capabilities.includes(capability) &&
-        provider?.status === "active"
-      );
-    }) ?? null;
+    (state.aiModels ?? []).find((item) => findCompatibleModel(state, capability, item.id)) ?? null;
 
   return fulfillJson(route, 200, {
     route: {
       capability,
       available: Boolean(model),
-      reason: model ? "matched-active-model" : "no-active-model",
+      reason: manualModelId
+        ? "manual-route-unavailable-fallback"
+        : model
+          ? "matched-active-model"
+          : "no-active-model",
       model
     }
+  });
+}
+
+async function handleAiCapabilityRoutes(route: Route, state: MockAiApiState): Promise<void> {
+  if (route.request().method() !== "GET") {
+    return fulfillJson(route, 405, { error: "Method not allowed" });
+  }
+
+  return fulfillJson(route, 200, { routes: state.aiCapabilityRoutes ?? {} });
+}
+
+async function handleAiCapabilityRouteDetail(route: Route, state: MockAiApiState): Promise<void> {
+  const request = route.request();
+  if (request.method() !== "PUT") {
+    return fulfillJson(route, 405, { error: "Method not allowed" });
+  }
+
+  const capability = decodeURIComponent(new URL(request.url()).pathname.split("/").pop() ?? "");
+  const input = request.postDataJSON() as PutAiCapabilityRouteRequest;
+  state.aiCapabilityRoutes = {
+    ...(state.aiCapabilityRoutes ?? {}),
+    [capability]: input.modelId
+  };
+
+  return fulfillJson(route, 200, { route: { capability, modelId: input.modelId } });
+}
+
+function findCompatibleModel(
+  state: MockAiApiState,
+  capability: AiModelCapability,
+  modelId: string
+): AiConfiguredModelDto | undefined {
+  return (state.aiModels ?? []).find((item) => {
+    const provider = (state.aiProviders ?? []).find(
+      (providerConfig) => providerConfig.id === item.providerConfigId
+    );
+
+    return (
+      item.id === modelId &&
+      item.status === "active" &&
+      item.capabilities.includes(capability) &&
+      provider?.status === "active"
+    );
   });
 }
 

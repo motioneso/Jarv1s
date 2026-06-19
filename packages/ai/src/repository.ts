@@ -17,7 +17,7 @@ import {
   type DataContextDb,
   type JarvisDatabase
 } from "@jarv1s/db";
-import type { AiModelCapability } from "@jarv1s/shared";
+import type { AiCapabilityRouteReason, AiModelCapability } from "@jarv1s/shared";
 
 import type { EncryptedAiSecret } from "./crypto.js";
 import {
@@ -134,6 +134,21 @@ export interface ChatModelOverrideSettings {
   readonly defaultModel: AiConfiguredModelSafeRow | null;
   readonly selectedModel: AiConfiguredModelSafeRow | null;
   readonly allowedModels: readonly AiConfiguredModelSafeRow[];
+}
+
+export const AI_CAPABILITY_ROUTES_SETTING_KEY = "ai.capability_routes";
+
+export type AiCapabilityRouteMap = Partial<Record<AiModelCapability, string | null>>;
+
+export interface SetAiCapabilityRouteInput {
+  readonly capability: AiModelCapability;
+  readonly modelId: string | null;
+  readonly actorUserId: string;
+}
+
+export interface AiCapabilityRouteResolution {
+  readonly model: AiConfiguredModelSafeRow | null;
+  readonly reason: AiCapabilityRouteReason;
 }
 
 export class AiRepository {
@@ -326,8 +341,92 @@ export class AiRepository {
     capability: AiModelCapability,
     tier: AiModelTier = "interactive"
   ): Promise<AiConfiguredModelSafeRow | undefined> {
+    const resolved = await this.resolveModelForCapability(scopedDb, capability, tier);
+    return resolved.model ?? undefined;
+  }
+
+  async listCapabilityRoutes(scopedDb: DataContextDb): Promise<AiCapabilityRouteMap> {
     assertDataContextDb(scopedDb);
 
+    const row = await scopedDb.db
+      .selectFrom("app.instance_settings")
+      .select("value")
+      .where("key", "=", AI_CAPABILITY_ROUTES_SETTING_KEY)
+      .executeTakeFirst();
+
+    return parseCapabilityRouteMap(row?.value);
+  }
+
+  async setCapabilityRoute(
+    scopedDb: DataContextDb,
+    input: SetAiCapabilityRouteInput
+  ): Promise<AiCapabilityRouteMap> {
+    assertDataContextDb(scopedDb);
+
+    const current = await this.listCapabilityRoutes(scopedDb);
+    const next = { ...current, [input.capability]: input.modelId };
+    const now = new Date();
+
+    await scopedDb.db
+      .insertInto("app.instance_settings")
+      .values({
+        key: AI_CAPABILITY_ROUTES_SETTING_KEY,
+        value: next,
+        updated_by_user_id: input.actorUserId,
+        created_at: now,
+        updated_at: now
+      })
+      .onConflict((oc) =>
+        oc.column("key").doUpdateSet({
+          value: next,
+          updated_by_user_id: input.actorUserId,
+          updated_at: now
+        })
+      )
+      .execute();
+
+    return next;
+  }
+
+  async resolveModelForCapability(
+    scopedDb: DataContextDb,
+    capability: AiModelCapability,
+    tier: AiModelTier = "interactive"
+  ): Promise<AiCapabilityRouteResolution> {
+    assertDataContextDb(scopedDb);
+
+    const routes = await this.listCapabilityRoutes(scopedDb);
+    const manualModelId = routes[capability] ?? null;
+
+    if (manualModelId) {
+      const manualModel = await this.safeModelQuery(scopedDb)
+        .where("models.id", "=", manualModelId)
+        .where("models.status", "=", "active")
+        .where("providers.status", "=", "active")
+        .where(sql<boolean>`${capability} = any(${sql.ref("models.capabilities")})`)
+        .executeTakeFirst();
+
+      if (manualModel) {
+        return { model: manualModel, reason: "manual-route" };
+      }
+    }
+
+    const automatic = await this.selectAutomaticModelForCapability(scopedDb, capability, tier);
+    return {
+      model: automatic ?? null,
+      reason: manualModelId
+        ? "manual-route-unavailable-fallback"
+        : automatic
+          ? "matched-active-model"
+          : "no-active-model"
+    };
+  }
+
+  private async selectAutomaticModelForCapability(
+    scopedDb: DataContextDb,
+    capability: AiModelCapability,
+    tier: AiModelTier
+  ): Promise<AiConfiguredModelSafeRow | undefined> {
     const TIER_LADDER: AiModelTier[] = ["economy", "interactive", "reasoning"];
     const startIndex = TIER_LADDER.indexOf(tier);
     const tiersToTry = TIER_LADDER.slice(startIndex);
@@ -656,4 +755,26 @@ function toOverrideCandidate(
     providerStatus: model.provider_status,
     allowUserOverride: model.allow_user_override
   };
+}
+
+const AI_MODEL_CAPABILITIES = new Set<AiModelCapability>([
+  "chat",
+  "tool-use",
+  "json",
+  "vision",
+  "summarization"
+]);
+
+function parseCapabilityRouteMap(value: unknown): AiCapabilityRouteMap {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return {};
+
+  const routes: AiCapabilityRouteMap = {};
+  for (const [capability, modelId] of Object.entries(value)) {
+    if (!AI_MODEL_CAPABILITIES.has(capability as AiModelCapability)) continue;
+    if (modelId === null || typeof modelId === "string") {
+      routes[capability as AiModelCapability] = modelId;
+    }
+  }
+
+  return routes;
 }
