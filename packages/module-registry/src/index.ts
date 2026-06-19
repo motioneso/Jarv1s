@@ -84,7 +84,8 @@ import {
   settingsModuleSqlMigrationDirectory,
   type HostDiagnosticsProvider,
   type MeSessionsService,
-  type PersonaPreviewInput
+  type PersonaPreviewInput,
+  type VerifySelfPasswordPort
 } from "@jarv1s/settings";
 import {
   TASKS_QUEUE_DEFINITIONS,
@@ -169,6 +170,12 @@ export interface BuiltInRouteDependencies {
   readonly revokeUserSessions?: (userId: string) => Promise<number>;
   /** Auth-owned current-user session list/revoke service (#237). */
   readonly meSessions?: MeSessionsService;
+  /**
+   * Auth-owned password re-verification for self-service account deletion (#239).
+   * Absent when no auth runtime is wired; the route fails closed for
+   * password-bearing accounts.
+   */
+  readonly verifySelfPassword?: VerifySelfPasswordPort;
   readonly bootstrapConnectionString?: string;
   readonly googleConnectionService?: GoogleConnectionService;
   readonly googleApiClient?: GoogleApiClient;
@@ -292,6 +299,7 @@ const BUILT_IN_MODULES: readonly BuiltInModuleRegistration[] = [
         listModuleManifests: deps.listModuleManifests,
         revokeUserSessions: deps.revokeUserSessions,
         meSessions: deps.meSessions,
+        verifySelfPassword: deps.verifySelfPassword,
         bootstrapConnectionString: deps.bootstrapConnectionString,
         chatMultiplexerAvailability: deps.chatMultiplexerAvailability,
         hostDiagnostics: deps.hostDiagnostics,
