@@ -7,6 +7,7 @@ import {
   createAiProviderConfigRequestSchema,
   createAiProviderConfigResponseSchema,
   discoverAiProviderModelsResponseSchema,
+  getAiSummaryResponseSchema,
   getChatModelOverrideSettingsResponseSchema,
   invokeAiAssistantToolRequestSchema,
   invokeAiAssistantToolResponseSchema,
@@ -114,6 +115,12 @@ export const aiModuleManifest = {
     }
   ],
   routes: [
+    {
+      method: "GET",
+      path: "/api/ai/summary",
+      responseSchema: getAiSummaryResponseSchema,
+      permissionId: "ai.view"
+    },
     {
       method: "GET",
       path: "/api/ai/providers",
