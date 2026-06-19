@@ -425,6 +425,126 @@ describe("AI provider foundation", () => {
     expect(providerResponse.statusCode).toBe(403);
   });
 
+  it("requires an instance admin for AI provider test and discovery", async () => {
+    const provider = await dataContext.withDataContext(userAContext(), (scopedDb) =>
+      repository.createProvider(scopedDb, {
+        providerKind: "openai-compatible",
+        displayName: "Admin-only Provider",
+        encryptedCredential: createAiSecretCipher().encryptJson({ apiKey: "admin-only-secret" })
+      })
+    );
+    const testResponse = await server.inject({
+      method: "POST",
+      url: `/api/ai/providers/${provider.id}/test`,
+      headers: { authorization: `Bearer ${ids.sessionB}` }
+    });
+    const discoverResponse = await server.inject({
+      method: "POST",
+      url: `/api/ai/providers/${provider.id}/discover-models`,
+      headers: { authorization: `Bearer ${ids.sessionB}` }
+    });
+
+    expect(testResponse.statusCode).toBe(403);
+    expect(discoverResponse.statusCode).toBe(403);
+  });
+
+  it("tests an API-key provider with a redacted result", async () => {
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = (async () =>
+      new Response(JSON.stringify({ data: [{ id: "gpt-4o" }] }), { status: 200 })) as typeof fetch;
+    try {
+      const provider = await dataContext.withDataContext(userAContext(), (scopedDb) =>
+        repository.createProvider(scopedDb, {
+          providerKind: "openai-compatible",
+          displayName: "Provider Test",
+          baseUrl: "https://llm.example.test",
+          encryptedCredential: createAiSecretCipher().encryptJson({
+            apiKey: "secret-provider-key"
+          })
+        })
+      );
+
+      const response = await server.inject({
+        method: "POST",
+        url: `/api/ai/providers/${provider.id}/test`,
+        headers: { authorization: `Bearer ${ids.sessionA}` }
+      });
+
+      expect(response.statusCode).toBe(200);
+      expect(response.json()).toEqual({
+        result: {
+          ok: true,
+          providerKind: "openai-compatible",
+          message: "Provider credential is valid."
+        }
+      });
+      expect(response.body).not.toContain("secret-provider-key");
+      expect(response.body).not.toContain("ciphertext");
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+
+  it("discovers model candidates without inserting model rows", async () => {
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = (async () =>
+      new Response(JSON.stringify({ data: [{ id: "gpt-4o" }] }), { status: 200 })) as typeof fetch;
+    try {
+      const provider = await dataContext.withDataContext(userAContext(), (scopedDb) =>
+        repository.createProvider(scopedDb, {
+          providerKind: "openai-compatible",
+          displayName: "Discover Provider",
+          encryptedCredential: createAiSecretCipher().encryptJson({ apiKey: "discover-secret" })
+        })
+      );
+      const before = await dataContext.withDataContext(userAContext(), (scopedDb) =>
+        repository.listModels(scopedDb)
+      );
+      const response = await server.inject({
+        method: "POST",
+        url: `/api/ai/providers/${provider.id}/discover-models`,
+        headers: { authorization: `Bearer ${ids.sessionA}` }
+      });
+      const after = await dataContext.withDataContext(userAContext(), (scopedDb) =>
+        repository.listModels(scopedDb)
+      );
+
+      expect(response.statusCode).toBe(200);
+      expect(response.json()).toMatchObject({
+        models: [{ providerModelId: "gpt-4o", capabilities: expect.arrayContaining(["chat"]) }]
+      });
+      expect(after).toHaveLength(before.length);
+      expect(response.body).not.toContain("discover-secret");
+      expect(response.body).not.toContain("ciphertext");
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+
+  it("does not test revoked AI providers", async () => {
+    const provider = await dataContext.withDataContext(userAContext(), async (scopedDb) => {
+      const created = await repository.createProvider(scopedDb, {
+        providerKind: "openai-compatible",
+        displayName: "Revoked Provider",
+        encryptedCredential: createAiSecretCipher().encryptJson({ apiKey: "revoked-secret" })
+      });
+      await repository.revokeProvider(
+        scopedDb,
+        created.id,
+        createAiSecretCipher().encryptJson({ revoked: true })
+      );
+      return created;
+    });
+    const response = await server.inject({
+      method: "POST",
+      url: `/api/ai/providers/${provider.id}/test`,
+      headers: { authorization: `Bearer ${ids.sessionA}` }
+    });
+
+    expect(response.statusCode).toBe(400);
+    expect(response.body).not.toContain("revoked-secret");
+  });
+
   it("selects an active configured model by capability without returning secrets", async () => {
     const providerResponse = await server.inject({
       method: "POST",

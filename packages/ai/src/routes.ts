@@ -23,6 +23,7 @@ import type { ActiveModulesResolver } from "./gateway/types.js";
 import {
   createAiConfiguredModelRouteSchema,
   createAiProviderConfigRouteSchema,
+  discoverAiProviderModelsRouteSchema,
   getChatModelOverrideSettingsRouteSchema,
   invokeAiAssistantToolRouteSchema,
   listAiAssistantActionsRouteSchema,
@@ -34,6 +35,7 @@ import {
   putChatModelOverrideSettingsRouteSchema,
   resolveAiAssistantActionRouteSchema,
   revokeAiProviderConfigRouteSchema,
+  testAiProviderConfigRouteSchema,
   updateAiConfiguredModelRouteSchema,
   updateAiProviderConfigRouteSchema,
   type AiAssistantToolBlockedReason,
@@ -70,6 +72,7 @@ import {
 import { ToolInputValidationError, validateToolInput } from "./gateway/input-validation.js";
 import { cliAvailable, type ProviderKind as CliProviderKind } from "./cli-availability.js";
 import { createAiSecretCipher, type AiSecretCipher } from "./crypto.js";
+import { discoverProviderModels, testProviderCredential } from "./provider-validation.js";
 import {
   AiRepository,
   type AiAssistantActionRequestSafeRow,
@@ -238,6 +241,78 @@ export function registerAiRoutes(
         }
 
         return { provider: await serializeProvider(provider) };
+      } catch (error) {
+        return handleRouteError(error, reply);
+      }
+    }
+  );
+
+  server.post<{ Params: IdParams }>(
+    "/api/ai/providers/:id/test",
+    { schema: testAiProviderConfigRouteSchema },
+    async (request, reply) => {
+      try {
+        const accessContext = await dependencies.resolveAccessContext(request);
+        const result = await dependencies.dataContext.withDataContext(
+          accessContext,
+          async (scopedDb) => {
+            await assertInstanceAdmin(repository, scopedDb, accessContext.actorUserId);
+            const provider = await repository.selectProviderWithCredential(
+              scopedDb,
+              request.params.id
+            );
+            if (!provider) {
+              throw new HttpError(404, "AI provider config not found");
+            }
+            if (provider.status === "revoked") {
+              throw new HttpError(400, "AI provider config is revoked");
+            }
+            return testProviderCredential({
+              providerKind: provider.provider_kind,
+              authMethod: provider.auth_method,
+              baseUrl: provider.base_url,
+              credential: secretCipher.decryptJson(provider.encrypted_credential)
+            });
+          }
+        );
+
+        return { result };
+      } catch (error) {
+        return handleRouteError(error, reply);
+      }
+    }
+  );
+
+  server.post<{ Params: IdParams }>(
+    "/api/ai/providers/:id/discover-models",
+    { schema: discoverAiProviderModelsRouteSchema },
+    async (request, reply) => {
+      try {
+        const accessContext = await dependencies.resolveAccessContext(request);
+        const models = await dependencies.dataContext.withDataContext(
+          accessContext,
+          async (scopedDb) => {
+            await assertInstanceAdmin(repository, scopedDb, accessContext.actorUserId);
+            const provider = await repository.selectProviderWithCredential(
+              scopedDb,
+              request.params.id
+            );
+            if (!provider) {
+              throw new HttpError(404, "AI provider config not found");
+            }
+            if (provider.status === "revoked") {
+              throw new HttpError(400, "AI provider config is revoked");
+            }
+            return discoverProviderModels({
+              providerKind: provider.provider_kind,
+              authMethod: provider.auth_method,
+              baseUrl: provider.base_url,
+              credential: secretCipher.decryptJson(provider.encrypted_credential)
+            });
+          }
+        );
+
+        return { models };
       } catch (error) {
         return handleRouteError(error, reply);
       }
