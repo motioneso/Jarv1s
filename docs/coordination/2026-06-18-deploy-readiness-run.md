@@ -6,6 +6,12 @@
 **Ben security merge instruction (2026-06-19):** Ben is stepping away for a few hours; for security
 lanes, run extra GLM 5.2 review and treat merge as approved once GLM 5.2 is GREEN and the normal
 local CI-equivalent/Codex security QA evidence is GREEN. Do not merge on GLM alone.
+**⚠️ BEN DIRECTIVES 2026-06-19T~06:05Z (Codex-out window):**
+1. **GLM 5.2 may provide code review on issues** — use the GLM 5.2 Opencode pane (`w1:p28`) for code/security review of any lane, not just security tier.
+2. **All builder agents spawn in the "Agents" tab = `w1:t9`** (`herdr agent start "<Label>" --tab w1:t9 ...`). Coordinator tab `w1:t7` stays coordinator-only. (Native background `Agent`-tool QA subagents are tabless — acceptable for QA; Herdr-spawned build/gate/QA go to `w1:t9`.)
+3. **If Claude usage nears max, swap to GLM 5.2 agents** (Opencode harness) for build/gate/QA support.
+4. **At 23:43 PDT (Codex 5h reset), hand off coordination to a Codex coordinator** — relay into the SAME coordinator tab `w1:t7`, boot it with `codex -s danger-full-access -a never`.
+
 **⚠️ NEW AGENTS = CLAUDE + GLM 5.2 (Ben directive 2026-06-19T~05:55Z, Codex 5h window EXHAUSTED until 23:43 PDT):**
 Codex is out of usage. Spawn new build/gate/QA agents as **Claude** (native `Agent` tool, or
 `herdr agent start ... -- claude --permission-mode bypassPermissions`) and use the **GLM 5.2 Opencode**
