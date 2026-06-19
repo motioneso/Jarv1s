@@ -260,6 +260,9 @@ test("configures AI providers and capability routing through settings REST calls
 
   // Capability routing now lists the registered model.
   await expect(page.getByText("Capability routing")).toBeVisible();
+  await expect(page.getByText(/Routing override .*not wired/)).toHaveCount(0);
+  await page.getByLabel("Model for Chat & briefing").selectOption("automatic");
+  await expect(page.getByText("Route updated")).toBeVisible();
 
   await page.getByRole("button", { name: "Remove Anthropic" }).click();
   await page.getByRole("button", { name: "Remove", exact: true }).click();

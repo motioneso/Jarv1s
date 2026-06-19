@@ -29,7 +29,6 @@ import {
   listAiAssistantToolsRouteSchema,
   listAiConfiguredModelsRouteSchema,
   listAiProviderConfigsRouteSchema,
-  lookupAiCapabilityRouteRouteSchema,
   putAdminChatModelOverrideSettingsRouteSchema,
   putChatModelOverrideSettingsRouteSchema,
   resolveAiAssistantActionRouteSchema,
@@ -69,6 +68,7 @@ import {
 } from "./gateway/output-validation.js";
 import { ToolInputValidationError, validateToolInput } from "./gateway/input-validation.js";
 import { cliAvailable, type ProviderKind as CliProviderKind } from "./cli-availability.js";
+import { registerAiCapabilityRouteRoutes } from "./capability-route-routes.js";
 import { createAiSecretCipher, type AiSecretCipher } from "./crypto.js";
 import { registerAiProviderValidationRoutes } from "./provider-validation-routes.js";
 import {
@@ -88,7 +88,6 @@ export interface AiRoutesDependencies {
 }
 
 type IdParams = { readonly id: string };
-type CapabilityParams = { readonly capability: string };
 type AssistantToolParams = { readonly name: string };
 
 const AI_PROVIDER_KINDS = new Set<AiProviderKind>([
@@ -324,30 +323,7 @@ export function registerAiRoutes(
     }
   );
 
-  server.get<{ Params: CapabilityParams }>(
-    "/api/ai/capability-route/:capability",
-    { schema: lookupAiCapabilityRouteRouteSchema },
-    async (request, reply) => {
-      try {
-        const accessContext = await dependencies.resolveAccessContext(request);
-        const capability = parseCapability(request.params.capability);
-        const model = await dependencies.dataContext.withDataContext(accessContext, (scopedDb) =>
-          repository.selectModelForCapability(scopedDb, capability)
-        );
-
-        return {
-          route: {
-            capability,
-            available: Boolean(model),
-            reason: model ? "matched-active-model" : "no-active-model",
-            model: model ? serializeModel(model) : null
-          }
-        };
-      } catch (error) {
-        return handleRouteError(error, reply);
-      }
-    }
-  );
+  registerAiCapabilityRouteRoutes(server, dependencies, repository);
 
   server.get(
     "/api/ai/chat-model-override",

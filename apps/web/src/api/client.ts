@@ -19,6 +19,7 @@ import type {
   GetPersonaSettingsResponse,
   GetChatModelOverrideSettingsResponse,
   GetLocaleSettingsResponse,
+  ListAiCapabilityRoutesResponse,
   ListMySessionsResponse,
   ListUsersResponse,
   RevokeMyOtherSessionsResponse,
@@ -27,6 +28,8 @@ import type {
   PreviewPersonaRequest,
   PreviewPersonaResponse,
   PutAdminChatModelOverrideRequest,
+  PutAiCapabilityRouteRequest,
+  PutAiCapabilityRouteResponse,
   PutChatModelOverrideRequest,
   PutLocaleSettingsRequest,
   PutLocaleSettingsResponse,
@@ -692,6 +695,23 @@ export async function lookupAiCapabilityRoute(
 ): Promise<LookupAiCapabilityRouteResponse> {
   return requestJson<LookupAiCapabilityRouteResponse>(
     `/api/ai/capability-route/${encodeURIComponent(capability)}`
+  );
+}
+
+export async function listAiCapabilityRoutes(): Promise<ListAiCapabilityRoutesResponse> {
+  return requestJson<ListAiCapabilityRoutesResponse>("/api/ai/capability-routes");
+}
+
+export async function putAiCapabilityRoute(
+  capability: AiModelCapability,
+  input: PutAiCapabilityRouteRequest
+): Promise<PutAiCapabilityRouteResponse> {
+  return requestJson<PutAiCapabilityRouteResponse>(
+    `/api/ai/capability-routes/${encodeURIComponent(capability)}`,
+    {
+      method: "PUT",
+      body: input
+    }
   );
 }
 

@@ -30,6 +30,7 @@ export const queryKeys = {
     providers: ["ai", "providers"] as const,
     models: ["ai", "models"] as const,
     chatModelOverride: ["ai", "chat-model-override"] as const,
+    capabilityRoutes: ["ai", "capability-routes"] as const,
     capabilities: ["ai", "capability"] as const,
     capability: (capability: string) => ["ai", "capability", capability] as const,
     assistantTools: ["ai", "assistant-tools"] as const
