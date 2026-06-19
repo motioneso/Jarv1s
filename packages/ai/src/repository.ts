@@ -45,6 +45,13 @@ export interface AiProviderConfigSafeRow {
   readonly updated_at: Date;
 }
 
+declare const aiSealedCredentialBrand: unique symbol;
+
+export interface AiProviderWithSealedCredential extends AiProviderConfigSafeRow {
+  readonly [aiSealedCredentialBrand]: true;
+  readonly encrypted_credential: EncryptedAiSecret;
+}
+
 export interface AiConfiguredModelSafeRow {
   readonly id: string;
   readonly provider_config_id: string;
@@ -445,9 +452,7 @@ export class AiRepository {
   async selectProviderWithCredential(
     scopedDb: DataContextDb,
     providerId: string
-  ): Promise<
-    (AiProviderConfigSafeRow & { readonly encrypted_credential: EncryptedAiSecret }) | undefined
-  > {
+  ): Promise<AiProviderWithSealedCredential | undefined> {
     assertDataContextDb(scopedDb);
 
     return scopedDb.db
@@ -467,9 +472,7 @@ export class AiRepository {
         "encrypted_credential"
       ])
       .where("id", "=", providerId)
-      .executeTakeFirst() as Promise<
-      (AiProviderConfigSafeRow & { readonly encrypted_credential: EncryptedAiSecret }) | undefined
-    >;
+      .executeTakeFirst() as Promise<AiProviderWithSealedCredential | undefined>;
   }
 
   async listAssistantActions(scopedDb: DataContextDb): Promise<AiAssistantActionRequestSafeRow[]> {
