@@ -16,7 +16,7 @@ since the native `Agent(model:opus)` path is Claude-only. Currently-running Clau
 Gate-314, Build-237) finish as-is — do not kill warm work; only NEW spawns are Codex.
 **Relay threshold:** security-tier merge → relay immediately after Phase 3 step 7; routine/sensitive `merges_since_relay` >= 2 → relay. No deferral. Compaction summary = already past safe → relay, merge nothing.
 **merges_since_relay:** 0 (successor adopted after security-tier merge #324/#236 relay)
-**last_alive:** 2026-06-19T04:44Z (Codex coordinator `019ede31…` — adopted after #324/#236 security merge relay)
+**last_alive:** 2026-06-19T04:48Z (Codex coordinator `019ede31…` — #254 build lane spawned)
 **Gate serialization policy (2026-06-18):** run mechanical gates ~1–2 at a time. Concurrent
 `verify:foundation` runs collide on cluster-global role grants → false-RED "tuple concurrently
 updated", EVEN with isolated `JARVIS_PGDATABASE` (db:migrate grants touch shared `pg_authid`).
@@ -232,7 +232,7 @@ need a clean worktree + a pre-existing isolated DB. Per-merge digest:
 | `docs/superpowers/specs/2026-06-18-active-sessions-list-revoke.md`                  | #237  | security  | **MERGED** (squash `14793b7` @ 02:53Z, Ben sign-off). Issue closed; branch/worktrees/panes reaped.                  | — (reaped)                | —      | (deleted)                   | #315 |
 | `docs/superpowers/specs/2026-06-18-account-card-real-status.md`                     | #236  | security  | **MERGED** (squash `00c2c84` @ 04:41Z, Ben standing sign-off). Issue closed; branch/worktrees/panes reaped.         | — (reaped)                | —      | (deleted)                   | #324 |
 | `docs/superpowers/specs/2026-06-18-host-diagnostics-safe-ops.md`                    | #255  | security  | **MERGED** (squash @ 2026-06-19T00:47Z, Ben sign-off). Issue closed. **Board move to Done still TODO (successor).** | — (reaped)                | —      | (deleted)                   | #312 |
-| `docs/superpowers/specs/2026-06-18-connector-health-monitoring.md`                  | #254  | sensitive | building: handoff written; worktree created on `00c2c84`                                                            | Build-254-ConnectorHealth | —      | deploy-254-connector-health | —    |
+| `docs/superpowers/specs/2026-06-18-connector-health-monitoring.md`                  | #254  | sensitive | building: Codex agent reading handoff/skill                                                                         | Build-254-ConnectorHealth | w1:p2V | deploy-254-connector-health | —    |
 | `docs/superpowers/specs/2026-06-18-phase-2-deploy-checkpoint-final-gate.md`         | #306  | manual    | blocked: final gate after prerequisites                                                                             | —                         | —      | —                           | —    |
 
 ## Gate Fix Lane
