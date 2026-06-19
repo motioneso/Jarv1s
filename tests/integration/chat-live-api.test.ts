@@ -255,6 +255,35 @@ describe("Chat live API (turn / clear / switch / stream)", () => {
     expect(response.json<{ reply: string }>().reply).toBe("echo:hello from user b");
   });
 
+  it("GET /api/chat/threads/:id/messages returns only the owner's stored thread messages", async () => {
+    const thread = await dataContext.withDataContext(userAContext(), async (scopedDb) => {
+      const created = await repository.openNewThread(scopedDb, { title: "Historical thread" });
+      await repository.recordCompletedTurn(scopedDb, created.id, "old question", "old answer", {
+        provider: "anthropic",
+        model: "claude-live"
+      });
+      return created;
+    });
+
+    const owner = await server.inject({
+      method: "GET",
+      url: `/api/chat/threads/${thread.id}/messages`,
+      headers: { authorization: `Bearer ${ids.sessionA}` }
+    });
+    const other = await server.inject({
+      method: "GET",
+      url: `/api/chat/threads/${thread.id}/messages`,
+      headers: { authorization: `Bearer ${ids.sessionB}` }
+    });
+
+    expect(owner.statusCode).toBe(200);
+    expect(owner.json<{ messages: Array<{ body: string; role: string }> }>().messages).toEqual([
+      expect.objectContaining({ role: "user", body: "old question" }),
+      expect.objectContaining({ role: "assistant", body: "old answer" })
+    ]);
+    expect(other.statusCode).toBe(404);
+  });
+
   it("subscriptions are per-actor: user B's stream never receives user A's records", async () => {
     // Access the live runtime's manager directly via a second server instance that
     // shares the same DB but its own manager — instead, assert against the manager

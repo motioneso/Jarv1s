@@ -2,10 +2,20 @@ import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import type { Kysely } from "kysely";
 import type { PgBoss } from "pg-boss";
 
-import type { AccessContext, ChatThread, DataContextRunner, JarvisDatabase } from "@jarv1s/db";
+import type {
+  AccessContext,
+  ChatMessage,
+  ChatThread,
+  DataContextRunner,
+  JarvisDatabase
+} from "@jarv1s/db";
 import {
+  listChatThreadMessagesRouteSchema,
   listChatThreadsRouteSchema,
   listMemoryCorrectionsRouteSchema,
+  type ChatActivityEventDto,
+  type ChatMessageDto,
+  type ChatSelectedToolMetadataDto,
   type ChatThreadDto
 } from "@jarv1s/shared";
 import {
@@ -221,6 +231,28 @@ export function registerChatRoutes(
     }
   );
 
+  server.get<{ Params: { id: string } }>(
+    "/api/chat/threads/:id/messages",
+    { schema: listChatThreadMessagesRouteSchema },
+    async (request, reply) => {
+      try {
+        const access = await dependencies.resolveAccessContext(request);
+        const messages = await dependencies.dataContext.withDataContext(
+          access,
+          async (scopedDb) => {
+            const thread = await repository.getThreadById(scopedDb, request.params.id);
+            if (!thread) return null;
+            return repository.listMessages(scopedDb, thread.id);
+          }
+        );
+        if (!messages) return reply.code(404).send({ error: "Chat thread not found" });
+        return { messages: messages.map(serializeMessage) };
+      } catch (error) {
+        return handleRouteError(error, reply);
+      }
+    }
+  );
+
   // ── Memory settings ────────────────────────────────────────────────────────
 
   server.get("/api/chat/memory/settings", async (request, reply) => {
@@ -420,6 +452,65 @@ function serializeThread(thread: ChatThread): ChatThreadDto {
     createdAt: toIsoString(thread.created_at),
     updatedAt: toIsoString(thread.updated_at)
   };
+}
+
+function serializeMessage(message: ChatMessage): ChatMessageDto {
+  const toolMetadata = asRecord(message.tool_metadata);
+  return {
+    id: message.id,
+    threadId: message.thread_id,
+    ownerUserId: message.owner_user_id,
+    role: message.role,
+    status: message.status,
+    body: message.body,
+    modelRoute: null,
+    tools: readTools(toolMetadata.selectedTools),
+    activity: readActivity(toolMetadata.activity),
+    createdAt: toIsoString(message.created_at),
+    updatedAt: toIsoString(message.updated_at)
+  };
+}
+
+function asRecord(value: unknown): Record<string, unknown> {
+  return value && typeof value === "object" && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : {};
+}
+
+function readActivity(value: unknown): ChatActivityEventDto[] {
+  if (!Array.isArray(value)) return [];
+  return value.flatMap((item) => {
+    const record = asRecord(item);
+    return typeof record.kind === "string" && typeof record.text === "string"
+      ? [{ kind: record.kind, text: record.text }]
+      : [];
+  });
+}
+
+function readTools(value: unknown): ChatSelectedToolMetadataDto[] {
+  if (!Array.isArray(value)) return [];
+  return value.flatMap((item) => {
+    const record = asRecord(item);
+    const risk = record.risk;
+    if (
+      typeof record.moduleId !== "string" ||
+      typeof record.moduleName !== "string" ||
+      typeof record.name !== "string" ||
+      typeof record.permissionId !== "string" ||
+      (risk !== "read" && risk !== "write" && risk !== "destructive")
+    ) {
+      return [];
+    }
+    return [
+      {
+        moduleId: record.moduleId,
+        moduleName: record.moduleName,
+        name: record.name,
+        permissionId: record.permissionId,
+        risk
+      }
+    ];
+  });
 }
 
 function serializeSettings(s: UserMemorySettings) {
