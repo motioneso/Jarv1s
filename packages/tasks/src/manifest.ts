@@ -49,6 +49,8 @@ import {
   taskCreateExecute,
   taskCreateListExecute,
   taskCreateTagExecute,
+  taskDeleteListExecute,
+  taskDeleteTagExecute,
   taskFocusExecute,
   taskGetExecute,
   taskListExecute,
@@ -204,6 +206,35 @@ const taskTagRenameToolInputSchema = {
     listId: { type: "string" },
     tagId: { type: "string" },
     name: { type: "string" }
+  }
+} as const;
+
+const taskDeleteListToolInputSchema = {
+  type: "object",
+  additionalProperties: false,
+  required: ["listId"],
+  properties: {
+    listId: { type: "string" },
+    reassignToListId: { type: "string" }
+  }
+} as const;
+
+const taskDeleteTagToolInputSchema = {
+  type: "object",
+  additionalProperties: false,
+  required: ["listId", "tagId"],
+  properties: {
+    listId: { type: "string" },
+    tagId: { type: "string" }
+  }
+} as const;
+
+const taskDeleteToolOutputSchema = {
+  type: "object",
+  properties: {
+    summary: { type: "string" },
+    deleted: { type: "boolean" },
+    error: { type: "string" }
   }
 } as const;
 
@@ -677,6 +708,36 @@ export const tasksModuleManifest = {
       inputSchema: taskTagRenameToolInputSchema,
       outputSchema: taskTagMutationToolOutputSchema,
       execute: taskRenameTagExecute
+    },
+    {
+      name: "tasks.deleteList",
+      description: "Delete a task list owned by the active actor.",
+      permissionId: "tasks.update",
+      risk: "destructive",
+      inputSchema: taskDeleteListToolInputSchema,
+      outputSchema: taskDeleteToolOutputSchema,
+      execute: taskDeleteListExecute,
+      summarize: (input) => {
+        const listId = String(input.listId);
+        const reassignToListId =
+          typeof input.reassignToListId === "string" ? input.reassignToListId : null;
+        return reassignToListId
+          ? `Delete task list ${listId}; reassign its tasks to ${reassignToListId}.`
+          : `Delete empty task list ${listId}; non-empty lists are rejected unless reassigned.`;
+      }
+    },
+    {
+      name: "tasks.deleteTag",
+      description: "Delete a task tag owned by the active actor.",
+      permissionId: "tasks.update",
+      risk: "destructive",
+      inputSchema: taskDeleteTagToolInputSchema,
+      outputSchema: taskDeleteToolOutputSchema,
+      execute: taskDeleteTagExecute,
+      summarize: (input) =>
+        `Delete task tag ${String(input.tagId)} from list ${String(
+          input.listId
+        )}; assignments to that tag will be removed.`
     }
   ]
 } satisfies JarvisModuleManifest;

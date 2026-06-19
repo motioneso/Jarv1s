@@ -343,3 +343,28 @@ export const taskRenameTagExecute: ToolExecute = async (
   const tag = await lists.renameTag(scopedDb, listId, tagId, name);
   return { data: { summary: `Renamed tag ${tag.name}.`, tag: serializeTaskTag(tag) } };
 };
+
+export const taskDeleteListExecute: ToolExecute = async (
+  scopedDb,
+  input,
+  _ctx
+): Promise<ToolResult> => {
+  assertDataContextDb(scopedDb);
+  const { listId, reassignToListId } = input as {
+    listId: string;
+    reassignToListId?: string;
+  };
+  await lists.deleteList(scopedDb, listId, reassignToListId);
+  return { data: { summary: "Deleted task list.", deleted: true } };
+};
+
+export const taskDeleteTagExecute: ToolExecute = async (
+  scopedDb,
+  input,
+  _ctx
+): Promise<ToolResult> => {
+  assertDataContextDb(scopedDb);
+  const { listId, tagId } = input as { listId: string; tagId: string };
+  await lists.deleteTag(scopedDb, listId, tagId);
+  return { data: { summary: "Deleted task tag.", deleted: true } };
+};

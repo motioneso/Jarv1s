@@ -13,6 +13,8 @@ import { TasksRepository, tasksModuleManifest } from "@jarv1s/tasks";
 
 import { connectionStrings, ids, resetFoundationDatabase } from "./test-database.js";
 
+const tick = () => new Promise((resolve) => setTimeout(resolve, 50));
+
 describe("Tasks agency tools through AssistantToolGateway", () => {
   let appDb: Kysely<JarvisDatabase>;
   let runner: DataContextRunner;
@@ -56,6 +58,11 @@ describe("Tasks agency tools through AssistantToolGateway", () => {
       chatSessionId: `tasks-${userId}`,
       allowedToolNames: null
     });
+  }
+
+  function textData(response: Awaited<ReturnType<AssistantToolGateway["callTool"]>>) {
+    if (!response.ok) throw new Error("expected ok");
+    return JSON.parse((response.data as { text: string }).text) as Record<string, unknown>;
   }
 
   it("auto-runs non-destructive task writes without action_request", async () => {
@@ -104,5 +111,62 @@ describe("Tasks agency tools through AssistantToolGateway", () => {
       (db) => tasksRepository.getById(db, task.id)
     );
     expect(unchanged?.title).toBe("private task unchanged");
+  });
+
+  it("requires confirmation for destructive task list deletion", async () => {
+    const created = textData(
+      await gateway.callTool(tokenFor(ids.userA), "tasks.createList", {
+        name: "delete confirmation list"
+      })
+    );
+    const listId = (created.list as { id: string }).id;
+
+    const call = gateway.callTool(tokenFor(ids.userA), "tasks.deleteList", { listId });
+    await tick();
+
+    const request = emitted.find((entry) => entry.record.kind === "action_request")?.record;
+    expect(request).toMatchObject({ kind: "action_request", toolName: "tasks.deleteList" });
+    const stillThere = await runner.withDataContext(
+      { actorUserId: ids.userA, requestId: "check-list-before-confirm" },
+      (db) =>
+        db.db.selectFrom("app.task_lists").select("id").where("id", "=", listId).executeTakeFirst()
+    );
+    expect(stillThere).toBeDefined();
+
+    if (!request || request.kind !== "action_request") throw new Error("expected request");
+    await gateway.resolveActionRequest(ids.userA, request.actionRequestId, "cancelled");
+    await call;
+  });
+
+  it("requires confirmation for destructive task tag deletion", async () => {
+    const createdList = textData(
+      await gateway.callTool(tokenFor(ids.userA), "tasks.createList", {
+        name: "delete confirmation tag list"
+      })
+    );
+    const listId = (createdList.list as { id: string }).id;
+    const createdTag = textData(
+      await gateway.callTool(tokenFor(ids.userA), "tasks.createTag", {
+        listId,
+        name: "delete-confirm-tag"
+      })
+    );
+    const tagId = (createdTag.tag as { id: string }).id;
+
+    const call = gateway.callTool(tokenFor(ids.userA), "tasks.deleteTag", { listId, tagId });
+    await tick();
+
+    const request = emitted.find((entry) => entry.record.kind === "action_request")?.record;
+    expect(request).toMatchObject({ kind: "action_request", toolName: "tasks.deleteTag" });
+    const stillThere = await runner.withDataContext(
+      { actorUserId: ids.userA, requestId: "check-tag-before-confirm" },
+      (db) =>
+        db.db.selectFrom("app.task_tags").select("id").where("id", "=", tagId).executeTakeFirst()
+    );
+    expect(stillThere).toBeDefined();
+
+    if (!request || request.kind !== "action_request") throw new Error("expected request");
+    await gateway.resolveActionRequest(ids.userA, request.actionRequestId, "cancelled");
+    await call;
   });
 });
