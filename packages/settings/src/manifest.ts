@@ -166,6 +166,11 @@ export const settingsModuleManifest: JarvisModuleManifest = {
       permissionId: "settings.view"
     },
     {
+      method: "GET",
+      path: "/api/settings/me/data-export",
+      permissionId: "settings.view"
+    },
+    {
       method: "POST",
       path: "/api/onboarding/provider-check",
       permissionId: "settings.manage"
