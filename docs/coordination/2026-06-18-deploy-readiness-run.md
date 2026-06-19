@@ -1,7 +1,7 @@
 # Coordination Run — 2026-06-18-deploy-readiness
 
 **Date:** 2026-06-18
-**Coordinator lock:** label `Coordinator`, **stable anchor = Codex session id `019ede13-b12a-7c30-9ad9-5a0bcf5ca85f`** (match `agent_session.value` in `herdr pane list`; pane `w1:p2Q`, tab `w1:t7`). _Authority transferred 2026-06-19 from relaying Codex coordinator `019ede06-8606-7ff3-82e3-56679ea64161` to this Codex successor; old pane retired. Earlier: 2026-06-19 from relaying Codex coordinator `019eddce-2ab2-78f0-88b1-fa5d8295b493`; 2026-06-19 from relaying Codex coordinator `019edda0-17e4-77b0-82c9-8e35a9f6dfc8`; 2026-06-19 from relaying Codex coordinator `019edd71-d7fa-7d23-894d-c00bf8ed98ee`; 2026-06-19 from the relaying Claude coordinator (session `eaadc7f5-27f0-4128-909b-55134bba34e2`, old pane `w1:p24`); 2026-06-19 from relaying Claude coordinator `ec808db4-8b97-48fb-9130-07e7d726634b`; 2026-06-18 from relaying Codex coordinator `019edcbd-30fe-7d71-9e48-ded1258b8d98`._ Single-coordinator lock — exactly one pane labelled `Coordinator` whose session id matches this anchor holds authority for the life of the run. Pane numbers (`w…-N`) reflow on every restart/split/reap — do not trust any pane number written in this file as an identifier; resolve the pane fresh by label+session at read time. Agents escalate to the **label**; the coordinator merges only when its own pane's session id matches this recorded anchor.
+**Coordinator lock:** label `Coordinator`, **stable anchor = Codex session id `019ede31-803b-7dd1-8f59-a6a341df0c3e`** (match `agent_session.value` in `herdr pane list`; pane `w1:p2T`, tab `w1:t7`). _Authority transferred 2026-06-19 from relaying Codex coordinator `019ede13-b12a-7c30-9ad9-5a0bcf5ca85f` to this Codex successor; old pane retired. Earlier: 2026-06-19 from relaying Codex coordinator `019ede06-8606-7ff3-82e3-56679ea64161`; 2026-06-19 from relaying Codex coordinator `019eddce-2ab2-78f0-88b1-fa5d8295b493`; 2026-06-19 from relaying Codex coordinator `019edda0-17e4-77b0-82c9-8e35a9f6dfc8`; 2026-06-19 from relaying Codex coordinator `019edd71-d7fa-7d23-894d-c00bf8ed98ee`; 2026-06-19 from the relaying Claude coordinator (session `eaadc7f5-27f0-4128-909b-55134bba34e2`, old pane `w1:p24`); 2026-06-19 from relaying Claude coordinator `ec808db4-8b97-48fb-9130-07e7d726634b`; 2026-06-18 from relaying Codex coordinator `019edcbd-30fe-7d71-9e48-ded1258b8d98`._ Single-coordinator lock — exactly one pane labelled `Coordinator` whose session id matches this anchor holds authority for the life of the run. Pane numbers (`w…-N`) reflow on every restart/split/reap — do not trust any pane number written in this file as an identifier; resolve the pane fresh by label+session at read time. Agents escalate to the **label**; the coordinator merges only when its own pane's session id matches this recorded anchor.
 **Merge policy:** autonomous-after-verified-QA for `routine`/`sensitive`; **`security`-tier needs Ben's explicit merge sign-off**
 **Ben security merge instruction (2026-06-19):** Ben is stepping away for a few hours; for security
 lanes, run extra GLM 5.2 review and treat merge as approved once GLM 5.2 is GREEN and the normal
@@ -15,8 +15,8 @@ adversarial coverage (satisfies the cross-model requirement). NEW QA spawns use 
 since the native `Agent(model:opus)` path is Claude-only. Currently-running Claude lanes (Fix-313,
 Gate-314, Build-237) finish as-is — do not kill warm work; only NEW spawns are Codex.
 **Relay threshold:** security-tier merge → relay immediately after Phase 3 step 7; routine/sensitive `merges_since_relay` >= 2 → relay. No deferral. Compaction summary = already past safe → relay, merge nothing.
-**merges_since_relay:** 1 (security-tier merge #324/#236 completed; relay required immediately)
-**last_alive:** 2026-06-19T04:42Z (Codex coordinator `019ede13…` — #324/#236 merged and reaped; security merge relay now in progress)
+**merges_since_relay:** 0 (successor adopted after security-tier merge #324/#236 relay)
+**last_alive:** 2026-06-19T04:44Z (Codex coordinator `019ede31…` — adopted after #324/#236 security merge relay)
 **Gate serialization policy (2026-06-18):** run mechanical gates ~1–2 at a time. Concurrent
 `verify:foundation` runs collide on cluster-global role grants → false-RED "tuple concurrently
 updated", EVEN with isolated `JARVIS_PGDATABASE` (db:migrate grants touch shared `pg_authid`).
@@ -100,6 +100,7 @@ merge triggered relay. Next coordinator should reset `merges_since_relay` to 0, 
 per manifest order) without starting any manual #306 lane.
 
 DONE THIS SESSION (Codex `019edda0…`, adopted after #313 relay):
+
 - **#315/#237 MERGED** (squash `14793b7` @ 02:53Z, Ben sign-off). Security tier. Branch head
   `73aa1b9`; GLM 5.2 spot re-review GREEN (`#issuecomment-4748012560`); fresh Codex security QA
   GREEN (`#issuecomment-4748047908`, VF_EXIT=0, AUDIT_EXIT=0, no findings). Issue #237 had already
@@ -108,6 +109,7 @@ DONE THIS SESSION (Codex `019edda0…`, adopted after #313 relay):
   security merge triggers immediate relay.
 
 DONE THIS SESSION (Codex `019edd71…`, adopted after #314 relay):
+
 - **#313/#117 MERGED** (squash `0592fe7` @ 02:02Z, Ben sign-off). Security tier. Fresh Codex
   security re-QA on rebased HEAD `159c447`: VF_EXIT=0, AUDIT_EXIT=0, no blocking findings, verdict
   posted to PR #313 (`#issuecomment-4747694739`). Issue #117 closed with merge-ref comment; branch
@@ -117,6 +119,7 @@ DONE THIS SESSION (Codex `019edd71…`, adopted after #314 relay):
   Ben sign-off.
 
 DONE THIS SESSION (Claude `eaadc7f5…`):
+
 - Adopted authority from `ec808db4…`; closed old pane `w1:p10`; lock anchor rewritten to me.
 - **#312/#255 board → Done**: verified already Done (project 2 "Issue and Roadmap Work", auto on close).
 - **#314/#207 MERGED** (squash `b0c59ef` @ 01:09Z, Ben sign-off). Security tier. Independent review
@@ -132,6 +135,7 @@ DONE THIS SESSION (Claude `eaadc7f5…`):
   path as part of this relay flush. If still uncommitted when you read this, commit them by path.
 
 LIVE FLEET (resolve panes fresh by label; numbers reflow):
+
 - `Build-114-SecretResiduals` — Codex, pane `w1:p2G`, session `019eddd0-cf93-79a2-ac84-c8df2a9030f7`,
   worktree `.claude/worktrees/deploy-114-secret-residuals`, branch `deploy-114-secret-residuals`;
   local-ready at `27972b7`: VF_EXIT=0 (lint, format:check, file-size, typecheck, 71 unit files/434
@@ -189,6 +193,7 @@ PENDING SIGN-OFFS (all security tier, all need Ben): none currently ready. Conti
 GATE DISCIPLINE: serialize mechanical gates ~1–2 at a time; retry verify:foundation on "tuple
 concurrently updated" (cluster-global grants contention — see agentmemory `mem_mqk7fojw`); gate-runners
 need a clean worktree + a pre-existing isolated DB. Per-merge digest:
+
 - **#312 host-diagnostics (#255) → MERGED**, security, VF=0/AUDIT=0 @ b4b61e5, Ben-signed.
 - **#314 rate-limit gates (#207) → MERGED** squash `b0c59ef` @ 2026-06-19T01:09Z, security, VF=0/AUDIT=0
   on integrated result `6692f31`, Ben-signed. Issue closed; board auto-Done.
@@ -217,18 +222,18 @@ need a clean worktree + a pre-existing isolated DB. Per-merge digest:
 
 ## Queue
 
-| Spec                                                                                | Issue | Tier      | Status                                  | Agent label         | Pane   | Branch                      | PR   |
-| ----------------------------------------------------------------------------------- | ----- | --------- | --------------------------------------- | ------------------- | ------ | --------------------------- | ---- |
-| `docs/superpowers/specs/2026-06-18-otnr-p1-bootstrap-role-passwords.md`             | #117  | security  | **MERGED** (squash `0592fe7` @ 02:02Z, Ben sign-off). Issue closed; branch/worktrees/panes reaped. | — (reaped) | — | (deleted) | #313 |
-| `docs/superpowers/specs/2026-06-18-otnr-p2-secrets-vault-residuals.md`              | #114  | security  | QA RED: full gate VF=1 racer timeout; GLM GREEN; PR/issue comments posted | Build-114-SecretResiduals | w1:p2G | deploy-114-secret-residuals | #321 |
-| `docs/superpowers/specs/2026-06-18-route-local-junk-credential-rate-limit-gates.md` | #207  | security  | **MERGED** (squash `b0c59ef` @ 01:09Z, Ben sign-off). Issue closed; board Done. | — (reaped) | — | (deleted) | #314 |
-| `docs/superpowers/specs/2026-06-18-otnr-p3-ai-gateway-residual-hardening.md`        | #123  | security  | **MERGED** (squash `62f21a3` @ 03:53Z, Ben standing sign-off). Issue closed; branch/worktrees/panes reaped. | — (reaped) | — | (deleted) | #323 |
-| `docs/superpowers/specs/2026-06-18-people-access-approval-revoke-sessions.md`       | #230  | security  | **MERGED** (squash `b9e412d` @ 04:09Z, Ben standing sign-off). Issue closed; branch/worktrees/panes reaped. | — (reaped) | — | (deleted) | #322 |
-| `docs/superpowers/specs/2026-06-18-active-sessions-list-revoke.md`                  | #237  | security  | **MERGED** (squash `14793b7` @ 02:53Z, Ben sign-off). Issue closed; branch/worktrees/panes reaped. | — (reaped) | — | (deleted) | #315 |
-| `docs/superpowers/specs/2026-06-18-account-card-real-status.md`                     | #236  | security  | **MERGED** (squash `00c2c84` @ 04:41Z, Ben standing sign-off). Issue closed; branch/worktrees/panes reaped. | — (reaped) | — | (deleted) | #324 |
-| `docs/superpowers/specs/2026-06-18-host-diagnostics-safe-ops.md`                    | #255  | security  | **MERGED** (squash @ 2026-06-19T00:47Z, Ben sign-off). Issue closed. **Board move to Done still TODO (successor).** | — (reaped) | — | (deleted) | #312 |
-| `docs/superpowers/specs/2026-06-18-connector-health-monitoring.md`                  | #254  | sensitive | queued: held for green main             | —                   | —      | —                           | —    |
-| `docs/superpowers/specs/2026-06-18-phase-2-deploy-checkpoint-final-gate.md`         | #306  | manual    | blocked: final gate after prerequisites | —                   | —      | —                           | —    |
+| Spec                                                                                | Issue | Tier      | Status                                                                                                              | Agent label               | Pane   | Branch                      | PR   |
+| ----------------------------------------------------------------------------------- | ----- | --------- | ------------------------------------------------------------------------------------------------------------------- | ------------------------- | ------ | --------------------------- | ---- |
+| `docs/superpowers/specs/2026-06-18-otnr-p1-bootstrap-role-passwords.md`             | #117  | security  | **MERGED** (squash `0592fe7` @ 02:02Z, Ben sign-off). Issue closed; branch/worktrees/panes reaped.                  | — (reaped)                | —      | (deleted)                   | #313 |
+| `docs/superpowers/specs/2026-06-18-otnr-p2-secrets-vault-residuals.md`              | #114  | security  | QA RED: full gate VF=1 racer timeout; GLM GREEN; PR/issue comments posted                                           | Build-114-SecretResiduals | w1:p2G | deploy-114-secret-residuals | #321 |
+| `docs/superpowers/specs/2026-06-18-route-local-junk-credential-rate-limit-gates.md` | #207  | security  | **MERGED** (squash `b0c59ef` @ 01:09Z, Ben sign-off). Issue closed; board Done.                                     | — (reaped)                | —      | (deleted)                   | #314 |
+| `docs/superpowers/specs/2026-06-18-otnr-p3-ai-gateway-residual-hardening.md`        | #123  | security  | **MERGED** (squash `62f21a3` @ 03:53Z, Ben standing sign-off). Issue closed; branch/worktrees/panes reaped.         | — (reaped)                | —      | (deleted)                   | #323 |
+| `docs/superpowers/specs/2026-06-18-people-access-approval-revoke-sessions.md`       | #230  | security  | **MERGED** (squash `b9e412d` @ 04:09Z, Ben standing sign-off). Issue closed; branch/worktrees/panes reaped.         | — (reaped)                | —      | (deleted)                   | #322 |
+| `docs/superpowers/specs/2026-06-18-active-sessions-list-revoke.md`                  | #237  | security  | **MERGED** (squash `14793b7` @ 02:53Z, Ben sign-off). Issue closed; branch/worktrees/panes reaped.                  | — (reaped)                | —      | (deleted)                   | #315 |
+| `docs/superpowers/specs/2026-06-18-account-card-real-status.md`                     | #236  | security  | **MERGED** (squash `00c2c84` @ 04:41Z, Ben standing sign-off). Issue closed; branch/worktrees/panes reaped.         | — (reaped)                | —      | (deleted)                   | #324 |
+| `docs/superpowers/specs/2026-06-18-host-diagnostics-safe-ops.md`                    | #255  | security  | **MERGED** (squash @ 2026-06-19T00:47Z, Ben sign-off). Issue closed. **Board move to Done still TODO (successor).** | — (reaped)                | —      | (deleted)                   | #312 |
+| `docs/superpowers/specs/2026-06-18-connector-health-monitoring.md`                  | #254  | sensitive | building: handoff written; worktree created on `00c2c84`                                                            | Build-254-ConnectorHealth | —      | deploy-254-connector-health | —    |
+| `docs/superpowers/specs/2026-06-18-phase-2-deploy-checkpoint-final-gate.md`         | #306  | manual    | blocked: final gate after prerequisites                                                                             | —                         | —      | —                           | —    |
 
 ## Gate Fix Lane
 
@@ -271,7 +276,7 @@ No waivers.
       (VF_EXIT=0, AUDIT_EXIT=0, no blocking findings, merge-ready). Ben sign-off received 2026-06-19.
       Because #314 landed after that verdict, coordinator rebased #313 onto current `origin/main`
       (`b0c59ef`) as HEAD `159c447`, pushed it, and `pnpm vitest run
-      tests/unit/role-bootstrap.test.ts` passed 7/7. Fresh Codex re-QA GREEN (VF_EXIT=0/AUDIT_EXIT=0,
+  tests/unit/role-bootstrap.test.ts` passed 7/7. Fresh Codex re-QA GREEN (VF_EXIT=0/AUDIT_EXIT=0,
       no blocking findings). **MERGED** squash `0592fe7`; issue #117 closed; panes/worktrees reaped.
 - [x] #314 security QA review **CLEAN**; clean re-gate GREEN on integrated result (`6692f31`, VF=0/AUDIT=0).
       **MERGED** squash `b0c59ef` @ 01:09Z with Ben sign-off; issue #207 closed + board Done; Gate-314 reaped.
