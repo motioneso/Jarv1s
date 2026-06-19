@@ -10,6 +10,7 @@ import {
 const member = (input: Partial<AdminUserActionPolicyUser> = {}): AdminUserActionPolicyUser => ({
   id: "user-1",
   email: "user@example.test",
+  emailVerified: false,
   name: "User",
   isInstanceAdmin: false,
   status: "active",

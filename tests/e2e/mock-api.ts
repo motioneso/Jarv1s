@@ -97,6 +97,7 @@ const meResponse: MeResponse = {
   user: {
     id: "user-1",
     email: "owner@example.test",
+    emailVerified: false,
     name: "Owner User",
     isInstanceAdmin: true,
     status: "active" as const,
@@ -655,6 +656,7 @@ export function createMockUser(
   return {
     id,
     email,
+    emailVerified: false,
     name,
     isInstanceAdmin: false,
     status: "active",
