@@ -135,8 +135,8 @@ export function ProfilePane({ me }: PaneProps) {
           name="Email"
           desc={user.email}
           control={
-            <Badge tone="pine" dot>
-              Verified
+            <Badge tone={user.emailVerified ? "pine" : "amber"} dot>
+              {user.emailVerified ? "Verified" : "Not verified"}
             </Badge>
           }
         />
@@ -151,7 +151,11 @@ export function ProfilePane({ me }: PaneProps) {
           }
           control={<Badge tone="neutral">{role}</Badge>}
         />
-        <Row name="Security" desc="Password and two-factor authentication." coming />
+        <Row
+          name="Sign-in security"
+          desc="Managed by the configured auth provider and current sign-in method. Active sessions are listed below."
+          control={<Badge tone="neutral">Provider managed</Badge>}
+        />
       </Group>
 
       <Sessions />

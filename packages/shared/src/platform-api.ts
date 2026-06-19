@@ -3,6 +3,7 @@ import { errorResponseSchema } from "./schema-fragments.js";
 export interface UserDto {
   readonly id: string;
   readonly email: string;
+  readonly emailVerified: boolean;
   readonly name: string;
   readonly isInstanceAdmin: boolean;
   readonly status: "pending" | "active" | "deactivated";
@@ -81,7 +82,6 @@ export interface PatchMeProfileRequest {
 }
 
 export type MeSessionDeviceKind = "laptop" | "desktop" | "phone" | "tablet";
-
 /**
  * Safe metadata for one of the current user's active sessions. NEVER carries the
  * session token, cookie value, bearer secret, or any token fingerprint (#237).
@@ -223,6 +223,7 @@ const userSchema = {
   required: [
     "id",
     "email",
+    "emailVerified",
     "name",
     "isInstanceAdmin",
     "status",
@@ -233,6 +234,7 @@ const userSchema = {
   properties: {
     id: { type: "string" },
     email: { type: "string" },
+    emailVerified: { type: "boolean" },
     name: { type: "string" },
     isInstanceAdmin: { type: "boolean" },
     status: { type: "string", enum: ["pending", "active", "deactivated"] },
