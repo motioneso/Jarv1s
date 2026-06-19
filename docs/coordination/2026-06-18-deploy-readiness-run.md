@@ -1,13 +1,17 @@
 # Coordination Run — 2026-06-18-deploy-readiness
 
 **Date:** 2026-06-18
-**Coordinator lock:** label `Coordinator`, **stable anchor = Codex session id `019edcbd-30fe-7d71-9e48-ded1258b8d98`** (match `agent_session.value` in `herdr pane list`). Single-coordinator lock — exactly one pane labelled `Coordinator` whose session id matches this anchor holds authority for the life of the run. Pane numbers (`w…-N`) reflow on every restart/split/reap — do not trust any pane number written in this file as an identifier; resolve the pane fresh by label+session at read time. Agents escalate to the **label**; the coordinator merges only when its own pane's session id matches this recorded anchor.
+**Coordinator lock:** label `Coordinator`, **stable anchor = Claude session id `ec808db4-8b97-48fb-9130-07e7d726634b`** (match `agent_session.value` in `herdr pane list`; pane `w1:p10`, tab `w1:t7`). _Authority transferred 2026-06-18 from the relaying Codex coordinator (session `019edcbd-30fe-7d71-9e48-ded1258b8d98`, old pane `w1:p1J`) to this Claude successor; old pane retired._ Single-coordinator lock — exactly one pane labelled `Coordinator` whose session id matches this anchor holds authority for the life of the run. Pane numbers (`w…-N`) reflow on every restart/split/reap — do not trust any pane number written in this file as an identifier; resolve the pane fresh by label+session at read time. Agents escalate to the **label**; the coordinator merges only when its own pane's session id matches this recorded anchor.
 **Merge policy:** autonomous-after-verified-QA for `routine`/`sensitive`; **`security`-tier needs Ben's explicit merge sign-off**
 **Relay threshold:** security-tier merge → relay immediately after Phase 3 step 7; routine/sensitive `merges_since_relay` >= 2 → relay. No deferral. Compaction summary = already past safe → relay, merge nothing.
 **merges_since_relay:** 0
-**Continuation note:** Codex coordinator is relaying at `5h 10% left`. Successor should adopt the
-live fleet, use Claude for new build/QA agents until Codex's 5-hour window resets, and continue with
-security QA/sign-off for PRs #312, #313, #314, #315 before merging anything.
+**last_alive:** 2026-06-19T00:30Z (Claude coordinator `ec808db4…`)
+**ci_status:** unavailable — `gh pr checks` reports no checks on deploy branches (GitHub Actions not the gate this run); judge merge-readiness off local CI-equivalent evidence per Ben's standing approval; security tier still needs per-merge Ben sign-off.
+**Continuation note:** Claude coordinator (`ec808db4…`) adopted the run 2026-06-18 from the relaying
+Codex coordinator. Live fleet adopted: QA-313 (`w1:p1V`), QA-314 (`w1:p1Y`), QA-315 (`w1:p1Z`) all
+codex/working; Build-237 (`w1:p1S`) done/standing-by. **Use Claude for any NEW build/QA agents until
+the Codex 5-hour window resets.** Pending security work: #312 needs `gh pr checks`/comment/Ben sign-off;
+#313/#314/#315 QA in flight (CI-unavailable local mode). No security-tier merge without Ben sign-off.
 
 > Coordinator memory for the deploy-readiness RFA queue in
 > `docs/coordination/2026-06-18-deploy-readiness-rfa-order.md`. GitHub is source of truth for
@@ -35,14 +39,14 @@ security QA/sign-off for PRs #312, #313, #314, #315 before merging anything.
 
 | Spec                                                                                | Issue | Tier      | Status                                  | Agent label         | Pane   | Branch                      | PR   |
 | ----------------------------------------------------------------------------------- | ----- | --------- | --------------------------------------- | ------------------- | ------ | --------------------------- | ---- |
-| `docs/superpowers/specs/2026-06-18-otnr-p1-bootstrap-role-passwords.md`             | #117  | security  | qa                                      | Build-117-RolePw    | w1:p1Q | deploy-117-role-passwords   | #313 |
+| `docs/superpowers/specs/2026-06-18-otnr-p1-bootstrap-role-passwords.md`             | #117  | security  | qa-RED: fix lane re-opened (decode bug) | Fix-313-RolePw      | (spawning) | deploy-117-role-passwords | #313 |
 | `docs/superpowers/specs/2026-06-18-otnr-p2-secrets-vault-residuals.md`              | #114  | security  | queued: held for green gate             | —                   | —      | —                           | —    |
 | `docs/superpowers/specs/2026-06-18-route-local-junk-credential-rate-limit-gates.md` | #207  | security  | qa                                      | Build-207-RateLimit | w1:p1R | deploy-207-rate-limit       | #314 |
 | `docs/superpowers/specs/2026-06-18-otnr-p3-ai-gateway-residual-hardening.md`        | #123  | security  | queued: held for green gate             | —                   | —      | —                           | —    |
 | `docs/superpowers/specs/2026-06-18-people-access-approval-revoke-sessions.md`       | #230  | security  | queued: held for green gate             | —                   | —      | —                           | —    |
 | `docs/superpowers/specs/2026-06-18-active-sessions-list-revoke.md`                  | #237  | security  | qa                                      | Build-237-Sessions  | w1:p1S | deploy-237-active-sessions  | #315 |
 | `docs/superpowers/specs/2026-06-18-account-card-real-status.md`                     | #236  | security  | queued: held for green gate             | —                   | —      | —                           | —    |
-| `docs/superpowers/specs/2026-06-18-host-diagnostics-safe-ops.md`                    | #255  | security  | awaiting-ci-comment-signoff             | Build-255-HostDiag  | w1:p1P | deploy-255-host-diagnostics | #312 |
+| `docs/superpowers/specs/2026-06-18-host-diagnostics-safe-ops.md`                    | #255  | security  | GREEN verdict posted to PR; needs CI-equiv gate-runner + Ben sign-off | Build-255-HostDiag (reaped) | — | deploy-255-host-diagnostics | #312 |
 | `docs/superpowers/specs/2026-06-18-connector-health-monitoring.md`                  | #254  | sensitive | queued: held for green main             | —                   | —      | —                           | —    |
 | `docs/superpowers/specs/2026-06-18-phase-2-deploy-checkpoint-final-gate.md`         | #306  | manual    | blocked: final gate after prerequisites | —                   | —      | —                           | —    |
 
@@ -75,11 +79,16 @@ No waivers.
 - [x] Briefing integration timeout gate investigated. Root cause was shared `jarv1s` DB contention
       with a live `dev:worker`; `JARVIS_PGDATABASE=jarv1s_gatefix pnpm test:briefings` passed 5x.
       Feature lanes must use isolated `JARVIS_PGDATABASE` values.
-- [ ] #312 security QA returned GREEN, but GitHub API is unreachable from QA and coordinator. Before
-      merge: confirm `gh pr checks 312`, post `.claude/worktrees/qa-312-host-diagnostics/.qa-verdict-pr312.md`
-      to PR #312, then request Ben security-tier merge sign-off.
-- [ ] #313 security QA running in `QA-313-RolePw` (`w1:p1V`); `gh pr checks 313` reported no checks,
-      so QA is using CI-unavailable local-verification mode.
+- [x] #312 security QA GREEN verdict posted to PR #312 (`#issuecomment-4747231184`) by Claude
+      coordinator now that `gh` is reachable; `gh pr checks 312` = no checks (CI-unavailable).
+      REMAINING before merge: (a) spawn a CI-equivalent gate-runner to produce GREEN
+      `verify:foundation`+`audit:release-hardening` on the #312 merge result (QA did not run the
+      mechanical gate locally), then (b) Ben's explicit security-tier merge sign-off.
+- [ ] #313 security QA returned **RED** (`#issuecomment-4747228352`, grounded `3ca0767`). Blocking:
+      `role-bootstrap.ts:51` percent-encoded password vs pg-decoded runtime connect. Fix lane
+      re-opened as `Fix-313-RolePw` (Claude) in `deploy-117-role-passwords` per
+      `docs/coordination/handoffs/2026-06-18-fix313-role-password-decode.md`. Re-QA after fix.
+      (Failure budget: 1 of 2 used on this lane.)
 - [ ] #314 security QA running in `QA-314-RateLimit` (`w1:p1Y`); `gh pr checks 314` reported no
       checks, so QA is using CI-unavailable local-verification mode.
 - [ ] #315 security QA running in `QA-315-Sessions` (`w1:p1Z`); `gh pr checks 315` reported no
@@ -96,3 +105,8 @@ No waivers.
 - `Build-117-RolePw` (`w1:p1Q`) — reaped after PR #313 done report; worktree retained until merge.
 - `Build-207-RateLimit` (`w1:p1R`) — reaped after PR #314 done report; worktree retained until
   merge.
+- `QA-313-RolePw` (`w1:p1V`) — reaped 2026-06-18 after RED verdict posted to PR #313; QA worktree
+  `.claude/worktrees/qa-313-role-passwords` removal hit a permission error (codex-owned files), left
+  in place for later cleanup.
+- Codex coordinator (`019edcbd…`, old pane `w1:p1J`) — closed 2026-06-18 after authority transfer to
+  Claude coordinator `ec808db4…`.
