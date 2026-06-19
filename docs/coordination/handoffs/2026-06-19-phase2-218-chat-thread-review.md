@@ -3,7 +3,7 @@
 **Spec (approved):** GitHub issue #218 (RFA) + parent chat specs `docs/superpowers/specs/2026-06-08-jarvis-chat-design.md` and `docs/superpowers/specs/2026-06-12-p2-portable-cli-chat-adapter-design.md`
 **GitHub issue:** #218
 **Risk tier:** `security` (private chat history read endpoint / cross-user data boundary)
-**Worktree:** `/home/ben/Jarv1s/.claude/worktrees/phase2-218-chat-thread-review`   **Branch:** `phase2-218-chat-thread-review`
+**Worktree:** `/home/ben/Jarv1s/.claude/worktrees/phase2-218-chat-thread-review` **Branch:** `phase2-218-chat-thread-review`
 **Build skill path (absolute):** `/home/ben/Jarv1s/.claude/skills/coordinated-build/SKILL.md`
 **Coordinator label:** `Coordinator`
 **Coordinator session id:** `019eded5-78ca-7251-adad-3e587178792c`
