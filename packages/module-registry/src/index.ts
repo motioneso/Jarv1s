@@ -358,6 +358,7 @@ const BUILT_IN_MODULES: readonly BuiltInModuleRegistration[] = [
     queueDefinitions: CHAT_QUEUE_DEFINITIONS,
     registerRoutes: (server, deps) =>
       registerChatRoutes(server, {
+        rootDb: deps.rootDb,
         resolveAccessContext: deps.resolveAccessContext,
         dataContext: deps.dataContext,
         chatEngineFactory: deps.chatEngineFactory,

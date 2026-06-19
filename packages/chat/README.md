@@ -28,6 +28,12 @@ forward-compatibility hooks for that work.
 
 See `docs/superpowers/specs/2026-06-12-p2-portable-cli-chat-adapter-design.md` §8.
 
+## Assistant action restart cleanup
+
+Pending write/destructive tool approvals are in-memory waits. On API startup, Jarv1s cancels
+pending action requests older than the startup grace window so a restart leaves visible terminal
+`cancelled` rows instead of approvals that can never resume. Fresh pending rows stay pending.
+
 ## Deferred — agent-path PreToolUse policy
 
 A Claude Code `PreToolUse` hook (deny any tool call that is not an allowlisted `mcp__jarvis__*` call),
