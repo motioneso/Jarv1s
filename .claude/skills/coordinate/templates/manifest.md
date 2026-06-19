@@ -5,6 +5,8 @@
 **Merge policy:** autonomous-after-verified-QA for `routine`/`sensitive`; **`security`-tier needs Ben's explicit merge sign-off**
 **Relay threshold:** security-tier merge → relay immediately after Phase 3 step 7; routine/sensitive `merges_since_relay` ≥ 2 → relay. No deferral. Compaction summary = already past safe → relay, merge nothing.
 **merges_since_relay:** 0
+**last_alive:** <UTC ts — coordinator stamps this every supervise loop; a watcher uses it + a dead session id to detect ungraceful death and transfer the lock (see `coordinate` Phase 0a step 4)>
+**ci_status:** `available` (trust `gh pr checks`) | `unavailable` (Actions down — reason + date; full local CI-equivalent gate-runner + Ben standing approval required — see `coordinate` CI-unavailable mode)
 
 > This is the coordinator's externalized memory. Keep it CURRENT — it is what lets a fresh
 > coordinator adopt this run after a self-handoff. GitHub is the source of truth for
@@ -20,10 +22,14 @@ Risk tier (content triggers, set at Phase 0 — see `coordinate` Risk tiering):
 - `routine` — no schema/auth/secret surface → auto-merge after green QA.
 - `sensitive` — shared-table migration / cross-module contract / export-delete / job-payload shape → auto-merge + Ben digest.
 - `security` — auth/sessions/tokens/RLS/secrets/rate-limit/network-exposed/policy migration → cross-model Opus QA + `gh pr comment` verdict + **Ben merge sign-off**.
+- `manual` — no code to build (human-acceptance / deploy-checkpoint) → **no build agent spawned**; Ben-owned acceptance gate; coordinator bookkeeps only.
+- **Blast-radius bump:** a `routine` diff hitting a high-fan-in shared surface (shared component/util, `packages/shared/*` contract, collision-flagged file) verifies at `sensitive` depth. Note the bump + reason here.
 
 Status vocabulary: `queued` → `building` → `awaiting-plan-approval` → `blocked` →
 `pr-open` → `qa` → `qa-failed`/`rework` → `awaiting-ben-signoff` (security) → `merged`
-(or `handed-off` when relayed to a fresh session).
+(or `handed-off` when relayed to a fresh session). A `manual`-tier item uses `acceptance`
+(Ben-owned, no agent). A `: <reason>` qualifier is allowed on held states (e.g.
+`queued: held for green gate`).
 
 ## Dependency / merge order
 

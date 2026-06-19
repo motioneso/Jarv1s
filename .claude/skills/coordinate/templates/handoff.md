@@ -7,7 +7,7 @@
 **Build skill path (absolute):** <repo>/.claude/skills/coordinated-build/SKILL.md   (use this exact path if `coordinated-build` does not resolve by name in your spawn env)
 **Coordinator label:** `Coordinator`   (UNIQUE — escalate via `herdr-pane-message`; before messaging, verify `herdr pane list` shows EXACTLY ONE pane with this label. Never guess or reuse a `…-N` pane-id — they reflow when any pane opens/closes; re-resolve the live pane by label from `herdr pane list` each time.)
 **Coordinator session id:** `<agent_session.value>`   (the immutable authority for this coordinator — label is routing, the `…-N` number is ephemeral. Confirm this session id is still live before relying on the coordinator; it survives pane renumbering.)
-**Relay threshold:** countable events — ~80–100k tokens OR a compaction summary in your own context (then relay immediately).
+**Relay threshold:** observable, not felt — `herdr pane read "$HERDR_PANE_ID" --source visible --lines 5` on your OWN pane and relay when its context/usage indicator (% bar, token count, or "context left" — whatever your CLI renders) shows ~⅔–¾ consumed, OR after plan-approval + ~5–8 committed tasks, OR immediately on a compaction summary in your own context.
 
 ## Start
 
@@ -24,15 +24,16 @@
 ## Your compact (non-negotiable)
 
 - Work **only** in this worktree/branch. Commit green per task; `git add` only that task's files
-  (`Co-Authored-By: Claude Sonnet 4.6`).
+  (`Co-Authored-By: <the model you are running as>` — match your real model, never a hardcoded one).
 - Plan approval comes from the **coordinator**, not a human gate. Do not write code before it.
 - **Escalate to coordinator label `<X>`** the moment you hit: a blocker, a plan ready for
   approval, a design fork outside this spec, a review request, or done.
 - **Never touch** the project board, milestones, or merge — those are the coordinator's.
-- **Self-monitor your context on countable events**, not a felt %. At ~80–100k tokens, or the
-  moment you see a compaction summary in your own context: message the coordinator, then use the
-  **`relay`** skill — write a continuation handoff, `herdr-handoff` your successor, and let the
-  coordinator reap you.
+- **Self-monitor your context by reading your OWN pane**, not a felt %. Periodically
+  `herdr pane read "$HERDR_PANE_ID" --source visible --lines 5`; relay when its context indicator
+  shows ~⅔–¾ consumed (or after plan-approval + ~5–8 tasks, or the moment you see a compaction
+  summary): message the coordinator, then use the **`relay`** skill — write a continuation handoff,
+  `herdr-handoff` your successor, and let the coordinator reap you.
 - Honor every CLAUDE.md Hard Invariant. No secrets in any doc, payload, log, or prompt.
 - **Caveman mode** for all status/escalations to the coordinator (terse, no filler, full technical
   accuracy — saves tokens). Commit messages, PR bodies, and code stay normal/conventional.

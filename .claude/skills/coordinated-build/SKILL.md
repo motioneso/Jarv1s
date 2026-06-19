@@ -56,16 +56,24 @@ This is the `start` skill's plan+build stages adapted for coordination mode.
   message; the coordinator routes it. If the coordinator approves, proceed.
 
 **2. Build (only after coordinator approval).**
-- Execute the plan with **`superpowers:test-driven-development`**. Each task commits green with
-  the `Co-Authored-By: Claude Sonnet 4.6` trailer; `git add` only that task's files.
+- Execute the plan with **`superpowers:test-driven-development`**. Each task commits green with a
+  `Co-Authored-By: <the model you are running as>` trailer (e.g. `Claude Sonnet 4.6`, `Claude Opus
+  4.8`, or your Codex model — match your real model, never a hardcoded one); `git add` only that
+  task's files.
 - The superpowers *execution* skills (`executing-plans`, `subagent-driven-development`) are
   disabled in this repo by design — drive the plan yourself, task by task.
 - **Escalate immediately** (don't burn turns spinning) if you hit a real blocker — a failing
   invariant, an ambiguous requirement, a missing dependency, a flaky gate you can't resolve.
   Message the coordinator with the specific question.
 
-**3. Self-monitor context on countable events.** Relay at **~80–100k tokens**, or **immediately**
-if you see a compaction summary in your own context (don't trust felt %). Message the coordinator
+**3. Self-monitor context — read your OWN pane, don't guess.** Felt % is unreliable and a raw token
+count isn't reliably visible to you, but you run in a Herdr pane whose status line shows your CLI's
+own context/usage indicator (a `%` bar, a token count, or a "context left" figure — whatever your
+runtime renders; works for Claude, Codex, or any CLI). So periodically read your own pane:
+`herdr pane read "$HERDR_PANE_ID" --source visible --lines 5`, and relay when that indicator shows
+roughly **two-thirds to three-quarters of context consumed**, OR after a countable proxy
+(**plan-approval + ~5–8 committed TDD tasks**, whichever you hit first), OR **immediately** if you
+ever see a compaction summary in your own context. When a trigger fires: message the coordinator
 that you're relaying, then use the **`relay`** skill (commit work, write a continuation doc, spawn
 your successor in this same worktree, request reap). Relay early enough to write a clean handoff.
 
@@ -90,8 +98,9 @@ merge, board, and close.
 - About to **decide a product/architecture fork** yourself → that's the coordinator's (or Ben's)
   call. Escalate.
 - About to **move the board / close an issue / merge** → not yours. Report to the coordinator.
-- About to push past your relay threshold (~80–100k / compaction summary seen) without relaying →
-  you'll degrade and lose state. Relay now.
+- About to push past your relay threshold (own-pane context indicator ~⅔–¾ consumed / ~5–8 tasks
+  since plan-approval / compaction summary seen) without relaying → you'll degrade and lose state.
+  Relay now.
 - About to push **without the pre-push trio** (`format:check && lint && typecheck`) + fresh rebase →
   you'll burn a CI round-trip. Run them first.
 

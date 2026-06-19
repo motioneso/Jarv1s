@@ -21,8 +21,10 @@ and updates GitHub.
 ```bash
 git status --porcelain
 ```
-Commit your remaining green work by **explicit path** (`Co-Authored-By: Claude Sonnet 4.6`). If a
-linter/Prettier reformatted files, `pnpm format` then commit — `format:check` is part of the gate.
+Commit your remaining green work by **explicit path** (`Co-Authored-By: <the model you are running
+as>` — match your real model, e.g. `Claude Sonnet 4.6` / `Claude Opus 4.8` / your Codex model, never
+a hardcoded one). If a linter/Prettier reformatted files, `pnpm format` then commit — `format:check`
+is part of the gate.
 You have your own worktree, but still stage by path; never `git add -A` reflexively.
 
 ### 2. Your own green gate — verified, not assumed

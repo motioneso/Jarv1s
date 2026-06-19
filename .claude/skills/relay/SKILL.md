@@ -21,8 +21,15 @@ This is a self-handoff of YOUR work. Distinct from:
 
 Self-perceived context % is known-unreliable, so trigger on things you can **count or see**:
 
-- **Build agent:** ~**80–100k tokens** consumed.
-- **Coordinator:** ~**80–100k tokens** consumed **OR every 2–3 merges**, whichever comes first.
+- **Build agent:** read your **own Herdr pane**
+  (`herdr pane read "$HERDR_PANE_ID" --source visible --lines 5`) and relay when its context/usage
+  indicator (a `%` bar, token count, or "context left" figure — whatever your CLI renders; Claude,
+  Codex, or any runtime) shows roughly **two-thirds to three-quarters consumed**, OR after a
+  countable proxy (**plan-approval + ~5–8 committed tasks**) — whichever comes first. The status
+  line shows your real context; don't guess a token count.
+- **Coordinator:** the **merge counter** is the operative trigger (token counts aren't reliably
+  visible to the resident loop) — relay after **every security-tier merge** and after **every 2
+  routine/sensitive merges** (`merges_since_relay` in the manifest). No ranges, no deferral.
 - **Either — compaction tripwire:** the instant you see a **compaction summary** in your own
   context (the harness compacted your prior messages), you are already past safe. Relay
   **immediately**. **Coordinator: merge nothing first** — flush the manifest and hand off before
@@ -96,7 +103,8 @@ should be reading the doc / re-adopting, not stuck on a trust prompt). Answer an
 - **Relaying with state still in your head.** If it isn't committed/written, the successor can't
   see it. Durable doc FIRST, spawn SECOND.
 - **Relaying too late.** If you wait for felt degradation you can't write a clean continuation.
-  Relay on the countable trigger (~80–100k / 2–3 merges / compaction summary seen).
+  Relay on the observable trigger (own-pane context ~⅔–¾ consumed / security merge or 2
+  routine-sensitive merges / compaction summary seen).
 - **Re-running `pnpm install` in the successor.** The worktree already has `node_modules` — guard it.
 - **Walking away before the successor is confirmed driving.** Always `herdr pane read` it first.
 - **Two sessions live on the same work.** The reap must happen — don't leave the spent session

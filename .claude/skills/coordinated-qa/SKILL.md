@@ -47,6 +47,14 @@ gh pr checks <PR>          # required checks pass/fail
 - A red check is **stop-the-line** unless waivable per the coordinator's CI-waiver protocol (proven
   red on `main` @ same SHA + recorded + Ben-approved) — that's the coordinator's call, not yours.
   Report it red.
+- **CI-unavailable mode (Actions structurally down).** If the manifest declares `ci_status:
+  unavailable` (or `gh pr checks` shows no required checks ran at all — billing-blocked / disabled),
+  there is no CI truth to trust: run the **FULL** local CI-equivalent yourself
+  (`pnpm verify:foundation` + `pnpm audit:release-hardening`, plus `build:web` / `test:e2e` /
+  compose smoke for deploy-touching specs), capture real exit codes (file + `$?`, never piped to
+  `tail`/`grep`), and `gh pr comment` them with the SHA. This is the one time you DO run the full
+  gate — the "trust CI, don't re-run" rule assumes CI actually ran. A structural outage is NOT a
+  per-check waiver; don't wave it through as green.
 
 **3. Review the diff (where your tokens go).** Against `main`:
 ```bash
@@ -116,6 +124,7 @@ start new work, don't merge, don't touch the board — verdict only.
 | Need | Command / skill |
 | ---- | --------------- |
 | Gate (trust CI) | `gh pr checks <PR>` — reproduce locally ONLY if red |
+| Gate (CI down) | manifest `ci_status: unavailable` → run FULL local CI-equivalent + `gh pr comment` exit codes |
 | Diff vs main | `git fetch origin main && git diff --stat origin/main...HEAD` |
 | Reviews | `/code-review` (all tiers) · `/security-review` + "what's NOT tested" (security tier) |
 | Post verdict to PR | `gh pr comment <PR> --body "<compact block>"` (always; mandatory for security) |

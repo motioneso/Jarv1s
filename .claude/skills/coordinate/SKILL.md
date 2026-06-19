@@ -95,6 +95,19 @@ handoff doc. The tier decides how hard the PR is verified and whether Ben must s
 Tiering is mechanical: if a trigger word/surface appears in the spec or its diff, it IS that tier —
 no "it's probably fine" downgrade. When in doubt between two tiers, take the higher one.
 
+**Blast-radius bump (coupling, not just security surface).** Content triggers see security surface,
+not coupling — so a `routine` change to a heavily-shared file would auto-merge on Sonnet
+`/code-review` alone even if dozens of modules import it. Bump verification one notch (`routine` →
+`sensitive` QA depth) when the diff touches a **high-fan-in shared surface**: a shared
+component/util imported by many call sites, a `packages/shared/*` contract, or a file already
+flagged for collision in the dependency map. This raises QA depth only; it does NOT relax the
+`security`-tier human gate. Note the bump and its reason in the manifest.
+
+**`manual` tier (no code to build).** A queued item with no code — a human-acceptance or
+deploy-checkpoint gate (e.g. a "final gate" spec) — is tiered `manual`: **no build agent is
+spawned**, it stays in the queue as a Ben-owned acceptance gate, and the coordinator only bookkeeps
+it. Never spawn a build/QA agent on a `manual` item.
+
 ## Security-tier sign-off (first-class gate — Ben merges these)
 
 A `security`-tier PR is **never** auto-merged. Content triggers (not coordinator judgment) put it
@@ -110,6 +123,31 @@ here, and the human is front-loaded **only** here:
 `routine` auto-merges after a green QA; `sensitive` auto-merges but ships Ben a per-merge digest.
 Maintain a **standing per-merge digest to Ben** (what landed, PR link, tier, verified exit codes)
 so the human has a continuous picture without being a gate on routine work.
+
+## CI-unavailable mode (when GitHub Actions is not the gate)
+
+`coordinated-qa` trusts `gh pr checks` for the mechanical gate precisely so nobody re-runs it. That
+assumption breaks when CI is **structurally down** (Actions billing-blocked, runners offline, repo
+checks disabled) — a different failure from the per-check `ci_waivers` path, which is for ONE check
+proven red on `main`. Do not stretch the waiver protocol over a full outage. Instead declare it in
+the manifest (`ci_status: unavailable` + reason + date), and:
+
+1. **A dedicated gate-runner agent runs the gate, never the coordinator.** Spawn an ephemeral agent
+   (same shape as QA) to run the FULL local CI-equivalent on the PR's merge result —
+   `pnpm verify:foundation` + `pnpm audit:release-hardening` (and `build:web` / `test:e2e` / compose
+   smoke for deploy-touching specs) — capturing real exit codes (file + `$?`, never piped to
+   `tail`/`grep`). It records `VF_EXIT` / `AUDIT_EXIT` + the SHA, posts them via `gh pr comment`, and
+   is reaped. The coordinator consumes exit codes only, never logs.
+2. **Record the evidence in the manifest** under `ci_status` (which gate ran, exit codes, SHA, the
+   agent + comment URL). This is the durable substitute for the missing CI run; it must survive your
+   relay.
+3. **Ben approves the CI-equivalent gating policy once per run** (as on 2026-06-18). With that
+   standing approval, a GREEN local CI-equivalent + the normal tier rules (security still needs his
+   per-merge sign-off) authorize a merge. Without it, do not merge.
+4. **Red Actions are not a product failure in this mode** — note it once in the manifest and judge
+   merge-readiness off the local CI-equivalent evidence, not the billing-blocked check.
+
+When CI comes back, set `ci_status: available` and revert to trusting `gh pr checks`.
 
 ## Phase 0a — Claim the single-coordinator lock (FIRST, before anything)
 
@@ -133,6 +171,17 @@ a stale `Coordinator`-labelled pane woke on an agent's escalation and ran a para
    Bind authority to the **session id**. Agents escalate to the label; **you re-confirm your own
    session id against the manifest lock line before every merge** (Phase 3, step 0). Resolve your
    pane fresh by label+session at read time — do not carry a pane number forward.
+
+4. **Heartbeat + stale-lock recovery (ungraceful death).** The session-id lock stops a stale pane
+   from double-merging, but a coordinator that **crashes without relaying** leaves the run orphaned:
+   the manifest names a dead session id as authority and the stand-down rule (correctly) tells
+   nobody to claim it. Defend with a heartbeat — **stamp `last_alive: <UTC ts>` in the manifest on
+   every supervise loop** (Phase 2). Recovery: if the lock's session id is **not live** in
+   `herdr pane list` AND `last_alive` is older than the staleness threshold (default 15 min), the
+   lock holder is dead — Ben (or a watcher) explicitly transfers authority by writing a NEW session
+   id to the lock line and starting a fresh coordinator (any CLI) that adopts the manifest. A
+   live-but-stale heartbeat with a still-live session id is NOT a transfer trigger (the coordinator
+   may just be mid-merge).
 
 ## Phase 0 — Readiness (with Ben)
 
@@ -206,7 +255,12 @@ between events to catch silent failures.
 - **Liveness sweep** (keep yourself resident with a `ScheduleWakeup` tick between pushes): every
   few minutes `herdr pane list` (look for `agent_status` unknown/blocked, panes that died) and
   spot-`herdr pane read` anything suspicious — catch trust-prompt stalls and silent crashes a push
-  would never report. Nudge or, if dead, re-spawn from the handoff doc.
+  would never report. Nudge or, if dead, re-spawn from the handoff doc. **Stamp `last_alive: <UTC
+  ts>` in the manifest on each sweep** (the heartbeat that lets a watcher detect an ungraceful
+  coordinator death — Phase 0a step 4). **Per-lane staleness budget:** if a lane shows no progress
+  (no new commit / no escalation / unchanged `agent_status`) for **> ~20 min**, treat it as
+  wedged-but-alive — `herdr pane read` it, nudge, and if truly stuck re-spawn from the handoff doc.
+  This is the wall-clock complement to the failure budget (2 failed QA cycles → stop the lane).
   **⚠️ Never block on `herdr pane run <pane> 'sleep N'` poll-loops** (proven wasteful in
   2026-06-11-audit-remediation — six blocking 45s iterations re-sending context each turn). To wait,
   use **`ScheduleWakeup`** for fixed-interval polling, **`Monitor`** for an event-driven condition,
@@ -286,6 +340,14 @@ own):
    non-trivial, task the **owning agent** to resolve them (it has the context) — don't hand-edit
    feature code yourself. After rebase, **re-verify the integrated result** with a fresh QA agent
    (diff-scoped against the collision map — a clean PR can still break against newly-landed siblings).
+
+   **Serialized-chain cascade (long chains on adjacent surface).** In a serialized chain on adjacent
+   surface (e.g. the auth/token/rate-limit chains), every upstream merge invalidates each downstream
+   PR's base, forcing rebase + full re-QA after *each* landing — an N²-ish cost if the whole chain is
+   "ready" at once. Mitigate: keep not-yet-next downstream PRs as **drafts** until their predecessor
+   lands, and have each owning agent **rebase proactively the moment it's notified its predecessor
+   merged** (not at your merge instant), so the PR you pick up is already current. Only the
+   next-in-line PR needs to be merge-ready at any time.
 
 5. **Merge — by tier.** Re-confirm the pane-id authority check (step 0) still holds.
    - `security`: **do NOT auto-merge** — surface the PR + the posted `gh pr comment` verdict to Ben
