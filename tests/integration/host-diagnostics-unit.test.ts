@@ -103,9 +103,7 @@ describe("assertDiagnosticsSafe", () => {
   it("throws when a check detail contains a connection URL", () => {
     const poisoned: HostDiagnosticsDto = {
       ...safeDto(),
-      checks: [
-        { id: "database", label: "Database", status: "fail", detail: "postgres://u:p@h/db" }
-      ]
+      checks: [{ id: "database", label: "Database", status: "fail", detail: "postgres://u:p@h/db" }]
     };
     expect(() => assertDiagnosticsSafe(poisoned)).toThrow();
   });

@@ -20,7 +20,7 @@ level readout, and an honest restart card.
 
 - **Admin-only.** Every diagnostics field is gated behind `assertAdminUser` (instance admin).
 - **Read-only.** No mutations, no shell execution. Each check is fixed and audited.
-- **No secret/env dumping.** Never return env var *values*, DB URLs, connection strings, tokens,
+- **No secret/env dumping.** Never return env var _values_, DB URLs, connection strings, tokens,
   secrets, user-data file paths, or raw stack traces. Only the explicit allowlisted fields below.
 - **DataContextDb only.** DB connectivity check runs through a `DataContextDb` repository method,
   never a root Kysely handle.
@@ -40,25 +40,25 @@ level readout, and an honest restart card.
 type HostDiagnosticStatus = "pass" | "warn" | "fail";
 
 interface HostDiagnosticCheckDto {
-  readonly id: string;        // "database" | "pgboss" | "multiplexer"
+  readonly id: string; // "database" | "pgboss" | "multiplexer"
   readonly label: string;
   readonly status: HostDiagnosticStatus;
-  readonly detail: string;    // short safe message, no secrets
+  readonly detail: string; // short safe message, no secrets
 }
 
 // Sync runtime facts supplied by the composition root (no I/O, no secrets).
 interface HostDiagnosticsInfo {
   readonly uptimeSeconds: number;
   readonly environment: "production" | "development" | "test" | "unknown";
-  readonly version: string | null;        // from JARVIS_APP_VERSION, else null
-  readonly commit: string | null;         // from JARVIS_GIT_COMMIT, else null
-  readonly host: string;                   // bind host e.g. "0.0.0.0" (not a secret)
+  readonly version: string | null; // from JARVIS_APP_VERSION, else null
+  readonly commit: string | null; // from JARVIS_GIT_COMMIT, else null
+  readonly host: string; // bind host e.g. "0.0.0.0" (not a secret)
   readonly port: number;
-  readonly logLevel: string;               // readout only (env-configured)
+  readonly logLevel: string; // readout only (env-configured)
   readonly deployMode: "compose" | "systemd" | "dev" | "unknown";
-  readonly restartCommand: string | null;  // documented operator command, or null
-  readonly moduleCount: number;            // # registered built-in modules
-  readonly routeCount: number;             // total declared module routes
+  readonly restartCommand: string | null; // documented operator command, or null
+  readonly moduleCount: number; // # registered built-in modules
+  readonly routeCount: number; // total declared module routes
 }
 
 interface HostDiagnosticsDto extends HostDiagnosticsInfo {
@@ -103,27 +103,31 @@ interface HostDiagnosticsDto extends HostDiagnosticsInfo {
 ### Task 1: Shared DTO + route schema
 
 **Files:**
+
 - Modify: `packages/shared/src/platform-api.ts` (after the chat-multiplexer block, ~line 622)
 
 **Interfaces:**
+
 - Produces: `HostDiagnosticStatus`, `HostDiagnosticCheckDto`, `HostDiagnosticsInfo`,
   `HostDiagnosticsDto`, `hostDiagnosticsSchema`, `getHostDiagnosticsRouteSchema`.
 
 - [ ] **Step 1:** Add the interfaces (exactly the DTO shape above) and a JSON schema mirroring it
-  with `additionalProperties: false` on every object, `checks` as an array of the check schema, the
-  `getHostDiagnosticsRouteSchema` with `response: { 200: hostDiagnosticsSchema, 401:
-  errorResponseSchema, 403: errorResponseSchema }`. Reuse `ChatMultiplexerChoice` enum + the
-  existing availability sub-schema shape.
+      with `additionalProperties: false` on every object, `checks` as an array of the check schema, the
+      `getHostDiagnosticsRouteSchema` with `response: { 200: hostDiagnosticsSchema, 401:
+errorResponseSchema, 403: errorResponseSchema }`. Reuse `ChatMultiplexerChoice` enum + the
+      existing availability sub-schema shape.
 - [ ] **Step 2:** `pnpm --filter @jarv1s/shared typecheck` (or root `pnpm typecheck`) — expect PASS.
 - [ ] **Step 3:** Commit `packages/shared/src/platform-api.ts`.
 
 ### Task 2: Pure serializer + safety guard (unit-tested)
 
 **Files:**
+
 - Create: `packages/settings/src/host-diagnostics.ts`
 - Create: `packages/settings/src/host-diagnostics.test.ts`
 
 **Interfaces:**
+
 - Consumes: `HostDiagnosticsInfo`, `HostDiagnosticsDto`, `HostDiagnosticCheckDto`,
   `ChatMultiplexerChoice`, `ChatMultiplexerAvailability` from `@jarv1s/shared`.
 - Produces:
@@ -141,7 +145,7 @@ interface HostDiagnosticsDto extends HostDiagnosticsInfo {
     `JARVIS_AI_SECRET_KEY`, `BETTER_AUTH_SECRET`, `DATABASE_URL`), and does NOT throw for the normal
     happy-path DTO (host `0.0.0.0`, etc.).
 - [ ] **Step 2: Run** `JARVIS_PGDATABASE=jarv1s_255_host_diag vitest run packages/settings/src/host-diagnostics.test.ts`
-  — expect FAIL (module not found).
+      — expect FAIL (module not found).
 - [ ] **Step 3: Implement** `host-diagnostics.ts`:
   - `buildHostDiagnostics` builds the three checks (only `detail` strings are short, fixed,
     secret-free, e.g. `"Connected"`/`"Unreachable"`), spreads `info` + multiplexer/available +
@@ -161,11 +165,12 @@ interface HostDiagnosticsDto extends HostDiagnosticsInfo {
 ### Task 3: Repository DB ping (DataContextDb)
 
 **Files:**
+
 - Modify: `packages/settings/src/repository.ts` (SettingsRepository class)
 
 **Interfaces:**
-- Produces: `async pingDatabase(db: DataContextDb): Promise<void>` — runs `sql\`SELECT 1\`.execute(db)`
-  (throws on failure). `sql` is already imported.
+
+- Produces: `async pingDatabase(db: DataContextDb): Promise<void>` — runs `sql\`SELECT 1\`.execute(db)`(throws on failure).`sql` is already imported.
 
 - [ ] **Step 1:** Add the method (one-liner + short doc comment).
 - [ ] **Step 2:** `pnpm typecheck` — expect PASS.
@@ -174,6 +179,7 @@ interface HostDiagnosticsDto extends HostDiagnosticsInfo {
 ### Task 4: Diagnostics route (settings) + wiring
 
 **Files:**
+
 - Create: `packages/settings/src/host-diagnostics-routes.ts`
 - Modify: `packages/settings/src/routes.ts` (import + delegate near `registerOnboardingRoutes`;
   thread `hostDiagnostics` through `SettingsRoutesDependencies`)
@@ -182,48 +188,51 @@ interface HostDiagnosticsDto extends HostDiagnosticsInfo {
   forward in the settings registration block)
 
 **Interfaces:**
+
 - Consumes: `HostDiagnosticsProvider` + `buildHostDiagnostics` from `./host-diagnostics.js`;
   `SettingsRepository`; injected `assertAdminUser`, `requireRequestId`, `handleRouteError`,
   `dataContext`, `resolveAccessContext`, `chatMultiplexerAvailability`.
 - Produces: `registerHostDiagnosticsRoutes(server, deps)`.
 
 - [ ] **Step 1:** Add `routeKey("GET", "/api/admin/host/diagnostics")` to `PLATFORM_UNGUARDED_ROUTES`
-  in `route-guard.ts` (next to the chat-multiplexer entries, with a comment).
+      in `route-guard.ts` (next to the chat-multiplexer entries, with a comment).
 - [ ] **Step 2:** Write `host-diagnostics-routes.ts`. Handler:
   1. `resolveAccessContext`.
   2. `withDataContext`: `assertAdminUser` → `repository.pingDatabase` (try/catch → `dbOk`) →
      `repository.getChatMultiplexerSetting` (→ `multiplexer`).
   3. `pgBossOk = await deps.hostDiagnostics.pgBossInstalled().catch(() => false)`.
   4. `const dto = buildHostDiagnostics({ info: deps.hostDiagnostics.info(), multiplexer,
-     available: deps.chatMultiplexerAvailability ?? { tmux: false, herdr: false }, dbOk, pgBossOk })`.
+available: deps.chatMultiplexerAvailability ?? { tmux: false, herdr: false }, dbOk, pgBossOk })`.
   5. `return dto`. Errors → injected `handleRouteError`.
   - If `deps.hostDiagnostics` is undefined (defensive), throw `HttpError(503, "Host diagnostics are
-    not available")` AFTER the admin check.
+not available")` AFTER the admin check.
 - [ ] **Step 3:** In `routes.ts`: add `hostDiagnostics?: HostDiagnosticsProvider` to
-  `SettingsRoutesDependencies`; export `HostDiagnosticsProvider` re-export is unnecessary — import
-  the type from `./host-diagnostics.js`. Call `registerHostDiagnosticsRoutes(server, { dataContext,
-  resolveAccessContext, repository, chatMultiplexerAvailability: dependencies.chatMultiplexerAvailability,
-  hostDiagnostics: dependencies.hostDiagnostics, assertAdminUser, requireRequestId, handleRouteError })`
-  near the other `register*Routes` calls. (assertAdminUser/requireRequestId/handleRouteError are
-  module-scoped functions in routes.ts — pass them in, mirroring `registerOnboardingRoutes`.)
+      `SettingsRoutesDependencies`; export `HostDiagnosticsProvider` re-export is unnecessary — import
+      the type from `./host-diagnostics.js`. Call `registerHostDiagnosticsRoutes(server, { dataContext,
+resolveAccessContext, repository, chatMultiplexerAvailability: dependencies.chatMultiplexerAvailability,
+hostDiagnostics: dependencies.hostDiagnostics, assertAdminUser, requireRequestId, handleRouteError })`
+      near the other `register*Routes` calls. (assertAdminUser/requireRequestId/handleRouteError are
+      module-scoped functions in routes.ts — pass them in, mirroring `registerOnboardingRoutes`.)
 - [ ] **Step 4:** In `module-registry/src/index.ts`: add
-  `readonly hostDiagnostics?: HostDiagnosticsProvider;` to `BuiltInRouteDependencies` (import the
-  type from `@jarv1s/settings`), and add `hostDiagnostics: deps.hostDiagnostics,` to the
-  `registerSettingsRoutes({...})` call.
+      `readonly hostDiagnostics?: HostDiagnosticsProvider;` to `BuiltInRouteDependencies` (import the
+      type from `@jarv1s/settings`), and add `hostDiagnostics: deps.hostDiagnostics,` to the
+      `registerSettingsRoutes({...})` call.
 - [ ] **Step 5:** `pnpm typecheck` — expect PASS.
 - [ ] **Step 6:** Commit the four files.
 
 ### Task 5: Composition root provider (server.ts)
 
 **Files:**
+
 - Modify: `apps/api/src/server.ts`
 
 **Interfaces:**
+
 - Consumes: `apiServerConfig` (host/port), `boss`, `getBuiltInModuleManifests`.
 - Produces: a `HostDiagnosticsProvider` passed into `registerBuiltInApiRoutes`.
 
 - [ ] **Step 1:** Build, inside `server.after()` before `registerBuiltInApiRoutes`, a
-  `hostDiagnostics: HostDiagnosticsProvider`:
+      `hostDiagnostics: HostDiagnosticsProvider`:
   - `info()` returns `HostDiagnosticsInfo` computed from: `process.uptime()` (rounded),
     `mapEnv(process.env.NODE_ENV)` → production/development/test/unknown, `process.env.JARVIS_APP_VERSION ?? null`,
     `process.env.JARVIS_GIT_COMMIT ?? null` (sliced to 12 chars if present), `apiServerConfig.host`,
@@ -242,6 +251,7 @@ interface HostDiagnosticsDto extends HostDiagnosticsInfo {
 ### Task 6: Integration tests (admin/non-admin/unauth + secret-safety)
 
 **Files:**
+
 - Create: `tests/integration/host-diagnostics-admin.test.ts` (mirror `chat-multiplexer-admin.test.ts`
   HTTP block: `createApiServer({ appDb, logger:false })`, owner sign-up = admin, second = member).
 
@@ -254,13 +264,14 @@ interface HostDiagnosticsDto extends HostDiagnosticsInfo {
   - non-admin GET → 403.
   - unauthenticated GET → 401.
 - [ ] **Step 2: Run** `JARVIS_PGDATABASE=jarv1s_255_host_diag vitest run tests/integration/host-diagnostics-admin.test.ts`
-  — expect FAIL first (route 404/missing), then PASS after Tasks 1–5 are in. (Tasks 1–5 already
-  committed, so this should PASS on first run; if 404, the allowlist/coverage step regressed.)
+      — expect FAIL first (route 404/missing), then PASS after Tasks 1–5 are in. (Tasks 1–5 already
+      committed, so this should PASS on first run; if 404, the allowlist/coverage step regressed.)
 - [ ] **Step 3:** Commit the test file.
 
 ### Task 7: Web client + query key
 
 **Files:**
+
 - Modify: `apps/web/src/api/query-keys.ts` (add `hostDiagnostics: ["settings","host-diagnostics"]`)
 - Modify: `apps/web/src/api/client.ts` (add `getHostDiagnostics(): Promise<HostDiagnosticsDto>` →
   `requestJson("/api/admin/host/diagnostics")`; import `HostDiagnosticsDto`)
@@ -272,20 +283,21 @@ interface HostDiagnosticsDto extends HostDiagnosticsInfo {
 ### Task 8: HostPane UI (honest restart + diagnostics rows)
 
 **Files:**
+
 - Modify: `apps/web/src/settings/settings-admin-panes.tsx` (`HostPane`)
 
 - [ ] **Step 1:** Add a `useQuery` for diagnostics with `enabled:false` + a `run` flag toggled by the
-  "Run diagnostics" button (`refetch()` on click, or `enabled` gated by a `useState` `ran` flag).
-  Render results: a "Diagnostics" group with one `Row` per check showing label + a `Badge`
-  (pass→pine/dot, warn→amber, fail→red/`tone="amber"` with "Failed") and the `detail`; plus info
-  rows (uptime humanized, environment, version/commit or "—", `host:port`, modules `N` / routes `N`).
+      "Run diagnostics" button (`refetch()` on click, or `enabled` gated by a `useState` `ran` flag).
+      Render results: a "Diagnostics" group with one `Row` per check showing label + a `Badge`
+      (pass→pine/dot, warn→amber, fail→red/`tone="amber"` with "Failed") and the `detail`; plus info
+      rows (uptime humanized, environment, version/commit or "—", `host:port`, modules `N` / routes `N`).
 - [ ] **Step 2:** Replace the "Verbose logging" placeholder `Row ... coming` with a read-only `Row`
-  showing the current `logLevel` (from diagnostics, or "Run diagnostics to view") + a `Note` that it
-  is env-configured (`LOG_LEVEL`).
+      showing the current `logLevel` (from diagnostics, or "Run diagnostics to view") + a `Note` that it
+      is env-configured (`LOG_LEVEL`).
 - [ ] **Step 3:** Replace the fake "Restart server" button (confirm→"coming soon" toast) with an
-  honest restart card: show deploy mode + `restartCommand` (copyable via existing pattern or a plain
-  `<code>` the operator can copy) and text "Restart is operator-managed". Remove the
-  `confirm({...restart...})` block and the now-unused `NotWired` placeholder line.
+      honest restart card: show deploy mode + `restartCommand` (copyable via existing pattern or a plain
+      `<code>` the operator can copy) and text "Restart is operator-managed". Remove the
+      `confirm({...restart...})` block and the now-unused `NotWired` placeholder line.
 - [ ] **Step 4:** `pnpm --filter web typecheck` + `pnpm lint` on changed paths — expect PASS.
 - [ ] **Step 5:** Commit the file.
 
@@ -293,12 +305,12 @@ interface HostDiagnosticsDto extends HostDiagnosticsInfo {
 
 - [ ] **Step 1:** Pre-push trio: `pnpm format:check && pnpm lint && pnpm typecheck`.
 - [ ] **Step 2:** `pnpm check:file-size` (confirm no file > 1000 lines — esp. `routes.ts`,
-  `settings-admin-panes.tsx`).
+      `settings-admin-panes.tsx`).
 - [ ] **Step 3:** `JARVIS_PGDATABASE=jarv1s_255_host_diag pnpm verify:foundation` (full gate) if
-  feasible; else at minimum the new integration test + chat-multiplexer-admin (regression on the
-  route-coverage assertion) + a web build/typecheck.
+      feasible; else at minimum the new integration test + chat-multiplexer-admin (regression on the
+      route-coverage assertion) + a web build/typecheck.
 - [ ] **Step 4:** `git fetch origin main && git rebase origin/main`, re-run trio, then hand to
-  `coordinated-wrap-up` (PR + report to Coordinator). Do NOT touch board/milestone/merge.
+      `coordinated-wrap-up` (PR + report to Coordinator). Do NOT touch board/milestone/merge.
 
 ## Self-Review
 
