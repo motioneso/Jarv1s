@@ -13,7 +13,7 @@ since the native `Agent(model:opus)` path is Claude-only. Currently-running Clau
 Gate-314, Build-237) finish as-is — do not kill warm work; only NEW spawns are Codex.
 **Relay threshold:** security-tier merge → relay immediately after Phase 3 step 7; routine/sensitive `merges_since_relay` >= 2 → relay. No deferral. Compaction summary = already past safe → relay, merge nothing.
 **merges_since_relay:** 0 (reset by Codex successor after adopting the #314 security-merge relay)
-**last_alive:** 2026-06-19T01:15Z (Codex coordinator `019edd71…` — adopted after #314 relay)
+**last_alive:** 2026-06-19T01:21Z (Codex coordinator `019edd71…` — #315 local rebase complete; GitHub DNS blocked push)
 **Gate serialization policy (2026-06-18):** run mechanical gates ~1–2 at a time. Concurrent
 `verify:foundation` runs collide on cluster-global role grants → false-RED "tuple concurrently
 updated", EVEN with isolated `JARVIS_PGDATABASE` (db:migrate grants touch shared `pg_authid`).
@@ -65,14 +65,17 @@ LIVE FLEET (resolve panes fresh by label; numbers reflow):
   round-trip), TDD red→green +1 unit test, VF=0/AUDIT=0, rebased on main HEAD `3c8d0c7`, PR #313
   updated. Owning agent for any QA-313 re-fix. Reap after #313 merges.
 - `Build-237-Sessions` (`w1:p1S`, Claude) — DONE/standby in `.claude/worktrees/deploy-237-active-sessions`.
-  #315 rebased to `4271bb6` (0 behind, grounded). `QA-315-Sessions` (Codex, `w1:p27`) is RUNNING
-  security re-QA in detached worktree `.claude/worktrees/qa-315-sessions-reqa` on `4271bb6`; it will
-  post updated verdict to PR #315, then Ben sign-off. Non-blocking: cookie-session current-id path
+  #315 locally rebased onto current `origin/main` (`b0c59ef`) by dropping stale docs commits and
+  cherry-picking the feature commit; new local HEAD `7d2b989`, `@jarv1s/module-registry` typecheck
+  green. Push to GitHub is blocked by DNS (`Could not resolve host: github.com`); after push, spawn
+  fresh Codex security re-QA and post updated verdict to PR #315, then Ben sign-off. Non-blocking:
+  cookie-session current-id path
   `session-service.ts:62` untested — may task Build-237 to add the me-sessions test if Ben wants it
   pre-merge. Owning agent for any #315 re-fix; reap after #315 merges.
 
-GATE SERIALIZATION RIGHT NOW: QA-313 is complete GREEN; QA-315 is running its CI-equiv gate. Keep to
-~1–2 concurrent verify:foundation runs (isolated DBs + retry on "tuple concurrently updated").
+GATE SERIALIZATION RIGHT NOW: QA-313 is complete GREEN; stale QA-315 on `4271bb6` was closed before
+posting a verdict. No CI-equiv gate is currently running; push local #315 HEAD `7d2b989`, then spawn
+fresh Codex re-QA.
 
 PENDING SIGN-OFFS (all security tier, all need Ben): #313 (after QA-313 verdict), #315 (after grounded
 CODEX re-QA). Then serialized successors per chains A/B/C and the held queue (#114, #123, #230, #236,
@@ -117,7 +120,7 @@ need a clean worktree + a pre-existing isolated DB. Per-merge digest:
 | `docs/superpowers/specs/2026-06-18-route-local-junk-credential-rate-limit-gates.md` | #207  | security  | **MERGED** (squash `b0c59ef` @ 01:09Z, Ben sign-off). Issue closed; board Done. | — (reaped) | — | (deleted) | #314 |
 | `docs/superpowers/specs/2026-06-18-otnr-p3-ai-gateway-residual-hardening.md`        | #123  | security  | queued: held for green gate             | —                   | —      | —                           | —    |
 | `docs/superpowers/specs/2026-06-18-people-access-approval-revoke-sessions.md`       | #230  | security  | queued: held for green gate             | —                   | —      | —                           | —    |
-| `docs/superpowers/specs/2026-06-18-active-sessions-list-revoke.md`                  | #237  | security  | review CLEAN; rebased to `4271bb6` (0 behind). CODEX re-QA RUNNING (`QA-315-Sessions`, w1:p27) | Build-237-Sessions | w1:p1S | deploy-237-active-sessions | #315 |
+| `docs/superpowers/specs/2026-06-18-active-sessions-list-revoke.md`                  | #237  | security  | local rebase to `7d2b989` complete; push blocked by GitHub DNS; fresh CODEX re-QA pending after push | Build-237-Sessions | w1:p1S | deploy-237-active-sessions | #315 |
 | `docs/superpowers/specs/2026-06-18-account-card-real-status.md`                     | #236  | security  | queued: held for green gate             | —                   | —      | —                           | —    |
 | `docs/superpowers/specs/2026-06-18-host-diagnostics-safe-ops.md`                    | #255  | security  | **MERGED** (squash @ 2026-06-19T00:47Z, Ben sign-off). Issue closed. **Board move to Done still TODO (successor).** | — (reaped) | — | (deleted) | #312 |
 | `docs/superpowers/specs/2026-06-18-connector-health-monitoring.md`                  | #254  | sensitive | queued: held for green main             | —                   | —      | —                           | —    |
@@ -168,9 +171,10 @@ No waivers.
       recorded in the issue as a followup.
 - [ ] #315 security QA review **CLEAN** (invariants ok; 1 non-blocking: cookie-session current-id
       path `session-service.ts:62` untested). RED was stale-branch only; Build-237 rebased to `4271bb6`
-      (0 behind, grounded). **CODEX re-QA RUNNING** (`QA-315-Sessions`, w1:p27, detached worktree
-      `.claude/worktrees/qa-315-sessions-reqa`, grounded on 4271bb6); post updated verdict to PR #315.
-      After GREEN → Ben sign-off.
+      before #314 merged. Coordinator locally rebased #315 onto current `origin/main` (`b0c59ef`):
+      new local HEAD `7d2b989`, stale docs commits dropped, one trivial import conflict resolved,
+      `@jarv1s/module-registry` typecheck green. Push is blocked by GitHub DNS; after push, spawn
+      fresh Codex re-QA, post updated verdict to PR #315. After GREEN → Ben sign-off.
 - [ ] #306 is manual-acceptance only; no build agent should be spawned for it.
 
 ## Reaped Sessions
