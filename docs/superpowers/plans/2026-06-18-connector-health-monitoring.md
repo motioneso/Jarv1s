@@ -28,6 +28,7 @@
 ### Task 1: Migration + Types
 
 **Files:**
+
 - Create/modify: `packages/connectors/sql/0099_connector_health_metadata.sql`
 - Modify: `packages/connectors/src/manifest.ts`
 - Modify: `packages/db/src/types.ts`
@@ -125,6 +126,7 @@ git commit -m "feat(connectors): add connector sync health columns"
 ### Task 2: Safe DTO Exposure
 
 **Files:**
+
 - Modify: `packages/shared/src/connectors-api.ts`
 - Modify: `packages/connectors/src/repository.ts`
 - Modify: `packages/connectors/src/routes.ts`
@@ -135,7 +137,9 @@ git commit -m "feat(connectors): add connector sync health columns"
 Extend owner/admin account assertions:
 
 ```ts
-expect(listResponse.json<{ accounts: Array<{ lastSyncStatus: null }> }>().accounts[0]).toMatchObject({
+expect(
+  listResponse.json<{ accounts: Array<{ lastSyncStatus: null }> }>().accounts[0]
+).toMatchObject({
   lastSyncStartedAt: null,
   lastSyncFinishedAt: null,
   lastSyncStatus: null,
@@ -191,6 +195,7 @@ git commit -m "feat(connectors): expose safe connector health metadata"
 ### Task 3: Sync Health Writes
 
 **Files:**
+
 - Modify: `packages/connectors/src/repository.ts`
 - Modify: `packages/connectors/src/sync-jobs.ts`
 - Test: `tests/integration/google-sync-orchestration.test.ts`
@@ -238,11 +243,7 @@ Counts object:
 
 ```ts
 {
-  calendarUpserted,
-  emailUpserted,
-  emailFailures,
-  escalations,
-  truncated
+  (calendarUpserted, emailUpserted, emailFailures, escalations, truncated);
 }
 ```
 
@@ -261,6 +262,7 @@ git commit -m "feat(connectors): persist google sync health"
 ### Task 4: Admin UI
 
 **Files:**
+
 - Modify: `apps/web/src/settings/settings-admin-panes.tsx`
 - Test: `pnpm typecheck`; manual UI check if server run is practical.
 
