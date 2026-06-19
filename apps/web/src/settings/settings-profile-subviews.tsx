@@ -18,10 +18,14 @@ import {
   UserRound,
   type LucideIcon
 } from "lucide-react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useRef, useState } from "react";
 
+import { type MeSessionDeviceKind, type MeSessionDto } from "@jarv1s/shared";
+
+import { listMySessions, revokeMyOtherSessions, revokeMySession } from "../api/client";
+import { queryKeys } from "../api/query-keys";
 import { useFeedback } from "./settings-feedback";
-import { type SampleSession, type SessionDeviceKind } from "./settings-sample-data";
 import { Badge, Group, NotWired, Note, Row } from "./settings-ui";
 
 /* ----------------------------------------------------------- Data export */
@@ -201,31 +205,73 @@ export function DataExport() {
 
 /* ----------------------------------------------------------- Active sessions */
 
-const KIND_ICON: Record<SessionDeviceKind, LucideIcon> = {
+const KIND_ICON: Record<MeSessionDeviceKind, LucideIcon> = {
   laptop: Laptop,
   phone: Smartphone,
   tablet: Tablet,
   desktop: Monitor
 };
 
-// BACKEND-TODO: list-sessions endpoint (device / browser·OS / IP / last-seen from the auth session
-// table); wire per-device + bulk revoke to it. The list below is sample data.
+function metaLine(s: MeSessionDto): string {
+  return [s.browser, s.os].filter(Boolean).join(" · ") || "Unknown browser";
+}
+
+function formatLastSeen(iso: string): string {
+  const then = new Date(iso).getTime();
+  if (Number.isNaN(then)) return "Unknown";
+  const diffMs = Date.now() - then;
+  const mins = Math.floor(diffMs / 60_000);
+  if (mins < 1) return "Active now";
+  if (mins < 60) return `${mins}m ago`;
+  const hours = Math.floor(mins / 60);
+  if (hours < 24) return `${hours}h ago`;
+  const days = Math.floor(hours / 24);
+  if (days < 30) return `${days}d ago`;
+  return new Date(iso).toLocaleDateString();
+}
+
 export function Sessions() {
   const { toast, confirm } = useFeedback();
-  const [sessions, setSessions] = useState<readonly SampleSession[]>([]);
-  const others = sessions.filter((s) => !s.current);
+  const queryClient = useQueryClient();
+  const sessionsQuery = useQuery({
+    queryKey: queryKeys.settings.sessions,
+    queryFn: listMySessions
+  });
+  const sessions = sessionsQuery.data?.sessions ?? [];
+  const others = sessions.filter((s) => !s.isCurrent);
 
-  const revoke = (s: SampleSession) =>
+  const refresh = () => queryClient.invalidateQueries({ queryKey: queryKeys.settings.sessions });
+
+  const revokeOne = useMutation({
+    mutationFn: (id: string) => revokeMySession(id),
+    onSuccess: (_data, _id) => {
+      void refresh();
+      toast("Signed out device", { tone: "drift", icon: <LogOut size={17} /> });
+    },
+    onError: () => toast("Couldn't sign out that device", { icon: <LogOut size={17} /> })
+  });
+  const revokeAllOthers = useMutation({
+    mutationFn: () => revokeMyOtherSessions(),
+    onSuccess: (data) => {
+      void refresh();
+      toast(`Signed out ${data.count} device${data.count === 1 ? "" : "s"}`, {
+        tone: "drift",
+        icon: <LogOut size={17} />
+      });
+    },
+    onError: () => toast("Couldn't sign out other devices", { icon: <LogOut size={17} /> })
+  });
+
+  // Confirm callbacks call mutate() directly — never inside a setState updater, which would
+  // double-fire the destructive action under StrictMode.
+  const revoke = (s: MeSessionDto) =>
     confirm({
-      title: `Sign out ${s.device}?`,
+      title: `Sign out ${s.deviceLabel}?`,
       description:
         "That device will need to sign in again to reach Jarvis. Anyone using it right now is signed out immediately.",
       confirmLabel: "Sign out device",
       danger: true,
-      onConfirm: () => {
-        setSessions((xs) => xs.filter((x) => x.id !== s.id));
-        toast(`Signed out ${s.device}`, { tone: "drift", icon: <LogOut size={17} /> });
-      }
+      onConfirm: () => revokeOne.mutate(s.id)
     });
   const revokeAll = () =>
     confirm({
@@ -234,11 +280,10 @@ export function Sessions() {
         "Every device except this one is signed out immediately. You stay signed in here.",
       confirmLabel: `Sign out ${others.length} device${others.length === 1 ? "" : "s"}`,
       danger: true,
-      onConfirm: () => {
-        setSessions((xs) => xs.filter((x) => x.current));
-        toast("Signed out all other devices", { tone: "drift", icon: <LogOut size={17} /> });
-      }
+      onConfirm: () => revokeAllOthers.mutate()
     });
+
+  const busy = revokeOne.isPending || revokeAllOthers.isPending;
 
   return (
     <Group
@@ -246,7 +291,12 @@ export function Sessions() {
       desc="Devices signed in to your account. Sign out any you don't recognise."
       action={
         others.length ? (
-          <button type="button" className="jds-btn jds-btn--quiet jds-btn--sm" onClick={revokeAll}>
+          <button
+            type="button"
+            className="jds-btn jds-btn--quiet jds-btn--sm"
+            onClick={revokeAll}
+            disabled={busy}
+          >
             <span className="jds-btn__icon">
               <LogOut size={15} />
             </span>
@@ -255,16 +305,21 @@ export function Sessions() {
         ) : undefined
       }
     >
-      <NotWired>The session list isn't available yet — no devices are shown.</NotWired>
       <div className="sess">
-        {sessions.length === 0 ? (
+        {sessionsQuery.isLoading ? (
+          <Row name="Loading sessions…" desc="Fetching the devices signed in to your account." />
+        ) : null}
+        {sessionsQuery.isError ? (
           <Row
-            name="No sessions to show"
-            desc="Your signed-in devices will appear here once the session list is wired up."
+            name="Couldn't load sessions"
+            desc="Something went wrong fetching your active sessions. Try again shortly."
           />
         ) : null}
+        {!sessionsQuery.isLoading && !sessionsQuery.isError && sessions.length === 0 ? (
+          <Row name="No active sessions" desc="There are no signed-in devices to show." />
+        ) : null}
         {sessions.map((s) => {
-          const Icon = KIND_ICON[s.kind];
+          const Icon = KIND_ICON[s.deviceKind];
           return (
             <div className="sess__row" key={s.id}>
               <div className="sess__ic">
@@ -272,27 +327,34 @@ export function Sessions() {
               </div>
               <div className="sess__main">
                 <div className="sess__dev">
-                  {s.device}
-                  {s.current ? (
+                  {s.deviceLabel}
+                  {s.isCurrent ? (
                     <Badge tone="pine" dot>
                       This device
                     </Badge>
                   ) : null}
                 </div>
-                <div className="sess__meta">
-                  {s.browser} · {s.os}
-                </div>
-                <div className="sess__where">
-                  <MapPin size={12} aria-hidden="true" />
-                  {s.where} · {s.ip}
-                </div>
+                <div className="sess__meta">{metaLine(s)}</div>
+                {s.ipAddress ? (
+                  <div className="sess__where">
+                    <MapPin size={12} aria-hidden="true" />
+                    {s.ipAddress}
+                  </div>
+                ) : null}
               </div>
               <div className="sess__act">
-                <div className={`sess__last${s.current ? " sess__last--now" : ""}`}>{s.last}</div>
-                {s.current ? (
+                <div className={`sess__last${s.isCurrent ? " sess__last--now" : ""}`}>
+                  {formatLastSeen(s.lastSeenAt)}
+                </div>
+                {s.isCurrent ? (
                   <span className="sess__you">Current session</span>
                 ) : (
-                  <button type="button" className="sess__revoke" onClick={() => revoke(s)}>
+                  <button
+                    type="button"
+                    className="sess__revoke"
+                    onClick={() => revoke(s)}
+                    disabled={busy}
+                  >
                     <LogOut size={14} aria-hidden="true" />
                     Sign out
                   </button>

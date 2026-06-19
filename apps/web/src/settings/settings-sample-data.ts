@@ -1,28 +1,9 @@
 /* Representative sample data for settings surfaces whose backend is not yet
    wired (see 2026-06-14 settings design handoff — items marked 🔌). Shapes
    mirror the design kit's fake data; values are illustrative. These power the
-   click-through of Active sessions, the data-export job, the server-side vault
-   chooser, and the per-module setting sub-views until the endpoints land. */
-
-/* --------------------------------------------------------- Active sessions */
-
-export type SessionDeviceKind = "laptop" | "desktop" | "phone" | "tablet";
-
-export interface SampleSession {
-  readonly id: string;
-  readonly device: string;
-  readonly kind: SessionDeviceKind;
-  readonly browser: string;
-  readonly os: string;
-  readonly where: string;
-  readonly ip: string;
-  readonly last: string;
-  readonly current: boolean;
-}
-
-// Intentionally empty — we don't show fabricated session data. Real rows arrive once
-// the list-sessions endpoint exists (BACKEND-TODO). Type kept to document the shape.
-export const SAMPLE_SESSIONS: readonly SampleSession[] = [];
+   click-through of the data-export job, the server-side vault chooser, and the
+   per-module setting sub-views until the endpoints land. (Active sessions is now
+   wired to /api/me/sessions — see settings-profile-subviews.tsx.) */
 
 /* ----------------------------------------------------- Server filesystem */
 

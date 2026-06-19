@@ -47,6 +47,7 @@ import { BootstrapHelper } from "./bootstrap.js";
 import type { HostDiagnosticsProvider } from "./host-diagnostics.js";
 import { registerHostDiagnosticsRoutes } from "./host-diagnostics-routes.js";
 import { registerLocaleRoutes } from "./locale-routes.js";
+import { registerMeSessionsRoutes, type MeSessionsService } from "./me-sessions-routes.js";
 import { registerOnboardingRoutes, type OnboardingProbes } from "./onboarding-routes.js";
 import { registerPersonaRoutes } from "./persona-routes.js";
 import type { ProfilePreferencesPort, PersonaPreviewInput } from "./preferences-port.js";
@@ -64,6 +65,8 @@ export interface SettingsRoutesDependencies {
   readonly personaPreview?: (input: PersonaPreviewInput) => Promise<string>;
   readonly repository?: SettingsRepository;
   readonly revokeUserSessions?: (userId: string) => Promise<number>;
+  /** Auth-owned current-user session list/revoke service (#237). */
+  readonly meSessions?: MeSessionsService;
   readonly bootstrapConnectionString?: string;
   /** Boot-time availability snapshot, injected by the composition root (apply-on-restart). */
   readonly chatMultiplexerAvailability?: { readonly tmux: boolean; readonly herdr: boolean };
@@ -88,6 +91,10 @@ export function registerSettingsRoutes(
   };
   const bootstrapHelper = new BootstrapHelper(dependencies.rootDb);
   registerLocaleRoutes(server, { ...dependencies, preferencesRepository });
+  registerMeSessionsRoutes(server, {
+    resolveAccessContext: dependencies.resolveAccessContext,
+    meSessions: dependencies.meSessions
+  });
   registerPersonaRoutes(server, { ...dependencies, repository, preferencesRepository });
   registerSourceBehaviorRoutes(server, { ...dependencies, preferencesRepository });
   server.get("/api/bootstrap/status", { schema: bootstrapStatusRouteSchema }, async () => {
