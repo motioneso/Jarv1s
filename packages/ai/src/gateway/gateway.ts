@@ -82,7 +82,7 @@ export class AssistantToolGateway {
       return { ok: false, error: error instanceof Error ? error.message : "Invalid input" };
     }
 
-    if (resolvePolicy(found.tool.risk) === "run") {
+    if (resolvePolicy(found.tool) === "run") {
       return this.runHandler(found, input, ctx);
     }
     return this.confirmAndRun(found, input, ctx);
@@ -124,7 +124,7 @@ export class AssistantToolGateway {
    * subset also means a tool can never reach an undeclared (write-capable) service (Codex HIGH #1).
    */
   private servicesFor(tool: ModuleAssistantToolManifest): ToolServices {
-    if (resolvePolicy(tool.risk) === "run") {
+    if (resolvePolicy(tool) === "run") {
       return {}; // read path bypasses confirmAndRun — never hand it a service (write→confirm floor)
     }
     const registry = this.deps.toolServices ?? {};
@@ -239,7 +239,7 @@ export class AssistantToolGateway {
         // Fail closed #1: a read tool must NOT declare services — a read dispatches without the
         // confirm gate, so a write-capable service on a read tool would bypass the write→confirm
         // floor. Such a manifest is a misconfiguration; hide it rather than risk a bypass (HIGH #5).
-        if (declaredServices.length > 0 && resolvePolicy(tool.risk) === "run") {
+        if (declaredServices.length > 0 && resolvePolicy(tool) === "run") {
           continue;
         }
         // Fail closed #2: a tool whose required services we cannot satisfy is hidden — never

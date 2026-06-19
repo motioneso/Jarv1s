@@ -1,12 +1,13 @@
-import type { ModuleAssistantToolRisk } from "@jarv1s/module-sdk";
+import type { ModuleAssistantToolManifest } from "@jarv1s/module-sdk";
 
 export type PolicyDecision = "run" | "confirm";
 
 /**
- * Phase 2 policy is hardcoded: reads run, writes confirm, destructive ALWAYS
- * confirms (the un-skippable floor). Configurable per-user policy is the future
- * Module Connector epic (#30) — the destructive floor survives even then.
+ * Reads run. Writes default to confirm unless the owning module explicitly
+ * declares auto agency. Destructive tools always confirm.
  */
-export function resolvePolicy(risk: ModuleAssistantToolRisk): PolicyDecision {
-  return risk === "read" ? "run" : "confirm";
+export function resolvePolicy(tool: ModuleAssistantToolManifest): PolicyDecision {
+  if (tool.risk === "read") return "run";
+  if (tool.risk === "destructive") return "confirm";
+  return tool.executionPolicy === "auto" ? "run" : "confirm";
 }

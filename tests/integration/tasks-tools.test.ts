@@ -58,12 +58,82 @@ describe("Tasks module — assistant read tools", () => {
     expect(tool).toMatchObject({
       name: "tasks.updateStatus",
       risk: "write",
+      executionPolicy: "auto",
       permissionId: "tasks.update"
     });
     expect(
       (tool?.inputSchema as { properties?: Record<string, unknown> } | undefined)?.properties
     ).not.toHaveProperty("idempotencyKey");
     expect(tool?.execute).toBeDefined();
+  });
+
+  it("tasks.create: creates owner-scoped task and returns a safe summary", async () => {
+    const tool = getTool("tasks.create");
+
+    const result = await dataContext.withDataContext(userAContext(), (db) =>
+      tool!.execute!(db, { title: "agency create" }, toolCtx(ids.userA))
+    );
+
+    expect(result.data.summary).toBe("Created task: agency create");
+    const task = result.data.task as TaskDto;
+    expect(task.title).toBe("agency create");
+    expect(task.ownerUserId).toBe(ids.userA);
+  });
+
+  it("tasks.update: cannot mutate another actor's private task", async () => {
+    const tool = getTool("tasks.update");
+    const privateTask = await dataContext.withDataContext(userAContext(), (db) =>
+      repository.create(db, { title: "private agency task" })
+    );
+
+    const result = await dataContext.withDataContext(userBContext(), (db) =>
+      tool!.execute!(db, { taskId: privateTask.id, title: "stolen" }, toolCtx(ids.userB))
+    );
+
+    expect(result.data.error).toBe("Task not found");
+    const unchanged = await dataContext.withDataContext(userAContext(), (db) =>
+      repository.getById(db, privateTask.id)
+    );
+    expect(unchanged?.title).toBe("private agency task");
+  });
+
+  it("tasks.updateStatus: completes and archives with normal agency summaries", async () => {
+    const tool = getTool("tasks.updateStatus");
+    const task = await dataContext.withDataContext(userAContext(), (db) =>
+      repository.create(db, { title: "status agency task" })
+    );
+
+    const done = await dataContext.withDataContext(userAContext(), (db) =>
+      tool!.execute!(db, { taskId: task.id, status: "done" }, toolCtx(ids.userA))
+    );
+    const archived = await dataContext.withDataContext(userAContext(), (db) =>
+      tool!.execute!(db, { taskId: task.id, status: "archived" }, toolCtx(ids.userA))
+    );
+
+    expect(done.data.summary).toBe("Completed task: status agency task");
+    expect(archived.data.summary).toBe("Archived task: status agency task");
+  });
+
+  it("tasks.breakDown and tasks.addActivity return concise mutation summaries", async () => {
+    const breakDownTool = getTool("tasks.breakDown");
+    const activityTool = getTool("tasks.addActivity");
+    const task = await dataContext.withDataContext(userAContext(), (db) =>
+      repository.create(db, { title: "breakdown agency task" })
+    );
+
+    const brokenDown = await dataContext.withDataContext(userAContext(), (db) =>
+      breakDownTool!.execute!(
+        db,
+        { taskId: task.id, steps: ["first", "second"] },
+        toolCtx(ids.userA)
+      )
+    );
+    const activity = await dataContext.withDataContext(userAContext(), (db) =>
+      activityTool!.execute!(db, { taskId: task.id, body: "note" }, toolCtx(ids.userA))
+    );
+
+    expect(brokenDown.data.summary).toBe("Added 2 subtasks.");
+    expect(activity.data.summary).toBe("Added note/activity to breakdown agency task.");
   });
 
   // ── tasks.list ───────────────────────────────────────────────────────────

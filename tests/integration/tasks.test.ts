@@ -204,7 +204,19 @@ describe("Tasks module M1", () => {
       "tasks.listLists",
       "tasks.listTags",
       "tasks.activity",
-      "tasks.updateStatus"
+      "tasks.create",
+      "tasks.update",
+      "tasks.updateStatus",
+      "tasks.breakDown",
+      "tasks.addActivity",
+      "tasks.assignTag",
+      "tasks.unassignTag",
+      "tasks.createList",
+      "tasks.renameList",
+      "tasks.createTag",
+      "tasks.renameTag",
+      "tasks.deleteList",
+      "tasks.deleteTag"
     ]);
     expect(getBuiltInSqlMigrationDirectories()).toContainEqual(
       expect.stringContaining("packages/tasks/sql")
