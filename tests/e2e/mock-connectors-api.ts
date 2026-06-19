@@ -191,6 +191,11 @@ export function createMockConnectorAccount(
     revokedAt: null,
     createdAt: "2026-06-06T12:00:00.000Z",
     updatedAt: "2026-06-06T12:00:00.000Z",
+    lastSyncStartedAt: null,
+    lastSyncFinishedAt: null,
+    lastSyncStatus: null,
+    lastSyncError: null,
+    lastSyncCounts: null,
     ...overrides
   };
 }

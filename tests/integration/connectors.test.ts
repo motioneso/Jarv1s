@@ -203,7 +203,8 @@ describe("Connectors encrypted foundation", () => {
       "sql/0043_connector_google_enum.sql",
       "sql/0044_google_unified_connection.sql",
       "sql/0069_connector_worker_runtime_grants.sql",
-      "sql/0099_connector_health_metadata.sql"
+      "sql/0099_connector_health_metadata.sql",
+      "sql/0100_connector_admin_safe_metadata_health.sql"
     ]);
     expect(manifest?.settings?.map((surface) => surface.path)).toEqual([
       "/settings/connectors",
@@ -397,6 +398,68 @@ describe("Connectors encrypted foundation", () => {
     expect(adminResponse.body).not.toContain("admin-secret");
     expect(adminResponse.body).not.toContain("encrypted_secret");
     expect(adminResponse.body).not.toContain("ciphertext");
+  });
+
+  it("exposes safe null sync-health metadata on owner and admin DTOs without leaking secrets", async () => {
+    const createResponse = await server.inject({
+      method: "POST",
+      url: "/api/connectors/accounts",
+      headers: {
+        authorization: `Bearer ${ids.sessionAdmin}`
+      },
+      payload: {
+        providerId: "google-calendar",
+        scopes: ["calendar.readonly"],
+        tokenPayload: {
+          accessToken: "health-secret-token"
+        }
+      }
+    });
+    const accountId = createResponse.json<{ account: { id: string } }>().account.id;
+
+    const ownerList = await server.inject({
+      method: "GET",
+      url: "/api/connectors/accounts",
+      headers: {
+        authorization: `Bearer ${ids.sessionAdmin}`
+      }
+    });
+    const adminList = await server.inject({
+      method: "GET",
+      url: "/api/admin/connectors/accounts",
+      headers: {
+        authorization: `Bearer ${ids.sessionAdmin}`
+      }
+    });
+
+    type HealthAccount = {
+      id: string;
+      lastSyncStartedAt: string | null;
+      lastSyncFinishedAt: string | null;
+      lastSyncStatus: string | null;
+      lastSyncError: string | null;
+      lastSyncCounts: Record<string, unknown> | null;
+    };
+    const ownerAccount = ownerList
+      .json<{ accounts: HealthAccount[] }>()
+      .accounts.find((account) => account.id === accountId);
+    const adminAccount = adminList
+      .json<{ accounts: HealthAccount[] }>()
+      .accounts.find((account) => account.id === accountId);
+
+    const emptyHealth = {
+      lastSyncStartedAt: null,
+      lastSyncFinishedAt: null,
+      lastSyncStatus: null,
+      lastSyncError: null,
+      lastSyncCounts: null
+    };
+
+    expect(createResponse.statusCode).toBe(201);
+    expect(ownerAccount).toMatchObject(emptyHealth);
+    expect(adminAccount).toMatchObject(emptyHealth);
+    expect(adminList.body).not.toContain("encrypted_secret");
+    expect(adminList.body).not.toContain("health-secret-token");
   });
 
   it("owner sees connector account regardless of workspace context; other users never see it", async () => {

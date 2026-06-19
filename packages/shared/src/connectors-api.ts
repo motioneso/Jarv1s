@@ -3,6 +3,19 @@ import { errorResponseSchema, jsonObjectSchema } from "./schema-fragments.js";
 export type ConnectorProviderType = "calendar" | "email" | "google";
 export type ConnectorProviderStatus = "available" | "disabled";
 export type ConnectorAccountStatus = "active" | "error" | "revoked";
+export type ConnectorSyncStatus = "success" | "partial" | "failed";
+
+/**
+ * Aggregate-only sync counts surfaced to owners/admins. Never carries per-item
+ * detail (subjects, titles, external IDs) — just bounded tallies for health display.
+ */
+export interface ConnectorSyncCounts {
+  readonly calendarUpserted?: number;
+  readonly emailUpserted?: number;
+  readonly emailFailures?: number;
+  readonly escalations?: number;
+  readonly truncated?: boolean;
+}
 
 export interface ConnectorProviderDto {
   readonly id: string;
@@ -27,6 +40,11 @@ export interface ConnectorAccountDto {
   readonly revokedAt: string | null;
   readonly createdAt: string;
   readonly updatedAt: string;
+  readonly lastSyncStartedAt: string | null;
+  readonly lastSyncFinishedAt: string | null;
+  readonly lastSyncStatus: ConnectorSyncStatus | null;
+  readonly lastSyncError: string | null;
+  readonly lastSyncCounts: ConnectorSyncCounts | null;
 }
 
 export interface ListConnectorProvidersResponse {
@@ -89,6 +107,21 @@ const connectorProviderSchema = {
   }
 } as const;
 
+// Aggregate-only counts. `additionalProperties: false` makes Fastify response
+// serialization strip any unexpected key, so per-item detail can never ride along
+// even if a future writer over-populates the JSON column.
+const connectorSyncCountsSchema = {
+  type: ["object", "null"],
+  additionalProperties: false,
+  properties: {
+    calendarUpserted: { type: "number" },
+    emailUpserted: { type: "number" },
+    emailFailures: { type: "number" },
+    escalations: { type: "number" },
+    truncated: { type: "boolean" }
+  }
+} as const;
+
 const connectorAccountSchema = {
   type: "object",
   additionalProperties: false,
@@ -104,7 +137,12 @@ const connectorAccountSchema = {
     "hasSecret",
     "revokedAt",
     "createdAt",
-    "updatedAt"
+    "updatedAt",
+    "lastSyncStartedAt",
+    "lastSyncFinishedAt",
+    "lastSyncStatus",
+    "lastSyncError",
+    "lastSyncCounts"
   ],
   properties: {
     id: { type: "string" },
@@ -118,7 +156,12 @@ const connectorAccountSchema = {
     hasSecret: { type: "boolean" },
     revokedAt: { type: ["string", "null"] },
     createdAt: { type: "string" },
-    updatedAt: { type: "string" }
+    updatedAt: { type: "string" },
+    lastSyncStartedAt: { type: ["string", "null"] },
+    lastSyncFinishedAt: { type: ["string", "null"] },
+    lastSyncStatus: { type: ["string", "null"], enum: ["success", "partial", "failed", null] },
+    lastSyncError: { type: ["string", "null"] },
+    lastSyncCounts: connectorSyncCountsSchema
   }
 } as const;
 

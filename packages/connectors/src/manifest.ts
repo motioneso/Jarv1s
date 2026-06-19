@@ -39,7 +39,8 @@ export const connectorsModuleManifest = {
       "sql/0043_connector_google_enum.sql",
       "sql/0044_google_unified_connection.sql",
       "sql/0069_connector_worker_runtime_grants.sql",
-      "sql/0099_connector_health_metadata.sql"
+      "sql/0099_connector_health_metadata.sql",
+      "sql/0100_connector_admin_safe_metadata_health.sql"
     ],
     migrationDirectories: ["packages/connectors/sql"],
     ownedTables: [
