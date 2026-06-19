@@ -16,7 +16,7 @@ since the native `Agent(model:opus)` path is Claude-only. Currently-running Clau
 Gate-314, Build-237) finish as-is — do not kill warm work; only NEW spawns are Codex.
 **Relay threshold:** security-tier merge → relay immediately after Phase 3 step 7; routine/sensitive `merges_since_relay` >= 2 → relay. No deferral. Compaction summary = already past safe → relay, merge nothing.
 **merges_since_relay:** 0 (reset after successor adoption from #323 security-merge relay)
-**last_alive:** 2026-06-19T03:57Z (Codex coordinator `019ede06…` — adopted after #323/#123 security merge relay; #322 Codex QA pending gate slot)
+**last_alive:** 2026-06-19T03:59Z (Codex coordinator `019ede06…` — adopted after #323/#123 security merge relay; #322 Codex QA running)
 **Gate serialization policy (2026-06-18):** run mechanical gates ~1–2 at a time. Concurrent
 `verify:foundation` runs collide on cluster-global role grants → false-RED "tuple concurrently
 updated", EVEN with isolated `JARVIS_PGDATABASE` (db:migrate grants touch shared `pg_authid`).
@@ -133,12 +133,16 @@ LIVE FLEET (resolve panes fresh by label; numbers reflow):
   (`#issuecomment-4748280238`): no blocking findings; real backend route and server-side admin
   enforcement confirmed; fake Invite removed; no session/token leakage found; non-blocking notes
   are typed response threading, optional backend self-revoke guard, and Codex QA should confirm the
-  e2e after prior local EMFILE. Codex QA not yet started because #123 gate/fix cycle is occupying
-  the serialized local gate slot.
+  e2e after prior local EMFILE. Codex QA running in `QA-322-PeopleAccess`, pane `w1:p2P`, session
+  `019ede08-de26-7ff0-9d02-9458123a90c2`, worktree
+  `.claude/worktrees/qa-322-people-access-sessions`, on local integrated merge result `d0c24a8`
+  (`origin/main` `62f21a3` + PR #322 head `85e078f`); tasked with full local CI-equivalent plus
+  focused e2e confirmation and PR/issue verdict comments.
 - GLM 5.2 pane `w1:p28` is not a deploy build lane; it may still be open for
   unrelated/adversarial-review work.
 
-GATE SERIALIZATION RIGHT NOW: no CI-equiv gate is running. #315 merged; relay now.
+GATE SERIALIZATION RIGHT NOW: #322/#230 Codex QA is running the CI-equivalent gate on integrated
+merge result `d0c24a8`. Do not start another full `verify:foundation` until it finishes.
 
 PENDING SIGN-OFFS (all security tier, all need Ben): none currently ready. Continue serialized successors per chains A/B/C and the held queue (#114, #230, #236,
 #254, then #306 manual). Preferred merge order: #117(#313), #114, #207(#314 ✅done), #123(#323 ✅done), #237(#315),
