@@ -30,9 +30,9 @@
 
 | Spec                                                                                | Issue | Tier      | Status                                  | Agent label         | Pane   | Branch                      | PR   |
 | ----------------------------------------------------------------------------------- | ----- | --------- | --------------------------------------- | ------------------- | ------ | --------------------------- | ---- |
-| `docs/superpowers/specs/2026-06-18-otnr-p1-bootstrap-role-passwords.md`             | #117  | security  | building                                | Build-117-RolePw    | w1:p1Q | deploy-117-role-passwords   | —    |
+| `docs/superpowers/specs/2026-06-18-otnr-p1-bootstrap-role-passwords.md`             | #117  | security  | qa                                      | Build-117-RolePw    | w1:p1Q | deploy-117-role-passwords   | #313 |
 | `docs/superpowers/specs/2026-06-18-otnr-p2-secrets-vault-residuals.md`              | #114  | security  | queued: held for green gate             | —                   | —      | —                           | —    |
-| `docs/superpowers/specs/2026-06-18-route-local-junk-credential-rate-limit-gates.md` | #207  | security  | building                                | Build-207-RateLimit | w1:p1R | deploy-207-rate-limit       | —    |
+| `docs/superpowers/specs/2026-06-18-route-local-junk-credential-rate-limit-gates.md` | #207  | security  | qa                                      | Build-207-RateLimit | w1:p1R | deploy-207-rate-limit       | #314 |
 | `docs/superpowers/specs/2026-06-18-otnr-p3-ai-gateway-residual-hardening.md`        | #123  | security  | queued: held for green gate             | —                   | —      | —                           | —    |
 | `docs/superpowers/specs/2026-06-18-people-access-approval-revoke-sessions.md`       | #230  | security  | queued: held for green gate             | —                   | —      | —                           | —    |
 | `docs/superpowers/specs/2026-06-18-active-sessions-list-revoke.md`                  | #237  | security  | building                                | Build-237-Sessions  | w1:p1S | deploy-237-active-sessions  | —    |
@@ -73,9 +73,19 @@ No waivers.
 - [ ] #312 security QA returned GREEN, but GitHub API is unreachable from QA and coordinator. Before
       merge: confirm `gh pr checks 312`, post `.claude/worktrees/qa-312-host-diagnostics/.qa-verdict-pr312.md`
       to PR #312, then request Ben security-tier merge sign-off.
+- [ ] #313 security QA running in `QA-313-RolePw` (`w1:p1V`); `gh pr checks 313` reported no checks,
+      so QA is using CI-unavailable local-verification mode.
+- [ ] #314 security QA running in `QA-314-RateLimit` (`w1:p1X`); `gh pr checks 314` reported no
+      checks, so QA is using CI-unavailable local-verification mode.
 - [ ] #306 is manual-acceptance only; no build agent should be spawned for it.
 
 ## Reaped Sessions
 
 - `GateFix-Briefings` (`w1:p1M`) — reaped after completing environment-collision diagnosis; worktree
   `.claude/worktrees/gate-fix-briefings` removed.
+- `Build-255-HostDiag` (`w1:p1P`) — reaped after PR #312 done report; worktree retained until merge.
+- `QA-312-HostDiag` (`w1:p1T`) — reaped after GREEN verdict saved; worktree retained until verdict
+  can be posted to PR #312.
+- `Build-117-RolePw` (`w1:p1Q`) — reaped after PR #313 done report; worktree retained until merge.
+- `Build-207-RateLimit` (`w1:p1R`) — reaped after PR #314 done report; worktree retained until
+  merge.
