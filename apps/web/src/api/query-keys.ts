@@ -15,6 +15,7 @@ export const queryKeys = {
     adminUsers: ["settings", "admin", "users"] as const,
     adminModules: ["settings", "admin", "modules"] as const,
     locale: ["settings", "locale"] as const,
+    sessions: ["settings", "sessions"] as const,
     persona: ["settings", "persona"] as const,
     sourceBehaviors: ["settings", "source-behaviors"] as const,
     registrationSettings: ["settings", "admin", "registration"] as const,

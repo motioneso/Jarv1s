@@ -82,6 +82,7 @@ import {
   settingsModuleManifest,
   settingsModuleSqlMigrationDirectory,
   type HostDiagnosticsProvider,
+  type MeSessionsService,
   type PersonaPreviewInput
 } from "@jarv1s/settings";
 import {
@@ -164,6 +165,8 @@ export interface BuiltInRouteDependencies {
   /** Override the live-chat engine factory (tests inject a fake); defaults to real tmux. */
   readonly chatEngineFactory?: ChatEngineFactory;
   readonly revokeUserSessions?: (userId: string) => Promise<number>;
+  /** Auth-owned current-user session list/revoke service (#237). */
+  readonly meSessions?: MeSessionsService;
   readonly bootstrapConnectionString?: string;
   readonly googleConnectionService?: GoogleConnectionService;
   readonly googleApiClient?: GoogleApiClient;
@@ -285,6 +288,7 @@ const BUILT_IN_MODULES: readonly BuiltInModuleRegistration[] = [
         listConfiguredAuthProviders: deps.listConfiguredAuthProviders,
         listModuleManifests: deps.listModuleManifests,
         revokeUserSessions: deps.revokeUserSessions,
+        meSessions: deps.meSessions,
         bootstrapConnectionString: deps.bootstrapConnectionString,
         chatMultiplexerAvailability: deps.chatMultiplexerAvailability,
         hostDiagnostics: deps.hostDiagnostics,

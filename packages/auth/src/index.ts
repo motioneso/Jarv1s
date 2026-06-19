@@ -18,6 +18,9 @@ import {
 import { recordBootstrapOwnerAuditEvent as settingsRecordBootstrapOwnerAuditEvent } from "@jarv1s/settings";
 import type { AuthProviderStatusDto } from "@jarv1s/shared";
 
+import { readBearerToken, toWebHeaders } from "./headers.js";
+import { createMeSessionsService, type MeSessionsRuntimeService } from "./session-service.js";
+
 const { Pool } = pg;
 
 export interface AuthenticatedPrincipal {
@@ -48,6 +51,8 @@ export interface JarvisAuthRuntime {
   readonly resolveAccessContext: (request: RequestAccessContextInput) => Promise<AccessContext>;
   readonly listConfiguredProviders: () => readonly AuthProviderStatusDto[];
   readonly revokeUserSessions: (userId: string) => Promise<number>;
+  /** Current-user session list/revoke (#237) — owns all session-table access for this surface. */
+  readonly meSessions: MeSessionsRuntimeService;
   readonly close: () => Promise<void>;
 }
 
@@ -119,6 +124,7 @@ export function createJarvisAuthRuntime(
       ]);
       return result.rowCount ?? 0;
     },
+    meSessions: createMeSessionsService({ pool, auth }),
     close: () => pool.end()
   };
 }
@@ -468,59 +474,11 @@ async function deleteRejectedBootstrapRaceLoser(authPool: pg.Pool, userId: strin
   await authPool.query("DELETE FROM app.users WHERE id = $1", [userId]);
 }
 
-function toWebHeaders(headers: Headers | IncomingHttpHeaders): Headers {
-  if (headers instanceof Headers) {
-    return headers;
-  }
-
-  const webHeaders = new Headers();
-
-  for (const [name, value] of Object.entries(headers)) {
-    if (value === undefined) {
-      continue;
-    }
-    if (Array.isArray(value)) {
-      for (const item of value) {
-        webHeaders.append(name, item);
-      }
-      continue;
-    }
-    webHeaders.set(name, value);
-  }
-
-  return webHeaders;
-}
-
 // One-way fingerprint of a bearer/session token for observability. Returns a short
 // SHA-256 prefix so a security log can correlate repeated use of the *same* token
 // without ever recording the token itself (session tokens must never reach logs).
 function fingerprintToken(token: string): string {
   return createHash("sha256").update(token).digest("hex").slice(0, 12);
-}
-
-function readBearerToken(headers: Headers): string | undefined {
-  const authorization = readHeader(headers, "authorization");
-
-  if (!authorization) {
-    return undefined;
-  }
-
-  const [scheme, token] = authorization.split(/\s+/, 2);
-
-  // Total: anything that is not a well-formed `Bearer <token>` (wrong scheme, missing space,
-  // empty token) yields `undefined` so the request falls through to cookie auth or produces a
-  // single clean 401 — never a thrown control-flow error for a mere header-format failure.
-  if (scheme?.toLowerCase() !== "bearer" || !token) {
-    return undefined;
-  }
-
-  return token;
-}
-
-function readHeader(headers: Headers, name: string): string | undefined {
-  const value = headers.get(name);
-
-  return value?.trim() || undefined;
 }
 
 // Fixed secret used ONLY under the test runner so suites that don't set
