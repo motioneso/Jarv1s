@@ -1,7 +1,6 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
-import { sql } from "kysely";
 
-import type { AccessContext, DataContextDb, DataContextRunner } from "@jarv1s/db";
+import type { AccessContext, DataContextRunner } from "@jarv1s/db";
 import { HttpError, sessionRateLimitKey } from "@jarv1s/module-sdk";
 import {
   deleteMyAccountRouteSchema,
@@ -21,6 +20,25 @@ import { handleSettingsRouteError } from "./route-error.js";
  */
 export interface VerifySelfPasswordPort {
   (input: { readonly actorUserId: string; readonly password: string }): Promise<boolean>;
+}
+
+/**
+ * Auth-owned existence probe: does the actor own a password credential? Lives
+ * behind an auth port because migration 0045 revoked `jarvis_app_runtime`
+ * SELECT on `app.auth_accounts` (password hashes live there). The settings
+ * route layer cannot read that table; this port runs on the auth pool.
+ */
+export interface HasPasswordCredentialPort {
+  (actorUserId: string): Promise<boolean>;
+}
+
+export interface MeAccountRoutesDependencies {
+  readonly resolveAccessContext: (request: FastifyRequest) => Promise<AccessContext>;
+  readonly dataContext: DataContextRunner;
+  readonly repository: SettingsRepository;
+  readonly bootstrapConnectionString?: string;
+  readonly verifySelfPassword?: VerifySelfPasswordPort;
+  readonly hasPasswordCredential?: HasPasswordCredentialPort;
 }
 
 export interface MeAccountRoutesDependencies {
@@ -55,26 +73,16 @@ class LastAdminSelfDeleteError extends Error {
 }
 
 /**
- * Existence-only probe: does the actor own an email/password credential?
- * Selects a boolean — NEVER the password hash. `app.auth_accounts` is a shared
- * infrastructure table (infra/postgres/migrations/0004); reading the actor's OWN
- * row under their data context is within bounds and matches the spec's literal
- * "read inside withDataContext" wording. Exported so GET /api/me reuses the same
- * definition for its `hasPasswordCredential` field.
+ * Existence-only probe exported for GET /api/me to reuse the same definition.
+ * Delegates to the injected auth port — the settings layer cannot read
+ * `app.auth_accounts` directly (migration 0045 RLS hardening).
  */
 export async function readHasPasswordCredential(
-  scopedDb: DataContextDb,
-  userId: string
+  hasPasswordCredential: HasPasswordCredentialPort | undefined,
+  actorUserId: string
 ): Promise<boolean> {
-  const result = await sql<{ exists: boolean }>`
-    SELECT EXISTS (
-      SELECT 1 FROM app.auth_accounts
-      WHERE user_id = ${userId}::uuid
-        AND provider_id = 'credential'
-        AND password IS NOT NULL
-    ) AS exists
-  `.execute(scopedDb.db);
-  return result.rows[0]?.exists ?? false;
+  if (!hasPasswordCredential) return false;
+  return hasPasswordCredential(actorUserId);
 }
 
 export function registerMeAccountRoutes(
@@ -123,7 +131,10 @@ export function registerMeAccountRoutes(
 
           // Confirmation factors — any miss yields a SINGLE generic 400 (no
           // per-factor detail, to avoid aiding a session-hijacking attacker).
-          const hasPasswordCredential = await readHasPasswordCredential(scopedDb, actorUserId);
+          const hasPasswordCredential = await readHasPasswordCredential(
+            dependencies.hasPasswordCredential,
+            actorUserId
+          );
           const emailMatch =
             body.confirmEmail.trim().toLowerCase() === user.email.trim().toLowerCase();
           const phraseMatch = body.confirmPhrase === DELETE_MY_ACCOUNT_PHRASE;

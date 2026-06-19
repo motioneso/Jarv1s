@@ -85,7 +85,8 @@ import {
   type HostDiagnosticsProvider,
   type MeSessionsService,
   type PersonaPreviewInput,
-  type VerifySelfPasswordPort
+  type VerifySelfPasswordPort,
+  type HasPasswordCredentialPort
 } from "@jarv1s/settings";
 import {
   TASKS_QUEUE_DEFINITIONS,
@@ -176,6 +177,12 @@ export interface BuiltInRouteDependencies {
    * password-bearing accounts.
    */
   readonly verifySelfPassword?: VerifySelfPasswordPort;
+  /**
+   * Auth-owned existence probe (does the actor own a password credential?) for
+   * GET /api/me + the self-delete dialog (migration 0045 revoked app_runtime
+   * SELECT on auth_accounts).
+   */
+  readonly hasPasswordCredential?: HasPasswordCredentialPort;
   readonly bootstrapConnectionString?: string;
   readonly googleConnectionService?: GoogleConnectionService;
   readonly googleApiClient?: GoogleApiClient;
@@ -300,6 +307,7 @@ const BUILT_IN_MODULES: readonly BuiltInModuleRegistration[] = [
         revokeUserSessions: deps.revokeUserSessions,
         meSessions: deps.meSessions,
         verifySelfPassword: deps.verifySelfPassword,
+        hasPasswordCredential: deps.hasPasswordCredential,
         bootstrapConnectionString: deps.bootstrapConnectionString,
         chatMultiplexerAvailability: deps.chatMultiplexerAvailability,
         hostDiagnostics: deps.hostDiagnostics,
