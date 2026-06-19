@@ -44,6 +44,11 @@ its linked GitHub issue — post a progress comment at key transitions (PR ready
 merge) and CLOSE the issue at merge. GitHub is source of truth; do not let issues drift behind the
 agents. Issue↔PR map: #117↔#313, #207↔#314, #237↔#315, #236↔#324 (closed), #230, #123, #114, #254, #255↔#312 (closed).
 **ci_status:** unavailable — `gh pr checks` reports no checks on deploy branches (GitHub Actions not the gate this run); judge merge-readiness off local CI-equivalent evidence per Ben's standing approval; security tier still needs per-merge Ben sign-off.
+**★ LATEST — Continuation note (Claude coordinator `2a076d28…` handing to a CODEX successor at 23:43 PDT, 2026-06-19). ★**
+SUCCESSOR IS CODEX (Codex 5h window resets 23:43). FIRST STEPS: (1) claim `Coordinator` label on your pane; verify exactly one. (2) rewrite the authority anchor (lock line) to YOUR Codex session id. (3) reset `merges_since_relay` to 0. (4) close my Claude pane (resolve fresh by label `Coordinator` before I'm renamed, or my session `2a076d28-3e7a-4fe9-9223-d0793d73027e`).
+**RUN STATE: deploy-readiness FEATURE-COMPLETE — all 9 specs merged (HEAD `ccc65e7`).** Nothing left in the queue except **#306** (manual deploy-checkpoint/final gate) and **#327** (non-blocking connector-health polish, backlog).
+**BEN OVERNIGHT DIRECTIVE (2026-06-19T~06:45Z): "keep the flow running until we run out of usage."** Maintain momentum overnight: (a) run/confirm the **#306** final acceptance gate against complete `main` and report for Ben's morning acceptance; (b) pick up spec-approved backlog / next-phase work (Phase 2 epic #47) under the tier protocols — **respect spec-before-build** (no unspec'd features); (c) any security-tier work uses the **OVERNIGHT SECURITY CONSENSUS PROTOCOL** (3 models, 2 reviewers → consensus, max 3 rounds, tiebreak-then-hold). Use the AGENT ROSTER (GLM 5.2 `w1:p28`, Gemini Pro/agy `w1:p5`, Codex, Claude is at 86% weekly — prefer non-Claude for heavy work). Builders → Agents tab `w1:tA`. Ben will read in soon.
+
 **Continuation note (RELAY 2026-06-19T04:42Z — Codex coordinator `019ede13-b12a-7c30-9ad9-5a0bcf5ca85f` relaying after the
 security-tier merge of #324/#236, per the no-deferral relay threshold). SUCCESSOR MUST BE CODEX.**
 
