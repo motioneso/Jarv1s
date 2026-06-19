@@ -8,20 +8,21 @@ import {
   AiRepository,
   HttpApiAdapter,
   createAiSecretCipher,
+  parseAiApiKeyCredential,
   type AiConfiguredModelSafeRow,
   type ProviderKind
 } from "@jarv1s/ai";
 import { CalendarRepository } from "@jarv1s/calendar";
 import { EmailRepository } from "@jarv1s/email";
 
-import { createConnectorSecretCipher } from "./crypto.js";
+import { createConnectorSecretCipher, type ConnectorSecretCipher } from "./crypto.js";
 import {
   GoogleApiClient,
   type GoogleCalendarEvent,
   type GmailMessageFull
 } from "./google-api-client.js";
-import { GoogleConnectionService } from "./google-connection.js";
-import { GoogleOAuthClient, type GoogleConnectionSecret } from "./oauth.js";
+import { decryptGoogleConnectionSecret, GoogleConnectionService } from "./google-connection.js";
+import { GoogleOAuthClient } from "./oauth.js";
 import { ConnectorsRepository } from "./repository.js";
 import { extractEmailSignals, parseEmail, type EmailExtractDeps } from "./email-extract.js";
 
@@ -119,6 +120,23 @@ const NOOP_SYNC_LOGGER: SyncLogger = {
   warn: (data, msg) => console.warn(msg, data),
   info: (data, msg) => console.info(msg, data)
 };
+
+export async function loadGoogleSyncActiveAccount(
+  repository: ConnectorsRepository,
+  cipher: ConnectorSecretCipher,
+  scopedDb: DataContextDb,
+  logger: SyncLogger
+): Promise<{ id: string; scopes: string[] } | undefined> {
+  const secret = await repository.getActiveGoogleAccountSecret(scopedDb);
+  if (!secret) return undefined;
+  try {
+    const bundle = decryptGoogleConnectionSecret(cipher, secret.encryptedSecret);
+    return { id: secret.id, scopes: bundle.grantedScopes };
+  } catch {
+    logger.warn({ actorScoped: true, stage: "auth" }, "google-sync stored connection invalid");
+    return undefined;
+  }
+}
 
 /** Mutable holder for the current access token, shared across the whole sync run. */
 interface TokenHolder {
@@ -505,10 +523,10 @@ export async function registerConnectorsJobWorkers(
             row.provider_config_id
           );
           if (!provider) return { text: "" };
-          const credential = aiCipher.decryptJson(provider.encrypted_credential) as {
-            apiKey?: string;
-          };
-          if (!credential.apiKey) return { text: "" };
+          const credential = parseAiApiKeyCredential(
+            aiCipher.decryptJson(provider.encrypted_credential)
+          );
+          if (!credential) return { text: "" };
           // HttpApiAdapter supports anthropic/openai-compatible/google (ProviderKind); narrow
           // the wider AiProviderKind at this boundary — the router already selected the model.
           const adapter = new HttpApiAdapter(
@@ -528,12 +546,12 @@ export async function registerConnectorsJobWorkers(
 
       const result = await runGoogleSync(scopedDb, {
         getActiveAccount: async (db) => {
-          const secret = await connectorsRepo.getActiveGoogleAccountSecret(db);
-          if (!secret) return undefined;
-          const bundle = connectorCipher.decryptJson(
-            secret.encryptedSecret
-          ) as GoogleConnectionSecret;
-          return { id: secret.id, scopes: bundle.grantedScopes ?? [] };
+          return loadGoogleSyncActiveAccount(
+            connectorsRepo,
+            connectorCipher,
+            db,
+            deps.logger ?? NOOP_SYNC_LOGGER
+          );
         },
         getFreshAccessToken: (db, opts) => googleService.getFreshAccessToken(db, opts),
         googleClient,

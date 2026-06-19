@@ -176,7 +176,7 @@ function decryptPendingCredentials(
   };
 }
 
-function decryptGoogleConnectionSecret(
+export function decryptGoogleConnectionSecret(
   cipher: ConnectorSecretCipher,
   encryptedSecret: EncryptedConnectorSecret
 ): GoogleConnectionSecret {

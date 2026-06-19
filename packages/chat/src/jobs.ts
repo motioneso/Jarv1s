@@ -1,7 +1,12 @@
 import { createHash } from "node:crypto";
 import type { PgBoss, WorkOptions } from "pg-boss";
 
-import { AiRepository, createAiSecretCipher, HttpApiAdapter } from "@jarv1s/ai";
+import {
+  AiRepository,
+  createAiSecretCipher,
+  HttpApiAdapter,
+  parseAiApiKeyCredential
+} from "@jarv1s/ai";
 import type { AiSecretCipher, GenerateChatInput, ProviderKind } from "@jarv1s/ai";
 import type { DataContextDb, DataContextRunner } from "@jarv1s/db";
 import {
@@ -169,9 +174,10 @@ export async function handleExtractFactsJob(
       model.provider_config_id
     );
     if (!provider?.encrypted_credential) return;
-    const decrypted = deps.cipher.decryptJson(provider.encrypted_credential);
-    const apiKey = decrypted.apiKey;
-    if (typeof apiKey !== "string" || apiKey.length === 0) return;
+    const credential = parseAiApiKeyCredential(
+      deps.cipher.decryptJson(provider.encrypted_credential)
+    );
+    if (!credential) return;
 
     // Ground supersession + dedupe against the actor's CURRENT active facts (F10/F11).
     const activeFacts = await deps.factsRepository.listActiveFacts(scopedDb, ownerUserId);
@@ -202,7 +208,7 @@ export async function handleExtractFactsJob(
     const adapter = (
       deps.createAdapter ??
       ((k, key, base) => new HttpApiAdapter(k, key, base ? { baseUrl: base } : {}))
-    )(model.provider_kind as ProviderKind, apiKey, provider.base_url);
+    )(model.provider_kind as ProviderKind, credential.apiKey, provider.base_url);
     const { text } = await adapter.generateChat({
       model: { provider_kind: model.provider_kind, provider_model_id: model.provider_model_id },
       messages: [{ role: "user", content: prompt }],

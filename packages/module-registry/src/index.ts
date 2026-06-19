@@ -8,6 +8,7 @@ import {
   aiModuleManifest,
   aiModuleSqlMigrationDirectory,
   createAiSecretCipher,
+  parseAiApiKeyCredential,
   registerAiRoutes,
   type ProviderKind
 } from "@jarv1s/ai";
@@ -239,12 +240,13 @@ function createDefaultPersonaPreview(
 
         let apiKey: string;
         try {
-          const decrypted = cipher.decryptJson(provider.encrypted_credential);
-          const key = decrypted.apiKey;
-          if (typeof key !== "string" || key.length === 0) {
+          const credential = parseAiApiKeyCredential(
+            cipher.decryptJson(provider.encrypted_credential)
+          );
+          if (!credential) {
             throw new Error("missing api key");
           }
-          apiKey = key;
+          apiKey = credential.apiKey;
         } catch {
           throw new HttpError(503, "Chat model credential is not configured");
         }
