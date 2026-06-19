@@ -77,6 +77,47 @@ describe("AssistantToolGateway", () => {
     expect(names).not.toContain("example.declaration-only");
   });
 
+  it("lists and invokes web research tools through the assistant gateway", async () => {
+    const { setWebSearchProviderForTests, webModuleManifest } =
+      await import("@jarv1s/web-research");
+    setWebSearchProviderForTests({
+      name: "fake",
+      search: async () => ({
+        results: [{ title: "Now", url: "https://example.com/now", snippet: "current" }],
+        trace: { provider: "fake" }
+      })
+    });
+    const webGateway = new AssistantToolGateway({
+      resolveActiveModules: async () => [webModuleManifest],
+      repository,
+      runner,
+      tokens,
+      confirmations,
+      notifier: { emit: (chatSessionId, record) => emitted.push({ chatSessionId, record }) },
+      confirmTimeoutMs: 1000
+    });
+
+    try {
+      const listed = await webGateway.listToolsForActor(ids.userA);
+      expect(listed.map((tool) => tool.name)).toEqual(["web.search", "web.read"]);
+
+      const token = tokens.mint({
+        actorUserId: ids.userA,
+        chatSessionId: "web-s1",
+        allowedToolNames: null
+      });
+      const response = await webGateway.callTool(token, "web.search", {
+        query: "today",
+        limit: 10
+      });
+      expect(response.ok).toBe(true);
+      if (!response.ok) throw new Error("expected ok");
+      expect((response.data as { text: string }).text).toContain("https://example.com/now");
+    } finally {
+      setWebSearchProviderForTests(undefined);
+    }
+  });
+
   it("fails closed: a throwing resolveActiveModules rejects listToolsForActor and callTool", async () => {
     let resolverCalls = 0;
     const failing = new AssistantToolGateway({

@@ -163,6 +163,7 @@ describe("Briefings module M6 read-only scheduled summaries", () => {
       "settings",
       "connectors",
       "tasks",
+      "web",
       "notifications",
       "calendar",
       "email",

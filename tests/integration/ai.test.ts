@@ -175,6 +175,7 @@ describe("AI provider foundation", () => {
       "settings",
       "connectors",
       "tasks",
+      "web",
       "notifications",
       "calendar",
       "email",

@@ -34,6 +34,9 @@ describe("CliChatEngineImpl — Claude MCP lockdown", () => {
     expect(launchLine).toContain("mcp-config");
     expect(launchLine).toContain("--permission-mode default");
     expect(launchLine).toContain("--strict-mcp-config");
+    expect(launchLine).not.toContain("web_search");
+    expect(launchLine).not.toContain("browser");
+    expect(launchLine).not.toContain("browse");
   });
 
   it("falls back to --tools '' when no mcpToken is provided", async () => {
@@ -49,6 +52,9 @@ describe("CliChatEngineImpl — Claude MCP lockdown", () => {
     expect(launchLine).not.toContain("--allowedTools");
     expect(launchLine).toContain("--permission-mode default");
     expect(launchLine).toContain("--strict-mcp-config");
+    expect(launchLine).not.toContain("web_search");
+    expect(launchLine).not.toContain("browser");
+    expect(launchLine).not.toContain("browse");
   });
 });
 
@@ -77,6 +83,9 @@ describe("CliChatEngineImpl — Codex launch", () => {
     expect(launchLine).toContain("apply_patch_tool=false");
     expect(launchLine).toContain("sandbox read-only");
     expect(launchLine).toContain("-a never");
+    expect(launchLine).not.toContain("web_search");
+    expect(launchLine).not.toContain("browser");
+    expect(launchLine).not.toContain("browse");
 
     const writeCall = (io.writeFile as ReturnType<typeof vi.fn>).mock.calls.find((c: unknown[]) =>
       String(c[0]).endsWith(".jarvis-mcp-token.env")
@@ -116,6 +125,9 @@ describe("CliChatEngineImpl — Gemini launch", () => {
     expect(launchLine).not.toContain("gemini");
     expect(launchLine).toContain("--sandbox");
     expect(launchLine).not.toContain("--allowed-mcp-server-names");
+    expect(launchLine).not.toContain("web_search");
+    expect(launchLine).not.toContain("browser");
+    expect(launchLine).not.toContain("browse");
   });
 });
 

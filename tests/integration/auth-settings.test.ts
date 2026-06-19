@@ -266,6 +266,7 @@ describe("M3 auth, users, settings", () => {
       "settings",
       "connectors",
       "tasks",
+      "web",
       "notifications",
       "calendar",
       "email",

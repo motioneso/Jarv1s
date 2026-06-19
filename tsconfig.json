@@ -33,6 +33,7 @@
       "@jarv1s/memory": ["packages/memory/src/index.ts"],
       "@jarv1s/vault": ["packages/vault/src/index.ts"],
       "@jarv1s/structured-state": ["packages/structured-state/src/index.ts"],
+      "@jarv1s/web-research": ["packages/web-research/src/index.ts"],
       "@jarv1s/wellness": ["packages/wellness/src/index.ts"]
     }
   },

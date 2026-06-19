@@ -93,6 +93,7 @@ import {
   tasksModuleManifest,
   tasksModuleSqlMigrationDirectory
 } from "@jarv1s/tasks";
+import { webModuleManifest } from "@jarv1s/web-research";
 import {
   registerWellnessRoutes,
   wellnessModuleManifest,
@@ -324,6 +325,11 @@ const BUILT_IN_MODULES: readonly BuiltInModuleRegistration[] = [
         focusSignals: deps.focusSignals
       }),
     registerWorkers: (boss, dependencies) => registerTasksJobWorkers(boss, dependencies.dataContext)
+  },
+  {
+    manifest: webModuleManifest,
+    sqlMigrationDirectories: [],
+    queueDefinitions: []
   },
   {
     manifest: notificationsModuleManifest,
