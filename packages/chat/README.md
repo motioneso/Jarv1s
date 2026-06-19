@@ -21,6 +21,8 @@ has two distinct boundaries:
 **Mitigations today:** host-shell access is the operator's own (the operator already controls the
 box); per-user neutral dirs are created with mode `0700`; connector/AI secrets are AES-256-GCM
 encrypted at rest and never placed in prompts, pg-boss payloads, logs, or exports.
+Codex MCP tokens are written to a per-session env file under the neutral dir with mode `0600`,
+referenced by path from the launch command, and removed when the session is killed.
 
 **The real fix is the deferred uid-per-user milestone** — true OS-user isolation per chat user. The
 `0700` neutral dirs and the `TmuxIo` env/cwd + `transcriptGlobDir` homeBase seams are the
