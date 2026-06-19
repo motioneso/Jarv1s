@@ -16,7 +16,7 @@ since the native `Agent(model:opus)` path is Claude-only. Currently-running Clau
 Gate-314, Build-237) finish as-is — do not kill warm work; only NEW spawns are Codex.
 **Relay threshold:** security-tier merge → relay immediately after Phase 3 step 7; routine/sensitive `merges_since_relay` >= 2 → relay. No deferral. Compaction summary = already past safe → relay, merge nothing.
 **merges_since_relay:** 0 (successor reset after security-tier merge #315 relay)
-**last_alive:** 2026-06-19T03:16Z (Codex coordinator `019eddce…` — QA #321 spawned; GLM #321 running; #123 task1 committed)
+**last_alive:** 2026-06-19T03:25Z (Codex coordinator `019eddce…` — #321 QA RED on one full-gate racer timeout with isolated rerun green; #123 cleanup committed and running local full gate while DNS blocks fetch/rebase)
 **Gate serialization policy (2026-06-18):** run mechanical gates ~1–2 at a time. Concurrent
 `verify:foundation` runs collide on cluster-global role grants → false-RED "tuple concurrently
 updated", EVEN with isolated `JARVIS_PGDATABASE` (db:migrate grants touch shared `pg_authid`).
@@ -84,15 +84,31 @@ LIVE FLEET (resolve panes fresh by label; numbers reflow):
   local-ready at `27972b7`: VF_EXIT=0 (lint, format:check, file-size, typecheck, 71 unit files/434
   tests, db:migrate current, 59 integration files/849 pass/2 skipped), AUDIT_EXIT=0, pre-push
   format/lint/typecheck green before fetch. Pushed/current after DNS recovery; PR #321 open. Issue
-  update `#issuecomment-4748201868`. GLM 5.2 review running in pane `w1:p28`.
+  update `#issuecomment-4748201868`. GLM 5.2 review GREEN in pane `w1:p28`: no blocking findings;
+  unsafe credential casts removed; AI decrypt call sites funnel through parser; sync Google secret
+  through guard; no secret logging; spec acceptance met. Non-blocking: whitespace-only API key
+  accepted; boolean `actorScoped` log metadata odd; pending Google OAuth decrypt guard consistency
+  out of scope. GLM PR comment blocked by DNS; saved at `/tmp/opencode/pr321-glm-review.md`.
+  Codex security QA RED: diff/security review had 0 blocking findings and AUDIT_EXIT=0, but full
+  local gate on `27972b76576d4ded72691bee9af047efd53cef60` had VF_EXIT=1 from
+  `tests/integration/auth-bootstrap-recovery.test.ts` disabled-registration racer timeout; exact
+  isolated rerun on same DB/head passed (`RERUN_EXIT=0`). Merge-ready: NO until a clean full gate,
+  Ben-approved waiver, or follow-up fix. QA PR comment also blocked by DNS.
 - `Build-123-AIGateway` — Codex, pane `w1:p2H`, session `019eddd0-cf56-7b51-86d5-56bed1e8b7e1`,
   worktree `.claude/worktrees/deploy-123-ai-gateway-hardening`, branch
-  `deploy-123-ai-gateway-hardening`; plan approved; building. Task 1 committed `5a4f978` after
-  immediate-approve red→green; continuing stale cleanup/token launch work. Assigned migration
-  `packages/ai/sql/0098_ai_cancel_stale_assistant_actions.sql`.
+  `deploy-123-ai-gateway-hardening`; plan approved; building. Task 1 committed `5a4f978`
+  (immediate-approve red→green); Task 2 committed `77f6f36` (stale pending cleanup red→green,
+  migration-owner SELECT/UPDATE policies under FORCE RLS); Task 3 committed `8f29273` (Codex token
+  env file 0600 + rm on kill, redaction preserved); verification cleanup committed `b131b64`.
+  Fetch/rebase against `origin/main` blocked twice by DNS (`Could not resolve host: github.com`);
+  branch currently ahead of local `origin/main` (`14793b7`) by 4. Running local full gate on isolated DB.
+  Assigned migration `packages/ai/sql/0098_ai_cancel_stale_assistant_actions.sql`.
 - `QA-321-SecretResiduals` — Codex, pane `w1:p2K`, session `019edde0-e277-7962-b29f-e0bc30ad1407`,
   worktree `.claude/worktrees/qa-321-secret-residuals`, detached at PR #321 head `27972b7`;
-  security QA running with CI-unavailable local gate requirement.
+  security QA returned RED with CI-unavailable local gate requirement: after an initial missing-DB
+  setup failure, full verify rerun had VF_EXIT=1 on the disabled-registration racer timeout,
+  AUDIT_EXIT=0, and isolated rerun of the exact failing test passed (`RERUN_EXIT=0`). PR comment
+  blocked by DNS.
 - `Build-230-PeopleAccess` — Codex, pane `w1:p2J`, session `019eddd0-cfbf-7f83-849a-2d1dbea73abf`,
   worktree `.claude/worktrees/deploy-230-people-access-sessions`, branch
   `deploy-230-people-access-sessions`; local-ready at `85e078f` (format/lint/typecheck/unit green;
@@ -142,9 +158,9 @@ need a clean worktree + a pre-existing isolated DB. Per-merge digest:
 | Spec                                                                                | Issue | Tier      | Status                                  | Agent label         | Pane   | Branch                      | PR   |
 | ----------------------------------------------------------------------------------- | ----- | --------- | --------------------------------------- | ------------------- | ------ | --------------------------- | ---- |
 | `docs/superpowers/specs/2026-06-18-otnr-p1-bootstrap-role-passwords.md`             | #117  | security  | **MERGED** (squash `0592fe7` @ 02:02Z, Ben sign-off). Issue closed; branch/worktrees/panes reaped. | — (reaped) | — | (deleted) | #313 |
-| `docs/superpowers/specs/2026-06-18-otnr-p2-secrets-vault-residuals.md`              | #114  | security  | PR ready for security QA + GLM review   | Build-114-SecretResiduals | w1:p2G | deploy-114-secret-residuals | #321 |
+| `docs/superpowers/specs/2026-06-18-otnr-p2-secrets-vault-residuals.md`              | #114  | security  | QA RED: full gate VF=1 racer timeout; GLM GREEN; DNS blocks comments | Build-114-SecretResiduals | w1:p2G | deploy-114-secret-residuals | #321 |
 | `docs/superpowers/specs/2026-06-18-route-local-junk-credential-rate-limit-gates.md` | #207  | security  | **MERGED** (squash `b0c59ef` @ 01:09Z, Ben sign-off). Issue closed; board Done. | — (reaped) | — | (deleted) | #314 |
-| `docs/superpowers/specs/2026-06-18-otnr-p3-ai-gateway-residual-hardening.md`        | #123  | security  | building: red test confirmed; migration `0098_ai_cancel_stale_assistant_actions.sql` assigned | Build-123-AIGateway | w1:p2H | deploy-123-ai-gateway-hardening | —    |
+| `docs/superpowers/specs/2026-06-18-otnr-p3-ai-gateway-residual-hardening.md`        | #123  | security  | building: implementation commits through `b131b64`; DNS blocks fetch/rebase; local full gate running; migration `0098_ai_cancel_stale_assistant_actions.sql` assigned | Build-123-AIGateway | w1:p2H | deploy-123-ai-gateway-hardening | —    |
 | `docs/superpowers/specs/2026-06-18-people-access-approval-revoke-sessions.md`       | #230  | security  | PR ready for security QA + GLM review   | Build-230-PeopleAccess | w1:p2J | deploy-230-people-access-sessions | #322 |
 | `docs/superpowers/specs/2026-06-18-active-sessions-list-revoke.md`                  | #237  | security  | **MERGED** (squash `14793b7` @ 02:53Z, Ben sign-off). Issue closed; branch/worktrees/panes reaped. | — (reaped) | — | (deleted) | #315 |
 | `docs/superpowers/specs/2026-06-18-account-card-real-status.md`                     | #236  | security  | queued: held for green gate             | —                   | —      | —                           | —    |
