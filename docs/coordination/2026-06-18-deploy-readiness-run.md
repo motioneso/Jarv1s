@@ -15,8 +15,8 @@ adversarial coverage (satisfies the cross-model requirement). NEW QA spawns use 
 since the native `Agent(model:opus)` path is Claude-only. Currently-running Claude lanes (Fix-313,
 Gate-314, Build-237) finish as-is — do not kill warm work; only NEW spawns are Codex.
 **Relay threshold:** security-tier merge → relay immediately after Phase 3 step 7; routine/sensitive `merges_since_relay` >= 2 → relay. No deferral. Compaction summary = already past safe → relay, merge nothing.
-**merges_since_relay:** 0 (adopted after security-tier merge #322/#230 and mandatory relay)
-**last_alive:** 2026-06-19T04:32Z (Codex coordinator `019ede13…` — #236 ready; QA + GLM review running)
+**merges_since_relay:** 1 (security-tier merge #324/#236 completed; relay required immediately)
+**last_alive:** 2026-06-19T04:42Z (Codex coordinator `019ede13…` — #324/#236 merged and reaped; security merge relay now in progress)
 **Gate serialization policy (2026-06-18):** run mechanical gates ~1–2 at a time. Concurrent
 `verify:foundation` runs collide on cluster-global role grants → false-RED "tuple concurrently
 updated", EVEN with isolated `JARVIS_PGDATABASE` (db:migrate grants touch shared `pg_authid`).
@@ -26,8 +26,26 @@ clean worktree (stray untracked `.md` breaks format:check) and ensure their isol
 **⚠️ KEEP GITHUB ISSUES UPDATED (Ben directive 2026-06-19):** as each agent finishes a slice, update
 its linked GitHub issue — post a progress comment at key transitions (PR ready-for-QA, QA verdict,
 merge) and CLOSE the issue at merge. GitHub is source of truth; do not let issues drift behind the
-agents. Issue↔PR map: #117↔#313, #207↔#314, #237↔#315, #236, #230, #123, #114, #254, #255↔#312 (closed).
+agents. Issue↔PR map: #117↔#313, #207↔#314, #237↔#315, #236↔#324 (closed), #230, #123, #114, #254, #255↔#312 (closed).
 **ci_status:** unavailable — `gh pr checks` reports no checks on deploy branches (GitHub Actions not the gate this run); judge merge-readiness off local CI-equivalent evidence per Ben's standing approval; security tier still needs per-merge Ben sign-off.
+**Continuation note (RELAY 2026-06-19T04:42Z — Codex coordinator `019ede13-b12a-7c30-9ad9-5a0bcf5ca85f` relaying after the
+security-tier merge of #324/#236, per the no-deferral relay threshold). SUCCESSOR MUST BE CODEX.**
+
+SUCCESSOR FIRST STEPS (you are a CODEX coordinator): (1) claim the `Coordinator` label on your own
+pane; verify exactly one `Coordinator` pane = you. (2) rewrite the authority anchor to YOUR Codex
+session id from `herdr pane list`. (3) close this relaying coordinator only after resolving it fresh
+by label `Coordinator-relaying` or session id `019ede13-b12a-7c30-9ad9-5a0bcf5ca85f`. (4) reset
+`merges_since_relay` to 0 after adoption. (5) continue the queued run: #324/#236 just merged as
+squash `00c2c84dbeb036b53b05209add0cf78ff6ce5858`; issue #236 is closed with merge-ref comment
+`#issuecomment-4748547488`; branch/worktrees/panes were reaped; this security merge triggered
+relay. Next active decisions: #321/#114 remains blocked by RED Codex QA full-gate racer timeout
+despite GLM GREEN; #254 is next useful lane after connector/secret residuals policy, but avoid a
+new full gate until the successor confirms no CI-equiv gate is active; do not spawn manual #306.
+Do NOT merge any security-tier PR without Ben explicit/standing per-merge sign-off; Ben's current
+standing instruction for this run allows security merge once GLM 5.2 review is GREEN and normal
+Codex/local-CI security QA evidence is GREEN. `ci_status` remains unavailable; judge
+merge-readiness off local CI-equivalent evidence.
+
 **Continuation note (RELAY 2026-06-19T04:10Z — Codex coordinator `019ede06-8606-7ff3-82e3-56679ea64161` relaying after the
 security-tier merge of #322/#230, per the no-deferral relay threshold). SUCCESSOR MUST BE CODEX.**
 
@@ -150,26 +168,23 @@ LIVE FLEET (resolve panes fresh by label; numbers reflow):
   VF_EXIT=0, AUDIT_EXIT=0, focused_e2e=PASS/E2E_EXIT=0 on integrated SHA `d0c24a8`). Non-blocking:
   backend admin revoke endpoint can self-target if called directly; UI policy hides current user,
   route remains admin-only/count-only. This security merge triggered mandatory coordinator relay.
-- `Build-236-AccountStatus` — Codex, pane `w1:p2R`, session `019ede15-e4ee-7410-b45f-67639b2cb644`,
-  worktree `.claude/worktrees/deploy-236-account-card-real-status`, branch
-  `deploy-236-account-card-real-status`; PR #324 open at head `8736db6`, rebased on `origin/main`.
-  Build reported VF_EXIT=0/AUDIT_EXIT=0 (69 unit files/429 tests; 59 integration files/851 passed,
-  2 skipped), no deferred work. Handoff:
-  `docs/coordination/handoffs/2026-06-18-deploy-236-account-card-real-status.md`.
-- `QA-324-AccountStatus` — Codex, pane `w1:p2S`, session `019ede26-83dc-74f1-b880-4f8d1e3d59ef`,
-  worktree `.claude/worktrees/qa-324-account-card-real-status`, detached at PR #324 head `8736db6`;
-  security QA running with CI-unavailable full local CI-equivalent instructions
-  (`VF_EXIT`/`AUDIT_EXIT`) plus adversarial review. GLM 5.2 review request queued in pane `w1:p28`.
+- `Build-236-AccountStatus` / `QA-324-AccountStatus` — **MERGED/REAPED**. PR #324 merged as squash
+  `00c2c84dbeb036b53b05209add0cf78ff6ce5858`; issue #236 closed with merge-ref comment
+  `#issuecomment-4748547488`. Branch `deploy-236-account-card-real-status` deleted locally and
+  remotely; build and QA panes/worktrees reaped. Evidence: GLM GREEN (`#issuecomment-4748523857`,
+  issue `#issuecomment-4748523925`); Codex security QA GREEN (`#issuecomment-4748542737`,
+  VF_EXIT=0, AUDIT_EXIT=0 on head `8736db6` after creating missing isolated QA DB). Non-blocking:
+  no positive `email_verified=true` API/UI test; false/default DTO serialization covered. This
+  security merge triggered mandatory coordinator relay.
 - GLM 5.2 pane `w1:p28` is not a deploy build lane; it may still be open for
   unrelated/adversarial-review work.
 
-GATE SERIALIZATION RIGHT NOW: #324/#236 Codex security QA local CI-equivalent is running. Do not
-start another full gate until it finishes. #321/#114 remains blocked on RED full-gate racer timeout
-despite GLM GREEN.
+GATE SERIALIZATION RIGHT NOW: no CI-equiv gate is running. #324/#236 merged; relay now. #321/#114
+remains blocked on RED full-gate racer timeout despite GLM GREEN.
 
-PENDING SIGN-OFFS (all security tier, all need Ben): none currently ready. Continue serialized successors per chains A/B/C and the held queue (#114, #236,
+PENDING SIGN-OFFS (all security tier, all need Ben): none currently ready. Continue serialized successors per chains A/B/C and the held queue (#114,
 #254, then #306 manual). Preferred merge order: #117(#313), #114, #207(#314 ✅done), #123(#323 ✅done), #237(#315),
-#230(#322 ✅done), #236, #255(#312 ✅done), #254, then #306.
+#230(#322 ✅done), #236(#324 ✅done), #255(#312 ✅done), #254, then #306.
 
 GATE DISCIPLINE: serialize mechanical gates ~1–2 at a time; retry verify:foundation on "tuple
 concurrently updated" (cluster-global grants contention — see agentmemory `mem_mqk7fojw`); gate-runners
@@ -210,7 +225,7 @@ need a clean worktree + a pre-existing isolated DB. Per-merge digest:
 | `docs/superpowers/specs/2026-06-18-otnr-p3-ai-gateway-residual-hardening.md`        | #123  | security  | **MERGED** (squash `62f21a3` @ 03:53Z, Ben standing sign-off). Issue closed; branch/worktrees/panes reaped. | — (reaped) | — | (deleted) | #323 |
 | `docs/superpowers/specs/2026-06-18-people-access-approval-revoke-sessions.md`       | #230  | security  | **MERGED** (squash `b9e412d` @ 04:09Z, Ben standing sign-off). Issue closed; branch/worktrees/panes reaped. | — (reaped) | — | (deleted) | #322 |
 | `docs/superpowers/specs/2026-06-18-active-sessions-list-revoke.md`                  | #237  | security  | **MERGED** (squash `14793b7` @ 02:53Z, Ben sign-off). Issue closed; branch/worktrees/panes reaped. | — (reaped) | — | (deleted) | #315 |
-| `docs/superpowers/specs/2026-06-18-account-card-real-status.md`                     | #236  | security  | QA running on PR #324                   | Build-236-AccountStatus / QA-324-AccountStatus | w1:p2R / w1:p2S | deploy-236-account-card-real-status | #324 |
+| `docs/superpowers/specs/2026-06-18-account-card-real-status.md`                     | #236  | security  | **MERGED** (squash `00c2c84` @ 04:41Z, Ben standing sign-off). Issue closed; branch/worktrees/panes reaped. | — (reaped) | — | (deleted) | #324 |
 | `docs/superpowers/specs/2026-06-18-host-diagnostics-safe-ops.md`                    | #255  | security  | **MERGED** (squash @ 2026-06-19T00:47Z, Ben sign-off). Issue closed. **Board move to Done still TODO (successor).** | — (reaped) | — | (deleted) | #312 |
 | `docs/superpowers/specs/2026-06-18-connector-health-monitoring.md`                  | #254  | sensitive | queued: held for green main             | —                   | —      | —                           | —    |
 | `docs/superpowers/specs/2026-06-18-phase-2-deploy-checkpoint-final-gate.md`         | #306  | manual    | blocked: final gate after prerequisites | —                   | —      | —                           | —    |
@@ -349,3 +364,10 @@ No waivers.
   GREEN security QA posted to PR #322 (`#issuecomment-4748410144`): VF_EXIT=0, AUDIT_EXIT=0,
   focused_e2e=PASS/E2E_EXIT=0; pane closed and worktree
   `.claude/worktrees/qa-322-people-access-sessions` removed.
+- `Build-236-AccountStatus` (`w1:p2R`, Codex session `019ede15-e4ee-7410-b45f-67639b2cb644`) —
+  reaped after #324/#236 merged; worktree `.claude/worktrees/deploy-236-account-card-real-status`
+  removed; branch `deploy-236-account-card-real-status` deleted locally and remotely.
+- `QA-324-AccountStatus` (`w1:p2S`, Codex session `019ede26-83dc-74f1-b880-4f8d1e3d59ef`) —
+  GREEN security QA posted to PR #324 (`#issuecomment-4748542737`): VF_EXIT=0, AUDIT_EXIT=0,
+  no blocking findings; pane closed and worktree `.claude/worktrees/qa-324-account-card-real-status`
+  removed.
