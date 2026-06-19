@@ -100,7 +100,13 @@ export function ChatDrawer(props: {
         {reviewing ? (
           <div className="chatd-review">Reviewing {selectedThread?.title ?? "past chat"}</div>
         ) : null}
-        {displayRecords.length > 0 ? <Thread records={displayRecords} /> : <EmptyState />}
+        {displayRecords.length > 0 ? (
+          <Thread records={displayRecords} />
+        ) : reviewing ? (
+          <ReviewEmptyState />
+        ) : (
+          <EmptyState />
+        )}
       </div>
 
       <Composer readOnly={reviewing} />
@@ -326,6 +332,14 @@ function EmptyState() {
           </button>
         ))}
       </div>
+    </div>
+  );
+}
+
+function ReviewEmptyState() {
+  return (
+    <div className="chatd-empty chatd-empty--review">
+      <div className="chatd-empty__title">No stored messages</div>
     </div>
   );
 }

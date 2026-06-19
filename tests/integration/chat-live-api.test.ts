@@ -15,6 +15,7 @@ import { ChatRepository, CliChatUnavailableError } from "@jarv1s/chat";
 import type { ChatEngineFactory } from "@jarv1s/module-registry";
 import {
   DataContextRunner,
+  SharesRepository,
   createDatabase,
   type AccessContext,
   type JarvisDatabase
@@ -69,6 +70,7 @@ describe("Chat live API (turn / clear / switch / stream)", () => {
   let appDb: Kysely<JarvisDatabase>;
   let dataContext: DataContextRunner;
   let repository: ChatRepository;
+  let shares: SharesRepository;
   let server: ReturnType<typeof createApiServer>;
   let originalSecretKey: string | undefined;
   let providerId: string;
@@ -82,6 +84,7 @@ describe("Chat live API (turn / clear / switch / stream)", () => {
     appDb = createDatabase({ connectionString: connectionStrings.app, maxConnections: 1 });
     dataContext = new DataContextRunner(appDb);
     repository = new ChatRepository();
+    shares = new SharesRepository();
     server = createApiServer({
       appDb,
       logger: false,
@@ -282,6 +285,40 @@ describe("Chat live API (turn / clear / switch / stream)", () => {
       expect.objectContaining({ role: "assistant", body: "old answer" })
     ]);
     expect(other.statusCode).toBe(404);
+  });
+
+  it("GET /api/chat/threads/:id/messages returns 404 for a shared thread grantee", async () => {
+    const thread = await dataContext.withDataContext(userAContext(), async (scopedDb) => {
+      const created = await repository.openNewThread(scopedDb, {
+        title: "Shared historical thread"
+      });
+      await repository.recordCompletedTurn(
+        scopedDb,
+        created.id,
+        "shared question",
+        "shared answer",
+        {
+          provider: "anthropic",
+          model: "claude-live"
+        }
+      );
+      await shares.grant(scopedDb, {
+        resourceType: "chat_thread",
+        resourceId: created.id,
+        ownerUserId: ids.userA,
+        granteeUserId: ids.userB,
+        level: "view"
+      });
+      return created;
+    });
+
+    const response = await server.inject({
+      method: "GET",
+      url: `/api/chat/threads/${thread.id}/messages`,
+      headers: { authorization: `Bearer ${ids.sessionB}` }
+    });
+
+    expect(response.statusCode).toBe(404);
   });
 
   it("subscriptions are per-actor: user B's stream never receives user A's records", async () => {

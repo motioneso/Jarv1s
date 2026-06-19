@@ -241,6 +241,7 @@ export function registerChatRoutes(
           access,
           async (scopedDb) => {
             const thread = await repository.getThreadById(scopedDb, request.params.id);
+            if (thread?.owner_user_id !== access.actorUserId) return null;
             if (!thread) return null;
             return repository.listMessages(scopedDb, thread.id);
           }
