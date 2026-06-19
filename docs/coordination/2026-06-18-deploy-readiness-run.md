@@ -75,7 +75,7 @@ No waivers.
       to PR #312, then request Ben security-tier merge sign-off.
 - [ ] #313 security QA running in `QA-313-RolePw` (`w1:p1V`); `gh pr checks 313` reported no checks,
       so QA is using CI-unavailable local-verification mode.
-- [ ] #314 security QA running in `QA-314-RateLimit` (`w1:p1X`); `gh pr checks 314` reported no
+- [ ] #314 security QA running in `QA-314-RateLimit` (`w1:p1Y`); `gh pr checks 314` reported no
       checks, so QA is using CI-unavailable local-verification mode.
 - [ ] #306 is manual-acceptance only; no build agent should be spawned for it.
 
