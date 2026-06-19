@@ -3,6 +3,7 @@ import { expect, test } from "@playwright/test";
 import {
   createMockConnectorAccount,
   createMockConnectorProviders,
+  createMockUser,
   createMockNotification,
   createMockTask,
   mockApi
@@ -71,6 +72,60 @@ test("hides admin-only settings sections for a non-admin user", async ({ page })
   await expect(page.getByText("Member of this instance.")).toBeVisible();
   await expect(page.getByRole("button", { name: "Admin / Setup" })).toHaveCount(0);
   await expect(page.getByText("People & access")).toHaveCount(0);
+});
+
+test("people access uses approval model and revokes member sessions", async ({ page }) => {
+  let revokeUrl: string | undefined;
+
+  await mockApi(page, {
+    authenticated: true,
+    adminUsers: [
+      createMockUser("user-1", "Owner User", "owner@example.test", {
+        isInstanceAdmin: true,
+        isBootstrapOwner: true
+      }),
+      createMockUser("member-1", "Member User", "member@example.test")
+    ],
+    connectorAccounts: [],
+    connectorProviders: createMockConnectorProviders(),
+    notifications: [],
+    revokedAdminSessionCount: 3,
+    tasks: []
+  });
+
+  await page.route("**/api/admin/users/*/revoke-sessions", async (route) => {
+    revokeUrl = route.request().url();
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({ success: true, count: 3 })
+    });
+  });
+
+  await page.goto("/settings");
+  await page.getByRole("button", { name: "Admin / Setup" }).click();
+
+  await expect(page.getByRole("heading", { name: "People & access" })).toBeVisible();
+  await expect(page.getByRole("button", { name: /Invite/i })).toHaveCount(0);
+  await expect(
+    page.getByText("New people create an account, then wait for approval here.")
+  ).toBeVisible();
+
+  await page.getByRole("button", { name: "Actions for Member User" }).click();
+  await page.getByRole("menuitem", { name: "Sign out everywhere" }).click();
+  await expect(
+    page.getByRole("dialog", { name: "Sign out Member User everywhere?" })
+  ).toBeVisible();
+  await page
+    .getByRole("dialog", { name: "Sign out Member User everywhere?" })
+    .getByRole("button", { name: "Sign out everywhere" })
+    .click();
+
+  await expect.poll(() => revokeUrl).toContain("/api/admin/users/member-1/revoke-sessions");
+  await expect(
+    page.getByText("Member User signed out everywhere (3 sessions revoked)")
+  ).toBeVisible();
+  await expect(page.getByText(/session-/i)).toHaveCount(0);
 });
 
 test("creates and updates tasks through REST calls", async ({ page }) => {

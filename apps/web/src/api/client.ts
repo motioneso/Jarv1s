@@ -10,6 +10,7 @@ import type {
   CreateAiProviderConfigResponse,
   AddTaskActivityResponse,
   AiModelCapability,
+  AdminRevokeSessionsResponse,
   BootstrapStatusResponse,
   ChatMultiplexerChoice,
   ChatMultiplexerSettingsDto,
@@ -845,6 +846,13 @@ export async function deleteAdminUser(id: string): Promise<{ deletedUserId: stri
   return requestJson<{ deletedUserId: string }>(`/api/admin/users/${encodeURIComponent(id)}`, {
     method: "DELETE"
   });
+}
+
+export async function revokeAdminUserSessions(id: string): Promise<AdminRevokeSessionsResponse> {
+  return requestJson<AdminRevokeSessionsResponse>(
+    `/api/admin/users/${encodeURIComponent(id)}/revoke-sessions`,
+    { method: "POST" }
+  );
 }
 
 export async function getRegistrationSettings(): Promise<RegistrationSettingsDto> {

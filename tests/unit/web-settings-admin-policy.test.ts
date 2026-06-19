@@ -30,7 +30,7 @@ describe("settings admin user action policy", () => {
     const current = member({ id: "current", isInstanceAdmin: true });
     const owner = member({ id: "owner", isInstanceAdmin: true, isBootstrapOwner: true });
 
-    expect(adminUserActions(owner, current, [current, owner])).toEqual([]);
+    expect(adminUserActions(owner, current, [current, owner])).toEqual(["revokeSessions"]);
     expect(canRemoveAdminUser(owner, current, [current, owner])).toBe(false);
   });
 
@@ -38,7 +38,9 @@ describe("settings admin user action policy", () => {
     const current = member({ id: "current", isInstanceAdmin: true, status: "deactivated" });
     const onlyActiveAdmin = member({ id: "admin", isInstanceAdmin: true });
 
-    expect(adminUserActions(onlyActiveAdmin, current, [current, onlyActiveAdmin])).toEqual([]);
+    expect(adminUserActions(onlyActiveAdmin, current, [current, onlyActiveAdmin])).toEqual([
+      "revokeSessions"
+    ]);
     expect(canRemoveAdminUser(onlyActiveAdmin, current, [current, onlyActiveAdmin])).toBe(false);
   });
 
@@ -49,6 +51,7 @@ describe("settings admin user action policy", () => {
     expect(adminUserActions(target, current, [current, target])).toEqual([
       "admin",
       "deactivate",
+      "revokeSessions",
       "remove"
     ]);
   });
@@ -60,6 +63,7 @@ describe("settings admin user action policy", () => {
     expect(adminUserActions(target, current, [current, target])).toEqual([
       "admin",
       "reactivate",
+      "revokeSessions",
       "remove"
     ]);
   });
@@ -70,6 +74,30 @@ describe("settings admin user action policy", () => {
     const policy = createAdminUserPolicyContext([current, target]);
 
     expect(policy.activeAdminCount).toBe(2);
-    expect(adminUserActions(target, current, policy)).toEqual(["admin", "deactivate", "remove"]);
+    expect(adminUserActions(target, current, policy)).toEqual([
+      "admin",
+      "deactivate",
+      "revokeSessions",
+      "remove"
+    ]);
+  });
+
+  it("offers session revoke for active and deactivated non-current members", () => {
+    const current = member({ id: "current", isInstanceAdmin: true });
+    const active = member({ id: "active" });
+    const deactivated = member({ id: "deactivated", status: "deactivated" });
+
+    expect(adminUserActions(active, current, [current, active])).toContain("revokeSessions");
+    expect(adminUserActions(deactivated, current, [current, deactivated])).toContain(
+      "revokeSessions"
+    );
+  });
+
+  it("does not offer session revoke for current or pending users", () => {
+    const current = member({ id: "current", isInstanceAdmin: true });
+    const pending = member({ id: "pending", status: "pending" });
+
+    expect(adminUserActions(current, current, [current, pending])).not.toContain("revokeSessions");
+    expect(adminUserActions(pending, current, [current, pending])).not.toContain("revokeSessions");
   });
 });
