@@ -57,6 +57,7 @@ const userScopedCountQueries: ReadonlyArray<readonly [table: string, predicate: 
   ["app.notifications", "recipient_user_id = $1::uuid OR actor_user_id = $1::uuid"],
   ["app.notification_reads", "user_id = $1::uuid"],
   ["app.connector_accounts", "owner_user_id = $1::uuid"],
+  ["app.connector_oauth_pending", "owner_user_id = $1::uuid"],
   ["app.calendar_events", "owner_user_id = $1::uuid"],
   ["app.email_messages", "owner_user_id = $1::uuid"],
   ["app.ai_provider_configs", "owner_user_id = $1::uuid"],
@@ -65,7 +66,38 @@ const userScopedCountQueries: ReadonlyArray<readonly [table: string, predicate: 
   ["app.chat_threads", "owner_user_id = $1::uuid"],
   ["app.chat_messages", "owner_user_id = $1::uuid"],
   ["app.briefing_definitions", "owner_user_id = $1::uuid"],
-  ["app.briefing_runs", "owner_user_id = $1::uuid"]
+  ["app.briefing_runs", "owner_user_id = $1::uuid"],
+  // Tasks foundation (#39): owner-scoped lists/tags/preferences cascade on user delete.
+  ["app.task_lists", "owner_user_id = $1::uuid"],
+  ["app.task_tags", "owner_user_id = $1::uuid"],
+  ["app.task_tag_assignments", "owner_user_id = $1::uuid"],
+  ["app.task_preferences", "owner_user_id = $1::uuid"],
+  // Shares: a user's deletion removes shares they granted AND shares granted to them
+  // (both FKs are ON DELETE CASCADE — 0017).
+  ["app.shares", "owner_user_id = $1::uuid OR grantee_user_id = $1::uuid"],
+  // Wellness module (0082–0089).
+  ["app.wellness_checkins", "owner_user_id = $1::uuid"],
+  ["app.medications", "owner_user_id = $1::uuid"],
+  ["app.medication_logs", "owner_user_id = $1::uuid"],
+  ["app.wellness_therapy_notes", "owner_user_id = $1::uuid"],
+  // Memory: chunks/links/file-index/facts + the chat-memory settings/suppressions.
+  // All owner_user_id / user_id ON DELETE CASCADE.
+  ["app.memory_chunks", "owner_user_id = $1::uuid"],
+  ["app.memory_links", "owner_user_id = $1::uuid"],
+  ["app.memory_file_index", "owner_user_id = $1::uuid"],
+  ["app.chat_memory_facts", "owner_user_id = $1::uuid"],
+  ["app.chat_memory_suppressions", "owner_user_id = $1::uuid"],
+  ["app.chat_user_memory_settings", "user_id = $1::uuid"],
+  // Structured-state (0031): commitments/entities/preferences.
+  ["app.commitments", "owner_user_id = $1::uuid"],
+  ["app.entities", "owner_user_id = $1::uuid"],
+  ["app.preferences", "owner_user_id = $1::uuid"],
+  // Per-user module enablement deny rows (0065): only scope='user' rows are
+  // owner-scoped (scope='instance' rows are global; disabled_by_user_id is
+  // ON DELETE SET NULL — retained/anonymized, not counted here).
+  ["app.module_enablement", "scope = 'user' AND user_id = $1::uuid"],
+  // Per-member onboarding state (0079).
+  ["app.member_onboarding", "user_id = $1::uuid"]
 ];
 
 export async function deleteUserData(
