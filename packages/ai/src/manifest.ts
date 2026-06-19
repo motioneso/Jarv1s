@@ -6,6 +6,7 @@ import {
   createAiConfiguredModelResponseSchema,
   createAiProviderConfigRequestSchema,
   createAiProviderConfigResponseSchema,
+  discoverAiProviderModelsResponseSchema,
   getChatModelOverrideSettingsResponseSchema,
   invokeAiAssistantToolRequestSchema,
   invokeAiAssistantToolResponseSchema,
@@ -19,6 +20,7 @@ import {
   resolveAiAssistantActionRequestSchema,
   resolveAiAssistantActionResponseSchema,
   revokeAiProviderConfigResponseSchema,
+  testAiProviderConfigResponseSchema,
   updateAiConfiguredModelRequestSchema,
   updateAiConfiguredModelResponseSchema,
   updateAiProviderConfigRequestSchema,
@@ -133,6 +135,18 @@ export const aiModuleManifest = {
       method: "POST",
       path: "/api/ai/providers/:id/revoke",
       responseSchema: revokeAiProviderConfigResponseSchema,
+      permissionId: "ai.manage"
+    },
+    {
+      method: "POST",
+      path: "/api/ai/providers/:id/test",
+      responseSchema: testAiProviderConfigResponseSchema,
+      permissionId: "ai.manage"
+    },
+    {
+      method: "POST",
+      path: "/api/ai/providers/:id/discover-models",
+      responseSchema: discoverAiProviderModelsResponseSchema,
       permissionId: "ai.manage"
     },
     {

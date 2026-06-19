@@ -16,6 +16,27 @@ export interface MockAiApiState {
 }
 
 export async function registerMockAiRoutes(page: Page, state: MockAiApiState): Promise<void> {
+  await page.route(/\/api\/ai\/providers\/[^/]+\/test$/, (route) =>
+    fulfillJson(route, 200, {
+      result: {
+        ok: true,
+        providerKind: "openai-compatible",
+        message: "Provider credential is valid."
+      }
+    })
+  );
+  await page.route(/\/api\/ai\/providers\/[^/]+\/discover-models$/, (route) =>
+    fulfillJson(route, 200, {
+      models: [
+        {
+          providerModelId: "gpt-4o",
+          displayName: "gpt-4o",
+          capabilities: ["chat", "tool-use", "json", "summarization"],
+          tier: "interactive"
+        }
+      ]
+    })
+  );
   await page.route(/\/api\/ai\/providers\/[^/]+\/revoke$/, (route) =>
     handleAiProviderRevokeRoute(route, state)
   );
@@ -138,7 +159,9 @@ async function handleAiModelsRoute(route: Route, state: MockAiApiState): Promise
       providerModelId: input.providerModelId,
       displayName: input.displayName,
       capabilities: input.capabilities,
-      status: input.status ?? "active"
+      status: input.status ?? "active",
+      tier: input.tier ?? "interactive",
+      allowUserOverride: input.allowUserOverride ?? true
     });
 
     state.aiModels = [...(state.aiModels ?? []), model];
