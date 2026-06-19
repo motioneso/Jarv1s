@@ -87,6 +87,9 @@ export class CliChatEngineImpl implements CliChatEngine {
   /** The cwd used to launch the CLI; Codex records it in session_meta.cwd. */
   private neutralDir: string | null = null;
 
+  /** Per-session Codex MCP token env file, removed on kill / failed launch. */
+  private codexTokenEnvPath: string | null = null;
+
   /** Optional host-HOME base for transcript resolution (containerized bridge). */
   private readonly homeBase?: string;
 
@@ -110,6 +113,8 @@ export class CliChatEngineImpl implements CliChatEngine {
     // lazily in readNew() (newest .jsonl under the glob dir).
     const sessionId = randomUUID();
     this.neutralDir = opts.neutralDir;
+    this.codexTokenEnvPath =
+      this.provider === "openai-compatible" ? await this.writeCodexTokenEnv(opts) : null;
 
     if (this.provider === "google" && opts.mcpToken && opts.mcpServerUrl) {
       const settingsDir = join(opts.neutralDir, ".gemini");
@@ -148,19 +153,16 @@ export class CliChatEngineImpl implements CliChatEngine {
         launchLine
       });
     } catch (err) {
+      await this.removeCodexTokenEnv();
       // A backend exit-code failure (missing binary via JARVIS_MULTIPLEXER override,
       // herdr socket failure, unresolvable root pane, tmux new-session failure) throws
       // a plain Error from mux.open(). Convert it to the 503-mapped error with a
       // sanitized message; the raw cause is logged server-side by the route handler
       // (Codex R2 #2). Never surface raw stderr to the client.
       //
-      // The launch line carries the per-session MCP bearer token inline (Codex env-var
-      // prefix; see buildCodexCommand). The in-repo multiplexers already redact stderr,
-      // but a backend whose thrown message echoes the launch line (or a future
-      // JARVIS_MULTIPLEXER override) could otherwise carry `JARVIS_MCP_TOKEN=jst_…` into
-      // the server log via the structurally-serialized `cause`. Redact at this boundary
-      // (defense-in-depth, secrets-never-escape) so no token shape can reach a log even
-      // on the failure path; the original stack is dropped (it can embed the launch line).
+      // Defense-in-depth: old Codex launches carried `JARVIS_MCP_TOKEN=jst_…` inline, and
+      // a custom multiplexer can still echo token-shaped stderr. Redact at this boundary
+      // so no token shape can reach a log via the structurally-serialized `cause`.
       throw new CliChatUnavailableError("could not start the live chat session", {
         cause: redactCause(err)
       });
@@ -217,8 +219,14 @@ export class CliChatEngineImpl implements CliChatEngine {
   }
 
   async kill(): Promise<void> {
-    if (this.handle === null) return;
-    await this.mux.kill(this.handle);
+    try {
+      if (this.handle !== null) {
+        await this.mux.kill(this.handle);
+      }
+    } finally {
+      this.handle = null;
+      await this.removeCodexTokenEnv();
+    }
   }
 
   // ─── introspection (used by tests / callers needing the pinned path) ─────────
@@ -348,12 +356,8 @@ export class CliChatEngineImpl implements CliChatEngine {
 
   private buildCodexCommand(opts: EngineLaunchOpts): string {
     const tokenEnvVar = "JARVIS_MCP_TOKEN";
-    // Codex reads the Bearer token via bearer_token_env_var; there is no file-based injection
-    // equivalent, so the token appears in the launch line and ps output. Under the household
-    // model this is a shared-uid soft boundary (see the chat module README "Known security
-    // limitation"); the token is short-lived, process-scoped, and RLS-scoped server-side.
-    const envPrefix = opts.mcpToken ? `${tokenEnvVar}=${opts.mcpToken} ` : "";
-    const parts = [`cd ${shellQuote(opts.neutralDir)} &&`, `${envPrefix}codex`];
+    const sourceEnv = this.codexTokenEnvPath ? `. ${shellQuote(this.codexTokenEnvPath)} &&` : "";
+    const parts = [`cd ${shellQuote(opts.neutralDir)} &&`, sourceEnv, "codex"];
 
     if (opts.mcpToken && opts.mcpServerUrl) {
       parts.push(
@@ -373,6 +377,27 @@ export class CliChatEngineImpl implements CliChatEngine {
     // Token is already injected via .gemini/settings.json Authorization header — no env var needed.
     const parts = [`cd ${shellQuote(opts.neutralDir)} &&`, "agy", "--sandbox"];
     return parts.join(" ");
+  }
+
+  private async writeCodexTokenEnv(opts: EngineLaunchOpts): Promise<string | null> {
+    if (!opts.mcpToken) return null;
+    const path = join(opts.neutralDir, ".jarvis-mcp-token.env");
+    await this.io.writeFile(
+      path,
+      `JARVIS_MCP_TOKEN=${shellQuote(opts.mcpToken)}\nexport JARVIS_MCP_TOKEN\n`
+    );
+    const chmod = await this.io.run("chmod", ["600", path]);
+    if (chmod.code !== 0) {
+      await this.io.run("rm", ["-f", path]);
+      throw new Error(`Could not lock down Codex MCP token file: ${chmod.stderr ?? ""}`.trim());
+    }
+    return path;
+  }
+
+  private async removeCodexTokenEnv(): Promise<void> {
+    const path = this.codexTokenEnvPath;
+    this.codexTokenEnvPath = null;
+    if (path) await this.io.run("rm", ["-f", path]);
   }
 }
 

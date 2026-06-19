@@ -1,7 +1,8 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
+import type { Kysely } from "kysely";
 import type { PgBoss } from "pg-boss";
 
-import type { AccessContext, ChatThread, DataContextRunner } from "@jarv1s/db";
+import type { AccessContext, ChatThread, DataContextRunner, JarvisDatabase } from "@jarv1s/db";
 import {
   listChatThreadsRouteSchema,
   listMemoryCorrectionsRouteSchema,
@@ -45,7 +46,10 @@ import {
 import { registerMcpTransportRoute } from "./mcp-transport.js";
 import { ChatRepository } from "./repository.js";
 
+const STALE_ACTION_GRACE_MS = 5 * 60_000;
+
 export interface ChatRoutesDependencies {
+  readonly rootDb: Kysely<JarvisDatabase>;
   readonly resolveAccessContext: (request: FastifyRequest) => Promise<AccessContext>;
   readonly dataContext: DataContextRunner;
   readonly repository?: ChatRepository;
@@ -114,7 +118,7 @@ export function registerChatRoutes(
             })
           );
 
-          return { tokens, gateway, mcpServerUrl };
+          return { tokens, gateway, mcpServerUrl, aiRepository };
         })()
       : null;
 
@@ -149,6 +153,21 @@ export function registerChatRoutes(
 
   // Wire real notifier now that manager is available.
   realNotifier = new ChatGatewayNotifier(runtime.manager);
+
+  server.addHook("onReady", async () => {
+    if (!wiring) return;
+    try {
+      const count = await wiring.aiRepository.cancelStalePendingAssistantActions(
+        dependencies.rootDb,
+        { olderThan: new Date(Date.now() - STALE_ACTION_GRACE_MS) }
+      );
+      if (count > 0) {
+        server.log.info({ count }, "cancelled stale assistant action requests");
+      }
+    } catch (err) {
+      server.log.warn({ err }, "stale assistant action cleanup failed");
+    }
+  });
 
   if (wiring) {
     registerMcpTransportRoute(server, { gateway: wiring.gateway, tokens: wiring.tokens });

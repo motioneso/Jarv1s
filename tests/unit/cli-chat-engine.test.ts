@@ -53,7 +53,7 @@ describe("CliChatEngineImpl — Claude MCP lockdown", () => {
 });
 
 describe("CliChatEngineImpl — Codex launch", () => {
-  it("launches codex with MCP config -c flags and token in env", async () => {
+  it("launches codex with MCP config -c flags and a sourced token file", async () => {
     const io = makeIo();
     const engine = new CliChatEngineImpl("openai-compatible", "codex-session", io);
     await engine.launch({
@@ -68,12 +68,24 @@ describe("CliChatEngineImpl — Codex launch", () => {
     );
     const launchLine = (sendKeysCall![1] as string[])[3];
     expect(launchLine).toContain("codex");
-    expect(launchLine).toContain("JARVIS_MCP_TOKEN=jst_codex");
+    expect(launchLine).toContain(".jarvis-mcp-token.env");
+    expect(launchLine).toContain('bearer_token_env_var="JARVIS_MCP_TOKEN"');
+    expect(launchLine).not.toContain("JARVIS_MCP_TOKEN=jst_codex");
+    expect(launchLine).not.toContain("jst_codex");
     expect(launchLine).toContain("mcp_servers.jarvis.url");
     expect(launchLine).toContain("shell_tool=false");
     expect(launchLine).toContain("apply_patch_tool=false");
     expect(launchLine).toContain("sandbox read-only");
     expect(launchLine).toContain("-a never");
+
+    const writeCall = (io.writeFile as ReturnType<typeof vi.fn>).mock.calls.find((c: unknown[]) =>
+      String(c[0]).endsWith(".jarvis-mcp-token.env")
+    );
+    expect(writeCall?.[1]).toContain("jst_codex");
+    expect(io.run).toHaveBeenCalledWith("chmod", ["600", "/tmp/neutral/.jarvis-mcp-token.env"]);
+
+    await engine.kill();
+    expect(io.run).toHaveBeenCalledWith("rm", ["-f", "/tmp/neutral/.jarvis-mcp-token.env"]);
   });
 });
 

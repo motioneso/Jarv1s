@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 
-import { sql, type Updateable } from "kysely";
+import { sql, type Kysely, type Updateable } from "kysely";
 
 import {
   assertDataContextDb,
@@ -14,7 +14,8 @@ import {
   type AiProviderConfigsTable,
   type AiProviderKind,
   type AiProviderStatus,
-  type DataContextDb
+  type DataContextDb,
+  type JarvisDatabase
 } from "@jarv1s/db";
 import type { AiModelCapability } from "@jarv1s/shared";
 
@@ -526,6 +527,16 @@ export class AiRepository {
       .where("status", "=", "pending")
       .returningAll()
       .executeTakeFirst();
+  }
+
+  async cancelStalePendingAssistantActions(
+    appDb: Kysely<JarvisDatabase>,
+    input: { readonly olderThan: Date }
+  ): Promise<number> {
+    const result = await sql<{ count: number }>`
+      SELECT app.cancel_stale_ai_assistant_action_requests(${input.olderThan}) AS count
+    `.execute(appDb);
+    return Number(result.rows[0]?.count ?? 0);
   }
 
   private async requireVisibleProvider(

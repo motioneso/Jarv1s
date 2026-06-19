@@ -1,4 +1,5 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
+import { sql } from "kysely";
 import type { Kysely } from "kysely";
 
 import {
@@ -17,6 +18,7 @@ const tick = () => new Promise((resolve) => setTimeout(resolve, 50));
 
 describe("AssistantToolGateway", () => {
   let appDb: Kysely<JarvisDatabase>;
+  let bootstrapDb: Kysely<JarvisDatabase>;
   let runner: DataContextRunner;
   let repository: AiRepository;
   let tokens: SessionTokenRegistry;
@@ -35,11 +37,16 @@ describe("AssistantToolGateway", () => {
   beforeAll(async () => {
     await resetFoundationDatabase();
     appDb = createDatabase({ connectionString: connectionStrings.app, maxConnections: 1 });
+    bootstrapDb = createDatabase({
+      connectionString: connectionStrings.bootstrap,
+      maxConnections: 1
+    });
     runner = new DataContextRunner(appDb);
     repository = new AiRepository();
   });
 
   afterAll(async () => {
+    await bootstrapDb.destroy();
     await appDb.destroy();
   });
 
@@ -139,6 +146,42 @@ describe("AssistantToolGateway", () => {
     expect(emitted.map((entry) => entry.record.kind)).toEqual(["action_request", "action_result"]);
   });
 
+  it("does not lose an Approve emitted immediately with the action_request", async () => {
+    const eagerGateway = new AssistantToolGateway({
+      resolveActiveModules: async () => [exampleToolModule],
+      repository,
+      runner,
+      tokens,
+      confirmations,
+      notifier: {
+        emit: (chatSessionId, record) => {
+          emitted.push({ chatSessionId, record });
+          if (record.kind === "action_request") {
+            void eagerGateway.resolveActionRequest(ids.userA, record.actionRequestId, "confirmed");
+          }
+        }
+      },
+      confirmTimeoutMs: 1_000
+    });
+    const token = tokens.mint({
+      actorUserId: ids.userA,
+      chatSessionId: "s-eager",
+      allowedToolNames: null
+    });
+
+    const res = await eagerGateway.callTool(token, "example.write", { value: "eager" });
+
+    expect(res.ok).toBe(true);
+    expect(exampleToolCalls).toHaveLength(1);
+    const rows = await runner.withDataContext(
+      { actorUserId: ids.userA, requestId: "r-eager-check" },
+      (scopedDb) => repository.listAssistantActions(scopedDb)
+    );
+    expect(rows.find((r) => r.id === firstActionRequest().actionRequestId)?.status).toBe(
+      "confirmed"
+    );
+  });
+
   it("an Approve arriving after the confirm timeout never executes and never marks the row confirmed", async () => {
     // Short timeout so the wait expires before we Approve. confirmTimeoutMs is set per-gateway.
     const fastTimeoutGateway = new AssistantToolGateway({
@@ -179,6 +222,95 @@ describe("AssistantToolGateway", () => {
     );
     const row = rows.find((r) => r.id === card.actionRequestId);
     expect(row?.status).toBe("pending");
+  });
+
+  it("cancels stale pending assistant actions while leaving fresh pending actions pending", async () => {
+    const staleId = "90000000-0000-4000-8000-000000000001";
+    const otherStaleId = "90000000-0000-4000-8000-000000000002";
+    let freshId = "";
+
+    await sql`
+      INSERT INTO app.ai_assistant_action_requests (
+        id,
+        owner_user_id,
+        tool_module_id,
+        tool_module_name,
+        tool_name,
+        permission_id,
+        risk,
+        status,
+        input_summary,
+        request_id,
+        requested_at,
+        resolved_at,
+        updated_at
+      )
+      VALUES
+        (
+          ${staleId}::uuid,
+          ${ids.userA}::uuid,
+          'example',
+          'Example',
+          'example.write',
+          'example.write',
+          'write',
+          'pending',
+          '{"inputKeyCount":0}'::jsonb,
+          'stale-a',
+          now() - interval '10 minutes',
+          NULL,
+          now() - interval '10 minutes'
+        ),
+        (
+          ${otherStaleId}::uuid,
+          ${ids.userB}::uuid,
+          'example',
+          'Example',
+          'example.write',
+          'example.write',
+          'write',
+          'pending',
+          '{"inputKeyCount":0}'::jsonb,
+          'stale-b',
+          now() - interval '10 minutes',
+          NULL,
+          now() - interval '10 minutes'
+        )
+    `.execute(bootstrapDb);
+
+    await runner.withDataContext(
+      { actorUserId: ids.userA, requestId: "r-stale-seed-fresh" },
+      async (scopedDb) => {
+        const fresh = await repository.createPendingAssistantAction(scopedDb, {
+          toolModuleId: "example",
+          toolModuleName: "Example",
+          toolName: "example.write",
+          permissionId: "example.write",
+          risk: "write",
+          inputSummary: { inputKeyCount: 0 },
+          requestId: "fresh"
+        });
+        freshId = fresh.id;
+      }
+    );
+
+    const cancelled = await repository.cancelStalePendingAssistantActions(appDb, {
+      olderThan: new Date(Date.now() - 5 * 60_000)
+    });
+
+    expect(cancelled).toBe(2);
+    const userARows = await runner.withDataContext(
+      { actorUserId: ids.userA, requestId: "r-stale-check" },
+      (scopedDb) => repository.listAssistantActions(scopedDb)
+    );
+    const userBRows = await runner.withDataContext(
+      { actorUserId: ids.userB, requestId: "r-stale-check-b" },
+      (scopedDb) => repository.listAssistantActions(scopedDb)
+    );
+    expect(userARows.find((r) => r.id === staleId)?.status).toBe("cancelled");
+    expect(userARows.find((r) => r.id === staleId)?.resolved_at).toBeTruthy();
+    expect(userARows.find((r) => r.id === freshId)?.status).toBe("pending");
+    expect(userBRows.find((r) => r.id === otherStaleId)?.status).toBe("cancelled");
   });
 
   it("returns a denied result without calling the handler", async () => {
