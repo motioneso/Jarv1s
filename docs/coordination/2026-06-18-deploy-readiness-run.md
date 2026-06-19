@@ -16,7 +16,7 @@ since the native `Agent(model:opus)` path is Claude-only. Currently-running Clau
 Gate-314, Build-237) finish as-is — do not kill warm work; only NEW spawns are Codex.
 **Relay threshold:** security-tier merge → relay immediately after Phase 3 step 7; routine/sensitive `merges_since_relay` >= 2 → relay. No deferral. Compaction summary = already past safe → relay, merge nothing.
 **merges_since_relay:** 0 (successor reset after security-tier merge #315 relay)
-**last_alive:** 2026-06-19T03:43Z (Codex coordinator `019eddce…` — #123 PR #323 ready and QA-323 running; #322 GLM GREEN posted; #322 Codex QA pending gate slot)
+**last_alive:** 2026-06-19T03:44Z (Codex coordinator `019eddce…` — #123 PR #323 has QA-323 running and GLM review started; #322 GLM GREEN posted; #322 Codex QA pending gate slot)
 **Gate serialization policy (2026-06-18):** run mechanical gates ~1–2 at a time. Concurrent
 `verify:foundation` runs collide on cluster-global role grants → false-RED "tuple concurrently
 updated", EVEN with isolated `JARVIS_PGDATABASE` (db:migrate grants touch shared `pg_authid`).
@@ -112,6 +112,7 @@ LIVE FLEET (resolve panes fresh by label; numbers reflow):
 - `QA-323-AIGateway` — Codex, pane `w1:p2M`, session `019eddfa-720a-7341-aef6-5e1a23f57e00`,
   worktree `.claude/worktrees/qa-323-ai-gateway-hardening`, detached at PR #323 head `49b1078`;
   security QA running with CI-unavailable local gate requirement (`JARVIS_PGDATABASE=jarv1s_qa_323`).
+  GLM 5.2 static security review also started in pane `w1:p28`.
 - `QA-321-SecretResiduals` — Codex, pane `w1:p2K`, session `019edde0-e277-7962-b29f-e0bc30ad1407`,
   worktree `.claude/worktrees/qa-321-secret-residuals`, detached at PR #321 head `27972b7`;
   security QA returned RED with CI-unavailable local gate requirement: after an initial missing-DB
