@@ -78,9 +78,8 @@ describe("AssistantToolGateway", () => {
   });
 
   it("lists and invokes web research tools through the assistant gateway", async () => {
-    const { setWebSearchProviderForTests, webModuleManifest } = await import(
-      "@jarv1s/web-research"
-    );
+    const { setWebSearchProviderForTests, webModuleManifest } =
+      await import("@jarv1s/web-research");
     setWebSearchProviderForTests({
       name: "fake",
       search: async () => ({

@@ -17,7 +17,10 @@ function isRedirect(status: number): boolean {
   return status === 301 || status === 302 || status === 303 || status === 307 || status === 308;
 }
 
-async function readCapped(response: Response, maxBytes: number): Promise<{ text: string; truncated: boolean }> {
+async function readCapped(
+  response: Response,
+  maxBytes: number
+): Promise<{ text: string; truncated: boolean }> {
   if (!response.body) return { text: await response.text(), truncated: false };
   const reader = response.body.getReader();
   const chunks: Uint8Array[] = [];
@@ -49,7 +52,10 @@ export function extractReadableText(html: string): { title: string; text: string
     .replace(/<noscript\b[^>]*>[\s\S]*?<\/noscript>/gi, " ")
     .replace(/<svg\b[^>]*>[\s\S]*?<\/svg>/gi, " ")
     .replace(/<[^>]+>/g, " ");
-  return { title: decodeHtml(title).trim(), text: decodeHtml(stripped).replace(/\s+/g, " ").trim() };
+  return {
+    title: decodeHtml(title).trim(),
+    text: decodeHtml(stripped).replace(/\s+/g, " ").trim()
+  };
 }
 
 function decodeHtml(text: string): string {
@@ -58,7 +64,7 @@ function decodeHtml(text: string): string {
     .replace(/&amp;/g, "&")
     .replace(/&lt;/g, "<")
     .replace(/&gt;/g, ">")
-    .replace(/&quot;/g, "\"")
+    .replace(/&quot;/g, '"')
     .replace(/&#39;/g, "'");
 }
 
@@ -79,14 +85,17 @@ async function fetchWithSafeRedirects(
   throw new Error("Redirect limit exceeded");
 }
 
-export async function readWebPage(rawUrl: string): Promise<{
-  readonly ok: true;
-  readonly document: Record<string, unknown>;
-} | {
-  readonly ok: false;
-  readonly url: string;
-  readonly reason: string;
-}> {
+export async function readWebPage(rawUrl: string): Promise<
+  | {
+      readonly ok: true;
+      readonly document: Record<string, unknown>;
+    }
+  | {
+      readonly ok: false;
+      readonly url: string;
+      readonly reason: string;
+    }
+> {
   const safe = await validateHttpUrl(rawUrl);
   if (!safe.ok) return { ok: false, url: rawUrl, reason: safe.reason };
 
@@ -115,7 +124,11 @@ export async function readWebPage(rawUrl: string): Promise<{
       }
     };
   } catch (error) {
-    return { ok: false, url: rawUrl, reason: error instanceof Error ? error.message : "Fetch failed" };
+    return {
+      ok: false,
+      url: rawUrl,
+      reason: error instanceof Error ? error.message : "Fetch failed"
+    };
   } finally {
     clearTimeout(timer);
   }

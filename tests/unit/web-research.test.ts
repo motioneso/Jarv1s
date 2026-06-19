@@ -44,17 +44,21 @@ describe("web.read", () => {
       hostname === "public.test" ? [{ address: "10.0.0.1", family: 4 }] : []
     );
 
-    const result = await webReadExecute({}, {
-      urls: [
-        "file:///etc/passwd",
-        "http://localhost:3000",
-        "http://127.0.0.1:3000",
-        "http://10.0.0.1",
-        "http://169.254.169.254",
-        "javascript:alert(1)",
-        "https://public.test/ok"
-      ]
-    }, { actorUserId: "u", requestId: "r", chatSessionId: "c" });
+    const result = await webReadExecute(
+      {},
+      {
+        urls: [
+          "file:///etc/passwd",
+          "http://localhost:3000",
+          "http://127.0.0.1:3000",
+          "http://10.0.0.1",
+          "http://169.254.169.254",
+          "javascript:alert(1)",
+          "https://public.test/ok"
+        ]
+      },
+      { actorUserId: "u", requestId: "r", chatSessionId: "c" }
+    );
 
     expect(result.data.documents).toHaveLength(0);
     expect(result.data.trace).toMatchObject({
@@ -67,18 +71,23 @@ describe("web.read", () => {
 
   it("extracts readable text, caps content, and reports trace", async () => {
     setWebHostResolverForTests(async () => [{ address: "93.184.216.34", family: 4 }]);
-    setWebFetchForTests(async () =>
-      new Response(
-        `<html><head><title>T</title><script>bad()</script></head><body><nav>nav</nav><main><h1>Hello</h1><p>${"a".repeat(20_000)}</p></main></body></html>`,
-        { status: 200, headers: { "content-type": "text/html" } }
-      )
+    setWebFetchForTests(
+      async () =>
+        new Response(
+          `<html><head><title>T</title><script>bad()</script></head><body><nav>nav</nav><main><h1>Hello</h1><p>${"a".repeat(20_000)}</p></main></body></html>`,
+          { status: 200, headers: { "content-type": "text/html" } }
+        )
     );
 
-    const result = await webReadExecute({}, { urls: ["https://example.com/a"] }, {
-      actorUserId: "u",
-      requestId: "r",
-      chatSessionId: "c"
-    });
+    const result = await webReadExecute(
+      {},
+      { urls: ["https://example.com/a"] },
+      {
+        actorUserId: "u",
+        requestId: "r",
+        chatSessionId: "c"
+      }
+    );
 
     const [doc] = result.data.documents as Array<{
       title: string;
@@ -86,6 +95,8 @@ describe("web.read", () => {
       truncated: boolean;
       url: string;
     }>;
+    expect(doc).toBeDefined();
+    if (!doc) throw new Error("expected document");
     expect(doc.url).toBe("https://example.com/a");
     expect(doc.title).toBe("T");
     expect(doc.text).toContain("Hello");
@@ -111,11 +122,15 @@ describe("web.read", () => {
       });
     });
 
-    const result = await webReadExecute({}, { urls: ["https://example.com/redirect"] }, {
-      actorUserId: "u",
-      requestId: "r",
-      chatSessionId: "c"
-    });
+    const result = await webReadExecute(
+      {},
+      { urls: ["https://example.com/redirect"] },
+      {
+        actorUserId: "u",
+        requestId: "r",
+        chatSessionId: "c"
+      }
+    );
 
     expect(fetchCalls).toBe(1);
     expect(result.data.documents).toHaveLength(0);
@@ -142,11 +157,15 @@ describe("web.search", () => {
       })
     });
 
-    const result = await webSearchExecute({}, { query: "x".repeat(500), limit: 99 }, {
-      actorUserId: "u",
-      requestId: "r",
-      chatSessionId: "c"
-    });
+    const result = await webSearchExecute(
+      {},
+      { query: "x".repeat(500), limit: 99 },
+      {
+        actorUserId: "u",
+        requestId: "r",
+        chatSessionId: "c"
+      }
+    );
 
     expect(result.data.query).toHaveLength(200);
     expect(result.data.results).toHaveLength(5);

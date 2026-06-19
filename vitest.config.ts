@@ -81,9 +81,7 @@ export default defineConfig({
       },
       {
         find: "@jarv1s/web-research",
-        replacement: fileURLToPath(
-          new URL("./packages/web-research/src/index.ts", import.meta.url)
-        )
+        replacement: fileURLToPath(new URL("./packages/web-research/src/index.ts", import.meta.url))
       },
       {
         find: "@jarv1s/memory",
