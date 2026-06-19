@@ -69,6 +69,7 @@ export class ChatRepository {
       .selectAll()
       .where("thread_id", "=", threadId)
       .orderBy("created_at")
+      .orderBy(sql<number>`CASE WHEN role = 'user' THEN 0 ELSE 1 END`)
       .orderBy("id")
       .execute();
   }
