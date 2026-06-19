@@ -58,8 +58,7 @@ describe("buildRolePasswordPlan", () => {
     const env = {
       NODE_ENV: "production",
       JARVIS_BOOTSTRAP_DATABASE_URL: "postgres://postgres:rootpw@db/prod",
-      JARVIS_MIGRATION_DATABASE_URL:
-        "postgres://jarvis_migration_owner:migration_password@db/prod",
+      JARVIS_MIGRATION_DATABASE_URL: "postgres://jarvis_migration_owner:migration_password@db/prod",
       JARVIS_APP_DATABASE_URL: "postgres://jarvis_app_runtime:app-secret@db/prod",
       JARVIS_AUTH_DATABASE_URL: "postgres://jarvis_auth_runtime:auth-secret@db/prod",
       JARVIS_WORKER_DATABASE_URL: "postgres://jarvis_worker_runtime:worker-secret@db/prod"

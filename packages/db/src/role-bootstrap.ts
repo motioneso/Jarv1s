@@ -21,13 +21,15 @@ export const RUNTIME_ROLE_PASSWORD_DEFAULTS: ReadonlySet<string> = new Set([
   "auth_password"
 ]);
 
-const ROLE_URL_SOURCES: ReadonlyArray<{ readonly role: string; readonly url: keyof JarvisDatabaseUrls }> =
-  [
-    { role: "jarvis_migration_owner", url: "migration" },
-    { role: "jarvis_app_runtime", url: "app" },
-    { role: "jarvis_worker_runtime", url: "worker" },
-    { role: "jarvis_auth_runtime", url: "auth" }
-  ];
+const ROLE_URL_SOURCES: ReadonlyArray<{
+  readonly role: string;
+  readonly url: keyof JarvisDatabaseUrls;
+}> = [
+  { role: "jarvis_migration_owner", url: "migration" },
+  { role: "jarvis_app_runtime", url: "app" },
+  { role: "jarvis_worker_runtime", url: "worker" },
+  { role: "jarvis_auth_runtime", url: "auth" }
+];
 
 /**
  * Derive the bootstrap role-password plan from the configured connection URLs.
