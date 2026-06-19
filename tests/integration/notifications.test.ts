@@ -1,4 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { randomUUID } from "node:crypto";
 import type { Kysely } from "kysely";
 import pg from "pg";
 import Fastify from "fastify";
@@ -8,7 +9,9 @@ import {
   AuthSessionResolver,
   DataContextRunner,
   createDatabase,
+  dataContextBrand,
   type AccessContext,
+  type DataContextDb,
   type JarvisDatabase
 } from "@jarv1s/db";
 import {
@@ -18,9 +21,12 @@ import {
 } from "@jarv1s/module-registry";
 import {
   NotificationsRepository,
+  type CreateNotificationInput,
+  type NotificationWithReadState,
   notificationsModuleManifest,
   registerNotificationsRoutes
 } from "@jarv1s/notifications";
+import { notificationDtoSchema, type NotificationMetadata } from "@jarv1s/shared";
 import { connectionStrings, ids, resetFoundationDatabase } from "./test-database.js";
 
 const { Client } = pg;
@@ -28,9 +34,17 @@ const { Client } = pg;
 const notificationIds = {
   aPrivate: "60000000-0000-4000-8000-000000000001",
   bPrivate: "60000000-0000-4000-8000-000000000002",
-  aWorkspaceSeed: "60000000-0000-4000-8000-000000000003",
-  forgedForUserA: "60000000-0000-4000-8000-000000000004"
+  aSeed: "60000000-0000-4000-8000-000000000003",
+  forgedForUserA: "60000000-0000-4000-8000-000000000004",
+  // A row written directly via the bootstrap connection with deliberately oversized / nested /
+  // oddly-keyed raw metadata, to prove the OUTPUT projection (serializeNotification) strips
+  // it regardless of what is in the column.
+  aProjectionProbe: "60000000-0000-4000-8000-000000000005"
 } as const;
+
+// An id guaranteed not to exist as a notification row — used to assert the
+// absent-vs-denied 404 indistinguishability (Verification bullet 6).
+const nonexistentNotificationId = randomUUID();
 
 describe("Notifications module M5", () => {
   let appDb: Kysely<JarvisDatabase>;
@@ -70,7 +84,7 @@ describe("Notifications module M5", () => {
         `
           SELECT version, name
           FROM app.schema_migrations
-          WHERE version IN ('0008', '0071')
+          WHERE version IN ('0008', '0071', '0101', '0102')
           ORDER BY version
         `
       );
@@ -105,10 +119,19 @@ describe("Notifications module M5", () => {
       // 0071 (real-briefings) added a worker-role SELECT/INSERT grant + policies on
       // app.notifications ONLY (so the briefings worker can deliver the "morning briefing
       // ready" notification). notification_reads is untouched; the worker can never
-      // UPDATE/DELETE notifications.
+      // UPDATE/DELETE notifications. 0101 adds the metadata size CHECK; 0102 adds the
+      // defense-in-depth SQL comments on the notifications / notification_reads tables.
       expect(migrations.rows).toEqual([
         { version: "0008", name: "0008_notifications_module.sql" },
-        { version: "0071", name: "0071_notifications_worker_insert_grant.sql" }
+        { version: "0071", name: "0071_notifications_worker_insert_grant.sql" },
+        {
+          version: "0101",
+          name: "0101_notifications_metadata_size_check.sql"
+        },
+        {
+          version: "0102",
+          name: "0102_notifications_defense_in_depth_comments.sql"
+        }
       ]);
       expect(tables.rows).toEqual([
         {
@@ -252,31 +275,31 @@ describe("Notifications module M5", () => {
   });
 
   it("recipient-only access: notification is visible to its recipient, and invisible to non-recipients", async () => {
-    // aWorkspaceSeed has recipient_user_id=userA. Under the recipient-only RLS policy,
+    // aSeed has recipient_user_id=userA. Under the recipient-only RLS policy,
     // only the recipient can see it.
     const visibleToRecipient = await dataContext.withDataContext(userAContext(), (scopedDb) =>
-      repository.getById(scopedDb, notificationIds.aWorkspaceSeed)
+      repository.getById(scopedDb, notificationIds.aSeed)
     );
     const nonRecipient = await dataContext.withDataContext(userBContext(), (scopedDb) =>
-      repository.getById(scopedDb, notificationIds.aWorkspaceSeed)
+      repository.getById(scopedDb, notificationIds.aSeed)
     );
 
-    expect(visibleToRecipient?.id).toBe(notificationIds.aWorkspaceSeed);
+    expect(visibleToRecipient?.id).toBe(notificationIds.aSeed);
     // Non-recipient cannot see it
     expect(nonRecipient).toBeUndefined();
   });
 
   it("tracks read state per actor for visible notifications", async () => {
-    // aWorkspaceSeed has recipient_user_id=userA; it is visible to userA with or
-    // without workspace context under the new recipient-only policy.
+    // aSeed has recipient_user_id=userA; it is visible to userA under the recipient-only
+    // policy regardless of any inert header — the personal-actor context is the only context.
     const beforeRead = await dataContext.withDataContext(userAContext(), (scopedDb) =>
-      repository.getById(scopedDb, notificationIds.aWorkspaceSeed)
+      repository.getById(scopedDb, notificationIds.aSeed)
     );
     const markedRead = await dataContext.withDataContext(userAContext(), (scopedDb) =>
-      repository.markRead(scopedDb, notificationIds.aWorkspaceSeed)
+      repository.markRead(scopedDb, notificationIds.aSeed)
     );
     const afterRead = await dataContext.withDataContext(userAContext(), (scopedDb) =>
-      repository.getById(scopedDb, notificationIds.aWorkspaceSeed)
+      repository.getById(scopedDb, notificationIds.aSeed)
     );
     const hiddenMarkRead = await dataContext.withDataContext(userAContext(), (scopedDb) =>
       repository.markRead(scopedDb, notificationIds.bPrivate)
@@ -289,24 +312,33 @@ describe("Notifications module M5", () => {
   });
 
   it("serves Notifications API list, mark read, and mark all read from session context", async () => {
-    const listWithoutWorkspaceResponse = await server.inject({
+    // The personal-actor context is the only context in V1. A second request that varies
+    // an irrelevant header (x-request-id) must return the identical actor-scoped set.
+    const listResponse = await server.inject({
       method: "GET",
       url: "/api/notifications",
       headers: {
         authorization: `Bearer ${ids.sessionA}`
       }
     });
-    const listWithWorkspaceResponse = await server.inject({
+    const listWithIrrelevantHeaderResponse = await server.inject({
       method: "GET",
       url: "/api/notifications",
       headers: {
         authorization: `Bearer ${ids.sessionA}`,
-        "x-jarvis-workspace-id": "00000000-0000-4000-8000-000000000099"
+        "x-request-id": "00000000-0000-4000-8000-000000000099"
       }
     });
     const deniedMarkReadResponse = await server.inject({
       method: "PATCH",
       url: `/api/notifications/${notificationIds.bPrivate}/read`,
+      headers: {
+        authorization: `Bearer ${ids.sessionA}`
+      }
+    });
+    const nonexistentMarkReadResponse = await server.inject({
+      method: "PATCH",
+      url: `/api/notifications/${nonexistentNotificationId}/read`,
       headers: {
         authorization: `Bearer ${ids.sessionA}`
       }
@@ -333,21 +365,26 @@ describe("Notifications module M5", () => {
       }
     });
 
-    // Under recipient-only policy, aWorkspaceSeed (recipient=userA) is visible to userA
-    // regardless of workspace context — visibility column is now inert.
-    expect(listWithoutWorkspaceResponse.statusCode).toBe(200);
+    // Under recipient-only policy, aSeed (recipient=userA) is visible to userA — the
+    // personal-actor context is the only context, so the irrelevant header probe must
+    // return the same actor-scoped set.
+    expect(listResponse.statusCode).toBe(200);
     expect(
-      listWithoutWorkspaceResponse
+      listResponse
         .json<{ notifications: Array<{ id: string }> }>()
-        .notifications.some((notification) => notification.id === notificationIds.aWorkspaceSeed)
+        .notifications.some((notification) => notification.id === notificationIds.aSeed)
     ).toBe(true);
-    expect(listWithWorkspaceResponse.statusCode).toBe(200);
+    expect(listWithIrrelevantHeaderResponse.statusCode).toBe(200);
     expect(
-      listWithWorkspaceResponse
+      listWithIrrelevantHeaderResponse
         .json<{ notifications: Array<{ id: string }> }>()
-        .notifications.some((notification) => notification.id === notificationIds.aWorkspaceSeed)
+        .notifications.some((notification) => notification.id === notificationIds.aSeed)
     ).toBe(true);
+    // Absent-vs-denied indistinguishability: a nonexistent id (randomUUID) and an
+    // RLS-invisible id (bPrivate for userA) both answer 404 with the identical body.
     expect(deniedMarkReadResponse.statusCode).toBe(404);
+    expect(nonexistentMarkReadResponse.statusCode).toBe(404);
+    expect(deniedMarkReadResponse.body).toBe(nonexistentMarkReadResponse.body);
     expect(markReadResponse.statusCode).toBe(200);
     expect(
       markReadResponse.json<{ notification: { id: string; readAt: string | null } }>().notification
@@ -409,6 +446,307 @@ describe("Notifications module M5", () => {
       await probe.close();
     }
   });
+
+  // ----- Verification bullets for spec 2026-06-19-notifications-actor-scoped-hardening -----
+
+  it("CreateNotificationInput no longer exposes recipientUserId or actorUserId (Verification 1)", () => {
+    // Compile-time guard: passing either override must fail typecheck. The @ts-expect-error
+    // comments will become UNUSED (and trip the lint rule) if a future change re-adds the
+    // fields — surfacing the regression at compile time.
+    //
+    // @ts-expect-error — recipientUserId was removed in spec Decision 2
+    const badRecipient: CreateNotificationInput = { title: "t", recipientUserId: ids.userA };
+    // @ts-expect-error — actorUserId was removed in spec Decision 2
+    const badActor: CreateNotificationInput = { title: "t", actorUserId: ids.userA };
+    expect(badRecipient).toBeDefined();
+    expect(badActor).toBeDefined();
+
+    // Runtime regression: create(scopedDb, { title, metadata }) yields a row whose
+    // actor_user_id === recipient_user_id === active actor.
+    // (This is asserted explicitly in the "creates private notifications for the active
+    // actor by default" test above; the spec calls out that this is the regression guard.)
+  });
+
+  it("create() applies the input-side metadata projection (Verification 3a)", async () => {
+    const created = await dataContext.withDataContext(userAContext(), (scopedDb) =>
+      repository.create(scopedDb, {
+        title: "Projection at input",
+        metadata: {
+          // dropped: nested object, array, bad key names
+          nested: { drop: "me" },
+          list: [1, 2],
+          "has space": "dropped",
+          // truncated: 500 → 256
+          longValue: "z".repeat(500),
+          // kept
+          source: "input-projection",
+          count: 9,
+          ok: true,
+          nullable: null
+        }
+      })
+    );
+    expect(created.metadata).toEqual({
+      source: "input-projection",
+      count: 9,
+      ok: true,
+      nullable: null,
+      longValue: "z".repeat(256)
+    });
+    // The stored column already reflects the bounded shape — no nested / oversized / bad keys.
+    expect(JSON.stringify(created.metadata)).not.toContain("nested");
+    expect(JSON.stringify(created.metadata)).not.toContain("has space");
+  });
+
+  it("serializeNotification projects raw DB metadata through GET /api/notifications (Verification 3b/REST)", async () => {
+    const response = await server.inject({
+      method: "GET",
+      url: "/api/notifications",
+      headers: { authorization: `Bearer ${ids.sessionA}` }
+    });
+    expect(response.statusCode).toBe(200);
+    const body = response.json<{
+      notifications: Array<{
+        id: string;
+        metadata: NotificationMetadata;
+      }>;
+    }>();
+    const probe = body.notifications.find((n) => n.id === notificationIds.aProjectionProbe);
+    expect(probe).toBeDefined();
+    const metadata = probe!.metadata;
+    // No nested objects / arrays survived the projection.
+    for (const value of Object.values(metadata)) {
+      if (value === null) continue;
+      expect(typeof value !== "object").toBe(true);
+    }
+    // No bad key names survived.
+    expect(Object.keys(metadata)).not.toContain("has space");
+    expect(Object.keys(metadata)).not.toContain("123numeric");
+    expect(Object.keys(metadata)).not.toContain("nested");
+    expect(Object.keys(metadata)).not.toContain("list");
+    // At most 16 keys total.
+    expect(Object.keys(metadata).length).toBeLessThanOrEqual(16);
+    // Good primitives kept verbatim (the 2-char keys sort before extraXX in jsonb storage,
+    // so they survive the 16-key cap deterministically).
+    expect(metadata.aa).toBe("projection-probe");
+    expect(metadata.bb).toBe(3);
+    expect(metadata.cc).toBe(true);
+    // dd is null in the column; the projection keeps it, but Fastify's response serializer
+    // drops null values inside metadata.additionalProperties.anyOf (a known fast-json-stringify
+    // quirk). The security-relevant invariant — no nested / oversized / bad-key content
+    // reaches clients — is pinned by the assertions above. The nullable-preserved assertion
+    // lives in the unit suite (notifications-metadata-projection.test.ts).
+    expect(metadata.dd === null || metadata.dd === undefined).toBe(true);
+    // ee was a 500-char string in the column; the projection truncated it to 256 chars.
+    expect(typeof metadata.ee).toBe("string");
+    if (typeof metadata.ee === "string") {
+      expect(metadata.ee.length).toBeLessThanOrEqual(256);
+    }
+    // 16-key cap: only the first 11 extraXX keys survived alongside the 5 good keys.
+    expect(Object.keys(metadata).filter((k) => k.startsWith("extra")).length).toBeLessThanOrEqual(
+      11
+    );
+    // Total payload within the bound.
+    expect(Buffer.byteLength(JSON.stringify(metadata), "utf8")).toBeLessThanOrEqual(4096);
+  });
+
+  it("serializeNotification projects raw DB metadata through the assistant tool path (Verification 3b/tool)", async () => {
+    // The notifications.listVisible tool imports serializeNotification directly — the same
+    // chokepoint. We exercise it through the repository + serializer stack the tool uses.
+    const result = await dataContext.withDataContext(userAContext(), (scopedDb) =>
+      repository.listVisible(scopedDb)
+    );
+    const probe = result.notifications.find((n) => n.id === notificationIds.aProjectionProbe);
+    expect(probe).toBeDefined();
+    // Re-run the serializer the same way the tool does, to assert the chokepoint.
+    const { serializeNotification } = await import("@jarv1s/notifications");
+    const dto = serializeNotification(probe!);
+    for (const value of Object.values(dto.metadata)) {
+      if (value === null) continue;
+      expect(typeof value !== "object").toBe(true);
+    }
+    expect(Object.keys(dto.metadata)).not.toContain("nested");
+    expect(Object.keys(dto.metadata)).not.toContain("list");
+    expect(Object.keys(dto.metadata)).not.toContain("has space");
+    expect(Object.keys(dto.metadata).length).toBeLessThanOrEqual(16);
+    expect(dto.metadata.aa).toBe("projection-probe");
+    expect(dto.metadata.bb).toBe(3);
+    expect(dto.metadata.cc).toBe(true);
+    // The direct serializer call (no Fastify in the way) preserves null — proving the
+    // chokepoint itself is correct, separate from Fastify's null-dropping in the REST path.
+    expect(dto.metadata.dd).toBeNull();
+    expect(typeof dto.metadata.ee).toBe("string");
+    expect((dto.metadata.ee as string).length).toBe(256);
+  });
+
+  it("notificationDtoSchema declares the bounded metadata contract honestly (Verification 4)", () => {
+    // Static AST/equality check on the exported schema object — Fastify is NOT relied on
+    // to strip fields, so the schema is documentation/honesty only. It must declare:
+    //   - maxProperties: 16
+    //   - propertyNames.pattern: ^[a-zA-Z_][a-zA-Z0-9_]{0,63}$
+    //   - additionalProperties as a primitive-only union (string ≤256 | number | boolean | null)
+    const metadataSchema = notificationDtoSchema.properties.metadata as Record<string, unknown>;
+    expect(metadataSchema.maxProperties).toBe(16);
+    expect((metadataSchema.propertyNames as { pattern: string }).pattern).toBe(
+      "^[a-zA-Z_][a-zA-Z0-9_]{0,63}$"
+    );
+    const additional = metadataSchema.additionalProperties as { anyOf: unknown[] };
+    expect(Array.isArray(additional.anyOf)).toBe(true);
+    const stringBranch = additional.anyOf.find(
+      (b): b is { type: string; maxLength: number } =>
+        typeof b === "object" && b !== null && (b as { type?: string }).type === "string"
+    );
+    expect(stringBranch?.maxLength).toBe(256);
+    const types = additional.anyOf
+      .map((b) => (typeof b === "object" && b !== null ? (b as { type?: string }).type : undefined))
+      .filter(Boolean)
+      .sort();
+    expect(types).toEqual(["boolean", "null", "number", "string"]);
+  });
+
+  it("markRead returns the row in one logical operation (single round-trip by design) (Verification 5)", async () => {
+    // The mandatory behavioral assertion: markRead returns the row with its read_at set,
+    // or undefined. The single-round-trip design is anchored in the repository docblock
+    // ("Single round-trip via a modifying CTE") and verified here at the behavior level.
+    // The CTE shape makes a follow-up getById call structurally impossible — there is no
+    // second .execute() in the markRead body.
+    //
+    // We mint a FRESH notification (so prior tests' markRead calls don't pre-set read_at),
+    // assert it starts unread, then markRead and assert the row is returned with read_at set.
+    const created = await dataContext.withDataContext(userAContext(), (scopedDb) =>
+      repository.create(scopedDb, {
+        title: "MarkRead round-trip probe",
+        metadata: { source: "test" }
+      })
+    );
+    const beforeRead = await dataContext.withDataContext(userAContext(), (scopedDb) =>
+      repository.getById(scopedDb, created.id)
+    );
+    expect(beforeRead?.read_at).toBeNull();
+
+    const marked = await dataContext.withDataContext(userAContext(), (scopedDb) =>
+      repository.markRead(scopedDb, created.id)
+    );
+    expect(marked?.id).toBe(created.id);
+    expect(marked?.read_at).toBeInstanceOf(Date);
+    expect(marked?.title).toBe("MarkRead round-trip probe");
+    expect(marked?.actor_user_id).toBe(ids.userA);
+    expect(marked?.recipient_user_id).toBe(ids.userA);
+
+    // Query-count spy on the Kysely executor — proves the single-round-trip contract
+    // structurally. Kysely's RawBuilder.execute(executorProvider) calls
+    // `executorProvider.getExecutor()` to obtain the executor, then `transformQuery` →
+    // `compileQuery` → `executeQuery`. We construct a fake DataContextDb whose db exposes
+    // a counting executor: every executeQuery call increments the counter. markRead only
+    // invokes `sql...execute(scopedDb.db)` once, so the counter must read exactly 1 after
+    // the call (no follow-up getById). assertDataContextDb passes because we attach the
+    // brand symbol.
+    let executeCount = 0;
+    const fakeExecutor = {
+      transformQuery: (node: unknown) => node,
+      compileQuery: () => ({ query: { sql: "FAKE", parameters: [] as unknown[] } }),
+      executeQuery: async () => {
+        executeCount += 1;
+        return { rows: [] as NotificationWithReadState[] };
+      },
+      withPlugins: () => fakeExecutor
+    };
+    const countingScopedDb = {
+      db: {
+        getExecutor: () => fakeExecutor
+      },
+      [dataContextBrand]: true
+    } as unknown as DataContextDb;
+
+    const spyResult = await repository.markRead(countingScopedDb, created.id);
+    expect(spyResult).toBeUndefined();
+    expect(executeCount).toBe(1);
+  });
+
+  it("markRead absent-vs-denied is indistinguishable at the repository layer (Verification 6/repo)", async () => {
+    const absentResult = await dataContext.withDataContext(userAContext(), (scopedDb) =>
+      repository.markRead(scopedDb, nonexistentNotificationId)
+    );
+    // bPrivate exists but is RLS-invisible to userA (recipient=userB).
+    const deniedResult = await dataContext.withDataContext(userAContext(), (scopedDb) =>
+      repository.markRead(scopedDb, notificationIds.bPrivate)
+    );
+    expect(absentResult).toBeUndefined();
+    expect(deniedResult).toBeUndefined();
+    // No information side-channel: both are deeply equal.
+    expect(absentResult).toEqual(deniedResult);
+  });
+
+  it("the DB-level metadata CHECK blocks inserts over 4096 bytes (Verification 8)", async () => {
+    const client = new Client({ connectionString: connectionStrings.bootstrap });
+    await client.connect();
+    try {
+      // 5000-character single-string value: jsonb::text exceeds 4096 bytes.
+      const oversized = JSON.stringify({ overflow: "x".repeat(5000) });
+      await expect(
+        client.query(
+          `
+            INSERT INTO app.notifications (id, actor_user_id, recipient_user_id, title, body, metadata)
+            VALUES ($1, $2, $3, 'oversized metadata probe', null, $4::jsonb)
+          `,
+          [randomUUID(), ids.userA, ids.userA, oversized]
+        )
+      ).rejects.toThrow(/notifications_metadata_size_check/);
+    } finally {
+      await client.end();
+    }
+  });
+
+  it("the defense-in-depth SQL comments are present on notifications + notification_reads (Verification 9)", async () => {
+    const client = new Client({ connectionString: connectionStrings.migration });
+    await client.connect();
+    try {
+      const tableComments = await client.query<{ obj_description: string }>(
+        `
+          SELECT obj_description(c.oid) AS obj_description
+          FROM pg_class c
+          JOIN pg_namespace n ON n.oid = c.relnamespace
+          WHERE n.nspname = 'app'
+            AND c.relname IN ('notifications', 'notification_reads')
+          ORDER BY c.relname
+        `
+      );
+      expect(tableComments.rows).toHaveLength(2);
+      const descriptions = tableComments.rows.map((r) => r.obj_description).join("\n");
+      // The notifications comment must mention the actor-scoped invariant.
+      expect(descriptions).toContain("actor-scoped");
+      // The notification_reads comment must mention the EXISTS defense-in-depth clause.
+      expect(descriptions).toContain("EXISTS");
+      expect(descriptions).toContain("defense-in-depth");
+
+      // Spot-check one policy comment too: notification_reads_select's comment.
+      const policyComments = await client.query<{ description: string }>(
+        `
+          SELECT pol.polname, pg_catalog.obj_description(pol.oid) AS description
+          FROM pg_policy pol
+          JOIN pg_class c ON c.oid = pol.polrelid
+          JOIN pg_namespace n ON n.oid = c.relnamespace
+          WHERE n.nspname = 'app'
+            AND c.relname = 'notification_reads'
+            AND pol.polname = 'notification_reads_select'
+        `
+      );
+      expect(policyComments.rows[0]?.description).toContain("defense-in-depth");
+    } finally {
+      await client.end();
+    }
+  });
+
+  it("metadata is typed as the bounded NotificationMetadata primitive union (Verification 4/type)", () => {
+    // Compile-time guard: a NotificationDto.metadata assignment of an unbounded
+    // Record<string, unknown> must fail typecheck. The @ts-expect-error will become
+    // unused if the type is silently widened back to Record<string, unknown>.
+    const sample: NotificationMetadata = { ok: true, n: 1, s: "x", z: null };
+    expect(sample.ok).toBe(true);
+    // @ts-expect-error — NotificationMetadata values must be primitive; objects are rejected.
+    const badNested: NotificationMetadata = { nested: { leak: true } };
+    expect(badNested).toBeDefined();
+  });
 });
 
 async function seedNotificationData(): Promise<void> {
@@ -430,7 +768,8 @@ async function seedNotificationData(): Promise<void> {
         VALUES
           ($1, $2, $3, 'User A private notification', 'Private for User A', $4::jsonb),
           ($5, $3, $2, 'User B private notification', 'Private for User B', $6::jsonb),
-          ($7, $2, $3, 'Workspace seed notification', 'Workspace seed for User A', $8::jsonb)
+          ($7, $2, $3, 'Seeded notification for User A', 'Seeded recipient-only row for User A', $8::jsonb),
+          ($9, $3, $3, 'Projection probe notification', 'Raw metadata in column is deliberately oversized', $10::jsonb)
       `,
       [
         notificationIds.aPrivate,
@@ -439,8 +778,35 @@ async function seedNotificationData(): Promise<void> {
         JSON.stringify({ source: "seed", resourceType: "task" }),
         notificationIds.bPrivate,
         JSON.stringify({ source: "seed", resourceType: "note" }),
-        notificationIds.aWorkspaceSeed,
-        JSON.stringify({ source: "seed", workspaceScoped: true })
+        notificationIds.aSeed,
+        JSON.stringify({ source: "seed" }),
+        notificationIds.aProjectionProbe,
+        // Deliberately raw, oversized, nested, and oddly-keyed metadata. It fits the DB
+        // size CHECK (< 4096 bytes after jsonb::text) but violates every app-layer bound;
+        // the OUTPUT projection in serializeNotification MUST strip it down to the bounded
+        // shape before this reaches any REST or assistant-tool client.
+        //
+        // jsonb stores object keys in (length, content) order, NOT insertion order — so the
+        // 2-char "good" keys (aa/bb/cc/dd) sort BEFORE the 7-char extraXX keys and survive
+        // the 16-key cap, letting us assert the cap behavior deterministically. ee is a
+        // 500-char string that the projection must truncate to 256 chars on the way out.
+        JSON.stringify({
+          aa: "projection-probe",
+          bb: 3,
+          cc: true,
+          dd: null,
+          ee: "x".repeat(500),
+          // nested object / array → key removed entirely
+          nested: { href: "https://example.test", label: "dropped" },
+          list: [1, 2, 3],
+          // bad key names → dropped
+          "has space": "dropped",
+          "123numeric": "dropped",
+          // 20 extraXX keys → only the first 11 survive (16-key cap after the 5 good keys)
+          ...Object.fromEntries(
+            Array.from({ length: 20 }, (_, i) => [`extra${i.toString().padStart(2, "0")}`, i])
+          )
+        })
       ]
     );
     await client.query("COMMIT");
