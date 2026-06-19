@@ -1,9 +1,10 @@
-import { assertDataContextDb } from "@jarv1s/db";
+import { assertDataContextDb, type DataContextDb, type Task } from "@jarv1s/db";
 import type { ToolExecute, ToolResult } from "@jarv1s/module-sdk";
 
+import { TaskBreakdownRepository } from "./breakdown.js";
 import { TaskDriftRepository } from "./drift.js";
 import { TaskListsRepository } from "./lists.js";
-import { TasksRepository } from "./repository.js";
+import { TasksRepository, type CreateTaskInput, type UpdateTaskInput } from "./repository.js";
 import {
   serializeTask,
   serializeTaskActivity,
@@ -14,6 +15,18 @@ import {
 const repository = new TasksRepository();
 const drift = new TaskDriftRepository();
 const lists = new TaskListsRepository();
+const breakdown = new TaskBreakdownRepository();
+
+async function taskData(scopedDb: DataContextDb, task: Task) {
+  const tags = await repository.getTagsForTask(scopedDb, task.id);
+  return serializeTask(task, tags);
+}
+
+function statusSummary(status: "todo" | "done" | "archived", title: string): string {
+  if (status === "done") return `Completed task: ${title}`;
+  if (status === "archived") return `Archived task: ${title}`;
+  return `Reopened task: ${title}`;
+}
 
 export const taskListExecute: ToolExecute = async (scopedDb, input, _ctx): Promise<ToolResult> => {
   assertDataContextDb(scopedDb);
@@ -169,6 +182,20 @@ export const taskActivityExecute: ToolExecute = async (
   return { data: { items: activity.map(serializeTaskActivity) } };
 };
 
+export const taskCreateExecute: ToolExecute = async (scopedDb, input, _ctx): Promise<ToolResult> => {
+  assertDataContextDb(scopedDb);
+  const task = await repository.create(scopedDb, input as CreateTaskInput);
+  return { data: { summary: `Created task: ${task.title}`, task: await taskData(scopedDb, task) } };
+};
+
+export const taskUpdateExecute: ToolExecute = async (scopedDb, input, _ctx): Promise<ToolResult> => {
+  assertDataContextDb(scopedDb);
+  const { taskId, ...updates } = input as { taskId: string } & UpdateTaskInput;
+  const task = await repository.update(scopedDb, taskId, updates);
+  if (!task) return { data: { error: "Task not found" } };
+  return { data: { summary: `Updated task: ${task.title}`, task: await taskData(scopedDb, task) } };
+};
+
 export const taskUpdateStatusExecute: ToolExecute = async (
   scopedDb,
   input,
@@ -186,6 +213,133 @@ export const taskUpdateStatusExecute: ToolExecute = async (
     return { data: { error: "Task not found" } };
   }
 
-  const tags = await repository.getTagsForTask(scopedDb, task.id);
-  return { data: { task: serializeTask(task, tags) } };
+  return { data: { summary: statusSummary(status, task.title), task: await taskData(scopedDb, task) } };
+};
+
+export const taskBreakDownExecute: ToolExecute = async (
+  scopedDb,
+  input,
+  _ctx
+): Promise<ToolResult> => {
+  assertDataContextDb(scopedDb);
+  const { taskId, steps } = input as { taskId: string; steps: string[] };
+  const tasks = await breakdown.breakDown(scopedDb, taskId, steps);
+  return {
+    data: {
+      summary: `Added ${tasks.length} subtask${tasks.length === 1 ? "" : "s"}.`,
+      tasks: tasks.map((task) => serializeTask(task))
+    }
+  };
+};
+
+export const taskAddActivityExecute: ToolExecute = async (
+  scopedDb,
+  input,
+  _ctx
+): Promise<ToolResult> => {
+  assertDataContextDb(scopedDb);
+  const { taskId, activityType, body } = input as {
+    taskId: string;
+    activityType?: string;
+    body?: string | null;
+  };
+  const task = await repository.getById(scopedDb, taskId);
+  if (!task) return { data: { error: "Task not found" } };
+  const activity = await repository.addActivity(scopedDb, taskId, {
+    activityType: activityType ?? "comment",
+    body
+  });
+  return {
+    data: {
+      summary: `Added note/activity to ${task.title}.`,
+      activity: serializeTaskActivity(activity)
+    }
+  };
+};
+
+export const taskAssignTagExecute: ToolExecute = async (
+  scopedDb,
+  input,
+  _ctx
+): Promise<ToolResult> => {
+  assertDataContextDb(scopedDb);
+  const { taskId, tagId } = input as { taskId: string; tagId: string };
+  await lists.assignTag(scopedDb, taskId, tagId);
+  const task = await repository.getById(scopedDb, taskId);
+  if (!task) return { data: { error: "Task not found" } };
+  const tags = await repository.getTagsForTask(scopedDb, taskId);
+  const tag = tags.find((candidate) => candidate.id === tagId);
+  return {
+    data: {
+      summary: `Assigned tag ${tag?.name ?? tagId}.`,
+      task: serializeTask(task, tags)
+    }
+  };
+};
+
+export const taskUnassignTagExecute: ToolExecute = async (
+  scopedDb,
+  input,
+  _ctx
+): Promise<ToolResult> => {
+  assertDataContextDb(scopedDb);
+  const { taskId, tagId } = input as { taskId: string; tagId: string };
+  const tag = await scopedDb.db
+    .selectFrom("app.task_tags")
+    .select(["id", "name"])
+    .where("id", "=", tagId)
+    .executeTakeFirst();
+  await lists.unassignTag(scopedDb, taskId, tagId);
+  const task = await repository.getById(scopedDb, taskId);
+  if (!task) return { data: { error: "Task not found" } };
+  return {
+    data: {
+      summary: `Removed tag ${tag?.name ?? tagId}.`,
+      task: await taskData(scopedDb, task)
+    }
+  };
+};
+
+export const taskCreateListExecute: ToolExecute = async (
+  scopedDb,
+  input,
+  _ctx
+): Promise<ToolResult> => {
+  assertDataContextDb(scopedDb);
+  const { name } = input as { name: string };
+  const list = await lists.getOrCreate(scopedDb, name);
+  return { data: { summary: `Created task list: ${list.name}`, list: serializeTaskList(list) } };
+};
+
+export const taskRenameListExecute: ToolExecute = async (
+  scopedDb,
+  input,
+  _ctx
+): Promise<ToolResult> => {
+  assertDataContextDb(scopedDb);
+  const { listId, name } = input as { listId: string; name: string };
+  const list = await lists.renameList(scopedDb, listId, name);
+  return { data: { summary: `Renamed task list: ${list.name}`, list: serializeTaskList(list) } };
+};
+
+export const taskCreateTagExecute: ToolExecute = async (
+  scopedDb,
+  input,
+  _ctx
+): Promise<ToolResult> => {
+  assertDataContextDb(scopedDb);
+  const { listId, name } = input as { listId: string; name: string };
+  const tag = await lists.createTag(scopedDb, listId, name);
+  return { data: { summary: `Created tag ${tag.name}.`, tag: serializeTaskTag(tag) } };
+};
+
+export const taskRenameTagExecute: ToolExecute = async (
+  scopedDb,
+  input,
+  _ctx
+): Promise<ToolResult> => {
+  assertDataContextDb(scopedDb);
+  const { listId, tagId, name } = input as { listId: string; tagId: string; name: string };
+  const tag = await lists.renameTag(scopedDb, listId, tagId, name);
+  return { data: { summary: `Renamed tag ${tag.name}.`, tag: serializeTaskTag(tag) } };
 };

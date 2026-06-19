@@ -41,14 +41,24 @@ import {
 } from "@jarv1s/shared";
 
 import {
+  taskAddActivityExecute,
+  taskAssignTagExecute,
   taskActivityExecute,
   taskAtRiskExecute,
+  taskBreakDownExecute,
+  taskCreateExecute,
+  taskCreateListExecute,
+  taskCreateTagExecute,
   taskFocusExecute,
   taskGetExecute,
   taskListExecute,
   taskListListsExecute,
   taskListTagsExecute,
   taskOverdueExecute,
+  taskRenameListExecute,
+  taskRenameTagExecute,
+  taskUnassignTagExecute,
+  taskUpdateExecute,
   taskUpdateStatusExecute
 } from "./tools.js";
 
@@ -78,6 +88,122 @@ const taskTagItemsToolOutputSchema = {
   required: ["items"],
   properties: {
     items: { type: "array", items: taskTagDtoSchema }
+  }
+} as const;
+
+const taskMutationToolOutputSchema = {
+  type: "object",
+  properties: {
+    summary: { type: "string" },
+    task: taskDtoSchema,
+    error: { type: "string" }
+  }
+} as const;
+
+const taskBreakdownToolOutputSchema = {
+  type: "object",
+  properties: {
+    summary: { type: "string" },
+    tasks: { type: "array", items: taskDtoSchema },
+    error: { type: "string" }
+  }
+} as const;
+
+const taskActivityToolOutputSchema = {
+  type: "object",
+  properties: {
+    summary: { type: "string" },
+    activity: addTaskActivityResponseSchema.properties.activity,
+    error: { type: "string" }
+  }
+} as const;
+
+const taskListMutationToolOutputSchema = {
+  type: "object",
+  properties: {
+    summary: { type: "string" },
+    list: taskListDtoSchema,
+    error: { type: "string" }
+  }
+} as const;
+
+const taskTagMutationToolOutputSchema = {
+  type: "object",
+  properties: {
+    summary: { type: "string" },
+    tag: taskTagDtoSchema,
+    error: { type: "string" }
+  }
+} as const;
+
+const taskUpdateToolInputSchema = {
+  type: "object",
+  additionalProperties: false,
+  required: ["taskId"],
+  properties: {
+    taskId: { type: "string" },
+    ...updateTaskRequestSchema.properties
+  }
+} as const;
+
+const taskBreakdownToolInputSchema = {
+  type: "object",
+  additionalProperties: false,
+  required: ["taskId", "steps"],
+  properties: {
+    taskId: { type: "string" },
+    steps: breakdownTaskRequestSchema.properties.steps
+  }
+} as const;
+
+const taskActivityToolInputSchema = {
+  type: "object",
+  additionalProperties: false,
+  required: ["taskId"],
+  properties: {
+    taskId: { type: "string" },
+    ...addTaskActivityRequestSchema.properties
+  }
+} as const;
+
+const taskTagAssignmentToolInputSchema = {
+  type: "object",
+  additionalProperties: false,
+  required: ["taskId", "tagId"],
+  properties: {
+    taskId: { type: "string" },
+    tagId: { type: "string" }
+  }
+} as const;
+
+const taskListRenameToolInputSchema = {
+  type: "object",
+  additionalProperties: false,
+  required: ["listId", "name"],
+  properties: {
+    listId: { type: "string" },
+    name: { type: "string" }
+  }
+} as const;
+
+const taskTagCreateToolInputSchema = {
+  type: "object",
+  additionalProperties: false,
+  required: ["listId", "name"],
+  properties: {
+    listId: { type: "string" },
+    name: { type: "string" }
+  }
+} as const;
+
+const taskTagRenameToolInputSchema = {
+  type: "object",
+  additionalProperties: false,
+  required: ["listId", "tagId", "name"],
+  properties: {
+    listId: { type: "string" },
+    tagId: { type: "string" },
+    name: { type: "string" }
   }
 } as const;
 
@@ -436,10 +562,31 @@ export const tasksModuleManifest = {
       execute: taskActivityExecute
     },
     {
+      name: "tasks.create",
+      description: "Create a task owned by the active actor.",
+      permissionId: "tasks.create",
+      risk: "write",
+      executionPolicy: "auto",
+      inputSchema: createTaskRequestSchema,
+      outputSchema: taskMutationToolOutputSchema,
+      execute: taskCreateExecute
+    },
+    {
+      name: "tasks.update",
+      description: "Update non-destructive fields on a task visible to the active actor.",
+      permissionId: "tasks.update",
+      risk: "write",
+      executionPolicy: "auto",
+      inputSchema: taskUpdateToolInputSchema,
+      outputSchema: taskMutationToolOutputSchema,
+      execute: taskUpdateExecute
+    },
+    {
       name: "tasks.updateStatus",
       description: "Update the status of a task visible to the active actor.",
       permissionId: "tasks.update",
       risk: "write",
+      executionPolicy: "auto",
       inputSchema: {
         type: "object",
         required: ["taskId", "status"],
@@ -448,8 +595,88 @@ export const tasksModuleManifest = {
           status: taskStatusSchema
         }
       },
-      outputSchema: getTaskResponseSchema,
+      outputSchema: taskMutationToolOutputSchema,
       execute: taskUpdateStatusExecute
+    },
+    {
+      name: "tasks.breakDown",
+      description: "Break a task into ordered subtasks.",
+      permissionId: "tasks.update",
+      risk: "write",
+      executionPolicy: "auto",
+      inputSchema: taskBreakdownToolInputSchema,
+      outputSchema: taskBreakdownToolOutputSchema,
+      execute: taskBreakDownExecute
+    },
+    {
+      name: "tasks.addActivity",
+      description: "Add a note or activity entry to a task.",
+      permissionId: "tasks.update",
+      risk: "write",
+      executionPolicy: "auto",
+      inputSchema: taskActivityToolInputSchema,
+      outputSchema: taskActivityToolOutputSchema,
+      execute: taskAddActivityExecute
+    },
+    {
+      name: "tasks.assignTag",
+      description: "Assign a tag to a task.",
+      permissionId: "tasks.update",
+      risk: "write",
+      executionPolicy: "auto",
+      inputSchema: taskTagAssignmentToolInputSchema,
+      outputSchema: taskMutationToolOutputSchema,
+      execute: taskAssignTagExecute
+    },
+    {
+      name: "tasks.unassignTag",
+      description: "Remove a tag from a task.",
+      permissionId: "tasks.update",
+      risk: "write",
+      executionPolicy: "auto",
+      inputSchema: taskTagAssignmentToolInputSchema,
+      outputSchema: taskMutationToolOutputSchema,
+      execute: taskUnassignTagExecute
+    },
+    {
+      name: "tasks.createList",
+      description: "Create a task list owned by the active actor.",
+      permissionId: "tasks.create",
+      risk: "write",
+      executionPolicy: "auto",
+      inputSchema: createTaskListRequestSchema,
+      outputSchema: taskListMutationToolOutputSchema,
+      execute: taskCreateListExecute
+    },
+    {
+      name: "tasks.renameList",
+      description: "Rename a task list owned by the active actor.",
+      permissionId: "tasks.update",
+      risk: "write",
+      executionPolicy: "auto",
+      inputSchema: taskListRenameToolInputSchema,
+      outputSchema: taskListMutationToolOutputSchema,
+      execute: taskRenameListExecute
+    },
+    {
+      name: "tasks.createTag",
+      description: "Create a tag in a task list owned by the active actor.",
+      permissionId: "tasks.create",
+      risk: "write",
+      executionPolicy: "auto",
+      inputSchema: taskTagCreateToolInputSchema,
+      outputSchema: taskTagMutationToolOutputSchema,
+      execute: taskCreateTagExecute
+    },
+    {
+      name: "tasks.renameTag",
+      description: "Rename a tag owned by the active actor.",
+      permissionId: "tasks.update",
+      risk: "write",
+      executionPolicy: "auto",
+      inputSchema: taskTagRenameToolInputSchema,
+      outputSchema: taskTagMutationToolOutputSchema,
+      execute: taskRenameTagExecute
     }
   ]
 } satisfies JarvisModuleManifest;
