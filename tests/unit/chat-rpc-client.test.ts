@@ -189,7 +189,13 @@ function startFakeServer(
     let handshook = false;
     let clientNonce = "";
 
+    // Ignore write races: the client may close/destroy the socket mid-handshake (e.g. the
+    // §3.6 imposter-abort test), so a later server write would emit an UNHANDLED EPIPE and fail
+    // the run even though every assertion passed. Handle the socket error + guard the write so the
+    // fake server never crashes the process on a closed peer. (Pre-existing intermittent flake.)
+    sock.on("error", () => {});
     const send = (frame: unknown): void => {
+      if (sock.destroyed || !sock.writable) return;
       sock.write(encodeFrame(frame as RpcFrame));
     };
 
