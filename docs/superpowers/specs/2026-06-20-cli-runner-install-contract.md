@@ -6,6 +6,17 @@
   state-transition/onboarding wiring. **It changes NO frozen shape** — every existing envelope, method,
   type, env var, mount, and ownership rule in the base contract stands unchanged. New verbs/types are
   additive only (§A.0).
+- **Revision R7 (2026-06-20, post-build fix — claude native-binary placement):** `npm ci --ignore-scripts`
+  leaves claude's `bin/claude.exe` a **STUB** that exits 1 ("claude native binary not installed") because
+  the package's `install.cjs` postinstall (which `copyFileSync`s the per-arch native binary over the
+  wrapper) is skipped with `--ignore-scripts`. So claude could **never** install — verify (`.bin/claude
+--version`) always failed. The install service now **explicitly places** the per-arch native binary
+  (deterministic, no script): after `npm ci` and before verify it replaces `<pkg>/<wrapperRelPath>` with a
+  relative symlink to `<archPkg>/<archBinaryFile>` (+chmod), driven by a new OPTIONAL
+  `NpmInstallRecipe.archBinaryPlacement` field on the catalog (A.1.1/A.1.3). **codex is unaffected** — its
+  `bin/codex.js` wrapper self-resolves the native binary at runtime, so it omits `archBinaryPlacement` and
+  needs no placement. (Verified empirically against the published packages: stub → exit 1; after placement,
+  `claude --version` reports `2.1.183`; codex still works straight from `npm ci --ignore-scripts`.)
 - **Revision R6 (2026-06-20, pre-build freeze — cross-model second pass: Codex gpt-5.5 + Opus critic, both
   REVISE):** closed two real defects the prior rounds missed plus four minor gaps, all grounded in the
   Phase-1 code. (1) **`kind:"env"` self-update-disable never reached the launched CLI** — `buildSanitizedCliEnv`
@@ -134,6 +145,25 @@ export interface NpmInstallRecipe {
    * package from the lockfile-pinned version (no lifecycle script) and verifies its binary.
    */
   readonly archBinaryPackage?: Readonly<Record<"linux-x64" | "linux-arm64", string>>;
+  /**
+   * OPTIONAL explicit native-binary placement (A.1.3, R7) — REQUIRED only for a recipe whose
+   * main-package `bin` wrapper is a STUB that errors without its postinstall (claude:
+   * `bin/claude.exe` exits 1 "native binary not installed"; the real binary ships in the
+   * per-arch optionalDependency and the package's `install.cjs` postinstall copies it over the
+   * wrapper). Because the install runs `--ignore-scripts`, that postinstall never executes, so
+   * the install service replicates ONLY the file placement DETERMINISTICALLY (never runs the
+   * script): after `npm ci`, before verify, it replaces
+   * `<staging>/node_modules/<pkg>/<wrapperRelPath>` with the per-arch package's native binary
+   * `<staging>/node_modules/<archPkg>/<archBinaryFile>` (relative symlink/copy + chmod 0o755).
+   * ABSENT ⇒ NO placement — the wrapper is expected to self-resolve at runtime (codex's
+   * `bin/codex.js` does, so codex omits this).
+   */
+  readonly archBinaryPlacement?: {
+    /** File WITHIN the per-arch package that IS the native binary (claude: "claude"). */
+    readonly archBinaryFile: string;
+    /** Path WITHIN the main package to overwrite (claude: "bin/claude.exe"). */
+    readonly wrapperRelPath: string;
+  };
   /** REQUIRED concrete self-update-disable mechanism for the pinned version (A.3.7). */
   readonly selfUpdateDisable: SelfUpdateDisable;
 }
@@ -203,6 +233,16 @@ export const PROVIDER_CATALOG: ProviderCatalog = {
       // (A.3.3/A.3.4). Regenerated only at the build-time pin step (A.1.2). Absent ⇒ blocked (A.1.4).
       lockfile: "packages/cli-runner/recipes/anthropic/npm-shrinkwrap.json",
       binary: "claude",
+      // claude ALSO ships per-arch native-binary optionalDeps (R6); resolved EXPLICITLY (A.1.3).
+      archOptionalDeps: true,
+      archBinaryPackage: {
+        "linux-x64": "<PINNED_CLAUDE_LINUX_X64_PKG>", // e.g. @anthropic-ai/claude-code-linux-x64
+        "linux-arm64": "<PINNED_CLAUDE_LINUX_ARM64_PKG>"
+      },
+      // R7: claude's `bin/claude.exe` wrapper is a STUB that errors without the (script-blocked)
+      // postinstall. The install service explicitly places the per-arch native binary over it
+      // (A.1.3) — relative symlink + chmod, no script. codex OMITS this (its wrapper self-resolves).
+      archBinaryPlacement: { archBinaryFile: "claude", wrapperRelPath: "bin/claude.exe" },
       // The CONCRETE self-update-disable key the pinned claude version honors (A.3.7). Pinner fills the
       // exact key/value the pinned version reads; it is added to the §7.2 allowlist as a non-secret control.
       selfUpdateDisable: { kind: "env", key: "<PINNED_CLAUDE_DISABLE_UPDATE_ENV>", value: "1" }
@@ -282,9 +322,19 @@ npm's optional-dep heuristics and NOT via a lifecycle script. The install (A.3) 
   the per-arch package name from `recipe.archBinaryPackage[<key>]` (the lockfile-pinned version). **A host
   arch with no `archBinaryPackage` entry (e.g. a future `riscv64`) is a DEFINED verify FAILURE → `state:"error"`
   / rollback (A.3.5), never an undefined `[key]` deref.** Confirm `npm ci` materialized that exact package +
-  version under the staging prefix (full-tree integrity already enforced it), and locate/mark-executable its
-  shipped binary deterministically (from the package's declared `bin` path) — no `curl`, no script, no
-  network beyond the lockfile-pinned tarball, and
+  version under the staging prefix (full-tree integrity already enforced it). **Then, for a recipe whose
+  main-package `bin` wrapper is a STUB that errors without the postinstall (claude — see R7):** the install
+  service **replaces the wrapper** `<staging>/node_modules/<pkg>/<recipe.archBinaryPlacement.wrapperRelPath>`
+  (claude: `bin/claude.exe`) **with the per-arch package's native binary**
+  `<staging>/node_modules/<archPkg>/<recipe.archBinaryPlacement.archBinaryFile>` (claude: `claude`) via a
+  **relative symlink** (preferred — avoids duplicating the 233MB binary; both live in the same staged
+  `node_modules`, move together on the atomic promote `rename`, and the verify-time `sha512OfResolved` +
+  `--version` dereference it) — a copy is acceptable if a symlink is problematic — **plus `chmod 0o755`**.
+  This replicates **ONLY** the file placement the package's (script-blocked) `install.cjs` postinstall would
+  do — **never runs the script**, no `curl`, no network beyond the lockfile-pinned tarball. A recipe whose
+  wrapper **self-resolves the native binary at runtime (codex's `bin/codex.js`)** needs **NO** placement and
+  **omits `archBinaryPlacement`** — the install service skips placement for it. After placement (when
+  present) the §A.5 re-probe below must pass, and
 - **verify the platform binary actually resolved** on the run arch via the §A.5 re-probe + `--version`
   check **before promote** — on both `linux/amd64` and `linux/arm64` (the deploy targets). An install that
   "succeeds" but leaves no runnable `codex` binary for the arch is a verify FAILURE → rollback (A.3.5), not

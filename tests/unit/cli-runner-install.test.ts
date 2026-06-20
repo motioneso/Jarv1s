@@ -24,7 +24,7 @@
  *    the allowlist.
  */
 
-import { mkdtemp, mkdir, readlink, rm, stat, symlink, writeFile } from "node:fs/promises";
+import { lstat, mkdtemp, mkdir, readlink, rm, stat, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { describe, expect, it, beforeEach, afterEach } from "vitest";
@@ -38,6 +38,7 @@ import {
 import { sourceSelfUpdateDisableEnv } from "../../packages/cli-runner/src/main.js";
 import { buildSanitizedCliEnv } from "../../packages/cli-runner/src/sanitized-env.js";
 import { PROVIDER_CATALOG } from "../../packages/cli-runner/src/catalog.js";
+import { createSanitizedTmuxIo } from "../../packages/cli-runner/src/runner-io.js";
 import type { RpcProviderKind } from "../../packages/chat/src/live/rpc-contract.js";
 
 // ─── A fake TmuxIo that simulates npm ci + --version + ls against a real temp tree ──
@@ -51,6 +52,14 @@ interface FakeIoOptions {
   readonly ciFails?: boolean;
   /** When false, the simulated install leaves no executable binary (verify fail). */
   readonly produceBinary?: boolean;
+  /**
+   * When true (the default for claude), the simulated `bin/claude.exe` wrapper is a STUB that
+   * exits 1 with the "native binary not installed" error UNLESS the §A.1.3 placement step has
+   * symlinked the per-arch native binary over it — exactly the real claude@2.1.183 behaviour.
+   * The fake's `--version` probe therefore checks whether the wrapper resolves to the native
+   * binary (a symlink) before reporting the version.
+   */
+  readonly stubWrapper?: boolean;
 }
 
 interface RecordedRun {
@@ -58,6 +67,11 @@ interface RecordedRun {
   readonly args: readonly string[];
   readonly env?: NodeJS.ProcessEnv;
 }
+
+/** Marker bytes the fake writes into the per-arch native binary file (§A.1.3 placement target). */
+const NATIVE_MARKER = "JARV1S_FAKE_NATIVE_CLAUDE_BINARY";
+/** Marker bytes the fake writes into a STUB `bin/claude.exe` wrapper (errors until replaced). */
+const STUB_MARKER = "claude native binary not installed";
 
 function makeFakeIo(opts: FakeIoOptions): { io: TmuxIo; runs: RecordedRun[] } {
   const runs: RecordedRun[] = [];
@@ -73,28 +87,53 @@ function makeFakeIo(opts: FakeIoOptions): { io: TmuxIo; runs: RecordedRun[] } {
         const staging = args[prefixIdx + 1] as string;
         const pkg = "@anthropic-ai/claude-code";
         const nm = path.join(staging, "node_modules");
-        await mkdir(path.join(nm, pkg), { recursive: true });
+        await mkdir(path.join(nm, pkg, "bin"), { recursive: true });
         await writeFile(
           path.join(nm, pkg, "package.json"),
           JSON.stringify({ name: pkg, version: opts.installedVersion })
         );
-        // per-arch native package present (the lockfile-pinned dep)
-        await mkdir(path.join(nm, "@anthropic-ai", "claude-code-linux-x64"), { recursive: true });
-        await mkdir(path.join(nm, "@anthropic-ai", "claude-code-linux-arm64"), {
-          recursive: true
-        });
+        // per-arch native packages present (the lockfile-pinned deps). Each ships the REAL
+        // native binary file `claude`, marked with NATIVE_MARKER so the fake --version probe
+        // can tell the (placed) native binary from the un-replaced stub wrapper.
+        for (const a of ["linux-x64", "linux-arm64"]) {
+          const archDir = path.join(nm, "@anthropic-ai", `claude-code-${a}`);
+          await mkdir(archDir, { recursive: true });
+          await writeFile(path.join(archDir, "claude"), `${NATIVE_MARKER}\n`, { mode: 0o755 });
+        }
         const binDir = path.join(nm, ".bin");
         await mkdir(binDir, { recursive: true });
         if (opts.produceBinary !== false) {
-          const real = path.join(nm, pkg, "cli.js");
-          await writeFile(real, "#!/usr/bin/env node\n", { mode: 0o755 });
-          await symlink(path.join("..", pkg, "cli.js"), path.join(binDir, "claude"));
+          // The package's exposed bin (matches the real recipe: bin/claude.exe). When stub,
+          // it is the ERROR STUB until §A.1.3 placement replaces it; else a plain runnable.
+          const wrapper = path.join(nm, pkg, "bin", "claude.exe");
+          await writeFile(
+            wrapper,
+            opts.stubWrapper ? `${STUB_MARKER}\n` : "#!/usr/bin/env node\n",
+            {
+              mode: 0o755
+            }
+          );
+          // .bin/claude → ../@anthropic-ai/claude-code/bin/claude.exe (npm's bin symlink).
+          await symlink(path.join("..", pkg, "bin", "claude.exe"), path.join(binDir, "claude"));
         }
         return { code: 0, stdout: "", stderr: "" };
       }
 
-      // Simulate `<bin> --version` (the §A.5 re-probe).
+      // Simulate `<bin> --version` (the §A.5 re-probe). For a stub-wrapper install, the wrapper
+      // ERRORS (exit 1) until the §A.1.3 placement step has replaced it with the native binary —
+      // detected by reading the file the path resolves to and checking for NATIVE_MARKER.
       if (args.length === 1 && args[0] === "--version") {
+        if (opts.stubWrapper) {
+          let resolved: string;
+          try {
+            resolved = await (await import("node:fs/promises")).readFile(cmd, "utf8");
+          } catch {
+            return { code: 1, stdout: "", stderr: "ENOENT" };
+          }
+          if (!resolved.includes(NATIVE_MARKER)) {
+            return { code: 1, stdout: "", stderr: "Error: claude native binary not installed" };
+          }
+        }
         const v = opts.probeVersion ?? opts.installedVersion;
         return { code: 0, stdout: `${v}\n`, stderr: "" };
       }
@@ -188,6 +227,81 @@ describe("InstallService — npm install happy path (§A.3.3/§A.3.4/§A.3.5)", 
       m.readdir(stagingRoot).catch(() => [] as string[])
     );
     expect(stagingEntries).toHaveLength(0);
+  });
+});
+
+describe("InstallService — §A.1.3 explicit native-binary placement (stub wrapper)", () => {
+  it("symlinks the per-arch native binary over the stub wrapper before verify → claude --version passes", async () => {
+    // Mirror real claude@2.1.183: bin/claude.exe is a STUB that errors until the per-arch
+    // native binary is placed over it. The recipe carries archBinaryPlacement, so the install
+    // service must place it; otherwise the stub's --version (exit 1) fails verify.
+    const { io } = makeFakeIo({ installedVersion: PINNED, stubWrapper: true });
+    const svc = new InstallService({
+      io,
+      catalog: PROVIDER_CATALOG,
+      toolsPrefix,
+      homeBase,
+      hostArch: "x64"
+    });
+
+    const result = await svc.installProvider("anthropic");
+    expect(result.state).toBe("installed");
+    expect(result.version).toBe(PINNED);
+
+    // The promoted wrapper is now a SYMLINK pointing at the per-arch native binary (not the
+    // 233MB-stub file), inside the release lane.
+    const current = await readlink(path.join(toolsPrefix, "providers", "anthropic", "current"));
+    const releaseDir = path.join(toolsPrefix, "providers", "anthropic", current);
+    const wrapper = path.join(
+      releaseDir,
+      "node_modules",
+      "@anthropic-ai",
+      "claude-code",
+      "bin",
+      "claude.exe"
+    );
+    const wrapperLink = await readlink(wrapper);
+    expect(wrapperLink).toMatch(/claude-code-linux-x64\/claude$/);
+    // The resolved bytes are the native binary, not the stub.
+    const { readFile } = await import("node:fs/promises");
+    expect(await readFile(wrapper, "utf8")).toContain(NATIVE_MARKER);
+  });
+
+  it("a recipe WITHOUT archBinaryPlacement is NOT placed (codex self-resolving wrapper)", async () => {
+    // Drive the install service with a synthetic catalog entry that has NO archBinaryPlacement
+    // and a wrapper that already runs — assert the wrapper is left untouched (no symlink), i.e.
+    // placement is skipped. (codex relies on this: its bin/codex.js self-resolves at runtime.)
+    const anthropic = PROVIDER_CATALOG.anthropic;
+    if (anthropic.recipe?.kind !== "npm") throw new Error("expected npm recipe");
+    const noPlacementRecipe = { ...anthropic.recipe, archBinaryPlacement: undefined };
+    const catalog = {
+      ...PROVIDER_CATALOG,
+      anthropic: { ...anthropic, recipe: noPlacementRecipe }
+    } as typeof PROVIDER_CATALOG;
+
+    // produceBinary keeps the wrapper a plain runnable; stubWrapper omitted ⇒ --version passes
+    // straight from npm ci with no placement.
+    const { io } = makeFakeIo({ installedVersion: PINNED });
+    const svc = new InstallService({ io, catalog, toolsPrefix, homeBase, hostArch: "x64" });
+
+    const result = await svc.installProvider("anthropic");
+    expect(result.state).toBe("installed");
+
+    const current = await readlink(path.join(toolsPrefix, "providers", "anthropic", "current"));
+    const wrapper = path.join(
+      toolsPrefix,
+      "providers",
+      "anthropic",
+      current,
+      "node_modules",
+      "@anthropic-ai",
+      "claude-code",
+      "bin",
+      "claude.exe"
+    );
+    // Without placement the wrapper is the original plain FILE npm ci wrote — NOT a symlink.
+    const st = await lstat(wrapper);
+    expect(st.isSymbolicLink()).toBe(false);
   });
 });
 
@@ -405,4 +519,100 @@ describe("self-update-disable kind:env reaches the LAUNCHED CLI env (§A.3.7, R6
     // The VALUE actually reaches the launched-CLI env — NOT merely the allowlist.
     expect(launchedCliEnv[key]).toBe(value);
   });
+});
+
+// ─── GUARDED-LIVE regression for the §A.1.3 native-binary placement bug ────────
+//
+// This is the REAL proof for exactly the bug this change fixes: `npm ci --ignore-scripts`
+// of claude@2.1.183 leaves `bin/claude.exe` a STUB that exits 1 ("native binary not
+// installed"), so without the explicit per-arch placement the install service's verify
+// (`.bin/claude --version`) fails and claude can NEVER install. It does a REAL npm ci of the
+// committed lockfile, runs the REAL InstallService (real placement + verify + promote), and
+// asserts the live `claude --version` reports the pinned version. It is NETWORK-GATED and
+// SKIPPED by default (only runs with JARVIS_LIVE_INSTALL_TEST=1) so `pnpm test:unit` stays
+// green offline.
+const liveIt = process.env.JARVIS_LIVE_INSTALL_TEST === "1" ? it : it.skip;
+
+describe("InstallService — GUARDED-LIVE real npm ci + §A.1.3 placement (network)", () => {
+  liveIt(
+    "real `npm ci --ignore-scripts` of claude then placement → live `claude --version` reports the pinned version",
+    async () => {
+      const recipe = PROVIDER_CATALOG.anthropic.recipe;
+      if (recipe?.kind !== "npm") throw new Error("expected anthropic npm recipe");
+      const pinned = recipe.version;
+
+      // Real sanitized installer env path: PATH/HOME/registry pass through, secrets do not.
+      const env: NodeJS.ProcessEnv = {
+        PATH: process.env.PATH,
+        HOME: homeBase,
+        ...(process.env.NPM_CONFIG_REGISTRY
+          ? { NPM_CONFIG_REGISTRY: process.env.NPM_CONFIG_REGISTRY }
+          : {}),
+        ...(process.env.HTTPS_PROXY ? { HTTPS_PROXY: process.env.HTTPS_PROXY } : {}),
+        ...(process.env.HTTP_PROXY ? { HTTP_PROXY: process.env.HTTP_PROXY } : {})
+      };
+      const io = createSanitizedTmuxIo(env);
+      const svc = new InstallService({
+        io,
+        catalog: PROVIDER_CATALOG,
+        toolsPrefix,
+        homeBase,
+        env,
+        installTimeoutMs: 600_000
+      });
+
+      const result = await svc.installProvider("anthropic");
+      // The whole point: with the §A.1.3 placement, the install SUCCEEDS (it returned
+      // state:"error" before the fix because the stub wrapper failed verify).
+      expect(result.message ?? "").not.toMatch(/native binary not installed/i);
+      expect(result.state).toBe("installed");
+      expect(result.version).toBe(pinned);
+
+      // And the LIVE promoted bin actually runs and reports the pinned version.
+      const liveBin = path.join(toolsPrefix, "bin", "claude");
+      const probe = await io.run(liveBin, ["--version"]);
+      expect(probe.code).toBe(0);
+      expect(probe.stdout).toContain(pinned);
+    },
+    600_000
+  );
+
+  // codex must STILL work WITHOUT placement (its wrapper self-resolves) — guards the
+  // requirement that the fix is claude-specific and does not change codex's behaviour.
+  liveIt(
+    "real `npm ci --ignore-scripts` of codex (NO placement) → live `codex --version` still works",
+    async () => {
+      const recipe = PROVIDER_CATALOG["openai-compatible"].recipe;
+      if (recipe?.kind !== "npm") throw new Error("expected codex npm recipe");
+      expect(recipe.archBinaryPlacement).toBeUndefined(); // codex omits placement by design
+      const pinned = recipe.version;
+
+      const env: NodeJS.ProcessEnv = {
+        PATH: process.env.PATH,
+        HOME: homeBase,
+        ...(process.env.NPM_CONFIG_REGISTRY
+          ? { NPM_CONFIG_REGISTRY: process.env.NPM_CONFIG_REGISTRY }
+          : {})
+      };
+      const io = createSanitizedTmuxIo(env);
+      const svc = new InstallService({
+        io,
+        catalog: PROVIDER_CATALOG,
+        toolsPrefix,
+        homeBase,
+        env,
+        installTimeoutMs: 600_000
+      });
+
+      const result = await svc.installProvider("openai-compatible");
+      expect(result.state).toBe("installed");
+      expect(result.version).toBe(pinned);
+
+      const liveBin = path.join(toolsPrefix, "bin", "codex");
+      const probe = await io.run(liveBin, ["--version"]);
+      expect(probe.code).toBe(0);
+      expect(probe.stdout).toContain(pinned);
+    },
+    600_000
+  );
 });

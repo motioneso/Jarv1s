@@ -285,6 +285,16 @@ export class InstallService {
         return { state: "error", message: redactNpm(`npm ci failed: ${ci.stderr ?? ""}`) };
       }
 
+      // (2b) §A.1.3 EXPLICIT native-binary placement, AFTER `npm ci` and BEFORE verify, for a
+      // recipe whose main-package bin wrapper is a STUB (claude). The package's postinstall
+      // (skipped by --ignore-scripts) would copy the per-arch native binary over the wrapper;
+      // we replicate ONLY that file placement DETERMINISTICALLY (never run the script). codex
+      // omits archBinaryPlacement (its wrapper self-resolves at runtime).
+      if (recipe.archBinaryPlacement && archPkg) {
+        const placeErr = await this.placeArchBinary(staging, recipe, archPkg);
+        if (placeErr) return { state: "error", message: placeErr };
+      }
+
       // (3) VERIFY before promote (§A.3.4). The staged tree under `npm ci --prefix` lands
       // packages under <staging>/node_modules and bins under <staging>/node_modules/.bin.
       const stagedBin = path.join(staging, "node_modules", ".bin", recipe.binary);
@@ -325,6 +335,49 @@ export class InstallService {
       // rename'd OUT) AND on failure (rollback).
       await rm(staging, { recursive: true, force: true }).catch(() => undefined);
     }
+  }
+
+  /**
+   * §A.1.3 EXPLICIT native-binary placement for a stub-wrapper recipe (claude). Replaces
+   * `<staging>/node_modules/<pkg>/<wrapperRelPath>` with the per-arch package's native binary
+   * `<staging>/node_modules/<archPkg>/<archBinaryFile>` — DETERMINISTICALLY replicating ONLY
+   * the file placement the package's (script-blocked) postinstall would do, never running it.
+   *
+   * PREFERS a RELATIVE symlink dest → src so the 233MB binary is not duplicated: both live in
+   * the same staged node_modules, move together on the atomic promote rename (§A.3.5), and the
+   * verify-time `sha512OfResolved` (and `--version` exec) dereference the symlink. The dest is
+   * chmod 0o755 so the §A.3.4 `isExecutable` verify passes (symlink mode follows the target,
+   * which is already executable in the arch package, but chmod is harmless + explicit). Returns
+   * an error message (a verify failure) or null.
+   */
+  private async placeArchBinary(
+    staging: string,
+    recipe: NpmInstallRecipe,
+    archPkg: string
+  ): Promise<string | null> {
+    const placement = recipe.archBinaryPlacement;
+    if (!placement) return null;
+    const nm = path.join(staging, "node_modules");
+    const src = path.join(nm, archPkg, placement.archBinaryFile);
+    const dest = path.join(nm, recipe.pkg, placement.wrapperRelPath);
+
+    // The per-arch native binary MUST be present (npm ci materialized the lockfile-pinned dep).
+    if (!(await pathExists(src))) {
+      return `per-arch native binary "${placement.archBinaryFile}" not found in "${archPkg}"`;
+    }
+    // Replace the stub wrapper with a RELATIVE symlink to the native binary (avoids a 466MB
+    // duplicate). Remove the existing wrapper first (it is a real file npm ci wrote).
+    await rm(dest, { force: true }).catch(() => undefined);
+    await mkdir(path.dirname(dest), { recursive: true });
+    const relTarget = path.relative(path.dirname(dest), src);
+    try {
+      await symlink(relTarget, dest);
+    } catch (err) {
+      return `native-binary placement failed: ${redactInstallMessage(err)}`;
+    }
+    // chmod the resolved target so isExecutable() (which stat-follows the symlink) sees +x.
+    await chmod(dest, 0o755).catch(() => undefined);
+    return null;
   }
 
   /** §A.3.4 npm verify: binary present+exec, resolved version == recipe, --version matches, arch dep present. */

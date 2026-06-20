@@ -65,6 +65,18 @@ const RAW_CATALOG: Record<RpcProviderKind, CatalogEntry> = {
         "linux-x64": "@anthropic-ai/claude-code-linux-x64",
         "linux-arm64": "@anthropic-ai/claude-code-linux-arm64"
       },
+      // EXPLICIT native-binary placement (§A.1.3): claude's main-package bin wrapper
+      // (`bin/claude.exe`) is a STUB that prints "claude native binary not installed" and
+      // exits 1 until the package's `install.cjs` postinstall copies the per-arch native
+      // binary over it. With `--ignore-scripts` that postinstall is skipped, so the install
+      // service DETERMINISTICALLY replaces the wrapper with the per-arch package's native
+      // `claude` file (relative symlink + chmod) before verify — replicating ONLY the file
+      // placement the script would do, never running it. (codex OMITS this — its `bin/codex.js`
+      // wrapper self-resolves the native binary at runtime.)
+      archBinaryPlacement: {
+        archBinaryFile: "claude",
+        wrapperRelPath: "bin/claude.exe"
+      },
       // RESOLVED self-update-disable: the pinned native binary's update-status resolver
       // (`She()`) checks `DISABLE_AUTOUPDATER` FIRST and unconditionally, short-circuiting
       // BEFORE the config `autoUpdates`/native-install gate (which is bypassed for native

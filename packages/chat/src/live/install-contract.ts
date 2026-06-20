@@ -149,6 +149,29 @@ export interface NpmInstallRecipe {
    * an undefined deref.
    */
   readonly archBinaryPackage?: Readonly<Record<"linux-x64" | "linux-arm64", string>>;
+  /**
+   * OPTIONAL explicit native-binary placement (§A.1.3) — REQUIRED only for a recipe whose
+   * main-package `bin` wrapper is a STUB that errors without its postinstall (claude:
+   * `bin/claude.exe` prints "native binary not installed" and exits 1; the real 233MB binary
+   * ships in the per-arch optionalDependency and the package's `install.cjs` postinstall
+   * normally `copyFileSync`s it OVER the wrapper). Because the install runs with
+   * `--ignore-scripts` (§A.3.3), that postinstall never executes, so the install service
+   * replicates ONLY the file placement it would do — DETERMINISTICALLY, never by running the
+   * script. After `npm ci` and BEFORE verify, the service replaces
+   * `<staging>/node_modules/<pkg>/<wrapperRelPath>` with the per-arch package's native binary
+   * `<staging>/node_modules/<archPkg>/<archBinaryFile>` (relative symlink/copy + chmod 0o755),
+   * where `archPkg` is the host-arch `archBinaryPackage` entry.
+   *
+   * When ABSENT, NO placement is done — the recipe's wrapper is expected to self-resolve the
+   * native binary at runtime (codex's `bin/codex.js` does `require.resolve` of its per-arch
+   * package, so `codex --version` works straight out of `npm ci --ignore-scripts`).
+   */
+  readonly archBinaryPlacement?: {
+    /** File WITHIN the per-arch package that IS the native binary (claude: "claude"). */
+    readonly archBinaryFile: string;
+    /** Path WITHIN the main package to overwrite with the native binary (claude: "bin/claude.exe"). */
+    readonly wrapperRelPath: string;
+  };
   /** REQUIRED concrete self-update-disable mechanism for the pinned version (§A.3.7). */
   readonly selfUpdateDisable: SelfUpdateDisable;
 }
