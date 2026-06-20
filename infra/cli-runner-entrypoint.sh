@@ -53,8 +53,8 @@ mkdir -p "$JARVIS_CLI_TOOLS_PREFIX/bin" "$JARVIS_CLI_HOME" "$JARVIS_CLI_NEUTRAL_
 # The runtime image is FROM the build stage (full source + tsx + node_modules),
 # so the server runs via tsx exactly like the migrate one-shot. Lane B owns the
 # server source file; its path is OVERRIDABLE via JARVIS_CLI_RUNNER_ENTRY so a
-# Lane B placement choice never breaks this entrypoint. Default mirrors the
-# apps/api + apps/worker layout (apps/cli-runner/src/cli-runner.ts).
-JARVIS_CLI_RUNNER_ENTRY="${JARVIS_CLI_RUNNER_ENTRY:-apps/cli-runner/src/cli-runner.ts}"
+# Lane B placement choice never breaks this entrypoint. Default is Lane B's ACTUAL
+# server entry (packages/cli-runner/src/main.ts, per its package.json start script).
+JARVIS_CLI_RUNNER_ENTRY="${JARVIS_CLI_RUNNER_ENTRY:-packages/cli-runner/src/main.ts}"
 
 exec node_modules/.bin/tsx "$JARVIS_CLI_RUNNER_ENTRY"

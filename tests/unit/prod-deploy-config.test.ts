@@ -40,6 +40,17 @@ describe("prod deploy config — host CLI bridge removed for in-container CLI ch
     expect(composeProd).toContain("jarv1s-cli-auth:/data/cli-auth");
     expect(composeProd).toContain("JARVIS_CLI_RUNNER_SOCKET");
   });
+
+  it("the cli-runner entrypoint's default JARVIS_CLI_RUNNER_ENTRY resolves to a file that EXISTS", () => {
+    // Guards the cross-lane entry-path bug class: the entrypoint must default to the real
+    // server entry (packages/cli-runner/src/main.ts), not a non-existent path that would
+    // ENOENT-crash-loop the sidecar under restart:unless-stopped. read() throws if missing.
+    const entrypoint = read("infra/cli-runner-entrypoint.sh");
+    const m = entrypoint.match(/JARVIS_CLI_RUNNER_ENTRY:-([^}"'\s]+)/);
+    const entryRel = m?.[1] ?? "";
+    expect(entryRel, "entrypoint must define a JARVIS_CLI_RUNNER_ENTRY default").not.toBe("");
+    expect(() => read(entryRel)).not.toThrow();
+  });
 });
 
 describe("prod deploy config — systemd ExecStart uses docker --env-file (branch-review #2)", () => {

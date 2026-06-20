@@ -832,11 +832,11 @@ function shellQuote(value: string): string {
 }
 
 /**
- * Build a sanitized cause for CliChatUnavailableError. The launch line embeds the
- * per-session MCP bearer token, so a backend error message that echoes it could leak
- * the token into the server log via the structurally-serialized cause. Return a fresh
- * Error whose message is run through `redactSecrets` and whose stack is dropped (the
- * stack can also embed the launch line). Non-Error causes are stringified + redacted.
+ * Build a sanitized cause for CliChatUnavailableError. The per-session MCP bearer token is
+ * written to a 0600 file OFF the launch line (§6.2), but a backend error message could still
+ * echo a token/secret from elsewhere, so as defense-in-depth return a fresh Error whose message
+ * is run through `redactSecrets` and whose stack is dropped. Non-Error causes are stringified +
+ * redacted.
  */
 function redactCause(err: unknown): Error {
   const message = err instanceof Error ? err.message : String(err);
