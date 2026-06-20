@@ -14,7 +14,6 @@ import {
   cliAvailable,
   createBinaryProbe,
   createRealTmuxIo,
-  decideMultiplexer,
   resolveMultiplexer,
   type TmuxIo
 } from "@jarv1s/ai";
@@ -55,10 +54,21 @@ async function boundedProbe(p: Promise<boolean>, ms = 1500): Promise<boolean> {
 }
 
 /**
- * Live, bounded multiplexer usability for a single kind. `decideMultiplexer` is pure and
- * already encodes "herdr usable ⇔ installed AND root pane" (multiplexer-resolve.ts);
- * the only host I/O is the synchronous PATH `has(bin)` inside createBinaryProbe, which we
- * still wrap so the contract is uniformly bounded. Re-reads PATH each call, so a binary
+ * Live, bounded multiplexer usability for a single kind — reports whether THAT
+ * SPECIFIC kind is usable, NOT what `resolveMultiplexer` would pick. Routing
+ * per-kind availability through `decideMultiplexer` was wrong: that function
+ * honors `JARVIS_MULTIPLEXER` as an env override FIRST (a deploy escape hatch
+ * that bypasses the install probe), so with the override pinned to `tmux`
+ * (install.sh) BOTH `multiplexerUsable("tmux")` and `multiplexerUsable("herdr")`
+ * returned true (#343 — herdr false-positive in Docker).
+ *
+ * Per-kind availability is therefore direct:
+ *   tmux  ⇔ tmux binary present
+ *   herdr ⇔ herdr binary present AND a root pane is resolvable
+ *           (JARVIS_HERDR_ROOT_PANE or HERDR_PANE_ID — the same condition
+ *           decideMultiplexer applies in multiplexer-resolve.ts). The only host
+ * I/O is the synchronous PATH `has(bin)` inside createBinaryProbe, still wrapped
+ * so the contract is uniformly bounded. Re-reads PATH each call, so a binary
  * installed after boot is reflected on the next status fetch (no restart needed).
  */
 export function makeMultiplexerUsableProbe(
@@ -68,7 +78,11 @@ export function makeMultiplexerUsableProbe(
     boundedProbe(
       Promise.resolve().then(() => {
         const probe = createBinaryProbe(env);
-        return decideMultiplexer({ env, configured: kind, isInstalled: (b) => probe.has(b) }).ok;
+        if (kind === "tmux") return probe.has("tmux");
+        const herdrRootAvailable = Boolean(
+          env.JARVIS_HERDR_ROOT_PANE?.trim() || env.HERDR_PANE_ID?.trim()
+        );
+        return probe.has("herdr") && herdrRootAvailable;
       })
     );
 }

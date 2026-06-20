@@ -87,16 +87,27 @@ else
   note "host multiplexer: ${HOST_MUX}"
 fi
 
-# CLIs: warn (do not fail) — the onboarding wizard tests them live.
+# CLIs: warn (do not fail) — the onboarding wizard tests them live. Accumulate the
+# detected binary set so it can be declared to the container via JARVIS_HOST_CLIS
+# (the container cannot see host binaries — only their auth/config dirs are
+# mounted read-only, per ADR 0008; see cli-availability.ts JARVIS_HOST_CLIS).
 FOUND_CLI=0
+HOST_CLIS=""
 for cli in claude codex gemini agy; do
-  command -v "$cli" >/dev/null 2>&1 && FOUND_CLI=1
+  if command -v "$cli" >/dev/null 2>&1; then
+    FOUND_CLI=1
+    if [ -n "$HOST_CLIS" ]; then
+      HOST_CLIS="${HOST_CLIS},${cli}"
+    else
+      HOST_CLIS="$cli"
+    fi
+  fi
 done
 if [ "$FOUND_CLI" = "0" ]; then
   warn "no provider CLI found (claude/codex/gemini). Install at least one and run its"
   warn "login (e.g. 'claude login'); the onboarding wizard tests each live."
 else
-  note "provider CLI(s) present on host PATH"
+  note "provider CLI(s) present on host PATH: ${HOST_CLIS}"
 fi
 
 # ---- 2. detect host vars (recorded into env file in step 3c) --------------
@@ -186,6 +197,9 @@ if [ "$FIRST_RUN" = "1" ]; then
     printf '# Host per-uid tmux socket dir (container bridge execs tmux against it).\n'
     printf 'JARVIS_TMUX_SOCKET_DIR=%s\n' "$TMUX_SOCKET_DIR"
     printf '# Host multiplexer detected by install.sh: %s (container bridge uses tmux).\n' "$HOST_MUX"
+    printf '# Host provider CLIs detected on PATH (container cannot see host binaries;\n'
+    printf '# declared to the API so onboarding provider detection works). Empty = none.\n'
+    printf 'JARVIS_HOST_CLIS=%s\n' "$HOST_CLIS"
   } >> "$ENV_FILE"
   note "appended host-bridge paths"
 fi

@@ -36,6 +36,76 @@ describe("cliAvailable", () => {
   });
 });
 
+describe("cliAvailable — JARVIS_HOST_CLIS operator-declared contract (#341)", () => {
+  // The container cannot see host CLIs (only their auth dirs are mounted, ADR 0008), so
+  // install.sh declares the detected host CLIs via JARVIS_HOST_CLIS. When set, cliAvailable
+  // must answer from membership alone — it must NOT shell out to `command -v` (which would
+  // false-negative inside the container).
+  const noPathProbe = {
+    which: async (_bin: string): Promise<string | null> => {
+      throw new Error("PATH probe must not run when JARVIS_HOST_CLIS is set");
+    }
+  };
+
+  it("returns true when the kind's binary is declared (claude)", async () => {
+    expect(
+      await cliAvailable("anthropic", { ...noPathProbe, env: { JARVIS_HOST_CLIS: "claude,codex" } })
+    ).toBe(true);
+  });
+
+  it("returns true for the google kind via the agy/google mapping", async () => {
+    expect(
+      await cliAvailable("google", { ...noPathProbe, env: { JARVIS_HOST_CLIS: "claude,agy" } })
+    ).toBe(true);
+  });
+
+  it("returns true for the google kind when the upstream 'gemini' name is declared", async () => {
+    expect(
+      await cliAvailable("google", { ...noPathProbe, env: { JARVIS_HOST_CLIS: "gemini" } })
+    ).toBe(true);
+  });
+
+  it("returns false when a different binary is declared", async () => {
+    expect(
+      await cliAvailable("anthropic", { ...noPathProbe, env: { JARVIS_HOST_CLIS: "codex,agy" } })
+    ).toBe(false);
+    expect(
+      await cliAvailable("openai-compatible", {
+        ...noPathProbe,
+        env: { JARVIS_HOST_CLIS: "claude,agy" }
+      })
+    ).toBe(false);
+    expect(
+      await cliAvailable("google", { ...noPathProbe, env: { JARVIS_HOST_CLIS: "claude,codex" } })
+    ).toBe(false);
+  });
+
+  it("is case-insensitive and trims whitespace/empty entries", async () => {
+    expect(
+      await cliAvailable("anthropic", {
+        ...noPathProbe,
+        env: { JARVIS_HOST_CLIS: "  Claude ,  , CODEX " }
+      })
+    ).toBe(true);
+  });
+
+  it("falls back to the PATH probe when JARVIS_HOST_CLIS is unset (host install / tests)", async () => {
+    const which = async (bin: string) => (bin === "claude" ? "/usr/bin/claude" : null);
+    expect(await cliAvailable("anthropic", { which, env: {} })).toBe(true);
+    expect(await cliAvailable("google", { which, env: {} })).toBe(false);
+  });
+
+  it("falls back to the PATH probe when JARVIS_HOST_CLIS is empty/whitespace", async () => {
+    const which = async (bin: string) => (bin === "codex" ? "/usr/bin/codex" : null);
+    expect(await cliAvailable("openai-compatible", { which, env: { JARVIS_HOST_CLIS: "" } })).toBe(
+      true
+    );
+    expect(
+      await cliAvailable("openai-compatible", { which, env: { JARVIS_HOST_CLIS: "   " } })
+    ).toBe(true);
+  });
+});
+
 describe("tmuxAvailable", () => {
   it("returns true when tmux binary is found", async () => {
     const deps = { which: async (bin: string) => (bin === "tmux" ? "/usr/bin/tmux" : null) };
