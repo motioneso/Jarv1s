@@ -200,6 +200,7 @@ jobs:
         with:
           context: .
           file: ./Dockerfile
+          platforms: linux/amd64,linux/arm64
           push: ${{ steps.tags.outputs.push == 'true' }}
           tags: ${{ steps.tags.outputs.api_tags }}
           cache-from: type=gha
@@ -210,6 +211,7 @@ jobs:
         with:
           context: .
           file: ./apps/web/Dockerfile
+          platforms: linux/amd64,linux/arm64
           push: ${{ steps.tags.outputs.push == 'true' }}
           tags: ${{ steps.tags.outputs.web_tags }}
           cache-from: type=gha
