@@ -28,6 +28,7 @@ import { resolve as resolvePath, sep } from "node:path";
 import type { ProviderKind } from "@jarv1s/ai";
 
 import { CliChatUnavailableError } from "./errors.js";
+import type { RpcInstallProviderParams, RpcInstallProviderResult } from "./install-contract.js";
 import {
   decodeFrame,
   encodeFrame,
@@ -210,6 +211,24 @@ export class RpcConnection {
   /** Non-session onboarding probe (§4.8); no sessionKey. */
   probeProvider(params: RpcProbeProviderParams): Promise<RpcProbeProviderResult> {
     return this.call<RpcProbeProviderResult>("probeProvider", undefined, params);
+  }
+
+  /**
+   * §A.2 on-demand install verb (additive). NON-SESSION (no sessionKey), exactly like
+   * `probeProvider`/`listLiveSessions` — instance-wide, gated solely by the §3.6 auth hello.
+   * It is NOT a chat launch: no MCP token, no replay, no neutral-dir write, no single-active-user
+   * gate (§A.0).
+   *
+   * The MVP is a plain single-request/single-response verb (§A.5.1): the server runs the install to
+   * completion and returns the TERMINAL {@link RpcInstallProviderResult}. A *failed install* is a
+   * normal terminal OUTCOME — an `RpcOk` with `result.state === "error"`, NOT an `RpcErr` (§A.2.3).
+   * It therefore resolves (does not reject) with `{ state: "error", message }`. Only a malformed/
+   * blocked input (`bad_request` — not a kind, or a `blocked`/absent catalog entry, or an install
+   * already in progress) or an unexpected server fault (`internal`) crosses as an `RpcErr`, which
+   * `call()` maps to a thrown typed error via {@link mapRpcError} (§4.7).
+   */
+  installProvider(params: RpcInstallProviderParams): Promise<RpcInstallProviderResult> {
+    return this.call<RpcInstallProviderResult>("installProvider", undefined, params);
   }
 
   /** Tear down the connection (process shutdown). Idempotent. */

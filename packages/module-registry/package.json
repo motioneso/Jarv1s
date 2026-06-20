@@ -14,6 +14,7 @@
     "@jarv1s/briefings": "workspace:*",
     "@jarv1s/calendar": "workspace:*",
     "@jarv1s/chat": "workspace:*",
+    "@jarv1s/cli-runner": "workspace:*",
     "@jarv1s/connectors": "workspace:*",
     "@jarv1s/db": "workspace:*",
     "@jarv1s/email": "workspace:*",

@@ -147,7 +147,8 @@ export type RpcMethod =
   | "isAlive"
   | "kill" // per-session (sessionKey required)
   | "listLiveSessions" // non-session (reconciliation, §4.6)
-  | "probeProvider"; // non-session (onboarding, §4.8)
+  | "probeProvider" // non-session (onboarding, §4.8)
+  | "installProvider"; // non-session (on-demand installer, install-contract §A.2 — ADDITIVE)
 
 export type RpcErrorCode =
   | "unavailable" // engine could not launch / multiplexer down / NOT_LAUNCHED → CliChatUnavailableError (retryable HTTP 503)
