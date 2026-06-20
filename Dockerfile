@@ -59,6 +59,14 @@ RUN apt-get update \
 # api/worker/migrate commands are unaffected.
 COPY infra/cli-runner-entrypoint.sh /usr/local/bin/cli-runner-entrypoint.sh
 RUN chmod 0755 /usr/local/bin/cli-runner-entrypoint.sh
+# Put the installed provider CLIs (tools volume bin) on PATH for the tmux PANE shells
+# the cli-runner opens for chat + login (#342). The entrypoint exports PATH for the
+# cli-runner PROCESS, but tmux launches each pane as a login shell that re-runs
+# /etc/profile and RESETS PATH — so without this snippet a bare `claude`/`codex` in a
+# pane is "command not found" (login surfaces no OAuth URL; chat can't launch the CLI).
+RUN printf '%s\n' 'export PATH="${JARVIS_CLI_TOOLS_PREFIX:-/data/cli-tools}/bin:$PATH"' \
+  > /etc/profile.d/jarvis-cli-path.sh \
+  && chmod 0644 /etc/profile.d/jarvis-cli-path.sh
 # The full workspace src + node_modules (tsx, esbuild, workspace symlinks) and the
 # SQL tree (infra/postgres, packages/*/sql) are ALREADY present from the build
 # stage at their real repo-relative paths, so `tsx scripts/migrate.ts` resolves the

@@ -102,6 +102,12 @@ function makeExtractSurface(
 // ---------------------------------------------------------------------------
 
 const ANTHROPIC_AUTH_URLS: readonly LoginAuthUrlPattern[] = [
+  // claude 2.1.183 `setup-token` prints a claude.com OAuth URL (`/cai/oauth/authorize`) —
+  // Claude's console moved to claude.com. The legacy claude.ai/console.anthropic.com hosts
+  // are retained for older CLI builds + the interactive flow. (Verified against the pinned
+  // CLI version's real pane output; an allowlist miss DROPS the URL → login surfaces none.)
+  { host: "claude.com", pathPrefix: "/cai/oauth" },
+  { host: "claude.com", pathPrefix: "/oauth" },
   { host: "claude.ai", pathPrefix: "/oauth" },
   { host: "console.anthropic.com", pathPrefix: "/oauth" }
 ];

@@ -130,6 +130,23 @@ describe("LoginService flow (§L.2/§L.3)", () => {
 
     expect(out.status).toBe("awaiting_token"); // claude adapter mode = paste
     expect(out.authorizationUrl).toBe("https://claude.ai/oauth/authorize?code=abc");
+    // Regression (#342 login blocker): pane-target ops (send-keys/capture-pane) must target
+    // the exact session WITH a trailing colon (`=<session>:`). On tmux 3.3a a bare
+    // `=<session>` is parsed as a pane name → "can't find pane" → login always failed.
+    for (const verb of ["send-keys", "capture-pane"]) {
+      const call = f.calls.find((c) => c.cmd === "tmux" && c.args[0] === verb);
+      expect(call, `expected a tmux ${verb} call`).toBeDefined();
+      const target = call!.args[call!.args.indexOf("-t") + 1];
+      expect(target).toBe("=jarv1s-login-anthropic:");
+    }
+    // Regression (#342): the login pane must be WIDE so the provider's authorization URL
+    // is not hard-wrapped across lines (which truncated the surfaced URL), and capture-pane
+    // must pass -J to rejoin any soft wraps.
+    const newSession = f.calls.find((c) => c.cmd === "tmux" && c.args[0] === "new-session");
+    const width = Number(newSession!.args[newSession!.args.indexOf("-x") + 1]);
+    expect(width).toBeGreaterThanOrEqual(1000);
+    const capture = f.calls.find((c) => c.cmd === "tmux" && c.args[0] === "capture-pane");
+    expect(capture!.args).toContain("-J");
     expect(await svc.isLoginActive()).toBe(true);
     await svc.cancel("anthropic", loginId);
     expect(await svc.isLoginActive()).toBe(false);
@@ -141,6 +158,24 @@ describe("LoginService flow (§L.2/§L.3)", () => {
     const loginId = svc.reserve("anthropic");
     const out = await svc.start(loginId);
     expect(out.authorizationUrl).toBeUndefined();
+    await svc.cancel("anthropic", loginId);
+  });
+
+  it("surfaces the real claude 2.1.183 setup-token URL (claude.com/cai/oauth)", async () => {
+    // Regression (#342): claude 2.1.183 `setup-token` prints a claude.com URL; the original
+    // allowlist (claude.ai / console.anthropic.com only) DROPPED it, so login surfaced no URL.
+    const realPane =
+      "Browser didn't open? Use the url below to sign in (c to copy)\n" +
+      "https://claude.com/cai/oauth/authorize?code=true&client_id=9d1c250a&response_type=code\n" +
+      " Paste code here if prompted >";
+    const f = makeLoginIo(realPane);
+    const svc = makeService(f.io, makeProbe({ status: "needs_login" }).fn);
+    const loginId = svc.reserve("anthropic");
+    const out = await svc.start(loginId);
+    expect(out.status).toBe("awaiting_token");
+    expect(out.authorizationUrl).toBe(
+      "https://claude.com/cai/oauth/authorize?code=true&client_id=9d1c250a&response_type=code"
+    );
     await svc.cancel("anthropic", loginId);
   });
 

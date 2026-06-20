@@ -52,7 +52,9 @@ const cliRunnerRpcSecret = randomBytes(32).toString("hex");
 const apiPort = process.env.JARVIS_API_PORT ?? "3000";
 const webPort = process.env.JARVIS_WEB_PORT ?? "5173";
 const authBaseUrl = process.env.JARVIS_AUTH_BASE_URL ?? "http://localhost:3000";
-const authTrustedOrigins = process.env.JARVIS_AUTH_TRUSTED_ORIGINS ?? "http://localhost:5173";
+// Derive the trusted origin from the chosen web port — a non-default JARVIS_WEB_PORT
+// must NOT fall back to :5173, or better-auth rejects signup with "Invalid origin".
+const authTrustedOrigins = process.env.JARVIS_AUTH_TRUSTED_ORIGINS ?? `http://localhost:${webPort}`;
 const embedProvider = process.env.JARVIS_EMBED_PROVIDER ?? "local";
 const hostUid = process.env.JARVIS_HOST_UID ?? "1000";
 const hostGid = process.env.JARVIS_HOST_GID ?? "1000";

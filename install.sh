@@ -35,7 +35,7 @@ TAG="${JARVIS_IMAGE_TAG:-local}"
 PROJECT="${JARVIS_PROJECT:-jarv1s-prod}"
 API_PORT="${JARVIS_API_PORT:-3000}"
 WEB_PORT="${JARVIS_WEB_PORT:-5173}"
-SUBNET="${JARVIS_DOCKER_SUBNET:-10.251.0.0/24}"
+SUBNET="${JARVIS_DOCKER_SUBNET:-}"      # empty ⇒ auto-pick a free /24 in preflight
 EMBED="${JARVIS_EMBED_PROVIDER:-local}"
 BUILD_MODE="${JARVIS_BUILD:-auto}"      # auto | 1 | 0
 API_IMAGE="ghcr.io/motioneso/jarv1s-api:${TAG}"
@@ -110,6 +110,41 @@ if [ "$FOUND_CLI" = "0" ]; then
 else
   note "provider CLI(s) present on host PATH: ${HOST_CLIS}"
 fi
+
+# ---- 1a. resolve a non-colliding docker subnet ----------------------------
+# Docker refuses to create a network whose /24 overlaps an existing pool ("Pool
+# overlaps with other one on this address space"). When the operator did NOT pin
+# JARVIS_DOCKER_SUBNET, auto-pick the first free /24 from a 10.24x/10.25x candidate
+# range so a second stack on a busy host just works; if they DID pin one that
+# collides, warn (their choice — the real bind error would otherwise surface late).
+USED_SUBNETS=$(docker network ls -q 2>/dev/null | while read -r _nid; do
+  docker network inspect "$_nid" --format '{{range .IPAM.Config}}{{.Subnet}} {{end}}' 2>/dev/null
+done)
+subnet_collides() {  # $1 = candidate CIDR; collides if a used subnet shares its 10.N.M space
+  _two=$(printf '%s' "$1" | cut -d. -f1-2)   # "10.251.0.0/24" -> "10.251"
+  for _u in $USED_SUBNETS; do
+    case "$_u" in "${_two}".*) return 0 ;; esac
+  done
+  return 1
+}
+if [ -n "$SUBNET" ]; then
+  if subnet_collides "$SUBNET"; then
+    warn "JARVIS_DOCKER_SUBNET=${SUBNET} overlaps an existing docker network — 'up' may fail"
+    warn "with 'Pool overlaps...'. Unset it to auto-pick, or choose a free /24."
+  fi
+else
+  for _o in 251 252 253 254 255 240 241 242 243 244; do
+    _cand="10.${_o}.0.0/24"
+    if ! subnet_collides "$_cand"; then SUBNET="$_cand"; break; fi
+  done
+  [ -n "$SUBNET" ] || die "no free /24 found in 10.24x/10.25x — set JARVIS_DOCKER_SUBNET to a free range."
+  note "auto-selected docker subnet ${SUBNET} (override with JARVIS_DOCKER_SUBNET)"
+fi
+# EXPORT so Compose ${JARVIS_DOCKER_SUBNET} INTERPOLATION uses the resolved value when the
+# `setup` run creates the network (the env file does not exist yet, and `-e` to the setup
+# container does NOT feed interpolation). Without this an auto-picked subnet silently falls
+# back to the compose default and collides.
+export JARVIS_DOCKER_SUBNET="$SUBNET"
 
 # ---- 2. detect host vars (recorded into env file in step 3c) --------------
 # NOTE (#342): the host-multiplexer bridge is GONE — the provider CLIs + tmux now

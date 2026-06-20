@@ -10,7 +10,7 @@
  * The fix walks up to the `pnpm-workspace.yaml` repo-root marker, which is correct from src, a dist
  * bundle, and a test. These assertions fail against the old fixed-offset resolution.
  */
-import { existsSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 
 import { describe, expect, it } from "vitest";
@@ -58,5 +58,53 @@ describe("catalog lockfile path resolution (#342 install blocker)", () => {
       (i) => i.provider !== "google" && /lockfile/i.test(i.reason)
     );
     expect(lockfileDemotions).toEqual([]);
+  });
+
+  // install-service.ts reads the SAME committed lockfile at install time (a SECOND read,
+  // distinct from the catalog's load-time validation). #357 fixed only catalog.ts, so the
+  // bundled api still ENOENT'd at install with the fixed MODULE_DIR/../../.. offset. This
+  // collapse is invisible to a runtime test (it only manifests under esbuild bundling), so
+  // guard at the source level — like the catalog fix, it must use the marker walk.
+  it("install-service resolves the repo root via findRepoRoot, not a fixed offset", () => {
+    const src = readFileSync(
+      path.join(REPO_ROOT, "packages/cli-runner/src/install-service.ts"),
+      "utf8"
+    );
+    expect(src).toMatch(/findRepoRoot\(/);
+    expect(src).not.toMatch(/fileURLToPath\(import\.meta\.url\)\)\s*,\s*"\.\."\s*,\s*"\.\."/);
+  });
+});
+
+// The cli-runner boot invocation must live ONLY in the never-imported main-entry.ts.
+// main.ts is bundled into the api's dist/server.js (the api imports the cli-runner barrel),
+// where import.meta.url collapses to the bundle URL == `file://${process.argv[1]}` — so an
+// `if (isEntrypoint) main()` guard in main.ts MIS-FIRED and the api booted its own
+// CliRunnerServer on the sidecar's socket. A runtime import can't reproduce the collapse
+// (vitest's argv[1] never equals the module URL), so assert it at the source level.
+describe("cli-runner boot has no importable side effect (#342 sidecar double-run)", () => {
+  // Strip block + line comments so the assertions see executable code only (the fix's
+  // explanatory comments deliberately mention import.meta.url / isEntrypoint).
+  const readCode = (rel: string) =>
+    readFileSync(path.join(process.cwd(), rel), "utf8")
+      .replace(/\/\*[\s\S]*?\*\//g, "")
+      .replace(/^\s*\/\/.*$/gm, "");
+  const read = (rel: string) => readFileSync(path.join(process.cwd(), rel), "utf8");
+
+  it("main.ts does NOT invoke main() at module scope (no isEntrypoint guard)", () => {
+    const code = readCode("packages/cli-runner/src/main.ts");
+    expect(code).not.toMatch(/import\.meta\.url/);
+    expect(code).not.toMatch(/^\s*main\(\)/m);
+    expect(code).not.toMatch(/isEntrypoint/);
+  });
+
+  it("main-entry.ts is the sole side-effecting module (calls main())", () => {
+    const src = read("packages/cli-runner/src/main-entry.ts");
+    expect(src).toMatch(/import\s*\{\s*main\s*\}\s*from\s*"\.\/main\.js"/);
+    expect(src).toMatch(/main\(\)\s*\.catch/);
+  });
+
+  it("the container entrypoint boots main-entry.ts (not main.ts)", () => {
+    const sh = read("infra/cli-runner-entrypoint.sh");
+    expect(sh).toMatch(/JARVIS_CLI_RUNNER_ENTRY:-packages\/cli-runner\/src\/main-entry\.ts/);
   });
 });
