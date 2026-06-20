@@ -391,6 +391,9 @@ importers:
       '@jarv1s/chat':
         specifier: workspace:*
         version: link:../chat
+      '@jarv1s/cli-runner':
+        specifier: workspace:*
+        version: link:../cli-runner
       '@jarv1s/connectors':
         specifier: workspace:*
         version: link:../connectors

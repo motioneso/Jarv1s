@@ -54,6 +54,21 @@ export interface MemberOnboardingTable {
   updated_at: TimestampColumn;
 }
 
+/**
+ * Provider install/login lifecycle state (#342 Phase 2, install-contract §A.4 / §9.2).
+ * One row per provider (instance-global, ADR 0007). `state` mirrors the frozen
+ * `ProviderInstallState` enum (packages/shared/src/onboarding-api.ts). Writes are
+ * admin-only (0103 RLS); reads are allowed to all authed actors.
+ */
+export interface ProviderInstallStateTable {
+  provider: string;
+  state: string;
+  version: string | null;
+  message: string | null;
+  created_at: TimestampColumn;
+  updated_at: TimestampColumn;
+}
+
 export interface AuthSessionsTable {
   id: string;
   user_id: string;
@@ -565,6 +580,7 @@ export interface JarvisDatabase {
   "app.schema_migrations": SchemaMigrationsTable;
   "app.users": UsersTable;
   "app.member_onboarding": MemberOnboardingTable;
+  "app.provider_install_state": ProviderInstallStateTable;
   "app.auth_sessions": AuthSessionsTable;
   "app.auth_accounts": AuthAccountsTable;
   "app.better_auth_sessions": BetterAuthSessionsTable;

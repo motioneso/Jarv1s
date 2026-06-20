@@ -84,11 +84,13 @@ import {
   registerSettingsRoutes,
   settingsModuleManifest,
   settingsModuleSqlMigrationDirectory,
+  SettingsRepository,
   type HostDiagnosticsProvider,
   type MeSessionsService,
   type PersonaPreviewInput,
   type VerifySelfPasswordPort,
-  type HasPasswordCredentialPort
+  type HasPasswordCredentialPort,
+  type OnboardingInstallDependencies
 } from "@jarv1s/settings";
 import {
   TASKS_QUEUE_DEFINITIONS,
@@ -112,6 +114,7 @@ import {
   probeChatMultiplexerAvailability,
   resolveChatEngineFactory
 } from "./chat-multiplexer.js";
+import { buildOnboardingInstall } from "./onboarding-install.js";
 
 export type { ChatEngineFactory } from "@jarv1s/chat";
 export type { JarvisModuleManifest } from "@jarv1s/module-sdk";
@@ -232,6 +235,12 @@ export interface BuiltInRouteDependencies {
     ) => Promise<OnboardingProviderCheckResponse>;
     readonly connectorAccountExists: (scopedDb: DataContextDb) => Promise<boolean>;
   };
+  /**
+   * #342 §A.5 install seam, built inside registerBuiltInApiRoutes on the socket path and forwarded
+   * to the settings module (module isolation — settings never imports @jarv1s/chat / cli-runner).
+   * Absent on the host-dev / in-process path ⇒ the install route fails closed (500).
+   */
+  readonly onboardingInstall?: OnboardingInstallDependencies;
 }
 
 export interface BuiltInWorkerDependencies {
@@ -339,6 +348,7 @@ const BUILT_IN_MODULES: readonly BuiltInModuleRegistration[] = [
         chatMultiplexerAvailability: deps.chatMultiplexerAvailability,
         hostDiagnostics: deps.hostDiagnostics,
         onboardingProbes: deps.onboardingProbes,
+        onboardingInstall: deps.onboardingInstall,
         personaPreview: deps.personaPreview ?? createDefaultPersonaPreview(deps.dataContext),
         preferencesRepository: new PreferencesRepository()
       })
@@ -631,6 +641,19 @@ export function registerBuiltInApiRoutes(
       (await new ConnectorsRepository().listAccounts(scopedDb)).length > 0
   };
 
+  // #342 §A.5: the admin-gated install seam. Built ONLY on the socket path (no in-process install
+  // path exists — the CLIs live in the cli-runner container). The one RPC connection is resolved
+  // lazily (`getRpcConnection`) since the chat runtime publishes it after routes register. On the
+  // host-dev / in-process path this is undefined ⇒ the install route fails closed (500) and the
+  // status route serves the Phase-1 presence-only surface. The admin-gated route is then the SOLE
+  // install trigger (§A.7.8). #347 stays BLOCKING — multi-user concurrency is not enabled here.
+  const onboardingInstall: OnboardingInstallDependencies | undefined = buildOnboardingInstall({
+    enabled: socketConfigured,
+    getConnection: getRpcConnection,
+    repository: new SettingsRepository(),
+    logger: { warn: (obj, msg) => server.log.warn(obj, msg) }
+  });
+
   const deps: BuiltInRouteDependencies = {
     ...dependencies,
     chatEngineFactory,
@@ -642,6 +665,7 @@ export function registerBuiltInApiRoutes(
     chatEngineSelection: socketConfigured && !dependencies.chatEngineFactory ? { env } : undefined,
     chatMultiplexerAvailability: availability,
     onboardingProbes,
+    onboardingInstall,
     // Surface a setter so the chat runtime (constructed inside registerChatRoutes) can publish the ONE
     // RPC connection it owns back to the probes + the boot lifecycle below. On the RPC path the runtime
     // wires reconcile + the idle reaper onto this connection; here we only need the handle to route

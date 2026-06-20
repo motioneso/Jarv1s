@@ -3,16 +3,139 @@ import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import type { AccessContext, DataContextDb, DataContextRunner, User } from "@jarv1s/db";
 import { HttpError } from "@jarv1s/module-sdk";
 import {
+  errorResponseSchema,
   getOnboardingStatusRouteSchema,
   onboardingCompleteRouteSchema,
   onboardingProviderCheckRouteSchema,
   onboardingSkipRouteSchema,
   type OnboardingProviderCheckRequest,
   type OnboardingProviderCheckResponse,
-  type OnboardingProviderKind
+  type OnboardingProviderKind,
+  type ProviderInstallState
 } from "@jarv1s/shared";
 
 import type { SettingsRepository } from "./repository.js";
+
+// ---------------------------------------------------------------------------
+// §A.5 onboarding install step (#342 Phase 2). The admin-gated install route is
+// the SOLE api trigger for the cli-runner `installProvider` verb (install-contract
+// §A.5.1). This module (Lane C) owns the route + the A.4 transition ORDER; the
+// supply-chain-sensitive pieces it ORCHESTRATES are injected ports, owned by the
+// install lane (the catalog/RPC client live in @jarv1s/chat / cli-runner, never
+// imported here — settings stays free of a chat dependency for module isolation):
+//
+//   - {@link ProviderInstallabilityPort}  reads the server-side recipe catalog so
+//     a `blocked`/absent provider (agy/google pre-spike) is rejected cleanly with
+//     a 400 BEFORE any `installing` row is persisted (install-contract §A.2.3).
+//   - {@link ProviderInstallClient}       drives the `installProvider` RPC over the
+//     cli-runner socket and returns the TERMINAL outcome (install-contract §A.2.1).
+//   - {@link ProviderInstallStateStore}   persists the A.4 transitions under the
+//     ADMIN-scoped DataContextDb the route resolves (the 0103 write RLS is
+//     `current_actor_is_admin()`).
+//
+// The cli-runner NEVER writes the table (install-contract §A.4): the api is the
+// sole admin-RLS writer; the cli-runner only REPORTS the result over the socket.
+// ---------------------------------------------------------------------------
+
+/**
+ * The TERMINAL install outcome the install lane reports back to the onboarding route
+ * (a structural mirror of the install-contract §A.2.1 `RpcInstallProviderResult`,
+ * declared here so settings does NOT import @jarv1s/chat — module isolation). Lane B's
+ * composition-root wiring maps the wire result onto this shape.
+ */
+export interface ProviderInstallOutcome {
+  /** "installed" on success (binary present + version-verified), "error" on any failure. */
+  readonly state: "installed" | "error";
+  /** Installed version once verified. Present iff state === "installed". */
+  readonly version?: string;
+  /** Redacted (§6.4) detail on "error". Safe to persist into provider_install_state.message. */
+  readonly message?: string;
+  /** True when the pinned version was already installed + re-verified — a no-op (§A.3.6). */
+  readonly alreadyInstalled?: boolean;
+}
+
+/** Catalog installability verdict for a provider (install-contract §A.1/§A.2.3). */
+export type ProviderInstallability =
+  | { readonly installable: true }
+  | { readonly installable: false; readonly blockedReason: string };
+
+/**
+ * Reads the server-side recipe catalog (the supply-chain allowlist) WITHOUT persisting
+ * anything. A provider whose catalog status is `blocked` (agy/google pre-spike) or that
+ * is absent is `installable:false` — the route rejects it with a 400 before persisting
+ * `installing`, surfacing the redacted `blockedReason` (install-contract §A.2.3).
+ */
+export type ProviderInstallabilityPort = (
+  provider: OnboardingProviderKind
+) => ProviderInstallability;
+
+/**
+ * Drives the `installProvider` RPC over the cli-runner socket (the api's
+ * `ChatEngineRpcClient`, base §3.5) and returns the terminal outcome. A FAILED install
+ * is a normal terminal `{ state:"error" }` outcome, NOT a thrown error (install-contract
+ * §A.2.3) — a throw is reserved for an unexpected RPC/transport fault.
+ */
+export type ProviderInstallClient = (
+  provider: OnboardingProviderKind
+) => Promise<ProviderInstallOutcome>;
+
+/**
+ * Persists the §A.4 install transitions under the ADMIN-scoped DataContextDb the route
+ * resolves (0103 write RLS = `current_actor_is_admin()`). Owned by the install lane's
+ * state-machine module; injected so onboarding-routes never reaches another module's
+ * table directly.
+ */
+export interface ProviderInstallStateStore {
+  /**
+   * `* → installing` (install-contract §A.4): persisted BEFORE the RPC. A (re)install
+   * may begin from ANY start state — the store upserts `installing` (clearing any prior
+   * version/message) so the transition is total over the start states.
+   */
+  readonly persistInstalling: (
+    scopedDb: DataContextDb,
+    args: { readonly provider: OnboardingProviderKind; readonly requestId: string }
+  ) => Promise<void>;
+  /**
+   * `installing → installed|error` (install-contract §A.4): persisted AFTER the RPC from
+   * the terminal outcome. `message` is the redacted (§6.4) string; on "installed" the
+   * verified `version` is recorded.
+   */
+  readonly persistTerminal: (
+    scopedDb: DataContextDb,
+    args: {
+      readonly provider: OnboardingProviderKind;
+      readonly outcome: ProviderInstallOutcome;
+      readonly requestId: string;
+    }
+  ) => Promise<ProviderInstallState>;
+}
+
+/**
+ * Reconciles + reads the persisted provider install lifecycle for the founder-status
+ * resolver (§A.5 step 2 + §A.4.2). Runs INSIDE the admin-scoped DataContextDb the status
+ * route resolves (the §A.4.2 correction WRITE needs the 0103 admin write RLS; the probe is
+ * the cli-runner `probeProvider`). Implemented by the install lane (composition root): for
+ * every persisted row it runs the §A.4.2 stale-`installing` projection over (persisted, fresh
+ * probe), persists any correction under the admin actor, and returns the reconciled state per
+ * provider. A provider with no row is absent from the map ⇒ `installState` is omitted on the
+ * wizard (Phase-1 byte-for-byte surface). Errors are the install lane's concern (fail-soft so
+ * a transient probe never breaks the status load).
+ */
+export type ReconcileInstallStatesPort = (
+  scopedDb: DataContextDb
+) => Promise<Partial<Record<OnboardingProviderKind, ProviderInstallState>>>;
+
+/** The injected install seam (install-contract §A.5.1). Absent ⇒ the install route fails closed. */
+export interface OnboardingInstallDependencies {
+  readonly installability: ProviderInstallabilityPort;
+  readonly installClient: ProviderInstallClient;
+  readonly stateStore: ProviderInstallStateStore;
+  /**
+   * §A.5 step 2 / §A.4.2: surfaces the persisted (reconciled) install lifecycle on the status
+   * load. Absent ⇒ the status route serves the Phase-1 presence-only surface (no `installState`).
+   */
+  readonly reconcileInstallStates: ReconcileInstallStatesPort;
+}
 
 export interface OnboardingProbes {
   /** Bounded live probe; herdr accounts for the root-pane requirement. */
@@ -39,7 +162,58 @@ export interface OnboardingRoutesDependencies {
   ) => Promise<User>;
   readonly requireRequestId: (accessContext: AccessContext) => string;
   readonly handleRouteError: (error: unknown, reply: FastifyReply) => unknown;
+  /**
+   * The §A.5 install seam. Optional so the route mounts but FAILS CLOSED (500) when the
+   * install lane is not wired — mirroring the `onboardingProbes` fail-closed posture. The
+   * cli-runner is the only thing that can actually install; absent ⇒ no trigger.
+   */
+  readonly onboardingInstall?: OnboardingInstallDependencies;
 }
+
+/** Response for POST /api/onboarding/provider-install — the settled persisted lifecycle state. */
+export interface OnboardingProviderInstallResponse {
+  readonly providerKind: OnboardingProviderKind;
+  readonly installState: ProviderInstallState;
+  readonly version?: string;
+  readonly message?: string;
+  readonly alreadyInstalled?: boolean;
+}
+
+const onboardingProviderInstallRequestSchema = {
+  type: "object",
+  additionalProperties: false,
+  required: ["providerKind"],
+  properties: {
+    providerKind: { type: "string", enum: ["anthropic", "openai-compatible", "google"] }
+  }
+} as const;
+
+const onboardingProviderInstallResponseSchema = {
+  type: "object",
+  additionalProperties: false,
+  required: ["providerKind", "installState"],
+  properties: {
+    providerKind: { type: "string", enum: ["anthropic", "openai-compatible", "google"] },
+    installState: {
+      type: "string",
+      enum: ["not_installed", "installing", "installed", "needs_login", "ready", "error"]
+    },
+    version: { type: "string" },
+    message: { type: "string" },
+    alreadyInstalled: { type: "boolean" }
+  }
+} as const;
+
+const onboardingProviderInstallRouteSchema = {
+  body: onboardingProviderInstallRequestSchema,
+  response: {
+    200: onboardingProviderInstallResponseSchema,
+    400: errorResponseSchema,
+    401: errorResponseSchema,
+    403: errorResponseSchema,
+    500: errorResponseSchema
+  }
+} as const;
 
 export function registerOnboardingRoutes(
   server: FastifyInstance,
@@ -81,6 +255,7 @@ export function registerOnboardingRoutes(
           return memberStatus;
         }
 
+        const install = dependencies.onboardingInstall;
         const dbPart = await dependencies.dataContext.withDataContext(
           accessContext,
           async (scopedDb) => {
@@ -90,7 +265,15 @@ export function registerOnboardingRoutes(
               repository.readChatMultiplexerChoiceOrNull(scopedDb),
               probes.connectorAccountExists(scopedDb)
             ]);
-            return { state, selected, connectorAccountExists };
+            // §A.5 step 2 / §A.4.2: read the persisted install lifecycle, correcting any stale
+            // `installing` row left by an api crash mid-install (the projection runs + persists
+            // under THIS admin-scoped handle, so the correction WRITE satisfies the 0103 admin
+            // write RLS). The reconcile MUST come after the admin gate above. Absent seam ⇒ the
+            // Phase-1 presence-only surface (no installState).
+            const installStateByKind = install
+              ? await install.reconcileInstallStates(scopedDb)
+              : undefined;
+            return { state, selected, connectorAccountExists, installStateByKind };
           }
         );
 
@@ -107,7 +290,10 @@ export function registerOnboardingRoutes(
           selected: dbPart.selected,
           availability: { tmuxUsable, herdrUsable },
           cliPresentByKind: { anthropic, "openai-compatible": openaiCompatible, google },
-          connectorAccountExists: dbPart.connectorAccountExists
+          connectorAccountExists: dbPart.connectorAccountExists,
+          ...(dbPart.installStateByKind !== undefined
+            ? { installStateByKind: dbPart.installStateByKind }
+            : {})
         });
       } catch (error) {
         return dependencies.handleRouteError(error, reply);
@@ -133,6 +319,82 @@ export function registerOnboardingRoutes(
         });
 
         return await probes.testProviderConnection(body.providerKind);
+      } catch (error) {
+        return dependencies.handleRouteError(error, reply);
+      }
+    }
+  );
+
+  // §A.5.1: the SOLE admin-gated api trigger for the cli-runner `installProvider` verb.
+  // Orchestrates the §A.4 transition ORDER: reject-blocked → persist `installing` →
+  // drive the install RPC → persist the terminal `installed`/`error`. Persistence runs
+  // INSIDE the admin-scoped DataContextDb (the 0103 write RLS is current_actor_is_admin()),
+  // so the admin gate AND the RLS write-authority are the SAME actor (no privilege
+  // mismatch). `cliPresent` is re-derived by the install service's own probe and surfaced
+  // by the next GET /api/onboarding/status load (§A.5 step 3) — this route returns the
+  // settled lifecycle state, the status route reflects presence.
+  server.post(
+    "/api/onboarding/provider-install",
+    { schema: onboardingProviderInstallRouteSchema },
+    async (request, reply) => {
+      try {
+        const install = dependencies.onboardingInstall;
+        if (!install) {
+          request.log.error(
+            "onboarding provider-install route mounted without onboardingInstall — failing closed"
+          );
+          throw new HttpError(500, "onboarding install service not configured");
+        }
+
+        const { providerKind } = parseOnboardingProviderInstallBody(request.body);
+        const accessContext = await dependencies.resolveAccessContext(request);
+        const requestId = dependencies.requireRequestId(accessContext);
+
+        // Reject a `blocked`/absent provider (agy/google pre-spike) CLEANLY — a 400 surfaced
+        // from the catalog's blockedReason, BEFORE any `installing` row is persisted (so a
+        // known-uninstallable provider never pollutes provider_install_state). The catalog is
+        // the supply-chain allowlist (install-contract §A.1/§A.2.3).
+        const installability = install.installability(providerKind);
+        if (!installability.installable) {
+          throw new HttpError(400, `provider not installable: ${installability.blockedReason}`);
+        }
+
+        // §A.4: persist `installing` BEFORE the RPC, then the terminal state AFTER — both
+        // under the SAME admin-scoped DataContextDb so the 0103 admin write RLS is satisfied.
+        const response = await dependencies.dataContext.withDataContext(
+          accessContext,
+          async (scopedDb) => {
+            // Admin gate (founder/owner-admin): the same actor whose scope authorizes the
+            // 0103 admin-only writes. Throws 401/403 on a non-admin BEFORE any state write.
+            await dependencies.assertBootstrapOwnerAdminUser(scopedDb, accessContext.actorUserId);
+
+            await install.stateStore.persistInstalling(scopedDb, {
+              provider: providerKind,
+              requestId
+            });
+
+            // Drive the install over the cli-runner socket. A FAILED install is a normal
+            // terminal `{ state:"error" }` outcome (§A.2.3) — persisted as `error`, NOT a
+            // throw; a throw here is an unexpected RPC fault and bubbles to handleRouteError.
+            const outcome = await install.installClient(providerKind);
+
+            const installState = await install.stateStore.persistTerminal(scopedDb, {
+              provider: providerKind,
+              outcome,
+              requestId
+            });
+
+            const result: OnboardingProviderInstallResponse = {
+              providerKind,
+              installState,
+              ...(outcome.version !== undefined ? { version: outcome.version } : {}),
+              ...terminalExtras(outcome)
+            };
+            return result;
+          }
+        );
+
+        return response;
       } catch (error) {
         return dependencies.handleRouteError(error, reply);
       }
@@ -191,6 +453,36 @@ function parseOnboardingProviderCheckBody(body: unknown): OnboardingProviderChec
     throw new HttpError(400, "providerKind must be anthropic, openai-compatible, or google");
   }
   return { providerKind };
+}
+
+function parseOnboardingProviderInstallBody(body: unknown): {
+  readonly providerKind: OnboardingProviderKind;
+} {
+  const value = requireObject(body);
+  const providerKind = value.providerKind;
+  if (
+    providerKind !== "anthropic" &&
+    providerKind !== "openai-compatible" &&
+    providerKind !== "google"
+  ) {
+    throw new HttpError(400, "providerKind must be anthropic, openai-compatible, or google");
+  }
+  return { providerKind };
+}
+
+/** Surfaces only the optional terminal-outcome fields that are actually present (no `undefined` keys). */
+function terminalExtras(outcome: ProviderInstallOutcome): {
+  message?: string;
+  alreadyInstalled?: boolean;
+} {
+  const extras: { message?: string; alreadyInstalled?: boolean } = {};
+  if (outcome.message !== undefined) {
+    extras.message = outcome.message;
+  }
+  if (outcome.alreadyInstalled !== undefined) {
+    extras.alreadyInstalled = outcome.alreadyInstalled;
+  }
+  return extras;
 }
 
 function requireObject(value: unknown): Record<string, unknown> {

@@ -7,7 +7,8 @@ import { assertDataContextDb, type DataContextDb } from "@jarv1s/db";
 import type {
   ChatMultiplexerChoice,
   OnboardingFounderStatus,
-  OnboardingState
+  OnboardingState,
+  ProviderInstallState
 } from "@jarv1s/shared";
 
 export interface UpsertInstanceSettingInput {
@@ -59,6 +60,26 @@ export interface SetOnboardingStateInput {
 
 export type OnboardingProviderKind = "anthropic" | "openai-compatible" | "google";
 
+/** A persisted app.provider_install_state row (#342 §A.4 / §9.2). */
+export interface PersistedProviderInstallRow {
+  readonly provider: OnboardingProviderKind;
+  readonly state: ProviderInstallState;
+  /** Set on `installed` (the verified version); undefined otherwise. */
+  readonly version?: string;
+  /** Set on `error` (redacted, base §6.4, ≤2000 chars); undefined otherwise. */
+  readonly message?: string;
+}
+
+/** Admin-actor upsert of one provider's install state (#342 §A.4.1). */
+export interface UpsertProviderInstallStateInput {
+  readonly provider: OnboardingProviderKind;
+  readonly state: ProviderInstallState;
+  /** Recorded only on `installed`; cleared on every other state. */
+  readonly version?: string;
+  /** Recorded only on `error` (already redacted); cleared on every other state. */
+  readonly message?: string;
+}
+
 /** Host usability of each multiplexer, resolved by the composition root (env-aware). */
 export interface OnboardingAvailability {
   readonly tmuxUsable: boolean;
@@ -72,6 +93,15 @@ export interface AssembleOnboardingStatusInput {
   readonly availability: OnboardingAvailability;
   readonly cliPresentByKind: Readonly<Record<OnboardingProviderKind, boolean>>;
   readonly connectorAccountExists: boolean;
+  /**
+   * Persisted per-provider install lifecycle state (#342 §A.5 step 2), already RECONCILED
+   * (the §A.4.2 stale-`installing` projection ran upstream, in the route, under the admin
+   * actor). A provider with no row is absent here ⇒ `installState` omitted (Phase-1
+   * byte-for-byte surface). Optional so the Phase-1 presence-only path stays unchanged.
+   */
+  readonly installStateByKind?: Readonly<
+    Partial<Record<OnboardingProviderKind, ProviderInstallState>>
+  >;
 }
 
 const ONBOARDING_CLI_KINDS: readonly OnboardingProviderKind[] = [
@@ -543,6 +573,89 @@ export class SettingsRepository {
     return raw === "auto" || raw === "tmux" || raw === "herdr" ? raw : null;
   }
 
+  // -------------------------------------------------------------------------
+  // §A.4 provider-install-state persistence (#342 Phase 2). The api is the SOLE
+  // writer of app.provider_install_state (0103 write RLS = current_actor_is_admin()),
+  // so EVERY write here MUST run under an admin-scoped DataContextDb. These are the
+  // concrete DataContextDb-backed implementations the composition root wires into the
+  // onboarding install seam's ProviderInstallStateStore port (module isolation: the
+  // STATE lives in this module, base §9.2).
+  // -------------------------------------------------------------------------
+
+  /** Read ONE provider's persisted install row, or undefined when none exists yet. */
+  async readProviderInstallState(
+    scopedDb: DataContextDb,
+    provider: OnboardingProviderKind
+  ): Promise<PersistedProviderInstallRow | undefined> {
+    assertDataContextDb(scopedDb);
+    const row = await scopedDb.db
+      .selectFrom("app.provider_install_state")
+      .select(["provider", "state", "version", "message"])
+      .where("provider", "=", provider)
+      .executeTakeFirst();
+    if (!row) return undefined;
+    return {
+      provider: row.provider as OnboardingProviderKind,
+      state: row.state as ProviderInstallState,
+      version: row.version ?? undefined,
+      message: row.message ?? undefined
+    };
+  }
+
+  /** Read ALL persisted provider install rows (for the founder-status resolver, §A.5 step 2). */
+  async readAllProviderInstallStates(
+    scopedDb: DataContextDb
+  ): Promise<PersistedProviderInstallRow[]> {
+    assertDataContextDb(scopedDb);
+    const rows = await scopedDb.db
+      .selectFrom("app.provider_install_state")
+      .select(["provider", "state", "version", "message"])
+      .execute();
+    return rows.map((row) => ({
+      provider: row.provider as OnboardingProviderKind,
+      state: row.state as ProviderInstallState,
+      version: row.version ?? undefined,
+      message: row.message ?? undefined
+    }));
+  }
+
+  /**
+   * Upsert ONE provider's install state (admin actor, §A.4.1). `version`/`message` are set
+   * or CLEARED per the §A.4 table: `installed` carries `version` (message cleared), `error`
+   * carries the redacted `message` (version cleared), every other state clears both. One row
+   * per provider (the table is `provider PRIMARY KEY`, instance-global). The caller MUST pass
+   * an admin-scoped DataContextDb — the 0103 INSERT/UPDATE RLS is current_actor_is_admin().
+   */
+  async upsertProviderInstallState(
+    scopedDb: DataContextDb,
+    input: UpsertProviderInstallStateInput
+  ): Promise<ProviderInstallState> {
+    assertDataContextDb(scopedDb);
+    const now = new Date();
+    const version = input.state === "installed" ? (input.version ?? null) : null;
+    const message = input.state === "error" ? (input.message ?? null) : null;
+    await scopedDb.db
+      .insertInto("app.provider_install_state")
+      .values({
+        provider: input.provider,
+        state: input.state,
+        version,
+        message,
+        created_at: now,
+        updated_at: now
+      })
+      .onConflict((oc) =>
+        oc.column("provider").doUpdateSet({
+          state: input.state,
+          version,
+          message,
+          updated_at: now
+        })
+      )
+      .execute();
+    return input.state;
+  }
+
   /**
    * PURE derivation of onboarding status — no DB, no host probes, no transaction. The route
    * supplies the persisted state + selected choice (from a DB read), the host availability
@@ -558,7 +671,14 @@ export class SettingsRepository {
    * the member branch is served separately from app.member_onboarding.
    */
   assembleOnboardingStatus(input: AssembleOnboardingStatusInput): OnboardingFounderStatus {
-    const { state, selected, availability, cliPresentByKind, connectorAccountExists } = input;
+    const {
+      state,
+      selected,
+      availability,
+      cliPresentByKind,
+      connectorAccountExists,
+      installStateByKind
+    } = input;
 
     const multiplexerDone =
       selected === "tmux"
@@ -569,10 +689,16 @@ export class SettingsRepository {
             ? availability.tmuxUsable || availability.herdrUsable
             : false;
 
-    const providers = ONBOARDING_CLI_KINDS.map((kind) => ({
-      kind,
-      cliPresent: cliPresentByKind[kind]
-    }));
+    const providers = ONBOARDING_CLI_KINDS.map((kind) => {
+      const installState = installStateByKind?.[kind];
+      return {
+        kind,
+        cliPresent: cliPresentByKind[kind],
+        // §A.5 step 2: surface the persisted (reconciled) lifecycle state when a row exists.
+        // Absent row ⇒ omit the optional field (Phase-1 byte-for-byte surface).
+        ...(installState !== undefined ? { installState } : {})
+      };
+    });
 
     return {
       // Phase 4: tag the founder variant of the role-discriminated OnboardingStatusResponse.

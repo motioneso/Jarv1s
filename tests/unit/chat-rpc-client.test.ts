@@ -189,7 +189,13 @@ function startFakeServer(
     let handshook = false;
     let clientNonce = "";
 
+    // Ignore write races: the client may close/destroy the socket mid-handshake (e.g. the
+    // §3.6 imposter-abort test), so a later server write would emit an UNHANDLED EPIPE and fail
+    // the run even though every assertion passed. Handle the socket error + guard the write so the
+    // fake server never crashes the process on a closed peer. (Pre-existing intermittent flake.)
+    sock.on("error", () => {});
     const send = (frame: unknown): void => {
+      if (sock.destroyed || !sock.writable) return;
       sock.write(encodeFrame(frame as RpcFrame));
     };
 
@@ -454,5 +460,89 @@ describe("RpcConnection hello + id-matching + bootId (in-process socket)", () =>
     conns.push(conn);
 
     await expect(conn.submit("u1", { text: "x" })).rejects.toBeInstanceOf(CliChatUnavailableError);
+  });
+
+  // ──────────────────────────────────────────────────────────────────────────
+  // §A.2 installProvider — non-session verb; error-RESULT (not RpcErr) vs transport RpcErr
+  // ──────────────────────────────────────────────────────────────────────────
+
+  it("installProvider round-trips a terminal `installed` result over the shared socket (§A.2)", async () => {
+    const secret = "s";
+    const socketPath = tmpSocket();
+    const server = await startFakeServer(socketPath, secret, {
+      onRequest: ({ method, params }) => {
+        expect(method).toBe("installProvider");
+        // §A.2: a NON-SESSION verb — the request carries no sessionKey, only { provider }.
+        expect((params as { provider: string }).provider).toBe("anthropic");
+        return { state: "installed", version: "1.2.3", alreadyInstalled: false };
+      }
+    });
+    servers.push(server);
+    const conn = new TestConn({
+      socketPath,
+      rpcSecret: secret,
+      reconnectMinMs: 1,
+      reconnectMaxMs: 2
+    });
+    conns.push(conn);
+
+    const res = await conn.installProvider({ provider: "anthropic" });
+    expect(res).toEqual({ state: "installed", version: "1.2.3", alreadyInstalled: false });
+  });
+
+  it("installProvider RESOLVES (does NOT throw) on a FAILED install — RpcOk{state:'error'}, not an RpcErr (§A.2.3)", async () => {
+    // The single biggest §A.2.3 correctness fix: a failed install is a normal terminal OUTCOME
+    // returned as an RpcOk with result.state==="error" + a redacted message — NOT a transport RpcErr.
+    // The client must RESOLVE with the error result so the api can persist `error` + surface a retry;
+    // modelling it as a throw would conflate "the install failed" with "the socket/RPC failed".
+    const secret = "s";
+    const socketPath = tmpSocket();
+    const server = await startFakeServer(socketPath, secret, {
+      onRequest: ({ method }) => {
+        expect(method).toBe("installProvider");
+        // An RpcOk (the fake's default success frame) carrying an `error` RESULT — not a thrown RpcErr.
+        return { state: "error", message: "verify failed: sha512 mismatch (redacted)" };
+      }
+    });
+    servers.push(server);
+    const conn = new TestConn({
+      socketPath,
+      rpcSecret: secret,
+      reconnectMinMs: 1,
+      reconnectMaxMs: 2
+    });
+    conns.push(conn);
+
+    const res = await conn.installProvider({ provider: "anthropic" });
+    expect(res.state).toBe("error");
+    expect(res.message).toContain("sha512 mismatch");
+    // It must NOT be the version-present success shape.
+    expect(res.version).toBeUndefined();
+  });
+
+  it("installProvider THROWS a plain Error on a transport RpcErr bad_request (catalog-blocked, §A.2.3)", async () => {
+    // The OTHER path: a malformed/blocked input (not-a-kind, catalog-blocked, already-in-progress)
+    // crosses as an RpcErr `bad_request`, which call()/mapRpcError turn into a thrown plain Error
+    // (→ HTTP 500). This is distinct from the error-RESULT above.
+    const secret = "s";
+    const socketPath = tmpSocket();
+    const server = await startFakeServer(socketPath, secret, {
+      onRequest: () => {
+        throw { code: "bad_request", message: "provider not installable: agy spike unresolved" };
+      }
+    });
+    servers.push(server);
+    const conn = new TestConn({
+      socketPath,
+      rpcSecret: secret,
+      reconnectMinMs: 1,
+      reconnectMaxMs: 2
+    });
+    conns.push(conn);
+
+    const err = await conn.installProvider({ provider: "google" }).catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(Error);
+    expect(err).not.toBeInstanceOf(CliChatUnavailableError);
+    expect((err as Error).message).toContain("not installable");
   });
 });

@@ -23,7 +23,15 @@ const ALLOWED_KEYS: readonly string[] = [
   "JARVIS_HOST_GID",
   "TERM",
   "LANG",
-  "TMPDIR"
+  "TMPDIR",
+  // §A.3.7 self-update-disable (NAMED non-secret control, not a wildcard): the
+  // anthropic/claude recipe's kind:"env" selfUpdateDisable key. MUST equal
+  // PROVIDER_CATALOG.anthropic.recipe.selfUpdateDisable.key ("DISABLE_AUTOUPDATER").
+  // Allowlisting alone is a NO-OP (this builder is a passthrough FILTER, not a setter,
+  // R6) — Lane A MUST boot-source `DISABLE_AUTOUPDATER=1` into the cli-runner
+  // process.env in main.ts BEFORE createSanitizedTmuxIo() so this passthrough delivers
+  // it to the forked tmux server + every launched CLI.
+  "DISABLE_AUTOUPDATER"
 ];
 
 /** Key prefixes allowed (locale basics — `LC_*`, §7.2). */
