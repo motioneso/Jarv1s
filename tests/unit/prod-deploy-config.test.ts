@@ -14,21 +14,31 @@ const composeProd = read("infra/docker-compose.prod.yml");
 const stackService = read("infra/systemd/jarv1s-stack.service");
 const envExample = read("infra/env.production.example");
 
-describe("prod deploy config — tmux socket-dir derives from JARVIS_HOST_UID (branch-review #3)", () => {
-  it("compose socket-dir defaults are derived from JARVIS_HOST_UID, never a bare /tmp/tmux-1000", () => {
-    // Every JARVIS_TMUX_SOCKET_DIR default in the prod compose must derive the uid
-    // suffix from JARVIS_HOST_UID so the two cannot drift. A hardcoded /tmp/tmux-1000
-    // default (the old form) is the divergence bug we are guarding against.
-    const socketDefaults = composeProd
-      .split("\n")
-      .filter((line) => line.includes("JARVIS_TMUX_SOCKET_DIR:-"));
-    expect(socketDefaults.length).toBeGreaterThanOrEqual(2); // api + worker
-
-    for (const line of socketDefaults) {
-      expect(line).toContain("/tmp/tmux-${JARVIS_HOST_UID:-1000}");
+describe("prod deploy config — host CLI bridge removed for in-container CLI chat (#342 / ADR 0010)", () => {
+  it("the host tmux-socket + CLI-home bridge mounts/env are fully gone", () => {
+    // #342 reverses the host-native CLI topology (ADR 0010): api/worker no longer mount
+    // the host tmux socket or the host ~/.claude|.codex|.gemini dirs — a dedicated
+    // cli-runner sidecar forks its OWN tmux server in-container and owns all CLI data.
+    // The old host-bridge env/mounts must be fully removed (the JARVIS_TMUX_SOCKET_DIR /
+    // JARVIS_HOST_UID drift bug that branch-review #3 guarded no longer exists because the
+    // var itself is gone). Replaces the obsolete "socket-dir derives from JARVIS_HOST_UID" guard.
+    for (const token of [
+      "JARVIS_TMUX_SOCKET_DIR",
+      "JARVIS_HOST_CLAUDE_DIR",
+      "JARVIS_HOST_CODEX_DIR",
+      "JARVIS_HOST_GEMINI_DIR"
+    ]) {
+      expect(composeProd).not.toContain(token);
     }
-    // No service may keep the old bare-literal default.
-    expect(composeProd).not.toContain("JARVIS_TMUX_SOCKET_DIR:-/tmp/tmux-1000}");
+  });
+
+  it("the cli-runner sidecar + private RPC socket volume replace the host bridge", () => {
+    // The replacement topology: a cli-runner service, the private RPC socket on a shared
+    // volume mounted only in api + cli-runner, plus the cli-tools/cli-auth volumes.
+    expect(composeProd).toMatch(/^\s+cli-runner:/m);
+    expect(composeProd).toContain("jarv1s-cli-socket:/run/jarv1s");
+    expect(composeProd).toContain("jarv1s-cli-auth:/data/cli-auth");
+    expect(composeProd).toContain("JARVIS_CLI_RUNNER_SOCKET");
   });
 });
 
