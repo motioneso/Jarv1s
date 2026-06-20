@@ -48,7 +48,10 @@ function makeProbe(initial: ProbeProviderResult): {
 }
 
 /** A fake TmuxIo modelling a live mux-session set + a configurable capture-pane snapshot. */
-function makeLoginIo(pane = ""): {
+function makeLoginIo(
+  pane = "",
+  opts: { newSessionGate?: Promise<void> } = {}
+): {
   io: TmuxIo;
   live: Set<string>;
   calls: { cmd: string; args: string[] }[];
@@ -62,6 +65,8 @@ function makeLoginIo(pane = ""): {
     if (cmd === "tmux") {
       const verb = args[0];
       if (verb === "new-session") {
+        // A gate lets a test wedge the session create past the start timeout (§L.3.1 late reap).
+        if (opts.newSessionGate) await opts.newSessionGate;
         live.add(args[args.indexOf("-s") + 1]!);
         return { code: 0, stdout: "", stderr: "" };
       }
@@ -239,6 +244,97 @@ describe("LoginService flow (§L.2/§L.3)", () => {
     const svc = makeService(f.io, makeProbe({ status: "needs_login" }).fn);
     expect(svc.hasAdapter("google")).toBe(false);
     expect(() => svc.reserve("google")).toThrow(LoginBadRequestError);
+  });
+});
+
+describe("Phase-4 Obs 1-A — pasted-code buffer is deleted (token-lifetime gap)", () => {
+  it("deletes the tmux paste buffer after submitToken (it outlives the session)", async () => {
+    const f = makeLoginIo("https://claude.ai/oauth/authorize?code=abc");
+    const svc = makeService(f.io, makeProbe({ status: "needs_login" }).fn);
+    const loginId = svc.reserve("anthropic");
+    await svc.start(loginId);
+
+    await svc.submitToken("anthropic", loginId, "PASTED-CODE-abc123");
+    const buf = `${LOGIN_SESSION_PREFIX}anthropic`;
+    expect(
+      f.calls.some((c) => c.cmd === "tmux" && c.args[0] === "delete-buffer" && c.args.includes(buf))
+    ).toBe(true);
+    await svc.cancel("anthropic", loginId);
+  });
+
+  it("startupSweep deletes orphaned jarv1s-login-* paste buffers", async () => {
+    const f = makeLoginIo();
+    const buf = `${LOGIN_SESSION_PREFIX}anthropic`;
+    // Model a crash-orphaned buffer (session already gone) by stubbing list-buffers.
+    const baseRun = f.io.run;
+    f.io.run = (async (cmd: string, args: readonly string[]) => {
+      if (cmd === "tmux" && args[0] === "list-buffers") {
+        return { code: 0, stdout: `${buf}\nother-buffer`, stderr: "" };
+      }
+      return baseRun(cmd, args);
+    }) as unknown as TmuxIo["run"];
+
+    const svc = makeService(f.io, makeProbe({ status: "needs_login" }).fn);
+    await svc.startupSweep();
+    expect(
+      f.calls.some((c) => c.cmd === "tmux" && c.args[0] === "delete-buffer" && c.args.includes(buf))
+    ).toBe(true);
+    // The non-login buffer is left alone.
+    expect(
+      f.calls.some(
+        (c) => c.cmd === "tmux" && c.args[0] === "delete-buffer" && c.args.includes("other-buffer")
+      )
+    ).toBe(false);
+  });
+});
+
+describe("§L.7 #3 acceptance — login gate-release on timeout (5-A/5-B)", () => {
+  it("5-A: a start that times out releases the gate AND reaps the late-created session", async () => {
+    let openGate!: () => void;
+    const gate = new Promise<void>((resolve) => {
+      openGate = resolve;
+    });
+    const f = makeLoginIo("https://claude.ai/oauth/authorize?code=abc", { newSessionGate: gate });
+    const svc = new LoginService({
+      io: f.io,
+      adapters: LOGIN_ADAPTERS,
+      probe: makeProbe({ status: "needs_login" }).fn,
+      homeBase,
+      settleMs: 0,
+      startTimeoutMs: 30, // wedge new-session past this
+      loginTimeoutMs: 60_000
+    });
+
+    const loginId = svc.reserve("anthropic");
+    const out = await svc.start(loginId); // times out (new-session is gated)
+    expect(out.status).toBe("error");
+    expect(await svc.isLoginActive()).toBe(false); // gate released — NOT frozen by the hang
+
+    // The wedged create now settles late and creates the session → the late-reap continuation kills it.
+    openGate();
+    await new Promise((r) => setTimeout(r, 20));
+    expect(f.live.has(`${LOGIN_SESSION_PREFIX}anthropic`)).toBe(false);
+  });
+
+  it("5-B: the overall login timeout tears the session down and frees the gate", async () => {
+    const f = makeLoginIo("https://claude.ai/oauth/authorize?code=abc");
+    const svc = new LoginService({
+      io: f.io,
+      adapters: LOGIN_ADAPTERS,
+      probe: makeProbe({ status: "needs_login" }).fn,
+      homeBase,
+      settleMs: 0,
+      startTimeoutMs: 5_000,
+      loginTimeoutMs: 40 // short overall lifetime
+    });
+
+    const loginId = svc.reserve("anthropic");
+    await svc.start(loginId); // awaiting_token; the deadline reaper is armed
+    expect(f.live.has(`${LOGIN_SESSION_PREFIX}anthropic`)).toBe(true);
+
+    await new Promise((r) => setTimeout(r, 90)); // let the deadline fire + teardown run
+    expect(f.live.has(`${LOGIN_SESSION_PREFIX}anthropic`)).toBe(false);
+    expect(await svc.isLoginActive()).toBe(false); // gate freed for the next login/chat
   });
 });
 
