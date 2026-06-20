@@ -87,9 +87,11 @@ the enum + location.
   shutdown). It MUST refuse to bind if the path resolves outside `/run/jarv1s` (defense against a
   misconfigured env var pointing at a shared mount). **Symmetrically, the api client MUST `realpath`-check
   that `JARVIS_CLI_RUNNER_SOCKET` resolves under `/run/jarv1s` BEFORE it `connect`s** (mirror of the server
-  bind check; defends the client against a redirected socket path). The `unlink`→`listen` is not atomic, but
-  the **`0700` uid-owned containing dir is the TOCTOU defense** — no other uid can interpose a socket or
-  symlink at the path between the `unlink` and the `bind`.
+  bind check; defends the client against a redirected socket path). The `unlink`→`listen` is not atomic; the
+  `0700` uid-owned dir only keeps **other** uids out of that race (the acknowledged non-threat). Against the
+  **same-UID** adversary — a compromised CLI that wins the bind race and still satisfies the `realpath`-check —
+  the defense is the §3.6 **mutual challenge-response** hello: the imposter cannot prove the secret, so the
+  client aborts BEFORE sending any token. Filesystem perms are NOT relied on as the same-UID TOCTOU defense.
 
 ### 3.2 Framing — DECISION: length-prefixed JSON (NOT newline-delimited)
 
@@ -268,19 +270,35 @@ application-level handshake:
 - **Shared secret `JARVIS_CLI_RUNNER_RPC_SECRET`** is known ONLY to the api and the cli-runner _server_
   process (both read it from their own env). It is **excluded from the CLI-subprocess env allowlist** (§7.2)
   — a launched `claude`/`codex`/`agy` never sees it.
-- **First frame on every connection is a `hello` auth frame** carrying the secret. It is a length-prefixed
-  JSON frame like any other, sent by the client _before_ any `RpcRequest`:
+- **Mutual challenge-response handshake — the secret is NEVER sent on the wire.** Under the same-UID adversary
+  a malicious CLI could win the §3.1 bind race and impersonate the _server_; a client that sent the secret
+  first would hand `JARVIS_CLI_RUNNER_RPC_SECRET` to the imposter. So neither side transmits the secret — both
+  **prove knowledge** of it over exchanged nonces (HMAC-SHA256), in three length-prefixed frames before any
+  `RpcRequest`:
   ```typescript
-  /** Client → server, FIRST frame on each connection. Not correlated by id. */
+  /** Client → server, FIRST frame. */
   export interface RpcHello {
     readonly t: "hello";
-    readonly secret: string; // === JARVIS_CLI_RUNNER_RPC_SECRET
+    readonly clientNonce: string;
+  } // random 32-byte hex
+  /** Server → client: proves it holds the secret AND challenges the client. */
+  export interface RpcHelloChallenge {
+    readonly t: "hello-challenge";
+    readonly serverProof: string; // HMAC_SHA256(secret, "S" + clientNonce)
+    readonly serverNonce: string; // random 32-byte hex
+  }
+  /** Client → server: proves it holds the secret. */
+  export interface RpcHelloResponse {
+    readonly t: "hello-response";
+    readonly clientProof: string; // HMAC_SHA256(secret, "C" + serverNonce)
   }
   ```
-- The server **closes the connection immediately** (no error frame) if the first frame is not a `hello`, or
-  its `secret` does not match, or the secret env var is unset. An authenticated connection proceeds to normal
-  request/response framing. The hello secret is treated as a secret everywhere: it is **never logged**
-  (§6.4) and is covered by `redactSecrets` if it ever appears in an error string.
+- Flow: client sends `clientNonce`; server replies with `serverProof` + `serverNonce`. **The client verifies
+  `serverProof` BEFORE sending anything else** — a wrong/absent proof ⇒ the client closes and never reveals a
+  token to the (imposter) peer. The client then sends `clientProof`; the server verifies it (constant-time
+  compare) and either proceeds to normal request/response framing or **closes immediately** (no error frame).
+  The `"S"`/`"C"` domain-separation tags prevent a reflected proof; an unset secret on either side ⇒ immediate
+  close. Proofs and nonces are never logged (§6.4).
 - This handshake does **not** weaken the filesystem/volume boundary (which still keeps other containers out);
   it adds the missing defense against a compromised same-UID CLI subprocess opening the socket.
 
@@ -412,15 +430,27 @@ token dir survive** (§6.5 cleans dirs only on `kill`/failed-launch, never on re
 `launch` would then pass a Map-only gate while the prior token dir is still resident — exactly the
 co-residency #347 forbids. Therefore the gate is frozen as:
 
-1. **`liveKeys` = the MUX ENUMERATION, not the Map.** The gate computes liveness from `listLiveSessions`-by-mux
-   (§4.6 — the live `jarv1s-live-*` sessions) **UNION** the in-flight `launching` keys (§5.4). A `launch` for
-   `sessionKey K` is admitted only when `liveKeys ⊆ {K}` (no _other_ key live or launching); otherwise
-   `unavailable`. The engine `Map` is never the gate's liveness source.
-2. **Startup orphan-sweep (cli-runner, BEFORE accepting connections).** On startup the server sweeps every
-   orphan `jarv1s-live-*` mux session and `rm -rf`s its per-session neutral dir (reusing kill-by-mux-name §4.5
-   - the §6.5 dir removal), mirroring the §3.1 stale-socket unlink. After the sweep the disk holds no orphaned
-     token dirs, so the gate starts from a clean, truthful liveness set. The api's §5.3 reconciliation still runs
-     on reconnect as defence-in-depth, but the gate no longer **depends** on it having run first.
+1. **`liveKeys` = the MUX ENUMERATION ∪ the SERVER's in-flight-launch RESERVATION set — never the engine
+   `Map`, never the api's `launching` map.** The api-side `launching` map (§5.4) is **invisible to the
+   cli-runner server** and MUST NOT be relied on; the server keeps its **own** `Set<sessionKey>` of in-flight
+   launches. Admission runs in a **single global async-critical-section** — one server-wide mutex, **NOT** the
+   §4.0 per-`sessionKey` queue (which does not serialize _cross_-key launches; §3.4 forbids assuming the client
+   serializes). Holding the mutex, the server computes `liveKeys = listLiveSessions-by-mux (§4.6) ∪
+reservations`; if any key `≠ K` is present it releases the mutex and returns `unavailable`; otherwise it
+   **atomically adds `K` to `reservations`**, releases the mutex, and only THEN creates the mux session outside
+   the lock. `K` is removed from `reservations` on mux-create success **or** on any launch failure (a
+   `finally`). This reservation closes the TOCTOU window in which two concurrent cross-key `launch` RPCs would
+   both pass the gate before either's `jarv1s-live-*` session exists.
+2. **Startup CLEAN-SLATE sweep (cli-runner, BEFORE accepting connections).** A container restart
+   (`restart: unless-stopped`) kills cli-runner's forked tmux server (§7.1), so there may be **zero** live mux
+   sessions to enumerate while the `<JARVIS_CLI_NEUTRAL_BASE>/<sessionKey>` token dirs **persist on the named
+   auth/home volume** (§8) — a mux-only sweep would miss them. So the sweep is clean-slate: (a) kill every
+   `jarv1s-live-*` mux session that does exist (kill-by-mux-name §4.5), **and (b) `rm -rf` every `<sessionKey>`
+   dir directly under `<JARVIS_CLI_NEUTRAL_BASE>` (`/data/cli-auth/chat/*`) UNCONDITIONALLY** — the gate
+   guarantees ≤1 live session so a fresh process legitimately has zero. After the sweep no foreign `0600` token
+   dir survives into the next launch; the gate's liveness set starts empty and truthful. The api's §5.3
+   reconciliation still runs on reconnect as defence-in-depth, but the gate no longer **depends** on it having
+   run first.
 
 Both reuse existing machinery (kill-by-mux-name §4.5, `listLiveSessions`-by-mux §4.6, §6.5 dir removal) and
 introduce **no wire/envelope change.**
@@ -641,10 +671,11 @@ export interface RpcListLiveSessionsResult {
   cli-runner restart the Map is empty while real mux sessions may still be running; enumerating only the Map
   would hide those orphans from reconciliation. The server strips the `jarv1s-live-` prefix to recover each
   `sessionKey` and returns the set of genuinely-alive keys. This is the **single source of truth** the api
-  reconciles against (§5), and the **same enumeration the §4.1.0a single-active-user gate and the §6.5
-  startup orphan-sweep consume** (the gate's `liveKeys` = this set ∪ the §5.4 `launching` keys); none of the
-  three rely on the in-memory `Map`. Used by the api's reconciliation driver and the server-side gate, never
-  per turn.
+  reconciles against (§5), and the **same enumeration the §4.1.0a single-active-user gate and the §6.5 startup
+  clean-slate sweep consume** (the gate's `liveKeys` = this set ∪ the **cli-runner server's own
+  in-flight-launch reservation set**, §4.1.0a — **NOT** the api-side `launching` map, which the server cannot
+  observe; that map feeds api-side _reconciliation_ only, §5.4); none of the three rely on the in-memory engine
+  `Map`. Used by the api's reconciliation driver and the server-side gate, never per turn.
 - **Authorization on the non-session verbs:** `listLiveSessions` (like `probeProvider`) returns instance-wide
   data with no `sessionKey` scope; the §3.6 connection auth hello is the **sole** gate on these verbs — safe
   because only the api holds `JARVIS_CLI_RUNNER_RPC_SECRET` and the CLI subprocesses are excluded from it
@@ -896,6 +927,11 @@ Each launched provider writes a per-session secret file under the session's neut
 | Codex (`openai-compatible`) | `.jarvis-mcp-token.env` (existing)                                              | `0600` |
 | Gemini (`google`)           | `.gemini/settings.json` (existing — carries the Authorization header)           | `0600` |
 
+**Both the MCP bearer token AND `mcpServerUrl` reach the CLI ONLY via these per-session config files** (Claude's
+`.jarvis-claude-mcp.json` `url` + `headers`; Codex's `-c mcp_servers.jarvis.url=…` plus the `0600` token
+env-file; Gemini's `settings.json`) — **never** as a CLI argv or process env var. Lane B MUST NOT pass
+`mcpServerUrl` (or the token) as a flag/env to the child.
+
 **Frozen cleanup rule — the simplest one: cli-runner removes the ENTIRE per-session neutral dir
 (`<JARVIS_CLI_NEUTRAL_BASE>/<sessionKey>`) on `kill` AND on a failed launch.** This supersedes the
 per-file `removeCodexTokenEnv` (which removed only Codex's file): instead of remembering to remove three
@@ -906,11 +942,13 @@ plus the persona file. Consequences:
   mux session, `rm -rf` the per-session neutral dir.
 - On a failed `launch` (multiplexer down, persona write failure, etc., §4.1): remove the per-session neutral
   dir before returning the `RpcErr`.
-- **On cli-runner STARTUP (before accepting connections):** enumerate orphan `jarv1s-live-*` mux sessions
-  (§4.6) left by an unclean prior shutdown, kill each (kill-by-mux-name §4.5) and `rm -rf` its per-session
-  neutral dir. This guarantees no foreign `0600` token dir survives a restart into the next session's
-  lifetime — the on-disk precondition the §4.1.0a single-active-user gate relies on. (Mirrors the §3.1
-  stale-socket unlink.)
+- **On cli-runner STARTUP (before accepting connections) — CLEAN-SLATE sweep:** kill every `jarv1s-live-*`
+  mux session that exists (kill-by-mux-name §4.5) **and `rm -rf` every `<sessionKey>` dir directly under
+  `<JARVIS_CLI_NEUTRAL_BASE>` (`/data/cli-auth/chat/*`) UNCONDITIONALLY.** A container restart kills the forked
+  tmux server (§7.1), so there may be zero mux sessions to enumerate while the token dirs **persist on the
+  named auth/home volume** (§8) — a mux-only sweep would miss them. Since the gate guarantees ≤1 live session,
+  a fresh process legitimately has zero, so the base is cleared unconditionally. This is the on-disk
+  precondition the §4.1.0a gate relies on; no foreign `0600` token dir survives a restart.
 - The dir is recreated fresh on the next launch for that `sessionKey` (the manager rebuilds `personaText` and
   the server re-writes the secret files — §4.1.3), so no stale secret survives a relaunch.
 
@@ -989,8 +1027,10 @@ env contains **only** the allowlist below. Everything else (and especially every
 - `NPM_CONFIG_PREFIX`, `JARVIS_CLI_TOOLS_PREFIX`
 - `JARVIS_CLI_HOME`, `JARVIS_CLI_HOME_BASE`, `JARVIS_CLI_NEUTRAL_BASE`
 - `JARVIS_HOST_UID`, `JARVIS_HOST_GID`
-- `JARVIS_MULTIPLEXER`
 - `TERM`, `LANG`, `LC_*`, `TMPDIR` (terminal/locale basics for the TUI)
+
+(`JARVIS_MULTIPLEXER` is **NOT** allowlisted into the CLI child — it is cli-runner-_server_ spawn config
+(which mux to fork), not needed by `claude`/`codex`/`agy`; deny-by-default drops it.)
 
 **EXCLUDED from the CLI subprocess env (never present in the launched CLI's env):**
 
@@ -1121,7 +1161,8 @@ single seam that lets four lanes compile against one contract without colliding.
 The file exports, at minimum:
 
 - **Envelopes + framing:** `RpcRequest`, `RpcOk`, `RpcErr`, `RpcError`, `RpcErrorCode`, `RpcMethod`,
-  `RpcFrame`, `RpcHello`, and the `bootId` field convention (§3.4, §3.6, §5.6). `MAX_FRAME_BYTES` constant.
+  `RpcFrame`, the auth-handshake frames `RpcHello` / `RpcHelloChallenge` / `RpcHelloResponse`, and the
+  `bootId` field convention (§3.4, §3.6, §5.6). `MAX_FRAME_BYTES` constant.
 - **Per-method params/results:** `RpcLaunchParams`, `RpcLaunchResult`, `RpcSubmitParams`,
   `RpcReadNewParams`, `RpcReadNewResult`, `RpcListLiveSessionsParams`, `RpcListLiveSessionsResult`,
   `RpcProbeProviderParams`, `RpcProbeProviderResult` (and the trivial `RpcIsAliveParams`/`RpcIsAliveResult`,

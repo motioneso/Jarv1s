@@ -316,11 +316,13 @@ socket boundary, the sidecar, and the secrets-out-of-launch-lines move.
   ON; set `0` only when UID-separation #347 lands). Added error path that **REUSES the existing `unavailable`
   code — NO wire-contract change** — the HARD RUNTIME GATE standing in for the deferred UID separation. It is
   **cli-runner-server config only** (not in the CLI-subprocess env allowlist). **Critically, liveness is
-  measured against the MUX ENUMERATION (`listLiveSessions`-by-mux, §4.6) ∪ the in-flight `launching` keys —
-  NOT the in-memory `Map` (which is empty after a restart while orphaned `0600` token dirs survive) — and
-  cli-runner sweeps orphan mux sessions + neutral dirs ON STARTUP** (RPC-contract §4.1.0a / §6.5). This binds
-  the gate to the real on-disk co-residency it guards: only one session's `0600` secret files exist at a time
-  until #347.
+  measured against the MUX ENUMERATION (`listLiveSessions`-by-mux, §4.6) ∪ the cli-runner server's own
+  in-flight-launch RESERVATION set (a server-wide atomic admission — NOT the api-side `launching` map, which
+  the server cannot see; and NOT the in-memory `Map`) — and on startup cli-runner does a CLEAN-SLATE sweep:
+  kills every `jarv1s-live-*` mux session AND unconditionally `rm -rf`s the neutral base
+  (`/data/cli-auth/chat/*`), because a container restart kills the forked tmux server while the token dirs
+  persist on the volume** (RPC-contract §4.1.0a / §6.5). This binds the gate to the real on-disk co-residency
+  it guards: only one session's `0600` secret files exist at a time until #347.
 
 ### 5.2 `packages/chat/src/live/runtime.ts` — factory wiring + `EngineLaunchOpts` extension
 
