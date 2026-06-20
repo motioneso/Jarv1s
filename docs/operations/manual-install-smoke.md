@@ -47,21 +47,22 @@ You do **not** need Node, tmux, or any provider CLI installed _on the host_ — 
 `cli-runner` sidecar. (`install.sh` warns about missing host CLIs/multiplexer; for this in-container
 smoke those host warnings are harmless and can be ignored.)
 
-Two shorthands used throughout (set them once in your shell so every command is copy-paste-able):
+One shorthand used throughout — a shell **function** `jvc`. Use a function, **not** a
+`DC="docker compose …"` variable: in **zsh** (the macOS default shell) an unquoted `$DC` is **not**
+word-split, so `$DC exec …` is read as one giant command name and fails with `no such file or
+directory`. A function word-splits correctly in both bash and zsh.
 
 ```sh
-# From the repo root. NOTE: --env-file is baked into $DC because EVERY compose
-# subcommand that parses this file (up, exec, logs, ps, down, config) evaluates the
-# ${POSTGRES_PASSWORD:?} / ${JARVIS_CLI_RUNNER_RPC_SECRET:?} fail-closed gates at load
-# time and errors if they're unset. The ONE exception is the `setup` run in step 1
-# (Path B), which runs BEFORE this file exists — that command is written out in full.
-export ENVFILE="infra/env.production.local"
-export DC="docker compose -p jarv1s-prod -f infra/docker-compose.prod.yml --env-file $ENVFILE"
+# From the repo root, AFTER step 1 below has created infra/env.production.local:
+jvc() { docker compose -p jarv1s-prod -f infra/docker-compose.prod.yml --env-file infra/env.production.local "$@"; }
 ```
 
-(So set `$ENVFILE`/`$DC` _after_ step 1 has created `infra/env.production.local`, or just
-re-`export` them once it exists — a `$DC` call before the file exists will error with
-"env file not found".)
+`--env-file` is baked in because EVERY compose subcommand that parses this file (`up`, `exec`,
+`logs`, `ps`, `down`, `config`) evaluates the `${POSTGRES_PASSWORD:?}` /
+`${JARVIS_CLI_RUNNER_RPC_SECRET:?}` fail-closed gates at load time and errors if they're unset. The
+ONE exception is the `setup` run in step 1 (Path B), which runs **before** this file exists — that
+command is written out in full. (Define `jvc` after step 1; calling it before the env file exists
+errors with "env file not found".)
 
 ---
 
@@ -103,15 +104,15 @@ not report /health/ready within 120s`, jump to [Troubleshooting](#troubleshootin
 
 ```sh
 # 1. Generate the env file (one-shot; REFUSES to overwrite an existing one). This command is written
-#    in FULL (not via $DC) because infra/env.production.local does NOT exist yet, so it can't pass
+#    in FULL (not via jvc) because infra/env.production.local does NOT exist yet, so it can't pass
 #    --env-file. The POSTGRES_PASSWORD=setup / JARVIS_CLI_RUNNER_RPC_SECRET=setup throwaways only satisfy
 #    Compose's parse-time ${VAR:?} gates — setup ignores them and writes the REAL generated values.
 JARVIS_IMAGE_TAG=local POSTGRES_PASSWORD=setup JARVIS_CLI_RUNNER_RPC_SECRET=setup \
   docker compose -p jarv1s-prod -f infra/docker-compose.prod.yml --profile setup run --rm setup
 
-# 2. Now that infra/env.production.local exists, $DC (which includes --env-file) works.
+# 2. Now that infra/env.production.local exists, jvc (which includes --env-file) works.
 #    Bring the stack up, BUILDING locally (--build).
-$DC up -d --build
+jvc up -d --build
 
 # 3. Wait for readiness.
 curl -fsS http://localhost:3000/health/ready && echo "  <- api ready"
@@ -127,7 +128,7 @@ curl -fsS http://localhost:3000/health/ready && echo "  <- api ready"
 >   docker compose -p jarv1s-prod -f infra/docker-compose.prod.yml build api web
 > ```
 
-> **`--env-file` gotcha.** `$DC` bakes in `--env-file "$ENVFILE"` for exactly this reason: **every**
+> **`--env-file` gotcha.** `jvc` bakes in `--env-file` for exactly this reason: **every**
 > compose subcommand that parses this file — `up`, `exec`, `logs`, `ps`, `down`, `config` — evaluates
 > the `${POSTGRES_PASSWORD:?}` / `${JARVIS_CLI_RUNNER_RPC_SECRET:?}` gates at load time and errors
 > ("required variable … is missing a value") if they're unset (Compose's `env_file:` does **not** feed
@@ -144,7 +145,7 @@ the expected result.
 **(a) The init one-shot chowned the volumes + created the socket dir.**
 
 ```sh
-$DC logs init
+jvc logs init
 ```
 
 Expect: `init: chowned volumes + created /run/jarv1s (0700) for <uid>:<gid>`. The `<uid>:<gid>` must
@@ -154,14 +155,14 @@ recorded — what matters is that api and cli-runner run as that same uid).
 **(b) The cli-runner bound its private socket and forked tmux.**
 
 ```sh
-$DC logs cli-runner
+jvc logs cli-runner
 ```
 
 Expect a clean start of the RPC server (a "listening" / socket-bound line, no stack trace, no
 crash-loop). Then check the socket perms directly:
 
 ```sh
-$DC exec cli-runner ls -la /run/jarv1s
+jvc exec cli-runner ls -la /run/jarv1s
 ```
 
 Expect the dir `0700` and `cli-runner.sock` a `srw-------` (`0600`) socket, both owned by the runtime
@@ -170,20 +171,20 @@ uid. (This is the isolation boundary — wrong perms here are a finding.)
 **(c) The api selected the RPC engine (not the in-process one) and is healthy.**
 
 ```sh
-$DC logs api | grep -iE 'rpc|cli-runner|socket|reconcile' | head
+jvc logs api | grep -iE 'rpc|cli-runner|socket|reconcile' | head
 curl -fsS http://localhost:3000/health/ready && echo "  <- ready"
 ```
 
 The grep may surface little on a clean api boot (the RPC connection logger is debug-only, and there's
 no explicit "RPC engine selected" line) — the authoritative socket-bind proof is the cli-runner
 `listening on …/cli-runner.sock` line from step (b). What **must** hold here: `/health/ready` returns
-200, and there is **no** `JARVIS_CLI_RUNNER_RPC_SECRET` fail-fast in `$DC logs api` (that fail-fast
+200, and there is **no** `JARVIS_CLI_RUNNER_RPC_SECRET` fail-fast in `jvc logs api` (that fail-fast
 crashes the api at boot — a wiring error).
 
 **(d) The volumes are owned by the runtime uid (so installs/auth will be writable).**
 
 ```sh
-$DC exec cli-runner sh -c 'id; ls -ld /data/cli-tools /data/cli-auth'
+jvc exec cli-runner sh -c 'id; ls -ld /data/cli-tools /data/cli-auth'
 ```
 
 Expect both dirs owned by the same uid the process runs as. If they're `root`-owned, the init chown
@@ -195,20 +196,22 @@ fail with `EACCES`.
 ## 3. Install a provider CLI into the tools volume (the manual Phase-2 stand-in)
 
 Install **claude** (recommended). The `cli-runner` service env sets `NPM_CONFIG_PREFIX=/data/cli-tools`,
-so a global npm install lands in the tools volume at `/data/cli-tools/bin/<binary>` — exactly where the
-chat-launched CLI looks.
+so the binary lands in the tools volume at `/data/cli-tools/bin/<binary>` — exactly where the
+chat-launched CLI looks. **Pass `-e HOME=/data/cli-auth`**: a fresh `exec` shell runs as your uid with
+**no `HOME` set**, so npm would default its cache to `/.npm` (root-owned) and fail with `EACCES`;
+`/data/cli-auth` is the writable auth volume (npm caches at `/data/cli-auth/.npm`).
 
 ```sh
-$DC exec cli-runner npm install -g @anthropic-ai/claude-code
+jvc exec -e HOME=/data/cli-auth cli-runner npm install -g @anthropic-ai/claude-code
 ```
 
 Verify the binary landed (note the **full path** — see the PATH gotcha below):
 
 ```sh
-$DC exec cli-runner /data/cli-tools/bin/claude --version
+jvc exec -e HOME=/data/cli-auth cli-runner /data/cli-tools/bin/claude --version
 ```
 
-> **PATH gotcha (important).** A plain `$DC exec cli-runner claude ...` will say **`claude: not
+> **PATH gotcha (important).** A plain `jvc exec cli-runner claude ...` will say **`claude: not
 found`**. The entrypoint only adds `/data/cli-tools/bin` to `PATH` for the _RPC server process it
 > launches_; a fresh `exec` shell gets the image's default PATH. So in `exec` always call the binary by
 > its **full path** `/data/cli-tools/bin/claude` (or `export PATH="$PATH:/data/cli-tools/bin"` first).
@@ -218,8 +221,8 @@ found`**. The entrypoint only adds `/data/cli-tools/bin` to `PATH` for the _RPC 
 <summary>Alternative: codex instead of claude</summary>
 
 ```sh
-$DC exec cli-runner npm install -g @openai/codex
-$DC exec cli-runner /data/cli-tools/bin/codex --version
+jvc exec -e HOME=/data/cli-auth cli-runner npm install -g @openai/codex
+jvc exec -e HOME=/data/cli-auth cli-runner /data/cli-tools/bin/codex --version
 # Login (step 4) is then: ... codex login   (HOME gotcha is identical)
 ```
 
@@ -237,7 +240,7 @@ a default `exec` shell would write to the image's default HOME and the chat sess
 Run the interactive login with the HOME override and a TTY (`-it`):
 
 ```sh
-$DC exec -e HOME=/data/cli-auth -it cli-runner /data/cli-tools/bin/claude
+jvc exec -e HOME=/data/cli-auth -it cli-runner /data/cli-tools/bin/claude
 ```
 
 `claude` starts its first-run/login flow. **The exact UX varies by CLI version:** you may get a theme
@@ -249,7 +252,7 @@ verify — credentials under `/data/cli-auth/.claude` — is the same regardless
 Confirm the credentials landed where chat will read them:
 
 ```sh
-$DC exec cli-runner ls -la /data/cli-auth/.claude
+jvc exec cli-runner ls -la /data/cli-auth/.claude
 ```
 
 Expect a `.claude` dir to exist (typically containing `.credentials.json`) owned by the runtime uid. If
@@ -258,7 +261,7 @@ Expect a `.claude` dir to exist (typically containing `.credentials.json`) owned
 setups a plain creds file may not appear at all — in that case rely on the §5 provider check, which runs
 `claude auth status` under `HOME=/data/cli-auth` over the socket, reporting claude ready.)
 
-> **codex variant:** `$DC exec -e HOME=/data/cli-auth -it cli-runner /data/cli-tools/bin/codex login`,
+> **codex variant:** `jvc exec -e HOME=/data/cli-auth -it cli-runner /data/cli-tools/bin/codex login`,
 > then check `/data/cli-auth/.codex`. Same HOME rule.
 
 ---
@@ -276,8 +279,8 @@ step probes the sidecar over the socket; since you installed + logged in `claude
 should report **claude available**. (If you ran onboarding _before_ installing, just re-run the
 provider check / refresh — there's no need to recreate the user.)
 
-> If the provider check still shows nothing after install+login, capture `$DC logs api` and
-> `$DC logs cli-runner` around the check and note it as a finding (the in-container code is an RPC
+> If the provider check still shows nothing after install+login, capture `jvc logs api` and
+> `jvc logs cli-runner` around the check and note it as a finding (the in-container code is an RPC
 > `probeProvider` call to the cli-runner over the socket — the cli-runner checks `/data/cli-tools/bin` —
 > not a host PATH probe) — but it does **not** block the chat smoke below; chat launches the CLI directly.
 
@@ -300,15 +303,15 @@ UI**.
 Watch it happen live in a second terminal while you send the message:
 
 ```sh
-$DC logs -f cli-runner    # launch/submit/readNew activity, a jarv1s-live-* tmux session
+jvc logs -f cli-runner    # launch/submit/readNew activity, a jarv1s-live-* tmux session
 # and, separately:
-$DC logs -f api           # the RPC launch + reconcile path
+jvc logs -f api           # the RPC launch + reconcile path
 ```
 
 You can also confirm a live tmux session exists during the chat:
 
 ```sh
-$DC exec cli-runner tmux ls
+jvc exec cli-runner tmux ls
 ```
 
 (tmux is installed in the image at `/usr/bin/tmux`, on the default PATH — no PATH tweak needed, unlike
@@ -317,11 +320,11 @@ cleaned up on kill / idle reap.
 
 **Single-user gate check (optional, confirms #347 posture).** While one chat session is live, the
 sidecar must refuse a _second, different_ user's launch. You can't easily drive a second user from the
-single-user UI — so just confirm in `$DC logs cli-runner` that you only ever see one live session, and
+single-user UI — so just confirm in `jvc logs cli-runner` that you only ever see one live session, and
 that the gate flag is on:
 
 ```sh
-$DC exec cli-runner sh -c 'echo SINGLE_USER=$JARVIS_CLI_RUNNER_SINGLE_USER'   # expect 1
+jvc exec cli-runner sh -c 'echo SINGLE_USER=$JARVIS_CLI_RUNNER_SINGLE_USER'   # expect 1
 ```
 
 If you get a reply in the web chat: **the foundation works live.** 🎉
@@ -332,11 +335,11 @@ If you get a reply in the web chat: **the foundation works live.** 🎉
 
 ```sh
 # Stop + remove containers and the network, KEEP the data volumes (so a re-run reuses your login):
-$DC down
+jvc down
 
 # ⚠️ DESTRUCTIVE / irreversible — full reset: ALSO deletes Postgres (your primary user + all data) and
 #    the CLI tools/auth volumes (your provider login). Only run -v if you want a clean slate.
-$DC down -v
+jvc down -v
 ```
 
 To re-run later without regenerating secrets, keep `infra/env.production.local` (it's `0600` and holds
@@ -348,22 +351,23 @@ all your keys — **back it up**, never commit it) and `up -d` again.
 
 | Symptom                                                                                                        | Likely cause                                                                                                                                                                                                                                                      | Fix                                                                                                                                                                                                                                                                                                                                                     |
 | -------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Any `$DC` command fails: `required variable POSTGRES_PASSWORD/JARVIS_CLI_RUNNER_RPC_SECRET is missing a value` | `--env-file` not in effect (you redefined `$DC` without it, or ran before the env file existed). Compose evaluates the `${VAR:?}` gates at load for **every** subcommand (`up`/`exec`/`logs`/`ps`/`down`) — `env_file:` does **not** feed `${...}` interpolation. | Ensure `$DC` includes `--env-file "$ENVFILE"` and that `infra/env.production.local` exists (step 1). Only the `setup` run legitimately omits it.                                                                                                                                                                                                        |
+| Any `jvc` command fails: `required variable POSTGRES_PASSWORD/JARVIS_CLI_RUNNER_RPC_SECRET is missing a value` | `--env-file` not in effect (you redefined `jvc` without it, or ran before the env file existed). Compose evaluates the `${VAR:?}` gates at load for **every** subcommand (`up`/`exec`/`logs`/`ps`/`down`) — `env_file:` does **not** feed `${...}` interpolation. | Ensure the `jvc` function includes `--env-file infra/env.production.local` and that the file exists (step 1). Only the `setup` run legitimately omits it.                                                                                                                                                                                               |
 | `setup` says it **refuses to overwrite** `env.production.local`                                                | A prior run already generated it (idempotent — regenerating would orphan secrets).                                                                                                                                                                                | Reuse the existing file, or (data loss) back it up, `rm` it, re-run `setup`.                                                                                                                                                                                                                                                                            |
-| migrate exits 1 with `password authentication failed for user "postgres"` (PG `28P01`) at boot                 | **Stale Postgres volume** from an earlier attempt — Postgres applies `POSTGRES_PASSWORD` only on a _fresh_ data volume, so a regenerated env file's password won't match the old volume. (Very common on a re-run.)                                               | Reset the volumes, then re-run: `$DC down -v` (drops the stale `jarv1s-prod` volumes — safe before any real data), then re-run `./install.sh`. `setup` keeps the existing env file, so the fresh volume inits with the matching password. (Confirm the culprit: `docker volume ls \| grep jarv1s-prod`.)                                                |
-| `init` log shows wrong uid, or `/data/*` is `root`-owned                                                       | The chown didn't match the runtime uid, or you're on a host where Docker maps uids differently.                                                                                                                                                                   | Confirm `JARVIS_HOST_UID/GID` in `$ENVFILE` match the uid api/cli-runner run as; re-run `$DC ... up -d` so `init` re-chowns. On a fresh volume set, `down -v` then back up.                                                                                                                                                                             |
-| `cli-runner.sock` missing or not `0600`, or api can't connect                                                  | init didn't create `/run/jarv1s` (0700), or a stale socket, or the api/cli-runner uid mismatch.                                                                                                                                                                   | Check `$DC logs init` + `$DC logs cli-runner`; the server unlinks a stale socket on boot. Ensure both services share `JARVIS_HOST_UID`.                                                                                                                                                                                                                 |
-| api **crash-loops at boot**                                                                                    | `JARVIS_CLI_RUNNER_RPC_SECRET` unset/empty (fail-fast wiring) or a bad DB URL.                                                                                                                                                                                    | Confirm the secret is in `$ENVFILE` and passed via `--env-file`; check `$DC logs api`.                                                                                                                                                                                                                                                                  |
+| migrate exits 1 with `password authentication failed for user "postgres"` (PG `28P01`) at boot                 | **Stale Postgres volume** from an earlier attempt — Postgres applies `POSTGRES_PASSWORD` only on a _fresh_ data volume, so a regenerated env file's password won't match the old volume. (Very common on a re-run.)                                               | Reset the volumes, then re-run: `jvc down -v` (drops the stale `jarv1s-prod` volumes — safe before any real data), then re-run `./install.sh`. `setup` keeps the existing env file, so the fresh volume inits with the matching password. (Confirm the culprit: `docker volume ls \| grep jarv1s-prod`.)                                                |
+| `init` log shows wrong uid, or `/data/*` is `root`-owned                                                       | The chown didn't match the runtime uid, or you're on a host where Docker maps uids differently.                                                                                                                                                                   | Confirm `JARVIS_HOST_UID/GID` in `infra/env.production.local` match the uid api/cli-runner run as; re-run `jvc ... up -d` so `init` re-chowns. On a fresh volume set, `down -v` then back up.                                                                                                                                                           |
+| `cli-runner.sock` missing or not `0600`, or api can't connect                                                  | init didn't create `/run/jarv1s` (0700), or a stale socket, or the api/cli-runner uid mismatch.                                                                                                                                                                   | Check `jvc logs init` + `jvc logs cli-runner`; the server unlinks a stale socket on boot. Ensure both services share `JARVIS_HOST_UID`.                                                                                                                                                                                                                 |
+| api **crash-loops at boot**                                                                                    | `JARVIS_CLI_RUNNER_RPC_SECRET` unset/empty (fail-fast wiring) or a bad DB URL.                                                                                                                                                                                    | Confirm the secret is in `infra/env.production.local` and passed via `--env-file`; check `jvc logs api`.                                                                                                                                                                                                                                                |
 | `claude: not found` in `exec`                                                                                  | `/data/cli-tools/bin` isn't on a fresh `exec` shell's PATH.                                                                                                                                                                                                       | Call the binary by full path `/data/cli-tools/bin/claude`, or `export PATH="$PATH:/data/cli-tools/bin"`.                                                                                                                                                                                                                                                |
-| npm install fails with `EACCES`                                                                                | Tools volume not owned by the runtime uid (init chown issue).                                                                                                                                                                                                     | Fix volume ownership (row above), then retry the install.                                                                                                                                                                                                                                                                                               |
-| Logged in, but chat says provider not authed / no reply                                                        | Login wrote to the wrong HOME — credentials aren't under `/data/cli-auth/.claude`.                                                                                                                                                                                | Redo step 4 **with** `-e HOME=/data/cli-auth`; verify `$DC exec cli-runner ls -la /data/cli-auth/.claude`.                                                                                                                                                                                                                                              |
-| Chat message sent, spinner forever, no reply                                                                   | Provider not logged in, the CLI errored at launch, or a tmux/launch failure.                                                                                                                                                                                      | `$DC logs -f cli-runner` while sending; look for the launch/submit lines and any CLI stderr. Confirm `/data/cli-tools/bin/claude --version` works _and_ it's logged in.                                                                                                                                                                                 |
-| `/health/ready` never green within 120s                                                                        | migrate failed, Postgres unhealthy, or (most common) the embedding model is still downloading on first boot.                                                                                                                                                      | `$DC logs migrate`, `$DC logs postgres`, `$DC logs api`. If it's the model download: best to have set `JARVIS_EMBED_PROVIDER=stub` up front (§1). After the fact, `setup` won't regenerate the env file — edit `JARVIS_EMBED_PROVIDER=stub` in `infra/env.production.local`, then `$DC up -d` to recreate api+worker; or just give the download longer. |
+| npm install fails with `EACCES` on **`/.npm`** (`mkdir`)                                                       | `HOME` unset in the exec shell → npm caches at root-owned `/.npm`.                                                                                                                                                                                                | Add **`-e HOME=/data/cli-auth`** to the install command (npm then caches at `/data/cli-auth/.npm`). This is the most common install failure.                                                                                                                                                                                                            |
+| npm install fails with `EACCES` on **`/data/cli-tools`**                                                       | Tools volume not owned by the runtime uid (init chown issue).                                                                                                                                                                                                     | Fix volume ownership (the `/data/*` row above), then retry the install.                                                                                                                                                                                                                                                                                 |
+| Logged in, but chat says provider not authed / no reply                                                        | Login wrote to the wrong HOME — credentials aren't under `/data/cli-auth/.claude`.                                                                                                                                                                                | Redo step 4 **with** `-e HOME=/data/cli-auth`; verify `jvc exec cli-runner ls -la /data/cli-auth/.claude`.                                                                                                                                                                                                                                              |
+| Chat message sent, spinner forever, no reply                                                                   | Provider not logged in, the CLI errored at launch, or a tmux/launch failure.                                                                                                                                                                                      | `jvc logs -f cli-runner` while sending; look for the launch/submit lines and any CLI stderr. Confirm `/data/cli-tools/bin/claude --version` works _and_ it's logged in.                                                                                                                                                                                 |
+| `/health/ready` never green within 120s                                                                        | migrate failed, Postgres unhealthy, or (most common) the embedding model is still downloading on first boot.                                                                                                                                                      | `jvc logs migrate`, `jvc logs postgres`, `jvc logs api`. If it's the model download: best to have set `JARVIS_EMBED_PROVIDER=stub` up front (§1). After the fact, `setup` won't regenerate the env file — edit `JARVIS_EMBED_PROVIDER=stub` in `infra/env.production.local`, then `jvc up -d` to recreate api+worker; or just give the download longer. |
 | `up` fails: subnet/pool overlaps                                                                               | `10.251.0.0/24` already used by another Docker network on the host (e.g. the dev compose).                                                                                                                                                                        | Re-run `setup` with `JARVIS_DOCKER_SUBNET=10.252.0.0/24` (or any free /24), or `down` the other stack.                                                                                                                                                                                                                                                  |
 
 ### What to file as a finding
 
 Anything in this list that you hit and the "Fix" doesn't resolve, **or** any crash/stack trace in
 `init` / `cli-runner` / `api` / `migrate` logs, is a real defect in the merged foundation — capture the
-exact command + the relevant `$DC logs <service>` output and file it against **#342** (note "manual
+exact command + the relevant `jvc logs <service>` output and file it against **#342** (note "manual
 smoke, `main` @ `e900009`"). This run exists precisely to surface what the offline gate could not.
