@@ -87,7 +87,9 @@ the enum + location.
   shutdown). It MUST refuse to bind if the path resolves outside `/run/jarv1s` (defense against a
   misconfigured env var pointing at a shared mount). **Symmetrically, the api client MUST `realpath`-check
   that `JARVIS_CLI_RUNNER_SOCKET` resolves under `/run/jarv1s` BEFORE it `connect`s** (mirror of the server
-  bind check; defends the client against a redirected socket path).
+  bind check; defends the client against a redirected socket path). The `unlink`→`listen` is not atomic, but
+  the **`0700` uid-owned containing dir is the TOCTOU defense** — no other uid can interpose a socket or
+  symlink at the path between the `unlink` and the `bind`.
 
 ### 3.2 Framing — DECISION: length-prefixed JSON (NOT newline-delimited)
 
@@ -396,11 +398,32 @@ those paths are meaningless cross-container). The in-process `CliChatEngineImpl`
 #### 4.1.0a Single-active-user gate (Phase 1, until #347) — FROZEN REQUIREMENT
 
 > **Single-active-user gate (Phase 1, until #347):** while UID-separation is absent, the cli-runner server
-> holds **AT MOST ONE live engine** across all `sessionKey`s. A `launch` RPC whose `sessionKey` differs from
-> the currently-live `sessionKey` returns `RpcErr { code: 'unavailable' }` (redacted message) until the live
-> session is killed. Controlled by env flag `JARVIS_CLI_RUNNER_SINGLE_USER` (default `1` = ON; set `0` only
-> when UID-separation #347 lands). This is an added error path that **REUSES the existing `unavailable` code
-> — NO wire-contract change.** Owner: **Lane B** (cli-runner server).
+> admits **AT MOST ONE live session** across all `sessionKey`s. A `launch` RPC for a `sessionKey` is rejected
+> with `RpcErr { code: 'unavailable' }` (redacted message) whenever a _different_ `sessionKey` is currently
+> live, until that session is killed. Controlled by env flag `JARVIS_CLI_RUNNER_SINGLE_USER` (default `1` =
+> ON; set `0` only when UID-separation #347 lands). Added error path reusing the existing `unavailable` code
+> — **NO wire-contract change.** Owner: **Lane B** (cli-runner server).
+
+**Liveness is measured on DISK, not in the Map (CRITICAL — this is the property the gate guarantees).** The
+safety property is _no two users' `0600` token dirs co-resident_ under `<JARVIS_CLI_NEUTRAL_BASE>`. The
+in-memory `Map<sessionKey, engine>` is **NOT** a sufficient liveness signal: across an unclean cli-runner
+**restart** the Map is empty while the prior session's `jarv1s-live-*` mux session **and its on-disk `0600`
+token dir survive** (§6.5 cleans dirs only on `kill`/failed-launch, never on restart). A different user's
+`launch` would then pass a Map-only gate while the prior token dir is still resident — exactly the
+co-residency #347 forbids. Therefore the gate is frozen as:
+
+1. **`liveKeys` = the MUX ENUMERATION, not the Map.** The gate computes liveness from `listLiveSessions`-by-mux
+   (§4.6 — the live `jarv1s-live-*` sessions) **UNION** the in-flight `launching` keys (§5.4). A `launch` for
+   `sessionKey K` is admitted only when `liveKeys ⊆ {K}` (no _other_ key live or launching); otherwise
+   `unavailable`. The engine `Map` is never the gate's liveness source.
+2. **Startup orphan-sweep (cli-runner, BEFORE accepting connections).** On startup the server sweeps every
+   orphan `jarv1s-live-*` mux session and `rm -rf`s its per-session neutral dir (reusing kill-by-mux-name §4.5
+   - the §6.5 dir removal), mirroring the §3.1 stale-socket unlink. After the sweep the disk holds no orphaned
+     token dirs, so the gate starts from a clean, truthful liveness set. The api's §5.3 reconciliation still runs
+     on reconnect as defence-in-depth, but the gate no longer **depends** on it having run first.
+
+Both reuse existing machinery (kill-by-mux-name §4.5, `listLiveSessions`-by-mux §4.6, §6.5 dir removal) and
+introduce **no wire/envelope change.**
 
 **Why this is here.** The per-session `0600` token files are readable by any same-UID CLI subprocess (§13),
 so two _concurrent_ live sessions would each be able to read the other's token file. Until UID-separation
@@ -618,7 +641,14 @@ export interface RpcListLiveSessionsResult {
   cli-runner restart the Map is empty while real mux sessions may still be running; enumerating only the Map
   would hide those orphans from reconciliation. The server strips the `jarv1s-live-` prefix to recover each
   `sessionKey` and returns the set of genuinely-alive keys. This is the **single source of truth** the api
-  reconciles against (§5). Used only by the api's reconciliation driver, never per turn.
+  reconciles against (§5), and the **same enumeration the §4.1.0a single-active-user gate and the §6.5
+  startup orphan-sweep consume** (the gate's `liveKeys` = this set ∪ the §5.4 `launching` keys); none of the
+  three rely on the in-memory `Map`. Used by the api's reconciliation driver and the server-side gate, never
+  per turn.
+- **Authorization on the non-session verbs:** `listLiveSessions` (like `probeProvider`) returns instance-wide
+  data with no `sessionKey` scope; the §3.6 connection auth hello is the **sole** gate on these verbs — safe
+  because only the api holds `JARVIS_CLI_RUNNER_RPC_SECRET` and the CLI subprocesses are excluded from it
+  (§6.6 / §7.2).
 
 ### 4.7 Error → typed-JS mapping (api client side)
 
@@ -876,6 +906,11 @@ plus the persona file. Consequences:
   mux session, `rm -rf` the per-session neutral dir.
 - On a failed `launch` (multiplexer down, persona write failure, etc., §4.1): remove the per-session neutral
   dir before returning the `RpcErr`.
+- **On cli-runner STARTUP (before accepting connections):** enumerate orphan `jarv1s-live-*` mux sessions
+  (§4.6) left by an unclean prior shutdown, kill each (kill-by-mux-name §4.5) and `rm -rf` its per-session
+  neutral dir. This guarantees no foreign `0600` token dir survives a restart into the next session's
+  lifetime — the on-disk precondition the §4.1.0a single-active-user gate relies on. (Mirrors the §3.1
+  stale-socket unlink.)
 - The dir is recreated fresh on the next launch for that `sessionKey` (the manager rebuilds `personaText` and
   the server re-writes the secret files — §4.1.3), so no stale secret survives a relaunch.
 

@@ -310,14 +310,17 @@ socket boundary, the sidecar, and the secrets-out-of-launch-lines move.
 - The class still derives `SESSION_PREFIX = jarv1s-live-*` (`:42`) for sessions; reconciliation
   (D5) matches on that prefix.
 - **Single-active-user gate (Phase 1, until #347 — Lane B; RPC-contract §4.1.0a):** while UID-separation is
-  absent, the cli-runner server holds **AT MOST ONE live engine** across all `sessionKey`s. A `launch` whose
-  `sessionKey` differs from the currently-live `sessionKey` returns `RpcErr { code: 'unavailable' }`
-  (redacted) until the live session is killed. Controlled by env flag `JARVIS_CLI_RUNNER_SINGLE_USER`
-  (default `1` = ON; set `0` only when UID-separation #347 lands). This is an added error path that **REUSES
-  the existing `unavailable` code — NO wire-contract change** — and is the HARD RUNTIME GATE standing in for
-  the deferred UID separation (§4.5). It is **cli-runner-server config only** (not in the CLI-subprocess env
-  allowlist). The per-session `0600` token files are readable by any same-UID CLI subprocess (§4.5), so the
-  gate enforces isolation by ensuring only one session's secret files exist at a time until #347.
+  absent, the cli-runner server admits **AT MOST ONE live session** across all `sessionKey`s. A `launch` for a
+  `sessionKey` is rejected with `RpcErr { code: 'unavailable' }` (redacted) whenever a _different_ `sessionKey`
+  is live, until that session is killed. Controlled by env flag `JARVIS_CLI_RUNNER_SINGLE_USER` (default `1` =
+  ON; set `0` only when UID-separation #347 lands). Added error path that **REUSES the existing `unavailable`
+  code — NO wire-contract change** — the HARD RUNTIME GATE standing in for the deferred UID separation. It is
+  **cli-runner-server config only** (not in the CLI-subprocess env allowlist). **Critically, liveness is
+  measured against the MUX ENUMERATION (`listLiveSessions`-by-mux, §4.6) ∪ the in-flight `launching` keys —
+  NOT the in-memory `Map` (which is empty after a restart while orphaned `0600` token dirs survive) — and
+  cli-runner sweeps orphan mux sessions + neutral dirs ON STARTUP** (RPC-contract §4.1.0a / §6.5). This binds
+  the gate to the real on-disk co-residency it guards: only one session's `0600` secret files exist at a time
+  until #347.
 
 ### 5.2 `packages/chat/src/live/runtime.ts` — factory wiring + `EngineLaunchOpts` extension
 
