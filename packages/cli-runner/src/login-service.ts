@@ -72,14 +72,19 @@ export interface LoginServiceDeps {
   readonly loginTimeoutMs?: number;
   /** Bound the tmux session start (§L.3.1 late-reap). */
   readonly startTimeoutMs?: number;
-  /** Pane settle delay before the first capture (CLI needs a moment to print the URL). */
+  /** Pane settle delay between capture attempts (CLI needs a moment to print the URL). */
   readonly settleMs?: number;
+  /** Bound the poll for the authorization URL to appear in the pane (§L.2.2). */
+  readonly surfaceTimeoutMs?: number;
 }
 
 const DEFAULT_HOME_BASE = "/data/cli-auth";
 const DEFAULT_LOGIN_TIMEOUT_MS = 600_000; // 10 min — a human-in-the-loop browser round-trip
 const DEFAULT_START_TIMEOUT_MS = 20_000;
 const DEFAULT_SETTLE_MS = 1_200;
+// The provider CLI prints its authorization URL a few seconds after launch (a server
+// round-trip), so a single capture at settleMs races it. Poll up to this bound (#342).
+const DEFAULT_SURFACE_TIMEOUT_MS = 12_000;
 
 /** The single in-flight login (§L.3.1). */
 interface LoginFlow {
@@ -99,6 +104,7 @@ export class LoginService {
   private readonly loginTimeoutMs: number;
   private readonly startTimeoutMs: number;
   private readonly settleMs: number;
+  private readonly surfaceTimeoutMs: number;
   /** §L.3.1 AT MOST ONE in-flight login. */
   private flow: LoginFlow | null = null;
 
@@ -107,6 +113,7 @@ export class LoginService {
     this.loginTimeoutMs = deps.loginTimeoutMs ?? DEFAULT_LOGIN_TIMEOUT_MS;
     this.startTimeoutMs = deps.startTimeoutMs ?? DEFAULT_START_TIMEOUT_MS;
     this.settleMs = deps.settleMs ?? DEFAULT_SETTLE_MS;
+    this.surfaceTimeoutMs = deps.surfaceTimeoutMs ?? DEFAULT_SURFACE_TIMEOUT_MS;
   }
 
   /** True iff `provider` has a login adapter (login-supported, §L.1). */
@@ -183,8 +190,7 @@ export class LoginService {
       // Arm the overall-lifetime reaper (a hung browser round-trip MUST NOT freeze the gate).
       this.armDeadline(flow);
 
-      await this.deps.io.sleep(this.settleMs);
-      const surface = await this.captureSurface(flow);
+      const surface = await this.captureSurfaceUntilUrl(flow);
       const status: LoginFlowStatus =
         flow.adapter.mode === "paste" ? "awaiting_token" : "awaiting_authorization";
       return { loginId: flow.loginId, status, ...surface };
@@ -227,9 +233,9 @@ export class LoginService {
       const tokenFile = path.join(tmpDir, "code");
       await writeFile(tokenFile, token, { encoding: "utf8", mode: 0o600 });
       await this.deps.io.run("tmux", ["load-buffer", "-b", session, tokenFile]);
-      await this.deps.io.run("tmux", ["paste-buffer", "-b", session, "-t", `=${session}`]);
+      await this.deps.io.run("tmux", ["paste-buffer", "-b", session, "-t", `=${session}:`]);
       await this.deps.io.sleep(200);
-      await this.deps.io.run("tmux", ["send-keys", "-t", `=${session}`, "Enter"]);
+      await this.deps.io.run("tmux", ["send-keys", "-t", `=${session}:`, "Enter"]);
       // Phase-4 Obs 1-A (same-UID token-lifetime gap): `load-buffer -b <name>` placed the pasted
       // code in the tmux SERVER-global buffer set, which SURVIVES killing the login session — a
       // same-UID reader could `show-buffer -b <name>` it afterwards. Delete the named buffer the
@@ -304,10 +310,30 @@ export class LoginService {
   }
 
   /** Capture the pane, run the adapter's extractSurface, then apply the §L.6.2 echo/exact guards. */
+  /**
+   * Poll the login pane until the adapter surfaces an authorization URL, or a bounded number
+   * of attempts elapses. The provider CLI prints the URL a few seconds after launch (server
+   * round-trip), so the single capture at settleMs raced it and login surfaced no URL (#342).
+   * Iteration-based (not wall-clock) so a mocked `io.sleep` keeps tests instant. Returns the
+   * LAST surface, so a device-code flow that only ever shows a userCode still surfaces it.
+   */
+  private async captureSurfaceUntilUrl(flow: LoginFlow): Promise<LoginSurface> {
+    const attempts = Math.max(1, Math.ceil(this.surfaceTimeoutMs / Math.max(this.settleMs, 200)));
+    let last: LoginSurface = {};
+    for (let i = 0; i < attempts; i++) {
+      await this.deps.io.sleep(this.settleMs);
+      last = await this.captureSurface(flow);
+      if (last.authorizationUrl) return last;
+    }
+    return last;
+  }
+
   private async captureSurface(flow: LoginFlow): Promise<LoginSurface> {
     const session = `${LOGIN_SESSION_PREFIX}${flow.provider}`;
+    // -J joins any soft-wrapped lines (belt-and-suspenders alongside the wide login pane,
+    // which prevents the hard-wrap that -J cannot rejoin) so a long URL is captured whole.
     const pane = await this.deps.io
-      .run("tmux", ["capture-pane", "-p", "-t", `=${session}`])
+      .run("tmux", ["capture-pane", "-p", "-J", "-t", `=${session}:`])
       .catch(() => ({ code: 1, stdout: "" }));
     if (pane.code !== 0) return {};
     const raw = flow.adapter.extractSurface(pane.stdout);
@@ -325,13 +351,17 @@ export class LoginService {
 
   /** Open the captured login session (detached) + run the login command via send-keys. */
   private async openLoginSession(session: string, launchLine: string): Promise<void> {
+    // WIDE pane (-x): the provider prints its authorization URL on one line and its TUI
+    // HARD-wraps at the pane width — a narrow pane splits the URL across lines (a literal
+    // newline mid-URL that capture-pane -J can't rejoin), so the surfaced URL was truncated
+    // (#342). 1000 cols comfortably fits an OAuth URL (PKCE + state ≈ 350 chars).
     const created = await this.deps.io.run("tmux", [
       "new-session",
       "-d",
       "-s",
       session,
       "-x",
-      "200",
+      "1000",
       "-y",
       "50"
     ]);
@@ -339,10 +369,14 @@ export class LoginService {
       throw new Error(`login session create failed: ${redactSecrets(created.stderr)}`);
     }
     // The login command carries NO secret (login produces the cred) — send-keys is fine here.
+    // Target is `=<session>:` (exact session, its active pane) — the TRAILING COLON is
+    // REQUIRED: in a target-pane context (send-keys/paste-buffer/capture-pane) tmux 3.3a
+    // parses a bare `=<session>` as a PANE name and fails with "can't find pane", which
+    // broke every login. The `:` scopes it to the session so the active pane resolves.
     const sent = await this.deps.io.run("tmux", [
       "send-keys",
       "-t",
-      `=${session}`,
+      `=${session}:`,
       launchLine,
       "Enter"
     ]);

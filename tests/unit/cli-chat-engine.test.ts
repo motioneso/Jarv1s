@@ -551,6 +551,20 @@ describe("probeProvider (§4.8)", () => {
     expect(res.status).toBe("ready");
   });
 
+  it("returns needs_login when claude auth status prints loggedIn:false but EXITS NON-ZERO", async () => {
+    // Regression (#342): claude 2.1.183 `auth status` prints valid JSON {"loggedIn":false,...}
+    // yet exits rc=1 when not logged in. The probe must parse the JSON regardless of exit code;
+    // the old code hit the rc!=0 branch, the auth-text heuristic missed this JSON, and it
+    // returned "error" → deriveStatus settled every login flow to error ("no such login").
+    const run = vi.fn().mockResolvedValue({
+      code: 1,
+      stdout: JSON.stringify({ loggedIn: false, authMethod: "none", apiProvider: "firstParty" }),
+      stderr: ""
+    });
+    const res = await probeProvider("anthropic", { io: { run }, cliPresent: async () => true });
+    expect(res.status).toBe("needs_login");
+  });
+
   it("surfaces multiplexer_unavailable when the mux is not usable", async () => {
     const run = vi.fn();
     const res = await probeProvider("anthropic", {

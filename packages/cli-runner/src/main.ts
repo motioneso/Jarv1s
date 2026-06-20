@@ -161,12 +161,15 @@ export async function main(): Promise<void> {
   await server.start();
 }
 
-// Run when invoked directly (tsx src/main.ts / node dist/main.js).
-const isEntrypoint =
-  typeof process.argv[1] === "string" && import.meta.url === `file://${process.argv[1]}`;
-if (isEntrypoint) {
-  main().catch((err: unknown) => {
-    console.error("[cli-runner] fatal:", err instanceof Error ? err.message : String(err));
-    process.exitCode = 1;
-  });
-}
+// NOTE (#342 install/login blocker): this module has NO module-level side effect.
+// The boot invocation lives in the dedicated, never-imported `main-entry.ts`.
+//
+// Why: an `if (isEntrypoint) main()` guard here used `import.meta.url ===
+// \`file://${process.argv[1]}\``. esbuild bundles this module into the api's
+// `dist/server.js` (the api imports the cli-runner barrel for PROVIDER_CATALOG /
+// LOGIN_ADAPTERS), where `import.meta.url` COLLAPSES to the bundle URL
+// (`file:///app/dist/server.js`) — which EQUALS `file://${process.argv[1]}` in the
+// api process. So the guard mis-fired and the api booted its OWN CliRunnerServer,
+// binding the same socket as the cli-runner sidecar (CLI ops then ran in the
+// bundled api: no tmux session, ephemeral tools volume). Keeping the invocation in
+// a separate entry file that nothing ever imports makes the collapse irrelevant.
