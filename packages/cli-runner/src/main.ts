@@ -14,9 +14,14 @@ import { dirname } from "node:path";
 
 import { cliAvailable, tmuxAvailable, type ProviderKind } from "@jarv1s/ai";
 
+import { probeProvider } from "../../chat/src/live/cli-chat-engine.js";
+import type { RpcProviderKind } from "../../chat/src/live/rpc-contract.js";
+
 import { PROVIDER_CATALOG } from "./catalog.js";
 import { CliChatEngineHost } from "./engine-host.js";
 import { InstallService } from "./install-service.js";
+import { LOGIN_ADAPTERS } from "./login-adapters.js";
+import { LoginService } from "./login-service.js";
 import { createSanitizedTmuxIo } from "./runner-io.js";
 import { CliRunnerServer } from "./server.js";
 
@@ -100,12 +105,32 @@ export function createCliRunner(
     homeBase: config.homeBase
   });
 
+  // §L.3 login service (Phase 3). It drives the provider login flow in a captured
+  // `jarv1s-login-*` tmux session (auth-volume HOME), surfaces ONLY the allowlisted URL/code
+  // (§L.6.2), and detects completion via the SAME §4.8 probe. Its adapters are the validated
+  // login allowlist (§L.1.3, consistency-checked against the install catalog). It participates
+  // in the host's §L.6.1 unified exclusivity gate (login ⟂ chat).
+  const loginService = new LoginService({
+    io,
+    adapters: LOGIN_ADAPTERS,
+    homeBase: config.homeBase,
+    // Completion signal: the §4.8 provider auth probe (no token, no replay) — same deps the
+    // host's probeProvider uses.
+    probe: (provider: RpcProviderKind) =>
+      probeProvider(provider as ProviderKind, {
+        io,
+        cliPresent: (p: ProviderKind) => cliAvailable(p),
+        multiplexerUsable: () => tmuxAvailable()
+      })
+  });
+
   const host = new CliChatEngineHost({
     io,
     neutralBase: config.neutralBase,
     homeBase: config.homeBase,
     singleUser: config.singleUser,
     installService,
+    loginService,
     // Presence-only PATH probe INSIDE cli-runner (the tools volume is on PATH, §7.1).
     cliPresent: (provider: ProviderKind) => cliAvailable(provider),
     multiplexerUsable: () => tmuxAvailable()

@@ -51,6 +51,15 @@ import type { ChatRecordKind, CliChatEngine, EngineLaunchOpts, TranscriptRecord 
 /** Session name prefix used for all Jarv1s live sessions (the multiplexer `name` hint). */
 export const SESSION_PREFIX = "jarv1s-live-";
 
+/**
+ * Session name prefix for Jarv1s LOGIN sessions (login-contract §L.6.1). DISTINCT from
+ * {@link SESSION_PREFIX} so login sessions are invisible to the chat `listLiveMuxSessions`
+ * enumeration / §5 reconciliation (a login is not a chat session — it has no MCP token to
+ * reconcile), and the chat helpers never touch a login session. The login canonical name is
+ * `jarv1s-login-<provider>` (the provider is a fixed enum literal — no traversal risk).
+ */
+export const LOGIN_SESSION_PREFIX = "jarv1s-login-";
+
 /** The persona filename written under the per-session neutral dir (`0600`). */
 const PERSONA_FILENAME = "persona.md";
 
@@ -658,6 +667,41 @@ export async function listLiveMuxSessions(io: Pick<TmuxIo, "run">): Promise<stri
     .filter((name) => name.startsWith(SESSION_PREFIX))
     .map((name) => name.slice(SESSION_PREFIX.length))
     .filter((key) => key.length > 0);
+}
+
+/**
+ * login-contract §L.6.1: kill a live `jarv1s-login-<provider>` mux session BY CANONICAL
+ * NAME, even when the login service holds no in-memory reservation for it (post-restart /
+ * late-success orphan). Uses the SAME leading-`=` exact-name guard as
+ * {@link killMuxSessionByName} (so a kill can never prefix-over-reach) but the LOGIN prefix
+ * — do NOT reuse `killMuxSessionByName`, which is hardwired to `SESSION_PREFIX` and would
+ * target `=jarv1s-live-<provider>`. `provider` is a fixed enum literal (no traversal risk).
+ * Idempotent — killing an absent session is not an error.
+ */
+export async function killLoginMuxSession(
+  io: Pick<TmuxIo, "run">,
+  provider: string
+): Promise<void> {
+  const name = `${LOGIN_SESSION_PREFIX}${provider}`;
+  await io.run("tmux", ["kill-session", "-t", `=${name}`]);
+}
+
+/**
+ * login-contract §L.6.1: enumerate the providers of every LIVE `jarv1s-login-*` mux session
+ * via tmux `list-sessions` — the disk liveness signal the unified admission gate (§L.6.1)
+ * and the startup sweep (§L.3.4) consume (the in-memory login reservation is not the sole
+ * source of truth, per the base D13/D14 lesson). Strips the LOGIN prefix to recover each
+ * provider. Tolerates "no server running" (nonzero exit → empty list).
+ */
+export async function listLoginMuxSessions(io: Pick<TmuxIo, "run">): Promise<string[]> {
+  const listed = await io.run("tmux", ["list-sessions", "-F", "#{session_name}"]);
+  if (listed.code !== 0) return [];
+  return listed.stdout
+    .split("\n")
+    .map((line) => line.trim())
+    .filter((name) => name.startsWith(LOGIN_SESSION_PREFIX))
+    .map((name) => name.slice(LOGIN_SESSION_PREFIX.length))
+    .filter((p) => p.length > 0);
 }
 
 /**

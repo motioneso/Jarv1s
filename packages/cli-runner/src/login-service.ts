@@ -1,0 +1,406 @@
+/**
+ * §L.3 LOGIN SERVICE — the login-flow mechanics, entirely inside the cli-runner sidecar.
+ *
+ * Runs a provider login in a captured `jarv1s-login-<provider>` tmux session (HOME =
+ * /data/cli-auth so the cred lands on the auth/home volume), surfaces ONLY the allowlisted
+ * authorization URL / user code (§L.6.2), detects completion via `probeProvider` (§4.8
+ * reused) + a runtime smoke (§L.9.1), and feeds a pasted code argv-free via
+ * `load-buffer`→`paste-buffer` (§L.6.3). It holds AT MOST ONE in-flight login (§L.3.1).
+ *
+ * Admission (the unified §L.6.1 exclusivity gate — login mutually exclusive with chat +
+ * other logins) lives in {@link CliChatEngineHost}, which owns the server-wide admission
+ * mutex; it calls {@link reserve} (sync) inside the mutex and {@link start} outside it, and
+ * consults {@link isLoginActive} from BOTH the launch gate and the beginLogin gate.
+ *
+ * Auth material NEVER escapes: the pasted token crosses only via the socket payload, is fed
+ * argv-free, is `redactExact`-scrubbed from any error, is never logged/persisted/echoed, and
+ * the resulting cred lands only on the auth/home volume (§L.6.3/§L.6.4).
+ */
+
+import { randomUUID } from "node:crypto";
+import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import path from "node:path";
+
+import { redactExact, redactSecrets, type TmuxIo } from "@jarv1s/ai";
+
+import {
+  killLoginMuxSession,
+  listLoginMuxSessions,
+  LOGIN_SESSION_PREFIX,
+  type ProbeProviderResult
+} from "../../chat/src/live/cli-chat-engine.js";
+import type {
+  LoginAdapter,
+  LoginAdapterRegistry,
+  LoginFlowStatus,
+  LoginSurface
+} from "../../chat/src/live/login-contract.js";
+import type { RpcProviderKind } from "../../chat/src/live/rpc-contract.js";
+
+/**
+ * A blocked/unknown/no-adapter provider, or a stale `loginId` — mapped to RpcErr
+ * `bad_request` by connection.ts (does NOT close). Distinct from a failed login FLOW (an
+ * RpcOk `{status:"error"}`). Distinct class from `InstallBadRequestError` so the dispatch
+ * stays explicit.
+ */
+export class LoginBadRequestError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "LoginBadRequestError";
+  }
+}
+
+/** The settled/awaiting shape every verb returns (the engine-host maps it to the wire result). */
+export interface LoginFlowOutcome {
+  readonly loginId: string;
+  readonly status: LoginFlowStatus;
+  readonly authorizationUrl?: string;
+  readonly userCode?: string;
+  readonly message?: string;
+}
+
+export interface LoginServiceDeps {
+  /** The §7.2 sanitized execFile-style runner (HOME=/data/cli-auth ⇒ cred lands on the auth volume). */
+  readonly io: TmuxIo;
+  /** The validated login-adapter registry (§L.1). A provider absent ⇒ login-blocked. */
+  readonly adapters: LoginAdapterRegistry;
+  /** Completion signal: the §4.8 provider auth probe (reused; no token, no replay). */
+  readonly probe: (provider: RpcProviderKind) => Promise<ProbeProviderResult>;
+  /** auth/home base for the 0600 paste temp file (§L.6.3). Default /data/cli-auth. */
+  readonly homeBase?: string;
+  /** Overall login lifetime bound (§L.3.1). A hung browser round-trip MUST NOT freeze the gate. */
+  readonly loginTimeoutMs?: number;
+  /** Bound the tmux session start (§L.3.1 late-reap). */
+  readonly startTimeoutMs?: number;
+  /** Pane settle delay before the first capture (CLI needs a moment to print the URL). */
+  readonly settleMs?: number;
+}
+
+const DEFAULT_HOME_BASE = "/data/cli-auth";
+const DEFAULT_LOGIN_TIMEOUT_MS = 600_000; // 10 min — a human-in-the-loop browser round-trip
+const DEFAULT_START_TIMEOUT_MS = 20_000;
+const DEFAULT_SETTLE_MS = 1_200;
+
+/** The single in-flight login (§L.3.1). */
+interface LoginFlow {
+  readonly provider: RpcProviderKind;
+  readonly loginId: string;
+  readonly adapter: LoginAdapter;
+  /** The in-flight pasted token (paste mode) — held for redactExact + the echo-drop (§L.6.2/§L.6.3). */
+  heldToken?: string;
+  /** True once a token was submitted: poll then NEVER re-surfaces a userCode (§L.6.2 HIGH-2). */
+  submitted: boolean;
+  /** Overall-lifetime reaper; cleared on settle/cancel. */
+  timer: ReturnType<typeof setTimeout> | undefined;
+}
+
+export class LoginService {
+  private readonly homeBase: string;
+  private readonly loginTimeoutMs: number;
+  private readonly startTimeoutMs: number;
+  private readonly settleMs: number;
+  /** §L.3.1 AT MOST ONE in-flight login. */
+  private flow: LoginFlow | null = null;
+
+  constructor(private readonly deps: LoginServiceDeps) {
+    this.homeBase = deps.homeBase ?? DEFAULT_HOME_BASE;
+    this.loginTimeoutMs = deps.loginTimeoutMs ?? DEFAULT_LOGIN_TIMEOUT_MS;
+    this.startTimeoutMs = deps.startTimeoutMs ?? DEFAULT_START_TIMEOUT_MS;
+    this.settleMs = deps.settleMs ?? DEFAULT_SETTLE_MS;
+  }
+
+  /** True iff `provider` has a login adapter (login-supported, §L.1). */
+  hasAdapter(provider: RpcProviderKind): boolean {
+    return this.deps.adapters[provider] !== undefined;
+  }
+
+  /**
+   * §L.6.1: login is active when there is an in-memory flow OR a live `jarv1s-login-*` mux
+   * session on disk (the latter guards a late-success orphan / a fast in-place restart — the
+   * D13/D14 "don't trust the Map alone" lesson). Consulted under the engine-host admission mutex.
+   */
+  async isLoginActive(): Promise<boolean> {
+    if (this.flow) return true;
+    const live = await listLoginMuxSessions(this.deps.io).catch(() => [] as string[]);
+    return live.length > 0;
+  }
+
+  /**
+   * §L.6.1 reserve: SYNCHRONOUSLY claim the single login slot (called inside the admission
+   * mutex so a concurrent launch/begin sees it). Returns the minted loginId. Throws
+   * LoginBadRequestError if a flow already exists (defensive — the gate should have rejected).
+   */
+  reserve(provider: RpcProviderKind): string {
+    const adapter = this.deps.adapters[provider];
+    if (!adapter) throw new LoginBadRequestError("provider not loginable");
+    if (this.flow) throw new LoginBadRequestError("a login is already in progress");
+    const loginId = randomUUID();
+    this.flow = { provider, loginId, adapter, submitted: false, timer: undefined };
+    return loginId;
+  }
+
+  /**
+   * §L.2.2 start: launch the login CLI in `jarv1s-login-<provider>`, read the pane, surface the
+   * allowlisted URL/code. Called OUTSIDE the admission mutex (the reservation already holds the
+   * slot). Bounded by `startTimeoutMs` with a late-success orphan reap (§L.3.1). On any failure
+   * the flow is cleared + the session reaped. If already authed (probe ready), returns `ready`.
+   */
+  async start(loginId: string): Promise<LoginFlowOutcome> {
+    const flow = this.requireFlow(loginId);
+    const session = `${LOGIN_SESSION_PREFIX}${flow.provider}`;
+    try {
+      // Already authenticated? (a re-login of a ready provider) — short-circuit.
+      const pre = await this.deps.probe(flow.provider);
+      if (pre.status === "ready") {
+        return this.settle(flow, "ready");
+      }
+
+      // Open the captured login session + run the login command (no secret in the launch line).
+      const launchLine = flow.adapter.loginArgv.join(" ");
+      const startPromise = this.openLoginSession(session, launchLine);
+      let timedOut = false;
+      try {
+        await this.withTimeout(startPromise, this.startTimeoutMs, () => {
+          timedOut = true;
+        });
+      } catch (err) {
+        // Best-effort kill + LATE-SUCCESS reap (mirrors engine-host launch §L.3.1).
+        await killLoginMuxSession(this.deps.io, flow.provider).catch(() => undefined);
+        if (timedOut) {
+          void startPromise
+            .then(
+              () => true,
+              () => false
+            )
+            .then(async (createdLate) => {
+              if (createdLate)
+                await killLoginMuxSession(this.deps.io, flow.provider).catch(() => undefined);
+            });
+        }
+        return this.settle(flow, "error", redactSecrets((err as Error).message));
+      }
+
+      // Arm the overall-lifetime reaper (a hung browser round-trip MUST NOT freeze the gate).
+      this.armDeadline(flow);
+
+      await this.deps.io.sleep(this.settleMs);
+      const surface = await this.captureSurface(flow);
+      const status: LoginFlowStatus =
+        flow.adapter.mode === "paste" ? "awaiting_token" : "awaiting_authorization";
+      return { loginId: flow.loginId, status, ...surface };
+    } catch (err) {
+      return this.settle(
+        flow,
+        "error",
+        redactExactFlow(flow, redactSecrets((err as Error).message))
+      );
+    }
+  }
+
+  /** §L.2.3 poll: re-derive status via probe (+ runtime smoke on ready); else refresh the surface. */
+  async poll(provider: RpcProviderKind, loginId: string): Promise<LoginFlowOutcome> {
+    const flow = this.matchFlow(provider, loginId);
+    this.extendDeadline(flow);
+    return this.deriveStatus(flow);
+  }
+
+  /**
+   * §L.2.3 submitLoginToken (paste mode): feed the pasted code argv-free via
+   * `load-buffer`→`paste-buffer` (§L.6.3), then re-derive status. The token is held for
+   * redactExact + the echo-drop, fed via a 0600 temp file removed immediately after.
+   */
+  async submitToken(
+    provider: RpcProviderKind,
+    loginId: string,
+    token: string
+  ): Promise<LoginFlowOutcome> {
+    const flow = this.matchFlow(provider, loginId);
+    flow.heldToken = token;
+    flow.submitted = true;
+    this.extendDeadline(flow);
+    const session = `${LOGIN_SESSION_PREFIX}${flow.provider}`;
+    let tmpDir: string | undefined;
+    try {
+      // argv-free paste: write the token to a 0600 temp file, load it into a tmux buffer,
+      // paste it into the login pane, then Enter. NEVER send-keys-with-the-token (argv leak).
+      tmpDir = await mkdtemp(path.join(this.homeBase, ".login-"));
+      const tokenFile = path.join(tmpDir, "code");
+      await writeFile(tokenFile, token, { encoding: "utf8", mode: 0o600 });
+      await this.deps.io.run("tmux", ["load-buffer", "-b", session, tokenFile]);
+      await this.deps.io.run("tmux", ["paste-buffer", "-b", session, "-t", `=${session}`]);
+      await this.deps.io.sleep(200);
+      await this.deps.io.run("tmux", ["send-keys", "-t", `=${session}`, "Enter"]);
+      await this.deps.io.sleep(this.settleMs);
+      return await this.deriveStatus(flow);
+    } catch (err) {
+      const msg = redactExactFlow(flow, redactSecrets((err as Error).message));
+      return this.settle(flow, "error", msg);
+    } finally {
+      if (tmpDir) await rm(tmpDir, { recursive: true, force: true }).catch(() => undefined);
+    }
+  }
+
+  /** §L.2.3 cancel: kill the login session + clear the flow. Idempotent (no match ⇒ ok). */
+  async cancel(provider: RpcProviderKind, loginId: string): Promise<void> {
+    if (!this.flow || this.flow.provider !== provider || this.flow.loginId !== loginId) {
+      // No matching in-flight login — best-effort reap any orphan session for the provider.
+      await killLoginMuxSession(this.deps.io, provider).catch(() => undefined);
+      return;
+    }
+    await this.teardown(this.flow);
+  }
+
+  /**
+   * §L.3.4 startup sweep: kill every `jarv1s-login-*` mux session before the server accepts
+   * connections (a fast in-place restart can leave one while the in-memory flow is gone). No
+   * on-disk neutral cleanup — login writes provider config under HOME (the intended cred).
+   */
+  async startupSweep(): Promise<void> {
+    const live = await listLoginMuxSessions(this.deps.io).catch(() => [] as string[]);
+    for (const provider of live) {
+      await killLoginMuxSession(this.deps.io, provider).catch(() => undefined);
+    }
+    this.flow = null;
+  }
+
+  // ─── internals ──────────────────────────────────────────────────────────────
+
+  /** §L.2.3/§L.9.1: probe → (on ready) runtime smoke → ready/error; else refresh surface. */
+  private async deriveStatus(flow: LoginFlow): Promise<LoginFlowOutcome> {
+    const probe = await this.deps.probe(flow.provider);
+    if (probe.status === "ready") {
+      // §L.9.1 runtime smoke: a bounded non-interactive re-confirmation that auth actually works
+      // (a second clean probe), not merely a printed success line.
+      const smoke = await this.deps.probe(flow.provider);
+      if (smoke.status === "ready") return this.settle(flow, "ready");
+      return this.settle(flow, "error", "login smoke check failed");
+    }
+    if (probe.status === "error") {
+      return this.settle(flow, "error", redactExactFlow(flow, redactSecrets(probe.message)));
+    }
+    // Still awaiting — refresh the (allowlisted) surface; suppress userCode post-submit (§L.6.2).
+    const surface = await this.captureSurface(flow);
+    const status: LoginFlowStatus = flow.submitted ? "awaiting_token" : "awaiting_authorization";
+    return { loginId: flow.loginId, status, ...surface };
+  }
+
+  /** Capture the pane, run the adapter's extractSurface, then apply the §L.6.2 echo/exact guards. */
+  private async captureSurface(flow: LoginFlow): Promise<LoginSurface> {
+    const session = `${LOGIN_SESSION_PREFIX}${flow.provider}`;
+    const pane = await this.deps.io
+      .run("tmux", ["capture-pane", "-p", "-t", `=${session}`])
+      .catch(() => ({ code: 1, stdout: "" }));
+    if (pane.code !== 0) return {};
+    const raw = flow.adapter.extractSurface(pane.stdout);
+    const out: { authorizationUrl?: string; userCode?: string } = {};
+    if (raw.authorizationUrl) {
+      out.authorizationUrl = redactExactFlow(flow, raw.authorizationUrl);
+    }
+    // §L.6.2 HIGH-2: NEVER surface a userCode after a token was submitted (the pasted code is
+    // now in the pane), and drop any value byte-equal to the held token.
+    if (raw.userCode && !flow.submitted && raw.userCode !== flow.heldToken) {
+      out.userCode = raw.userCode;
+    }
+    return out;
+  }
+
+  /** Open the captured login session (detached) + run the login command via send-keys. */
+  private async openLoginSession(session: string, launchLine: string): Promise<void> {
+    const created = await this.deps.io.run("tmux", [
+      "new-session",
+      "-d",
+      "-s",
+      session,
+      "-x",
+      "200",
+      "-y",
+      "50"
+    ]);
+    if (created.code !== 0) {
+      throw new Error(`login session create failed: ${redactSecrets(created.stderr)}`);
+    }
+    // The login command carries NO secret (login produces the cred) — send-keys is fine here.
+    const sent = await this.deps.io.run("tmux", [
+      "send-keys",
+      "-t",
+      `=${session}`,
+      launchLine,
+      "Enter"
+    ]);
+    if (sent.code !== 0) {
+      await killLoginMuxSession(this.deps.io, sessionProvider(session)).catch(() => undefined);
+      throw new Error(`login command send failed: ${redactSecrets(sent.stderr)}`);
+    }
+  }
+
+  /** Settle the flow to a terminal status, tearing down the session + clearing the slot. */
+  private settle(flow: LoginFlow, status: "ready" | "error", message?: string): LoginFlowOutcome {
+    void this.teardown(flow);
+    const out: LoginFlowOutcome = { loginId: flow.loginId, status };
+    return message ? { ...out, message } : out;
+  }
+
+  /** Kill the login session, clear the deadline timer + the in-memory flow + the held token. */
+  private async teardown(flow: LoginFlow): Promise<void> {
+    if (flow.timer) clearTimeout(flow.timer);
+    flow.heldToken = undefined;
+    if (this.flow && this.flow.loginId === flow.loginId) this.flow = null;
+    await killLoginMuxSession(this.deps.io, flow.provider).catch(() => undefined);
+  }
+
+  private armDeadline(flow: LoginFlow): void {
+    if (flow.timer) clearTimeout(flow.timer);
+    flow.timer = setTimeout(() => {
+      void this.teardown(flow);
+    }, this.loginTimeoutMs);
+    // Do not keep the process alive solely for this reaper.
+    if (typeof flow.timer.unref === "function") flow.timer.unref();
+  }
+
+  private extendDeadline(flow: LoginFlow): void {
+    this.armDeadline(flow);
+  }
+
+  private requireFlow(loginId: string): LoginFlow {
+    if (!this.flow || this.flow.loginId !== loginId) {
+      throw new LoginBadRequestError("no such login");
+    }
+    return this.flow;
+  }
+
+  private matchFlow(provider: RpcProviderKind, loginId: string): LoginFlow {
+    if (!this.flow || this.flow.provider !== provider || this.flow.loginId !== loginId) {
+      throw new LoginBadRequestError("no such login");
+    }
+    return this.flow;
+  }
+
+  private async withTimeout<T>(p: Promise<T>, ms: number, onTimeout?: () => void): Promise<T> {
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    try {
+      return await Promise.race([
+        p,
+        new Promise<T>((_, reject) => {
+          timer = setTimeout(() => {
+            onTimeout?.();
+            reject(new Error("login session start timed out"));
+          }, ms);
+        })
+      ]);
+    } finally {
+      if (timer) clearTimeout(timer);
+    }
+  }
+}
+
+/** Recover the provider literal from a `jarv1s-login-<provider>` session name. */
+function sessionProvider(session: string): string {
+  return session.startsWith(LOGIN_SESSION_PREFIX)
+    ? session.slice(LOGIN_SESSION_PREFIX.length)
+    : session;
+}
+
+/** Scrub the flow's in-flight pasted token (exact) from a string before it crosses the wire. */
+function redactExactFlow(flow: LoginFlow, text: string | undefined): string {
+  return redactExact(text, flow.heldToken);
+}

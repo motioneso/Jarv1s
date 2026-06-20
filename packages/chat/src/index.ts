@@ -22,6 +22,16 @@ export {
   type ProviderInstallWrite,
   type TerminalInstallState
 } from "./live/provider-install-state.js";
+// #342 Phase 3: the api-side login lifecycle (§L.4) — login-reconcile projection, the composed
+// full-lifecycle reconcile, and the settled-status→state mapper. Consumed by the composition root.
+export {
+  loginFlowStatusToState,
+  reconcileLogin,
+  reconcileProviderLifecycle,
+  reconcileProviderLifecycleRow,
+  type LoginFlowResult,
+  type LoginProviderRpc
+} from "./live/provider-install-state.js";
 export type {
   ProviderCatalog,
   CatalogEntry,
@@ -29,6 +39,19 @@ export type {
   RpcInstallProviderParams,
   RpcInstallProviderResult
 } from "./live/install-contract.js";
+// #342 Phase 3: login wire types (§L.2) shared by the composition root + the RPC client.
+export type {
+  LoginFlowStatus,
+  LoginSurface,
+  RpcBeginLoginParams,
+  RpcBeginLoginResult,
+  RpcCancelLoginParams,
+  RpcCancelLoginResult,
+  RpcPollLoginParams,
+  RpcPollLoginResult,
+  RpcSubmitLoginTokenParams,
+  RpcSubmitLoginTokenResult
+} from "./live/login-contract.js";
 export * from "./manifest.js";
 export * from "./memory-settings-repository.js";
 export * from "./recall-port.js";

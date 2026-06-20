@@ -90,7 +90,8 @@ import {
   type PersonaPreviewInput,
   type VerifySelfPasswordPort,
   type HasPasswordCredentialPort,
-  type OnboardingInstallDependencies
+  type OnboardingInstallDependencies,
+  type OnboardingLoginDependencies
 } from "@jarv1s/settings";
 import {
   TASKS_QUEUE_DEFINITIONS,
@@ -115,6 +116,7 @@ import {
   resolveChatEngineFactory
 } from "./chat-multiplexer.js";
 import { buildOnboardingInstall } from "./onboarding-install.js";
+import { buildOnboardingLogin } from "./onboarding-login.js";
 
 export type { ChatEngineFactory } from "@jarv1s/chat";
 export type { JarvisModuleManifest } from "@jarv1s/module-sdk";
@@ -241,6 +243,12 @@ export interface BuiltInRouteDependencies {
    * Absent on the host-dev / in-process path ⇒ the install route fails closed (500).
    */
   readonly onboardingInstall?: OnboardingInstallDependencies;
+  /**
+   * #342 §L.5 login seam, built inside registerBuiltInApiRoutes on the socket path and forwarded to
+   * the settings module (module isolation). Absent on the host-dev / in-process path ⇒ the login
+   * routes fail closed (500).
+   */
+  readonly onboardingLogin?: OnboardingLoginDependencies;
 }
 
 export interface BuiltInWorkerDependencies {
@@ -349,6 +357,7 @@ const BUILT_IN_MODULES: readonly BuiltInModuleRegistration[] = [
         hostDiagnostics: deps.hostDiagnostics,
         onboardingProbes: deps.onboardingProbes,
         onboardingInstall: deps.onboardingInstall,
+        onboardingLogin: deps.onboardingLogin,
         personaPreview: deps.personaPreview ?? createDefaultPersonaPreview(deps.dataContext),
         preferencesRepository: new PreferencesRepository()
       })
@@ -654,6 +663,16 @@ export function registerBuiltInApiRoutes(
     logger: { warn: (obj, msg) => server.log.warn(obj, msg) }
   });
 
+  // #342 §L.5: the admin-gated login seam, built ONLY on the socket path (the login CLIs live in the
+  // cli-runner container; no in-process login path). On host-dev / in-process this is undefined ⇒ the
+  // login routes fail closed (500). The admin-gated routes are then the SOLE login triggers; #347 stays
+  // BLOCKING — login is single-active-user (the §L.6.1 unified exclusivity gate is NOT bypassed).
+  const onboardingLogin: OnboardingLoginDependencies | undefined = buildOnboardingLogin({
+    enabled: socketConfigured,
+    getConnection: getRpcConnection,
+    repository: new SettingsRepository()
+  });
+
   const deps: BuiltInRouteDependencies = {
     ...dependencies,
     chatEngineFactory,
@@ -666,6 +685,7 @@ export function registerBuiltInApiRoutes(
     chatMultiplexerAvailability: availability,
     onboardingProbes,
     onboardingInstall,
+    onboardingLogin,
     // Surface a setter so the chat runtime (constructed inside registerChatRoutes) can publish the ONE
     // RPC connection it owns back to the probes + the boot lifecycle below. On the RPC path the runtime
     // wires reconcile + the idle reaper onto this connection; here we only need the handle to route
