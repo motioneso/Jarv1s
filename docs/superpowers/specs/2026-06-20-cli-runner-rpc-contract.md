@@ -439,8 +439,12 @@ co-residency #347 forbids. Therefore the gate is frozen as:
 reservations`; if any key `≠ K` is present it releases the mutex and returns `unavailable`; otherwise it
    **atomically adds `K` to `reservations`**, releases the mutex, and only THEN creates the mux session outside
    the lock. `K` is removed from `reservations` on mux-create success **or** on any launch failure (a
-   `finally`). This reservation closes the TOCTOU window in which two concurrent cross-key `launch` RPCs would
-   both pass the gate before either's `jarv1s-live-*` session exists.
+   `finally`). **The out-of-lock mux-create + launch MUST be bounded by a timeout** (e.g. the existing
+   `launchMs` boot budget plus a margin): if it does not settle in time the launch fails with `unavailable`
+   and the `finally` releases `K` — so a wedged/hung tmux server can NEVER strand `K` in `reservations` and
+   freeze the gate (single-user-for-`K`) until a process restart (fail-safe recovery; reservation release is
+   guaranteed by promise-settle **and** by timeout). This reservation closes the TOCTOU window in which two
+   concurrent cross-key `launch` RPCs would both pass the gate before either's `jarv1s-live-*` session exists.
 2. **Startup CLEAN-SLATE sweep (cli-runner, BEFORE accepting connections).** A container restart
    (`restart: unless-stopped`) kills cli-runner's forked tmux server (§7.1), so there may be **zero** live mux
    sessions to enumerate while the `<JARVIS_CLI_NEUTRAL_BASE>/<sessionKey>` token dirs **persist on the named
@@ -940,8 +944,13 @@ plus the persona file. Consequences:
 
 - On `kill(sessionKey)` (including kill-by-mux-name for an orphan with no Map entry, §4.5): after killing the
   mux session, `rm -rf` the per-session neutral dir.
-- On a failed `launch` (multiplexer down, persona write failure, etc., §4.1): remove the per-session neutral
-  dir before returning the `RpcErr`.
+- On a failed `launch`: remove the per-session neutral dir before returning the `RpcErr`. For a
+  **PRE-mux-create** failure (multiplexer down, persona-write, §4.1) removing the dir suffices. For a
+  **POST-mux-create** failure (the replay/submit/drain step fails after the `jarv1s-live-<sessionKey>` session
+  already exists, §4.1.2) the server MUST FIRST **kill that mux session by canonical name** (kill-by-mux-name
+  §4.5) and then remove the dir — otherwise the orphaned mux session stays in `listLiveSessions`-by-mux, enters
+  the gate's `liveKeys`, and blocks the single-active-user gate for ALL users until api §5.3 reconciliation or
+  a restart reaps it (symmetric to the kill-on-`kill(sessionKey)` rule above).
 - **On cli-runner STARTUP (before accepting connections) — CLEAN-SLATE sweep:** kill every `jarv1s-live-*`
   mux session that exists (kill-by-mux-name §4.5) **and `rm -rf` every `<sessionKey>` dir directly under
   `<JARVIS_CLI_NEUTRAL_BASE>` (`/data/cli-auth/chat/*`) UNCONDITIONALLY.** A container restart kills the forked
