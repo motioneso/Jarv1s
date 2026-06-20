@@ -110,11 +110,31 @@ export interface ProviderInstallStateStore {
   ) => Promise<ProviderInstallState>;
 }
 
+/**
+ * Reconciles + reads the persisted provider install lifecycle for the founder-status
+ * resolver (§A.5 step 2 + §A.4.2). Runs INSIDE the admin-scoped DataContextDb the status
+ * route resolves (the §A.4.2 correction WRITE needs the 0103 admin write RLS; the probe is
+ * the cli-runner `probeProvider`). Implemented by the install lane (composition root): for
+ * every persisted row it runs the §A.4.2 stale-`installing` projection over (persisted, fresh
+ * probe), persists any correction under the admin actor, and returns the reconciled state per
+ * provider. A provider with no row is absent from the map ⇒ `installState` is omitted on the
+ * wizard (Phase-1 byte-for-byte surface). Errors are the install lane's concern (fail-soft so
+ * a transient probe never breaks the status load).
+ */
+export type ReconcileInstallStatesPort = (
+  scopedDb: DataContextDb
+) => Promise<Partial<Record<OnboardingProviderKind, ProviderInstallState>>>;
+
 /** The injected install seam (install-contract §A.5.1). Absent ⇒ the install route fails closed. */
 export interface OnboardingInstallDependencies {
   readonly installability: ProviderInstallabilityPort;
   readonly installClient: ProviderInstallClient;
   readonly stateStore: ProviderInstallStateStore;
+  /**
+   * §A.5 step 2 / §A.4.2: surfaces the persisted (reconciled) install lifecycle on the status
+   * load. Absent ⇒ the status route serves the Phase-1 presence-only surface (no `installState`).
+   */
+  readonly reconcileInstallStates: ReconcileInstallStatesPort;
 }
 
 export interface OnboardingProbes {
@@ -235,6 +255,7 @@ export function registerOnboardingRoutes(
           return memberStatus;
         }
 
+        const install = dependencies.onboardingInstall;
         const dbPart = await dependencies.dataContext.withDataContext(
           accessContext,
           async (scopedDb) => {
@@ -244,7 +265,15 @@ export function registerOnboardingRoutes(
               repository.readChatMultiplexerChoiceOrNull(scopedDb),
               probes.connectorAccountExists(scopedDb)
             ]);
-            return { state, selected, connectorAccountExists };
+            // §A.5 step 2 / §A.4.2: read the persisted install lifecycle, correcting any stale
+            // `installing` row left by an api crash mid-install (the projection runs + persists
+            // under THIS admin-scoped handle, so the correction WRITE satisfies the 0103 admin
+            // write RLS). The reconcile MUST come after the admin gate above. Absent seam ⇒ the
+            // Phase-1 presence-only surface (no installState).
+            const installStateByKind = install
+              ? await install.reconcileInstallStates(scopedDb)
+              : undefined;
+            return { state, selected, connectorAccountExists, installStateByKind };
           }
         );
 
@@ -261,7 +290,10 @@ export function registerOnboardingRoutes(
           selected: dbPart.selected,
           availability: { tmuxUsable, herdrUsable },
           cliPresentByKind: { anthropic, "openai-compatible": openaiCompatible, google },
-          connectorAccountExists: dbPart.connectorAccountExists
+          connectorAccountExists: dbPart.connectorAccountExists,
+          ...(dbPart.installStateByKind !== undefined
+            ? { installStateByKind: dbPart.installStateByKind }
+            : {})
         });
       } catch (error) {
         return dependencies.handleRouteError(error, reply);

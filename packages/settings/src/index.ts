@@ -1,6 +1,7 @@
 export * from "./manifest.js";
 export * from "./repository.js";
 export * from "./routes.js";
+export * from "./onboarding-routes.js";
 export * from "./preferences-port.js";
 export * from "./locale-routes.js";
 export * from "./me-sessions-routes.js";

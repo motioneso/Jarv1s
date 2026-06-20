@@ -123,7 +123,14 @@ function buildServer(options: BuildOptions = {}): {
     handleRouteError: (error, reply) => handleRouteError(error, reply),
     onboardingInstall: options.omitInstall
       ? undefined
-      : { installability, installClient, stateStore }
+      : {
+          installability,
+          installClient,
+          stateStore,
+          // The status-load reconcile port (§A.5 step 2). Not exercised by these install-route
+          // tests (they POST the install verb); a no-op fake satisfies the seam contract.
+          reconcileInstallStates: async () => ({})
+        }
   };
 
   const server = Fastify({ logger: false });

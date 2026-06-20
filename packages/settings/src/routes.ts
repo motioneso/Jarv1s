@@ -54,7 +54,11 @@ import {
   type VerifySelfPasswordPort
 } from "./me-account-routes.js";
 import { registerMeSessionsRoutes, type MeSessionsService } from "./me-sessions-routes.js";
-import { registerOnboardingRoutes, type OnboardingProbes } from "./onboarding-routes.js";
+import {
+  registerOnboardingRoutes,
+  type OnboardingInstallDependencies,
+  type OnboardingProbes
+} from "./onboarding-routes.js";
 import { registerPersonaRoutes } from "./persona-routes.js";
 import type { ProfilePreferencesPort, PersonaPreviewInput } from "./preferences-port.js";
 import { HttpRepositoryError, SettingsRepository } from "./repository.js";
@@ -90,6 +94,14 @@ export interface SettingsRoutesDependencies {
   readonly chatMultiplexerAvailability?: { readonly tmux: boolean; readonly herdr: boolean };
   /** Onboarding probes; injected to preserve module isolation and fail closed if absent. */
   readonly onboardingProbes?: OnboardingProbes;
+  /**
+   * §A.5 install seam (#342 Phase 2): the catalog installability port, the cli-runner
+   * `installProvider` RPC client, the admin-actor state store, and the §A.4.2 reconcile
+   * port. Injected by the composition root (module isolation — settings never imports
+   * @jarv1s/chat / cli-runner). Absent ⇒ the install route fails closed (500) and the
+   * status route serves the Phase-1 presence-only surface.
+   */
+  readonly onboardingInstall?: OnboardingInstallDependencies;
   /** Host diagnostics runtime-facts provider (#255); injected by the composition root. */
   readonly hostDiagnostics?: HostDiagnosticsProvider;
 }
@@ -574,6 +586,7 @@ export function registerSettingsRoutes(
     dataContext: dependencies.dataContext,
     resolveAccessContext: dependencies.resolveAccessContext,
     onboardingProbes: dependencies.onboardingProbes,
+    onboardingInstall: dependencies.onboardingInstall,
     repository,
     requireKnownUser: (scopedDb, userId) => requireKnownUser(repository, scopedDb, userId),
     assertBootstrapOwnerAdminUser: (scopedDb, userId) =>
