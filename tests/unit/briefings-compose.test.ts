@@ -236,13 +236,28 @@ describe("composeBriefing — gathering", () => {
     expect(result.status).toBe("succeeded");
     // economy envelope: compose passes a bounded output budget (F9).
     expect(capturedBudget).toBe(1024);
-    const prompt = JSON.stringify(capturedMessages);
-    // order: commitments < tasks < calendar < email < vault < chats
-    expect(prompt.indexOf("COMMITMENTS")).toBeLessThan(prompt.indexOf("TASKS"));
-    expect(prompt.indexOf("TASKS")).toBeLessThan(prompt.indexOf("CALENDAR"));
-    expect(prompt.indexOf("CALENDAR")).toBeLessThan(prompt.indexOf("EMAIL"));
-    expect(prompt.indexOf("EMAIL")).toBeLessThan(prompt.indexOf("VAULT"));
-    expect(prompt.indexOf("VAULT")).toBeLessThan(prompt.indexOf("CHATS"));
+    // Use the raw user-turn content (not JSON.stringify) so the quoted type attribute is
+    // matched exactly when asserting the delimited block order.
+    const prompt = (capturedMessages[0] as readonly { content: string }[])[0]!.content;
+    // The trusted preamble is always emitted and wraps the synthesis instructions.
+    expect(prompt).toContain("<trusted_instructions>");
+    // order: commitments < tasks < calendar < email < vault < chats — each channel is a
+    // delimited <external_source> block, emitted in the fixed section order.
+    expect(prompt.indexOf('<external_source type="commitments">')).toBeLessThan(
+      prompt.indexOf('<external_source type="tasks">')
+    );
+    expect(prompt.indexOf('<external_source type="tasks">')).toBeLessThan(
+      prompt.indexOf('<external_source type="calendar">')
+    );
+    expect(prompt.indexOf('<external_source type="calendar">')).toBeLessThan(
+      prompt.indexOf('<external_source type="email">')
+    );
+    expect(prompt.indexOf('<external_source type="email">')).toBeLessThan(
+      prompt.indexOf('<external_source type="vault">')
+    );
+    expect(prompt.indexOf('<external_source type="vault">')).toBeLessThan(
+      prompt.indexOf('<external_source type="chats">')
+    );
   });
 
   it("injects the saved persona block into the synthesis prompt", async () => {
