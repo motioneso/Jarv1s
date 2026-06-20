@@ -1,6 +1,8 @@
 # 0008 — The chat engine is a pluggable adapter behind the capability router (portable)
 
-**Status:** accepted (2026-06-09). **Evolves** ADR 0003 (_interactive chat is CLI transport_).
+**Status:** accepted (2026-06-09). **Superseded-by:** 0010 (host-native CLI topology only; the
+pluggable-adapter + provider-agnostic intent below remains in force). **Evolves** ADR 0003
+(_interactive chat is CLI transport_).
 **Context:** Live chat currently drives the `claude` / `codex` / `gemini` **CLI binaries in a tmux
 session on the host**, using the operator's personal login — welded to one machine (the v1 trap; the
 2026-06-09 audit flagged it as the single biggest "prototype vs product" gap). ADR 0007 requires
