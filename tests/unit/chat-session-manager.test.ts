@@ -5,6 +5,7 @@ import {
   renderSummaryBlock
 } from "../../packages/chat/src/live/chat-session-manager.js";
 import type { EngineLaunchOpts, TranscriptRecord } from "../../packages/chat/src/live/types.js";
+import { CliChatUnavailableError } from "../../packages/chat/src/live/errors.js";
 
 function makeMinimalDeps(
   overrides: Partial<ConstructorParameters<typeof ChatSessionManager>[0]> = {}
@@ -378,6 +379,73 @@ describe("ChatSessionManager.reconcileLiveSessions (#342 §5.3)", () => {
 
     releaseLaunch();
     await launchPromise;
+  });
+
+  it("drops a stale RPC session (+ revokes its token) and still reaps step-4 orphans when the engine kill rejects under the reconcile guard", async () => {
+    // Regression for the step-3 self-misfire: on the RPC path `reconcileLiveSessions` runs INSIDE
+    // the connection's `runReconciliation` with `reconciling = true`, so a `session.engine.kill()`
+    // here routes through the gated public `RpcConnection.kill`, which throws
+    // CliChatUnavailableError("cli-runner reconciling after restart"). Before the fix that throw
+    // propagated out of step 3 BEFORE `sessions.delete` + `revokeMcpToken`, aborting the rest of
+    // the loop AND step 4 (orphan reaping). Step 3 must instead route the kill through the
+    // guard-bypassing `killSession` dep (and is try/catch-wrapped), so the drop + revoke + step 4
+    // all still happen. We model the failure with a fake RPC engine whose own `kill()` rejects.
+    const reconcilingError = new CliChatUnavailableError("cli-runner reconciling after restart");
+    // A fresh fake RPC engine per launch; whose kill rejects exactly as the gated public
+    // connection would mid-reconcile (so if step 3 ever calls engine.kill() it would throw and
+    // — pre-fix — abort the rest of the pass).
+    const engines: FakeEngine[] = [];
+    const engineFactory = vi.fn(() => {
+      const e = new FakeEngine(0);
+      e.kill = vi.fn().mockRejectedValue(reconcilingError) as unknown as FakeEngine["kill"];
+      engines.push(e);
+      return e;
+    });
+    const revokeMcpToken = vi.fn();
+    // killSession is the guard-bypassing reconcile-driver path (present on the RPC path). It is
+    // what step 3 + step 4 must both use; engine.kill() must NOT be the path step 3 takes.
+    const killSession = vi.fn().mockResolvedValue(undefined);
+    const manager = new ChatSessionManager(
+      makeMinimalDeps({
+        engineFactory,
+        persistence: {
+          resolveActiveProvider: vi
+            .fn()
+            .mockResolvedValue({ provider: "anthropic", model: "sonnet" }),
+          listPriorTurns: vi.fn().mockResolvedValue({ recent: [], oldSummary: null }),
+          recordTurn: vi.fn().mockResolvedValue(undefined),
+          openNewConversation: vi.fn().mockResolvedValue(undefined)
+        },
+        revokeMcpToken,
+        reconcileMcpTokens: vi.fn(),
+        // The registry knows uStale (the api held its token) but not uOrphan.
+        listMcpTokenSessionIds: () => ["uStale"],
+        killSession
+      })
+    );
+
+    // Seed a live session in the Map (uStale) the cli-runner will report DEAD.
+    await manager.ensureSession("uStale", "Ben");
+    expect(engines).toHaveLength(1);
+    const staleEngine = engines[0]!;
+
+    // cli-runner reports only uOrphan alive: uStale is stale (Map has it, liveKeys does not),
+    // uOrphan is an api-unknown live mux session that step 4 must reap by name.
+    await manager.reconcileLiveSessions(new Set(["uOrphan"]));
+
+    // Step 3 used the guard-bypassing killSession for the stale key, NOT the gated engine.kill().
+    expect(killSession).toHaveBeenCalledWith("uStale");
+    expect(staleEngine.kill).not.toHaveBeenCalled();
+    // The stale session was still dropped and its token revoked despite the kill path.
+    expect(revokeMcpToken).toHaveBeenCalledWith("uStale");
+    // Step 4 still fired (it was NOT aborted by a step-3 throw): the api-unknown orphan was
+    // reaped by mux name.
+    expect(killSession).toHaveBeenCalledWith("uOrphan");
+
+    // Proof the Map entry is gone: a fresh ensureSession relaunches a NEW engine (launches twice).
+    await manager.ensureSession("uStale", "Ben");
+    expect(engines).toHaveLength(2);
+    expect(engineFactory).toHaveBeenCalledTimes(2);
   });
 });
 

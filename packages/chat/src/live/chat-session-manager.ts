@@ -473,9 +473,32 @@ export class ChatSessionManager {
       this.deps.reconcileMcpTokens?.(effectiveLive);
 
       // Step 3: drop stale api sessions (Map key ∉ effectiveLive).
+      //
+      // The kill MUST be guard-safe on the RPC path. This runs INSIDE the connection's
+      // `runReconciliation` (which sets `reconciling = true` for the whole pass), so a
+      // `session.engine.kill()` here would route through the PUBLIC `RpcConnection.kill`, which
+      // `call()` rejects with `CliChatUnavailableError("cli-runner reconciling after restart")`
+      // while `reconciling` is true — throwing BEFORE the `sessions.delete` + `revokeMcpToken` and
+      // aborting the rest of step 3 AND step 4 (the throw was not caught). So we route the kill
+      // through the SAME guard-bypassing path step 4 uses: `this.deps.killSession` (the reconcile
+      // driver's `kill`, idempotent/by-mux-name). The cli-runner already reports these keys dead,
+      // so a kill is belt-and-suspenders; the authoritative effect of step 3 is drop + revoke.
+      // On the in-process/host path `killSession` is absent, so we fall back to `engine.kill()` —
+      // which is safe there (no `reconciling` guard, no separate cli-runner). Either way the kill
+      // is wrapped in try/catch so the drop + revoke (and the rest of the loop + step 4) always
+      // execute even if the kill rejects.
       for (const [sessionKey, session] of this.sessions) {
         if (!effectiveLive.has(sessionKey)) {
-          await session.engine.kill();
+          try {
+            if (this.deps.killSession) {
+              await this.deps.killSession(sessionKey);
+            } else {
+              await session.engine.kill();
+            }
+          } catch {
+            // best-effort: a stale-session kill failure must not abort the reconcile pass — the
+            // drop + revoke below still run, and the cli-runner already considers the key dead.
+          }
           this.sessions.delete(sessionKey);
           this.deps.revokeMcpToken?.(sessionKey);
         }
