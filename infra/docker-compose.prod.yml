@@ -10,8 +10,16 @@
 #   - api/worker carry the host-multiplexer bridge mounts (§6)
 #
 # Operator: copy infra/env.production.example -> an off-git env file, fill it,
-# set JARVIS_IMAGE_TAG to the published version tag, then:
+# set JARVIS_IMAGE_TAG to the version you are deploying, then:
 #   docker compose -f infra/docker-compose.prod.yml --env-file <file> up -d
+#
+# GHCR publish disabled / no published image? Build locally from the repo (the
+# services below carry `build:` for exactly this case), using a DISTINCT project
+# name so the prod data volume never collides with the dev compose stack:
+#   docker compose -p jarv1s-prod -f infra/docker-compose.prod.yml \
+#     --env-file <file> up -d --build
+# (--build tags both images as `image:` above; migrate/worker reuse the api image.
+#  Run from the repo root so the `context: ..` build inputs resolve.)
 # ---------------------------------------------------------------------------
 
 # NOTE: Compose resolves a relative env_file path against THIS file's directory
@@ -65,6 +73,13 @@ services:
 
   api:
     image: ghcr.io/motioneso/jarv1s-api:${JARVIS_IMAGE_TAG:?set JARVIS_IMAGE_TAG to a published version tag}
+    # Local-build support (used while GHCR publish / GitHub Actions is disabled):
+    # `docker compose ... build` (or `up --build`) builds this image from the repo
+    # root and tags it as `image:` above; migrate + worker share this same image.
+    # When GHCR publish is restored, `up` pulls the published tag instead.
+    build:
+      context: ..
+      dockerfile: Dockerfile
     <<: *app-env-file
     command: ["node", "dist/server.js"]
     # Run as the host operator uid/gid so the bind-mounted host tmux socket
@@ -143,6 +158,9 @@ services:
 
   web:
     image: ghcr.io/motioneso/jarv1s-web:${JARVIS_IMAGE_TAG:?set JARVIS_IMAGE_TAG to a published version tag}
+    build:
+      context: ..
+      dockerfile: apps/web/Dockerfile
     restart: unless-stopped
     ports:
       - "${JARVIS_WEB_PORT:-5173}:80"
