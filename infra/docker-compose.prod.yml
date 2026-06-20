@@ -164,12 +164,12 @@ services:
       # the whole host HOME (which would expose ~/.ssh, git creds, cloud configs,
       # shell history — far beyond CLI auth). JARVIS_CLI_HOME_BASE=/host-home, so the
       # engine's transcriptGlobDir finds /host-home/.claude|.codex|.gemini exactly.
-      - ${JARVIS_HOST_CLAUDE_DIR:-/home/ben/.claude}:/host-home/.claude:ro
-      - ${JARVIS_HOST_CODEX_DIR:-/home/ben/.codex}:/host-home/.codex:ro
-      - ${JARVIS_HOST_GEMINI_DIR:-/home/ben/.gemini}:/host-home/.gemini:ro
+      - ${JARVIS_HOST_CLAUDE_DIR:-${HOME}/.claude}:/host-home/.claude:ro
+      - ${JARVIS_HOST_CODEX_DIR:-${HOME}/.codex}:/host-home/.codex:ro
+      - ${JARVIS_HOST_GEMINI_DIR:-${HOME}/.gemini}:/host-home/.gemini:ro
       # Shared neutral-dir base: identical absolute path on host + container so
       # the host-spawned CLI cd's into the same dir the container computed (§6.3).
-      - ${JARVIS_CHAT_HOME:-/home/ben/.jarvis/chat}:${JARVIS_CHAT_HOME:-/home/ben/.jarvis/chat}
+      - ${JARVIS_CHAT_HOME:-${HOME}/.jarvis/chat}:${JARVIS_CHAT_HOME:-${HOME}/.jarvis/chat}
     depends_on:
       migrate:
         condition: service_completed_successfully
@@ -191,10 +191,10 @@ services:
       # Socket-dir default DERIVED from JARVIS_HOST_UID — see api (branch-review #3).
       - ${JARVIS_TMUX_SOCKET_DIR:-/tmp/tmux-${JARVIS_HOST_UID:-1000}}:${JARVIS_TMUX_SOCKET_DIR:-/tmp/tmux-${JARVIS_HOST_UID:-1000}}
       # Mount ONLY the three CLI dirs read-only (NOT the whole host HOME — see api).
-      - ${JARVIS_HOST_CLAUDE_DIR:-/home/ben/.claude}:/host-home/.claude:ro
-      - ${JARVIS_HOST_CODEX_DIR:-/home/ben/.codex}:/host-home/.codex:ro
-      - ${JARVIS_HOST_GEMINI_DIR:-/home/ben/.gemini}:/host-home/.gemini:ro
-      - ${JARVIS_CHAT_HOME:-/home/ben/.jarvis/chat}:${JARVIS_CHAT_HOME:-/home/ben/.jarvis/chat}
+      - ${JARVIS_HOST_CLAUDE_DIR:-${HOME}/.claude}:/host-home/.claude:ro
+      - ${JARVIS_HOST_CODEX_DIR:-${HOME}/.codex}:/host-home/.codex:ro
+      - ${JARVIS_HOST_GEMINI_DIR:-${HOME}/.gemini}:/host-home/.gemini:ro
+      - ${JARVIS_CHAT_HOME:-${HOME}/.jarvis/chat}:${JARVIS_CHAT_HOME:-${HOME}/.jarvis/chat}
     depends_on:
       migrate:
         condition: service_completed_successfully
