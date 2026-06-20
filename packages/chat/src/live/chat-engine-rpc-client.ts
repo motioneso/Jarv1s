@@ -29,6 +29,16 @@ import type { ProviderKind } from "@jarv1s/ai";
 
 import { CliChatUnavailableError } from "./errors.js";
 import type { RpcInstallProviderParams, RpcInstallProviderResult } from "./install-contract.js";
+import type {
+  RpcBeginLoginParams,
+  RpcBeginLoginResult,
+  RpcCancelLoginParams,
+  RpcCancelLoginResult,
+  RpcPollLoginParams,
+  RpcPollLoginResult,
+  RpcSubmitLoginTokenParams,
+  RpcSubmitLoginTokenResult
+} from "./login-contract.js";
 import {
   decodeFrame,
   encodeFrame,
@@ -229,6 +239,34 @@ export class RpcConnection {
    */
   installProvider(params: RpcInstallProviderParams): Promise<RpcInstallProviderResult> {
     return this.call<RpcInstallProviderResult>("installProvider", undefined, params);
+  }
+
+  /**
+   * §L.2 login verbs (additive, Phase 3). NON-SESSION (no sessionKey), exactly like
+   * `installProvider` — instance-wide, gated solely by the §3.6 auth hello + the §L.6.1 unified
+   * exclusivity gate (server-side). A failed login FLOW is a normal terminal OUTCOME — an `RpcOk`
+   * with `status:"error"`, NOT an `RpcErr` (§L.2.4): these resolve (do not reject) with
+   * `{ status:"error", message }`. Only a malformed/blocked input (`bad_request` — not a kind, a
+   * blocked/no-adapter provider, a stale loginId) or an unexpected server fault (`internal`)
+   * crosses as an `RpcErr`, which `call()` maps to a thrown typed error (§4.7).
+   *
+   * The pasted `token` in submitLoginToken is AUTH MATERIAL (§L.6.3): it crosses ONLY in this
+   * socket payload and is never logged (frame bodies are never logged, §6.4) / persisted / echoed.
+   */
+  beginLogin(params: RpcBeginLoginParams): Promise<RpcBeginLoginResult> {
+    return this.call<RpcBeginLoginResult>("beginLogin", undefined, params);
+  }
+
+  pollLogin(params: RpcPollLoginParams): Promise<RpcPollLoginResult> {
+    return this.call<RpcPollLoginResult>("pollLogin", undefined, params);
+  }
+
+  submitLoginToken(params: RpcSubmitLoginTokenParams): Promise<RpcSubmitLoginTokenResult> {
+    return this.call<RpcSubmitLoginTokenResult>("submitLoginToken", undefined, params);
+  }
+
+  cancelLogin(params: RpcCancelLoginParams): Promise<RpcCancelLoginResult> {
+    return this.call<RpcCancelLoginResult>("cancelLogin", undefined, params);
   }
 
   /** Tear down the connection (process shutdown). Idempotent. */

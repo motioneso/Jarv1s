@@ -57,6 +57,7 @@ import { registerMeSessionsRoutes, type MeSessionsService } from "./me-sessions-
 import {
   registerOnboardingRoutes,
   type OnboardingInstallDependencies,
+  type OnboardingLoginDependencies,
   type OnboardingProbes
 } from "./onboarding-routes.js";
 import { registerPersonaRoutes } from "./persona-routes.js";
@@ -102,6 +103,12 @@ export interface SettingsRoutesDependencies {
    * status route serves the Phase-1 presence-only surface.
    */
   readonly onboardingInstall?: OnboardingInstallDependencies;
+  /**
+   * §L.5 login seam (#342 Phase 3): the loginability port, the cli-runner login RPC client, and
+   * the admin-actor login state store. Injected by the composition root (module isolation). Absent
+   * ⇒ the login routes fail closed (500).
+   */
+  readonly onboardingLogin?: OnboardingLoginDependencies;
   /** Host diagnostics runtime-facts provider (#255); injected by the composition root. */
   readonly hostDiagnostics?: HostDiagnosticsProvider;
 }
@@ -587,6 +594,7 @@ export function registerSettingsRoutes(
     resolveAccessContext: dependencies.resolveAccessContext,
     onboardingProbes: dependencies.onboardingProbes,
     onboardingInstall: dependencies.onboardingInstall,
+    onboardingLogin: dependencies.onboardingLogin,
     repository,
     requireKnownUser: (scopedDb, userId) => requireKnownUser(repository, scopedDb, userId),
     assertBootstrapOwnerAdminUser: (scopedDb, userId) =>

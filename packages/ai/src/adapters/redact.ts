@@ -27,3 +27,21 @@ export function redactSecrets(text: string | undefined): string {
   }
   return out;
 }
+
+/**
+ * Scrub the EXACT literal `secret` value from `text` (login-contract §L.6.3, HIGH-1). The
+ * shape-based {@link redactSecrets} only matches the MCP-token forms (`Bearer …`, `jst_…`,
+ * `JARVIS_MCP_TOKEN=…`); an arbitrary OAuth/device/paste authorization code a provider CLI
+ * echoes into stderr/error text would NOT be caught. The login service holds the in-flight
+ * pasted token in memory and runs this over any error/surfaced string BEFORE it crosses the
+ * socket — a literal-substring scrub IN ADDITION TO `redactSecrets`. A short/empty secret
+ * (`< 4` chars) is treated as not-a-secret (a 1–3 char value would over-redact ordinary text,
+ * and a real authorization code is always long) and returned unchanged.
+ */
+export function redactExact(text: string | undefined, secret: string | undefined): string {
+  if (!text) return "";
+  if (!secret || secret.length < 4) return text;
+  // Escape regex metacharacters in the literal secret, then replace every occurrence.
+  const escaped = secret.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  return text.replace(new RegExp(escaped, "g"), REDACTED);
+}

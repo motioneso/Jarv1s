@@ -29,10 +29,17 @@ import type {
   RpcProviderKind
 } from "../../chat/src/live/rpc-contract.js";
 import type { RpcInstallProviderResult } from "../../chat/src/live/install-contract.js";
+import type {
+  RpcBeginLoginResult,
+  RpcCancelLoginResult,
+  RpcPollLoginResult,
+  RpcSubmitLoginTokenResult
+} from "../../chat/src/live/login-contract.js";
 import type { Multiplexer, ProviderKind, TmuxIo } from "@jarv1s/ai";
 
 import { Mutex } from "./mutex.js";
 import type { InstallService } from "./install-service.js";
+import { LoginBadRequestError, type LoginService } from "./login-service.js";
 
 export interface EngineHostDeps {
   readonly io: TmuxIo;
@@ -61,6 +68,13 @@ export interface EngineHostDeps {
    * ⇒ `installProvider` reports the verb is unavailable on this build.
    */
   readonly installService?: InstallService;
+  /**
+   * The §L.3 login service (Phase 3). The host's login verbs (§L.2) delegate to it, and the
+   * §L.6.1 UNIFIED admission gate consults its `isLoginActive()` from BOTH the launch gate and
+   * the beginLogin gate (login is auth-volume-exclusive with chat — UNLIKE install, which is
+   * volume-disjoint and lock-only). Absent ⇒ the login verbs report unavailable on this build.
+   */
+  readonly loginService?: LoginService;
 }
 
 const DEFAULT_LAUNCH_TIMEOUT_MS = 40_000;
@@ -113,6 +127,12 @@ export class CliChatEngineHost {
           if (live !== key) {
             throw new CliChatUnavailableError("live chat is busy with another session");
           }
+        }
+        // §L.6.1 UNIFIED exclusivity gate: a chat launch is also blocked while a provider login
+        // is in flight (the login CLI runs same-UID and touches the auth volume — "at most one
+        // untrusted CLI at a time", the #347 stand-in). Reuses the `unavailable` code, no wire change.
+        if (this.deps.loginService && (await this.deps.loginService.isLoginActive())) {
+          throw new CliChatUnavailableError("a provider login is in progress");
         }
       }
       this.reservations.add(key);
@@ -281,6 +301,66 @@ export class CliChatEngineHost {
     return this.deps.installService.installProvider(provider);
   }
 
+  // ─── login verbs (§L.2) — non-session; unified §L.6.1 exclusivity gate ─────────
+
+  /**
+   * §L.2.2 beginLogin: admit ONLY when no live chat session AND no other login is in flight
+   * (the §L.6.1 unified exclusivity gate, under the SAME admission mutex as launch). Reserve the
+   * single login slot inside the lock, then start the flow outside it. A blocked/no-adapter
+   * provider throws `LoginBadRequestError` (→ bad_request); a chat/login-busy rejection throws
+   * `CliChatUnavailableError` (→ unavailable). No wire-contract change.
+   */
+  async beginLogin(provider: RpcProviderKind): Promise<RpcBeginLoginResult> {
+    const svc = this.deps.loginService;
+    if (!svc) throw new LoginBadRequestError("login not available on this build");
+    if (!svc.hasAdapter(provider)) {
+      throw new LoginBadRequestError("provider not loginable: no login adapter");
+    }
+    let loginId: string;
+    const release = await this.admissionMutex.acquire();
+    try {
+      if (this.deps.singleUser && (await this.currentLiveKeys()).size > 0) {
+        throw new CliChatUnavailableError("live chat is busy with another session");
+      }
+      // One login at a time regardless of the single-user flag (one flow slot, §L.3.1).
+      if (await svc.isLoginActive()) {
+        throw new CliChatUnavailableError("a provider login is already in progress");
+      }
+      loginId = svc.reserve(provider); // SYNC slot claim inside the lock (§L.6.1)
+    } finally {
+      release();
+    }
+    // Start the flow OUTSIDE the lock (the reservation holds the slot). On any failure the
+    // service clears the flow + reaps the session (§L.3.1).
+    return svc.start(loginId);
+  }
+
+  /** §L.2.3 pollLogin — re-derive status (probe + runtime smoke); a stale loginId ⇒ bad_request. */
+  pollLogin(provider: RpcProviderKind, loginId: string): Promise<RpcPollLoginResult> {
+    return this.requireLogin().poll(provider, loginId);
+  }
+
+  /** §L.2.3 submitLoginToken — feed the pasted code argv-free (§L.6.3); a stale loginId ⇒ bad_request. */
+  submitLoginToken(
+    provider: RpcProviderKind,
+    loginId: string,
+    token: string
+  ): Promise<RpcSubmitLoginTokenResult> {
+    return this.requireLogin().submitToken(provider, loginId, token);
+  }
+
+  /** §L.2.3 cancelLogin — kill the login session + release the slot. Idempotent. */
+  async cancelLogin(provider: RpcProviderKind, loginId: string): Promise<RpcCancelLoginResult> {
+    await this.requireLogin().cancel(provider, loginId);
+    return { ok: true };
+  }
+
+  private requireLogin(): LoginService {
+    if (!this.deps.loginService)
+      throw new LoginBadRequestError("login not available on this build");
+    return this.deps.loginService;
+  }
+
   // ─── startup CLEAN-SLATE sweep (§4.1.0a (2) / §6.5) ───────────────────────────
 
   /**
@@ -304,6 +384,10 @@ export class CliChatEngineHost {
     // Ordered here so it completes BEFORE the server accepts the first installProvider
     // (the server runs startupSweep before listen, server.ts:41).
     await this.deps.installService?.startupSweep().catch(() => undefined);
+    // (d) §L.3.4 login-session sweep: kill every `jarv1s-login-*` mux session (a fast in-place
+    // restart can leave one while the in-memory login flow is gone). DISTINCT from (a), which
+    // only enumerates `jarv1s-live-*` chat sessions.
+    await this.deps.loginService?.startupSweep().catch(() => undefined);
   }
 
   /** `rm -rf <neutralBase>/* ` then recreate the base dir (`0700`). */

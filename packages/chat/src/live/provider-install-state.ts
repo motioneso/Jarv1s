@@ -28,6 +28,7 @@
 import type { ProviderInstallState } from "@jarv1s/shared";
 
 import type { RpcInstallProviderParams, RpcInstallProviderResult } from "./install-contract.js";
+import type { LoginFlowStatus } from "./login-contract.js";
 import type { RpcProbeProviderResult } from "./rpc-contract.js";
 
 /**
@@ -110,9 +111,19 @@ export const INSTALL_TRANSITIONS: readonly InstallTransition[] = [
   { from: "ready", to: "not_installed", who: "api", kind: "reprobe-absent" },
   { from: "needs_login", to: "not_installed", who: "api", kind: "reprobe-absent" },
   { from: "error", to: "not_installed", who: "api", kind: "reprobe-absent" },
-  // Phase-3 login edges (OUT of this addendum's scope — completeness only)
+  // Phase-3 login edges. The two ORIGINAL placeholder rows (installed→needs_login, needs_login→ready)
+  // are LEFT UNCHANGED (their `who:"api-phase3"` tag is the Phase-2 marker) — login-contract §L.4
+  // HIGH: additive, never rewrite a frozen row.
   { from: "installed", to: "needs_login", who: "api-phase3", kind: "phase3-login" },
-  { from: "needs_login", to: "ready", who: "api-phase3", kind: "phase3-login" }
+  { from: "needs_login", to: "ready", who: "api-phase3", kind: "phase3-login" },
+  // The REMAINING login edges this addendum APPENDS (login-contract §L.4) — `who:"api"` (the api is
+  // the sole writer; cli-runner never touches the DB). The post-install lifecycle is now TOTAL over
+  // {installed, needs_login, ready, error}.
+  { from: "needs_login", to: "error", who: "api", kind: "phase3-login" }, // login flow failed
+  { from: "ready", to: "needs_login", who: "api", kind: "phase3-login" }, // cred expired/revoked (re-probe)
+  { from: "installed", to: "ready", who: "api", kind: "phase3-login" }, // re-login of an already-authed provider
+  { from: "error", to: "needs_login", who: "api", kind: "phase3-login" }, // retry begins login again / re-probe
+  { from: "error", to: "ready", who: "api", kind: "phase3-login" } // re-probe shows the cred is present
 ] as const;
 
 // ---------------------------------------------------------------------------
@@ -293,4 +304,126 @@ export async function reconcileInstallingRow(
     await store.write({ provider, state: corrected });
   }
   return corrected;
+}
+
+// ---------------------------------------------------------------------------
+// §L.4.2 — login-reconcile PROJECTION + the composed full-lifecycle reconcile
+// ---------------------------------------------------------------------------
+
+/**
+ * The FROZEN §L.4.2 login-reconcile projection — self-heals the POST-INSTALL lifecycle on every
+ * status load. PURE — no I/O.
+ *
+ *   - Identity OFF the post-install states — applies ONLY to `persisted ∈ {installed, needs_login,
+ *     ready, error}`; returns `not_installed`/`installing` UNCHANGED (those belong to the install
+ *     machine + §A.4.2 {@link reconcileInstalling}).
+ *   - For an applicable `persisted`, map by the fresh `probeProvider` result:
+ *       probe ready          ⇒ `ready` (authenticated)
+ *       probe needs_login    ⇒ `needs_login` (present, not authed)
+ *       probe not_installed  ⇒ `not_installed` (binary gone — reprobe-absent)
+ *       probe multiplexer_unavailable / error ⇒ leave `persisted` UNCHANGED (transient/opaque —
+ *         do NOT downgrade on a probe we cannot trust; re-reconcile next load).
+ */
+export function reconcileLogin(
+  persisted: ProviderInstallState,
+  probe: RpcProbeProviderResult
+): ProviderInstallState {
+  if (
+    persisted !== "installed" &&
+    persisted !== "needs_login" &&
+    persisted !== "ready" &&
+    persisted !== "error"
+  ) {
+    return persisted;
+  }
+  switch (probe.status) {
+    case "ready":
+      return "ready";
+    case "needs_login":
+      return "needs_login";
+    case "not_installed":
+      return "not_installed";
+    case "multiplexer_unavailable":
+    case "error":
+    default:
+      return persisted; // transient/opaque — unchanged
+  }
+}
+
+/**
+ * The composed FULL-lifecycle projection (§L.4.2): {@link reconcileInstalling} (handles a stale
+ * `installing`) THEN {@link reconcileLogin} (handles the post-install states). A completed install
+ * whose probe says `ready` thus lands at `ready` in one load (`installing`→`installed`→`ready`).
+ * PURE.
+ */
+export function reconcileProviderLifecycle(
+  persisted: ProviderInstallState,
+  probe: RpcProbeProviderResult
+): ProviderInstallState {
+  return reconcileLogin(reconcileInstalling(persisted, probe), probe);
+}
+
+/**
+ * Persist the corrected FULL lifecycle of a row on the status load (§L.4.2). Reads the row, runs
+ * {@link reconcileProviderLifecycle} over (persisted, fresh probe), and writes the corrected state
+ * (admin actor) ONLY when it changed. A non-`not_installed` correction carries the recorded
+ * `version` forward (the binary stays installed across needs_login/ready); `not_installed` clears
+ * version+message. Returns the (possibly-unchanged) reconciled state, or `undefined` when no row.
+ */
+export async function reconcileProviderLifecycleRow(
+  provider: InstallProviderKey,
+  store: ProviderInstallStateStore,
+  probe: RpcProbeProviderResult
+): Promise<ProviderInstallState | undefined> {
+  const row = await store.read(provider);
+  if (!row) return undefined;
+
+  const corrected = reconcileProviderLifecycle(row.state, probe);
+  if (corrected === row.state) return corrected; // identity — nothing to persist.
+
+  if (corrected === "not_installed") {
+    await store.write({ provider, state: "not_installed" });
+  } else {
+    // installed / needs_login / ready — the binary is present; carry the version forward.
+    await store.write({ provider, state: corrected, version: row.version });
+  }
+  return corrected;
+}
+
+// ---------------------------------------------------------------------------
+// §L.4.1 — the login DRIVER (api-side; mirrors runInstallProvider)
+// ---------------------------------------------------------------------------
+
+/** The minimal login RPC surface the driver needs — exactly the §L.2 verbs on RpcConnection. */
+export interface LoginProviderRpc {
+  beginLogin(p: { provider: InstallProviderKey }): Promise<LoginFlowResult>;
+  pollLogin(p: { provider: InstallProviderKey; loginId: string }): Promise<LoginFlowResult>;
+  submitLoginToken(p: {
+    provider: InstallProviderKey;
+    loginId: string;
+    token: string;
+  }): Promise<LoginFlowResult>;
+  cancelLogin(p: { provider: InstallProviderKey; loginId: string }): Promise<{ ok: true }>;
+}
+
+/** The settled/awaiting flow result the driver maps onto the persisted lifecycle. */
+export interface LoginFlowResult {
+  readonly loginId?: string;
+  readonly status: LoginFlowStatus;
+  readonly authorizationUrl?: string;
+  readonly userCode?: string;
+  readonly message?: string;
+}
+
+/**
+ * Map a settled {@link LoginFlowStatus} onto the persisted lifecycle (§L.4.1): a TERMINAL `ready`
+ * ⇒ `ready`, `error` ⇒ `error`; an `awaiting_*` status is MID-FLOW and persists NOTHING (returns
+ * `undefined` — the durable state stays `needs_login` until the flow settles).
+ */
+export function loginFlowStatusToState(
+  status: LoginFlowStatus
+): Extract<ProviderInstallState, "ready" | "error"> | undefined {
+  if (status === "ready") return "ready";
+  if (status === "error") return "error";
+  return undefined;
 }

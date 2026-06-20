@@ -168,6 +168,12 @@ export interface OnboardingRoutesDependencies {
    * cli-runner is the only thing that can actually install; absent ⇒ no trigger.
    */
   readonly onboardingInstall?: OnboardingInstallDependencies;
+  /**
+   * The §L.5 login seam (#342 Phase 3). Optional so the routes mount but FAIL CLOSED (500) when
+   * the login lane is not wired (host-dev / no socket) — mirroring `onboardingInstall`. The
+   * cli-runner is the only thing that can run a provider login; absent ⇒ no trigger.
+   */
+  readonly onboardingLogin?: OnboardingLoginDependencies;
 }
 
 /** Response for POST /api/onboarding/provider-install — the settled persisted lifecycle state. */
@@ -208,6 +214,240 @@ const onboardingProviderInstallRouteSchema = {
   body: onboardingProviderInstallRequestSchema,
   response: {
     200: onboardingProviderInstallResponseSchema,
+    400: errorResponseSchema,
+    401: errorResponseSchema,
+    403: errorResponseSchema,
+    500: errorResponseSchema
+  }
+} as const;
+
+// ---------------------------------------------------------------------------
+// §L.5 onboarding login routes (#342 Phase 3, login-contract §L.2/§L.4/§L.5).
+// Mirrors the §A.5 install seam: admin-gated routes that drive the cli-runner login
+// verbs over the socket and persist the needs_login/ready lifecycle (admin RLS). The
+// supply-chain-adjacent pieces are injected PORTS (module isolation — settings never
+// imports @jarv1s/chat or @jarv1s/cli-runner). The cli-runner NEVER writes the table.
+// ---------------------------------------------------------------------------
+
+/** The login FLOW status the cli-runner reports (login-contract §L.2.1). */
+export type ProviderLoginFlowStatus =
+  | "awaiting_authorization"
+  | "awaiting_token"
+  | "ready"
+  | "error";
+
+/** A login flow outcome the login lane reports to the route (structural mirror of §L.2.1). */
+export interface ProviderLoginOutcome {
+  readonly loginId: string;
+  readonly status: ProviderLoginFlowStatus;
+  /** ONLY the allowlisted authorization URL to DISPLAY (§L.6.2) — the route never LOGS it. */
+  readonly authorizationUrl?: string;
+  /** ONLY the allowlisted device/pairing code to DISPLAY (§L.6.2) — the route never LOGS it. */
+  readonly userCode?: string;
+  /** Redacted (§6.4/§L.6.3) detail on "error". Safe to log. */
+  readonly message?: string;
+}
+
+/** Catalog/adapter loginability verdict for a provider (login-contract §L.1/§L.2.4). */
+export type ProviderLoginability =
+  | { readonly loginable: true }
+  | { readonly loginable: false; readonly blockedReason: string };
+
+/**
+ * Reads the server-side login-adapter registry (the auth-flow allowlist) WITHOUT side effects. A
+ * provider with no adapter (agy, or codex if its headless smoke failed) is `loginable:false` — the
+ * route rejects it 400 BEFORE persisting `needs_login` (login-contract §L.2.4).
+ */
+export type ProviderLoginabilityPort = (provider: OnboardingProviderKind) => ProviderLoginability;
+
+/**
+ * Drives the login verbs over the cli-runner socket (the api's `RpcConnection`, base §3.5). A
+ * failed login FLOW is a normal `{ status:"error" }` outcome, NOT a throw (login-contract §L.2.4) —
+ * a throw is reserved for an unexpected RPC/transport fault (or a `bad_request` like a stale
+ * loginId / a no-adapter provider). The pasted `token` is AUTH MATERIAL (§L.6.3): forwarded ONLY,
+ * never logged/persisted/echoed.
+ */
+export interface ProviderLoginClient {
+  readonly begin: (provider: OnboardingProviderKind) => Promise<ProviderLoginOutcome>;
+  readonly poll: (
+    provider: OnboardingProviderKind,
+    loginId: string
+  ) => Promise<ProviderLoginOutcome>;
+  readonly submitToken: (
+    provider: OnboardingProviderKind,
+    loginId: string,
+    token: string
+  ) => Promise<ProviderLoginOutcome>;
+  readonly cancel: (provider: OnboardingProviderKind, loginId: string) => Promise<void>;
+}
+
+/** Persists the §L.4 login transitions under the ADMIN-scoped DataContextDb the route resolves. */
+export interface ProviderLoginStateStore {
+  /**
+   * `* → needs_login` (login-contract §L.4.1): persisted BEFORE the begin RPC (collapse — the
+   * provider is now actively in login). A no-op if already `needs_login`.
+   */
+  readonly persistNeedsLogin: (
+    scopedDb: DataContextDb,
+    args: { readonly provider: OnboardingProviderKind; readonly requestId: string }
+  ) => Promise<void>;
+  /**
+   * `needs_login → ready|error` (login-contract §L.4.1): persisted AFTER a SETTLED flow status.
+   * An `awaiting_*` status persists NOTHING (returns the unchanged `needs_login`). Returns the
+   * resulting persisted lifecycle state for the response surface. `message` is the redacted (§6.4)
+   * detail; NEVER the pasted token (§L.6.3).
+   */
+  readonly persistLoginTerminal: (
+    scopedDb: DataContextDb,
+    args: {
+      readonly provider: OnboardingProviderKind;
+      readonly status: ProviderLoginFlowStatus;
+      readonly message?: string;
+      readonly requestId: string;
+    }
+  ) => Promise<ProviderInstallState>;
+  /** Read the persisted lifecycle state for the cancel response (no row ⇒ `not_installed`). */
+  readonly readState: (
+    scopedDb: DataContextDb,
+    provider: OnboardingProviderKind
+  ) => Promise<ProviderInstallState>;
+}
+
+/** The injected login seam (login-contract §L.5). Absent ⇒ the login routes fail closed (500). */
+export interface OnboardingLoginDependencies {
+  readonly loginability: ProviderLoginabilityPort;
+  readonly loginClient: ProviderLoginClient;
+  readonly stateStore: ProviderLoginStateStore;
+}
+
+/** Response for the begin/poll/submit-token login routes — the flow status + persisted lifecycle. */
+export interface OnboardingProviderLoginResponse {
+  readonly providerKind: OnboardingProviderKind;
+  readonly loginId: string;
+  readonly status: ProviderLoginFlowStatus;
+  readonly authorizationUrl?: string;
+  readonly userCode?: string;
+  readonly installState: ProviderInstallState;
+  readonly message?: string;
+}
+
+/** Response for the cancel login route. */
+export interface OnboardingProviderLoginCancelResponse {
+  readonly providerKind: OnboardingProviderKind;
+  readonly ok: true;
+  readonly installState: ProviderInstallState;
+}
+
+const PROVIDER_KIND_ENUM = ["anthropic", "openai-compatible", "google"] as const;
+const INSTALL_STATE_ENUM = [
+  "not_installed",
+  "installing",
+  "installed",
+  "needs_login",
+  "ready",
+  "error"
+] as const;
+const LOGIN_FLOW_STATUS_ENUM = [
+  "awaiting_authorization",
+  "awaiting_token",
+  "ready",
+  "error"
+] as const;
+
+const onboardingLoginBeginRequestSchema = {
+  type: "object",
+  additionalProperties: false,
+  required: ["providerKind"],
+  properties: { providerKind: { type: "string", enum: PROVIDER_KIND_ENUM } }
+} as const;
+
+const onboardingLoginPollRequestSchema = {
+  type: "object",
+  additionalProperties: false,
+  required: ["providerKind", "loginId"],
+  properties: {
+    providerKind: { type: "string", enum: PROVIDER_KIND_ENUM },
+    loginId: { type: "string", minLength: 1, maxLength: 200 }
+  }
+} as const;
+
+const onboardingLoginSubmitTokenRequestSchema = {
+  type: "object",
+  additionalProperties: false,
+  required: ["providerKind", "loginId", "token"],
+  properties: {
+    providerKind: { type: "string", enum: PROVIDER_KIND_ENUM },
+    loginId: { type: "string", minLength: 1, maxLength: 200 },
+    // The pasted authorization code — AUTH MATERIAL (§L.6.3). Bounded; NEVER logged/persisted/echoed.
+    token: { type: "string", minLength: 1, maxLength: 4096 }
+  }
+} as const;
+
+const onboardingLoginCancelRequestSchema = onboardingLoginPollRequestSchema;
+
+const onboardingLoginResponseSchema = {
+  type: "object",
+  additionalProperties: false,
+  required: ["providerKind", "loginId", "status", "installState"],
+  properties: {
+    providerKind: { type: "string", enum: PROVIDER_KIND_ENUM },
+    loginId: { type: "string" },
+    status: { type: "string", enum: LOGIN_FLOW_STATUS_ENUM },
+    authorizationUrl: { type: "string" },
+    userCode: { type: "string" },
+    installState: { type: "string", enum: INSTALL_STATE_ENUM },
+    message: { type: "string" }
+  }
+} as const;
+
+const onboardingLoginCancelResponseSchema = {
+  type: "object",
+  additionalProperties: false,
+  required: ["providerKind", "ok", "installState"],
+  properties: {
+    providerKind: { type: "string", enum: PROVIDER_KIND_ENUM },
+    ok: { type: "boolean", enum: [true] },
+    installState: { type: "string", enum: INSTALL_STATE_ENUM }
+  }
+} as const;
+
+const onboardingLoginRouteSchema = {
+  body: onboardingLoginBeginRequestSchema,
+  response: {
+    200: onboardingLoginResponseSchema,
+    400: errorResponseSchema,
+    401: errorResponseSchema,
+    403: errorResponseSchema,
+    500: errorResponseSchema
+  }
+} as const;
+
+const onboardingLoginPollRouteSchema = {
+  body: onboardingLoginPollRequestSchema,
+  response: {
+    200: onboardingLoginResponseSchema,
+    400: errorResponseSchema,
+    401: errorResponseSchema,
+    403: errorResponseSchema,
+    500: errorResponseSchema
+  }
+} as const;
+
+const onboardingLoginSubmitTokenRouteSchema = {
+  body: onboardingLoginSubmitTokenRequestSchema,
+  response: {
+    200: onboardingLoginResponseSchema,
+    400: errorResponseSchema,
+    401: errorResponseSchema,
+    403: errorResponseSchema,
+    500: errorResponseSchema
+  }
+} as const;
+
+const onboardingLoginCancelRouteSchema = {
+  body: onboardingLoginCancelRequestSchema,
+  response: {
+    200: onboardingLoginCancelResponseSchema,
     400: errorResponseSchema,
     401: errorResponseSchema,
     403: errorResponseSchema,
@@ -401,6 +641,141 @@ export function registerOnboardingRoutes(
     }
   );
 
+  // §L.5: the admin-gated login routes — the SOLE api triggers for the cli-runner login verbs.
+  // Each resolves an admin AccessContext, persists the §L.4 lifecycle INSIDE that admin-scoped
+  // DataContextDb (so the admin gate AND the 0103 write RLS are the SAME actor), and surfaces ONLY
+  // the allowlisted URL/code (§L.6.2 — never logged). The pasted token (submit-token) is forwarded
+  // to the cli-runner and NEVER logged/persisted/echoed (§L.6.3).
+  server.post(
+    "/api/onboarding/provider-login/begin",
+    { schema: onboardingLoginRouteSchema },
+    async (request, reply) => {
+      try {
+        const login = dependencies.onboardingLogin;
+        if (!login) {
+          request.log.error("onboarding provider-login route mounted without onboardingLogin");
+          throw new HttpError(500, "onboarding login service not configured");
+        }
+        const { providerKind } = parseLoginProviderBody(request.body);
+        const accessContext = await dependencies.resolveAccessContext(request);
+        const requestId = dependencies.requireRequestId(accessContext);
+        // Reject a non-loginable provider (no adapter — agy, or codex if its headless smoke failed)
+        // CLEANLY with a 400 BEFORE any `needs_login` row is persisted (login-contract §L.2.4).
+        const loginability = login.loginability(providerKind);
+        if (!loginability.loginable) {
+          throw new HttpError(400, `provider not loginable: ${loginability.blockedReason}`);
+        }
+        return await dependencies.dataContext.withDataContext(accessContext, async (scopedDb) => {
+          await dependencies.assertBootstrapOwnerAdminUser(scopedDb, accessContext.actorUserId);
+          await login.stateStore.persistNeedsLogin(scopedDb, { provider: providerKind, requestId });
+          const outcome = await login.loginClient.begin(providerKind);
+          const installState = await login.stateStore.persistLoginTerminal(scopedDb, {
+            provider: providerKind,
+            status: outcome.status,
+            ...(outcome.message !== undefined ? { message: outcome.message } : {}),
+            requestId
+          });
+          return buildLoginResponse(providerKind, outcome, installState);
+        });
+      } catch (error) {
+        return dependencies.handleRouteError(error, reply);
+      }
+    }
+  );
+
+  server.post(
+    "/api/onboarding/provider-login/poll",
+    { schema: onboardingLoginPollRouteSchema },
+    async (request, reply) => {
+      try {
+        const login = dependencies.onboardingLogin;
+        if (!login) {
+          request.log.error("onboarding provider-login/poll route mounted without onboardingLogin");
+          throw new HttpError(500, "onboarding login service not configured");
+        }
+        const { providerKind, loginId } = parseLoginHandleBody(request.body);
+        const accessContext = await dependencies.resolveAccessContext(request);
+        const requestId = dependencies.requireRequestId(accessContext);
+        return await dependencies.dataContext.withDataContext(accessContext, async (scopedDb) => {
+          await dependencies.assertBootstrapOwnerAdminUser(scopedDb, accessContext.actorUserId);
+          const outcome = await login.loginClient.poll(providerKind, loginId);
+          const installState = await login.stateStore.persistLoginTerminal(scopedDb, {
+            provider: providerKind,
+            status: outcome.status,
+            ...(outcome.message !== undefined ? { message: outcome.message } : {}),
+            requestId
+          });
+          return buildLoginResponse(providerKind, outcome, installState);
+        });
+      } catch (error) {
+        return dependencies.handleRouteError(error, reply);
+      }
+    }
+  );
+
+  server.post(
+    "/api/onboarding/provider-login/submit-token",
+    { schema: onboardingLoginSubmitTokenRouteSchema },
+    async (request, reply) => {
+      try {
+        const login = dependencies.onboardingLogin;
+        if (!login) {
+          request.log.error(
+            "onboarding provider-login/submit-token mounted without onboardingLogin"
+          );
+          throw new HttpError(500, "onboarding login service not configured");
+        }
+        // The token is AUTH MATERIAL (§L.6.3): parsed for presence, forwarded to the cli-runner,
+        // and NEVER logged (we never log the body) / persisted / echoed in the response.
+        const { providerKind, loginId, token } = parseLoginSubmitTokenBody(request.body);
+        const accessContext = await dependencies.resolveAccessContext(request);
+        const requestId = dependencies.requireRequestId(accessContext);
+        return await dependencies.dataContext.withDataContext(accessContext, async (scopedDb) => {
+          await dependencies.assertBootstrapOwnerAdminUser(scopedDb, accessContext.actorUserId);
+          const outcome = await login.loginClient.submitToken(providerKind, loginId, token);
+          const installState = await login.stateStore.persistLoginTerminal(scopedDb, {
+            provider: providerKind,
+            status: outcome.status,
+            ...(outcome.message !== undefined ? { message: outcome.message } : {}),
+            requestId
+          });
+          return buildLoginResponse(providerKind, outcome, installState);
+        });
+      } catch (error) {
+        return dependencies.handleRouteError(error, reply);
+      }
+    }
+  );
+
+  server.post(
+    "/api/onboarding/provider-login/cancel",
+    { schema: onboardingLoginCancelRouteSchema },
+    async (request, reply) => {
+      try {
+        const login = dependencies.onboardingLogin;
+        if (!login) {
+          request.log.error("onboarding provider-login/cancel mounted without onboardingLogin");
+          throw new HttpError(500, "onboarding login service not configured");
+        }
+        const { providerKind, loginId } = parseLoginHandleBody(request.body);
+        const accessContext = await dependencies.resolveAccessContext(request);
+        return await dependencies.dataContext.withDataContext(accessContext, async (scopedDb) => {
+          await dependencies.assertBootstrapOwnerAdminUser(scopedDb, accessContext.actorUserId);
+          await login.loginClient.cancel(providerKind, loginId);
+          const installState = await login.stateStore.readState(scopedDb, providerKind);
+          const result: OnboardingProviderLoginCancelResponse = {
+            providerKind,
+            ok: true,
+            installState
+          };
+          return result;
+        });
+      } catch (error) {
+        return dependencies.handleRouteError(error, reply);
+      }
+    }
+  );
+
   const onboardingStateAction = (verb: "complete" | "skip", state: "completed" | "skipped") =>
     server.post(
       `/api/onboarding/${verb}`,
@@ -468,6 +843,67 @@ function parseOnboardingProviderInstallBody(body: unknown): {
     throw new HttpError(400, "providerKind must be anthropic, openai-compatible, or google");
   }
   return { providerKind };
+}
+
+/** Validate the provider kind in a login body (the shared first field of all four login routes). */
+function validateProviderKind(value: unknown): OnboardingProviderKind {
+  if (value !== "anthropic" && value !== "openai-compatible" && value !== "google") {
+    throw new HttpError(400, "providerKind must be anthropic, openai-compatible, or google");
+  }
+  return value;
+}
+
+function parseLoginProviderBody(body: unknown): { readonly providerKind: OnboardingProviderKind } {
+  const value = requireObject(body);
+  return { providerKind: validateProviderKind(value.providerKind) };
+}
+
+function parseLoginHandleBody(body: unknown): {
+  readonly providerKind: OnboardingProviderKind;
+  readonly loginId: string;
+} {
+  const value = requireObject(body);
+  const providerKind = validateProviderKind(value.providerKind);
+  if (typeof value.loginId !== "string" || value.loginId.length === 0) {
+    throw new HttpError(400, "loginId is required");
+  }
+  return { providerKind, loginId: value.loginId };
+}
+
+function parseLoginSubmitTokenBody(body: unknown): {
+  readonly providerKind: OnboardingProviderKind;
+  readonly loginId: string;
+  readonly token: string;
+} {
+  const value = requireObject(body);
+  const providerKind = validateProviderKind(value.providerKind);
+  if (typeof value.loginId !== "string" || value.loginId.length === 0) {
+    throw new HttpError(400, "loginId is required");
+  }
+  // AUTH MATERIAL (§L.6.3): validated for presence only — NEVER logged or echoed.
+  if (typeof value.token !== "string" || value.token.length === 0) {
+    throw new HttpError(400, "token is required");
+  }
+  return { providerKind, loginId: value.loginId, token: value.token };
+}
+
+/** Assemble the login response, surfacing only the optional display fields that are present. */
+function buildLoginResponse(
+  providerKind: OnboardingProviderKind,
+  outcome: ProviderLoginOutcome,
+  installState: ProviderInstallState
+): OnboardingProviderLoginResponse {
+  return {
+    providerKind,
+    loginId: outcome.loginId,
+    status: outcome.status,
+    installState,
+    ...(outcome.authorizationUrl !== undefined
+      ? { authorizationUrl: outcome.authorizationUrl }
+      : {}),
+    ...(outcome.userCode !== undefined ? { userCode: outcome.userCode } : {}),
+    ...(outcome.message !== undefined ? { message: outcome.message } : {})
+  };
 }
 
 /** Surfaces only the optional terminal-outcome fields that are actually present (no `undefined` keys). */

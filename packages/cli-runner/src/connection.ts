@@ -28,9 +28,16 @@ import {
 import { CliChatUnavailableError } from "../../chat/src/live/errors.js";
 
 import type { RpcInstallProviderParams } from "../../chat/src/live/install-contract.js";
+import type {
+  RpcBeginLoginParams,
+  RpcCancelLoginParams,
+  RpcPollLoginParams,
+  RpcSubmitLoginTokenParams
+} from "../../chat/src/live/login-contract.js";
 
 import { NotLaunchedError, type CliChatEngineHost } from "./engine-host.js";
 import { InstallBadRequestError } from "./install-service.js";
+import { LoginBadRequestError } from "./login-service.js";
 import { isHandshakeFrame, stepHelloServer, type HelloServerState } from "./hello.js";
 
 /** A duplex byte sink/source — `net.Socket` satisfies this; tests inject a fake. */
@@ -240,6 +247,41 @@ async function invoke(req: RpcRequest, host: CliChatEngineHost): Promise<unknown
       if (!isProviderKind(provider)) throw new BadRequestError("unknown provider");
       return host.installProvider(provider);
     }
+    case "beginLogin": {
+      // login-contract §L.2.2: kind guard FIRST (bad_request). The catalog/adapter-blocked gate
+      // (no adapter / agy) lives in the login service (LoginBadRequestError → bad_request).
+      const provider = (req.params as RpcBeginLoginParams).provider;
+      if (!isProviderKind(provider)) throw new BadRequestError("unknown provider");
+      return host.beginLogin(provider);
+    }
+    case "pollLogin": {
+      const p = req.params as RpcPollLoginParams;
+      if (!isProviderKind(p.provider)) throw new BadRequestError("unknown provider");
+      if (typeof p.loginId !== "string" || p.loginId.length === 0) {
+        throw new BadRequestError("missing loginId");
+      }
+      return host.pollLogin(p.provider, p.loginId);
+    }
+    case "submitLoginToken": {
+      const p = req.params as RpcSubmitLoginTokenParams;
+      if (!isProviderKind(p.provider)) throw new BadRequestError("unknown provider");
+      if (typeof p.loginId !== "string" || p.loginId.length === 0) {
+        throw new BadRequestError("missing loginId");
+      }
+      // The token is auth material (§L.6.3) — validated for presence only; NEVER logged/echoed.
+      if (typeof p.token !== "string" || p.token.length === 0) {
+        throw new BadRequestError("missing token");
+      }
+      return host.submitLoginToken(p.provider, p.loginId, p.token);
+    }
+    case "cancelLogin": {
+      const p = req.params as RpcCancelLoginParams;
+      if (!isProviderKind(p.provider)) throw new BadRequestError("unknown provider");
+      if (typeof p.loginId !== "string" || p.loginId.length === 0) {
+        throw new BadRequestError("missing loginId");
+      }
+      return host.cancelLogin(p.provider, p.loginId);
+    }
     default:
       throw new BadRequestError("unknown method");
   }
@@ -265,6 +307,8 @@ function errorCode(err: unknown): RpcErrorCode {
   if (err instanceof BadRequestError) return "bad_request";
   // §A.2.3 catalog-blocked / in-flight install rejection ⇒ bad_request (does NOT close).
   if (err instanceof InstallBadRequestError) return "bad_request";
+  // §L.2.4 catalog/adapter-blocked / stale-loginId / no-login-on-build ⇒ bad_request (does NOT close).
+  if (err instanceof LoginBadRequestError) return "bad_request";
   if (err instanceof NotLaunchedError) return "not_launched";
   if (err instanceof CliChatUnavailableError) return "unavailable";
   return "internal";
