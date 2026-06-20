@@ -19,7 +19,7 @@
  * --ignore-scripts`), re-confirm the self-update mechanism the new version honors.
  */
 
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
 import type {
@@ -30,8 +30,36 @@ import type {
 } from "../../chat/src/live/install-contract.js";
 import type { RpcProviderKind } from "../../chat/src/live/rpc-contract.js";
 
-/** Repo paths are resolved relative to THIS module (packages/cli-runner/src/catalog.ts). */
 const MODULE_DIR = path.dirname(fileURLToPath(import.meta.url));
+
+/**
+ * Resolve the repo root that the committed recipe lockfiles (and any other repo-relative data)
+ * are anchored to. CANNOT use a fixed `MODULE_DIR/../../..` offset: this module is consumed BOTH
+ * by the cli-runner (run via `tsx` from `packages/cli-runner/src`, where the offset would be the
+ * repo root) AND bundled into the api's `dist/server.js` (where `import.meta.url` collapses to the
+ * bundle dir, `/app/dist`, so the offset lands on `/` and the lockfile reads "missing" — which
+ * demoted claude/codex to `blocked` at catalog load INSIDE the api, 400-ing the install route
+ * before the RPC ever reached the cli-runner). `scripts/build-app.ts` documents this same
+ * bundling-collapses-import.meta.url hazard for SQL dirs; the lockfile read has it too.
+ *
+ * So walk UP from the module dir to the nearest `pnpm-workspace.yaml` (the repo-root marker) — this
+ * is correct from `src` (tsx), from a `dist` bundle (the prod image is `FROM build`, so `/app` has
+ * the marker), and from a test run. Fall back to the container WORKDIR `/app`, then `process.cwd()`.
+ */
+export function findRepoRoot(startDir: string): string {
+  let dir = startDir;
+  for (let i = 0; i < 16; i++) {
+    if (existsSync(path.join(dir, "pnpm-workspace.yaml"))) return dir;
+    const parent = path.dirname(dir);
+    if (parent === dir) break;
+    dir = parent;
+  }
+  if (existsSync(path.join("/app", "pnpm-workspace.yaml"))) return "/app";
+  return process.cwd();
+}
+
+/** Repo root the recipe lockfiles resolve against (layout-robust — see {@link findRepoRoot}). */
+const REPO_ROOT = findRepoRoot(MODULE_DIR);
 
 /** Marks any catalog literal a maintainer forgot to pin (forces `blocked`, §A.1.4). */
 const PLACEHOLDER_RE = /<PINNED_[A-Z0-9_]*>|<[A-Z0-9_]+_(URL|SHA512|PATH|PKG|VERSION)>/;
@@ -163,9 +191,9 @@ function hasPlaceholder(...values: (string | undefined)[]): boolean {
  * structural integrity-coverage IS asserted, so a top-level-only pin can never ship.
  */
 function validateLockfileIntegrity(lockfileRelPath: string): string | null {
-  // The recipe `lockfile` is repo-relative (e.g. packages/cli-runner/recipes/...).
-  // MODULE_DIR = <repo>/packages/cli-runner/src, so <repo> is three levels up.
-  const candidate = path.resolve(MODULE_DIR, "..", "..", "..", lockfileRelPath);
+  // The recipe `lockfile` is repo-relative (e.g. packages/cli-runner/recipes/...), resolved
+  // against the layout-robust REPO_ROOT (works from src/tsx, the bundled api dist, and tests).
+  const candidate = path.resolve(REPO_ROOT, lockfileRelPath);
   let raw: string;
   try {
     raw = readFileSync(candidate, "utf8");
