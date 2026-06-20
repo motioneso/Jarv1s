@@ -5,6 +5,7 @@
  */
 import { describe, expect, it } from "vitest";
 
+import { createSanitizedTmuxIo } from "../../packages/cli-runner/src/runner-io.js";
 import { buildSanitizedCliEnv } from "../../packages/cli-runner/src/sanitized-env.js";
 
 describe("buildSanitizedCliEnv (§7.2)", () => {
@@ -64,5 +65,72 @@ describe("buildSanitizedCliEnv (§7.2)", () => {
     expect(env.SOME_RANDOM_VAR).toBeUndefined();
     // JARVIS_MULTIPLEXER is server spawn config, NOT for the CLI child (§7.2).
     expect(env.JARVIS_MULTIPLEXER).toBeUndefined();
+  });
+});
+
+/**
+ * UNPROVEN-3 (§7.2): the LIVE child env that createSanitizedTmuxIo actually spawns a
+ * subprocess with — not just buildSanitizedCliEnv in isolation — must contain ONLY the
+ * allowlist. We spawn a real `node -e` that serializes its own process.env and assert the
+ * socket path, the RPC secret, the single-user flag, and every app/DB/vault secret are
+ * ABSENT from the spawned child (allowlist-only, deny-by-default). This proves the seam
+ * end to end: the secret never even reaches the child's environment block.
+ */
+describe("UNPROVEN-3: createSanitizedTmuxIo spawns the CLI child with the §7.2 allowlist ONLY", () => {
+  it("the actually-spawned subprocess env excludes the socket path, RPC secret, and all app/DB/vault secrets", async () => {
+    // A source env loaded with the secrets a real cli-runner-server process would hold,
+    // plus a usable PATH so `node` resolves in the (sanitized) child.
+    const source: NodeJS.ProcessEnv = {
+      PATH: process.env.PATH,
+      HOME: "/data/cli-auth",
+      JARVIS_CLI_NEUTRAL_BASE: "/data/cli-auth/chat",
+      LANG: "en_US.UTF-8",
+      // EXCLUDED — must NOT cross into the child
+      JARVIS_CLI_RUNNER_SOCKET: "/run/jarv1s/cli-runner.sock",
+      JARVIS_CLI_RUNNER_RPC_SECRET: "rpc-secret-value",
+      JARVIS_CLI_RUNNER_SINGLE_USER: "1",
+      BETTER_AUTH_SECRET: "auth-secret",
+      JARVIS_AI_SECRET_KEY: "ai-secret",
+      JARVIS_CONNECTOR_SECRET_KEY: "connector-secret",
+      POSTGRES_PASSWORD: "pg-password",
+      JARVIS_APP_DATABASE_URL: "postgres://app:pw@db/app",
+      JARVIS_VAULT_ROOT: "/data/vaults"
+    };
+
+    const io = createSanitizedTmuxIo(source);
+    // Spawn a REAL subprocess (node) that prints ITS OWN env as JSON — this is the env the
+    // CLI child would inherit. process.execPath is an absolute path, so PATH is not relied
+    // upon to resolve it.
+    const result = await io.run(process.execPath, [
+      "-e",
+      "process.stdout.write(JSON.stringify(process.env))"
+    ]);
+    expect(result.code).toBe(0);
+    const childEnv = JSON.parse(result.stdout) as Record<string, string>;
+
+    // Allowlisted keys survive into the live child.
+    expect(childEnv.HOME).toBe("/data/cli-auth");
+    expect(childEnv.JARVIS_CLI_NEUTRAL_BASE).toBe("/data/cli-auth/chat");
+    expect(childEnv.LANG).toBe("en_US.UTF-8");
+
+    // EXCLUDED — the socket path, RPC secret, and single-user flag never reach the child.
+    expect(childEnv.JARVIS_CLI_RUNNER_SOCKET).toBeUndefined();
+    expect(childEnv.JARVIS_CLI_RUNNER_RPC_SECRET).toBeUndefined();
+    expect(childEnv.JARVIS_CLI_RUNNER_SINGLE_USER).toBeUndefined();
+
+    // EXCLUDED — every app secret / DB URL / vault path is absent from the live child env.
+    expect(childEnv.BETTER_AUTH_SECRET).toBeUndefined();
+    expect(childEnv.JARVIS_AI_SECRET_KEY).toBeUndefined();
+    expect(childEnv.JARVIS_CONNECTOR_SECRET_KEY).toBeUndefined();
+    expect(childEnv.POSTGRES_PASSWORD).toBeUndefined();
+    expect(childEnv.JARVIS_APP_DATABASE_URL).toBeUndefined();
+    expect(childEnv.JARVIS_VAULT_ROOT).toBeUndefined();
+
+    // Belt-and-suspenders: no secret VALUE appears anywhere in the serialized child env.
+    const serialized = result.stdout;
+    expect(serialized).not.toContain("rpc-secret-value");
+    expect(serialized).not.toContain("auth-secret");
+    expect(serialized).not.toContain("pg-password");
+    expect(serialized).not.toContain("/run/jarv1s/cli-runner.sock");
   });
 });

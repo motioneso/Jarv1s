@@ -149,11 +149,16 @@ describe("ChatSessionManager.launchSession — personaText + replayBatch + offse
     priorTurns = { recent: [], oldSummary: null } as {
       recent: readonly { role: "user" | "assistant"; content: string }[];
       oldSummary: string | null;
-    }
+    },
+    // #342 (§4.1.2): the explicit drain-ownership discriminator. Default false = in-process
+    // path (manager owns submit+drain); true = RPC path (server owns it). Lane A's wiring sets
+    // this true exactly when the RPC engine factory is selected (socket configured).
+    serverOwnsDrain = false
   ) {
     return makeMinimalDeps({
       engineFactory: () => engine,
       persona: "You are Jarvis.",
+      serverOwnsDrain,
       persistence: {
         resolveActiveProvider: vi
           .fn()
@@ -206,17 +211,63 @@ describe("ChatSessionManager.launchSession — personaText + replayBatch + offse
     expect(engine.submitted[0]).toContain("earlier");
   });
 
-  it("RPC path (launch returns post-drain offset > 0): manager does NOT re-submit the replay", async () => {
-    // Replay was drained server-side; launch returns the post-drain offset.
+  it("RPC path (serverOwnsDrain, post-drain offset > 0): manager does NOT re-submit the replay", async () => {
+    // Replay was drained server-side; launch returns the post-drain offset and the explicit
+    // serverOwnsDrain discriminator tells the manager the server owns the submit+drain.
     const engine = new FakeEngine(42);
     const manager = new ChatSessionManager(
-      depsWith(engine, {
-        recent: [{ role: "user", content: "earlier" }],
-        oldSummary: null
-      })
+      depsWith(
+        engine,
+        {
+          recent: [{ role: "user", content: "earlier" }],
+          oldSummary: null
+        },
+        true // serverOwnsDrain = RPC path
+      )
     );
     await manager.ensureSession("u1", "Ben");
     expect(engine.submitted).toHaveLength(0); // no client-side re-submit
+  });
+
+  it("RPC path with serverOwnsDrain AND offset === 0: manager STILL does NOT re-submit (no double-submit over the socket)", async () => {
+    // The LOW-correctness edge this discriminator fixes: offset === 0 is ALSO a legitimate RPC
+    // result — a replay was submitted server-side but the transcript never materialized within
+    // the server's drain budget. Keying the in-process re-drain on `offset === 0` would make the
+    // manager DOUBLE-submit the replay over the socket. With the explicit serverOwnsDrain flag the
+    // RPC path is skipped REGARDLESS of the offset value.
+    const engine = new FakeEngine(0);
+    const manager = new ChatSessionManager(
+      depsWith(
+        engine,
+        {
+          recent: [{ role: "user", content: "earlier" }],
+          oldSummary: null
+        },
+        true // serverOwnsDrain = RPC path, even though launch returned offset 0
+      )
+    );
+    await manager.ensureSession("u1", "Ben");
+    expect(engine.submitted).toHaveLength(0); // NO double-submit despite offset 0
+  });
+
+  it("in-process path keeps re-draining even when launch happens to return offset > 0 (discriminator, not the sentinel)", async () => {
+    // Symmetric guard: serverOwnsDrain=false (in-process) must ALWAYS re-submit+drain the replay,
+    // regardless of the offset the engine returns — the decision is the discriminator, never the
+    // offset value.
+    const engine = new FakeEngine(7);
+    const manager = new ChatSessionManager(
+      depsWith(
+        engine,
+        {
+          recent: [{ role: "user", content: "earlier" }],
+          oldSummary: null
+        },
+        false // in-process path despite a non-zero launch offset
+      )
+    );
+    await manager.ensureSession("u1", "Ben");
+    expect(engine.submitted).toHaveLength(1);
+    expect(engine.submitted[0]).toContain("earlier");
   });
 
   it("§12 correctness: after a replay drained server-side, the first turn returns the NEW reply (not the replayed history)", async () => {
@@ -230,10 +281,14 @@ describe("ChatSessionManager.launchSession — personaText + replayBatch + offse
       }
     ]);
     const manager = new ChatSessionManager({
-      ...depsWith(engine, {
-        recent: [{ role: "user", content: "old turn that was replayed" }],
-        oldSummary: null
-      }),
+      ...depsWith(
+        engine,
+        {
+          recent: [{ role: "user", content: "old turn that was replayed" }],
+          oldSummary: null
+        },
+        true // RPC path: the server drained the replay to offset 100 at launch
+      ),
       pollMs: 0
     });
 
@@ -241,6 +296,8 @@ describe("ChatSessionManager.launchSession — personaText + replayBatch + offse
     expect(reply).toBe("fresh answer");
     // The engine was launched once and the replay was NOT re-submitted as a turn.
     expect(engine.launchCount).toBe(1);
+    // And the server-owned drain meant NO client-side replay submit at all.
+    expect(engine.submitted).toEqual(["new question"]);
   });
 });
 

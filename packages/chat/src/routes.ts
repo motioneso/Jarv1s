@@ -48,7 +48,11 @@ import { ChatGatewayNotifier } from "./gateway-notifier.js";
 import { registerChatLiveRoutes } from "./live-routes.js";
 import { CliChatUnavailableError } from "./live/errors.js";
 import { createChatSessionRuntime, type ChatEngineFactory } from "./live/runtime.js";
-import type { PersonaPreferencesPort } from "./live/runtime.js";
+import type {
+  CreateChatSessionRuntimeDeps,
+  PersonaPreferencesPort,
+  RpcConnection
+} from "./live/runtime.js";
 import {
   ChatUserMemorySettingsRepository,
   type UserMemorySettings
@@ -74,6 +78,22 @@ export interface ChatRoutesDependencies {
   readonly googleConnectionService?: GoogleConnectionService;
   readonly googleApiClient?: GoogleApiClient;
   readonly connectorsRepository?: ConnectorsRepository;
+  /**
+   * #342 (§3.5 boot-time fork) — when no explicit {@link chatEngineFactory} is supplied, hand this to
+   * {@link createChatSessionRuntime} so the runtime selects the engine factory itself: the RPC client
+   * over the cli-runner socket when `JARVIS_CLI_RUNNER_SOCKET` is set (else the in-process engine). The
+   * runtime then owns the §5.3 reconciliation hook (which needs the manager) and the §5.5 idle reaper.
+   * Forwarded by `registerBuiltInApiRoutes` only on the socket path; the host-dev path keeps passing a
+   * resolved {@link chatEngineFactory} (admin `chat.multiplexer` setting + auto-detect) instead.
+   */
+  readonly engineSelection?: CreateChatSessionRuntimeDeps["engineSelection"];
+  /**
+   * #342 (§3.4) — composition seam: after the runtime builds its ONE RPC connection (socket path), the
+   * chat routes publish it back to `registerBuiltInApiRoutes` so a single socket serves both chat and
+   * the onboarding probes (§4.8) and gets the connect-on-boot / close-on-shutdown lifecycle. No-op on
+   * the in-process path (the runtime exposes no connection).
+   */
+  readonly adoptChatRpcConnection?: (connection: RpcConnection) => void;
 }
 
 /**
@@ -135,6 +155,11 @@ export function registerChatRoutes(
   const runtime = createChatSessionRuntime({
     dataContext: dependencies.dataContext,
     engineFactory: dependencies.chatEngineFactory,
+    // #342 (§3.5): only select the engine ourselves when no explicit factory was injected (tests/host
+    // pass a resolved factory). `selectEngineFactory` inside the runtime picks the RPC client when
+    // JARVIS_CLI_RUNNER_SOCKET is set (and fail-fasts on a missing §6.6 secret), else the in-process
+    // engine. An explicit chatEngineFactory always wins inside the runtime, so passing both is safe.
+    engineSelection: dependencies.chatEngineFactory ? undefined : dependencies.engineSelection,
     boss: dependencies.boss,
     personaPreferences: dependencies.personaPreferences,
     mcpTokenLifecycle: wiring
@@ -156,13 +181,34 @@ export function registerChatRoutes(
             };
           },
           revoke: (chatSessionId: string) => wiring.tokens.revokeBySessionId(chatSessionId),
-          touch: (chatSessionId: string) => wiring.tokens.touchBySessionId(chatSessionId)
+          touch: (chatSessionId: string) => wiring.tokens.touchBySessionId(chatSessionId),
+          // #342 (§5.3 steps 2/4) — orphan-token reconciliation + the source-of-truth session-id list.
+          // Forwarded to the manager (reconcileMcpTokens / listMcpTokenSessionIds) so a (re)connect or
+          // bootId change revokes tokens for sessions the cli-runner no longer holds — even after an api
+          // restart wipes the `sessions` Map (the registry, not the Map, is the orphan-token source).
+          reconcile: (liveSessionIds: Set<string>) => wiring.tokens.reconcile(liveSessionIds),
+          listSessionIds: () => wiring.tokens.listSessionIds()
         }
       : undefined
   });
 
+  // #342 (§3.4): publish the ONE RPC connection the runtime owns (socket path only) back to the
+  // composition root so a single socket serves both chat and the onboarding probes, and gets the
+  // connect-on-boot / close-on-shutdown lifecycle. No-op on the in-process path (connection undefined).
+  if (runtime.connection) {
+    dependencies.adoptChatRpcConnection?.(runtime.connection);
+  }
+
   // Wire real notifier now that manager is available.
   realNotifier = new ChatGatewayNotifier(runtime.manager);
+
+  // #342 (§5.5): tear down runtime-owned background resources on server close — stop the idle reaper
+  // and close the RPC connection. Idempotent (the composition root also closes the adopted connection;
+  // both `shutdown()` and `connection.close()` guard re-entry). A no-op on the in-process path (no
+  // reaper, no connection).
+  server.addHook("onClose", async () => {
+    runtime.shutdown();
+  });
 
   server.addHook("onReady", async () => {
     if (!wiring) return;
