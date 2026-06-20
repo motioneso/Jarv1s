@@ -21,7 +21,8 @@ import {
   CliChatUnavailableError,
   createRealEngineFactory,
   unavailableEngineFactory,
-  type ChatEngineFactory
+  type ChatEngineFactory,
+  type RpcConnection
 } from "@jarv1s/chat";
 
 export interface ChatMultiplexerAvailability {
@@ -87,9 +88,30 @@ export function makeMultiplexerUsableProbe(
     );
 }
 
-/** Live, bounded provider-CLI presence (presence-only). Re-reads PATH each call. */
-export function makeCliPresentProbe(): (kind: OnboardingProviderKind) => Promise<boolean> {
-  return (kind) => boundedProbe(cliAvailable(kind));
+/**
+ * Live, bounded provider-CLI presence (presence-only). Re-reads PATH each call on the host-dev path.
+ *
+ * #342: when the cli-runner socket is configured, the CLIs are NOT in this (api) container — an
+ * in-process PATH probe would always be false. So route presence through the cli-runner over the
+ * socket via `probeProvider` (§4.8): a status of `not_installed` ⇒ false, any other status (ready /
+ * needs_login / multiplexer_unavailable / error) ⇒ the binary IS present (presence is decided by the
+ * cli-runner, not the api). Bounded + fail-soft (a socket error degrades to false, like the PATH path).
+ */
+export function makeCliPresentProbe(
+  getConnection?: () => RpcConnection | undefined
+): (kind: OnboardingProviderKind) => Promise<boolean> {
+  return (kind) => {
+    const connection = getConnection?.();
+    if (connection) {
+      return boundedProbe(
+        connection
+          .probeProvider({ provider: kind })
+          .then((result) => result.status !== "not_installed")
+          .catch(() => false)
+      );
+    }
+    return boundedProbe(cliAvailable(kind));
+  };
 }
 
 const PROVIDER_CHECK_PROMPT = "Reply with exactly OK.";
@@ -103,8 +125,29 @@ export function makeProviderConnectionCheckProbe(deps: {
   readonly cliPresent: (kind: OnboardingProviderKind) => Promise<boolean>;
   readonly skipInstallCheck?: boolean;
   readonly commandIo?: Pick<TmuxIo, "run">;
+  /**
+   * #342: when the cli-runner socket is configured, the provider auth/presence check runs INSIDE
+   * cli-runner (the CLIs + their auth are not in the api container). Route the whole check through the
+   * socket via `probeProvider` (§4.8) — it returns the existing OnboardingProviderCheckResponse shape
+   * verbatim, including the transient `multiplexer_unavailable`/`error` statuses. Late-bound (an
+   * accessor) so a connection wired AFTER probe construction is still used; resolved per request. The
+   * in-process spawn path below is the host-dev fallback (no connection).
+   */
+  readonly connection?: () => RpcConnection | undefined;
 }): (kind: OnboardingProviderKind) => Promise<OnboardingProviderCheckResponse> {
   return async (kind) => {
+    const connection = deps.connection?.();
+    if (connection) {
+      try {
+        return await connection.probeProvider({ provider: kind });
+      } catch (error) {
+        // A socket failure is the in-container analogue of an unreachable multiplexer.
+        return error instanceof CliChatUnavailableError
+          ? { status: "multiplexer_unavailable" }
+          : { status: "error" };
+      }
+    }
+
     if (!deps.skipInstallCheck && !(await deps.cliPresent(kind))) {
       return { status: "not_installed" };
     }

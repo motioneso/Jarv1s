@@ -44,7 +44,9 @@ import {
   CliChatUnavailableError,
   registerChatJobWorkers,
   registerChatRoutes,
-  type ChatEngineFactory
+  type ChatEngineFactory,
+  type ChatRoutesDependencies,
+  type RpcConnection
 } from "@jarv1s/chat";
 import {
   ConnectorsRepository,
@@ -168,6 +170,31 @@ export interface BuiltInRouteDependencies {
   readonly mcpServerUrl: string;
   /** Override the live-chat engine factory (tests inject a fake); defaults to real tmux. */
   readonly chatEngineFactory?: ChatEngineFactory;
+  /**
+   * #342 (§3.5 boot-time fork) — built by `registerBuiltInApiRoutes` only on the socket path
+   * (JARVIS_CLI_RUNNER_SOCKET set) and forwarded to `registerChatRoutes`, where the chat runtime uses
+   * it to select the RPC client (and fail-fast on a missing §6.6 secret), wire the §5.3 reconciliation
+   * hook, and start the §5.5 idle reaper. Absent on the in-process / host-dev path (the late-bound
+   * {@link chatEngineFactory} wrapper is used there instead, preserving admin `chat.multiplexer`
+   * resolution).
+   */
+  readonly chatEngineSelection?: ChatRoutesDependencies["engineSelection"];
+  /**
+   * #342 (§3.4) — the ONE RPC connection to the cli-runner sidecar, when the api runs containerized
+   * (JARVIS_CLI_RUNNER_SOCKET set). Owned by the chat runtime (it constructs the connection WITH the
+   * §5.3 onReconcile hook + the idle reaper). The composition root adopts it for the onboarding probes
+   * (§4.8 socket route) and the connect-on-boot / close-on-shutdown lifecycle. May be supplied here
+   * directly, or published after route registration via {@link adoptChatRpcConnection}. Absent on the
+   * in-process / host-dev path (no socket).
+   */
+  readonly chatRpcConnection?: RpcConnection;
+  /**
+   * #342 — set by `registerBuiltInApiRoutes` and consumed inside `registerChatRoutes` (the composition
+   * seam): the chat runtime calls this to publish the ONE RPC connection it constructed back to the
+   * probes + boot lifecycle, so a single socket serves both chat and onboarding (§3.4). No-op on the
+   * in-process path.
+   */
+  readonly adoptChatRpcConnection?: (connection: RpcConnection) => void;
   readonly revokeUserSessions?: (userId: string) => Promise<number>;
   /** Auth-owned current-user session list/revoke service (#237). */
   readonly meSessions?: MeSessionsService;
@@ -385,7 +412,14 @@ const BUILT_IN_MODULES: readonly BuiltInModuleRegistration[] = [
         rootDb: deps.rootDb,
         resolveAccessContext: deps.resolveAccessContext,
         dataContext: deps.dataContext,
-        chatEngineFactory: deps.chatEngineFactory,
+        // #342 (§3.5): on the RPC/socket path the chat runtime selects the engine itself via
+        // `engineSelection`, so we must NOT also pass the in-process late-bound factory wrapper (which
+        // would win the explicit-factory branch and never select the RPC client, and would throw
+        // "not resolved yet" because the host-dev onReady resolver is skipped on the socket path). On
+        // the host-dev path `engineSelection` is undefined and the resolved factory is passed instead.
+        chatEngineFactory: deps.chatEngineSelection ? undefined : deps.chatEngineFactory,
+        engineSelection: deps.chatEngineSelection,
+        adoptChatRpcConnection: deps.adoptChatRpcConnection,
         resolveActiveModules: deps.resolveActiveModules,
         mcpServerUrl: deps.mcpServerUrl,
         boss: deps.boss,
@@ -551,15 +585,29 @@ export function registerBuiltInApiRoutes(
   const env = process.env;
   const availability = probeChatMultiplexerAvailability(env);
 
-  // Onboarding probes: built synchronously (no boot-time probing) and forwarded to the
-  // settings module. Each function probes lazily, per request, bounded by a short timeout.
-  const multiplexerUsable = makeMultiplexerUsableProbe(env);
-  const cliPresent = makeCliPresentProbe();
+  // #342 boot-time fork (§3.5): when JARVIS_CLI_RUNNER_SOCKET is set the api drives the cli-runner
+  // sidecar over ONE shared socket (§3.4 — one connection per api process). That ONE connection is
+  // owned by the chat runtime (it must be constructed WITH the §5.3 onReconcile hook, which needs the
+  // manager — see integrationNotes), and adopted here for the onboarding probes via a late-bound ref.
+  // The chat runtime surfaces it through `dependencies.chatRpcConnection` (the composition seam); the
+  // probes close over this ref, which is populated either synchronously (already provided) or when the
+  // chat routes register their runtime. Until populated the probes fall back to the in-process path.
+  const socketConfigured = Boolean(env.JARVIS_CLI_RUNNER_SOCKET);
+  let rpcConnection: RpcConnection | undefined = dependencies.chatRpcConnection;
+  const getRpcConnection = (): RpcConnection | undefined => rpcConnection;
 
-  // The factory is resolved asynchronously in onReady (a settings read), but routes
-  // register synchronously. Bridge with a late-bound wrapper: it is only ever invoked
-  // when a chat session launches, which is strictly after onReady. Tests/embedders
-  // that pass an explicit chatEngineFactory bypass resolution entirely.
+  // Onboarding probes: built synchronously (no boot-time probing) and forwarded to the settings
+  // module. Each function probes lazily, per request, bounded by a short timeout. On the RPC path they
+  // route through the cli-runner over the socket (§4.8) instead of spawning CLIs in-process; the
+  // late-bound `getRpcConnection` lets a connection that is wired AFTER probe construction still be
+  // used (the probes only dereference it at call time, which is strictly post-boot).
+  const multiplexerUsable = makeMultiplexerUsableProbe(env);
+  const cliPresent = makeCliPresentProbe(getRpcConnection);
+
+  // The factory is resolved asynchronously in onReady (a settings read) on the in-process path, but
+  // routes register synchronously. Bridge with a late-bound wrapper: it is only ever invoked when a
+  // chat session launches, which is strictly after onReady. Tests/embedders that pass an explicit
+  // chatEngineFactory bypass resolution entirely.
   let resolvedChatFactory: ChatEngineFactory | null = null;
   const chatEngineFactory: ChatEngineFactory =
     dependencies.chatEngineFactory ??
@@ -576,7 +624,8 @@ export function registerBuiltInApiRoutes(
     testProviderConnection: makeProviderConnectionCheckProbe({
       engineFactory: chatEngineFactory,
       cliPresent,
-      skipInstallCheck: dependencies.chatEngineFactory !== undefined
+      skipInstallCheck: dependencies.chatEngineFactory !== undefined,
+      connection: getRpcConnection
     }),
     connectorAccountExists: async (scopedDb: DataContextDb) =>
       (await new ConnectorsRepository().listAccounts(scopedDb)).length > 0
@@ -585,21 +634,58 @@ export function registerBuiltInApiRoutes(
   const deps: BuiltInRouteDependencies = {
     ...dependencies,
     chatEngineFactory,
+    // #342 (§3.5 boot-time fork): on the socket path hand the chat runtime an `engineSelection` so it
+    // selects the RPC client itself (fail-fast on a missing §6.6 secret), wires the §5.3 reconciliation
+    // hook, and starts the §5.5 idle reaper. The {method,id,sessionKey,bytes}-only debug logger (§6.4)
+    // is intentionally omitted (no frame-body logging). Tests that inject an explicit chatEngineFactory
+    // bypass this entirely (no socket selection). Undefined on the in-process / host-dev path.
+    chatEngineSelection: socketConfigured && !dependencies.chatEngineFactory ? { env } : undefined,
     chatMultiplexerAvailability: availability,
-    onboardingProbes
+    onboardingProbes,
+    // Surface a setter so the chat runtime (constructed inside registerChatRoutes) can publish the ONE
+    // RPC connection it owns back to the probes + the boot lifecycle below. On the RPC path the runtime
+    // wires reconcile + the idle reaper onto this connection; here we only need the handle to route
+    // probes through it and to ensureConnected()/close() it at the composition-root boundary.
+    adoptChatRpcConnection: (connection: RpcConnection) => {
+      rpcConnection = connection;
+    }
   };
 
   for (const module of BUILT_IN_MODULES) {
     module.registerRoutes?.(server, deps);
   }
 
-  if (!dependencies.chatEngineFactory) {
+  // In-process (host-dev) path: resolve the tmux/herdr factory in onReady (a settings read). The RPC
+  // path skips this — its factory is selected by the chat runtime (RPC client) via engineSelection.
+  if (!dependencies.chatEngineFactory && !socketConfigured) {
     server.addHook("onReady", async () => {
       resolvedChatFactory = await resolveChatEngineFactory({
         appDb: dependencies.rootDb,
         env,
         log: (msg) => server.log.info(msg)
       });
+    });
+  }
+
+  // RPC path: connect on boot so the §5.3 reconciliation runs before the first user turn (§3.5), and
+  // tear the socket down on server close. The chat runtime owns the reconcile hook + the idle reaper
+  // (it calls runtime.shutdown() / stops the reaper); this composition root manages only the
+  // connect-on-boot + close-on-shutdown lifecycle the seam is responsible for.
+  if (socketConfigured) {
+    server.addHook("onReady", async () => {
+      const connection = getRpcConnection();
+      if (!connection) return;
+      // Best-effort: a failed initial connect backs off internally and the first turn retries; never
+      // block readiness on the optional cli-runner being up yet (the "disabled, not crashed" contract).
+      void connection.ensureConnected().catch((err) => {
+        server.log.warn(
+          { err: err instanceof Error ? err.message : String(err) },
+          "cli-runner socket not yet reachable at boot; will connect on first use"
+        );
+      });
+    });
+    server.addHook("onClose", async () => {
+      getRpcConnection()?.close();
     });
   }
 }

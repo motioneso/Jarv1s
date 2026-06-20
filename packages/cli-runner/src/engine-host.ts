@@ -122,32 +122,55 @@ export class CliChatEngineHost {
     });
     const neutralDir = deriveNeutralDir(this.deps.neutralBase, key);
 
+    // Keep a handle on the RAW launch promise (separate from the timeout race) so that a
+    // mux-create which SUCCEEDS *after* the timeout already released the reservation can be
+    // reaped immediately — we do not wait for the startup sweep or the api §5.3 reconcile.
+    const launchPromise = engine.launch({
+      neutralDir,
+      // The in-process engine ignores personaPath when personaText is present; pass a
+      // path under the neutral dir to keep types satisfied (§4.1.1a — server writes
+      // the persona FILE from personaText).
+      personaPath: `${neutralDir}/persona.md`,
+      personaText: params.personaText,
+      mcpToken: params.mcpToken,
+      mcpServerUrl: params.mcpServerUrl,
+      replayBatch: params.replayBatch
+    });
+
+    let timedOut = false;
     try {
-      const result = await this.withTimeout(
-        engine.launch({
-          neutralDir,
-          // The in-process engine ignores personaPath when personaText is present; pass a
-          // path under the neutral dir to keep types satisfied (§4.1.1a — server writes
-          // the persona FILE from personaText).
-          personaPath: `${neutralDir}/persona.md`,
-          personaText: params.personaText,
-          mcpToken: params.mcpToken,
-          mcpServerUrl: params.mcpServerUrl,
-          replayBatch: params.replayBatch
-        }),
-        this.launchTimeoutMs
-      );
-      // mux-create SUCCEEDED: register the engine so later submit/readNew/kill route here.
+      const result = await this.withTimeout(launchPromise, this.launchTimeoutMs, () => {
+        timedOut = true;
+      });
+      // mux-create SUCCEEDED in time: register the engine so submit/readNew/kill route here.
       this.engines.set(key, engine);
       return { offset: result.offset };
     } catch (err) {
       // POST-mux-create failure handling is done inside engine.launch (it kills the mux
       // session by canonical name BEFORE removing the dir, §6.5). For a TIMEOUT the engine
       // may still be mid-create; best-effort kill the canonical name + remove the dir so a
-      // late orphan can't enter liveKeys and block the gate (Opus nicety, §4.1.0a).
+      // late orphan can't enter liveKeys and block the gate (§4.1.0a).
       await killMuxSessionByName(this.deps.io, key).catch(() => undefined);
       await removeNeutralDir(this.deps.io, this.deps.neutralBase, key).catch(() => undefined);
       this.engines.delete(key);
+      // LATE-SUCCESS ORPHAN REAP (§4.1.0a, ~the 144-147 race): when we timed out, the raw
+      // launch promise is still running and may create the jarv1s-live-<key> mux session
+      // AFTER the catch's one-shot kill (which fired before the create finished). Attach a
+      // continuation that kills the late orphan the instant the launch settles — so a wedged
+      // tmux that frees up late can never strand a foreign live session that blocks the gate.
+      if (timedOut) {
+        void launchPromise
+          .then(
+            () => true, // resolved late = a live mux session now exists; reap it
+            () => false // rejected late = no late session created; nothing to reap
+          )
+          .then(async (resolvedLate) => {
+            if (!resolvedLate) return;
+            await killMuxSessionByName(this.deps.io, key).catch(() => undefined);
+            await removeNeutralDir(this.deps.io, this.deps.neutralBase, key).catch(() => undefined);
+            this.engines.delete(key);
+          });
+      }
       if (err instanceof CliChatUnavailableError) throw err;
       throw new CliChatUnavailableError("could not start the live chat session");
     } finally {
@@ -274,13 +297,20 @@ export class CliChatEngineHost {
 
   // ─── helpers ──────────────────────────────────────────────────────────────────
 
-  private async withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
+  private async withTimeout<T>(
+    promise: Promise<T>,
+    ms: number,
+    onTimeout?: () => void
+  ): Promise<T> {
     let timer: ReturnType<typeof setTimeout> | undefined;
     try {
       return await Promise.race([
         promise,
         new Promise<T>((_, reject) => {
-          timer = setTimeout(() => reject(new Error("launch timed out")), ms);
+          timer = setTimeout(() => {
+            onTimeout?.();
+            reject(new Error("launch timed out"));
+          }, ms);
         })
       ]);
     } finally {

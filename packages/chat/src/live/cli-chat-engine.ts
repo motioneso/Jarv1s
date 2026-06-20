@@ -528,7 +528,15 @@ export class CliChatEngineImpl implements CliChatEngine {
     const path = join(settingsDir, "settings.json");
     await this.io.writeFile(path, JSON.stringify(settings, null, 2));
     // The settings file carries the Authorization header — lock it down `0600` (§6.5).
-    await this.io.run("chmod", ["600", path]);
+    // Symmetric with writeClaudeMcpConfig / writeCodexTokenEnv: if the chmod fails we
+    // MUST NOT leave a world/group-readable token file behind. rm -f it and throw so the
+    // failure routes through launch()'s removeNeutralDirQuietly cleanup (§6.5) — a failed
+    // lockdown never leaves a readable Bearer token on disk.
+    const chmod = await this.io.run("chmod", ["600", path]);
+    if (chmod.code !== 0) {
+      await this.io.run("rm", ["-f", path]);
+      throw new Error(`Could not lock down Gemini settings file: ${chmod.stderr ?? ""}`.trim());
+    }
   }
 
   private async writeCodexTokenEnv(opts: EngineLaunchOpts): Promise<string | null> {
@@ -618,13 +626,21 @@ export class CliChatEngineImpl implements CliChatEngine {
  * when the cli-runner server holds no `CliChatEngineImpl` for it (post-restart). Uses
  * tmux directly (the bundled mux, §7.1). `sessionKey` is sanitized first (§4.1.1a).
  * Idempotent — killing an absent session is not an error.
+ *
+ * SECURITY (exact-name guard): `tmux kill-session -t <name>` resolves `<name>` as a
+ * tmux TARGET, which is a PREFIX match by default — `-t jarv1s-live-bob` would also
+ * kill `jarv1s-live-bobby` if it sorted as the unique prefix hit, killing more than the
+ * intended session when one sessionKey is a prefix of another. The leading `=` forces
+ * tmux to match the EXACTLY-named session and nothing else, so only the intended session
+ * dies. (UUID sessionKeys never collide today; this guards non-UUID keys — e.g. a future
+ * #347 scheme — so the kill primitive can never over-reach.)
  */
 export async function killMuxSessionByName(
   io: Pick<TmuxIo, "run">,
   sessionKey: string
 ): Promise<void> {
   const name = `${SESSION_PREFIX}${sanitizeSessionKey(sessionKey)}`;
-  await io.run("tmux", ["kill-session", "-t", name]);
+  await io.run("tmux", ["kill-session", "-t", `=${name}`]);
 }
 
 /**
