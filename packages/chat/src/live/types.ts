@@ -25,12 +25,36 @@ export interface EngineLaunchOpts {
   /** Opaque per-session MCP bearer token (jst_<uuid>), minted at launch. */
   readonly mcpToken?: string;
   readonly mcpServerUrl?: string; // Phase 2: MCP gateway base URL
+  /**
+   * NEW (#342 RPC path) — rendered persona CONTENT (not a path). The cli-runner server writes it to
+   * the persona file under its server-derived neutralDir. The in-process CliChatEngineImpl IGNORES
+   * this and keeps using `personaPath`. Populated by ChatSessionManager.launchSession on every
+   * launch (both paths). See rpc-contract.ts RpcLaunchParams.personaText.
+   */
+  readonly personaText?: string;
+  /**
+   * NEW (#342 RPC path) — the assembled prior-conversation replay batch as ONE string (memory seed +
+   * rolling summary + recent turns), already injection-neutralized by the api. The RPC engine ships
+   * it to cli-runner, which submits + drains it server-side; the in-process engine IGNORES it (the
+   * manager keeps its own post-launch drain). See rpc-contract.ts RpcLaunchParams.replayBatch.
+   */
+  readonly replayBatch?: string;
 }
 
 /** A persistent per-user CLI session. One instance per live session. */
 export interface CliChatEngine {
   readonly provider: ProviderKind;
-  launch(opts: EngineLaunchOpts): Promise<void>;
+  /**
+   * Launch the per-user CLI session and return the post-drain transcript `offset` (§4.0/§4.1.2).
+   * CHANGED for #342 from `Promise<void>`: when the engine owns the replay-drain (the cli-runner RPC
+   * server), it submits + drains `replayBatch` and returns the transcript length consumed so far
+   * (jsonl.length / UTF-16 code units) so the manager can seed `session.transcriptOffset` and the
+   * FIRST real `readNew` does not re-read the replay block as the assistant reply.
+   *
+   * In-process engines that do NOT own the replay-drain (the manager still drains for them) MUST
+   * return `{ offset: 0 }`; the manager then keeps overwriting `transcriptOffset` from its own drain.
+   */
+  launch(opts: EngineLaunchOpts): Promise<{ offset: number }>;
   submit(text: string): Promise<void>; // paste prompt + send
   /** Read transcript records appended since the given byte offset; returns the new offset. */
   readNew(

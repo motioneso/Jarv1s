@@ -49,9 +49,10 @@ class FakeEngine implements CliChatEngine {
     private readonly replyFor: (text: string) => string
   ) {}
 
-  async launch(opts: EngineLaunchOpts): Promise<void> {
+  async launch(opts: EngineLaunchOpts): Promise<{ offset: number }> {
     this.launchCount += 1;
     this.launchOpts.push(opts);
+    return { offset: 0 };
   }
 
   async submit(text: string): Promise<void> {
@@ -97,7 +98,9 @@ class NeverCompletingEngine implements CliChatEngine {
     public readonly sessionKey: string
   ) {}
 
-  async launch(): Promise<void> {}
+  async launch(): Promise<{ offset: number }> {
+    return { offset: 0 };
+  }
   async submit(text: string): Promise<void> {
     this.submitted.push(text);
   }
@@ -140,7 +143,9 @@ class GatedEngine implements CliChatEngine {
     this.release();
   }
 
-  async launch(): Promise<void> {}
+  async launch(): Promise<{ offset: number }> {
+    return { offset: 0 };
+  }
   async submit(text: string): Promise<void> {
     this.submitted.push(text);
   }
@@ -186,7 +191,9 @@ class TranscriptFakeEngine implements CliChatEngine {
     private readonly replyFor: (text: string) => string
   ) {}
 
-  async launch(): Promise<void> {}
+  async launch(): Promise<{ offset: number }> {
+    return { offset: 0 };
+  }
 
   async submit(text: string): Promise<void> {
     this.submitted.push(text);

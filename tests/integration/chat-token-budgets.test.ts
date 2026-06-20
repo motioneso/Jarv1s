@@ -280,7 +280,9 @@ class FakeEngineForSession implements CliChatEngine {
   readonly provider = "anthropic" as const;
   readonly submitted: string[] = [];
 
-  async launch(): Promise<void> {}
+  async launch(): Promise<{ offset: number }> {
+    return { offset: 0 };
+  }
   async submit(text: string): Promise<void> {
     this.submitted.push(text);
   }

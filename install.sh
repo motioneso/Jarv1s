@@ -19,8 +19,8 @@
 # the compose file's directory so env.production.local + the setup bind-mount
 # (`.`) + `--env-file ./env.production.local` all land in the same place.
 #
-# Steps: (1) preflight, (2) detect host vars, (3) generate secrets + record
-# bridge paths, (4) launch, (5) wait for /health/ready, (6) open onboarding URL.
+# Steps: (1) preflight, (2) detect host vars, (3) generate secrets + record host
+# CLIs, (4) launch, (5) wait for /health/ready, (6) open onboarding URL.
 # ===========================================================================
 set -u
 
@@ -88,9 +88,10 @@ else
 fi
 
 # CLIs: warn (do not fail) — the onboarding wizard tests them live. Accumulate the
-# detected binary set so it can be declared to the container via JARVIS_HOST_CLIS
-# (the container cannot see host binaries — only their auth/config dirs are
-# mounted read-only, per ADR 0008; see cli-availability.ts JARVIS_HOST_CLIS).
+# detected binary set so it can be declared via JARVIS_HOST_CLIS. NOTE (#342): the
+# host CLI dirs are no longer mounted into the stack (the cli-runner sidecar owns
+# the CLIs + their auth); this declaration is RETAINED only so onboarding still
+# reports provider presence until the sidecar PATH-probe path lands (Phase 4).
 FOUND_CLI=0
 HOST_CLIS=""
 for cli in claude codex gemini agy; do
@@ -111,14 +112,14 @@ else
 fi
 
 # ---- 2. detect host vars (recorded into env file in step 3c) --------------
+# NOTE (#342): the host-multiplexer bridge is GONE — the provider CLIs + tmux now
+# run in the cli-runner SIDECAR (ADR 0008 reversed by ADR 0010). So install.sh no
+# longer records the host CLI dirs / chat home / tmux socket dir (those mounts were
+# removed from the prod Compose). The JARVIS_HOST_CLIS declaration is RETAINED for
+# now (its removal is deferred to Phase 4, once the sidecar PATH-probe path exists
+# so onboarding still reports provider presence).
 log "Detect host configuration"
-CLAUDE_DIR="${HOME}/.claude"
-CODEX_DIR="${HOME}/.codex"
-GEMINI_DIR="${HOME}/.gemini"
-CHAT_HOME="${HOME}/.jarvis/chat"
-TMUX_SOCKET_DIR="/tmp/tmux-${HOST_UID}"
 note "api/web ports: ${API_PORT}/${WEB_PORT}  subnet: ${SUBNET}  tag: ${TAG}  project: ${PROJECT}"
-note "tmux socket dir: ${TMUX_SOCKET_DIR}"
 
 # ---- 3a. ensure image availability (build only if absent + source present) -
 log "Resolve image ${API_IMAGE}"
@@ -148,7 +149,7 @@ else
 fi
 if [ "$need_build" = "1" ]; then
   note "building api + web images locally (source present)..."
-  POSTGRES_PASSWORD=setup JARVIS_IMAGE_TAG="$TAG" \
+  POSTGRES_PASSWORD=setup JARVIS_CLI_RUNNER_RPC_SECRET=setup JARVIS_IMAGE_TAG="$TAG" \
     docker compose -p "$PROJECT" -f "$COMPOSE_NAME" build api web \
     || die "image build failed. Run from the repo root, or pre-build / pull the image."
 fi
@@ -162,7 +163,12 @@ fi
 # generated env file records the real uid/gid/ports/embed/tag/subnet.
 log "Generate boot secrets (in-container setup service)"
 FIRST_RUN=0
-if POSTGRES_PASSWORD=setup JARVIS_IMAGE_TAG="$TAG" \
+# POSTGRES_PASSWORD=setup AND JARVIS_CLI_RUNNER_RPC_SECRET=setup are throwaways
+# scoped to THIS command only: Compose interpolates the WHOLE file at parse time
+# (incl. the api/cli-runner ${JARVIS_CLI_RUNNER_RPC_SECRET:?} fail-closed gate), so
+# the setup run needs placeholder values to parse. setup IGNORES them and writes the
+# REAL generated values into env.production.local; the later `up` reads those.
+if POSTGRES_PASSWORD=setup JARVIS_CLI_RUNNER_RPC_SECRET=setup JARVIS_IMAGE_TAG="$TAG" \
   docker compose -p "$PROJECT" -f "$COMPOSE_NAME" --profile setup run --rm \
     -e JARVIS_HOST_UID="$HOST_UID" -e JARVIS_HOST_GID="$HOST_GID" \
     -e JARVIS_API_PORT="$API_PORT" -e JARVIS_WEB_PORT="$WEB_PORT" \
@@ -179,29 +185,22 @@ else
   fi
 fi
 
-# ---- 3c. record host-bridge paths (first run only) ------------------------
+# ---- 3c. record host-detected extras (first run only) ---------------------
 # setup-prod.ts writes a FIXED key set (secrets + uid/gid + ports + subnet +
-# JARVIS_MULTIPLEXER=tmux + embed). It does NOT write the CLI dirs / chat home
-# / tmux socket dir, so we append ONLY those — no duplicate keys. After this the
-# env file is fully self-contained: a later `up` needs no host re-detection.
+# JARVIS_MULTIPLEXER=tmux + the cli-runner RPC socket/secret/gate + embed). The
+# host-bridge paths (CLI dirs / chat home / tmux socket dir) are NO LONGER written
+# (#342: the CLIs run in the cli-runner sidecar, not via host mounts). We append
+# ONLY the host-CLI declaration (JARVIS_HOST_CLIS), retained until Phase 4.
 if [ "$FIRST_RUN" = "1" ]; then
-  log "Record host-bridge paths into ${ENV_FILE}"
+  log "Record host-detected provider CLIs into ${ENV_FILE}"
   {
-    printf '\n# --- host-bridge paths (appended by install.sh) ---\n'
-    printf '# Host CLI-config dirs (mount-only, read-only inside the container).\n'
-    printf 'JARVIS_HOST_CLAUDE_DIR=%s\n' "$CLAUDE_DIR"
-    printf 'JARVIS_HOST_CODEX_DIR=%s\n' "$CODEX_DIR"
-    printf 'JARVIS_HOST_GEMINI_DIR=%s\n' "$GEMINI_DIR"
-    printf '# Neutral chat dir — identical absolute path on host and container.\n'
-    printf 'JARVIS_CHAT_HOME=%s\n' "$CHAT_HOME"
-    printf '# Host per-uid tmux socket dir (container bridge execs tmux against it).\n'
-    printf 'JARVIS_TMUX_SOCKET_DIR=%s\n' "$TMUX_SOCKET_DIR"
-    printf '# Host multiplexer detected by install.sh: %s (container bridge uses tmux).\n' "$HOST_MUX"
-    printf '# Host provider CLIs detected on PATH (container cannot see host binaries;\n'
-    printf '# declared to the API so onboarding provider detection works). Empty = none.\n'
+    printf '\n# --- host-detected extras (appended by install.sh) ---\n'
+    printf '# Host multiplexer detected by install.sh: %s (the cli-runner sidecar uses tmux).\n' "$HOST_MUX"
+    printf '# Host provider CLIs detected on PATH. RETAINED for onboarding provider\n'
+    printf '# detection until the sidecar PATH-probe path lands (Phase 4). Empty = none.\n'
     printf 'JARVIS_HOST_CLIS=%s\n' "$HOST_CLIS"
   } >> "$ENV_FILE"
-  note "appended host-bridge paths"
+  note "appended host-detected provider CLIs"
 fi
 
 # ---- 4. launch ------------------------------------------------------------

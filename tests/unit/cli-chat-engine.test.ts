@@ -1,5 +1,13 @@
 import { describe, expect, it, vi } from "vitest";
-import { CliChatEngineImpl } from "../../packages/chat/src/live/cli-chat-engine.js";
+import {
+  CliChatEngineImpl,
+  deriveNeutralDir,
+  killMuxSessionByName,
+  listLiveMuxSessions,
+  sanitizeSessionKey,
+  probeProvider,
+  SESSION_PREFIX
+} from "../../packages/chat/src/live/cli-chat-engine.js";
 import { CliChatUnavailableError } from "../../packages/chat/src/live/errors.js";
 import type { Multiplexer } from "../../packages/ai/src/adapters/multiplexer.js";
 
@@ -13,15 +21,19 @@ function makeIo() {
 }
 
 describe("CliChatEngineImpl — Claude MCP lockdown", () => {
-  it("uses --allowedTools mcp__jarvis__* when mcpToken is provided", async () => {
+  it("uses --allowedTools mcp__jarvis__* and the mcp-config PATH (token off the launch line)", async () => {
     const io = makeIo();
     const engine = new CliChatEngineImpl("anthropic", "test-session", io);
-    await engine.launch({
+    const launched = await engine.launch({
       neutralDir: "/tmp/neutral",
       personaPath: "/tmp/persona.txt",
       mcpToken: "jst_abc",
       mcpServerUrl: "http://127.0.0.1:3000/api/mcp"
     });
+
+    // launch() now returns the post-drain offset (§4.0); the in-process engine does not
+    // own the drain, so it returns { offset: 0 }.
+    expect(launched).toEqual({ offset: 0 });
 
     const sendKeysCall = (io.run as ReturnType<typeof vi.fn>).mock.calls.find(
       (c: unknown[]) => c[0] === "tmux" && (c[1] as string[])[0] === "send-keys"
@@ -31,12 +43,38 @@ describe("CliChatEngineImpl — Claude MCP lockdown", () => {
     expect(launchLine).toContain("--allowedTools");
     expect(launchLine).toContain("mcp__jarvis__*");
     expect(launchLine).not.toContain('--tools ""');
-    expect(launchLine).toContain("mcp-config");
+    // §6.2: the launch line carries the mcp-config FILE PATH, never the token/JSON.
+    expect(launchLine).toContain(".jarvis-claude-mcp.json");
+    expect(launchLine).not.toContain("jst_abc");
+    expect(launchLine).not.toContain("Bearer");
+    expect(launchLine).not.toContain("Authorization");
     expect(launchLine).toContain("--permission-mode default");
     expect(launchLine).toContain("--strict-mcp-config");
     expect(launchLine).not.toContain("web_search");
     expect(launchLine).not.toContain("browser");
     expect(launchLine).not.toContain("browse");
+
+    // The token + url live ONLY in the 0600 .jarvis-claude-mcp.json file (§6.2/§6.5).
+    const mcpWrite = (io.writeFile as ReturnType<typeof vi.fn>).mock.calls.find((c: unknown[]) =>
+      String(c[0]).endsWith(".jarvis-claude-mcp.json")
+    );
+    expect(mcpWrite).toBeDefined();
+    expect(mcpWrite![1]).toContain("jst_abc");
+    expect(io.run).toHaveBeenCalledWith("chmod", ["600", "/tmp/neutral/.jarvis-claude-mcp.json"]);
+  });
+
+  it("removes the entire per-session neutral dir on kill (§6.5)", async () => {
+    const io = makeIo();
+    const engine = new CliChatEngineImpl("anthropic", "kill-session", io);
+    await engine.launch({
+      neutralDir: "/tmp/neutral-kill",
+      personaPath: "/tmp/persona.txt",
+      mcpToken: "jst_abc",
+      mcpServerUrl: "http://127.0.0.1:3000/api/mcp"
+    });
+    await engine.kill();
+    // The whole dir is removed (covers the Claude mcp-config file + persona), not one file.
+    expect(io.run).toHaveBeenCalledWith("rm", ["-rf", "/tmp/neutral-kill"]);
   });
 
   it("falls back to --tools '' when no mcpToken is provided", async () => {
@@ -94,7 +132,8 @@ describe("CliChatEngineImpl — Codex launch", () => {
     expect(io.run).toHaveBeenCalledWith("chmod", ["600", "/tmp/neutral/.jarvis-mcp-token.env"]);
 
     await engine.kill();
-    expect(io.run).toHaveBeenCalledWith("rm", ["-f", "/tmp/neutral/.jarvis-mcp-token.env"]);
+    // §6.5: kill removes the ENTIRE per-session neutral dir (not just the token file).
+    expect(io.run).toHaveBeenCalledWith("rm", ["-rf", "/tmp/neutral"]);
   });
 });
 
@@ -359,5 +398,200 @@ describe("CliChatEngineImpl — failure-path token redaction", () => {
     expect(causeMsg).toContain("[redacted]");
     // The original stack (which can also embed the launch line) is dropped.
     expect((cause as Error).stack).toBeUndefined();
+  });
+});
+
+// ─── #342 cli-runner path: personaText write + server-side replay-drain ──────────
+describe("CliChatEngineImpl — #342 personaText + server-owned drain", () => {
+  it("writes the persona FILE from personaText (0600) and points the CLI at it", async () => {
+    const io = makeIo();
+    const engine = new CliChatEngineImpl("anthropic", "rpc-session", io, { ownsDrain: true });
+    await engine.launch({
+      neutralDir: "/data/cli-auth/chat/user-1",
+      // personaPath is ignored when personaText is present (the server writes the file).
+      personaPath: "/data/cli-auth/chat/user-1/persona.md",
+      personaText: "You are Jarvis.",
+      mcpToken: "jst_x",
+      mcpServerUrl: "http://api:3000/api/mcp"
+    });
+
+    const personaWrite = (io.writeFile as ReturnType<typeof vi.fn>).mock.calls.find(
+      (c: unknown[]) => String(c[0]).endsWith("/persona.md")
+    );
+    expect(personaWrite).toBeDefined();
+    expect(personaWrite![1]).toBe("You are Jarvis.");
+    expect(io.run).toHaveBeenCalledWith("chmod", ["600", "/data/cli-auth/chat/user-1/persona.md"]);
+
+    const sendKeysCall = (io.run as ReturnType<typeof vi.fn>).mock.calls.find(
+      (c: unknown[]) => c[0] === "tmux" && (c[1] as string[])[0] === "send-keys"
+    );
+    const launchLine = (sendKeysCall![1] as string[])[3];
+    expect(launchLine).toContain("--append-system-prompt-file");
+    expect(launchLine).toContain("/data/cli-auth/chat/user-1/persona.md");
+  });
+
+  it("returns offset 0 when no replayBatch is given (fresh conversation)", async () => {
+    const io = makeIo();
+    const engine = new CliChatEngineImpl("anthropic", "rpc-fresh", io, { ownsDrain: true });
+    const res = await engine.launch({
+      neutralDir: "/data/cli-auth/chat/user-2",
+      personaPath: "/data/cli-auth/chat/user-2/persona.md",
+      personaText: "You are Jarvis."
+    });
+    expect(res).toEqual({ offset: 0 });
+  });
+
+  it("submits the replayBatch and drains to the post-replay offset (§4.1.2)", async () => {
+    const io = makeIo();
+    // The transcript grows to a 'complete' turn after the replay is submitted.
+    const transcript = [
+      JSON.stringify({ type: "user", message: { role: "user", content: "history" } }),
+      JSON.stringify({
+        type: "assistant",
+        message: {
+          role: "assistant",
+          content: [{ type: "text", text: "ok" }],
+          stop_reason: "end_turn"
+        }
+      })
+    ].join("\n");
+    io.readFile.mockResolvedValue(transcript);
+
+    const engine = new CliChatEngineImpl("anthropic", "rpc-replay", io, {
+      ownsDrain: true,
+      drainMs: 2_000,
+      drainPollMs: 1,
+      launchMs: 0
+    });
+    const res = await engine.launch({
+      neutralDir: "/data/cli-auth/chat/user-3",
+      personaPath: "/data/cli-auth/chat/user-3/persona.md",
+      personaText: "You are Jarvis.",
+      replayBatch: "prior conversation here"
+    });
+
+    // The replay was submitted (a prompt file was written + pasted via tmux).
+    const promptWrite = (io.writeFile as ReturnType<typeof vi.fn>).mock.calls.find((c: unknown[]) =>
+      String(c[0]).includes("jarv1s-live-prompt-")
+    );
+    expect(promptWrite![1]).toBe("prior conversation here");
+    // Drained to the end of the transcript (non-zero, the replay block consumed).
+    expect(res.offset).toBe(transcript.length);
+    expect(res.offset).toBeGreaterThan(0);
+  });
+});
+
+// ─── #342 module-level mux-name operations (§4.5 / §4.6) ─────────────────────────
+describe("cli-runner mux-name helpers", () => {
+  it("killMuxSessionByName kills the canonical jarv1s-live-<key> session", async () => {
+    const run = vi.fn().mockResolvedValue({ code: 0, stdout: "", stderr: "" });
+    await killMuxSessionByName({ run }, "user-42");
+    expect(run).toHaveBeenCalledWith("tmux", ["kill-session", "-t", `${SESSION_PREFIX}user-42`]);
+  });
+
+  it("listLiveMuxSessions enumerates by mux and strips the prefix (§4.6)", async () => {
+    const run = vi.fn().mockResolvedValue({
+      code: 0,
+      stdout: `${SESSION_PREFIX}alice\n${SESSION_PREFIX}bob\nsome-other-session\n`,
+      stderr: ""
+    });
+    const keys = await listLiveMuxSessions({ run });
+    expect(keys).toEqual(["alice", "bob"]);
+  });
+
+  it("listLiveMuxSessions tolerates 'no tmux server' (nonzero exit → empty)", async () => {
+    const run = vi.fn().mockResolvedValue({ code: 1, stdout: "", stderr: "no server" });
+    expect(await listLiveMuxSessions({ run })).toEqual([]);
+  });
+
+  it("deriveNeutralDir joins under the base; sanitizeSessionKey rejects traversal", () => {
+    expect(deriveNeutralDir("/data/cli-auth/chat", "user-1")).toBe("/data/cli-auth/chat/user-1");
+    expect(() => sanitizeSessionKey("../escape")).toThrow();
+    expect(() => sanitizeSessionKey("a/b")).toThrow();
+    expect(() => sanitizeSessionKey("")).toThrow();
+    expect(sanitizeSessionKey("ok-uuid-123")).toBe("ok-uuid-123");
+  });
+});
+
+// ─── #342 probeProvider (§4.8) — no token, no replay ─────────────────────────────
+describe("probeProvider (§4.8)", () => {
+  it("returns not_installed when the binary is absent (no auth command run)", async () => {
+    const run = vi.fn().mockResolvedValue({ code: 0, stdout: "", stderr: "" });
+    const res = await probeProvider("anthropic", {
+      io: { run },
+      cliPresent: async () => false
+    });
+    expect(res.status).toBe("not_installed");
+    // Pure presence check: no `claude auth status` is ever spawned.
+    expect(run).not.toHaveBeenCalled();
+  });
+
+  it("returns ready when claude auth status reports loggedIn", async () => {
+    const run = vi.fn().mockResolvedValue({
+      code: 0,
+      stdout: JSON.stringify({ loggedIn: true }),
+      stderr: ""
+    });
+    const res = await probeProvider("anthropic", { io: { run }, cliPresent: async () => true });
+    expect(res.status).toBe("ready");
+  });
+
+  it("surfaces multiplexer_unavailable when the mux is not usable", async () => {
+    const run = vi.fn();
+    const res = await probeProvider("anthropic", {
+      io: { run },
+      cliPresent: async () => true,
+      multiplexerUsable: async () => false
+    });
+    expect(res.status).toBe("multiplexer_unavailable");
+    expect(run).not.toHaveBeenCalled();
+  });
+});
+
+// ─── #342 §12 (4b) DOCUMENTING test: 0600 + redactSecrets do NOT protect a same-UID
+// read of the per-session token file. The single-active-user gate — NOT the file mode —
+// is the isolation boundary until #347 (§13). This test exists so nobody mistakes
+// `0600` for a cross-user boundary.
+import { mkdtemp, readFile as fsReadFile, rm as fsRm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join as pathJoin } from "node:path";
+import { createRealTmuxIo } from "../../packages/ai/src/adapters/tmux-bridge.js";
+
+describe("#342 §13 same-UID token-file readability (DOCUMENTING — not a regression)", () => {
+  it("a 0600 Codex token file is readable by the SAME uid that wrote it", async () => {
+    const dir = await mkdtemp(pathJoin(tmpdir(), "jarv1s-342-tokenfile-"));
+    try {
+      // Use the REAL io so chmod 600 actually applies on disk.
+      const io = createRealTmuxIo();
+      const engine = new CliChatEngineImpl("openai-compatible", "same-uid", io, {
+        // No mux.open → use a fake mux so we don't need a real tmux for this file check.
+        mux: {
+          kind: "tmux",
+          open: async () => "handle",
+          submit: async () => undefined,
+          isAlive: async () => true,
+          kill: async () => undefined,
+          attachCommand: () => ""
+        },
+        launchMs: 0
+      });
+      await engine.launch({
+        neutralDir: dir,
+        personaPath: pathJoin(dir, "persona.md"),
+        personaText: "You are Jarvis.",
+        mcpToken: "jst_same_uid_secret",
+        mcpServerUrl: "http://api:3000/api/mcp"
+      });
+
+      // The file is 0600 — yet the SAME uid (this test process) reads it back plainly.
+      // redactSecrets is a LOG-redaction tool, not a file-access control: the token is
+      // present in cleartext in the file. This is the documented Phase-1 limitation
+      // that the single-active-user gate (#347) compensates for.
+      const tokenFile = pathJoin(dir, ".jarvis-mcp-token.env");
+      const contents = await fsReadFile(tokenFile, "utf8");
+      expect(contents).toContain("jst_same_uid_secret");
+    } finally {
+      await fsRm(dir, { recursive: true, force: true });
+    }
   });
 });

@@ -39,7 +39,11 @@ class FakeLiveEngine implements CliChatEngine {
     private readonly sessionKey: string
   ) {}
 
-  async launch(_opts: EngineLaunchOpts): Promise<void> {}
+  async launch(_opts: EngineLaunchOpts): Promise<{ offset: number }> {
+    // The fake does not own a server-side replay drain (§4.1.2), so it returns offset 0 and the
+    // manager keeps seeding/draining from its own post-launch drain, exactly as today.
+    return { offset: 0 };
+  }
 
   async submit(text: string): Promise<void> {
     this.pending = [{ kind: "reply", text: `echo:${text}` }];
@@ -414,6 +418,34 @@ describe("Chat live API — no multiplexer available", () => {
       payload: { text: "hello jarvis" }
     });
     expect(res.statusCode).toBe(503);
+  });
+});
+
+describe("Chat live API — engine factory selection (RPC vs in-process)", () => {
+  it("selects the RPC client when JARVIS_CLI_RUNNER_SOCKET is set", async () => {
+    const { selectEngineFactory, ChatEngineRpcClient } = await import("@jarv1s/chat");
+    const { factory, connection } = selectEngineFactory({
+      env: {
+        JARVIS_CLI_RUNNER_SOCKET: "/run/jarv1s/cli-runner.sock",
+        JARVIS_CLI_RUNNER_RPC_SECRET: "test-secret"
+      } as NodeJS.ProcessEnv
+    });
+    try {
+      const engine = factory("anthropic", ids.userA);
+      expect(engine).toBeInstanceOf(ChatEngineRpcClient);
+      expect(engine.provider).toBe("anthropic");
+      expect(connection).toBeDefined();
+    } finally {
+      connection?.close();
+    }
+  });
+
+  it("falls back to the in-process engine when the socket env is absent", async () => {
+    const { selectEngineFactory, ChatEngineRpcClient } = await import("@jarv1s/chat");
+    const { factory, connection } = selectEngineFactory({ env: {} as NodeJS.ProcessEnv });
+    const engine = factory("anthropic", ids.userA);
+    expect(engine).not.toBeInstanceOf(ChatEngineRpcClient);
+    expect(connection).toBeUndefined();
   });
 });
 

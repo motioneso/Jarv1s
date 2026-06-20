@@ -44,13 +44,21 @@ ENV NODE_ENV=production
 # Default cache location for the embedding model weights (§3); the prod Compose
 # mounts a named volume here so weights survive restarts.
 ENV HF_HOME=/app/.cache/huggingface
-# tmux CLIENT (Critical): the live chat engine execs tmux verbs from inside the
-# container against the bind-mounted HOST tmux socket. The tmux SERVER and the AI
-# CLIs run on the host (ADR 0008 — not bundled); only the thin tmux client lives
-# here. --no-install-recommends keeps the layer small.
+# tmux + git (#342 in-container CLI chat): the cli-runner sidecar forks its OWN
+# tmux SERVER inside the container and runs the provider CLIs (claude/codex/agy)
+# there — no host tmux socket (ADR 0008 reversed by ADR 0010). The same image
+# runs api/worker/migrate (which don't use tmux) AND the cli-runner; bundling the
+# tmux server here keeps ONE image for every role. git is commonly required by the
+# provider CLIs. --no-install-recommends keeps the layer small.
 RUN apt-get update \
-  && apt-get install -y --no-install-recommends tmux \
+  && apt-get install -y --no-install-recommends tmux git \
   && rm -rf /var/lib/apt/lists/*
+# cli-runner sidecar entrypoint (#342): sets the CLI-tooling env (NPM prefix on
+# the tools volume, PATH+=/data/cli-tools/bin, HOME on the auth/home volume) and
+# execs the Lane B RPC server. Used ONLY by the cli-runner compose service; the
+# api/worker/migrate commands are unaffected.
+COPY infra/cli-runner-entrypoint.sh /usr/local/bin/cli-runner-entrypoint.sh
+RUN chmod 0755 /usr/local/bin/cli-runner-entrypoint.sh
 # The full workspace src + node_modules (tsx, esbuild, workspace symlinks) and the
 # SQL tree (infra/postgres, packages/*/sql) are ALREADY present from the build
 # stage at their real repo-relative paths, so `tsx scripts/migrate.ts` resolves the

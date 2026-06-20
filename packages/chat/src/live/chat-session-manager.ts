@@ -69,6 +69,29 @@ export interface ChatSessionManagerDeps {
   /** Refresh the session token's TTL on activity, so a live session's token never
    *  expires under the registry backstop (mirrors lastActivity / idle reaping). */
   readonly touchMcpToken?: (chatSessionId: string) => void;
+  /**
+   * #342 (§5.3 step 2) — revoke every MCP token whose chatSessionId is NOT in the live set.
+   * Wraps SessionTokenRegistry.reconcile(liveSessionIds). The ONE source for orphan-token
+   * revocation: it works off the token registry, so it sweeps orphaned tokens even when
+   * `sessions` is empty (an api restart). Absent ⇒ reconciliation skips the token sweep
+   * (host/in-process path that mints no tokens).
+   */
+  readonly reconcileMcpTokens?: (liveSessionIds: Set<string>) => void;
+  /**
+   * #342 (§5.3 steps 2/4) — every chatSessionId the token registry currently holds a token
+   * for (SessionTokenRegistry.listSessionIds). After an api restart the `sessions` Map is
+   * empty, so this — not the Map — is what tells reconciliation which orphaned mux sessions
+   * to reap by name. Absent ⇒ reconciliation reaps only sessions the Map knows about.
+   */
+  readonly listMcpTokenSessionIds?: () => string[];
+  /**
+   * #342 (§4.5 / §5.3 step 4) — issue a `kill` for a sessionKey the manager has NO engine
+   * object for (an api-unknown live mux session after an api restart). The RPC client kills
+   * BY MUX NAME over the socket; the in-process path can no-op (a host install has no
+   * separate cli-runner to hold orphans). Idempotent. Absent ⇒ orphan-by-name reaping is
+   * skipped (only Map-known sessions are killed via their engine).
+   */
+  readonly killSession?: (sessionKey: string) => Promise<void>;
   /** Phase 3: optional recall service — injects <memory> seed before replay. */
   readonly recall?: RecallPort;
 }
@@ -116,6 +139,14 @@ export class ChatSessionManager {
   private readonly turnsInFlight = new Set<string>();
   private readonly pollMs: number;
   private readonly maxPolls: number;
+  /**
+   * #342 (§5.4) — the single async mutex SHARED by reconciliation and reapIdle. Both mutate
+   * `sessions` + revoke tokens, so they MUST be mutually exclusive. Implemented as a promise
+   * chain: each critical section awaits the previous one's settlement before running. (A
+   * `submitTurn` does not take this mutex — it is serialized per-user by `turnsInFlight`; the
+   * mutex only orders the two session-map-mutating maintenance paths against each other.)
+   */
+  private maintenanceMutex: Promise<void> = Promise.resolve();
 
   constructor(private readonly deps: ChatSessionManagerDeps) {
     this.pollMs = deps.pollMs ?? 25;
@@ -162,22 +193,12 @@ export class ChatSessionManager {
     const sessionKey = actorUserId;
     const engine = this.deps.engineFactory(provider, sessionKey);
     const mcpConfig = await this.deps.mintMcpToken?.(actorUserId, actorUserId);
-    await engine.launch({
-      neutralDir,
-      personaPath,
-      mcpToken: mcpConfig?.token,
-      mcpServerUrl: mcpConfig?.mcpServerUrl
-    });
 
-    const session: UserSession = {
-      engine,
-      provider,
-      model,
-      lastActivity: this.deps.clock.now(),
-      transcriptOffset: 0
-    };
-    this.sessions.set(actorUserId, session);
-
+    // Build the replay batch BEFORE launch so it can be shipped to the cli-runner in the
+    // launch RPC (§4.1). It is REBUILT from live state on every launch — never cached —
+    // since persona, recall seed, rolling summary and recent-turn window can all change
+    // between launches (§4.1.3).
+    //
     // Phase 3: recall injection — prepend <memory> seed before conversation replay.
     const recallResult = this.deps.recall ? await this.deps.recall.recall(actorUserId) : null;
     const seedBudget = process.env.JARVIS_CHAT_SEED_BUDGET_TOKENS
@@ -187,16 +208,47 @@ export class ChatSessionManager {
       ? renderMemorySeedBlock(recallResult.episodicChunks, recallResult.facts, seedBudget)
       : "";
 
-    // Replay the bounded window of prior turns (+ older rolling summary) so a
-    // respawned or provider-switched engine continues seamlessly.
+    // The bounded window of prior turns (+ older rolling summary) so a respawned or
+    // provider-switched engine continues seamlessly.
     const { recent: recentTurns, oldSummary } =
       await this.deps.persistence.listPriorTurns(actorUserId);
-    if (memorySeed || oldSummary || recentTurns.length > 0) {
-      const parts: string[] = [];
-      if (memorySeed) parts.push(memorySeed);
-      if (oldSummary) parts.push(renderSummaryBlock(oldSummary));
-      if (recentTurns.length > 0) parts.push(renderReplayBlock(recentTurns));
-      await engine.submit(parts.join("\n\n"));
+    const replayParts: string[] = [];
+    if (memorySeed) replayParts.push(memorySeed);
+    if (oldSummary) replayParts.push(renderSummaryBlock(oldSummary));
+    if (recentTurns.length > 0) replayParts.push(renderReplayBlock(recentTurns));
+    const replayBatch = replayParts.length > 0 ? replayParts.join("\n\n") : undefined;
+
+    // launch now returns the post-drain transcript offset (§4.0/§4.1.2). The manager
+    // populates personaText + replayBatch on BOTH paths: the RPC engine consumes them
+    // (server writes the persona file, submits + drains replayBatch, returns the real
+    // post-drain offset); the in-process engine IGNORES them, returns { offset: 0 }, and
+    // the manager keeps doing its own submit + drain below.
+    const { offset } = await engine.launch({
+      neutralDir,
+      personaPath,
+      personaText: persona,
+      replayBatch,
+      mcpToken: mcpConfig?.token,
+      mcpServerUrl: mcpConfig?.mcpServerUrl
+    });
+
+    const session: UserSession = {
+      engine,
+      provider,
+      model,
+      lastActivity: this.deps.clock.now(),
+      // Seed from the launch return so the FIRST real readNew does not re-read the
+      // server-drained replay block as the assistant reply (§4.1.2).
+      transcriptOffset: offset
+    };
+    this.sessions.set(actorUserId, session);
+
+    // In-process path: the engine did NOT own the replay drain (it returns offset 0 and
+    // ignores replayBatch), so the manager submits + drains the replay itself, exactly as
+    // before. The RPC path already drained server-side (offset > 0 ⇒ skip). When there is
+    // no replay to send at all, both paths skip this.
+    if (replayBatch !== undefined && offset === 0) {
+      await engine.submit(replayBatch);
       // Drain (and discard) so real turn records start from a clean offset.
       session.transcriptOffset = await this.drain(engine, session.transcriptOffset);
     }
@@ -339,19 +391,121 @@ export class ChatSessionManager {
   /**
    * Kill and drop any engine idle longer than idleMs. The conversation persists,
    * so the next submitTurn respawns the engine and replays prior turns.
+   *
+   * Runs under the shared §5.4 maintenance mutex so it can never race the ONE
+   * reconciliation routine (both mutate `sessions` + revoke tokens).
    */
   async reapIdle(): Promise<void> {
-    const now = this.deps.clock.now();
-    for (const [userId, session] of this.sessions) {
-      if (now - session.lastActivity > this.deps.idleMs) {
-        await session.engine.kill();
-        this.sessions.delete(userId);
-        this.deps.revokeMcpToken?.(userId);
+    await this.withMaintenanceLock(async () => {
+      const now = this.deps.clock.now();
+      for (const [userId, session] of this.sessions) {
+        if (now - session.lastActivity > this.deps.idleMs) {
+          await session.engine.kill();
+          this.sessions.delete(userId);
+          this.deps.revokeMcpToken?.(userId);
+        }
       }
-    }
+    });
+  }
+
+  /**
+   * The ONE authoritative reconciliation (#342, RPC contract §5.3). Driven by the RPC
+   * client on every socket (re)connect AND on a detected cli-runner `bootId` change (§5.6).
+   * `liveKeys` is the authoritative set of sessionKeys the cli-runner reports alive (via
+   * `listLiveSessions`, enumerated by mux — §4.6). After it returns, the api's token
+   * registry and `sessions` map are consistent with the cli-runner's live set.
+   *
+   * Steps (under the shared §5.4 mutex, mutually exclusive with reapIdle):
+   *   2. Orphan-token revoke — sourced from the TOKEN REGISTRY (works with an empty
+   *      `sessions` Map, e.g. after an api restart): revoke every token whose session ∉
+   *      liveKeys.
+   *   3. Drop stale api sessions — a `sessions` entry whose key ∉ liveKeys (cli-runner
+   *      restarted, losing it): drop it + revoke its token. The next submitTurn relaunches.
+   *   4. Kill orphaned mux sessions — a liveKey the `sessions` Map does NOT know about (api
+   *      restarted, cli-runner kept it): issue `kill` BY MUX NAME (§4.5).
+   *
+   * A `sessionKey` currently mid-launch (in `launching`) is treated as LIVE for the whole
+   * launch window (§5.4): it is unioned into the effective-live set so it is never killed,
+   * dropped, or its token revoked. Idempotent — running it twice once consistent is a no-op.
+   */
+  async reconcileLiveSessions(liveKeys: Set<string>): Promise<void> {
+    await this.withMaintenanceLock(async () => {
+      // Treat in-flight launches as live for the entire launch window (§5.4).
+      const effectiveLive = new Set(liveKeys);
+      for (const key of this.launching.keys()) effectiveLive.add(key);
+
+      // Step 2: orphan-token revoke, sourced from the token registry (not `sessions`).
+      this.deps.reconcileMcpTokens?.(effectiveLive);
+
+      // Step 3: drop stale api sessions (Map key ∉ effectiveLive).
+      for (const [sessionKey, session] of this.sessions) {
+        if (!effectiveLive.has(sessionKey)) {
+          await session.engine.kill();
+          this.sessions.delete(sessionKey);
+          this.deps.revokeMcpToken?.(sessionKey);
+        }
+      }
+
+      // Step 4: kill orphaned mux sessions — a live key the Map does NOT know about. The
+      // token registry's session ids are the broader source for "sessions the api once had
+      // but whose Map entry is gone" (api restart); union them with current Map keys so an
+      // api-unknown live key is reaped by mux name even with an empty `sessions` Map.
+      // In-flight launch keys are explicitly EXCLUDED from reaping (§5.4): the api is itself
+      // bringing that session up, so it is not an orphan — never kill a launching key.
+      const known = new Set<string>(this.sessions.keys());
+      for (const key of this.launching.keys()) known.add(key);
+      for (const id of this.deps.listMcpTokenSessionIds?.() ?? []) known.add(id);
+      for (const liveKey of effectiveLive) {
+        if (!known.has(liveKey)) {
+          await this.deps.killSession?.(liveKey);
+        }
+      }
+    });
+  }
+
+  /**
+   * Wire a production idle-reaper (#342, §5.5 option (a) — the PREFERRED outcome). Returns a
+   * stop handle that clears the interval. The reaper calls {@link reapIdle}, which takes the
+   * shared §5.4 maintenance mutex, so it can never race {@link reconcileLiveSessions}.
+   *
+   * This is the seam the api boot wiring (the composition root — NOT this package) calls once
+   * after constructing the manager; e.g. `const stop = manager.startIdleReaper()` and `stop()`
+   * on shutdown. It is OPT-IN so unit/integration tests that drive reapIdle manually are not
+   * disturbed by a background timer. Reconciliation does not DEPEND on this running — the
+   * bootId/reconnect-driven reconciliation plus the 60-min token TTL backstop are sufficient
+   * on their own (§5.5) — but wiring it is the preferred Phase-1 outcome and is provided here.
+   *
+   * INTEGRATE NOTE: the composition root must call this once at boot (see §5.5); it is not
+   * self-starting because the manager has no lifecycle/shutdown hook of its own.
+   */
+  startIdleReaper(intervalMs: number = this.deps.idleMs): () => void {
+    const handle = setInterval(() => {
+      // Swallow errors so a transient reap failure (e.g. a kill RPC blip) does not crash the
+      // timer; the next tick retries and the TTL backstop is the final safety net.
+      void this.reapIdle().catch(() => {});
+    }, intervalMs);
+    // Do not keep the event loop alive solely for the reaper (lets the process exit cleanly).
+    handle.unref?.();
+    return () => clearInterval(handle);
   }
 
   // ─── helpers ───────────────────────────────────────────────────────────────
+
+  /**
+   * Run `fn` under the shared §5.4 maintenance mutex (a serialized promise chain), so the two
+   * session-map-mutating maintenance paths — reconciliation and idle reaping — are mutually
+   * exclusive. The chain advances regardless of whether `fn` resolves or rejects.
+   */
+  private withMaintenanceLock<T>(fn: () => Promise<T>): Promise<T> {
+    const run = this.maintenanceMutex.then(fn, fn);
+    // Keep the chain alive even if this critical section rejects (swallow only on the chain,
+    // not for the caller — the caller still sees the original rejection via `run`).
+    this.maintenanceMutex = run.then(
+      () => undefined,
+      () => undefined
+    );
+    return run;
+  }
 
   private emit(actorUserId: string, record: TranscriptRecord): void {
     const set = this.subscribers.get(actorUserId);

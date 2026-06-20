@@ -212,6 +212,10 @@ describe("MVP foundation scaffold", () => {
         {
           version: "0102",
           name: "0102_notifications_defense_in_depth_comments.sql"
+        },
+        {
+          version: "0103",
+          name: "0103_provider_install_state.sql"
         }
       ]);
     } finally {
