@@ -14,9 +14,16 @@ import type { PgBoss } from "pg-boss";
 import type { RecallPort } from "../recall-port.js";
 
 import { resolveChatHome } from "./chat-home.js";
+import {
+  ChatEngineRpcClient,
+  RpcConnection,
+  type RpcClientLogger
+} from "./chat-engine-rpc-client.js";
 import { CliChatEngineImpl } from "./cli-chat-engine.js";
 import { CliChatUnavailableError } from "./errors.js";
 export { CliChatUnavailableError } from "./errors.js";
+export { ChatEngineRpcClient, RpcConnection } from "./chat-engine-rpc-client.js";
+export type { RpcClientLogger, RpcConnectionOpts } from "./chat-engine-rpc-client.js";
 import { ChatSessionManager } from "./chat-session-manager.js";
 import { createRealPersonaFs } from "./persona.js";
 import { DataContextChatPersistence } from "./persistence.js";
@@ -58,6 +65,73 @@ export function createRealEngineFactory(opts: { mux?: Multiplexer } = {}): ChatE
   const homeBase = process.env.JARVIS_CLI_HOME_BASE;
   return (provider, sessionKey) =>
     new CliChatEngineImpl(provider, sessionKey, createRealTmuxIo(), { mux: opts.mux, homeBase });
+}
+
+/**
+ * The shared connection + the per-session engine factory backed by it. Returned together so the
+ * composition root can wire the reconciliation hook on the connection (Lane D's manager owns the
+ * reconcile body; the connection only fires it) and tear it down on shutdown.
+ */
+export interface RpcEngineFactory {
+  readonly factory: ChatEngineFactory;
+  readonly connection: RpcConnection;
+}
+
+/**
+ * Builds the RPC engine factory used when the api runs containerized alongside the cli-runner sidecar
+ * (#342). Every per-session engine is a thin `ChatEngineRpcClient` over ONE shared `RpcConnection`
+ * (one socket per api process, §3.4). The connection is constructed lazily-connected (it connects on
+ * first engine use, §3.5); the composition root may also `ensureConnected()` it on boot so
+ * reconciliation runs before the first user turn.
+ *
+ * `onReconcile` is the manager's `reconcileLiveSessions`-driven hook (Lane D); it fires on every
+ * (re)connect AND on a `bootId` change (§5.6). `logger` is the {method,id,sessionKey,bytes}-only
+ * debug logger (§6.4) — it MUST NOT log frame bodies.
+ */
+export function createRpcEngineFactory(opts: {
+  readonly socketPath: string;
+  readonly rpcSecret: string;
+  readonly onReconcile?: () => Promise<void>;
+  readonly logger?: RpcClientLogger;
+}): RpcEngineFactory {
+  const connection = new RpcConnection({
+    socketPath: opts.socketPath,
+    rpcSecret: opts.rpcSecret,
+    onReconcile: opts.onReconcile,
+    logger: opts.logger
+  });
+  const factory: ChatEngineFactory = (provider, sessionKey) =>
+    new ChatEngineRpcClient(provider, sessionKey, connection);
+  return { factory, connection };
+}
+
+/**
+ * Boot-time fork (§3.5): when `JARVIS_CLI_RUNNER_SOCKET` is set the api drives the cli-runner sidecar
+ * over the socket (RPC client); otherwise it constructs the in-process `CliChatEngineImpl` exactly as
+ * today (host-dev / native-install path, reading `JARVIS_CLI_HOME_BASE`). Lane C sets the socket env
+ * only in the compose path. Returns the factory, plus the `RpcConnection` when the RPC path is taken
+ * (so the composition root can wire reconciliation + tear it down on shutdown).
+ */
+export function selectEngineFactory(
+  opts: {
+    readonly mux?: Multiplexer;
+    readonly onReconcile?: () => Promise<void>;
+    readonly logger?: RpcClientLogger;
+    readonly env?: NodeJS.ProcessEnv;
+  } = {}
+): { factory: ChatEngineFactory; connection?: RpcConnection } {
+  const env = opts.env ?? process.env;
+  const socketPath = env.JARVIS_CLI_RUNNER_SOCKET;
+  if (socketPath) {
+    const { factory, connection } = createRpcEngineFactory({
+      socketPath,
+      rpcSecret: env.JARVIS_CLI_RUNNER_RPC_SECRET ?? "",
+      onReconcile: opts.onReconcile,
+      logger: opts.logger
+    });
+    return { factory, connection };
+  }
+  return { factory: createRealEngineFactory({ mux: opts.mux }) };
 }
 
 /** A factory that refuses to launch: used when the host has no multiplexer installed. */

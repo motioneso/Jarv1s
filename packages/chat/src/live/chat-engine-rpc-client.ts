@@ -1,0 +1,638 @@
+/**
+ * ChatEngineRpcClient — the api-side RPC client for the cli-runner sidecar (#342).
+ *
+ * The api no longer runs the provider CLIs in-process. Instead it drives a dedicated `cli-runner`
+ * container over a private Unix-domain socket. This module is the api half of that boundary:
+ *
+ *   - `RpcConnection` owns the ONE long-lived socket: connect/reconnect with backoff, the §3.6 mutual
+ *     challenge-response auth hello (the RPC secret is NEVER sent on the wire), length-prefixed-JSON
+ *     framing (§3.2), id-matching of responses over one connection (§3.4), and §5.6 `bootId` tracking
+ *     (records the first bootId; on a change it fails in-flight calls and fires a reconciliation hook
+ *     the manager wires).
+ *   - `ChatEngineRpcClient` is a thin per-`sessionKey` wrapper implementing `CliChatEngine`
+ *     (launch/submit/readNew/isAlive/kill) by marshalling each method onto the shared connection.
+ *
+ * SECURITY (§6.4): NO raw frame logging on either side. The launch frame carries the MCP token + the
+ * persona/replay (private content) and the hello frame carries the socket secret. The only loggable
+ * fields for a frame are `{ method, id, sessionKey, bytes }` — never params/result/error bodies.
+ *
+ * Wire types are imported READ-ONLY from `./rpc-contract.js` (the frozen wire-type home, §10) — this
+ * module re-declares none of them.
+ */
+
+import { createHmac, randomBytes, timingSafeEqual } from "node:crypto";
+import { connect, type Socket } from "node:net";
+import { realpath } from "node:fs/promises";
+import { resolve as resolvePath, sep } from "node:path";
+
+import type { ProviderKind } from "@jarv1s/ai";
+
+import { CliChatUnavailableError } from "./errors.js";
+import {
+  decodeFrame,
+  encodeFrame,
+  HELLO_PROOF_TAG_CLIENT,
+  HELLO_PROOF_TAG_SERVER,
+  type FrameDecodeResult,
+  type RpcErr,
+  type RpcErrorCode,
+  type RpcFrame,
+  type RpcHelloChallenge,
+  type RpcIsAliveResult,
+  type RpcKillResult,
+  type RpcLaunchParams,
+  type RpcLaunchResult,
+  type RpcListLiveSessionsResult,
+  type RpcMethod,
+  type RpcOk,
+  type RpcProbeProviderParams,
+  type RpcProbeProviderResult,
+  type RpcReadNewParams,
+  type RpcReadNewResult,
+  type RpcSubmitParams,
+  type RpcSubmitResult
+} from "./rpc-contract.js";
+import type { CliChatEngine, EngineLaunchOpts, TranscriptRecord } from "./types.js";
+
+/** The directory the socket MUST resolve under (§3.1 client-side realpath guard). */
+export const SOCKET_ALLOWED_DIR = "/run/jarv1s";
+
+/** Reconnect backoff bounds (§3.5): 250ms → 2s, jittered. */
+const RECONNECT_MIN_MS = 250;
+const RECONNECT_MAX_MS = 2_000;
+
+/** Width of the random hex nonces exchanged in the auth hello (§3.6) — 32 bytes. */
+const NONCE_BYTES = 32;
+
+/** A minimal sink for the {method,id,sessionKey,bytes}-only debug log (§6.4). NEVER bodies. */
+export interface RpcClientLogger {
+  debug(fields: {
+    method?: RpcMethod | "hello";
+    id?: number;
+    sessionKey?: string;
+    bytes?: number;
+  }): void;
+  warn(message: string): void;
+}
+
+const NOOP_LOGGER: RpcClientLogger = { debug: () => {}, warn: () => {} };
+
+export interface RpcConnectionOpts {
+  /** Absolute socket path; realpath-checked to be under /run/jarv1s before connect (§3.1). */
+  readonly socketPath: string;
+  /** Shared secret for the §3.6 auth hello. Proven over nonces, NEVER sent on the wire. */
+  readonly rpcSecret: string;
+  /**
+   * Reconciliation hook fired on every (re)connect AND on a detected bootId change (§5.6). The
+   * manager (Lane D) wires this to `reconcileLiveSessions`. While it runs, new calls are blocked.
+   */
+  readonly onReconcile?: () => Promise<void>;
+  /** {method,id,sessionKey,bytes}-only logger (§6.4). Defaults to a no-op. */
+  readonly logger?: RpcClientLogger;
+  readonly reconnectMinMs?: number;
+  readonly reconnectMaxMs?: number;
+}
+
+interface PendingCall {
+  readonly method: RpcMethod;
+  readonly sessionKey?: string;
+  resolve(result: unknown): void;
+  reject(err: Error): void;
+}
+
+/** Internal connection state machine. */
+type ConnState = "idle" | "connecting" | "handshaking" | "ready" | "closed";
+
+/**
+ * Maps an RpcErrorCode to the typed JS error the api expects (§4.7). `unavailable` and `not_launched`
+ * both become a retryable `CliChatUnavailableError` (→ HTTP 503); the rest become a plain `Error`
+ * (→ 500). The message is already redacted server-side (§6.4), so it is safe to surface/log.
+ */
+export function mapRpcError(code: RpcErrorCode, message: string): Error {
+  if (code === "unavailable" || code === "not_launched") {
+    return new CliChatUnavailableError(message);
+  }
+  return new Error(message);
+}
+
+/**
+ * Owns the single long-lived socket to cli-runner. Shared across all per-session `ChatEngineRpcClient`
+ * instances (one connection per api process, §3.4). Handles connect/reconnect, the auth hello,
+ * framing, id-matching, and bootId reconciliation.
+ */
+export class RpcConnection {
+  private readonly socketPath: string;
+  private readonly rpcSecret: string;
+  private readonly onReconcile?: () => Promise<void>;
+  private readonly log: RpcClientLogger;
+  private readonly reconnectMinMs: number;
+  private readonly reconnectMaxMs: number;
+
+  private socket: Socket | null = null;
+  private state: ConnState = "idle";
+  private recvBuf: Buffer<ArrayBufferLike> = Buffer.alloc(0);
+
+  /** Per-connection monotonic request id (§3.4). Reset on each fresh connection. */
+  private nextId = 1;
+  private readonly pending = new Map<number, PendingCall>();
+
+  /** The first bootId observed on the current connection; a change is a silent restart (§5.6). */
+  private bootId: string | null = null;
+  /** While true, new RPC calls are rejected as unavailable until reconciliation completes (§5.6). */
+  private reconciling = false;
+
+  private connectPromise: Promise<void> | null = null;
+  private closedByCaller = false;
+
+  constructor(opts: RpcConnectionOpts) {
+    this.socketPath = opts.socketPath;
+    this.rpcSecret = opts.rpcSecret;
+    this.onReconcile = opts.onReconcile;
+    this.log = opts.logger ?? NOOP_LOGGER;
+    this.reconnectMinMs = opts.reconnectMinMs ?? RECONNECT_MIN_MS;
+    this.reconnectMaxMs = opts.reconnectMaxMs ?? RECONNECT_MAX_MS;
+  }
+
+  // ─── public RPC surface ──────────────────────────────────────────────────────
+
+  launch(sessionKey: string, params: RpcLaunchParams): Promise<RpcLaunchResult> {
+    return this.call<RpcLaunchResult>("launch", sessionKey, params);
+  }
+
+  submit(sessionKey: string, params: RpcSubmitParams): Promise<RpcSubmitResult> {
+    return this.call<RpcSubmitResult>("submit", sessionKey, params);
+  }
+
+  readNew(sessionKey: string, params: RpcReadNewParams): Promise<RpcReadNewResult> {
+    return this.call<RpcReadNewResult>("readNew", sessionKey, params);
+  }
+
+  isAlive(sessionKey: string): Promise<RpcIsAliveResult> {
+    return this.call<RpcIsAliveResult>("isAlive", sessionKey, {});
+  }
+
+  kill(sessionKey: string): Promise<RpcKillResult> {
+    return this.call<RpcKillResult>("kill", sessionKey, {});
+  }
+
+  /** Non-session reconciliation primitive (§4.6); no sessionKey. */
+  listLiveSessions(): Promise<RpcListLiveSessionsResult> {
+    return this.call<RpcListLiveSessionsResult>("listLiveSessions", undefined, {});
+  }
+
+  /** Non-session onboarding probe (§4.8); no sessionKey. */
+  probeProvider(params: RpcProbeProviderParams): Promise<RpcProbeProviderResult> {
+    return this.call<RpcProbeProviderResult>("probeProvider", undefined, params);
+  }
+
+  /** Tear down the connection (process shutdown). Idempotent. */
+  close(): void {
+    this.closedByCaller = true;
+    this.state = "closed";
+    this.failAllInFlight(new CliChatUnavailableError("rpc connection closed"));
+    if (this.socket) {
+      this.socket.destroy();
+      this.socket = null;
+    }
+  }
+
+  // ─── core request/response ───────────────────────────────────────────────────
+
+  private async call<T>(
+    method: RpcMethod,
+    sessionKey: string | undefined,
+    params: unknown
+  ): Promise<T> {
+    await this.ensureConnected();
+    if (this.reconciling) {
+      // A bootId change / fresh reconnect is being reconciled; the chat surface is transiently
+      // unavailable (HTTP 503, retryable) until it completes (§5.6).
+      throw new CliChatUnavailableError("cli-runner reconciling after restart");
+    }
+    const id = this.nextId++;
+    const frame: RpcFrame = { t: "req", id, method, sessionKey, params };
+    return new Promise<T>((resolve, reject) => {
+      this.pending.set(id, {
+        method,
+        sessionKey,
+        resolve: (r) => resolve(r as T),
+        reject
+      });
+      try {
+        this.writeFrame(frame, method, id, sessionKey);
+      } catch (err) {
+        this.pending.delete(id);
+        reject(new CliChatUnavailableError("cli-runner socket write failed", { cause: err }));
+      }
+    });
+  }
+
+  private writeFrame(frame: RpcFrame, method: RpcMethod, id: number, sessionKey?: string): void {
+    const buf = encodeFrame(frame);
+    // §6.4: log only method/id/sessionKey/byte-length — NEVER the frame body.
+    this.log.debug({ method, id, sessionKey, bytes: buf.length });
+    const sock = this.socket;
+    if (!sock) throw new Error("no socket");
+    sock.write(buf);
+  }
+
+  // ─── connect / handshake / reconnect ─────────────────────────────────────────
+
+  /**
+   * Ensure the socket is connected AND the auth hello has completed. Multiple concurrent callers
+   * share the same in-flight connect promise. On `ECONNREFUSED`/`ENOENT` retries with capped jittered
+   * backoff (§3.5) until connected or the connection is closed by the caller.
+   */
+  async ensureConnected(): Promise<void> {
+    if (this.state === "ready") return;
+    if (this.state === "closed") throw new CliChatUnavailableError("rpc connection closed");
+    if (this.connectPromise) return this.connectPromise;
+    this.connectPromise = this.connectWithBackoff().finally(() => {
+      this.connectPromise = null;
+    });
+    return this.connectPromise;
+  }
+
+  private async connectWithBackoff(): Promise<void> {
+    // §3.1: realpath-check the socket resolves UNDER /run/jarv1s BEFORE any connect attempt (mirror of
+    // the server bind check; defends a redirected socket path). This is a CONFIGURATION error, not a
+    // transient connect failure — it can never become valid by retrying, so it propagates out of the
+    // backoff loop and rejects `ensureConnected` (a retried-forever guard would hang the caller).
+    await this.assertSocketUnderRunDir();
+
+    let attempt = 0;
+    for (;;) {
+      if (this.closedByCaller) throw new CliChatUnavailableError("rpc connection closed");
+      try {
+        await this.connectOnce();
+        return;
+      } catch (err) {
+        attempt += 1;
+        this.log.warn(`cli-runner connect attempt ${attempt} failed: ${describeError(err)}`);
+        const delay = backoffDelay(attempt, this.reconnectMinMs, this.reconnectMaxMs);
+        await sleep(delay);
+      }
+    }
+  }
+
+  private async connectOnce(): Promise<void> {
+    this.state = "connecting";
+    this.recvBuf = Buffer.alloc(0);
+    this.bootId = null;
+    this.nextId = 1;
+
+    const socket = await openSocket(this.socketPath);
+    this.socket = socket;
+
+    socket.on("error", (err) => this.onSocketClosed(err));
+    socket.on("close", () => this.onSocketClosed());
+
+    // §3.6: perform the mutual challenge-response hello BEFORE any RpcRequest. This both proves the
+    // server holds the secret (so we never hand a token to an imposter peer) and proves we hold it.
+    // The handshake reader (`readSingleHandshakeFrame`) owns the `data` stream during the hello; the
+    // normal response router is attached ONLY after the handshake completes, so a handshake frame is
+    // never misrouted into `routeFrame` (which would treat the hello-challenge as a malformed response
+    // and drop the connection).
+    this.state = "handshaking";
+    await this.performHello(socket);
+
+    socket.on("data", (chunk: Buffer) => this.onData(chunk));
+    this.state = "ready";
+
+    // Any bytes that arrived after the hello frame were stashed in recvBuf by the handshake reader;
+    // drain them now that the normal router is attached (§3.2 — a response may already be buffered).
+    if (this.recvBuf.length > 0) this.drainRecvBuf();
+
+    // §3.5 / §5.3: run reconciliation on every (re)connect before serving new turns.
+    await this.runReconciliation();
+  }
+
+  /**
+   * §3.1 client-side guard: refuse a socket path whose realpath escapes /run/jarv1s. `protected` so a
+   * unit-test subclass can relax it to bind a temp socket (the guard itself is covered separately).
+   */
+  protected async assertSocketUnderRunDir(): Promise<void> {
+    const allowed = resolvePath(SOCKET_ALLOWED_DIR);
+    let resolved: string;
+    try {
+      resolved = await realpath(this.socketPath);
+    } catch {
+      // The socket may not exist yet (cli-runner not up). Fall back to a lexical resolve so a
+      // redirected/escaping configured path is still rejected; a non-existent in-dir path proceeds
+      // to connect (which will ECONNREFUSED/ENOENT and back off).
+      resolved = resolvePath(this.socketPath);
+    }
+    if (resolved !== allowed && !resolved.startsWith(allowed + sep)) {
+      throw new CliChatUnavailableError(
+        `refusing cli-runner socket outside ${SOCKET_ALLOWED_DIR}: ${resolved}`
+      );
+    }
+  }
+
+  /**
+   * §3.6 mutual challenge-response. The secret is NEVER transmitted; both sides prove knowledge over
+   * exchanged nonces with domain-separated HMACs. The client:
+   *   1. sends `clientNonce`;
+   *   2. receives `serverProof` + `serverNonce`, and VERIFIES `serverProof` = HMAC(secret,"S"+clientNonce)
+   *      BEFORE sending anything else — a wrong/absent proof ⇒ abort + close (never reveal a token to
+   *      an imposter peer);
+   *   3. sends `clientProof` = HMAC(secret,"C"+serverNonce).
+   */
+  private async performHello(socket: Socket): Promise<void> {
+    if (!this.rpcSecret) {
+      socket.destroy();
+      throw new CliChatUnavailableError("JARVIS_CLI_RUNNER_RPC_SECRET is not set");
+    }
+    const clientNonce = randomBytes(NONCE_BYTES).toString("hex");
+    const expectedServerProof = hmacHex(this.rpcSecret, HELLO_PROOF_TAG_SERVER + clientNonce);
+
+    // Read the single hello-challenge frame off the raw stream (before normal frame routing starts).
+    const challengePromise = this.readSingleHandshakeFrame(socket);
+    this.log.debug({ method: "hello" });
+    socket.write(encodeFrame({ t: "hello", clientNonce }));
+
+    const challenge = await challengePromise;
+    if (!isHelloChallenge(challenge)) {
+      socket.destroy();
+      throw new CliChatUnavailableError("cli-runner hello: missing or malformed challenge");
+    }
+    // VERIFY the server's proof BEFORE sending our proof — abort if wrong (§3.6).
+    if (!constantTimeHexEqual(challenge.serverProof, expectedServerProof)) {
+      socket.destroy();
+      throw new CliChatUnavailableError("cli-runner hello: server proof mismatch (imposter peer)");
+    }
+    const clientProof = hmacHex(this.rpcSecret, HELLO_PROOF_TAG_CLIENT + challenge.serverNonce);
+    socket.write(encodeFrame({ t: "hello-response", clientProof }));
+    // The server proceeds straight to request/response framing on success, or closes silently on a
+    // bad clientProof (surfaced as a socket close → reconnect, §3.6).
+  }
+
+  /**
+   * Read exactly one length-prefixed frame off the socket during the handshake, before the normal
+   * `data` handler takes over routing. Buffers fragmented reads (§3.2). Resolves with the parsed JSON
+   * frame, or rejects on a malformed/oversize frame or an early close.
+   */
+  private readSingleHandshakeFrame(socket: Socket): Promise<unknown> {
+    return new Promise((resolve, reject) => {
+      let buf: Buffer<ArrayBufferLike> = Buffer.alloc(0);
+      const onData = (chunk: Buffer<ArrayBufferLike>): void => {
+        buf = buf.length === 0 ? chunk : Buffer.concat([buf, chunk]);
+        const decoded: FrameDecodeResult = decodeFrame(buf);
+        if (decoded.kind === "incomplete") return;
+        cleanup();
+        if (decoded.kind === "oversize") {
+          reject(new CliChatUnavailableError("cli-runner hello: oversize frame"));
+          return;
+        }
+        // Stash any bytes that arrived after this frame so the normal reader sees them.
+        const rest = buf.subarray(decoded.consumed);
+        if (rest.length > 0) this.recvBuf = Buffer.concat([this.recvBuf, rest]);
+        try {
+          resolve(JSON.parse(decoded.body.toString("utf8")) as unknown);
+        } catch (err) {
+          reject(new CliChatUnavailableError("cli-runner hello: invalid JSON", { cause: err }));
+        }
+      };
+      const onClose = (): void => {
+        cleanup();
+        reject(new CliChatUnavailableError("cli-runner closed during hello"));
+      };
+      const cleanup = (): void => {
+        socket.off("data", onData);
+        socket.off("error", onClose);
+        socket.off("close", onClose);
+      };
+      socket.on("data", onData);
+      socket.on("error", onClose);
+      socket.on("close", onClose);
+    });
+  }
+
+  // ─── inbound framing + id-matching ───────────────────────────────────────────
+
+  /** Drain any frames already buffered in recvBuf (e.g. bytes the handshake reader stashed). */
+  private drainRecvBuf(): void {
+    this.onData(Buffer.alloc(0));
+  }
+
+  private onData(chunk: Buffer<ArrayBufferLike>): void {
+    this.recvBuf = this.recvBuf.length === 0 ? chunk : Buffer.concat([this.recvBuf, chunk]);
+    for (;;) {
+      const decoded = decodeFrame(this.recvBuf);
+      if (decoded.kind === "incomplete") return;
+      if (decoded.kind === "oversize") {
+        // §3.2/§3.7: a frame larger than MAX_FRAME_BYTES is malformed — the stream can no longer be
+        // trusted to be aligned. Drop the connection; the close path reconnects + reconciles.
+        this.log.warn(`cli-runner sent oversize frame (${decoded.declaredLength} bytes); closing`);
+        this.dropConnection();
+        return;
+      }
+      this.recvBuf = this.recvBuf.subarray(decoded.consumed);
+      let frame: RpcFrame;
+      try {
+        frame = JSON.parse(decoded.body.toString("utf8")) as RpcFrame;
+      } catch {
+        // §3.7: a body that is not valid JSON is a malformed frame — close + reconnect.
+        this.log.warn("cli-runner sent a non-JSON frame; closing");
+        this.dropConnection();
+        return;
+      }
+      this.routeFrame(frame);
+    }
+  }
+
+  private routeFrame(frame: RpcFrame): void {
+    if (frame.t !== "ok" && frame.t !== "err") {
+      // §3.7: an unexpected discriminant on the response stream is a malformed frame — close.
+      this.log.warn("cli-runner sent an unexpected frame discriminant; closing");
+      this.dropConnection();
+      return;
+    }
+    // Deliver THIS frame's response to its caller FIRST — the response that REVEALS a new bootId is a
+    // legitimate, completed reply to its own request and must not be swept into failAllInFlight (§5.6).
+    const pending = this.pending.get(frame.id);
+    if (pending) {
+      this.pending.delete(frame.id);
+      // §6.4: log only {method,id,sessionKey,bytes}; never result/error.message-with-body.
+      this.log.debug({ method: pending.method, id: frame.id, sessionKey: pending.sessionKey });
+      if (frame.t === "ok") {
+        pending.resolve((frame as RpcOk).result);
+      } else {
+        const err = (frame as RpcErr).error;
+        pending.reject(mapRpcError(err.code, err.message));
+      }
+    }
+    // A response for an id we no longer track (already failed on a prior restart) still carries a
+    // bootId — observe it below regardless.
+
+    // §5.6: every ok/err carries the server bootId. Detect a silent fast restart AFTER delivering the
+    // current reply; this fails any OTHER still-in-flight calls and runs reconciliation.
+    this.observeBootId(frame.bootId);
+  }
+
+  /** §5.6: record the first bootId; a differing bootId is a silent restart → reconcile. */
+  private observeBootId(bootId: string): void {
+    if (this.bootId === null) {
+      this.bootId = bootId;
+      return;
+    }
+    if (this.bootId === bootId) return;
+    // Silent fast restart: fail all in-flight calls, block new calls, run reconciliation.
+    this.log.warn("cli-runner bootId changed (silent restart); reconciling");
+    this.bootId = bootId;
+    this.failAllInFlight(new CliChatUnavailableError("cli-runner restarted (bootId changed)"));
+    void this.runReconciliation();
+  }
+
+  // ─── reconnect / reconciliation ──────────────────────────────────────────────
+
+  private onSocketClosed(err?: unknown): void {
+    if (this.state === "closed" || this.closedByCaller) return;
+    if (err) this.log.warn(`cli-runner socket error: ${describeError(err)}`);
+    this.dropConnection();
+  }
+
+  /** Tear down the current socket, fail in-flight calls, and reset to idle so the next call reconnects. */
+  private dropConnection(): void {
+    if (this.socket) {
+      this.socket.removeAllListeners("data");
+      this.socket.destroy();
+      this.socket = null;
+    }
+    this.recvBuf = Buffer.alloc(0);
+    this.bootId = null;
+    this.reconciling = false;
+    this.state = this.closedByCaller ? "closed" : "idle";
+    // §3.5(1): fail all in-flight requests with `unavailable` — HTTP retry is the recovery path.
+    this.failAllInFlight(new CliChatUnavailableError("cli-runner connection lost"));
+  }
+
+  private failAllInFlight(err: Error): void {
+    const inflight = [...this.pending.values()];
+    this.pending.clear();
+    for (const call of inflight) call.reject(err);
+  }
+
+  /**
+   * Run the ONE reconciliation hook (§5.3) the manager wired. While it runs, `reconciling` blocks new
+   * calls (they 503 + retry). Errors are logged and swallowed — a failed reconciliation must not wedge
+   * the connection (the next reconnect/bootId-change retries it).
+   */
+  private async runReconciliation(): Promise<void> {
+    if (!this.onReconcile) return;
+    this.reconciling = true;
+    try {
+      await this.onReconcile();
+    } catch (err) {
+      this.log.warn(`cli-runner reconciliation failed: ${describeError(err)}`);
+    } finally {
+      this.reconciling = false;
+    }
+  }
+}
+
+/**
+ * The per-`sessionKey` engine the factory hands to `ChatSessionManager`. Implements `CliChatEngine`
+ * by marshalling each method onto the shared `RpcConnection`. `provider` is known at construction
+ * (the factory passes it) so it is never an RPC (§4.0).
+ */
+export class ChatEngineRpcClient implements CliChatEngine {
+  constructor(
+    public readonly provider: ProviderKind,
+    private readonly sessionKey: string,
+    private readonly conn: RpcConnection
+  ) {}
+
+  /**
+   * §4.1.0a: serialize ONLY personaText + replayBatch + mcpToken + mcpServerUrl + provider into
+   * RpcLaunchParams and DROP neutralDir + personaPath (the api has no CLI-data mount; those paths are
+   * meaningless cross-container). Returns the post-drain offset (§4.1.2).
+   */
+  async launch(opts: EngineLaunchOpts): Promise<{ offset: number }> {
+    const params: RpcLaunchParams = {
+      provider: this.provider,
+      personaText: opts.personaText ?? "",
+      ...(opts.mcpToken !== undefined ? { mcpToken: opts.mcpToken } : {}),
+      ...(opts.mcpServerUrl !== undefined ? { mcpServerUrl: opts.mcpServerUrl } : {}),
+      ...(opts.replayBatch !== undefined ? { replayBatch: opts.replayBatch } : {})
+    };
+    const result = await this.conn.launch(this.sessionKey, params);
+    return { offset: result.offset };
+  }
+
+  async submit(text: string): Promise<void> {
+    await this.conn.submit(this.sessionKey, { text });
+  }
+
+  async readNew(
+    afterOffset: number
+  ): Promise<{ records: TranscriptRecord[]; offset: number; complete: boolean }> {
+    const result = await this.conn.readNew(this.sessionKey, { afterOffset });
+    return { records: result.records, offset: result.offset, complete: result.complete };
+  }
+
+  async isAlive(): Promise<boolean> {
+    const result = await this.conn.isAlive(this.sessionKey);
+    return result.alive;
+  }
+
+  async kill(): Promise<void> {
+    await this.conn.kill(this.sessionKey);
+  }
+}
+
+// ─── helpers ────────────────────────────────────────────────────────────────
+
+function hmacHex(secret: string, message: string): string {
+  return createHmac("sha256", secret).update(message, "utf8").digest("hex");
+}
+
+/** Constant-time compare of two hex strings of equal expected length (§3.6). */
+function constantTimeHexEqual(a: string, b: string): boolean {
+  if (typeof a !== "string" || typeof b !== "string" || a.length !== b.length) return false;
+  const ba = Buffer.from(a, "hex");
+  const bb = Buffer.from(b, "hex");
+  if (ba.length !== bb.length || ba.length === 0) return false;
+  return timingSafeEqual(ba, bb);
+}
+
+function isHelloChallenge(frame: unknown): frame is RpcHelloChallenge {
+  return (
+    typeof frame === "object" &&
+    frame !== null &&
+    (frame as { t?: unknown }).t === "hello-challenge" &&
+    typeof (frame as RpcHelloChallenge).serverProof === "string" &&
+    typeof (frame as RpcHelloChallenge).serverNonce === "string"
+  );
+}
+
+/** §3.5 backoff: 250ms → 2s, exponential with full jitter. */
+function backoffDelay(attempt: number, minMs: number, maxMs: number): number {
+  const ceiling = Math.min(maxMs, minMs * 2 ** (attempt - 1));
+  return Math.floor(minMs + Math.random() * Math.max(0, ceiling - minMs));
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function openSocket(path: string): Promise<Socket> {
+  return new Promise((resolve, reject) => {
+    const socket = connect({ path });
+    const onError = (err: Error): void => {
+      socket.off("connect", onConnect);
+      reject(err);
+    };
+    const onConnect = (): void => {
+      socket.off("error", onError);
+      resolve(socket);
+    };
+    socket.once("error", onError);
+    socket.once("connect", onConnect);
+  });
+}
+
+function describeError(err: unknown): string {
+  if (err instanceof Error) return err.message;
+  return String(err);
+}

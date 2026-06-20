@@ -95,7 +95,7 @@ export function decodeFrame(buf: Buffer): FrameDecodeResult {
   return {
     kind: "frame",
     body: buf.subarray(FRAME_HEADER_BYTES, total),
-    consumed: total,
+    consumed: total
   };
 }
 
@@ -255,7 +255,7 @@ export interface RpcSubmitResult {
 }
 
 /** params for method "isAlive" (§4.3) — empty. */
-export interface RpcIsAliveParams {}
+export type RpcIsAliveParams = Record<string, never>;
 /** result for method "isAlive" (§4.3). */
 export interface RpcIsAliveResult {
   readonly alive: boolean;
@@ -280,14 +280,14 @@ export interface RpcReadNewResult {
 }
 
 /** params for method "kill" (§4.5) — empty. */
-export interface RpcKillParams {}
+export type RpcKillParams = Record<string, never>;
 /** result for method "kill" (§4.5). */
 export interface RpcKillResult {
   readonly ok: true;
 }
 
 /** params for method "listLiveSessions" (§4.6) — empty (instance-wide query, no sessionKey). */
-export interface RpcListLiveSessionsParams {}
+export type RpcListLiveSessionsParams = Record<string, never>;
 /** result for method "listLiveSessions" (§4.6). */
 export interface RpcListLiveSessionsResult {
   /** Every sessionKey for which cli-runner currently holds a LIVE jarv1s-live-* mux session. */
@@ -301,11 +301,6 @@ export interface RpcProbeProviderParams {
 /** result for method "probeProvider" (§4.8). */
 export interface RpcProbeProviderResult {
   /** EXISTING OnboardingProviderCheckResponse status set (onboarding-api.ts), reused verbatim. */
-  readonly status:
-    | "ready"
-    | "needs_login"
-    | "not_installed"
-    | "multiplexer_unavailable"
-    | "error";
+  readonly status: "ready" | "needs_login" | "not_installed" | "multiplexer_unavailable" | "error";
   readonly message?: string;
 }

@@ -19,6 +19,16 @@
  *   --append-system-prompt-file P   — inject persona (survives /clear; append, not replace)
  *   --session-id <uuid>             — pin the transcript filename, known before launch
  *   --strict-mcp-config             — do not load the operator's global MCP servers
+ *
+ * #342 (in-container CLI chat) changes the launch contract: `launch` now writes the
+ * persona file under the SERVER-derived neutral dir, moves Claude's MCP token OFF the
+ * launch line into a `0600` `.jarvis-claude-mcp.json` (§6.2), submits + drains the
+ * `replayBatch` server-side (bounded — §4.1/§5), and returns the post-drain transcript
+ * `offset` so the api can seed `transcriptOffset` (§4.1.2). `kill` and a failed launch
+ * remove the ENTIRE per-session neutral dir (§6.5). Module-level helpers expose the
+ * mux-name-keyed operations the cli-runner server needs without a per-session engine
+ * object: `killMuxSessionByName` (§4.5), `listLiveMuxSessions` (§4.6), `removeNeutralDir`
+ * (§6.5), and `probeProvider` (§4.8).
  */
 
 import { randomUUID } from "node:crypto";
@@ -39,7 +49,13 @@ import { CliChatUnavailableError } from "./errors.js";
 import type { ChatRecordKind, CliChatEngine, EngineLaunchOpts, TranscriptRecord } from "./types.js";
 
 /** Session name prefix used for all Jarv1s live sessions (the multiplexer `name` hint). */
-const SESSION_PREFIX = "jarv1s-live-";
+export const SESSION_PREFIX = "jarv1s-live-";
+
+/** The persona filename written under the per-session neutral dir (`0600`). */
+const PERSONA_FILENAME = "persona.md";
+
+/** Claude's MCP-config file (the FULL --mcp-config JSON incl. the bearer); `0600` (§6.2/§6.5). */
+const CLAUDE_MCP_FILENAME = ".jarvis-claude-mcp.json";
 
 export interface CliChatEngineOpts {
   /** ms to let the CLI TUI finish booting before the first paste. */
@@ -54,6 +70,29 @@ export interface CliChatEngineOpts {
    * (deployable-stack §6); omitted → the OS home of the running process.
    */
   readonly homeBase?: string;
+  /**
+   * #342: when set, the engine OWNS the server-side replay-drain. After launch it
+   * submits `opts.replayBatch` (if present) and drains the transcript to a clean
+   * boundary, returning the post-drain `offset` (§4.1.2). When false/omitted the
+   * engine returns `{ offset: 0 }` and the api manager keeps draining itself (the
+   * in-process host path, §4.1.2). The cli-runner server constructs the engine with
+   * `ownsDrain: true`.
+   */
+  readonly ownsDrain?: boolean;
+  /**
+   * #342: max wall-clock ms the server-side replay-drain may run before returning the
+   * last safe offset (NEVER blocks a later kill). Bounded per §4.1/§5. Default 25s,
+   * mirroring the onboarding provider-check budget.
+   */
+  readonly drainMs?: number;
+  /** #342: poll interval (ms) used while draining the replay. Default 250ms. */
+  readonly drainPollMs?: number;
+}
+
+/** Result of a bounded server-side replay-drain (§4.1.2). */
+interface DrainOutcome {
+  /** The transcript length consumed at the last safe boundary (jsonl.length / UTF-16). */
+  readonly offset: number;
 }
 
 /**
@@ -93,6 +132,11 @@ export class CliChatEngineImpl implements CliChatEngine {
   /** Optional host-HOME base for transcript resolution (containerized bridge). */
   private readonly homeBase?: string;
 
+  /** #342: whether this engine owns the server-side replay-drain (cli-runner path). */
+  private readonly ownsDrain: boolean;
+  private readonly drainMs: number;
+  private readonly drainPollMs: number;
+
   constructor(
     public readonly provider: ProviderKind,
     private readonly threadKey: string,
@@ -102,38 +146,44 @@ export class CliChatEngineImpl implements CliChatEngine {
     this.launchMs = opts.launchMs ?? 3_000;
     this.mux = opts.mux ?? new TmuxMultiplexer(io, { submitMs: opts.submitMs ?? 600 });
     this.homeBase = opts.homeBase;
+    this.ownsDrain = opts.ownsDrain ?? false;
+    this.drainMs = opts.drainMs ?? 25_000;
+    this.drainPollMs = opts.drainPollMs ?? 250;
   }
 
   // ─── lifecycle ─────────────────────────────────────────────────────────────
 
-  async launch(opts: EngineLaunchOpts): Promise<void> {
+  async launch(opts: EngineLaunchOpts): Promise<{ offset: number }> {
     // Generate the session id up front. For Claude this also pins the transcript
     // filename (`--session-id`), so no fragile newest-file globbing is needed there.
     // Codex/Gemini don't accept a session-id, so their transcript path is resolved
     // lazily in readNew() (newest .jsonl under the glob dir).
     const sessionId = randomUUID();
     this.neutralDir = opts.neutralDir;
-    this.codexTokenEnvPath =
-      this.provider === "openai-compatible" ? await this.writeCodexTokenEnv(opts) : null;
 
-    if (this.provider === "google" && opts.mcpToken && opts.mcpServerUrl) {
-      const settingsDir = join(opts.neutralDir, ".gemini");
-      await this.io.run("mkdir", ["-p", settingsDir]);
-      const settings = {
-        mcpServers: {
-          jarvis: {
-            httpUrl: opts.mcpServerUrl,
-            headers: { Authorization: `Bearer ${opts.mcpToken}` },
-            timeout: 180000
-          }
-        },
-        tools: { core: [] as string[] },
-        security: { disableYoloMode: true }
-      };
-      await this.io.writeFile(
-        join(settingsDir, "settings.json"),
-        JSON.stringify(settings, null, 2)
-      );
+    // ── PRE-mux-create setup (persona + per-provider secret files) ──────────────
+    // Any failure here is a PRE-mux-create failure: no mux session exists yet, so
+    // removing the per-session neutral dir suffices (§6.5). The whole block is
+    // guarded so a write failure tears down the dir before surfacing the error.
+    let personaPath: string;
+    try {
+      // When the cli-runner owns the launch it ships persona CONTENT (`personaText`),
+      // not a path: write it under the server-derived neutral dir, `0600` (§4.1.1a).
+      // The in-process host path keeps using the manager-rendered `personaPath`.
+      personaPath = await this.resolvePersonaPath(opts);
+
+      this.codexTokenEnvPath =
+        this.provider === "openai-compatible" ? await this.writeCodexTokenEnv(opts) : null;
+
+      if (this.provider === "google" && opts.mcpToken && opts.mcpServerUrl) {
+        await this.writeGeminiSettings(opts);
+      }
+    } catch (err) {
+      // PRE-mux-create failure: remove the whole per-session neutral dir (§6.5).
+      await this.removeNeutralDirQuietly();
+      throw new CliChatUnavailableError("could not start the live chat session", {
+        cause: redactCause(err)
+      });
     }
 
     this.transcriptDir = transcriptGlobDir(this.provider, opts.neutralDir, this.homeBase);
@@ -144,7 +194,7 @@ export class CliChatEngineImpl implements CliChatEngine {
     this.storedTranscriptPath =
       this.provider === "anthropic" ? join(this.transcriptDir, `${sessionId}.jsonl`) : null;
 
-    const launchLine = this.buildLaunchCommand(opts, sessionId);
+    const launchLine = await this.buildLaunchCommand(opts, sessionId, personaPath);
     try {
       this.handle = await this.mux.open({
         name: `${SESSION_PREFIX}${this.threadKey}`,
@@ -153,23 +203,49 @@ export class CliChatEngineImpl implements CliChatEngine {
         launchLine
       });
     } catch (err) {
-      await this.removeCodexTokenEnv();
+      // PRE-mux-create failure (the mux.open itself failed and tore down any
+      // half-created session): remove the entire per-session neutral dir (§6.5).
+      // This drops every per-provider secret file (Claude/Codex/Gemini) + persona.
+      await this.removeNeutralDirQuietly();
       // A backend exit-code failure (missing binary via JARVIS_MULTIPLEXER override,
       // herdr socket failure, unresolvable root pane, tmux new-session failure) throws
       // a plain Error from mux.open(). Convert it to the 503-mapped error with a
       // sanitized message; the raw cause is logged server-side by the route handler
       // (Codex R2 #2). Never surface raw stderr to the client.
       //
-      // Defense-in-depth: old Codex launches carried `JARVIS_MCP_TOKEN=jst_…` inline, and
-      // a custom multiplexer can still echo token-shaped stderr. Redact at this boundary
-      // so no token shape can reach a log via the structurally-serialized `cause`.
+      // Defense-in-depth: a custom multiplexer can still echo token-shaped stderr.
+      // Redact at this boundary so no token shape can reach a log via the
+      // structurally-serialized `cause`.
       throw new CliChatUnavailableError("could not start the live chat session", {
         cause: redactCause(err)
       });
     }
 
-    // Let the CLI TUI finish booting before the first prompt is pasted.
-    await this.io.sleep(this.launchMs);
+    // ── POST-mux-create: boot wait + (server-owned) replay-drain ────────────────
+    // From here `jarv1s-live-<threadKey>` EXISTS. Any failure is a POST-mux-create
+    // failure: per §6.5 we MUST kill the mux session by canonical name BEFORE
+    // removing the dir, else the orphan lingers in listLiveSessions-by-mux and
+    // blocks the §4.1.0a single-active-user gate for everyone.
+    try {
+      // Let the CLI TUI finish booting before the first prompt is pasted.
+      await this.io.sleep(this.launchMs);
+
+      if (!this.ownsDrain) {
+        // In-process host path: the manager owns the replay-drain (§4.1.2). Return
+        // offset 0 so it keeps overwriting `transcriptOffset` from its own drain.
+        return { offset: 0 };
+      }
+
+      // cli-runner path: submit the replay batch (if any) and drain to a clean
+      // boundary, returning the post-drain offset (§4.1.2).
+      const drained = await this.replayAndDrain(opts.replayBatch);
+      return { offset: drained.offset };
+    } catch (err) {
+      await this.killAndRemoveNeutralDirQuietly();
+      throw new CliChatUnavailableError("could not start the live chat session", {
+        cause: redactCause(err)
+      });
+    }
   }
 
   async submit(text: string): Promise<void> {
@@ -222,10 +298,19 @@ export class CliChatEngineImpl implements CliChatEngine {
     try {
       if (this.handle !== null) {
         await this.mux.kill(this.handle);
+      } else {
+        // No engine-stored handle (e.g. a relaunch raced a restart): still kill by
+        // the canonical mux name so a live `jarv1s-live-<key>` session can't survive
+        // a kill (§4.5). Idempotent — killing an absent session is not an error.
+        await killMuxSessionByName(this.io, this.threadKey);
       }
     } finally {
       this.handle = null;
-      await this.removeCodexTokenEnv();
+      // §6.5: remove the ENTIRE per-session neutral dir on kill (covers Claude's
+      // .jarvis-claude-mcp.json, Codex's .jarvis-mcp-token.env, Gemini's
+      // .gemini/settings.json, AND the persona file) — not just one file.
+      this.codexTokenEnvPath = null;
+      await this.removeNeutralDirQuietly();
     }
   }
 
@@ -314,10 +399,14 @@ export class CliChatEngineImpl implements CliChatEngine {
    * CLI with the security-critical flags. Sent as one `send-keys` line (the
    * matrix's recommended shape).
    */
-  private buildLaunchCommand(opts: EngineLaunchOpts, sessionId: string): string {
+  private async buildLaunchCommand(
+    opts: EngineLaunchOpts,
+    sessionId: string,
+    personaPath: string
+  ): Promise<string> {
     switch (this.provider) {
       case "anthropic":
-        return this.buildClaudeCommand(opts, sessionId);
+        return this.buildClaudeCommand(opts, sessionId, personaPath);
       case "openai-compatible":
         return this.buildCodexCommand(opts);
       case "google":
@@ -325,28 +414,29 @@ export class CliChatEngineImpl implements CliChatEngine {
     }
   }
 
-  private buildClaudeCommand(opts: EngineLaunchOpts, sessionId: string): string {
+  /**
+   * Build the Claude launch line. The MCP bearer token is NEVER on the line: the
+   * full `--mcp-config` JSON (incl. the `Authorization: Bearer jst_…` header) is
+   * written to a `0600` `<neutralDir>/.jarvis-claude-mcp.json` and the line passes
+   * the PATH, not the JSON (§6.2). `claude --mcp-config` accepts a file path.
+   */
+  private async buildClaudeCommand(
+    opts: EngineLaunchOpts,
+    sessionId: string,
+    personaPath: string
+  ): Promise<string> {
     const parts = [`cd ${shellQuote(opts.neutralDir)} &&`, "claude", "--permission-mode default"];
 
     if (opts.mcpToken && opts.mcpServerUrl) {
-      const mcpConfig = JSON.stringify({
-        mcpServers: {
-          jarvis: {
-            type: "http",
-            url: opts.mcpServerUrl,
-            headers: { Authorization: `Bearer ${opts.mcpToken}` },
-            timeout: 180000
-          }
-        }
-      });
-      parts.push(`--mcp-config ${shellQuote(mcpConfig)}`);
+      const mcpConfigPath = await this.writeClaudeMcpConfig(opts);
+      parts.push(`--mcp-config ${shellQuote(mcpConfigPath)}`);
       parts.push('--allowedTools "mcp__jarvis__*"');
     } else {
       parts.push('--tools ""');
     }
 
     parts.push(
-      `--append-system-prompt-file ${shellQuote(opts.personaPath)}`,
+      `--append-system-prompt-file ${shellQuote(personaPath)}`,
       `--session-id ${sessionId}`,
       "--strict-mcp-config"
     );
@@ -379,6 +469,68 @@ export class CliChatEngineImpl implements CliChatEngine {
     return parts.join(" ");
   }
 
+  /**
+   * Resolve the persona file the CLI is pointed at. When `personaText` is supplied
+   * (the cli-runner RPC path), write it under the server-derived neutral dir `0600`
+   * and return that path (§4.1.1a). Otherwise (in-process host path) use the
+   * manager-rendered `personaPath` unchanged.
+   */
+  private async resolvePersonaPath(opts: EngineLaunchOpts): Promise<string> {
+    if (opts.personaText === undefined) return opts.personaPath;
+    await this.io.run("mkdir", ["-p", opts.neutralDir]);
+    const path = join(opts.neutralDir, PERSONA_FILENAME);
+    await this.io.writeFile(path, opts.personaText);
+    // Persona text is not a secret, but keep the dir uniform `0600` files (§6.2).
+    await this.io.run("chmod", ["600", path]);
+    return path;
+  }
+
+  /**
+   * Write Claude's full `--mcp-config` JSON (incl. the bearer header) to a `0600`
+   * file so the token never appears on the launch line / argv / capture-pane (§6.2).
+   * Returns the file path the launch line references.
+   */
+  private async writeClaudeMcpConfig(opts: EngineLaunchOpts): Promise<string> {
+    const path = join(opts.neutralDir, CLAUDE_MCP_FILENAME);
+    const mcpConfig = JSON.stringify({
+      mcpServers: {
+        jarvis: {
+          type: "http",
+          url: opts.mcpServerUrl,
+          headers: { Authorization: `Bearer ${opts.mcpToken}` },
+          timeout: 180000
+        }
+      }
+    });
+    await this.io.writeFile(path, mcpConfig);
+    const chmod = await this.io.run("chmod", ["600", path]);
+    if (chmod.code !== 0) {
+      await this.io.run("rm", ["-f", path]);
+      throw new Error(`Could not lock down Claude MCP config file: ${chmod.stderr ?? ""}`.trim());
+    }
+    return path;
+  }
+
+  private async writeGeminiSettings(opts: EngineLaunchOpts): Promise<void> {
+    const settingsDir = join(opts.neutralDir, ".gemini");
+    await this.io.run("mkdir", ["-p", settingsDir]);
+    const settings = {
+      mcpServers: {
+        jarvis: {
+          httpUrl: opts.mcpServerUrl,
+          headers: { Authorization: `Bearer ${opts.mcpToken}` },
+          timeout: 180000
+        }
+      },
+      tools: { core: [] as string[] },
+      security: { disableYoloMode: true }
+    };
+    const path = join(settingsDir, "settings.json");
+    await this.io.writeFile(path, JSON.stringify(settings, null, 2));
+    // The settings file carries the Authorization header — lock it down `0600` (§6.5).
+    await this.io.run("chmod", ["600", path]);
+  }
+
   private async writeCodexTokenEnv(opts: EngineLaunchOpts): Promise<string | null> {
     if (!opts.mcpToken) return null;
     const path = join(opts.neutralDir, ".jarvis-mcp-token.env");
@@ -394,10 +546,251 @@ export class CliChatEngineImpl implements CliChatEngine {
     return path;
   }
 
-  private async removeCodexTokenEnv(): Promise<void> {
-    const path = this.codexTokenEnvPath;
-    this.codexTokenEnvPath = null;
-    if (path) await this.io.run("rm", ["-f", path]);
+  /**
+   * Bounded server-side replay-drain (§4.1.2). Submits `replayBatch` (if present)
+   * then polls the transcript until the provider signals end-of-turn OR the drain
+   * budget elapses, returning the last safe offset. NEVER throws on a drain timeout
+   * (a slow model must not fail the launch); a `submit` failure DOES surface (the
+   * caller treats it as a POST-mux-create failure and reaps the session).
+   */
+  private async replayAndDrain(replayBatch: string | undefined): Promise<DrainOutcome> {
+    if (!replayBatch) {
+      // Fresh conversation: nothing to replay; the first real readNew starts at 0.
+      return { offset: 0 };
+    }
+
+    await this.submit(replayBatch);
+
+    const deadline = Date.now() + this.drainMs;
+    let offset = 0;
+    while (Date.now() < deadline) {
+      let result: { records: TranscriptRecord[]; offset: number; complete: boolean };
+      try {
+        result = await this.readNew(offset);
+      } catch {
+        // Transcript not yet created / transient read miss — keep polling.
+        await this.io.sleep(this.drainPollMs);
+        continue;
+      }
+      offset = result.offset;
+      if (result.complete) return { offset };
+      await this.io.sleep(this.drainPollMs);
+    }
+    // Budget exhausted: return the last safe offset rather than block (§4.1/§5).
+    return { offset };
+  }
+
+  /** §6.5: remove the ENTIRE per-session neutral dir; best-effort, never throws. */
+  private async removeNeutralDirQuietly(): Promise<void> {
+    const dir = this.neutralDir;
+    if (!dir) return;
+    try {
+      await this.io.run("rm", ["-rf", dir]);
+    } catch {
+      // best-effort cleanup — never mask the original failure.
+    }
+  }
+
+  /**
+   * POST-mux-create failure path (§6.5): kill the canonical mux session BEFORE
+   * removing the dir, else the orphan blocks the §4.1.0a single-active-user gate.
+   */
+  private async killAndRemoveNeutralDirQuietly(): Promise<void> {
+    try {
+      if (this.handle !== null) {
+        await this.mux.kill(this.handle);
+      } else {
+        await killMuxSessionByName(this.io, this.threadKey);
+      }
+    } catch {
+      // best-effort — fall through to dir removal.
+    } finally {
+      this.handle = null;
+      await this.removeNeutralDirQuietly();
+    }
+  }
+}
+
+// ─── module-level mux-name operations (no per-session engine object) ─────────────
+
+/**
+ * Kill a live `jarv1s-live-<sessionKey>` mux session BY CANONICAL NAME (§4.5), even
+ * when the cli-runner server holds no `CliChatEngineImpl` for it (post-restart). Uses
+ * tmux directly (the bundled mux, §7.1). `sessionKey` is sanitized first (§4.1.1a).
+ * Idempotent — killing an absent session is not an error.
+ */
+export async function killMuxSessionByName(
+  io: Pick<TmuxIo, "run">,
+  sessionKey: string
+): Promise<void> {
+  const name = `${SESSION_PREFIX}${sanitizeSessionKey(sessionKey)}`;
+  await io.run("tmux", ["kill-session", "-t", name]);
+}
+
+/**
+ * Enumerate the sessionKeys of every LIVE `jarv1s-live-*` mux session via tmux
+ * `list-sessions` (§4.6) — NOT the server's engine Map (which is empty after a
+ * restart while real sessions survive). Strips the `jarv1s-live-` prefix to recover
+ * each sessionKey. Tolerates "no server running" (nonzero exit → empty list).
+ */
+export async function listLiveMuxSessions(io: Pick<TmuxIo, "run">): Promise<string[]> {
+  const listed = await io.run("tmux", ["list-sessions", "-F", "#{session_name}"]);
+  if (listed.code !== 0) return [];
+  return listed.stdout
+    .split("\n")
+    .map((line) => line.trim())
+    .filter((name) => name.startsWith(SESSION_PREFIX))
+    .map((name) => name.slice(SESSION_PREFIX.length))
+    .filter((key) => key.length > 0);
+}
+
+/**
+ * §6.5: remove a per-session neutral dir by sessionKey (used by the cli-runner kill
+ * path for an orphan with no engine object). `rm -rf` is best-effort.
+ */
+export async function removeNeutralDir(
+  io: Pick<TmuxIo, "run">,
+  neutralBase: string,
+  sessionKey: string
+): Promise<void> {
+  const dir = join(neutralBase, sanitizeSessionKey(sessionKey));
+  await io.run("rm", ["-rf", dir]);
+}
+
+/**
+ * Derive the per-session neutral dir from the sessionKey + base (§4.1.1a): join
+ * after sanitizing the key (a user UUID — reject `/`, `..`, NUL before joining).
+ */
+export function deriveNeutralDir(neutralBase: string, sessionKey: string): string {
+  return join(neutralBase, sanitizeSessionKey(sessionKey));
+}
+
+/**
+ * Sanitize a sessionKey before using it in a path or a mux session name (§4.1.1a). A
+ * sessionKey is an actorUserId (a UUID); reject anything carrying a path separator,
+ * parent-dir traversal, or a NUL byte rather than silently joining a traversal.
+ */
+export function sanitizeSessionKey(sessionKey: string): string {
+  if (
+    sessionKey.length === 0 ||
+    sessionKey.includes("/") ||
+    sessionKey.includes("\\") ||
+    sessionKey.includes("\0") ||
+    sessionKey === "." ||
+    sessionKey === ".." ||
+    sessionKey.includes("..")
+  ) {
+    throw new Error("invalid sessionKey");
+  }
+  return sessionKey;
+}
+
+// ─── probeProvider (§4.8) — onboarding presence/auth check, no token, no replay ──
+
+/** The status set mirrored on the wire (`RpcProbeProviderResult.status`). */
+export type ProbeProviderStatus =
+  | "ready"
+  | "needs_login"
+  | "not_installed"
+  | "multiplexer_unavailable"
+  | "error";
+
+export interface ProbeProviderResult {
+  readonly status: ProbeProviderStatus;
+  readonly message?: string;
+}
+
+const PROBE_TIMEOUT_MS = 25_000;
+
+/**
+ * §4.8: a pure presence/auth check for a provider, run INSIDE cli-runner. Mirrors
+ * the onboarding probe's auth logic (`claude auth status`, `codex login status`,
+ * `agy --print`) but mints/injects NO MCP token and runs NO replay. It is a
+ * non-session verb — it must never touch a per-session neutral dir or transcript.
+ *
+ * Presence is a PATH probe (the binary is on the tools volume); auth runs the
+ * provider's status command. `multiplexer_unavailable` is surfaced when the bundled
+ * tmux is not usable (a cli-runner-wide condition, §9.1). Any `message` is redacted.
+ */
+export async function probeProvider(
+  provider: ProviderKind,
+  deps: {
+    readonly io: Pick<TmuxIo, "run">;
+    /** Presence-only: is the provider binary on PATH inside cli-runner? */
+    readonly cliPresent: (provider: ProviderKind) => Promise<boolean>;
+    /** Is the bundled multiplexer usable? Defaults to "yes" (probe is auth-only). */
+    readonly multiplexerUsable?: () => Promise<boolean>;
+  }
+): Promise<ProbeProviderResult> {
+  if (deps.multiplexerUsable && !(await deps.multiplexerUsable())) {
+    return { status: "multiplexer_unavailable" };
+  }
+  try {
+    if (!(await deps.cliPresent(provider))) {
+      return { status: "not_installed" };
+    }
+    switch (provider) {
+      case "anthropic":
+        return await probeClaudeAuth(deps.io);
+      case "openai-compatible":
+        return await probeCodexAuth(deps.io);
+      case "google":
+        return await probeGeminiAuth(deps.io);
+    }
+  } catch {
+    return { status: "error" };
+  }
+}
+
+async function probeClaudeAuth(io: Pick<TmuxIo, "run">): Promise<ProbeProviderResult> {
+  const result = await probeWithTimeout(io.run("claude", ["auth", "status"]));
+  if (result.code !== 0) {
+    return isAuthOutput(`${result.stdout}\n${result.stderr ?? ""}`)
+      ? { status: "needs_login" }
+      : { status: "error" };
+  }
+  try {
+    const parsed = JSON.parse(result.stdout) as { loggedIn?: unknown };
+    return parsed.loggedIn === true ? { status: "ready" } : { status: "needs_login" };
+  } catch {
+    return { status: "error" };
+  }
+}
+
+async function probeCodexAuth(io: Pick<TmuxIo, "run">): Promise<ProbeProviderResult> {
+  const result = await probeWithTimeout(io.run("codex", ["login", "status"]));
+  const output = `${result.stdout}\n${result.stderr ?? ""}`;
+  if (result.code === 0 && /\blogged in\b/i.test(output)) {
+    return { status: "ready" };
+  }
+  return { status: "needs_login" };
+}
+
+async function probeGeminiAuth(io: Pick<TmuxIo, "run">): Promise<ProbeProviderResult> {
+  const result = await probeWithTimeout(io.run("agy", ["--print", "Reply with exactly OK."]));
+  if (result.code === 0 && result.stdout.trim().toUpperCase() === "OK") {
+    return { status: "ready" };
+  }
+  return { status: "needs_login" };
+}
+
+function isAuthOutput(text: string): boolean {
+  return /\b(auth|authentication|authorization|login|sign in)\b/i.test(text);
+}
+
+async function probeWithTimeout<T extends { code: number; stdout: string; stderr?: string }>(
+  promise: Promise<T>
+): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    return await Promise.race([
+      promise,
+      new Promise<T>((_, reject) => {
+        timer = setTimeout(() => reject(new Error("provider probe timed out")), PROBE_TIMEOUT_MS);
+      })
+    ]);
+  } finally {
+    if (timer) clearTimeout(timer);
   }
 }
 

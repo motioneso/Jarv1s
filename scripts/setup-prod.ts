@@ -43,6 +43,10 @@ const migrationPassword = randomBytes(18).toString("base64url");
 const appPassword = randomBytes(18).toString("base64url");
 const authPassword = randomBytes(18).toString("base64url");
 const workerPassword = randomBytes(18).toString("base64url");
+// cli-runner socket auth secret (#342): shared between api + cli-runner for the
+// connection auth hello (RPC-contract §3.6/§6.6). Known ONLY to those two
+// processes; excluded from the CLI-subprocess env allowlist. 32 bytes -> hex.
+const cliRunnerRpcSecret = randomBytes(32).toString("hex");
 
 // --- Host-specifics (LOCALHOST defaults; override via the setup container env). -
 const apiPort = process.env.JARVIS_API_PORT ?? "3000";
@@ -127,12 +131,20 @@ const content = [
   "# Embedding model cache (named volume mounts here so weights survive restarts).",
   "HF_HOME=/app/.cache/huggingface",
   "",
-  "# Container runtime user == host operator uid/gid (host-multiplexer bridge).",
+  "# Container runtime user == host operator uid/gid (owns the init-chowned volumes).",
   `JARVIS_HOST_UID=${hostUid}`,
   `JARVIS_HOST_GID=${hostGid}`,
   "",
-  "# Containerized multiplexer = tmux only (the image ships the tmux client).",
+  "# Containerized multiplexer = tmux only (the cli-runner forks its own server).",
   "JARVIS_MULTIPLEXER=tmux",
+  "",
+  "# cli-runner RPC (#342). The socket selects the in-container CLI-chat path on the",
+  "# api; the secret authenticates the api to the cli-runner over the socket auth",
+  "# hello (known ONLY to api + cli-runner; never reaches a launched CLI). The gate",
+  "# flag keeps the cli-runner single-active-user until UID-separation (issue #347).",
+  "JARVIS_CLI_RUNNER_SOCKET=/run/jarv1s/cli-runner.sock",
+  `JARVIS_CLI_RUNNER_RPC_SECRET=${cliRunnerRpcSecret}`,
+  "JARVIS_CLI_RUNNER_SINGLE_USER=1",
   "",
   '# Embedding provider: "local" downloads the model on first use; "stub" skips.',
   `JARVIS_EMBED_PROVIDER=${embedProvider}`,
