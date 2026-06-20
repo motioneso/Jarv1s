@@ -315,6 +315,8 @@ export function createApiServer(options: CreateApiServerOptions = {}) {
       personaPreview: options.personaPreview,
       revokeUserSessions: authRuntime.revokeUserSessions,
       meSessions: authRuntime.meSessions,
+      verifySelfPassword: authRuntime.verifySelfPassword,
+      hasPasswordCredential: authRuntime.hasPasswordCredential,
       bootstrapConnectionString: ownsAppDb ? getJarvisDatabaseUrls().bootstrap : undefined,
       googleConnectionService,
       googleApiClient,

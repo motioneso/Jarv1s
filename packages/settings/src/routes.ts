@@ -48,6 +48,11 @@ import { registerDataExportRoutes } from "./data-export-routes.js";
 import type { HostDiagnosticsProvider } from "./host-diagnostics.js";
 import { registerHostDiagnosticsRoutes } from "./host-diagnostics-routes.js";
 import { registerLocaleRoutes } from "./locale-routes.js";
+import {
+  registerMeAccountRoutes,
+  type HasPasswordCredentialPort,
+  type VerifySelfPasswordPort
+} from "./me-account-routes.js";
 import { registerMeSessionsRoutes, type MeSessionsService } from "./me-sessions-routes.js";
 import { registerOnboardingRoutes, type OnboardingProbes } from "./onboarding-routes.js";
 import { registerPersonaRoutes } from "./persona-routes.js";
@@ -68,6 +73,18 @@ export interface SettingsRoutesDependencies {
   readonly revokeUserSessions?: (userId: string) => Promise<number>;
   /** Auth-owned current-user session list/revoke service (#237). */
   readonly meSessions?: MeSessionsService;
+  /**
+   * Auth-owned password re-verification for self-service account deletion (#239).
+   * Absent in deployments without an auth runtime; the route fails closed for
+   * password-bearing accounts when this is unset.
+   */
+  readonly verifySelfPassword?: VerifySelfPasswordPort;
+  /**
+   * Auth-owned existence probe (does the actor own a password credential?) for
+   * GET /api/me and the self-delete dialog. Required behind an auth port because
+   * migration 0045 revoked app_runtime SELECT on auth_accounts.
+   */
+  readonly hasPasswordCredential?: HasPasswordCredentialPort;
   readonly bootstrapConnectionString?: string;
   /** Boot-time availability snapshot, injected by the composition root (apply-on-restart). */
   readonly chatMultiplexerAvailability?: { readonly tmux: boolean; readonly herdr: boolean };
@@ -95,6 +112,14 @@ export function registerSettingsRoutes(
   registerMeSessionsRoutes(server, {
     resolveAccessContext: dependencies.resolveAccessContext,
     meSessions: dependencies.meSessions
+  });
+  registerMeAccountRoutes(server, {
+    resolveAccessContext: dependencies.resolveAccessContext,
+    dataContext: dependencies.dataContext,
+    repository,
+    bootstrapConnectionString: dependencies.bootstrapConnectionString,
+    verifySelfPassword: dependencies.verifySelfPassword,
+    hasPasswordCredential: dependencies.hasPasswordCredential
   });
   registerPersonaRoutes(server, { ...dependencies, repository, preferencesRepository });
   registerSourceBehaviorRoutes(server, { ...dependencies, preferencesRepository });
@@ -124,10 +149,16 @@ export function registerSettingsRoutes(
           addressed: await preferencesRepository.get(scopedDb, "profile.addressed")
         })
       );
+      // Existence-only probe runs on the auth pool (app_runtime can't read
+      // auth_accounts — migration 0045). Fall back to false when no auth runtime.
+      const hasPasswordCredential = dependencies.hasPasswordCredential
+        ? await dependencies.hasPasswordCredential(accessContext.actorUserId)
+        : false;
 
       return {
         user: serializeUser(user),
-        profilePrefs: { addressed: typeof addressed === "string" ? addressed : null }
+        profilePrefs: { addressed: typeof addressed === "string" ? addressed : null },
+        hasPasswordCredential
       };
     } catch (error) {
       return handleRouteError(error, reply);
