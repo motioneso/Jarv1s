@@ -219,21 +219,43 @@ function str(value: unknown): string {
 
 // The four sentinel boundary tokens that structure the trust boundary in buildMessages.
 // Any of these appearing in UNTRUSTED external text would let an attacker forge a block
-// boundary (close an external_source early, open a forged <trusted_instructions>). They
-// are stripped (case-insensitive, greedy) from every external value before it enters a
-// block, so external content can never forge the delimiter structure. URLs and all other
-// content pass through unchanged — only these four boundary tokens are neutralized.
+// boundary (close an external_source early, open a forged <trusted_instructions>). This is
+// retained as DEFENSE-IN-DEPTH: the primary defense (escapeHtmlData below) already makes
+// external content pure data with no tag-like markup, which neutralizes these tokens AND
+// their whitespace/entity-encoded variants. The strip is a belt-and-braces guard kept in
+// case the escaping is ever weakened (it is a no-op on already-escaped text).
 const SENTINEL_TOKEN_PATTERN =
   /<\/trusted_instructions>|<trusted_instructions|<\/external_source>|<external_source/gi;
 
 /**
+ * HTML-escape the three characters that carry tag-like markup so a value becomes PURE DATA
+ * with no possible delimiter structure. `&` is escaped FIRST so we never double-escape the
+ * entities we just produced. This is the PRIMARY boundary-forgery defense: once applied,
+ * external content cannot emit a live `<external_source>` / `<trusted_instructions>` open
+ * or close — exact (`</external_source>`), internal-whitespace (`</external_source >`,
+ * `< external_source>`), newline-collapsed, and entity-encoded (`&lt;/external_source&gt;`,
+ * decimal `&#60;/external_source&#62;`, hex `&#x3c;`) forms are ALL inert, because there is
+ * no literal `<`/`>` left and `&`-led entities can no longer decode into one.
+ *
+ * Tradeoff: a legit `<`,`>`,`&` in external text (e.g. "AT&T", "x < y") is emitted to the
+ * model as `&amp;`/`&lt;`/`&gt;`. This is acceptable for prompt data — the model reads the
+ * entity text correctly — and the only tags in the prompt remain the structural
+ * <external_source>/<trusted_instructions> emitted by TRUSTED code (never escaped). The
+ * degraded user-facing fallback summary may also surface these entities.
+ */
+function escapeHtmlData(value: string): string {
+  return value.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+}
+
+/**
  * Sanitize an UNTRUSTED external value for inclusion in an <external_source> block:
- * whitespace-collapse (str()) then strip the four sentinel boundary tokens. Every
- * external-content emission point (each section `format` callback and the vault excerpt
- * join) routes through here so forged delimiters can never reach the assembled prompt.
+ * whitespace-collapse (str()) → HTML-escape the markup characters (PRIMARY defense) → strip
+ * the four sentinel boundary tokens (defense-in-depth). Every external-content emission
+ * point (each section `format` callback and the vault excerpt join) routes through here so
+ * forged delimiters can never reach the assembled prompt.
  */
 function sanitizeExternal(value: unknown): string {
-  return str(value).replace(SENTINEL_TOKEN_PATTERN, "");
+  return escapeHtmlData(str(value)).replace(SENTINEL_TOKEN_PATTERN, "");
 }
 
 export async function composeBriefing(
