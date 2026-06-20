@@ -58,9 +58,9 @@
 }
 
 .jds-btn--primary {
-  background: var(--accent);
+  background: var(--btn-primary-bg);
   color: var(--text-on-accent);
-  border-color: var(--accent);
+  border-color: var(--btn-primary-bg);
 }
 .jds-btn--primary:hover {
   background: var(--accent-hover);
