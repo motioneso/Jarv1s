@@ -120,19 +120,26 @@ elif docker image inspect "$API_IMAGE" >/dev/null 2>&1 && docker image inspect "
   need_build=0
   note "image present locally — reusing it (no build)"
 else
-  need_build=1
+  # Not local + auto mode. If a source tree is present, build it; otherwise
+  # PULL the published image from the registry (the distribution path — no repo
+  # checkout needed, just the deploy bundle + a published tag).
+  if [ -f "../Dockerfile" ] && [ -f "../apps/web/Dockerfile" ]; then
+    need_build=1
+  else
+    note "image not local and no source tree — pulling ${API_IMAGE} (+ ${WEB_IMAGE}) from registry..."
+    if docker pull "$API_IMAGE" && docker pull "$WEB_IMAGE"; then
+      need_build=0
+      note "pulled — using published image (no build)"
+    else
+      die "could not pull ${API_IMAGE} / ${WEB_IMAGE}. Verify 'docker login ghcr.io' (a read:packages PAT for private images), JARVIS_IMAGE_TAG (=${TAG}), and registry reachability. To build instead, run install.sh from a repo checkout."
+    fi
+  fi
 fi
 if [ "$need_build" = "1" ]; then
-  # The compose `build: { context: .. }` resolves to the parent of the compose
-  # dir = the repo root (which holds Dockerfile + apps/web/Dockerfile).
-  if [ -f "../Dockerfile" ] && [ -f "../apps/web/Dockerfile" ]; then
-    note "building api + web images locally (source present)..."
-    POSTGRES_PASSWORD=setup JARVIS_IMAGE_TAG="$TAG" \
-      docker compose -p "$PROJECT" -f "$COMPOSE_NAME" build api web \
-      || die "image build failed. Run from the repo root, or pre-build / pull the image."
-  else
-    die "image ${API_IMAGE} not found and no source tree to build from. Either run install.sh from the repo root (source present), or publish images via scripts/publish-images.sh and set JARVIS_IMAGE_TAG to the published tag."
-  fi
+  note "building api + web images locally (source present)..."
+  POSTGRES_PASSWORD=setup JARVIS_IMAGE_TAG="$TAG" \
+    docker compose -p "$PROJECT" -f "$COMPOSE_NAME" build api web \
+    || die "image build failed. Run from the repo root, or pre-build / pull the image."
 fi
 
 # ---- 3b. generate boot secrets via the in-container setup service ---------
