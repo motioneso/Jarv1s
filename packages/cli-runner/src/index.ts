@@ -17,4 +17,17 @@ export {
 export { buildSanitizedCliEnv } from "./sanitized-env.js";
 export { createSanitizedTmuxIo } from "./runner-io.js";
 export { Mutex } from "./mutex.js";
-export { readConfig, createCliRunner, main, type CliRunnerConfig } from "./main.js";
+export {
+  readConfig,
+  createCliRunner,
+  sourceSelfUpdateDisableEnv,
+  main,
+  type CliRunnerConfig
+} from "./main.js";
+export {
+  InstallService,
+  InstallBadRequestError,
+  buildSanitizedInstallerEnv,
+  type InstallServiceDeps
+} from "./install-service.js";
+export { PROVIDER_CATALOG, CATALOG_VALIDATION_ISSUES } from "./catalog.js";

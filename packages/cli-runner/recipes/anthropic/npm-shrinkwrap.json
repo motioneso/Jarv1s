@@ -35,105 +35,73 @@
       "version": "2.1.183",
       "resolved": "https://registry.npmjs.org/@anthropic-ai/claude-code-darwin-arm64/-/claude-code-darwin-arm64-2.1.183.tgz",
       "integrity": "sha512-r0YSa+Ux8FEu2zLCLOuGaSRXxwyif9KF+YK64aso2QwdjCVEpTbJo3IK7P2HcT0NYTlwEYALWlP/Ickrql4wbQ==",
-      "cpu": [
-        "arm64"
-      ],
+      "cpu": ["arm64"],
       "license": "SEE LICENSE IN LICENSE.md",
       "optional": true,
-      "os": [
-        "darwin"
-      ]
+      "os": ["darwin"]
     },
     "node_modules/@anthropic-ai/claude-code-darwin-x64": {
       "version": "2.1.183",
       "resolved": "https://registry.npmjs.org/@anthropic-ai/claude-code-darwin-x64/-/claude-code-darwin-x64-2.1.183.tgz",
       "integrity": "sha512-i8cK/h7g902uZFj9ZdmFHPxP7uxuYWgw9hpx7fSPLdxyPcgbhl16+XD9bBSm6vSZ2CRLgKEb92fB1dt7qU5ClQ==",
-      "cpu": [
-        "x64"
-      ],
+      "cpu": ["x64"],
       "license": "SEE LICENSE IN LICENSE.md",
       "optional": true,
-      "os": [
-        "darwin"
-      ]
+      "os": ["darwin"]
     },
     "node_modules/@anthropic-ai/claude-code-linux-arm64": {
       "version": "2.1.183",
       "resolved": "https://registry.npmjs.org/@anthropic-ai/claude-code-linux-arm64/-/claude-code-linux-arm64-2.1.183.tgz",
       "integrity": "sha512-TA+ixBwIKOZywNGOdi/q2abW1ibG9aJMwIe+O3BtEvrkcQD62jEyThW1jeC7/8Cdp0uyT5v5ilb63qD0YX59Ig==",
-      "cpu": [
-        "arm64"
-      ],
+      "cpu": ["arm64"],
       "license": "SEE LICENSE IN LICENSE.md",
       "optional": true,
-      "os": [
-        "linux"
-      ]
+      "os": ["linux"]
     },
     "node_modules/@anthropic-ai/claude-code-linux-arm64-musl": {
       "version": "2.1.183",
       "resolved": "https://registry.npmjs.org/@anthropic-ai/claude-code-linux-arm64-musl/-/claude-code-linux-arm64-musl-2.1.183.tgz",
       "integrity": "sha512-UZjE6ovn3Na0s0x1eJK6VYave5ztFAXW8/b+N5KVs4wv/i5mUfOf9UwmOCV0iG4IXJKy5wBIZ3gDRkUO/au1wQ==",
-      "cpu": [
-        "arm64"
-      ],
+      "cpu": ["arm64"],
       "license": "SEE LICENSE IN LICENSE.md",
       "optional": true,
-      "os": [
-        "linux"
-      ]
+      "os": ["linux"]
     },
     "node_modules/@anthropic-ai/claude-code-linux-x64": {
       "version": "2.1.183",
       "resolved": "https://registry.npmjs.org/@anthropic-ai/claude-code-linux-x64/-/claude-code-linux-x64-2.1.183.tgz",
       "integrity": "sha512-Ik4jBKW40pYyheJ+p890DMIPGgeFXuuCwQV4fWGHAyCEuBYoFYmTWiNEJIFZqIhbbX0YxfOhxacQ/xZSp6kvEw==",
-      "cpu": [
-        "x64"
-      ],
+      "cpu": ["x64"],
       "license": "SEE LICENSE IN LICENSE.md",
       "optional": true,
-      "os": [
-        "linux"
-      ]
+      "os": ["linux"]
     },
     "node_modules/@anthropic-ai/claude-code-linux-x64-musl": {
       "version": "2.1.183",
       "resolved": "https://registry.npmjs.org/@anthropic-ai/claude-code-linux-x64-musl/-/claude-code-linux-x64-musl-2.1.183.tgz",
       "integrity": "sha512-8hBZ8rsHszPwLILIosViMtJUBVjCq6BDCV4IHQcW3Zx1paoY8+GHogUJlyrPZFXuq7QAhwgtT/+YUMHawjNhzA==",
-      "cpu": [
-        "x64"
-      ],
+      "cpu": ["x64"],
       "license": "SEE LICENSE IN LICENSE.md",
       "optional": true,
-      "os": [
-        "linux"
-      ]
+      "os": ["linux"]
     },
     "node_modules/@anthropic-ai/claude-code-win32-arm64": {
       "version": "2.1.183",
       "resolved": "https://registry.npmjs.org/@anthropic-ai/claude-code-win32-arm64/-/claude-code-win32-arm64-2.1.183.tgz",
       "integrity": "sha512-qqaTFNkvgmSwNVH4IpPRA6gqMD/7zzBHyLIzg0pOOjNLfiyvL5qWoVeBTijCsh8MnDqrhlxGPoC98Q3YFyp7Ww==",
-      "cpu": [
-        "arm64"
-      ],
+      "cpu": ["arm64"],
       "license": "SEE LICENSE IN LICENSE.md",
       "optional": true,
-      "os": [
-        "win32"
-      ]
+      "os": ["win32"]
     },
     "node_modules/@anthropic-ai/claude-code-win32-x64": {
       "version": "2.1.183",
       "resolved": "https://registry.npmjs.org/@anthropic-ai/claude-code-win32-x64/-/claude-code-win32-x64-2.1.183.tgz",
       "integrity": "sha512-Ar9sb9QL2rqjRa5YW7LZ7uRL6fQNSbIOgEX+jhxdQyZ4QximRzGgSymxI/sXkcoR9ZxIRx9sBCRsHuyepWwiBA==",
-      "cpu": [
-        "x64"
-      ],
+      "cpu": ["x64"],
       "license": "SEE LICENSE IN LICENSE.md",
       "optional": true,
-      "os": [
-        "win32"
-      ]
+      "os": ["win32"]
     }
   }
 }

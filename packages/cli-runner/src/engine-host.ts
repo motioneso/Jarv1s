@@ -28,9 +28,11 @@ import type {
   RpcReadNewResult,
   RpcProviderKind
 } from "../../chat/src/live/rpc-contract.js";
+import type { RpcInstallProviderResult } from "../../chat/src/live/install-contract.js";
 import type { Multiplexer, ProviderKind, TmuxIo } from "@jarv1s/ai";
 
 import { Mutex } from "./mutex.js";
+import type { InstallService } from "./install-service.js";
 
 export interface EngineHostDeps {
   readonly io: TmuxIo;
@@ -52,6 +54,13 @@ export interface EngineHostDeps {
    * Defaults to a generous boot budget.
    */
   readonly launchTimeoutMs?: number;
+  /**
+   * The §A.3 on-demand install service. The host's `installProvider` (§A.2.4) delegates
+   * to it; it carries its OWN per-provider lock (§A.3.1), distinct from the §4.1.0a
+   * admission mutex (the install lane is volume-disjoint from admission, §A.5.1). Absent
+   * ⇒ `installProvider` reports the verb is unavailable on this build.
+   */
+  readonly installService?: InstallService;
 }
 
 const DEFAULT_LAUNCH_TIMEOUT_MS = 40_000;
@@ -253,6 +262,25 @@ export class CliChatEngineHost {
     return { status: result.status, message: result.message };
   }
 
+  // ─── installProvider (§A.2.4) — delegates to the install service ──────────────
+
+  /**
+   * §A.2.4: delegate to the §A.3 install service. Does NOT pass through the
+   * per-sessionKey queue (no session) nor the §4.1.0a admission mutex (no live engine —
+   * the install lane is volume-disjoint from admission, §A.5.1); the service takes its
+   * OWN per-provider lock (§A.3.1). A failed install is a TERMINAL OUTCOME
+   * `{state:"error"}` (not a throw); a blocked/in-flight provider throws
+   * `InstallBadRequestError` (mapped to bad_request by connection.ts).
+   */
+  async installProvider(provider: RpcProviderKind): Promise<RpcInstallProviderResult> {
+    if (!this.deps.installService) {
+      // No installer wired (e.g. a host-mode build) — surface a terminal error outcome
+      // rather than a throw, so the api persists `error` and offers a retry.
+      return { state: "error", message: "install service unavailable on this build" };
+    }
+    return this.deps.installService.installProvider(provider);
+  }
+
   // ─── startup CLEAN-SLATE sweep (§4.1.0a (2) / §6.5) ───────────────────────────
 
   /**
@@ -271,6 +299,11 @@ export class CliChatEngineHost {
     }
     // (b) unconditionally clear every <sessionKey> dir under the neutral base.
     await this.clearNeutralBase();
+    // (c) §A.3.2 install-service tools-volume sweep (DISTINCT from the auth-volume sweep
+    // above): clear orphaned `.staging/*` AND GC releases not referenced by `current`.
+    // Ordered here so it completes BEFORE the server accepts the first installProvider
+    // (the server runs startupSweep before listen, server.ts:41).
+    await this.deps.installService?.startupSweep().catch(() => undefined);
   }
 
   /** `rm -rf <neutralBase>/* ` then recreate the base dir (`0700`). */

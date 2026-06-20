@@ -27,7 +27,10 @@ import {
 } from "../../chat/src/live/rpc-contract.js";
 import { CliChatUnavailableError } from "../../chat/src/live/errors.js";
 
+import type { RpcInstallProviderParams } from "../../chat/src/live/install-contract.js";
+
 import { NotLaunchedError, type CliChatEngineHost } from "./engine-host.js";
+import { InstallBadRequestError } from "./install-service.js";
 import { isHandshakeFrame, stepHelloServer, type HelloServerState } from "./hello.js";
 
 /** A duplex byte sink/source — `net.Socket` satisfies this; tests inject a fake. */
@@ -222,6 +225,21 @@ async function invoke(req: RpcRequest, host: CliChatEngineHost): Promise<unknown
       if (!isProviderKind(provider)) throw new BadRequestError("unknown provider");
       return host.probeProvider(provider);
     }
+    case "installProvider": {
+      // §A.2.4 TWO ordered validation gates, both mapping to bad_request (§3.7) but
+      // DISTINCT (§A.2.3):
+      //  (1) KIND guard FIRST — a value that is not an RpcProviderKind ⇒ "unknown
+      //      provider" (the isProviderKind mirror), before the catalog is consulted.
+      //  (2) CATALOG-status gate SECOND — a valid kind whose recipe is blocked/absent ⇒
+      //      a DISTINCT "provider not installable: <reason>" rejection. agy-while-blocked
+      //      lands here, NOT in the kind guard. This gate lives inside the install
+      //      service (InstallService.resolveRecipe → InstallBadRequestError), which
+      //      errorCode() maps to bad_request. A FAILED install (download/verify/promote)
+      //      is NOT here — it is a normal RpcOk { result.state:"error" } (§A.2.3).
+      const provider = (req.params as RpcInstallProviderParams).provider;
+      if (!isProviderKind(provider)) throw new BadRequestError("unknown provider");
+      return host.installProvider(provider);
+    }
     default:
       throw new BadRequestError("unknown method");
   }
@@ -245,6 +263,8 @@ function toErrFrame(id: number, bootId: string, err: unknown): RpcErr {
 
 function errorCode(err: unknown): RpcErrorCode {
   if (err instanceof BadRequestError) return "bad_request";
+  // §A.2.3 catalog-blocked / in-flight install rejection ⇒ bad_request (does NOT close).
+  if (err instanceof InstallBadRequestError) return "bad_request";
   if (err instanceof NotLaunchedError) return "not_launched";
   if (err instanceof CliChatUnavailableError) return "unavailable";
   return "internal";

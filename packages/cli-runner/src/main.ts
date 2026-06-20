@@ -14,7 +14,9 @@ import { dirname } from "node:path";
 
 import { cliAvailable, tmuxAvailable, type ProviderKind } from "@jarv1s/ai";
 
+import { PROVIDER_CATALOG } from "./catalog.js";
 import { CliChatEngineHost } from "./engine-host.js";
+import { InstallService } from "./install-service.js";
 import { createSanitizedTmuxIo } from "./runner-io.js";
 import { CliRunnerServer } from "./server.js";
 
@@ -24,11 +26,14 @@ export interface CliRunnerConfig {
   readonly singleUser: boolean;
   readonly neutralBase: string;
   readonly homeBase: string;
+  /** Tools-volume prefix the installer stages/promotes into (`NPM_CONFIG_PREFIX`, §7.1). */
+  readonly toolsPrefix: string;
 }
 
 const DEFAULT_SOCKET = "/run/jarv1s/cli-runner.sock";
 const DEFAULT_NEUTRAL_BASE = "/data/cli-auth/chat";
 const DEFAULT_HOME = "/data/cli-auth";
+const DEFAULT_TOOLS_PREFIX = "/data/cli-tools";
 
 /** Read the cli-runner config from the (server) env, applying §7 defaults. */
 export function readConfig(env: NodeJS.ProcessEnv = process.env): CliRunnerConfig {
@@ -39,8 +44,36 @@ export function readConfig(env: NodeJS.ProcessEnv = process.env): CliRunnerConfi
     // Default ON (§4.1.0a). Only "0" turns it OFF (after #347 lands).
     singleUser: env.JARVIS_CLI_RUNNER_SINGLE_USER !== "0",
     neutralBase: env.JARVIS_CLI_NEUTRAL_BASE ?? DEFAULT_NEUTRAL_BASE,
-    homeBase
+    homeBase,
+    toolsPrefix: env.JARVIS_CLI_TOOLS_PREFIX ?? env.NPM_CONFIG_PREFIX ?? DEFAULT_TOOLS_PREFIX
   };
+}
+
+/**
+ * §A.3.7 (R6, CRITICAL): source every catalog `kind:"env"` `selfUpdateDisable` pair
+ * into the cli-runner `process.env` BEFORE the tmux fork. `buildSanitizedCliEnv` is a
+ * passthrough FILTER, not a setter — allowlisting the key alone is a NO-OP: the value
+ * never appears in `process.env`, so the §7.2 passthrough never delivers it to the
+ * forked tmux server / launched CLI. Setting it on the cli-runner's OWN env here (the
+ * catalog is the single source of truth; no compose hardcoding, no secret) is what makes
+ * the launched CLI actually receive `DISABLE_AUTOUPDATER=1`. kind:"config" recipes need
+ * NO env sourcing (they are a file the installer writes, §A.3.7). Mutates `target`
+ * (default `process.env`) and returns the keys it set (for the boot log / the test).
+ */
+export function sourceSelfUpdateDisableEnv(
+  target: NodeJS.ProcessEnv = process.env,
+  catalog = PROVIDER_CATALOG
+): string[] {
+  const set: string[] = [];
+  for (const entry of Object.values(catalog)) {
+    if (entry.status !== "supported" || !entry.recipe) continue;
+    const sud = entry.recipe.selfUpdateDisable;
+    if (sud.kind === "env") {
+      target[sud.key] = sud.value;
+      set.push(sud.key);
+    }
+  }
+  return set;
 }
 
 /** Construct the engine host + server from config (no I/O until `server.start()`). */
@@ -48,14 +81,31 @@ export function createCliRunner(
   config: CliRunnerConfig,
   log?: (msg: string) => void
 ): CliRunnerServer {
+  // §A.3.7 R6: BEFORE createSanitizedTmuxIo() reads process.env, source the catalog's
+  // kind:"env" self-update-disable pairs onto process.env so the §7.2 passthrough
+  // actually carries them to the forked tmux server + every launched CLI.
+  sourceSelfUpdateDisableEnv(process.env);
+
   // The §7.2 sanitized TmuxIo: every tmux/CLI child gets the allowlist env only.
   const io = createSanitizedTmuxIo();
+
+  // The §A.3 install service. It carries its OWN per-provider lock (distinct from the
+  // §4.1.0a admission mutex) and runs npm/artifact installs under the sanitized installer
+  // env (the §7.2 allowlist PLUS only registry/proxy vars — NO secrets, §A.3.3). It reuses
+  // the same execFile-style `io`, passing its installer env per call.
+  const installService = new InstallService({
+    io,
+    catalog: PROVIDER_CATALOG,
+    toolsPrefix: config.toolsPrefix,
+    homeBase: config.homeBase
+  });
 
   const host = new CliChatEngineHost({
     io,
     neutralBase: config.neutralBase,
     homeBase: config.homeBase,
     singleUser: config.singleUser,
+    installService,
     // Presence-only PATH probe INSIDE cli-runner (the tools volume is on PATH, §7.1).
     cliPresent: (provider: ProviderKind) => cliAvailable(provider),
     multiplexerUsable: () => tmuxAvailable()

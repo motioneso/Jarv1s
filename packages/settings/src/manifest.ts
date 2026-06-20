@@ -179,6 +179,11 @@ export const settingsModuleManifest: JarvisModuleManifest = {
       method: "POST",
       path: "/api/onboarding/provider-check",
       permissionId: "settings.manage"
+    },
+    {
+      method: "POST",
+      path: "/api/onboarding/provider-install",
+      permissionId: "settings.manage"
     }
   ]
 };
