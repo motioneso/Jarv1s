@@ -436,6 +436,7 @@ already failed.
 | Manifest / handoff templates | `.claude/skills/coordinate/templates/{manifest,handoff}.md` |
 | Isolated worktree | `git worktree add .claude/worktrees/<slug> -b <slug> origin/main` |
 | Spawn build agent (shared Agents tab) | `herdr agent start "<Label>" --tab <ws>:<agents-tab> --cwd <path> --no-focus -- claude …` (2×2 for 4-agent / 3×1 for 3-agent waves) |
+| Spawn **opencode/GLM** build/spec agent | `herdr agent start "<Label>" --tab <agents-tab> --split down --cwd <path> --no-focus -- opencode run --dangerously-skip-permissions --model zai-coding-plan/glm-5.2 "<prompt>"` (see opencode gotchas below) |
 | Spawn QA agent (native subagent) | `Agent(description: "QA: <slug>", subagent_type: "coordinated-qa", run_in_background: true, isolation: "worktree", prompt: "...")` |
 | Spawn relay coordinator (SAME tab as yours) | `herdr agent start "Coordinator" --tab <your own tab> … -- claude --permission-mode bypassPermissions "<boot>"` or `… -- codex -s danger-full-access -a never "<boot>"` — successor opens in your tab, then closes you |
 | Talk to an agent | `herdr pane run <pane> "<msg>"`, then verify with `herdr pane read`; use `send-text` + Enter only as fallback |
@@ -448,5 +449,12 @@ already failed.
 | Stay resident | `ScheduleWakeup` tick between pushes |
 | Relay trigger | security merge → relay immediately; 2 routine/sensitive merges → relay; compaction seen → relay, merge nothing |
 | Escalate to Opus | `Agent(model: "opus", prompt: "<question + context>")` — relay compact verdict |
+
+### opencode (GLM) agent-spawn gotchas (learned 2026-06-20, `mem`-worthy)
+
+- **Pin the model.** opencode's default `model` (`zai-coding-plan/glm-4.6`) was REMOVED by the provider → `opencode` exits at once with `ProviderModelNotFoundError` and the pane vanishes. ALWAYS pass `--model zai-coding-plan/glm-5.2` (valid: glm-4.5-air, glm-4.7, glm-5-turbo, glm-5.1, glm-5.2, glm-5v-turbo). The dead default lives in `~/.config/opencode/opencode.json`.
+- **Use `opencode run --dangerously-skip-permissions`** for headless build/spec/draft agents. Interactive `opencode` (no `run`) has NO permission-bypass flag, so it stalls on a parade of permission prompts (file edits, `/tmp`, bash) that are painful to drive via `herdr pane send-keys` (Tab/Enter guesswork, and the safe default is often "Reject"). `opencode run` is headless (runs the prompt to completion then exits) and `--dangerously-skip-permissions` auto-approves anything not explicitly denied (mirrors agy's flag). For an agent that must stay interactive, pre-grant via `~/.config/opencode/opencode.json` `permission` rules instead.
+- **Full terminal WIDTH is mandatory.** opencode's TUI breaks (unreadable fragment wrap) in a narrow column. In the shared Agents tab, split **down** (`--split down`), NOT right — this stacks panes vertically and preserves full width for each, so several opencode agents coexist in one tab without breaking the TUI. (Codex/agy TUIs tolerate narrow panes; opencode does not.)
+- **No native subagent / no `ScheduleWakeup`** in the opencode harness — poll via a harness background bash task + `herdr pane read`. Reports land in the pane's stdout (read it) or via `herdr-pane-message` to your label.
 
 See also the design spec and CLAUDE.md (Hard Invariants, GitHub tracking, coordinating sessions).
