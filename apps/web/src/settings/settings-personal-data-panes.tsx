@@ -712,7 +712,7 @@ function GeneralPane() {
           <div className="fld__row">
             <Select
               value={locale.region}
-              aria-label="Language and region"
+              aria-label="Language & region"
               disabled={localeQuery.isLoading || localeMutation.isPending}
               onChange={(event) => updateLocale({ region: event.currentTarget.value })}
             >

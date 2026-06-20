@@ -85,6 +85,10 @@
   --accent-fg: #2a6147;
   --accent-soft: var(--pine-soft);
   --accent-soft-fg: var(--pine-ink);
+  /* Primary-button fill. Defaults to --accent (light passes WCAG AA at 6.4:1);
+     the dark theme overrides this so the near-white CTA label clears 4.5:1
+     (was 4.21:1). See issue #354. */
+  --btn-primary-bg: var(--accent);
 
   --warn: var(--amber);
   --warn-fg: var(--amber-strong);
@@ -287,6 +291,9 @@
   --text-on-accent: #f4fbf6;
   --accent-fg: #6bc093;
   --focus-ring: rgba(47, 135, 94, 0.45);
+  /* Darken the primary-button fill in dark so the near-white label clears WCAG AA
+     (#f4fbf6 on --pine was 4.21:1; on --pine-active #2a7a54 it is ~4.7:1). #354. */
+  --btn-primary-bg: var(--pine-active);
 
   --shadow-xs: 0 1px 1px rgba(0, 0, 0, 0.3);
   --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.36), 0 1px 3px rgba(0, 0, 0, 0.28);
