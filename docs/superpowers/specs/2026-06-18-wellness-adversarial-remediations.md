@@ -3,7 +3,7 @@
 **Status:** approved
 **Date:** 2026-06-18
 **Owner:** Ben
-**GitHub:** Issue #307 (Wellness adversarial remediations)
+**GitHub:** Issue #326 (Wellness adversarial remediations)
 **Target:** Wellness module (Phase 5)
 
 This spec defines the remediations for the vulnerabilities and edge cases identified during the adversarial review of the Wellness module design.

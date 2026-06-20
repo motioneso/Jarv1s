@@ -18,14 +18,7 @@ Implemented slices:
 - Operations: database backup/restore, user export/delete, production environment checklist,
   release-hardening audit, CI workflow, and Compose smoke automation.
 
-Not implemented yet:
-
-- Real OAuth/OIDC callback verification against deployed provider apps.
-- Real connector sync, external calendar/email provider calls, token refresh, or write APIs.
-- Real AI provider calls, embeddings, model-visible connector sync, or assistant write/destructive
-  execution.
-- Full UI/product polish, full module marketplace system, recurrence/reminders, notification
-  delivery, and final API contract-layer decisions.
+- For what is currently implemented or not implemented, refer to the active milestones and roadmap on the project board. The system is under active development and capabilities (such as AI provider connections and embeddings) are frequently evolving.
 
 ## How To Pick Up Work
 
@@ -44,15 +37,10 @@ Read these in order:
 - [Tasks module MVP plan](docs/architecture/plans/0002-tasks-module-mvp.md)
 - [Platform-first alpha roadmap](docs/architecture/plans/0003-platform-first-alpha-roadmap.md)
 - [M7 operations verification plan](docs/architecture/plans/0004-m7-operations-verification-plan.md)
-- [Session handoff](docs/HANDOFF.md)
+- [Archived session handoff](docs/HANDOFF.md)
 - [Tasks M1 handoff (archived)](docs/archive/HANDOFF_TASKS_M1.md)
 
-The active continuation point is in [Session handoff](docs/HANDOFF.md), especially the
-`Next Step`, `Open Questions`, and `Review Notes For Next Agent` sections. The next work should stay
-bounded around M7 operations hardening: clean-environment CI-equivalent verification, real external
-OAuth/OIDC callback verification, and production Postgres/pg-boss settings review. Use the
-[M7 operations verification plan](docs/architecture/plans/0004-m7-operations-verification-plan.md)
-as the execution checklist.
+The active continuation point is tracked in GitHub. Please read [CLAUDE.md](CLAUDE.md) and check the project board for current status, milestones, and open work.
 
 Keep these invariants intact:
 
