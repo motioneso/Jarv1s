@@ -7,7 +7,10 @@
 #   - named volumes for postgres data, vault /data/vaults, model cache
 #   - restart: unless-stopped + the api /health HEALTHCHECK
 #   - secrets injected at runtime via env_file (never in image layers)
-#   - api/worker carry the host-multiplexer bridge mounts (§6)
+#   - the provider CLIs + tmux run in a dedicated cli-runner SIDECAR (#342); the
+#     api drives it over a private 0600 Unix socket. api/worker mount NO CLI-data
+#     volumes and NO host-bridge (the host tmux socket + RO ~/.claude|.codex|.gemini
+#     mounts are GONE — ADR 0008 reversed by ADR 0010).
 #
 # FIRST-RUN SETUP WIZARD (recommended for a fresh deploy) — the "hand the image +
 # compose to someone else" flow. The operator copies ONLY this compose file, runs
@@ -20,19 +23,21 @@
 #   2. Run the one-shot setup service (generates env.production.local next to the
 #      compose, mode 0600, REFUSES to overwrite an existing file):
 #        cd /opt/jarv1s
-#        JARVIS_IMAGE_TAG=v0.1.0 POSTGRES_PASSWORD=setup \
+#        JARVIS_IMAGE_TAG=v0.1.0 POSTGRES_PASSWORD=setup JARVIS_CLI_RUNNER_RPC_SECRET=setup \
 #          docker compose -p jarv1s-prod -f docker-compose.prod.yml \
 #          --profile setup run --rm setup
 #   3. Bring the stack up (reads the generated file via --env-file):
 #        docker compose -p jarv1s-prod -f docker-compose.prod.yml \
 #          --env-file ./env.production.local up -d
 #
-# About the `POSTGRES_PASSWORD=setup` throwaway in step 2: Compose interpolates the
-# WHOLE file at parse time, and the postgres service hard-fails without it
-# (`${POSTGRES_PASSWORD:?}` is a deliberate gate against a weak prod default). Setup
-# IGNORES that shell value and writes the real generated password into the env file
-# (asserted equal to the one embedded in JARVIS_BOOTSTRAP_DATABASE_URL). Defaults
-# written are localhost (3000/5173); edit JARVIS_AUTH_BASE_URL +
+# About the `POSTGRES_PASSWORD=setup` + `JARVIS_CLI_RUNNER_RPC_SECRET=setup`
+# throwaways in step 2: Compose interpolates the WHOLE file at parse time, and two
+# services hard-fail without these — postgres (`${POSTGRES_PASSWORD:?}`, a gate
+# against a weak prod default) and api/cli-runner (`${JARVIS_CLI_RUNNER_RPC_SECRET:?}`,
+# the socket-auth secret, #342). Setup IGNORES both shell values and writes the real
+# generated values into the env file (POSTGRES_PASSWORD asserted equal to the one
+# embedded in JARVIS_BOOTSTRAP_DATABASE_URL; the RPC secret freshly generated).
+# Defaults written are localhost (3000/5173); edit JARVIS_AUTH_BASE_URL +
 # JARVIS_AUTH_TRUSTED_ORIGINS if this deploy is not reached at localhost.
 #
 # Step 3 omits `--build`: a deploy dir holding ONLY the compose has no source for
@@ -76,6 +81,49 @@ x-app-env-file: &app-env-file
       required: false
 
 services:
+  # Root one-shot init (#342). The non-root api/worker/cli-runner run as
+  # JARVIS_HOST_UID and CANNOT chown freshly-created named volumes themselves, so
+  # this privileged one-shot chowns every app/CLI-data volume to the operator
+  # uid/gid AND creates the RPC socket dir /run/jarv1s as 0700 (the cli-runner
+  # binds a 0600 socket there; api connects). It runs to completion BEFORE any
+  # other service: every non-root service `depends_on` it with
+  # condition: service_completed_successfully.
+  #
+  # NOT profile-gated (must run on a plain `up`). restart: "no" (one-shot). Uses a
+  # minimal base (the postgres image is always present in this stack) + an inline
+  # sh -c — it needs no app code, only coreutils to chown + mkdir + chmod.
+  init:
+    image: pgvector/pgvector:pg17
+    container_name: jarv1s-init-prod
+    user: "0:0"
+    command:
+      - "sh"
+      - "-c"
+      - |
+        set -eu
+        UID_GID="${JARVIS_HOST_UID:-1000}:${JARVIS_HOST_GID:-1000}"
+        # CLI-data volumes (cli-runner-only) + app volumes (api/worker) — chown so
+        # the non-root runtime uid owns them. model-cache + vault are already
+        # 0777 in the image but chown is harmless + future-proofs a non-1000 uid.
+        for d in /data/cli-tools /data/cli-auth /data/vaults /app/.cache/huggingface; do
+          mkdir -p "$$d"
+          chown -R "$$UID_GID" "$$d"
+        done
+        # RPC socket dir: 0700, owned by the runtime uid (RPC-contract §3.1/§8).
+        mkdir -p /run/jarv1s
+        chown "$$UID_GID" /run/jarv1s
+        chmod 0700 /run/jarv1s
+        echo "init: chowned volumes + created /run/jarv1s (0700) for $$UID_GID"
+    volumes:
+      - jarv1s-cli-tools:/data/cli-tools
+      - jarv1s-cli-auth:/data/cli-auth
+      - jarv1s-vault-data:/data/vaults
+      - jarv1s-model-cache:/app/.cache/huggingface
+      - jarv1s-cli-socket:/run/jarv1s
+    restart: "no"
+    networks:
+      - jarv1s
+
   postgres:
     image: pgvector/pgvector:pg17
     container_name: jarv1s-postgres-prod
@@ -99,6 +147,9 @@ services:
     networks:
       - jarv1s
     restart: unless-stopped
+    depends_on:
+      init:
+        condition: service_completed_successfully
 
   migrate:
     image: ghcr.io/motioneso/jarv1s-api:${JARVIS_IMAGE_TAG:?set JARVIS_IMAGE_TAG to a published version tag}
@@ -111,6 +162,8 @@ services:
     # the image's default node user.
     command: ["node_modules/.bin/tsx", "scripts/migrate.ts"]
     depends_on:
+      init:
+        condition: service_completed_successfully
       postgres:
         condition: service_healthy
     networks:
@@ -127,15 +180,21 @@ services:
       dockerfile: Dockerfile
     <<: *app-env-file
     command: ["node", "dist/server.js"]
-    # Run as the host operator uid/gid so the bind-mounted host tmux socket
-    # (mode 0700 per-uid) and host CLI dirs are openable (§6 UID mapping).
+    # Run as the host operator uid/gid so the init-chowned named volumes (incl. the
+    # 0700 RPC socket dir owned by this uid) are openable. The api connects to the
+    # cli-runner's 0600 socket as the same uid that owns it (#342).
     user: "${JARVIS_HOST_UID:-1000}:${JARVIS_HOST_GID:-1000}"
     environment:
       PORT: "3000"
       HOST: 0.0.0.0
-      # Point transcript resolution + spawned multiplexer commands at the host HOME (§6).
-      JARVIS_CLI_HOME_BASE: /host-home
       HF_HOME: /app/.cache/huggingface
+      # cli-runner RPC (#342). Setting JARVIS_CLI_RUNNER_SOCKET selects the RPC
+      # client over the in-process engine (RPC-contract §3.5). The RPC secret
+      # authenticates the api to the cli-runner over the socket auth hello
+      # (§3.6/§6.6); it is a Compose-interpolated value (shell / --env-file) so it
+      # never lands in an image layer. Generated by setup-prod.ts into the env file.
+      JARVIS_CLI_RUNNER_SOCKET: ${JARVIS_CLI_RUNNER_SOCKET:-/run/jarv1s/cli-runner.sock}
+      JARVIS_CLI_RUNNER_RPC_SECRET: ${JARVIS_CLI_RUNNER_RPC_SECRET:?set JARVIS_CLI_RUNNER_RPC_SECRET (generated by setup; shell env or --env-file)}
     restart: unless-stopped
     healthcheck:
       test:
@@ -154,23 +213,15 @@ services:
     volumes:
       - jarv1s-vault-data:/data/vaults
       - jarv1s-model-cache:/app/.cache/huggingface
-      # Host-multiplexer bridge (§6) — present only for the CLI-subscription
-      # adapter. The API-key adapter needs NONE of these mounts. The socket-dir
-      # default is DERIVED from JARVIS_HOST_UID (tmux uses /tmp/tmux-$(id -u),
-      # mode 0700 per-uid) so the two cannot silently drift when an operator sets
-      # a non-1000 uid but forgets to update the socket dir — branch-review #3.
-      - ${JARVIS_TMUX_SOCKET_DIR:-/tmp/tmux-${JARVIS_HOST_UID:-1000}}:${JARVIS_TMUX_SOCKET_DIR:-/tmp/tmux-${JARVIS_HOST_UID:-1000}}
-      # Host CLI auth/transcript dirs — mount ONLY the three CLI dirs, read-only, NOT
-      # the whole host HOME (which would expose ~/.ssh, git creds, cloud configs,
-      # shell history — far beyond CLI auth). JARVIS_CLI_HOME_BASE=/host-home, so the
-      # engine's transcriptGlobDir finds /host-home/.claude|.codex|.gemini exactly.
-      - ${JARVIS_HOST_CLAUDE_DIR:-${HOME}/.claude}:/host-home/.claude:ro
-      - ${JARVIS_HOST_CODEX_DIR:-${HOME}/.codex}:/host-home/.codex:ro
-      - ${JARVIS_HOST_GEMINI_DIR:-${HOME}/.gemini}:/host-home/.gemini:ro
-      # Shared neutral-dir base: identical absolute path on host + container so
-      # the host-spawned CLI cd's into the same dir the container computed (§6.3).
-      - ${JARVIS_CHAT_HOME:-${HOME}/.jarvis/chat}:${JARVIS_CHAT_HOME:-${HOME}/.jarvis/chat}
+      # RPC socket volume (#342) — the ONLY api <-> cli-runner coupling. Mounted in
+      # api + cli-runner ONLY (NOT worker, NOT web). Holds the cli-runner's 0600
+      # Unix socket in a 0700 dir owned by JARVIS_HOST_UID (RPC-contract §8).
+      # The api mounts NO CLI-data volume (tools/auth-home): it cannot read any
+      # transcript or provider auth — transcripts return over readNew (§4.4).
+      - jarv1s-cli-socket:/run/jarv1s
     depends_on:
+      init:
+        condition: service_completed_successfully
       migrate:
         condition: service_completed_successfully
     networks:
@@ -182,21 +233,68 @@ services:
     command: ["node", "dist/worker.js"]
     user: "${JARVIS_HOST_UID:-1000}:${JARVIS_HOST_GID:-1000}"
     environment:
-      JARVIS_CLI_HOME_BASE: /host-home
       HF_HOME: /app/.cache/huggingface
     restart: unless-stopped
     volumes:
       - jarv1s-vault-data:/data/vaults
       - jarv1s-model-cache:/app/.cache/huggingface
-      # Socket-dir default DERIVED from JARVIS_HOST_UID — see api (branch-review #3).
-      - ${JARVIS_TMUX_SOCKET_DIR:-/tmp/tmux-${JARVIS_HOST_UID:-1000}}:${JARVIS_TMUX_SOCKET_DIR:-/tmp/tmux-${JARVIS_HOST_UID:-1000}}
-      # Mount ONLY the three CLI dirs read-only (NOT the whole host HOME — see api).
-      - ${JARVIS_HOST_CLAUDE_DIR:-${HOME}/.claude}:/host-home/.claude:ro
-      - ${JARVIS_HOST_CODEX_DIR:-${HOME}/.codex}:/host-home/.codex:ro
-      - ${JARVIS_HOST_GEMINI_DIR:-${HOME}/.gemini}:/host-home/.gemini:ro
-      - ${JARVIS_CHAT_HOME:-${HOME}/.jarvis/chat}:${JARVIS_CHAT_HOME:-${HOME}/.jarvis/chat}
+      # The worker mounts NO CLI-data and NO RPC socket (#342): CLI chat runs only
+      # in the cli-runner sidecar, driven by the api. The host-multiplexer bridge
+      # (host tmux socket + RO ~/.claude|.codex|.gemini) is REMOVED.
     depends_on:
+      init:
+        condition: service_completed_successfully
       migrate:
+        condition: service_completed_successfully
+    networks:
+      - jarv1s
+
+  # cli-runner sidecar (#342) — the ISOLATION BOUNDARY. Runs the bundled tmux
+  # server + the provider CLIs (claude/codex/agy) + the RPC server (Lane B) the
+  # api drives over the private 0600 socket. Same image as the api, but a
+  # SANITIZED env: it deliberately does NOT use *app-env-file, so NO BETTER_AUTH_SECRET,
+  # NO JARVIS_AI_SECRET_KEY, NO JARVIS_CONNECTOR_SECRET_KEY, NO DB URLs/passwords,
+  # NO vault path ever reach this container (RPC-contract §7.2 — defense layer 1:
+  # the secrets are not in the container env at all; layer 2 is the per-spawn
+  # allowlist Lane B builds). It mounts ONLY tools + auth/home + socket — never
+  # the vault or model-cache.
+  cli-runner:
+    image: ghcr.io/motioneso/jarv1s-api:${JARVIS_IMAGE_TAG:?set JARVIS_IMAGE_TAG to a published version tag}
+    build:
+      context: ..
+      dockerfile: Dockerfile
+    container_name: jarv1s-cli-runner-prod
+    command: ["/usr/local/bin/cli-runner-entrypoint.sh"]
+    user: "${JARVIS_HOST_UID:-1000}:${JARVIS_HOST_GID:-1000}"
+    # NO `env_file` — see the service comment. The env below is the COMPLETE
+    # cli-runner-server env: socket path + RPC secret (server-only; excluded from
+    # the CLI-subprocess allowlist), the single-active-user gate flag (default ON,
+    # RPC-contract §4.1.0a — server config only, NOT in the CLI allowlist), the
+    # HOME/tools/neutral bases, the uid/gid, and the loopback mcpServerUrl so the
+    # launched CLIs reach /api/mcp over the jarv1s network. The MCP bearer token is
+    # NOT here — it arrives per-launch via the RPC payload (§6.3).
+    environment:
+      JARVIS_CLI_RUNNER_SOCKET: ${JARVIS_CLI_RUNNER_SOCKET:-/run/jarv1s/cli-runner.sock}
+      JARVIS_CLI_RUNNER_RPC_SECRET: ${JARVIS_CLI_RUNNER_RPC_SECRET:?set JARVIS_CLI_RUNNER_RPC_SECRET (generated by setup; shell env or --env-file)}
+      JARVIS_CLI_RUNNER_SINGLE_USER: "${JARVIS_CLI_RUNNER_SINGLE_USER:-1}"
+      JARVIS_CLI_HOME: /data/cli-auth
+      JARVIS_CLI_HOME_BASE: /data/cli-auth
+      JARVIS_CLI_NEUTRAL_BASE: /data/cli-auth/chat
+      JARVIS_CLI_TOOLS_PREFIX: /data/cli-tools
+      NPM_CONFIG_PREFIX: /data/cli-tools
+      JARVIS_HOST_UID: "${JARVIS_HOST_UID:-1000}"
+      JARVIS_HOST_GID: "${JARVIS_HOST_GID:-1000}"
+      JARVIS_MULTIPLEXER: tmux
+      # Loopback MCP gateway URL the launched CLIs use as the bearer target
+      # (reachable over the jarv1s network; the api service name resolves here).
+      JARVIS_MCP_SERVER_URL: ${JARVIS_MCP_SERVER_URL:-http://api:3000/api/mcp}
+    restart: unless-stopped
+    volumes:
+      - jarv1s-cli-tools:/data/cli-tools
+      - jarv1s-cli-auth:/data/cli-auth
+      - jarv1s-cli-socket:/run/jarv1s
+    depends_on:
+      init:
         condition: service_completed_successfully
     networks:
       - jarv1s
@@ -244,6 +342,13 @@ volumes:
   jarv1s-postgres-data:
   jarv1s-vault-data:
   jarv1s-model-cache:
+  # CLI-data volumes (#342) — cli-runner-only (api/worker/web mount none of these).
+  # tools: installed provider CLIs (npm prefix /data/cli-tools).
+  # auth/home: provider auth + transcripts + per-session neutral dirs (HOME=/data/cli-auth).
+  # socket: the private 0600 RPC socket (also mounted in api; dir 0700, owned by JARVIS_HOST_UID).
+  jarv1s-cli-tools:
+  jarv1s-cli-auth:
+  jarv1s-cli-socket:
 
 networks:
   jarv1s:

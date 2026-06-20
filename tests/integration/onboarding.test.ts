@@ -34,7 +34,9 @@ class FakeProviderCheckEngine implements CliChatEngine {
 
   constructor(public readonly provider: CliChatEngine["provider"]) {}
 
-  async launch(_opts: EngineLaunchOpts): Promise<void> {}
+  async launch(_opts: EngineLaunchOpts): Promise<{ offset: number }> {
+    return { offset: 0 };
+  }
 
   async submit(_text: string): Promise<void> {
     this.submitted = true;

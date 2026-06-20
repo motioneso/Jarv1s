@@ -1,0 +1,254 @@
+/**
+ * Per-connection lifecycle for the cli-runner server: the §3.6 auth handshake, then
+ * the §3.2 length-prefixed frame read-loop, decode → §4 method dispatch → response
+ * encode. Malformed frames close the connection (§3.7); semantically-invalid requests
+ * return RpcErr without closing.
+ *
+ * NO raw frame logging (§6.4): the only loggable fields are { method, id, sessionKey,
+ * bytes }. Error messages are redacted server-side before crossing the wire.
+ */
+
+import { redactSecrets } from "@jarv1s/ai";
+
+import {
+  decodeFrame,
+  encodeFrame,
+  type RpcErr,
+  type RpcErrorCode,
+  type RpcFrame,
+  type RpcHandshakeFrame,
+  type RpcLaunchParams,
+  type RpcOk,
+  type RpcReadNewParams,
+  type RpcRequest,
+  type RpcProbeProviderParams,
+  type RpcProviderKind
+} from "../../chat/src/live/rpc-contract.js";
+import { CliChatUnavailableError } from "../../chat/src/live/errors.js";
+
+import { NotLaunchedError, type CliChatEngineHost } from "./engine-host.js";
+import { isHandshakeFrame, stepHelloServer, type HelloServerState } from "./hello.js";
+
+/** A duplex byte sink/source — `net.Socket` satisfies this; tests inject a fake. */
+export interface ByteChannel {
+  write(buf: Buffer): void;
+  end(): void;
+  on(event: "data", listener: (chunk: Buffer) => void): void;
+  on(event: "close" | "error", listener: () => void): void;
+}
+
+export interface ConnectionDeps {
+  readonly host: CliChatEngineHost;
+  readonly bootId: string;
+  readonly secret: string | undefined;
+  /** Optional debug logger; receives ONLY { method, id, sessionKey, bytes } (§6.4). */
+  readonly log?: (line: {
+    method?: string;
+    id?: number;
+    sessionKey?: string;
+    bytes: number;
+  }) => void;
+}
+
+const MAX_SAFE = Number.MAX_SAFE_INTEGER;
+
+/** Drive one accepted connection to completion. Never throws. */
+export function serveConnection(channel: ByteChannel, deps: ConnectionDeps): void {
+  let buf: Buffer<ArrayBufferLike> = Buffer.alloc(0);
+  let authenticated = false;
+  let closed = false;
+  const hello: HelloServerState = { phase: "await-hello", serverNonce: "" };
+
+  const close = (): void => {
+    if (closed) return;
+    closed = true;
+    try {
+      channel.end();
+    } catch {
+      // ignore — already gone
+    }
+  };
+
+  channel.on("close", close);
+  channel.on("error", close);
+
+  channel.on("data", (chunk: Buffer) => {
+    if (closed) return;
+    buf = buf.length === 0 ? chunk : Buffer.concat([buf, chunk]);
+
+    // Drain as many complete frames as are buffered.
+    for (;;) {
+      const decoded = decodeFrame(buf);
+      if (decoded.kind === "incomplete") return;
+      if (decoded.kind === "oversize") {
+        // Malformed FRAME — stream alignment is no longer trustworthy (§3.2/§3.7).
+        close();
+        return;
+      }
+      const body = decoded.body;
+      buf = buf.subarray(decoded.consumed);
+
+      let parsed: unknown;
+      try {
+        parsed = JSON.parse(body.toString("utf8"));
+      } catch {
+        // A body that is not valid JSON is a malformed frame ⇒ close (§3.7).
+        close();
+        return;
+      }
+
+      if (!authenticated) {
+        if (!isHandshakeFrame(parsed)) {
+          // First frame must be a valid hello (§3.6/§3.7).
+          close();
+          return;
+        }
+        const step = stepHelloServer(hello, parsed as RpcHandshakeFrame, deps.secret);
+        if (step.kind === "close") {
+          close();
+          return;
+        }
+        if (step.kind === "send") {
+          channel.write(encodeFrame(step.frame));
+          continue;
+        }
+        // authenticated — switch to request/response framing.
+        authenticated = true;
+        continue;
+      }
+
+      // Authenticated: every subsequent frame must be a request (§3.4).
+      void dispatchFrame(parsed, deps, channel, close);
+    }
+  });
+}
+
+async function dispatchFrame(
+  parsed: unknown,
+  deps: ConnectionDeps,
+  channel: ByteChannel,
+  close: () => void
+): Promise<void> {
+  if (!isRequest(parsed)) {
+    // Unknown `t` discriminant / not a request post-handshake ⇒ malformed frame (§3.7).
+    close();
+    return;
+  }
+  const req = parsed;
+  deps.log?.({
+    method: req.method,
+    id: req.id,
+    sessionKey: req.sessionKey,
+    bytes: 0
+  });
+
+  try {
+    const result = await invoke(req, deps.host);
+    const ok: RpcOk = { t: "ok", id: req.id, bootId: deps.bootId, result };
+    if (!safeWrite(channel, ok)) close();
+  } catch (err) {
+    const errFrame = toErrFrame(req.id, deps.bootId, err);
+    if (!safeWrite(channel, errFrame)) close();
+  }
+}
+
+async function invoke(req: RpcRequest, host: CliChatEngineHost): Promise<unknown> {
+  switch (req.method) {
+    case "launch": {
+      const key = requireSessionKey(req);
+      return host.launch(key, req.params as RpcLaunchParams);
+    }
+    case "submit": {
+      const key = requireSessionKey(req);
+      const text = (req.params as { text?: unknown }).text;
+      if (typeof text !== "string") throw new BadRequestError("submit.text must be a string");
+      await host.submit(key, text);
+      return { ok: true };
+    }
+    case "readNew": {
+      const key = requireSessionKey(req);
+      const afterOffset = (req.params as RpcReadNewParams).afterOffset;
+      if (
+        typeof afterOffset !== "number" ||
+        !Number.isInteger(afterOffset) ||
+        afterOffset < 0 ||
+        afterOffset > MAX_SAFE
+      ) {
+        // Semantically-invalid value — bad_request WITHOUT closing (§3.3/§3.7).
+        throw new BadRequestError("afterOffset out of range");
+      }
+      return host.readNew(key, afterOffset);
+    }
+    case "isAlive": {
+      const key = requireSessionKey(req);
+      return { alive: await host.isAlive(key) };
+    }
+    case "kill": {
+      const key = requireSessionKey(req);
+      await host.kill(key);
+      return { ok: true };
+    }
+    case "listLiveSessions": {
+      // Non-session verb — no sessionKey (§4.6).
+      return { sessionKeys: await host.listLiveSessions() };
+    }
+    case "probeProvider": {
+      const provider = (req.params as RpcProbeProviderParams).provider;
+      if (!isProviderKind(provider)) throw new BadRequestError("unknown provider");
+      return host.probeProvider(provider);
+    }
+    default:
+      throw new BadRequestError("unknown method");
+  }
+}
+
+function requireSessionKey(req: RpcRequest): string {
+  if (typeof req.sessionKey !== "string" || req.sessionKey.length === 0) {
+    // Missing/empty sessionKey on a session method ⇒ bad_request, NOT a close (§3.4/§3.7).
+    throw new BadRequestError("missing sessionKey");
+  }
+  return req.sessionKey;
+}
+
+function toErrFrame(id: number, bootId: string, err: unknown): RpcErr {
+  const code = errorCode(err);
+  // Redact the message server-side before it crosses the wire (§6.4). Never include a stack.
+  const raw = err instanceof Error ? err.message : String(err);
+  const message = redactSecrets(raw);
+  return { t: "err", id, bootId, error: { code, message } };
+}
+
+function errorCode(err: unknown): RpcErrorCode {
+  if (err instanceof BadRequestError) return "bad_request";
+  if (err instanceof NotLaunchedError) return "not_launched";
+  if (err instanceof CliChatUnavailableError) return "unavailable";
+  return "internal";
+}
+
+function safeWrite(channel: ByteChannel, frame: RpcFrame): boolean {
+  try {
+    channel.write(encodeFrame(frame));
+    return true;
+  } catch {
+    // EPIPE / oversize-encode / half-open peer — the caller closes.
+    return false;
+  }
+}
+
+function isRequest(value: unknown): value is RpcRequest {
+  if (typeof value !== "object" || value === null) return false;
+  const v = value as { t?: unknown; id?: unknown; method?: unknown };
+  return v.t === "req" && typeof v.id === "number" && typeof v.method === "string";
+}
+
+function isProviderKind(value: unknown): value is RpcProviderKind {
+  return value === "anthropic" || value === "openai-compatible" || value === "google";
+}
+
+/** Semantically-invalid request value ⇒ RpcErr bad_request WITHOUT closing (§3.7). */
+class BadRequestError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "BadRequestError";
+  }
+}

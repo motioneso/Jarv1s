@@ -1,0 +1,257 @@
+/**
+ * cli-runner wire-protocol tests (§3): length-prefixed framing round-trip across
+ * fragmented reads, the §3.6 mutual challenge-response hello (good secret connects,
+ * bad/absent secret closes), and §3.7 malformed-frame-closes vs bad_request-stays-open.
+ */
+import { createHmac, randomBytes } from "node:crypto";
+import { describe, expect, it, vi } from "vitest";
+
+import {
+  decodeFrame,
+  encodeFrame,
+  HELLO_PROOF_TAG_CLIENT,
+  HELLO_PROOF_TAG_SERVER,
+  MAX_FRAME_BYTES,
+  type RpcErr,
+  type RpcHelloChallenge,
+  type RpcOk
+} from "../../packages/chat/src/live/rpc-contract.js";
+import {
+  stepHelloServer,
+  isHandshakeFrame,
+  type HelloServerState
+} from "../../packages/cli-runner/src/hello.js";
+import {
+  serveConnection,
+  type ByteChannel,
+  type ConnectionDeps
+} from "../../packages/cli-runner/src/connection.js";
+import { CliChatEngineHost } from "../../packages/cli-runner/src/engine-host.js";
+
+const SECRET = "test-rpc-secret";
+const BOOT = "boot-uuid-1";
+
+function hmac(tag: string, nonce: string): string {
+  return createHmac("sha256", SECRET)
+    .update(tag + nonce)
+    .digest("hex");
+}
+
+// ─── §3.2 framing ────────────────────────────────────────────────────────────────
+describe("framing (§3.2)", () => {
+  it("round-trips a multi-line body and reassembles across fragmented reads", () => {
+    const frame = { t: "ok", id: 1, bootId: BOOT, result: { text: "line1\nline2\nline3" } };
+    const encoded = encodeFrame(frame as RpcOk);
+
+    // Feed the buffer one byte at a time; decodeFrame returns "incomplete" until the
+    // full prefix + body are present, then the exact frame.
+    let buf = Buffer.alloc(0);
+    let decodedBody: Buffer | null = null;
+    for (const byte of encoded) {
+      buf = Buffer.concat([buf, Buffer.from([byte])]);
+      const res = decodeFrame(buf);
+      if (res.kind === "frame") {
+        decodedBody = res.body;
+        buf = buf.subarray(res.consumed);
+      }
+    }
+    expect(decodedBody).not.toBeNull();
+    expect(JSON.parse(decodedBody!.toString("utf8"))).toEqual(frame);
+  });
+
+  it("flags an oversize declared length (caller closes)", () => {
+    const header = Buffer.alloc(4);
+    header.writeUInt32BE(MAX_FRAME_BYTES + 1, 0);
+    const res = decodeFrame(header);
+    expect(res.kind).toBe("oversize");
+  });
+
+  it("isHandshakeFrame only accepts the three hello discriminants", () => {
+    expect(isHandshakeFrame({ t: "hello", clientNonce: "x" })).toBe(true);
+    expect(isHandshakeFrame({ t: "req", id: 1 })).toBe(false);
+    expect(isHandshakeFrame(null)).toBe(false);
+  });
+});
+
+// ─── §3.6 hello state machine ─────────────────────────────────────────────────────
+describe("hello handshake (§3.6)", () => {
+  it("a correct mutual proof authenticates", () => {
+    const state: HelloServerState = { phase: "await-hello", serverNonce: "" };
+    const clientNonce = randomBytes(32).toString("hex");
+
+    const step1 = stepHelloServer(state, { t: "hello", clientNonce }, SECRET);
+    expect(step1.kind).toBe("send");
+    const challenge = (step1 as { frame: RpcHelloChallenge }).frame;
+    // Server proves it holds the secret over the client's nonce.
+    expect(challenge.serverProof).toBe(hmac(HELLO_PROOF_TAG_SERVER, clientNonce));
+
+    const clientProof = hmac(HELLO_PROOF_TAG_CLIENT, challenge.serverNonce);
+    const step2 = stepHelloServer(state, { t: "hello-response", clientProof }, SECRET);
+    expect(step2.kind).toBe("authenticated");
+  });
+
+  it("a wrong client proof closes (no error frame)", () => {
+    const state: HelloServerState = { phase: "await-hello", serverNonce: "" };
+    stepHelloServer(state, { t: "hello", clientNonce: "abc" }, SECRET);
+    const step = stepHelloServer(state, { t: "hello-response", clientProof: "wrong" }, SECRET);
+    expect(step.kind).toBe("close");
+  });
+
+  it("an unset secret always closes", () => {
+    const state: HelloServerState = { phase: "await-hello", serverNonce: "" };
+    expect(stepHelloServer(state, { t: "hello", clientNonce: "abc" }, undefined).kind).toBe(
+      "close"
+    );
+  });
+
+  it("a non-hello first frame closes", () => {
+    const state: HelloServerState = { phase: "await-hello", serverNonce: "" };
+    expect(stepHelloServer(state, { t: "hello-response", clientProof: "x" }, SECRET).kind).toBe(
+      "close"
+    );
+  });
+});
+
+// ─── full connection: handshake → dispatch over a fake ByteChannel ────────────────
+
+/** A scriptable in-memory ByteChannel that records what the server wrote. */
+class FakeChannel implements ByteChannel {
+  readonly written: Buffer[] = [];
+  closed = false;
+  private dataListener?: (chunk: Buffer) => void;
+  private closeListener?: () => void;
+
+  write(buf: Buffer): void {
+    if (this.closed) return;
+    this.written.push(buf);
+  }
+  end(): void {
+    this.closed = true;
+    this.closeListener?.();
+  }
+  on(event: "data" | "close" | "error", listener: (chunk: Buffer) => void): void {
+    if (event === "data") this.dataListener = listener;
+    else this.closeListener = listener as () => void;
+  }
+  /** Push bytes "from the client". */
+  feed(buf: Buffer): void {
+    this.dataListener?.(buf);
+  }
+  /** Decode every complete frame the server has written so far. */
+  decodeAll(): unknown[] {
+    let buf = Buffer.concat(this.written);
+    const out: unknown[] = [];
+    for (;;) {
+      const res = decodeFrame(buf);
+      if (res.kind !== "frame") break;
+      out.push(JSON.parse(res.body.toString("utf8")));
+      buf = buf.subarray(res.consumed);
+    }
+    return out;
+  }
+}
+
+function fakeHost(): CliChatEngineHost {
+  // A host whose listLiveSessions is stubbed; we only exercise dispatch routing here.
+  const host = new CliChatEngineHost({
+    io: {
+      run: vi.fn().mockResolvedValue({ code: 1, stdout: "", stderr: "" }),
+      readFile: vi.fn().mockResolvedValue(""),
+      writeFile: vi.fn().mockResolvedValue(undefined),
+      sleep: vi.fn().mockResolvedValue(undefined)
+    },
+    neutralBase: "/tmp/neutral-base",
+    singleUser: true,
+    cliPresent: async () => false
+  });
+  return host;
+}
+
+/** Run the client side of the handshake against a FakeChannel, returning once authed. */
+function authenticate(channel: FakeChannel): void {
+  const clientNonce = randomBytes(32).toString("hex");
+  channel.feed(encodeFrame({ t: "hello", clientNonce }));
+  // The server replied with the challenge; pull serverNonce and answer.
+  const challenge = channel.decodeAll().find((f) => (f as { t?: string }).t === "hello-challenge");
+  const serverNonce = (challenge as RpcHelloChallenge).serverNonce;
+  channel.feed(
+    encodeFrame({ t: "hello-response", clientProof: hmac(HELLO_PROOF_TAG_CLIENT, serverNonce) })
+  );
+}
+
+describe("serveConnection (§3.4/§3.7)", () => {
+  function deps(host = fakeHost()): ConnectionDeps {
+    return { host, bootId: BOOT, secret: SECRET };
+  }
+
+  it("listLiveSessions round-trips after a successful handshake", async () => {
+    const host = fakeHost();
+    vi.spyOn(host, "listLiveSessions").mockResolvedValue(["alice"]);
+    const channel = new FakeChannel();
+    serveConnection(channel, deps(host));
+    authenticate(channel);
+
+    channel.feed(encodeFrame({ t: "req", id: 7, method: "listLiveSessions", params: {} }));
+    await new Promise((r) => setTimeout(r, 5));
+
+    const ok = channel.decodeAll().find((f) => (f as RpcOk).id === 7) as RpcOk;
+    expect(ok.t).toBe("ok");
+    expect(ok.bootId).toBe(BOOT);
+    expect(ok.result).toEqual({ sessionKeys: ["alice"] });
+  });
+
+  it("a readNew with an out-of-range afterOffset returns bad_request WITHOUT closing", async () => {
+    const channel = new FakeChannel();
+    serveConnection(channel, deps());
+    authenticate(channel);
+
+    channel.feed(
+      encodeFrame({
+        t: "req",
+        id: 9,
+        method: "readNew",
+        sessionKey: "u1",
+        params: { afterOffset: -1 }
+      })
+    );
+    await new Promise((r) => setTimeout(r, 5));
+
+    const err = channel.decodeAll().find((f) => (f as RpcErr).id === 9) as RpcErr;
+    expect(err.t).toBe("err");
+    expect(err.error.code).toBe("bad_request");
+    expect(channel.closed).toBe(false); // connection stays open (§3.7)
+  });
+
+  it("a session method with a missing sessionKey returns bad_request (stays open)", async () => {
+    const channel = new FakeChannel();
+    serveConnection(channel, deps());
+    authenticate(channel);
+
+    channel.feed(encodeFrame({ t: "req", id: 11, method: "submit", params: { text: "hi" } }));
+    await new Promise((r) => setTimeout(r, 5));
+
+    const err = channel.decodeAll().find((f) => (f as RpcErr).id === 11) as RpcErr;
+    expect(err.error.code).toBe("bad_request");
+    expect(channel.closed).toBe(false);
+  });
+
+  it("an unauthenticated request frame (no hello) closes the connection", () => {
+    const channel = new FakeChannel();
+    serveConnection(channel, deps());
+    // Skip the handshake; send a request immediately → malformed first frame (§3.7).
+    channel.feed(encodeFrame({ t: "req", id: 1, method: "listLiveSessions", params: {} }));
+    expect(channel.closed).toBe(true);
+  });
+
+  it("a malformed (non-JSON) frame body closes the connection", () => {
+    const channel = new FakeChannel();
+    serveConnection(channel, deps());
+    authenticate(channel);
+    // Hand-craft a frame whose body is not valid JSON.
+    const body = Buffer.from("{not json", "utf8");
+    const header = Buffer.alloc(4);
+    header.writeUInt32BE(body.length, 0);
+    channel.feed(Buffer.concat([header, body]));
+    expect(channel.closed).toBe(true);
+  });
+});

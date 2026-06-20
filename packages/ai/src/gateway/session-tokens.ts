@@ -111,6 +111,42 @@ export class SessionTokenRegistry {
     }
   }
 
+  /**
+   * Every distinct chatSessionId the registry currently holds a (live) token for.
+   *
+   * This is the SOURCE for orphan-token reconciliation (#342, RPC contract §5.3 step 2):
+   * after an api restart the {@link ChatSessionManager} `sessions` Map is empty, so the
+   * token registry — not the Map — is what tells us which sessions still have tokens to
+   * sweep. Expired entries are purged first so the result reflects only live tokens. One
+   * token per session today, but de-duplicated defensively in case that ever changes.
+   */
+  listSessionIds(): string[] {
+    this.sweepExpired();
+    const ids = new Set<string>();
+    for (const entry of this.tokens.values()) {
+      ids.add(entry.identity.chatSessionId);
+    }
+    return [...ids];
+  }
+
+  /**
+   * Revoke every token whose chatSessionId is NOT in `liveSessionIds` (#342, §5.3 step 2).
+   *
+   * Driven by the api's ONE reconciliation routine on every socket (re)connect and on a
+   * detected cli-runner `bootId` change: `liveSessionIds` is the authoritative set of
+   * sessionKeys the cli-runner reports alive (via `listLiveSessions`, enumerated by mux —
+   * §4.6), unioned by the caller with any in-flight launches. A token for a session the
+   * cli-runner no longer has (e.g. after a cli-runner crash) is an orphan and is revoked
+   * here, even when the manager's `sessions` Map is empty (an api restart). Idempotent.
+   */
+  reconcile(liveSessionIds: Set<string>): void {
+    for (const [token, entry] of this.tokens) {
+      if (!liveSessionIds.has(entry.identity.chatSessionId)) {
+        this.tokens.delete(token);
+      }
+    }
+  }
+
   private sweepExpired(): void {
     const now = this.clock.now();
     for (const [token, entry] of this.tokens) {

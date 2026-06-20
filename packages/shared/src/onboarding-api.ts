@@ -24,10 +24,42 @@ export interface OnboardingMultiplexerStepDto {
 
 export type OnboardingProviderKind = "anthropic" | "openai-compatible" | "google";
 
+/**
+ * Persisted provider install/login lifecycle state (#342, RPC contract §9.1/§9.2).
+ *
+ * ADDITIVE to this module — it does NOT modify the transient probe enum
+ * {@link OnboardingProviderCheckStatus} (which stays the presence/auth probe shape so
+ * existing routes + schemas are untouched). This is the persisted superset that adds the
+ * lifecycle states `installing` + `installed` the presence-only probe cannot express:
+ *
+ *   not_installed → installing → installed → needs_login → ready   (+ error, recoverable)
+ *
+ * Phase 1 only freezes the enum + the optional DTO field below; the backing table
+ * (app.provider_install_state) and the install/login services that write it are Phase 2/3.
+ * State lives in the settings/onboarding module (module isolation), never in @jarv1s/chat
+ * or the token registry. NOTE: `multiplexer_unavailable` is intentionally ABSENT here — it
+ * is a transient cli-runner-wide probe condition, not a per-provider lifecycle state, so it
+ * stays only in {@link OnboardingProviderCheckStatus}.
+ */
+export type ProviderInstallState =
+  | "not_installed"
+  | "installing"
+  | "installed"
+  | "needs_login"
+  | "ready"
+  | "error";
+
 export interface OnboardingCliProviderDto {
   readonly kind: OnboardingProviderKind;
   /** Presence-only: the binary is on PATH. NOT a claim of authentication. */
   readonly cliPresent: boolean;
+  /**
+   * OPTIONAL persisted install/login lifecycle state (#342, §9.2). Absent on the Phase-1
+   * presence-only path (today's surface, byte-for-byte unchanged); populated once the
+   * Phase-2 install/login services persist app.provider_install_state. Optional ⇒ no schema
+   * break (the JSON-schema property below is non-required).
+   */
+  readonly installState?: ProviderInstallState;
 }
 
 export interface OnboardingProviderCheckRequest {
@@ -147,7 +179,21 @@ const onboardingFounderStatusSchema = {
                     type: "string",
                     enum: ["anthropic", "openai-compatible", "google"]
                   },
-                  cliPresent: { type: "boolean" }
+                  cliPresent: { type: "boolean" },
+                  // #342 §9.2: optional persisted install/login lifecycle state.
+                  // Non-required ⇒ additionalProperties:false stays safe (the field is
+                  // declared, so a present value validates; an absent value is fine).
+                  installState: {
+                    type: "string",
+                    enum: [
+                      "not_installed",
+                      "installing",
+                      "installed",
+                      "needs_login",
+                      "ready",
+                      "error"
+                    ]
+                  }
                 }
               }
             }
