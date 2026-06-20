@@ -39,12 +39,12 @@ lanes edit the same file.** The master spec's Phase-1 lane section (`§6`) carri
 The one cross-lane seam: **Lane A authors `rpc-contract.ts` FIRST**; Lanes B and D import it read-only;
 Lane A's `runtime.ts` imports the engine class from Lane B's `cli-chat-engine.ts` (compile-time only).
 
-| Lane | Files it OWNS (exclusively) | Reads this spec for |
-| --- | --- | --- |
-| **A — api RPC client** | **NEW** `packages/chat/src/live/rpc-contract.ts` (**authored FIRST** — the home of all wire types, §10) · **NEW** `packages/chat/src/live/chat-engine-rpc-client.ts` (`ChatEngineRpcClient` implements `CliChatEngine`; socket connect/reconnect; reconciliation driver) · `packages/chat/src/live/runtime.ts` (factory: socket present → rpc client, else in-process) · the `EngineLaunchOpts` extension in `packages/chat/src/live/types.ts` | §3 framing, §4 methods, §5 reconciliation, §6 secrets (token-via-launch + socket secret), §10 wire-type home |
-| **B — cli-runner server** | **NEW** cli-runner server entrypoint + package · `packages/chat/src/live/cli-chat-engine.ts` (server impl: Claude token off the launch line → `.jarvis-claude-mcp.json`; neutralDir derivation; per-session-dir cleanup; bounded drain; `probeProvider` impl; kill-by-mux-name; listLiveSessions-by-mux). **Imports** `rpc-contract.ts` read-only. | §3 framing, §4 methods, §6 secrets, §7 env allowlist, §10 wire-type home |
-| **C — infra/compose** | `infra/docker-compose.prod.yml` (cli-runner + root-init services; tools/auth-home/socket volumes; **remove** host-bridge mounts `:162`/`:167-169`/`:172` + `JARVIS_CLI_HOME_BASE` env `:137`/`:185`; RPC-secret env) · Dockerfile/entrypoint · `install.sh` · `infra/env.production.example` | §8 volume matrix, §7 env vars, §6.6 socket secret |
-| **D — tokens + state + onboarding** | `packages/ai/src/gateway/session-tokens.ts` (`listSessionIds` + `reconcile`) · `packages/chat/src/live/chat-session-manager.ts` (`reconcileLiveSessions` + reconnect trigger + populate `personaText`/`replayBatch` + seed offset + reaper mutex) · `packages/shared/src/onboarding-api.ts` (additive `ProviderInstallState` + `installState?` DTO + JSON-schema block) · the Phase-2 `provider_state` migration. **Imports** `rpc-contract.ts` read-only. | §5 reconciliation, §9 state machine, §10 wire-type home |
+| Lane                                | Files it OWNS (exclusively)                                                                                                                                                                                                                                                                                                                                                                                                                                | Reads this spec for                                                                                          |
+| ----------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
+| **A — api RPC client**              | **NEW** `packages/chat/src/live/rpc-contract.ts` (**authored FIRST** — the home of all wire types, §10) · **NEW** `packages/chat/src/live/chat-engine-rpc-client.ts` (`ChatEngineRpcClient` implements `CliChatEngine`; socket connect/reconnect; reconciliation driver) · `packages/chat/src/live/runtime.ts` (factory: socket present → rpc client, else in-process) · the `EngineLaunchOpts` extension in `packages/chat/src/live/types.ts`             | §3 framing, §4 methods, §5 reconciliation, §6 secrets (token-via-launch + socket secret), §10 wire-type home |
+| **B — cli-runner server**           | **NEW** cli-runner server entrypoint + package · `packages/chat/src/live/cli-chat-engine.ts` (server impl: Claude token off the launch line → `.jarvis-claude-mcp.json`; neutralDir derivation; per-session-dir cleanup; bounded drain; `probeProvider` impl; kill-by-mux-name; listLiveSessions-by-mux). **Imports** `rpc-contract.ts` read-only.                                                                                                         | §3 framing, §4 methods, §6 secrets, §7 env allowlist, §10 wire-type home                                     |
+| **C — infra/compose**               | `infra/docker-compose.prod.yml` (cli-runner + root-init services; tools/auth-home/socket volumes; **remove** host-bridge mounts `:162`/`:167-169`/`:172` + `JARVIS_CLI_HOME_BASE` env `:137`/`:185`; RPC-secret env) · Dockerfile/entrypoint · `install.sh` · `infra/env.production.example`                                                                                                                                                               | §8 volume matrix, §7 env vars, §6.6 socket secret                                                            |
+| **D — tokens + state + onboarding** | `packages/ai/src/gateway/session-tokens.ts` (`listSessionIds` + `reconcile`) · `packages/chat/src/live/chat-session-manager.ts` (`reconcileLiveSessions` + reconnect trigger + populate `personaText`/`replayBatch` + seed offset + reaper mutex) · `packages/shared/src/onboarding-api.ts` (additive `ProviderInstallState` + `installState?` DTO + JSON-schema block) · the Phase-2 `provider_state` migration. **Imports** `rpc-contract.ts` read-only. | §5 reconciliation, §9 state machine, §10 wire-type home                                                      |
 
 ---
 
@@ -81,8 +81,8 @@ the enum + location.
   provider CLIs (`claude`/`codex`/`agy`) run inside cli-runner **as the same uid** that owns the socket, so
   the `0600` permission does not stop a malicious or compromised CLI subprocess from opening the socket and
   impersonating the api. The socket therefore carries an **application-level auth hello** — see §3.6. The
-  filesystem permission + private volume keep *other containers* out; the hello keeps *same-UID
-  subprocesses* out.
+  filesystem permission + private volume keep _other containers_ out; the hello keeps _same-UID
+  subprocesses_ out.
 - **Bind hygiene:** on start, cli-runner `unlink`s a stale socket path before `listen` (handles unclean
   shutdown). It MUST refuse to bind if the path resolves outside `/run/jarv1s` (defense against a
   misconfigured env var pointing at a shared mount). **Symmetrically, the api client MUST `realpath`-check
@@ -106,7 +106,7 @@ exactly that many bytes of UTF-8 JSON.** No delimiter inside the payload; the le
 1. **`readNew` returns large transcript bodies.** A `readNew` response carries an array of
    `TranscriptRecord`s whose `text` can contain **arbitrary newlines** (assistant replies, multi-line tool
    output, thinking blocks). With NDJSON the framer must escape every `\n` in the JSON (JSON encoding already
-   does this — `\n` becomes `\\n`), so NDJSON is *technically* possible, but it forces the reader to scan
+   does this — `\n` becomes `\\n`), so NDJSON is _technically_ possible, but it forces the reader to scan
    every byte for an unescaped delimiter and reassemble across chunk boundaries. Length-prefix lets the
    reader allocate exactly `len` bytes and read straight through — **no delimiter scan, no escape ambiguity.**
 2. **Partial reads are inherent on a stream socket.** A single `read()` may return a fragment of one message
@@ -140,7 +140,7 @@ string** — specifically **the number of UTF-16 code units of the JSONL string 
 transcript as a JS string.**
 
 > **Do NOT switch to byte offsets.** Byte offsets would force a rewrite of `parseTranscript` (which slices
-> the string, not a `Buffer`) and of `cli-chat-engine.readNew`. The contract value is *consistency*, not the
+> the string, not a `Buffer`) and of `cli-chat-engine.readNew`. The contract value is _consistency_, not the
 > unit: as long as the server produces `jsonl.length` and the api passes it straight back as `afterOffset`
 > (and never reinterprets it), the round-trip is exact. Both `.length` and `.slice` count the same UTF-16
 > code units, so the pair is self-consistent. (v1 mislabelled this "byte offset" — corrected here.)
@@ -151,7 +151,7 @@ transcript will never approach that, so a JSON `number` is safe **with a guard**
 - The contract type for `offset`/`afterOffset` is `number` (integer, ≥ 0 — UTF-16 code units, §3.3).
 - **Guard:** a `readNew` request whose `afterOffset` is not a non-negative integer `≤ Number.MAX_SAFE_INTEGER`
   is a **semantically-invalid value, NOT a malformed frame**: the server returns `RpcErr code "bad_request"`
-  **without closing** the connection (§3.7). (Contrast: a bad *length prefix* closes the connection.)
+  **without closing** the connection (§3.7). (Contrast: a bad _length prefix_ closes the connection.)
 - Rationale for not using a string/BigInt: the existing in-process code already uses `number` end-to-end
   (`jsonl.length`, `session.transcriptOffset`), and round-tripping through JSON preserves it exactly within
   the safe range. Introducing BigInt would force a type change in `CliChatEngine` (forbidden — §4.0).
@@ -166,8 +166,8 @@ response (ok AND err) carries the server `bootId`** (§5.6) so the api can detec
 /** Client → server. One per RPC call. `id` is unique per connection. */
 export interface RpcRequest {
   readonly t: "req";
-  readonly id: number;          // client-assigned, monotonic per connection, 1..2^53-1
-  readonly method: RpcMethod;   // see §4
+  readonly id: number; // client-assigned, monotonic per connection, 1..2^53-1
+  readonly method: RpcMethod; // see §4
   /**
    * = actorUserId; routes to the per-user engine. OPTIONAL: omitted by the
    * non-session methods listLiveSessions and probeProvider. REQUIRED + non-empty
@@ -175,22 +175,22 @@ export interface RpcRequest {
    * empty sessionKey on a session method ⇒ RpcErr bad_request (§3.7), not a close.
    */
   readonly sessionKey?: string;
-  readonly params: unknown;     // method-specific; shapes in §4
+  readonly params: unknown; // method-specific; shapes in §4
 }
 
 /** Server → client. Success. */
 export interface RpcOk {
   readonly t: "ok";
-  readonly id: number;          // echoes the request id
-  readonly bootId: string;      // server boot uuid (§5.6); same for every response from one cli-runner process
-  readonly result: unknown;     // method-specific; shapes in §4
+  readonly id: number; // echoes the request id
+  readonly bootId: string; // server boot uuid (§5.6); same for every response from one cli-runner process
+  readonly result: unknown; // method-specific; shapes in §4
 }
 
 /** Server → client. Failure. */
 export interface RpcErr {
   readonly t: "err";
-  readonly id: number;          // echoes the request id
-  readonly bootId: string;      // server boot uuid (§5.6) — present on errors too, so a restart is detectable mid-failure
+  readonly id: number; // echoes the request id
+  readonly bootId: string; // server boot uuid (§5.6) — present on errors too, so a restart is detectable mid-failure
   readonly error: RpcError;
 }
 
@@ -202,15 +202,19 @@ export interface RpcError {
 }
 
 export type RpcErrorCode =
-  | "unavailable"        // engine could not launch / multiplexer down / NOT_LAUNCHED → CliChatUnavailableError (retryable HTTP 503)
-  | "not_launched"       // submit/readNew/isAlive called before a successful launch — maps to RETRYABLE 503 (see §4.7)
-  | "bad_request"        // semantically-invalid params (bad offset, missing sessionKey) — does NOT close the connection
-  | "internal";          // unexpected server-side failure (already redacted)
+  | "unavailable" // engine could not launch / multiplexer down / NOT_LAUNCHED → CliChatUnavailableError (retryable HTTP 503)
+  | "not_launched" // submit/readNew/isAlive called before a successful launch — maps to RETRYABLE 503 (see §4.7)
+  | "bad_request" // semantically-invalid params (bad offset, missing sessionKey) — does NOT close the connection
+  | "internal"; // unexpected server-side failure (already redacted)
 
 export type RpcMethod =
-  | "launch" | "submit" | "readNew" | "isAlive" | "kill"  // per-session (sessionKey required)
-  | "listLiveSessions"                                     // non-session (reconciliation, §4.6)
-  | "probeProvider";                                       // non-session (onboarding, §4.8)
+  | "launch"
+  | "submit"
+  | "readNew"
+  | "isAlive"
+  | "kill" // per-session (sessionKey required)
+  | "listLiveSessions" // non-session (reconciliation, §4.6)
+  | "probeProvider"; // non-session (onboarding, §4.8)
 
 export type RpcFrame = RpcRequest | RpcOk | RpcErr;
 ```
@@ -259,16 +263,16 @@ are issued concurrently by a correct client — but the server MUST NOT assume i
 The socket is **not** private from same-UID CLI subprocesses (§3.1). Access control is therefore an
 application-level handshake:
 
-- **Shared secret `JARVIS_CLI_RUNNER_RPC_SECRET`** is known ONLY to the api and the cli-runner *server*
+- **Shared secret `JARVIS_CLI_RUNNER_RPC_SECRET`** is known ONLY to the api and the cli-runner _server_
   process (both read it from their own env). It is **excluded from the CLI-subprocess env allowlist** (§7.2)
   — a launched `claude`/`codex`/`agy` never sees it.
 - **First frame on every connection is a `hello` auth frame** carrying the secret. It is a length-prefixed
-  JSON frame like any other, sent by the client *before* any `RpcRequest`:
+  JSON frame like any other, sent by the client _before_ any `RpcRequest`:
   ```typescript
   /** Client → server, FIRST frame on each connection. Not correlated by id. */
   export interface RpcHello {
     readonly t: "hello";
-    readonly secret: string;  // === JARVIS_CLI_RUNNER_RPC_SECRET
+    readonly secret: string; // === JARVIS_CLI_RUNNER_RPC_SECRET
   }
   ```
 - The server **closes the connection immediately** (no error frame) if the first frame is not a `hello`, or
@@ -302,10 +306,12 @@ Two distinct failure modes, deliberately disambiguated:
 
 ```typescript
 export interface CliChatEngine {
-  readonly provider: ProviderKind;                  // "anthropic" | "openai-compatible" | "google"
-  launch(opts: EngineLaunchOpts): Promise<{ offset: number }>;   // CHANGED from Promise<void> (§4.1.2)
+  readonly provider: ProviderKind; // "anthropic" | "openai-compatible" | "google"
+  launch(opts: EngineLaunchOpts): Promise<{ offset: number }>; // CHANGED from Promise<void> (§4.1.2)
   submit(text: string): Promise<void>;
-  readNew(afterOffset: number): Promise<{ records: TranscriptRecord[]; offset: number; complete: boolean }>;
+  readNew(
+    afterOffset: number
+  ): Promise<{ records: TranscriptRecord[]; offset: number; complete: boolean }>;
   isAlive(): Promise<boolean>;
   kill(): Promise<void>;
 }
@@ -338,7 +344,14 @@ the Map doesn't know about (post-restart) — see §4.5 and §4.6.
 
 ```typescript
 export type ChatRecordKind =
-  | "user" | "thinking" | "tool" | "status" | "reply" | "error" | "action_request" | "action_result";
+  | "user"
+  | "thinking"
+  | "tool"
+  | "status"
+  | "reply"
+  | "error"
+  | "action_request"
+  | "action_result";
 export interface TranscriptRecord {
   readonly kind: ChatRecordKind;
   readonly text: string;
@@ -359,13 +372,13 @@ export interface TranscriptRecord {
 
 ```typescript
 export interface EngineLaunchOpts {
-  readonly neutralDir: string;        // unchanged — used by the in-process engine
-  readonly personaPath: string;       // unchanged — used by the in-process engine
-  readonly mcpConfigPath?: string;    // unchanged
-  readonly mcpToken?: string;         // unchanged
-  readonly mcpServerUrl?: string;     // unchanged
-  readonly personaText?: string;      // NEW — rendered persona CONTENT (for the RPC path)
-  readonly replayBatch?: string;      // NEW — assembled replay string (for the RPC path)
+  readonly neutralDir: string; // unchanged — used by the in-process engine
+  readonly personaPath: string; // unchanged — used by the in-process engine
+  readonly mcpConfigPath?: string; // unchanged
+  readonly mcpToken?: string; // unchanged
+  readonly mcpServerUrl?: string; // unchanged
+  readonly personaText?: string; // NEW — rendered persona CONTENT (for the RPC path)
+  readonly replayBatch?: string; // NEW — assembled replay string (for the RPC path)
 }
 ```
 
@@ -390,7 +403,7 @@ those paths are meaningless cross-container). The in-process `CliChatEngineImpl`
 > — NO wire-contract change.** Owner: **Lane B** (cli-runner server).
 
 **Why this is here.** The per-session `0600` token files are readable by any same-UID CLI subprocess (§13),
-so two *concurrent* live sessions would each be able to read the other's token file. Until UID-separation
+so two _concurrent_ live sessions would each be able to read the other's token file. Until UID-separation
 (issue **#347**) lands, the gate enforces isolation by ensuring only one engine — hence one live session's
 secret files — exists at a time. This is the **HARD RUNTIME GATE that MUST land in Phase 1**, standing in for
 the deferred UID separation. It does not add, remove, or alter any wire shape: a rejected cross-user `launch`
@@ -466,7 +479,9 @@ export interface RpcLaunchParams {
  * §3.3). The api seeds session.transcriptOffset from this so the FIRST real readNew
  * does not re-read the replay as the reply.
  */
-export interface RpcLaunchResult { readonly offset: number; }
+export interface RpcLaunchResult {
+  readonly offset: number;
+}
 ```
 
 - **`neutralDir` is NOT in the payload.** cli-runner derives it deterministically from `sessionKey`:
@@ -510,8 +525,12 @@ is plain conversation text, provider-agnostic, but it is re-assembled from curre
 ### 4.2 `submit`
 
 ```typescript
-export interface RpcSubmitParams { readonly text: string; }
-export interface RpcSubmitResult { readonly ok: true; }
+export interface RpcSubmitParams {
+  readonly text: string;
+}
+export interface RpcSubmitResult {
+  readonly ok: true;
+}
 ```
 
 - Server applies the existing leading-`!` sanitize (`sanitizeInput`, `cli-chat-engine.ts:411`) — it already
@@ -521,8 +540,10 @@ export interface RpcSubmitResult { readonly ok: true; }
 ### 4.3 `isAlive`
 
 ```typescript
-export interface RpcIsAliveParams {}                       // empty
-export interface RpcIsAliveResult { readonly alive: boolean; }
+export interface RpcIsAliveParams {} // empty
+export interface RpcIsAliveResult {
+  readonly alive: boolean;
+}
 ```
 
 - Maps to `CliChatEngineImpl.isAlive()` (`cli-chat-engine.ts:216`). No engine for the `sessionKey` ⇒
@@ -561,8 +582,10 @@ export interface RpcReadNewResult {
 ### 4.5 `kill`
 
 ```typescript
-export interface RpcKillParams {}                          // empty
-export interface RpcKillResult { readonly ok: true; }
+export interface RpcKillParams {} // empty
+export interface RpcKillResult {
+  readonly ok: true;
+}
 ```
 
 - Maps to `CliChatEngineImpl.kill()` (`cli-chat-engine.ts:221`): kills the mux session, removes the
@@ -599,12 +622,12 @@ export interface RpcListLiveSessionsResult {
 
 ### 4.7 Error → typed-JS mapping (api client side)
 
-| `RpcErrorCode` | api client throws | HTTP (via existing route mapping) |
-| --- | --- | --- |
-| `unavailable` | `CliChatUnavailableError` (`packages/chat/src/live/errors.ts`) | 503 (retryable) |
-| `not_launched` | `CliChatUnavailableError` | **503 (retryable)** — a missing engine is a transient/recoverable condition (the next turn relaunches), NOT a 500. Mapping it to 500 would surface a hard error for a routinely-recoverable race. |
-| `bad_request` | `Error` | 500 |
-| `internal` | `Error` | 500 |
+| `RpcErrorCode` | api client throws                                              | HTTP (via existing route mapping)                                                                                                                                                                 |
+| -------------- | -------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `unavailable`  | `CliChatUnavailableError` (`packages/chat/src/live/errors.ts`) | 503 (retryable)                                                                                                                                                                                   |
+| `not_launched` | `CliChatUnavailableError`                                      | **503 (retryable)** — a missing engine is a transient/recoverable condition (the next turn relaunches), NOT a 500. Mapping it to 500 would surface a hard error for a routinely-recoverable race. |
+| `bad_request`  | `Error`                                                        | 500                                                                                                                                                                                               |
+| `internal`     | `Error`                                                        | 500                                                                                                                                                                                               |
 
 The error `message` is **already redacted server-side** (§6.4) before it crosses the socket, so the api may
 log it directly. The api MUST NOT reconstruct or request a stack trace over the socket (stacks can embed the
@@ -649,7 +672,7 @@ The **API mints, tracks, refreshes, and revokes** MCP session tokens via `Sessio
 (`packages/ai/src/gateway/session-tokens.ts`) — in-memory `Map<token, {identity, expiresAt}>`, keyed within
 identity by `chatSessionId === actorUserId`. Mint happens in the api's `mcpTokenLifecycle.mint`
 (`packages/chat/src/routes.ts:142-157`), capturing the actor's `allowedToolNames`. **cli-runner cannot mint
-or revoke** — it only *injects* the token the api hands it at `launch` (§6.2). This is the plan's
+or revoke** — it only _injects_ the token the api hands it at `launch` (§6.2). This is the plan's
 "MCP tokens are API-owned; cli-runner can't revoke them" decision (plan §3, R4).
 
 The token reaches the gateway when the CLI (inside cli-runner) calls `POST /api/mcp` with
@@ -796,7 +819,7 @@ Codex does it. Specify the mechanism:
   removed on `kill`/failed-launch (mirror `writeCodexTokenEnv`/`removeCodexTokenEnv`; lifecycle frozen in
   §6.5).
 - The launch line passes the **path**, not the JSON: `claude ... --mcp-config <path> --strict-mcp-config
-  --allowedTools "mcp__jarvis__*" ...`. `claude --mcp-config` accepts a **file path** (it already accepts
+--allowedTools "mcp__jarvis__*" ...`. `claude --mcp-config` accepts a **file path** (it already accepts
   inline JSON; a path is the documented alternative). The token is then only in the `0600` file and in the
   Claude process's own memory — never in the tmux line, argv, or `capture-pane`.
 - The persona file (`--append-system-prompt-file`) is also `0600` (it is persona text, not a secret, but keep
@@ -827,7 +850,7 @@ receives only redacted text and may log it.
 
 **FORBIDDEN: logging raw RPC frames on EITHER side.** The `launch` frame carries the MCP token **and** the
 persona/`replayBatch` (private conversation data), and the `hello` frame carries the socket secret — so
-dumping a raw frame leaks secrets *and* private content. Neither the api client nor the cli-runner server may
+dumping a raw frame leaks secrets _and_ private content. Neither the api client nor the cli-runner server may
 log frame bodies. The **only loggable fields** for an RPC frame are: `method`, `id`, `sessionKey`, and the
 frame **byte-length**. (`redactSecrets` still runs on any `RpcErr.message` that is logged; stacks are
 dropped.) A debug log that wants to trace traffic logs `{ method, id, sessionKey, bytes }` — never the
@@ -837,11 +860,11 @@ dropped.) A debug log that wants to trace traffic logs `{ method, id, sessionKey
 
 Each launched provider writes a per-session secret file under the session's neutral dir:
 
-| Provider | Secret file (under `<neutralDir>`) | Mode |
-| --- | --- | --- |
-| Claude (`anthropic`) | `.jarvis-claude-mcp.json` (NEW — the full `--mcp-config` JSON incl. the bearer) | `0600` |
-| Codex (`openai-compatible`) | `.jarvis-mcp-token.env` (existing) | `0600` |
-| Gemini (`google`) | `.gemini/settings.json` (existing — carries the Authorization header) | `0600` |
+| Provider                    | Secret file (under `<neutralDir>`)                                              | Mode   |
+| --------------------------- | ------------------------------------------------------------------------------- | ------ |
+| Claude (`anthropic`)        | `.jarvis-claude-mcp.json` (NEW — the full `--mcp-config` JSON incl. the bearer) | `0600` |
+| Codex (`openai-compatible`) | `.jarvis-mcp-token.env` (existing)                                              | `0600` |
+| Gemini (`google`)           | `.gemini/settings.json` (existing — carries the Authorization header)           | `0600` |
 
 **Frozen cleanup rule — the simplest one: cli-runner removes the ENTIRE per-session neutral dir
 (`<JARVIS_CLI_NEUTRAL_BASE>/<sessionKey>`) on `kill` AND on a failed launch.** This supersedes the
@@ -888,19 +911,19 @@ The per-connection auth hello (§3.6) authenticates the api to cli-runner with a
 
 ### 7.1 New / changed env vars
 
-| Var | Where | Default | Meaning |
-| --- | --- | --- | --- |
-| `JARVIS_CLI_RUNNER_SOCKET` | api + cli-runner | `/run/jarv1s/cli-runner.sock` | RPC Unix socket path (§3.1). **Its presence on the api selects the RPC client over in-process `CliChatEngineImpl`** (§3.5). Excluded from the CLI-subprocess env allowlist (§7.2). |
-| `JARVIS_CLI_RUNNER_RPC_SECRET` | api + cli-runner | _(random; required)_ | Shared secret for the socket auth hello (§3.6/§6.6). Known ONLY to api + cli-runner-server. **Excluded from the CLI-subprocess env allowlist** (§7.2). |
-| `JARVIS_CLI_RUNNER_SINGLE_USER` | cli-runner (server) | `1` (ON) | Single-active-user gate (§4.1.0a). ON ⇒ the cli-runner server holds at most one live engine; a `launch` for a different `sessionKey` returns `RpcErr code "unavailable"` until the live session is killed. Set `0` **only** when UID-separation (issue #347) lands. **cli-runner-server config only — NOT in the CLI-subprocess env allowlist** (§7.2). |
-| `JARVIS_CLI_HOME` | cli-runner | `/data/cli-auth` | `HOME` for the CLIs (auth/home volume, §8). Replaces today's `JARVIS_CLI_HOME_BASE=/host-home` (which moves to cli-runner and points at the volume, not a host bind-mount). |
-| `JARVIS_CLI_HOME_BASE` | cli-runner | `${JARVIS_CLI_HOME}` | Transcript base for `transcriptGlobDir` (`tmux-bridge.ts:96`). On cli-runner this equals `HOME` (the CLIs write `~/.claude`, `~/.codex`, `~/.gemini` under it). **Removed from api + worker** (they no longer read transcripts). |
-| `JARVIS_CLI_NEUTRAL_BASE` | cli-runner | `/data/cli-auth/chat` | Base under which `<sessionKey>` neutral dirs are derived (§4.1.1a). Replaces the api's `resolveChatHome()` / `JARVIS_CHAT_HOME` for the containerized path. |
-| `JARVIS_CLI_TOOLS_PREFIX` | cli-runner | `/data/cli-tools` | npm prefix for installed CLIs (Phase 2 installer). |
-| `NPM_CONFIG_PREFIX` | cli-runner | `/data/cli-tools` | npm installs CLIs here (tools volume). |
-| `PATH` | cli-runner | `…:/data/cli-tools/bin` | so `claude`/`codex`/`agy` resolve from the tools volume. |
-| `JARVIS_HOST_UID` / `JARVIS_HOST_GID` | root-init + cli-runner | `1000` / `1000` | uid/gid the volumes are chowned to and the socket is owned by (§8). |
-| `JARVIS_MULTIPLEXER` | cli-runner | `tmux` | the bundled multiplexer (tmux). cli-runner forks its **own** tmux server (no host socket). |
+| Var                                   | Where                  | Default                       | Meaning                                                                                                                                                                                                                                                                                                                                                 |
+| ------------------------------------- | ---------------------- | ----------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `JARVIS_CLI_RUNNER_SOCKET`            | api + cli-runner       | `/run/jarv1s/cli-runner.sock` | RPC Unix socket path (§3.1). **Its presence on the api selects the RPC client over in-process `CliChatEngineImpl`** (§3.5). Excluded from the CLI-subprocess env allowlist (§7.2).                                                                                                                                                                      |
+| `JARVIS_CLI_RUNNER_RPC_SECRET`        | api + cli-runner       | _(random; required)_          | Shared secret for the socket auth hello (§3.6/§6.6). Known ONLY to api + cli-runner-server. **Excluded from the CLI-subprocess env allowlist** (§7.2).                                                                                                                                                                                                  |
+| `JARVIS_CLI_RUNNER_SINGLE_USER`       | cli-runner (server)    | `1` (ON)                      | Single-active-user gate (§4.1.0a). ON ⇒ the cli-runner server holds at most one live engine; a `launch` for a different `sessionKey` returns `RpcErr code "unavailable"` until the live session is killed. Set `0` **only** when UID-separation (issue #347) lands. **cli-runner-server config only — NOT in the CLI-subprocess env allowlist** (§7.2). |
+| `JARVIS_CLI_HOME`                     | cli-runner             | `/data/cli-auth`              | `HOME` for the CLIs (auth/home volume, §8). Replaces today's `JARVIS_CLI_HOME_BASE=/host-home` (which moves to cli-runner and points at the volume, not a host bind-mount).                                                                                                                                                                             |
+| `JARVIS_CLI_HOME_BASE`                | cli-runner             | `${JARVIS_CLI_HOME}`          | Transcript base for `transcriptGlobDir` (`tmux-bridge.ts:96`). On cli-runner this equals `HOME` (the CLIs write `~/.claude`, `~/.codex`, `~/.gemini` under it). **Removed from api + worker** (they no longer read transcripts).                                                                                                                        |
+| `JARVIS_CLI_NEUTRAL_BASE`             | cli-runner             | `/data/cli-auth/chat`         | Base under which `<sessionKey>` neutral dirs are derived (§4.1.1a). Replaces the api's `resolveChatHome()` / `JARVIS_CHAT_HOME` for the containerized path.                                                                                                                                                                                             |
+| `JARVIS_CLI_TOOLS_PREFIX`             | cli-runner             | `/data/cli-tools`             | npm prefix for installed CLIs (Phase 2 installer).                                                                                                                                                                                                                                                                                                      |
+| `NPM_CONFIG_PREFIX`                   | cli-runner             | `/data/cli-tools`             | npm installs CLIs here (tools volume).                                                                                                                                                                                                                                                                                                                  |
+| `PATH`                                | cli-runner             | `…:/data/cli-tools/bin`       | so `claude`/`codex`/`agy` resolve from the tools volume.                                                                                                                                                                                                                                                                                                |
+| `JARVIS_HOST_UID` / `JARVIS_HOST_GID` | root-init + cli-runner | `1000` / `1000`               | uid/gid the volumes are chowned to and the socket is owned by (§8).                                                                                                                                                                                                                                                                                     |
+| `JARVIS_MULTIPLEXER`                  | cli-runner             | `tmux`                        | the bundled multiplexer (tmux). cli-runner forks its **own** tmux server (no host socket).                                                                                                                                                                                                                                                              |
 
 **Removed from api + worker — COMPOSE-ONLY, NOT a code removal** (lane C deletes these mounts/vars from the
 api+worker compose services): the host tmux socket mount (`docker-compose.prod.yml:162`),
@@ -937,11 +960,11 @@ env contains **only** the allowlist below. Everything else (and especially every
 **EXCLUDED from the CLI subprocess env (never present in the launched CLI's env):**
 
 - `JARVIS_CLI_RUNNER_SOCKET` — **removed from the allowlist.** A CLI subprocess has no business reaching the
-  RPC socket; only the cli-runner *server* process needs the path. Keeping it out of the CLI env denies a
+  RPC socket; only the cli-runner _server_ process needs the path. Keeping it out of the CLI env denies a
   compromised CLI the socket path (defense alongside the §3.6 auth hello).
 - `JARVIS_CLI_RUNNER_RPC_SECRET` — the socket auth secret (§6.6). **Excluded** — the CLI must never see it.
 - `JARVIS_CLI_RUNNER_SINGLE_USER` — the single-active-user gate flag (§4.1.0a). **Excluded** — it is
-  cli-runner-*server* config; a launched CLI has no business reading it.
+  cli-runner-_server_ config; a launched CLI has no business reading it.
 - `BETTER_AUTH_SECRET`
 - `JARVIS_AI_SECRET_KEY`
 - `JARVIS_CONNECTOR_SECRET_KEY`
@@ -951,10 +974,11 @@ env contains **only** the allowlist below. Everything else (and especially every
 - The MCP token does **not** appear here either — it arrives per-launch via the socket payload (§6.3), not
   the env.
 
-> The cli-runner *server* process env DOES carry `JARVIS_CLI_RUNNER_SOCKET` + `JARVIS_CLI_RUNNER_RPC_SECRET`
-> + `JARVIS_CLI_RUNNER_SINGLE_USER` (it needs the first two to bind + authenticate, and the third to enforce
-> the single-active-user gate, §4.1.0a); the allowlist above governs the **CLI subprocess** env it builds
-> when spawning `claude`/`codex`/`agy`, which is a strict subset that drops all three.
+> The cli-runner _server_ process env DOES carry `JARVIS_CLI_RUNNER_SOCKET` + `JARVIS_CLI_RUNNER_RPC_SECRET`
+>
+> - `JARVIS_CLI_RUNNER_SINGLE_USER` (it needs the first two to bind + authenticate, and the third to enforce
+>   the single-active-user gate, §4.1.0a); the allowlist above governs the **CLI subprocess** env it builds
+>   when spawning `claude`/`codex`/`agy`, which is a strict subset that drops all three.
 
 **Implementation note (lane B/C):** the exclusion is enforced at **two** layers (defense in depth): (1) the
 compose `cli-runner` service does **not** use the app `env_file` (it gets only the explicit `environment:`
@@ -970,14 +994,14 @@ env-stripping alone is insufficient because **mounts** are container-level — h
 The api/worker/web containers mount **NONE** of the CLI-data volumes. The only api ⇄ cli-runner coupling is
 the private `0600` socket.
 
-| Volume | Mount path | cli-runner | api | worker | web | Mode / notes |
-| --- | --- | --- | --- | --- | --- | --- |
-| **tools** (`jarv1s-cli-tools`) | `/data/cli-tools` | **RW** | — | — | — | Installed CLIs (npm). `NPM_CONFIG_PREFIX=/data/cli-tools`; `PATH+=/data/cli-tools/bin`. |
-| **auth/home** (`jarv1s-cli-auth`) | `/data/cli-auth` (= `HOME`) | **RW (ONLY)** | — | — | — | Provider auth (`~/.claude`, `~/.codex`, `~/.agy`/`~/.gemini` creds) **and** CLI transcripts (`~/.claude/projects`, `~/.codex/sessions`, `~/.gemini/tmp/.../chats`) **and** per-session neutral dirs (`/data/cli-auth/chat/<sessionKey>`). cli-runner reads transcripts and returns records via `readNew`. |
-| **socket** (`jarv1s-cli-socket`) | `/run/jarv1s` | **RW** | **RW** | — | — | Holds the `0600` RPC socket. Dir `0700`, socket file `0600`, owned `JARVIS_HOST_UID`. **cli-runner + api ONLY.** |
-| postgres-data | `/var/lib/postgresql/data` | — | — | — | — | (unchanged; postgres only) |
-| vault-data | `/data/vaults` | — | **RW** | **RW** | — | (unchanged; api/worker only — cli-runner NEVER mounts the vault) |
-| model-cache | `/app/.cache/huggingface` | — | **RW** | **RW** | — | (unchanged; embeddings stay in the api/worker process) |
+| Volume                            | Mount path                  | cli-runner    | api    | worker | web | Mode / notes                                                                                                                                                                                                                                                                                              |
+| --------------------------------- | --------------------------- | ------------- | ------ | ------ | --- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **tools** (`jarv1s-cli-tools`)    | `/data/cli-tools`           | **RW**        | —      | —      | —   | Installed CLIs (npm). `NPM_CONFIG_PREFIX=/data/cli-tools`; `PATH+=/data/cli-tools/bin`.                                                                                                                                                                                                                   |
+| **auth/home** (`jarv1s-cli-auth`) | `/data/cli-auth` (= `HOME`) | **RW (ONLY)** | —      | —      | —   | Provider auth (`~/.claude`, `~/.codex`, `~/.agy`/`~/.gemini` creds) **and** CLI transcripts (`~/.claude/projects`, `~/.codex/sessions`, `~/.gemini/tmp/.../chats`) **and** per-session neutral dirs (`/data/cli-auth/chat/<sessionKey>`). cli-runner reads transcripts and returns records via `readNew`. |
+| **socket** (`jarv1s-cli-socket`)  | `/run/jarv1s`               | **RW**        | **RW** | —      | —   | Holds the `0600` RPC socket. Dir `0700`, socket file `0600`, owned `JARVIS_HOST_UID`. **cli-runner + api ONLY.**                                                                                                                                                                                          |
+| postgres-data                     | `/var/lib/postgresql/data`  | —             | —      | —      | —   | (unchanged; postgres only)                                                                                                                                                                                                                                                                                |
+| vault-data                        | `/data/vaults`              | —             | **RW** | **RW** | —   | (unchanged; api/worker only — cli-runner NEVER mounts the vault)                                                                                                                                                                                                                                          |
+| model-cache                       | `/app/.cache/huggingface`   | —             | **RW** | **RW** | —   | (unchanged; embeddings stay in the api/worker process)                                                                                                                                                                                                                                                    |
 
 **Root-init service** (one-shot, root, runs before api/worker/cli-runner; plan §4): chowns
 `jarv1s-cli-tools`, `jarv1s-cli-auth`, and `/run/jarv1s` to `JARVIS_HOST_UID:JARVIS_HOST_GID`, and creates
@@ -1004,14 +1028,14 @@ not_installed ─▶ installing ─▶ installed ─▶ needs_login ─▶ ready
       └──────────────┴─────────────┴─────────────┴────────────┴─▶ error
 ```
 
-| State | Meaning |
-| --- | --- |
-| `not_installed` | CLI binary absent from the tools volume (no PATH hit in cli-runner). |
-| `installing` | install service (Phase 2) is fetching/installing the pinned recipe. |
-| `installed` | binary present + version-verified, but not yet authenticated. |
-| `needs_login` | installed, but no valid provider auth (login presentation layer, Phase 3, not yet run). |
-| `ready` | installed AND authenticated AND smoke-passed → live chat can launch this provider. |
-| `error` | install or login failed; carries a redacted message. Recoverable (retry → re-enters the flow). |
+| State           | Meaning                                                                                        |
+| --------------- | ---------------------------------------------------------------------------------------------- |
+| `not_installed` | CLI binary absent from the tools volume (no PATH hit in cli-runner).                           |
+| `installing`    | install service (Phase 2) is fetching/installing the pinned recipe.                            |
+| `installed`     | binary present + version-verified, but not yet authenticated.                                  |
+| `needs_login`   | installed, but no valid provider auth (login presentation layer, Phase 3, not yet run).        |
+| `ready`         | installed AND authenticated AND smoke-passed → live chat can launch this provider.             |
+| `error`         | install or login failed; carries a redacted message. Recoverable (retry → re-enters the flow). |
 
 This is a **superset** of today's transient probe enum
 `OnboardingProviderCheckStatus = ready | needs_login | not_installed | multiplexer_unavailable | error`
@@ -1032,7 +1056,12 @@ The persisted provider state extends the onboarding contract, not the live-chat 
 - **New type** in `packages/shared/src/onboarding-api.ts`:
   ```typescript
   export type ProviderInstallState =
-    | "not_installed" | "installing" | "installed" | "needs_login" | "ready" | "error";
+    | "not_installed"
+    | "installing"
+    | "installed"
+    | "needs_login"
+    | "ready"
+    | "error";
   ```
   This is **additive** — it does not modify the existing `OnboardingProviderCheckStatus` union (which stays
   the transient probe shape so existing routes + schemas are untouched). The onboarding founder status DTO
@@ -1083,7 +1112,7 @@ import `rpc-contract.ts`. There are no other cross-lane imports.
   `tests/unit/chat-live-chat-home.test.ts` (`JARVIS_CHAT_HOME`), `tests/unit/ai-cli-availability.test.ts`
   (`JARVIS_HOST_CLIS`).
 - **New RPC round-trip tests:** each verb (`launch / submit / readNew / isAlive / kill / listLiveSessions /
-  probeProvider`) across an in-process socket pair; the `hello` auth handshake (good secret connects, bad/
+probeProvider`) across an in-process socket pair; the `hello` auth handshake (good secret connects, bad/
   absent secret is closed); `bootId` change triggers reconciliation; malformed-frame closes vs `bad_request`
   stays open (§3.7); offset preserved across the round-trip (UTF-16 code units, §3.3).
 - **Secrets acceptance tests:** the five token-absence assertions of §6.7 (launch line, argv via
@@ -1094,12 +1123,12 @@ import `rpc-contract.ts`. There are no other cross-lane imports.
   sessions by name (§5.3); reconciliation and `reapIdle` are mutually exclusive under the §5.4 mutex.
 - **Single-active-user gate tests (Lane B, §4.1.0a):**
   (a) **integration:** with one live session, a 2nd `launch` for a **different** `sessionKey` is rejected with
-      `RpcErr code "unavailable"` while the first is live, and **succeeds after the first session is killed**
-      (assert with `JARVIS_CLI_RUNNER_SINGLE_USER` ON / default).
+  `RpcErr code "unavailable"` while the first is live, and **succeeds after the first session is killed**
+  (assert with `JARVIS_CLI_RUNNER_SINGLE_USER` ON / default).
   (b) **documenting test:** assert that `0600` mode + `redactSecrets` do **NOT** protect a per-session token
-      file from a **same-UID read** — i.e. a same-UID reader can open and read the `0600` token file while the
-      session is live — so nobody mistakes `0600` for the cross-user boundary (the gate, not the file mode, is
-      what enforces isolation until #347 — §13).
+  file from a **same-UID read** — i.e. a same-UID reader can open and read the `0600` token file while the
+  session is live — so nobody mistakes `0600` for the cross-user boundary (the gate, not the file mode, is
+  what enforces isolation until #347 — §13).
 
 ## 12. Acceptance criteria
 
@@ -1117,7 +1146,7 @@ import `rpc-contract.ts`. There are no other cross-lane imports.
    (§4.1.2); cli-runner derives `neutralDir` from `sessionKey`, writes the persona file, injects the token,
    and (when `replayBatch` present) replays + drains server-side. The api passes **no** filesystem paths and
    seeds `transcriptOffset` from the returned offset.
-4a. **Single-active-user gate (§4.1.0a, Lane B):** with `JARVIS_CLI_RUNNER_SINGLE_USER` ON (default) and one
+   4a. **Single-active-user gate (§4.1.0a, Lane B):** with `JARVIS_CLI_RUNNER_SINGLE_USER` ON (default) and one
    live session, a 2nd `launch` for a **different** `sessionKey` is rejected with `RpcErr code "unavailable"`
    while the first is live and **succeeds after the first is killed** (test (a), §11) — and a documenting test
    (test (b), §11) shows `0600` + `redactSecrets` do not protect a per-session token file from a same-UID

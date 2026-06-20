@@ -84,7 +84,7 @@ we launch with claude + codex).
 - On-demand **mux** choice (herdr-in-container etc.) — tmux is the bundled default; the seam stays.
 - **API-key (HTTP) chat engine** — rejected for this phase; CLI-only.
 - Host CLI login reuse / host-auth import (dropped — BYO inside the container instead).
-- Apple `container` runtime as a *claimed-supported* runtime (compatible by design; deploy-docs
+- Apple `container` runtime as a _claimed-supported_ runtime (compatible by design; deploy-docs
   follow-up only — not asserted here).
 - uid-per-user OS isolation / non-operator (web-user) attach / privileged-launcher (the deferred
   follow-on milestone from the 2026-06-12 spec §10; unchanged by this spec).
@@ -101,22 +101,22 @@ we launch with claude + codex).
 Lifted from the approved plan (R4-locked; arbiter accepted all R4 revisions). These are decisions,
 not descriptions — violating any of them is a blocker for the build.
 
-| # | Decision | Rationale / origin |
-|---|----------|--------------------|
-| D1 | **`cli-runner` sidecar is the isolation boundary.** CLIs never run in the `api` container. | Process env-stripping is insufficient — mounts are container-level; only a separate container excludes vault/db/secret mounts. |
-| D2 | **API mounts NO CLI-data volumes.** `tools` + `auth/home` are `cli-runner`-only; transcripts are read by `cli-runner` and returned to the API via RPC `readNew`. | R4. Removes the inconsistent separate-transcripts-volume; the only api↔cli-runner coupling is the socket. |
-| D3 | **Private RPC over a `0600` Unix socket on a shared volume mounted ONLY in `cli-runner` + `api`** (not `worker`, not `web`), **gated by a connection auth hello** (shared secret `JARVIS_CLI_RUNNER_RPC_SECRET`, excluded from the CLI env) because the socket is not private from same-UID CLI subprocesses. Verbs: `launch / submit / readNew / kill / isAlive` + non-session `listLiveSessions` + `probeProvider`. | R4 + v2 review. Least coupling; contract frozen in the RPC-contract doc. |
-| D4 | **MCP tokens are API-owned.** Minted/tracked/revoked by the API's `SessionTokenRegistry`; `cli-runner` cannot revoke them. | R4. cli-runner is a passive consumer of the bearer; revocation authority stays with the token owner. |
-| D5 | **API reconciles on `cli-runner` (re)connect AND on a server `bootId` change:** revoke tokens for sessions that no longer exist (sourced from `tokens.listSessionIds()`, so it works even with an empty `sessions` Map after an API restart), drop stale API sessions, and kill orphaned `jarv1s-live-*` sessions via RPC **by mux name** (the server kills/lists by canonical mux name, not only its Map). | R4 + v2 review. In-memory registry + crashable sidecar ⇒ need a deterministic restart reconciliation, not TTL drift. |
-| D6 | **Root init service** (one-shot) `chown`s named volumes to `JARVIS_HOST_UID` before non-root services start; same-fs atomic promote for installs. | Non-root `api`/`worker`/`cli-runner` (uid `JARVIS_HOST_UID`) cannot own freshly-created named volumes themselves. |
-| D7 | **Bundle tmux, not the CLIs.** The image ships tmux; provider CLIs are installed on-demand into the `tools` volume. Secrets never appear in tmux launch lines. | Keeps the image small + provider-agnostic; CLIs are user choice. |
-| D8 | **`JARVIS_HOST_CLIS` removed in in-container mode.** `install.sh` stops writing it; it short-circuits before the PATH probe and masks container-installed CLIs (#341 superseded). | The host declaration is meaningless once CLIs live in the sidecar; presence comes from a sidecar PATH probe over RPC. |
-| D9 | **`agy` pinning is required** — versioned artifact + pinned SHA512 + self-update disabled (or blocked). No mutable/`latest`/self-updating installs for any provider recipe. | Supply-chain: a third-party self-updating binary inside the trust-reduced sidecar is still a risk to bound. |
-| D10 | **Provider state machine, persisted:** `not_installed → installing → installed → needs_login → ready → error`. | Onboarding + installer need a durable lifecycle, not a transient probe only. |
-| D11 | **Hardened installer:** server-side allowlist recipes, pinned versions, **serialized per provider**, temp prefix on the **same fs** as `tools`, verify binary+version, **atomic symlink/rename promote**, rollback; concurrency-locked + idempotent. | Untrusted install paths (npm + curl-style script for `agy`) must be tamper-evident and crash-safe. |
-| D12 | **Per-provider login smoke gate.** A provider is "supported" only after: login completes, token persists across a `cli-runner` restart, non-interactive auth works, and transcript format/path is verified. | "Installed" ≠ "works"; agy/Antigravity transcript shape is a spike risk vs the existing Gemini parser. |
-| D13 | **Auth/billing is the CLI's concern** (BYO-provider). Jarv1s installs + orchestrates login but never holds provider billing/credentials beyond the `auth/home` volume the CLI itself writes. | ADR 0007 house model — the product never depends on Ben's server or proxies provider billing. |
-| D14 | **ADR 0008 reversed by ADR 0010** (Phase 0 gate); embeddings explicitly scoped OUT of the reversal. | The topology shift (host-native → container-internal sidecar) is an ADR-level decision, not a spec detail. |
+| #   | Decision                                                                                                                                                                                                                                                                                                                                                                                                              | Rationale / origin                                                                                                             |
+| --- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
+| D1  | **`cli-runner` sidecar is the isolation boundary.** CLIs never run in the `api` container.                                                                                                                                                                                                                                                                                                                            | Process env-stripping is insufficient — mounts are container-level; only a separate container excludes vault/db/secret mounts. |
+| D2  | **API mounts NO CLI-data volumes.** `tools` + `auth/home` are `cli-runner`-only; transcripts are read by `cli-runner` and returned to the API via RPC `readNew`.                                                                                                                                                                                                                                                      | R4. Removes the inconsistent separate-transcripts-volume; the only api↔cli-runner coupling is the socket.                      |
+| D3  | **Private RPC over a `0600` Unix socket on a shared volume mounted ONLY in `cli-runner` + `api`** (not `worker`, not `web`), **gated by a connection auth hello** (shared secret `JARVIS_CLI_RUNNER_RPC_SECRET`, excluded from the CLI env) because the socket is not private from same-UID CLI subprocesses. Verbs: `launch / submit / readNew / kill / isAlive` + non-session `listLiveSessions` + `probeProvider`. | R4 + v2 review. Least coupling; contract frozen in the RPC-contract doc.                                                       |
+| D4  | **MCP tokens are API-owned.** Minted/tracked/revoked by the API's `SessionTokenRegistry`; `cli-runner` cannot revoke them.                                                                                                                                                                                                                                                                                            | R4. cli-runner is a passive consumer of the bearer; revocation authority stays with the token owner.                           |
+| D5  | **API reconciles on `cli-runner` (re)connect AND on a server `bootId` change:** revoke tokens for sessions that no longer exist (sourced from `tokens.listSessionIds()`, so it works even with an empty `sessions` Map after an API restart), drop stale API sessions, and kill orphaned `jarv1s-live-*` sessions via RPC **by mux name** (the server kills/lists by canonical mux name, not only its Map).           | R4 + v2 review. In-memory registry + crashable sidecar ⇒ need a deterministic restart reconciliation, not TTL drift.           |
+| D6  | **Root init service** (one-shot) `chown`s named volumes to `JARVIS_HOST_UID` before non-root services start; same-fs atomic promote for installs.                                                                                                                                                                                                                                                                     | Non-root `api`/`worker`/`cli-runner` (uid `JARVIS_HOST_UID`) cannot own freshly-created named volumes themselves.              |
+| D7  | **Bundle tmux, not the CLIs.** The image ships tmux; provider CLIs are installed on-demand into the `tools` volume. Secrets never appear in tmux launch lines.                                                                                                                                                                                                                                                        | Keeps the image small + provider-agnostic; CLIs are user choice.                                                               |
+| D8  | **`JARVIS_HOST_CLIS` removed in in-container mode.** `install.sh` stops writing it; it short-circuits before the PATH probe and masks container-installed CLIs (#341 superseded).                                                                                                                                                                                                                                     | The host declaration is meaningless once CLIs live in the sidecar; presence comes from a sidecar PATH probe over RPC.          |
+| D9  | **`agy` pinning is required** — versioned artifact + pinned SHA512 + self-update disabled (or blocked). No mutable/`latest`/self-updating installs for any provider recipe.                                                                                                                                                                                                                                           | Supply-chain: a third-party self-updating binary inside the trust-reduced sidecar is still a risk to bound.                    |
+| D10 | **Provider state machine, persisted:** `not_installed → installing → installed → needs_login → ready → error`.                                                                                                                                                                                                                                                                                                        | Onboarding + installer need a durable lifecycle, not a transient probe only.                                                   |
+| D11 | **Hardened installer:** server-side allowlist recipes, pinned versions, **serialized per provider**, temp prefix on the **same fs** as `tools`, verify binary+version, **atomic symlink/rename promote**, rollback; concurrency-locked + idempotent.                                                                                                                                                                  | Untrusted install paths (npm + curl-style script for `agy`) must be tamper-evident and crash-safe.                             |
+| D12 | **Per-provider login smoke gate.** A provider is "supported" only after: login completes, token persists across a `cli-runner` restart, non-interactive auth works, and transcript format/path is verified.                                                                                                                                                                                                           | "Installed" ≠ "works"; agy/Antigravity transcript shape is a spike risk vs the existing Gemini parser.                         |
+| D13 | **Auth/billing is the CLI's concern** (BYO-provider). Jarv1s installs + orchestrates login but never holds provider billing/credentials beyond the `auth/home` volume the CLI itself writes.                                                                                                                                                                                                                          | ADR 0007 house model — the product never depends on Ben's server or proxies provider billing.                                  |
+| D14 | **ADR 0008 reversed by ADR 0010** (Phase 0 gate); embeddings explicitly scoped OUT of the reversal.                                                                                                                                                                                                                                                                                                                   | The topology shift (host-native → container-internal sidecar) is an ADR-level decision, not a spec detail.                     |
 
 ---
 
@@ -177,10 +177,10 @@ not descriptions — violating any of them is a blocker for the build.
   plus two **non-session** verbs: `listLiveSessions() → { sessionKeys }` (reconciliation) and
   `probeProvider({ provider }) → OnboardingProviderCheckResponse` (onboarding, runs with NO token/replay).
   Sessions are keyed **by `actorUserId`**. The `launch` payload carries persona **content** (`personaText`)
-  + the assembled **`replayBatch`** string + `mcpToken?` + `mcpServerUrl?` (NOT `neutralDir`/`personaPath`,
-  which the API has no mount for); `TranscriptRecord` crosses as JSON; offsets are **UTF-16 code units of the
-  JSONL string** (`jsonl.length`/`.slice`, matching `transcript-reader.ts`/`cli-chat-engine.ts` — NOT byte
-  offsets), serialized as JSON numbers within JS safe-integer range.
+  - the assembled **`replayBatch`** string + `mcpToken?` + `mcpServerUrl?` (NOT `neutralDir`/`personaPath`,
+    which the API has no mount for); `TranscriptRecord` crosses as JSON; offsets are **UTF-16 code units of the
+    JSONL string** (`jsonl.length`/`.slice`, matching `transcript-reader.ts`/`cli-chat-engine.ts` — NOT byte
+    offsets), serialized as JSON numbers within JS safe-integer range.
 - **Socket access control:** the `0600` socket is **not** private from same-UID CLI subprocesses, so the
   connection carries an **auth hello** with a shared secret `JARVIS_CLI_RUNNER_RPC_SECRET` (api +
   cli-runner-server env only; excluded from the CLI-subprocess env). Every response also carries a server
@@ -200,14 +200,14 @@ not descriptions — violating any of them is a blocker for the build.
 
 ### 4.3 Volume / mount matrix
 
-| Volume | Mount path | init | api | worker | web | cli-runner | Purpose |
-|--------|-----------|:----:|:---:|:------:|:---:|:----------:|---------|
-| `jarv1s-postgres-data` | `/var/lib/postgresql/data` | – | – | – | – | – | Postgres (postgres service only). |
-| `jarv1s-vault-data` | `/data/vaults` | chown | RW | RW | – | – | Vault I/O (unchanged). |
-| `jarv1s-model-cache` | `/app/.cache/huggingface` | chown | RW | RW | – | – | Embedding model cache (unchanged). |
-| **`jarv1s-cli-tools`** | `/data/cli-tools` | chown | – | – | – | **RW** | Installed provider CLIs. `NPM_CONFIG_PREFIX=/data/cli-tools`; `PATH+=/data/cli-tools/bin`. |
-| **`jarv1s-cli-auth`** | `/data/cli-auth` (`HOME`) | chown | – | – | – | **RW** | Provider auth tokens (`~/.claude`, `~/.codex`, `~/.agy`) **and** CLI session transcripts (`~/.claude/projects`, `~/.codex/sessions`, …). cli-runner reads transcripts here and returns them via RPC. |
-| **`jarv1s-cli-socket`** | `/run/jarv1s` (`rpc.sock`) | chown + `0700` dir | **RW** | – | – | **RW** | The private RPC Unix socket. `0600` socket, `0700` dir. |
+| Volume                  | Mount path                 |        init        |  api   | worker | web | cli-runner | Purpose                                                                                                                                                                                              |
+| ----------------------- | -------------------------- | :----------------: | :----: | :----: | :-: | :--------: | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `jarv1s-postgres-data`  | `/var/lib/postgresql/data` |         –          |   –    |   –    |  –  |     –      | Postgres (postgres service only).                                                                                                                                                                    |
+| `jarv1s-vault-data`     | `/data/vaults`             |       chown        |   RW   |   RW   |  –  |     –      | Vault I/O (unchanged).                                                                                                                                                                               |
+| `jarv1s-model-cache`    | `/app/.cache/huggingface`  |       chown        |   RW   |   RW   |  –  |     –      | Embedding model cache (unchanged).                                                                                                                                                                   |
+| **`jarv1s-cli-tools`**  | `/data/cli-tools`          |       chown        |   –    |   –    |  –  |   **RW**   | Installed provider CLIs. `NPM_CONFIG_PREFIX=/data/cli-tools`; `PATH+=/data/cli-tools/bin`.                                                                                                           |
+| **`jarv1s-cli-auth`**   | `/data/cli-auth` (`HOME`)  |       chown        |   –    |   –    |  –  |   **RW**   | Provider auth tokens (`~/.claude`, `~/.codex`, `~/.agy`) **and** CLI session transcripts (`~/.claude/projects`, `~/.codex/sessions`, …). cli-runner reads transcripts here and returns them via RPC. |
+| **`jarv1s-cli-socket`** | `/run/jarv1s` (`rpc.sock`) | chown + `0700` dir | **RW** |   –    |  –  |   **RW**   | The private RPC Unix socket. `0600` socket, `0700` dir.                                                                                                                                              |
 
 **Deletions from `infra/docker-compose.prod.yml`:** the host tmux-socket mount (`:162`), the three RO
 host-CLI dir mounts (`:167-169`), and the shared neutral-dir mount (`:172`) — on **both** `api` and
@@ -241,11 +241,11 @@ CLIs can reach `/api/mcp`. (The bearer token itself arrives per-launch via the R
   3. **Drop stale API sessions:** `sessions` keys ∉ `liveKeys` are dropped + their tokens revoked.
   4. **Kill orphaned multiplexer sessions:** `liveKeys` ∉ `sessions` are killed via RPC `kill` **by mux
      name** (the server can kill `jarv1s-live-<key>` with no Map entry).
-  The manager hook `reconcileLiveSessions(liveKeys: Set<string>): Promise<void>` (NEW) performs 2–4 under a
-  per-manager async mutex **shared with `reapIdle`** (they must not run concurrently); a key in the
-  `launching` map is treated as live for the whole launch window. This makes a `cli-runner` (or API) crash
-  recoverable without leaking a live token against a dead session and without leaving zombie tmux sessions
-  holding a stale bearer.
+     The manager hook `reconcileLiveSessions(liveKeys: Set<string>): Promise<void>` (NEW) performs 2–4 under a
+     per-manager async mutex **shared with `reapIdle`** (they must not run concurrently); a key in the
+     `launching` map is treated as live for the whole launch window. This makes a `cli-runner` (or API) crash
+     recoverable without leaking a live token against a dead session and without leaving zombie tmux sessions
+     holding a stale bearer.
 - **Why not DB persistence:** out of scope for this phase (§2). The in-memory registry plus
   reconnect-reconciliation is the recovery mechanism; DB-backed tokens are a later milestone if
   horizontal API scaling is ever required.
@@ -354,7 +354,7 @@ socket boundary, the sidecar, and the secrets-out-of-launch-lines move.
   SHARED with `reapIdle`** (`:343`), and treats a `launching`-map key (`:110`) as live for the whole launch
   window. Wire its trigger at the socket-connect callback. **`reapIdle` has no production caller today** —
   this lane either wires it (an api `setInterval` sharing the mutex) or explicitly defers it (reconciliation
-  works without it). 
+  works without it).
 - MCP lifecycle hooks (`mintMcpToken` on launch `:164`, `touchMcpToken` per turn, `revokeMcpToken` on
   clear `:292`/switch `:307`/reap `:349`) are unchanged in placement.
 
@@ -372,7 +372,7 @@ socket boundary, the sidecar, and the secrets-out-of-launch-lines move.
 
 - **Delete** the host bridge on `api` (`:162` tmux socket, `:167-169` RO CLI dirs, `:172` neutral
   dir) **and** the mirrored block on `worker` (`:192`/`:194-196`/`:197`); drop `JARVIS_CLI_HOME_BASE:
-  /host-home` from both (`:137` api / `:185` worker). **This is a COMPOSE-only deletion — the code that reads
+/host-home` from both (`:137` api / `:185` worker). **This is a COMPOSE-only deletion — the code that reads
   `JARVIS_CLI_HOME_BASE`/`JARVIS_CHAT_HOME` stays (host-install path, §5.2).**
 - **Set `JARVIS_CLI_RUNNER_RPC_SECRET`** (random) in the `api` AND `cli-runner` services' env (the socket
   auth secret, §4.2); `install.sh`/`env.production.example` generate it. **Excluded** from the CLI-subprocess
@@ -381,7 +381,7 @@ socket boundary, the sidecar, and the secrets-out-of-launch-lines move.
   `jarv1s-cli-auth`, `jarv1s-cli-socket`, `jarv1s-vault-data`, `jarv1s-model-cache` to
   `JARVIS_HOST_UID:JARVIS_HOST_GID` and creates `/run/jarv1s` `0700`. **Not** profile-gated (must run
   on a plain `up`); every other service gains `depends_on: init: { condition:
-  service_completed_successfully }`.
+service_completed_successfully }`.
 - **Add `cli-runner`** (same image as `api`; `user: ${JARVIS_HOST_UID}:${JARVIS_HOST_GID}`):
   command = RPC server entrypoint; mounts `jarv1s-cli-tools:/data/cli-tools`,
   `jarv1s-cli-auth:/data/cli-auth`, `jarv1s-cli-socket:/run/jarv1s`; **sanitized env** (§4.3) —
@@ -504,8 +504,8 @@ claude into `/data/cli-tools`, login, chat) — proves the foundation before any
   (`JARVIS_CHAT_HOME`), `tests/unit/ai-cli-availability.test.ts` (`JARVIS_HOST_CLIS`). Other unchanged
   suites (`ai-tmux-bridge.test.ts`, `chat-multiplexer-usable.test.ts`) keep their mocked `TmuxIo`.
 - **New — cli-runner RPC tests:** round-trip each verb (`launch / submit / readNew / kill /
-  isAlive`) across an in-process socket pair; assert `readNew` marshals `{ records, offset,
-  complete }` faithfully (UTF-16 code-unit offsets preserved, RPC-contract §3.3); assert the proxy surfaces
+isAlive`) across an in-process socket pair; assert `readNew` marshals `{ records, offset,
+complete }` faithfully (UTF-16 code-unit offsets preserved, RPC-contract §3.3); assert the proxy surfaces
   `CliChatUnavailableError` → 503 when the socket is down; assert error payloads are redacted and
   stack-free.
 - **Secrets-out-of-launch-lines:** assert the MCP bearer is **absent** from the tmux launch line, the
@@ -520,11 +520,11 @@ claude into `/data/cli-tools`, login, chat) — proves the foundation before any
   kills the orphaned `jarv1s-live-*` session.
 - **Single-active-user gate (Lane B; RPC-contract §4.1.0a):**
   (a) **integration:** with `JARVIS_CLI_RUNNER_SINGLE_USER` ON (default) and one live session, a 2nd `launch`
-      for a **different** `sessionKey` is rejected with `RpcErr code "unavailable"` while the first is live,
-      and **succeeds after the first session is killed**.
+  for a **different** `sessionKey` is rejected with `RpcErr code "unavailable"` while the first is live,
+  and **succeeds after the first session is killed**.
   (b) **documenting test:** `0600` mode + `redactSecrets` do **NOT** protect a per-session token file from a
-      **same-UID read** — so nobody mistakes `0600` for the cross-user boundary (the gate, not the file mode,
-      enforces isolation until #347).
+  **same-UID read** — so nobody mistakes `0600` for the cross-user boundary (the gate, not the file mode,
+  enforces isolation until #347).
 - **Installer (Phase 2):** serialized + idempotent install; atomic promote + rollback on a forced
   verify-failure; verify on amd64 **and** arm64 (Codex `optionalDependencies` regression risk).
 - **Login smoke (Phase 3):** per-provider gate as in D12; token survives a sidecar restart.
@@ -539,10 +539,12 @@ claude into `/data/cli-tools`, login, chat) — proves the foundation before any
 ## 8. Acceptance criteria (per phase)
 
 **Phase 0**
+
 - This spec + the RPC-contract doc + ADR 0010 exist; ADR 0010 reverses 0008, scopes embeddings OUT,
   and notes the ADR 0003 transport touch. Ben signs off.
 
 **Phase 1**
+
 - Host bridge fully removed from `infra/docker-compose.prod.yml` (api **and** worker): no host
   tmux-socket mount, no RO CLI-dir mounts, no shared neutral-dir mount, no `JARVIS_CLI_HOME_BASE` env
   (compose-only removal; the code that reads it for the host-install path stays).
@@ -573,19 +575,22 @@ claude into `/data/cli-tools`, login, chat) — proves the foundation before any
 - Chat works end-to-end with a manually-installed CLI; `pnpm verify:foundation` green.
 
 **Phase 2**
+
 - A user-selected provider installs on-demand into the `tools` volume via a server-side allowlist
   recipe; install is serialized, idempotent, atomic-promote + rollback on failure; binary+version
   verified; verified on amd64 + arm64.
 - Provider state machine persists `not_installed → installing → installed → needs_login → ready →
-  error`; onboarding surfaces an install step.
+error`; onboarding surfaces an install step.
 
 **Phase 3**
+
 - Login runs in a captured tmux session; URL/device-code surfaces to the UI; tokens persist in
   `auth/home` across a `cli-runner` restart; non-interactive auth works.
 - Each shipped provider passes the smoke gate (D12); agy ships only if its pin + transcript spike
   pass, else stays blocked.
 
 **Phase 4**
+
 - `install.sh` no longer writes `JARVIS_HOST_CLIS`; in-container CLI presence comes from the sidecar
   PATH probe over RPC; onboarding reports presence correctly with no tty error.
 - Deploy docs updated; ADR 0010 landed; `pnpm audit:release-hardening` green.
@@ -595,7 +600,7 @@ claude into `/data/cli-tools`, login, chat) — proves the foundation before any
 ## 9. Out of scope (restated)
 
 GLM/opencode chat provider · on-demand mux choice (tmux bundled default) · API-key chat engine
-(rejected) · host CLI login reuse (dropped) · Apple `container` as a *claimed* runtime (compatible
+(rejected) · host CLI login reuse (dropped) · Apple `container` as a _claimed_ runtime (compatible
 by design; deploy-docs follow-up) · uid-per-user OS isolation + non-operator attach +
 privileged-launcher (deferred follow-on milestone) · embeddings containerization (stay in-process) ·
 DB-backed token persistence / horizontal API scaling.

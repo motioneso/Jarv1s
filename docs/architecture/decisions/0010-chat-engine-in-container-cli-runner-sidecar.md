@@ -49,7 +49,7 @@ at the ADR level, not a spec detail.
    `send-keys` launch lines into per-session `0600` files **only**. **`tmux set-environment` is NOT used**
    (the v2 contract review rejected it: `tmux show-environment` is a capture surface that would re-expose the
    token). Tests assert token absence from the launch line, argv (`/proc/<pid>/cmdline`), `tmux
-   capture-pane`, `tmux show-environment`, and logs.
+capture-pane`, `tmux show-environment`, and logs.
 
 6. **A root one-shot init service owns volume permissions.** It `chown`s the named volumes to
    `JARVIS_HOST_UID` before `api`/`worker`/`cli-runner` start non-root; all those services
