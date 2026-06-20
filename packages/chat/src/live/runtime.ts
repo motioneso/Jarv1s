@@ -17,13 +17,18 @@ import { resolveChatHome } from "./chat-home.js";
 import {
   ChatEngineRpcClient,
   RpcConnection,
-  type RpcClientLogger
+  type RpcClientLogger,
+  type RpcReconcileDriver
 } from "./chat-engine-rpc-client.js";
 import { CliChatEngineImpl } from "./cli-chat-engine.js";
 import { CliChatUnavailableError } from "./errors.js";
 export { CliChatUnavailableError } from "./errors.js";
 export { ChatEngineRpcClient, RpcConnection } from "./chat-engine-rpc-client.js";
-export type { RpcClientLogger, RpcConnectionOpts } from "./chat-engine-rpc-client.js";
+export type {
+  RpcClientLogger,
+  RpcConnectionOpts,
+  RpcReconcileDriver
+} from "./chat-engine-rpc-client.js";
 import { ChatSessionManager } from "./chat-session-manager.js";
 import { createRealPersonaFs } from "./persona.js";
 import { DataContextChatPersistence } from "./persistence.js";
@@ -91,7 +96,7 @@ export interface RpcEngineFactory {
 export function createRpcEngineFactory(opts: {
   readonly socketPath: string;
   readonly rpcSecret: string;
-  readonly onReconcile?: () => Promise<void>;
+  readonly onReconcile?: (driver: RpcReconcileDriver) => Promise<void>;
   readonly logger?: RpcClientLogger;
 }): RpcEngineFactory {
   const connection = new RpcConnection({
@@ -115,7 +120,7 @@ export function createRpcEngineFactory(opts: {
 export function selectEngineFactory(
   opts: {
     readonly mux?: Multiplexer;
-    readonly onReconcile?: () => Promise<void>;
+    readonly onReconcile?: (driver: RpcReconcileDriver) => Promise<void>;
     readonly logger?: RpcClientLogger;
     readonly env?: NodeJS.ProcessEnv;
   } = {}

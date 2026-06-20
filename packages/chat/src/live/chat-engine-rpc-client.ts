@@ -77,6 +77,26 @@ export interface RpcClientLogger {
 
 const NOOP_LOGGER: RpcClientLogger = { debug: () => {}, warn: () => {} };
 
+/**
+ * The RPC surface the reconciliation routine (§5.3) is allowed to drive WHILE reconciliation is in
+ * progress. Critically, these calls BYPASS the `reconciling` guard that `call()` applies to every
+ * normal RPC — without this the reconciliation flow would self-deadlock: §5.3 step 1 must issue
+ * `listLiveSessions()` to obtain `liveKeys` and step 4 must issue `kill()` for each api-unknown live
+ * mux session, but both route through `call()`, which rejects with `CliChatUnavailableError`
+ * ("cli-runner reconciling after restart") while `reconciling === true`. The hook therefore receives
+ * THIS driver (not the public connection) and issues its own RPCs through it.
+ *
+ * Only the two verbs reconciliation actually needs are exposed (`listLiveSessions` + `kill`); the
+ * guard-bypass is deliberately NOT available to general callers (the public `RpcConnection.kill` /
+ * `listLiveSessions` stay blocked during reconcile, so a normal turn cannot sneak past the gate).
+ */
+export interface RpcReconcileDriver {
+  /** §4.6 reconciliation primitive — the authoritative live-key enumeration. Bypasses the gate. */
+  listLiveSessions(): Promise<RpcListLiveSessionsResult>;
+  /** §4.5 kill-by-mux-name for an orphaned live session. Bypasses the gate. */
+  kill(sessionKey: string): Promise<RpcKillResult>;
+}
+
 export interface RpcConnectionOpts {
   /** Absolute socket path; realpath-checked to be under /run/jarv1s before connect (§3.1). */
   readonly socketPath: string;
@@ -84,9 +104,12 @@ export interface RpcConnectionOpts {
   readonly rpcSecret: string;
   /**
    * Reconciliation hook fired on every (re)connect AND on a detected bootId change (§5.6). The
-   * manager (Lane D) wires this to `reconcileLiveSessions`. While it runs, new calls are blocked.
+   * manager (Lane D) wires this to `reconcileLiveSessions`. While it runs, new (normal) calls are
+   * blocked — but the hook is handed an {@link RpcReconcileDriver} whose `listLiveSessions`/`kill`
+   * RPCs BYPASS that block, so the reconciliation routine (§5.3 steps 1+4) can complete over the
+   * same connection without self-deadlocking.
    */
-  readonly onReconcile?: () => Promise<void>;
+  readonly onReconcile?: (driver: RpcReconcileDriver) => Promise<void>;
   /** {method,id,sessionKey,bytes}-only logger (§6.4). Defaults to a no-op. */
   readonly logger?: RpcClientLogger;
   readonly reconnectMinMs?: number;
@@ -123,7 +146,7 @@ export function mapRpcError(code: RpcErrorCode, message: string): Error {
 export class RpcConnection {
   private readonly socketPath: string;
   private readonly rpcSecret: string;
-  private readonly onReconcile?: () => Promise<void>;
+  private readonly onReconcile?: (driver: RpcReconcileDriver) => Promise<void>;
   private readonly log: RpcClientLogger;
   private readonly reconnectMinMs: number;
   private readonly reconnectMaxMs: number;
@@ -175,7 +198,11 @@ export class RpcConnection {
     return this.call<RpcKillResult>("kill", sessionKey, {});
   }
 
-  /** Non-session reconciliation primitive (§4.6); no sessionKey. */
+  /**
+   * Non-session reconciliation primitive (§4.6); no sessionKey. The PUBLIC entrypoint is gated by
+   * `reconciling` like every other call; the reconciliation routine itself uses the guard-bypassing
+   * path via the {@link RpcReconcileDriver} handed to `onReconcile` (see `runReconciliation`).
+   */
   listLiveSessions(): Promise<RpcListLiveSessionsResult> {
     return this.call<RpcListLiveSessionsResult>("listLiveSessions", undefined, {});
   }
@@ -201,12 +228,15 @@ export class RpcConnection {
   private async call<T>(
     method: RpcMethod,
     sessionKey: string | undefined,
-    params: unknown
+    params: unknown,
+    allowDuringReconcile = false
   ): Promise<T> {
     await this.ensureConnected();
-    if (this.reconciling) {
+    if (this.reconciling && !allowDuringReconcile) {
       // A bootId change / fresh reconnect is being reconciled; the chat surface is transiently
-      // unavailable (HTTP 503, retryable) until it completes (§5.6).
+      // unavailable (HTTP 503, retryable) until it completes (§5.6). The reconciliation routine's
+      // OWN RPCs (§5.3 listLiveSessions + kill) pass `allowDuringReconcile` so they are not blocked
+      // by the very guard reconciliation sets — otherwise reconciliation could never complete.
       throw new CliChatUnavailableError("cli-runner reconciling after restart");
     }
     const id = this.nextId++;
@@ -521,8 +551,17 @@ export class RpcConnection {
   private async runReconciliation(): Promise<void> {
     if (!this.onReconcile) return;
     this.reconciling = true;
+    // The driver handed to the hook issues its RPCs with `allowDuringReconcile = true`, so the
+    // §5.3 reconciliation flow (listLiveSessions → kill orphans) can run over the SAME connection
+    // while `reconciling` blocks every NORMAL turn. Without this the routine would deadlock against
+    // its own guard (it could never gather liveKeys or reap orphaned mux sessions).
+    const driver: RpcReconcileDriver = {
+      listLiveSessions: () =>
+        this.call<RpcListLiveSessionsResult>("listLiveSessions", undefined, {}, true),
+      kill: (sessionKey: string) => this.call<RpcKillResult>("kill", sessionKey, {}, true)
+    };
     try {
-      await this.onReconcile();
+      await this.onReconcile(driver);
     } catch (err) {
       this.log.warn(`cli-runner reconciliation failed: ${describeError(err)}`);
     } finally {

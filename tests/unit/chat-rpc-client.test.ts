@@ -372,6 +372,70 @@ describe("RpcConnection hello + id-matching + bootId (in-process socket)", () =>
     expect(reconciles).toBeGreaterThan(afterConnect);
   });
 
+  it("reconciliation hook can drive listLiveSessions()+kill() over the same connection without self-deadlocking (§5.3)", async () => {
+    // Regression for the reconcile self-deadlock: while `reconciling` is true, every NORMAL call()
+    // rejects with CliChatUnavailableError ("cli-runner reconciling after restart"). But the real
+    // §5.3 routine MUST issue listLiveSessions() (step 1) and kill() (step 4) FROM INSIDE the hook.
+    // Those must bypass the guard via the RpcReconcileDriver handed to onReconcile — otherwise the
+    // routine can never gather liveKeys or reap orphaned mux sessions and reconciliation wedges.
+    const secret = "s";
+    const socketPath = tmpSocket();
+    const server = await startFakeServer(socketPath, secret, {
+      // First response carries boot-1; every later one boot-2 → a silent restart → reconcile.
+      bootIdFor: (i) => (i === 0 ? "boot-1" : "boot-2"),
+      onRequest: ({ method }) => {
+        if (method === "listLiveSessions") return { sessionKeys: ["orphan-key"] };
+        if (method === "kill") return { ok: true };
+        if (method === "isAlive") return { alive: true };
+        return { ok: true };
+      }
+    });
+    servers.push(server);
+
+    let reconcileResolved = false;
+    let liveKeysSeen: string[] | null = null;
+    let killedKey: string | null = null;
+    let reconcileError: unknown = null;
+
+    const conn = new TestConn({
+      socketPath,
+      rpcSecret: secret,
+      reconnectMinMs: 1,
+      reconnectMaxMs: 2,
+      onReconcile: async (driver) => {
+        try {
+          // §5.3 step 1: enumerate the live keys (would throw "reconciling after restart" if the
+          // driver did NOT bypass the guard — the deadlock this test guards against).
+          const { sessionKeys } = await driver.listLiveSessions();
+          liveKeysSeen = sessionKeys;
+          // §5.3 step 4: reap an api-unknown orphaned mux session by name.
+          await driver.kill(sessionKeys[0]!);
+          killedKey = sessionKeys[0]!;
+          reconcileResolved = true;
+        } catch (err) {
+          reconcileError = err;
+          throw err;
+        }
+      }
+    });
+    conns.push(conn);
+
+    // First call connects → reconcile #1 fires on connect (records boot-1) and drives the hook.
+    await conn.isAlive("u1");
+    // A second call returns boot-2 → bootId change → a second reconcile fires.
+    await conn.isAlive("u1");
+    // Let the async reconcile (and its own RPCs) settle.
+    await new Promise((r) => setTimeout(r, 50));
+
+    expect(reconcileError).toBeNull();
+    expect(reconcileResolved).toBe(true);
+    expect(liveKeysSeen).toEqual(["orphan-key"]);
+    expect(killedKey).toBe("orphan-key");
+
+    // After reconciliation completes, the guard is cleared and normal calls flow again.
+    await expect(conn.isAlive("u1")).resolves.toEqual({ alive: true });
+  });
+
   it("rejects an in-flight call with CliChatUnavailableError when the server returns unavailable (§4.7)", async () => {
     const secret = "s";
     const socketPath = tmpSocket();
