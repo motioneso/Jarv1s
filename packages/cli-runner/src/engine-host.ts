@@ -40,6 +40,7 @@ import type { Multiplexer, ProviderKind, TmuxIo } from "@jarv1s/ai";
 import { Mutex } from "./mutex.js";
 import type { InstallService } from "./install-service.js";
 import { LoginBadRequestError, type LoginService } from "./login-service.js";
+import { ensureProviderLaunchReady } from "./provider-first-run.js";
 import { providerTokenPath, readProviderCredentialEnv } from "./provider-token-store.js";
 
 export interface EngineHostDeps {
@@ -156,6 +157,17 @@ export class CliChatEngineHost {
         : undefined
     });
     const neutralDir = deriveNeutralDir(this.deps.neutralBase, key);
+
+    // #342: seed the provider CLI's first-run state (claude onboarding + per-dir trust) BEFORE
+    // launch so the engine-launched REPL skips its wizard and starts authenticated (the token is
+    // already injected via the launch line). Per-provider; non-claude providers no-op.
+    if (this.deps.homeBase) {
+      await ensureProviderLaunchReady(
+        this.deps.homeBase,
+        params.provider as ProviderKind,
+        neutralDir
+      );
+    }
 
     // Keep a handle on the RAW launch promise (separate from the timeout race) so that a
     // mux-create which SUCCEEDS *after* the timeout already released the reservation can be
