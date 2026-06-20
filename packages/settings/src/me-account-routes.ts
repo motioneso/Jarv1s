@@ -16,7 +16,9 @@ import { handleSettingsRouteError } from "./route-error.js";
  * Auth-owned password re-verification port for self-delete (#239). Mirrors the
  * `JarvisAuthRuntime.verifySelfPassword` signature so the composition root can
  * wire the runtime method directly. Returns a boolean only — never the hash.
- * Optional: when absent the route fails closed for password-bearing accounts.
+ * Optional: when absent, a password-bearing account still fails closed —
+ * `verifySelfPassword?.(...)` resolves to `undefined`, and the `=== true` check
+ * turns that into a generic 400 "Confirmation does not match".
  */
 export interface VerifySelfPasswordPort {
   (input: { readonly actorUserId: string; readonly password: string }): Promise<boolean>;
@@ -27,6 +29,10 @@ export interface VerifySelfPasswordPort {
  * behind an auth port because migration 0045 revoked `jarvis_app_runtime`
  * SELECT on `app.auth_accounts` (password hashes live there). The settings
  * route layer cannot read that table; this port runs on the auth pool.
+ * REQUIRED for the self-delete path: when absent the route cannot distinguish a
+ * password-bearing account from an OAuth-only one, so it fails CLOSED with a
+ * 500 (see readHasPasswordCredential) rather than silently skipping the
+ * password factor — skipping would be a fail-open topology leak (#239 R2).
  */
 export interface HasPasswordCredentialPort {
   (actorUserId: string): Promise<boolean>;
@@ -39,14 +45,6 @@ export interface MeAccountRoutesDependencies {
   readonly bootstrapConnectionString?: string;
   readonly verifySelfPassword?: VerifySelfPasswordPort;
   readonly hasPasswordCredential?: HasPasswordCredentialPort;
-}
-
-export interface MeAccountRoutesDependencies {
-  readonly resolveAccessContext: (request: FastifyRequest) => Promise<AccessContext>;
-  readonly dataContext: DataContextRunner;
-  readonly repository: SettingsRepository;
-  readonly bootstrapConnectionString?: string;
-  readonly verifySelfPassword?: VerifySelfPasswordPort;
 }
 
 /**
@@ -76,12 +74,21 @@ class LastAdminSelfDeleteError extends Error {
  * Existence-only probe exported for GET /api/me to reuse the same definition.
  * Delegates to the injected auth port — the settings layer cannot read
  * `app.auth_accounts` directly (migration 0045 RLS hardening).
+ *
+ * FAIL CLOSED: when the auth port is absent the self-delete route MUST reject
+ * (500) rather than fall back to `false`. Returning `false` would make the
+ * route treat the account as OAuth-only and skip the password factor — a
+ * fail-open topology leak a hijacker could exploit (#239 R2, Gemini). The
+ * generic GET /api/me path does not call this helper; it falls back to `false`
+ * directly because that surface is a UI hint, not a security gate.
  */
 export async function readHasPasswordCredential(
   hasPasswordCredential: HasPasswordCredentialPort | undefined,
   actorUserId: string
 ): Promise<boolean> {
-  if (!hasPasswordCredential) return false;
+  if (!hasPasswordCredential) {
+    throw new HttpError(500, "password-credential probe not configured");
+  }
   return hasPasswordCredential(actorUserId);
 }
 
@@ -119,18 +126,15 @@ export function registerMeAccountRoutes(
           // 404 is idempotent-friendly: a vanished row is "already deleted".
           if (!user) throw new HttpError(404, "User not found");
 
-          // Bootstrap owner is never self-deletable (recovery is #260's path).
-          if (user.is_bootstrap_owner) throw new BootstrapOwnerSelfDeleteError();
-
-          // Last-active-admin fast-path pre-check. deleteUserData re-asserts
-          // authoritatively under its advisory lock; this just short-circuits
-          // the common case before the expensive teardown (spec §Locked decision 5).
-          if (user.is_instance_admin) {
-            await repository.assertNotLastActiveAdmin(scopedDb, actorUserId);
-          }
-
-          // Confirmation factors — any miss yields a SINGLE generic 400 (no
-          // per-factor detail, to avoid aiding a session-hijacking attacker).
+          // Confirmation factors FIRST (#239 R2, Codex). A hijacker with a bogus
+          // body MUST prove they know the email + phrase + password BEFORE the
+          // route evaluates any topology guard — otherwise a 409 bootstrap_owner /
+          // last_admin leaks "this victim is the bootstrap owner / sole admin"
+          // without any factor proof. The generic 400 below deliberately reveals
+          // NO per-factor detail. Password-bearing accounts require verifySelfPassword
+          // === true; OAuth-only accounts skip the password factor (email + phrase
+          // is the floor, spec §Locked decision 3). hasPasswordCredential absent is
+          // a hard 500 (readHasPasswordCredential fails closed — never silent skip).
           const hasPasswordCredential = await readHasPasswordCredential(
             dependencies.hasPasswordCredential,
             actorUserId
@@ -138,8 +142,6 @@ export function registerMeAccountRoutes(
           const emailMatch =
             body.confirmEmail.trim().toLowerCase() === user.email.trim().toLowerCase();
           const phraseMatch = body.confirmPhrase === DELETE_MY_ACCOUNT_PHRASE;
-          // OAuth-only accounts (no password credential) skip the password factor;
-          // email + phrase is the floor (spec §Locked decision 3).
           const passwordOk = hasPasswordCredential
             ? typeof body.password === "string" &&
               body.password.length > 0 &&
@@ -150,6 +152,17 @@ export function registerMeAccountRoutes(
             : true;
           if (!emailMatch || !phraseMatch || !passwordOk) {
             throw new HttpError(400, "Confirmation does not match");
+          }
+
+          // Topology guards run ONLY after the caller has proven all factors.
+          // Bootstrap owner is never self-deletable (recovery is #260's path).
+          if (user.is_bootstrap_owner) throw new BootstrapOwnerSelfDeleteError();
+
+          // Last-active-admin fast-path pre-check. deleteUserData re-asserts
+          // authoritatively under its advisory lock; this just short-circuits
+          // the common case before the expensive teardown (spec §Locked decision 5).
+          if (user.is_instance_admin) {
+            await repository.assertNotLastActiveAdmin(scopedDb, actorUserId);
           }
         });
 

@@ -576,6 +576,79 @@ describe("#239 account self-service deletion", () => {
     expect(await countRows("app.users", "id = $1::uuid", memberId)).toBe(1);
   });
 
+  it("topology leak guard: bootstrap owner / sole admin with WRONG factors get the generic 400 (no 409)", async () => {
+    // R2 (#239): a hijacker who hasn't proven the factors MUST NOT learn that the
+    // victim is the bootstrap owner or the sole active admin. The 409 topology
+    // discriminators are reserved for callers who have already passed email +
+    // phrase + password. The 400 is byte-identical to the one a normal member
+    // sees — no per-factor detail, no code.
+    const ownerRes = await signUp({
+      name: "Owner",
+      email: "owner@example.test",
+      password: "password12345"
+    });
+    const ownerId = ownerRes.json<{ user: { id: string } }>().user.id;
+    const ownerCookie = cookieHeader(ownerRes.headers);
+
+    // (1) Bootstrap owner, WRONG factors -> generic 400, never 409 bootstrap_owner.
+    const ownerWrong = await server.inject({
+      method: "DELETE",
+      url: "/api/me/account",
+      headers: { cookie: ownerCookie, "content-type": "application/json" },
+      payload: {
+        confirmEmail: "wrong@example.test",
+        confirmPhrase: "delete my account",
+        password: "wrong-password"
+      }
+    });
+    expect(ownerWrong.statusCode).toBe(400);
+    const ownerBody = ownerWrong.json<{ error?: string; code?: string }>();
+    expect(ownerBody.error).toMatch(/confirmation does not match/i);
+    expect(ownerBody.code).toBeUndefined();
+    expect(await countRows("app.users", "id = $1::uuid", ownerId)).toBe(1);
+
+    // (2) Sole active admin, WRONG factors -> generic 400, never 409 last_admin.
+    const memberRes = await signUp({
+      name: "Admin Member",
+      email: "admin-member@example.test",
+      password: "password12345"
+    });
+    const memberId = memberRes.json<{ user: { id: string } }>().user.id;
+    const memberCookie = cookieHeader(memberRes.headers);
+
+    const client = new pg.Client({ connectionString: connectionStrings.bootstrap });
+    await client.connect();
+    try {
+      await client.query(
+        `UPDATE app.users SET is_instance_admin = true, updated_at = now() WHERE id = $1`,
+        [memberId]
+      );
+      // Deactivate the bootstrap owner so the promoted member is the sole active admin.
+      await client.query(
+        `UPDATE app.users SET status = 'deactivated', updated_at = now() WHERE id = $1`,
+        [ownerId]
+      );
+    } finally {
+      await client.end();
+    }
+
+    const adminWrong = await server.inject({
+      method: "DELETE",
+      url: "/api/me/account",
+      headers: { cookie: memberCookie, "content-type": "application/json" },
+      payload: {
+        confirmEmail: "wrong@example.test",
+        confirmPhrase: "delete my account",
+        password: "wrong-password"
+      }
+    });
+    expect(adminWrong.statusCode).toBe(400);
+    const adminBody = adminWrong.json<{ error?: string; code?: string }>();
+    expect(adminBody.error).toMatch(/confirmation does not match/i);
+    expect(adminBody.code).toBeUndefined();
+    expect(await countRows("app.users", "id = $1::uuid", memberId)).toBe(1);
+  });
+
   it("rate limit: a burst over 5/min returns 429", async () => {
     await signUp({ name: "Owner", email: "owner@example.test", password: "password12345" });
     const memberRes = await signUp({
