@@ -264,6 +264,39 @@ setups a plain creds file may not appear at all — in that case rely on the §5
 > **codex variant:** `jvc exec -e HOME=/data/cli-auth -it cli-runner /data/cli-tools/bin/codex login`,
 > then check `/data/cli-auth/.codex`. Same HOME rule.
 
+### 4a. The IN-UI login flow (#342 Phase 3 — now the primary path)
+
+As of Phase 3 the manual `jvc exec` login above is the **fallback/debug** path; the **primary** path is the
+onboarding wizard's in-UI login, which drives the same flow over the socket so you never touch a shell. It
+runs the provider login in a **captured `jarv1s-login-<provider>` tmux session inside the sidecar**
+(HOME=/data/cli-auth, so the cred lands in the same place §4 verifies), surfaces the OAuth URL/device code
+to the wizard, and polls/accepts a pasted code. Drive it from the wizard (preferred) or directly:
+
+```sh
+# begin — starts the login, returns { loginId, status, authorizationUrl } (admin session cookie required)
+curl -fsS -X POST http://localhost:3000/api/onboarding/provider-login/begin \
+  -H 'content-type: application/json' -b "$ADMIN_COOKIE" -d '{"providerKind":"anthropic"}'
+# → open the returned authorizationUrl in your browser, authorize, copy the code, then:
+curl -fsS -X POST http://localhost:3000/api/onboarding/provider-login/submit-token \
+  -H 'content-type: application/json' -b "$ADMIN_COOKIE" \
+  -d '{"providerKind":"anthropic","loginId":"<from begin>","token":"<pasted code>"}'
+# → poll until status:"ready" (or call poll if the flow auto-completes without a paste):
+curl -fsS -X POST http://localhost:3000/api/onboarding/provider-login/poll \
+  -H 'content-type: application/json' -b "$ADMIN_COOKIE" -d '{"providerKind":"anthropic","loginId":"<id>"}'
+```
+
+**Phase-3 properties to verify (file a finding if any fails):**
+
+- The cred lands under `/data/cli-auth/.claude` (same end-state as §4) and `provider-login/poll` reports
+  `status:"ready"` once auth + the runtime smoke pass.
+- **Auth material never escapes:** the pasted `token` must NOT appear in `jvc logs api` / `jvc logs cli-runner`
+  (frame bodies are never logged), nor in any response body. Only the authorization **URL/code** is surfaced.
+- **Single-active-user exclusivity (§L.6.1):** while a login is in flight, a chat `launch` and a second
+  `beginLogin` return 503/`unavailable`; cancelling or completing the login frees the gate. (agy/`google`
+  returns 400 "not loginable" — it is blocked this phase. codex login is smoke-contingent — see the spec.)
+- **Token persists across a restart:** `jvc restart cli-runner`, then re-run `provider-login/poll` (or the §5
+  provider check) — it should still report `ready` (the cred is on the auth/home volume, not in memory).
+
 ---
 
 ## 5. Web onboarding — create the primary user

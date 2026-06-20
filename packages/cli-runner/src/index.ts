@@ -31,3 +31,16 @@ export {
   type InstallServiceDeps
 } from "./install-service.js";
 export { PROVIDER_CATALOG, CATALOG_VALIDATION_ISSUES } from "./catalog.js";
+// #342 Phase 3 login (§L): the login service + the validated login-adapter allowlist + loader.
+export {
+  LoginService,
+  LoginBadRequestError,
+  type LoginServiceDeps,
+  type LoginFlowOutcome
+} from "./login-service.js";
+export {
+  LOGIN_ADAPTERS,
+  LOGIN_ADAPTER_ISSUES,
+  loadLoginAdapters,
+  type LoginAdapterIssue
+} from "./login-adapters.js";

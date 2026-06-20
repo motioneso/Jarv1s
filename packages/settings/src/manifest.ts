@@ -184,6 +184,27 @@ export const settingsModuleManifest: JarvisModuleManifest = {
       method: "POST",
       path: "/api/onboarding/provider-install",
       permissionId: "settings.manage"
+    },
+    // #342 Phase 3 (§L.5): the admin-gated provider-login routes (login presentation layer).
+    {
+      method: "POST",
+      path: "/api/onboarding/provider-login/begin",
+      permissionId: "settings.manage"
+    },
+    {
+      method: "POST",
+      path: "/api/onboarding/provider-login/poll",
+      permissionId: "settings.manage"
+    },
+    {
+      method: "POST",
+      path: "/api/onboarding/provider-login/submit-token",
+      permissionId: "settings.manage"
+    },
+    {
+      method: "POST",
+      path: "/api/onboarding/provider-login/cancel",
+      permissionId: "settings.manage"
     }
   ]
 };
