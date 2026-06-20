@@ -230,6 +230,11 @@ export class LoginService {
       await this.deps.io.run("tmux", ["paste-buffer", "-b", session, "-t", `=${session}`]);
       await this.deps.io.sleep(200);
       await this.deps.io.run("tmux", ["send-keys", "-t", `=${session}`, "Enter"]);
+      // Phase-4 Obs 1-A (same-UID token-lifetime gap): `load-buffer -b <name>` placed the pasted
+      // code in the tmux SERVER-global buffer set, which SURVIVES killing the login session — a
+      // same-UID reader could `show-buffer -b <name>` it afterwards. Delete the named buffer the
+      // instant the paste has consumed it so the code does not linger past the paste.
+      await this.deleteLoginBuffer(flow.provider);
       await this.deps.io.sleep(this.settleMs);
       return await this.deriveStatus(flow);
     } catch (err) {
@@ -259,6 +264,20 @@ export class LoginService {
     const live = await listLoginMuxSessions(this.deps.io).catch(() => [] as string[]);
     for (const provider of live) {
       await killLoginMuxSession(this.deps.io, provider).catch(() => undefined);
+    }
+    // Phase-4 Obs 1-A: also drop any orphaned `jarv1s-login-*` SERVER-global paste buffer (a crash
+    // BETWEEN load-buffer and the explicit delete can strand one even when its session is already
+    // gone — buffers outlive sessions). Enumerate + delete by the login-name prefix.
+    const buffers = await this.deps.io
+      .run("tmux", ["list-buffers", "-F", "#{buffer_name}"])
+      .catch(() => ({ code: 1, stdout: "" }));
+    if (buffers.code === 0) {
+      for (const name of buffers.stdout
+        .split("\n")
+        .map((s) => s.trim())
+        .filter((s) => s.startsWith(LOGIN_SESSION_PREFIX))) {
+        await this.deps.io.run("tmux", ["delete-buffer", "-b", name]).catch(() => undefined);
+      }
     }
     this.flow = null;
   }
@@ -346,6 +365,16 @@ export class LoginService {
     flow.heldToken = undefined;
     if (this.flow && this.flow.loginId === flow.loginId) this.flow = null;
     await killLoginMuxSession(this.deps.io, flow.provider).catch(() => undefined);
+    // Phase-4 Obs 1-A: defensively drop the server-global paste buffer too (it outlives the
+    // session) — covers a teardown reached before submitToken's explicit delete (e.g. an error
+    // or timeout mid-paste). delete-buffer on an absent buffer is a harmless no-op.
+    await this.deleteLoginBuffer(flow.provider);
+  }
+
+  /** Phase-4 Obs 1-A: remove the `<jarv1s-login-provider>` server-global tmux paste buffer. */
+  private async deleteLoginBuffer(provider: RpcProviderKind): Promise<void> {
+    const session = `${LOGIN_SESSION_PREFIX}${provider}`;
+    await this.deps.io.run("tmux", ["delete-buffer", "-b", session]).catch(() => undefined);
   }
 
   private armDeadline(flow: LoginFlow): void {
