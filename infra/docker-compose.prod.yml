@@ -9,18 +9,71 @@
 #   - secrets injected at runtime via env_file (never in image layers)
 #   - api/worker carry the host-multiplexer bridge mounts (§6)
 #
-# Operator: copy infra/env.production.example -> an off-git env file, fill it,
-# set JARVIS_IMAGE_TAG to the published version tag, then:
+# FIRST-RUN SETUP WIZARD (recommended for a fresh deploy) — the "hand the image +
+# compose to someone else" flow. The operator copies ONLY this compose file, runs
+# ONE command that generates every boot secret (auth/encryption keys + per-role DB
+# passwords) into an operator-owned env.production.local, then `up`. They never
+# touch raw secret material:
+#
+#   1. Copy this file to a clean deploy dir:
+#        cp infra/docker-compose.prod.yml /opt/jarv1s/   # (or wherever)
+#   2. Run the one-shot setup service (generates env.production.local next to the
+#      compose, mode 0600, REFUSES to overwrite an existing file):
+#        cd /opt/jarv1s
+#        JARVIS_IMAGE_TAG=v0.1.0 POSTGRES_PASSWORD=setup \
+#          docker compose -p jarv1s-prod -f docker-compose.prod.yml \
+#          --profile setup run --rm setup
+#   3. Bring the stack up (reads the generated file via --env-file):
+#        docker compose -p jarv1s-prod -f docker-compose.prod.yml \
+#          --env-file ./env.production.local up -d
+#
+# About the `POSTGRES_PASSWORD=setup` throwaway in step 2: Compose interpolates the
+# WHOLE file at parse time, and the postgres service hard-fails without it
+# (`${POSTGRES_PASSWORD:?}` is a deliberate gate against a weak prod default). Setup
+# IGNORES that shell value and writes the real generated password into the env file
+# (asserted equal to the one embedded in JARVIS_BOOTSTRAP_DATABASE_URL). Defaults
+# written are localhost (3000/5173); edit JARVIS_AUTH_BASE_URL +
+# JARVIS_AUTH_TRUSTED_ORIGINS if this deploy is not reached at localhost.
+#
+# Step 3 omits `--build`: a deploy dir holding ONLY the compose has no source for
+# `build: { context: .. }` to resolve, so the operator runs a PRE-BUILT image (from
+# GHCR or `docker load`). When building locally from the REPO ROOT (source present),
+# append `--build` — see the local-build block below.
+#
+# Manual alternative (you already maintain an env file, or want to hand-edit every
+# value): copy infra/env.production.example -> an off-git env file, fill it, set
+# JARVIS_IMAGE_TAG to the version you are deploying, then:
 #   docker compose -f infra/docker-compose.prod.yml --env-file <file> up -d
+#
+# GHCR publish disabled / no published image? Build locally from the repo (the
+# services below carry `build:` for exactly this case), using a DISTINCT project
+# name so the prod data volume never collides with the dev compose stack:
+#   docker compose -p jarv1s-prod -f infra/docker-compose.prod.yml \
+#     --env-file <file> up -d --build
+# (--build tags both images as `image:` above; migrate/worker reuse the api image.
+#  Run from the repo root so the `context: ..` build inputs resolve.)
 # ---------------------------------------------------------------------------
 
 # NOTE: Compose resolves a relative env_file path against THIS file's directory
 # (infra/), not the repo root — so the default is `./env.production.local`, which
 # lands at infra/env.production.local. Override with an absolute path via
 # JARVIS_ENV_FILE if the operator keeps the env file elsewhere.
+#
+# `required: false` is REQUIRED for the setup-first flow (see header): the `setup`
+# service must run BEFORE env.production.local exists (it GENERATES it), but Compose
+# parses the WHOLE file — api/migrate/worker's env_file — for ANY command, so a
+# missing-file check here would block `docker compose --profile setup run --rm setup`
+# with a chicken-and-egg error. This does NOT weaken the deploy-time secret gate:
+# (1) the documented `up` passes `--env-file ./env.production.local` (the CLI flag
+# errors if the file is missing), and (2) `${POSTGRES_PASSWORD:?}` interpolation
+# (postgres service below) fails closed if unset — so a stack CANNOT come up
+# without the env file regardless of this directive. `required: false` only skips
+# the file-existence check so the generator can run first; when the file IS present
+# (the normal `up` case) it is loaded as before.
 x-app-env-file: &app-env-file
   env_file:
-    - ${JARVIS_ENV_FILE:-./env.production.local}
+    - path: ${JARVIS_ENV_FILE:-./env.production.local}
+      required: false
 
 services:
   postgres:
@@ -65,6 +118,13 @@ services:
 
   api:
     image: ghcr.io/motioneso/jarv1s-api:${JARVIS_IMAGE_TAG:?set JARVIS_IMAGE_TAG to a published version tag}
+    # Local-build support (used while GHCR publish / GitHub Actions is disabled):
+    # `docker compose ... build` (or `up --build`) builds this image from the repo
+    # root and tags it as `image:` above; migrate + worker share this same image.
+    # When GHCR publish is restored, `up` pulls the published tag instead.
+    build:
+      context: ..
+      dockerfile: Dockerfile
     <<: *app-env-file
     command: ["node", "dist/server.js"]
     # Run as the host operator uid/gid so the bind-mounted host tmux socket
@@ -104,12 +164,12 @@ services:
       # the whole host HOME (which would expose ~/.ssh, git creds, cloud configs,
       # shell history — far beyond CLI auth). JARVIS_CLI_HOME_BASE=/host-home, so the
       # engine's transcriptGlobDir finds /host-home/.claude|.codex|.gemini exactly.
-      - ${JARVIS_HOST_CLAUDE_DIR:-~/Jarv1s/.claude}:/host-home/.claude:ro
-      - ${JARVIS_HOST_CODEX_DIR:-~/Jarv1s/.codex}:/host-home/.codex:ro
-      - ${JARVIS_HOST_GEMINI_DIR:-~/Jarv1s/.gemini}:/host-home/.gemini:ro
+      - ${JARVIS_HOST_CLAUDE_DIR:-${HOME}/.claude}:/host-home/.claude:ro
+      - ${JARVIS_HOST_CODEX_DIR:-${HOME}/.codex}:/host-home/.codex:ro
+      - ${JARVIS_HOST_GEMINI_DIR:-${HOME}/.gemini}:/host-home/.gemini:ro
       # Shared neutral-dir base: identical absolute path on host + container so
       # the host-spawned CLI cd's into the same dir the container computed (§6.3).
-      - ${JARVIS_CHAT_HOME:-~/Jarv1s/.jarvis/chat}:${JARVIS_CHAT_HOME:-~/Jarv1s/.jarvis/chat}
+      - ${JARVIS_CHAT_HOME:-${HOME}/.jarvis/chat}:${JARVIS_CHAT_HOME:-${HOME}/.jarvis/chat}
     depends_on:
       migrate:
         condition: service_completed_successfully
@@ -131,10 +191,10 @@ services:
       # Socket-dir default DERIVED from JARVIS_HOST_UID — see api (branch-review #3).
       - ${JARVIS_TMUX_SOCKET_DIR:-/tmp/tmux-${JARVIS_HOST_UID:-1000}}:${JARVIS_TMUX_SOCKET_DIR:-/tmp/tmux-${JARVIS_HOST_UID:-1000}}
       # Mount ONLY the three CLI dirs read-only (NOT the whole host HOME — see api).
-      - ${JARVIS_HOST_CLAUDE_DIR:-~/Jarv1s/.claude}:/host-home/.claude:ro
-      - ${JARVIS_HOST_CODEX_DIR:-~/Jarv1s/.codex}:/host-home/.codex:ro
-      - ${JARVIS_HOST_GEMINI_DIR:-~/Jarv1s/.gemini}:/host-home/.gemini:ro
-      - ${JARVIS_CHAT_HOME:-~/Jarv1s/.jarvis/chat}:${JARVIS_CHAT_HOME:-~/Jarv1s/.jarvis/chat}
+      - ${JARVIS_HOST_CLAUDE_DIR:-${HOME}/.claude}:/host-home/.claude:ro
+      - ${JARVIS_HOST_CODEX_DIR:-${HOME}/.codex}:/host-home/.codex:ro
+      - ${JARVIS_HOST_GEMINI_DIR:-${HOME}/.gemini}:/host-home/.gemini:ro
+      - ${JARVIS_CHAT_HOME:-${HOME}/.jarvis/chat}:${JARVIS_CHAT_HOME:-${HOME}/.jarvis/chat}
     depends_on:
       migrate:
         condition: service_completed_successfully
@@ -143,12 +203,40 @@ services:
 
   web:
     image: ghcr.io/motioneso/jarv1s-web:${JARVIS_IMAGE_TAG:?set JARVIS_IMAGE_TAG to a published version tag}
+    build:
+      context: ..
+      dockerfile: apps/web/Dockerfile
     restart: unless-stopped
     ports:
       - "${JARVIS_WEB_PORT:-5173}:80"
     depends_on:
       api:
         condition: service_healthy
+    networks:
+      - jarv1s
+
+  # First-run boot-secret generator (run ONCE, explicitly, before the first `up`).
+  # Generates every boot secret (auth/encryption keys + per-role DB passwords) into
+  # an operator-owned env.production.local NEXT TO this compose file, so an operator
+  # never hand-writes raw secret material. See scripts/setup-prod.ts.
+  #
+  # `profiles: [setup]` keeps it OUT of a plain `up`; run it explicitly:
+  #   docker compose -p jarv1s-prod -f docker-compose.prod.yml --profile setup run --rm setup
+  # The bind-mount `.:/deploy` makes OUT_DIR=/deploy resolve to THIS directory, so the
+  # generated file lands where the operator runs `up` from (and where `--env-file
+  # ./env.production.local` reads it). NO env_file (setup GENERATES it); NO depends_on
+  # (runs before postgres/migrate); restart: "no" (one-shot, never restarted).
+  setup:
+    image: ghcr.io/motioneso/jarv1s-api:${JARVIS_IMAGE_TAG:?set JARVIS_IMAGE_TAG to a published version tag}
+    build:
+      context: ..
+      dockerfile: Dockerfile
+    entrypoint: ["node_modules/.bin/tsx", "scripts/setup-prod.ts"]
+    command: ["/deploy"]
+    volumes:
+      - .:/deploy
+    restart: "no"
+    profiles: ["setup"]
     networks:
       - jarv1s
 
