@@ -804,17 +804,24 @@ export async function probeProvider(
 
 async function probeClaudeAuth(io: Pick<TmuxIo, "run">): Promise<ProbeProviderResult> {
   const result = await probeWithTimeout(io.run("claude", ["auth", "status"]));
+  // claude 2.1.183 `auth status` prints JSON {"loggedIn":bool,...} but EXITS NON-ZERO when
+  // not logged in. Parse the JSON FIRST, regardless of exit code: a rc!=0 with a valid
+  // loggedIn:false is "needs_login", NOT "error" (the old rc!=0 branch ran an auth-text
+  // heuristic that did not match this JSON → returned "error" → every login errored). #342
+  try {
+    const parsed = JSON.parse(result.stdout) as { loggedIn?: unknown };
+    if (typeof parsed.loggedIn === "boolean") {
+      return parsed.loggedIn ? { status: "ready" } : { status: "needs_login" };
+    }
+  } catch {
+    // not JSON — fall through to the exit-code + auth-text heuristic.
+  }
   if (result.code !== 0) {
     return isAuthOutput(`${result.stdout}\n${result.stderr ?? ""}`)
       ? { status: "needs_login" }
       : { status: "error" };
   }
-  try {
-    const parsed = JSON.parse(result.stdout) as { loggedIn?: unknown };
-    return parsed.loggedIn === true ? { status: "ready" } : { status: "needs_login" };
-  } catch {
-    return { status: "error" };
-  }
+  return { status: "error" };
 }
 
 async function probeCodexAuth(io: Pick<TmuxIo, "run">): Promise<ProbeProviderResult> {

@@ -58,6 +58,7 @@ import type {
 } from "../../chat/src/live/install-contract.js";
 import type { RpcProviderKind } from "../../chat/src/live/rpc-contract.js";
 
+import { findRepoRoot } from "./catalog.js";
 import { buildSanitizedCliEnv } from "./sanitized-env.js";
 import { Mutex } from "./mutex.js";
 
@@ -722,7 +723,11 @@ export class InstallService {
 
 // ─── module-scope helpers ──────────────────────────────────────────────────
 
-const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..", "..");
+// Layout-robust repo root (shared with catalog.ts's findRepoRoot): walk up to the
+// nearest pnpm-workspace.yaml. A fixed MODULE_DIR/../../.. offset breaks when this
+// module is bundled into the api's dist (import.meta.url collapses to /app/dist → the
+// offset lands on "/", so the committed lockfile read ENOENTs). #342 install blocker.
+const REPO_ROOT = findRepoRoot(path.dirname(fileURLToPath(import.meta.url)));
 
 function createWriteStreamSafe(dest: string): ReturnType<typeof createWriteStream> {
   return createWriteStream(dest, { mode: 0o600 });
