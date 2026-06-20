@@ -116,6 +116,14 @@ export function createRpcEngineFactory(opts: {
  * today (host-dev / native-install path, reading `JARVIS_CLI_HOME_BASE`). Lane C sets the socket env
  * only in the compose path. Returns the factory, plus the `RpcConnection` when the RPC path is taken
  * (so the composition root can wire reconciliation + tear it down on shutdown).
+ *
+ * SECURITY FAIL-FAST (§3.6 / §6.6): when the socket IS selected but `JARVIS_CLI_RUNNER_RPC_SECRET` is
+ * missing or empty, this THROWS at selection time — BEFORE any `RpcConnection` is constructed or any
+ * socket is opened. A secret-less RPC path is fail-OPEN (the auth hello could never authenticate, and
+ * a same-UID CLI subprocess racing the bind could impersonate the server), so we refuse to boot the
+ * RPC factory at all rather than defer the failure to first connect. The thrown message NEVER contains
+ * the secret value (there is none) and names only the two env vars. The in-process / host-dev path
+ * (no socket) is unaffected — it never reads or requires the secret.
  */
 export function selectEngineFactory(
   opts: {
@@ -128,9 +136,19 @@ export function selectEngineFactory(
   const env = opts.env ?? process.env;
   const socketPath = env.JARVIS_CLI_RUNNER_SOCKET;
   if (socketPath) {
+    const rpcSecret = env.JARVIS_CLI_RUNNER_RPC_SECRET;
+    if (!rpcSecret) {
+      // Fail-fast: refuse to construct the RPC factory without the shared hello secret (§6.6). This
+      // throws at BOOT/selection — never reaches connection construction or a launch. No secret value
+      // is interpolated (there is none).
+      throw new CliChatUnavailableError(
+        "JARVIS_CLI_RUNNER_SOCKET is set but JARVIS_CLI_RUNNER_RPC_SECRET is missing or empty; " +
+          "refusing to start the cli-runner RPC client without the socket auth secret"
+      );
+    }
     const { factory, connection } = createRpcEngineFactory({
       socketPath,
-      rpcSecret: env.JARVIS_CLI_RUNNER_RPC_SECRET ?? "",
+      rpcSecret,
       onReconcile: opts.onReconcile,
       logger: opts.logger
     });
@@ -169,6 +187,36 @@ export interface CreateChatSessionRuntimeDeps {
     readonly revoke: (chatSessionId: string) => void;
     /** Refresh a session token's TTL on activity (defaults to no-op if omitted). */
     readonly touch?: (chatSessionId: string) => void;
+    /**
+     * #342 (§5.3 step 2) — revoke every token whose chatSessionId ∉ the live set. Wraps
+     * `SessionTokenRegistry.reconcile`. Forwarded to the manager as `reconcileMcpTokens`. Absent ⇒
+     * reconciliation skips the token sweep (the in-process/host path mints no tokens).
+     */
+    readonly reconcile?: (liveSessionIds: Set<string>) => void;
+    /**
+     * #342 (§5.3 steps 2/4) — every chatSessionId the registry currently holds a token for. Wraps
+     * `SessionTokenRegistry.listSessionIds`. Forwarded to the manager as `listMcpTokenSessionIds` so
+     * orphaned mux sessions are reapable by name even when the `sessions` Map is empty (api restart).
+     */
+    readonly listSessionIds?: () => string[];
+  };
+  /**
+   * #342 (§3.5 boot-time fork) — when set, `createChatSessionRuntime` selects the engine factory ITSELF
+   * via {@link selectEngineFactory} (RPC client when `JARVIS_CLI_RUNNER_SOCKET` is configured, else the
+   * in-process engine), wires the §5.3 reconciliation hook to the manager (resolving the launch-order
+   * chicken-and-egg with a late-bound ref), threads `killSession`/`serverOwnsDrain`, and starts the
+   * §5.5 idle reaper. Tests/embedders that pass an explicit {@link engineFactory} take precedence and
+   * this is ignored (no socket, no reconciliation, no reaper).
+   */
+  readonly engineSelection?: {
+    /** Multiplexer for the in-process fallback path (host install). Ignored on the RPC path. */
+    readonly mux?: Multiplexer;
+    /** {method,id,sessionKey,bytes}-only debug logger for the RPC connection (§6.4). */
+    readonly logger?: RpcClientLogger;
+    /** Override the env source (tests). Defaults to `process.env`. */
+    readonly env?: NodeJS.ProcessEnv;
+    /** Start the §5.5 idle reaper at boot (default true). The returned `shutdown()` stops it. */
+    readonly startIdleReaper?: boolean;
   };
 }
 
@@ -176,10 +224,31 @@ export interface ChatSessionRuntime {
   readonly manager: ChatSessionManager;
   /** Resolve the acting user's display name for persona rendering. */
   resolveUserName(actorUserId: string): Promise<string>;
+  /**
+   * #342 — the shared RPC connection when the cli-runner socket path was selected (else undefined, on
+   * the in-process/host path). The composition root may `ensureConnected()` it on boot so the §5.3
+   * reconciliation runs before the first user turn, and MUST `close()` it on shutdown (done by
+   * {@link shutdown}).
+   */
+  readonly connection?: RpcConnection;
+  /**
+   * #342 — tear down runtime-owned background resources: stop the idle reaper and close the RPC
+   * connection. Idempotent. The composition root calls this on server shutdown. A no-op when neither
+   * the reaper nor an RPC connection was started (explicit-engineFactory / in-process path).
+   */
+  shutdown(): void;
 }
 
 /**
  * Build the live-chat runtime (manager + a userName resolver) from foundation deps.
+ *
+ * #342 composition root: this is where the engine factory, the §5.3 reconciliation hook, and the §5.5
+ * idle reaper are wired together. The tricky part is a launch-order chicken-and-egg — `onReconcile`
+ * needs the manager, but the factory (and the `RpcConnection` that reads `onReconcile` ONCE at
+ * construction) is built FIRST. We resolve it with a late-bound mutable ref: the hook closes over a
+ * `let manager` that is assigned immediately after, so by the time any (re)connect fires the hook the
+ * ref is populated. The hook drives the `RpcReconcileDriver` it is HANDED (not the public connection
+ * methods) so `listLiveSessions`/`kill` bypass the `reconciling` guard (the d3ed921 anti-deadlock fix).
  */
 export function createChatSessionRuntime(deps: CreateChatSessionRuntimeDeps): ChatSessionRuntime {
   const persistence = new DataContextChatPersistence({
@@ -189,8 +258,61 @@ export function createChatSessionRuntime(deps: CreateChatSessionRuntimeDeps): Ch
     boss: deps.boss
   });
 
-  const manager = new ChatSessionManager({
-    engineFactory: deps.engineFactory ?? realEngineFactory,
+  // Late-bound manager ref so the reconcile hook (read once by RpcConnection at construction) can call
+  // back into a manager that does not exist yet at factory-build time. `let` (not `const`) is required:
+  // the `onReconcile` closure below captures `manager` BEFORE it is assigned, so it cannot be a
+  // declaration-with-initializer — hence the prefer-const disable for this single late-bound ref.
+  // eslint-disable-next-line prefer-const
+  let manager: ChatSessionManager;
+
+  // The active reconciliation driver, set ONLY for the duration of one reconcile pass. The manager's
+  // step-4 `killSession` dep (below) routes through THIS driver, NOT the public `connection.kill`,
+  // because the public method is blocked by the `reconciling` guard while a reconcile is running — the
+  // driver's `kill` is the guard-bypassing path (the d3ed921 anti-deadlock fix). Outside reconciliation
+  // it is null, and a stray `killSession` call (e.g. a future caller) falls back to the public method.
+  let activeReconcileDriver: RpcReconcileDriver | null = null;
+
+  // The ONE reconciliation hook (§5.3): drive the supplied RpcReconcileDriver (guard-bypassing), NOT
+  // the public connection — step 1 lists live sessions, the manager diffs them and issues step-4 kills
+  // through the SAME driver via the `killSession` dep below.
+  const onReconcile = async (driver: RpcReconcileDriver): Promise<void> => {
+    activeReconcileDriver = driver;
+    try {
+      const { sessionKeys } = await driver.listLiveSessions();
+      await manager.reconcileLiveSessions(new Set(sessionKeys));
+    } finally {
+      activeReconcileDriver = null;
+    }
+  };
+
+  // Engine factory + (when the socket is configured) the shared RPC connection. An explicit
+  // engineFactory always wins (tests/embedders) and takes the in-process/no-reconcile path. When
+  // `engineSelection` is supplied and no explicit factory is given, select via the boot-time fork:
+  // RPC client (socket set, fail-fast on a missing secret — §6.6) else in-process.
+  let connection: RpcConnection | undefined;
+  let engineFactory: ChatEngineFactory;
+  if (deps.engineFactory) {
+    engineFactory = deps.engineFactory;
+  } else if (deps.engineSelection) {
+    const selected = selectEngineFactory({
+      mux: deps.engineSelection.mux,
+      logger: deps.engineSelection.logger,
+      env: deps.engineSelection.env,
+      onReconcile
+    });
+    engineFactory = selected.factory;
+    connection = selected.connection;
+  } else {
+    engineFactory = realEngineFactory;
+  }
+
+  // The RPC path owns the server-side replay drain (§4.1.2): the cli-runner submitted `replayBatch`
+  // and drained the transcript, so `launch` returns the real post-drain offset and the manager must
+  // NOT re-submit. The in-process path keeps draining itself (serverOwnsDrain = false).
+  const serverOwnsDrain = connection !== undefined;
+
+  manager = new ChatSessionManager({
+    engineFactory,
     persistence,
     personaFs: createRealPersonaFs(),
     clock: { now: () => Date.now() },
@@ -200,13 +322,66 @@ export function createChatSessionRuntime(deps: CreateChatSessionRuntimeDeps): Ch
     mintMcpToken: deps.mcpTokenLifecycle?.mint,
     revokeMcpToken: deps.mcpTokenLifecycle?.revoke,
     touchMcpToken: deps.mcpTokenLifecycle?.touch,
+    reconcileMcpTokens: deps.mcpTokenLifecycle?.reconcile,
+    listMcpTokenSessionIds: deps.mcpTokenLifecycle?.listSessionIds,
+    // §4.5 kill-by-mux-name for an api-unknown orphan: route through the guard-bypassing reconcile
+    // driver while a reconcile is in flight (the only path that calls this), falling back to the public
+    // connection method otherwise. Undefined on the in-process/host path (no separate cli-runner holds
+    // orphans — reconcile step 4 no-ops there).
+    killSession: connection
+      ? (sessionKey) => killOrphan(activeReconcileDriver, connection!, sessionKey)
+      : undefined,
+    serverOwnsDrain,
     recall: deps.recall
   });
 
+  // §5.5 — start the idle reaper at boot (the PREFERRED outcome) for the RPC path. It shares the §5.4
+  // maintenance mutex with reconciliation, so it can never race it. Opt-out via
+  // engineSelection.startIdleReaper === false; default ON whenever engineSelection is used.
+  let stopReaper: (() => void) | undefined;
+  if (deps.engineSelection && deps.engineSelection.startIdleReaper !== false) {
+    stopReaper = manager.startIdleReaper();
+  }
+
+  let shutDown = false;
+  const shutdown = (): void => {
+    if (shutDown) return;
+    shutDown = true;
+    stopReaper?.();
+    connection?.close();
+  };
+
   return {
     manager,
-    resolveUserName: (actorUserId) => persistence.resolveUserName(actorUserId)
+    resolveUserName: (actorUserId) => persistence.resolveUserName(actorUserId),
+    connection,
+    shutdown
   };
+}
+
+/**
+ * §4.5 kill-by-mux-name for an api-unknown orphan, used as the manager's `killSession` dep on the socket
+ * path. When a reconcile pass is active it MUST use the guard-bypassing driver `kill` (the public
+ * `connection.kill` is rejected by the `reconciling` guard while reconciliation runs — the d3ed921
+ * anti-deadlock fix); otherwise it falls back to the public method. Idempotent (the server returns
+ * `{ ok: true }` for an absent session). Swallows errors so a single orphan-kill blip does not abort the
+ * whole sweep — the next reconnect/bootId-change retries and the server's startup clean-slate sweep is
+ * the backstop.
+ */
+async function killOrphan(
+  driver: RpcReconcileDriver | null,
+  connection: RpcConnection,
+  sessionKey: string
+): Promise<void> {
+  try {
+    if (driver) {
+      await driver.kill(sessionKey);
+    } else {
+      await connection.kill(sessionKey);
+    }
+  } catch {
+    // best-effort: reconciliation must not wedge on a single orphan-kill failure.
+  }
 }
 
 async function resolveChatPersona(

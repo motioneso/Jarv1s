@@ -13,6 +13,7 @@ import { redactSecrets } from "@jarv1s/ai";
 import {
   decodeFrame,
   encodeFrame,
+  MAX_FRAME_BYTES,
   type RpcErr,
   type RpcErrorCode,
   type RpcFrame,
@@ -86,6 +87,8 @@ export function serveConnection(channel: ByteChannel, deps: ConnectionDeps): voi
         return;
       }
       const body = decoded.body;
+      // The decoded frame's payload byte-length (§3.2/§6.4 — the ONLY size field we log).
+      const frameBytes = body.length;
       buf = buf.subarray(decoded.consumed);
 
       let parsed: unknown;
@@ -118,13 +121,14 @@ export function serveConnection(channel: ByteChannel, deps: ConnectionDeps): voi
       }
 
       // Authenticated: every subsequent frame must be a request (§3.4).
-      void dispatchFrame(parsed, deps, channel, close);
+      void dispatchFrame(parsed, frameBytes, deps, channel, close);
     }
   });
 }
 
 async function dispatchFrame(
   parsed: unknown,
+  frameBytes: number,
   deps: ConnectionDeps,
   channel: ByteChannel,
   close: () => void
@@ -135,21 +139,42 @@ async function dispatchFrame(
     return;
   }
   const req = parsed;
+  // §6.4: the ONLY loggable fields are { method, id, sessionKey, bytes } — the request
+  // frame's payload byte-length, NOT its body.
   deps.log?.({
     method: req.method,
     id: req.id,
     sessionKey: req.sessionKey,
-    bytes: 0
+    bytes: frameBytes
   });
 
   try {
     const result = await invoke(req, deps.host);
     const ok: RpcOk = { t: "ok", id: req.id, bootId: deps.bootId, result };
+    // §3.2/§4.4: an OK result (e.g. a pathological multi-MiB readNew) that would exceed
+    // MAX_FRAME_BYTES must NOT throw into the close path — encodeFrame throws and the
+    // stream is still aligned (we have not written anything). Convert it to an in-band
+    // RpcErr{ code: "internal" } so the connection survives and the client maps it to a
+    // typed error (§4.7) instead of seeing a silent reconnect.
+    if (frameExceedsCap(ok)) {
+      const tooBig = toErrFrame(req.id, deps.bootId, new Error("response frame too large"));
+      if (!safeWrite(channel, tooBig)) close();
+      return;
+    }
     if (!safeWrite(channel, ok)) close();
   } catch (err) {
     const errFrame = toErrFrame(req.id, deps.bootId, err);
     if (!safeWrite(channel, errFrame)) close();
   }
+}
+
+/**
+ * True when the encoded frame would exceed MAX_FRAME_BYTES (§3.2). Used to convert an
+ * un-framable OK response into an in-band RpcErr{internal} BEFORE attempting to write it,
+ * so encodeFrame never throws into the connection-close path on the success branch.
+ */
+function frameExceedsCap(frame: RpcFrame): boolean {
+  return Buffer.byteLength(JSON.stringify(frame), "utf8") > MAX_FRAME_BYTES;
 }
 
 async function invoke(req: RpcRequest, host: CliChatEngineHost): Promise<unknown> {

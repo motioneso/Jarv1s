@@ -94,6 +94,25 @@ export interface ChatSessionManagerDeps {
   readonly killSession?: (sessionKey: string) => Promise<void>;
   /** Phase 3: optional recall service — injects <memory> seed before replay. */
   readonly recall?: RecallPort;
+  /**
+   * #342 (§4.1.2) — does the ENGINE own the replay submit+drain?
+   *
+   * `false` (default, in-process path): the engine ignores `replayBatch`/`personaText`,
+   * returns `{ offset: 0 }`, and the MANAGER submits + drains the replay itself below.
+   *
+   * `true` (RPC path): the cli-runner server wrote the persona file, submitted `replayBatch`,
+   * and drained the transcript server-side; `launch` returns the real post-drain offset and the
+   * manager does NO further submit/drain.
+   *
+   * This is an EXPLICIT discriminator and MUST be used instead of the `offset === 0` sentinel:
+   * `offset === 0` is ALSO a legitimate RPC result (a replay was submitted but the transcript
+   * never materialized within the server's drain budget), so keying the in-process re-drain on
+   * `offset === 0` would cause the manager to DOUBLE-submit the replay over the socket.
+   *
+   * CROSS-LANE (Lane A wiring): set `serverOwnsDrain = true` exactly when the RPC engine factory
+   * is selected (socket configured); leave it `false`/absent for the in-process factory.
+   */
+  readonly serverOwnsDrain?: boolean;
 }
 
 /** A subscriber receives every emitted transcript record for its user. */
@@ -140,6 +159,13 @@ export class ChatSessionManager {
   private readonly pollMs: number;
   private readonly maxPolls: number;
   /**
+   * #342 (§4.1.2) — true when the ENGINE (RPC server) owns the replay submit+drain, so the
+   * manager must NOT submit/drain the replay itself. Resolved once from deps (default false =
+   * in-process path). See {@link ChatSessionManagerDeps.serverOwnsDrain} for why this replaces
+   * the old `offset === 0` sentinel (which double-submitted the replay on a 0-offset RPC result).
+   */
+  private readonly serverOwnsDrain: boolean;
+  /**
    * #342 (§5.4) — the single async mutex SHARED by reconciliation and reapIdle. Both mutate
    * `sessions` + revoke tokens, so they MUST be mutually exclusive. Implemented as a promise
    * chain: each critical section awaits the previous one's settlement before running. (A
@@ -151,6 +177,7 @@ export class ChatSessionManager {
   constructor(private readonly deps: ChatSessionManagerDeps) {
     this.pollMs = deps.pollMs ?? 25;
     this.maxPolls = deps.maxPolls ?? DEFAULT_MAX_POLLS;
+    this.serverOwnsDrain = deps.serverOwnsDrain ?? false;
   }
 
   /**
@@ -222,7 +249,8 @@ export class ChatSessionManager {
     // populates personaText + replayBatch on BOTH paths: the RPC engine consumes them
     // (server writes the persona file, submits + drains replayBatch, returns the real
     // post-drain offset); the in-process engine IGNORES them, returns { offset: 0 }, and
-    // the manager keeps doing its own submit + drain below.
+    // the manager keeps doing its own submit + drain below — keyed on the EXPLICIT
+    // `serverOwnsDrain` discriminator, NOT on `offset === 0` (see below).
     const { offset } = await engine.launch({
       neutralDir,
       personaPath,
@@ -243,11 +271,18 @@ export class ChatSessionManager {
     };
     this.sessions.set(actorUserId, session);
 
-    // In-process path: the engine did NOT own the replay drain (it returns offset 0 and
-    // ignores replayBatch), so the manager submits + drains the replay itself, exactly as
-    // before. The RPC path already drained server-side (offset > 0 ⇒ skip). When there is
-    // no replay to send at all, both paths skip this.
-    if (replayBatch !== undefined && offset === 0) {
+    // In-process path: the engine did NOT own the replay drain (it ignores replayBatch and
+    // returns offset 0), so the manager submits + drains the replay itself, exactly as before.
+    //
+    // The decision is keyed on the EXPLICIT `serverOwnsDrain` discriminator, NOT on
+    // `offset === 0`. `offset === 0` is ALSO a legitimate RPC result — a replay was submitted
+    // server-side but the transcript never materialized within the server's drain budget — so an
+    // `offset === 0` sentinel would make the manager DOUBLE-submit the replay over the socket on
+    // the RPC path. With the discriminator the RPC path is skipped regardless of the offset value
+    // (the server already owns the submit+drain), and the in-process path always re-drains.
+    //
+    // When there is no replay to send at all, both paths skip this.
+    if (replayBatch !== undefined && !this.serverOwnsDrain) {
       await engine.submit(replayBatch);
       // Drain (and discard) so real turn records start from a clean offset.
       session.transcriptOffset = await this.drain(engine, session.transcriptOffset);
@@ -438,9 +473,32 @@ export class ChatSessionManager {
       this.deps.reconcileMcpTokens?.(effectiveLive);
 
       // Step 3: drop stale api sessions (Map key ∉ effectiveLive).
+      //
+      // The kill MUST be guard-safe on the RPC path. This runs INSIDE the connection's
+      // `runReconciliation` (which sets `reconciling = true` for the whole pass), so a
+      // `session.engine.kill()` here would route through the PUBLIC `RpcConnection.kill`, which
+      // `call()` rejects with `CliChatUnavailableError("cli-runner reconciling after restart")`
+      // while `reconciling` is true — throwing BEFORE the `sessions.delete` + `revokeMcpToken` and
+      // aborting the rest of step 3 AND step 4 (the throw was not caught). So we route the kill
+      // through the SAME guard-bypassing path step 4 uses: `this.deps.killSession` (the reconcile
+      // driver's `kill`, idempotent/by-mux-name). The cli-runner already reports these keys dead,
+      // so a kill is belt-and-suspenders; the authoritative effect of step 3 is drop + revoke.
+      // On the in-process/host path `killSession` is absent, so we fall back to `engine.kill()` —
+      // which is safe there (no `reconciling` guard, no separate cli-runner). Either way the kill
+      // is wrapped in try/catch so the drop + revoke (and the rest of the loop + step 4) always
+      // execute even if the kill rejects.
       for (const [sessionKey, session] of this.sessions) {
         if (!effectiveLive.has(sessionKey)) {
-          await session.engine.kill();
+          try {
+            if (this.deps.killSession) {
+              await this.deps.killSession(sessionKey);
+            } else {
+              await session.engine.kill();
+            }
+          } catch {
+            // best-effort: a stale-session kill failure must not abort the reconcile pass — the
+            // drop + revoke below still run, and the cli-runner already considers the key dead.
+          }
           this.sessions.delete(sessionKey);
           this.deps.revokeMcpToken?.(sessionKey);
         }

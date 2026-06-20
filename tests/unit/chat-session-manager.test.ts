@@ -5,6 +5,7 @@ import {
   renderSummaryBlock
 } from "../../packages/chat/src/live/chat-session-manager.js";
 import type { EngineLaunchOpts, TranscriptRecord } from "../../packages/chat/src/live/types.js";
+import { CliChatUnavailableError } from "../../packages/chat/src/live/errors.js";
 
 function makeMinimalDeps(
   overrides: Partial<ConstructorParameters<typeof ChatSessionManager>[0]> = {}
@@ -149,11 +150,16 @@ describe("ChatSessionManager.launchSession — personaText + replayBatch + offse
     priorTurns = { recent: [], oldSummary: null } as {
       recent: readonly { role: "user" | "assistant"; content: string }[];
       oldSummary: string | null;
-    }
+    },
+    // #342 (§4.1.2): the explicit drain-ownership discriminator. Default false = in-process
+    // path (manager owns submit+drain); true = RPC path (server owns it). Lane A's wiring sets
+    // this true exactly when the RPC engine factory is selected (socket configured).
+    serverOwnsDrain = false
   ) {
     return makeMinimalDeps({
       engineFactory: () => engine,
       persona: "You are Jarvis.",
+      serverOwnsDrain,
       persistence: {
         resolveActiveProvider: vi
           .fn()
@@ -206,17 +212,63 @@ describe("ChatSessionManager.launchSession — personaText + replayBatch + offse
     expect(engine.submitted[0]).toContain("earlier");
   });
 
-  it("RPC path (launch returns post-drain offset > 0): manager does NOT re-submit the replay", async () => {
-    // Replay was drained server-side; launch returns the post-drain offset.
+  it("RPC path (serverOwnsDrain, post-drain offset > 0): manager does NOT re-submit the replay", async () => {
+    // Replay was drained server-side; launch returns the post-drain offset and the explicit
+    // serverOwnsDrain discriminator tells the manager the server owns the submit+drain.
     const engine = new FakeEngine(42);
     const manager = new ChatSessionManager(
-      depsWith(engine, {
-        recent: [{ role: "user", content: "earlier" }],
-        oldSummary: null
-      })
+      depsWith(
+        engine,
+        {
+          recent: [{ role: "user", content: "earlier" }],
+          oldSummary: null
+        },
+        true // serverOwnsDrain = RPC path
+      )
     );
     await manager.ensureSession("u1", "Ben");
     expect(engine.submitted).toHaveLength(0); // no client-side re-submit
+  });
+
+  it("RPC path with serverOwnsDrain AND offset === 0: manager STILL does NOT re-submit (no double-submit over the socket)", async () => {
+    // The LOW-correctness edge this discriminator fixes: offset === 0 is ALSO a legitimate RPC
+    // result — a replay was submitted server-side but the transcript never materialized within
+    // the server's drain budget. Keying the in-process re-drain on `offset === 0` would make the
+    // manager DOUBLE-submit the replay over the socket. With the explicit serverOwnsDrain flag the
+    // RPC path is skipped REGARDLESS of the offset value.
+    const engine = new FakeEngine(0);
+    const manager = new ChatSessionManager(
+      depsWith(
+        engine,
+        {
+          recent: [{ role: "user", content: "earlier" }],
+          oldSummary: null
+        },
+        true // serverOwnsDrain = RPC path, even though launch returned offset 0
+      )
+    );
+    await manager.ensureSession("u1", "Ben");
+    expect(engine.submitted).toHaveLength(0); // NO double-submit despite offset 0
+  });
+
+  it("in-process path keeps re-draining even when launch happens to return offset > 0 (discriminator, not the sentinel)", async () => {
+    // Symmetric guard: serverOwnsDrain=false (in-process) must ALWAYS re-submit+drain the replay,
+    // regardless of the offset the engine returns — the decision is the discriminator, never the
+    // offset value.
+    const engine = new FakeEngine(7);
+    const manager = new ChatSessionManager(
+      depsWith(
+        engine,
+        {
+          recent: [{ role: "user", content: "earlier" }],
+          oldSummary: null
+        },
+        false // in-process path despite a non-zero launch offset
+      )
+    );
+    await manager.ensureSession("u1", "Ben");
+    expect(engine.submitted).toHaveLength(1);
+    expect(engine.submitted[0]).toContain("earlier");
   });
 
   it("§12 correctness: after a replay drained server-side, the first turn returns the NEW reply (not the replayed history)", async () => {
@@ -230,10 +282,14 @@ describe("ChatSessionManager.launchSession — personaText + replayBatch + offse
       }
     ]);
     const manager = new ChatSessionManager({
-      ...depsWith(engine, {
-        recent: [{ role: "user", content: "old turn that was replayed" }],
-        oldSummary: null
-      }),
+      ...depsWith(
+        engine,
+        {
+          recent: [{ role: "user", content: "old turn that was replayed" }],
+          oldSummary: null
+        },
+        true // RPC path: the server drained the replay to offset 100 at launch
+      ),
       pollMs: 0
     });
 
@@ -241,6 +297,8 @@ describe("ChatSessionManager.launchSession — personaText + replayBatch + offse
     expect(reply).toBe("fresh answer");
     // The engine was launched once and the replay was NOT re-submitted as a turn.
     expect(engine.launchCount).toBe(1);
+    // And the server-owned drain meant NO client-side replay submit at all.
+    expect(engine.submitted).toEqual(["new question"]);
   });
 });
 
@@ -321,6 +379,73 @@ describe("ChatSessionManager.reconcileLiveSessions (#342 §5.3)", () => {
 
     releaseLaunch();
     await launchPromise;
+  });
+
+  it("drops a stale RPC session (+ revokes its token) and still reaps step-4 orphans when the engine kill rejects under the reconcile guard", async () => {
+    // Regression for the step-3 self-misfire: on the RPC path `reconcileLiveSessions` runs INSIDE
+    // the connection's `runReconciliation` with `reconciling = true`, so a `session.engine.kill()`
+    // here routes through the gated public `RpcConnection.kill`, which throws
+    // CliChatUnavailableError("cli-runner reconciling after restart"). Before the fix that throw
+    // propagated out of step 3 BEFORE `sessions.delete` + `revokeMcpToken`, aborting the rest of
+    // the loop AND step 4 (orphan reaping). Step 3 must instead route the kill through the
+    // guard-bypassing `killSession` dep (and is try/catch-wrapped), so the drop + revoke + step 4
+    // all still happen. We model the failure with a fake RPC engine whose own `kill()` rejects.
+    const reconcilingError = new CliChatUnavailableError("cli-runner reconciling after restart");
+    // A fresh fake RPC engine per launch; whose kill rejects exactly as the gated public
+    // connection would mid-reconcile (so if step 3 ever calls engine.kill() it would throw and
+    // — pre-fix — abort the rest of the pass).
+    const engines: FakeEngine[] = [];
+    const engineFactory = vi.fn(() => {
+      const e = new FakeEngine(0);
+      e.kill = vi.fn().mockRejectedValue(reconcilingError) as unknown as FakeEngine["kill"];
+      engines.push(e);
+      return e;
+    });
+    const revokeMcpToken = vi.fn();
+    // killSession is the guard-bypassing reconcile-driver path (present on the RPC path). It is
+    // what step 3 + step 4 must both use; engine.kill() must NOT be the path step 3 takes.
+    const killSession = vi.fn().mockResolvedValue(undefined);
+    const manager = new ChatSessionManager(
+      makeMinimalDeps({
+        engineFactory,
+        persistence: {
+          resolveActiveProvider: vi
+            .fn()
+            .mockResolvedValue({ provider: "anthropic", model: "sonnet" }),
+          listPriorTurns: vi.fn().mockResolvedValue({ recent: [], oldSummary: null }),
+          recordTurn: vi.fn().mockResolvedValue(undefined),
+          openNewConversation: vi.fn().mockResolvedValue(undefined)
+        },
+        revokeMcpToken,
+        reconcileMcpTokens: vi.fn(),
+        // The registry knows uStale (the api held its token) but not uOrphan.
+        listMcpTokenSessionIds: () => ["uStale"],
+        killSession
+      })
+    );
+
+    // Seed a live session in the Map (uStale) the cli-runner will report DEAD.
+    await manager.ensureSession("uStale", "Ben");
+    expect(engines).toHaveLength(1);
+    const staleEngine = engines[0]!;
+
+    // cli-runner reports only uOrphan alive: uStale is stale (Map has it, liveKeys does not),
+    // uOrphan is an api-unknown live mux session that step 4 must reap by name.
+    await manager.reconcileLiveSessions(new Set(["uOrphan"]));
+
+    // Step 3 used the guard-bypassing killSession for the stale key, NOT the gated engine.kill().
+    expect(killSession).toHaveBeenCalledWith("uStale");
+    expect(staleEngine.kill).not.toHaveBeenCalled();
+    // The stale session was still dropped and its token revoked despite the kill path.
+    expect(revokeMcpToken).toHaveBeenCalledWith("uStale");
+    // Step 4 still fired (it was NOT aborted by a step-3 throw): the api-unknown orphan was
+    // reaped by mux name.
+    expect(killSession).toHaveBeenCalledWith("uOrphan");
+
+    // Proof the Map entry is gone: a fresh ensureSession relaunches a NEW engine (launches twice).
+    await manager.ensureSession("uStale", "Ben");
+    expect(engines).toHaveLength(2);
+    expect(engineFactory).toHaveBeenCalledTimes(2);
   });
 });
 

@@ -7,12 +7,27 @@
  * is ON (default). These tests drive a controllable fake TmuxIo that models the mux's
  * live-session set so the gate's liveKeys = (mux ∪ reservations) is exercised end to end.
  */
+import { createHmac, randomBytes } from "node:crypto";
+
 import { describe, expect, it, vi } from "vitest";
 
 import type { TmuxIo } from "../../packages/ai/src/adapters/tmux-bridge.js";
 import { CliChatEngineHost } from "../../packages/cli-runner/src/engine-host.js";
+import {
+  serveConnection,
+  type ByteChannel,
+  type ConnectionDeps
+} from "../../packages/cli-runner/src/connection.js";
 import { CliChatUnavailableError } from "../../packages/chat/src/live/errors.js";
 import { SESSION_PREFIX } from "../../packages/chat/src/live/cli-chat-engine.js";
+import {
+  decodeFrame,
+  encodeFrame,
+  HELLO_PROOF_TAG_CLIENT,
+  MAX_FRAME_BYTES,
+  type RpcErr,
+  type RpcHelloChallenge
+} from "../../packages/chat/src/live/rpc-contract.js";
 
 const NEUTRAL_BASE = "/data/cli-auth/chat";
 
@@ -48,13 +63,15 @@ function makeFakeIo(opts: { newSessionGate?: Promise<void> } = {}): {
         return { code: 0, stdout: [...live].join("\n"), stderr: "" };
       }
       if (verb === "kill-session") {
-        const name = args[args.indexOf("-t") + 1]!;
+        // §4.5 targets by EXACT name `=jarv1s-live-<key>` (the `=` forces tmux exact, non-prefix
+        // resolution). The live Set stores bare session names, so strip a leading `=` to match.
+        const name = args[args.indexOf("-t") + 1]!.replace(/^=/, "");
         live.delete(name);
         return { code: 0, stdout: "", stderr: "" };
       }
       // send-keys, load-buffer, paste-buffer, has-session → ok
       if (verb === "has-session") {
-        const name = args[args.indexOf("-t") + 1]!;
+        const name = args[args.indexOf("-t") + 1]!.replace(/^=/, "");
         return { code: live.has(name) ? 0 : 1, stdout: "", stderr: "" };
       }
       return { code: 0, stdout: "", stderr: "" };
@@ -196,7 +213,9 @@ describe("§6.5 startup CLEAN-SLATE sweep", () => {
           if (verb === "list-sessions")
             return { code: 0, stdout: [...live].join("\n"), stderr: "" };
           if (verb === "kill-session") {
-            live.delete(args[args.indexOf("-t") + 1]!);
+            // §4.5 exact-name target `=jarv1s-live-<key>`: strip the leading `=` to match the
+            // bare session names held in `live`.
+            live.delete(args[args.indexOf("-t") + 1]!.replace(/^=/, ""));
             return { code: 0, stdout: "", stderr: "" };
           }
           return { code: 0, stdout: "", stderr: "" };
@@ -233,5 +252,235 @@ describe("§6.5 startup CLEAN-SLATE sweep", () => {
 
     // Now a fresh user can launch — the liveKeys set is truthful/empty after the sweep.
     await expect(host.launch("newuser", launchParams())).resolves.toBeDefined();
+  });
+});
+
+/**
+ * A per-name-gated fake TmuxIo: a launch for `gatedName` wedges its `new-session` behind a
+ * caller-released promise (modelling a hung/slow tmux past launchTimeoutMs); every other
+ * `new-session` proceeds immediately. `kill-session -t =<name>` strips the leading `=`
+ * exact-match marker (killMuxSessionByName uses `=name`) before deleting, so kills land on
+ * the stored name. Records every killed name so the test can assert the late orphan is reaped.
+ */
+function makeGatedIo(opts: { gatedName: string; gate: Promise<void> }): {
+  io: TmuxIo;
+  live: Set<string>;
+  killed: string[];
+} {
+  const live = new Set<string>();
+  const killed: string[] = [];
+  const completeTranscript = JSON.stringify({
+    type: "assistant",
+    message: { role: "assistant", content: [{ type: "text", text: "ok" }], stop_reason: "end_turn" }
+  });
+  const strip = (target: string): string => (target.startsWith("=") ? target.slice(1) : target);
+
+  const run = vi.fn(async (cmd: string, args: readonly string[]) => {
+    if (cmd === "tmux") {
+      const verb = args[0];
+      if (verb === "new-session") {
+        const name = args[args.indexOf("-s") + 1]!;
+        if (name === opts.gatedName) await opts.gate; // wedge ONLY the gated key
+        live.add(name);
+        return { code: 0, stdout: "", stderr: "" };
+      }
+      if (verb === "list-sessions") {
+        return { code: 0, stdout: [...live].join("\n"), stderr: "" };
+      }
+      if (verb === "kill-session") {
+        const name = strip(args[args.indexOf("-t") + 1]!);
+        killed.push(name);
+        live.delete(name);
+        return { code: 0, stdout: "", stderr: "" };
+      }
+      if (verb === "has-session") {
+        const name = strip(args[args.indexOf("-t") + 1]!);
+        return { code: live.has(name) ? 0 : 1, stdout: "", stderr: "" };
+      }
+      return { code: 0, stdout: "", stderr: "" };
+    }
+    // rm / ls / mkdir / chmod → ok (ls returns "no entries" so the sweep is a no-op here).
+    if (cmd === "ls") return { code: 1, stdout: "", stderr: "" };
+    return { code: 0, stdout: "", stderr: "" };
+  });
+
+  const io: TmuxIo = {
+    run: run as unknown as TmuxIo["run"],
+    readFile: vi.fn().mockResolvedValue(completeTranscript),
+    writeFile: vi.fn().mockResolvedValue(undefined),
+    sleep: vi.fn().mockResolvedValue(undefined)
+  };
+  return { io, live, killed };
+}
+
+describe("UNPROVEN-1: wedged launch past launchTimeoutMs releases the reservation AND reaps the late orphan", () => {
+  it("a wedged alice launch times out (unavailable), admits a DIFFERENT bob, then reaps alice's late mux session", async () => {
+    let openAlice!: () => void;
+    const aliceGate = new Promise<void>((res) => {
+      openAlice = res;
+    });
+    const { io, live, killed } = makeGatedIo({
+      gatedName: `${SESSION_PREFIX}alice`,
+      gate: aliceGate
+    });
+    // A short timeout so alice's wedged new-session blows the launch budget quickly.
+    const host = new CliChatEngineHost({
+      io,
+      neutralBase: NEUTRAL_BASE,
+      singleUser: true,
+      cliPresent: async () => true,
+      launchTimeoutMs: 20
+    });
+
+    // (1) alice's launch wedges in new-session and times out → unavailable. The reservation
+    // for alice MUST be released by the timeout's finally (fail-safe, §4.1.0a) so the gate
+    // is not frozen by a hung tmux.
+    await expect(host.launch("alice", launchParams())).rejects.toBeInstanceOf(
+      CliChatUnavailableError
+    );
+    // alice is NOT yet live (still wedged) and its reservation is gone.
+    expect(live.has(`${SESSION_PREFIX}alice`)).toBe(false);
+
+    // (2) A DIFFERENT user is now admitted — proving the reservation was released, not stranded.
+    await expect(host.launch("bob", launchParams())).resolves.toBeDefined();
+    expect(live.has(`${SESSION_PREFIX}bob`)).toBe(true);
+
+    // (3) Now alice's wedged new-session completes LATE — it would create jarv1s-live-alice
+    // AFTER the timeout already released the reservation. The late-success reaper must kill
+    // that orphan immediately (not rely on the startup sweep / api reconcile, §4.1.0a).
+    openAlice();
+    // Let alice's launchPromise settle and the reaper continuation run.
+    await new Promise((r) => setTimeout(r, 20));
+    await Promise.resolve();
+
+    expect(killed).toContain(`${SESSION_PREFIX}alice`);
+    expect(live.has(`${SESSION_PREFIX}alice`)).toBe(false);
+    // bob — the legitimately-admitted session — survives the reap (only alice was reaped).
+    expect(live.has(`${SESSION_PREFIX}bob`)).toBe(true);
+    expect(host.liveEngineCount()).toBe(1);
+  });
+});
+
+// ─── §3.2/§4.4 oversize readNew OK → in-band RpcErr{internal}, NOT a close ─────────
+
+const RPC_SECRET = "oversize-test-secret";
+const OVERSIZE_BOOT = "boot-oversize";
+
+function hmacClient(nonce: string): string {
+  return createHmac("sha256", RPC_SECRET)
+    .update(HELLO_PROOF_TAG_CLIENT + nonce)
+    .digest("hex");
+}
+
+/** A scriptable in-memory ByteChannel that records what the server wrote. */
+class FakeChannel implements ByteChannel {
+  readonly written: Buffer[] = [];
+  closed = false;
+  private dataListener?: (chunk: Buffer) => void;
+  private closeListener?: () => void;
+
+  write(buf: Buffer): void {
+    if (this.closed) return;
+    this.written.push(buf);
+  }
+  end(): void {
+    this.closed = true;
+    this.closeListener?.();
+  }
+  on(event: "data" | "close" | "error", listener: (chunk: Buffer) => void): void {
+    if (event === "data") this.dataListener = listener;
+    else this.closeListener = listener as () => void;
+  }
+  feed(buf: Buffer): void {
+    this.dataListener?.(buf);
+  }
+  decodeAll(): unknown[] {
+    let buf = Buffer.concat(this.written);
+    const out: unknown[] = [];
+    for (;;) {
+      const res = decodeFrame(buf);
+      if (res.kind !== "frame") break;
+      out.push(JSON.parse(res.body.toString("utf8")));
+      buf = buf.subarray(res.consumed);
+    }
+    return out;
+  }
+}
+
+/** Drive the client side of the §3.6 handshake against a FakeChannel until authed. */
+function authenticate(channel: FakeChannel): void {
+  const clientNonce = randomBytes(32).toString("hex");
+  channel.feed(encodeFrame({ t: "hello", clientNonce }));
+  const challenge = channel
+    .decodeAll()
+    .find((f) => (f as { t?: string }).t === "hello-challenge") as RpcHelloChallenge;
+  channel.feed(
+    encodeFrame({ t: "hello-response", clientProof: hmacClient(challenge.serverNonce) })
+  );
+}
+
+describe("§3.2/§4.4 oversize readNew", () => {
+  it("an OK readNew result that would exceed MAX_FRAME_BYTES returns RpcErr{internal} WITHOUT closing", async () => {
+    const { io } = makeFakeIo();
+    const host = makeHost(io);
+    // Force readNew to return a single pathological record whose text alone overflows the
+    // frame cap — the OK response would not be framable. The server MUST convert this to an
+    // in-band RpcErr{internal} rather than letting encodeFrame throw into the close path.
+    vi.spyOn(host, "readNew").mockResolvedValue({
+      records: [{ kind: "reply", text: "x".repeat(MAX_FRAME_BYTES + 1024) }],
+      offset: MAX_FRAME_BYTES + 1024,
+      complete: true
+    });
+
+    const channel = new FakeChannel();
+    const deps: ConnectionDeps = { host, bootId: OVERSIZE_BOOT, secret: RPC_SECRET };
+    serveConnection(channel, deps);
+    authenticate(channel);
+
+    channel.feed(
+      encodeFrame({
+        t: "req",
+        id: 42,
+        method: "readNew",
+        sessionKey: "alice",
+        params: { afterOffset: 0 }
+      })
+    );
+    await new Promise((r) => setTimeout(r, 10));
+
+    const err = channel.decodeAll().find((f) => (f as RpcErr).id === 42) as RpcErr;
+    expect(err).toBeDefined();
+    expect(err.t).toBe("err");
+    expect(err.error.code).toBe("internal");
+    expect(err.bootId).toBe(OVERSIZE_BOOT);
+    // The error frame itself is tiny and well under the cap, and the connection survives.
+    expect(channel.closed).toBe(false);
+  });
+
+  it("threads the decoded frame byte-length into the dispatch log (no longer bytes:0)", async () => {
+    const { io } = makeFakeIo();
+    const host = makeHost(io);
+    vi.spyOn(host, "listLiveSessions").mockResolvedValue([]);
+
+    const logged: Array<{ method?: string; id?: number; bytes: number }> = [];
+    const channel = new FakeChannel();
+    const deps: ConnectionDeps = {
+      host,
+      bootId: OVERSIZE_BOOT,
+      secret: RPC_SECRET,
+      log: (line) => logged.push(line)
+    };
+    serveConnection(channel, deps);
+    authenticate(channel);
+
+    const reqFrame = encodeFrame({ t: "req", id: 5, method: "listLiveSessions", params: {} });
+    channel.feed(reqFrame);
+    await new Promise((r) => setTimeout(r, 5));
+
+    const entry = logged.find((l) => l.id === 5);
+    expect(entry).toBeDefined();
+    // bytes = the JSON payload length (frame minus the 4-byte length prefix), NOT 0.
+    expect(entry!.bytes).toBe(reqFrame.length - 4);
+    expect(entry!.bytes).toBeGreaterThan(0);
   });
 });
