@@ -5,6 +5,7 @@ import { useEffect, useRef, useState } from "react";
 
 import { updateMyProfile } from "../api/client";
 import { queryKeys } from "../api/query-keys";
+import { DeleteAccount } from "./delete-account";
 import { DataExport, Sessions } from "./settings-profile-subviews";
 import type { PaneProps } from "./settings-types";
 import { Avatar, Badge, Field, Group, PaneHead, Row } from "./settings-ui";
@@ -162,13 +163,7 @@ export function ProfilePane({ me }: PaneProps) {
 
       <DataExport />
 
-      <Group title="Danger zone">
-        <Row
-          name="Delete account"
-          desc="Permanently remove your account and personal data."
-          coming
-        />
-      </Group>
+      <DeleteAccount me={me} />
     </>
   );
 }

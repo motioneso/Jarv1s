@@ -96,6 +96,11 @@ export const settingsModuleManifest: JarvisModuleManifest = {
       permissionId: "settings.view"
     },
     {
+      method: "DELETE",
+      path: "/api/me/account",
+      permissionId: "settings.view"
+    },
+    {
       method: "GET",
       path: "/api/me/persona",
       permissionId: "settings.view"

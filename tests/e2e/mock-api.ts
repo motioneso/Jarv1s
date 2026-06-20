@@ -105,7 +105,8 @@ const meResponse: MeResponse = {
     createdAt: "2026-06-06T12:00:00.000Z",
     updatedAt: "2026-06-06T12:00:00.000Z"
   },
-  profilePrefs: { addressed: null }
+  profilePrefs: { addressed: null },
+  hasPasswordCredential: true
 };
 
 function meResponseFor(state: MockApiState): MeResponse {
@@ -120,7 +121,8 @@ function meResponseFor(state: MockApiState): MeResponse {
       isBootstrapOwner:
         state.isBootstrapOwner ?? (isInstanceAdmin && meResponse.user.isBootstrapOwner)
     },
-    profilePrefs: meResponse.profilePrefs
+    profilePrefs: meResponse.profilePrefs,
+    hasPasswordCredential: meResponse.hasPasswordCredential
   };
 }
 

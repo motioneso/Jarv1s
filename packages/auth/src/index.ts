@@ -4,6 +4,7 @@ import type { IncomingHttpHeaders } from "node:http";
 import { betterAuth } from "better-auth";
 import type { BetterAuthOptions } from "better-auth";
 import { APIError } from "better-auth/api";
+import { verifyPassword } from "better-auth/crypto";
 import { genericOAuth, type GenericOAuthConfig } from "better-auth/plugins/generic-oauth";
 import { sql, type Kysely } from "kysely";
 import pg from "pg";
@@ -53,6 +54,28 @@ export interface JarvisAuthRuntime {
   readonly revokeUserSessions: (userId: string) => Promise<number>;
   /** Current-user session list/revoke (#237) — owns all session-table access for this surface. */
   readonly meSessions: MeSessionsRuntimeService;
+  /**
+   * Verifies the actor's own email/password credential for self-service destructive
+   * confirmation (#239). Scoped to the actor's `auth_accounts` row
+   * (`provider_id = 'credential'` AND non-null `password`); uses better-auth's
+   * constant-time `verifyPassword` so no sign-in/session machinery runs and no
+   * session row is created. Returns a boolean only — never the hash, never a
+   * structured error (the route decides the HTTP code). Absent credential or
+   * mismatched password both return false.
+   */
+  readonly verifySelfPassword: (input: {
+    readonly actorUserId: string;
+    readonly password: string;
+  }) => Promise<boolean>;
+  /**
+   * Existence-only probe: does the actor own an email/password credential
+   * (`app.auth_accounts` row with `provider_id = 'credential'` and a non-null
+   * `password`)? Runs on the auth pool because migration 0045 REVOKED
+   * `jarvis_app_runtime` SELECT on `app.auth_accounts` (it holds password hashes
+   * + OAuth tokens) — the settings route layer cannot read that table directly.
+   * Returns a boolean only; NEVER selects the password hash (#239).
+   */
+  readonly hasPasswordCredential: (actorUserId: string) => Promise<boolean>;
   readonly close: () => Promise<void>;
 }
 
@@ -125,6 +148,31 @@ export function createJarvisAuthRuntime(
       return result.rowCount ?? 0;
     },
     meSessions: createMeSessionsService({ pool, auth }),
+    verifySelfPassword: async ({ actorUserId, password }) => {
+      // Scope strictly to the actor's own credential row. provider_id='credential'
+      // AND a non-null password define "this account owns a password credential"
+      // (the same existence check GET /api/me exposes as hasPasswordCredential).
+      const result = await pool.query<{ password: string }>(
+        `SELECT password FROM app.auth_accounts
+         WHERE user_id = $1::uuid AND provider_id = 'credential' AND password IS NOT NULL`,
+        [actorUserId]
+      );
+      const hash = result.rows[0]?.password;
+      if (!hash) return false;
+      return verifyPassword({ hash, password });
+    },
+    hasPasswordCredential: async (actorUserId) => {
+      // Existence only — never select the hash. Runs on the auth pool because
+      // jarvis_app_runtime's SELECT on auth_accounts was revoked (0045).
+      const result = await pool.query<{ exists: boolean }>(
+        `SELECT EXISTS (
+           SELECT 1 FROM app.auth_accounts
+           WHERE user_id = $1::uuid AND provider_id = 'credential' AND password IS NOT NULL
+         ) AS exists`,
+        [actorUserId]
+      );
+      return result.rows[0]?.exists ?? false;
+    },
     close: () => pool.end()
   };
 }
