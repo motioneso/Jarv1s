@@ -124,6 +124,13 @@ const CODEX_AUTH_URLS: readonly LoginAuthUrlPattern[] = [
  */
 const USER_CODE_PATTERN = /^[A-Za-z0-9_-]{6,128}$/;
 
+/**
+ * (#363) claude `setup-token` prints a long-lived OAuth token (`sk-ant-oat…`) on success. The
+ * login service captures it from the pane (post-paste) and persists it via the token store; it
+ * is a SECRET (never surfaced). Tight: the `sk-ant-oat` prefix + the token charset, bounded.
+ */
+const ANTHROPIC_TOKEN_CAPTURE = /sk-ant-oat[A-Za-z0-9_-]{20,300}/;
+
 const RAW_ADAPTERS: Record<RpcProviderKind, LoginAdapter | undefined> = {
   anthropic: {
     provider: "anthropic",
@@ -134,7 +141,9 @@ const RAW_ADAPTERS: Record<RpcProviderKind, LoginAdapter | undefined> = {
     mode: "paste",
     authUrlAllowlist: ANTHROPIC_AUTH_URLS,
     userCodePattern: USER_CODE_PATTERN,
-    extractSurface: makeExtractSurface(ANTHROPIC_AUTH_URLS, USER_CODE_PATTERN)
+    extractSurface: makeExtractSurface(ANTHROPIC_AUTH_URLS, USER_CODE_PATTERN),
+    // #363: capture the minted setup-token credential from the success pane (claude-scoped).
+    tokenCapturePattern: ANTHROPIC_TOKEN_CAPTURE
   },
   "openai-compatible": {
     provider: "openai-compatible",

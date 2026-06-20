@@ -40,6 +40,7 @@ import type { Multiplexer, ProviderKind, TmuxIo } from "@jarv1s/ai";
 import { Mutex } from "./mutex.js";
 import type { InstallService } from "./install-service.js";
 import { LoginBadRequestError, type LoginService } from "./login-service.js";
+import { providerTokenPath, readProviderCredentialEnv } from "./provider-token-store.js";
 
 export interface EngineHostDeps {
   readonly io: TmuxIo;
@@ -147,7 +148,12 @@ export class CliChatEngineHost {
     const engine = new CliChatEngineImpl(params.provider as ProviderKind, key, this.deps.io, {
       mux: this.deps.mux,
       homeBase: this.deps.homeBase,
-      ownsDrain: true
+      ownsDrain: true,
+      // #363: the 0600 token file the claude launch reads CLAUDE_CODE_OAUTH_TOKEN from at
+      // runtime (claude-scoped; only used by buildClaudeCommand, only if the file exists).
+      credentialFile: this.deps.homeBase
+        ? providerTokenPath(this.deps.homeBase, params.provider)
+        : undefined
     });
     const neutralDir = deriveNeutralDir(this.deps.neutralBase, key);
 
@@ -277,7 +283,11 @@ export class CliChatEngineHost {
     const result: ProbeProviderResult = await probeProvider(provider as ProviderKind, {
       io: this.deps.io,
       cliPresent: this.deps.cliPresent,
-      multiplexerUsable: this.deps.multiplexerUsable
+      multiplexerUsable: this.deps.multiplexerUsable,
+      // #363: inject the persisted claude OAuth token so `auth status` reports loggedIn.
+      credentialEnv: this.deps.homeBase
+        ? await readProviderCredentialEnv(this.deps.homeBase, provider)
+        : undefined
     });
     return { status: result.status, message: result.message };
   }

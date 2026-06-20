@@ -133,4 +133,14 @@ describe("UNPROVEN-3: createSanitizedTmuxIo spawns the CLI child with the §7.2 
     expect(serialized).not.toContain("pg-password");
     expect(serialized).not.toContain("/run/jarv1s/cli-runner.sock");
   });
+
+  it("does NOT pass CLAUDE_CODE_OAUTH_TOKEN through the global allowlist (claude-scoped, #363)", () => {
+    // The captured claude credential is injected PER-CALL (the auth probe + the claude launch),
+    // never via the §7.2 passthrough — so it can never leak into a codex/gemini CLI child's env.
+    const childEnv = buildSanitizedCliEnv({
+      PATH: "/usr/bin",
+      CLAUDE_CODE_OAUTH_TOKEN: "sk-ant-oat-SHOULD-NOT-LEAK"
+    });
+    expect(childEnv.CLAUDE_CODE_OAUTH_TOKEN).toBeUndefined();
+  });
 });

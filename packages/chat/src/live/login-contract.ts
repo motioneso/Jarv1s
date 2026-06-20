@@ -81,6 +81,14 @@ export interface LoginAdapter {
   readonly authUrlAllowlist: readonly LoginAuthUrlPattern[];
   /** Tight regex the displayed device/pairing code MUST match, else it is dropped (§L.6.2). */
   readonly userCodePattern: RegExp;
+  /**
+   * (#363, token-based providers only) Tight regex matching the long-lived credential the login
+   * CLI PRINTS on success (e.g. claude `setup-token` → `sk-ant-oat…`). When present, the login
+   * service captures the match after the paste and persists it via the provider-token-store; the
+   * captured value is a SECRET (added to `redactExact`, never surfaced). Absent ⇒ the provider
+   * persists its own on-disk credential at login (codex/gemini) and no capture happens.
+   */
+  readonly tokenCapturePattern?: RegExp;
 }
 
 /**
