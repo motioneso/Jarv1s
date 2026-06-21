@@ -84,7 +84,9 @@ describe("AI auto-register default chat model on login (#367)", () => {
     );
 
     const { providers, models } = await dataContext.withDataContext(adminCtx(), async (db) => ({
-      providers: (await repository.listProviders(db)).filter((p) => p.provider_kind === "anthropic"),
+      providers: (await repository.listProviders(db)).filter(
+        (p) => p.provider_kind === "anthropic"
+      ),
       models: await repository.listModels(db)
     }));
 
