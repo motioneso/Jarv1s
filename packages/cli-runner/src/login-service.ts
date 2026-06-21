@@ -28,6 +28,7 @@ import { persistProviderToken } from "./provider-token-store.js";
 import {
   killLoginMuxSession,
   listLoginMuxSessions,
+  listLoginMuxSessionsWithAge,
   LOGIN_SESSION_PREFIX,
   type ProbeProviderResult
 } from "../../chat/src/live/cli-chat-engine.js";
@@ -294,6 +295,39 @@ export class LoginService {
       }
     }
     this.flow = null;
+  }
+
+  /**
+   * v0.1.3 max-age reaper (ADDITIVE defense-in-depth — does NOT change the §L.6.1 admission-gate
+   * semantics). The server drives this periodically while running. It kills any live
+   * `jarv1s-login-*` mux session older than `maxAgeMs` and, if the in-memory flow matches, clears
+   * it. This is a DISK-level BACKSTOP to the per-flow {@link armDeadline} in-memory reaper: a login
+   * that hung/was abandoned past its lifetime — or whose session a failed kill stranded — would
+   * otherwise keep `isLoginActive()` true (the gate reads disk liveness) and permanently block chat
+   * until the next restart. Once the stale session is gone and the flow is cleared, `isLoginActive`
+   * naturally returns false and the SAME gate reopens — the single-active admission mutex (login ⟂
+   * chat ⟂ other logins) is untouched.
+   *
+   * `maxAgeMs` defaults to {@link DEFAULT_LOGIN_TIMEOUT_MS} (the overall login lifetime, 10 min),
+   * so a legitimate slow OAuth round-trip (open URL, authenticate, paste code) is NEVER reaped —
+   * this only fires strictly past the existing lifetime bound. Best-effort: never throws.
+   */
+  async reapStaleLogins(maxAgeMs: number = this.loginTimeoutMs): Promise<void> {
+    const sessions = await listLoginMuxSessionsWithAge(this.deps.io).catch(
+      () => [] as { provider: string; ageMs: number }[]
+    );
+    for (const { provider, ageMs } of sessions) {
+      if (ageMs <= maxAgeMs) continue; // a within-lifetime (possibly active) login — leave it
+      // Clear a matching in-memory flow (+ its armed deadline timer) so the slot is freed and the
+      // late deadline reaper does not double-teardown.
+      if (this.flow && this.flow.provider === provider) {
+        if (this.flow.timer) clearTimeout(this.flow.timer);
+        this.flow.heldToken = undefined;
+        this.flow = null;
+      }
+      await killLoginMuxSession(this.deps.io, provider).catch(() => undefined);
+      await this.deleteLoginBuffer(provider as RpcProviderKind).catch(() => undefined);
+    }
   }
 
   // ─── internals ──────────────────────────────────────────────────────────────

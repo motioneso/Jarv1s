@@ -12,7 +12,6 @@ import { CliAuthStep } from "./cli-auth-step";
 import { ConnectorStep } from "./connector-step";
 import { MemberConnectorStep } from "./member-connector-step";
 import { MemberWelcomeStep } from "./member-welcome-step";
-import { MultiplexerStep } from "./multiplexer-step";
 import { SectionTourStep } from "./section-tour-step";
 import { WelcomeStep } from "./welcome-step";
 import { firstIncompleteStepIndex } from "./resume";
@@ -20,7 +19,7 @@ import { SkipConfirmDialog, needsSkipConfirm } from "./skip-confirm";
 import { hasConnectedProvider } from "./chat-availability";
 import { requestAskJarvis } from "./ask-jarvis-handoff";
 
-const FOUNDER_ORDER = ["welcome", "multiplexer", "cliAuth", "connectors", "finish"] as const;
+const FOUNDER_ORDER = ["welcome", "cliAuth", "connectors", "finish"] as const;
 const MEMBER_ORDER = ["welcome", "assistant", "accounts", "tour", "finish"] as const;
 
 interface RailStep {
@@ -32,9 +31,8 @@ interface RailStep {
 
 const FOUNDER_RAIL: readonly RailStep[] = [
   { key: "welcome", label: "Welcome", mono: "Start" },
-  { key: "multiplexer", label: "Control channel", mono: "01" },
-  { key: "cliAuth", label: "Assistant", mono: "02" },
-  { key: "connectors", label: "Google", mono: "03", optional: true },
+  { key: "cliAuth", label: "Assistant", mono: "01" },
+  { key: "connectors", label: "Google", mono: "02", optional: true },
   { key: "finish", label: "Finish", mono: "Done" }
 ];
 
@@ -307,9 +305,6 @@ export function OnboardingWizard(props: {
           ) : (
             <>
               {currentKey === "welcome" ? <WelcomeStep onSkipAll={requestSkip} /> : null}
-              {currentKey === "multiplexer" && founderSteps ? (
-                <MultiplexerStep step={founderSteps.multiplexer} onRecheck={invalidateStatus} />
-              ) : null}
               {currentKey === "cliAuth" && founderSteps ? (
                 <CliAuthStep step={founderSteps.cliAuth} onRecheck={invalidateStatus} />
               ) : null}
@@ -388,12 +383,6 @@ export function FinishStep(props: {
         { k: "Tour", v: "Tour finished" }
       ]
     : [
-        {
-          k: "Control channel",
-          v: props.founderSteps?.multiplexer.selected ?? "Auto",
-          mono: props.founderSteps?.multiplexer.done ? "ready" : "set up later",
-          skip: !props.founderSteps?.multiplexer.done
-        },
         {
           k: "Provider",
           v: "CLI provider",

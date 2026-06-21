@@ -138,8 +138,6 @@ export interface OnboardingInstallDependencies {
 }
 
 export interface OnboardingProbes {
-  /** Bounded live probe; herdr accounts for the root-pane requirement. */
-  readonly multiplexerUsable: (kind: "tmux" | "herdr") => Promise<boolean>;
   /** Provider CLI presence (presence-only). Bounded live probe. */
   readonly cliPresent: (kind: OnboardingProviderKind) => Promise<boolean>;
   /** Explicit provider auth/connection check. Bounded live probe; never run by status. */
@@ -500,9 +498,8 @@ export function registerOnboardingRoutes(
           accessContext,
           async (scopedDb) => {
             await dependencies.assertBootstrapOwnerAdminUser(scopedDb, accessContext.actorUserId);
-            const [state, selected, connectorAccountExists] = await Promise.all([
+            const [state, connectorAccountExists] = await Promise.all([
               repository.readOnboardingState(scopedDb),
-              repository.readChatMultiplexerChoiceOrNull(scopedDb),
               probes.connectorAccountExists(scopedDb)
             ]);
             // §A.5 step 2 / §A.4.2: read the persisted install lifecycle, correcting any stale
@@ -526,7 +523,6 @@ export function registerOnboardingRoutes(
               : undefined;
             return {
               state,
-              selected,
               connectorAccountExists,
               installStateByKind,
               installableByKind
@@ -534,9 +530,7 @@ export function registerOnboardingRoutes(
           }
         );
 
-        const [tmuxUsable, herdrUsable, anthropic, openaiCompatible, google] = await Promise.all([
-          probes.multiplexerUsable("tmux"),
-          probes.multiplexerUsable("herdr"),
+        const [anthropic, openaiCompatible, google] = await Promise.all([
           probes.cliPresent("anthropic"),
           probes.cliPresent("openai-compatible"),
           probes.cliPresent("google")
@@ -544,8 +538,6 @@ export function registerOnboardingRoutes(
 
         return repository.assembleOnboardingStatus({
           state: dbPart.state,
-          selected: dbPart.selected,
-          availability: { tmuxUsable, herdrUsable },
           cliPresentByKind: { anthropic, "openai-compatible": openaiCompatible, google },
           connectorAccountExists: dbPart.connectorAccountExists,
           ...(dbPart.installStateByKind !== undefined

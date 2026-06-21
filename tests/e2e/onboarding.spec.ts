@@ -32,9 +32,13 @@ test("bootstrap owner with incomplete onboarding sees the wizard, then the app s
     await continueButton.click();
   }
   await expect(page.getByRole("heading", { name: "Jarvis is ready." })).toBeVisible();
-  await expect(page.getByLabel("Onboarding step").getByText("Control channel")).toBeVisible();
+  // v0.1.3 founder flow: welcome → Assistant (cliAuth) → Google (connectors) → Finish.
+  // The multiplexer "Control channel" step is gone; the finish recap shows Provider + Google.
   await expect(
     page.getByLabel("Onboarding step").getByText("Provider", { exact: true })
+  ).toBeVisible();
+  await expect(
+    page.getByLabel("Onboarding step").getByText("Google", { exact: true })
   ).toBeVisible();
   await page.getByRole("button", { name: "Open today’s brief" }).click();
 
@@ -64,7 +68,7 @@ test("Skip setup on the first step reaches the app shell", async ({ page }) => {
   ).not.toBeVisible();
 });
 
-test("provider auth test is an explicit installed-provider action", async ({ page }) => {
+test("a connected provider renders the ready state on the cliAuth step", async ({ page }) => {
   await mockApi(page, {
     authenticated: true,
     isInstanceAdmin: true,
@@ -74,15 +78,11 @@ test("provider auth test is an explicit installed-provider action", async ({ pag
     notifications: [],
     tasks: [],
     onboardingStatus: defaultOnboardingStatus({
+      // v0.1.3: onboarding offers only `anthropic`; the multiplexer step is gone.
       steps: {
-        multiplexer: { done: false, selected: null, tmuxUsable: false, herdrUsable: false },
         cliAuth: {
           done: true,
-          providers: [
-            { kind: "anthropic", cliPresent: true },
-            { kind: "openai-compatible", cliPresent: false },
-            { kind: "google", cliPresent: false }
-          ]
+          providers: [{ kind: "anthropic", cliPresent: true, installState: "ready" }]
         },
         connectors: { done: false }
       }
@@ -91,11 +91,9 @@ test("provider auth test is an explicit installed-provider action", async ({ pag
 
   await page.goto("/");
   await page.getByRole("button", { name: /Continue/ }).click();
-  await expect(page.getByRole("heading", { name: "Choose your AI provider." })).toBeVisible();
-  await expect(page.getByText("Not installed")).toHaveCount(2);
-
-  await page.getByRole("button", { name: "Test login" }).click();
-  await expect(page.getByText("Signed in & ready")).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Connect your AI provider." })).toBeVisible();
+  await expect(page.getByText("1 provider connected · chat is ready")).toBeVisible();
+  await expect(page.getByText("Connected")).toBeVisible();
 });
 
 test("a non-owner never sees the wizard", async ({ page }) => {

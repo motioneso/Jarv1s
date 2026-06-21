@@ -101,54 +101,18 @@ describe("Phase 2 onboarding — getOnboardingStatus (derived steps)", () => {
     const body = res.json() as {
       state: string;
       steps: {
-        multiplexer: { done: boolean; selected: string | null };
         cliAuth: { done: boolean; providers: { kind: string; cliPresent: boolean }[] };
         connectors: { done: boolean };
       };
     };
     expect(body.state).toBe("pending");
-    // selected is null only when no chat.multiplexer row exists yet on a fresh instance.
-    expect(body.steps.multiplexer.selected).toBeNull();
-    // multiplexer.done is false because nothing is selected/usable yet (host-independent:
-    // selected===null ⇒ not done regardless of installed binaries).
-    expect(body.steps.multiplexer.done).toBe(false);
+    // v0.1.3: the multiplexer onboarding step was removed (the container forces tmux) — the
+    // steps object now carries only cliAuth + connectors.
+    expect("multiplexer" in body.steps).toBe(false);
+    expect(body.steps.cliAuth.done).toBe(false);
     expect(body.steps.connectors.done).toBe(false);
     // No secret-shaped field anywhere.
     expect(JSON.stringify(body)).not.toMatch(/token|secret|password|credential/i);
-  });
-
-  it("marks the multiplexer step done after chat.multiplexer is set to a usable choice", async () => {
-    // Use the DEDICATED, audited adapter route (PUT /api/admin/chat-multiplexer) — the
-    // single owner of chat.multiplexer. Onboarding never writes that key directly.
-    const put = await server.inject({
-      method: "PUT",
-      url: "/api/admin/chat-multiplexer",
-      headers: { cookie: ownerCookie, "content-type": "application/json" },
-      payload: { multiplexer: "auto" }
-    });
-    expect(put.statusCode).toBe(200);
-
-    const res = await server.inject({
-      method: "GET",
-      url: "/api/onboarding/status",
-      headers: { cookie: ownerCookie }
-    });
-    const body = res.json() as {
-      steps: {
-        multiplexer: {
-          done: boolean;
-          selected: string | null;
-          tmuxUsable: boolean;
-          herdrUsable: boolean;
-        };
-      };
-    };
-    // selected reflects the persisted choice ("auto"). done depends on host usability,
-    // which is host-dependent in the real server; assert selected + that done is a boolean
-    // consistent with usability (done ⇔ at least one usable for "auto").
-    expect(body.steps.multiplexer.selected).toBe("auto");
-    const anyUsable = body.steps.multiplexer.tmuxUsable || body.steps.multiplexer.herdrUsable;
-    expect(body.steps.multiplexer.done).toBe(anyUsable);
   });
 
   it("derives connectors.done=true after a real connector account exists", async () => {
@@ -175,41 +139,48 @@ describe("Phase 2 onboarding — getOnboardingStatus (derived steps)", () => {
     expect(status.body).not.toMatch(/seeded-token-not-asserted|accessToken|ciphertext/i);
   });
 
-  it("assembleOnboardingStatus derives flags from a settings row + availability snapshot + connector bool", () => {
+  it("assembleOnboardingStatus derives flags from CLI presence + connector bool (no multiplexer step)", () => {
     // Pure assembler — no DB, no host, no transaction. Exercised directly so derivation
     // logic runs deterministically regardless of the CI host's installed binaries.
     const repository = new SettingsRepository();
     const status = repository.assembleOnboardingStatus({
       state: "pending",
-      selected: "herdr",
-      availability: { tmuxUsable: true, herdrUsable: false },
       cliPresentByKind: { anthropic: true, "openai-compatible": false, google: false },
       connectorAccountExists: true
     });
     expect(status.state).toBe("pending");
-    // herdr selected but NOT usable (no root pane) ⇒ multiplexer.done is FALSE even though
-    // herdr's binary may be present — bare presence is insufficient (Codex R1 herdr finding).
-    expect(status.steps.multiplexer.selected).toBe("herdr");
-    expect(status.steps.multiplexer.done).toBe(false);
-    expect(status.steps.multiplexer.tmuxUsable).toBe(true);
-    expect(status.steps.multiplexer.herdrUsable).toBe(false);
-    expect(status.steps.cliAuth.providers).toEqual([
-      { kind: "anthropic", cliPresent: true },
-      { kind: "openai-compatible", cliPresent: false },
-      { kind: "google", cliPresent: false }
-    ]);
+    // v0.1.3: the multiplexer step is gone from the assembled status.
+    expect("multiplexer" in status.steps).toBe(false);
+    // v0.1.3 F2: onboarding offers ONLY the loginable allowlist (anthropic) — codex/google
+    // are NOT surfaced even though cliPresentByKind carries every kind.
+    expect(status.steps.cliAuth.providers).toEqual([{ kind: "anthropic", cliPresent: true }]);
     // #365: done now ⇔ ≥1 provider is `ready` (installed AND logged in), not mere presence.
     // No installStateByKind here ⇒ no provider is ready ⇒ not done.
     expect(status.steps.cliAuth.done).toBe(false);
     expect(status.steps.connectors.done).toBe(true);
   });
 
-  it("cliAuth.done is true ONLY when ≥1 provider installState is ready (#365)", () => {
+  it("hides codex/openai-compatible from onboarding even when catalog-installable (v0.1.3 F2)", () => {
+    const repository = new SettingsRepository();
+    const status = repository.assembleOnboardingStatus({
+      state: "pending",
+      cliPresentByKind: { anthropic: true, "openai-compatible": true, google: true },
+      connectorAccountExists: false,
+      installStateByKind: { anthropic: "needs_login", "openai-compatible": "ready" },
+      installableByKind: { anthropic: true, "openai-compatible": true, google: true }
+    });
+    const kinds = status.steps.cliAuth.providers.map((p) => p.kind);
+    expect(kinds).toEqual(["anthropic"]);
+    expect(kinds).not.toContain("openai-compatible");
+    // A codex `ready` row must NOT make onboarding cliAuth done — codex is not offered, so it
+    // can't satisfy the "≥1 offered provider ready" floor.
+    expect(status.steps.cliAuth.done).toBe(false);
+  });
+
+  it("cliAuth.done is true ONLY when ≥1 OFFERED provider installState is ready (#365)", () => {
     const repository = new SettingsRepository();
     const notReady = repository.assembleOnboardingStatus({
       state: "pending",
-      selected: null,
-      availability: { tmuxUsable: true, herdrUsable: false },
       cliPresentByKind: { anthropic: true, "openai-compatible": false, google: false },
       connectorAccountExists: false,
       installStateByKind: { anthropic: "needs_login" },
@@ -220,14 +191,9 @@ describe("Phase 2 onboarding — getOnboardingStatus (derived steps)", () => {
       installState: "needs_login",
       installable: true
     });
-    expect(notReady.steps.cliAuth.providers.find((p) => p.kind === "google")?.installable).toBe(
-      false
-    );
 
     const ready = repository.assembleOnboardingStatus({
       state: "pending",
-      selected: null,
-      availability: { tmuxUsable: true, herdrUsable: false },
       cliPresentByKind: { anthropic: true, "openai-compatible": false, google: false },
       connectorAccountExists: false,
       installStateByKind: { anthropic: "ready" },
@@ -240,26 +206,11 @@ describe("Phase 2 onboarding — getOnboardingStatus (derived steps)", () => {
     const repository = new SettingsRepository();
     const status = repository.assembleOnboardingStatus({
       state: "pending",
-      selected: null,
-      availability: { tmuxUsable: false, herdrUsable: false },
       cliPresentByKind: { anthropic: true, "openai-compatible": false, google: false },
       connectorAccountExists: false
     });
     expect(status.steps.cliAuth.providers.every((p) => !("installable" in p))).toBe(true);
     expect(status.steps.cliAuth.done).toBe(false); // no ready provider
-  });
-
-  it("assembleOnboardingStatus: auto is done when either multiplexer is usable", () => {
-    const repository = new SettingsRepository();
-    const auto = repository.assembleOnboardingStatus({
-      state: "pending",
-      selected: "auto",
-      availability: { tmuxUsable: true, herdrUsable: false },
-      cliPresentByKind: { anthropic: false, "openai-compatible": false, google: false },
-      connectorAccountExists: false
-    });
-    expect(auto.steps.multiplexer.done).toBe(true); // auto + tmux usable
-    expect(auto.steps.cliAuth.done).toBe(false); // no CLI present
   });
 
   it("rejects a non-admin caller with 403", async () => {

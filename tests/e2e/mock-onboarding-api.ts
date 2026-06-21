@@ -20,14 +20,12 @@ export function defaultOnboardingStatus(
     role: "founder",
     state: "pending",
     steps: {
-      multiplexer: { done: false, selected: null, tmuxUsable: false, herdrUsable: false },
+      // v0.1.3: the multiplexer onboarding STEP is gone (OnboardingStepsDto = cliAuth + connectors),
+      // and only `anthropic` is offered as an onboarding provider (codex/openai-compatible + google
+      // are no longer surfaced in the wizard).
       cliAuth: {
         done: false,
-        providers: [
-          { kind: "anthropic", cliPresent: false },
-          { kind: "openai-compatible", cliPresent: false },
-          { kind: "google", cliPresent: false }
-        ]
+        providers: [{ kind: "anthropic", cliPresent: false }]
       },
       connectors: { done: false }
     },
@@ -81,60 +79,25 @@ export async function registerMockOnboardingRoutes(
   );
   await page.route("**/api/onboarding/complete", (route) => setState(route, "completed"));
   await page.route("**/api/onboarding/skip", (route) => setState(route, "skipped"));
-  // The multiplexer step writes via the DEDICATED adapter route PUT /api/admin/chat-multiplexer
-  // (NOT a generic settings PATCH). Mirror its ChatMultiplexerSettingsDto response shape.
-  // This route is ALSO read (GET) by the admin settings panel (getChatMultiplexerSettings),
-  // so existing specs that render that panel hit it without a body — handle GET separately
-  // (return the current snapshot) instead of assuming every request is a write.
+  // The ADMIN chat-multiplexer adapter (PUT/GET /api/admin/chat-multiplexer) is a SEPARATE
+  // surface from onboarding — it survived the v0.1.3 removal of the multiplexer onboarding step.
+  // It is read (GET) by the admin settings panel (getChatMultiplexerSettings) and written (PUT)
+  // when an admin changes the choice. It is NO LONGER tied to the onboarding status snapshot
+  // (which no longer carries a multiplexer step); the mock keeps an independent choice and echoes
+  // a static `available` map. ChatMultiplexerSettingsDto = { multiplexer, available }.
+  let adminMultiplexerChoice: "auto" | "tmux" | "herdr" = "auto";
+  const adminMultiplexerAvailable = { tmux: false, herdr: false };
   await page.route(/\/api\/admin\/chat-multiplexer$/, (route) => {
-    // The chat-multiplexer adapter is FOUNDER-only machinery; narrow the role union to the
-    // founder variant (a member status carries no multiplexer step) before reading steps.
-    const founderSnapshot =
-      state.onboardingStatus?.role === "founder"
-        ? state.onboardingStatus
-        : defaultOnboardingStatus();
-    if (route.request().method() === "GET") {
-      const snapshot = founderSnapshot;
-      return route.fulfill({
-        status: 200,
-        contentType: "application/json",
-        body: JSON.stringify({
-          multiplexer: snapshot.steps.multiplexer.selected ?? "auto",
-          available: {
-            tmux: snapshot.steps.multiplexer.tmuxUsable,
-            herdr: snapshot.steps.multiplexer.herdrUsable
-          }
-        }) // ChatMultiplexerSettingsDto
-      });
+    if (route.request().method() !== "GET") {
+      const body = route.request().postDataJSON() as { multiplexer: "auto" | "tmux" | "herdr" };
+      adminMultiplexerChoice = body.multiplexer;
     }
-    const body = route.request().postDataJSON() as { multiplexer: "auto" | "tmux" | "herdr" };
-    const choice = body.multiplexer;
-    const prev = founderSnapshot;
-    // Reflect selection; mark done iff the chosen choice maps to a usable backend in the mock's
-    // current snapshot (so e2e can drive both the usable and the not-yet-usable paths).
-    const usable =
-      choice === "tmux"
-        ? prev.steps.multiplexer.tmuxUsable
-        : choice === "herdr"
-          ? prev.steps.multiplexer.herdrUsable
-          : prev.steps.multiplexer.tmuxUsable || prev.steps.multiplexer.herdrUsable;
-    const nextStatus: OnboardingFounderStatus = {
-      ...prev,
-      steps: {
-        ...prev.steps,
-        multiplexer: { ...prev.steps.multiplexer, done: usable, selected: choice }
-      }
-    };
-    state.onboardingStatus = nextStatus;
     return route.fulfill({
       status: 200,
       contentType: "application/json",
       body: JSON.stringify({
-        multiplexer: choice,
-        available: {
-          tmux: nextStatus.steps.multiplexer.tmuxUsable,
-          herdr: nextStatus.steps.multiplexer.herdrUsable
-        }
+        multiplexer: adminMultiplexerChoice,
+        available: adminMultiplexerAvailable
       }) // ChatMultiplexerSettingsDto
     });
   });

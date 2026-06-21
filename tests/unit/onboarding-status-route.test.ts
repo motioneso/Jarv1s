@@ -43,14 +43,12 @@ function buildServer(captured: { input?: AssembleInput }): FastifyInstance {
     repository: {
       getMemberOnboardingState: async () => ({ completedAt: null }),
       readOnboardingState: async () => "pending",
-      readChatMultiplexerChoiceOrNull: async () => null,
       assembleOnboardingStatus: (input: AssembleInput) => {
         captured.input = input;
         return {
           role: "founder",
           state: "pending",
           steps: {
-            multiplexer: { done: false, selected: null, tmuxUsable: false, herdrUsable: false },
             cliAuth: { done: false, providers: [] },
             connectors: { done: false }
           }
@@ -65,7 +63,6 @@ function buildServer(captured: { input?: AssembleInput }): FastifyInstance {
     },
     handleRouteError: (error, reply) => handleRouteError(error, reply),
     onboardingProbes: {
-      multiplexerUsable: async () => false,
       cliPresent: async () => false,
       testProviderConnection: async () => ({ status: "needs_login" }),
       connectorAccountExists: async () => false

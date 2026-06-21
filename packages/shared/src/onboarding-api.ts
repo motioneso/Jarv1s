@@ -1,26 +1,15 @@
 import { errorResponseSchema } from "./schema-fragments.js";
-import type { ChatMultiplexerChoice } from "./platform-api.js";
 
 // ---------------------------------------------------------------------------
 // Onboarding (Phase 2 primary-user onboarding). See
 // docs/superpowers/specs/2026-06-12-p2-primary-user-onboarding-design.md
-// NOTE: ChatMultiplexerChoice ("auto"|"tmux"|"herdr") is the existing CLI-adapter
-// contract from platform-api. Onboarding reuses it; it is not redefined here.
+// NOTE: the multiplexer onboarding STEP was removed in v0.1.3 (containerized
+// deploy forces tmux, so the step was pure noise). The admin chat.multiplexer
+// setting (platform-api ChatMultiplexerChoice) is a SEPARATE surface and stays.
 // ---------------------------------------------------------------------------
 
 /** Single, unambiguous onboarding lifecycle state (replaces two booleans). */
 export type OnboardingState = "pending" | "completed" | "skipped";
-
-export interface OnboardingMultiplexerStepDto {
-  /** done ⇔ the chosen multiplexer is USABLE (tmux installed | herdr installed+root pane | auto). */
-  readonly done: boolean;
-  /** The persisted chat.multiplexer choice, or null when no row exists yet. */
-  readonly selected: ChatMultiplexerChoice | null;
-  /** tmux is usable on this host (installed). */
-  readonly tmuxUsable: boolean;
-  /** herdr is usable on this host (installed AND a root pane is configured). */
-  readonly herdrUsable: boolean;
-}
 
 export type OnboardingProviderKind = "anthropic" | "openai-compatible" | "google";
 
@@ -149,7 +138,6 @@ export interface OnboardingConnectorStepDto {
 }
 
 export interface OnboardingStepsDto {
-  readonly multiplexer: OnboardingMultiplexerStepDto;
   readonly cliAuth: OnboardingCliAuthStepDto;
   readonly connectors: OnboardingConnectorStepDto;
 }
@@ -209,19 +197,8 @@ const onboardingFounderStatusSchema = {
     steps: {
       type: "object",
       additionalProperties: false,
-      required: ["multiplexer", "cliAuth", "connectors"],
+      required: ["cliAuth", "connectors"],
       properties: {
-        multiplexer: {
-          type: "object",
-          additionalProperties: false,
-          required: ["done", "selected", "tmuxUsable", "herdrUsable"],
-          properties: {
-            done: { type: "boolean" },
-            selected: { type: ["string", "null"], enum: ["auto", "tmux", "herdr", null] },
-            tmuxUsable: { type: "boolean" },
-            herdrUsable: { type: "boolean" }
-          }
-        },
         cliAuth: {
           type: "object",
           additionalProperties: false,

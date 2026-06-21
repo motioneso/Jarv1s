@@ -11,7 +11,6 @@ const founderReady: OnboardingStatusResponse = {
   role: "founder",
   state: "pending",
   steps: {
-    multiplexer: { done: true, selected: "tmux", tmuxUsable: true, herdrUsable: false },
     cliAuth: {
       done: true,
       providers: [{ kind: "anthropic", cliPresent: true, installState: "ready" }]
@@ -24,7 +23,6 @@ const founderNoProvider: OnboardingStatusResponse = {
   role: "founder",
   state: "pending",
   steps: {
-    multiplexer: { done: true, selected: "tmux", tmuxUsable: true, herdrUsable: false },
     cliAuth: {
       done: false,
       providers: [{ kind: "anthropic", cliPresent: true, installState: "needs_login" }]
