@@ -71,10 +71,9 @@ The default lives in per-provider catalog data; the registration service is gene
 - RLS/ownership: the provider config + model are instance-level admin config (owner-gated), same as
   the existing Admin create paths — reuse `assertInstanceAdmin`.
 
-## Open questions for sign-off
+## Resolved (2026-06-20)
 
-1. Default model id per provider — pick the current Anthropic Sonnet id now and keep it a single
-   maintained catalog constant? (Draft: yes; it's decorative for CLI but should be a real current id.)
-2. If the founder later edits/removes the auto-registered model in Admin, a re-login must NOT
-   recreate it against their wishes — gate re-registration on "no active chat model exists for this
-   provider". (Draft: yes.)
+1. Default model id = the **`sonnet` alias** (not a pinned full id), passed to claude via `--model`
+   (Ben) — never goes stale across Sonnet releases.
+2. **No re-registration over a user-removed model** — gate auto-register on "no active chat model
+   exists for this provider", so a re-login never resurrects a model the founder deleted in Admin.
