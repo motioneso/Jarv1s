@@ -11,7 +11,6 @@ const founder = (providers: readonly { installState?: string }[]): OnboardingSta
   role: "founder",
   state: "pending",
   steps: {
-    multiplexer: { done: true, selected: "tmux", tmuxUsable: true, herdrUsable: false },
     cliAuth: {
       done: providers.length > 0,
       providers: providers.map((p) => ({
@@ -61,7 +60,6 @@ describe("hasConnectedProvider", () => {
       role: "founder",
       state: "pending",
       steps: {
-        multiplexer: { done: true, selected: "tmux", tmuxUsable: true, herdrUsable: false },
         cliAuth: {
           done: true,
           providers: [{ kind: "google", cliPresent: true, installState: "ready" }]

@@ -136,7 +136,6 @@ describe("Phase 2 onboarding — provider-install seam (REAL wiring)", () => {
 
     // Probes: cliPresent reflects the fake probe; the rest are inert for these tests.
     const probes: OnboardingProbes = {
-      multiplexerUsable: async () => true,
       cliPresent: async () => fake.probeStatus !== "not_installed",
       testProviderConnection: async () => ({ status: fake.probeStatus }),
       connectorAccountExists: async () => false
