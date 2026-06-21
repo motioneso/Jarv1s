@@ -198,8 +198,55 @@ describe("Phase 2 onboarding — getOnboardingStatus (derived steps)", () => {
       { kind: "openai-compatible", cliPresent: false },
       { kind: "google", cliPresent: false }
     ]);
-    expect(status.steps.cliAuth.done).toBe(true); // at least one present
+    // #365: done now ⇔ ≥1 provider is `ready` (installed AND logged in), not mere presence.
+    // No installStateByKind here ⇒ no provider is ready ⇒ not done.
+    expect(status.steps.cliAuth.done).toBe(false);
     expect(status.steps.connectors.done).toBe(true);
+  });
+
+  it("cliAuth.done is true ONLY when ≥1 provider installState is ready (#365)", () => {
+    const repository = new SettingsRepository();
+    const notReady = repository.assembleOnboardingStatus({
+      state: "pending",
+      selected: null,
+      availability: { tmuxUsable: true, herdrUsable: false },
+      cliPresentByKind: { anthropic: true, "openai-compatible": false, google: false },
+      connectorAccountExists: false,
+      installStateByKind: { anthropic: "needs_login" },
+      installableByKind: { anthropic: true, "openai-compatible": true, google: false }
+    });
+    expect(notReady.steps.cliAuth.done).toBe(false); // present + needs_login ≠ done
+    expect(notReady.steps.cliAuth.providers.find((p) => p.kind === "anthropic")).toMatchObject({
+      installState: "needs_login",
+      installable: true
+    });
+    expect(notReady.steps.cliAuth.providers.find((p) => p.kind === "google")?.installable).toBe(
+      false
+    );
+
+    const ready = repository.assembleOnboardingStatus({
+      state: "pending",
+      selected: null,
+      availability: { tmuxUsable: true, herdrUsable: false },
+      cliPresentByKind: { anthropic: true, "openai-compatible": false, google: false },
+      connectorAccountExists: false,
+      installStateByKind: { anthropic: "ready" },
+      installableByKind: { anthropic: true, "openai-compatible": true, google: false }
+    });
+    expect(ready.steps.cliAuth.done).toBe(true);
+  });
+
+  it("omits installable when installableByKind is absent (phase-1 presence surface) (#365)", () => {
+    const repository = new SettingsRepository();
+    const status = repository.assembleOnboardingStatus({
+      state: "pending",
+      selected: null,
+      availability: { tmuxUsable: false, herdrUsable: false },
+      cliPresentByKind: { anthropic: true, "openai-compatible": false, google: false },
+      connectorAccountExists: false
+    });
+    expect(status.steps.cliAuth.providers.every((p) => !("installable" in p))).toBe(true);
+    expect(status.steps.cliAuth.done).toBe(false); // no ready provider
   });
 
   it("assembleOnboardingStatus: auto is done when either multiplexer is usable", () => {
