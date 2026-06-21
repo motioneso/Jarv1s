@@ -730,6 +730,10 @@
 }
 .jds-usermenu__tr {
   flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  margin-left: auto;
 }
 .jds-usermenu__item.is-danger {
   color: var(--danger);
@@ -766,6 +770,7 @@
   background: var(--border-strong);
   position: relative;
   flex: none;
+  box-sizing: border-box;
   transition: var(--transition-control);
 }
 .jds-miniswitch[data-on] {
@@ -784,6 +789,16 @@
 }
 .jds-miniswitch[data-on] > span {
   left: 14px;
+}
+/* On mobile the rail is a fixed full-height drawer that can scroll; keep the
+   account quick-menu pinned to the bottom so it's reachable without scrolling. */
+@media (max-width: 880px) {
+  .rail-foot {
+    position: sticky;
+    bottom: 0;
+    margin-top: auto;
+    background: var(--surface-raised);
+  }
 }
 @media (prefers-reduced-motion: reduce) {
   .jds-usermenu__pop,
