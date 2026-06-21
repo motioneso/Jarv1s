@@ -1,4 +1,10 @@
+import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+
 import { describe, expect, it, vi } from "vitest";
+
+import { createRealTmuxIo } from "../../packages/ai/src/adapters/tmux-bridge.js";
 import {
   CliChatEngineImpl,
   deriveNeutralDir,
@@ -93,6 +99,40 @@ describe("CliChatEngineImpl — Claude MCP lockdown", () => {
     expect(launchLine).not.toContain("web_search");
     expect(launchLine).not.toContain("browser");
     expect(launchLine).not.toContain("browse");
+  });
+});
+
+describe("CliChatEngineImpl — claude OAuth token injection (#363)", () => {
+  it("prefixes the claude launch with CLAUDE_CODE_OAUTH_TOKEN read at runtime ($(cat file)) — token NOT in the line", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "jarv1s-363-cred-"));
+    try {
+      const TOKEN = "sk-ant-oat-LAUNCH1234567890abcdefghij";
+      const credentialFile = join(dir, "anthropic");
+      await writeFile(credentialFile, TOKEN, { mode: 0o600 });
+      const io = makeIo();
+      const engine = new CliChatEngineImpl("anthropic", "cred-session", io, { credentialFile });
+      await engine.launch({ neutralDir: "/tmp/neutral", personaPath: "/tmp/persona.txt" });
+      const sendKeysCall = (io.run as ReturnType<typeof vi.fn>).mock.calls.find(
+        (c: unknown[]) => c[0] === "tmux" && (c[1] as string[])[0] === "send-keys"
+      );
+      const launchLine = (sendKeysCall![1] as string[])[3];
+      expect(launchLine).toContain(`CLAUDE_CODE_OAUTH_TOKEN="$(cat '${credentialFile}')"`);
+      // The secret value itself is read at runtime — NEVER in the tmux argv / pane-typed line.
+      expect(launchLine).not.toContain(TOKEN);
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("omits the token prefix when no credentialFile is configured", async () => {
+    const io = makeIo();
+    const engine = new CliChatEngineImpl("anthropic", "no-cred-session", io);
+    await engine.launch({ neutralDir: "/tmp/neutral", personaPath: "/tmp/persona.txt" });
+    const sendKeysCall = (io.run as ReturnType<typeof vi.fn>).mock.calls.find(
+      (c: unknown[]) => c[0] === "tmux" && (c[1] as string[])[0] === "send-keys"
+    );
+    const launchLine = (sendKeysCall![1] as string[])[3];
+    expect(launchLine).not.toContain("CLAUDE_CODE_OAUTH_TOKEN");
   });
 });
 
@@ -565,6 +605,23 @@ describe("probeProvider (§4.8)", () => {
     expect(res.status).toBe("needs_login");
   });
 
+  it("injects the claude-scoped credentialEnv into the `auth status` run (#363)", async () => {
+    const run = vi.fn().mockResolvedValue({
+      code: 0,
+      stdout: JSON.stringify({ loggedIn: true }),
+      stderr: ""
+    });
+    const credentialEnv = { CLAUDE_CODE_OAUTH_TOKEN: "sk-ant-oat-PROBE" };
+    const res = await probeProvider("anthropic", {
+      io: { run },
+      cliPresent: async () => true,
+      credentialEnv
+    });
+    expect(res.status).toBe("ready");
+    // The token is passed per-call via opts.env (claude-scoped), not the global allowlist.
+    expect(run).toHaveBeenCalledWith("claude", ["auth", "status"], { env: credentialEnv });
+  });
+
   it("surfaces multiplexer_unavailable when the mux is not usable", async () => {
     const run = vi.fn();
     const res = await probeProvider("anthropic", {
@@ -580,15 +637,11 @@ describe("probeProvider (§4.8)", () => {
 // ─── #342 §12 (4b) DOCUMENTING test: 0600 + redactSecrets do NOT protect a same-UID
 // read of the per-session token file. The single-active-user gate — NOT the file mode —
 // is the isolation boundary until #347 (§13). This test exists so nobody mistakes
-// `0600` for a cross-user boundary.
-import { mkdtemp, readFile as fsReadFile, rm as fsRm } from "node:fs/promises";
-import { tmpdir } from "node:os";
-import { join as pathJoin } from "node:path";
-import { createRealTmuxIo } from "../../packages/ai/src/adapters/tmux-bridge.js";
+// `0600` for a cross-user boundary. (fs/os/path + createRealTmuxIo imported at top of file.)
 
 describe("#342 §13 same-UID token-file readability (DOCUMENTING — not a regression)", () => {
   it("a 0600 Codex token file is readable by the SAME uid that wrote it", async () => {
-    const dir = await mkdtemp(pathJoin(tmpdir(), "jarv1s-342-tokenfile-"));
+    const dir = await mkdtemp(join(tmpdir(), "jarv1s-342-tokenfile-"));
     try {
       // Use the REAL io so chmod 600 actually applies on disk.
       const io = createRealTmuxIo();
@@ -606,7 +659,7 @@ describe("#342 §13 same-UID token-file readability (DOCUMENTING — not a regre
       });
       await engine.launch({
         neutralDir: dir,
-        personaPath: pathJoin(dir, "persona.md"),
+        personaPath: join(dir, "persona.md"),
         personaText: "You are Jarvis.",
         mcpToken: "jst_same_uid_secret",
         mcpServerUrl: "http://api:3000/api/mcp"
@@ -616,11 +669,11 @@ describe("#342 §13 same-UID token-file readability (DOCUMENTING — not a regre
       // redactSecrets is a LOG-redaction tool, not a file-access control: the token is
       // present in cleartext in the file. This is the documented Phase-1 limitation
       // that the single-active-user gate (#347) compensates for.
-      const tokenFile = pathJoin(dir, ".jarvis-mcp-token.env");
-      const contents = await fsReadFile(tokenFile, "utf8");
+      const tokenFile = join(dir, ".jarvis-mcp-token.env");
+      const contents = await readFile(tokenFile, "utf8");
       expect(contents).toContain("jst_same_uid_secret");
     } finally {
-      await fsRm(dir, { recursive: true, force: true });
+      await rm(dir, { recursive: true, force: true });
     }
   });
 });

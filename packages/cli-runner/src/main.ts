@@ -21,6 +21,7 @@ import { PROVIDER_CATALOG } from "./catalog.js";
 import { CliChatEngineHost } from "./engine-host.js";
 import { InstallService } from "./install-service.js";
 import { LOGIN_ADAPTERS } from "./login-adapters.js";
+import { readProviderCredentialEnv } from "./provider-token-store.js";
 import { LoginService } from "./login-service.js";
 import { createSanitizedTmuxIo } from "./runner-io.js";
 import { CliRunnerServer } from "./server.js";
@@ -115,12 +116,14 @@ export function createCliRunner(
     adapters: LOGIN_ADAPTERS,
     homeBase: config.homeBase,
     // Completion signal: the §4.8 provider auth probe (no token, no replay) — same deps the
-    // host's probeProvider uses.
-    probe: (provider: RpcProviderKind) =>
+    // host's probeProvider uses, PLUS the #363 claude-scoped credential env so `auth status`
+    // reports loggedIn once the captured token is persisted (settling the flow `ready`).
+    probe: async (provider: RpcProviderKind) =>
       probeProvider(provider as ProviderKind, {
         io,
         cliPresent: (p: ProviderKind) => cliAvailable(p),
-        multiplexerUsable: () => tmuxAvailable()
+        multiplexerUsable: () => tmuxAvailable(),
+        credentialEnv: await readProviderCredentialEnv(config.homeBase, provider)
       })
   });
 

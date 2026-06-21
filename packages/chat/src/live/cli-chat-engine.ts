@@ -32,6 +32,7 @@
  */
 
 import { randomUUID } from "node:crypto";
+import { existsSync } from "node:fs";
 import { join } from "node:path";
 
 import {
@@ -79,6 +80,13 @@ export interface CliChatEngineOpts {
    * (deployable-stack §6); omitted → the OS home of the running process.
    */
   readonly homeBase?: string;
+  /**
+   * (#363, claude-scoped) Path to the 0600 file holding the provider's captured OAuth token.
+   * When set AND present, `buildClaudeCommand` prefixes the launch with
+   * `CLAUDE_CODE_OAUTH_TOKEN="$(cat <file>)"` so claude is authenticated — the secret is read at
+   * runtime, NEVER in the tmux argv / pane-typed string. Ignored by codex/gemini launches.
+   */
+  readonly credentialFile?: string;
   /**
    * #342: when set, the engine OWNS the server-side replay-drain. After launch it
    * submits `opts.replayBatch` (if present) and drains the transcript to a clean
@@ -140,6 +148,8 @@ export class CliChatEngineImpl implements CliChatEngine {
 
   /** Optional host-HOME base for transcript resolution (containerized bridge). */
   private readonly homeBase?: string;
+  /** (#363) 0600 token file the claude launch reads CLAUDE_CODE_OAUTH_TOKEN from (claude-scoped). */
+  private readonly credentialFile?: string;
 
   /** #342: whether this engine owns the server-side replay-drain (cli-runner path). */
   private readonly ownsDrain: boolean;
@@ -155,6 +165,7 @@ export class CliChatEngineImpl implements CliChatEngine {
     this.launchMs = opts.launchMs ?? 3_000;
     this.mux = opts.mux ?? new TmuxMultiplexer(io, { submitMs: opts.submitMs ?? 600 });
     this.homeBase = opts.homeBase;
+    this.credentialFile = opts.credentialFile;
     this.ownsDrain = opts.ownsDrain ?? false;
     this.drainMs = opts.drainMs ?? 25_000;
     this.drainPollMs = opts.drainPollMs ?? 250;
@@ -434,7 +445,14 @@ export class CliChatEngineImpl implements CliChatEngine {
     sessionId: string,
     personaPath: string
   ): Promise<string> {
-    const parts = [`cd ${shellQuote(opts.neutralDir)} &&`, "claude", "--permission-mode default"];
+    // #363: when a captured OAuth token is persisted, authenticate claude via
+    // CLAUDE_CODE_OAUTH_TOKEN read at RUNTIME from the 0600 file (`$(cat …)`) — the secret is
+    // NEVER in the tmux argv / pane-typed string, and is scoped to THIS claude invocation only.
+    const claudeCmd =
+      this.credentialFile && existsSync(this.credentialFile)
+        ? `CLAUDE_CODE_OAUTH_TOKEN="$(cat ${shellQuote(this.credentialFile)})" claude`
+        : "claude";
+    const parts = [`cd ${shellQuote(opts.neutralDir)} &&`, claudeCmd, "--permission-mode default"];
 
     if (opts.mcpToken && opts.mcpServerUrl) {
       const mcpConfigPath = await this.writeClaudeMcpConfig(opts);
@@ -780,6 +798,11 @@ export async function probeProvider(
     readonly cliPresent: (provider: ProviderKind) => Promise<boolean>;
     /** Is the bundled multiplexer usable? Defaults to "yes" (probe is auth-only). */
     readonly multiplexerUsable?: () => Promise<boolean>;
+    /**
+     * (#363) CLAUDE-SCOPED credential env layered over the sanitized base for the auth-status
+     * run (e.g. { CLAUDE_CODE_OAUTH_TOKEN }). Per-call ONLY — never the §7.2 global allowlist.
+     */
+    readonly credentialEnv?: NodeJS.ProcessEnv;
   }
 ): Promise<ProbeProviderResult> {
   if (deps.multiplexerUsable && !(await deps.multiplexerUsable())) {
@@ -791,7 +814,7 @@ export async function probeProvider(
     }
     switch (provider) {
       case "anthropic":
-        return await probeClaudeAuth(deps.io);
+        return await probeClaudeAuth(deps.io, deps.credentialEnv);
       case "openai-compatible":
         return await probeCodexAuth(deps.io);
       case "google":
@@ -802,8 +825,15 @@ export async function probeProvider(
   }
 }
 
-async function probeClaudeAuth(io: Pick<TmuxIo, "run">): Promise<ProbeProviderResult> {
-  const result = await probeWithTimeout(io.run("claude", ["auth", "status"]));
+async function probeClaudeAuth(
+  io: Pick<TmuxIo, "run">,
+  credentialEnv?: NodeJS.ProcessEnv
+): Promise<ProbeProviderResult> {
+  // #363: inject the captured OAuth token (CLAUDE_CODE_OAUTH_TOKEN) per-call so `auth status`
+  // reports loggedIn:true once login persisted it — claude-scoped, never the global allowlist.
+  const result = await probeWithTimeout(
+    io.run("claude", ["auth", "status"], credentialEnv ? { env: credentialEnv } : undefined)
+  );
   // claude 2.1.183 `auth status` prints JSON {"loggedIn":bool,...} but EXITS NON-ZERO when
   // not logged in. Parse the JSON FIRST, regardless of exit code: a rc!=0 with a valid
   // loggedIn:false is "needs_login", NOT "error" (the old rc!=0 branch ran an auth-text
