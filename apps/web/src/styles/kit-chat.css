@@ -404,3 +404,9 @@
     transition: none;
   }
 }
+
+/* #369 — empty-chat connect-a-provider explainer CTA (shown when no chat model is configured). */
+.chatd-empty__cta {
+  margin-top: 1rem;
+  text-decoration: none;
+}

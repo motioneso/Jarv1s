@@ -24,6 +24,12 @@ export default defineConfig({
         )
       },
       {
+        // react-router is a @jarv1s/web-only dep; resolve it from the web package's copy so the
+        // root suite can render web components that use <Link> / <MemoryRouter> (#369 empty-chat).
+        find: "react-router",
+        replacement: fileURLToPath(new URL("./apps/web/node_modules/react-router", import.meta.url))
+      },
+      {
         find: "@jarv1s/ai",
         replacement: fileURLToPath(new URL("./packages/ai/src/index.ts", import.meta.url))
       },

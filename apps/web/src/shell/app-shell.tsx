@@ -203,6 +203,7 @@ export function AppShell(props: AppShellProps) {
         onClose={() => setChatOpen(false)}
         records={records}
         clearRecords={clearRecords}
+        isFounder={props.me.user.isBootstrapOwner}
       />
     </div>
   );
