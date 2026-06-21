@@ -1,6 +1,6 @@
 import { type ReactNode, useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowLeft, ArrowRight, Check, Flag, LogIn, Minus, Play } from "lucide-react";
+import { ArrowLeft, ArrowRight, Check, Flag, LogIn, Minus, Play, Sparkles } from "lucide-react";
 import { useNavigate } from "react-router";
 
 import type { OnboardingStatusResponse, OnboardingStepsDto } from "@jarv1s/shared";
@@ -17,6 +17,8 @@ import { SectionTourStep } from "./section-tour-step";
 import { WelcomeStep } from "./welcome-step";
 import { firstIncompleteStepIndex } from "./resume";
 import { SkipConfirmDialog, needsSkipConfirm } from "./skip-confirm";
+import { hasConnectedProvider } from "./chat-availability";
+import { requestAskJarvis } from "./ask-jarvis-handoff";
 
 const FOUNDER_ORDER = ["welcome", "multiplexer", "cliAuth", "connectors", "finish"] as const;
 const MEMBER_ORDER = ["welcome", "assistant", "accounts", "tour", "finish"] as const;
@@ -133,6 +135,17 @@ export function OnboardingWizard(props: {
     setSkipConfirmOpen(false);
     skip.mutate();
   };
+  // #368: "Ask Jarvis" at the Finish step. Drops the one-shot handoff flag, then completes
+  // onboarding to Today — App remounts into the shell, which consumes the flag and opens the chat
+  // drawer pre-filled with the setup-check starter (not auto-sent). This is a plain event handler,
+  // NOT a setState updater, so requestAskJarvis runs once (StrictMode double-fire trap).
+  const onAskJarvis = () => {
+    requestAskJarvis();
+    finish.mutate("today");
+  };
+  // Gate the affordance on chat being available (≥1 provider reached `ready`). Derived from the
+  // SAME onboarding status #365 added — provider-agnostic, no provider/model hardcoded.
+  const chatAvailable = hasConnectedProvider(statusQuery.data);
 
   // No isLoading branch: initialData guarantees data is present from the first render
   // (app.tsx already waited). A background refetch error never blanks the wizard.
@@ -191,6 +204,8 @@ export function OnboardingWizard(props: {
           skippedSteps={skippedSteps}
           onFinish={(destination) => finish.mutate(destination)}
           pending={finish.isPending}
+          chatAvailable={chatAvailable}
+          onAskJarvis={onAskJarvis}
         />
       ]
     : [];
@@ -308,6 +323,8 @@ export function OnboardingWizard(props: {
                   founderSteps={founderSteps}
                   onFinish={(destination) => finish.mutate(destination)}
                   pending={finish.isPending}
+                  chatAvailable={chatAvailable}
+                  onAskJarvis={onAskJarvis}
                 />
               ) : null}
             </>
@@ -350,12 +367,16 @@ export function OnboardingWizard(props: {
   );
 }
 
-function FinishStep(props: {
+export function FinishStep(props: {
   readonly role: "founder" | "member";
   readonly skippedSteps: ReadonlySet<string>;
   readonly founderSteps?: OnboardingStepsDto;
   readonly pending: boolean;
   readonly onFinish: (destination: "today" | "settings") => void;
+  /** #368: chat is available (≥1 provider ready). Gates the "Ask Jarvis" affordance — no dead button. */
+  readonly chatAvailable: boolean;
+  /** #368: completes onboarding AND opens the chat drawer pre-filled with the setup-check starter. */
+  readonly onAskJarvis: () => void;
 }) {
   const isMember = props.role === "member";
   const recap = isMember
@@ -415,24 +436,62 @@ function FinishStep(props: {
         ))}
       </div>
       <div className="onb-finish__cta">
-        <button
-          className="primary-button"
-          type="button"
-          disabled={props.pending}
-          onClick={() => props.onFinish("today")}
-        >
-          {isMember ? "Open today" : "Open today’s brief"}{" "}
-          <ArrowRight size={16} aria-hidden="true" />
-        </button>
-        <button
-          className="ghost-button"
-          type="button"
-          disabled={props.pending}
-          onClick={() => props.onFinish("settings")}
-        >
-          {isMember ? "Adjust in settings" : "Go to settings"}
-        </button>
+        {props.chatAvailable ? (
+          <>
+            <button
+              className="primary-button"
+              type="button"
+              disabled={props.pending}
+              onClick={props.onAskJarvis}
+            >
+              <Sparkles size={16} aria-hidden="true" /> Ask Jarvis
+            </button>
+            <button
+              className="ghost-button"
+              type="button"
+              disabled={props.pending}
+              onClick={() => props.onFinish("today")}
+            >
+              {isMember ? "Open today" : "Open today’s brief"}{" "}
+              <ArrowRight size={16} aria-hidden="true" />
+            </button>
+          </>
+        ) : (
+          <>
+            <button
+              className="primary-button"
+              type="button"
+              disabled={props.pending}
+              onClick={() => props.onFinish("today")}
+            >
+              {isMember ? "Open today" : "Open today’s brief"}{" "}
+              <ArrowRight size={16} aria-hidden="true" />
+            </button>
+            <button
+              className="ghost-button"
+              type="button"
+              disabled={props.pending}
+              onClick={() => props.onFinish("settings")}
+            >
+              {isMember ? "Adjust in settings" : "Go to settings"}
+            </button>
+          </>
+        )}
       </div>
+      {props.chatAvailable ? (
+        <p className="onb-finish__askhint">
+          Jarvis can help you check your setup and finish configuring — just ask. You can also{" "}
+          <button
+            className="onb-finish__settingslink"
+            type="button"
+            disabled={props.pending}
+            onClick={() => props.onFinish("settings")}
+          >
+            {isMember ? "adjust in settings" : "go to settings"}
+          </button>
+          .
+        </p>
+      ) : null}
       <div className="onb-signoff">
         {isMember ? "Welcome to Jarvis." : "Your setup is complete."}
       </div>

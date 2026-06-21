@@ -36,6 +36,11 @@ export function ChatDrawer(props: {
   readonly clearRecords: () => void;
   /** #369: the founder set the instance up — tailors the empty-chat connect copy. */
   readonly isFounder: boolean;
+  /**
+   * #368: optional pre-filled composer text (the onboarding "Ask Jarvis" setup-check starter).
+   * Seeds the input on mount only; it is NEVER auto-sent — the user reviews and presses send.
+   */
+  readonly initialText?: string;
 }) {
   const [reviewThreadId, setReviewThreadId] = useState<string | null>(null);
   // #369: derive chat availability from the SAME onboarding status #365 added. When no provider is
@@ -125,7 +130,7 @@ export function ChatDrawer(props: {
         )}
       </div>
 
-      <Composer readOnly={reviewing} isFounder={props.isFounder} />
+      <Composer readOnly={reviewing} isFounder={props.isFounder} initialText={props.initialText} />
     </aside>
   );
 }
@@ -360,8 +365,16 @@ function ReviewEmptyState() {
   );
 }
 
-function Composer(props: { readonly readOnly: boolean; readonly isFounder: boolean }) {
-  const [text, setText] = useState("");
+function Composer(props: {
+  readonly readOnly: boolean;
+  readonly isFounder: boolean;
+  /** #368: seed text (the "Ask Jarvis" setup-check starter), pre-filled on mount, NEVER auto-sent. */
+  readonly initialText?: string;
+}) {
+  // Lazy initializer: the starter seeds the input on mount only. After that, the user owns the
+  // value — typing/sending clears it and we never re-seed from the prop (no useEffect that would
+  // clobber edits or re-fire the chip on re-render).
+  const [text, setText] = useState(() => props.initialText ?? "");
   const [error, setError] = useState<string | null>(null);
   // #369: when a send fails specifically because no chat model is configured, swap the raw 400 for
   // the friendly connect-a-provider explainer (with a link) instead of leaking the backend string.
