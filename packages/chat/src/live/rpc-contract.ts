@@ -239,9 +239,10 @@ export interface RpcLaunchParams {
    */
   readonly replayBatch?: string;
   /**
-   * #367: the resolved provider model id (e.g. the "sonnet" alias) from the active chat model row.
-   * cli-runner passes it to the CLI as `--model <id>` so the registered model takes effect. Absent ⇒
-   * the launch rides the CLI account default (legacy behavior).
+   * #367: the resolved provider model id from the active chat model row. For the `"default"`
+   * sentinel (the auto-registered default) cli-runner OMITS `--model` so the CLI rides its own
+   * interactive/account model — the primary path. For a CONCRETE id (an explicit settings override)
+   * it passes `--model <id>`; absent ⇒ also omit.
    */
   readonly model?: string;
 }

@@ -154,6 +154,39 @@ describe("AI auto-register default chat model on login (#367)", () => {
     expect(providers.filter((p) => p.provider_kind === "anthropic")).toHaveLength(1);
   });
 
+  it("creates a NEW active config when the only existing config is disabled (B1 — recoverable)", async () => {
+    // Founder disabled the anthropic config in Admin; a later CLI login settles ready. Reusing the
+    // disabled config would insert a model under it that selectChatModelForUser (active-only) can
+    // never resolve → permanent dead chat. The fix creates a NEW active config instead.
+    await dataContext.withDataContext(adminCtx(), (db) =>
+      repository.createProvider(db, {
+        providerKind: "anthropic",
+        displayName: "Claude (disabled)",
+        status: "disabled",
+        authMethod: "cli",
+        encryptedCredential: cipher.encryptJson({ cli: true })
+      })
+    );
+
+    await dataContext.withDataContext(adminCtx(), (db) =>
+      service.ensureDefaultChatModel(db, "anthropic")
+    );
+
+    const { providers, model } = await dataContext.withDataContext(adminCtx(), async (db) => ({
+      providers: (await repository.listProviders(db)).filter(
+        (p) => p.provider_kind === "anthropic"
+      ),
+      model: await repository.selectChatModelForUser(db)
+    }));
+
+    // A NEW active config exists alongside the untouched disabled one.
+    expect(providers.filter((p) => p.status === "active")).toHaveLength(1);
+    expect(providers.filter((p) => p.status === "disabled")).toHaveLength(1);
+    // The registered model is selectable (resolves through the active config).
+    expect(model?.provider_model_id).toBe("default");
+    expect(model?.provider_status).toBe("active");
+  });
+
   it("no-ops for a provider without a catalog default", async () => {
     await dataContext.withDataContext(adminCtx(), (db) =>
       service.ensureDefaultChatModel(db, "custom")

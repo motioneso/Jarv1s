@@ -256,8 +256,9 @@ export class ChatSessionManager {
       personaPath,
       personaText: persona,
       replayBatch,
-      // #367: pass the resolved model id (the "sonnet" alias) so the launch uses the registered
-      // model via `--model`, instead of riding the CLI account default.
+      // #367: pass the resolved model id. The launch builders emit `--model` only for a concrete
+      // settings override; for the `"default"` sentinel they omit it so the CLI rides its own
+      // interactive/account model (the primary path — chat never requires model selection).
       model,
       mcpToken: mcpConfig?.token,
       mcpServerUrl: mcpConfig?.mcpServerUrl

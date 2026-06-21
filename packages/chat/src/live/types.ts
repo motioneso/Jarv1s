@@ -40,10 +40,11 @@ export interface EngineLaunchOpts {
    */
   readonly replayBatch?: string;
   /**
-   * NEW (#367) — the resolved provider model id from the active chat model row (e.g. the "sonnet"
-   * alias). When set, the claude launch passes `--model <id>` so the registered model takes effect;
-   * absent ⇒ the launch rides the CLI account default (legacy behavior). See rpc-contract.ts
-   * RpcLaunchParams.model.
+   * NEW (#367) — the resolved provider model id from the active chat model row. The auto-registered
+   * default is the `"default"` sentinel, for which the launch OMITS `--model` so the CLI rides its
+   * own interactive/account model (the PRIMARY path — chat never requires model selection). A
+   * CONCRETE id (an explicit settings override) makes the launch pass `--model <id>`; absent ⇒ also
+   * omit. See rpc-contract.ts RpcLaunchParams.model.
    */
   readonly model?: string;
 }

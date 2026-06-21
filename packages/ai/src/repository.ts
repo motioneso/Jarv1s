@@ -185,9 +185,13 @@ export class AiRepository {
   }
 
   /**
-   * #367: the newest NON-REVOKED provider config of a given kind, or undefined. Used by the
-   * login auto-register seam to REUSE an existing config rather than duplicate one. `safeProviderQuery`
-   * already orders by created_at desc, so `executeTakeFirst` returns the newest match.
+   * #367: the newest ACTIVE provider config of a given kind, or undefined. Used by the login
+   * auto-register seam to REUSE an existing usable config rather than duplicate one. Must match
+   * ACTIVE only (not merely non-revoked): `selectChatModelForUser` requires `providers.status =
+   * 'active'`, so reusing a `disabled`/`error` config would insert a model that can never be
+   * resolved (permanent dead chat, B1). A disabled/error config falls through so the caller creates
+   * a fresh ACTIVE config instead. `safeProviderQuery` orders by created_at desc, so
+   * `executeTakeFirst` returns the newest active match.
    */
   async findReusableProviderByKind(
     scopedDb: DataContextDb,
@@ -197,15 +201,19 @@ export class AiRepository {
 
     return this.safeProviderQuery(scopedDb)
       .where("provider_kind", "=", providerKind)
-      .where("status", "!=", "revoked")
+      .where("status", "=", "active")
       .executeTakeFirst();
   }
 
   /**
-   * #367: true if ANY chat-capable model row (ANY status — active OR user-disabled) exists under a
-   * NON-REVOKED provider config of this kind. The login auto-register seam gates on this so a
-   * re-login never duplicates a model and never resurrects a model the founder disabled in Admin
-   * (models are never hard-deleted — "remove" sets status `disabled`).
+   * #367: true if ANY chat-capable model row (ANY model status — active OR user-disabled) exists
+   * under an ACTIVE provider config of this kind. The login auto-register seam gates on this:
+   *   - a model under an ACTIVE config (active OR user-disabled) ⇒ true ⇒ skip — never duplicate an
+   *     active model, never resurrect a model the founder disabled in Admin (models are never
+   *     hard-deleted — "remove" sets status `disabled`);
+   *   - a model under a `disabled`/`error` config ⇒ NOT counted, so a re-login can recover (create a
+   *     fresh active config + selectable model) rather than be permanently blocked (B1). This mirrors
+   *     `selectChatModelForUser`'s active-provider requirement — only a SELECTABLE model "exists".
    */
   async hasChatModelForProviderKind(
     scopedDb: DataContextDb,
@@ -222,7 +230,7 @@ export class AiRepository {
       )
       .select(sql<boolean>`true`.as("has_it"))
       .where("providers.provider_kind", "=", providerKind)
-      .where("providers.status", "!=", "revoked")
+      .where("providers.status", "=", "active")
       .where(sql<boolean>`'chat' = any(${sql.ref("models.capabilities")})`)
       .executeTakeFirst();
 
