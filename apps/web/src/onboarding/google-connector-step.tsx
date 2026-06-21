@@ -19,7 +19,10 @@ import type { ChangeEvent } from "react";
 
 import { listConnectorAccounts, revokeConnectorAccount } from "../api/client";
 import { queryKeys } from "../api/query-keys";
-import { useGoogleConnectFlow } from "../connectors/use-google-connect-flow";
+import {
+  GOOGLE_CONNECT_SUCCESS_QUERY_KEYS,
+  useGoogleConnectFlow
+} from "../connectors/use-google-connect-flow";
 import { FootNote, StepHeader } from "./onboarding-ui";
 
 const SOON_PROVIDERS = [
@@ -53,7 +56,14 @@ export function GoogleConnectorStep(props: {
   });
   const revoke = useMutation({
     mutationFn: (id: string) => revokeConnectorAccount(id),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.connectors.accounts })
+    // Symmetric to connect: disconnecting the last Google account flips connectors.done back to
+    // false, so refresh the onboarding status too — else the recap wrongly stays "connected".
+    onSuccess: () =>
+      Promise.all(
+        GOOGLE_CONNECT_SUCCESS_QUERY_KEYS.map((queryKey) =>
+          queryClient.invalidateQueries({ queryKey })
+        )
+      )
   });
   const accounts = accountsQuery.data?.accounts ?? [];
   const connected = props.done || accounts.length > 0;

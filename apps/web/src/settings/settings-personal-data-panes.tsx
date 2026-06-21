@@ -38,6 +38,7 @@ import {
   setMyModuleDisabled
 } from "../api/client";
 import { queryKeys } from "../api/query-keys";
+import { GOOGLE_CONNECT_SUCCESS_QUERY_KEYS } from "../connectors/use-google-connect-flow";
 import { GoogleConnect } from "./settings-google-connect";
 import {
   BriefingSettings,
@@ -196,7 +197,13 @@ function ConnectedPane() {
   const revokeMutation = useMutation({
     mutationFn: (id: string) => revokeConnectorAccount(id),
     onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: queryKeys.connectors.accounts });
+      // Revoking a connector flips connectors.done (derived from "an account exists"), so refresh
+      // onboarding.status too — not just the accounts list — or the onboarding recap stays stale.
+      // Same shared key set the Google connect/disconnect flow uses, so all revoke entry points
+      // invalidate the onboarding status consistently.
+      for (const queryKey of GOOGLE_CONNECT_SUCCESS_QUERY_KEYS) {
+        void queryClient.invalidateQueries({ queryKey });
+      }
       toast("Access revoked", { tone: "drift", icon: <Unlink size={17} /> });
     },
     onError: (error) => toast(readError(error), { tone: "drift" })

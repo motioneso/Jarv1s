@@ -10,6 +10,17 @@ interface GoogleConnectFlowOptions {
   readonly onError?: (message: string) => void;
 }
 
+/**
+ * Query keys to invalidate after a successful Google connect. `connectors.done` (which the
+ * onboarding Finish recap reads) is derived server-side from "a connector account exists", so
+ * a successful connect must refresh BOTH the accounts list AND the onboarding status — else the
+ * recap wrongly reports the connector step as "skipped" after it was just connected.
+ */
+export const GOOGLE_CONNECT_SUCCESS_QUERY_KEYS = [
+  queryKeys.connectors.accounts,
+  queryKeys.onboarding.status
+] as const;
+
 function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : "Something went wrong";
 }
@@ -45,7 +56,11 @@ export function useGoogleConnectFlow(options: GoogleConnectFlowOptions = {}) {
       setClientId("");
       setClientSecret("");
       setError(null);
-      await queryClient.invalidateQueries({ queryKey: queryKeys.connectors.accounts });
+      await Promise.all(
+        GOOGLE_CONNECT_SUCCESS_QUERY_KEYS.map((queryKey) =>
+          queryClient.invalidateQueries({ queryKey })
+        )
+      );
       options.onConnected?.();
     },
     onError: (cause) => {
