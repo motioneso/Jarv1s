@@ -12,6 +12,7 @@ unreachable → zero Jarvis tools. The compose env `JARVIS_MCP_SERVER_URL` (defa
 exists but is set only on `cli-runner`, NOT `api`, AND the config never reads it.
 
 ### Task 1.1 (TDD) — `resolveApiServerConfig` honors `JARVIS_MCP_SERVER_URL`
+
 - Test first: `tests/unit/api-server-config.test.ts` (new). Import `resolveApiServerConfig` from
   `apps/api/src/server.js`. Cases:
   1. env sets `JARVIS_MCP_SERVER_URL=http://api:3000/api/mcp` → config.mcpServerUrl equals it (PORT ignored).
@@ -23,6 +24,7 @@ exists but is set only on `cli-runner`, NOT `api`, AND the config never reads it
 - Do NOT touch host/port resolution or the MCP gateway auth/allowlist/token-mint path. URL source only.
 
 ### Task 1.2 — compose: add `JARVIS_MCP_SERVER_URL` to the `api` service
+
 - `infra/docker-compose.prod.yml` `api.environment` (currently lines 187-197): add
   `JARVIS_MCP_SERVER_URL: ${JARVIS_MCP_SERVER_URL:-http://api:3000/api/mcp}` with a short comment that the
   api now forwards this to the CLI launch (the cli-runner container resolves `api` via compose DNS).
@@ -44,28 +46,32 @@ So extract the invalidation key set into a pure exported helper and unit-test th
 "extract pure logic, test without DOM" idiom the repo already uses.
 
 ### Task 2.1 (TDD) — pure helper for the connect-success invalidation keys
+
 - Test first: `tests/unit/google-connect-invalidation.test.ts` (new). Import the new helper from
   `apps/web/src/connectors/use-google-connect-flow.js`. Assert the returned key list contains BOTH
   `queryKeys.connectors.accounts` AND `queryKeys.onboarding.status` (so a successful connect refreshes the
   status the recap reads). Guards against regressing back to accounts-only.
 - Impl: add `export const GOOGLE_CONNECT_SUCCESS_QUERY_KEYS = [queryKeys.connectors.accounts,
-  queryKeys.onboarding.status] as const;` and in completeMutation.onSuccess invalidate each key in that list
+queryKeys.onboarding.status] as const;` and in completeMutation.onSuccess invalidate each key in that list
   (replacing the single `connectors.accounts` invalidation). Keep behavior identical otherwise (clears
   fields, fires `onConnected`).
 
 ### Task 2.2 — apply the same refresh on revoke (cheap, in-scope correctness)
+
 - `google-connector-step.tsx:56` revoke onSuccess: also invalidate `queryKeys.onboarding.status` (reuse no
   helper needed — single extra key) so disconnecting the last account flips `connectors.done` back to false
   consistently. If the coordinator considers this out-of-scope vs the reported bug, drop it — the required
   fix is 2.1. (Flagging, not deciding.)
 
 ## Gate + finish
+
 - `pnpm verify:foundation` full gate, REAL exit code (capture VF_EXIT). DB `JARVIS_PGDATABASE=jarvis_qa_v014`.
 - Pre-push trio (`format:check && lint && typecheck`) + fresh rebase on origin/main.
 - `coordinated-wrap-up`: push `v014-deploy-fixes`, open PR (title/body per handoff), report PR# + head SHA +
   VF_EXIT + files to coordinator. No board/milestone/merge.
 
 ## Invariants honored
+
 - F1 does NOT weaken MCP auth/allowlist/token-mint — only the URL source; loopback default preserved for dev.
 - No secrets in logs/payloads/prompts. `@jarv1s/shared` untouched. `git add` explicit paths only (shared tree).
 - Co-Authored-By: Claude Opus 4.8.
