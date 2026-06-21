@@ -7,27 +7,7 @@ import type { ChatMultiplexerChoice, OnboardingMultiplexerStepDto } from "@jarv1
 import { setChatMultiplexerSettings } from "../api/client";
 import { queryKeys } from "../api/query-keys";
 import { OptionCard, StatusChip, StatusHint, StepHeader } from "./onboarding-ui";
-
-const OPTIONS = [
-  {
-    id: "auto",
-    name: "Auto",
-    mono: "recommended",
-    desc: "Detect and use the best available multiplexer on your computer."
-  },
-  {
-    id: "tmux",
-    name: "tmux",
-    mono: "multiplexer",
-    desc: "A standard terminal multiplexer. Must be installed on your computer."
-  },
-  {
-    id: "herdr",
-    name: "herdr",
-    mono: "multiplexer",
-    desc: "A project-oriented multiplexer. Requires a running root pane."
-  }
-] as const;
+import { OPTIONS } from "./multiplexer-options";
 
 export function MultiplexerStep(props: {
   readonly step: OnboardingMultiplexerStepDto;
@@ -50,7 +30,7 @@ export function MultiplexerStep(props: {
     }
   });
 
-  const anyUsable = props.step.tmuxUsable || props.step.herdrUsable;
+  const anyUsable = props.step.tmuxUsable;
   const selected = select.isPending ? selectedChoice : (props.step.selected ?? selectedChoice);
 
   useEffect(() => {
@@ -66,7 +46,7 @@ export function MultiplexerStep(props: {
       />
       <div className="onb-opts">
         {OPTIONS.map((option) => {
-          const state = option.id === "herdr" ? props.step.herdrUsable : props.step.tmuxUsable;
+          const state = props.step.tmuxUsable;
           const autoReady = option.id === "auto" && anyUsable;
           const ready = autoReady || state;
           const tone = ready ? "pine" : option.id === "auto" ? "steel" : "amber";
@@ -78,11 +58,7 @@ export function MultiplexerStep(props: {
               ? "Will use what’s available"
               : "Not installed";
           const hint =
-            !ready && option.id === "tmux"
-              ? "Install tmux on the host, then re-check."
-              : !ready && option.id === "herdr"
-                ? "Install herdr and configure a root pane."
-                : undefined;
+            !ready && option.id === "tmux" ? "Install tmux on the host, then re-check." : undefined;
           return (
             <OptionCard
               key={option.id}
@@ -119,9 +95,6 @@ export function MultiplexerStep(props: {
         <span>Download:</span>
         <a href="https://github.com/tmux/tmux" target="_blank" rel="noreferrer">
           tmux <ExternalLink size={14} />
-        </a>
-        <a href="https://herdr.dev/docs/install/" target="_blank" rel="noreferrer">
-          herdr <ExternalLink size={14} />
         </a>
       </div>
       <div className="onb-recheck">
