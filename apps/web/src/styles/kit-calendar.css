@@ -58,6 +58,23 @@
   text-transform: uppercase;
   color: var(--accent-fg);
 }
+/* Mobile: let the toolbar wrap so the day/week/month toggle drops to its own
+   row instead of overlapping the (nowrap) month/range label (#384). */
+@media (max-width: 560px) {
+  .cal-toolbar {
+    flex-wrap: wrap;
+    gap: 10px 12px;
+    padding: 14px 16px 10px;
+  }
+  .cal-toolbar__right {
+    flex: 1 0 100%;
+    justify-content: flex-start;
+  }
+  .cal-range {
+    font-size: 18px;
+    white-space: normal;
+  }
+}
 
 /* ---- legend ---- */
 .cal-legend {
