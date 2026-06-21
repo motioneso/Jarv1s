@@ -14,6 +14,9 @@ import {
   type AccessContext,
   type JarvisDatabase
 } from "@jarv1s/db";
+import { SettingsRepository } from "@jarv1s/settings";
+
+import { buildOnboardingLogin } from "../../packages/module-registry/src/onboarding-login.js";
 import { connectionStrings, ids, resetFoundationDatabase } from "./test-database.js";
 
 const { Client } = pg;
@@ -141,6 +144,53 @@ describe("AI auto-register default chat model on login (#367)", () => {
     expect(providers.filter((p) => p.provider_kind === "custom")).toHaveLength(0);
   });
 
+  it("auto-registers when persistLoginTerminal settles ready, and never throws into login", async () => {
+    const seam = buildOnboardingLogin({
+      enabled: true,
+      getConnection: () => undefined, // login RPC not exercised; we drive stateStore directly
+      repository: new SettingsRepository(),
+      autoRegister: service,
+      logger: { warn: () => {} }
+    })!;
+
+    const state = await dataContext.withDataContext(adminCtx(), (db) =>
+      seam.stateStore.persistLoginTerminal(db, {
+        provider: "anthropic",
+        status: "ready",
+        requestId: "r1"
+      })
+    );
+    expect(state).toBe("ready");
+
+    const model = await dataContext.withDataContext(adminCtx(), (db) =>
+      repository.selectChatModelForUser(db)
+    );
+    expect(model?.provider_model_id).toBe("sonnet");
+  });
+
+  it("best-effort: a throwing auto-register port does NOT fail the ready transition", async () => {
+    const throwingSeam = buildOnboardingLogin({
+      enabled: true,
+      getConnection: () => undefined,
+      repository: new SettingsRepository(),
+      autoRegister: {
+        ensureDefaultChatModel: async () => {
+          throw new Error("boom");
+        }
+      },
+      logger: { warn: () => {} }
+    })!;
+
+    const state = await dataContext.withDataContext(adminCtx(), (db) =>
+      throwingSeam.stateStore.persistLoginTerminal(db, {
+        provider: "anthropic",
+        status: "ready",
+        requestId: "r2"
+      })
+    );
+    expect(state).toBe("ready");
+  });
+
   function adminCtx(): AccessContext {
     return { actorUserId: ids.userA, requestId: "request:auto-register" };
   }
@@ -161,7 +211,7 @@ async function truncateAiTables(): Promise<void> {
   await client.connect();
   try {
     await client.query(
-      `TRUNCATE app.ai_configured_models, app.ai_provider_configs RESTART IDENTITY CASCADE`
+      `TRUNCATE app.ai_configured_models, app.ai_provider_configs, app.provider_install_state RESTART IDENTITY CASCADE`
     );
   } finally {
     await client.end();

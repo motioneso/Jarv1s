@@ -18,8 +18,10 @@
  * CLIs live in the cli-runner container); absent ⇒ the login routes fail closed (500).
  */
 
+import type { AiAutoRegisterPort } from "@jarv1s/ai";
 import type { RpcConnection } from "@jarv1s/chat";
 import { LOGIN_ADAPTERS } from "@jarv1s/cli-runner";
+import type { AiProviderKind } from "@jarv1s/db";
 import type {
   OnboardingLoginDependencies,
   ProviderLoginabilityPort,
@@ -56,6 +58,13 @@ export function buildOnboardingLogin(deps: {
   readonly enabled: boolean;
   readonly getConnection: () => RpcConnection | undefined;
   readonly repository: SettingsRepository;
+  /**
+   * #367: on login `ready`, idempotently register a default chat-capable model so chat works with
+   * zero manual entry. Optional — absent ⇒ `ready` persists exactly as before (no registration).
+   */
+  readonly autoRegister?: AiAutoRegisterPort;
+  /** Logger for the best-effort auto-register path (a failure is logged, never thrown into login). */
+  readonly logger?: { readonly warn: (obj: unknown, msg: string) => void };
 }): OnboardingLoginDependencies | undefined {
   if (!deps.enabled) return undefined;
   const repository = deps.repository;
@@ -96,7 +105,25 @@ export function buildOnboardingLogin(deps: {
     // returns the current lifecycle (begin already set `needs_login`).
     persistLoginTerminal: async (scopedDb, { provider, status, message }) => {
       if (status === "ready") {
-        return repository.upsertProviderInstallState(scopedDb, { provider, state: "ready" });
+        const state = await repository.upsertProviderInstallState(scopedDb, {
+          provider,
+          state: "ready"
+        });
+        // #367: best-effort default-model registration so chat works with zero manual entry. A
+        // failure here MUST NOT fail the login — auth already succeeded (the persisted token is the
+        // real "logged in"); the user-facing dead-end is covered by #369's empty-chat explainer.
+        // Log at WARN with providerKind + reason; never a token/secret (the cause carries neither).
+        if (deps.autoRegister) {
+          try {
+            await deps.autoRegister.ensureDefaultChatModel(scopedDb, provider as AiProviderKind);
+          } catch (err) {
+            deps.logger?.warn(
+              { provider, reason: err instanceof Error ? err.message : String(err) },
+              "auto-register default chat model failed after login ready"
+            );
+          }
+        }
+        return state;
       }
       if (status === "error") {
         return repository.upsertProviderInstallState(scopedDb, {
