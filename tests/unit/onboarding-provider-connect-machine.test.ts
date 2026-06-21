@@ -123,6 +123,19 @@ describe("deriveCardModel", () => {
     expect(m.status).toBe("error");
     expect(m.errorMessage).toBe("login smoke check failed");
   });
+
+  it("a login failure keeps status needs_login but still exposes errorMessage (B1)", () => {
+    // A failed login leaves the persisted installState at needs_login while the transient session
+    // carries the error — the model must surface BOTH so the UI never swallows the failure.
+    const m = deriveCardModel({
+      provider: provider({ installable: true, installState: "needs_login" }),
+      login: { phase: "idle", error: "Login smoke check failed." },
+      installing: false,
+      busy: false
+    });
+    expect(m.status).toBe("needs_login");
+    expect(m.errorMessage).toBe("Login smoke check failed.");
+  });
 });
 
 describe("shouldAutoLogin", () => {

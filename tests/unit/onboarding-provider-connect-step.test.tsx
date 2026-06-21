@@ -74,6 +74,16 @@ describe("ProviderCard (rendered)", () => {
     );
   });
 
+  it("surfaces a login failure even while status is needs_login (errorMessage is orthogonal) — B1", () => {
+    // The bug: a login/connect failure leaves installState at needs_login while setting an
+    // errorMessage. The error must still be visible (not swallowed behind a bare Log in button).
+    const html = render(
+      baseModel({ status: "needs_login", errorMessage: "Login smoke check failed." })
+    );
+    expect(html).toContain("Login smoke check failed.");
+    expect(html.toLowerCase()).toContain("log in"); // retry affordance still present
+  });
+
   it("never renders a token/secret label leak", () => {
     const html = render(
       baseModel({ status: "logging_in", awaitingToken: true, authorizationUrl: "https://x" })

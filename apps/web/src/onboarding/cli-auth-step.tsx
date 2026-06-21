@@ -165,11 +165,14 @@ export function CliAuthStep(props: {
     try {
       const resp = await installOnboardingProvider({ providerKind: kind });
       patch(kind, { installing: false });
-      refresh();
       if (resp.installState === "error") {
+        // Surface the error BEFORE refreshing status, so the message is shown even if the
+        // background refetch races (it never depends on installState catching up).
         patch(kind, { error: resp.message ?? "Install failed. Try again." });
+        refresh();
         return;
       }
+      refresh();
       if (shouldAutoLogin(resp.installState)) {
         await beginLogin(kind);
       }
@@ -182,15 +185,20 @@ export function CliAuthStep(props: {
     const session = stateFor(kind).login;
     const loginId = session.loginId;
     if (!loginId || code.length === 0) return;
-    patch(kind, { login: { ...session, phase: "submitting" }, busy: false, error: undefined });
+    // Drop the pasted code from state the instant it is captured for forwarding — BEFORE any
+    // await — so it never lingers on ANY outcome (success, error-status, or a thrown request).
+    patch(kind, {
+      login: { ...session, phase: "submitting" },
+      busy: false,
+      error: undefined,
+      token: ""
+    });
     try {
       const resp = await submitOnboardingProviderLoginToken({
         providerKind: kind,
         loginId,
         token: code
       });
-      // Clear the pasted code from state the instant it is forwarded (never linger / log it).
-      patch(kind, { token: "" });
       applyNext(kind, interpretLoginResponse(resp, "submit"));
     } catch (error) {
       handleError(kind, error);
@@ -287,6 +295,16 @@ export function ProviderCard(props: {
         </div>
 
         <div className="onb-auth">
+          {/* Error is ORTHOGONAL to status: a login/connect failure leaves installState at
+              needs_login while surfacing an errorMessage. Render it for ANY status (like busy) so
+              a failure is never silently swallowed — the status-specific button below acts as the
+              retry (Connect / Log in / Try again). */}
+          {model.errorMessage ? (
+            <div className="onb-auth__err" role="alert">
+              <Info size={14} aria-hidden="true" /> {model.errorMessage}
+            </div>
+          ) : null}
+
           {model.status === "unavailable" ? (
             <span className="onb-auth__note">
               <Info size={14} aria-hidden="true" /> {label} isn’t available to install on this build
@@ -392,12 +410,9 @@ export function ProviderCard(props: {
           ) : null}
 
           {model.status === "error" ? (
-            <div className="onb-auth__outwrap">
-              <div className="onb-auth__hint">{model.errorMessage ?? "Something went wrong."}</div>
-              <button className="onb-auth__btn" type="button" onClick={props.onConnect}>
-                Try again
-              </button>
-            </div>
+            <button className="onb-auth__btn" type="button" onClick={props.onConnect}>
+              Try again
+            </button>
           ) : null}
 
           {model.busy ? (
