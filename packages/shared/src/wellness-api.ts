@@ -153,6 +153,12 @@ export interface ScheduleSlotDto {
   readonly scheduledFor: string | null;
   readonly asNeeded: boolean;
   readonly status: "pending" | "taken" | "skipped";
+  /**
+   * Number of PRN ("as needed") doses logged for this med on the slot's date. Present on
+   * as_needed slots; omitted on scheduled slots. Optional for backward-compat — older payloads
+   * without it are valid and consumers should treat a missing value as 0.
+   */
+  readonly prnCount?: number;
 }
 export interface MedicationScheduleResponse {
   readonly date: string;
@@ -550,13 +556,15 @@ export const createMedicationLogResponseSchema = {
 
 export const scheduleSlotDtoSchema = {
   type: "object",
+  // prnCount is intentionally NOT required — additive, backward-compatible field.
   required: ["medicationId", "name", "scheduledFor", "asNeeded", "status"],
   properties: {
     medicationId: { type: "string" },
     name: { type: "string" },
     scheduledFor: nullableStringSchema,
     asNeeded: { type: "boolean" },
-    status: { type: "string", enum: ["pending", "taken", "skipped"] }
+    status: { type: "string", enum: ["pending", "taken", "skipped"] },
+    prnCount: { type: "number" }
   }
 } as const;
 

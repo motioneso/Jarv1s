@@ -35,7 +35,8 @@ export function computeSchedule(
         name: med.name,
         scheduledFor: null,
         asNeeded: true,
-        status: "pending"
+        status: "pending",
+        prnCount: countPrnLogs(med.id, logs)
       });
       continue;
     }
@@ -124,6 +125,21 @@ function combineDateAndTime(date: Date, time: string): Date {
       0
     )
   );
+}
+
+/**
+ * Count the PRN doses logged for a med on this date. PRN logs are the unscheduled
+ * (scheduled_for IS NULL) rows with status "prn"; the caller passes same-day logs, so this is
+ * the per-day count surfaced as the as_needed slot's prnCount.
+ */
+function countPrnLogs(medicationId: string, logs: readonly MedicationLog[]): number {
+  let count = 0;
+  for (const log of logs) {
+    if (log.medication_id !== medicationId) continue;
+    if (log.scheduled_for) continue;
+    if (log.status === "prn") count++;
+  }
+  return count;
 }
 
 function slotStatusFromLogs(

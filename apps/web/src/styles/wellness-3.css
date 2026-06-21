@@ -1,0 +1,121 @@
+/* wellness-3.css — supplemental wellness styles: mobile chart legibility (#386) and the
+   as-needed (PRN) dose-entry affordance (#387).
+   Loaded AFTER wellness-1.css / wellness-2.css so these overrides win.
+   Kept in a separate file to respect the 1000-line per-file cap (wellness-1/-2 are near it). */
+
+/* ── PRN ("as needed") dose entry (#387) ── */
+.wl-prn {
+  padding: 7px 4px 7px 0;
+  border-bottom: 1px solid var(--border-subtle);
+}
+.wl-prn:last-child {
+  border-bottom: 0;
+}
+.wl-prn__row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+.wl-prn__row .wl-medrow__name {
+  flex: 1;
+  min-width: 0;
+}
+.wl-prn__count {
+  flex: none;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--accent-fg);
+  font-variant-numeric: tabular-nums;
+}
+.wl-prn__log {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 11px;
+  border-radius: var(--radius-pill);
+  border: 1px solid var(--pine-soft-2);
+  background: var(--pine-soft);
+  color: var(--pine-ink);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: var(--transition-control);
+}
+.wl-prn__log:hover {
+  border-color: var(--accent);
+  background: var(--surface);
+}
+.wl-prn__panel {
+  margin-top: 9px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.wl-prn__chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.wl-prn__chip {
+  padding: 4px 10px;
+  border-radius: var(--radius-pill);
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+  color: var(--text-subtle);
+  font-size: 12px;
+  cursor: pointer;
+  transition: var(--transition-control);
+}
+.wl-prn__chip.is-on {
+  border-color: var(--accent);
+  background: var(--pine-soft);
+  color: var(--pine-ink);
+  font-weight: 600;
+}
+.wl-prn__input {
+  width: 100%;
+  padding: 7px 10px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text);
+  font-size: 13px;
+}
+.wl-prn__input:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+.wl-prn__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+@media (max-width: 560px) {
+  /* The trend SVG uses a fixed 760-unit viewBox scaled to 100% width. At phone widths that
+     crushes the whole chart — axis labels and dots become illegible. Give the plot a horizontal
+     scroll and hold the SVG at a readable minimum width instead of letting it shrink to fit. */
+  .wl-chart__plot {
+    overflow-x: auto;
+    overflow-y: visible;
+    -webkit-overflow-scrolling: touch;
+    /* room so absolutely-positioned tooltips above the plot aren't clipped while scrolling */
+    padding-bottom: 4px;
+  }
+
+  .wl-chart__plot svg {
+    min-width: 600px;
+    /* taller aspect at narrow widths so the mood band + meds row breathe */
+    height: auto;
+  }
+
+  /* Bump the in-SVG axis text so it stays readable at the held scale. */
+  .wl-axislbl {
+    font-size: 13px;
+  }
+  .wl-axislbl--ov {
+    font-size: 13.5px;
+  }
+}

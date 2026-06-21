@@ -260,10 +260,11 @@ export class WellnessRepository {
   }
 
   /**
-   * Logs that satisfy a SCHEDULED slot on `date` — filtered by `scheduled_for` (the slot
-   * instant), NOT `logged_at` (Codex R2). A dose logged late/early (e.g. just after midnight)
-   * still matches its slot's civil day. PRN logs (scheduled_for IS NULL) are excluded: they
-   * are unscheduled and computeSchedule never matches them to a slot.
+   * Logs that belong to `date`. SCHEDULED logs are filtered by `scheduled_for` (the slot
+   * instant), NOT `logged_at` (Codex R2) — a dose logged late/early (e.g. just after midnight)
+   * still matches its slot's civil day. PRN logs (scheduled_for IS NULL) are unscheduled, so
+   * they are anchored by `logged_at` instead and included for the day; computeSchedule uses
+   * them only to count the day's PRN doses (prnCount), never to fill a scheduled slot.
    */
   async listLogsForDate(scopedDb: DataContextDb, date: Date): Promise<MedicationLog[]> {
     assertDataContextDb(scopedDb);
@@ -274,8 +275,16 @@ export class WellnessRepository {
     const rows = await scopedDb.db
       .selectFrom("app.medication_logs")
       .selectAll()
-      .where("scheduled_for", ">=", dayStart)
-      .where("scheduled_for", "<", dayEnd)
+      .where((eb) =>
+        eb.or([
+          eb.and([eb("scheduled_for", ">=", dayStart), eb("scheduled_for", "<", dayEnd)]),
+          eb.and([
+            eb("scheduled_for", "is", null),
+            eb("logged_at", ">=", dayStart),
+            eb("logged_at", "<", dayEnd)
+          ])
+        ])
+      )
       .execute();
     return rows as MedicationLog[];
   }

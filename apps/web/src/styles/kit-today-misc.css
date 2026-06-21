@@ -329,6 +329,43 @@
   color: var(--pine-ink);
 }
 
+/* Soft, dismissible med reminder (client-only; reappears on reload — no server flag). */
+.well__nudge {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 8px 0 12px;
+  padding: 8px 10px;
+  border-radius: var(--radius-md);
+  background: var(--amber-soft);
+  border: 1px solid var(--amber-soft-2);
+}
+.well__nudge-tx {
+  flex: 1;
+  font-size: 12.5px;
+  line-height: 1.4;
+  color: var(--amber-ink);
+}
+.well__nudge-x {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--amber-ink);
+  cursor: pointer;
+  opacity: 0.75;
+  transition: var(--transition-control);
+}
+.well__nudge-x:hover {
+  opacity: 1;
+  background: var(--amber-soft-2);
+}
+
 /* ===== Header weather (left context) tidy ===== */
 .wx-mini {
   gap: 14px;

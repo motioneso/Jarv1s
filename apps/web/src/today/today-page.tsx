@@ -25,7 +25,13 @@ import { Link, useNavigate } from "react-router";
 
 import type { CalendarEventDto, MeResponse, TaskDto } from "@jarv1s/shared";
 
-import { createWellnessCheckin, listCalendarEvents, listTasks, updateTask } from "../api/client";
+import {
+  createWellnessCheckin,
+  getMedicationSchedule,
+  listCalendarEvents,
+  listTasks,
+  updateTask
+} from "../api/client";
 import { MedToday } from "../wellness/wellness-today";
 import { ManageMedsModal } from "../wellness/manage-meds-modal";
 import { CheckinModal, type CheckinFormValue } from "../wellness/checkin-modal";
@@ -34,6 +40,7 @@ import { createEmptyTodayFeed, type FeedTone, type TodayFeed } from "./feed-sour
 import { isAtRisk, isDoFirst, isDoneToday } from "../tasks/focus";
 import "../styles/wellness-1.css";
 import "../styles/wellness-2.css";
+import "../styles/wellness-3.css";
 import "../styles/kit-today.css";
 import "../styles/kit-today-feeds.css";
 import "../styles/kit-today-misc.css";
@@ -67,6 +74,23 @@ export function TodayPage(props: {
   const [medsModalOpen, setMedsModalOpen] = useState(false);
   const [manageMedsOpen, setManageMedsOpen] = useState(false);
   const [checkinModalOpen, setCheckinModalOpen] = useState(false);
+  // Soft med reminder is dismissed CLIENT-SIDE ONLY (ephemeral state — reappears on reload).
+  // No server-persisted "dismissed" flag: that would need a new endpoint/storage and trip the
+  // spec-before-build + no-new-endpoint guardrails for this lane.
+  const [medReminderDismissed, setMedReminderDismissed] = useState(false);
+
+  const medScheduleQuery = useQuery({
+    queryKey: queryKeys.wellness.schedule(todayKey()),
+    queryFn: () => getMedicationSchedule(todayKey()),
+    enabled: wellnessEnabled
+  });
+  const medScheduledSlots = (medScheduleQuery.data?.slots ?? []).filter((s) => !s.asNeeded);
+  const medTaken = medScheduledSlots.filter((s) => s.status === "taken").length;
+  const medTotal = medScheduledSlots.length;
+  const medsAllTaken = medTotal > 0 && medTaken === medTotal;
+  const medsNoneLogged = medTotal > 0 && medTaken === 0;
+  // Only nudge when a SCHEDULED dose is still outstanding; PRN-only / no-meds users never get one.
+  const showMedReminder = wellnessEnabled && medTotal > 0 && medTaken < medTotal;
 
   const createCheckinMutation = useMutation({
     mutationFn: (val: CheckinFormValue) =>
@@ -299,6 +323,42 @@ export function TodayPage(props: {
                 </span>
                 <span className="well__title">Wellness</span>
               </div>
+              {medTotal > 0 ? (
+                <div className="well__line">
+                  {medsAllTaken ? (
+                    <>
+                      <Check size={14} aria-hidden="true" /> <b>All meds taken</b> today.
+                    </>
+                  ) : medsNoneLogged ? (
+                    <>
+                      No meds logged yet today — <b>{medTotal}</b> to go.
+                    </>
+                  ) : (
+                    <>
+                      <b>
+                        {medTaken} of {medTotal}
+                      </b>{" "}
+                      meds logged today.
+                    </>
+                  )}
+                </div>
+              ) : null}
+              {showMedReminder && !medReminderDismissed ? (
+                <div className="well__nudge" role="status">
+                  <span className="well__nudge-tx">
+                    A gentle nudge: {medTotal - medTaken} dose
+                    {medTotal - medTaken === 1 ? "" : "s"} left to log today.
+                  </span>
+                  <button
+                    type="button"
+                    className="well__nudge-x"
+                    aria-label="Dismiss reminder"
+                    onClick={() => setMedReminderDismissed(true)}
+                  >
+                    <XIcon />
+                  </button>
+                </div>
+              ) : null}
               <div className="well__actions">
                 <button
                   className="well__btn well__btn--meds"
@@ -310,6 +370,11 @@ export function TodayPage(props: {
                     </span>
                     Meds
                   </span>
+                  {medTotal > 0 ? (
+                    <span className={`well__ct${medsAllTaken ? " is-done" : ""}`}>
+                      {medTaken}/{medTotal}
+                    </span>
+                  ) : null}
                 </button>
                 <button className="well__btn" onClick={() => setCheckinModalOpen(true)}>
                   <span className="ic">
@@ -647,6 +712,11 @@ function firstName(name: string, email: string): string {
   const source = name.trim() || email.split("@")[0] || "there";
   const base = source.split(/\s+/)[0] ?? source;
   return base.charAt(0).toUpperCase() + base.slice(1);
+}
+
+function todayKey(): string {
+  const now = new Date();
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
 }
 
 function greeting(): string {
