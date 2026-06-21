@@ -34,6 +34,7 @@ import { queryKeys } from "../api/query-keys";
 import { ChatDrawer } from "../chat/chat-drawer";
 import { useChatStream } from "../chat/use-chat-stream";
 import { ChatControlsProvider } from "./chat-controls-context";
+import { ASK_JARVIS_STARTER, consumeAskJarvis } from "../onboarding/ask-jarvis-handoff";
 import { HeaderWeather } from "../today/header-weather";
 import { loadShellTheme, saveShellTheme, type ShellTheme } from "./theme-storage";
 import type { MeResponse, ModuleDto, ModuleNavigationEntryDto } from "@jarv1s/shared";
@@ -76,7 +77,18 @@ export function AppShell(props: AppShellProps) {
   const navigate = useNavigate();
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [chatOpen, setChatOpen] = useState(false);
+  // #368: the onboarding "Ask Jarvis" finish action drops a one-shot sessionStorage flag and
+  // navigates here (the wizard lives outside the shell, so this is a fresh mount). On mount we
+  // read-and-clear it: if set, open the drawer pre-filled with the setup-check starter (never
+  // auto-sent). A refresh does not re-trigger it (the flag was consumed).
+  const [askJarvisStarter, setAskJarvisStarter] = useState<string | undefined>(undefined);
   const [theme, setTheme] = useState<ShellTheme>(() => loadShellTheme());
+  useEffect(() => {
+    if (consumeAskJarvis()) {
+      setAskJarvisStarter(ASK_JARVIS_STARTER);
+      setChatOpen(true);
+    }
+  }, []);
   useEffect(() => {
     document.documentElement.setAttribute("data-theme", theme);
     saveShellTheme(theme);
@@ -200,10 +212,16 @@ export function AppShell(props: AppShellProps) {
 
       <ChatDrawer
         open={chatOpen}
-        onClose={() => setChatOpen(false)}
+        onClose={() => {
+          setChatOpen(false);
+          // #368: the starter is a one-shot — once the drawer closes, a later manual open starts
+          // from a blank composer, not the setup-check chip.
+          setAskJarvisStarter(undefined);
+        }}
         records={records}
         clearRecords={clearRecords}
         isFounder={props.me.user.isBootstrapOwner}
+        initialText={askJarvisStarter}
       />
     </div>
   );
