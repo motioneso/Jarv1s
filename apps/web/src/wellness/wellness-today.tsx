@@ -1,4 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useState } from "react";
 import { EMOTIONS, moodIndex, moodBand, type CheckinDto } from "@jarv1s/shared";
 import { getMedicationSchedule, logMedicationDose } from "../api/client";
 import { queryKeys } from "../api/query-keys";
@@ -8,6 +9,10 @@ function todayIso(): string {
   const now = new Date();
   return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
 }
+
+// Common quick-pick reasons for an as-needed dose. The user can pick one or type their own;
+// the chosen text is what gets stored (no placeholder is ever submitted).
+const PRN_REASONS = ["Pain", "Anxiety", "Nausea", "Headache", "Trouble sleeping"] as const;
 
 /* ─── Icons ─── */
 function PillIcon() {
@@ -201,13 +206,14 @@ function MedToday({ theme: _theme, onManage }: MedTodayProps) {
   const logMutation = useMutation({
     mutationFn: (input: {
       medicationId: string;
-      status: "taken" | "skipped";
+      status: "taken" | "skipped" | "prn";
       scheduledFor: string | null;
+      prnReason?: string | null;
     }) =>
       logMedicationDose(input.medicationId, {
         status: input.status,
         scheduledFor: input.scheduledFor,
-        prnReason: null
+        prnReason: input.prnReason ?? null
       }),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: queryKeys.wellness.schedule(date) });
@@ -215,6 +221,27 @@ function MedToday({ theme: _theme, onManage }: MedTodayProps) {
       void queryClient.invalidateQueries({ queryKey: queryKeys.wellness.insights });
     }
   });
+
+  // PRN ("as needed") dose entry. The DB requires a non-empty prn_reason and we MUST NOT fabricate
+  // it: a hardcoded/placeholder reason would write false clinical data into the health audit trail.
+  // So logging a PRN dose captures a user-acknowledged reason (quick-pick chip or free text) before
+  // submit — never blank, never silent. PRN doses are repeatable: each submit inserts a new log.
+  const [prnOpenFor, setPrnOpenFor] = useState<string | null>(null);
+  const [prnReason, setPrnReason] = useState("");
+
+  function logPrnDose(medicationId: string) {
+    const reason = prnReason.trim();
+    if (!reason) return;
+    logMutation.mutate(
+      { medicationId, status: "prn", scheduledFor: null, prnReason: reason },
+      {
+        onSuccess: () => {
+          setPrnOpenFor(null);
+          setPrnReason("");
+        }
+      }
+    );
+  }
 
   const slots = scheduleQuery.data?.slots ?? [];
   const scheduledSlots = slots.filter((s) => !s.asNeeded);
@@ -275,6 +302,87 @@ function MedToday({ theme: _theme, onManage }: MedTodayProps) {
                   {g.label}
                 </div>
                 {g.rows.map((slot, i) => {
+                  if (slot.asNeeded) {
+                    const open = prnOpenFor === slot.medicationId;
+                    return (
+                      <div key={`prn-${slot.medicationId}-${i}`} className="wl-prn">
+                        <div className="wl-prn__row">
+                          <span className="wl-medrow__name">
+                            {slot.name}
+                            <span className="wl-medrow__prn">as needed</span>
+                          </span>
+                          {(slot.prnCount ?? 0) > 0 ? (
+                            <span className="wl-prn__count">{slot.prnCount} logged today</span>
+                          ) : null}
+                          <button
+                            type="button"
+                            className="wl-prn__log"
+                            aria-expanded={open}
+                            onClick={() => {
+                              setPrnOpenFor(open ? null : slot.medicationId);
+                              setPrnReason("");
+                            }}
+                          >
+                            <PlusIcon />
+                            Log a dose
+                          </button>
+                        </div>
+                        {open ? (
+                          <div className="wl-prn__panel">
+                            <div className="wl-prn__chips">
+                              {PRN_REASONS.map((r) => (
+                                <button
+                                  key={r}
+                                  type="button"
+                                  className={`wl-prn__chip${prnReason === r ? " is-on" : ""}`}
+                                  onClick={() => setPrnReason(r)}
+                                >
+                                  {r}
+                                </button>
+                              ))}
+                            </div>
+                            <input
+                              className="wl-prn__input"
+                              type="text"
+                              value={prnReason}
+                              placeholder="Reason for this dose (required)"
+                              aria-label="Reason for this dose"
+                              maxLength={120}
+                              onChange={(ev) => setPrnReason(ev.target.value)}
+                              onKeyDown={(ev) => {
+                                if (ev.key === "Enter") {
+                                  ev.preventDefault();
+                                  logPrnDose(slot.medicationId);
+                                }
+                              }}
+                            />
+                            <div className="wl-prn__actions">
+                              <button
+                                type="button"
+                                className="ghost-button"
+                                style={{ fontSize: 12, padding: "5px 12px", minHeight: "unset" }}
+                                onClick={() => {
+                                  setPrnOpenFor(null);
+                                  setPrnReason("");
+                                }}
+                              >
+                                Cancel
+                              </button>
+                              <button
+                                type="button"
+                                className="primary-button"
+                                style={{ fontSize: 12, padding: "5px 12px", minHeight: "unset" }}
+                                disabled={!prnReason.trim() || logMutation.isPending}
+                                onClick={() => logPrnDose(slot.medicationId)}
+                              >
+                                Log dose
+                              </button>
+                            </div>
+                          </div>
+                        ) : null}
+                      </div>
+                    );
+                  }
                   const on = slot.status === "taken";
                   return (
                     <div
@@ -283,7 +391,6 @@ function MedToday({ theme: _theme, onManage }: MedTodayProps) {
                       role="button"
                       tabIndex={0}
                       onClick={() => {
-                        if (slot.asNeeded) return;
                         logMutation.mutate({
                           medicationId: slot.medicationId,
                           status: on ? "skipped" : "taken",
@@ -293,22 +400,17 @@ function MedToday({ theme: _theme, onManage }: MedTodayProps) {
                       onKeyDown={(ev) => {
                         if (ev.key === "Enter" || ev.key === " ") {
                           ev.preventDefault();
-                          if (!slot.asNeeded) {
-                            logMutation.mutate({
-                              medicationId: slot.medicationId,
-                              status: on ? "skipped" : "taken",
-                              scheduledFor: slot.scheduledFor ?? null
-                            });
-                          }
+                          logMutation.mutate({
+                            medicationId: slot.medicationId,
+                            status: on ? "skipped" : "taken",
+                            scheduledFor: slot.scheduledFor ?? null
+                          });
                         }
                       }}
                     >
                       <span className="wl-medrow__box">{on ? <CheckIcon size={14} /> : null}</span>
                       <span className="wl-medrow__main">
-                        <span className="wl-medrow__name">
-                          {slot.name}
-                          {slot.asNeeded ? <span className="wl-medrow__prn">as needed</span> : null}
-                        </span>
+                        <span className="wl-medrow__name">{slot.name}</span>
                       </span>
                       {on ? (
                         <span className="wl-medrow__taken">
