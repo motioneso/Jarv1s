@@ -44,6 +44,24 @@ export const DEFAULT_CHAT_MODELS: Partial<Record<AiProviderKind, DefaultChatMode
     providerDisplayName: "Claude",
     tier: "interactive",
     capabilities: ["chat"]
+  },
+  "openai-compatible": {
+    // codex (the openai-compatible CLI) exposes NO concrete shipped default model id — with no
+    // `--model` and no config it sends a server-resolved `<default>` sentinel and the backend picks
+    // the current model. There is no clean rolling alias (unlike anthropic's `sonnet`), so per spec
+    // decision-2 (an alias that never goes stale, NOT a pinned dated id) the default is `default`,
+    // mirroring codex's own server-resolved behavior.
+    //
+    // NOTE: this id is COSMETIC today — `buildCliChatEngine`'s `buildCodexCommand` does NOT pass
+    // `--model`, so codex always runs its own configured/account model and this id never reaches the
+    // CLI; it exists so `selectChatModelForUser` resolves a chat model and chat works. If the codex
+    // launch is ever wired to pass `--model` (the deferred option D follow-up), REVISIT this id —
+    // codex will not accept `--model default`.
+    providerModelId: "default",
+    displayName: "Codex (default model)",
+    providerDisplayName: "Codex",
+    tier: "interactive",
+    capabilities: ["chat"]
   }
 };
 

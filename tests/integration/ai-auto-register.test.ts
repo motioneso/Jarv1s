@@ -75,6 +75,24 @@ describe("AI auto-register default chat model on login (#367)", () => {
     expect(model?.status).toBe("active");
   });
 
+  it("registers a default cli provider config + codex chat model on first ready (openai-compatible)", async () => {
+    await dataContext.withDataContext(adminCtx(), (db) =>
+      service.ensureDefaultChatModel(db, "openai-compatible")
+    );
+
+    const { providers, model } = await dataContext.withDataContext(adminCtx(), async (db) => ({
+      providers: await repository.listProviders(db),
+      model: await repository.selectChatModelForUser(db)
+    }));
+
+    const cli = providers.find((p) => p.provider_kind === "openai-compatible");
+    expect(cli).toBeDefined();
+    expect(cli?.auth_method).toBe("cli");
+    expect(model?.provider_model_id).toBe("default");
+    expect(model?.capabilities).toContain("chat");
+    expect(model?.status).toBe("active");
+  });
+
   it("is idempotent across re-login — creates nothing new on a second call", async () => {
     await dataContext.withDataContext(adminCtx(), (db) =>
       service.ensureDefaultChatModel(db, "anthropic")
