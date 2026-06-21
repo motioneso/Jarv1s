@@ -3,10 +3,10 @@
 **Spec (approved):** docs/superpowers/specs/2026-06-20-onboarding-provider-connect.md
 **GitHub issue:** #365 ("Onboarding: wire provider install + login into the wizard")
 **Risk tier:** `routine` + **blast-radius bump → `sensitive` QA depth** (high-fan-in onboarding wizard + shared `packages/shared/onboarding-api.ts` contract). Build to the sensitive bar: invariant-clean, no secret escape, contract changes backward-compat.
-**Worktree:** /home/ben/Jarv1s/.claude/worktrees/365-provider-connect   **Branch:** `365/provider-connect` (off origin/main `8a14664`)
+**Worktree:** /home/ben/Jarv1s/.claude/worktrees/365-provider-connect **Branch:** `365/provider-connect` (off origin/main `8a14664`)
 **Build skill path (absolute):** /home/ben/Jarv1s/.claude/skills/coordinated-build/SKILL.md
-**Coordinator label:** `Coordinator`   (UNIQUE — escalate via `herdr-pane-message`; re-resolve the live pane by label from `herdr pane list` each time — never reuse a `w…-N` number.)
-**Coordinator session id:** `11d3e71c-5d93-4983-8b63-6a0d266c28ab`   (immutable authority; confirm live before relying on it.)
+**Coordinator label:** `Coordinator` (UNIQUE — escalate via `herdr-pane-message`; re-resolve the live pane by label from `herdr pane list` each time — never reuse a `w…-N` number.)
+**Coordinator session id:** `11d3e71c-5d93-4983-8b63-6a0d266c28ab` (immutable authority; confirm live before relying on it.)
 **Relay threshold:** read your OWN pane (`herdr pane read "$HERDR_PANE_ID" --source visible --lines 5`) and relay when its context indicator shows ~⅔–¾ consumed, OR after plan-approval + ~5–8 committed tasks, OR immediately on a compaction summary.
 
 ## Start
