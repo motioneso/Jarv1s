@@ -60,6 +60,12 @@ export interface OnboardingCliProviderDto {
    * break (the JSON-schema property below is non-required).
    */
   readonly installState?: ProviderInstallState;
+  /**
+   * #365 (additive): the provider is in the catalog `supported` install set, so the wizard offers a
+   * Connect button. Absent/false ⇒ the card renders a non-blocking "not available" state (e.g. agy/
+   * google = `blocked`). Optional ⇒ no schema break; present only when the install seam is wired.
+   */
+  readonly installable?: boolean;
 }
 
 export interface OnboardingProviderCheckRequest {
@@ -75,6 +81,60 @@ export type OnboardingProviderCheckStatus =
 
 export interface OnboardingProviderCheckResponse {
   readonly status: OnboardingProviderCheckStatus;
+  readonly message?: string;
+}
+
+// ---------------------------------------------------------------------------
+// #365 provider-connect: the request/response contract the WEB CLIENT uses to drive the
+// existing install/login routes (the routes own their own response schemas in
+// packages/settings/src/onboarding-routes.ts; these mirror those shapes for the browser,
+// which validates nothing — only the request schemas below are exported for completeness).
+// ---------------------------------------------------------------------------
+
+export interface OnboardingProviderInstallRequest {
+  readonly providerKind: OnboardingProviderKind;
+}
+
+export interface OnboardingProviderInstallResponse {
+  readonly providerKind: OnboardingProviderKind;
+  readonly installState: ProviderInstallState;
+  readonly version?: string;
+  readonly message?: string;
+  readonly alreadyInstalled?: boolean;
+}
+
+/** The login FLOW status the cli-runner reports (login-contract §L.2.1). */
+export type ProviderLoginFlowStatus =
+  | "awaiting_authorization"
+  | "awaiting_token"
+  | "ready"
+  | "error";
+
+export interface OnboardingProviderLoginBeginRequest {
+  readonly providerKind: OnboardingProviderKind;
+}
+
+export interface OnboardingProviderLoginPollRequest {
+  readonly providerKind: OnboardingProviderKind;
+  readonly loginId: string;
+}
+
+export interface OnboardingProviderLoginSubmitTokenRequest {
+  readonly providerKind: OnboardingProviderKind;
+  readonly loginId: string;
+  /** The pasted authorization code — AUTH MATERIAL: forwarded only, never logged/echoed. */
+  readonly token: string;
+}
+
+export interface OnboardingProviderLoginResponse {
+  readonly providerKind: OnboardingProviderKind;
+  readonly loginId: string;
+  readonly status: ProviderLoginFlowStatus;
+  /** Only the allowlisted authorization URL to DISPLAY (never logged). */
+  readonly authorizationUrl?: string;
+  /** Only the allowlisted device/pairing code to DISPLAY (never logged). */
+  readonly userCode?: string;
+  readonly installState: ProviderInstallState;
   readonly message?: string;
 }
 
@@ -193,7 +253,10 @@ const onboardingFounderStatusSchema = {
                       "ready",
                       "error"
                     ]
-                  }
+                  },
+                  // #365: optional catalog installability (the `supported` set). Additive,
+                  // non-required — the wizard offers Connect only for installable providers.
+                  installable: { type: "boolean" }
                 }
               }
             }
@@ -253,6 +316,51 @@ const onboardingProviderCheckRequestSchema = {
       type: "string",
       enum: ["anthropic", "openai-compatible", "google"]
     }
+  }
+} as const;
+
+// #365: request schemas for the install/login routes. The web client does not validate
+// responses; these are exported so the contract has a single canonical declaration. The
+// provider enum + bounds mirror packages/settings/src/onboarding-routes.ts exactly.
+const ONBOARDING_PROVIDER_KIND_ENUM = ["anthropic", "openai-compatible", "google"] as const;
+
+export const onboardingProviderInstallRequestSchema = {
+  type: "object",
+  additionalProperties: false,
+  required: ["providerKind"],
+  properties: {
+    providerKind: { type: "string", enum: ONBOARDING_PROVIDER_KIND_ENUM }
+  }
+} as const;
+
+export const onboardingProviderLoginBeginRequestSchema = {
+  type: "object",
+  additionalProperties: false,
+  required: ["providerKind"],
+  properties: {
+    providerKind: { type: "string", enum: ONBOARDING_PROVIDER_KIND_ENUM }
+  }
+} as const;
+
+export const onboardingProviderLoginPollRequestSchema = {
+  type: "object",
+  additionalProperties: false,
+  required: ["providerKind", "loginId"],
+  properties: {
+    providerKind: { type: "string", enum: ONBOARDING_PROVIDER_KIND_ENUM },
+    loginId: { type: "string", minLength: 1, maxLength: 200 }
+  }
+} as const;
+
+export const onboardingProviderLoginSubmitTokenRequestSchema = {
+  type: "object",
+  additionalProperties: false,
+  required: ["providerKind", "loginId", "token"],
+  properties: {
+    providerKind: { type: "string", enum: ONBOARDING_PROVIDER_KIND_ENUM },
+    loginId: { type: "string", minLength: 1, maxLength: 200 },
+    // AUTH MATERIAL: bounded; never logged/persisted/echoed.
+    token: { type: "string", minLength: 1, maxLength: 4096 }
   }
 } as const;
 

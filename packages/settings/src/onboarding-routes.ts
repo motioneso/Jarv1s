@@ -513,7 +513,24 @@ export function registerOnboardingRoutes(
             const installStateByKind = install
               ? await install.reconcileInstallStates(scopedDb)
               : undefined;
-            return { state, selected, connectorAccountExists, installStateByKind };
+            // #365: derive per-provider catalog installability (the `supported` set) from the
+            // install seam's PURE installability port, so the wizard offers Connect data-drivenly
+            // (no provider hardcoded in the UI control flow). Absent seam ⇒ omitted (phase-1
+            // presence surface). The port is side-effect-free — safe to call inline here.
+            const installableByKind = install
+              ? {
+                  anthropic: install.installability("anthropic").installable,
+                  "openai-compatible": install.installability("openai-compatible").installable,
+                  google: install.installability("google").installable
+                }
+              : undefined;
+            return {
+              state,
+              selected,
+              connectorAccountExists,
+              installStateByKind,
+              installableByKind
+            };
           }
         );
 
@@ -533,6 +550,9 @@ export function registerOnboardingRoutes(
           connectorAccountExists: dbPart.connectorAccountExists,
           ...(dbPart.installStateByKind !== undefined
             ? { installStateByKind: dbPart.installStateByKind }
+            : {}),
+          ...(dbPart.installableByKind !== undefined
+            ? { installableByKind: dbPart.installableByKind }
             : {})
         });
       } catch (error) {
