@@ -5,7 +5,7 @@ import {
   installOnboardingProvider,
   pollOnboardingProviderLogin,
   submitOnboardingProviderLoginToken
-} from "../../apps/web/src/api/client.js";
+} from "../../apps/web/src/api/onboarding-connect-client.js";
 
 function mockFetchOnce(body: unknown) {
   const fetchMock = vi.fn(
