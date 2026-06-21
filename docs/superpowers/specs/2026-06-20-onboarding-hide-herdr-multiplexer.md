@@ -1,6 +1,7 @@
 # Spec — onboarding control-channel: hide the unavailable herdr option (#366)
 
-**Status:** DRAFT (interview-aligned 2026-06-20). Needs sign-off before build.
+**Status:** APPROVED 2026-06-20 (Ben — keep it minimal: disable herdr in onboarding + force tmux;
+defer the broader multiplexer-step rework).
 **Tracks:** #366. Part of #342. Same onboarding surface as #365/#369 (collision — sequence on the
 wizard files).
 
@@ -12,36 +13,29 @@ in the deployed container — the cli-runner sidecar always uses bundled **tmux*
 unselectable/irrelevant option is confusing and makes the step look like it needs a decision it
 doesn't.
 
-## Decisions (locked in interview)
+## Decisions (locked 2026-06-20)
 
-1. **Hide herdr** in onboarding (Ben). Don't offer a multiplexer the deploy can't use.
-2. Since the container always uses tmux, the control-channel step should **auto-select tmux and
-   de-emphasize itself** (no real decision for the user) rather than present a chooser.
+1. **Disable herdr in onboarding + force tmux** (Ben — keep it minimal for now). Don't offer herdr at
+   all in the onboarding multiplexer step; the container always uses bundled tmux.
+2. **Defer the broader rework.** A fuller multiplexer-step redesign (usability-driven options,
+   collapsing the step, host-dev parity) is a later pass — not this issue. Keep the change small and
+   contained to the onboarding step.
 
 ## Design
 
-- In `multiplexer-step.tsx`: render only **available** multiplexers (drop herdr from OPTIONS, or
-  filter by the host-usable flags already in `OnboardingMultiplexerStepDto`:
-  `tmuxUsable`/`herdrUsable`). In the standard container, that leaves tmux/Auto only.
-- Auto-select the working multiplexer (Auto/tmux) and present the step as an informational
-  "Jarvis runs commands inside a single inspectable tmux session" confirmation rather than a
-  chooser. Keep the existing `setChatMultiplexerSettings` call (PUT `/api/admin/chat-multiplexer`)
-  for the selected value.
-- Optional (confirm in sign-off): if only one multiplexer is usable, **collapse/skip** the step in
-  the rail so the founder isn't asked to decide a non-decision.
-- Backend `OnboardingFounderStatus.steps.multiplexer` (`assembleOnboardingStatus`) already exposes
-  `tmuxUsable`/`herdrUsable`; no contract change needed — the UI just stops offering unusable ones.
+- In `multiplexer-step.tsx`: **remove herdr from the OPTIONS** shown in onboarding (the herdr entry
+  at OPTIONS line ~25). Leave tmux/Auto. Do NOT touch the broader multiplexer settings elsewhere.
+- Keep the existing `setChatMultiplexerSettings` call (PUT `/api/admin/chat-multiplexer`) for the
+  selected value (Auto/tmux). No backend contract change.
+- Out of scope (deferred): auto-selecting/collapsing the step, usability-filtering, host-dev herdr
+  parity. Just hide herdr in onboarding now; revisit the step's UX later.
 
 ## Test plan
 
-- Unit (web): with `herdrUsable: false`, the herdr option is not rendered; with only tmux usable,
-  the step auto-selects and shows the confirmation (no chooser). With both usable (host-dev), both
-  appear (no regression for non-container dev).
+- Unit (web): the herdr option is **not rendered** in the onboarding multiplexer step; tmux/Auto
+  still render and select normally; no change to the broader multiplexer settings.
 
-## Open questions for sign-off
+## Resolved (2026-06-20)
 
-1. Hard-remove herdr from the UI, or filter by `herdrUsable` (keeps it for a future host-dev setup
-   that actually has herdr)? (Draft: **filter by usability** — data-driven, no regression for dev.)
-2. Collapse the step entirely when only one multiplexer is usable, or keep it as a one-line
-   informational confirmation? (Draft: keep a brief confirmation; collapsing risks hiding the
-   "commands run in an inspectable session" trust message.)
+- Hard-remove vs filter → **just remove herdr from the onboarding step** (minimal; Ben). The broader
+  usability-driven redesign + step collapsing are explicitly **deferred** to a later pass.

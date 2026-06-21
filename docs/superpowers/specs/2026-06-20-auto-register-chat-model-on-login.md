@@ -1,6 +1,7 @@
 # Spec — auto-register a default chat-capable model on provider login (#367)
 
-**Status:** DRAFT (interview-aligned 2026-06-20). Needs sign-off before build.
+**Status:** APPROVED 2026-06-20 (Ben — open questions resolved: `sonnet` alias default; no
+re-register over a user-removed model).
 **Tracks:** #367. Part of #342. The mechanism #365's onboarding flow triggers; also reusable when a
 provider is connected from settings.
 **Goal:** after a provider logs in (`ready`), the user has a **working chat-capable model with zero
@@ -19,9 +20,13 @@ dislikes), typing a model id.
 1. **Auto-register on login `ready`.** When a provider's login settles `ready`, the system creates
    (idempotently) the AI provider config + a default `chat`-capable model for it, so chat works
    immediately.
-2. **Single default model, no picker, no manual id (option c).** Register one sensible default per
-   provider; the user types nothing. (For CLI chat the model id is largely decorative — claude used
-   the account's Sonnet 4.6 regardless of the id.)
+2. **Single default model, no picker, no manual id (option c).** Register one default per provider;
+   the user types nothing. **The default model id is the provider's ALIAS, not a pinned full id** —
+   for anthropic, `sonnet` (claude resolves `--model sonnet` / `/model sonnet` to the current
+   Sonnet), so the default never goes stale as Anthropic ships new Sonnets (Ben).
+   2a. **The chat launch passes the resolved model.** `buildClaudeCommand` adds
+   `--model <provider_model_id>` (e.g. `--model sonnet`) from the active model row, so the registered
+   model actually takes effect (today the launch omits `--model` and rides the account default).
 3. **No live discovery this phase.** The `/v1/models` API rejects the CLI OAuth token (verified 401)
    and the CLI has no list command; real discovery (driving the REPL `/model` picker, or API-key
    providers' `/v1/models`) is a **settings-level** follow-up, out of this spec.
@@ -30,7 +35,8 @@ dislikes), typing a model id.
 
 - **Catalog default.** Add a `defaultChatModel { providerModelId, displayName }` to each supported
   provider's recipe/catalog entry (`packages/cli-runner/src/catalog.ts` or a shared AI provider
-  defaults map) — e.g. anthropic → a current Sonnet id. Data-driven per provider (agnostic).
+  defaults map) — anthropic → `{ providerModelId: "sonnet", displayName: "Claude Sonnet" }` (the
+  alias, per decision 2). Data-driven per provider (agnostic).
 - **Registration mechanism** (`packages/ai/src/repository.ts` + a small service): on login `ready`,
   idempotently:
   1. ensure an AI **provider config** for the provider (`authMethod: "cli"`, no credential — already

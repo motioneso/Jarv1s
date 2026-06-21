@@ -1,6 +1,6 @@
 # Spec — onboarding: offer "ask Jarvis" once chat is live (#368)
 
-**Status:** DRAFT (interview-aligned 2026-06-20). Needs sign-off before build.
+**Status:** APPROVED 2026-06-20 (Ben — Finish-step only; starter prompt = "check my setup").
 **Tracks:** #368. Part of #342. **Depends on #365 (provider connect) + #367 (auto-registered chat
 model)** — only meaningful once chat actually works.
 
@@ -21,20 +21,20 @@ flips to "Connected · chat ready").
 - Gate the affordance on **chat being available** (≥1 provider `ready` + an active chat model —
   derivable from the extended onboarding status in #365/#367). If chat isn't available, don't show
   it (no dead button).
-- At the Finish step (`onboarding-wizard.tsx` FinishStep), add an **"Ask Jarvis"** primary action
-  that completes onboarding and opens the chat drawer (the existing "Chat with Jarvis" surface) with
-  a **starter prompt / suggestion** geared to setup (e.g. "Help me finish setting up Jarvis" or the
-  existing suggestion chips). Reuse the existing chat drawer + live-chat routes; no new chat surface.
+- At the Finish step (`onboarding-wizard.tsx` FinishStep) **only** (no inline nudge), add an
+  **"Ask Jarvis"** primary action that completes onboarding and opens the chat drawer (the existing
+  "Chat with Jarvis" surface) with a **setup-check starter** — a suggestion chip like _"Check my
+  setup"_ / _"Help me verify my Jarvis setup"_ (Ben). Reuse the existing chat drawer + live-chat
+  routes; no new chat surface.
 - Keep the normal "Finish / go to Today" path for users who don't want to chat yet.
 
 ## Test plan
 
 - Unit (web): the "Ask Jarvis" action renders only when chat is available; it completes onboarding
-  and opens the chat drawer with the starter prompt; hidden when no provider is connected.
+  and opens the chat drawer with the setup-check starter; hidden when no provider is connected.
 
-## Open questions for sign-off
+## Resolved (2026-06-20)
 
-1. Is "Ask Jarvis" a Finish-step button, or also an inline nudge right after a provider connects?
-   (Draft: Finish-step primary action; keep it simple.)
-2. Starter prompt wording + whether it pre-fills vs just opens an empty chat. (Draft: open the
-   drawer with a setup-oriented suggestion chip, don't auto-send.)
+1. **Finish-step button only** (no inline post-connect nudge).
+2. Starter is a **setup-check** suggestion (e.g. "Check my setup") — opens the drawer with the chip;
+   does not auto-send.

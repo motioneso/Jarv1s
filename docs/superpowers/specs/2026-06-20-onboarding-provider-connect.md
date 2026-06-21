@@ -1,6 +1,7 @@
 # Spec — onboarding provider step: select → install → login → working chat (#365)
 
-**Status:** DRAFT (interview-aligned with Ben 2026-06-20). Needs final sign-off before build.
+**Status:** APPROVED 2026-06-20 (Ben — single "Connect" button; first-connected provider is the
+instance chat default).
 **Tracks:** #365. Part of #342. Depends on the auto-register-model mechanism (#367) and pairs with
 #366/#368/#369 on the same onboarding surface (collision — sequence on the wizard files).
 **Goal:** the founder completes **connect a provider → working chat entirely from the UI after only
@@ -84,10 +85,9 @@ provider hardcoded in the UI control flow beyond labels. Adding a provider later
   persisted + injected per #363/#364 (this spec only triggers those routes).
 - Founder-only (bootstrap owner); reuse the existing onboarding auth gate.
 
-## Open questions for sign-off
+## Resolved (2026-06-20)
 
-1. On the provider card, is **Install** implicit in one "Connect" button (install→login chained), or
-   two explicit buttons? (Draft: one "Connect", chained.)
-2. Multiple providers — can the founder connect both claude and codex, with one set as the chat
-   default? (Draft: connect any; first `ready` provider's auto-registered model is the instance
-   default; switching default is a settings concern.)
+1. **Single "Connect" button** per provider card — it chains install → login (no separate Install
+   button).
+2. **First provider to reach `ready`** becomes the instance chat default (its auto-registered model);
+   connecting additional providers is allowed; switching the default is a settings concern.

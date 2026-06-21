@@ -1,6 +1,6 @@
 # Spec — onboarding: "Skip setup" must not dead-end into an unusable chat (#369)
 
-**Status:** DRAFT (interview-aligned 2026-06-20). Needs sign-off before build.
+**Status:** APPROVED 2026-06-20 (Ben — do BOTH: skip-confirm consequence + empty-chat explainer).
 **Tracks:** #369. Part of #342. Same onboarding/Today surface as #365 (collision — sequence).
 
 ## Problem
@@ -33,10 +33,9 @@ consequence at skip time **and** a one-click path back from the empty chat. No s
 - Integration: the chat surface maps the "no active chat-capable model" 400 to the friendly empty
   state.
 
-## Open questions for sign-off
+## Resolved (2026-06-20)
 
-1. Block skip until confirmed, or allow skip freely and rely solely on the empty-chat explainer?
-   (Draft: a one-line consequence on the skip confirm + the explainer — both, low cost.)
-2. Where does the empty-chat "connect a provider" link point — re-enter onboarding, or deep-link to
-   Admin → Assistant & AI? (Draft: re-enter the onboarding provider step for the founder; Admin for
-   later/non-founder.)
+1. **Do both** (Ben): a one-line consequence on the skip confirm **and** the empty-chat
+   connect-a-provider explainer.
+2. Empty-chat link → re-enter the onboarding provider step for the founder; Admin → Assistant & AI
+   for later/non-founder.
