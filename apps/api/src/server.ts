@@ -82,7 +82,13 @@ export function resolveApiServerConfig(env: NodeJS.ProcessEnv = process.env): Ap
   return {
     host,
     port,
-    mcpServerUrl: `http://127.0.0.1:${port}/api/mcp`
+    // The api forwards this URL to the CLI launch (cli-runner RPC params). In the container
+    // deploy the CLI runs in a SEPARATE container, so a hardcoded 127.0.0.1 resolves to the
+    // cli-runner itself and the MCP gateway is unreachable (zero Jarvis tools). Honor the
+    // compose-provided service DNS (JARVIS_MCP_SERVER_URL, e.g. http://api:3000/api/mcp) when
+    // set; fall back to the loopback URL for dev/non-container runs. URL source only — this
+    // does not change the MCP gateway auth/allowlist/token-mint path.
+    mcpServerUrl: env.JARVIS_MCP_SERVER_URL ?? `http://127.0.0.1:${port}/api/mcp`
   };
 }
 
