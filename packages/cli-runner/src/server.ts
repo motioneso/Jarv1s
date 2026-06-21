@@ -44,6 +44,13 @@ export class CliRunnerServer {
   private server: Server | null = null;
   /** v0.1.3: the periodic max-age login-reaper timer (cleared on stop). */
   private loginReaperTimer: ReturnType<typeof setInterval> | null = null;
+  /**
+   * v0.1.3: in-flight guard for the reaper tick. `TmuxIo.run` has no timeout, so a wedged tmux
+   * command can make one reap outlast the interval; without this guard a second reap would start on
+   * the next tick and pending promises/child processes would accumulate unbounded. The tick skips
+   * while a reap is still running and re-runs on the next interval once it settles.
+   */
+  private loginReapInFlight = false;
 
   constructor(private readonly deps: CliRunnerServerDeps) {}
 
@@ -80,11 +87,25 @@ export class CliRunnerServer {
     this.deps.log?.(`[cli-runner] listening on ${this.deps.socketPath} (boot ${this.bootId})`);
 
     // (6) v0.1.3: start the periodic max-age login reaper (a disk-level backstop that releases the
-    // §L.6.1 gate from a hung/abandoned login). unref'd so it never keeps the process alive.
+    // §L.6.1 gate from a hung/abandoned login). unref'd so it never keeps the process alive. A
+    // double-start guard clears any prior timer first so a second start() can't orphan it.
+    if (this.loginReaperTimer) {
+      clearInterval(this.loginReaperTimer);
+      this.loginReaperTimer = null;
+    }
     const interval = this.deps.loginReaperIntervalMs ?? DEFAULT_LOGIN_REAPER_INTERVAL_MS;
     if (interval > 0) {
       this.loginReaperTimer = setInterval(() => {
-        void this.deps.host.reapStaleLogins().catch(() => undefined);
+        // In-flight guard: skip this tick if the previous reap is still running (a wedged tmux
+        // command must NOT let reaps stack up — see loginReapInFlight). Re-runs next interval.
+        if (this.loginReapInFlight) return;
+        this.loginReapInFlight = true;
+        void this.deps.host
+          .reapStaleLogins()
+          .catch(() => undefined)
+          .finally(() => {
+            this.loginReapInFlight = false;
+          });
       }, interval);
       if (typeof this.loginReaperTimer.unref === "function") this.loginReaperTimer.unref();
     }
@@ -135,11 +156,14 @@ export class CliRunnerServer {
   }
 
   async stop(): Promise<void> {
-    // Clear the periodic login reaper first (it may be armed even if the server never bound).
+    // Clear the periodic login reaper first (it may be armed even if the server never bound). Reset
+    // the in-flight flag so a later start() begins clean (an in-flight reap's `finally` is harmless
+    // — it just re-clears the already-false flag).
     if (this.loginReaperTimer) {
       clearInterval(this.loginReaperTimer);
       this.loginReaperTimer = null;
     }
+    this.loginReapInFlight = false;
     const server = this.server;
     this.server = null;
     if (!server) return;

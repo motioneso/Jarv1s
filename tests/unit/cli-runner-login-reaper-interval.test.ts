@@ -71,4 +71,69 @@ describe("CliRunnerServer max-age login reaper interval (v0.1.3)", () => {
     expect(reap).not.toHaveBeenCalled();
     await server.stop();
   });
+
+  it("in-flight guard: a slow reap does NOT start a second concurrent reap (no stacking)", async () => {
+    // The reap is held open (a wedged tmux command has no timeout), so several ticks fire while the
+    // first reap is still in flight. The guard must skip those ticks — exactly ONE reap is running.
+    vi.useFakeTimers();
+    let release!: () => void;
+    let active = 0;
+    let maxConcurrent = 0;
+    const reap = vi.fn(async () => {
+      active += 1;
+      maxConcurrent = Math.max(maxConcurrent, active);
+      await new Promise<void>((resolve) => {
+        release = () => {
+          active -= 1;
+          resolve();
+        };
+      });
+    });
+    const server = new CliRunnerServer({
+      host: stubHost(reap),
+      socketPath: path.join(socketDir, "cli-runner.sock"),
+      socketDir,
+      secret: "s",
+      loginReaperIntervalMs: 50
+    });
+
+    await server.start();
+    // First tick starts the (held) reap; the next ticks must be SKIPPED by the guard.
+    await vi.advanceTimersByTimeAsync(50);
+    expect(reap).toHaveBeenCalledTimes(1);
+    await vi.advanceTimersByTimeAsync(200); // four more ticks elapse, all skipped
+    expect(reap).toHaveBeenCalledTimes(1);
+    expect(maxConcurrent).toBe(1); // never two reaps at once
+
+    // Let the first reap settle; the NEXT tick may now start a fresh reap.
+    release();
+    await vi.advanceTimersByTimeAsync(50);
+    expect(reap).toHaveBeenCalledTimes(2);
+
+    release();
+    await server.stop();
+  });
+
+  it("double-start guard: a second start() does not orphan the first reaper timer", async () => {
+    vi.useFakeTimers();
+    const reap = vi.fn(async () => undefined);
+    const server = new CliRunnerServer({
+      host: stubHost(reap),
+      socketPath: path.join(socketDir, "cli-runner.sock"),
+      socketDir,
+      secret: "s",
+      loginReaperIntervalMs: 50
+    });
+
+    await server.start();
+    await server.start(); // a second start must clear the first timer, not leak it
+
+    await vi.advanceTimersByTimeAsync(50);
+    // Exactly ONE tick fired (a single live timer), not two stacked timers.
+    expect(reap).toHaveBeenCalledTimes(1);
+
+    await server.stop();
+    await vi.advanceTimersByTimeAsync(500);
+    expect(reap).toHaveBeenCalledTimes(1); // stop() fully cleared it — no orphan keeps ticking
+  });
 });
