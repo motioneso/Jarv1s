@@ -653,3 +653,67 @@
     width: fit-content;
   }
 }
+
+/* #369 — "Skip setup" consequence confirmation. Shown when no provider is connected so the
+   skip is honest about the dead-end (chat won't work until a provider is connected). */
+.onb-skipconfirm {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1.25rem;
+}
+
+.onb-skipconfirm__scrim {
+  position: absolute;
+  inset: 0;
+  border: 0;
+  padding: 0;
+  background: rgb(0 0 0 / 45%);
+  cursor: pointer;
+}
+
+.onb-skipconfirm__card {
+  position: relative;
+  z-index: 1;
+  width: min(28rem, 100%);
+  padding: 1.5rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-card);
+  background: var(--surface);
+  box-shadow: var(--shadow-pop, 0 20px 50px rgb(0 0 0 / 25%));
+}
+
+.onb-skipconfirm__mark {
+  width: 2.5rem;
+  height: 2.5rem;
+  border-radius: var(--radius-pill);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--warning-soft, var(--pine-soft));
+  color: var(--warning-fg, var(--accent));
+}
+
+.onb-skipconfirm__t {
+  margin: 0.9rem 0 0;
+  color: var(--text);
+  font-size: 1.05rem;
+  font-weight: 700;
+}
+
+.onb-skipconfirm__s {
+  margin: 0.4rem 0 0;
+  color: var(--text-subtle);
+  font-size: 0.86rem;
+  line-height: 1.5;
+}
+
+.onb-skipconfirm__actions {
+  margin-top: 1.25rem;
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.6rem;
+}

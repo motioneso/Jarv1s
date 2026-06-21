@@ -21,7 +21,7 @@ import {
   type LucideIcon
 } from "lucide-react";
 import { lazy, Suspense, useEffect, useState, type ComponentType } from "react";
-import { useNavigate } from "react-router";
+import { useNavigate, useSearchParams } from "react-router";
 
 import { FeedbackProvider } from "./settings-feedback";
 import { ProfilePane } from "./settings-personal-panes";
@@ -133,6 +133,7 @@ interface SettingsPageProps {
 
 export function SettingsPage({ me }: SettingsPageProps) {
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const isAdmin = me.user.isInstanceAdmin;
   const storage = browserSettingsStorage();
 
@@ -162,6 +163,23 @@ export function SettingsPage({ me }: SettingsPageProps) {
     () => writeSettingsStorage(storage, "categoryAdmin", categoryAdmin),
     [categoryAdmin, storage]
   );
+
+  // #369: honor a `?section=` deep link (e.g. /settings?section=assistant from the empty-chat
+  // explainer) so the link lands on the right pane instead of the default Profile. Applied once,
+  // then the param is cleared so it does not pin the pane on later manual navigation.
+  useEffect(() => {
+    const requested = searchParams.get("section");
+    if (!requested) return;
+    if (PERSONAL_SECTIONS.some((section) => section.id === requested)) {
+      setCategoryPersonal(requested as PersonalSectionId);
+    } else if (isAdmin && ADMIN_SECTIONS.some((section) => section.id === requested)) {
+      setMode("admin");
+      setCategoryAdmin(requested as AdminSectionId);
+    }
+    const next = new URLSearchParams(searchParams);
+    next.delete("section");
+    setSearchParams(next, { replace: true });
+  }, [searchParams, isAdmin, setSearchParams]);
 
   const adminMode = isAdmin && mode === "admin";
   const sections = adminMode ? ADMIN_SECTIONS : PERSONAL_SECTIONS;

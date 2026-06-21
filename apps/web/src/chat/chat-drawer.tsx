@@ -4,6 +4,7 @@ import { type KeyboardEvent, useState } from "react";
 
 import {
   clearChat,
+  getOnboardingStatus,
   listCalendarEvents,
   listChatThreadMessages,
   listChatThreads,
@@ -13,7 +14,9 @@ import {
 import { queryKeys } from "../api/query-keys";
 import type { ChatMessageDto } from "@jarv1s/shared";
 import { ActionRequestCard } from "./action-request-card";
+import { ConnectProviderEmpty } from "./connect-provider-empty";
 import { buildChatSeeds } from "./seeds";
+import { hasConnectedProvider, isNoActiveChatModelError } from "../onboarding/chat-availability";
 import type { ChatRecordKind, TranscriptRecord } from "./use-chat-stream";
 import "../styles/kit-chat.css";
 
@@ -31,8 +34,19 @@ export function ChatDrawer(props: {
   readonly onClose: () => void;
   readonly records: readonly TranscriptRecord[];
   readonly clearRecords: () => void;
+  /** #369: the founder set the instance up — tailors the empty-chat connect copy. */
+  readonly isFounder: boolean;
 }) {
   const [reviewThreadId, setReviewThreadId] = useState<string | null>(null);
+  // #369: derive chat availability from the SAME onboarding status #365 added. When no provider is
+  // connected, the empty state shows the connect-a-provider explainer instead of the seed prompts.
+  const onboardingStatusQuery = useQuery({
+    queryKey: queryKeys.onboarding.status,
+    queryFn: getOnboardingStatus,
+    enabled: props.open,
+    retry: false
+  });
+  const chatAvailable = hasConnectedProvider(onboardingStatusQuery.data);
   const threadsQuery = useQuery({
     queryKey: queryKeys.chat.threads,
     queryFn: () => listChatThreads(),
@@ -104,12 +118,14 @@ export function ChatDrawer(props: {
           <Thread records={displayRecords} />
         ) : reviewing ? (
           <ReviewEmptyState />
+        ) : onboardingStatusQuery.isSuccess && !chatAvailable ? (
+          <ConnectProviderEmpty isFounder={props.isFounder} />
         ) : (
           <EmptyState />
         )}
       </div>
 
-      <Composer readOnly={reviewing} />
+      <Composer readOnly={reviewing} isFounder={props.isFounder} />
     </aside>
   );
 }
@@ -344,9 +360,12 @@ function ReviewEmptyState() {
   );
 }
 
-function Composer(props: { readonly readOnly: boolean }) {
+function Composer(props: { readonly readOnly: boolean; readonly isFounder: boolean }) {
   const [text, setText] = useState("");
   const [error, setError] = useState<string | null>(null);
+  // #369: when a send fails specifically because no chat model is configured, swap the raw 400 for
+  // the friendly connect-a-provider explainer (with a link) instead of leaking the backend string.
+  const [needsProvider, setNeedsProvider] = useState(false);
 
   const send = async () => {
     if (props.readOnly) return;
@@ -356,11 +375,16 @@ function Composer(props: { readonly readOnly: boolean }) {
     }
     setText("");
     setError(null);
+    setNeedsProvider(false);
     try {
       // Fire-and-render: the user echo and the assistant reply both arrive over the SSE
       // stream (the single source of truth), so we do not append the POST response here.
       await sendChatTurn(trimmed);
     } catch (caught) {
+      if (isNoActiveChatModelError(caught)) {
+        setNeedsProvider(true);
+        return;
+      }
       setError(caught instanceof Error ? caught.message : "Could not send message");
     }
   };
@@ -374,6 +398,7 @@ function Composer(props: { readonly readOnly: boolean }) {
 
   return (
     <div className="chatd__composer">
+      {needsProvider ? <ConnectProviderEmpty isFounder={props.isFounder} /> : null}
       {error ? <p className="form-error">{error}</p> : null}
       <div className={`chatd-input${props.readOnly ? " is-readonly" : ""}`}>
         <textarea

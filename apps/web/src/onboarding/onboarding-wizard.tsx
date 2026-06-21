@@ -16,6 +16,7 @@ import { MultiplexerStep } from "./multiplexer-step";
 import { SectionTourStep } from "./section-tour-step";
 import { WelcomeStep } from "./welcome-step";
 import { firstIncompleteStepIndex } from "./resume";
+import { SkipConfirmDialog, needsSkipConfirm } from "./skip-confirm";
 
 const FOUNDER_ORDER = ["welcome", "multiplexer", "cliAuth", "connectors", "finish"] as const;
 const MEMBER_ORDER = ["welcome", "assistant", "accounts", "tour", "finish"] as const;
@@ -77,6 +78,8 @@ export function OnboardingWizard(props: {
   const [stepIndex, setStepIndex] = useState(() => resumeStepIndex(props.initialStatus));
   const [resumed, setResumed] = useState(false);
   const [skippedSteps, setSkippedSteps] = useState<ReadonlySet<string>>(() => new Set());
+  // #369: when no provider is connected, "Skip setup" must confirm the consequence first.
+  const [skipConfirmOpen, setSkipConfirmOpen] = useState(false);
 
   useEffect(() => {
     document.body.classList.add("onboarding-active");
@@ -115,6 +118,21 @@ export function OnboardingWizard(props: {
       props.onDone();
     }
   });
+  // #369: every "Skip setup" affordance routes through here. If chat would dead-end (no provider
+  // connected), open the consequence dialog instead of skipping; otherwise skip immediately. The
+  // skip mutation is NEVER fired from inside a setState updater (StrictMode double-fire trap) —
+  // requestSkip is an event handler and the dialog's confirm calls confirmSkip directly.
+  const requestSkip = () => {
+    if (needsSkipConfirm(statusQuery.data)) {
+      setSkipConfirmOpen(true);
+    } else {
+      skip.mutate();
+    }
+  };
+  const confirmSkip = () => {
+    setSkipConfirmOpen(false);
+    skip.mutate();
+  };
 
   // No isLoading branch: initialData guarantees data is present from the first render
   // (app.tsx already waited). A background refetch error never blanks the wizard.
@@ -163,7 +181,7 @@ export function OnboardingWizard(props: {
   };
   const memberSteps = isMember
     ? [
-        <MemberWelcomeStep key="welcome" onSkipAll={() => skip.mutate()} />,
+        <MemberWelcomeStep key="welcome" onSkipAll={requestSkip} />,
         <ApiKeyOptOutStep key="apikey" onSkipStep={goNext} />,
         <MemberConnectorStep key="connector" />,
         <SectionTourStep key="tour" onDone={goNext} />,
@@ -241,7 +259,7 @@ export function OnboardingWizard(props: {
               ) : null}
             </div>
           ) : null}
-          <button className="onb__skipall" type="button" onClick={() => skip.mutate()}>
+          <button className="onb__skipall" type="button" onClick={requestSkip}>
             <LogIn size={15} /> Skip setup
           </button>
           <p className="onb__skiphint">
@@ -257,7 +275,7 @@ export function OnboardingWizard(props: {
           <span className="onb__mbar-prog">
             {isLast ? "Done" : `${completedCount} / ${progressTotal}`}
           </span>
-          <button className="onb__mbar-skip" type="button" onClick={() => skip.mutate()}>
+          <button className="onb__mbar-skip" type="button" onClick={requestSkip}>
             Skip
           </button>
         </div>
@@ -273,7 +291,7 @@ export function OnboardingWizard(props: {
             memberSteps[stepIndex]
           ) : (
             <>
-              {currentKey === "welcome" ? <WelcomeStep onSkipAll={() => skip.mutate()} /> : null}
+              {currentKey === "welcome" ? <WelcomeStep onSkipAll={requestSkip} /> : null}
               {currentKey === "multiplexer" && founderSteps ? (
                 <MultiplexerStep step={founderSteps.multiplexer} onRecheck={invalidateStatus} />
               ) : null}
@@ -320,6 +338,14 @@ export function OnboardingWizard(props: {
           </footer>
         ) : null}
       </section>
+
+      {skipConfirmOpen ? (
+        <SkipConfirmDialog
+          onConfirm={confirmSkip}
+          onCancel={() => setSkipConfirmOpen(false)}
+          pending={skip.isPending}
+        />
+      ) : null}
     </main>
   );
 }
