@@ -177,6 +177,24 @@
     display: none;
   }
 }
+/* Phone widths: reclaim horizontal space the desktop padding wastes and let
+   the sub-nav chips sit compactly above the pane content (#391). */
+@media (max-width: 520px) {
+  .set2 {
+    padding: 16px 14px 64px;
+  }
+  .set2__grid {
+    gap: 6px;
+  }
+  .set2__navitem {
+    width: auto;
+    flex: 0 1 auto;
+    padding: 7px 10px;
+  }
+  .set2__navitem .lbl {
+    font-size: 13px;
+  }
+}
 
 /* ---- Pane ---- */
 .set2__pane {
