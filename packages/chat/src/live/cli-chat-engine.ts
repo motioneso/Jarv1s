@@ -730,6 +730,46 @@ export async function listLoginMuxSessions(io: Pick<TmuxIo, "run">): Promise<str
     .filter((p) => p.length > 0);
 }
 
+/** A live `jarv1s-login-*` mux session with its age (now − tmux `session_created`). */
+export interface LoginMuxSessionAge {
+  readonly provider: string;
+  readonly ageMs: number;
+}
+
+/**
+ * v0.1.3 (max-age reaper): enumerate live `jarv1s-login-*` mux sessions WITH their age, derived
+ * from tmux `#{session_created}` (epoch SECONDS). Used by the LoginService max-age reaper to
+ * release the §L.6.1 single-active gate from a login that hung/was abandoned past its lifetime
+ * (a disk session a failed kill stranded would otherwise keep `isLoginActive()` true until the
+ * next restart). Tolerates "no server running" (nonzero exit → empty list) and a malformed
+ * created field (skips that row). `nowMs` is injectable for deterministic tests.
+ */
+export async function listLoginMuxSessionsWithAge(
+  io: Pick<TmuxIo, "run">,
+  nowMs: number = Date.now()
+): Promise<LoginMuxSessionAge[]> {
+  const listed = await io.run("tmux", [
+    "list-sessions",
+    "-F",
+    "#{session_name} #{session_created}"
+  ]);
+  if (listed.code !== 0) return [];
+  const out: LoginMuxSessionAge[] = [];
+  for (const line of listed.stdout.split("\n")) {
+    const trimmed = line.trim();
+    if (!trimmed.startsWith(LOGIN_SESSION_PREFIX)) continue;
+    const sep = trimmed.lastIndexOf(" ");
+    if (sep <= 0) continue;
+    const name = trimmed.slice(0, sep);
+    const createdSec = Number(trimmed.slice(sep + 1).trim());
+    if (!Number.isFinite(createdSec)) continue;
+    const provider = name.slice(LOGIN_SESSION_PREFIX.length);
+    if (!provider) continue;
+    out.push({ provider, ageMs: nowMs - createdSec * 1000 });
+  }
+  return out;
+}
+
 /**
  * §6.5: remove a per-session neutral dir by sessionKey (used by the cli-runner kill
  * path for an orphan with no engine object). `rm -rf` is best-effort.
