@@ -385,6 +385,16 @@ export class CliChatEngineHost {
     return this.deps.loginService;
   }
 
+  /**
+   * v0.1.3 max-age login reaper (driven periodically by the server). Delegates to the login
+   * service's {@link LoginService.reapStaleLogins}; a no-op when no login service is wired. Does
+   * NOT acquire the admission mutex — it only mutates the login service's own flow + kills a stale
+   * tmux session, and the next gate check reads fresh disk liveness. Best-effort: never throws.
+   */
+  async reapStaleLogins(maxAgeMs?: number): Promise<void> {
+    await this.deps.loginService?.reapStaleLogins(maxAgeMs).catch(() => undefined);
+  }
+
   // ─── startup CLEAN-SLATE sweep (§4.1.0a (2) / §6.5) ───────────────────────────
 
   /**

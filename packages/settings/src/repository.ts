@@ -80,17 +80,9 @@ export interface UpsertProviderInstallStateInput {
   readonly message?: string;
 }
 
-/** Host usability of each multiplexer, resolved by the composition root (env-aware). */
-export interface OnboardingAvailability {
-  readonly tmuxUsable: boolean;
-  readonly herdrUsable: boolean;
-}
-
 /** Pure inputs to the status assembler (no DB, no host I/O, no transaction). */
 export interface AssembleOnboardingStatusInput {
   readonly state: OnboardingState;
-  readonly selected: ChatMultiplexerChoice | null;
-  readonly availability: OnboardingAvailability;
   readonly cliPresentByKind: Readonly<Record<OnboardingProviderKind, boolean>>;
   readonly connectorAccountExists: boolean;
   /**
@@ -110,11 +102,18 @@ export interface AssembleOnboardingStatusInput {
   readonly installableByKind?: Readonly<Partial<Record<OnboardingProviderKind, boolean>>>;
 }
 
-const ONBOARDING_CLI_KINDS: readonly OnboardingProviderKind[] = [
-  "anthropic",
-  "openai-compatible",
-  "google"
-];
+/**
+ * v0.1.3: onboarding offers ONLY providers whose HEADLESS login is guaranteed to complete on a
+ * server (no interactive browser callback the operator can't reach). Today that is `anthropic`
+ * (the claude `setup-token` paste flow). `openai-compatible` (codex) headless login CANNOT
+ * complete on a server and bricked chat via the single-active gate during the v0.1.2 live test,
+ * so it is hidden from onboarding here. Re-add a kind the moment its headless login is real.
+ *
+ * This is ONBOARDING PRESENTATION only — provider-agnostic at the engine layer. The AI module,
+ * settings, and the provider catalog still support every provider; this list only governs which
+ * provider cards the first-run wizard surfaces.
+ */
+const ONBOARDING_LOGINABLE_PROVIDER_KINDS: readonly OnboardingProviderKind[] = ["anthropic"];
 
 export interface SetModuleDisabledInput {
   readonly moduleId: string;
@@ -664,39 +663,28 @@ export class SettingsRepository {
 
   /**
    * PURE derivation of onboarding status — no DB, no host probes, no transaction. The route
-   * supplies the persisted state + selected choice (from a DB read), the host availability
-   * snapshot, the per-provider CLI presence, and the connector-exists bool. Derived `done`:
-   *  - multiplexer.done ⇔ the SELECTED choice is USABLE on this host:
-   *       "tmux"  ⇒ tmuxUsable ; "herdr" ⇒ herdrUsable ; "auto" ⇒ tmuxUsable || herdrUsable.
-   *     A null selection (no chat.multiplexer row yet) ⇒ not done. Bare binary presence is
-   *     NOT enough for herdr (it needs a root pane) — usability is decided upstream.
-   *  - cliAuth.done ⇔ at least one provider has reached `ready` (#365: installed AND logged in).
+   * supplies the persisted state, the per-provider CLI presence, and the connector-exists bool.
+   * Derived `done`:
+   *  - cliAuth.done ⇔ at least one OFFERED provider has reached `ready` (#365: installed AND
+   *    logged in). v0.1.3: only providers in {@link ONBOARDING_LOGINABLE_PROVIDER_KINDS} are
+   *    OFFERED (codex/openai-compatible headless login can't complete on a server).
    *  - connectors.done ⇔ a connector account exists.
    * The `satisfies OnboardingFounderStatus` makes contract drift a compile error (Codex R1).
    * Phase 4: this assembler builds ONLY the founder variant of the role-tagged status union;
-   * the member branch is served separately from app.member_onboarding.
+   * the member branch is served separately from app.member_onboarding. v0.1.3: the multiplexer
+   * onboarding step was removed (the container forces tmux), so no multiplexer step is built.
    */
   assembleOnboardingStatus(input: AssembleOnboardingStatusInput): OnboardingFounderStatus {
     const {
       state,
-      selected,
-      availability,
       cliPresentByKind,
       connectorAccountExists,
       installStateByKind,
       installableByKind
     } = input;
 
-    const multiplexerDone =
-      selected === "tmux"
-        ? availability.tmuxUsable
-        : selected === "herdr"
-          ? availability.herdrUsable
-          : selected === "auto"
-            ? availability.tmuxUsable || availability.herdrUsable
-            : false;
-
-    const providers = ONBOARDING_CLI_KINDS.map((kind) => {
+    // v0.1.3: offer ONLY allowlisted-loginable providers in onboarding (presentation-only).
+    const providers = ONBOARDING_LOGINABLE_PROVIDER_KINDS.map((kind) => {
       const installState = installStateByKind?.[kind];
       const installable = installableByKind?.[kind];
       return {
@@ -716,12 +704,6 @@ export class SettingsRepository {
       role: "founder",
       state,
       steps: {
-        multiplexer: {
-          done: multiplexerDone,
-          selected,
-          tmuxUsable: availability.tmuxUsable,
-          herdrUsable: availability.herdrUsable
-        },
         cliAuth: {
           // #365: done ⇔ at least one provider has reached `ready` (installed AND logged in).
           // Upgrades the old presence floor — onboarding now means "connected", not "detected".

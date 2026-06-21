@@ -41,6 +41,30 @@ BUILD_MODE="${JARVIS_BUILD:-auto}"      # auto | 1 | 0
 API_IMAGE="ghcr.io/motioneso/jarv1s-api:${TAG}"
 WEB_IMAGE="ghcr.io/motioneso/jarv1s-web:${TAG}"
 
+# ---- public origin for better-auth trusted-origins (#379) -----------------
+# A real deploy is reached over LAN/tailnet/domain, not localhost — better-auth rejects signup
+# with "Invalid origin" otherwise. This script runs on the HOST, which can see the real LAN IP
+# (the in-container `setup` service cannot), so detect it here and pass it into setup, which
+# merges it into JARVIS_AUTH_TRUSTED_ORIGINS. An explicit JARVIS_PUBLIC_ORIGIN wins: a full
+# origin (https://host or http://host:port) is used as-is; a bare host/IP becomes
+# http://<host>:<WEB_PORT>. Detection failure is non-fatal (falls back to localhost-only).
+detect_lan_ip() {
+  # Primary: the source address the kernel would use to reach the internet (no traffic sent).
+  ip route get 1.1.1.1 2>/dev/null | sed -n 's/.* src \([0-9.]*\).*/\1/p' | head -n1
+}
+PUBLIC_ORIGIN=""
+if [ -n "${JARVIS_PUBLIC_ORIGIN:-}" ]; then
+  case "$JARVIS_PUBLIC_ORIGIN" in
+    *://*) PUBLIC_ORIGIN="$JARVIS_PUBLIC_ORIGIN" ;;          # full origin — use as-is
+    *)     PUBLIC_ORIGIN="http://${JARVIS_PUBLIC_ORIGIN}:${WEB_PORT}" ;;  # bare host/IP
+  esac
+else
+  _lan_ip="$(detect_lan_ip)"
+  # Fallback: first non-loopback address from `hostname -I`.
+  [ -z "$_lan_ip" ] && _lan_ip="$(hostname -I 2>/dev/null | tr ' ' '\n' | grep -v '^127\.' | head -n1)"
+  [ -n "$_lan_ip" ] && PUBLIC_ORIGIN="http://${_lan_ip}:${WEB_PORT}"
+fi
+
 # ---- locate the prod compose (clean deploy dir OR repo root) --------------
 SCRIPT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 COMPOSE_FILE=""
@@ -197,17 +221,25 @@ fi
 # -e VAR=VALUE passes the detected host vars INTO the setup container so the
 # generated env file records the real uid/gid/ports/embed/tag/subnet.
 log "Generate boot secrets (in-container setup service)"
+if [ -n "$PUBLIC_ORIGIN" ]; then
+  note "trusted sign-in origin: ${PUBLIC_ORIGIN} (override with JARVIS_PUBLIC_ORIGIN)"
+else
+  warn "no host LAN IP detected — sign-in trusted for localhost only. Set JARVIS_PUBLIC_ORIGIN to add your host."
+fi
 FIRST_RUN=0
 # POSTGRES_PASSWORD=setup AND JARVIS_CLI_RUNNER_RPC_SECRET=setup are throwaways
 # scoped to THIS command only: Compose interpolates the WHOLE file at parse time
 # (incl. the api/cli-runner ${JARVIS_CLI_RUNNER_RPC_SECRET:?} fail-closed gate), so
 # the setup run needs placeholder values to parse. setup IGNORES them and writes the
 # REAL generated values into env.production.local; the later `up` reads those.
+# JARVIS_PUBLIC_ORIGIN (the host LAN origin, #379) is passed so setup merges it into
+# JARVIS_AUTH_TRUSTED_ORIGINS — empty is fine (setup falls back to localhost-only).
 if POSTGRES_PASSWORD=setup JARVIS_CLI_RUNNER_RPC_SECRET=setup JARVIS_IMAGE_TAG="$TAG" \
   docker compose -p "$PROJECT" -f "$COMPOSE_NAME" --profile setup run --rm \
     -e JARVIS_HOST_UID="$HOST_UID" -e JARVIS_HOST_GID="$HOST_GID" \
     -e JARVIS_API_PORT="$API_PORT" -e JARVIS_WEB_PORT="$WEB_PORT" \
     -e JARVIS_DOCKER_SUBNET="$SUBNET" -e JARVIS_EMBED_PROVIDER="$EMBED" \
+    -e JARVIS_PUBLIC_ORIGIN="$PUBLIC_ORIGIN" \
     -e JARVIS_IMAGE_TAG="$TAG" setup; then
   FIRST_RUN=1
   note "wrote ${ENV_FILE} (mode 0600) with generated boot secrets"

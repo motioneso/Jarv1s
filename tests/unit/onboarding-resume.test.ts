@@ -15,14 +15,9 @@ function status(
     role: "founder",
     state: "pending",
     steps: {
-      multiplexer: { done: false, selected: null, tmuxUsable: false, herdrUsable: false },
       cliAuth: {
         done: false,
-        providers: [
-          { kind: "anthropic", cliPresent: false },
-          { kind: "openai-compatible", cliPresent: false },
-          { kind: "google", cliPresent: false }
-        ]
+        providers: [{ kind: "anthropic", cliPresent: false }]
       },
       connectors: { done: false },
       ...overrides
@@ -37,22 +32,14 @@ describe("firstIncompleteStepIndex", () => {
 
   it("skips done steps and resumes at the first not-done", () => {
     const s = status({
-      multiplexer: { done: true, selected: "tmux", tmuxUsable: true, herdrUsable: false }
+      cliAuth: { done: true, providers: [{ kind: "anthropic", cliPresent: true }] }
     });
-    expect(firstIncompleteStepIndex(s)).toBe(STEP_KEYS.indexOf("cliAuth"));
+    expect(firstIncompleteStepIndex(s)).toBe(STEP_KEYS.indexOf("connectors"));
   });
 
   it("returns the last step index when every derived step is done", () => {
     const s = status({
-      multiplexer: { done: true, selected: "auto", tmuxUsable: true, herdrUsable: false },
-      cliAuth: {
-        done: true,
-        providers: [
-          { kind: "anthropic", cliPresent: true },
-          { kind: "openai-compatible", cliPresent: false },
-          { kind: "google", cliPresent: false }
-        ]
-      },
+      cliAuth: { done: true, providers: [{ kind: "anthropic", cliPresent: true }] },
       connectors: { done: true }
     });
     expect(firstIncompleteStepIndex(s)).toBe(STEP_KEYS.length - 1);

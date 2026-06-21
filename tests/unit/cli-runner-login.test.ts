@@ -27,7 +27,8 @@ import {
 import { CliChatUnavailableError } from "../../packages/chat/src/live/errors.js";
 import {
   LOGIN_SESSION_PREFIX,
-  SESSION_PREFIX
+  SESSION_PREFIX,
+  listLoginMuxSessionsWithAge
 } from "../../packages/chat/src/live/cli-chat-engine.js";
 import type { ProbeProviderResult } from "../../packages/chat/src/live/cli-chat-engine.js";
 import type { LoginAdapter } from "../../packages/chat/src/live/login-contract.js";
@@ -60,8 +61,12 @@ function makeLoginIo(
   live: Set<string>;
   calls: { cmd: string; args: string[] }[];
   setPane: (p: string) => void;
+  /** v0.1.3 reaper: set a session's tmux `session_created` (epoch SECONDS) to control its age. */
+  setCreated: (session: string, epochSec: number) => void;
 } {
   const live = new Set<string>();
+  // v0.1.3 reaper: tmux `session_created` (epoch seconds) per session; defaults to "now".
+  const created = new Map<string, number>();
   const calls: { cmd: string; args: string[] }[] = [];
   let paneText = pane;
   const run = vi.fn(async (cmd: string, args: readonly string[]) => {
@@ -71,14 +76,27 @@ function makeLoginIo(
       if (verb === "new-session") {
         // A gate lets a test wedge the session create past the start timeout (§L.3.1 late reap).
         if (opts.newSessionGate) await opts.newSessionGate;
-        live.add(args[args.indexOf("-s") + 1]!);
+        const session = args[args.indexOf("-s") + 1]!;
+        live.add(session);
+        if (!created.has(session)) created.set(session, Math.floor(Date.now() / 1000));
         return { code: 0, stdout: "", stderr: "" };
       }
       if (verb === "list-sessions") {
+        // v0.1.3: honor the `-F "#{session_name} #{session_created}"` age format used by the
+        // reaper; otherwise emit bare names (the existing liveness/sweep format).
+        const fmt = args[args.indexOf("-F") + 1] ?? "#{session_name}";
+        if (fmt.includes("#{session_created}")) {
+          const lines = [...live].map(
+            (s) => `${s} ${created.get(s) ?? Math.floor(Date.now() / 1000)}`
+          );
+          return { code: 0, stdout: lines.join("\n"), stderr: "" };
+        }
         return { code: 0, stdout: [...live].join("\n"), stderr: "" };
       }
       if (verb === "kill-session") {
-        live.delete(args[args.indexOf("-t") + 1]!.replace(/^=/, ""));
+        const session = args[args.indexOf("-t") + 1]!.replace(/^=/, "");
+        live.delete(session);
+        created.delete(session);
         return { code: 0, stdout: "", stderr: "" };
       }
       if (verb === "capture-pane") {
@@ -99,6 +117,9 @@ function makeLoginIo(
     calls,
     setPane: (p) => {
       paneText = p;
+    },
+    setCreated: (session, epochSec) => {
+      created.set(session, epochSec);
     }
   };
 }
@@ -396,6 +417,105 @@ describe("§L.7 #3 acceptance — login gate-release on timeout (5-A/5-B)", () =
     await new Promise((r) => setTimeout(r, 90)); // let the deadline fire + teardown run
     expect(f.live.has(`${LOGIN_SESSION_PREFIX}anthropic`)).toBe(false);
     expect(await svc.isLoginActive()).toBe(false); // gate freed for the next login/chat
+  });
+});
+
+describe("v0.1.3 max-age login reaper (ADDITIVE — releases the §L.6.1 gate; #347 intact)", () => {
+  function makeHost(io: TmuxIo, svc: LoginService): CliChatEngineHost {
+    return new CliChatEngineHost({
+      io,
+      neutralBase: "/data/cli-auth/chat",
+      singleUser: true,
+      loginService: svc,
+      cliPresent: async () => true,
+      multiplexerUsable: async () => true
+    });
+  }
+
+  it("listLoginMuxSessionsWithAge derives age from session_created (epoch seconds)", async () => {
+    const f = makeLoginIo();
+    f.live.add(`${LOGIN_SESSION_PREFIX}anthropic`);
+    const nowMs = 1_000_000_000_000; // fixed
+    f.setCreated(`${LOGIN_SESSION_PREFIX}anthropic`, nowMs / 1000 - 120); // created 120s ago
+    const ages = await listLoginMuxSessionsWithAge(f.io, nowMs);
+    expect(ages).toEqual([{ provider: "anthropic", ageMs: 120_000 }]);
+  });
+
+  it("reaps a STALE orphan login session with no in-memory flow → gate released", async () => {
+    const f = makeLoginIo();
+    // A stranded disk session (e.g. a failed kill left it) — NO in-memory flow exists.
+    const session = `${LOGIN_SESSION_PREFIX}anthropic`;
+    f.live.add(session);
+    f.setCreated(session, Math.floor(Date.now() / 1000) - 3600); // an hour old
+    const svc = makeService(f.io, makeProbe({ status: "needs_login" }).fn);
+
+    // Before: the disk session makes the gate look busy.
+    expect(await svc.isLoginActive()).toBe(true);
+
+    await svc.reapStaleLogins(600_000); // 10-min bound; the session is older
+    expect(f.live.has(session)).toBe(false); // killed
+    expect(await svc.isLoginActive()).toBe(false); // gate reopened
+  });
+
+  it("does NOT reap a FRESH (within-lifetime) login — a legit slow OAuth is protected", async () => {
+    const f = makeLoginIo("https://claude.ai/oauth/authorize?code=abc");
+    const svc = makeService(f.io, makeProbe({ status: "needs_login" }).fn);
+    const loginId = svc.reserve("anthropic");
+    await svc.start(loginId); // a real in-progress login (created "now")
+    expect(await svc.isLoginActive()).toBe(true);
+
+    await svc.reapStaleLogins(600_000); // session age ≈ 0 < bound ⇒ no-op
+    expect(f.live.has(`${LOGIN_SESSION_PREFIX}anthropic`)).toBe(true); // still alive
+    expect(await svc.isLoginActive()).toBe(true); // still held — not reaped
+    await svc.cancel("anthropic", loginId);
+  });
+
+  it("a stale flow's in-memory reservation is cleared by the reaper", async () => {
+    const f = makeLoginIo("https://claude.ai/oauth/authorize?code=abc");
+    const svc = makeService(f.io, makeProbe({ status: "needs_login" }).fn);
+    const loginId = svc.reserve("anthropic");
+    await svc.start(loginId);
+    // Backdate the session past the bound to simulate a hung login.
+    f.setCreated(`${LOGIN_SESSION_PREFIX}anthropic`, Math.floor(Date.now() / 1000) - 3600);
+
+    await svc.reapStaleLogins(600_000);
+    expect(await svc.isLoginActive()).toBe(false); // flow + disk session both gone
+    // A fresh login can now be admitted (slot free).
+    const next = svc.reserve("anthropic");
+    expect(next).toBeTruthy();
+    await svc.cancel("anthropic", next);
+  });
+
+  it("#347 NOT weakened: with a FRESH live login, the reaper is a no-op and chat launch STILL blocks", async () => {
+    const f = makeLoginIo("https://claude.ai/oauth/authorize?code=abc");
+    const svc = makeService(f.io, makeProbe({ status: "needs_login" }).fn);
+    const host = makeHost(f.io, svc);
+
+    const begun = await host.beginLogin("anthropic");
+    expect(begun.status).toBe("awaiting_token");
+
+    // The reaper runs but the login is within its lifetime ⇒ untouched.
+    await host.reapStaleLogins(600_000);
+    expect(await svc.isLoginActive()).toBe(true);
+
+    // The single-active admission gate is intact: a concurrent chat launch is STILL rejected.
+    await expect(
+      host.launch("user-1", { provider: "anthropic", personaText: "p" })
+    ).rejects.toBeInstanceOf(CliChatUnavailableError);
+
+    await host.cancelLogin("anthropic", begun.loginId);
+  });
+
+  it("host.reapStaleLogins is a no-op when no login service is wired", async () => {
+    const f = makeLoginIo();
+    const host = new CliChatEngineHost({
+      io: f.io,
+      neutralBase: "/data/cli-auth/chat",
+      singleUser: true,
+      cliPresent: async () => true,
+      multiplexerUsable: async () => true
+    });
+    await expect(host.reapStaleLogins()).resolves.toBeUndefined();
   });
 });
 

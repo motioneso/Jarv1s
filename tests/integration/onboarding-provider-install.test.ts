@@ -136,7 +136,6 @@ describe("Phase 2 onboarding — provider-install seam (REAL wiring)", () => {
 
     // Probes: cliPresent reflects the fake probe; the rest are inert for these tests.
     const probes: OnboardingProbes = {
-      multiplexerUsable: async () => true,
       cliPresent: async () => fake.probeStatus !== "not_installed",
       testProviderConnection: async () => ({ status: fake.probeStatus }),
       connectorAccountExists: async () => false
@@ -233,11 +232,13 @@ describe("Phase 2 onboarding — provider-install seam (REAL wiring)", () => {
     fake.probeCalls = [];
     const res = await server.inject({ method: "GET", url: "/api/onboarding/status" });
     expect(res.statusCode).toBe(200);
+    // v0.1.3 F2: codex/openai-compatible is HIDDEN from the onboarding cliAuth providers list
+    // (presentation allowlist), so it is NOT surfaced here. The install-seam RECONCILE still runs
+    // server-side for every provider, so assert on the probe + the PERSISTED correction instead.
     const body = res.json() as {
-      steps: { cliAuth: { providers: { kind: string; installState?: string }[] } };
+      steps: { cliAuth: { providers: { kind: string }[] } };
     };
-    const codex = body.steps.cliAuth.providers.find((p) => p.kind === "openai-compatible");
-    expect(codex?.installState).toBe("installed");
+    expect(body.steps.cliAuth.providers.some((p) => p.kind === "openai-compatible")).toBe(false);
     // The reconcile probed the stale provider...
     expect(fake.probeCalls).toContain("openai-compatible");
     // ...and PERSISTED the correction (no longer stale on the next read).
@@ -257,11 +258,12 @@ describe("Phase 2 onboarding — provider-install seam (REAL wiring)", () => {
     fake.probeStatus = "multiplexer_unavailable";
     const res = await server.inject({ method: "GET", url: "/api/onboarding/status" });
     expect(res.statusCode).toBe(200);
+    // v0.1.3 F2: codex is hidden from the surfaced providers; the reconcile still runs, so assert
+    // the PERSISTED row was left untouched (not downgraded) rather than the hidden surface field.
     const body = res.json() as {
-      steps: { cliAuth: { providers: { kind: string; installState?: string }[] } };
+      steps: { cliAuth: { providers: { kind: string }[] } };
     };
-    const codex = body.steps.cliAuth.providers.find((p) => p.kind === "openai-compatible");
-    expect(codex?.installState).toBe("installing");
+    expect(body.steps.cliAuth.providers.some((p) => p.kind === "openai-compatible")).toBe(false);
     expect(await readPersisted("openai-compatible")).toMatchObject({ state: "installing" });
   });
 });

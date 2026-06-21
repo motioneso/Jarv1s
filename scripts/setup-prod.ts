@@ -2,6 +2,8 @@ import { randomBytes } from "node:crypto";
 import { existsSync, mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 
+import { deriveTrustedOrigins } from "./setup-prod-origins.js";
+
 // First-run boot-secret generator. Runs INSIDE the api image as
 // `tsx scripts/setup-prod.ts [OUT_DIR]` (the prod Compose `setup` service).
 // It generates every boot secret the stack needs into a single operator-owned
@@ -51,10 +53,20 @@ const cliRunnerRpcSecret = randomBytes(32).toString("hex");
 // --- Host-specifics (LOCALHOST defaults; override via the setup container env). -
 const apiPort = process.env.JARVIS_API_PORT ?? "3000";
 const webPort = process.env.JARVIS_WEB_PORT ?? "5173";
+// The api's OWN base URL. localhost is correct in-container: the web nginx proxies /api to the
+// api over the compose network, so the api never needs the public host here. (#379 is about the
+// trusted-ORIGINS list below, which better-auth checks against the request's Origin header.)
 const authBaseUrl = process.env.JARVIS_AUTH_BASE_URL ?? "http://localhost:3000";
-// Derive the trusted origin from the chosen web port — a non-default JARVIS_WEB_PORT
-// must NOT fall back to :5173, or better-auth rejects signup with "Invalid origin".
-const authTrustedOrigins = process.env.JARVIS_AUTH_TRUSTED_ORIGINS ?? `http://localhost:${webPort}`;
+// #379: build the better-auth trusted-origins list. localhost:<webPort> always (on-box /
+// port-forward reach), PLUS the host public origin install.sh detected/was-overridden with
+// (JARVIS_PUBLIC_ORIGIN) so signup works from the real LAN/tailnet/domain URL — the setup
+// container can't see the host LAN IP itself. An explicit JARVIS_AUTH_TRUSTED_ORIGINS override
+// still wins verbatim. A non-default JARVIS_WEB_PORT is honored (never falls back to :5173).
+const authTrustedOrigins = deriveTrustedOrigins({
+  webPort,
+  publicOrigin: process.env.JARVIS_PUBLIC_ORIGIN,
+  override: process.env.JARVIS_AUTH_TRUSTED_ORIGINS
+});
 const embedProvider = process.env.JARVIS_EMBED_PROVIDER ?? "local";
 const hostUid = process.env.JARVIS_HOST_UID ?? "1000";
 const hostGid = process.env.JARVIS_HOST_GID ?? "1000";
@@ -160,9 +172,11 @@ writeFileSync(OUT_FILE, content, { mode: 0o600 });
 console.log(`Wrote ${OUT_FILE} (mode 0600) with all boot secrets.`);
 console.log("");
 console.log("Next steps:");
-console.log("  1. Defaults are LOCALHOST. If this deploy is NOT reached at localhost,");
-console.log("     edit JARVIS_AUTH_BASE_URL + JARVIS_AUTH_TRUSTED_ORIGINS to the real");
-console.log("     URLs, then redeploy (no need to re-run setup).");
+console.log(`  1. Sign-in is trusted for these origins: ${authTrustedOrigins}`);
+console.log("     (install.sh detected the host LAN IP automatically. To add another, set");
+console.log("     JARVIS_PUBLIC_ORIGIN=https://your.host before install, or set");
+console.log("     JARVIS_AUTH_TRUSTED_ORIGINS=<comma,list> to control the list yourself, then");
+console.log("     redeploy — no need to re-run setup.)");
 console.log("  2. BACK THIS FILE UP. It is the only copy of your auth/encryption keys;");
 console.log("     losing it orphans sessions + encrypted connector/AI data.");
 console.log("  3. Bring the stack up:");

@@ -1,16 +1,16 @@
 import type { MeResponse, OnboardingStatusResponse } from "@jarv1s/shared";
 
-export const STEP_KEYS = ["welcome", "multiplexer", "cliAuth", "connectors"] as const;
+export const STEP_KEYS = ["welcome", "cliAuth", "connectors"] as const;
 export type StepKey = (typeof STEP_KEYS)[number];
 
 /** Per-step done map. welcome is always "done" for resume purposes; the rest are derived. */
 export function doneByStep(status: OnboardingStatusResponse | undefined): Record<StepKey, boolean> {
-  // These founder spine steps (multiplexer/cliAuth) exist only on the founder variant.
-  // Phase 4 widened OnboardingStatusResponse to a role union, so narrow before reading them.
+  // The cliAuth spine step exists only on the founder variant. Phase 4 widened
+  // OnboardingStatusResponse to a role union, so narrow before reading it. (v0.1.3: the
+  // multiplexer step was removed — the container forces tmux, so it was pure noise.)
   const steps = status?.role === "founder" ? status.steps : undefined;
   return {
     welcome: true,
-    multiplexer: steps?.multiplexer.done ?? false,
     cliAuth: steps?.cliAuth.done ?? false,
     connectors: steps?.connectors.done ?? false
   };
@@ -19,7 +19,7 @@ export function doneByStep(status: OnboardingStatusResponse | undefined): Record
 /** Index of the first not-done step; the last step index when everything is done. */
 export function firstIncompleteStepIndex(status: OnboardingStatusResponse | undefined): number {
   const done = doneByStep(status);
-  if (!done.multiplexer && !done.cliAuth && !done.connectors) {
+  if (!done.cliAuth && !done.connectors) {
     return STEP_KEYS.indexOf("welcome");
   }
   const idx = STEP_KEYS.findIndex((k) => !done[k]);

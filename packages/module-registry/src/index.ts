@@ -111,7 +111,6 @@ import {
 import { assertModulesCompatible } from "./compat-gate.js";
 import {
   makeCliPresentProbe,
-  makeMultiplexerUsableProbe,
   makeProviderConnectionCheckProbe,
   probeChatMultiplexerAvailability,
   resolveChatEngineFactory
@@ -231,7 +230,6 @@ export interface BuiltInRouteDependencies {
    * @jarv1s/connectors PACKAGE dependency (module isolation). Each probes lazily, per request.
    */
   readonly onboardingProbes?: {
-    readonly multiplexerUsable: (kind: "tmux" | "herdr") => Promise<boolean>;
     readonly cliPresent: (kind: OnboardingProviderKind) => Promise<boolean>;
     readonly testProviderConnection: (
       kind: OnboardingProviderKind
@@ -621,7 +619,6 @@ export function registerBuiltInApiRoutes(
   // route through the cli-runner over the socket (§4.8) instead of spawning CLIs in-process; the
   // late-bound `getRpcConnection` lets a connection that is wired AFTER probe construction still be
   // used (the probes only dereference it at call time, which is strictly post-boot).
-  const multiplexerUsable = makeMultiplexerUsableProbe(env);
   const cliPresent = makeCliPresentProbe(getRpcConnection);
 
   // The factory is resolved asynchronously in onReady (a settings read) on the in-process path, but
@@ -639,7 +636,6 @@ export function registerBuiltInApiRoutes(
     });
 
   const onboardingProbes = {
-    multiplexerUsable,
     cliPresent,
     testProviderConnection: makeProviderConnectionCheckProbe({
       engineFactory: chatEngineFactory,
