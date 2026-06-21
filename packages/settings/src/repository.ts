@@ -102,6 +102,12 @@ export interface AssembleOnboardingStatusInput {
   readonly installStateByKind?: Readonly<
     Partial<Record<OnboardingProviderKind, ProviderInstallState>>
   >;
+  /**
+   * #365 (additive): per-provider catalog installability (the `supported` set), supplied by the
+   * status route from the install seam's `installability` port. Absent ⇒ `installable` omitted on
+   * the DTO (phase-1 presence surface). A provider absent from the map ⇒ omitted for that provider.
+   */
+  readonly installableByKind?: Readonly<Partial<Record<OnboardingProviderKind, boolean>>>;
 }
 
 const ONBOARDING_CLI_KINDS: readonly OnboardingProviderKind[] = [
@@ -664,7 +670,7 @@ export class SettingsRepository {
    *       "tmux"  ⇒ tmuxUsable ; "herdr" ⇒ herdrUsable ; "auto" ⇒ tmuxUsable || herdrUsable.
    *     A null selection (no chat.multiplexer row yet) ⇒ not done. Bare binary presence is
    *     NOT enough for herdr (it needs a root pane) — usability is decided upstream.
-   *  - cliAuth.done ⇔ at least one provider CLI is PRESENT (presence ≠ authenticated; floor).
+   *  - cliAuth.done ⇔ at least one provider has reached `ready` (#365: installed AND logged in).
    *  - connectors.done ⇔ a connector account exists.
    * The `satisfies OnboardingFounderStatus` makes contract drift a compile error (Codex R1).
    * Phase 4: this assembler builds ONLY the founder variant of the role-tagged status union;
@@ -677,7 +683,8 @@ export class SettingsRepository {
       availability,
       cliPresentByKind,
       connectorAccountExists,
-      installStateByKind
+      installStateByKind,
+      installableByKind
     } = input;
 
     const multiplexerDone =
@@ -691,12 +698,16 @@ export class SettingsRepository {
 
     const providers = ONBOARDING_CLI_KINDS.map((kind) => {
       const installState = installStateByKind?.[kind];
+      const installable = installableByKind?.[kind];
       return {
         kind,
         cliPresent: cliPresentByKind[kind],
         // §A.5 step 2: surface the persisted (reconciled) lifecycle state when a row exists.
         // Absent row ⇒ omit the optional field (Phase-1 byte-for-byte surface).
-        ...(installState !== undefined ? { installState } : {})
+        ...(installState !== undefined ? { installState } : {}),
+        // #365: surface catalog installability when known (install seam wired). Absent ⇒ omit
+        // the optional field (phase-1 presence surface unchanged).
+        ...(installable !== undefined ? { installable } : {})
       };
     });
 
@@ -712,7 +723,9 @@ export class SettingsRepository {
           herdrUsable: availability.herdrUsable
         },
         cliAuth: {
-          done: providers.some((p) => p.cliPresent),
+          // #365: done ⇔ at least one provider has reached `ready` (installed AND logged in).
+          // Upgrades the old presence floor — onboarding now means "connected", not "detected".
+          done: providers.some((p) => p.installState === "ready"),
           providers
         },
         connectors: { done: connectorAccountExists }
