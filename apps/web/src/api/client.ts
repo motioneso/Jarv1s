@@ -96,6 +96,12 @@ import type {
   OnboardingCompleteResponse,
   OnboardingProviderCheckRequest,
   OnboardingProviderCheckResponse,
+  OnboardingProviderInstallRequest,
+  OnboardingProviderInstallResponse,
+  OnboardingProviderLoginBeginRequest,
+  OnboardingProviderLoginPollRequest,
+  OnboardingProviderLoginResponse,
+  OnboardingProviderLoginSubmitTokenRequest,
   RevokeAiProviderConfigResponse,
   RevokeConnectorAccountResponse,
   TestAiProviderConfigResponse,
@@ -301,6 +307,44 @@ export async function testOnboardingProviderConnection(
   input: OnboardingProviderCheckRequest
 ): Promise<OnboardingProviderCheckResponse> {
   return requestJson<OnboardingProviderCheckResponse>("/api/onboarding/provider-check", {
+    method: "POST",
+    body: input
+  });
+}
+
+// #365: drive the existing install/login routes from the onboarding provider-connect step.
+export async function installOnboardingProvider(
+  input: OnboardingProviderInstallRequest
+): Promise<OnboardingProviderInstallResponse> {
+  return requestJson<OnboardingProviderInstallResponse>("/api/onboarding/provider-install", {
+    method: "POST",
+    body: input
+  });
+}
+
+export async function beginOnboardingProviderLogin(
+  input: OnboardingProviderLoginBeginRequest
+): Promise<OnboardingProviderLoginResponse> {
+  return requestJson<OnboardingProviderLoginResponse>("/api/onboarding/provider-login/begin", {
+    method: "POST",
+    body: input
+  });
+}
+
+// The pasted code is auth material: forwarded straight to the route, never logged or stored.
+export async function submitOnboardingProviderLoginToken(
+  input: OnboardingProviderLoginSubmitTokenRequest
+): Promise<OnboardingProviderLoginResponse> {
+  return requestJson<OnboardingProviderLoginResponse>(
+    "/api/onboarding/provider-login/submit-token",
+    { method: "POST", body: input }
+  );
+}
+
+export async function pollOnboardingProviderLogin(
+  input: OnboardingProviderLoginPollRequest
+): Promise<OnboardingProviderLoginResponse> {
+  return requestJson<OnboardingProviderLoginResponse>("/api/onboarding/provider-login/poll", {
     method: "POST",
     body: input
   });
