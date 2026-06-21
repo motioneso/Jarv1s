@@ -130,6 +130,56 @@ describe("wellness REST routes", () => {
     }
   });
 
+  it("logs multiple PRN doses in one day; prnCount reflects them and stores the entered reason", async () => {
+    const app = await buildApp(userId);
+    try {
+      const med = await app.inject({
+        method: "POST",
+        url: "/api/wellness/medications",
+        payload: { name: "Afternoon booster", frequencyType: "as_needed" }
+      });
+      const medId = med.json().medication.id as string;
+
+      // Two PRN doses the same day, each with the reason the user actually entered.
+      const reasons = ["Afternoon booster", "Second booster"];
+      for (const reason of reasons) {
+        const log = await app.inject({
+          method: "POST",
+          url: `/api/wellness/medications/${medId}/logs`,
+          payload: { status: "prn", prnReason: reason }
+        });
+        expect(log.statusCode).toBe(201);
+        // The stored reason is exactly what the user entered — never a placeholder.
+        expect(log.json().log.prnReason).toBe(reason);
+      }
+
+      const today = new Date().toISOString().slice(0, 10);
+      const fetchSlot = async () => {
+        const sched = await app.inject({
+          method: "GET",
+          url: `/api/wellness/medications/schedule?date=${today}`
+        });
+        expect(sched.statusCode).toBe(200);
+        const slots = sched.json().slots as Array<{
+          medicationId: string;
+          asNeeded: boolean;
+          prnCount?: number;
+        }>;
+        return slots.find((s) => s.medicationId === medId && s.asNeeded);
+      };
+
+      const slot = await fetchSlot();
+      expect(slot).toBeDefined();
+      expect(slot?.prnCount).toBe(2);
+
+      // The count is server-derived from persisted logs, so it survives a fresh refetch.
+      const again = await fetchSlot();
+      expect(again?.prnCount).toBe(2);
+    } finally {
+      await app.close();
+    }
+  });
+
   // All six frequency types must create (no 400) AND, where scheduled, produce slots.
   it("POST creates all six frequency types without a 400", async () => {
     const app = await buildApp(userId);

@@ -17,6 +17,17 @@
   justify-content: space-between;
   gap: 10px;
 }
+.wl-prn__row .wl-medrow__name {
+  flex: 1;
+  min-width: 0;
+}
+.wl-prn__count {
+  flex: none;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--accent-fg);
+  font-variant-numeric: tabular-nums;
+}
 .wl-prn__log {
   flex: none;
   display: inline-flex;

@@ -311,6 +311,9 @@ function MedToday({ theme: _theme, onManage }: MedTodayProps) {
                             {slot.name}
                             <span className="wl-medrow__prn">as needed</span>
                           </span>
+                          {(slot.prnCount ?? 0) > 0 ? (
+                            <span className="wl-prn__count">{slot.prnCount} logged today</span>
+                          ) : null}
                           <button
                             type="button"
                             className="wl-prn__log"
