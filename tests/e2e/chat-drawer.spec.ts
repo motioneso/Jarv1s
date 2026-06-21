@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test";
+import { expect, test, type Page } from "@playwright/test";
 
 import { createMockConnectorProviders, mockApi } from "./mock-api.js";
 
@@ -81,9 +81,12 @@ test("opens the live chat drawer from the nav and renders the streamed records o
   await expect(drawer.getByText("Hi there")).toHaveCount(1);
   await expect(drawer.getByText("Hello from the assistant")).toHaveCount(1);
 
-  // "New chat" clears the transcript.
+  // "New chat" clears the transcript. (Assert the streamed records are gone rather than a
+  // specific empty-state copy: since v0.1.4 the empty state is onboarding-gated and shows the
+  // connect-a-provider explainer when no provider is configured, as in this mock.)
   await drawer.getByRole("button", { name: "New chat" }).click();
-  await expect(drawer.getByText("What can I help with?")).toBeVisible();
+  await expect(drawer.getByText("Hello from the assistant")).toHaveCount(0);
+  await expect(drawer.getByText("Hi there")).toHaveCount(0);
 });
 
 test("clicking a history row renders stored messages read-only", async ({ page }) => {
@@ -202,4 +205,146 @@ test("reviewing an empty history row does not expose send suggestions", async ({
   await expect(drawer.getByText("What can I help with?")).toHaveCount(0);
   await expect(drawer.getByRole("button", { name: /Call Sam/ })).toHaveCount(0);
   expect(turnRequests).toBe(0);
+});
+
+/**
+ * Helper: serve a single assistant `reply` record over the SSE stream (the source of
+ * truth), then hold any reconnect open so the event does not replay. Mirrors the
+ * one-shot stream pattern used above.
+ */
+async function streamReply(page: Page, replyText: string) {
+  let streamServed = false;
+  await page.route("**/api/chat/stream", async (route) => {
+    if (streamServed) {
+      return; // hold reconnect open; no replay
+    }
+    streamServed = true;
+    await route.fulfill({
+      status: 200,
+      contentType: "text/event-stream",
+      headers: { "cache-control": "no-cache" },
+      body: `data: ${JSON.stringify({ kind: "reply", text: replyText })}\n\n`
+    });
+  });
+}
+
+test("renders assistant markdown as rich HTML (table, bold, code, list)", async ({ page }) => {
+  await mockApi(page, {
+    authenticated: true,
+    chatThreads: [],
+    connectorAccounts: [],
+    connectorProviders: createMockConnectorProviders(),
+    notifications: [],
+    tasks: []
+  });
+
+  const md =
+    "**bold text** and `inline`\n\n" +
+    "| A | B |\n|---|---|\n| 1 | 2 |\n\n" +
+    "- one\n- two\n\n" +
+    "```\ncode block\n```";
+  await streamReply(page, md);
+
+  await page.goto("/");
+  await page.getByRole("button", { name: "Chat with Jarvis" }).click();
+  const drawer = page.getByRole("dialog", { name: "Chat with Jarvis" });
+  await expect(drawer).toBeVisible();
+
+  // Markdown parsed into semantic elements (not literal source).
+  await expect(drawer.locator(".chatd-md table")).toHaveCount(1);
+  await expect(drawer.locator(".chatd-md strong")).toHaveText("bold text");
+  await expect(drawer.locator(".chatd-md code").first()).toContainText("inline");
+  await expect(drawer.locator(".chatd-md pre")).toContainText("code block");
+  await expect(drawer.locator(".chatd-md li")).toHaveCount(2);
+  // The raw GFM table source must NOT appear literally.
+  await expect(drawer.getByText("| A | B |")).toHaveCount(0);
+});
+
+test("does not inject executable HTML from untrusted markdown", async ({ page }) => {
+  await mockApi(page, {
+    authenticated: true,
+    chatThreads: [],
+    connectorAccounts: [],
+    connectorProviders: createMockConnectorProviders(),
+    notifications: [],
+    tasks: []
+  });
+
+  // Untrusted reply covering every injection vector: raw <script>, an <img onerror>, a
+  // raw-HTML event-handler blob, a javascript: markdown link, a data:text/html markdown
+  // link, and a bare URL (which remark-gfm autolinks into an <a> without link syntax).
+  // None may produce executable HTML; only http(s)/mailto hrefs may survive.
+  const evil =
+    "<script>window.__pwned = 1</script>\n\n" +
+    '<img src=x onerror="window.__pwned = 1">\n\n' +
+    '<div onclick="window.__pwned = 1">raw html blob</div>\n\n' +
+    "[click me](javascript:alert(1))\n\n" +
+    "[doc link](data:text/html,<script>window.__pwned=1</script>)\n\n" +
+    "bare autolink https://example.com/safe here";
+  await streamReply(page, evil);
+
+  await page.goto("/");
+  await page.getByRole("button", { name: "Chat with Jarvis" }).click();
+  const drawer = page.getByRole("dialog", { name: "Chat with Jarvis" });
+  await expect(drawer).toBeVisible();
+  // Wait for the reply to render (the link text survives as plain text).
+  await expect(drawer.getByText("click me")).toBeVisible();
+  // The markdown renderer is active (ties this security test to the feature).
+  await expect(drawer.locator(".chatd-md")).toHaveCount(1);
+  // The bare URL was autolinked (proves the gfm autolink path is exercised, not bypassed).
+  await expect(drawer.locator('.chatd-md a[href="https://example.com/safe"]')).toHaveCount(1);
+
+  // No script/img/event-handler element was injected into the chat bubble.
+  await expect(drawer.locator(".chatd-md script")).toHaveCount(0);
+  await expect(drawer.locator(".chatd-md img")).toHaveCount(0);
+  await expect(drawer.locator(".chatd-md [onclick]")).toHaveCount(0);
+
+  // Every surviving href is on the http(s)/mailto allowlist — no javascript:/data:/etc.
+  const hrefs = await drawer
+    .locator(".chatd-md a")
+    .evaluateAll((els) => els.map((el) => (el as HTMLAnchorElement).getAttribute("href") ?? ""));
+  for (const href of hrefs) {
+    expect(href === "" || /^(https?:|mailto:)/i.test(href)).toBe(true);
+  }
+
+  // Every rendered link opens safely.
+  const rels = await drawer
+    .locator(".chatd-md a")
+    .evaluateAll((els) => els.map((el) => el.getAttribute("rel") ?? ""));
+  for (const rel of rels) {
+    expect(rel).toContain("noopener");
+    expect(rel).toContain("noreferrer");
+  }
+
+  // The injection side-effect never fired.
+  expect(
+    await page.evaluate(() => (window as unknown as { __pwned?: number }).__pwned)
+  ).toBeUndefined();
+});
+
+test("renders a large markdown reply without error", async ({ page }) => {
+  await mockApi(page, {
+    authenticated: true,
+    chatThreads: [],
+    connectorAccounts: [],
+    connectorProviders: createMockConnectorProviders(),
+    notifications: [],
+    tasks: []
+  });
+
+  // A reply arrives as ONE whole record (the backend pushes the full reply text; the SSE
+  // consumer is append-only and never grows a record token-by-token). This guards that a
+  // large markdown body renders correctly in a single parse — the realistic worst case.
+  const big = Array.from({ length: 80 }, (_, i) => `## Section ${i}\n\n- item **${i}**`).join(
+    "\n\n"
+  );
+  await streamReply(page, big);
+
+  await page.goto("/");
+  await page.getByRole("button", { name: "Chat with Jarvis" }).click();
+  const drawer = page.getByRole("dialog", { name: "Chat with Jarvis" });
+  await expect(drawer).toBeVisible();
+
+  await expect(drawer.locator(".chatd-md h2")).toHaveCount(80);
+  await expect(drawer.locator(".chatd-md li")).toHaveCount(80);
 });

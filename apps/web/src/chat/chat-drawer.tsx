@@ -15,6 +15,7 @@ import { queryKeys } from "../api/query-keys";
 import type { ChatMessageDto } from "@jarv1s/shared";
 import { ActionRequestCard } from "./action-request-card";
 import { ConnectProviderEmpty } from "./connect-provider-empty";
+import { MarkdownMessage } from "./markdown-message";
 import { buildChatSeeds } from "./seeds";
 import { hasConnectedProvider, isNoActiveChatModelError } from "../onboarding/chat-availability";
 import type { ChatRecordKind, TranscriptRecord } from "./use-chat-stream";
@@ -277,13 +278,15 @@ function RecordRow(props: { readonly record: TranscriptRecord }) {
     return <p className="form-error">{text}</p>;
   }
 
-  // reply (and any unforeseen non-activity kind) — assistant bubble.
+  // reply (and any unforeseen non-activity kind) — assistant bubble, rendered as markdown.
   return (
     <div className="chatd-msg">
       <span className="chatd-msg__av">
         <Sparkles size={14} aria-hidden="true" />
       </span>
-      <div className="chatd-bubble">{text}</div>
+      <div className="chatd-bubble">
+        <MarkdownMessage text={text} />
+      </div>
     </div>
   );
 }
