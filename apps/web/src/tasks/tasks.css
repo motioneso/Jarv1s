@@ -485,3 +485,21 @@
   align-items: center;
   gap: 0.3rem;
 }
+
+/* Mobile: deliberate wrap for the tasks toolbar so controls don't orphan a
+   single control on its own line when lists are toggled (#388). Loads after
+   kit-tasks.css so these override the base .tk-bar rules. */
+@media (max-width: 560px) {
+  .tk-bar {
+    gap: 8px 10px;
+  }
+  .tk-bar__spacer {
+    flex-basis: 0;
+  }
+  .tk-bar__sep {
+    display: none;
+  }
+  .tk-tagfield {
+    flex: 1 1 100%;
+  }
+}
