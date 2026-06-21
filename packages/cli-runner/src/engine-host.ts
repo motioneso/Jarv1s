@@ -181,7 +181,9 @@ export class CliChatEngineHost {
       personaText: params.personaText,
       mcpToken: params.mcpToken,
       mcpServerUrl: params.mcpServerUrl,
-      replayBatch: params.replayBatch
+      replayBatch: params.replayBatch,
+      // #367: forward the resolved model id so buildClaudeCommand emits `--model <id>`.
+      model: params.model
     });
 
     let timedOut = false;

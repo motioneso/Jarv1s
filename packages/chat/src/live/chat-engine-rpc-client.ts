@@ -650,7 +650,8 @@ export class ChatEngineRpcClient implements CliChatEngine {
       personaText: opts.personaText ?? "",
       ...(opts.mcpToken !== undefined ? { mcpToken: opts.mcpToken } : {}),
       ...(opts.mcpServerUrl !== undefined ? { mcpServerUrl: opts.mcpServerUrl } : {}),
-      ...(opts.replayBatch !== undefined ? { replayBatch: opts.replayBatch } : {})
+      ...(opts.replayBatch !== undefined ? { replayBatch: opts.replayBatch } : {}),
+      ...(opts.model !== undefined ? { model: opts.model } : {})
     };
     const result = await this.conn.launch(this.sessionKey, params);
     return { offset: result.offset };

@@ -83,6 +83,89 @@ describe("CliChatEngineImpl — Claude MCP lockdown", () => {
     expect(io.run).toHaveBeenCalledWith("rm", ["-rf", "/tmp/neutral-kill"]);
   });
 
+  it("passes --model <id> on the claude launch line for a concrete model override (#367)", async () => {
+    const io = makeIo();
+    const engine = new CliChatEngineImpl("anthropic", "model-session", io);
+    await engine.launch({
+      neutralDir: "/tmp/neutral",
+      personaPath: "/tmp/persona.txt",
+      model: "sonnet"
+    });
+
+    const sendKeysCall = (io.run as ReturnType<typeof vi.fn>).mock.calls.find(
+      (c: unknown[]) => c[0] === "tmux" && (c[1] as string[])[0] === "send-keys"
+    );
+    const launchLine = (sendKeysCall![1] as string[])[3];
+    expect(launchLine).toContain("--model 'sonnet'");
+  });
+
+  it("omits --model for the 'default' sentinel — rides claude's interactive/account model (#367)", async () => {
+    const io = makeIo();
+    const engine = new CliChatEngineImpl("anthropic", "default-model-session", io);
+    await engine.launch({
+      neutralDir: "/tmp/neutral",
+      personaPath: "/tmp/persona.txt",
+      model: "default"
+    });
+
+    const sendKeysCall = (io.run as ReturnType<typeof vi.fn>).mock.calls.find(
+      (c: unknown[]) => c[0] === "tmux" && (c[1] as string[])[0] === "send-keys"
+    );
+    const launchLine = (sendKeysCall![1] as string[])[3];
+    expect(launchLine).not.toContain("--model");
+  });
+
+  it("omits --model when no model is set (rides the account default) (#367)", async () => {
+    const io = makeIo();
+    const engine = new CliChatEngineImpl("anthropic", "no-model-session", io);
+    await engine.launch({ neutralDir: "/tmp/neutral", personaPath: "/tmp/persona.txt" });
+
+    const sendKeysCall = (io.run as ReturnType<typeof vi.fn>).mock.calls.find(
+      (c: unknown[]) => c[0] === "tmux" && (c[1] as string[])[0] === "send-keys"
+    );
+    const launchLine = (sendKeysCall![1] as string[])[3];
+    expect(launchLine).not.toContain("--model");
+  });
+
+  // #367: the omit-for-'default' / pass-for-concrete rule is UNIFORM across all three CLIs.
+  it.each(["openai-compatible", "google"] as const)(
+    "passes --model for a concrete override on %s (#367)",
+    async (provider) => {
+      const io = makeIo();
+      const engine = new CliChatEngineImpl(provider, `${provider}-concrete-session`, io);
+      await engine.launch({
+        neutralDir: "/tmp/neutral",
+        personaPath: "/tmp/persona.txt",
+        model: "some-concrete-model"
+      });
+
+      const sendKeysCall = (io.run as ReturnType<typeof vi.fn>).mock.calls.find(
+        (c: unknown[]) => c[0] === "tmux" && (c[1] as string[])[0] === "send-keys"
+      );
+      const launchLine = (sendKeysCall![1] as string[])[3];
+      expect(launchLine).toContain("--model 'some-concrete-model'");
+    }
+  );
+
+  it.each(["openai-compatible", "google"] as const)(
+    "omits --model for the 'default' sentinel on %s (#367)",
+    async (provider) => {
+      const io = makeIo();
+      const engine = new CliChatEngineImpl(provider, `${provider}-default-session`, io);
+      await engine.launch({
+        neutralDir: "/tmp/neutral",
+        personaPath: "/tmp/persona.txt",
+        model: "default"
+      });
+
+      const sendKeysCall = (io.run as ReturnType<typeof vi.fn>).mock.calls.find(
+        (c: unknown[]) => c[0] === "tmux" && (c[1] as string[])[0] === "send-keys"
+      );
+      const launchLine = (sendKeysCall![1] as string[])[3];
+      expect(launchLine).not.toContain("--model");
+    }
+  );
+
   it("falls back to --tools '' when no mcpToken is provided", async () => {
     const io = makeIo();
     const engine = new CliChatEngineImpl("anthropic", "test-session", io);

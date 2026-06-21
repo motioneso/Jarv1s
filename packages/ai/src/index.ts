@@ -1,4 +1,5 @@
 export * from "./assistant-tools.js";
+export * from "./auto-register.js";
 export * from "./chat-model-override.js";
 export * from "./chat-adapter.js";
 export * from "./cli-availability.js";
