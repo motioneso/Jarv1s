@@ -30,7 +30,7 @@ export function MultiplexerStep(props: {
     }
   });
 
-  const anyUsable = props.step.tmuxUsable || props.step.herdrUsable;
+  const anyUsable = props.step.tmuxUsable;
   const selected = select.isPending ? selectedChoice : (props.step.selected ?? selectedChoice);
 
   useEffect(() => {
@@ -95,9 +95,6 @@ export function MultiplexerStep(props: {
         <span>Download:</span>
         <a href="https://github.com/tmux/tmux" target="_blank" rel="noreferrer">
           tmux <ExternalLink size={14} />
-        </a>
-        <a href="https://herdr.dev/docs/install/" target="_blank" rel="noreferrer">
-          herdr <ExternalLink size={14} />
         </a>
       </div>
       <div className="onb-recheck">

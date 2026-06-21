@@ -5,6 +5,24 @@ export default defineConfig({
   resolve: {
     extensions: [".ts", ".tsx", ".js", ".jsx", ".json"],
     alias: [
+      // The root test suite can render @jarv1s/web React components (e.g. the onboarding
+      // multiplexer step). react / react-dom / react-query are workspace deps of
+      // @jarv1s/web only, so resolve them from the web package's installed copies rather
+      // than duplicating them as root devDependencies.
+      {
+        find: "react-dom",
+        replacement: fileURLToPath(new URL("./apps/web/node_modules/react-dom", import.meta.url))
+      },
+      {
+        find: "react",
+        replacement: fileURLToPath(new URL("./apps/web/node_modules/react", import.meta.url))
+      },
+      {
+        find: "@tanstack/react-query",
+        replacement: fileURLToPath(
+          new URL("./apps/web/node_modules/@tanstack/react-query", import.meta.url)
+        )
+      },
       {
         find: "@jarv1s/ai",
         replacement: fileURLToPath(new URL("./packages/ai/src/index.ts", import.meta.url))
@@ -104,7 +122,7 @@ export default defineConfig({
     ]
   },
   test: {
-    include: ["spikes/**/*.test.ts", "tests/**/*.test.ts"],
+    include: ["spikes/**/*.test.ts", "tests/**/*.test.ts", "tests/**/*.test.tsx"],
     hookTimeout: 30_000,
     testTimeout: 30_000,
     pool: "forks",
