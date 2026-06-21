@@ -23,6 +23,8 @@ import path from "node:path";
 
 import { redactExact, redactSecrets, type TmuxIo } from "@jarv1s/ai";
 
+import { persistProviderToken } from "./provider-token-store.js";
+
 import {
   killLoginMuxSession,
   listLoginMuxSessions,
@@ -93,6 +95,8 @@ interface LoginFlow {
   readonly adapter: LoginAdapter;
   /** The in-flight pasted token (paste mode) — held for redactExact + the echo-drop (§L.6.2/§L.6.3). */
   heldToken?: string;
+  /** (#363) the long-lived credential captured from the success pane — held for redactExact. SECRET. */
+  capturedToken?: string;
   /** True once a token was submitted: poll then NEVER re-surfaces a userCode (§L.6.2 HIGH-2). */
   submitted: boolean;
   /** Overall-lifetime reaper; cleared on settle/cancel. */
@@ -241,6 +245,10 @@ export class LoginService {
       // same-UID reader could `show-buffer -b <name>` it afterwards. Delete the named buffer the
       // instant the paste has consumed it so the code does not linger past the paste.
       await this.deleteLoginBuffer(flow.provider);
+      // #363: token-based providers (claude) PRINT a long-lived credential on success rather
+      // than persisting one. Capture it from the success pane + persist it (0600) BEFORE the
+      // probe runs, so the credential-injected `auth status` settles the flow `ready`.
+      await this.captureAndPersistToken(flow);
       await this.deps.io.sleep(this.settleMs);
       return await this.deriveStatus(flow);
     } catch (err) {
@@ -326,6 +334,33 @@ export class LoginService {
       if (last.authorizationUrl) return last;
     }
     return last;
+  }
+
+  /**
+   * (#363) Capture the long-lived credential a token-based provider PRINTS on success (claude
+   * `setup-token` → `sk-ant-oat…`) and persist it 0600 via the provider-token-store. Polls the
+   * pane (bounded, like the URL poll) since the exchange takes a beat. No-op for providers
+   * without a `tokenCapturePattern` (codex/gemini persist their own cred). The captured value is
+   * a SECRET: held on the flow for `redactExact`, persisted to the cli-auth volume, never returned.
+   */
+  private async captureAndPersistToken(flow: LoginFlow): Promise<void> {
+    const pattern = flow.adapter.tokenCapturePattern;
+    if (!pattern) return;
+    const session = `${LOGIN_SESSION_PREFIX}${flow.provider}`;
+    const attempts = Math.max(1, Math.ceil(this.surfaceTimeoutMs / Math.max(this.settleMs, 200)));
+    for (let i = 0; i < attempts; i++) {
+      await this.deps.io.sleep(this.settleMs);
+      const pane = await this.deps.io
+        .run("tmux", ["capture-pane", "-p", "-J", "-t", `=${session}:`])
+        .catch(() => ({ code: 1, stdout: "" }));
+      if (pane.code !== 0) continue;
+      const match = pane.stdout.match(pattern);
+      if (match) {
+        flow.capturedToken = match[0]; // SECRET — for redactExact; never surfaced.
+        await persistProviderToken(this.homeBase, flow.provider, match[0]);
+        return;
+      }
+    }
   }
 
   private async captureSurface(flow: LoginFlow): Promise<LoginSurface> {
@@ -463,7 +498,10 @@ function sessionProvider(session: string): string {
     : session;
 }
 
-/** Scrub the flow's in-flight pasted token (exact) from a string before it crosses the wire. */
+/**
+ * Scrub the flow's secrets (the in-flight pasted code AND the #363 captured long-lived token)
+ * exactly from a string before it crosses the wire.
+ */
 function redactExactFlow(flow: LoginFlow, text: string | undefined): string {
-  return redactExact(text, flow.heldToken);
+  return redactExact(redactExact(text, flow.heldToken), flow.capturedToken);
 }

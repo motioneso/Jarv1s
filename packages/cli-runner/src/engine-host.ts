@@ -40,6 +40,8 @@ import type { Multiplexer, ProviderKind, TmuxIo } from "@jarv1s/ai";
 import { Mutex } from "./mutex.js";
 import type { InstallService } from "./install-service.js";
 import { LoginBadRequestError, type LoginService } from "./login-service.js";
+import { ensureProviderLaunchReady } from "./provider-first-run.js";
+import { providerTokenPath, readProviderCredentialEnv } from "./provider-token-store.js";
 
 export interface EngineHostDeps {
   readonly io: TmuxIo;
@@ -147,9 +149,25 @@ export class CliChatEngineHost {
     const engine = new CliChatEngineImpl(params.provider as ProviderKind, key, this.deps.io, {
       mux: this.deps.mux,
       homeBase: this.deps.homeBase,
-      ownsDrain: true
+      ownsDrain: true,
+      // #363: the 0600 token file the claude launch reads CLAUDE_CODE_OAUTH_TOKEN from at
+      // runtime (claude-scoped; only used by buildClaudeCommand, only if the file exists).
+      credentialFile: this.deps.homeBase
+        ? providerTokenPath(this.deps.homeBase, params.provider)
+        : undefined
     });
     const neutralDir = deriveNeutralDir(this.deps.neutralBase, key);
+
+    // #342: seed the provider CLI's first-run state (claude onboarding + per-dir trust) BEFORE
+    // launch so the engine-launched REPL skips its wizard and starts authenticated (the token is
+    // already injected via the launch line). Per-provider; non-claude providers no-op.
+    if (this.deps.homeBase) {
+      await ensureProviderLaunchReady(
+        this.deps.homeBase,
+        params.provider as ProviderKind,
+        neutralDir
+      );
+    }
 
     // Keep a handle on the RAW launch promise (separate from the timeout race) so that a
     // mux-create which SUCCEEDS *after* the timeout already released the reservation can be
@@ -277,7 +295,11 @@ export class CliChatEngineHost {
     const result: ProbeProviderResult = await probeProvider(provider as ProviderKind, {
       io: this.deps.io,
       cliPresent: this.deps.cliPresent,
-      multiplexerUsable: this.deps.multiplexerUsable
+      multiplexerUsable: this.deps.multiplexerUsable,
+      // #363: inject the persisted claude OAuth token so `auth status` reports loggedIn.
+      credentialEnv: this.deps.homeBase
+        ? await readProviderCredentialEnv(this.deps.homeBase, provider)
+        : undefined
     });
     return { status: result.status, message: result.message };
   }

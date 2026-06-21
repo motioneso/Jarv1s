@@ -10,7 +10,7 @@
  *     login-in-flight ⇒ launch unavailable + a 2nd beginLogin unavailable;
  *   - §L.1.3 adapter validation: orphan / too-broad-pathPrefix adapters are dropped.
  */
-import { mkdtemp } from "node:fs/promises";
+import { mkdtemp, stat } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 
@@ -20,6 +20,10 @@ import type { TmuxIo } from "../../packages/ai/src/adapters/tmux-bridge.js";
 import { CliChatEngineHost } from "../../packages/cli-runner/src/engine-host.js";
 import { LoginService, LoginBadRequestError } from "../../packages/cli-runner/src/login-service.js";
 import { LOGIN_ADAPTERS, loadLoginAdapters } from "../../packages/cli-runner/src/login-adapters.js";
+import {
+  providerTokenPath,
+  readProviderToken
+} from "../../packages/cli-runner/src/provider-token-store.js";
 import { CliChatUnavailableError } from "../../packages/chat/src/live/errors.js";
 import {
   LOGIN_SESSION_PREFIX,
@@ -210,6 +214,28 @@ describe("LoginService flow (§L.2/§L.3)", () => {
     for (const call of f.calls) {
       expect(call.args).not.toContain(TOKEN); // NEVER in /proc/cmdline (no send-keys-with-token)
     }
+    await svc.cancel("anthropic", loginId);
+  });
+
+  it("captures the minted setup-token credential, persists it 0600, and NEVER returns it (#363)", async () => {
+    const TOKEN = "sk-ant-oat-CAPTURED1234567890abcdefghijKLMNOP";
+    const f = makeLoginIo("https://claude.com/cai/oauth/authorize?code=abc");
+    const probe = makeProbe({ status: "needs_login" });
+    const svc = makeService(f.io, probe.fn);
+    const loginId = svc.reserve("anthropic");
+    await svc.start(loginId);
+    // After the paste, the success pane renders the long-lived token.
+    f.setPane(
+      `✓ Long-lived authentication token created successfully!\n${TOKEN}\nStore this securely.`
+    );
+    const out = await svc.submitToken("anthropic", loginId, "PASTED-CODE-abc");
+
+    // Persisted 0600 in the token store (claude-scoped).
+    expect(await readProviderToken(homeBase, "anthropic")).toBe(TOKEN);
+    expect((await stat(providerTokenPath(homeBase, "anthropic"))).mode & 0o777).toBe(0o600);
+    // The captured credential NEVER crosses the wire (outcome) nor any tmux argv.
+    expect(JSON.stringify(out)).not.toContain(TOKEN);
+    for (const call of f.calls) expect(call.args).not.toContain(TOKEN);
     await svc.cancel("anthropic", loginId);
   });
 
