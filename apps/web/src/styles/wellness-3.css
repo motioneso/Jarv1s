@@ -1,0 +1,30 @@
+/* wellness-3.css — mobile/responsive chart legibility (#386).
+   Loaded AFTER wellness-1.css / wellness-2.css so these phone-width overrides win.
+   Kept in a separate file to respect the 1000-line per-file cap (wellness-1/-2 are near it). */
+
+@media (max-width: 560px) {
+  /* The trend SVG uses a fixed 760-unit viewBox scaled to 100% width. At phone widths that
+     crushes the whole chart — axis labels and dots become illegible. Give the plot a horizontal
+     scroll and hold the SVG at a readable minimum width instead of letting it shrink to fit. */
+  .wl-chart__plot {
+    overflow-x: auto;
+    overflow-y: visible;
+    -webkit-overflow-scrolling: touch;
+    /* room so absolutely-positioned tooltips above the plot aren't clipped while scrolling */
+    padding-bottom: 4px;
+  }
+
+  .wl-chart__plot svg {
+    min-width: 600px;
+    /* taller aspect at narrow widths so the mood band + meds row breathe */
+    height: auto;
+  }
+
+  /* Bump the in-SVG axis text so it stays readable at the held scale. */
+  .wl-axislbl {
+    font-size: 13px;
+  }
+  .wl-axislbl--ov {
+    font-size: 13.5px;
+  }
+}

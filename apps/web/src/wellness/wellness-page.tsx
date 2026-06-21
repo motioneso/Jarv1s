@@ -1,5 +1,6 @@
 import "../styles/wellness-1.css";
 import "../styles/wellness-2.css";
+import "../styles/wellness-3.css";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useRef, useState } from "react";
 import {
