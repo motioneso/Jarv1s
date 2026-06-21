@@ -39,6 +39,14 @@ export interface EngineLaunchOpts {
    * manager keeps its own post-launch drain). See rpc-contract.ts RpcLaunchParams.replayBatch.
    */
   readonly replayBatch?: string;
+  /**
+   * NEW (#367) — the resolved provider model id from the active chat model row. The auto-registered
+   * default is the `"default"` sentinel, for which the launch OMITS `--model` so the CLI rides its
+   * own interactive/account model (the PRIMARY path — chat never requires model selection). A
+   * CONCRETE id (an explicit settings override) makes the launch pass `--model <id>`; absent ⇒ also
+   * omit. See rpc-contract.ts RpcLaunchParams.model.
+   */
+  readonly model?: string;
 }
 
 /** A persistent per-user CLI session. One instance per live session. */

@@ -36,6 +36,7 @@ import { existsSync } from "node:fs";
 import { join } from "node:path";
 
 import {
+  DEFAULT_MODEL_SENTINEL,
   parseTranscript,
   redactSecrets,
   transcriptGlobDir,
@@ -468,6 +469,9 @@ export class CliChatEngineImpl implements CliChatEngine {
       "--strict-mcp-config"
     );
 
+    const modelFlag = modelOverrideFlag(opts);
+    if (modelFlag) parts.push(modelFlag);
+
     return parts.join(" ");
   }
 
@@ -485,6 +489,8 @@ export class CliChatEngineImpl implements CliChatEngine {
         `-c 'features.apply_patch_tool=false'`
       );
     }
+    const modelFlag = modelOverrideFlag(opts); // codex accepts -m/--model
+    if (modelFlag) parts.push(modelFlag);
     parts.push("--sandbox read-only", "-a never");
 
     return parts.join(" ");
@@ -493,6 +499,8 @@ export class CliChatEngineImpl implements CliChatEngine {
   private buildGeminiCommand(opts: EngineLaunchOpts): string {
     // Token is already injected via .gemini/settings.json Authorization header — no env var needed.
     const parts = [`cd ${shellQuote(opts.neutralDir)} &&`, "agy", "--sandbox"];
+    const modelFlag = modelOverrideFlag(opts); // agy accepts --model
+    if (modelFlag) parts.push(modelFlag);
     return parts.join(" ");
   }
 
@@ -921,6 +929,18 @@ function codexTranscriptMatchesCwd(jsonl: string, expectedCwd: string): boolean 
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+/**
+ * #367: build the `--model <id>` launch flag — UNIFORM across claude/codex/gemini. Emit it ONLY for
+ * a CONCRETE model override (an explicit settings choice). For the {@link DEFAULT_MODEL_SENTINEL}
+ * (`"default"`, the auto-registered default) OR an absent model, return null so the CLI rides its own
+ * interactive/account model and chat never requires model selection. All three CLIs accept
+ * `--model <id>` (claude `--model`, codex `-m/--model`, agy `--model`).
+ */
+function modelOverrideFlag(opts: EngineLaunchOpts): string | null {
+  if (!opts.model || opts.model === DEFAULT_MODEL_SENTINEL) return null;
+  return `--model ${shellQuote(opts.model)}`;
 }
 
 /** Minimal POSIX single-quote shell quoting for paths embedded in a send-keys line. */

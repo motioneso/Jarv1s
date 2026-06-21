@@ -3,6 +3,7 @@ import type { Kysely } from "kysely";
 import type { PgBoss } from "pg-boss";
 
 import {
+  AiAutoRegisterService,
   AiRepository,
   HttpApiAdapter,
   aiModuleManifest,
@@ -670,7 +671,14 @@ export function registerBuiltInApiRoutes(
   const onboardingLogin: OnboardingLoginDependencies | undefined = buildOnboardingLogin({
     enabled: socketConfigured,
     getConnection: getRpcConnection,
-    repository: new SettingsRepository()
+    repository: new SettingsRepository(),
+    // #367: on login `ready`, auto-register a default chat model so chat works with zero manual
+    // entry. Best-effort — a failure is logged here and never fails the login.
+    autoRegister: new AiAutoRegisterService({
+      repository: new AiRepository(),
+      cipher: createAiSecretCipher()
+    }),
+    logger: { warn: (obj, msg) => server.log.warn(obj, msg) }
   });
 
   const deps: BuiltInRouteDependencies = {
