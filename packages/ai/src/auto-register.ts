@@ -17,12 +17,21 @@ import type { AiModelTier, AiProviderKind, DataContextDb } from "@jarv1s/db";
 import type { AiSecretCipher } from "./crypto.js";
 import type { AiRepository } from "./repository.js";
 
+/**
+ * The sentinel `providerModelId` meaning "no concrete model — ride the CLI's interactive/account
+ * model" (#367, superseding the original `sonnet`-pinning of decision 2a). Chat must never require
+ * model selection: the registered default is the provider's interactive model, and the CLI launch
+ * omits `--model` for this sentinel (see `buildClaudeCommand`). A concrete model id is set ONLY when
+ * the founder picks an explicit override in settings, in which case `--model <id>` IS passed.
+ */
+export const DEFAULT_MODEL_SENTINEL = "default";
+
 /** A provider's data-driven default chat model (registered on login `ready`). */
 export interface DefaultChatModel {
   /**
-   * The provider model id passed to the CLI. The ALIAS, not a pinned full id (decision 2): for
-   * anthropic this is `sonnet`, so the default stays current across Sonnet releases instead of
-   * going stale on a pinned dated id.
+   * The provider model id. The default is the {@link DEFAULT_MODEL_SENTINEL} (`"default"`) so chat
+   * rides the CLI's own interactive/account model and never goes stale — a concrete pinned id is
+   * used only for an explicit settings override, not the auto-registered default.
    */
   readonly providerModelId: string;
   /** Display name for the model row. */
@@ -36,11 +45,16 @@ export interface DefaultChatModel {
 /**
  * Per-provider default chat model registered on login `ready`. Data-driven and provider-agnostic —
  * a provider WITHOUT an entry here is simply not auto-registered (no-op), never an error.
+ *
+ * Both providers default to the {@link DEFAULT_MODEL_SENTINEL} interactive model (#367): chat works
+ * with zero model selection and never goes stale. The launch omits `--model` for the sentinel
+ * (claude) / never passes it at all (codex), so the CLI rides its own interactive/account model; an
+ * explicit settings override supplies a concrete id and `--model <id>` is then passed (claude path).
  */
 export const DEFAULT_CHAT_MODELS: Partial<Record<AiProviderKind, DefaultChatModel>> = {
   anthropic: {
-    providerModelId: "sonnet",
-    displayName: "Claude Sonnet",
+    providerModelId: DEFAULT_MODEL_SENTINEL,
+    displayName: "Claude (default model)",
     providerDisplayName: "Claude",
     tier: "interactive",
     capabilities: ["chat"]
@@ -48,21 +62,19 @@ export const DEFAULT_CHAT_MODELS: Partial<Record<AiProviderKind, DefaultChatMode
   "openai-compatible": {
     // codex (the openai-compatible CLI) exposes NO concrete shipped default model id — with no
     // `--model` and no config it sends a server-resolved `<default>` sentinel and the backend picks
-    // the current model. There is no clean rolling alias (unlike anthropic's `sonnet`), so per spec
-    // decision-2 (an alias that never goes stale, NOT a pinned dated id) the default is `default`,
-    // mirroring codex's own server-resolved behavior.
-    //
-    // NOTE: this id is COSMETIC today — `buildCliChatEngine`'s `buildCodexCommand` does NOT pass
-    // `--model`, so codex always runs its own configured/account model and this id never reaches the
-    // CLI; it exists so `selectChatModelForUser` resolves a chat model and chat works. If the codex
-    // launch is ever wired to pass `--model` (the deferred option D follow-up), REVISIT this id —
-    // codex will not accept `--model default`.
-    providerModelId: "default",
+    // the current model. The default is the same {@link DEFAULT_MODEL_SENTINEL}, mirroring codex's
+    // own behavior: `buildCodexCommand` omits `--model` for the sentinel so codex rides its own
+    // interactive/account model. A concrete settings override DOES pass `--model <id>` (codex
+    // accepts `-m/--model`), uniform with the claude/gemini launch paths.
+    providerModelId: DEFAULT_MODEL_SENTINEL,
     displayName: "Codex (default model)",
     providerDisplayName: "Codex",
     tier: "interactive",
     capabilities: ["chat"]
   }
+  // NOTE: google/gemini is intentionally absent — it is `blocked` in the cli-runner catalog AND has
+  // no login adapter (not loginable), so it can never reach login `ready`. Add an entry here only if
+  // it becomes installable + loginable (then the uniform sentinel rule already covers its launch).
 };
 
 /** The seam the login flow calls on `ready`. Generic over `providerKind`. */

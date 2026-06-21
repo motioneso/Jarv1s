@@ -57,7 +57,7 @@ describe("AI auto-register default chat model on login (#367)", () => {
     await truncateAiTables();
   });
 
-  it("registers a default cli provider config + sonnet chat model on first ready", async () => {
+  it("registers a default cli provider config + 'default' chat model on first ready (anthropic)", async () => {
     await dataContext.withDataContext(adminCtx(), (db) =>
       service.ensureDefaultChatModel(db, "anthropic")
     );
@@ -70,7 +70,7 @@ describe("AI auto-register default chat model on login (#367)", () => {
     const cli = providers.find((p) => p.provider_kind === "anthropic");
     expect(cli).toBeDefined();
     expect(cli?.auth_method).toBe("cli");
-    expect(model?.provider_model_id).toBe("sonnet");
+    expect(model?.provider_model_id).toBe("default");
     expect(model?.capabilities).toContain("chat");
     expect(model?.status).toBe("active");
   });
@@ -109,7 +109,7 @@ describe("AI auto-register default chat model on login (#367)", () => {
     }));
 
     expect(providers).toHaveLength(1);
-    expect(models.filter((m) => m.provider_model_id === "sonnet")).toHaveLength(1);
+    expect(models.filter((m) => m.provider_model_id === "default")).toHaveLength(1);
   });
 
   it("does not recreate a model the user disabled (never resurrect — decision 2)", async () => {
@@ -129,9 +129,9 @@ describe("AI auto-register default chat model on login (#367)", () => {
     );
 
     const models = await dataContext.withDataContext(adminCtx(), (db) => repository.listModels(db));
-    const sonnets = models.filter((m) => m.provider_model_id === "sonnet");
-    expect(sonnets).toHaveLength(1);
-    expect(sonnets[0]?.status).toBe("disabled");
+    const defaults = models.filter((m) => m.provider_model_id === "default");
+    expect(defaults).toHaveLength(1);
+    expect(defaults[0]?.status).toBe("disabled");
   });
 
   it("reuses an existing non-revoked provider config instead of duplicating it", async () => {
@@ -185,7 +185,7 @@ describe("AI auto-register default chat model on login (#367)", () => {
     const model = await dataContext.withDataContext(adminCtx(), (db) =>
       repository.selectChatModelForUser(db)
     );
-    expect(model?.provider_model_id).toBe("sonnet");
+    expect(model?.provider_model_id).toBe("default");
   });
 
   it("best-effort: a throwing auto-register port does NOT fail the ready transition", async () => {
