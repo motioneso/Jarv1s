@@ -15,7 +15,7 @@ import type { AiModelCapability } from "@jarv1s/shared";
 import type { AiModelTier, AiProviderKind, DataContextDb } from "@jarv1s/db";
 
 import type { AiSecretCipher } from "./crypto.js";
-import { AiRepository } from "./repository.js";
+import type { AiRepository } from "./repository.js";
 
 /** A provider's data-driven default chat model (registered on login `ready`). */
 export interface DefaultChatModel {
