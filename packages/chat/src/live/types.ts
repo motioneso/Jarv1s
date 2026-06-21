@@ -39,6 +39,13 @@ export interface EngineLaunchOpts {
    * manager keeps its own post-launch drain). See rpc-contract.ts RpcLaunchParams.replayBatch.
    */
   readonly replayBatch?: string;
+  /**
+   * NEW (#367) — the resolved provider model id from the active chat model row (e.g. the "sonnet"
+   * alias). When set, the claude launch passes `--model <id>` so the registered model takes effect;
+   * absent ⇒ the launch rides the CLI account default (legacy behavior). See rpc-contract.ts
+   * RpcLaunchParams.model.
+   */
+  readonly model?: string;
 }
 
 /** A persistent per-user CLI session. One instance per live session. */

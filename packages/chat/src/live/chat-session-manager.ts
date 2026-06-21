@@ -256,6 +256,9 @@ export class ChatSessionManager {
       personaPath,
       personaText: persona,
       replayBatch,
+      // #367: pass the resolved model id (the "sonnet" alias) so the launch uses the registered
+      // model via `--model`, instead of riding the CLI account default.
+      model,
       mcpToken: mcpConfig?.token,
       mcpServerUrl: mcpConfig?.mcpServerUrl
     });

@@ -238,6 +238,12 @@ export interface RpcLaunchParams {
    * so the first real turn starts from a clean offset.
    */
   readonly replayBatch?: string;
+  /**
+   * #367: the resolved provider model id (e.g. the "sonnet" alias) from the active chat model row.
+   * cli-runner passes it to the CLI as `--model <id>` so the registered model takes effect. Absent ⇒
+   * the launch rides the CLI account default (legacy behavior).
+   */
+  readonly model?: string;
 }
 
 /**

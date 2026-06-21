@@ -468,6 +468,12 @@ export class CliChatEngineImpl implements CliChatEngine {
       "--strict-mcp-config"
     );
 
+    // #367: pass the resolved model id (e.g. the "sonnet" alias) from the active chat model row so
+    // the registered model takes effect. Absent ⇒ omit the flag and ride the CLI account default.
+    if (opts.model) {
+      parts.push(`--model ${shellQuote(opts.model)}`);
+    }
+
     return parts.join(" ");
   }
 
