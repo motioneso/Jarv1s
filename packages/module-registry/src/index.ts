@@ -73,7 +73,8 @@ import {
   NotificationsRepository,
   notificationsModuleManifest,
   notificationsModuleSqlMigrationDirectory,
-  registerNotificationsRoutes
+  registerNotificationsRoutes,
+  type QuietHoursPort
 } from "@jarv1s/notifications";
 import {
   renderPersonaText,
@@ -268,6 +269,17 @@ export interface BuiltInModuleRegistration {
     dependencies: BuiltInWorkerDependencies
   ) => Promise<readonly string[]>;
 }
+
+const _quietHoursPreferencesRepo = new PreferencesRepository();
+const quietHoursPortImpl: QuietHoursPort = {
+  getSettings: (scopedDb) => _quietHoursPreferencesRepo.get(scopedDb, "quiet-hours"),
+  getLocaleTimezone: async (scopedDb) => {
+    const locale = await _quietHoursPreferencesRepo.get(scopedDb, "locale");
+    if (!locale || typeof locale !== "object" || Array.isArray(locale)) return null;
+    const tz = (locale as Record<string, unknown>).timezone;
+    return typeof tz === "string" && tz.length > 0 ? tz : null;
+  }
+};
 
 const PERSONA_PREVIEW_SAMPLE_TURN =
   "Give me a two-sentence morning check-in for a day with one important task and one slipped commitment.";
@@ -492,7 +504,7 @@ const BUILT_IN_MODULES: readonly BuiltInModuleRegistration[] = [
             new MemoryRepository()
           )
         },
-        notificationsRepository: new NotificationsRepository()
+        notificationsRepository: new NotificationsRepository(quietHoursPortImpl)
       })
   },
   {

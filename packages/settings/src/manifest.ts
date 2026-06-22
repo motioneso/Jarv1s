@@ -82,6 +82,16 @@ export const settingsModuleManifest: JarvisModuleManifest = {
     },
     {
       method: "GET",
+      path: "/api/me/quiet-hours",
+      permissionId: "settings.view"
+    },
+    {
+      method: "PUT",
+      path: "/api/me/quiet-hours",
+      permissionId: "settings.view"
+    },
+    {
+      method: "GET",
       path: "/api/me/sessions",
       permissionId: "settings.view"
     },

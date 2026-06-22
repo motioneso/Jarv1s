@@ -20,3 +20,4 @@ export * from "./me-api.js";
 export * from "./persona-api.js";
 export * from "./source-behaviors-api.js";
 export * from "./env.js";
+export * from "./settings-api.js";
