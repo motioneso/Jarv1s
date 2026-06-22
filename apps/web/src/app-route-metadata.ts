@@ -54,13 +54,6 @@ export const webRoutes: readonly WebRouteMeta[] = [
     match: (pathname) => pathname === "/tasks"
   },
   {
-    id: "task-detail",
-    path: "/tasks/:taskId",
-    title: "Task",
-    subtitle: dateEyebrow,
-    match: (pathname) => pathname.startsWith("/tasks/")
-  },
-  {
     id: "notifications",
     path: "/notifications",
     title: "Notifications",
