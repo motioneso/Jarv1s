@@ -16,7 +16,10 @@ import {
   type DataContextRunner,
   type JarvisDatabase
 } from "@jarv1s/db";
-import { recordBootstrapOwnerAuditEvent as settingsRecordBootstrapOwnerAuditEvent } from "@jarv1s/settings";
+import {
+  recordAuditEvent as settingsRecordAuditEvent,
+  recordBootstrapOwnerAuditEvent as settingsRecordBootstrapOwnerAuditEvent
+} from "@jarv1s/settings";
 import type { AuthProviderStatusDto } from "@jarv1s/shared";
 
 import { readBearerToken, toWebHeaders } from "./headers.js";
@@ -99,6 +102,8 @@ export interface CreateJarvisAuthRuntimeOptions {
    * Pass the Fastify `server.log` here; omit to suppress the event.
    */
   readonly logger?: AuthLogger;
+  /** Test-only: override the settings dependency injected into bootstrap hooks. */
+  readonly _settingsOverride?: BootstrapSettings;
 }
 
 interface BetterAuthUser {
@@ -110,8 +115,9 @@ interface BetterAuthUser {
 // The slice of the @jarv1s/settings public API that auth depends on. Auth records
 // admin audit events exclusively through this public API, never through the settings
 // repository class or by writing the settings-owned audit table directly (#101).
-type BootstrapSettings = {
+export type BootstrapSettings = {
   readonly recordBootstrapOwnerAuditEvent: typeof settingsRecordBootstrapOwnerAuditEvent;
+  readonly recordAuditEvent: typeof settingsRecordAuditEvent;
 };
 
 export function createJarvisAuthRuntime(
@@ -124,10 +130,12 @@ export function createJarvisAuthRuntime(
     options: "-c search_path=app,public"
   });
   const legacySessions = new AuthSessionResolver(options.appDb);
+  const settings: BootstrapSettings = options._settingsOverride ?? {
+    recordBootstrapOwnerAuditEvent: settingsRecordBootstrapOwnerAuditEvent,
+    recordAuditEvent: settingsRecordAuditEvent
+  };
   const auth = betterAuth(
-    createBetterAuthOptions(pool, options.appDb, env, options.runner, {
-      recordBootstrapOwnerAuditEvent: settingsRecordBootstrapOwnerAuditEvent
-    })
+    createBetterAuthOptions(pool, options.appDb, env, options.runner, settings)
   );
 
   return {
@@ -453,69 +461,105 @@ async function bootstrapFirstJarvisUser(
   // withDataContext is the sole transaction boundary: it opens one transaction and
   // sets app.actor_user_id / app.request_id GUCs for its lifetime. No raw appDb DML
   // and no manual set_config here (#127).
-  await runner.withDataContext(
-    { actorUserId: user.id, requestId: `bootstrap:${user.id}` },
-    async (scopedDb) => {
-      // Advisory transaction-level lock — prevents two concurrent sign-ups from both
-      // seeing isFirstUser = true. Must run inside the same transaction.
-      await sql`SELECT pg_advisory_xact_lock(hashtext('jarv1s:first-user-bootstrap'))`.execute(
-        scopedDb.db
-      );
-
-      // Use the existing SECURITY DEFINER all-users read helper here. A direct
-      // app.users query under app_runtime would be RLS-scoped to the signup's own row
-      // and would miss an existing bootstrap owner.
-      const shouldBootstrapOwner = !(await bootstrapOwnerExists(scopedDb.db));
-
-      let status: "active" | "pending" = "active";
-      if (!shouldBootstrapOwner) {
-        const registrationEnabled = await readBooleanSetting(
-          scopedDb.db,
-          "registration.enabled",
-          true
+  let registrationRejected = false;
+  try {
+    await runner.withDataContext(
+      { actorUserId: user.id, requestId: `bootstrap:${user.id}` },
+      async (scopedDb) => {
+        // Advisory transaction-level lock — prevents two concurrent sign-ups from both
+        // seeing isFirstUser = true. Must run inside the same transaction.
+        await sql`SELECT pg_advisory_xact_lock(hashtext('jarv1s:first-user-bootstrap'))`.execute(
+          scopedDb.db
         );
-        if (!registrationEnabled) {
-          await deleteRejectedBootstrapRaceLoser(authPool, user.id);
-          throw new APIError("FORBIDDEN", {
-            message: "Registration is disabled",
-            code: "registration_disabled"
-          });
+
+        // Use the existing SECURITY DEFINER all-users read helper here. A direct
+        // app.users query under app_runtime would be RLS-scoped to the signup's own row
+        // and would miss an existing bootstrap owner.
+        const shouldBootstrapOwner = !(await bootstrapOwnerExists(scopedDb.db));
+
+        let status: "active" | "pending" = "active";
+        if (!shouldBootstrapOwner) {
+          const registrationEnabled = await readBooleanSetting(
+            scopedDb.db,
+            "registration.enabled",
+            true
+          );
+          if (!registrationEnabled) {
+            registrationRejected = true;
+            throw new APIError("FORBIDDEN", {
+              message: "Registration is disabled",
+              code: "registration_disabled"
+            });
+          }
+
+          const requiresApproval = await readBooleanSetting(
+            scopedDb.db,
+            "registration.requires_approval",
+            true
+          );
+          if (requiresApproval) status = "pending";
         }
 
-        const requiresApproval = await readBooleanSetting(
-          scopedDb.db,
-          "registration.requires_approval",
-          true
-        );
-        if (requiresApproval) status = "pending";
+        await scopedDb.db
+          .updateTable("app.users")
+          .set({
+            name: user.name ?? "",
+            email: user.email,
+            is_instance_admin: shouldBootstrapOwner,
+            is_bootstrap_owner: shouldBootstrapOwner,
+            status,
+            updated_at: new Date()
+          })
+          .where("id", "=", user.id)
+          .execute();
+
+        if (!shouldBootstrapOwner) {
+          return;
+        }
+
+        // Auth must not write the settings-owned audit table directly. Record the
+        // bootstrap event through the @jarv1s/settings SECURITY DEFINER helper (#122).
+        await settings.recordBootstrapOwnerAuditEvent(scopedDb, {
+          actorUserId: user.id,
+          targetUserId: user.id,
+          requestId: `bootstrap:${user.id}`
+        });
       }
-
-      await scopedDb.db
-        .updateTable("app.users")
-        .set({
-          name: user.name ?? "",
-          email: user.email,
-          is_instance_admin: shouldBootstrapOwner,
-          is_bootstrap_owner: shouldBootstrapOwner,
-          status,
-          updated_at: new Date()
-        })
-        .where("id", "=", user.id)
-        .execute();
-
-      if (!shouldBootstrapOwner) {
-        return;
+    );
+  } catch (err) {
+    if (registrationRejected) {
+      try {
+        await recordRegistrationRejectedAudit(runner, settings, user.id);
+      } catch {
+        // Audit is best-effort on the reject path — do not mask the original error.
+        console.warn("[auth] registration-rejected audit write failed", {
+          userId: user.id,
+          requestId: `bootstrap-reject:${user.id}`
+        });
+      } finally {
+        await deleteRejectedBootstrapRaceLoser(authPool, user.id);
       }
-
-      // Auth must not write the settings-owned audit table directly. Record the
-      // bootstrap event through the @jarv1s/settings SECURITY DEFINER helper (#122).
-      await settings.recordBootstrapOwnerAuditEvent(scopedDb, {
-        actorUserId: user.id,
-        targetUserId: user.id,
-        requestId: `bootstrap:${user.id}`
-      });
     }
-  );
+    throw err;
+  }
+}
+
+async function recordRegistrationRejectedAudit(
+  runner: DataContextRunner,
+  settings: BootstrapSettings,
+  userId: string
+): Promise<void> {
+  const requestId = `bootstrap-reject:${userId}`;
+  await runner.withDataContext({ actorUserId: userId, requestId }, async (scopedDb) => {
+    await settings.recordAuditEvent(scopedDb, {
+      actorUserId: userId,
+      action: "user.registration_rejected",
+      targetType: "user",
+      targetId: userId,
+      metadata: { reason: "registration_disabled" },
+      requestId
+    });
+  });
 }
 
 async function deleteRejectedBootstrapRaceLoser(authPool: pg.Pool, userId: string): Promise<void> {
