@@ -184,7 +184,8 @@ describe("AI provider foundation", () => {
       "briefings",
       "memory",
       "structured-state",
-      "wellness"
+      "wellness",
+      "weather"
     ]);
     expect(manifest?.database?.ownedTables).toEqual([
       "app.ai_provider_configs",

@@ -67,6 +67,10 @@ export const queryKeys = {
     tags: (listId: string) => ["tasks", "tags", listId] as const,
     preferences: ["tasks", "preferences"] as const
   },
+  weather: {
+    today: ["weather", "today"] as const,
+    location: ["weather", "location"] as const
+  },
   wellness: {
     checkins: ["wellness", "checkins"] as const,
     medications: ["wellness", "medications"] as const,
