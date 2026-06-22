@@ -40,6 +40,7 @@ import type { ChatSessionRuntime } from "./live/runtime.js";
 //
 // Override the limit via env: JARVIS_RL_CHAT_MAX=<n> (requests per minute, default 20).
 const CHAT_MAX = parsePositiveIntEnv(process.env.JARVIS_RL_CHAT_MAX, 20);
+const CHAT_MUTATION_MAX = parsePositiveIntEnv(process.env.JARVIS_RL_CHAT_MUTATION_MAX, 20);
 
 export interface ChatLiveRoutesDependencies {
   readonly resolveAccessContext: (request: FastifyRequest) => Promise<AccessContext>;
@@ -87,34 +88,61 @@ export function registerChatLiveRoutes(
     }
   );
 
-  server.post("/api/chat/clear", async (request, reply) => {
-    const access = await resolveOr401(dependencies, request, reply);
-    if (!access) return reply;
+  server.post(
+    "/api/chat/clear",
+    {
+      config: {
+        rateLimit: {
+          max: CHAT_MUTATION_MAX,
+          timeWindow: "1 minute",
+          keyGenerator: sessionRateLimitKey
+        }
+      }
+    },
+    async (request, reply) => {
+      const access = await resolveOr401(dependencies, request, reply);
+      if (!access) return reply;
 
-    try {
-      const rawIncognito = (request.query as Record<string, unknown>).incognito;
-      const incognito = rawIncognito === "true" || rawIncognito === "1";
-      await runtime.manager.clear(access.actorUserId, incognito ? { incognito: true } : undefined);
+      try {
+        const rawIncognito = (request.query as Record<string, unknown>).incognito;
+        const incognito = rawIncognito === "true" || rawIncognito === "1";
+        await runtime.manager.clear(
+          access.actorUserId,
+          incognito ? { incognito: true } : undefined
+        );
 
-      return reply.code(204).send();
-    } catch (error) {
-      return handleLiveRouteError(error, reply);
+        return reply.code(204).send();
+      } catch (error) {
+        return handleLiveRouteError(error, reply);
+      }
     }
-  });
+  );
 
-  server.post("/api/chat/switch", async (request, reply) => {
-    const access = await resolveOr401(dependencies, request, reply);
-    if (!access) return reply;
+  server.post(
+    "/api/chat/switch",
+    {
+      config: {
+        rateLimit: {
+          max: CHAT_MUTATION_MAX,
+          timeWindow: "1 minute",
+          keyGenerator: sessionRateLimitKey
+        }
+      }
+    },
+    async (request, reply) => {
+      const access = await resolveOr401(dependencies, request, reply);
+      if (!access) return reply;
 
-    try {
-      const userName = await runtime.resolveUserName(access.actorUserId);
-      await runtime.manager.switchProvider(access.actorUserId, userName);
+      try {
+        const userName = await runtime.resolveUserName(access.actorUserId);
+        await runtime.manager.switchProvider(access.actorUserId, userName);
 
-      return reply.code(200).send({ ok: true });
-    } catch (error) {
-      return handleLiveRouteError(error, reply);
+        return reply.code(200).send({ ok: true });
+      } catch (error) {
+        return handleLiveRouteError(error, reply);
+      }
     }
-  });
+  );
 
   server.get("/api/chat/stream", async (request, reply) => {
     const access = await resolveOr401(dependencies, request, reply);
