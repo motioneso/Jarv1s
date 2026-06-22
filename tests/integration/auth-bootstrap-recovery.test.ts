@@ -210,26 +210,23 @@ describe("owner bootstrap recovery", () => {
     });
   });
 
-  it("deletes race-loser user row even when audit write throws", async () => {
-    // Arrange: bootstrap owner exists, registration disabled → race-loser path will run.
-    const ownerRes = await signUp({
-      name: "Audit Fail Owner",
-      email: "audit-fail-owner@example.com",
-      password: "password12345"
-    });
-    expect(ownerRes.statusCode).toBe(200);
+  it("deletes race-loser row and returns 403 (not 500) even when audit write throws", async () => {
+    // This test exercises the after-hook race-loser path with a failing audit write.
+    // The before-hook only blocks sign-ups when bootstrapOwnerExists=true, so to reach
+    // the after-hook we must use the same advisory-lock race setup as the existing race
+    // test: seed a non-owner, disable registration, hold the lock so both sign-ups create
+    // their rows before either after-hook runs, then release and let one win/one lose.
+    // The loser hits recordRegistrationRejectedAudit which throws (injected mock).
+    // With the best-effort catch fix: (a) loser row is still deleted, (b) response is
+    // 403 registration_disabled — NOT 500/masked by the audit error.
 
-    await setInstanceSetting("registration.enabled", { value: false });
-
-    // Inject a settings whose recordAuditEvent always throws to simulate an audit
-    // write failure. deleteRejectedBootstrapRaceLoser must still run (try/finally).
+    // Build the server with the throwing audit override BEFORE sign-ups begin.
+    await server.close();
+    await authRuntime.close();
     const throwingSettings: BootstrapSettings = {
       recordBootstrapOwnerAuditEvent,
       recordAuditEvent: vi.fn().mockRejectedValue(new Error("simulated audit failure"))
     };
-
-    await server.close();
-    await authRuntime.close();
     authRuntime = createJarvisAuthRuntime({
       appDb,
       runner: new DataContextRunner(appDb),
@@ -238,18 +235,54 @@ describe("owner bootstrap recovery", () => {
     server = createApiServer({ appDb, authRuntime, logger: false });
     await server.ready();
 
-    // Act: sign up a second user — registration is disabled so the hook rejects and
-    // triggers the audit + delete path.
-    const rejectRes = await signUp({
-      name: "Audit Fail Loser",
-      email: "audit-fail-loser@example.com",
-      password: "password12345"
+    // Seed a non-bootstrap-owner so bootstrapOwnerExists=false when before-hooks run
+    // → both before-hooks pass even with registration.enabled=false.
+    await seedNonBootstrapOwnerUser({
+      id: "00000000-0000-4000-8000-000000002701",
+      email: "audit-throw-seeded-non-owner@example.com"
     });
-    expect(rejectRes.statusCode).toBe(403);
+    await setInstanceSetting("registration.enabled", { value: false });
 
-    // Assert: the rejected user row must be gone despite the audit write throwing.
-    const remaining = await readUsersByEmailPrefix("audit-fail-loser@");
-    expect(remaining).toHaveLength(0);
+    // Hold advisory lock so both sign-ups create user rows before either after-hook
+    // can acquire the xact lock, guaranteeing one will be the race loser.
+    const lock = new pg.Client({ connectionString: connectionStrings.bootstrap });
+    await lock.connect();
+    try {
+      await lock.query("SELECT pg_advisory_lock(hashtext('jarv1s:first-user-bootstrap'))");
+      const first = signUp({
+        name: "Audit Throw Racer One",
+        email: "audit-throw-racer-one@example.com",
+        password: "password12345"
+      });
+      const second = signUp({
+        name: "Audit Throw Racer Two",
+        email: "audit-throw-racer-two@example.com",
+        password: "password12345"
+      });
+
+      await waitForUserCountByEmailPrefix("audit-throw-racer-", 2);
+      const racerIds = await readUserIdsByEmailPrefix("audit-throw-racer-");
+      await lock.query("SELECT pg_advisory_unlock(hashtext('jarv1s:first-user-bootstrap'))");
+
+      const responses = await Promise.all([first, second]);
+
+      // (b) Original error is preserved: winner → 200, loser → 403 registration_disabled
+      // (not 500, which would indicate the audit error masked the original APIError).
+      expect(responses.map((r) => r.statusCode).sort()).toEqual([200, 403]);
+      const loserRes = responses.find((r) => r.statusCode === 403)!;
+      expect(loserRes.json<{ code?: string }>().code).toBe("registration_disabled");
+
+      // (a) Loser user row deleted even though audit write threw.
+      const winnerId = responses.find((r) => r.statusCode === 200)!.json<{ user: { id: string } }>()
+        .user.id;
+      const loserId = racerIds.find((r) => r.id !== winnerId)?.id;
+      expect(loserId).toBeDefined();
+      const remaining = await readUsersByEmailPrefix("audit-throw-racer-");
+      expect(remaining).toHaveLength(1);
+      expect(remaining[0]!.is_bootstrap_owner).toBe(true);
+    } finally {
+      await lock.end();
+    }
   });
 
   it("rejects disabled-registration bootstrap recovery racers that lose the owner lock", async () => {

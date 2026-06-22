@@ -530,6 +530,12 @@ async function bootstrapFirstJarvisUser(
     if (registrationRejected) {
       try {
         await recordRegistrationRejectedAudit(runner, settings, user.id);
+      } catch {
+        // Audit is best-effort on the reject path — do not mask the original error.
+        console.warn("[auth] registration-rejected audit write failed", {
+          userId: user.id,
+          requestId: `bootstrap-reject:${user.id}`
+        });
       } finally {
         await deleteRejectedBootstrapRaceLoser(authPool, user.id);
       }
