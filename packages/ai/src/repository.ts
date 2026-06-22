@@ -133,7 +133,10 @@ export interface ChatModelOverrideSettings {
   readonly effectiveOverrideModelId: string | null;
   readonly defaultModel: AiConfiguredModelSafeRow | null;
   readonly selectedModel: AiConfiguredModelSafeRow | null;
+  /** All models shown in the UI (includes the instance default even if not user-overridable). */
   readonly allowedModels: readonly AiConfiguredModelSafeRow[];
+  /** Models the user may actually select as an override (allowUserOverride=true only). */
+  readonly selectableOverrideModels: readonly AiConfiguredModelSafeRow[];
 }
 
 export const AI_CAPABILITY_ROUTES_SETTING_KEY = "ai.capability_routes";
@@ -520,6 +523,13 @@ export class AiRepository {
       .executeTakeFirst();
   }
 
+  /**
+   * Canonical entrypoint for selecting the effective chat model for the current user.
+   * Resolves the user's override preference against the admin-configured allowable set
+   * and falls back to the instance default. Call sites that need only the resolved model
+   * (not the full override settings) should use this rather than
+   * `getChatModelOverrideSettings(...).selectedModel` directly.
+   */
   async selectChatModelForUser(scopedDb: DataContextDb): Promise<AiConfiguredModelSafeRow | null> {
     const settings = await this.getChatModelOverrideSettings(scopedDb);
     return settings.selectedModel;
@@ -547,7 +557,8 @@ export class AiRepository {
       effectiveOverrideModelId: resolved.effectiveOverrideModelId,
       defaultModel: defaultModel ?? null,
       selectedModel: resolved.selectedModel,
-      allowedModels: resolved.allowedModels
+      allowedModels: resolved.allowedModels,
+      selectableOverrideModels: resolved.selectableOverrideModels
     };
   }
 

@@ -271,10 +271,13 @@ function ChatModel() {
     }
   });
   const defaultModel = settings?.defaultModel ?? null;
-  const allowedModels = settings?.allowedModels ?? [];
-  const allowedIds = useMemo(() => new Set(allowedModels.map((m) => m.id)), [allowedModels]);
+  const selectableOverrideModels = settings?.selectableOverrideModels ?? [];
+  const selectableIds = useMemo(
+    () => new Set(selectableOverrideModels.map((m) => m.id)),
+    [selectableOverrideModels]
+  );
   const currentOverride =
-    settings?.currentOverrideModelId && allowedIds.has(settings.currentOverrideModelId)
+    settings?.currentOverrideModelId && selectableIds.has(settings.currentOverrideModelId)
       ? settings.currentOverrideModelId
       : null;
   const value = currentOverride ?? "default";
@@ -300,13 +303,11 @@ function ChatModel() {
                 aria-label="Chat model"
               >
                 <option value="default">Instance default · {defaultModel.providerModelId}</option>
-                {allowedModels
-                  .filter((m) => m.id !== defaultModel.id)
-                  .map((m) => (
-                    <option key={m.id} value={m.id}>
-                      {m.providerDisplayName} · {m.providerModelId}
-                    </option>
-                  ))}
+                {selectableOverrideModels.map((m) => (
+                  <option key={m.id} value={m.id}>
+                    {m.providerDisplayName} · {m.providerModelId}
+                  </option>
+                ))}
               </Select>
             </Field>
           ) : (

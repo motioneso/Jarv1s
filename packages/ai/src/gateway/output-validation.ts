@@ -48,6 +48,19 @@ export function sanitizeAssistantToolResult(
   };
 }
 
+/**
+ * Sanitize, render, and cap a tool result into a model-consumable `{text}` record.
+ * Replaces the two ad-hoc sanitize+cap paths that existed in routes.ts and gateway.ts.
+ */
+export function renderAndCap(
+  schema: JsonSchema | undefined,
+  result: ToolResult
+): Record<string, unknown> {
+  const sanitized = sanitizeAssistantToolResult(schema, result);
+  return { text: capRenderedToolResult(renderToolResult(sanitized)) };
+}
+
+/** @deprecated Use {@link renderAndCap} instead. */
 export function boundedAssistantToolResultData(result: ToolResult): Record<string, unknown> {
   const rendered = renderToolResult(result);
   if (rendered.length <= MAX_RENDERED_TOOL_RESULT_CHARS) {

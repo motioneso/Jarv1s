@@ -61,8 +61,8 @@ import {
   listAssistantToolsFromManifests
 } from "./assistant-tools.js";
 import {
-  boundedAssistantToolResultData,
-  sanitizeAssistantToolResult
+  sanitizeAssistantToolResult,
+  boundedAssistantToolResultData
 } from "./gateway/output-validation.js";
 import { ToolInputValidationError, validateToolInput } from "./gateway/input-validation.js";
 import { cliAvailable, type ProviderKind as CliProviderKind } from "./cli-availability.js";
@@ -322,7 +322,9 @@ export function registerAiRoutes(
           async (scopedDb) => {
             if (body.modelId !== null) {
               const current = await repository.getChatModelOverrideSettings(scopedDb);
-              const allowed = current.allowedModels.some((model) => model.id === body.modelId);
+              const allowed = current.selectableOverrideModels.some(
+                (model) => model.id === body.modelId
+              );
               if (!current.overrideEnabled || !allowed) {
                 throw new HttpError(400, "Chat model override is not allowed for this model");
               }
@@ -755,7 +757,9 @@ function serializeChatModelOverrideSettings(
     selectedModel: settings.selectedModel
       ? serializeModel(settings.selectedModel, actorUserId)
       : null,
-    allowedModels: settings.allowedModels.map((m) => serializeModel(m, actorUserId))
+    selectableOverrideModels: settings.selectableOverrideModels.map((m) =>
+      serializeModel(m, actorUserId)
+    )
   };
 }
 
