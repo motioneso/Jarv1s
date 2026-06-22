@@ -319,7 +319,9 @@ export function registerAiRoutes(
           async (scopedDb) => {
             if (body.modelId !== null) {
               const current = await repository.getChatModelOverrideSettings(scopedDb);
-              const allowed = current.selectableOverrideModels.some((model) => model.id === body.modelId);
+              const allowed = current.selectableOverrideModels.some(
+                (model) => model.id === body.modelId
+              );
               if (!current.overrideEnabled || !allowed) {
                 throw new HttpError(400, "Chat model override is not allowed for this model");
               }

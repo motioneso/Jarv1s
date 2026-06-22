@@ -47,7 +47,6 @@ class PgBossMock {
     this.calls.push({ method: "deleteQueue", args: [name] });
     this.queues.delete(name);
   }
-
 }
 
 vi.mock("pg-boss", () => ({ PgBoss: PgBossMock }));
