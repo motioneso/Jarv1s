@@ -67,6 +67,10 @@ import { registerPersonaRoutes } from "./persona-routes.js";
 import type { ProfilePreferencesPort, PersonaPreviewInput } from "./preferences-port.js";
 import { HttpRepositoryError, SettingsRepository } from "./repository.js";
 import { registerSourceBehaviorRoutes } from "./source-behavior-routes.js";
+import {
+  INSTANCE_SETTINGS_REGISTRY,
+  KNOWN_INSTANCE_SETTING_KEYS
+} from "./instance-settings-keys.js";
 
 export interface SettingsRoutesDependencies {
   // Kysely exemption: only BootstrapHelper uses rootDb before any actor/session exists.
@@ -264,7 +268,12 @@ export function registerSettingsRoutes(
           }
         );
 
-        return { settings: settings.map(serializeInstanceSetting) };
+        const registeredKeys = new Set(
+          INSTANCE_SETTINGS_REGISTRY.filter((e) => !e.secret).map((e) => e.key)
+        );
+        return {
+          settings: settings.filter((s) => registeredKeys.has(s.key)).map(serializeInstanceSetting)
+        };
       } catch (error) {
         return handleRouteError(error, reply);
       }
@@ -276,6 +285,9 @@ export function registerSettingsRoutes(
     { schema: upsertInstanceSettingRouteSchema },
     async (request, reply) => {
       try {
+        if (!KNOWN_INSTANCE_SETTING_KEYS.has(request.params.key)) {
+          return reply.status(400).send({ error: "Unknown settings key" });
+        }
         const accessContext = await dependencies.resolveAccessContext(request);
         const body = parseInstanceSettingBody(request.body);
         const setting = await dependencies.dataContext.withDataContext(
