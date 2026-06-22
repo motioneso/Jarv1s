@@ -606,9 +606,6 @@ function parseLogDoseBody(body: unknown): LogDoseInput {
     throw new HttpError(400, `status must be one of ${MEDICATION_LOG_STATUSES.join(", ")}`);
   }
   const prnReason = optionalNullableString(value["prnReason"], "prnReason");
-  if (status === "prn" && !prnReason) {
-    throw new HttpError(400, "prnReason is required when status is prn");
-  }
   const scheduledFor = optionalNullableString(value["scheduledFor"], "scheduledFor");
   // Non-PRN logs satisfy a scheduled slot — reject at the route (friendly 400) rather than
   // letting the DB CHECK surface a 500 (Codex R2).
