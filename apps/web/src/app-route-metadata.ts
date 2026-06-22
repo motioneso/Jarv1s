@@ -13,7 +13,6 @@ export interface WebRouteMeta {
   readonly id:
     | "today"
     | "tasks"
-    | "task-detail"
     | "notifications"
     | "calendar"
     | "wellness"

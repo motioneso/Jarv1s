@@ -54,7 +54,7 @@ test("matrix toggle switches to matrix view", async ({ page }) => {
 
 test("assigning a tag from the task modal renders a chip", async ({ page }) => {
   await page.goto("/tasks");
-  await page.getByRole("button", { name: "Open File taxes" }).click();
+  await page.getByRole("button", { name: "Open File taxes" }).first().click();
   await expect(page.getByRole("dialog")).toBeVisible();
   // Suggestion chips appear for tags not yet assigned; clicking one assigns the tag.
   await page.getByRole("button", { name: "#urgent" }).click();
