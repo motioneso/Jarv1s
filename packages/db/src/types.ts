@@ -246,6 +246,8 @@ export interface NotificationsTable {
   body: string | null;
   metadata: JsonColumn;
   created_at: TimestampColumn;
+  urgency: ColumnType<string, string | undefined, string>;
+  deferred_until: NullableTimestampColumn;
 }
 
 export interface NotificationReadsTable {

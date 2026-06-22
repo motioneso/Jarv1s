@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 
-import { sql } from "kysely";
+import { sql, type SqlBool } from "kysely";
 
 import { assertDataContextDb, type DataContextDb, type Notification } from "@jarv1s/db";
 
@@ -30,9 +30,118 @@ export interface CreateNotificationInput {
   readonly title: string;
   readonly body?: string | null;
   readonly metadata?: Record<string, unknown>;
+  readonly urgency?: "urgent" | "normal" | "low";
+}
+
+/**
+ * Cross-module port: notifications reads the actor's quiet-hours settings (and locale
+ * timezone fallback) without importing from @jarv1s/settings or @jarv1s/structured-state.
+ * The implementation is injected by the composition root (module-registry).
+ */
+export interface QuietHoursPort {
+  getSettings(scopedDb: DataContextDb): Promise<unknown>;
+  getLocaleTimezone(scopedDb: DataContextDb): Promise<string | null>;
+}
+
+export interface QuietHoursSettings {
+  enabled: boolean;
+  start: string;
+  end: string;
+  timezone: string | null;
+}
+
+function isValidHHMM(s: unknown): s is string {
+  return typeof s === "string" && /^([01]\d|2[0-3]):[0-5]\d$/.test(s);
+}
+
+function parseQuietHoursSettings(raw: unknown): QuietHoursSettings | null {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return null;
+  const r = raw as Record<string, unknown>;
+  if (typeof r.enabled !== "boolean") return null;
+  if (!isValidHHMM(r.start) || !isValidHHMM(r.end)) return null;
+  const timezone = typeof r.timezone === "string" && r.timezone.length > 0 ? r.timezone : null;
+  return { enabled: r.enabled, start: r.start, end: r.end, timezone };
+}
+
+function getLocalMinutes(date: Date, tz: string): number {
+  const fmt = new Intl.DateTimeFormat("en-US", {
+    timeZone: tz,
+    hour: "numeric",
+    minute: "numeric",
+    hour12: false
+  });
+  const parts = Object.fromEntries(fmt.formatToParts(date).map((p) => [p.type, p.value]));
+  return (parseInt(parts.hour ?? "0", 10) % 24) * 60 + parseInt(parts.minute ?? "0", 10);
+}
+
+function parseHHMM(hhmm: string): [number, number] {
+  const [h, m] = hhmm.split(":");
+  return [parseInt(h ?? "0", 10), parseInt(m ?? "0", 10)];
+}
+
+function isInQuietHours(now: Date, settings: QuietHoursSettings, tz: string): boolean {
+  if (!settings.enabled) return false;
+  const cur = getLocalMinutes(now, tz);
+  const [sh, sm] = parseHHMM(settings.start);
+  const [eh, em] = parseHHMM(settings.end);
+  const start = sh * 60 + sm;
+  const end = eh * 60 + em;
+  // Overnight window (e.g. 22:00–07:00): when start >= end wrap crosses midnight
+  if (start >= end) return cur >= start || cur < end;
+  return cur >= start && cur < end;
+}
+
+export function computeDeferredUntil(
+  now: Date,
+  settings: QuietHoursSettings,
+  tz: string
+): Date | null {
+  if (!isInQuietHours(now, settings, tz)) return null;
+  const [eh, em] = parseHHMM(settings.end);
+  const endTotalMin = eh * 60 + em;
+  const curLocal = getLocalMinutes(now, tz);
+
+  const dateFmt = new Intl.DateTimeFormat("en-US", {
+    timeZone: tz,
+    year: "numeric",
+    month: "numeric",
+    day: "numeric",
+    hour12: false
+  });
+  const partsMap = Object.fromEntries(dateFmt.formatToParts(now).map((p) => [p.type, p.value]));
+  const year = parseInt(partsMap.year ?? "2000", 10);
+  const month = parseInt(partsMap.month ?? "1", 10) - 1;
+  const day = parseInt(partsMap.day ?? "1", 10);
+
+  // For overnight windows (start > end), pre-midnight leg means end is NEXT local day.
+  const dayOffset = endTotalMin <= curLocal ? 1 : 0;
+
+  // Naive approximation: treat tz offset as zero, place end-time at UTC midnight + end.
+  const naiveUTC = new Date(Date.UTC(year, month, day + dayOffset, eh, em, 0));
+
+  // Measure how far the naive approximation's local time is from the target local time.
+  // Use modular arithmetic (±720 window) so overnight wrap doesn't flip the sign.
+  const localMinAtNaive = getLocalMinutes(naiveUTC, tz);
+  let deltaMin = endTotalMin - localMinAtNaive;
+  if (deltaMin < -720) deltaMin += 1440;
+  if (deltaMin > 720) deltaMin -= 1440;
+
+  return new Date(naiveUTC.getTime() + deltaMin * 60 * 1000);
+}
+
+export async function resolveTimezone(
+  port: QuietHoursPort,
+  scopedDb: DataContextDb,
+  explicitTz: string | null
+): Promise<string> {
+  if (explicitTz) return explicitTz;
+  const localeTz = await port.getLocaleTimezone(scopedDb);
+  return localeTz ?? "UTC";
 }
 
 export class NotificationsRepository {
+  constructor(private readonly quietHoursPort?: QuietHoursPort) {}
+
   async listVisible(scopedDb: DataContextDb): Promise<ListNotificationsResult> {
     assertDataContextDb(scopedDb);
 
@@ -41,10 +150,7 @@ export class NotificationsRepository {
       this.countUnread(scopedDb)
     ]);
 
-    return {
-      notifications,
-      unreadCount
-    };
+    return { notifications, unreadCount };
   }
 
   async getById(
@@ -64,11 +170,18 @@ export class NotificationsRepository {
   ): Promise<NotificationWithReadState> {
     assertDataContextDb(scopedDb);
 
-    // The metadata projection is the input-side bound (Decision 3a). It is applied HERE,
-    // at the producer chokepoint, so the value written to app.notifications.metadata is
-    // already the bounded shape. The briefings producer (packages/briefings/src/jobs.ts)
-    // emits `{ definitionId, briefingRunId }` which passes through unchanged.
     const projectedMetadata = projectNotificationMetadata(input.metadata);
+    const urgency = input.urgency ?? "normal";
+
+    let deferredUntil: Date | null = null;
+    if (urgency !== "urgent" && this.quietHoursPort) {
+      const raw = await this.quietHoursPort.getSettings(scopedDb);
+      const settings = parseQuietHoursSettings(raw);
+      if (settings?.enabled) {
+        const tz = await resolveTimezone(this.quietHoursPort, scopedDb, settings.timezone);
+        deferredUntil = computeDeferredUntil(new Date(), settings, tz);
+      }
+    }
 
     const notification = await scopedDb.db
       .insertInto("app.notifications")
@@ -80,15 +193,14 @@ export class NotificationsRepository {
         title: input.title,
         body: input.body ?? null,
         metadata: projectedMetadata,
-        created_at: new Date()
+        created_at: new Date(),
+        urgency,
+        deferred_until: deferredUntil
       })
       .returningAll()
       .executeTakeFirstOrThrow();
 
-    return {
-      ...notification,
-      read_at: null
-    };
+    return { ...notification, read_at: null };
   }
 
   /**
@@ -133,6 +245,8 @@ export class NotificationsRepository {
         n.body AS body,
         n.metadata AS metadata,
         n.created_at AS created_at,
+        n.urgency AS urgency,
+        n.deferred_until AS deferred_until,
         inserted.read_at AS read_at
       FROM app.notifications n
       JOIN inserted ON inserted.notification_id = n.id
@@ -155,6 +269,8 @@ export class NotificationsRepository {
             sql<string>`app.current_actor_user_id()`.as("user_id"),
             sql<Date>`now()`.as("read_at")
           ])
+          // Only mark visible (not still-deferred) notifications as read
+          .where(sql<SqlBool>`(deferred_until IS NULL OR now() >= deferred_until)`)
       )
       .onConflict((oc) =>
         oc.columns(["notification_id", "user_id"]).doUpdateSet({
@@ -183,6 +299,9 @@ export class NotificationsRepository {
       )
       .select(({ fn }) => fn.count<string>("notifications.id").as("unread_count"))
       .where("reads.notification_id", "is", null)
+      .where(
+        sql<SqlBool>`(notifications.deferred_until IS NULL OR now() >= notifications.deferred_until)`
+      )
       .executeTakeFirstOrThrow();
 
     return Number(row.unread_count);
@@ -204,7 +323,12 @@ export class NotificationsRepository {
         "notifications.body as body",
         "notifications.metadata as metadata",
         "notifications.created_at as created_at",
+        "notifications.urgency as urgency",
+        "notifications.deferred_until as deferred_until",
         "reads.read_at as read_at"
-      ]);
+      ])
+      .where(
+        sql<SqlBool>`(notifications.deferred_until IS NULL OR now() >= notifications.deferred_until)`
+      );
   }
 }
