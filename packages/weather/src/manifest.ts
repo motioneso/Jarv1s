@@ -8,14 +8,14 @@ export const weatherModuleManifest = {
   name: "Weather",
   version: "0.1.0",
   publisher: "jarv1s",
-  lifecycle: "user-toggleable",
+  lifecycle: "required",
   compatibility: {
     jarv1s: ">=0.0.0"
   },
   availability: {
     defaultEnabled: true,
-    required: false,
-    supportsUserDisable: true
+    required: true,
+    supportsUserDisable: false
   },
   database: {
     migrations: [],

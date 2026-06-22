@@ -152,7 +152,7 @@ describe("Tasks module M1", () => {
     const registrations = getBuiltInModuleRegistrations();
     const tasksManifest = manifests.find((manifest) => manifest.id === "tasks");
 
-    expect(manifests.map((manifest) => manifest.id)).toEqual([
+    const expectedIds = [
       "settings",
       "connectors",
       "tasks",
@@ -165,23 +165,11 @@ describe("Tasks module M1", () => {
       "briefings",
       "memory",
       "structured-state",
-      "wellness"
-    ]);
-    expect(registrations.map((registration) => registration.manifest.id)).toEqual([
-      "settings",
-      "connectors",
-      "tasks",
-      "web",
-      "notifications",
-      "calendar",
-      "email",
-      "ai",
-      "chat",
-      "briefings",
-      "memory",
-      "structured-state",
-      "wellness"
-    ]);
+      "wellness",
+      "weather"
+    ];
+    expect(manifests.map((manifest) => manifest.id)).toEqual(expectedIds);
+    expect(registrations.map((registration) => registration.manifest.id)).toEqual(expectedIds);
     expect(tasksManifest?.database?.ownedTables).toEqual(["app.tasks", "app.task_activity"]);
     expect(tasksManifest?.navigation?.[0]).toMatchObject({
       id: "tasks",
