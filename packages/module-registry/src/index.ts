@@ -108,6 +108,7 @@ import {
   wellnessModuleManifest,
   wellnessModuleSqlMigrationDirectory
 } from "@jarv1s/wellness";
+import { registerWeatherRoutes, weatherModuleManifest } from "@jarv1s/weather";
 
 import { assertModulesCompatible } from "./compat-gate.js";
 import {
@@ -525,6 +526,17 @@ const BUILT_IN_MODULES: readonly BuiltInModuleRegistration[] = [
       registerWellnessRoutes(server, {
         resolveAccessContext: deps.resolveAccessContext,
         dataContext: deps.dataContext
+      })
+  },
+  {
+    manifest: weatherModuleManifest,
+    sqlMigrationDirectories: [],
+    queueDefinitions: [],
+    registerRoutes: (server, deps) =>
+      registerWeatherRoutes(server, {
+        dataContext: deps.dataContext,
+        resolveAccessContext: deps.resolveAccessContext,
+        preferencesRepo: new PreferencesRepository()
       })
   }
 ];
