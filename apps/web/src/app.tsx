@@ -31,9 +31,6 @@ const SettingsPage = lazy(() =>
 const TodayPage = lazy(() =>
   import("./today/today-page").then((module) => ({ default: module.TodayPage }))
 );
-const TaskDetailPage = lazy(() =>
-  import("./tasks/task-detail-page").then((module) => ({ default: module.TaskDetailPage }))
-);
 const TasksPage = lazy(() =>
   import("./tasks/tasks-page").then((module) => ({ default: module.TasksPage }))
 );
@@ -192,7 +189,6 @@ export function App() {
               element={<TodayPage me={meQuery.data} wellnessEnabled={wellnessGate === "enabled"} />}
             />
             <Route path={webRoutePath("tasks")} element={<TasksPage />} />
-            <Route path={webRoutePath("task-detail")} element={<TaskDetailPage />} />
             <Route path={webRoutePath("notifications")} element={<NotificationsPage />} />
             <Route path={webRoutePath("calendar")} element={<CalendarPage />} />
             <Route

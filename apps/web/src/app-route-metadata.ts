@@ -13,7 +13,6 @@ export interface WebRouteMeta {
   readonly id:
     | "today"
     | "tasks"
-    | "task-detail"
     | "notifications"
     | "calendar"
     | "wellness"
@@ -52,13 +51,6 @@ export const webRoutes: readonly WebRouteMeta[] = [
     title: "Tasks",
     subtitle: dateEyebrow,
     match: (pathname) => pathname === "/tasks"
-  },
-  {
-    id: "task-detail",
-    path: "/tasks/:taskId",
-    title: "Task",
-    subtitle: dateEyebrow,
-    match: (pathname) => pathname.startsWith("/tasks/")
   },
   {
     id: "notifications",
