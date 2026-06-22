@@ -28,9 +28,6 @@ describe("web route metadata", () => {
 
   it("derives page headings from the same route table", () => {
     expect(resolvePageHeading("/today", new Date("2026-06-14T16:42:00Z")).title).toBe("Today");
-    expect(resolvePageHeading("/tasks/abc", new Date("2026-06-14T16:42:00Z"))).toMatchObject({
-      title: "Task"
-    });
     expect(resolvePageHeading("/settings", new Date("2026-06-14T16:42:00Z"))).toMatchObject({
       title: "Settings & permissions",
       subtitle: ""
@@ -41,7 +38,6 @@ describe("web route metadata", () => {
     expect(webRoutes.map((route) => route.path)).toEqual([
       "/today",
       "/tasks",
-      "/tasks/:taskId",
       "/notifications",
       "/calendar",
       "/wellness",
