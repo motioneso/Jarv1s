@@ -28,7 +28,8 @@ import {
 } from "react";
 import { NavLink, useLocation, useNavigate } from "react-router";
 
-import { getWeatherToday, listNotifications, sendChatTurn, signOut } from "../api/client";
+import { listNotifications, sendChatTurn, signOut } from "../api/client";
+import { getWeatherToday } from "../api/weather-client";
 import { buildShellNavigation, resolvePageHeading } from "../app-route-metadata";
 import { queryKeys } from "../api/query-keys";
 import { ChatDrawer } from "../chat/chat-drawer";
