@@ -23,6 +23,7 @@ import type { AccessContext } from "@jarv1s/db";
 // Low ceilings so 3 distinct junk tokens cross the threshold: with max=2, requests #1 and #2
 // pass and #3 is throttled — only possible if all three share ONE bucket.
 process.env.JARVIS_RL_CHAT_MAX = "2";
+process.env.JARVIS_RL_CHAT_MUTATION_MAX = "2";
 process.env.JARVIS_RL_MCP_MAX = "2";
 
 const PEER_IP = "203.0.113.50";
@@ -37,6 +38,7 @@ describe("route-local junk-credential rate-limit gates (#207)", () => {
   beforeAll(async () => {
     // Belt-and-suspenders: ensure the knobs are set before the route modules evaluate.
     process.env.JARVIS_RL_CHAT_MAX = "2";
+    process.env.JARVIS_RL_CHAT_MUTATION_MAX = "2";
     process.env.JARVIS_RL_MCP_MAX = "2";
 
     const { registerChatLiveRoutes } = await import("../../packages/chat/src/live-routes.js");
@@ -46,7 +48,11 @@ describe("route-local junk-credential rate-limit gates (#207)", () => {
     chatApp = Fastify({ logger: false });
     await chatApp.register(rateLimit, { global: false });
     const stubRuntime = {
-      manager: { submitTurn: async () => ({ reply: "ok" }) },
+      manager: {
+        submitTurn: async () => ({ reply: "ok" }),
+        clear: async () => undefined,
+        switchProvider: async () => undefined
+      },
       resolveUserName: async () => "Tester"
     };
     registerChatLiveRoutes(chatApp, {
@@ -141,6 +147,34 @@ describe("route-local junk-credential rate-limit gates (#207)", () => {
     });
     expect(validCaller.statusCode).not.toBe(429);
     expect(validCaller.statusCode).toBe(200);
+  });
+
+  it("rate-limits POST /api/chat/clear per valid session principal", async () => {
+    const send = () =>
+      chatApp.inject({
+        method: "POST",
+        url: "/api/chat/clear",
+        remoteAddress: "203.0.113.80",
+        headers: { authorization: `Bearer ${VALID_SESSION_UUID}` }
+      });
+
+    expect((await send()).statusCode).toBe(204);
+    expect((await send()).statusCode).toBe(204);
+    expect((await send()).statusCode).toBe(429);
+  });
+
+  it("rate-limits POST /api/chat/switch per valid session principal", async () => {
+    const send = () =>
+      chatApp.inject({
+        method: "POST",
+        url: "/api/chat/switch",
+        remoteAddress: "203.0.113.81",
+        headers: { authorization: `Bearer ${VALID_SESSION_UUID}` }
+      });
+
+    expect((await send()).statusCode).toBe(200);
+    expect((await send()).statusCode).toBe(200);
+    expect((await send()).statusCode).toBe(429);
   });
 
   it("collapses 3 distinct malformed bearers on /api/mcp onto one IP bucket and 429s by the threshold", async () => {

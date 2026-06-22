@@ -28,7 +28,7 @@ import type { AccessContext } from "@jarv1s/db";
 import { sessionRateLimitKey } from "@jarv1s/module-sdk";
 import { parsePositiveIntEnv } from "@jarv1s/shared";
 
-import { ChatTurnInFlightError } from "./live/chat-session-manager.js";
+import { ChatStreamLimitError, ChatTurnInFlightError } from "./live/chat-session-manager.js";
 import { CliChatUnavailableError } from "./live/errors.js";
 import type { ChatSessionRuntime } from "./live/runtime.js";
 
@@ -40,6 +40,8 @@ import type { ChatSessionRuntime } from "./live/runtime.js";
 //
 // Override the limit via env: JARVIS_RL_CHAT_MAX=<n> (requests per minute, default 20).
 const CHAT_MAX = parsePositiveIntEnv(process.env.JARVIS_RL_CHAT_MAX, 20);
+const CHAT_MUTATION_MAX = parsePositiveIntEnv(process.env.JARVIS_RL_CHAT_MUTATION_MAX, 20);
+const MAX_CHAT_TURN_TEXT_LENGTH = 32_000;
 
 export interface ChatLiveRoutesDependencies {
   readonly resolveAccessContext: (request: FastifyRequest) => Promise<AccessContext>;
@@ -67,10 +69,11 @@ export function registerChatLiveRoutes(
       const access = await resolveOr401(dependencies, request, reply);
       if (!access) return reply;
 
-      const text = readText(request.body);
-      if (text === undefined) {
-        return reply.code(400).send({ error: "text is required" });
+      const textResult = readText(request.body);
+      if ("error" in textResult) {
+        return reply.code(400).send({ error: textResult.error });
       }
+      const { text } = textResult;
 
       try {
         const userName = await runtime.resolveUserName(access.actorUserId);
@@ -87,38 +90,77 @@ export function registerChatLiveRoutes(
     }
   );
 
-  server.post("/api/chat/clear", async (request, reply) => {
-    const access = await resolveOr401(dependencies, request, reply);
-    if (!access) return reply;
+  server.post(
+    "/api/chat/clear",
+    {
+      config: {
+        rateLimit: {
+          max: CHAT_MUTATION_MAX,
+          timeWindow: "1 minute",
+          keyGenerator: sessionRateLimitKey
+        }
+      }
+    },
+    async (request, reply) => {
+      const access = await resolveOr401(dependencies, request, reply);
+      if (!access) return reply;
 
-    try {
-      const rawIncognito = (request.query as Record<string, unknown>).incognito;
-      const incognito = rawIncognito === "true" || rawIncognito === "1";
-      await runtime.manager.clear(access.actorUserId, incognito ? { incognito: true } : undefined);
+      try {
+        const rawIncognito = (request.query as Record<string, unknown>).incognito;
+        const incognito = rawIncognito === "true" || rawIncognito === "1";
+        await runtime.manager.clear(
+          access.actorUserId,
+          incognito ? { incognito: true } : undefined
+        );
 
-      return reply.code(204).send();
-    } catch (error) {
-      return handleLiveRouteError(error, reply);
+        return reply.code(204).send();
+      } catch (error) {
+        return handleLiveRouteError(error, reply);
+      }
     }
-  });
+  );
 
-  server.post("/api/chat/switch", async (request, reply) => {
-    const access = await resolveOr401(dependencies, request, reply);
-    if (!access) return reply;
+  server.post(
+    "/api/chat/switch",
+    {
+      config: {
+        rateLimit: {
+          max: CHAT_MUTATION_MAX,
+          timeWindow: "1 minute",
+          keyGenerator: sessionRateLimitKey
+        }
+      }
+    },
+    async (request, reply) => {
+      const access = await resolveOr401(dependencies, request, reply);
+      if (!access) return reply;
 
-    try {
-      const userName = await runtime.resolveUserName(access.actorUserId);
-      await runtime.manager.switchProvider(access.actorUserId, userName);
+      try {
+        const userName = await runtime.resolveUserName(access.actorUserId);
+        await runtime.manager.switchProvider(access.actorUserId, userName);
 
-      return reply.code(200).send({ ok: true });
-    } catch (error) {
-      return handleLiveRouteError(error, reply);
+        return reply.code(200).send({ ok: true });
+      } catch (error) {
+        return handleLiveRouteError(error, reply);
+      }
     }
-  });
+  );
 
   server.get("/api/chat/stream", async (request, reply) => {
     const access = await resolveOr401(dependencies, request, reply);
     if (!access) return reply;
+
+    // Subscriptions are keyed by the caller's actorUserId — a stream only ever
+    // receives that actor's transcript records, never another user's.
+    let unsubscribe: () => void;
+    try {
+      unsubscribe = runtime.manager.subscribe(access.actorUserId, (record) => {
+        if (reply.raw.destroyed || reply.raw.writableEnded) return;
+        reply.raw.write(`data: ${JSON.stringify(record)}\n\n`);
+      });
+    } catch (error) {
+      return handleLiveRouteError(error, reply);
+    }
 
     reply.raw.writeHead(200, {
       "Content-Type": "text/event-stream",
@@ -126,15 +168,9 @@ export function registerChatLiveRoutes(
       Connection: "keep-alive"
     });
 
-    // Subscriptions are keyed by the caller's actorUserId — a stream only ever
-    // receives that actor's transcript records, never another user's.
-    const unsubscribe = runtime.manager.subscribe(access.actorUserId, (record) => {
-      reply.raw.write(`data: ${JSON.stringify(record)}\n\n`);
-    });
-
     request.raw.on("close", () => {
       unsubscribe();
-      reply.raw.end();
+      if (!reply.raw.destroyed && !reply.raw.writableEnded) reply.raw.end();
     });
 
     // Keep the Fastify handler open until the client disconnects.
@@ -172,6 +208,10 @@ function handleLiveRouteError(error: unknown, reply: FastifyReply) {
       .send({ error: "A chat turn is already in progress. Please wait for it to finish." });
   }
 
+  if (error instanceof ChatStreamLimitError) {
+    return reply.code(429).send({ error: "Too many open chat streams." });
+  }
+
   if (error instanceof Error) {
     const message = error.message;
     // No active chat-capable model is configured for this user.
@@ -201,10 +241,14 @@ function handleLiveRouteError(error: unknown, reply: FastifyReply) {
   return reply.code(500).send({ error: "Live chat is temporarily unavailable." });
 }
 
-function readText(body: unknown): string | undefined {
-  if (!body || typeof body !== "object" || Array.isArray(body)) return undefined;
+function readText(body: unknown): { text: string } | { error: string } {
+  if (!body || typeof body !== "object" || Array.isArray(body))
+    return { error: "text is required" };
   const value = (body as Record<string, unknown>).text;
-  if (typeof value !== "string") return undefined;
+  if (typeof value !== "string") return { error: "text is required" };
+  if (value.length > MAX_CHAT_TURN_TEXT_LENGTH) {
+    return { error: `text must be ${MAX_CHAT_TURN_TEXT_LENGTH} characters or fewer` };
+  }
   const trimmed = value.trim();
-  return trimmed.length > 0 ? trimmed : undefined;
+  return trimmed.length > 0 ? { text: trimmed } : { error: "text is required" };
 }
