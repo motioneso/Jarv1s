@@ -109,6 +109,13 @@ import {
   wellnessModuleSqlMigrationDirectory
 } from "@jarv1s/wellness";
 import { registerWeatherRoutes, weatherModuleManifest } from "@jarv1s/weather";
+import {
+  notesModuleManifest,
+  notesModuleSqlMigrationDirectory,
+  NOTES_QUEUE_DEFINITIONS,
+  registerNotesSyncRoutes,
+  registerNotesJobWorkers
+} from "@jarv1s/notes";
 
 import { assertModulesCompatible } from "./compat-gate.js";
 import {
@@ -540,6 +547,22 @@ const BUILT_IN_MODULES: readonly BuiltInModuleRegistration[] = [
         resolveAccessContext: deps.resolveAccessContext,
         preferencesRepo: new PreferencesRepository(),
         fetchFn: deps.fetchFn
+      })
+  },
+  {
+    manifest: notesModuleManifest,
+    sqlMigrationDirectories: [notesModuleSqlMigrationDirectory],
+    queueDefinitions: [...NOTES_QUEUE_DEFINITIONS],
+    registerRoutes: (server, deps) =>
+      registerNotesSyncRoutes(server, {
+        dataContext: deps.dataContext,
+        resolveAccessContext: deps.resolveAccessContext,
+        preferencesRepository: new PreferencesRepository(),
+        boss: deps.boss
+      }),
+    registerWorkers: (boss, deps) =>
+      registerNotesJobWorkers(boss, deps.dataContext, {
+        embeddingProvider: deps.embeddingProvider
       })
   }
 ];
