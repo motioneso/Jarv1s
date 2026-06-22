@@ -193,10 +193,11 @@ describe("Briefings module M6 read-only scheduled summaries", () => {
     expect(registration?.queueDefinitions.map((queue) => queue.name)).toEqual([
       BRIEFINGS_RUN_QUEUE
     ]);
-    expect(getBuiltInSqlMigrationDirectories().at(-1)).toContain("packages/wellness/sql");
-    expect(getBuiltInSqlMigrationDirectories().at(-2)).toContain("packages/structured-state/sql");
-    expect(getBuiltInSqlMigrationDirectories().at(-3)).toContain("packages/memory/sql");
-    expect(getBuiltInSqlMigrationDirectories().at(-4)).toContain("packages/briefings/sql");
+    expect(getBuiltInSqlMigrationDirectories().at(-1)).toContain("packages/notes/sql");
+    expect(getBuiltInSqlMigrationDirectories().at(-2)).toContain("packages/wellness/sql");
+    expect(getBuiltInSqlMigrationDirectories().at(-3)).toContain("packages/structured-state/sql");
+    expect(getBuiltInSqlMigrationDirectories().at(-4)).toContain("packages/memory/sql");
+    expect(getBuiltInSqlMigrationDirectories().at(-5)).toContain("packages/briefings/sql");
   });
 
   it("keeps definitions private by default and denies admin private-data bypass", async () => {
