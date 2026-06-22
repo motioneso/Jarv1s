@@ -88,7 +88,7 @@ describe("wellness REST routes", () => {
     }
   });
 
-  it("POST a PRN dose log without prn_reason is rejected 400", async () => {
+  it("PRN dose log without prn_reason is accepted (201) and persists null", async () => {
     const app = await buildApp(userId);
     try {
       const med = await app.inject({
@@ -98,12 +98,13 @@ describe("wellness REST routes", () => {
       });
       const medId = med.json().medication.id as string;
 
-      const bad = await app.inject({
+      const res = await app.inject({
         method: "POST",
         url: `/api/wellness/medications/${medId}/logs`,
         payload: { status: "prn" }
       });
-      expect(bad.statusCode).toBe(400);
+      expect(res.statusCode).toBe(201);
+      expect(res.json().log.prnReason).toBeNull();
     } finally {
       await app.close();
     }

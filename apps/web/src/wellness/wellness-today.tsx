@@ -222,16 +222,13 @@ function MedToday({ theme: _theme, onManage }: MedTodayProps) {
     }
   });
 
-  // PRN ("as needed") dose entry. The DB requires a non-empty prn_reason and we MUST NOT fabricate
-  // it: a hardcoded/placeholder reason would write false clinical data into the health audit trail.
-  // So logging a PRN dose captures a user-acknowledged reason (quick-pick chip or free text) before
-  // submit — never blank, never silent. PRN doses are repeatable: each submit inserts a new log.
+  // PRN ("as needed") dose entry. Reason is optional — the user may log a dose without
+  // a reason (persists as null). PRN doses are repeatable: each submit inserts a new log.
   const [prnOpenFor, setPrnOpenFor] = useState<string | null>(null);
   const [prnReason, setPrnReason] = useState("");
 
   function logPrnDose(medicationId: string) {
-    const reason = prnReason.trim();
-    if (!reason) return;
+    const reason = prnReason.trim() || null;
     logMutation.mutate(
       { medicationId, status: "prn", scheduledFor: null, prnReason: reason },
       {
@@ -345,7 +342,7 @@ function MedToday({ theme: _theme, onManage }: MedTodayProps) {
                               className="wl-prn__input"
                               type="text"
                               value={prnReason}
-                              placeholder="Reason for this dose (required)"
+                              placeholder="Reason for this dose (optional)"
                               aria-label="Reason for this dose"
                               maxLength={120}
                               onChange={(ev) => setPrnReason(ev.target.value)}
@@ -372,7 +369,7 @@ function MedToday({ theme: _theme, onManage }: MedTodayProps) {
                                 type="button"
                                 className="primary-button"
                                 style={{ fontSize: 12, padding: "5px 12px", minHeight: "unset" }}
-                                disabled={!prnReason.trim() || logMutation.isPending}
+                                disabled={logMutation.isPending}
                                 onClick={() => logPrnDose(slot.medicationId)}
                               >
                                 Log dose
