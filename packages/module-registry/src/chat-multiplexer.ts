@@ -244,7 +244,7 @@ async function checkGoogleProviderWithAgyPrint(
   if (isAuthenticationOutput(output)) {
     return { status: "needs_login" };
   }
-  return { status: "needs_login" };
+  return { status: "error" };
 }
 
 async function acknowledgeProviderPromptIfNeeded(

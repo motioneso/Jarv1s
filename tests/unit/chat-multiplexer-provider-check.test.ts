@@ -126,4 +126,24 @@ describe("makeProviderConnectionCheckProbe", () => {
 
     await expect(probe("google")).resolves.toEqual({ status: "needs_login" });
   });
+
+  it("treats a non-auth Google crash as error, not needs_login", async () => {
+    const commandIo = {
+      run: async () => ({
+        code: 1,
+        stdout: "Fatal: agy binary crashed (segfault)\n",
+        stderr: ""
+      })
+    } satisfies Pick<TmuxIo, "run">;
+    const probe = makeProviderConnectionCheckProbe({
+      engineFactory: () => {
+        throw new Error("google checks must not open an interactive engine");
+      },
+      cliPresent: async () => true,
+      skipInstallCheck: true,
+      commandIo
+    });
+
+    await expect(probe("google")).resolves.toEqual({ status: "error" });
+  });
 });
