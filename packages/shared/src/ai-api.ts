@@ -219,9 +219,6 @@ export interface ChatModelOverrideSettingsDto {
   readonly effectiveOverrideModelId: string | null;
   readonly defaultModel: AiConfiguredModelDto | null;
   readonly selectedModel: AiConfiguredModelDto | null;
-  /** All models shown in the UI (includes the instance default even if not user-overridable). */
-  readonly allowedModels: readonly AiConfiguredModelDto[];
-  /** Models the user may actually select as an override (allowUserOverride=true only). */
   readonly selectableOverrideModels: readonly AiConfiguredModelDto[];
 }
 
@@ -745,7 +742,6 @@ const chatModelOverrideSettingsSchema = {
     "effectiveOverrideModelId",
     "defaultModel",
     "selectedModel",
-    "allowedModels",
     "selectableOverrideModels"
   ],
   properties: {
@@ -754,7 +750,6 @@ const chatModelOverrideSettingsSchema = {
     effectiveOverrideModelId: { type: ["string", "null"] },
     defaultModel: { anyOf: [aiConfiguredModelSchema, { type: "null" }] },
     selectedModel: { anyOf: [aiConfiguredModelSchema, { type: "null" }] },
-    allowedModels: { type: "array", items: aiConfiguredModelSchema },
     selectableOverrideModels: { type: "array", items: aiConfiguredModelSchema }
   }
 } as const;

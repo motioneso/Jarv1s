@@ -753,7 +753,6 @@ function serializeChatModelOverrideSettings(
     selectedModel: settings.selectedModel
       ? serializeModel(settings.selectedModel, actorUserId)
       : null,
-    allowedModels: settings.allowedModels.map((m) => serializeModel(m, actorUserId)),
     selectableOverrideModels: settings.selectableOverrideModels.map((m) =>
       serializeModel(m, actorUserId)
     )
