@@ -9,7 +9,7 @@ import { queryKeys } from "../api/query-keys";
     full Details modal (the prototype's tk-add behaviour). */
 export function TaskCapture(props: {
   readonly defaultListId?: string;
-  readonly onDetails: () => void;
+  readonly onDetails: (name: string) => void;
 }) {
   const queryClient = useQueryClient();
   const [title, setTitle] = useState("");
@@ -48,7 +48,7 @@ export function TaskCapture(props: {
         <div className="tk-add__actions">
           <button
             className="jds-btn jds-btn--secondary jds-btn--sm"
-            onClick={props.onDetails}
+            onClick={() => props.onDetails(title)}
             type="button"
           >
             <SlidersHorizontal size={14} aria-hidden="true" /> Details
