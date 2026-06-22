@@ -126,6 +126,7 @@
   line-height: 1.55;
   color: var(--text);
   padding-top: 2px;
+  min-width: 0; /* #395 — allow flex child to shrink so wide content (tables, code) stays in-column */
 }
 .chatd-msg--me {
   justify-content: flex-end;
@@ -501,10 +502,9 @@
 }
 .chatd-md table {
   border-collapse: collapse;
-  display: block;
-  width: max-content;
+  width: 100%;
   max-width: 100%;
-  overflow-x: auto;
+  table-layout: fixed; /* #395 — share width evenly so the table always fits the chat column */
   margin: 0 0 10px;
   font-size: 13px;
 }
@@ -513,6 +513,10 @@
   border: 1px solid var(--border);
   padding: 5px 9px;
   text-align: left;
+  vertical-align: top;
+  white-space: normal; /* #395 — let cell text wrap on narrow widths */
+  overflow-wrap: anywhere; /* break long unbreakable tokens (URLs) instead of overflowing */
+  word-break: break-word;
 }
 .chatd-md th {
   background: var(--surface-2);
