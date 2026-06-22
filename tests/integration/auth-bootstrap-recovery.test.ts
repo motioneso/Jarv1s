@@ -94,6 +94,54 @@ describe("owner bootstrap recovery", () => {
     throw new Error(`Timed out waiting for ${count} users with prefix ${prefix}`);
   }
 
+  async function readUserIdsByEmailPrefix(
+    prefix: string
+  ): Promise<Array<{ id: string; email: string }>> {
+    const client = new pg.Client({ connectionString: connectionStrings.bootstrap });
+    await client.connect();
+    try {
+      const result = await client.query<{ id: string; email: string }>(
+        `
+          SELECT id, email
+          FROM app.users
+          WHERE email LIKE $1
+          ORDER BY email
+        `,
+        [`${prefix}%`]
+      );
+      return result.rows;
+    } finally {
+      await client.end();
+    }
+  }
+
+  async function readRegistrationRejectedAudit(): Promise<
+    Array<{
+      actor_user_id: string | null;
+      target_id: string | null;
+      metadata: Record<string, unknown>;
+    }>
+  > {
+    const client = new pg.Client({ connectionString: connectionStrings.bootstrap });
+    await client.connect();
+    try {
+      const result = await client.query<{
+        actor_user_id: string | null;
+        target_id: string | null;
+        metadata: Record<string, unknown>;
+      }>(
+        `
+          SELECT actor_user_id, target_id, metadata
+          FROM app.admin_audit_events
+          WHERE action = 'user.registration_rejected'
+        `
+      );
+      return result.rows;
+    } finally {
+      await client.end();
+    }
+  }
+
   it("bootstraps signup as owner when existing users have no bootstrap owner", async () => {
     await seedNonBootstrapOwnerUser({
       id: "00000000-0000-4000-8000-000000002601",
@@ -166,6 +214,7 @@ describe("owner bootstrap recovery", () => {
 
     const lock = new pg.Client({ connectionString: connectionStrings.bootstrap });
     await lock.connect();
+    let loserId: string | undefined;
     try {
       await lock.query("SELECT pg_advisory_lock(hashtext('jarv1s:first-user-bootstrap'))");
       const first = signUp({
@@ -180,6 +229,7 @@ describe("owner bootstrap recovery", () => {
       });
 
       await waitForUserCountByEmailPrefix("disabled-racer-", 2);
+      const racerIds = await readUserIdsByEmailPrefix("disabled-racer-");
       await lock.query("SELECT pg_advisory_unlock(hashtext('jarv1s:first-user-bootstrap'))");
 
       const responses = await Promise.all([first, second]);
@@ -189,6 +239,10 @@ describe("owner bootstrap recovery", () => {
           .filter((response) => response.statusCode === 403)
           .map((response) => response.json<{ code?: string }>().code)
       ).toEqual(["registration_disabled"]);
+
+      const winnerResponse = responses.find((response) => response.statusCode === 200);
+      const winnerId = winnerResponse!.json<{ user: { id: string } }>().user.id;
+      loserId = racerIds.find((racer) => racer.id !== winnerId)?.id;
     } finally {
       await lock.end();
     }
@@ -200,5 +254,13 @@ describe("owner bootstrap recovery", () => {
       is_bootstrap_owner: true,
       status: "active"
     });
+
+    expect(loserId).toBeDefined();
+    const auditRows = await readRegistrationRejectedAudit();
+    expect(auditRows).toHaveLength(1);
+    const auditRow = auditRows[0];
+    expect(auditRow).toBeDefined();
+    expect(auditRow!.target_id).toBe(loserId);
+    expect(auditRow!.metadata).toMatchObject({ reason: "registration_disabled" });
   });
 });
