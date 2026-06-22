@@ -458,6 +458,11 @@ export function registerOnboardingRoutes(
   dependencies: OnboardingRoutesDependencies
 ): void {
   const repository = dependencies.repository;
+  const CLI_PROBE_TTL_MS = 10_000;
+  const cliProbeCache = new Map<
+    string,
+    { anthropic: boolean; "openai-compatible": boolean; google: boolean; ts: number }
+  >();
 
   server.get(
     "/api/onboarding/status",
@@ -530,11 +535,29 @@ export function registerOnboardingRoutes(
           }
         );
 
-        const [anthropic, openaiCompatible, google] = await Promise.all([
-          probes.cliPresent("anthropic"),
-          probes.cliPresent("openai-compatible"),
-          probes.cliPresent("google")
-        ]);
+        const actorId = accessContext.actorUserId;
+        const now = Date.now();
+        const hit = cliProbeCache.get(actorId);
+        let anthropic: boolean;
+        let openaiCompatible: boolean;
+        let google: boolean;
+        if (hit && now - hit.ts < CLI_PROBE_TTL_MS) {
+          anthropic = hit.anthropic;
+          openaiCompatible = hit["openai-compatible"];
+          google = hit.google;
+        } else {
+          [anthropic, openaiCompatible, google] = await Promise.all([
+            probes.cliPresent("anthropic"),
+            probes.cliPresent("openai-compatible"),
+            probes.cliPresent("google")
+          ]);
+          cliProbeCache.set(actorId, {
+            anthropic,
+            "openai-compatible": openaiCompatible,
+            google,
+            ts: now
+          });
+        }
 
         return repository.assembleOnboardingStatus({
           state: dbPart.state,

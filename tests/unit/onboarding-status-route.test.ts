@@ -27,7 +27,10 @@ interface AssembleInput {
   readonly installableByKind?: Readonly<Partial<Record<OnboardingProviderKind, boolean>>>;
 }
 
-function buildServer(captured: { input?: AssembleInput }): FastifyInstance {
+function buildServer(
+  captured: { input?: AssembleInput },
+  opts?: { cliPresent?: (kind: OnboardingProviderKind) => Promise<boolean> }
+): FastifyInstance {
   const dependencies: OnboardingRoutesDependencies = {
     dataContext: {
       withDataContext: async (_c: AccessContext, fn: (db: DataContextDb) => Promise<unknown>) =>
@@ -63,7 +66,7 @@ function buildServer(captured: { input?: AssembleInput }): FastifyInstance {
     },
     handleRouteError: (error, reply) => handleRouteError(error, reply),
     onboardingProbes: {
-      cliPresent: async () => false,
+      cliPresent: opts?.cliPresent ?? (async () => false),
       testProviderConnection: async () => ({ status: "needs_login" }),
       connectorAccountExists: async () => false
     },
@@ -102,5 +105,34 @@ describe("GET /api/onboarding/status installable wiring (#365)", () => {
       "openai-compatible": true,
       google: false
     });
+  });
+});
+
+describe("GET /api/onboarding/status cliPresent cache (#317)", () => {
+  it("caches cliPresent results for a given actor within the TTL window", async () => {
+    let probeCount = 0;
+    const captured: { input?: AssembleInput } = {};
+    const server = buildServer(captured, {
+      cliPresent: async () => {
+        probeCount++;
+        return false;
+      }
+    });
+    await server.ready();
+
+    await server.inject({
+      method: "GET",
+      url: "/api/onboarding/status",
+      headers: { authorization: `Bearer ${ADMIN_TOKEN}` }
+    });
+    await server.inject({
+      method: "GET",
+      url: "/api/onboarding/status",
+      headers: { authorization: `Bearer ${ADMIN_TOKEN}` }
+    });
+
+    await server.close();
+    // 3 providers × 1 probe call only — second fetch must hit cache
+    expect(probeCount).toBe(3);
   });
 });
