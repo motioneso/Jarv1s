@@ -28,7 +28,7 @@ import type { AccessContext } from "@jarv1s/db";
 import { sessionRateLimitKey } from "@jarv1s/module-sdk";
 import { parsePositiveIntEnv } from "@jarv1s/shared";
 
-import { ChatTurnInFlightError } from "./live/chat-session-manager.js";
+import { ChatStreamLimitError, ChatTurnInFlightError } from "./live/chat-session-manager.js";
 import { CliChatUnavailableError } from "./live/errors.js";
 import type { ChatSessionRuntime } from "./live/runtime.js";
 
@@ -148,21 +148,27 @@ export function registerChatLiveRoutes(
     const access = await resolveOr401(dependencies, request, reply);
     if (!access) return reply;
 
+    // Subscriptions are keyed by the caller's actorUserId — a stream only ever
+    // receives that actor's transcript records, never another user's.
+    let unsubscribe: () => void;
+    try {
+      unsubscribe = runtime.manager.subscribe(access.actorUserId, (record) => {
+        if (reply.raw.destroyed || reply.raw.writableEnded) return;
+        reply.raw.write(`data: ${JSON.stringify(record)}\n\n`);
+      });
+    } catch (error) {
+      return handleLiveRouteError(error, reply);
+    }
+
     reply.raw.writeHead(200, {
       "Content-Type": "text/event-stream",
       "Cache-Control": "no-cache",
       Connection: "keep-alive"
     });
 
-    // Subscriptions are keyed by the caller's actorUserId — a stream only ever
-    // receives that actor's transcript records, never another user's.
-    const unsubscribe = runtime.manager.subscribe(access.actorUserId, (record) => {
-      reply.raw.write(`data: ${JSON.stringify(record)}\n\n`);
-    });
-
     request.raw.on("close", () => {
       unsubscribe();
-      reply.raw.end();
+      if (!reply.raw.destroyed && !reply.raw.writableEnded) reply.raw.end();
     });
 
     // Keep the Fastify handler open until the client disconnects.
@@ -198,6 +204,10 @@ function handleLiveRouteError(error: unknown, reply: FastifyReply) {
     return reply
       .code(409)
       .send({ error: "A chat turn is already in progress. Please wait for it to finish." });
+  }
+
+  if (error instanceof ChatStreamLimitError) {
+    return reply.code(429).send({ error: "Too many open chat streams." });
   }
 
   if (error instanceof Error) {
