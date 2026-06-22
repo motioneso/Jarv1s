@@ -82,17 +82,17 @@ describe("makeProviderConnectionCheckProbe", () => {
     await expect(probe("openai-compatible")).resolves.toEqual({ status: "needs_login" });
   });
 
-  it("checks Google with agy print mode instead of opening an interactive engine", async () => {
-    const runs: Array<{ cmd: string; args: readonly string[]; cwd?: string }> = [];
+  it("checks Google with agy auth status (local, non-inference)", async () => {
+    const runs: Array<{ cmd: string; args: readonly string[] }> = [];
     const commandIo = {
-      run: async (cmd, args, opts) => {
-        runs.push({ cmd, args, cwd: opts?.cwd });
-        return { code: 0, stdout: "OK\n" };
+      run: async (cmd: string, args: readonly string[]) => {
+        runs.push({ cmd, args });
+        return { code: 0, stdout: "", stderr: "" };
       }
     } satisfies Pick<TmuxIo, "run">;
     const probe = makeProviderConnectionCheckProbe({
       engineFactory: () => {
-        throw new Error("google provider checks should not open an interactive engine");
+        throw new Error("google checks must not open an interactive engine");
       },
       cliPresent: async () => true,
       skipInstallCheck: true,
@@ -102,22 +102,20 @@ describe("makeProviderConnectionCheckProbe", () => {
     const result = await probe("google");
 
     expect(result).toEqual({ status: "ready" });
-    expect(runs).toHaveLength(1);
-    expect(runs[0]!.cmd).toBe("agy");
-    expect(runs[0]!.args).toEqual(["--print", "Reply with exactly OK."]);
-    expect(runs[0]!.cwd).toMatch(/jarv1s-provider-check-/);
+    expect(runs).toEqual([{ cmd: "agy", args: ["auth", "status"] }]);
   });
 
-  it("treats an agy authentication prompt as needing login", async () => {
+  it("treats an agy auth status login signal as needing login", async () => {
     const commandIo = {
       run: async () => ({
-        code: 0,
-        stdout: "Waiting for authentication (timeout 30s)...\nError: authentication timed out\n"
+        code: 1,
+        stdout: "Please sign in to continue\n",
+        stderr: ""
       })
     } satisfies Pick<TmuxIo, "run">;
     const probe = makeProviderConnectionCheckProbe({
       engineFactory: () => {
-        throw new Error("google provider checks should not open an interactive engine");
+        throw new Error("google checks must not open an interactive engine");
       },
       cliPresent: async () => true,
       skipInstallCheck: true,

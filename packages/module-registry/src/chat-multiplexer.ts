@@ -170,10 +170,7 @@ export function makeProviderConnectionCheckProbe(deps: {
         );
       }
       if (kind === "google") {
-        return await checkGoogleProviderWithAgyPrint(
-          neutralDir,
-          deps.commandIo ?? createRealTmuxIo()
-        );
+        return await checkGoogleProviderWithAgyAuthStatus(deps.commandIo ?? createRealTmuxIo());
       }
 
       engine = deps.engineFactory(kind, `onboarding-check-${kind}`);
@@ -229,22 +226,15 @@ async function checkOpenAiCompatibleProviderWithCodexLoginStatus(
   return { status: "needs_login" };
 }
 
-async function checkGoogleProviderWithAgyPrint(
-  neutralDir: string,
+async function checkGoogleProviderWithAgyAuthStatus(
   io: Pick<TmuxIo, "run">
 ): Promise<OnboardingProviderCheckResponse> {
-  const result = await withTimeout(
-    io.run("agy", ["--print", PROVIDER_CHECK_PROMPT], { cwd: neutralDir }),
-    PROVIDER_CHECK_TIMEOUT_MS
-  );
-  const output = `${result.stdout}\n${result.stderr ?? ""}`;
-  if (result.code === 0 && isProviderCheckOk(result.stdout)) {
-    return { status: "ready" };
+  const result = await withTimeout(io.run("agy", ["auth", "status"]), PROVIDER_CHECK_TIMEOUT_MS);
+  if (result.code !== 0) {
+    const output = `${result.stdout}\n${result.stderr ?? ""}`;
+    return isAuthenticationOutput(output) ? { status: "needs_login" } : { status: "error" };
   }
-  if (isAuthenticationOutput(output)) {
-    return { status: "needs_login" };
-  }
-  return { status: "error" };
+  return { status: "ready" };
 }
 
 async function acknowledgeProviderPromptIfNeeded(
