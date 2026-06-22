@@ -11,14 +11,16 @@ const SESSION_COOKIE_NAMES = [
   "__Secure-better-auth.session_token="
 ] as const;
 
-// Session bearer tokens are UUIDs. Kept in sync with the global limiter's `SESSION_UUID`
-// in apps/api/src/server.ts — the route-local limiters must gate on the same shape so a
-// caller cannot vary `Authorization: Bearer <junk-N>` to mint fresh per-route buckets.
-const SESSION_UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+// Session bearer tokens are UUIDs minted lowercase-only (Better Auth emits randomUUID()
+// hex). Kept in sync with the global limiter's `SESSION_UUID` in apps/api/src/server.ts —
+// the route-local limiters must gate on the exact mint shape so a caller cannot vary the
+// case of an uppercase-hex UUID to mint a distinct per-route bucket (#319).
+const SESSION_UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 
-// Per-session MCP bearer tokens are minted as `jst_<uuid>` (see
-// packages/ai/src/gateway/session-tokens.ts). Anything else on the MCP route is unmatched.
-const MCP_TOKEN = /^jst_[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+// Per-session MCP bearer tokens are minted as lowercase `jst_<uuid>` (see
+// packages/ai/src/gateway/session-tokens.ts). The regex accepts only the mint shape so a
+// caller cannot vary the case (e.g. `JST_<uuid>`) to mint a distinct bucket (#319).
+const MCP_TOKEN = /^jst_[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 
 interface RateLimitKeyPolicy {
   /** Returns true when the raw bearer token matches this route's accepted credential shape. */
