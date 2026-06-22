@@ -21,7 +21,7 @@ import {
   Target
 } from "lucide-react";
 import { useMemo, useState } from "react";
-import { Link, useNavigate } from "react-router";
+import { useNavigate } from "react-router";
 
 import type { CalendarEventDto, MeResponse, TaskDto } from "@jarv1s/shared";
 
@@ -29,6 +29,7 @@ import {
   createWellnessCheckin,
   getMedicationSchedule,
   listCalendarEvents,
+  listTaskLists,
   listTasks,
   updateTask
 } from "../api/client";
@@ -36,11 +37,13 @@ import { MedToday } from "../wellness/wellness-today";
 import { ManageMedsModal } from "../wellness/manage-meds-modal";
 import { CheckinModal, type CheckinFormValue } from "../wellness/checkin-modal";
 import { queryKeys } from "../api/query-keys";
+import { TaskDetailsDialog } from "../tasks/task-details-dialog";
 import { createEmptyTodayFeed, type FeedTone, type TodayFeed } from "./feed-source";
 import { isAtRisk, isDoFirst, isDoneToday } from "../tasks/focus";
 import "../styles/wellness-1.css";
 import "../styles/wellness-2.css";
 import "../styles/wellness-3.css";
+import "../styles/kit-tasks-modal.css";
 import "../styles/kit-today.css";
 import "../styles/kit-today-feeds.css";
 import "../styles/kit-today-misc.css";
@@ -55,7 +58,9 @@ export function TodayPage(props: {
   const navigate = useNavigate();
   const feed = props.feed ?? createEmptyTodayFeed();
   const wellnessEnabled = props.wellnessEnabled ?? false;
+  const [dialog, setDialog] = useState<{ readonly id: string } | null>(null);
   const tasksQuery = useQuery({ queryKey: queryKeys.tasks.list, queryFn: () => listTasks() });
+  const listsQuery = useQuery({ queryKey: queryKeys.tasks.lists, queryFn: listTaskLists });
   const eventsQuery = useQuery({
     queryKey: queryKeys.calendar.list,
     queryFn: () => listCalendarEvents()
@@ -112,6 +117,7 @@ export function TodayPage(props: {
 
   const tasks = tasksQuery.data?.tasks ?? [];
   const events = eventsQuery.data?.events ?? [];
+  const lists = listsQuery.data?.lists ?? [];
 
   const open = tasks.filter((t) => t.parentTaskId === null && t.status === "todo");
   // "Priorities" = Do First (important + urgent); "At risk" = due today/soon or overdue.
@@ -187,6 +193,7 @@ export function TodayPage(props: {
                     key={task.id}
                     task={task}
                     onToggle={() => toggleMutation.mutate(task)}
+                    onOpen={() => setDialog({ id: task.id })}
                   />
                 ))
               ) : (
@@ -250,7 +257,12 @@ export function TodayPage(props: {
                 {looseEnds.map((task) => {
                   const drift = driftOf(task);
                   return (
-                    <Link className="loose-row" key={task.id} to={`/tasks/${task.id}`}>
+                    <button
+                      type="button"
+                      className="loose-row"
+                      key={task.id}
+                      onClick={() => setDialog({ id: task.id })}
+                    >
                       <span className="loose-row__ic">
                         <Flag size={15} aria-hidden="true" />
                       </span>
@@ -264,7 +276,7 @@ export function TodayPage(props: {
                           {drift === "overdue" ? "Overdue" : "At risk"}
                         </span>
                       </div>
-                    </Link>
+                    </button>
                   );
                 })}
               </div>
@@ -458,6 +470,16 @@ export function TodayPage(props: {
           theme={theme}
         />
       ) : null}
+
+      {dialog ? (
+        <TaskDetailsDialog
+          open
+          taskId={dialog.id}
+          currentUserLabel="You"
+          lists={lists}
+          onClose={() => setDialog(null)}
+        />
+      ) : null}
     </div>
   );
 }
@@ -503,7 +525,11 @@ function Stat(props: {
   );
 }
 
-function BriefTaskRow(props: { readonly task: TaskDto; readonly onToggle: () => void }) {
+function BriefTaskRow(props: {
+  readonly task: TaskDto;
+  readonly onToggle: () => void;
+  readonly onOpen: () => void;
+}) {
   const { task } = props;
   const [optimisticDone, setOptimisticDone] = useState(task.status === "done");
   const done = optimisticDone;
@@ -530,7 +556,7 @@ function BriefTaskRow(props: { readonly task: TaskDto; readonly onToggle: () => 
           </span>
         </label>
       </span>
-      <Link className="jds-task__main" to={`/tasks/${task.id}`} style={{ textDecoration: "none" }}>
+      <button type="button" className="jds-task__main" onClick={props.onOpen}>
         <div className="jds-task__title">{task.title}</div>
         <div className="jds-task__meta">
           {drift ? (
@@ -545,7 +571,7 @@ function BriefTaskRow(props: { readonly task: TaskDto; readonly onToggle: () => 
           </span>
           {task.dueAt ? <span className="jds-task__time">{shortDate(task.dueAt)}</span> : null}
         </div>
-      </Link>
+      </button>
     </div>
   );
 }
