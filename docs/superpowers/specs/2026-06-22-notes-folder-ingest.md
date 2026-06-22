@@ -38,6 +38,7 @@ are unused by the notes path.
 ## Data
 
 Migration **0102** (reserve 0102–0103):
+
 ```sql
 ALTER TABLE user_preferences ADD COLUMN IF NOT EXISTS
   notes_source_path text DEFAULT NULL;

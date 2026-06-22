@@ -30,11 +30,13 @@ route or provider exists. `GET /api/weather/today` is referenced in UI fixtures 
 ## Data
 
 Migration **0100** (reserve 0100–0101):
+
 ```sql
 ALTER TABLE user_preferences ADD COLUMN IF NOT EXISTS
   weather_location jsonb DEFAULT NULL;
   -- { lat, lon, label } or null (use egress-IP fallback)
 ```
+
 If `user_preferences` doesn't exist, add a `weather_location` column or row to whichever
 user-settings table the onboarding/locale settings use.
 
