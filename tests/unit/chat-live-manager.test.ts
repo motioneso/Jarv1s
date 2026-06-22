@@ -387,6 +387,27 @@ describe("ChatSessionManager", () => {
     expect(b).toContainEqual({ kind: "reply", text: "reply to: hello" });
   });
 
+  it("caps simultaneous subscribers per actor", () => {
+    const { manager } = makeManager();
+    const unsubs = Array.from({ length: 5 }, () => manager.subscribe("user-1", () => {}));
+
+    expect(() => manager.subscribe("user-1", () => {})).toThrow("Too many open chat streams");
+
+    for (const unsubscribe of unsubs) unsubscribe();
+  });
+
+  it("allows another subscriber after unsubscribe frees a slot", () => {
+    const { manager } = makeManager();
+    const unsubs = Array.from({ length: 5 }, () => manager.subscribe("user-1", () => {}));
+
+    unsubs.pop()?.();
+    const unsubscribe = manager.subscribe("user-1", () => {});
+
+    expect(unsubscribe).toBeTypeOf("function");
+    unsubscribe();
+    for (const remaining of unsubs) remaining();
+  });
+
   it("reaps idle sessions; the next turn respawns a NEW engine and replays prior turns", async () => {
     const { manager, persistence, clock, engines } = makeManager();
 
