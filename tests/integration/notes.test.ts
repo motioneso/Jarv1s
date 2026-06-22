@@ -23,7 +23,7 @@ import {
   NOTES_SYNC_QUEUE,
   type NotesSyncJobPayload
 } from "@jarv1s/notes";
-import { connectionStrings, resetEmptyFoundationDatabase } from "./test-database.js";
+import { connectionStrings, resetEmptyFoundationDatabase, setInstanceSetting } from "./test-database.js";
 
 const { Client } = pg;
 
@@ -103,38 +103,7 @@ beforeAll(async () => {
   notesDir = join(tmpdir(), `jarv1s-notes-test-${randomUUID()}`);
   await mkdir(notesDir, { recursive: true });
   appDb = createDatabase({ connectionString: connectionStrings.app, maxConnections: 1 });
-
-  const client = new Client({ connectionString: connectionStrings.bootstrap });
-  await client.connect();
-  try {
-    await client.query(
-      `INSERT INTO app.users (id, email, is_instance_admin)
-       VALUES ($1, 'notes-owner@example.test', false),
-              ($2, 'notes-member@example.test', false)
-       ON CONFLICT DO NOTHING`,
-      ["00000000-0000-4000-8100-000000000001", "00000000-0000-4000-8100-000000000002"]
-    );
-  } finally {
-    await client.end();
-  }
-
-  // createApiServer with registration open
-  const setupServer = createApiServer({ appDb, logger: false });
-  await setupServer.ready();
-  // enable open registration
-  await setupServer.inject({
-    method: "POST",
-    url: "/api/auth/sign-up/email",
-    headers: { "content-type": "application/json" },
-    payload: { name: "Owner", email: "notes-setup-owner@example.test", password: "p" }
-  });
-  await setupServer.close();
-
-  // Use fresh server with open registration
-  const server2 = createApiServer({ appDb, logger: false });
-  await server2.ready();
-  ownerCookie = await signUp(server2, "Owner", `notes-owner-${randomUUID()}@example.test`);
-  await server2.close();
+  await setInstanceSetting("registration.requires_approval", { value: false });
 });
 
 afterAll(async () => {
@@ -315,7 +284,7 @@ describe("POST /api/notes/sync", () => {
         [userId, `sync-mock-${userId}@example.test`]
       );
       await client.query(
-        `INSERT INTO app.preferences (user_id, key, value) VALUES ($1, $2, $3::jsonb) ON CONFLICT (user_id, key) DO UPDATE SET value = EXCLUDED.value`,
+        `INSERT INTO app.preferences (owner_user_id, key, value_json) VALUES ($1, $2, $3::jsonb) ON CONFLICT (owner_user_id, key) DO UPDATE SET value_json = EXCLUDED.value_json`,
         [userId, NOTES_SOURCE_PREFERENCE_KEY, JSON.stringify(notesDir)]
       );
     } finally {

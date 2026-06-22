@@ -166,7 +166,8 @@ describe("Tasks module M1", () => {
       "memory",
       "structured-state",
       "wellness",
-      "weather"
+      "weather",
+      "notes"
     ];
     expect(manifests.map((manifest) => manifest.id)).toEqual(expectedIds);
     expect(registrations.map((registration) => registration.manifest.id)).toEqual(expectedIds);

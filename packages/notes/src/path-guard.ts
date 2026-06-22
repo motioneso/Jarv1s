@@ -1,3 +1,5 @@
+import { normalize } from "node:path";
+
 export class NotesPathError extends Error {
   constructor(
     message: string,
@@ -13,8 +15,9 @@ export class NotesPathError extends Error {
  * Throws NotesPathError if the path escapes the root.
  */
 export function assertWithinRoot(resolvedRoot: string, absoluteFilePath: string): void {
+  const normalizedFile = normalize(absoluteFilePath);
   const rootPrefix = resolvedRoot.endsWith("/") ? resolvedRoot : resolvedRoot + "/";
-  if (absoluteFilePath !== resolvedRoot && !absoluteFilePath.startsWith(rootPrefix)) {
+  if (normalizedFile !== resolvedRoot && !normalizedFile.startsWith(rootPrefix)) {
     throw new NotesPathError(
       `Path "${absoluteFilePath}" is not within allowed root "${resolvedRoot}"`,
       "PATH_NOT_IN_ROOT"

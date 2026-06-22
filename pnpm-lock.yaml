@@ -418,6 +418,9 @@ importers:
       '@jarv1s/module-sdk':
         specifier: workspace:*
         version: link:../module-sdk
+      '@jarv1s/notes':
+        specifier: workspace:*
+        version: link:../notes
       '@jarv1s/notifications':
         specifier: workspace:*
         version: link:../notifications

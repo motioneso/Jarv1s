@@ -9,4 +9,8 @@ export * from "./me-account-routes.js";
 export * from "./source-behavior-routes.js";
 export * from "./bootstrap.js";
 export * from "./host-diagnostics.js";
-export { NOTES_SOURCE_PREFERENCE_KEY, resolveNotesRoots } from "./notes-source-routes.js";
+export {
+  NOTES_SOURCE_PREFERENCE_KEY,
+  resolveNotesRoots,
+  registerNotesSourceRoutes
+} from "./notes-source-routes.js";
