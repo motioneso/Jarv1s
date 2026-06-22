@@ -8,7 +8,7 @@ import {
   SquarePen,
   X
 } from "lucide-react";
-import { type KeyboardEvent, useEffect, useRef, useState } from "react";
+import { type KeyboardEvent, useEffect, useState } from "react";
 
 import {
   clearChat,
@@ -62,16 +62,18 @@ export function ChatDrawer(props: {
 
   // Optimistic user record — shown immediately on send until the SSE stream confirms (#399).
   const [pendingUserText, setPendingUserText] = useState<string | null>(null);
-  // Snapshot of records.length at the moment of send; used to detect when SSE has responded.
-  const turnStartCountRef = useRef(0);
 
-  // #399: clear the optimistic record once the SSE stream delivers new events for this turn.
+  // #399: clear the optimistic record once the SSE stream delivers the matching user record.
+  // Text-based check handles the case where SSE events pre-arrive before send (count stays equal).
   // Safe to double-fire in StrictMode dev — setPendingUserText(null) is idempotent.
   useEffect(() => {
-    if (pendingUserText !== null && props.records.length > turnStartCountRef.current) {
+    if (
+      pendingUserText !== null &&
+      props.records.some((r) => r.kind === "user" && r.text === pendingUserText)
+    ) {
       setPendingUserText(null);
     }
-  }, [props.records.length, pendingUserText]);
+  }, [props.records, pendingUserText]);
 
   // #369: derive chat availability from the SAME onboarding status #365 added. When no provider is
   // connected, the empty state shows the connect-a-provider explainer instead of the seed prompts.
@@ -108,7 +110,6 @@ export function ChatDrawer(props: {
     setSendError(null);
     setNeedsProvider(false);
     setIsSending(true);
-    turnStartCountRef.current = props.records.length;
     setPendingUserText(trimmed);
     void (async () => {
       try {
@@ -130,6 +131,10 @@ export function ChatDrawer(props: {
   const startNewChat = () => {
     setReviewThreadId(null);
     setShowHistory(false);
+    setIsSending(false);
+    setSendError(null);
+    setNeedsProvider(false);
+    setPendingUserText(null);
     void clearChat();
     props.clearRecords();
     void queryClient.invalidateQueries({ queryKey: queryKeys.chat.threads });
@@ -212,7 +217,7 @@ export function ChatDrawer(props: {
         ) : onboardingStatusQuery.isSuccess && !chatAvailable ? (
           <ConnectProviderEmpty isFounder={props.isFounder} />
         ) : (
-          <EmptyState onSend={sendMessage} />
+          <EmptyState onSend={sendMessage} isSending={isSending} />
         )}
         {isWaiting ? (
           <div className="chatd-loading" aria-live="polite" aria-label="Jarvis is thinking">
@@ -427,7 +432,10 @@ function formatShortDate(value: string): string {
   return date.toLocaleDateString(undefined, { month: "short", day: "numeric" });
 }
 
-function EmptyState(props: { readonly onSend: (text: string) => void }) {
+function EmptyState(props: {
+  readonly onSend: (text: string) => void;
+  readonly isSending: boolean;
+}) {
   const tasksQuery = useQuery({ queryKey: queryKeys.tasks.list, queryFn: () => listTasks() });
   const eventsQuery = useQuery({
     queryKey: queryKeys.calendar.list,
@@ -449,6 +457,7 @@ function EmptyState(props: { readonly onSend: (text: string) => void }) {
         {seeds.map((seed) => (
           <button
             className="chatd-sugg__btn"
+            disabled={props.isSending}
             key={seed}
             type="button"
             onClick={() => props.onSend(seed)}
