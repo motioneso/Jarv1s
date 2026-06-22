@@ -25,11 +25,7 @@ function cookieHeader(headers: OutgoingHttpHeaders): string {
   return cookies.map((cookie) => cookie.split(";", 1)[0]).join("; ");
 }
 
-function makeOpenMeteoResponse(
-  temp: number,
-  feelsLike: number,
-  wmoCode: number
-): Response {
+function makeOpenMeteoResponse(temp: number, feelsLike: number, wmoCode: number): Response {
   return new Response(
     JSON.stringify({
       current: {

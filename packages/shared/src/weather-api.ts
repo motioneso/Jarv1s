@@ -28,7 +28,14 @@ export interface GetWeatherLocationResponse {
 export type PutWeatherLocationRequest = WeatherLocationDto | null;
 export type PutWeatherLocationResponse = GetWeatherLocationResponse;
 
-const weatherIconValues = ["sun", "cloud", "cloud-sun", "cloud-rain", "cloud-snow", "wind"] as const;
+const weatherIconValues = [
+  "sun",
+  "cloud",
+  "cloud-sun",
+  "cloud-rain",
+  "cloud-snow",
+  "wind"
+] as const;
 
 const weatherTodaySchema = {
   type: "object",
