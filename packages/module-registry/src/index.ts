@@ -108,6 +108,7 @@ import {
   wellnessModuleManifest,
   wellnessModuleSqlMigrationDirectory
 } from "@jarv1s/wellness";
+import { registerWeatherRoutes, weatherModuleManifest } from "@jarv1s/weather";
 
 import { assertModulesCompatible } from "./compat-gate.js";
 import {
@@ -249,6 +250,8 @@ export interface BuiltInRouteDependencies {
    * routes fail closed (500).
    */
   readonly onboardingLogin?: OnboardingLoginDependencies;
+  /** TEST-ONLY. Inject a fake fetch for weather (and any other external HTTP) without real network. */
+  readonly fetchFn?: typeof fetch;
 }
 
 export interface BuiltInWorkerDependencies {
@@ -525,6 +528,18 @@ const BUILT_IN_MODULES: readonly BuiltInModuleRegistration[] = [
       registerWellnessRoutes(server, {
         resolveAccessContext: deps.resolveAccessContext,
         dataContext: deps.dataContext
+      })
+  },
+  {
+    manifest: weatherModuleManifest,
+    sqlMigrationDirectories: [],
+    queueDefinitions: [],
+    registerRoutes: (server, deps) =>
+      registerWeatherRoutes(server, {
+        dataContext: deps.dataContext,
+        resolveAccessContext: deps.resolveAccessContext,
+        preferencesRepo: new PreferencesRepository(),
+        fetchFn: deps.fetchFn
       })
   }
 ];

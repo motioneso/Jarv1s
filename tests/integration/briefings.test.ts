@@ -172,7 +172,8 @@ describe("Briefings module M6 read-only scheduled summaries", () => {
       "briefings",
       "memory",
       "structured-state",
-      "wellness"
+      "wellness",
+      "weather"
     ]);
     expect(registration?.manifest.database?.ownedTables).toEqual([
       "app.briefing_definitions",

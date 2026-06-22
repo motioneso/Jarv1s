@@ -1,0 +1,76 @@
+import type { WeatherIcon, WeatherTodayDto } from "@jarv1s/shared";
+
+// WMO Weather interpretation codes → condition label + icon
+// https://open-meteo.com/en/docs#weathervariables
+const WMO_CODE_MAP: Record<number, { condition: string; icon: WeatherIcon }> = {
+  0: { condition: "Clear sky", icon: "sun" },
+  1: { condition: "Mainly clear", icon: "sun" },
+  2: { condition: "Partly cloudy", icon: "cloud-sun" },
+  3: { condition: "Overcast", icon: "cloud" },
+  45: { condition: "Foggy", icon: "cloud" },
+  48: { condition: "Icy fog", icon: "cloud" },
+  51: { condition: "Light drizzle", icon: "cloud-rain" },
+  53: { condition: "Drizzle", icon: "cloud-rain" },
+  55: { condition: "Heavy drizzle", icon: "cloud-rain" },
+  56: { condition: "Freezing drizzle", icon: "cloud-rain" },
+  57: { condition: "Heavy freezing drizzle", icon: "cloud-rain" },
+  61: { condition: "Light rain", icon: "cloud-rain" },
+  63: { condition: "Rain", icon: "cloud-rain" },
+  65: { condition: "Heavy rain", icon: "cloud-rain" },
+  66: { condition: "Freezing rain", icon: "cloud-rain" },
+  67: { condition: "Heavy freezing rain", icon: "cloud-rain" },
+  71: { condition: "Light snow", icon: "cloud-snow" },
+  73: { condition: "Snow", icon: "cloud-snow" },
+  75: { condition: "Heavy snow", icon: "cloud-snow" },
+  77: { condition: "Snow grains", icon: "cloud-snow" },
+  80: { condition: "Light showers", icon: "cloud-rain" },
+  81: { condition: "Showers", icon: "cloud-rain" },
+  82: { condition: "Heavy showers", icon: "cloud-rain" },
+  85: { condition: "Snow showers", icon: "cloud-snow" },
+  86: { condition: "Heavy snow showers", icon: "cloud-snow" },
+  95: { condition: "Thunderstorm", icon: "cloud-rain" },
+  96: { condition: "Thunderstorm with hail", icon: "cloud-rain" },
+  99: { condition: "Thunderstorm with heavy hail", icon: "cloud-rain" }
+};
+
+function resolveWmoCode(code: number): { condition: string; icon: WeatherIcon } {
+  return WMO_CODE_MAP[code] ?? { condition: "Unknown", icon: "cloud" };
+}
+
+interface OpenMeteoResponse {
+  current: {
+    temperature_2m: number;
+    apparent_temperature: number;
+    weather_code: number;
+  };
+}
+
+export async function fetchOpenMeteoForecast(
+  lat: number,
+  lon: number,
+  unit: "metric" | "imperial",
+  location: string,
+  fetchFn: typeof fetch = fetch
+): Promise<WeatherTodayDto> {
+  const tempUnit = unit === "imperial" ? "fahrenheit" : "celsius";
+  const url =
+    `https://api.open-meteo.com/v1/forecast` +
+    `?latitude=${lat}&longitude=${lon}` +
+    `&current=temperature_2m,apparent_temperature,weather_code` +
+    `&temperature_unit=${tempUnit}`;
+
+  const response = await fetchFn(url);
+  if (!response.ok) {
+    throw new Error(`Open-Meteo returned ${response.status}`);
+  }
+  const data = (await response.json()) as OpenMeteoResponse;
+  const { condition, icon } = resolveWmoCode(data.current.weather_code);
+  return {
+    temp: Math.round(data.current.temperature_2m),
+    feelsLike: Math.round(data.current.apparent_temperature),
+    condition,
+    icon,
+    location,
+    unit
+  };
+}
