@@ -486,9 +486,25 @@
   gap: 0.3rem;
 }
 
-/* Mobile: deliberate wrap for the tasks toolbar so controls don't orphan a
-   single control on its own line when lists are toggled (#388). Loads after
-   kit-tasks.css so these override the base .tk-bar rules. */
+/* Desktop: r1 wrapper transparent to layout; search always visible; msrch hidden. */
+.tk-bar__r1 {
+  display: contents;
+}
+.tk-bar__search {
+  display: flex;
+  align-items: center;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.tk-bar__search .tk-tagfield {
+  flex: 1;
+}
+.tk-msrch {
+  display: none;
+}
+
+/* Mobile (#420): two-row layout — lists on row 1, chips+filters+search on row 2. Loads
+   after kit-tasks.css so these override the base .tk-bar rules. */
 @media (max-width: 560px) {
   .tk-bar {
     gap: 8px 10px;
@@ -499,8 +515,46 @@
   .tk-bar__sep {
     display: none;
   }
-  .tk-tagfield {
+  /* Row 1: lists dropdown full-width at the top. */
+  .tk-bar__r1 {
+    display: flex;
+    order: -1;
     flex: 1 1 100%;
+  }
+  .tk-bar__r1 .tk-listfilter {
+    flex: 1;
+  }
+  .tk-bar__r1 .tk-listbtn {
+    width: 100%;
+    justify-content: flex-start;
+  }
+  /* Row 2: search hidden by default, revealed by toggle. */
+  .tk-bar__search {
+    display: none;
+    flex: 1 1 100%;
+  }
+  .tk-bar__search.is-open {
+    display: flex;
+  }
+  /* Search toggle button — mobile only. */
+  .tk-msrch {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    padding: 0;
+    background: transparent;
+    border: none;
+    border-radius: 6px;
+    color: var(--text-faint);
+    cursor: pointer;
+    flex-shrink: 0;
+  }
+  .tk-msrch:hover,
+  .tk-msrch.is-active {
+    background: var(--surface-hover, rgba(0, 0, 0, 0.06));
+    color: var(--text-main);
   }
   /* #404: hide the "· N hidden" count text on mobile so the list-filter button
      stays narrow when lists are excluded. Users open the dropdown to see state. */

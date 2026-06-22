@@ -54,8 +54,12 @@ export function TasksPage() {
   const [search, setSearch] = useState("");
   const [listStates, setListStates] = useState<Record<string, ListState>>({});
   const [tagFilter, setTagFilter] = useState<string[]>([]);
-  // Modal: null = closed; { id: string } = edit; { id: null } = create.
-  const [dialog, setDialog] = useState<{ readonly id: string | null } | null>(null);
+  const [showMobileSearch, setShowMobileSearch] = useState(false);
+  // Modal: null = closed; { id: string } = edit; { id: null, defaultName? } = create.
+  const [dialog, setDialog] = useState<{
+    readonly id: string | null;
+    readonly defaultName?: string;
+  } | null>(null);
 
   const tasksQuery = useQuery({ queryKey: queryKeys.tasks.list, queryFn: () => listTasks() });
   const listsQuery = useQuery({ queryKey: queryKeys.tasks.lists, queryFn: listTaskLists });
@@ -113,6 +117,18 @@ export function TasksPage() {
   return (
     <section className="tasks-wrap tasks--comfortable tasks--panels" aria-label="Tasks">
       <div className="tk-bar">
+        <div className="tk-bar__r1">
+          <ListFilterMenu
+            lists={lists}
+            stateOf={stateOf}
+            soloIds={soloIds}
+            counts={listCounts}
+            allCount={listCountTotal}
+            onCycle={cycleList}
+            onReset={() => setListStates({})}
+          />
+        </div>
+
         <div className="jds-segmented" role="group" aria-label="Status filter">
           {statusFilters.map((status) => (
             <button
@@ -132,34 +148,35 @@ export function TasksPage() {
 
         <span className="tk-bar__sep" />
 
-        <ListFilterMenu
-          lists={lists}
-          stateOf={stateOf}
-          soloIds={soloIds}
-          counts={listCounts}
-          allCount={listCountTotal}
-          onCycle={cycleList}
-          onReset={() => setListStates({})}
-        />
-
         <TagFilter
           all={allTags}
           active={tagFilter}
           onAdd={(name) => setTagFilter((a) => (a.includes(name) ? a : [...a, name]))}
         />
 
-        <label className="tk-tagfield">
-          <span className="ic">
-            <Search size={14} aria-hidden="true" />
-          </span>
-          <input
-            aria-label="Search tasks"
-            onChange={(event) => setSearch(event.target.value)}
-            placeholder="Search tasks…"
-            type="search"
-            value={search}
-          />
-        </label>
+        <div className={`tk-bar__search${showMobileSearch ? " is-open" : ""}`}>
+          <label className="tk-tagfield">
+            <span className="ic">
+              <Search size={14} aria-hidden="true" />
+            </span>
+            <input
+              aria-label="Search tasks"
+              onChange={(event) => setSearch(event.target.value)}
+              placeholder="Search tasks…"
+              type="search"
+              value={search}
+            />
+          </label>
+        </div>
+
+        <button
+          aria-label="Toggle search"
+          className={`tk-msrch${showMobileSearch ? " is-active" : ""}`}
+          type="button"
+          onClick={() => setShowMobileSearch((v) => !v)}
+        >
+          <Search size={15} aria-hidden="true" />
+        </button>
 
         <span className="tk-bar__spacer" />
 
@@ -247,7 +264,7 @@ export function TasksPage() {
 
       <TaskCapture
         defaultListId={soloIds.length === 1 ? soloIds[0] : undefined}
-        onDetails={() => setDialog({ id: null })}
+        onDetails={(name) => setDialog({ id: null, defaultName: name })}
       />
 
       {tasksQuery.isLoading ? (
@@ -288,6 +305,7 @@ export function TasksPage() {
           open
           taskId={dialog.id}
           defaultListId={soloIds.length === 1 ? soloIds[0] : lists[0]?.id}
+          defaultTitle={dialog.defaultName}
           currentUserLabel="You"
           lists={lists}
           onClose={() => setDialog(null)}

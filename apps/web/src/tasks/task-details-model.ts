@@ -23,9 +23,9 @@ export interface TaskDetailsFormState {
   readonly repeatEnd: string;
 }
 
-export function blankTaskDetailsForm(defaultListId = ""): TaskDetailsFormState {
+export function blankTaskDetailsForm(defaultListId = "", defaultTitle = ""): TaskDetailsFormState {
   return {
-    title: "",
+    title: defaultTitle,
     description: "",
     status: "todo",
     listId: defaultListId,

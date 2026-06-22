@@ -207,6 +207,15 @@ export class ChatRepository {
       .execute();
   }
 
+  async updateThreadTitle(scopedDb: DataContextDb, threadId: string, title: string): Promise<void> {
+    assertDataContextDb(scopedDb);
+    await scopedDb.db
+      .updateTable("app.chat_threads")
+      .set({ title })
+      .where("id", "=", threadId)
+      .execute();
+  }
+
   /**
    * Bumps a thread's last_active_at to now so it becomes the current conversation.
    * Owner-scoped via RLS; app_runtime holds UPDATE on chat_threads.

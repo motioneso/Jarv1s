@@ -113,6 +113,11 @@ export class DataContextChatPersistence implements ChatPersistencePort {
       const storedTurns = allMessages.filter(
         (m) => m.status === "stored" && (m.role === "user" || m.role === "assistant")
       );
+      // Auto-title the thread from the first user turn (#403).
+      if (storedTurns.length === 2 && thread.title === DEFAULT_CONVERSATION_TITLE) {
+        await this.chat.updateThreadTitle(scopedDb, thread.id, deriveChatTitle(userText));
+      }
+
       if (storedTurns.length > k) {
         const oldTurns = storedTurns.slice(0, -k).map((m) => ({
           role: m.role as "user" | "assistant",
@@ -200,6 +205,14 @@ function toLiveProvider(model: AiConfiguredModelSafeRow): ProviderKind {
 function getReplayK(): number {
   const val = process.env.JARVIS_CHAT_REPLAY_K;
   return val ? parseInt(val, 10) : 10;
+}
+
+function deriveChatTitle(userText: string): string {
+  const first = userText.split(/[.!?\n]/)[0] ?? userText;
+  const cleaned = first.replace(/[^\S\r\n]+/g, " ").trim();
+  const capped = cleaned.length > 60 ? `${cleaned.slice(0, 57).trimEnd()}…` : cleaned;
+  const titled = capped.charAt(0).toUpperCase() + capped.slice(1);
+  return titled || DEFAULT_CONVERSATION_TITLE;
 }
 
 function buildRollingSummary(
