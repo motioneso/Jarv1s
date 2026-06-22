@@ -91,7 +91,11 @@ function isInQuietHours(now: Date, settings: QuietHoursSettings, tz: string): bo
   return cur >= start && cur < end;
 }
 
-export function computeDeferredUntil(now: Date, settings: QuietHoursSettings, tz: string): Date | null {
+export function computeDeferredUntil(
+  now: Date,
+  settings: QuietHoursSettings,
+  tz: string
+): Date | null {
   if (!isInQuietHours(now, settings, tz)) return null;
   const [eh, em] = parseHHMM(settings.end);
   const endTotalMin = eh * 60 + em;
