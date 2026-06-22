@@ -13,7 +13,8 @@ export { validateToolInput, ToolInputValidationError } from "./input-validation.
 export {
   sanitizeAssistantToolResult,
   boundedAssistantToolResultData,
-  capRenderedToolResult
+  capRenderedToolResult,
+  renderAndCap
 } from "./output-validation.js";
 export type {
   ActiveModulesResolver,

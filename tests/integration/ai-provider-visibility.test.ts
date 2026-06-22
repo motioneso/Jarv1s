@@ -236,10 +236,10 @@ describe("AI provider visibility and censoring", () => {
     expect(res.statusCode).toBe(200);
     const body = res.json();
     // Only the active admin model should be present
-    expect(body.settings.allowedModels).toHaveLength(1);
-    expect(body.settings.allowedModels[0].displayName).toBe("GPT-4 Admin");
+    expect(body.settings.selectableOverrideModels).toHaveLength(1);
+    expect(body.settings.selectableOverrideModels[0].displayName).toBe("GPT-4 Admin");
     // Should be censored
-    expect(body.settings.allowedModels[0].providerKind).toBe(null);
-    expect(body.settings.allowedModels[0].providerDisplayName).toBe("Instance default");
+    expect(body.settings.selectableOverrideModels[0].providerKind).toBe(null);
+    expect(body.settings.selectableOverrideModels[0].providerDisplayName).toBe("Instance default");
   });
 });

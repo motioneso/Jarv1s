@@ -19,7 +19,10 @@ export interface ResolveChatModelOverrideInput<T extends ChatModelOverrideCandid
 export interface ResolveChatModelOverrideResult<T extends ChatModelOverrideCandidate> {
   readonly selectedModel: T | null;
   readonly effectiveOverrideModelId: string | null;
+  /** All models shown in the UI (includes the instance default even if not user-overridable). */
   readonly allowedModels: readonly T[];
+  /** Models the user may actually select as an override (allowUserOverride=true only). */
+  readonly selectableOverrideModels: readonly T[];
 }
 
 export function resolveChatModelOverride<T extends ChatModelOverrideCandidate>(
@@ -41,7 +44,8 @@ export function resolveChatModelOverride<T extends ChatModelOverrideCandidate>(
   return {
     selectedModel,
     effectiveOverrideModelId: override?.id ?? null,
-    allowedModels
+    allowedModels,
+    selectableOverrideModels: allowed
   };
 }
 

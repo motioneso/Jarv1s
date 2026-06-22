@@ -219,7 +219,7 @@ export interface ChatModelOverrideSettingsDto {
   readonly effectiveOverrideModelId: string | null;
   readonly defaultModel: AiConfiguredModelDto | null;
   readonly selectedModel: AiConfiguredModelDto | null;
-  readonly allowedModels: readonly AiConfiguredModelDto[];
+  readonly selectableOverrideModels: readonly AiConfiguredModelDto[];
 }
 
 export interface GetChatModelOverrideSettingsResponse {
@@ -742,7 +742,7 @@ const chatModelOverrideSettingsSchema = {
     "effectiveOverrideModelId",
     "defaultModel",
     "selectedModel",
-    "allowedModels"
+    "selectableOverrideModels"
   ],
   properties: {
     overrideEnabled: { type: "boolean" },
@@ -750,7 +750,7 @@ const chatModelOverrideSettingsSchema = {
     effectiveOverrideModelId: { type: ["string", "null"] },
     defaultModel: { anyOf: [aiConfiguredModelSchema, { type: "null" }] },
     selectedModel: { anyOf: [aiConfiguredModelSchema, { type: "null" }] },
-    allowedModels: { type: "array", items: aiConfiguredModelSchema }
+    selectableOverrideModels: { type: "array", items: aiConfiguredModelSchema }
   }
 } as const;
 
