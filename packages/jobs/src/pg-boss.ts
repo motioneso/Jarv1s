@@ -1,9 +1,7 @@
 import {
   PgBoss,
-  type CommandResponse,
   type ConstructorOptions,
   type Job,
-  type JobWithMetadata,
   type Queue,
   type SendOptions,
   type WorkOptions
@@ -86,49 +84,6 @@ export async function sendJob<T extends ActorScopedJobPayload>(
 ): Promise<string | null> {
   assertMetadataOnlyPayload(payload);
   return options === undefined ? boss.send(queue, payload) : boss.send(queue, payload, options);
-}
-
-/**
- * Actor-scoped wrapper for client-supplied job ids. Use this instead of raw
- * boss.getJobById() whenever the id came from an API/client boundary.
- */
-export async function getOwnedJob<T extends ActorScopedJobPayload>(
-  boss: PgBoss,
-  queue: string,
-  jobId: string,
-  actorUserId: string
-): Promise<JobWithMetadata<T> | null> {
-  assertUuid(actorUserId, "actorUserId");
-
-  const job = await boss.getJobById<T>(queue, jobId);
-  if (!job) {
-    return null;
-  }
-
-  if (job.data.actorUserId !== actorUserId) {
-    throw new Error(`Job ${jobId} is not owned by actor ${actorUserId}`);
-  }
-
-  return job;
-}
-
-/**
- * Actor-scoped cancellation wrapper. Missing jobs return null; wrong-actor jobs
- * throw before cancellation so raw boss.cancel() is never invoked on an
- * untrusted id.
- */
-export async function cancelOwnedJob(
-  boss: PgBoss,
-  queue: string,
-  jobId: string,
-  actorUserId: string
-): Promise<CommandResponse | null> {
-  const job = await getOwnedJob(boss, queue, jobId, actorUserId);
-  if (!job) {
-    return null;
-  }
-
-  return boss.cancel(queue, jobId);
 }
 
 export interface PgBossClientHooks {
