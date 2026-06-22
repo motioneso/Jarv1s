@@ -290,7 +290,9 @@ export class NotificationsRepository {
       )
       .select(({ fn }) => fn.count<string>("notifications.id").as("unread_count"))
       .where("reads.notification_id", "is", null)
-      .where(sql<SqlBool>`(notifications.deferred_until IS NULL OR now() >= notifications.deferred_until)`)
+      .where(
+        sql<SqlBool>`(notifications.deferred_until IS NULL OR now() >= notifications.deferred_until)`
+      )
       .executeTakeFirstOrThrow();
 
     return Number(row.unread_count);
@@ -316,6 +318,8 @@ export class NotificationsRepository {
         "notifications.deferred_until as deferred_until",
         "reads.read_at as read_at"
       ])
-      .where(sql<SqlBool>`(notifications.deferred_until IS NULL OR now() >= notifications.deferred_until)`);
+      .where(
+        sql<SqlBool>`(notifications.deferred_until IS NULL OR now() >= notifications.deferred_until)`
+      );
   }
 }

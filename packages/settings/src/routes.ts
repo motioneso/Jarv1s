@@ -48,6 +48,7 @@ import { registerDataExportRoutes } from "./data-export-routes.js";
 import type { HostDiagnosticsProvider } from "./host-diagnostics.js";
 import { registerHostDiagnosticsRoutes } from "./host-diagnostics-routes.js";
 import { registerLocaleRoutes } from "./locale-routes.js";
+import { registerQuietHoursRoutes } from "./quiet-hours-routes.js";
 import {
   registerMeAccountRoutes,
   type HasPasswordCredentialPort,
@@ -128,6 +129,7 @@ export function registerSettingsRoutes(
   };
   const bootstrapHelper = new BootstrapHelper(dependencies.rootDb);
   registerLocaleRoutes(server, { ...dependencies, preferencesRepository });
+  registerQuietHoursRoutes(server, { ...dependencies, preferencesRepository });
   registerMeSessionsRoutes(server, {
     resolveAccessContext: dependencies.resolveAccessContext,
     meSessions: dependencies.meSessions
