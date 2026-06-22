@@ -216,6 +216,10 @@ describe("MVP foundation scaffold", () => {
         {
           version: "0103",
           name: "0103_provider_install_state.sql"
+        },
+        {
+          version: "0104",
+          name: "0104_wellness_medication_logs_prn_reason_optional.sql"
         }
       ]);
     } finally {
