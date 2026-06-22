@@ -55,6 +55,10 @@ export function MemoryPane(_props: PaneProps) {
     },
     onError: (error) => toast(readError(error), { tone: "drift" })
   });
+  // Asymmetry by design (product decision — do not normalise without UX sign-off):
+  // Confirm fires immediately with no dialog; Reject shows a danger confirmation dialog.
+  // Both are irreversible provenance flips (inferred → remembered / rejected). The
+  // asymmetry reflects the lower perceived risk of accepting a pattern vs. suppressing one.
   const confirmMutation = useMutation({
     mutationFn: (id: string) => confirmMemoryFact(id),
     onSuccess: () => {
