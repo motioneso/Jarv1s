@@ -5,7 +5,7 @@ import {
   type AdherenceDoseSummaryItemDto
 } from "@jarv1s/shared";
 import { emoColor, MOOD_BAND_LABELS, type Theme } from "./emotion-taxonomy";
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useLayoutEffect } from "react";
 
 const VW = 760; // SVG viewBox width
 
@@ -80,6 +80,11 @@ export function WellnessChart({ days, theme = "light" }: Props) {
   const [pinned, setPinned] = useState<number | null>(null);
   const active = pinned != null ? pinned : hover;
   const containerRef = useRef<HTMLDivElement>(null);
+
+  useLayoutEffect(() => {
+    const el = containerRef.current;
+    if (el) el.scrollLeft = el.scrollWidth;
+  }, [days.length]);
 
   useEffect(() => {
     if (pinned === null) return;
