@@ -140,7 +140,6 @@
   color: var(--text);
   background: var(--surface-2);
   border: 1px solid var(--border-subtle);
-  border-left: 3px solid var(--em-tint, var(--border-strong));
   border-radius: var(--radius-md);
   padding: 11px 14px;
 }
