@@ -250,6 +250,8 @@ export interface BuiltInRouteDependencies {
    * routes fail closed (500).
    */
   readonly onboardingLogin?: OnboardingLoginDependencies;
+  /** TEST-ONLY. Inject a fake fetch for weather (and any other external HTTP) without real network. */
+  readonly fetchFn?: typeof fetch;
 }
 
 export interface BuiltInWorkerDependencies {
@@ -536,7 +538,8 @@ const BUILT_IN_MODULES: readonly BuiltInModuleRegistration[] = [
       registerWeatherRoutes(server, {
         dataContext: deps.dataContext,
         resolveAccessContext: deps.resolveAccessContext,
-        preferencesRepo: new PreferencesRepository()
+        preferencesRepo: new PreferencesRepository(),
+        fetchFn: deps.fetchFn
       })
   }
 ];

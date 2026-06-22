@@ -68,6 +68,8 @@ export interface CreateApiServerOptions {
     readonly manifests: readonly JarvisModuleManifest[];
     readonly routes: readonly { method: string; url: string }[];
   };
+  /** TEST-ONLY. Injected fetch for weather HTTP calls. */
+  readonly fetchFn?: typeof fetch;
 }
 
 export interface ApiServerConfig {
@@ -327,7 +329,8 @@ export function createApiServer(options: CreateApiServerOptions = {}) {
       googleConnectionService,
       googleApiClient,
       connectorsRepository,
-      hostDiagnostics
+      hostDiagnostics,
+      fetchFn: options.fetchFn
     });
 
     // Test-only seam (ADR 0009 §4 verification): register synthetic guarded routes on a
