@@ -908,15 +908,9 @@ describe("Tasks module M1", () => {
       const created = await dataContext.withDataContext(userAContext(), (scopedDb) =>
         repository.create(scopedDb, {
           title: "TZ test — past task",
-          description: null,
           status: "todo",
           priority: 3,
-          dueAt: pastDate,
-          listId: undefined,
-          doAt: null,
-          effort: null,
-          parentTaskId: null,
-          recurrence: null
+          dueAt: pastDate
         })
       );
 
@@ -935,15 +929,9 @@ describe("Tasks module M1", () => {
       const created = await dataContext.withDataContext(userAContext(), (scopedDb) =>
         repository.create(scopedDb, {
           title: "TZ test — future task",
-          description: null,
           status: "todo",
           priority: 3,
-          dueAt: futureDate,
-          listId: undefined,
-          doAt: null,
-          effort: null,
-          parentTaskId: null,
-          recurrence: null
+          dueAt: futureDate
         })
       );
 
@@ -985,15 +973,9 @@ describe("Tasks module M1", () => {
       const created = await dataContext.withDataContext(userAContext(), (scopedDb) =>
         repository.create(scopedDb, {
           title: "TZ test — LA locale past task",
-          description: null,
           status: "todo",
           priority: 3,
-          dueAt: pastDate,
-          listId: undefined,
-          doAt: null,
-          effort: null,
-          parentTaskId: null,
-          recurrence: null
+          dueAt: pastDate
         })
       );
 
