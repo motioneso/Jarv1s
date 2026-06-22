@@ -60,7 +60,10 @@ import {
   findAssistantToolFromManifests,
   listAssistantToolsFromManifests
 } from "./assistant-tools.js";
-import { renderAndCap } from "./gateway/output-validation.js";
+import {
+  sanitizeAssistantToolResult,
+  boundedAssistantToolResultData
+} from "./gateway/output-validation.js";
 import { ToolInputValidationError, validateToolInput } from "./gateway/input-validation.js";
 import { cliAvailable, type ProviderKind as CliProviderKind } from "./cli-availability.js";
 import { registerAiCapabilityRouteRoutes } from "./capability-route-routes.js";
@@ -513,7 +516,8 @@ export function registerAiRoutes(
             chatSessionId: ""
           }).then((rawResult): Record<string, unknown> => {
             const toolResult: ToolResult = { ...rawResult, data: rawResult.data ?? {} };
-            return renderAndCap(manifestTool.outputSchema, toolResult);
+            const sanitized = sanitizeAssistantToolResult(manifestTool.outputSchema, toolResult);
+            return boundedAssistantToolResultData(sanitized);
           })
         );
 
