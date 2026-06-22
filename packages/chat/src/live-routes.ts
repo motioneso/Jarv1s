@@ -41,6 +41,7 @@ import type { ChatSessionRuntime } from "./live/runtime.js";
 // Override the limit via env: JARVIS_RL_CHAT_MAX=<n> (requests per minute, default 20).
 const CHAT_MAX = parsePositiveIntEnv(process.env.JARVIS_RL_CHAT_MAX, 20);
 const CHAT_MUTATION_MAX = parsePositiveIntEnv(process.env.JARVIS_RL_CHAT_MUTATION_MAX, 20);
+const MAX_CHAT_TURN_TEXT_LENGTH = 32_000;
 
 export interface ChatLiveRoutesDependencies {
   readonly resolveAccessContext: (request: FastifyRequest) => Promise<AccessContext>;
@@ -68,10 +69,11 @@ export function registerChatLiveRoutes(
       const access = await resolveOr401(dependencies, request, reply);
       if (!access) return reply;
 
-      const text = readText(request.body);
-      if (text === undefined) {
-        return reply.code(400).send({ error: "text is required" });
+      const textResult = readText(request.body);
+      if ("error" in textResult) {
+        return reply.code(400).send({ error: textResult.error });
       }
+      const { text } = textResult;
 
       try {
         const userName = await runtime.resolveUserName(access.actorUserId);
@@ -239,10 +241,13 @@ function handleLiveRouteError(error: unknown, reply: FastifyReply) {
   return reply.code(500).send({ error: "Live chat is temporarily unavailable." });
 }
 
-function readText(body: unknown): string | undefined {
-  if (!body || typeof body !== "object" || Array.isArray(body)) return undefined;
+function readText(body: unknown): { text: string } | { error: string } {
+  if (!body || typeof body !== "object" || Array.isArray(body)) return { error: "text is required" };
   const value = (body as Record<string, unknown>).text;
-  if (typeof value !== "string") return undefined;
+  if (typeof value !== "string") return { error: "text is required" };
+  if (value.length > MAX_CHAT_TURN_TEXT_LENGTH) {
+    return { error: `text must be ${MAX_CHAT_TURN_TEXT_LENGTH} characters or fewer` };
+  }
   const trimmed = value.trim();
-  return trimmed.length > 0 ? trimmed : undefined;
+  return trimmed.length > 0 ? { text: trimmed } : { error: "text is required" };
 }

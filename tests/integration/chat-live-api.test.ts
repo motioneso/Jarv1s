@@ -252,6 +252,18 @@ describe("Chat live API (turn / clear / switch / stream)", () => {
     expect(response.statusCode).toBe(401);
   });
 
+  it("POST /api/chat/turn rejects text over the per-turn max before processing", async () => {
+    const response = await server.inject({
+      method: "POST",
+      url: "/api/chat/turn",
+      headers: { authorization: `Bearer ${ids.sessionA}` },
+      payload: { text: "x".repeat(32_001) }
+    });
+
+    expect(response.statusCode).toBe(400);
+    expect(response.json<{ error: string }>().error).toBe("text must be 32000 characters or fewer");
+  });
+
   it("POST /api/chat/turn lets another user use the admin-configured instance default", async () => {
     const response = await server.inject({
       method: "POST",
