@@ -24,6 +24,7 @@ import {
   TASKS_RECURRENCE_QUEUE,
   type DeferredTaskStatusPayload,
   TaskBreakdownRepository,
+  TaskDriftRepository,
   TaskListsRepository,
   TasksRepository,
   registerTasksJobWorkers,
@@ -894,5 +895,114 @@ describe("Tasks module M1", () => {
     expect(tags.map((t) => t.name)).toContain("Visa");
     expect(tag.list_id).toBe(a.id);
     expect(tag.owner_user_id).toBe(ids.userA);
+  });
+
+  describe("TaskDriftRepository timezone awareness", () => {
+    const driftRepository = new TaskDriftRepository();
+
+    it("returns a task with due_at clearly in the past as overdue (no locale set)", async () => {
+      // due_at = 10 days ago at noon UTC — overdue in any timezone
+      const pastDate = new Date(Date.now() - 10 * 24 * 60 * 60 * 1000);
+      pastDate.setUTCHours(12, 0, 0, 0);
+
+      const created = await dataContext.withDataContext(userAContext(), (scopedDb) =>
+        repository.create(scopedDb, {
+          title: "TZ test — past task",
+          description: null,
+          status: "todo",
+          priority: 3,
+          dueAt: pastDate,
+          listId: undefined,
+          doAt: null,
+          effort: null,
+          parentTaskId: null,
+          recurrence: null
+        })
+      );
+
+      const overdue = await dataContext.withDataContext(userAContext(), (scopedDb) =>
+        driftRepository.getOverdue(scopedDb)
+      );
+
+      expect(overdue.some((t) => t.id === created.id)).toBe(true);
+    });
+
+    it("does not return a task with due_at clearly in the future as overdue", async () => {
+      // due_at = 10 days from now at noon UTC — not overdue in any timezone
+      const futureDate = new Date(Date.now() + 10 * 24 * 60 * 60 * 1000);
+      futureDate.setUTCHours(12, 0, 0, 0);
+
+      const created = await dataContext.withDataContext(userAContext(), (scopedDb) =>
+        repository.create(scopedDb, {
+          title: "TZ test — future task",
+          description: null,
+          status: "todo",
+          priority: 3,
+          dueAt: futureDate,
+          listId: undefined,
+          doAt: null,
+          effort: null,
+          parentTaskId: null,
+          recurrence: null
+        })
+      );
+
+      const overdue = await dataContext.withDataContext(userAContext(), (scopedDb) =>
+        driftRepository.getOverdue(scopedDb)
+      );
+
+      expect(overdue.some((t) => t.id === created.id)).toBe(false);
+    });
+
+    it("reads user timezone from locale preference and uses it for overdue classification", async () => {
+      // Set user A's locale to America/Los_Angeles
+      await dataContext.withDataContext(userAContext(), (scopedDb) =>
+        scopedDb.db
+          .insertInto("app.preferences")
+          .values({
+            owner_user_id: sql<string>`app.current_actor_user_id()`,
+            key: "locale",
+            value_json: sql<Record<string, unknown>>`${JSON.stringify({ timezone: "America/Los_Angeles", region: "en-US", dateFormat: "24" })}::jsonb`,
+            updated_at: new Date()
+          })
+          .onConflict((oc) =>
+            oc.columns(["owner_user_id", "key"]).doUpdateSet({
+              value_json: sql<Record<string, unknown>>`${JSON.stringify({ timezone: "America/Los_Angeles", region: "en-US", dateFormat: "24" })}::jsonb`,
+              updated_at: new Date()
+            })
+          )
+          .execute()
+      );
+
+      // A task 5 days in the past is overdue in any timezone (including Los Angeles)
+      const pastDate = new Date(Date.now() - 5 * 24 * 60 * 60 * 1000);
+      pastDate.setUTCHours(12, 0, 0, 0);
+
+      const created = await dataContext.withDataContext(userAContext(), (scopedDb) =>
+        repository.create(scopedDb, {
+          title: "TZ test — LA locale past task",
+          description: null,
+          status: "todo",
+          priority: 3,
+          dueAt: pastDate,
+          listId: undefined,
+          doAt: null,
+          effort: null,
+          parentTaskId: null,
+          recurrence: null
+        })
+      );
+
+      const overdue = await dataContext.withDataContext(userAContext(), (scopedDb) =>
+        driftRepository.getOverdue(scopedDb)
+      );
+
+      expect(overdue.some((t) => t.id === created.id)).toBe(true);
+
+      // clean up locale preference so it doesn't persist for other tests in this run
+      await dataContext.withDataContext(userAContext(), (scopedDb) =>
+        scopedDb.db.deleteFrom("app.preferences").where("key", "=", "locale").execute()
+      );
+    });
   });
 });
