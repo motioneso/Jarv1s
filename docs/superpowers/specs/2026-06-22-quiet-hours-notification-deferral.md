@@ -30,11 +30,13 @@ notifications fire regardless of time, disturbing the user during sleep or focus
 ## Data
 
 Migration **0098** (reserve 0098–0099):
+
 ```sql
 -- user_quiet_hours settings row (or column on user_preferences if it exists)
 ALTER TABLE user_preferences ADD COLUMN IF NOT EXISTS
   quiet_hours jsonb NOT NULL DEFAULT '{"enabled":false,"start":"22:00","end":"07:00","timezone":null}';
 ```
+
 If `user_preferences` does not exist, create a minimal `user_quiet_hours` table with
 `(user_id PK FK, settings jsonb, updated_at)` + RLS owner-only.
 
