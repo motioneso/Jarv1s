@@ -52,14 +52,14 @@ test("matrix toggle switches to matrix view", async ({ page }) => {
   await expect(page.getByText("Do First")).toBeVisible();
 });
 
-test("assigning a tag from the detail page renders a chip", async ({ page }) => {
-  await page.goto("/tasks/t-critical");
-  // The Tags panel exposes an "Add tag" select seeded from the list's tags.
-  await expect(page.getByText("No tags assigned.")).toBeVisible();
-  await page.getByLabel("Add tag").selectOption({ label: "urgent" });
-  await page.getByRole("button", { name: "Assign tag" }).click();
-  // The assigned tag renders as a removable chip with a "Remove tag urgent" control.
-  await expect(page.getByRole("button", { name: "Remove tag urgent" })).toBeVisible();
+test("assigning a tag from the task modal renders a chip", async ({ page }) => {
+  await page.goto("/tasks");
+  await page.getByRole("button", { name: "Open File taxes" }).click();
+  await expect(page.getByRole("dialog")).toBeVisible();
+  // Suggestion chips appear for tags not yet assigned; clicking one assigns the tag.
+  await page.getByRole("button", { name: "#urgent" }).click();
+  // The assigned tag renders as a removable chip.
+  await expect(page.getByRole("button", { name: "Remove urgent" })).toBeVisible();
 });
 
 test("list filter can focus a single list", async ({ page }) => {
