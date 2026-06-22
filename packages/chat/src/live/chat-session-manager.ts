@@ -129,6 +129,8 @@ interface UserSession {
 /** Default cap on readNew polls per turn so a never-completing engine can't hang us. */
 const DEFAULT_MAX_POLLS = 2_000;
 
+const MAX_SUBSCRIBERS_PER_ACTOR = 5;
+
 /** Body persisted/returned when a turn never reports complete within the poll cap. */
 const TIMEOUT_MESSAGE = "Chat timed out before the model finished responding.";
 
@@ -142,6 +144,13 @@ export class ChatTurnInFlightError extends Error {
   constructor() {
     super("A chat turn is already in progress. Wait for it to finish before sending another.");
     this.name = "ChatTurnInFlightError";
+  }
+}
+
+export class ChatStreamLimitError extends Error {
+  constructor() {
+    super("Too many open chat streams for this user.");
+    this.name = "ChatStreamLimitError";
   }
 }
 
@@ -409,6 +418,9 @@ export class ChatSessionManager {
     if (!set) {
       set = new Set();
       this.subscribers.set(actorUserId, set);
+    }
+    if (set.size >= MAX_SUBSCRIBERS_PER_ACTOR) {
+      throw new ChatStreamLimitError();
     }
     set.add(fn);
     return () => {

@@ -9,9 +9,10 @@
  */
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import type { Kysely } from "kysely";
+import Fastify from "fastify";
 
 import { createApiServer } from "../../apps/api/src/server.js";
-import { ChatRepository, CliChatUnavailableError } from "@jarv1s/chat";
+import { ChatRepository, CliChatUnavailableError, registerChatLiveRoutes } from "@jarv1s/chat";
 import type { ChatEngineFactory } from "@jarv1s/module-registry";
 import {
   DataContextRunner,
@@ -20,6 +21,7 @@ import {
   type AccessContext,
   type JarvisDatabase
 } from "@jarv1s/db";
+import { ChatStreamLimitError } from "../../packages/chat/src/live/chat-session-manager.js";
 import type {
   CliChatEngine,
   EngineLaunchOpts,
@@ -250,6 +252,18 @@ describe("Chat live API (turn / clear / switch / stream)", () => {
     expect(response.statusCode).toBe(401);
   });
 
+  it("POST /api/chat/turn rejects text over the per-turn max before processing", async () => {
+    const response = await server.inject({
+      method: "POST",
+      url: "/api/chat/turn",
+      headers: { authorization: `Bearer ${ids.sessionA}` },
+      payload: { text: "x".repeat(32_001) }
+    });
+
+    expect(response.statusCode).toBe(400);
+    expect(response.json<{ error: string }>().error).toBe("text must be 32000 characters or fewer");
+  });
+
   it("POST /api/chat/turn lets another user use the admin-configured instance default", async () => {
     const response = await server.inject({
       method: "POST",
@@ -354,6 +368,70 @@ describe("Chat live API (turn / clear / switch / stream)", () => {
     // A received its own records (at least the echoed user + reply); B received none.
     expect(aRecords.length).toBeGreaterThan(0);
     expect(bRecords).toHaveLength(0);
+  });
+
+  it("GET /api/chat/stream returns 429 when the actor has too many open streams", async () => {
+    const app = Fastify({ logger: false });
+    registerChatLiveRoutes(app, {
+      resolveAccessContext: async () => userAContext(),
+      runtime: {
+        resolveUserName: async () => "User A",
+        manager: {
+          subscribe: () => {
+            throw new ChatStreamLimitError();
+          }
+        }
+      } as never
+    });
+    await app.ready();
+
+    try {
+      const response = await app.inject({ method: "GET", url: "/api/chat/stream" });
+
+      expect(response.statusCode).toBe(429);
+      expect(response.json<{ error: string }>().error).toBe("Too many open chat streams.");
+    } finally {
+      await app.close();
+    }
+  });
+
+  it("does not write SSE records after the stream response is ended", async () => {
+    const app = Fastify({ logger: false });
+    let onRecord: ((record: TranscriptRecord) => void) | undefined;
+    let writes = 0;
+
+    app.addHook("onRequest", (_request, reply, done) => {
+      const raw = reply.raw;
+      raw.writeHead = (() => raw) as typeof raw.writeHead;
+      raw.write = (() => {
+        writes += 1;
+        return true;
+      }) as typeof raw.write;
+      raw.end();
+      done();
+    });
+    registerChatLiveRoutes(app, {
+      resolveAccessContext: async () => userAContext(),
+      runtime: {
+        resolveUserName: async () => "User A",
+        manager: {
+          subscribe: (_actorUserId: string, fn: (record: TranscriptRecord) => void) => {
+            onRecord = fn;
+            return () => undefined;
+          }
+        }
+      } as never
+    });
+    await app.ready();
+
+    try {
+      await app.inject({ method: "GET", url: "/api/chat/stream" });
+      onRecord?.({ kind: "reply", text: "late" });
+
+      expect(writes).toBe(0);
+    } finally {
+      await app.close();
+    }
   });
 });
 
