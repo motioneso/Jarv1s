@@ -49,9 +49,7 @@ export class TaskDriftRepository {
       .selectAll()
       .where("status", "=", "todo")
       .where("due_at", "is not", null)
-      .where(
-        sql<boolean>`(due_at AT TIME ZONE ${tz})::date < (now() AT TIME ZONE ${tz})::date`
-      )
+      .where(sql<boolean>`(due_at AT TIME ZONE ${tz})::date < (now() AT TIME ZONE ${tz})::date`)
       .orderBy("due_at", "asc")
       .execute();
   }

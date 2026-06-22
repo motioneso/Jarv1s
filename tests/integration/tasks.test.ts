@@ -962,12 +962,16 @@ describe("Tasks module M1", () => {
           .values({
             owner_user_id: sql<string>`app.current_actor_user_id()`,
             key: "locale",
-            value_json: sql<Record<string, unknown>>`${JSON.stringify({ timezone: "America/Los_Angeles", region: "en-US", dateFormat: "24" })}::jsonb`,
+            value_json: sql<
+              Record<string, unknown>
+            >`${JSON.stringify({ timezone: "America/Los_Angeles", region: "en-US", dateFormat: "24" })}::jsonb`,
             updated_at: new Date()
           })
           .onConflict((oc) =>
             oc.columns(["owner_user_id", "key"]).doUpdateSet({
-              value_json: sql<Record<string, unknown>>`${JSON.stringify({ timezone: "America/Los_Angeles", region: "en-US", dateFormat: "24" })}::jsonb`,
+              value_json: sql<
+                Record<string, unknown>
+              >`${JSON.stringify({ timezone: "America/Los_Angeles", region: "en-US", dateFormat: "24" })}::jsonb`,
               updated_at: new Date()
             })
           )
