@@ -5,59 +5,82 @@ import { assertDataContextDb, type DataContextDb, type Task } from "@jarv1s/db";
 import { TASK_URGENCY_WINDOW_HOURS } from "./classification.js";
 import { rollForwardOwnedSeries } from "./recurrence.js";
 
+const DEFAULT_TIMEZONE = "America/Los_Angeles";
+const AT_RISK_DUE_WINDOW_DAYS = TASK_URGENCY_WINDOW_HOURS / 24;
+
+/**
+ * Read the actor's IANA timezone from app.preferences key "locale".
+ * Validates via Intl.DateTimeFormat — unknown zone → DEFAULT_TIMEZONE.
+ * Runs inside the caller's already-open DataContextDb transaction (RLS-scoped).
+ */
+async function readUserTimezone(db: DataContextDb): Promise<string> {
+  assertDataContextDb(db);
+  const row = await db.db
+    .selectFrom("app.preferences")
+    .select("value_json")
+    .where("key", "=", "locale")
+    .executeTakeFirst();
+  const raw = row?.value_json;
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return DEFAULT_TIMEZONE;
+  const tz = (raw as Record<string, unknown>).timezone;
+  if (typeof tz !== "string" || !tz.trim()) return DEFAULT_TIMEZONE;
+  try {
+    new Intl.DateTimeFormat("en-US", { timeZone: tz }).format(0);
+    return tz;
+  } catch {
+    return DEFAULT_TIMEZONE;
+  }
+}
+
 export class TaskDriftRepository {
   /**
-   * Returns all tasks with status='todo' and due_at in the past.
-   * Ordered by due_at ascending (most overdue first).
+   * Returns all tasks with status='todo' and due_at in the past — using the
+   * actor's timezone for day-boundary comparison (not UTC). Ordered by due_at asc.
    */
   async getOverdue(db: DataContextDb): Promise<Task[]> {
     assertDataContextDb(db);
-    // Lazy-on-view freshness: roll stale recurring series forward before reading the
-    // drift views so a rolled occurrence is no longer falsely overdue/at-risk. Idempotent
-    // and owner-only. getFocus calls the private query methods so this runs once per request.
     await rollForwardOwnedSeries(db);
-    return this.queryOverdue(db);
+    const tz = await readUserTimezone(db);
+    return this.queryOverdue(db, tz);
   }
 
-  private async queryOverdue(db: DataContextDb): Promise<Task[]> {
+  private async queryOverdue(db: DataContextDb, tz: string): Promise<Task[]> {
     return db.db
       .selectFrom("app.tasks")
       .selectAll()
       .where("status", "=", "todo")
       .where("due_at", "is not", null)
-      .where("due_at", "<", sql<Date>`now()`)
+      .where(sql<boolean>`(due_at AT TIME ZONE ${tz})::date < (now() AT TIME ZONE ${tz})::date`)
       .orderBy("due_at", "asc")
       .execute();
   }
 
   /**
-   * Returns tasks that are at risk of slipping:
+   * Returns tasks at risk of slipping:
    * - status = 'todo'
-   * - priority >= 3 (Medium and above; excludes Someday priority < 3 and null priority)
-   * - due_at is within the AT_RISK_WINDOW_HOURS window OR do_at is already past
-   * - lacking progress: no child task with status = 'done'
+   * - priority >= 3 (Medium and above)
+   * - due_at within the frontend day window (user tz) OR do_at day has passed (user tz)
+   * - no child task with status = 'done'
    *
    * At-risk SQL predicate:
    *   status = 'todo'
    *   AND priority >= 3
    *   AND (
-   *     (due_at IS NOT NULL AND due_at < now() + interval '48 hours')
-   *     OR (do_at IS NOT NULL AND do_at < now())
+   *     (due_at IS NOT NULL AND (due_at AT TIME ZONE tz)::date <= (now() AT TIME ZONE tz)::date + 2)
+   *     OR (do_at IS NOT NULL AND (do_at AT TIME ZONE tz)::date < (now() AT TIME ZONE tz)::date)
    *   )
-   *   AND NOT EXISTS (
-   *     SELECT 1 FROM app.tasks child
-   *     WHERE child.parent_task_id = t.id AND child.status = 'done'
-   *   )
+   *   AND NOT EXISTS (child done)
    *
    * Ordered by priority desc, due_at asc.
    */
   async getAtRisk(db: DataContextDb): Promise<Task[]> {
     assertDataContextDb(db);
     await rollForwardOwnedSeries(db);
-    return this.queryAtRisk(db);
+    const tz = await readUserTimezone(db);
+    return this.queryAtRisk(db, tz);
   }
 
-  private async queryAtRisk(db: DataContextDb): Promise<Task[]> {
+  private async queryAtRisk(db: DataContextDb, tz: string): Promise<Task[]> {
     return db.db
       .selectFrom("app.tasks as t")
       .selectAll("t")
@@ -67,13 +90,12 @@ export class TaskDriftRepository {
         eb.or([
           eb.and([
             eb("t.due_at", "is not", null),
-            eb(
-              "t.due_at",
-              "<",
-              sql<Date>`now() + (${TASK_URGENCY_WINDOW_HOURS.toString()} || ' hours')::interval`
-            )
+            sql<boolean>`(t.due_at AT TIME ZONE ${tz})::date <= (now() AT TIME ZONE ${tz})::date + ${AT_RISK_DUE_WINDOW_DAYS}::int`
           ]),
-          eb.and([eb("t.do_at", "is not", null), eb("t.do_at", "<", sql<Date>`now()`)])
+          eb.and([
+            eb("t.do_at", "is not", null),
+            sql<boolean>`(t.do_at AT TIME ZONE ${tz})::date < (now() AT TIME ZONE ${tz})::date`
+          ])
         ])
       )
       .where((eb) =>
@@ -93,19 +115,20 @@ export class TaskDriftRepository {
   }
 
   /**
-   * Returns the union of overdue and at-risk tasks, deduplicated by id.
-   * Ordered by: priority desc (nulls last), due_at asc (nulls last), effort
-   * (quick < medium < large — quick-effort tasks break ties first).
+   * Union of overdue and at-risk tasks, deduplicated by id.
+   * Ordered by: priority desc (nulls last), due_at asc (nulls last), effort (quick first).
    */
   async getFocus(db: DataContextDb): Promise<Task[]> {
     assertDataContextDb(db);
 
-    // Single roll-forward per request: call it once here, then read via the private query
-    // methods (not the public getOverdue/getAtRisk, which would roll again redundantly).
     await rollForwardOwnedSeries(db);
-    const [overdue, atRisk] = await Promise.all([this.queryOverdue(db), this.queryAtRisk(db)]);
+    // Read timezone once; pass to both private queries so we don't hit preferences twice.
+    const tz = await readUserTimezone(db);
+    const [overdue, atRisk] = await Promise.all([
+      this.queryOverdue(db, tz),
+      this.queryAtRisk(db, tz)
+    ]);
 
-    // Deduplicate: at-risk may overlap with overdue (overdue tasks with priority >= 3).
     const seen = new Set<string>();
     const merged: Task[] = [];
     for (const task of [...overdue, ...atRisk]) {
@@ -115,20 +138,16 @@ export class TaskDriftRepository {
       }
     }
 
-    // Sort: priority desc (nulls last), due_at asc (nulls last), effort (quick first)
     const effortOrder: Record<string, number> = { quick: 0, medium: 1, large: 2 };
     merged.sort((a, b) => {
-      // Priority: higher is more urgent; null sorts last
       const aPri = a.priority ?? -Infinity;
       const bPri = b.priority ?? -Infinity;
       if (bPri !== aPri) return bPri - aPri;
 
-      // due_at: earlier is more urgent; null sorts last
       const aDue = a.due_at ? (a.due_at as Date).getTime() : Infinity;
       const bDue = b.due_at ? (b.due_at as Date).getTime() : Infinity;
       if (aDue !== bDue) return aDue - bDue;
 
-      // effort tiebreak: quick first (smallest value)
       const aEffort = a.effort != null ? (effortOrder[a.effort] ?? 3) : 3;
       const bEffort = b.effort != null ? (effortOrder[b.effort] ?? 3) : 3;
       return aEffort - bEffort;

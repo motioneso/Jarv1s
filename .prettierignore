@@ -17,3 +17,6 @@ pnpm-lock.yaml
 # Point-in-time security-audit records — preserved verbatim, not style-gated
 docs/audit/
 docs/audits/
+
+# Coordinator handoff docs — authored by the coordinator agent; never format
+docs/coordination/

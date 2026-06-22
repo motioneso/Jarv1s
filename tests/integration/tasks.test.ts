@@ -24,6 +24,7 @@ import {
   TASKS_RECURRENCE_QUEUE,
   type DeferredTaskStatusPayload,
   TaskBreakdownRepository,
+  TaskDriftRepository,
   TaskListsRepository,
   TasksRepository,
   registerTasksJobWorkers,
@@ -385,7 +386,6 @@ describe("Tasks module M1", () => {
         authorization: `Bearer ${ids.sessionA}`
       }
     });
-    // Title-only PATCH (valid — no status change)
     const titlePatchResponse = await server.inject({
       method: "PATCH",
       url: `/api/tasks/${created.id}`,
@@ -396,7 +396,6 @@ describe("Tasks module M1", () => {
         title: "API-updated task"
       }
     });
-    // in_progress is retired — the route must reject it with 400
     const patchResponse = await server.inject({
       method: "PATCH",
       url: `/api/tasks/${created.id}`,
@@ -432,12 +431,10 @@ describe("Tasks module M1", () => {
     expect(createResponse.statusCode).toBe(201);
     expect(created.ownerUserId).toBe(ids.userA);
     expect(getAsOwnerResponse.statusCode).toBe(200);
-    // Title update succeeds
     expect(titlePatchResponse.statusCode).toBe(200);
     expect(titlePatchResponse.json<{ task: { title: string } }>().task.title).toBe(
       "API-updated task"
     );
-    // in_progress is retired — route rejects it
     expect(patchResponse.statusCode).toBe(400); // in_progress retired
     expect(
       listResponse.json<{ tasks: Array<{ id: string }> }>().tasks.map((task) => task.id)
@@ -563,8 +560,6 @@ describe("Tasks module M1", () => {
     );
     const seriesId = live.recurrence_series_id!;
 
-    // Sibling (done) instance in the SAME series already occupying occurrence_date = today —
-    // the exact value the roll-forward UPDATE would set, guaranteeing the unique violation.
     await dataContext.withDataContext(userAContext(), (db) =>
       db.db
         .insertInto("app.tasks")
@@ -586,15 +581,11 @@ describe("Tasks module M1", () => {
         .execute()
     );
 
-    // Must NOT throw — the collision (23505 on tasks_recurrence_occurrence_idx) is caught and
-    // treated as a benign no-op for THIS series. Drive the per-series path directly so the
-    // assertion is isolated to the collision series (other suite series are irrelevant here).
     const rolled = await dataContext.withDataContext(userAContext(), (db) =>
       rollForwardRecurringSeries(db, seriesId, today)
     );
-    expect(rolled).toBe(false); // the collision series advanced nothing
+    expect(rolled).toBe(false);
 
-    // The stale live row is unchanged (still at today-7, still todo) — not corrupted.
     const liveAfter = await dataContext.withDataContext(userAContext(), (db) =>
       db.db.selectFrom("app.tasks").selectAll().where("id", "=", live.id).executeTakeFirstOrThrow()
     );
@@ -603,10 +594,6 @@ describe("Tasks module M1", () => {
   });
 
   it("treats a malformed persisted recurrence JSONB as a safe no-op (read boundary)", async () => {
-    // A corrupt/legacy row: interval is a string, freq is unknown — the kind of shape the
-    // route guard would reject, but which could exist in persisted data. The series id is
-    // self-consistent so the row is selectable; only the spec payload is malformed. The
-    // parseRecurrenceSpec guard at the read boundary must reject it without throwing.
     const seriesId = randomUUID();
     const anchor = await dataContext.withDataContext(userAContext(), (db) =>
       repository.create(db, { title: "malformed-anchor" })
@@ -633,13 +620,11 @@ describe("Tasks module M1", () => {
         .execute()
     );
 
-    // rollForwardRecurringSeries must not throw and must report "nothing advanced".
     const rolled = await dataContext.withDataContext(userAContext(), (db) =>
       rollForwardRecurringSeries(db, seriesId, "2026-06-18")
     );
     expect(rolled).toBe(false);
 
-    // generateNext on the same malformed row must not throw and must return null (no new instance).
     const malformedRow = await dataContext.withDataContext(userAContext(), (db) =>
       db.db
         .selectFrom("app.tasks")
@@ -652,7 +637,6 @@ describe("Tasks module M1", () => {
     );
     expect(generated).toBeNull();
 
-    // The malformed row is untouched — not corrupted, not advanced, still todo.
     const after = await dataContext.withDataContext(userAContext(), (db) =>
       db.db
         .selectFrom("app.tasks")
@@ -757,16 +741,11 @@ describe("Tasks module M1", () => {
     const client = new Client({ connectionString: connectionStrings.bootstrap });
     await client.connect();
     try {
-      // All tasks in the DB have a non-null list_id (the NOT NULL constraint holds and
-      // the repository default-list logic works for newly created tasks too).
       const orphans = await client.query<{ n: string }>(
         "SELECT count(*)::text AS n FROM app.tasks WHERE list_id IS NULL"
       );
       expect(Number(orphans.rows[0]?.n)).toBe(0);
 
-      // The seeded tasks (inserted via seedTaskData, which runs after the migration)
-      // must not have in_progress status — backfill correctness is verified by confirming
-      // the seeded task IDs have 'todo' status.
       const seededInProgress = await client.query<{ n: string }>(
         `SELECT count(*)::text AS n FROM app.tasks
          WHERE id = ANY($1::uuid[]) AND status = 'in_progress'`,
@@ -774,7 +753,6 @@ describe("Tasks module M1", () => {
       );
       expect(Number(seededInProgress.rows[0]?.n)).toBe(0);
 
-      // Every test user has a Personal list (seeded in seedTaskData for the fresh test DB).
       const lists = await client.query<{ owner_user_id: string; name: string }>(
         "SELECT owner_user_id, name FROM app.task_lists WHERE name = 'Personal'"
       );
@@ -823,13 +801,11 @@ describe("Tasks module M1", () => {
     expect(made.source).toBe("chat");
     expect(made.external_key).toBe("chat:42");
 
-    // Second create with same (source, externalKey) must return the SAME task id.
     const second = await dataContext.withDataContext(userAContext(), (db) =>
       repository.create(db, { title: "dup", source: "chat", externalKey: "chat:42" })
     );
     expect(second.id).toBe(made.id);
 
-    // Create without a listId defaults to the Personal list.
     const defaultList = await dataContext.withDataContext(userAContext(), (db) =>
       listsRepo.getOrCreateDefault(db)
     );
@@ -854,14 +830,12 @@ describe("Tasks module M1", () => {
     expect(children[0]?.position).toBe(0);
     expect(children[1]?.position).toBe(1);
 
-    // Grandchild rejected by the DB trigger.
     await expect(
       dataContext.withDataContext(userAContext(), (db) =>
         breakdown.breakDown(db, children[0]!.id, ["nope"])
       )
     ).rejects.toThrow(/one-level hierarchy/);
 
-    // Completing all children auto-closes the parent.
     await dataContext.withDataContext(userAContext(), async (db) => {
       for (const c of children) await repository.updateStatus(db, c.id, "done");
     });
@@ -874,7 +848,6 @@ describe("Tasks module M1", () => {
   it("lists: get-or-create Personal is idempotent; tags are list-scoped", async () => {
     const listsRepo = new TaskListsRepository();
 
-    // Calling getOrCreateDefault twice must return the same row.
     const a = await dataContext.withDataContext(userAContext(), (db) =>
       listsRepo.getOrCreateDefault(db)
     );
@@ -884,7 +857,6 @@ describe("Tasks module M1", () => {
     expect(a.id).toBe(b.id);
     expect(a.name).toBe("Personal");
 
-    // createTag + listTags are list-scoped.
     const tag = await dataContext.withDataContext(userAContext(), (db) =>
       listsRepo.createTag(db, a.id, "Visa")
     );
@@ -894,5 +866,134 @@ describe("Tasks module M1", () => {
     expect(tags.map((t) => t.name)).toContain("Visa");
     expect(tag.list_id).toBe(a.id);
     expect(tag.owner_user_id).toBe(ids.userA);
+  });
+
+  describe("TaskDriftRepository timezone awareness", () => {
+    const driftRepository = new TaskDriftRepository();
+
+    it("returns a task with due_at clearly in the past as overdue (no locale set)", async () => {
+      const pastDate = new Date(Date.now() - 10 * 24 * 60 * 60 * 1000);
+      pastDate.setUTCHours(12, 0, 0, 0);
+
+      const created = await dataContext.withDataContext(userAContext(), (scopedDb) =>
+        repository.create(scopedDb, {
+          title: "TZ test — past task",
+          status: "todo",
+          priority: 3,
+          dueAt: pastDate
+        })
+      );
+
+      const overdue = await dataContext.withDataContext(userAContext(), (scopedDb) =>
+        driftRepository.getOverdue(scopedDb)
+      );
+
+      expect(overdue.some((t) => t.id === created.id)).toBe(true);
+    });
+
+    it("does not return a task with due_at clearly in the future as overdue", async () => {
+      const futureDate = new Date(Date.now() + 10 * 24 * 60 * 60 * 1000);
+      futureDate.setUTCHours(12, 0, 0, 0);
+
+      const created = await dataContext.withDataContext(userAContext(), (scopedDb) =>
+        repository.create(scopedDb, {
+          title: "TZ test — future task",
+          status: "todo",
+          priority: 3,
+          dueAt: futureDate
+        })
+      );
+
+      const overdue = await dataContext.withDataContext(userAContext(), (scopedDb) =>
+        driftRepository.getOverdue(scopedDb)
+      );
+
+      expect(overdue.some((t) => t.id === created.id)).toBe(false);
+    });
+
+    it("returns due_at at risk through the user's day-after-tomorrow boundary", async () => {
+      const created = await dataContext.withDataContext(userAContext(), async (scopedDb) => {
+        await scopedDb.db
+          .insertInto("app.preferences")
+          .values({
+            owner_user_id: sql<string>`app.current_actor_user_id()`,
+            key: "locale",
+            value_json: sql<
+              Record<string, unknown>
+            >`${JSON.stringify({ timezone: "America/Los_Angeles" })}::jsonb`,
+            updated_at: new Date()
+          })
+          .onConflict((oc) =>
+            oc.columns(["owner_user_id", "key"]).doUpdateSet({
+              value_json: sql<
+                Record<string, unknown>
+              >`${JSON.stringify({ timezone: "America/Los_Angeles" })}::jsonb`,
+              updated_at: new Date()
+            })
+          )
+          .execute();
+        const due = await sql<{ due_at: Date }>`
+          select ((date_trunc('day', now() AT TIME ZONE 'America/Los_Angeles') + interval '2 days 23 hours 59 minutes') AT TIME ZONE 'America/Los_Angeles') as due_at
+        `.execute(scopedDb.db);
+        return repository.create(scopedDb, {
+          title: "TZ test - LA boundary at risk",
+          status: "todo",
+          priority: 3,
+          dueAt: due.rows[0]!.due_at
+        });
+      });
+
+      const atRisk = await dataContext.withDataContext(userAContext(), (scopedDb) =>
+        driftRepository.getAtRisk(scopedDb)
+      );
+
+      expect(atRisk.some((t) => t.id === created.id)).toBe(true);
+    });
+
+    it("reads user timezone from locale preference and uses it for overdue classification", async () => {
+      await dataContext.withDataContext(userAContext(), (scopedDb) =>
+        scopedDb.db
+          .insertInto("app.preferences")
+          .values({
+            owner_user_id: sql<string>`app.current_actor_user_id()`,
+            key: "locale",
+            value_json: sql<
+              Record<string, unknown>
+            >`${JSON.stringify({ timezone: "America/Los_Angeles", region: "en-US", dateFormat: "24" })}::jsonb`,
+            updated_at: new Date()
+          })
+          .onConflict((oc) =>
+            oc.columns(["owner_user_id", "key"]).doUpdateSet({
+              value_json: sql<
+                Record<string, unknown>
+              >`${JSON.stringify({ timezone: "America/Los_Angeles", region: "en-US", dateFormat: "24" })}::jsonb`,
+              updated_at: new Date()
+            })
+          )
+          .execute()
+      );
+
+      const pastDate = new Date(Date.now() - 5 * 24 * 60 * 60 * 1000);
+      pastDate.setUTCHours(12, 0, 0, 0);
+
+      const created = await dataContext.withDataContext(userAContext(), (scopedDb) =>
+        repository.create(scopedDb, {
+          title: "TZ test — LA locale past task",
+          status: "todo",
+          priority: 3,
+          dueAt: pastDate
+        })
+      );
+
+      const overdue = await dataContext.withDataContext(userAContext(), (scopedDb) =>
+        driftRepository.getOverdue(scopedDb)
+      );
+
+      expect(overdue.some((t) => t.id === created.id)).toBe(true);
+
+      await dataContext.withDataContext(userAContext(), (scopedDb) =>
+        scopedDb.db.deleteFrom("app.preferences").where("key", "=", "locale").execute()
+      );
+    });
   });
 });
