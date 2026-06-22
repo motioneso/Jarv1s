@@ -43,7 +43,7 @@ export interface QuietHoursPort {
   getLocaleTimezone(scopedDb: DataContextDb): Promise<string | null>;
 }
 
-interface QuietHoursSettings {
+export interface QuietHoursSettings {
   enabled: boolean;
   start: string;
   end: string;
@@ -91,10 +91,11 @@ function isInQuietHours(now: Date, settings: QuietHoursSettings, tz: string): bo
   return cur >= start && cur < end;
 }
 
-function computeDeferredUntil(now: Date, settings: QuietHoursSettings, tz: string): Date | null {
+export function computeDeferredUntil(now: Date, settings: QuietHoursSettings, tz: string): Date | null {
   if (!isInQuietHours(now, settings, tz)) return null;
   const [eh, em] = parseHHMM(settings.end);
   const endTotalMin = eh * 60 + em;
+  const curLocal = getLocalMinutes(now, tz);
 
   const dateFmt = new Intl.DateTimeFormat("en-US", {
     timeZone: tz,
@@ -108,19 +109,23 @@ function computeDeferredUntil(now: Date, settings: QuietHoursSettings, tz: strin
   const month = parseInt(partsMap.month ?? "1", 10) - 1;
   const day = parseInt(partsMap.day ?? "1", 10);
 
-  const curLocal = getLocalMinutes(now, tz);
-  // If the end time has already passed today in local tz → end is tomorrow
+  // For overnight windows (start > end), pre-midnight leg means end is NEXT local day.
   const dayOffset = endTotalMin <= curLocal ? 1 : 0;
 
-  // Approximate UTC for "local end time on the relevant day"
-  const approxUTC = new Date(Date.UTC(year, month, day + dayOffset, eh, em, 0));
-  // Correct for the actual tz offset by measuring the error at the approximated time
-  const localAtApprox = getLocalMinutes(approxUTC, tz);
-  const errorMs = (localAtApprox - endTotalMin) * 60 * 1000;
-  return new Date(approxUTC.getTime() - errorMs);
+  // Naive approximation: treat tz offset as zero, place end-time at UTC midnight + end.
+  const naiveUTC = new Date(Date.UTC(year, month, day + dayOffset, eh, em, 0));
+
+  // Measure how far the naive approximation's local time is from the target local time.
+  // Use modular arithmetic (±720 window) so overnight wrap doesn't flip the sign.
+  const localMinAtNaive = getLocalMinutes(naiveUTC, tz);
+  let deltaMin = endTotalMin - localMinAtNaive;
+  if (deltaMin < -720) deltaMin += 1440;
+  if (deltaMin > 720) deltaMin -= 1440;
+
+  return new Date(naiveUTC.getTime() + deltaMin * 60 * 1000);
 }
 
-async function resolveTimezone(
+export async function resolveTimezone(
   port: QuietHoursPort,
   scopedDb: DataContextDb,
   explicitTz: string | null

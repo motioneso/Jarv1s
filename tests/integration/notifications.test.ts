@@ -24,6 +24,9 @@ import {
   type CreateNotificationInput,
   type NotificationWithReadState,
   type QuietHoursPort,
+  type QuietHoursSettings,
+  computeDeferredUntil,
+  resolveTimezone,
   notificationsModuleManifest,
   registerNotificationsRoutes
 } from "@jarv1s/notifications";
@@ -796,17 +799,47 @@ describe("Notifications module M5", () => {
     expect(byId).toBeUndefined();
   });
 
-  it("locale timezone used as fallback when quiet-hours timezone is null", async () => {
-    // timezone: null → getLocaleTimezone() → "UTC" (same semantic as explicit UTC)
+  it("locale timezone used as fallback; overnight math correct with real PT offset", async () => {
+    // Spec exit criterion: window 22:00-07:00, timezone = null, locale tz = America/Los_Angeles.
+    // resolveTimezone must return the locale tz; computeDeferredUntil must release at 07:00 PT
+    // (= 15:00 UTC in PST/UTC-8), NOT at 07:00 UTC.
+    //
+    // Fixed "now" = 2024-01-15T06:00:00Z = 10:00 PM PST Jan 14 — inside the overnight window.
     const localePort: QuietHoursPort = {
-      getSettings: async () => ({ enabled: true, start: "00:00", end: "23:59", timezone: null }),
-      getLocaleTimezone: async () => "UTC"
+      getSettings: async () => ({
+        enabled: true,
+        start: "22:00",
+        end: "07:00",
+        timezone: null
+      }),
+      getLocaleTimezone: async () => "America/Los_Angeles"
     };
-    const repo = new NotificationsRepository(localePort);
-    const n = await dataContext.withDataContext(userAContext(), (scopedDb) =>
-      repo.create(scopedDb, { title: "Locale tz fallback" })
+
+    // resolveTimezone: null explicit override → falls back to locale tz
+    const resolvedTz = await dataContext.withDataContext(userAContext(), (scopedDb) =>
+      resolveTimezone(localePort, scopedDb, null)
     );
-    expect(n.deferred_until).toBeInstanceOf(Date);
+    expect(resolvedTz).toBe("America/Los_Angeles");
+
+    // computeDeferredUntil: 22:00-07:00 PT overnight window, now = 22:00 PST Jan 14
+    const midWindowNow = new Date("2024-01-15T06:00:00Z"); // 10:00 PM PST Jan 14
+    const overnightSettings: QuietHoursSettings = {
+      enabled: true,
+      start: "22:00",
+      end: "07:00",
+      timezone: null
+    };
+    const deferred = computeDeferredUntil(midWindowNow, overnightSettings, resolvedTz);
+
+    expect(deferred).not.toBeNull();
+    // 07:00 AM PST (UTC-8) Jan 15 = 15:00 UTC Jan 15
+    const expectedRelease = new Date("2024-01-15T15:00:00Z");
+    // Allow ±2 min for the iterative UTC-offset correction in computeDeferredUntil
+    expect(Math.abs(deferred!.getTime() - expectedRelease.getTime())).toBeLessThan(2 * 60 * 1000);
+
+    // Sanity: if UTC were used instead, release would have been 07:00 UTC = 08 hours earlier
+    const wrongUtcRelease = new Date("2024-01-15T07:00:00Z");
+    expect(deferred!.getTime()).not.toBeCloseTo(wrongUtcRelease.getTime(), -4);
   });
 
   it("disabled quiet hours leaves deferred_until null", async () => {
