@@ -23,7 +23,11 @@ import {
   NOTES_SYNC_QUEUE,
   type NotesSyncJobPayload
 } from "@jarv1s/notes";
-import { connectionStrings, resetEmptyFoundationDatabase, setInstanceSetting } from "./test-database.js";
+import {
+  connectionStrings,
+  resetEmptyFoundationDatabase,
+  setInstanceSetting
+} from "./test-database.js";
 
 const { Client } = pg;
 

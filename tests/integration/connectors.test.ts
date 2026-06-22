@@ -177,7 +177,8 @@ describe("Connectors encrypted foundation", () => {
       "memory",
       "structured-state",
       "wellness",
-      "weather"
+      "weather",
+      "notes"
     ]);
     expect(registrations.map((item) => item.manifest.id)).toEqual([
       "settings",
@@ -193,7 +194,8 @@ describe("Connectors encrypted foundation", () => {
       "memory",
       "structured-state",
       "wellness",
-      "weather"
+      "weather",
+      "notes"
     ]);
     expect(manifest?.database?.ownedTables).toEqual([
       "app.connector_definitions",
