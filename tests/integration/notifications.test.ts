@@ -23,6 +23,7 @@ import {
   NotificationsRepository,
   type CreateNotificationInput,
   type NotificationWithReadState,
+  type QuietHoursPort,
   notificationsModuleManifest,
   registerNotificationsRoutes
 } from "@jarv1s/notifications";
@@ -84,7 +85,7 @@ describe("Notifications module M5", () => {
         `
           SELECT version, name
           FROM app.schema_migrations
-          WHERE version IN ('0008', '0071', '0101', '0102')
+          WHERE version IN ('0008', '0071', '0101', '0102', '0105')
           ORDER BY version
         `
       );
@@ -131,6 +132,10 @@ describe("Notifications module M5", () => {
         {
           version: "0102",
           name: "0102_notifications_defense_in_depth_comments.sql"
+        },
+        {
+          version: "0105",
+          name: "0105_notifications_urgency_deferral.sql"
         }
       ]);
       expect(tables.rows).toEqual([
@@ -746,6 +751,74 @@ describe("Notifications module M5", () => {
     // @ts-expect-error — NotificationMetadata values must be primitive; objects are rejected.
     const badNested: NotificationMetadata = { nested: { leak: true } };
     expect(badNested).toBeDefined();
+  });
+
+  it("new notification defaults to urgency 'normal' and deferred_until is null without a port", async () => {
+    const n = await dataContext.withDataContext(userAContext(), (scopedDb) =>
+      repository.create(scopedDb, { title: "Default urgency" })
+    );
+    expect(n.urgency).toBe("normal");
+    expect(n.deferred_until).toBeNull();
+  });
+
+  it("urgency 'urgent' bypasses deferral even with active quiet hours", async () => {
+    const allDayPort: QuietHoursPort = {
+      getSettings: async () => ({ enabled: true, start: "00:00", end: "23:59", timezone: "UTC" }),
+      getLocaleTimezone: async () => null
+    };
+    const repo = new NotificationsRepository(allDayPort);
+    const n = await dataContext.withDataContext(userAContext(), (scopedDb) =>
+      repo.create(scopedDb, { title: "Urgent skip deferral", urgency: "urgent" })
+    );
+    expect(n.urgency).toBe("urgent");
+    expect(n.deferred_until).toBeNull();
+  });
+
+  it("normal notification deferred during active quiet hours; hidden from listVisible", async () => {
+    // All-day UTC window (00:00–23:59) means now() is always inside quiet hours.
+    const allDayPort: QuietHoursPort = {
+      getSettings: async () => ({ enabled: true, start: "00:00", end: "23:59", timezone: "UTC" }),
+      getLocaleTimezone: async () => null
+    };
+    const repo = new NotificationsRepository(allDayPort);
+
+    const deferred = await dataContext.withDataContext(userAContext(), (scopedDb) =>
+      repo.create(scopedDb, { title: "Deferred normal", urgency: "normal" })
+    );
+    expect(deferred.deferred_until).toBeInstanceOf(Date);
+    // deferred_until must be in the future (end of today's 23:59 UTC window)
+    expect(deferred.deferred_until!.getTime()).toBeGreaterThan(Date.now());
+
+    // Must be hidden from listVisible (filter: deferred_until IS NULL OR now() >= deferred_until)
+    const byId = await dataContext.withDataContext(userAContext(), (scopedDb) =>
+      repo.getById(scopedDb, deferred.id)
+    );
+    expect(byId).toBeUndefined();
+  });
+
+  it("locale timezone used as fallback when quiet-hours timezone is null", async () => {
+    // timezone: null → getLocaleTimezone() → "UTC" (same semantic as explicit UTC)
+    const localePort: QuietHoursPort = {
+      getSettings: async () => ({ enabled: true, start: "00:00", end: "23:59", timezone: null }),
+      getLocaleTimezone: async () => "UTC"
+    };
+    const repo = new NotificationsRepository(localePort);
+    const n = await dataContext.withDataContext(userAContext(), (scopedDb) =>
+      repo.create(scopedDb, { title: "Locale tz fallback" })
+    );
+    expect(n.deferred_until).toBeInstanceOf(Date);
+  });
+
+  it("disabled quiet hours leaves deferred_until null", async () => {
+    const disabledPort: QuietHoursPort = {
+      getSettings: async () => ({ enabled: false, start: "00:00", end: "23:59", timezone: "UTC" }),
+      getLocaleTimezone: async () => null
+    };
+    const repo = new NotificationsRepository(disabledPort);
+    const n = await dataContext.withDataContext(userAContext(), (scopedDb) =>
+      repo.create(scopedDb, { title: "Disabled quiet hours" })
+    );
+    expect(n.deferred_until).toBeNull();
   });
 });
 
