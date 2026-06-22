@@ -339,30 +339,41 @@ describe("M3 auth, users, settings", () => {
     ]);
   });
 
-  it("lets admins patch instance settings", async () => {
+  it("lets admins patch instance settings (known key)", async () => {
     const settingResponse = await server.inject({
       method: "PATCH",
-      url: "/api/admin/settings/provider-policy",
+      url: "/api/admin/settings/registration.enabled",
       headers: {
         cookie: ownerCookie
       },
       payload: {
-        value: {
-          maxDataClass: "private"
-        }
+        value: { value: true }
       }
     });
 
     expect(settingResponse.statusCode).toBe(200);
     expect(settingResponse.json()).toMatchObject({
       setting: {
-        key: "provider-policy",
-        value: {
-          maxDataClass: "private"
-        },
+        key: "registration.enabled",
+        value: { value: true },
         updatedByUserId: ownerUserId
       }
     });
+  });
+
+  it("rejects PATCH for unknown settings key with 400", async () => {
+    const response = await server.inject({
+      method: "PATCH",
+      url: "/api/admin/settings/provider-policy",
+      headers: {
+        cookie: ownerCookie
+      },
+      payload: {
+        value: { maxDataClass: "private" }
+      }
+    });
+
+    expect(response.statusCode).toBe(400);
   });
 
   it("records audit events for bootstrap and settings actions", async () => {
