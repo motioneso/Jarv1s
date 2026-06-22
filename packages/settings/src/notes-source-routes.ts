@@ -63,11 +63,7 @@ export function registerNotesSourceRoutes(
         if (providedPath === null) {
           const accessContext = await dependencies.resolveAccessContext(request);
           await dependencies.dataContext.withDataContext(accessContext, (scopedDb) =>
-            dependencies.preferencesRepository.upsert(
-              scopedDb,
-              NOTES_SOURCE_PREFERENCE_KEY,
-              null
-            )
+            dependencies.preferencesRepository.upsert(scopedDb, NOTES_SOURCE_PREFERENCE_KEY, null)
           );
           return reply.send({ path: null } satisfies GetNotesSourceResponse);
         }

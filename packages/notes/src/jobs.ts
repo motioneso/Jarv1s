@@ -2,13 +2,16 @@ import { createHash } from "node:crypto";
 import { readFile, readdir, realpath } from "node:fs/promises";
 import { join } from "node:path";
 
-import type { Job } from "pg-boss";
+import type { Job, PgBoss } from "pg-boss";
 
-import type { DataContextDb } from "@jarv1s/db";
-import { type ActorScopedJobPayload, type QueueDefinition, registerDataContextWorker } from "@jarv1s/jobs";
+import type { DataContextDb, DataContextRunner } from "@jarv1s/db";
+import {
+  type ActorScopedJobPayload,
+  type QueueDefinition,
+  registerDataContextWorker
+} from "@jarv1s/jobs";
 import type { EmbeddingProvider } from "@jarv1s/memory";
 import { MemoryRepository, parseDocument, type NewChunkData } from "@jarv1s/memory";
-import type { PgBoss } from "pg-boss";
 
 import { resolveNotesRoots } from "@jarv1s/settings";
 import { assertWithinRoot, NotesPathError } from "./path-guard.js";
@@ -175,7 +178,7 @@ export interface RegisterNotesJobWorkersOptions {
 
 export async function registerNotesJobWorkers(
   boss: PgBoss,
-  dataContext: import("@jarv1s/db").DataContextRunner,
+  dataContext: DataContextRunner,
   options: RegisterNotesJobWorkersOptions
 ): Promise<readonly string[]> {
   const workId = await registerDataContextWorker<NotesSyncJobPayload, NotesSyncJobResult>(

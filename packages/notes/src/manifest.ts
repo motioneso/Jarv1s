@@ -6,9 +6,7 @@ import { postNotesSyncRouteSchema } from "@jarv1s/shared";
 export const NOTES_MODULE_ID = "notes";
 export const NOTES_SYNC_QUEUE = "notes.sync";
 
-export const notesModuleSqlMigrationDirectory = fileURLToPath(
-  new URL("../sql", import.meta.url)
-);
+export const notesModuleSqlMigrationDirectory = fileURLToPath(new URL("../sql", import.meta.url));
 
 export const notesModuleManifest = {
   id: NOTES_MODULE_ID,
@@ -18,7 +16,7 @@ export const notesModuleManifest = {
   lifecycle: "user-toggleable",
   compatibility: { jarv1s: ">=0.0.0" },
   availability: {
-    defaultEnabled: false,
+    defaultEnabled: true,
     required: false,
     supportsUserDisable: true
   },
