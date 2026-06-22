@@ -10,13 +10,7 @@ const SECTION_OF: Record<string, string> = {
 const HIDDEN_NAV_IDS = new Set(["chat", "briefings", "settings", "notifications"]);
 
 export interface WebRouteMeta {
-  readonly id:
-    | "today"
-    | "tasks"
-    | "notifications"
-    | "calendar"
-    | "wellness"
-    | "settings";
+  readonly id: "today" | "tasks" | "notifications" | "calendar" | "wellness" | "settings";
   readonly path: string;
   readonly title: string;
   readonly subtitle: (now: Date) => string;
