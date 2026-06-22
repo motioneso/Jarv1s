@@ -1,10 +1,15 @@
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { sql, type Kysely } from "kysely";
 import pg from "pg";
 
 import { createApiServer } from "../../apps/api/src/server.js";
 import { createDatabase, DataContextRunner, type JarvisDatabase } from "@jarv1s/db";
-import { createJarvisAuthRuntime, type JarvisAuthRuntime } from "@jarv1s/auth";
+import {
+  createJarvisAuthRuntime,
+  type BootstrapSettings,
+  type JarvisAuthRuntime
+} from "@jarv1s/auth";
+import { recordBootstrapOwnerAuditEvent } from "@jarv1s/settings";
 import {
   connectionStrings,
   resetEmptyFoundationDatabase,
@@ -94,6 +99,54 @@ describe("owner bootstrap recovery", () => {
     throw new Error(`Timed out waiting for ${count} users with prefix ${prefix}`);
   }
 
+  async function readUserIdsByEmailPrefix(
+    prefix: string
+  ): Promise<Array<{ id: string; email: string }>> {
+    const client = new pg.Client({ connectionString: connectionStrings.bootstrap });
+    await client.connect();
+    try {
+      const result = await client.query<{ id: string; email: string }>(
+        `
+          SELECT id, email
+          FROM app.users
+          WHERE email LIKE $1
+          ORDER BY email
+        `,
+        [`${prefix}%`]
+      );
+      return result.rows;
+    } finally {
+      await client.end();
+    }
+  }
+
+  async function readRegistrationRejectedAudit(): Promise<
+    Array<{
+      actor_user_id: string | null;
+      target_id: string | null;
+      metadata: Record<string, unknown>;
+    }>
+  > {
+    const client = new pg.Client({ connectionString: connectionStrings.bootstrap });
+    await client.connect();
+    try {
+      const result = await client.query<{
+        actor_user_id: string | null;
+        target_id: string | null;
+        metadata: Record<string, unknown>;
+      }>(
+        `
+          SELECT actor_user_id, target_id, metadata
+          FROM app.admin_audit_events
+          WHERE action = 'user.registration_rejected'
+        `
+      );
+      return result.rows;
+    } finally {
+      await client.end();
+    }
+  }
+
   it("bootstraps signup as owner when existing users have no bootstrap owner", async () => {
     await seedNonBootstrapOwnerUser({
       id: "00000000-0000-4000-8000-000000002601",
@@ -157,6 +210,81 @@ describe("owner bootstrap recovery", () => {
     });
   });
 
+  it("deletes race-loser row and returns 403 (not 500) even when audit write throws", async () => {
+    // This test exercises the after-hook race-loser path with a failing audit write.
+    // The before-hook only blocks sign-ups when bootstrapOwnerExists=true, so to reach
+    // the after-hook we must use the same advisory-lock race setup as the existing race
+    // test: seed a non-owner, disable registration, hold the lock so both sign-ups create
+    // their rows before either after-hook runs, then release and let one win/one lose.
+    // The loser hits recordRegistrationRejectedAudit which throws (injected mock).
+    // With the best-effort catch fix: (a) loser row is still deleted, (b) response is
+    // 403 registration_disabled — NOT 500/masked by the audit error.
+
+    // Build the server with the throwing audit override BEFORE sign-ups begin.
+    await server.close();
+    await authRuntime.close();
+    const throwingSettings: BootstrapSettings = {
+      recordBootstrapOwnerAuditEvent,
+      recordAuditEvent: vi.fn().mockRejectedValue(new Error("simulated audit failure"))
+    };
+    authRuntime = createJarvisAuthRuntime({
+      appDb,
+      runner: new DataContextRunner(appDb),
+      _settingsOverride: throwingSettings
+    });
+    server = createApiServer({ appDb, authRuntime, logger: false });
+    await server.ready();
+
+    // Seed a non-bootstrap-owner so bootstrapOwnerExists=false when before-hooks run
+    // → both before-hooks pass even with registration.enabled=false.
+    await seedNonBootstrapOwnerUser({
+      id: "00000000-0000-4000-8000-000000002701",
+      email: "audit-throw-seeded-non-owner@example.com"
+    });
+    await setInstanceSetting("registration.enabled", { value: false });
+
+    // Hold advisory lock so both sign-ups create user rows before either after-hook
+    // can acquire the xact lock, guaranteeing one will be the race loser.
+    const lock = new pg.Client({ connectionString: connectionStrings.bootstrap });
+    await lock.connect();
+    try {
+      await lock.query("SELECT pg_advisory_lock(hashtext('jarv1s:first-user-bootstrap'))");
+      const first = signUp({
+        name: "Audit Throw Racer One",
+        email: "audit-throw-racer-one@example.com",
+        password: "password12345"
+      });
+      const second = signUp({
+        name: "Audit Throw Racer Two",
+        email: "audit-throw-racer-two@example.com",
+        password: "password12345"
+      });
+
+      await waitForUserCountByEmailPrefix("audit-throw-racer-", 2);
+      const racerIds = await readUserIdsByEmailPrefix("audit-throw-racer-");
+      await lock.query("SELECT pg_advisory_unlock(hashtext('jarv1s:first-user-bootstrap'))");
+
+      const responses = await Promise.all([first, second]);
+
+      // (b) Original error is preserved: winner → 200, loser → 403 registration_disabled
+      // (not 500, which would indicate the audit error masked the original APIError).
+      expect(responses.map((r) => r.statusCode).sort()).toEqual([200, 403]);
+      const loserRes = responses.find((r) => r.statusCode === 403)!;
+      expect(loserRes.json<{ code?: string }>().code).toBe("registration_disabled");
+
+      // (a) Loser user row deleted even though audit write threw.
+      const winnerId = responses.find((r) => r.statusCode === 200)!.json<{ user: { id: string } }>()
+        .user.id;
+      const loserId = racerIds.find((r) => r.id !== winnerId)?.id;
+      expect(loserId).toBeDefined();
+      const remaining = await readUsersByEmailPrefix("audit-throw-racer-");
+      expect(remaining).toHaveLength(1);
+      expect(remaining[0]!.is_bootstrap_owner).toBe(true);
+    } finally {
+      await lock.end();
+    }
+  });
+
   it("rejects disabled-registration bootstrap recovery racers that lose the owner lock", async () => {
     await seedNonBootstrapOwnerUser({
       id: "00000000-0000-4000-8000-000000002604",
@@ -166,6 +294,7 @@ describe("owner bootstrap recovery", () => {
 
     const lock = new pg.Client({ connectionString: connectionStrings.bootstrap });
     await lock.connect();
+    let loserId: string | undefined;
     try {
       await lock.query("SELECT pg_advisory_lock(hashtext('jarv1s:first-user-bootstrap'))");
       const first = signUp({
@@ -180,6 +309,7 @@ describe("owner bootstrap recovery", () => {
       });
 
       await waitForUserCountByEmailPrefix("disabled-racer-", 2);
+      const racerIds = await readUserIdsByEmailPrefix("disabled-racer-");
       await lock.query("SELECT pg_advisory_unlock(hashtext('jarv1s:first-user-bootstrap'))");
 
       const responses = await Promise.all([first, second]);
@@ -189,6 +319,10 @@ describe("owner bootstrap recovery", () => {
           .filter((response) => response.statusCode === 403)
           .map((response) => response.json<{ code?: string }>().code)
       ).toEqual(["registration_disabled"]);
+
+      const winnerResponse = responses.find((response) => response.statusCode === 200);
+      const winnerId = winnerResponse!.json<{ user: { id: string } }>().user.id;
+      loserId = racerIds.find((racer) => racer.id !== winnerId)?.id;
     } finally {
       await lock.end();
     }
@@ -200,5 +334,13 @@ describe("owner bootstrap recovery", () => {
       is_bootstrap_owner: true,
       status: "active"
     });
+
+    expect(loserId).toBeDefined();
+    const auditRows = await readRegistrationRejectedAudit();
+    expect(auditRows).toHaveLength(1);
+    const auditRow = auditRows[0];
+    expect(auditRow).toBeDefined();
+    expect(auditRow!.target_id).toBe(loserId);
+    expect(auditRow!.metadata).toMatchObject({ reason: "registration_disabled" });
   });
 });
