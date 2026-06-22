@@ -522,3 +522,29 @@
   background: var(--surface-2);
   font-weight: 600;
 }
+
+/* #399: loading indicator — shown while waiting for SSE to start responding */
+.chatd-loading {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 16px;
+  color: var(--text-subtle);
+}
+.chatd-loading__dots::before {
+  content: "· · ·";
+  letter-spacing: 3px;
+  font-size: 18px;
+  animation: chatd-dots 1.4s steps(3, end) infinite;
+}
+@keyframes chatd-dots {
+  0% {
+    opacity: 0.25;
+  }
+  50% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0.25;
+  }
+}
