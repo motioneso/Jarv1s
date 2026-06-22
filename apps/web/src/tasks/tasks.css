@@ -502,4 +502,16 @@
   .tk-tagfield {
     flex: 1 1 100%;
   }
+  /* #404: hide the "· N hidden" count text on mobile so the list-filter button
+     stays narrow when lists are excluded. Users open the dropdown to see state. */
+  .tk-listbtn__hidden {
+    display: none;
+  }
+  /* #404: cap the list-filter dropdown to the viewport width and anchor its
+     right edge to the button so it never overflows off-screen to the right. */
+  .tk-listfilter .tk-tagmenu {
+    max-width: calc(100vw - 24px);
+    left: auto;
+    right: 0;
+  }
 }

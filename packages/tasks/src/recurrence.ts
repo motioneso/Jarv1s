@@ -208,6 +208,12 @@ export async function rollForwardRecurringSeries(
   // is already at-or-past `today` in that case (someone else converged it), so this is a
   // benign no-op — swallow it rather than 500 the entire list load that triggered the
   // lazy-on-view roll-forward.
+  //
+  // SAVEPOINT guard: a 23505 inside a BEGIN...COMMIT block (e.g. DataContextRunner) puts
+  // Postgres into "aborted" state, making every subsequent query in the same transaction
+  // fail — even if the JS try/catch swallows the error. Wrapping the UPDATE in a savepoint
+  // lets us roll back only that statement and keep the outer transaction alive.
+  await sql`SAVEPOINT roll_fwd`.execute(db.db);
   try {
     const updated = await db.db
       .updateTable("app.tasks")
@@ -223,8 +229,10 @@ export async function rollForwardRecurringSeries(
       .where(sql<boolean>`owner_user_id = app.current_actor_user_id()`)
       .executeTakeFirst();
 
+    await sql`RELEASE SAVEPOINT roll_fwd`.execute(db.db);
     return Number(updated.numUpdatedRows ?? 0n) > 0;
   } catch (err: unknown) {
+    await sql`ROLLBACK TO SAVEPOINT roll_fwd`.execute(db.db);
     if (isTasksRecurrenceOccurrenceConflict(err)) {
       return false;
     }
