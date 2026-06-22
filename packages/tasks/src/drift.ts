@@ -6,6 +6,7 @@ import { TASK_URGENCY_WINDOW_HOURS } from "./classification.js";
 import { rollForwardOwnedSeries } from "./recurrence.js";
 
 const DEFAULT_TIMEZONE = "America/Los_Angeles";
+const AT_RISK_DUE_WINDOW_DAYS = TASK_URGENCY_WINDOW_HOURS / 24;
 
 /**
  * Read the actor's IANA timezone from app.preferences key "locale".
@@ -58,14 +59,14 @@ export class TaskDriftRepository {
    * Returns tasks at risk of slipping:
    * - status = 'todo'
    * - priority >= 3 (Medium and above)
-   * - due_at within AT_RISK_WINDOW_HOURS window  OR  do_at day has passed (user tz)
+   * - due_at within the frontend day window (user tz) OR do_at day has passed (user tz)
    * - no child task with status = 'done'
    *
    * At-risk SQL predicate:
    *   status = 'todo'
    *   AND priority >= 3
    *   AND (
-   *     (due_at IS NOT NULL AND due_at < now() + interval '48 hours')
+   *     (due_at IS NOT NULL AND (due_at AT TIME ZONE tz)::date <= (now() AT TIME ZONE tz)::date + 2)
    *     OR (do_at IS NOT NULL AND (do_at AT TIME ZONE tz)::date < (now() AT TIME ZONE tz)::date)
    *   )
    *   AND NOT EXISTS (child done)
@@ -89,11 +90,7 @@ export class TaskDriftRepository {
         eb.or([
           eb.and([
             eb("t.due_at", "is not", null),
-            eb(
-              "t.due_at",
-              "<",
-              sql<Date>`now() + (${TASK_URGENCY_WINDOW_HOURS.toString()} || ' hours')::interval`
-            )
+            sql<boolean>`(t.due_at AT TIME ZONE ${tz})::date <= (now() AT TIME ZONE ${tz})::date + ${AT_RISK_DUE_WINDOW_DAYS}::int`
           ]),
           eb.and([
             eb("t.do_at", "is not", null),
