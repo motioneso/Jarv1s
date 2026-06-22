@@ -1,6 +1,14 @@
-import { useQuery } from "@tanstack/react-query";
-import { ArrowUp, ChevronDown, MessageSquareText, Sparkles, SquarePen, X } from "lucide-react";
-import { type KeyboardEvent, useState } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+  ArrowUp,
+  ChevronDown,
+  Clock,
+  MessageSquareText,
+  Sparkles,
+  SquarePen,
+  X
+} from "lucide-react";
+import { type KeyboardEvent, useEffect, useRef, useState } from "react";
 
 import {
   clearChat,
@@ -43,7 +51,28 @@ export function ChatDrawer(props: {
    */
   readonly initialText?: string;
 }) {
+  const queryClient = useQueryClient();
   const [reviewThreadId, setReviewThreadId] = useState<string | null>(null);
+  const [showHistory, setShowHistory] = useState(false);
+
+  // Lifted send state — shared by both the Composer and EmptyState seed buttons (#400).
+  const [isSending, setIsSending] = useState(false);
+  const [sendError, setSendError] = useState<string | null>(null);
+  const [needsProvider, setNeedsProvider] = useState(false);
+
+  // Optimistic user record — shown immediately on send until the SSE stream confirms (#399).
+  const [pendingUserText, setPendingUserText] = useState<string | null>(null);
+  // Snapshot of records.length at the moment of send; used to detect when SSE has responded.
+  const turnStartCountRef = useRef(0);
+
+  // #399: clear the optimistic record once the SSE stream delivers new events for this turn.
+  // Safe to double-fire in StrictMode dev — setPendingUserText(null) is idempotent.
+  useEffect(() => {
+    if (pendingUserText !== null && props.records.length > turnStartCountRef.current) {
+      setPendingUserText(null);
+    }
+  }, [props.records.length, pendingUserText]);
+
   // #369: derive chat availability from the SAME onboarding status #365 added. When no provider is
   // connected, the empty state shows the connect-a-provider explainer instead of the seed prompts.
   const onboardingStatusQuery = useQuery({
@@ -68,11 +97,44 @@ export function ChatDrawer(props: {
     return null;
   }
 
+  /**
+   * Unified send path for both the seed buttons and the manual composer (#400).
+   * The IIFE keeps the function signature synchronous so call sites need no `void`/`async`.
+   * try/finally guarantees isSending is ALWAYS cleared — this is the core wedge fix.
+   */
+  const sendMessage = (text: string): void => {
+    const trimmed = text.trim();
+    if (!trimmed || isSending) return;
+    setSendError(null);
+    setNeedsProvider(false);
+    setIsSending(true);
+    turnStartCountRef.current = props.records.length;
+    setPendingUserText(trimmed);
+    void (async () => {
+      try {
+        await sendChatTurn(trimmed);
+        void queryClient.invalidateQueries({ queryKey: queryKeys.chat.threads });
+      } catch (caught) {
+        setPendingUserText(null);
+        if (isNoActiveChatModelError(caught)) {
+          setNeedsProvider(true);
+          return;
+        }
+        setSendError(caught instanceof Error ? caught.message : "Could not send message");
+      } finally {
+        setIsSending(false);
+      }
+    })();
+  };
+
   const startNewChat = () => {
     setReviewThreadId(null);
+    setShowHistory(false);
     void clearChat();
     props.clearRecords();
+    void queryClient.invalidateQueries({ queryKey: queryKeys.chat.threads });
   };
+
   const reviewing = reviewThreadId !== null;
   const displayRecords = reviewing
     ? recordsFromMessages(messagesQuery.data?.messages ?? [])
@@ -80,6 +142,17 @@ export function ChatDrawer(props: {
   const selectedThread = (threadsQuery.data?.threads ?? []).find(
     (item) => item.id === reviewThreadId
   );
+
+  // Merge the optimistic user record into the live feed (#399). Only applied in live mode —
+  // history review uses the fetched messages directly.
+  const effectiveRecords: readonly TranscriptRecord[] = reviewing
+    ? displayRecords
+    : [
+        ...displayRecords,
+        ...(pendingUserText ? [{ kind: "user" as const, text: pendingUserText }] : [])
+      ];
+
+  const isWaiting = !reviewing && (isSending || pendingUserText !== null);
 
   return (
     <aside className="chatd" role="dialog" aria-label="Chat with Jarvis">
@@ -101,6 +174,16 @@ export function ChatDrawer(props: {
           <SquarePen size={16} aria-hidden="true" />
         </button>
         <button
+          aria-label={showHistory ? "Hide chat history" : "Show chat history"}
+          aria-pressed={showHistory}
+          className={`chatd__hbtn${showHistory ? " is-on" : ""}`}
+          title={showHistory ? "Hide history" : "History"}
+          type="button"
+          onClick={() => setShowHistory((prev) => !prev)}
+        >
+          <Clock size={16} aria-hidden="true" />
+        </button>
+        <button
           aria-label="Close chat"
           className="chatd__hbtn"
           title="Close"
@@ -112,26 +195,44 @@ export function ChatDrawer(props: {
       </div>
 
       <div className="chatd__body">
-        <HistoryList
-          selectedThreadId={reviewThreadId}
-          threads={threadsQuery.data?.threads ?? []}
-          onSelect={setReviewThreadId}
-        />
+        {showHistory ? (
+          <HistoryList
+            selectedThreadId={reviewThreadId}
+            threads={threadsQuery.data?.threads ?? []}
+            onSelect={setReviewThreadId}
+          />
+        ) : null}
         {reviewing ? (
           <div className="chatd-review">Reviewing {selectedThread?.title ?? "past chat"}</div>
         ) : null}
-        {displayRecords.length > 0 ? (
-          <Thread records={displayRecords} />
+        {effectiveRecords.length > 0 ? (
+          <Thread records={effectiveRecords} />
         ) : reviewing ? (
           <ReviewEmptyState />
         ) : onboardingStatusQuery.isSuccess && !chatAvailable ? (
           <ConnectProviderEmpty isFounder={props.isFounder} />
         ) : (
-          <EmptyState />
+          <EmptyState onSend={sendMessage} />
         )}
+        {isWaiting ? (
+          <div className="chatd-loading" aria-live="polite" aria-label="Jarvis is thinking">
+            <span className="chatd-msg__av">
+              <Sparkles size={14} aria-hidden="true" />
+            </span>
+            <span className="chatd-loading__dots" aria-hidden="true" />
+          </div>
+        ) : null}
       </div>
 
-      <Composer readOnly={reviewing} isFounder={props.isFounder} initialText={props.initialText} />
+      <Composer
+        readOnly={reviewing}
+        isFounder={props.isFounder}
+        initialText={props.initialText}
+        isSending={isSending}
+        sendError={sendError}
+        needsProvider={needsProvider}
+        onSend={sendMessage}
+      />
     </aside>
   );
 }
@@ -326,7 +427,7 @@ function formatShortDate(value: string): string {
   return date.toLocaleDateString(undefined, { month: "short", day: "numeric" });
 }
 
-function EmptyState() {
+function EmptyState(props: { readonly onSend: (text: string) => void }) {
   const tasksQuery = useQuery({ queryKey: queryKeys.tasks.list, queryFn: () => listTasks() });
   const eventsQuery = useQuery({
     queryKey: queryKeys.calendar.list,
@@ -350,7 +451,7 @@ function EmptyState() {
             className="chatd-sugg__btn"
             key={seed}
             type="button"
-            onClick={() => void sendChatTurn(seed)}
+            onClick={() => props.onSend(seed)}
           >
             {seed}
           </button>
@@ -371,51 +472,36 @@ function ReviewEmptyState() {
 function Composer(props: {
   readonly readOnly: boolean;
   readonly isFounder: boolean;
-  /** #368: seed text (the "Ask Jarvis" setup-check starter), pre-filled on mount, NEVER auto-sent. */
   readonly initialText?: string;
+  readonly isSending: boolean;
+  readonly sendError: string | null;
+  readonly needsProvider: boolean;
+  readonly onSend: (text: string) => void;
 }) {
   // Lazy initializer: the starter seeds the input on mount only. After that, the user owns the
   // value — typing/sending clears it and we never re-seed from the prop (no useEffect that would
   // clobber edits or re-fire the chip on re-render).
   const [text, setText] = useState(() => props.initialText ?? "");
-  const [error, setError] = useState<string | null>(null);
-  // #369: when a send fails specifically because no chat model is configured, swap the raw 400 for
-  // the friendly connect-a-provider explainer (with a link) instead of leaking the backend string.
-  const [needsProvider, setNeedsProvider] = useState(false);
 
-  const send = async () => {
-    if (props.readOnly) return;
+  const send = () => {
+    if (props.readOnly || props.isSending) return;
     const trimmed = text.trim();
-    if (!trimmed) {
-      return;
-    }
+    if (!trimmed) return;
+    props.onSend(trimmed);
     setText("");
-    setError(null);
-    setNeedsProvider(false);
-    try {
-      // Fire-and-render: the user echo and the assistant reply both arrive over the SSE
-      // stream (the single source of truth), so we do not append the POST response here.
-      await sendChatTurn(trimmed);
-    } catch (caught) {
-      if (isNoActiveChatModelError(caught)) {
-        setNeedsProvider(true);
-        return;
-      }
-      setError(caught instanceof Error ? caught.message : "Could not send message");
-    }
   };
 
   const onKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
     if (event.key === "Enter" && !event.shiftKey) {
       event.preventDefault();
-      void send();
+      send();
     }
   };
 
   return (
     <div className="chatd__composer">
-      {needsProvider ? <ConnectProviderEmpty isFounder={props.isFounder} /> : null}
-      {error ? <p className="form-error">{error}</p> : null}
+      {props.needsProvider ? <ConnectProviderEmpty isFounder={props.isFounder} /> : null}
+      {props.sendError ? <p className="form-error">{props.sendError}</p> : null}
       <div className={`chatd-input${props.readOnly ? " is-readonly" : ""}`}>
         <textarea
           aria-label="Message Jarvis"
@@ -429,9 +515,9 @@ function Composer(props: {
         <button
           aria-label="Send"
           className="chatd-send"
-          disabled={props.readOnly || !text.trim()}
+          disabled={props.readOnly || props.isSending || !text.trim()}
           type="button"
-          onClick={() => void send()}
+          onClick={send}
         >
           <ArrowUp size={17} aria-hidden="true" />
         </button>
