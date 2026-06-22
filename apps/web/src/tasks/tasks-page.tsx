@@ -54,8 +54,8 @@ export function TasksPage() {
   const [search, setSearch] = useState("");
   const [listStates, setListStates] = useState<Record<string, ListState>>({});
   const [tagFilter, setTagFilter] = useState<string[]>([]);
-  // Modal: null = closed; { id: string } = edit; { id: null } = create.
-  const [dialog, setDialog] = useState<{ readonly id: string | null } | null>(null);
+  // Modal: null = closed; { id: string } = edit; { id: null, defaultName? } = create.
+  const [dialog, setDialog] = useState<{ readonly id: string | null; readonly defaultName?: string } | null>(null);
 
   const tasksQuery = useQuery({ queryKey: queryKeys.tasks.list, queryFn: () => listTasks() });
   const listsQuery = useQuery({ queryKey: queryKeys.tasks.lists, queryFn: listTaskLists });
@@ -247,7 +247,7 @@ export function TasksPage() {
 
       <TaskCapture
         defaultListId={soloIds.length === 1 ? soloIds[0] : undefined}
-        onDetails={() => setDialog({ id: null })}
+        onDetails={(name) => setDialog({ id: null, defaultName: name })}
       />
 
       {tasksQuery.isLoading ? (
@@ -288,6 +288,7 @@ export function TasksPage() {
           open
           taskId={dialog.id}
           defaultListId={soloIds.length === 1 ? soloIds[0] : lists[0]?.id}
+          defaultTitle={dialog.defaultName}
           currentUserLabel="You"
           lists={lists}
           onClose={() => setDialog(null)}

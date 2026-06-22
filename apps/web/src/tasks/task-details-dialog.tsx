@@ -57,6 +57,7 @@ export function TaskDetailsDialog(props: {
   readonly open: boolean;
   readonly taskId: string | null;
   readonly defaultListId?: string;
+  readonly defaultTitle?: string;
   readonly currentUserLabel: string;
   readonly lists: readonly TaskListDto[];
   readonly onClose: () => void;
@@ -68,7 +69,7 @@ export function TaskDetailsDialog(props: {
   };
   const queryClient = useQueryClient();
   const [form, setForm] = useState<TaskDetailsFormState>(() =>
-    blankTaskDetailsForm(props.defaultListId)
+    blankTaskDetailsForm(props.defaultListId, props.defaultTitle)
   );
   // New-task local collections (attached after the task is created).
   const [newTags, setNewTags] = useState<string[]>([]);
