@@ -102,6 +102,8 @@ export interface CreateJarvisAuthRuntimeOptions {
    * Pass the Fastify `server.log` here; omit to suppress the event.
    */
   readonly logger?: AuthLogger;
+  /** Test-only: override the settings dependency injected into bootstrap hooks. */
+  readonly _settingsOverride?: BootstrapSettings;
 }
 
 interface BetterAuthUser {
@@ -113,7 +115,7 @@ interface BetterAuthUser {
 // The slice of the @jarv1s/settings public API that auth depends on. Auth records
 // admin audit events exclusively through this public API, never through the settings
 // repository class or by writing the settings-owned audit table directly (#101).
-type BootstrapSettings = {
+export type BootstrapSettings = {
   readonly recordBootstrapOwnerAuditEvent: typeof settingsRecordBootstrapOwnerAuditEvent;
   readonly recordAuditEvent: typeof settingsRecordAuditEvent;
 };
@@ -128,11 +130,12 @@ export function createJarvisAuthRuntime(
     options: "-c search_path=app,public"
   });
   const legacySessions = new AuthSessionResolver(options.appDb);
+  const settings: BootstrapSettings = options._settingsOverride ?? {
+    recordBootstrapOwnerAuditEvent: settingsRecordBootstrapOwnerAuditEvent,
+    recordAuditEvent: settingsRecordAuditEvent
+  };
   const auth = betterAuth(
-    createBetterAuthOptions(pool, options.appDb, env, options.runner, {
-      recordBootstrapOwnerAuditEvent: settingsRecordBootstrapOwnerAuditEvent,
-      recordAuditEvent: settingsRecordAuditEvent
-    })
+    createBetterAuthOptions(pool, options.appDb, env, options.runner, settings)
   );
 
   return {
@@ -525,8 +528,11 @@ async function bootstrapFirstJarvisUser(
     );
   } catch (err) {
     if (registrationRejected) {
-      await recordRegistrationRejectedAudit(runner, settings, user.id);
-      await deleteRejectedBootstrapRaceLoser(authPool, user.id);
+      try {
+        await recordRegistrationRejectedAudit(runner, settings, user.id);
+      } finally {
+        await deleteRejectedBootstrapRaceLoser(authPool, user.id);
+      }
     }
     throw err;
   }

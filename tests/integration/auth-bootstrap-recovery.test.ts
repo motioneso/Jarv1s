@@ -1,10 +1,15 @@
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { sql, type Kysely } from "kysely";
 import pg from "pg";
 
 import { createApiServer } from "../../apps/api/src/server.js";
 import { createDatabase, DataContextRunner, type JarvisDatabase } from "@jarv1s/db";
-import { createJarvisAuthRuntime, type JarvisAuthRuntime } from "@jarv1s/auth";
+import {
+  createJarvisAuthRuntime,
+  type BootstrapSettings,
+  type JarvisAuthRuntime
+} from "@jarv1s/auth";
+import { recordBootstrapOwnerAuditEvent } from "@jarv1s/settings";
 import {
   connectionStrings,
   resetEmptyFoundationDatabase,
@@ -203,6 +208,48 @@ describe("owner bootstrap recovery", () => {
       is_bootstrap_owner: true,
       status: "active"
     });
+  });
+
+  it("deletes race-loser user row even when audit write throws", async () => {
+    // Arrange: bootstrap owner exists, registration disabled → race-loser path will run.
+    const ownerRes = await signUp({
+      name: "Audit Fail Owner",
+      email: "audit-fail-owner@example.com",
+      password: "password12345"
+    });
+    expect(ownerRes.statusCode).toBe(200);
+
+    await setInstanceSetting("registration.enabled", { value: false });
+
+    // Inject a settings whose recordAuditEvent always throws to simulate an audit
+    // write failure. deleteRejectedBootstrapRaceLoser must still run (try/finally).
+    const throwingSettings: BootstrapSettings = {
+      recordBootstrapOwnerAuditEvent,
+      recordAuditEvent: vi.fn().mockRejectedValue(new Error("simulated audit failure"))
+    };
+
+    await server.close();
+    await authRuntime.close();
+    authRuntime = createJarvisAuthRuntime({
+      appDb,
+      runner: new DataContextRunner(appDb),
+      _settingsOverride: throwingSettings
+    });
+    server = createApiServer({ appDb, authRuntime, logger: false });
+    await server.ready();
+
+    // Act: sign up a second user — registration is disabled so the hook rejects and
+    // triggers the audit + delete path.
+    const rejectRes = await signUp({
+      name: "Audit Fail Loser",
+      email: "audit-fail-loser@example.com",
+      password: "password12345"
+    });
+    expect(rejectRes.statusCode).toBe(403);
+
+    // Assert: the rejected user row must be gone despite the audit write throwing.
+    const remaining = await readUsersByEmailPrefix("audit-fail-loser@");
+    expect(remaining).toHaveLength(0);
   });
 
   it("rejects disabled-registration bootstrap recovery racers that lose the owner lock", async () => {
