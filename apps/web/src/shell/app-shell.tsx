@@ -28,7 +28,7 @@ import {
 } from "react";
 import { NavLink, useLocation, useNavigate } from "react-router";
 
-import { listNotifications, sendChatTurn, signOut } from "../api/client";
+import { getWeatherToday, listNotifications, sendChatTurn, signOut } from "../api/client";
 import { buildShellNavigation, resolvePageHeading } from "../app-route-metadata";
 import { queryKeys } from "../api/query-keys";
 import { ChatDrawer } from "../chat/chat-drawer";
@@ -110,6 +110,13 @@ export function AppShell(props: AppShellProps) {
     queryFn: () => listNotifications()
   });
   const unreadCount = notificationsQuery.data?.unreadCount ?? 0;
+  const onTodayPage = location.pathname.startsWith("/today");
+  const weatherQuery = useQuery({
+    queryKey: queryKeys.weather.today,
+    queryFn: getWeatherToday,
+    staleTime: 30 * 60 * 1000,
+    enabled: onTodayPage
+  });
   const signOutMutation = useMutation({
     mutationFn: signOut,
     onSuccess: () => {
@@ -185,9 +192,9 @@ export function AppShell(props: AppShellProps) {
             {subtitle ? <span className="topbar-subtitle">{subtitle}</span> : null}
           </div>
 
-          {location.pathname.startsWith("/today") ? (
+          {onTodayPage ? (
             <div className="topbar-context">
-              <HeaderWeather />
+              <HeaderWeather weather={weatherQuery.data?.data ?? null} />
             </div>
           ) : null}
 

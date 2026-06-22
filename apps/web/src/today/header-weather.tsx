@@ -1,7 +1,8 @@
 import { Cloud, CloudRain, CloudSnow, CloudSun, Sun, Wind } from "lucide-react";
 import type { ComponentType } from "react";
+import type { WeatherTodayDto } from "@jarv1s/shared";
 
-import { createEmptyTodayFeed, type WeatherFeed, type WeatherIcon } from "./feed-source";
+import type { WeatherIcon } from "./feed-source";
 import "../styles/kit-weather.css";
 
 const ICONS: Record<
@@ -15,48 +16,21 @@ const ICONS: Record<
   "cloud-snow": CloudSnow,
   wind: Wind
 };
-const TONE: Record<"amber" | "steel" | "slate", string> = {
-  amber: "var(--amber)",
-  steel: "var(--steel)",
-  slate: "var(--ink-3)"
-};
 
-/**
- * Compact forecast for the top bar (the "header" weather placement).
- * Demo data for now — real location + forecast is tracked as roadmap work
- * (server-side IP-geo default + manual Settings override; browser geolocation
- * only works in a secure context, so it's a poor fit for plain-HTTP self-hosts).
- */
-export function HeaderWeather(props: { readonly weather?: WeatherFeed | null }) {
-  const { place, days } = props.weather ??
-    createEmptyTodayFeed().weather ?? {
-      place: "",
-      days: []
-    };
-  const today = days[0];
-  if (!today) return null;
-  const Now = ICONS[today.icon];
+export function HeaderWeather(props: { readonly weather?: WeatherTodayDto | null }) {
+  const wx = props.weather ?? null;
+  if (!wx) return null;
+  const Now = ICONS[wx.icon];
   return (
     <div className="wx-mini">
-      <span className="wx-mini__city">{place}</span>
+      <span className="wx-mini__city">{wx.location}</span>
       <div className="wx-mini__now">
-        <Now size={20} color={TONE[today.tone]} />
+        <Now size={20} color="var(--steel)" />
         <span className="t">
-          {today.hi}°<span className="lo"> {today.lo}°</span>
+          {wx.temp}°<span className="lo"> {wx.feelsLike}°</span>
         </span>
       </div>
-      <div className="wx-mini__days">
-        {days.slice(1, 5).map((day) => {
-          const Ico = ICONS[day.icon];
-          return (
-            <div className="wx-mini__day" key={day.d}>
-              <span className="d">{day.d}</span>
-              <Ico size={15} color={TONE[day.tone]} />
-              <span className="t">{day.hi}°</span>
-            </div>
-          );
-        })}
-      </div>
+      <div className="wx-mini__condition">{wx.condition}</div>
     </div>
   );
 }

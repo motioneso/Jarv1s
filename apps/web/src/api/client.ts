@@ -123,7 +123,10 @@ import type {
   CreateTherapyNoteRequest,
   CreateTherapyNoteResponse,
   DeleteTherapyNoteResponse,
-  PatchMeProfileRequest
+  PatchMeProfileRequest,
+  GetWeatherTodayResponse,
+  GetWeatherLocationResponse,
+  PutWeatherLocationRequest
 } from "@jarv1s/shared";
 
 export interface SignUpEmailRequest {
@@ -191,6 +194,23 @@ export async function putLocaleSettings(
   body: PutLocaleSettingsRequest
 ): Promise<PutLocaleSettingsResponse> {
   return requestJson<PutLocaleSettingsResponse>("/api/me/locale", {
+    method: "PUT",
+    body
+  });
+}
+
+export async function getWeatherToday(): Promise<GetWeatherTodayResponse> {
+  return requestJson<GetWeatherTodayResponse>("/api/weather/today");
+}
+
+export async function getWeatherLocation(): Promise<GetWeatherLocationResponse> {
+  return requestJson<GetWeatherLocationResponse>("/api/me/weather-location");
+}
+
+export async function putWeatherLocation(
+  body: PutWeatherLocationRequest
+): Promise<GetWeatherLocationResponse> {
+  return requestJson<GetWeatherLocationResponse>("/api/me/weather-location", {
     method: "PUT",
     body
   });
