@@ -31,6 +31,7 @@
 ## Task 1: Route-Local Limits For Clear And Switch
 
 **Files:**
+
 - Modify: `tests/integration/route-local-rate-limit.test.ts`
 - Modify: `packages/chat/src/live-routes.ts`
 
@@ -143,6 +144,7 @@ git commit -m "fix(chat): rate-limit live mutation routes" -m "Co-Authored-By: C
 ## Task 2: Per-Actor SSE Stream Ceiling
 
 **Files:**
+
 - Modify: `tests/unit/chat-session-manager.test.ts`
 - Modify: `packages/chat/src/live/chat-session-manager.ts`
 
@@ -230,6 +232,7 @@ git commit -m "fix(chat): cap live stream subscribers" -m "Co-Authored-By: Codex
 ## Task 3: Stream Route 429 And Write Guard
 
 **Files:**
+
 - Modify: `tests/integration/chat-live-api.test.ts`
 - Modify: `packages/chat/src/live-routes.ts`
 
@@ -357,6 +360,7 @@ git commit -m "fix(chat): guard live stream writes" -m "Co-Authored-By: Codex <c
 ## Task 4: Turn Text Max Length
 
 **Files:**
+
 - Modify: `tests/integration/chat-live-api.test.ts`
 - Modify: `packages/chat/src/live-routes.ts`
 
@@ -400,7 +404,8 @@ Change `readText`:
 
 ```ts
 function readText(body: unknown): { text: string } | { error: string } {
-  if (!body || typeof body !== "object" || Array.isArray(body)) return { error: "text is required" };
+  if (!body || typeof body !== "object" || Array.isArray(body))
+    return { error: "text is required" };
   const value = (body as Record<string, unknown>).text;
   if (typeof value !== "string") return { error: "text is required" };
   if (value.length > MAX_CHAT_TURN_TEXT_LENGTH) {
@@ -441,6 +446,7 @@ git commit -m "fix(chat): cap live turn text" -m "Co-Authored-By: Codex <codex@o
 ## Task 5: Final Verification
 
 **Files:**
+
 - No code changes unless verification fails.
 
 - [ ] **Step 1: Run focused tests**

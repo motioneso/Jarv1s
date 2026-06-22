@@ -242,7 +242,8 @@ function handleLiveRouteError(error: unknown, reply: FastifyReply) {
 }
 
 function readText(body: unknown): { text: string } | { error: string } {
-  if (!body || typeof body !== "object" || Array.isArray(body)) return { error: "text is required" };
+  if (!body || typeof body !== "object" || Array.isArray(body))
+    return { error: "text is required" };
   const value = (body as Record<string, unknown>).text;
   if (typeof value !== "string") return { error: "text is required" };
   if (value.length > MAX_CHAT_TURN_TEXT_LENGTH) {
