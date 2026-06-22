@@ -23,17 +23,21 @@
 ### Task 1: Flip integration test to RED (TDD anchor)
 
 **Files:**
+
 - Modify: `tests/integration/wellness-medications.test.ts:91–110`
 
 **Interfaces:**
+
 - Produces: a failing test named `"PRN dose log without prn_reason is accepted (201)"` that will go GREEN once the server validation is removed.
 
 - [ ] **Step 1: Open the existing test**
 
   Read `tests/integration/wellness-medications.test.ts` around line 91. The current test is:
+
   ```
   it("POST a PRN dose log without prn_reason is rejected 400", ...)
   ```
+
   It asserts `statusCode === 400`.
 
 - [ ] **Step 2: Replace the test body**
@@ -72,6 +76,7 @@
   pnpm db:migrate
   JARVIS_PGDATABASE=jarvis_dev vitest run tests/integration/wellness-medications.test.ts 2>&1 | grep -E "FAIL|PASS|Error|expect|received"
   ```
+
   Expected: test FAILS (server still returns 400).
 
 - [ ] **Step 4: Commit the RED test**
@@ -86,23 +91,28 @@
 ### Task 2: New DB migration — drop the prn_reason CHECK constraint
 
 **Files:**
+
 - Create: `packages/wellness/sql/0098_wellness_medication_logs_prn_reason_optional.sql`
-  *(Replace `0098` with the number confirmed by the coordinator before committing.)*
+  _(Replace `0098` with the number confirmed by the coordinator before committing.)_
 
 **Interfaces:**
+
 - Produces: migration file that, when applied, allows `prn_reason IS NULL` for `status='prn'` rows.
 
 **Context:**
 The current constraint in `0084_wellness_medication_logs.sql:16` is:
+
 ```sql
 CONSTRAINT medication_logs_prn_reason
   CHECK (status <> 'prn' OR (prn_reason IS NOT NULL AND length(btrim(prn_reason)) > 0))
 ```
+
 This is a NAMED constraint — it can be dropped with `ALTER TABLE … DROP CONSTRAINT`. The separate `medication_logs_scheduled_for_present` constraint is untouched.
 
 - [ ] **Step 1: Confirm migration number with coordinator**
 
   Before writing the file, message the coordinator:
+
   > "fix-397: need migration number. Current last = 0097. Proposing 0098 — confirm?"
 
   Wait for the reply. Use the confirmed number in the filename and SQL below.
@@ -124,6 +134,7 @@ This is a NAMED constraint — it can be dropped with `ALTER TABLE … DROP CONS
   ```bash
   pnpm db:migrate 2>&1 | tail -10
   ```
+
   Expected: migration runs without error; no output from `pnpm db:migrate` for previously-applied migrations.
 
 - [ ] **Step 4: Commit the migration**
@@ -138,13 +149,16 @@ This is a NAMED constraint — it can be dropped with `ALTER TABLE … DROP CONS
 ### Task 3: Remove server-side validation in routes.ts
 
 **Files:**
+
 - Modify: `packages/wellness/src/routes.ts:608–611`
 
 **Interfaces:**
+
 - Consumes: `parseLogDoseBody` function, already parses `prnReason` via `optionalNullableString` (nullable by default — no type change needed).
 - Produces: `parseLogDoseBody` no longer throws 400 when `status === "prn" && !prnReason`.
 
 **Context — current code at routes.ts:608–611:**
+
 ```typescript
 const prnReason = optionalNullableString(value["prnReason"], "prnReason");
 if (status === "prn" && !prnReason) {
@@ -171,6 +185,7 @@ if (status === "prn" && !prnReason) {
   ```bash
   JARVIS_PGDATABASE=jarvis_dev vitest run tests/integration/wellness-medications.test.ts 2>&1 | grep -E "FAIL|PASS|✓|×"
   ```
+
   Expected: `"PRN dose log without prn_reason is accepted (201)"` now PASSES.
 
 - [ ] **Step 3: Run the full wellness-medications suite**
@@ -178,6 +193,7 @@ if (status === "prn" && !prnReason) {
   ```bash
   JARVIS_PGDATABASE=jarvis_dev vitest run tests/integration/wellness-medications.test.ts 2>&1 | tail -20
   ```
+
   Expected: all tests pass.
 
 - [ ] **Step 4: Commit**
@@ -192,9 +208,11 @@ if (status === "prn" && !prnReason) {
 ### Task 4: Frontend — make PRN reason input optional
 
 **Files:**
+
 - Modify: `apps/web/src/wellness/wellness-today.tsx` (lines ~225–244, ~348, ~375)
 
 **Interfaces:**
+
 - Consumes: `logMutation.mutate` with `prnReason?: string | null` — already accepts null (no type change needed).
 - Produces: submit button enabled even when reason is blank; blank reason sent as `null`; placeholder updated; guard comment updated.
 
@@ -252,21 +270,27 @@ disabled={!prnReason.trim() || logMutation.isPending}          // ← remove !pr
 - [ ] **Step 3: Update placeholder text (line ~348)**
 
   Change:
+
   ```tsx
-  placeholder="Reason for this dose (required)"
+  placeholder = "Reason for this dose (required)";
   ```
+
   To:
+
   ```tsx
-  placeholder="Reason for this dose (optional)"
+  placeholder = "Reason for this dose (optional)";
   ```
 
 - [ ] **Step 4: Remove reason-empty disabled guard (line ~375)**
 
   Change:
+
   ```tsx
   disabled={!prnReason.trim() || logMutation.isPending}
   ```
+
   To:
+
   ```tsx
   disabled={logMutation.isPending}
   ```
@@ -276,6 +300,7 @@ disabled={!prnReason.trim() || logMutation.isPending}          // ← remove !pr
   ```bash
   pnpm typecheck 2>&1 | grep -E "error|wellness-today"
   ```
+
   Expected: no errors (the mutation type already accepts `prnReason?: string | null`).
 
 - [ ] **Step 6: Commit**
@@ -290,6 +315,7 @@ disabled={!prnReason.trim() || logMutation.isPending}          // ← remove !pr
 ### Task 5: Update foundation.test.ts migration list
 
 **Files:**
+
 - Modify: `tests/integration/foundation.test.ts` (around line 193–201)
 
 **Context:**
@@ -298,10 +324,13 @@ disabled={!prnReason.trim() || logMutation.isPending}          // ← remove !pr
 - [ ] **Step 1: Add the new migration row**
 
   In `tests/integration/foundation.test.ts`, find the line:
+
   ```typescript
   { version: "0097", name: "0097_chat_memory_corrections_update_grant.sql" },
   ```
+
   Add the new row **after** it (use the confirmed migration number from Task 2):
+
   ```typescript
   { version: "0098", name: "0098_wellness_medication_logs_prn_reason_optional.sql" },
   ```
@@ -311,6 +340,7 @@ disabled={!prnReason.trim() || logMutation.isPending}          // ← remove !pr
   ```bash
   JARVIS_PGDATABASE=jarvis_dev pnpm test:integration 2>&1 | tail -30
   ```
+
   Expected: all tests pass including foundation.
 
 - [ ] **Step 3: Commit**
@@ -331,6 +361,7 @@ disabled={!prnReason.trim() || logMutation.isPending}          // ← remove !pr
   ```bash
   pnpm format:check && pnpm lint && pnpm typecheck
   ```
+
   Expected: all exit 0. If `format:check` fails, run `pnpm format` on the specific changed files only, then re-stage.
 
 - [ ] **Step 2: Fresh rebase onto origin/main**
@@ -344,6 +375,7 @@ disabled={!prnReason.trim() || logMutation.isPending}          // ← remove !pr
   ```bash
   JARVIS_PGDATABASE=jarvis_dev pnpm test:integration 2>&1 | tail -30
   ```
+
   Expected: all tests pass.
 
 - [ ] **Step 4: Invoke `coordinated-wrap-up`**
@@ -355,6 +387,7 @@ disabled={!prnReason.trim() || logMutation.isPending}          // ← remove !pr
 ## Self-Review
 
 **Spec coverage:**
+
 - DB constraint relaxed ✓ (Task 2)
 - Server validation removed ✓ (Task 3)
 - Frontend required-field removed ✓ (Task 4)
