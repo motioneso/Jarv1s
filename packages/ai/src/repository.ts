@@ -133,7 +133,10 @@ export interface ChatModelOverrideSettings {
   readonly effectiveOverrideModelId: string | null;
   readonly defaultModel: AiConfiguredModelSafeRow | null;
   readonly selectedModel: AiConfiguredModelSafeRow | null;
+  /** All models shown in the UI (includes the instance default even if not user-overridable). */
   readonly allowedModels: readonly AiConfiguredModelSafeRow[];
+  /** Models the user may actually select as an override (allowUserOverride=true only). */
+  readonly selectableOverrideModels: readonly AiConfiguredModelSafeRow[];
 }
 
 export const AI_CAPABILITY_ROUTES_SETTING_KEY = "ai.capability_routes";
@@ -554,7 +557,8 @@ export class AiRepository {
       effectiveOverrideModelId: resolved.effectiveOverrideModelId,
       defaultModel: defaultModel ?? null,
       selectedModel: resolved.selectedModel,
-      allowedModels: resolved.allowedModels
+      allowedModels: resolved.allowedModels,
+      selectableOverrideModels: resolved.selectableOverrideModels
     };
   }
 
