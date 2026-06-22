@@ -56,7 +56,8 @@ export const ALLOWED_PAYLOAD_KEYS: ReadonlySet<string> = new Set([
   "targetItemId",
   "kind",
   "resourceId",
-  "idempotencyKey"
+  "idempotencyKey",
+  "sourcePath"
 ]);
 
 export function assertMetadataOnlyPayload(payload: unknown): void {
