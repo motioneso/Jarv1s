@@ -83,6 +83,21 @@ describe("sessionRateLimitKey (UUID-shaped session bearer policy)", () => {
     expect(a2).toBe(a2again);
     expect(a).not.toBe(a2);
   });
+
+  it("does NOT accept an uppercase-hex UUID bearer — falls to per-IP, no distinct bucket (#319)", () => {
+    // Better Auth mints lowercase UUIDs only; an uppercase-hex variant cannot resolve and
+    // must not earn its own limiter bucket. Two different uppercased UUIDs (containing
+    // a-f so toUpperCase actually changes them) from one peer collapse to the shared
+    // ip:<peer> bucket, never to distinct bearer: hashes.
+    const upperA = "abcdef01-0000-4000-8000-000000000001".toUpperCase();
+    const upperB = "fedcba98-0000-4000-8000-000000000002".toUpperCase();
+    const a = sessionRateLimitKey(req({ authorization: `Bearer ${upperA}`, ip: "198.51.100.40" }));
+    const b = sessionRateLimitKey(req({ authorization: `Bearer ${upperB}`, ip: "198.51.100.40" }));
+    expect(a).toBe("ip:198.51.100.40");
+    expect(b).toBe("ip:198.51.100.40");
+    expect(a).toBe(b);
+    expect(a.startsWith("bearer:")).toBe(false);
+  });
 });
 
 describe("mcpSessionRateLimitKey (jst_<uuid> MCP token policy)", () => {
@@ -120,5 +135,24 @@ describe("mcpSessionRateLimitKey (jst_<uuid> MCP token policy)", () => {
 
   it("falls back to the per-IP namespace when no credential is presented", () => {
     expect(mcpSessionRateLimitKey(req({ ip: "198.51.100.23" }))).toBe("ip:198.51.100.23");
+  });
+
+  it("does NOT accept an uppercase `JST_<uuid>` bearer — falls to per-IP, no distinct bucket (#319)", () => {
+    // MCP tokens are minted lowercase `jst_<uuid>`; the `tokens.verify()` Map lookup is
+    // case-sensitive, so an uppercased variant always 401s and must NOT earn its own limiter
+    // bucket. Both the `JST_` prefix AND the uppercase-hex UUID body must be rejected — two
+    // different uppercased JST_ tokens from one peer collapse to ip:<peer>.
+    const upperA = "jst_abcdef01-0000-4000-8000-000000000001".toUpperCase();
+    const upperB = "jst_fedcba98-0000-4000-8000-000000000002".toUpperCase();
+    const a = mcpSessionRateLimitKey(
+      req({ authorization: `Bearer ${upperA}`, ip: "198.51.100.50" })
+    );
+    const b = mcpSessionRateLimitKey(
+      req({ authorization: `Bearer ${upperB}`, ip: "198.51.100.50" })
+    );
+    expect(a).toBe("ip:198.51.100.50");
+    expect(b).toBe("ip:198.51.100.50");
+    expect(a).toBe(b);
+    expect(a.startsWith("mcp:")).toBe(false);
   });
 });

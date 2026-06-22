@@ -472,8 +472,11 @@ const THROTTLED_AUTH_PATHS = new Set([
 // silently degrade from a per-principal bucket to a shared per-IP one.
 const SESSION_COOKIE_NAMES = ["better-auth.session_token=", "__Secure-better-auth.session_token="];
 
-// A Better Auth session id is a v4 UUID (the legacy session-bearer path casts it ::uuid).
-const SESSION_UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+// A Better Auth session id is a v4 UUID minted lowercase-only (randomUUID() hex). The
+// limiter gates on the exact mint shape so a caller cannot vary the case of an uppercase
+// UUID to mint distinct per-principal buckets (#319). Kept in sync with the route-local
+// copy in packages/module-sdk/src/rate-limit-key.ts.
+const SESSION_UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 
 // Rate-limit key for the global throttle class. Prefer the presented credential so each
 // LAN user / bearer client gets its own bucket; otherwise key on the real peer IP.
