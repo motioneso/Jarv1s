@@ -452,7 +452,8 @@ describe("AI read-only assistant tool execution foundation", () => {
       "tasks-recurrence-materialize",
       "chat.embed-turn",
       "chat.extract-facts",
-      "briefings-run"
+      "briefings-run",
+      "notes.sync"
     ]);
     await expect(tasksRepository.listVisible({} as never)).rejects.toThrow(
       "Repository access requires withDataContext"

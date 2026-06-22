@@ -80,6 +80,10 @@ export default defineConfig({
         replacement: fileURLToPath(new URL("./packages/module-sdk/src/index.ts", import.meta.url))
       },
       {
+        find: "@jarv1s/notes",
+        replacement: fileURLToPath(new URL("./packages/notes/src/index.ts", import.meta.url))
+      },
+      {
         find: "@jarv1s/notifications",
         replacement: fileURLToPath(
           new URL("./packages/notifications/src/index.ts", import.meta.url)

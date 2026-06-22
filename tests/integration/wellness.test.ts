@@ -485,14 +485,14 @@ describe("wellness AI read tools", () => {
 });
 
 describe("wellness registry integration", () => {
-  it("wellness is registered exactly once in BUILT_IN_MODULES and is the only required:false module", () => {
+  it("wellness is registered exactly once in BUILT_IN_MODULES and is required:false", () => {
     const manifests = getBuiltInModuleManifests();
     const wellness = manifests.filter((m) => m.id === "wellness");
     expect(wellness.length).toBe(1);
     expect(wellness[0]?.availability?.required).toBe(false);
 
     const optional = manifests.filter((m) => m.availability?.required === false);
-    expect(optional.map((m) => m.id)).toEqual(["wellness"]);
+    expect(optional.map((m) => m.id)).toContain("wellness");
   });
 
   it("wellness routes are reachable through registerBuiltInApiRoutes (briefings can resolve its tools)", () => {
