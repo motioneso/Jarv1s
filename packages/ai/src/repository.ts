@@ -520,6 +520,13 @@ export class AiRepository {
       .executeTakeFirst();
   }
 
+  /**
+   * Canonical entrypoint for selecting the effective chat model for the current user.
+   * Resolves the user's override preference against the admin-configured allowable set
+   * and falls back to the instance default. Call sites that need only the resolved model
+   * (not the full override settings) should use this rather than
+   * `getChatModelOverrideSettings(...).selectedModel` directly.
+   */
   async selectChatModelForUser(scopedDb: DataContextDb): Promise<AiConfiguredModelSafeRow | null> {
     const settings = await this.getChatModelOverrideSettings(scopedDb);
     return settings.selectedModel;
