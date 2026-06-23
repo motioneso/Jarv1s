@@ -47,8 +47,9 @@ export function readConfig(env: NodeJS.ProcessEnv = process.env): CliRunnerConfi
   return {
     socketPath: env.JARVIS_CLI_RUNNER_SOCKET ?? DEFAULT_SOCKET,
     rpcSecret: env.JARVIS_CLI_RUNNER_RPC_SECRET,
-    // Default ON (§4.1.0a). Only "0" turns it OFF (after #347 lands).
-    singleUser: env.JARVIS_CLI_RUNNER_SINGLE_USER !== "0",
+    // #347: default OFF now that per-user UID isolation is in place. Set "1" to
+    // re-enable the single-active-user restriction as an operator escape hatch.
+    singleUser: env.JARVIS_CLI_RUNNER_SINGLE_USER === "1",
     neutralBase: env.JARVIS_CLI_NEUTRAL_BASE ?? DEFAULT_NEUTRAL_BASE,
     homeBase,
     toolsPrefix: env.JARVIS_CLI_TOOLS_PREFIX ?? env.NPM_CONFIG_PREFIX ?? DEFAULT_TOOLS_PREFIX
