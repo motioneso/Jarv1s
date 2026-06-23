@@ -287,18 +287,22 @@ export async function runGoogleSync(
     // Never log the underlying auth error object (may carry client_secret/refresh_token).
     logger.warn({ actorScoped: true, stage: "auth" }, "google-sync auth failed");
     // Record a failed run with the bounded auth label only — never the raw provider error.
-    await connectorsRepo.markSyncFinished(scopedDb, account.id, {
-      finishedAt: now(),
-      status: "failed",
-      error: "auth-error",
-      counts: {
-        calendarUpserted: 0,
-        emailUpserted: 0,
-        emailFailures: 0,
-        escalations: 0,
-        truncated: false
-      }
-    });
+    try {
+      await connectorsRepo.markSyncFinished(scopedDb, account.id, {
+        finishedAt: now(),
+        status: "failed",
+        error: "auth-error",
+        counts: {
+          calendarUpserted: 0,
+          emailUpserted: 0,
+          emailFailures: 0,
+          escalations: 0,
+          truncated: false
+        }
+      });
+    } catch (persistErr) {
+      logger.warn({ err: persistErr }, "google-sync: failed to persist auth-failure outcome");
+    }
     return { calendarUpserted: 0, emailUpserted: 0, errors: ["auth-error"] };
   }
 
@@ -471,15 +475,20 @@ export async function runGoogleSync(
     "google-sync complete"
   );
   // Bounded item errors (calendar/email section or per-item labels) make the run `partial`;
-  // a clean run is `success`. A thrown top-level failure (auth) is recorded as `failed` above.
+  // a truncated run is also partial — some items were silently dropped.
+  // A clean run is `success`. A thrown top-level failure (auth) is recorded as `failed` above.
   // The persisted error is the first bounded label only — never raw provider/error text.
-  const status: ConnectorSyncStatus = errors.length > 0 ? "partial" : "success";
-  await connectorsRepo.markSyncFinished(scopedDb, account.id, {
-    finishedAt: now(),
-    status,
-    error: errors[0] ?? null,
-    counts: { calendarUpserted, emailUpserted, emailFailures, escalations, truncated }
-  });
+  const status: ConnectorSyncStatus = errors.length > 0 || truncated ? "partial" : "success";
+  try {
+    await connectorsRepo.markSyncFinished(scopedDb, account.id, {
+      finishedAt: now(),
+      status,
+      error: errors[0] ?? null,
+      counts: { calendarUpserted, emailUpserted, emailFailures, escalations, truncated }
+    });
+  } catch (error) {
+    logger.warn({ err: error }, "google-sync: failed to persist sync outcome; not retrying job");
+  }
   return { calendarUpserted, emailUpserted, emailFailures, escalations, errors, truncated };
 }
 
