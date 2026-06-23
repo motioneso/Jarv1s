@@ -128,6 +128,7 @@ jobs:
           BETTER_AUTH_SECRET=smoke-only-not-a-real-secret-0000000000
           JARVIS_CONNECTOR_SECRET_KEY=00000000000000000000000000000000
           JARVIS_AI_SECRET_KEY=11111111111111111111111111111111
+          JARVIS_CLI_RUNNER_RPC_SECRET=ci-smoke-only-not-real
           JARVIS_EMBED_PROVIDER=stub
           EOF
       - name: Run prod compose smoke (builds images + in-image migrate)
@@ -140,14 +141,7 @@ jobs:
           # POSTGRES_PASSWORD is a Compose INTERPOLATION var (env_file does not feed
           # it); the prod Compose now requires it (`:?`), so set it in the shell env.
           POSTGRES_PASSWORD: postgres
-          # CI host has no CLI dirs / tmux server; create empty mount targets.
-          JARVIS_HOST_CLAUDE_DIR: ${{ github.workspace }}/.ci-claude
-          JARVIS_HOST_CODEX_DIR: ${{ github.workspace }}/.ci-codex
-          JARVIS_HOST_GEMINI_DIR: ${{ github.workspace }}/.ci-gemini
-          JARVIS_TMUX_SOCKET_DIR: ${{ github.workspace }}/.ci-tmux
-          JARVIS_CHAT_HOME: ${{ github.workspace }}/.ci-chat
         run: |
-          mkdir -p .ci-claude .ci-codex .ci-gemini .ci-tmux .ci-chat
           pnpm smoke:compose:prod
       - name: Stop prod compose stack
         if: always()
