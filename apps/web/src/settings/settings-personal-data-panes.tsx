@@ -37,6 +37,12 @@ import {
   revokeConnectorAccount,
   setMyModuleDisabled
 } from "../api/client";
+import {
+  getNotesLastSync,
+  getNotesSource,
+  postNotesSync,
+  putNotesSource
+} from "../api/notes-client";
 import { queryKeys } from "../api/query-keys";
 import { GOOGLE_CONNECT_SUCCESS_QUERY_KEYS } from "../connectors/use-google-connect-flow";
 import { GoogleConnect } from "./settings-google-connect";
@@ -46,12 +52,6 @@ import {
   NotificationSettings
 } from "./settings-module-subviews";
 import {
-  DEFAULT_VAULT,
-  SERVER_FS,
-  VAULT_BEHAVIORS,
-  type VaultBehavior
-} from "./settings-sample-data";
-import {
   sourceBehaviorStatus,
   type DataSource as DataSourceModel,
   type DataSourceBehavior
@@ -59,19 +59,9 @@ import {
 import { useFeedback } from "./settings-feedback";
 import { settingsModuleControlModel } from "./settings-module-view-model";
 import { moduleDescription, readError, type PaneProps } from "./settings-types";
-import {
-  Badge,
-  Group,
-  Indicator,
-  NotWired,
-  Note,
-  PaneHead,
-  Row,
-  Select,
-  Switch
-} from "./settings-ui";
+import { Badge, Group, Indicator, Note, PaneHead, Row, Select, Switch } from "./settings-ui";
 import { VaultChooser } from "./settings-vault-chooser";
-import type { ConnectorAccountDto, LocaleSettingsDto } from "@jarv1s/shared";
+import type { ConnectorAccountDto, LocaleSettingsDto, PutNotesSourceRequest } from "@jarv1s/shared";
 
 const MODULE_ICONS: Record<string, LucideIcon> = {
   tasks: ListChecks,
@@ -275,22 +265,11 @@ function ConnectedPane() {
 
 /* ----------------------------------------------------------- Data sources */
 
-interface VaultState {
-  linked: boolean;
-  folder: string;
-  fileCount: number;
-  writable: boolean;
-}
-
-function folderNoteCount(folder: string): number {
-  const node = SERVER_FS.tree[folder] ?? [];
-  const direct = node.reduce((n, c) => n + (c.mdCount ?? 0), 0);
-  if (direct) return direct;
-  const parent = folder.slice(0, folder.lastIndexOf("/"));
-  const self = (SERVER_FS.tree[parent] ?? []).find(
-    (c) => c.name === folder.slice(folder.lastIndexOf("/") + 1)
-  );
-  return self?.mdCount ?? 0;
+function formatLastSync(at: string | null, lastError?: string): string {
+  if (!at) return "Never synced";
+  const date = new Date(at);
+  const relative = isNaN(date.getTime()) ? at : date.toLocaleString();
+  return lastError ? `Last sync failed: ${relative}` : `Last sync: ${relative}`;
 }
 
 function SourcesPane() {
@@ -310,29 +289,54 @@ function SourcesPane() {
     },
     onError: (error) => toast(readError(error), { tone: "drift" })
   });
-  const [vault, setVault] = useState<VaultState>({
-    linked: DEFAULT_VAULT.linked,
-    folder: DEFAULT_VAULT.folder,
-    fileCount: DEFAULT_VAULT.fileCount,
-    writable: DEFAULT_VAULT.writable
+
+  // Notes source (#449): real API calls replace the prior NotWired stub.
+  const notesSourceQuery = useQuery({
+    queryKey: queryKeys.settings.notesSource,
+    queryFn: getNotesSource,
+    retry: false
   });
-  const [behaviors, setBehaviors] = useState<Record<string, boolean>>(() =>
-    Object.fromEntries(VAULT_BEHAVIORS.map((b: VaultBehavior) => [b.k, b.on]))
-  );
+  const notesLastSyncQuery = useQuery({
+    queryKey: queryKeys.settings.notesLastSync,
+    queryFn: getNotesLastSync,
+    retry: false
+  });
+  const putNotesSourceMutation = useMutation({
+    mutationFn: (body: PutNotesSourceRequest) => putNotesSource(body),
+    onSuccess: (data) => {
+      queryClient.setQueryData(queryKeys.settings.notesSource, data);
+      // Clear the stale last-sync read so it refetches after the next sync.
+      queryClient.invalidateQueries({ queryKey: queryKeys.settings.notesLastSync });
+    },
+    onError: (error) => toast(readError(error), { tone: "drift" })
+  });
+  const syncMutation = useMutation({
+    mutationFn: () => postNotesSync(),
+    onSuccess: () => {
+      toast("Sync started", { icon: <FolderCheck size={17} /> });
+      // The job runs async; poll the last-sync read after a short delay.
+      setTimeout(
+        () => queryClient.invalidateQueries({ queryKey: queryKeys.settings.notesLastSync }),
+        2000
+      );
+    },
+    onError: (error) => toast(readError(error), { tone: "drift" })
+  });
+
+  const linkedPath = notesSourceQuery.data?.path ?? null;
+  const lastSync = notesLastSyncQuery.data?.lastSync ?? null;
   const [choosing, setChoosing] = useState(false);
 
-  // BACKEND-TODO: persist the linked vault folder + notes behavior toggles.
   const choose = (folder: string) => {
-    const root = SERVER_FS.roots.find((r) => folder.indexOf(r.name) === 0);
-    setVault((v) => ({
-      ...v,
-      linked: true,
-      folder,
-      fileCount: folderNoteCount(folder) || v.fileCount,
-      writable: root ? root.writable : false
-    }));
-    setChoosing(false);
-    toast(`Linked ${folder}`, { icon: <FolderCheck size={17} /> });
+    putNotesSourceMutation.mutate(
+      { path: folder },
+      {
+        onSuccess: () => {
+          setChoosing(false);
+          toast(`Linked ${folder}`, { icon: <FolderCheck size={17} /> });
+        }
+      }
+    );
   };
   const unlink = () =>
     confirm({
@@ -341,7 +345,7 @@ function SourcesPane() {
       confirmLabel: "Unlink",
       danger: true,
       onConfirm: () => {
-        setVault((v) => ({ ...v, linked: false }));
+        putNotesSourceMutation.mutate({ path: null });
         toast("Folder unlinked", { tone: "drift", icon: <Unlink size={17} /> });
       }
     });
@@ -349,7 +353,7 @@ function SourcesPane() {
   if (choosing) {
     return (
       <VaultChooser
-        current={vault.linked ? vault.folder : ""}
+        current={linkedPath ?? ""}
         onCancel={() => setChoosing(false)}
         onChoose={choose}
       />
@@ -420,29 +424,28 @@ function SourcesPane() {
         }
         desc="Point Jarvis at a folder of notes on this server — a Markdown vault, a plain folder of text files, anything. Tool-agnostic by design."
       >
-        <NotWired>The linked folder and these toggles aren't persisted yet.</NotWired>
         <div className="vault">
           <span className="vault__ic">
-            {vault.linked ? (
+            {linkedPath ? (
               <FolderCheck size={18} aria-hidden="true" />
             ) : (
               <FolderOpen size={18} aria-hidden="true" />
             )}
           </span>
           <div className="vault__main">
-            {vault.linked ? (
+            {linkedPath ? (
               <>
                 <div className="vault__path">
-                  {vault.folder}
-                  {!vault.writable ? (
-                    <span className="vault__ro">
-                      <Lock size={11} aria-hidden="true" />
-                      read-only
-                    </span>
-                  ) : null}
+                  {linkedPath}
+                  <span className="vault__ro">
+                    <Lock size={11} aria-hidden="true" />
+                    read-only
+                  </span>
                 </div>
                 <div className="vault__meta">
-                  {vault.fileCount} Markdown files · last read 6 min ago
+                  {lastSync
+                    ? `${lastSync.ingested} ingested · ${lastSync.skipped} unchanged · ${lastSync.errors} errors · ${formatLastSync(lastSync.at, lastSync.lastError)}`
+                    : "Linked — run Sync now to ingest."}
                 </div>
               </>
             ) : (
@@ -459,33 +462,38 @@ function SourcesPane() {
               type="button"
               className="jds-btn jds-btn--secondary jds-btn--sm"
               onClick={() => setChoosing(true)}
+              disabled={putNotesSourceMutation.isPending}
             >
               <span className="jds-btn__icon">
                 <FolderSearch size={15} />
               </span>
-              {vault.linked ? "Change folder" : "Browse…"}
+              {linkedPath ? "Change folder" : "Browse…"}
             </button>
-            {vault.linked ? (
-              <button type="button" className="jds-btn jds-btn--quiet jds-btn--sm" onClick={unlink}>
-                Unlink
-              </button>
+            {linkedPath ? (
+              <>
+                <button
+                  type="button"
+                  className="jds-btn jds-btn--secondary jds-btn--sm"
+                  onClick={() => syncMutation.mutate()}
+                  disabled={syncMutation.isPending}
+                >
+                  <span className="jds-btn__icon">
+                    <RefreshCw size={15} className={syncMutation.isPending ? "spin" : ""} />
+                  </span>
+                  {syncMutation.isPending ? "Syncing…" : "Sync now"}
+                </button>
+                <button
+                  type="button"
+                  className="jds-btn jds-btn--quiet jds-btn--sm"
+                  onClick={unlink}
+                  disabled={putNotesSourceMutation.isPending}
+                >
+                  Unlink
+                </button>
+              </>
             ) : null}
           </div>
         </div>
-        {VAULT_BEHAVIORS.map((b) => (
-          <Row
-            key={b.k}
-            name={b.name}
-            desc={b.desc}
-            control={
-              <Switch
-                ariaLabel={`Notes — ${b.name}`}
-                checked={behaviors[b.k] ?? false}
-                onChange={(v) => setBehaviors((cur) => ({ ...cur, [b.k]: v }))}
-              />
-            }
-          />
-        ))}
       </Group>
       <Note icon={<ShieldCheck size={13} />}>
         Jarvis only reads your notes — it never moves, edits, or deletes your files.

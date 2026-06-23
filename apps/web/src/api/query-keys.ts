@@ -20,7 +20,9 @@ export const queryKeys = {
     sourceBehaviors: ["settings", "source-behaviors"] as const,
     registrationSettings: ["settings", "admin", "registration"] as const,
     chatMultiplexer: ["settings", "chat-multiplexer"] as const,
-    hostDiagnostics: ["settings", "host-diagnostics"] as const
+    hostDiagnostics: ["settings", "host-diagnostics"] as const,
+    notesSource: ["settings", "notes-source"] as const,
+    notesLastSync: ["settings", "notes-last-sync"] as const
   },
   connectors: {
     providers: ["connectors", "providers"] as const,
