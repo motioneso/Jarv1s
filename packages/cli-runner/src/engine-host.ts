@@ -42,6 +42,8 @@ import type { InstallService } from "./install-service.js";
 import { LoginBadRequestError, type LoginService } from "./login-service.js";
 import { ensureProviderLaunchReady } from "./provider-first-run.js";
 import { providerTokenPath, readProviderCredentialEnv } from "./provider-token-store.js";
+import { allocateUidSlot, migrateNeutralDir } from "./uid-allocator.js";
+import { createSanitizedTmuxIo } from "./runner-io.js";
 
 export interface EngineHostDeps {
   readonly io: TmuxIo;
@@ -146,7 +148,25 @@ export class CliChatEngineHost {
     // releases the reservation on success OR any failure OR timeout — a wedged tmux can
     // never strand K and freeze the gate (fail-safe; release guaranteed by settle AND
     // by timeout).
-    const engine = new CliChatEngineImpl(params.provider as ProviderKind, key, this.deps.io, {
+
+    // #347: allocate a per-user UID/GID slot so the engine's subprocesses (tmux, CLI)
+    // run under a distinct OS identity. Falls back to the shared root io when homeBase
+    // is absent (test / in-process host scenarios that never reach this path in prod).
+    let sessionIo = this.deps.io;
+    if (this.deps.homeBase) {
+      try {
+        const slot = allocateUidSlot(this.deps.homeBase, key);
+        const neutralDirForMigration = deriveNeutralDir(this.deps.neutralBase, key);
+        migrateNeutralDir(neutralDirForMigration, slot.uid, slot.gid);
+        sessionIo = createSanitizedTmuxIo(process.env, slot);
+      } catch (err) {
+        throw new CliChatUnavailableError(
+          err instanceof Error ? err.message : "could not allocate UID slot"
+        );
+      }
+    }
+
+    const engine = new CliChatEngineImpl(params.provider as ProviderKind, key, sessionIo, {
       mux: this.deps.mux,
       homeBase: this.deps.homeBase,
       ownsDrain: true,
