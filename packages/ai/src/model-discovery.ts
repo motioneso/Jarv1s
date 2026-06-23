@@ -100,7 +100,9 @@ async function fetchModels(
         ? { models: ANTHROPIC_STATIC_MODELS.slice(), fromFallback: true }
         : { models: [], fromFallback: false };
     }
-    const models = extractModelIds(input.providerKind, await response.json()).map(inferModel);
+    const models = extractModelIds(input.providerKind, await response.json()).map((id) =>
+      inferModel(id, input.providerKind)
+    );
     return { models, fromFallback: false };
   } catch {
     return input.providerKind === "anthropic"
@@ -163,17 +165,35 @@ function extractModelIds(providerKind: AiProviderKind, json: unknown): string[] 
   return [];
 }
 
-function inferModel(providerModelId: string): AiProviderDiscoveredModelDto {
+export function inferTierFromModelId(providerKind: AiProviderKind, modelId: string): AiModelTier {
+  const id = modelId.toLowerCase();
+  if (providerKind === "anthropic") {
+    if (id.includes("opus")) return "reasoning";
+    if (id.includes("sonnet")) return "interactive";
+    if (id.includes("haiku")) return "economy";
+    return "interactive";
+  }
+  if (providerKind === "openai-compatible") {
+    if (/\bo[0-9]/.test(id)) return "reasoning";
+    if (id.includes("mini") || id.includes("nano") || id.includes("small")) return "economy";
+    if (id.includes("3.5") || id.includes("3-5")) return "economy";
+    return "interactive";
+  }
+  // google, ollama, custom: use name hints
+  if (id.includes("mini") || id.includes("flash") || id.includes("haiku")) return "economy";
+  if (id.includes("opus") || id.includes("reason")) return "reasoning";
+  return "interactive";
+}
+
+function inferModel(
+  providerModelId: string,
+  providerKind: AiProviderKind
+): AiProviderDiscoveredModelDto {
   const lower = providerModelId.toLowerCase();
   const capabilities: AiModelCapability[] = ["chat", "tool-use", "json", "summarization"];
   if (lower.includes("vision") || lower.includes("image") || lower.includes("gemini")) {
     capabilities.push("vision");
   }
-  let tier: AiModelTier = "interactive";
-  if (lower.includes("mini") || lower.includes("haiku") || lower.includes("flash")) {
-    tier = "economy";
-  } else if (lower.includes("opus") || lower.includes("reason")) {
-    tier = "reasoning";
-  }
+  const tier = inferTierFromModelId(providerKind, providerModelId);
   return { providerModelId, displayName: providerModelId, capabilities, tier };
 }

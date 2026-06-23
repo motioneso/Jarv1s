@@ -22,6 +22,8 @@ import type {
   RevokeMyOtherSessionsResponse,
   RevokeMySessionResponse,
   PreviewPersonaRequest,
+  AiCapabilityTierPreferencesResponse,
+  PatchAiCapabilityTierPreferenceRequest,
   PreviewPersonaResponse,
   PutAdminChatModelOverrideRequest,
   PutAiCapabilityRouteRequest,
@@ -715,6 +717,19 @@ export async function putAiCapabilityRoute(
       body: input
     }
   );
+}
+
+export async function getCapabilityTierPreferences(): Promise<AiCapabilityTierPreferencesResponse> {
+  return requestJson<AiCapabilityTierPreferencesResponse>("/api/ai/capability-tier-preferences");
+}
+
+export async function patchCapabilityTierPreference(
+  input: PatchAiCapabilityTierPreferenceRequest
+): Promise<void> {
+  await requestJson<void>("/api/ai/capability-tier-preferences", {
+    method: "PATCH",
+    body: input
+  });
 }
 
 export async function getChatModelOverrideSettings(): Promise<GetChatModelOverrideSettingsResponse> {

@@ -410,8 +410,67 @@ export class AiRepository {
     capability: AiModelCapability,
     tier: AiModelTier = "interactive"
   ): Promise<AiConfiguredModelSafeRow | undefined> {
-    const resolved = await this.resolveModelForCapability(scopedDb, capability, tier);
+    assertDataContextDb(scopedDb);
+    const userTier = await this.readCapabilityTierPreference(scopedDb, capability);
+    const resolved = await this.resolveModelForCapability(scopedDb, capability, userTier ?? tier);
     return resolved.model ?? undefined;
+  }
+
+  private async readCapabilityTierPreference(
+    scopedDb: DataContextDb,
+    capability: AiModelCapability
+  ): Promise<AiModelTier | null> {
+    const row = await scopedDb.db
+      .selectFrom("app.preferences")
+      .select("value_json")
+      .where("key", "=", `ai.capability_tier.${capability}`)
+      .executeTakeFirst();
+    const v = row?.value_json as unknown;
+    if (v === "reasoning" || v === "interactive" || v === "economy") return v;
+    return null;
+  }
+
+  async listCapabilityTierPreferences(
+    scopedDb: DataContextDb
+  ): Promise<Partial<Record<AiModelCapability, AiModelTier>>> {
+    assertDataContextDb(scopedDb);
+    const rows = await scopedDb.db
+      .selectFrom("app.preferences")
+      .select(["key", "value_json"])
+      .where("key", "like", "ai.capability_tier.%")
+      .execute();
+    const result: Partial<Record<AiModelCapability, AiModelTier>> = {};
+    for (const row of rows) {
+      const capability = row.key.replace("ai.capability_tier.", "") as AiModelCapability;
+      const v = row.value_json as unknown;
+      if (v === "reasoning" || v === "interactive" || v === "economy") {
+        result[capability] = v;
+      }
+    }
+    return result;
+  }
+
+  async setCapabilityTierPreference(
+    scopedDb: DataContextDb,
+    capability: AiModelCapability,
+    tier: AiModelTier
+  ): Promise<void> {
+    assertDataContextDb(scopedDb);
+    await scopedDb.db
+      .insertInto("app.preferences")
+      .values({
+        owner_user_id: sql<string>`app.current_actor_user_id()`,
+        key: `ai.capability_tier.${capability}`,
+        value_json: jsonb(tier),
+        updated_at: new Date()
+      })
+      .onConflict((oc) =>
+        oc.columns(["owner_user_id", "key"]).doUpdateSet({
+          value_json: jsonb(tier),
+          updated_at: new Date()
+        })
+      )
+      .execute();
   }
 
   async listCapabilityRoutes(scopedDb: DataContextDb): Promise<AiCapabilityRouteMap> {

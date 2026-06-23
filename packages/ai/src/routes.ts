@@ -67,6 +67,7 @@ import {
 import { ToolInputValidationError, validateToolInput } from "./gateway/input-validation.js";
 import { cliAvailable, type ProviderKind as CliProviderKind } from "./cli-availability.js";
 import { registerAiCapabilityRouteRoutes } from "./capability-route-routes.js";
+import { registerCapabilityTierPreferenceRoutes } from "./capability-tier-preference-routes.js";
 import { registerProviderVisibilityRoutes } from "./provider-visibility-routes.js";
 import { createAiSecretCipher, type AiSecretCipher } from "./crypto.js";
 import { ModelDiscoveryService } from "./model-discovery.js";
@@ -297,6 +298,7 @@ export function registerAiRoutes(
   );
 
   registerAiCapabilityRouteRoutes(server, dependencies, repository);
+  registerCapabilityTierPreferenceRoutes(server, dependencies, repository);
 
   server.get(
     "/api/ai/chat-model-override",
