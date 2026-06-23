@@ -237,6 +237,10 @@ export class RpcConnection {
       case "kill":
         return this.turnTimeoutMs;
       case "launch":
+        // NOTE: JARVIS_CLI_RUNNER_RPC_TIMEOUT_MS raises turnTimeoutMs for ALL turn verbs, not just
+        // launch — setting it very high (e.g. minutes) weakens the #445 wedge-recovery it exists
+        // for, since a hung submit/readNew then takes that long to free the per-user turn lock.
+        // Keep the override modest; it is a ceiling on recovery latency, not just on launch.
         return Math.max(this.turnTimeoutMs, LAUNCH_RPC_TIMEOUT_MS);
       default:
         // installProvider / begin|poll|submit|cancelLogin / probeProvider / listLiveSessions:

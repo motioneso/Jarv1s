@@ -93,6 +93,13 @@ let keyResolver: WebSearchKeyResolver | undefined;
 // Tiny cache keyed by the resolved key VALUE: when the admin saves/rotates/revokes, the next
 // request resolves a different key (or null) → cache miss → fresh provider, so a new key takes
 // effect without a restart. invalidateWebSearchProviderCache() is the explicit save/revoke hook.
+//
+// ACCEPTED: the decrypted key is held in process memory for the cache entry's lifetime. This is
+// inherent to decrypt-at-use — createBraveSearchProvider closes over `apiKey` and sends it as
+// X-Subscription-Token on every request, so the plaintext lives in the provider closure whether or
+// not we also key the cache by it. Hashing the cache key would drop one extra reference, not the
+// plaintext, so it buys nothing. The AES-256-GCM at-rest guarantee is unchanged; this is the
+// unavoidable in-use exposure, not an at-rest leak.
 let providerCache: { apiKey: string; provider: WebSearchProvider } | undefined;
 
 /** Composition-root seam: install the resolver that reads the encrypted instance key. */
