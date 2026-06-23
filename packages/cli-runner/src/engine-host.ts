@@ -124,6 +124,8 @@ export class CliChatEngineHost {
     // the cross-key concurrent-launch TOCTOU (two launches both passing the gate before
     // either's jarv1s-live-<K> session exists).
     const release = await this.admissionMutex.acquire();
+    // #347: declared before the try so it is accessible after the mutex block.
+    let sessionIo = this.deps.io;
     try {
       if (this.deps.singleUser) {
         const liveKeys = await this.currentLiveKeys();
@@ -139,7 +141,23 @@ export class CliChatEngineHost {
           throw new CliChatUnavailableError("a provider login is in progress");
         }
       }
+      // #347: allocate the UID slot under the mutex so concurrent launches for different users
+      // cannot race on the slot file (the read-modify-write is not atomic end-to-end, only the
+      // final tmp→rename is). Done before reservations.add so a slot-allocation failure leaves no
+      // orphan reservation. Falls back to the shared root io when homeBase is absent (test /
+      // in-process host scenarios).
+      if (this.deps.homeBase) {
+        const slot = allocateUidSlot(this.deps.homeBase, key);
+        const neutralDirForMigration = deriveNeutralDir(this.deps.neutralBase, key);
+        migrateNeutralDir(neutralDirForMigration, slot.uid, slot.gid);
+        sessionIo = createSanitizedTmuxIo(process.env, slot);
+      }
       this.reservations.add(key);
+    } catch (err) {
+      if (err instanceof CliChatUnavailableError) throw err;
+      throw new CliChatUnavailableError(
+        err instanceof Error ? err.message : "could not allocate UID slot"
+      );
     } finally {
       release();
     }
@@ -148,23 +166,6 @@ export class CliChatEngineHost {
     // releases the reservation on success OR any failure OR timeout — a wedged tmux can
     // never strand K and freeze the gate (fail-safe; release guaranteed by settle AND
     // by timeout).
-
-    // #347: allocate a per-user UID/GID slot so the engine's subprocesses (tmux, CLI)
-    // run under a distinct OS identity. Falls back to the shared root io when homeBase
-    // is absent (test / in-process host scenarios that never reach this path in prod).
-    let sessionIo = this.deps.io;
-    if (this.deps.homeBase) {
-      try {
-        const slot = allocateUidSlot(this.deps.homeBase, key);
-        const neutralDirForMigration = deriveNeutralDir(this.deps.neutralBase, key);
-        migrateNeutralDir(neutralDirForMigration, slot.uid, slot.gid);
-        sessionIo = createSanitizedTmuxIo(process.env, slot);
-      } catch (err) {
-        throw new CliChatUnavailableError(
-          err instanceof Error ? err.message : "could not allocate UID slot"
-        );
-      }
-    }
 
     const engine = new CliChatEngineImpl(params.provider as ProviderKind, key, sessionIo, {
       mux: this.deps.mux,

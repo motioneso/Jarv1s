@@ -281,6 +281,12 @@ export interface ModuleAssistantToolManifest {
    * gateway's toolServices; a build-time/test assertion checks every declared key is present.
    */
   readonly requiresServices?: readonly string[];
+  /**
+   * When true, the tool output contains untrusted external content (e.g. web search snippets,
+   * fetched page text) that should be wrapped in a `<tool_result>` trust boundary before
+   * reaching the model. Internal tools whose output Jarvis controls must leave this unset.
+   */
+  readonly externalContent?: boolean;
 }
 
 export interface JarvisModuleManifest {

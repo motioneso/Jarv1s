@@ -50,16 +50,16 @@ export function allocateUidSlot(homeBase: string, actorUserId: string): UidSlot 
   // Slot 0 is reserved as sentinel; real slots start at 1.
   const nextSlot = existing.length === 0 ? 1 : Math.max(...existing) + 1;
   if (nextSlot > MAX_SLOTS) {
-    throw new Error(
-      `[cli-runner] UID slot overflow: cannot allocate more than ${MAX_SLOTS} user slots`
-    );
+    throw new Error("[cli-runner] UID slot overflow: maximum user slots exhausted");
   }
 
   slots[actorUserId] = nextSlot;
 
   // Atomic write: tmp → rename (atomic on Linux, same filesystem).
+  // Mode 0600: root-only; the map contains actorUserIds (PII, not for per-user UID reads).
   const tmpPath = slotFilePath + ".tmp";
-  fs.writeFileSync(tmpPath, JSON.stringify(slots), "utf8");
+  fs.writeFileSync(tmpPath, JSON.stringify(slots), { encoding: "utf8", mode: 0o600 });
+  fs.chmodSync(tmpPath, 0o600); // override umask — must be root-only before rename
   fs.renameSync(tmpPath, slotFilePath);
 
   return { uid: UID_BASE + nextSlot, gid: GID_BASE + nextSlot };

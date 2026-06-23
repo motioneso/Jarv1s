@@ -148,7 +148,17 @@ export class AssistantToolGateway {
       const result = await this.deps.runner.withDataContext(access, (scopedDb: DataContextDb) =>
         found.execute(scopedDb, input, ctx, services)
       );
-      return { ok: true, data: renderAndCap(found.tool.outputSchema, result, found.tool.name) };
+      return {
+        ok: true,
+        data: renderAndCap(
+          found.tool.outputSchema,
+          result,
+          // Scope trust-boundary wrapping to tools with untrusted external content only.
+          // Internal tools whose output Jarvis controls must not be wrapped (PR #435 sets
+          // externalContent: true on web.search + web.read; all others leave it unset).
+          found.tool.externalContent ? found.tool.name : undefined
+        )
+      };
     } catch {
       // never leak internals/secrets from a handler throw
       return { ok: false, error: `Tool ${found.dto.name} failed` };
