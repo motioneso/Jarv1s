@@ -15,6 +15,10 @@ import type {
   BootstrapStatusResponse,
   GetPersonaSettingsResponse,
   GetChatModelOverrideSettingsResponse,
+  GetWebSearchKeyResponse,
+  PutWebSearchKeyRequest,
+  PutWebSearchKeyResponse,
+  DeleteWebSearchKeyResponse,
   GetLocaleSettingsResponse,
   GetAiSummaryResponse,
   ListAiCapabilityRoutesResponse,
@@ -756,6 +760,25 @@ export async function putAdminChatModelOverrideEnabled(
 
 export async function listAiAssistantTools(): Promise<ListAiAssistantToolsResponse> {
   return requestJson<ListAiAssistantToolsResponse>("/api/ai/assistant-tools");
+}
+
+export async function getWebSearchKey(): Promise<GetWebSearchKeyResponse> {
+  return requestJson<GetWebSearchKeyResponse>("/api/admin/settings/web-search");
+}
+
+export async function putWebSearchKey(
+  input: PutWebSearchKeyRequest
+): Promise<PutWebSearchKeyResponse> {
+  return requestJson<PutWebSearchKeyResponse>("/api/admin/settings/web-search", {
+    method: "PUT",
+    body: input
+  });
+}
+
+export async function deleteWebSearchKey(): Promise<DeleteWebSearchKeyResponse> {
+  return requestJson<DeleteWebSearchKeyResponse>("/api/admin/settings/web-search", {
+    method: "DELETE"
+  });
 }
 
 export async function listBriefingDefinitions(): Promise<ListBriefingDefinitionsResponse> {

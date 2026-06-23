@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import {
   ChatSessionManager,
+  ChatTurnInFlightError,
   renderReplayBlock,
   renderSummaryBlock
 } from "../../packages/chat/src/live/chat-session-manager.js";
@@ -299,6 +300,50 @@ describe("ChatSessionManager.launchSession — personaText + replayBatch + offse
     expect(engine.launchCount).toBe(1);
     // And the server-owned drain meant NO client-side replay submit at all.
     expect(engine.submitted).toEqual(["new question"]);
+  });
+});
+
+describe("ChatSessionManager.submitTurn turn-lock release (#445)", () => {
+  // A FakeEngine whose submit() REJECTS — modelling the api-side per-RPC deadline firing on a
+  // cli-runner that ACCEPTED the frame but never replied (chat-engine-rpc-client §3.4). The #445
+  // bug: a hung submit/readNew left `turnsInFlight` set forever, so every later turn 409'd
+  // "a chat turn is already in progress" until the api restarted. The fix's contract is that a
+  // rejected engine call must flow through submitTurn's try/finally and CLEAR the per-user lock.
+  class RejectingSubmitEngine extends FakeEngine {
+    override async submit(): Promise<void> {
+      throw new CliChatUnavailableError("cli-runner submit timed out after 45000ms");
+    }
+  }
+
+  function rejectingDeps(engine: FakeEngine) {
+    return makeMinimalDeps({
+      engineFactory: () => engine,
+      pollMs: 0,
+      persistence: {
+        resolveActiveProvider: vi
+          .fn()
+          .mockResolvedValue({ provider: "anthropic", model: "sonnet" }),
+        listPriorTurns: vi.fn().mockResolvedValue({ recent: [], oldSummary: null }),
+        recordTurn: vi.fn().mockResolvedValue(undefined),
+        openNewConversation: vi.fn().mockResolvedValue(undefined)
+      }
+    });
+  }
+
+  it("clears the per-user lock when the engine call rejects, so the next turn is not a permanent 409", async () => {
+    const manager = new ChatSessionManager(rejectingDeps(new RejectingSubmitEngine()));
+
+    // Turn 1: the engine submit rejects (the timed-out RPC). submitTurn must surface that rejection.
+    await expect(manager.submitTurn("u1", "Ben", "first")).rejects.toBeInstanceOf(
+      CliChatUnavailableError
+    );
+
+    // Turn 2 (same user): the lock must already be released. Under #445 this was a
+    // ChatTurnInFlightError forever. It may still fail for the SAME underlying reason (the engine
+    // rejects again) — but it MUST NOT be the stuck-lock 409.
+    const second = await manager.submitTurn("u1", "Ben", "second").catch((e: unknown) => e);
+    expect(second).not.toBeInstanceOf(ChatTurnInFlightError);
+    expect(second).toBeInstanceOf(CliChatUnavailableError);
   });
 });
 

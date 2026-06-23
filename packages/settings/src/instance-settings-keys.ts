@@ -1,5 +1,11 @@
 export interface InstanceSettingKeyEntry {
   readonly key: string;
+  /**
+   * Secret keys are excluded from the generic list (`GET /api/admin/settings`) and the
+   * generic upsert (`PATCH /api/admin/settings/:key`) routes — they are written and read
+   * ONLY through dedicated encrypted routes that store an AES-256-GCM envelope. The generic
+   * upsert rejects them (400) so a plaintext value can never be written through that path.
+   */
   readonly secret?: boolean;
 }
 
@@ -8,9 +14,21 @@ export const INSTANCE_SETTINGS_REGISTRY: readonly InstanceSettingKeyEntry[] = [
   { key: "registration.requires_approval" },
   { key: "chat.multiplexer" },
   { key: "onboarding.state" },
-  { key: "ai.chat_model_override.enabled" }
+  { key: "ai.chat_model_override.enabled" },
+  // Brave Search API key — written/read only via the dedicated encrypted web-search routes,
+  // which store an AES-256-GCM EncryptedSecret envelope in `value` (never the plaintext key,
+  // consistent with the 0059 RLS note that no plaintext secret lands in instance_settings).
+  { key: "web.brave_search_api_key", secret: true }
 ] as const;
 
 export const KNOWN_INSTANCE_SETTING_KEYS: ReadonlySet<string> = new Set(
   INSTANCE_SETTINGS_REGISTRY.map((e) => e.key)
 );
+
+/** Registry lookup for secret-key guards on the generic settings routes. */
+export const SECRET_INSTANCE_SETTING_KEYS: ReadonlySet<string> = new Set(
+  INSTANCE_SETTINGS_REGISTRY.filter((e) => e.secret).map((e) => e.key)
+);
+
+/** The single registry key under which the encrypted Brave Search API key is stored. */
+export const WEB_SEARCH_API_KEY_SETTING = "web.brave_search_api_key";

@@ -170,6 +170,12 @@ interface FakeServerOpts {
   readonly bootIdFor?: (callIndex: number) => string;
   /** If set, the server returns a wrong serverProof (imposter) so the client must abort the hello. */
   readonly imposter?: boolean;
+  /**
+   * If set, the server completes the §3.6 hello but NEVER answers a post-handshake request — it reads
+   * the frame and drops it. Models the #445 hang: a cli-runner that accepted a submit/readNew frame
+   * but whose provider CLI wedged, so no response ever returns and the socket stays open.
+   */
+  readonly swallowRequests?: boolean;
   /** Per-request handler → the `result` to return (or a thrown {code,message} for an err frame). */
   readonly onRequest?: (req: { method: string; id: number; params: unknown }) => unknown;
 }
@@ -228,7 +234,12 @@ function startFakeServer(
           continue;
         }
 
-        // Post-handshake: answer the request.
+        // Post-handshake: answer the request — unless the test wants the request SWALLOWED (no
+        // response ever sent), modelling the #445 hang the per-call deadline exists to break.
+        if (opts.swallowRequests) {
+          callIndex += 1;
+          continue;
+        }
         const bootId = opts.bootIdFor ? opts.bootIdFor(callIndex) : "boot-fixed";
         callIndex += 1;
         try {
@@ -544,5 +555,58 @@ describe("RpcConnection hello + id-matching + bootId (in-process socket)", () =>
     expect(err).toBeInstanceOf(Error);
     expect(err).not.toBeInstanceOf(CliChatUnavailableError);
     expect((err as Error).message).toContain("not installable");
+  });
+
+  // ──────────────────────────────────────────────────────────────────────────
+  // §3.4 per-call deadline — the #445 fix: a never-answered turn verb must REJECT
+  // (releasing the per-user turn lock) instead of hanging the promise forever.
+  // ──────────────────────────────────────────────────────────────────────────
+
+  it("rejects a never-answered turn verb after the per-call deadline (CliChatUnavailableError, #445)", async () => {
+    const secret = "s";
+    const socketPath = tmpSocket();
+    // The server completes the hello but SWALLOWS the submit frame — no response ever comes back,
+    // and the socket stays open so neither routeFrame nor failAllInFlight settles the call. Before
+    // the deadline existed this promise hung forever and wedged turnsInFlight (permanent 409).
+    const server = await startFakeServer(socketPath, secret, { swallowRequests: true });
+    servers.push(server);
+    const conn = new TestConn({
+      socketPath,
+      rpcSecret: secret,
+      reconnectMinMs: 1,
+      reconnectMaxMs: 2,
+      callTimeoutMs: 60 // tiny deadline so the test is fast
+    });
+    conns.push(conn);
+
+    const err = await conn.submit("u1", { text: "x" }).catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(CliChatUnavailableError);
+    expect((err as Error).message).toMatch(/submit timed out after 60ms/);
+  });
+
+  it("does NOT time out when callTimeoutMs is 0 (deadline disabled — opt-out seam)", async () => {
+    const secret = "s";
+    const socketPath = tmpSocket();
+    const server = await startFakeServer(socketPath, secret, { swallowRequests: true });
+    servers.push(server);
+    const conn = new TestConn({
+      socketPath,
+      rpcSecret: secret,
+      reconnectMinMs: 1,
+      reconnectMaxMs: 2,
+      callTimeoutMs: 0 // disable all per-call deadlines
+    });
+    conns.push(conn);
+
+    // With deadlines off the swallowed call stays pending — assert it has NOT settled after a window
+    // comfortably longer than the would-be deadline, mirroring the imposter-hello "pending" check.
+    const settled = await Promise.race([
+      conn
+        .submit("u1", { text: "x" })
+        .then(() => "resolved")
+        .catch(() => "rejected"),
+      new Promise<string>((r) => setTimeout(() => r("pending"), 150))
+    ]);
+    expect(settled).toBe("pending");
   });
 });

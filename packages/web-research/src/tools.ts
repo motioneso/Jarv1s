@@ -1,7 +1,7 @@
 import type { ToolExecute } from "@jarv1s/module-sdk";
 
 import { DEFAULT_WEB_RESEARCH_CONFIG } from "./config.js";
-import { getDefaultWebSearchProvider } from "./providers.js";
+import { resolveWebSearchProvider } from "./providers.js";
 import { readWebPage } from "./reader.js";
 
 function domainFor(rawUrl: string): string {
@@ -12,7 +12,7 @@ function domainFor(rawUrl: string): string {
   }
 }
 
-export const webSearchExecute: ToolExecute = async (_scopedDb, input) => {
+export const webSearchExecute: ToolExecute = async (scopedDb, input) => {
   const rawQuery = typeof input.query === "string" ? input.query : "";
   const query = rawQuery.slice(0, DEFAULT_WEB_RESEARCH_CONFIG.maxQueryChars);
   const requestedLimit = typeof input.limit === "number" ? input.limit : 5;
@@ -27,7 +27,7 @@ export const webSearchExecute: ToolExecute = async (_scopedDb, input) => {
     input.freshness === "any"
       ? input.freshness
       : undefined;
-  const provider = getDefaultWebSearchProvider();
+  const provider = await resolveWebSearchProvider(scopedDb);
   const providerOutput = await provider.search({ query, limit, freshness });
   const results = providerOutput.results.slice(0, limit).map((result, index) => ({
     resultId: `web-${index + 1}`,

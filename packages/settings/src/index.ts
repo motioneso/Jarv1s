@@ -6,6 +6,8 @@ export * from "./data-export-repository.js";
 export * from "./onboarding-routes.js";
 export * from "./preferences-port.js";
 export * from "./locale-routes.js";
+export * from "./web-search-key.js";
+export * from "./web-search-key-routes.js";
 export * from "./me-sessions-routes.js";
 export * from "./me-account-routes.js";
 export * from "./source-behavior-routes.js";
