@@ -9,7 +9,10 @@ export {
   NOTES_QUEUE_DEFINITIONS,
   handleNotesSyncJob,
   registerNotesJobWorkers,
+  writeNotesLastSync,
+  type NotesLastSync,
   type NotesSyncJobPayload,
   type NotesSyncJobResult
 } from "./jobs.js";
 export { registerNotesSyncRoutes } from "./notes-sync-routes.js";
+export { NOTES_SYNC_CRON, reconcileNotesSchedule } from "./schedule.js";

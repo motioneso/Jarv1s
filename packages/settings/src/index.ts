@@ -14,7 +14,9 @@ export * from "./source-behavior-routes.js";
 export * from "./bootstrap.js";
 export * from "./host-diagnostics.js";
 export {
+  NOTES_LAST_SYNC_PREFERENCE_KEY,
   NOTES_SOURCE_PREFERENCE_KEY,
+  type ReconcileNotesScheduleFn,
   resolveNotesRoots,
   registerNotesSourceRoutes
 } from "./notes-source-routes.js";

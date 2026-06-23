@@ -3,6 +3,7 @@ import { existsSync, mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 
 import { deriveTrustedOrigins } from "./setup-prod-origins.js";
+import { deriveNotesEnvLines } from "./setup-prod-notes.js";
 
 // First-run boot-secret generator. Runs INSIDE the api image as
 // `tsx scripts/setup-prod.ts [OUT_DIR]` (the prod Compose `setup` service).
@@ -163,11 +164,20 @@ const content = [
   '# Embedding provider: "local" downloads the model on first use; "stub" skips.',
   `JARVIS_EMBED_PROVIDER=${embedProvider}`,
   ""
-].join("\n");
+];
+
+// --- Notes Source host-folder bind mount (#449). -----------------------------
+// Only emitted when the operator set JARVIS_NOTES_VAULT_HOST_PATH at install
+// (install.sh probes it and -f's in docker-compose.notes.yml). The mount target
+// is a FIXED neutral path; the app reads it via JARVIS_NOTES_ROOTS regardless of
+// the operator's host path. Read-only in v1; :rw reserved for write-back (#2).
+content.push(...deriveNotesEnvLines(process.env.JARVIS_NOTES_VAULT_HOST_PATH));
+
+const renderedContent = content.join("\n");
 
 mkdirSync(OUT_DIR, { recursive: true });
 // mode 0o600: operator-only read/write — this file is all the boot secrets.
-writeFileSync(OUT_FILE, content, { mode: 0o600 });
+writeFileSync(OUT_FILE, renderedContent, { mode: 0o600 });
 
 console.log(`Wrote ${OUT_FILE} (mode 0600) with all boot secrets.`);
 console.log("");

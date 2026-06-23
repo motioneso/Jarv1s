@@ -16,6 +16,16 @@ export function NotWired(props: { readonly children?: ReactNode }) {
   );
 }
 
+/* Shared full-datetime formatter for settings panes (#449). Renders a locale
+   date+time string, falling back to `fallback` when the input isn't a parseable
+   timestamp (NaN guard). Use for any settings surface that shows an absolute
+   `toLocaleString()` instant; date-only and the audit `Mon DD · HH:MM` format
+   are intentionally separate. */
+export function formatTimestamp(iso: string, fallback: string): string {
+  const date = new Date(iso);
+  return isNaN(date.getTime()) ? fallback : date.toLocaleString();
+}
+
 /* Settings shared UI — pane scaffolding (PaneHead/Group/Row/Field/Choice/Note/
    Locked) and thin wrappers over the app's JDS CSS primitives, reused by every
    personal & admin pane. Ported from ui_kits/jarvis-app/settings-ui.jsx. */

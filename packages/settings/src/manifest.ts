@@ -121,6 +121,11 @@ export const settingsModuleManifest: JarvisModuleManifest = {
     },
     {
       method: "GET",
+      path: "/api/me/notes-last-sync",
+      permissionId: "settings.view"
+    },
+    {
+      method: "GET",
       path: "/api/me/sessions",
       permissionId: "settings.view"
     },

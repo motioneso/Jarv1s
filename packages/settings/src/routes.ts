@@ -53,7 +53,7 @@ import { registerHostDiagnosticsRoutes } from "./host-diagnostics-routes.js";
 import { registerLocaleRoutes } from "./locale-routes.js";
 import { registerQuietHoursRoutes } from "./quiet-hours-routes.js";
 import { registerWeatherLocationRoutes } from "./weather-location-routes.js";
-import { registerNotesSourceRoutes } from "./notes-source-routes.js";
+import { registerNotesSourceRoutes, type ReconcileNotesScheduleFn } from "./notes-source-routes.js";
 import {
   registerMeAccountRoutes,
   type HasPasswordCredentialPort,
@@ -124,6 +124,12 @@ export interface SettingsRoutesDependencies {
   readonly hostDiagnostics?: HostDiagnosticsProvider;
   /** pg-boss instance for enqueueing export.build jobs (#431). */
   readonly boss?: PgBoss;
+  /**
+   * #449: per-actor 15-min notes-sync heartbeat reconcile hook. Injected by the
+   * composition root (lives in @jarv1s/notes; injected here to avoid a circular
+   * import). Absent ⇒ no heartbeat (manual sync still works).
+   */
+  readonly reconcileNotesSchedule?: ReconcileNotesScheduleFn;
 }
 
 interface SettingParams {
