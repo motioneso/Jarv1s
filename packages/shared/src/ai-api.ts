@@ -782,3 +782,39 @@ export const resolveAiAssistantActionRouteSchema = {
     404: errorResponseSchema
   }
 } as const;
+
+export const aiCapabilityTierPreferencesResponseSchema = {
+  type: "object",
+  properties: {
+    preferences: {
+      type: "object",
+      additionalProperties: aiModelTierSchema
+    }
+  },
+  required: ["preferences"]
+} as const;
+
+export const patchAiCapabilityTierPreferenceRequestSchema = {
+  type: "object",
+  properties: {
+    capability: aiModelCapabilitySchema,
+    tier: aiModelTierSchema
+  },
+  required: ["capability", "tier"]
+} as const;
+
+export const listAiCapabilityTierPreferencesRouteSchema = {
+  response: {
+    200: aiCapabilityTierPreferencesResponseSchema,
+    401: errorResponseSchema
+  }
+} as const;
+
+export const patchAiCapabilityTierPreferenceRouteSchema = {
+  body: patchAiCapabilityTierPreferenceRequestSchema,
+  response: {
+    204: { type: "null" },
+    400: errorResponseSchema,
+    401: errorResponseSchema
+  }
+} as const;

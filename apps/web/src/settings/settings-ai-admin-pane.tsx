@@ -17,13 +17,13 @@ import {
   createAiModel,
   createAiProvider,
   discoverAiModels,
+  getCapabilityTierPreferences,
   getChatModelOverrideSettings,
-  listAiCapabilityRoutes,
   listAiModels,
   listAiProviders,
   lookupAiCapabilityRoute,
+  patchCapabilityTierPreference,
   putAdminChatModelOverrideEnabled,
-  putAiCapabilityRoute,
   revokeAiProvider,
   testAiProvider,
   updateAiModel,
@@ -526,8 +526,7 @@ function ProviderCard(props: {
 
 function RouterRow(props: {
   readonly capability: { k: AiModelCapability; name: string; desc: string };
-  readonly models: readonly AiConfiguredModelDto[];
-  readonly configuredModelId: string | null;
+  readonly tierPreference: AiModelTier | undefined;
 }) {
   const { toast } = useFeedback();
   const queryClient = useQueryClient();
@@ -536,23 +535,21 @@ function RouterRow(props: {
     queryFn: () => lookupAiCapabilityRoute(props.capability.k),
     retry: false
   });
-  const routeMutation = useMutation({
-    mutationFn: (modelId: string | null) => putAiCapabilityRoute(props.capability.k, { modelId }),
+  const tierMutation = useMutation({
+    mutationFn: (tier: AiModelTier) =>
+      patchCapabilityTierPreference({ capability: props.capability.k, tier }),
     onSuccess: () => {
       void Promise.all([
-        queryClient.invalidateQueries({ queryKey: queryKeys.ai.capabilityRoutes }),
+        queryClient.invalidateQueries({ queryKey: queryKeys.ai.tierPreferences }),
         queryClient.invalidateQueries({ queryKey: queryKeys.ai.capability(props.capability.k) }),
         queryClient.invalidateQueries({ queryKey: queryKeys.ai.capabilities })
       ]);
-      toast("Route updated", { icon: <Sparkles size={17} /> });
+      toast("Tier updated", { icon: <Sparkles size={17} /> });
     },
     onError: (error) => toast(readError(error), { tone: "drift" })
   });
-  const effectiveModel = routeQuery.data?.route?.model ?? null;
-  const value =
-    props.configuredModelId && props.models.some((m) => m.id === props.configuredModelId)
-      ? props.configuredModelId
-      : "automatic";
+  const resolvedModel = routeQuery.data?.route?.model ?? null;
+  const currentTier: AiModelTier = props.tierPreference ?? "interactive";
 
   return (
     <div className="rt">
@@ -561,34 +558,24 @@ function RouterRow(props: {
         <div className="rt__desc">{props.capability.desc}</div>
       </div>
       <div className="rt__pick">
-        {props.models.length ? (
-          <Select
-            value={value}
-            aria-label={`Model for ${props.capability.name}`}
-            disabled={routeMutation.isPending}
-            onChange={(event) =>
-              routeMutation.mutate(event.target.value === "automatic" ? null : event.target.value)
-            }
-          >
-            <option value="automatic">
-              Automatic{effectiveModel ? ` · ${effectiveModel.providerModelId}` : ""}
+        <Select
+          value={currentTier}
+          aria-label={`Tier for ${props.capability.name}`}
+          disabled={tierMutation.isPending}
+          onChange={(event) => tierMutation.mutate(event.target.value as AiModelTier)}
+        >
+          {MODEL_TIERS.map((tier) => (
+            <option key={tier} value={tier}>
+              {TIERS[tier].label}
             </option>
-            {props.models.map((m) => {
-              const compatible =
-                m.status === "active" &&
-                m.providerStatus === "active" &&
-                m.capabilities.includes(props.capability.k);
-              return (
-                <option key={m.id} value={m.id} disabled={!compatible}>
-                  {m.providerModelId} · {TIERS[m.tier].label}
-                </option>
-              );
-            })}
-          </Select>
+          ))}
+        </Select>
+        {resolvedModel ? (
+          <div className="rt__resolved">{resolvedModel.providerModelId}</div>
         ) : (
           <span className="rt__none">
             <MinusCircle size={13} aria-hidden="true" />
-            No added model can do this yet
+            No model for this tier
           </span>
         )}
       </div>
@@ -613,9 +600,9 @@ export function AiProvidersPane() {
     queryFn: listAiModels,
     retry: false
   });
-  const routesQuery = useQuery({
-    queryKey: queryKeys.ai.capabilityRoutes,
-    queryFn: listAiCapabilityRoutes,
+  const tierPrefsQuery = useQuery({
+    queryKey: queryKeys.ai.tierPreferences,
+    queryFn: getCapabilityTierPreferences,
     retry: false
   });
   const overrideQuery = useQuery({
@@ -632,7 +619,7 @@ export function AiProvidersPane() {
       queryClient.invalidateQueries({ queryKey: queryKeys.ai.providers }),
       queryClient.invalidateQueries({ queryKey: queryKeys.ai.models }),
       queryClient.invalidateQueries({ queryKey: queryKeys.ai.chatModelOverride }),
-      queryClient.invalidateQueries({ queryKey: queryKeys.ai.capabilityRoutes }),
+      queryClient.invalidateQueries({ queryKey: queryKeys.ai.tierPreferences }),
       queryClient.invalidateQueries({ queryKey: queryKeys.ai.capabilities })
     ]);
 
@@ -816,8 +803,7 @@ export function AiProvidersPane() {
             <RouterRow
               key={capability.k}
               capability={capability}
-              models={models}
-              configuredModelId={routesQuery.data?.routes[capability.k] ?? null}
+              tierPreference={tierPrefsQuery.data?.preferences[capability.k]}
             />
           ))}
         </Group>

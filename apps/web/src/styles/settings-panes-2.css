@@ -579,13 +579,24 @@
 .rt__pick {
   flex: 0 0 240px;
   display: flex;
-  justify-content: flex-end;
+  flex-direction: column;
+  gap: 6px;
+  align-items: flex-end;
 }
 .rt__pick .jds-select,
 .rt__pick select {
   width: 100%;
   font-family: var(--font-mono);
   font-size: 12.5px;
+}
+.rt__resolved {
+  font-size: 11.5px;
+  color: var(--text-faint);
+  font-family: var(--font-mono);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 240px;
 }
 .rt__none {
   display: inline-flex;

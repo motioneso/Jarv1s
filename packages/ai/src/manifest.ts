@@ -29,7 +29,9 @@ import {
   updateAiConfiguredModelRequestSchema,
   updateAiConfiguredModelResponseSchema,
   updateAiProviderConfigRequestSchema,
-  updateAiProviderConfigResponseSchema
+  updateAiProviderConfigResponseSchema,
+  aiCapabilityTierPreferencesResponseSchema,
+  patchAiCapabilityTierPreferenceRequestSchema
 } from "@jarv1s/shared";
 
 export const AI_MODULE_ID = "ai";
@@ -204,6 +206,18 @@ export const aiModuleManifest = {
       requestSchema: putAiCapabilityRouteRequestSchema,
       responseSchema: putAiCapabilityRouteResponseSchema,
       permissionId: "ai.manage"
+    },
+    {
+      method: "GET",
+      path: "/api/ai/capability-tier-preferences",
+      responseSchema: aiCapabilityTierPreferencesResponseSchema,
+      permissionId: "ai.view"
+    },
+    {
+      method: "PATCH",
+      path: "/api/ai/capability-tier-preferences",
+      requestSchema: patchAiCapabilityTierPreferenceRequestSchema,
+      permissionId: "ai.route"
     },
     {
       method: "GET",
