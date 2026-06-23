@@ -19,6 +19,7 @@ import {
   assertWithinRoot,
   NotesPathError,
   handleNotesSyncJob,
+  writeNotesLastSync,
   registerNotesSyncRoutes,
   NOTES_SYNC_QUEUE,
   type NotesSyncJobPayload
@@ -329,6 +330,7 @@ describe("POST /api/notes/sync", () => {
 describe("handleNotesSyncJob", () => {
   let dataContext: DataContextRunner;
   const provider = new StubEmbeddingProvider();
+  const prefsRepo = new PreferencesRepository();
   const jobUserId = "00000000-0000-4000-8100-000000000099";
   let jobNotesDir: string;
 
@@ -370,7 +372,7 @@ describe("handleNotesSyncJob", () => {
 
     const result = await dataContext.withDataContext(
       { actorUserId: jobUserId, requestId: "req:worker-test" },
-      (scopedDb) => handleNotesSyncJob(makeJob(jobNotesDir), scopedDb, provider)
+      (scopedDb) => handleNotesSyncJob(makeJob(jobNotesDir), scopedDb, provider, prefsRepo)
     );
 
     expect(result.ingested).toBe(2);
@@ -381,7 +383,7 @@ describe("handleNotesSyncJob", () => {
   it("skips unchanged files on re-run", async () => {
     const result = await dataContext.withDataContext(
       { actorUserId: jobUserId, requestId: "req:worker-skip" },
-      (scopedDb) => handleNotesSyncJob(makeJob(jobNotesDir), scopedDb, provider)
+      (scopedDb) => handleNotesSyncJob(makeJob(jobNotesDir), scopedDb, provider, prefsRepo)
     );
 
     expect(result.ingested).toBe(0);
@@ -394,7 +396,7 @@ describe("handleNotesSyncJob", () => {
 
     const result = await dataContext.withDataContext(
       { actorUserId: jobUserId, requestId: "req:worker-update" },
-      (scopedDb) => handleNotesSyncJob(makeJob(jobNotesDir), scopedDb, provider)
+      (scopedDb) => handleNotesSyncJob(makeJob(jobNotesDir), scopedDb, provider, prefsRepo)
     );
 
     expect(result.ingested).toBe(1);
@@ -408,7 +410,7 @@ describe("handleNotesSyncJob", () => {
 
     const result = await dataContext.withDataContext(
       { actorUserId: jobUserId, requestId: "req:worker-nested" },
-      (scopedDb) => handleNotesSyncJob(makeJob(jobNotesDir), scopedDb, provider)
+      (scopedDb) => handleNotesSyncJob(makeJob(jobNotesDir), scopedDb, provider, prefsRepo)
     );
 
     expect(result.ingested).toBeGreaterThanOrEqual(1);
@@ -419,7 +421,7 @@ describe("handleNotesSyncJob", () => {
     await expect(
       dataContext.withDataContext(
         { actorUserId: jobUserId, requestId: "req:worker-no-roots" },
-        (scopedDb) => handleNotesSyncJob(makeJob(jobNotesDir), scopedDb, provider)
+        (scopedDb) => handleNotesSyncJob(makeJob(jobNotesDir), scopedDb, provider, prefsRepo)
       )
     ).rejects.toThrow("JARVIS_NOTES_ROOTS not configured");
     process.env["JARVIS_NOTES_ROOTS"] = jobNotesDir;
@@ -430,8 +432,151 @@ describe("handleNotesSyncJob", () => {
     await expect(
       dataContext.withDataContext(
         { actorUserId: jobUserId, requestId: "req:worker-escape" },
-        (scopedDb) => handleNotesSyncJob(makeJob("/etc"), scopedDb, provider)
+        (scopedDb) => handleNotesSyncJob(makeJob("/etc"), scopedDb, provider, prefsRepo)
       )
     ).rejects.toThrow("not within any allowed root");
+  });
+
+  it("writes notes-last-sync on success with the real counts (#449)", async () => {
+    await writeFile(join(jobNotesDir, "lastsync-success.md"), "# Last sync success\n");
+    const ctx = { actorUserId: jobUserId, requestId: "req:worker-lastsync-ok" };
+    const result = await dataContext.withDataContext(ctx, (scopedDb) =>
+      handleNotesSyncJob(makeJob(jobNotesDir), scopedDb, provider, prefsRepo)
+    );
+    expect(result.ingested).toBeGreaterThanOrEqual(1);
+
+    // In prod the worker wrapper calls writeNotesLastSync after the ingest tx commits.
+    // The test calls the handler directly, so invoke the wrapper's write step here.
+    await writeNotesLastSync(dataContext, ctx, prefsRepo, {
+      at: new Date().toISOString(),
+      ...result
+    });
+
+    const stored = await dataContext.withDataContext(
+      { actorUserId: jobUserId, requestId: "req:worker-lastsync-ok-read" },
+      (scopedDb) => prefsRepo.get(scopedDb, "notes-last-sync")
+    );
+    expect(stored).toMatchObject({
+      at: expect.any(String),
+      ingested: result.ingested,
+      skipped: result.skipped,
+      errors: result.errors
+    });
+    expect((stored as { lastError?: string }).lastError).toBeUndefined();
+  });
+
+  it("writes notes-last-sync with lastError on failure (failure must not be silent, #449)", async () => {
+    delete process.env["JARVIS_NOTES_ROOTS"];
+    const ctx = { actorUserId: jobUserId, requestId: "req:worker-lastsync-fail" };
+    const failureMessage = "JARVIS_NOTES_ROOTS not configured";
+    await expect(
+      dataContext.withDataContext(ctx, (scopedDb) =>
+        handleNotesSyncJob(makeJob(jobNotesDir), scopedDb, provider, prefsRepo)
+      )
+    ).rejects.toThrow(failureMessage);
+    process.env["JARVIS_NOTES_ROOTS"] = jobNotesDir;
+
+    // In prod the worker wrapper's catch block calls writeNotesLastSync after rollback.
+    await writeNotesLastSync(dataContext, ctx, prefsRepo, {
+      at: new Date().toISOString(),
+      ingested: 0,
+      skipped: 0,
+      errors: 0,
+      lastError: failureMessage
+    });
+
+    const stored = await dataContext.withDataContext(
+      { actorUserId: jobUserId, requestId: "req:worker-lastsync-fail-read" },
+      (scopedDb) => prefsRepo.get(scopedDb, "notes-last-sync")
+    );
+    expect(stored).toMatchObject({
+      at: expect.any(String),
+      ingested: 0,
+      skipped: 0,
+      errors: 0,
+      lastError: expect.stringContaining(failureMessage)
+    });
+  });
+});
+
+// ── PUT /api/me/notes-source → 15-min heartbeat schedule reconcile (#449) ─────
+
+describe("PUT /api/me/notes-source schedule reconcile (#449)", () => {
+  let server: ReturnType<typeof createApiServer>;
+  let cookie: string;
+  let scheduleUserActorId: string;
+
+  beforeAll(async () => {
+    server = createApiServer({ appDb, logger: false });
+    await server.ready();
+    cookie = await signUp(server, "ScheduleUser", `sched-${randomUUID()}@example.test`);
+    // Resolve the actor userId so we can assert the schedule row key directly.
+    const me = await server.inject({
+      method: "GET",
+      url: "/api/me",
+      headers: { cookie }
+    });
+    scheduleUserActorId = me.json<{ user: { id: string } }>().user.id;
+  });
+
+  afterAll(async () => {
+    await server?.close();
+  });
+
+  afterEach(() => {
+    delete process.env["JARVIS_NOTES_ROOTS"];
+  });
+
+  async function fetchScheduleRow(): Promise<{ cron: string; data: unknown } | null> {
+    const client = new Client({ connectionString: connectionStrings.migration });
+    await client.connect();
+    try {
+      const res = await client.query<{ cron: string; data: unknown }>(
+        `SELECT cron, data FROM pgboss.schedule WHERE name = $1 AND key = $2`,
+        [NOTES_SYNC_QUEUE, scheduleUserActorId]
+      );
+      return res.rows[0] ?? null;
+    } finally {
+      await client.end();
+    }
+  }
+
+  it("PUT with a valid path creates one 15-min schedule row keyed on actorUserId", async () => {
+    process.env["JARVIS_NOTES_ROOTS"] = notesDir;
+    const put = await server.inject({
+      method: "PUT",
+      url: "/api/me/notes-source",
+      headers: { cookie, "content-type": "application/json" },
+      payload: { path: notesDir }
+    });
+    expect(put.statusCode).toBe(200);
+
+    const row = await fetchScheduleRow();
+    expect(row, "schedule row must exist after PUT with a path").not.toBeNull();
+    expect(row!.cron).toBe("*/15 * * * *");
+    // Metadata-only: just actorUserId (the handler resolves sourcePath at fire time).
+    expect(row!.data).toEqual({ actorUserId: scheduleUserActorId });
+  });
+
+  it("PUT with null clears the schedule row", async () => {
+    process.env["JARVIS_NOTES_ROOTS"] = notesDir;
+    // Ensure a row exists first.
+    await server.inject({
+      method: "PUT",
+      url: "/api/me/notes-source",
+      headers: { cookie, "content-type": "application/json" },
+      payload: { path: notesDir }
+    });
+    expect(await fetchScheduleRow()).not.toBeNull();
+
+    // Clear.
+    const put = await server.inject({
+      method: "PUT",
+      url: "/api/me/notes-source",
+      headers: { cookie, "content-type": "application/json" },
+      payload: { path: null }
+    });
+    expect(put.statusCode).toBe(200);
+    expect(await fetchScheduleRow(), "schedule row must be gone after clearing path").toBeNull();
   });
 });

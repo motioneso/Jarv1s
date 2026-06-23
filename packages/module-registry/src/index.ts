@@ -122,6 +122,7 @@ import {
   notesModuleManifest,
   notesModuleSqlMigrationDirectory,
   NOTES_QUEUE_DEFINITIONS,
+  reconcileNotesSchedule,
   registerNotesSyncRoutes,
   registerNotesJobWorkers
 } from "@jarv1s/notes";
@@ -390,7 +391,13 @@ const BUILT_IN_MODULES: readonly BuiltInModuleRegistration[] = [
         onboardingLogin: deps.onboardingLogin,
         personaPreview: deps.personaPreview ?? createDefaultPersonaPreview(deps.dataContext),
         preferencesRepository: new PreferencesRepository(),
-        boss: deps.boss
+        boss: deps.boss,
+        // #449: wire the per-actor 15-min notes-sync heartbeat. Injected as a hook
+        // (not imported in @jarv1s/settings) because @jarv1s/notes already depends
+        // on @jarv1s/settings for resolveNotesRoots — a direct import would cycle.
+        reconcileNotesSchedule: deps.boss
+          ? (actorUserId, hasPath) => reconcileNotesSchedule(deps.boss!, actorUserId, hasPath)
+          : undefined
       });
       // Instance-wide Brave Search key: dedicated admin routes (the key is AES-256-GCM
       // encrypted at rest, never returned). The web-research module stays db-free; this
@@ -589,7 +596,8 @@ const BUILT_IN_MODULES: readonly BuiltInModuleRegistration[] = [
       }),
     registerWorkers: (boss, deps) =>
       registerNotesJobWorkers(boss, deps.dataContext, {
-        embeddingProvider: deps.embeddingProvider
+        embeddingProvider: deps.embeddingProvider,
+        preferencesRepository: new PreferencesRepository()
       })
   }
 ];

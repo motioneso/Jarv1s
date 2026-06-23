@@ -239,7 +239,7 @@ export async function registerDataContextWorker<TPayload extends ActorScopedJobP
   });
 }
 
-function toAccessContext(job: Job<ActorScopedJobPayload>): AccessContext {
+export function toAccessContext(job: Job<ActorScopedJobPayload>): AccessContext {
   if (!job.data.actorUserId) {
     throw new Error(`Job ${job.id} is missing actorUserId`);
   }

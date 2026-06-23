@@ -1,6 +1,6 @@
 # Notes Source Connector — Folder Transport (Obsidian vault → memory ingest)
 
-**Status:** Approved design — ready to build
+**Status:** Built (2026-06-23) — reconciled by `docs/superpowers/plans/2026-06-23-notes-source-host-folder.md`. The bind-mount layer, 15-min heartbeat, and wired settings card landed. Three architectural decisions were reversed to match the pre-shipped `@jarv1s/notes` module (env-var allowlist over VaultContext resolver, preferences over connector record, direct MemoryRepository over ingestVault); see the plan's "Spec reconciliation" table.
 **Date:** 2026-06-23
 **Owner:** Ben
 **Grounded on:** `origin/main` @ `bc703a89` (tree fresh, HEAD == origin/main).

@@ -46,6 +46,7 @@ import { moduleDescription, readError, type PaneProps } from "./settings-types";
 import {
   Avatar,
   Badge,
+  formatTimestamp,
   Group,
   Indicator,
   Locked,
@@ -580,7 +581,7 @@ export function OversightPane() {
                           }
                         : { label: "Healthy", tone: "pine" as const, indicator: "ready" as const };
               const lastFinished = account.lastSyncFinishedAt
-                ? new Date(account.lastSyncFinishedAt).toLocaleString()
+                ? formatTimestamp(account.lastSyncFinishedAt, account.lastSyncFinishedAt)
                 : null;
               const errorLabel =
                 (account.lastSyncStatus === "partial" || account.lastSyncStatus === "failed") &&

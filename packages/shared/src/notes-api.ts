@@ -10,6 +10,19 @@ export interface PostNotesSyncResponse {
   readonly jobId: string;
 }
 
+export interface NotesLastSyncStats {
+  readonly at: string | null;
+  readonly ingested: number;
+  readonly skipped: number;
+  readonly errors: number;
+  readonly lastError?: string;
+}
+
+export interface GetNotesLastSyncResponse {
+  /** `null` when no sync has ever run for this actor. */
+  readonly lastSync: NotesLastSyncStats | null;
+}
+
 export const getNotesSourceRouteSchema = {
   response: {
     200: {
@@ -50,6 +63,34 @@ export const postNotesSyncRouteSchema = {
       required: ["jobId"],
       properties: {
         jobId: { type: "string" }
+      }
+    }
+  }
+} as const;
+
+export const getNotesLastSyncRouteSchema = {
+  response: {
+    200: {
+      // Fix 10 (#449): the route always sends `{ lastSync: <obj|null> }`, never a
+      // top-level null. The outer type was `["object","null"]` which can't
+      // satisfy `required: ["lastSync"]` — tightened to `"object"`. Inner
+      // `lastSync` stays nullable (that's the real nullability).
+      type: "object",
+      additionalProperties: false,
+      required: ["lastSync"],
+      properties: {
+        lastSync: {
+          type: ["object", "null"],
+          additionalProperties: false,
+          required: ["at", "ingested", "skipped", "errors"],
+          properties: {
+            at: { type: ["string", "null"] },
+            ingested: { type: "number" },
+            skipped: { type: "number" },
+            errors: { type: "number" },
+            lastError: { type: "string" }
+          }
+        }
       }
     }
   }

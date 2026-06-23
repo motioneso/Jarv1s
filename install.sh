@@ -78,6 +78,13 @@ done
 COMPOSE_DIR=$(dirname -- "$COMPOSE_FILE")
 cd "$COMPOSE_DIR" || die "cannot enter $COMPOSE_DIR"
 COMPOSE_NAME=$(basename -- "$COMPOSE_FILE")   # now relative to CWD
+# COMPOSE_FILES is the -f argument list for real compose invocations (build /
+# setup run / up). Starts as just the base file; docker-compose.notes.yml is
+# appended when NOTES_VAULT_HOST_PATH is set (probe below). The bare basename
+# form matches COMPOSE_NAME — install.sh cd'd into COMPOSE_DIR at line 79, so
+# -f resolution is relative to CWD. Never used in echo/log strings (those keep
+# $COMPOSE_NAME for readability).
+COMPOSE_FILES=(-f "$COMPOSE_NAME")
 ENV_FILE="${COMPOSE_DIR}/env.production.local"
 
 # ---- 1. preflight ---------------------------------------------------------
@@ -91,6 +98,20 @@ HOST_UID=$(id -u)
 HOST_GID=$(id -g)
 [ -n "${HOME:-}" ] || die "HOME is unset; cannot derive host CLI dirs."
 note "host uid/gid: ${HOST_UID}/${HOST_GID}  HOME=${HOME}"
+
+# Notes Source host-folder bind mount (#449). Optional. When set, the host vault
+# directory is bind-mounted into the api + worker containers at a fixed neutral
+# path /data/external-notes (via docker-compose.notes.yml, -f'd in below). Empty
+# or unset = no mount = the notes feature is inert. The app reads the mount via
+# JARVIS_NOTES_ROOTS=/data/external-notes, derived by setup-prod.ts from this var
+# so the operator names only the host path. Read-only in v1 (ingest); :rw is
+# reserved for write-back (slice #2).
+NOTES_VAULT_HOST_PATH="${JARVIS_NOTES_VAULT_HOST_PATH:-}"
+if [ -n "$NOTES_VAULT_HOST_PATH" ]; then
+  note "notes source host path: ${NOTES_VAULT_HOST_PATH} (bind-mounted to /data/external-notes)"
+  # Append the override as a bare basename (sibling of the base file in CWD).
+  COMPOSE_FILES+=(-f "docker-compose.notes.yml")
+fi
 
 # Multiplexer preflight. The container bridge ships ONLY the tmux client, so the
 # env file pins JARVIS_MULTIPLEXER=tmux (written by setup); this probe is a host
@@ -209,7 +230,7 @@ fi
 if [ "$need_build" = "1" ]; then
   note "building api + web images locally (source present)..."
   POSTGRES_PASSWORD=setup JARVIS_CLI_RUNNER_RPC_SECRET=setup JARVIS_IMAGE_TAG="$TAG" \
-    docker compose -p "$PROJECT" -f "$COMPOSE_NAME" build api web \
+    docker compose -p "$PROJECT" "${COMPOSE_FILES[@]}" build api web \
     || die "image build failed. Run from the repo root, or pre-build / pull the image."
 fi
 
@@ -235,12 +256,13 @@ FIRST_RUN=0
 # JARVIS_PUBLIC_ORIGIN (the host LAN origin, #379) is passed so setup merges it into
 # JARVIS_AUTH_TRUSTED_ORIGINS — empty is fine (setup falls back to localhost-only).
 if POSTGRES_PASSWORD=setup JARVIS_CLI_RUNNER_RPC_SECRET=setup JARVIS_IMAGE_TAG="$TAG" \
-  docker compose -p "$PROJECT" -f "$COMPOSE_NAME" --profile setup run --rm \
+  docker compose -p "$PROJECT" "${COMPOSE_FILES[@]}" --profile setup run --rm \
     -e JARVIS_HOST_UID="$HOST_UID" -e JARVIS_HOST_GID="$HOST_GID" \
     -e JARVIS_API_PORT="$API_PORT" -e JARVIS_WEB_PORT="$WEB_PORT" \
     -e JARVIS_DOCKER_SUBNET="$SUBNET" -e JARVIS_EMBED_PROVIDER="$EMBED" \
     -e JARVIS_PUBLIC_ORIGIN="$PUBLIC_ORIGIN" \
-    -e JARVIS_IMAGE_TAG="$TAG" setup; then
+    -e JARVIS_IMAGE_TAG="$TAG" \
+    -e JARVIS_NOTES_VAULT_HOST_PATH="$NOTES_VAULT_HOST_PATH" setup; then
   FIRST_RUN=1
   note "wrote ${ENV_FILE} (mode 0600) with generated boot secrets"
 else
@@ -279,7 +301,7 @@ if [ "$need_build" = "1" ]; then
 fi
 # --env-file feeds Compose INTERPOLATION (POSTGRES_PASSWORD, ports, subnet,
 # bridge vars) AND the services' `env_file:` loads the same file at runtime.
-docker compose -p "$PROJECT" -f "$COMPOSE_NAME" --env-file "$ENV_FILE" up $UP_FLAGS \
+docker compose -p "$PROJECT" "${COMPOSE_FILES[@]}" --env-file "$ENV_FILE" up $UP_FLAGS \
   || die "docker compose up failed. Inspect: docker compose -p ${PROJECT} -f ${COMPOSE_NAME} --env-file ${ENV_FILE} logs"
 note "stack started"
 
