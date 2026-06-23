@@ -34,6 +34,7 @@ export const queryKeys = {
     capabilityRoutes: ["ai", "capability-routes"] as const,
     capabilities: ["ai", "capability"] as const,
     capability: (capability: string) => ["ai", "capability", capability] as const,
+    tierPreferences: ["ai", "tier-preferences"] as const,
     assistantTools: ["ai", "assistant-tools"] as const
   },
   briefings: {

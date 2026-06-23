@@ -261,3 +261,12 @@ export interface ResolveAiAssistantActionRequest {
 export interface ResolveAiAssistantActionResponse {
   readonly action: AiAssistantActionDto;
 }
+
+export interface AiCapabilityTierPreferencesResponse {
+  readonly preferences: Partial<Record<AiModelCapability, AiModelTier>>;
+}
+
+export interface PatchAiCapabilityTierPreferenceRequest {
+  readonly capability: AiModelCapability;
+  readonly tier: AiModelTier;
+}
