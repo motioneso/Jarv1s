@@ -1,11 +1,13 @@
 import { assertDataContextDb } from "@jarv1s/db";
 import type { ToolExecute, ToolResult } from "@jarv1s/module-sdk";
 import { moodIndex } from "@jarv1s/shared";
+import { PreferencesRepository } from "@jarv1s/structured-state";
 
 import { WellnessRepository } from "./repository.js";
 import { serializeCheckin } from "./serialize.js";
 
 const repository = new WellnessRepository();
+const preferences = new PreferencesRepository();
 
 export const wellnessRecentCheckInsExecute: ToolExecute = async (
   scopedDb,
@@ -13,6 +15,12 @@ export const wellnessRecentCheckInsExecute: ToolExecute = async (
   _ctx
 ): Promise<ToolResult> => {
   assertDataContextDb(scopedDb);
+  const consent = await preferences.get(scopedDb, "wellness.ai_consent_granted");
+  if (!consent) {
+    return {
+      data: { error: "Consent not granted", code: "WELLNESS_CONSENT_REQUIRED" }
+    };
+  }
   const checkins = await repository.listCheckins(scopedDb, { limit: 20 });
   return {
     data: {

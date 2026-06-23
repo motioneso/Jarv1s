@@ -43,6 +43,7 @@ import { getBuiltInModuleManifests } from "@jarv1s/module-registry";
 import { TasksRepository, registerTasksRoutes } from "@jarv1s/tasks";
 import { BriefingsRepository } from "@jarv1s/briefings";
 import { ChatMemoryFactsRepository } from "@jarv1s/memory";
+import { PreferencesRepository } from "@jarv1s/structured-state";
 
 import { connectionStrings, resetEmptyFoundationDatabase } from "./test-database.js";
 import { makeComposeDeps } from "./briefings.helpers.js";
@@ -443,6 +444,14 @@ describe("wellness AI read tools", () => {
     return { actorUserId, requestId: "tool-req", chatSessionId: "" };
   }
 
+  it("wellness.recentCheckIns returns CONSENT_REQUIRED when consent not granted", async () => {
+    const result = await dataContext.withDataContext(ctx(userId), (db) =>
+      wellnessRecentCheckInsExecute(db, {}, toolCtx(userId))
+    );
+    expect(result.data.code).toBe("WELLNESS_CONSENT_REQUIRED");
+    expect(result.data.items).toBeUndefined();
+  });
+
   it("wellness.recentCheckIns returns owner-scoped check-ins and is declared read", async () => {
     const tool = wellnessModuleManifest.assistantTools?.find(
       (t) => t.name === "wellness.recentCheckIns"
@@ -450,6 +459,9 @@ describe("wellness AI read tools", () => {
     expect(tool?.risk).toBe("read");
     expect(tool?.execute).toBeDefined();
 
+    await dataContext.withDataContext(ctx(userId), (db) =>
+      new PreferencesRepository().upsert(db, "wellness.ai_consent_granted", true)
+    );
     await dataContext.withDataContext(ctx(userId), (db) =>
       new WellnessRepository().createCheckin(db, { feelingCore: "happy", intensity: 4 })
     );
