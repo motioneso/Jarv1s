@@ -2,6 +2,7 @@ import { fileURLToPath } from "node:url";
 
 import type { JarvisModuleManifest } from "@jarv1s/module-sdk";
 import {
+  aiDiscoverModelsResponseSchema,
   createAiConfiguredModelRequestSchema,
   createAiConfiguredModelResponseSchema,
   createAiProviderConfigRequestSchema,
@@ -157,6 +158,12 @@ export const aiModuleManifest = {
       method: "POST",
       path: "/api/ai/providers/:id/discover-models",
       responseSchema: discoverAiProviderModelsResponseSchema,
+      permissionId: "ai.manage"
+    },
+    {
+      method: "GET",
+      path: "/api/ai/providers/:id/models/discover",
+      responseSchema: aiDiscoverModelsResponseSchema,
       permissionId: "ai.manage"
     },
     {
