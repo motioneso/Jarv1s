@@ -96,4 +96,7 @@ export function getDefaultWebSearchProvider(): WebSearchProvider {
 
 export function setWebSearchProviderForTests(provider: WebSearchProvider | undefined): void {
   testSearchProvider = provider;
+  // Also reset the env-key cache so key rotation takes effect and tests that clear the
+  // provider don't get a stale Brave instance from a prior getDefaultWebSearchProvider call.
+  _configuredProvider = undefined;
 }
