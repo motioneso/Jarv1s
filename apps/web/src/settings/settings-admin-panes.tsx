@@ -545,7 +545,8 @@ export function OversightPane() {
       const msg = data.deduped ? "Sync already in progress" : "Sync queued";
       toast(msg);
       void queryClient.invalidateQueries({ queryKey: queryKeys.settings.adminConnectorAccounts });
-    }
+    },
+    onError: (error) => toast(readError(error), { tone: "drift" })
   });
   return (
     <>

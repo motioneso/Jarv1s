@@ -287,18 +287,22 @@ export async function runGoogleSync(
     // Never log the underlying auth error object (may carry client_secret/refresh_token).
     logger.warn({ actorScoped: true, stage: "auth" }, "google-sync auth failed");
     // Record a failed run with the bounded auth label only — never the raw provider error.
-    await connectorsRepo.markSyncFinished(scopedDb, account.id, {
-      finishedAt: now(),
-      status: "failed",
-      error: "auth-error",
-      counts: {
-        calendarUpserted: 0,
-        emailUpserted: 0,
-        emailFailures: 0,
-        escalations: 0,
-        truncated: false
-      }
-    });
+    try {
+      await connectorsRepo.markSyncFinished(scopedDb, account.id, {
+        finishedAt: now(),
+        status: "failed",
+        error: "auth-error",
+        counts: {
+          calendarUpserted: 0,
+          emailUpserted: 0,
+          emailFailures: 0,
+          escalations: 0,
+          truncated: false
+        }
+      });
+    } catch (persistErr) {
+      logger.warn({ err: persistErr }, "google-sync: failed to persist auth-failure outcome");
+    }
     return { calendarUpserted: 0, emailUpserted: 0, errors: ["auth-error"] };
   }
 
