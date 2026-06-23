@@ -3,11 +3,13 @@ import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import type { AccessContext, DataContextDb, DataContextRunner } from "@jarv1s/db";
 import { HttpError, handleRouteError as handleModuleRouteError } from "@jarv1s/module-sdk";
 import {
+  aiDiscoverModelsRouteSchema,
   discoverAiProviderModelsRouteSchema,
   testAiProviderConfigRouteSchema
 } from "@jarv1s/shared";
 
 import type { AiSecretCipher } from "./crypto.js";
+import type { ModelDiscoveryService } from "./model-discovery.js";
 import { discoverProviderModels, testProviderCredential } from "./provider-validation.js";
 import type { AiRepository } from "./repository.js";
 
@@ -20,6 +22,7 @@ export interface AiProviderValidationRouteDependencies {
   readonly dataContext: DataContextRunner;
   readonly repository: AiRepository;
   readonly secretCipher: AiSecretCipher;
+  readonly modelDiscovery: ModelDiscoveryService;
 }
 
 export function registerAiProviderValidationRoutes(
@@ -82,6 +85,48 @@ export function registerAiProviderValidationRoutes(
         );
 
         return { models };
+      } catch (error) {
+        return handleRouteError(error, reply);
+      }
+    }
+  );
+
+  server.get<{ Params: IdParams }>(
+    "/api/ai/providers/:id/models/discover",
+    { schema: aiDiscoverModelsRouteSchema },
+    async (request, reply) => {
+      try {
+        const accessContext = await dependencies.resolveAccessContext(request);
+        const result = await dependencies.dataContext.withDataContext(
+          accessContext,
+          async (scopedDb) => {
+            const provider = await loadTestableProvider(
+              dependencies,
+              scopedDb,
+              accessContext,
+              request.params.id
+            );
+            const cacheKey = `${accessContext.actorUserId}:${provider.id}`;
+            return dependencies.modelDiscovery.discoverModels(cacheKey, {
+              providerKind: provider.provider_kind,
+              authMethod: provider.auth_method,
+              baseUrl: provider.base_url,
+              credential: dependencies.secretCipher.decryptJson(provider.encrypted_credential)
+            });
+          }
+        );
+
+        return {
+          models: result.models.map((m) => ({
+            ...m,
+            fromCache: result.fromCache,
+            fromFallback: result.fromFallback
+          })),
+          fromFallback: result.fromFallback,
+          cacheExpiresAt: result.cacheExpiresAt
+            ? new Date(result.cacheExpiresAt).toISOString()
+            : null
+        };
       } catch (error) {
         return handleRouteError(error, reply);
       }
