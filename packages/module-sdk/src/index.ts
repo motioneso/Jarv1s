@@ -119,6 +119,8 @@ export type FocusSignalContextRunner = <T>(work: (scopedDb: unknown) => Promise<
  * focus outage and defeating the fail-soft guarantee above. Separate contexts make the
  * fail-soft real and let the providers genuinely run in parallel.
  */
+const FOCUS_SIGNAL_PROVIDER_TIMEOUT_MS = 250;
+
 export async function aggregateFocusSignals(
   providers: readonly RegisteredFocusSignal[],
   runInContext: FocusSignalContextRunner,
@@ -130,7 +132,20 @@ export async function aggregateFocusSignals(
       try {
         // Each provider gets its OWN context/transaction: one provider aborting its txn
         // (25P02) cannot poison another, and they do not serialize on one pg connection.
-        const signal = await runInContext((scopedDb) => provider(scopedDb, ctx));
+        // Race against a 250ms deadline: a stalled provider must not block the focus path.
+        const providerTimeout = new Promise<never>((_, reject) =>
+          setTimeout(() => {
+            const err = new Error(
+              `FocusSignalProvider timed out after ${FOCUS_SIGNAL_PROVIDER_TIMEOUT_MS}ms`
+            );
+            err.name = "ProviderTimeout";
+            reject(err);
+          }, FOCUS_SIGNAL_PROVIDER_TIMEOUT_MS)
+        );
+        const signal = await Promise.race([
+          runInContext((scopedDb) => provider(scopedDb, ctx)),
+          providerTimeout
+        ]);
         if (
           signal &&
           typeof signal.moduleId === "string" &&
