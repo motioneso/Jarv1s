@@ -26,10 +26,72 @@ const unavailableSearchProvider: WebSearchProvider = {
   search: async () => ({ results: [], trace: { unavailable: true } })
 };
 
+// Brave Search provider — requires JARVIS_BRAVE_SEARCH_API_KEY in the server env.
+// Free tier: 2000 queries/month. Docs: https://brave.com/search/api/
+const BRAVE_FRESHNESS_MAP: Partial<Record<string, string>> = {
+  day: "pd",
+  week: "pw",
+  month: "pm"
+};
+
+function createBraveSearchProvider(apiKey: string): WebSearchProvider {
+  return {
+    name: "brave",
+    async search(input) {
+      const params = new URLSearchParams({
+        q: input.query,
+        count: String(Math.min(input.limit, 20)),
+        text_decorations: "false",
+        extra_snippets: "false"
+      });
+      if (input.freshness && input.freshness !== "any") {
+        const mapped = BRAVE_FRESHNESS_MAP[input.freshness];
+        if (mapped) params.set("freshness", mapped);
+      }
+      const url = `https://api.search.brave.com/res/v1/web/search?${params.toString()}`;
+      const response = await fetch(url, {
+        headers: {
+          Accept: "application/json",
+          "Accept-Encoding": "gzip",
+          "X-Subscription-Token": apiKey
+        },
+        signal: AbortSignal.timeout(8_000)
+      });
+      if (!response.ok) {
+        const body = await response.text().catch(() => "");
+        throw new Error(`Brave Search API error ${response.status}: ${body.slice(0, 200)}`);
+      }
+      const data = (await response.json()) as {
+        web?: {
+          results?: Array<{ title?: string; url?: string; description?: string; age?: string }>;
+        };
+      };
+      const results: WebSearchProviderResult[] = (data.web?.results ?? []).map((r) => ({
+        title: r.title ?? "",
+        url: r.url ?? "",
+        snippet: r.description ?? "",
+        ...(r.age ? { publishedAt: r.age } : {})
+      }));
+      return {
+        results,
+        trace: { provider: "brave", count: results.length }
+      };
+    }
+  };
+}
+
 let testSearchProvider: WebSearchProvider | undefined;
+let _configuredProvider: WebSearchProvider | undefined;
 
 export function getDefaultWebSearchProvider(): WebSearchProvider {
-  return testSearchProvider ?? unavailableSearchProvider;
+  if (testSearchProvider) return testSearchProvider;
+  if (_configuredProvider) return _configuredProvider;
+  const apiKey = process.env["JARVIS_BRAVE_SEARCH_API_KEY"];
+  if (apiKey) {
+    _configuredProvider = createBraveSearchProvider(apiKey);
+    return _configuredProvider;
+  }
+  return unavailableSearchProvider;
 }
 
 export function setWebSearchProviderForTests(provider: WebSearchProvider | undefined): void {
