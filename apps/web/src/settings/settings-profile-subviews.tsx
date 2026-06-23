@@ -23,15 +23,20 @@ import { useState } from "react";
 
 import { type MeSessionDeviceKind, type MeSessionDto } from "@jarv1s/shared";
 
-import { downloadMyDataExport } from "../api/download";
-import { listMySessions, revokeMyOtherSessions, revokeMySession } from "../api/client";
+import {
+  listMySessions,
+  revokeMyOtherSessions,
+  revokeMySession,
+  startDataExport,
+  getDataExportStatus,
+  getDataExportDownloadUrl,
+  type ExportJobStatus
+} from "../api/client";
 import { queryKeys } from "../api/query-keys";
 import { useFeedback } from "./settings-feedback";
 import { Badge, Group, Note, Row } from "./settings-ui";
 
 /* ----------------------------------------------------------- Data export */
-
-type ExportPhase = "idle" | "preparing" | "ready";
 
 const INCLUDED: readonly { readonly icon: LucideIcon; readonly name: string }[] = [
   { icon: UserRound, name: "Profile & account" },
@@ -45,32 +50,41 @@ const INCLUDED: readonly { readonly icon: LucideIcon; readonly name: string }[] 
 
 export function DataExport() {
   const { toast } = useFeedback();
-  const [phase, setPhase] = useState<ExportPhase>("idle");
+  const [jobId, setJobId] = useState<string | null>(null);
 
-  const exportMutation = useMutation({
-    mutationFn: downloadMyDataExport,
-    onSuccess: () => {
-      setPhase("ready");
-      toast("Download started", { icon: <Download size={17} /> });
-    },
-    onError: () => {
-      setPhase("idle");
-      toast("Couldn't build your archive", { icon: <Download size={17} /> });
+  const statusQuery = useQuery<ExportJobStatus>({
+    queryKey: ["data-export", "status", jobId],
+    queryFn: () => getDataExportStatus(jobId!),
+    enabled: jobId !== null,
+    refetchInterval: (query) => {
+      const status = query.state.data?.status;
+      return status === "pending" || status === "building" ? 3000 : false;
     }
   });
 
-  const prepare = () => {
-    setPhase("preparing");
-    exportMutation.mutate(undefined);
-  };
-  const reset = () => setPhase("idle");
+  const startMutation = useMutation({
+    mutationFn: startDataExport,
+    onSuccess: (data) => {
+      setJobId(data.jobId);
+    },
+    onError: () => {
+      toast("Couldn't start export", { icon: <Download size={17} /> });
+    }
+  });
+
+  const status = statusQuery.data?.status;
+  const isInProgress = status === "pending" || status === "building";
+  const isReady = status === "ready";
+  const isFailed = status === "failed";
+
+  const reset = () => setJobId(null);
 
   return (
     <Group
       title="Your data"
       desc="Everything Jarvis holds about you, packaged as a portable archive you can keep or take elsewhere."
     >
-      {phase === "idle" ? (
+      {!jobId || isFailed ? (
         <>
           <div className="dexp__inc">
             {INCLUDED.map((i) => {
@@ -83,34 +97,56 @@ export function DataExport() {
               );
             })}
           </div>
-          <div className="dexp__bar">
-            <div className="dexp__note">
-              <FileArchive size={13} aria-hidden="true" />A single archive — structured JSON plus
-              your original note files. Yours, in an open format.
+          {isFailed ? (
+            <div className="dexp__bar">
+              <div className="dexp__note">Export failed. Please try again.</div>
+              <button
+                type="button"
+                className="jds-btn jds-btn--primary jds-btn--sm"
+                onClick={() => {
+                  reset();
+                  startMutation.mutate(undefined);
+                }}
+                disabled={startMutation.isPending}
+              >
+                <span className="jds-btn__icon">
+                  <Download size={15} />
+                </span>
+                Try again
+              </button>
             </div>
-            <button
-              type="button"
-              className="jds-btn jds-btn--primary jds-btn--sm"
-              onClick={prepare}
-              disabled={exportMutation.isPending}
-            >
-              <span className="jds-btn__icon">
-                <Download size={15} />
-              </span>
-              Prepare export
-            </button>
-          </div>
+          ) : (
+            <div className="dexp__bar">
+              <div className="dexp__note">
+                <FileArchive size={13} aria-hidden="true" />A single archive — structured JSON plus
+                your original note files. Yours, in an open format.
+              </div>
+              <button
+                type="button"
+                className="jds-btn jds-btn--primary jds-btn--sm"
+                onClick={() => startMutation.mutate(undefined)}
+                disabled={startMutation.isPending}
+              >
+                <span className="jds-btn__icon">
+                  <Download size={15} />
+                </span>
+                Prepare export
+              </button>
+            </div>
+          )}
         </>
       ) : null}
 
-      {phase === "preparing" ? (
+      {isInProgress ? (
         <div className="dexp__job">
           <div className="dexp__jobhd">
             <span className="dexp__spin">
               <LoaderCircle size={16} aria-hidden="true" />
             </span>
             <div className="dexp__jobmain">
-              <div className="dexp__jobt">Building your archive…</div>
+              <div className="dexp__jobt">
+                {status === "pending" ? "Queued…" : "Building your archive…"}
+              </div>
               <div className="dexp__jobd">
                 Gathering your data into a portable archive — you can leave this page.
               </div>
@@ -119,16 +155,28 @@ export function DataExport() {
         </div>
       ) : null}
 
-      {phase === "ready" ? (
+      {isReady ? (
         <div className="dexp__bar">
           <div className="dexp__note">
             <ShieldCheck size={13} aria-hidden="true" />
-            Your archive download has started. It was built on this server and never left it until
-            you downloaded it.
+            Your archive is ready. It was built on this server and never left it until you download
+            it.
           </div>
-          <button type="button" className="jds-btn jds-btn--quiet jds-btn--sm" onClick={reset}>
-            Prepare a new export
-          </button>
+          <div style={{ display: "flex", gap: 8 }}>
+            <a
+              href={getDataExportDownloadUrl(jobId!)}
+              className="jds-btn jds-btn--primary jds-btn--sm"
+              download
+            >
+              <span className="jds-btn__icon">
+                <Download size={15} />
+              </span>
+              Download
+            </a>
+            <button type="button" className="jds-btn jds-btn--quiet jds-btn--sm" onClick={reset}>
+              Prepare a new export
+            </button>
+          </div>
         </div>
       ) : null}
     </Group>
