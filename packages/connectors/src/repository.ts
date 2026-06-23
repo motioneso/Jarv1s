@@ -210,6 +210,7 @@ export class ConnectorsRepository {
       .updateTable("app.connector_accounts")
       .set({
         last_sync_started_at: startedAt,
+        last_sync_status: null,
         updated_at: startedAt
       })
       .where("id", "=", accountId)
