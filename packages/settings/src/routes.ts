@@ -42,9 +42,12 @@ import {
 import type { JarvisModuleManifest } from "@jarv1s/module-sdk";
 import { HttpError, handleRouteError as handleModuleRouteError } from "@jarv1s/module-sdk";
 
+import type { PgBoss } from "@jarv1s/jobs";
+
 import { deleteUserData, LastActiveAdminError } from "../../../scripts/delete-user-data.js";
 import { BootstrapHelper } from "./bootstrap.js";
 import { registerDataExportRoutes } from "./data-export-routes.js";
+import { registerDataExportAsyncRoutes } from "./data-export-async-routes.js";
 import type { HostDiagnosticsProvider } from "./host-diagnostics.js";
 import { registerHostDiagnosticsRoutes } from "./host-diagnostics-routes.js";
 import { registerLocaleRoutes } from "./locale-routes.js";
@@ -118,6 +121,8 @@ export interface SettingsRoutesDependencies {
   readonly onboardingLogin?: OnboardingLoginDependencies;
   /** Host diagnostics runtime-facts provider (#255); injected by the composition root. */
   readonly hostDiagnostics?: HostDiagnosticsProvider;
+  /** pg-boss instance for enqueueing export.build jobs (#431). */
+  readonly boss?: PgBoss;
 }
 
 interface SettingParams {
@@ -157,6 +162,13 @@ export function registerSettingsRoutes(
     resolveAccessContext: dependencies.resolveAccessContext,
     rootDb: dependencies.rootDb
   });
+  if (dependencies.boss) {
+    registerDataExportAsyncRoutes(server, {
+      boss: dependencies.boss,
+      dataContext: dependencies.dataContext,
+      resolveAccessContext: dependencies.resolveAccessContext
+    });
+  }
   server.get("/api/bootstrap/status", { schema: bootstrapStatusRouteSchema }, async () => {
     // Return only the boolean the client needs. User count and owner identity are
     // instance-wide data exposed on an UNAUTHENTICATED route — do not leak them

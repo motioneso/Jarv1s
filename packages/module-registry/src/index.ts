@@ -83,6 +83,8 @@ import {
   type OnboardingProviderKind
 } from "@jarv1s/shared";
 import {
+  EXPORT_QUEUE_DEFINITIONS,
+  registerSettingsJobWorkers,
   registerSettingsRoutes,
   settingsModuleManifest,
   settingsModuleSqlMigrationDirectory,
@@ -361,7 +363,7 @@ const BUILT_IN_MODULES: readonly BuiltInModuleRegistration[] = [
   {
     manifest: settingsModuleManifest,
     sqlMigrationDirectories: [settingsModuleSqlMigrationDirectory],
-    queueDefinitions: [],
+    queueDefinitions: [...EXPORT_QUEUE_DEFINITIONS],
     registerRoutes: (server, deps) =>
       registerSettingsRoutes(server, {
         rootDb: deps.rootDb,
@@ -380,8 +382,10 @@ const BUILT_IN_MODULES: readonly BuiltInModuleRegistration[] = [
         onboardingInstall: deps.onboardingInstall,
         onboardingLogin: deps.onboardingLogin,
         personaPreview: deps.personaPreview ?? createDefaultPersonaPreview(deps.dataContext),
-        preferencesRepository: new PreferencesRepository()
-      })
+        preferencesRepository: new PreferencesRepository(),
+        boss: deps.boss
+      }),
+    registerWorkers: (boss, deps) => registerSettingsJobWorkers(boss, deps.dataContext)
   },
   {
     manifest: connectorsModuleManifest,

@@ -578,6 +578,18 @@ export interface WellnessTherapyNotesTable {
   updated_at: TimestampColumn;
 }
 
+export type DataExportJobStatus = "pending" | "building" | "ready" | "failed" | "expired";
+
+export interface DataExportJobsTable {
+  id: ColumnType<string, string | undefined, never>;
+  owner_user_id: ColumnType<string, string, never>;
+  status: ColumnType<DataExportJobStatus, DataExportJobStatus | undefined, DataExportJobStatus>;
+  created_at: TimestampColumn;
+  completed_at: TimestampColumn | null;
+  expires_at: TimestampColumn | null;
+  error_message: string | null;
+}
+
 export interface JarvisDatabase {
   "app.schema_migrations": SchemaMigrationsTable;
   "app.users": UsersTable;
@@ -622,6 +634,7 @@ export interface JarvisDatabase {
   "app.medications": MedicationsTable;
   "app.medication_logs": MedicationLogsTable;
   "app.wellness_therapy_notes": WellnessTherapyNotesTable;
+  "app.data_export_jobs": DataExportJobsTable;
 }
 
 export type User = Selectable<UsersTable>;
@@ -658,3 +671,4 @@ export type WellnessCheckin = Selectable<WellnessCheckinsTable>;
 export type Medication = Selectable<MedicationsTable>;
 export type MedicationLog = Selectable<MedicationLogsTable>;
 export type WellnessTherapyNote = Selectable<WellnessTherapyNotesTable>;
+export type DataExportJob = Selectable<DataExportJobsTable>;
