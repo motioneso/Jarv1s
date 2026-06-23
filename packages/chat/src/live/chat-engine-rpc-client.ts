@@ -26,6 +26,7 @@ import { realpath } from "node:fs/promises";
 import { resolve as resolvePath, sep } from "node:path";
 
 import type { ProviderKind } from "@jarv1s/ai";
+import { parsePositiveIntEnv } from "@jarv1s/shared";
 
 import { CliChatUnavailableError } from "./errors.js";
 import type { RpcInstallProviderParams, RpcInstallProviderResult } from "./install-contract.js";
@@ -74,6 +75,28 @@ const RECONNECT_MAX_MS = 2_000;
 
 /** Width of the random hex nonces exchanged in the auth hello (§3.6) — 32 bytes. */
 const NONCE_BYTES = 32;
+
+/**
+ * §3.4 per-call response deadline (ms). A cli-runner that ACCEPTS a request frame but never sends
+ * its response (a wedged provider CLI whose transcript never reaches a complete boundary) would
+ * otherwise leave the api-side promise pending FOREVER: the socket stays open, so neither
+ * `failAllInFlight` nor a reconnect ever fires. For a chat turn that hung promise also wedges the
+ * per-user turn-in-flight lock permanently, so every later turn 409s "a chat turn is already in
+ * progress" until the api restarts (#445). After the deadline the call rejects with a retryable
+ * CliChatUnavailableError (→ HTTP 503) and its pending entry is cleaned up so nothing leaks.
+ *
+ * Applies to the turn verbs (submit/readNew/isAlive/kill). Override with
+ * JARVIS_CLI_RUNNER_RPC_TIMEOUT_MS (ms); pass `callTimeoutMs: 0` to RpcConnection to disable.
+ */
+const DEFAULT_RPC_TIMEOUT_MS = 45_000;
+
+/**
+ * Deadline for `launch` — looser than the turn verbs because a launch spawns the CLI, writes the
+ * persona, and submits + server-drains the replay batch before replying. Never below the turn
+ * deadline. The long-running, server-budgeted verbs (installProvider, login*, probeProvider) get NO
+ * client deadline — they legitimately run for minutes and own their own server-side timeouts.
+ */
+const LAUNCH_RPC_TIMEOUT_MS = 120_000;
 
 /** A minimal sink for the {method,id,sessionKey,bytes}-only debug log (§6.4). NEVER bodies. */
 export interface RpcClientLogger {
@@ -125,6 +148,12 @@ export interface RpcConnectionOpts {
   readonly logger?: RpcClientLogger;
   readonly reconnectMinMs?: number;
   readonly reconnectMaxMs?: number;
+  /**
+   * Per-call response deadline (ms) for the turn verbs (submit/readNew/isAlive/kill). Defaults to
+   * JARVIS_CLI_RUNNER_RPC_TIMEOUT_MS, else {@link DEFAULT_RPC_TIMEOUT_MS}. Set to 0 to disable all
+   * per-call deadlines (test seam — leaves a hung RPC pending forever, as before this guard).
+   */
+  readonly callTimeoutMs?: number;
 }
 
 interface PendingCall {
@@ -161,6 +190,8 @@ export class RpcConnection {
   private readonly log: RpcClientLogger;
   private readonly reconnectMinMs: number;
   private readonly reconnectMaxMs: number;
+  /** Per-call response deadline for the turn verbs; ≤0 disables all per-call deadlines. */
+  private readonly turnTimeoutMs: number;
 
   private socket: Socket | null = null;
   private state: ConnState = "idle";
@@ -185,6 +216,33 @@ export class RpcConnection {
     this.log = opts.logger ?? NOOP_LOGGER;
     this.reconnectMinMs = opts.reconnectMinMs ?? RECONNECT_MIN_MS;
     this.reconnectMaxMs = opts.reconnectMaxMs ?? RECONNECT_MAX_MS;
+    this.turnTimeoutMs =
+      opts.callTimeoutMs ??
+      parsePositiveIntEnv(process.env.JARVIS_CLI_RUNNER_RPC_TIMEOUT_MS, DEFAULT_RPC_TIMEOUT_MS);
+  }
+
+  /**
+   * Per-call response deadline (ms) by verb; `0` means no deadline. The turn verbs
+   * (submit/readNew/isAlive/kill) use {@link turnTimeoutMs}; `launch` gets the looser of that and
+   * {@link LAUNCH_RPC_TIMEOUT_MS}. The long-running, server-budgeted verbs (install, login*, probe)
+   * and the reconciliation primitive get NO client deadline — they own their own server-side
+   * timeouts and can legitimately run for minutes. When `turnTimeoutMs <= 0`, all deadlines off.
+   */
+  private callTimeoutMs(method: RpcMethod): number {
+    if (this.turnTimeoutMs <= 0) return 0;
+    switch (method) {
+      case "submit":
+      case "readNew":
+      case "isAlive":
+      case "kill":
+        return this.turnTimeoutMs;
+      case "launch":
+        return Math.max(this.turnTimeoutMs, LAUNCH_RPC_TIMEOUT_MS);
+      default:
+        // installProvider / begin|poll|submit|cancelLogin / probeProvider / listLiveSessions:
+        // server-budgeted, may run for minutes — no client-side deadline.
+        return 0;
+    }
   }
 
   // ─── public RPC surface ──────────────────────────────────────────────────────
@@ -298,16 +356,44 @@ export class RpcConnection {
     }
     const id = this.nextId++;
     const frame: RpcFrame = { t: "req", id, method, sessionKey, params };
+    const timeoutMs = this.callTimeoutMs(method);
     return new Promise<T>((resolve, reject) => {
+      // §3.4 per-call deadline. cli-runner may ACCEPT a frame and then never reply (a wedged
+      // provider CLI). The socket stays open, so neither `routeFrame` nor `failAllInFlight` ever
+      // settles this promise — without a timer it hangs forever, and for a chat turn that
+      // permanently wedges the per-user turn-in-flight lock (#445). The timer rejects the call and
+      // removes its pending entry; the late response (if any) is then dropped by `routeFrame`.
+      let timer: ReturnType<typeof setTimeout> | undefined;
+      const clear = () => {
+        if (timer) clearTimeout(timer);
+      };
       this.pending.set(id, {
         method,
         sessionKey,
-        resolve: (r) => resolve(r as T),
-        reject
+        resolve: (r) => {
+          clear();
+          resolve(r as T);
+        },
+        reject: (err) => {
+          clear();
+          reject(err);
+        }
       });
+      if (timeoutMs > 0) {
+        timer = setTimeout(() => {
+          // Already settled (response/close raced the timer) → nothing to do.
+          if (!this.pending.delete(id)) return;
+          reject(
+            new CliChatUnavailableError(`cli-runner ${method} timed out after ${timeoutMs}ms`)
+          );
+        }, timeoutMs);
+        // Don't let a pending deadline keep the process alive (worker/api shutdown).
+        timer.unref?.();
+      }
       try {
         this.writeFrame(frame, method, id, sessionKey);
       } catch (err) {
+        clear();
         this.pending.delete(id);
         reject(new CliChatUnavailableError("cli-runner socket write failed", { cause: err }));
       }
