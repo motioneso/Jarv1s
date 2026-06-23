@@ -2,6 +2,25 @@ import type { JsonSchema, ToolResult } from "@jarv1s/module-sdk";
 import { renderToolResult } from "@jarv1s/module-sdk";
 
 const MAX_RENDERED_TOOL_RESULT_CHARS = 16_000;
+
+// Strip injection-vector sentinel tokens before wrapping external content.
+// These patterns mirror the set used in @jarv1s/briefings sanitizeExternal.
+const SENTINEL_PATTERN =
+  /<\/?tool_result[^>]*>|<\/?trusted_instructions[^>]*>|<\/?external_source[^>]*>/gi;
+
+function escapeHtml(value: string): string {
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
+function wrapWithTrustBoundary(toolName: string, text: string): string {
+  const stripped = text.replace(SENTINEL_PATTERN, "");
+  return `<tool_result source="${escapeHtml(toolName)}">\n${escapeHtml(stripped)}\n</tool_result>`;
+}
 const TOOL_RESULT_TRUNCATION_SUFFIX = "\n...[truncated tool result]";
 const JSON_SCALAR_TYPE_OF: Record<string, (value: unknown) => boolean> = {
   string: (value) => typeof value === "string",
@@ -51,13 +70,19 @@ export function sanitizeAssistantToolResult(
 /**
  * Sanitize, render, and cap a tool result into a model-consumable `{text}` record.
  * Replaces the two ad-hoc sanitize+cap paths that existed in routes.ts and gateway.ts.
+ *
+ * When `toolName` is provided the rendered text is wrapped in a `<tool_result source="…">`
+ * trust-boundary envelope: sentinel tokens are stripped and content is HTML-escaped so
+ * prompt-injection attempts embedded in external data cannot escape the envelope.
  */
 export function renderAndCap(
   schema: JsonSchema | undefined,
-  result: ToolResult
+  result: ToolResult,
+  toolName?: string
 ): Record<string, unknown> {
   const sanitized = sanitizeAssistantToolResult(schema, result);
-  return { text: capRenderedToolResult(renderToolResult(sanitized)) };
+  const text = capRenderedToolResult(renderToolResult(sanitized));
+  return { text: toolName ? wrapWithTrustBoundary(toolName, text) : text };
 }
 
 /** @deprecated Use {@link renderAndCap} instead. */
