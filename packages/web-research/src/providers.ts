@@ -26,8 +26,10 @@ const unavailableSearchProvider: WebSearchProvider = {
   search: async () => ({ results: [], trace: { unavailable: true } })
 };
 
-// Brave Search provider — requires JARVIS_BRAVE_SEARCH_API_KEY in the server env.
-// Free tier: 2000 queries/month. Docs: https://brave.com/search/api/
+// Brave Search provider — key resolved from the encrypted instance setting (admin UI) or the
+// JARVIS_BRAVE_SEARCH_API_KEY env fallback. Pricing (2026): $5 free credit/month (~1k searches),
+// then metered at $5 per 1k requests; credit card required, no spending cap. Docs:
+// https://brave.com/search/api/
 const BRAVE_FRESHNESS_MAP: Partial<Record<string, string>> = {
   day: "pd",
   week: "pw",
