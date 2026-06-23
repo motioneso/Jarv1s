@@ -12,12 +12,14 @@ export interface SafeHttpUrl {
 
 let testHostResolver: HostResolver | undefined;
 const blockedAddresses = new BlockList();
-blockedAddresses.addAddress("0.0.0.0", "ipv4");
+blockedAddresses.addSubnet("0.0.0.0", 8, "ipv4"); // this-network (0.0.0.0/8)
 blockedAddresses.addSubnet("10.0.0.0", 8, "ipv4");
+blockedAddresses.addSubnet("100.64.0.0", 10, "ipv4"); // CGNAT (RFC 6598)
 blockedAddresses.addSubnet("127.0.0.0", 8, "ipv4");
 blockedAddresses.addSubnet("169.254.0.0", 16, "ipv4");
 blockedAddresses.addSubnet("172.16.0.0", 12, "ipv4");
 blockedAddresses.addSubnet("192.168.0.0", 16, "ipv4");
+blockedAddresses.addAddress("::", "ipv6"); // unspecified (::) — was missing, routes to loopback on Linux
 blockedAddresses.addAddress("::1", "ipv6");
 blockedAddresses.addSubnet("fc00::", 7, "ipv6");
 blockedAddresses.addSubnet("fe80::", 10, "ipv6");
