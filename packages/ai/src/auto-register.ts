@@ -86,11 +86,11 @@ export interface AiAutoRegisterPort {
  * Idempotently ensures a CLI provider config + a default chat model exist for a provider after its
  * login settles `ready`. Idempotency / gate semantics (locked, #367):
  *
- *   - reuse a NON-REVOKED config of this kind if present, else create one (`authMethod: "cli"`,
+ *   - reuse an active config of this kind if present, else create one (`authMethod: "cli"`,
  *     `status: "active"`, NO real credential — the sealed `{ cli: true }` marker the Admin create
  *     path uses; the provider's auth lives in the cli-runner token store, not here);
- *   - create the default model ONLY when no chat-capable model row (ANY status) exists under a
- *     non-revoked config of this kind. This single gate is correct because models are never
+ *   - create the default model ONLY when no chat-capable model row (ANY status) exists under an
+ *     active config of this kind. This single gate is correct because models are never
  *     hard-deleted ("remove" = status `disabled`): it (a) avoids duplicates on re-login, (b) never
  *     resurrects a model the founder disabled, and (c) never clobbers a customized model (INSERT-only).
  *
@@ -117,7 +117,7 @@ export class AiAutoRegisterService implements AiAutoRegisterPort {
     // Gate: a chat model already exists for this kind (active OR user-disabled) → leave it untouched.
     if (await this.repository.hasChatModelForProviderKind(scopedDb, providerKind)) return;
 
-    // Reuse a non-revoked config of this kind, else create a cli (no-credential) one.
+    // Reuse an active config of this kind, else create a cli (no-credential) one.
     const existing = await this.repository.findReusableProviderByKind(scopedDb, providerKind);
     const providerConfig =
       existing ??
