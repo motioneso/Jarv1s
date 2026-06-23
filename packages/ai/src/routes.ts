@@ -69,6 +69,7 @@ import { cliAvailable, type ProviderKind as CliProviderKind } from "./cli-availa
 import { registerAiCapabilityRouteRoutes } from "./capability-route-routes.js";
 import { registerProviderVisibilityRoutes } from "./provider-visibility-routes.js";
 import { createAiSecretCipher, type AiSecretCipher } from "./crypto.js";
+import { ModelDiscoveryService } from "./model-discovery.js";
 import { registerAiProviderValidationRoutes } from "./provider-validation-routes.js";
 import {
   AiRepository,
@@ -84,6 +85,7 @@ export interface AiRoutesDependencies {
   readonly resolveActiveModules: ActiveModulesResolver;
   readonly repository?: AiRepository;
   readonly secretCipher?: AiSecretCipher;
+  readonly modelDiscovery?: ModelDiscoveryService;
 }
 
 type IdParams = { readonly id: string };
@@ -119,6 +121,7 @@ export function registerAiRoutes(
 ): void {
   const repository = dependencies.repository ?? new AiRepository();
   const secretCipher = dependencies.secretCipher ?? createAiSecretCipher();
+  const modelDiscovery = dependencies.modelDiscovery ?? new ModelDiscoveryService();
 
   registerProviderVisibilityRoutes(server, dependencies, repository);
 
@@ -186,6 +189,7 @@ export function registerAiRoutes(
           return reply.code(404).send({ error: "AI provider config not found" });
         }
 
+        modelDiscovery.invalidate(accessContext.actorUserId, request.params.id);
         return { provider: await serializeProvider(provider) };
       } catch (error) {
         return handleRouteError(error, reply);
@@ -212,6 +216,7 @@ export function registerAiRoutes(
           return reply.code(404).send({ error: "AI provider config not found" });
         }
 
+        modelDiscovery.invalidate(accessContext.actorUserId, request.params.id);
         return { provider: await serializeProvider(provider) };
       } catch (error) {
         return handleRouteError(error, reply);
@@ -223,7 +228,8 @@ export function registerAiRoutes(
     resolveAccessContext: dependencies.resolveAccessContext,
     dataContext: dependencies.dataContext,
     repository,
-    secretCipher
+    secretCipher,
+    modelDiscovery
   });
 
   server.post(
@@ -249,6 +255,7 @@ export function registerAiRoutes(
           }
         );
 
+        modelDiscovery.invalidate(accessContext.actorUserId, body.providerConfigId);
         return reply.code(201).send({ model: serializeModel(model, accessContext.actorUserId) });
       } catch (error) {
         return handleRouteError(error, reply);

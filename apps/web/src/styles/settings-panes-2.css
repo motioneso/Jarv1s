@@ -511,6 +511,32 @@
 .prov__synced svg {
   color: var(--accent-fg);
 }
+/* ---- Model discovery checklist ---- */
+.prov__discover {
+  margin-top: 8px;
+}
+.prov__discover-warn {
+  font-size: 12px;
+  color: var(--text-warning, var(--text-subtle));
+  background: var(--surface-warning, var(--surface-2));
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  padding: 8px 12px;
+  margin-bottom: 8px;
+}
+.mdl--discover {
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.mdl--discover input[type="checkbox"] {
+  flex: none;
+}
+.mdl--discover:has(input:disabled) {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
 @media (max-width: 620px) {
   .mdl {
     flex-wrap: wrap;

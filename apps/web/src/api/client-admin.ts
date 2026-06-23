@@ -1,0 +1,110 @@
+import type {
+  AdminRevokeSessionsResponse,
+  ChatMultiplexerChoice,
+  ChatMultiplexerSettingsDto,
+  HostDiagnosticsDto,
+  ListAdminAuditEventsResponse,
+  ListAdminConnectorAccountsResponse,
+  ListAuthProviderStatusesResponse,
+  ListUsersResponse,
+  RegistrationSettingsDto,
+  UserDto
+} from "@jarv1s/shared";
+
+import { requestJson } from "./client.js";
+
+export async function listAuthProviderStatuses(): Promise<ListAuthProviderStatusesResponse> {
+  return requestJson<ListAuthProviderStatusesResponse>("/api/admin/auth/providers");
+}
+
+export async function listAdminConnectorAccounts(): Promise<ListAdminConnectorAccountsResponse> {
+  return requestJson<ListAdminConnectorAccountsResponse>("/api/admin/connectors/accounts");
+}
+
+export async function listAdminAuditEvents(): Promise<ListAdminAuditEventsResponse> {
+  return requestJson<ListAdminAuditEventsResponse>("/api/admin/audit-events");
+}
+
+export async function listAdminUsers(): Promise<ListUsersResponse> {
+  return requestJson<ListUsersResponse>("/api/admin/users");
+}
+
+export async function approveUser(id: string): Promise<{ user: UserDto }> {
+  return requestJson<{ user: UserDto }>(`/api/admin/users/${encodeURIComponent(id)}/approve`, {
+    method: "POST"
+  });
+}
+
+export async function rejectUser(id: string): Promise<{ rejectedUserId: string }> {
+  return requestJson<{ rejectedUserId: string }>(
+    `/api/admin/users/${encodeURIComponent(id)}/reject`,
+    { method: "POST" }
+  );
+}
+
+export async function deactivateUser(id: string): Promise<{ user: UserDto }> {
+  return requestJson<{ user: UserDto }>(`/api/admin/users/${encodeURIComponent(id)}/deactivate`, {
+    method: "POST"
+  });
+}
+
+export async function reactivateUser(id: string): Promise<{ user: UserDto }> {
+  return requestJson<{ user: UserDto }>(`/api/admin/users/${encodeURIComponent(id)}/reactivate`, {
+    method: "POST"
+  });
+}
+
+export async function promoteUser(id: string): Promise<{ user: UserDto }> {
+  return requestJson<{ user: UserDto }>(`/api/admin/users/${encodeURIComponent(id)}/promote`, {
+    method: "POST"
+  });
+}
+
+export async function demoteUser(id: string): Promise<{ user: UserDto }> {
+  return requestJson<{ user: UserDto }>(`/api/admin/users/${encodeURIComponent(id)}/demote`, {
+    method: "POST"
+  });
+}
+
+export async function deleteAdminUser(id: string): Promise<{ deletedUserId: string }> {
+  return requestJson<{ deletedUserId: string }>(`/api/admin/users/${encodeURIComponent(id)}`, {
+    method: "DELETE"
+  });
+}
+
+export async function revokeAdminUserSessions(id: string): Promise<AdminRevokeSessionsResponse> {
+  return requestJson<AdminRevokeSessionsResponse>(
+    `/api/admin/users/${encodeURIComponent(id)}/revoke-sessions`,
+    { method: "POST" }
+  );
+}
+
+export async function getRegistrationSettings(): Promise<RegistrationSettingsDto> {
+  return requestJson<RegistrationSettingsDto>("/api/admin/registration");
+}
+
+export async function putRegistrationSettings(
+  body: RegistrationSettingsDto
+): Promise<RegistrationSettingsDto> {
+  return requestJson<RegistrationSettingsDto>("/api/admin/registration", {
+    method: "PUT",
+    body
+  });
+}
+
+export async function getChatMultiplexerSettings(): Promise<ChatMultiplexerSettingsDto> {
+  return requestJson<ChatMultiplexerSettingsDto>("/api/admin/chat-multiplexer");
+}
+
+export async function setChatMultiplexerSettings(
+  multiplexer: ChatMultiplexerChoice
+): Promise<ChatMultiplexerSettingsDto> {
+  return requestJson<ChatMultiplexerSettingsDto>("/api/admin/chat-multiplexer", {
+    method: "PUT",
+    body: { multiplexer }
+  });
+}
+
+export async function getHostDiagnostics(): Promise<HostDiagnosticsDto> {
+  return requestJson<HostDiagnosticsDto>("/api/admin/host/diagnostics");
+}
