@@ -65,6 +65,7 @@ export const webModuleManifest = {
         }
       },
       outputSchema: webSearchOutputSchema,
+      externalContent: true,
       execute: webSearchExecute
     },
     {
@@ -83,6 +84,7 @@ export const webModuleManifest = {
         }
       },
       outputSchema: webReadOutputSchema,
+      externalContent: true,
       execute: webReadExecute
     }
   ]
