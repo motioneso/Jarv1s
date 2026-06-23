@@ -910,3 +910,22 @@ export async function readErrorBody(
 }
 
 export * from "./account-client.js";
+
+export interface ExportJobStatus {
+  readonly jobId: string;
+  readonly status: "pending" | "building" | "ready" | "failed" | "expired";
+  readonly expiresAt?: string;
+  readonly errorMessage?: string;
+}
+
+export async function startDataExport(): Promise<ExportJobStatus> {
+  return requestJson<ExportJobStatus>("/api/me/export", { method: "POST" });
+}
+
+export async function getDataExportStatus(jobId: string): Promise<ExportJobStatus> {
+  return requestJson<ExportJobStatus>(`/api/me/export/status/${jobId}`);
+}
+
+export function getDataExportDownloadUrl(jobId: string): string {
+  return `/api/me/export/download/${jobId}`;
+}

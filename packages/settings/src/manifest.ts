@@ -2,6 +2,8 @@ import { fileURLToPath } from "node:url";
 
 import type { JarvisModuleManifest } from "@jarv1s/module-sdk";
 
+export const SETTINGS_EXPORT_QUEUE = "export.build";
+
 export const settingsModuleSqlMigrationDirectory = fileURLToPath(
   new URL("../sql", import.meta.url)
 );
@@ -210,6 +212,21 @@ export const settingsModuleManifest: JarvisModuleManifest = {
     {
       method: "GET",
       path: "/api/settings/me/data-export",
+      permissionId: "settings.view"
+    },
+    {
+      method: "POST",
+      path: "/api/me/export",
+      permissionId: "settings.view"
+    },
+    {
+      method: "GET",
+      path: "/api/me/export/status/:jobId",
+      permissionId: "settings.view"
+    },
+    {
+      method: "GET",
+      path: "/api/me/export/download/:jobId",
       permissionId: "settings.view"
     },
     {

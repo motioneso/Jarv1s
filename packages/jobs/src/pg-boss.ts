@@ -7,6 +7,8 @@ import {
   type WorkOptions
 } from "pg-boss";
 
+export type { Job, PgBoss };
+
 import { assertUuid } from "@jarv1s/db";
 import type { AccessContext, DataContextDb, DataContextRunner } from "@jarv1s/db";
 
@@ -55,6 +57,7 @@ export const ALLOWED_PAYLOAD_KEYS: ReadonlySet<string> = new Set([
   "messageId",
   "targetItemId",
   "kind",
+  "jobId",
   "resourceId",
   "idempotencyKey",
   "sourcePath"
