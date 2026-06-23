@@ -589,9 +589,28 @@
 }
 .cono__err {
   flex: none;
-  width: 104px;
   display: flex;
+  align-items: center;
+  gap: 8px;
   justify-content: flex-end;
+}
+.cono__sync-btn {
+  font-size: 12px;
+  padding: 2px 8px;
+  border-radius: 4px;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--text-subtle);
+  cursor: pointer;
+  white-space: nowrap;
+}
+.cono__sync-btn:hover:not(:disabled) {
+  background: var(--surface-raised);
+  color: var(--text);
+}
+.cono__sync-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 @media (max-width: 560px) {
   .cono__meta {

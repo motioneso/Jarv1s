@@ -32,7 +32,8 @@ import {
   revokeAdminUserSessions,
   rejectUser,
   setChatMultiplexerSettings,
-  setAdminModuleDisabled
+  setAdminModuleDisabled,
+  syncGoogleConnector
 } from "../api/client";
 import { queryKeys } from "../api/query-keys";
 import {
@@ -530,12 +531,22 @@ export function InstanceModulesPane() {
 /* ---------------------------------------------------------- Connector oversight */
 
 export function OversightPane() {
+  const { toast } = useFeedback();
+  const queryClient = useQueryClient();
   const accountsQuery = useQuery({
     queryKey: queryKeys.settings.adminConnectorAccounts,
     queryFn: listAdminConnectorAccounts,
     retry: false
   });
   const accounts = accountsQuery.data?.accounts ?? [];
+  const syncMutation = useMutation({
+    mutationFn: syncGoogleConnector,
+    onSuccess: (data) => {
+      const msg = data.deduped ? "Sync already in progress" : "Sync queued";
+      toast(msg);
+      void queryClient.invalidateQueries({ queryKey: queryKeys.settings.adminConnectorAccounts });
+    }
+  });
   return (
     <>
       <PaneHead
@@ -560,7 +571,13 @@ export function OversightPane() {
                           tone: "amber" as const,
                           indicator: "error" as const
                         }
-                      : { label: "Healthy", tone: "pine" as const, indicator: "ready" as const };
+                      : account.lastSyncStatus === null
+                        ? {
+                            label: "Awaiting first sync",
+                            tone: "neutral" as const,
+                            indicator: "idle" as const
+                          }
+                        : { label: "Healthy", tone: "pine" as const, indicator: "ready" as const };
               const lastFinished = account.lastSyncFinishedAt
                 ? new Date(account.lastSyncFinishedAt).toLocaleString()
                 : null;
@@ -583,6 +600,16 @@ export function OversightPane() {
                     <Badge tone={health.tone} dot={health.tone !== "amber"}>
                       {health.label}
                     </Badge>
+                    {account.status !== "revoked" && account.providerType === "google" && (
+                      <button
+                        type="button"
+                        className="cono__sync-btn"
+                        disabled={syncMutation.isPending}
+                        onClick={() => syncMutation.mutate()}
+                      >
+                        {syncMutation.isPending ? "Syncing…" : "Sync now"}
+                      </button>
+                    )}
                   </div>
                 </div>
               );

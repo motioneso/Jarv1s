@@ -471,15 +471,20 @@ export async function runGoogleSync(
     "google-sync complete"
   );
   // Bounded item errors (calendar/email section or per-item labels) make the run `partial`;
-  // a clean run is `success`. A thrown top-level failure (auth) is recorded as `failed` above.
+  // a truncated run is also partial — some items were silently dropped.
+  // A clean run is `success`. A thrown top-level failure (auth) is recorded as `failed` above.
   // The persisted error is the first bounded label only — never raw provider/error text.
-  const status: ConnectorSyncStatus = errors.length > 0 ? "partial" : "success";
-  await connectorsRepo.markSyncFinished(scopedDb, account.id, {
-    finishedAt: now(),
-    status,
-    error: errors[0] ?? null,
-    counts: { calendarUpserted, emailUpserted, emailFailures, escalations, truncated }
-  });
+  const status: ConnectorSyncStatus = errors.length > 0 || truncated ? "partial" : "success";
+  try {
+    await connectorsRepo.markSyncFinished(scopedDb, account.id, {
+      finishedAt: now(),
+      status,
+      error: errors[0] ?? null,
+      counts: { calendarUpserted, emailUpserted, emailFailures, escalations, truncated }
+    });
+  } catch (error) {
+    logger.warn({ err: error }, "google-sync: failed to persist sync outcome; not retrying job");
+  }
   return { calendarUpserted, emailUpserted, emailFailures, escalations, errors, truncated };
 }
 
