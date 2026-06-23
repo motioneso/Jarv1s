@@ -12,17 +12,28 @@ export interface SafeHttpUrl {
 
 let testHostResolver: HostResolver | undefined;
 const blockedAddresses = new BlockList();
-blockedAddresses.addSubnet("0.0.0.0", 8, "ipv4"); // this-network (0.0.0.0/8)
-blockedAddresses.addSubnet("10.0.0.0", 8, "ipv4");
+// IPv4 private / special-purpose (IANA & RFC)
+blockedAddresses.addSubnet("0.0.0.0", 8, "ipv4"); // this-network (RFC 1122)
+blockedAddresses.addSubnet("10.0.0.0", 8, "ipv4"); // private (RFC 1918)
 blockedAddresses.addSubnet("100.64.0.0", 10, "ipv4"); // CGNAT (RFC 6598)
-blockedAddresses.addSubnet("127.0.0.0", 8, "ipv4");
-blockedAddresses.addSubnet("169.254.0.0", 16, "ipv4");
-blockedAddresses.addSubnet("172.16.0.0", 12, "ipv4");
-blockedAddresses.addSubnet("192.168.0.0", 16, "ipv4");
-blockedAddresses.addAddress("::", "ipv6"); // unspecified (::) — was missing, routes to loopback on Linux
-blockedAddresses.addAddress("::1", "ipv6");
-blockedAddresses.addSubnet("fc00::", 7, "ipv6");
-blockedAddresses.addSubnet("fe80::", 10, "ipv6");
+blockedAddresses.addSubnet("127.0.0.0", 8, "ipv4"); // loopback
+blockedAddresses.addSubnet("169.254.0.0", 16, "ipv4"); // link-local / instance metadata
+blockedAddresses.addSubnet("172.16.0.0", 12, "ipv4"); // private (RFC 1918)
+blockedAddresses.addSubnet("192.0.0.0", 24, "ipv4"); // IETF protocol assignments (RFC 6890)
+blockedAddresses.addSubnet("192.0.2.0", 24, "ipv4"); // documentation TEST-NET-1 (RFC 5737)
+blockedAddresses.addSubnet("192.168.0.0", 16, "ipv4"); // private (RFC 1918)
+blockedAddresses.addSubnet("198.18.0.0", 15, "ipv4"); // benchmarking (RFC 2544)
+blockedAddresses.addSubnet("198.51.100.0", 24, "ipv4"); // documentation TEST-NET-2 (RFC 5737)
+blockedAddresses.addSubnet("203.0.113.0", 24, "ipv4"); // documentation TEST-NET-3 (RFC 5737)
+blockedAddresses.addSubnet("240.0.0.0", 4, "ipv4"); // reserved Class E (RFC 1112)
+// IPv6 private / special-purpose
+blockedAddresses.addAddress("::", "ipv6"); // unspecified — routes to loopback on Linux
+blockedAddresses.addAddress("::1", "ipv6"); // loopback
+blockedAddresses.addSubnet("64:ff9b::", 96, "ipv6"); // NAT64 (RFC 6052)
+blockedAddresses.addSubnet("2001:db8::", 32, "ipv6"); // documentation (RFC 3849)
+blockedAddresses.addSubnet("2002::", 16, "ipv6"); // 6to4 (RFC 3056)
+blockedAddresses.addSubnet("fc00::", 7, "ipv6"); // unique local (RFC 4193)
+blockedAddresses.addSubnet("fe80::", 10, "ipv6"); // link-local
 
 export function setWebHostResolverForTests(resolver: HostResolver | undefined): void {
   testHostResolver = resolver;

@@ -75,12 +75,21 @@ describe("web.read", () => {
   });
 
   it("blocks IPv6 unspecified (::), this-network (0.0.0.0/8), and CGNAT (100.64.0.0/10)", async () => {
-    // isBlockedIp covers the three entries added in #358
     expect(isBlockedIp("::")).toBe(true); // IPv6 unspecified — routes to loopback on Linux
     expect(isBlockedIp("0.1.2.3")).toBe(true); // this-network /8 (broader than old single-host 0.0.0.0)
     expect(isBlockedIp("100.64.0.1")).toBe(true); // CGNAT (RFC 6598)
     expect(isBlockedIp("100.127.255.255")).toBe(true); // end of CGNAT range
     expect(isBlockedIp("100.128.0.1")).toBe(false); // just outside CGNAT — public
+    // Node.js BlockList correctly cross-checks IPv4-mapped IPv6 against IPv4 subnets
+    expect(isBlockedIp("::ffff:169.254.169.254")).toBe(true); // AWS metadata via IPv4-mapped
+    expect(isBlockedIp("::ffff:a9fe:a9fe")).toBe(true); // same in hex notation
+    // IANA special ranges added for completeness
+    expect(isBlockedIp("192.0.2.1")).toBe(true); // TEST-NET-1
+    expect(isBlockedIp("198.18.1.1")).toBe(true); // benchmarking
+    expect(isBlockedIp("198.51.100.1")).toBe(true); // TEST-NET-2
+    expect(isBlockedIp("203.0.113.1")).toBe(true); // TEST-NET-3
+    expect(isBlockedIp("240.0.0.1")).toBe(true); // reserved Class E
+    expect(isBlockedIp("2001:db8::1")).toBe(true); // IPv6 documentation
   });
 
   it("extracts readable text, caps content, and reports trace", async () => {

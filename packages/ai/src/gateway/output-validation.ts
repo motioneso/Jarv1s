@@ -9,7 +9,12 @@ const SENTINEL_PATTERN =
   /<\/?tool_result[^>]*>|<\/?trusted_instructions[^>]*>|<\/?external_source[^>]*>/gi;
 
 function escapeHtml(value: string): string {
-  return value.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
 }
 
 function wrapWithTrustBoundary(toolName: string, text: string): string {
