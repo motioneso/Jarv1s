@@ -311,6 +311,35 @@ export class SettingsRepository {
     return setting;
   }
 
+  /**
+   * Delete a single instance setting row by key. Returns true if a row was removed. Used by
+   * the encrypted web-search routes to revoke a stored secret (falling back to the env key or
+   * unavailable). RLS gates the DELETE to admins; the route also asserts admin first.
+   */
+  async deleteInstanceSetting(
+    scopedDb: DataContextDb,
+    input: { key: string; actorUserId: string; requestId: string; action?: string }
+  ): Promise<boolean> {
+    assertDataContextDb(scopedDb);
+    const result = await scopedDb.db
+      .deleteFrom("app.instance_settings")
+      .where("key", "=", input.key)
+      .executeTakeFirst();
+
+    const deleted = (result.numDeletedRows ?? 0n) > 0n;
+    if (deleted) {
+      await this.insertAuditEvent(scopedDb, {
+        actorUserId: input.actorUserId,
+        action: input.action ?? "instance_setting.delete",
+        targetType: "instance_setting",
+        targetId: input.key,
+        requestId: input.requestId,
+        metadata: { key: input.key }
+      });
+    }
+    return deleted;
+  }
+
   async setUserStatus(scopedDb: DataContextDb, input: SetUserStatusInput): Promise<User> {
     assertDataContextDb(scopedDb);
     // GUC already set by withDataContext — no inner tx wrapper, no manual GUC write here.

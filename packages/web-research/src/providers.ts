@@ -80,23 +80,66 @@ function createBraveSearchProvider(apiKey: string): WebSearchProvider {
   };
 }
 
-let testSearchProvider: WebSearchProvider | undefined;
-let _configuredProvider: WebSearchProvider | undefined;
+/**
+ * Resolves the instance-wide Brave key per request. Injected by the composition root (module
+ * isolation: web-research must not import settings/db internals). `scopedDb` is the tool's
+ * DataContextDb, typed `unknown` here to keep web-research free of a `@jarv1s/db` dependency;
+ * the resolver narrows it. Returns the decrypted key, or null when no instance key is set.
+ */
+export type WebSearchKeyResolver = (scopedDb: unknown) => Promise<string | null>;
 
-export function getDefaultWebSearchProvider(): WebSearchProvider {
+let testSearchProvider: WebSearchProvider | undefined;
+let keyResolver: WebSearchKeyResolver | undefined;
+// Tiny cache keyed by the resolved key VALUE: when the admin saves/rotates/revokes, the next
+// request resolves a different key (or null) → cache miss → fresh provider, so a new key takes
+// effect without a restart. invalidateWebSearchProviderCache() is the explicit save/revoke hook.
+let providerCache: { apiKey: string; provider: WebSearchProvider } | undefined;
+
+/** Composition-root seam: install the resolver that reads the encrypted instance key. */
+export function setWebSearchKeyResolver(resolver: WebSearchKeyResolver | undefined): void {
+  keyResolver = resolver;
+  providerCache = undefined;
+}
+
+/** Drop the cached provider so the next request re-resolves the key (save/revoke hook). */
+export function invalidateWebSearchProviderCache(): void {
+  providerCache = undefined;
+}
+
+function providerForKey(apiKey: string): WebSearchProvider {
+  if (providerCache && providerCache.apiKey === apiKey) return providerCache.provider;
+  const provider = createBraveSearchProvider(apiKey);
+  providerCache = { apiKey, provider };
+  return provider;
+}
+
+/**
+ * Resolve the active web-search provider for a request. Precedence: test override → decrypted
+ * instance key → `JARVIS_BRAVE_SEARCH_API_KEY` env fallback → unavailable. Decrypt-at-use means
+ * a freshly-saved key works without a restart. A failing resolver (bad keyring/envelope) falls
+ * back to the env key rather than breaking chat.
+ */
+export async function resolveWebSearchProvider(scopedDb: unknown): Promise<WebSearchProvider> {
   if (testSearchProvider) return testSearchProvider;
-  if (_configuredProvider) return _configuredProvider;
-  const apiKey = process.env["JARVIS_BRAVE_SEARCH_API_KEY"];
-  if (apiKey) {
-    _configuredProvider = createBraveSearchProvider(apiKey);
-    return _configuredProvider;
+
+  let apiKey: string | null = null;
+  if (keyResolver) {
+    try {
+      apiKey = await keyResolver(scopedDb);
+    } catch {
+      apiKey = null;
+    }
   }
-  return unavailableSearchProvider;
+  if (!apiKey) {
+    apiKey = process.env["JARVIS_BRAVE_SEARCH_API_KEY"] || null;
+  }
+  if (!apiKey) return unavailableSearchProvider;
+  return providerForKey(apiKey);
 }
 
 export function setWebSearchProviderForTests(provider: WebSearchProvider | undefined): void {
   testSearchProvider = provider;
-  // Also reset the env-key cache so key rotation takes effect and tests that clear the
-  // provider don't get a stale Brave instance from a prior getDefaultWebSearchProvider call.
-  _configuredProvider = undefined;
+  // Reset the resolved-key cache so tests that swap or clear the provider never get a stale
+  // Brave instance from a prior resolveWebSearchProvider call.
+  providerCache = undefined;
 }

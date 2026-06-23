@@ -35,7 +35,8 @@ export const queryKeys = {
     capabilities: ["ai", "capability"] as const,
     capability: (capability: string) => ["ai", "capability", capability] as const,
     tierPreferences: ["ai", "tier-preferences"] as const,
-    assistantTools: ["ai", "assistant-tools"] as const
+    assistantTools: ["ai", "assistant-tools"] as const,
+    webSearchKey: ["ai", "web-search-key"] as const
   },
   briefings: {
     definitions: ["briefings", "definitions"] as const,
