@@ -62,6 +62,11 @@ export const PLATFORM_UNGUARDED_ROUTES: ReadonlySet<RouteKey> = new Set<RouteKey
   routeKey("POST", "/api/admin/users/:id/demote"),
   routeKey("GET", "/api/admin/settings"),
   routeKey("PATCH", "/api/admin/settings/:key"),
+  // web-search Brave API key: dedicated encrypted admin route (#446), admin-gated like the
+  // rest of the settings surface — not module-enablement-gated.
+  routeKey("GET", "/api/admin/settings/web-search"),
+  routeKey("PUT", "/api/admin/settings/web-search"),
+  routeKey("DELETE", "/api/admin/settings/web-search"),
   routeKey("GET", "/api/admin/registration"),
   routeKey("PUT", "/api/admin/registration"),
   routeKey("GET", "/api/admin/chat-multiplexer"),

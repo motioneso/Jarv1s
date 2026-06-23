@@ -72,7 +72,8 @@ import { HttpRepositoryError, SettingsRepository } from "./repository.js";
 import { registerSourceBehaviorRoutes } from "./source-behavior-routes.js";
 import {
   INSTANCE_SETTINGS_REGISTRY,
-  KNOWN_INSTANCE_SETTING_KEYS
+  KNOWN_INSTANCE_SETTING_KEYS,
+  SECRET_INSTANCE_SETTING_KEYS
 } from "./instance-settings-keys.js";
 
 export interface SettingsRoutesDependencies {
@@ -299,6 +300,12 @@ export function registerSettingsRoutes(
       try {
         if (!KNOWN_INSTANCE_SETTING_KEYS.has(request.params.key)) {
           return reply.status(400).send({ error: "Unknown settings key" });
+        }
+        // Secret keys (e.g. the Brave Search API key) are write-only through their dedicated
+        // encrypted routes — reject them here so a plaintext value can never be stored via the
+        // generic jsonb upsert path.
+        if (SECRET_INSTANCE_SETTING_KEYS.has(request.params.key)) {
+          return reply.status(400).send({ error: "This setting is managed via a dedicated route" });
         }
         const accessContext = await dependencies.resolveAccessContext(request);
         const body = parseInstanceSettingBody(request.body);

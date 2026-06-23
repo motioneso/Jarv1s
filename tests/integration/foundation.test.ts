@@ -236,6 +236,10 @@ describe("MVP foundation scaffold", () => {
         {
           version: "0108",
           name: "0108_data_export_jobs.sql"
+        },
+        {
+          version: "0109",
+          name: "0109_instance_settings_delete_grant.sql"
         }
       ]);
     } finally {

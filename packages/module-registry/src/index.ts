@@ -84,8 +84,11 @@ import {
 } from "@jarv1s/shared";
 import {
   EXPORT_QUEUE_DEFINITIONS,
+  createWebSearchSecretCipher,
+  readBraveSearchApiKey,
   registerSettingsJobWorkers,
   registerSettingsRoutes,
+  registerWebSearchKeyRoutes,
   settingsModuleManifest,
   settingsModuleSqlMigrationDirectory,
   SettingsRepository,
@@ -104,7 +107,11 @@ import {
   tasksModuleManifest,
   tasksModuleSqlMigrationDirectory
 } from "@jarv1s/tasks";
-import { webModuleManifest } from "@jarv1s/web-research";
+import {
+  invalidateWebSearchProviderCache,
+  setWebSearchKeyResolver,
+  webModuleManifest
+} from "@jarv1s/web-research";
 import {
   registerWellnessRoutes,
   wellnessModuleManifest,
@@ -364,7 +371,7 @@ const BUILT_IN_MODULES: readonly BuiltInModuleRegistration[] = [
     manifest: settingsModuleManifest,
     sqlMigrationDirectories: [settingsModuleSqlMigrationDirectory],
     queueDefinitions: [...EXPORT_QUEUE_DEFINITIONS],
-    registerRoutes: (server, deps) =>
+    registerRoutes: (server, deps) => {
       registerSettingsRoutes(server, {
         rootDb: deps.rootDb,
         dataContext: deps.dataContext,
@@ -384,7 +391,23 @@ const BUILT_IN_MODULES: readonly BuiltInModuleRegistration[] = [
         personaPreview: deps.personaPreview ?? createDefaultPersonaPreview(deps.dataContext),
         preferencesRepository: new PreferencesRepository(),
         boss: deps.boss
-      }),
+      });
+      // Instance-wide Brave Search key: dedicated admin routes (the key is AES-256-GCM
+      // encrypted at rest, never returned). The web-research module stays db-free; this
+      // composition root injects the decrypt-at-use resolver so the tool resolves the key
+      // per request. invalidateWebSearchProviderCache on save/revoke = no restart needed.
+      const webSearchCipher = createWebSearchSecretCipher();
+      registerWebSearchKeyRoutes(server, {
+        dataContext: deps.dataContext,
+        resolveAccessContext: deps.resolveAccessContext,
+        repository: new SettingsRepository(),
+        cipher: webSearchCipher,
+        onKeyChanged: invalidateWebSearchProviderCache
+      });
+      setWebSearchKeyResolver((scopedDb) =>
+        readBraveSearchApiKey(scopedDb as DataContextDb, webSearchCipher)
+      );
+    },
     registerWorkers: (boss, deps) => registerSettingsJobWorkers(boss, deps.dataContext)
   },
   {
