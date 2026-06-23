@@ -48,6 +48,13 @@ export const settingsModuleManifest: JarvisModuleManifest = {
       actions: ["view"]
     },
     {
+      id: "settings.write",
+      label: "Edit personal settings",
+      description: "Update personal settings (locale, quiet hours, persona, etc.).",
+      scope: "user",
+      actions: ["update"]
+    },
+    {
       id: "settings.manage",
       label: "Manage instance settings",
       description: "Manage users and instance-level settings.",
@@ -68,7 +75,7 @@ export const settingsModuleManifest: JarvisModuleManifest = {
     {
       method: "PATCH",
       path: "/api/me/profile",
-      permissionId: "settings.view"
+      permissionId: "settings.write"
     },
     {
       method: "GET",
@@ -78,7 +85,7 @@ export const settingsModuleManifest: JarvisModuleManifest = {
     {
       method: "PUT",
       path: "/api/me/locale",
-      permissionId: "settings.view"
+      permissionId: "settings.write"
     },
     {
       method: "GET",
@@ -88,7 +95,7 @@ export const settingsModuleManifest: JarvisModuleManifest = {
     {
       method: "PUT",
       path: "/api/me/quiet-hours",
-      permissionId: "settings.view"
+      permissionId: "settings.write"
     },
     {
       method: "GET",
@@ -98,7 +105,7 @@ export const settingsModuleManifest: JarvisModuleManifest = {
     {
       method: "PUT",
       path: "/api/me/weather-location",
-      permissionId: "settings.view"
+      permissionId: "settings.write"
     },
     {
       method: "GET",
@@ -108,7 +115,7 @@ export const settingsModuleManifest: JarvisModuleManifest = {
     {
       method: "PUT",
       path: "/api/me/notes-source",
-      permissionId: "settings.view"
+      permissionId: "settings.write"
     },
     {
       method: "GET",
@@ -118,17 +125,17 @@ export const settingsModuleManifest: JarvisModuleManifest = {
     {
       method: "DELETE",
       path: "/api/me/sessions/others",
-      permissionId: "settings.view"
+      permissionId: "settings.write"
     },
     {
       method: "DELETE",
       path: "/api/me/sessions/:id",
-      permissionId: "settings.view"
+      permissionId: "settings.write"
     },
     {
       method: "DELETE",
       path: "/api/me/account",
-      permissionId: "settings.view"
+      permissionId: "settings.write"
     },
     {
       method: "GET",
@@ -138,12 +145,12 @@ export const settingsModuleManifest: JarvisModuleManifest = {
     {
       method: "PUT",
       path: "/api/me/persona",
-      permissionId: "settings.view"
+      permissionId: "settings.write"
     },
     {
       method: "POST",
       path: "/api/me/persona/preview",
-      permissionId: "settings.view"
+      permissionId: "settings.write"
     },
     {
       method: "GET",
@@ -153,7 +160,7 @@ export const settingsModuleManifest: JarvisModuleManifest = {
     {
       method: "PUT",
       path: "/api/me/source-behaviors/:id",
-      permissionId: "settings.view"
+      permissionId: "settings.write"
     },
     {
       method: "GET",
@@ -198,7 +205,7 @@ export const settingsModuleManifest: JarvisModuleManifest = {
     {
       method: "PATCH",
       path: "/api/me/modules/:id",
-      permissionId: "settings.view"
+      permissionId: "settings.write"
     },
     {
       method: "GET",
