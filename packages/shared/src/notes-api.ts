@@ -71,7 +71,11 @@ export const postNotesSyncRouteSchema = {
 export const getNotesLastSyncRouteSchema = {
   response: {
     200: {
-      type: ["object", "null"],
+      // Fix 10 (#449): the route always sends `{ lastSync: <obj|null> }`, never a
+      // top-level null. The outer type was `["object","null"]` which can't
+      // satisfy `required: ["lastSync"]` — tightened to `"object"`. Inner
+      // `lastSync` stays nullable (that's the real nullability).
+      type: "object",
       additionalProperties: false,
       required: ["lastSync"],
       properties: {

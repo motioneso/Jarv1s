@@ -138,6 +138,12 @@ export function registerNotesSourceRoutes(
           dependencies.preferencesRepository.upsert(
             scopedDb,
             NOTES_SOURCE_PREFERENCE_KEY,
+            // #449: persist the raw user input, not the resolved realpath. The
+            // worker re-`realpath`s AND re-validates against allowed roots on
+            // every run (jobs.ts), so storing the raw path has no TOCTOU hole —
+            // and it preserves symlink semantics: a user can point the source at
+            // a symlink and atomically repoint it later without re-saving.
+            // Storing the resolved target instead would pin the old directory.
             providedPath
           )
         );

@@ -125,7 +125,7 @@ export interface SettingsRoutesDependencies {
   /** pg-boss instance for enqueueing export.build jobs (#431). */
   readonly boss?: PgBoss;
   /**
-   * #419: per-actor 15-min notes-sync heartbeat reconcile hook. Injected by the
+   * #449: per-actor 15-min notes-sync heartbeat reconcile hook. Injected by the
    * composition root (lives in @jarv1s/notes; injected here to avoid a circular
    * import). Absent ⇒ no heartbeat (manual sync still works).
    */

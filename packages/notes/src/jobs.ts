@@ -8,14 +8,17 @@ import type { AccessContext, DataContextDb, DataContextRunner } from "@jarv1s/db
 import { type ActorScopedJobPayload, type QueueDefinition, toAccessContext } from "@jarv1s/jobs";
 import type { EmbeddingProvider } from "@jarv1s/memory";
 import { MemoryRepository, parseDocument, type NewChunkData } from "@jarv1s/memory";
-import { NOTES_SOURCE_PREFERENCE_KEY, resolveNotesRoots } from "@jarv1s/settings";
+import {
+  NOTES_LAST_SYNC_PREFERENCE_KEY,
+  NOTES_SOURCE_PREFERENCE_KEY,
+  resolveNotesRoots
+} from "@jarv1s/settings";
 import type { PreferencesRepository } from "@jarv1s/structured-state";
 
 import { assertWithinRoot, NotesPathError } from "./path-guard.js";
 import { NOTES_SYNC_QUEUE } from "./manifest.js";
 
 const NOTES_SOURCE_KIND = "notes";
-const NOTES_LAST_SYNC_PREFERENCE_KEY = "notes-last-sync";
 
 export interface NotesSyncJobPayload extends ActorScopedJobPayload {
   /**
@@ -31,6 +34,13 @@ export interface NotesSyncJobResult {
   readonly ingested: number;
   readonly skipped: number;
   readonly errors: number;
+  /**
+   * Fix 6 (#449): when true, the run was a deliberate no-op (e.g. no source
+   * configured — a stale 15-min schedule firing after an unlink). The worker
+   * wrapper MUST NOT write a `notes-last-sync` row in this case, otherwise a
+   * stray schedule tick overwrites a real run's stats with zeros.
+   */
+  readonly noOp?: boolean;
 }
 
 export interface NotesLastSync {
@@ -72,16 +82,20 @@ async function collectMarkdownFiles(dir: string): Promise<string[]> {
  * manual POST route), use it. Otherwise (the 15-min scheduled fire) look it up
  * from the `notes-source-path` preference — the preference stays the single
  * source of truth and a re-point via PUT reconciles on the next tick.
+ *
+ * Returns `null` when no source is configured. Fix 6 (#449): a stale schedule
+ * firing after an unlink used to throw here every 15 min, surfacing as a
+ * perpetual error. Now the handler treats `null` as a clean no-op.
  */
 async function resolveSourcePath(
   scopedDb: DataContextDb,
   payloadPath: string | undefined,
   preferencesRepository: PreferencesRepository
-): Promise<string> {
+): Promise<string | null> {
   if (payloadPath && payloadPath.length > 0) return payloadPath;
   const stored = await preferencesRepository.get(scopedDb, NOTES_SOURCE_PREFERENCE_KEY);
   if (typeof stored !== "string" || stored.length === 0) {
-    throw new Error("No notes source configured. Set a path via PUT /api/me/notes-source first.");
+    return null;
   }
   return stored;
 }
@@ -95,6 +109,14 @@ export async function handleNotesSyncJob(
   const { actorUserId, sourcePath } = job.data;
 
   const sourcePathToUse = await resolveSourcePath(scopedDb, sourcePath, preferencesRepository);
+
+  // Fix 6 (#449): no source configured — a stale 15-min schedule tick after an
+  // unlink. Clean no-op: do NOT throw (that would write `lastError` every tick
+  // and surface as a perpetual failure), and do NOT write a last-sync row (that
+  // would clobber a real run's stats with zeros).
+  if (sourcePathToUse === null) {
+    return { ingested: 0, skipped: 0, errors: 0, noOp: true };
+  }
 
   const allowedRoots = resolveNotesRoots();
   if (allowedRoots.length === 0) {
@@ -121,14 +143,22 @@ export async function handleNotesSyncJob(
   let ingested = 0;
   let skipped = 0;
   let errors = 0;
+  // Fix 2 (#449): track the last per-file failure message. When EVERY attempted
+  // file fails (nothing ingested, nothing skipped, errors>0) the run must
+  // surface as a failure, not a silent success-with-error-count — otherwise the
+  // card frames a total wipe as a healthy sync. A run that skipped unchanged
+  // files (skipped>0) is a partial success even if a new file errored, so it
+  // stays a success. Partial success (some ingested) likewise stays a success.
+  let lastErrorMessage: string | undefined;
 
   for (const absolutePath of mdFiles) {
     try {
       let resolvedFile: string;
       try {
         resolvedFile = await realpath(absolutePath);
-      } catch {
+      } catch (err) {
         errors += 1;
+        lastErrorMessage = err instanceof Error ? err.message : String(err);
         continue;
       }
 
@@ -137,6 +167,7 @@ export async function handleNotesSyncJob(
       } catch (e) {
         if (e instanceof NotesPathError) {
           errors += 1;
+          lastErrorMessage = e.message;
           continue;
         }
         throw e;
@@ -198,9 +229,20 @@ export async function handleNotesSyncJob(
       );
 
       ingested += 1;
-    } catch {
+    } catch (err) {
       errors += 1;
+      lastErrorMessage = err instanceof Error ? err.message : String(err);
     }
+  }
+
+  // Total failure: surface as a thrown error so the worker catch-path writes
+  // `lastError` and the card renders the failure line (Fix 2). Partial success
+  // (some ingested OR some skipped-unchanged) is intentionally NOT thrown — that
+  // stays a success with an error count, matching the existing UX.
+  if (ingested === 0 && skipped === 0 && errors > 0) {
+    throw new Error(
+      `notes sync: all ${errors} file(s) failed; last error: ${lastErrorMessage ?? "unknown"}`
+    );
   }
 
   return { ingested, skipped, errors };
@@ -271,10 +313,17 @@ export async function registerNotesJobWorkers(
             options.preferencesRepository
           )
         );
-        await writeNotesLastSync(dataContext, accessContext, options.preferencesRepository, {
-          at: new Date().toISOString(),
-          ...result
-        });
+        // Fix 6 (#449): a no-op run (no source configured — stale schedule tick
+        // after unlink) must NOT write a last-sync row, otherwise it clobbers a
+        // real run's stats with zeros.
+        if (!result.noOp) {
+          await writeNotesLastSync(dataContext, accessContext, options.preferencesRepository, {
+            at: new Date().toISOString(),
+            ingested: result.ingested,
+            skipped: result.skipped,
+            errors: result.errors
+          });
+        }
         return result;
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);

@@ -24,7 +24,7 @@ import {
   Wallet,
   type LucideIcon
 } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 import {
   getLocaleSettings,
@@ -59,7 +59,18 @@ import {
 import { useFeedback } from "./settings-feedback";
 import { settingsModuleControlModel } from "./settings-module-view-model";
 import { moduleDescription, readError, type PaneProps } from "./settings-types";
-import { Badge, Group, Indicator, Note, PaneHead, Row, Select, Switch } from "./settings-ui";
+import {
+  Badge,
+  formatTimestamp,
+  Group,
+  Indicator,
+  Note,
+  NotWired,
+  PaneHead,
+  Row,
+  Select,
+  Switch
+} from "./settings-ui";
 import { VaultChooser } from "./settings-vault-chooser";
 import type { ConnectorAccountDto, LocaleSettingsDto, PutNotesSourceRequest } from "@jarv1s/shared";
 
@@ -267,8 +278,7 @@ function ConnectedPane() {
 
 function formatLastSync(at: string | null, lastError?: string): string {
   if (!at) return "Never synced";
-  const date = new Date(at);
-  const relative = isNaN(date.getTime()) ? at : date.toLocaleString();
+  const relative = formatTimestamp(at, at);
   return lastError ? `Last sync failed: ${relative}` : `Last sync: ${relative}`;
 }
 
@@ -296,11 +306,6 @@ function SourcesPane() {
     queryFn: getNotesSource,
     retry: false
   });
-  const notesLastSyncQuery = useQuery({
-    queryKey: queryKeys.settings.notesLastSync,
-    queryFn: getNotesLastSync,
-    retry: false
-  });
   const putNotesSourceMutation = useMutation({
     mutationFn: (body: PutNotesSourceRequest) => putNotesSource(body),
     onSuccess: (data) => {
@@ -310,18 +315,43 @@ function SourcesPane() {
     },
     onError: (error) => toast(readError(error), { tone: "drift" })
   });
+  // Self-correcting poll after "Sync now" (#449): the job runs async, so a fixed
+  // setTimeout invalidate is wrong (cold/embedding load >2s, fires once, leaks on
+  // unmount). Instead, flip a recently-started flag and poll the last-sync read
+  // every 2s while it's up. The flag auto-clears after a bounded 30s window; the
+  // poll observes the fresh `at` timestamp and the card updates without a remount.
+  // refetchInterval reads `recentlySynced` (state) and `syncMutation.isPending`
+  // DIRECTLY — both changes trigger a re-render, which is what makes React Query
+  // re-evaluate the interval. A ref would be updated in an effect that fires no
+  // re-render, so the poll would never start.
+  const [recentlySynced, setRecentlySynced] = useState(false);
+  // Bumped on every successful "Sync now" so a repeat sync within the 30s window
+  // restarts the auto-clear timer. `setRecentlySynced(true)` no-ops when already
+  // true (no re-render), so the clear effect must also depend on this counter —
+  // otherwise the first timer fires mid-second-sync and cuts the poll short.
+  const [syncTick, setSyncTick] = useState(0);
   const syncMutation = useMutation({
     mutationFn: () => postNotesSync(),
     onSuccess: () => {
       toast("Sync started", { icon: <FolderCheck size={17} /> });
-      // The job runs async; poll the last-sync read after a short delay.
-      setTimeout(
-        () => queryClient.invalidateQueries({ queryKey: queryKeys.settings.notesLastSync }),
-        2000
-      );
+      setRecentlySynced(true);
+      setSyncTick((tick) => tick + 1);
     },
     onError: (error) => toast(readError(error), { tone: "drift" })
   });
+  const notesLastSyncQuery = useQuery({
+    queryKey: queryKeys.settings.notesLastSync,
+    queryFn: getNotesLastSync,
+    retry: false,
+    refetchInterval: () => (syncMutation.isPending || recentlySynced ? 2000 : false),
+    refetchIntervalInBackground: false
+  });
+  // Auto-clear the poll window 30s after the last "Sync now" (cleared on unmount).
+  useEffect(() => {
+    if (!recentlySynced) return;
+    const stop = setTimeout(() => setRecentlySynced(false), 30_000);
+    return () => clearTimeout(stop);
+  }, [recentlySynced, syncTick]);
 
   const linkedPath = notesSourceQuery.data?.path ?? null;
   const lastSync = notesLastSyncQuery.data?.lastSync ?? null;
@@ -444,7 +474,9 @@ function SourcesPane() {
                 </div>
                 <div className="vault__meta">
                   {lastSync
-                    ? `${lastSync.ingested} ingested · ${lastSync.skipped} unchanged · ${lastSync.errors} errors · ${formatLastSync(lastSync.at, lastSync.lastError)}`
+                    ? lastSync.lastError
+                      ? formatLastSync(lastSync.at, lastSync.lastError)
+                      : `${lastSync.ingested} ingested · ${lastSync.skipped} unchanged · ${lastSync.errors} errors · ${formatLastSync(lastSync.at)}`
                     : "Linked — run Sync now to ingest."}
                 </div>
               </>
@@ -454,6 +486,9 @@ function SourcesPane() {
                 <div className="vault__meta">
                   Choose a folder on the server to include your notes as context.
                 </div>
+                <NotWired>
+                  Folder picker coming soon — the host-filesystem listing API isn&apos;t built yet.
+                </NotWired>
               </>
             )}
           </div>
@@ -462,7 +497,12 @@ function SourcesPane() {
               type="button"
               className="jds-btn jds-btn--secondary jds-btn--sm"
               onClick={() => setChoosing(true)}
-              disabled={putNotesSourceMutation.isPending}
+              // Folder picker is deferred (#449): the host-filesystem listing API
+              // isn't built yet, so VaultChooser dead-ends at "browser isn't
+              // available." Gate the entry point — keep `choose`/`putNotesSource`
+              // wiring intact so a future picker just works.
+              disabled={!linkedPath || putNotesSourceMutation.isPending}
+              aria-disabled={!linkedPath}
             >
               <span className="jds-btn__icon">
                 <FolderSearch size={15} />
