@@ -419,7 +419,8 @@
   gap: 0.65rem;
 }
 
-.onb-auth__hint {
+.onb-auth__hint,
+.onb-auth__err {
   margin-top: 0.5rem;
   color: var(--amber-ink);
   font-size: 0.78rem;
