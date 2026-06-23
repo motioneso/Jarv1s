@@ -74,6 +74,22 @@ describe("Data export", () => {
     expect(res.payload).not.toContain("SECRET"); // None of the secrets from auth settings etc should leak
   });
 
+  it("exports wellness tables (deletion-parity guard: #361)", async () => {
+    const res = await server.inject({
+      method: "GET",
+      url: "/api/settings/me/data-export",
+      headers: { authorization: `Bearer ${ids.sessionA}` }
+    });
+
+    expect(res.statusCode).toBe(200);
+    const body = res.json() as { tables: Record<string, unknown> };
+    // These four tables are purged on account deletion (#361 fix) — confirm they are also exported.
+    expect(Array.isArray(body.tables.wellnessCheckins)).toBe(true);
+    expect(Array.isArray(body.tables.medications)).toBe(true);
+    expect(Array.isArray(body.tables.medicationLogs)).toBe(true);
+    expect(Array.isArray(body.tables.wellnessTherapyNotes)).toBe(true);
+  });
+
   it("requires authentication", async () => {
     const res = await server.inject({
       method: "GET",

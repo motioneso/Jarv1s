@@ -35,6 +35,8 @@ export interface UserDataExportTables {
   readonly connectorAccounts: readonly ExportRow[];
   readonly emailMessages: readonly ExportRow[];
   readonly entities: readonly ExportRow[];
+  readonly medicationLogs: readonly ExportRow[];
+  readonly medications: readonly ExportRow[];
   readonly memoryChunks: readonly ExportRow[];
   readonly notificationReads: readonly ExportRow[];
   readonly notifications: readonly ExportRow[];
@@ -42,6 +44,8 @@ export interface UserDataExportTables {
   readonly taskActivity: readonly ExportRow[];
   readonly tasks: readonly ExportRow[];
   readonly users: readonly ExportRow[];
+  readonly wellnessCheckins: readonly ExportRow[];
+  readonly wellnessTherapyNotes: readonly ExportRow[];
 }
 
 export async function exportUserData(options: ExportUserDataOptions): Promise<UserDataExport> {
@@ -81,7 +85,11 @@ async function readExportTables(
     chatMemoryFacts: await readRows(scopedDb.db, chatMemoryFactsQuery(userId)),
     commitments: await readRows(scopedDb.db, commitmentsQuery(userId)),
     entities: await readRows(scopedDb.db, entitiesQuery(userId)),
-    preferences: await readRows(scopedDb.db, preferencesQuery(userId))
+    preferences: await readRows(scopedDb.db, preferencesQuery(userId)),
+    wellnessCheckins: await readRows(scopedDb.db, wellnessCheckinsQuery(userId)),
+    medications: await readRows(scopedDb.db, medicationsQuery(userId)),
+    medicationLogs: await readRows(scopedDb.db, medicationLogsQuery(userId)),
+    wellnessTherapyNotes: await readRows(scopedDb.db, wellnessTherapyNotesQuery(userId))
   };
 }
 
@@ -494,6 +502,89 @@ function preferencesQuery(userId: string) {
     FROM app.preferences
     WHERE owner_user_id = ${userId}::uuid
     ORDER BY key, id
+  `;
+}
+
+function wellnessCheckinsQuery(userId: string) {
+  return sql<Record<string, unknown>>`
+    SELECT
+      id::text AS id,
+      owner_user_id::text AS "ownerUserId",
+      checked_in_at AS "checkedInAt",
+      feeling_core::text AS "feelingCore",
+      feeling_secondary::text AS "feelingSecondary",
+      feeling_tertiary::text AS "feelingTertiary",
+      wheel_version AS "wheelVersion",
+      sensations,
+      intensity,
+      energy,
+      note,
+      identified_via AS "identifiedVia",
+      created_at AS "createdAt",
+      updated_at AS "updatedAt"
+    FROM app.wellness_checkins
+    WHERE owner_user_id = ${userId}::uuid
+    ORDER BY checked_in_at DESC, id
+  `;
+}
+
+function medicationsQuery(userId: string) {
+  return sql<Record<string, unknown>>`
+    SELECT
+      id::text AS id,
+      owner_user_id::text AS "ownerUserId",
+      name,
+      dosage,
+      form,
+      frequency_type::text AS "frequencyType",
+      times_per_day AS "timesPerDay",
+      interval_hours AS "intervalHours",
+      weekdays,
+      schedule_times AS "scheduleTimes",
+      cycle_days_on AS "cycleDaysOn",
+      cycle_days_off AS "cycleDaysOff",
+      cycle_anchor_date::text AS "cycleAnchorDate",
+      active,
+      notes,
+      created_at AS "createdAt",
+      updated_at AS "updatedAt"
+    FROM app.medications
+    WHERE owner_user_id = ${userId}::uuid
+    ORDER BY created_at, id
+  `;
+}
+
+function medicationLogsQuery(userId: string) {
+  return sql<Record<string, unknown>>`
+    SELECT
+      id::text AS id,
+      medication_id::text AS "medicationId",
+      owner_user_id::text AS "ownerUserId",
+      status::text,
+      dose,
+      prn_reason AS "prnReason",
+      scheduled_for AS "scheduledFor",
+      logged_at AS "loggedAt",
+      created_at AS "createdAt"
+    FROM app.medication_logs
+    WHERE owner_user_id = ${userId}::uuid
+    ORDER BY logged_at DESC, id
+  `;
+}
+
+function wellnessTherapyNotesQuery(userId: string) {
+  return sql<Record<string, unknown>>`
+    SELECT
+      id::text AS id,
+      owner_user_id::text AS "ownerUserId",
+      body,
+      linked_checkin_id::text AS "linkedCheckinId",
+      linked_emotion::text AS "linkedEmotion",
+      created_at AS "createdAt",
+      updated_at AS "updatedAt"
+    FROM app.wellness_therapy_notes
+    WHERE owner_user_id = ${userId}::uuid
+    ORDER BY created_at DESC, id
   `;
 }
 
