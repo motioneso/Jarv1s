@@ -14,12 +14,12 @@
 
 | Spec | Issue | Tier | Status | Agent label | Pane | Branch | PR |
 | ---- | ----- | ---- | ------ | ----------- | ---- | ------ | -- |
-| docs/superpowers/plans/2026-06-24-chat-stability-notes-memory.md (Task 1) | — | routine | qa | glm build→gemini qa | w1:pJ→w1:pQ | chat-mcp-flag | #463 |
-| docs/superpowers/plans/2026-06-24-chat-stability-notes-memory.md (Task 2) | — | routine | queued (serialized after Task 1) | — | — | chat-persona | — |
-| #453 | #453 | routine | pr-open (scope-overreach accepted) | gemini build | w1:pK | embed-provider-cli-runner | #460 |
-| #452 | #452 | routine | qa | glm build→gemini qa | w1:pM→w1:pR | install-sh-posix | #459 |
-| #444 | #444 | sensitive | qa | gemini build→glm qa | w1:pN→w1:pT | data-export-cleanup | #462 |
-| #448 | #448 | routine | qa | glm build→gemini qa | w1:pP→w1:pS | web-search-key-observability | #461 |
+| docs/superpowers/plans/2026-06-24-chat-stability-notes-memory.md (Task 1) | — | routine | merged | glm→gemini qa | w1:pJ→w1:pQ | chat-mcp-flag | #463 ✅ |
+| docs/superpowers/plans/2026-06-24-chat-stability-notes-memory.md (Task 2) | — | routine | spawning-next | — | — | chat-persona | — |
+| #453 | #453 | routine | merged | gemini build | w1:pK | embed-provider-cli-runner | #460 ✅ (scope-overreach accepted) |
+| #452 | #452 | routine | merged | glm→gemini qa | w1:pM→w1:pR | install-sh-posix | #459 ✅ |
+| #444 | #444 | sensitive | rework (lint fix) | gemini build→glm qa | w1:pN→w1:pT | data-export-cleanup | #462 (blocker: unused e in catch L101) |
+| #448 | #448 | routine | merged | glm→gemini qa | w1:pP→w1:pS | web-search-key-observability | #461 ✅ |
 
 **Agents tab:** w1:tB (label "Agents"). 5 build panes (top row + center) + 4 QA panes (bottom row): w1:pQ (#463 gemini), w1:pR (#459 gemini), w1:pS (#461 gemini), w1:pT (#462 glm). QA is cross-model per Ben (opposite of builder).
 
