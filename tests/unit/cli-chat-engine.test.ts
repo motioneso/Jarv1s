@@ -450,6 +450,116 @@ describe("CliChatEngineImpl — non-Claude transcript resolution", () => {
     expect(io.readFile).not.toHaveBeenCalled();
   });
 
+  it("Codex readNew does NOT cache a stale transcript from a prior session in the same cwd", async () => {
+    const io = makeIo();
+    const engine = new CliChatEngineImpl("openai-compatible", "codex-stale", io, {
+      homeBase: "/host-home"
+    });
+    await engine.launch({
+      neutralDir: "/tmp/neutral",
+      personaPath: "/tmp/persona.txt",
+      mcpToken: "jst_codex",
+      mcpServerUrl: "http://127.0.0.1:3000/api/mcp"
+    });
+
+    // Two files match the cwd, but the stale one has an OLD session_meta timestamp.
+    // The resolver must skip it and pick the fresh one (or return null if neither is
+    // fresh enough), never cache the stale file.
+    const staleTimestamp = new Date(Date.now() - 3600_000).toISOString(); // 1h ago
+    const freshTimestamp = new Date(Date.now() - 1_000).toISOString(); // 1s ago
+    io.run.mockImplementation(async (cmd: string) => {
+      if (cmd === "ls") {
+        return {
+          code: 0,
+          stdout: "rollout-stale.jsonl\nrollout-fresh.jsonl\n",
+          stderr: ""
+        };
+      }
+      return { code: 0, stdout: "", stderr: "" };
+    });
+    io.readFile.mockImplementation(async (path: string) => {
+      if (path.endsWith("stale.jsonl")) {
+        return [
+          JSON.stringify({
+            type: "session_meta",
+            payload: { cwd: "/tmp/neutral", timestamp: staleTimestamp }
+          }),
+          JSON.stringify({
+            type: "event_msg",
+            payload: { type: "task_complete", last_agent_message: "STALE-REPLY" }
+          })
+        ].join("\n");
+      }
+      if (path.endsWith("fresh.jsonl")) {
+        return [
+          JSON.stringify({
+            type: "session_meta",
+            payload: { cwd: "/tmp/neutral", timestamp: freshTimestamp }
+          }),
+          JSON.stringify({
+            type: "event_msg",
+            payload: { type: "task_complete", last_agent_message: "FRESH-REPLY" }
+          })
+        ].join("\n");
+      }
+      return "";
+    });
+
+    const result = await engine.readNew(0);
+
+    // The stale file must NOT be the resolved path; the fresh one wins.
+    const readPaths = io.readFile.mock.calls
+      .map((c: unknown[]) => c[0] as string)
+      .filter((p) => p.endsWith(".jsonl"));
+    expect(readPaths.some((p) => p.endsWith("fresh.jsonl"))).toBe(true);
+    expect(result.complete).toBe(true);
+    expect(result.records.at(-1)).toEqual({ kind: "reply", text: "FRESH-REPLY" });
+  });
+
+  it("Codex readNew returns null when only stale transcripts exist (waits for the new session)", async () => {
+    const io = makeIo();
+    const engine = new CliChatEngineImpl("openai-compatible", "codex-stale-only", io, {
+      homeBase: "/host-home"
+    });
+    await engine.launch({
+      neutralDir: "/tmp/neutral",
+      personaPath: "/tmp/persona.txt",
+      mcpToken: "jst_codex",
+      mcpServerUrl: "http://127.0.0.1:3000/api/mcp"
+    });
+
+    const staleTimestamp = new Date(Date.now() - 3600_000).toISOString(); // 1h ago
+    io.run.mockImplementation(async (cmd: string) => {
+      if (cmd === "ls") {
+        return {
+          code: 0,
+          stdout: "rollout-stale.jsonl\n",
+          stderr: ""
+        };
+      }
+      return { code: 0, stdout: "", stderr: "" };
+    });
+    io.readFile.mockResolvedValue(
+      [
+        JSON.stringify({
+          type: "session_meta",
+          payload: { cwd: "/tmp/neutral", timestamp: staleTimestamp }
+        }),
+        JSON.stringify({
+          type: "event_msg",
+          payload: { type: "task_complete", last_agent_message: "STALE" }
+        })
+      ].join("\n")
+    );
+
+    const result = await engine.readNew(0);
+    expect(result.records).toEqual([]);
+    expect(result.complete).toBe(false);
+    // The stale path was NOT cached (storedTranscriptPath stays null), so a later
+    // readNew can still resolve the fresh file when codex writes it.
+    expect(() => engine.transcriptPath()).toThrow();
+  });
+
   it("Gemini resolves the newest .jsonl under the cwd-specific ~/.gemini/tmp project chats dir", async () => {
     const io = makeIo();
     const engine = new CliChatEngineImpl("google", "gemini-session", io, {
