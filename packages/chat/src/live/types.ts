@@ -70,6 +70,14 @@ export interface CliChatEngine {
   ): Promise<{ records: TranscriptRecord[]; offset: number; complete: boolean }>;
   isAlive(): Promise<boolean>;
   kill(): Promise<void>;
+  /**
+   * #456 — re-arm the response deadline for any in-flight turn verb of this engine's session.
+   * Called by the manager when it observes new transcript records (activity), so an
+   * actively-producing turn never trips the RPC deadline. Optional: the in-process engine (no
+   * deadline) does not implement it; the RPC engine forwards to RpcConnection.resetActivityDeadline.
+   * The manager guards the call with `?.`.
+   */
+  resetActivityDeadline?(): void;
 }
 
 export interface ChatTurnSeed {
