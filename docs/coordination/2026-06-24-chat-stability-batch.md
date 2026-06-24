@@ -4,7 +4,7 @@
 **Coordinator lock:** label `Coordinator`, **session `ses_1044afa61ffemvRK5oLlUrMRU6`** (anchor, set by successor 2026-06-24 relay takeover), pane `w1:pV` (ephemeral). Session id = authority; label = routing; pane number = ephemeral (reflows). Predecessor coordinator (session `ses_111f40556ffeVraVZuie2X8ScJ` — note: manifest originally had a typo `VraVZu2X8`, corrected from live `herdr pane list` at reap time; matched by 20-char prefix `ses_111f40556ffeVra` + sole other Coordinator pane + tab w1:t5), pane `w1:p6`, was reaped by this successor after label+session verification.
 **Merge policy:** autonomous-after-verified-QA for `routine`/`sensitive`. `security`-tier (none this run) would need Ben's explicit sign-off.
 **Relay threshold:** security-tier merge → relay immediately; routine/sensitive `merges_since_relay` ≥ 2 → relay. Compaction summary → relay, merge nothing.
-**merges_since_relay:** 6 (wave 1 merged; relay triggered, in progress)
+**merges_since_relay:** 8 (wave 1 = 6; wave 2 = 2: #465 routine + #466 sensitive, both merged by successor `ses_1044afa61ffemvRK5oLlUrMRU6` on 2026-06-24 after cross-model QA GREEN). **Relay trigger FIRED (≥2 routine/sensitive since last clean relay) — successor must relay immediately, merge nothing first (no-deferral rule).**
 
 **CI mode (this run):** GitHub Actions billing is paused — `main` CI is red on billing, NOT code. **Local gate is the source of truth.** QA agents run the full gate locally (`pnpm format:check && pnpm lint && pnpm typecheck` + relevant vitest) — do NOT trust `gh pr checks` (red from billing). Record local-gate exit codes in the QA verdict. This is noted in CLAUDE.md + the handoff template.
 
@@ -12,16 +12,15 @@
 
 ## MID-DOING (continuation note for successor)
 
-**I am mid-relay. Two QA agents are running and will return verdicts imminently. You take over from here.**
-
-Current state at relay: wave 2 has two PRs open, both in cross-model QA. When verdicts come back GREEN, merge by tier. After both merge, the run is at image-bump readiness — but Ben said more work may be added before the build, so check with him.
+**Run is at image-bump readiness. All 8 PRs (wave 1 + wave 2) merged to `main`.** Relay fired on merge counter (8 routine/sensitive since last clean relay). Successor: do NOT merge anything — relay policy is no-deferral once triggered. Only remaining work is coordinator-owned bookkeeping + the Task 3 decision gate with Ben.
 
 **Immediate next actions for successor:**
-1. Re-claim `Coordinator` label on your pane; record your session id as the new anchor above.
-2. Reap the old coordinator (session `ses_111f40556ffeVraVZu2X8ScJ`, resolve by label+session — do NOT trust pane `w1:p6`, it may have reflowed).
-3. Poll the two QA panes for verdicts (see Wave 2 table below).
-4. On GREEN: merge by tier (#466 sensitive = auto-merge + Ben digest; #465 routine = auto-merge). Re-confirm YOUR session id against the anchor before every merge.
-5. After both merge: ask Ben if more work rides this image bump, or if it's time for Task 3 (tag + multi-arch build + push GHCR + bump env tag + `docker compose up -d` + e2e verify per plan).
+1. Re-claim `Coordinator` label on your pane; record your session id as the new anchor in the lock line above (session id = authority; pane number ephemeral).
+2. Reap the old coordinator (session `ses_1044afa61ffemvRK5oLlUrMRU6`, pane `w1:pV` — resolve fresh by label+session, do NOT trust the pane number).
+3. Verify run state: all wave-1 + wave-2 PRs merged (see tables below). No lanes in flight. Both wave-2 QA panes (w1:pN, w1:pJ) already reaped.
+4. **Decision gate — ask Ben:** (a) more work to ride this image bump, or (b) time for Task 3 (tag + multi-arch build + push GHCR + bump env tag + `docker compose up -d` + e2e verify) per `docs/superpowers/plans/2026-06-24-chat-stability-notes-memory.md`. Task 3 is coordinator-owned.
+5. File the follow-up issue: scheduled vault-cleanup sweep (pg-boss cron) for data-export #444 (mirrors `notes/src/schedule.ts`). Routine tier. Outstanding escalation below.
+6. After Task 3 lands: save durable memory (see Notes section).
 
 ## Wave 1 — COMPLETE (all 6 merged)
 
@@ -36,22 +35,18 @@ Current state at relay: wave 2 has two PRs open, both in cross-model QA. When ve
 
 All on `main`. Follow-up issue to file (not yet filed): scheduled vault-cleanup sweep via pg-boss cron (mirrors `notes/src/schedule.ts` pattern) — for data-export jobs never re-accessed after expiry. Routine tier.
 
-## Wave 2 — IN QA (successor takes over here)
+## Wave 2 — COMPLETE (both merged 2026-06-24 by successor ses_1044afa61ffemvRK5oLlUrMRU6)
 
 | Spec | Issue | Tier | Status | Built by | QA by | QA pane | PR |
 | ---- | ----- | ---- | ------ | -------- | ----- | ------- | -- |
-| docs/superpowers/specs/2026-06-24-chat-heartbeat-stop.md | #456 | sensitive | qa | GLM (`w1:pJ`) | Gemini (`w1:pN`) | w1:pN | #466 |
-| (issue #354, handoff-scoped) | #354 | routine | qa | Gemini (`w1:pN`) | GLM (`w1:pJ`) | w1:pJ | #465 |
+| docs/superpowers/specs/2026-06-24-chat-heartbeat-stop.md | #456 | sensitive | merged 22:18 | GLM (`w1:pJ`) | Gemini (`w1:pN`) | w1:pN | #466 ✅ |
+| (issue #354, handoff-scoped) | #354 | routine | merged 22:18 | Gemini (`w1:pN`) | GLM (`w1:pJ`) | w1:pJ | #465 ✅ |
 
-**#466 (chat-heartbeat-stop, sensitive) — verified by coordinator pre-QA:**
-- 4 commits: idle watchdog (resets on emission, 180s default, accurate status on trip, no persist), RPC deadline activity-aware (resetActivityDeadline on turn verbs, #445 preserved), stopTurn + POST /api/chat/turn/cancel (AbortController, kill engine, emit "Stopped by user." SSE, persist NOTHING per ruling (a)), web Stop button.
-- Spec drift caught by build agent: items 1/3/5 already shipped (poll cap gone, ActivityPeek exists, TIMEOUT_MESSAGE gone). Real work = watchdog + RPC reset + Stop. This triggered the verify-before-plan skill update (committed `e718a502`).
-- Cancel route: authenticated (resolveOr401), session implied by actor (no IDOR), rate-limited, no body (metadata-only). `turnsInFlight` lock releases via `submitTurn` finally. Zero DB writes on stop.
-- Coordinator already reviewed the full diff and approved. QA is confirming the gate + invariants.
+**QA verdicts (both GREEN, captured 2026-06-24 by successor before merge):**
+- **#466 (sensitive):** GREEN. gate vitest/typecheck/format/lint all exit 0. invariants: auth=pass, rate-limit=pass, no-db-write-on-stop=pass, provider-agnostic=pass, lock-release=pass. No findings. merge-ready=y. Local-gate mode (CI billing red, not code).
+- **#465 (routine):** GREEN. gate typecheck/format/lint/build:web all exit 0. One non-blocking finding: contrast fix #3 improved (2.17→2.86 light / 2.99→3.38 dark) but still below WCAG AA-normal 4.5:1 for small text — meets AA-large 3:1 only. QA flagged as follow-up token nudge, NOT a merge blocker. merge-ready=y.
 
-**#465 (a11y-contrast, routine) — verified by coordinator pre-QA:**
-- 8 files, all a11y-related (tokens.css, settings-panes.css, components-core.css, settings-feedback.tsx + style files). Contrast fixes #2-#6 (skip #1, already done at tokens.css:296) + H1 aria-live assertive region + H2 44px touch hit area.
-- pN (Gemini) originally scope-creeped into data-export.test.ts but dropped it after coordinator nudge — confirmed clean.
+**Sensitive-tier digest (per policy):** #466 chat-heartbeat-stop — idle watchdog (180s default, resets on emission, accurate status on trip, no persist) + RPC deadline activity-aware (resetActivityDeadline on turn verbs, #445 preserved) + stopTurn/POST /api/chat/turn/cancel (AbortController, kill engine, emit "Stopped by user." SSE, zero DB writes per ruling (a)) + web Stop button. Authenticated, rate-limited, no IDOR, lock releases via finally. 4 commits. Coordinator pre-reviewed diff; QA confirmed gate + invariants.
 
 ## Deferred (not in this run)
 
