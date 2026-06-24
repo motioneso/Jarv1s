@@ -75,7 +75,7 @@ process.
      ```ts
      { id: "notes.search", label: "Search notes",
        description: "Semantically search the user's ingested notes.",
-       scope: "user", actions: ["read"] }
+       scope: "user", actions: ["view"] }
      ```
    - Add `assistantTools`:
      ```ts
