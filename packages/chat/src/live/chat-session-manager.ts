@@ -165,6 +165,13 @@ export class ChatSessionManager {
    * readNew against the shared transcript offset and corrupt it.
    */
   private readonly turnsInFlight = new Set<string>();
+  /**
+   * #456 — per-turn AbortControllers, keyed by actor. `runTurn` creates one at turn start and
+   * stores it here; the poll loop checks `signal.aborted` after every readNew and breaks cleanly
+   * (no error) when set. `stopTurn` calls `.abort()` to end the in-flight turn from the outside.
+   * Cleared in runTurn's finally so it never leaks.
+   */
+  private readonly turnControllers = new Map<string, AbortController>();
   private readonly pollMs: number;
   /** #456 — idle/heartbeat watchdog window; 0 disables (tests only). */
   private readonly idleWatchdogMs: number;
@@ -336,56 +343,121 @@ export class ChatSessionManager {
   ): Promise<{ reply: string }> {
     const session = await this.ensureSession(actorUserId, userName);
 
-    this.emit(actorUserId, { kind: "user", text });
-    await session.engine.submit(text);
+    // #456 — per-turn stop signal. stopTurn(actorUserId) aborts this; the poll loop checks
+    // signal.aborted after every readNew and breaks cleanly (no error) when set.
+    const controller = new AbortController();
+    this.turnControllers.set(actorUserId, controller);
 
-    let reply = "";
-    let lastEmissionAt = this.deps.clock.now();
-    let watchdogTripped = false;
-    for (;;) {
-      const { records, offset, complete } = await session.engine.readNew(session.transcriptOffset);
-      session.transcriptOffset = offset;
-      if (records.length > 0) {
-        lastEmissionAt = this.deps.clock.now();
-        // #456 — signal activity so the in-flight RPC turn-verb deadline resets (an
-        // actively-producing turn never trips the 45s deadline; a wedged cli-runner still does).
-        session.engine.resetActivityDeadline?.();
-      }
-      for (const record of records) {
-        this.emit(actorUserId, record);
-        if (record.kind === "reply") reply = record.text;
-      }
-      if (complete) break;
-      // #456 — idle/heartbeat watchdog: break only when the engine has emitted NOTHING for the
-      // full window. An actively-producing turn (records on every poll) keeps resetting the
-      // deadline, so a multi-tool 3+ min turn never trips it. Emits an accurate status record
-      // (NOT the old broken TIMEOUT_MESSAGE). No reply was produced → recordTurn is skipped.
-      if (this.idleWatchdogMs > 0 && this.deps.clock.now() - lastEmissionAt > this.idleWatchdogMs) {
-        watchdogTripped = true;
-        break;
-      }
-      if (this.pollMs > 0) await delay(this.pollMs);
-    }
+    try {
+      this.emit(actorUserId, { kind: "user", text });
+      await session.engine.submit(text);
 
-    if (watchdogTripped) {
-      const seconds = Math.round(this.idleWatchdogMs / 1000);
-      this.emit(actorUserId, {
-        kind: "status",
-        text: `No response from the model for ${seconds} seconds — ending turn.`
+      let reply = "";
+      let lastEmissionAt = this.deps.clock.now();
+      let watchdogTripped = false;
+      let stopped = false;
+      for (;;) {
+        let records: TranscriptRecord[];
+        let offset: number;
+        let complete: boolean;
+        try {
+          const result = await session.engine.readNew(session.transcriptOffset);
+          records = result.records;
+          offset = result.offset;
+          complete = result.complete;
+        } catch {
+          // #456 — a killed engine rejects its in-flight readNew. If the user stopped the turn,
+          // break cleanly; otherwise rethrow (a genuine engine failure surfaces to the caller).
+          if (controller.signal.aborted) {
+            stopped = true;
+            break;
+          }
+          throw new Error("readNew failed");
+        }
+        session.transcriptOffset = offset;
+        if (records.length > 0) {
+          lastEmissionAt = this.deps.clock.now();
+          // #456 — signal activity so the in-flight RPC turn-verb deadline resets (an
+          // actively-producing turn never trips the 45s deadline; a wedged cli-runner still does).
+          session.engine.resetActivityDeadline?.();
+        }
+        for (const record of records) {
+          this.emit(actorUserId, record);
+          if (record.kind === "reply") reply = record.text;
+        }
+        if (complete) break;
+        // #456 — user-driven Stop: the signal aborts mid-turn; break cleanly (no error) so the
+        // turn-in-flight lock releases and the UI returns to input-ready. Persist nothing.
+        if (controller.signal.aborted) {
+          stopped = true;
+          break;
+        }
+        // #456 — idle/heartbeat watchdog: break only when the engine has emitted NOTHING for the
+        // full window. An actively-producing turn (records on every poll) keeps resetting the
+        // deadline, so a multi-tool 3+ min turn never trips it. Emits an accurate status record
+        // (NOT the old broken TIMEOUT_MESSAGE). No reply was produced → recordTurn is skipped.
+        if (
+          this.idleWatchdogMs > 0 &&
+          this.deps.clock.now() - lastEmissionAt > this.idleWatchdogMs
+        ) {
+          watchdogTripped = true;
+          break;
+        }
+        if (this.pollMs > 0) await delay(this.pollMs);
+      }
+
+      if (stopped) {
+        // Coordinator ruling (a): emit a status record over SSE, persist NOTHING. The user message
+        // and any partial reply are discarded — the turn never completed.
+        this.emit(actorUserId, { kind: "status", text: "Stopped by user." });
+        session.lastActivity = this.deps.clock.now();
+        this.deps.touchMcpToken?.(actorUserId);
+        return { reply };
+      }
+
+      if (watchdogTripped) {
+        const seconds = Math.round(this.idleWatchdogMs / 1000);
+        this.emit(actorUserId, {
+          kind: "status",
+          text: `No response from the model for ${seconds} seconds — ending turn.`
+        });
+        session.lastActivity = this.deps.clock.now();
+        this.deps.touchMcpToken?.(actorUserId);
+        return { reply };
+      }
+
+      await this.deps.persistence.recordTurn(actorUserId, text, reply, {
+        provider: session.provider,
+        model: session.model
       });
       session.lastActivity = this.deps.clock.now();
       this.deps.touchMcpToken?.(actorUserId);
+
       return { reply };
+    } finally {
+      this.turnControllers.delete(actorUserId);
     }
+  }
 
-    await this.deps.persistence.recordTurn(actorUserId, text, reply, {
-      provider: session.provider,
-      model: session.model
-    });
-    session.lastActivity = this.deps.clock.now();
-    this.deps.touchMcpToken?.(actorUserId);
-
-    return { reply };
+  /**
+   * #456 — user-driven Stop. Ends an in-flight turn cleanly: aborts the turn's stop signal,
+   * kills the engine (so any in-progress CLI work halts), emits a 'Stopped by user.' status
+   * record over SSE, and releases the turn-in-flight lock. Persists NOTHING (the turn never
+   * completed — no partial reply, no user message). Idempotent: a no-op when no turn is in
+   * flight for the user.
+   */
+  async stopTurn(actorUserId: string): Promise<void> {
+    const controller = this.turnControllers.get(actorUserId);
+    if (!controller) return; // no turn in flight — idempotent no-op
+    controller.abort();
+    const session = this.sessions.get(actorUserId);
+    if (session) {
+      try {
+        await session.engine.kill();
+      } catch {
+        // best-effort: the stop signal already broke the loop; a kill failure must not wedge.
+      }
+    }
   }
 
   /**

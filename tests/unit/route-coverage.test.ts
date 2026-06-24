@@ -27,6 +27,7 @@ describe("manifest routes[] reconciliation", () => {
     const paths = manifestPaths("chat");
     for (const expected of [
       { method: "POST", path: "/api/chat/turn" },
+      { method: "POST", path: "/api/chat/turn/cancel" },
       { method: "GET", path: "/api/chat/stream" },
       { method: "POST", path: "/api/chat/clear" },
       { method: "POST", path: "/api/chat/switch" },
