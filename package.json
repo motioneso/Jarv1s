@@ -41,6 +41,7 @@
     "test:briefings": "vitest run tests/integration/briefings.test.ts tests/integration/briefings-synthesis.test.ts",
     "test:chat": "vitest run tests/integration/chat-live.test.ts",
     "test:connectors": "vitest run tests/integration/connectors.test.ts",
+    "test:notes": "vitest run tests/integration/notes.test.ts",
     "test:calendar-email": "vitest run tests/integration/calendar-email.test.ts",
     "test:focus-time": "vitest run tests/integration/focus-time.test.ts tests/integration/focus-time-seam.test.ts",
     "test:release-hardening": "vitest run tests/integration/release-hardening.test.ts",
