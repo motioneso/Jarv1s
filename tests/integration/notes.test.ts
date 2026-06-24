@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { mkdir, rm, writeFile } from "node:fs/promises";
+import { mkdir, realpath, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
@@ -19,6 +19,7 @@ import {
   assertWithinRoot,
   NotesPathError,
   handleNotesSyncJob,
+  handleNotesSyncJobWithDataContext,
   writeNotesLastSync,
   registerNotesSyncRoutes,
   NOTES_SYNC_QUEUE,
@@ -330,6 +331,8 @@ describe("POST /api/notes/sync", () => {
 
 describe("handleNotesSyncJob", () => {
   let dataContext: DataContextRunner;
+  let workerDb: Kysely<JarvisDatabase>;
+  let workerDataContext: DataContextRunner;
   const provider = new StubEmbeddingProvider();
   const prefsRepo = new PreferencesRepository();
   const jobUserId = "00000000-0000-4000-8100-000000000099";
@@ -359,10 +362,13 @@ describe("handleNotesSyncJob", () => {
     }
 
     dataContext = new DataContextRunner(appDb);
+    workerDb = createDatabase({ connectionString: connectionStrings.worker, maxConnections: 1 });
+    workerDataContext = new DataContextRunner(workerDb);
     process.env["JARVIS_NOTES_ROOTS"] = jobNotesDir;
   });
 
   afterAll(async () => {
+    await workerDb?.destroy();
     await rm(jobNotesDir, { recursive: true, force: true });
     delete process.env["JARVIS_NOTES_ROOTS"];
   });
@@ -415,6 +421,89 @@ describe("handleNotesSyncJob", () => {
     );
 
     expect(result.ingested).toBeGreaterThanOrEqual(1);
+  });
+
+  it("worker role stores wikilinks for notes files", async () => {
+    const linkFile = join(jobNotesDir, `worker-link-${randomUUID()}.md`);
+    await writeFile(linkFile, "# Worker link\n\nReferences [[Daily Plan]].\n");
+
+    const result = await handleNotesSyncJobWithDataContext(
+      makeJob(jobNotesDir),
+      workerDataContext,
+      provider,
+      prefsRepo
+    );
+
+    expect(result.errors).toBe(0);
+    expect(result.ingested).toBeGreaterThanOrEqual(1);
+
+    const resolvedLinkFile = await realpath(linkFile);
+    const client = new Client({ connectionString: connectionStrings.bootstrap });
+    await client.connect();
+    try {
+      const links = await client.query<{ to_path: string }>(
+        `SELECT to_path
+           FROM app.memory_links
+          WHERE owner_user_id = $1 AND from_path = $2
+          ORDER BY to_path`,
+        [jobUserId, resolvedLinkFile]
+      );
+      expect(links.rows.map((row) => row.to_path)).toContain("Daily Plan");
+    } finally {
+      await client.end();
+    }
+  });
+
+  it("commits other files when one file hits a database write error", async () => {
+    const isolatedDir = join(tmpdir(), `jarv1s-notes-partial-${randomUUID()}`);
+    await mkdir(isolatedDir, { recursive: true });
+    await writeFile(join(isolatedDir, "good-before.md"), "# Good before\n\nSafe content.\n");
+    await writeFile(join(isolatedDir, "bad-vector.md"), "# Bad\n\nbad vector content.\n");
+    await writeFile(join(isolatedDir, "good-after.md"), "# Good after\n\nMore safe content.\n");
+
+    const badVectorProvider = new (class extends StubEmbeddingProvider {
+      override async embedDocument(text: string): Promise<number[]> {
+        if (text.includes("bad vector content")) return [0];
+        return super.embedDocument(text);
+      }
+    })();
+
+    process.env["JARVIS_NOTES_ROOTS"] = isolatedDir;
+    try {
+      const result = await handleNotesSyncJobWithDataContext(
+        makeJob(isolatedDir),
+        workerDataContext,
+        badVectorProvider,
+        prefsRepo
+      );
+
+      expect(result.ingested).toBe(2);
+      expect(result.skipped).toBe(0);
+      expect(result.errors).toBe(1);
+
+      const client = new Client({ connectionString: connectionStrings.bootstrap });
+      await client.connect();
+      try {
+        const chunks = await client.query<{ source_path: string }>(
+          `SELECT source_path
+             FROM app.memory_chunks
+            WHERE owner_user_id = $1
+              AND source_kind = 'notes'
+              AND source_path LIKE $2
+            ORDER BY source_path`,
+          [jobUserId, `${isolatedDir}%`]
+        );
+        expect(chunks.rows.map((row) => row.source_path.split("/").pop())).toEqual([
+          "good-after.md",
+          "good-before.md"
+        ]);
+      } finally {
+        await client.end();
+      }
+    } finally {
+      await rm(isolatedDir, { recursive: true, force: true });
+      process.env["JARVIS_NOTES_ROOTS"] = jobNotesDir;
+    }
   });
 
   it("throws when JARVIS_NOTES_ROOTS is not configured", async () => {
