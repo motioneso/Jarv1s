@@ -129,11 +129,15 @@ export function ChatDrawer(props: {
       try {
         const result = await sendChatTurn(trimmed);
         setPendingUserText(null);
-        setFallbackRecords((current) => [
-          ...current,
+        const postResponseRecords: readonly TranscriptRecord[] = [
           { kind: "user", text: trimmed },
           { kind: "reply", text: result.reply }
-        ]);
+        ];
+        setFallbackRecords((current) =>
+          [...current, ...postResponseRecords].filter(
+            (fallback) => !props.records.some((record) => sameTranscriptRecord(record, fallback))
+          )
+        );
         void queryClient.invalidateQueries({ queryKey: queryKeys.chat.threads });
       } catch (caught) {
         setPendingUserText(null);
@@ -168,6 +172,9 @@ export function ChatDrawer(props: {
   const selectedThread = (threadsQuery.data?.threads ?? []).find(
     (item) => item.id === reviewThreadId
   );
+  const visibleFallbackRecords = fallbackRecords.filter(
+    (fallback) => !displayRecords.some((record) => sameTranscriptRecord(record, fallback))
+  );
 
   // Merge the optimistic user record into the live feed (#399). Only applied in live mode —
   // history review uses the fetched messages directly.
@@ -176,7 +183,7 @@ export function ChatDrawer(props: {
     : [
         ...displayRecords,
         ...(pendingUserText ? [{ kind: "user" as const, text: pendingUserText }] : []),
-        ...fallbackRecords
+        ...visibleFallbackRecords
       ];
 
   const isWaiting = !reviewing && (isSending || pendingUserText !== null);
@@ -392,6 +399,10 @@ function groupRecords(records: readonly TranscriptRecord[]): RenderItem[] {
   }
   flush();
   return items;
+}
+
+function sameTranscriptRecord(a: TranscriptRecord, b: TranscriptRecord): boolean {
+  return a.kind === b.kind && a.text === b.text;
 }
 
 function ActivityPeek(props: { readonly records: readonly TranscriptRecord[] }) {
