@@ -3,7 +3,7 @@ import type { PgBoss } from "@jarv1s/jobs";
 
 import type { AccessContext, DataContextRunner } from "@jarv1s/db";
 import { HttpError, handleRouteError } from "@jarv1s/module-sdk";
-import { VaultContextRunner, getVaultBaseDir, readVaultFile } from "@jarv1s/vault";
+import { VaultContextRunner, getVaultBaseDir, readVaultFile, deleteVaultFile } from "@jarv1s/vault";
 
 import { enqueueExportBuildJob } from "./data-export-jobs.js";
 import { DataExportRepository } from "./data-export-repository.js";
@@ -90,6 +90,18 @@ export function registerDataExportAsyncRoutes(
       }
 
       if (job.expires_at && new Date(job.expires_at) < new Date()) {
+        const vaultRunner = new VaultContextRunner(getVaultBaseDir());
+        const vaultAccessCtx = {
+          actorUserId: accessContext.actorUserId,
+          requestId: accessContext.requestId
+        };
+        await vaultRunner.withVaultContext(vaultAccessCtx, async (vaultCtx) => {
+          try {
+            await deleteVaultFile(vaultCtx, `exports/${jobId}.json`);
+          } catch (e) {
+            // ignore if already deleted
+          }
+        });
         throw new HttpError(410, "Export has expired");
       }
 

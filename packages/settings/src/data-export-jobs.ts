@@ -116,8 +116,9 @@ export async function handleExportBuildJob(
       await writeVaultFile(vaultCtx, `exports/${jobId}.json`, JSON.stringify(archive, null, 2));
     });
 
+    const completedAt = new Date();
     const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
-    await repository.completeJob(scopedDb, jobId, expiresAt);
+    await repository.completeJob(scopedDb, jobId, completedAt, expiresAt);
   } catch (err) {
     const message = err instanceof Error ? err.message : "Unknown error";
     await repository.failJob(scopedDb, jobId, message.slice(0, 500));
