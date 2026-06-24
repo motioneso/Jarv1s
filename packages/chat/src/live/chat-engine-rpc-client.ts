@@ -161,6 +161,9 @@ interface PendingCall {
   readonly sessionKey?: string;
   resolve(result: unknown): void;
   reject(err: Error): void;
+  /** #456 — re-arm this call's response deadline (activity-aware reset). No-op if the call has no
+   *  deadline (turnTimeoutMs <= 0) or has already settled. */
+  resetDeadline?: () => void;
 }
 
 /** Internal connection state machine. */
@@ -272,6 +275,23 @@ export class RpcConnection {
   }
 
   /**
+   * #456 — re-arm the response deadline for any in-flight turn verb (submit/readNew/isAlive/kill)
+   * of the given sessionKey. Called by the manager when it observes new transcript records from a
+   * readNew, so an actively-producing turn (many short readNew calls spanning a wall time greater
+   * than the per-call deadline) never trips it. A genuinely wedged cli-runner (no activity signal)
+   * still trips the deadline and recovers (#445 preserved). No-op if no turn verb is in flight for
+   * the session, or if deadlines are disabled (turnTimeoutMs <= 0).
+   */
+  resetActivityDeadline(sessionKey: string): void {
+    const turnVerbs: ReadonlySet<RpcMethod> = new Set(["submit", "readNew", "isAlive", "kill"]);
+    for (const call of this.pending.values()) {
+      if (call.sessionKey === sessionKey && turnVerbs.has(call.method)) {
+        call.resetDeadline?.();
+      }
+    }
+  }
+
+  /**
    * Non-session reconciliation primitive (§4.6); no sessionKey. The PUBLIC entrypoint is gated by
    * `reconciling` like every other call; the reconciliation routine itself uses the guard-bypassing
    * path via the {@link RpcReconcileDriver} handed to `onReconcile` (see `runReconciliation`).
@@ -371,6 +391,20 @@ export class RpcConnection {
       const clear = () => {
         if (timer) clearTimeout(timer);
       };
+      // #456 — re-arm the deadline (activity-aware reset). Clears the current timer and sets a fresh
+      // one of the same duration. Called by resetActivityDeadline(sessionKey) when the manager
+      // observes new transcript records, so an actively-producing turn never trips the deadline.
+      const resetDeadline = () => {
+        if (timeoutMs <= 0) return;
+        clear();
+        timer = setTimeout(() => {
+          if (!this.pending.delete(id)) return;
+          reject(
+            new CliChatUnavailableError(`cli-runner ${method} timed out after ${timeoutMs}ms`)
+          );
+        }, timeoutMs);
+        timer.unref?.();
+      };
       this.pending.set(id, {
         method,
         sessionKey,
@@ -381,7 +415,8 @@ export class RpcConnection {
         reject: (err) => {
           clear();
           reject(err);
-        }
+        },
+        resetDeadline
       });
       if (timeoutMs > 0) {
         timer = setTimeout(() => {
@@ -765,6 +800,11 @@ export class ChatEngineRpcClient implements CliChatEngine {
 
   async kill(): Promise<void> {
     await this.conn.kill(this.sessionKey);
+  }
+
+  /** #456 — forward the activity signal to the shared connection's deadline-reset for this session. */
+  resetActivityDeadline(): void {
+    this.conn.resetActivityDeadline(this.sessionKey);
   }
 }
 

@@ -609,4 +609,68 @@ describe("RpcConnection hello + id-matching + bootId (in-process socket)", () =>
     ]);
     expect(settled).toBe("pending");
   });
+
+  // ──────────────────────────────────────────────────────────────────────────
+  // #456 Task B — activity-aware RPC deadline: resetActivityDeadline(sessionKey)
+  // ──────────────────────────────────────────────────────────────────────────
+
+  it("resetActivityDeadline re-arms the in-flight turn-verb timer so activity prevents a trip (#456)", async () => {
+    const secret = "s";
+    const socketPath = tmpSocket();
+    // Server swallows requests (no response); the deadline is the only thing that can settle the call.
+    const server = await startFakeServer(socketPath, secret, { swallowRequests: true });
+    servers.push(server);
+    const conn = new TestConn({
+      socketPath,
+      rpcSecret: secret,
+      reconnectMinMs: 1,
+      reconnectMaxMs: 2,
+      callTimeoutMs: 200 // original deadline
+    });
+    conns.push(conn);
+
+    // Fire a readNew that the server swallows. Without a reset it would trip at 200ms.
+    const resultPromise = conn.readNew("u1", { afterOffset: 0 });
+
+    // Wait long enough for the connection handshake + frame write to complete and the call to be
+    // pending with its timer running, but BEFORE the 200ms deadline. 100ms is safely in-window.
+    await new Promise((r) => setTimeout(r, 100));
+    // Confirm the call is pending (deadline has NOT fired yet at 100ms < 200ms).
+    const pre = await Promise.race([
+      resultPromise.then(() => "settled").catch(() => "rejected"),
+      new Promise<string>((r) => setTimeout(() => r("pending"), 10))
+    ]);
+    expect(pre).toBe("pending");
+
+    // Signal activity at 100ms — re-arms the timer for another 200ms (new deadline ~300ms).
+    conn.resetActivityDeadline("u1");
+
+    // At 220ms (past the ORIGINAL 200ms deadline) the call must STILL be pending — the reset held.
+    const settledAt220 = await Promise.race([
+      resultPromise.then(() => "settled").catch(() => "rejected"),
+      new Promise<string>((r) => setTimeout(() => r("pending"), 110))
+    ]);
+    expect(settledAt220).toBe("pending");
+
+    // Close the conn to settle the call cleanly (the swallowed request never gets a response).
+    conn.close();
+    await expect(resultPromise).rejects.toBeInstanceOf(CliChatUnavailableError);
+  });
+
+  it("resetActivityDeadline is a no-op when no turn verb is in flight for the session (#456)", async () => {
+    const secret = "s";
+    const socketPath = tmpSocket();
+    const server = await startFakeServer(socketPath, secret, {});
+    servers.push(server);
+    const conn = new TestConn({
+      socketPath,
+      rpcSecret: secret,
+      reconnectMinMs: 1,
+      reconnectMaxMs: 2
+    });
+    conns.push(conn);
+
+    // No in-flight call — must not throw.
+    expect(() => conn.resetActivityDeadline("u_nobody")).not.toThrow();
+  });
 });

@@ -345,7 +345,12 @@ export class ChatSessionManager {
     for (;;) {
       const { records, offset, complete } = await session.engine.readNew(session.transcriptOffset);
       session.transcriptOffset = offset;
-      if (records.length > 0) lastEmissionAt = this.deps.clock.now();
+      if (records.length > 0) {
+        lastEmissionAt = this.deps.clock.now();
+        // #456 — signal activity so the in-flight RPC turn-verb deadline resets (an
+        // actively-producing turn never trips the 45s deadline; a wedged cli-runner still does).
+        session.engine.resetActivityDeadline?.();
+      }
       for (const record of records) {
         this.emit(actorUserId, record);
         if (record.kind === "reply") reply = record.text;
