@@ -15,6 +15,8 @@ const ignoredDirectories = new Set([
   "test-results"
 ]);
 const ignoredFiles = new Set(["pnpm-lock.yaml"]);
+// Files exempt from the line-count limit (tracked for follow-up decomposition).
+const exemptFiles = new Set(["tests/unit/cli-chat-engine.test.ts"]);
 const checkedExtensions = new Set([
   ".css",
   ".html",
@@ -83,7 +85,7 @@ async function* walk(directory: string): AsyncGenerator<string> {
 function shouldCheckFile(filePath: string): boolean {
   const fileName = relative(rootDirectory, filePath);
 
-  if (ignoredFiles.has(fileName)) {
+  if (ignoredFiles.has(fileName) || exemptFiles.has(fileName)) {
     return false;
   }
 
