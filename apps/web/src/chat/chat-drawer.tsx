@@ -5,12 +5,14 @@ import {
   Clock,
   MessageSquareText,
   Sparkles,
+  Square,
   SquarePen,
   X
 } from "lucide-react";
 import { type KeyboardEvent, useEffect, useState } from "react";
 
 import {
+  cancelChatTurn,
   clearChat,
   getOnboardingStatus,
   listCalendarEvents,
@@ -165,6 +167,15 @@ export function ChatDrawer(props: {
     void queryClient.invalidateQueries({ queryKey: queryKeys.chat.threads });
   };
 
+  /** #456 — stop the in-flight turn. The backend kills the engine + emits 'Stopped by user.' over
+   *  SSE; the in-flight POST /turn then settles, clearing isSending in sendMessage's finally. */
+  const stopSending = (): void => {
+    void cancelChatTurn().catch(() => {
+      // best-effort: the turn ends server-side regardless; a network error here just means the
+      // local isSending flag clears when the POST /turn promise settles.
+    });
+  };
+
   const reviewing = reviewThreadId !== null;
   const displayRecords = reviewing
     ? recordsFromMessages(messagesQuery.data?.messages ?? [])
@@ -298,6 +309,16 @@ export function ChatDrawer(props: {
                 />
               </path>
             </svg>
+            <button
+              aria-label="Stop generating"
+              className="chatd-stop"
+              title="Stop"
+              type="button"
+              onClick={stopSending}
+            >
+              <Square size={13} aria-hidden="true" fill="currentColor" />
+              <span>Stop</span>
+            </button>
           </div>
         ) : null}
       </div>
