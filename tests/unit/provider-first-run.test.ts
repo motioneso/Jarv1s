@@ -2,7 +2,7 @@
  * provider-first-run (#342 chat): seed claude's first-run state so the engine-launched REPL
  * skips its onboarding wizard (login-method/theme) + per-folder trust dialog. Non-claude no-op.
  */
-import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 
@@ -11,7 +11,8 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
   ensureClaudeOnboarded,
   ensureProviderLaunchReady,
-  trustClaudeProject
+  trustClaudeProject,
+  trustCodexProject
 } from "../../packages/cli-runner/src/provider-first-run.js";
 
 let home: string;
@@ -62,9 +63,64 @@ describe("provider-first-run (#342 chat)", () => {
     expect(projects["/data/cli-auth/chat/s1"]!.hasTrustDialogAccepted).toBe(true);
   });
 
-  it("ensureProviderLaunchReady is a NO-OP for non-claude providers (own first-run)", async () => {
-    await ensureProviderLaunchReady(home, "openai-compatible", "/data/cli-auth/chat/s2");
+  it("ensureProviderLaunchReady is a NO-OP for non-claude/codex providers (own first-run)", async () => {
     await ensureProviderLaunchReady(home, "google", "/data/cli-auth/chat/s3");
     await expect(readFile(path.join(home, ".claude.json"), "utf8")).rejects.toThrow();
+  });
+});
+
+describe("codex first-run trust (#342 chat)", () => {
+  const readCodexCfg = async () => readFile(path.join(home, ".codex", "config.toml"), "utf8");
+
+  it("creates .codex/config.toml with a trusted project when missing", async () => {
+    await trustCodexProject(home, "/data/cli-auth/chat/s1");
+    const cfg = await readCodexCfg();
+    expect(cfg).toContain('[projects."/data/cli-auth/chat/s1"]');
+    expect(cfg).toContain('trust_level = "trusted"');
+  });
+
+  it("preserves the installer's check_for_update_on_startup key", async () => {
+    await mkdir(path.join(home, ".codex"), { recursive: true });
+    await writeFile(
+      path.join(home, ".codex", "config.toml"),
+      "check_for_update_on_startup = false\n",
+      "utf8"
+    );
+    await trustCodexProject(home, "/data/cli-auth/chat/s1");
+    const cfg = await readCodexCfg();
+    expect(cfg).toContain("check_for_update_on_startup = false");
+    expect(cfg).toContain('[projects."/data/cli-auth/chat/s1"]');
+    expect(cfg).toContain('trust_level = "trusted"');
+  });
+
+  it("does not duplicate the same project section on repeated calls", async () => {
+    await trustCodexProject(home, "/data/cli-auth/chat/s1");
+    await trustCodexProject(home, "/data/cli-auth/chat/s1");
+    const cfg = await readCodexCfg();
+    const matches = cfg.match(/\[projects\."\/data\/cli-auth\/chat\/s1"\]/g);
+    expect(matches).toHaveLength(1);
+  });
+
+  it("can trust multiple distinct dirs without colliding", async () => {
+    await trustCodexProject(home, "/data/cli-auth/chat/s1");
+    await trustCodexProject(home, "/data/cli-auth/chat/s2");
+    const cfg = await readCodexCfg();
+    expect(cfg).toContain('[projects."/data/cli-auth/chat/s1"]');
+    expect(cfg).toContain('[projects."/data/cli-auth/chat/s2"]');
+  });
+
+  it("ensureProviderLaunchReady trusts the dir for openai-compatible", async () => {
+    await ensureProviderLaunchReady(home, "openai-compatible", "/data/cli-auth/chat/u1");
+    const cfg = await readCodexCfg();
+    expect(cfg).toContain('[projects."/data/cli-auth/chat/u1"]');
+    expect(cfg).toContain('trust_level = "trusted"');
+  });
+
+  it("writes .codex dir 0700 and config.toml 0600", async () => {
+    await trustCodexProject(home, "/data/cli-auth/chat/s1");
+    const dirMode = (await stat(path.join(home, ".codex"))).mode & 0o777;
+    const fileMode = (await stat(path.join(home, ".codex", "config.toml"))).mode & 0o777;
+    expect(dirMode).toBe(0o700);
+    expect(fileMode).toBe(0o600);
   });
 });

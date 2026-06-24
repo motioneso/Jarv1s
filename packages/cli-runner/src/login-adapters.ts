@@ -113,6 +113,11 @@ const ANTHROPIC_AUTH_URLS: readonly LoginAuthUrlPattern[] = [
 ];
 
 const CODEX_AUTH_URLS: readonly LoginAuthUrlPattern[] = [
+  // `codex login --device-auth` prints the device-authorization URL
+  // (https://auth.openai.com/codex/device) plus a one-time code. The legacy
+  // /authorize + /oauth entries are retained for older CLI builds that may print
+  // an OAuth-authorize URL instead.
+  { host: "auth.openai.com", pathPrefix: "/codex/device" },
   { host: "auth.openai.com", pathPrefix: "/authorize" },
   { host: "auth.openai.com", pathPrefix: "/oauth" }
 ];
@@ -123,6 +128,13 @@ const CODEX_AUTH_URLS: readonly LoginAuthUrlPattern[] = [
  * provider's flow DISPLAYS in the pre-paste phase.
  */
 const USER_CODE_PATTERN = /^[A-Za-z0-9_-]{6,128}$/;
+
+/**
+ * codex device-auth user code — the exact shape `codex login --device-auth` prints, e.g.
+ * `4DUN-GY7Y3` (4 alnum, hyphen, 5 alnum). Tighter than {@link USER_CODE_PATTERN} so incidental
+ * pane words like `Starting` are never mistaken for the code.
+ */
+const CODEX_DEVICE_CODE_PATTERN = /^[A-Z0-9]{4}-[A-Z0-9]{5}$/;
 
 /**
  * (#363) claude `setup-token` prints a long-lived OAuth token (`sk-ant-oat…`) on success. The
@@ -147,16 +159,18 @@ const RAW_ADAPTERS: Record<RpcProviderKind, LoginAdapter | undefined> = {
   },
   "openai-compatible": {
     provider: "openai-compatible",
-    // codex's default `codex login` uses a localhost:1455 OAuth callback a remote headless
-    // container's browser cannot reach. The §L.9.2 smoke confirms a headless-usable flow at the
-    // pinned version; if it cannot complete headlessly, this adapter is REMOVED (codex login ships
-    // `blocked`, install stays supported) — exactly like agy. Until the smoke confirms, this is the
-    // candidate adapter.
-    loginArgv: ["codex", "login"],
-    mode: "paste",
+    // `codex login --device-auth` is the headless/remote-usable flow: it prints
+    // https://auth.openai.com/codex/device + a one-time code, then polls its own backend for
+    // completion. The default `codex login` uses a localhost:1455 OAuth callback a remote
+    // headless container's browser cannot reach. The §L.9.2 smoke confirms this flow at the
+    // pinned version; if it cannot complete headlessly, this adapter is REMOVED (codex login
+    // ships `blocked`, install stays supported) — exactly like agy.
+    loginArgv: ["codex", "login", "--device-auth"],
+    // Device auth auto-detects completion (the CLI polls its backend); no code is pasted back.
+    mode: "poll",
     authUrlAllowlist: CODEX_AUTH_URLS,
-    userCodePattern: USER_CODE_PATTERN,
-    extractSurface: makeExtractSurface(CODEX_AUTH_URLS, USER_CODE_PATTERN)
+    userCodePattern: CODEX_DEVICE_CODE_PATTERN,
+    extractSurface: makeExtractSurface(CODEX_AUTH_URLS, CODEX_DEVICE_CODE_PATTERN)
   },
   // google (agy): NO adapter — install-blocked + login spike unresolved (§L.9). Absence = blocked.
   google: undefined
