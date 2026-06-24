@@ -98,7 +98,7 @@ export function registerDataExportAsyncRoutes(
         await vaultRunner.withVaultContext(vaultAccessCtx, async (vaultCtx) => {
           try {
             await deleteVaultFile(vaultCtx, `exports/${jobId}.json`);
-          } catch (e) {
+          } catch {
             // ignore if already deleted
           }
         });
