@@ -411,8 +411,18 @@ const BUILT_IN_MODULES: readonly BuiltInModuleRegistration[] = [
         cipher: webSearchCipher,
         onKeyChanged: invalidateWebSearchProviderCache
       });
-      setWebSearchKeyResolver((scopedDb) =>
-        readBraveSearchApiKey(scopedDb as DataContextDb, webSearchCipher)
+      setWebSearchKeyResolver(
+        (scopedDb) => readBraveSearchApiKey(scopedDb as DataContextDb, webSearchCipher),
+        {
+          // Metadata-only observability event. NEVER include the key/ciphertext/envelope/derived
+          // value (Hard Invariant: secrets never escape). An operator pairs this with the setting
+          // key to diagnose a keyring/rotation problem without exposing secret material.
+          onDecryptFailed: () =>
+            server.log.warn(
+              { event: "web_search.key_decrypt_failed" },
+              "Stored Brave Search key failed to decrypt; falling back to env key"
+            )
+        }
       );
     },
     registerWorkers: (boss, deps) => registerSettingsJobWorkers(boss, deps.dataContext)
