@@ -666,7 +666,7 @@
 }
 
 .onb-finish__settingslink:hover:not(:disabled) {
-  color: var(--accent);
+  color: var(--accent-fg);
 }
 
 .onb-finish__settingslink:disabled {

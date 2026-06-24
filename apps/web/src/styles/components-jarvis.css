@@ -814,3 +814,6 @@
     transition: none;
   }
 }
+.jds-toast--error .jds-toast__icon {
+  color: var(--danger-fg);
+}
