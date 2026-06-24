@@ -92,6 +92,10 @@ export type WebSearchKeyResolver = (scopedDb: unknown) => Promise<string | null>
 
 let testSearchProvider: WebSearchProvider | undefined;
 let keyResolver: WebSearchKeyResolver | undefined;
+// Fired when the injected key resolver throws (bad keyring / corrupted envelope) so the
+// composition root can emit a metadata-only warn. web-research stays db/dependency-free; the
+// callback carries NO secret material — only the event name is produced here.
+let keyDecryptFailedNotifier: (() => void) | undefined;
 // Tiny cache keyed by the resolved key VALUE: when the admin saves/rotates/revokes, the next
 // request resolves a different key (or null) → cache miss → fresh provider, so a new key takes
 // effect without a restart. invalidateWebSearchProviderCache() is the explicit save/revoke hook.
@@ -104,9 +108,27 @@ let keyResolver: WebSearchKeyResolver | undefined;
 // unavoidable in-use exposure, not an at-rest leak.
 let providerCache: { apiKey: string; provider: WebSearchProvider } | undefined;
 
-/** Composition-root seam: install the resolver that reads the encrypted instance key. */
-export function setWebSearchKeyResolver(resolver: WebSearchKeyResolver | undefined): void {
+/** Options for {@link setWebSearchKeyResolver}. */
+export interface SetWebSearchKeyResolverOptions {
+  /**
+   * Fired when the resolver throws (bad keyring / corrupted envelope). The composition root wires
+   * this to a `warn`-level log emitting `web_search.key_decrypt_failed`. MUST carry metadata only —
+   * never the key, ciphertext, envelope, or any derived value (Hard Invariant: secrets never escape).
+   * web-research deliberately does not produce the payload itself to stay free of a logger type.
+   */
+  readonly onDecryptFailed?: () => void;
+}
+
+/**
+ * Composition-root seam: install the resolver that reads the encrypted instance key, plus an
+ * optional notifier for the decrypt-failure observability event (see {@link SetWebSearchKeyResolverOptions}).
+ */
+export function setWebSearchKeyResolver(
+  resolver: WebSearchKeyResolver | undefined,
+  options?: SetWebSearchKeyResolverOptions
+): void {
   keyResolver = resolver;
+  keyDecryptFailedNotifier = options?.onDecryptFailed;
   providerCache = undefined;
 }
 
@@ -136,6 +158,10 @@ export async function resolveWebSearchProvider(scopedDb: unknown): Promise<WebSe
     try {
       apiKey = await keyResolver(scopedDb);
     } catch {
+      // A configured instance key failed to decrypt (bad keyring / corrupted envelope). Don't
+      // break chat — fall back to the env key — but surface the event so an operator can diagnose.
+      // The notifier emits metadata only; no key/ciphertext/envelope crosses this boundary.
+      keyDecryptFailedNotifier?.();
       apiKey = null;
     }
   }

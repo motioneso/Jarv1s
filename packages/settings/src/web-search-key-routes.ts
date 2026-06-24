@@ -1,6 +1,6 @@
 import type { FastifyInstance, FastifyRequest } from "fastify";
 
-import type { AccessContext, DataContextDb, DataContextRunner } from "@jarv1s/db";
+import type { AccessContext, DataContextRunner } from "@jarv1s/db";
 import { HttpError } from "@jarv1s/module-sdk";
 import {
   deleteWebSearchKeyRouteSchema,
@@ -12,6 +12,7 @@ import {
 
 import type { SettingsRepository } from "./repository.js";
 import { handleSettingsRouteError } from "./route-error.js";
+import { assertAdminUser } from "./routes.js";
 import {
   clearBraveSearchApiKey,
   getWebSearchKeyConfig,
@@ -35,20 +36,6 @@ function requireRequestId(accessContext: AccessContext): string {
   return accessContext.requestId;
 }
 
-async function assertAdmin(
-  repository: SettingsRepository,
-  scopedDb: DataContextDb,
-  userId: string
-): Promise<void> {
-  const user = await repository.getUserById(scopedDb, userId);
-  if (!user) {
-    throw new HttpError(401, "Session is missing or expired");
-  }
-  if (!user.is_instance_admin) {
-    throw new HttpError(403, "Instance admin permission is required");
-  }
-}
-
 /**
  * Admin-only routes for the instance-wide Brave Search API key. The key is AES-256-GCM
  * encrypted at rest and never returned — GET/PUT/DELETE all respond with `{ status: { configured,
@@ -68,7 +55,7 @@ export function registerWebSearchKeyRoutes(
       try {
         const accessContext = await resolveAccessContext(request);
         const status = await dataContext.withDataContext(accessContext, async (scopedDb) => {
-          await assertAdmin(repository, scopedDb, accessContext.actorUserId);
+          await assertAdminUser(repository, scopedDb, accessContext.actorUserId);
           return getWebSearchKeyConfig(scopedDb);
         });
         return { status: status satisfies WebSearchKeyStatusDto };
@@ -90,7 +77,7 @@ export function registerWebSearchKeyRoutes(
         }
         const accessContext = await resolveAccessContext(request);
         const status = await dataContext.withDataContext(accessContext, async (scopedDb) => {
-          await assertAdmin(repository, scopedDb, accessContext.actorUserId);
+          await assertAdminUser(repository, scopedDb, accessContext.actorUserId);
           await setBraveSearchApiKey(scopedDb, repository, cipher, {
             apiKey,
             actorUserId: accessContext.actorUserId,
@@ -113,7 +100,7 @@ export function registerWebSearchKeyRoutes(
       try {
         const accessContext = await resolveAccessContext(request);
         const status = await dataContext.withDataContext(accessContext, async (scopedDb) => {
-          await assertAdmin(repository, scopedDb, accessContext.actorUserId);
+          await assertAdminUser(repository, scopedDb, accessContext.actorUserId);
           await clearBraveSearchApiKey(scopedDb, repository, {
             actorUserId: accessContext.actorUserId,
             requestId: requireRequestId(accessContext)
