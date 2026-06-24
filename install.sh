@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/usr/bin/env bash
 # ===========================================================================
 # Jarv1s install.sh — one-command host-side deploy launcher.
 #
@@ -8,7 +8,8 @@
 # prod stack, waits for readiness, and opens the onboarding URL. The host needs
 # ONLY Docker — no node, no repo checkout when a published image is used.
 #
-# POSIX sh (dash/ash/bash-as-sh): no bashisms, no node required on the host.
+# Requires bash. Uses bash arrays (COMPOSE_FILES) for multi -f compose assembly;
+# install already requires Docker, so bash is a safe assumption on the host.
 #
 # Override via env: JARVIS_IMAGE_TAG, JARVIS_PROJECT, JARVIS_API_PORT,
 # JARVIS_WEB_PORT, JARVIS_DOCKER_SUBNET, JARVIS_EMBED_PROVIDER, JARVIS_BUILD
