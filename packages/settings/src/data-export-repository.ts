@@ -44,12 +44,17 @@ export class DataExportRepository {
       .execute();
   }
 
-  async completeJob(scopedDb: DataContextDb, jobId: string, expiresAt: Date): Promise<void> {
+  async completeJob(
+    scopedDb: DataContextDb,
+    jobId: string,
+    completedAt: Date,
+    expiresAt: Date
+  ): Promise<void> {
     await scopedDb.db
       .updateTable("app.data_export_jobs")
       .set({
         status: "ready",
-        completed_at: new Date(),
+        completed_at: completedAt,
         expires_at: expiresAt
       })
       .where("id", "=", jobId)
