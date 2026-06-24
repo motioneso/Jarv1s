@@ -1,87 +1,89 @@
 # Coordination Run — 2026-06-24-chat-stability-batch
 
 **Date:** 2026-06-24
-**Coordinator lock:** label `Coordinator`, **stable anchor = session id `ses_111f40556ffeVraVZuie2X8ScJ`** (match `agent_session.value` in `herdr pane list`). Single-coordinator lock — exactly one pane labelled `Coordinator` whose session id matches this anchor holds authority for the life of the run. Pane numbers (`w…-N`) reflow — do NOT trust any pane number here; resolve fresh by label+session at read time. Agents escalate to the **label**; the coordinator merges only when its own pane's session id matches this anchor.
-**Merge policy:** autonomous-after-verified-QA for `routine`/`sensitive`; this run is all `routine`.
-**Relay threshold:** security-tier merge → relay immediately; routine `merges_since_relay` ≥ 2 → relay. No deferral. Compaction summary → relay, merge nothing.
-**merges_since_relay:** 0
+**Coordinator lock:** label `Coordinator`. **SUCCESSOR: re-claim the label and record YOUR session id here as the new anchor.** The previous coordinator (session `ses_111f40556ffeVraVZu2X8ScJ`, pane `w1:p6`) is being reaped by you on relay — resolve it fresh by label+session before closing. Session id = authority; label = routing; pane number = ephemeral (reflows).
+**Merge policy:** autonomous-after-verified-QA for `routine`/`sensitive`. `security`-tier (none this run) would need Ben's explicit sign-off.
+**Relay threshold:** security-tier merge → relay immediately; routine/sensitive `merges_since_relay` ≥ 2 → relay. Compaction summary → relay, merge nothing.
+**merges_since_relay:** 6 (wave 1 merged; relay triggered, in progress)
 
-**CI mode (this run):** GitHub Actions billing is paused — `main` CI is red on billing, NOT code. **Local gate is the source of truth.** QA agents MUST run the full gate locally (`pnpm verify:foundation` / the pre-push trio `pnpm format:check && pnpm lint && pnpm typecheck` + relevant vitest) — do NOT trust `gh pr checks` (it will show red from billing, not the PR). Record local-gate exit codes in the QA verdict.
+**CI mode (this run):** GitHub Actions billing is paused — `main` CI is red on billing, NOT code. **Local gate is the source of truth.** QA agents run the full gate locally (`pnpm format:check && pnpm lint && pnpm typecheck` + relevant vitest) — do NOT trust `gh pr checks` (red from billing). Record local-gate exit codes in the QA verdict. This is noted in CLAUDE.md + the handoff template.
 
-**Run goal:** Batch 6 PRs that fix chat stability + clear small follow-ups, all riding a single combined docker image bump at the end. Task 3 (build + deploy + e2e verify) from `docs/superpowers/plans/2026-06-24-chat-stability-notes-memory.md` is **coordinator-owned** and runs AFTER all 6 PRs merge.
+**Models this run:** GLM (via `opencode -m zai-coding-plan/glm-5.2`) and Gemini (via `agy` = Antigravity CLI, Gemini 3.1 Pro). No Claude/Codex build agents. QA is cross-model per Ben's rule: **opposite of the builder**.
 
-## Queue
+## MID-DOING (continuation note for successor)
 
-| docs/superpowers/plans/2026-06-24-chat-stability-notes-memory.md (Task 1) | — | routine | merged | glm→gemini qa | — | chat-mcp-flag | #463 ✅ |
-| docs/superpowers/plans/2026-06-24-chat-stability-notes-memory.md (Task 2) | — | routine | merged | glm→gemini qa | — | chat-persona | #464 ✅ |
-| #453 | #453 | routine | merged | gemini build | — | embed-provider-cli-runner | #460 ✅ (scope-overreach accepted) |
-| #452 | #452 | routine | merged | glm→gemini qa | — | install-sh-posix | #459 ✅ |
-| #444 | #444 | sensitive | merged | gemini→glm qa | — | data-export-cleanup | #462 ✅ |
-| #448 | #448 | routine | merged | glm→gemini qa | — | web-search-key-observability | #461 ✅ |
+**I am mid-relay. Two QA agents are running and will return verdicts imminently. You take over from here.**
 
-**Wave 1 complete: all 6 PRs merged to main 2026-06-24 21:03–21:10 UTC. No image bump yet — next batch incoming first.**
+Current state at relay: wave 2 has two PRs open, both in cross-model QA. When verdicts come back GREEN, merge by tier. After both merge, the run is at image-bump readiness — but Ben said more work may be added before the build, so check with him.
 
-## Next batch (post-chat-persona, pre-image-bump)
+**Immediate next actions for successor:**
+1. Re-claim `Coordinator` label on your pane; record your session id as the new anchor above.
+2. Reap the old coordinator (session `ses_111f40556ffeVraVZu2X8ScJ`, resolve by label+session — do NOT trust pane `w1:p6`, it may have reflowed).
+3. Poll the two QA panes for verdicts (see Wave 2 table below).
+4. On GREEN: merge by tier (#466 sensitive = auto-merge + Ben digest; #465 routine = auto-merge). Re-confirm YOUR session id against the anchor before every merge.
+5. After both merge: ask Ben if more work rides this image bump, or if it's time for Task 3 (tag + multi-arch build + push GHCR + bump env tag + `docker compose up -d` + e2e verify per plan).
 
-| Spec | Issue | Tier | Status |
-| ---- | ----- | ---- | ------ |
-| docs/superpowers/specs/2026-06-24-chat-heartbeat-stop.md | #456 | sensitive | building (plan-first gate — awaiting plan-ready escalation) |
-| #354 | #354 | routine | building |
+## Wave 1 — COMPLETE (all 6 merged)
 
-**Agents tab:** w1:tB (label "Agents"). 5 build panes (top row + center) + 4 QA panes (bottom row): w1:pQ (#463 gemini), w1:pR (#459 gemini), w1:pS (#461 gemini), w1:pT (#462 glm). QA is cross-model per Ben (opposite of builder).
+| Spec | Issue | Tier | Status | PR |
+| ---- | ----- | ---- | ------ | -- |
+| Plan Task 1 (chat-mcp-flag) | — | routine | merged 21:03 | #463 ✅ |
+| Plan Task 2 (chat-persona) | — | routine | merged 21:10 | #464 ✅ |
+| #453 (embed-provider-cli-runner) | #453 | routine | merged 21:03 | #460 ✅ (scope-overreach accepted: auto-formatted a doc + deleted dead NeverCompletingEngine — both harmless) |
+| #452 (install-sh-posix) | #452 | routine | merged 21:03 | #459 ✅ |
+| #444 (data-export-cleanup) | #444 | sensitive | merged 21:09 | #462 ✅ (inline-only cleanup per coordinator decision; scheduled sweep is a follow-up issue to file) |
+| #448 (web-search-key-observability) | #448 | routine | merged 21:04 | #461 ✅ |
 
-Risk tier (content triggers):
-- Task 1: routine — one feature-flag string in codex launch args.
-- Task 2: routine — persona string rewrite.
-- #453: routine — two env vars added to a compose service's `environment:` block.
-- #452: routine — shebang + array-to-positional rewrite in a host-side shell script.
-- #444: **sensitive** — touches the data-export path (export/delete). Three defects: vault-file cleanup sweep on expiry, `completed_at = now()` fix, wrap initial status update in try/catch. Gets standard QA + explicit invariant check (VaultContext usage, metadata-only payloads, no secret leakage on the cleanup path).
-- #448: routine — logging seam for undecryptable Brave key + dedup `assertAdmin` helper reuse.
+All on `main`. Follow-up issue to file (not yet filed): scheduled vault-cleanup sweep via pg-boss cron (mirrors `notes/src/schedule.ts` pattern) — for data-export jobs never re-accessed after expiry. Routine tier.
 
-## Dependency / merge order
+## Wave 2 — IN QA (successor takes over here)
 
-- **Parallel group 1 (launch together):**
-  - `chat-mcp-flag` (Task 1)
-  - `embed-provider-cli-runner` (#453)
-  - `install-sh-posix` (#452)
-  - `data-export-cleanup` (#444)
-  - `web-search-key-observability` (#448)
-- **Serialized chain A:** `chat-mcp-flag` → `chat-persona` (Task 2 waits for Task 1 to merge). Reason: both touch `packages/chat/src/live/` and the persona test surface may assert engine launch behavior; landing Task 2 on top of Task 1 avoids a test-file merge conflict and lets Task 2's agent rebase onto the new flag.
-- **Merge order:** any order among the parallel five; `chat-persona` lands last in its chain (after `chat-mcp-flag`).
-- **After all 6 merge:** coordinator runs Task 3 (tag, multi-arch image build, push GHCR, bump env tag, `docker compose up -d`, e2e verify per plan §Task 3).
+| Spec | Issue | Tier | Status | Built by | QA by | QA pane | PR |
+| ---- | ----- | ---- | ------ | -------- | ----- | ------- | -- |
+| docs/superpowers/specs/2026-06-24-chat-heartbeat-stop.md | #456 | sensitive | qa | GLM (`w1:pJ`) | Gemini (`w1:pN`) | w1:pN | #466 |
+| (issue #354, handoff-scoped) | #354 | routine | qa | Gemini (`w1:pN`) | GLM (`w1:pJ`) | w1:pJ | #465 |
 
-## Collision notes
+**#466 (chat-heartbeat-stop, sensitive) — verified by coordinator pre-QA:**
+- 4 commits: idle watchdog (resets on emission, 180s default, accurate status on trip, no persist), RPC deadline activity-aware (resetActivityDeadline on turn verbs, #445 preserved), stopTurn + POST /api/chat/turn/cancel (AbortController, kill engine, emit "Stopped by user." SSE, persist NOTHING per ruling (a)), web Stop button.
+- Spec drift caught by build agent: items 1/3/5 already shipped (poll cap gone, ActivityPeek exists, TIMEOUT_MESSAGE gone). Real work = watchdog + RPC reset + Stop. This triggered the verify-before-plan skill update (committed `e718a502`).
+- Cancel route: authenticated (resolveOr401), session implied by actor (no IDOR), rate-limited, no body (metadata-only). `turnsInFlight` lock releases via `submitTurn` finally. Zero DB writes on stop.
+- Coordinator already reviewed the full diff and approved. QA is confirming the gate + invariants.
 
-- `chat-mcp-flag` touches `packages/chat/src/live/cli-chat-engine.ts` + `tests/unit/cli-chat-engine.test.ts`.
-- `chat-persona` touches `packages/chat/src/live/runtime.ts` + persona tests (`tests/unit/chat-live-persona.test.ts`, possibly `chat-live-manager.test.ts`). Serialized after `chat-mcp-flag` to avoid test-file collision.
-- `embed-provider-cli-runner` touches `infra/docker-compose.prod.yml` only (cli-runner service env block, ~L266).
-- `install-sh-posix` touches `install.sh` only.
-- `data-export-cleanup` (#444) touches the data-export module (vault cleanup + job status) — verify exact files at plan time; expected `packages/vault/` + `packages/db/` job-handling code. Uses `VaultContext` only.
-- `web-search-key-observability` (#448) touches `packages/web-research/src/providers.ts` + `packages/settings/src/web-search-key-routes.ts` + composition root for logger threading.
-- No file overlap between any parallel lane. No shared-table migrations. No migration numbers in play.
+**#465 (a11y-contrast, routine) — verified by coordinator pre-QA:**
+- 8 files, all a11y-related (tokens.css, settings-panes.css, components-core.css, settings-feedback.tsx + style files). Contrast fixes #2-#6 (skip #1, already done at tokens.css:296) + H1 aria-live assertive region + H2 44px touch hit area.
+- pN (Gemini) originally scope-creeped into data-export.test.ts but dropped it after coordinator nudge — confirmed clean.
+
+## Deferred (not in this run)
+
+- #455 (notes folder picker / text-input fallback) — deferred per Ben.
+- #454 (admin settings UI epic) — deferred per Ben; needs its own spec pass.
+- #354 hardening items (4 of 6 remaining: focus-trap audit, non-color cues, skip-to-content link, lint rules) — deferred; only contrast fixes + 2 hardening shipped in #465.
 
 ## CI waivers
 
-Local-gate mode (see CI mode note above). `gh pr checks` is expected red on billing for the whole run — this is NOT a waiver, it is a known-inapplicable signal. QA trusts local gate exit codes, recorded in each verdict.
+Local-gate mode (see CI mode note above). `gh pr checks` is expected red on billing for the whole run.
 
 | Check | PR | Proven red on `main` @ SHA | Proof | Ben-approved |
 | ----- | -- | -------------------------- | ----- | ------------ |
-| `pnpm lint` (repo-wide) | all lanes | `202c638b` (origin/main) | `tests/unit/chat-live-manager.test.ts:92` 'NeverCompletingEngine' unused — coordinator ran `pnpm lint` against origin/main content; 1 error, 0 warnings. Not any lane's file. | y (2026-06-24, local-gate-mode standing approval) |
-| `pnpm format:check` (repo-wide) | all lanes | `202c638b` (origin/main) | warns on `docs/superpowers/plans/2026-06-24-prod-codex-provider-onboarding.md` + `docs/.../2026-06-24-chat-stability-notes-memory.md` + `CLAUDE.md` (coordinator edit) — none are any lane's code file. | y (2026-06-24, local-gate-mode standing approval) |
+| `pnpm lint` (repo-wide) | all lanes | `202c638b` (origin/main) | `tests/unit/chat-live-manager.test.ts:92` 'NeverCompletingEngine' unused. Not any lane's file. (Likely FIXED now by #460 — verify on current main.) | y (2026-06-24, local-gate-mode standing approval) |
+| `pnpm format:check` (repo-wide) | all lanes | `202c638b` (origin/main) | warns on pre-existing plan docs. None are any lane's code file. | y (2026-06-24, local-gate-mode standing approval) |
 
-**Push policy this run:** lanes push when their OWN lane-files pass format+lint+typecheck+vitest individually, even if repo-wide format/lint is red from pre-existing origin/main breakage (proven + recorded above). QA agents re-verify per-PR on the PR branch.
+**Push policy:** lanes push when their OWN lane-files pass format+lint+typecheck+vitest individually, even if repo-wide is red from pre-existing main breakage. QA agents re-verify per-PR.
 
 ## Outstanding escalations
 
-- [ ] (none)
+- [ ] File follow-up issue: scheduled vault-cleanup sweep (pg-boss cron) for data-export #444 — after wave 2 settles.
 
 ## Reaped sessions
 
-- (none yet)
+- 7 wave-1 panes reaped 2026-06-24: w1:pK, w1:pM, w1:pP (build), w1:pQ, w1:pR, w1:pS, w1:pT (QA).
+- Old coordinator (session `ses_111f40556ffeVraVZu2X8ScJ`) — successor reaps on relay.
 
 ## Notes for successor / relay
 
 - Run ID: `2026-06-24-chat-stability-batch`. Manifest: this file.
-- Plan: `docs/superpowers/plans/2026-06-24-chat-stability-notes-memory.md`. Tasks 1+2 are build-agent work; Task 3 is coordinator-owned and fires after the 4 PRs merge.
-- CI billing is the ONLY reason `main` looks red. Do not treat it as a code failure. Do not try to "fix CI" — it is an account billing issue outside the repo.
-- After Task 3 lands, save durable memory for: the `tool_call_mcp_elicitation=false` fix, the persona rewrite, and the local-gate-mode decision.
+- Plan: `docs/superpowers/plans/2026-06-24-chat-stability-notes-memory.md`. Tasks 1+2 merged. Task 3 (build + deploy + e2e verify) is coordinator-owned — runs after all PRs merge + Ben says go.
+- **Skill update committed (`e718a502`):** `coordinated-build` step ½ — verify spec against actual branch before planning. Catches spec drift. Already proven by #456.
+- CI billing is the ONLY reason `main` looks red. Do not treat it as a code failure.
+- After Task 3 lands, save durable memory for: `tool_call_mcp_elicitation=false` fix, persona rewrite, local-gate-mode decision, idle-watchdog + Stop design, verify-before-plan skill update.
+- **Gemini (agy) behavior note:** Gemini agents finish work but don't reliably self-wrap to PR+report without a nudge (happened on #354/pN). GLM (opencode) wraps cleanly. Watch for this; nudge Gemini agents to push+PR+report if they go idle without reporting.
