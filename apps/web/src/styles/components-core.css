@@ -761,3 +761,23 @@
     animation: none;
   }
 }
+
+/* ---------------------------------------------------------------
+   TOUCH HIT AREAS (A11y)
+   --------------------------------------------------------------- */
+@media (pointer: coarse) {
+  .jds-btn--sm,
+  .jds-iconbtn--sm {
+    position: relative;
+  }
+  .jds-btn--sm::after,
+  .jds-iconbtn--sm::after {
+    content: "";
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 44px;
+    height: 44px;
+    transform: translate(-50%, -50%);
+  }
+}

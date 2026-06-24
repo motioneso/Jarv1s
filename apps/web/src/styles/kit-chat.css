@@ -456,7 +456,7 @@
   margin: 2px 0;
 }
 .chatd-md a {
-  color: var(--accent);
+  color: var(--accent-fg);
   text-decoration: underline;
 }
 .chatd-md strong {

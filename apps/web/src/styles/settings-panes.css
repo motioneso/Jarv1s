@@ -468,7 +468,7 @@
   align-items: flex-end;
   pointer-events: none;
 }
-.set-toasts > * {
+.set-toasts .jds-toast {
   pointer-events: auto;
   animation: set-toast-in 0.22s cubic-bezier(0.32, 0.72, 0, 1) both;
 }
@@ -484,7 +484,7 @@
 }
 @media (prefers-reduced-motion: reduce) {
   .ppl__menupop,
-  .set-toasts > * {
+  .set-toasts .jds-toast {
     animation: none;
   }
 }

@@ -1,4 +1,4 @@
-import { Check } from "lucide-react";
+import { AlertCircle, Check } from "lucide-react";
 import {
   createContext,
   useCallback,
@@ -15,7 +15,7 @@ import {
    app's .jds-toast / .jds-dialog primitives. Mounted once by the settings shell. */
 
 export interface ToastOptions {
-  readonly tone?: "ready" | "drift";
+  readonly tone?: "ready" | "drift" | "error";
   readonly icon?: ReactNode;
   readonly title?: string;
   readonly duration?: number;
@@ -81,18 +81,37 @@ export function FeedbackProvider(props: { readonly children: ReactNode }) {
     <FeedbackContext.Provider value={api}>
       {props.children}
 
-      <div className="set-toasts" aria-live="polite">
-        {toasts.map((item) => (
-          <div key={item.id} className={`jds-toast jds-toast--${item.tone ?? "ready"}`}>
-            <span className="jds-toast__icon">
-              {item.icon ?? <Check size={17} aria-hidden="true" />}
-            </span>
-            <div className="jds-toast__body">
-              {item.title ? <div className="jds-toast__title">{item.title}</div> : null}
-              <div className="jds-toast__msg">{item.message}</div>
-            </div>
-          </div>
-        ))}
+      <div className="set-toasts">
+        <div aria-live="polite" role="status" style={{ display: "contents" }}>
+          {toasts
+            .filter((item) => item.tone !== "error")
+            .map((item) => (
+              <div key={item.id} className={`jds-toast jds-toast--${item.tone ?? "ready"}`}>
+                <span className="jds-toast__icon">
+                  {item.icon ?? <Check size={17} aria-hidden="true" />}
+                </span>
+                <div className="jds-toast__body">
+                  {item.title ? <div className="jds-toast__title">{item.title}</div> : null}
+                  <div className="jds-toast__msg">{item.message}</div>
+                </div>
+              </div>
+            ))}
+        </div>
+        <div aria-live="assertive" role="alert" style={{ display: "contents" }}>
+          {toasts
+            .filter((item) => item.tone === "error")
+            .map((item) => (
+              <div key={item.id} className={`jds-toast jds-toast--error`}>
+                <span className="jds-toast__icon">
+                  {item.icon ?? <AlertCircle size={17} aria-hidden="true" />}
+                </span>
+                <div className="jds-toast__body">
+                  {item.title ? <div className="jds-toast__title">{item.title}</div> : null}
+                  <div className="jds-toast__msg">{item.message}</div>
+                </div>
+              </div>
+            ))}
+        </div>
       </div>
 
       {dialog ? (

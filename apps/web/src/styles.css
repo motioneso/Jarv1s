@@ -274,7 +274,7 @@ a {
 
 .segmented-control span {
   margin-left: 0.35rem;
-  color: var(--accent);
+  color: var(--accent-fg);
 }
 
 .form-error {
@@ -623,7 +623,7 @@ button.module-link {
 
 .compact-row strong,
 .status-good {
-  color: var(--accent);
+  color: var(--accent-fg);
 }
 
 .status-muted {

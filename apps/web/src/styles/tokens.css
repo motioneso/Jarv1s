@@ -36,7 +36,7 @@
   --ink: #292621;
   --ink-2: #5b564d;
   --ink-3: #8b8678;
-  --ink-4: #b1ac9e;
+  --ink-4: #9a958a;
 
   /* Pine — primary brand accent */
   --pine: #2f6a4c;
@@ -105,7 +105,7 @@
   --info-soft: var(--steel-soft);
   --info-soft-fg: var(--steel-ink);
 
-  --focus-ring: rgba(47, 106, 76, 0.32);
+  --focus-ring: rgba(47, 106, 76, 0.45);
   --governor-opacity: 0.7;
 
   /* ============ TYPOGRAPHY ============ */
@@ -220,11 +220,11 @@
   --border-default: var(--border);
   --accent-strong: var(--accent-hover);
 
-  --state-attention: var(--amber);
+  --state-attention: var(--amber-strong);
   --state-recovery: var(--amber-strong);
-  --warning: var(--amber);
+  --warning: var(--amber-strong);
 
-  --bucket-morning: var(--amber);
+  --bucket-morning: var(--amber-strong);
   --bucket-afternoon: var(--steel);
   --bucket-evening: var(--pine);
 
@@ -264,7 +264,7 @@
   --ink: #ece7dc;
   --ink-2: #b7b1a2;
   --ink-3: #8a8576;
-  --ink-4: #6a6557;
+  --ink-4: #736e60;
 
   --pine: #2f875e;
   --pine-hover: #359769;
@@ -279,7 +279,7 @@
   --amber-soft-2: #3f311a;
   --amber-ink: #e8c387;
 
-  --red: #cf5f51;
+  --red: #d4685a;
   --red-hover: #db6e60;
   --red-soft: #3a211c;
   --red-ink: #e89a8e;
