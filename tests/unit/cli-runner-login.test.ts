@@ -619,3 +619,44 @@ describe("§L.1.3 login-adapter validation", () => {
     expect(issues.some((i) => i.reason.includes("too broad"))).toBe(true);
   });
 });
+
+describe("codex device-auth login adapter", () => {
+  it("uses --device-auth and poll mode", () => {
+    const adapter = LOGIN_ADAPTERS["openai-compatible"];
+    expect(adapter).toBeDefined();
+    expect(adapter!.loginArgv).toEqual(["codex", "login", "--device-auth"]);
+    expect(adapter!.mode).toBe("poll");
+  });
+
+  it("extracts the device URL + one-time code from real pane output", () => {
+    const adapter = LOGIN_ADAPTERS["openai-compatible"];
+    const pane =
+      "Follow these steps to sign in with ChatGPT using device code authorization:\n\n" +
+      "1. Open this link in your browser and sign in to your account\n" +
+      "   https://auth.openai.com/codex/device\n\n" +
+      "2. Enter this one-time code (expires in 15 minutes)\n" +
+      "   4DUN-GY7Y3\n";
+    expect(adapter!.extractSurface(pane)).toEqual({
+      authorizationUrl: "https://auth.openai.com/codex/device",
+      userCode: "4DUN-GY7Y3"
+    });
+  });
+
+  it("does NOT treat an incidental word like 'Starting' as the user code", () => {
+    const adapter = LOGIN_ADAPTERS["openai-compatible"];
+    const pane =
+      "Starting device login...\n" +
+      "https://auth.openai.com/codex/device\n" +
+      "code: 4DUN-GY7Y3\n";
+    const surface = adapter!.extractSurface(pane);
+    expect(surface.userCode).toBe("4DUN-GY7Y3");
+    expect(surface.userCode).not.toBe("Starting");
+  });
+
+  it("DROPS a non-allowlisted device URL", () => {
+    const adapter = LOGIN_ADAPTERS["openai-compatible"];
+    const pane = "https://evil.example.com/codex/device\n" + "4DUN-GY7Y3\n";
+    const surface = adapter!.extractSurface(pane);
+    expect(surface.authorizationUrl).toBeUndefined();
+  });
+});
