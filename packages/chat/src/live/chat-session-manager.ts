@@ -59,6 +59,14 @@ export interface ChatSessionManagerDeps {
   readonly persona: string | ((actorUserId: string, userName: string) => Promise<string>);
   /** Delay between readNew polls (default 25ms; tests pass 0). */
   readonly pollMs?: number;
+  /**
+   * #456 — idle/heartbeat watchdog window (ms). The deadline resets whenever readNew yields new
+   * transcript records; only a turn that emits NOTHING for this window trips it (accurate status
+   * record, NOT the old broken TIMEOUT_MESSAGE). Default 180000 (3 min); composition root resolves
+   * JARVIS_CHAT_IDLE_WATCHDOG_MS. This is NOT a duration cap — an actively-producing turn (multi-tool,
+   * 3+ min) never trips it.
+   */
+  readonly idleWatchdogMs?: number;
   readonly mintMcpToken?: (
     actorUserId: string,
     chatSessionId: string
@@ -158,6 +166,8 @@ export class ChatSessionManager {
    */
   private readonly turnsInFlight = new Set<string>();
   private readonly pollMs: number;
+  /** #456 — idle/heartbeat watchdog window; 0 disables (tests only). */
+  private readonly idleWatchdogMs: number;
   /**
    * #342 (§4.1.2) — true when the ENGINE (RPC server) owns the replay submit+drain, so the
    * manager must NOT submit/drain the replay itself. Resolved once from deps (default false =
@@ -176,6 +186,7 @@ export class ChatSessionManager {
 
   constructor(private readonly deps: ChatSessionManagerDeps) {
     this.pollMs = deps.pollMs ?? 25;
+    this.idleWatchdogMs = deps.idleWatchdogMs ?? 180_000;
     this.serverOwnsDrain = deps.serverOwnsDrain ?? false;
   }
 
@@ -329,15 +340,37 @@ export class ChatSessionManager {
     await session.engine.submit(text);
 
     let reply = "";
+    let lastEmissionAt = this.deps.clock.now();
+    let watchdogTripped = false;
     for (;;) {
       const { records, offset, complete } = await session.engine.readNew(session.transcriptOffset);
       session.transcriptOffset = offset;
+      if (records.length > 0) lastEmissionAt = this.deps.clock.now();
       for (const record of records) {
         this.emit(actorUserId, record);
         if (record.kind === "reply") reply = record.text;
       }
       if (complete) break;
+      // #456 — idle/heartbeat watchdog: break only when the engine has emitted NOTHING for the
+      // full window. An actively-producing turn (records on every poll) keeps resetting the
+      // deadline, so a multi-tool 3+ min turn never trips it. Emits an accurate status record
+      // (NOT the old broken TIMEOUT_MESSAGE). No reply was produced → recordTurn is skipped.
+      if (this.idleWatchdogMs > 0 && this.deps.clock.now() - lastEmissionAt > this.idleWatchdogMs) {
+        watchdogTripped = true;
+        break;
+      }
       if (this.pollMs > 0) await delay(this.pollMs);
+    }
+
+    if (watchdogTripped) {
+      const seconds = Math.round(this.idleWatchdogMs / 1000);
+      this.emit(actorUserId, {
+        kind: "status",
+        text: `No response from the model for ${seconds} seconds — ending turn.`
+      });
+      session.lastActivity = this.deps.clock.now();
+      this.deps.touchMcpToken?.(actorUserId);
+      return { reply };
     }
 
     await this.deps.persistence.recordTurn(actorUserId, text, reply, {
