@@ -51,6 +51,8 @@ export interface NotesLastSync {
   readonly lastError?: string;
 }
 
+type NotesFileIngestStatus = "ingested" | "skipped";
+
 export const NOTES_QUEUE_DEFINITIONS: readonly QueueDefinition[] = [
   {
     name: NOTES_SYNC_QUEUE,
@@ -98,6 +100,79 @@ async function resolveSourcePath(
     return null;
   }
   return stored;
+}
+
+async function ingestResolvedMarkdownFile(
+  scopedDb: DataContextDb,
+  actorUserId: string,
+  resolvedFile: string,
+  repository: MemoryRepository,
+  embeddingProvider: EmbeddingProvider
+): Promise<NotesFileIngestStatus> {
+  const content = await readFile(resolvedFile, "utf-8");
+  const fileHash = createHash("sha256").update(content).digest("hex");
+
+  const existing = await repository.getFileIndex(
+    scopedDb,
+    actorUserId,
+    NOTES_SOURCE_KIND,
+    resolvedFile
+  );
+
+  if (
+    existing &&
+    existing.fileHash === fileHash &&
+    existing.embedModelName === embeddingProvider.modelName
+  ) {
+    return "skipped";
+  }
+
+  const { chunks, wikilinks } = parseDocument(content);
+
+  const newChunks: NewChunkData[] = await Promise.all(
+    chunks.map(async (chunk) => ({
+      sourcePath: resolvedFile,
+      lineStart: chunk.lineStart,
+      lineEnd: chunk.lineEnd,
+      contentHash: createHash("sha256").update(chunk.text).digest("hex"),
+      text: chunk.text,
+      embedding: await embeddingProvider.embedDocument(chunk.text)
+    }))
+  );
+
+  await repository.upsertFileChunks(
+    scopedDb,
+    actorUserId,
+    resolvedFile,
+    newChunks,
+    embeddingProvider.modelName,
+    embeddingProvider.modelVersion,
+    NOTES_SOURCE_KIND
+  );
+
+  await repository.replaceFileLinks(scopedDb, actorUserId, resolvedFile, wikilinks);
+
+  await repository.upsertFileIndex(
+    scopedDb,
+    actorUserId,
+    NOTES_SOURCE_KIND,
+    resolvedFile,
+    fileHash,
+    newChunks.length,
+    embeddingProvider.modelName,
+    embeddingProvider.modelVersion
+  );
+
+  return "ingested";
+}
+
+async function resolveAndValidateNoteFile(
+  resolvedRoot: string,
+  absolutePath: string
+): Promise<string> {
+  const resolvedFile = await realpath(absolutePath);
+  assertWithinRoot(resolvedRoot, resolvedFile);
+  return resolvedFile;
 }
 
 export async function handleNotesSyncJob(
@@ -173,60 +248,18 @@ export async function handleNotesSyncJob(
         throw e;
       }
 
-      const content = await readFile(resolvedFile, "utf-8");
-      const fileHash = createHash("sha256").update(content).digest("hex");
-
-      const existing = await repository.getFileIndex(
+      const status = await ingestResolvedMarkdownFile(
         scopedDb,
         actorUserId,
-        NOTES_SOURCE_KIND,
-        resolvedFile
+        resolvedFile,
+        repository,
+        embeddingProvider
       );
 
-      if (
-        existing &&
-        existing.fileHash === fileHash &&
-        existing.embedModelName === embeddingProvider.modelName
-      ) {
+      if (status === "skipped") {
         skipped += 1;
         continue;
       }
-
-      const { chunks, wikilinks } = parseDocument(content);
-
-      const newChunks: NewChunkData[] = await Promise.all(
-        chunks.map(async (chunk) => ({
-          sourcePath: resolvedFile,
-          lineStart: chunk.lineStart,
-          lineEnd: chunk.lineEnd,
-          contentHash: createHash("sha256").update(chunk.text).digest("hex"),
-          text: chunk.text,
-          embedding: await embeddingProvider.embedDocument(chunk.text)
-        }))
-      );
-
-      await repository.upsertFileChunks(
-        scopedDb,
-        actorUserId,
-        resolvedFile,
-        newChunks,
-        embeddingProvider.modelName,
-        embeddingProvider.modelVersion,
-        NOTES_SOURCE_KIND
-      );
-
-      await repository.replaceFileLinks(scopedDb, actorUserId, resolvedFile, wikilinks);
-
-      await repository.upsertFileIndex(
-        scopedDb,
-        actorUserId,
-        NOTES_SOURCE_KIND,
-        resolvedFile,
-        fileHash,
-        newChunks.length,
-        embeddingProvider.modelName,
-        embeddingProvider.modelVersion
-      );
 
       ingested += 1;
     } catch (err) {
@@ -239,6 +272,88 @@ export async function handleNotesSyncJob(
   // `lastError` and the card renders the failure line (Fix 2). Partial success
   // (some ingested OR some skipped-unchanged) is intentionally NOT thrown — that
   // stays a success with an error count, matching the existing UX.
+  if (ingested === 0 && skipped === 0 && errors > 0) {
+    throw new Error(
+      `notes sync: all ${errors} file(s) failed; last error: ${lastErrorMessage ?? "unknown"}`
+    );
+  }
+
+  return { ingested, skipped, errors };
+}
+
+export async function handleNotesSyncJobWithDataContext(
+  job: Job<NotesSyncJobPayload>,
+  dataContextRunner: DataContextRunner,
+  embeddingProvider: EmbeddingProvider,
+  preferencesRepository: PreferencesRepository
+): Promise<NotesSyncJobResult> {
+  const accessContext = toAccessContext(job);
+  const { actorUserId, sourcePath } = job.data;
+
+  const sourcePathToUse = await dataContextRunner.withDataContext(accessContext, (scopedDb) =>
+    resolveSourcePath(scopedDb, sourcePath, preferencesRepository)
+  );
+
+  if (sourcePathToUse === null) {
+    return { ingested: 0, skipped: 0, errors: 0, noOp: true };
+  }
+
+  const allowedRoots = resolveNotesRoots();
+  if (allowedRoots.length === 0) {
+    throw new Error("JARVIS_NOTES_ROOTS not configured — notes sync aborted");
+  }
+
+  let resolvedRoot: string;
+  try {
+    resolvedRoot = await realpath(sourcePathToUse);
+  } catch {
+    throw new Error(`Notes source path does not exist: ${sourcePathToUse}`);
+  }
+
+  const isWithinAllowed = allowedRoots.some(
+    (root) => resolvedRoot === root || resolvedRoot.startsWith(root + "/")
+  );
+  if (!isWithinAllowed) {
+    throw new Error(`Notes source path "${resolvedRoot}" is not within any allowed root`);
+  }
+
+  const repository = new MemoryRepository();
+  const mdFiles = await collectMarkdownFiles(resolvedRoot);
+
+  let ingested = 0;
+  let skipped = 0;
+  let errors = 0;
+  let lastErrorMessage: string | undefined;
+
+  for (const absolutePath of mdFiles) {
+    let resolvedFile: string;
+    try {
+      resolvedFile = await resolveAndValidateNoteFile(resolvedRoot, absolutePath);
+    } catch (err) {
+      errors += 1;
+      lastErrorMessage = err instanceof Error ? err.message : String(err);
+      continue;
+    }
+
+    try {
+      const status = await dataContextRunner.withDataContext(accessContext, (scopedDb) =>
+        ingestResolvedMarkdownFile(
+          scopedDb,
+          actorUserId,
+          resolvedFile,
+          repository,
+          embeddingProvider
+        )
+      );
+
+      if (status === "ingested") ingested += 1;
+      else skipped += 1;
+    } catch (err) {
+      errors += 1;
+      lastErrorMessage = err instanceof Error ? err.message : String(err);
+    }
+  }
+
   if (ingested === 0 && skipped === 0 && errors > 0) {
     throw new Error(
       `notes sync: all ${errors} file(s) failed; last error: ${lastErrorMessage ?? "unknown"}`
@@ -305,13 +420,11 @@ export async function registerNotesJobWorkers(
       if (!job) throw new Error(`pg-boss invoked ${NOTES_SYNC_QUEUE} without a job`);
       const accessContext = toAccessContext(job);
       try {
-        const result = await dataContext.withDataContext(accessContext, (scopedDb) =>
-          handleNotesSyncJob(
-            job,
-            scopedDb,
-            options.embeddingProvider,
-            options.preferencesRepository
-          )
+        const result = await handleNotesSyncJobWithDataContext(
+          job,
+          dataContext,
+          options.embeddingProvider,
+          options.preferencesRepository
         );
         // Fix 6 (#449): a no-op run (no source configured — stale schedule tick
         // after unlink) must NOT write a last-sync row, otherwise it clobbers a
