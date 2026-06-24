@@ -548,3 +548,142 @@ describe("ChatSessionManager maintenance mutex (#342 §5.4)", () => {
     }
   });
 });
+
+describe("ChatSessionManager.runTurn idle watchdog (#456 Task A)", () => {
+  /** A fake engine whose readNew returns a queued script of results. Used to model a
+   *  long actively-producing turn (records on every poll) vs. a silent turn (no records). */
+  class ScriptedReadEngine {
+    readonly provider = "anthropic" as const;
+    launchOpts: EngineLaunchOpts | null = null;
+    readonly submitted: string[] = [];
+    killed = false;
+    constructor(
+      private readonly readScript: {
+        records: TranscriptRecord[];
+        offset: number;
+        complete: boolean;
+      }[]
+    ) {}
+    async launch(opts: EngineLaunchOpts): Promise<{ offset: number }> {
+      this.launchOpts = opts;
+      return { offset: 0 };
+    }
+    async submit(text: string): Promise<void> {
+      this.submitted.push(text);
+    }
+    async readNew(
+      afterOffset: number
+    ): Promise<{ records: TranscriptRecord[]; offset: number; complete: boolean }> {
+      const next = this.readScript.shift();
+      if (next) return next;
+      return { records: [], offset: afterOffset, complete: true };
+    }
+    async isAlive(): Promise<boolean> {
+      return !this.killed;
+    }
+    async kill(): Promise<void> {
+      this.killed = true;
+    }
+  }
+
+  /** Fake clock with manual advance; delay() inside runTurn is bypassed via pollMs:0. */
+  function makeFakeClock(start = 0) {
+    let t = start;
+    return {
+      now: () => t,
+      advance: (ms: number) => {
+        t += ms;
+      }
+    };
+  }
+
+  function watchdogDeps(
+    engine: ScriptedReadEngine,
+    clock: ReturnType<typeof makeFakeClock>,
+    idleWatchdogMs: number
+  ) {
+    return makeMinimalDeps({
+      engineFactory: () => engine,
+      pollMs: 0,
+      idleWatchdogMs,
+      clock,
+      persistence: {
+        resolveActiveProvider: vi
+          .fn()
+          .mockResolvedValue({ provider: "anthropic", model: "sonnet" }),
+        listPriorTurns: vi.fn().mockResolvedValue({ recent: [], oldSummary: null }),
+        recordTurn: vi.fn().mockResolvedValue(undefined),
+        openNewConversation: vi.fn().mockResolvedValue(undefined)
+      }
+    });
+  }
+
+  it("resets the idle deadline whenever readNew yields new records (long actively-producing turn does NOT trip watchdog)", async () => {
+    // Engine emits records on every poll across a wall-time span FAR exceeding the idle window.
+    // Each emission resets the watchdog; the turn completes normally.
+    const clock = makeFakeClock(0);
+    const idleMs = 1000;
+    // 5 polls, each returns a thinking record, then a final reply. Wall time between polls > idleMs,
+    // but since each poll emits records the watchdog must reset and never trip.
+    const engine = new ScriptedReadEngine([
+      { records: [{ kind: "thinking", text: "t1" }], offset: 10, complete: false },
+      { records: [{ kind: "thinking", text: "t2" }], offset: 20, complete: false },
+      { records: [{ kind: "thinking", text: "t3" }], offset: 30, complete: false },
+      { records: [{ kind: "thinking", text: "t4" }], offset: 40, complete: false },
+      { records: [{ kind: "reply", text: "done" }], offset: 50, complete: true }
+    ]);
+    const manager = new ChatSessionManager(watchdogDeps(engine, clock, idleMs));
+
+    // Interleave clock advances with the poll loop: after submitTurn starts, we need the clock to
+    // advance >idleMs between readNew calls. Since pollMs is 0, the loop spins synchronously across
+    // awaits. To model wall-time passage we hook the engine's readNew to advance the clock.
+    const origReadNew = engine.readNew.bind(engine);
+    engine.readNew = async (off: number) => {
+      clock.advance(idleMs + 100); // each poll is "later" than the idle window
+      return origReadNew(off);
+    };
+
+    const received: TranscriptRecord[] = [];
+    manager.subscribe("u1", (r) => received.push(r));
+    const { reply } = await manager.submitTurn("u1", "Ben", "long question");
+
+    expect(reply).toBe("done");
+    // No watchdog status record was emitted (the turn completed normally).
+    expect(
+      received.find((r) => r.kind === "status" && /No response from the model/.test(r.text))
+    ).toBeUndefined();
+  });
+
+  it("trips the idle watchdog after a silent window and emits an accurate status record (no TIMEOUT_MESSAGE)", async () => {
+    // Engine emits nothing across polls whose combined wall time exceeds the idle window.
+    const clock = makeFakeClock(0);
+    const idleMs = 500;
+    // The engine returns empty records + complete:false forever until the watchdog breaks the loop.
+    // readScript is empty → readNew falls through to the default {records:[], complete:true}, which
+    // would end the turn immediately. To model a wedged engine, override readNew to never complete.
+    const engine = new ScriptedReadEngine([]);
+    engine.readNew = async (off: number) => {
+      clock.advance(idleMs + 50); // each silent poll pushes wall time past the idle window
+      return { records: [], offset: off, complete: false };
+    };
+    const manager = new ChatSessionManager(watchdogDeps(engine, clock, idleMs));
+
+    const received: TranscriptRecord[] = [];
+    manager.subscribe("u1", (r) => received.push(r));
+    const { reply } = await manager.submitTurn("u1", "Ben", "hello?");
+
+    // The watchdog tripped: reply is empty (no reply was ever produced).
+    expect(reply).toBe("");
+    // An accurate status record was emitted.
+    const status = received.find((r) => r.kind === "status");
+    expect(status).toBeDefined();
+    expect(status!.text).toMatch(/No response from the model for \d+ seconds — ending turn\./);
+    // The broken TIMEOUT_MESSAGE never appears.
+    expect(received.find((r) => /Chat timed out/.test(r.text))).toBeUndefined();
+    // recordTurn was NOT called (no reply was produced).
+    expect(
+      (manager as unknown as { deps: { persistence: { recordTurn: ReturnType<typeof vi.fn> } } })
+        .deps.persistence.recordTurn
+    ).not.toHaveBeenCalled();
+  });
+});
