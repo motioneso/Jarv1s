@@ -12,14 +12,23 @@
 
 ## Queue
 
-| Spec | Issue | Tier | Status | Agent label | Pane | Branch | PR |
-| ---- | ----- | ---- | ------ | ----------- | ---- | ------ | -- |
-| docs/superpowers/plans/2026-06-24-chat-stability-notes-memory.md (Task 1) | — | routine | merged | glm→gemini qa | w1:pJ→w1:pQ | chat-mcp-flag | #463 ✅ |
-| docs/superpowers/plans/2026-06-24-chat-stability-notes-memory.md (Task 2) | — | routine | spawning-next | — | — | chat-persona | — |
-| #453 | #453 | routine | merged | gemini build | w1:pK | embed-provider-cli-runner | #460 ✅ (scope-overreach accepted) |
-| #452 | #452 | routine | merged | glm→gemini qa | w1:pM→w1:pR | install-sh-posix | #459 ✅ |
-| #444 | #444 | sensitive | rework (lint fix) | gemini build→glm qa | w1:pN→w1:pT | data-export-cleanup | #462 (blocker: unused e in catch L101) |
-| #448 | #448 | routine | merged | glm→gemini qa | w1:pP→w1:pS | web-search-key-observability | #461 ✅ |
+| docs/superpowers/plans/2026-06-24-chat-stability-notes-memory.md (Task 1) | — | routine | merged | glm→gemini qa | — | chat-mcp-flag | #463 ✅ |
+| docs/superpowers/plans/2026-06-24-chat-stability-notes-memory.md (Task 2) | — | routine | merged | glm→gemini qa | — | chat-persona | #464 ✅ |
+| #453 | #453 | routine | merged | gemini build | — | embed-provider-cli-runner | #460 ✅ (scope-overreach accepted) |
+| #452 | #452 | routine | merged | glm→gemini qa | — | install-sh-posix | #459 ✅ |
+| #444 | #444 | sensitive | merged | gemini→glm qa | — | data-export-cleanup | #462 ✅ |
+| #448 | #448 | routine | merged | glm→gemini qa | — | web-search-key-observability | #461 ✅ |
+
+**Wave 1 complete: all 6 PRs merged to main 2026-06-24 21:03–21:10 UTC. No image bump yet — next batch incoming first.**
+
+## Next batch (post-chat-persona, pre-image-bump)
+
+| Spec | Issue | Tier | Status |
+| ---- | ----- | ---- | ------ |
+| docs/superpowers/specs/2026-06-24-chat-heartbeat-stop.md | #456 | sensitive | spec-locked, ready to spawn |
+| #455 | #455 | routine | needs sizing (text-input fallback vs full picker) |
+| #454 | #454 | routine | needs sizing |
+| #354 | #354 | routine | needs sizing |
 
 **Agents tab:** w1:tB (label "Agents"). 5 build panes (top row + center) + 4 QA panes (bottom row): w1:pQ (#463 gemini), w1:pR (#459 gemini), w1:pS (#461 gemini), w1:pT (#462 glm). QA is cross-model per Ben (opposite of builder).
 
