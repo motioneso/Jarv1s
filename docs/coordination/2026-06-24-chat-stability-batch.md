@@ -14,14 +14,14 @@
 
 | Spec | Issue | Tier | Status | Agent label | Pane | Branch | PR |
 | ---- | ----- | ---- | ------ | ----------- | ---- | ------ | -- |
-| docs/superpowers/plans/2026-06-24-chat-stability-notes-memory.md (Task 1) | — | routine | pr-open (push-approved) | glm · chat-mcp-flag | w1:pJ | chat-mcp-flag | (pending push) |
+| docs/superpowers/plans/2026-06-24-chat-stability-notes-memory.md (Task 1) | — | routine | qa | glm build→gemini qa | w1:pJ→w1:pQ | chat-mcp-flag | #463 |
 | docs/superpowers/plans/2026-06-24-chat-stability-notes-memory.md (Task 2) | — | routine | queued (serialized after Task 1) | — | — | chat-persona | — |
-| #453 | #453 | routine | building | gemini · embed-provider-cli-runner | w1:pK | embed-provider-cli-runner | — |
-| #452 | #452 | routine | pr-open | glm · install-sh-posix | w1:pM | install-sh-posix | #459 |
-| #444 | #444 | sensitive | pr-open | gemini · data-export-cleanup | w1:pN | data-export-cleanup | #462 |
-| #448 | #448 | routine | pr-open | glm · web-search-key-observability | w1:pP | web-search-key-observability | #461 |
+| #453 | #453 | routine | pr-open (scope-overreach accepted) | gemini build | w1:pK | embed-provider-cli-runner | #460 |
+| #452 | #452 | routine | qa | glm build→gemini qa | w1:pM→w1:pR | install-sh-posix | #459 |
+| #444 | #444 | sensitive | qa | gemini build→glm qa | w1:pN→w1:pT | data-export-cleanup | #462 |
+| #448 | #448 | routine | qa | glm build→gemini qa | w1:pP→w1:pS | web-search-key-observability | #461 |
 
-**Agents tab:** w1:tB (label "Agents"). 5-pane grid: w1:pJ, w1:pK, w1:pM, w1:pN, w1:pP.
+**Agents tab:** w1:tB (label "Agents"). 5 build panes (top row + center) + 4 QA panes (bottom row): w1:pQ (#463 gemini), w1:pR (#459 gemini), w1:pS (#461 gemini), w1:pT (#462 glm). QA is cross-model per Ben (opposite of builder).
 
 Risk tier (content triggers):
 - Task 1: routine — one feature-flag string in codex launch args.
