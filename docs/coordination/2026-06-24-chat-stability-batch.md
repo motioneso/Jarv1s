@@ -8,7 +8,7 @@
 
 **CI mode (this run):** GitHub Actions billing is paused — `main` CI is red on billing, NOT code. **Local gate is the source of truth.** QA agents MUST run the full gate locally (`pnpm verify:foundation` / the pre-push trio `pnpm format:check && pnpm lint && pnpm typecheck` + relevant vitest) — do NOT trust `gh pr checks` (it will show red from billing, not the PR). Record local-gate exit codes in the QA verdict.
 
-**Run goal:** Batch 4 PRs that fix chat stability + ride a single combined docker image bump at the end. Task 3 (build + deploy + e2e verify) from `docs/superpowers/plans/2026-06-24-chat-stability-notes-memory.md` is **coordinator-owned** and runs AFTER all 4 PRs merge.
+**Run goal:** Batch 6 PRs that fix chat stability + clear small follow-ups, all riding a single combined docker image bump at the end. Task 3 (build + deploy + e2e verify) from `docs/superpowers/plans/2026-06-24-chat-stability-notes-memory.md` is **coordinator-owned** and runs AFTER all 6 PRs merge.
 
 ## Queue
 
@@ -18,12 +18,16 @@
 | docs/superpowers/plans/2026-06-24-chat-stability-notes-memory.md (Task 2) | — | routine | queued (serialized after Task 1) | — | — | chat-persona | — |
 | #453 | #453 | routine | queued | — | — | embed-provider-cli-runner | — |
 | #452 | #452 | routine | queued | — | — | install-sh-posix | — |
+| #444 | #444 | sensitive | queued | — | — | data-export-cleanup | — |
+| #448 | #448 | routine | queued | — | — | web-search-key-observability | — |
 
-Risk tier (content triggers): all four are `routine` — no schema/auth/secret/RLS surface.
-- Task 1: one feature-flag string in codex launch args.
-- Task 2: persona string rewrite.
-- #453: two env vars added to a compose service's `environment:` block.
-- #452: shebang + array-to-positional rewrite in a host-side shell script.
+Risk tier (content triggers):
+- Task 1: routine — one feature-flag string in codex launch args.
+- Task 2: routine — persona string rewrite.
+- #453: routine — two env vars added to a compose service's `environment:` block.
+- #452: routine — shebang + array-to-positional rewrite in a host-side shell script.
+- #444: **sensitive** — touches the data-export path (export/delete). Three defects: vault-file cleanup sweep on expiry, `completed_at = now()` fix, wrap initial status update in try/catch. Gets standard QA + explicit invariant check (VaultContext usage, metadata-only payloads, no secret leakage on the cleanup path).
+- #448: routine — logging seam for undecryptable Brave key + dedup `assertAdmin` helper reuse.
 
 ## Dependency / merge order
 
@@ -31,9 +35,11 @@ Risk tier (content triggers): all four are `routine` — no schema/auth/secret/R
   - `chat-mcp-flag` (Task 1)
   - `embed-provider-cli-runner` (#453)
   - `install-sh-posix` (#452)
+  - `data-export-cleanup` (#444)
+  - `web-search-key-observability` (#448)
 - **Serialized chain A:** `chat-mcp-flag` → `chat-persona` (Task 2 waits for Task 1 to merge). Reason: both touch `packages/chat/src/live/` and the persona test surface may assert engine launch behavior; landing Task 2 on top of Task 1 avoids a test-file merge conflict and lets Task 2's agent rebase onto the new flag.
-- **Merge order:** `install-sh-posix` → `embed-provider-cli-runner` → `chat-mcp-flag` → `chat-persona`. (Any order among the parallel three is fine; chat-persona must land last in its chain.)
-- **After all 4 merge:** coordinator runs Task 3 (tag, multi-arch image build, push GHCR, bump env tag, `docker compose up -d`, e2e verify per plan §Task 3).
+- **Merge order:** any order among the parallel five; `chat-persona` lands last in its chain (after `chat-mcp-flag`).
+- **After all 6 merge:** coordinator runs Task 3 (tag, multi-arch image build, push GHCR, bump env tag, `docker compose up -d`, e2e verify per plan §Task 3).
 
 ## Collision notes
 
@@ -41,7 +47,9 @@ Risk tier (content triggers): all four are `routine` — no schema/auth/secret/R
 - `chat-persona` touches `packages/chat/src/live/runtime.ts` + persona tests (`tests/unit/chat-live-persona.test.ts`, possibly `chat-live-manager.test.ts`). Serialized after `chat-mcp-flag` to avoid test-file collision.
 - `embed-provider-cli-runner` touches `infra/docker-compose.prod.yml` only (cli-runner service env block, ~L266).
 - `install-sh-posix` touches `install.sh` only.
-- No file overlap between the parallel three. No shared-table migrations. No migration numbers in play.
+- `data-export-cleanup` (#444) touches the data-export module (vault cleanup + job status) — verify exact files at plan time; expected `packages/vault/` + `packages/db/` job-handling code. Uses `VaultContext` only.
+- `web-search-key-observability` (#448) touches `packages/web-research/src/providers.ts` + `packages/settings/src/web-search-key-routes.ts` + composition root for logger threading.
+- No file overlap between any parallel lane. No shared-table migrations. No migration numbers in play.
 
 ## CI waivers
 

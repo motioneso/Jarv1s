@@ -65,6 +65,14 @@ Operator scripts: `pnpm backup:db`, `pnpm restore:db`, `pnpm export:user`,
 `pnpm delete:user`, `pnpm audit:release-hardening`, `pnpm smoke:compose`. See
 `docs/operations/release-hardening.md`.
 
+> **⚠️ CI STATUS (2026-06-24, temporary):** GitHub Actions is **disabled — billing paused**.
+> `main` shows red on every commit, but this is **NOT a code failure** — jobs refuse to start
+> with "recent account payments have failed." **Local gate is the source of truth** until
+> billing is restored. **Do NOT run `gh pr checks` to verify a PR** — it will always show red
+> from billing. Instead, run the gate locally: `pnpm format:check && pnpm lint && pnpm typecheck`
+> + the relevant vitest files (`pnpm test:integration` or `vitest run tests/unit/<file>`), and
+> record the exit codes in your PR/QA verdict. Precedent: `docs/coordination/2026-06-18-overnight-automation.md`.
+
 ## Hard Invariants (never weaken these)
 
 These are decisions, not code descriptions. Violating any of these is a blocker.

@@ -23,6 +23,9 @@
 
 ## Your compact (non-negotiable)
 
+- **CI STATUS (temporary):** GitHub Actions billing is paused. `gh pr checks` will show red on
+  every PR — **do NOT trust it**. Run the gate **locally**: `pnpm format:check && pnpm lint &&
+  pnpm typecheck` + the relevant vitest files, and record exit codes in your wrap-up report.
 - Work **only** in this worktree/branch. Commit green per task; `git add` only that task's files
   (`Co-Authored-By: Claude`).
 - Plan approval comes from the **coordinator**, not a human gate. Do not write code before it.
