@@ -1,7 +1,13 @@
 import { fileURLToPath } from "node:url";
 
 import type { JarvisModuleManifest } from "@jarv1s/module-sdk";
-import { postNotesSyncRouteSchema } from "@jarv1s/shared";
+import {
+  postNotesSyncRouteSchema,
+  notesSearchInputSchema,
+  notesSearchResponseSchema
+} from "@jarv1s/shared";
+
+import { notesSearchExecute } from "./tools.js";
 
 export const NOTES_MODULE_ID = "notes";
 export const NOTES_SYNC_QUEUE = "notes.sync";
@@ -32,6 +38,13 @@ export const notesModuleManifest = {
       description: "Trigger a notes folder sync job.",
       scope: "user",
       actions: ["create"]
+    },
+    {
+      id: "notes.search",
+      label: "Search notes",
+      description: "Semantically search the user's ingested notes.",
+      scope: "user",
+      actions: ["view"]
     }
   ],
   routes: [
@@ -40,6 +53,19 @@ export const notesModuleManifest = {
       path: "/api/notes/sync",
       responseSchema: postNotesSyncRouteSchema.response[202],
       permissionId: "notes.sync"
+    }
+  ],
+  assistantTools: [
+    {
+      name: "notes.search",
+      description:
+        "Search the user's own ingested notes (Obsidian vault) by meaning. Returns matching note excerpts with file path and line range for citation.",
+      permissionId: "notes.search",
+      risk: "read",
+      inputSchema: notesSearchInputSchema,
+      outputSchema: notesSearchResponseSchema,
+      externalContent: true,
+      execute: notesSearchExecute
     }
   ]
 } satisfies JarvisModuleManifest;

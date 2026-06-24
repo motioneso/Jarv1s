@@ -95,3 +95,35 @@ export const getNotesLastSyncRouteSchema = {
     }
   }
 } as const;
+
+export const notesSearchInputSchema = {
+  type: "object",
+  additionalProperties: false,
+  required: ["query"],
+  properties: {
+    query: { type: "string" },
+    limit: { type: "number" }
+  }
+} as const;
+
+export const notesSearchResponseSchema = {
+  type: "object",
+  additionalProperties: false,
+  required: ["chunks"],
+  properties: {
+    chunks: {
+      type: "array",
+      items: {
+        type: "object",
+        additionalProperties: false,
+        required: ["sourcePath", "lineStart", "lineEnd", "text"],
+        properties: {
+          sourcePath: { type: "string" },
+          lineStart: { type: "number" },
+          lineEnd: { type: "number" },
+          text: { type: "string" }
+        }
+      }
+    }
+  }
+} as const;

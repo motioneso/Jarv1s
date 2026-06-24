@@ -24,6 +24,7 @@ import {
   NOTES_SYNC_QUEUE,
   type NotesSyncJobPayload
 } from "@jarv1s/notes";
+import { notesSearchExecute } from "../../packages/notes/src/tools.js";
 import {
   connectionStrings,
   resetEmptyFoundationDatabase,
@@ -578,5 +579,95 @@ describe("PUT /api/me/notes-source schedule reconcile (#449)", () => {
     });
     expect(put.statusCode).toBe(200);
     expect(await fetchScheduleRow(), "schedule row must be gone after clearing path").toBeNull();
+  });
+});
+
+// ── notes.search tool (RLS retrieval) ─────────────────────────────────────────
+
+describe("notes.search tool", () => {
+  let server: ReturnType<typeof createApiServer>;
+  let userA: string;
+  let userB: string;
+  let dataContext: DataContextRunner;
+
+  beforeAll(async () => {
+    server = createApiServer({ appDb, logger: false });
+    await server.ready();
+
+    // User A signs up and gets their actor id
+    const cookieA = await signUp(server, "SearchUserA", `searchA-${randomUUID()}@example.test`);
+    const meA = await server.inject({
+      method: "GET",
+      url: "/api/me",
+      headers: { cookie: cookieA }
+    });
+    userA = meA.json<{ user: { id: string } }>().user.id;
+
+    // User B signs up
+    const cookieB = await signUp(server, "SearchUserB", `searchB-${randomUUID()}@example.test`);
+    const meB = await server.inject({
+      method: "GET",
+      url: "/api/me",
+      headers: { cookie: cookieB }
+    });
+    userB = meB.json<{ user: { id: string } }>().user.id;
+
+    dataContext = new DataContextRunner(appDb);
+  });
+
+  afterAll(async () => {
+    await server?.close();
+  });
+
+  it("retrieves chunks for the owner and hides them from non-owners (RLS)", async () => {
+    const jobNotesDirA = join(tmpdir(), `jarv1s-notes-search-${randomUUID()}`);
+    await mkdir(jobNotesDirA, { recursive: true });
+    await writeFile(
+      join(jobNotesDirA, "secret.md"),
+      "# Secret\n\nThis is a unique chunk of secret words."
+    );
+
+    process.env["JARVIS_NOTES_ROOTS"] = jobNotesDirA;
+    try {
+      // 1. User A ingests
+      const provider = new StubEmbeddingProvider();
+      const prefsRepo = new PreferencesRepository();
+      const jobA = {
+        id: randomUUID(),
+        data: { actorUserId: userA, sourcePath: jobNotesDirA }
+      } as unknown as Job<NotesSyncJobPayload>;
+
+      await dataContext.withDataContext(
+        { actorUserId: userA, requestId: "req:search-ingest" },
+        (scopedDb) => handleNotesSyncJob(jobA, scopedDb, provider, prefsRepo)
+      );
+
+      // 2. User A searches
+      const resultA = await dataContext.withDataContext(
+        { actorUserId: userA, requestId: "req:search-a" },
+        (scopedDb) =>
+          notesSearchExecute(scopedDb, { query: "unique chunk of secret words" }, {} as never)
+      );
+      const dataA = resultA.data as { chunks: unknown[] };
+      expect(dataA?.chunks).toHaveLength(1);
+      expect(dataA?.chunks[0]).toMatchObject({
+        sourcePath: expect.stringContaining("secret.md"),
+        text: expect.stringContaining("unique chunk of secret words")
+      });
+
+      // 3. User B searches the same query
+      const resultB = await dataContext.withDataContext(
+        { actorUserId: userB, requestId: "req:search-b" },
+        (scopedDb) =>
+          notesSearchExecute(scopedDb, { query: "unique chunk of secret words" }, {} as never)
+      );
+
+      const dataB = resultB.data as { chunks: unknown[] };
+      // RLS must isolate
+      expect(dataB?.chunks).toHaveLength(0);
+    } finally {
+      await rm(jobNotesDirA, { recursive: true, force: true });
+      delete process.env["JARVIS_NOTES_ROOTS"];
+    }
   });
 });
