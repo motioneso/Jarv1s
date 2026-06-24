@@ -59,8 +59,6 @@ export interface ChatSessionManagerDeps {
   readonly persona: string | ((actorUserId: string, userName: string) => Promise<string>);
   /** Delay between readNew polls (default 25ms; tests pass 0). */
   readonly pollMs?: number;
-  /** Cap on readNew polls per turn before a turn is treated as timed out (default 2000). */
-  readonly maxPolls?: number;
   readonly mintMcpToken?: (
     actorUserId: string,
     chatSessionId: string
@@ -126,13 +124,7 @@ interface UserSession {
   transcriptOffset: number;
 }
 
-/** Default cap on readNew polls per turn so a never-completing engine can't hang us. */
-const DEFAULT_MAX_POLLS = 2_000;
-
 const MAX_SUBSCRIBERS_PER_ACTOR = 5;
-
-/** Body persisted/returned when a turn never reports complete within the poll cap. */
-const TIMEOUT_MESSAGE = "Chat timed out before the model finished responding.";
 
 /**
  * Thrown by submitTurn when a turn is already in flight for the same user. The
@@ -166,7 +158,6 @@ export class ChatSessionManager {
    */
   private readonly turnsInFlight = new Set<string>();
   private readonly pollMs: number;
-  private readonly maxPolls: number;
   /**
    * #342 (§4.1.2) — true when the ENGINE (RPC server) owns the replay submit+drain, so the
    * manager must NOT submit/drain the replay itself. Resolved once from deps (default false =
@@ -185,7 +176,6 @@ export class ChatSessionManager {
 
   constructor(private readonly deps: ChatSessionManagerDeps) {
     this.pollMs = deps.pollMs ?? 25;
-    this.maxPolls = deps.maxPolls ?? DEFAULT_MAX_POLLS;
     this.serverOwnsDrain = deps.serverOwnsDrain ?? false;
   }
 
@@ -339,8 +329,6 @@ export class ChatSessionManager {
     await session.engine.submit(text);
 
     let reply = "";
-    let polls = 0;
-    let timedOut = false;
     for (;;) {
       const { records, offset, complete } = await session.engine.readNew(session.transcriptOffset);
       session.transcriptOffset = offset;
@@ -349,20 +337,7 @@ export class ChatSessionManager {
         if (record.kind === "reply") reply = record.text;
       }
       if (complete) break;
-      if (++polls >= this.maxPolls) {
-        timedOut = true;
-        break;
-      }
       if (this.pollMs > 0) await delay(this.pollMs);
-    }
-
-    // The poll loop exited without the engine reporting complete: surface a clear
-    // error rather than silently persisting a partial (often empty) reply as a
-    // successful turn. The user message is still recorded so the stored
-    // conversation stays consistent.
-    if (timedOut) {
-      this.emit(actorUserId, { kind: "error", text: TIMEOUT_MESSAGE });
-      reply = TIMEOUT_MESSAGE;
     }
 
     await this.deps.persistence.recordTurn(actorUserId, text, reply, {
@@ -590,12 +565,10 @@ export class ChatSessionManager {
   /** Poll readNew until complete, discarding records; returns the new offset. */
   private async drain(engine: CliChatEngine, fromOffset: number): Promise<number> {
     let offset = fromOffset;
-    let polls = 0;
     for (;;) {
       const { offset: next, complete } = await engine.readNew(offset);
       offset = next;
       if (complete) break;
-      if (++polls >= this.maxPolls) break;
       if (this.pollMs > 0) await delay(this.pollMs);
     }
     return offset;
