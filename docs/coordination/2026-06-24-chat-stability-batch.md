@@ -25,10 +25,8 @@
 
 | Spec | Issue | Tier | Status |
 | ---- | ----- | ---- | ------ |
-| docs/superpowers/specs/2026-06-24-chat-heartbeat-stop.md | #456 | sensitive | spec-locked, ready to spawn |
-| #455 | #455 | routine | needs sizing (text-input fallback vs full picker) |
-| #454 | #454 | routine | needs sizing |
-| #354 | #354 | routine | needs sizing |
+| docs/superpowers/specs/2026-06-24-chat-heartbeat-stop.md | #456 | sensitive | building (plan-first gate — awaiting plan-ready escalation) |
+| #354 | #354 | routine | building |
 
 **Agents tab:** w1:tB (label "Agents"). 5 build panes (top row + center) + 4 QA panes (bottom row): w1:pQ (#463 gemini), w1:pR (#459 gemini), w1:pS (#461 gemini), w1:pT (#462 glm). QA is cross-model per Ben (opposite of builder).
 
