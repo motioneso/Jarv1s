@@ -492,7 +492,11 @@ export class CliChatEngineImpl implements CliChatEngine {
     }
     const modelFlag = modelOverrideFlag(opts); // codex accepts -m/--model
     if (modelFlag) parts.push(modelFlag);
-    parts.push("--sandbox read-only", "-a never");
+    // `-a never` sets the CLI-flag approval policy, but codex's config-level
+    // `approval_policy` defaults to `OnRequest` and takes precedence for MCP
+    // tool calls — without this override the TUI blocks on a per-tool approval
+    // menu the engine cannot drive, and the chat turn times out.
+    parts.push("--sandbox read-only", "-a never", `-c 'approval_policy="never"'`);
 
     return parts.join(" ");
   }
