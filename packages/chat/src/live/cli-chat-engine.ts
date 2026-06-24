@@ -502,7 +502,8 @@ export class CliChatEngineImpl implements CliChatEngine {
         `-c 'mcp_servers.jarvis.bearer_token_env_var="${tokenEnvVar}"'`,
         `-c 'mcp_servers.jarvis.tool_timeout_sec=180'`,
         `-c 'features.shell_tool=false'`,
-        `-c 'features.apply_patch_tool=false'`
+        `-c 'features.apply_patch_tool=false'`,
+        `-c 'features.tool_call_mcp_elicitation=false'`
       );
     }
     const modelFlag = modelOverrideFlag(opts); // codex accepts -m/--model
