@@ -18,7 +18,7 @@ Archive format: `backups/jarv1s-YYYY-MM-DDTHH-MM-SSZ.tar.gz`
 ## Prerequisites
 
 - Docker must be running and `jarv1s-postgres` container must be up (`pnpm db:up`).
-- The `ben` user must have permission to run `docker exec` (member of the `docker` group).
+- The installing user must have permission to run `docker exec` (member of the `docker` group).
 - `rsync` must be installed on the host (`sudo apt install rsync`).
 
 ## Deploy the systemd timer
@@ -29,6 +29,8 @@ cp infra/backup.env.example infra/backup.env
 # Edit infra/backup.env to override any defaults (JARVIS_PGDATABASE, JARVIS_BACKUP_DIR, etc.)
 
 # 2. Install the units
+#    IMPORTANT: edit the `User=` line in the .service file to match the installing
+#    user (placeholder `REPLACE_WITH_INSTALL_USER` ships in the repo) before copying.
 sudo cp infra/systemd/jarv1s-backup.service /etc/systemd/system/
 sudo cp infra/systemd/jarv1s-backup.timer /etc/systemd/system/
 sudo systemctl daemon-reload
@@ -63,12 +65,13 @@ All variables are optional — the defaults work for a standard local deploy.
 Set `JARVIS_BACKUP_OFFHOST_CMD` in `infra/backup.env`:
 
 ```bash
-# Replace <user> and <remote-path> with the Windows SSH user and target directory
+# Replace <user>, <remote-host>, and <remote-path> with the off-host SSH user,
+# Tailscale/VPN IP, and target directory
 JARVIS_BACKUP_OFFHOST_CMD=rsync -az --progress {} <user>@<remote-host>:/mnt/backup/jarv1s/
 ```
 
-The Windows box (<remote-host>) has OpenSSH configured. No credentials live in this repo —
-the SSH username and target path are operator-supplied at deploy time. Pre-populate
+The off-host box has OpenSSH configured. No credentials live in this repo —
+the SSH username, host, and target path are operator-supplied at deploy time. Pre-populate
 `~/.ssh/known_hosts` with `ssh-keyscan <remote-host>` if needed.
 
 ## Retention policy

@@ -1,3 +1,6 @@
+# NOTE: `User=REPLACE_WITH_INSTALL_USER` and the `~/Jarv1s` paths are PLACEHOLDERS
+# the installing operator MUST edit to match their system (user, repo path, and
+# EnvironmentFile path) at install time.
 [Unit]
 Description=Jarv1s scheduled backup (DB + vault)
 After=network.target docker.service

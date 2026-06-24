@@ -337,7 +337,7 @@ Briefing jobs sit in the queue indefinitely without it. Worker must be started s
 `pnpm dev:api` or `pnpm dev:web`.
 
 **Webwright verification** was initiated but login failed (email "admin" was used; the actual test
-account email is `3843176+motioneso@users.noreply.github.com` — credential redacted; keep it out of the repo). Verification
+account email is the operator's — credential redacted; keep it out of the repo). Verification
 artifacts are written under `outputs/` (git-ignored, regenerable).
 
 **Dev server startup for LAN testing** (headless machine, always required):

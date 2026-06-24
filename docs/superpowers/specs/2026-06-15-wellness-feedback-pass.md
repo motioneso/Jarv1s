@@ -70,7 +70,7 @@ able to check in any time." Backend already supports this (no migration). Update
 labeled radial in the tweaks." Wire the radial/feeling-wheel check-in picker into `CheckinModal`,
 gated by the existing **"radial"** tweak flag (find it in the tweaks panel / settings). Design
 reference (read-only): `WellnessCheckin.jsx` + `Wellness.jsx` in the design bundle
-`~/Jarv1s/.claude/jobs/914af5c0/tmp/design/jarvis-design-system/project/ui_kits/jarvis-app/`. This
+`~/.claude/jobs/914af5c0/tmp/design/jarvis-design-system/project/ui_kits/jarvis-app/`. This
 was the deferred stretch from the original wellness port; now in scope. When the radial tweak is on,
 the check-in modal (including the Today-page inline one from Q3) uses the wheel; otherwise the
 existing picker.

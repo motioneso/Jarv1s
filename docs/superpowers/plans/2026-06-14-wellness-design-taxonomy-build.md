@@ -3,7 +3,7 @@
 **Spec:** `docs/superpowers/specs/2026-06-14-p5-wellness-design-taxonomy-insights.md`
 **Codex-approved plan:** `PLAN.md` (worktree root) — survived 3 adversarial rounds (`PLAN-REVIEW-LOG.md`).
 **Branch/worktree:** `worktree-feat+wellness-design` (this worktree). Design bundle (reference, read-only):
-`~/Jarv1s/.claude/jobs/914af5c0/tmp/design/jarvis-design-system/project/ui_kits/jarvis-app/` —
+`~/.claude/jobs/914af5c0/tmp/design/jarvis-design-system/project/ui_kits/jarvis-app/` —
 `Wellness.jsx`, `WellnessCheckin.jsx`, `WellnessCharts.jsx`, `wellness.css`, `wellness-data.js`.
 
 Build proceeds in 3 phases (TDD; each commits green with `Co-Authored-By: Claude`). Phase 1

@@ -59,7 +59,7 @@ then squash). The wellness work (Phases 1–3) already lives only on this branch
 wellness, without Ben's input." Concretely:
 
 - Design source: `Calendar.jsx` + `calendar-data.js` in the design bundle
-  `~/Jarv1s/.claude/jobs/914af5c0/tmp/design/jarvis-design-system/project/ui_kits/jarvis-app/`.
+  `~/.claude/jobs/914af5c0/tmp/design/jarvis-design-system/project/ui_kits/jarvis-app/`.
 - No calendar _design_ spec exists yet (only old `m-b1-google-connector-oauth` spec + slice-1c
   connectors plan + audit issue #145). New coordinator AUTHORS the spec + build plan, runs a Codex
   adversarial plan-review loop (stands in for human sign-off), builds via Sonnet agents, Codex

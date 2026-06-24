@@ -229,7 +229,7 @@ only; RLS applies to admins too. If admin can read B's data, the slice has faile
 - **Migration number is global**, assigned by landing order; do not hardcode it in the spec.
 - **`AccessContext` shape is frozen** at `{ actorUserId, requestId }` — status is checked
   during resolution and must not be added to the context (Slice 1f invariant).
-- **Integration tests reset the shared dev DB** (wipes users including `3843176+motioneso@users.noreply.github.com`); a
+- **Integration tests reset the shared dev DB** (wipes users including the operator's account); a
   running `dev:worker` steals pg-boss jobs — stop it before `verify:foundation`.
 - Collision check: this slice owns `packages/auth`, `packages/settings`, `apps/web` admin UI,
   shared contracts, and a new migration. Coordinate migration ordering with any sibling slice

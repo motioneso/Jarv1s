@@ -38,10 +38,10 @@
 - **Owner:** #342 in-container CLI chat (overnight build, Ben-delegated approvals)
 - **GitHub:** #342 (epic #47, Phase 2). Plan: `docs/superpowers/plans/2026-06-20-in-container-cli-chat.md`
   (Phase 2 items 8–10 + the agy/Antigravity risk).
-- **Grounded-on:** `origin/main` ff34061; Phase-1 merged code in `~/Jarv1s/jarvis-342-p1` (cli-runner
+- **Grounded-on:** `origin/main` ff34061; Phase-1 merged code in `~/jarvis-342-p1` (cli-runner
   server/connection/engine-host/sanitized-env/main, `cli-chat-engine.ts` probe surface,
   `packages/settings/sql/0103_provider_install_state.sql`, `packages/shared/src/onboarding-api.ts`
-  `ProviderInstallState`), and the FROZEN base contract in `~/Jarv1s/jarvis-342-build`.
+  `ProviderInstallState`), and the FROZEN base contract in `~/jarvis-342-build`.
 - **Builds on, does not re-freeze:** the base contract's §3 transport/framing/hello, §4 methods (incl.
   `probeProvider` §4.8), §7 sanitized-env allowlist, §9 provider state machine. Read those first; this
   addendum only fills the Phase-2-deferred installer (base contract §2 "Out", §15).

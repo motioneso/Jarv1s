@@ -188,6 +188,7 @@ before any tree-wide action.
 - Preserve plain Fastify REST + shared TypeScript contracts (`packages/shared/*-api.ts`) unless a
   milestone explicitly justifies a heavier contract layer.
 - The 1000-line file limit is enforced by `pnpm check:file-size`. Decompose rather than exceed.
+- **Documentation Paths:** Always use `~/Jarv1s` instead of absolute paths (e.g., `~/Jarv1s`) in all documentation and handoff files to prevent exposing local usernames and system architecture.
 
 ## Design-fork Discipline
 

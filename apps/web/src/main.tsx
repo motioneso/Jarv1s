@@ -31,7 +31,7 @@ registerServiceWorker();
 // Dynamic + DEV-guarded so it is NEVER in the production/deploy bundle. Posts annotations
 // to the agentation-mcp server on :4747 (see .mcp.json), which the agent reads over MCP.
 // Endpoint host is derived from the page host (not hardcoded localhost) so the toolbar
-// connects when the app is opened over the LAN (e.g. 192.168.x.x:5173 on this headless
+// connects when the app is opened over the LAN (e.g. 192.168.x.x:5173 on a headless
 // box) — localhost would resolve to the *client* device and silently fail to connect.
 if (import.meta.env.DEV) {
   void import("agentation").then(({ Agentation }) => {

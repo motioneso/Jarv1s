@@ -12,7 +12,7 @@
 
 ## Production Findings That Drive This Plan
 
-Observed on June 24, 2026 while enabling Codex in `~/Jarv1s/JarvisProd`:
+Observed on June 24, 2026 while enabling Codex in `~/JarvisProd`:
 
 - Chat requests reached the API and persisted, but timed out while Codex was not installed or not launch-ready.
 - The active route correctly selected `openai-compatible` / `gpt-5.5`, so routing was not the root cause.
@@ -27,7 +27,7 @@ Observed on June 24, 2026 while enabling Codex in `~/Jarv1s/JarvisProd`:
 
 ## Invariants
 
-- Do not commit prod env files, auth files, tokens, or anything under `~/Jarv1s/JarvisProd`.
+- Do not commit prod env files, auth files, tokens, or anything under `~/JarvisProd`.
 - Runtime app/worker roles must not gain access to CLI auth/tool volumes; `cli-runner` remains the provider CLI boundary.
 - Provider recipes stay pinned and lockfile-backed. No `latest`, no floating install.
 - Codex credentials live only under `/data/cli-auth/.codex` inside the cli-runner auth volume.

@@ -41,7 +41,7 @@ These are confirmed by reading the files, not assumed.
 
 ## Pre-flight (one-time, before Task 1)
 
-- [ ] Confirm worktree is on `feat/tasks-p3-web-ui` at `cda9f23`: `git -C ~/Jarv1s/jarvis-tasks-p3 log -1 --oneline` shows `cda9f23`. **Work only in `~/Jarv1s/jarvis-tasks-p3`** (the Coordinator runs the shared `~/Jarv1s` tree).
+- [ ] Confirm worktree is on `feat/tasks-p3-web-ui` at `cda9f23`: `git -C ~/jarvis-tasks-p3 log -1 --oneline` shows `cda9f23`. **Work only in `~/jarvis-tasks-p3`** (the Coordinator runs the shared `~/Jarv1s` tree).
 - [ ] `pnpm install` && `pnpm db:up` && `pnpm db:migrate` && `pnpm test:tasks` — confirm the tasks suite is green before changing anything. (Stop any running `dev:worker` first — it steals pg-boss jobs from integration tests.)
 - [ ] `pnpm --filter @jarv1s/web typecheck` && `pnpm test:e2e` — confirm web typecheck + e2e green at baseline.
 

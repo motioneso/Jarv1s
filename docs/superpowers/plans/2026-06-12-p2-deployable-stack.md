@@ -1084,12 +1084,12 @@ services:
       # the whole host HOME (which would expose ~/.ssh, git creds, cloud configs,
       # shell history — far beyond CLI auth). JARVIS_CLI_HOME_BASE=/host-home, so the
       # engine's transcriptGlobDir finds /host-home/.claude|.codex|.gemini exactly.
-      - ${JARVIS_HOST_CLAUDE_DIR:-~/Jarv1s/.claude}:/host-home/.claude:ro
-      - ${JARVIS_HOST_CODEX_DIR:-~/Jarv1s/.codex}:/host-home/.codex:ro
-      - ${JARVIS_HOST_GEMINI_DIR:-~/Jarv1s/.gemini}:/host-home/.gemini:ro
+      - ${JARVIS_HOST_CLAUDE_DIR:-~/.claude}:/host-home/.claude:ro
+      - ${JARVIS_HOST_CODEX_DIR:-~/.codex}:/host-home/.codex:ro
+      - ${JARVIS_HOST_GEMINI_DIR:-~/.gemini}:/host-home/.gemini:ro
       # Shared neutral-dir base: identical absolute path on host + container so
       # the host-spawned CLI cd's into the same dir the container computed (§6.3).
-      - ${JARVIS_CHAT_HOME:-~/Jarv1s/.jarvis/chat}:${JARVIS_CHAT_HOME:-~/Jarv1s/.jarvis/chat}
+      - ${JARVIS_CHAT_HOME:-~/.jarvis/chat}:${JARVIS_CHAT_HOME:-~/.jarvis/chat}
     depends_on:
       migrate:
         condition: service_completed_successfully
@@ -1110,10 +1110,10 @@ services:
       - jarv1s-model-cache:/app/.cache/huggingface
       - ${JARVIS_TMUX_SOCKET_DIR:-/tmp/tmux-1000}:${JARVIS_TMUX_SOCKET_DIR:-/tmp/tmux-1000}
       # Mount ONLY the three CLI dirs read-only (NOT the whole host HOME — see api).
-      - ${JARVIS_HOST_CLAUDE_DIR:-~/Jarv1s/.claude}:/host-home/.claude:ro
-      - ${JARVIS_HOST_CODEX_DIR:-~/Jarv1s/.codex}:/host-home/.codex:ro
-      - ${JARVIS_HOST_GEMINI_DIR:-~/Jarv1s/.gemini}:/host-home/.gemini:ro
-      - ${JARVIS_CHAT_HOME:-~/Jarv1s/.jarvis/chat}:${JARVIS_CHAT_HOME:-~/Jarv1s/.jarvis/chat}
+      - ${JARVIS_HOST_CLAUDE_DIR:-~/.claude}:/host-home/.claude:ro
+      - ${JARVIS_HOST_CODEX_DIR:-~/.codex}:/host-home/.codex:ro
+      - ${JARVIS_HOST_GEMINI_DIR:-~/.gemini}:/host-home/.gemini:ro
+      - ${JARVIS_CHAT_HOME:-~/.jarvis/chat}:${JARVIS_CHAT_HOME:-~/.jarvis/chat}
     depends_on:
       migrate:
         condition: service_completed_successfully
@@ -1869,9 +1869,9 @@ JARVIS_TMUX_SOCKET_DIR=/tmp/tmux-1000
 # three dirs are mounted (NOT the whole host HOME — that would expose ~/.ssh, git
 # creds, shell history). They line up under JARVIS_CLI_HOME_BASE so the engine's
 # transcriptGlobDir finds /host-home/.claude|.codex|.gemini.
-JARVIS_HOST_CLAUDE_DIR=~/Jarv1s/.claude
-JARVIS_HOST_CODEX_DIR=~/Jarv1s/.codex
-JARVIS_HOST_GEMINI_DIR=~/Jarv1s/.gemini
+JARVIS_HOST_CLAUDE_DIR=~/.claude
+JARVIS_HOST_CODEX_DIR=~/.codex
+JARVIS_HOST_GEMINI_DIR=~/.gemini
 
 # Inside the container, transcript resolution uses this base (the mount point above).
 # Keep it /host-home unless you remap the three mounts above.
@@ -1879,7 +1879,7 @@ JARVIS_CLI_HOME_BASE=/host-home
 
 # Per-user neutral chat dir base. Mounted at the SAME absolute path on host and
 # container so the host-spawned CLI cd's into the dir the container computed (§6.3).
-JARVIS_CHAT_HOME=~/Jarv1s/.jarvis/chat
+JARVIS_CHAT_HOME=~/.jarvis/chat
 
 # Embedding provider. "local" downloads the model on first use (cached in HF_HOME);
 # set "stub" to avoid any model download (tests / explicit opt-out).

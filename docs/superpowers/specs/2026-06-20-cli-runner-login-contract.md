@@ -2,7 +2,7 @@
 
 - **Status:** **FROZEN v1** (Phase-3 build contract) — frozen 2026-06-20 after a cross-model adversarial
   review (Codex gpt-5.x, 4 rounds: REVISE→REVISE→REVISE→**APPROVED**; 1 BLOCKER + 4 HIGH + 4 MED folded;
-  decision D22 in `~/Jarv1s/jarvis-342-build/OVERNIGHT-DECISIONS.md`). **ADDITIVE addendum** to the two
+  decision D22 in `~/jarvis-342-build/OVERNIGHT-DECISIONS.md`). **ADDITIVE addendum** to the two
   FROZEN contracts it builds on:
   - the base RPC contract `docs/superpowers/specs/2026-06-20-cli-runner-rpc-contract.md` ("base contract")
   - the Phase-2 installer addendum `docs/superpowers/specs/2026-06-20-cli-runner-install-contract.md`
@@ -16,11 +16,11 @@
 
 - **Date:** 2026-06-20
 - **Owner:** #342 in-container CLI chat (overnight build, Ben-delegated approvals — see
-  `~/Jarv1s/jarvis-342-build/OVERNIGHT-DECISIONS.md`).
+  `~/jarvis-342-build/OVERNIGHT-DECISIONS.md`).
 - **GitHub:** #342 (epic #47). Plan: `docs/superpowers/plans/2026-06-20-in-container-cli-chat.md`
   (Phase 3 items **11–12**). #347 (UID-separation) stays **BLOCKING** for concurrent multi-user.
 - **Grounded-on:** merged `origin/main` `a5eb338` (Phases 0/1/1.5/2 merged: PRs #348/#349/#350/#351), in
-  the worktree `~/Jarv1s/jarvis-342-p3` (`342/phase3`). Phase-2 code read: `engine-host.ts`,
+  the worktree `~/jarvis-342-p3` (`342/phase3`). Phase-2 code read: `engine-host.ts`,
   `connection.ts`, `cli-chat-engine.ts` (probe surface), `install-service.ts`, `provider-install-state.ts`,
   `onboarding-routes.ts`, `sanitized-env.ts`, `redact.ts`, `0103_provider_install_state.sql`,
   `onboarding-api.ts`.

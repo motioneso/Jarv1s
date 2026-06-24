@@ -13,3 +13,7 @@ linked doc **in full** and follow it.
 | When you need to…                                                                                           | Skill                                                                    |
 | ----------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------ |
 | Message or read **another Herdr pane / agent** in this workspace (e.g. the Coordinator or a Claude session) | [`docs/agents/herdr-pane-message.md`](docs/agents/herdr-pane-message.md) |
+
+## Documentation Standards
+
+- Always use `~/Jarv1s` instead of absolute paths (like `~/Jarv1s`) in all documentation, specs, and handoff files to prevent exposing local usernames and system architecture.

@@ -115,13 +115,13 @@ Both thresholds are configurable via environment variables (`JARVIS_BACKUP_DAILY
 
 ### 1. Off-host copy destination → rsync over SSH to the Tailscale Windows host
 
-Off-host copy goes via **rsync over SSH to the Tailscale host `<remote-host>`** (Ben's Windows box,
+Off-host copy goes via **rsync over SSH to the off-host backup target `<remote-host>`** (the operator's off-host backup box,
 which already has OpenSSH configured). The destination stays **pluggable**: the script reads
 `JARVIS_BACKUP_OFFHOST_CMD` (default empty = skip) and runs it with the archive path substituted.
-The concrete invocation is an rsync-over-SSH command to that host. The **Windows SSH username and
+The concrete invocation is an rsync-over-SSH command to that host. The **SSH username and
 target path are supplied as environment at deploy time** — no secrets or host-specific credentials
 live in this spec or the script. (Documenting "no off-host copy configured" remains a valid interim
-state, but the chosen destination is the Tailscale Windows host.)
+state, but the chosen destination is the off-host backup target.)
 
 ### 2. Schedule time → 02:00 local, daily
 

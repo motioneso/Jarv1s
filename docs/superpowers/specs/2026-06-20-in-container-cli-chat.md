@@ -2,7 +2,7 @@
 
 **Status:** approved-pending-user-signoff · **Date:** 2026-06-20 · **Owner:** Ben + Coordinator (GLM `ses_11cb3c6d`)
 **GitHub:** #342 (Phase 2, epic #47, milestone #11 "Portable, Deployable & Multi-user")
-**Grounded on:** `origin/main` `ff34061` (worktree `~/Jarv1s/jarvis-342-build`)
+**Grounded on:** `origin/main` `ff34061` (worktree `~/jarvis-342-build`)
 **Supersedes / evolves:** ADR 0008 (reversed by new ADR 0010 — host-native → in-container topology);
 extends spec `2026-06-12-p2-portable-cli-chat-adapter-design.md` (the Multiplexer seam, now run inside
 a sidecar). Obsoletes the host-bridge mounts added by PR #344's predecessor and `JARVIS_HOST_CLIS`

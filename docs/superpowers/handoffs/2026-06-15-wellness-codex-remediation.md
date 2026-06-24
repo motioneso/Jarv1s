@@ -19,7 +19,7 @@ those. **Do NOT run repo-wide `pnpm format` + broad `git add`** — stage only t
 - **Findings + locked decisions:** `docs/superpowers/handoffs/2026-06-15-wellness-design-relay.md`
   **section "1. Remediate the Codex thermonuclear CODE review"** — the 9 fixes (H1, H2+M5, H3, M4,
   M6, M7, L8, L9, L10) with Ben's decisions. This is authoritative; follow each decision exactly.
-- **Full Codex critique:** `~/Jarv1s/.claude/jobs/914af5c0/tmp/codex9-full.txt` (read for detail).
+- **Full Codex critique:** `~/.claude/jobs/914af5c0/tmp/codex9-full.txt` (read for detail).
 - Spec: `docs/superpowers/specs/2026-06-14-p5-wellness-design-taxonomy-insights.md`
 - Codex-approved build plan: `PLAN.md` (worktree root).
 

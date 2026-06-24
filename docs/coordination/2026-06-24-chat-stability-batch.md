@@ -33,7 +33,7 @@
 | #444 (data-export-cleanup) | #444 | sensitive | merged 21:09 | #462 ✅ (inline-only cleanup per coordinator decision; scheduled sweep is a follow-up issue to file) |
 | #448 (web-search-key-observability) | #448 | routine | merged 21:04 | #461 ✅ |
 
-All on `main`. Follow-up issue to file (not yet filed): scheduled vault-cleanup sweep via pg-boss cron (mirrors `notes/src/schedule.ts` pattern) — for data-export jobs never re-accessed after expiry. Routine tier.
+All on `main`. Follow-up issue filed: **#467** — scheduled vault-cleanup sweep via pg-boss cron (mirrors `packages/notes/src/schedule.ts` pattern) for data-export jobs never re-accessed after expiry. Routine tier.
 
 ## Wave 2 — COMPLETE (both merged 2026-06-24 by successor ses_1044afa61ffemvRK5oLlUrMRU6)
 
@@ -67,7 +67,7 @@ Local-gate mode (see CI mode note above). `gh pr checks` is expected red on bill
 
 ## Outstanding escalations
 
-- [ ] File follow-up issue: scheduled vault-cleanup sweep (pg-boss cron) for data-export #444 — after wave 2 settles.
+- [x] File follow-up issue: scheduled vault-cleanup sweep (pg-boss cron) for data-export #444 — **filed as #467** (2026-06-24).
 
 ## Reaped sessions
 

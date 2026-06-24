@@ -105,7 +105,7 @@ enumerates them and is the to-do list for step 3.
   (restarted). They auto-reload the working tree. **Working tree is on
   `feat/jarvis-chat-retire-legacy-backend`** (compiles).
 - Postgres up (`jarv1s-postgres`, db `jarv1s`). The dev DB was reset by integration-test runs —
-  the pilot/test users are gone; `3843176+motioneso@users.noreply.github.com` is the only real user (from manual testing).
+  the pilot/test users are gone; the operator's account is the only real user (from manual testing).
 - Logs: `~/webwright/jarvis-chat-phase1/logs/{api,web,worker}.log`. Manual UI-test
   screenshots + scripts under `~/webwright/jarvis-chat-phase1/`.
 
@@ -128,7 +128,7 @@ remaining red in the "Verify foundation and app" job + `compose-smoke`:
   (`--session-id`), so the drawer's "New chat" must drop+relaunch the engine, not send `/clear`.
   (Fixed in #23.)
 - **Integration tests reset the shared dev DB.** Coordinate before running `test:integration` while
-  someone is using the live app — it wipes users (this is why `operator` had to be recreated).
+  someone is using the live app — it wipes users (this is why the operator account had to be recreated).
 - **A running `dev:worker` steals pg-boss jobs** from integration tests → the "metadata-only job"
   foundation test times out. Stop the worker before `verify:foundation`.
 - **Merging stacked PRs that use squash:** deleting the base branch _closes_ (not retargets) the

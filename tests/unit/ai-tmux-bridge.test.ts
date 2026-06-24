@@ -216,17 +216,27 @@ describe("parseTranscript — google (Gemini CLI JSONL schema)", () => {
 describe("transcriptGlobDir (anthropic project-dir encoding)", () => {
   it("keeps the leading dash and replaces '/' and '.' with '-'", () => {
     // Regression: Claude Code stores transcripts under
-    //   ~/.claude/projects/-home-ben-Jarv1s-apps-worker/
+    //   ~/.claude/projects/-home-USER-Jarv1s-apps-worker/
     // The encoder previously stripped the leading dash, so the worker polled a
     // non-existent directory and always timed out waiting for the reply.
-    const dir = transcriptGlobDir("anthropic", "~/Jarv1s/apps/worker");
-    expect(dir.endsWith("/-home-ben-Jarv1s-apps-worker")).toBe(true);
+    // Uses an explicit homeBase so the expected path is deterministic (not tied
+    // to the running user's homedir).
+    const dir = transcriptGlobDir(
+      "anthropic",
+      "/home/operator/Jarv1s/apps/worker",
+      "/home/operator"
+    );
+    expect(dir.endsWith("/-home-operator-Jarv1s-apps-worker")).toBe(true);
     expect(dir).toContain("/.claude/projects/");
   });
 
   it("encodes dotted path segments with dashes (e.g. .claude worktrees)", () => {
-    const dir = transcriptGlobDir("anthropic", "~/Jarv1s/.claude/worktrees/x");
-    expect(dir.endsWith("/-home-ben-Jarv1s--claude-worktrees-x")).toBe(true);
+    const dir = transcriptGlobDir(
+      "anthropic",
+      "/home/operator/Jarv1s/.claude/worktrees/x",
+      "/home/operator"
+    );
+    expect(dir.endsWith("/-home-operator-Jarv1s--claude-worktrees-x")).toBe(true);
   });
 });
 
@@ -246,8 +256,10 @@ describe("transcriptGlobDir — homeBase override", () => {
   });
 
   it("defaults to the OS homedir when homeBase is omitted (unchanged behavior)", () => {
-    const dir = transcriptGlobDir("anthropic", "~/Jarv1s/apps/worker");
-    expect(dir).toContain("/.claude/projects/-home-ben-Jarv1s-apps-worker");
+    // Machine-agnostic: the encoded segment is derived from the cwd string verbatim
+    // (no ~ expansion), so assert the join shape without hardcoding a username.
+    const dir = transcriptGlobDir("anthropic", "/tmp/x");
+    expect(dir).toMatch(/[^/]+\/\.claude\/projects\/-tmp-x$/);
   });
 });
 

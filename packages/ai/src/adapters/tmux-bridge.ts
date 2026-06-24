@@ -99,7 +99,7 @@ export function transcriptGlobDir(
     case "anthropic": {
       // Claude Code encodes the project dir by replacing both "/" and "." with
       // "-", and KEEPS the leading "-" (an absolute path starts with "/").
-      // e.g. ~/Jarv1s/apps/worker -> -home-ben-Jarv1s-apps-worker
+      // e.g. ~/Jarv1s/apps/worker -> -home-USER-Jarv1s-apps-worker
       const encoded = cwd.replace(/[/.]/g, "-");
       return join(homeBase, ".claude", "projects", encoded);
     }

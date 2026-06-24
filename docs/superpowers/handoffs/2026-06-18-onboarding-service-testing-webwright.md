@@ -6,8 +6,8 @@
 - User wants a fresh session to Webwright-test the onboarding service testing flow.
 - Webwright is installed for Codex:
   - Codex plugin: `webwright@webwright`, installed and enabled.
-  - Skill cache: `~/Jarv1s/.codex/plugins/cache/webwright/webwright/0.1.0/skills/webwright/SKILL.md`
-  - Runtime command: `~/Jarv1s/.local/bin/webwright`
+  - Skill cache: `~/.codex/plugins/cache/webwright/webwright/0.1.0/skills/webwright/SKILL.md`
+  - Runtime command: `~/.local/bin/webwright`
   - `webwright doctor` from the Webwright checkout passes Python, Playwright, browser screenshot, and plugin manifest checks. It only fails `OPENAI_API_KEY`, which is expected for host-driven plugin mode.
 - API and web dev servers were running when this handoff was written:
   - API: `pnpm dev:api`, expected at `http://localhost:3000`
@@ -60,7 +60,7 @@ Codex provider-check pane/session did produce an `OK` in a recent Codex transcri
 
 Known recent Codex transcript with provider-check content:
 
-- `~/Jarv1s/.codex/sessions/2026/06/17/rollout-2026-06-17T21-58-01-019ed917-e22f-7893-889e-0f6b069bbf15.jsonl`
+- `~/.codex/sessions/2026/06/17/rollout-2026-06-17T21-58-01-019ed917-e22f-7893-889e-0f6b069bbf15.jsonl`
 
 Earlier inspected transcript showed:
 
@@ -70,11 +70,11 @@ Earlier inspected transcript showed:
 
 No recent Gemini JSONL was found where the parser expects it. Files seen under Gemini included:
 
-- `~/Jarv1s/.gemini/tmp/jarv1s-provider-check-s9iwyp/logs.json` with `[]`
-- `~/Jarv1s/.gemini/state.json`
-- `~/Jarv1s/.gemini/oauth_creds.json`
-- `~/Jarv1s/.gemini/projects.json`
-- `~/Jarv1s/.gemini/.project_root`
+- `~/.gemini/tmp/jarv1s-provider-check-s9iwyp/logs.json` with `[]`
+- `~/.gemini/state.json`
+- `~/.gemini/oauth_creds.json`
+- `~/.gemini/projects.json`
+- `~/.gemini/.project_root`
 
 This supports the hypothesis that Gemini is either stuck at a folder trust prompt, writing logs elsewhere, or not producing a transcript readable by the current parser.
 
@@ -108,8 +108,8 @@ For Codex:
 1. Inspect newest provider-check transcript and this session's transcript list:
 
    ```bash
-   ls -lt ~/Jarv1s/.codex/sessions/2026/06/17/*.jsonl | head -20
-   tail -n 80 ~/Jarv1s/.codex/sessions/2026/06/17/rollout-2026-06-17T21-58-01-019ed917-e22f-7893-889e-0f6b069bbf15.jsonl
+   ls -lt ~/.codex/sessions/2026/06/17/*.jsonl | head -20
+   tail -n 80 ~/.codex/sessions/2026/06/17/rollout-2026-06-17T21-58-01-019ed917-e22f-7893-889e-0f6b069bbf15.jsonl
    ```
 
 2. Confirm whether `CliChatEngineImpl.resolveTranscriptPath()` can distinguish the provider-check session from ordinary Codex sessions.
@@ -120,7 +120,7 @@ For Gemini:
 1. Inspect recursive Gemini tmp output:
 
    ```bash
-   find ~/Jarv1s/.gemini -maxdepth 6 -type f -printf '%T@ %p\n' | sort -nr | head -80
+   find ~/.gemini -maxdepth 6 -type f -printf '%T@ %p\n' | sort -nr | head -80
    ```
 
 2. Verify where Gemini writes the provider-check response, if anywhere.

@@ -6,7 +6,7 @@
 - **Date:** 2026-06-20 (v2)
 - **Owner:** #342 in-container CLI chat (overnight build, Ben-delegated approvals)
 - **GitHub:** #342 (epic #47, Phase 2)
-- **Grounded-on:** `origin/main` ff34061 (worktree `~/Jarv1s/jarvis-342-build`)
+- **Grounded-on:** `origin/main` ff34061 (worktree `~/jarvis-342-build`)
 - **Implements / reverses:** ADR 0008 (host-native CLI volumes → cli-runner sidecar). Plan: `docs/superpowers/plans/2026-06-20-in-container-cli-chat.md`.
 
 > **This document is FROZEN.** Four independent implementation lanes code against it with **no further

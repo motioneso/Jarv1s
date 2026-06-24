@@ -6,7 +6,7 @@ set -euo pipefail
 REPO_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 TIMESTAMP="$(date -u +%Y-%m-%dT%H-%M-%SZ)"
 ARCHIVE_DIR="${JARVIS_BACKUP_DIR:-$REPO_DIR/backups}"
-VAULT_DIR="${JARVIS_VAULT_DIR:-~/obsidian-vault}"
+VAULT_DIR="${JARVIS_VAULT_DIR:-$HOME/obsidian-vault}"
 DAILY_KEEP="${JARVIS_BACKUP_DAILY_KEEP:-7}"
 WEEKLY_KEEP="${JARVIS_BACKUP_WEEKLY_KEEP:-4}"
 OFFHOST_CMD="${JARVIS_BACKUP_OFFHOST_CMD:-}"

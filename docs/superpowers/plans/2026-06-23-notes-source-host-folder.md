@@ -82,7 +82,7 @@ The spec's _goal_ and _invariants_ stand. Three architectural decisions are reve
 
 **Why rejected:**
 
-1. The host path may not exist in-container (UID/home layout differs) — mirroring invites confusion when `~/Jarv1s` doesn't exist in the image.
+1. The host path may not exist in-container (UID/home layout differs) — mirroring invites confusion when `~` doesn't exist in the image.
 2. `install.sh` would need to propagate the raw host path into two places (compose `source:` and `JARVIS_NOTES_ROOTS`) with no derivation benefit.
 3. A fixed neutral target (`/data/external-notes`) matches the existing `/data/vaults` convention and is rotation-proof — the operator can re-point the host path without touching app config.
 4. The spec's planning session already chose this; no new information overturns it.

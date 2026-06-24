@@ -1,8 +1,7 @@
-# NOTE: `User=REPLACE_WITH_INSTALL_USER` and the `~/Jarv1s` paths follow the EXISTING repo
-# convention (`infra/systemd/jarv1s-backup.service` hardcodes the same) — this is a
-# single-operator household deploy (ADR 0007), not a portable distro package. An
-# operator on a different path/user edits these two lines (and the EnvironmentFile
-# path) at install time. The committed file IS the canonical install for this host.
+# NOTE: `User=REPLACE_WITH_INSTALL_USER` and the `~/Jarv1s` paths are PLACEHOLDERS
+# the installing operator MUST edit to match their system (user, repo path, and the
+# EnvironmentFile path) at install time. The committed file is a template, not a
+# portable distro package (ADR 0007 single-operator household deploy).
 [Unit]
 Description=Jarv1s production stack (docker compose)
 After=network-online.target docker.service

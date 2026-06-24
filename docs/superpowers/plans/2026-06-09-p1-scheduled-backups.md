@@ -587,16 +587,16 @@ journalctl -u jarv1s-backup.service -e
 | `JARVIS_BACKUP_WEEKLY_KEEP` | `4`                        | Weekly archives to keep (beyond daily window)                 |
 | `JARVIS_BACKUP_OFFHOST_CMD` | (empty = skip)             | Off-host copy command; `{}` is replaced with the archive path |
 
-## Off-host copy to Tailscale Windows host
+## Off-host copy to the off-host backup target
 
 Set `JARVIS_BACKUP_OFFHOST_CMD` in `infra/backup.env`:
 
 ```bash
-# Replace <user> and <remote-path> with your Windows SSH user and target directory
+# Replace <user> and <remote-path> with your off-host SSH user and target directory
 JARVIS_BACKUP_OFFHOST_CMD=rsync -az --progress {} <user>@<remote-host>:<remote-path>/
 ```
 
-The Windows box (<remote-host>) has OpenSSH configured. No credentials live in this repo — the
+The off-host backup box (`<remote-host>`) has OpenSSH configured. No credentials live in this repo — the
 SSH username and target path are operator-supplied at deploy time. Use `ssh-keyscan <remote-host>`
 to pre-populate `~/.ssh/known_hosts` if needed.
 
@@ -802,7 +802,7 @@ git status
 | systemd timer + service in `infra/systemd/`                    | Task 5                |
 | Daily 02:00 local, run as user `ben`                           | Task 5                |
 | Off-host push via `JARVIS_BACKUP_OFFHOST_CMD`                  | Task 2 + 4            |
-| rsync-over-SSH to Tailscale <remote-host> as documented default | Task 6                |
+| rsync-over-SSH to the off-host backup target `<remote-host>` as documented default | Task 6                |
 | No credentials in repo                                         | Task 1 (env template) |
 | Restore-test cadence documented                                | Task 6                |
 | `infra/backup.env` gitignored                                  | Task 1                |

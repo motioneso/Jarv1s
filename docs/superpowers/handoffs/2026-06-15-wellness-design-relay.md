@@ -25,7 +25,7 @@ without his OK (he reviews the look/design later — "functionality vs design pa
 - Build plan: `docs/superpowers/plans/2026-06-14-wellness-design-taxonomy-build.md`
 - **Codex-APPROVED plan:** `PLAN.md` (worktree root) — survived 3 plan-review rounds.
 - Codex plan-review transcript: `PLAN-REVIEW-LOG.md`
-- Design bundle (read-only reference): `~/Jarv1s/.claude/jobs/914af5c0/tmp/design/jarvis-design-system/project/ui_kits/jarvis-app/` (`Wellness.jsx`, `WellnessCheckin.jsx`, `WellnessCharts.jsx`, `wellness.css`, `wellness-data.js`)
+- Design bundle (read-only reference): `~/.claude/jobs/914af5c0/tmp/design/jarvis-design-system/project/ui_kits/jarvis-app/` (`Wellness.jsx`, `WellnessCheckin.jsx`, `WellnessCharts.jsx`, `wellness.css`, `wellness-data.js`)
 
 ## What's done (commits on the branch)
 
@@ -43,7 +43,7 @@ REAL exit code, never a wrapped one.
 
 ### 1. Remediate the Codex thermonuclear CODE review — `VERDICT: DO-NOT-MERGE`, `BLOCKERS: 3`
 
-Full critique captured at `~/Jarv1s/.claude/jobs/914af5c0/tmp/codex9-full.txt`. Ben approved doing
+Full critique captured at `~/.claude/jobs/914af5c0/tmp/codex9-full.txt`. Ben approved doing
 ALL findings (the 3 LOWs too) with the decisions below. Dispatch a Sonnet remediation agent in the
 primary worktree; then re-verify; then a 2nd Codex pass.
 

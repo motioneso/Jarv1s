@@ -1109,7 +1109,7 @@ Co-Authored-By: Claude <noreply@anthropic.com>"
 
 **D3** ports the `RadialDial` SVG picker from the design bundle into the real app, gated by a localStorage `radial` preference toggle.
 
-**Design reference:** `~/Jarv1s/.claude/jobs/914af5c0/tmp/design/jarvis-design-system/project/ui_kits/jarvis-app/WellnessCheckin.jsx` — `RadialDial` component (lines ~18–57).
+**Design reference:** `~/.claude/jobs/914af5c0/tmp/design/jarvis-design-system/project/ui_kits/jarvis-app/WellnessCheckin.jsx` — `RadialDial` component (lines ~18–57).
 
 **Files:**
 
