@@ -305,6 +305,8 @@ services:
       # Loopback MCP gateway URL the launched CLIs use as the bearer target
       # (reachable over the jarv1s network; the api service name resolves here).
       JARVIS_MCP_SERVER_URL: ${JARVIS_MCP_SERVER_URL:-http://api:3000/api/mcp}
+      JARVIS_EMBED_PROVIDER: ${JARVIS_EMBED_PROVIDER:-local}
+      JARVIS_EMBED_MODEL: ${JARVIS_EMBED_MODEL:-}
     restart: unless-stopped
     volumes:
       - jarv1s-cli-tools:/data/cli-tools
