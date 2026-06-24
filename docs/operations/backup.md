@@ -50,15 +50,15 @@ journalctl -u jarv1s-backup.service -e
 
 All variables are optional — the defaults work for a standard local deploy.
 
-| Variable                     | Default                    | Purpose                                       |
-| ---------------------------- | -------------------------- | --------------------------------------------- |
-| `JARVIS_BACKUP_PG_CONTAINER` | `jarv1s-postgres`          | Docker container name for pg_dump             |
-| `JARVIS_PGDATABASE`          | `jarv1s`                   | Database name to dump                         |
-| `JARVIS_BACKUP_DIR`          | `<repo>/backups`           | Archive destination directory                 |
+| Variable                     | Default            | Purpose                                       |
+| ---------------------------- | ------------------ | --------------------------------------------- |
+| `JARVIS_BACKUP_PG_CONTAINER` | `jarv1s-postgres`  | Docker container name for pg_dump             |
+| `JARVIS_PGDATABASE`          | `jarv1s`           | Database name to dump                         |
+| `JARVIS_BACKUP_DIR`          | `<repo>/backups`   | Archive destination directory                 |
 | `JARVIS_VAULT_DIR`           | `~/obsidian-vault` | Obsidian vault path                           |
-| `JARVIS_BACKUP_DAILY_KEEP`   | `7`                        | Number of daily archives to keep              |
-| `JARVIS_BACKUP_WEEKLY_KEEP`  | `4`                        | Weekly archives to keep (beyond daily window) |
-| `JARVIS_BACKUP_OFFHOST_CMD`  | (empty = skip)             | Off-host copy command; `{}` → archive path    |
+| `JARVIS_BACKUP_DAILY_KEEP`   | `7`                | Number of daily archives to keep              |
+| `JARVIS_BACKUP_WEEKLY_KEEP`  | `4`                | Weekly archives to keep (beyond daily window) |
+| `JARVIS_BACKUP_OFFHOST_CMD`  | (empty = skip)     | Off-host copy command; `{}` → archive path    |
 
 ## Off-host copy to a remote backup host
 

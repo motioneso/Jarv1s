@@ -574,18 +574,18 @@ journalctl -u jarv1s-backup.service -e
 
 ## Environment variables
 
-| Variable                    | Default                    | Purpose                                                       |
-| --------------------------- | -------------------------- | ------------------------------------------------------------- |
-| `PGPASSWORD`                | (required)                 | Postgres bootstrap password                                   |
-| `JARVIS_PGHOST`             | `localhost`                | Postgres host                                                 |
-| `JARVIS_PGPORT`             | `55433`                    | Postgres port                                                 |
-| `JARVIS_PGDATABASE`         | `jarv1s`                   | Database name                                                 |
-| `JARVIS_BACKUP_PG_USER`     | `postgres`                 | Postgres user                                                 |
-| `JARVIS_BACKUP_DIR`         | `<repo>/backups`           | Archive destination                                           |
+| Variable                    | Default            | Purpose                                                       |
+| --------------------------- | ------------------ | ------------------------------------------------------------- |
+| `PGPASSWORD`                | (required)         | Postgres bootstrap password                                   |
+| `JARVIS_PGHOST`             | `localhost`        | Postgres host                                                 |
+| `JARVIS_PGPORT`             | `55433`            | Postgres port                                                 |
+| `JARVIS_PGDATABASE`         | `jarv1s`           | Database name                                                 |
+| `JARVIS_BACKUP_PG_USER`     | `postgres`         | Postgres user                                                 |
+| `JARVIS_BACKUP_DIR`         | `<repo>/backups`   | Archive destination                                           |
 | `JARVIS_VAULT_DIR`          | `~/obsidian-vault` | Obsidian vault path                                           |
-| `JARVIS_BACKUP_DAILY_KEEP`  | `7`                        | Daily archives to keep                                        |
-| `JARVIS_BACKUP_WEEKLY_KEEP` | `4`                        | Weekly archives to keep (beyond daily window)                 |
-| `JARVIS_BACKUP_OFFHOST_CMD` | (empty = skip)             | Off-host copy command; `{}` is replaced with the archive path |
+| `JARVIS_BACKUP_DAILY_KEEP`  | `7`                | Daily archives to keep                                        |
+| `JARVIS_BACKUP_WEEKLY_KEEP` | `4`                | Weekly archives to keep (beyond daily window)                 |
+| `JARVIS_BACKUP_OFFHOST_CMD` | (empty = skip)     | Off-host copy command; `{}` is replaced with the archive path |
 
 ## Off-host copy to the off-host backup target
 
@@ -794,19 +794,19 @@ git status
 
 **Spec coverage:**
 
-| Spec requirement                                               | Task                  |
-| -------------------------------------------------------------- | --------------------- |
-| Shell wrapper script                                           | Task 2                |
-| Bundle pg_dump + vault into one tar.gz                         | Task 2                |
-| Retention 7 daily / 4 weekly (env-configurable)                | Task 2 + 3            |
-| systemd timer + service in `infra/systemd/`                    | Task 5                |
-| Daily 02:00 local, run as user `ben`                           | Task 5                |
-| Off-host push via `JARVIS_BACKUP_OFFHOST_CMD`                  | Task 2 + 4            |
+| Spec requirement                                                                   | Task                  |
+| ---------------------------------------------------------------------------------- | --------------------- |
+| Shell wrapper script                                                               | Task 2                |
+| Bundle pg_dump + vault into one tar.gz                                             | Task 2                |
+| Retention 7 daily / 4 weekly (env-configurable)                                    | Task 2 + 3            |
+| systemd timer + service in `infra/systemd/`                                        | Task 5                |
+| Daily 02:00 local, run as user `ben`                                               | Task 5                |
+| Off-host push via `JARVIS_BACKUP_OFFHOST_CMD`                                      | Task 2 + 4            |
 | rsync-over-SSH to the off-host backup target `<remote-host>` as documented default | Task 6                |
-| No credentials in repo                                         | Task 1 (env template) |
-| Restore-test cadence documented                                | Task 6                |
-| `infra/backup.env` gitignored                                  | Task 1                |
-| `infra/backup.env.example` committed                           | Task 1                |
-| `pnpm audit:release-hardening` still passes                    | Task 7                |
+| No credentials in repo                                                             | Task 1 (env template) |
+| Restore-test cadence documented                                                    | Task 6                |
+| `infra/backup.env` gitignored                                                      | Task 1                |
+| `infra/backup.env.example` committed                                               | Task 1                |
+| `pnpm audit:release-hardening` still passes                                        | Task 7                |
 
 **No gaps found.**

@@ -49,6 +49,7 @@ Observed on June 24, 2026 while enabling Codex in `~/JarvisProd`:
 ## Task 1: Ship Codex Runtime Prerequisites In The Image
 
 **Files:**
+
 - Modify: `Dockerfile`
 
 - [ ] **Step 1: Add OS packages required for Codex**
@@ -90,12 +91,13 @@ curl -fsS http://localhost:3000/health/ready
 Expected:
 
 ```json
-{"ok":true,"db":"ok","pgboss":"ok"}
+{ "ok": true, "db": "ok", "pgboss": "ok" }
 ```
 
 ## Task 2: Make Codex Login Use Device Auth
 
 **Files:**
+
 - Modify: `packages/cli-runner/src/login-adapters.ts`
 
 - [ ] **Step 1: Change the OpenAI-compatible login adapter**
@@ -119,11 +121,7 @@ Reason: `codex login` starts a localhost callback flow (`http://localhost:1455`)
 Add or update a test asserting:
 
 ```ts
-expect(LOGIN_ADAPTERS["openai-compatible"]?.loginArgv).toEqual([
-  "codex",
-  "login",
-  "--device-auth"
-]);
+expect(LOGIN_ADAPTERS["openai-compatible"]?.loginArgv).toEqual(["codex", "login", "--device-auth"]);
 ```
 
 Run the relevant cli-runner/login test file.
@@ -131,6 +129,7 @@ Run the relevant cli-runner/login test file.
 ## Task 3: Parse Codex Device-Auth Surface Correctly
 
 **Files:**
+
 - Modify: `packages/cli-runner/src/login-adapters.ts`
 - Test: login adapter parser tests
 
@@ -188,6 +187,7 @@ Also add a regression where `Starting` appears in output and is not returned as 
 ## Task 4: Pre-Seed Codex Trust For Jarv1s Neutral Chat Directories
 
 **Files:**
+
 - Modify: `packages/cli-runner/src/provider-first-run.ts`
 - Test: `packages/cli-runner/src/provider-first-run.test.ts` or equivalent
 
@@ -240,6 +240,7 @@ Expected: no `Do you trust the contents of this directory?` prompt appears.
 ## Task 5: Register Codex Models Automatically
 
 **Files:**
+
 - Modify: `packages/ai/src/auto-register.ts`
 - Test: AI auto-register tests
 
@@ -289,6 +290,7 @@ Add tests that:
 ## Task 6: Surface Install/Login/Ready State In The UI
 
 **Files:**
+
 - Inspect/modify: `apps/web/src/onboarding/provider-connect-machine.ts`
 - Inspect/modify: `apps/web/src/onboarding/cli-auth-step.tsx`
 - Inspect/modify: `apps/web/src/api/onboarding-connect-client.ts`
@@ -321,6 +323,7 @@ If device auth expires or login returns `error`, the UI should let the user rest
 ## Task 7: Render Chat Replies When SSE Is Unavailable
 
 **Files:**
+
 - Modify: `apps/web/src/chat/chat-drawer.tsx`
 - Test: existing web/unit tests or a new focused component/helper test
 
@@ -375,6 +378,7 @@ Expected: all pass.
 ## Task 8: Add Operational Verification Commands
 
 **Files:**
+
 - Modify: this plan or add a short runbook under `docs/operations/`
 
 - [ ] **Step 1: Codex install verification**
@@ -472,6 +476,7 @@ PR body should include:
 
 ```markdown
 ## Summary
+
 - make Codex install/login work through the product flow
 - add required runtime prerequisites for Codex/OpenAI HTTPS
 - pre-seed Codex trust for Jarv1s neutral chat dirs
@@ -479,6 +484,7 @@ PR body should include:
 - render chat replies from POST responses when SSE is unavailable
 
 ## Verification
+
 - pnpm typecheck
 - pnpm build:web
 - focused Vitest files for login adapter / provider first-run / AI model seeding
@@ -486,6 +492,7 @@ PR body should include:
 - docker run --rm jarv1s-api:codex-runtime-test sh -lc 'test -s /etc/ssl/certs/ca-certificates.crt && echo ca-certificates-present'
 
 ## Prod Notes
+
 - No prod secrets or env files are committed.
 - Codex auth remains an operator device-auth step, but it is launched and tracked by Jarv1s.
 ```

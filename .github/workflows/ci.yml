@@ -121,10 +121,10 @@ jobs:
           NODE_ENV=production
           POSTGRES_PASSWORD=postgres
           JARVIS_BOOTSTRAP_DATABASE_URL=postgres://postgres:postgres@postgres:5432/jarv1s
-          JARVIS_MIGRATION_DATABASE_URL=postgres://jarvis_migration_owner:migration_password@postgres:5432/jarv1s
-          JARVIS_APP_DATABASE_URL=postgres://jarvis_app_runtime:app_password@postgres:5432/jarv1s
-          JARVIS_AUTH_DATABASE_URL=postgres://jarvis_auth_runtime:auth_password@postgres:5432/jarv1s
-          JARVIS_WORKER_DATABASE_URL=postgres://jarvis_worker_runtime:worker_password@postgres:5432/jarv1s
+          JARVIS_MIGRATION_DATABASE_URL=postgres://jarvis_migration_owner:ci-migration-pw@postgres:5432/jarv1s
+          JARVIS_APP_DATABASE_URL=postgres://jarvis_app_runtime:ci-app-pw@postgres:5432/jarv1s
+          JARVIS_AUTH_DATABASE_URL=postgres://jarvis_auth_runtime:ci-auth-pw@postgres:5432/jarv1s
+          JARVIS_WORKER_DATABASE_URL=postgres://jarvis_worker_runtime:ci-worker-pw@postgres:5432/jarv1s
           BETTER_AUTH_SECRET=smoke-only-not-a-real-secret-0000000000
           JARVIS_CONNECTOR_SECRET_KEY=00000000000000000000000000000000
           JARVIS_AI_SECRET_KEY=11111111111111111111111111111111

@@ -15,6 +15,7 @@
 ## Task 1: Disable Codex MCP Tool Approval Elicitation
 
 **Files:**
+
 - Modify: `packages/chat/src/live/cli-chat-engine.ts`
 - Modify: `tests/unit/cli-chat-engine.test.ts`
 
@@ -30,7 +31,7 @@ if (opts.mcpToken && opts.mcpServerUrl) {
     `-c 'mcp_servers.jarvis.tool_timeout_sec=180'`,
     `-c 'features.shell_tool=false'`,
     `-c 'features.apply_patch_tool=false'`,
-    `-c 'features.tool_call_mcp_elicitation=false'`  // NEW
+    `-c 'features.tool_call_mcp_elicitation=false'` // NEW
   );
 }
 ```
@@ -38,6 +39,7 @@ if (opts.mcpToken && opts.mcpServerUrl) {
 - [ ] **Step 2: Update the codex launch test**
 
 Add assertion:
+
 ```ts
 expect(launchLine).toContain("tool_call_mcp_elicitation=false");
 ```
@@ -52,6 +54,7 @@ pnpm typecheck
 ## Task 2: Update the Persona to Enable Tool/Memory Usage
 
 **Files:**
+
 - Modify: `packages/chat/src/live/runtime.ts`
 - Modify: relevant tests if they assert persona text
 
@@ -97,6 +100,7 @@ Send a simple message ("Hello"). Verify reply appears in UI + persists to DB.
 - [ ] **Step 3: Test notes.search tool call**
 
 Send "What do you know about me? Search my notes." Verify:
+
 - Codex calls `notes.search` without showing an approval menu
 - The reply references actual note content
 - Both user + assistant rows persist
