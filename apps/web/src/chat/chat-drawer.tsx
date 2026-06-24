@@ -33,7 +33,8 @@ import "../styles/kit-chat.css";
  * Live chat drawer, styled to the Jarvis Design System (`chatd-*`). A global slide-out
  * panel mounted in the app shell. Sends user turns to POST /api/chat/turn; the SSE stream
  * (use-chat-stream, lifted to the shell) is the single source of truth for rendered
- * records, so Send only POSTs the turn — it does NOT append the POST response.
+ * records. Send also appends the POST reply as a fallback for browsers/environments where the
+ * EventSource stream is unavailable.
  *
  * Non-modal by design: no full-screen scrim, so the rest of the app (including nav) stays
  * interactive and the chat keeps following the user across pages.
@@ -62,6 +63,7 @@ export function ChatDrawer(props: {
 
   // Optimistic user record — shown immediately on send until the SSE stream confirms (#399).
   const [pendingUserText, setPendingUserText] = useState<string | null>(null);
+  const [fallbackRecords, setFallbackRecords] = useState<readonly TranscriptRecord[]>([]);
 
   // #399: clear the optimistic record once the SSE stream delivers the matching user record.
   // Text-based check handles the case where SSE events pre-arrive before send (count stays equal).
@@ -74,6 +76,18 @@ export function ChatDrawer(props: {
       setPendingUserText(null);
     }
   }, [props.records, pendingUserText]);
+
+  // If SSE is connected, remove any POST-response fallback once the stream delivers the same reply.
+  useEffect(() => {
+    setFallbackRecords((current) =>
+      current.filter(
+        (fallback) =>
+          !props.records.some(
+            (record) => record.kind === fallback.kind && record.text === fallback.text
+          )
+      )
+    );
+  }, [props.records]);
 
   // #369: derive chat availability from the SAME onboarding status #365 added. When no provider is
   // connected, the empty state shows the connect-a-provider explainer instead of the seed prompts.
@@ -113,7 +127,17 @@ export function ChatDrawer(props: {
     setPendingUserText(trimmed);
     void (async () => {
       try {
-        await sendChatTurn(trimmed);
+        const result = await sendChatTurn(trimmed);
+        setPendingUserText(null);
+        const postResponseRecords: readonly TranscriptRecord[] = [
+          { kind: "user", text: trimmed },
+          { kind: "reply", text: result.reply }
+        ];
+        setFallbackRecords((current) =>
+          [...current, ...postResponseRecords].filter(
+            (fallback) => !props.records.some((record) => sameTranscriptRecord(record, fallback))
+          )
+        );
         void queryClient.invalidateQueries({ queryKey: queryKeys.chat.threads });
       } catch (caught) {
         setPendingUserText(null);
@@ -135,6 +159,7 @@ export function ChatDrawer(props: {
     setSendError(null);
     setNeedsProvider(false);
     setPendingUserText(null);
+    setFallbackRecords([]);
     void clearChat();
     props.clearRecords();
     void queryClient.invalidateQueries({ queryKey: queryKeys.chat.threads });
@@ -147,6 +172,9 @@ export function ChatDrawer(props: {
   const selectedThread = (threadsQuery.data?.threads ?? []).find(
     (item) => item.id === reviewThreadId
   );
+  const visibleFallbackRecords = fallbackRecords.filter(
+    (fallback) => !displayRecords.some((record) => sameTranscriptRecord(record, fallback))
+  );
 
   // Merge the optimistic user record into the live feed (#399). Only applied in live mode —
   // history review uses the fetched messages directly.
@@ -154,7 +182,8 @@ export function ChatDrawer(props: {
     ? displayRecords
     : [
         ...displayRecords,
-        ...(pendingUserText ? [{ kind: "user" as const, text: pendingUserText }] : [])
+        ...(pendingUserText ? [{ kind: "user" as const, text: pendingUserText }] : []),
+        ...visibleFallbackRecords
       ];
 
   const isWaiting = !reviewing && (isSending || pendingUserText !== null);
@@ -370,6 +399,10 @@ function groupRecords(records: readonly TranscriptRecord[]): RenderItem[] {
   }
   flush();
   return items;
+}
+
+function sameTranscriptRecord(a: TranscriptRecord, b: TranscriptRecord): boolean {
+  return a.kind === b.kind && a.text === b.text;
 }
 
 function ActivityPeek(props: { readonly records: readonly TranscriptRecord[] }) {

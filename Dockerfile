@@ -49,9 +49,12 @@ ENV HF_HOME=/app/.cache/huggingface
 # there — no host tmux socket (ADR 0008 reversed by ADR 0010). The same image
 # runs api/worker/migrate (which don't use tmux) AND the cli-runner; bundling the
 # tmux server here keeps ONE image for every role. git is commonly required by the
-# provider CLIs. --no-install-recommends keeps the layer small.
+# provider CLIs. ca-certificates is REQUIRED for codex auth/model HTTPS calls
+# (without it codex login fails: `no native root CA certificates found`).
+# bubblewrap lets codex use its native sandbox instead of falling back to the
+# bundled helper. --no-install-recommends keeps the layer small.
 RUN apt-get update \
-  && apt-get install -y --no-install-recommends tmux git \
+  && apt-get install -y --no-install-recommends tmux git ca-certificates bubblewrap \
   && rm -rf /var/lib/apt/lists/*
 # cli-runner sidecar entrypoint (#342): sets the CLI-tooling env (NPM prefix on
 # the tools volume, PATH+=/data/cli-tools/bin, HOME on the auth/home volume) and
