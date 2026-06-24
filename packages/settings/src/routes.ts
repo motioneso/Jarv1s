@@ -802,7 +802,7 @@ export function registerSettingsRoutes(
 // The admin check happens INSIDE the route's withDataContext so the admin check and the
 // actual operation share one transaction. assertAdminUser/requireKnownUser take scopedDb
 // from that transaction — there is no nested withDataContext and no DB-holding helper.
-async function assertAdminUser(
+export async function assertAdminUser(
   repository: SettingsRepository,
   scopedDb: DataContextDb,
   userId: string
