@@ -46,6 +46,23 @@ This is the `start` skill's plan+build stages adapted for coordination mode.
 - Honor every CLAUDE.md **Hard Invariant**. Respect collision notes — **never assume a migration
   number**; the coordinator assigns landing order.
 
+**½. Verify the spec against the actual branch (before planning).**
+- Specs go stale. Related work lands between spec-authoring and your build, and the spec's premises
+  (line numbers, "X doesn't exist yet", "add Y") may no longer hold. **Verify before you plan — don't
+  inherit a stale spec.**
+- For each spec item, grep/read the cited files on YOUR branch and confirm the gap or state the spec
+  describes is still real. Specifically check:
+  - "X doesn't exist" claims → grep for X; confirm it's still absent.
+  - "Add Y" / "Change Z" claims → confirm Y is absent and Z is in the described state.
+  - Cited line numbers / function names → confirm they still match (or note the drift).
+- **If any spec item's premise has already shipped or drifted**, do NOT silently absorb it into your
+  plan. **Escalate to the coordinator** with: which items are already done / stale, what the current
+  branch state actually is, and your re-scoped plan reflecting reality. Let the coordinator confirm
+  the re-scope before you proceed. (Proven necessary: 2026-06-24, #456 — spec written against pre-`202c638b`
+  state, 3 of 5 items already shipped in intermediate commits; the build agent caught it by grounding
+  in the branch, saving a rework cycle. Make that standard, not luck.)
+- Only when every spec item's premise is verified current do you proceed to step 1 (plan).
+
 **1. Plan — then escalate for approval.**
 - **REQUIRED SUB-SKILL:** `superpowers:writing-plans` → `docs/superpowers/plans/YYYY-MM-DD-<slug>.md`
   (bite-sized TDD tasks, exact files, green per commit). Read the spec with fresh eyes; verify

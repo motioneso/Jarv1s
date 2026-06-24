@@ -16,7 +16,12 @@
 2. `pnpm install` — but **only if `node_modules` is missing** (`[ -d node_modules ] || pnpm install`).
    Worktrees share the pnpm store; a relay successor in an existing worktree skips this.
 3. Read the spec above IN FULL.
-4. Invoke the **`coordinated-build`** skill and follow it: write the plan → escalate it to the
+4. **Verify the spec against the actual branch BEFORE planning.** Specs go stale — related work
+   lands between spec-authoring and your build. For each spec item, grep/read the cited files on
+   YOUR branch and confirm the gap/state it describes is still real. If any item's premise has
+   already shipped or drifted, **escalate to the coordinator** with the drift + your re-scoped
+   plan before proceeding. Don't silently absorb stale premises into your plan.
+5. Invoke the **`coordinated-build`** skill and follow it: write the plan → escalate it to the
    coordinator for approval → on approval, build TDD/green → run the pre-push trio
    (`pnpm format:check && pnpm lint && pnpm typecheck`) + fresh rebase before every push → close out
    with **`coordinated-wrap-up`** (PR + report to the coordinator).
