@@ -14,12 +14,12 @@
 
 | Spec | Issue | Tier | Status | Agent label | Pane | Branch | PR |
 | ---- | ----- | ---- | ------ | ----------- | ---- | ------ | -- |
-| docs/superpowers/plans/2026-06-24-chat-stability-notes-memory.md (Task 1) | — | routine | building | glm · chat-mcp-flag | w1:pJ | chat-mcp-flag | — |
+| docs/superpowers/plans/2026-06-24-chat-stability-notes-memory.md (Task 1) | — | routine | pr-open (push-approved) | glm · chat-mcp-flag | w1:pJ | chat-mcp-flag | (pending push) |
 | docs/superpowers/plans/2026-06-24-chat-stability-notes-memory.md (Task 2) | — | routine | queued (serialized after Task 1) | — | — | chat-persona | — |
 | #453 | #453 | routine | building | gemini · embed-provider-cli-runner | w1:pK | embed-provider-cli-runner | — |
-| #452 | #452 | routine | building | glm · install-sh-posix | w1:pM | install-sh-posix | — |
-| #444 | #444 | sensitive | building | gemini · data-export-cleanup | w1:pN | data-export-cleanup | — |
-| #448 | #448 | routine | building | glm · web-search-key-observability | w1:pP | web-search-key-observability | — |
+| #452 | #452 | routine | pr-open | glm · install-sh-posix | w1:pM | install-sh-posix | #459 |
+| #444 | #444 | sensitive | pr-open | gemini · data-export-cleanup | w1:pN | data-export-cleanup | #462 |
+| #448 | #448 | routine | pr-open | glm · web-search-key-observability | w1:pP | web-search-key-observability | #461 |
 
 **Agents tab:** w1:tB (label "Agents"). 5-pane grid: w1:pJ, w1:pK, w1:pM, w1:pN, w1:pP.
 
@@ -59,7 +59,10 @@ Local-gate mode (see CI mode note above). `gh pr checks` is expected red on bill
 
 | Check | PR | Proven red on `main` @ SHA | Proof | Ben-approved |
 | ----- | -- | -------------------------- | ----- | ------------ |
-| (n/a — local-gate mode) | — | — | — | — |
+| `pnpm lint` (repo-wide) | all lanes | `202c638b` (origin/main) | `tests/unit/chat-live-manager.test.ts:92` 'NeverCompletingEngine' unused — coordinator ran `pnpm lint` against origin/main content; 1 error, 0 warnings. Not any lane's file. | y (2026-06-24, local-gate-mode standing approval) |
+| `pnpm format:check` (repo-wide) | all lanes | `202c638b` (origin/main) | warns on `docs/superpowers/plans/2026-06-24-prod-codex-provider-onboarding.md` + `docs/.../2026-06-24-chat-stability-notes-memory.md` + `CLAUDE.md` (coordinator edit) — none are any lane's code file. | y (2026-06-24, local-gate-mode standing approval) |
+
+**Push policy this run:** lanes push when their OWN lane-files pass format+lint+typecheck+vitest individually, even if repo-wide format/lint is red from pre-existing origin/main breakage (proven + recorded above). QA agents re-verify per-PR on the PR branch.
 
 ## Outstanding escalations
 
