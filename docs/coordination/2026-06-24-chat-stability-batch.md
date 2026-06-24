@@ -1,7 +1,7 @@
 # Coordination Run — 2026-06-24-chat-stability-batch
 
 **Date:** 2026-06-24
-**Coordinator lock:** label `Coordinator`. **SUCCESSOR: re-claim the label and record YOUR session id here as the new anchor.** The previous coordinator (session `ses_111f40556ffeVraVZu2X8ScJ`, pane `w1:p6`) is being reaped by you on relay — resolve it fresh by label+session before closing. Session id = authority; label = routing; pane number = ephemeral (reflows).
+**Coordinator lock:** label `Coordinator`, **session `ses_1044afa61ffemvRK5oLlUrMRU6`** (anchor, set by successor 2026-06-24 relay takeover), pane `w1:pV` (ephemeral). Session id = authority; label = routing; pane number = ephemeral (reflows). Predecessor coordinator (session `ses_111f40556ffeVraVZuie2X8ScJ` — note: manifest originally had a typo `VraVZu2X8`, corrected from live `herdr pane list` at reap time; matched by 20-char prefix `ses_111f40556ffeVra` + sole other Coordinator pane + tab w1:t5), pane `w1:p6`, was reaped by this successor after label+session verification.
 **Merge policy:** autonomous-after-verified-QA for `routine`/`sensitive`. `security`-tier (none this run) would need Ben's explicit sign-off.
 **Relay threshold:** security-tier merge → relay immediately; routine/sensitive `merges_since_relay` ≥ 2 → relay. Compaction summary → relay, merge nothing.
 **merges_since_relay:** 6 (wave 1 merged; relay triggered, in progress)
@@ -77,7 +77,7 @@ Local-gate mode (see CI mode note above). `gh pr checks` is expected red on bill
 ## Reaped sessions
 
 - 7 wave-1 panes reaped 2026-06-24: w1:pK, w1:pM, w1:pP (build), w1:pQ, w1:pR, w1:pS, w1:pT (QA).
-- Old coordinator (session `ses_111f40556ffeVraVZu2X8ScJ`) — successor reaps on relay.
+- Old coordinator (session `ses_111f40556ffeVraVZuie2X8ScJ`, pane `w1:p6`) — **reaped 2026-06-24 by successor** after label+session verification. Successor = `ses_1044afa61ffemvRK5oLlUrMRU6` (pane `w1:pV`).
 
 ## Notes for successor / relay
 
