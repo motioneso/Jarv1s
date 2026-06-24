@@ -244,6 +244,7 @@ describe("CliChatEngineImpl — Codex launch", () => {
     expect(launchLine).toContain("apply_patch_tool=false");
     expect(launchLine).toContain("sandbox read-only");
     expect(launchLine).toContain("-a never");
+    expect(launchLine).toContain('approval_policy="never"');
     expect(launchLine).not.toContain("web_search");
     expect(launchLine).not.toContain("browser");
     expect(launchLine).not.toContain("browse");
