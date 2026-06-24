@@ -12,15 +12,23 @@
 
 ## MID-DOING (continuation note for successor)
 
-**Run is at image-bump readiness. All 8 PRs (wave 1 + wave 2) merged to `main`.** Relay fired on merge counter (8 routine/sensitive since last clean relay). Successor: do NOT merge anything — relay policy is no-deferral once triggered. Only remaining work is coordinator-owned bookkeeping + the Task 3 decision gate with Ben.
+**Phase: PII scrub + public flip + CI repair + Task 3 prep (in progress).**
+
+All 8 chat-stability PRs merged. Follow-up #467 filed. Repo went public. PII scrub complete (3 filter-repo passes: mailmap + replace-text + replace-message). CI re-enabled. The original chat-stability work is DONE — this section now tracks the Task 3 deploy pipeline.
+
+**Current state (2nd successor coordinator, session `ses_104452c25ffeDI451qhvdfOm4Z`):**
+- Repo is PUBLIC + PII-scrubbed (verified by Codex PII-Audit: SAFE-FOR-PUBLIC).
+- CI billing unblocked. CI is GREEN except 6 pre-existing e2e failures.
+- CI fixes already merged: NeverCompletingEngine lint, prod-compose-smoke RPC_SECRET + dev-default password guard, format:check on scrubbed docs, file-size exemption for cli-chat-engine.test.ts.
+- **E2E-Fix build agent spawned** (Codex, pane w1:p13, worktree `fix/e2e-ci-fixes`) to fix the 6 failing e2e tests. Handoff: `docs/superpowers/handoffs/2026-06-24-e2e-ci-fixes.md`. Routine tier.
+- **Next after E2E-Fix merges:** tag `v0.1.15` → CI `publish` job builds multi-arch + pushes GHCR → bump `JARVIS_IMAGE_TAG` in `~/JarvisProd` → `docker compose up -d` → e2e verify chat + notes.search.
 
 **Immediate next actions for successor:**
-1. Re-claim `Coordinator` label on your pane; record your session id as the new anchor in the lock line above (session id = authority; pane number ephemeral).
-2. Reap the old coordinator (session `ses_1044afa61ffemvRK5oLlUrMRU6`, pane `w1:pV` — resolve fresh by label+session, do NOT trust the pane number).
-3. Verify run state: all wave-1 + wave-2 PRs merged (see tables below). No lanes in flight. Both wave-2 QA panes (w1:pN, w1:pJ) already reaped.
-4. **Decision gate — ask Ben:** (a) more work to ride this image bump, or (b) time for Task 3 (tag + multi-arch build + push GHCR + bump env tag + `docker compose up -d` + e2e verify) per `docs/superpowers/plans/2026-06-24-chat-stability-notes-memory.md`. Task 3 is coordinator-owned.
-5. File the follow-up issue: scheduled vault-cleanup sweep (pg-boss cron) for data-export #444 (mirrors `notes/src/schedule.ts`). Routine tier. Outstanding escalation below.
-6. After Task 3 lands: save durable memory (see Notes section).
+1. Check E2E-Fix agent status (pane w1:p13 by label `E2E-Fix`). If done, QA + merge its PR.
+2. After e2e green on main: tag `v0.1.15`, watch CI `publish` job, confirm GHCR images pushed.
+3. Deploy to prod (`~/JarvisProd`): bump tag, `docker compose up -d`, e2e verify per plan Task 3 steps 2-4.
+4. Save durable memory (see Notes section).
+5. Close out: update this manifest, file any follow-up issues for the e2e test splits / CI debt.
 
 ## Wave 1 — COMPLETE (all 6 merged)
 
