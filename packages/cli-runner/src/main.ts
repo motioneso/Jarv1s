@@ -30,6 +30,8 @@ export interface CliRunnerConfig {
   readonly socketPath: string;
   readonly rpcSecret: string | undefined;
   readonly singleUser: boolean;
+  /** #347 per-user UID isolation (`JARVIS_CLI_PER_USER_UID`); default OFF — see EngineHostDeps. */
+  readonly perUserUid: boolean;
   readonly neutralBase: string;
   readonly homeBase: string;
   /** Tools-volume prefix the installer stages/promotes into (`NPM_CONFIG_PREFIX`, §7.1). */
@@ -50,6 +52,10 @@ export function readConfig(env: NodeJS.ProcessEnv = process.env): CliRunnerConfi
     // #347: default OFF now that per-user UID isolation is in place. Set "1" to
     // re-enable the single-active-user restriction as an operator escape hatch.
     singleUser: env.JARVIS_CLI_RUNNER_SINGLE_USER === "1",
+    // #347: default OFF — the CLI runs as the cli-runner's own (host operator) UID, the proven
+    // pre-#347 topology. Set "1" ONLY with a root container + the completed file-permission model
+    // (parallel proper-fix track); ON without root fails every launch (setuid EPERM).
+    perUserUid: env.JARVIS_CLI_PER_USER_UID === "1",
     neutralBase: env.JARVIS_CLI_NEUTRAL_BASE ?? DEFAULT_NEUTRAL_BASE,
     homeBase,
     toolsPrefix: env.JARVIS_CLI_TOOLS_PREFIX ?? env.NPM_CONFIG_PREFIX ?? DEFAULT_TOOLS_PREFIX
@@ -133,6 +139,7 @@ export function createCliRunner(
     neutralBase: config.neutralBase,
     homeBase: config.homeBase,
     singleUser: config.singleUser,
+    perUserUid: config.perUserUid,
     installService,
     loginService,
     // Presence-only PATH probe INSIDE cli-runner (the tools volume is on PATH, §7.1).
