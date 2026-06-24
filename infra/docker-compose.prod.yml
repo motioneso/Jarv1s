@@ -75,6 +75,8 @@ services:
       JARVIS_HOST_GID: "${JARVIS_HOST_GID:-1000}"
       JARVIS_MULTIPLEXER: tmux
       JARVIS_MCP_SERVER_URL: ${JARVIS_MCP_SERVER_URL:-http://127.0.0.1:3000/api/mcp}
+      JARVIS_EMBED_PROVIDER: ${JARVIS_EMBED_PROVIDER:-local}
+      JARVIS_EMBED_MODEL: ${JARVIS_EMBED_MODEL:-}
     restart: unless-stopped
     healthcheck:
       test:
