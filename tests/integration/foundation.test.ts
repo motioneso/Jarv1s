@@ -240,6 +240,14 @@ describe("MVP foundation scaffold", () => {
         {
           version: "0109",
           name: "0109_instance_settings_delete_grant.sql"
+        },
+        {
+          version: "0110",
+          name: "0110_memory_links_worker_write.sql"
+        },
+        {
+          version: "0111",
+          name: "0111_preferences_worker_write.sql"
         }
       ]);
     } finally {
