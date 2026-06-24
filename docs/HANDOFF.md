@@ -311,7 +311,7 @@ First full manual test of the running web UI. Four bugs were found and fixed:
   failure. Changed to `onSuccess`. Also added visible error text ("Sign out failed — retry?") with
   the error message in the button's `title` attribute. `apps/web/src/shell/app-shell.tsx`
 - Better Auth's trusted-origins CSRF check blocked sign-out (but not sign-in) when accessing via a
-  non-localhost origin (e.g. Tailscale IP `<tailscale-ip>`). Fixed by adding an `Origin` header
+  non-localhost origin (e.g. a Tailscale IP). Fixed by adding an `Origin` header
   rewrite in the Vite proxy so all `/api` requests appear to come from `http://localhost:3000`.
   `apps/web/src/vite.config.ts`
 

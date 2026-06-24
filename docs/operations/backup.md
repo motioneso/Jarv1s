@@ -60,7 +60,7 @@ All variables are optional — the defaults work for a standard local deploy.
 | `JARVIS_BACKUP_WEEKLY_KEEP`  | `4`                        | Weekly archives to keep (beyond daily window) |
 | `JARVIS_BACKUP_OFFHOST_CMD`  | (empty = skip)             | Off-host copy command; `{}` → archive path    |
 
-## Off-host copy to Tailscale Windows host
+## Off-host copy to a remote backup host
 
 Set `JARVIS_BACKUP_OFFHOST_CMD` in `infra/backup.env`:
 

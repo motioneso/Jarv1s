@@ -113,7 +113,7 @@ Both thresholds are configurable via environment variables (`JARVIS_BACKUP_DAILY
 
 ## Resolved Decisions (was open)
 
-### 1. Off-host copy destination → rsync over SSH to the Tailscale Windows host
+### 1. Off-host copy destination → rsync over SSH to the remote backup host
 
 Off-host copy goes via **rsync over SSH to the off-host backup target `<remote-host>`** (the operator's off-host backup box,
 which already has OpenSSH configured). The destination stays **pluggable**: the script reads

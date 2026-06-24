@@ -16,4 +16,4 @@ linked doc **in full** and follow it.
 
 ## Documentation Standards
 
-- Always use `~/Jarv1s` instead of absolute paths (like `~/Jarv1s`) in all documentation, specs, and handoff files to prevent exposing local usernames and system architecture.
+- Always use `~/Jarv1s` instead of absolute paths (like `/home/<user>/Jarv1s`) in all documentation, specs, and handoff files to prevent exposing local usernames and system architecture.
