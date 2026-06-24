@@ -55,6 +55,18 @@ export interface EngineHostDeps {
   readonly homeBase?: string;
   /** §4.1.0a single-active-user gate ON (default) / OFF (`JARVIS_CLI_RUNNER_SINGLE_USER`). */
   readonly singleUser: boolean;
+  /**
+   * #347 per-user UID isolation (`JARVIS_CLI_PER_USER_UID`). ON ⇒ every session's CLI
+   * subprocess is setuid'd to a per-user allocated UID (100000+slot); this REQUIRES the
+   * cli-runner container to run as root (the fork point needs CAP_SETUID). OFF (default) ⇒
+   * the CLI runs as the cli-runner's OWN process UID (the host operator uid that owns the
+   * auth/neutral volumes) — the proven pre-#347 single-identity topology. OFF is the
+   * supported default until the per-user-UID file-permission model is completed + tested;
+   * turning it ON without a root container fails every launch (setuid EPERM). See the
+   * parallel proper-fix track. Optional: absent ⇒ OFF (the safe default), so callers that
+   * never opt in (every current caller) get the proven single-identity topology for free.
+   */
+  readonly perUserUid?: boolean;
   /** Presence-only PATH probe for `probeProvider` (§4.8). */
   readonly cliPresent: (provider: ProviderKind) => Promise<boolean>;
   /** Optional multiplexer-usable check surfaced by `probeProvider` (§4.8 / §9.1). */
@@ -146,7 +158,13 @@ export class CliChatEngineHost {
       // final tmp→rename is). Done before reservations.add so a slot-allocation failure leaves no
       // orphan reservation. Falls back to the shared root io when homeBase is absent (test /
       // in-process host scenarios).
-      if (this.deps.homeBase) {
+      //
+      // Gated on `perUserUid` (default OFF): when off, `sessionIo` stays as `this.deps.io`, so the
+      // CLI runs as the cli-runner's own process UID (the host operator uid that owns the auth +
+      // neutral volumes) — no setuid, no foreign-uid spawn into a uid-1000-owned dir. The per-user
+      // setuid path requires a root container AND the (in-progress) file-permission model; see the
+      // `perUserUid` doc on EngineHostDeps.
+      if (this.deps.perUserUid && this.deps.homeBase) {
         const slot = allocateUidSlot(this.deps.homeBase, key);
         const neutralDirForMigration = deriveNeutralDir(this.deps.neutralBase, key);
         migrateNeutralDir(neutralDirForMigration, slot.uid, slot.gid);
