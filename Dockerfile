@@ -51,7 +51,7 @@ ENV HF_HOME=/app/.cache/huggingface
 # tmux server here keeps ONE image for every role. git is commonly required by the
 # provider CLIs. --no-install-recommends keeps the layer small.
 RUN apt-get update \
-  && apt-get install -y --no-install-recommends tmux git \
+  && apt-get install -y --no-install-recommends tmux git ca-certificates \
   && rm -rf /var/lib/apt/lists/*
 # cli-runner sidecar entrypoint (#342): sets the CLI-tooling env (NPM prefix on
 # the tools volume, PATH+=/data/cli-tools/bin, HOME on the auth/home volume) and
