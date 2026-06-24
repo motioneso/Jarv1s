@@ -8,6 +8,7 @@ export { NotesPathError, assertWithinRoot } from "./path-guard.js";
 export {
   NOTES_QUEUE_DEFINITIONS,
   handleNotesSyncJob,
+  handleNotesSyncJobWithDataContext,
   registerNotesJobWorkers,
   writeNotesLastSync,
   type NotesLastSync,
