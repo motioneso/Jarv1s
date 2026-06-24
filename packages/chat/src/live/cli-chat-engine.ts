@@ -145,6 +145,15 @@ export class CliChatEngineImpl implements CliChatEngine {
   /** The cwd used to launch the CLI; Codex records it in session_meta.cwd. */
   private neutralDir: string | null = null;
 
+  /**
+   * Epoch ms captured at launch() for Codex/Gemini transcript resolution. Their CLIs name their
+   * own transcript files (`rollout-…`), resolved lazily by newest-cwd-match. Without this guard
+   * the resolver can cache a STALE transcript from a prior session in the same neutral dir (the
+   * new file doesn't exist yet at first readNew), causing every turn to time out while the engine
+   * polls a file that never receives the new `task_complete`.
+   */
+  private launchEpoch = 0;
+
   /** Per-session Codex MCP token env file, removed on kill / failed launch. */
   private codexTokenEnvPath: string | null = null;
 
@@ -182,6 +191,7 @@ export class CliChatEngineImpl implements CliChatEngine {
     // lazily in readNew() (newest .jsonl under the glob dir).
     const sessionId = randomUUID();
     this.neutralDir = opts.neutralDir;
+    this.launchEpoch = Date.now();
 
     // ── PRE-mux-create setup (persona + per-provider secret files) ──────────────
     // Any failure here is a PRE-mux-create failure: no mux session exists yet, so
@@ -400,9 +410,14 @@ export class CliChatEngineImpl implements CliChatEngine {
       } catch {
         continue;
       }
-      if (codexTranscriptMatchesCwd(jsonl, this.neutralDir ?? "")) {
-        return candidate;
-      }
+      if (!codexTranscriptMatchesCwd(jsonl, this.neutralDir ?? "")) continue;
+      // Reject stale transcripts from a prior session in the same neutral dir.
+      // Without this guard the resolver caches an old file (the new session's
+      // file doesn't exist yet at first readNew) and every turn times out while
+      // the engine polls a file that never receives the new task_complete.
+      const ts = codexTranscriptSessionTimestamp(jsonl);
+      if (ts !== null && ts < this.launchEpoch - 5_000) continue;
+      return candidate;
     }
     return undefined;
   }
@@ -900,6 +915,31 @@ function codexTranscriptMatchesCwd(jsonl: string, expectedCwd: string): boolean 
     return payload["cwd"] === expectedCwd;
   }
   return false;
+}
+
+/**
+ * Extract the `session_meta.payload.timestamp` (ISO 8601) from a Codex transcript as epoch ms.
+ * Returns null when no `session_meta` line is present in the first 50 lines (or it's unparseable).
+ * Used by {@link CliChatEngineImpl.findCodexTranscriptForCwd} to reject stale transcripts.
+ */
+function codexTranscriptSessionTimestamp(jsonl: string): number | null {
+  for (const line of jsonl.split("\n").slice(0, 50)) {
+    if (!line.trim()) continue;
+    let record: Record<string, unknown>;
+    try {
+      record = JSON.parse(line) as Record<string, unknown>;
+    } catch {
+      continue;
+    }
+    if (record["type"] !== "session_meta") continue;
+    const payload = record["payload"];
+    if (!isRecord(payload)) continue;
+    const ts = payload["timestamp"];
+    if (typeof ts !== "string") continue;
+    const epoch = Date.parse(ts);
+    return Number.isNaN(epoch) ? null : epoch;
+  }
+  return null;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
