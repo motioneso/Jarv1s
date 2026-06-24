@@ -24,6 +24,7 @@ Handoff §Collision notes: **"No migrations, no schema. Do NOT add a migration."
 `ChatMessageStatus = "stored" | "pending" | "blocked" | "no_model" | "working" | "error"` (packages/db/src/types.ts:175). No "stopped" value. Adding one = migration = forbidden.
 
 **Proposed resolution (my recommendation, needs coordinator sign-off):**
+
 - On Stop: `kill()` the engine, release the turn-in-flight lock, emit a `status` transcript record `{kind:"status", text:"Stopped by user."}` over SSE (surfaces in the UI via the existing `ActivityPeek`/`RecordRow` path — `status` is already a rendered kind).
 - Do NOT persist the partial assistant reply (the model was mid-generation; a partial reply is not a complete turn). The user message is also not persisted (the turn never completed — matches the existing semantics where `recordTurn` only runs after `complete`).
 - Rationale: avoids schema change, matches spec intent ("stopped by user" surfaces to the user via SSE), and a stopped turn leaving no DB trace is defensible (it produced no usable reply). If the coordinator prefers persisting the user message with `error` status + "stopped by user" body, that's also viable without a migration — flag it.
@@ -33,15 +34,18 @@ Handoff §Collision notes: **"No migrations, no schema. Do NOT add a migration."
 ### Task A — Idle watchdog in ChatSessionManager (spec item 1)
 
 **Files:**
+
 - `packages/chat/src/live/chat-session-manager.ts` (modify `runTurn`)
 - `tests/unit/chat-session-manager.test.ts` (add watchdog tests)
 
 **Changes:**
+
 1. Add `idleWatchdogMs` to `ChatSessionManagerDeps` (default 180000; env `JARVIS_CHAT_IDLE_WATCHDOG_MS` resolved by the composition root, NOT this module — manager stays env-free per existing pattern). Resolve in constructor.
 2. In `runTurn`'s poll loop: track `lastEmissionAt = clock.now()`. Reset on every iteration where `records.length > 0`. After each `readNew` (and before the `pollMs` sleep), check `clock.now() - lastEmissionAt > idleWatchdogMs` → if true, break the loop and emit an accurate `status` record: `{kind:"status", text:"No response from the model for N seconds — ending turn."}` (N = idleWatchdogMs/1000, rounded). Do NOT call `recordTurn` for a watchdog trip (no reply was produced).
 3. The watchdog uses the injected `clock` (testable, no `Date.now()` directly).
 
 **Tests (add, TDD — write first, watch fail, then implement):**
+
 - `resets the idle deadline whenever readNew yields new records (long actively-producing turn does NOT trip watchdog)` — engine emits records across several polls spanning >idleWatchdogMs of wall time; turn completes normally.
 - `trips the idle watchdog after a silent window and emits an accurate status record (no TIMEOUT_MESSAGE)` — engine emits nothing for >idleWatchdogMs; loop breaks, status record emitted with "No response from the model" text, `recordTurn` NOT called.
 
@@ -50,6 +54,7 @@ Handoff §Collision notes: **"No migrations, no schema. Do NOT add a migration."
 ### Task B — Activity-aware RPC deadline (spec item 2)
 
 **Files:**
+
 - `packages/chat/src/live/chat-engine-rpc-client.ts` (modify `call()` / add activity hook)
 - `tests/unit/chat-rpc-client.test.ts` (add activity-reset test)
 
@@ -57,12 +62,14 @@ Handoff §Collision notes: **"No migrations, no schema. Do NOT add a migration."
 The per-call deadline (`callTimeoutMs`, :386-396) is set once when the frame is written. To make it activity-aware, the deadline must reset when the engine observes new transcript records. The cleanest seam: a callback the manager invokes on activity that resets the pending call's timer.
 
 **Design:**
+
 - Add optional `onActivity?: () => void` reset hook to `RpcConnection`'s pending-call machinery: when set, calling it clears + re-arms the timer (same `timeoutMs`).
 - Expose a method on `ChatEngineRpcClient` (or pass through `readNew`) so the manager can signal "activity observed" for the in-flight `readNew`. However — the activity signal is "new records returned", which the manager ALREADY sees from `readNew`'s return value. The reset is most natural INSIDE the client: `readNew` returns records → if records non-empty, the NEXT `readNew` call is a fresh call with its own fresh deadline (already true). The gap is a SINGLE `readNew` that blocks long.
 - **Revised approach (simpler, matches spec intent):** The deadline already resets per-call. The "activity-aware" requirement is that a turn consisting of many short `readNew` calls (each <45s) never trips the deadline — which is ALREADY the behavior. The real fix is at the MANAGER layer (Task A's watchdog replaces the wall-clock cap). The RPC deadline stays as-is: it remains a liveness guard for a single wedged verb, not a turn-duration cap.
 - **BUT the spec explicitly says "the deadline resets on engine activity (new transcript records)"** and "the reset hooks the same signal as item 1". So implement it: add a `resetActivityDeadline(sessionKey)` method on `RpcConnection` that re-arms the timer for any in-flight turn verb of that sessionKey. The manager calls it from `runTurn` whenever `records.length > 0`.
 
 **Tests:**
+
 - `a readNew that would trip the 45s deadline does NOT trip it when activity is signaled before the deadline` — server delays response past deadline, but client signals activity mid-window → deadline resets → call eventually resolves.
 
 **Commit:** `fix(chat): make RPC turn-verb deadline activity-aware (#456)`
@@ -70,12 +77,14 @@ The per-call deadline (`callTimeoutMs`, :386-396) is set once when the frame is 
 ### Task C — Stop button: manager method + cancel route (spec item 4, backend)
 
 **Files:**
+
 - `packages/chat/src/live/chat-session-manager.ts` (add `stopTurn(actorUserId)`)
 - `packages/chat/src/live-routes.ts` (add `POST /api/chat/turn/cancel`)
 - `tests/unit/chat-session-manager.test.ts` (stopTurn tests)
 - `tests/unit/chat-live-routes.test.ts` or new test (cancel route — check exists first)
 
 **Changes (manager):**
+
 1. Add `stopTurn(actorUserId: string): Promise<void>`:
    - If no turn in flight for user: no-op (idempotent — user may click after turn ended).
    - If turn in flight: call `session.engine.kill()`, emit `{kind:"status", text:"Stopped by user."}` to subscribers, release the turn-in-flight lock. The in-flight `runTurn`'s `readNew` will reject (engine killed) → its try/finally clears the lock; `stopTurn` must coordinate so it doesn't double-clear. Use an `AbortSignal`-style flag the `runTurn` loop checks: a `stopped` flag on `UserSession` that the loop reads after each `readNew`; if set, break without emitting error.
@@ -83,9 +92,11 @@ The per-call deadline (`callTimeoutMs`, :386-396) is set once when the frame is 
 2. Thread an `AbortController` per turn: `runTurn` creates one, stores it on the session; `stopTurn` calls `.abort()`; the poll loop checks `signal.aborted` after each `readNew` and breaks cleanly.
 
 **Changes (route):**
+
 - `POST /api/chat/turn/cancel` (no body) → `runtime.manager.stopTurn(access.actorUserId)` → 200 `{ok:true}`. Same rate-limit key/rate as `/clear`. Idempotent (200 even if nothing in flight).
 
 **Tests:**
+
 - `stopTurn kills the engine, emits a 'stopped by user' status record, releases the turn lock, does not persist a partial reply`
 - `stopTurn is idempotent (no-op when no turn in flight)`
 - `a stopped turn's runTurn loop exits cleanly without throwing`
@@ -96,10 +107,12 @@ The per-call deadline (`callTimeoutMs`, :386-396) is set once when the frame is 
 ### Task D — Stop button: web UI (spec item 4, frontend)
 
 **Files:**
+
 - `apps/web/src/api/client.ts` (add `cancelChatTurn()`)
 - `apps/web/src/chat/chat-drawer.tsx` (render Stop button while `isSending`)
 
 **Changes:**
+
 1. `cancelChatTurn()`: `POST /api/chat/turn/cancel` → `{ok:boolean}`.
 2. In `ChatDrawer`: while `isWaiting`/`isSending`, render a Stop button (Square icon from lucide) next to / replacing the loading indicator. On click: call `cancelChatTurn()`; the SSE stream delivers the `status:"Stopped by user."` record; `isSending` clears when the POST `/turn` promise settles (the killed turn rejects/resolve via the manager).
 3. The Stop button must not show during history review (`reviewing`) or when not sending.
