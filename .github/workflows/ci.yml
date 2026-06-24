@@ -138,14 +138,16 @@ jobs:
           # (infra/), so this is infra-relative — NOT ./infra/... (which would become
           # infra/infra/... and fail). Codex deploy-code R1 #1.
           JARVIS_ENV_FILE: ./env.production.local
-          # POSTGRES_PASSWORD is a Compose INTERPOLATION var (env_file does not feed
-          # it); the prod Compose now requires it (`:?`), so set it in the shell env.
+          # POSTGRES_PASSWORD + JARVIS_CLI_RUNNER_RPC_SECRET are Compose INTERPOLATION
+          # vars (env_file does not feed them); the prod Compose requires them (`:?`),
+          # so set them in the shell env.
           POSTGRES_PASSWORD: postgres
+          JARVIS_CLI_RUNNER_RPC_SECRET: ci-smoke-only-not-real
         run: |
           pnpm smoke:compose:prod
       - name: Stop prod compose stack
         if: always()
-        run: JARVIS_IMAGE_TAG=ci-${{ github.run_id }} JARVIS_ENV_FILE=./env.production.local POSTGRES_PASSWORD=postgres docker compose -f infra/docker-compose.prod.yml down -v
+        run: JARVIS_IMAGE_TAG=ci-${{ github.run_id }} JARVIS_ENV_FILE=./env.production.local POSTGRES_PASSWORD=postgres JARVIS_CLI_RUNNER_RPC_SECRET=ci-smoke-only-not-real docker compose -f infra/docker-compose.prod.yml down -v
 
   publish:
     name: Build and publish images

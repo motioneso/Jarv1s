@@ -84,40 +84,6 @@ class FakeEngine implements CliChatEngine {
   }
 }
 
-/**
- * Fake engine whose readNew ALWAYS reports not-complete (and yields a partial,
- * empty reply) — simulates a CLI that never finishes, so the manager's poll loop
- * must hit its cap and surface a timeout.
- */
-class NeverCompletingEngine implements CliChatEngine {
-  killed = false;
-  readonly submitted: string[] = [];
-
-  constructor(
-    public readonly provider: ProviderKind,
-    public readonly sessionKey: string
-  ) {}
-
-  async launch(): Promise<{ offset: number }> {
-    return { offset: 0 };
-  }
-  async submit(text: string): Promise<void> {
-    this.submitted.push(text);
-  }
-  async readNew(
-    afterOffset: number
-  ): Promise<{ records: TranscriptRecord[]; offset: number; complete: boolean }> {
-    // Never complete, never emit a reply record.
-    return { records: [], offset: afterOffset, complete: false };
-  }
-  async isAlive(): Promise<boolean> {
-    return !this.killed;
-  }
-  async kill(): Promise<void> {
-    this.killed = true;
-  }
-}
-
 /** An engine that completes after `pollsBeforeReply` readNew calls. */
 class SlowEngine implements CliChatEngine {
   killed = false;
