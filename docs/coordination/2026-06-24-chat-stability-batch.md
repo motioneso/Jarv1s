@@ -14,12 +14,14 @@
 
 | Spec | Issue | Tier | Status | Agent label | Pane | Branch | PR |
 | ---- | ----- | ---- | ------ | ----------- | ---- | ------ | -- |
-| docs/superpowers/plans/2026-06-24-chat-stability-notes-memory.md (Task 1) | — | routine | queued | — | — | chat-mcp-flag | — |
+| docs/superpowers/plans/2026-06-24-chat-stability-notes-memory.md (Task 1) | — | routine | building | glm · chat-mcp-flag | w1:pJ | chat-mcp-flag | — |
 | docs/superpowers/plans/2026-06-24-chat-stability-notes-memory.md (Task 2) | — | routine | queued (serialized after Task 1) | — | — | chat-persona | — |
-| #453 | #453 | routine | queued | — | — | embed-provider-cli-runner | — |
-| #452 | #452 | routine | queued | — | — | install-sh-posix | — |
-| #444 | #444 | sensitive | queued | — | — | data-export-cleanup | — |
-| #448 | #448 | routine | queued | — | — | web-search-key-observability | — |
+| #453 | #453 | routine | building | gemini · embed-provider-cli-runner | w1:pK | embed-provider-cli-runner | — |
+| #452 | #452 | routine | building | glm · install-sh-posix | w1:pM | install-sh-posix | — |
+| #444 | #444 | sensitive | building | gemini · data-export-cleanup | w1:pN | data-export-cleanup | — |
+| #448 | #448 | routine | building | glm · web-search-key-observability | w1:pP | web-search-key-observability | — |
+
+**Agents tab:** w1:tB (label "Agents"). 5-pane grid: w1:pJ, w1:pK, w1:pM, w1:pN, w1:pP.
 
 Risk tier (content triggers):
 - Task 1: routine — one feature-flag string in codex launch args.
