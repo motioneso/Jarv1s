@@ -592,6 +592,11 @@ export async function sendChatTurn(text: string): Promise<{ reply: string }> {
   });
 }
 
+/** #456 — stop the in-flight turn. Idempotent (200 even when no turn is in flight). */
+export async function cancelChatTurn(): Promise<void> {
+  await requestJson<unknown>("/api/chat/turn/cancel", { method: "POST" });
+}
+
 export async function clearChat(options?: { incognito?: boolean }): Promise<void> {
   const url = options?.incognito ? "/api/chat/clear?incognito=true" : "/api/chat/clear";
   await requestJson<unknown>(url, { method: "POST" });
