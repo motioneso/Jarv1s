@@ -109,4 +109,78 @@ describe("Data export", () => {
       permissionId: "settings.view"
     });
   });
+
+  it("Finding 2: completedJob sets completed_at = now() and distinct from expires_at", async () => {
+    const repository = new (
+      await import("../../packages/settings/src/data-export-repository.js")
+    ).DataExportRepository();
+    const dataContext = new DataContextRunner(appDb);
+    await dataContext.withDataContext(
+      { actorUserId: ids.userA, requestId: "req:test" },
+      async (scopedDb) => {
+        const job = await repository.createJob(scopedDb, ids.userA);
+
+        const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
+        const completedAt = new Date(Date.now() - 10000); // artificially old completedAt
+
+        await repository.completeJob(scopedDb, job.id, completedAt, expiresAt);
+
+        const finishedJob = await repository.getJobById(scopedDb, job.id);
+        expect(finishedJob?.status).toBe("ready");
+        expect(finishedJob?.completed_at).toBeDefined();
+        expect(finishedJob?.expires_at).toBeDefined();
+        // completed_at shouldn't equal expires_at
+        expect(finishedJob?.completed_at?.getTime()).not.toBe(finishedJob?.expires_at?.getTime());
+        expect(finishedJob?.completed_at?.getTime()).toBe(completedAt.getTime());
+      }
+    );
+  });
+
+  it("Finding 3: initial status update throw marks job failed instead of stuck pending", async () => {
+    const { handleExportBuildJob } =
+      await import("../../packages/settings/src/data-export-jobs.js");
+    const dataContext = new DataContextRunner(appDb);
+    await dataContext.withDataContext(
+      { actorUserId: ids.userA, requestId: "req:test" },
+      async (scopedDb) => {
+        const repository = new (
+          await import("../../packages/settings/src/data-export-repository.js")
+        ).DataExportRepository();
+        const jobRecord = await repository.createJob(scopedDb, ids.userA);
+
+        // We will force updateJobStatus to throw by replacing it temporarily
+        const originalUpdate = repository.updateJobStatus;
+        let throwOccurred = false;
+        repository.updateJobStatus = async () => {
+          throwOccurred = true;
+          throw new Error("Forced updateJobStatus failure");
+        };
+
+        // We also need to intercept the creation of repository inside handleExportBuildJob
+        // Wait, handleExportBuildJob creates its OWN repository: const repository = new DataExportRepository();
+        // We can't easily mock it without jest.mock or vi.spyOn
+        // Instead, let's spy on DataExportRepository.prototype.updateJobStatus
+        const vi = (await import("vitest")).vi;
+        const spy = vi
+          .spyOn(
+            (await import("../../packages/settings/src/data-export-repository.js"))
+              .DataExportRepository.prototype,
+            "updateJobStatus"
+          )
+          .mockRejectedValueOnce(new Error("Forced failure"));
+
+        const jobPayload = {
+          data: { actorUserId: ids.userA, jobId: jobRecord.id, kind: "export.build" as const }
+        };
+
+        await handleExportBuildJob(jobPayload as any, scopedDb);
+
+        const updatedJob = await repository.getJobById(scopedDb, jobRecord.id);
+        expect(updatedJob?.status).toBe("failed");
+        expect(updatedJob?.error_message).toContain("Forced failure");
+
+        spy.mockRestore();
+      }
+    );
+  });
 });
