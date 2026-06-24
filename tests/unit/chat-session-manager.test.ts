@@ -687,3 +687,115 @@ describe("ChatSessionManager.runTurn idle watchdog (#456 Task A)", () => {
     ).not.toHaveBeenCalled();
   });
 });
+
+describe("ChatSessionManager.stopTurn — user-driven Stop (#456 Task C)", () => {
+  /** Engine whose readNew blocks on a gate until the test releases it (models an in-flight turn
+   *  the user interrupts mid-stream). */
+  class GatedEngine {
+    readonly provider = "anthropic" as const;
+    launchOpts: EngineLaunchOpts | null = null;
+    readonly submitted: string[] = [];
+    killed = false;
+    private gate = new Promise<void>(() => {}); // never resolves by default
+    private resolveGate: () => void = () => {};
+    constructor() {
+      this.gate = new Promise((r) => {
+        this.resolveGate = r;
+      });
+    }
+    async launch(opts: EngineLaunchOpts): Promise<{ offset: number }> {
+      this.launchOpts = opts;
+      return { offset: 0 };
+    }
+    async submit(text: string): Promise<void> {
+      this.submitted.push(text);
+    }
+    async readNew(
+      afterOffset: number
+    ): Promise<{ records: TranscriptRecord[]; offset: number; complete: boolean }> {
+      // Block until the test releases the gate (kill resolves it). A killed engine rejects its
+      // in-flight readNew (the real RPC path throws CliChatUnavailableError when the socket dies).
+      await this.gate;
+      if (this.killed) {
+        throw new Error("engine killed");
+      }
+      return {
+        records: [{ kind: "reply", text: "should-not-persist" }],
+        offset: afterOffset + 10,
+        complete: true
+      };
+    }
+    async isAlive(): Promise<boolean> {
+      return !this.killed;
+    }
+    async kill(): Promise<void> {
+      this.killed = true;
+      // Killing the engine unblocks the pending readNew (the real RPC path would reject).
+      this.resolveGate();
+    }
+  }
+
+  function stopDeps(engine: GatedEngine) {
+    return makeMinimalDeps({
+      engineFactory: () => engine,
+      pollMs: 0,
+      persistence: {
+        resolveActiveProvider: vi
+          .fn()
+          .mockResolvedValue({ provider: "anthropic", model: "sonnet" }),
+        listPriorTurns: vi.fn().mockResolvedValue({ recent: [], oldSummary: null }),
+        recordTurn: vi.fn().mockResolvedValue(undefined),
+        openNewConversation: vi.fn().mockResolvedValue(undefined)
+      }
+    });
+  }
+
+  it("stopTurn kills the engine, emits a 'Stopped by user.' status record, releases the turn lock, does not persist", async () => {
+    const engine = new GatedEngine();
+    const manager = new ChatSessionManager(stopDeps(engine));
+
+    const received: TranscriptRecord[] = [];
+    manager.subscribe("u1", (r) => received.push(r));
+
+    // Start a turn; it blocks in readNew (gate unresolved).
+    const turnPromise = manager.submitTurn("u1", "Ben", "long running question");
+
+    // Give the turn a tick to reach the blocked readNew.
+    await new Promise((r) => setImmediate(r));
+
+    // User clicks Stop.
+    await manager.stopTurn("u1");
+
+    // The turn resolves (the killed engine unblocked the gate; the stop signal broke the loop).
+    const { reply } = await turnPromise;
+    expect(reply).toBe(""); // no partial reply persisted
+
+    // The 'Stopped by user.' status record was emitted over SSE.
+    const stopStatus = received.find((r) => r.kind === "status" && r.text === "Stopped by user.");
+    expect(stopStatus).toBeDefined();
+
+    // The engine was killed.
+    expect(engine.killed).toBe(true);
+
+    // recordTurn was NOT called (turn never completed — coordinator ruling (a): persist nothing).
+    expect(
+      (manager as unknown as { deps: { persistence: { recordTurn: ReturnType<typeof vi.fn> } } })
+        .deps.persistence.recordTurn
+    ).not.toHaveBeenCalled();
+
+    // The turn-in-flight lock is released: a new turn can start without a 409. The new turn will
+    // fail on the killed engine, but it must NOT be the ChatTurnInFlightError (lock released).
+    const second = await manager.submitTurn("u1", "Ben", "next").catch((e: unknown) => e);
+    expect(second).not.toBeInstanceOf(ChatTurnInFlightError);
+  });
+
+  it("stopTurn is idempotent (no-op when no turn in flight)", async () => {
+    const manager = new ChatSessionManager(stopDeps(new GatedEngine()));
+    const received: TranscriptRecord[] = [];
+    manager.subscribe("u1", (r) => received.push(r));
+
+    // No turn in flight — must not throw, must not emit anything.
+    await expect(manager.stopTurn("u1")).resolves.toBeUndefined();
+    expect(received).toHaveLength(0);
+  });
+});

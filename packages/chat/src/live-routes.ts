@@ -12,6 +12,7 @@
  * are never returned to the client.
  *
  *   POST /api/chat/turn    { text }  → { reply }   submit one user turn
+ *   POST /api/chat/turn/cancel      → 200          stop the in-flight turn (#456)
  *   POST /api/chat/clear             → 204         reset history + new conversation
  *   POST /api/chat/switch            → 200         re-launch on the now-active provider
  *   GET  /api/chat/stream            → SSE         live transcript records for the actor
@@ -139,6 +140,34 @@ export function registerChatLiveRoutes(
         const userName = await runtime.resolveUserName(access.actorUserId);
         await runtime.manager.switchProvider(access.actorUserId, userName);
 
+        return reply.code(200).send({ ok: true });
+      } catch (error) {
+        return handleLiveRouteError(error, reply);
+      }
+    }
+  );
+
+  // #456 — user-driven Stop. Ends an in-flight turn cleanly (kill engine, release turn lock,
+  // emit a 'Stopped by user.' status record over SSE). Idempotent: 200 even when no turn is in
+  // flight. Payload carries no content (session is implied by the authenticated actor); honors
+  // the metadata-only invariant (no user content crosses this boundary).
+  server.post(
+    "/api/chat/turn/cancel",
+    {
+      config: {
+        rateLimit: {
+          max: CHAT_MUTATION_MAX,
+          timeWindow: "1 minute",
+          keyGenerator: sessionRateLimitKey
+        }
+      }
+    },
+    async (request, reply) => {
+      const access = await resolveOr401(dependencies, request, reply);
+      if (!access) return reply;
+
+      try {
+        await runtime.manager.stopTurn(access.actorUserId);
         return reply.code(200).send({ ok: true });
       } catch (error) {
         return handleLiveRouteError(error, reply);
