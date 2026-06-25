@@ -2,8 +2,8 @@
 # ===========================================================================
 # Jarv1s publish-images.sh — multi-arch publish to GHCR.
 #
-# Builds + pushes linux/amd64,linux/arm64 images for the api (app) and web
-# (static) images so an operator on any OS can `docker compose pull`. This is a
+# Builds + pushes linux/amd64,linux/arm64 images so an operator on any OS can
+# `docker compose pull`. This is a
 # MAINTAINER release tool (not operator-facing) — run from the repo root on a
 # host with Docker buildx and a GHCR PAT.
 #
@@ -23,17 +23,15 @@
 set -eu
 
 OWNER="motioneso"
-API_IMAGE="ghcr.io/${OWNER}/jarv1s-api"
-WEB_IMAGE="ghcr.io/${OWNER}/jarv1s-web"
+IMAGE="ghcr.io/${OWNER}/jarv1s"
 PLATFORMS="linux/amd64,linux/arm64"
 
 log()  { printf '\n\033[1m>> %s\033[0m\n' "$*"; }
 note() { printf '   %s\n' "$*"; }
 die()  { printf '\033[31m   x %s\033[0m\n' "$*" >&2; exit 1; }
 
-# Must run from the repo root (Dockerfile + apps/web/Dockerfile are relative).
-[ -f "./Dockerfile" ] && [ -f "./apps/web/Dockerfile" ] \
-  || die "run from the repo root (Dockerfile + apps/web/Dockerfile must be present)."
+# Must run from the repo root.
+[ -f "./Dockerfile" ] || die "run from the repo root (Dockerfile must be present)."
 
 # --- prereqs ---------------------------------------------------------------
 docker buildx version >/dev/null 2>&1 \
@@ -61,25 +59,15 @@ fi
 note "publishing tag: ${TAG}  platforms: ${PLATFORMS}"
 
 # --- build + push ----------------------------------------------------------
-log "Build + push ${API_IMAGE}:${TAG} (and :latest)"
+log "Build + push ${IMAGE}:${TAG} (and :latest)"
 docker buildx build \
   --platform "${PLATFORMS}" \
-  --tag "${API_IMAGE}:${TAG}" \
-  --tag "${API_IMAGE}:latest" \
+  --tag "${IMAGE}:${TAG}" \
+  --tag "${IMAGE}:latest" \
   --push \
   -f ./Dockerfile . \
-  || die "api image build/push failed."
-
-log "Build + push ${WEB_IMAGE}:${TAG} (and :latest)"
-docker buildx build \
-  --platform "${PLATFORMS}" \
-  --tag "${WEB_IMAGE}:${TAG}" \
-  --tag "${WEB_IMAGE}:latest" \
-  --push \
-  -f ./apps/web/Dockerfile . \
-  || die "web image build/push failed."
+  || die "jarv1s image build/push failed."
 
 log "Published"
-note "  ${API_IMAGE}:${TAG}  (+ :latest)"
-note "  ${WEB_IMAGE}:${TAG}  (+ :latest)"
+note "  ${IMAGE}:${TAG}  (+ :latest)"
 note "Operators now deploy with:  JARVIS_IMAGE_TAG=${TAG} ./install.sh"

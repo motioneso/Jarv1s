@@ -27,9 +27,9 @@ services:
     depends_on:
       - postgres
     ports:
-      - "5173:5173"
+      - "1533:3000"
     environment:
-      JARVIS_BASE_URL: http://localhost:5173
+      JARVIS_BASE_URL: http://localhost:1533
 
       # Change this before first start. Use a long random value.
       JARVIS_SECRET: replace-this-jarv1s-secret
@@ -63,9 +63,7 @@ docker compose pull
 docker compose up -d
 ```
 
-Open `http://localhost:5173`.
-
-> Packaging note: the current alpha images are still split across multiple services while the runtime is being consolidated. The template above is the intended simplified deployment contract.
+Open `http://localhost:1533`.
 
 ## What Runs
 

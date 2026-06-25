@@ -53,16 +53,16 @@ const cliRunnerRpcSecret = randomBytes(32).toString("hex");
 
 // --- Host-specifics (LOCALHOST defaults; override via the setup container env). -
 const apiPort = process.env.JARVIS_API_PORT ?? "3000";
-const webPort = process.env.JARVIS_WEB_PORT ?? "5173";
-// The api's OWN base URL. localhost is correct in-container: the web nginx proxies /api to the
-// api over the compose network, so the api never needs the public host here. (#379 is about the
-// trusted-ORIGINS list below, which better-auth checks against the request's Origin header.)
+const webPort = process.env.JARVIS_WEB_PORT ?? "1533";
+// JARVIS_AUTH_BASE_URL is the API process's own in-container URL. Browser origins
+// belong in JARVIS_AUTH_TRUSTED_ORIGINS below and are derived from JARVIS_WEB_PORT
+// plus JARVIS_PUBLIC_ORIGIN unless explicitly overridden.
 const authBaseUrl = process.env.JARVIS_AUTH_BASE_URL ?? "http://localhost:3000";
 // #379: build the better-auth trusted-origins list. localhost:<webPort> always (on-box /
 // port-forward reach), PLUS the host public origin install.sh detected/was-overridden with
 // (JARVIS_PUBLIC_ORIGIN) so signup works from the real LAN/tailnet/domain URL — the setup
 // container can't see the host LAN IP itself. An explicit JARVIS_AUTH_TRUSTED_ORIGINS override
-// still wins verbatim. A non-default JARVIS_WEB_PORT is honored (never falls back to :5173).
+// still wins verbatim. A non-default JARVIS_WEB_PORT is honored (never falls back to :1533).
 const authTrustedOrigins = deriveTrustedOrigins({
   webPort,
   publicOrigin: process.env.JARVIS_PUBLIC_ORIGIN,
@@ -113,7 +113,7 @@ const content = [
   "",
   "NODE_ENV=production",
   "",
-  "# Public service URLs and host bindings (localhost defaults).",
+  "# Public service URL and host bindings (localhost defaults).",
   `JARVIS_API_PORT=${apiPort}`,
   `JARVIS_WEB_PORT=${webPort}`,
   `JARVIS_DOCKER_SUBNET=${dockerSubnet}`,
@@ -153,10 +153,10 @@ const content = [
   "# Containerized multiplexer = tmux only (the cli-runner forks its own server).",
   "JARVIS_MULTIPLEXER=tmux",
   "",
-  "# cli-runner RPC (#342). The socket selects the in-container CLI-chat path on the",
-  "# api; the secret authenticates the api to the cli-runner over the socket auth",
-  "# hello (known ONLY to api + cli-runner; never reaches a launched CLI). The gate",
-  "# flag keeps the cli-runner single-active-user until UID-separation (issue #347).",
+  "# cli-runner RPC (#342). The socket selects the in-container CLI-chat path; the",
+  "# secret authenticates API calls to the cli-runner over the socket auth hello",
+  "# (never reaches a launched CLI). The gate keeps cli-runner single-active-user",
+  "# until UID-separation (issue #347).",
   "JARVIS_CLI_RUNNER_SOCKET=/run/jarv1s/cli-runner.sock",
   `JARVIS_CLI_RUNNER_RPC_SECRET=${cliRunnerRpcSecret}`,
   "JARVIS_CLI_RUNNER_SINGLE_USER=1",

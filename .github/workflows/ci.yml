@@ -147,7 +147,7 @@ jobs:
           pnpm smoke:compose:prod
       - name: Stop prod compose stack
         if: always()
-        run: JARVIS_IMAGE_TAG=ci-${{ github.run_id }} JARVIS_ENV_FILE=./env.production.local POSTGRES_PASSWORD=postgres JARVIS_CLI_RUNNER_RPC_SECRET=ci-smoke-only-not-real docker compose -f infra/docker-compose.prod.yml down -v
+        run: JARVIS_IMAGE_TAG=ci-${{ github.run_id }} JARVIS_ENV_FILE=./env.production.local POSTGRES_PASSWORD=postgres JARVIS_CLI_RUNNER_RPC_SECRET=ci-smoke-only-not-real docker compose -p jarv1s-prod-smoke -f infra/docker-compose.prod.yml down -v
 
   publish:
     name: Build and publish images
@@ -178,37 +178,23 @@ jobs:
         run: |
           if [[ "${GITHUB_REF}" == refs/tags/v* ]]; then
             VERSION="${GITHUB_REF#refs/tags/}"
-            echo "api_tags=ghcr.io/motioneso/jarv1s-api:${VERSION}" >> "$GITHUB_OUTPUT"
-            echo "web_tags=ghcr.io/motioneso/jarv1s-web:${VERSION}" >> "$GITHUB_OUTPUT"
+            echo "image_tags=ghcr.io/motioneso/jarv1s:${VERSION}" >> "$GITHUB_OUTPUT"
             echo "push=true" >> "$GITHUB_OUTPUT"
           elif [[ "${GITHUB_REF}" == refs/heads/main ]]; then
-            echo "api_tags=ghcr.io/motioneso/jarv1s-api:edge" >> "$GITHUB_OUTPUT"
-            echo "web_tags=ghcr.io/motioneso/jarv1s-web:edge" >> "$GITHUB_OUTPUT"
+            echo "image_tags=ghcr.io/motioneso/jarv1s:edge" >> "$GITHUB_OUTPUT"
             echo "push=true" >> "$GITHUB_OUTPUT"
           else
-            echo "api_tags=ghcr.io/motioneso/jarv1s-api:pr-${{ github.run_id }}" >> "$GITHUB_OUTPUT"
-            echo "web_tags=ghcr.io/motioneso/jarv1s-web:pr-${{ github.run_id }}" >> "$GITHUB_OUTPUT"
+            echo "image_tags=ghcr.io/motioneso/jarv1s:pr-${{ github.run_id }}" >> "$GITHUB_OUTPUT"
             echo "push=false" >> "$GITHUB_OUTPUT"
           fi
 
-      - name: Build (and push on tag/main) app image
+      - name: Build (and push on tag/main) Jarv1s image
         uses: docker/build-push-action@v6
         with:
           context: .
           file: ./Dockerfile
           platforms: linux/amd64,linux/arm64
           push: ${{ steps.tags.outputs.push == 'true' }}
-          tags: ${{ steps.tags.outputs.api_tags }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-
-      - name: Build (and push on tag/main) web image
-        uses: docker/build-push-action@v6
-        with:
-          context: .
-          file: ./apps/web/Dockerfile
-          platforms: linux/amd64,linux/arm64
-          push: ${{ steps.tags.outputs.push == 'true' }}
-          tags: ${{ steps.tags.outputs.web_tags }}
+          tags: ${{ steps.tags.outputs.image_tags }}
           cache-from: type=gha
           cache-to: type=gha,mode=max

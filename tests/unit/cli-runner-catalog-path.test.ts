@@ -103,8 +103,4 @@ describe("cli-runner boot has no importable side effect (#342 sidecar double-run
     expect(src).toMatch(/main\(\)\s*\.catch/);
   });
 
-  it("the container entrypoint boots main-entry.ts (not main.ts)", () => {
-    const sh = read("infra/cli-runner-entrypoint.sh");
-    expect(sh).toMatch(/JARVIS_CLI_RUNNER_ENTRY:-packages\/cli-runner\/src\/main-entry\.ts/);
-  });
 });

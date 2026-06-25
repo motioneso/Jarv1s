@@ -32,24 +32,16 @@ describe("prod deploy config — host CLI bridge removed for in-container CLI ch
     }
   });
 
-  it("the cli-runner sidecar + private RPC socket volume replace the host bridge", () => {
-    // The replacement topology: a cli-runner service, the private RPC socket on a shared
-    // volume mounted only in api + cli-runner, plus the cli-tools/cli-auth volumes.
-    expect(composeProd).toMatch(/^\s+cli-runner:/m);
-    expect(composeProd).toContain("jarv1s-cli-socket:/run/jarv1s");
-    expect(composeProd).toContain("jarv1s-cli-auth:/data/cli-auth");
+  it("runs cli-runner through the single jarv1s service while keeping RPC config", () => {
+    expect(composeProd).toMatch(/^\s+jarv1s:/m);
+    expect(composeProd).not.toMatch(/^\s+api:/m);
+    expect(composeProd).not.toMatch(/^\s+worker:/m);
+    expect(composeProd).not.toMatch(/^\s+web:/m);
+    expect(composeProd).not.toMatch(/^\s+cli-runner:/m);
     expect(composeProd).toContain("JARVIS_CLI_RUNNER_SOCKET");
-  });
-
-  it("the cli-runner entrypoint's default JARVIS_CLI_RUNNER_ENTRY resolves to a file that EXISTS", () => {
-    // Guards the cross-lane entry-path bug class: the entrypoint must default to the real
-    // server entry (packages/cli-runner/src/main.ts), not a non-existent path that would
-    // ENOENT-crash-loop the sidecar under restart:unless-stopped. read() throws if missing.
-    const entrypoint = read("infra/cli-runner-entrypoint.sh");
-    const m = entrypoint.match(/JARVIS_CLI_RUNNER_ENTRY:-([^}"'\s]+)/);
-    const entryRel = m?.[1] ?? "";
-    expect(entryRel, "entrypoint must define a JARVIS_CLI_RUNNER_ENTRY default").not.toBe("");
-    expect(() => read(entryRel)).not.toThrow();
+    expect(composeProd).toContain("JARVIS_CLI_RUNNER_RPC_SECRET");
+    expect(composeProd).toContain("jarv1s-cli-auth:/data/cli-auth");
+    expect(composeProd).toContain("jarv1s-cli-tools:/data/cli-tools");
   });
 });
 

@@ -1,5 +1,7 @@
 import { spawn } from "node:child_process";
-import { resolve } from "node:path";
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 export interface ComposeSmokePlanInput {
@@ -22,44 +24,43 @@ export interface ComposeSmokePlan {
 
 export function createComposeSmokePlan(input: ComposeSmokePlanInput = {}): ComposeSmokePlan {
   const composeFile = input.composeFile ?? "infra/docker-compose.yml";
-  const apiPort = input.apiPort ?? process.env.JARVIS_API_PORT ?? "3000";
-  const composeArgs = ["compose", "-f", composeFile];
+  const isProd = composeFile === "infra/docker-compose.prod.yml";
+  const publicPort = isProd
+    ? process.env.JARVIS_WEB_PORT ?? "1533"
+    : input.apiPort ?? process.env.JARVIS_API_PORT ?? "3000";
+  const composeArgs = isProd
+    ? ["compose", "-p", "jarv1s-prod-smoke", "-f", composeFile]
+    : ["compose", "-f", composeFile];
 
-  // The prod compose has only `image:` refs (no `build:`), so `docker compose build`
-  // would be a no-op. Build the two Dockerfiles DIRECTLY and tag them to the exact
-  // GHCR refs the prod compose resolves (ghcr.io/motioneso/jarv1s-{api,web}:$TAG),
-  // so the smoke proves the published topology with no registry round-trip and no
-  // manual `docker tag` step (Codex R1: smoke-build contradiction).
   const imageTag = process.env.JARVIS_IMAGE_TAG ?? "smoke";
   const buildCommands: ComposeSmokeCommand[] = input.build
     ? [
         {
           command: "docker",
-          args: [
-            "build",
-            "-t",
-            `ghcr.io/motioneso/jarv1s-api:${imageTag}`,
-            "-f",
-            "Dockerfile",
-            "."
-          ],
-          description:
-            "Build the app (api/worker/migrate) image locally and tag it to the prod GHCR ref"
-        },
-        {
-          command: "docker",
-          args: [
-            "build",
-            "-t",
-            `ghcr.io/motioneso/jarv1s-web:${imageTag}`,
-            "-f",
-            "apps/web/Dockerfile",
-            "."
-          ],
-          description: "Build the static-web image locally and tag it to the prod GHCR ref"
+          args: ["build", "-t", `ghcr.io/motioneso/jarv1s:${imageTag}`, "-f", "Dockerfile", "."],
+          description: "Build the Jarv1s image locally and tag it to the prod GHCR ref"
         }
       ]
     : [];
+
+  const migrateCommand: ComposeSmokeCommand | undefined = isProd
+    ? undefined
+    : {
+        command: "docker",
+        args: [...composeArgs, "run", "--rm", "migrate"],
+        description: "Run database migrations"
+      };
+  const upCommand: ComposeSmokeCommand = isProd
+    ? {
+        command: "docker",
+        args: [...composeArgs, "up", "-d", "postgres", "jarv1s", "--wait"],
+        description: "Start Postgres and Jarv1s services"
+      }
+    : {
+        command: "docker",
+        args: [...composeArgs, "up", "-d", "api", "web", "worker", "--wait"],
+        description: "Start API, web, and worker services"
+      };
 
   return {
     // Use the readiness probe, not the liveness `/health`. `/health` returns
@@ -68,7 +69,7 @@ export function createComposeSmokePlan(input: ComposeSmokePlanInput = {}): Compo
     // could still pass against a server with a broken DB connection. `/health/ready`
     // runs `SELECT 1` and checks pg-boss, returning `{ ok, db, pgboss }` with a 503
     // until both are up, which is the post-migration invariant we want to assert (#171).
-    healthUrl: `http://localhost:${apiPort}/health/ready`,
+    healthUrl: `http://localhost:${publicPort}/health/ready`,
     commands: [
       ...buildCommands,
       {
@@ -81,16 +82,8 @@ export function createComposeSmokePlan(input: ComposeSmokePlanInput = {}): Compo
         args: [...composeArgs, "up", "-d", "postgres", "--wait"],
         description: "Start Postgres and wait for readiness"
       },
-      {
-        command: "docker",
-        args: [...composeArgs, "run", "--rm", "migrate"],
-        description: "Run database migrations"
-      },
-      {
-        command: "docker",
-        args: [...composeArgs, "up", "-d", "api", "web", "worker", "--wait"],
-        description: "Start API, web, and worker services"
-      }
+      ...(migrateCommand ? [migrateCommand] : []),
+      upCommand
     ]
   };
 }
@@ -102,14 +95,56 @@ async function main(): Promise<void> {
     composeFile: args.composeFile,
     build: args.build
   });
+  const cleanup = ensureProdSmokeEnv(args.composeFile ?? "infra/docker-compose.yml");
 
-  for (const command of plan.commands) {
-    console.log(command.description);
-    await runCommand(command.command, command.args);
+  try {
+    for (const command of plan.commands) {
+      console.log(command.description);
+      await runCommand(command.command, command.args);
+    }
+
+    await waitForHealth(plan.healthUrl);
+    console.log(`Compose smoke passed: ${plan.healthUrl}`);
+  } finally {
+    cleanup();
+  }
+}
+
+function ensureProdSmokeEnv(composeFile: string): () => void {
+  if (composeFile !== "infra/docker-compose.prod.yml" || process.env.JARVIS_ENV_FILE) {
+    process.env.POSTGRES_PASSWORD ??= "postgres";
+    process.env.JARVIS_CLI_RUNNER_RPC_SECRET ??= "smoke-only-not-real";
+    process.env.JARVIS_DOCKER_SUBNET ??= "10.253.0.0/24";
+    return () => {};
   }
 
-  await waitForHealth(plan.healthUrl);
-  console.log(`Compose smoke passed: ${plan.healthUrl}`);
+  const dir = mkdtempSync(join(tmpdir(), "jarv1s-prod-smoke-"));
+  const envFile = join(dir, "env.production.local");
+  process.env.POSTGRES_PASSWORD ??= "postgres";
+  process.env.JARVIS_CLI_RUNNER_RPC_SECRET ??= "smoke-only-not-real";
+  process.env.JARVIS_DOCKER_SUBNET ??= "10.253.0.0/24";
+  process.env.JARVIS_ENV_FILE = envFile;
+  writeFileSync(
+    envFile,
+    [
+      "NODE_ENV=production",
+      "POSTGRES_PASSWORD=postgres",
+      "JARVIS_DOCKER_SUBNET=10.253.0.0/24",
+      "JARVIS_BOOTSTRAP_DATABASE_URL=postgres://postgres:postgres@postgres:5432/jarv1s",
+      "JARVIS_MIGRATION_DATABASE_URL=postgres://jarvis_migration_owner:ci-migration-pw@postgres:5432/jarv1s",
+      "JARVIS_APP_DATABASE_URL=postgres://jarvis_app_runtime:ci-app-pw@postgres:5432/jarv1s",
+      "JARVIS_AUTH_DATABASE_URL=postgres://jarvis_auth_runtime:ci-auth-pw@postgres:5432/jarv1s",
+      "JARVIS_WORKER_DATABASE_URL=postgres://jarvis_worker_runtime:ci-worker-pw@postgres:5432/jarv1s",
+      "BETTER_AUTH_SECRET=smoke-only-not-a-real-secret-0000000000",
+      "JARVIS_CONNECTOR_SECRET_KEY=00000000000000000000000000000000",
+      "JARVIS_AI_SECRET_KEY=11111111111111111111111111111111",
+      "JARVIS_CLI_RUNNER_RPC_SECRET=smoke-only-not-real",
+      "JARVIS_EMBED_PROVIDER=stub",
+      ""
+    ].join("\n"),
+    { mode: 0o600 }
+  );
+  return () => rmSync(dir, { force: true, recursive: true });
 }
 
 function parseArgs(args: readonly string[]): {

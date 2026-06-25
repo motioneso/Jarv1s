@@ -8,11 +8,20 @@ import { deriveTrustedOrigins } from "../../scripts/setup-prod-origins.js";
 // JARVIS_AUTH_TRUSTED_ORIGINS override still wins verbatim.
 describe("deriveTrustedOrigins (#379)", () => {
   it("is localhost-only when no publicOrigin / override (current behavior preserved)", () => {
-    expect(deriveTrustedOrigins({ webPort: "5173" })).toBe("http://localhost:5173");
+    expect(deriveTrustedOrigins({ webPort: "1533" })).toBe("http://localhost:1533");
   });
 
   it("honors a non-default web port for the localhost origin", () => {
     expect(deriveTrustedOrigins({ webPort: "8080" })).toBe("http://localhost:8080");
+  });
+
+  it("changes trusted origins with JARVIS_WEB_PORT without changing the default auth base URL", async () => {
+    const setupProd = await import("node:fs/promises").then((fs) =>
+      fs.readFile(new URL("../../scripts/setup-prod.ts", import.meta.url), "utf8")
+    );
+
+    expect(deriveTrustedOrigins({ webPort: "5179" })).toBe("http://localhost:5179");
+    expect(setupProd).toContain('process.env.JARVIS_AUTH_BASE_URL ?? "http://localhost:3000"');
   });
 
   it("appends a full publicOrigin verbatim, alongside the localhost origin", () => {

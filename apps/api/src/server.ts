@@ -41,6 +41,8 @@ import {
   type ModuleDto
 } from "@jarv1s/shared";
 
+import { registerStaticWeb } from "./static-web.js";
+
 export interface CreateApiServerOptions {
   readonly appDb?: Kysely<JarvisDatabase>;
   readonly boss?: PgBoss;
@@ -356,6 +358,8 @@ export function createApiServer(options: CreateApiServerOptions = {}) {
       resolveActiveModules,
       resolveAccessContext: authRuntime.resolveAccessContext
     });
+
+    registerStaticWeb(server);
   });
 
   server.addHook("onReady", async () => {

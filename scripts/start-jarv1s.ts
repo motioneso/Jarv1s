@@ -1,0 +1,197 @@
+import { spawn, type ChildProcess } from "node:child_process";
+import { once } from "node:events";
+import { chmodSync, chownSync, mkdirSync } from "node:fs";
+
+export type ChildRole = "api" | "worker" | "cli-runner";
+
+export interface ProcessSpec {
+  readonly role: ChildRole;
+  readonly command: readonly string[];
+  readonly env: NodeJS.ProcessEnv;
+}
+
+export interface StartupPlan {
+  readonly oneShot: {
+    readonly command: readonly string[];
+    readonly env: NodeJS.ProcessEnv;
+    readonly uid: number;
+    readonly gid: number;
+  };
+  readonly resident: readonly ProcessSpec[];
+  readonly uid: number;
+  readonly gid: number;
+}
+
+const CLI_ENV_KEYS = new Set([
+  "HOME",
+  "PATH",
+  "NPM_CONFIG_PREFIX",
+  "JARVIS_CLI_TOOLS_PREFIX",
+  "JARVIS_CLI_HOME",
+  "JARVIS_CLI_HOME_BASE",
+  "JARVIS_CLI_NEUTRAL_BASE",
+  "JARVIS_HOST_UID",
+  "JARVIS_HOST_GID",
+  "TERM",
+  "LANG",
+  "TMPDIR",
+  "DISABLE_AUTOUPDATER",
+  "JARVIS_CLI_PER_USER_UID",
+  "JARVIS_CLI_RUNNER_RPC_SECRET",
+  "JARVIS_CLI_RUNNER_SINGLE_USER",
+  "JARVIS_CLI_RUNNER_SOCKET",
+  "JARVIS_MCP_SERVER_URL",
+  "JARVIS_MULTIPLEXER"
+]);
+
+const CLI_ENV_PREFIXES = ["LC_"];
+
+export function runtimeUidGid(env: NodeJS.ProcessEnv = process.env): { uid: number; gid: number } {
+  const uid = Number(env.JARVIS_HOST_UID ?? 1000);
+  const gid = Number(env.JARVIS_HOST_GID ?? 1000);
+  if (!Number.isInteger(uid) || uid <= 0) {
+    throw new Error("JARVIS_HOST_UID must be a positive integer");
+  }
+  if (!Number.isInteger(gid) || gid <= 0) {
+    throw new Error("JARVIS_HOST_GID must be a positive integer");
+  }
+  return { uid, gid };
+}
+
+export function buildChildEnv(role: ChildRole, env: NodeJS.ProcessEnv = process.env): NodeJS.ProcessEnv {
+  if (role !== "cli-runner") {
+    return {
+      ...env,
+      PORT: env.PORT ?? "3000",
+      HOST: env.HOST ?? "0.0.0.0",
+      HF_HOME: env.HF_HOME ?? "/app/.cache/huggingface",
+      JARVIS_CLI_RUNNER_SOCKET: env.JARVIS_CLI_RUNNER_SOCKET ?? "/run/jarv1s/cli-runner.sock",
+      JARVIS_MCP_SERVER_URL: env.JARVIS_MCP_SERVER_URL ?? "http://127.0.0.1:3000/api/mcp"
+    };
+  }
+
+  const next: NodeJS.ProcessEnv = {};
+  for (const [key, value] of Object.entries(env)) {
+    if (value === undefined) continue;
+    if (CLI_ENV_KEYS.has(key) || CLI_ENV_PREFIXES.some((prefix) => key.startsWith(prefix))) {
+      next[key] = value;
+    }
+  }
+
+  next.PATH = env.PATH ?? "/usr/local/bin:/usr/bin:/bin";
+  next.HOME = env.JARVIS_CLI_HOME ?? "/data/cli-auth";
+  next.JARVIS_CLI_HOME = next.HOME;
+  next.JARVIS_CLI_HOME_BASE = env.JARVIS_CLI_HOME_BASE ?? next.HOME;
+  next.JARVIS_CLI_NEUTRAL_BASE = env.JARVIS_CLI_NEUTRAL_BASE ?? "/data/cli-auth/chat";
+  next.JARVIS_CLI_TOOLS_PREFIX = env.JARVIS_CLI_TOOLS_PREFIX ?? "/data/cli-tools";
+  next.NPM_CONFIG_PREFIX = env.NPM_CONFIG_PREFIX ?? next.JARVIS_CLI_TOOLS_PREFIX;
+  next.JARVIS_CLI_RUNNER_SOCKET = env.JARVIS_CLI_RUNNER_SOCKET ?? "/run/jarv1s/cli-runner.sock";
+  next.JARVIS_CLI_RUNNER_RPC_SECRET = env.JARVIS_CLI_RUNNER_RPC_SECRET;
+  next.JARVIS_CLI_RUNNER_SINGLE_USER = env.JARVIS_CLI_RUNNER_SINGLE_USER ?? "0";
+  next.JARVIS_CLI_PER_USER_UID = env.JARVIS_CLI_PER_USER_UID ?? "0";
+  next.JARVIS_MULTIPLEXER = env.JARVIS_MULTIPLEXER ?? "tmux";
+  next.JARVIS_MCP_SERVER_URL = env.JARVIS_MCP_SERVER_URL ?? "http://127.0.0.1:3000/api/mcp";
+  return next;
+}
+
+export function buildStartupPlan(env: NodeJS.ProcessEnv = process.env): StartupPlan {
+  const { uid, gid } = runtimeUidGid(env);
+  return {
+    uid,
+    gid,
+    oneShot: {
+      command: ["node_modules/.bin/tsx", "scripts/migrate.ts"],
+      env: { ...env, NODE_ENV: env.NODE_ENV ?? "production" },
+      uid,
+      gid
+    },
+    resident: [
+      {
+        role: "cli-runner",
+        command: ["node_modules/.bin/tsx", "packages/cli-runner/src/main-entry.ts"],
+        env: buildChildEnv("cli-runner", env)
+      },
+      { role: "worker", command: ["node", "dist/worker.js"], env: buildChildEnv("worker", env) },
+      { role: "api", command: ["node", "dist/server.js"], env: buildChildEnv("api", env) }
+    ]
+  };
+}
+
+export function prepareRuntimeDirs(uid: number, gid: number): void {
+  for (const dir of [
+    "/data/cli-tools",
+    "/data/cli-auth",
+    "/data/vaults",
+    "/app/.cache/huggingface",
+    "/run/jarv1s"
+  ]) {
+    mkdirSync(dir, { recursive: true });
+    chownSync(dir, uid, gid);
+  }
+  chmodSync("/run/jarv1s", 0o700);
+}
+
+async function runOneShot(
+  command: readonly string[],
+  env: NodeJS.ProcessEnv,
+  uid: number,
+  gid: number
+): Promise<void> {
+  await new Promise<void>((resolve, reject) => {
+    const child = spawn(command[0]!, command.slice(1), { env, gid, stdio: "inherit", uid });
+    child.once("exit", (code) => {
+      if (code === 0) resolve();
+      else reject(new Error(`${command.join(" ")} exited with ${code ?? "unknown"}`));
+    });
+    child.once("error", reject);
+  });
+}
+
+function spawnResident(spec: ProcessSpec, uid: number, gid: number): ChildProcess {
+  const [cmd, ...args] = spec.command;
+  return spawn(cmd!, args, {
+    env: spec.env,
+    gid,
+    stdio: "inherit",
+    uid
+  });
+}
+
+async function main(): Promise<void> {
+  const plan = buildStartupPlan();
+  prepareRuntimeDirs(plan.uid, plan.gid);
+  await runOneShot(plan.oneShot.command, plan.oneShot.env, plan.oneShot.uid, plan.oneShot.gid);
+
+  const children: { spec: ProcessSpec; child: ChildProcess }[] = [];
+  let shuttingDown = false;
+
+  const waitForChildren = async (): Promise<void> => {
+    await Promise.race([
+      Promise.allSettled(children.map(({ child }) => once(child, "exit"))),
+      new Promise<void>((resolve) => setTimeout(resolve, 10_000))
+    ]);
+  };
+
+  const shutdown = async (signal: NodeJS.Signals): Promise<void> => {
+    shuttingDown = true;
+    for (const { child } of children) child.kill(signal);
+    await waitForChildren();
+  };
+
+  process.once("SIGTERM", () => void shutdown("SIGTERM").then(() => process.exit(0)));
+  process.once("SIGINT", () => void shutdown("SIGINT").then(() => process.exit(0)));
+
+  for (const spec of plan.resident) {
+    const child = spawnResident(spec, plan.uid, plan.gid);
+    children.push({ spec, child });
+    child.once("exit", (code, signal) => {
+      if (shuttingDown) return;
+      console.error(`[jarv1s] ${spec.role} exited`, { code, signal });
+      void shutdown("SIGTERM").then(() => process.exit(code ?? 1));
+    });
+  }
+}
+
+if (process.argv[1]?.endsWith("start-jarv1s.ts")) {
+  await main();
+}
