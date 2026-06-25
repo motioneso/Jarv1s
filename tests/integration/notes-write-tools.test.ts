@@ -7,9 +7,11 @@ import type { Kysely } from "kysely";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { DataContextRunner, createDatabase, type JarvisDatabase } from "@jarv1s/db";
+import type { JarvisModuleManifest } from "@jarv1s/module-sdk";
 import { PreferencesRepository } from "@jarv1s/structured-state";
 import { NOTES_SOURCE_PREFERENCE_KEY } from "@jarv1s/settings";
 import {
+  notesModuleManifest,
   notesCreateExecute,
   notesDeleteExecute,
   notesEditExecute,
@@ -49,6 +51,28 @@ describe("notes write assistant tools", () => {
     vi.restoreAllMocks();
     await db.destroy();
     await rm(root, { recursive: true, force: true });
+  });
+
+  it("declares create/edit as auto write tools and delete as destructive", () => {
+    const tools = new Map<string, NonNullable<JarvisModuleManifest["assistantTools"]>[number]>(
+      (notesModuleManifest.assistantTools ?? []).map((tool) => [tool.name, tool])
+    );
+    expect(tools.get("notes.create")?.risk).toBe("write");
+    expect(tools.get("notes.create")?.executionPolicy).toBe("auto");
+    expect(tools.get("notes.edit")?.risk).toBe("write");
+    expect(tools.get("notes.edit")?.executionPolicy).toBe("auto");
+    expect(tools.get("notes.delete")?.risk).toBe("destructive");
+    expect(tools.get("notes.delete")?.executionPolicy).toBeUndefined();
+    expect(
+      tools.get("notes.delete")?.summarize?.(
+        { path: "x.md" },
+        {
+          actorUserId: ids.userA,
+          requestId: "r",
+          chatSessionId: "c"
+        }
+      )
+    ).toContain("x.md");
   });
 
   it("creates a new markdown note and enqueues sync", async () => {

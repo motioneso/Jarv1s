@@ -2,12 +2,17 @@ import { fileURLToPath } from "node:url";
 
 import type { JarvisModuleManifest } from "@jarv1s/module-sdk";
 import {
+  notesCreateInputSchema,
+  notesDeleteInputSchema,
+  notesEditInputSchema,
+  notesWriteResultSchema,
   postNotesSyncRouteSchema,
   notesSearchInputSchema,
   notesSearchResponseSchema
 } from "@jarv1s/shared";
 
 import { notesSearchExecute } from "./tools.js";
+import { notesCreateExecute, notesDeleteExecute, notesEditExecute } from "./write-tools.js";
 
 export const NOTES_MODULE_ID = "notes";
 export const NOTES_SYNC_QUEUE = "notes.sync";
@@ -45,6 +50,27 @@ export const notesModuleManifest = {
       description: "Semantically search the user's ingested notes.",
       scope: "user",
       actions: ["view"]
+    },
+    {
+      id: "notes.create",
+      label: "Create notes",
+      description: "Create Markdown notes in the linked notes source.",
+      scope: "user",
+      actions: ["create"]
+    },
+    {
+      id: "notes.edit",
+      label: "Edit notes",
+      description: "Edit Markdown notes in the linked notes source.",
+      scope: "user",
+      actions: ["update"]
+    },
+    {
+      id: "notes.delete",
+      label: "Delete notes",
+      description: "Delete Markdown notes in the linked notes source after approval.",
+      scope: "user",
+      actions: ["delete"]
     }
   ],
   routes: [
@@ -66,6 +92,41 @@ export const notesModuleManifest = {
       outputSchema: notesSearchResponseSchema,
       externalContent: true,
       execute: notesSearchExecute
+    },
+    {
+      name: "notes.create",
+      description: "Create a Markdown note in the linked notes source.",
+      permissionId: "notes.create",
+      risk: "write",
+      executionPolicy: "auto",
+      requiresServices: ["notesSync"],
+      inputSchema: notesCreateInputSchema,
+      outputSchema: notesWriteResultSchema,
+      execute: notesCreateExecute,
+      summarize: (input) => `Create note ${String(input.path)}.`
+    },
+    {
+      name: "notes.edit",
+      description: "Edit a Markdown note in the linked notes source.",
+      permissionId: "notes.edit",
+      risk: "write",
+      executionPolicy: "auto",
+      requiresServices: ["notesSync"],
+      inputSchema: notesEditInputSchema,
+      outputSchema: notesWriteResultSchema,
+      execute: notesEditExecute,
+      summarize: (input) => `Edit note ${String(input.path)}.`
+    },
+    {
+      name: "notes.delete",
+      description: "Delete a Markdown note from the linked notes source after approval.",
+      permissionId: "notes.delete",
+      risk: "destructive",
+      requiresServices: ["notesSync"],
+      inputSchema: notesDeleteInputSchema,
+      outputSchema: notesWriteResultSchema,
+      execute: notesDeleteExecute,
+      summarize: (input) => `Delete note ${String(input.path)}.`
     }
   ]
 } satisfies JarvisModuleManifest;
