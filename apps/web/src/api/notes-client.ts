@@ -1,4 +1,5 @@
 import type {
+  GetNotesSourceDirectoriesResponse,
   GetNotesLastSyncResponse,
   GetNotesSourceResponse,
   PostNotesSyncResponse,
@@ -9,6 +10,13 @@ import { requestJson } from "./client.js";
 
 export async function getNotesSource(): Promise<GetNotesSourceResponse> {
   return requestJson<GetNotesSourceResponse>("/api/me/notes-source");
+}
+
+export async function getNotesSourceDirectories(
+  path: string | null
+): Promise<GetNotesSourceDirectoriesResponse> {
+  const query = path ? `?path=${encodeURIComponent(path)}` : "";
+  return requestJson<GetNotesSourceDirectoriesResponse>(`/api/me/notes-source/directories${query}`);
 }
 
 export async function putNotesSource(body: PutNotesSourceRequest): Promise<GetNotesSourceResponse> {

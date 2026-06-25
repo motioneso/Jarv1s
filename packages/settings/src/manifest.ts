@@ -115,6 +115,11 @@ export const settingsModuleManifest: JarvisModuleManifest = {
       permissionId: "settings.view"
     },
     {
+      method: "GET",
+      path: "/api/me/notes-source/directories",
+      permissionId: "settings.view"
+    },
+    {
       method: "PUT",
       path: "/api/me/notes-source",
       permissionId: "settings.write"

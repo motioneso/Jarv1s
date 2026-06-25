@@ -65,7 +65,6 @@ import {
   Group,
   Indicator,
   Note,
-  NotWired,
   PaneHead,
   Row,
   Select,
@@ -486,9 +485,6 @@ function SourcesPane() {
                 <div className="vault__meta">
                   Choose a folder on the server to include your notes as context.
                 </div>
-                <NotWired>
-                  Folder picker coming soon — the host-filesystem listing API isn&apos;t built yet.
-                </NotWired>
               </>
             )}
           </div>
@@ -497,12 +493,7 @@ function SourcesPane() {
               type="button"
               className="jds-btn jds-btn--secondary jds-btn--sm"
               onClick={() => setChoosing(true)}
-              // Folder picker is deferred (#449): the host-filesystem listing API
-              // isn't built yet, so VaultChooser dead-ends at "browser isn't
-              // available." Gate the entry point — keep `choose`/`putNotesSource`
-              // wiring intact so a future picker just works.
-              disabled={!linkedPath || putNotesSourceMutation.isPending}
-              aria-disabled={!linkedPath}
+              disabled={putNotesSourceMutation.isPending}
             >
               <span className="jds-btn__icon">
                 <FolderSearch size={15} />

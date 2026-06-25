@@ -1,11 +1,14 @@
-import { realpath } from "node:fs/promises";
+import { readdir, realpath } from "node:fs/promises";
+import { basename, join } from "node:path";
 
 import type { FastifyInstance, FastifyRequest } from "fastify";
 
 import type { AccessContext, DataContextRunner } from "@jarv1s/db";
 import {
+  getNotesSourceDirectoriesRouteSchema,
   getNotesLastSyncRouteSchema,
   getNotesSourceRouteSchema,
+  type GetNotesSourceDirectoriesResponse,
   putNotesSourceRouteSchema,
   type GetNotesLastSyncResponse,
   type GetNotesSourceResponse,
@@ -45,6 +48,84 @@ export function resolveNotesRoots(env: NodeJS.ProcessEnv = process.env): string[
     .filter((s) => s.length > 0);
 }
 
+async function resolveAllowedRoots(
+  env: NodeJS.ProcessEnv = process.env
+): Promise<Array<{ raw: string; resolved: string }>> {
+  const roots = resolveNotesRoots(env);
+  if (roots.length === 0) {
+    throw new HttpError(503, "Notes roots not configured on this server");
+  }
+
+  const allowed: Array<{ raw: string; resolved: string }> = [];
+  for (const raw of roots) {
+    try {
+      allowed.push({ raw, resolved: await realpath(raw) });
+    } catch {
+      // Ignore unavailable configured roots; typed save will still return a precise
+      // "path does not exist" error for the user's submitted path.
+    }
+  }
+  if (allowed.length === 0) {
+    throw new HttpError(503, "Configured notes roots are not available on this server");
+  }
+  return allowed;
+}
+
+function isAllowedResolvedPath(
+  resolvedPath: string,
+  allowedRoots: readonly { readonly resolved: string }[]
+): boolean {
+  return allowedRoots.some(
+    (root) => resolvedPath === root.resolved || resolvedPath.startsWith(root.resolved + "/")
+  );
+}
+
+export async function listNotesSourceDirectories(input: {
+  readonly env?: NodeJS.ProcessEnv;
+  readonly path?: string | null;
+}): Promise<GetNotesSourceDirectoriesResponse> {
+  const allowedRoots = await resolveAllowedRoots(input.env);
+
+  if (!input.path) {
+    return {
+      path: null,
+      directories: allowedRoots
+        .map((root) => ({ name: basename(root.raw), path: root.raw }))
+        .sort((a, b) => a.path.localeCompare(b.path))
+    };
+  }
+
+  let resolvedPath: string;
+  try {
+    resolvedPath = await realpath(input.path);
+  } catch {
+    throw new HttpError(400, "Path does not exist or cannot be resolved");
+  }
+  if (!isAllowedResolvedPath(resolvedPath, allowedRoots)) {
+    throw new HttpError(400, "Path is not within an allowed notes root");
+  }
+
+  const entries = await readdir(input.path, { withFileTypes: true });
+  const directories: Array<{ name: string; path: string }> = [];
+  for (const entry of entries) {
+    if (!entry.isDirectory()) continue;
+    const childPath = join(input.path, entry.name);
+    try {
+      const childResolved = await realpath(childPath);
+      if (isAllowedResolvedPath(childResolved, allowedRoots)) {
+        directories.push({ name: entry.name, path: childPath });
+      }
+    } catch {
+      // Race-safe: skip directories that disappear or become unreadable mid-list.
+    }
+  }
+
+  return {
+    path: input.path,
+    directories: directories.sort((a, b) => a.name.localeCompare(b.name))
+  };
+}
+
 /**
  * Best-effort per-actor schedule reconcile. Wrapped so a missing hook (boss not
  * wired) is a no-op and a throwing hook (pg-boss hiccup) never poisons a
@@ -76,6 +157,21 @@ export function registerNotesSourceRoutes(
   server: FastifyInstance,
   dependencies: NotesSourceRoutesDependencies
 ): void {
+  server.get(
+    "/api/me/notes-source/directories",
+    { schema: getNotesSourceDirectoriesRouteSchema },
+    async (request, reply) => {
+      try {
+        await dependencies.resolveAccessContext(request);
+        const query = request.query as { path?: string } | null;
+        const result = await listNotesSourceDirectories({ path: query?.path ?? null });
+        return reply.send(result);
+      } catch (error) {
+        return handleSettingsRouteError(error, reply);
+      }
+    }
+  );
+
   server.get(
     "/api/me/notes-source",
     { schema: getNotesSourceRouteSchema },
@@ -114,10 +210,7 @@ export function registerNotesSourceRoutes(
           return reply.send({ path: null } satisfies GetNotesSourceResponse);
         }
 
-        const allowedRoots = resolveNotesRoots();
-        if (allowedRoots.length === 0) {
-          throw new HttpError(503, "Notes roots not configured on this server");
-        }
+        const allowedRoots = await resolveAllowedRoots();
 
         let resolvedPath: string;
         try {
@@ -126,10 +219,7 @@ export function registerNotesSourceRoutes(
           throw new HttpError(400, "Path does not exist or cannot be resolved");
         }
 
-        const allowed = allowedRoots.some(
-          (root) => resolvedPath === root || resolvedPath.startsWith(root + "/")
-        );
-        if (!allowed) {
+        if (!isAllowedResolvedPath(resolvedPath, allowedRoots)) {
           throw new HttpError(400, "Path is not within an allowed notes root");
         }
 
