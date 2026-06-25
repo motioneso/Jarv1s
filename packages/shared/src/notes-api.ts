@@ -2,6 +2,16 @@ export interface GetNotesSourceResponse {
   readonly path: string | null;
 }
 
+export interface NotesSourceDirectory {
+  readonly name: string;
+  readonly path: string;
+}
+
+export interface GetNotesSourceDirectoriesResponse {
+  readonly path: string | null;
+  readonly directories: readonly NotesSourceDirectory[];
+}
+
 export interface PutNotesSourceRequest {
   readonly path: string | null;
 }
@@ -31,6 +41,38 @@ export const getNotesSourceRouteSchema = {
       required: ["path"],
       properties: {
         path: { type: ["string", "null"] }
+      }
+    }
+  }
+} as const;
+
+export const getNotesSourceDirectoriesRouteSchema = {
+  querystring: {
+    type: "object",
+    additionalProperties: false,
+    properties: {
+      path: { type: "string" }
+    }
+  },
+  response: {
+    200: {
+      type: "object",
+      additionalProperties: false,
+      required: ["path", "directories"],
+      properties: {
+        path: { type: ["string", "null"] },
+        directories: {
+          type: "array",
+          items: {
+            type: "object",
+            additionalProperties: false,
+            required: ["name", "path"],
+            properties: {
+              name: { type: "string" },
+              path: { type: "string" }
+            }
+          }
+        }
       }
     }
   }
@@ -93,6 +135,74 @@ export const getNotesLastSyncRouteSchema = {
         }
       }
     }
+  }
+} as const;
+
+export interface NotesCreateInput {
+  readonly path: string;
+  readonly content: string;
+  readonly overwrite?: boolean;
+}
+
+export interface NotesEditInput {
+  readonly path: string;
+  readonly oldText: string;
+  readonly newText: string;
+}
+
+export interface NotesDeleteInput {
+  readonly path: string;
+}
+
+export interface NotesWriteResult {
+  readonly path: string;
+  readonly synced: boolean;
+}
+
+const relativeMarkdownPathProperty = {
+  type: "string",
+  minLength: 1,
+  pattern: "^[^\\0]+\\.md$"
+} as const;
+
+export const notesCreateInputSchema = {
+  type: "object",
+  additionalProperties: false,
+  required: ["path", "content"],
+  properties: {
+    path: relativeMarkdownPathProperty,
+    content: { type: "string" },
+    overwrite: { type: "boolean" }
+  }
+} as const;
+
+export const notesEditInputSchema = {
+  type: "object",
+  additionalProperties: false,
+  required: ["path", "oldText", "newText"],
+  properties: {
+    path: relativeMarkdownPathProperty,
+    oldText: { type: "string", minLength: 1 },
+    newText: { type: "string" }
+  }
+} as const;
+
+export const notesDeleteInputSchema = {
+  type: "object",
+  additionalProperties: false,
+  required: ["path"],
+  properties: {
+    path: relativeMarkdownPathProperty
+  }
+} as const;
+
+export const notesWriteResultSchema = {
+  type: "object",
+  additionalProperties: false,
+  required: ["path", "synced"],
+  properties: {
+    path: { type: "string" },
+    synced: { type: "boolean" }
   }
 } as const;
 
