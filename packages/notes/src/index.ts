@@ -17,3 +17,9 @@ export {
 } from "./jobs.js";
 export { registerNotesSyncRoutes } from "./notes-sync-routes.js";
 export { NOTES_SYNC_CRON, reconcileNotesSchedule } from "./schedule.js";
+export {
+  notesCreateExecute,
+  notesDeleteExecute,
+  notesEditExecute,
+  type NotesSyncToolService
+} from "./write-tools.js";
