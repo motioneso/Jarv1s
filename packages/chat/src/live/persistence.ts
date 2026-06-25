@@ -77,6 +77,9 @@ export class DataContextChatPersistence implements ChatPersistencePort {
         .map((m) => ({ role: m.role as "user" | "assistant", content: m.body }));
 
       const k = getReplayK();
+      if (k <= 0) {
+        return { recent: [], oldSummary: null };
+      }
       if (turns.length <= k) {
         return { recent: turns, oldSummary: null };
       }
@@ -118,7 +121,7 @@ export class DataContextChatPersistence implements ChatPersistencePort {
         await this.chat.updateThreadTitle(scopedDb, thread.id, deriveChatTitle(userText));
       }
 
-      if (storedTurns.length > k) {
+      if (k > 0 && storedTurns.length > k) {
         const oldTurns = storedTurns.slice(0, -k).map((m) => ({
           role: m.role as "user" | "assistant",
           content: m.body
@@ -204,7 +207,9 @@ function toLiveProvider(model: AiConfiguredModelSafeRow): ProviderKind {
 
 function getReplayK(): number {
   const val = process.env.JARVIS_CHAT_REPLAY_K;
-  return val ? parseInt(val, 10) : 10;
+  if (!val) return 0;
+  const parsed = parseInt(val, 10);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : 0;
 }
 
 function deriveChatTitle(userText: string): string {

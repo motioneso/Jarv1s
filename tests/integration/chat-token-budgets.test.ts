@@ -163,8 +163,7 @@ describe("DataContextChatPersistence.listPriorTurns bounded replay", () => {
     );
   });
 
-  it("returns all turns verbatim when count <= K (default 10)", async () => {
-    // Seed 4 turns (2 pairs) — well under default K of 10.
+  it("returns no replay turns by default", async () => {
     const ctx = { actorUserId: ids.userB, requestId: "t" };
     const thread = await dataContext.withDataContext(ctx, (db) =>
       chatRepo.getCurrentThread(db, ids.userB)
@@ -184,8 +183,24 @@ describe("DataContextChatPersistence.listPriorTurns bounded replay", () => {
 
     const result = await persistence.listPriorTurns(ids.userB);
     expect(result.oldSummary).toBeNull();
-    expect(result.recent.length).toBeGreaterThanOrEqual(4);
-    expect(result.recent.some((t) => t.content === "q1")).toBe(true);
+    expect(result.recent).toHaveLength(0);
+  });
+
+  it("returns prior turns when replay is explicitly enabled", async () => {
+    const origK = process.env.JARVIS_CHAT_REPLAY_K;
+    process.env.JARVIS_CHAT_REPLAY_K = "10";
+    try {
+      const result = await persistence.listPriorTurns(ids.userB);
+      expect(result.oldSummary).toBeNull();
+      expect(result.recent.length).toBeGreaterThanOrEqual(4);
+      expect(result.recent.some((t) => t.content === "q1")).toBe(true);
+    } finally {
+      if (origK === undefined) {
+        delete process.env.JARVIS_CHAT_REPLAY_K;
+      } else {
+        process.env.JARVIS_CHAT_REPLAY_K = origK;
+      }
+    }
   });
 
   it("splits into recent + summary when turn count > K", async () => {
