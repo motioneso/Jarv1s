@@ -467,12 +467,9 @@ export function buildChatToolServices(deps: {
     const boss = deps.boss;
     services.notesSync = {
       enqueue: (actorUserId, sourcePath) =>
-        sendJob(
-          boss,
-          NOTES_SYNC_QUEUE,
-          { actorUserId, sourcePath } satisfies NotesSyncJobPayload,
-          { singletonKey: `notes-sync:${actorUserId}` }
-        )
+        sendJob(boss, NOTES_SYNC_QUEUE, { actorUserId, sourcePath } satisfies NotesSyncJobPayload, {
+          singletonKey: `notes-sync:${actorUserId}`
+        })
     } satisfies NotesSyncToolService;
   }
   return services;
