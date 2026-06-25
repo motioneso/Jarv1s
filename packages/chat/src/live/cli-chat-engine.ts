@@ -501,16 +501,16 @@ export class CliChatEngineImpl implements CliChatEngine {
         `-c 'mcp_servers.jarvis.url="${opts.mcpServerUrl}"'`,
         `-c 'mcp_servers.jarvis.bearer_token_env_var="${tokenEnvVar}"'`,
         `-c 'mcp_servers.jarvis.tool_timeout_sec=180'`,
+        `-c 'mcp_servers.jarvis.default_tools_approval_mode="approve"'`,
         `-c 'features.shell_tool=false'`,
         `-c 'features.apply_patch_tool=false'`
       );
     }
     const modelFlag = modelOverrideFlag(opts); // codex accepts -m/--model
     if (modelFlag) parts.push(modelFlag);
-    // `-a never` sets the CLI-flag approval policy, but codex's config-level
-    // `approval_policy` defaults to `OnRequest` and takes precedence for MCP
-    // tool calls — without this override the TUI blocks on a per-tool approval
-    // menu the engine cannot drive, and the chat turn times out.
+    // `-a never`/`approval_policy` cover shell approvals. MCP tool approval is
+    // separate; auto-approve only the generated Jarv1s server so the hidden TUI
+    // never blocks on a prompt the web user cannot see.
     parts.push("--sandbox read-only", "-a never", `-c 'approval_policy="never"'`);
 
     return parts.join(" ");

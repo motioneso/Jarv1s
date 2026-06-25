@@ -1,191 +1,115 @@
 # Jarv1s
 
-Jarv1s is a modular AI personal assistant OS. This repository contains the platform-first alpha scaffold: backend, worker, web shell, database migrations, and core modules. It also includes the security substrate and release-hardening scripts. Real provider integrations and the full product experience are currently out of scope.
+Jarv1s is a self-hosted AI home base for chat, notes, tasks, briefings, calendar context, and personal automations.
 
-## Current State
+The product is under active alpha development. The long-term install goal is a simple Docker Compose file: one Postgres container for durable data, and one Jarv1s container for the app, web UI, worker, migrations, and provider CLI runtime.
 
-Implemented slices:
+## Docker Compose Template
 
-- Foundation: TypeScript, pnpm workspaces, Fastify, Kysely, Postgres, Docker Compose, Vitest,
-  Playwright, ESLint, Prettier, and Turborepo wiring.
-- Security substrate: Better Auth for authentication/session identity, AccessContext/DataContext
-  authorization, forced row-level security, separate app/worker roles, and no admin private-data
-  bypass.
-- Modules: Tasks, Notes, Notifications, Connectors, Calendar, Email, AI settings/tool metadata,
-  Chat, and Briefings as package/manifest-based built-in modules.
-- Assistant safety foundation: read-only assistant tool execution, metadata-only confirmation
-  records for non-read tool requests, and no write/destructive execution.
-- Operations: database backup/restore, user export/delete, production environment checklist,
-  release-hardening audit, CI workflow, and Compose smoke automation.
+This is the target user-facing deploy shape. Copy it into `compose.yml`, change the placeholder secrets, optionally mount your Markdown or Obsidian notes folder, then run Docker Compose.
 
-- For what is currently implemented or not implemented, refer to the active milestones and roadmap on the project board. The system is under active development and capabilities (such as AI provider connections and embeddings) are frequently evolving.
+```yaml
+services:
+  postgres:
+    image: pgvector/pgvector:pg17
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: jarv1s
+      POSTGRES_USER: jarv1s
+      # Change this before first start. Keep it in sync with JARVIS_DB_PASSWORD below.
+      POSTGRES_PASSWORD: replace-this-postgres-password
+    volumes:
+      - jarv1s-postgres:/var/lib/postgresql/data
 
-## How To Pick Up Work
+  jarv1s:
+    image: ghcr.io/motioneso/jarv1s:stable
+    restart: unless-stopped
+    depends_on:
+      - postgres
+    ports:
+      - "5173:5173"
+    environment:
+      JARVIS_BASE_URL: http://localhost:5173
 
-Read these in order:
+      # Change this before first start. Use a long random value.
+      JARVIS_SECRET: replace-this-jarv1s-secret
 
-- [Foundation architecture](docs/architecture/decisions/0001-foundation.md)
-- [Maintenance/system posture](docs/architecture/decisions/0002-maintenance-system-posture.md)
-- [Development standards](docs/DEVELOPMENT_STANDARDS.md)
-- [Brand brief](docs/brand/brand-brief.md)
-- [Product goals and ideals](docs/brand/product-goals-and-ideals.md)
-- [Brand questionnaire](docs/brand/brand-questionnaire.md)
-- [Visual language research plan](docs/brand/visual-language-research-plan.md)
-- [Auth/RLS safety spike](docs/architecture/spikes/0001-auth-rls-safety.md)
-- [pg-boss worker RLS spike](docs/architecture/spikes/0002-pg-boss-worker-rls.md)
-- [MVP foundation scaffold plan](docs/architecture/plans/0001-mvp-foundation-scaffold.md)
-- [Tasks module MVP plan](docs/architecture/plans/0002-tasks-module-mvp.md)
-- [Platform-first alpha roadmap](docs/architecture/plans/0003-platform-first-alpha-roadmap.md)
-- [M7 operations verification plan](docs/architecture/plans/0004-m7-operations-verification-plan.md)
-- [Archived session handoff](docs/HANDOFF.md)
-- [Tasks M1 handoff (archived)](docs/archive/HANDOFF_TASKS_M1.md)
+      JARVIS_DB_HOST: postgres
+      JARVIS_DB_NAME: jarv1s
+      JARVIS_DB_USER: jarv1s
+      # Must match POSTGRES_PASSWORD above.
+      JARVIS_DB_PASSWORD: replace-this-postgres-password
 
-The active continuation point is tracked in GitHub. Please read [CLAUDE.md](CLAUDE.md) and check the project board for current status, milestones, and open work.
+      # Jarv1s uses this fixed in-container path for notes. Edit only the volume mount below.
+      JARVIS_NOTES_ROOTS: /data/external-notes
+    volumes:
+      - jarv1s-data:/data
 
-Keep these invariants intact:
+      # Optional: uncomment and replace the left side with your Markdown/Obsidian folder.
+      # Use an absolute host path. Examples:
+      # - macOS: /Users/you/Obsidian:/data/external-notes:ro
+      # - Linux: /srv/obsidian:/data/external-notes:ro
+      # - /Users/you/Obsidian:/data/external-notes:ro
 
-- Admin/owner power is configuration power, not private-data read power.
-- Runtime app and worker roles must not own protected tables and must not have `BYPASSRLS`.
-- Repositories receive only the branded `DataContextDb` transaction handle, never root Kysely.
-- pg-boss payloads contain metadata only.
-- Secrets never go to frontend responses, logs, job payloads, exports, or assistant action records.
-- Models/tools do not get direct database, provider-client, or secret access.
-- Preserve Fastify REST route schemas/shared contracts unless a later milestone proves a stronger
-  need.
-- Follow the CodeGraph and agentmemory usage rules in
-  [Development standards](docs/DEVELOPMENT_STANDARDS.md#agent-knowledge-tools).
+volumes:
+  jarv1s-postgres:
+  jarv1s-data:
+```
 
-## Local Verification
+Start or upgrade:
 
-```txt
+```sh
+docker compose pull
+docker compose up -d
+```
+
+Open `http://localhost:5173`.
+
+> Packaging note: the current alpha images are still split across multiple services while the runtime is being consolidated. The template above is the intended simplified deployment contract.
+
+## What Runs
+
+The target deployment keeps Postgres separate because database lifecycle and durable storage are safest in the official Postgres/pgvector container. Everything Jarv1s owns should live in the Jarv1s container:
+
+- web UI
+- API
+- background worker
+- database migrations
+- provider CLI runtime
+- notes indexing
+
+The app should fail loudly if placeholder secrets are left unchanged.
+
+## Notes
+
+Mounting notes is optional. If you mount a folder at `/data/external-notes`, Jarv1s can ingest Markdown files and expose them to chat through the notes search tool. The default mount should be read-only unless a future write-back feature is enabled.
+
+## Backups
+
+Back up these Docker volumes:
+
+- `jarv1s-postgres`: database
+- `jarv1s-data`: app state, provider CLI auth, caches, and local files
+
+For a simple volume backup, stop the stack first:
+
+```sh
+docker compose down
+docker run --rm -v jarv1s-postgres:/data -v "$PWD":/backup alpine \
+  tar czf /backup/jarv1s-postgres.tar.gz -C /data .
+docker run --rm -v jarv1s-data:/data -v "$PWD":/backup alpine \
+  tar czf /backup/jarv1s-data.tar.gz -C /data .
+docker compose up -d
+```
+
+## Development
+
+Developer setup lives in [CLAUDE.md](CLAUDE.md) and [docs/operations/dev-environment.md](docs/operations/dev-environment.md).
+
+Common local checks:
+
+```sh
 pnpm install
 pnpm db:up
 pnpm verify:foundation
-```
-
-`pnpm verify:foundation` runs:
-
-```txt
-pnpm lint
-pnpm format:check
-pnpm check:file-size
-pnpm typecheck
-pnpm db:migrate
-pnpm test:integration
-```
-
-Focused checks:
-
-```txt
-pnpm test:tasks
-pnpm test:notifications
-pnpm test:connectors
-pnpm test:calendar-email
-pnpm test:ai
-pnpm test:ai-tools
-pnpm test:chat
-pnpm test:briefings
-pnpm test:wellness
-pnpm test:memory
-pnpm test:vault
-pnpm test:release-hardening
-pnpm audit:release-hardening
-pnpm build:web
-pnpm test:e2e
-```
-
-Run the web app shell during local development:
-
-```txt
-pnpm dev:api
-pnpm dev:web
-```
-
-The Vite app runs on `http://localhost:5173` and proxies API requests to
-`http://localhost:3000` by default.
-
-The original spike proof remains runnable:
-
-```txt
-pnpm spike:db:up
-pnpm test:spike
-```
-
-## Alpha Operations
-
-M7 release-hardening adds small operator scripts for self-hosted alpha lifecycle checks.
-
-Create a sensitive full database backup:
-
-```txt
-pnpm backup:db -- --output backups/jarv1s-alpha.dump
-```
-
-Export one user's data without encrypted connector/AI secrets, auth tokens, passwords, or session
-tokens:
-
-```txt
-pnpm export:user -- --user-id <user_uuid> --output exports/user-<user_uuid>.json
-```
-
-Preview and then execute a user delete. The execute path requires an exact confirmation id and
-records a metadata-only `user.delete` admin audit event before deleting the user row and database
-cascades:
-
-```txt
-pnpm delete:user -- --user-id <user_uuid>
-pnpm delete:user -- --user-id <user_uuid> --actor-user-id <admin_uuid> --execute --confirm-user-id <user_uuid>
-```
-
-Run a local Docker Compose smoke check:
-
-```txt
-pnpm smoke:compose
-```
-
-More detail is in [M7 release hardening operations](docs/operations/release-hardening.md).
-
-## Auth Provider Configuration
-
-Local email/password auth is enabled by default. Optional login identity providers are configured
-through environment variables and remain separate from future connector permissions:
-
-```txt
-JARVIS_AUTH_GOOGLE_CLIENT_ID
-JARVIS_AUTH_GOOGLE_CLIENT_SECRET
-JARVIS_AUTH_GITHUB_CLIENT_ID
-JARVIS_AUTH_GITHUB_CLIENT_SECRET
-JARVIS_AUTH_MICROSOFT_CLIENT_ID
-JARVIS_AUTH_MICROSOFT_CLIENT_SECRET
-JARVIS_AUTH_MICROSOFT_TENANT_ID
-JARVIS_AUTH_MICROSOFT_AUTHORITY
-JARVIS_AUTH_OIDC_PROVIDER_ID
-JARVIS_AUTH_OIDC_DISPLAY_NAME
-JARVIS_AUTH_OIDC_CLIENT_ID
-JARVIS_AUTH_OIDC_CLIENT_SECRET
-JARVIS_AUTH_OIDC_DISCOVERY_URL
-JARVIS_AUTH_OIDC_ISSUER
-JARVIS_AUTH_OIDC_REQUIRE_ISSUER_VALIDATION
-```
-
-Generic OIDC uses identity scopes only: `openid`, `email`, and `profile`.
-
-## Docker Compose Overrides
-
-The API binds to host port `3000` by default. Override it with:
-
-```txt
-JARVIS_API_PORT=3001 docker compose -f infra/docker-compose.yml up api
-```
-
-The web app binds to host port `5173` by default. Override it with:
-
-```txt
-JARVIS_WEB_PORT=5174 docker compose -f infra/docker-compose.yml up web
-```
-
-The Compose network defaults to subnet `10.251.0.0/24`. Override it when that range conflicts locally:
-
-```txt
-JARVIS_DOCKER_SUBNET=10.252.0.0/24 docker compose -f infra/docker-compose.yml up
 ```

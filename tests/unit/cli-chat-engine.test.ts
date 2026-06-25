@@ -240,6 +240,7 @@ describe("CliChatEngineImpl — Codex launch", () => {
     expect(launchLine).not.toContain("JARVIS_MCP_TOKEN=jst_codex");
     expect(launchLine).not.toContain("jst_codex");
     expect(launchLine).toContain("mcp_servers.jarvis.url");
+    expect(launchLine).toContain('mcp_servers.jarvis.default_tools_approval_mode="approve"');
     expect(launchLine).toContain("shell_tool=false");
     expect(launchLine).toContain("apply_patch_tool=false");
     expect(launchLine).toContain("sandbox read-only");

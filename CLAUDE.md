@@ -1,78 +1,15 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+This file contains only project rules that are not reliably discoverable from source code.
 
 ## Orientation
 
-Before starting work, get current state from GitHub (the source of truth), then read the standards:
+Before starting roadmap or release work, get current state from GitHub; the project board and
+milestones are the source of truth for status. Read `docs/DEVELOPMENT_STANDARDS.md` before broad
+feature work or reviews.
 
-1. **GitHub** — current status, milestone sequence, and exit criteria live on the
-   [project board](https://github.com/users/motioneso/projects/1) and in Milestones / epic issues
-   #46–#50 (the **Phase 1–5** epics; older `M-Ax`/`M-Bx` epics #2–#10 are closed). Foundation
-   decisions: ADRs 0007–0009. (STATUS.md and ROADMAP.md were retired 2026-06-07.)
-2. `docs/DEVELOPMENT_STANDARDS.md` — the maintainability bar (enforced, not advisory)
-3. `docs/operations/dev-environment.md` — local/LAN dev run + infrastructure notes
-
-Architecture rationale lives in `docs/architecture/decisions/`. The canonical route shape is
-`packages/tasks/src/routes.ts`. The canonical data-context pattern is `packages/db/src/data-context.ts`.
-
-## Commands
-
-```txt
-pnpm install
-pnpm db:up                # start Postgres via Docker Compose (required for DB-touching tests)
-pnpm db:down              # tear down Postgres + volumes
-pnpm db:migrate           # idempotent: app migrations -> module migrations -> pg-boss -> grants
-pnpm verify:foundation    # full gate: lint, format:check, check:file-size, typecheck, db:migrate, test:integration
-```
-
-Maintainability gate (run before broad feature work):
-
-```txt
-pnpm lint                 # eslint . --max-warnings=0
-pnpm format:check         # prettier --check . (use `pnpm format` to write)
-pnpm check:file-size      # fails any source file >1000 lines (see Development Standards)
-pnpm typecheck            # tsc --noEmit + web typecheck
-```
-
-Integration tests (all run via Vitest against the Postgres started by `db:up`):
-
-```txt
-pnpm test:integration                       # tests/integration/*.test.ts
-pnpm test:tasks                             # one module's suite (also: notifications, connectors,
-                                            #   calendar-email, ai, ai-tools, chat, briefings,
-                                            #   release-hardening, vault, memory, structured-state)
-vitest run tests/integration/tasks.test.ts  # arbitrary single file
-```
-
-Web + e2e:
-
-```txt
-pnpm dev:api              # Fastify API on :3000
-pnpm dev:web              # Vite web shell on :5173 (proxies /api -> :3000)
-pnpm dev:worker           # pg-boss worker process (must be started separately)
-pnpm build:web
-pnpm test:e2e             # Playwright; mocks REST via tests/e2e/mock-*.ts
-```
-
-Spikes are retained as executable proof — **do not delete them**:
-
-```txt
-pnpm spike:db:up && pnpm test:spike
-```
-
-Operator scripts: `pnpm backup:db`, `pnpm restore:db`, `pnpm export:user`,
-`pnpm delete:user`, `pnpm audit:release-hardening`, `pnpm smoke:compose`. See
-`docs/operations/release-hardening.md`.
-
-> **⚠️ CI STATUS (2026-06-24, temporary):** GitHub Actions is **disabled — billing paused**.
-> `main` shows red on every commit, but this is **NOT a code failure** — jobs refuse to start
-> with "recent account payments have failed." **Local gate is the source of truth** until
-> billing is restored. **Do NOT run `gh pr checks` to verify a PR** — it will always show red
-> from billing. Instead, run the gate locally: `pnpm format:check && pnpm lint && pnpm typecheck`
->
-> - the relevant vitest files (`pnpm test:integration` or `vitest run tests/unit/<file>`), and
->   record the exit codes in your PR/QA verdict. Precedent: `docs/coordination/2026-06-18-overnight-automation.md`.
+Use `package.json` scripts as the command reference. Default full local gate: `pnpm verify:foundation`.
+If CI is unavailable, record the local commands and exit codes used instead.
 
 ## Hard Invariants (never weaken these)
 
@@ -97,36 +34,16 @@ These are decisions, not code descriptions. Violating any of these is a blocker.
   `docs/superpowers/specs/`. This is a hard process gate, not a suggestion.
 - **Module isolation.** Modules collaborate only through declared public APIs/events. No module
   imports another module's internals or queries its tables directly.
-- **pgvector image.** Docker Compose uses `pgvector/pgvector:pg17`. Do not revert to
-  `postgres:17-alpine`. The vector extension is installed in
-  `infra/postgres/bootstrap/0001_extensions.sql`.
+- **pgvector image.** Docker Compose must use a pgvector-enabled Postgres image. Do not replace it
+  with plain Postgres.
 - **Never edit applied migrations.** The migration runner hash-checks applied files. Add a new
   migration file; never modify an existing one. All module SQL lives in the owning module's `sql/`
   directory, never in `infra/postgres/migrations/`.
 
 ## GitHub Tracking
 
-The roadmap is tracked in GitHub. Keep it current — do not let the board drift from reality.
-
-- **Project board:** https://github.com/users/motioneso/projects/1 ("Jarv1s Roadmap")
-- **Milestones:** one per roadmap phase — **Phase 1–5 + Backlog** (the older `M-Ax`/`M-Bx`
-  milestones are closed: completed, or superseded by the 2026-06-09 roadmap restructure).
-- **Epic issues:** **#46–#50** (Phase 1–5), one per phase, each with an exit-criteria checklist.
-  Foundation decisions live in **ADRs 0007–0009**. Phase-1 task issues are #51–#60.
-
-**At milestone start:**
-
-1. Move the epic issue to "In Progress" on the project board.
-
-**At milestone end (all exit criteria met, `pnpm verify:foundation` + `pnpm audit:release-hardening` green):**
-
-1. Check off all exit-criteria boxes on the epic issue, then close it.
-2. Close the GitHub Milestone.
-3. Move the epic item to "Done" on the project board.
-4. Save a durable lesson to agentmemory if any non-obvious decision was made.
-
-**During a milestone:** open `task`-labelled issues for each implementation slice; close them as
-slices land. Link task issues to the parent epic with "Part of #N".
+The roadmap is tracked in GitHub. Keep the project board, milestones, and parent/child issue links
+current when doing roadmap work. Do not preserve status snapshots in this file.
 
 ## Agent Knowledge Tools
 
@@ -178,18 +95,13 @@ before any tree-wide action.
 ## Scope Guardrails
 
 - **Write a spec first.** Every new feature, module, or milestone requires an approved design spec
-  in `docs/superpowers/specs/` before any code is written.
+  before code is written.
 - **Do not casually build:** real OAuth callbacks, real connector sync, full email/calendar
   clients, a module marketplace, a workflow engine. Each needs its own milestone + spec.
-- **AI provider calls** become real in M-A3; until that spec is approved and the milestone is
-  active, the capability router remains metadata-only.
-- **Embeddings** are real as of M-A1 (complete): `LocalEmbeddingProvider` (nomic-embed-text-v1.5)
-  is the default from `getEmbeddingProviderConfig`. `StubEmbeddingProvider` is for tests and
-  explicit opt-out (`JARVIS_EMBED_PROVIDER=stub`) only.
 - Preserve plain Fastify REST + shared TypeScript contracts (`packages/shared/*-api.ts`) unless a
   milestone explicitly justifies a heavier contract layer.
-- The 1000-line file limit is enforced by `pnpm check:file-size`. Decompose rather than exceed.
-- **Documentation Paths:** Always use `~/Jarv1s` instead of absolute paths (e.g., `/home/<user>/Jarv1s`) in all documentation and handoff files to prevent exposing local usernames and system architecture.
+- **Documentation paths:** Always use `~/Jarv1s` instead of absolute local paths in documentation,
+  specs, and handoff files.
 
 ## Design-fork Discipline
 
