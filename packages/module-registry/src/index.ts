@@ -272,6 +272,7 @@ export interface BuiltInRouteDependencies {
 }
 
 export interface BuiltInWorkerDependencies {
+  readonly rootDb: Kysely<JarvisDatabase>;
   readonly dataContext: DataContextRunner;
   readonly embeddingProvider: EmbeddingProvider;
 }
@@ -425,7 +426,7 @@ const BUILT_IN_MODULES: readonly BuiltInModuleRegistration[] = [
         }
       );
     },
-    registerWorkers: (boss, deps) => registerSettingsJobWorkers(boss, deps.dataContext)
+    registerWorkers: (boss, deps) => registerSettingsJobWorkers(boss, deps.dataContext, deps.rootDb)
   },
   {
     manifest: connectorsModuleManifest,

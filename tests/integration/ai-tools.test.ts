@@ -448,6 +448,7 @@ describe("AI read-only assistant tool execution foundation", () => {
     expect(getAllQueueDefinitions().map((queue) => queue.name)).toEqual([
       "rls-probe",
       "export.build",
+      "export.cleanup",
       "connectors.google-sync",
       "tasks-deferred-status",
       "tasks-recurrence-materialize",

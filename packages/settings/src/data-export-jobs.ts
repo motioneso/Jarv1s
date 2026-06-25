@@ -1,5 +1,5 @@
 import type { Job } from "@jarv1s/jobs";
-import type { DataContextDb, DataContextRunner } from "@jarv1s/db";
+import type { DataContextDb, DataContextRunner, JarvisDatabase } from "@jarv1s/db";
 import {
   type ActorScopedJobPayload,
   type PgBoss,
@@ -7,22 +7,45 @@ import {
   registerDataContextWorker,
   sendJob
 } from "@jarv1s/jobs";
-import { VaultContextRunner, getVaultBaseDir, writeVaultFile } from "@jarv1s/vault";
+import {
+  VaultContextRunner,
+  deleteVaultFile,
+  getVaultBaseDir,
+  writeVaultFile
+} from "@jarv1s/vault";
 import { createDatabase, getJarvisDatabaseUrls } from "@jarv1s/db";
+import { sql, type Kysely } from "kysely";
 
 import { exportUserData } from "./data-export.js";
 import { DataExportRepository } from "./data-export-repository.js";
+import {
+  EXPORT_CLEANUP_QUEUE,
+  reconcileDataExportCleanupSchedule
+} from "./data-export-schedule.js";
 
 export const EXPORT_BUILD_QUEUE = "export.build";
+export { EXPORT_CLEANUP_QUEUE } from "./data-export-schedule.js";
 
 export interface ExportBuildJobPayload extends ActorScopedJobPayload {
   readonly kind: "export.build";
   readonly jobId: string;
 }
 
+export interface ExportCleanupJobPayload {
+  readonly kind: "export.cleanup";
+}
+
 export const EXPORT_QUEUE_DEFINITIONS: readonly QueueDefinition[] = [
   {
     name: EXPORT_BUILD_QUEUE,
+    options: {
+      retryLimit: 0,
+      deleteAfterSeconds: 300,
+      retentionSeconds: 300
+    }
+  },
+  {
+    name: EXPORT_CLEANUP_QUEUE,
     options: {
       retryLimit: 0,
       deleteAfterSeconds: 300,
@@ -127,15 +150,89 @@ export async function handleExportBuildJob(
   }
 }
 
+export interface ExpiredExportJob {
+  readonly id: string;
+  readonly ownerUserId: string;
+}
+
+function isMissingPathError(error: unknown): boolean {
+  return (
+    error instanceof Error &&
+    "code" in error &&
+    (error.code === "ENOENT" || error.code === "ENOTDIR")
+  );
+}
+
+export async function listExpiredExportJobs(
+  workerDb: Kysely<JarvisDatabase>,
+  cutoff: Date
+): Promise<readonly ExpiredExportJob[]> {
+  const result = await sql<ExpiredExportJob>`
+    SELECT id, "ownerUserId"
+    FROM app.list_expired_data_export_jobs(${cutoff})
+  `.execute(workerDb);
+  return result.rows;
+}
+
+export async function handleExportCleanupJob(
+  _job: Job<ExportCleanupJobPayload>,
+  workerDb: Kysely<JarvisDatabase>,
+  dataContext: DataContextRunner
+): Promise<void> {
+  const repository = new DataExportRepository();
+  const vaultRunner = new VaultContextRunner(getVaultBaseDir());
+  const expiredJobs = await listExpiredExportJobs(workerDb, new Date());
+
+  for (const expiredJob of expiredJobs) {
+    await vaultRunner.withVaultContext(
+      {
+        actorUserId: expiredJob.ownerUserId,
+        requestId: `export-cleanup:${expiredJob.id}`
+      },
+      async (vaultCtx) => {
+        try {
+          await deleteVaultFile(vaultCtx, `exports/${expiredJob.id}.json`);
+        } catch (error) {
+          if (!isMissingPathError(error)) {
+            throw error;
+          }
+        }
+      }
+    );
+
+    await dataContext.withDataContext(
+      {
+        actorUserId: expiredJob.ownerUserId,
+        requestId: `export-cleanup:${expiredJob.id}`
+      },
+      async (scopedDb) => {
+        await repository.updateJobStatus(scopedDb, expiredJob.id, "expired");
+      }
+    );
+  }
+}
+
 export async function registerSettingsJobWorkers(
   boss: PgBoss,
-  dataContext: DataContextRunner
+  dataContext: DataContextRunner,
+  workerDb: Kysely<JarvisDatabase>
 ): Promise<readonly string[]> {
+  await reconcileDataExportCleanupSchedule(boss);
   const workId = await registerDataContextWorker<ExportBuildJobPayload, void>(
     boss,
     EXPORT_BUILD_QUEUE,
     dataContext,
     (job, scopedDb) => handleExportBuildJob(job, scopedDb)
   );
-  return [workId];
+  const cleanupWorkId = await boss.work<ExportCleanupJobPayload, void>(
+    EXPORT_CLEANUP_QUEUE,
+    { pollingIntervalSeconds: 2 },
+    async ([job]) => {
+      if (!job) {
+        throw new Error(`pg-boss invoked ${EXPORT_CLEANUP_QUEUE} without a job`);
+      }
+      await handleExportCleanupJob(job, workerDb, dataContext);
+    }
+  );
+  return [workId, cleanupWorkId];
 }
