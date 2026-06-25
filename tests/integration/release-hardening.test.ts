@@ -82,15 +82,12 @@ describe("M7 release hardening lifecycle scripts", () => {
       "encryptedCredential"
     );
 
-    // #170: five missing personal-data tables must now be present.
     expect(userExport.tables).toHaveProperty("memoryChunks");
     expect(userExport.tables).toHaveProperty("chatMemoryFacts");
     expect(userExport.tables).toHaveProperty("commitments");
     expect(userExport.tables).toHaveProperty("entities");
     expect(userExport.tables).toHaveProperty("preferences");
 
-    // Portability: the LLM-derived email summary + signals (migration 0067) are personal data and
-    // MUST be in the export (GDPR/portability). The prior query omitted both columns.
     expect(userExport.tables.emailMessages).toEqual([
       expect.objectContaining({
         id: releaseIds.emailMessage,
@@ -101,7 +98,6 @@ describe("M7 release hardening lifecycle scripts", () => {
     expect(exportedJson).toContain("email-summary-sentinel");
     expect(exportedJson).toContain("email-signals-sentinel");
 
-    // Redaction: embedding and content_hash must never appear in the export JSON.
     expect(exportedJson).not.toContain('"embedding"');
     expect(exportedJson).not.toContain('"content_hash"');
     expect(exportedJson).not.toContain('"file_hash"');
@@ -117,7 +113,6 @@ describe("M7 release hardening lifecycle scripts", () => {
     });
     const exportedJson = JSON.stringify(userExport);
 
-    // memoryChunks: present, includes user-facing fields, excludes embedding and content_hash.
     expect(userExport.tables.memoryChunks.length).toBeGreaterThan(0);
     expect(userExport.tables.memoryChunks[0]).toHaveProperty("id");
     expect(userExport.tables.memoryChunks[0]).toHaveProperty("sourceKind");
@@ -129,37 +124,30 @@ describe("M7 release hardening lifecycle scripts", () => {
     expect(Object.keys(userExport.tables.memoryChunks[0] ?? {})).not.toContain("content_hash");
     expect(Object.keys(userExport.tables.memoryChunks[0] ?? {})).not.toContain("contentHash");
 
-    // chatMemoryFacts: present, no embedding column.
     expect(userExport.tables.chatMemoryFacts.length).toBeGreaterThan(0);
     expect(userExport.tables.chatMemoryFacts[0]).toHaveProperty("id");
     expect(userExport.tables.chatMemoryFacts[0]).toHaveProperty("category");
     expect(userExport.tables.chatMemoryFacts[0]).toHaveProperty("content");
     expect(Object.keys(userExport.tables.chatMemoryFacts[0] ?? {})).not.toContain("embedding");
 
-    // commitments: present with user-visible columns.
     expect(userExport.tables.commitments.length).toBeGreaterThan(0);
     expect(userExport.tables.commitments[0]).toHaveProperty("id");
     expect(userExport.tables.commitments[0]).toHaveProperty("title");
     expect(userExport.tables.commitments[0]).toHaveProperty("status");
 
-    // entities: present with user-visible columns.
     expect(userExport.tables.entities.length).toBeGreaterThan(0);
     expect(userExport.tables.entities[0]).toHaveProperty("id");
     expect(userExport.tables.entities[0]).toHaveProperty("name");
     expect(userExport.tables.entities[0]).toHaveProperty("type");
 
-    // preferences: present with key/value structure.
     expect(userExport.tables.preferences.length).toBeGreaterThan(0);
     expect(userExport.tables.preferences[0]).toHaveProperty("id");
     expect(userExport.tables.preferences[0]).toHaveProperty("key");
     expect(userExport.tables.preferences[0]).toHaveProperty("valueJson");
 
-    // Global redaction guard across all new sections — key-level AND value-level.
     expect(exportedJson).not.toContain('"embedding"');
     expect(exportedJson).not.toContain('"content_hash"');
     expect(exportedJson).not.toContain('"file_hash"');
-    // Value-level: the seed plants 'hash-sentinel' as memory_chunks.content_hash. A key-only
-    // check would miss a renamed-column leak; assert the sentinel value never appears.
     expect(exportedJson).not.toContain("hash-sentinel");
   });
 
