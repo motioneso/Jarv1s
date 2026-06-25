@@ -24,7 +24,7 @@ export class TmuxMultiplexer implements Multiplexer {
     private readonly io: TmuxIo,
     opts: TmuxMultiplexerOpts = {}
   ) {
-    this.submitMs = opts.submitMs ?? 600;
+    this.submitMs = opts.submitMs ?? 2_000;
   }
 
   async open(opts: MuxOpenOpts): Promise<MuxHandle> {

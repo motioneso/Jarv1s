@@ -68,6 +68,7 @@ services:
       JARVIS_CLI_HOME: /data/cli-auth
       JARVIS_CLI_HOME_BASE: /data/cli-auth
       JARVIS_CLI_NEUTRAL_BASE: /data/cli-auth/chat
+      JARVIS_CHAT_HOME: /data/cli-auth/chat
       JARVIS_CLI_TOOLS_PREFIX: /data/cli-tools
       NPM_CONFIG_PREFIX: /data/cli-tools
       JARVIS_HOST_UID: "${JARVIS_HOST_UID:-1000}"

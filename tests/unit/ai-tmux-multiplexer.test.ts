@@ -45,6 +45,7 @@ describe("TmuxMultiplexer", () => {
     const enterIdx = flat.findIndex((c) => c.includes("send-keys") && c.includes("Enter"));
     expect(pasteIdx).toBeGreaterThanOrEqual(0);
     expect(enterIdx).toBeGreaterThan(pasteIdx);
+    expect(io.sleep).toHaveBeenCalledWith(2_000);
     expect(io.writeFile).toHaveBeenCalledTimes(1); // prompt written to a temp file before paste
   });
 
