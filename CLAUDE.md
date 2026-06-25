@@ -98,6 +98,9 @@ before any tree-wide action.
   before code is written.
 - **Do not casually build:** real OAuth callbacks, real connector sync, full email/calendar
   clients, a module marketplace, a workflow engine. Each needs its own milestone + spec.
+- **Preserve the authored design system.** Keep serif headings / mono eyebrows / sans body, extend
+  `jds-*` and local primitives, and keep raw CSS colors in `apps/web/src/styles/tokens.css` only.
+  Empty/loading states must use existing authored patterns.
 - Preserve plain Fastify REST + shared TypeScript contracts (`packages/shared/*-api.ts`) unless a
   milestone explicitly justifies a heavier contract layer.
 - **Documentation paths:** Always use `~/Jarv1s` instead of absolute local paths in documentation,

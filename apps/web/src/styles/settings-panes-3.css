@@ -45,7 +45,7 @@
   font-size: 20px;
   font-weight: 800;
   letter-spacing: -0.02em;
-  color: #1a73e8;
+  color: var(--accent);
 }
 .gflow__introtx {
   min-width: 0;
