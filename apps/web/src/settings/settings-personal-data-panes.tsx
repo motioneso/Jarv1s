@@ -469,7 +469,7 @@ function SourcesPane() {
                   {linkedPath}
                   <span className="vault__ro">
                     <Lock size={11} aria-hidden="true" />
-                    read-only
+                    delete approval
                   </span>
                 </div>
                 <div className="vault__meta">
@@ -536,7 +536,7 @@ function SourcesPane() {
         </div>
       </Group>
       <Note icon={<ShieldCheck size={13} />}>
-        Jarvis only reads your notes — it never moves, edits, or deletes your files.
+        Jarvis can create and edit Markdown notes in this folder. Deleting notes requires approval.
       </Note>
     </>
   );
