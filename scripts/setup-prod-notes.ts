@@ -1,7 +1,7 @@
 // Pure helper for deriving the Notes Source env lines written into the prod env file.
 // Extracted from setup-prod.ts so it is unit-testable WITHOUT triggering that script's
 // eager secret generation + file write (importing setup-prod.ts runs it). See #449:
-// the operator opts in at install by setting JARVIS_NOTES_VAULT_HOST_PATH; the host
+// the operator opts in by setting JARVIS_NOTES_VAULT_HOST_PATH before running setup; the host
 // folder is bind-mounted to a FIXED neutral container path (/data/external-notes) and
 // the app reads it via JARVIS_NOTES_ROOTS. Empty/undefined host path = no notes mount
 // = the feature is inert (no env lines emitted).
@@ -18,7 +18,7 @@ export function deriveNotesEnvLines(hostPath: string | undefined): readonly stri
   const trimmed = (hostPath ?? "").trim();
   if (trimmed.length === 0) return [];
   return [
-    "# Notes Source bind mount (#449) — operator opted in at install.",
+    "# Notes Source bind mount (#449) — operator opted in before setup.",
     `JARVIS_NOTES_VAULT_HOST_PATH=${trimmed}`,
     "# Fixed neutral mount target — resolveNotesRoots() points here.",
     `JARVIS_NOTES_ROOTS=${NOTES_MOUNT_TARGET}`,

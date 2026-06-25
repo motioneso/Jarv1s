@@ -57,13 +57,9 @@ runs `infra/postgres/bootstrap` first, so a brand-new database self-provisions o
 
 The deploy artifact is `infra/docker-compose.prod.yml` (NOT the dev
 `infra/docker-compose.yml`, which bind-mounts source and runs `tsx` for everything). It
-runs two images: one app image (`ghcr.io/motioneso/jarv1s-api`) used for api / worker /
-migrate by command selection, and an nginx static-web image (`ghcr.io/motioneso/jarv1s-web`)
-that serves the SPA and reverse-proxies `/api` + `/health` to the api — so the api keeps
-its `default-src 'none'` CSP and never serves HTML. The api/worker run as bundled plain
-`node dist/server.js` / `node dist/worker.js` (no tsx, no per-start install). The migrate
-one-shot runs `tsx scripts/migrate.ts` (NOT bundled — module SQL dirs resolve via
-`import.meta.url`, which bundling would break); the image ships tsx + the SQL tree for it.
+runs one app image (`ghcr.io/motioneso/jarv1s`) plus Postgres. The `jarv1s` container
+runs migrations, starts the internal cli-runner, starts the worker, and serves the API
+plus built web assets on one public port.
 
 **Deploy steps:**
 
@@ -79,10 +75,10 @@ docker compose --env-file infra/env.production.local -f infra/docker-compose.pro
 # exports the same vars into the service env, so interpolation resolves there too)
 ```
 
-Order: postgres (healthcheck) → migrate one-shot (`tsx scripts/migrate.ts`: bootstrap →
-app+module SQL → pg-boss → grants; exits 0) → api+worker (gated on
-`service_completed_successfully`) → web (gated on api healthy). Every long-running
-service is `restart: unless-stopped`; the api keeps a `/health` HEALTHCHECK.
+Order: postgres (healthcheck) → jarv1s supervisor. The supervisor prepares runtime dirs,
+runs migrations, starts the internal cli-runner RPC server, starts the worker, then starts
+the API/static-web server. The `jarv1s` service is `restart: unless-stopped` and keeps a
+Docker healthcheck on `/health/ready`.
 
 **Host prerequisites:** Docker + the compose plugin installed and the daemon running
 (`jarv1s-stack.service` has `Requires=docker.service`). The embedding model downloads on
@@ -103,7 +99,7 @@ values, because the secrets are encrypted by the API and decrypted by the worker
 If either key is missing or differs from the value the API used to encrypt, decryption fails.
 This is surfaced as a **sync error label** on the result, not a process crash (spec risk #4),
 so the rest of the app stays up while the sync reports the failure. In the containerized stack,
-the worker service must carry both keys (alongside the API) in the same env file.
+the `jarv1s` service carries the worker and API env in the same env file.
 
 The sync has four optional tuning knobs (each with a built-in default), so an operator can bound
 sync cost and latency without code changes:
@@ -114,46 +110,13 @@ sync cost and latency without code changes:
 | `JARVIS_EMAIL_SYNC_CAP`       | `50`    | Max email messages summarized per sync run.                                               |
 | `JARVIS_EMAIL_LLM_TIMEOUT_MS` | `20000` | Per-LLM-call timeout (ms) for the summary/signals pass.                                   |
 
-## Host-multiplexer bridge (CLI chat from the container)
+## In-container CLI runtime
 
-Live CLI chat drives `claude`/`codex`/`gemini` through tmux under the operator's personal
-auth. Per ADR 0008 §2 we do NOT bundle the AI CLIs (`claude`/`codex`/`gemini`) — they are
-host-provisioned and run on the HOST. The tmux SERVER also runs on the host. What the
-container carries is only the thin **tmux CLIENT** (apt-installed in the image): the
-api/worker engine execs `tmux send-keys/...` from inside the container against the
-bind-mounted host tmux socket, so the AI CLIs launch on the host with host auth. The
-container **steers the host's** tmux and **reads the host's** transcripts through bind
-mounts (only on api/worker):
-
-1. **tmux socket** — the host per-uid tmux socket dir (`/tmp/tmux-<uid>`, mode 0700) is
-   bind-mounted at the same path; the tmux server runs on the host. (Herdr-from-container
-   is NOT wired in this slice — run herdr on the host and set `JARVIS_MULTIPLEXER=tmux`
-   for the container.)
-2. **Host CLI dirs (least-privilege)** — ONLY the three CLI-config dirs `~/.claude`,
-   `~/.codex`, `~/.gemini` are bind-mounted READ-ONLY under `/host-home` (NOT the whole
-   host HOME — that would expose `~/.ssh`, git/cloud creds, shell history). They line up
-   under `JARVIS_CLI_HOME_BASE=/host-home` so the engine's `transcriptGlobDir` finds
-   `/host-home/.claude|.codex|.gemini`.
-3. **Neutral-dir alignment** — the per-user neutral dir base (`JARVIS_CHAT_HOME`) is
-   mounted at the SAME absolute path on host and container so the host-spawned CLI `cd`s
-   into the dir the container computed.
-
-**UID mapping:** the container runs as `JARVIS_HOST_UID:JARVIS_HOST_GID` (the host operator
-uid/gid) so it can open the 0700 socket and read the three RO CLI dirs. Because that uid
-may differ from the image `node` uid, the writable named volumes (model cache, vault) are
-made world-writable at build (Task 7). If the uid does not match the socket owner, CLI chat
-silently breaks while REST stays green — the reboot-survival probe catches this by execing
-`tmux ls` FROM INSIDE the running api container (not on the host), so a bad
-`JARVIS_HOST_UID`/`GID` or a broken socket mount surfaces as a probe failure.
-
-**Security tradeoff (accepted, documented):** mounting the three host CLI-auth dirs + the
-tmux socket means a container compromise can reach the operator's personal CLI credentials
-and steer host tmux sessions. This is accepted under the **single-operator household model**
-(ADR 0007) — the same shared-uid soft boundary the CLI-adapter slice documents. The mount
-is scoped to the three CLI dirs (read-only), NOT the whole HOME, to bound the blast radius.
-It is **opt-in**: present only when the CLI-subscription adapter is chosen.
-The **API-key adapter needs NONE of these mounts** (it talks HTTP to a provider), so an
-API-key instance runs with a strictly smaller attack surface.
+Live CLI chat runs through the cli-runner process inside the `jarv1s` container. Provider
+CLIs install into the `jarv1s-cli-tools` volume and auth/session state lives in
+`jarv1s-cli-auth`; no host tmux socket or host CLI config directories are mounted into the
+production stack. The API talks to cli-runner over `/run/jarv1s/cli-runner.sock` with
+`JARVIS_CLI_RUNNER_RPC_SECRET`.
 
 ## Reboot-survival check
 

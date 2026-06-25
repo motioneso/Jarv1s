@@ -59,9 +59,8 @@ const webPort = process.env.JARVIS_WEB_PORT ?? "1533";
 // plus JARVIS_PUBLIC_ORIGIN unless explicitly overridden.
 const authBaseUrl = process.env.JARVIS_AUTH_BASE_URL ?? "http://localhost:3000";
 // #379: build the better-auth trusted-origins list. localhost:<webPort> always (on-box /
-// port-forward reach), PLUS the host public origin install.sh detected/was-overridden with
-// (JARVIS_PUBLIC_ORIGIN) so signup works from the real LAN/tailnet/domain URL — the setup
-// container can't see the host LAN IP itself. An explicit JARVIS_AUTH_TRUSTED_ORIGINS override
+// port-forward reach), PLUS the host public origin supplied through JARVIS_PUBLIC_ORIGIN
+// so signup works from the real LAN/tailnet/domain URL. An explicit JARVIS_AUTH_TRUSTED_ORIGINS override
 // still wins verbatim. A non-default JARVIS_WEB_PORT is honored (never falls back to :1533).
 const authTrustedOrigins = deriveTrustedOrigins({
   webPort,
@@ -167,8 +166,8 @@ const content = [
 ];
 
 // --- Notes Source host-folder bind mount (#449). -----------------------------
-// Only emitted when the operator set JARVIS_NOTES_VAULT_HOST_PATH at install
-// (install.sh probes it and -f's in docker-compose.notes.yml). The mount target
+// Only emitted when the operator set JARVIS_NOTES_VAULT_HOST_PATH before setup.
+// The mount target
 // is a FIXED neutral path; the app reads it via JARVIS_NOTES_ROOTS regardless of
 // the operator's host path. Read-only in v1; :rw reserved for write-back (#2).
 content.push(...deriveNotesEnvLines(process.env.JARVIS_NOTES_VAULT_HOST_PATH));
@@ -183,8 +182,7 @@ console.log(`Wrote ${OUT_FILE} (mode 0600) with all boot secrets.`);
 console.log("");
 console.log("Next steps:");
 console.log(`  1. Sign-in is trusted for these origins: ${authTrustedOrigins}`);
-console.log("     (install.sh detected the host LAN IP automatically. To add another, set");
-console.log("     JARVIS_PUBLIC_ORIGIN=https://your.host before install, or set");
+console.log("     (set JARVIS_PUBLIC_ORIGIN=https://your.host before setup to add another, or set");
 console.log("     JARVIS_AUTH_TRUSTED_ORIGINS=<comma,list> to control the list yourself, then");
 console.log("     redeploy — no need to re-run setup.)");
 console.log("  2. BACK THIS FILE UP. It is the only copy of your auth/encryption keys;");

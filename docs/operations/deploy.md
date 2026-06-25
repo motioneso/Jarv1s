@@ -2,7 +2,7 @@
 
 Jarv1s should deploy like a small self-hosted appliance: one Postgres container for durable data, and one Jarv1s container for everything Jarv1s owns.
 
-The operator-facing path is a commented Docker Compose file. No installer script, generated env file, host CLI preflight, UID/GID prompt, or hidden compose overlay should be required.
+The operator-facing path is a commented Docker Compose file. No installer script, host CLI preflight, or UID/GID prompt should be required.
 
 ## Target Compose
 
@@ -27,9 +27,9 @@ services:
     depends_on:
       - postgres
     ports:
-      - "5173:5173"
+      - "1533:3000"
     environment:
-      JARVIS_BASE_URL: http://localhost:5173
+      JARVIS_BASE_URL: http://localhost:1533
 
       # Change this before first start. Use a long random value.
       JARVIS_SECRET: replace-this-jarv1s-secret
@@ -56,7 +56,7 @@ volumes:
   jarv1s-data:
 ```
 
-Open `http://localhost:5173`.
+Open `http://localhost:1533`.
 
 ## Upgrade
 
@@ -67,18 +67,9 @@ docker compose up -d
 
 The default image channel should be `ghcr.io/motioneso/jarv1s:stable`. Version tags remain useful for rollback and debugging, but users should not have to edit a tag for routine upgrades.
 
-## Current Alpha Packaging
+## Production Compose
 
-The current alpha compose stack still uses separate `api`, `web`, `worker`, `migrate`, `init`, and `cli-runner` services. That shape is now legacy packaging, not the desired operator contract.
-
-The consolidation target:
-
-- keep Postgres separate
-- fold web serving into Jarv1s
-- run migrations on Jarv1s startup
-- run API and worker from the Jarv1s container
-- run provider CLIs/tmux inside the Jarv1s container by default
-- keep a split `cli-runner` sidecar only as a future hardened/advanced mode
+The committed production artifact is `infra/docker-compose.prod.yml`. It keeps Postgres separate and runs API, web serving, worker, migrations, and provider CLIs inside the `jarv1s` container.
 
 ## Secrets
 
@@ -125,16 +116,33 @@ docker compose up -d
 
 For logical database dump/restore procedures, see [backup.md](./backup.md).
 
-## Legacy Compose
+## Repository Compose
 
-Until packaging is consolidated, use `infra/docker-compose.prod.yml` for the current multi-service alpha stack. If notes are enabled in that legacy stack, include the notes overlay every time:
+For a checkout-based deploy, generate `infra/env.production.local` with the setup service, then start the single-container production stack:
 
 ```sh
+JARVIS_IMAGE_TAG=v0.1.0 POSTGRES_PASSWORD=setup JARVIS_CLI_RUNNER_RPC_SECRET=setup \
+  docker compose -p jarv1s-prod -f infra/docker-compose.prod.yml --profile setup run --rm setup
+
 docker compose -p jarv1s-prod \
-  -f docker-compose.prod.yml \
-  -f docker-compose.notes.yml \
-  --env-file env.production.local \
+  -f infra/docker-compose.prod.yml \
+  --env-file infra/env.production.local \
   up -d
 ```
 
-The legacy `install.sh` path should be removed from the happy path. It existed to generate `env.production.local`, detect host paths, and check host CLIs/multiplexers. Those responsibilities should move into the containerized app/runtime or disappear.
+If notes are enabled, set `JARVIS_NOTES_VAULT_HOST_PATH` and include the notes override on both commands:
+
+```sh
+JARVIS_NOTES_VAULT_HOST_PATH=/Users/you/Obsidian \
+JARVIS_IMAGE_TAG=v0.1.0 POSTGRES_PASSWORD=setup JARVIS_CLI_RUNNER_RPC_SECRET=setup \
+  docker compose -p jarv1s-prod \
+  -f infra/docker-compose.prod.yml \
+  -f infra/docker-compose.notes.yml \
+  --profile setup run --rm setup
+
+docker compose -p jarv1s-prod \
+  -f infra/docker-compose.prod.yml \
+  -f infra/docker-compose.notes.yml \
+  --env-file infra/env.production.local \
+  up -d
+```

@@ -70,4 +70,4 @@ docker buildx build \
 
 log "Published"
 note "  ${IMAGE}:${TAG}  (+ :latest)"
-note "Operators now deploy with:  JARVIS_IMAGE_TAG=${TAG} ./install.sh"
+note "Deploy with tag ${TAG}; see docs/operations/deploy.md."

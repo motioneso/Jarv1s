@@ -4,8 +4,8 @@ Captured 2026-06-20 during the v0.1.1 local deploy + chat E2E (#342 / #362 / #36
 
 ## North-star goal
 
-**A primary user (Ben) should complete the entire path from the UI after running only
-`install.sh`** — onboard → choose a provider → install its CLI → log in → get a working
+**A primary user (Ben) should complete the entire path from the UI after starting the
+production Compose stack** — onboard → choose a provider → install its CLI → log in → get a working
 chat-capable model → chat — with **no manual API calls, scripts, or admin-settings detours**.
 Today several of those steps only exist as backend routes or buried admin flows; the E2E only
 worked because the operator drove `provider-install` / `provider-login` / model-config by hand.

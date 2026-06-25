@@ -8,8 +8,7 @@ export interface DeriveTrustedOriginsInput {
   /** The chosen web port (JARVIS_WEB_PORT) — the localhost origin always uses this. */
   readonly webPort: string;
   /**
-   * The host public origin detected/overridden by install.sh on the HOST (which can see the LAN
-   * IP; the setup container cannot). A full origin (`https://jarvis.example.com`,
+   * The host public origin supplied by the operator before setup. A full origin (`https://jarvis.example.com`,
    * `http://192.168.1.50:5173`) is used as-is; a bare host/IP (`192.168.1.50`, `jarvis.lan`) is
    * normalized to `http://<host>:<webPort>`. Empty/undefined ⇒ localhost-only (current behavior).
    */
@@ -29,8 +28,7 @@ function hasScheme(value: string): boolean {
 
 /**
  * Normalize a publicOrigin token to a full origin. A value WITH a scheme is trusted as-is
- * (minus any trailing slash); a bare host/IP becomes `http://<host>:<webPort>`. install.sh is
- * expected to pass a full origin, but we normalize defensively in case a bare host slips through.
+ * (minus any trailing slash); a bare host/IP becomes `http://<host>:<webPort>`.
  */
 function normalizeOrigin(value: string, webPort: string): string {
   const trimmed = value.trim().replace(/\/+$/, "");

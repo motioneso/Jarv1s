@@ -1,6 +1,6 @@
 # Notes Source bind-mount override (#449).
 #
-# `-f`'d in ONLY when JARVIS_NOTES_VAULT_HOST_PATH is set (install.sh gates this).
+# `-f`'d in ONLY when JARVIS_NOTES_VAULT_HOST_PATH is set.
 # Unset var + this file loaded = hard compose parse error (the `${VAR:?}` gate is
 # intentional fail-closed), so the file is opt-in — never referenced by the base
 # compose invocation.
@@ -11,14 +11,10 @@
 # mount change when write-back lands.
 #
 # The mount target is a FIXED neutral path (/data/external-notes) so app config
-# stays stable regardless of the operator's host path. install.sh derives
-# JARVIS_NOTES_ROOTS=/data/external-notes from the same host-path var, pointing
-# the shipped resolveNotesRoots() allowlist at the mount target with no app-code
-# change. See docs/superpowers/plans/2026-06-23-notes-source-host-folder.md.
+# stays stable regardless of the operator's host path. Set
+# JARVIS_NOTES_ROOTS=/data/external-notes in the env file when this override is
+# loaded. See docs/superpowers/plans/2026-06-23-notes-source-host-folder.md.
 services:
-  api:
-    volumes:
-      - ${JARVIS_NOTES_VAULT_HOST_PATH:?set JARVIS_NOTES_VAULT_HOST_PATH to the host vault dir}:/data/external-notes:rw
-  worker:
+  jarv1s:
     volumes:
       - ${JARVIS_NOTES_VAULT_HOST_PATH:?set JARVIS_NOTES_VAULT_HOST_PATH to the host vault dir}:/data/external-notes:rw

@@ -5,6 +5,7 @@ const maxLines = Number(process.env.JARVIS_MAX_SOURCE_LINES ?? 1000);
 const rootDirectory = process.cwd();
 const ignoredDirectories = new Set([
   ".git",
+  ".claude",
   ".turbo",
   "coverage",
   "dist",
