@@ -2,6 +2,7 @@ export * from "./crypto.js";
 export * from "./email-extract.js";
 export * from "./google-api-client.js";
 export * from "./google-connection.js";
+export * from "./live-tools.js";
 export * from "./manifest.js";
 export * from "./oauth.js";
 export * from "./repository.js";

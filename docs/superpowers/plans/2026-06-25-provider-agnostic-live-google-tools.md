@@ -24,6 +24,7 @@
 ### Task 1: Shared Schemas
 
 **Files:**
+
 - Modify: `packages/shared/src/connectors-api.ts`
 
 - [ ] **Step 1: Add DTO interfaces near existing connector response interfaces**
@@ -162,7 +163,16 @@ export const gmailGetLiveMessageResponseSchema = {
 const calendarLiveEventSchema = {
   type: "object",
   additionalProperties: false,
-  required: ["id", "title", "startsAt", "endsAt", "location", "htmlLink", "status", "attendeeCount"],
+  required: [
+    "id",
+    "title",
+    "startsAt",
+    "endsAt",
+    "location",
+    "htmlLink",
+    "status",
+    "attendeeCount"
+  ],
   properties: {
     id: { type: "string" },
     title: { type: "string" },
@@ -196,6 +206,7 @@ Expected: fails only if the spread inside the const schema is not accepted by th
 ### Task 2: Live Tool Handlers
 
 **Files:**
+
 - Modify: `packages/connectors/src/email-extract.ts`
 - Create: `packages/connectors/src/live-tools.ts`
 
@@ -230,10 +241,7 @@ Implement the handlers with injectable deps:
 import { assertDataContextDb, type DataContextDb } from "@jarv1s/db";
 import type { ToolExecute, ToolResult } from "@jarv1s/module-sdk";
 
-import type {
-  CalendarLiveEventDto,
-  GmailLiveMessageSummaryDto
-} from "@jarv1s/shared";
+import type { CalendarLiveEventDto, GmailLiveMessageSummaryDto } from "@jarv1s/shared";
 
 import { createConnectorSecretCipher } from "./crypto.js";
 import { parseEmail, type ParsedEmail } from "./email-extract.js";
@@ -252,7 +260,10 @@ const CALENDAR_DEFAULT_WINDOW_MS = 14 * 24 * 60 * 60 * 1000;
 
 export interface LiveGoogleToolDeps {
   readonly googleService: Pick<GoogleConnectionService, "getFreshAccessToken">;
-  readonly googleClient: Pick<GoogleApiClient, "listMessageIds" | "getMessage" | "listCalendarEvents">;
+  readonly googleClient: Pick<
+    GoogleApiClient,
+    "listMessageIds" | "getMessage" | "listCalendarEvents"
+  >;
   readonly now?: () => Date;
 }
 
@@ -292,8 +303,10 @@ function summarize(parsed: ParsedEmail): GmailLiveMessageSummaryDto {
 }
 
 function mapCalendarEvent(event: GoogleCalendarEvent): CalendarLiveEventDto | undefined {
-  const startsAt = event.start?.dateTime ?? (event.start?.date ? `${event.start.date}T00:00:00.000Z` : undefined);
-  const endsAt = event.end?.dateTime ?? (event.end?.date ? `${event.end.date}T00:00:00.000Z` : undefined);
+  const startsAt =
+    event.start?.dateTime ?? (event.start?.date ? `${event.start.date}T00:00:00.000Z` : undefined);
+  const endsAt =
+    event.end?.dateTime ?? (event.end?.date ? `${event.end.date}T00:00:00.000Z` : undefined);
   if (!event.id || !startsAt || !endsAt) return undefined;
   return {
     id: event.id,
@@ -356,7 +369,9 @@ export function makeGmailSearchLiveExecute(deps: LiveGoogleToolDeps = defaultDep
   };
 }
 
-export function makeGmailGetLiveMessageExecute(deps: LiveGoogleToolDeps = defaultDeps()): ToolExecute {
+export function makeGmailGetLiveMessageExecute(
+  deps: LiveGoogleToolDeps = defaultDeps()
+): ToolExecute {
   return async (scopedDbRaw, input): Promise<ToolResult> => {
     assertDataContextDb(scopedDbRaw);
     const id = readString(input.id);
@@ -379,7 +394,9 @@ export function makeGmailGetLiveMessageExecute(deps: LiveGoogleToolDeps = defaul
   };
 }
 
-export function makeCalendarListLiveEventsExecute(deps: LiveGoogleToolDeps = defaultDeps()): ToolExecute {
+export function makeCalendarListLiveEventsExecute(
+  deps: LiveGoogleToolDeps = defaultDeps()
+): ToolExecute {
   return async (scopedDbRaw, input): Promise<ToolResult> => {
     assertDataContextDb(scopedDbRaw);
     const scopedDb = scopedDbRaw as DataContextDb;
@@ -389,7 +406,9 @@ export function makeCalendarListLiveEventsExecute(deps: LiveGoogleToolDeps = def
     const timeMin = rawMin ?? now.toISOString();
     const timeMax =
       rawMax ??
-      new Date((rawMin ? new Date(rawMin) : now).getTime() + CALENDAR_DEFAULT_WINDOW_MS).toISOString();
+      new Date(
+        (rawMin ? new Date(rawMin) : now).getTime() + CALENDAR_DEFAULT_WINDOW_MS
+      ).toISOString();
     const limit = clampInt(input.limit, CALENDAR_LIMIT_DEFAULT, CALENDAR_LIMIT_MAX);
     const token = { value: await freshToken(scopedDb, deps) };
     const events = await with401Retry(scopedDb, deps, token, (accessToken) =>
@@ -401,7 +420,9 @@ export function makeCalendarListLiveEventsExecute(deps: LiveGoogleToolDeps = def
         maxPages: 3
       })
     );
-    return { data: { events: events.flatMap((event) => mapCalendarEvent(event) ?? []).slice(0, limit) } };
+    return {
+      data: { events: events.flatMap((event) => mapCalendarEvent(event) ?? []).slice(0, limit) }
+    };
   };
 }
 
@@ -421,6 +442,7 @@ Expected: TypeScript reports only real typing mistakes. Fix by keeping the handl
 ### Task 3: Manifest Registration
 
 **Files:**
+
 - Modify: `packages/connectors/src/manifest.ts`
 - Modify: `packages/connectors/src/index.ts` if live tool exports are needed by package consumers
 
@@ -515,6 +537,7 @@ Expected: pass or actionable import/export errors only.
 ### Task 4: Focused Integration Tests
 
 **Files:**
+
 - Modify: `tests/integration/connectors-google.test.ts`
 
 - [ ] **Step 1: Add direct handler tests with fakes**
@@ -534,7 +557,9 @@ it("lists bounded live gmail results without bodies", async () => {
     }
   });
 
-  const result = await dc.withDataContext(access, (db) => execute(db, { query: "from:a", limit: 1 }, ctx));
+  const result = await dc.withDataContext(access, (db) =>
+    execute(db, { query: "from:a", limit: 1 }, ctx)
+  );
 
   expect(result.data).toMatchObject({
     messages: [{ id: "m1", subject: "Hello", snippet: "Snippet" }],
@@ -609,7 +634,8 @@ it("forces one refresh and retries after a live Google 401", async () => {
       getMessage: async () => gmailMessage({ id: "unused", body: "" }),
       listCalendarEvents: async ({ accessToken }) => {
         calls += 1;
-        if (accessToken === "token-1") throw new GoogleApiError("Google calendar returned 401", 401);
+        if (accessToken === "token-1")
+          throw new GoogleApiError("Google calendar returned 401", 401);
         return [];
       }
     },
@@ -632,7 +658,10 @@ const names = connectorsModuleManifest.assistantTools?.map((tool) => tool.name) 
 expect(names).toContain("gmail.searchLive");
 expect(names).toContain("gmail.getLiveMessage");
 expect(names).toContain("calendar.listLiveEvents");
-expect(connectorsModuleManifest.assistantTools?.find((tool) => tool.name === "gmail.searchLive")?.requiresServices).toBeUndefined();
+expect(
+  connectorsModuleManifest.assistantTools?.find((tool) => tool.name === "gmail.searchLive")
+    ?.requiresServices
+).toBeUndefined();
 ```
 
 - [ ] **Step 4: Add tiny test helper for fake Gmail payloads**
@@ -675,6 +704,7 @@ Expected: pass.
 ### Task 5: Verification and Commit
 
 **Files:**
+
 - All files changed above
 
 - [ ] **Step 1: Run focused checks**

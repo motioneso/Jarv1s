@@ -17,9 +17,16 @@ import {
   createConnectorSecretCipher,
   GoogleConnectionService,
   GoogleConnectError,
+  GoogleApiError,
+  type GmailMessageFull,
+  type GoogleCalendarEvent,
+  makeCalendarListLiveEventsExecute,
+  makeGmailGetLiveMessageExecute,
+  makeGmailSearchLiveExecute,
   registerConnectorsRoutes,
   connectorsModuleManifest
 } from "@jarv1s/connectors";
+import type { ToolContext } from "@jarv1s/module-sdk";
 import { connectionStrings, ids, resetFoundationDatabase } from "./test-database.js";
 
 describe("GoogleOAuthClient.buildAuthUrl", () => {
@@ -689,3 +696,192 @@ describe("connectors.startGoogleGuidance tool", () => {
     expect(serialized).not.toContain("accessToken");
   });
 });
+
+describe("live Google assistant tools", () => {
+  let appDb: Kysely<JarvisDatabase>;
+  let dataContext: DataContextRunner;
+  const access = (): AccessContext => ({ actorUserId: ids.userA, requestId: "req:live-google" });
+  const ctx: ToolContext = {
+    actorUserId: ids.userA,
+    requestId: "req:live-google",
+    chatSessionId: "chat:live-google"
+  };
+
+  beforeAll(async () => {
+    process.env.JARVIS_CONNECTOR_SECRET_KEY = "test-connector-secret-key";
+    await resetFoundationDatabase();
+    appDb = createDatabase({ connectionString: connectionStrings.app, maxConnections: 4 });
+    dataContext = new DataContextRunner(appDb);
+  });
+
+  afterAll(async () => {
+    await appDb?.destroy();
+  });
+
+  it("declares live read tools without required services", () => {
+    const names = connectorsModuleManifest.assistantTools?.map((tool) => tool.name) ?? [];
+    expect(names).toContain("gmail.searchLive");
+    expect(names).toContain("gmail.getLiveMessage");
+    expect(names).toContain("calendar.listLiveEvents");
+
+    for (const name of ["gmail.searchLive", "gmail.getLiveMessage", "calendar.listLiveEvents"]) {
+      const tool = connectorsModuleManifest.assistantTools?.find((item) => item.name === name);
+      expect(tool?.risk).toBe("read");
+      expect(
+        (tool as { requiresServices?: unknown } | undefined)?.requiresServices
+      ).toBeUndefined();
+      expect(tool?.externalContent).toBe(true);
+    }
+  });
+
+  it("returns a sanitized no-active-account failure", async () => {
+    const execute = makeGmailSearchLiveExecute({
+      googleService: new GoogleConnectionService({
+        repository: new ConnectorsRepository(),
+        cipher: createConnectorSecretCipher(),
+        oauthClient: new GoogleOAuthClient()
+      }),
+      googleClient: fakeLiveGoogleClient()
+    });
+
+    await expect(
+      dataContext.withDataContext(access(), (db) => execute(db, {}, ctx))
+    ).rejects.toThrow("Connect Google in Settings first.");
+  });
+
+  it("lists bounded live gmail results without bodies", async () => {
+    const execute = makeGmailSearchLiveExecute({
+      googleService: { getFreshAccessToken: async () => "token-1" },
+      googleClient: fakeLiveGoogleClient({
+        listMessageIds: async () => [{ id: "m1" }],
+        getMessage: async () => gmailMessage({ id: "m1", body: "secret body" })
+      })
+    });
+
+    const result = await dataContext.withDataContext(access(), (db) =>
+      execute(db, { query: "from:a", limit: 1 }, ctx)
+    );
+
+    expect(result.data).toMatchObject({
+      messages: [{ id: "m1", subject: "Hello", snippet: "Snippet" }],
+      skipped: 0
+    });
+    expect(JSON.stringify(result.data)).not.toContain("secret body");
+  });
+
+  it("returns a capped live gmail body for one message", async () => {
+    const execute = makeGmailGetLiveMessageExecute({
+      googleService: { getFreshAccessToken: async () => "token-1" },
+      googleClient: fakeLiveGoogleClient({
+        getMessage: async () => gmailMessage({ id: "m1", body: "x".repeat(13_000) })
+      })
+    });
+
+    const result = await dataContext.withDataContext(access(), (db) =>
+      execute(db, { id: "m1" }, ctx)
+    );
+
+    const message = result.data.message as { bodyText: string };
+    expect(message.bodyText).toHaveLength(12_000);
+  });
+
+  it("lists bounded live calendar events", async () => {
+    const execute = makeCalendarListLiveEventsExecute({
+      googleService: { getFreshAccessToken: async () => "token-1" },
+      googleClient: fakeLiveGoogleClient({
+        listCalendarEvents: async () => [
+          {
+            id: "e1",
+            summary: "Focus",
+            start: { dateTime: "2026-06-25T10:00:00.000Z" },
+            end: { dateTime: "2026-06-25T11:00:00.000Z" },
+            attendees: [{}, {}]
+          }
+        ]
+      }),
+      now: () => new Date("2026-06-25T00:00:00.000Z")
+    });
+
+    const result = await dataContext.withDataContext(access(), (db) => execute(db, {}, ctx));
+
+    expect(result.data).toMatchObject({
+      events: [{ id: "e1", title: "Focus", attendeeCount: 2 }]
+    });
+  });
+
+  it("forces one refresh and retries after a live Google 401", async () => {
+    const tokens: string[] = [];
+    let calls = 0;
+    const execute = makeCalendarListLiveEventsExecute({
+      googleService: {
+        getFreshAccessToken: async (_db, opts) => {
+          tokens.push(opts?.force ? "forced" : "cached");
+          return opts?.force ? "token-2" : "token-1";
+        }
+      },
+      googleClient: fakeLiveGoogleClient({
+        listCalendarEvents: async ({ accessToken }) => {
+          calls += 1;
+          if (accessToken === "token-1") {
+            throw new GoogleApiError("Google calendar returned 401", 401);
+          }
+          return [];
+        }
+      }),
+      now: () => new Date("2026-06-25T00:00:00.000Z")
+    });
+
+    await dataContext.withDataContext(access(), (db) => execute(db, {}, ctx));
+
+    expect(calls).toBe(2);
+    expect(tokens).toEqual(["cached", "forced"]);
+  });
+});
+
+function b64url(value: string): string {
+  return Buffer.from(value, "utf8").toString("base64url");
+}
+
+function gmailMessage(input: { id: string; body: string }): GmailMessageFull {
+  return {
+    id: input.id,
+    threadId: `thread-${input.id}`,
+    labelIds: ["INBOX"],
+    snippet: "Snippet",
+    internalDate: String(Date.parse("2026-06-25T12:00:00.000Z")),
+    payload: {
+      mimeType: "text/plain",
+      headers: [
+        { name: "Subject", value: "Hello" },
+        { name: "From", value: "a@example.com" },
+        { name: "To", value: "b@example.com" }
+      ],
+      body: { data: b64url(input.body) }
+    }
+  };
+}
+
+function fakeLiveGoogleClient(
+  overrides: Partial<{
+    listMessageIds(input: {
+      accessToken: string;
+      query?: string;
+      maxPages?: number;
+    }): Promise<Array<{ id: string }>>;
+    getMessage(input: { accessToken: string; id: string }): Promise<GmailMessageFull>;
+    listCalendarEvents(input: {
+      accessToken: string;
+      calendarId?: string;
+      timeMin: string;
+      timeMax: string;
+      maxPages?: number;
+    }): Promise<GoogleCalendarEvent[]>;
+  }> = {}
+) {
+  return {
+    listMessageIds: overrides.listMessageIds ?? (async () => []),
+    getMessage:
+      overrides.getMessage ?? (async ({ id }) => gmailMessage({ id, body: "default body" })),
+    listCalendarEvents: overrides.listCalendarEvents ?? (async () => [])
+  };
+}

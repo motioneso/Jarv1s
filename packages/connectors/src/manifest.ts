@@ -2,8 +2,14 @@ import { fileURLToPath } from "node:url";
 
 import type { JarvisModuleManifest, ToolExecute } from "@jarv1s/module-sdk";
 import {
+  calendarListLiveEventsInputSchema,
+  calendarListLiveEventsResponseSchema,
   createConnectorAccountRequestSchema,
   createConnectorAccountResponseSchema,
+  gmailGetLiveMessageInputSchema,
+  gmailGetLiveMessageResponseSchema,
+  gmailSearchLiveInputSchema,
+  gmailSearchLiveResponseSchema,
   googleSyncResponseSchema,
   listAdminConnectorAccountsResponseSchema,
   listConnectorAccountsResponseSchema,
@@ -12,6 +18,12 @@ import {
   updateConnectorAccountRequestSchema,
   updateConnectorAccountResponseSchema
 } from "@jarv1s/shared";
+
+import {
+  calendarListLiveEventsExecute,
+  gmailGetLiveMessageExecute,
+  gmailSearchLiveExecute
+} from "./live-tools.js";
 
 export const CONNECTORS_MODULE_ID = "connectors";
 export const connectorsModuleSqlMigrationDirectory = fileURLToPath(
@@ -182,6 +194,39 @@ export const connectorsModuleManifest = {
           settingsUrl: "/settings"
         }
       })) as ToolExecute
+    },
+    {
+      name: "gmail.searchLive",
+      description:
+        "Search the user's live Gmail through the Jarv1s Google connector. Returns bounded message metadata and snippets, not full bodies.",
+      permissionId: "connectors.view",
+      risk: "read",
+      inputSchema: gmailSearchLiveInputSchema,
+      outputSchema: gmailSearchLiveResponseSchema,
+      externalContent: true,
+      execute: gmailSearchLiveExecute
+    },
+    {
+      name: "gmail.getLiveMessage",
+      description:
+        "Fetch one live Gmail message by id through the Jarv1s Google connector. Returns capped plain-text body content.",
+      permissionId: "connectors.view",
+      risk: "read",
+      inputSchema: gmailGetLiveMessageInputSchema,
+      outputSchema: gmailGetLiveMessageResponseSchema,
+      externalContent: true,
+      execute: gmailGetLiveMessageExecute
+    },
+    {
+      name: "calendar.listLiveEvents",
+      description:
+        "List live primary-calendar events through the Jarv1s Google connector for a bounded time window.",
+      permissionId: "connectors.view",
+      risk: "read",
+      inputSchema: calendarListLiveEventsInputSchema,
+      outputSchema: calendarListLiveEventsResponseSchema,
+      externalContent: true,
+      execute: calendarListLiveEventsExecute
     }
   ]
 } satisfies JarvisModuleManifest;

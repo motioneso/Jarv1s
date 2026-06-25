@@ -328,6 +328,41 @@ export interface GoogleSyncResponse {
   readonly jobId: string | null;
 }
 
+export interface GmailLiveMessageSummaryDto {
+  readonly id: string;
+  readonly threadId: string | null;
+  readonly from: string;
+  readonly to: readonly string[];
+  readonly subject: string;
+  readonly snippet: string | null;
+  readonly receivedAt: string;
+  readonly labelIds: readonly string[];
+}
+
+export interface GmailSearchLiveResponse {
+  readonly messages: readonly GmailLiveMessageSummaryDto[];
+  readonly skipped: number;
+}
+
+export interface GmailGetLiveMessageResponse {
+  readonly message: GmailLiveMessageSummaryDto & { readonly bodyText: string };
+}
+
+export interface CalendarLiveEventDto {
+  readonly id: string;
+  readonly title: string;
+  readonly startsAt: string;
+  readonly endsAt: string;
+  readonly location: string | null;
+  readonly htmlLink: string | null;
+  readonly status: string | null;
+  readonly attendeeCount: number;
+}
+
+export interface CalendarListLiveEventsResponse {
+  readonly events: readonly CalendarLiveEventDto[];
+}
+
 export const googleSyncResponseSchema = {
   type: "object",
   additionalProperties: false,
@@ -341,4 +376,126 @@ export const googleSyncResponseSchema = {
 
 export const googleSyncRouteSchema = {
   response: { 202: googleSyncResponseSchema }
+} as const;
+
+export const gmailSearchLiveInputSchema = {
+  type: "object",
+  additionalProperties: false,
+  properties: {
+    query: { type: "string" },
+    limit: { type: "number" }
+  }
+} as const;
+
+export const gmailGetLiveMessageInputSchema = {
+  type: "object",
+  additionalProperties: false,
+  required: ["id"],
+  properties: {
+    id: { type: "string", minLength: 1 }
+  }
+} as const;
+
+export const calendarListLiveEventsInputSchema = {
+  type: "object",
+  additionalProperties: false,
+  properties: {
+    timeMin: { type: "string" },
+    timeMax: { type: "string" },
+    limit: { type: "number" }
+  }
+} as const;
+
+const gmailLiveMessageSummarySchema = {
+  type: "object",
+  additionalProperties: false,
+  required: ["id", "threadId", "from", "to", "subject", "snippet", "receivedAt", "labelIds"],
+  properties: {
+    id: { type: "string" },
+    threadId: { type: ["string", "null"] },
+    from: { type: "string" },
+    to: { type: "array", items: { type: "string" } },
+    subject: { type: "string" },
+    snippet: { type: ["string", "null"] },
+    receivedAt: { type: "string" },
+    labelIds: { type: "array", items: { type: "string" } }
+  }
+} as const;
+
+export const gmailSearchLiveResponseSchema = {
+  type: "object",
+  additionalProperties: false,
+  required: ["messages", "skipped"],
+  properties: {
+    messages: { type: "array", items: gmailLiveMessageSummarySchema },
+    skipped: { type: "number" }
+  }
+} as const;
+
+export const gmailGetLiveMessageResponseSchema = {
+  type: "object",
+  additionalProperties: false,
+  required: ["message"],
+  properties: {
+    message: {
+      type: "object",
+      additionalProperties: false,
+      required: [
+        "id",
+        "threadId",
+        "from",
+        "to",
+        "subject",
+        "snippet",
+        "receivedAt",
+        "labelIds",
+        "bodyText"
+      ],
+      properties: {
+        id: { type: "string" },
+        threadId: { type: ["string", "null"] },
+        from: { type: "string" },
+        to: { type: "array", items: { type: "string" } },
+        subject: { type: "string" },
+        snippet: { type: ["string", "null"] },
+        receivedAt: { type: "string" },
+        labelIds: { type: "array", items: { type: "string" } },
+        bodyText: { type: "string" }
+      }
+    }
+  }
+} as const;
+
+const calendarLiveEventSchema = {
+  type: "object",
+  additionalProperties: false,
+  required: [
+    "id",
+    "title",
+    "startsAt",
+    "endsAt",
+    "location",
+    "htmlLink",
+    "status",
+    "attendeeCount"
+  ],
+  properties: {
+    id: { type: "string" },
+    title: { type: "string" },
+    startsAt: { type: "string" },
+    endsAt: { type: "string" },
+    location: { type: ["string", "null"] },
+    htmlLink: { type: ["string", "null"] },
+    status: { type: ["string", "null"] },
+    attendeeCount: { type: "number" }
+  }
+} as const;
+
+export const calendarListLiveEventsResponseSchema = {
+  type: "object",
+  additionalProperties: false,
+  required: ["events"],
+  properties: {
+    events: { type: "array", items: calendarLiveEventSchema }
+  }
 } as const;
