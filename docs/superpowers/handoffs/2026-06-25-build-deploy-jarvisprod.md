@@ -3,7 +3,7 @@
 **Date:** 2026-06-25  
 **Source repo:** `~/Jarv1s`  
 **Production checkout:** `~/JarvisProd`  
-**Base commit:** `220010f` (`main`, pushed to `origin/main`)
+**Base commit:** `d5604c3` (`main`, pushed to `origin/main`)
 
 ## Goal
 
@@ -20,8 +20,21 @@ The notes write tools work is merged and pushed to `main`:
   `JARVIS_NOTES_ROOTS`.
 - Sync enqueue uses metadata-only payloads.
 
+The two-container deploy consolidation is also merged and pushed to `main` in `d5604c3`:
+
+- Production Compose now runs one `postgres` container and one `jarv1s` container.
+- The `jarv1s` image includes API, worker, cli-runner, migrations, and built web assets.
+- The API serves the Vite build on the same public origin as `/api`.
+- The default public Jarv1s port is `1533`.
+- CI/publish/smoke paths now target one `ghcr.io/motioneso/jarv1s` image.
+
 Verified before handoff:
 
+- Deploy wrap-up for `d5604c3`:
+  - `pnpm exec vitest run tests/unit/api-static-web.test.ts tests/unit/start-jarv1s-plan.test.ts tests/unit/prod-compose-plan.test.ts tests/unit/prod-deploy-config.test.ts tests/unit/setup-prod-trusted-origins.test.ts tests/unit/cli-runner-catalog-path.test.ts` passed: 6 files, 34 tests.
+  - `pnpm test:release-hardening` passed: 1 file, 19 tests.
+  - `pnpm typecheck` passed.
+  - `JARVIS_IMAGE_TAG=smoke pnpm smoke:compose:prod` passed at `http://localhost:1533/health/ready`; the smoke stack was cleaned up.
 - `pnpm vitest run tests/integration/notes-write-tools.test.ts tests/integration/mcp-gateway.test.ts`
   passed: 2 files, 29 tests.
 - `pnpm typecheck` passed.
@@ -29,9 +42,24 @@ Verified before handoff:
 - Touched-file Prettier checks passed.
 - GLM and AGY final reviews were GREEN.
 
-Known shared-tree note: `~/Jarv1s` has unrelated uncommitted deploy/folder-picker work from other
+Known shared-tree note: `~/Jarv1s` has unrelated uncommitted folder-picker work from other
 sessions. Do not use that working tree for deploy edits or broad git operations. Work from your own
 isolated worktree or from `~/JarvisProd` as appropriate.
+
+## Deployment Result
+
+Codex JarvisProd deploy pane `w1:p18` reported the production update complete:
+
+- Deployed `origin/main` at `d5604c3` to `~/JarvisProd`.
+- Production is running the single `jarv1s` container on public port `1533`.
+- Only operator deploy files under `~/JarvisProd` and `/tmp/update-jarvis-nginx-1533.sh` were
+  changed by the deploy pane.
+- The deploy pane did not modify or stage anything in the shared `~/Jarv1s` tree.
+
+Follow-up: the committed notes overlay/install path is still stale for the split-service-era
+Compose names. The production deploy directory has a local notes override adjusted for the deployed
+single-container stack, but `~/Jarv1s/install.sh` and the committed operations docs still need a
+separate cleanup pass. Tracked in GitHub issue #471.
 
 ## Guardrails
 
@@ -61,7 +89,7 @@ isolated worktree or from `~/JarvisProd` as appropriate.
    ```
 
 4. Determine the correct build/deploy path from committed docs and scripts.
-5. Build from `origin/main`/`220010f` or newer if `main` advanced after this handoff.
+5. Build from `origin/main`/`d5604c3` or newer if `main` advanced after this handoff.
 6. Update `~/JarvisProd` using the documented process.
 7. Verify production is healthy. At minimum, check the app health endpoint and confirm the deployed
    revision/tag matches the source commit you intended to deploy.

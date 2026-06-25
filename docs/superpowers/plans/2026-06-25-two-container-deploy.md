@@ -10,6 +10,31 @@
 
 ---
 
+## Implementation Status
+
+Implemented and pushed to `origin/main` in `d5604c3` (`deploy: collapse production into one jarv1s
+container`).
+
+Release-ready evidence from wrap-up:
+
+- `pnpm exec vitest run tests/unit/api-static-web.test.ts tests/unit/start-jarv1s-plan.test.ts tests/unit/prod-compose-plan.test.ts tests/unit/prod-deploy-config.test.ts tests/unit/setup-prod-trusted-origins.test.ts tests/unit/cli-runner-catalog-path.test.ts` passed: 6 files, 34 tests.
+- `pnpm test:release-hardening` passed: 1 file, 19 tests.
+- `pnpm typecheck` passed.
+- `JARVIS_IMAGE_TAG=smoke POSTGRES_PASSWORD=setup JARVIS_CLI_RUNNER_RPC_SECRET=setup JARVIS_DOCKER_SUBNET=10.253.0.0/24 docker compose -p jarv1s-prod-smoke -f infra/docker-compose.prod.yml config --quiet` exited 0.
+- `JARVIS_IMAGE_TAG=smoke pnpm smoke:compose:prod` passed at `http://localhost:1533/health/ready`; the `jarv1s-prod-smoke` containers, volumes, and network were removed after the run.
+
+Known wrap-up note: the shared `~/Jarv1s` tree still had unrelated unstaged notes/folder-picker
+work from another agent. The deploy commit staged only deploy-owned paths.
+
+Production deployment follow-up: `origin/main` at `d5604c3` was deployed to `~/JarvisProd` with one
+`jarv1s` container on public port `1533`. The deploy pane changed only operator-local files under
+`~/JarvisProd` and `/tmp/update-jarvis-nginx-1533.sh`. The committed notes overlay/install path
+still references split-service-era assumptions and needs a separate cleanup pass; the deploy
+directory has a local notes override adjusted for the single-container stack. Tracked in GitHub
+issue #471.
+
+---
+
 ## Scope Notes
 
 Do **not** replace the DB role URL system with `JARVIS_DB_*` variables in this pass. The README template can be made friendlier later, but the current production security model depends on separate bootstrap, migration, app, auth, and worker role URLs. This plan is container consolidation only.
@@ -82,7 +107,7 @@ describe("registerStaticWeb", () => {
   function makeDist(): string {
     const dir = mkdtempSync(join(tmpdir(), "jarv1s-web-"));
     mkdirSync(join(dir, "assets"));
-    writeFileSync(join(dir, "index.html"), "<!doctype html><div id=\"root\"></div>");
+    writeFileSync(join(dir, "index.html"), '<!doctype html><div id="root"></div>');
     writeFileSync(join(dir, "assets", "app.js"), "console.log('jarv1s');");
     return dir;
   }
@@ -135,7 +160,7 @@ describe("registerStaticWeb", () => {
 
     expect(res.statusCode).toBe(200);
     expect(res.headers["content-type"]).toContain("text/html");
-    expect(res.body).toContain("<div id=\"root\"></div>");
+    expect(res.body).toContain('<div id="root"></div>');
   });
 
   it("does not turn missing API routes into the SPA", async () => {
@@ -149,7 +174,7 @@ describe("registerStaticWeb", () => {
     });
 
     expect(res.statusCode).toBe(404);
-    expect(res.body).not.toContain("<div id=\"root\"></div>");
+    expect(res.body).not.toContain('<div id="root"></div>');
   });
 
   it("rejects path traversal", async () => {
@@ -300,7 +325,7 @@ import { registerStaticWeb } from "./static-web.js";
 Inside `server.after(() => { ... })`, after all API/platform/module route registration and before the function returns:
 
 ```ts
-    registerStaticWeb(server);
+registerStaticWeb(server);
 ```
 
 - [ ] **Step 4: Run the focused test**
@@ -360,7 +385,9 @@ describe("start-jarv1s startup plan", () => {
   });
 
   it("spawns resident processes as the configured runtime uid/gid", () => {
-    expect(runtimeUidGid({ JARVIS_HOST_UID: "501", JARVIS_HOST_GID: "20" } as NodeJS.ProcessEnv)).toEqual({
+    expect(
+      runtimeUidGid({ JARVIS_HOST_UID: "501", JARVIS_HOST_GID: "20" } as NodeJS.ProcessEnv)
+    ).toEqual({
       uid: 501,
       gid: 20
     });
@@ -524,7 +551,10 @@ export function runtimeUidGid(env: NodeJS.ProcessEnv = process.env): { uid: numb
   };
 }
 
-export function buildChildEnv(role: ChildRole, env: NodeJS.ProcessEnv = process.env): NodeJS.ProcessEnv {
+export function buildChildEnv(
+  role: ChildRole,
+  env: NodeJS.ProcessEnv = process.env
+): NodeJS.ProcessEnv {
   if (role !== "cli-runner") {
     return {
       ...env,
@@ -551,8 +581,7 @@ export function buildChildEnv(role: ChildRole, env: NodeJS.ProcessEnv = process.
   next.JARVIS_CLI_NEUTRAL_BASE = env.JARVIS_CLI_NEUTRAL_BASE ?? "/data/cli-auth/chat";
   next.JARVIS_CLI_TOOLS_PREFIX = env.JARVIS_CLI_TOOLS_PREFIX ?? "/data/cli-tools";
   next.NPM_CONFIG_PREFIX = env.NPM_CONFIG_PREFIX ?? next.JARVIS_CLI_TOOLS_PREFIX;
-  next.JARVIS_CLI_RUNNER_SOCKET =
-    env.JARVIS_CLI_RUNNER_SOCKET ?? "/run/jarv1s/cli-runner.sock";
+  next.JARVIS_CLI_RUNNER_SOCKET = env.JARVIS_CLI_RUNNER_SOCKET ?? "/run/jarv1s/cli-runner.sock";
   next.JARVIS_CLI_RUNNER_RPC_SECRET = env.JARVIS_CLI_RUNNER_RPC_SECRET;
   next.JARVIS_CLI_RUNNER_SINGLE_USER = env.JARVIS_CLI_RUNNER_SINGLE_USER ?? "0";
   next.JARVIS_CLI_PER_USER_UID = env.JARVIS_CLI_PER_USER_UID ?? "0";
@@ -696,23 +725,23 @@ git commit -m "feat: add single-container supervisor"
 In `tests/unit/prod-compose-plan.test.ts`, replace the second test with:
 
 ```ts
-  it("targets the prod compose file and prepends one jarv1s image build when build is set", () => {
-    const plan = createComposeSmokePlan({
-      composeFile: "infra/docker-compose.prod.yml",
-      build: true
-    });
-
-    const composeCmds = plan.commands.filter((c) => c.args[0] === "compose");
-    expect(composeCmds.length).toBeGreaterThan(0);
-    expect(composeCmds.every((c) => c.args.includes("infra/docker-compose.prod.yml"))).toBe(true);
-
-    const first = plan.commands[0];
-    if (!first) throw new Error("expected a build command when build is set");
-    expect(first.args[0]).toBe("build");
-    expect(first.args).toContain("Dockerfile");
-    expect(first.args.some((a) => a.startsWith("ghcr.io/motioneso/jarv1s:"))).toBe(true);
-    expect(plan.commands.filter((c) => c.args[0] === "build")).toHaveLength(1);
+it("targets the prod compose file and prepends one jarv1s image build when build is set", () => {
+  const plan = createComposeSmokePlan({
+    composeFile: "infra/docker-compose.prod.yml",
+    build: true
   });
+
+  const composeCmds = plan.commands.filter((c) => c.args[0] === "compose");
+  expect(composeCmds.length).toBeGreaterThan(0);
+  expect(composeCmds.every((c) => c.args.includes("infra/docker-compose.prod.yml"))).toBe(true);
+
+  const first = plan.commands[0];
+  if (!first) throw new Error("expected a build command when build is set");
+  expect(first.args[0]).toBe("build");
+  expect(first.args).toContain("Dockerfile");
+  expect(first.args.some((a) => a.startsWith("ghcr.io/motioneso/jarv1s:"))).toBe(true);
+  expect(plan.commands.filter((c) => c.args[0] === "build")).toHaveLength(1);
+});
 ```
 
 - [ ] **Step 2: Run the focused test and confirm it fails**
@@ -808,16 +837,16 @@ fi
 Replace the two `docker/build-push-action` steps with one:
 
 ```yaml
-      - name: Build (and push on tag/main) Jarv1s image
-        uses: docker/build-push-action@v6
-        with:
-          context: .
-          file: ./Dockerfile
-          platforms: linux/amd64,linux/arm64
-          push: ${{ steps.tags.outputs.push == 'true' }}
-          tags: ${{ steps.tags.outputs.image_tags }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+- name: Build (and push on tag/main) Jarv1s image
+  uses: docker/build-push-action@v6
+  with:
+    context: .
+    file: ./Dockerfile
+    platforms: linux/amd64,linux/arm64
+    push: ${{ steps.tags.outputs.push == 'true' }}
+    tags: ${{ steps.tags.outputs.image_tags }}
+    cache-from: type=gha
+    cache-to: type=gha,mode=max
 ```
 
 - [ ] **Step 7: Commit**
@@ -844,17 +873,17 @@ git commit -m "build: publish one jarv1s image"
 In `tests/unit/prod-deploy-config.test.ts`, replace the `cli-runner sidecar` test with:
 
 ```ts
-  it("runs cli-runner through the single jarv1s service while keeping RPC config", () => {
-    expect(composeProd).toMatch(/^\s+jarv1s:/m);
-    expect(composeProd).not.toMatch(/^\s+api:/m);
-    expect(composeProd).not.toMatch(/^\s+worker:/m);
-    expect(composeProd).not.toMatch(/^\s+web:/m);
-    expect(composeProd).not.toMatch(/^\s+cli-runner:/m);
-    expect(composeProd).toContain("JARVIS_CLI_RUNNER_SOCKET");
-    expect(composeProd).toContain("JARVIS_CLI_RUNNER_RPC_SECRET");
-    expect(composeProd).toContain("jarv1s-cli-auth:/data/cli-auth");
-    expect(composeProd).toContain("jarv1s-cli-tools:/data/cli-tools");
-  });
+it("runs cli-runner through the single jarv1s service while keeping RPC config", () => {
+  expect(composeProd).toMatch(/^\s+jarv1s:/m);
+  expect(composeProd).not.toMatch(/^\s+api:/m);
+  expect(composeProd).not.toMatch(/^\s+worker:/m);
+  expect(composeProd).not.toMatch(/^\s+web:/m);
+  expect(composeProd).not.toMatch(/^\s+cli-runner:/m);
+  expect(composeProd).toContain("JARVIS_CLI_RUNNER_SOCKET");
+  expect(composeProd).toContain("JARVIS_CLI_RUNNER_RPC_SECRET");
+  expect(composeProd).toContain("jarv1s-cli-auth:/data/cli-auth");
+  expect(composeProd).toContain("jarv1s-cli-tools:/data/cli-tools");
+});
 ```
 
 Delete the old `cli-runner entrypoint's default JARVIS_CLI_RUNNER_ENTRY resolves to a file that EXISTS` test from `tests/unit/prod-deploy-config.test.ts`; that file is removed in Task 3.
@@ -998,12 +1027,12 @@ git commit -m "deploy: collapse prod app services"
 In `tests/unit/prod-compose-plan.test.ts`, add assertions to the prod test:
 
 ```ts
-    expect(plan.healthUrl).toBe("http://localhost:5173/health/ready");
-    expect(plan.commands.some((c) => c.args.includes("api"))).toBe(false);
-    expect(plan.commands.some((c) => c.args.includes("web"))).toBe(false);
-    expect(plan.commands.some((c) => c.args.includes("worker"))).toBe(false);
-    expect(plan.commands.some((c) => c.args.includes("migrate"))).toBe(false);
-    expect(plan.commands.some((c) => c.args.includes("jarv1s"))).toBe(true);
+expect(plan.healthUrl).toBe("http://localhost:5173/health/ready");
+expect(plan.commands.some((c) => c.args.includes("api"))).toBe(false);
+expect(plan.commands.some((c) => c.args.includes("web"))).toBe(false);
+expect(plan.commands.some((c) => c.args.includes("worker"))).toBe(false);
+expect(plan.commands.some((c) => c.args.includes("migrate"))).toBe(false);
+expect(plan.commands.some((c) => c.args.includes("jarv1s"))).toBe(true);
 ```
 
 - [ ] **Step 2: Run focused test and confirm it fails**
@@ -1024,8 +1053,8 @@ Change image build command to one image:
 const imageTag = process.env.JARVIS_IMAGE_TAG ?? "smoke";
 const isProd = input.composeFile === "infra/docker-compose.prod.yml";
 const publicPort = isProd
-  ? process.env.JARVIS_WEB_PORT ?? "5173"
-  : input.apiPort ?? process.env.JARVIS_API_PORT ?? "3000";
+  ? (process.env.JARVIS_WEB_PORT ?? "5173")
+  : (input.apiPort ?? process.env.JARVIS_API_PORT ?? "3000");
 const buildCommands: ComposeSmokeCommand[] = input.build
   ? [
       {
@@ -1066,7 +1095,7 @@ For prod, omit the separate `run --rm migrate` command because the supervisor ru
 Set:
 
 ```ts
-healthUrl: `http://localhost:${publicPort}/health/ready`
+healthUrl: `http://localhost:${publicPort}/health/ready`;
 ```
 
 - [ ] **Step 4: Keep `scripts/setup-prod.ts` auth base internal and trusted origins public**
@@ -1134,7 +1163,11 @@ Do not document local absolute paths other than `~/Jarv1s`.
 Add a release-hardening assertion or small unit assertion that docs no longer carry stale image names:
 
 ```ts
-for (const rel of ["README.md", "docs/operations/release-hardening.md", "infra/docker-compose.prod.yml"]) {
+for (const rel of [
+  "README.md",
+  "docs/operations/release-hardening.md",
+  "infra/docker-compose.prod.yml"
+]) {
   const text = await readFile(rel, "utf8");
   expect(text).not.toContain("ghcr.io/motioneso/jarv1s-api");
   expect(text).not.toContain("ghcr.io/motioneso/jarv1s-web");
