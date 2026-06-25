@@ -9,8 +9,11 @@ import { getBuiltInModuleManifests } from "@jarv1s/module-registry";
 import { connectionStrings, ids, resetFoundationDatabase } from "./test-database.js";
 import type { ExportBuildJobPayload } from "../../packages/settings/src/data-export-jobs.js";
 import { registerSettingsRoutes } from "../../packages/settings/src/routes.js";
+import pg from "pg";
 
 import { HttpError } from "@jarv1s/module-sdk";
+
+const { Client } = pg;
 
 describe("Data export", () => {
   let appDb: Kysely<JarvisDatabase>;
@@ -171,6 +174,58 @@ describe("Data export", () => {
         } finally {
           spy.mockRestore();
         }
+      }
+    );
+  });
+
+  it("lets the worker invoke the bounded expired-export listing function without direct table SELECT", async () => {
+    const repository = new (
+      await import("../../packages/settings/src/data-export-repository.js")
+    ).DataExportRepository();
+    const dataContext = new DataContextRunner(appDb);
+    const expiredAt = new Date(Date.now() - 60_000);
+    const futureAt = new Date(Date.now() + 60_000);
+
+    const { expiredJob, futureJob } = await dataContext.withDataContext(
+      { actorUserId: ids.userA, requestId: "req:test" },
+      async (scopedDb) => {
+        const expiredJob = await repository.createJob(scopedDb, ids.userA);
+        const futureJob = await repository.createJob(scopedDb, ids.userA);
+        await repository.completeJob(scopedDb, expiredJob.id, new Date(), expiredAt);
+        await repository.completeJob(scopedDb, futureJob.id, new Date(), futureAt);
+        return { expiredJob, futureJob };
+      }
+    );
+
+    const workerClient = new Client({ connectionString: connectionStrings.worker });
+    await workerClient.connect();
+    try {
+      await expect(
+        workerClient.query("SELECT id FROM app.data_export_jobs")
+      ).rejects.toThrow(/permission denied|violates row-level security|policy/i);
+
+      const result = await workerClient.query<{
+        id: string;
+        ownerUserId: string;
+      }>("SELECT * FROM app.list_expired_data_export_jobs(now())");
+
+      expect(result.rows).toContainEqual({
+        id: expiredJob.id,
+        ownerUserId: ids.userA
+      });
+      expect(result.rows).not.toContainEqual({
+        id: futureJob.id,
+        ownerUserId: ids.userA
+      });
+    } finally {
+      await workerClient.end();
+    }
+
+    await dataContext.withDataContext(
+      { actorUserId: ids.userA, requestId: "req:test" },
+      async (scopedDb) => {
+        expect((await repository.getJobById(scopedDb, expiredJob.id))?.status).toBe("ready");
+        expect((await repository.getJobById(scopedDb, futureJob.id))?.status).toBe("ready");
       }
     );
   });
