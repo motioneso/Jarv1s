@@ -90,6 +90,56 @@ describe("notes write assistant tools", () => {
     expect(sent[0]).toBeTruthy();
   });
 
+  it("gateway auto-runs create/edit but requires approval for delete", async () => {
+    const emitted: unknown[] = [];
+    const { AiRepository, AssistantToolGateway, ConfirmationRegistry, SessionTokenRegistry } =
+      await import("@jarv1s/ai");
+    const repository = new AiRepository();
+    const tokens = new SessionTokenRegistry();
+    const confirmations = new ConfirmationRegistry();
+    const gateway = new AssistantToolGateway({
+      resolveActiveModules: async () => [notesModuleManifest],
+      repository,
+      runner,
+      tokens,
+      confirmations,
+      notifier: { emit: (_chatSessionId, record) => emitted.push(record) },
+      confirmTimeoutMs: 30_000,
+      toolServices: { notesSync: service }
+    });
+    const token = tokens.mint({
+      actorUserId: ids.userA,
+      chatSessionId: "notes-chat",
+      allowedToolNames: null
+    });
+
+    const created = await gateway.callTool(token, "notes.create", {
+      path: "auto.md",
+      content: "hello old"
+    });
+    expect(created.ok).toBe(true);
+
+    const edited = await gateway.callTool(token, "notes.edit", {
+      path: "auto.md",
+      oldText: "old",
+      newText: "new"
+    });
+    expect(edited.ok).toBe(true);
+
+    const deletePromise = gateway.callTool(token, "notes.delete", { path: "auto.md" });
+    await vi.waitFor(() => {
+      expect(emitted.some((r) => (r as { kind?: string }).kind === "action_request")).toBe(true);
+    });
+    const request = emitted.find((r) => (r as { kind?: string }).kind === "action_request") as {
+      actionRequestId: string;
+      summary: string;
+    };
+    expect(request.summary).toContain("auto.md");
+    await gateway.resolveActionRequest(ids.userA, request.actionRequestId, "confirmed");
+    const deleted = await deletePromise;
+    expect(deleted.ok).toBe(true);
+  });
+
   it("creates a new markdown note and enqueues sync", async () => {
     await runner.withDataContext({ actorUserId: ids.userA, requestId: "create" }, async (db) => {
       const result = await notesCreateExecute(
