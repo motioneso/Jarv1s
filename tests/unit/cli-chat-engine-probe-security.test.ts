@@ -1,0 +1,351 @@
+import { mkdtemp, readFile, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+
+import { describe, expect, it, vi } from "vitest";
+
+import type { Multiplexer } from "../../packages/ai/src/adapters/multiplexer.js";
+import { createRealTmuxIo } from "../../packages/ai/src/adapters/tmux-bridge.js";
+import { CliChatEngineImpl, probeProvider } from "../../packages/chat/src/live/cli-chat-engine.js";
+import { CliChatUnavailableError } from "../../packages/chat/src/live/errors.js";
+
+function makeIo() {
+  return {
+    run: vi.fn().mockResolvedValue({ code: 0, stdout: "", stderr: "" }),
+    sleep: vi.fn().mockResolvedValue(undefined),
+    readFile: vi.fn().mockResolvedValue(""),
+    writeFile: vi.fn().mockResolvedValue(undefined)
+  };
+}
+
+// ─── #342 probeProvider (§4.8) — no token, no replay ─────────────────────────────
+describe("probeProvider (§4.8)", () => {
+  it("returns not_installed when the binary is absent (no auth command run)", async () => {
+    const run = vi.fn().mockResolvedValue({ code: 0, stdout: "", stderr: "" });
+    const res = await probeProvider("anthropic", {
+      io: { run },
+      cliPresent: async () => false
+    });
+    expect(res.status).toBe("not_installed");
+    // Pure presence check: no `claude auth status` is ever spawned.
+    expect(run).not.toHaveBeenCalled();
+  });
+
+  it("returns ready when claude auth status reports loggedIn", async () => {
+    const run = vi.fn().mockResolvedValue({
+      code: 0,
+      stdout: JSON.stringify({ loggedIn: true }),
+      stderr: ""
+    });
+    const res = await probeProvider("anthropic", { io: { run }, cliPresent: async () => true });
+    expect(res.status).toBe("ready");
+  });
+
+  it("returns needs_login when claude auth status prints loggedIn:false but EXITS NON-ZERO", async () => {
+    // Regression (#342): claude 2.1.183 `auth status` prints valid JSON {"loggedIn":false,...}
+    // yet exits rc=1 when not logged in. The probe must parse the JSON regardless of exit code;
+    // the old code hit the rc!=0 branch, the auth-text heuristic missed this JSON, and it
+    // returned "error" → deriveStatus settled every login flow to error ("no such login").
+    const run = vi.fn().mockResolvedValue({
+      code: 1,
+      stdout: JSON.stringify({ loggedIn: false, authMethod: "none", apiProvider: "firstParty" }),
+      stderr: ""
+    });
+    const res = await probeProvider("anthropic", { io: { run }, cliPresent: async () => true });
+    expect(res.status).toBe("needs_login");
+  });
+
+  it("injects the claude-scoped credentialEnv into the `auth status` run (#363)", async () => {
+    const run = vi.fn().mockResolvedValue({
+      code: 0,
+      stdout: JSON.stringify({ loggedIn: true }),
+      stderr: ""
+    });
+    const credentialEnv = { CLAUDE_CODE_OAUTH_TOKEN: "sk-ant-oat-PROBE" };
+    const res = await probeProvider("anthropic", {
+      io: { run },
+      cliPresent: async () => true,
+      credentialEnv
+    });
+    expect(res.status).toBe("ready");
+    // The token is passed per-call via opts.env (claude-scoped), not the global allowlist.
+    expect(run).toHaveBeenCalledWith("claude", ["auth", "status"], { env: credentialEnv });
+  });
+
+  it("surfaces multiplexer_unavailable when the mux is not usable", async () => {
+    const run = vi.fn();
+    const res = await probeProvider("anthropic", {
+      io: { run },
+      cliPresent: async () => true,
+      multiplexerUsable: async () => false
+    });
+    expect(res.status).toBe("multiplexer_unavailable");
+    expect(run).not.toHaveBeenCalled();
+  });
+});
+
+// ─── #342 §12 (4b) DOCUMENTING test: 0600 + redactSecrets do NOT protect a same-UID
+// read of the per-session token file. The single-active-user gate — NOT the file mode —
+// is the isolation boundary until #347 (§13). This test exists so nobody mistakes
+// `0600` for a cross-user boundary. (fs/os/path + createRealTmuxIo imported at top of file.)
+
+describe("#342 §13 same-UID token-file readability (DOCUMENTING — not a regression)", () => {
+  it("a 0600 Codex token file is readable by the SAME uid that wrote it", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "jarv1s-342-tokenfile-"));
+    try {
+      // Use the REAL io so chmod 600 actually applies on disk.
+      const io = createRealTmuxIo();
+      const engine = new CliChatEngineImpl("openai-compatible", "same-uid", io, {
+        // No mux.open → use a fake mux so we don't need a real tmux for this file check.
+        mux: {
+          kind: "tmux",
+          open: async () => "handle",
+          submit: async () => undefined,
+          isAlive: async () => true,
+          kill: async () => undefined,
+          attachCommand: () => ""
+        },
+        launchMs: 0
+      });
+      await engine.launch({
+        neutralDir: dir,
+        personaPath: join(dir, "persona.md"),
+        personaText: "You are Jarvis.",
+        mcpToken: "jst_same_uid_secret",
+        mcpServerUrl: "http://api:3000/api/mcp"
+      });
+
+      // The file is 0600 — yet the SAME uid (this test process) reads it back plainly.
+      // redactSecrets is a LOG-redaction tool, not a file-access control: the token is
+      // present in cleartext in the file. This is the documented Phase-1 limitation
+      // that the single-active-user gate (#347) compensates for.
+      const tokenFile = join(dir, ".jarvis-mcp-token.env");
+      const contents = await readFile(tokenFile, "utf8");
+      expect(contents).toContain("jst_same_uid_secret");
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+});
+
+// ─── #342 §6.7 acceptance: the token is ABSENT from launch line / argv / tmux env ────
+// §6.2 forbids `tmux set-environment`/`set-env` for the MCP token (show-environment is a
+// capture surface). §6.7 requires negative argv assertions for ALL providers (today only
+// Claude had them). The send-keys launchLine BECOMES the spawned CLI's argv when tmux runs
+// it, so a launchLine free of any token/Bearer/Authorization shape is exactly the
+// /proc/<pid>/cmdline guarantee §6.7 asks for.
+describe("CliChatEngineImpl — §6.7 no secret on launch line / argv / tmux env", () => {
+  function launchLineFrom(io: ReturnType<typeof makeIo>): string {
+    const sendKeysCall = (io.run as ReturnType<typeof vi.fn>).mock.calls.find(
+      (c: unknown[]) => c[0] === "tmux" && (c[1] as string[])[0] === "send-keys"
+    );
+    expect(sendKeysCall).toBeDefined();
+    return (sendKeysCall![1] as string[])[3]!;
+  }
+
+  function assertNoTmuxEnvCarriesSecret(io: ReturnType<typeof makeIo>): void {
+    // (a) §6.2/§6.7: NO `tmux set-environment`/`set-env` carrying a jst_/Bearer value is
+    // ever issued at launch — the token reaches the CLI ONLY via the per-session 0600 file.
+    const envCalls = (io.run as ReturnType<typeof vi.fn>).mock.calls.filter((c: unknown[]) => {
+      if (c[0] !== "tmux") return false;
+      const verb = (c[1] as string[])[0] ?? "";
+      return verb === "set-environment" || verb === "set-env" || verb === "setenv";
+    });
+    expect(envCalls).toEqual([]);
+    // Belt-and-suspenders: even if a set-environment were issued, no tmux arg anywhere may
+    // carry a token/Bearer/Authorization shape.
+    for (const c of (io.run as ReturnType<typeof vi.fn>).mock.calls) {
+      if (c[0] !== "tmux") continue;
+      const args = (c[1] as string[]).join(" ");
+      expect(args).not.toMatch(/jst_/);
+      expect(args).not.toMatch(/Bearer/);
+      expect(args).not.toMatch(/Authorization/);
+    }
+  }
+
+  it("Claude: launch line / argv carry no jst_/Bearer/Authorization and no tmux set-environment", async () => {
+    const io = makeIo();
+    const engine = new CliChatEngineImpl("anthropic", "claude-secret", io);
+    await engine.launch({
+      neutralDir: "/tmp/neutral",
+      personaPath: "/tmp/persona.txt",
+      mcpToken: "jst_claude_secret",
+      mcpServerUrl: "http://api:3000/api/mcp"
+    });
+    const launchLine = launchLineFrom(io);
+    expect(launchLine).not.toContain("jst_claude_secret");
+    expect(launchLine).not.toContain("Bearer");
+    expect(launchLine).not.toContain("Authorization");
+    assertNoTmuxEnvCarriesSecret(io);
+  });
+
+  it("Codex: launch line / argv carry no jst_/Bearer/Authorization and no tmux set-environment (§6.7 new)", async () => {
+    const io = makeIo();
+    const engine = new CliChatEngineImpl("openai-compatible", "codex-secret", io);
+    await engine.launch({
+      neutralDir: "/tmp/neutral",
+      personaPath: "/tmp/persona.txt",
+      mcpToken: "jst_codex_secret",
+      mcpServerUrl: "http://api:3000/api/mcp"
+    });
+    const launchLine = launchLineFrom(io);
+    // Only the env-var NAME may appear, never the token value or a Bearer/Authorization header.
+    expect(launchLine).toContain("JARVIS_MCP_TOKEN");
+    expect(launchLine).not.toContain("jst_codex_secret");
+    expect(launchLine).not.toContain("Bearer");
+    expect(launchLine).not.toContain("Authorization");
+    assertNoTmuxEnvCarriesSecret(io);
+  });
+
+  it("Gemini: launch line / argv carry no jst_/Bearer/Authorization and no tmux set-environment (§6.7 new)", async () => {
+    const io = makeIo();
+    const engine = new CliChatEngineImpl("google", "gemini-secret", io);
+    await engine.launch({
+      neutralDir: "/tmp/neutral",
+      personaPath: "/tmp/persona.txt",
+      mcpToken: "jst_gemini_secret",
+      mcpServerUrl: "http://api:3000/api/mcp"
+    });
+    const launchLine = launchLineFrom(io);
+    // Gemini's token lives ONLY in .gemini/settings.json; the launch line is just `agy --sandbox`.
+    expect(launchLine).not.toContain("jst_gemini_secret");
+    expect(launchLine).not.toContain("Bearer");
+    expect(launchLine).not.toContain("Authorization");
+    assertNoTmuxEnvCarriesSecret(io);
+  });
+});
+
+// ─── #342 Gemini chmod symmetry (security fix §6.5) ──────────────────────────────
+describe("CliChatEngineImpl — Gemini settings chmod failure cleanup", () => {
+  it("rm -f's the settings file and fails the launch if `chmod 600` fails (no readable token left)", async () => {
+    const io = makeIo();
+    // Make ONLY the settings chmod fail; everything else succeeds.
+    (io.run as ReturnType<typeof vi.fn>).mockImplementation(async (cmd: string, args: string[]) => {
+      if (cmd === "chmod" && (args[1] ?? "").endsWith(".gemini/settings.json")) {
+        return { code: 1, stdout: "", stderr: "chmod: operation not permitted" };
+      }
+      return { code: 0, stdout: "", stderr: "" };
+    });
+    const engine = new CliChatEngineImpl("google", "gemini-chmod-fail", io);
+
+    let caught: unknown;
+    try {
+      await engine.launch({
+        neutralDir: "/tmp/neutral-gem",
+        personaPath: "/tmp/persona.txt",
+        mcpToken: "jst_gem_locked",
+        mcpServerUrl: "http://api:3000/api/mcp"
+      });
+    } catch (err) {
+      caught = err;
+    }
+
+    // The pre-mux-create write failure surfaces as the 503-mapped unavailable error.
+    expect(caught).toBeInstanceOf(CliChatUnavailableError);
+    // The settings file was rm -f'd (symmetry with Claude/Codex) so no readable Bearer survives.
+    expect(io.run).toHaveBeenCalledWith("rm", ["-f", "/tmp/neutral-gem/.gemini/settings.json"]);
+    // And the whole per-session neutral dir is torn down on the failed launch (§6.5).
+    expect(io.run).toHaveBeenCalledWith("rm", ["-rf", "/tmp/neutral-gem"]);
+    // The mux session was NEVER opened (pre-mux-create failure) — no orphan to reap.
+    const sendKeysCall = (io.run as ReturnType<typeof vi.fn>).mock.calls.find(
+      (c: unknown[]) => c[0] === "tmux" && (c[1] as string[])[0] === "send-keys"
+    );
+    expect(sendKeysCall).toBeUndefined();
+  });
+});
+
+// ─── #342 UNPROVEN-2: POST-mux-create failure kills the mux session BEFORE rm -rf'ing the
+// neutral dir (§6.5 ordering). If the dir were removed first, the live jarv1s-live-<key>
+// session would linger in listLiveSessions-by-mux and wedge the §4.1.0a single-user gate
+// for everyone until reconciliation/restart. ──────────────────────────────────────────
+describe("CliChatEngineImpl — §6.5 POST-mux-create failure ordering (UNPROVEN-2)", () => {
+  it("kills jarv1s-live-<key> BEFORE rm -rf'ing the neutral dir when the drain fails post-launch", async () => {
+    const events: string[] = [];
+    const io = makeIo();
+    // Record rm -rf of the neutral dir in submission order.
+    (io.run as ReturnType<typeof vi.fn>).mockImplementation(async (cmd: string, args: string[]) => {
+      if (cmd === "rm" && (args[0] ?? "") === "-rf") {
+        events.push(`rm:${args[1]}`);
+      }
+      return { code: 0, stdout: "", stderr: "" };
+    });
+
+    // A mux that OPENS successfully (so jarv1s-live-<key> exists), but whose submit throws
+    // — driving replayAndDrain's `await this.submit(replayBatch)` to fail, which is a
+    // POST-mux-create failure routed through killAndRemoveNeutralDirQuietly.
+    const killSpy = vi.fn().mockImplementation(async () => {
+      events.push("mux.kill");
+    });
+    const mux: Multiplexer = {
+      kind: "tmux",
+      open: vi.fn().mockResolvedValue("jarv1s-live-rpc-post-fail"),
+      submit: vi.fn().mockRejectedValue(new Error("paste-buffer failed")),
+      isAlive: vi.fn().mockResolvedValue(true),
+      kill: killSpy,
+      attachCommand: () => ""
+    };
+
+    const engine = new CliChatEngineImpl("anthropic", "rpc-post-fail", io, {
+      mux,
+      ownsDrain: true,
+      launchMs: 0,
+      drainMs: 50,
+      drainPollMs: 1
+    });
+
+    let caught: unknown;
+    try {
+      await engine.launch({
+        neutralDir: "/data/cli-auth/chat/rpc-post-fail",
+        personaPath: "/data/cli-auth/chat/rpc-post-fail/persona.md",
+        personaText: "You are Jarvis.",
+        replayBatch: "prior conversation here",
+        mcpToken: "jst_x",
+        mcpServerUrl: "http://api:3000/api/mcp"
+      });
+    } catch (err) {
+      caught = err;
+    }
+
+    expect(caught).toBeInstanceOf(CliChatUnavailableError);
+    // The mux session was opened, the drain failed, and the session was killed.
+    expect(killSpy).toHaveBeenCalledTimes(1);
+    // CRITICAL ORDERING (§6.5): the kill happens BEFORE the neutral dir is rm -rf'd, so
+    // the orphaned jarv1s-live-* session can never wedge the §4.1.0a gate.
+    const killIdx = events.indexOf("mux.kill");
+    const rmIdx = events.indexOf("rm:/data/cli-auth/chat/rpc-post-fail");
+    expect(killIdx).toBeGreaterThanOrEqual(0);
+    expect(rmIdx).toBeGreaterThanOrEqual(0);
+    expect(killIdx).toBeLessThan(rmIdx);
+  });
+
+  it("a failed launch removes the neutral dir (§6.5)", async () => {
+    const io = makeIo();
+    const removed: string[] = [];
+    (io.run as ReturnType<typeof vi.fn>).mockImplementation(async (cmd: string, args: string[]) => {
+      if (cmd === "rm" && (args[0] ?? "") === "-rf") removed.push(args[1] ?? "");
+      return { code: 0, stdout: "", stderr: "" };
+    });
+    // PRE-mux-create failure: mux.open throws, so the neutral dir is removed and no mux
+    // session is ever opened.
+    const mux: Multiplexer = {
+      kind: "tmux",
+      open: vi.fn().mockRejectedValue(new Error("tmux new-session failed")),
+      submit: vi.fn(),
+      isAlive: vi.fn().mockResolvedValue(false),
+      kill: vi.fn(),
+      attachCommand: () => ""
+    };
+    const engine = new CliChatEngineImpl("anthropic", "rpc-pre-fail", io, { mux, ownsDrain: true });
+
+    await expect(
+      engine.launch({
+        neutralDir: "/data/cli-auth/chat/rpc-pre-fail",
+        personaPath: "/data/cli-auth/chat/rpc-pre-fail/persona.md",
+        personaText: "You are Jarvis."
+      })
+    ).rejects.toBeInstanceOf(CliChatUnavailableError);
+
+    expect(removed).toContain("/data/cli-auth/chat/rpc-pre-fail");
+  });
+});
