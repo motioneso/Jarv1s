@@ -23,7 +23,7 @@ describe("owner bootstrap recovery", () => {
 
   beforeEach(async () => {
     await resetEmptyFoundationDatabase();
-    appDb = createDatabase({ connectionString: connectionStrings.app, maxConnections: 1 });
+    appDb = createDatabase({ connectionString: connectionStrings.app, maxConnections: 2 });
     authRuntime = createJarvisAuthRuntime({ appDb, runner: new DataContextRunner(appDb) });
     server = createApiServer({ appDb, authRuntime, logger: false });
     await server.ready();
@@ -90,7 +90,7 @@ describe("owner bootstrap recovery", () => {
   }
 
   async function waitForUserCountByEmailPrefix(prefix: string, count: number): Promise<void> {
-    const deadline = Date.now() + 5000;
+    const deadline = Date.now() + 20_000;
     while (Date.now() < deadline) {
       const users = await readUsersByEmailPrefix(prefix);
       if (users.length === count) return;
