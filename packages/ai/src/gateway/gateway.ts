@@ -115,15 +115,15 @@ export class AssistantToolGateway {
   }
 
   /**
-   * The subset of toolServices this tool declared via requiresServices — but ONLY for tools that
-   * pass through the confirm gate. A read tool (risk → "run", no confirmation) receives NOTHING,
+   * The subset of toolServices this tool declared via requiresServices — but ONLY for non-read
+   * tools. A read tool (risk → "run", no confirmation) receives NOTHING,
    * so no injected (potentially write-capable) service can be invoked without an Approve. This
    * keeps the write→confirm floor structurally un-bypassable by a mistaken/hostile read-tool
    * requiresServices declaration, with no service-risk taxonomy (Codex HIGH #5). The per-tool
    * subset also means a tool can never reach an undeclared (write-capable) service (Codex HIGH #1).
    */
   private servicesFor(tool: ModuleAssistantToolManifest): ToolServices {
-    if (resolvePolicy(tool) === "run") {
+    if (tool.risk === "read") {
       return {}; // read path bypasses confirmAndRun — never hand it a service (write→confirm floor)
     }
     const registry = this.deps.toolServices ?? {};
@@ -247,7 +247,7 @@ export class AssistantToolGateway {
         // Fail closed #1: a read tool must NOT declare services — a read dispatches without the
         // confirm gate, so a write-capable service on a read tool would bypass the write→confirm
         // floor. Such a manifest is a misconfiguration; hide it rather than risk a bypass (HIGH #5).
-        if (declaredServices.length > 0 && resolvePolicy(tool) === "run") {
+        if (declaredServices.length > 0 && tool.risk === "read") {
           continue;
         }
         // Fail closed #2: a tool whose required services we cannot satisfy is hidden — never

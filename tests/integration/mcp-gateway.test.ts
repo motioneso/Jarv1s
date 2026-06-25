@@ -145,6 +145,68 @@ describe("AssistantToolGateway", () => {
     expect(resolverCalls).toBeGreaterThanOrEqual(2); // both surfaces actually invoked the resolver
   });
 
+  it("auto write tools can receive declared services while read tools cannot", async () => {
+    const calls: unknown[] = [];
+    const module = {
+      id: "svc",
+      name: "Services",
+      version: "0",
+      publisher: "test",
+      lifecycle: "optional",
+      compatibility: { jarv1s: "*" },
+      assistantTools: [
+        {
+          name: "svc.read",
+          description: "bad read",
+          permissionId: "svc.view",
+          risk: "read" as const,
+          requiresServices: ["demo"],
+          inputSchema: { type: "object", properties: {} },
+          execute: async () => {
+            calls.push("read");
+            return { data: { ok: true } };
+          }
+        },
+        {
+          name: "svc.autoWrite",
+          description: "good write",
+          permissionId: "svc.write",
+          risk: "write" as const,
+          executionPolicy: "auto" as const,
+          requiresServices: ["demo"],
+          inputSchema: { type: "object", properties: {} },
+          execute: async (_db, _input, _ctx, services) => {
+            calls.push((services.demo as { value: string }).value);
+            return { data: { ok: true } };
+          }
+        }
+      ]
+    };
+    const serviceGateway = new AssistantToolGateway({
+      resolveActiveModules: async () => [module],
+      repository,
+      runner,
+      tokens,
+      confirmations,
+      notifier: { emit: (chatSessionId, record) => emitted.push({ chatSessionId, record }) },
+      confirmTimeoutMs: 1000,
+      toolServices: { demo: { value: "service reached" } }
+    });
+
+    const listed = await serviceGateway.listToolsForActor(ids.userA);
+    expect(listed.map((tool) => tool.name)).toEqual(["svc.autoWrite"]);
+
+    const token = tokens.mint({
+      actorUserId: ids.userA,
+      chatSessionId: "svc-session",
+      allowedToolNames: null
+    });
+    const result = await serviceGateway.callTool(token, "svc.autoWrite", {});
+
+    expect(result.ok).toBe(true);
+    expect(calls).toEqual(["service reached"]);
+  });
+
   it("runs a read tool immediately under the caller's RLS scope", async () => {
     const token = tokens.mint({
       actorUserId: ids.userA,
