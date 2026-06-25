@@ -34,6 +34,7 @@ import type {
   GoogleApiClient,
   GoogleConnectionService
 } from "@jarv1s/connectors";
+import { sendJob } from "@jarv1s/jobs";
 import {
   ChatMemoryFactsRepository,
   ChatMemorySuppressionsRepository,
@@ -42,6 +43,11 @@ import {
   type MemoryFact
 } from "@jarv1s/memory";
 import { handleRouteError as handleModuleRouteError } from "@jarv1s/module-sdk";
+import {
+  NOTES_SYNC_QUEUE,
+  type NotesSyncJobPayload,
+  type NotesSyncToolService
+} from "@jarv1s/notes";
 
 import { buildCalendarWriteService } from "./calendar-write-impl.js";
 import { ChatGatewayNotifier } from "./gateway-notifier.js";
@@ -143,7 +149,8 @@ export function registerChatRoutes(
               collaborators: {
                 googleConnectionService: dependencies.googleConnectionService,
                 googleApiClient: dependencies.googleApiClient,
-                connectorsRepository: dependencies.connectorsRepository
+                connectorsRepository: dependencies.connectorsRepository,
+                boss: dependencies.boss
               }
             })
           );
@@ -438,26 +445,37 @@ export function registerChatRoutes(
 }
 
 /**
- * Builds the gateway toolServices map from the optional connector collaborators. Returns {} when
- * any collaborator is missing, so the gateway's fail-closed filter hides calendar.proposeFocusBlock
- * rather than listing an unsatisfiable tool. Exported so the wiring is unit-testable without HTTP.
+ * Builds the gateway toolServices map from optional collaborators. Missing service collaborators
+ * simply omit that service, so the gateway fail-closed filter hides unsatisfiable tools.
  */
 export function buildChatToolServices(deps: {
   googleConnectionService?: GoogleConnectionService;
   googleApiClient?: GoogleApiClient;
   connectorsRepository?: ConnectorsRepository;
+  boss?: PgBoss;
 }): Record<string, unknown> {
+  const services: Record<string, unknown> = {};
   if (deps.googleConnectionService && deps.googleApiClient && deps.connectorsRepository) {
-    return {
-      calendarWrite: buildCalendarWriteService({
-        googleService: deps.googleConnectionService,
-        googleApiClient: deps.googleApiClient,
-        connectorsRepository: deps.connectorsRepository,
-        calendarRepository: new CalendarRepository()
-      })
-    };
+    services.calendarWrite = buildCalendarWriteService({
+      googleService: deps.googleConnectionService,
+      googleApiClient: deps.googleApiClient,
+      connectorsRepository: deps.connectorsRepository,
+      calendarRepository: new CalendarRepository()
+    });
   }
-  return {};
+  if (deps.boss) {
+    const boss = deps.boss;
+    services.notesSync = {
+      enqueue: (actorUserId, sourcePath) =>
+        sendJob(
+          boss,
+          NOTES_SYNC_QUEUE,
+          { actorUserId, sourcePath } satisfies NotesSyncJobPayload,
+          { singletonKey: `notes-sync:${actorUserId}` }
+        )
+    } satisfies NotesSyncToolService;
+  }
+  return services;
 }
 
 /**
@@ -477,6 +495,7 @@ export function buildChatGatewayDependencies(args: {
     googleConnectionService?: GoogleConnectionService;
     googleApiClient?: GoogleApiClient;
     connectorsRepository?: ConnectorsRepository;
+    boss?: PgBoss;
   };
 }): AssistantToolGatewayDependencies {
   return {

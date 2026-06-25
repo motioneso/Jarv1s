@@ -6,6 +6,7 @@ import { join } from "node:path";
 import type { Kysely } from "kysely";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { buildChatToolServices } from "@jarv1s/chat";
 import { DataContextRunner, createDatabase, type JarvisDatabase } from "@jarv1s/db";
 import type { JarvisModuleManifest } from "@jarv1s/module-sdk";
 import { PreferencesRepository } from "@jarv1s/structured-state";
@@ -73,6 +74,20 @@ describe("notes write assistant tools", () => {
         }
       )
     ).toContain("x.md");
+  });
+
+  it("chat tool services include notesSync when boss is provided", async () => {
+    const sent: unknown[] = [];
+    const boss = {
+      send: async (...args: unknown[]) => {
+        sent.push(args);
+        return "job-123";
+      }
+    };
+    const services = buildChatToolServices({ boss: boss as never });
+    const notesSync = services.notesSync as NotesSyncToolService;
+    await notesSync.enqueue(ids.userA, "/notes");
+    expect(sent[0]).toBeTruthy();
   });
 
   it("creates a new markdown note and enqueues sync", async () => {
