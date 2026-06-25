@@ -6,6 +6,7 @@ dist/
 coverage/
 .turbo/
 .codegraph/
+.codebase-memory/
 playwright-report/
 test-results/
 backups/
