@@ -247,8 +247,10 @@ test("configures AI providers and capability routing through settings REST calls
   await expect(page.getByText("Provider credential is valid.")).toBeVisible();
 
   await page.getByRole("button", { name: "Discover" }).click();
-  await expect(page.getByText("gpt-4o", { exact: true })).toBeVisible();
-  await page.getByRole("button", { name: "Add gpt-4o" }).click();
+  const discoveredModels = page.getByLabel("Discovered models");
+  await expect(discoveredModels.locator(".mdl__id", { hasText: "gpt-4o" })).toBeVisible();
+  await discoveredModels.locator(".mdl--discover", { hasText: "gpt-4o" }).click();
+  await page.getByRole("button", { name: "Add selected (1)" }).click();
   await expect(page.locator(".mdl__id", { hasText: "gpt-4o" })).toBeVisible();
 
   // Manual model registration remains available after discovery.
@@ -261,8 +263,8 @@ test("configures AI providers and capability routing through settings REST calls
   // Capability routing now lists the registered model.
   await expect(page.getByText("Capability routing")).toBeVisible();
   await expect(page.getByText(/Routing override .*not wired/)).toHaveCount(0);
-  await page.getByLabel("Model for Chat & briefing").selectOption("automatic");
-  await expect(page.getByText("Route updated")).toBeVisible();
+  await page.getByLabel("Tier for Chat & briefing").selectOption("reasoning");
+  await expect(page.getByText("Tier updated")).toBeVisible();
 
   await page.getByRole("button", { name: "Remove Anthropic" }).click();
   await page.getByRole("button", { name: "Remove", exact: true }).click();
