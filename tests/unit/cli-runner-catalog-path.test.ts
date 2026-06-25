@@ -102,5 +102,4 @@ describe("cli-runner boot has no importable side effect (#342 sidecar double-run
     expect(src).toMatch(/import\s*\{\s*main\s*\}\s*from\s*"\.\/main\.js"/);
     expect(src).toMatch(/main\(\)\s*\.catch/);
   });
-
 });

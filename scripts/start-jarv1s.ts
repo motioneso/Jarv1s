@@ -58,7 +58,10 @@ export function runtimeUidGid(env: NodeJS.ProcessEnv = process.env): { uid: numb
   return { uid, gid };
 }
 
-export function buildChildEnv(role: ChildRole, env: NodeJS.ProcessEnv = process.env): NodeJS.ProcessEnv {
+export function buildChildEnv(
+  role: ChildRole,
+  env: NodeJS.ProcessEnv = process.env
+): NodeJS.ProcessEnv {
   if (role !== "cli-runner") {
     return {
       ...env,

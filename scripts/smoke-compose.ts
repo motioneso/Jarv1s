@@ -26,8 +26,8 @@ export function createComposeSmokePlan(input: ComposeSmokePlanInput = {}): Compo
   const composeFile = input.composeFile ?? "infra/docker-compose.yml";
   const isProd = composeFile === "infra/docker-compose.prod.yml";
   const publicPort = isProd
-    ? process.env.JARVIS_WEB_PORT ?? "1533"
-    : input.apiPort ?? process.env.JARVIS_API_PORT ?? "3000";
+    ? (process.env.JARVIS_WEB_PORT ?? "1533")
+    : (input.apiPort ?? process.env.JARVIS_API_PORT ?? "3000");
   const composeArgs = isProd
     ? ["compose", "-p", "jarv1s-prod-smoke", "-f", composeFile]
     : ["compose", "-f", composeFile];

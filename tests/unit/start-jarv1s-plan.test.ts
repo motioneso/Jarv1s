@@ -24,7 +24,9 @@ describe("start-jarv1s startup plan", () => {
   });
 
   it("spawns resident processes as the configured runtime uid/gid", () => {
-    expect(runtimeUidGid({ JARVIS_HOST_UID: "501", JARVIS_HOST_GID: "20" } as NodeJS.ProcessEnv)).toEqual({
+    expect(
+      runtimeUidGid({ JARVIS_HOST_UID: "501", JARVIS_HOST_GID: "20" } as NodeJS.ProcessEnv)
+    ).toEqual({
       uid: 501,
       gid: 20
     });
