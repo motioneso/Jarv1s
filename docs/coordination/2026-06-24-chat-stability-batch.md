@@ -10,25 +10,23 @@
 
 **Models this run:** GLM (via `opencode -m zai-coding-plan/glm-5.2`) and Gemini (via `agy` = Antigravity CLI, Gemini 3.1 Pro). No Claude/Codex build agents. QA is cross-model per Ben's rule: **opposite of the builder**.
 
-## MID-DOING (continuation note for successor)
+## RUN COMPLETE
 
-**Phase: PII scrub + public flip + CI repair + Task 3 prep (in progress).**
+**All 3 plan tasks done. 8 PRs merged + PII scrub + public flip + CI repair + v0.1.15 deployed to prod.**
 
-All 8 chat-stability PRs merged. Follow-up #467 filed. Repo went public. PII scrub complete (3 filter-repo passes: mailmap + replace-text + replace-message). CI re-enabled. The original chat-stability work is DONE — this section now tracks the Task 3 deploy pipeline.
+- Wave 1 (6 PRs) + Wave 2 (2 PRs) merged.
+- Follow-up #467 filed (scheduled vault-cleanup sweep).
+- Repo flipped public 2026-06-24. PII scrubbed (3-pass filter-repo). Codex PII audit: SAFE-FOR-PUBLIC.
+- CI unblocked: NeverCompletingEngine lint, prod-compose-smoke fixes, e2e alignment (#468), file-size exemption.
+- `v0.1.15` tagged → CI built + published multi-arch images → deployed to `~/JarvisProd` (project `jarv1s-prod`). API healthy, DB + pg-boss OK.
+- **Ben doing manual e2e verify** (basic chat + notes.search tool call) at time of manifest close.
+- Issue #456 closed (shipped in #466). #467 remains open (follow-up).
 
-**Current state (2nd successor coordinator, session `ses_104452c25ffeDI451qhvdfOm4Z`):**
-- Repo is PUBLIC + PII-scrubbed (verified by Codex PII-Audit: SAFE-FOR-PUBLIC).
-- CI billing unblocked. CI is GREEN except 6 pre-existing e2e failures.
-- CI fixes already merged: NeverCompletingEngine lint, prod-compose-smoke RPC_SECRET + dev-default password guard, format:check on scrubbed docs, file-size exemption for cli-chat-engine.test.ts.
-- **E2E-Fix build agent spawned** (Codex, pane w1:p13, worktree `fix/e2e-ci-fixes`) to fix the 6 failing e2e tests. Handoff: `docs/superpowers/handoffs/2026-06-24-e2e-ci-fixes.md`. Routine tier.
-- **Next after E2E-Fix merges:** tag `v0.1.15` → CI `publish` job builds multi-arch + pushes GHCR → bump `JARVIS_IMAGE_TAG` in `~/JarvisProd` → `docker compose up -d` → e2e verify chat + notes.search.
-
-**Immediate next actions for successor:**
-1. Check E2E-Fix agent status (pane w1:p13 by label `E2E-Fix`). If done, QA + merge its PR.
-2. After e2e green on main: tag `v0.1.15`, watch CI `publish` job, confirm GHCR images pushed.
-3. Deploy to prod (`~/JarvisProd`): bump tag, `docker compose up -d`, e2e verify per plan Task 3 steps 2-4.
-4. Save durable memory (see Notes section).
-5. Close out: update this manifest, file any follow-up issues for the e2e test splits / CI debt.
+**Remaining follow-ups (not blocking):**
+1. #467 — scheduled vault-cleanup sweep (pg-boss cron).
+2. Flaky `auth-bootstrap-recovery.test.ts` race test — file issue.
+3. `cli-chat-engine.test.ts` (1095 lines) — split to remove file-size exemption.
+4. Contact GitHub Support to GC dangling `refs/pull/*` objects (optional, for pristine public state).
 
 ## Wave 1 — COMPLETE (all 6 merged)
 
@@ -85,8 +83,15 @@ Local-gate mode (see CI mode note above). `gh pr checks` is expected red on bill
 ## Notes for successor / relay
 
 - Run ID: `2026-06-24-chat-stability-batch`. Manifest: this file.
-- Plan: `docs/superpowers/plans/2026-06-24-chat-stability-notes-memory.md`. Tasks 1+2 merged. Task 3 (build + deploy + e2e verify) is coordinator-owned — runs after all PRs merge + Ben says go.
+- Plan: `docs/superpowers/plans/2026-06-24-chat-stability-notes-memory.md`. All 3 tasks complete.
 - **Skill update committed (`e718a502`):** `coordinated-build` step ½ — verify spec against actual branch before planning. Catches spec drift. Already proven by #456.
-- CI billing is the ONLY reason `main` looks red. Do not treat it as a code failure.
-- After Task 3 lands, save durable memory for: `tool_call_mcp_elicitation=false` fix, persona rewrite, local-gate-mode decision, idle-watchdog + Stop design, verify-before-plan skill update.
-- **Gemini (agy) behavior note:** Gemini agents finish work but don't reliably self-wrap to PR+report without a nudge (happened on #354/pN). GLM (opencode) wraps cleanly. Watch for this; nudge Gemini agents to push+PR+report if they go idle without reporting.
+- **Repo went PUBLIC 2026-06-24.** CI billing unblocked. Local-gate-mode retired — CI is now the source of truth (all 4 jobs green on `v0.1.15`).
+- **Durable decisions (save to memory):**
+  - `tool_call_mcp_elicitation=false` is THE fix for codex MCP chat hangs (#463). `approval_policy=never` does NOT suppress the elicitation menu.
+  - Persona rewrite (#464): model now told it HAS tools + `notes.search` as 2nd brain. Was previously told "no tools."
+  - Idle watchdog + Stop (#466): 180s default, resets on emission, zero DB writes on stop. `AbortController` kills engine, emits "Stopped by user." SSE.
+  - Verify-before-plan skill update (`e718a502`): build agents must verify spec against actual branch before planning. Catches spec drift.
+  - PII scrub: 3-pass filter-repo (mailmap + replace-text + replace-message). Operator email → GitHub noreply. All branches deleted, main only. Accepted residual: GitHub server-side `refs/pull/*` retain old SHAs (not anonymous-fetchable).
+  - CI fixes: `NeverCompletingEngine` dead-code removal, prod-compose-smoke `JARVIS_CLI_RUNNER_RPC_SECRET` interpolation + dev-default password guard, e2e spec alignment (#468), file-size exemption for `cli-chat-engine.test.ts` (1095 lines, follow-up to split).
+- **Flaky test:** `tests/integration/auth-bootstrap-recovery.test.ts` — "rejects disabled-registration bootstrap recovery racers" times out under CI load (race-condition test). Passes on rerun. File follow-up to add retry or loosen timing.
+- **Gemini (agy) behavior note:** Gemini agents finish work but don't reliably self-wrap to PR+report without a nudge (happened on #354/pN). GLM (opencode) wraps cleanly. Codex (codex) wraps cleanly + thoroughly. Watch for this; nudge Gemini agents to push+PR+report if they go idle without reporting.
