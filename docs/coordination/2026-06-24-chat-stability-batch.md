@@ -87,7 +87,7 @@ Local-gate mode (see CI mode note above). `gh pr checks` is expected red on bill
 - **Skill update committed (`e718a502`):** `coordinated-build` step ½ — verify spec against actual branch before planning. Catches spec drift. Already proven by #456.
 - **Repo went PUBLIC 2026-06-24.** CI billing unblocked. Local-gate-mode retired — CI is now the source of truth (all 4 jobs green on `v0.1.15`).
 - **Durable decisions (save to memory):**
-  - `tool_call_mcp_elicitation=false` is THE fix for codex MCP chat hangs (#463). `approval_policy=never` does NOT suppress the elicitation menu.
+  - Codex MCP chat hang fix — TWO iterations. v1 (#463): `tool_call_mcp_elicitation=false` (disables elicitation globally). v2 (post-deploy live refinement by Ben, uncommitted): `mcp_servers.jarvis.default_tools_approval_mode="approve"` — auto-approves ONLY the generated Jarv1s MCP server, narrower scope. The hidden TUI no longer blocks on a per-tool approval menu the web user can't see. `approval_policy=never` / `-a never` cover shell approvals but do NOT suppress MCP elicitation. **v2 is the current truth** if it's in the tree; else v1 is what shipped in v0.1.15.
   - Persona rewrite (#464): model now told it HAS tools + `notes.search` as 2nd brain. Was previously told "no tools."
   - Idle watchdog + Stop (#466): 180s default, resets on emission, zero DB writes on stop. `AbortController` kills engine, emits "Stopped by user." SSE.
   - Verify-before-plan skill update (`e718a502`): build agents must verify spec against actual branch before planning. Catches spec drift.
