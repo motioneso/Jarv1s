@@ -511,7 +511,7 @@ export class CliChatEngineImpl implements CliChatEngine {
     // `-a never`/`approval_policy` cover shell approvals. MCP tool approval is
     // separate; auto-approve only the generated Jarv1s server so the hidden TUI
     // never blocks on a prompt the web user cannot see.
-    parts.push("--sandbox read-only", "-a never", `-c 'approval_policy="never"'`);
+    parts.push("--disable apps", "--sandbox read-only", "-a never", `-c 'approval_policy="never"'`);
 
     return parts.join(" ");
   }

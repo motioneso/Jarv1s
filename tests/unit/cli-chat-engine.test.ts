@@ -243,6 +243,7 @@ describe("CliChatEngineImpl — Codex launch", () => {
     expect(launchLine).toContain('mcp_servers.jarvis.default_tools_approval_mode="approve"');
     expect(launchLine).toContain("shell_tool=false");
     expect(launchLine).toContain("apply_patch_tool=false");
+    expect(launchLine).toContain("--disable apps");
     expect(launchLine).toContain("sandbox read-only");
     expect(launchLine).toContain("-a never");
     expect(launchLine).toContain('approval_policy="never"');
