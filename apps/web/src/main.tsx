@@ -3,8 +3,15 @@ import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 
 import { App } from "./app";
+import { ErrorBoundary } from "./shell/error-boundary";
+import { registerGlobalErrorHandlers } from "./shell/global-error-handler";
 import { registerServiceWorker } from "./pwa/register-service-worker";
 import "./styles/index.css";
+
+// Global error capture (#413): wire window.onerror + unhandledrejection BEFORE
+// createRoot so a boot-time crash (before React mounts) is still reported to
+// /api/errors. The reporter is fire-and-forget and never throws.
+registerGlobalErrorHandlers();
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -19,7 +26,9 @@ const queryClient = new QueryClient({
 createRoot(document.getElementById("root") as HTMLElement).render(
   <StrictMode>
     <QueryClientProvider client={queryClient}>
-      <App />
+      <ErrorBoundary>
+        <App />
+      </ErrorBoundary>
     </QueryClientProvider>
   </StrictMode>
 );
