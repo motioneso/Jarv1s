@@ -9,6 +9,8 @@ export { sessionRateLimitKey, mcpSessionRateLimitKey } from "./rate-limit-key.js
 
 export { CORE_VERSION, satisfiesCoreVersion } from "./core-version.js";
 
+export { createModuleLogger } from "./logger.js";
+
 export type ModuleLifecycle = "required" | "optional" | "user-toggleable" | "workspace-toggleable";
 export type ModuleScope = "user" | "admin" | "system";
 export type ModulePermissionAction = "view" | "create" | "update" | "delete" | "manage" | "execute";

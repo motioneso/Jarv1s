@@ -1,3 +1,4 @@
+import type { FastifyBaseLogger } from "fastify";
 import type { PgBoss } from "pg-boss";
 
 import type { BriefingDefinition, DataContextDb } from "@jarv1s/db";
@@ -5,6 +6,11 @@ import { assertMetadataOnlyPayload } from "@jarv1s/jobs";
 
 import { BRIEFINGS_RUN_QUEUE } from "./manifest.js";
 import type { BriefingsRepository } from "./repository.js";
+
+/** Logger fallback — silent when no logger is injected (observability spec). */
+const NOOP_LOGGER: Pick<FastifyBaseLogger, "error"> = {
+  error: () => undefined
+};
 
 const DEFAULT_TARGET_TIME_CRON = "0 7 * * *";
 const DEFAULT_TIMEZONE = "UTC";
@@ -87,7 +93,8 @@ export async function reconcileOwnedSchedules(
   boss: PgBoss,
   scopedDb: DataContextDb,
   repository: BriefingsRepository,
-  actorUserId: string
+  actorUserId: string,
+  logger: Pick<FastifyBaseLogger, "error"> = NOOP_LOGGER
 ): Promise<void> {
   const definitions = await repository.listDefinitions(scopedDb);
   const owned = definitions.filter((d) => d.owner_user_id === actorUserId);
@@ -96,13 +103,14 @@ export async function reconcileOwnedSchedules(
       await reconcileSchedule(boss, definition);
     } catch (error) {
       const e = error instanceof Error ? error : new Error(String(error));
-      console.error(
-        JSON.stringify({
+      logger.error(
+        {
           event: "briefing_schedule_reconcile_failed",
           definitionId: definition.id,
           error: e.name,
           message: e.message.slice(0, 200)
-        })
+        },
+        "briefing schedule reconcile failed"
       );
     }
   }

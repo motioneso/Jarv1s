@@ -117,8 +117,11 @@ export interface SyncLogger {
 }
 
 const NOOP_SYNC_LOGGER: SyncLogger = {
-  warn: (data, msg) => console.warn(msg, data),
-  info: (data, msg) => console.info(msg, data)
+  // Silent — production always injects a real logger (server.log adapter) at the
+  // composition root. Noop (not console) so a forgotten injection degrades quietly
+  // instead of spamming unstructured console output (observability spec).
+  warn: () => undefined,
+  info: () => undefined
 };
 
 export async function loadGoogleSyncActiveAccount(

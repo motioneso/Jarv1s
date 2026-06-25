@@ -40,8 +40,10 @@ import {
   type HostDiagnosticsInfo,
   type ModuleDto
 } from "@jarv1s/shared";
+import { createModuleLogger } from "@jarv1s/module-sdk";
 
 import { registerStaticWeb } from "./static-web.js";
+import { registerClientErrorsRoute, setJarvisErrorHandler } from "./error-handling.js";
 
 export interface CreateApiServerOptions {
   readonly appDb?: Kysely<JarvisDatabase>;
@@ -238,6 +240,12 @@ export function createApiServer(options: CreateApiServerOptions = {}) {
     registerBetterAuthRoutes(server, authRuntime, AUTH_MAX);
     registerPlatformRoutes(server, authRuntime);
 
+    // Observability sink (#413): POST /api/errors. Platform infra (no auth, no
+    // module ownership) — listed in PLATFORM_UNGUARDED_ROUTES so the route guard
+    // does not 404 it. Registered before the guard + static web so it lands in
+    // the final route tree. Safe by construction (see error-handling.ts).
+    registerClientErrorsRoute(server);
+
     const resolveActiveModules = createActiveModulesResolver({
       dataContext,
       manifests: getBuiltInModuleManifests()
@@ -247,13 +255,25 @@ export function createApiServer(options: CreateApiServerOptions = {}) {
     // repository + cipher; the service is per-call-scoped via scopedDb, so one instance
     // is fine. createConnectorSecretCipher requires JARVIS_CONNECTOR_SECRET_KEY in a
     // hardened (production) env; in dev/test it falls back to the dev default.
+    // Logger adapters wire server.log into the connectors package's minimal logger
+    // interfaces (observability spec: no console.* in production — the clients' noop
+    // defaults must be overridden at the composition root).
+    const connectorsModuleLogger = createModuleLogger(server.log, "connectors");
     const connectorsRepository = new ConnectorsRepository();
     const googleConnectionService = new GoogleConnectionService({
       repository: connectorsRepository,
       cipher: createConnectorSecretCipher(),
-      oauthClient: new GoogleOAuthClient()
+      oauthClient: new GoogleOAuthClient({
+        logger: {
+          error: (data, msg) => connectorsModuleLogger.error(data, msg)
+        }
+      })
     });
-    const googleApiClient = new GoogleApiClient();
+    const googleApiClient = new GoogleApiClient({
+      logger: {
+        error: (data, msg) => connectorsModuleLogger.error(data, msg)
+      }
+    });
 
     // Host diagnostics (#255): a read-only, secret-safe runtime-facts provider injected
     // into the settings admin route. info() returns only explicit, non-secret config
@@ -361,6 +381,12 @@ export function createApiServer(options: CreateApiServerOptions = {}) {
 
     registerStaticWeb(server);
   });
+
+  // Central error handler (#413): every unhandled request error flows through
+  // here. Logs a structured allowlisted line and returns a safe body (fixed
+  // "Internal Server Error" on 5xx — no stack/internal detail). See
+  // error-handling.ts for the secrets-never-escape invariant.
+  setJarvisErrorHandler(server);
 
   server.addHook("onReady", async () => {
     // Coverage assertion (ADR 0009 §4) runs once the route tree is final. Throws if any

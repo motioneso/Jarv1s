@@ -29,6 +29,13 @@ interface OAuthLogger {
   error(data: Record<string, unknown>, message: string): void;
 }
 
+// Silent default — production ALWAYS injects a real logger at the composition
+// root. Noop (not console) so a forgotten injection degrades quietly rather than
+// spamming unstructured console output (observability spec: no console.* in prod).
+const NOOP_OAUTH_LOGGER: OAuthLogger = {
+  error: () => undefined
+};
+
 export interface GoogleOAuthClientDeps {
   readonly fetchFn?: typeof fetch;
   readonly logger?: OAuthLogger;
@@ -59,10 +66,7 @@ export class GoogleOAuthClient {
 
   constructor(deps: GoogleOAuthClientDeps = {}) {
     this.fetchFn = deps.fetchFn ?? globalThis.fetch;
-    // Default to console so no pino dependency is required in the connectors package.
-    this.logger = deps.logger ?? {
-      error: (data, msg) => console.error(msg, data)
-    };
+    this.logger = deps.logger ?? NOOP_OAUTH_LOGGER;
   }
 
   buildAuthUrl(input: {

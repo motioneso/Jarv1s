@@ -74,17 +74,19 @@ export function registerBriefingsRoutes(
               dependencies.boss,
               scopedDb,
               repository,
-              accessContext.actorUserId
+              accessContext.actorUserId,
+              request.log
             )
           )
           .catch((error) => {
             const e = error instanceof Error ? error : new Error(String(error));
-            console.error(
-              JSON.stringify({
+            request.log.error(
+              {
                 event: "briefing_self_heal_failed",
                 error: e.name,
                 message: e.message.slice(0, 200)
-              })
+              },
+              "briefing self-heal failed"
             );
           });
 
@@ -109,7 +111,7 @@ export function registerBriefingsRoutes(
 
         // Reconcile OUTSIDE the data-context callback (pg-boss is not RLS-scoped).
         // Failure-isolated: a reconcile failure is logged and never fails the mutation.
-        await reconcileScheduleSafely(dependencies.boss, definition);
+        await reconcileScheduleSafely(dependencies.boss, definition, request.log);
 
         return reply.code(201).send({ definition: serializeDefinition(definition) });
       } catch (error) {
@@ -136,7 +138,7 @@ export function registerBriefingsRoutes(
 
         // Reconcile the schedule for the updated definition (cadence/tz/enabled may have
         // changed). Failure-isolated — never fails the mutation.
-        await reconcileScheduleSafely(dependencies.boss, definition);
+        await reconcileScheduleSafely(dependencies.boss, definition, request.log);
 
         return { definition: serializeDefinition(definition) };
       } catch (error) {
@@ -242,19 +244,21 @@ export function registerBriefingsRoutes(
 
 async function reconcileScheduleSafely(
   boss: PgBoss,
-  definition: BriefingDefinition
+  definition: BriefingDefinition,
+  logger: Pick<FastifyRequest, "log">["log"]
 ): Promise<void> {
   try {
     await reconcileSchedule(boss, definition);
   } catch (error) {
     const e = error instanceof Error ? error : new Error(String(error));
-    console.error(
-      JSON.stringify({
+    logger.error(
+      {
         event: "briefing_schedule_reconcile_failed",
         definitionId: definition.id,
         error: e.name,
         message: e.message.slice(0, 200)
-      })
+      },
+      "briefing schedule reconcile failed"
     );
   }
 }

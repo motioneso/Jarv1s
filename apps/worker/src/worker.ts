@@ -1,4 +1,6 @@
 import type { ConstructorOptions, PgBoss } from "pg-boss";
+import { pino, type Logger as PinoLogger } from "pino";
+import type { FastifyBaseLogger } from "fastify";
 
 import { DataContextRunner, createDatabase, getJarvisDatabaseUrls } from "@jarv1s/db";
 import { RlsProbeRepository } from "@jarv1s/db/probes";
@@ -58,6 +60,15 @@ export async function buildWorker(deps?: { connectionString?: string }): Promise
   const urls = getJarvisDatabaseUrls();
   const connectionString = deps?.connectionString ?? urls.worker;
 
+  // Structured logger for worker-path module diagnostics (#413). Threaded into
+  // each module's worker registration so no `console.*` lands in production
+  // worker logs; module-tagged children are created by the registry. Level honors
+  // LOG_LEVEL (pino default is "info"). Suppressed in unit tests via LOG_LEVEL.
+  const workerLogger: PinoLogger = pino({
+    level: process.env.LOG_LEVEL ?? "info",
+    base: { process: "worker" }
+  });
+
   const workerDb = createDatabase({
     connectionString,
     maxConnections: Number(process.env.JARVIS_WORKER_DB_POOL_SIZE ?? 4)
@@ -115,7 +126,14 @@ export async function buildWorker(deps?: { connectionString?: string }): Promise
       };
     }
   );
-  await registerBuiltInModuleWorkers(boss, { rootDb: workerDb, dataContext, embeddingProvider });
+  await registerBuiltInModuleWorkers(boss, {
+    rootDb: workerDb,
+    dataContext,
+    embeddingProvider,
+    // Pino's Logger is structurally what FastifyBaseLogger wraps at runtime
+    // (Fastify uses pino internally). The cast bridges the nominal type gap.
+    logger: workerLogger as unknown as FastifyBaseLogger
+  });
 
   // -------------------------------------------------------------------------
   // Graceful-shutdown (#165 MED)

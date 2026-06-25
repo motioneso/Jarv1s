@@ -90,6 +90,13 @@ export interface JarvisAuthRuntime {
  */
 export interface AuthLogger {
   info(obj: Record<string, unknown>, msg: string): void;
+  /**
+   * Warn-level sink for degraded-mode observability (e.g. a best-effort audit
+   * write failing on the reject path, or an ephemeral auth secret fallback).
+   * Optional — omitted sinks degrade quietly (observability spec: no console.*
+   * in production).
+   */
+  warn?(obj: Record<string, unknown>, msg: string): void;
 }
 
 export interface CreateJarvisAuthRuntimeOptions {
@@ -135,7 +142,7 @@ export function createJarvisAuthRuntime(
     recordAuditEvent: settingsRecordAuditEvent
   };
   const auth = betterAuth(
-    createBetterAuthOptions(pool, options.appDb, env, options.runner, settings)
+    createBetterAuthOptions(pool, options.appDb, env, options.runner, settings, options.logger)
   );
 
   return {
@@ -239,7 +246,8 @@ function createBetterAuthOptions(
   appDb: Kysely<JarvisDatabase>,
   env: NodeJS.ProcessEnv,
   runner: DataContextRunner,
-  settings: BootstrapSettings
+  settings: BootstrapSettings,
+  logger?: AuthLogger
 ): BetterAuthOptions {
   const socialProviders = readSocialProviders(env);
   const plugins = readAuthPlugins(env);
@@ -248,7 +256,7 @@ function createBetterAuthOptions(
     appName: "Jarv1s",
     basePath: "/api/auth",
     baseURL: env.JARVIS_AUTH_BASE_URL ?? env.BETTER_AUTH_URL ?? "http://localhost:3000",
-    secret: readAuthSecret(env),
+    secret: readAuthSecret(env, logger),
     database: pool,
     emailAndPassword: {
       enabled: true
@@ -313,7 +321,8 @@ function createBetterAuthOptions(
       user: {
         create: {
           before: (user) => registrationGate(appDb, user),
-          after: (user) => bootstrapFirstJarvisUser(pool, runner, settings, user as BetterAuthUser)
+          after: (user) =>
+            bootstrapFirstJarvisUser(pool, runner, settings, user as BetterAuthUser, logger)
         }
       }
     },
@@ -456,7 +465,8 @@ async function bootstrapFirstJarvisUser(
   authPool: pg.Pool,
   runner: DataContextRunner,
   settings: BootstrapSettings,
-  user: BetterAuthUser
+  user: BetterAuthUser,
+  logger?: AuthLogger
 ): Promise<void> {
   // withDataContext is the sole transaction boundary: it opens one transaction and
   // sets app.actor_user_id / app.request_id GUCs for its lifetime. No raw appDb DML
@@ -532,10 +542,10 @@ async function bootstrapFirstJarvisUser(
         await recordRegistrationRejectedAudit(runner, settings, user.id);
       } catch {
         // Audit is best-effort on the reject path — do not mask the original error.
-        console.warn("[auth] registration-rejected audit write failed", {
-          userId: user.id,
-          requestId: `bootstrap-reject:${user.id}`
-        });
+        logger?.warn?.(
+          { userId: user.id, requestId: `bootstrap-reject:${user.id}` },
+          "[auth] registration-rejected audit write failed"
+        );
       } finally {
         await deleteRejectedBootstrapRaceLoser(authPool, user.id);
       }
@@ -595,7 +605,7 @@ function isTestRuntime(env: NodeJS.ProcessEnv): boolean {
 //      key, not a publicly-known constant. The trade-off is that sessions do not
 //      survive a process restart in dev, which is acceptable; set
 //      BETTER_AUTH_SECRET to make dev sessions durable.
-function readAuthSecret(env: NodeJS.ProcessEnv): string {
+function readAuthSecret(env: NodeJS.ProcessEnv, logger?: AuthLogger): string {
   const secret = env.BETTER_AUTH_SECRET ?? env.AUTH_SECRET;
 
   if (secret) {
@@ -611,7 +621,10 @@ function readAuthSecret(env: NodeJS.ProcessEnv): string {
   }
 
   const ephemeralSecret = randomBytes(32).toString("hex");
-  console.warn(
+  logger?.warn?.(
+    {
+      event: "auth_ephemeral_secret"
+    },
     "[auth] BETTER_AUTH_SECRET is not set. Generated a strong EPHEMERAL " +
       "session-signing secret for this process. All sessions will be invalidated " +
       "when the process restarts. Set BETTER_AUTH_SECRET to persist sessions."
