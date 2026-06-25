@@ -548,7 +548,7 @@
 .wl-fchip.is-on {
   background: var(--em-tint);
   border-color: var(--em-tint);
-  color: #fff;
+  color: var(--white);
 }
 .wl-schip {
   border: 1px solid var(--border);
@@ -581,7 +581,7 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  color: #fff;
+  color: var(--white);
 }
 .wl-schip.is-on .wl-schip__c {
   background: var(--em-tint);
@@ -748,7 +748,7 @@
   font-family: var(--font-sans);
   font-size: 10px;
   font-weight: 600;
-  fill: #fff;
+  fill: var(--white);
   pointer-events: none;
   letter-spacing: 0.01em;
 }

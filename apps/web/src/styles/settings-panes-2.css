@@ -653,7 +653,7 @@
 }
 .ppv__bubble--main {
   border-color: var(--border);
-  box-shadow: var(--shadow-xs, 0 1px 2px rgba(0, 0, 0, 0.03));
+  box-shadow: var(--shadow-xs);
 }
 .ppv__cap {
   font-family: var(--font-mono);
@@ -960,21 +960,21 @@
 }
 
 .memory-fact__provenance--said {
-  color: #14532d;
-  background: #dcfce7;
-  border-color: #86efac;
+  color: var(--provenance-said);
+  background: var(--provenance-said-bg);
+  border-color: var(--provenance-said-border);
 }
 
 .memory-fact__provenance--inferred {
-  color: #713f12;
-  background: #fef3c7;
-  border-color: #facc15;
+  color: var(--provenance-inferred);
+  background: var(--provenance-inferred-bg);
+  border-color: var(--provenance-inferred-border);
 }
 
 .memory-fact__provenance--confirmed {
-  color: #1e3a8a;
-  background: #dbeafe;
-  border-color: #93c5fd;
+  color: var(--provenance-confirmed);
+  background: var(--provenance-confirmed-bg);
+  border-color: var(--provenance-confirmed-border);
 }
 
 .memory-fact__actions {

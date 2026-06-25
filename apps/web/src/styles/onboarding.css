@@ -464,7 +464,7 @@
 }
 
 .connected-summary li {
-  border-top: 1px solid rgba(40, 92, 66, 0.16);
+  border-top: 1px solid var(--accent-soft-border-weak);
   padding-top: 0.45rem;
 }
 
@@ -671,7 +671,7 @@
   inset: 0;
   border: 0;
   padding: 0;
-  background: rgb(0 0 0 / 45%);
+  background: var(--scrim-strong);
   cursor: pointer;
 }
 
@@ -683,7 +683,7 @@
   border: 1px solid var(--border);
   border-radius: var(--radius-card);
   background: var(--surface);
-  box-shadow: var(--shadow-pop, 0 20px 50px rgb(0 0 0 / 25%));
+  box-shadow: var(--shadow-pop);
 }
 
 .onb-skipconfirm__mark {

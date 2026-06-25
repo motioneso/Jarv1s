@@ -31,6 +31,20 @@ pnpm typecheck
 
 `pnpm verify:foundation` includes these checks before migrations and integration tests.
 
+## Design System Guardrails
+
+Jarv1s UI must keep the authored design-system shape:
+
+- serif headings via Newsreader, mono eyebrow/section labels via IBM Plex Mono, sans body via
+  Hanken Grotesk
+- palette, radius, shadow, focus, and state colors come from `apps/web/src/styles/tokens.css`
+- extend existing `jds-*` and local UI primitives; do not drop in unstyled shadcn, Radix, or
+  Tailwind-default primitives
+- new empty and loading states must match existing authored states: warm surface, sentence-case
+  copy, tokenized color, and no generic placeholder cards
+
+Run `pnpm check:design-tokens` before shipping frontend CSS changes.
+
 ## Agent Knowledge Tools
 
 Agents working in this repository should keep project knowledge current while they work.

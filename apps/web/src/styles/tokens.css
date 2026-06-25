@@ -240,10 +240,24 @@
 
   --shadow-panel: var(--shadow-lg);
   --shadow-control: var(--shadow-sm);
+  --shadow-pop: 0 20px 50px rgb(0 0 0 / 25%);
   --shadow-drawer: -8px 0 24px rgba(38, 34, 28, 0.16);
   --topbar-bg: rgb(251 250 246 / 0.85);
+  --scrim-strong: rgb(0 0 0 / 45%);
+  --surface-hover: rgba(38, 34, 28, 0.06);
+  --hairline-contrast: rgba(0, 0, 0, 0.06);
+  --white-translucent: rgba(255, 255, 255, 0.18);
   --accent-soft-border: rgb(47 106 76 / 0.45);
   --accent-soft-border-weak: rgb(47 106 76 / 0.32);
+  --provenance-said: var(--pine-ink);
+  --provenance-said-bg: var(--pine-soft);
+  --provenance-said-border: var(--pine-soft-2);
+  --provenance-inferred: var(--amber-ink);
+  --provenance-inferred-bg: var(--amber-soft);
+  --provenance-inferred-border: var(--amber-soft-2);
+  --provenance-confirmed: var(--steel-ink);
+  --provenance-confirmed-bg: var(--steel-soft);
+  --provenance-confirmed-border: var(--steel);
 }
 
 /* ------------------------------------------------------------------------- */
