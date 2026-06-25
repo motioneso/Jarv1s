@@ -33,6 +33,7 @@
 ### Task 1: Migration For Bounded Listing Function
 
 **Files:**
+
 - Create: `packages/settings/sql/0112_data_export_cleanup_function.sql`
 - Modify: `packages/settings/src/manifest.ts`
 - Test: `tests/integration/data-export.test.ts`
@@ -40,6 +41,7 @@
 - [ ] **Step 1: Write failing integration test**
 
 Add tests that:
+
 - create one expired-ready job and one future-ready job
 - prove `jarvis_worker_runtime` cannot direct `SELECT * FROM app.data_export_jobs`
 - call `app.list_expired_data_export_jobs(now())` as `jarvis_worker_runtime`
@@ -93,6 +95,7 @@ git commit -m "fix(settings): add data export expiry function"
 ### Task 2: Cleanup Queue, Schedule, Worker
 
 **Files:**
+
 - Create: `packages/settings/src/data-export-schedule.ts`
 - Modify: `apps/worker/src/worker.ts`
 - Modify: `packages/module-registry/src/index.ts`
@@ -103,6 +106,7 @@ git commit -m "fix(settings): add data export expiry function"
 - [ ] **Step 1: Write failing worker/schedule tests**
 
 Add tests for:
+
 - cleanup scheduled payload is `{ kind: "export.cleanup" }`
 - handler deletes `exports/<jobId>.json` through `VaultContextRunner`
 - handler ignores already-missing archive files and then marks row `expired`
@@ -140,6 +144,7 @@ export async function reconcileDataExportCleanupSchedule(boss: PgBoss): Promise<
 - [ ] **Step 4: Add minimal handler + registration**
 
 In `data-export-jobs.ts`, add:
+
 - `EXPORT_CLEANUP_QUEUE = "export.cleanup"`
 - payload type `{ kind: "export.cleanup" }`
 - queue definition
@@ -172,6 +177,7 @@ git commit -m "fix(settings): schedule data export cleanup"
 ### Task 3: Gate
 
 **Files:**
+
 - No new edits unless checks fail.
 
 - [ ] **Step 1: Run focused tests**
@@ -187,6 +193,7 @@ Expected: PASS.
 - [ ] **Step 3: Sensitive invariant check**
 
 Verify:
+
 - pg-boss cleanup payload is metadata-only and contains no actor private data.
 - pg-boss cleanup payload is exactly `{ kind: "export.cleanup" }`.
 - Cleanup reads expired job IDs/owners only via bounded SQL function with `SECURITY DEFINER`, `SET search_path = app, pg_temp`, `REVOKE PUBLIC`, and `GRANT EXECUTE` only to `jarvis_worker_runtime`.

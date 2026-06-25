@@ -115,7 +115,7 @@ export async function buildWorker(deps?: { connectionString?: string }): Promise
       };
     }
   );
-  await registerBuiltInModuleWorkers(boss, { dataContext, embeddingProvider });
+  await registerBuiltInModuleWorkers(boss, { rootDb: workerDb, dataContext, embeddingProvider });
 
   // -------------------------------------------------------------------------
   // Graceful-shutdown (#165 MED)

@@ -1,8 +1,13 @@
+import { mkdtemp, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 
 import { createDatabase, DataContextRunner, type JarvisDatabase } from "@jarv1s/db";
 import type { Job } from "@jarv1s/jobs";
 import type { Kysely } from "kysely";
+import { VaultContextRunner, readVaultFile, writeVaultFile } from "@jarv1s/vault";
 
 import { fastify, type FastifyInstance } from "fastify";
 import { getBuiltInModuleManifests } from "@jarv1s/module-registry";
@@ -18,12 +23,14 @@ const { Client } = pg;
 describe("Data export", () => {
   let appDb: Kysely<JarvisDatabase>;
   let authDb: Kysely<JarvisDatabase>;
+  let workerDb: Kysely<JarvisDatabase>;
   let server: FastifyInstance;
 
   beforeAll(async () => {
     await resetFoundationDatabase();
     appDb = createDatabase({ connectionString: connectionStrings.app, maxConnections: 1 });
     authDb = createDatabase({ connectionString: connectionStrings.auth, maxConnections: 1 });
+    workerDb = createDatabase({ connectionString: connectionStrings.worker, maxConnections: 1 });
     server = fastify();
 
     registerSettingsRoutes(server, {
@@ -50,6 +57,7 @@ describe("Data export", () => {
     await server?.close();
     await appDb?.destroy();
     await authDb?.destroy();
+    await workerDb?.destroy();
   });
 
   it("exports data successfully for the authenticated user and omits sensitive secrets", async () => {
@@ -200,9 +208,9 @@ describe("Data export", () => {
     const workerClient = new Client({ connectionString: connectionStrings.worker });
     await workerClient.connect();
     try {
-      await expect(
-        workerClient.query("SELECT id FROM app.data_export_jobs")
-      ).rejects.toThrow(/permission denied|violates row-level security|policy/i);
+      await expect(workerClient.query("SELECT id FROM app.data_export_jobs")).rejects.toThrow(
+        /permission denied|violates row-level security|policy/i
+      );
 
       const result = await workerClient.query<{
         id: string;
@@ -228,5 +236,165 @@ describe("Data export", () => {
         expect((await repository.getJobById(scopedDb, futureJob.id))?.status).toBe("ready");
       }
     );
+  });
+
+  it("schedules data export cleanup with a metadata-only payload", async () => {
+    const { EXPORT_CLEANUP_CRON, reconcileDataExportCleanupSchedule } =
+      await import("../../packages/settings/src/data-export-schedule.js");
+    const { EXPORT_CLEANUP_QUEUE } =
+      await import("../../packages/settings/src/data-export-jobs.js");
+    const schedule = vi.fn().mockResolvedValue(undefined);
+    const boss = { schedule };
+
+    await reconcileDataExportCleanupSchedule(boss as never);
+
+    expect(schedule).toHaveBeenCalledWith(
+      EXPORT_CLEANUP_QUEUE,
+      EXPORT_CLEANUP_CRON,
+      { kind: "export.cleanup" },
+      { tz: "UTC", key: "data-export-cleanup" }
+    );
+  });
+
+  it("deletes expired export vault files before marking rows expired", async () => {
+    const vaultRoot = await mkdtemp(join(tmpdir(), "jarvis-export-cleanup-"));
+    const originalVaultRoot = process.env.JARVIS_VAULT_ROOT;
+    process.env.JARVIS_VAULT_ROOT = vaultRoot;
+    try {
+      const { handleExportCleanupJob } =
+        await import("../../packages/settings/src/data-export-jobs.js");
+      const repository = new (
+        await import("../../packages/settings/src/data-export-repository.js")
+      ).DataExportRepository();
+      const dataContext = new DataContextRunner(appDb);
+      const expiresAt = new Date(Date.now() - 60_000);
+      const jobRecord = await dataContext.withDataContext(
+        { actorUserId: ids.userA, requestId: "req:test" },
+        async (scopedDb) => {
+          const jobRecord = await repository.createJob(scopedDb, ids.userA);
+          await repository.completeJob(scopedDb, jobRecord.id, new Date(), expiresAt);
+          return jobRecord;
+        }
+      );
+
+      const vaultRunner = new VaultContextRunner(vaultRoot);
+      await vaultRunner.withVaultContext({ actorUserId: ids.userA }, (vaultCtx) =>
+        writeVaultFile(vaultCtx, `exports/${jobRecord.id}.json`, "{}")
+      );
+
+      await handleExportCleanupJob(
+        { data: { kind: "export.cleanup" } } as never,
+        workerDb,
+        dataContext
+      );
+
+      await vaultRunner.withVaultContext({ actorUserId: ids.userA }, async (vaultCtx) => {
+        await expect(readVaultFile(vaultCtx, `exports/${jobRecord.id}.json`)).rejects.toThrow();
+      });
+      await dataContext.withDataContext(
+        { actorUserId: ids.userA, requestId: "req:test" },
+        async (scopedDb) => {
+          expect((await repository.getJobById(scopedDb, jobRecord.id))?.status).toBe("expired");
+        }
+      );
+    } finally {
+      if (originalVaultRoot === undefined) delete process.env.JARVIS_VAULT_ROOT;
+      else process.env.JARVIS_VAULT_ROOT = originalVaultRoot;
+      await rm(vaultRoot, { recursive: true, force: true });
+    }
+  });
+
+  it("marks expired export rows cleaned when the vault file is already missing", async () => {
+    const vaultRoot = await mkdtemp(join(tmpdir(), "jarvis-export-cleanup-"));
+    const originalVaultRoot = process.env.JARVIS_VAULT_ROOT;
+    process.env.JARVIS_VAULT_ROOT = vaultRoot;
+    try {
+      const { handleExportCleanupJob } =
+        await import("../../packages/settings/src/data-export-jobs.js");
+      const repository = new (
+        await import("../../packages/settings/src/data-export-repository.js")
+      ).DataExportRepository();
+      const dataContext = new DataContextRunner(appDb);
+      const jobRecord = await dataContext.withDataContext(
+        { actorUserId: ids.userA, requestId: "req:test" },
+        async (scopedDb) => {
+          const jobRecord = await repository.createJob(scopedDb, ids.userA);
+          await repository.completeJob(
+            scopedDb,
+            jobRecord.id,
+            new Date(),
+            new Date(Date.now() - 60_000)
+          );
+          return jobRecord;
+        }
+      );
+
+      await handleExportCleanupJob(
+        { data: { kind: "export.cleanup" } } as never,
+        workerDb,
+        dataContext
+      );
+
+      await dataContext.withDataContext(
+        { actorUserId: ids.userA, requestId: "req:test" },
+        async (scopedDb) => {
+          expect((await repository.getJobById(scopedDb, jobRecord.id))?.status).toBe("expired");
+        }
+      );
+    } finally {
+      if (originalVaultRoot === undefined) delete process.env.JARVIS_VAULT_ROOT;
+      else process.env.JARVIS_VAULT_ROOT = originalVaultRoot;
+      await rm(vaultRoot, { recursive: true, force: true });
+    }
+  });
+
+  it("keeps an expired export row ready when vault deletion fails", async () => {
+    const vaultRoot = await mkdtemp(join(tmpdir(), "jarvis-export-cleanup-"));
+    const originalVaultRoot = process.env.JARVIS_VAULT_ROOT;
+    process.env.JARVIS_VAULT_ROOT = vaultRoot;
+    try {
+      const { mkdir } = await import("node:fs/promises");
+      const { handleExportCleanupJob } =
+        await import("../../packages/settings/src/data-export-jobs.js");
+      const repository = new (
+        await import("../../packages/settings/src/data-export-repository.js")
+      ).DataExportRepository();
+      const dataContext = new DataContextRunner(appDb);
+      const jobRecord = await dataContext.withDataContext(
+        { actorUserId: ids.userA, requestId: "req:test" },
+        async (scopedDb) => {
+          const jobRecord = await repository.createJob(scopedDb, ids.userA);
+          await repository.completeJob(
+            scopedDb,
+            jobRecord.id,
+            new Date(),
+            new Date(Date.now() - 60_000)
+          );
+          return jobRecord;
+        }
+      );
+
+      const vaultRunner = new VaultContextRunner(vaultRoot);
+      await vaultRunner.withVaultContext({ actorUserId: ids.userA }, async (vaultCtx) => {
+        await mkdir(join(vaultCtx.vaultRoot, "exports", `${jobRecord.id}.json`), {
+          recursive: true
+        });
+      });
+
+      await expect(
+        handleExportCleanupJob({ data: { kind: "export.cleanup" } } as never, workerDb, dataContext)
+      ).rejects.toThrow();
+
+      await dataContext.withDataContext(
+        { actorUserId: ids.userA, requestId: "req:test" },
+        async (scopedDb) => {
+          expect((await repository.getJobById(scopedDb, jobRecord.id))?.status).toBe("ready");
+        }
+      );
+    } finally {
+      if (originalVaultRoot === undefined) delete process.env.JARVIS_VAULT_ROOT;
+      else process.env.JARVIS_VAULT_ROOT = originalVaultRoot;
+      await rm(vaultRoot, { recursive: true, force: true });
+    }
   });
 });
