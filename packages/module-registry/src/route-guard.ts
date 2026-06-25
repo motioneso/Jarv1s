@@ -86,7 +86,10 @@ export const PLATFORM_UNGUARDED_ROUTES: ReadonlySet<RouteKey> = new Set<RouteKey
   routeKey("GET", "/api/admin/modules"),
   routeKey("PATCH", "/api/admin/modules/:id"),
   routeKey("GET", "/api/me/modules"),
-  routeKey("PATCH", "/api/me/modules/:id")
+  routeKey("PATCH", "/api/me/modules/:id"),
+  // observability sink (#413): unauthenticated platform route the browser fires
+  // client errors into. Owned by no module, never stores anything, only logs.
+  routeKey("POST", "/api/errors")
 ]);
 
 export type RouteModuleIndex = ReadonlyMap<RouteKey, string>;

@@ -5,6 +5,7 @@
 **Goal:** Make client-side crashes and unhandled API errors observable without devtools. Approve spec `docs/superpowers/specs/2026-06-22-observability.md`.
 
 **Architecture:**
+
 1. Frontend `ErrorBoundary` + global unhandled-error/rejection hooks → fire-and-forget `POST /api/errors`.
 2. `POST /api/errors` route in `apps/api/src/server.ts` (infrastructure, not a module) — validates body, safe structured log, 204.
 3. Central Fastify `setErrorHandler` — extracts only `message`/`code`/`statusCode`, logs structured, returns safe client response (generic message on 5xx).
@@ -35,6 +36,7 @@ All spec premises hold on `fix-413-observability` at `9aafadf`:
 Foundation piece; later console migrations depend on it.
 
 - [ ] 1.1 Create `packages/module-sdk/src/logger.ts`:
+
   ```typescript
   import type { FastifyBaseLogger } from "fastify";
 
@@ -47,6 +49,7 @@ Foundation piece; later console migrations depend on it.
     return base.child({ module });
   }
   ```
+
 - [ ] 1.2 Export from `packages/module-sdk/src/index.ts`: `export { createModuleLogger } from "./logger.js";`
 - [ ] 1.3 Test `tests/unit/module-logger.test.ts` — child carries `module` binding; passes through `error`/`warn`/`info`/`debug`. Use a fake `FastifyBaseLogger` (object with `child` spy + level methods) — no Fastify import needed.
 - [ ] 1.4 `pnpm typecheck` (module-sdk + root). Commit.
@@ -118,6 +121,7 @@ Both live in `apps/api/src/server.ts` and are tested together — they share the
 **Files:** `apps/api/src/client-errors.ts`, `apps/api/src/server.ts`, `tests/unit/client-errors.test.ts`, `tests/unit/api-error-handling.test.ts`.
 
 **Security review checklist (self-verify before commit):**
+
 - [ ] No `...error` spread anywhere in the handler.
 - [ ] No `request.body`, `request.headers`, `request.cookies` in any log call.
 - [ ] 5xx response body is a fixed string, not error-derived.
@@ -188,16 +192,16 @@ For each file, thread/obtain the logger and replace the `console.*` call. No log
 
 ## Exit Criteria (from spec) — all mapped
 
-| Spec acceptance criterion | Task |
-|---|---|
-| React error caught by `ErrorBoundary`, fallback renders, logs `client error` w/ `type:"react_error"` | 3 |
-| Unhandled promise rejection captured, reaches API log | 3 |
-| Unhandled API exception → `{"error":"Internal Server Error"}`, 500, no stack | 2 |
-| `docker compose logs api` shows structured entry per unhandled API error | 2 |
-| No creds/tokens/hashes/prompts in any log line | 2 (structural allowlist) |
-| Zero `console.*` in the 9 migrated files | 4 |
-| `createModuleLogger` exported from `@jarv1s/module-sdk` | 1 |
-| `pnpm verify:foundation` green | 5 |
+| Spec acceptance criterion                                                                            | Task                     |
+| ---------------------------------------------------------------------------------------------------- | ------------------------ |
+| React error caught by `ErrorBoundary`, fallback renders, logs `client error` w/ `type:"react_error"` | 3                        |
+| Unhandled promise rejection captured, reaches API log                                                | 3                        |
+| Unhandled API exception → `{"error":"Internal Server Error"}`, 500, no stack                         | 2                        |
+| `docker compose logs api` shows structured entry per unhandled API error                             | 2                        |
+| No creds/tokens/hashes/prompts in any log line                                                       | 2 (structural allowlist) |
+| Zero `console.*` in the 9 migrated files                                                             | 4                        |
+| `createModuleLogger` exported from `@jarv1s/module-sdk`                                              | 1                        |
+| `pnpm verify:foundation` green                                                                       | 5                        |
 
 ---
 

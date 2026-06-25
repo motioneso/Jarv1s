@@ -42,6 +42,7 @@ import {
 } from "@jarv1s/shared";
 
 import { registerStaticWeb } from "./static-web.js";
+import { registerClientErrorsRoute, setJarvisErrorHandler } from "./error-handling.js";
 
 export interface CreateApiServerOptions {
   readonly appDb?: Kysely<JarvisDatabase>;
@@ -238,6 +239,12 @@ export function createApiServer(options: CreateApiServerOptions = {}) {
     registerBetterAuthRoutes(server, authRuntime, AUTH_MAX);
     registerPlatformRoutes(server, authRuntime);
 
+    // Observability sink (#413): POST /api/errors. Platform infra (no auth, no
+    // module ownership) — listed in PLATFORM_UNGUARDED_ROUTES so the route guard
+    // does not 404 it. Registered before the guard + static web so it lands in
+    // the final route tree. Safe by construction (see error-handling.ts).
+    registerClientErrorsRoute(server);
+
     const resolveActiveModules = createActiveModulesResolver({
       dataContext,
       manifests: getBuiltInModuleManifests()
@@ -361,6 +368,12 @@ export function createApiServer(options: CreateApiServerOptions = {}) {
 
     registerStaticWeb(server);
   });
+
+  // Central error handler (#413): every unhandled request error flows through
+  // here. Logs a structured allowlisted line and returns a safe body (fixed
+  // "Internal Server Error" on 5xx — no stack/internal detail). See
+  // error-handling.ts for the secrets-never-escape invariant.
+  setJarvisErrorHandler(server);
 
   server.addHook("onReady", async () => {
     // Coverage assertion (ADR 0009 §4) runs once the route tree is final. Throws if any
