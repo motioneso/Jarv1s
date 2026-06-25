@@ -53,6 +53,10 @@ test('"Skip setup" reaches the app shell', async ({ page }) => {
   await mockApi(page, memberState());
   await page.goto("/");
   await page.getByRole("button", { name: "Skip setup" }).first().click();
+  await page
+    .getByRole("dialog", { name: "Skip setup without connecting a provider?" })
+    .getByRole("button", { name: "Skip anyway" })
+    .click();
   await expect(page).toHaveURL(/\/today/);
   await expect(page.locator(".module-nav").getByRole("link", { name: "Today" })).toBeVisible();
 });
@@ -89,8 +93,10 @@ test("founder still sees the founder wizard (regression)", async ({ page }) => {
   // Founder onboarding shape comes from the spine's mock; assert a founder-only step is visible.
   await expect(page.getByRole("heading", { name: "Let’s get your Jarvis set up." })).toBeVisible();
   await expect(
-    page.getByLabel("Onboarding progress").getByRole("button", { name: /Control channel/ })
+    page.getByLabel("Onboarding progress").getByRole("button", { name: /Assistant/ })
   ).toBeVisible();
+  await expect(page.getByLabel("Onboarding progress").getByText("Owner")).toBeVisible();
+  await expect(page.getByText("Control channel")).toBeVisible();
 });
 
 test("status-error fall-through: a failing /api/onboarding/status does NOT trap the member", async ({

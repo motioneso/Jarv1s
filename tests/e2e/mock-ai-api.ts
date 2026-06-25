@@ -19,6 +19,16 @@ export interface MockAiApiState {
 }
 
 export async function registerMockAiRoutes(page: Page, state: MockAiApiState): Promise<void> {
+  const discoveredModels = [
+    {
+      providerModelId: "gpt-4o",
+      displayName: "gpt-4o",
+      capabilities: ["chat", "tool-use", "json", "summarization"],
+      tier: "interactive",
+      fromCache: false,
+      fromFallback: false
+    }
+  ];
   await page.route(/\/api\/ai\/providers\/[^/]+\/test$/, (route) =>
     fulfillJson(route, 200, {
       result: {
@@ -28,16 +38,18 @@ export async function registerMockAiRoutes(page: Page, state: MockAiApiState): P
       }
     })
   );
+  await page.route(/\/api\/ai\/providers\/[^/]+\/models\/discover$/, (route) =>
+    fulfillJson(route, 200, {
+      models: discoveredModels,
+      fromFallback: false,
+      cacheExpiresAt: null
+    })
+  );
   await page.route(/\/api\/ai\/providers\/[^/]+\/discover-models$/, (route) =>
     fulfillJson(route, 200, {
-      models: [
-        {
-          providerModelId: "gpt-4o",
-          displayName: "gpt-4o",
-          capabilities: ["chat", "tool-use", "json", "summarization"],
-          tier: "interactive"
-        }
-      ]
+      models: discoveredModels.map(
+        ({ fromCache: _fromCache, fromFallback: _fromFallback, ...model }) => model
+      )
     })
   );
   await page.route(/\/api\/ai\/providers\/[^/]+\/revoke$/, (route) =>
@@ -57,6 +69,21 @@ export async function registerMockAiRoutes(page: Page, state: MockAiApiState): P
   );
   await page.route(/\/api\/ai\/capability-routes\/[^/]+$/, (route) =>
     handleAiCapabilityRouteDetail(route, state)
+  );
+  await page.route("**/api/ai/capability-tier-preferences", (route) =>
+    handleAiCapabilityTierPreferences(route, state)
+  );
+  await page.route("**/api/ai/chat-model-override", (route) =>
+    fulfillJson(route, 200, {
+      settings: {
+        overrideEnabled: true,
+        currentOverrideModelId: null,
+        effectiveOverrideModelId: null,
+        defaultModel: null,
+        selectedModel: null,
+        selectableOverrideModels: state.aiModels ?? []
+      }
+    })
   );
   await page.route("**/api/ai/assistant-tools", (route) =>
     fulfillJson(route, 200, { tools: createMockAiAssistantTools() })
@@ -270,6 +297,23 @@ async function handleAiCapabilityRouteDetail(route: Route, state: MockAiApiState
   };
 
   return fulfillJson(route, 200, { route: { capability, modelId: input.modelId } });
+}
+
+async function handleAiCapabilityTierPreferences(
+  route: Route,
+  state: MockAiApiState
+): Promise<void> {
+  const request = route.request();
+
+  if (request.method() === "GET") {
+    return fulfillJson(route, 200, { preferences: state.aiCapabilityRoutes ?? {} });
+  }
+
+  if (request.method() === "PATCH") {
+    return fulfillJson(route, 204, {});
+  }
+
+  return fulfillJson(route, 405, { error: "Method not allowed" });
 }
 
 function findCompatibleModel(

@@ -63,9 +63,14 @@ test("Skip setup on the first step reaches the app shell", async ({ page }) => {
   await page.goto("/");
   await expect(page.getByRole("heading", { name: "Let’s get your Jarvis set up." })).toBeVisible();
   await page.getByRole("button", { name: "Skip setup" }).first().click();
+  await page
+    .getByRole("dialog", { name: "Skip setup without connecting a provider?" })
+    .getByRole("button", { name: "Skip anyway" })
+    .click();
   await expect(
     page.getByRole("heading", { name: "Let’s get your Jarvis set up." })
   ).not.toBeVisible();
+  await expect(page.locator(".module-nav").getByRole("link", { name: "Today" })).toBeVisible();
 });
 
 test("a connected provider renders the ready state on the cliAuth step", async ({ page }) => {
@@ -90,10 +95,13 @@ test("a connected provider renders the ready state on the cliAuth step", async (
   });
 
   await page.goto("/");
-  await page.getByRole("button", { name: /Continue/ }).click();
+  await page
+    .getByLabel("Onboarding progress")
+    .getByRole("button", { name: /Assistant/ })
+    .click();
   await expect(page.getByRole("heading", { name: "Connect your AI provider." })).toBeVisible();
   await expect(page.getByText("1 provider connected · chat is ready")).toBeVisible();
-  await expect(page.getByText("Connected")).toBeVisible();
+  await expect(page.locator(".onb-detect", { hasText: "Connected" })).toBeVisible();
 });
 
 test("a non-owner never sees the wizard", async ({ page }) => {
