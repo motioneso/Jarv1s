@@ -98,6 +98,25 @@ async function resolveExistingFile(root: string, rel: string): Promise<string> {
   return resolvedFile;
 }
 
+async function rejectSymlinkParent(root: string, rel: string): Promise<void> {
+  const parent = dirname(rel);
+  if (parent === ".") return;
+
+  let current = root;
+  for (const segment of parent.split(/[\\/]+/)) {
+    current = join(current, segment);
+    try {
+      const stat = await lstat(current);
+      if (stat.isSymbolicLink()) {
+        throw new HttpError(400, "path is not within the linked notes source");
+      }
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === "ENOENT") return;
+      throw error;
+    }
+  }
+}
+
 function getSyncService(services: ToolServices | undefined): NotesSyncToolService {
   const service = services?.["notesSync"] as NotesSyncToolService | undefined;
   if (!service || typeof service.enqueue !== "function") {
@@ -129,6 +148,7 @@ export const notesCreateExecute: ToolExecute = async (
 
   const root = await resolveSource(scopedDb);
   const file = join(root, rel);
+  await rejectSymlinkParent(root, rel);
   await mkdir(dirname(file), { recursive: true });
   const resolvedParent = await realpath(dirname(file));
   assertInside(root, resolvedParent);

@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { mkdir, mkdtemp, readFile, rm, symlink, writeFile } from "node:fs/promises";
+import { lstat, mkdir, mkdtemp, readFile, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -145,6 +145,15 @@ describe("notes write assistant tools", () => {
           { notesSync: service }
         )
       ).rejects.toThrow("relative Markdown path");
+      await expect(
+        notesCreateExecute(
+          db,
+          { path: "escape/sub/bad.md", content: "bad" },
+          { actorUserId: ids.userA, requestId: "guard", chatSessionId: "chat" },
+          { notesSync: service }
+        )
+      ).rejects.toThrow("path is not within the linked notes source");
+      await expect(lstat(join(outside, "sub"))).rejects.toThrow();
       await expect(
         notesDeleteExecute(
           db,
