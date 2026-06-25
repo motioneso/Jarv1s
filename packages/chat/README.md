@@ -36,6 +36,12 @@ Pending write/destructive tool approvals are in-memory waits. On API startup, Ja
 pending action requests older than the startup grace window so a restart leaves visible terminal
 `cancelled` rows instead of approvals that can never resume. Fresh pending rows stay pending.
 
+## Cold-start replay
+
+Live chat defaults `JARVIS_CHAT_REPLAY_K` to `0`. A cold session should not replay prior chat turns
+into the CLI prompt; durable context should come from the database-backed memory and notes tools.
+Set `JARVIS_CHAT_REPLAY_K` only when intentionally testing legacy prompt replay behavior.
+
 ## Deferred — agent-path PreToolUse policy
 
 A Claude Code `PreToolUse` hook (deny any tool call that is not an allowlisted `mcp__jarvis__*` call),

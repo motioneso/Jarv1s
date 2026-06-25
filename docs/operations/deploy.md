@@ -146,3 +146,31 @@ docker compose -p jarv1s-prod \
   --env-file infra/env.production.local \
   up -d
 ```
+
+## Restart And Cold Chat Check
+
+For a checkout-style prod instance such as `~/JarvisProd`, restart the app container without touching
+Postgres:
+
+```sh
+docker compose -p jarv1s-prod \
+  --env-file env.production.local \
+  -f docker-compose.prod.yml \
+  -f docker-compose.notes.yml \
+  restart jarv1s
+```
+
+Then wait for readiness:
+
+```sh
+curl -fsS http://127.0.0.1:1533/health/ready
+```
+
+Before testing a true cold chat turn, `tmux list-sessions` inside the app container should be empty:
+
+```sh
+docker exec -u 1000 jarv1s-prod-jarv1s-1 tmux list-sessions
+```
+
+Do not attach to tmux or send keys to make chat work. If the first chat turn after restart needs
+manual tmux intervention, treat that as a product failure: fix code, restart Docker, and test again.
