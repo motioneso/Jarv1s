@@ -1,11 +1,13 @@
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 
 import { createDatabase, DataContextRunner, type JarvisDatabase } from "@jarv1s/db";
+import type { Job } from "@jarv1s/jobs";
 import type { Kysely } from "kysely";
 
 import { fastify, type FastifyInstance } from "fastify";
 import { getBuiltInModuleManifests } from "@jarv1s/module-registry";
 import { connectionStrings, ids, resetFoundationDatabase } from "./test-database.js";
+import type { ExportBuildJobPayload } from "../../packages/settings/src/data-export-jobs.js";
 import { registerSettingsRoutes } from "../../packages/settings/src/routes.js";
 
 import { HttpError } from "@jarv1s/module-sdk";
@@ -148,19 +150,6 @@ describe("Data export", () => {
         ).DataExportRepository();
         const jobRecord = await repository.createJob(scopedDb, ids.userA);
 
-        // We will force updateJobStatus to throw by replacing it temporarily
-        const originalUpdate = repository.updateJobStatus;
-        let throwOccurred = false;
-        repository.updateJobStatus = async () => {
-          throwOccurred = true;
-          throw new Error("Forced updateJobStatus failure");
-        };
-
-        // We also need to intercept the creation of repository inside handleExportBuildJob
-        // Wait, handleExportBuildJob creates its OWN repository: const repository = new DataExportRepository();
-        // We can't easily mock it without jest.mock or vi.spyOn
-        // Instead, let's spy on DataExportRepository.prototype.updateJobStatus
-        const vi = (await import("vitest")).vi;
         const spy = vi
           .spyOn(
             (await import("../../packages/settings/src/data-export-repository.js"))
@@ -171,15 +160,17 @@ describe("Data export", () => {
 
         const jobPayload = {
           data: { actorUserId: ids.userA, jobId: jobRecord.id, kind: "export.build" as const }
-        };
+        } as Job<ExportBuildJobPayload>;
 
-        await handleExportBuildJob(jobPayload as any, scopedDb);
+        try {
+          await handleExportBuildJob(jobPayload, scopedDb);
 
-        const updatedJob = await repository.getJobById(scopedDb, jobRecord.id);
-        expect(updatedJob?.status).toBe("failed");
-        expect(updatedJob?.error_message).toContain("Forced failure");
-
-        spy.mockRestore();
+          const updatedJob = await repository.getJobById(scopedDb, jobRecord.id);
+          expect(updatedJob?.status).toBe("failed");
+          expect(updatedJob?.error_message).toContain("Forced failure");
+        } finally {
+          spy.mockRestore();
+        }
       }
     );
   });
