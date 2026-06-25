@@ -10,6 +10,7 @@ import {
   type GatewaySessionRecord
 } from "@jarv1s/ai";
 import { DataContextRunner, createDatabase, type JarvisDatabase } from "@jarv1s/db";
+import type { JarvisModuleManifest, ToolExecute } from "@jarv1s/module-sdk";
 
 import { connectionStrings, ids, resetFoundationDatabase } from "./test-database.js";
 import { exampleToolCalls, exampleToolModule } from "./fixtures/example-tool-module.js";
@@ -175,13 +176,13 @@ describe("AssistantToolGateway", () => {
           executionPolicy: "auto" as const,
           requiresServices: ["demo"],
           inputSchema: { type: "object", properties: {} },
-          execute: async (_db, _input, _ctx, services) => {
-            calls.push((services.demo as { value: string }).value);
+          execute: (async (_db, _input, _ctx, services) => {
+            calls.push((services?.demo as { value: string }).value);
             return { data: { ok: true } };
-          }
+          }) satisfies ToolExecute
         }
       ]
-    };
+    } satisfies JarvisModuleManifest;
     const serviceGateway = new AssistantToolGateway({
       resolveActiveModules: async () => [module],
       repository,
