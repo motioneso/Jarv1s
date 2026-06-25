@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 
+import type { FastifyBaseLogger } from "fastify";
 import type { Job, PgBoss, WorkOptions } from "pg-boss";
 
 import { AiRepository, createAiSecretCipher } from "@jarv1s/ai";
@@ -56,6 +57,12 @@ export interface RegisterBriefingsJobWorkersOptions {
   readonly repository?: BriefingsRepository;
   readonly workOptions?: WorkOptions;
   readonly onResult?: (job: Job<BriefingRunPayload>, result: BriefingRunResult) => void;
+  /**
+   * Structured logger for worker-path diagnostics (briefing_notification_failed,
+   * etc.). Optional for back-compat; production injects a module-tagged child of
+   * server.log / the worker logger (observability spec: no console.* in prod).
+   */
+  readonly logger?: FastifyBaseLogger;
 }
 
 export const BRIEFINGS_QUEUE_DEFINITIONS: readonly QueueDefinition[] = [
@@ -165,13 +172,14 @@ export async function registerBriefingsJobWorkers(
           });
         } catch (error) {
           const e = error instanceof Error ? error : new Error(String(error));
-          console.error(
-            JSON.stringify({
+          options.logger?.error(
+            {
               event: "briefing_notification_failed",
               definitionId: outcome.run.definition_id,
               error: e.name,
               message: e.message.slice(0, 200)
-            })
+            },
+            "briefing notification write failed"
           );
         }
       }

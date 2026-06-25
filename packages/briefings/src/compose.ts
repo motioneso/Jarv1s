@@ -1,5 +1,7 @@
 import { randomUUID } from "node:crypto";
 
+import type { FastifyBaseLogger } from "fastify";
+
 import type { AiRepository, AiSecretCipher } from "@jarv1s/ai";
 import { HttpApiAdapter, parseAiApiKeyCredential } from "@jarv1s/ai";
 import type { ChatTurn, GenerateChatInput, ProviderKind } from "@jarv1s/ai";
@@ -34,6 +36,11 @@ export interface ComposeDeps {
   };
   readonly sourceBehaviorPolicy?: SourceBehaviorPolicyDeps;
   readonly resolveUserName?: (scopedDb: DataContextDb, actorUserId: string) => Promise<string>;
+  /**
+   * Structured logger for tool-failure observability (briefing_tool_failed events).
+   * Optional for back-compat; production injects a module logger (observability spec).
+   */
+  readonly logger?: Pick<FastifyBaseLogger, "error">;
   /** Injectable for tests; defaults to constructing a real HttpApiAdapter. */
   readonly createAdapter?: (
     kind: ProviderKind,
@@ -200,13 +207,14 @@ async function gatherToolSection(
     return { key: args.key, label: args.label, lines, count: items.length };
   } catch (error) {
     const e = error instanceof Error ? error : new Error(String(error));
-    console.error(
-      JSON.stringify({
+    deps.logger?.error(
+      {
         event: "briefing_tool_failed",
         tool: args.toolName,
         error: e.name,
         message: e.message.slice(0, 200)
-      })
+      },
+      "briefing tool failed"
     );
     gaps.push({ source: args.key, reason: "tool_failed" });
     return { key: args.key, label: args.label, lines: [], count: 0 };
@@ -390,13 +398,14 @@ export async function composeBriefing(
     }
   } catch (error) {
     const e = error instanceof Error ? error : new Error(String(error));
-    console.error(
-      JSON.stringify({
+    deps.logger?.error(
+      {
         event: "briefing_tool_failed",
         tool: "vault",
         error: e.name,
         message: e.message.slice(0, 200)
-      })
+      },
+      "briefing vault tool failed"
     );
     gaps.push({ source: "vault", reason: "tool_failed" });
   }

@@ -16,6 +16,7 @@
     "@jarv1s/email": "workspace:*",
     "@jarv1s/jobs": "workspace:*",
     "@jarv1s/memory": "workspace:*",
-    "@jarv1s/module-registry": "workspace:*"
+    "@jarv1s/module-registry": "workspace:*",
+    "pino": "^10.3.1"
   }
 }

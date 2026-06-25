@@ -3,6 +3,14 @@ interface GoogleApiLogger {
   error(data: Record<string, unknown>, message: string): void;
 }
 
+// Silent default — production ALWAYS injects a real logger at the composition
+// root (apps/api/src/server.ts passes a server.log adapter). A noop (not console)
+// default means a forgotten injection degrades quietly instead of spamming
+// unstructured console output (observability spec: no console.* in production).
+const NOOP_GOOGLE_API_LOGGER: GoogleApiLogger = {
+  error: () => undefined
+};
+
 export interface GoogleApiClientDeps {
   readonly fetchFn?: typeof fetch;
   readonly logger?: GoogleApiLogger;
@@ -75,7 +83,7 @@ export class GoogleApiClient {
 
   constructor(deps: GoogleApiClientDeps = {}) {
     this.fetchFn = deps.fetchFn ?? globalThis.fetch;
-    this.logger = deps.logger ?? { error: (data, msg) => console.error(msg, data) };
+    this.logger = deps.logger ?? NOOP_GOOGLE_API_LOGGER;
   }
 
   async listCalendarEvents(input: {

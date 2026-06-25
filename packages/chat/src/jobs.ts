@@ -1,4 +1,6 @@
 import { createHash } from "node:crypto";
+
+import type { FastifyBaseLogger } from "fastify";
 import type { PgBoss, WorkOptions } from "pg-boss";
 
 import {
@@ -128,6 +130,12 @@ export interface ExtractFactsDeps {
   readonly cipher: AiSecretCipher;
   readonly factsRepository: ChatMemoryFactsRepository;
   readonly suppressionsRepository?: ChatMemorySuppressionsRepository;
+  /**
+   * Structured logger for extraction-failure observability
+   * (chat_extract_facts_failed). Optional; production injects a module logger
+   * (observability spec: no console.* in prod).
+   */
+  readonly logger?: Pick<FastifyBaseLogger, "error">;
   // Use the real GenerateChatInput so `maxOutputTokens` typechecks (no excess-property error).
   readonly createAdapter?: (
     kind: ProviderKind,
@@ -261,13 +269,14 @@ export async function handleExtractFactsJob(
     }
   } catch (error) {
     const e = error instanceof Error ? error : new Error(String(error));
-    console.error(
-      JSON.stringify({
+    deps.logger?.error(
+      {
         event: "chat_extract_facts_failed",
         threadId,
         error: e.name,
         message: e.message.slice(0, 200)
-      })
+      },
+      "chat fact extraction failed"
     );
     // No-op degrade: never throw — a flaky extraction must not block the chat turn.
   }
@@ -353,6 +362,12 @@ export interface RegisterChatJobWorkersOptions {
    */
   readonly extractFactsDeps?: ExtractFactsDeps;
   readonly workOptions?: WorkOptions;
+  /**
+   * Structured logger for worker-path diagnostics (chat_extract_facts_failed).
+   * Optional for back-compat; production injects a module-tagged child of the
+   * worker logger (observability spec: no console.* in prod).
+   */
+  readonly logger?: FastifyBaseLogger;
 }
 
 function defaultExtractFactsDeps(): ExtractFactsDeps {
@@ -371,6 +386,11 @@ export async function registerChatJobWorkers(
   const memoryRepo = new MemoryRepository();
   const chatRepo = new ChatRepository();
   const extractFactsDeps = options.extractFactsDeps ?? defaultExtractFactsDeps();
+  // Thread the worker logger into the extract-facts deps if the caller did not
+  // supply its own extractFactsDeps with a logger (observability spec).
+  if (!options.extractFactsDeps && options.logger) {
+    (extractFactsDeps as { logger?: Pick<FastifyBaseLogger, "error"> }).logger = options.logger;
+  }
 
   const embedWorkId = await registerDataContextWorker<EmbedTurnJobPayload, void>(
     boss,

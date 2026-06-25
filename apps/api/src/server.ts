@@ -40,6 +40,7 @@ import {
   type HostDiagnosticsInfo,
   type ModuleDto
 } from "@jarv1s/shared";
+import { createModuleLogger } from "@jarv1s/module-sdk";
 
 import { registerStaticWeb } from "./static-web.js";
 import { registerClientErrorsRoute, setJarvisErrorHandler } from "./error-handling.js";
@@ -254,13 +255,25 @@ export function createApiServer(options: CreateApiServerOptions = {}) {
     // repository + cipher; the service is per-call-scoped via scopedDb, so one instance
     // is fine. createConnectorSecretCipher requires JARVIS_CONNECTOR_SECRET_KEY in a
     // hardened (production) env; in dev/test it falls back to the dev default.
+    // Logger adapters wire server.log into the connectors package's minimal logger
+    // interfaces (observability spec: no console.* in production — the clients' noop
+    // defaults must be overridden at the composition root).
+    const connectorsModuleLogger = createModuleLogger(server.log, "connectors");
     const connectorsRepository = new ConnectorsRepository();
     const googleConnectionService = new GoogleConnectionService({
       repository: connectorsRepository,
       cipher: createConnectorSecretCipher(),
-      oauthClient: new GoogleOAuthClient()
+      oauthClient: new GoogleOAuthClient({
+        logger: {
+          error: (data, msg) => connectorsModuleLogger.error(data, msg)
+        }
+      })
     });
-    const googleApiClient = new GoogleApiClient();
+    const googleApiClient = new GoogleApiClient({
+      logger: {
+        error: (data, msg) => connectorsModuleLogger.error(data, msg)
+      }
+    });
 
     // Host diagnostics (#255): a read-only, secret-safe runtime-facts provider injected
     // into the settings admin route. info() returns only explicit, non-secret config

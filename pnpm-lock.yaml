@@ -84,6 +84,9 @@ importers:
       '@jarv1s/module-registry':
         specifier: workspace:*
         version: link:../../packages/module-registry
+      '@jarv1s/module-sdk':
+        specifier: workspace:*
+        version: link:../../packages/module-sdk
       '@jarv1s/shared':
         specifier: workspace:*
         version: link:../../packages/shared
@@ -166,6 +169,9 @@ importers:
       '@jarv1s/module-registry':
         specifier: workspace:*
         version: link:../../packages/module-registry
+      pino:
+        specifier: ^10.3.1
+        version: 10.3.1
 
   packages/ai:
     dependencies:

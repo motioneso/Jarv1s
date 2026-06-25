@@ -1,4 +1,4 @@
-import type { FastifyInstance, FastifyRequest } from "fastify";
+import type { FastifyBaseLogger, FastifyInstance, FastifyRequest } from "fastify";
 import type { Kysely } from "kysely";
 import type { PgBoss } from "pg-boss";
 
@@ -67,7 +67,7 @@ import {
   registerEmailRoutes
 } from "@jarv1s/email";
 import { FOUNDATION_QUEUES, type QueueDefinition } from "@jarv1s/jobs";
-import { HttpError } from "@jarv1s/module-sdk";
+import { HttpError, createModuleLogger } from "@jarv1s/module-sdk";
 import type { JarvisModuleManifest, RegisteredFocusSignal } from "@jarv1s/module-sdk";
 import {
   NotificationsRepository,
@@ -275,6 +275,12 @@ export interface BuiltInWorkerDependencies {
   readonly rootDb: Kysely<JarvisDatabase>;
   readonly dataContext: DataContextRunner;
   readonly embeddingProvider: EmbeddingProvider;
+  /**
+   * Structured logger for worker-path diagnostics. Production (apps/worker) passes
+   * a pino root; tests omit it. Threaded into per-module worker registrations so
+   * no `console.*` lands in production worker logs (observability spec #413).
+   */
+  readonly logger?: FastifyBaseLogger;
 }
 
 export interface BuiltInModuleRegistration {
@@ -520,7 +526,8 @@ const BUILT_IN_MODULES: readonly BuiltInModuleRegistration[] = [
           aiRepository: new AiRepository(),
           cipher: createAiSecretCipher(),
           factsRepository: new ChatMemoryFactsRepository()
-        }
+        },
+        logger: deps.logger ? createModuleLogger(deps.logger, "chat") : undefined
       })
   },
   {
@@ -528,8 +535,11 @@ const BUILT_IN_MODULES: readonly BuiltInModuleRegistration[] = [
     sqlMigrationDirectories: [briefingsModuleSqlMigrationDirectory],
     queueDefinitions: BRIEFINGS_QUEUE_DEFINITIONS,
     registerRoutes: registerBriefingsRoutes,
-    registerWorkers: (boss, dependencies) =>
-      registerBriefingsJobWorkers(boss, dependencies.dataContext, {
+    registerWorkers: (boss, dependencies) => {
+      const briefingsLogger = dependencies.logger
+        ? createModuleLogger(dependencies.logger, "briefings")
+        : undefined;
+      return registerBriefingsJobWorkers(boss, dependencies.dataContext, {
         moduleManifests: getBuiltInModuleManifests(),
         // A13: inject the full synthesis deps so the production scheduled briefing
         // actually grounds in vault recency/semantics AND fires the "ready"
@@ -557,10 +567,13 @@ const BUILT_IN_MODULES: readonly BuiltInModuleRegistration[] = [
           memoryRetriever: new MemoryRetriever(
             dependencies.embeddingProvider,
             new MemoryRepository()
-          )
+          ),
+          logger: briefingsLogger
         },
-        notificationsRepository: new NotificationsRepository(quietHoursPortImpl)
-      })
+        notificationsRepository: new NotificationsRepository(quietHoursPortImpl),
+        logger: briefingsLogger
+      });
+    }
   },
   {
     manifest: memoryModuleManifest,
