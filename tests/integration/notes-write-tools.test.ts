@@ -170,6 +170,23 @@ describe("notes write assistant tools", () => {
     });
   });
 
+  it("overwrites an existing note when requested", async () => {
+    await mkdir(join(root, "ideas"), { recursive: true });
+    await writeFile(join(root, "ideas/new.md"), "first");
+    await runner.withDataContext({ actorUserId: ids.userA, requestId: "create" }, async (db) => {
+      const result = await notesCreateExecute(
+        db,
+        { path: "ideas/new.md", content: "second", overwrite: true },
+        { actorUserId: ids.userA, requestId: "create", chatSessionId: "chat" },
+        { notesSync: service }
+      );
+      expect(result.data).toEqual({ path: "ideas/new.md", synced: true });
+    });
+
+    await expect(readFile(join(root, "ideas/new.md"), "utf-8")).resolves.toBe("second");
+    expect(syncs).toEqual([`${ids.userA}:${root}`]);
+  });
+
   it("edits only when oldText appears exactly once", async () => {
     await writeFile(join(root, "note.md"), "alpha beta alpha");
     await runner.withDataContext({ actorUserId: ids.userA, requestId: "edit" }, async (db) => {
@@ -219,6 +236,26 @@ describe("notes write assistant tools", () => {
         )
       ).rejects.toThrow("path is not within the linked notes source");
       await expect(lstat(join(outside, "sub"))).rejects.toThrow();
+      await writeFile(join(outside, "bad.md"), "outside");
+      await symlink(join(outside, "bad.md"), join(root, "linked.md"));
+      await expect(
+        notesCreateExecute(
+          db,
+          { path: "linked.md", content: "bad", overwrite: true },
+          { actorUserId: ids.userA, requestId: "guard", chatSessionId: "chat" },
+          { notesSync: service }
+        )
+      ).rejects.toThrow("path must reference a Markdown file");
+      await expect(readFile(join(outside, "bad.md"), "utf-8")).resolves.toBe("outside");
+      await expect(
+        notesEditExecute(
+          db,
+          { path: "escape/bad.md", oldText: "outside", newText: "changed" },
+          { actorUserId: ids.userA, requestId: "guard", chatSessionId: "chat" },
+          { notesSync: service }
+        )
+      ).rejects.toThrow("path is not within the linked notes source");
+      await expect(readFile(join(outside, "bad.md"), "utf-8")).resolves.toBe("outside");
       await expect(
         notesDeleteExecute(
           db,
@@ -226,7 +263,8 @@ describe("notes write assistant tools", () => {
           { actorUserId: ids.userA, requestId: "guard", chatSessionId: "chat" },
           { notesSync: service }
         )
-      ).rejects.toThrow();
+      ).rejects.toThrow("path is not within the linked notes source");
+      await expect(readFile(join(outside, "bad.md"), "utf-8")).resolves.toBe("outside");
     });
     await rm(outside, { recursive: true, force: true });
   });
