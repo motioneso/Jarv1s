@@ -503,7 +503,14 @@ export async function runGoogleSync(
       finishedAt: now(),
       status,
       error: errors[0] ?? null,
-      counts: { calendarUpserted, calendarReconciled, emailUpserted, emailFailures, escalations, truncated }
+      counts: {
+        calendarUpserted,
+        calendarReconciled,
+        emailUpserted,
+        emailFailures,
+        escalations,
+        truncated
+      }
     });
   } catch (error) {
     logger.warn({ err: error }, "google-sync: failed to persist sync outcome; not retrying job");

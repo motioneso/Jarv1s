@@ -248,9 +248,11 @@ describe("runGoogleSync handler", () => {
   });
 
   it("deletes stale and cancelled cached calendar events after a calendar sync", async () => {
-    const accountId = await seedGoogleAccount(handles.dataContext, [
-      "https://www.googleapis.com/auth/calendar"
-    ], ids.adminUser);
+    const accountId = await seedGoogleAccount(
+      handles.dataContext,
+      ["https://www.googleapis.com/auth/calendar"],
+      ids.adminUser
+    );
     const calendar = new CalendarRepository();
     const ctx = { actorUserId: ids.adminUser, requestId: "pgboss:test" };
     await handles.workerDataContext.withDataContext(ctx, async (db) => {

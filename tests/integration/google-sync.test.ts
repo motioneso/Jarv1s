@@ -162,9 +162,7 @@ describe("calendar RLS — worker DELETE reconciliation (0113)", () => {
       WHERE p.polrelid = 'app.calendar_events'::regclass
         AND p.polname = 'calendar_events_delete'
     `.execute(appDb);
-    expect(new Set(roles.rows.map((r) => r.rolname))).toEqual(
-      new Set(["jarvis_worker_runtime"])
-    );
+    expect(new Set(roles.rows.map((r) => r.rolname))).toEqual(new Set(["jarvis_worker_runtime"]));
 
     const policy = await sql<{ qual: string }>`
       SELECT pg_get_expr(p.polqual, p.polrelid) AS qual
