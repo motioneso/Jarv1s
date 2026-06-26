@@ -13,18 +13,18 @@
 
 | Spec | Issue | Tier | Status | Agent label | Pane | Branch | PR |
 | ---- | ----- | ---- | ------ | ----------- | ---- | ------ | -- |
-| 2026-06-25-module-settings-connector.md | #487 | sensitive | queued | — | — | — | — |
+| 2026-06-25-module-settings-connector.md | #487 | sensitive | building | Build-module-settings-connector | w1:p27 | build/module-settings-connector | — |
 | 2026-06-25-wellness-ai-consent.md | #474 | sensitive | queued | — | — | — | — |
 | 2026-06-25-calendar-cache-reconciliation.md | #473 | sensitive | queued | — | — | — | — |
-| 2026-06-25-settings-google-json-upload.md | #472 | routine | queued | — | — | — | — |
+| 2026-06-25-settings-google-json-upload.md | #472 | routine | building | Build-settings-google-json-upload | w1:p2A | build/settings-google-json-upload | — |
 | 2026-06-25-runtime-config-framework.md | #454 | sensitive | queued | — | — | — | — |
 | 2026-06-25-agency-action-loop.md | #488 | security | queued | — | — | — | — |
 | 2026-06-25-evening-review-and-interview.md | #489 | sensitive | queued | — | — | — | — |
 | 2026-06-25-admin-per-user-ai-provider.md | #485 | security | queued | — | — | — | — |
 | 2026-06-25-per-account-feature-access.md | #482 | sensitive | queued | — | — | — | — |
 | 2026-06-25-wellness-selective-export.md | #484 | sensitive | queued | — | — | — | — |
-| 2026-06-25-chat-composer-stop-queue.md | #479 | routine | queued | — | — | — | — |
-| 2026-06-25-user-custom-themes.md | #477 | routine | queued | — | — | — | — |
+| 2026-06-25-chat-composer-stop-queue.md | #479 | routine | building | Build-chat-composer-stop-queue | w1:p29 | build/chat-composer-stop-queue | — |
+| 2026-06-25-user-custom-themes.md | #477 | routine | building | Build-user-custom-themes | w1:p28 | build/user-custom-themes | — |
 
 Risk tier (content triggers, set at Phase 0 — see `coordinate` Risk tiering):
 - `routine` — no schema/auth/secret surface → auto-merge after green QA.
@@ -85,6 +85,14 @@ record exit codes. This is a known condition, NOT a waiver per-PR.
 - Run started 2026-06-25 by opencode coordinator (ses_0fef45f3…). All 12 specs approved, on issues
   as comments, labelled RFA, milestone 16, on Projects V2 board `PVT_kwHOADqkaM4BarLA` at "Ready".
 - Board field ID: `PVTSSF_lAHOADqkaM4BarLAzhVhA6I`; "Ready" option `61e4505c`; "Done" option — look up.
-- main was red on commit `1e3ddc5` (prettier on specs); fixed by `e02b96d` (format spec files). Verify
-  main green before spawning.
+- main was red on commit `1e3ddc5` (prettier on specs); fixed by `e02b96d` (format spec files); green @ `63681e9`.
 - Agents tab = `w1:tJ` (label "Agents"). Coordinator tab = `w1:tE`.
+- **FLEET = CODEX (not Claude):** Claude Code (Opus 4.8) hit weekly usage limit on 2026-06-25
+  (resets Jun 27 ~11am PT). Wave-1 build agents respawned as `codex -s danger-full-access -a never`
+  (gpt-5.5-high). Build agents read HANDOFF.md + the absolute SKILL.md path
+  (`/home/ben/Jarv1s/.claude/skills/coordinated-build/SKILL.md`) directly since codex doesn't resolve
+  `.claude/skills/` natively. Coordinator remains opencode (GLM-5.2). If Claude credits reset before
+  the run finishes, you MAY switch back to claude agents for later waves — handoff docs already work
+  for both; just adjust the spawn command.
+- **Wave 1 live:** 4 codex agents (w1:p27-p2A) building #487/#477/#479/#472. Spawned 2026-06-25 ~7:35pm.
+- Worktrees for wave 1: `.claude/worktrees/{module-settings-connector,user-custom-themes,chat-composer-stop-queue,settings-google-json-upload}` (each on `build/<slug>` off `63681e9`).
