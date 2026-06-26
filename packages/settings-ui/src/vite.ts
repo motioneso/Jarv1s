@@ -1,4 +1,4 @@
-import { emitVirtualModule, scanModuleSettings } from "./scanner.js";
+import { emitVirtualModule, scanModuleSettings } from "./scanner.ts";
 
 export { emitVirtualModule, scanModuleSettings };
 
