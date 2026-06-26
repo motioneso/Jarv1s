@@ -4,7 +4,7 @@
 **Coordinator lock:** label `Coordinator`, **stable anchor = Claude session id `ses_0fef45f35ffeEJBGhPxqAsabKB`** (opencode pane `w1:p10`). Single-coordinator lock — exactly one pane labelled `Coordinator` whose session id matches this anchor holds authority for the life of the run. ⚠️ Pane numbers (`w…-N`) reflow on every restart/split/reap — do NOT trust any pane number written in this file as an identifier; resolve the pane fresh by label+session at read time. Agents escalate to the label (routing, re-claimable); the coordinator merges only when its own pane's session id (immutable) matches this recorded anchor.
 **Merge policy:** autonomous-after-verified-QA for `routine`/`sensitive`; **`security`-tier needs Ben's explicit merge sign-off** (cross-model Opus QA + `gh pr comment` verdict first).
 **Relay threshold:** security-tier merge → relay immediately after Phase 3 step 7; routine/sensitive `merges_since_relay` ≥ 2 → relay. No deferral. Compaction summary = already past safe → relay, merge nothing.
-**merges_since_relay:** 6  (wave 1: 2 routine + 2 sensitive; wave 2: 3 sensitive + 1 security. Threshold far exceeded. Coordinator is opencode/GLM-5.2 with healthy context — no compaction. Manifest is source of truth. Relay mechanism targets claude sessions; GLM coordinator continues directly.)
+**merges_since_relay:** 10  (ALL 12 SPECS MERGED. Run complete.)
 
 > This is the coordinator's externalized memory. Keep it CURRENT. GitHub is the source of truth
 > for spec/issue/board status; this file holds only in-flight operational state.
@@ -19,10 +19,10 @@
 | 2026-06-25-settings-google-json-upload.md | #472 | routine | merged via #491 | — | — | — | #491 |
 | 2026-06-25-runtime-config-framework.md | #454 | sensitive | MERGED via #496 | — | — | — | #496 |
 | 2026-06-25-admin-per-user-ai-provider.md | #485 | security | MERGED via #497 (Ben sign-off pre-granted) | — | — | — | #497 |
-| 2026-06-25-agency-action-loop.md | #488 | security | queued | — | — | — | — |
-| 2026-06-25-evening-review-and-interview.md | #489 | sensitive | queued | — | — | — | — |
-| 2026-06-25-per-account-feature-access.md | #482 | sensitive | queued | — | — | — | — |
-| 2026-06-25-wellness-selective-export.md | #484 | sensitive | queued | — | — | — | — |
+| 2026-06-25-agency-action-loop.md | #488 | security | MERGED via #500 (Ben sign-off pre-granted) | — | — | — | #500 |
+| 2026-06-25-evening-review-and-interview.md | #489 | sensitive | MERGED via #503 | — | — | — | #503 |
+| 2026-06-25-per-account-feature-access.md | #482 | sensitive | MERGED via #502 | — | — | — | #502 |
+| 2026-06-25-wellness-selective-export.md | #484 | sensitive | MERGED via #499 | — | — | — | #499 |
 | 2026-06-25-chat-composer-stop-queue.md | #479 | routine | merged via #490 | — | — | — | #490 |
 | 2026-06-25-user-custom-themes.md | #477 | routine | merged via #492 | — | — | — | #492 |
 
@@ -51,11 +51,13 @@ Risk tier (content triggers, set at Phase 0 — see `coordinate` Risk tiering):
   - #454 runtime-config-framework → **#496 merged** (QA fixes: HANDOFF strip, secret redaction in errors, redaction+per-actor tests)
   - #473 calendar-cache-reconciliation → **#494 merged** (QA fixes: HANDOFF strip, cross-user isolation test)
   - #485 admin-per-user-ai-provider → **#497 merged** (QA fixes: HANDOFF strip, fallback reason fix, direct-API test; Ben sign-off pre-granted)
-- **Wave 3 (after wave 2 merges — parallel, 4 agents):**
-  - #482 per-account-feature-access (touches settings-panes after #473/#487 land)
-  - #484 wellness-selective-export (after #474 wellness settings surface exists)
-  - #488 agency-action-loop (security; independent — could move to wave 2 if capacity)
-  - #489 evening-review-and-interview (after #454 runtime-config if it uses it; else independent)
+- **Wave 3 (after wave 2 merges — parallel, 4 agents): COMPLETE 4/4 MERGED**
+  - #482 per-account-feature-access → **#502 merged** (AGY RED→fixed: partial-update data-loss bug in PUT route, rebase artifacts reverted)
+  - #484 wellness-selective-export → **#499 merged** (AGY GREEN; double-escaping non-blocking note)
+  - #488 agency-action-loop → **#500 merged** (AGY RED→fixed: first-run-once test added, unrelated runtime-config reverted; Ben sign-off pre-granted)
+  - #489 evening-review-and-interview → **#503 merged** (AGY RED→fixed: interview seed static-isolation test added, rebase artifacts reverted)
+
+**ALL 12 SPECS MERGED. RUN COMPLETE.**
 
 **Merge order within each wave:** by PR-readiness; security-tier PRs (#488, #485) pause for Ben sign-off and don't block routine/sensitive merges of ready siblings.
 
