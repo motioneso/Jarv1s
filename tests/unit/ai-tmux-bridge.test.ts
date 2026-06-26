@@ -5,7 +5,11 @@
 import { describe, expect, it, vi } from "vitest";
 
 import { parseTranscript } from "../../packages/ai/src/adapters/transcript-reader.js";
-import { createRealTmuxIo, transcriptGlobDir, agyPrintTranscriptRoot } from "../../packages/ai/src/adapters/tmux-bridge.js";
+import {
+  createRealTmuxIo,
+  transcriptGlobDir,
+  agyPrintTranscriptRoot
+} from "../../packages/ai/src/adapters/tmux-bridge.js";
 
 // ---------------------------------------------------------------------------
 // Fixtures: real JSONL schema per provider (discovered 2026-06-07)

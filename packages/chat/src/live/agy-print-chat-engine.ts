@@ -47,7 +47,8 @@ export class AgyPrintChatEngine implements CliChatEngine {
   }
 
   async submit(text: string): Promise<void> {
-    if (this.neutralDir === null) throw new Error("AgyPrintChatEngine.submit called before launch()");
+    if (this.neutralDir === null)
+      throw new Error("AgyPrintChatEngine.submit called before launch()");
     const promptPath = join(this.neutralDir, PROMPT_FILENAME);
     await this.io.writeFile(promptPath, text.replace(/^(\s*)!+/, "$1"));
     const continueFlag = this.hasSubmitted ? "--continue " : "";
@@ -62,7 +63,9 @@ export class AgyPrintChatEngine implements CliChatEngine {
     });
   }
 
-  async readNew(afterOffset: number): Promise<{ records: TranscriptRecord[]; offset: number; complete: boolean }> {
+  async readNew(
+    afterOffset: number
+  ): Promise<{ records: TranscriptRecord[]; offset: number; complete: boolean }> {
     const path = await this.resolveTranscriptPath();
     if (path === null) return { records: [], offset: afterOffset, complete: false };
     let jsonl: string;
@@ -76,7 +79,8 @@ export class AgyPrintChatEngine implements CliChatEngine {
       kind: event.kind as ChatRecordKind,
       text: event.text
     }));
-    if (parsed.complete && parsed.reply !== null) records.push({ kind: "reply", text: parsed.reply });
+    if (parsed.complete && parsed.reply !== null)
+      records.push({ kind: "reply", text: parsed.reply });
     return { records, offset: jsonl.length, complete: parsed.complete };
   }
 

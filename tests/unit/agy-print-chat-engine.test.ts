@@ -4,13 +4,20 @@ import { AgyPrintChatEngine } from "../../packages/chat/src/live/agy-print-chat-
 import { createRealEngineFactory } from "../../packages/chat/src/live/runtime.js";
 import type { Multiplexer, MuxHandle, TmuxIo } from "@jarv1s/ai";
 
-function fakeIo(files: Record<string, string> = {}): TmuxIo & { runs: string[]; writes: Record<string, string> } {
+function fakeIo(
+  files: Record<string, string> = {}
+): TmuxIo & { runs: string[]; writes: Record<string, string> } {
   return {
     runs: [],
     writes: files,
     async run(cmd, args) {
       this.runs.push([cmd, ...args].join(" "));
-      if (cmd === "find") return { code: 0, stdout: "/home/test/.gemini/antigravity-cli/brain/proj/.system_generated/logs/transcript_full.jsonl\n" };
+      if (cmd === "find")
+        return {
+          code: 0,
+          stdout:
+            "/home/test/.gemini/antigravity-cli/brain/proj/.system_generated/logs/transcript_full.jsonl\n"
+        };
       return { code: 0, stdout: "" };
     },
     async readFile(path) {
