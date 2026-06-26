@@ -286,7 +286,7 @@ describe("M7 release hardening lifecycle scripts", () => {
         privileges.rows.map((row) => ({
           ...row,
           app_can_delete: false,
-          worker_can_delete: false
+          worker_can_delete: row.table_name === "calendar_events"
         }))
       );
     } finally {

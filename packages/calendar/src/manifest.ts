@@ -31,7 +31,8 @@ export const calendarModuleManifest = {
     migrations: [
       "sql/0011_calendar_module.sql",
       "sql/0066_calendar_worker_grants_and_google_insert.sql",
-      "sql/0087_calendar_events_update_connector_scope.sql"
+      "sql/0087_calendar_events_update_connector_scope.sql",
+      "sql/0113_worker_calendar_events_delete.sql"
     ],
     migrationDirectories: ["packages/calendar/sql"],
     ownedTables: ["app.calendar_events"]

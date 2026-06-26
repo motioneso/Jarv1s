@@ -7,6 +7,7 @@ import {
   runGoogleSync,
   type GoogleSyncPayload
 } from "@jarv1s/connectors";
+import { CalendarRepository } from "@jarv1s/calendar";
 import { ALLOWED_PAYLOAD_KEYS } from "@jarv1s/jobs";
 import { getAllQueueDefinitions } from "@jarv1s/module-registry";
 import { googleSyncRouteSchema, type GoogleSyncResponse } from "@jarv1s/shared";
@@ -55,7 +56,7 @@ describe("runGoogleSync handler", () => {
       "https://www.googleapis.com/auth/gmail.modify"
     ]);
     const ctx = { actorUserId: ids.userA, requestId: "pgboss:test" };
-    const result = await handles.dataContext.withDataContext(ctx, (scopedDb) =>
+    const result = await handles.workerDataContext.withDataContext(ctx, (scopedDb) =>
       runGoogleSync(scopedDb, {
         getFreshAccessToken: async () => "tok",
         getActiveAccount: async () => ({ id: accountId, scopes: ["calendar", "gmail"] }),
@@ -106,7 +107,7 @@ describe("runGoogleSync handler", () => {
       "https://www.googleapis.com/auth/gmail.modify"
     ]);
     const ctx = { actorUserId: ids.userA, requestId: "pgboss:test" };
-    const result = await handles.dataContext.withDataContext(ctx, (scopedDb) =>
+    const result = await handles.workerDataContext.withDataContext(ctx, (scopedDb) =>
       runGoogleSync(scopedDb, {
         getFreshAccessToken: async () => "tok",
         getActiveAccount: async () => ({ id: accountId, scopes: ["calendar", "gmail"] }),
@@ -187,7 +188,7 @@ describe("runGoogleSync handler", () => {
       "https://www.googleapis.com/auth/calendar"
     ]);
     const ctx = { actorUserId: ids.userA, requestId: "pgboss:test" };
-    const result = await handles.dataContext.withDataContext(ctx, (scopedDb) =>
+    const result = await handles.workerDataContext.withDataContext(ctx, (scopedDb) =>
       runGoogleSync(scopedDb, {
         getFreshAccessToken: async () => "tok",
         getActiveAccount: async () => ({ id: accountId, scopes: ["calendar"] }),
@@ -246,9 +247,85 @@ describe("runGoogleSync handler", () => {
     expect(Number(broken.n)).toBe(0);
   });
 
+  it("deletes stale and cancelled cached calendar events after a calendar sync", async () => {
+    const accountId = await seedGoogleAccount(
+      handles.dataContext,
+      ["https://www.googleapis.com/auth/calendar"],
+      ids.adminUser
+    );
+    const calendar = new CalendarRepository();
+    const ctx = { actorUserId: ids.adminUser, requestId: "pgboss:test" };
+    await handles.workerDataContext.withDataContext(ctx, async (db) => {
+      await calendar.upsertCachedEvent(db, {
+        connectorAccountId: accountId,
+        externalId: "fresh-event",
+        title: "Old fresh",
+        startsAt: "2026-06-13T09:00:00.000Z",
+        endsAt: "2026-06-13T09:30:00.000Z"
+      });
+      await calendar.upsertCachedEvent(db, {
+        connectorAccountId: accountId,
+        externalId: "cancelled-event",
+        title: "Cancelled old",
+        startsAt: "2026-06-13T10:00:00.000Z",
+        endsAt: "2026-06-13T10:30:00.000Z"
+      });
+      await calendar.upsertCachedEvent(db, {
+        connectorAccountId: accountId,
+        externalId: "deleted-event",
+        title: "Deleted old",
+        startsAt: "2026-06-13T11:00:00.000Z",
+        endsAt: "2026-06-13T11:30:00.000Z"
+      });
+    });
+
+    const result = await handles.workerDataContext.withDataContext(ctx, (scopedDb) =>
+      runGoogleSync(scopedDb, {
+        getFreshAccessToken: async () => "tok",
+        getActiveAccount: async () => ({ id: accountId, scopes: ["calendar"] }),
+        googleClient: {
+          listCalendarEvents: async () => [
+            {
+              id: "fresh-event",
+              summary: "Fresh",
+              start: { dateTime: "2026-06-14T09:00:00Z" },
+              end: { dateTime: "2026-06-14T09:30:00Z" }
+            },
+            {
+              id: "cancelled-event",
+              status: "cancelled",
+              start: { dateTime: "2026-06-14T10:00:00Z" },
+              end: { dateTime: "2026-06-14T10:30:00Z" }
+            }
+          ],
+          listMessageIds: async () => [],
+          getMessage: async () => ({ id: "x" })
+        },
+        emailExtractDeps: {
+          selectModel: async () => undefined,
+          runChat: async () => ({ text: "" })
+        },
+        now: () => new Date("2026-06-13T12:00:00.000Z")
+      })
+    );
+
+    expect(result.calendarUpserted).toBe(1);
+    expect(result.calendarReconciled).toBe(2);
+
+    const rows = await handles.workerDataContext.withDataContext(ctx, (db) =>
+      db.db
+        .selectFrom("app.calendar_events")
+        .select("external_id")
+        .where("connector_account_id", "=", accountId)
+        .orderBy("external_id")
+        .execute()
+    );
+    expect(rows.map((row) => row.external_id)).toEqual(["fresh-event"]);
+  });
+
   it("records a no-active-connection error without throwing", async () => {
     const ctx = { actorUserId: ids.userB, requestId: "pgboss:test" };
-    const result = await handles.dataContext.withDataContext(ctx, (scopedDb) =>
+    const result = await handles.workerDataContext.withDataContext(ctx, (scopedDb) =>
       runGoogleSync(scopedDb, {
         getFreshAccessToken: async () => {
           throw new Error("No active Google connection");
@@ -299,7 +376,7 @@ describe("runGoogleSync handler", () => {
       }
     };
     const run = () =>
-      handles.dataContext.withDataContext(ctx, (db) =>
+      handles.workerDataContext.withDataContext(ctx, (db) =>
         runGoogleSync(db, {
           getFreshAccessToken: async () => "tok",
           getActiveAccount: async () => ({ id: accountId, scopes: ["gmail"] }),
@@ -335,7 +412,7 @@ describe("runGoogleSync handler", () => {
       })
     };
     // First sync: NO model configured → summary stays null, historyId H200 stored.
-    await handles.dataContext.withDataContext(ctx, (db) =>
+    await handles.workerDataContext.withDataContext(ctx, (db) =>
       runGoogleSync(db, {
         getFreshAccessToken: async () => "tok",
         getActiveAccount: async () => ({ id: accountId, scopes: ["gmail"] }),
@@ -350,7 +427,7 @@ describe("runGoogleSync handler", () => {
     let llmCalls = 0;
     // Second sync: SAME historyId, but a model now exists and the prior summary is null →
     // must NOT skip; it summarizes this time.
-    const result = await handles.dataContext.withDataContext(ctx, (db) =>
+    const result = await handles.workerDataContext.withDataContext(ctx, (db) =>
       runGoogleSync(db, {
         getFreshAccessToken: async () => "tok",
         getActiveAccount: async () => ({ id: accountId, scopes: ["gmail"] }),
@@ -376,7 +453,7 @@ describe("runGoogleSync handler", () => {
     const ctx = { actorUserId: ids.userA, requestId: "pgboss:test" };
     let refreshes = 0;
     let calendarAttempts = 0;
-    const result = await handles.dataContext.withDataContext(ctx, (db) =>
+    const result = await handles.workerDataContext.withDataContext(ctx, (db) =>
       runGoogleSync(db, {
         getFreshAccessToken: async (_db, opts) => {
           if (opts?.force) refreshes += 1;
@@ -438,7 +515,7 @@ describe("runGoogleSync handler", () => {
         body: { data: Buffer.from("hi").toString("base64") }
       }
     });
-    const result = await handles.dataContext.withDataContext(ctx, (db) =>
+    const result = await handles.workerDataContext.withDataContext(ctx, (db) =>
       runGoogleSync(db, {
         getFreshAccessToken: async (_db, opts) => {
           if (opts?.force) refreshes += 1;
@@ -484,7 +561,7 @@ describe("runGoogleSync handler", () => {
       "https://www.googleapis.com/auth/gmail.modify"
     ]);
     const ctx = { actorUserId: ids.userA, requestId: "pgboss:test" };
-    await handles.dataContext.withDataContext(ctx, (scopedDb) =>
+    await handles.workerDataContext.withDataContext(ctx, (scopedDb) =>
       runGoogleSync(scopedDb, {
         getFreshAccessToken: async () => "tok",
         getActiveAccount: async () => ({ id: accountId, scopes: ["gmail"] }),
@@ -534,7 +611,7 @@ describe("runGoogleSync handler", () => {
       "https://www.googleapis.com/auth/gmail.modify"
     ]);
     const ctx = { actorUserId: ids.userA, requestId: "pgboss:test" };
-    await handles.dataContext.withDataContext(ctx, (scopedDb) =>
+    await handles.workerDataContext.withDataContext(ctx, (scopedDb) =>
       runGoogleSync(scopedDb, {
         getFreshAccessToken: async () => "tok",
         getActiveAccount: async () => ({ id: accountId, scopes: ["calendar", "gmail"] }),
@@ -582,7 +659,7 @@ describe("runGoogleSync handler", () => {
       "https://www.googleapis.com/auth/gmail.modify"
     ]);
     const ctx = { actorUserId: ids.userA, requestId: "pgboss:test" };
-    await handles.dataContext.withDataContext(ctx, (scopedDb) =>
+    await handles.workerDataContext.withDataContext(ctx, (scopedDb) =>
       runGoogleSync(scopedDb, {
         getFreshAccessToken: async () => "tok",
         getActiveAccount: async () => ({ id: accountId, scopes: ["calendar", "gmail"] }),
@@ -629,7 +706,7 @@ describe("runGoogleSync handler", () => {
       "https://www.googleapis.com/auth/calendar"
     ]);
     const ctx = { actorUserId: ids.userA, requestId: "pgboss:test" };
-    await handles.dataContext.withDataContext(ctx, (scopedDb) =>
+    await handles.workerDataContext.withDataContext(ctx, (scopedDb) =>
       runGoogleSync(scopedDb, {
         getFreshAccessToken: async () => {
           throw new Error("raw provider body 401 invalid_grant secret-token");

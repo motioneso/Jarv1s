@@ -11,6 +11,7 @@ export type ConnectorSyncStatus = "success" | "partial" | "failed";
  */
 export interface ConnectorSyncCounts {
   readonly calendarUpserted?: number;
+  readonly calendarReconciled?: number;
   readonly emailUpserted?: number;
   readonly emailFailures?: number;
   readonly escalations?: number;
@@ -115,6 +116,7 @@ const connectorSyncCountsSchema = {
   additionalProperties: false,
   properties: {
     calendarUpserted: { type: "number" },
+    calendarReconciled: { type: "number" },
     emailUpserted: { type: "number" },
     emailFailures: { type: "number" },
     escalations: { type: "number" },

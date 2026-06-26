@@ -44,6 +44,12 @@ const protectedTables = [
   "tasks"
 ] as const;
 
+const protectedTablesWithWorkerDelete = new Set<string>([
+  // Google sync worker reconciles stale/cancelled cached events. Owner-scoped DELETE policy still
+  // applies; app runtime stays unable to DELETE calendar events.
+  "calendar_events"
+]);
+
 // Transient tables: owner-only RLS required, but runtime DELETE is intentional
 // (rows are cleaned up as part of normal operation, e.g. after OAuth completes).
 const transientTables = ["connector_oauth_pending"] as const;
@@ -363,7 +369,7 @@ function collectFailures(
     if (!table.rlsEnabled) failures.push(`app.${table.tableName} does not enable RLS`);
     if (!table.forceRls) failures.push(`app.${table.tableName} does not force RLS`);
     if (table.appCanDelete) failures.push(`jarvis_app_runtime can DELETE app.${table.tableName}`);
-    if (table.workerCanDelete) {
+    if (table.workerCanDelete && !protectedTablesWithWorkerDelete.has(table.tableName)) {
       failures.push(`jarvis_worker_runtime can DELETE app.${table.tableName}`);
     }
   }

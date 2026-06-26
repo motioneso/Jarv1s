@@ -133,6 +133,122 @@ describe("scope-guard fails closed end-to-end via the worker role (I1.E)", () =>
   });
 });
 
+describe("CalendarRepository.deleteStaleCachedEvents", () => {
+  it("worker deletes only stale owner rows for one connector account", async () => {
+    const accountId = await seedGoogleAccount([CALENDAR_SCOPE], ids.adminUser);
+    const calendar = new CalendarRepository();
+    await workerDataContext.withDataContext(
+      { actorUserId: ids.adminUser, requestId: "test" },
+      async (db) => {
+        await calendar.upsertCachedEvent(db, {
+          connectorAccountId: accountId,
+          externalId: "keep-1",
+          title: "Keep",
+          startsAt: "2026-06-13T09:00:00.000Z",
+          endsAt: "2026-06-13T09:30:00.000Z"
+        });
+        await calendar.upsertCachedEvent(db, {
+          connectorAccountId: accountId,
+          externalId: "drop-1",
+          title: "Drop",
+          startsAt: "2026-06-13T10:00:00.000Z",
+          endsAt: "2026-06-13T10:30:00.000Z"
+        });
+
+        const deleted = await calendar.deleteStaleCachedEvents(db, {
+          connectorAccountId: accountId,
+          keepExternalIds: ["keep-1"]
+        });
+        expect(deleted).toBe(1);
+
+        const rows = await db.db
+          .selectFrom("app.calendar_events")
+          .select("external_id")
+          .where("connector_account_id", "=", accountId)
+          .orderBy("external_id")
+          .execute();
+        expect(rows.map((row) => row.external_id)).toEqual(["keep-1"]);
+      }
+    );
+  });
+
+  it("empty keep set deletes all rows for the account", async () => {
+    const accountId = await seedGoogleAccount([CALENDAR_SCOPE], ids.userB);
+    const calendar = new CalendarRepository();
+    const deleted = await workerDataContext.withDataContext(
+      { actorUserId: ids.userB, requestId: "test" },
+      async (db) => {
+        await calendar.upsertCachedEvent(db, {
+          connectorAccountId: accountId,
+          externalId: "drop-empty-1",
+          title: "Drop empty",
+          startsAt: "2026-06-13T09:00:00.000Z",
+          endsAt: "2026-06-13T09:30:00.000Z"
+        });
+        return calendar.deleteStaleCachedEvents(db, {
+          connectorAccountId: accountId,
+          keepExternalIds: []
+        });
+      }
+    );
+
+    expect(deleted).toBe(1);
+  });
+
+  it("reconciliation for one user does not delete another user's events", async () => {
+    const accountA = await seedGoogleAccount([CALENDAR_SCOPE], ids.adminUser);
+    const accountB = await seedGoogleAccount([CALENDAR_SCOPE], ids.userB);
+    const calendar = new CalendarRepository();
+
+    await workerDataContext.withDataContext(
+      { actorUserId: ids.adminUser, requestId: "test" },
+      async (db) => {
+        await calendar.upsertCachedEvent(db, {
+          connectorAccountId: accountA,
+          externalId: "a-drop",
+          title: "A Drop",
+          startsAt: "2026-06-13T09:00:00.000Z",
+          endsAt: "2026-06-13T09:30:00.000Z"
+        });
+      }
+    );
+
+    await workerDataContext.withDataContext(
+      { actorUserId: ids.userB, requestId: "test" },
+      async (db) => {
+        await calendar.upsertCachedEvent(db, {
+          connectorAccountId: accountB,
+          externalId: "b-keep",
+          title: "B Keep",
+          startsAt: "2026-06-13T10:00:00.000Z",
+          endsAt: "2026-06-13T10:30:00.000Z"
+        });
+      }
+    );
+
+    const deleted = await workerDataContext.withDataContext(
+      { actorUserId: ids.adminUser, requestId: "test" },
+      async (db) =>
+        calendar.deleteStaleCachedEvents(db, {
+          connectorAccountId: accountA,
+          keepExternalIds: []
+        })
+    );
+    expect(deleted).toBe(1);
+
+    const survivor = await workerDataContext.withDataContext(
+      { actorUserId: ids.userB, requestId: "test" },
+      async (db) =>
+        db.db
+          .selectFrom("app.calendar_events")
+          .select("external_id")
+          .where("connector_account_id", "=", accountB)
+          .execute()
+    );
+    expect(survivor.map((r) => r.external_id)).toEqual(["b-keep"]);
+  });
+});
+
 // P3 real-briefings: the briefing pg-boss worker (jarvis_worker_runtime) reads today's calendar +
 // email via the calendar/email read tools, which call CalendarRepository.listVisible /
 // EmailRepository.listVisible under a worker-role DataContext scoped to the briefing owner. The
