@@ -455,6 +455,7 @@ describe("AI read-only assistant tool execution foundation", () => {
       "chat.embed-turn",
       "chat.extract-facts",
       "briefings-run",
+      "wellness-export",
       "notes.sync"
     ]);
     await expect(tasksRepository.listVisible({} as never)).rejects.toThrow(
