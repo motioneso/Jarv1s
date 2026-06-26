@@ -1,7 +1,10 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { getRuntimeConfig, putRuntimeConfig } from "../../apps/web/src/api/client.js";
 import { queryKeys } from "../../apps/web/src/api/query-keys.js";
+import {
+  getRuntimeConfig,
+  putRuntimeConfig
+} from "../../apps/web/src/api/runtime-config-client.js";
 
 describe("runtime config web client", () => {
   afterEach(() => {
