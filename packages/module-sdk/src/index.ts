@@ -237,6 +237,7 @@ export interface ModuleNavigationEntryManifest {
   readonly order?: number;
   readonly permissionId?: string;
   readonly featureFlagId?: string;
+  readonly entry?: string;
 }
 
 export interface ModuleSettingsSurfaceManifest {

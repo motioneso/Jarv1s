@@ -94,6 +94,18 @@ export default defineConfig({
         replacement: fileURLToPath(new URL("./packages/settings/src/index.ts", import.meta.url))
       },
       {
+        find: "@jarv1s/settings-ui",
+        replacement: fileURLToPath(
+          new URL("./packages/settings-ui/src/index.tsx", import.meta.url)
+        )
+      },
+      {
+        find: "@jarv1s/settings-ui/vite",
+        replacement: fileURLToPath(
+          new URL("./packages/settings-ui/src/vite.ts", import.meta.url)
+        )
+      },
+      {
         find: "@jarv1s/shared",
         replacement: fileURLToPath(new URL("./packages/shared/src/index.ts", import.meta.url))
       },
