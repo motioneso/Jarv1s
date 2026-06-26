@@ -20,6 +20,7 @@ import { WellnessHistory } from "./wellness-history";
 import { WellnessTherapyNotes } from "./wellness-therapy-notes";
 import { CheckinModal, type CheckinFormValue } from "./checkin-modal";
 import { ManageMedsModal } from "./manage-meds-modal";
+import { WellnessExportModal } from "./export-modal";
 
 function useTheme(): "light" | "dark" {
   return document.documentElement.getAttribute("data-theme") === "dark" ? "dark" : "light";
@@ -76,6 +77,7 @@ export function WellnessPage() {
   const [editCheckin, setEditCheckin] = useState<CheckinDto | null>(null);
   const [seedEmotion, setSeedEmotion] = useState<WellnessEmotionCore | null>(null);
   const [manageOpen, setManageOpen] = useState(false);
+  const [exportOpen, setExportOpen] = useState(false);
   const [histFilter, setHistFilter] = useState<"notes" | null>(null);
 
   const checkinsQuery = useQuery({
@@ -230,6 +232,13 @@ export function WellnessPage() {
               <small> {streak === 1 ? "day" : "days"}</small>
             </div>
           </div>
+          <button
+            type="button"
+            className="jds-btn jds-btn--quiet jds-btn--sm wl-hero__export"
+            onClick={() => setExportOpen(true)}
+          >
+            Export
+          </button>
         </div>
       </header>
 
@@ -275,6 +284,7 @@ export function WellnessPage() {
       />
 
       <ManageMedsModal open={manageOpen} onClose={() => setManageOpen(false)} theme={theme} />
+      <WellnessExportModal open={exportOpen} onClose={() => setExportOpen(false)} />
     </div>
   );
 }
