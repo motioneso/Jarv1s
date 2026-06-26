@@ -616,9 +616,9 @@ export class AiRepository {
 
     const [defaultModel, models, overrideEnabled, requestedModelId, adminPinnedModelId] =
       await Promise.all([
-      this.selectModelForCapability(scopedDb, "chat"),
-      this.listModels(scopedDb),
-      this.getChatModelOverrideEnabled(scopedDb),
+        this.selectModelForCapability(scopedDb, "chat"),
+        this.listModels(scopedDb),
+        this.getChatModelOverrideEnabled(scopedDb),
         this.getChatModelOverridePreference(scopedDb),
         this.getAdminPinnedModelId(scopedDb)
       ]);
@@ -726,7 +726,10 @@ export class AiRepository {
     assertDataContextDb(scopedDb);
     const modelId = await this.getAdminPinnedModelId(scopedDb);
     if (!modelId) return null;
-    return (await this.safeModelQuery(scopedDb).where("models.id", "=", modelId).executeTakeFirst()) ?? null;
+    return (
+      (await this.safeModelQuery(scopedDb).where("models.id", "=", modelId).executeTakeFirst()) ??
+      null
+    );
   }
 
   async setAdminPinnedModel(

@@ -35,6 +35,7 @@
 ### Task 1: Backend Contract And Resolver
 
 **Files:**
+
 - Modify: `packages/shared/src/ai-types.ts`
 - Modify: `packages/shared/src/ai-api.ts`
 - Modify: `packages/ai/src/repository.ts`
@@ -45,14 +46,17 @@
 Add `tests/integration/ai-admin-pin.test.ts` with setup using `resetFoundationDatabase()`, `createApiServer`, `DataContextRunner`, `AiRepository`, and `ids.sessionAdmin`. First test: user B creates two active chat models, admin pins model 1 by writing the target user's preference through `dataContext.withDataContext({ actorUserId: ids.userB })`, then `repository.resolveModelForCapability(scopedDb, "chat")` returns `{ reason: "admin-pin", model.id: pinnedId }` even if an instance route points to model 2.
 
 Run:
+
 ```bash
 pnpm vitest run tests/integration/ai-admin-pin.test.ts
 ```
+
 Expected: fail because `admin-pin` is not a valid reason and resolver ignores `ai.admin_pinned_model_id`.
 
 - [ ] **Step 2: Add shared reason/type surface**
 
 In `packages/shared/src/ai-types.ts`, extend `AiCapabilityRouteReason`:
+
 ```ts
 export type AiCapabilityRouteReason =
   | "admin-pin"
@@ -68,11 +72,13 @@ In `packages/shared/src/ai-api.ts`, add both new strings to `aiCapabilityRouteSc
 - [ ] **Step 3: Add repository pin helpers and resolver precedence**
 
 In `packages/ai/src/repository.ts`, add:
+
 ```ts
 export const AI_ADMIN_PINNED_MODEL_PREFERENCE_KEY = "ai.admin_pinned_model_id";
 ```
 
 Add methods on `AiRepository`:
+
 ```ts
 async getAdminPinnedModelId(scopedDb: DataContextDb): Promise<string | null> {
   assertDataContextDb(scopedDb);
@@ -127,9 +133,11 @@ At the top of `resolveModelForCapability`, before `listCapabilityRoutes`, read t
 - [ ] **Step 4: Run focused resolver test**
 
 Run:
+
 ```bash
 pnpm vitest run tests/integration/ai-admin-pin.test.ts
 ```
+
 Expected: resolver test passes; route tests not written yet.
 
 - [ ] **Step 5: Commit**
@@ -142,6 +150,7 @@ git commit -m "feat(ai): resolve admin pinned user model"
 ### Task 2: Admin Pin Routes And Self-Override Lock
 
 **Files:**
+
 - Create: `packages/ai/src/admin-ai-pin-routes.ts`
 - Modify: `packages/ai/package.json`
 - Modify: `packages/ai/src/routes.ts`
@@ -153,6 +162,7 @@ git commit -m "feat(ai): resolve admin pinned user model"
 - [ ] **Step 1: Write failing route/security tests**
 
 Extend `tests/integration/ai-admin-pin.test.ts`:
+
 - `PUT /api/admin/users/:userId/ai-pin` as `ids.sessionAdmin` stores user B's active model and returns no credential fields.
 - Same PUT as `ids.sessionB` returns 403.
 - Admin cannot pin user A's model for user B; expect 400.
@@ -161,14 +171,17 @@ Extend `tests/integration/ai-admin-pin.test.ts`:
 - If the pinned model is disabled, `resolveModelForCapability` returns reason `"admin-pin-unavailable-fallback"`.
 
 Run:
+
 ```bash
 pnpm vitest run tests/integration/ai-admin-pin.test.ts
 ```
+
 Expected: fail because routes/schemas do not exist and override route does not check pin.
 
 - [ ] **Step 2: Add shared admin pin DTOs and schemas**
 
 In `packages/shared/src/ai-types.ts`, add:
+
 ```ts
 export interface AiAdminUserPinDto {
   readonly pinnedModelId: string | null;
@@ -188,6 +201,7 @@ export interface PutAiAdminUserPinRequest {
 ```
 
 In `packages/shared/src/ai-api.ts`, add request/response schemas and route schemas:
+
 ```ts
 export const putAiAdminUserPinRequestSchema = {
   type: "object",
@@ -196,11 +210,13 @@ export const putAiAdminUserPinRequestSchema = {
   properties: { modelId: { type: ["string", "null"] } }
 } as const;
 ```
+
 Use a response object `{ pin: { pinnedModelId, pinnedModel, effectiveChatModel, effectiveChatReason, availableModels } }`, all using existing `aiConfiguredModelSchema`.
 
 - [ ] **Step 3: Create route module**
 
 Create `packages/ai/src/admin-ai-pin-routes.ts`. Route flow:
+
 ```ts
 const accessContext = await dependencies.resolveAccessContext(request);
 const targetUserId = request.params.userId;
@@ -220,6 +236,7 @@ const pin = await dependencies.dataContext.withDataContext(
 For PUT with non-null `modelId`, `repository.setAdminPinnedModel(targetDb, modelId)` returns `null` when the model is not active and owned by the target; translate that to `HttpError(400, "modelId must reference an active model owned by the target user")`.
 
 After successful PUT, record audit through the settings-owned public port:
+
 ```ts
 await dependencies.dataContext.withDataContext(accessContext, (scopedDb) =>
   recordAuditEvent(scopedDb, {
@@ -236,9 +253,11 @@ await dependencies.dataContext.withDataContext(accessContext, (scopedDb) =>
 - [ ] **Step 4: Add package dependency for public audit port**
 
 In `packages/ai/package.json`, add:
+
 ```json
 "@jarv1s/settings": "workspace:*"
 ```
+
 Import `recordAuditEvent` from `@jarv1s/settings` in `packages/ai/src/admin-ai-pin-routes.ts`. Do not import `SettingsRepository` and do not write `app.admin_audit_events` directly; `recordAuditEvent` is the sanctioned cross-module audit API documented in `packages/settings/src/repository.ts`.
 
 - [ ] **Step 5: Register routes and manifest**
@@ -246,6 +265,7 @@ Import `recordAuditEvent` from `@jarv1s/settings` in `packages/ai/src/admin-ai-p
 In `packages/ai/src/routes.ts`, import/register `registerAiAdminPinRoutes(server, dependencies, repository)` after chat override routes or before assistant routes.
 
 In `packages/ai/src/manifest.ts`, import the new schemas and add:
+
 ```ts
 {
   method: "GET",
@@ -265,6 +285,7 @@ In `packages/ai/src/manifest.ts`, import the new schemas and add:
 - [ ] **Step 6: Block user self-override while pinned**
 
 In `packages/ai/src/routes.ts` `PUT /api/ai/chat-model-override`, before validating `body.modelId`, call `repository.getAdminPinnedModelId(scopedDb)`. If present, throw:
+
 ```ts
 throw new HttpError(409, "An admin has pinned your AI provider; contact them to change it");
 ```
@@ -272,9 +293,11 @@ throw new HttpError(409, "An admin has pinned your AI provider; contact them to 
 - [ ] **Step 7: Run route/security tests**
 
 Run:
+
 ```bash
 pnpm vitest run tests/integration/ai-admin-pin.test.ts
 ```
+
 Expected: pass.
 
 - [ ] **Step 8: Commit**
@@ -287,6 +310,7 @@ git commit -m "feat(ai): add admin user model pin routes"
 ### Task 3: Admin PeoplePane Control
 
 **Files:**
+
 - Modify: `apps/web/src/api/client.ts`
 - Modify: `apps/web/src/api/query-keys.ts`
 - Modify: `apps/web/src/settings/settings-admin-panes.tsx`
@@ -294,23 +318,30 @@ git commit -m "feat(ai): add admin user model pin routes"
 - [ ] **Step 1: Add client functions and query key**
 
 In `apps/web/src/api/client.ts`, import the new shared types and add:
+
 ```ts
 export async function getAdminUserAiPin(userId: string): Promise<GetAiAdminUserPinResponse> {
-  return requestJson<GetAiAdminUserPinResponse>(`/api/admin/users/${encodeURIComponent(userId)}/ai-pin`);
+  return requestJson<GetAiAdminUserPinResponse>(
+    `/api/admin/users/${encodeURIComponent(userId)}/ai-pin`
+  );
 }
 
 export async function putAdminUserAiPin(
   userId: string,
   input: PutAiAdminUserPinRequest
 ): Promise<GetAiAdminUserPinResponse> {
-  return requestJson<GetAiAdminUserPinResponse>(`/api/admin/users/${encodeURIComponent(userId)}/ai-pin`, {
-    method: "PUT",
-    body: input
-  });
+  return requestJson<GetAiAdminUserPinResponse>(
+    `/api/admin/users/${encodeURIComponent(userId)}/ai-pin`,
+    {
+      method: "PUT",
+      body: input
+    }
+  );
 }
 ```
 
 In `apps/web/src/api/query-keys.ts`, add:
+
 ```ts
 adminUserAiPin: (userId: string) => ["ai", "admin", "users", userId, "pin"] as const,
 ```
@@ -318,14 +349,18 @@ adminUserAiPin: (userId: string) => ["ai", "admin", "users", userId, "pin"] as c
 - [ ] **Step 2: Add a compact AI pin row component**
 
 In `apps/web/src/settings/settings-admin-panes.tsx`, add an `AiPinRow` component below `PersonRow`. It uses `useQuery({ queryKey: queryKeys.ai.adminUserAiPin(user.id), queryFn: () => getAdminUserAiPin(user.id), enabled: open })` and a `<select>` with:
+
 ```tsx
-<option value="">Clear pin</option>
-{pin.availableModels.map((model) => (
-  <option key={model.id} value={model.id}>
-    {model.displayName}
-  </option>
-))}
+<option value="">Clear pin</option>;
+{
+  pin.availableModels.map((model) => (
+    <option key={model.id} value={model.id}>
+      {model.displayName}
+    </option>
+  ));
+}
 ```
+
 Mutation calls `putAdminUserAiPin(user.id, { modelId: value || null })`, invalidates that user's pin query, and shows the existing toast.
 
 - [ ] **Step 3: Add toggle/open state to each person**
@@ -335,9 +370,11 @@ Extend `PersonRow` with an "AI provider" menu item using `ServerCog` and local `
 - [ ] **Step 4: Typecheck frontend**
 
 Run:
+
 ```bash
 pnpm typecheck
 ```
+
 Expected: pass.
 
 - [ ] **Step 5: Commit**
@@ -350,6 +387,7 @@ git commit -m "feat(web): expose admin AI provider pins"
 ### Task 4: Final Verification
 
 **Files:**
+
 - No new implementation files unless previous tasks expose a compile issue.
 
 - [ ] **Step 1: Run focused tests**
@@ -357,6 +395,7 @@ git commit -m "feat(web): expose admin AI provider pins"
 ```bash
 pnpm vitest run tests/integration/ai-admin-pin.test.ts tests/integration/ai-chat-model-override.test.ts tests/integration/ai-capability-routes.test.ts
 ```
+
 Expected: pass.
 
 - [ ] **Step 2: Run required trio**
@@ -364,11 +403,13 @@ Expected: pass.
 ```bash
 pnpm format:check && pnpm lint && pnpm typecheck
 ```
+
 Expected: all exit 0.
 
 - [ ] **Step 3: Commit any verification fixes**
 
 If formatting/type fixes were needed:
+
 ```bash
 git add <exact changed files>
 git commit -m "fix(ai): tighten admin pin verification"

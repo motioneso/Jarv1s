@@ -117,7 +117,9 @@ async function readPin(
   return {
     pinnedModelId,
     pinnedModel: pinnedModel ? serializeModel(pinnedModel, targetUserId) : null,
-    effectiveChatModel: effectiveChat.model ? serializeModel(effectiveChat.model, targetUserId) : null,
+    effectiveChatModel: effectiveChat.model
+      ? serializeModel(effectiveChat.model, targetUserId)
+      : null,
     effectiveChatReason: effectiveChat.reason,
     availableModels: activeModels.map((model) => serializeModel(model, targetUserId))
   };
