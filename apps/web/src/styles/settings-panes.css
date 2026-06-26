@@ -329,6 +329,9 @@
 .ppl__row:first-child {
   border-top: none;
 }
+.ppl__ai {
+  grid-column: 1 / -1;
+}
 .ppl__id {
   display: flex;
   align-items: center;

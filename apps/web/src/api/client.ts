@@ -15,6 +15,7 @@ import type {
   BootstrapStatusResponse,
   GetPersonaSettingsResponse,
   GetChatModelOverrideSettingsResponse,
+  GetAiAdminUserPinResponse,
   GetWebSearchKeyResponse,
   PutWebSearchKeyRequest,
   PutWebSearchKeyResponse,
@@ -30,6 +31,7 @@ import type {
   PatchAiCapabilityTierPreferenceRequest,
   PreviewPersonaResponse,
   PutAdminChatModelOverrideRequest,
+  PutAiAdminUserPinRequest,
   PutAiCapabilityRouteRequest,
   PutAiCapabilityRouteResponse,
   PutChatModelOverrideRequest,
@@ -793,6 +795,25 @@ export async function putAdminChatModelOverrideEnabled(
     method: "PUT",
     body: input
   });
+}
+
+export async function getAdminUserAiPin(userId: string): Promise<GetAiAdminUserPinResponse> {
+  return requestJson<GetAiAdminUserPinResponse>(
+    `/api/admin/users/${encodeURIComponent(userId)}/ai-pin`
+  );
+}
+
+export async function putAdminUserAiPin(
+  userId: string,
+  input: PutAiAdminUserPinRequest
+): Promise<GetAiAdminUserPinResponse> {
+  return requestJson<GetAiAdminUserPinResponse>(
+    `/api/admin/users/${encodeURIComponent(userId)}/ai-pin`,
+    {
+      method: "PUT",
+      body: input
+    }
+  );
 }
 
 export async function listAiAssistantTools(): Promise<ListAiAssistantToolsResponse> {
