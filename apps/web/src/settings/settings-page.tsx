@@ -11,6 +11,7 @@ import {
   Fingerprint,
   Link2,
   Package,
+  Palette,
   ScrollText,
   ServerCog,
   ShieldCheck,
@@ -51,6 +52,7 @@ type PersonalSectionId =
   | "connected"
   | "sources"
   | "modules"
+  | "appearance"
   | "general";
 
 type AdminSectionId =
@@ -84,6 +86,9 @@ const ModulesPane = lazyPane(() =>
 const GeneralPane = lazyPane(() =>
   import("./settings-personal-data-panes").then((module) => ({ default: module.GeneralPane }))
 );
+const AppearancePane = lazyPane(() =>
+  import("./settings-appearance-pane").then((module) => ({ default: module.AppearancePane }))
+);
 
 const PeoplePane = lazyPane(() =>
   import("./settings-admin-panes").then((module) => ({ default: module.PeoplePane }))
@@ -114,6 +119,7 @@ const PERSONAL_SECTIONS = [
   { id: "connected", icon: Link2, label: "Connected accounts", Pane: ConnectedPane },
   { id: "sources", icon: Database, label: "Data sources", Pane: SourcesPane },
   { id: "modules", icon: Boxes, label: "Modules", Pane: ModulesPane },
+  { id: "appearance", icon: Palette, label: "Appearance", Pane: AppearancePane },
   { id: "general", icon: SlidersHorizontal, label: "General", Pane: GeneralPane }
 ] as const satisfies readonly SettingsSection<PersonalSectionId>[];
 
