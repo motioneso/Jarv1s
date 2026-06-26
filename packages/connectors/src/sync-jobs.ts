@@ -60,8 +60,8 @@ export interface GoogleSyncResult {
   readonly truncated?: boolean;
 }
 
-const CALENDAR_SCOPE = "https://www.googleapis.com/auth/calendar";
-const GMAIL_SCOPE = "https://www.googleapis.com/auth/gmail.modify";
+export const CALENDAR_SCOPE = "https://www.googleapis.com/auth/calendar";
+export const GMAIL_SCOPE = "https://www.googleapis.com/auth/gmail.modify";
 const CALENDAR_WINDOW_PAST_MS = 7 * 24 * 60 * 60 * 1000;
 const CALENDAR_WINDOW_FUTURE_MS = 30 * 24 * 60 * 60 * 1000;
 const EMAIL_QUERY = "newer_than:30d";
