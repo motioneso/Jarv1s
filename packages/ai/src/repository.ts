@@ -551,7 +551,10 @@ export class AiRepository {
         .executeTakeFirst();
 
       if (manualModel) {
-        return { model: manualModel, reason: "manual-route" };
+        return {
+          model: manualModel,
+          reason: adminPinnedModelId ? "admin-pin-unavailable-fallback" : "manual-route"
+        };
       }
     }
 

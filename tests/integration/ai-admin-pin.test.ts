@@ -188,6 +188,43 @@ describe("AI admin per-user model pin", () => {
     ]);
   });
 
+  it("pinned user's direct API call uses the pinned model at the HTTP perimeter", async () => {
+    const providerId = await seedProvider(ids.userB, "Direct API Provider");
+    const pinnedId = await seedModel(ids.userB, providerId, "direct-api-pinned", ["json"]);
+    const otherId = await seedModel(ids.userB, providerId, "direct-api-other", ["json"]);
+
+    await server.inject({
+      method: "PUT",
+      url: `/api/admin/users/${ids.userB}/ai-pin`,
+      headers: { authorization: `Bearer ${ids.sessionAdmin}` },
+      payload: { modelId: pinnedId }
+    });
+
+    const res = await server.inject({
+      method: "GET",
+      url: "/api/ai/capability-route/json",
+      headers: { authorization: `Bearer ${ids.sessionB}` }
+    });
+
+    expect(res.statusCode).toBe(200);
+    expect(res.json()).toMatchObject({
+      route: {
+        capability: "json",
+        available: true,
+        reason: "admin-pin",
+        model: { id: pinnedId }
+      }
+    });
+    expect(res.body).not.toContain(otherId);
+
+    await server.inject({
+      method: "PUT",
+      url: `/api/admin/users/${ids.userB}/ai-pin`,
+      headers: { authorization: `Bearer ${ids.sessionAdmin}` },
+      payload: { modelId: null }
+    });
+  });
+
   async function seedProvider(ownerUserId: string, displayName: string): Promise<string> {
     const id = randomUUID();
     const credential = createAiSecretCipher().encryptJson({
