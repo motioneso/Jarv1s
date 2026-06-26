@@ -247,6 +247,7 @@ export interface ModuleSettingsSurfaceManifest {
   readonly order?: number;
   readonly permissionId?: string;
   readonly featureFlagId?: string;
+  readonly entry?: string;
 }
 
 /**

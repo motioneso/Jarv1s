@@ -1,0 +1,281 @@
+import { existsSync, readdirSync, readFileSync } from "node:fs";
+import { join } from "node:path";
+import ts from "typescript";
+
+type Scope = "user" | "admin" | "system";
+
+export interface GeneratedSettingsSurface {
+  readonly moduleId: string;
+  readonly moduleName: string;
+  readonly id: string;
+  readonly label: string;
+  readonly path: string;
+  readonly scope: Scope;
+  readonly order: number | null;
+  readonly hasEntry: boolean;
+}
+
+export interface ScanResult {
+  readonly surfaces: readonly GeneratedSettingsSurface[];
+  readonly components: Readonly<Record<string, string>>;
+  readonly manifestFiles: readonly string[];
+}
+
+interface PackageInfo {
+  readonly name: string;
+  readonly dir: string;
+}
+
+interface ScanOptions {
+  readonly rootDir: string;
+}
+
+export function scanModuleSettings(options: ScanOptions): ScanResult {
+  const surfaces: GeneratedSettingsSurface[] = [];
+  const components: Record<string, string> = {};
+  const manifestFiles: string[] = [];
+  const seenPaths = new Map<string, string>();
+
+  for (const pkg of listModulePackages(options.rootDir)) {
+    const manifestFile = join(pkg.dir, "src", "manifest.ts");
+    if (!existsSync(manifestFile)) continue;
+    manifestFiles.push(manifestFile);
+
+    const manifest = readManifest(manifestFile);
+    if (!manifest) continue;
+
+    for (const surface of manifest.settings) {
+      const owner = seenPaths.get(surface.path);
+      if (owner) {
+        throw new Error(
+          `duplicate settings path "${surface.path}" claimed by "${owner}" and "${manifest.id}"`
+        );
+      }
+      seenPaths.set(surface.path, manifest.id);
+
+      surfaces.push({
+        moduleId: manifest.id,
+        moduleName: manifest.name,
+        id: surface.id,
+        label: surface.label,
+        path: surface.path,
+        scope: surface.scope,
+        order: surface.order ?? null,
+        hasEntry: Boolean(surface.entry)
+      });
+
+      if (surface.entry) {
+        components[manifest.id] =
+          `lazy(() => import("${pkg.name}/${normalizeEntry(surface.entry)}"))`;
+      }
+    }
+  }
+
+  return {
+    surfaces: surfaces.sort((a, b) => a.moduleId.localeCompare(b.moduleId)),
+    components,
+    manifestFiles
+  };
+}
+
+export function emitVirtualModule(result: ScanResult): string {
+  const componentEntries = Object.entries(result.components)
+    .sort(([left], [right]) => left.localeCompare(right))
+    .map(([moduleId, loader]) => `  ${JSON.stringify(moduleId)}: ${loader}`)
+    .join(",\n");
+
+  return [
+    `import { lazy } from "react";`,
+    ``,
+    `export const MODULE_SETTINGS_SURFACES = ${JSON.stringify(result.surfaces, null, 2)};`,
+    `export const MODULE_SETTINGS_COMPONENTS = {`,
+    componentEntries,
+    `};`,
+    ``
+  ].join("\n");
+}
+
+function listModulePackages(rootDir: string): PackageInfo[] {
+  return [
+    ...readPackageJsons(join(rootDir, "packages")),
+    ...readPackageJsons(join(rootDir, "node_modules"), /^@jarv1s-/),
+    ...readScopedPackageJsons(join(rootDir, "node_modules", "@jarv1s"))
+  ]
+    .filter((pkg) => pkg.name.startsWith("@jarv1s/") || pkg.name.startsWith("@jarv1s-"))
+    .sort((a, b) => a.name.localeCompare(b.name));
+}
+
+function readPackageJsons(parentDir: string, namePattern?: RegExp): PackageInfo[] {
+  if (!existsSync(parentDir)) return [];
+  return readdirSync(parentDir, { withFileTypes: true })
+    .filter((entry) => entry.isDirectory() && (!namePattern || namePattern.test(entry.name)))
+    .flatMap((entry) => readPackageInfo(join(parentDir, entry.name)));
+}
+
+function readScopedPackageJsons(parentDir: string): PackageInfo[] {
+  if (!existsSync(parentDir)) return [];
+  return readdirSync(parentDir, { withFileTypes: true })
+    .filter((entry) => entry.isDirectory())
+    .flatMap((entry) => readPackageInfo(join(parentDir, entry.name)));
+}
+
+function readPackageInfo(dir: string): PackageInfo[] {
+  const packageJson = join(dir, "package.json");
+  if (!existsSync(packageJson)) return [];
+  const parsed = JSON.parse(readFileSync(packageJson, "utf8")) as { readonly name?: unknown };
+  return typeof parsed.name === "string" ? [{ name: parsed.name, dir }] : [];
+}
+
+interface ParsedManifest {
+  readonly id: string;
+  readonly name: string;
+  readonly settings: readonly ParsedSurface[];
+}
+
+interface ParsedSurface {
+  readonly id: string;
+  readonly label: string;
+  readonly path: string;
+  readonly scope: Scope;
+  readonly order?: number;
+  readonly entry?: string;
+}
+
+function readManifest(manifestFile: string): ParsedManifest | null {
+  const sourceFile = ts.createSourceFile(
+    manifestFile,
+    readFileSync(manifestFile, "utf8"),
+    ts.ScriptTarget.Latest,
+    true,
+    ts.ScriptKind.TS
+  );
+  const constants = readStringConstants(sourceFile);
+
+  for (const statement of sourceFile.statements) {
+    if (!ts.isVariableStatement(statement)) continue;
+    for (const declaration of statement.declarationList.declarations) {
+      const initializer = declaration.initializer ? unwrap(declaration.initializer) : undefined;
+      if (!initializer || !ts.isObjectLiteralExpression(initializer)) continue;
+      const settings = readArrayProperty(initializer, "settings");
+      if (!settings) continue;
+      const id = readStringProperty(initializer, "id", constants);
+      const name = readStringProperty(initializer, "name", constants);
+      if (!id || !name) continue;
+      return {
+        id,
+        name,
+        settings: settings
+          .map((item) => readSurface(item, constants))
+          .filter((surface): surface is ParsedSurface => Boolean(surface))
+      };
+    }
+  }
+
+  return null;
+}
+
+function readStringConstants(sourceFile: ts.SourceFile): ReadonlyMap<string, string> {
+  const constants = new Map<string, string>();
+  for (const statement of sourceFile.statements) {
+    if (!ts.isVariableStatement(statement)) continue;
+    for (const declaration of statement.declarationList.declarations) {
+      if (!ts.isIdentifier(declaration.name) || !declaration.initializer) continue;
+      const value = readStringExpression(declaration.initializer, constants);
+      if (value !== undefined) constants.set(declaration.name.text, value);
+    }
+  }
+  return constants;
+}
+
+function readSurface(
+  node: ts.Expression,
+  constants: ReadonlyMap<string, string>
+): ParsedSurface | null {
+  const item = unwrap(node);
+  if (!ts.isObjectLiteralExpression(item)) return null;
+  const id = readStringProperty(item, "id", constants);
+  const label = readStringProperty(item, "label", constants);
+  const path = readStringProperty(item, "path", constants);
+  const scope = readStringProperty(item, "scope", constants);
+  if (!id || !label || !path || !isScope(scope)) return null;
+
+  return {
+    id,
+    label,
+    path,
+    scope,
+    order: readNumberProperty(item, "order"),
+    entry: readStringProperty(item, "entry", constants)
+  };
+}
+
+function readStringProperty(
+  object: ts.ObjectLiteralExpression,
+  name: string,
+  constants: ReadonlyMap<string, string>
+): string | undefined {
+  const property = findProperty(object, name);
+  if (!property || !ts.isPropertyAssignment(property)) return undefined;
+  return readStringExpression(property.initializer, constants);
+}
+
+function readNumberProperty(object: ts.ObjectLiteralExpression, name: string): number | undefined {
+  const property = findProperty(object, name);
+  if (!property || !ts.isPropertyAssignment(property)) return undefined;
+  const initializer = unwrap(property.initializer);
+  return ts.isNumericLiteral(initializer) ? Number(initializer.text) : undefined;
+}
+
+function readArrayProperty(
+  object: ts.ObjectLiteralExpression,
+  name: string
+): readonly ts.Expression[] | undefined {
+  const property = findProperty(object, name);
+  if (!property || !ts.isPropertyAssignment(property)) return undefined;
+  const initializer = unwrap(property.initializer);
+  return ts.isArrayLiteralExpression(initializer) ? initializer.elements : undefined;
+}
+
+function findProperty(
+  object: ts.ObjectLiteralExpression,
+  name: string
+): ts.ObjectLiteralElementLike | undefined {
+  return object.properties.find((property) => {
+    if (!ts.isPropertyAssignment(property)) return false;
+    const propertyName = property.name;
+    return (
+      (ts.isIdentifier(propertyName) && propertyName.text === name) ||
+      (ts.isStringLiteral(propertyName) && propertyName.text === name)
+    );
+  });
+}
+
+function readStringExpression(
+  expression: ts.Expression,
+  constants: ReadonlyMap<string, string>
+): string | undefined {
+  const value = unwrap(expression);
+  if (ts.isStringLiteral(value) || ts.isNoSubstitutionTemplateLiteral(value)) return value.text;
+  if (ts.isIdentifier(value)) return constants.get(value.text);
+  return undefined;
+}
+
+function unwrap(expression: ts.Expression): ts.Expression {
+  let current = expression;
+  while (
+    ts.isAsExpression(current) ||
+    ts.isSatisfiesExpression(current) ||
+    ts.isParenthesizedExpression(current)
+  ) {
+    current = current.expression;
+  }
+  return current;
+}
+
+function isScope(value: string | undefined): value is Scope {
+  return value === "user" || value === "admin" || value === "system";
+}
+
+function normalizeEntry(entry: string): string {
+  return entry.replace(/^\.?\//, "");
+}
