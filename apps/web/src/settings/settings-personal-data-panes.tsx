@@ -25,6 +25,10 @@ import {
   type LucideIcon
 } from "lucide-react";
 import { useEffect, useState } from "react";
+import {
+  MODULE_SETTINGS_COMPONENTS,
+  MODULE_SETTINGS_SURFACES
+} from "virtual:jarvis-module-settings";
 
 import {
   getLocaleSettings,
@@ -64,6 +68,7 @@ import {
   formatTimestamp,
   Group,
   Indicator,
+  ModuleSettingsRouter,
   Note,
   PaneHead,
   Row,
@@ -537,6 +542,9 @@ function SourcesPane() {
 
 const CONFIG_IDS = new Set(["briefings", "chat", "notifications"]);
 const CAT_BY_ID: Record<string, string> = { knowledge: "memory" };
+const CONTRIBUTED_SETTINGS_MODULE_IDS = new Set(
+  MODULE_SETTINGS_SURFACES.map((surface) => surface.moduleId)
+);
 // The modules a person actually uses/configures, in the order the design shows
 // them. Everything else the registry exposes is internal infrastructure.
 const USER_FACING_MODULES = new Set([
@@ -552,11 +560,12 @@ const USER_FACING_MODULES = new Set([
 // The extras a person opts into. Everything else user-facing is core (always on).
 const OPTIONAL_MODULES = new Set(["wellness", "finance"]);
 type ModuleSub = "briefings" | "chat" | "notifications";
+type ModuleSettingsView = ModuleSub | { readonly moduleId: string };
 
 function ModulesPane({ onNavigate, onSelectSection }: PaneProps) {
   const queryClient = useQueryClient();
   const { toast } = useFeedback();
-  const [view, setView] = useState<ModuleSub | null>(null);
+  const [view, setView] = useState<ModuleSettingsView | null>(null);
   const myQuery = useQuery({ queryKey: queryKeys.myModules, queryFn: getMyModules, retry: false });
   const modulesQuery = useQuery({ queryKey: queryKeys.modules, queryFn: getModules, retry: false });
   const toggleMutation = useMutation({
@@ -570,6 +579,18 @@ function ModulesPane({ onNavigate, onSelectSection }: PaneProps) {
   if (view === "chat") return <ChatSettingsView onBack={() => setView(null)} />;
   if (view === "notifications")
     return <NotificationSettings onBack={() => setView(null)} onCat={onSelectSection} />;
+  if (view && typeof view === "object") {
+    return (
+      <ModuleSettingsRouter
+        moduleId={view.moduleId}
+        surfaces={MODULE_SETTINGS_SURFACES}
+        components={MODULE_SETTINGS_COMPONENTS}
+        onBack={() => setView(null)}
+        onSelectSection={onSelectSection}
+        onNavigate={onNavigate}
+      />
+    );
+  }
 
   // Curated to the user-facing module set. The registry also carries internal
   // infrastructure modules (settings, connectors, email, ai, memory,
@@ -587,6 +608,7 @@ function ModulesPane({ onNavigate, onSelectSection }: PaneProps) {
     const locked = control.kind === "locked";
     const available = module.active || control.kind === "required";
     const config = CONFIG_IDS.has(module.id);
+    const contributedSettings = CONTRIBUTED_SETTINGS_MODULE_IDS.has(module.id);
     const cat = CAT_BY_ID[module.id];
     const path = pathFor(module.id);
 
@@ -616,6 +638,16 @@ function ModulesPane({ onNavigate, onSelectSection }: PaneProps) {
           type="button"
           className="modrow__link"
           onClick={() => setView(module.id as ModuleSub)}
+        >
+          Configure <ArrowRight size={14} aria-hidden="true" />
+        </button>
+      );
+    } else if (contributedSettings) {
+      action = (
+        <button
+          type="button"
+          className="modrow__link"
+          onClick={() => setView({ moduleId: module.id })}
         >
           Configure <ArrowRight size={14} aria-hidden="true" />
         </button>

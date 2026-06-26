@@ -1,6 +1,7 @@
 import { ChevronDown, Info, TriangleAlert } from "lucide-react";
 import { useState, type ReactNode, type SelectHTMLAttributes } from "react";
 export type { GeneratedSettingsSurface } from "./scanner.js";
+export * from "./router.js";
 
 export interface ModuleSettingsSurfaceProps {
   readonly onBack: () => void;
