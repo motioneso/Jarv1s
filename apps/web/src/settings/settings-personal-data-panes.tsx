@@ -68,6 +68,7 @@ import {
   formatTimestamp,
   Group,
   Indicator,
+  findModuleSettingsEntrySurface,
   ModuleSettingsRouter,
   Note,
   PaneHead,
@@ -543,7 +544,7 @@ function SourcesPane() {
 const CONFIG_IDS = new Set(["briefings", "chat", "notifications"]);
 const CAT_BY_ID: Record<string, string> = { knowledge: "memory" };
 const CONTRIBUTED_SETTINGS_MODULE_IDS = new Set(
-  MODULE_SETTINGS_SURFACES.map((surface) => surface.moduleId)
+  MODULE_SETTINGS_SURFACES.filter((surface) => surface.hasEntry).map((surface) => surface.moduleId)
 );
 // The modules a person actually uses/configures, in the order the design shows
 // them. Everything else the registry exposes is internal infrastructure.
@@ -608,7 +609,9 @@ function ModulesPane({ onNavigate, onSelectSection }: PaneProps) {
     const locked = control.kind === "locked";
     const available = module.active || control.kind === "required";
     const config = CONFIG_IDS.has(module.id);
-    const contributedSettings = CONTRIBUTED_SETTINGS_MODULE_IDS.has(module.id);
+    const contributedSettings =
+      CONTRIBUTED_SETTINGS_MODULE_IDS.has(module.id) &&
+      findModuleSettingsEntrySurface(module.id, MODULE_SETTINGS_SURFACES);
     const cat = CAT_BY_ID[module.id];
     const path = pathFor(module.id);
 

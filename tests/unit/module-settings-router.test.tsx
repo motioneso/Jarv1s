@@ -4,6 +4,7 @@ import { describe, expect, it } from "vitest";
 import {
   ModuleSettingsErrorFallback,
   ModuleSettingsRouter,
+  findModuleSettingsEntrySurface,
   findModuleSettingsSurface,
   type ModuleSettingsComponent
 } from "../../packages/settings-ui/src/router.js";
@@ -19,6 +20,14 @@ const surfaces: GeneratedSettingsSurface[] = [
     scope: "user",
     order: 10,
     hasEntry: true
+  }
+];
+const declarativeSurfaces: GeneratedSettingsSurface[] = [
+  {
+    ...surfaces[0],
+    moduleId: "declarative",
+    moduleName: "Declarative",
+    hasEntry: false
   }
 ];
 
@@ -62,18 +71,43 @@ describe("ModuleSettingsRouter", () => {
     );
 
     expect(markup).toContain("Fixture settings");
+    expect(markup).toContain("Back");
     expect(markup).toContain("client surface isn&#x27;t installed");
   });
 
+  it("renders a benign fallback for declarative settings surfaces", () => {
+    const markup = renderToStaticMarkup(
+      <ModuleSettingsRouter
+        moduleId="declarative"
+        surfaces={declarativeSurfaces}
+        components={{}}
+        onBack={() => undefined}
+      />
+    );
+
+    expect(markup).toContain("Declarative settings");
+    expect(markup).toContain("Back");
+    expect(markup).toContain("No settings UI for this module yet");
+    expect(markup).not.toContain("client surface isn&#x27;t installed");
+  });
+
   it("exposes the error fallback used by the per-surface boundary", () => {
-    const markup = renderToStaticMarkup(<ModuleSettingsErrorFallback surface={surfaces[0]} />);
+    const markup = renderToStaticMarkup(
+      <ModuleSettingsErrorFallback surface={surfaces[0]} onBack={() => undefined} />
+    );
 
     expect(markup).toContain("Fixture settings failed to load");
+    expect(markup).toContain("Back");
   });
 
   it("finds only user-scoped surfaces for module rows", () => {
     expect(
       findModuleSettingsSurface("fixture", [{ ...surfaces[0], scope: "admin" }, surfaces[0]])?.id
     ).toBe("fixture.settings");
+  });
+
+  it("finds only entry-backed surfaces for configure buttons", () => {
+    expect(findModuleSettingsEntrySurface("declarative", declarativeSurfaces)).toBeUndefined();
+    expect(findModuleSettingsEntrySurface("fixture", surfaces)?.id).toBe("fixture.settings");
   });
 });

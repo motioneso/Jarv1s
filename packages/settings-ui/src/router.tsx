@@ -26,19 +26,31 @@ export function findModuleSettingsSurface(
   return surfaces.find((surface) => surface.moduleId === moduleId && surface.scope === "user");
 }
 
+export function findModuleSettingsEntrySurface(
+  moduleId: string,
+  surfaces: readonly GeneratedSettingsSurface[]
+): GeneratedSettingsSurface | undefined {
+  const surface = findModuleSettingsSurface(moduleId, surfaces);
+  return surface?.hasEntry ? surface : undefined;
+}
+
 export function ModuleSettingsRouter(props: ModuleSettingsRouterProps) {
   const surface = findModuleSettingsSurface(props.moduleId, props.surfaces);
   if (!surface) {
-    return <ModuleSettingsMissingFallback moduleName="Module" />;
+    return <ModuleSettingsNoUiFallback moduleName="Module" onBack={props.onBack} />;
+  }
+
+  if (!surface.hasEntry) {
+    return <ModuleSettingsNoUiFallback moduleName={surface.moduleName} onBack={props.onBack} />;
   }
 
   const Surface = props.components[props.moduleId];
   if (!Surface) {
-    return <ModuleSettingsMissingFallback moduleName={surface.moduleName} />;
+    return <ModuleSettingsMissingFallback moduleName={surface.moduleName} onBack={props.onBack} />;
   }
 
   return (
-    <ModuleSettingsErrorBoundary surface={surface}>
+    <ModuleSettingsErrorBoundary surface={surface} onBack={props.onBack}>
       <Suspense
         fallback={<RouterPaneHead title={`${surface.moduleName} settings`} desc="Loading…" />}
       >
@@ -52,10 +64,29 @@ export function ModuleSettingsRouter(props: ModuleSettingsRouterProps) {
   );
 }
 
-function ModuleSettingsMissingFallback(props: { readonly moduleName: string }) {
+function ModuleSettingsNoUiFallback(props: {
+  readonly moduleName: string;
+  readonly onBack: () => void;
+}) {
   return (
     <>
       <RouterPaneHead title={`${props.moduleName} settings`} />
+      <RouterBackButton onBack={props.onBack} />
+      <p className="set2-note">
+        <span>No settings UI for this module yet.</span>
+      </p>
+    </>
+  );
+}
+
+function ModuleSettingsMissingFallback(props: {
+  readonly moduleName: string;
+  readonly onBack: () => void;
+}) {
+  return (
+    <>
+      <RouterPaneHead title={`${props.moduleName} settings`} />
+      <RouterBackButton onBack={props.onBack} />
       <p className="set2-note">
         <span>
           This module declares settings but its client surface isn't installed. Rebuild with the
@@ -66,14 +97,26 @@ function ModuleSettingsMissingFallback(props: { readonly moduleName: string }) {
   );
 }
 
-export function ModuleSettingsErrorFallback(props: { readonly surface: GeneratedSettingsSurface }) {
+export function ModuleSettingsErrorFallback(props: {
+  readonly surface: GeneratedSettingsSurface;
+  readonly onBack: () => void;
+}) {
   return (
     <>
       <RouterPaneHead title={`${props.surface.moduleName} settings failed to load`} />
+      <RouterBackButton onBack={props.onBack} />
       <p className="set2-note">
         <span>This settings surface crashed. The rest of Settings is still available.</span>
       </p>
     </>
+  );
+}
+
+function RouterBackButton(props: { readonly onBack: () => void }) {
+  return (
+    <button type="button" className="modrow__link" onClick={props.onBack}>
+      Back
+    </button>
   );
 }
 
@@ -87,7 +130,11 @@ function RouterPaneHead(props: { readonly title: string; readonly desc?: string 
 }
 
 class ModuleSettingsErrorBoundary extends Component<
-  { readonly surface: GeneratedSettingsSurface; readonly children: ReactNode },
+  {
+    readonly surface: GeneratedSettingsSurface;
+    readonly onBack: () => void;
+    readonly children: ReactNode;
+  },
   { readonly failed: boolean }
 > {
   state = { failed: false };
@@ -97,7 +144,11 @@ class ModuleSettingsErrorBoundary extends Component<
   }
 
   render() {
-    if (this.state.failed) return <ModuleSettingsErrorFallback surface={this.props.surface} />;
+    if (this.state.failed) {
+      return (
+        <ModuleSettingsErrorFallback surface={this.props.surface} onBack={this.props.onBack} />
+      );
+    }
     return this.props.children;
   }
 }
