@@ -581,24 +581,3 @@
   height: 10px;
   color: currentColor;
 }
-.chatd-stop {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  margin-left: auto;
-  padding: 4px 10px;
-  border: 1px solid var(--border-subtle);
-  border-radius: 999px;
-  background: transparent;
-  color: var(--text-subtle);
-  font-size: 12px;
-  line-height: 1;
-  cursor: pointer;
-  transition:
-    background-color 120ms ease,
-    color 120ms ease;
-}
-.chatd-stop:hover {
-  background: var(--surface-hover);
-  color: var(--text);
-}
