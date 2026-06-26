@@ -47,9 +47,9 @@ describe("theme runtime", () => {
 
     expect(style.values.get("--paper")).toBe(validThemeTokens.paper);
     expect(style.values.get("--accent")).toBe(validThemeTokens.accent);
-    expect(style.values.get("--accent-hover")).toBe(deriveAccentRamp(validThemeTokens.accent)[
-      "--accent-hover"
-    ]);
+    expect(style.values.get("--accent-hover")).toBe(
+      deriveAccentRamp(validThemeTokens.accent)["--accent-hover"]
+    );
     expect(style.values.has("--red")).toBe(false);
   });
 

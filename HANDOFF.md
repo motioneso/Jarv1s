@@ -2,11 +2,11 @@
 
 **Spec (approved):** docs/superpowers/specs/2026-06-25-user-custom-themes.md
 **GitHub issue:** #477
-**Risk tier:** `routine`  (isolated UI: tokens.css/app-shell.tsx/theme-storage + new theme routes; no schema/auth/secret surface. Auto-merge after green QA.)
-**Worktree:** /home/ben/Jarv1s/.claude/worktrees/user-custom-themes   **Branch:** build/user-custom-themes (off origin/main @ 63681e9)
-**Build skill path (absolute):** /home/ben/Jarv1s/.claude/skills/coordinated-build/SKILL.md   (use this exact path if `coordinated-build` does not resolve by name in your spawn env)
-**Coordinator label:** `Coordinator`   (UNIQUE — escalate via `herdr-pane-message`; before messaging, verify `herdr pane list` shows EXACTLY ONE pane with this label. Never guess or reuse a `…-N` pane-id — they reflow when any pane opens/closes; re-resolve the live pane by label from `herdr pane list` each time.)
-**Coordinator session id:** `ses_0fef45f35ffeEJBGhPxqAsabKB`   (the immutable authority for this coordinator — label is routing, the `…-N` number is ephemeral. Confirm this session id is still live before relying on the coordinator; it survives pane renumbering.)
+**Risk tier:** `routine` (isolated UI: tokens.css/app-shell.tsx/theme-storage + new theme routes; no schema/auth/secret surface. Auto-merge after green QA.)
+**Worktree:** /home/ben/Jarv1s/.claude/worktrees/user-custom-themes **Branch:** build/user-custom-themes (off origin/main @ 63681e9)
+**Build skill path (absolute):** /home/ben/Jarv1s/.claude/skills/coordinated-build/SKILL.md (use this exact path if `coordinated-build` does not resolve by name in your spawn env)
+**Coordinator label:** `Coordinator` (UNIQUE — escalate via `herdr-pane-message`; before messaging, verify `herdr pane list` shows EXACTLY ONE pane with this label. Never guess or reuse a `…-N` pane-id — they reflow when any pane opens/closes; re-resolve the live pane by label from `herdr pane list` each time.)
+**Coordinator session id:** `ses_0fef45f35ffeEJBGhPxqAsabKB` (the immutable authority for this coordinator — label is routing, the `…-N` number is ephemeral. Confirm this session id is still live before relying on the coordinator; it survives pane renumbering.)
 **Relay threshold:** countable events — ~80–100k tokens OR a compaction summary in your own context (then relay immediately).
 
 ## Start
@@ -18,7 +18,7 @@
 4. **Verify the spec against the actual branch BEFORE planning.** Specs go stale. For each spec item,
    grep/read the cited files on YOUR branch and confirm the gap/state it describes is still real. If
    any item's premise has already shipped or drifted, **escalate to the coordinator** with the drift
-   + your re-scoped plan before proceeding.
+   - your re-scoped plan before proceeding.
 5. Invoke the **`coordinated-build`** skill and follow it: write the plan → escalate it to the
    coordinator for approval → on approval, build TDD/green → run the pre-push trio
    (`pnpm format:check && pnpm lint && pnpm typecheck`) + fresh rebase before every push → close out
@@ -28,7 +28,7 @@
 
 - **CI STATUS (temporary):** GitHub Actions billing is paused. `gh pr checks` shows red on every PR —
   **do NOT trust it**. Run the gate **locally**: `pnpm format:check && pnpm lint && pnpm typecheck`
-  + relevant vitest, and record exit codes in your wrap-up report.
+  - relevant vitest, and record exit codes in your wrap-up report.
 - Work **only** in this worktree/branch. Commit green per task; `git add` only that task's files
   (`Co-Authored-By: Claude`).
 - Plan approval comes from the **coordinator**, not a human gate. Do not write code before it.

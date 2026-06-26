@@ -163,11 +163,7 @@ describe("settings theme preferences", () => {
     expect(res.statusCode).toBe(401);
   });
 
-  async function putTheme(
-    sessionId: string,
-    id: string,
-    payload: Record<string, unknown>
-  ) {
+  async function putTheme(sessionId: string, id: string, payload: Record<string, unknown>) {
     return server.inject({
       method: "PUT",
       url: `/api/me/themes/${id}`,

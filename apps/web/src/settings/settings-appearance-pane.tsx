@@ -2,12 +2,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Copy, Lock, Palette, Plus, Save, Trash2 } from "lucide-react";
 import { useMemo, useState } from "react";
 
-import {
-  deleteCustomTheme,
-  listThemes,
-  putCustomTheme,
-  setActiveTheme
-} from "../api/client";
+import { deleteCustomTheme, listThemes, putCustomTheme, setActiveTheme } from "../api/client";
 import { queryKeys } from "../api/query-keys";
 import {
   applyThemeTokens,
@@ -16,11 +11,7 @@ import {
   parsePalette,
   readCurrentAestheticTokens
 } from "../theme/theme-runtime";
-import type {
-  AestheticThemeTokenKey,
-  AestheticThemeTokens,
-  CustomThemeDto
-} from "@jarv1s/shared";
+import type { AestheticThemeTokenKey, AestheticThemeTokens } from "@jarv1s/shared";
 import { AESTHETIC_THEME_TOKEN_KEYS } from "@jarv1s/shared";
 import { Badge, Field, Group, Note, PaneHead } from "./settings-ui";
 
@@ -65,7 +56,8 @@ export function AppearancePane() {
     onError: (err) => setError(readError(err))
   });
   const saveMutation = useMutation({
-    mutationFn: (next: DraftTheme) => putCustomTheme(next.id, { name: next.name, tokens: next.tokens }),
+    mutationFn: (next: DraftTheme) =>
+      putCustomTheme(next.id, { name: next.name, tokens: next.tokens }),
     onSuccess: async (response) => {
       setDraft(response.theme);
       setStatus("Saved");
@@ -310,14 +302,22 @@ function ThemeRow(props: {
         {props.active ? <Badge tone="pine">Active</Badge> : null}
         {props.readonlyLabel ? <Badge tone="neutral">{props.readonlyLabel}</Badge> : null}
       </button>
-      <button type="button" className="jds-btn jds-btn--quiet jds-btn--sm" onClick={props.onDuplicate}>
+      <button
+        type="button"
+        className="jds-btn jds-btn--quiet jds-btn--sm"
+        onClick={props.onDuplicate}
+      >
         <span className="jds-btn__icon">
           <Copy size={14} aria-hidden="true" />
         </span>
         Duplicate
       </button>
       {props.onDelete ? (
-        <button type="button" className="jds-btn jds-btn--quiet jds-btn--sm" onClick={props.onDelete}>
+        <button
+          type="button"
+          className="jds-btn jds-btn--quiet jds-btn--sm"
+          onClick={props.onDelete}
+        >
           <span className="jds-btn__icon">
             <Trash2 size={14} aria-hidden="true" />
           </span>
