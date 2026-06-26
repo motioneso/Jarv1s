@@ -19,7 +19,6 @@ import {
   deactivateUser,
   deleteAdminUser,
   demoteUser,
-  getAdminUserAiPin,
   getChatMultiplexerSettings,
   getHostDiagnostics,
   getRegistrationSettings,
@@ -28,7 +27,6 @@ import {
   listAdminUsers,
   listAuthProviderStatuses,
   promoteUser,
-  putAdminUserAiPin,
   putRegistrationSettings,
   reactivateUser,
   revokeAdminUserSessions,
@@ -37,6 +35,7 @@ import {
   setAdminModuleDisabled,
   syncGoogleConnector
 } from "../api/client";
+import { getAdminUserAiPin, putAdminUserAiPin } from "../api/client-admin";
 import { queryKeys } from "../api/query-keys";
 import {
   adminUserActions,

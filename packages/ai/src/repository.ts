@@ -20,6 +20,7 @@ import {
 import type { AiCapabilityRouteReason, AiModelCapability } from "@jarv1s/shared";
 
 import type { EncryptedAiSecret } from "./crypto.js";
+import { parseCapabilityRouteMap } from "./capability-route-map.js";
 import {
   CHAT_MODEL_OVERRIDE_PREFERENCE_KEY,
   CHAT_MODEL_OVERRIDE_SETTING_KEY,
@@ -984,26 +985,4 @@ function toOverrideCandidate(
     providerStatus: model.provider_status,
     allowUserOverride: model.allow_user_override
   };
-}
-
-const AI_MODEL_CAPABILITIES = new Set<AiModelCapability>([
-  "chat",
-  "tool-use",
-  "json",
-  "vision",
-  "summarization"
-]);
-
-function parseCapabilityRouteMap(value: unknown): AiCapabilityRouteMap {
-  if (!value || typeof value !== "object" || Array.isArray(value)) return {};
-
-  const routes: AiCapabilityRouteMap = {};
-  for (const [capability, modelId] of Object.entries(value)) {
-    if (!AI_MODEL_CAPABILITIES.has(capability as AiModelCapability)) continue;
-    if (modelId === null || typeof modelId === "string") {
-      routes[capability as AiModelCapability] = modelId;
-    }
-  }
-
-  return routes;
 }
