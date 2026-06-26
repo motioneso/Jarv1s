@@ -616,6 +616,50 @@ describe("GET/PUT /api/wellness/ai-consent", () => {
     }
   });
 
+  it("consent is isolated per user — setting user A does not affect user B", async () => {
+    const prefs = new PreferencesRepository();
+    await dataContext.withDataContext(ctx(userId), (db) =>
+      prefs.delete(db, "wellness.ai_consent_granted")
+    );
+    await dataContext.withDataContext(ctx(otherUserId), (db) =>
+      prefs.delete(db, "wellness.ai_consent_granted")
+    );
+
+    const appA = Fastify();
+    registerWellnessRoutes(appA, {
+      resolveAccessContext: async () => ({ actorUserId: userId, requestId: "req:iso-a" }),
+      dataContext,
+      resolveActiveModules: async () => [{ id: "wellness" }]
+    });
+    await appA.ready();
+    try {
+      const put = await appA.inject({
+        method: "PUT",
+        url: "/api/wellness/ai-consent",
+        payload: { granted: false }
+      });
+      expect(put.statusCode).toBe(200);
+      expect(put.json()).toEqual({ effective: false, explicit: false });
+    } finally {
+      await appA.close();
+    }
+
+    const appB = Fastify();
+    registerWellnessRoutes(appB, {
+      resolveAccessContext: async () => ({ actorUserId: otherUserId, requestId: "req:iso-b" }),
+      dataContext,
+      resolveActiveModules: async () => [{ id: "wellness" }]
+    });
+    await appB.ready();
+    try {
+      const get = await appB.inject({ method: "GET", url: "/api/wellness/ai-consent" });
+      expect(get.statusCode).toBe(200);
+      expect(get.json()).toEqual({ effective: true, explicit: null });
+    } finally {
+      await appB.close();
+    }
+  });
+
   it("inherits false when Wellness is not active and no explicit preference exists", async () => {
     const inactiveUser = "00000000-0000-4000-8000-000000000053";
     const client = new Client({ connectionString: connectionStrings.bootstrap });
