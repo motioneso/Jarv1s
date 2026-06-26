@@ -116,3 +116,7 @@ export function transcriptGlobDir(
     }
   }
 }
+
+export function agyPrintTranscriptRoot(homeBase: string = homedir()): string {
+  return join(homeBase, ".gemini", "antigravity-cli", "brain");
+}
