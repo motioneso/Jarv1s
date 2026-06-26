@@ -4,7 +4,7 @@
 **Coordinator lock:** label `Coordinator`, **stable anchor = Claude session id `ses_0fef45f35ffeEJBGhPxqAsabKB`** (opencode pane `w1:p10`). Single-coordinator lock — exactly one pane labelled `Coordinator` whose session id matches this anchor holds authority for the life of the run. ⚠️ Pane numbers (`w…-N`) reflow on every restart/split/reap — do NOT trust any pane number written in this file as an identifier; resolve the pane fresh by label+session at read time. Agents escalate to the label (routing, re-claimable); the coordinator merges only when its own pane's session id (immutable) matches this recorded anchor.
 **Merge policy:** autonomous-after-verified-QA for `routine`/`sensitive`; **`security`-tier needs Ben's explicit merge sign-off** (cross-model Opus QA + `gh pr comment` verdict first).
 **Relay threshold:** security-tier merge → relay immediately after Phase 3 step 7; routine/sensitive `merges_since_relay` ≥ 2 → relay. No deferral. Compaction summary = already past safe → relay, merge nothing.
-**merges_since_relay:** 0
+**merges_since_relay:** 2  (threshold hit: 2 routine/sensitive merges. Note: coordinator is opencode/GLM-5.2 with healthy context, no compaction; manifest is durable. Relay mechanism targets claude sessions — recording counter, continuing with manifest as source of truth.)
 
 > This is the coordinator's externalized memory. Keep it CURRENT. GitHub is the source of truth
 > for spec/issue/board status; this file holds only in-flight operational state.
@@ -13,18 +13,18 @@
 
 | Spec | Issue | Tier | Status | Agent label | Pane | Branch | PR |
 | ---- | ----- | ---- | ------ | ----------- | ---- | ------ | -- |
-| 2026-06-25-module-settings-connector.md | #487 | sensitive | building (plan approved) | Build-module-settings-connector | w1:p27 | build/module-settings-connector | — |
+| 2026-06-25-module-settings-connector.md | #487 | sensitive | building | Build-module-settings-connector | w1:p27 | build/module-settings-connector | — |
 | 2026-06-25-wellness-ai-consent.md | #474 | sensitive | queued | — | — | — | — |
 | 2026-06-25-calendar-cache-reconciliation.md | #473 | sensitive | queued | — | — | — | — |
-| 2026-06-25-settings-google-json-upload.md | #472 | routine | building (plan approved) | Build-settings-google-json-upload | w1:p2A | build/settings-google-json-upload | — |
+| 2026-06-25-settings-google-json-upload.md | #472 | routine | merged via #491 | — | — | — | #491 |
 | 2026-06-25-runtime-config-framework.md | #454 | sensitive | queued | — | — | — | — |
 | 2026-06-25-agency-action-loop.md | #488 | security | queued | — | — | — | — |
 | 2026-06-25-evening-review-and-interview.md | #489 | sensitive | queued | — | — | — | — |
 | 2026-06-25-admin-per-user-ai-provider.md | #485 | security | queued | — | — | — | — |
 | 2026-06-25-per-account-feature-access.md | #482 | sensitive | queued | — | — | — | — |
 | 2026-06-25-wellness-selective-export.md | #484 | sensitive | queued | — | — | — | — |
-| 2026-06-25-chat-composer-stop-queue.md | #479 | routine | building (plan approved) | Build-chat-composer-stop-queue | w1:p29 | build/chat-composer-stop-queue | — |
-| 2026-06-25-user-custom-themes.md | #477 | routine | building (plan req review) | Build-user-custom-themes | w1:p28 | build/user-custom-themes | — |
+| 2026-06-25-chat-composer-stop-queue.md | #479 | routine | merged via #490 | — | — | — | #490 |
+| 2026-06-25-user-custom-themes.md | #477 | routine | wrapping up (PR pending) | Build-user-custom-themes | w1:p28 | build/user-custom-themes | — |
 
 Risk tier (content triggers, set at Phase 0 — see `coordinate` Risk tiering):
 - `routine` — no schema/auth/secret surface → auto-merge after green QA.
