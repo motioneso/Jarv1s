@@ -228,6 +228,29 @@
   color: var(--text-faint);
   margin-top: 4px;
 }
+.acct__features {
+  display: grid;
+  gap: 8px;
+  max-width: 520px;
+  margin-top: 10px;
+}
+.acct-feature {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  min-height: 34px;
+}
+.acct-feature__label {
+  font-size: 13px;
+  font-weight: 650;
+  color: var(--text);
+}
+.acct-feature__desc {
+  margin-top: 2px;
+  font-size: 12px;
+  color: var(--text-subtle);
+}
 .acct__actions {
   display: flex;
   align-items: center;

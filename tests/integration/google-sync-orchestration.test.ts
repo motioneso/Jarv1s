@@ -3,6 +3,7 @@ import Fastify from "fastify";
 import {
   GOOGLE_SYNC_QUEUE,
   GOOGLE_SYNC_QUEUE_DEFINITIONS,
+  featureGrantsPrefKey,
   registerConnectorsRoutes,
   runGoogleSync,
   type GoogleSyncPayload
@@ -11,6 +12,7 @@ import { CalendarRepository } from "@jarv1s/calendar";
 import { ALLOWED_PAYLOAD_KEYS } from "@jarv1s/jobs";
 import { getAllQueueDefinitions } from "@jarv1s/module-registry";
 import { googleSyncRouteSchema, type GoogleSyncResponse } from "@jarv1s/shared";
+import { PreferencesRepository } from "@jarv1s/structured-state";
 import { ids } from "./test-database.js";
 import {
   seedGoogleAccount,
@@ -50,6 +52,108 @@ describe("google-sync queue contract", () => {
 });
 
 describe("runGoogleSync handler", () => {
+  it("skips calendar sync when the account calendar grant is off", async () => {
+    const accountId = await seedGoogleAccount(handles.dataContext, [
+      "https://www.googleapis.com/auth/calendar",
+      "https://www.googleapis.com/auth/gmail.modify"
+    ]);
+    const ctx = { actorUserId: ids.userA, requestId: "pgboss:test" };
+    await handles.dataContext.withDataContext(ctx, (db) =>
+      new PreferencesRepository().upsert(db, featureGrantsPrefKey(accountId), {
+        email: true,
+        calendar: false
+      })
+    );
+
+    let calendarCalls = 0;
+    let emailCalls = 0;
+    const result = await handles.workerDataContext.withDataContext(ctx, (scopedDb) =>
+      runGoogleSync(scopedDb, {
+        getFreshAccessToken: async () => "tok",
+        getActiveAccount: async () => ({ id: accountId, scopes: ["calendar", "gmail"] }),
+        googleClient: {
+          listCalendarEvents: async () => {
+            calendarCalls += 1;
+            return [];
+          },
+          listMessageIds: async () => {
+            emailCalls += 1;
+            return [];
+          },
+          getMessage: async () => ({ id: "x" })
+        },
+        emailExtractDeps: {
+          selectModel: async () => undefined,
+          runChat: async () => ({ text: "" })
+        },
+        now: () => new Date("2026-06-13T12:00:00.000Z")
+      })
+    );
+    await handles.dataContext.withDataContext(ctx, (db) =>
+      new PreferencesRepository().upsert(db, featureGrantsPrefKey(accountId), {
+        email: true,
+        calendar: true
+      })
+    );
+
+    expect(calendarCalls).toBe(0);
+    expect(emailCalls).toBe(1);
+    expect(result.calendarUpserted).toBe(0);
+    expect(result.emailUpserted).toBe(0);
+    expect(result.errors).toEqual([]);
+  });
+
+  it("skips email sync when the account email grant is off", async () => {
+    const accountId = await seedGoogleAccount(handles.dataContext, [
+      "https://www.googleapis.com/auth/calendar",
+      "https://www.googleapis.com/auth/gmail.modify"
+    ]);
+    const ctx = { actorUserId: ids.userA, requestId: "pgboss:test" };
+    await handles.dataContext.withDataContext(ctx, (db) =>
+      new PreferencesRepository().upsert(db, featureGrantsPrefKey(accountId), {
+        email: false,
+        calendar: true
+      })
+    );
+
+    let calendarCalls = 0;
+    let emailCalls = 0;
+    const result = await handles.workerDataContext.withDataContext(ctx, (scopedDb) =>
+      runGoogleSync(scopedDb, {
+        getFreshAccessToken: async () => "tok",
+        getActiveAccount: async () => ({ id: accountId, scopes: ["calendar", "gmail"] }),
+        googleClient: {
+          listCalendarEvents: async () => {
+            calendarCalls += 1;
+            return [];
+          },
+          listMessageIds: async () => {
+            emailCalls += 1;
+            return [];
+          },
+          getMessage: async () => ({ id: "x" })
+        },
+        emailExtractDeps: {
+          selectModel: async () => undefined,
+          runChat: async () => ({ text: "" })
+        },
+        now: () => new Date("2026-06-13T12:00:00.000Z")
+      })
+    );
+    await handles.dataContext.withDataContext(ctx, (db) =>
+      new PreferencesRepository().upsert(db, featureGrantsPrefKey(accountId), {
+        email: true,
+        calendar: true
+      })
+    );
+
+    expect(calendarCalls).toBe(1);
+    expect(emailCalls).toBe(0);
+    expect(result.calendarUpserted).toBe(0);
+    expect(result.emailUpserted).toBe(0);
+    expect(result.errors).toEqual([]);
+  });
+
   it("syncs calendar + email and returns metadata-only counts", async () => {
     const accountId = await seedGoogleAccount(handles.dataContext, [
       "https://www.googleapis.com/auth/calendar",

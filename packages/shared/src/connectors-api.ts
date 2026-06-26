@@ -81,6 +81,16 @@ export interface RevokeConnectorAccountResponse {
   readonly account: ConnectorAccountDto;
 }
 
+export interface FeatureGrantsResponse {
+  readonly email: boolean;
+  readonly calendar: boolean;
+}
+
+export interface UpdateFeatureGrantsRequest {
+  readonly email?: boolean;
+  readonly calendar?: boolean;
+}
+
 export interface ListAdminConnectorAccountsResponse {
   readonly accounts: readonly ConnectorAccountDto[];
 }
@@ -220,6 +230,25 @@ export const updateConnectorAccountResponseSchema = createConnectorAccountRespon
 export const revokeConnectorAccountResponseSchema = createConnectorAccountResponseSchema;
 export const listAdminConnectorAccountsResponseSchema = listConnectorAccountsResponseSchema;
 
+export const featureGrantsResponseSchema = {
+  type: "object",
+  additionalProperties: false,
+  required: ["email", "calendar"],
+  properties: {
+    email: { type: "boolean" },
+    calendar: { type: "boolean" }
+  }
+} as const;
+
+export const updateFeatureGrantsRequestSchema = {
+  type: "object",
+  additionalProperties: false,
+  properties: {
+    email: { type: "boolean" },
+    calendar: { type: "boolean" }
+  }
+} as const;
+
 export const listConnectorProvidersRouteSchema = {
   response: {
     200: listConnectorProvidersResponseSchema,
@@ -258,6 +287,26 @@ export const updateConnectorAccountRouteSchema = {
 export const revokeConnectorAccountRouteSchema = {
   response: {
     200: revokeConnectorAccountResponseSchema,
+    401: errorResponseSchema,
+    403: errorResponseSchema,
+    404: errorResponseSchema
+  }
+} as const;
+
+export const getFeatureGrantsRouteSchema = {
+  response: {
+    200: featureGrantsResponseSchema,
+    401: errorResponseSchema,
+    403: errorResponseSchema,
+    404: errorResponseSchema
+  }
+} as const;
+
+export const putFeatureGrantsRouteSchema = {
+  body: updateFeatureGrantsRequestSchema,
+  response: {
+    200: featureGrantsResponseSchema,
+    400: errorResponseSchema,
     401: errorResponseSchema,
     403: errorResponseSchema,
     404: errorResponseSchema

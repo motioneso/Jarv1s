@@ -42,6 +42,7 @@ import {
   setMyModuleDisabled,
   syncGoogleConnector
 } from "../api/client";
+import { getConnectorFeatureGrants, updateConnectorFeatureGrants } from "../api/connectors-client";
 import {
   getNotesLastSync,
   getNotesSource,
@@ -113,9 +114,30 @@ function AccountRow(props: {
   readonly syncPending?: boolean;
 }) {
   const { account } = props;
+  const queryClient = useQueryClient();
+  const { toast } = useFeedback();
   const health =
     account.status === "active" ? "ready" : account.status === "error" ? "error" : "idle";
   const label = health === "ready" ? "Healthy" : health === "error" ? "Needs attention" : "Revoked";
+  const hasEmail = hasEmailScope(account.scopes);
+  const hasCalendar = hasCalendarScope(account.scopes);
+  const featureQuery = useQuery({
+    queryKey: queryKeys.connectors.featureGrants(account.id),
+    queryFn: () => getConnectorFeatureGrants(account.id),
+    enabled: account.status !== "revoked" && (hasEmail || hasCalendar),
+    retry: false
+  });
+  const featureMutation = useMutation({
+    mutationFn: (input: { readonly email?: boolean; readonly calendar?: boolean }) =>
+      updateConnectorFeatureGrants(account.id, input),
+    onSuccess: (data) => {
+      queryClient.setQueryData(queryKeys.connectors.featureGrants(account.id), data);
+      void queryClient.invalidateQueries({ queryKey: queryKeys.connectors.accounts });
+      toast("Access saved", { icon: <ShieldCheck size={17} /> });
+    },
+    onError: (error) => toast(readError(error), { tone: "drift" })
+  });
+  const grants = featureQuery.data;
   return (
     <div className="acct">
       <div className="acct__logo" style={{ background: "var(--text-faint)" }}>
@@ -130,6 +152,28 @@ function AccountRow(props: {
         </div>
         {account.scopes.length ? (
           <div className="acct__scopes">{account.scopes.join(" · ")}</div>
+        ) : null}
+        {account.status !== "revoked" && (hasEmail || hasCalendar) ? (
+          <div className="acct__features">
+            {hasEmail ? (
+              <FeatureGrantSwitch
+                label="Email access"
+                desc="Jarvis may read your email from this account."
+                checked={grants?.email ?? true}
+                disabled={featureQuery.isLoading || featureMutation.isPending}
+                onChange={(email) => featureMutation.mutate({ email })}
+              />
+            ) : null}
+            {hasCalendar ? (
+              <FeatureGrantSwitch
+                label="Calendar access"
+                desc="Jarvis may read your calendar from this account."
+                checked={grants?.calendar ?? true}
+                disabled={featureQuery.isLoading || featureMutation.isPending}
+                onChange={(calendar) => featureMutation.mutate({ calendar })}
+              />
+            ) : null}
+          </div>
         ) : null}
       </div>
       <div className="acct__actions">
@@ -167,6 +211,37 @@ function AccountRow(props: {
       </div>
     </div>
   );
+}
+
+function FeatureGrantSwitch(props: {
+  readonly label: string;
+  readonly desc: string;
+  readonly checked: boolean;
+  readonly disabled: boolean;
+  readonly onChange: (checked: boolean) => void;
+}) {
+  return (
+    <div className="acct-feature">
+      <div>
+        <div className="acct-feature__label">{props.label}</div>
+        <div className="acct-feature__desc">{props.desc}</div>
+      </div>
+      <Switch
+        ariaLabel={props.label}
+        checked={props.checked}
+        disabled={props.disabled}
+        onChange={props.onChange}
+      />
+    </div>
+  );
+}
+
+function hasEmailScope(scopes: readonly string[]): boolean {
+  return scopes.some((scope) => scope.includes("gmail") || scope.includes("mail"));
+}
+
+function hasCalendarScope(scopes: readonly string[]): boolean {
+  return scopes.some((scope) => scope.includes("calendar"));
 }
 
 const CONNECT_SERVICES: readonly { name: string; go?: boolean }[] = [

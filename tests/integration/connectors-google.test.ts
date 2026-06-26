@@ -700,6 +700,7 @@ describe("connectors.startGoogleGuidance tool", () => {
 describe("live Google assistant tools", () => {
   let appDb: Kysely<JarvisDatabase>;
   let dataContext: DataContextRunner;
+  const liveAccountId = "00000000-0000-0000-0000-00000000fa00";
   const access = (): AccessContext => ({ actorUserId: ids.userA, requestId: "req:live-google" });
   const ctx: ToolContext = {
     actorUserId: ids.userA,
@@ -736,11 +737,9 @@ describe("live Google assistant tools", () => {
 
   it("returns a sanitized no-active-account failure", async () => {
     const execute = makeGmailSearchLiveExecute({
-      googleService: new GoogleConnectionService({
-        repository: new ConnectorsRepository(),
-        cipher: createConnectorSecretCipher(),
-        oauthClient: new GoogleOAuthClient()
-      }),
+      googleService: { getFreshAccessToken: async () => "token-1" },
+      connectorsRepository: { getActiveGoogleAccountSecret: async () => undefined },
+      preferencesRepository: { get: async () => null },
       googleClient: fakeLiveGoogleClient()
     });
 
@@ -752,6 +751,7 @@ describe("live Google assistant tools", () => {
   it("lists bounded live gmail results without bodies", async () => {
     const execute = makeGmailSearchLiveExecute({
       googleService: { getFreshAccessToken: async () => "token-1" },
+      ...grantedLiveAccount(liveAccountId),
       googleClient: fakeLiveGoogleClient({
         listMessageIds: async () => [{ id: "m1" }],
         getMessage: async () => gmailMessage({ id: "m1", body: "secret body" })
@@ -772,6 +772,7 @@ describe("live Google assistant tools", () => {
   it("returns a capped live gmail body for one message", async () => {
     const execute = makeGmailGetLiveMessageExecute({
       googleService: { getFreshAccessToken: async () => "token-1" },
+      ...grantedLiveAccount(liveAccountId),
       googleClient: fakeLiveGoogleClient({
         getMessage: async () => gmailMessage({ id: "m1", body: "x".repeat(13_000) })
       })
@@ -788,6 +789,7 @@ describe("live Google assistant tools", () => {
   it("lists bounded live calendar events", async () => {
     const execute = makeCalendarListLiveEventsExecute({
       googleService: { getFreshAccessToken: async () => "token-1" },
+      ...grantedLiveAccount(liveAccountId),
       googleClient: fakeLiveGoogleClient({
         listCalendarEvents: async () => [
           {
@@ -819,6 +821,7 @@ describe("live Google assistant tools", () => {
           return opts?.force ? "token-2" : "token-1";
         }
       },
+      ...grantedLiveAccount(liveAccountId),
       googleClient: fakeLiveGoogleClient({
         listCalendarEvents: async ({ accessToken }) => {
           calls += 1;
@@ -837,6 +840,15 @@ describe("live Google assistant tools", () => {
     expect(tokens).toEqual(["cached", "forced"]);
   });
 });
+
+function grantedLiveAccount(accountId: string) {
+  return {
+    connectorsRepository: {
+      getActiveGoogleAccountSecret: async () => ({ id: accountId, encryptedSecret: {} as never })
+    },
+    preferencesRepository: { get: async () => ({ email: true, calendar: true }) }
+  };
+}
 
 function b64url(value: string): string {
   return Buffer.from(value, "utf8").toString("base64url");

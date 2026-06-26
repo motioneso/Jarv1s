@@ -14,8 +14,10 @@ import {
 } from "@jarv1s/ai";
 import { CalendarRepository } from "@jarv1s/calendar";
 import { EmailRepository } from "@jarv1s/email";
+import { PreferencesRepository } from "@jarv1s/structured-state";
 
 import { createConnectorSecretCipher, type ConnectorSecretCipher } from "./crypto.js";
+import { featureGrantsPrefKey, isFeatureGranted } from "./feature-grants.js";
 import {
   GoogleApiClient,
   type GoogleCalendarEvent,
@@ -60,8 +62,8 @@ export interface GoogleSyncResult {
   readonly truncated?: boolean;
 }
 
-const CALENDAR_SCOPE = "https://www.googleapis.com/auth/calendar";
-const GMAIL_SCOPE = "https://www.googleapis.com/auth/gmail.modify";
+export const CALENDAR_SCOPE = "https://www.googleapis.com/auth/calendar";
+export const GMAIL_SCOPE = "https://www.googleapis.com/auth/gmail.modify";
 const CALENDAR_WINDOW_PAST_MS = 7 * 24 * 60 * 60 * 1000;
 const CALENDAR_WINDOW_FUTURE_MS = 30 * 24 * 60 * 60 * 1000;
 const EMAIL_QUERY = "newer_than:30d";
@@ -107,6 +109,7 @@ export interface GoogleSyncDeps {
   readonly calendarRepository?: CalendarRepository;
   readonly emailRepository?: EmailRepository;
   readonly connectorsRepository?: ConnectorsRepository;
+  readonly preferencesRepository?: PreferencesRepository;
   /** Structured, sanitized sync logger (never token/body content). Defaults to a console shim. */
   readonly logger?: SyncLogger;
 }
@@ -265,6 +268,7 @@ export async function runGoogleSync(
   const calendarRepo = deps.calendarRepository ?? new CalendarRepository();
   const emailRepo = deps.emailRepository ?? new EmailRepository();
   const connectorsRepo = deps.connectorsRepository ?? new ConnectorsRepository();
+  const preferencesRepo = deps.preferencesRepository ?? new PreferencesRepository();
   const errors: string[] = [];
   let calendarUpserted = 0;
   let calendarReconciled = 0;
@@ -317,8 +321,13 @@ export async function runGoogleSync(
     return { calendarUpserted: 0, calendarReconciled: 0, emailUpserted: 0, errors: ["auth-error"] };
   }
 
+  const featureGrants = await preferencesRepo.get(scopedDb, featureGrantsPrefKey(account.id));
+
   // --- Calendar (independent of email; one failing does not abort the other) ---
-  if (account.scopes.includes(CALENDAR_SCOPE) || account.scopes.includes("calendar")) {
+  if (
+    (account.scopes.includes(CALENDAR_SCOPE) || account.scopes.includes("calendar")) &&
+    isFeatureGranted(featureGrants, "calendar")
+  ) {
     try {
       const ref = now().getTime();
       const events = await withTokenRetry(scopedDb, deps, tokenHolder, (token) =>
@@ -397,7 +406,10 @@ export async function runGoogleSync(
   }
 
   // --- Email (independent) ---
-  if (account.scopes.includes(GMAIL_SCOPE) || account.scopes.includes("gmail")) {
+  if (
+    (account.scopes.includes(GMAIL_SCOPE) || account.scopes.includes("gmail")) &&
+    isFeatureGranted(featureGrants, "email")
+  ) {
     try {
       const stubs = await withTokenRetry(scopedDb, deps, tokenHolder, (token) =>
         deps.googleClient.listMessageIds({ accessToken: token, query: EMAIL_QUERY })

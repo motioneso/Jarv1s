@@ -338,15 +338,24 @@ export class ConnectorsRepository {
    * there is no active google account. Never decrypts the secret bundle.
    */
   async hasCalendarWriteScope(scopedDb: DataContextDb): Promise<boolean> {
+    return (await this.getCalendarWriteScopeState(scopedDb))?.hasScope ?? false;
+  }
+
+  async getCalendarWriteScopeState(
+    scopedDb: DataContextDb
+  ): Promise<{ accountId: string; hasScope: boolean } | undefined> {
     assertDataContextDb(scopedDb);
     const row = await scopedDb.db
       .selectFrom("app.connector_accounts")
-      .select("scopes")
+      .select(["id", "scopes"])
       .where("provider_id", "=", GOOGLE_PROVIDER_ID)
       .where("status", "=", "active")
       .executeTakeFirst();
-    if (!row) return false;
-    return row.scopes.includes("https://www.googleapis.com/auth/calendar");
+    if (!row) return undefined;
+    return {
+      accountId: row.id,
+      hasScope: row.scopes.includes("https://www.googleapis.com/auth/calendar")
+    };
   }
 
   private async requireVisibleAccount(
