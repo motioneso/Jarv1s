@@ -16,8 +16,11 @@ import type {
   GetPersonaSettingsResponse,
   GetChatModelOverrideSettingsResponse,
   GetWebSearchKeyResponse,
+  GetRuntimeConfigResponse,
   PutWebSearchKeyRequest,
   PutWebSearchKeyResponse,
+  PutRuntimeConfigRequest,
+  PutRuntimeConfigResponse,
   DeleteWebSearchKeyResponse,
   GetLocaleSettingsResponse,
   GetAiSummaryResponse,
@@ -816,6 +819,25 @@ export async function deleteWebSearchKey(): Promise<DeleteWebSearchKeyResponse> 
   return requestJson<DeleteWebSearchKeyResponse>("/api/admin/settings/web-search", {
     method: "DELETE"
   });
+}
+
+export async function getRuntimeConfig(key: string): Promise<GetRuntimeConfigResponse> {
+  return requestJson<GetRuntimeConfigResponse>(
+    `/api/admin/runtime-config/${encodeURIComponent(key)}`
+  );
+}
+
+export async function putRuntimeConfig(
+  key: string,
+  input: PutRuntimeConfigRequest
+): Promise<PutRuntimeConfigResponse> {
+  return requestJson<PutRuntimeConfigResponse>(
+    `/api/admin/runtime-config/${encodeURIComponent(key)}`,
+    {
+      method: "PUT",
+      body: input
+    }
+  );
 }
 
 export async function listBriefingDefinitions(): Promise<ListBriefingDefinitionsResponse> {
