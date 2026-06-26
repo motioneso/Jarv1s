@@ -634,8 +634,7 @@ const BUILT_IN_MODULES: readonly BuiltInModuleRegistration[] = [
         resolveAccessContext: deps.resolveAccessContext
       });
     },
-    registerWorkers: (boss, deps) =>
-      registerWellnessExportWorkers(boss, deps.dataContext)
+    registerWorkers: (boss, deps) => registerWellnessExportWorkers(boss, deps.dataContext)
   },
   {
     manifest: weatherModuleManifest,

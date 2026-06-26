@@ -9,10 +9,7 @@ import type { FastifyInstance, FastifyRequest } from "fastify";
 import type { AccessContext, DataContextRunner } from "@jarv1s/db";
 import type { PgBoss } from "@jarv1s/jobs";
 import { HttpError, handleRouteError } from "@jarv1s/module-sdk";
-import {
-  wellnessExportRequestSchema,
-  type WellnessExportCategory
-} from "@jarv1s/shared";
+import { wellnessExportRequestSchema, type WellnessExportCategory } from "@jarv1s/shared";
 
 import { enqueueWellnessExportJob } from "./export-job.js";
 import { DataExportRepository } from "./data-export-port.js";
@@ -52,17 +49,12 @@ export function registerWellnessExportRoutes(
               return { jobId: existing.id, status: existing.status };
             }
 
-            const job = await repository.createJob(
-              scopedDb,
-              accessContext.actorUserId,
-              "html",
-              { from, to, categories: [...categories] }
-            );
-            await enqueueWellnessExportJob(
-              dependencies.boss,
-              accessContext.actorUserId,
-              job.id
-            );
+            const job = await repository.createJob(scopedDb, accessContext.actorUserId, "html", {
+              from,
+              to,
+              categories: [...categories]
+            });
+            await enqueueWellnessExportJob(dependencies.boss, accessContext.actorUserId, job.id);
             return { jobId: job.id, status: job.status };
           }
         );

@@ -18,10 +18,7 @@ import {
 //      value that bypasses escapeHtml (a sentinel-free source scan).
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
-const renderSrc = readFileSync(
-  join(root, "packages/wellness/src/export-render.ts"),
-  "utf8"
-);
+const renderSrc = readFileSync(join(root, "packages/wellness/src/export-render.ts"), "utf8");
 
 const ATTACKS = [
   "<script>alert(1)</script>",
@@ -107,12 +104,8 @@ describe("renderWellnessExportHtml — escaping at every interpolation (spec §5
             }
           ]
         },
-        therapyNotes: [
-          { createdAt: EVIL, body: EVIL, linkedEmotion: EVIL }
-        ],
-        insights: [
-          { key: "k", icon: "i", tone: "pine", lead: EVIL, rest: EVIL, action: EVIL }
-        ]
+        therapyNotes: [{ createdAt: EVIL, body: EVIL, linkedEmotion: EVIL }],
+        insights: [{ key: "k", icon: "i", tone: "pine", lead: EVIL, rest: EVIL, action: EVIL }]
       }
     };
   }

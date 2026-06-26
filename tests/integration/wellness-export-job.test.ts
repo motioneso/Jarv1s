@@ -11,7 +11,10 @@ import { DataContextRunner, createDatabase, type JarvisDatabase } from "@jarv1s/
 import { VaultContextRunner, getVaultBaseDir, readVaultFile } from "@jarv1s/vault";
 import { HttpError } from "@jarv1s/module-sdk";
 
-import { handleWellnessExportJob, type WellnessExportJobPayload } from "../../packages/wellness/src/export-job.js";
+import {
+  handleWellnessExportJob,
+  type WellnessExportJobPayload
+} from "../../packages/wellness/src/export-job.js";
 import { registerWellnessExportRoutes } from "../../packages/wellness/src/export-routes.js";
 import { DataExportRepository } from "../../packages/settings/src/data-export-repository.js";
 import { WellnessRepository } from "../../packages/wellness/src/repository.js";
@@ -57,7 +60,11 @@ beforeAll(async () => {
   const med = await dataContext.withDataContext(
     { actorUserId: userId, requestId: "req:seed" },
     (scopedDb) =>
-      repo.createMedication(scopedDb, { name: "Sertraline", frequencyType: "once_daily", scheduleTimes: ["08:00"] })
+      repo.createMedication(scopedDb, {
+        name: "Sertraline",
+        frequencyType: "once_daily",
+        scheduleTimes: ["08:00"]
+      })
   );
   await dataContext.withDataContext(
     { actorUserId: userId, requestId: "req:seed" },
@@ -124,7 +131,7 @@ function buildJobPayload(actorUserId: string, jobId: string): Job<WellnessExport
 describe("Wellness export job + route (#484)", () => {
   it("renders only selected categories in the selected timeframe, writes html to vault, marks ready", async () => {
     const exportRepo = new DataExportRepository();
-    const { jobId, html } = await dataContext.withDataContext(
+    const { html } = await dataContext.withDataContext(
       { actorUserId: userId, requestId: "req:export" },
       async (scopedDb) => {
         const job = await exportRepo.createJob(scopedDb, userId, "html", {
@@ -217,7 +224,6 @@ describe("Wellness export job + route (#484)", () => {
   });
 
   it("marks the job failed when the row is missing (handler throws 'not found')", async () => {
-    const exportRepo = new DataExportRepository();
     await dataContext.withDataContext(
       { actorUserId: userId, requestId: "req:export-fail" },
       async (scopedDb) => {

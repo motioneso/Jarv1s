@@ -85,7 +85,8 @@ describe("format-aware export download + active-job isolation (#484)", () => {
         const vaultRunner = new VaultContextRunner(getVaultBaseDir());
         await vaultRunner.withVaultContext(
           { actorUserId: userId, requestId: "req:fmt-test" },
-          (vaultCtx) => writeVaultFile(vaultCtx, `exports/${job.id}.html`, "<!doctype html><p>doc</p>")
+          (vaultCtx) =>
+            writeVaultFile(vaultCtx, `exports/${job.id}.html`, "<!doctype html><p>doc</p>")
         );
         return job.id;
       }
@@ -126,7 +127,9 @@ describe("format-aware export download + active-job isolation (#484)", () => {
     });
     expect(res.statusCode).toBe(200);
     expect(res.headers["content-type"]).toContain("application/json");
-    expect(res.headers["content-disposition"]).toMatch(/^attachment; filename="jarvis-export-\d{4}-\d{2}-\d{2}\.json"$/);
+    expect(res.headers["content-disposition"]).toMatch(
+      /^attachment; filename="jarvis-export-\d{4}-\d{2}-\d{2}\.json"$/
+    );
   });
 
   it("findActiveJobForUser(format) isolates kinds: a pending json job does not block an html job", async () => {

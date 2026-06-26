@@ -1,9 +1,6 @@
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useState } from "react";
-import {
-  WELLNESS_EXPORT_CATEGORIES,
-  type WellnessExportCategory
-} from "@jarv1s/shared";
+import { WELLNESS_EXPORT_CATEGORIES, type WellnessExportCategory } from "@jarv1s/shared";
 import {
   getDataExportDownloadUrl,
   getDataExportStatus,
@@ -112,9 +109,7 @@ export function WellnessExportModal({ open, onClose }: Props) {
   const inProgress = status === "pending" || status === "building";
 
   function toggleCategory(cat: WellnessExportCategory) {
-    setCategories((prev) =>
-      prev.includes(cat) ? prev.filter((c) => c !== cat) : [...prev, cat]
-    );
+    setCategories((prev) => (prev.includes(cat) ? prev.filter((c) => c !== cat) : [...prev, cat]));
   }
 
   function reset() {
@@ -249,7 +244,11 @@ export function WellnessExportModal({ open, onClose }: Props) {
                   </span>
                   Download
                 </a>
-                <button type="button" className="jds-btn jds-btn--quiet jds-btn--sm" onClick={reset}>
+                <button
+                  type="button"
+                  className="jds-btn jds-btn--quiet jds-btn--sm"
+                  onClick={reset}
+                >
                   Start a new export
                 </button>
               </div>

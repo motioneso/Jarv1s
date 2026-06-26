@@ -8,7 +8,11 @@ import { wellnessExportRequestSchema, WELLNESS_EXPORT_CATEGORIES } from "@jarv1s
 // here rather than at runtime in the browser.
 async function validateBody(body: unknown): Promise<number> {
   const app = Fastify();
-  app.post("/probe", { schema: { body: wellnessExportRequestSchema as never } }, async (req) => req.body);
+  app.post(
+    "/probe",
+    { schema: { body: wellnessExportRequestSchema as never } },
+    async (req) => req.body
+  );
   const res = await app.inject({
     method: "POST",
     url: "/probe",

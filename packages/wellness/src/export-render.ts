@@ -111,11 +111,11 @@ function renderCheckinsSection(items: readonly ExportCheckinItem[] | null | unde
       const intensity = c.intensity !== null ? ` · intensity ${escapeHtml(c.intensity)}/5` : "";
       const energy = c.energy !== null ? ` · energy ${escapeHtml(c.energy)}/5` : "";
       const sensations =
-        c.sensations.length > 0
-          ? c.sensations.map((s) => escapeHtml(s)).join(", ")
-          : "";
+        c.sensations.length > 0 ? c.sensations.map((s) => escapeHtml(s)).join(", ") : "";
       const note = c.note ? `    <p class="note">${escapeHtml(c.note)}</p>\n` : "";
-      const sensationsLine = sensations ? `    <p class="sensations">Sensations: ${sensations}</p>\n` : "";
+      const sensationsLine = sensations
+        ? `    <p class="sensations">Sensations: ${sensations}</p>\n`
+        : "";
       return `  <li>
     <p class="timestamp">${ts}</p>
     <p class="feeling">${core}${secondary}${intensity}${energy}</p>
@@ -126,7 +126,13 @@ ${sensationsLine}${note}  </li>`;
 }
 
 function renderMedicationsSection(
-  data: { readonly medications: readonly ExportMedicationItem[]; readonly logs: readonly ExportMedicationLogItem[] } | null | undefined
+  data:
+    | {
+        readonly medications: readonly ExportMedicationItem[];
+        readonly logs: readonly ExportMedicationLogItem[];
+      }
+    | null
+    | undefined
 ): string {
   if (!data) return emptySectionNote("Medications");
   const { medications, logs } = data;
@@ -135,9 +141,10 @@ function renderMedicationsSection(
   const medRows = hasMeds
     ? medications
         .map((m) => {
-          const schedule = m.scheduleTimes && m.scheduleTimes.length > 0
-            ? m.scheduleTimes.map((s) => escapeHtml(s)).join(", ")
-            : "as needed";
+          const schedule =
+            m.scheduleTimes && m.scheduleTimes.length > 0
+              ? m.scheduleTimes.map((s) => escapeHtml(s)).join(", ")
+              : "as needed";
           const dosage = m.dosage ? ` (${escapeHtml(m.dosage)})` : "";
           const state = m.active ? "active" : "inactive";
           const notes = m.notes ? `\n      <p class="note">${escapeHtml(m.notes)}</p>` : "";
@@ -183,7 +190,9 @@ ${logRows}
 `;
 }
 
-function renderTherapyNotesSection(items: readonly ExportTherapyNoteItem[] | null | undefined): string {
+function renderTherapyNotesSection(
+  items: readonly ExportTherapyNoteItem[] | null | undefined
+): string {
   if (!items || items.length === 0) return emptySectionNote("Therapy notes");
   const entries = items
     .map((n) => {
@@ -244,7 +253,10 @@ const PRINT_STYLE = `
  */
 export function renderWellnessExportHtml(doc: WellnessExportDocument): string {
   const cat = doc.categories;
-  const sectionOrder: ReadonlyArray<{ readonly key: ExportCategoryKey; readonly present: boolean }>= [
+  const sectionOrder: ReadonlyArray<{
+    readonly key: ExportCategoryKey;
+    readonly present: boolean;
+  }> = [
     { key: "checkins", present: cat.checkins !== undefined },
     { key: "medications", present: cat.medications !== undefined },
     { key: "therapyNotes", present: cat.therapyNotes !== undefined },

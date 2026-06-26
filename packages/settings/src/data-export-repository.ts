@@ -31,10 +31,9 @@ export class DataExportRepository {
       .where("owner_user_id", "=", actorUserId)
       .where("status", "in", ["pending", "building"]);
     if (format) query = query.where("format", "=", format);
-    return query
-      .orderBy("created_at", "desc")
-      .limit(1)
-      .executeTakeFirst() as Promise<DataExportJob | undefined>;
+    return query.orderBy("created_at", "desc").limit(1).executeTakeFirst() as Promise<
+      DataExportJob | undefined
+    >;
   }
 
   async getJobById(scopedDb: DataContextDb, jobId: string): Promise<DataExportJob | undefined> {

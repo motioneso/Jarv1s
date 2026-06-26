@@ -128,7 +128,6 @@ import type {
   PutCustomThemeResponse,
   WellnessExportCategory
 } from "@jarv1s/shared";
-import { WELLNESS_EXPORT_CATEGORIES } from "@jarv1s/shared";
 
 export interface SignUpEmailRequest {
   readonly name: string;
@@ -1002,9 +1001,7 @@ export interface WellnessExportRequest {
   readonly categories: readonly WellnessExportCategory[];
 }
 
-export async function requestWellnessExport(
-  body: WellnessExportRequest
-): Promise<ExportJobStatus> {
+export async function requestWellnessExport(body: WellnessExportRequest): Promise<ExportJobStatus> {
   return requestJson<ExportJobStatus>("/api/wellness/export", {
     method: "POST",
     body: JSON.stringify(body)

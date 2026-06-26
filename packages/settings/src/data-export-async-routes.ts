@@ -36,11 +36,7 @@ export function registerDataExportAsyncRoutes(
             return { jobId: existing.id, status: existing.status };
           }
 
-          const job = await repository.createJob(
-            scopedDb,
-            accessContext.actorUserId,
-            "json"
-          );
+          const job = await repository.createJob(scopedDb, accessContext.actorUserId, "json");
           await enqueueExportBuildJob(dependencies.boss, accessContext.actorUserId, job.id);
 
           return { jobId: job.id, status: job.status };
@@ -125,7 +121,9 @@ export function registerDataExportAsyncRoutes(
         // from the job's params (filter descriptors only; never health content).
         const params = (job.params ?? {}) as { from?: string; to?: string };
         const rangeSuffix =
-          params.from && params.to ? `${params.from}-to-${params.to}` : new Date().toISOString().slice(0, 10);
+          params.from && params.to
+            ? `${params.from}-to-${params.to}`
+            : new Date().toISOString().slice(0, 10);
         const filename = `wellness-export-${rangeSuffix}.html`;
         void reply.header("Content-Type", "text/html; charset=utf-8");
         void reply.header("Content-Disposition", `attachment; filename="${filename}"`);

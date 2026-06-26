@@ -591,7 +591,11 @@ export interface DataExportJobsTable {
   expires_at: TimestampColumn | null;
   error_message: string | null;
   format: ColumnType<DataExportJobFormat, DataExportJobFormat | undefined, DataExportJobFormat>;
-  params: ColumnType<Record<string, unknown> | null, Record<string, unknown> | undefined, Record<string, unknown> | null>;
+  params: ColumnType<
+    Record<string, unknown> | null,
+    Record<string, unknown> | undefined,
+    Record<string, unknown> | null
+  >;
 }
 
 export interface JarvisDatabase {

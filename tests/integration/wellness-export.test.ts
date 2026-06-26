@@ -88,4 +88,3 @@ describe("Wellness export — migration 0114 (data_export_jobs.format + params)"
     );
   });
 });
-

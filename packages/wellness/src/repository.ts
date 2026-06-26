@@ -445,18 +445,18 @@ export class WellnessRepository {
     return rows as WellnessCheckin[];
   }
 
-  async listLogsForRange(
-    scopedDb: DataContextDb,
-    from: Date,
-    to: Date
-  ): Promise<MedicationLog[]> {
+  async listLogsForRange(scopedDb: DataContextDb, from: Date, to: Date): Promise<MedicationLog[]> {
     assertDataContextDb(scopedDb);
     const rows = await scopedDb.db
       .selectFrom("app.medication_logs")
       .selectAll()
       .where((eb) =>
         eb.or([
-          eb.and([eb("scheduled_for", "is not", null), eb("scheduled_for", ">=", from), eb("scheduled_for", "<=", to)]),
+          eb.and([
+            eb("scheduled_for", "is not", null),
+            eb("scheduled_for", ">=", from),
+            eb("scheduled_for", "<=", to)
+          ]),
           eb.and([
             eb("scheduled_for", "is", null),
             eb("logged_at", ">=", from),
