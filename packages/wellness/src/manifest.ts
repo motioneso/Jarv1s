@@ -52,7 +52,8 @@ export const wellnessModuleManifest = {
       "sql/0084_wellness_medication_logs.sql",
       "sql/0088_wellness_emotion_taxonomy.sql",
       "sql/0089_wellness_therapy_notes.sql",
-      "sql/0114_data_export_jobs_format_and_params.sql"
+      "sql/0114_data_export_jobs_format_and_params.sql",
+      "sql/0115_list_expired_data_export_jobs_format.sql"
     ],
     migrationDirectories: ["packages/wellness/sql"],
     ownedTables: [

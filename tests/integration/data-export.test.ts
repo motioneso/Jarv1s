@@ -215,15 +215,18 @@ describe("Data export", () => {
       const result = await workerClient.query<{
         id: string;
         ownerUserId: string;
+        format: string;
       }>("SELECT * FROM app.list_expired_data_export_jobs(now())");
 
       expect(result.rows).toContainEqual({
         id: expiredJob.id,
-        ownerUserId: ids.userA
+        ownerUserId: ids.userA,
+        format: "json"
       });
       expect(result.rows).not.toContainEqual({
         id: futureJob.id,
-        ownerUserId: ids.userA
+        ownerUserId: ids.userA,
+        format: "json"
       });
     } finally {
       await workerClient.end();

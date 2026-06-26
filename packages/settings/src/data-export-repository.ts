@@ -1,10 +1,20 @@
-import type { DataContextDb, DataExportJob, DataExportJobStatus } from "@jarv1s/db";
+import type {
+  DataContextDb,
+  DataExportJob,
+  DataExportJobFormat,
+  DataExportJobStatus
+} from "@jarv1s/db";
 
 export class DataExportRepository {
-  async createJob(scopedDb: DataContextDb, actorUserId: string): Promise<DataExportJob> {
+  async createJob(
+    scopedDb: DataContextDb,
+    actorUserId: string,
+    format: DataExportJobFormat = "json",
+    params?: Record<string, unknown>
+  ): Promise<DataExportJob> {
     const row = await scopedDb.db
       .insertInto("app.data_export_jobs")
-      .values({ owner_user_id: actorUserId })
+      .values({ owner_user_id: actorUserId, format, params: params ?? undefined })
       .returningAll()
       .executeTakeFirstOrThrow();
     return row as DataExportJob;
@@ -12,13 +22,16 @@ export class DataExportRepository {
 
   async findActiveJobForUser(
     scopedDb: DataContextDb,
-    actorUserId: string
+    actorUserId: string,
+    format?: DataExportJobFormat
   ): Promise<DataExportJob | undefined> {
-    return scopedDb.db
+    let query = scopedDb.db
       .selectFrom("app.data_export_jobs")
       .selectAll()
       .where("owner_user_id", "=", actorUserId)
-      .where("status", "in", ["pending", "building"])
+      .where("status", "in", ["pending", "building"]);
+    if (format) query = query.where("format", "=", format);
+    return query
       .orderBy("created_at", "desc")
       .limit(1)
       .executeTakeFirst() as Promise<DataExportJob | undefined>;
