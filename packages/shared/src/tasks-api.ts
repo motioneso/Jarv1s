@@ -673,6 +673,40 @@ export const updateTaskPreferencesRouteSchema = {
   response: { 200: getTaskPreferencesResponseSchema }
 } as const;
 
+export interface TaskAgencyAutoExecuteResponse {
+  readonly enabled: boolean;
+}
+
+export interface UpdateTaskAgencyAutoExecuteRequest {
+  readonly enabled: boolean;
+}
+
+export const taskAgencyAutoExecuteResponseSchema = {
+  type: "object",
+  required: ["enabled"],
+  properties: {
+    enabled: { type: "boolean" }
+  }
+} as const;
+
+export const updateTaskAgencyAutoExecuteRequestSchema = {
+  type: "object",
+  additionalProperties: false,
+  required: ["enabled"],
+  properties: {
+    enabled: { type: "boolean" }
+  }
+} as const;
+
+export const getTaskAgencyAutoExecuteRouteSchema = {
+  response: { 200: taskAgencyAutoExecuteResponseSchema }
+} as const;
+
+export const updateTaskAgencyAutoExecuteRouteSchema = {
+  body: updateTaskAgencyAutoExecuteRequestSchema,
+  response: { 200: taskAgencyAutoExecuteResponseSchema }
+} as const;
+
 export const listSubtasksRouteSchema = {
   params: taskParamsSchema,
   response: { 200: listTasksResponseSchema }

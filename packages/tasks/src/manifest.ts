@@ -278,7 +278,8 @@ export const tasksModuleManifest = {
       path: "/settings/modules/tasks",
       scope: "user",
       order: 10,
-      permissionId: "tasks.manage"
+      permissionId: "tasks.manage",
+      entry: "./settings"
     }
   ],
   permissions: [
@@ -460,6 +461,16 @@ export const tasksModuleManifest = {
     {
       method: "PATCH",
       path: "/api/tasks/preferences",
+      permissionId: "tasks.update"
+    },
+    {
+      method: "GET",
+      path: "/api/tasks/agency-auto-execute",
+      permissionId: "tasks.view"
+    },
+    {
+      method: "PATCH",
+      path: "/api/tasks/agency-auto-execute",
       permissionId: "tasks.update"
     },
     {

@@ -7,7 +7,8 @@ import type {
   ChatMessage,
   ChatThread,
   DataContextRunner,
-  JarvisDatabase
+  JarvisDatabase,
+  PreferencesPort
 } from "@jarv1s/db";
 import {
   listChatThreadMessagesRouteSchema,
@@ -80,6 +81,7 @@ export interface ChatRoutesDependencies {
   /** pg-boss for enqueueing embed/extract-facts jobs after each completed turn. */
   readonly boss?: PgBoss;
   readonly personaPreferences?: PersonaPreferencesPort;
+  readonly agencyPreferences?: PreferencesPort;
   /** Connector collaborators for the calendar focus-time write tool (composition host). */
   readonly googleConnectionService?: GoogleConnectionService;
   readonly googleApiClient?: GoogleApiClient;
@@ -151,7 +153,8 @@ export function registerChatRoutes(
                 googleApiClient: dependencies.googleApiClient,
                 connectorsRepository: dependencies.connectorsRepository,
                 boss: dependencies.boss
-              }
+              },
+              agencyPreferences: dependencies.agencyPreferences
             })
           );
 
@@ -488,6 +491,7 @@ export function buildChatGatewayDependencies(args: {
   tokens: SessionTokenRegistry;
   confirmations: ConfirmationRegistry;
   notifier: SessionNotifier;
+  agencyPreferences?: PreferencesPort;
   collaborators: {
     googleConnectionService?: GoogleConnectionService;
     googleApiClient?: GoogleApiClient;
@@ -503,8 +507,31 @@ export function buildChatGatewayDependencies(args: {
     confirmations: args.confirmations,
     notifier: args.notifier,
     confirmTimeoutMs: 150_000,
+    agencyPrefs: buildAgencyPrefs({
+      runner: args.runner,
+      preferences: args.agencyPreferences
+    }),
     toolServices: buildChatToolServices(args.collaborators)
   };
+}
+
+function buildAgencyPrefs(args: {
+  runner: DataContextRunner;
+  preferences?: PreferencesPort;
+}): AssistantToolGatewayDependencies["agencyPrefs"] {
+  if (!args.preferences) return undefined;
+  return (ctx) => ({
+    get: (key) =>
+      args.runner.withDataContext(
+        { actorUserId: ctx.actorUserId, requestId: ctx.requestId },
+        (scopedDb) => args.preferences!.get(scopedDb, key)
+      ),
+    upsert: (key, value) =>
+      args.runner.withDataContext(
+        { actorUserId: ctx.actorUserId, requestId: ctx.requestId },
+        (scopedDb) => args.preferences!.upsert(scopedDb, key, value)
+      )
+  });
 }
 
 function serializeThread(thread: ChatThread): ChatThreadDto {

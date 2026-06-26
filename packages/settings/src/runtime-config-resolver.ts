@@ -55,7 +55,9 @@ export class RuntimeConfigResolver {
     this.assertType(resolved.entry, key, ["int"]);
     const parsed = Number(resolved.value);
     if (!Number.isInteger(parsed)) {
-      throw new Error(`Invalid runtime config "${key}" value ${this.redact(resolved)} (expected int)`);
+      throw new Error(
+        `Invalid runtime config "${key}" value ${this.redact(resolved)} (expected int)`
+      );
     }
     return parsed;
   }

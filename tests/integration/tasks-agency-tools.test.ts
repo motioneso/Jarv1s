@@ -24,6 +24,7 @@ describe("Tasks agency tools through AssistantToolGateway", () => {
   let confirmations: ConfirmationRegistry;
   let emitted: { chatSessionId: string; record: GatewaySessionRecord }[];
   let gateway: AssistantToolGateway;
+  let agencyPrefs: Record<string, unknown>;
 
   beforeAll(async () => {
     await resetFoundationDatabase();
@@ -39,6 +40,7 @@ describe("Tasks agency tools through AssistantToolGateway", () => {
 
   beforeEach(() => {
     emitted = [];
+    agencyPrefs = {};
     tokens = new SessionTokenRegistry();
     confirmations = new ConfirmationRegistry();
     gateway = new AssistantToolGateway({
@@ -48,7 +50,13 @@ describe("Tasks agency tools through AssistantToolGateway", () => {
       tokens,
       confirmations,
       notifier: { emit: (chatSessionId, record) => emitted.push({ chatSessionId, record }) },
-      confirmTimeoutMs: 1000
+      confirmTimeoutMs: 1000,
+      agencyPrefs: () => ({
+        get: async (key) => agencyPrefs[key] ?? null,
+        upsert: async (key, value) => {
+          agencyPrefs[key] = value;
+        }
+      })
     });
   });
 
@@ -65,30 +73,62 @@ describe("Tasks agency tools through AssistantToolGateway", () => {
     return JSON.parse((response.data as { text: string }).text) as Record<string, unknown>;
   }
 
-  it("auto-runs non-destructive task writes without action_request", async () => {
-    const response = await gateway.callTool(tokenFor(ids.userA), "tasks.create", {
+  it("confirms task writes until task trust is enabled", async () => {
+    const call = gateway.callTool(tokenFor(ids.userA), "tasks.create", {
       title: "gateway agency task"
+    });
+    await tick();
+
+    const request = emitted.find((entry) => entry.record.kind === "action_request")?.record;
+    expect(request?.toolName).toBe("tasks.create");
+    if (!request || request.kind !== "action_request") throw new Error("expected request");
+    expect(request.summary).toContain("Jarvis now asks before creating tasks");
+
+    const taskBeforeApproval = await runner.withDataContext(
+      { actorUserId: ids.userA, requestId: "check-before-task-approval" },
+      (db) => tasksRepository.listFiltered(db, {})
+    );
+    expect(taskBeforeApproval.some((task) => task.title === "gateway agency task")).toBe(false);
+
+    await gateway.resolveActionRequest(ids.userA, request.actionRequestId, "confirmed");
+    const response = await call;
+    if (!response.ok) throw new Error("expected ok");
+    expect((response.data as { text: string }).text).toContain("Created task: gateway agency task");
+  });
+
+  it("auto-runs task writes when task trust is enabled", async () => {
+    agencyPrefs["tasks.agency_auto_execute"] = true;
+
+    const response = await gateway.callTool(tokenFor(ids.userA), "tasks.create", {
+      title: "trusted gateway agency task"
     });
 
     expect(response.ok).toBe(true);
     expect(emitted).toHaveLength(0);
     if (!response.ok) throw new Error("expected ok");
-    expect((response.data as { text: string }).text).toContain("Created task: gateway agency task");
+    expect((response.data as { text: string }).text).toContain(
+      "Created task: trusted gateway agency task"
+    );
   });
 
-  it("auto-runs archive because archive is reversible normal agency", async () => {
+  it("confirms archive until task trust is enabled", async () => {
     const task = await runner.withDataContext(
       { actorUserId: ids.userA, requestId: "seed-task-archive" },
       (db) => tasksRepository.create(db, { title: "archive via gateway" })
     );
 
-    const response = await gateway.callTool(tokenFor(ids.userA), "tasks.updateStatus", {
+    const call = gateway.callTool(tokenFor(ids.userA), "tasks.updateStatus", {
       taskId: task.id,
       status: "archived"
     });
+    await tick();
 
-    expect(response.ok).toBe(true);
-    expect(emitted).toHaveLength(0);
+    const request = emitted.find((entry) => entry.record.kind === "action_request")?.record;
+    expect(request?.toolName).toBe("tasks.updateStatus");
+
+    if (!request || request.kind !== "action_request") throw new Error("expected request");
+    await gateway.resolveActionRequest(ids.userA, request.actionRequestId, "confirmed");
+    const response = await call;
     if (!response.ok) throw new Error("expected ok");
     expect((response.data as { text: string }).text).toContain(
       "Archived task: archive via gateway"
@@ -114,6 +154,7 @@ describe("Tasks agency tools through AssistantToolGateway", () => {
   });
 
   it("requires confirmation for destructive task list deletion", async () => {
+    agencyPrefs["tasks.agency_auto_execute"] = true;
     const created = textData(
       await gateway.callTool(tokenFor(ids.userA), "tasks.createList", {
         name: "delete confirmation list"
@@ -139,6 +180,7 @@ describe("Tasks agency tools through AssistantToolGateway", () => {
   });
 
   it("requires confirmation for destructive task tag deletion", async () => {
+    agencyPrefs["tasks.agency_auto_execute"] = true;
     const createdList = textData(
       await gateway.callTool(tokenFor(ids.userA), "tasks.createList", {
         name: "delete confirmation tag list"

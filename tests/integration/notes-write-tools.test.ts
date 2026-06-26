@@ -105,6 +105,7 @@ describe("notes write assistant tools", () => {
       confirmations,
       notifier: { emit: (_chatSessionId, record) => emitted.push(record) },
       confirmTimeoutMs: 30_000,
+      agencyPrefs: () => ({ get: async (key) => key === "notes.agency_auto_execute" }),
       toolServices: { notesSync: service }
     });
     const token = tokens.mint({

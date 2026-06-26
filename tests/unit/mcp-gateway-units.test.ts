@@ -30,19 +30,49 @@ describe("module-sdk tool contract", () => {
 });
 
 describe("gateway policy", () => {
-  it("runs reads, confirms writes, always confirms destructive", () => {
-    const tool = (risk: ModuleAssistantToolManifest["risk"]) =>
-      ({
-        name: `example.${risk}`,
-        description: "Fixture.",
-        permissionId: "example.use",
-        risk
-      }) satisfies ModuleAssistantToolManifest;
+  const tool = (risk: ModuleAssistantToolManifest["risk"]) =>
+    ({
+      name: `example.${risk}`,
+      description: "Fixture.",
+      permissionId: "example.use",
+      risk
+    }) satisfies ModuleAssistantToolManifest;
 
-    expect(resolvePolicy(tool("read"))).toBe("run");
-    expect(resolvePolicy(tool("write"))).toBe("confirm");
-    expect(resolvePolicy({ ...tool("write"), executionPolicy: "auto" })).toBe("run");
-    expect(resolvePolicy({ ...tool("destructive"), executionPolicy: "auto" })).toBe("confirm");
+  it("runs reads and always confirms destructive tools", async () => {
+    const prefs = { get: async () => true };
+
+    await expect(resolvePolicy(tool("read"), "example", prefs)).resolves.toBe("run");
+    await expect(
+      resolvePolicy({ ...tool("destructive"), executionPolicy: "auto" }, "example", prefs)
+    ).resolves.toBe("confirm");
+  });
+
+  it("only auto-runs auto write tools when module trust is enabled", async () => {
+    await expect(
+      resolvePolicy({ ...tool("write"), executionPolicy: "auto" }, "tasks", {
+        get: async () => false
+      })
+    ).resolves.toBe("confirm");
+
+    await expect(
+      resolvePolicy({ ...tool("write"), executionPolicy: "auto" }, "tasks", {
+        get: async (key) => key === "tasks.agency_auto_execute"
+      })
+    ).resolves.toBe("run");
+
+    await expect(resolvePolicy(tool("write"), "tasks", { get: async () => true })).resolves.toBe(
+      "confirm"
+    );
+  });
+
+  it("confirms writes when preference lookup fails", async () => {
+    await expect(
+      resolvePolicy({ ...tool("write"), executionPolicy: "auto" }, "tasks", {
+        get: async () => {
+          throw new Error("db unavailable");
+        }
+      })
+    ).resolves.toBe("confirm");
   });
 });
 

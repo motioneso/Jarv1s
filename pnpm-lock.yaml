@@ -598,9 +598,15 @@ importers:
       '@jarv1s/module-sdk':
         specifier: workspace:*
         version: link:../module-sdk
+      '@jarv1s/settings-ui':
+        specifier: workspace:*
+        version: link:../settings-ui
       '@jarv1s/shared':
         specifier: workspace:*
         version: link:../shared
+      '@tanstack/react-query':
+        specifier: ^5.0.0
+        version: 5.101.0(react@19.2.7)
       fastify:
         specifier: ^5.6.2
         version: 5.8.5
@@ -610,6 +616,9 @@ importers:
       pg-boss:
         specifier: ^12.18.2
         version: 12.18.2
+      react:
+        specifier: ^19.0.0
+        version: 19.2.7
 
   packages/vault:
     dependencies:

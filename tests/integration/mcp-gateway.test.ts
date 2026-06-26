@@ -198,6 +198,7 @@ describe("AssistantToolGateway", () => {
       confirmations,
       notifier: { emit: (chatSessionId, record) => emitted.push({ chatSessionId, record }) },
       confirmTimeoutMs: 1000,
+      agencyPrefs: () => ({ get: async (key) => key === "svc.agency_auto_execute" }),
       toolServices: { demo: { value: "service reached" } }
     });
 
@@ -257,14 +258,42 @@ describe("AssistantToolGateway", () => {
     expect(emitted.map((entry) => entry.record.kind)).toEqual(["action_request", "action_result"]);
   });
 
-  it("runs a write:auto tool immediately without an action_request", async () => {
+  it("confirms a write:auto tool when module agency trust is off", async () => {
     const token = tokens.mint({
       actorUserId: ids.userA,
       chatSessionId: "s-auto-write",
       allowedToolNames: null
     });
 
-    const res = await gateway.callTool(token, "example.autoWrite", { value: "quiet" });
+    const call = gateway.callTool(token, "example.autoWrite", { value: "quiet" });
+    await tick();
+
+    const request = firstActionRequest();
+    expect(request.toolName).toBe("example.autoWrite");
+    expect(exampleToolCalls).toHaveLength(0);
+
+    await gateway.resolveActionRequest(ids.userA, request.actionRequestId, "cancelled");
+    await call;
+  });
+
+  it("runs a write:auto tool immediately when module agency trust is on", async () => {
+    const trustedGateway = new AssistantToolGateway({
+      resolveActiveModules: async () => [exampleToolModule],
+      repository,
+      runner,
+      tokens,
+      confirmations,
+      notifier: { emit: (chatSessionId, record) => emitted.push({ chatSessionId, record }) },
+      confirmTimeoutMs: 30_000,
+      agencyPrefs: () => ({ get: async (key) => key === "example.agency_auto_execute" })
+    });
+    const token = tokens.mint({
+      actorUserId: ids.userA,
+      chatSessionId: "s-trusted-auto-write",
+      allowedToolNames: null
+    });
+
+    const res = await trustedGateway.callTool(token, "example.autoWrite", { value: "quiet" });
 
     expect(res.ok).toBe(true);
     expect(exampleToolCalls).toEqual([
