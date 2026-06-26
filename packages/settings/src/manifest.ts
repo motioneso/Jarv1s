@@ -111,6 +111,26 @@ export const settingsModuleManifest: JarvisModuleManifest = {
     },
     {
       method: "GET",
+      path: "/api/me/themes",
+      permissionId: "settings.view"
+    },
+    {
+      method: "PUT",
+      path: "/api/me/themes/active",
+      permissionId: "settings.write"
+    },
+    {
+      method: "PUT",
+      path: "/api/me/themes/:id",
+      permissionId: "settings.write"
+    },
+    {
+      method: "DELETE",
+      path: "/api/me/themes/:id",
+      permissionId: "settings.write"
+    },
+    {
+      method: "GET",
       path: "/api/me/notes-source",
       permissionId: "settings.view"
     },
