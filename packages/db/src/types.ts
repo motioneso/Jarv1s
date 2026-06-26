@@ -580,6 +580,8 @@ export interface WellnessTherapyNotesTable {
 
 export type DataExportJobStatus = "pending" | "building" | "ready" | "failed" | "expired";
 
+export type DataExportJobFormat = "json" | "html";
+
 export interface DataExportJobsTable {
   id: ColumnType<string, string | undefined, never>;
   owner_user_id: ColumnType<string, string, never>;
@@ -588,6 +590,8 @@ export interface DataExportJobsTable {
   completed_at: TimestampColumn | null;
   expires_at: TimestampColumn | null;
   error_message: string | null;
+  format: ColumnType<DataExportJobFormat, DataExportJobFormat | undefined, DataExportJobFormat>;
+  params: ColumnType<Record<string, unknown> | null, Record<string, unknown> | undefined, Record<string, unknown> | null>;
 }
 
 export interface JarvisDatabase {
