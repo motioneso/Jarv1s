@@ -416,7 +416,7 @@ const CODEX_EXEC_FUNCTION_CALL = JSON.stringify({
   payload: {
     type: "function_call",
     name: "shell",
-    arguments: "{\"cmd\":\"git status --short\"}"
+    arguments: '{"cmd":"git status --short"}'
   }
 });
 
@@ -595,7 +595,9 @@ Keep the existing interactive Codex command unchanged. Add a non-interactive bra
 
 ```ts
 if (this.executionMode === "non_interactive") {
-  return ["codex", "exec", "--json", "--sandbox", "read-only", "-a", "never", ...modelArgs].join(" ");
+  return ["codex", "exec", "--json", "--sandbox", "read-only", "-a", "never", ...modelArgs].join(
+    " "
+  );
 }
 ```
 

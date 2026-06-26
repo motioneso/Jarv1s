@@ -233,13 +233,20 @@ import { describe, expect, it } from "vitest";
 import { AgyPrintChatEngine } from "../../packages/chat/src/live/agy-print-chat-engine.js";
 import type { Multiplexer, MuxHandle, TmuxIo } from "@jarv1s/ai";
 
-function fakeIo(files: Record<string, string> = {}): TmuxIo & { runs: string[]; writes: Record<string, string> } {
+function fakeIo(
+  files: Record<string, string> = {}
+): TmuxIo & { runs: string[]; writes: Record<string, string> } {
   return {
     runs: [],
     writes: files,
     async run(cmd, args) {
       this.runs.push([cmd, ...args].join(" "));
-      if (cmd === "find") return { code: 0, stdout: "/home/test/.gemini/antigravity-cli/brain/proj/.system_generated/logs/transcript_full.jsonl\n" };
+      if (cmd === "find")
+        return {
+          code: 0,
+          stdout:
+            "/home/test/.gemini/antigravity-cli/brain/proj/.system_generated/logs/transcript_full.jsonl\n"
+        };
       return { code: 0, stdout: "" };
     },
     async readFile(path) {
@@ -398,7 +405,8 @@ export class AgyPrintChatEngine implements CliChatEngine {
   }
 
   async submit(text: string): Promise<void> {
-    if (this.neutralDir === null) throw new Error("AgyPrintChatEngine.submit called before launch()");
+    if (this.neutralDir === null)
+      throw new Error("AgyPrintChatEngine.submit called before launch()");
     const promptPath = join(this.neutralDir, PROMPT_FILENAME);
     await this.io.writeFile(promptPath, text.replace(/^(\s*)!+/, "$1"));
     const continueFlag = this.hasSubmitted ? "--continue " : "";
@@ -413,7 +421,9 @@ export class AgyPrintChatEngine implements CliChatEngine {
     });
   }
 
-  async readNew(afterOffset: number): Promise<{ records: TranscriptRecord[]; offset: number; complete: boolean }> {
+  async readNew(
+    afterOffset: number
+  ): Promise<{ records: TranscriptRecord[]; offset: number; complete: boolean }> {
     const path = await this.resolveTranscriptPath();
     if (path === null) return { records: [], offset: afterOffset, complete: false };
     let jsonl: string;
@@ -427,7 +437,8 @@ export class AgyPrintChatEngine implements CliChatEngine {
       kind: event.kind as ChatRecordKind,
       text: event.text
     }));
-    if (parsed.complete && parsed.reply !== null) records.push({ kind: "reply", text: parsed.reply });
+    if (parsed.complete && parsed.reply !== null)
+      records.push({ kind: "reply", text: parsed.reply });
     return { records, offset: jsonl.length, complete: parsed.complete };
   }
 
@@ -513,7 +524,7 @@ Add a focused test that calls the production engine factory with provider `googl
 If the factory shape from #521 is:
 
 ```ts
-factory(provider, sessionKey, { executionMode: "non_interactive" })
+factory(provider, sessionKey, { executionMode: "non_interactive" });
 ```
 
 then test:

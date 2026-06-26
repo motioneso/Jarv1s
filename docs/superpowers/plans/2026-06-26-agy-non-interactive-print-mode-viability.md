@@ -42,19 +42,18 @@ Create `docs/superpowers/spikes/2026-06-26-agy-print-mode-viability.md`:
 
 ## Probe Matrix
 
-| Probe | Command shape | Transcript path | Completion parity | Tool parity | Approval/action parity | Verdict |
-| --- | --- | --- | --- | --- | --- | --- |
-| Text-only turn 1 | | | | | | |
-| Text-only continuation | | | | | | |
-| Local file read | | | | | | |
-| Stop/timeout behavior | | | | | | |
+| Probe                  | Command shape | Transcript path | Completion parity | Tool parity | Approval/action parity | Verdict |
+| ---------------------- | ------------- | --------------- | ----------------- | ----------- | ---------------------- | ------- |
+| Text-only turn 1       |               |                 |                   |             |                        |         |
+| Text-only continuation |               |                 |                   |             |                        |         |
+| Local file read        |               |                 |                   |             |                        |         |
+| Stop/timeout behavior  |               |                 |                   |             |                        |         |
 
 ## Record Shapes
 
 ## Findings
 
 ## Verdict
-
 ```
 
 - [ ] **Step 2: Check Agy availability**
@@ -297,10 +296,10 @@ If continuation is corrupted by the interrupted turn, record `Stop/liveness pari
 Add a mapping table with the observed records. This is the expected shape:
 
 ```markdown
-| Agy print record shape | Jarv1s semantic record | Evidence |
-| --- | --- | --- |
-| `PLANNER_RESPONSE` with final text | `reply` | Text-only continuation |
-| `tool_calls[].name = READ_FILE` | `tool` | Local file read |
+| Agy print record shape             | Jarv1s semantic record | Evidence               |
+| ---------------------------------- | ---------------------- | ---------------------- |
+| `PLANNER_RESPONSE` with final text | `reply`                | Text-only continuation |
+| `tool_calls[].name = READ_FILE`    | `tool`                 | Local file read        |
 ```
 
 - [ ] **Step 2: Answer the parity questions**

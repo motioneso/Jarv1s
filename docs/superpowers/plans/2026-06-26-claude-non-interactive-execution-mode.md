@@ -277,8 +277,11 @@ export class ClaudePrintChatEngine implements CliChatEngine {
     this.hasSubmitted = true;
   }
 
-  async readNew(afterOffset: number): Promise<{ records: TranscriptRecord[]; offset: number; complete: boolean }> {
-    if (this.transcriptPathValue === null) return { records: [], offset: afterOffset, complete: false };
+  async readNew(
+    afterOffset: number
+  ): Promise<{ records: TranscriptRecord[]; offset: number; complete: boolean }> {
+    if (this.transcriptPathValue === null)
+      return { records: [], offset: afterOffset, complete: false };
     let jsonl: string;
     try {
       jsonl = await this.io.readFile(this.transcriptPathValue);
@@ -290,7 +293,8 @@ export class ClaudePrintChatEngine implements CliChatEngine {
       kind: event.kind as ChatRecordKind,
       text: event.text
     }));
-    if (parsed.complete && parsed.reply !== null) records.push({ kind: "reply", text: parsed.reply });
+    if (parsed.complete && parsed.reply !== null)
+      records.push({ kind: "reply", text: parsed.reply });
     return { records, offset: jsonl.length, complete: parsed.complete };
   }
 
