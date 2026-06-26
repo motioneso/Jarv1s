@@ -34,16 +34,15 @@ import {
   getLocaleSettings,
   getModules,
   getMyModules,
-  getConnectorFeatureGrants,
   listSourceBehaviors,
   listConnectorAccounts,
   putLocaleSettings,
   putSourceBehavior,
-  updateConnectorFeatureGrants,
   revokeConnectorAccount,
   setMyModuleDisabled,
   syncGoogleConnector
 } from "../api/client";
+import { getConnectorFeatureGrants, updateConnectorFeatureGrants } from "../api/connectors-client";
 import {
   getNotesLastSync,
   getNotesSource,
