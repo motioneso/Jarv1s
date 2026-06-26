@@ -125,8 +125,7 @@ import type {
   PatchMeProfileRequest,
   PutActiveThemeRequest,
   PutCustomThemeRequest,
-  PutCustomThemeResponse,
-  WellnessExportCategory
+  PutCustomThemeResponse
 } from "@jarv1s/shared";
 
 export interface SignUpEmailRequest {
@@ -989,21 +988,4 @@ export async function getDataExportStatus(jobId: string): Promise<ExportJobStatu
 
 export function getDataExportDownloadUrl(jobId: string): string {
   return `/api/me/export/download/${jobId}`;
-}
-
-// ── Wellness selective export (#484) ─────────────────────────────────────────
-// POST /api/wellness/export creates an html-format job; status + download reuse the
-// shared /api/me/export/* routes above (download branches on job.format server-side).
-
-export interface WellnessExportRequest {
-  readonly from: string;
-  readonly to: string;
-  readonly categories: readonly WellnessExportCategory[];
-}
-
-export async function requestWellnessExport(body: WellnessExportRequest): Promise<ExportJobStatus> {
-  return requestJson<ExportJobStatus>("/api/wellness/export", {
-    method: "POST",
-    body: JSON.stringify(body)
-  });
 }

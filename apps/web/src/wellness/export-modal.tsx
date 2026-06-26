@@ -1,12 +1,8 @@
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { WELLNESS_EXPORT_CATEGORIES, type WellnessExportCategory } from "@jarv1s/shared";
-import {
-  getDataExportDownloadUrl,
-  getDataExportStatus,
-  requestWellnessExport,
-  type ExportJobStatus
-} from "../api/client";
+import { getDataExportDownloadUrl, getDataExportStatus, type ExportJobStatus } from "../api/client";
+import { requestWellnessExport } from "../api/wellness-export";
 
 function XIcon() {
   return (
