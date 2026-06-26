@@ -239,6 +239,33 @@ export interface DeleteTherapyNoteResponse {
   readonly deleted: boolean;
 }
 
+// ── Selective Wellness Export DTOs (#484) ───────────────────────────────────
+//
+// The category toggle is the redaction unit (spec §3): within a selected category all
+// records in the [from, to] window are included; unselected categories are absent.
+// `from`/`to` are inclusive ISO date (YYYY-MM-DD) bounds. The job payload itself stays
+// metadata-only (CLAUDE.md invariant); from/to/categories also land on the job row's
+// `params` column so the worker re-reads them from the DB, not the payload.
+
+export const WELLNESS_EXPORT_CATEGORIES = [
+  "checkins",
+  "medications",
+  "therapyNotes",
+  "insights"
+] as const;
+export type WellnessExportCategory = (typeof WELLNESS_EXPORT_CATEGORIES)[number];
+
+export interface WellnessExportRequest {
+  readonly from: string;
+  readonly to: string;
+  readonly categories: readonly WellnessExportCategory[];
+}
+
+export interface WellnessExportResponse {
+  readonly jobId: string;
+  readonly status: string;
+}
+
 // ── JSON schemas ────────────────────────────────────────────────────────────
 
 const stringArraySchema = { type: "array", items: { type: "string" } } as const;
@@ -327,6 +354,33 @@ export const deleteTherapyNoteResponseSchema = {
   type: "object",
   required: ["deleted"],
   properties: { deleted: { type: "boolean" } }
+} as const;
+
+// ── Selective Wellness Export schemas (#484) ────────────────────────────────
+const isoDatePattern = "^\\d{4}-\\d{2}-\\d{2}$";
+
+export const wellnessExportRequestSchema = {
+  type: "object",
+  additionalProperties: false,
+  required: ["from", "to", "categories"],
+  properties: {
+    from: { type: "string", pattern: isoDatePattern },
+    to: { type: "string", pattern: isoDatePattern },
+    categories: {
+      type: "array",
+      items: { type: "string", enum: WELLNESS_EXPORT_CATEGORIES },
+      minItems: 1
+    }
+  }
+} as const;
+
+export const wellnessExportResponseSchema = {
+  type: "object",
+  required: ["jobId", "status"],
+  properties: {
+    jobId: { type: "string" },
+    status: { type: "string" }
+  }
 } as const;
 
 export const medicationLogDtoSchema = {

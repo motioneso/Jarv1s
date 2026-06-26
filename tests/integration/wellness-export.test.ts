@@ -24,8 +24,8 @@ describe("Wellness export — migration 0114 (data_export_jobs.format + params)"
       WHERE table_schema = 'app' AND table_name = 'data_export_jobs' AND column_name = 'format'
     `.execute(appDb);
     expect(rows.rows).toHaveLength(1);
-    expect(rows.rows[0].data_type).toBe("text");
-    expect(rows.rows[0].is_nullable).toBe("NO");
+    expect(rows.rows[0]?.data_type).toBe("text");
+    expect(rows.rows[0]?.is_nullable).toBe("NO");
   });
 
   it("adds the params jsonb column (nullable)", async () => {
@@ -35,8 +35,8 @@ describe("Wellness export — migration 0114 (data_export_jobs.format + params)"
       WHERE table_schema = 'app' AND table_name = 'data_export_jobs' AND column_name = 'params'
     `.execute(appDb);
     expect(rows.rows).toHaveLength(1);
-    expect(rows.rows[0].data_type).toBe("jsonb");
-    expect(rows.rows[0].is_nullable).toBe("YES");
+    expect(rows.rows[0]?.data_type).toBe("jsonb");
+    expect(rows.rows[0]?.is_nullable).toBe("YES");
   });
 
   it("rejects an unknown format value via the CHECK constraint", async () => {
@@ -46,7 +46,7 @@ describe("Wellness export — migration 0114 (data_export_jobs.format + params)"
         (scopedDb) =>
           scopedDb.db
             .insertInto("app.data_export_jobs")
-            .values({ format: "csv" as never })
+            .values({ owner_user_id: ids.userA, format: "csv" as never })
             .execute()
       )
     ).rejects.toThrow();
