@@ -103,7 +103,8 @@ describe("Tasks agency tools through AssistantToolGateway", () => {
     await tick();
 
     const firstRequest = emitted.find((entry) => entry.record.kind === "action_request")?.record;
-    if (!firstRequest || firstRequest.kind !== "action_request") throw new Error("expected first request");
+    if (!firstRequest || firstRequest.kind !== "action_request")
+      throw new Error("expected first request");
     expect(firstRequest.summary).toContain("Jarvis now asks before creating tasks");
     await gateway.resolveActionRequest(ids.userA, firstRequest.actionRequestId, "confirmed");
     await call1;
@@ -115,7 +116,8 @@ describe("Tasks agency tools through AssistantToolGateway", () => {
     await tick();
 
     const secondRequest = emitted.find((entry) => entry.record.kind === "action_request")?.record;
-    if (!secondRequest || secondRequest.kind !== "action_request") throw new Error("expected second request");
+    if (!secondRequest || secondRequest.kind !== "action_request")
+      throw new Error("expected second request");
     expect(secondRequest.summary).not.toContain("Jarvis now asks before creating tasks");
     await gateway.resolveActionRequest(ids.userA, secondRequest.actionRequestId, "confirmed");
     await call2;
