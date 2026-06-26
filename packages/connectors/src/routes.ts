@@ -37,7 +37,7 @@ import { HttpError, handleRouteError as handleModuleRouteError } from "@jarv1s/m
 import { PreferencesRepository } from "@jarv1s/structured-state";
 
 import { createConnectorSecretCipher, type ConnectorSecretCipher } from "./crypto.js";
-import { featureGrantsPrefKey, resolveEffectiveGrants } from "./feature-grants.js";
+import { featureGrantsPrefKey, isFeatureGranted, resolveEffectiveGrants } from "./feature-grants.js";
 import { GoogleConnectionService, GoogleConnectError } from "./google-connection.js";
 import { GoogleOAuthClient } from "./oauth.js";
 import { ConnectorsRepository, type ConnectorAccountSafeRow } from "./repository.js";
@@ -315,7 +315,10 @@ export function registerConnectorsRoutes(
             if (!account) return undefined;
             const key = featureGrantsPrefKey(account.id);
             const stored = await preferencesRepository.get(scopedDb, key);
-            const next = { ...resolveEffectiveGrants(account.scopes, stored) };
+            const next = {
+              email: isFeatureGranted(stored, "email"),
+              calendar: isFeatureGranted(stored, "calendar")
+            };
             if (body.email !== undefined) next.email = body.email;
             if (body.calendar !== undefined) next.calendar = body.calendar;
             await preferencesRepository.upsert(scopedDb, key, next);

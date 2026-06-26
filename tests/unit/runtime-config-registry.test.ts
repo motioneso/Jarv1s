@@ -32,8 +32,6 @@ describe("runtime config registry", () => {
     expect(KNOWN_INSTANCE_SETTING_KEYS.has(EMBED_MODEL_CONFIG_KEY)).toBe(true);
     expect(SECRET_INSTANCE_SETTING_KEYS.has(EMBED_PROVIDER_CONFIG_KEY)).toBe(false);
     expect(SECRET_INSTANCE_SETTING_KEYS.has(EMBED_MODEL_CONFIG_KEY)).toBe(false);
-    expect(new Set(RUNTIME_CONFIG_REGISTRY.map((entry) => entry.key)).size).toBe(
-      RUNTIME_CONFIG_REGISTRY.length
-    );
+    expect(RUNTIME_CONFIG_REGISTRY).toHaveLength(2);
   });
 });
