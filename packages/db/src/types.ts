@@ -341,6 +341,7 @@ export interface AiProviderConfigsTable {
   base_url: string | null;
   status: AiProviderStatus;
   auth_method: AiAuthMethod;
+  execution_mode: "interactive" | "non_interactive";
   encrypted_credential: JsonColumn;
   revoked_at: NullableTimestampColumn;
   created_at: TimestampColumn;

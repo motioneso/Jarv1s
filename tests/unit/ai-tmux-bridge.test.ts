@@ -100,6 +100,25 @@ const CODEX_FIXTURE_FINAL = JSON.stringify({
   }
 });
 
+const CODEX_EXEC_FUNCTION_CALL = JSON.stringify({
+  timestamp: "2026-06-26T12:00:00.000Z",
+  type: "response_item",
+  payload: {
+    type: "function_call",
+    name: "shell",
+    arguments: '{"cmd":"git status --short"}'
+  }
+});
+
+const CODEX_EXEC_FUNCTION_OUTPUT = JSON.stringify({
+  timestamp: "2026-06-26T12:00:01.000Z",
+  type: "response_item",
+  payload: {
+    type: "function_call_output",
+    output: "?? docs/superpowers/specs/example.md"
+  }
+});
+
 // ─── google / Gemini CLI fixtures ────────────────────────────────────────────
 
 const GEMINI_FIXTURE_THINKING = JSON.stringify({
@@ -189,6 +208,20 @@ describe("parseTranscript — openai-compatible (Codex JSONL schema)", () => {
 
     expect(result.complete).toBe(false);
     expect(result.reply).toBeNull();
+  });
+
+  it("maps non-interactive Codex function call records to tool activity", () => {
+    const jsonl = [CODEX_EXEC_FUNCTION_CALL, CODEX_EXEC_FUNCTION_OUTPUT, CODEX_FIXTURE_FINAL].join(
+      "\n"
+    );
+
+    const result = parseTranscript("openai-compatible", jsonl, 0);
+
+    expect(result.events.map((e) => e.kind)).toEqual(["tool", "tool"]);
+    expect(result.events[0]?.text).toContain("shell");
+    expect(result.events[1]?.text).toContain("function_call_output");
+    expect(result.complete).toBe(true);
+    expect(result.reply).toBe("All done, sir.");
   });
 });
 

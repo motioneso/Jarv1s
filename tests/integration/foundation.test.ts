@@ -268,6 +268,10 @@ describe("MVP foundation scaffold", () => {
         {
           version: "0116",
           name: "0116_briefing_type.sql"
+        },
+        {
+          version: "0117",
+          name: "0117_provider_execution_mode.sql"
         }
       ]);
     } finally {

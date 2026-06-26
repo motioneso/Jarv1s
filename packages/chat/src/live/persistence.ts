@@ -10,6 +10,7 @@
  */
 import type { AiConfiguredModelSafeRow, AiRepository, ProviderKind } from "@jarv1s/ai";
 import { assertDataContextDb, type DataContextDb, type DataContextRunner } from "@jarv1s/db";
+import type { AiProviderExecutionMode } from "@jarv1s/shared";
 import type { PgBoss } from "pg-boss";
 
 import { sendJob } from "@jarv1s/jobs";
@@ -51,7 +52,7 @@ export class DataContextChatPersistence implements ChatPersistencePort {
 
   async resolveActiveProvider(
     actorUserId: string
-  ): Promise<{ provider: ProviderKind; model: string }> {
+  ): Promise<{ provider: ProviderKind; model: string; executionMode: AiProviderExecutionMode }> {
     const model = await this.run(actorUserId, "resolve-provider", (scopedDb) =>
       this.ai.selectChatModelForUser(scopedDb)
     );
@@ -60,7 +61,11 @@ export class DataContextChatPersistence implements ChatPersistencePort {
       throw new Error("No active chat-capable model is configured for this user.");
     }
 
-    return { provider: toLiveProvider(model), model: model.provider_model_id };
+    return {
+      provider: toLiveProvider(model),
+      model: model.provider_model_id,
+      executionMode: model.provider_execution_mode
+    };
   }
 
   async listPriorTurns(actorUserId: string): Promise<{

@@ -44,6 +44,7 @@ import {
   type AiModelStatus,
   type AiModelTier,
   type AiProviderConfigDto,
+  type AiProviderExecutionMode,
   type AiProviderKind,
   type AiProviderStatus,
   type CreateAiConfiguredModelRequest,
@@ -106,6 +107,7 @@ const WRITABLE_PROVIDER_STATUSES = new Set<Exclude<AiProviderStatus, "revoked">>
   "disabled"
 ]);
 const AUTH_METHODS = new Set<AiAuthMethod>(["cli", "api_key"]);
+const EXECUTION_MODES = new Set<AiProviderExecutionMode>(["interactive", "non_interactive"]);
 const CLI_PROVIDER_KINDS = new Set<CliProviderKind>(["anthropic", "openai-compatible", "google"]);
 const MODEL_STATUSES = new Set<AiModelStatus>(["active", "disabled"]);
 const MODEL_TIERS = new Set<AiModelTier>(["reasoning", "interactive", "economy"]);
@@ -149,6 +151,7 @@ export function registerAiRoutes(
               baseUrl: body.baseUrl ?? null,
               status: body.status ?? "active",
               authMethod,
+              executionMode: body.executionMode,
               encryptedCredential
             });
           }
@@ -182,6 +185,7 @@ export function registerAiRoutes(
               baseUrl: body.baseUrl,
               status: body.status,
               authMethod: body.authMethod,
+              executionMode: body.executionMode,
               encryptedCredential
             });
           }
@@ -569,6 +573,7 @@ function parseCreateProviderBody(body: unknown): CreateAiProviderConfigRequest {
     baseUrl: optionalNullableString(value.baseUrl, "baseUrl"),
     status: optionalProviderStatus(value.status),
     authMethod,
+    executionMode: optionalExecutionMode(value.executionMode),
     credentialPayload:
       value.credentialPayload === undefined
         ? undefined
@@ -585,6 +590,7 @@ function parseUpdateProviderBody(body: unknown): UpdateAiProviderConfigRequest {
     baseUrl: optionalNullableString(value.baseUrl, "baseUrl"),
     status: optionalProviderStatus(value.status),
     authMethod: optionalAuthMethod(value.authMethod),
+    executionMode: optionalExecutionMode(value.executionMode),
     credentialPayload:
       value.credentialPayload === undefined
         ? undefined
@@ -732,6 +738,7 @@ export async function serializeProvider(
     baseUrl: provider.base_url,
     status: provider.status,
     authMethod: provider.auth_method,
+    executionMode: provider.execution_mode,
     hasCredential: isCli ? false : provider.has_credential,
     cliAvailable: cliAvailableFlag,
     revokedAt: toIsoString(provider.revoked_at),
@@ -881,6 +888,17 @@ function optionalAuthMethod(value: unknown): AiAuthMethod | undefined {
   }
 
   throw new HttpError(400, "authMethod must be cli or api_key");
+}
+
+function optionalExecutionMode(value: unknown): AiProviderExecutionMode | undefined {
+  if (value === undefined) {
+    return undefined;
+  }
+  if (typeof value === "string" && EXECUTION_MODES.has(value as AiProviderExecutionMode)) {
+    return value as AiProviderExecutionMode;
+  }
+
+  throw new HttpError(400, "executionMode must be interactive or non_interactive");
 }
 
 function optionalProviderStatus(value: unknown): Exclude<AiProviderStatus, "revoked"> | undefined {

@@ -179,6 +179,24 @@ describe("ChatSessionManager.launchSession — personaText + replayBatch + offse
     expect(engine.launchOpts?.personaText).toBe("You are Jarvis.");
   });
 
+  it("passes provider execution mode to the engine factory", async () => {
+    const engine = new FakeEngine(0);
+    const deps = depsWith(engine);
+    vi.mocked(deps.persistence.resolveActiveProvider).mockResolvedValue({
+      provider: "openai-compatible",
+      model: "default",
+      executionMode: "non_interactive"
+    });
+    const engineFactory = vi.fn(() => engine);
+    const manager = new ChatSessionManager({ ...deps, engineFactory });
+
+    await manager.ensureSession("u1", "Ben");
+
+    expect(engineFactory).toHaveBeenCalledWith("openai-compatible", "u1", {
+      executionMode: "non_interactive"
+    });
+  });
+
   it("assembles replayBatch from prior turns and ships it on launch", async () => {
     const engine = new FakeEngine(0);
     const manager = new ChatSessionManager(

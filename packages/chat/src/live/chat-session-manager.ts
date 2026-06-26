@@ -12,6 +12,7 @@
  * a real tmux session, Postgres, or disk. Task 8 supplies the real adapters.
  */
 import type { ProviderKind } from "@jarv1s/ai";
+import type { AiProviderExecutionMode } from "@jarv1s/shared";
 
 import type { RecallPort } from "../recall-port.js";
 import { renderPersona, type PersonaFs } from "./persona.js";
@@ -30,7 +31,9 @@ export interface Clock {
  */
 export interface ChatPersistencePort {
   /** The active "chat" provider+model for this user (router-selected). */
-  resolveActiveProvider(actorUserId: string): Promise<{ provider: ProviderKind; model: string }>;
+  resolveActiveProvider(
+    actorUserId: string
+  ): Promise<{ provider: ProviderKind; model: string; executionMode?: AiProviderExecutionMode }>;
   /** Prior stored turns split into recent verbatim turns + older rolling summary. */
   listPriorTurns(actorUserId: string): Promise<{
     recent: readonly { role: "user" | "assistant"; content: string }[];
@@ -48,7 +51,11 @@ export interface ChatPersistencePort {
 }
 
 export interface ChatSessionManagerDeps {
-  readonly engineFactory: (provider: ProviderKind, sessionKey: string) => CliChatEngine;
+  readonly engineFactory: (
+    provider: ProviderKind,
+    sessionKey: string,
+    opts?: { readonly executionMode?: AiProviderExecutionMode }
+  ) => CliChatEngine;
   readonly persistence: ChatPersistencePort;
   readonly personaFs: PersonaFs;
   readonly clock: Clock;
@@ -220,7 +227,8 @@ export class ChatSessionManager {
   }
 
   private async launchSession(actorUserId: string, userName: string): Promise<UserSession> {
-    const { provider, model } = await this.deps.persistence.resolveActiveProvider(actorUserId);
+    const { provider, model, executionMode } =
+      await this.deps.persistence.resolveActiveProvider(actorUserId);
     const persona =
       typeof this.deps.persona === "string"
         ? this.deps.persona
@@ -235,7 +243,7 @@ export class ChatSessionManager {
     });
 
     const sessionKey = actorUserId;
-    const engine = this.deps.engineFactory(provider, sessionKey);
+    const engine = this.deps.engineFactory(provider, sessionKey, { executionMode });
     const mcpConfig = await this.deps.mintMcpToken?.(actorUserId, actorUserId);
 
     // Build the replay batch BEFORE launch so it can be shipped to the cli-runner in the

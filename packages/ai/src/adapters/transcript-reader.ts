@@ -34,6 +34,9 @@
  *     "exec_command_end"  : { command } → tool activity (command ran)
  *     "agent_message"     : { message } → status text (intermediate narrative)
  *     "task_complete"     : { last_agent_message } → FINAL reply
+ *   Relevant type === "response_item" records (payload.type):
+ *     "function_call"        : { name }   → tool activity
+ *     "function_call_output" : { output } → tool activity
  *
  *   Also type === "response_item" with payload.role === "assistant" and
  *   payload.phase === "final_answer" and payload.content[0].type === "output_text"
@@ -179,6 +182,10 @@ function mapCodexRecord(
   events: ChatActivityEvent[],
   onFinal: (text: string) => void
 ): void {
+  if (rec["type"] === "response_item") {
+    mapCodexResponseItem(rec, events);
+    return;
+  }
   if (rec["type"] !== "event_msg") return;
 
   const payload = rec["payload"] as Record<string, unknown> | undefined;
@@ -210,6 +217,21 @@ function mapCodexRecord(
       }
       break;
     }
+  }
+}
+
+function mapCodexResponseItem(rec: Record<string, unknown>, events: ChatActivityEvent[]): void {
+  const payload = rec["payload"] as Record<string, unknown> | undefined;
+  if (!payload) return;
+
+  if (payload["type"] === "function_call") {
+    const name = typeof payload["name"] === "string" ? payload["name"] : "function_call";
+    events.push({ kind: "tool", text: name });
+    return;
+  }
+
+  if (payload["type"] === "function_call_output") {
+    events.push({ kind: "tool", text: "function_call_output" });
   }
 }
 

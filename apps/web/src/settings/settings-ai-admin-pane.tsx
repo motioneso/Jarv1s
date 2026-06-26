@@ -46,6 +46,7 @@ import type {
   AiModelCapability,
   AiModelTier,
   AiProviderConfigDto,
+  AiProviderExecutionMode,
   AiProviderKind
 } from "@jarv1s/shared";
 
@@ -236,6 +237,7 @@ function ProviderCard(props: {
   readonly editing: boolean;
   readonly onEdit: (id: string | null) => void;
   readonly onAuth: (id: string, method: AiAuthMethod) => void;
+  readonly onExecutionMode: (id: string, executionMode: AiProviderExecutionMode) => void;
   readonly onCredential: (id: string, input: { baseUrl: string; apiKey: string }) => void;
   readonly onModelOverride: (model: AiConfiguredModelDto, allowed: boolean) => void;
   readonly onRemove: () => void;
@@ -358,6 +360,17 @@ function ProviderCard(props: {
               ]}
               ariaLabel="Authentication method"
               onChange={(v) => props.onAuth(provider.id, v)}
+            />
+          </Field>
+          <Field label="Execution mode">
+            <Segmented<AiProviderExecutionMode>
+              value={provider.executionMode}
+              options={[
+                { value: "interactive", label: "Interactive" },
+                { value: "non_interactive", label: "Non-interactive" }
+              ]}
+              ariaLabel="Execution mode"
+              onChange={(v) => props.onExecutionMode(provider.id, v)}
             />
           </Field>
           {provider.authMethod === "cli" ? (
@@ -844,6 +857,9 @@ export function AiProvidersPane() {
                 onEdit={setEditId}
                 onAuth={(id, method) =>
                   updateMutation.mutate({ id, patch: { authMethod: method } })
+                }
+                onExecutionMode={(id, executionMode) =>
+                  updateMutation.mutate({ id, patch: { executionMode } })
                 }
                 onCredential={(id, { baseUrl, apiKey }) =>
                   updateMutation.mutate({

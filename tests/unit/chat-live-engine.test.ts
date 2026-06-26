@@ -129,6 +129,24 @@ describe("CliChatEngineImpl — launch", () => {
     expect(path).toContain("/.claude/projects/-tmp-jarvis-thread-path/");
     expect(path.endsWith(`${sessionId}.jsonl`)).toBe(true);
   });
+
+  it("launches Codex exec JSON mode when configured non-interactive", async () => {
+    const io = fakeIo();
+    const engine = new CliChatEngineImpl("openai-compatible", "thread-codex-exec", io, {
+      launchMs: 0,
+      executionMode: "non_interactive"
+    });
+
+    await engine.launch({
+      neutralDir: "/tmp/jarvis/thread-codex-exec",
+      personaPath: "/tmp/jarvis/thread-codex-exec/persona.md"
+    });
+
+    const all = flat(io);
+    expect(all).toContain("codex exec --json");
+    expect(all).toContain("--sandbox read-only");
+    expect(all).toContain("-a never");
+  });
 });
 
 describe("CliChatEngineImpl — submit + readNew", () => {
