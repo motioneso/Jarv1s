@@ -13,18 +13,18 @@
 
 | Spec | Issue | Tier | Status | Agent label | Pane | Branch | PR |
 | ---- | ----- | ---- | ------ | ----------- | ---- | ------ | -- |
-| 2026-06-25-module-settings-connector.md | #487 | sensitive | building | Build-module-settings-connector | w1:p27 | build/module-settings-connector | — |
-| 2026-06-25-wellness-ai-consent.md | #474 | sensitive | queued | — | — | — | — |
-| 2026-06-25-calendar-cache-reconciliation.md | #473 | sensitive | queued | — | — | — | — |
+| 2026-06-25-module-settings-connector.md | #487 | sensitive | merged via #493 | — | — | — | #493 |
+| 2026-06-25-wellness-ai-consent.md | #474 | sensitive | building | Build-wellness-ai-consent | w1:p2C | build/wellness-ai-consent | — |
+| 2026-06-25-calendar-cache-reconciliation.md | #473 | sensitive | building | Build-calendar-cache-reconciliation | w1:p2E | build/calendar-cache-reconciliation | — |
 | 2026-06-25-settings-google-json-upload.md | #472 | routine | merged via #491 | — | — | — | #491 |
-| 2026-06-25-runtime-config-framework.md | #454 | sensitive | queued | — | — | — | — |
+| 2026-06-25-runtime-config-framework.md | #454 | sensitive | building | Build-runtime-config-framework | w1:p2D | build/runtime-config-framework | — |
 | 2026-06-25-agency-action-loop.md | #488 | security | queued | — | — | — | — |
 | 2026-06-25-evening-review-and-interview.md | #489 | sensitive | queued | — | — | — | — |
-| 2026-06-25-admin-per-user-ai-provider.md | #485 | security | queued | — | — | — | — |
+| 2026-06-25-admin-per-user-ai-provider.md | #485 | security | building | Build-admin-per-user-ai-provider | w1:p2F | build/admin-per-user-ai-provider | — |
 | 2026-06-25-per-account-feature-access.md | #482 | sensitive | queued | — | — | — | — |
 | 2026-06-25-wellness-selective-export.md | #484 | sensitive | queued | — | — | — | — |
 | 2026-06-25-chat-composer-stop-queue.md | #479 | routine | merged via #490 | — | — | — | #490 |
-| 2026-06-25-user-custom-themes.md | #477 | routine | wrapping up (PR pending) | Build-user-custom-themes | w1:p28 | build/user-custom-themes | — |
+| 2026-06-25-user-custom-themes.md | #477 | routine | merged via #492 | — | — | — | #492 |
 
 Risk tier (content triggers, set at Phase 0 — see `coordinate` Risk tiering):
 - `routine` — no schema/auth/secret surface → auto-merge after green QA.
