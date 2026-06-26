@@ -59,6 +59,22 @@ Risk tier (content triggers, set at Phase 0 — see `coordinate` Risk tiering):
 
 **ALL 12 SPECS MERGED. RUN COMPLETE.**
 
+## Post-merge CI fixes + prod deployment (2026-06-26)
+
+After all 12 PRs merged, CI on main was red. 5 coordinator fix commits restored green:
+
+| Commit | Fix |
+|--------|-----|
+| `32d9834` | Prettier formatting for 2 test files (tasks-agency-tools, briefings-prompt-isolation) |
+| `7daf8fa` | **Build-breaking:** Added `@jarv1s/tasks` + `@jarv1s/wellness` workspace deps to `apps/web` — their manifest `entry: "./settings"` caused the module-settings scanner to emit imports Rollup couldn't resolve in the prod Docker build |
+| `b671690` | Updated `runtime-config-registry` test for the `BRAVE_API_KEY` entry added in #496 |
+| `74fcb28` | Added `wellness-export` queue to expected queue list in `ai-tools.test.ts` (added by #499) |
+| `853eb9a` | Made cross-user reconciliation test resilient to prior test data (singleton account reuse left stale events) |
+
+CI green on `853eb9a` (run 28254916731): Verify foundation, Compose smoke, Prod compose smoke, Build+publish images — all success.
+
+**Prod deployed** 2026-06-26 ~11am PT: pulled `ghcr.io/motioneso/jarv1s:edge`, ran migrations (0112-0116), restarted container. Health: `{"ok":true,"db":"ok","pgboss":"ok"}`. Both containers healthy.
+
 **Merge order within each wave:** by PR-readiness; security-tier PRs (#488, #485) pause for Ben sign-off and don't block routine/sensitive merges of ready siblings.
 
 ## CI waivers
