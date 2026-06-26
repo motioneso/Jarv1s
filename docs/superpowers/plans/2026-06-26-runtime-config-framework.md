@@ -41,6 +41,7 @@
 ### Task 1: Registry + Shared Contract
 
 **Files:**
+
 - Create: `packages/settings/src/runtime-config-keys.ts`
 - Modify: `packages/settings/src/instance-settings-keys.ts`
 - Create: `packages/shared/src/runtime-config-api.ts`
@@ -121,6 +122,7 @@ git commit -m "feat(settings): add runtime config registry"
 ### Task 2: Resolver
 
 **Files:**
+
 - Create: `packages/settings/src/runtime-config-resolver.ts`
 - Modify: `packages/settings/src/index.ts`
 - Test: `tests/unit/runtime-config-resolver.test.ts`
@@ -170,6 +172,7 @@ git commit -m "feat(settings): resolve runtime config from db"
 ### Task 3: Admin Routes
 
 **Files:**
+
 - Create: `packages/settings/src/runtime-config-routes.ts`
 - Modify: `packages/settings/src/index.ts`
 - Modify: `packages/settings/src/manifest.ts`
@@ -217,6 +220,7 @@ git commit -m "feat(settings): add runtime config admin routes"
 ### Task 4: Embedding Config Consumers
 
 **Files:**
+
 - Modify: `packages/memory/src/embedding-provider-config.ts`
 - Modify: `packages/notes/src/tools.ts`
 - Modify: `packages/notes/src/jobs.ts`
@@ -280,6 +284,7 @@ git commit -m "feat(memory): resolve embedding config at runtime"
 ### Task 5: Web Admin UI
 
 **Files:**
+
 - Modify: `apps/web/src/api/client.ts`
 - Modify: `apps/web/src/query-keys.ts`
 - Modify: `apps/web/src/settings/settings-ai-admin-pane.tsx`
@@ -329,6 +334,7 @@ git commit -m "feat(web): add embedding runtime config controls"
 ### Task 6: Final Verification
 
 **Files:**
+
 - All touched files.
 
 - [ ] **Step 1: Run focused tests**
@@ -371,4 +377,3 @@ Expected: PASS or documented existing environment blocker.
 - No migration, no env var removal: preserved.
 - Secret handling: Task 2/3 guard secret values, even though embedding keys are non-secret.
 - Env-var audit: verified via `rg`; only embedding keys migrate in this plan, follow-ups remain out of scope.
-

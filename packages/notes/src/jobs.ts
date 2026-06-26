@@ -414,7 +414,9 @@ export interface RegisterNotesJobWorkersOptions {
   readonly preferencesRepository: PreferencesRepository;
 }
 
-async function defaultEmbeddingProviderFactory(scopedDb: DataContextDb): Promise<EmbeddingProvider> {
+async function defaultEmbeddingProviderFactory(
+  scopedDb: DataContextDb
+): Promise<EmbeddingProvider> {
   return createEmbeddingProvider(
     await getEmbeddingProviderConfig(new RuntimeConfigResolver(scopedDb))
   );

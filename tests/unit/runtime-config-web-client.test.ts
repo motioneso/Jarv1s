@@ -17,7 +17,9 @@ describe("runtime config web client", () => {
   });
 
   it("calls runtime config endpoints with encoded keys and value payloads", async () => {
-    const fetchMock = vi.fn(async () => new Response('{"config":{"value":"stub","source":"instance"}}'));
+    const fetchMock = vi.fn(
+      async () => new Response('{"config":{"value":"stub","source":"instance"}}')
+    );
     vi.stubGlobal("fetch", fetchMock);
 
     await getRuntimeConfig("ai.embed_provider");

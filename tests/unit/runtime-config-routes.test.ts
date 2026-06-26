@@ -48,8 +48,7 @@ function makeServer(options?: {
       withDataContext: async <T>(
         _accessContext: AccessContext,
         work: (db: DataContextDb) => Promise<T>
-      ): Promise<T> =>
-        work(scopedDb)
+      ): Promise<T> => work(scopedDb)
     } as unknown as DataContextRunner,
     resolveAccessContext: async () => ({ actorUserId: ACTOR_ID, requestId: "req-runtime-config" }),
     repository: {

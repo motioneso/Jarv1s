@@ -59,7 +59,10 @@ function validateRuntimeValue(entry: RuntimeConfigKeyEntry, value: string): void
     );
   }
   if (entry.type === "int" && !Number.isInteger(Number(value))) {
-    throw new HttpError(400, `Invalid runtime config "${entry.key}" value "${value}" (expected int)`);
+    throw new HttpError(
+      400,
+      `Invalid runtime config "${entry.key}" value "${value}" (expected int)`
+    );
   }
 }
 
