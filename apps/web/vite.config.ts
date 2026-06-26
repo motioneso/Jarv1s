@@ -1,10 +1,13 @@
 import react from "@vitejs/plugin-react";
+import { fileURLToPath } from "node:url";
 import { defineConfig } from "vite";
+import { jarvisModuleSettingsPlugin } from "@jarv1s/settings-ui/vite";
 
 const apiTarget = process.env.JARVIS_API_PROXY_TARGET ?? "http://localhost:3000";
+const rootDir = fileURLToPath(new URL("../..", import.meta.url));
 
 export default defineConfig({
-  plugins: [react()],
+  plugins: [react(), jarvisModuleSettingsPlugin({ rootDir })],
   server: {
     port: 5173,
     proxy: {
