@@ -44,9 +44,19 @@ const CHAT_MAX = parsePositiveIntEnv(process.env.JARVIS_RL_CHAT_MAX, 20);
 const CHAT_MUTATION_MAX = parsePositiveIntEnv(process.env.JARVIS_RL_CHAT_MUTATION_MAX, 20);
 const MAX_CHAT_TURN_TEXT_LENGTH = 32_000;
 
+export interface EveningInterviewSeed {
+  readonly context: string;
+  readonly openingPrompt: string;
+}
+
 export interface ChatLiveRoutesDependencies {
   readonly resolveAccessContext: (request: FastifyRequest) => Promise<AccessContext>;
-  readonly runtime: ChatSessionRuntime;
+  readonly runtime: ChatSessionRuntime & {
+    readonly resolveEveningInterviewSeed?: (
+      actorUserId: string,
+      briefingRunId?: string
+    ) => Promise<EveningInterviewSeed>;
+  };
 }
 
 export function registerChatLiveRoutes(
@@ -175,6 +185,47 @@ export function registerChatLiveRoutes(
     }
   );
 
+  server.post(
+    "/api/chat/evening-interview",
+    {
+      config: {
+        rateLimit: {
+          max: CHAT_MUTATION_MAX,
+          timeWindow: "1 minute",
+          keyGenerator: sessionRateLimitKey
+        }
+      }
+    },
+    async (request, reply) => {
+      const access = await resolveOr401(dependencies, request, reply);
+      if (!access) return reply;
+
+      const bodyResult = readEveningInterviewBody(request.body);
+      if ("error" in bodyResult) {
+        return reply.code(400).send({ error: bodyResult.error });
+      }
+
+      try {
+        const userName = await runtime.resolveUserName(access.actorUserId);
+        const seed =
+          (await runtime.resolveEveningInterviewSeed?.(
+            access.actorUserId,
+            bodyResult.briefingRunId
+          )) ?? buildEveningInterviewSeed(null);
+        await runtime.manager.seedContext(access.actorUserId, userName, seed.context);
+        const { reply: assistantReply } = await runtime.manager.submitTurn(
+          access.actorUserId,
+          userName,
+          seed.openingPrompt
+        );
+
+        return reply.send({ reply: assistantReply });
+      } catch (error) {
+        return handleLiveRouteError(error, reply);
+      }
+    }
+  );
+
   server.get("/api/chat/stream", async (request, reply) => {
     const access = await resolveOr401(dependencies, request, reply);
     if (!access) return reply;
@@ -205,6 +256,37 @@ export function registerChatLiveRoutes(
     // Keep the Fastify handler open until the client disconnects.
     return reply;
   });
+}
+
+export function buildEveningInterviewSeed(reviewText: string | null): EveningInterviewSeed {
+  const external = sanitizeExternalData(reviewText?.trim() || "(no evening review was available)");
+  return {
+    context:
+      "<trusted_instructions>\n" +
+      "You are running Jarvis's evening interview. Ask concise reflection and planning " +
+      "questions: what went well, what slipped, and what one thing matters tomorrow. Do " +
+      "not create, move, or delete records directly; use normal chat action-request proposals.\n" +
+      "</trusted_instructions>\n\n" +
+      `<external_source type="evening_review">\n${external}\n</external_source>`,
+    openingPrompt: "Prep me for tomorrow."
+  };
+}
+
+function sanitizeExternalData(value: string): string {
+  return value.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+}
+
+function readEveningInterviewBody(body: unknown): { briefingRunId?: string } | { error: string } {
+  if (body === undefined) return {};
+  if (body === null || typeof body !== "object" || Array.isArray(body)) {
+    return { error: "Expected JSON object body" };
+  }
+  const raw = (body as Record<string, unknown>).briefingRunId;
+  if (raw === undefined) return {};
+  if (typeof raw !== "string" || raw.trim() === "") {
+    return { error: "briefingRunId must be a non-empty string" };
+  }
+  return { briefingRunId: raw.trim() };
 }
 
 /**

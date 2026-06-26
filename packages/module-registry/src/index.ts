@@ -29,6 +29,7 @@ import {
 } from "@jarv1s/structured-state";
 import {
   BRIEFINGS_QUEUE_DEFINITIONS,
+  BriefingsRepository,
   briefingsModuleManifest,
   briefingsModuleSqlMigrationDirectory,
   registerBriefingsJobWorkers,
@@ -44,6 +45,7 @@ import {
   chatModuleManifest,
   chatModuleSqlMigrationDirectory,
   CliChatUnavailableError,
+  buildEveningInterviewSeed,
   registerChatJobWorkers,
   registerChatRoutes,
   type ChatEngineFactory,
@@ -225,6 +227,7 @@ export interface BuiltInRouteDependencies {
    * in-process path.
    */
   readonly adoptChatRpcConnection?: (connection: RpcConnection) => void;
+  readonly resolveEveningInterviewSeed?: ChatRoutesDependencies["resolveEveningInterviewSeed"];
   readonly revokeUserSessions?: (userId: string) => Promise<number>;
   /** Auth-owned current-user session list/revoke service (#237). */
   readonly meSessions?: MeSessionsService;
@@ -848,6 +851,14 @@ export function registerBuiltInApiRoutes(
     // probes through it and to ensureConnected()/close() it at the composition-root boundary.
     adoptChatRpcConnection: (connection: RpcConnection) => {
       rpcConnection = connection;
+    },
+    resolveEveningInterviewSeed: async (actorUserId: string, briefingRunId?: string) => {
+      const repository = new BriefingsRepository();
+      const run = await dependencies.dataContext.withDataContext(
+        { actorUserId, requestId: "chat:evening-interview-seed" },
+        (scopedDb) => repository.getOwnedEveningRunForInterview(scopedDb, briefingRunId)
+      );
+      return buildEveningInterviewSeed(run?.summary_text ?? null);
     }
   };
 

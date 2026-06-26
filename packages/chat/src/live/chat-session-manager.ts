@@ -336,6 +336,14 @@ export class ChatSessionManager {
     }
   }
 
+  async seedContext(actorUserId: string, userName: string, seed: string): Promise<void> {
+    const session = await this.ensureSession(actorUserId, userName);
+    await session.engine.submit(seed);
+    session.transcriptOffset = await this.drain(session.engine, session.transcriptOffset);
+    session.lastActivity = this.deps.clock.now();
+    this.deps.touchMcpToken?.(actorUserId);
+  }
+
   private async runTurn(
     actorUserId: string,
     userName: string,

@@ -301,6 +301,36 @@ describe("ChatSessionManager.launchSession — personaText + replayBatch + offse
     // And the server-owned drain meant NO client-side replay submit at all.
     expect(engine.submitted).toEqual(["new question"]);
   });
+
+  it("seeds hidden context by submitting and draining without recording a chat turn", async () => {
+    const engine = new FakeEngine(0);
+    const recordTurn = vi.fn();
+    const manager = new ChatSessionManager(
+      makeMinimalDeps({
+        engineFactory: () => engine,
+        pollMs: 0,
+        persistence: {
+          resolveActiveProvider: vi
+            .fn()
+            .mockResolvedValue({ provider: "anthropic", model: "sonnet" }),
+          listPriorTurns: vi.fn().mockResolvedValue({ recent: [], oldSummary: null }),
+          recordTurn,
+          openNewConversation: vi.fn().mockResolvedValue(undefined)
+        }
+      })
+    );
+
+    await manager.seedContext(
+      "u1",
+      "Ben",
+      "<trusted_instructions>\nEvening interview seed.\n</trusted_instructions>\n\n" +
+        "<external_source type=\"evening_review\">\nReview text\n</external_source>"
+    );
+
+    expect(engine.submitted).toHaveLength(1);
+    expect(engine.submitted[0]).toContain('<external_source type="evening_review">');
+    expect(recordTurn).not.toHaveBeenCalled();
+  });
 });
 
 describe("ChatSessionManager.submitTurn turn-lock release (#445)", () => {

@@ -158,6 +158,24 @@ export class BriefingsRepository {
       .execute();
   }
 
+  async getOwnedEveningRunForInterview(
+    scopedDb: DataContextDb,
+    runId?: string
+  ): Promise<BriefingRun | undefined> {
+    assertDataContextDb(scopedDb);
+
+    let query = scopedDb.db
+      .selectFrom("app.briefing_runs")
+      .selectAll()
+      .where("owner_user_id", "=", sql<string>`app.current_actor_user_id()`)
+      .where("briefing_type", "=", "evening");
+    if (runId) {
+      query = query.where("id", "=", runId);
+    }
+
+    return query.orderBy("created_at", "desc").orderBy("id").executeTakeFirst();
+  }
+
   /** `created:false` means an existing same-day scheduled run was returned (idempotent skip). */
   async generateRun(
     scopedDb: DataContextDb,
