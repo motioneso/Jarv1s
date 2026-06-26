@@ -45,7 +45,8 @@ export function createMockBriefingDefinition(
     lastRunAt: null,
     createdAt: "2026-06-06T12:00:00.000Z",
     updatedAt: "2026-06-06T12:00:00.000Z",
-    ...overrides
+    ...overrides,
+    briefingType: overrides.briefingType ?? "morning"
   };
 }
 
@@ -73,7 +74,8 @@ export function createMockBriefingRun(
       ]
     },
     createdAt: "2026-06-06T12:00:00.000Z",
-    ...overrides
+    ...overrides,
+    briefingType: overrides.briefingType ?? "morning"
   };
 }
 

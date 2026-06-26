@@ -93,6 +93,7 @@ export function AppShell(props: AppShellProps) {
     setChatOpen(true);
     void sendChatTurn(prompt);
   }, []);
+  const openChat = useCallback(() => setChatOpen(true), []);
   // Lifted to the shell so the SSE stream + transcript persist while the drawer is
   // closed and as the user navigates between pages — the chat follows the user.
   const { records, clearRecords } = useChatStream();
@@ -218,7 +219,9 @@ export function AppShell(props: AppShellProps) {
         </header>
 
         <main className="content-surface">
-          <ChatControlsProvider value={{ openChatWith }}>{props.children}</ChatControlsProvider>
+          <ChatControlsProvider value={{ openChat, openChatWith }}>
+            {props.children}
+          </ChatControlsProvider>
         </main>
       </div>
 

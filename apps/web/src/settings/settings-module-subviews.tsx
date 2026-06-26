@@ -1,20 +1,33 @@
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ArrowLeft, Bell, MessageSquare, MessagesSquare, MoonStar, Sunrise } from "lucide-react";
 import { useState, type ReactNode } from "react";
 
 import {
-  DEFAULT_BRIEFINGS,
   DEFAULT_CHAT,
   DEFAULT_NOTIFICATIONS,
   NOTIFICATION_SENSITIVITY_HINT,
-  type BriefingsSettings,
   type ChatSettings,
   type NotificationSensitivity,
   type NotificationsSettings
 } from "./settings-sample-data";
+import {
+  createBriefingDefinition,
+  listAiAssistantTools,
+  listBriefingDefinitions,
+  updateBriefingDefinition
+} from "../api/client";
+import { queryKeys } from "../api/query-keys";
+import {
+  createDefinitionRequest,
+  findDefinition,
+  readToolNames,
+  targetTimeFor,
+  updateDefinitionRequest
+} from "../briefings/briefing-settings-model";
 import { Choice, Field, Group, NotWired, Note, Row, Segmented, Switch } from "./settings-ui";
 
-// BACKEND-TODO: persist + apply the Briefings / Chat / Notifications settings objects.
-// These sub-views are controlled local state only — nothing is saved or fed into behavior yet.
+// BACKEND-TODO: persist + apply the Chat / Notifications settings objects.
+// Those sub-views are controlled local state only — nothing is saved or fed into behavior yet.
 
 /* Shared takeover chrome for a settings-only module. */
 function ModuleSub(props: {
@@ -57,11 +70,62 @@ function ToggleRow(props: {
   );
 }
 
+function readError(error: unknown): string {
+  return error instanceof Error ? error.message : "Could not update settings";
+}
+
 export function BriefingSettings(props: { readonly onBack: () => void }) {
-  const [state, setState] = useState<BriefingsSettings>(DEFAULT_BRIEFINGS);
-  const set = (patch: Partial<BriefingsSettings>) => setState((s) => ({ ...s, ...patch }));
-  const toggleSection = (k: string, on: boolean) =>
-    set({ sections: state.sections.map((s) => (s.k === k ? { ...s, on } : s)) });
+  const queryClient = useQueryClient();
+  const definitionsQuery = useQuery({
+    queryKey: queryKeys.briefings.definitions,
+    queryFn: listBriefingDefinitions
+  });
+  const toolsQuery = useQuery({
+    queryKey: queryKeys.ai.assistantTools,
+    queryFn: listAiAssistantTools
+  });
+  const definitions = definitionsQuery.data?.definitions ?? [];
+  const selectedToolNames = readToolNames(toolsQuery.data?.tools ?? []);
+  const morning = findDefinition(definitions, "morning");
+  const evening = findDefinition(definitions, "evening");
+  const mutation = useMutation({
+    mutationFn: async (input: {
+      readonly type: "morning" | "evening";
+      readonly enabled?: boolean;
+      readonly targetTime?: string;
+    }) => {
+      const current = findDefinition(definitions, input.type);
+      if (current) {
+        return updateBriefingDefinition(
+          current.id,
+          updateDefinitionRequest(current, {
+            enabled: input.enabled,
+            targetTime: input.targetTime
+          })
+        );
+      }
+      if (selectedToolNames.length === 0) {
+        throw new Error("No read tools available for briefings");
+      }
+      return createBriefingDefinition(
+        createDefinitionRequest({
+          briefingType: input.type,
+          enabled: input.enabled,
+          targetTime: input.targetTime,
+          selectedToolNames
+        })
+      );
+    },
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: queryKeys.briefings.definitions });
+    }
+  });
+  const busy =
+    definitionsQuery.isLoading ||
+    toolsQuery.isLoading ||
+    mutation.isPending ||
+    selectedToolNames.length === 0;
+  const error = definitionsQuery.error ?? toolsQuery.error ?? mutation.error;
 
   return (
     <ModuleSub
@@ -70,7 +134,7 @@ export function BriefingSettings(props: { readonly onBack: () => void }) {
       sub="Your daily reading ritual"
       onBack={props.onBack}
     >
-      <NotWired>Briefing settings aren't saved or applied yet.</NotWired>
+      {error ? <NotWired>{readError(error)}</NotWired> : null}
       <Group
         title="Cadence"
         desc="When Jarvis prepares your reading. It waits for you — nothing is pushed before this."
@@ -82,8 +146,9 @@ export function BriefingSettings(props: { readonly onBack: () => void }) {
           <input
             className="jds-input"
             type="time"
-            value={state.morningTime}
-            onChange={(e) => set({ morningTime: e.target.value })}
+            value={targetTimeFor(morning, "morning")}
+            disabled={busy}
+            onChange={(e) => mutation.mutate({ type: "morning", targetTime: e.target.value })}
             aria-label="Morning briefing time"
           />
         </Field>
@@ -93,57 +158,30 @@ export function BriefingSettings(props: { readonly onBack: () => void }) {
           control={
             <Switch
               ariaLabel="Evening wind-down"
-              checked={state.eveningOn}
-              onChange={(v) => set({ eveningOn: v })}
+              checked={evening?.enabled ?? false}
+              onChange={(v) => mutation.mutate({ type: "evening", enabled: v })}
+              disabled={busy}
             />
           }
         />
-        {state.eveningOn ? (
+        {evening?.enabled ? (
           <Field label="Evening time">
             <input
               className="jds-input"
               type="time"
-              value={state.eveningTime}
-              onChange={(e) => set({ eveningTime: e.target.value })}
+              value={targetTimeFor(evening, "evening")}
+              disabled={busy}
+              onChange={(e) => mutation.mutate({ type: "evening", targetTime: e.target.value })}
               aria-label="Evening time"
             />
           </Field>
         ) : null}
       </Group>
 
-      <Group
-        title="What's included"
-        desc="The sections that make up your morning reading, in order."
-      >
-        {state.sections.map((s) => (
-          <ToggleRow
-            key={s.k}
-            name={s.name}
-            desc={s.desc}
-            on={s.on}
-            onChange={(v) => toggleSection(s.k, v)}
-          />
-        ))}
-      </Group>
-
-      <Group title="Depth & delivery">
-        <Choice
-          label="Length"
-          hint="How much detail Jarvis goes into."
-          value={state.depth === "brief" ? "Brief" : "Full"}
-          options={["Brief", "Full"]}
-          onChange={(v) => set({ depth: v === "Brief" ? "brief" : "full" })}
-        />
+      <Group title="Sources">
         <Row
-          name="Read aloud"
-          desc="Jarvis narrates the briefing when you open it."
-          control={
-            <Switch
-              ariaLabel="Read aloud"
-              checked={state.readAloud}
-              onChange={(v) => set({ readAloud: v })}
-            />
-          }
+          name="Read tools"
+          desc={`${selectedToolNames.length} read-only sources available for scheduled synthesis.`}
         />
       </Group>
     </ModuleSub>
