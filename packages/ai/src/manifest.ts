@@ -10,6 +10,7 @@ import {
   discoverAiProviderModelsResponseSchema,
   getAiSummaryResponseSchema,
   getChatModelOverrideSettingsResponseSchema,
+  getAiAdminUserPinResponseSchema,
   invokeAiAssistantToolRequestSchema,
   invokeAiAssistantToolResponseSchema,
   listAiCapabilityRoutesResponseSchema,
@@ -21,6 +22,7 @@ import {
   putAiCapabilityRouteRequestSchema,
   putAiCapabilityRouteResponseSchema,
   putAdminChatModelOverrideRequestSchema,
+  putAiAdminUserPinRequestSchema,
   putChatModelOverrideRequestSchema,
   resolveAiAssistantActionRequestSchema,
   resolveAiAssistantActionResponseSchema,
@@ -237,6 +239,19 @@ export const aiModuleManifest = {
       path: "/api/admin/ai/chat-model-override",
       requestSchema: putAdminChatModelOverrideRequestSchema,
       responseSchema: getChatModelOverrideSettingsResponseSchema,
+      permissionId: "ai.manage"
+    },
+    {
+      method: "GET",
+      path: "/api/admin/users/:userId/ai-pin",
+      responseSchema: getAiAdminUserPinResponseSchema,
+      permissionId: "ai.manage"
+    },
+    {
+      method: "PUT",
+      path: "/api/admin/users/:userId/ai-pin",
+      requestSchema: putAiAdminUserPinRequestSchema,
+      responseSchema: getAiAdminUserPinResponseSchema,
       permissionId: "ai.manage"
     },
     {

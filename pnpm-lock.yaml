@@ -184,6 +184,9 @@ importers:
       '@jarv1s/module-sdk':
         specifier: workspace:*
         version: link:../module-sdk
+      '@jarv1s/settings':
+        specifier: workspace:*
+        version: link:../settings
       '@jarv1s/shared':
         specifier: workspace:*
         version: link:../shared

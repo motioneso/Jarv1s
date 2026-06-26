@@ -5,6 +5,8 @@ export type AiModelStatus = "active" | "disabled";
 export type AiModelTier = "reasoning" | "interactive" | "economy";
 export type AiModelCapability = "chat" | "tool-use" | "json" | "vision" | "summarization";
 export type AiCapabilityRouteReason =
+  | "admin-pin"
+  | "admin-pin-unavailable-fallback"
   | "manual-route"
   | "manual-route-unavailable-fallback"
   | "matched-active-model"
@@ -240,6 +242,22 @@ export interface PutChatModelOverrideSettingsResponse {
 
 export interface PutAdminChatModelOverrideRequest {
   readonly enabled: boolean;
+}
+
+export interface AiAdminUserPinDto {
+  readonly pinnedModelId: string | null;
+  readonly pinnedModel: AiConfiguredModelDto | null;
+  readonly effectiveChatModel: AiConfiguredModelDto | null;
+  readonly effectiveChatReason: AiCapabilityRouteReason;
+  readonly availableModels: readonly AiConfiguredModelDto[];
+}
+
+export interface GetAiAdminUserPinResponse {
+  readonly pin: AiAdminUserPinDto;
+}
+
+export interface PutAiAdminUserPinRequest {
+  readonly modelId: string | null;
 }
 
 export interface ListAiAssistantToolsResponse {
