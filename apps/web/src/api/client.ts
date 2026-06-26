@@ -120,7 +120,12 @@ import type {
   CreateTherapyNoteRequest,
   CreateTherapyNoteResponse,
   DeleteTherapyNoteResponse,
-  PatchMeProfileRequest
+  DeleteCustomThemeResponse,
+  ListThemesResponse,
+  PatchMeProfileRequest,
+  PutActiveThemeRequest,
+  PutCustomThemeRequest,
+  PutCustomThemeResponse
 } from "@jarv1s/shared";
 
 export interface SignUpEmailRequest {
@@ -190,6 +195,33 @@ export async function putLocaleSettings(
   return requestJson<PutLocaleSettingsResponse>("/api/me/locale", {
     method: "PUT",
     body
+  });
+}
+
+export async function listThemes(): Promise<ListThemesResponse> {
+  return requestJson<ListThemesResponse>("/api/me/themes");
+}
+
+export async function setActiveTheme(body: PutActiveThemeRequest): Promise<ListThemesResponse> {
+  return requestJson<ListThemesResponse>("/api/me/themes/active", {
+    method: "PUT",
+    body
+  });
+}
+
+export async function putCustomTheme(
+  id: string,
+  body: PutCustomThemeRequest
+): Promise<PutCustomThemeResponse> {
+  return requestJson<PutCustomThemeResponse>(`/api/me/themes/${encodeURIComponent(id)}`, {
+    method: "PUT",
+    body
+  });
+}
+
+export async function deleteCustomTheme(id: string): Promise<DeleteCustomThemeResponse> {
+  return requestJson<DeleteCustomThemeResponse>(`/api/me/themes/${encodeURIComponent(id)}`, {
+    method: "DELETE"
   });
 }
 
