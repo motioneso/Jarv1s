@@ -325,6 +325,51 @@
   background: var(--border-strong);
   cursor: default;
 }
+.chatd-next {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 8px;
+  color: var(--text-subtle);
+}
+.chatd-next__text {
+  flex: 1;
+  min-width: 0;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  background: var(--surface-2);
+  color: inherit;
+  cursor: pointer;
+  font-family: var(--font-sans);
+  font-size: 12.5px;
+  line-height: 1.35;
+  overflow: hidden;
+  padding: 6px 8px;
+  text-align: left;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.chatd-next__text:hover {
+  border-color: var(--border);
+  color: var(--text);
+}
+.chatd-next__x {
+  width: 26px;
+  height: 26px;
+  border: 0;
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--text-subtle);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+}
+.chatd-next__x:hover {
+  background: var(--surface-2);
+  color: var(--text);
+}
 
 /* behind-the-scenes peek — collapsed thinking/tool/status/result, the conversation stays primary */
 .chatd-peek {

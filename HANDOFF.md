@@ -2,11 +2,11 @@
 
 **Spec (approved):** docs/superpowers/specs/2026-06-25-chat-composer-stop-queue.md
 **GitHub issue:** #479
-**Risk tier:** `routine`  (isolated UI: chat-drawer.tsx state machine; no schema/auth/secret surface. Auto-merge after green QA.)
-**Worktree:** /home/ben/Jarv1s/.claude/worktrees/chat-composer-stop-queue   **Branch:** build/chat-composer-stop-queue (off origin/main @ 63681e9)
-**Build skill path (absolute):** /home/ben/Jarv1s/.claude/skills/coordinated-build/SKILL.md   (use this exact path if `coordinated-build` does not resolve by name in your spawn env)
-**Coordinator label:** `Coordinator`   (UNIQUE — escalate via `herdr-pane-message`; before messaging, verify `herdr pane list` shows EXACTLY ONE pane with this label. Never guess or reuse a `…-N` pane-id — they reflow when any pane opens/closes; re-resolve the live pane by label from `herdr pane list` each time.)
-**Coordinator session id:** `ses_0fef45f35ffeEJBGhPxqAsabKB`   (the immutable authority for this coordinator. Confirm this session id is still live before relying on the coordinator.)
+**Risk tier:** `routine` (isolated UI: chat-drawer.tsx state machine; no schema/auth/secret surface. Auto-merge after green QA.)
+**Worktree:** /home/ben/Jarv1s/.claude/worktrees/chat-composer-stop-queue **Branch:** build/chat-composer-stop-queue (off origin/main @ 63681e9)
+**Build skill path (absolute):** /home/ben/Jarv1s/.claude/skills/coordinated-build/SKILL.md (use this exact path if `coordinated-build` does not resolve by name in your spawn env)
+**Coordinator label:** `Coordinator` (UNIQUE — escalate via `herdr-pane-message`; before messaging, verify `herdr pane list` shows EXACTLY ONE pane with this label. Never guess or reuse a `…-N` pane-id — they reflow when any pane opens/closes; re-resolve the live pane by label from `herdr pane list` each time.)
+**Coordinator session id:** `ses_0fef45f35ffeEJBGhPxqAsabKB` (the immutable authority for this coordinator. Confirm this session id is still live before relying on the coordinator.)
 **Relay threshold:** countable events — ~80–100k tokens OR a compaction summary in your own context (then relay immediately).
 
 ## Start
@@ -39,8 +39,8 @@
 ## Collision notes (from the coordinator)
 
 - **You are wave-1, no collisions.** `apps/web/src/chat/chat-drawer.tsx` is touched by NO other spec.
-- **Critical distinction from the spec:** `pendingUserText` (chat-drawer.tsx:67) is the *optimistic
-  send echo*, NOT a queue. Your new `queuedText` must be a SEPARATE state variable. Do not conflate.
+- **Critical distinction from the spec:** `pendingUserText` (chat-drawer.tsx:67) is the _optimistic
+  send echo_, NOT a queue. Your new `queuedText` must be a SEPARATE state variable. Do not conflate.
 - The existing Stop button (separate from the send arrow) is the foundation — your work morphs
   send→Stop in-place and adds the depth-1 queue + "Next: …" chip on top.
 - **Never touch** `docs/coordination/` (coordinator-only), and never run repo-wide

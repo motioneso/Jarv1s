@@ -89,6 +89,94 @@ test("opens the live chat drawer from the nav and renders the streamed records o
   await expect(drawer.getByText("Hi there")).toHaveCount(0);
 });
 
+test("stages next message while response is running and sends it after stop", async ({ page }) => {
+  await mockApi(page, {
+    authenticated: true,
+    chatThreads: [],
+    connectorAccounts: [],
+    connectorProviders: createMockConnectorProviders(),
+    notifications: [],
+    tasks: []
+  });
+
+  const turnTexts: string[] = [];
+  let cancelRequests = 0;
+  let releaseFirstTurn: (() => void) | null = null;
+  const firstTurnStopped = new Promise<void>((resolve) => {
+    releaseFirstTurn = resolve;
+  });
+
+  await page.route("**/api/chat/turn", async (route) => {
+    const body = route.request().postDataJSON() as { readonly text: string };
+    turnTexts.push(body.text);
+
+    if (body.text === "First question") {
+      await firstTurnStopped;
+    }
+
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({ reply: `Reply for ${body.text}` })
+    });
+  });
+
+  await page.route("**/api/chat/turn/cancel", async (route) => {
+    cancelRequests += 1;
+    releaseFirstTurn?.();
+    await route.fulfill({ status: 200, contentType: "application/json", body: "{}" });
+  });
+
+  await page.route("**/api/chat/clear", (route) => route.fulfill({ status: 204, body: "" }));
+
+  await page.goto("/");
+  await page.getByRole("button", { name: "Chat with Jarvis" }).click();
+  const drawer = page.getByRole("dialog", { name: "Chat with Jarvis" });
+  const composerInput = drawer.getByLabel("Message Jarvis");
+  const queuedChip = drawer.locator(".chatd-next__text");
+
+  await composerInput.fill("First question");
+  await composerInput.press("Enter");
+
+  const composerAction = drawer.locator(".chatd-input .chatd-send");
+  await expect(composerAction).toHaveAttribute("aria-label", "Stop generating");
+  await expect(drawer.locator(".chatd-loading .chatd-stop")).toHaveCount(0);
+
+  await composerInput.fill("Line one");
+  await composerInput.press("Shift+Enter");
+  await expect(composerInput).toHaveValue("Line one\n");
+  await composerInput.type("Line two");
+  await composerInput.press("Enter");
+  await expect(composerInput).toHaveValue("");
+  await expect(queuedChip).toContainText('Next: "Line one Line two"');
+
+  await composerInput.fill("Replacement next");
+  await composerInput.press("Enter");
+  await expect(queuedChip).toContainText('Next: "Replacement next"');
+  await expect(drawer.getByText(/Line one/)).toHaveCount(0);
+
+  await drawer.getByRole("button", { name: "Edit queued message" }).click();
+  await expect(composerInput).toHaveValue("Replacement next");
+  await expect(drawer.getByText(/Next:/)).toHaveCount(0);
+
+  await composerInput.fill("Discard me");
+  await composerInput.press("Enter");
+  await drawer.getByRole("button", { name: "Discard queued message" }).evaluate((button) => {
+    (button as HTMLButtonElement).click();
+  });
+  await expect(drawer.getByText(/Next:/)).toHaveCount(0);
+
+  await composerInput.fill("Drained queued");
+  await composerInput.press("Enter");
+  await expect(queuedChip).toContainText('Next: "Drained queued"');
+
+  await composerAction.click();
+
+  await expect.poll(() => turnTexts).toEqual(["First question", "Drained queued"]);
+  expect(cancelRequests).toBe(1);
+  await expect(drawer.getByText(/Next:/)).toHaveCount(0);
+});
+
 test("clicking a history row renders stored messages read-only", async ({ page }) => {
   await mockApi(page, {
     authenticated: true,
