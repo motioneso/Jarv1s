@@ -11,6 +11,7 @@ export * from "./web-search-key.js";
 export * from "./web-search-key-routes.js";
 export * from "./runtime-config-keys.js";
 export * from "./runtime-config-resolver.js";
+export * from "./runtime-config-routes.js";
 export * from "./me-sessions-routes.js";
 export * from "./me-account-routes.js";
 export * from "./source-behavior-routes.js";

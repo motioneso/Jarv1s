@@ -88,6 +88,7 @@ import {
   readBraveSearchApiKey,
   registerSettingsJobWorkers,
   registerSettingsRoutes,
+  registerRuntimeConfigRoutes,
   registerWebSearchKeyRoutes,
   settingsModuleManifest,
   settingsModuleSqlMigrationDirectory,
@@ -417,6 +418,11 @@ const BUILT_IN_MODULES: readonly BuiltInModuleRegistration[] = [
         repository: new SettingsRepository(),
         cipher: webSearchCipher,
         onKeyChanged: invalidateWebSearchProviderCache
+      });
+      registerRuntimeConfigRoutes(server, {
+        dataContext: deps.dataContext,
+        resolveAccessContext: deps.resolveAccessContext,
+        repository: new SettingsRepository()
       });
       setWebSearchKeyResolver(
         (scopedDb) => readBraveSearchApiKey(scopedDb as DataContextDb, webSearchCipher),
