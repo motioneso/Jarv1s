@@ -13,10 +13,12 @@ import {
   listMedicationsResponseSchema,
   listTherapyNotesRouteSchema,
   medicationAdherenceSummaryRouteSchema,
+  putWellnessAiConsentRequestSchema,
   medicationResponseSchema,
   medicationScheduleResponseSchema,
   updateCheckinRouteSchema,
   updateMedicationRequestSchema,
+  wellnessAiConsentResponseSchema,
   wellnessInsightsRouteSchema
 } from "@jarv1s/shared";
 
@@ -69,6 +71,17 @@ export const wellnessModuleManifest = {
       permissionId: "wellness.view"
     }
   ],
+  settings: [
+    {
+      id: "wellness.ai-consent",
+      label: "Wellness",
+      path: "/settings/modules/wellness",
+      scope: "user",
+      order: 40,
+      permissionId: "wellness.view",
+      entry: "./settings"
+    }
+  ],
   permissions: [
     {
       id: "wellness.view",
@@ -100,6 +113,19 @@ export const wellnessModuleManifest = {
     }
   ],
   routes: [
+    {
+      method: "GET",
+      path: "/api/wellness/ai-consent",
+      responseSchema: wellnessAiConsentResponseSchema,
+      permissionId: "wellness.view"
+    },
+    {
+      method: "PUT",
+      path: "/api/wellness/ai-consent",
+      requestSchema: putWellnessAiConsentRequestSchema,
+      responseSchema: wellnessAiConsentResponseSchema,
+      permissionId: "wellness.view"
+    },
     {
       method: "POST",
       path: "/api/wellness/checkins",

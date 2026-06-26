@@ -7,6 +7,7 @@ import { DataContextRunner, createDatabase, type AccessContext } from "@jarv1s/d
 import { ChatMemoryFactsRepository } from "@jarv1s/memory";
 import { moodIndex, moodBand } from "@jarv1s/shared";
 import { WellnessRepository, registerWellnessRoutes } from "@jarv1s/wellness";
+import { PreferencesRepository } from "@jarv1s/structured-state";
 
 import { connectionStrings, resetEmptyFoundationDatabase } from "./test-database.js";
 
@@ -563,6 +564,86 @@ describe("GET /api/wellness/medications/logs — adherence summary", () => {
           expect(typeof dos["prn"]).toBe("boolean");
         }
       }
+    } finally {
+      await app.close();
+    }
+  });
+});
+
+describe("GET/PUT /api/wellness/ai-consent", () => {
+  it("returns inherited effective consent when no explicit preference exists", async () => {
+    const app = Fastify();
+    registerWellnessRoutes(app, {
+      resolveAccessContext: async () => ({ actorUserId: userId, requestId: "req:ai-consent" }),
+      dataContext,
+      resolveActiveModules: async () => [{ id: "wellness" }]
+    });
+    await dataContext.withDataContext(ctx(userId), (db) =>
+      new PreferencesRepository().delete(db, "wellness.ai_consent_granted")
+    );
+    await app.ready();
+    try {
+      const res = await app.inject({ method: "GET", url: "/api/wellness/ai-consent" });
+      expect(res.statusCode).toBe(200);
+      expect(res.json()).toEqual({ effective: true, explicit: null });
+    } finally {
+      await app.close();
+    }
+  });
+
+  it("persists explicit consent and returns the effective state", async () => {
+    const app = Fastify();
+    registerWellnessRoutes(app, {
+      resolveAccessContext: async () => ({ actorUserId: userId, requestId: "req:ai-consent-put" }),
+      dataContext,
+      resolveActiveModules: async () => [{ id: "wellness" }]
+    });
+    await app.ready();
+    try {
+      const put = await app.inject({
+        method: "PUT",
+        url: "/api/wellness/ai-consent",
+        payload: { granted: false }
+      });
+      expect(put.statusCode).toBe(200);
+      expect(put.json()).toEqual({ effective: false, explicit: false });
+
+      const get = await app.inject({ method: "GET", url: "/api/wellness/ai-consent" });
+      expect(get.statusCode).toBe(200);
+      expect(get.json()).toEqual({ effective: false, explicit: false });
+    } finally {
+      await app.close();
+    }
+  });
+
+  it("inherits false when Wellness is not active and no explicit preference exists", async () => {
+    const inactiveUser = "00000000-0000-4000-8000-000000000053";
+    const client = new Client({ connectionString: connectionStrings.bootstrap });
+    await client.connect();
+    try {
+      await client.query(
+        `INSERT INTO app.users (id, email, is_instance_admin)
+         VALUES ($1, 'well-p2-inactive@example.test', false) ON CONFLICT (id) DO NOTHING`,
+        [inactiveUser]
+      );
+    } finally {
+      await client.end();
+    }
+
+    const app = Fastify();
+    registerWellnessRoutes(app, {
+      resolveAccessContext: async () => ({
+        actorUserId: inactiveUser,
+        requestId: "req:ai-consent-inactive"
+      }),
+      dataContext,
+      resolveActiveModules: async () => []
+    });
+    await app.ready();
+    try {
+      const res = await app.inject({ method: "GET", url: "/api/wellness/ai-consent" });
+      expect(res.statusCode).toBe(200);
+      expect(res.json()).toEqual({ effective: false, explicit: null });
     } finally {
       await app.close();
     }
