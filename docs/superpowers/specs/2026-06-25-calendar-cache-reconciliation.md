@@ -33,7 +33,7 @@ In `packages/connectors/src/sync-jobs.ts`, after the calendar upsert loop comple
    below), plus any skipped for unusable times (those are still "present" in Google, just skipped
    locally — keep them).
 2. Call a new `CalendarRepository.deleteStaleCachedEvents(scopedDb, { connectorAccountId,
-   keepExternalIds })` that deletes rows where `connector_account_id = $1 AND external_id <> ALL($2)`.
+keepExternalIds })` that deletes rows where `connector_account_id = $1 AND external_id <> ALL($2)`.
    RLS scopes by owner; the worker runtime already has DELETE... **check:** the current grants give
    the worker SELECT/INSERT/UPDATE on `calendar_events` — a new migration must add DELETE. See §5.
 3. **Cancelled handling:** when the fresh Google event has `status === "cancelled"`, do NOT upsert
@@ -137,7 +137,7 @@ SELECT/INSERT/UPDATE-only, add a matching owner-scoped DELETE policy.
 - **No new secrets surface.** The reconciliation uses the same token holder / Google client the
   upsert path already uses. No new credentials.
 - **Metadata-only job payload.** The sync job payload stays `{ actorUserId, kind,
-  idempotencyKey }` — the reconciliation is computed from the fetched event set, not passed in the
+idempotencyKey }` — the reconciliation is computed from the fetched event set, not passed in the
   payload (CLAUDE.md invariant).
 - **Bounded logging.** Log `calendarReconciled` count only — never external ids or event content.
 

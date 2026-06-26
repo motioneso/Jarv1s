@@ -56,7 +56,10 @@ second check: the feature grant for that account. Concretely a shared helper:
 ```ts
 // packages/connectors/src/feature-grants.ts (new)
 export async function isFeatureGranted(
-  scopedDb, preferences, accountId, feature
+  scopedDb,
+  preferences,
+  accountId,
+  feature
 ): Promise<boolean> {
   const grants = await preferences.get(scopedDb, `connector.${accountId}.feature_grants`);
   // No row = default-on for every scope the account has (legacy + fresh-connect parity).
@@ -68,6 +71,7 @@ export async function isFeatureGranted(
 Effective gate: `account.scopes.includes(X) && await isFeatureGranted(scopedDb, prefs, account.id, "email"|"calendar")`.
 
 **Call sites to update** (the spots that currently gate on scope alone):
+
 - `packages/connectors/src/sync-jobs.ts:313` (calendar sync) + `:385` (email sync) — skip syncing a
   feature whose grant is off. (Cached data is retained, just not refreshed; see §5.)
 - `packages/connectors/src/repository.ts:349` (`hasCalendarScope`-style check) — add the grant check.
@@ -98,7 +102,7 @@ In the **Connected accounts pane** (`ConnectedPane` / `AccountRow` in
 - An account with both scopes shows two controls: "Email access" and "Calendar access".
 - An account with only calendar scope shows only "Calendar access".
 - Toggle → writes the pref via a new route (§7) → invalidates the accounts query.
-- Copy makes the boundary explicit: *"Jarvis may read your email from this account"* (independent of
+- Copy makes the boundary explicit: _"Jarvis may read your email from this account"_ (independent of
   the calendar toggle on the same account). Note that this governs Jarvis's access, not the Google
   OAuth grant itself (which is managed at Google).
 
@@ -128,7 +132,7 @@ Gated by the existing connector-account access (owner-scoped — only the accoun
 - **Per-account isolation.** Grants are keyed by `accountId` under owner-scoped RLS. User A cannot
   affect user B's account grants. Admin = config power only (can't read emails via this).
 - **No secrets surface.** Grant routes return booleans only; no tokens, no message/event content.
-- **Cached data retained, not leaked.** Revoking blocks *use*; the cache stays owner-scoped under
+- **Cached data retained, not leaked.** Revoking blocks _use_; the cache stays owner-scoped under
   RLS as today. No new data flows anywhere.
 - **Independent features.** Email and calendar grants are separate keys in the JSON doc; granting one
   never implies the other (the issue's explicit "one feature grant cannot imply another").

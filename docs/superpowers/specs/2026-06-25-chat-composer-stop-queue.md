@@ -32,13 +32,14 @@ clear stop affordance. Four changes, all in `apps/web/src/chat/chat-drawer.tsx`:
 
 States are derived from `isSending` + `queuedText` + textarea `text`:
 
-| `isSending` | `queuedText` | Send button renders as | Enter does | Textarea |
-|---|---|---|---|---|
-| false | — | Send (ArrowUp), enabled when `text.trim()` | sends `text`, clears | editable |
-| true | null | **Stop** (Square), enabled | stages `text` → `queuedText`, clears textarea | editable |
-| true | set | **Stop** (Square), enabled | updates `queuedText` from current `text`, clears textarea | editable (can revise the staged msg by typing + Enter) |
+| `isSending` | `queuedText` | Send button renders as                     | Enter does                                                | Textarea                                               |
+| ----------- | ------------ | ------------------------------------------ | --------------------------------------------------------- | ------------------------------------------------------ |
+| false       | —            | Send (ArrowUp), enabled when `text.trim()` | sends `text`, clears                                      | editable                                               |
+| true        | null         | **Stop** (Square), enabled                 | stages `text` → `queuedText`, clears textarea             | editable                                               |
+| true        | set          | **Stop** (Square), enabled                 | updates `queuedText` from current `text`, clears textarea | editable (can revise the staged msg by typing + Enter) |
 
 **Stop press:**
+
 - `isSending && queuedText === null` → `cancelChatTurn()` only (today's behavior).
 - `isSending && queuedText !== null` → `cancelChatTurn()` then `onSend(queuedText)` + clear queue.
   (The cancel's `try/finally` clears `isSending`; the queued send then runs as a normal turn. Order
@@ -46,6 +47,7 @@ States are derived from `isSending` + `queuedText` + textarea `text`:
   the existing `try/finally` guard at line 121.)
 
 **Edge cases (the issue's list):**
+
 - **Empty input while responding** → Enter is a no-op (nothing to queue). Stop still cancels.
 - **Stop with no queued message** → just cancels (above).
 - **Keyboard parity:** Enter = stage (while sending) / send (while idle); Shift+Enter = newline
@@ -58,9 +60,11 @@ States are derived from `isSending` + `queuedText` + textarea `text`:
 ## 3. The "Next: …" chip
 
 Below the textarea, when `queuedText !== null`:
+
 ```
 Next: "<queuedText>"  ×
 ```
+
 - Click the chip text → restores `queuedText` into the textarea (so the user can edit), clears the
   queue (depth-1 means it's now back in the textarea, not double-staged).
 - Click × → discards the queued message (clears `queuedText`).

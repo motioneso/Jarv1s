@@ -12,7 +12,8 @@
 Add the same Google OAuth client JSON upload path that onboarding has to the **Settings → Connect
 Google** screen. Pure frontend reuse — no new backend, routes, or secrets handling. The upload
 simply populates the existing client ID / client secret fields; the current `useGoogleConnectFlow`
-+ encrypted-at-rest storage takes over unchanged.
+
+- encrypted-at-rest storage takes over unchanged.
 
 This is a dogfood follow-up: live prod connector setup exposed that paste-only is error-prone.
 

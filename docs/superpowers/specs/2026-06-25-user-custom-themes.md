@@ -23,6 +23,7 @@ the light/dark toggle becomes theme selection; custom themes are peers to the bu
 Split `tokens.css` tokens into two classes:
 
 **Aesthetic (user-editable):** the look-and-feel backbone.
+
 - `--paper`, `--paper-raised`, `--paper-sunken` (surfaces)
 - `--ink`, `--ink-soft`, `--ink-faint` (text hierarchy)
 - `--line`, `--line-soft` (borders/dividers)
@@ -32,13 +33,14 @@ Split `tokens.css` tokens into two classes:
   `--accent` aliases `--pine`; a custom theme replaces the alias target.
 
 **Semantic (locked, not user-editable):**
+
 - `--red` / `--amber` / `--steel` (+ their soft/ink/hover derivatives). These carry meaning
   (error / caution / neutral-info). A custom theme inherits them unchanged from the base. The editor
   shows them read-only with a tooltip: "Locked — red signals errors, amber signals caution. These
   stay consistent across all themes so warnings are never hidden."
 
 This split is the resolution to the CLAUDE.md "preserve the authored design system" tension: the
-*aesthetic* system is user-personalizable; the *semantic* system (which carries information) is
+_aesthetic_ system is user-personalizable; the _semantic_ system (which carries information) is
 preserved.
 
 ## 3. Theme = a complete token set; light/dark are peers
@@ -87,6 +89,7 @@ Custom themes stored per-user in `app.preferences` under key `themes.custom` =
 `themes.active`. Owner-scoped RLS via `app.preferences`. **No new table, no migration.**
 
 Routes (owned by settings, user-scoped — these are the user's own themes):
+
 - `GET /api/me/themes` → `{ builtIn: [{id:"light",...},{id:"dark",...}], custom: [...], activeId }`.
 - `PUT /api/me/themes/active` body `{ id }` → sets active.
 - `PUT /api/me/themes/:id` body `{ name?, tokens? }` → create or update a custom theme.
@@ -99,6 +102,7 @@ the client never desyncs); custom themes carry only the aesthetic tokens (semant
 ## 6. Application at runtime
 
 On theme select / app load:
+
 1. Read active theme id → fetch its token set (built-in constant or custom from preferences).
 2. Apply aesthetic tokens to `:root` via `document.documentElement.style.setProperty("--paper", ...)`
    for each aesthetic token (overrides the `tokens.css` defaults for the session).
@@ -108,7 +112,7 @@ On theme select / app load:
 4. `data-theme` attribute still set (for any CSS that keys off it), but the runtime property
    overrides win for aesthetics.
 
-**CLAUDE.md "keep raw CSS colors in `tokens.css` only":** respected — the *source* of colors remains
+**CLAUDE.md "keep raw CSS colors in `tokens.css` only":** respected — the _source_ of colors remains
 `tokens.css` (defaults) + user preferences (overrides applied at runtime via JS). No raw hex literals
 appear in component CSS; custom theme colors live in the preference doc, applied as CSS variables.
 This is the same mechanism as today's `data-theme`, extended.
@@ -135,8 +139,7 @@ This is the same mechanism as today's `data-theme`, extended.
       slots (no auto-assignment).
 - [ ] The accent slot is one hue; its hover/active/soft/ink ramp is auto-generated and shown.
 - [ ] Semantic tokens (red/amber/steel) are locked — not editable, shown read-only with a tooltip.
-- [ ] Selecting a custom theme applies it consistently anywhere light/dark apply today (live preview
-      + real app).
+- [ ] Selecting a custom theme applies it consistently anywhere light/dark apply today (live preview + real app).
 - [ ] Built-in light and dark remain available, unchanged, as peer themes.
 - [ ] AA-contrast failure shows an inline warning but does not block save.
 - [ ] Invalid color input (non-hex/rgb) is rejected with a clear error.

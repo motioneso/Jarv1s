@@ -53,7 +53,7 @@ layer. They compose: review first, then optionally reflect.
 
 - Add a **`briefing_type`** concept to distinguish morning vs evening. Two options (decide in build):
   - **(a)** Extend the existing `briefing_run_kind` enum with `'morning'`/`'evening'` values — but
-    `run_kind` currently means *trigger* (manual/scheduled), so overloading it muddies the type.
+    `run_kind` currently means _trigger_ (manual/scheduled), so overloading it muddies the type.
   - **(b)** Add a new `briefing_type` column + enum `'morning' | 'evening'` (migration), keep
     `run_kind` as trigger-only. Cleaner separation. **Recommended.**
 - Either way, `compose.ts` selects the prompt + channel-emphasis based on type.
@@ -61,14 +61,15 @@ layer. They compose: review first, then optionally reflect.
 ### Channels (day-reconciliation lens)
 
 Same sources as morning (commitments, tasks, calendar, email, vault, chats) but a different
-**emphasis** — the evening prompt asks for what *happened/completed* today, what *slipped/at-risk*,
-and what's *rolling forward* to tomorrow. Morning asks what's coming; evening asks what happened +
+**emphasis** — the evening prompt asks for what _happened/completed_ today, what _slipped/at-risk_,
+and what's _rolling forward_ to tomorrow. Morning asks what's coming; evening asks what happened +
 what carried. The exact section structure is the follow-up content spec (§2); this spec fixes only
 that the channel set is day-reconciliation, not a verbatim reuse of the morning prompt.
 
 ### Synthesis
 
 Reuse `composeBriefing`'s pipeline with:
+
 - A **distinct `SYNTHESIS_INSTRUCTIONS_EVENING`** literal prompt (parallel to the existing morning
   one) — exact wording is the content follow-up; this spec fixes that it exists and is a pure literal
   inside the same `TRUST_BOUNDARY` (prompt-injection hardening #316 preserved — no external content
@@ -140,7 +141,7 @@ Evening review (scheduled, ~7PM)
   test for the morning prompt is extended to cover the evening prompt + interview seed.
 - **No new context fields.** Reuses `AccessContext` shape.
 - **Metadata-only job payloads.** The evening review scheduled job carries only `{ actorUserId, kind,
-  briefingType, idempotencyKey }` — no private content (CLAUDE.md invariant).
+briefingType, idempotencyKey }` — no private content (CLAUDE.md invariant).
 - **Action proposals governed by #214.** Interview-proposed actions can't bypass the per-module
   trust-tier or the destructive-confirm floor.
 
@@ -164,6 +165,6 @@ Evening review (scheduled, ~7PM)
 - **Exact evening review content** (sections, headers, tone, length) — follow-up `evening-review-content.md`.
 - Weekly/monthly review cadence (daily only for now, per the morning schedule's scope note).
 - Proactive interview prompts (Jarvis nudging "want to prep for tomorrow?" unprompted) — quiet-hours
-  + notification-posture work governs this; defer.
+  - notification-posture work governs this; defer.
 - Cross-day trend analysis in the review (today-only reconciliation; trends are Insights territory).
 - Recording/archiving interview transcripts beyond the existing chat history (no special persistence).

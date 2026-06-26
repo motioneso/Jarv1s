@@ -43,15 +43,15 @@ New file `packages/settings/src/runtime-config-keys.ts` (sibling to `instance-se
 export type RuntimeConfigType = "string" | "enum" | "int" | "secret";
 
 export interface RuntimeConfigKeyEntry {
-  readonly key: string;                  // e.g. "ai.embed_provider"
-  readonly label: string;                // admin UI label
+  readonly key: string; // e.g. "ai.embed_provider"
+  readonly label: string; // admin UI label
   readonly type: RuntimeConfigType;
   readonly description: string;
-  readonly defaultValue: string;         // used when neither DB nor env is set
-  readonly envVar: string;               // the legacy env var this replaces (fallback)
+  readonly defaultValue: string; // used when neither DB nor env is set
+  readonly envVar: string; // the legacy env var this replaces (fallback)
   readonly enumValues?: readonly string[]; // for type "enum" — validated at write
-  readonly secret?: boolean;             // AES-256-GCM envelope if true
-  readonly moduleOwner: string;          // which package owns this (for blast-radius docs)
+  readonly secret?: boolean; // AES-256-GCM envelope if true
+  readonly moduleOwner: string; // which package owns this (for blast-radius docs)
 }
 
 export const RUNTIME_CONFIG_REGISTRY: readonly RuntimeConfigKeyEntry[] = [
@@ -59,7 +59,8 @@ export const RUNTIME_CONFIG_REGISTRY: readonly RuntimeConfigKeyEntry[] = [
     key: "ai.embed_provider",
     label: "Embedding provider",
     type: "enum",
-    description: "Where notes/knowledge embeddings are generated. 'local' = on-device model; 'stub' = no-op (search won't work).",
+    description:
+      "Where notes/knowledge embeddings are generated. 'local' = on-device model; 'stub' = no-op (search won't work).",
     defaultValue: "local",
     envVar: "JARVIS_EMBED_PROVIDER",
     enumValues: ["local", "stub"],
@@ -137,7 +138,7 @@ Two generic routes (admin-scoped, gated by `settings.view` / admin RLS, matching
 - `PUT /api/admin/runtime-config/:key` body `{ value: string }` → validates against the registry
   (type, enumValues, secret), encrypts if secret, upserts the instance_settings row, returns the new
   status. Reuses `SettingsRepository.upsertInstanceSetting` + audit (`action:
-  "runtime_config.<key>.set"`).
+"runtime_config.<key>.set"`).
 
 The registry keys are added to `KNOWN_INSTANCE_SETTING_KEYS` so the generic list/upsert routes
 recognize them (and the secret ones are rejected on the generic upsert, same as Brave).

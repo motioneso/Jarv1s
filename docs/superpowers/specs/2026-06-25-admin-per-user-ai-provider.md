@@ -40,7 +40,7 @@ The pin binds: while a pin is active, the existing user self-override
 (`/api/ai/chat-model-override`) returns 409/conflict with a clear message ("An admin has pinned your
 AI provider; contact them to change it") rather than silently overriding the pin. The
 `ai.chat_model_override.enabled` instance setting and `allow_user_override` model flag continue to
-govern self-override *when no pin is active*.
+govern self-override _when no pin is active_.
 
 ## 3. Storage
 
@@ -106,8 +106,8 @@ user list), add an **"AI provider"** section per user:
   "automatic").
 - A model `<Select>` populated from the user's configured active models (`ai_configured_models` for
   that user). Setting it PUTs the pin; a "Clear pin" option removes it (falls back to instance route).
-- Copy that makes the binding explicit: *"Pinning forces this model for all of this user's AI
-  features. They cannot change it themselves while pinned."*
+- Copy that makes the binding explicit: _"Pinning forces this model for all of this user's AI
+  features. They cannot change it themselves while pinned."_
 - Disabled state if the user has no configured models (can't pin what doesn't exist).
 
 Phase-1 is one pin = all capabilities. The UI is a single model selector, not per-capability rows
@@ -116,8 +116,8 @@ Phase-1 is one pin = all capabilities. The UI is a single model selector, not pe
 ## 7. Security & invariants
 
 - **Admin = config power only, no data bypass.** An admin pinning a model doesn't give the admin
-  access to the user's chats/content — RLS still applies to everything. The pin only selects *which
-  model* the user's AI calls use.
+  access to the user's chats/content — RLS still applies to everything. The pin only selects _which
+  model_ the user's AI calls use.
 - **No secrets surface.** The pin route uses the existing safe model projection (no API keys, no
   provider credentials). Audit metadata is model-id only.
 - **Target-user ownership respected.** An admin can only pin a model the target user has configured

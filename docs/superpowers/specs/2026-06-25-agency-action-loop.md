@@ -29,7 +29,7 @@ integration, the email-send-as-destructive invariant) and defines the **contract
 
 - **Slice-1 (this spec): task proposals.** Task write tools already exist; lowest risk; proves the loop.
 - **Slice-2 (child issue): calendar proposals.** Requires building calendar write tools.
-- **Slice-3 (child issue): email drafts.** Requires building email draft tool. Email *sends* are
+- **Slice-3 (child issue): email drafts.** Requires building email draft tool. Email _sends_ are
   `risk: "destructive"` so they always confirm regardless of trust-tier (hard invariant, §5).
 
 ## 2. The proposal UX (slice-1)
@@ -41,7 +41,7 @@ text. The card reuses the existing `app.ai_assistant_action_requests` + confirma
 - Card shows: the proposed action (e.g. "Create task: 'Call the dentist' in Health, due Friday"),
   the affected entity, and Approve / Deny / Edit buttons.
 - **Approve** → the underlying task tool executes (`tasks.create` etc. — already `executionPolicy:
-  "auto"`, so on approval it runs immediately via the existing confirm-and-run path).
+"auto"`, so on approval it runs immediately via the existing confirm-and-run path).
 - **Deny** → the proposal is rejected; the conversation continues.
 - **Edit** (slice-1 optional, recommended) → the user tweaks fields (title, due, list) before
   approving. If cut for time, edit = deny + re-ask.
@@ -73,11 +73,11 @@ mechanism — the gateway policy resolver — that applies uniformly to tasks/ca
 Each module that contributes confirmable actions owns a **trust-tier toggle** in its **own
 contributed settings surface** (reusing the Module Settings Connector from #474):
 
-| Module | Preference key | Toggle label | Governs |
-|---|---|---|---|
-| tasks | `tasks.agency_auto_execute` | "Let Jarvis create and update tasks without asking" | `tasks.create/update/updateStatus/...` |
-| calendar (slice-2) | `calendar.agency_auto_execute` | "Let Jarvis schedule and move events without asking" | future calendar write tools |
-| email (slice-3) | `email.agency_auto_execute` | "Let Jarvis draft emails without asking" | future `email.draft` tool (NOT `email.send` — §5) |
+| Module             | Preference key                 | Toggle label                                         | Governs                                           |
+| ------------------ | ------------------------------ | ---------------------------------------------------- | ------------------------------------------------- |
+| tasks              | `tasks.agency_auto_execute`    | "Let Jarvis create and update tasks without asking"  | `tasks.create/update/updateStatus/...`            |
+| calendar (slice-2) | `calendar.agency_auto_execute` | "Let Jarvis schedule and move events without asking" | future calendar write tools                       |
+| email (slice-3)    | `email.agency_auto_execute`    | "Let Jarvis draft emails without asking"             | future `email.draft` tool (NOT `email.send` — §5) |
 
 Default: **OFF** for every module (explicit opt-in per the "private by default" posture; Jarvis asks
 until promoted). The toggle is a contributed settings surface component owned by each module.
@@ -97,7 +97,7 @@ export async function resolvePolicy(
   prefs: AgencyPrefLookup
 ): Promise<PolicyDecision> {
   if (tool.risk === "read") return "run";
-  if (tool.risk === "destructive") return "confirm";   // hard floor — never overridden
+  if (tool.risk === "destructive") return "confirm"; // hard floor — never overridden
   // write tool: auto-run if the module declared auto AND the user hasn't... OR the user promoted it
   const userPromoted = await prefs.get(`${moduleId}.agency_auto_execute`);
   if (userPromoted) return "run";
@@ -106,15 +106,15 @@ export async function resolvePolicy(
 ```
 
 **Critical subtlety:** today tasks are `executionPolicy:"auto"` and run without asking. With this
-change, a module with an `auto` declaration *plus* a trust-tier toggle means: **auto runs only when
+change, a module with an `auto` declaration _plus_ a trust-tier toggle means: **auto runs only when
 the user has promoted it.** If the toggle is off, even an `auto`-declared write tool confirms.
 
 This is a behavior change for tasks (they currently auto-run; after this they'll confirm until
 promoted). That's intended — it's the whole point of the trust-tier — but it's a flag: existing
 task-create-from-chat flows will start showing confirmation cards until the user enables the task
 trust-tier. **Mitigation:** on first run after this ships, surface a one-time prompt in chat the
-first time a task proposal would have auto-run: *"Jarvis now asks before creating tasks. Enable
-'create without asking' in Task settings?"* — so the change is explained, not silently annoying.
+first time a task proposal would have auto-run: _"Jarvis now asks before creating tasks. Enable
+'create without asking' in Task settings?"_ — so the change is explained, not silently annoying.
 
 `AgencyPrefLookup` is injected by the composition host (which already constructs the gateway deps),
 backed by `PreferencesRepository.get` under a per-actor `DataContextDb`. No new context field; the

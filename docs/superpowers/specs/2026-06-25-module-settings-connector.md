@@ -51,15 +51,15 @@ A module contributes a settings surface by:
    ```ts
    settings: [
      {
-       id: "wellness",                 // matches the route/view id
+       id: "wellness", // matches the route/view id
        label: "Wellness",
-       path: "/settings/wellness",     // route the surface mounts at
-       scope: "user",                  // ModuleScope
+       path: "/settings/wellness", // route the surface mounts at
+       scope: "user", // ModuleScope
        order: 40,
        permissionId: "wellness.view",
-       entry: "./settings"             // NEW field — relative path within the package
+       entry: "./settings" // NEW field — relative path within the package
      }
-   ]
+   ];
    ```
 2. Exporting a default React component from that entry path:
    `packages/wellness/src/settings/index.tsx` → `export default function WellnessSettings(props) {}`
@@ -76,9 +76,9 @@ surfaces a module wants to advertise but not yet render — these show the grace
 ```ts
 // @jarv1s/settings-ui — the props every contributed surface receives
 export interface ModuleSettingsSurfaceProps {
-  readonly onBack: () => void;          // return to the modules list
-  readonly onSelectSection?: (cat: string) => void;  // navigate to another settings cat
-  readonly onNavigate?: (path: string) => void;      // navigate to an app route
+  readonly onBack: () => void; // return to the modules list
+  readonly onSelectSection?: (cat: string) => void; // navigate to another settings cat
+  readonly onNavigate?: (path: string) => void; // navigate to an app route
 }
 ```
 

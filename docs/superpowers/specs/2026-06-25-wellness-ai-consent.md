@@ -21,7 +21,7 @@ Ship it as the **first contributed module settings surface** (lives in
 Two policy decisions locked in grilling:
 
 1. **Both Wellness AI-read tools gate behind the same consent switch** — `wellness.recentCheckIns`
-   *and* `wellness.medicationAdherence`. Medication adherence is sensitive health data; one switch =
+   _and_ `wellness.medicationAdherence`. Medication adherence is sensitive health data; one switch =
    one mental model ("Jarvis may read my Wellness data"); a half-gate leaves a footgun for future
    detail-leaks. The prior "counts-only, no gate" posture is retired.
 2. **Consent defaults ON for Wellness-enabled users** (existing and new), realized by
@@ -78,7 +78,9 @@ opaque registry (constructed by the composition host, which already has the regi
 New file `packages/wellness/src/ai-consent.ts`:
 
 ```ts
-export interface WellnessActiveService { readonly wellnessActive: boolean }
+export interface WellnessActiveService {
+  readonly wellnessActive: boolean;
+}
 
 /** Returns effective consent: explicit pref if set, else inherited from module-active. */
 export async function resolveEffectiveWellnessConsent(
@@ -98,7 +100,7 @@ export async function resolveEffectiveWellnessConsent(
 Both `wellnessRecentCheckInsExecute` and `wellnessMedicationAdherenceExecute` replace their current
 consent check with a call to `resolveEffectiveWellnessConsent(scopedDb, preferences, services)` and
 return the existing `{ error: "Consent not granted", code: "WELLNESS_CONSENT_REQUIRED" }` when
-denied. The meds tool currently has *no* gate — add the same gate (this is the half-gate fix).
+denied. The meds tool currently has _no_ gate — add the same gate (this is the half-gate fix).
 
 The tool signatures already accept `services?: ToolServices` (4th param); the gateway already
 passes the registry-built registry through. No `ToolContext` change, no `AccessContext` change.
@@ -109,7 +111,7 @@ The composition host (where `ToolServices` is built — find via the gateway wir
 
 ```ts
 services: {
-  wellnessActive: await resolveActiveModules(actorUserId).some(m => m.id === "wellness")
+  wellnessActive: await resolveActiveModules(actorUserId).some((m) => m.id === "wellness");
 }
 ```
 
@@ -127,7 +129,7 @@ One new route, owned by the Wellness module (added to `manifest.routes[]` and
 
 These reuse `PreferencesRepository.get`/`upsert` and the existing
 `resolveActiveModules`-via-injected-service pattern for the `effective` derivation on the read
-side. (The route handler is in the API process which *can* see the registry directly — no cycle
+side. (The route handler is in the API process which _can_ see the registry directly — no cycle
 there.)
 
 Schemas added to `packages/shared/src/wellness-api.ts`: `wellnessAiConsentResponseSchema`,
@@ -149,8 +151,8 @@ The contributed settings component (§3) uses these via React Query; toggling in
 
 Per the issue acceptance ("Jarvis can explain where to enable access when a tool returns
 consent-required"): the `WELLNESS_CONSENT_REQUIRED` tool result already carries a `code`. The
-assistant system prompt / tool-result summarizer describes this code as: *"The user has not granted
-Wellness AI access. Direct them to Settings → Modules → Wellness → Configure."* No new tool needed —
+assistant system prompt / tool-result summarizer describes this code as: _"The user has not granted
+Wellness AI access. Direct them to Settings → Modules → Wellness → Configure."_ No new tool needed —
 the model already has the code and a one-line description suffices.
 
 ## 8. Acceptance criteria (from #474 + grilling)
