@@ -16,10 +16,36 @@ import { describe, expect, it } from "vitest";
 import {
   ChatEngineRpcClient,
   CliChatUnavailableError,
+  createRealEngineFactory,
   selectEngineFactory
 } from "../../packages/chat/src/live/runtime.js";
+import { ClaudePrintChatEngine } from "../../packages/chat/src/live/claude-print-chat-engine.js";
+import { CliChatEngineImpl } from "../../packages/chat/src/live/cli-chat-engine.js";
+import type { Multiplexer, MuxHandle } from "@jarv1s/ai";
 
 const SOCKET = "/run/jarv1s/cli-runner.sock";
+
+function fakeMux(): Multiplexer & { opened: string[]; killed: MuxHandle[] } {
+  return {
+    kind: "tmux",
+    opened: [],
+    killed: [],
+    async open(opts) {
+      this.opened.push(opts.launchLine);
+      return `handle-${this.opened.length}`;
+    },
+    async submit() {},
+    async isAlive() {
+      return true;
+    },
+    async kill(handle) {
+      this.killed.push(handle);
+    },
+    attachCommand() {
+      return "tmux attach";
+    }
+  };
+}
 
 describe("selectEngineFactory — boot-time fork (§3.5)", () => {
   it("selects the RPC client when the socket + secret are configured", () => {
@@ -44,6 +70,24 @@ describe("selectEngineFactory — boot-time fork (§3.5)", () => {
     const engine = factory("anthropic", "user-a");
     expect(engine).not.toBeInstanceOf(ChatEngineRpcClient);
     expect(connection).toBeUndefined();
+  });
+});
+
+describe("createRealEngineFactory — provider execution mode", () => {
+  it("routes Anthropic non_interactive to the Claude print engine", () => {
+    const engine = createRealEngineFactory({ mux: fakeMux() })("anthropic", "user-a", {
+      executionMode: "non_interactive"
+    });
+
+    expect(engine).toBeInstanceOf(ClaudePrintChatEngine);
+  });
+
+  it("keeps Anthropic interactive on the existing CLI engine", () => {
+    const engine = createRealEngineFactory({ mux: fakeMux() })("anthropic", "user-a", {
+      executionMode: "interactive"
+    });
+
+    expect(engine).toBeInstanceOf(CliChatEngineImpl);
   });
 });
 
