@@ -5,6 +5,7 @@ import pg from "pg";
 
 import { DataContextRunner, createDatabase, type JarvisDatabase } from "@jarv1s/db";
 import { getBuiltInModuleManifests } from "@jarv1s/module-registry";
+import { HttpError } from "@jarv1s/module-sdk";
 import { PreferencesRepository } from "@jarv1s/structured-state";
 import type {
   AestheticThemeTokens,
@@ -51,7 +52,7 @@ describe("settings theme preferences", () => {
         const token = request.headers.authorization?.replace(/^Bearer\s+/i, "");
         if (token === ids.sessionA) return { actorUserId: ids.userA, requestId: "req:theme-a" };
         if (token === ids.sessionB) return { actorUserId: ids.userB, requestId: "req:theme-b" };
-        throw Object.assign(new Error("Unauthorized"), { statusCode: 401 });
+        throw new HttpError(401, "Unauthorized");
       },
       listModuleManifests: () => getBuiltInModuleManifests(),
       preferencesRepository: new PreferencesRepository()
