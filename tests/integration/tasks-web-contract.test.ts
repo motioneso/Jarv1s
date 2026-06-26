@@ -71,6 +71,39 @@ describe("task_preferences vertical slice (Plan 3 Task 3)", () => {
     });
     expect(JSON.parse(reread.body).preferences.defaultView).toBe("matrix");
   });
+
+  it("GET/PATCH /api/tasks/agency-auto-execute stores the task trust toggle per user", async () => {
+    const initial = await server.inject({
+      method: "GET",
+      url: "/api/tasks/agency-auto-execute",
+      headers: { authorization: `Bearer ${ids.sessionA}` }
+    });
+    expect(initial.statusCode).toBe(200);
+    expect(JSON.parse(initial.body)).toEqual({ enabled: false });
+
+    const updated = await server.inject({
+      method: "PATCH",
+      url: "/api/tasks/agency-auto-execute",
+      headers: { authorization: `Bearer ${ids.sessionA}` },
+      payload: { enabled: true }
+    });
+    expect(updated.statusCode).toBe(200);
+    expect(JSON.parse(updated.body)).toEqual({ enabled: true });
+
+    const reread = await server.inject({
+      method: "GET",
+      url: "/api/tasks/agency-auto-execute",
+      headers: { authorization: `Bearer ${ids.sessionA}` }
+    });
+    expect(JSON.parse(reread.body)).toEqual({ enabled: true });
+
+    const otherUser = await server.inject({
+      method: "GET",
+      url: "/api/tasks/agency-auto-execute",
+      headers: { authorization: `Bearer ${ids.sessionB}` }
+    });
+    expect(JSON.parse(otherUser.body)).toEqual({ enabled: false });
+  });
 });
 
 describe("subtasks read route (Plan 3 Task 4)", () => {

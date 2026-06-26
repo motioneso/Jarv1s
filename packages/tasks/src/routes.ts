@@ -1,7 +1,7 @@
 import type { FastifyInstance, FastifyRequest } from "fastify";
 import type { PgBoss } from "pg-boss";
 
-import type { AccessContext, DataContextRunner, TaskStatus } from "@jarv1s/db";
+import type { AccessContext, DataContextRunner, PreferencesPort, TaskStatus } from "@jarv1s/db";
 import {
   addTaskActivityRouteSchema,
   assignTaskTagRouteSchema,
@@ -13,6 +13,7 @@ import {
   deferredTaskStatusRouteSchema,
   deleteTaskListRouteSchema,
   deleteTaskTagRouteSchema,
+  getTaskAgencyAutoExecuteRouteSchema,
   focusTasksRouteSchema,
   getTaskPreferencesRouteSchema,
   getTaskRouteSchema,
@@ -24,7 +25,9 @@ import {
   overdueTasksRouteSchema,
   renameTaskListRouteSchema,
   renameTaskTagRouteSchema,
+  type UpdateTaskAgencyAutoExecuteRequest,
   unassignTaskTagRouteSchema,
+  updateTaskAgencyAutoExecuteRouteSchema,
   updateTaskPreferencesRouteSchema,
   updateTaskRouteSchema
 } from "@jarv1s/shared";
@@ -51,6 +54,8 @@ import {
   serializeTaskTag
 } from "./serialize.js";
 
+const TASKS_AGENCY_AUTO_EXECUTE_KEY = "tasks.agency_auto_execute";
+
 export interface TasksRoutesDependencies {
   readonly resolveAccessContext: (request: FastifyRequest) => Promise<AccessContext>;
   readonly dataContext: DataContextRunner;
@@ -60,6 +65,7 @@ export interface TasksRoutesDependencies {
   readonly breakdownRepository?: TaskBreakdownRepository;
   readonly driftRepository?: TaskDriftRepository;
   readonly preferencesRepository?: TaskPreferencesRepository;
+  readonly agencyPreferencesRepository?: PreferencesPort;
   /**
    * Generic focus-signal source injected from the composition root. Tasks consumes an
    * opaque FocusSignal[] and never knows which modules produced them (module isolation).
@@ -86,6 +92,7 @@ export function registerTasksRoutes(
   const breakdownRepository = dependencies.breakdownRepository ?? new TaskBreakdownRepository();
   const driftRepository = dependencies.driftRepository ?? new TaskDriftRepository();
   const prefsRepository = dependencies.preferencesRepository ?? new TaskPreferencesRepository();
+  const agencyPrefsRepository = dependencies.agencyPreferencesRepository;
 
   server.get("/api/tasks", { schema: listTasksRouteSchema }, async (request, reply) => {
     try {
@@ -179,6 +186,47 @@ export function registerTasksRoutes(
           prefsRepository.update(scopedDb, defaultView)
         );
         return { preferences: serializeTaskPreferences(prefs) };
+      } catch (error) {
+        return handleRouteError(error, reply);
+      }
+    }
+  );
+
+  server.get(
+    "/api/tasks/agency-auto-execute",
+    { schema: getTaskAgencyAutoExecuteRouteSchema },
+    async (request, reply) => {
+      try {
+        if (!agencyPrefsRepository) {
+          throw new Error("Task agency preferences repository not configured");
+        }
+        const accessContext = await dependencies.resolveAccessContext(request);
+        const enabled = await dependencies.dataContext.withDataContext(
+          accessContext,
+          async (scopedDb) =>
+            (await agencyPrefsRepository.get(scopedDb, TASKS_AGENCY_AUTO_EXECUTE_KEY)) === true
+        );
+        return { enabled };
+      } catch (error) {
+        return handleRouteError(error, reply);
+      }
+    }
+  );
+
+  server.patch(
+    "/api/tasks/agency-auto-execute",
+    { schema: updateTaskAgencyAutoExecuteRouteSchema },
+    async (request, reply) => {
+      try {
+        if (!agencyPrefsRepository) {
+          throw new Error("Task agency preferences repository not configured");
+        }
+        const accessContext = await dependencies.resolveAccessContext(request);
+        const body = request.body as UpdateTaskAgencyAutoExecuteRequest;
+        await dependencies.dataContext.withDataContext(accessContext, (scopedDb) =>
+          agencyPrefsRepository.upsert(scopedDb, TASKS_AGENCY_AUTO_EXECUTE_KEY, body.enabled)
+        );
+        return { enabled: body.enabled };
       } catch (error) {
         return handleRouteError(error, reply);
       }

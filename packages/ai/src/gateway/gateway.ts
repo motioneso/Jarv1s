@@ -16,6 +16,7 @@ import type { ConfirmationRegistry } from "./confirmation-registry.js";
 import { validateToolInput } from "./input-validation.js";
 import { renderAndCap } from "./output-validation.js";
 import { resolvePolicy } from "./policy.js";
+import type { AgencyPrefLookup } from "./policy.js";
 import type { SessionTokenRegistry } from "./session-tokens.js";
 import type { ActiveModulesResolver, GatewayToolResponse, SessionNotifier } from "./types.js";
 
@@ -27,6 +28,7 @@ export interface AssistantToolGatewayDependencies {
   readonly confirmations: ConfirmationRegistry;
   readonly notifier: SessionNotifier;
   readonly confirmTimeoutMs: number;
+  readonly agencyPrefs?: (ctx: ToolContext) => AgencyPrefLookup;
   /**
    * Opaque, composition-layer-constructed service registry keyed by service name.
    * Passed verbatim (as a per-tool, declared-keys-only subset) as the 4th argument
@@ -35,6 +37,11 @@ export interface AssistantToolGatewayDependencies {
    */
   readonly toolServices?: ToolServices;
 }
+
+const denyPrefs: AgencyPrefLookup = { get: async () => false };
+const TASKS_FIRST_RUN_NOTICE_KEY = "tasks.agency_auto_execute.first_prompt_seen";
+const TASKS_FIRST_RUN_NOTICE =
+  'Jarvis now asks before creating tasks. Enable "create without asking" in Task settings to auto-run task changes.';
 
 interface ExecutableTool {
   readonly tool: ModuleAssistantToolManifest;
@@ -81,10 +88,11 @@ export class AssistantToolGateway {
       return { ok: false, error: error instanceof Error ? error.message : "Invalid input" };
     }
 
-    if (resolvePolicy(found.tool) === "run") {
+    const prefs = this.deps.agencyPrefs?.(ctx) ?? denyPrefs;
+    if ((await resolvePolicy(found.tool, found.dto.moduleId, prefs)) === "run") {
       return this.runHandler(found, input, ctx);
     }
-    return this.confirmAndRun(found, input, ctx);
+    return this.confirmAndRun(found, input, ctx, await this.firstRunNotice(found, prefs));
   }
 
   /** Called by the Approve/Deny endpoint (and tests). Persists the resolution and unblocks the call. */
@@ -168,7 +176,8 @@ export class AssistantToolGateway {
   private async confirmAndRun(
     found: ExecutableTool,
     input: Record<string, unknown>,
-    ctx: ToolContext
+    ctx: ToolContext,
+    notice?: string
   ): Promise<GatewayToolResponse> {
     const access: AccessContext = { actorUserId: ctx.actorUserId, requestId: ctx.requestId };
 
@@ -189,11 +198,13 @@ export class AssistantToolGateway {
       this.deps.confirmTimeoutMs
     );
 
+    const summary = [notice, this.summaryFor(found.tool, input, ctx)].filter(Boolean).join(" ");
+
     this.deps.notifier.emit(ctx.chatSessionId, {
       kind: "action_request",
       actionRequestId: action.id,
       toolName: found.dto.name,
-      summary: this.summaryFor(found.tool, input, ctx)
+      summary
     });
 
     const outcome = await pendingResolution;
@@ -232,6 +243,27 @@ export class AssistantToolGateway {
     }
     const generic = summarizeAssistantToolInput(input);
     return `${tool.name} (${String(generic.inputKeyCount ?? 0)} field(s))`;
+  }
+
+  private async firstRunNotice(
+    found: ExecutableTool,
+    prefs: AgencyPrefLookup
+  ): Promise<string | undefined> {
+    if (
+      found.dto.moduleId !== "tasks" ||
+      found.tool.risk !== "write" ||
+      found.tool.executionPolicy !== "auto" ||
+      !prefs.upsert
+    ) {
+      return undefined;
+    }
+    try {
+      if ((await prefs.get(TASKS_FIRST_RUN_NOTICE_KEY)) === true) return undefined;
+      await prefs.upsert(TASKS_FIRST_RUN_NOTICE_KEY, true);
+      return TASKS_FIRST_RUN_NOTICE;
+    } catch {
+      return undefined;
+    }
   }
 
   private async executableTools(actorUserId: string): Promise<ExecutableTool[]> {

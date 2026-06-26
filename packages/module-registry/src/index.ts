@@ -492,6 +492,7 @@ const BUILT_IN_MODULES: readonly BuiltInModuleRegistration[] = [
         resolveAccessContext: deps.resolveAccessContext,
         dataContext: deps.dataContext,
         boss: deps.boss,
+        agencyPreferencesRepository: new PreferencesRepository(),
         focusSignals: deps.focusSignals
       }),
     registerWorkers: (boss, dependencies) => registerTasksJobWorkers(boss, dependencies.dataContext)
@@ -551,6 +552,7 @@ const BUILT_IN_MODULES: readonly BuiltInModuleRegistration[] = [
         mcpServerUrl: deps.mcpServerUrl,
         boss: deps.boss,
         personaPreferences: new PreferencesRepository(),
+        agencyPreferences: new PreferencesRepository(),
         googleConnectionService: deps.googleConnectionService,
         googleApiClient: deps.googleApiClient,
         connectorsRepository: deps.connectorsRepository

@@ -13,8 +13,13 @@ describe("manifest routes[] reconciliation", () => {
     const paths = manifestPaths("tasks");
     expect(paths).toContainEqual({ method: "GET", path: "/api/tasks/preferences" });
     expect(paths).toContainEqual({ method: "PATCH", path: "/api/tasks/preferences" });
+    expect(paths).toContainEqual({ method: "GET", path: "/api/tasks/agency-auto-execute" });
+    expect(paths).toContainEqual({ method: "PATCH", path: "/api/tasks/agency-auto-execute" });
     expect(paths).toContainEqual({ method: "GET", path: "/api/tasks/:id/subtasks" });
     expect(paths).toContainEqual({ method: "GET", path: "/api/tasks/:id/activity" });
+
+    const manifest = getBuiltInModuleManifests().find((m) => m.id === "tasks");
+    expect(manifest?.settings?.[0]?.entry).toBe("./settings");
   });
 
   it("settings manifest declares source behavior routes", () => {
