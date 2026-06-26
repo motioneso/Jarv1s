@@ -1,60 +1,41 @@
-# Build Handoff — user-custom-themes
+# Build Handoff — admin-per-user-ai-provider
 
-**Spec (approved):** docs/superpowers/specs/2026-06-25-user-custom-themes.md
-**GitHub issue:** #477
-**Risk tier:** `routine` (isolated UI: tokens.css/app-shell.tsx/theme-storage + new theme routes; no schema/auth/secret surface. Auto-merge after green QA.)
-**Worktree:** /home/ben/Jarv1s/.claude/worktrees/user-custom-themes **Branch:** build/user-custom-themes (off origin/main @ 63681e9)
-**Build skill path (absolute):** /home/ben/Jarv1s/.claude/skills/coordinated-build/SKILL.md (use this exact path if `coordinated-build` does not resolve by name in your spawn env)
-**Coordinator label:** `Coordinator` (UNIQUE — escalate via `herdr-pane-message`; before messaging, verify `herdr pane list` shows EXACTLY ONE pane with this label. Never guess or reuse a `…-N` pane-id — they reflow when any pane opens/closes; re-resolve the live pane by label from `herdr pane list` each time.)
-**Coordinator session id:** `ses_0fef45f35ffeEJBGhPxqAsabKB` (the immutable authority for this coordinator — label is routing, the `…-N` number is ephemeral. Confirm this session id is still live before relying on the coordinator; it survives pane renumbering.)
-**Relay threshold:** countable events — ~80–100k tokens OR a compaction summary in your own context (then relay immediately).
+**Spec (approved):** docs/superpowers/specs/2026-06-25-admin-per-user-ai-provider.md
+**GitHub issue:** #485
+**Risk tier:** `security` (admin pins a model per-user; the pin is BINDING — user cannot self-override while pinned; stored in app.preferences key `ai.admin_pinned_model_id`; resolver checks pin before instance route. This is an authorization/privilege surface. **Cross-model Opus/Gemini QA + `gh pr comment` verdict + BEN'S EXPLICIT MERGE SIGN-OFF. Build to that bar.**)
+**Worktree:** /home/ben/Jarv1s/.claude/worktrees/admin-per-user-ai-provider **Branch:** build/admin-per-user-ai-provider (off origin/main @ ac56457)
+**Build skill path (absolute):** /home/ben/Jarv1s/.claude/skills/coordinated-build/SKILL.md (use this exact path if `coordinated-build` does not resolve by name)
+**Coordinator label:** `Coordinator` (UNIQUE — escalate via `herdr-pane-message`; verify single Coordinator pane before messaging.)
+**Coordinator session id:** `ses_0fef45f35ffeEJBGhPxqAsabKB` (immutable authority.)
+**Relay threshold:** ~80–100k tokens OR compaction summary.
 
 ## Start
 
-1. **Resolve your skills.** Confirm you can invoke `coordinated-build` by name; if not, open the
-   absolute **Build skill path** above and follow it directly.
-2. `pnpm install` — but **only if `node_modules` is missing** (`[ -d node_modules ] || pnpm install`).
-3. Read the spec above IN FULL.
-4. **Verify the spec against the actual branch BEFORE planning.** Specs go stale. For each spec item,
-   grep/read the cited files on YOUR branch and confirm the gap/state it describes is still real. If
-   any item's premise has already shipped or drifted, **escalate to the coordinator** with the drift
-   - your re-scoped plan before proceeding.
-5. Invoke the **`coordinated-build`** skill and follow it: write the plan → escalate it to the
-   coordinator for approval → on approval, build TDD/green → run the pre-push trio
-   (`pnpm format:check && pnpm lint && pnpm typecheck`) + fresh rebase before every push → close out
-   with **`coordinated-wrap-up`** (PR + report to the coordinator).
+1. Resolve skills (`coordinated-build` or absolute path).
+2. `pnpm install` only if `node_modules` missing.
+3. Read spec IN FULL.
+4. **Verify spec against branch.** Confirm `packages/ai/src/repository.ts:476-551` (`listCapabilityRoutes` + `resolveModelForCapability`) is where you inject the per-user pin check. Confirm admin user-management view exists.
+5. Invoke **`coordinated-build`**: plan → coordinator approval → build TDD/green → pre-push trio + rebase → **`coordinated-wrap-up`**.
 
 ## Your compact (non-negotiable)
 
-- **CI STATUS (temporary):** GitHub Actions billing is paused. `gh pr checks` shows red on every PR —
-  **do NOT trust it**. Run the gate **locally**: `pnpm format:check && pnpm lint && pnpm typecheck`
-  - relevant vitest, and record exit codes in your wrap-up report.
-- Work **only** in this worktree/branch. Commit green per task; `git add` only that task's files
-  (`Co-Authored-By: Claude`).
-- Plan approval comes from the **coordinator**, not a human gate. Do not write code before it.
-- **Escalate to coordinator label `Coordinator`** the moment you hit: a blocker, a plan ready for
-  approval, a design fork outside this spec, a review request, or done.
-- **Never touch** the project board, milestones, or merge — those are the coordinator's.
-- **Self-monitor your context.** At ~80–100k tokens, or a compaction summary: message the
-  coordinator, then use the **`relay`** skill.
-- Honor every CLAUDE.md Hard Invariant. No secrets in any doc, payload, log, or prompt.
-- **Caveman mode** for all status/escalations to the coordinator. Commit messages, PR bodies, and
-  code stay normal/conventional.
+- **CI gate:** run `pnpm format:check && pnpm lint && pnpm typecheck` + relevant vitest locally and record exit codes; CI also runs via `gh pr checks`.
+- Work only in this worktree/branch. Commit green per task; scope `git add`.
+- Plan approval from coordinator. No code before it.
+- **SECURITY TIER — build to a high bar.** The pin is BINDING: while an admin has pinned a model for a user, the user CANNOT select a different model. Verify this enforcement at the resolver layer (not just UI hiding) — a user hitting the API directly must still be pinned. Add tests for: pinned user's API calls use the pinned model; unpinning restores user choice; admin-only mutation of the pin (user cannot self-pin/self-unpin).
+- Escalate to `Coordinator` on blocker / plan-ready / design-fork / done. **Tag your message `[SECURITY]` for any privilege/authorization question** — guarantees coordinator escalation routing.
+- Never touch board/milestones/merge.
+- Self-monitor context → relay at threshold.
+- Honor CLAUDE.md Hard Invariants. No secrets.
+- Caveman status; conventional commits/PR/code.
 
 ## Collision notes (from the coordinator)
 
-- **You are wave-1, no collisions.** Your files (`tokens.css`, `app-shell.tsx`, `theme-storage.ts`,
-  new `/api/me/themes*` routes, new Appearance settings surface) are touched by NO other spec in
-  this run.
-- **CLAUDE.md "keep raw CSS colors in `tokens.css` only":** your runtime token-override mechanism
-  applies colors as CSS variables via JS from the preference doc — do NOT scatter hex literals into
-  component CSS. Document this in your plan.
-- **Semantic tokens (red/amber/steel) are LOCKED** — your editor must not let users edit them, and
-  the stored theme doc must never include them (structural invariant). This is the CLAUDE.md
-  "preserve the authored design system" resolution.
-- The spec says the Appearance surface "reuses the Module Settings Connector (#487)". **If #487 has
-  not merged yet on your branch, build the Appearance surface as a normal settings pane for now and
-  note the connector migration as a follow-up** — do NOT block on #487. Escalate to coordinator if
-  unclear.
-- **Never touch** `docs/coordination/` (coordinator-only), and never run repo-wide
-  `pnpm format` + broad `git add` — scope format/staging to your own changed paths only.
+- **No file collisions** with other wave-2 specs (your files: `packages/ai/src/repository.ts` resolver, admin user-management view, new admin route for pin mutation).
+- **No migration** (reuses `app.preferences`, key `ai.admin_pinned_model_id`).
+- **Authorization invariants (critical):**
+  - Only admins can set/clear a pin (`requireAdmin` on the mutation route).
+  - The pin check in `resolveModelForCapability` runs BEFORE the instance-wide route — pin wins.
+  - A pinned user's model selection is locked (UI shows locked state; API enforces).
+- **Capability routes** are stored instance-wide in `app.instance_settings` key `AI_CAPABILITY_ROUTES_SETTING_KEY` — your pin is a per-user override ABOVE that.
+- Never touch `docs/coordination/`; never repo-wide format + broad add.
