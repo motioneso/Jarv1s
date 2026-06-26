@@ -22,6 +22,15 @@ export {
 } from "./serialize.js";
 export { computeSchedule } from "./schedule.js";
 export { computeInsights } from "./insights.js";
+export {
+  escapeHtml,
+  renderWellnessExportHtml,
+  type ExportCheckinItem,
+  type ExportMedicationItem,
+  type ExportMedicationLogItem,
+  type ExportTherapyNoteItem,
+  type WellnessExportDocument
+} from "./export-render.js";
 export { registerWellnessRoutes } from "./routes.js";
 export type { WellnessRoutesDependencies } from "./routes.js";
 export { wellnessRecentCheckInsExecute, wellnessMedicationAdherenceExecute } from "./tools.js";
