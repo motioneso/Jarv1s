@@ -14,19 +14,24 @@ const composePath = resolve(here, "../../packages/briefings/src/compose.ts");
 const source = readFileSync(composePath, "utf8");
 
 describe("briefings prompt-isolation (static)", () => {
-  it("builds the trusted preamble as a pure literal constant", () => {
-    const match = source.match(/const TRUSTED_INSTRUCTIONS = `([\s\S]*?)`;/);
-    expect(match, "TRUSTED_INSTRUCTIONS constant must exist as a template literal").not.toBeNull();
-    const trustedLiteral = match![1];
+  it("builds morning and evening trusted preambles as pure literal constants", () => {
+    const matches = [...source.matchAll(/const TRUSTED_INSTRUCTIONS_(MORNING|EVENING) = `([\s\S]*?)`;/g)];
+    expect(
+      matches.map((match) => match[1]).sort(),
+      "morning and evening trusted constants must exist as template literals"
+    ).toEqual(["EVENING", "MORNING"]);
 
     // No external/section value may be referenced inside the trusted preamble. If any of
     // these identifiers appear, external content can leak into the trusted text.
     const forbidden = ["sections", "body", ".lines", ".key", ".label", ".count"];
-    for (const token of forbidden) {
-      expect(
-        trustedLiteral,
-        `trusted preamble must not reference external value "${token}"`
-      ).not.toContain(token);
+    for (const match of matches) {
+      const trustedLiteral = match[2]!;
+      for (const token of forbidden) {
+        expect(
+          trustedLiteral,
+          `trusted preamble must not reference external value "${token}"`
+        ).not.toContain(token);
+      }
     }
   });
 

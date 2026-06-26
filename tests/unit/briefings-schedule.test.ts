@@ -5,6 +5,7 @@ import type { BriefingDefinition } from "@jarv1s/db";
 import { BRIEFINGS_RUN_QUEUE } from "../../packages/briefings/src/manifest.js";
 import {
   cronExprFor,
+  defaultScheduleMetadataFor,
   reconcileSchedule,
   timezoneFor
 } from "../../packages/briefings/src/schedule.js";
@@ -35,6 +36,13 @@ describe("timezoneFor", () => {
     expect(timezoneFor({})).toBe("UTC");
     expect(timezoneFor({ timezone: "Not/AZone" })).toBe("UTC");
     expect(timezoneFor({ timezone: 42 as unknown as string })).toBe("UTC");
+  });
+});
+
+describe("defaultScheduleMetadataFor", () => {
+  it("defaults morning to 07:00 and evening to 19:00 UTC", () => {
+    expect(defaultScheduleMetadataFor("morning")).toEqual({ targetTime: "07:00", timezone: "UTC" });
+    expect(defaultScheduleMetadataFor("evening")).toEqual({ targetTime: "19:00", timezone: "UTC" });
   });
 });
 

@@ -17,7 +17,7 @@ import {
 import type { JarvisModuleManifest } from "@jarv1s/module-sdk";
 
 import { composeBriefing, type ComposeDeps } from "./compose.js";
-import { timezoneFor } from "./schedule.js";
+import { defaultScheduleMetadataFor, timezoneFor } from "./schedule.js";
 
 export interface CreateBriefingDefinitionInput {
   readonly title: string;
@@ -87,6 +87,7 @@ export class BriefingsRepository {
     assertDataContextDb(scopedDb);
 
     const now = new Date();
+    const briefingType = input.briefingType ?? "morning";
 
     return scopedDb.db
       .insertInto("app.briefing_definitions")
@@ -94,9 +95,9 @@ export class BriefingsRepository {
         id: randomUUID(),
         owner_user_id: sql<string>`app.current_actor_user_id()`,
         title: input.title,
-        briefing_type: input.briefingType ?? "morning",
+        briefing_type: briefingType,
         cadence: input.cadence ?? "manual",
-        schedule_metadata: input.scheduleMetadata ?? {},
+        schedule_metadata: input.scheduleMetadata ?? defaultScheduleMetadataFor(briefingType),
         enabled: input.enabled ?? true,
         selected_tool_names: [...input.selectedToolNames],
         last_run_at: null,

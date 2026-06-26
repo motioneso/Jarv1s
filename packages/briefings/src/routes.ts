@@ -281,7 +281,7 @@ function parseCreateDefinitionBody(
     title: requiredString(value.title, "title"),
     briefingType: optionalBriefingType(value.briefingType) ?? "morning",
     cadence: optionalBriefingCadence(value.cadence) ?? "manual",
-    scheduleMetadata: optionalJsonObject(value.scheduleMetadata, "scheduleMetadata") ?? {},
+    scheduleMetadata: optionalJsonObject(value.scheduleMetadata, "scheduleMetadata"),
     enabled: optionalBoolean(value.enabled, "enabled") ?? true,
     selectedToolNames
   };

@@ -169,7 +169,10 @@ export async function registerBriefingsJobWorkers(
       ) {
         try {
           await options.notificationsRepository.create(scopedDb, {
-            title: "Your morning briefing is ready",
+            title:
+              outcome.run.briefing_type === "evening"
+                ? "Your evening review is ready"
+                : "Your morning briefing is ready",
             metadata: { definitionId: outcome.run.definition_id, briefingRunId: outcome.run.id }
           });
         } catch (error) {

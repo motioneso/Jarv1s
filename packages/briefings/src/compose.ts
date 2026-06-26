@@ -5,7 +5,7 @@ import type { FastifyBaseLogger } from "fastify";
 import type { AiRepository, AiSecretCipher } from "@jarv1s/ai";
 import { HttpApiAdapter, parseAiApiKeyCredential } from "@jarv1s/ai";
 import type { ChatTurn, GenerateChatInput, ProviderKind } from "@jarv1s/ai";
-import type { BriefingDefinition, BriefingRunStatus, DataContextDb } from "@jarv1s/db";
+import type { BriefingDefinition, BriefingRunStatus, BriefingType, DataContextDb } from "@jarv1s/db";
 import type { MemoryRetriever } from "@jarv1s/memory";
 import type { JarvisModuleManifest } from "@jarv1s/module-sdk";
 import { isBehaviorEnabled, type SourceBehaviorPolicyDeps } from "@jarv1s/source-behaviors";
@@ -573,11 +573,16 @@ function defaultCreateAdapter(kind: ProviderKind, apiKey: string, baseUrl: strin
 // renderExternalBlock, never here. Channel set: commitments, tasks, calendar, email,
 // vault, chats (the six sections built in composeBriefing) + web_research (#31, not
 // wired yet — its tag is reserved so the channel is already covered the day it lands).
-const SYNTHESIS_INSTRUCTIONS =
+const SYNTHESIS_INSTRUCTIONS_MORNING =
   "You are a calm morning-briefing writer. Synthesize a concise, scannable morning briefing " +
   "with light section headers. Ground strictly in the items in the <external_source> blocks; " +
   "do not invent. Where a section is empty, note it briefly. Keep it warm and non-judgmental " +
   "about missed or at-risk items.";
+
+const SYNTHESIS_INSTRUCTIONS_EVENING =
+  "You are a calm evening-review writer. Synthesize a concise day in review with light section " +
+  "headers. Ground strictly in the items in the <external_source> blocks; do not invent. Focus " +
+  "on what happened today, what slipped or remains at risk, and what rolls forward.";
 
 const TRUST_BOUNDARY =
   "TRUST BOUNDARY — read before anything else:\n" +
@@ -591,11 +596,21 @@ const TRUST_BOUNDARY =
 
 // The single trusted block. Built ONLY from the two literal constants above — no
 // external/section value is interpolated (the static isolation test asserts this).
-const TRUSTED_INSTRUCTIONS = `<trusted_instructions>
-${SYNTHESIS_INSTRUCTIONS}
+const TRUSTED_INSTRUCTIONS_MORNING = `<trusted_instructions>
+${SYNTHESIS_INSTRUCTIONS_MORNING}
 
 ${TRUST_BOUNDARY}
 </trusted_instructions>`;
+
+const TRUSTED_INSTRUCTIONS_EVENING = `<trusted_instructions>
+${SYNTHESIS_INSTRUCTIONS_EVENING}
+
+${TRUST_BOUNDARY}
+</trusted_instructions>`;
+
+function trustedInstructionsFor(type: BriefingType): string {
+  return type === "evening" ? TRUSTED_INSTRUCTIONS_EVENING : TRUSTED_INSTRUCTIONS_MORNING;
+}
 
 /**
  * Render one external channel as a delimited block. `type` is the section's `key` — a
@@ -624,7 +639,9 @@ async function buildMessages(
   return [
     {
       role: "user",
-      content: [TRUSTED_INSTRUCTIONS, personaBlock, ...externalBlocks].filter(Boolean).join("\n\n")
+      content: [trustedInstructionsFor(definition.briefing_type), personaBlock, ...externalBlocks]
+        .filter(Boolean)
+        .join("\n\n")
     }
   ];
 }
