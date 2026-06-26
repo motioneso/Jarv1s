@@ -11,17 +11,21 @@ import {
 import {
   GoogleApiError,
   GoogleConnectError,
+  featureGrantsPrefKey,
+  isFeatureGranted,
   type GoogleConnectionService,
   type ConnectorsRepository,
   type GoogleApiClient
 } from "@jarv1s/connectors";
 import type { ToolContext } from "@jarv1s/module-sdk";
+import { PreferencesRepository } from "@jarv1s/structured-state";
 
 export interface CalendarWriteImplDeps {
   readonly googleService: GoogleConnectionService;
   readonly googleApiClient: GoogleApiClient;
   readonly connectorsRepository: ConnectorsRepository;
   readonly calendarRepository: CalendarRepository;
+  readonly preferencesRepository?: Pick<PreferencesRepository, "get">;
 }
 
 // No timezone constant is needed here: the resolved window already carries concrete UTC
@@ -58,8 +62,8 @@ export function buildCalendarWriteService(deps: CalendarWriteImplDeps): Calendar
       // lacking calendar scope returns 403, which surfaces as a body-free "couldn't create" message
       // (created:false), never a silent success. A connectors-owned follow-up may reconcile scopes on
       // refresh; tracked, not in this slice.
-      const hasScope = await deps.connectorsRepository.hasCalendarWriteScope(scopedDb);
-      if (!hasScope) {
+      const calendarScope = await deps.connectorsRepository.getCalendarWriteScopeState(scopedDb);
+      if (!calendarScope?.hasScope) {
         return {
           created: false,
           resolvedStart: resolved.start.toISOString(),
@@ -69,6 +73,22 @@ export function buildCalendarWriteService(deps: CalendarWriteImplDeps): Calendar
           calendarMirror: "skipped-error",
           message:
             "Your Google connection doesn't have calendar-write permission yet — reconnect in Settings to grant it."
+        };
+      }
+      const preferencesRepository = deps.preferencesRepository ?? new PreferencesRepository();
+      const featureGrants = await preferencesRepository.get(
+        scopedDb,
+        featureGrantsPrefKey(calendarScope.accountId)
+      );
+      if (!isFeatureGranted(featureGrants, "calendar")) {
+        return {
+          created: false,
+          resolvedStart: resolved.start.toISOString(),
+          resolvedEnd: resolved.end.toISOString(),
+          shifted: false,
+          conflict: "none",
+          calendarMirror: "skipped-error",
+          message: "Calendar access is disabled for this account in Settings."
         };
       }
 
