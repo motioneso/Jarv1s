@@ -5,6 +5,7 @@ export type { IngestOptions, IngestStats, IngestFailure } from "./ingestion-serv
 export { LocalEmbeddingProvider } from "./local-embedding-provider.js";
 export type {
   EmbeddingProviderConfig,
+  EmbeddingRuntimeConfigResolver,
   EmbeddingProviderKind
 } from "./embedding-provider-config.js";
 export {

@@ -34,6 +34,7 @@ import {
   updateAiProvider
 } from "../api/client";
 import { queryKeys } from "../api/query-keys";
+import { EmbeddingConfigGroup } from "./settings-embedding-config-group";
 import { useFeedback } from "./settings-feedback";
 import { readError } from "./settings-types";
 import { Badge, Field, Group, Note, PaneHead, Row, Segmented, Select, Switch } from "./settings-ui";
@@ -914,6 +915,7 @@ export function AiProvidersPane() {
           ))}
         </Group>
       ) : null}
+      <EmbeddingConfigGroup />
       <WebSearchKeyGroup />
       <Note icon={<Sparkles size={13} />}>
         Each person can override which model powers their own chat under{" "}

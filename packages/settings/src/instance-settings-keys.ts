@@ -1,3 +1,5 @@
+import { RUNTIME_CONFIG_REGISTRY } from "./runtime-config-keys.js";
+
 export interface InstanceSettingKeyEntry {
   readonly key: string;
   /**
@@ -15,6 +17,7 @@ export const INSTANCE_SETTINGS_REGISTRY: readonly InstanceSettingKeyEntry[] = [
   { key: "chat.multiplexer" },
   { key: "onboarding.state" },
   { key: "ai.chat_model_override.enabled" },
+  ...RUNTIME_CONFIG_REGISTRY.map((entry) => ({ key: entry.key, secret: entry.secret })),
   // Brave Search API key — written/read only via the dedicated encrypted web-search routes,
   // which store an AES-256-GCM EncryptedSecret envelope in `value` (never the plaintext key,
   // consistent with the 0059 RLS note that no plaintext secret lands in instance_settings).

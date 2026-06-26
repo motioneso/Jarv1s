@@ -24,4 +24,5 @@ export * from "./settings-api.js";
 export * from "./themes-api.js";
 export * from "./weather-api.js";
 export * from "./web-search-api.js";
+export * from "./runtime-config-api.js";
 export * from "./notes-api.js";

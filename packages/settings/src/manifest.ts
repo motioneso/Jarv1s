@@ -216,6 +216,16 @@ export const settingsModuleManifest: JarvisModuleManifest = {
     },
     {
       method: "GET",
+      path: "/api/admin/runtime-config/:key",
+      permissionId: "settings.manage"
+    },
+    {
+      method: "PUT",
+      path: "/api/admin/runtime-config/:key",
+      permissionId: "settings.manage"
+    },
+    {
+      method: "GET",
       path: "/api/admin/audit-events",
       permissionId: "settings.manage"
     },
