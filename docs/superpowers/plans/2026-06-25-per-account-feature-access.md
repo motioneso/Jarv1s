@@ -54,6 +54,7 @@ Spec §4 says gate "the email/calendar assistant tools (read tools) ... in `pack
 ### Task 1: Feature-grants helper + unit tests (TDD)
 
 **Files:**
+
 - Create: `packages/connectors/src/feature-grants.ts`
 - Create: `tests/unit/feature-grants.test.ts`
 - Modify: `packages/connectors/src/index.ts`
@@ -62,13 +63,17 @@ Spec §4 says gate "the email/calendar assistant tools (read tools) ... in `pack
   - `isFeatureGranted` returns `true` when pref is absent (default-on).
   - Returns the stored boolean when pref row present (`{email:false, calendar:true}` → email denied, calendar granted).
   - Malformed pref (not a record) → default-on (`true`).
-  - Pref present but feature key missing → `false` (explicit absence ≠ default-on; only no-row-at-all defaults on). *Confirm this edge with Coordinator's reading of spec §4.*
+  - Pref present but feature key missing → `false` (explicit absence ≠ default-on; only no-row-at-all defaults on). _Confirm this edge with Coordinator's reading of spec §4._
   - `resolveEffectiveGrants(scopes, stored)` merges default-on-by-scope with stored: an account with calendar scope + no pref → `{calendar:true}`; with pref `{calendar:false}` → `{calendar:false}`.
 
 - [ ] **Step 2: Implement** `feature-grants.ts`:
+
   ```ts
   export type ConnectorFeature = "email" | "calendar";
-  export interface FeatureGrants { readonly email: boolean; readonly calendar: boolean; }
+  export interface FeatureGrants {
+    readonly email: boolean;
+    readonly calendar: boolean;
+  }
   export function featureGrantsPrefKey(accountId: string): string {
     return `connector.${accountId}.feature_grants`;
   }
@@ -76,13 +81,17 @@ Spec §4 says gate "the email/calendar assistant tools (read tools) ... in `pack
     if (!stored || typeof stored !== "object" || Array.isArray(stored)) return true; // no/malformed row = default-on
     return (stored as Record<string, unknown>)[feature] === true;
   }
-  export function resolveEffectiveGrants(scopes: readonly string[], stored: unknown): FeatureGrants {
+  export function resolveEffectiveGrants(
+    scopes: readonly string[],
+    stored: unknown
+  ): FeatureGrants {
     const hasEmail = scopes.includes(GMAIL_SCOPE) || scopes.includes("gmail");
     const hasCal = scopes.includes(CALENDAR_SCOPE) || scopes.includes("calendar");
     const base = (f: ConnectorFeature) => isFeatureGranted(stored, f);
     return { email: hasEmail && base("email"), calendar: hasCal && base("calendar") };
   }
   ```
+
   Export `GMAIL_SCOPE`/`CALENDAR_SCOPE` from sync-jobs (currently module-private) OR redefine here — prefer export from sync-jobs to keep one source of truth.
 
 - [ ] **Step 3:** Export from `index.ts`. Run `pnpm vitest tests/unit/feature-grants.test.ts` → green. Commit.
@@ -92,6 +101,7 @@ Spec §4 says gate "the email/calendar assistant tools (read tools) ... in `pack
 ### Task 2: DTOs + schemas (shared)
 
 **Files:**
+
 - Modify: `packages/shared/src/connectors-api.ts`
 
 - [ ] **Step 1:** Add `FeatureGrantsResponse { email: boolean; calendar: boolean }`, `UpdateFeatureGrantsRequest { email?: boolean; calendar?: boolean }`, JSON schemas (response 200 + PUT body), and route schemas `getFeatureGrantsRouteSchema` / `putFeatureGrantsRouteSchema`. Mirror the shape of existing connector schemas (`additionalProperties:false`, 400/401/403/404 error responses on PUT).
@@ -102,6 +112,7 @@ Spec §4 says gate "the email/calendar assistant tools (read tools) ... in `pack
 ### Task 3: Sync grant gate (TDD)
 
 **Files:**
+
 - Modify: `packages/connectors/src/sync-jobs.ts`
 - Test: `tests/integration/google-sync.test.ts` (extend)
 
@@ -120,6 +131,7 @@ Spec §4 says gate "the email/calendar assistant tools (read tools) ... in `pack
 ### Task 4: Live tools grant gate (TDD)
 
 **Files:**
+
 - Modify: `packages/connectors/src/live-tools.ts`
 
 - [ ] **Step 1: Write failing tests** — `tests/unit/live-tools-feature-grants.test.ts`:
@@ -137,6 +149,7 @@ Spec §4 says gate "the email/calendar assistant tools (read tools) ... in `pack
 ### Task 5: Routes GET/PUT feature-grants + audit (TDD)
 
 **Files:**
+
 - Modify: `packages/connectors/src/routes.ts`
 - Test: `tests/integration/connectors-feature-grants.test.ts` (new)
 
@@ -149,7 +162,7 @@ Spec §4 says gate "the email/calendar assistant tools (read tools) ... in `pack
 
 - [ ] **Step 2: Implement** in `routes.ts`:
   - `GET` handler: resolve account via `requireVisibleAccount`-style RLS check, read pref, return `resolveEffectiveGrants(account.scopes, stored)`.
-  - `PUT` handler: validate body (`{email?:boolean, calendar?:boolean}`), read current pref (or default `{}`), merge provided keys, `preferences.upsert`, then audit via `recordAuditEvent` (one event per changed feature, or one aggregate event — *prefer one event per feature change for clarity*), then return effective grants.
+  - `PUT` handler: validate body (`{email?:boolean, calendar?:boolean}`), read current pref (or default `{}`), merge provided keys, `preferences.upsert`, then audit via `recordAuditEvent` (one event per changed feature, or one aggregate event — _prefer one event per feature change for clarity_), then return effective grants.
   - Add `preferences?: PreferencesRepository` + `dataContext` (already present) to `ConnectorsRoutesDependencies`.
 
 - [ ] **Step 3:** Run → green. Commit.
@@ -159,10 +172,11 @@ Spec §4 says gate "the email/calendar assistant tools (read tools) ... in `pack
 ### Task 6: Calendar-write scope check + grant
 
 **Files:**
+
 - Modify: `packages/connectors/src/repository.ts`
 - Modify: `packages/chat/src/calendar-write-impl.ts`
 
-- [ ] **Step 1:** `hasCalendarWriteScope` currently reads the active google account + checks scope. Extend it to also require the calendar grant: accept the `PreferencesRepository` (or have the caller gate). **Cleanest:** rename existing to `getActiveGoogleAccountCalendarWriteScope(db): Promise<{accountId, hasScope} | undefined>` and let `calendar-write-impl.ts` check the grant via `isFeatureGranted` using the returned `accountId`. *Confirm API shape with a quick check it doesn't break other callers (grep shows only `calendar-write-impl.ts:61`).*
+- [ ] **Step 1:** `hasCalendarWriteScope` currently reads the active google account + checks scope. Extend it to also require the calendar grant: accept the `PreferencesRepository` (or have the caller gate). **Cleanest:** rename existing to `getActiveGoogleAccountCalendarWriteScope(db): Promise<{accountId, hasScope} | undefined>` and let `calendar-write-impl.ts` check the grant via `isFeatureGranted` using the returned `accountId`. _Confirm API shape with a quick check it doesn't break other callers (grep shows only `calendar-write-impl.ts:61`)._
 - [ ] **Step 2:** Update `calendar-write-impl.ts` to gate on `hasScope && isFeatureGranted(grants,"calendar")`; return the existing "couldn't create" style message when the grant is off.
 - [ ] **Step 3:** typecheck + existing calendar-write tests → green. Commit.
 
@@ -171,6 +185,7 @@ Spec §4 says gate "the email/calendar assistant tools (read tools) ... in `pack
 ### Task 7: Manifest route registration
 
 **Files:**
+
 - Modify: `packages/connectors/src/manifest.ts`
 
 - [ ] Add the two routes to `manifest.routes[]` with `permissionId:"connectors.manage"` (user toggles own account; not admin-only — matches spec §7). Response schemas from Task 2. Commit.
@@ -180,6 +195,7 @@ Spec §4 says gate "the email/calendar assistant tools (read tools) ... in `pack
 ### Task 8: Web client + query keys
 
 **Files:**
+
 - Modify: `apps/web/src/api/client.ts`, `apps/web/src/api/query-keys.ts`
 
 - [ ] Add `getFeatureGrants(accountId)`, `updateFeatureGrants(accountId, body)` client fns (mirror `revokeConnectorAccount` pattern). Add `queryKeys.connectors.featureGrants: (id) => ["connectors","feature-grants",id]`. typecheck. Commit.
@@ -189,9 +205,10 @@ Spec §4 says gate "the email/calendar assistant tools (read tools) ... in `pack
 ### Task 9: UI — per-account feature toggles
 
 **Files:**
+
 - Modify: `apps/web/src/settings/settings-personal-data-panes.tsx` (`AccountRow`)
 
-- [ ] **Step 1:** In `AccountRow`, detect scope support: `hasEmail = account.scopes.some(s => s.includes("gmail") || s.includes("mail"))`, `hasCalendar = account.scopes.some(s => s.includes("calendar"))`. For each supported feature, render a small toggle (reuse `jds-btn`/authored toggle pattern — check existing toggle UI in `ModulesPane` around L660/L727). Label: "Email access" / "Calendar access" with copy *"Jarvis may read your email from this account."*
+- [ ] **Step 1:** In `AccountRow`, detect scope support: `hasEmail = account.scopes.some(s => s.includes("gmail") || s.includes("mail"))`, `hasCalendar = account.scopes.some(s => s.includes("calendar"))`. For each supported feature, render a small toggle (reuse `jds-btn`/authored toggle pattern — check existing toggle UI in `ModulesPane` around L660/L727). Label: "Email access" / "Calendar access" with copy _"Jarvis may read your email from this account."_
 - [ ] **Step 2:** Toggle → `updateFeatureGrants` mutation → on success invalidate `queryKeys.connectors.accounts` + `featureGrants(id)`.
 - [ ] **Step 3:** Visual check (manual or snapshot if a test exists). `pnpm format:check && pnpm lint && pnpm typecheck` → green. Commit.
 

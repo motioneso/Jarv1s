@@ -52,10 +52,7 @@ function accountHasCalendarScope(scopes: readonly string[]): boolean {
  * scope AND the grant is on. Used by the GET route to surface default-on state for scopes
  * the account has when no pref row exists yet.
  */
-export function resolveEffectiveGrants(
-  scopes: readonly string[],
-  stored: unknown
-): FeatureGrants {
+export function resolveEffectiveGrants(scopes: readonly string[], stored: unknown): FeatureGrants {
   return {
     email: accountHasEmailScope(scopes) && isFeatureGranted(stored, "email"),
     calendar: accountHasCalendarScope(scopes) && isFeatureGranted(stored, "calendar")
