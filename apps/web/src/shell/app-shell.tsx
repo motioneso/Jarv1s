@@ -36,6 +36,7 @@ import { ChatControlsProvider } from "./chat-controls-context";
 import { ASK_JARVIS_STARTER, consumeAskJarvis } from "../onboarding/ask-jarvis-handoff";
 import { HeaderWeather } from "../today/header-weather";
 import { applyThemeTokens } from "../theme/theme-runtime";
+import { CommandPalette } from "./command-palette";
 import { loadShellTheme, saveShellTheme, type ShellTheme } from "./theme-storage";
 import type { MeResponse, ModuleDto, ModuleNavigationEntryDto } from "@jarv1s/shared";
 
@@ -224,6 +225,13 @@ export function AppShell(props: AppShellProps) {
           </ChatControlsProvider>
         </main>
       </div>
+
+      <CommandPalette
+        modules={props.modules}
+        disabledModuleIds={props.disabledModuleIds ?? []}
+        themes={themesQuery.data}
+        navigate={navigate}
+      />
 
       <ChatDrawer
         open={chatOpen}
