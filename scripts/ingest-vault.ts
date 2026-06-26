@@ -9,6 +9,7 @@ import {
   createEmbeddingProvider,
   getEmbeddingProviderConfig
 } from "@jarv1s/memory";
+import { RuntimeConfigResolver } from "@jarv1s/settings";
 
 function requireEnv(name: string): string {
   const value = process.env[name];
@@ -25,16 +26,19 @@ async function main(): Promise<void> {
   const actorUserId = requireEnv("JARVIS_USER_ID");
   const vaultBaseDir = requireEnv("JARVIS_VAULT_ROOT");
 
-  const provider = createEmbeddingProvider(getEmbeddingProviderConfig());
-  console.log(`Embedding provider: ${provider.modelName} (${provider.dimensions} dims)`);
-
   const repository = new MemoryRepository();
-  const pipeline = new MemoryIngestPipeline(provider, repository);
   const db = createDatabase({ connectionString, maxConnections: 1 });
   const dataContextRunner = new DataContextRunner(db);
-  const service = new IngestionService(pipeline, repository, dataContextRunner);
-
   const accessCtx: AccessContext = { actorUserId, requestId: `ingest-cli:${randomUUID()}` };
+  const provider = createEmbeddingProvider(
+    await dataContextRunner.withDataContext(accessCtx, (scopedDb) =>
+      getEmbeddingProviderConfig(new RuntimeConfigResolver(scopedDb))
+    )
+  );
+  console.log(`Embedding provider: ${provider.modelName} (${provider.dimensions} dims)`);
+
+  const pipeline = new MemoryIngestPipeline(provider, repository);
+  const service = new IngestionService(pipeline, repository, dataContextRunner);
   const vaultRunner = new VaultContextRunner(vaultBaseDir);
 
   try {

@@ -10,7 +10,6 @@ import {
   registerDataContextWorker,
   type RlsProbeJobPayload
 } from "@jarv1s/jobs";
-import { createEmbeddingProvider, getEmbeddingProviderConfig } from "@jarv1s/memory";
 import { getAllQueueDefinitions, registerBuiltInModuleWorkers } from "@jarv1s/module-registry";
 
 // ---------------------------------------------------------------------------
@@ -83,9 +82,6 @@ export async function buildWorker(deps?: { connectionString?: string }): Promise
   const boss = createPgBossClient(connectionString, WORKER_BOSS_OPTIONS);
   logScheduleMode();
 
-  // LOW (#165): createEmbeddingProvider is synchronous — drop the misleading await.
-  const embeddingProvider = createEmbeddingProvider(getEmbeddingProviderConfig());
-
   await boss.start();
 
   // -------------------------------------------------------------------------
@@ -129,7 +125,6 @@ export async function buildWorker(deps?: { connectionString?: string }): Promise
   await registerBuiltInModuleWorkers(boss, {
     rootDb: workerDb,
     dataContext,
-    embeddingProvider,
     // Pino's Logger is structurally what FastifyBaseLogger wraps at runtime
     // (Fastify uses pino internally). The cast bridges the nominal type gap.
     logger: workerLogger as unknown as FastifyBaseLogger

@@ -1,9 +1,15 @@
 import Fastify, { type FastifyInstance } from "fastify";
 import { afterEach, describe, expect, it } from "vitest";
 
-import { dataContextBrand, type AccessContext, type DataContextDb } from "../../packages/db/src/index.js";
+import {
+  dataContextBrand,
+  type AccessContext,
+  type DataContextDb,
+  type DataContextRunner
+} from "../../packages/db/src/index.js";
 import { EMBED_PROVIDER_CONFIG_KEY } from "../../packages/settings/src/runtime-config-keys.js";
 import { registerRuntimeConfigRoutes } from "../../packages/settings/src/runtime-config-routes.js";
+import type { SettingsRepository } from "../../packages/settings/src/repository.js";
 
 const ACTOR_ID = "00000000-0000-4000-8000-000000000001";
 
@@ -30,30 +36,53 @@ function makeServer(options?: {
   readonly env?: NodeJS.ProcessEnv;
 }): {
   readonly server: FastifyInstance;
-  readonly upserts: Record<string, unknown>[];
+  readonly upserts: unknown[];
 } {
   const server = Fastify({ logger: false });
   const settings = new Map(options?.initialSettings ?? []);
   const scopedDb = makeScopedDb(settings);
-  const upserts: Record<string, unknown>[] = [];
+  const upserts: unknown[] = [];
 
   registerRuntimeConfigRoutes(server, {
     dataContext: {
-      withDataContext: async (_accessContext: AccessContext, work: (db: DataContextDb) => Promise<unknown>) =>
+      withDataContext: async <T>(
+        _accessContext: AccessContext,
+        work: (db: DataContextDb) => Promise<T>
+      ): Promise<T> =>
         work(scopedDb)
-    },
+    } as unknown as DataContextRunner,
     resolveAccessContext: async () => ({ actorUserId: ACTOR_ID, requestId: "req-runtime-config" }),
     repository: {
-      getUserById: async () => ({ id: ACTOR_ID, is_instance_admin: true }),
-      upsertInstanceSetting: async (_db: DataContextDb, input: Record<string, unknown>) => {
+      getUserById: async () => ({
+        id: ACTOR_ID,
+        email: "admin@example.com",
+        name: "Admin",
+        email_verified: true,
+        image: null,
+        is_instance_admin: true,
+        status: "active",
+        is_bootstrap_owner: false,
+        created_at: new Date("2026-01-01T00:00:00.000Z"),
+        updated_at: new Date("2026-01-01T00:00:00.000Z")
+      }),
+      upsertInstanceSetting: async (_db: DataContextDb, input) => {
         upserts.push(input);
         settings.set(String(input.key), input.value as Record<string, unknown>);
-        return input;
+        return {
+          key: input.key,
+          value: input.value,
+          updated_by_user_id: input.updatedByUserId,
+          created_at: new Date("2026-01-01T00:00:00.000Z"),
+          updated_at: new Date("2026-01-01T00:00:00.000Z")
+        };
       },
       deleteInstanceSetting: async (_db: DataContextDb, input: { key: string }) => {
         return settings.delete(input.key);
       }
-    },
+    } satisfies Pick<
+      SettingsRepository,
+      "getUserById" | "upsertInstanceSetting" | "deleteInstanceSetting"
+    > as unknown as SettingsRepository,
     env: options?.env ?? {}
   });
 

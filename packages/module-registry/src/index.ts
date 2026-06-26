@@ -17,9 +17,10 @@ import {
   ChatMemoryFactsRepository,
   MemoryRepository,
   MemoryRetriever,
+  createEmbeddingProvider,
+  getEmbeddingProviderConfig,
   memoryModuleManifest,
-  memorySqlMigrationDirectory,
-  type EmbeddingProvider
+  memorySqlMigrationDirectory
 } from "@jarv1s/memory";
 import {
   PreferencesRepository,
@@ -90,6 +91,7 @@ import {
   registerSettingsRoutes,
   registerRuntimeConfigRoutes,
   registerWebSearchKeyRoutes,
+  RuntimeConfigResolver,
   settingsModuleManifest,
   settingsModuleSqlMigrationDirectory,
   SettingsRepository,
@@ -275,7 +277,6 @@ export interface BuiltInRouteDependencies {
 export interface BuiltInWorkerDependencies {
   readonly rootDb: Kysely<JarvisDatabase>;
   readonly dataContext: DataContextRunner;
-  readonly embeddingProvider: EmbeddingProvider;
   /**
    * Structured logger for worker-path diagnostics. Production (apps/worker) passes
    * a pino root; tests omit it. Threaded into per-module worker registrations so
@@ -283,6 +284,32 @@ export interface BuiltInWorkerDependencies {
    */
   readonly logger?: FastifyBaseLogger;
 }
+
+async function createRuntimeEmbeddingProvider(scopedDb: DataContextDb) {
+  return createEmbeddingProvider(
+    await getEmbeddingProviderConfig(new RuntimeConfigResolver(scopedDb))
+  );
+}
+
+const runtimeMemoryRetriever = {
+  async retrieve(scopedDb: DataContextDb, query: string, limit?: number, sourceKind?: string) {
+    const provider = await createRuntimeEmbeddingProvider(scopedDb);
+    return new MemoryRetriever(provider, new MemoryRepository()).retrieve(
+      scopedDb,
+      query,
+      limit,
+      sourceKind
+    );
+  },
+  async retrieveRecent(scopedDb: DataContextDb, limit?: number, sourceKind?: string) {
+    const provider = await createRuntimeEmbeddingProvider(scopedDb);
+    return new MemoryRetriever(provider, new MemoryRepository()).retrieveRecent(
+      scopedDb,
+      limit,
+      sourceKind
+    );
+  }
+};
 
 export interface BuiltInModuleRegistration {
   readonly manifest: JarvisModuleManifest;
@@ -527,7 +554,7 @@ const BUILT_IN_MODULES: readonly BuiltInModuleRegistration[] = [
       }),
     registerWorkers: (boss, deps) =>
       registerChatJobWorkers(boss, deps.dataContext, {
-        embeddingProvider: deps.embeddingProvider,
+        embeddingProviderFactory: createRuntimeEmbeddingProvider,
         extractFactsDeps: {
           aiRepository: new AiRepository(),
           cipher: createAiSecretCipher(),
@@ -570,10 +597,7 @@ const BUILT_IN_MODULES: readonly BuiltInModuleRegistration[] = [
             const name = row?.name?.trim();
             return name && name.length > 0 ? name : actorUserId;
           },
-          memoryRetriever: new MemoryRetriever(
-            dependencies.embeddingProvider,
-            new MemoryRepository()
-          ),
+          memoryRetriever: runtimeMemoryRetriever as unknown as MemoryRetriever,
           logger: briefingsLogger
         },
         notificationsRepository: new NotificationsRepository(quietHoursPortImpl),
@@ -626,7 +650,7 @@ const BUILT_IN_MODULES: readonly BuiltInModuleRegistration[] = [
       }),
     registerWorkers: (boss, deps) =>
       registerNotesJobWorkers(boss, deps.dataContext, {
-        embeddingProvider: deps.embeddingProvider,
+        embeddingProviderFactory: createRuntimeEmbeddingProvider,
         preferencesRepository: new PreferencesRepository()
       })
   }

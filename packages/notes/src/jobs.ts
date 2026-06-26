@@ -7,10 +7,17 @@ import type { Job, PgBoss } from "pg-boss";
 import type { AccessContext, DataContextDb, DataContextRunner } from "@jarv1s/db";
 import { type ActorScopedJobPayload, type QueueDefinition, toAccessContext } from "@jarv1s/jobs";
 import type { EmbeddingProvider } from "@jarv1s/memory";
-import { MemoryRepository, parseDocument, type NewChunkData } from "@jarv1s/memory";
+import {
+  createEmbeddingProvider,
+  getEmbeddingProviderConfig,
+  MemoryRepository,
+  parseDocument,
+  type NewChunkData
+} from "@jarv1s/memory";
 import {
   NOTES_LAST_SYNC_PREFERENCE_KEY,
   NOTES_SOURCE_PREFERENCE_KEY,
+  RuntimeConfigResolver,
   resolveNotesRoots
 } from "@jarv1s/settings";
 import type { PreferencesRepository } from "@jarv1s/structured-state";
@@ -52,6 +59,7 @@ export interface NotesLastSync {
 }
 
 type NotesFileIngestStatus = "ingested" | "skipped";
+export type EmbeddingProviderFactory = (scopedDb: DataContextDb) => Promise<EmbeddingProvider>;
 
 export const NOTES_QUEUE_DEFINITIONS: readonly QueueDefinition[] = [
   {
@@ -284,14 +292,18 @@ export async function handleNotesSyncJob(
 export async function handleNotesSyncJobWithDataContext(
   job: Job<NotesSyncJobPayload>,
   dataContextRunner: DataContextRunner,
-  embeddingProvider: EmbeddingProvider,
+  embeddingProviderFactory: EmbeddingProviderFactory,
   preferencesRepository: PreferencesRepository
 ): Promise<NotesSyncJobResult> {
   const accessContext = toAccessContext(job);
   const { actorUserId, sourcePath } = job.data;
 
-  const sourcePathToUse = await dataContextRunner.withDataContext(accessContext, (scopedDb) =>
-    resolveSourcePath(scopedDb, sourcePath, preferencesRepository)
+  const [sourcePathToUse, embeddingProvider] = await dataContextRunner.withDataContext(
+    accessContext,
+    async (scopedDb) => [
+      await resolveSourcePath(scopedDb, sourcePath, preferencesRepository),
+      await embeddingProviderFactory(scopedDb)
+    ]
   );
 
   if (sourcePathToUse === null) {
@@ -398,8 +410,14 @@ export async function writeNotesLastSync(
 }
 
 export interface RegisterNotesJobWorkersOptions {
-  readonly embeddingProvider: EmbeddingProvider;
+  readonly embeddingProviderFactory?: EmbeddingProviderFactory;
   readonly preferencesRepository: PreferencesRepository;
+}
+
+async function defaultEmbeddingProviderFactory(scopedDb: DataContextDb): Promise<EmbeddingProvider> {
+  return createEmbeddingProvider(
+    await getEmbeddingProviderConfig(new RuntimeConfigResolver(scopedDb))
+  );
 }
 
 export async function registerNotesJobWorkers(
@@ -423,7 +441,7 @@ export async function registerNotesJobWorkers(
         const result = await handleNotesSyncJobWithDataContext(
           job,
           dataContext,
-          options.embeddingProvider,
+          options.embeddingProviderFactory ?? defaultEmbeddingProviderFactory,
           options.preferencesRepository
         );
         // Fix 6 (#449): a no-op run (no source configured — stale schedule tick

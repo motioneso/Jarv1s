@@ -430,7 +430,7 @@ describe("handleNotesSyncJob", () => {
     const result = await handleNotesSyncJobWithDataContext(
       makeJob(jobNotesDir),
       workerDataContext,
-      provider,
+      async () => provider,
       prefsRepo
     );
 
@@ -473,7 +473,7 @@ describe("handleNotesSyncJob", () => {
       const result = await handleNotesSyncJobWithDataContext(
         makeJob(isolatedDir),
         workerDataContext,
-        badVectorProvider,
+        async () => badVectorProvider,
         prefsRepo
       );
 

@@ -353,7 +353,7 @@ function parseCorrection(value: unknown): ParsedCorrection | undefined {
 // ── Worker registration ───────────────────────────────────────────────────────
 
 export interface RegisterChatJobWorkersOptions {
-  readonly embeddingProvider: EmbeddingProvider;
+  readonly embeddingProviderFactory: (scopedDb: DataContextDb) => Promise<EmbeddingProvider>;
   /**
    * AI deps for the extract-facts worker. Optional here so the module registry can
    * land its injection in a follow-up (A13) without breaking this signature; when
@@ -397,11 +397,12 @@ export async function registerChatJobWorkers(
     CHAT_EMBED_TURN_QUEUE,
     dataContext,
     async (job, scopedDb) => {
+      const embeddingProvider = await options.embeddingProviderFactory(scopedDb);
       await handleEmbedTurnJob(
         scopedDb,
         job.data.actorUserId,
         job.data.threadId,
-        options.embeddingProvider,
+        embeddingProvider,
         memoryRepo,
         chatRepo
       );
