@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  BRAVE_API_KEY_CONFIG_KEY,
   EMBED_MODEL_CONFIG_KEY,
   EMBED_PROVIDER_CONFIG_KEY,
   RUNTIME_CONFIG_REGISTRY,
@@ -32,6 +33,14 @@ describe("runtime config registry", () => {
     expect(KNOWN_INSTANCE_SETTING_KEYS.has(EMBED_MODEL_CONFIG_KEY)).toBe(true);
     expect(SECRET_INSTANCE_SETTING_KEYS.has(EMBED_PROVIDER_CONFIG_KEY)).toBe(false);
     expect(SECRET_INSTANCE_SETTING_KEYS.has(EMBED_MODEL_CONFIG_KEY)).toBe(false);
-    expect(RUNTIME_CONFIG_REGISTRY).toHaveLength(2);
+    expect(getRuntimeConfigEntry(BRAVE_API_KEY_CONFIG_KEY)).toMatchObject({
+      key: "ai.brave_api_key",
+      type: "secret",
+      secret: true,
+      envVar: "JARVIS_BRAVE_API_KEY",
+      moduleOwner: "ai"
+    });
+    expect(SECRET_INSTANCE_SETTING_KEYS.has(BRAVE_API_KEY_CONFIG_KEY)).toBe(true);
+    expect(RUNTIME_CONFIG_REGISTRY).toHaveLength(3);
   });
 });
