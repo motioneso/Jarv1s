@@ -1,9 +1,11 @@
 import { assertDataContextDb, type DataContextDb } from "@jarv1s/db";
 import type { ToolExecute, ToolResult } from "@jarv1s/module-sdk";
 import type { CalendarLiveEventDto, GmailLiveMessageSummaryDto } from "@jarv1s/shared";
+import { PreferencesRepository } from "@jarv1s/structured-state";
 
 import { createConnectorSecretCipher } from "./crypto.js";
 import { parseEmail, type ParsedEmail } from "./email-extract.js";
+import { featureGrantsPrefKey, isFeatureGranted, type ConnectorFeature } from "./feature-grants.js";
 import { GoogleConnectionService } from "./google-connection.js";
 import { GoogleApiClient, GoogleApiError, type GoogleCalendarEvent } from "./google-api-client.js";
 import { GoogleOAuthClient } from "./oauth.js";
@@ -23,6 +25,8 @@ export interface LiveGoogleToolDeps {
     GoogleApiClient,
     "listMessageIds" | "getMessage" | "listCalendarEvents"
   >;
+  readonly connectorsRepository?: Pick<ConnectorsRepository, "getActiveGoogleAccountSecret">;
+  readonly preferencesRepository?: Pick<PreferencesRepository, "get">;
   readonly now?: () => Date;
 }
 
@@ -34,7 +38,9 @@ function defaultDeps(): LiveGoogleToolDeps {
       cipher: createConnectorSecretCipher(),
       oauthClient: new GoogleOAuthClient()
     }),
-    googleClient: new GoogleApiClient()
+    googleClient: new GoogleApiClient(),
+    connectorsRepository: repository,
+    preferencesRepository: new PreferencesRepository()
   };
 }
 
@@ -87,6 +93,31 @@ async function freshToken(scopedDb: DataContextDb, deps: LiveGoogleToolDeps): Pr
   }
 }
 
+function featureDisabledResult(feature: ConnectorFeature): ToolResult {
+  return {
+    data: {
+      error:
+        feature === "email"
+          ? "Email access disabled for this account"
+          : "Calendar access disabled for this account",
+      code: "CONNECTOR_FEATURE_GRANT_DISABLED"
+    }
+  };
+}
+
+async function requireFeatureGrant(
+  scopedDb: DataContextDb,
+  deps: LiveGoogleToolDeps,
+  feature: ConnectorFeature
+): Promise<ToolResult | undefined> {
+  const repository = deps.connectorsRepository ?? new ConnectorsRepository();
+  const account = await repository.getActiveGoogleAccountSecret(scopedDb);
+  if (!account) throw new Error("Connect Google in Settings first.");
+  const preferences = deps.preferencesRepository ?? new PreferencesRepository();
+  const grants = await preferences.get(scopedDb, featureGrantsPrefKey(account.id));
+  return isFeatureGranted(grants, feature) ? undefined : featureDisabledResult(feature);
+}
+
 async function with401Retry<T>(
   scopedDb: DataContextDb,
   deps: LiveGoogleToolDeps,
@@ -108,6 +139,8 @@ export function makeGmailSearchLiveExecute(deps: LiveGoogleToolDeps = defaultDep
     const scopedDb = scopedDbRaw as DataContextDb;
     const limit = clampInt(input.limit, GMAIL_SEARCH_LIMIT_DEFAULT, GMAIL_SEARCH_LIMIT_MAX);
     const query = readString(input.query) ?? DEFAULT_GMAIL_QUERY;
+    const disabled = await requireFeatureGrant(scopedDb, deps, "email");
+    if (disabled) return disabled;
     const token = { value: await freshToken(scopedDb, deps) };
     const stubs = await with401Retry(scopedDb, deps, token, (accessToken) =>
       deps.googleClient.listMessageIds({ accessToken, query, maxPages: 2 })
@@ -136,6 +169,8 @@ export function makeGmailGetLiveMessageExecute(
     const id = readString(input.id);
     if (!id) throw new Error("id is required");
     const scopedDb = scopedDbRaw as DataContextDb;
+    const disabled = await requireFeatureGrant(scopedDb, deps, "email");
+    if (disabled) return disabled;
     const token = { value: await freshToken(scopedDb, deps) };
     const full = await with401Retry(scopedDb, deps, token, (accessToken) =>
       deps.googleClient.getMessage({ accessToken, id })
@@ -166,6 +201,8 @@ export function makeCalendarListLiveEventsExecute(
     const timeMin = rawMin ?? now.toISOString();
     const timeMax = rawMax ?? new Date(start.getTime() + CALENDAR_DEFAULT_WINDOW_MS).toISOString();
     const limit = clampInt(input.limit, CALENDAR_LIMIT_DEFAULT, CALENDAR_LIMIT_MAX);
+    const disabled = await requireFeatureGrant(scopedDb, deps, "calendar");
+    if (disabled) return disabled;
     const token = { value: await freshToken(scopedDb, deps) };
     const events = await with401Retry(scopedDb, deps, token, (accessToken) =>
       deps.googleClient.listCalendarEvents({
