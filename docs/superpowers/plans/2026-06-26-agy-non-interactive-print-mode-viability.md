@@ -86,7 +86,7 @@ Expected: a temporary path under `/tmp`. Record it in the spike report. Do not u
 Run:
 
 ```bash
-find ~/.gemini -maxdepth 6 -type f \( -name '*.jsonl' -o -name 'transcript_full.jsonl' \) -print 2>/dev/null | sort > "$probe_dir/before-transcripts.txt"
+find ~/.gemini -maxdepth 8 -type f \( -name '*.jsonl' -o -name 'transcript_full.jsonl' \) -print 2>/dev/null | sort > "$probe_dir/before-transcripts.txt"
 ```
 
 Expected: command succeeds even if no files are found.
@@ -103,7 +103,7 @@ Run from the probe dir:
 
 ```bash
 cd "$probe_dir"
-agy --print "Remember the marker phrase maple-17. Reply with exactly: stored."
+agy --dangerously-skip-permissions --print "Remember the marker phrase maple-17. Reply with exactly: stored."
 ```
 
 Expected: output is exactly or near-exactly `stored.`. Record stdout/stderr summary and exit code.
@@ -114,7 +114,7 @@ Run:
 
 ```bash
 cd "$probe_dir"
-agy --continue --print "What marker phrase did I ask you to remember? Reply with only the phrase."
+agy --dangerously-skip-permissions --continue --print "What marker phrase did I ask you to remember? Reply with only the phrase."
 ```
 
 Expected: output contains only:
@@ -174,7 +174,7 @@ Run:
 
 ```bash
 cd "$probe_dir"
-timeout 45s agy --print "Read ./word.txt from the current directory. Reply with only its contents."
+timeout 45s agy --dangerously-skip-permissions --print "Read ./word.txt from the current directory. Reply with only its contents."
 ```
 
 Expected for parity:
@@ -252,7 +252,7 @@ Run a bounded slow-ish prompt:
 
 ```bash
 cd "$probe_dir"
-timeout 60s agy --print "Count from 1 to 5, one number per line, then write DONE."
+timeout 60s agy --dangerously-skip-permissions --print "Count from 1 to 5, one number per line, then write DONE."
 ```
 
 Expected: command exits 0 and transcript has a clear final-response record that can map to Jarv1s `complete=true`.
@@ -263,7 +263,7 @@ Run:
 
 ```bash
 cd "$probe_dir"
-timeout 3s agy --print "Think for 30 seconds before answering with done."
+timeout 3s agy --dangerously-skip-permissions --print "Think for 30 seconds before answering with done."
 echo "exit=$?"
 ```
 
@@ -275,7 +275,7 @@ Run:
 
 ```bash
 cd "$probe_dir"
-agy --continue --print "Reply with exactly: after-timeout-ok"
+agy --dangerously-skip-permissions --continue --print "Reply with exactly: after-timeout-ok"
 ```
 
 Expected:
