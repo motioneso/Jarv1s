@@ -138,6 +138,49 @@ describe("calendar RLS — worker role + google INSERT relax (0066)", () => {
   });
 });
 
+describe("calendar RLS — worker DELETE reconciliation (0113)", () => {
+  it("grants the worker role DELETE on app.calendar_events", async () => {
+    const grants = await sql<{ privilege_type: string }>`
+      SELECT a.privilege_type
+      FROM pg_class c
+      JOIN pg_namespace n ON n.oid = c.relnamespace
+      CROSS JOIN LATERAL aclexplode(c.relacl) AS a
+      JOIN pg_roles g ON g.oid = a.grantee
+      WHERE n.nspname = 'app' AND c.relname = 'calendar_events'
+        AND g.rolname = 'jarvis_worker_runtime'
+    `.execute(appDb);
+
+    expect(grants.rows.map((r) => r.privilege_type)).toContain("DELETE");
+  });
+
+  it("adds a worker-only owner-scoped DELETE policy", async () => {
+    const roles = await sql<{ rolname: string }>`
+      SELECT g.rolname
+      FROM pg_policy p
+      CROSS JOIN LATERAL unnest(p.polroles) AS r(oid)
+      JOIN pg_roles g ON g.oid = r.oid
+      WHERE p.polrelid = 'app.calendar_events'::regclass
+        AND p.polname = 'calendar_events_delete'
+    `.execute(appDb);
+    expect(new Set(roles.rows.map((r) => r.rolname))).toEqual(
+      new Set(["jarvis_worker_runtime"])
+    );
+
+    const policy = await sql<{ qual: string }>`
+      SELECT pg_get_expr(p.polqual, p.polrelid) AS qual
+      FROM pg_policy p
+      WHERE p.polrelid = 'app.calendar_events'::regclass
+        AND p.polname = 'calendar_events_delete'
+    `.execute(appDb);
+    const qual = policy.rows[0]?.qual ?? "";
+    expect(qual).toMatch(/owner_user_id = app\.current_actor_user_id\(\)/);
+    expect(qual).toMatch(/connector_accounts/);
+    expect(qual).toMatch(/provider_type = 'google'/);
+    expect(qual).toMatch(/https:\/\/www\.googleapis\.com\/auth\/calendar/);
+    expect(qual).not.toMatch(/has_share/);
+  });
+});
+
 // DEVIATION (vs plan A3 step 1): mirrors the A2 deviation above. The plan's A3 tests call
 // EmailRepository.upsertCachedMessage as the worker role, but that method does not exist until
 // Task C1, AND a worker INSERT cannot succeed until A4 (0069) grants the worker SELECT on
