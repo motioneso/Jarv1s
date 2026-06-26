@@ -6,11 +6,13 @@ import {
   calendarListLiveEventsResponseSchema,
   createConnectorAccountRequestSchema,
   createConnectorAccountResponseSchema,
+  featureGrantsResponseSchema,
   gmailGetLiveMessageInputSchema,
   gmailGetLiveMessageResponseSchema,
   gmailSearchLiveInputSchema,
   gmailSearchLiveResponseSchema,
   googleSyncResponseSchema,
+  updateFeatureGrantsRequestSchema,
   listAdminConnectorAccountsResponseSchema,
   listConnectorAccountsResponseSchema,
   listConnectorProvidersResponseSchema,
@@ -142,6 +144,19 @@ export const connectorsModuleManifest = {
       method: "POST",
       path: "/api/connectors/accounts/:id/revoke",
       responseSchema: revokeConnectorAccountResponseSchema,
+      permissionId: "connectors.manage"
+    },
+    {
+      method: "GET",
+      path: "/api/connectors/accounts/:id/feature-grants",
+      responseSchema: featureGrantsResponseSchema,
+      permissionId: "connectors.manage"
+    },
+    {
+      method: "PUT",
+      path: "/api/connectors/accounts/:id/feature-grants",
+      requestSchema: updateFeatureGrantsRequestSchema,
+      responseSchema: featureGrantsResponseSchema,
       permissionId: "connectors.manage"
     },
     {

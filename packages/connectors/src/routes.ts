@@ -11,14 +11,17 @@ import type {
   DataContextRunner
 } from "@jarv1s/db";
 import { sendJob } from "@jarv1s/jobs";
+import { recordAuditEvent } from "@jarv1s/settings";
 import {
   createConnectorAccountRouteSchema,
+  getFeatureGrantsRouteSchema,
   googleAuthorizeRouteSchema,
   googleCompleteRouteSchema,
   googleSyncRouteSchema,
   listAdminConnectorAccountsRouteSchema,
   listConnectorAccountsRouteSchema,
   listConnectorProvidersRouteSchema,
+  putFeatureGrantsRouteSchema,
   parsePositiveIntEnv,
   revokeConnectorAccountRouteSchema,
   updateConnectorAccountRouteSchema,
@@ -27,11 +30,14 @@ import {
   type CreateConnectorAccountRequest,
   type GoogleAuthorizeRequest,
   type GoogleCompleteRequest,
+  type UpdateFeatureGrantsRequest,
   type UpdateConnectorAccountRequest
 } from "@jarv1s/shared";
 import { HttpError, handleRouteError as handleModuleRouteError } from "@jarv1s/module-sdk";
+import { PreferencesRepository } from "@jarv1s/structured-state";
 
 import { createConnectorSecretCipher, type ConnectorSecretCipher } from "./crypto.js";
+import { featureGrantsPrefKey, resolveEffectiveGrants } from "./feature-grants.js";
 import { GoogleConnectionService, GoogleConnectError } from "./google-connection.js";
 import { GoogleOAuthClient } from "./oauth.js";
 import { ConnectorsRepository, type ConnectorAccountSafeRow } from "./repository.js";
@@ -42,6 +48,7 @@ export interface ConnectorsRoutesDependencies {
   readonly dataContext: DataContextRunner;
   readonly boss: PgBoss;
   readonly repository?: ConnectorsRepository;
+  readonly preferencesRepository?: PreferencesRepository;
   readonly secretCipher?: ConnectorSecretCipher;
   readonly googleService?: GoogleConnectionService;
 }
@@ -55,6 +62,7 @@ export function registerConnectorsRoutes(
   dependencies: ConnectorsRoutesDependencies
 ): void {
   const repository = dependencies.repository ?? new ConnectorsRepository();
+  const preferencesRepository = dependencies.preferencesRepository ?? new PreferencesRepository();
   const secretCipher = dependencies.secretCipher ?? createConnectorSecretCipher();
   const googleService =
     dependencies.googleService ??
@@ -266,6 +274,75 @@ export function registerConnectorsRoutes(
     }
   );
 
+  server.get<{ Params: AccountParams }>(
+    "/api/connectors/accounts/:id/feature-grants",
+    { schema: getFeatureGrantsRouteSchema },
+    async (request, reply) => {
+      try {
+        const accessContext = await dependencies.resolveAccessContext(request);
+        const grants = await dependencies.dataContext.withDataContext(
+          accessContext,
+          async (scopedDb) => {
+            const account = await findVisibleAccount(repository, scopedDb, request.params.id);
+            if (!account) return undefined;
+            const stored = await preferencesRepository.get(
+              scopedDb,
+              featureGrantsPrefKey(account.id)
+            );
+            return resolveEffectiveGrants(account.scopes, stored);
+          }
+        );
+
+        if (!grants) return reply.code(404).send({ error: "Connector account not found" });
+        return grants;
+      } catch (error) {
+        return handleRouteError(error, reply);
+      }
+    }
+  );
+
+  server.put<{ Params: AccountParams }>(
+    "/api/connectors/accounts/:id/feature-grants",
+    { schema: putFeatureGrantsRouteSchema },
+    async (request, reply) => {
+      try {
+        const accessContext = await dependencies.resolveAccessContext(request);
+        const body = parseUpdateFeatureGrantsBody(request.body);
+        const grants = await dependencies.dataContext.withDataContext(
+          accessContext,
+          async (scopedDb) => {
+            const account = await findVisibleAccount(repository, scopedDb, request.params.id);
+            if (!account) return undefined;
+            const key = featureGrantsPrefKey(account.id);
+            const stored = await preferencesRepository.get(scopedDb, key);
+            const next = { ...resolveEffectiveGrants(account.scopes, stored) };
+            if (body.email !== undefined) next.email = body.email;
+            if (body.calendar !== undefined) next.calendar = body.calendar;
+            await preferencesRepository.upsert(scopedDb, key, next);
+            for (const feature of ["email", "calendar"] as const) {
+              const enabled = body[feature];
+              if (enabled === undefined) continue;
+              await recordAuditEvent(scopedDb, {
+                actorUserId: accessContext.actorUserId,
+                action: "connector.feature_grant.set",
+                targetType: "connector_account",
+                targetId: account.id,
+                metadata: { feature, enabled },
+                requestId: accessContext.requestId ?? randomUUID()
+              });
+            }
+            return resolveEffectiveGrants(account.scopes, next);
+          }
+        );
+
+        if (!grants) return reply.code(404).send({ error: "Connector account not found" });
+        return grants;
+      } catch (error) {
+        return handleRouteError(error, reply);
+      }
+    }
+  );
+
   server.get(
     "/api/admin/connectors/accounts",
     { schema: listAdminConnectorAccountsRouteSchema },
@@ -290,6 +367,14 @@ export function registerConnectorsRoutes(
   );
 }
 
+async function findVisibleAccount(
+  repository: ConnectorsRepository,
+  scopedDb: DataContextDb,
+  accountId: string
+): Promise<ConnectorAccountSafeRow | undefined> {
+  return (await repository.listAccounts(scopedDb)).find((account) => account.id === accountId);
+}
+
 function parseCreateAccountBody(body: unknown): CreateConnectorAccountRequest {
   const value = requireObject(body);
 
@@ -312,6 +397,21 @@ function parseUpdateAccountBody(body: unknown): UpdateConnectorAccountRequest {
         ? undefined
         : requireObject(value.tokenPayload, "tokenPayload")
   };
+}
+
+function parseUpdateFeatureGrantsBody(body: unknown): UpdateFeatureGrantsRequest {
+  const value = requireObject(body);
+
+  return {
+    email: optionalBoolean(value.email, "email"),
+    calendar: optionalBoolean(value.calendar, "calendar")
+  };
+}
+
+function optionalBoolean(value: unknown, fieldName: string): boolean | undefined {
+  if (value === undefined) return undefined;
+  if (typeof value === "boolean") return value;
+  throw new HttpError(400, `${fieldName} must be a boolean`);
 }
 
 async function assertInstanceAdmin(

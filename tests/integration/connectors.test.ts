@@ -346,6 +346,73 @@ describe("Connectors encrypted foundation", () => {
     expect(listResponse.body).not.toContain("ciphertext");
   });
 
+  it("resolves and updates per-account feature grants without exposing secrets", async () => {
+    const createResponse = await server.inject({
+      method: "POST",
+      url: "/api/connectors/accounts",
+      headers: { authorization: `Bearer ${ids.sessionA}` },
+      payload: {
+        providerId: "google",
+        scopes: [
+          "https://www.googleapis.com/auth/calendar",
+          "https://www.googleapis.com/auth/gmail.modify"
+        ],
+        tokenPayload: { accessToken: "feature-secret" }
+      }
+    });
+    const accountId = createResponse.json<{ account: { id: string } }>().account.id;
+
+    const initial = await server.inject({
+      method: "GET",
+      url: `/api/connectors/accounts/${accountId}/feature-grants`,
+      headers: { authorization: `Bearer ${ids.sessionA}` }
+    });
+    const updated = await server.inject({
+      method: "PUT",
+      url: `/api/connectors/accounts/${accountId}/feature-grants`,
+      headers: { authorization: `Bearer ${ids.sessionA}` },
+      payload: { email: false }
+    });
+    const after = await server.inject({
+      method: "GET",
+      url: `/api/connectors/accounts/${accountId}/feature-grants`,
+      headers: { authorization: `Bearer ${ids.sessionA}` }
+    });
+    const audits = await readAuditEvents(accountId);
+
+    expect(initial.statusCode).toBe(200);
+    expect(initial.json()).toEqual({ email: true, calendar: true });
+    expect(updated.statusCode).toBe(200);
+    expect(updated.json()).toEqual({ email: false, calendar: true });
+    expect(after.json()).toEqual({ email: false, calendar: true });
+    expect(updated.body).not.toContain("feature-secret");
+    expect(audits).toContainEqual({
+      action: "connector.feature_grant.set",
+      target_type: "connector_account",
+      target_id: accountId,
+      metadata: { feature: "email", enabled: false }
+    });
+  });
+
+  it("returns 404 when changing another user's feature grants", async () => {
+    const userBAccount = await dataContext.withDataContext(userBContext(), (scopedDb) =>
+      repository.createAccount(scopedDb, {
+        providerId: "google",
+        scopes: ["https://www.googleapis.com/auth/calendar"],
+        encryptedSecret: createConnectorSecretCipher().encryptJson({ accessToken: "user-b" })
+      })
+    );
+
+    const response = await server.inject({
+      method: "PUT",
+      url: `/api/connectors/accounts/${userBAccount.id}/feature-grants`,
+      headers: { authorization: `Bearer ${ids.sessionA}` },
+      payload: { calendar: false }
+    });
+
+    expect(response.statusCode).toBe(404);
+  });
+
   it("keeps connector accounts isolated by owner and exposes admin-safe metadata only", async () => {
     const userBAccount = await dataContext.withDataContext(userBContext(), (scopedDb) =>
       repository.createAccount(scopedDb, {
@@ -626,6 +693,38 @@ async function readEncryptedSecret(accountId: string): Promise<EncryptedConnecto
     }
 
     return encryptedSecret;
+  } finally {
+    await client.end();
+  }
+}
+
+async function readAuditEvents(accountId: string): Promise<
+  Array<{
+    action: string;
+    target_type: string;
+    target_id: string;
+    metadata: Record<string, unknown>;
+  }>
+> {
+  const client = new Client({ connectionString: connectionStrings.bootstrap });
+
+  await client.connect();
+  try {
+    const rows = await client.query<{
+      action: string;
+      target_type: string;
+      target_id: string;
+      metadata: Record<string, unknown>;
+    }>(
+      `
+        SELECT action, target_type, target_id, metadata
+        FROM app.admin_audit_events
+        WHERE target_id = $1
+        ORDER BY created_at
+      `,
+      [accountId]
+    );
+    return rows.rows;
   } finally {
     await client.end();
   }
