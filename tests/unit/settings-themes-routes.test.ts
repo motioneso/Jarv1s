@@ -47,6 +47,44 @@ describe("theme settings routes", () => {
 
     await server.close();
   });
+
+  it("preserves existing colors on rename-only update", async () => {
+    const prefs = new Map<string, unknown>();
+    const server = Fastify({ logger: false });
+    registerThemeRoutes(server, {
+      dataContext: fakeDataContext(),
+      resolveAccessContext: async () => ({ actorUserId: "user-a", requestId: "req-a" }),
+      preferencesRepository: mapPreferences(prefs)
+    });
+    await server.ready();
+
+    await server.inject({
+      method: "PUT",
+      url: "/api/me/themes/my-blue",
+      payload: {
+        name: "My Blue",
+        tokens: validThemeTokens
+      }
+    });
+    const rename = await server.inject({
+      method: "PUT",
+      url: "/api/me/themes/my-blue",
+      payload: { name: "Renamed Blue" }
+    });
+    const list = await server.inject({ method: "GET", url: "/api/me/themes" });
+
+    expect(rename.statusCode).toBe(200);
+    expect(list.json<ListThemesResponse>().custom).toEqual([
+      {
+        id: "my-blue",
+        name: "Renamed Blue",
+        builtIn: false,
+        tokens: validThemeTokens
+      }
+    ]);
+
+    await server.close();
+  });
 });
 
 function fakeDataContext(): DataContextRunner {

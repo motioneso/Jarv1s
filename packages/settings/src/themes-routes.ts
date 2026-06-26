@@ -185,7 +185,9 @@ function hasCompleteTokens(value: unknown): value is AestheticThemeTokens {
 function pickAestheticTokens(value: unknown): AestheticThemeTokens {
   const record = value as Record<string, unknown>;
   return Object.fromEntries(
-    AESTHETIC_THEME_TOKEN_KEYS.map((key) => [key, record[key]])
+    AESTHETIC_THEME_TOKEN_KEYS.flatMap((key) =>
+      typeof record[key] === "string" ? [[key, record[key]]] : []
+    )
   ) as AestheticThemeTokens;
 }
 
