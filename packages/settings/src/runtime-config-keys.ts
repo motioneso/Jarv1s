@@ -14,6 +14,7 @@ export interface RuntimeConfigKeyEntry {
 
 export const EMBED_PROVIDER_CONFIG_KEY = "ai.embed_provider";
 export const EMBED_MODEL_CONFIG_KEY = "ai.embed_model";
+export const BRAVE_API_KEY_CONFIG_KEY = "ai.brave_api_key";
 
 export const RUNTIME_CONFIG_REGISTRY: readonly RuntimeConfigKeyEntry[] = [
   {
@@ -35,6 +36,16 @@ export const RUNTIME_CONFIG_REGISTRY: readonly RuntimeConfigKeyEntry[] = [
     defaultValue: "",
     envVar: "JARVIS_EMBED_MODEL",
     moduleOwner: "memory"
+  },
+  {
+    key: BRAVE_API_KEY_CONFIG_KEY,
+    label: "Brave Search API key",
+    type: "secret",
+    description: "API key for Brave Search. Leave blank to disable web search.",
+    defaultValue: "",
+    envVar: "JARVIS_BRAVE_API_KEY",
+    secret: true,
+    moduleOwner: "ai"
   }
 ] as const;
 

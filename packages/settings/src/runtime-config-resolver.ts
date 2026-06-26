@@ -44,7 +44,7 @@ export class RuntimeConfigResolver {
     this.assertType(resolved.entry, key, ["enum"]);
     if (!resolved.entry.enumValues?.includes(resolved.value)) {
       throw new Error(
-        `Invalid runtime config "${key}" value "${resolved.value}" (expected one of: ${resolved.entry.enumValues?.join(", ") ?? ""})`
+        `Invalid runtime config "${key}" value ${this.redact(resolved)} (expected one of: ${resolved.entry.enumValues?.join(", ") ?? ""})`
       );
     }
     return resolved.value as T;
@@ -55,7 +55,7 @@ export class RuntimeConfigResolver {
     this.assertType(resolved.entry, key, ["int"]);
     const parsed = Number(resolved.value);
     if (!Number.isInteger(parsed)) {
-      throw new Error(`Invalid runtime config "${key}" value "${resolved.value}" (expected int)`);
+      throw new Error(`Invalid runtime config "${key}" value ${this.redact(resolved)} (expected int)`);
     }
     return parsed;
   }
@@ -96,5 +96,9 @@ export class RuntimeConfigResolver {
     if (!expected.includes(entry.type)) {
       throw new Error(`Runtime config "${key}" is ${entry.type}, not ${expected.join("/")}`);
     }
+  }
+
+  private redact(resolved: ResolvedRuntimeConfig): string {
+    return resolved.entry.secret ? '"[REDACTED]"' : `"${resolved.value}"`;
   }
 }

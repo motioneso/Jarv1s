@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { dataContextBrand, type DataContextDb } from "../../packages/db/src/index.js";
 import {
+  BRAVE_API_KEY_CONFIG_KEY,
   EMBED_MODEL_CONFIG_KEY,
   EMBED_PROVIDER_CONFIG_KEY
 } from "../../packages/settings/src/runtime-config-keys.js";
@@ -60,5 +61,27 @@ describe("RuntimeConfigResolver", () => {
     await expect(resolver.resolveEnum(EMBED_PROVIDER_CONFIG_KEY)).rejects.toThrow(
       'Invalid runtime config "ai.embed_provider" value "stb"'
     );
+  });
+
+  it("redacts secret values in getStatus response", async () => {
+    const resolver = new RuntimeConfigResolver(
+      scopedDbWithSetting({ value: "BSA-secret-key-123" }),
+      {}
+    );
+
+    const status = await resolver.getStatus(BRAVE_API_KEY_CONFIG_KEY);
+    expect(status.value).toBeNull();
+    expect(status.source).toBe("instance");
+  });
+
+  it("per-actor resolution returns the correct instance's config", async () => {
+    const dbA = scopedDbWithSetting({ value: "stub" });
+    const dbB = scopedDbWithSetting({ value: "local" });
+
+    const resolverA = new RuntimeConfigResolver(dbA, {});
+    const resolverB = new RuntimeConfigResolver(dbB, {});
+
+    await expect(resolverA.resolveEnum(EMBED_PROVIDER_CONFIG_KEY)).resolves.toBe("stub");
+    await expect(resolverB.resolveEnum(EMBED_PROVIDER_CONFIG_KEY)).resolves.toBe("local");
   });
 });

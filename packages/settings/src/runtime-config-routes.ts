@@ -52,16 +52,17 @@ function requireRuntimeEntry(key: string): RuntimeConfigKeyEntry {
 
 function validateRuntimeValue(entry: RuntimeConfigKeyEntry, value: string): void {
   if (value.length === 0) return;
+  const display = entry.secret ? "[REDACTED]" : value;
   if (entry.type === "enum" && !entry.enumValues?.includes(value)) {
     throw new HttpError(
       400,
-      `Invalid runtime config "${entry.key}" value "${value}" (expected one of: ${entry.enumValues?.join(", ") ?? ""})`
+      `Invalid runtime config "${entry.key}" value "${display}" (expected one of: ${entry.enumValues?.join(", ") ?? ""})`
     );
   }
   if (entry.type === "int" && !Number.isInteger(Number(value))) {
     throw new HttpError(
       400,
-      `Invalid runtime config "${entry.key}" value "${value}" (expected int)`
+      `Invalid runtime config "${entry.key}" value "${display}" (expected int)`
     );
   }
 }

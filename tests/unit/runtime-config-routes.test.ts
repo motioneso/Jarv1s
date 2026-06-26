@@ -7,7 +7,10 @@ import {
   type DataContextDb,
   type DataContextRunner
 } from "../../packages/db/src/index.js";
-import { EMBED_PROVIDER_CONFIG_KEY } from "../../packages/settings/src/runtime-config-keys.js";
+import {
+  BRAVE_API_KEY_CONFIG_KEY,
+  EMBED_PROVIDER_CONFIG_KEY
+} from "../../packages/settings/src/runtime-config-keys.js";
 import { registerRuntimeConfigRoutes } from "../../packages/settings/src/runtime-config-routes.js";
 import type { SettingsRepository } from "../../packages/settings/src/repository.js";
 
@@ -148,5 +151,22 @@ describe("runtime config admin routes", () => {
 
     expect(res.statusCode).toBe(400);
     expect(made.upserts).toEqual([]);
+  });
+
+  it("redacts secret values in GET status response", async () => {
+    ({ server } = makeServer({
+      initialSettings: [[BRAVE_API_KEY_CONFIG_KEY, { value: "BSA-secret-key-123" }]]
+    }));
+
+    const res = await server.inject({
+      method: "GET",
+      url: `/api/admin/runtime-config/${BRAVE_API_KEY_CONFIG_KEY}`
+    });
+
+    expect(res.statusCode).toBe(200);
+    const body = res.json();
+    expect(body.config.value).toBeNull();
+    expect(body.config.source).toBe("instance");
+    expect(res.body).not.toContain("BSA-secret-key-123");
   });
 });
