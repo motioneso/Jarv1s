@@ -74,15 +74,17 @@ describe("evening interview seed prompt-isolation (static)", () => {
   const seedSource = readFileSync(liveRoutesPath, "utf8");
 
   it("buildEveningInterviewSeed trusted preamble is a pure literal", () => {
-    expect(
-      seedSource,
-      "interview seed must contain a trusted_instructions block"
-    ).toContain("<trusted_instructions>");
+    expect(seedSource, "interview seed must contain a trusted_instructions block").toContain(
+      "<trusted_instructions>"
+    );
 
     const trustedMatch = seedSource.match(
       /"<trusted_instructions>\\n" \+([\s\S]*?)"<\/trusted_instructions>/
     );
-    expect(trustedMatch, "trusted_instructions block must be string-concatenated literal").not.toBeNull();
+    expect(
+      trustedMatch,
+      "trusted_instructions block must be string-concatenated literal"
+    ).not.toBeNull();
 
     const trustedLiteral = trustedMatch![1];
     const forbidden = ["reviewText", "external", "briefingRun", "reviewContent", "seed"];
