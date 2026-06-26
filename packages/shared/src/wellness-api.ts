@@ -184,6 +184,15 @@ export interface MedicationAdherenceSummaryResponse {
   readonly days: readonly DayAdherenceSummaryDto[];
 }
 
+export interface WellnessAiConsentResponse {
+  readonly effective: boolean;
+  readonly explicit: boolean | null;
+}
+
+export interface PutWellnessAiConsentRequest {
+  readonly granted: boolean;
+}
+
 // ── Wellness Insights DTOs ────────────────────────────────────────────────
 
 export interface WellnessInsightDto {
@@ -360,6 +369,25 @@ export const medicationAdherenceSummaryResponseSchema = {
   type: "object",
   required: ["days"],
   properties: { days: { type: "array", items: dayAdherenceSummaryDtoSchema } }
+} as const;
+
+export const wellnessAiConsentResponseSchema = {
+  type: "object",
+  additionalProperties: false,
+  required: ["effective", "explicit"],
+  properties: {
+    effective: { type: "boolean" },
+    explicit: { anyOf: [{ type: "boolean" }, { type: "null" }] }
+  }
+} as const;
+
+export const putWellnessAiConsentRequestSchema = {
+  type: "object",
+  additionalProperties: false,
+  required: ["granted"],
+  properties: {
+    granted: { type: "boolean" }
+  }
 } as const;
 
 export const updateCheckinRequestSchema = {

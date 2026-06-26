@@ -592,7 +592,8 @@ const BUILT_IN_MODULES: readonly BuiltInModuleRegistration[] = [
     registerRoutes: (server, deps) =>
       registerWellnessRoutes(server, {
         resolveAccessContext: deps.resolveAccessContext,
-        dataContext: deps.dataContext
+        dataContext: deps.dataContext,
+        resolveActiveModules: deps.resolveActiveModules
       })
   },
   {

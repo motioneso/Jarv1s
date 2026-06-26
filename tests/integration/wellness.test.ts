@@ -444,12 +444,17 @@ describe("wellness AI read tools", () => {
     return { actorUserId, requestId: "tool-req", chatSessionId: "" };
   }
 
-  it("wellness.recentCheckIns returns CONSENT_REQUIRED when consent not granted", async () => {
+  it("wellness.recentCheckIns defaults consent on when pref is unset on active tool path", async () => {
+    await dataContext.withDataContext(ctx(userId), (db) =>
+      new PreferencesRepository().delete(db, "wellness.ai_consent_granted")
+    );
+    await dataContext.withDataContext(ctx(userId), (db) =>
+      new WellnessRepository().createCheckin(db, { feelingCore: "happy", intensity: 4 })
+    );
     const result = await dataContext.withDataContext(ctx(userId), (db) =>
       wellnessRecentCheckInsExecute(db, {}, toolCtx(userId))
     );
-    expect(result.data.code).toBe("WELLNESS_CONSENT_REQUIRED");
-    expect(result.data.items).toBeUndefined();
+    expect(result.data.items).toBeDefined();
   });
 
   it("wellness.recentCheckIns returns owner-scoped check-ins and is declared read", async () => {
@@ -472,7 +477,27 @@ describe("wellness AI read tools", () => {
     expect(items.length).toBeGreaterThan(0);
   });
 
+  it("explicit false consent denies both Wellness read tools", async () => {
+    await dataContext.withDataContext(ctx(userId), (db) =>
+      new PreferencesRepository().upsert(db, "wellness.ai_consent_granted", false)
+    );
+
+    await expect(
+      dataContext.withDataContext(ctx(userId), (db) =>
+        wellnessRecentCheckInsExecute(db, {}, toolCtx(userId))
+      )
+    ).resolves.toMatchObject({ data: { code: "WELLNESS_CONSENT_REQUIRED" } });
+    await expect(
+      dataContext.withDataContext(ctx(userId), (db) =>
+        wellnessMedicationAdherenceExecute(db, {}, toolCtx(userId))
+      )
+    ).resolves.toMatchObject({ data: { code: "WELLNESS_CONSENT_REQUIRED" } });
+  });
+
   it("wellness.medicationAdherence returns counts only (no full med list)", async () => {
+    await dataContext.withDataContext(ctx(userId), (db) =>
+      new PreferencesRepository().upsert(db, "wellness.ai_consent_granted", true)
+    );
     const result = await dataContext.withDataContext(ctx(userId), (db) =>
       wellnessMedicationAdherenceExecute(db, {}, toolCtx(userId))
     );

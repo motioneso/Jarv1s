@@ -15,7 +15,9 @@ import {
   createTherapyNoteRouteSchema,
   deleteTherapyNoteRouteSchema,
   medicationAdherenceSummaryRouteSchema,
+  putWellnessAiConsentRequestSchema,
   updateCheckinRouteSchema,
+  wellnessAiConsentResponseSchema,
   WELLNESS_EMOTION_CORES,
   MEDICATION_FREQUENCY_TYPES,
   MEDICATION_LOG_STATUSES,
@@ -24,7 +26,9 @@ import {
   type MedicationLogStatusApi,
   type WellnessEmotionCore as WellnessFeelingCore
 } from "@jarv1s/shared";
+import { PreferencesRepository } from "@jarv1s/structured-state";
 
+import { readWellnessAiConsentState, WELLNESS_AI_CONSENT_PREFERENCE_KEY } from "./ai-consent.js";
 import type {
   CreateCheckinInput,
   UpdateCheckinInput,
@@ -47,6 +51,9 @@ import { computeInsights } from "./insights.js";
 export interface WellnessRoutesDependencies {
   readonly resolveAccessContext: (request: FastifyRequest) => Promise<AccessContext>;
   readonly dataContext: DataContextRunner;
+  readonly resolveActiveModules?: (
+    actorUserId: string
+  ) => Promise<readonly { readonly id: string }[]>;
   readonly repository?: WellnessRepository;
 }
 
@@ -59,7 +66,52 @@ export function registerWellnessRoutes(
   dependencies: WellnessRoutesDependencies
 ): void {
   const repo = dependencies.repository ?? new WellnessRepository();
+  const preferences = new PreferencesRepository();
   const recallContributor = new WellnessRecallContributor();
+
+  // ── AI consent ───────────────────────────────────────────────────────────
+  server.get(
+    "/api/wellness/ai-consent",
+    {
+      schema: {
+        response: { 200: wellnessAiConsentResponseSchema }
+      }
+    },
+    async (request, reply) => {
+      try {
+        const accessContext = await dependencies.resolveAccessContext(request);
+        const wellnessActive = await isWellnessActive(dependencies, accessContext.actorUserId);
+        return dependencies.dataContext.withDataContext(accessContext, (scopedDb) =>
+          readWellnessAiConsentState(scopedDb, preferences, wellnessActive)
+        );
+      } catch (error) {
+        return handleRouteError(error, reply);
+      }
+    }
+  );
+
+  server.put(
+    "/api/wellness/ai-consent",
+    {
+      schema: {
+        body: putWellnessAiConsentRequestSchema,
+        response: { 200: wellnessAiConsentResponseSchema }
+      }
+    },
+    async (request, reply) => {
+      try {
+        const accessContext = await dependencies.resolveAccessContext(request);
+        const granted = parseAiConsentBody(request.body);
+        const wellnessActive = await isWellnessActive(dependencies, accessContext.actorUserId);
+        return dependencies.dataContext.withDataContext(accessContext, async (scopedDb) => {
+          await preferences.upsert(scopedDb, WELLNESS_AI_CONSENT_PREFERENCE_KEY, granted);
+          return readWellnessAiConsentState(scopedDb, preferences, wellnessActive);
+        });
+      } catch (error) {
+        return handleRouteError(error, reply);
+      }
+    }
+  );
 
   // ── Check-ins ────────────────────────────────────────────────────────────
   server.post(
@@ -410,7 +462,23 @@ function isRaisedException(error: unknown): boolean {
   );
 }
 
+async function isWellnessActive(
+  dependencies: WellnessRoutesDependencies,
+  actorUserId: string
+): Promise<boolean> {
+  const modules = await dependencies.resolveActiveModules?.(actorUserId);
+  return modules?.some((module) => module.id === "wellness") ?? true;
+}
+
 // ── Body parsers ─────────────────────────────────────────────────────────────
+
+function parseAiConsentBody(body: unknown): boolean {
+  const value = requireObject(body);
+  if (typeof value["granted"] !== "boolean") {
+    throw new HttpError(400, "granted must be a boolean");
+  }
+  return value["granted"];
+}
 
 function parseCheckinBody(body: unknown): CreateCheckinInput {
   const value = requireObject(body);

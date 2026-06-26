@@ -78,6 +78,13 @@ describe("AssistantToolGateway", () => {
     expect(names).not.toContain("example.declaration-only");
   });
 
+  it("does not list Wellness tools when Wellness is not active", async () => {
+    const names = (await gateway.listToolsForActor(ids.userA)).map((tool) => tool.name);
+    expect(names).toContain("example.read");
+    expect(names).not.toContain("wellness.recentCheckIns");
+    expect(names).not.toContain("wellness.medicationAdherence");
+  });
+
   it("lists and invokes web research tools through the assistant gateway", async () => {
     const { setWebSearchProviderForTests, webModuleManifest } =
       await import("@jarv1s/web-research");
