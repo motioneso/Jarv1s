@@ -135,10 +135,10 @@ describe("scope-guard fails closed end-to-end via the worker role (I1.E)", () =>
 
 describe("CalendarRepository.deleteStaleCachedEvents", () => {
   it("worker deletes only stale owner rows for one connector account", async () => {
-    const accountId = await seedGoogleAccount([CALENDAR_SCOPE], ids.userA);
+    const accountId = await seedGoogleAccount([CALENDAR_SCOPE], ids.adminUser);
     const calendar = new CalendarRepository();
     await workerDataContext.withDataContext(
-      { actorUserId: ids.userA, requestId: "test" },
+      { actorUserId: ids.adminUser, requestId: "test" },
       async (db) => {
         await calendar.upsertCachedEvent(db, {
           connectorAccountId: accountId,

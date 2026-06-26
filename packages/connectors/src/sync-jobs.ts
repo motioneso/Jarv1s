@@ -50,6 +50,7 @@ export interface GoogleSyncPayload extends ActorScopedJobPayload {
 
 export interface GoogleSyncResult {
   readonly calendarUpserted: number;
+  readonly calendarReconciled: number;
   readonly emailUpserted: number;
   /** Count of messages that failed to fetch/parse/upsert (metadata only; no detail). */
   readonly emailFailures?: number;
@@ -266,6 +267,7 @@ export async function runGoogleSync(
   const connectorsRepo = deps.connectorsRepository ?? new ConnectorsRepository();
   const errors: string[] = [];
   let calendarUpserted = 0;
+  let calendarReconciled = 0;
   let emailUpserted = 0;
   let emailFailures = 0;
   let escalations = 0;
@@ -273,7 +275,12 @@ export async function runGoogleSync(
 
   const account = await deps.getActiveAccount(scopedDb);
   if (!account) {
-    return { calendarUpserted: 0, emailUpserted: 0, errors: ["no-active-connection"] };
+    return {
+      calendarUpserted: 0,
+      calendarReconciled: 0,
+      emailUpserted: 0,
+      errors: ["no-active-connection"]
+    };
   }
 
   // Stamp the start of the run on the account row (health metadata only — never status).
@@ -297,6 +304,7 @@ export async function runGoogleSync(
         error: "auth-error",
         counts: {
           calendarUpserted: 0,
+          calendarReconciled: 0,
           emailUpserted: 0,
           emailFailures: 0,
           escalations: 0,
@@ -306,7 +314,7 @@ export async function runGoogleSync(
     } catch (persistErr) {
       logger.warn({ err: persistErr }, "google-sync: failed to persist auth-failure outcome");
     }
-    return { calendarUpserted: 0, emailUpserted: 0, errors: ["auth-error"] };
+    return { calendarUpserted: 0, calendarReconciled: 0, emailUpserted: 0, errors: ["auth-error"] };
   }
 
   // --- Calendar (independent of email; one failing does not abort the other) ---
@@ -321,8 +329,11 @@ export async function runGoogleSync(
           timeMax: new Date(ref + CALENDAR_WINDOW_FUTURE_MS).toISOString()
         })
       );
+      const keepExternalIds = new Set<string>();
       for (const event of events) {
         if (!event.id) continue;
+        if (event.status === "cancelled") continue;
+        keepExternalIds.add(event.id);
         const instants = mapEventInstants(event);
         if (!instants) {
           // Unusable/missing start or end — skip rather than fabricate a 1970-epoch instant
@@ -368,6 +379,10 @@ export async function runGoogleSync(
           );
         }
       }
+      calendarReconciled = await calendarRepo.deleteStaleCachedEvents(scopedDb, {
+        connectorAccountId: account.id,
+        keepExternalIds: [...keepExternalIds]
+      });
     } catch (error) {
       logger.warn(
         {
@@ -469,6 +484,7 @@ export async function runGoogleSync(
   logger.info(
     {
       calendarUpserted,
+      calendarReconciled,
       emailUpserted,
       emailFailures,
       escalations,
@@ -487,12 +503,20 @@ export async function runGoogleSync(
       finishedAt: now(),
       status,
       error: errors[0] ?? null,
-      counts: { calendarUpserted, emailUpserted, emailFailures, escalations, truncated }
+      counts: { calendarUpserted, calendarReconciled, emailUpserted, emailFailures, escalations, truncated }
     });
   } catch (error) {
     logger.warn({ err: error }, "google-sync: failed to persist sync outcome; not retrying job");
   }
-  return { calendarUpserted, emailUpserted, emailFailures, escalations, errors, truncated };
+  return {
+    calendarUpserted,
+    calendarReconciled,
+    emailUpserted,
+    emailFailures,
+    escalations,
+    errors,
+    truncated
+  };
 }
 
 export interface RegisterConnectorsJobWorkersDeps {
