@@ -153,6 +153,7 @@ export async function handleExportBuildJob(
 export interface ExpiredExportJob {
   readonly id: string;
   readonly ownerUserId: string;
+  readonly format: "json" | "html";
 }
 
 function isMissingPathError(error: unknown): boolean {
@@ -168,7 +169,7 @@ export async function listExpiredExportJobs(
   cutoff: Date
 ): Promise<readonly ExpiredExportJob[]> {
   const result = await sql<ExpiredExportJob>`
-    SELECT id, "ownerUserId"
+    SELECT id, "ownerUserId", format
     FROM app.list_expired_data_export_jobs(${cutoff})
   `.execute(workerDb);
   return result.rows;
@@ -191,7 +192,7 @@ export async function handleExportCleanupJob(
       },
       async (vaultCtx) => {
         try {
-          await deleteVaultFile(vaultCtx, `exports/${expiredJob.id}.json`);
+          await deleteVaultFile(vaultCtx, `exports/${expiredJob.id}.${expiredJob.format}`);
         } catch (error) {
           if (!isMissingPathError(error)) {
             throw error;

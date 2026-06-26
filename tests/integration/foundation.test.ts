@@ -256,6 +256,14 @@ describe("MVP foundation scaffold", () => {
         {
           version: "0113",
           name: "0113_worker_calendar_events_delete.sql"
+        },
+        {
+          version: "0114",
+          name: "0114_data_export_jobs_format_and_params.sql"
+        },
+        {
+          version: "0115",
+          name: "0115_list_expired_data_export_jobs_format.sql"
         }
       ]);
     } finally {

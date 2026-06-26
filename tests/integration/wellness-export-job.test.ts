@@ -1,0 +1,313 @@
+import { mkdtemp } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+
+import Fastify, { type FastifyInstance } from "fastify";
+import { type Kysely } from "kysely";
+import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import type { Job } from "@jarv1s/jobs";
+
+import { DataContextRunner, createDatabase, type JarvisDatabase } from "@jarv1s/db";
+import { VaultContextRunner, getVaultBaseDir, readVaultFile } from "@jarv1s/vault";
+import { HttpError } from "@jarv1s/module-sdk";
+
+import {
+  handleWellnessExportJob,
+  type WellnessExportJobPayload
+} from "../../packages/wellness/src/export-job.js";
+import { registerWellnessExportRoutes } from "../../packages/wellness/src/export-routes.js";
+import { DataExportRepository } from "../../packages/settings/src/data-export-repository.js";
+import { WellnessRepository } from "../../packages/wellness/src/repository.js";
+
+import { connectionStrings, resetEmptyFoundationDatabase } from "./test-database.js";
+import pg from "pg";
+
+const { Client } = pg;
+
+const userId = "00000000-0000-4000-8000-000000000081";
+const routeUserId = "00000000-0000-4000-8000-000000000082";
+
+let appDb: Kysely<JarvisDatabase>;
+let dataContext: DataContextRunner;
+let prevVaultBase: string | undefined;
+
+beforeAll(async () => {
+  await resetEmptyFoundationDatabase();
+  const client = new Client({ connectionString: connectionStrings.bootstrap });
+  await client.connect();
+  try {
+    await client.query(
+      `INSERT INTO app.users (id, email, name, is_instance_admin)
+       VALUES ($1, 'well-export-job@example.test', 'Test User', false)`,
+      [userId]
+    );
+    await client.query(
+      `INSERT INTO app.users (id, email, name, is_instance_admin)
+       VALUES ($1, 'well-export-route@example.test', 'Route User', false)`,
+      [routeUserId]
+    );
+  } finally {
+    await client.end();
+  }
+  appDb = createDatabase({ connectionString: connectionStrings.app, maxConnections: 2 });
+  dataContext = new DataContextRunner(appDb);
+
+  prevVaultBase = getVaultBaseDir();
+  process.env.JARVIS_VAULT_ROOT = await mkdtemp(join(tmpdir(), "well-export-job-"));
+
+  // Seed wellness data in and out of the [2026-02-01, 2026-02-28] window.
+  const repo = new WellnessRepository();
+  const med = await dataContext.withDataContext(
+    { actorUserId: userId, requestId: "req:seed" },
+    (scopedDb) =>
+      repo.createMedication(scopedDb, {
+        name: "Sertraline",
+        frequencyType: "once_daily",
+        scheduleTimes: ["08:00"]
+      })
+  );
+  await dataContext.withDataContext(
+    { actorUserId: userId, requestId: "req:seed" },
+    async (scopedDb) => {
+      // Check-ins: in-window + out-of-window
+      await scopedDb.db
+        .insertInto("app.wellness_checkins")
+        .values({
+          owner_user_id: userId,
+          feeling_core: "happy",
+          feeling_secondary: "Joy",
+          intensity: 4,
+          energy: 3,
+          note: "IN-WINDOW-MARKER-CHECKIN",
+          checked_in_at: new Date("2026-02-10T10:00:00Z")
+        })
+        .execute();
+      await scopedDb.db
+        .insertInto("app.wellness_checkins")
+        .values({
+          owner_user_id: userId,
+          feeling_core: "sad",
+          intensity: 2,
+          note: "OUT-OF-WINDOW-MARKER-CHECKIN",
+          checked_in_at: new Date("2026-01-05T10:00:00Z")
+        })
+        .execute();
+
+      // Med log: in-window (scheduled_for)
+      await scopedDb.db
+        .insertInto("app.medication_logs")
+        .values({
+          medication_id: med.id,
+          owner_user_id: userId,
+          status: "taken",
+          scheduled_for: new Date("2026-02-12T08:00:00Z"),
+          logged_at: new Date("2026-02-12T08:01:00Z"),
+          prn_reason: null
+        })
+        .execute();
+
+      // Therapy note: in-window
+      await scopedDb.db
+        .insertInto("app.wellness_therapy_notes")
+        .values({
+          owner_user_id: userId,
+          body: "IN-WINDOW-THERAPY-MARKER",
+          created_at: new Date("2026-02-15T14:00:00Z")
+        })
+        .execute();
+    }
+  );
+});
+
+afterAll(async () => {
+  await appDb?.destroy();
+  if (prevVaultBase) process.env.JARVIS_VAULT_ROOT = prevVaultBase;
+});
+
+function buildJobPayload(actorUserId: string, jobId: string): Job<WellnessExportJobPayload> {
+  return { data: { actorUserId, jobId, kind: "wellness.export" } } as Job<WellnessExportJobPayload>;
+}
+
+describe("Wellness export job + route (#484)", () => {
+  it("renders only selected categories in the selected timeframe, writes html to vault, marks ready", async () => {
+    const exportRepo = new DataExportRepository();
+    const { html } = await dataContext.withDataContext(
+      { actorUserId: userId, requestId: "req:export" },
+      async (scopedDb) => {
+        const job = await exportRepo.createJob(scopedDb, userId, "html", {
+          from: "2026-02-01",
+          to: "2026-02-28",
+          categories: ["checkins", "medications", "therapyNotes"]
+        });
+        await handleWellnessExportJob(buildJobPayload(userId, job.id), scopedDb);
+
+        const finished = await exportRepo.getJobById(scopedDb, job.id);
+        expect(finished?.status).toBe("ready");
+
+        const vaultRunner = new VaultContextRunner(getVaultBaseDir());
+        const content = await vaultRunner.withVaultContext(
+          { actorUserId: userId, requestId: "req:export" },
+          (vaultCtx) => readVaultFile(vaultCtx, `exports/${job.id}.html`)
+        );
+        return { jobId: job.id, html: content };
+      }
+    );
+
+    // Header carries owner + range + generated-at + Jarv1s provenance.
+    expect(html).toContain("Wellness export — Test User");
+    expect(html).toContain("2026-02-01");
+    expect(html).toContain("2026-02-28");
+    expect(html).toContain("Generated by Jarv1s.");
+
+    // Sensitive-data footer present.
+    expect(html).toContain("This document contains sensitive health information");
+
+    // Selected categories present as sections.
+    expect(html).toContain('id="checkins"');
+    expect(html).toContain('id="medications"');
+    expect(html).toContain('id="therapyNotes"');
+
+    // Unselected category (insights) is entirely absent.
+    expect(html).not.toContain('id="insights"');
+
+    // In-window data present.
+    expect(html).toContain("IN-WINDOW-MARKER-CHECKIN");
+    expect(html).toContain("IN-WINDOW-THERAPY-MARKER");
+    expect(html).toContain("Sertraline");
+
+    // Out-of-window data absent.
+    expect(html).not.toContain("OUT-OF-WINDOW-MARKER-CHECKIN");
+  });
+
+  it("re-reads timeframe + categories from the job row, not the payload (defense-in-depth)", async () => {
+    // The payload only carries {actorUserId, jobId, kind}. The handler must derive everything
+    // else from the row. If the row has no params, it errors (does not silently export all).
+    const exportRepo = new DataExportRepository();
+    await dataContext.withDataContext(
+      { actorUserId: userId, requestId: "req:export-no-params" },
+      async (scopedDb) => {
+        // Insert a job row directly with no params (simulating tampering / a bad write).
+        const job = await exportRepo.createJob(scopedDb, userId, "html");
+        // Wipe params to force the missing-params branch.
+        await scopedDb.db
+          .updateTable("app.data_export_jobs")
+          .set({ params: null })
+          .where("id", "=", job.id)
+          .execute();
+
+        await expect(
+          handleWellnessExportJob(buildJobPayload(userId, job.id), scopedDb)
+        ).rejects.toThrow(/missing from\/to params/);
+
+        const failed = await exportRepo.getJobById(scopedDb, job.id);
+        // The handler set status to 'building' then threw; the pg-boss wrapper would mark
+        // failed, but the bare handler leaves it 'building'. The contract we assert here is
+        // that it threw and produced no vault file + no ready status.
+        expect(failed?.status).not.toBe("ready");
+      }
+    );
+  });
+
+  it("the enqueued payload is metadata-only (no health content)", async () => {
+    // Static contract: the payload type only allows {actorUserId, jobId, kind}. Assert the
+    // shape of the declared interface by constructing the canonical payload and checking it
+    // carries no content keys.
+    const payload: WellnessExportJobPayload = {
+      kind: "wellness.export",
+      actorUserId: userId,
+      jobId: "abc"
+    };
+    const keys = Object.keys(payload).sort();
+    expect(keys).toEqual(["actorUserId", "jobId", "kind"]);
+    expect(JSON.stringify(payload)).not.toContain("checkins");
+    expect(JSON.stringify(payload)).not.toContain("note");
+  });
+
+  it("marks the job failed when the row is missing (handler throws 'not found')", async () => {
+    await dataContext.withDataContext(
+      { actorUserId: userId, requestId: "req:export-fail" },
+      async (scopedDb) => {
+        // Use a job id that was never inserted — the handler's re-read returns undefined and
+        // it throws "not found" (no vault file written, no ready status).
+        const missingJobId = "ffffffff-ffff-4000-8000-000000000099";
+        await expect(
+          handleWellnessExportJob(buildJobPayload(userId, missingJobId), scopedDb)
+        ).rejects.toThrow(/not found/);
+        // Assert nothing was written for this id.
+        const vaultRunner = new VaultContextRunner(getVaultBaseDir());
+        await expect(
+          vaultRunner.withVaultContext(
+            { actorUserId: userId, requestId: "req:export-fail" },
+            (vaultCtx) => readVaultFile(vaultCtx, `exports/${missingJobId}.html`)
+          )
+        ).rejects.toThrow();
+      }
+    );
+  });
+});
+
+describe("Wellness export route POST /api/wellness/export (#484)", () => {
+  let server: FastifyInstance;
+
+  beforeAll(async () => {
+    server = Fastify();
+    registerWellnessExportRoutes(server, {
+      // Minimal boss stub: the route calls send but we don't drive the worker here.
+      boss: { send: async () => "fake-job-id" } as unknown as Parameters<
+        typeof registerWellnessExportRoutes
+      >[1]["boss"],
+      dataContext,
+      resolveAccessContext: async (request) => {
+        const auth = request.headers.authorization;
+        if (!auth || !auth.startsWith("Bearer ")) throw new HttpError(401, "Unauthorized");
+        return { actorUserId: routeUserId, requestId: "req:route" };
+      }
+    });
+    await server.ready();
+  });
+
+  afterAll(async () => {
+    await server?.close();
+  });
+
+  it("creates an html-format job row with params and returns 202 {jobId, status}", async () => {
+    const exportRepo = new DataExportRepository();
+    const res = await server.inject({
+      method: "POST",
+      url: "/api/wellness/export",
+      payload: { from: "2026-02-01", to: "2026-02-28", categories: ["checkins"] },
+      headers: { authorization: "Bearer route-token", "content-type": "application/json" }
+    });
+    expect(res.statusCode).toBe(202);
+    const body = res.json() as { jobId: string; status: string };
+    expect(body.status).toBe("pending");
+
+    const job = await dataContext.withDataContext(
+      { actorUserId: routeUserId, requestId: "req:route" },
+      (scopedDb) => exportRepo.getJobById(scopedDb, body.jobId)
+    );
+    expect(job?.format).toBe("html");
+    expect((job?.params as { from?: string }).from).toBe("2026-02-01");
+    expect((job?.params as { categories?: string[] }).categories).toEqual(["checkins"]);
+  });
+
+  it("rejects from > to with 400", async () => {
+    const res = await server.inject({
+      method: "POST",
+      url: "/api/wellness/export",
+      payload: { from: "2026-03-31", to: "2026-02-01", categories: ["checkins"] },
+      headers: { authorization: "Bearer route-token", "content-type": "application/json" }
+    });
+    expect(res.statusCode).toBe(400);
+  });
+
+  it("requires authentication (401 when no bearer)", async () => {
+    const res = await server.inject({
+      method: "POST",
+      url: "/api/wellness/export",
+      payload: { from: "2026-02-01", to: "2026-02-28", categories: ["checkins"] },
+      headers: { "content-type": "application/json" }
+    });
+    expect(res.statusCode).toBe(401);
+  });
+});

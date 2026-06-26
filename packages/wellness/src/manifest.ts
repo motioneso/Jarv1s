@@ -19,14 +19,17 @@ import {
   updateCheckinRouteSchema,
   updateMedicationRequestSchema,
   wellnessAiConsentResponseSchema,
+  wellnessExportRequestSchema,
   wellnessInsightsRouteSchema
 } from "@jarv1s/shared";
 
 import { wellnessFocusSignal } from "./focus-signal.js";
+import { WELLNESS_EXPORT_QUEUE } from "./export-job.js";
 import { wellnessMedicationAdherenceExecute, wellnessRecentCheckInsExecute } from "./tools.js";
 
 export const WELLNESS_MODULE_ID = "wellness";
 export const WELLNESS_MEDICATION_REMINDER_QUEUE = "wellness-medication-reminder";
+export const WELLNESS_EXPORT_QUEUE_NAME = WELLNESS_EXPORT_QUEUE;
 export const wellnessModuleSqlMigrationDirectory = fileURLToPath(
   new URL("../sql", import.meta.url)
 );
@@ -51,7 +54,9 @@ export const wellnessModuleManifest = {
       "sql/0083_wellness_medications.sql",
       "sql/0084_wellness_medication_logs.sql",
       "sql/0088_wellness_emotion_taxonomy.sql",
-      "sql/0089_wellness_therapy_notes.sql"
+      "sql/0089_wellness_therapy_notes.sql",
+      "sql/0114_data_export_jobs_format_and_params.sql",
+      "sql/0115_list_expired_data_export_jobs_format.sql"
     ],
     migrationDirectories: ["packages/wellness/sql"],
     ownedTables: [
@@ -209,12 +214,26 @@ export const wellnessModuleManifest = {
       path: "/api/wellness/medications/logs",
       responseSchema: medicationAdherenceSummaryRouteSchema.response[200],
       permissionId: "wellness.view"
+    },
+    {
+      method: "POST",
+      path: "/api/wellness/export",
+      requestSchema: wellnessExportRequestSchema,
+      permissionId: "wellness.view"
     }
   ],
   jobs: [
     {
       // Designed seam; NO worker registered until the Phase-3 scheduler lands (deferred).
       queueName: WELLNESS_MEDICATION_REMINDER_QUEUE,
+      metadataOnly: true,
+      permissionId: "wellness.view"
+    },
+    {
+      // Selective Wellness export (#484). Metadata-only payload; worker re-reads the
+      // selected window + categories from the job row. Reuses the settings data-export
+      // pipeline for status/download/expiry.
+      queueName: WELLNESS_EXPORT_QUEUE,
       metadataOnly: true,
       permissionId: "wellness.view"
     }

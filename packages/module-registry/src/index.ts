@@ -117,6 +117,9 @@ import {
 } from "@jarv1s/web-research";
 import {
   registerWellnessRoutes,
+  registerWellnessExportRoutes,
+  registerWellnessExportWorkers,
+  WELLNESS_EXPORT_QUEUE_DEFINITIONS,
   wellnessModuleManifest,
   wellnessModuleSqlMigrationDirectory
 } from "@jarv1s/wellness";
@@ -618,13 +621,20 @@ const BUILT_IN_MODULES: readonly BuiltInModuleRegistration[] = [
   {
     manifest: wellnessModuleManifest,
     sqlMigrationDirectories: [wellnessModuleSqlMigrationDirectory],
-    queueDefinitions: [],
-    registerRoutes: (server, deps) =>
+    queueDefinitions: [...WELLNESS_EXPORT_QUEUE_DEFINITIONS],
+    registerRoutes: (server, deps) => {
       registerWellnessRoutes(server, {
         resolveAccessContext: deps.resolveAccessContext,
         dataContext: deps.dataContext,
         resolveActiveModules: deps.resolveActiveModules
-      })
+      });
+      registerWellnessExportRoutes(server, {
+        boss: deps.boss,
+        dataContext: deps.dataContext,
+        resolveAccessContext: deps.resolveAccessContext
+      });
+    },
+    registerWorkers: (boss, deps) => registerWellnessExportWorkers(boss, deps.dataContext)
   },
   {
     manifest: weatherModuleManifest,

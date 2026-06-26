@@ -29,13 +29,14 @@ export function registerDataExportAsyncRoutes(
         async (scopedDb) => {
           const existing = await repository.findActiveJobForUser(
             scopedDb,
-            accessContext.actorUserId
+            accessContext.actorUserId,
+            "json"
           );
           if (existing) {
             return { jobId: existing.id, status: existing.status };
           }
 
-          const job = await repository.createJob(scopedDb, accessContext.actorUserId);
+          const job = await repository.createJob(scopedDb, accessContext.actorUserId, "json");
           await enqueueExportBuildJob(dependencies.boss, accessContext.actorUserId, job.id);
 
           return { jobId: job.id, status: job.status };
@@ -97,7 +98,7 @@ export function registerDataExportAsyncRoutes(
         };
         await vaultRunner.withVaultContext(vaultAccessCtx, async (vaultCtx) => {
           try {
-            await deleteVaultFile(vaultCtx, `exports/${jobId}.json`);
+            await deleteVaultFile(vaultCtx, `exports/${jobId}.${job.format}`);
           } catch {
             // ignore if already deleted
           }
@@ -112,8 +113,22 @@ export function registerDataExportAsyncRoutes(
       };
 
       const content = await vaultRunner.withVaultContext(vaultAccessCtx, (vaultCtx) =>
-        readVaultFile(vaultCtx, `exports/${jobId}.json`)
+        readVaultFile(vaultCtx, `exports/${jobId}.${job.format}`)
       );
+
+      if (job.format === "html") {
+        // Wellness selective export — printable HTML. Filename carries the selected range
+        // from the job's params (filter descriptors only; never health content).
+        const params = (job.params ?? {}) as { from?: string; to?: string };
+        const rangeSuffix =
+          params.from && params.to
+            ? `${params.from}-to-${params.to}`
+            : new Date().toISOString().slice(0, 10);
+        const filename = `wellness-export-${rangeSuffix}.html`;
+        void reply.header("Content-Type", "text/html; charset=utf-8");
+        void reply.header("Content-Disposition", `attachment; filename="${filename}"`);
+        return reply.send(content);
+      }
 
       const date = new Date().toISOString().slice(0, 10);
       const filename = `jarvis-export-${date}.json`;

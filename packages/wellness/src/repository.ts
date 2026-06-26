@@ -420,4 +420,68 @@ export class WellnessRepository {
       .execute();
     return rows as WellnessCheckin[];
   }
+
+  // ── Selective export: range-filtered reads (#484) ───────────────────────
+  //
+  // These mirror the list* methods above but bound the query to an inclusive [from, to] window.
+  // Used by the wellness-export worker so only records in the selected timeframe are rendered.
+  // Anchor columns follow each kind's existing semantics: check-ins by checked_in_at, therapy
+  // notes by created_at; logs reuse the scheduled_for OR logged_at pattern from listLogsRange
+  // (scheduled doses anchored by their slot instant, PRN doses by when they were logged).
+
+  async listCheckinsForRange(
+    scopedDb: DataContextDb,
+    from: Date,
+    to: Date
+  ): Promise<WellnessCheckin[]> {
+    assertDataContextDb(scopedDb);
+    const rows = await scopedDb.db
+      .selectFrom("app.wellness_checkins")
+      .selectAll()
+      .where("checked_in_at", ">=", from)
+      .where("checked_in_at", "<=", to)
+      .orderBy("checked_in_at", "asc")
+      .execute();
+    return rows as WellnessCheckin[];
+  }
+
+  async listLogsForRange(scopedDb: DataContextDb, from: Date, to: Date): Promise<MedicationLog[]> {
+    assertDataContextDb(scopedDb);
+    const rows = await scopedDb.db
+      .selectFrom("app.medication_logs")
+      .selectAll()
+      .where((eb) =>
+        eb.or([
+          eb.and([
+            eb("scheduled_for", "is not", null),
+            eb("scheduled_for", ">=", from),
+            eb("scheduled_for", "<=", to)
+          ]),
+          eb.and([
+            eb("scheduled_for", "is", null),
+            eb("logged_at", ">=", from),
+            eb("logged_at", "<=", to)
+          ])
+        ])
+      )
+      .orderBy("logged_at", "asc")
+      .execute();
+    return rows as MedicationLog[];
+  }
+
+  async listTherapyNotesForRange(
+    scopedDb: DataContextDb,
+    from: Date,
+    to: Date
+  ): Promise<WellnessTherapyNote[]> {
+    assertDataContextDb(scopedDb);
+    const rows = await scopedDb.db
+      .selectFrom("app.wellness_therapy_notes")
+      .selectAll()
+      .where("created_at", ">=", from)
+      .where("created_at", "<=", to)
+      .orderBy("created_at", "asc")
+      .execute();
+    return rows as WellnessTherapyNote[];
+  }
 }
