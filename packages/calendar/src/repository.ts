@@ -79,4 +79,21 @@ export class CalendarRepository {
       .returningAll()
       .executeTakeFirstOrThrow();
   }
+
+  async deleteStaleCachedEvents(
+    scopedDb: DataContextDb,
+    input: { readonly connectorAccountId: string; readonly keepExternalIds: readonly string[] }
+  ): Promise<number> {
+    assertDataContextDb(scopedDb);
+
+    const query = scopedDb.db
+      .deleteFrom("app.calendar_events")
+      .where("connector_account_id", "=", input.connectorAccountId)
+      .$if(input.keepExternalIds.length > 0, (qb) =>
+        qb.where("external_id", "not in", input.keepExternalIds)
+      );
+
+    const result = await query.executeTakeFirst();
+    return Number(result.numDeletedRows ?? 0);
+  }
 }
