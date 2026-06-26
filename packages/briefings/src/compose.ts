@@ -5,7 +5,12 @@ import type { FastifyBaseLogger } from "fastify";
 import type { AiRepository, AiSecretCipher } from "@jarv1s/ai";
 import { HttpApiAdapter, parseAiApiKeyCredential } from "@jarv1s/ai";
 import type { ChatTurn, GenerateChatInput, ProviderKind } from "@jarv1s/ai";
-import type { BriefingDefinition, BriefingRunStatus, BriefingType, DataContextDb } from "@jarv1s/db";
+import type {
+  BriefingDefinition,
+  BriefingRunStatus,
+  BriefingType,
+  DataContextDb
+} from "@jarv1s/db";
 import type { MemoryRetriever } from "@jarv1s/memory";
 import type { JarvisModuleManifest } from "@jarv1s/module-sdk";
 import { isBehaviorEnabled, type SourceBehaviorPolicyDeps } from "@jarv1s/source-behaviors";

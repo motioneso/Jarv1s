@@ -15,7 +15,9 @@ const source = readFileSync(composePath, "utf8");
 
 describe("briefings prompt-isolation (static)", () => {
   it("builds morning and evening trusted preambles as pure literal constants", () => {
-    const matches = [...source.matchAll(/const TRUSTED_INSTRUCTIONS_(MORNING|EVENING) = `([\s\S]*?)`;/g)];
+    const matches = [
+      ...source.matchAll(/const TRUSTED_INSTRUCTIONS_(MORNING|EVENING) = `([\s\S]*?)`;/g)
+    ];
     expect(
       matches.map((match) => match[1]).sort(),
       "morning and evening trusted constants must exist as template literals"

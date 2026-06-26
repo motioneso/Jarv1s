@@ -324,7 +324,7 @@ describe("ChatSessionManager.launchSession — personaText + replayBatch + offse
       "u1",
       "Ben",
       "<trusted_instructions>\nEvening interview seed.\n</trusted_instructions>\n\n" +
-        "<external_source type=\"evening_review\">\nReview text\n</external_source>"
+        '<external_source type="evening_review">\nReview text\n</external_source>'
     );
 
     expect(engine.submitted).toHaveLength(1);

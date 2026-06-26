@@ -44,6 +44,7 @@
 ### Task 1: Schema And Contracts
 
 **Files:**
+
 - Create: `packages/briefings/sql/0116_briefing_type.sql`
 - Modify: `packages/briefings/src/manifest.ts`
 - Modify: `packages/db/src/types.ts`
@@ -133,6 +134,7 @@ git commit -m "feat(briefings): add briefing type contract"
 ### Task 2: Briefing Engine Type Selection
 
 **Files:**
+
 - Modify: `packages/briefings/src/compose.ts`
 - Modify: `packages/briefings/src/repository.ts`
 - Modify: `packages/briefings/src/routes.ts`
@@ -194,8 +196,9 @@ Pass `definition.briefing_type` into `buildMessages`.
 Add `briefingType` to create/update inputs and route parsers. Defaults:
 
 ```ts
-briefingType: optionalBriefingType(value.briefingType) ?? "morning"
-scheduleMetadata: input.scheduleMetadata ?? defaultScheduleMetadata(input.briefingType ?? "morning")
+briefingType: optionalBriefingType(value.briefingType) ?? "morning";
+scheduleMetadata: input.scheduleMetadata ??
+  defaultScheduleMetadata(input.briefingType ?? "morning");
 ```
 
 Use default target times:
@@ -211,7 +214,7 @@ Persist `briefing_type` on definitions and runs. Scheduled payload adds `briefin
 ```ts
 title: outcome.run.briefing_type === "evening"
   ? "Your evening review is ready"
-  : "Your morning briefing is ready"
+  : "Your morning briefing is ready";
 ```
 
 - [ ] **Step 5: Run tests**
@@ -234,6 +237,7 @@ git commit -m "feat(briefings): synthesize evening reviews"
 ### Task 3: Evening Interview Seeded Chat
 
 **Files:**
+
 - Modify: `packages/chat/src/live/chat-session-manager.ts`
 - Modify: `packages/chat/src/live-routes.ts`
 - Modify: `packages/chat/src/routes.ts`
@@ -251,7 +255,7 @@ await manager.seedContext(
   "actor-1",
   "Ben",
   "<trusted_instructions>\nEvening interview seed.\n</trusted_instructions>\n\n" +
-    "<external_source type=\"evening_review\">\nReview text\n</external_source>"
+    '<external_source type="evening_review">\nReview text\n</external_source>'
 );
 expect(engine.submissions[0]).toContain("<external_source");
 expect(persistedMessages).toHaveLength(0);
@@ -334,6 +338,7 @@ git commit -m "feat(chat): seed evening interview context"
 ### Task 4: Web Settings And Today Surface
 
 **Files:**
+
 - Modify: `apps/web/src/api/client.ts`
 - Modify: `apps/web/src/api/query-keys.ts`
 - Modify: `apps/web/src/settings/settings-module-subviews.tsx`
@@ -354,7 +359,10 @@ Add:
 
 ```ts
 export async function startEveningInterview(input: { briefingRunId?: string }) {
-  return requestJson<{ reply: string }>("/api/chat/evening-interview", { method: "POST", body: input });
+  return requestJson<{ reply: string }>("/api/chat/evening-interview", {
+    method: "POST",
+    body: input
+  });
 }
 ```
 
@@ -363,8 +371,14 @@ export async function startEveningInterview(input: { briefingRunId?: string }) {
 Replace local-only briefings state with React Query:
 
 ```ts
-const definitionsQuery = useQuery({ queryKey: queryKeys.briefings.definitions, queryFn: listBriefingDefinitions });
-const toolsQuery = useQuery({ queryKey: queryKeys.ai.assistantTools, queryFn: listAiAssistantTools });
+const definitionsQuery = useQuery({
+  queryKey: queryKeys.briefings.definitions,
+  queryFn: listBriefingDefinitions
+});
+const toolsQuery = useQuery({
+  queryKey: queryKeys.ai.assistantTools,
+  queryFn: listAiAssistantTools
+});
 ```
 
 Create missing morning/evening definitions using all read-risk tools, default morning `07:00`, evening `19:00`. Patch toggles/time through `updateBriefingDefinition`.
@@ -374,7 +388,11 @@ Create missing morning/evening definitions using all read-risk tools, default mo
 On `TodayPage`, read definitions/runs. Find latest evening run. Render card only when evening definition exists. Add button:
 
 ```tsx
-<button type="button" className="jds-button" onClick={() => startEveningInterview({ briefingRunId: latestEveningRun.id })}>
+<button
+  type="button"
+  className="jds-button"
+  onClick={() => startEveningInterview({ briefingRunId: latestEveningRun.id })}
+>
   <MessageSquareText size={14} aria-hidden="true" />
   Prep for tomorrow
 </button>

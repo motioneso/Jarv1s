@@ -405,7 +405,7 @@ describe("Chat live API (turn / clear / switch / stream)", () => {
         resolveEveningInterviewSeed: async (_actorUserId: string, briefingRunId?: string) => ({
           context:
             "<trusted_instructions>\nEvening interview seed.\n</trusted_instructions>\n\n" +
-            "<external_source type=\"evening_review\">\nSeed from " +
+            '<external_source type="evening_review">\nSeed from ' +
             (briefingRunId ?? "today") +
             "\n</external_source>",
           openingPrompt: "Prep me for tomorrow."
