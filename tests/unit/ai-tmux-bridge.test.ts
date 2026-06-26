@@ -142,6 +142,20 @@ const GEMINI_FIXTURE_FINAL = JSON.stringify({
   thoughts: []
 });
 
+// ─── google / Agy print-mode fixtures ────────────────────────────────────────
+
+const AGY_PRINT_FIXTURE_TOOL = JSON.stringify({
+  type: "VIEW_FILE",
+  timestamp: "2026-06-26T21:00:00.000Z",
+  path: "./word.txt"
+});
+
+const AGY_PRINT_FIXTURE_REPLY = JSON.stringify({
+  type: "PLANNER_RESPONSE",
+  timestamp: "2026-06-26T21:00:01.000Z",
+  content: "alpha-bravo-charlie"
+});
+
 // ===========================================================================
 // parseTranscript tests
 // ===========================================================================
@@ -243,6 +257,16 @@ describe("parseTranscript — google (Gemini CLI JSONL schema)", () => {
 
     expect(result.complete).toBe(false);
     expect(result.reply).toBeNull();
+  });
+
+  it("maps Agy print-mode records to tool activity and final reply", () => {
+    const jsonl = [AGY_PRINT_FIXTURE_TOOL, AGY_PRINT_FIXTURE_REPLY].join("\n");
+
+    const result = parseTranscript("google", jsonl, 0);
+
+    expect(result.events).toEqual([{ kind: "tool", text: "VIEW_FILE ./word.txt" }]);
+    expect(result.reply).toBe("alpha-bravo-charlie");
+    expect(result.complete).toBe(true);
   });
 });
 

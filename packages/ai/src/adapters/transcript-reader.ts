@@ -242,7 +242,10 @@ function mapGeminiRecord(
   events: ChatActivityEvent[],
   onFinal: (text: string) => void
 ): void {
-  if (rec["type"] !== "gemini") return;
+  if (rec["type"] !== "gemini") {
+    mapAgyPrintRecord(rec, events, onFinal);
+    return;
+  }
 
   const content = rec["content"];
   const thoughts = rec["thoughts"];
@@ -262,6 +265,34 @@ function mapGeminiRecord(
       const text = subject ? `${subject}: ${description}` : description;
       events.push({ kind: "thinking", text });
     }
+  }
+}
+
+function mapAgyPrintRecord(
+  rec: Record<string, unknown>,
+  events: ChatActivityEvent[],
+  onFinal: (text: string) => void
+): void {
+  const type = typeof rec["type"] === "string" ? rec["type"] : "";
+  if (type === "PLANNER_RESPONSE") {
+    const text =
+      typeof rec["content"] === "string"
+        ? rec["content"]
+        : typeof rec["text"] === "string"
+          ? rec["text"]
+          : "";
+    if (text.trim()) onFinal(text);
+    return;
+  }
+
+  if (type === "VIEW_FILE" || type === "RUN_COMMAND") {
+    const target =
+      typeof rec["path"] === "string"
+        ? rec["path"]
+        : typeof rec["command"] === "string"
+          ? rec["command"]
+          : "";
+    events.push({ kind: "tool", text: target ? `${type} ${target}` : type });
   }
 }
 
