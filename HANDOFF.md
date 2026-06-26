@@ -2,11 +2,11 @@
 
 **Spec (approved):** docs/superpowers/specs/2026-06-25-settings-google-json-upload.md
 **GitHub issue:** #472
-**Risk tier:** `routine`  (pure frontend port: extract helpers + inline upload UI; no schema/auth/secret surface. Auto-merge after green QA.)
-**Worktree:** /home/ben/Jarv1s/.claude/worktrees/settings-google-json-upload   **Branch:** build/settings-google-json-upload (off origin/main @ 63681e9)
-**Build skill path (absolute):** /home/ben/Jarv1s/.claude/skills/coordinated-build/SKILL.md   (use this exact path if `coordinated-build` does not resolve by name in your spawn env)
-**Coordinator label:** `Coordinator`   (UNIQUE — escalate via `herdr-pane-message`; before messaging, verify `herdr pane list` shows EXACTLY ONE pane with this label. Never guess or reuse a `…-N` pane-id; re-resolve the live pane by label each time.)
-**Coordinator session id:** `ses_0fef45f35ffeEJBGhPxqAsabKB`   (immutable authority. Confirm still live before relying on it.)
+**Risk tier:** `routine` (pure frontend port: extract helpers + inline upload UI; no schema/auth/secret surface. Auto-merge after green QA.)
+**Worktree:** /home/ben/Jarv1s/.claude/worktrees/settings-google-json-upload **Branch:** build/settings-google-json-upload (off origin/main @ 63681e9)
+**Build skill path (absolute):** /home/ben/Jarv1s/.claude/skills/coordinated-build/SKILL.md (use this exact path if `coordinated-build` does not resolve by name in your spawn env)
+**Coordinator label:** `Coordinator` (UNIQUE — escalate via `herdr-pane-message`; before messaging, verify `herdr pane list` shows EXACTLY ONE pane with this label. Never guess or reuse a `…-N` pane-id; re-resolve the live pane by label each time.)
+**Coordinator session id:** `ses_0fef45f35ffeEJBGhPxqAsabKB` (immutable authority. Confirm still live before relying on it.)
 **Relay threshold:** ~80–100k tokens OR a compaction summary (then relay immediately).
 
 ## Start

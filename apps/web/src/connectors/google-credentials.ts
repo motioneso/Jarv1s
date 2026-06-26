@@ -5,9 +5,7 @@ export type GoogleClientCredentials = {
   readonly clientSecret: string;
 };
 
-export type GoogleCredentialsImportResult =
-  | GoogleClientCredentials
-  | { readonly error: string };
+export type GoogleCredentialsImportResult = GoogleClientCredentials | { readonly error: string };
 
 export async function importCredentialsJson(
   event: ChangeEvent<HTMLInputElement>
@@ -19,7 +17,9 @@ export async function importCredentialsJson(
   try {
     const payload = JSON.parse(await file.text()) as unknown;
     const credentials = extractGoogleClientCredentials(payload);
-    return credentials ?? { error: "That file does not look like a Google OAuth client JSON file." };
+    return (
+      credentials ?? { error: "That file does not look like a Google OAuth client JSON file." }
+    );
   } catch {
     return { error: "Could not read that JSON file." };
   }

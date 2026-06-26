@@ -210,9 +210,7 @@ export function GoogleConnect(props: { readonly onBack: () => void }) {
               <Upload size={15} aria-hidden="true" />
             </span>
             <span className="onb-json-upload__main">
-              <span className="onb-json-upload__title">
-                Or upload your Google client JSON file
-              </span>
+              <span className="onb-json-upload__title">Or upload your Google client JSON file</span>
               <span className="onb-json-upload__sub">
                 We will extract the client ID and client secret automatically.
               </span>

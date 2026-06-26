@@ -28,6 +28,7 @@
 ### Task 1: Shared Credential Helper
 
 **Files:**
+
 - Create: `apps/web/src/connectors/google-credentials.ts`
 - Create: `tests/unit/google-credentials.test.ts`
 
@@ -103,9 +104,11 @@ describe("importCredentialsJson", () => {
   });
 
   it("returns a clear shape error for valid JSON with wrong fields", async () => {
-    await expect(importCredentialsJson(fileEvent(JSON.stringify({ nope: true })))).resolves.toEqual({
-      error: "That file does not look like a Google OAuth client JSON file."
-    });
+    await expect(importCredentialsJson(fileEvent(JSON.stringify({ nope: true })))).resolves.toEqual(
+      {
+        error: "That file does not look like a Google OAuth client JSON file."
+      }
+    );
   });
 
   it("returns a clear read error for invalid JSON", async () => {
@@ -138,9 +141,7 @@ export type GoogleClientCredentials = {
   readonly clientSecret: string;
 };
 
-export type GoogleCredentialsImportResult =
-  | GoogleClientCredentials
-  | { readonly error: string };
+export type GoogleCredentialsImportResult = GoogleClientCredentials | { readonly error: string };
 
 export async function importCredentialsJson(
   event: ChangeEvent<HTMLInputElement>
@@ -152,7 +153,9 @@ export async function importCredentialsJson(
   try {
     const payload = JSON.parse(await file.text()) as unknown;
     const credentials = extractGoogleClientCredentials(payload);
-    return credentials ?? { error: "That file does not look like a Google OAuth client JSON file." };
+    return (
+      credentials ?? { error: "That file does not look like a Google OAuth client JSON file." }
+    );
   } catch {
     return { error: "Could not read that JSON file." };
   }
@@ -197,6 +200,7 @@ git commit -m "feat: extract google credential JSON helper"
 ### Task 2: Onboarding Uses Shared Helper
 
 **Files:**
+
 - Modify: `apps/web/src/onboarding/google-connector-step.tsx`
 
 - [ ] **Step 1: Update imports and local handler**
@@ -210,27 +214,23 @@ import { importCredentialsJson } from "../connectors/google-credentials";
 Keep `ChangeEvent` in the React type import. Replace the local `const importCredentialsJson = async ...` function with:
 
 ```ts
-  const handleCredentialsJsonImport = async (event: ChangeEvent<HTMLInputElement>) => {
-    const result = await importCredentialsJson(event);
-    if (!result) return;
-    if ("error" in result) {
-      setJsonImportStatus(result.error);
-      return;
-    }
-    google.setClientId(result.clientId);
-    google.setClientSecret(result.clientSecret);
-    setJsonImportStatus("Credentials imported from JSON.");
-  };
+const handleCredentialsJsonImport = async (event: ChangeEvent<HTMLInputElement>) => {
+  const result = await importCredentialsJson(event);
+  if (!result) return;
+  if ("error" in result) {
+    setJsonImportStatus(result.error);
+    return;
+  }
+  google.setClientId(result.clientId);
+  google.setClientSecret(result.clientSecret);
+  setJsonImportStatus("Credentials imported from JSON.");
+};
 ```
 
 Change the file input:
 
 ```tsx
-<input
-  type="file"
-  accept="application/json,.json"
-  onChange={handleCredentialsJsonImport}
-/>
+<input type="file" accept="application/json,.json" onChange={handleCredentialsJsonImport} />
 ```
 
 Delete the old local `extractGoogleClientCredentials` and `isRecord` functions.
@@ -256,6 +256,7 @@ git commit -m "refactor: reuse google credential import in onboarding"
 ### Task 3: Settings Upload UI
 
 **Files:**
+
 - Modify: `apps/web/src/settings/settings-google-connect.tsx`
 - Modify: `tests/e2e/connect-google.spec.ts`
 
@@ -284,49 +285,43 @@ import { importCredentialsJson } from "../connectors/google-credentials";
 Inside `GoogleConnect`, before `const { toast } = useFeedback();`:
 
 ```ts
-  const [jsonImportStatus, setJsonImportStatus] = useState<string | null>(null);
+const [jsonImportStatus, setJsonImportStatus] = useState<string | null>(null);
 ```
 
 Before `const cidOk = ...`, add:
 
 ```ts
-  const handleCredentialsJsonImport = async (event: ChangeEvent<HTMLInputElement>) => {
-    const result = await importCredentialsJson(event);
-    if (!result) return;
-    if ("error" in result) {
-      setJsonImportStatus(result.error);
-      return;
-    }
-    google.setClientId(result.clientId);
-    google.setClientSecret(result.clientSecret);
-    setJsonImportStatus("Credentials imported from JSON.");
-  };
+const handleCredentialsJsonImport = async (event: ChangeEvent<HTMLInputElement>) => {
+  const result = await importCredentialsJson(event);
+  if (!result) return;
+  if ("error" in result) {
+    setJsonImportStatus(result.error);
+    return;
+  }
+  google.setClientId(result.clientId);
+  google.setClientSecret(result.clientSecret);
+  setJsonImportStatus("Credentials imported from JSON.");
+};
 ```
 
 Inside the first `onb-cred` block, directly under `1 · Paste your client credentials`, add:
 
 ```tsx
-          <label className="onb-json-upload">
-            <input
-              type="file"
-              accept="application/json,.json"
-              onChange={handleCredentialsJsonImport}
-            />
-            <span className="onb-json-upload__icon">
-              <Upload size={15} aria-hidden="true" />
-            </span>
-            <span className="onb-json-upload__main">
-              <span className="onb-json-upload__title">
-                Or upload your Google client JSON file
-              </span>
-              <span className="onb-json-upload__sub">
-                We will extract the client ID and client secret automatically.
-              </span>
-            </span>
-          </label>
-          {jsonImportStatus ? (
-            <div className="onb-json-upload__status">{jsonImportStatus}</div>
-          ) : null}
+<label className="onb-json-upload">
+  <input type="file" accept="application/json,.json" onChange={handleCredentialsJsonImport} />
+  <span className="onb-json-upload__icon">
+    <Upload size={15} aria-hidden="true" />
+  </span>
+  <span className="onb-json-upload__main">
+    <span className="onb-json-upload__title">Or upload your Google client JSON file</span>
+    <span className="onb-json-upload__sub">
+      We will extract the client ID and client secret automatically.
+    </span>
+  </span>
+</label>;
+{
+  jsonImportStatus ? <div className="onb-json-upload__status">{jsonImportStatus}</div> : null;
+}
 ```
 
 - [ ] **Step 2: Extend settings E2E**
@@ -334,25 +329,23 @@ Inside the first `onb-cred` block, directly under `1 · Paste your client creden
 In `tests/e2e/connect-google.spec.ts`, after `await expect(page.getByText("Connect Google")).toBeVisible();`, replace the manual credential fill with:
 
 ```ts
-  await page
-    .locator('input[type="file"]')
-    .setInputFiles({
-      name: "client_secret.json",
-      mimeType: "application/json",
-      buffer: Buffer.from(
-        JSON.stringify({
-          installed: {
-            client_id: "cid.apps.googleusercontent.com",
-            client_secret: "my-client-secret"
-          }
-        })
-      )
-    });
-  await expect(page.getByText("Credentials imported from JSON.")).toBeVisible();
-  await expect(page.getByLabel("Google client ID")).toHaveValue("cid.apps.googleusercontent.com");
-  await expect(page.getByLabel("Google client secret")).toHaveValue("my-client-secret");
+await page.locator('input[type="file"]').setInputFiles({
+  name: "client_secret.json",
+  mimeType: "application/json",
+  buffer: Buffer.from(
+    JSON.stringify({
+      installed: {
+        client_id: "cid.apps.googleusercontent.com",
+        client_secret: "my-client-secret"
+      }
+    })
+  )
+});
+await expect(page.getByText("Credentials imported from JSON.")).toBeVisible();
+await expect(page.getByLabel("Google client ID")).toHaveValue("cid.apps.googleusercontent.com");
+await expect(page.getByLabel("Google client secret")).toHaveValue("my-client-secret");
 
-  await page.getByLabel("Google client secret").fill("my-client-secret-edited");
+await page.getByLabel("Google client secret").fill("my-client-secret-edited");
 ```
 
 Keep the existing `Open consent screen` / redirect / finish assertions unchanged.
@@ -379,6 +372,7 @@ git commit -m "feat: upload google credentials JSON in settings"
 ### Task 4: Final Local Gate
 
 **Files:**
+
 - No edits expected.
 
 - [ ] **Step 1: Run required local gate**
