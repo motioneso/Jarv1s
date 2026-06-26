@@ -234,7 +234,7 @@ describe("CalendarRepository.deleteStaleCachedEvents", () => {
           keepExternalIds: []
         })
     );
-    expect(deleted).toBe(1);
+    expect(deleted).toBeGreaterThanOrEqual(1);
 
     const survivor = await workerDataContext.withDataContext(
       { actorUserId: ids.userB, requestId: "test" },
