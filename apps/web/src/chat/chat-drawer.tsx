@@ -9,7 +9,7 @@ import {
   SquarePen,
   X
 } from "lucide-react";
-import { type KeyboardEvent, useEffect, useState } from "react";
+import { type KeyboardEvent, useCallback, useEffect, useState } from "react";
 
 import {
   cancelChatTurn,
@@ -62,6 +62,7 @@ export function ChatDrawer(props: {
   const [isSending, setIsSending] = useState(false);
   const [sendError, setSendError] = useState<string | null>(null);
   const [needsProvider, setNeedsProvider] = useState(false);
+  const [drainAfterStopText, setDrainAfterStopText] = useState<string | null>(null);
 
   // Optimistic user record — shown immediately on send until the SSE stream confirms (#399).
   const [pendingUserText, setPendingUserText] = useState<string | null>(null);
@@ -111,48 +112,58 @@ export function ChatDrawer(props: {
     enabled: props.open && reviewThreadId !== null
   });
 
-  if (!props.open) {
-    return null;
-  }
-
   /**
    * Unified send path for both the seed buttons and the manual composer (#400).
    * The IIFE keeps the function signature synchronous so call sites need no `void`/`async`.
    * try/finally guarantees isSending is ALWAYS cleared — this is the core wedge fix.
    */
-  const sendMessage = (text: string): void => {
-    const trimmed = text.trim();
-    if (!trimmed || isSending) return;
-    setSendError(null);
-    setNeedsProvider(false);
-    setIsSending(true);
-    setPendingUserText(trimmed);
-    void (async () => {
-      try {
-        const result = await sendChatTurn(trimmed);
-        setPendingUserText(null);
-        const postResponseRecords: readonly TranscriptRecord[] = [
-          { kind: "user", text: trimmed },
-          { kind: "reply", text: result.reply }
-        ];
-        setFallbackRecords((current) =>
-          [...current, ...postResponseRecords].filter(
-            (fallback) => !props.records.some((record) => sameTranscriptRecord(record, fallback))
-          )
-        );
-        void queryClient.invalidateQueries({ queryKey: queryKeys.chat.threads });
-      } catch (caught) {
-        setPendingUserText(null);
-        if (isNoActiveChatModelError(caught)) {
-          setNeedsProvider(true);
-          return;
+  const sendMessage = useCallback(
+    (text: string): void => {
+      const trimmed = text.trim();
+      if (!trimmed || isSending) return;
+      setSendError(null);
+      setNeedsProvider(false);
+      setIsSending(true);
+      setPendingUserText(trimmed);
+      void (async () => {
+        try {
+          const result = await sendChatTurn(trimmed);
+          setPendingUserText(null);
+          const postResponseRecords: readonly TranscriptRecord[] = [
+            { kind: "user", text: trimmed },
+            { kind: "reply", text: result.reply }
+          ];
+          setFallbackRecords((current) =>
+            [...current, ...postResponseRecords].filter(
+              (fallback) => !props.records.some((record) => sameTranscriptRecord(record, fallback))
+            )
+          );
+          void queryClient.invalidateQueries({ queryKey: queryKeys.chat.threads });
+        } catch (caught) {
+          setPendingUserText(null);
+          if (isNoActiveChatModelError(caught)) {
+            setNeedsProvider(true);
+            return;
+          }
+          setSendError(caught instanceof Error ? caught.message : "Could not send message");
+        } finally {
+          setIsSending(false);
         }
-        setSendError(caught instanceof Error ? caught.message : "Could not send message");
-      } finally {
-        setIsSending(false);
-      }
-    })();
-  };
+      })();
+    },
+    [isSending, props.records, queryClient]
+  );
+
+  useEffect(() => {
+    if (isSending || drainAfterStopText === null) return;
+    const nextText = drainAfterStopText;
+    setDrainAfterStopText(null);
+    sendMessage(nextText);
+  }, [drainAfterStopText, isSending, sendMessage]);
+
+  if (!props.open) {
+    return null;
+  }
 
   const startNewChat = () => {
     setReviewThreadId(null);
@@ -160,6 +171,7 @@ export function ChatDrawer(props: {
     setIsSending(false);
     setSendError(null);
     setNeedsProvider(false);
+    setDrainAfterStopText(null);
     setPendingUserText(null);
     setFallbackRecords([]);
     void clearChat();
@@ -169,7 +181,10 @@ export function ChatDrawer(props: {
 
   /** #456 — stop the in-flight turn. The backend kills the engine + emits 'Stopped by user.' over
    *  SSE; the in-flight POST /turn then settles, clearing isSending in sendMessage's finally. */
-  const stopSending = (): void => {
+  const stopSending = (queuedText: string | null): void => {
+    if (queuedText !== null) {
+      setDrainAfterStopText(queuedText);
+    }
     void cancelChatTurn().catch(() => {
       // best-effort: the turn ends server-side regardless; a network error here just means the
       // local isSending flag clears when the POST /turn promise settles.
@@ -309,16 +324,6 @@ export function ChatDrawer(props: {
                 />
               </path>
             </svg>
-            <button
-              aria-label="Stop generating"
-              className="chatd-stop"
-              title="Stop"
-              type="button"
-              onClick={stopSending}
-            >
-              <Square size={13} aria-hidden="true" fill="currentColor" />
-              <span>Stop</span>
-            </button>
           </div>
         ) : null}
       </div>
@@ -331,6 +336,7 @@ export function ChatDrawer(props: {
         sendError={sendError}
         needsProvider={needsProvider}
         onSend={sendMessage}
+        onStop={stopSending}
       />
     </aside>
   );
@@ -584,18 +590,38 @@ function Composer(props: {
   readonly sendError: string | null;
   readonly needsProvider: boolean;
   readonly onSend: (text: string) => void;
+  readonly onStop: (queuedText: string | null) => void;
 }) {
   // Lazy initializer: the starter seeds the input on mount only. After that, the user owns the
   // value — typing/sending clears it and we never re-seed from the prop (no useEffect that would
   // clobber edits or re-fire the chip on re-render).
   const [text, setText] = useState(() => props.initialText ?? "");
+  const [queuedText, setQueuedText] = useState<string | null>(null);
 
   const send = () => {
-    if (props.readOnly || props.isSending) return;
+    if (props.readOnly) return;
     const trimmed = text.trim();
     if (!trimmed) return;
+    if (props.isSending) {
+      setQueuedText(trimmed);
+      setText("");
+      return;
+    }
     props.onSend(trimmed);
     setText("");
+  };
+
+  const restoreQueuedText = () => {
+    if (queuedText === null) return;
+    setText(queuedText);
+    setQueuedText(null);
+  };
+
+  const discardQueuedText = () => setQueuedText(null);
+
+  const stop = () => {
+    props.onStop(queuedText);
+    setQueuedText(null);
   };
 
   const onKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
@@ -620,15 +646,41 @@ function Composer(props: {
           value={text}
         />
         <button
-          aria-label="Send"
+          aria-label={props.isSending ? "Stop generating" : "Send"}
           className="chatd-send"
-          disabled={props.readOnly || props.isSending || !text.trim()}
+          disabled={props.readOnly || (!props.isSending && !text.trim())}
+          title={props.isSending ? "Stop" : "Send"}
           type="button"
-          onClick={send}
+          onClick={props.isSending ? stop : send}
         >
-          <ArrowUp size={17} aria-hidden="true" />
+          {props.isSending ? (
+            <Square size={15} aria-hidden="true" fill="currentColor" />
+          ) : (
+            <ArrowUp size={17} aria-hidden="true" />
+          )}
         </button>
       </div>
+      {queuedText !== null ? (
+        <div className="chatd-next" aria-live="polite">
+          <button
+            aria-label="Edit queued message"
+            className="chatd-next__text"
+            type="button"
+            onClick={restoreQueuedText}
+          >
+            Next: &quot;{queuedText}&quot;
+          </button>
+          <button
+            aria-label="Discard queued message"
+            className="chatd-next__x"
+            title="Discard queued message"
+            type="button"
+            onClick={discardQueuedText}
+          >
+            <X size={13} aria-hidden="true" />
+          </button>
+        </div>
+      ) : null}
     </div>
   );
 }
