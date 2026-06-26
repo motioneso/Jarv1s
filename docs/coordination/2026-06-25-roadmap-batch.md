@@ -13,18 +13,18 @@
 
 | Spec | Issue | Tier | Status | Agent label | Pane | Branch | PR |
 | ---- | ----- | ---- | ------ | ----------- | ---- | ------ | -- |
-| 2026-06-25-module-settings-connector.md | #487 | sensitive | building | Build-module-settings-connector | w1:p27 | build/module-settings-connector | — |
+| 2026-06-25-module-settings-connector.md | #487 | sensitive | building (plan approved) | Build-module-settings-connector | w1:p27 | build/module-settings-connector | — |
 | 2026-06-25-wellness-ai-consent.md | #474 | sensitive | queued | — | — | — | — |
 | 2026-06-25-calendar-cache-reconciliation.md | #473 | sensitive | queued | — | — | — | — |
-| 2026-06-25-settings-google-json-upload.md | #472 | routine | building | Build-settings-google-json-upload | w1:p2A | build/settings-google-json-upload | — |
+| 2026-06-25-settings-google-json-upload.md | #472 | routine | building (plan approved) | Build-settings-google-json-upload | w1:p2A | build/settings-google-json-upload | — |
 | 2026-06-25-runtime-config-framework.md | #454 | sensitive | queued | — | — | — | — |
 | 2026-06-25-agency-action-loop.md | #488 | security | queued | — | — | — | — |
 | 2026-06-25-evening-review-and-interview.md | #489 | sensitive | queued | — | — | — | — |
 | 2026-06-25-admin-per-user-ai-provider.md | #485 | security | queued | — | — | — | — |
 | 2026-06-25-per-account-feature-access.md | #482 | sensitive | queued | — | — | — | — |
 | 2026-06-25-wellness-selective-export.md | #484 | sensitive | queued | — | — | — | — |
-| 2026-06-25-chat-composer-stop-queue.md | #479 | routine | building | Build-chat-composer-stop-queue | w1:p29 | build/chat-composer-stop-queue | — |
-| 2026-06-25-user-custom-themes.md | #477 | routine | building | Build-user-custom-themes | w1:p28 | build/user-custom-themes | — |
+| 2026-06-25-chat-composer-stop-queue.md | #479 | routine | building (plan approved) | Build-chat-composer-stop-queue | w1:p29 | build/chat-composer-stop-queue | — |
+| 2026-06-25-user-custom-themes.md | #477 | routine | building (plan req review) | Build-user-custom-themes | w1:p28 | build/user-custom-themes | — |
 
 Risk tier (content triggers, set at Phase 0 — see `coordinate` Risk tiering):
 - `routine` — no schema/auth/secret surface → auto-merge after green QA.
@@ -96,3 +96,12 @@ record exit codes. This is a known condition, NOT a waiver per-PR.
   for both; just adjust the spawn command.
 - **Wave 1 live:** 4 codex agents (w1:p27-p2A) building #487/#477/#479/#472. Spawned 2026-06-25 ~7:35pm.
 - Worktrees for wave 1: `.claude/worktrees/{module-settings-connector,user-custom-themes,chat-composer-stop-queue,settings-google-json-upload}` (each on `build/<slug>` off `63681e9`).
+- **QA ROUTING (Ben directive, 2026-06-25):** PR QA goes through **AGY (Gemini)**, not the skill's
+  default codex/opus QA agents. Invoke `agy -p "<review prompt + diff>"` (print mode). Default model
+  Gemini 3.5 Flash Medium is fine for routine/sensitive; escalate `--model "Gemini 3.1 Pro (High)"`
+  for security-tier. AGY is a separate subscription from Claude/codex — gives the cross-model
+  adversarial review the skill wants, unblocked by the Claude weekly cap. Capture AGY verdict, post
+  as `gh pr comment`, merge by tier. Plans written by build agents live in
+  `docs/superpowers/plans/` (not committed to main — they're worktree-local review artifacts).
+- **Plans approved so far:** #472 (settings-google-json-upload), #479 (chat-composer-stop-queue),
+  #487 (module-settings-connector). #477 (user-custom-themes) plan submitted, review pending.
