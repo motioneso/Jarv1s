@@ -75,6 +75,7 @@ function definition(overrides: Partial<BriefingDefinition>): BriefingDefinition 
     cadence: "daily",
     schedule_metadata: { targetTime: "06:00", timezone: "America/New_York" },
     enabled: true,
+    briefing_type: "morning",
     selected_tool_names: ["tasks.listVisible"],
     last_run_at: null,
     created_at: new Date(),
@@ -96,7 +97,8 @@ describe("reconcileSchedule", () => {
     expect(call.data).toEqual({
       actorUserId: "owner-1",
       definitionId: "def-1",
-      runKind: "scheduled"
+      runKind: "scheduled",
+      briefingType: "morning"
     });
   });
 

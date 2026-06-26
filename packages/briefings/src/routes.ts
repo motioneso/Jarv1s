@@ -19,6 +19,7 @@ import {
   type BriefingCadence,
   type BriefingDefinitionDto,
   type BriefingRunDto,
+  type BriefingType,
   type CreateBriefingDefinitionRequest,
   type RunBriefingDefinitionRequest,
   type UpdateBriefingDefinitionRequest
@@ -44,6 +45,7 @@ interface DefinitionParams {
 }
 
 const BRIEFING_CADENCES = new Set<BriefingCadence>(["manual", "daily", "weekly"]);
+const BRIEFING_TYPES = new Set<BriefingType>(["morning", "evening"]);
 
 export function registerBriefingsRoutes(
   server: FastifyInstance,
@@ -169,6 +171,7 @@ export function registerBriefingsRoutes(
           definitionId: definition.id,
           briefingRunId: runId,
           runKind: "manual",
+          briefingType: definition.briefing_type,
           idempotencyKey: body.idempotencyKey
         };
 
@@ -276,6 +279,7 @@ function parseCreateDefinitionBody(
 
   return {
     title: requiredString(value.title, "title"),
+    briefingType: optionalBriefingType(value.briefingType) ?? "morning",
     cadence: optionalBriefingCadence(value.cadence) ?? "manual",
     scheduleMetadata: optionalJsonObject(value.scheduleMetadata, "scheduleMetadata") ?? {},
     enabled: optionalBoolean(value.enabled, "enabled") ?? true,
@@ -295,6 +299,7 @@ function parseUpdateDefinitionBody(
 
   return {
     title: optionalString(value.title, "title"),
+    briefingType: optionalBriefingType(value.briefingType),
     cadence: optionalBriefingCadence(value.cadence),
     scheduleMetadata: optionalJsonObject(value.scheduleMetadata, "scheduleMetadata"),
     enabled: optionalBoolean(value.enabled, "enabled"),
@@ -423,11 +428,24 @@ function optionalBriefingCadence(value: unknown): BriefingCadence | undefined {
   throw new HttpError(400, "cadence must be manual, daily, or weekly");
 }
 
+function optionalBriefingType(value: unknown): BriefingType | undefined {
+  if (value === undefined) {
+    return undefined;
+  }
+
+  if (typeof value === "string" && BRIEFING_TYPES.has(value as BriefingType)) {
+    return value as BriefingType;
+  }
+
+  throw new HttpError(400, "briefingType must be morning or evening");
+}
+
 function serializeDefinition(definition: BriefingDefinition): BriefingDefinitionDto {
   return {
     id: definition.id,
     ownerUserId: definition.owner_user_id,
     title: definition.title,
+    briefingType: definition.briefing_type,
     cadence: definition.cadence,
     scheduleMetadata: definition.schedule_metadata,
     enabled: definition.enabled,
@@ -445,6 +463,7 @@ function serializeRun(run: BriefingRun): BriefingRunDto {
     ownerUserId: run.owner_user_id,
     status: run.status,
     runKind: run.run_kind,
+    briefingType: run.briefing_type,
     summaryText: run.summary_text,
     sourceMetadata: run.source_metadata,
     createdAt: toIsoString(run.created_at)

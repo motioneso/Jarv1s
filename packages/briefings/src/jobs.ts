@@ -13,7 +13,7 @@ import {
 import type { RetrievedChunk } from "@jarv1s/memory";
 import type { JarvisModuleManifest } from "@jarv1s/module-sdk";
 import type { NotificationsRepository } from "@jarv1s/notifications";
-import type { BriefingRunKind } from "@jarv1s/shared";
+import type { BriefingRunKind, BriefingType } from "@jarv1s/shared";
 
 import type { ComposeDeps } from "./compose.js";
 import { BRIEFINGS_RUN_QUEUE } from "./manifest.js";
@@ -26,6 +26,7 @@ export interface BriefingRunPayload extends ActorScopedJobPayload {
   // time. Manual run-now jobs always carry one from the route.
   readonly briefingRunId?: string;
   readonly runKind: BriefingRunKind;
+  readonly briefingType: BriefingType;
   readonly idempotencyKey?: string;
 }
 
@@ -89,6 +90,7 @@ export const BRIEFING_RUN_PAYLOAD_KEYS = [
   "definitionId",
   "briefingRunId",
   "runKind",
+  "briefingType",
   "idempotencyKey"
 ] as const;
 

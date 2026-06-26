@@ -29,6 +29,7 @@ import {
   getBuiltInModuleRegistrations,
   getBuiltInSqlMigrationDirectories
 } from "@jarv1s/module-registry";
+import { briefingRunPayloadSchema } from "@jarv1s/shared";
 import { SOURCE_BEHAVIOR_PREFERENCE_KEY } from "@jarv1s/source-behaviors";
 import { PreferencesRepository } from "@jarv1s/structured-state";
 import { connectionStrings, ids } from "./test-database.js";
@@ -180,6 +181,7 @@ describe("Briefings module M6 read-only scheduled summaries", () => {
       "app.briefing_definitions",
       "app.briefing_runs"
     ]);
+    expect(registration?.manifest.database?.migrations).toContain("sql/0116_briefing_type.sql");
     expect(registration?.manifest.navigation?.[0]).toMatchObject({
       id: "briefings",
       path: "/briefings",
@@ -189,6 +191,11 @@ describe("Briefings module M6 read-only scheduled summaries", () => {
       queueName: BRIEFINGS_RUN_QUEUE,
       metadataOnly: true,
       permissionId: "briefings.run"
+    });
+    expect(briefingRunPayloadSchema.required).toContain("briefingType");
+    expect(briefingRunPayloadSchema.properties.briefingType).toEqual({
+      type: "string",
+      enum: ["morning", "evening"]
     });
     expect(registration?.queueDefinitions.map((queue) => queue.name)).toEqual([
       BRIEFINGS_RUN_QUEUE
@@ -222,6 +229,7 @@ describe("Briefings module M6 read-only scheduled summaries", () => {
     );
 
     expect(created.owner_user_id).toBe(ids.userA);
+    expect(created.briefing_type).toBe("morning");
     expect(userARead?.id).toBe(created.id);
     expect(userBRead).toBeUndefined();
     expect(adminRead).toBeUndefined();
@@ -437,6 +445,7 @@ describe("Briefings module M6 read-only scheduled summaries", () => {
         definitionId: definition.id,
         briefingRunId: responseBody.runId,
         runKind: "manual",
+        briefingType: "morning",
         idempotencyKey: "briefing-worker-test"
       });
       expect(isBriefingRunPayloadMetadataOnly(payload ?? {})).toBe(true);
@@ -454,6 +463,7 @@ describe("Briefings module M6 read-only scheduled summaries", () => {
       id: "77000000-0000-4000-8000-000000000150",
       owner_user_id: ids.userA,
       title: "Owner-scoped route briefing",
+      briefing_type: "morning",
       cadence: "manual",
       schedule_metadata: {},
       enabled: true,
@@ -506,6 +516,7 @@ describe("Briefings module M6 read-only scheduled summaries", () => {
           actorUserId: ids.userA,
           definitionId: routeDefinition.id,
           runKind: "manual",
+          briefingType: "morning",
           idempotencyKey: "owner-scoped-route-lookup"
         }),
         expect.objectContaining({
@@ -598,7 +609,8 @@ describe("Briefings module M6 read-only scheduled summaries", () => {
         data: {
           actorUserId: ids.userA,
           definitionId: definition.id,
-          runKind: "scheduled"
+          runKind: "scheduled",
+          briefingType: "morning"
         }
       });
     } finally {
@@ -811,6 +823,7 @@ describe("Briefings module M6 read-only scheduled summaries", () => {
       definitionId: briefingIds.userBPrivate,
       briefingRunId: "7c000000-0000-4000-8000-000000000001",
       runKind: "manual",
+      briefingType: "morning",
       idempotencyKey: "briefing-denied-worker-test"
     } satisfies BriefingRunPayload);
 

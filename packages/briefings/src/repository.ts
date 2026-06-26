@@ -11,6 +11,7 @@ import {
   type BriefingRun,
   type BriefingRunKind,
   type BriefingRunStatus,
+  type BriefingType,
   type DataContextDb
 } from "@jarv1s/db";
 import type { JarvisModuleManifest } from "@jarv1s/module-sdk";
@@ -20,6 +21,7 @@ import { timezoneFor } from "./schedule.js";
 
 export interface CreateBriefingDefinitionInput {
   readonly title: string;
+  readonly briefingType?: BriefingType;
   readonly cadence?: BriefingCadence;
   readonly scheduleMetadata?: Record<string, unknown>;
   readonly enabled?: boolean;
@@ -28,6 +30,7 @@ export interface CreateBriefingDefinitionInput {
 
 export interface UpdateBriefingDefinitionInput {
   readonly title?: string;
+  readonly briefingType?: BriefingType;
   readonly cadence?: BriefingCadence;
   readonly scheduleMetadata?: Record<string, unknown>;
   readonly enabled?: boolean;
@@ -91,6 +94,7 @@ export class BriefingsRepository {
         id: randomUUID(),
         owner_user_id: sql<string>`app.current_actor_user_id()`,
         title: input.title,
+        briefing_type: input.briefingType ?? "morning",
         cadence: input.cadence ?? "manual",
         schedule_metadata: input.scheduleMetadata ?? {},
         enabled: input.enabled ?? true,
@@ -116,6 +120,9 @@ export class BriefingsRepository {
 
     if (input.title !== undefined) {
       updates.title = input.title;
+    }
+    if (input.briefingType !== undefined) {
+      updates.briefing_type = input.briefingType;
     }
     if (input.cadence !== undefined) {
       updates.cadence = input.cadence;
@@ -236,6 +243,7 @@ export class BriefingsRepository {
         owner_user_id: definition.owner_user_id,
         status: composed.status,
         run_kind: input.runKind,
+        briefing_type: definition.briefing_type,
         summary_text: composed.summaryText,
         source_metadata: composed.sourceMetadata,
         created_at: createdAt
