@@ -68,3 +68,39 @@ describe("briefings prompt-isolation (static)", () => {
     expect(source).toMatch(/function renderExternalBlock/);
   });
 });
+
+describe("evening interview seed prompt-isolation (static)", () => {
+  const liveRoutesPath = resolve(here, "../../packages/chat/src/live-routes.ts");
+  const seedSource = readFileSync(liveRoutesPath, "utf8");
+
+  it("buildEveningInterviewSeed trusted preamble is a pure literal", () => {
+    expect(
+      seedSource,
+      "interview seed must contain a trusted_instructions block"
+    ).toContain("<trusted_instructions>");
+
+    const trustedMatch = seedSource.match(
+      /"<trusted_instructions>\\n" \+([\s\S]*?)"<\/trusted_instructions>/
+    );
+    expect(trustedMatch, "trusted_instructions block must be string-concatenated literal").not.toBeNull();
+
+    const trustedLiteral = trustedMatch![1];
+    const forbidden = ["reviewText", "external", "briefingRun", "reviewContent", "seed"];
+    for (const token of forbidden) {
+      expect(
+        trustedLiteral,
+        `interview trusted preamble must not reference "${token}"`
+      ).not.toContain(token);
+    }
+  });
+
+  it("interview seed delimits review content as external_source", () => {
+    expect(seedSource).toContain('<external_source type="evening_review">');
+    expect(seedSource).toContain("</external_source>");
+  });
+
+  it("sanitizes review text before emitting into external_source", () => {
+    expect(seedSource).toMatch(/function sanitizeExternalData/);
+    expect(seedSource).toMatch(/sanitizeExternalData\(reviewText/);
+  });
+});

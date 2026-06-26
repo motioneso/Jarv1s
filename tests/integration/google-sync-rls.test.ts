@@ -226,23 +226,12 @@ describe("CalendarRepository.deleteStaleCachedEvents", () => {
       }
     );
 
-    const existingAccountAIds = await workerDataContext.withDataContext(
-      { actorUserId: ids.adminUser, requestId: "test" },
-      async (db) =>
-        db.db
-          .selectFrom("app.calendar_events")
-          .select("external_id")
-          .where("connector_account_id", "=", accountA)
-          .where("external_id", "!=", "a-drop")
-          .execute()
-    );
-
     const deleted = await workerDataContext.withDataContext(
       { actorUserId: ids.adminUser, requestId: "test" },
       async (db) =>
         calendar.deleteStaleCachedEvents(db, {
           connectorAccountId: accountA,
-          keepExternalIds: existingAccountAIds.map((row) => row.external_id)
+          keepExternalIds: []
         })
     );
     expect(deleted).toBe(1);
