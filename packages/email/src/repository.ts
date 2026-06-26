@@ -22,6 +22,8 @@ export interface CreateCachedEmailMessageInput {
 export class EmailRepository {
   /** Hard cap on any persisted body excerpt — a preview, never a full body. */
   static readonly MAX_BODY_EXCERPT_CHARS = 500;
+  static readonly BRIEFING_RECENT_LIMIT = 200;
+  static readonly BRIEFING_OLDER_UNRESOLVED_LIMIT = 25;
 
   async listVisible(scopedDb: DataContextDb): Promise<EmailMessage[]> {
     assertDataContextDb(scopedDb);
@@ -32,6 +34,39 @@ export class EmailRepository {
       .orderBy("received_at", "desc")
       .orderBy("id")
       .execute();
+  }
+
+  async listVisibleForBriefing(scopedDb: DataContextDb): Promise<EmailMessage[]> {
+    assertDataContextDb(scopedDb);
+
+    const recent = await scopedDb.db
+      .selectFrom("app.email_messages")
+      .selectAll()
+      .orderBy("received_at", "desc")
+      .orderBy("id")
+      .limit(EmailRepository.BRIEFING_RECENT_LIMIT)
+      .execute();
+
+    const recentIds = recent.map((message) => message.id);
+    const olderUnresolved = await scopedDb.db
+      .selectFrom("app.email_messages")
+      .selectAll()
+      .$if(recentIds.length > 0, (qb) => qb.where("id", "not in", recentIds))
+      .where(
+        sql<boolean>`concat_ws(' ',
+          coalesce(sender, ''),
+          coalesce(subject, ''),
+          coalesce(snippet, ''),
+          coalesce(summary, ''),
+          coalesce(signals::text, '')
+        ) ~* '(reply|respond|let me know|can you|please review|follow up|question|action)'`
+      )
+      .orderBy("received_at", "desc")
+      .orderBy("id")
+      .limit(EmailRepository.BRIEFING_OLDER_UNRESOLVED_LIMIT)
+      .execute();
+
+    return [...recent, ...olderUnresolved];
   }
 
   async getById(scopedDb: DataContextDb, messageId: string): Promise<EmailMessage | undefined> {

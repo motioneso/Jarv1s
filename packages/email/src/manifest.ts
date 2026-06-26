@@ -1,9 +1,14 @@
 import { fileURLToPath } from "node:url";
 
 import type { JarvisModuleManifest } from "@jarv1s/module-sdk";
-import { getEmailMessageResponseSchema, listEmailMessagesResponseSchema } from "@jarv1s/shared";
+import {
+  getEmailMessageResponseSchema,
+  getEmailBriefingSettingsResponseSchema,
+  listEmailMessagesResponseSchema,
+  updateEmailBriefingSettingsRequestSchema
+} from "@jarv1s/shared";
 
-import { emailListVisibleMessagesExecute } from "./tools.js";
+import { emailListVisibleMessagesExecute, emailToolMessageOutputSchema } from "./tools.js";
 
 export const EMAIL_MODULE_ID = "email";
 export const emailModuleSqlMigrationDirectory = fileURLToPath(new URL("../sql", import.meta.url));
@@ -34,6 +39,17 @@ export const emailModuleManifest = {
   // cache), not a screen the user browses. The viewer was retired; the assistant tool and
   // REST cache APIs remain so Jarvis can read/learn from messages.
   navigation: [],
+  settings: [
+    {
+      id: "email.module-settings",
+      label: "Email",
+      path: "/settings/modules/email",
+      scope: "user",
+      order: 40,
+      permissionId: "email.manage",
+      entry: "./settings"
+    }
+  ],
   permissions: [
     {
       id: "email.view",
@@ -105,6 +121,19 @@ export const emailModuleManifest = {
       path: "/api/email/messages/:id",
       responseSchema: getEmailMessageResponseSchema,
       permissionId: "email.view"
+    },
+    {
+      method: "GET",
+      path: "/api/email/briefing-settings",
+      responseSchema: getEmailBriefingSettingsResponseSchema,
+      permissionId: "email.manage"
+    },
+    {
+      method: "PATCH",
+      path: "/api/email/briefing-settings",
+      requestSchema: updateEmailBriefingSettingsRequestSchema,
+      responseSchema: getEmailBriefingSettingsResponseSchema,
+      permissionId: "email.manage"
     }
   ],
   assistantTools: [
@@ -117,7 +146,17 @@ export const emailModuleManifest = {
         type: "object",
         properties: {}
       },
-      outputSchema: listEmailMessagesResponseSchema,
+      outputSchema: {
+        type: "object",
+        additionalProperties: false,
+        required: ["messages"],
+        properties: {
+          messages: {
+            type: "array",
+            items: emailToolMessageOutputSchema
+          }
+        }
+      },
       execute: emailListVisibleMessagesExecute
     }
   ]

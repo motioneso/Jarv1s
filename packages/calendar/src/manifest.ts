@@ -1,7 +1,12 @@
 import { fileURLToPath } from "node:url";
 
 import type { JarvisModuleManifest } from "@jarv1s/module-sdk";
-import { getCalendarEventResponseSchema, listCalendarEventsResponseSchema } from "@jarv1s/shared";
+import {
+  getCalendarBriefingSettingsResponseSchema,
+  getCalendarEventResponseSchema,
+  listCalendarEventsResponseSchema,
+  updateCalendarBriefingSettingsRequestSchema
+} from "@jarv1s/shared";
 
 import {
   calendarListVisibleEventsExecute,
@@ -45,6 +50,17 @@ export const calendarModuleManifest = {
       icon: "calendar-days",
       order: 35,
       permissionId: "calendar.view"
+    }
+  ],
+  settings: [
+    {
+      id: "calendar.module-settings",
+      label: "Calendar",
+      path: "/settings/modules/calendar",
+      scope: "user",
+      order: 35,
+      permissionId: "calendar.manage",
+      entry: "./settings"
     }
   ],
   permissions: [
@@ -118,6 +134,19 @@ export const calendarModuleManifest = {
       path: "/api/calendar/events/:id",
       responseSchema: getCalendarEventResponseSchema,
       permissionId: "calendar.view"
+    },
+    {
+      method: "GET",
+      path: "/api/calendar/briefing-settings",
+      responseSchema: getCalendarBriefingSettingsResponseSchema,
+      permissionId: "calendar.manage"
+    },
+    {
+      method: "PATCH",
+      path: "/api/calendar/briefing-settings",
+      requestSchema: updateCalendarBriefingSettingsRequestSchema,
+      responseSchema: getCalendarBriefingSettingsResponseSchema,
+      permissionId: "calendar.manage"
     }
   ],
   assistantTools: [

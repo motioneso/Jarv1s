@@ -17,6 +17,13 @@ import { isBehaviorEnabled, type SourceBehaviorPolicyDeps } from "@jarv1s/source
 import { normalizePersonaSettings, renderPersonaText } from "@jarv1s/shared";
 
 import { timezoneFor } from "./schedule.js";
+import {
+  contextTokens,
+  deriveCalendarSignals,
+  deriveEmailSignals,
+  type CalendarSignalSettings,
+  type EmailSignalSettings
+} from "./signals.js";
 
 // ── Caps (one conservative economy budget) ─────────────────────────────────────
 const SECTION_ITEM_CAP = 8;
@@ -81,6 +88,7 @@ interface Section {
   readonly label: string;
   readonly lines: readonly string[];
   readonly count: number;
+  readonly rawItems?: readonly Record<string, unknown>[];
 }
 
 function ctxFor(definition: BriefingDefinition, input: ComposeRunInput) {
@@ -156,6 +164,61 @@ async function sourceIncludedInBriefings(
   return isBehaviorEnabled(scopedDb, deps.sourceBehaviorPolicy, behaviorId);
 }
 
+async function readPreference(
+  scopedDb: DataContextDb,
+  deps: ComposeDeps,
+  key: string
+): Promise<unknown> {
+  return deps.sourceBehaviorPolicy?.preferencesRepository.get(scopedDb, key) ?? null;
+}
+
+function boolPreference(value: unknown, fallback: boolean): boolean {
+  return typeof value === "boolean" ? value : fallback;
+}
+
+function intPreference(value: unknown, fallback: 0 | 1 | 2): 0 | 1 | 2 {
+  return value === 0 || value === 1 || value === 2 ? value : fallback;
+}
+
+async function readCalendarSignalSettings(
+  scopedDb: DataContextDb,
+  deps: ComposeDeps
+): Promise<CalendarSignalSettings> {
+  const [lookaheadDays, suggestTasks, createTasks, suggestTimeBlocks, blockTime] =
+    await Promise.all([
+      readPreference(scopedDb, deps, "calendar.briefing_lookahead_days"),
+      readPreference(scopedDb, deps, "calendar.signal_suggest_tasks"),
+      readPreference(scopedDb, deps, "calendar.signal_create_tasks"),
+      readPreference(scopedDb, deps, "calendar.signal_suggest_time_blocks"),
+      readPreference(scopedDb, deps, "calendar.signal_block_time")
+    ]);
+  return {
+    lookaheadDays: intPreference(lookaheadDays, 2),
+    suggestTasks: boolPreference(suggestTasks, true),
+    createTasks: boolPreference(createTasks, false),
+    suggestTimeBlocks: boolPreference(suggestTimeBlocks, true),
+    blockTime: boolPreference(blockTime, false)
+  };
+}
+
+async function readEmailSignalSettings(
+  scopedDb: DataContextDb,
+  deps: ComposeDeps
+): Promise<EmailSignalSettings> {
+  const [createTasks, suggestReplies, draftReplies, autoSend] = await Promise.all([
+    readPreference(scopedDb, deps, "email.signal_create_tasks"),
+    readPreference(scopedDb, deps, "email.signal_suggest_replies"),
+    readPreference(scopedDb, deps, "email.signal_draft_replies"),
+    readPreference(scopedDb, deps, "email.signal_auto_send")
+  ]);
+  return {
+    createTasks: boolPreference(createTasks, true),
+    suggestReplies: boolPreference(suggestReplies, true),
+    draftReplies: boolPreference(draftReplies, true),
+    autoSend: boolPreference(autoSend, false)
+  };
+}
+
 /** Gather one tool-backed section; never throws — failures become gaps. */
 async function gatherToolSection(
   scopedDb: DataContextDb,
@@ -202,14 +265,14 @@ async function gatherToolSection(
       // "not synced yet" until the connector-sync slice lands cache state. Do NOT
       // claim `empty_cache` — that would over-state knowledge we don't have.
       gaps.push({ source: args.key, reason: "empty" });
-      return { key: args.key, label: args.label, lines: [], count: 0 };
+      return { key: args.key, label: args.label, lines: [], count: 0, rawItems: [] };
     }
     const allLines = items.map(args.format).filter((line) => line.length > 0);
     const { lines, truncated } = capLines(allLines);
     if (truncated) {
       gaps.push({ source: args.key, reason: "truncated" });
     }
-    return { key: args.key, label: args.label, lines, count: items.length };
+    return { key: args.key, label: args.label, lines, count: items.length, rawItems: items };
   } catch (error) {
     const e = error instanceof Error ? error : new Error(String(error));
     deps.logger?.error(
@@ -222,7 +285,7 @@ async function gatherToolSection(
       "briefing tool failed"
     );
     gaps.push({ source: args.key, reason: "tool_failed" });
-    return { key: args.key, label: args.label, lines: [], count: 0 };
+    return { key: args.key, label: args.label, lines: [], count: 0, rawItems: [] };
   }
 }
 
@@ -331,7 +394,7 @@ export async function composeBriefing(
   );
 
   const includeCalendar = await sourceIncludedInBriefings(scopedDb, deps, "calendar.briefings");
-  const calendar = includeCalendar
+  const rawCalendar = includeCalendar
     ? await gatherToolSection(
         scopedDb,
         definition,
@@ -342,8 +405,6 @@ export async function composeBriefing(
           label: "CALENDAR",
           toolName: "calendar.listVisibleEvents",
           arrayKey: "events",
-          // "Today's calendar": bound to the definition's local day on the event start.
-          localDayField: "startsAt",
           format: (e) =>
             [sanitizeExternal(e.startsAt), sanitizeExternal(e.title)].filter(Boolean).join(" · ")
         },
@@ -352,9 +413,8 @@ export async function composeBriefing(
         timeZone
       )
     : emptySection("calendar", "CALENDAR");
-
   const includeEmail = await sourceIncludedInBriefings(scopedDb, deps, "email.briefings");
-  const email = includeEmail
+  const rawEmail = includeEmail
     ? await gatherToolSection(
         scopedDb,
         definition,
@@ -365,9 +425,6 @@ export async function composeBriefing(
           label: "EMAIL SUMMARIES + SIGNALS",
           toolName: "email.listVisibleMessages",
           arrayKey: "messages",
-          // Email "signals" = recent unread/important; keep the source's own recency
-          // (no day-bound — a 2-day-old unresolved thread is still a morning signal).
-          // Allow-list: sender/subject/snippet only — never bodyExcerpt/summary/signals.
           format: (m) =>
             [sanitizeExternal(m.sender), sanitizeExternal(m.subject), sanitizeExternal(m.snippet)]
               .filter(Boolean)
@@ -383,7 +440,9 @@ export async function composeBriefing(
   const vaultLines: string[] = [];
   const vaultNotes: Array<{ path: string; id: string; excerpt: string }> = [];
   try {
-    const query = [...commitments.lines, ...tasks.lines, ...calendar.lines].join(" ").slice(0, 500);
+    const query = [...commitments.lines, ...tasks.lines, ...rawCalendar.lines]
+      .join(" ")
+      .slice(0, 500);
     const semantic = query.trim()
       ? await deps.memoryRetriever.retrieve(scopedDb, query, VAULT_CHUNK_CAP, "vault")
       : [];
@@ -441,6 +500,54 @@ export async function composeBriefing(
     now,
     timeZone
   );
+
+  const context = contextTokens(
+    commitments.lines,
+    tasks.lines,
+    chats.lines,
+    vaultNotes.map((note) => note.excerpt)
+  );
+  const [calendarSettings, emailSettings] = await Promise.all([
+    readCalendarSignalSettings(scopedDb, deps),
+    readEmailSignalSettings(scopedDb, deps)
+  ]);
+  const calendarSignals = includeCalendar
+    ? deriveCalendarSignals({
+        items: rawCalendar.rawItems ?? [],
+        now,
+        timeZone,
+        context,
+        settings: calendarSettings
+      })
+    : [];
+  const emailSignals = includeEmail
+    ? deriveEmailSignals({
+        items: rawEmail.rawItems ?? [],
+        now,
+        context,
+        settings: emailSettings
+      })
+    : [];
+  if (includeCalendar && (rawCalendar.rawItems?.length ?? 0) > 0 && calendarSignals.length === 0) {
+    gaps.push({ source: "calendar", reason: "empty" });
+  }
+  if (includeEmail && (rawEmail.rawItems?.length ?? 0) > 0 && emailSignals.length === 0) {
+    gaps.push({ source: "email", reason: "empty" });
+  }
+  const calendar: Section = {
+    key: rawCalendar.key,
+    label: rawCalendar.label,
+    lines: calendarSignals.map((signal) => sanitizeExternal(signal.summary)),
+    count: calendarSignals.length,
+    rawItems: rawCalendar.rawItems
+  };
+  const email: Section = {
+    key: rawEmail.key,
+    label: rawEmail.label,
+    lines: emailSignals.map((signal) => sanitizeExternal(signal.summary)),
+    count: emailSignals.length,
+    rawItems: rawEmail.rawItems
+  };
 
   const sections: Section[] = [commitments, tasks, calendar, email, vault, chats];
 
@@ -542,7 +649,11 @@ export async function composeBriefing(
         commitmentCount: commitments.count,
         taskCount: tasks.count,
         calendarCount: calendar.count,
+        calendarEventCount: rawCalendar.rawItems?.length ?? 0,
+        calendarSignals,
         emailCount: email.count,
+        emailMessageCount: rawEmail.rawItems?.length ?? 0,
+        emailSignals,
         vaultCount: vault.count,
         chatTurnCount: chats.count,
         notes: vaultNotes,
@@ -581,13 +692,15 @@ function defaultCreateAdapter(kind: ProviderKind, apiKey: string, baseUrl: strin
 const SYNTHESIS_INSTRUCTIONS_MORNING =
   "You are a calm morning-briefing writer. Synthesize a concise, scannable morning briefing " +
   "with light section headers. Ground strictly in the items in the <external_source> blocks; " +
-  "do not invent. Where a section is empty, note it briefly. Keep it warm and non-judgmental " +
-  "about missed or at-risk items.";
+  "do not invent. Treat calendar and email blocks as pre-filtered signal, not raw feeds. " +
+  "Do not restate every event or message. Where a section is empty, note it briefly. Keep it " +
+  "warm and non-judgmental about missed or at-risk items.";
 
 const SYNTHESIS_INSTRUCTIONS_EVENING =
   "You are a calm evening-review writer. Synthesize a concise day in review with light section " +
-  "headers. Ground strictly in the items in the <external_source> blocks; do not invent. Focus " +
-  "on what happened today, what slipped or remains at risk, and what rolls forward.";
+  "headers. Ground strictly in the items in the <external_source> blocks; do not invent. Treat " +
+  "calendar and email blocks as pre-filtered signal, not raw feeds. Focus on what happened " +
+  "today, what slipped or remains at risk, and what rolls forward.";
 
 const TRUST_BOUNDARY =
   "TRUST BOUNDARY — read before anything else:\n" +
@@ -696,7 +809,9 @@ function fallback(
       commitmentCount: commitments.count,
       taskCount: tasks.count,
       calendarCount: calendar.count,
+      calendarSignals: [],
       emailCount: email.count,
+      emailSignals: [],
       vaultCount: vault.count,
       chatTurnCount: chats.count,
       notes: vaultNotes,
