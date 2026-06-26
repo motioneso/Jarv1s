@@ -6,10 +6,13 @@ import {
   KeyRound,
   Link2,
   Monitor,
-  ShieldCheck
+  ShieldCheck,
+  Upload
 } from "lucide-react";
-import type { ReactNode } from "react";
+import { useState } from "react";
+import type { ChangeEvent, ReactNode } from "react";
 
+import { importCredentialsJson } from "../connectors/google-credentials";
 import { useGoogleConnectFlow } from "../connectors/use-google-connect-flow";
 import { useFeedback } from "./settings-feedback";
 
@@ -53,6 +56,7 @@ function CredField(props: {
    own OAuth app, paste credentials, authorize, paste the localhost redirect back
    to finish the token exchange. Wired to the existing useGoogleConnectFlow. */
 export function GoogleConnect(props: { readonly onBack: () => void }) {
+  const [jsonImportStatus, setJsonImportStatus] = useState<string | null>(null);
   const { toast } = useFeedback();
   const google = useGoogleConnectFlow({
     onConnected: () => {
@@ -68,6 +72,18 @@ export function GoogleConnect(props: { readonly onBack: () => void }) {
   const authorized = Boolean(google.authUrl);
   const redirOk = /localhost(:\d+)?/i.test(google.redirectUrl) && /code=/.test(google.redirectUrl);
   const finishReady = credsReady && authorized && redirOk && !google.completionPending;
+
+  const handleCredentialsJsonImport = async (event: ChangeEvent<HTMLInputElement>) => {
+    const result = await importCredentialsJson(event);
+    if (!result) return;
+    if ("error" in result) {
+      setJsonImportStatus(result.error);
+      return;
+    }
+    google.setClientId(result.clientId);
+    google.setClientSecret(result.clientSecret);
+    setJsonImportStatus("Credentials imported from JSON.");
+  };
 
   return (
     <div className="gflow">
@@ -184,6 +200,25 @@ export function GoogleConnect(props: { readonly onBack: () => void }) {
 
         <div className="onb-cred">
           <div className="onb-cred__hd">1 · Paste your client credentials</div>
+          <label className="onb-json-upload">
+            <input
+              type="file"
+              accept="application/json,.json"
+              onChange={handleCredentialsJsonImport}
+            />
+            <span className="onb-json-upload__icon">
+              <Upload size={15} aria-hidden="true" />
+            </span>
+            <span className="onb-json-upload__main">
+              <span className="onb-json-upload__title">Or upload your Google client JSON file</span>
+              <span className="onb-json-upload__sub">
+                We will extract the client ID and client secret automatically.
+              </span>
+            </span>
+          </label>
+          {jsonImportStatus ? (
+            <div className="onb-json-upload__status">{jsonImportStatus}</div>
+          ) : null}
           <CredField
             label="Client ID"
             icon={<Fingerprint size={15} aria-hidden="true" />}

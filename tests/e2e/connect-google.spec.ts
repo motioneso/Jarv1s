@@ -21,8 +21,23 @@ test("connects Google via the settings flow", async ({ page }) => {
   await page.getByRole("button", { name: "Google", exact: true }).click();
   await expect(page.getByText("Connect Google")).toBeVisible();
 
-  await page.getByLabel("Google client ID").fill("cid.apps.googleusercontent.com");
-  await page.getByLabel("Google client secret").fill("my-client-secret");
+  await page.locator('input[type="file"]').setInputFiles({
+    name: "client_secret.json",
+    mimeType: "application/json",
+    buffer: Buffer.from(
+      JSON.stringify({
+        installed: {
+          client_id: "cid.apps.googleusercontent.com",
+          client_secret: "my-client-secret"
+        }
+      })
+    )
+  });
+  await expect(page.getByText("Credentials imported from JSON.")).toBeVisible();
+  await expect(page.getByLabel("Google client ID")).toHaveValue("cid.apps.googleusercontent.com");
+  await expect(page.getByLabel("Google client secret")).toHaveValue("my-client-secret");
+
+  await page.getByLabel("Google client secret").fill("my-client-secret-edited");
   await page.getByRole("button", { name: "Open consent screen" }).click();
 
   // Once the server returns the auth URL, the step is marked ready.

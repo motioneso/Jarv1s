@@ -23,6 +23,7 @@ import {
   GOOGLE_CONNECT_SUCCESS_QUERY_KEYS,
   useGoogleConnectFlow
 } from "../connectors/use-google-connect-flow";
+import { importCredentialsJson } from "../connectors/google-credentials";
 import { FootNote, StepHeader } from "./onboarding-ui";
 
 const SOON_PROVIDERS = [
@@ -75,23 +76,16 @@ export function GoogleConnectorStep(props: {
     /localhost(:\d+)?/i.test(google.redirectUrl) &&
     /code=/.test(google.redirectUrl);
 
-  const importCredentialsJson = async (event: ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    event.target.value = "";
-    if (!file) return;
-    try {
-      const payload = JSON.parse(await file.text()) as unknown;
-      const credentials = extractGoogleClientCredentials(payload);
-      if (!credentials) {
-        setJsonImportStatus("That file does not look like a Google OAuth client JSON file.");
-        return;
-      }
-      google.setClientId(credentials.clientId);
-      google.setClientSecret(credentials.clientSecret);
-      setJsonImportStatus("Credentials imported from JSON.");
-    } catch {
-      setJsonImportStatus("Could not read that JSON file.");
+  const handleCredentialsJsonImport = async (event: ChangeEvent<HTMLInputElement>) => {
+    const result = await importCredentialsJson(event);
+    if (!result) return;
+    if ("error" in result) {
+      setJsonImportStatus(result.error);
+      return;
     }
+    google.setClientId(result.clientId);
+    google.setClientSecret(result.clientSecret);
+    setJsonImportStatus("Credentials imported from JSON.");
   };
 
   if (mode === "connecting") {
@@ -159,7 +153,11 @@ export function GoogleConnectorStep(props: {
           <div className="onb-cred">
             <div className="onb-cred__hd">1 · Paste your client credentials</div>
             <label className="onb-json-upload">
-              <input type="file" accept="application/json,.json" onChange={importCredentialsJson} />
+              <input
+                type="file"
+                accept="application/json,.json"
+                onChange={handleCredentialsJsonImport}
+              />
               <span className="onb-json-upload__icon">
                 <Upload size={15} aria-hidden="true" />
               </span>
@@ -430,26 +428,6 @@ export function GoogleConnectorStep(props: {
       </div>
     </section>
   );
-}
-
-function extractGoogleClientCredentials(
-  payload: unknown
-): { clientId: string; clientSecret: string } | null {
-  if (!isRecord(payload)) return null;
-  const root = isRecord(payload.installed)
-    ? payload.installed
-    : isRecord(payload.web)
-      ? payload.web
-      : payload;
-  const clientId = root.client_id;
-  const clientSecret = root.client_secret;
-  if (typeof clientId !== "string" || typeof clientSecret !== "string") return null;
-  if (!clientId.trim() || !clientSecret.trim()) return null;
-  return { clientId: clientId.trim(), clientSecret: clientSecret.trim() };
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
 function formatScopes(scopes: readonly string[]): string {
