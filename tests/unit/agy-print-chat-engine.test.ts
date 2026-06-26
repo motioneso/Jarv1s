@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { AgyPrintChatEngine } from "../../packages/chat/src/live/agy-print-chat-engine.js";
+import { createRealEngineFactory } from "../../packages/chat/src/live/runtime.js";
 import type { Multiplexer, MuxHandle, TmuxIo } from "@jarv1s/ai";
 
 function fakeIo(files: Record<string, string> = {}): TmuxIo & { runs: string[]; writes: Record<string, string> } {
@@ -88,5 +89,21 @@ describe("AgyPrintChatEngine", () => {
     expect(result.records.map((r) => r.kind)).toEqual(["tool", "reply"]);
     expect(result.complete).toBe(true);
     expect(result.offset).toBe(transcript.length);
+  });
+});
+
+describe("AgyPrintChatEngine Runtime Routing", () => {
+  it("routes google non_interactive to AgyPrintChatEngine", () => {
+    const mux = fakeMux();
+    const factory = createRealEngineFactory({ mux });
+    const engine = factory("google", "user-1", { executionMode: "non_interactive" });
+    expect(engine.constructor.name).toBe("AgyPrintChatEngine");
+  });
+
+  it("preserves interactive routing to persistent engine", () => {
+    const mux = fakeMux();
+    const factory = createRealEngineFactory({ mux });
+    const engine = factory("google", "user-1", { executionMode: "interactive" });
+    expect(engine.constructor.name).toBe("CliChatEngineImpl");
   });
 });

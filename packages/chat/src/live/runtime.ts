@@ -25,6 +25,7 @@ import {
   type RpcReconcileDriver
 } from "./chat-engine-rpc-client.js";
 import { CliChatEngineImpl } from "./cli-chat-engine.js";
+import { AgyPrintChatEngine } from "./agy-print-chat-engine.js";
 import { CliChatUnavailableError } from "./errors.js";
 export { CliChatUnavailableError } from "./errors.js";
 export { ChatEngineRpcClient, RpcConnection } from "./chat-engine-rpc-client.js";
@@ -79,12 +80,19 @@ export function createRealEngineFactory(opts: { mux?: Multiplexer } = {}): ChatE
   // CLI-dir base (/host-home) so transcripts written by the host CLI are read back
   // correctly. Unset on a host install → the engine uses the OS home (unchanged).
   const homeBase = process.env.JARVIS_CLI_HOME_BASE;
-  return (provider, sessionKey, engineOpts) =>
-    new CliChatEngineImpl(provider, sessionKey, createRealTmuxIo(), {
+  return (provider, sessionKey, engineOpts) => {
+    if (provider === "google" && engineOpts?.executionMode === "non_interactive") {
+      return new AgyPrintChatEngine(sessionKey, createRealTmuxIo(), {
+        mux: opts.mux,
+        homeBase
+      });
+    }
+    return new CliChatEngineImpl(provider, sessionKey, createRealTmuxIo(), {
       mux: opts.mux,
       homeBase,
       executionMode: engineOpts?.executionMode
     });
+  };
 }
 
 /**
