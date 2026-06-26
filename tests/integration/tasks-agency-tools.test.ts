@@ -96,6 +96,31 @@ describe("Tasks agency tools through AssistantToolGateway", () => {
     expect((response.data as { text: string }).text).toContain("Created task: gateway agency task");
   });
 
+  it("first-run notice appears only once", async () => {
+    const call1 = gateway.callTool(tokenFor(ids.userA), "tasks.create", {
+      title: "first-run-notice-1"
+    });
+    await tick();
+
+    const firstRequest = emitted.find((entry) => entry.record.kind === "action_request")?.record;
+    if (!firstRequest || firstRequest.kind !== "action_request") throw new Error("expected first request");
+    expect(firstRequest.summary).toContain("Jarvis now asks before creating tasks");
+    await gateway.resolveActionRequest(ids.userA, firstRequest.actionRequestId, "confirmed");
+    await call1;
+
+    emitted.length = 0;
+    const call2 = gateway.callTool(tokenFor(ids.userA), "tasks.create", {
+      title: "first-run-notice-2"
+    });
+    await tick();
+
+    const secondRequest = emitted.find((entry) => entry.record.kind === "action_request")?.record;
+    if (!secondRequest || secondRequest.kind !== "action_request") throw new Error("expected second request");
+    expect(secondRequest.summary).not.toContain("Jarvis now asks before creating tasks");
+    await gateway.resolveActionRequest(ids.userA, secondRequest.actionRequestId, "confirmed");
+    await call2;
+  });
+
   it("auto-runs task writes when task trust is enabled", async () => {
     agencyPrefs["tasks.agency_auto_execute"] = true;
 
