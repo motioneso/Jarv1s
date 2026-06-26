@@ -13,6 +13,8 @@
   "dependencies": {
     "@jarv1s/settings-ui": "workspace:*",
     "@jarv1s/shared": "workspace:*",
+    "@jarv1s/tasks": "workspace:*",
+    "@jarv1s/wellness": "workspace:*",
     "@tanstack/react-query": "^5.0.0",
     "lucide-react": "^0.468.0",
     "react": "^19.0.0",

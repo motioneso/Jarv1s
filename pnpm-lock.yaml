@@ -108,6 +108,12 @@ importers:
       '@jarv1s/shared':
         specifier: workspace:*
         version: link:../../packages/shared
+      '@jarv1s/tasks':
+        specifier: workspace:*
+        version: link:../../packages/tasks
+      '@jarv1s/wellness':
+        specifier: workspace:*
+        version: link:../../packages/wellness
       '@tanstack/react-query':
         specifier: ^5.0.0
         version: 5.101.0(react@19.2.7)
