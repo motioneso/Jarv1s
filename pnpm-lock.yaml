@@ -102,6 +102,12 @@ importers:
 
   apps/web:
     dependencies:
+      '@jarv1s/calendar':
+        specifier: workspace:*
+        version: link:../../packages/calendar
+      '@jarv1s/email':
+        specifier: workspace:*
+        version: link:../../packages/email
       '@jarv1s/settings-ui':
         specifier: workspace:*
         version: link:../../packages/settings-ui

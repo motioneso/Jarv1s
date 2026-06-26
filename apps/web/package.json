@@ -11,6 +11,8 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@jarv1s/calendar": "workspace:*",
+    "@jarv1s/email": "workspace:*",
     "@jarv1s/settings-ui": "workspace:*",
     "@jarv1s/shared": "workspace:*",
     "@jarv1s/tasks": "workspace:*",
