@@ -10,6 +10,7 @@ import {
   errorResponseSchema,
   idParamsSchema,
   jsonObjectSchema,
+  aestheticThemeTokensSchema,
   taskListParamsSchema,
   taskParamsSchema,
   updateTaskPreferencesRequestSchema,
@@ -168,5 +169,43 @@ describe("shared schema fragments", () => {
     });
     expect(status).toBe(200);
     expect(body).toEqual({ blob: { anything: [1, 2, 3], nested: { ok: true } } });
+  });
+});
+
+describe("theme token schema", () => {
+  const validThemeTokens = {
+    paper: "#fbfaf6",
+    surface: "#ffffff",
+    surface2: "#f5f3ed",
+    surface3: "#edeae1",
+    ink: "#292621",
+    ink2: "#5b564d",
+    ink3: "#8b8678",
+    ink4: "#9a958a",
+    line: "rgb(38, 34, 28)",
+    lineSubtle: "rgb(245, 243, 237)",
+    lineStrong: "rgb(210, 205, 194)",
+    accent: "#2f6a4c"
+  };
+
+  it("keeps aesthetic tokens and strips semantic token writes", async () => {
+    const { status, body } = await parseBody(aestheticThemeTokensSchema, {
+      ...validThemeTokens,
+      red: "#000000",
+      amber: "#000000",
+      steel: "#000000"
+    });
+
+    expect(status).toBe(200);
+    expect(body).toEqual(validThemeTokens);
+  });
+
+  it("rejects non-color token values", async () => {
+    const { status } = await parseBody(aestheticThemeTokensSchema, {
+      ...validThemeTokens,
+      accent: "url(javascript:alert(1))"
+    });
+
+    expect(status).toBe(400);
   });
 });

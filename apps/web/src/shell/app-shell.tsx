@@ -12,10 +12,8 @@ import {
   Mail,
   Menu,
   MessageSquare,
-  Moon,
   Newspaper,
-  Settings,
-  Sun
+  Settings
 } from "lucide-react";
 import {
   type ComponentType,
@@ -28,7 +26,7 @@ import {
 } from "react";
 import { NavLink, useLocation, useNavigate } from "react-router";
 
-import { listNotifications, sendChatTurn, signOut } from "../api/client";
+import { listNotifications, listThemes, sendChatTurn, signOut } from "../api/client";
 import { getWeatherToday } from "../api/weather-client";
 import { buildShellNavigation, resolvePageHeading } from "../app-route-metadata";
 import { queryKeys } from "../api/query-keys";
@@ -37,6 +35,7 @@ import { useChatStream } from "../chat/use-chat-stream";
 import { ChatControlsProvider } from "./chat-controls-context";
 import { ASK_JARVIS_STARTER, consumeAskJarvis } from "../onboarding/ask-jarvis-handoff";
 import { HeaderWeather } from "../today/header-weather";
+import { applyThemeTokens } from "../theme/theme-runtime";
 import { loadShellTheme, saveShellTheme, type ShellTheme } from "./theme-storage";
 import type { MeResponse, ModuleDto, ModuleNavigationEntryDto } from "@jarv1s/shared";
 
@@ -83,18 +82,13 @@ export function AppShell(props: AppShellProps) {
   // read-and-clear it: if set, open the drawer pre-filled with the setup-check starter (never
   // auto-sent). A refresh does not re-trigger it (the flag was consumed).
   const [askJarvisStarter, setAskJarvisStarter] = useState<string | undefined>(undefined);
-  const [theme, setTheme] = useState<ShellTheme>(() => loadShellTheme());
+  const [theme] = useState<ShellTheme>(() => loadShellTheme());
   useEffect(() => {
     if (consumeAskJarvis()) {
       setAskJarvisStarter(ASK_JARVIS_STARTER);
       setChatOpen(true);
     }
   }, []);
-  useEffect(() => {
-    document.documentElement.setAttribute("data-theme", theme);
-    saveShellTheme(theme);
-  }, [theme]);
-
   const openChatWith = useCallback((prompt: string) => {
     setChatOpen(true);
     void sendChatTurn(prompt);
@@ -110,6 +104,18 @@ export function AppShell(props: AppShellProps) {
     queryKey: queryKeys.notifications.list,
     queryFn: () => listNotifications()
   });
+  const themesQuery = useQuery({
+    queryKey: queryKeys.settings.themes,
+    queryFn: () => listThemes()
+  });
+  const activeThemeId = themesQuery.data?.activeId ?? theme;
+  useEffect(() => {
+    const customTheme =
+      themesQuery.data?.custom.find((custom) => custom.id === activeThemeId) ?? null;
+    document.documentElement.setAttribute("data-theme", activeThemeId);
+    applyThemeTokens(document.documentElement.style, customTheme?.tokens ?? null);
+    saveShellTheme(activeThemeId);
+  }, [activeThemeId, themesQuery.data?.custom]);
   const unreadCount = notificationsQuery.data?.unreadCount ?? 0;
   const onTodayPage = location.pathname.startsWith("/today");
   const weatherQuery = useQuery({
@@ -154,10 +160,8 @@ export function AppShell(props: AppShellProps) {
         <div className="rail-foot">
           <RailUserMenu
             me={props.me}
-            theme={theme}
             unreadCount={unreadCount}
             signOutPending={signOutMutation.isPending}
-            onToggleTheme={() => setTheme((current) => (current === "dark" ? "light" : "dark"))}
             onSignOut={() => signOutMutation.mutate()}
             onNavigate={(to) => {
               closeMobileNav();
@@ -247,10 +251,8 @@ function initialOf(value: string): string {
     Settings, the dark-mode toggle, and Log out in a popover. */
 function RailUserMenu(props: {
   readonly me: MeResponse;
-  readonly theme: "light" | "dark";
   readonly unreadCount: number;
   readonly signOutPending: boolean;
-  readonly onToggleTheme: () => void;
   readonly onSignOut: () => void;
   readonly onNavigate: (to: string) => void;
 }) {
@@ -318,24 +320,6 @@ function RailUserMenu(props: {
                 <Settings size={16} aria-hidden="true" />
               </span>
               <span className="jds-usermenu__lbl">Settings &amp; permissions</span>
-            </button>
-            <button className="jds-usermenu__item" type="button" onClick={props.onToggleTheme}>
-              <span className="jds-usermenu__ic">
-                {props.theme === "dark" ? (
-                  <Sun size={16} aria-hidden="true" />
-                ) : (
-                  <Moon size={16} aria-hidden="true" />
-                )}
-              </span>
-              <span className="jds-usermenu__lbl">Dark mode</span>
-              <span className="jds-usermenu__tr">
-                <span
-                  className="jds-miniswitch"
-                  {...(props.theme === "dark" ? { "data-on": "" } : {})}
-                >
-                  <span />
-                </span>
-              </span>
             </button>
             <div className="jds-usermenu__div" />
             <button

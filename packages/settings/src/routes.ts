@@ -53,6 +53,7 @@ import { registerHostDiagnosticsRoutes } from "./host-diagnostics-routes.js";
 import { registerLocaleRoutes } from "./locale-routes.js";
 import { registerQuietHoursRoutes } from "./quiet-hours-routes.js";
 import { registerWeatherLocationRoutes } from "./weather-location-routes.js";
+import { registerThemeRoutes } from "./themes-routes.js";
 import { registerNotesSourceRoutes, type ReconcileNotesScheduleFn } from "./notes-source-routes.js";
 import {
   registerMeAccountRoutes,
@@ -149,6 +150,7 @@ export function registerSettingsRoutes(
   registerLocaleRoutes(server, { ...dependencies, preferencesRepository });
   registerQuietHoursRoutes(server, { ...dependencies, preferencesRepository });
   registerWeatherLocationRoutes(server, { ...dependencies, preferencesRepository });
+  registerThemeRoutes(server, { ...dependencies, preferencesRepository });
   registerNotesSourceRoutes(server, { ...dependencies, preferencesRepository });
   registerMeSessionsRoutes(server, {
     resolveAccessContext: dependencies.resolveAccessContext,
