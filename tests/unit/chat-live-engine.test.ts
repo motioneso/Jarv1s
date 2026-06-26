@@ -47,6 +47,7 @@ function fakeIo(): TmuxIo & {
 } {
   const runCalls: Array<{ cmd: string; args: readonly string[] }> = [];
   const writeCalls: Array<{ path: string; content: string }> = [];
+  const files = new Map<string, string>();
   let transcript: string | null = null;
 
   return {
@@ -57,17 +58,29 @@ function fakeIo(): TmuxIo & {
     },
     async run(cmd, args) {
       runCalls.push({ cmd, args });
+      if (cmd === "bash" && args.join(" ").includes("codex exec --json")) {
+        return {
+          code: 0,
+          stdout: JSON.stringify({
+            type: "event_msg",
+            payload: { type: "task_complete", last_agent_message: "exec reply" }
+          })
+        };
+      }
       // `tmux has-session` returns 0 (alive) by default in these tests.
       return { code: 0, stdout: "" };
     },
     async readFile(_path) {
       if (transcript === null) {
+        const content = files.get(_path);
+        if (content !== undefined) return content;
         throw Object.assign(new Error("ENOENT"), { code: "ENOENT" });
       }
       return transcript;
     },
     async writeFile(path, content) {
       writeCalls.push({ path, content });
+      files.set(path, content);
     },
     async sleep(_ms) {
       /* no-op in tests */
@@ -130,7 +143,7 @@ describe("CliChatEngineImpl — launch", () => {
     expect(path.endsWith(`${sessionId}.jsonl`)).toBe(true);
   });
 
-  it("launches Codex exec JSON mode when configured non-interactive", async () => {
+  it("runs Codex exec JSON as a one-shot turn in non-interactive mode", async () => {
     const io = fakeIo();
     const engine = new CliChatEngineImpl("openai-compatible", "thread-codex-exec", io, {
       launchMs: 0,
@@ -139,13 +152,36 @@ describe("CliChatEngineImpl — launch", () => {
 
     await engine.launch({
       neutralDir: "/tmp/jarvis/thread-codex-exec",
-      personaPath: "/tmp/jarvis/thread-codex-exec/persona.md"
+      personaPath: "/tmp/jarvis/thread-codex-exec/persona.md",
+      personaText: "You are Jarvis.",
+      replayBatch: "<conversation>\nUser: earlier\n</conversation>"
     });
 
+    expect(flat(io)).not.toContain("tmux new-session");
+
+    await engine.submit("Reply with ok.");
     const all = flat(io);
     expect(all).toContain("codex exec --json");
     expect(all).toContain("--sandbox read-only");
     expect(all).toContain("-a never");
+
+    const promptWrite = io.writeCalls.find((call) => call.path.endsWith("codex-exec-prompt.txt"));
+    expect(promptWrite?.content).toContain("You are Jarvis.");
+    expect(promptWrite?.content).toContain("User: earlier");
+    expect(promptWrite?.content).toContain("User: Reply with ok.");
+    expect(all).toContain("< '/tmp/jarvis/thread-codex-exec/codex-exec-prompt.txt'");
+
+    const result = await engine.readNew(0);
+    expect(result.complete).toBe(true);
+    expect(result.records.at(-1)).toEqual({ kind: "reply", text: "exec reply" });
+
+    await engine.submit("Second turn.");
+    const secondPrompt = io.writeCalls
+      .filter((call) => call.path.endsWith("codex-exec-prompt.txt"))
+      .at(-1);
+    expect(secondPrompt?.content).toContain("User: Reply with ok.");
+    expect(secondPrompt?.content).toContain("Assistant: exec reply");
+    expect(secondPrompt?.content).toContain("User: Second turn.");
   });
 });
 

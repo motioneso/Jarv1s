@@ -1,0 +1,150 @@
+import { join } from "node:path";
+
+import { DEFAULT_MODEL_SENTINEL, parseTranscript, redactSecrets, type TmuxIo } from "@jarv1s/ai";
+
+import { CliChatUnavailableError } from "./errors.js";
+import type { EngineLaunchOpts } from "./types.js";
+
+interface CodexExecTurn {
+  readonly user: string;
+  readonly assistant: string;
+}
+
+export interface CodexExecSessionOpts {
+  readonly io: TmuxIo;
+  readonly launchOpts: EngineLaunchOpts;
+  readonly transcriptPath: string;
+  readonly tokenEnvPath: string | null;
+  readonly ownsDrain: boolean;
+}
+
+export class CodexExecSession {
+  private readonly io: TmuxIo;
+  private readonly launchOpts: EngineLaunchOpts;
+  private readonly transcriptPath: string;
+  private readonly tokenEnvPath: string | null;
+  private readonly personaText: string;
+  private readonly replayBatch: string | undefined;
+  private replayPending: boolean;
+  private readonly turns: CodexExecTurn[] = [];
+
+  constructor(opts: CodexExecSessionOpts) {
+    this.io = opts.io;
+    this.launchOpts = opts.launchOpts;
+    this.transcriptPath = opts.transcriptPath;
+    this.tokenEnvPath = opts.tokenEnvPath;
+    this.personaText = opts.launchOpts.personaText ?? "";
+    this.replayBatch = opts.launchOpts.replayBatch;
+    this.replayPending = opts.launchOpts.replayBatch !== undefined && !opts.ownsDrain;
+  }
+
+  async initialize(): Promise<void> {
+    await this.io.writeFile(this.transcriptPath, "");
+  }
+
+  async submit(text: string): Promise<void> {
+    if (this.replayPending && text === this.replayBatch) {
+      this.replayPending = false;
+      await this.appendJsonl(
+        JSON.stringify({
+          type: "event_msg",
+          payload: { type: "task_complete", last_agent_message: "" }
+        })
+      );
+      return;
+    }
+
+    const promptPath = join(this.launchOpts.neutralDir, "codex-exec-prompt.txt");
+    await this.io.writeFile(promptPath, this.buildPrompt(text));
+    await this.io.run("chmod", ["600", promptPath]);
+
+    const result = await this.io.run("bash", ["-lc", this.buildCommand(promptPath)], {
+      cwd: this.launchOpts.neutralDir
+    });
+
+    if (result.stdout) {
+      await this.appendJsonl(result.stdout);
+      const parsed = parseTranscript("openai-compatible", result.stdout, 0);
+      if (parsed.complete && parsed.reply !== null) {
+        this.turns.push({ user: text, assistant: parsed.reply });
+      }
+    }
+
+    if (result.code !== 0) {
+      throw new CliChatUnavailableError("codex exec failed", {
+        cause: redactCause(result.stderr ?? result.stdout)
+      });
+    }
+  }
+
+  private buildPrompt(text: string): string {
+    const priorTurns = this.turns.flatMap((turn) => [
+      `User: ${turn.user}`,
+      `Assistant: ${turn.assistant}`
+    ]);
+    return [
+      this.personaText ? `<persona>\n${this.personaText}\n</persona>` : "",
+      this.replayBatch,
+      ...priorTurns,
+      `User: ${text}`
+    ]
+      .filter((part): part is string => Boolean(part))
+      .join("\n\n");
+  }
+
+  private buildCommand(promptPath: string): string {
+    const sourceEnv = this.tokenEnvPath ? `. ${shellQuote(this.tokenEnvPath)} &&` : "";
+    const parts = [
+      `cd ${shellQuote(this.launchOpts.neutralDir)} &&`,
+      sourceEnv,
+      "codex exec --json"
+    ];
+
+    if (this.launchOpts.mcpToken && this.launchOpts.mcpServerUrl) {
+      parts.push(
+        `-c 'mcp_servers.jarvis.url="${this.launchOpts.mcpServerUrl}"'`,
+        `-c 'mcp_servers.jarvis.bearer_token_env_var="JARVIS_MCP_TOKEN"'`,
+        `-c 'mcp_servers.jarvis.tool_timeout_sec=180'`,
+        `-c 'mcp_servers.jarvis.default_tools_approval_mode="approve"'`,
+        `-c 'features.shell_tool=false'`,
+        `-c 'features.apply_patch_tool=false'`,
+        `-c 'features.tool_call_mcp_elicitation=false'`
+      );
+    }
+
+    const modelFlag = modelOverrideFlag(this.launchOpts);
+    if (modelFlag) parts.push(modelFlag);
+    parts.push("--disable apps", "--sandbox read-only", "-a never", `-c 'approval_policy="never"'`);
+    parts.push(`< ${shellQuote(promptPath)}`);
+    return parts.join(" ");
+  }
+
+  private async appendJsonl(jsonl: string): Promise<void> {
+    let existing = "";
+    try {
+      existing = await this.io.readFile(this.transcriptPath);
+    } catch {
+      // Treat a missing synthetic transcript as empty; submit owns recreating it.
+    }
+    const trimmed = jsonl.trimEnd();
+    const next = `${existing}${existing && !existing.endsWith("\n") ? "\n" : ""}${trimmed}\n`;
+    await this.io.writeFile(this.transcriptPath, next);
+  }
+}
+
+function modelOverrideFlag(opts: EngineLaunchOpts): string | null {
+  if (!opts.model || opts.model === DEFAULT_MODEL_SENTINEL) return null;
+  return `--model ${shellQuote(opts.model)}`;
+}
+
+function shellQuote(value: string): string {
+  return `'${value.replace(/'/g, `'\\''`)}'`;
+}
+
+function redactCause(err: unknown): Error {
+  const message = err instanceof Error ? err.message : String(err);
+  const sanitized = new Error(redactSecrets(message));
+  sanitized.name = err instanceof Error ? err.name : "Error";
+  sanitized.stack = undefined;
+  return sanitized;
+}

@@ -19,16 +19,6 @@
  *   --append-system-prompt-file P   — inject persona (survives /clear; append, not replace)
  *   --session-id <uuid>             — pin the transcript filename, known before launch
  *   --strict-mcp-config             — do not load the operator's global MCP servers
- *
- * #342 (in-container CLI chat) changes the launch contract: `launch` now writes the
- * persona file under the SERVER-derived neutral dir, moves Claude's MCP token OFF the
- * launch line into a `0600` `.jarvis-claude-mcp.json` (§6.2), submits + drains the
- * `replayBatch` server-side (bounded — §4.1/§5), and returns the post-drain transcript
- * `offset` so the api can seed `transcriptOffset` (§4.1.2). `kill` and a failed launch
- * remove the ENTIRE per-session neutral dir (§6.5). Module-level helpers expose the
- * mux-name-keyed operations the cli-runner server needs without a per-session engine
- * object: `killMuxSessionByName` (§4.5), `listLiveMuxSessions` (§4.6), `removeNeutralDir`
- * (§6.5), and `probeProvider` (§4.8).
  */
 
 import { randomUUID } from "node:crypto";
@@ -49,6 +39,7 @@ import {
 import type { AiProviderExecutionMode } from "@jarv1s/shared";
 
 import { CliChatUnavailableError } from "./errors.js";
+import { CodexExecSession } from "./codex-exec-session.js";
 import type { ChatRecordKind, CliChatEngine, EngineLaunchOpts, TranscriptRecord } from "./types.js";
 
 // Re-export the login MUX-session helpers (extracted to ./login-mux-sessions.ts to keep this file
@@ -77,11 +68,7 @@ export interface CliChatEngineOpts {
   readonly submitMs?: number;
   /** Multiplexer backend; defaults to a TmuxMultiplexer over the same io (preserves legacy behavior). */
   readonly mux?: Multiplexer;
-  /**
-   * Base dir whose `.claude`/`.codex`/`.gemini` hold the CLI transcripts.
-   * Set to the bind-mounted host HOME base when running containerized
-   * (deployable-stack §6); omitted → the OS home of the running process.
-   */
+  /** Base dir whose `.claude`/`.codex`/`.gemini` hold CLI transcripts. */
   readonly homeBase?: string;
   /**
    * (#363, claude-scoped) Path to the 0600 file holding the provider's captured OAuth token.
@@ -90,20 +77,9 @@ export interface CliChatEngineOpts {
    * runtime, NEVER in the tmux argv / pane-typed string. Ignored by codex/gemini launches.
    */
   readonly credentialFile?: string;
-  /**
-   * #342: when set, the engine OWNS the server-side replay-drain. After launch it
-   * submits `opts.replayBatch` (if present) and drains the transcript to a clean
-   * boundary, returning the post-drain `offset` (§4.1.2). When false/omitted the
-   * engine returns `{ offset: 0 }` and the api manager keeps draining itself (the
-   * in-process host path, §4.1.2). The cli-runner server constructs the engine with
-   * `ownsDrain: true`.
-   */
+  /** #342: true when cli-runner owns server-side replay submit+drain. */
   readonly ownsDrain?: boolean;
-  /**
-   * #342: max wall-clock ms the server-side replay-drain may run before returning the
-   * last safe offset (NEVER blocks a later kill). Bounded per §4.1/§5. Default 25s,
-   * mirroring the onboarding provider-check budget.
-   */
+  /** #342: max wall-clock ms for server-side replay-drain. */
   readonly drainMs?: number;
   /** #342: poll interval (ms) used while draining the replay. Default 250ms. */
   readonly drainPollMs?: number;
@@ -169,6 +145,8 @@ export class CliChatEngineImpl implements CliChatEngine {
   private readonly drainMs: number;
   private readonly drainPollMs: number;
   private readonly executionMode: AiProviderExecutionMode;
+  private codexExec: CodexExecSession | null = null;
+  private codexExecLogicalAlive = false;
 
   constructor(
     public readonly provider: ProviderKind,
@@ -230,6 +208,20 @@ export class CliChatEngineImpl implements CliChatEngine {
     this.storedTranscriptPath =
       this.provider === "anthropic" ? join(this.transcriptDir, `${sessionId}.jsonl`) : null;
 
+    if (this.isCodexExecMode()) {
+      this.storedTranscriptPath = join(opts.neutralDir, "codex-exec-transcript.jsonl");
+      this.codexExec = new CodexExecSession({
+        io: this.io,
+        launchOpts: opts,
+        transcriptPath: this.storedTranscriptPath,
+        tokenEnvPath: this.codexTokenEnvPath,
+        ownsDrain: this.ownsDrain
+      });
+      await this.codexExec.initialize();
+      this.codexExecLogicalAlive = true;
+      return { offset: 0 };
+    }
+
     const launchLine = await this.buildLaunchCommand(opts, sessionId, personaPath);
     try {
       this.handle = await this.mux.open({
@@ -286,6 +278,11 @@ export class CliChatEngineImpl implements CliChatEngine {
 
   async submit(text: string): Promise<void> {
     const sanitized = sanitizeInput(text);
+    if (this.isCodexExecMode()) {
+      if (!this.codexExec) throw new Error("CliChatEngineImpl.submit called before launch()");
+      await this.codexExec.submit(sanitized);
+      return;
+    }
     await this.mux.submit(this.requireHandle(), sanitized);
   }
 
@@ -326,6 +323,7 @@ export class CliChatEngineImpl implements CliChatEngine {
   }
 
   async isAlive(): Promise<boolean> {
+    if (this.isCodexExecMode()) return this.codexExecLogicalAlive;
     if (this.handle === null) return false;
     return this.mux.isAlive(this.handle);
   }
@@ -346,6 +344,8 @@ export class CliChatEngineImpl implements CliChatEngine {
       // .jarvis-claude-mcp.json, Codex's .jarvis-mcp-token.env, Gemini's
       // .gemini/settings.json, AND the persona file) — not just one file.
       this.codexTokenEnvPath = null;
+      this.codexExec = null;
+      this.codexExecLogicalAlive = false;
       await this.removeNeutralDirQuietly();
     }
   }
@@ -431,6 +431,10 @@ export class CliChatEngineImpl implements CliChatEngine {
       throw new Error("CliChatEngineImpl.submit called before launch()");
     }
     return this.handle;
+  }
+
+  private isCodexExecMode(): boolean {
+    return this.provider === "openai-compatible" && this.executionMode === "non_interactive";
   }
 
   // ─── helpers ─────────────────────────────────────────────────────────────────
