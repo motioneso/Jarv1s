@@ -73,10 +73,7 @@ describe("ModuleSettingsRouter", () => {
 
   it("finds only user-scoped surfaces for module rows", () => {
     expect(
-      findModuleSettingsSurface("fixture", [
-        { ...surfaces[0], scope: "admin" },
-        surfaces[0]
-      ])?.id
+      findModuleSettingsSurface("fixture", [{ ...surfaces[0], scope: "admin" }, surfaces[0]])?.id
     ).toBe("fixture.settings");
   });
 });

@@ -44,6 +44,7 @@
 ## Task 1: Manifest Contract + Extracted Atoms
 
 **Files:**
+
 - Modify: `packages/module-sdk/src/index.ts`
 - Create: `packages/settings-ui/package.json`
 - Create: `packages/settings-ui/tsconfig.json`
@@ -167,6 +168,7 @@ git commit -m "feat: extract settings ui package"
 ## Task 2: Scanner + Virtual Module
 
 **Files:**
+
 - Create: `packages/settings-ui/src/scanner.ts`
 - Create: `packages/settings-ui/src/vite.ts`
 - Create: `tests/unit/module-settings-scanner.test.ts`
@@ -268,7 +270,10 @@ Register plugin in `apps/web/vite.config.ts`:
 ```ts
 import { jarvisModuleSettingsPlugin } from "@jarv1s/settings-ui/vite";
 
-plugins: [react(), jarvisModuleSettingsPlugin({ rootDir: new URL("../..", import.meta.url).pathname })]
+plugins: [
+  react(),
+  jarvisModuleSettingsPlugin({ rootDir: new URL("../..", import.meta.url).pathname })
+];
 ```
 
 - [ ] **Step 5: Verify scanner + Vite typecheck**
@@ -287,6 +292,7 @@ git commit -m "feat: generate module settings virtual module"
 ## Task 3: Router + Modules Pane Wiring
 
 **Files:**
+
 - Create: `packages/settings-ui/src/router.tsx`
 - Modify: `packages/settings-ui/src/index.tsx`
 - Modify: `apps/web/src/settings/settings-personal-data-panes.tsx`
@@ -316,6 +322,7 @@ Expected: FAIL because router does not exist.
 Export `ModuleSettingsRouter`, `ModuleSettingsSurface`, and `findModuleSettingsSurface`.
 
 Keep router dumb:
+
 - Inputs: `moduleId`, `surfaces`, `components`, `onBack`, `onSelectSection`, `onNavigate`.
 - Find first user-scope surface for the module.
 - If no surface, render fallback.
@@ -358,6 +365,7 @@ git commit -m "feat: route contributed module settings"
 ## Task 4: Build Smoke + Final Gate
 
 **Files:**
+
 - Modify only if previous tasks reveal a type/lint issue.
 
 - [ ] **Step 1: Run focused checks**

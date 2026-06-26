@@ -39,7 +39,9 @@ export function ModuleSettingsRouter(props: ModuleSettingsRouterProps) {
 
   return (
     <ModuleSettingsErrorBoundary surface={surface}>
-      <Suspense fallback={<RouterPaneHead title={`${surface.moduleName} settings`} desc="Loading…" />}>
+      <Suspense
+        fallback={<RouterPaneHead title={`${surface.moduleName} settings`} desc="Loading…" />}
+      >
         <Surface
           onBack={props.onBack}
           onSelectSection={props.onSelectSection}
@@ -64,9 +66,7 @@ function ModuleSettingsMissingFallback(props: { readonly moduleName: string }) {
   );
 }
 
-export function ModuleSettingsErrorFallback(props: {
-  readonly surface: GeneratedSettingsSurface;
-}) {
+export function ModuleSettingsErrorFallback(props: { readonly surface: GeneratedSettingsSurface }) {
   return (
     <>
       <RouterPaneHead title={`${props.surface.moduleName} settings failed to load`} />

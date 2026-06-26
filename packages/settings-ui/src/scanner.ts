@@ -65,7 +65,8 @@ export function scanModuleSettings(options: ScanOptions): ScanResult {
       });
 
       if (surface.entry) {
-        components[manifest.id] = `lazy(() => import("${pkg.name}/${normalizeEntry(surface.entry)}"))`;
+        components[manifest.id] =
+          `lazy(() => import("${pkg.name}/${normalizeEntry(surface.entry)}"))`;
       }
     }
   }
@@ -218,10 +219,7 @@ function readStringProperty(
   return readStringExpression(property.initializer, constants);
 }
 
-function readNumberProperty(
-  object: ts.ObjectLiteralExpression,
-  name: string
-): number | undefined {
+function readNumberProperty(object: ts.ObjectLiteralExpression, name: string): number | undefined {
   const property = findProperty(object, name);
   if (!property || !ts.isPropertyAssignment(property)) return undefined;
   const initializer = unwrap(property.initializer);
