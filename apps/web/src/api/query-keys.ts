@@ -29,7 +29,8 @@ export const queryKeys = {
   },
   connectors: {
     providers: ["connectors", "providers"] as const,
-    accounts: ["connectors", "accounts"] as const
+    accounts: ["connectors", "accounts"] as const,
+    featureGrants: (id: string) => ["connectors", "feature-grants", id] as const
   },
   ai: {
     summary: ["ai", "summary"] as const,

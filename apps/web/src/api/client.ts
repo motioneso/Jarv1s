@@ -59,6 +59,7 @@ import type {
   GoogleCompleteRequest,
   GoogleCompleteResponse,
   GoogleSyncResponse,
+  FeatureGrantsResponse,
   CreateTaskRequest,
   CreateTaskResponse,
   GetTaskResponse,
@@ -107,6 +108,7 @@ import type {
   UpdateAiProviderConfigResponse,
   UpdateConnectorAccountRequest,
   UpdateConnectorAccountResponse,
+  UpdateFeatureGrantsRequest,
   UpdateMedicationRequest,
   UpdateTaskPreferencesRequest,
   UpdateTaskPreferencesResponse,
@@ -875,6 +877,22 @@ export async function revokeConnectorAccount(id: string): Promise<RevokeConnecto
   return requestJson<RevokeConnectorAccountResponse>(
     `/api/connectors/accounts/${encodeURIComponent(id)}/revoke`,
     { method: "POST" }
+  );
+}
+
+export async function getConnectorFeatureGrants(id: string): Promise<FeatureGrantsResponse> {
+  return requestJson<FeatureGrantsResponse>(
+    `/api/connectors/accounts/${encodeURIComponent(id)}/feature-grants`
+  );
+}
+
+export async function updateConnectorFeatureGrants(
+  id: string,
+  input: UpdateFeatureGrantsRequest
+): Promise<FeatureGrantsResponse> {
+  return requestJson<FeatureGrantsResponse>(
+    `/api/connectors/accounts/${encodeURIComponent(id)}/feature-grants`,
+    { method: "PUT", body: input }
   );
 }
 
