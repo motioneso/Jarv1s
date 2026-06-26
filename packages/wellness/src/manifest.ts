@@ -19,14 +19,17 @@ import {
   updateCheckinRouteSchema,
   updateMedicationRequestSchema,
   wellnessAiConsentResponseSchema,
+  wellnessExportRequestSchema,
   wellnessInsightsRouteSchema
 } from "@jarv1s/shared";
 
 import { wellnessFocusSignal } from "./focus-signal.js";
+import { WELLNESS_EXPORT_QUEUE } from "./export-job.js";
 import { wellnessMedicationAdherenceExecute, wellnessRecentCheckInsExecute } from "./tools.js";
 
 export const WELLNESS_MODULE_ID = "wellness";
 export const WELLNESS_MEDICATION_REMINDER_QUEUE = "wellness-medication-reminder";
+export const WELLNESS_EXPORT_QUEUE_NAME = WELLNESS_EXPORT_QUEUE;
 export const wellnessModuleSqlMigrationDirectory = fileURLToPath(
   new URL("../sql", import.meta.url)
 );
@@ -211,12 +214,26 @@ export const wellnessModuleManifest = {
       path: "/api/wellness/medications/logs",
       responseSchema: medicationAdherenceSummaryRouteSchema.response[200],
       permissionId: "wellness.view"
+    },
+    {
+      method: "POST",
+      path: "/api/wellness/export",
+      requestSchema: wellnessExportRequestSchema,
+      permissionId: "wellness.view"
     }
   ],
   jobs: [
     {
       // Designed seam; NO worker registered until the Phase-3 scheduler lands (deferred).
       queueName: WELLNESS_MEDICATION_REMINDER_QUEUE,
+      metadataOnly: true,
+      permissionId: "wellness.view"
+    },
+    {
+      // Selective Wellness export (#484). Metadata-only payload; worker re-reads the
+      // selected window + categories from the job row. Reuses the settings data-export
+      // pipeline for status/download/expiry.
+      queueName: WELLNESS_EXPORT_QUEUE,
       metadataOnly: true,
       permissionId: "wellness.view"
     }
