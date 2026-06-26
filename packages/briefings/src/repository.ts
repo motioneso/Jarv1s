@@ -11,15 +11,17 @@ import {
   type BriefingRun,
   type BriefingRunKind,
   type BriefingRunStatus,
+  type BriefingType,
   type DataContextDb
 } from "@jarv1s/db";
 import type { JarvisModuleManifest } from "@jarv1s/module-sdk";
 
 import { composeBriefing, type ComposeDeps } from "./compose.js";
-import { timezoneFor } from "./schedule.js";
+import { defaultScheduleMetadataFor, timezoneFor } from "./schedule.js";
 
 export interface CreateBriefingDefinitionInput {
   readonly title: string;
+  readonly briefingType?: BriefingType;
   readonly cadence?: BriefingCadence;
   readonly scheduleMetadata?: Record<string, unknown>;
   readonly enabled?: boolean;
@@ -28,6 +30,7 @@ export interface CreateBriefingDefinitionInput {
 
 export interface UpdateBriefingDefinitionInput {
   readonly title?: string;
+  readonly briefingType?: BriefingType;
   readonly cadence?: BriefingCadence;
   readonly scheduleMetadata?: Record<string, unknown>;
   readonly enabled?: boolean;
@@ -84,6 +87,7 @@ export class BriefingsRepository {
     assertDataContextDb(scopedDb);
 
     const now = new Date();
+    const briefingType = input.briefingType ?? "morning";
 
     return scopedDb.db
       .insertInto("app.briefing_definitions")
@@ -91,8 +95,9 @@ export class BriefingsRepository {
         id: randomUUID(),
         owner_user_id: sql<string>`app.current_actor_user_id()`,
         title: input.title,
+        briefing_type: briefingType,
         cadence: input.cadence ?? "manual",
-        schedule_metadata: input.scheduleMetadata ?? {},
+        schedule_metadata: input.scheduleMetadata ?? defaultScheduleMetadataFor(briefingType),
         enabled: input.enabled ?? true,
         selected_tool_names: [...input.selectedToolNames],
         last_run_at: null,
@@ -116,6 +121,9 @@ export class BriefingsRepository {
 
     if (input.title !== undefined) {
       updates.title = input.title;
+    }
+    if (input.briefingType !== undefined) {
+      updates.briefing_type = input.briefingType;
     }
     if (input.cadence !== undefined) {
       updates.cadence = input.cadence;
@@ -148,6 +156,24 @@ export class BriefingsRepository {
       .orderBy("created_at", "desc")
       .orderBy("id")
       .execute();
+  }
+
+  async getOwnedEveningRunForInterview(
+    scopedDb: DataContextDb,
+    runId?: string
+  ): Promise<BriefingRun | undefined> {
+    assertDataContextDb(scopedDb);
+
+    let query = scopedDb.db
+      .selectFrom("app.briefing_runs")
+      .selectAll()
+      .where("owner_user_id", "=", sql<string>`app.current_actor_user_id()`)
+      .where("briefing_type", "=", "evening");
+    if (runId) {
+      query = query.where("id", "=", runId);
+    }
+
+    return query.orderBy("created_at", "desc").orderBy("id").executeTakeFirst();
   }
 
   /** `created:false` means an existing same-day scheduled run was returned (idempotent skip). */
@@ -236,6 +262,7 @@ export class BriefingsRepository {
         owner_user_id: definition.owner_user_id,
         status: composed.status,
         run_kind: input.runKind,
+        briefing_type: definition.briefing_type,
         summary_text: composed.summaryText,
         source_metadata: composed.sourceMetadata,
         created_at: createdAt

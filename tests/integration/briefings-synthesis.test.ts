@@ -344,7 +344,8 @@ describe("Briefings synthesis, scheduling, and notification path (P3 real-briefi
       {
         actorUserId: ids.userA,
         definitionId: definition.id,
-        runKind: "scheduled"
+        runKind: "scheduled",
+        briefingType: "morning"
       } satisfies BriefingRunPayload,
       { singletonKey: `${definition.id}:sched:1` }
     );
@@ -378,6 +379,43 @@ describe("Briefings synthesis, scheduling, and notification path (P3 real-briefi
     expect(notification.body).toBeNull();
   });
 
+  it("scheduled evening worker job notifies with evening review copy", async () => {
+    const definition = await dataContext.withDataContext(userAContext(), (scopedDb) =>
+      repository.createDefinition(scopedDb, {
+        title: "Scheduled evening review",
+        briefingType: "evening",
+        cadence: "daily",
+        selectedToolNames: ["tasks.list"]
+      })
+    );
+
+    const resultPromise = handleNextBriefingJobWithNotifications(workerBoss);
+    await appBoss.send(
+      BRIEFINGS_RUN_QUEUE,
+      {
+        actorUserId: ids.userA,
+        definitionId: definition.id,
+        runKind: "scheduled",
+        briefingType: "evening"
+      } satisfies BriefingRunPayload,
+      { singletonKey: `${definition.id}:sched:evening` }
+    );
+    const result = await resultPromise;
+
+    expect(result.status).toBe("succeeded");
+    const { notifications } = await dataContext.withDataContext(userAContext(), (scopedDb) =>
+      notificationsRepository.listVisible(scopedDb)
+    );
+    const eveningNotifications = notifications.filter(
+      (n) => n.title === "Your evening review is ready"
+    );
+    expect(eveningNotifications).toHaveLength(1);
+    expect(eveningNotifications[0]?.metadata).toEqual({
+      definitionId: definition.id,
+      briefingRunId: result.runId
+    });
+  });
+
   it("manual worker job does not create a briefing-ready notification", async () => {
     const definition = await dataContext.withDataContext(userAContext(), (scopedDb) =>
       repository.createDefinition(scopedDb, {
@@ -394,6 +432,7 @@ describe("Briefings synthesis, scheduling, and notification path (P3 real-briefi
         definitionId: definition.id,
         briefingRunId: "7d000000-0000-4000-8000-000000000001",
         runKind: "manual",
+        briefingType: "morning",
         idempotencyKey: "briefing-manual-no-notify"
       } satisfies BriefingRunPayload,
       { singletonKey: `${definition.id}:key:briefing-manual-no-notify` }
@@ -432,7 +471,8 @@ describe("Briefings synthesis, scheduling, and notification path (P3 real-briefi
       {
         actorUserId: ids.userA,
         definitionId: definition.id,
-        runKind: "scheduled"
+        runKind: "scheduled",
+        briefingType: "morning"
       } satisfies BriefingRunPayload,
       // Distinct singletonKeys so BOTH fires enqueue and reach the worker — the dedupe
       // under test is the repository's local-day idempotency, NOT pg-boss singleton.
@@ -447,7 +487,8 @@ describe("Briefings synthesis, scheduling, and notification path (P3 real-briefi
       {
         actorUserId: ids.userA,
         definitionId: definition.id,
-        runKind: "scheduled"
+        runKind: "scheduled",
+        briefingType: "morning"
       } satisfies BriefingRunPayload,
       { singletonKey: `${definition.id}:sched:dedupe:2` }
     );

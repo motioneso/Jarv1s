@@ -176,6 +176,7 @@ export type ChatMessageStatus = "stored" | "pending" | "blocked" | "no_model" | 
 export type BriefingCadence = "manual" | "daily" | "weekly";
 export type BriefingRunStatus = "succeeded" | "blocked" | "failed";
 export type BriefingRunKind = "manual" | "scheduled";
+export type BriefingType = "morning" | "evening";
 
 export interface TasksTable {
   id: string;
@@ -404,6 +405,7 @@ export interface BriefingDefinitionsTable {
   id: string;
   owner_user_id: string;
   title: string;
+  briefing_type: BriefingType;
   cadence: BriefingCadence;
   schedule_metadata: JsonColumn;
   enabled: boolean;
@@ -419,6 +421,7 @@ export interface BriefingRunsTable {
   owner_user_id: string;
   status: BriefingRunStatus;
   run_kind: BriefingRunKind;
+  briefing_type: BriefingType;
   summary_text: string;
   source_metadata: JsonColumn;
   created_at: TimestampColumn;

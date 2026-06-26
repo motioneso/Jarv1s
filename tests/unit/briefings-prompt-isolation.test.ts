@@ -14,19 +14,26 @@ const composePath = resolve(here, "../../packages/briefings/src/compose.ts");
 const source = readFileSync(composePath, "utf8");
 
 describe("briefings prompt-isolation (static)", () => {
-  it("builds the trusted preamble as a pure literal constant", () => {
-    const match = source.match(/const TRUSTED_INSTRUCTIONS = `([\s\S]*?)`;/);
-    expect(match, "TRUSTED_INSTRUCTIONS constant must exist as a template literal").not.toBeNull();
-    const trustedLiteral = match![1];
+  it("builds morning and evening trusted preambles as pure literal constants", () => {
+    const matches = [
+      ...source.matchAll(/const TRUSTED_INSTRUCTIONS_(MORNING|EVENING) = `([\s\S]*?)`;/g)
+    ];
+    expect(
+      matches.map((match) => match[1]).sort(),
+      "morning and evening trusted constants must exist as template literals"
+    ).toEqual(["EVENING", "MORNING"]);
 
     // No external/section value may be referenced inside the trusted preamble. If any of
     // these identifiers appear, external content can leak into the trusted text.
     const forbidden = ["sections", "body", ".lines", ".key", ".label", ".count"];
-    for (const token of forbidden) {
-      expect(
-        trustedLiteral,
-        `trusted preamble must not reference external value "${token}"`
-      ).not.toContain(token);
+    for (const match of matches) {
+      const trustedLiteral = match[2]!;
+      for (const token of forbidden) {
+        expect(
+          trustedLiteral,
+          `trusted preamble must not reference external value "${token}"`
+        ).not.toContain(token);
+      }
     }
   });
 
@@ -59,5 +66,41 @@ describe("briefings prompt-isolation (static)", () => {
     // Every external_source block is rendered through renderExternalBlock, and the lines
     // it emits are produced by format callbacks / the vault join routed through sanitizeExternal.
     expect(source).toMatch(/function renderExternalBlock/);
+  });
+});
+
+describe("evening interview seed prompt-isolation (static)", () => {
+  const liveRoutesPath = resolve(here, "../../packages/chat/src/live-routes.ts");
+  const seedSource = readFileSync(liveRoutesPath, "utf8");
+
+  it("buildEveningInterviewSeed trusted preamble is a pure literal", () => {
+    expect(
+      seedSource,
+      "interview seed must contain a trusted_instructions block"
+    ).toContain("<trusted_instructions>");
+
+    const trustedMatch = seedSource.match(
+      /"<trusted_instructions>\\n" \+([\s\S]*?)"<\/trusted_instructions>/
+    );
+    expect(trustedMatch, "trusted_instructions block must be string-concatenated literal").not.toBeNull();
+
+    const trustedLiteral = trustedMatch![1];
+    const forbidden = ["reviewText", "external", "briefingRun", "reviewContent", "seed"];
+    for (const token of forbidden) {
+      expect(
+        trustedLiteral,
+        `interview trusted preamble must not reference "${token}"`
+      ).not.toContain(token);
+    }
+  });
+
+  it("interview seed delimits review content as external_source", () => {
+    expect(seedSource).toContain('<external_source type="evening_review">');
+    expect(seedSource).toContain("</external_source>");
+  });
+
+  it("sanitizes review text before emitting into external_source", () => {
+    expect(seedSource).toMatch(/function sanitizeExternalData/);
+    expect(seedSource).toMatch(/sanitizeExternalData\(reviewText/);
   });
 });

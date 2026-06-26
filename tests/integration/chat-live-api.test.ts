@@ -395,6 +395,51 @@ describe("Chat live API (turn / clear / switch / stream)", () => {
     }
   });
 
+  it("POST /api/chat/evening-interview seeds hidden context then starts a prep turn", async () => {
+    const calls: string[] = [];
+    const app = Fastify({ logger: false });
+    registerChatLiveRoutes(app, {
+      resolveAccessContext: async () => userAContext(),
+      runtime: {
+        resolveUserName: async () => "User A",
+        resolveEveningInterviewSeed: async (_actorUserId: string, briefingRunId?: string) => ({
+          context:
+            "<trusted_instructions>\nEvening interview seed.\n</trusted_instructions>\n\n" +
+            '<external_source type="evening_review">\nSeed from ' +
+            (briefingRunId ?? "today") +
+            "\n</external_source>",
+          openingPrompt: "Prep me for tomorrow."
+        }),
+        manager: {
+          seedContext: async (_actorUserId: string, _userName: string, seed: string) => {
+            calls.push(`seed:${seed}`);
+          },
+          submitTurn: async (_actorUserId: string, _userName: string, text: string) => {
+            calls.push(`turn:${text}`);
+            return { reply: "started" };
+          }
+        }
+      } as never
+    });
+    await app.ready();
+
+    try {
+      const response = await app.inject({
+        method: "POST",
+        url: "/api/chat/evening-interview",
+        payload: { briefingRunId: "run-1" }
+      });
+
+      expect(response.statusCode).toBe(200);
+      expect(response.json<{ reply: string }>()).toEqual({ reply: "started" });
+      expect(calls[0]).toContain('<external_source type="evening_review">');
+      expect(calls[0]).toContain("run-1");
+      expect(calls[1]).toBe("turn:Prep me for tomorrow.");
+    } finally {
+      await app.close();
+    }
+  });
+
   it("does not write SSE records after the stream response is ended", async () => {
     const app = Fastify({ logger: false });
     let onRecord: ((record: TranscriptRecord) => void) | undefined;

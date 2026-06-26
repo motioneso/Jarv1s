@@ -5,6 +5,7 @@ import type { BriefingDefinition } from "@jarv1s/db";
 import { BRIEFINGS_RUN_QUEUE } from "../../packages/briefings/src/manifest.js";
 import {
   cronExprFor,
+  defaultScheduleMetadataFor,
   reconcileSchedule,
   timezoneFor
 } from "../../packages/briefings/src/schedule.js";
@@ -35,6 +36,13 @@ describe("timezoneFor", () => {
     expect(timezoneFor({})).toBe("UTC");
     expect(timezoneFor({ timezone: "Not/AZone" })).toBe("UTC");
     expect(timezoneFor({ timezone: 42 as unknown as string })).toBe("UTC");
+  });
+});
+
+describe("defaultScheduleMetadataFor", () => {
+  it("defaults morning to 07:00 and evening to 19:00 UTC", () => {
+    expect(defaultScheduleMetadataFor("morning")).toEqual({ targetTime: "07:00", timezone: "UTC" });
+    expect(defaultScheduleMetadataFor("evening")).toEqual({ targetTime: "19:00", timezone: "UTC" });
   });
 });
 
@@ -75,6 +83,7 @@ function definition(overrides: Partial<BriefingDefinition>): BriefingDefinition 
     cadence: "daily",
     schedule_metadata: { targetTime: "06:00", timezone: "America/New_York" },
     enabled: true,
+    briefing_type: "morning",
     selected_tool_names: ["tasks.listVisible"],
     last_run_at: null,
     created_at: new Date(),
@@ -96,7 +105,8 @@ describe("reconcileSchedule", () => {
     expect(call.data).toEqual({
       actorUserId: "owner-1",
       definitionId: "def-1",
-      runKind: "scheduled"
+      runKind: "scheduled",
+      briefingType: "morning"
     });
   });
 

@@ -33,7 +33,7 @@ export const briefingsModuleManifest = {
     required: true
   },
   database: {
-    migrations: ["sql/0015_briefings_module.sql"],
+    migrations: ["sql/0015_briefings_module.sql", "sql/0116_briefing_type.sql"],
     migrationDirectories: ["packages/briefings/sql"],
     ownedTables: ["app.briefing_definitions", "app.briefing_runs"]
   },

@@ -53,6 +53,7 @@ export const ALLOWED_PAYLOAD_KEYS: ReadonlySet<string> = new Set([
   "definitionId",
   "briefingRunId",
   "runKind",
+  "briefingType",
   "threadId",
   "messageId",
   "targetItemId",

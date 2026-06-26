@@ -624,6 +624,13 @@ export async function sendChatTurn(text: string): Promise<{ reply: string }> {
   });
 }
 
+export async function startEveningInterview(input: { readonly briefingRunId?: string } = {}) {
+  return requestJson<{ reply: string }>("/api/chat/evening-interview", {
+    method: "POST",
+    body: input
+  });
+}
+
 /** #456 — stop the in-flight turn. Idempotent (200 even when no turn is in flight). */
 export async function cancelChatTurn(): Promise<void> {
   await requestJson<unknown>("/api/chat/turn/cancel", { method: "POST" });

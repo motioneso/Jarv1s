@@ -1,7 +1,7 @@
 import type { FastifyBaseLogger } from "fastify";
 import type { PgBoss } from "pg-boss";
 
-import type { BriefingDefinition, DataContextDb } from "@jarv1s/db";
+import type { BriefingDefinition, BriefingType, DataContextDb } from "@jarv1s/db";
 import { assertMetadataOnlyPayload } from "@jarv1s/jobs";
 
 import { BRIEFINGS_RUN_QUEUE } from "./manifest.js";
@@ -14,6 +14,10 @@ const NOOP_LOGGER: Pick<FastifyBaseLogger, "error"> = {
 
 const DEFAULT_TARGET_TIME_CRON = "0 7 * * *";
 const DEFAULT_TIMEZONE = "UTC";
+
+export function defaultScheduleMetadataFor(type: BriefingType): Record<string, unknown> {
+  return { targetTime: type === "evening" ? "19:00" : "07:00", timezone: DEFAULT_TIMEZONE };
+}
 
 /**
  * Derive a daily cron expression from `schedule_metadata.targetTime` ("HH:MM").
@@ -55,7 +59,7 @@ export function timezoneFor(scheduleMetadata: Record<string, unknown>): string {
 /**
  * Reconcile pg-boss schedule rows for one definition. Keyed on definition.id so
  * create/update/cadence-change/tz-change all upsert through the same (name, key).
- * The scheduled-run data is metadata-only ({actorUserId, definitionId, runKind});
+ * The scheduled-run data is metadata-only ({actorUserId, definitionId, runKind, briefingType});
  * the worker mints briefingRunId at fire time. Schedule writes happen in the
  * owner's request context only — there is no cross-user read here.
  */
@@ -69,7 +73,8 @@ export async function reconcileSchedule(
     const data = {
       actorUserId: definition.owner_user_id,
       definitionId: definition.id,
-      runKind: "scheduled" as const
+      runKind: "scheduled" as const,
+      briefingType: definition.briefing_type
     };
     // Defense-in-depth: boss.schedule does NOT route through sendJob's metadata guard,
     // so assert the cron payload is metadata-only here too (Hard Invariant). All three

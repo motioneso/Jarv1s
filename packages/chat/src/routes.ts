@@ -52,7 +52,7 @@ import {
 
 import { buildCalendarWriteService } from "./calendar-write-impl.js";
 import { ChatGatewayNotifier } from "./gateway-notifier.js";
-import { registerChatLiveRoutes } from "./live-routes.js";
+import { registerChatLiveRoutes, type EveningInterviewSeed } from "./live-routes.js";
 import { CliChatUnavailableError } from "./live/errors.js";
 import { createChatSessionRuntime, type ChatEngineFactory } from "./live/runtime.js";
 import type {
@@ -102,6 +102,10 @@ export interface ChatRoutesDependencies {
    * the in-process path (the runtime exposes no connection).
    */
   readonly adoptChatRpcConnection?: (connection: RpcConnection) => void;
+  readonly resolveEveningInterviewSeed?: (
+    actorUserId: string,
+    briefingRunId?: string
+  ) => Promise<EveningInterviewSeed>;
 }
 
 /**
@@ -268,7 +272,10 @@ export function registerChatRoutes(
 
   registerChatLiveRoutes(server, {
     resolveAccessContext: dependencies.resolveAccessContext,
-    runtime
+    runtime: {
+      ...runtime,
+      resolveEveningInterviewSeed: dependencies.resolveEveningInterviewSeed
+    }
   });
 
   server.get(

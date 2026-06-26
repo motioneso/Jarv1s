@@ -3,11 +3,13 @@ import { errorResponseSchema, idParamsSchema, jsonObjectSchema } from "./schema-
 export type BriefingCadence = "manual" | "daily" | "weekly";
 export type BriefingRunKind = "manual" | "scheduled";
 export type BriefingRunStatus = "succeeded" | "blocked" | "failed";
+export type BriefingType = "morning" | "evening";
 
 export interface BriefingDefinitionDto {
   readonly id: string;
   readonly ownerUserId: string;
   readonly title: string;
+  readonly briefingType: BriefingType;
   readonly cadence: BriefingCadence;
   readonly scheduleMetadata: Record<string, unknown>;
   readonly enabled: boolean;
@@ -23,6 +25,7 @@ export interface BriefingRunDto {
   readonly ownerUserId: string;
   readonly status: BriefingRunStatus;
   readonly runKind: BriefingRunKind;
+  readonly briefingType: BriefingType;
   readonly summaryText: string;
   readonly sourceMetadata: Record<string, unknown>;
   readonly createdAt: string;
@@ -34,6 +37,7 @@ export interface ListBriefingDefinitionsResponse {
 
 export interface CreateBriefingDefinitionRequest {
   readonly title: string;
+  readonly briefingType?: BriefingType;
   readonly cadence?: BriefingCadence;
   readonly scheduleMetadata?: Record<string, unknown>;
   readonly enabled?: boolean;
@@ -46,6 +50,7 @@ export interface CreateBriefingDefinitionResponse {
 
 export interface UpdateBriefingDefinitionRequest {
   readonly title?: string;
+  readonly briefingType?: BriefingType;
   readonly cadence?: BriefingCadence;
   readonly scheduleMetadata?: Record<string, unknown>;
   readonly enabled?: boolean;
@@ -74,6 +79,7 @@ export interface BriefingRunPayloadDto {
   readonly definitionId: string;
   readonly briefingRunId: string;
   readonly runKind: BriefingRunKind;
+  readonly briefingType: BriefingType;
   readonly idempotencyKey?: string;
 }
 
@@ -92,6 +98,11 @@ export const briefingRunStatusSchema = {
   enum: ["succeeded", "blocked", "failed"]
 } as const;
 
+export const briefingTypeSchema = {
+  type: "string",
+  enum: ["morning", "evening"]
+} as const;
+
 const selectedToolNamesSchema = {
   type: "array",
   minItems: 1,
@@ -105,6 +116,7 @@ const briefingDefinitionSchema = {
     "id",
     "ownerUserId",
     "title",
+    "briefingType",
     "cadence",
     "scheduleMetadata",
     "enabled",
@@ -117,6 +129,7 @@ const briefingDefinitionSchema = {
     id: { type: "string" },
     ownerUserId: { type: "string" },
     title: { type: "string" },
+    briefingType: briefingTypeSchema,
     cadence: briefingCadenceSchema,
     scheduleMetadata: jsonObjectSchema,
     enabled: { type: "boolean" },
@@ -136,6 +149,7 @@ const briefingRunSchema = {
     "ownerUserId",
     "status",
     "runKind",
+    "briefingType",
     "summaryText",
     "sourceMetadata",
     "createdAt"
@@ -146,6 +160,7 @@ const briefingRunSchema = {
     ownerUserId: { type: "string" },
     status: briefingRunStatusSchema,
     runKind: briefingRunKindSchema,
+    briefingType: briefingTypeSchema,
     summaryText: { type: "string" },
     sourceMetadata: jsonObjectSchema,
     createdAt: { type: "string" }
@@ -158,6 +173,7 @@ export const createBriefingDefinitionRequestSchema = {
   required: ["title", "selectedToolNames"],
   properties: {
     title: { type: "string" },
+    briefingType: briefingTypeSchema,
     cadence: briefingCadenceSchema,
     scheduleMetadata: jsonObjectSchema,
     enabled: { type: "boolean" },
@@ -170,6 +186,7 @@ export const updateBriefingDefinitionRequestSchema = {
   additionalProperties: false,
   properties: {
     title: { type: "string" },
+    briefingType: briefingTypeSchema,
     cadence: briefingCadenceSchema,
     scheduleMetadata: jsonObjectSchema,
     enabled: { type: "boolean" },
@@ -188,12 +205,13 @@ export const runBriefingDefinitionRequestSchema = {
 export const briefingRunPayloadSchema = {
   type: "object",
   additionalProperties: false,
-  required: ["actorUserId", "definitionId", "briefingRunId", "runKind"],
+  required: ["actorUserId", "definitionId", "briefingRunId", "runKind", "briefingType"],
   properties: {
     actorUserId: { type: "string" },
     definitionId: { type: "string" },
     briefingRunId: { type: "string" },
     runKind: briefingRunKindSchema,
+    briefingType: briefingTypeSchema,
     idempotencyKey: { type: "string" }
   }
 } as const;

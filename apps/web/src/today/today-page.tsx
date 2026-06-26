@@ -15,6 +15,7 @@ import {
   Image as ImageIcon,
   Info,
   Leaf,
+  MessageSquareText,
   Megaphone,
   Newspaper,
   Pill,
@@ -29,10 +30,15 @@ import {
   createWellnessCheckin,
   getMedicationSchedule,
   listCalendarEvents,
+  listBriefingDefinitions,
+  listBriefingRuns,
   listTaskLists,
   listTasks,
+  startEveningInterview,
   updateTask
 } from "../api/client";
+import { findDefinition } from "../briefings/briefing-settings-model";
+import { useChatControls } from "../shell/chat-controls-context";
 import { MedToday } from "../wellness/wellness-today";
 import { ManageMedsModal } from "../wellness/manage-meds-modal";
 import { CheckinModal, type CheckinFormValue } from "../wellness/checkin-modal";
@@ -56,6 +62,7 @@ export function TodayPage(props: {
 }) {
   const queryClient = useQueryClient();
   const navigate = useNavigate();
+  const chatControls = useChatControls();
   const feed = props.feed ?? createEmptyTodayFeed();
   const wellnessEnabled = props.wellnessEnabled ?? false;
   const [dialog, setDialog] = useState<{ readonly id: string } | null>(null);
@@ -64,6 +71,28 @@ export function TodayPage(props: {
   const eventsQuery = useQuery({
     queryKey: queryKeys.calendar.list,
     queryFn: () => listCalendarEvents()
+  });
+  const briefingDefinitionsQuery = useQuery({
+    queryKey: queryKeys.briefings.definitions,
+    queryFn: listBriefingDefinitions
+  });
+  const eveningDefinition = findDefinition(
+    briefingDefinitionsQuery.data?.definitions ?? [],
+    "evening"
+  );
+  const eveningRunsQuery = useQuery({
+    queryKey: queryKeys.briefings.runs(eveningDefinition?.id ?? null),
+    queryFn: () => listBriefingRuns(eveningDefinition!.id),
+    enabled: eveningDefinition !== undefined
+  });
+  const latestEveningRun =
+    eveningRunsQuery.data?.runs.find((run) => run.briefingType === "evening") ?? null;
+  const eveningInterviewMutation = useMutation({
+    mutationFn: () => startEveningInterview({ briefingRunId: latestEveningRun?.id }),
+    onSuccess: () => {
+      chatControls.openChat();
+      void queryClient.invalidateQueries({ queryKey: queryKeys.chat.threads });
+    }
   });
   const toggleMutation = useMutation({
     mutationFn: (task: TaskDto) =>
@@ -326,6 +355,31 @@ export function TodayPage(props: {
               </div>
             )}
           </div>
+
+          {eveningDefinition?.enabled ? (
+            <div className="inst">
+              <div className="inst__head">
+                <span className="inst__title">Evening review</span>
+                <span className="inst__meta">
+                  {latestEveningRun ? shortDate(latestEveningRun.createdAt) : "Ready at 7 PM"}
+                </span>
+              </div>
+              {latestEveningRun ? (
+                <p className="cmd-empty">{compactSummary(latestEveningRun.summaryText)}</p>
+              ) : (
+                <div className="agenda-clear">No evening review yet.</div>
+              )}
+              <button
+                type="button"
+                className="primary-button"
+                disabled={eveningInterviewMutation.isPending}
+                onClick={() => eveningInterviewMutation.mutate()}
+              >
+                <MessageSquareText size={14} aria-hidden="true" />
+                Prep for tomorrow
+              </button>
+            </div>
+          ) : null}
 
           {wellnessEnabled ? (
             <div className="well">
@@ -738,6 +792,12 @@ function firstName(name: string, email: string): string {
   const source = name.trim() || email.split("@")[0] || "there";
   const base = source.split(/\s+/)[0] ?? source;
   return base.charAt(0).toUpperCase() + base.slice(1);
+}
+
+function compactSummary(value: string): string {
+  const text = value.replace(/\s+/g, " ").trim();
+  if (text.length <= 220) return text;
+  return `${text.slice(0, 217).trimEnd()}...`;
 }
 
 function todayKey(): string {

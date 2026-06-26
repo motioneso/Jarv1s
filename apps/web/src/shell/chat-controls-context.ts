@@ -1,6 +1,8 @@
 import { createContext, useContext } from "react";
 
 export interface ChatControls {
+  /** Open the chat drawer without submitting a new user turn. */
+  readonly openChat: () => void;
   /** Open the chat drawer and send `prompt` as a turn. */
   readonly openChatWith: (prompt: string) => void;
 }

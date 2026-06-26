@@ -264,6 +264,10 @@ describe("MVP foundation scaffold", () => {
         {
           version: "0115",
           name: "0115_list_expired_data_export_jobs_format.sql"
+        },
+        {
+          version: "0116",
+          name: "0116_briefing_type.sql"
         }
       ]);
     } finally {
