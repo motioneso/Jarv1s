@@ -14,14 +14,14 @@ describe("shell theme storage", () => {
     expect(loadShellTheme(storage)).toBe("light");
   });
 
-  it("persists only valid theme values and ignores write failures", () => {
+  it("persists theme ids and ignores write failures", () => {
     const storage = memoryStorage();
 
     storage.setItem(SHELL_THEME_STORAGE_KEY, "solarized");
-    expect(loadShellTheme(storage)).toBe("light");
+    expect(loadShellTheme(storage)).toBe("solarized");
 
-    saveShellTheme("dark", storage);
-    expect(storage.getItem(SHELL_THEME_STORAGE_KEY)).toBe("dark");
+    saveShellTheme("my-blue", storage);
+    expect(storage.getItem(SHELL_THEME_STORAGE_KEY)).toBe("my-blue");
 
     expect(() => saveShellTheme("light", storageThatThrowsOnWrite())).not.toThrow();
   });

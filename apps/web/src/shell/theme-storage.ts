@@ -1,4 +1,4 @@
-export type ShellTheme = "light" | "dark";
+export type ShellTheme = string;
 
 export const SHELL_THEME_STORAGE_KEY = "jarvis.theme:v1";
 
@@ -6,7 +6,7 @@ type ThemeStorage = Pick<Storage, "getItem" | "setItem">;
 
 export function loadShellTheme(storage: ThemeStorage = localStorage): ShellTheme {
   try {
-    return storage.getItem(SHELL_THEME_STORAGE_KEY) === "dark" ? "dark" : "light";
+    return storage.getItem(SHELL_THEME_STORAGE_KEY)?.trim() || "light";
   } catch {
     return "light";
   }

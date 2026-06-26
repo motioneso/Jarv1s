@@ -247,7 +247,7 @@ function initialOf(value: string): string {
     Settings, the dark-mode toggle, and Log out in a popover. */
 function RailUserMenu(props: {
   readonly me: MeResponse;
-  readonly theme: "light" | "dark";
+  readonly theme: string;
   readonly unreadCount: number;
   readonly signOutPending: boolean;
   readonly onToggleTheme: () => void;
