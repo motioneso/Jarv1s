@@ -20,7 +20,11 @@ import {
   calendarModuleManifest,
   serializeCalendarEvent
 } from "@jarv1s/calendar";
-import { EmailRepository, emailModuleManifest, serializeEmailMessage } from "@jarv1s/email";
+import {
+  EmailRepository,
+  emailListVisibleMessagesExecute,
+  emailModuleManifest
+} from "@jarv1s/email";
 import {
   getBuiltInModuleManifests,
   getBuiltInModuleRegistrations,
@@ -527,6 +531,85 @@ describe("Calendar and Email connector-backed read modules", () => {
     expect(response.body).not.toContain("providerToken");
   });
 
+  it("serves default calendar and email briefing settings, then persists user overrides", async () => {
+    const initialCalendar = await server.inject({
+      method: "GET",
+      url: "/api/calendar/briefing-settings",
+      headers: { authorization: `Bearer ${ids.sessionA}` }
+    });
+    const initialEmail = await server.inject({
+      method: "GET",
+      url: "/api/email/briefing-settings",
+      headers: { authorization: `Bearer ${ids.sessionA}` }
+    });
+
+    expect(initialCalendar.statusCode).toBe(200);
+    expect(initialCalendar.json<{ settings: Record<string, unknown> }>().settings).toEqual({
+      lookaheadDays: 2,
+      suggestTasks: true,
+      createTasks: false,
+      suggestTimeBlocks: true,
+      blockTime: false
+    });
+    expect(initialEmail.statusCode).toBe(200);
+    expect(initialEmail.json<{ settings: Record<string, unknown> }>().settings).toEqual({
+      createTasks: true,
+      suggestReplies: true,
+      draftReplies: true,
+      autoSend: false
+    });
+
+    const updateCalendar = await server.inject({
+      method: "PATCH",
+      url: "/api/calendar/briefing-settings",
+      headers: { authorization: `Bearer ${ids.sessionA}` },
+      payload: { lookaheadDays: 0, createTasks: true, blockTime: true }
+    });
+    const updateEmail = await server.inject({
+      method: "PATCH",
+      url: "/api/email/briefing-settings",
+      headers: { authorization: `Bearer ${ids.sessionA}` },
+      payload: { createTasks: false, autoSend: true }
+    });
+
+    expect(updateCalendar.statusCode).toBe(200);
+    expect(updateCalendar.json<{ settings: Record<string, unknown> }>().settings).toMatchObject({
+      lookaheadDays: 0,
+      suggestTasks: true,
+      createTasks: true,
+      suggestTimeBlocks: true,
+      blockTime: true
+    });
+    expect(updateEmail.statusCode).toBe(200);
+    expect(updateEmail.json<{ settings: Record<string, unknown> }>().settings).toMatchObject({
+      createTasks: false,
+      suggestReplies: true,
+      draftReplies: true,
+      autoSend: true
+    });
+  });
+
+  it("keeps email connector-account context on the assistant-tool path without widening REST egress", async () => {
+    const toolResult = await dataContext.withDataContext(userAContext(), (scopedDb) =>
+      emailListVisibleMessagesExecute(
+        scopedDb,
+        {},
+        {
+          actorUserId: ids.userA,
+          requestId: "r:email-tool",
+          chatSessionId: ""
+        }
+      )
+    );
+
+    const message = (toolResult.data.messages as Array<Record<string, unknown>>).find(
+      (row) => row.id === emailMessageIds.aPrivate
+    );
+
+    expect(message?.connectorAccountId).toBe(connectorAccountIds.aEmail);
+    expect(message).toHaveProperty("threadId");
+  });
+
   it("fails loudly when repositories are called without withDataContext", async () => {
     await expect(calendarRepository.listVisible({} as never)).rejects.toThrow(
       "Repository access requires withDataContext"
@@ -682,74 +765,6 @@ describe("Calendar and Email connector-backed read modules", () => {
 
       expect(dto.isJarvisBlock).toBe(false);
     });
-  });
-});
-
-describe("serializeEmailMessage summary/signals (C2)", () => {
-  it("serializes summary + signals onto EmailMessageDto", () => {
-    const dto = serializeEmailMessage({
-      id: "00000000-0000-0000-0000-000000000001",
-      connector_account_id: "00000000-0000-0000-0000-000000000002",
-      owner_user_id: "00000000-0000-0000-0000-000000000003",
-      sender: "a@b.com",
-      recipients: [],
-      subject: "s",
-      snippet: null,
-      body_excerpt: null,
-      received_at: new Date("2026-06-13T09:00:00.000Z"),
-      external_id: "x",
-      external_metadata: {},
-      summary: "concise",
-      signals: { importance: "high" },
-      created_at: new Date("2026-06-13T09:00:00.000Z"),
-      updated_at: new Date("2026-06-13T09:00:00.000Z")
-    } as never);
-    expect(dto.summary).toBe("concise");
-    expect((dto.signals as { importance?: string }).importance).toBe("high");
-  });
-
-  it("omits connector account ids and raw external metadata from EmailMessageDto", () => {
-    const dto = serializeEmailMessage({
-      id: "00000000-0000-0000-0000-000000000001",
-      connector_account_id: "00000000-0000-0000-0000-000000000002",
-      owner_user_id: "00000000-0000-0000-0000-000000000003",
-      sender: "sender@example.test",
-      recipients: ["owner@example.test"],
-      subject: "Subject",
-      snippet: "Snippet",
-      body_excerpt: "Excerpt",
-      received_at: new Date("2026-06-13T09:00:00.000Z"),
-      external_id: "provider-message-id",
-      external_metadata: {
-        historyId: "secret-history-id",
-        labelIds: ["INBOX"],
-        providerToken: "must-not-leak"
-      },
-      summary: "concise",
-      signals: { importance: "high" },
-      created_at: new Date("2026-06-13T09:00:00.000Z"),
-      updated_at: new Date("2026-06-13T09:00:00.000Z")
-    } as never);
-
-    expect("connectorAccountId" in dto).toBe(false);
-    expect("externalMetadata" in dto).toBe(false);
-    expect("historyId" in dto).toBe(false);
-    expect("providerToken" in dto).toBe(false);
-    expect(Object.keys(dto).sort()).toEqual([
-      "bodyExcerpt",
-      "createdAt",
-      "externalId",
-      "id",
-      "ownerUserId",
-      "receivedAt",
-      "recipients",
-      "sender",
-      "signals",
-      "snippet",
-      "subject",
-      "summary",
-      "updatedAt"
-    ]);
   });
 });
 

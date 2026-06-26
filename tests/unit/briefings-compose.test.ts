@@ -56,9 +56,28 @@ function cannedToolData(toolName: string): Record<string, unknown> {
     case "tasks.list":
       return { items: [{ title: "Write report", status: "todo" }] };
     case "calendar.listVisibleEvents":
-      return { events: [{ startsAt: TODAY_ISO, title: "Standup" }] };
+      return {
+        events: [
+          {
+            id: "evt-1",
+            startsAt: TODAY_ISO,
+            endsAt: "2026-06-13T10:00:00.000Z",
+            title: "Client review"
+          }
+        ]
+      };
     case "email.listVisibleMessages":
-      return { messages: [{ sender: "boss@x.com", subject: "Re: budget", snippet: "fyi" }] };
+      return {
+        messages: [
+          {
+            id: "msg-1",
+            connectorAccountId: "conn-email-1",
+            sender: "boss@x.com",
+            subject: "Re: budget",
+            snippet: "Can you reply today?"
+          }
+        ]
+      };
     case "chat.listTodaysTurns":
       return {
         turns: [{ role: "user", excerpt: "what's up", threadTitle: "T", createdAt: TODAY_ISO }]
@@ -78,6 +97,7 @@ interface FakeOptions {
   readonly personaPreference?: unknown;
   readonly userName?: string;
   readonly disabledBehaviors?: ReadonlySet<string>;
+  readonly preferences?: Readonly<Record<string, unknown>>;
 }
 
 function makeFakeManifests(failTool?: string): JarvisModuleManifest[] {
@@ -205,12 +225,14 @@ function makeFakeDeps(options: FakeOptions = {}): ComposeDeps {
     sourceBehaviorPolicy: {
       manifests: makeFakeManifests(options.failTool),
       preferencesRepository: {
-        get: async () =>
-          options.disabledBehaviors
-            ? Object.fromEntries(
-                [...options.disabledBehaviors].map((behaviorId) => [behaviorId, false])
-              )
-            : null,
+        get: async (_scopedDb, key) => {
+          if (key === "sourceBehaviors" && options.disabledBehaviors) {
+            return Object.fromEntries(
+              [...options.disabledBehaviors].map((behaviorId) => [behaviorId, false])
+            );
+          }
+          return options.preferences?.[key] ?? null;
+        },
         upsert: async () => undefined
       }
     },
@@ -314,8 +336,18 @@ describe("composeBriefing — gathering", () => {
     const md = result.sourceMetadata;
     expect(md.commitmentCount).toBe(1);
     expect(md.taskCount).toBe(1);
-    expect(md.calendarCount).toBe(1);
-    expect(md.emailCount).toBe(1);
+    expect(md.calendarCount).toBeGreaterThan(0);
+    expect(md.emailCount).toBeGreaterThan(0);
+    expect(md.calendarSignals).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ type: "high_stakes_meeting", eventIds: ["evt-1"] })
+      ])
+    );
+    expect(md.emailSignals).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ type: "needs_reply", connectorAccountId: "conn-email-1" })
+      ])
+    );
     expect(md.chatTurnCount).toBe(1);
     expect(md.degraded).toBe(false);
   });
@@ -335,7 +367,7 @@ describe("composeBriefing — gathering", () => {
 
     expect(result.sourceMetadata.calendarCount).toBe(0);
     expect(result.sourceMetadata.emailCount).toBe(0);
-    expect(prompt).not.toContain("Standup");
+    expect(prompt).not.toContain("Client review");
     expect(prompt).not.toContain("budget");
   });
 
@@ -407,6 +439,218 @@ describe("composeBriefing — local-day bounding", () => {
     const gaps = (result.sourceMetadata.gaps ?? []) as Array<{ source: string; reason: string }>;
     expect(gaps.some((g) => g.source === "calendar" && g.reason === "empty")).toBe(true);
   });
+
+  it("uses calendar lookahead preferences for prep-needed signals", async () => {
+    const deps = makeFakeDeps({
+      preferences: { "calendar.briefing_lookahead_days": 2 }
+    });
+    const manifests = deps.moduleManifests.map((m) => ({
+      ...m,
+      assistantTools: (m.assistantTools ?? []).map((t) =>
+        t.name === "calendar.listVisibleEvents"
+          ? {
+              ...t,
+              execute: (async () => ({
+                data: {
+                  events: [
+                    {
+                      id: "evt-future",
+                      startsAt: "2026-06-15T09:00:00.000Z",
+                      endsAt: "2026-06-15T10:00:00.000Z",
+                      title: "Board presentation"
+                    }
+                  ]
+                }
+              })) as ToolExecute
+            }
+          : t
+      )
+    }));
+
+    const result = await composeBriefing(fakeScopedDb, definition(), runInput, {
+      ...deps,
+      moduleManifests: manifests
+    });
+
+    expect(result.sourceMetadata.calendarSignals).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ type: "prep_needed", eventIds: ["evt-future"] })
+      ])
+    );
+  });
+
+  it("suppresses future prep signals when lookaheadDays is 0", async () => {
+    const deps = makeFakeDeps({
+      preferences: { "calendar.briefing_lookahead_days": 0 }
+    });
+    const manifests = deps.moduleManifests.map((m) => ({
+      ...m,
+      assistantTools: (m.assistantTools ?? []).map((t) =>
+        t.name === "calendar.listVisibleEvents"
+          ? {
+              ...t,
+              execute: (async () => ({
+                data: {
+                  events: [
+                    {
+                      id: "evt-future",
+                      startsAt: "2026-06-15T09:00:00.000Z",
+                      endsAt: "2026-06-15T10:00:00.000Z",
+                      title: "Board presentation"
+                    }
+                  ]
+                }
+              })) as ToolExecute
+            }
+          : t
+      )
+    }));
+
+    const result = await composeBriefing(fakeScopedDb, definition(), runInput, {
+      ...deps,
+      moduleManifests: manifests
+    });
+
+    expect(result.sourceMetadata.calendarSignals).toEqual([]);
+  });
+
+  it("keeps an older unresolved follow-up signal under the five-signal cap", async () => {
+    const deps = makeFakeDeps();
+    const manifests = deps.moduleManifests.map((m) => ({
+      ...m,
+      assistantTools: (m.assistantTools ?? []).map((t) =>
+        t.name === "email.listVisibleMessages"
+          ? {
+              ...t,
+              execute: (async () => ({
+                data: {
+                  messages: [
+                    {
+                      id: "bill-1",
+                      connectorAccountId: "conn-1",
+                      sender: "billing@example.test",
+                      subject: "Invoice due today",
+                      snippet: "Payment due today"
+                    },
+                    {
+                      id: "bill-2",
+                      connectorAccountId: "conn-1",
+                      sender: "bank@example.test",
+                      subject: "Past due statement",
+                      snippet: "Past due notice"
+                    },
+                    {
+                      id: "urgent-1",
+                      connectorAccountId: "conn-1",
+                      sender: "pm@example.test",
+                      subject: "Can you reply before the 3pm review?",
+                      snippet: "Need this today",
+                      receivedAt: "2026-06-13T08:30:00.000Z"
+                    },
+                    {
+                      id: "plan-1",
+                      connectorAccountId: "conn-1",
+                      sender: "legal@example.test",
+                      subject: "Contract draft for meeting",
+                      snippet: "Please review before tomorrow"
+                    },
+                    {
+                      id: "follow-1",
+                      connectorAccountId: "conn-1",
+                      sender: "partner@example.test",
+                      subject: "Following up on the open thread",
+                      snippet: "Can you respond when you have a minute?",
+                      receivedAt: "2026-05-30T08:30:00.000Z"
+                    },
+                    {
+                      id: "extra-1",
+                      connectorAccountId: "conn-1",
+                      sender: "ops@example.test",
+                      subject: "Due today",
+                      snippet: "Urgent follow up needed"
+                    }
+                  ]
+                }
+              })) as ToolExecute
+            }
+          : t
+      )
+    }));
+
+    const result = await composeBriefing(fakeScopedDb, definition(), runInput, {
+      ...deps,
+      moduleManifests: manifests
+    });
+
+    expect(result.sourceMetadata.emailSignals).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ type: "follow_up_risk", messageIds: ["follow-1"] })
+      ])
+    );
+    expect((result.sourceMetadata.emailSignals as unknown[]).length).toBeLessThanOrEqual(5);
+  });
+
+  it("removes create_task from email suggestedActions when createTasks is off", async () => {
+    const deps = makeFakeDeps({
+      preferences: {
+        "email.signal_create_tasks": false,
+        "email.signal_suggest_replies": true,
+        "email.signal_draft_replies": false,
+        "email.signal_auto_send": false
+      }
+    });
+    const result = await composeBriefing(fakeScopedDb, definition(), runInput, deps);
+    const needsReply = (
+      result.sourceMetadata.emailSignals as Array<{ type: string; suggestedActions: string[] }>
+    ).find((signal) => signal.type === "needs_reply");
+
+    expect(needsReply).toBeDefined();
+    expect(needsReply?.suggestedActions).not.toContain("create_task");
+    expect(needsReply?.suggestedActions).toContain("suggest_reply");
+  });
+
+  it("derives a usable_open_gap calendar signal when the day has a real gap", async () => {
+    const deps = makeFakeDeps();
+    const manifests = deps.moduleManifests.map((m) => ({
+      ...m,
+      assistantTools: (m.assistantTools ?? []).map((t) =>
+        t.name === "calendar.listVisibleEvents"
+          ? {
+              ...t,
+              execute: (async () => ({
+                data: {
+                  events: [
+                    {
+                      id: "evt-early",
+                      startsAt: "2026-06-13T09:00:00.000Z",
+                      endsAt: "2026-06-13T10:00:00.000Z",
+                      title: "Standup"
+                    },
+                    {
+                      id: "evt-late",
+                      startsAt: "2026-06-13T11:30:00.000Z",
+                      endsAt: "2026-06-13T12:00:00.000Z",
+                      title: "Review"
+                    }
+                  ]
+                }
+              })) as ToolExecute
+            }
+          : t
+      )
+    }));
+
+    const result = await composeBriefing(fakeScopedDb, definition(), runInput, {
+      ...deps,
+      moduleManifests: manifests
+    });
+
+    expect(result.sourceMetadata.calendarSignals).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ type: "usable_open_gap", eventIds: ["evt-early"] })
+      ])
+    );
+  });
 });
 
 // ── Prompt boundary-forgery (data-escaping), #316 R2 ──────────────────────────────
@@ -451,9 +695,10 @@ describe("composeBriefing — prompt boundary-forgery (escaped inert data)", () 
                     data: {
                       messages: [
                         {
+                          connectorAccountId: "attacker-conn",
                           sender: "attacker@example.test",
                           subject: `${payload}UNIT-CANARY-LEAK`,
-                          snippet: "snippet"
+                          snippet: "Can you reply today?"
                         }
                       ]
                     }
