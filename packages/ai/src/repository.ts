@@ -17,15 +17,18 @@ import {
   type DataContextDb,
   type JarvisDatabase
 } from "@jarv1s/db";
-import type { AiCapabilityRouteReason, AiModelCapability } from "@jarv1s/shared";
+import type {
+  AiCapabilityRouteReason,
+  AiModelCapability,
+  AiProviderExecutionMode
+} from "@jarv1s/shared";
 
 import type { EncryptedAiSecret } from "./crypto.js";
 import { parseCapabilityRouteMap } from "./capability-route-map.js";
 import {
   CHAT_MODEL_OVERRIDE_PREFERENCE_KEY,
   CHAT_MODEL_OVERRIDE_SETTING_KEY,
-  resolveChatModelOverride,
-  type ChatModelOverrideCandidate
+  resolveChatModelOverride
 } from "./chat-model-override.js";
 
 function jsonb(value: unknown) {
@@ -40,6 +43,7 @@ export interface AiProviderConfigSafeRow {
   readonly base_url: string | null;
   readonly status: AiProviderStatus;
   readonly auth_method: AiAuthMethod;
+  readonly execution_mode: AiProviderExecutionMode;
   readonly has_credential: boolean;
   readonly revoked_at: Date | null;
   readonly created_at: Date;
@@ -60,6 +64,7 @@ export interface AiConfiguredModelSafeRow {
   readonly provider_kind: AiProviderKind;
   readonly provider_display_name: string;
   readonly provider_status: AiProviderStatus;
+  readonly provider_execution_mode: AiProviderExecutionMode;
   readonly provider_model_id: string;
   readonly display_name: string;
   readonly capabilities: string[];
@@ -83,6 +88,7 @@ export interface CreateAiProviderInput {
   readonly baseUrl?: string | null;
   readonly status?: Exclude<AiProviderStatus, "revoked">;
   readonly authMethod?: AiAuthMethod;
+  readonly executionMode?: AiProviderExecutionMode;
   readonly encryptedCredential: EncryptedAiSecret;
 }
 
@@ -92,6 +98,7 @@ export interface UpdateAiProviderInput {
   readonly baseUrl?: string | null;
   readonly status?: Exclude<AiProviderStatus, "revoked">;
   readonly authMethod?: AiAuthMethod;
+  readonly executionMode?: AiProviderExecutionMode;
   readonly encryptedCredential?: EncryptedAiSecret;
 }
 
@@ -189,15 +196,7 @@ export class AiRepository {
     return row?.has_it ?? false;
   }
 
-  /**
-   * #367: the newest ACTIVE provider config of a given kind, or undefined. Used by the login
-   * auto-register seam to REUSE an existing usable config rather than duplicate one. Must match
-   * ACTIVE only (not merely non-revoked): `selectChatModelForUser` requires `providers.status =
-   * 'active'`, so reusing a `disabled`/`error` config would insert a model that can never be
-   * resolved (permanent dead chat, B1). A disabled/error config falls through so the caller creates
-   * a fresh ACTIVE config instead. `safeProviderQuery` orders by created_at desc, so
-   * `executeTakeFirst` returns the newest active match.
-   */
+  /** #367: newest ACTIVE provider of this kind; disabled/error rows are intentionally not reused. */
   async findReusableProviderByKind(
     scopedDb: DataContextDb,
     providerKind: AiProviderKind
@@ -259,6 +258,7 @@ export class AiRepository {
         base_url: input.baseUrl ?? null,
         status: input.status ?? "active",
         auth_method: input.authMethod ?? "api_key",
+        execution_mode: input.executionMode ?? "interactive",
         encrypted_credential: input.encryptedCredential,
         revoked_at: null,
         created_at: now,
@@ -296,6 +296,9 @@ export class AiRepository {
     }
     if (input.authMethod !== undefined) {
       updates.auth_method = input.authMethod;
+    }
+    if (input.executionMode !== undefined) {
+      updates.execution_mode = input.executionMode;
     }
     if (input.encryptedCredential !== undefined) {
       updates.encrypted_credential = input.encryptedCredential;
@@ -797,6 +800,7 @@ export class AiRepository {
         "base_url",
         "status",
         "auth_method",
+        "execution_mode",
         sql<boolean>`encrypted_credential IS NOT NULL`.as("has_credential"),
         "revoked_at",
         "created_at",
@@ -915,6 +919,7 @@ export class AiRepository {
         "base_url",
         "status",
         "auth_method",
+        "execution_mode",
         sql<boolean>`encrypted_credential IS NOT NULL`.as("has_credential"),
         "revoked_at",
         "created_at",
@@ -939,6 +944,7 @@ export class AiRepository {
         "providers.provider_kind as provider_kind",
         "providers.display_name as provider_display_name",
         "providers.status as provider_status",
+        "providers.execution_mode as provider_execution_mode",
         "models.provider_model_id as provider_model_id",
         "models.display_name as display_name",
         "models.capabilities as capabilities",
@@ -980,9 +986,7 @@ export class AiRepository {
   }
 }
 
-function toOverrideCandidate(
-  model: AiConfiguredModelSafeRow
-): AiConfiguredModelSafeRow & ChatModelOverrideCandidate {
+function toOverrideCandidate(model: AiConfiguredModelSafeRow) {
   return {
     ...model,
     providerStatus: model.provider_status,

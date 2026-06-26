@@ -46,6 +46,7 @@ import {
   type ProviderKind,
   type TmuxIo
 } from "@jarv1s/ai";
+import type { AiProviderExecutionMode } from "@jarv1s/shared";
 
 import { CliChatUnavailableError } from "./errors.js";
 import type { ChatRecordKind, CliChatEngine, EngineLaunchOpts, TranscriptRecord } from "./types.js";
@@ -106,6 +107,7 @@ export interface CliChatEngineOpts {
   readonly drainMs?: number;
   /** #342: poll interval (ms) used while draining the replay. Default 250ms. */
   readonly drainPollMs?: number;
+  readonly executionMode?: AiProviderExecutionMode;
 }
 
 /** Result of a bounded server-side replay-drain (§4.1.2). */
@@ -166,6 +168,7 @@ export class CliChatEngineImpl implements CliChatEngine {
   private readonly ownsDrain: boolean;
   private readonly drainMs: number;
   private readonly drainPollMs: number;
+  private readonly executionMode: AiProviderExecutionMode;
 
   constructor(
     public readonly provider: ProviderKind,
@@ -180,6 +183,7 @@ export class CliChatEngineImpl implements CliChatEngine {
     this.ownsDrain = opts.ownsDrain ?? false;
     this.drainMs = opts.drainMs ?? 25_000;
     this.drainPollMs = opts.drainPollMs ?? 250;
+    this.executionMode = opts.executionMode ?? "interactive";
   }
 
   // ─── lifecycle ─────────────────────────────────────────────────────────────
@@ -494,7 +498,8 @@ export class CliChatEngineImpl implements CliChatEngine {
   private buildCodexCommand(opts: EngineLaunchOpts): string {
     const tokenEnvVar = "JARVIS_MCP_TOKEN";
     const sourceEnv = this.codexTokenEnvPath ? `. ${shellQuote(this.codexTokenEnvPath)} &&` : "";
-    const parts = [`cd ${shellQuote(opts.neutralDir)} &&`, sourceEnv, "codex"];
+    const codexCommand = this.executionMode === "non_interactive" ? "codex exec --json" : "codex";
+    const parts = [`cd ${shellQuote(opts.neutralDir)} &&`, sourceEnv, codexCommand];
 
     if (opts.mcpToken && opts.mcpServerUrl) {
       parts.push(

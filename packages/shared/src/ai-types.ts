@@ -1,6 +1,7 @@
 export type AiProviderKind = "openai-compatible" | "anthropic" | "google" | "ollama" | "custom";
 export type AiProviderStatus = "active" | "error" | "disabled" | "revoked";
 export type AiAuthMethod = "cli" | "api_key";
+export type AiProviderExecutionMode = "interactive" | "non_interactive";
 export type AiModelStatus = "active" | "disabled";
 export type AiModelTier = "reasoning" | "interactive" | "economy";
 export type AiModelCapability = "chat" | "tool-use" | "json" | "vision" | "summarization";
@@ -19,6 +20,7 @@ export interface AiProviderConfigDto {
   readonly baseUrl: string | null;
   readonly status: AiProviderStatus;
   readonly authMethod: AiAuthMethod;
+  readonly executionMode: AiProviderExecutionMode;
   readonly hasCredential: boolean;
   readonly cliAvailable: boolean;
   readonly revokedAt: string | null;
@@ -137,6 +139,7 @@ export interface CreateAiProviderConfigRequest {
   readonly baseUrl?: string | null;
   readonly status?: Exclude<AiProviderStatus, "revoked">;
   readonly authMethod?: AiAuthMethod;
+  readonly executionMode?: AiProviderExecutionMode;
   readonly credentialPayload?: Record<string, unknown>;
 }
 
@@ -150,6 +153,7 @@ export interface UpdateAiProviderConfigRequest {
   readonly baseUrl?: string | null;
   readonly status?: Exclude<AiProviderStatus, "revoked">;
   readonly authMethod?: AiAuthMethod;
+  readonly executionMode?: AiProviderExecutionMode;
   readonly credentialPayload?: Record<string, unknown>;
 }
 

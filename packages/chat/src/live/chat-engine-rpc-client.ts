@@ -27,6 +27,7 @@ import { resolve as resolvePath, sep } from "node:path";
 
 import type { ProviderKind } from "@jarv1s/ai";
 import { parsePositiveIntEnv } from "@jarv1s/shared";
+import type { AiProviderExecutionMode } from "@jarv1s/shared";
 
 import { CliChatUnavailableError } from "./errors.js";
 import type { RpcInstallProviderParams, RpcInstallProviderResult } from "./install-contract.js";
@@ -761,7 +762,8 @@ export class ChatEngineRpcClient implements CliChatEngine {
   constructor(
     public readonly provider: ProviderKind,
     private readonly sessionKey: string,
-    private readonly conn: RpcConnection
+    private readonly conn: RpcConnection,
+    private readonly executionMode: AiProviderExecutionMode = "interactive"
   ) {}
 
   /**
@@ -772,6 +774,7 @@ export class ChatEngineRpcClient implements CliChatEngine {
   async launch(opts: EngineLaunchOpts): Promise<{ offset: number }> {
     const params: RpcLaunchParams = {
       provider: this.provider,
+      executionMode: this.executionMode,
       personaText: opts.personaText ?? "",
       ...(opts.mcpToken !== undefined ? { mcpToken: opts.mcpToken } : {}),
       ...(opts.mcpServerUrl !== undefined ? { mcpServerUrl: opts.mcpServerUrl } : {}),

@@ -15,6 +15,8 @@
  * malformed frame and the receiver closes the connection (§3.7).
  */
 
+import type { AiProviderExecutionMode } from "@jarv1s/shared";
+
 import type { TranscriptRecord, ChatRecordKind } from "./types.js";
 
 // Re-export the verbatim transcript shapes so Lanes B/D can import everything from one module
@@ -216,6 +218,7 @@ export type RpcFrame = RpcRequest | RpcOk | RpcErr;
 export interface RpcLaunchParams {
   /** Selects the CLI + transcript parser. Mirrors CliChatEngine.provider. */
   readonly provider: RpcProviderKind;
+  readonly executionMode?: AiProviderExecutionMode;
   /**
    * Rendered persona CONTENT (NOT a path). cli-runner writes it to the persona file under the
    * server-derived neutralDir, then passes that path to the CLI (e.g. --append-system-prompt-file).

@@ -60,6 +60,11 @@ export const aiAuthMethodSchema = {
   enum: ["cli", "api_key"]
 } as const;
 
+export const aiProviderExecutionModeSchema = {
+  type: "string",
+  enum: ["interactive", "non_interactive"]
+} as const;
+
 const aiProviderConfigSchema = {
   type: "object",
   additionalProperties: false,
@@ -70,6 +75,7 @@ const aiProviderConfigSchema = {
     "baseUrl",
     "status",
     "authMethod",
+    "executionMode",
     "hasCredential",
     "cliAvailable",
     "revokedAt",
@@ -83,6 +89,7 @@ const aiProviderConfigSchema = {
     baseUrl: { type: ["string", "null"] },
     status: aiProviderStatusSchema,
     authMethod: aiAuthMethodSchema,
+    executionMode: aiProviderExecutionModeSchema,
     hasCredential: { type: "boolean" },
     cliAvailable: { type: "boolean" },
     revokedAt: { type: ["string", "null"] },
@@ -328,6 +335,7 @@ export const createAiProviderConfigRequestSchema = {
     baseUrl: { type: ["string", "null"] },
     status: writableAiProviderStatusSchema,
     authMethod: aiAuthMethodSchema,
+    executionMode: aiProviderExecutionModeSchema,
     credentialPayload: jsonObjectSchema
   }
 } as const;
@@ -341,6 +349,7 @@ export const updateAiProviderConfigRequestSchema = {
     baseUrl: { type: ["string", "null"] },
     status: writableAiProviderStatusSchema,
     authMethod: aiAuthMethodSchema,
+    executionMode: aiProviderExecutionModeSchema,
     credentialPayload: jsonObjectSchema
   }
 } as const;

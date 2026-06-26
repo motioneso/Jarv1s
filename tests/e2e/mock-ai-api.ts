@@ -346,6 +346,7 @@ export function createMockAiProvider(
     baseUrl: null,
     status: "active",
     authMethod: "api_key",
+    executionMode: "interactive",
     hasCredential: true,
     cliAvailable: false,
     revokedAt: null,

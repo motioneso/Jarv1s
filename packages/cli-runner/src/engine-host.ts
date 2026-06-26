@@ -189,6 +189,7 @@ export class CliChatEngineHost {
       mux: this.deps.mux,
       homeBase: this.deps.homeBase,
       ownsDrain: true,
+      executionMode: params.executionMode,
       // #363: the 0600 token file the claude launch reads CLAUDE_CODE_OAUTH_TOKEN from at
       // runtime (claude-scoped; only used by buildClaudeCommand, only if the file exists).
       credentialFile: this.deps.homeBase
