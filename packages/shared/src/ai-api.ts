@@ -136,6 +136,8 @@ const aiCapabilityRouteSchema = {
     reason: {
       type: "string",
       enum: [
+        "admin-pin",
+        "admin-pin-unavailable-fallback",
         "manual-route",
         "manual-route-unavailable-fallback",
         "matched-active-model",
@@ -215,6 +217,15 @@ const aiAssistantToolSchema = {
     risk: { type: "string", enum: ["read", "write", "destructive"] },
     inputSchema: nullableJsonObjectSchema,
     outputSchema: nullableJsonObjectSchema
+  }
+} as const;
+
+const aiAdminUserParamsSchema = {
+  type: "object",
+  additionalProperties: false,
+  required: ["userId"],
+  properties: {
+    userId: { type: "string", format: "uuid" }
   }
 } as const;
 
@@ -555,6 +566,43 @@ export const putAdminChatModelOverrideRequestSchema = {
   }
 } as const;
 
+export const putAiAdminUserPinRequestSchema = {
+  type: "object",
+  additionalProperties: false,
+  required: ["modelId"],
+  properties: {
+    modelId: { type: ["string", "null"] }
+  }
+} as const;
+
+const aiAdminUserPinSchema = {
+  type: "object",
+  additionalProperties: false,
+  required: [
+    "pinnedModelId",
+    "pinnedModel",
+    "effectiveChatModel",
+    "effectiveChatReason",
+    "availableModels"
+  ],
+  properties: {
+    pinnedModelId: { type: ["string", "null"] },
+    pinnedModel: { anyOf: [aiConfiguredModelSchema, { type: "null" }] },
+    effectiveChatModel: { anyOf: [aiConfiguredModelSchema, { type: "null" }] },
+    effectiveChatReason: aiCapabilityRouteSchema.properties.reason,
+    availableModels: { type: "array", items: aiConfiguredModelSchema }
+  }
+} as const;
+
+export const getAiAdminUserPinResponseSchema = {
+  type: "object",
+  additionalProperties: false,
+  required: ["pin"],
+  properties: {
+    pin: aiAdminUserPinSchema
+  }
+} as const;
+
 export const listAiAssistantToolsResponseSchema = {
   type: "object",
   additionalProperties: false,
@@ -743,6 +791,28 @@ export const putAdminChatModelOverrideSettingsRouteSchema = {
     400: errorResponseSchema,
     401: errorResponseSchema,
     403: errorResponseSchema
+  }
+} as const;
+
+export const getAiAdminUserPinRouteSchema = {
+  params: aiAdminUserParamsSchema,
+  response: {
+    200: getAiAdminUserPinResponseSchema,
+    401: errorResponseSchema,
+    403: errorResponseSchema,
+    404: errorResponseSchema
+  }
+} as const;
+
+export const putAiAdminUserPinRouteSchema = {
+  params: aiAdminUserParamsSchema,
+  body: putAiAdminUserPinRequestSchema,
+  response: {
+    200: getAiAdminUserPinResponseSchema,
+    400: errorResponseSchema,
+    401: errorResponseSchema,
+    403: errorResponseSchema,
+    404: errorResponseSchema
   }
 } as const;
 

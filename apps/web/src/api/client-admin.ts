@@ -2,11 +2,13 @@ import type {
   AdminRevokeSessionsResponse,
   ChatMultiplexerChoice,
   ChatMultiplexerSettingsDto,
+  GetAiAdminUserPinResponse,
   HostDiagnosticsDto,
   ListAdminAuditEventsResponse,
   ListAdminConnectorAccountsResponse,
   ListAuthProviderStatusesResponse,
   ListUsersResponse,
+  PutAiAdminUserPinRequest,
   RegistrationSettingsDto,
   UserDto
 } from "@jarv1s/shared";
@@ -76,6 +78,25 @@ export async function revokeAdminUserSessions(id: string): Promise<AdminRevokeSe
   return requestJson<AdminRevokeSessionsResponse>(
     `/api/admin/users/${encodeURIComponent(id)}/revoke-sessions`,
     { method: "POST" }
+  );
+}
+
+export async function getAdminUserAiPin(userId: string): Promise<GetAiAdminUserPinResponse> {
+  return requestJson<GetAiAdminUserPinResponse>(
+    `/api/admin/users/${encodeURIComponent(userId)}/ai-pin`
+  );
+}
+
+export async function putAdminUserAiPin(
+  userId: string,
+  input: PutAiAdminUserPinRequest
+): Promise<GetAiAdminUserPinResponse> {
+  return requestJson<GetAiAdminUserPinResponse>(
+    `/api/admin/users/${encodeURIComponent(userId)}/ai-pin`,
+    {
+      method: "PUT",
+      body: input
+    }
   );
 }
 

@@ -66,6 +66,7 @@ import {
 } from "./gateway/output-validation.js";
 import { ToolInputValidationError, validateToolInput } from "./gateway/input-validation.js";
 import { cliAvailable, type ProviderKind as CliProviderKind } from "./cli-availability.js";
+import { registerAiAdminPinRoutes } from "./admin-ai-pin-routes.js";
 import { registerAiCapabilityRouteRoutes } from "./capability-route-routes.js";
 import { registerCapabilityTierPreferenceRoutes } from "./capability-tier-preference-routes.js";
 import { registerProviderVisibilityRoutes } from "./provider-visibility-routes.js";
@@ -299,6 +300,7 @@ export function registerAiRoutes(
 
   registerAiCapabilityRouteRoutes(server, dependencies, repository);
   registerCapabilityTierPreferenceRoutes(server, dependencies, repository);
+  registerAiAdminPinRoutes(server, dependencies, repository);
 
   server.get(
     "/api/ai/chat-model-override",
@@ -329,6 +331,13 @@ export function registerAiRoutes(
         const settings = await dependencies.dataContext.withDataContext(
           accessContext,
           async (scopedDb) => {
+            if (await repository.getAdminPinnedModelId(scopedDb)) {
+              throw new HttpError(
+                409,
+                "An admin has pinned your AI provider; contact them to change it"
+              );
+            }
+
             if (body.modelId !== null) {
               const current = await repository.getChatModelOverrideSettings(scopedDb);
               const allowed = current.selectableOverrideModels.some(

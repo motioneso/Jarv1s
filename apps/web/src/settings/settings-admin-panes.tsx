@@ -35,6 +35,7 @@ import {
   setAdminModuleDisabled,
   syncGoogleConnector
 } from "../api/client";
+import { getAdminUserAiPin, putAdminUserAiPin } from "../api/client-admin";
 import { queryKeys } from "../api/query-keys";
 import {
   adminUserActions,
@@ -98,6 +99,7 @@ function PersonRow(props: {
 }) {
   const { user } = props;
   const [menu, setMenu] = useState(false);
+  const [aiOpen, setAiOpen] = useState(false);
   const off = user.status === "deactivated";
   const act = (action: AdminUserAction) => {
     setMenu(false);
@@ -165,6 +167,17 @@ function PersonRow(props: {
                       {off ? "Reactivate" : "Deactivate"}
                     </button>
                   ) : null}
+                  <button
+                    className="ppl__menuitem"
+                    role="menuitem"
+                    onClick={() => {
+                      setMenu(false);
+                      setAiOpen((open) => !open);
+                    }}
+                  >
+                    <ServerCog size={15} />
+                    AI provider
+                  </button>
                   {canRevokeSessions || canRemove ? <div className="ppl__menusep" /> : null}
                   {canRevokeSessions ? (
                     <button
@@ -192,6 +205,65 @@ function PersonRow(props: {
           </div>
         )}
       </div>
+      {aiOpen ? <AiPinRow user={user} /> : null}
+    </div>
+  );
+}
+
+function AiPinRow(props: { readonly user: UserDto }) {
+  const queryClient = useQueryClient();
+  const { toast } = useFeedback();
+  const queryKey = queryKeys.ai.adminUserAiPin(props.user.id);
+  const pinQuery = useQuery({
+    queryKey,
+    queryFn: () => getAdminUserAiPin(props.user.id),
+    retry: false
+  });
+  const mutation = useMutation({
+    mutationFn: (modelId: string | null) => putAdminUserAiPin(props.user.id, { modelId }),
+    onSuccess: (data) => {
+      queryClient.setQueryData(queryKey, data);
+      toast(data.pin.pinnedModelId ? "AI provider pinned" : "AI provider pin cleared", {
+        icon: <ServerCog size={17} />
+      });
+    },
+    onError: (error) => toast(readError(error), { tone: "drift" })
+  });
+  const pin = pinQuery.data?.pin;
+  const models = pin?.availableModels ?? [];
+  const value = pin?.pinnedModelId ?? "";
+  const busy = pinQuery.isLoading || mutation.isPending;
+  const disabled = busy || models.length === 0;
+  const effective = pin?.effectiveChatModel
+    ? `${pin.effectiveChatModel.displayName} (${pin.effectiveChatReason})`
+    : "No active model";
+
+  return (
+    <div className="ppl__ai">
+      <Row
+        name="AI provider"
+        desc={
+          models.length
+            ? `Effective chat model: ${effective}. Pinning forces this model for all AI features.`
+            : "No active models configured by this user."
+        }
+        control={
+          <select
+            className="jds-input"
+            aria-label={`Pinned AI provider for ${props.user.name || props.user.email}`}
+            value={value}
+            disabled={disabled}
+            onChange={(event) => mutation.mutate(event.currentTarget.value || null)}
+          >
+            <option value="">Clear pin</option>
+            {models.map((model) => (
+              <option key={model.id} value={model.id}>
+                {model.displayName}
+              </option>
+            ))}
+          </select>
+        }
+      />
     </div>
   );
 }

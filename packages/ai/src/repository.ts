@@ -20,6 +20,7 @@ import {
 import type { AiCapabilityRouteReason, AiModelCapability } from "@jarv1s/shared";
 
 import type { EncryptedAiSecret } from "./crypto.js";
+import { parseCapabilityRouteMap } from "./capability-route-map.js";
 import {
   CHAT_MODEL_OVERRIDE_PREFERENCE_KEY,
   CHAT_MODEL_OVERRIDE_SETTING_KEY,
@@ -140,6 +141,7 @@ export interface ChatModelOverrideSettings {
 }
 
 export const AI_CAPABILITY_ROUTES_SETTING_KEY = "ai.capability_routes";
+export const AI_ADMIN_PINNED_MODEL_PREFERENCE_KEY = "ai.admin_pinned_model_id";
 
 export type AiCapabilityRouteMap = Partial<Record<AiModelCapability, string | null>>;
 
@@ -523,6 +525,20 @@ export class AiRepository {
   ): Promise<AiCapabilityRouteResolution> {
     assertDataContextDb(scopedDb);
 
+    const adminPinnedModelId = await this.getAdminPinnedModelId(scopedDb);
+    if (adminPinnedModelId) {
+      const adminPinnedModel = await this.safeModelQuery(scopedDb)
+        .where("models.id", "=", adminPinnedModelId)
+        .where("models.status", "=", "active")
+        .where("providers.status", "=", "active")
+        .where(sql<boolean>`${capability} = any(${sql.ref("models.capabilities")})`)
+        .executeTakeFirst();
+
+      if (adminPinnedModel) {
+        return { model: adminPinnedModel, reason: "admin-pin" };
+      }
+    }
+
     const routes = await this.listCapabilityRoutes(scopedDb);
     const manualModelId = routes[capability] ?? null;
 
@@ -535,18 +551,23 @@ export class AiRepository {
         .executeTakeFirst();
 
       if (manualModel) {
-        return { model: manualModel, reason: "manual-route" };
+        return {
+          model: manualModel,
+          reason: adminPinnedModelId ? "admin-pin-unavailable-fallback" : "manual-route"
+        };
       }
     }
 
     const automatic = await this.selectAutomaticModelForCapability(scopedDb, capability, tier);
     return {
       model: automatic ?? null,
-      reason: manualModelId
-        ? "manual-route-unavailable-fallback"
-        : automatic
-          ? "matched-active-model"
-          : "no-active-model"
+      reason: adminPinnedModelId
+        ? "admin-pin-unavailable-fallback"
+        : manualModelId
+          ? "manual-route-unavailable-fallback"
+          : automatic
+            ? "matched-active-model"
+            : "no-active-model"
     };
   }
 
@@ -597,12 +618,27 @@ export class AiRepository {
   async getChatModelOverrideSettings(scopedDb: DataContextDb): Promise<ChatModelOverrideSettings> {
     assertDataContextDb(scopedDb);
 
-    const [defaultModel, models, overrideEnabled, requestedModelId] = await Promise.all([
-      this.selectModelForCapability(scopedDb, "chat"),
-      this.listModels(scopedDb),
-      this.getChatModelOverrideEnabled(scopedDb),
-      this.getChatModelOverridePreference(scopedDb)
-    ]);
+    const [defaultModel, models, overrideEnabled, requestedModelId, adminPinnedModelId] =
+      await Promise.all([
+        this.selectModelForCapability(scopedDb, "chat"),
+        this.listModels(scopedDb),
+        this.getChatModelOverrideEnabled(scopedDb),
+        this.getChatModelOverridePreference(scopedDb),
+        this.getAdminPinnedModelId(scopedDb)
+      ]);
+
+    if (adminPinnedModelId) {
+      return {
+        overrideEnabled,
+        currentOverrideModelId: requestedModelId,
+        effectiveOverrideModelId: null,
+        defaultModel: defaultModel ?? null,
+        selectedModel: defaultModel ?? null,
+        allowedModels: models,
+        selectableOverrideModels: []
+      };
+    }
+
     const resolved = resolveChatModelOverride({
       defaultModel: defaultModel ? toOverrideCandidate(defaultModel) : null,
       requestedModelId,
@@ -678,6 +714,67 @@ export class AiRepository {
     }
 
     return this.getChatModelOverrideSettings(scopedDb);
+  }
+
+  async getAdminPinnedModelId(scopedDb: DataContextDb): Promise<string | null> {
+    assertDataContextDb(scopedDb);
+    const row = await scopedDb.db
+      .selectFrom("app.preferences")
+      .select("value_json")
+      .where("key", "=", AI_ADMIN_PINNED_MODEL_PREFERENCE_KEY)
+      .executeTakeFirst();
+    return typeof row?.value_json === "string" ? row.value_json : null;
+  }
+
+  async getAdminPinnedModel(scopedDb: DataContextDb): Promise<AiConfiguredModelSafeRow | null> {
+    assertDataContextDb(scopedDb);
+    const modelId = await this.getAdminPinnedModelId(scopedDb);
+    if (!modelId) return null;
+    return (
+      (await this.safeModelQuery(scopedDb).where("models.id", "=", modelId).executeTakeFirst()) ??
+      null
+    );
+  }
+
+  async setAdminPinnedModel(
+    scopedDb: DataContextDb,
+    modelId: string | null
+  ): Promise<AiConfiguredModelSafeRow | null> {
+    assertDataContextDb(scopedDb);
+
+    if (modelId === null) {
+      await scopedDb.db
+        .deleteFrom("app.preferences")
+        .where("key", "=", AI_ADMIN_PINNED_MODEL_PREFERENCE_KEY)
+        .execute();
+      return null;
+    }
+
+    const model = await this.safeModelQuery(scopedDb)
+      .where("models.id", "=", modelId)
+      .where("models.status", "=", "active")
+      .where("providers.status", "=", "active")
+      .executeTakeFirst();
+
+    if (!model) return null;
+
+    await scopedDb.db
+      .insertInto("app.preferences")
+      .values({
+        owner_user_id: sql<string>`app.current_actor_user_id()`,
+        key: AI_ADMIN_PINNED_MODEL_PREFERENCE_KEY,
+        value_json: jsonb(modelId),
+        updated_at: new Date()
+      })
+      .onConflict((oc) =>
+        oc.columns(["owner_user_id", "key"]).doUpdateSet({
+          value_json: jsonb(modelId),
+          updated_at: new Date()
+        })
+      )
+      .execute();
+
+    return model;
   }
 
   /**
@@ -891,26 +988,4 @@ function toOverrideCandidate(
     providerStatus: model.provider_status,
     allowUserOverride: model.allow_user_override
   };
-}
-
-const AI_MODEL_CAPABILITIES = new Set<AiModelCapability>([
-  "chat",
-  "tool-use",
-  "json",
-  "vision",
-  "summarization"
-]);
-
-function parseCapabilityRouteMap(value: unknown): AiCapabilityRouteMap {
-  if (!value || typeof value !== "object" || Array.isArray(value)) return {};
-
-  const routes: AiCapabilityRouteMap = {};
-  for (const [capability, modelId] of Object.entries(value)) {
-    if (!AI_MODEL_CAPABILITIES.has(capability as AiModelCapability)) continue;
-    if (modelId === null || typeof modelId === "string") {
-      routes[capability as AiModelCapability] = modelId;
-    }
-  }
-
-  return routes;
 }
