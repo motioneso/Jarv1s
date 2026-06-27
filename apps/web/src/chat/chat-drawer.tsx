@@ -19,16 +19,18 @@ import { type KeyboardEvent, useCallback, useEffect, useState } from "react";
 import {
   cancelChatTurn,
   clearChat,
-  createUsefulnessFeedback,
   getOnboardingStatus,
   listCalendarEvents,
   listChatThreadMessages,
   listChatThreads,
   listTasks,
-  sendChatTurn,
-  undoUsefulnessFeedback
+  sendChatTurn
 } from "../api/client";
 import { queryKeys } from "../api/query-keys";
+import {
+  createUsefulnessFeedback,
+  undoUsefulnessFeedback
+} from "../api/usefulness-feedback-client";
 import type { ChatMessageDto, UsefulnessFeedbackDto, UsefulnessFeedbackKind } from "@jarv1s/shared";
 import { ActionRequestCard } from "./action-request-card";
 import { ConnectProviderEmpty } from "./connect-provider-empty";
