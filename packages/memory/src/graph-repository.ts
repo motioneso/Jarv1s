@@ -25,7 +25,7 @@ import type {
   NewMemoryFact
 } from "./graph-types.js";
 
-interface EntityRow {
+export interface EntityRow {
   readonly id: string;
   readonly owner_user_id: string;
   readonly kind: MemoryEntityKind;
@@ -38,7 +38,7 @@ interface EntityRow {
   readonly updated_at: Date;
 }
 
-interface FactRow {
+export interface FactRow {
   readonly id: string;
   readonly owner_user_id: string;
   readonly subject_entity_id: string;
@@ -61,7 +61,7 @@ interface FactRow {
   readonly updated_at: Date;
 }
 
-interface SourceRow {
+export interface SourceRow {
   readonly id: string;
   readonly source_kind: MemoryEpisodeKind;
   readonly source_ref: string;
@@ -854,7 +854,7 @@ function clamp01(value: number): number {
   return Math.min(1, Math.max(0, value));
 }
 
-function mapEntity(row: EntityRow): MemoryEntityRecord {
+export function mapEntity(row: EntityRow): MemoryEntityRecord {
   return {
     id: row.id,
     ownerUserId: row.owner_user_id,
@@ -869,7 +869,7 @@ function mapEntity(row: EntityRow): MemoryEntityRecord {
   };
 }
 
-function mapFact(row: FactRow, sources: readonly MemorySourceSummary[]): MemoryFactRecord {
+export function mapFact(row: FactRow, sources: readonly MemorySourceSummary[]): MemoryFactRecord {
   const confidence = Number(row.confidence);
   return {
     id: row.id,
@@ -897,7 +897,7 @@ function mapFact(row: FactRow, sources: readonly MemorySourceSummary[]): MemoryF
   };
 }
 
-function confidenceTier(
+export function confidenceTier(
   confidence: number,
   provenance: MemoryFactProvenance,
   lastConfirmedAt: Date | null
@@ -930,7 +930,7 @@ function recordKindForPredicate(
   }
 }
 
-function mapSource(row: SourceRow): MemorySourceSummary {
+export function mapSource(row: SourceRow): MemorySourceSummary {
   return {
     id: row.id,
     sourceKind: row.source_kind,

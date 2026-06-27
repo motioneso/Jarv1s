@@ -47,6 +47,7 @@ export type {
 export { ChatMemoryFactsRepository } from "./facts-repository.js";
 export * from "./graph-types.js";
 export { MemoryGraphRepository } from "./graph-repository.js";
+export { MemoryGraphDashboardRepository } from "./graph-dashboard-repository.js";
 export { GraphMemoryRecallService } from "./graph-recall-service.js";
 export { registerMemoryGraphRoutes } from "./graph-routes.js";
 export type { MemoryGraphRouteDependencies } from "./graph-routes.js";
