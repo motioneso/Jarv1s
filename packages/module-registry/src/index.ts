@@ -15,6 +15,7 @@ import {
 } from "@jarv1s/ai";
 import {
   GraphMemoryRecallService,
+  ManualMemoryCandidateService,
   MemoryCandidatesRepository,
   MemoryGraphRepository,
   MemoryRepository,
@@ -49,6 +50,8 @@ import {
   chatModuleSqlMigrationDirectory,
   CliChatUnavailableError,
   buildEveningInterviewSeed,
+  ChatRepository,
+  createChatFeedbackTargetVerifier,
   registerChatJobWorkers,
   registerChatRoutes,
   type ChatEngineFactory,
@@ -139,6 +142,8 @@ import {
   registerNotesJobWorkers
 } from "@jarv1s/notes";
 import {
+  FeedbackTargetVerifierRegistry,
+  registerUsefulnessFeedbackRoutes,
   usefulnessFeedbackModuleManifest,
   usefulnessFeedbackModuleSqlMigrationDirectory
 } from "@jarv1s/usefulness-feedback";
@@ -644,7 +649,17 @@ const BUILT_IN_MODULES: readonly BuiltInModuleRegistration[] = [
   {
     manifest: usefulnessFeedbackModuleManifest,
     sqlMigrationDirectories: [usefulnessFeedbackModuleSqlMigrationDirectory],
-    queueDefinitions: []
+    queueDefinitions: [],
+    registerRoutes: (server, deps) => {
+      const registry = new FeedbackTargetVerifierRegistry();
+      registry.register("chat_message", createChatFeedbackTargetVerifier(new ChatRepository()));
+      registerUsefulnessFeedbackRoutes(server, {
+        dataContext: deps.dataContext,
+        resolveAccessContext: deps.resolveAccessContext,
+        registry,
+        manualMemoryCandidates: new ManualMemoryCandidateService()
+      });
+    }
   },
   {
     manifest: structuredStateModuleManifest,

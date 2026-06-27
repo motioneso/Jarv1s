@@ -18,6 +18,7 @@ import {
   type FeedbackTargetVerification
 } from "../../packages/usefulness-feedback/src/index.js";
 import { ManualMemoryCandidateService } from "../../packages/memory/src/index.js";
+import { ChatRepository, createChatFeedbackTargetVerifier } from "../../packages/chat/src/index.js";
 
 import { connectionStrings, ids, resetFoundationDatabase } from "./test-database.js";
 
@@ -322,6 +323,62 @@ describe("usefulness feedback routes", () => {
       await server.close();
     }
   });
+
+  it("verifies chat messages through the chat-owned verifier and rejects other owners/incognito remember", async () => {
+    const chatRepository = new ChatRepository();
+    const userAMessages = await createStoredChatTurn(chatRepository, false, userAContext());
+    const userBMessages = await createStoredChatTurn(chatRepository, false, {
+      actorUserId: ids.userB,
+      requestId: "req:feedback-b"
+    });
+    const incognitoMessages = await createStoredChatTurn(chatRepository, true, userAContext());
+    const { server } = await buildFeedbackTestServer(
+      appDb,
+      createChatFeedbackTargetVerifier(chatRepository)
+    );
+    try {
+      const own = await server.inject({
+        method: "POST",
+        url: "/api/me/usefulness-feedback",
+        headers: userAHeaders(),
+        payload: {
+          targetKind: "chat_message",
+          targetRef: userAMessages.assistantMessage.id,
+          surface: "chat",
+          kind: "not_useful"
+        }
+      });
+      expect(own.statusCode).toBe(201);
+
+      const otherOwner = await server.inject({
+        method: "POST",
+        url: "/api/me/usefulness-feedback",
+        headers: userAHeaders(),
+        payload: {
+          targetKind: "chat_message",
+          targetRef: userBMessages.assistantMessage.id,
+          surface: "chat",
+          kind: "not_useful"
+        }
+      });
+      expect(otherOwner.statusCode).toBe(404);
+
+      const incognitoRemember = await server.inject({
+        method: "POST",
+        url: "/api/me/usefulness-feedback",
+        headers: userAHeaders(),
+        payload: {
+          targetKind: "chat_message",
+          targetRef: incognitoMessages.userMessage.id,
+          surface: "chat",
+          kind: "remember_this"
+        }
+      });
+      expect(incognitoRemember.statusCode).toBe(400);
+    } finally {
+      await server.close();
+    }
+  });
 });
 
 async function buildFeedbackTestServer(
@@ -364,5 +421,25 @@ function rememberableVerifier(excerpt: string): FeedbackTargetVerifier {
     metadata: { role: "user" },
     canRemember: true,
     rememberExcerpt: excerpt
+  });
+}
+
+async function createStoredChatTurn(
+  repository: ChatRepository,
+  incognito: boolean,
+  access: AccessContext
+) {
+  const dataContext = new DataContextRunner(appDb);
+  return dataContext.withDataContext(access, async (scopedDb) => {
+    const thread = await repository.openNewThread(scopedDb, { title: "Feedback chat", incognito });
+    const messages = await repository.recordCompletedTurn(
+      scopedDb,
+      thread.id,
+      "remember this user-authored line",
+      "assistant reply",
+      { provider: "anthropic", model: "claude-test" }
+    );
+    if (!messages) throw new Error("chat test turn was not stored");
+    return messages;
   });
 }

@@ -12,6 +12,7 @@ export type ChatRecordKind =
 export interface TranscriptRecord {
   readonly kind: ChatRecordKind;
   readonly text: string;
+  readonly messageId?: string;
   readonly actionRequestId?: string;
   readonly toolName?: string;
   readonly summary?: string;

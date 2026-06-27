@@ -82,6 +82,12 @@ export interface AppendChatUserMessageRequest {
   readonly selectedToolNames?: readonly string[];
 }
 
+export interface SendChatTurnResponse {
+  readonly reply: string;
+  readonly userMessageId?: string;
+  readonly assistantMessageId?: string;
+}
+
 const chatThreadSchema = {
   type: "object",
   additionalProperties: false,

@@ -71,6 +71,7 @@ import type {
   ListCheckinsResponse,
   ListChatThreadMessagesResponse,
   ListChatThreadsResponse,
+  SendChatTurnResponse,
   ListConnectorAccountsResponse,
   ListConnectorProvidersResponse,
   ListMedicationsResponse,
@@ -617,8 +618,8 @@ export async function listChatThreadMessages(
   );
 }
 
-export async function sendChatTurn(text: string): Promise<{ reply: string }> {
-  return requestJson<{ reply: string }>("/api/chat/turn", {
+export async function sendChatTurn(text: string): Promise<SendChatTurnResponse> {
+  return requestJson<SendChatTurnResponse>("/api/chat/turn", {
     method: "POST",
     body: { text }
   });
