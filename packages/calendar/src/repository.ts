@@ -17,16 +17,32 @@ export interface CreateCachedCalendarEventInput {
   readonly externalMetadata?: Record<string, unknown>;
 }
 
+export interface ListVisibleCalendarEventsOptions {
+  readonly startsAfter?: Date;
+  readonly startsBefore?: Date;
+  readonly limit?: number;
+}
+
 export class CalendarRepository {
-  async listVisible(scopedDb: DataContextDb): Promise<CalendarEvent[]> {
+  async listVisible(
+    scopedDb: DataContextDb,
+    opts?: ListVisibleCalendarEventsOptions
+  ): Promise<CalendarEvent[]> {
     assertDataContextDb(scopedDb);
 
-    return scopedDb.db
+    let query = scopedDb.db
       .selectFrom("app.calendar_events")
       .selectAll()
+      .$if(opts?.startsAfter != null, (qb) => qb.where("starts_at", ">=", opts!.startsAfter!))
+      .$if(opts?.startsBefore != null, (qb) => qb.where("starts_at", "<", opts!.startsBefore!))
       .orderBy("starts_at", "asc")
-      .orderBy("id")
-      .execute();
+      .orderBy("id");
+
+    if (opts?.limit != null) {
+      query = query.limit(opts.limit);
+    }
+
+    return query.execute();
   }
 
   async getById(scopedDb: DataContextDb, eventId: string): Promise<CalendarEvent | undefined> {

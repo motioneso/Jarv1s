@@ -20,11 +20,16 @@ const DEFAULT_TIMEZONE = process.env.JARVIS_DEFAULT_TZ ?? "America/New_York";
 
 export const calendarListVisibleEventsExecute: ToolExecute = async (
   scopedDb,
-  _input,
+  input,
   _ctx
 ): Promise<ToolResult> => {
   assertDataContextDb(scopedDb);
-  const events = await repository.listVisible(scopedDb);
+  const startsAfter =
+    typeof input.startsAfter === "string" ? new Date(input.startsAfter) : undefined;
+  const startsBefore =
+    typeof input.startsBefore === "string" ? new Date(input.startsBefore) : undefined;
+  const limit = typeof input.limit === "number" && input.limit > 0 ? input.limit : undefined;
+  const events = await repository.listVisible(scopedDb, { startsAfter, startsBefore, limit });
   return { data: { events: events.map(serializeCalendarEvent) } };
 };
 
