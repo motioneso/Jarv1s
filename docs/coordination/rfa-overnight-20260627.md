@@ -2,20 +2,21 @@
 
 **Date:** 2026-06-27
 **Coordinator lock:** label `Coordinator`, stable anchor = Codex session id
-`019f09e7-e6a9-7e83-b3f9-6d5c2ba7f61d`. Single-coordinator lock verified: exactly
+`019f0a96-2978-7c63-93ea-0221bb1666a0`. Single-coordinator lock verified: exactly
 one pane labelled `Coordinator`, and it is this session. Pane ids are routing hints only.
 **Merge policy:** `routine`/`sensitive` may auto-merge after independent green QA;
 `security` requires Ben's explicit merge sign-off after posted QA verdict.
 **Relay threshold:** security-tier merge -> relay immediately; routine/sensitive
 `merges_since_relay >= 2` -> relay. Compaction summary -> relay before merge.
 **merges_since_relay:** 0
-**Continuation note:** security-tier PR #545 (`#528`) merged at `eef2a68`, triggering mandatory
-coordinator relay. Successor must first claim the `Coordinator` lock with its own session id, close
-issue #528 manually because GitHub left it open, and tell design-session pane `w1:p1B` it may
-proceed with its explicit apps/web-only main commit after checking current `main`. Then continue:
-PR #547 (`#529`) is RED again and back with builder pane `w1:p3Z`; PR #548 (`#534`) has red
-`Verify foundation and app` and is back with AGY pane `w1:p3N`; PR #546 (`#530`) can be retargeted
-or merged after #528/main stack cleanup and fresh checks.
+**Continuation note:** successor coordinator claimed the `Coordinator` lock as Codex session
+`019f0a96-2978-7c63-93ea-0221bb1666a0`, closed issue #528, signaled design-session pane `w1:p1B`
+to proceed only after checking current `main`, and reaped the old coordinator plus merged #528
+builder/worktree. Continue: PR #547 (`#529`) and PR #546 (`#530`) are CLOSED unmerged because their
+stack base branch was removed after #528 merged; owning panes `w1:p3Z` and `w1:p3T` were told to
+fetch/rebase onto current `origin/main`, rerun checks, and retarget/reopen or replace the PRs.
+PR #548 (`#534`) remains open with red `Verify foundation and app` and is back with AGY pane
+`w1:p3N`.
 
 ## Base
 
@@ -40,11 +41,11 @@ or merged after #528/main stack cleanup and fresh checks.
 
 | Issue | Spec | Tier | Status | Build | Review | Branch | PR |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| #528 | `docs/superpowers/specs/2026-06-26-jarvis-memory-graph-substrate.md` | security | MERGED via PR #545 at merge commit `eef2a68`; issue #528 still needs manual close; pane/worktree cleanup pending successor | Codex | opencode/GLM security QA | `rfa-528-memory-graph-substrate` | #545 |
+| #528 | `docs/superpowers/specs/2026-06-26-jarvis-memory-graph-substrate.md` | security | MERGED via PR #545 at merge commit `eef2a68`; issue #528 closed; build pane/worktree reaped | Codex | opencode/GLM security QA | `rfa-528-memory-graph-substrate` | #545 |
 | #526 | `docs/superpowers/specs/2026-06-27-unified-priority-model.md` | sensitive | MERGED via PR #544 at merge commit `5f7cc42`; issue #526 closed; pane/worktree reaped | Codex salvage after opencode/GLM | Codex QA | `rfa-526-unified-priority-model` | #544 |
 | #534 | `docs/superpowers/specs/2026-06-27-explicit-action-permission-tiers.md` | security | PR #548 head `a0ffbdc` has red `Verify foundation and app`; routed to AGY pane `w1:p3N` | AGY | Codex security QA | `rfa-534-action-permission-tiers` | #548 |
-| #529 | `docs/superpowers/specs/2026-06-27-memory-distillation-pipeline.md` | security | Security QA rerun RED on PR #547; blockers routed to build pane `w1:p3Z`; must rebase/retarget after #528 merge | Codex | opencode/GLM security QA | `rfa-529-memory-distillation` | #547 |
-| #530 | `docs/superpowers/specs/2026-06-27-passive-context-retrieval.md` | sensitive | PR #546 QA GREEN; merge-ready after #528 lands, with 2 non-blocking follow-ups noted | Codex | Codex QA | `rfa-530-passive-context-retrieval` | #546 |
+| #529 | `docs/superpowers/specs/2026-06-27-memory-distillation-pipeline.md` | security | Security QA rerun RED; PR #547 closed unmerged after stacked base removal; blockers plus main retarget/reopen routed to build pane `w1:p3Z` | Codex | opencode/GLM security QA | `rfa-529-memory-distillation` | #547 |
+| #530 | `docs/superpowers/specs/2026-06-27-passive-context-retrieval.md` | sensitive | PR #546 QA GREEN but closed unmerged after stacked base removal; main retarget/reopen routed to build pane `w1:p3T` for fresh checks | Codex | Codex QA | `rfa-530-passive-context-retrieval` | #546 |
 | #527 | `docs/superpowers/specs/2026-06-27-usefulness-feedback-signals.md` | security | queued after #526/#529 | opencode/GLM | Codex security QA | `rfa-527-usefulness-feedback` | - |
 | #532 | `docs/superpowers/specs/2026-06-27-confidence-aware-memory-records.md` | security | queued after #528/#529/#530 | Codex | AGY security QA | `rfa-532-confidence-aware-memory` | - |
 | #525 | `docs/superpowers/specs/2026-06-27-cross-tool-reasoning.md` | sensitive | queued after #530 | AGY | opencode/GLM QA | `rfa-525-cross-tool-reasoning` | - |
@@ -294,6 +295,10 @@ None.
 - Closed completed native QA subagent `Ptolemy` (`019f0a29-3c95-7301-894d-ecd87875eb08`).
 - Closed completed native QA subagents `Anscombe` (`019f0a8d-b1ab-7c60-9547-74406bdc6d11`) and
   `Leibniz` (`019f0a8d-b10d-7d31-a1e6-11b16df2c238`).
+- Closed old coordinator pane `w1:p43` after successor Codex session
+  `019f0a96-2978-7c63-93ea-0221bb1666a0` claimed the `Coordinator` label and manifest lock.
+- Closed merged #528 build pane `RFA-528 Codex` (`w1:p3K`) and removed worktree
+  `~/Jarv1s/.claude/worktrees/rfa-528-memory-graph-substrate`.
 - Closed merged #526 build pane `RFA-526 Codex salvage` (`w1:p3Q`) and removed worktree
   `~/Jarv1s/.claude/worktrees/rfa-526-unified-priority-model`.
 - Closed completed Herdr QA panes `QA-546 Codex` (`w1:p42`) and `QA-544 Codex` (`w1:p30`).
