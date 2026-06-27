@@ -10,7 +10,7 @@ waived for this run (2026-06-27 explicit directive: "get GLM and Codex to review
 when on level").
 **Relay threshold:** security-tier merge -> relay immediately; routine/sensitive
 `merges_since_relay >= 2` -> relay. Compaction summary -> relay before merge.
-**merges_since_relay:** 0
+**merges_since_relay:** 1
 **Continuation note:** security-tier PR #551 (`#529`) merged at `4e9f128` after Ben approval,
 all CI green, and Opus security QA GREEN
 (`https://github.com/motioneso/Jarv1s/pull/551#issuecomment-4821615188`); issue #529 is closed,
@@ -63,7 +63,7 @@ RFA coordinator loop; Ben will handle that separately.
 | #536 | `docs/superpowers/specs/2026-06-27-scheduled-recurring-jarvis-briefings.md` | security | queued after #526/#531/#534/#535 | opencode/GLM | Codex security QA | `rfa-536-recurring-briefings` | - |
 | #537 | `docs/superpowers/specs/2026-06-27-automatic-commitment-extraction.md` | security | queued after #527/#528/#529/#532/#533/#534/#535/#536 | Codex | AGY security QA | `rfa-537-commitment-extraction` | - |
 | #538 | `docs/superpowers/specs/2026-06-27-unified-person-contact-model.md` | security | queued after #525/#528/#532/#533/#537 | opencode/GLM | Codex security QA | `rfa-538-person-contact-model` | - |
-| #520 | n/a (spec waived by Ben) | routine | QA pending CI green on PR #552; CI run 28302401425 pending; branch fix/520-remove-task-matrix-cap off main a3416e10; pure 2-file deletion (~20 lines); pre-existing typecheck+file-size failures on main excluded | Ben's agent | coordinator | `fix/520-remove-task-matrix-cap` | #552 |
+| #520 | n/a (spec waived by Ben) | routine | MERGED via PR #552 at merge commit `77e6fe5`; issue #520 auto-closed; worktree+branch removed | Ben's agent | coordinator | `fix/520-remove-task-matrix-cap` | #552 |
 
 Launch note: #539, #540, #541 were excluded at launch as `needs-spec`; GitHub now shows them as
 RFA, but they are not admitted to this run until the coordinator extends the dependency/collision
