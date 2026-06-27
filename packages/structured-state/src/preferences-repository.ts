@@ -35,7 +35,10 @@ export class PreferencesRepository {
     return row?.value_json ?? null;
   }
 
-  async getWithMetadata<T>(scopedDb: DataContextDb, key: string): Promise<{ value: T; updatedAt: Date } | null> {
+  async getWithMetadata<T>(
+    scopedDb: DataContextDb,
+    key: string
+  ): Promise<{ value: T; updatedAt: Date } | null> {
     assertDataContextDb(scopedDb);
     const row = await scopedDb.db
       .selectFrom("app.preferences")

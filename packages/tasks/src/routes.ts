@@ -227,7 +227,10 @@ export function registerTasksRoutes(
         const body = request.body as UpdateTaskAgencyAutoExecuteRequest;
         const compatibilityHelper = new TasksCompatibilityHelper(agencyPrefsRepository);
         await dependencies.dataContext.withDataContext(accessContext, (scopedDb) =>
-          compatibilityHelper.setTaskChangesPolicy(scopedDb, body.enabled ? "trusted_auto" : "ask_each_time")
+          compatibilityHelper.setTaskChangesPolicy(
+            scopedDb,
+            body.enabled ? "trusted_auto" : "ask_each_time"
+          )
         );
         return { enabled: body.enabled };
       } catch (error) {

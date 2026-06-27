@@ -8,13 +8,16 @@ export class TasksCompatibilityHelper {
   constructor(private readonly prefs: PreferencesPort) {}
 
   async getResolvedTaskChangesPolicy(db: DataContextDb): Promise<JarvisActionPermissionTier> {
-    const canonical = await this.prefs.getWithMetadata<JarvisActionPermissionTier>(db, TASK_CHANGES_POLICY_KEY);
+    const canonical = await this.prefs.getWithMetadata<JarvisActionPermissionTier>(
+      db,
+      TASK_CHANGES_POLICY_KEY
+    );
     const legacy = await this.prefs.getWithMetadata<boolean>(db, LEGACY_AGENCY_AUTO_EXECUTE_KEY);
 
     if (!canonical && !legacy) return "ask_each_time";
     if (canonical && !legacy) return canonical.value;
     if (!canonical && legacy) return legacy.value ? "trusted_auto" : "ask_each_time";
-    
+
     // Both exist, use the most recently updated
     if (canonical!.updatedAt >= legacy!.updatedAt) {
       return canonical!.value;

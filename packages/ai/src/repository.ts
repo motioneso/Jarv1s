@@ -995,14 +995,17 @@ export class AiRepository {
       .select(["key", "value_json"])
       .where("key", "like", "assistant.action_policy.v1.%")
       .execute();
-      
+
     const prefixLen = "assistant.action_policy.v1.".length;
-    return rows.map(r => {
+    return rows.map((r) => {
       const parts = r.key.substring(prefixLen).split(".");
       return {
         moduleId: parts[0]!,
         actionFamilyId: parts.slice(1).join("."),
-        tier: typeof r.value_json === "string" ? (r.value_json as JarvisActionPermissionTier) : "ask_each_time"
+        tier:
+          typeof r.value_json === "string"
+            ? (r.value_json as JarvisActionPermissionTier)
+            : "ask_each_time"
       };
     });
   }

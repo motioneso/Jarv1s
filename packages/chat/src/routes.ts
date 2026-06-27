@@ -537,15 +537,20 @@ function buildActionPolicy(args: {
 }): AssistantToolGatewayDependencies["actionPolicy"] {
   return (ctx) => ({
     getFamilyTier: async (moduleId: string, familyId: string) => {
-      return args.runner.withDataContext({ actorUserId: ctx.actorUserId, requestId: ctx.requestId }, async (scopedDb) => {
-        if (moduleId === "tasks" && familyId === "task_changes" && args.preferences) {
-          const compat = new TasksCompatibilityHelper(args.preferences);
-          return compat.getResolvedTaskChangesPolicy(scopedDb);
+      return args.runner.withDataContext(
+        { actorUserId: ctx.actorUserId, requestId: ctx.requestId },
+        async (scopedDb) => {
+          if (moduleId === "tasks" && familyId === "task_changes" && args.preferences) {
+            const compat = new TasksCompatibilityHelper(args.preferences);
+            return compat.getResolvedTaskChangesPolicy(scopedDb);
+          }
+          const policies = await args.repository.listActionPolicies(scopedDb);
+          const policy = policies.find(
+            (p) => p.moduleId === moduleId && p.actionFamilyId === familyId
+          );
+          return policy?.tier ?? null;
         }
-        const policies = await args.repository.listActionPolicies(scopedDb);
-        const policy = policies.find((p) => p.moduleId === moduleId && p.actionFamilyId === familyId);
-        return policy?.tier ?? null;
-      });
+      );
     },
     getFamilyManifest: async (moduleId: string, familyId: string) => {
       const activeModules = await args.resolveActiveModules(ctx.actorUserId);

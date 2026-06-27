@@ -48,7 +48,12 @@ describe("gateway policy", () => {
 
     await expect(resolvePolicy(tool("read"), "example", dummyLookup, prefs)).resolves.toBe("run");
     await expect(
-      resolvePolicy({ ...tool("destructive"), executionPolicy: "auto" }, "example", dummyLookup, prefs)
+      resolvePolicy(
+        { ...tool("destructive"), executionPolicy: "auto" },
+        "example",
+        dummyLookup,
+        prefs
+      )
     ).resolves.toBe("confirm");
   });
 
@@ -65,9 +70,9 @@ describe("gateway policy", () => {
       })
     ).resolves.toBe("run");
 
-    await expect(resolvePolicy(tool("write"), "tasks", dummyLookup, { get: async () => true })).resolves.toBe(
-      "confirm"
-    );
+    await expect(
+      resolvePolicy(tool("write"), "tasks", dummyLookup, { get: async () => true })
+    ).resolves.toBe("confirm");
   });
 
   it("confirms writes when preference lookup fails", async () => {

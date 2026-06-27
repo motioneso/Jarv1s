@@ -35,11 +35,14 @@ export function registerActionPolicyRoutes(
           accessContext,
           async (scopedDb) => {
             const list = await repository.listActionPolicies(scopedDb);
-            
+
             if (dependencies.tasksCompatibility) {
-              const tasksTier = await dependencies.tasksCompatibility.getResolvedTaskChangesPolicy(scopedDb);
+              const tasksTier =
+                await dependencies.tasksCompatibility.getResolvedTaskChangesPolicy(scopedDb);
               // Merge or override the tasks policy
-              const existing = list.find(p => p.moduleId === "tasks" && p.actionFamilyId === "task_changes");
+              const existing = list.find(
+                (p) => p.moduleId === "tasks" && p.actionFamilyId === "task_changes"
+              );
               if (existing) {
                 existing.tier = tasksTier;
               } else {
@@ -71,7 +74,11 @@ export function registerActionPolicyRoutes(
         const { tier } = request.body;
 
         await dependencies.dataContext.withDataContext(accessContext, async (scopedDb) => {
-          if (moduleId === "tasks" && actionFamilyId === "task_changes" && dependencies.tasksCompatibility) {
+          if (
+            moduleId === "tasks" &&
+            actionFamilyId === "task_changes" &&
+            dependencies.tasksCompatibility
+          ) {
             await dependencies.tasksCompatibility.setTaskChangesPolicy(scopedDb, tier);
           } else {
             await repository.setActionPolicy(scopedDb, moduleId, actionFamilyId, tier);

@@ -1,10 +1,17 @@
-import type { ModuleAssistantToolManifest, ModuleAssistantActionFamilyManifest, JarvisActionPermissionTier } from "@jarv1s/module-sdk";
+import type {
+  ModuleAssistantToolManifest,
+  ModuleAssistantActionFamilyManifest,
+  JarvisActionPermissionTier
+} from "@jarv1s/module-sdk";
 
 export type PolicyDecision = "run" | "confirm";
 
 export interface ActionPolicyLookup {
   getFamilyTier(moduleId: string, familyId: string): Promise<JarvisActionPermissionTier | null>;
-  getFamilyManifest(moduleId: string, familyId: string): Promise<ModuleAssistantActionFamilyManifest | null>;
+  getFamilyManifest(
+    moduleId: string,
+    familyId: string
+  ): Promise<ModuleAssistantActionFamilyManifest | null>;
 }
 
 export interface AgencyPrefLookup {
@@ -31,7 +38,9 @@ export async function resolvePolicy(
     if (tool.executionPolicy !== "auto") return "confirm";
     if (legacyPrefs) {
       try {
-        return (await legacyPrefs.get(`${moduleId}.agency_auto_execute`)) === true ? "run" : "confirm";
+        return (await legacyPrefs.get(`${moduleId}.agency_auto_execute`)) === true
+          ? "run"
+          : "confirm";
       } catch {
         return "confirm";
       }
@@ -44,6 +53,6 @@ export async function resolvePolicy(
 
   const tier = (await lookup.getFamilyTier(moduleId, familyId)) ?? manifest.defaultTier;
   if (tier === "trusted_auto") return "run";
-  
+
   return "confirm";
 }
