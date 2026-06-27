@@ -101,6 +101,57 @@ export class AssistantToolGateway {
     return this.confirmAndRun(found, input, ctx, await this.firstRunNotice(found, prefs));
   }
 
+  /**
+   * Execute a single read tool on behalf of an actor without a session token.
+   * Used by the cross-tool reasoning pre-submit path in ChatSessionManager.
+   *
+   * Fail-closed: only tools with risk "read" are permitted; empty services are
+   * passed so the write→confirm floor is structurally un-bypassable; handler
+   * throws are sanitized the same way runHandler sanitizes them.
+   */
+  async runReadToolForActor(
+    actorUserId: string,
+    toolName: string,
+    rawInput: unknown
+  ): Promise<GatewayToolResponse> {
+    const found = (await this.executableTools(actorUserId)).find(
+      (entry) => entry.tool.name === toolName
+    );
+    if (!found) {
+      return { ok: false, error: `Tool not available: ${toolName}` };
+    }
+    if (found.tool.risk !== "read") {
+      return { ok: false, error: `Tool ${toolName} is not a read tool` };
+    }
+
+    let input: Record<string, unknown>;
+    try {
+      input = validateToolInput(found.tool.inputSchema, rawInput);
+    } catch (error) {
+      return { ok: false, error: error instanceof Error ? error.message : "Invalid input" };
+    }
+
+    const requestId = `cross-tool_${randomUUID()}`;
+    const access: AccessContext = { actorUserId, requestId };
+    const ctx: ToolContext = { actorUserId, requestId, chatSessionId: "" };
+
+    try {
+      const result = await this.deps.runner.withDataContext(access, (scopedDb: DataContextDb) =>
+        found.execute(scopedDb, input, ctx, {})
+      );
+      return {
+        ok: true,
+        data: renderAndCap(
+          found.tool.outputSchema,
+          result,
+          found.tool.externalContent ? found.tool.name : undefined
+        )
+      };
+    } catch {
+      return { ok: false, error: `Tool ${found.tool.name} failed` };
+    }
+  }
+
   /** Called by the Approve/Deny endpoint (and tests). Persists the resolution and unblocks the call. */
   async resolveActionRequest(
     actorUserId: string,

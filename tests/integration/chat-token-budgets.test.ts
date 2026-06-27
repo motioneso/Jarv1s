@@ -324,7 +324,8 @@ describe("launchSession — bounded inject (fake engine)", () => {
         oldSummary: "As of turn 5: old context here"
       }),
       recordTurn: async () => {},
-      openNewConversation: async () => {}
+      openNewConversation: async () => {},
+      getThreadContext: async () => ({ threadTitle: null, localTimezone: null })
     };
 
     const engine = new FakeEngineForSession();
@@ -355,7 +356,8 @@ describe("launchSession — bounded inject (fake engine)", () => {
       resolveActiveProvider: async () => ({ provider: "anthropic", model: "test" }),
       listPriorTurns: async () => ({ recent: [], oldSummary: null }),
       recordTurn: async () => {},
-      openNewConversation: async () => {}
+      openNewConversation: async () => {},
+      getThreadContext: async () => ({ threadTitle: null, localTimezone: null })
     };
 
     const engine = new FakeEngineForSession();

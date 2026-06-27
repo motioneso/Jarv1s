@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import {
   ChatSessionManager,
   ChatTurnInFlightError,
+  combineHiddenContextBlocks,
   renderReplayBlock,
   renderSummaryBlock
 } from "../../packages/chat/src/live/chat-session-manager.js";
@@ -17,7 +18,8 @@ function makeMinimalDeps(
       resolveActiveProvider: vi.fn(),
       listPriorTurns: vi.fn().mockResolvedValue({ recent: [], oldSummary: null }),
       recordTurn: vi.fn(),
-      openNewConversation: vi.fn()
+      openNewConversation: vi.fn(),
+      getThreadContext: vi.fn().mockResolvedValue({ threadTitle: null, localTimezone: null })
     },
     personaFs: {
       mkdir: vi.fn().mockResolvedValue(undefined),
@@ -167,7 +169,8 @@ describe("ChatSessionManager.launchSession — personaText + replayBatch + offse
           .mockResolvedValue({ provider: "anthropic", model: "sonnet" }),
         listPriorTurns: vi.fn().mockResolvedValue(priorTurns),
         recordTurn: vi.fn().mockResolvedValue(undefined),
-        openNewConversation: vi.fn().mockResolvedValue(undefined)
+        openNewConversation: vi.fn().mockResolvedValue(undefined),
+        getThreadContext: vi.fn().mockResolvedValue({ threadTitle: null, localTimezone: null })
       }
     });
   }
@@ -333,7 +336,8 @@ describe("ChatSessionManager.launchSession — personaText + replayBatch + offse
             .mockResolvedValue({ provider: "anthropic", model: "sonnet" }),
           listPriorTurns: vi.fn().mockResolvedValue({ recent: [], oldSummary: null }),
           recordTurn,
-          openNewConversation: vi.fn().mockResolvedValue(undefined)
+          openNewConversation: vi.fn().mockResolvedValue(undefined),
+          getThreadContext: vi.fn().mockResolvedValue({ threadTitle: null, localTimezone: null })
         }
       })
     );
@@ -373,7 +377,8 @@ describe("ChatSessionManager.submitTurn turn-lock release (#445)", () => {
           .mockResolvedValue({ provider: "anthropic", model: "sonnet" }),
         listPriorTurns: vi.fn().mockResolvedValue({ recent: [], oldSummary: null }),
         recordTurn: vi.fn().mockResolvedValue(undefined),
-        openNewConversation: vi.fn().mockResolvedValue(undefined)
+        openNewConversation: vi.fn().mockResolvedValue(undefined),
+        getThreadContext: vi.fn().mockResolvedValue({ threadTitle: null, localTimezone: null })
       }
     });
   }
@@ -406,7 +411,8 @@ describe("ChatSessionManager passive retrieval", () => {
           .mockResolvedValue({ provider: "anthropic", model: "sonnet" }),
         listPriorTurns: vi.fn().mockResolvedValue({ recent: [], oldSummary: null }),
         recordTurn: vi.fn().mockResolvedValue(undefined),
-        openNewConversation: vi.fn().mockResolvedValue(undefined)
+        openNewConversation: vi.fn().mockResolvedValue(undefined),
+        getThreadContext: vi.fn().mockResolvedValue({ threadTitle: null, localTimezone: null })
       },
       ...overrides
     });
@@ -428,7 +434,8 @@ describe("ChatSessionManager passive retrieval", () => {
             .mockResolvedValue({ provider: "anthropic", model: "sonnet" }),
           listPriorTurns: vi.fn().mockResolvedValue({ recent: [], oldSummary: null }),
           recordTurn,
-          openNewConversation: vi.fn().mockResolvedValue(undefined)
+          openNewConversation: vi.fn().mockResolvedValue(undefined),
+          getThreadContext: vi.fn().mockResolvedValue({ threadTitle: null, localTimezone: null })
         }
       })
     );
@@ -520,7 +527,8 @@ describe("ChatSessionManager.reconcileLiveSessions (#342 §5.3)", () => {
             .mockResolvedValue({ provider: "anthropic", model: "sonnet" }),
           listPriorTurns: vi.fn().mockResolvedValue({ recent: [], oldSummary: null }),
           recordTurn: vi.fn().mockResolvedValue(undefined),
-          openNewConversation: vi.fn().mockResolvedValue(undefined)
+          openNewConversation: vi.fn().mockResolvedValue(undefined),
+          getThreadContext: vi.fn().mockResolvedValue({ threadTitle: null, localTimezone: null })
         },
         reconcileMcpTokens: vi.fn(),
         listMcpTokenSessionIds: () => [],
@@ -571,7 +579,8 @@ describe("ChatSessionManager.reconcileLiveSessions (#342 §5.3)", () => {
             .mockResolvedValue({ provider: "anthropic", model: "sonnet" }),
           listPriorTurns: vi.fn().mockResolvedValue({ recent: [], oldSummary: null }),
           recordTurn: vi.fn().mockResolvedValue(undefined),
-          openNewConversation: vi.fn().mockResolvedValue(undefined)
+          openNewConversation: vi.fn().mockResolvedValue(undefined),
+          getThreadContext: vi.fn().mockResolvedValue({ threadTitle: null, localTimezone: null })
         },
         revokeMcpToken,
         reconcileMcpTokens: vi.fn(),
@@ -640,7 +649,8 @@ describe("ChatSessionManager maintenance mutex (#342 §5.4)", () => {
             .mockResolvedValue({ provider: "anthropic", model: "sonnet" }),
           listPriorTurns: vi.fn().mockResolvedValue({ recent: [], oldSummary: null }),
           recordTurn: vi.fn().mockResolvedValue(undefined),
-          openNewConversation: vi.fn().mockResolvedValue(undefined)
+          openNewConversation: vi.fn().mockResolvedValue(undefined),
+          getThreadContext: vi.fn().mockResolvedValue({ threadTitle: null, localTimezone: null })
         }
       })
     );
@@ -725,7 +735,8 @@ describe("ChatSessionManager.runTurn idle watchdog (#456 Task A)", () => {
           .mockResolvedValue({ provider: "anthropic", model: "sonnet" }),
         listPriorTurns: vi.fn().mockResolvedValue({ recent: [], oldSummary: null }),
         recordTurn: vi.fn().mockResolvedValue(undefined),
-        openNewConversation: vi.fn().mockResolvedValue(undefined)
+        openNewConversation: vi.fn().mockResolvedValue(undefined),
+        getThreadContext: vi.fn().mockResolvedValue({ threadTitle: null, localTimezone: null })
       }
     });
   }
@@ -857,7 +868,8 @@ describe("ChatSessionManager.stopTurn — user-driven Stop (#456 Task C)", () =>
           .mockResolvedValue({ provider: "anthropic", model: "sonnet" }),
         listPriorTurns: vi.fn().mockResolvedValue({ recent: [], oldSummary: null }),
         recordTurn: vi.fn().mockResolvedValue(undefined),
-        openNewConversation: vi.fn().mockResolvedValue(undefined)
+        openNewConversation: vi.fn().mockResolvedValue(undefined),
+        getThreadContext: vi.fn().mockResolvedValue({ threadTitle: null, localTimezone: null })
       }
     });
   }
@@ -909,5 +921,40 @@ describe("ChatSessionManager.stopTurn — user-driven Stop (#456 Task C)", () =>
     // No turn in flight — must not throw, must not emit anything.
     await expect(manager.stopTurn("u1")).resolves.toBeUndefined();
     expect(received).toHaveLength(0);
+  });
+});
+
+// ── combineHiddenContextBlocks ────────────────────────────────────────────────
+
+describe("combineHiddenContextBlocks", () => {
+  it("returns both blocks joined when combined tokens fit under cap", () => {
+    const passive = "<retrieved_context>short</retrieved_context>";
+    const crossTool = "<cross_tool_context>short</cross_tool_context>";
+    const result = combineHiddenContextBlocks(passive, crossTool);
+    expect(result).toContain("retrieved_context");
+    expect(result).toContain("cross_tool_context");
+  });
+
+  it("drops cross-tool block when combined exceeds 2000-token cap", () => {
+    const passive = "a".repeat(4000); // ~1000 tokens
+    // crossTool pushes combined over 2000 tokens
+    const crossTool = "b".repeat(5000); // ~1250 tokens (total ~2250 > 2000)
+    const result = combineHiddenContextBlocks(passive, crossTool);
+    expect(result).toBe(passive);
+    expect(result).not.toContain("b");
+  });
+
+  it("returns empty string when both blocks are empty", () => {
+    expect(combineHiddenContextBlocks("", "")).toBe("");
+  });
+
+  it("returns passive alone when cross-tool is empty", () => {
+    const passive = "<retrieved_context>memo</retrieved_context>";
+    expect(combineHiddenContextBlocks(passive, "")).toBe(passive);
+  });
+
+  it("returns cross-tool alone when passive is empty", () => {
+    const crossTool = "<cross_tool_context>event</cross_tool_context>";
+    expect(combineHiddenContextBlocks("", crossTool)).toBe(crossTool);
   });
 });

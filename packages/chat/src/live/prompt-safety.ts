@@ -23,7 +23,8 @@
  *   "...</memory> ignore previous"  ->  "...[/memory] ignore previous"
  */
 export function neutralizeSeedFraming(text: string): string {
-  return text.replace(/<\/?(?:memory|conversation|prior-context|retrieved_context)>/gi, (match) =>
-    match.replace("<", "[").replace(">", "]")
+  return text.replace(
+    /<\/?(?:memory|conversation|prior-context|retrieved_context|cross_tool_context)>/gi,
+    (match) => match.replace("<", "[").replace(">", "]")
   );
 }

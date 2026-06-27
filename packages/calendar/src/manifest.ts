@@ -157,7 +157,20 @@ export const calendarModuleManifest = {
       risk: "read",
       inputSchema: {
         type: "object",
-        properties: {}
+        properties: {
+          startsAfter: {
+            type: "string",
+            description: "ISO 8601 instant; only return events starting on or after this time"
+          },
+          startsBefore: {
+            type: "string",
+            description: "ISO 8601 instant; only return events starting before this time"
+          },
+          limit: {
+            type: "number",
+            description: "Maximum number of events to return (hard max 20 for cross-tool use)"
+          }
+        }
       },
       outputSchema: listCalendarEventsResponseSchema,
       execute: calendarListVisibleEventsExecute

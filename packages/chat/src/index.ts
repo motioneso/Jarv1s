@@ -3,8 +3,22 @@ export * from "./jobs.js";
 export * from "./live-routes.js";
 export { DataContextChatPersistence } from "./live/persistence.js";
 export type { DataContextChatPersistenceDeps } from "./live/persistence.js";
+export { combineHiddenContextBlocks } from "./live/chat-session-manager.js";
 export * from "./live/recall-seed.js";
 export * from "./live/passive-retrieval.js";
+export {
+  planCrossToolReasoning,
+  renderCrossToolContextBlock,
+  collectCrossToolContext,
+  normalizeNotesResult,
+  normalizeEmailResult,
+  normalizeCalendarResult,
+  normalizeTasksResult,
+  type CrossToolSource,
+  type CrossToolReasoningPlan,
+  type CrossToolEvidenceItem,
+  type CrossToolReadRunner
+} from "./live/cross-tool-reasoning.js";
 export * from "./live/runtime.js";
 // #342 Phase 2: the api-side install state machine (§A.4) — driver, reconcile projection,
 // store port + wire types. Consumed by the composition root to wire the onboarding install seam.

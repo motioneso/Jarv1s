@@ -15,9 +15,14 @@ import type { ProviderKind } from "@jarv1s/ai";
 import type { AiProviderExecutionMode } from "@jarv1s/shared";
 
 import type { RecallPort } from "../recall-port.js";
+import {
+  collectCrossToolContext,
+  planCrossToolReasoning,
+  type CrossToolReadRunner
+} from "./cross-tool-reasoning.js";
 import { renderPersona, type PersonaFs } from "./persona.js";
 import { neutralizeSeedFraming } from "./prompt-safety.js";
-import { renderMemorySeedBlock } from "./recall-seed.js";
+import { estimateTokens, renderMemorySeedBlock } from "./recall-seed.js";
 import type { CliChatEngine, TranscriptRecord } from "./types.js";
 
 /** Monotonic-ish wall clock, injected so idle reaping is testable. */
@@ -48,6 +53,10 @@ export interface ChatPersistencePort {
   ): Promise<{ readonly userMessageId: string; readonly assistantMessageId: string } | undefined>;
   /** Close the current conversation and open a fresh one (for /clear). */
   openNewConversation(actorUserId: string, options?: { incognito?: boolean }): Promise<void>;
+  /** Return the current thread title and the user's persisted timezone (null if unset). */
+  getThreadContext(
+    actorUserId: string
+  ): Promise<{ threadTitle: string | null; localTimezone: string | null }>;
 }
 
 export interface PassiveRetrievalPort {
@@ -118,6 +127,8 @@ export interface ChatSessionManagerDeps {
   readonly recall?: RecallPort;
   /** Optional per-turn hidden context retrieval. Empty/failed result submits the raw turn. */
   readonly passiveRetrieval?: PassiveRetrievalPort;
+  /** Optional cross-tool read runner for pre-turn context fan-out. */
+  readonly crossToolRead?: CrossToolReadRunner;
   /**
    * #342 (§4.1.2) — does the ENGINE own the replay submit+drain?
    *
@@ -480,16 +491,45 @@ export class ChatSessionManager {
   }
 
   private async engineText(actorUserId: string, text: string): Promise<string> {
-    if (!this.deps.passiveRetrieval) return text;
+    if (!this.deps.passiveRetrieval && !this.deps.crossToolRead) return text;
     try {
-      const { recent } = await this.deps.persistence.listPriorTurns(actorUserId);
-      const context = await this.deps.passiveRetrieval.retrieve({
-        actorUserId,
-        userText: text,
-        threadTitle: null,
-        recentTurns: recent
-      });
-      return context ? `${context}\n\n${text}` : text;
+      const [{ recent }, threadCtx] = await Promise.all([
+        this.deps.persistence.listPriorTurns(actorUserId),
+        this.deps.persistence.getThreadContext(actorUserId)
+      ]);
+
+      const localNow = new Date().toISOString();
+      const plan =
+        this.deps.crossToolRead != null
+          ? planCrossToolReasoning({
+              userText: text,
+              threadTitle: threadCtx.threadTitle,
+              recentTurns: recent,
+              localNowIso: localNow,
+              localTimezone: threadCtx.localTimezone ?? "UTC"
+            })
+          : null;
+
+      const [passiveBlock, crossToolBlock] = await Promise.all([
+        this.deps.passiveRetrieval != null
+          ? this.deps.passiveRetrieval
+              .retrieve({
+                actorUserId,
+                userText: text,
+                threadTitle: threadCtx.threadTitle,
+                recentTurns: recent
+              })
+              .catch(() => "")
+          : Promise.resolve(""),
+        plan != null && this.deps.crossToolRead != null
+          ? collectCrossToolContext(actorUserId, plan, this.deps.crossToolRead, localNow).catch(
+              () => ""
+            )
+          : Promise.resolve("")
+      ]);
+
+      const combined = combineHiddenContextBlocks(passiveBlock, crossToolBlock);
+      return combined ? `${combined}\n\n${text}` : text;
     } catch {
       return text;
     }
@@ -772,6 +812,27 @@ export function renderSummaryBlock(summary: string): string {
   // gets persisted and replayed here. Route it through the same chokepoint as
   // every other untrusted seed surface so it cannot break out of the block (#123).
   return `<prior-context>\n${neutralizeSeedFraming(summary)}\n</prior-context>`;
+}
+
+/**
+ * Combine the passive retrieval block and the cross-tool context block under a
+ * 2000-token cap. The passive block has priority: if combined tokens exceed the
+ * cap, the cross-tool block is dropped entirely (never truncated mid-block).
+ * Exported for unit testing.
+ */
+export function combineHiddenContextBlocks(passiveBlock: string, crossToolBlock: string): string {
+  const COMBINED_CAP = 2000;
+  const passiveTokens = passiveBlock ? estimateTokens(passiveBlock) : 0;
+  const crossTokens = crossToolBlock ? estimateTokens(crossToolBlock) : 0;
+  if (!passiveBlock && !crossToolBlock) return "";
+  if (!crossToolBlock) return passiveBlock;
+  if (!passiveBlock) {
+    return crossTokens <= COMBINED_CAP ? crossToolBlock : "";
+  }
+  if (passiveTokens + crossTokens <= COMBINED_CAP) {
+    return `${passiveBlock}\n\n${crossToolBlock}`;
+  }
+  return passiveBlock;
 }
 
 function delay(ms: number): Promise<void> {
