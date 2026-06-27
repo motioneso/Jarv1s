@@ -2,20 +2,17 @@
 
 **Date:** 2026-06-27
 **Coordinator lock:** label `Coordinator`, stable anchor = Codex session id
-`019f0790-01da-70a2-a013-554a014c24b6`. Single-coordinator lock verified: exactly
+`019f09e7-e6a9-7e83-b3f9-6d5c2ba7f61d`. Single-coordinator lock verified: exactly
 one pane labelled `Coordinator`, and it is this session. Pane ids are routing hints only.
 **Merge policy:** `routine`/`sensitive` may auto-merge after independent green QA;
 `security` requires Ben's explicit merge sign-off after posted QA verdict.
 **Relay threshold:** security-tier merge -> relay immediately; routine/sensitive
 `merges_since_relay >= 2` -> relay. Compaction summary -> relay before merge.
 **merges_since_relay:** 0
-**Continuation note:** explicit user-requested coordinator relay in progress. Successor should
-update the coordinator lock to its own Codex session id before any merge, then continue in this
-order: rerun independent QA for PR #544 (`#526`) now that CI is green on head `9b063e6`;
-start security QA for PR #547 (`#529`) and PR #548 (`#534`) now that both are CI green;
-keep PR #545 (`#528`) blocked on Ben sign-off; keep PR #546 (`#530`) parked green behind `#528`
-stack order. After confirming it is driving, successor should reap old coordinator session id
-`019f0790-01da-70a2-a013-554a014c24b6`.
+**Continuation note:** successor has claimed the coordinator lock. Continue in this order:
+rerun independent QA for PR #544 (`#526`) now that CI is green on head `9b063e6`; start
+security QA for PR #547 (`#529`) and PR #548 (`#534`) now that both are CI green; keep PR #545
+(`#528`) blocked on Ben sign-off; keep PR #546 (`#530`) parked green behind `#528` stack order.
 
 ## Base
 
@@ -38,9 +35,9 @@ stack order. After confirming it is driving, successor should reap old coordinat
 | Issue | Spec | Tier | Status | Build | Review | Branch | PR |
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | #528 | `docs/superpowers/specs/2026-06-26-jarvis-memory-graph-substrate.md` | security | CI GREEN + security QA GREEN; awaiting Ben merge sign-off | Codex | opencode/GLM security QA | `rfa-528-memory-graph-substrate` | #545 |
-| #526 | `docs/superpowers/specs/2026-06-27-unified-priority-model.md` | sensitive | PR #544 CI green on `9b063e6`; fresh QA rerun needed | Codex salvage after opencode/GLM | Codex QA | `rfa-526-unified-priority-model` | #544 |
-| #534 | `docs/superpowers/specs/2026-06-27-explicit-action-permission-tiers.md` | security | PR #548 CI green on `main`; security QA pending | AGY | Codex security QA | `rfa-534-action-permission-tiers` | #548 |
-| #529 | `docs/superpowers/specs/2026-06-27-memory-distillation-pipeline.md` | security | PR #547 CI green on #528 base; security QA pending + stack order | Codex | opencode/GLM security QA | `rfa-529-memory-distillation` | #547 |
+| #526 | `docs/superpowers/specs/2026-06-27-unified-priority-model.md` | sensitive | PR #544 CI green on `9b063e6`; independent QA rerun in progress via subagent `Beauvoir` (`019f09e9-1622-7061-bdd6-50a79b5c58a4`) | Codex salvage after opencode/GLM | Codex QA | `rfa-526-unified-priority-model` | #544 |
+| #534 | `docs/superpowers/specs/2026-06-27-explicit-action-permission-tiers.md` | security | PR #548 CI green on `main`; security QA in progress via subagent `Gauss` (`019f09e9-4f55-7341-826a-14248ece0bf6`) | AGY | Codex security QA | `rfa-534-action-permission-tiers` | #548 |
+| #529 | `docs/superpowers/specs/2026-06-27-memory-distillation-pipeline.md` | security | PR #547 CI green on #528 base; security QA in progress via subagent `Peirce` (`019f09e9-4ecc-7480-92b6-4dba8898300c`) + stack order | Codex | opencode/GLM security QA | `rfa-529-memory-distillation` | #547 |
 | #530 | `docs/superpowers/specs/2026-06-27-passive-context-retrieval.md` | sensitive | PR #546 QA GREEN; merge-ready after #528 lands, with 2 non-blocking follow-ups noted | Codex | Codex QA | `rfa-530-passive-context-retrieval` | #546 |
 | #527 | `docs/superpowers/specs/2026-06-27-usefulness-feedback-signals.md` | security | queued after #526/#529 | opencode/GLM | Codex security QA | `rfa-527-usefulness-feedback` | - |
 | #532 | `docs/superpowers/specs/2026-06-27-confidence-aware-memory-records.md` | security | queued after #528/#529/#530 | Codex | AGY security QA | `rfa-532-confidence-aware-memory` | - |
@@ -212,14 +209,20 @@ None.
   isolated worktree the blast radius is contained, but keep explicit-path staging standard on later
   nudges.
 - #529: PR #547 CI run `28287794279` is now fully green on head
-  `c02a047c56428f6614cd43409423866dca034c9b`. Because this is a security-tier PR stacked on #528,
-  the next action is security QA; merge remains blocked behind #528 even after QA passes.
+  `c02a047c56428f6614cd43409423866dca034c9b`. Security QA subagent `Peirce`
+  (`019f09e9-4ecc-7480-92b6-4dba8898300c`) is in progress. Because this is a security-tier PR
+  stacked on #528, merge remains blocked behind #528 even after QA passes.
 - #526: PR #544 rerun CI `28288166262` is now fully green on head
-  `9b063e6f65cdfe412daf51e11cfe947139b3506f`. Next action is a fresh independent QA rerun against
-  this head.
+  `9b063e6f65cdfe412daf51e11cfe947139b3506f`. Independent QA rerun subagent `Beauvoir`
+  (`019f09e9-1622-7061-bdd6-50a79b5c58a4`) is in progress against this head.
+- #534: PR #548 CI run `28287913187` is fully green on head
+  `2c253a599eff989333030d9bd7f22680ea01f367`. Security QA subagent `Gauss`
+  (`019f09e9-4f55-7341-826a-14248ece0bf6`) is in progress.
 
 ## Reaped Sessions
 
+- Closed old relaying coordinator pane `w1:p3H` after successor session
+  `019f09e7-e6a9-7e83-b3f9-6d5c2ba7f61d` claimed the `Coordinator` label and manifest lock.
 - Closed stalled opencode/GLM pane `w1:p3M` for #526 after it remained idle on a clean but red tree;
   replacement Codex salvage pane is `w1:p3Q`.
 - Closed native QA worker `Aquinas` after its RED verdict was posted to PR #544 and relayed.
