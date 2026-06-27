@@ -152,6 +152,7 @@ describe("M7 release hardening lifecycle scripts", () => {
   });
 
   it("deletes one user only after exact confirmation and records metadata-only audit", async () => {
+    await seedExportExtensionData();
     const result = await deleteUserData({
       actorUserId: ids.userB,
       bootstrapConnectionString: connectionStrings.bootstrap,

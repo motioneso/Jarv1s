@@ -5,6 +5,12 @@ import type { FastifyBaseLogger } from "fastify";
 import type { AiRepository, AiSecretCipher } from "@jarv1s/ai";
 import { HttpApiAdapter, parseAiApiKeyCredential } from "@jarv1s/ai";
 import type { ChatTurn, GenerateChatInput, ProviderKind } from "@jarv1s/ai";
+import {
+  rankPriorityCandidates,
+  type FocusSignalInput,
+  type PriorityResult,
+  type PrioritySource
+} from "@jarv1s/priority";
 import type {
   BriefingDefinition,
   BriefingRunStatus,
@@ -24,6 +30,12 @@ import {
   type CalendarSignalSettings,
   type EmailSignalSettings
 } from "./signals.js";
+import {
+  calendarSignalsToCandidates,
+  emailSignalsToCandidates,
+  readPriorityModel,
+  tasksToCandidates
+} from "./priority-consumer.js";
 
 // ── Caps (one conservative economy budget) ─────────────────────────────────────
 const SECTION_ITEM_CAP = 8;
@@ -46,6 +58,13 @@ export interface ComposeDeps {
   readonly personaRepository?: {
     get(scopedDb: DataContextDb, key: string): Promise<unknown>;
   };
+  readonly priorityPreferencesRepository?: {
+    get(scopedDb: DataContextDb, key: string): Promise<unknown>;
+  };
+  readonly focusReadiness?: (ctx: {
+    readonly actorUserId: string;
+    readonly requestId: string;
+  }) => Promise<readonly FocusSignalInput[]>;
   readonly sourceBehaviorPolicy?: SourceBehaviorPolicyDeps;
   readonly resolveUserName?: (scopedDb: DataContextDb, actorUserId: string) => Promise<string>;
   /**
@@ -334,6 +353,26 @@ function sanitizeExternal(value: unknown): string {
   return escapeHtmlData(str(value)).replace(SENTINEL_TOKEN_PATTERN, "");
 }
 
+function orderByPriority<T>(
+  items: readonly T[],
+  source: PrioritySource,
+  titleForItem: (item: T) => string,
+  priorityResults: readonly PriorityResult[]
+): T[] {
+  if (priorityResults.length === 0) return [...items];
+  const order = new Map<string, number>();
+  for (const [index, result] of priorityResults.entries()) {
+    if (result.source === source && !order.has(result.title)) {
+      order.set(result.title, index);
+    }
+  }
+  return [...items].sort(
+    (a, b) =>
+      (order.get(titleForItem(a)) ?? Number.MAX_SAFE_INTEGER) -
+      (order.get(titleForItem(b)) ?? Number.MAX_SAFE_INTEGER)
+  );
+}
+
 export async function composeBriefing(
   scopedDb: DataContextDb,
   definition: BriefingDefinition,
@@ -528,28 +567,96 @@ export async function composeBriefing(
         settings: emailSettings
       })
     : [];
+  const priorityCandidates = [
+    ...tasksToCandidates(
+      tasks.lines.map((title, index) => {
+        const raw = tasks.rawItems?.[index] as
+          | {
+              readonly dueAt?: string;
+              readonly doAt?: string;
+              readonly priority?: number;
+              readonly effort?: "quick" | "medium" | "large";
+            }
+          | undefined;
+        return {
+          title,
+          dueAt: raw?.dueAt,
+          doAt: raw?.doAt,
+          priority: raw?.priority,
+          effort: raw?.effort
+        };
+      })
+    ),
+    ...calendarSignalsToCandidates(calendarSignals),
+    ...emailSignalsToCandidates(emailSignals)
+  ];
+  let priorityResults: PriorityResult[] = [];
+  try {
+    const [priorityModel, focusReadiness] = await Promise.all([
+      readPriorityModel(scopedDb, deps.priorityPreferencesRepository),
+      deps.focusReadiness?.({
+        actorUserId: definition.owner_user_id,
+        requestId: input.jobId ? `pgboss:${input.jobId}` : `briefing:${input.runId ?? "priority"}`
+      }) ?? Promise.resolve([])
+    ]);
+    priorityResults = rankPriorityCandidates({
+      model: priorityModel,
+      candidates: priorityCandidates,
+      now: now.toISOString(),
+      timeZone,
+      focusReadiness
+    });
+  } catch (error) {
+    deps.logger?.error(
+      {
+        event: "briefing_priority_failed",
+        error: error instanceof Error ? error.name : "UnknownError",
+        candidateCount: priorityCandidates.length
+      },
+      "briefing priority scorer failed"
+    );
+  }
+
+  const prioritizedTasks: Section = {
+    ...tasks,
+    lines: orderByPriority(tasks.lines, "tasks", (line) => line, priorityResults)
+  };
+  const prioritizedCalendarSignals = orderByPriority(
+    calendarSignals,
+    "calendar",
+    (signal) => signal.summary,
+    priorityResults
+  );
+  const prioritizedEmailSignals = orderByPriority(
+    emailSignals,
+    "email",
+    (signal) => signal.summary,
+    priorityResults
+  );
+
   if (includeCalendar && (rawCalendar.rawItems?.length ?? 0) > 0 && calendarSignals.length === 0) {
     gaps.push({ source: "calendar", reason: "empty" });
   }
   if (includeEmail && (rawEmail.rawItems?.length ?? 0) > 0 && emailSignals.length === 0) {
     gaps.push({ source: "email", reason: "empty" });
   }
+
   const calendar: Section = {
     key: rawCalendar.key,
     label: rawCalendar.label,
-    lines: calendarSignals.map((signal) => sanitizeExternal(signal.summary)),
-    count: calendarSignals.length,
+    lines: prioritizedCalendarSignals.map((signal) => sanitizeExternal(signal.summary)),
+    count: prioritizedCalendarSignals.length,
     rawItems: rawCalendar.rawItems
   };
   const email: Section = {
     key: rawEmail.key,
     label: rawEmail.label,
-    lines: emailSignals.map((signal) => sanitizeExternal(signal.summary)),
-    count: emailSignals.length,
+    lines: prioritizedEmailSignals.map((signal) => sanitizeExternal(signal.summary)),
+    count: prioritizedEmailSignals.length,
     rawItems: rawEmail.rawItems
   };
 
-  const sections: Section[] = [commitments, tasks, calendar, email, vault, chats];
+  const sections: Section[] = [commitments, prioritizedTasks, calendar, email, vault, chats];
 
   // ── Resolve the model (provider-agnostic) ────────────────────────────────────
   const model = await deps.aiRepository.selectModelForCapability(
@@ -563,7 +670,7 @@ export async function composeBriefing(
       gaps,
       "no_model",
       commitments,
-      tasks,
+      prioritizedTasks,
       calendar,
       email,
       vault,
@@ -586,7 +693,7 @@ export async function composeBriefing(
         gaps,
         "credential_error",
         commitments,
-        tasks,
+        prioritizedTasks,
         calendar,
         email,
         vault,
@@ -603,7 +710,7 @@ export async function composeBriefing(
         gaps,
         "credential_error",
         commitments,
-        tasks,
+        prioritizedTasks,
         calendar,
         email,
         vault,
@@ -620,7 +727,7 @@ export async function composeBriefing(
       gaps,
       "credential_error",
       commitments,
-      tasks,
+      prioritizedTasks,
       calendar,
       email,
       vault,
@@ -647,13 +754,13 @@ export async function composeBriefing(
       summaryText: text,
       sourceMetadata: {
         commitmentCount: commitments.count,
-        taskCount: tasks.count,
+        taskCount: prioritizedTasks.count,
         calendarCount: calendar.count,
         calendarEventCount: rawCalendar.rawItems?.length ?? 0,
-        calendarSignals,
+        calendarSignals: prioritizedCalendarSignals,
         emailCount: email.count,
         emailMessageCount: rawEmail.rawItems?.length ?? 0,
-        emailSignals,
+        emailSignals: prioritizedEmailSignals,
         vaultCount: vault.count,
         chatTurnCount: chats.count,
         notes: vaultNotes,
@@ -668,7 +775,7 @@ export async function composeBriefing(
       gaps,
       "synthesis_failed",
       commitments,
-      tasks,
+      prioritizedTasks,
       calendar,
       email,
       vault,

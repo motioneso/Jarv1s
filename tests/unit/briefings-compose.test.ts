@@ -5,6 +5,7 @@ import type { GenerateChatInput } from "@jarv1s/ai";
 import type { BriefingDefinition, DataContextDb } from "@jarv1s/db";
 import type { MemoryRetriever } from "@jarv1s/memory";
 import type { JarvisModuleManifest, ToolExecute, ToolResult } from "@jarv1s/module-sdk";
+import type { FocusSignalInput, PriorityModelPreferenceV1 } from "@jarv1s/priority";
 
 import {
   composeBriefing,
@@ -14,10 +15,7 @@ import {
   type GenerateChatFn
 } from "../../packages/briefings/src/compose.js";
 
-// The compose pipeline never touches scopedDb directly — every read is mediated by a
-// tool `execute` or the injected retriever, both faked here — so a sentinel handle is
-// enough for these unit tests.
-const fakeScopedDb = { db: {} } as unknown as DataContextDb;
+const fakeScopedDb = {} as DataContextDb;
 
 const FIXED_NOW = new Date("2026-06-13T12:00:00.000Z");
 
@@ -95,6 +93,8 @@ interface FakeOptions {
   /** Omit a model so compose takes the degraded "no_model" fallback. */
   readonly noModel?: boolean;
   readonly personaPreference?: unknown;
+  readonly priorityModel?: PriorityModelPreferenceV1;
+  readonly focusReadiness?: readonly FocusSignalInput[];
   readonly userName?: string;
   readonly disabledBehaviors?: ReadonlySet<string>;
   readonly preferences?: Readonly<Record<string, unknown>>;
@@ -221,6 +221,11 @@ function makeFakeDeps(options: FakeOptions = {}): ComposeDeps {
     personaRepository: {
       get: async () => options.personaPreference ?? null
     },
+    priorityPreferencesRepository: {
+      get: async (_scopedDb, key) =>
+        key === "priority.model.v1" ? (options.priorityModel ?? null) : null
+    },
+    focusReadiness: async () => options.focusReadiness ?? [],
     resolveUserName: async () => options.userName ?? "Ben",
     sourceBehaviorPolicy: {
       manifests: makeFakeManifests(options.failTool),
@@ -350,6 +355,166 @@ describe("composeBriefing — gathering", () => {
     );
     expect(md.chatTurnCount).toBe(1);
     expect(md.degraded).toBe(false);
+  });
+
+  it("orders task lines with the priority scorer before synthesis", async () => {
+    const capturedMessages: unknown[] = [];
+    const deps = makeFakeDeps({
+      generateChat: async (input: GenerateChatInput) => {
+        capturedMessages.push(input.messages);
+        return { text: "synth narrative" };
+      }
+    });
+    const manifests = deps.moduleManifests.map((m) => ({
+      ...m,
+      assistantTools: (m.assistantTools ?? []).map((t) =>
+        t.name === "tasks.list"
+          ? {
+              ...t,
+              execute: (async () => ({
+                data: {
+                  items: [
+                    { title: "Low paperwork", status: "todo", priority: 1 },
+                    { title: "Critical report", status: "todo", priority: 5 }
+                  ]
+                }
+              })) as ToolExecute
+            }
+          : t
+      )
+    }));
+
+    await composeBriefing(fakeScopedDb, definition(), runInput, {
+      ...deps,
+      moduleManifests: manifests
+    });
+
+    const prompt = (capturedMessages[0] as readonly { content: string }[])[0]!.content;
+    const tasksBlock = prompt.match(
+      /<external_source type="tasks">\n([\s\S]*?)\n<\/external_source>/
+    );
+    expect(tasksBlock, "tasks block must be present").not.toBeNull();
+    expect(tasksBlock![1]!.indexOf("Critical report")).toBeLessThan(
+      tasksBlock![1]!.indexOf("Low paperwork")
+    );
+  });
+
+  it("reads the priority model through the injected preference port", async () => {
+    const capturedKeys: string[] = [];
+    const capturedMessages: unknown[] = [];
+    const deps = makeFakeDeps({
+      priorityModel: {
+        version: 1,
+        mode: "balanced",
+        anchors: [
+          {
+            id: "anchor-1",
+            kind: "project",
+            label: "Anchor Project",
+            aliases: ["Anchor"],
+            weight: 2,
+            enabled: true,
+            createdAt: "2026-06-01T00:00:00.000Z",
+            updatedAt: "2026-06-01T00:00:00.000Z"
+          }
+        ],
+        mutedSources: [],
+        updatedAt: "2026-06-01T00:00:00.000Z"
+      },
+      generateChat: async (input: GenerateChatInput) => {
+        capturedMessages.push(input.messages);
+        return { text: "synth narrative" };
+      }
+    });
+    const manifests = deps.moduleManifests.map((m) => ({
+      ...m,
+      assistantTools: (m.assistantTools ?? []).map((t) =>
+        t.name === "tasks.list"
+          ? {
+              ...t,
+              execute: (async () => ({
+                data: {
+                  items: [
+                    { title: "Plain task", status: "todo", priority: 1 },
+                    { title: "Anchor Project task", status: "todo", priority: 1 }
+                  ]
+                }
+              })) as ToolExecute
+            }
+          : t
+      )
+    }));
+
+    await composeBriefing(fakeScopedDb, definition(), runInput, {
+      ...deps,
+      moduleManifests: manifests,
+      priorityPreferencesRepository: {
+        get: async (_scopedDb, key) => {
+          capturedKeys.push(key);
+          return deps.priorityPreferencesRepository!.get(_scopedDb, key);
+        }
+      }
+    });
+
+    expect(capturedKeys).toEqual(["priority.model.v1"]);
+    const prompt = (capturedMessages[0] as readonly { content: string }[])[0]!.content;
+    const tasksBlock = prompt.match(
+      /<external_source type="tasks">\n([\s\S]*?)\n<\/external_source>/
+    );
+    expect(tasksBlock, "tasks block must be present").not.toBeNull();
+    expect(tasksBlock![1]!.indexOf("Anchor Project task")).toBeLessThan(
+      tasksBlock![1]!.indexOf("Plain task")
+    );
+  });
+
+  it("uses focus readiness when priority scoring briefing tasks", async () => {
+    const capturedMessages: unknown[] = [];
+    const deps = makeFakeDeps({
+      priorityModel: {
+        version: 1,
+        mode: "energy_protective",
+        anchors: [],
+        mutedSources: [],
+        updatedAt: "2026-06-01T00:00:00.000Z"
+      },
+      focusReadiness: [{ moduleId: "wellness", readiness: 0.3, summary: "low energy" }],
+      generateChat: async (input: GenerateChatInput) => {
+        capturedMessages.push(input.messages);
+        return { text: "synth narrative" };
+      }
+    });
+    const manifests = deps.moduleManifests.map((m) => ({
+      ...m,
+      assistantTools: (m.assistantTools ?? []).map((t) =>
+        t.name === "tasks.list"
+          ? {
+              ...t,
+              execute: (async () => ({
+                data: {
+                  items: [
+                    { title: "Large report", status: "todo", priority: 3, effort: "large" },
+                    { title: "Quick admin", status: "todo", priority: 3, effort: "quick" }
+                  ]
+                }
+              })) as ToolExecute
+            }
+          : t
+      )
+    }));
+
+    await composeBriefing(fakeScopedDb, definition(), runInput, {
+      ...deps,
+      moduleManifests: manifests
+    });
+
+    const prompt = (capturedMessages[0] as readonly { content: string }[])[0]!.content;
+    const tasksBlock = prompt.match(
+      /<external_source type="tasks">\n([\s\S]*?)\n<\/external_source>/
+    );
+    expect(tasksBlock, "tasks block must be present").not.toBeNull();
+    expect(tasksBlock![1]!.indexOf("Quick admin")).toBeLessThan(
+      tasksBlock![1]!.indexOf("Large report")
+    );
   });
 
   it("omits calendar and email when include-in-briefings behaviors are disabled", async () => {

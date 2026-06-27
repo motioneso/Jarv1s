@@ -664,14 +664,15 @@ describe("AI read-only assistant tool execution foundation", () => {
 
   async function invokeTool(
     toolName: string,
-    headers: Record<string, string> = userAHeaders()
+    headers: Record<string, string> = userAHeaders(),
+    input: Record<string, unknown> = {}
   ): Promise<InvocationResponse["invocation"]> {
     const response = await server.inject({
       method: "POST",
       url: `/api/ai/assistant-tools/${toolName}/invoke`,
       headers,
       payload: {
-        input: {}
+        input
       }
     });
 

@@ -22,10 +22,23 @@ describe("manifest routes[] reconciliation", () => {
     expect(manifest?.settings?.[0]?.entry).toBe("./settings");
   });
 
-  it("settings manifest declares source behavior routes", () => {
+  it("settings manifest declares personal priority surface and preference routes", () => {
+    const manifest = getBuiltInModuleManifests().find((m) => m.id === "settings");
+    expect(manifest?.settings).toContainEqual(
+      expect.objectContaining({
+        id: "priority-settings",
+        label: "Priorities",
+        path: "/settings?section=priorities",
+        scope: "user",
+        permissionId: "settings.write"
+      })
+    );
+
     const paths = manifestPaths("settings");
     expect(paths).toContainEqual({ method: "GET", path: "/api/me/source-behaviors" });
     expect(paths).toContainEqual({ method: "PUT", path: "/api/me/source-behaviors/:id" });
+    expect(paths).toContainEqual({ method: "GET", path: "/api/me/priority-model" });
+    expect(paths).toContainEqual({ method: "PATCH", path: "/api/me/priority-model" });
   });
 
   it("chat manifest declares every chat API route the routes module registers", () => {
@@ -47,6 +60,21 @@ describe("manifest routes[] reconciliation", () => {
       { method: "GET", path: "/api/chat/memory/corrections" },
       { method: "POST", path: "/api/chat/action-requests/:id/resolve" },
       { method: "POST", path: "/api/mcp" }
+    ]) {
+      expect(paths).toContainEqual(expected);
+    }
+  });
+
+  it("memory manifest declares graph API routes", () => {
+    const paths = manifestPaths("memory");
+    for (const expected of [
+      { method: "GET", path: "/api/memory/graph/recall" },
+      { method: "GET", path: "/api/memory/graph/core" },
+      { method: "POST", path: "/api/memory/graph/entities" },
+      { method: "POST", path: "/api/memory/graph/facts" },
+      { method: "POST", path: "/api/memory/graph/facts/:id/pin" },
+      { method: "POST", path: "/api/memory/graph/facts/:id/supersede" },
+      { method: "DELETE", path: "/api/memory/graph/facts/:id" }
     ]) {
       expect(paths).toContainEqual(expected);
     }
