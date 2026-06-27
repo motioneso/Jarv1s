@@ -26,8 +26,10 @@ export interface PassiveRetrievalInput {
 
 const CONTROL_RE = /^(?:stop|cancel|new chat)$/i;
 const GREETING_RE = /^(?:hi|hello|hey|yo|sup)$/i;
-const EXPLICIT_RE = /\b(?:remember|what did we decide|where did we leave off|what'?s next|usual|again)\b/i;
-const PROJECT_RE = /\b(?:[\w-]+\s+){0,4}(?:project|remodel|launch|spec|plan|migration|issue|goal)\b/i;
+const EXPLICIT_RE =
+  /\b(?:remember|what did we decide|where did we leave off|what'?s next|usual|again)\b/i;
+const PROJECT_RE =
+  /\b(?:[\w-]+\s+){0,4}(?:project|remodel|launch|spec|plan|migration|issue|goal)\b/i;
 const PERSON_RE = /\b(?:mom|dad|contractor|doctor)\b/i;
 const DECISION_RE = /\b(?:decision|approved|we chose|why did we|what was the reasoning)\b/i;
 const PRONOUN_ACTION_RE =
@@ -110,7 +112,12 @@ export function planPassiveRetrieval(input: PassiveRetrievalInput): PassiveRetri
 
   if (EXPLICIT_RE.test(text)) return retrieve("explicit-memory", cap(text, MAX_QUERY_CHARS));
   if (CONTROL_RE.test(text) || GREETING_RE.test(text)) return skip();
-  if (text.length < 12 && !PROJECT_RE.test(text) && !PERSON_RE.test(text) && !DECISION_RE.test(text)) {
+  if (
+    text.length < 12 &&
+    !PROJECT_RE.test(text) &&
+    !PERSON_RE.test(text) &&
+    !DECISION_RE.test(text)
+  ) {
     return skip();
   }
   if (PROJECT_RE.test(text)) return retrieve("project-reference", cap(text, MAX_QUERY_CHARS));
