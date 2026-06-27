@@ -1,0 +1,139 @@
+import { describe, expect, it } from "vitest";
+
+import {
+  buildCommandPaletteCommands,
+  filterCommandPaletteCommands,
+  moduleSettingsHref
+} from "../../apps/web/src/shell/command-palette-model.js";
+import type { ModuleDto } from "@jarv1s/shared";
+
+describe("command palette model", () => {
+  it("builds grouped commands from real shell routes, themes, and safe settings targets", () => {
+    const commands = buildCommandPaletteCommands({
+      modules: [
+        moduleWithNav("tasks", "Tasks", "/tasks", "check-square", 20),
+        moduleWithNav("calendar", "Calendar", "/calendar", "calendar-days", 30),
+        moduleWithNav("briefings", "Briefings", "/briefings", "newspaper", 40),
+        moduleWithNav("notifications", "Notifications", "/notifications", "bell", 50),
+        moduleWithNav("wellness", "Wellness", "/wellness", "heart-pulse", 60),
+        moduleWithNav("chat", "Chat", "/chat", "message-square", 70)
+      ],
+      disabledModuleIds: ["wellness"],
+      themes: {
+        activeId: "light",
+        builtIn: [
+          { id: "light", name: "Light", builtIn: true },
+          { id: "dark", name: "Dark", builtIn: true }
+        ],
+        custom: [
+          {
+            id: "night-owl",
+            name: "Night Owl",
+            builtIn: false,
+            tokens: {
+              paper: "#101010",
+              surface: "#111111",
+              surface2: "#121212",
+              surface3: "#131313",
+              ink: "#f0f0f0",
+              ink2: "#dddddd",
+              ink3: "#cccccc",
+              ink4: "#bbbbbb",
+              line: "#222222",
+              lineSubtle: "#232323",
+              lineStrong: "#242424",
+              accent: "#4e9fff"
+            }
+          }
+        ]
+      }
+    });
+
+    expect(
+      commands.filter((command) => command.group === "Navigate").map((command) => command.id)
+    ).toEqual([
+      "nav:today",
+      "nav:tasks",
+      "nav:calendar",
+      "nav:notifications",
+      "nav:briefings",
+      "nav:settings"
+    ]);
+
+    expect(
+      commands.filter((command) => command.group === "Tasks").map((command) => command.id)
+    ).toEqual(["task:create", "task:open", "task:settings"]);
+
+    expect(
+      commands.filter((command) => command.group === "Appearance").map((command) => command.id)
+    ).toEqual(["theme:light", "theme:dark", "theme:night-owl", "settings:appearance"]);
+
+    expect(
+      commands.filter((command) => command.group === "Settings").map((command) => command.id)
+    ).toEqual([
+      "settings:root",
+      "settings:modules",
+      "settings:connected",
+      "settings:sources",
+      "settings:notifications"
+    ]);
+
+    expect(commands.some((command) => command.id === "nav:wellness")).toBe(false);
+    expect(
+      commands.filter(
+        (command) =>
+          command.action.kind === "navigate" && command.action.to === moduleSettingsHref("tasks")
+      )
+    ).toHaveLength(1);
+  });
+
+  it("filters by label, description, and aliases while preserving group order", () => {
+    const commands = buildCommandPaletteCommands({
+      modules: [moduleWithNav("tasks", "Tasks", "/tasks", "check-square", 20)],
+      disabledModuleIds: [],
+      themes: {
+        activeId: "dark",
+        builtIn: [{ id: "dark", name: "Dark", builtIn: true }],
+        custom: []
+      }
+    });
+
+    expect(filterCommandPaletteCommands(commands, "").map((group) => group.label)).toEqual([
+      "Navigate",
+      "Tasks",
+      "Appearance",
+      "Settings"
+    ]);
+
+    expect(filterCommandPaletteCommands(commands, "accounts")).toEqual([
+      expect.objectContaining({
+        label: "Settings",
+        items: [expect.objectContaining({ id: "settings:connected" })]
+      })
+    ]);
+
+    expect(filterCommandPaletteCommands(commands, "quick add")).toEqual([
+      expect.objectContaining({
+        label: "Tasks",
+        items: [expect.objectContaining({ id: "task:create" })]
+      })
+    ]);
+  });
+});
+
+function moduleWithNav(
+  id: string,
+  label: string,
+  path: string,
+  icon: string,
+  order: number
+): ModuleDto {
+  return {
+    id,
+    name: label,
+    version: "0.0.0",
+    lifecycle: "optional",
+    navigation: [{ id, label, path, icon, order }],
+    settings: []
+  };
+}

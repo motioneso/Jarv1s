@@ -12,19 +12,19 @@
 
 ## Probe Matrix
 
-| Probe | Command shape | Transcript path | Completion parity | Tool parity | Approval/action parity | Verdict |
-| --- | --- | --- | --- | --- | --- | --- |
-| Text-only turn 1 | `agy --print` | `~/.gemini/antigravity-cli/brain/.../transcript_full.jsonl` | pass | N/A | N/A | pass |
-| Text-only continuation | `agy --continue --print` | `~/.gemini/antigravity-cli/brain/.../transcript_full.jsonl` | pass | N/A | N/A | pass |
-| Local file read | `agy --dangerously-skip-permissions --print` | `~/.gemini/antigravity-cli/brain/.../transcript_full.jsonl` | pass | pass | pass | pass |
-| Stop/timeout behavior | `timeout 3s agy --print` | `~/.gemini/antigravity-cli/brain/.../transcript_full.jsonl` | pass | N/A | N/A | pass |
+| Probe                  | Command shape                                | Transcript path                                             | Completion parity | Tool parity | Approval/action parity | Verdict |
+| ---------------------- | -------------------------------------------- | ----------------------------------------------------------- | ----------------- | ----------- | ---------------------- | ------- |
+| Text-only turn 1       | `agy --print`                                | `~/.gemini/antigravity-cli/brain/.../transcript_full.jsonl` | pass              | N/A         | N/A                    | pass    |
+| Text-only continuation | `agy --continue --print`                     | `~/.gemini/antigravity-cli/brain/.../transcript_full.jsonl` | pass              | N/A         | N/A                    | pass    |
+| Local file read        | `agy --dangerously-skip-permissions --print` | `~/.gemini/antigravity-cli/brain/.../transcript_full.jsonl` | pass              | pass        | pass                   | pass    |
+| Stop/timeout behavior  | `timeout 3s agy --print`                     | `~/.gemini/antigravity-cli/brain/.../transcript_full.jsonl` | pass              | N/A         | N/A                    | pass    |
 
 ## Record Shapes
 
-| Agy print record shape | Jarv1s semantic record | Evidence |
-| --- | --- | --- |
-| `type: "PLANNER_RESPONSE"` | `reply` | Text-only continuation |
-| `type: "VIEW_FILE"` | `tool` | Local file read |
+| Agy print record shape     | Jarv1s semantic record | Evidence               |
+| -------------------------- | ---------------------- | ---------------------- |
+| `type: "PLANNER_RESPONSE"` | `reply`                | Text-only continuation |
+| `type: "VIEW_FILE"`        | `tool`                 | Local file read        |
 
 ## Findings
 

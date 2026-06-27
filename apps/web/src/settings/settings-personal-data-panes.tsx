@@ -25,6 +25,7 @@ import {
   type LucideIcon
 } from "lucide-react";
 import { useEffect, useState } from "react";
+import { useSearchParams } from "react-router";
 import {
   MODULE_SETTINGS_COMPONENTS,
   MODULE_SETTINGS_SURFACES
@@ -64,6 +65,7 @@ import {
   type DataSourceBehavior
 } from "./settings-data-source-model";
 import { useFeedback } from "./settings-feedback";
+import { resolveModuleSettingsDeepLink } from "./module-settings-deep-link";
 import { settingsModuleControlModel } from "./settings-module-view-model";
 import { moduleDescription, readError, type PaneProps } from "./settings-types";
 import {
@@ -679,6 +681,7 @@ type ModuleSettingsView = ModuleSub | { readonly moduleId: string };
 function ModulesPane({ onNavigate, onSelectSection }: PaneProps) {
   const queryClient = useQueryClient();
   const { toast } = useFeedback();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [view, setView] = useState<ModuleSettingsView | null>(null);
   const myQuery = useQuery({ queryKey: queryKeys.myModules, queryFn: getMyModules, retry: false });
   const modulesQuery = useQuery({ queryKey: queryKeys.modules, queryFn: getModules, retry: false });
@@ -688,6 +691,17 @@ function ModulesPane({ onNavigate, onSelectSection }: PaneProps) {
     onSuccess: () => void queryClient.invalidateQueries({ queryKey: queryKeys.myModules }),
     onError: (error) => toast(readError(error), { tone: "drift" })
   });
+
+  useEffect(() => {
+    const requested = resolveModuleSettingsDeepLink(searchParams.get("module"), (moduleId) =>
+      Boolean(findModuleSettingsEntrySurface(moduleId, MODULE_SETTINGS_SURFACES))
+    );
+    if (!requested) return;
+    setView(requested);
+    const next = new URLSearchParams(searchParams);
+    next.delete("module");
+    setSearchParams(next, { replace: true });
+  }, [searchParams, setSearchParams]);
 
   if (view === "briefings") return <BriefingSettings onBack={() => setView(null)} />;
   if (view === "chat") return <ChatSettingsView onBack={() => setView(null)} />;
