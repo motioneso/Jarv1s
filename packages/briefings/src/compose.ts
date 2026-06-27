@@ -572,14 +572,10 @@ export async function composeBriefing(
   const email: Section = {
     key: rawEmail.key,
     label: rawEmail.label,
-    lines: emailSignals.map((signal) => sanitizeExternal(signal.summary)),
-    count: emailSignals.length,
-    rawItems: rawEmail.rawItems
-  };
-    lines: emailSignals.map((signal) => sanitizeExternal(signal.summary)),
-    count: emailSignals.length,
-    rawItems: rawEmail.rawItems
-  };
+     lines: emailSignals.map((signal) => sanitizeExternal(signal.summary)),
+     count: emailSignals.length,
+     rawItems: rawEmail.rawItems
+   };
 
   const sections: Section[] = [commitments, tasks, calendar, email, vault, chats];
 
