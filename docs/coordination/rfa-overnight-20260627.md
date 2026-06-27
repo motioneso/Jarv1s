@@ -1,8 +1,8 @@
 # Coordination Run - rfa-overnight-20260627
 
 **Date:** 2026-06-27
-**Coordinator lock:** label `Coordinator`, stable anchor = Codex session id
-`019f0ae5-0afd-7092-911e-6c2e987df7f2`. Single-coordinator lock verified: exactly
+**Coordinator lock:** label `Coordinator`, stable anchor = Claude session id
+`14390eec-c4ea-4e6d-af99-3063509759e9`. Single-coordinator lock verified: exactly
 one pane labelled `Coordinator`, and it is this session. Pane ids are routing hints only.
 **Merge policy:** `routine`/`sensitive` may auto-merge after independent green QA;
 `security` requires Ben's explicit merge sign-off after posted QA verdict.
