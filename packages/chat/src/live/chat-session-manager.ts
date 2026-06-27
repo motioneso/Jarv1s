@@ -493,7 +493,7 @@ export class ChatSessionManager {
   private async engineText(actorUserId: string, text: string): Promise<string> {
     if (!this.deps.passiveRetrieval && !this.deps.crossToolRead) return text;
     try {
-      const [{ recent, oldSummary: _summary }, threadCtx] = await Promise.all([
+      const [{ recent }, threadCtx] = await Promise.all([
         this.deps.persistence.listPriorTurns(actorUserId),
         this.deps.persistence.getThreadContext(actorUserId)
       ]);
@@ -820,10 +820,7 @@ export function renderSummaryBlock(summary: string): string {
  * cap, the cross-tool block is dropped entirely (never truncated mid-block).
  * Exported for unit testing.
  */
-export function combineHiddenContextBlocks(
-  passiveBlock: string,
-  crossToolBlock: string
-): string {
+export function combineHiddenContextBlocks(passiveBlock: string, crossToolBlock: string): string {
   const COMBINED_CAP = 2000;
   const passiveTokens = passiveBlock ? estimateTokens(passiveBlock) : 0;
   const crossTokens = crossToolBlock ? estimateTokens(crossToolBlock) : 0;
