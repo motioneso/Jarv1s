@@ -93,6 +93,13 @@ const userScopedCountQueries: ReadonlyArray<readonly [table: string, predicate: 
   ["app.chat_memory_facts", "owner_user_id = $1::uuid"],
   ["app.chat_memory_suppressions", "owner_user_id = $1::uuid"],
   ["app.chat_user_memory_settings", "user_id = $1::uuid"],
+  ["app.memory_entities", "owner_user_id = $1::uuid"],
+  ["app.memory_facts", "owner_user_id = $1::uuid"],
+  ["app.memory_episodes", "owner_user_id = $1::uuid"],
+  ["app.memory_fact_sources", "owner_user_id = $1::uuid"],
+  ["app.memory_aliases", "owner_user_id = $1::uuid"],
+  ["app.memory_search_documents", "owner_user_id = $1::uuid"],
+  ["app.memory_legacy_fact_migrations", "owner_user_id = $1::uuid"],
   // Structured-state (0031): commitments/entities/preferences.
   ["app.commitments", "owner_user_id = $1::uuid"],
   ["app.entities", "owner_user_id = $1::uuid"],

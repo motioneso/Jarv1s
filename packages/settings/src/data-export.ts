@@ -38,6 +38,13 @@ export interface UserDataExportTables {
   readonly medicationLogs: readonly ExportRow[];
   readonly medications: readonly ExportRow[];
   readonly memoryChunks: readonly ExportRow[];
+  readonly memoryAliases: readonly ExportRow[];
+  readonly memoryEntities: readonly ExportRow[];
+  readonly memoryEpisodes: readonly ExportRow[];
+  readonly memoryFacts: readonly ExportRow[];
+  readonly memoryFactSources: readonly ExportRow[];
+  readonly memoryLegacyFactMigrations: readonly ExportRow[];
+  readonly memorySearchDocuments: readonly ExportRow[];
   readonly notificationReads: readonly ExportRow[];
   readonly notifications: readonly ExportRow[];
   readonly preferences: readonly ExportRow[];
@@ -83,6 +90,16 @@ async function readExportTables(
     briefingRuns: await readRows(scopedDb.db, briefingRunsQuery(userId)),
     memoryChunks: await readRows(scopedDb.db, memoryChunksQuery(userId)),
     chatMemoryFacts: await readRows(scopedDb.db, chatMemoryFactsQuery(userId)),
+    memoryEntities: await readRows(scopedDb.db, memoryEntitiesQuery(userId)),
+    memoryFacts: await readRows(scopedDb.db, memoryFactsQuery(userId)),
+    memoryEpisodes: await readRows(scopedDb.db, memoryEpisodesQuery(userId)),
+    memoryFactSources: await readRows(scopedDb.db, memoryFactSourcesQuery(userId)),
+    memoryAliases: await readRows(scopedDb.db, memoryAliasesQuery(userId)),
+    memorySearchDocuments: await readRows(scopedDb.db, memorySearchDocumentsQuery(userId)),
+    memoryLegacyFactMigrations: await readRows(
+      scopedDb.db,
+      memoryLegacyFactMigrationsQuery(userId)
+    ),
     commitments: await readRows(scopedDb.db, commitmentsQuery(userId)),
     entities: await readRows(scopedDb.db, entitiesQuery(userId)),
     preferences: await readRows(scopedDb.db, preferencesQuery(userId)),
@@ -446,6 +463,129 @@ function chatMemoryFactsQuery(userId: string) {
     FROM app.chat_memory_facts
     WHERE owner_user_id = ${userId}::uuid
     ORDER BY created_at, id
+  `;
+}
+
+function memoryEntitiesQuery(userId: string) {
+  return sql<Record<string, unknown>>`
+    SELECT
+      id::text AS id,
+      owner_user_id::text AS "ownerUserId",
+      kind,
+      name,
+      summary,
+      status,
+      importance,
+      pinned,
+      created_at AS "createdAt",
+      updated_at AS "updatedAt"
+    FROM app.memory_entities
+    WHERE owner_user_id = ${userId}::uuid
+    ORDER BY created_at, id
+  `;
+}
+
+function memoryFactsQuery(userId: string) {
+  return sql<Record<string, unknown>>`
+    SELECT
+      id::text AS id,
+      owner_user_id::text AS "ownerUserId",
+      subject_entity_id::text AS "subjectEntityId",
+      predicate,
+      object_entity_id::text AS "objectEntityId",
+      object_text AS "objectText",
+      confidence,
+      provenance,
+      status,
+      valid_from AS "validFrom",
+      valid_to AS "validTo",
+      last_confirmed_at AS "lastConfirmedAt",
+      importance,
+      pinned,
+      created_at AS "createdAt",
+      updated_at AS "updatedAt"
+    FROM app.memory_facts
+    WHERE owner_user_id = ${userId}::uuid
+    ORDER BY created_at, id
+  `;
+}
+
+function memoryEpisodesQuery(userId: string) {
+  return sql<Record<string, unknown>>`
+    SELECT
+      id::text AS id,
+      owner_user_id::text AS "ownerUserId",
+      source_kind AS "sourceKind",
+      source_ref AS "sourceRef",
+      source_label AS "sourceLabel",
+      occurred_at AS "occurredAt",
+      excerpt,
+      created_at AS "createdAt"
+    FROM app.memory_episodes
+    WHERE owner_user_id = ${userId}::uuid
+    ORDER BY created_at, id
+  `;
+}
+
+function memoryFactSourcesQuery(userId: string) {
+  return sql<Record<string, unknown>>`
+    SELECT
+      owner_user_id::text AS "ownerUserId",
+      fact_id::text AS "factId",
+      episode_id::text AS "episodeId",
+      created_at AS "createdAt"
+    FROM app.memory_fact_sources
+    WHERE owner_user_id = ${userId}::uuid
+    ORDER BY created_at, fact_id, episode_id
+  `;
+}
+
+function memoryAliasesQuery(userId: string) {
+  return sql<Record<string, unknown>>`
+    SELECT
+      id::text AS id,
+      owner_user_id::text AS "ownerUserId",
+      entity_id::text AS "entityId",
+      alias,
+      normalized_alias AS "normalizedAlias",
+      ambiguous,
+      created_at AS "createdAt",
+      updated_at AS "updatedAt"
+    FROM app.memory_aliases
+    WHERE owner_user_id = ${userId}::uuid
+    ORDER BY created_at, id
+  `;
+}
+
+function memorySearchDocumentsQuery(userId: string) {
+  return sql<Record<string, unknown>>`
+    SELECT
+      id::text AS id,
+      owner_user_id::text AS "ownerUserId",
+      target_kind AS "targetKind",
+      target_id::text AS "targetId",
+      search_text AS "searchText",
+      embed_model_name AS "embedModelName",
+      embed_model_version AS "embedModelVersion",
+      status,
+      created_at AS "createdAt",
+      updated_at AS "updatedAt"
+    FROM app.memory_search_documents
+    WHERE owner_user_id = ${userId}::uuid
+    ORDER BY created_at, id
+  `;
+}
+
+function memoryLegacyFactMigrationsQuery(userId: string) {
+  return sql<Record<string, unknown>>`
+    SELECT
+      owner_user_id::text AS "ownerUserId",
+      legacy_fact_id::text AS "legacyFactId",
+      memory_fact_id::text AS "memoryFactId",
+      created_at AS "createdAt"
+    FROM app.memory_legacy_fact_migrations
+    WHERE owner_user_id = ${userId}::uuid
+    ORDER BY created_at, legacy_fact_id
   `;
 }
 

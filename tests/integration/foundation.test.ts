@@ -272,6 +272,10 @@ describe("MVP foundation scaffold", () => {
         {
           version: "0117",
           name: "0117_provider_execution_mode.sql"
+        },
+        {
+          version: "0118",
+          name: "0118_memory_graph_substrate.sql"
         }
       ]);
     } finally {

@@ -1,0 +1,204 @@
+import { assertDataContextDb, type DataContextDb } from "@jarv1s/db";
+
+import type { EmbeddingProvider } from "./embedding-provider.js";
+import { MemoryGraphRepository } from "./graph-repository.js";
+import type {
+  MemoryFactProvenance,
+  MemoryFactRecallCandidate,
+  MemoryFactRecord,
+  MemoryForgetResult,
+  MemoryRecallItem,
+  MemoryRecallResult,
+  MemoryRememberInput,
+  MemorySupersedeInput,
+  MemoryWriteResult,
+  NewMemoryFact
+} from "./graph-types.js";
+
+const DEFAULT_RECALL_LIMIT = 10;
+const CORE_LIMIT = 20;
+
+export class GraphMemoryRecallService {
+  constructor(
+    private readonly embeddingProvider: EmbeddingProvider,
+    private readonly repository = new MemoryGraphRepository()
+  ) {}
+
+  async remember(
+    scopedDb: DataContextDb,
+    ownerUserId: string,
+    input: MemoryRememberInput
+  ): Promise<MemoryWriteResult> {
+    assertDataContextDb(scopedDb);
+    const subjectEntityId =
+      input.subjectEntityId ?? (await this.repository.ensureSelfEntity(scopedDb, ownerUserId)).id;
+    const fact = await this.repository.createFact(scopedDb, ownerUserId, {
+      ...input,
+      subjectEntityId
+    } satisfies NewMemoryFact);
+
+    const searchText = factSearchText(fact);
+    await this.repository.upsertSearchDocument(
+      scopedDb,
+      ownerUserId,
+      "fact",
+      fact.id,
+      searchText,
+      await this.embeddingProvider.embedDocument(searchText),
+      this.embeddingProvider.modelName,
+      this.embeddingProvider.modelVersion
+    );
+
+    return { fact };
+  }
+
+  async recall(
+    scopedDb: DataContextDb,
+    ownerUserId: string,
+    query: string,
+    options: { readonly limit?: number; readonly includeInactive?: boolean } = {}
+  ): Promise<MemoryRecallResult> {
+    assertDataContextDb(scopedDb);
+    const trimmedQuery = query.trim();
+    if (!trimmedQuery) return { query: trimmedQuery, items: [] };
+
+    const queryEmbedding = await this.embeddingProvider.embedQuery(trimmedQuery);
+    const candidates = await this.repository.listFactRecallCandidates(
+      scopedDb,
+      ownerUserId,
+      queryEmbedding,
+      { includeInactive: options.includeInactive }
+    );
+    const items = candidates
+      .map((candidate) => toRecallItem(candidate, trimmedQuery))
+      .filter((item) => options.includeInactive || item.score > 0)
+      .sort((a, b) => b.score - a.score || b.confidence - a.confidence)
+      .slice(0, options.limit ?? DEFAULT_RECALL_LIMIT);
+
+    return { query: trimmedQuery, items };
+  }
+
+  async core(scopedDb: DataContextDb, ownerUserId: string): Promise<MemoryRecallResult> {
+    assertDataContextDb(scopedDb);
+    const facts = await this.repository.listCoreFacts(scopedDb, ownerUserId, CORE_LIMIT);
+    return {
+      query: "",
+      items: facts.map((fact) => factToRecallItem(fact, 1))
+    };
+  }
+
+  async forget(
+    scopedDb: DataContextDb,
+    ownerUserId: string,
+    target: { readonly factId: string }
+  ): Promise<MemoryForgetResult> {
+    assertDataContextDb(scopedDb);
+    return {
+      deleted: await this.repository.forgetFact(scopedDb, ownerUserId, target.factId)
+    };
+  }
+
+  async supersede(
+    scopedDb: DataContextDb,
+    ownerUserId: string,
+    input: MemorySupersedeInput
+  ): Promise<{ readonly factId: string; readonly superseded: boolean }> {
+    assertDataContextDb(scopedDb);
+    return {
+      factId: input.factId,
+      superseded: await this.repository.supersedeFact(
+        scopedDb,
+        ownerUserId,
+        input.factId,
+        input.validTo ?? new Date()
+      )
+    };
+  }
+
+  async link(
+    scopedDb: DataContextDb,
+    ownerUserId: string,
+    input: MemoryRememberInput
+  ): Promise<MemoryWriteResult> {
+    return this.remember(scopedDb, ownerUserId, input);
+  }
+
+  async pin(
+    scopedDb: DataContextDb,
+    ownerUserId: string,
+    target: { readonly factId: string },
+    pinned: boolean
+  ): Promise<boolean> {
+    assertDataContextDb(scopedDb);
+    return this.repository.pinFact(scopedDb, ownerUserId, target.factId, pinned);
+  }
+}
+
+function toRecallItem(candidate: MemoryFactRecallCandidate, query: string): MemoryRecallItem {
+  const fact = candidate.fact;
+  const keywordMatch = keywordScore(query, candidate.searchText);
+  const score =
+    0.4 * candidate.vectorSimilarity +
+    0.25 * keywordMatch +
+    0.15 * fact.importance +
+    0.1 * provenanceBoost(fact.provenance) +
+    0.05 * (fact.pinned ? 1 : 0) +
+    0.05 * freshnessBoost(fact.lastConfirmedAt ?? fact.updatedAt ?? fact.createdAt);
+
+  return factToRecallItem(fact, roundScore(score));
+}
+
+function factToRecallItem(fact: MemoryFactRecord, score: number): MemoryRecallItem {
+  return {
+    kind: "fact",
+    id: fact.id,
+    title: fact.predicate,
+    text: fact.objectText ?? fact.objectEntityId ?? "",
+    score,
+    confidence: fact.confidence,
+    provenance: fact.provenance,
+    validFrom: fact.validFrom,
+    validTo: fact.validTo,
+    sources: fact.sources
+  };
+}
+
+function factSearchText(fact: MemoryFactRecord): string {
+  return [fact.predicate, fact.objectText].filter(Boolean).join(" ");
+}
+
+function keywordScore(query: string, text: string): number {
+  const terms = query
+    .toLocaleLowerCase()
+    .split(/\s+/)
+    .map((term) => term.trim())
+    .filter(Boolean);
+  if (terms.length === 0) return 0;
+
+  const haystack = text.toLocaleLowerCase();
+  const matches = terms.filter((term) => haystack.includes(term)).length;
+  return matches / terms.length;
+}
+
+function provenanceBoost(provenance: MemoryFactProvenance): number {
+  switch (provenance) {
+    case "confirmed":
+      return 1;
+    case "volunteered":
+      return 0.8;
+    case "imported":
+      return 0.6;
+    case "inferred":
+      return 0.4;
+  }
+}
+
+function freshnessBoost(date: Date | null): number {
+  if (!date) return 0;
+  const days = Math.max(0, (Date.now() - date.getTime()) / 86_400_000);
+  return Math.max(0, 1 - days / 365);
+}
+
+function roundScore(score: number): number {
+  return Math.round(score * 1000) / 1000;
+}
