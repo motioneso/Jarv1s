@@ -56,6 +56,29 @@ describe("Tasks agency tools through AssistantToolGateway", () => {
         upsert: async (key, value) => {
           agencyPrefs[key] = value;
         }
+      }),
+      actionPolicy: () => ({
+        getFamilyTier: async (moduleId, familyId) => {
+          if (
+            moduleId === "tasks" &&
+            familyId === "task_changes" &&
+            agencyPrefs["tasks.agency_auto_execute"] === true
+          ) {
+            return "trusted_auto";
+          }
+          return null;
+        },
+        getFamilyManifest: async (moduleId, familyId) => {
+          if (moduleId === "tasks" && familyId === "task_changes") {
+            return {
+              id: "task_changes",
+              displayName: "Task Changes",
+              description: "Create and update tasks",
+              defaultTier: "confirm"
+            };
+          }
+          return null;
+        }
       })
     });
   });
