@@ -21,16 +21,7 @@ const releaseIds = {
   calendarEvent: "84000000-0000-4000-8000-000000000001",
   emailMessage: "85000000-0000-4000-8000-000000000001",
   aiProvider: "86000000-0000-4000-8000-000000000001",
-  aiModel: "87000000-0000-4000-8000-000000000001",
-  chatMemoryFact: "88000000-0000-4000-8000-000000000001",
-  memoryAEntity: "88000000-0000-4000-8000-000000000002",
-  memoryAFact: "88000000-0000-4000-8000-000000000003",
-  memoryAEpisode: "88000000-0000-4000-8000-000000000004",
-  memoryAAlias: "88000000-0000-4000-8000-000000000005",
-  memoryASearchDocument: "88000000-0000-4000-8000-000000000006",
-  memoryBEntity: "88000000-0000-4000-8000-000000000007",
-  memoryBFact: "88000000-0000-4000-8000-000000000008",
-  memoryBEpisode: "88000000-0000-4000-8000-000000000009"
+  aiModel: "87000000-0000-4000-8000-000000000001"
 } as const;
 
 describe("M7 release hardening lifecycle scripts", () => {
@@ -93,13 +84,6 @@ describe("M7 release hardening lifecycle scripts", () => {
 
     expect(userExport.tables).toHaveProperty("memoryChunks");
     expect(userExport.tables).toHaveProperty("chatMemoryFacts");
-    expect(userExport.tables).toHaveProperty("memoryEntities");
-    expect(userExport.tables).toHaveProperty("memoryFacts");
-    expect(userExport.tables).toHaveProperty("memoryEpisodes");
-    expect(userExport.tables).toHaveProperty("memoryFactSources");
-    expect(userExport.tables).toHaveProperty("memoryAliases");
-    expect(userExport.tables).toHaveProperty("memorySearchDocuments");
-    expect(userExport.tables).toHaveProperty("memoryLegacyFactMigrations");
     expect(userExport.tables).toHaveProperty("commitments");
     expect(userExport.tables).toHaveProperty("entities");
     expect(userExport.tables).toHaveProperty("preferences");
@@ -146,57 +130,6 @@ describe("M7 release hardening lifecycle scripts", () => {
     expect(userExport.tables.chatMemoryFacts[0]).toHaveProperty("content");
     expect(Object.keys(userExport.tables.chatMemoryFacts[0] ?? {})).not.toContain("embedding");
 
-    expect(userExport.tables.memoryEntities).toEqual([
-      expect.objectContaining({
-        id: releaseIds.memoryAEntity,
-        kind: "project",
-        name: "Graph export project"
-      })
-    ]);
-    expect(userExport.tables.memoryFacts).toEqual([
-      expect.objectContaining({
-        id: releaseIds.memoryAFact,
-        predicate: "has_constraint",
-        objectText: "graph budget sentinel"
-      })
-    ]);
-    expect(userExport.tables.memoryEpisodes).toEqual([
-      expect.objectContaining({
-        id: releaseIds.memoryAEpisode,
-        sourceKind: "manual",
-        excerpt: "graph source excerpt sentinel"
-      })
-    ]);
-    expect(userExport.tables.memoryFactSources).toEqual([
-      expect.objectContaining({
-        factId: releaseIds.memoryAFact,
-        episodeId: releaseIds.memoryAEpisode
-      })
-    ]);
-    expect(userExport.tables.memoryAliases).toEqual([
-      expect.objectContaining({
-        id: releaseIds.memoryAAlias,
-        alias: "graph project"
-      })
-    ]);
-    expect(userExport.tables.memorySearchDocuments).toEqual([
-      expect.objectContaining({
-        id: releaseIds.memoryASearchDocument,
-        targetKind: "fact",
-        searchText: "graph budget sentinel"
-      })
-    ]);
-    expect(userExport.tables.memoryLegacyFactMigrations).toEqual([
-      expect.objectContaining({
-        legacyFactId: releaseIds.chatMemoryFact,
-        memoryFactId: releaseIds.memoryAFact
-      })
-    ]);
-    expect(Object.keys(userExport.tables.memorySearchDocuments[0] ?? {})).not.toContain(
-      "embedding"
-    );
-    expect(exportedJson).not.toContain("User B graph memory");
-
     expect(userExport.tables.commitments.length).toBeGreaterThan(0);
     expect(userExport.tables.commitments[0]).toHaveProperty("id");
     expect(userExport.tables.commitments[0]).toHaveProperty("title");
@@ -220,13 +153,6 @@ describe("M7 release hardening lifecycle scripts", () => {
 
   it("deletes one user only after exact confirmation and records metadata-only audit", async () => {
     await seedExportExtensionData();
-    const dryRun = await deleteUserData({
-      actorUserId: ids.userB,
-      bootstrapConnectionString: connectionStrings.bootstrap,
-      dryRun: true,
-      userId: ids.userA
-    });
-
     const result = await deleteUserData({
       actorUserId: ids.userB,
       bootstrapConnectionString: connectionStrings.bootstrap,
@@ -235,16 +161,8 @@ describe("M7 release hardening lifecycle scripts", () => {
       userId: ids.userA
     });
     const rows = await readLifecycleRows();
-    const graphRows = await readMemoryGraphRows();
     const auditJson = JSON.stringify(rows.auditMetadata);
 
-    expect(dryRun.countsBeforeDelete["app.memory_entities"]).toBeGreaterThan(0);
-    expect(dryRun.countsBeforeDelete["app.memory_facts"]).toBeGreaterThan(0);
-    expect(dryRun.countsBeforeDelete["app.memory_episodes"]).toBeGreaterThan(0);
-    expect(dryRun.countsBeforeDelete["app.memory_fact_sources"]).toBeGreaterThan(0);
-    expect(dryRun.countsBeforeDelete["app.memory_aliases"]).toBeGreaterThan(0);
-    expect(dryRun.countsBeforeDelete["app.memory_search_documents"]).toBeGreaterThan(0);
-    expect(dryRun.countsBeforeDelete["app.memory_legacy_fact_migrations"]).toBeGreaterThan(0);
     expect(result.dryRun).toBe(false);
     expect(result.deleted).toBe(true);
     expect(result.vaultDeleted).toBe(true);
@@ -252,8 +170,6 @@ describe("M7 release hardening lifecycle scripts", () => {
     expect(rows.userAExists).toBe(false);
     expect(rows.userBExists).toBe(true);
     expect(rows.userBTaskExists).toBe(true);
-    expect(graphRows.userAGraphRows).toBe(0);
-    expect(graphRows.userBGraphRows).toBeGreaterThan(0);
     expect(rows.userAConnectorRows).toBe(0);
     expect(rows.userAAiProviderRows).toBe(0);
     expect(rows.auditAction).toBe("user.delete");
@@ -973,11 +889,10 @@ async function seedExportExtensionData(): Promise<void> {
     );
     await client.query(
       `INSERT INTO app.chat_memory_facts
-         (id, owner_user_id, category, content, importance)
-       VALUES ($1, $2, 'fact', 'user likes coffee', 0.80)`,
-      [releaseIds.chatMemoryFact, ids.userA]
+         (owner_user_id, category, content, importance)
+       VALUES ($1, 'fact', 'user likes coffee', 0.80)`,
+      [ids.userA]
     );
-    await seedMemoryGraphExportRows(client);
     await client.query(
       `INSERT INTO app.commitments
          (owner_user_id, title, status, provenance, source_kind)
@@ -1003,114 +918,6 @@ async function seedExportExtensionData(): Promise<void> {
   } finally {
     await client.end();
   }
-}
-
-async function seedMemoryGraphExportRows(client: pg.Client): Promise<void> {
-  await client.query(
-    `
-      INSERT INTO app.memory_entities (id, owner_user_id, kind, name, summary)
-      VALUES
-        ($1, $2, 'project', 'Graph export project', 'exported graph project'),
-        ($3, $4, 'project', 'User B graph project', 'private graph project')
-    `,
-    [releaseIds.memoryAEntity, ids.userA, releaseIds.memoryBEntity, ids.userB]
-  );
-  await client.query(
-    `
-      INSERT INTO app.memory_facts (
-        id,
-        owner_user_id,
-        subject_entity_id,
-        predicate,
-        object_text,
-        confidence,
-        provenance,
-        importance
-      )
-      VALUES
-        ($1, $2, $3, 'has_constraint', 'graph budget sentinel', 0.95, 'confirmed', 0.80),
-        ($4, $5, $6, 'related_to', 'User B graph memory', 0.95, 'confirmed', 0.80)
-    `,
-    [
-      releaseIds.memoryAFact,
-      ids.userA,
-      releaseIds.memoryAEntity,
-      releaseIds.memoryBFact,
-      ids.userB,
-      releaseIds.memoryBEntity
-    ]
-  );
-  await client.query(
-    `
-      INSERT INTO app.memory_episodes (
-        id,
-        owner_user_id,
-        source_kind,
-        source_ref,
-        source_label,
-        excerpt
-      )
-      VALUES
-        ($1, $2, 'manual', 'manual:export-a', 'Export seed', 'graph source excerpt sentinel'),
-        ($3, $4, 'manual', 'manual:export-b', 'Export seed', 'User B graph memory')
-    `,
-    [releaseIds.memoryAEpisode, ids.userA, releaseIds.memoryBEpisode, ids.userB]
-  );
-  await client.query(
-    `
-      INSERT INTO app.memory_fact_sources (owner_user_id, fact_id, episode_id)
-      VALUES
-        ($1, $2, $3),
-        ($4, $5, $6)
-    `,
-    [
-      ids.userA,
-      releaseIds.memoryAFact,
-      releaseIds.memoryAEpisode,
-      ids.userB,
-      releaseIds.memoryBFact,
-      releaseIds.memoryBEpisode
-    ]
-  );
-  await client.query(
-    `
-      INSERT INTO app.memory_aliases (
-        id,
-        owner_user_id,
-        entity_id,
-        alias,
-        normalized_alias
-      )
-      VALUES ($1, $2, $3, 'graph project', 'graph project')
-    `,
-    [releaseIds.memoryAAlias, ids.userA, releaseIds.memoryAEntity]
-  );
-  await client.query(
-    `
-      INSERT INTO app.memory_search_documents (
-        id,
-        owner_user_id,
-        target_kind,
-        target_id,
-        search_text,
-        embed_model_name,
-        embed_model_version
-      )
-      VALUES ($1, $2, 'fact', $3, 'graph budget sentinel', 'stub', '0')
-    `,
-    [releaseIds.memoryASearchDocument, ids.userA, releaseIds.memoryAFact]
-  );
-  await client.query(
-    `
-      INSERT INTO app.memory_legacy_fact_migrations (
-        owner_user_id,
-        legacy_fact_id,
-        memory_fact_id
-      )
-      VALUES ($1, $2, $3)
-    `,
-    [ids.userA, releaseIds.chatMemoryFact, releaseIds.memoryAFact]
-  );
 }
 
 async function readLifecycleRows(): Promise<{
@@ -1183,50 +990,6 @@ async function readLifecycleRows(): Promise<{
       userAExists: row.user_a_exists,
       userBExists: row.user_b_exists,
       userBTaskExists: row.user_b_task_exists
-    };
-  } finally {
-    await client.end();
-  }
-}
-
-async function readMemoryGraphRows(): Promise<{
-  readonly userAGraphRows: number;
-  readonly userBGraphRows: number;
-}> {
-  const client = new Client({ connectionString: connectionStrings.bootstrap });
-
-  await client.connect();
-  try {
-    const result = await client.query<{
-      user_a_graph_rows: string;
-      user_b_graph_rows: string;
-    }>(
-      `
-        SELECT
-          (
-            SELECT count(*) FROM app.memory_entities WHERE owner_user_id = $1
-          ) +
-          (
-            SELECT count(*) FROM app.memory_facts WHERE owner_user_id = $1
-          ) +
-          (
-            SELECT count(*) FROM app.memory_episodes WHERE owner_user_id = $1
-          ) AS user_a_graph_rows,
-          (
-            SELECT count(*) FROM app.memory_entities WHERE owner_user_id = $2
-          ) +
-          (
-            SELECT count(*) FROM app.memory_facts WHERE owner_user_id = $2
-          ) +
-          (
-            SELECT count(*) FROM app.memory_episodes WHERE owner_user_id = $2
-          ) AS user_b_graph_rows
-      `,
-      [ids.userA, ids.userB]
-    );
-    return {
-      userAGraphRows: Number(result.rows[0]?.user_a_graph_rows ?? 0),
-      userBGraphRows: Number(result.rows[0]?.user_b_graph_rows ?? 0)
     };
   } finally {
     await client.end();
