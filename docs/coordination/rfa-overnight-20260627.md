@@ -30,6 +30,9 @@ builder; PR #548 (`#534`) security QA rerun is in progress; PR #546 (`#530`) rem
   #533, and #534. Header cleanup is not a build prerequisite.
 - Ben approval: overnight autonomous directive on 2026-06-27; proceed through RFA queue,
   with security-tier merges held for explicit sign-off.
+- Staffing update at 2026-06-27 10:55 PDT: at the top of the hour, Claude agents may be used.
+  Build-only lanes can use Sonnet 4.6. Lanes that need spec or plan creation should use Opus 4.6
+  for that step, then Sonnet 4.6 for the build.
 
 ## Queue
 
