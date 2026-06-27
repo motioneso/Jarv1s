@@ -138,6 +138,10 @@ import {
   registerNotesSyncRoutes,
   registerNotesJobWorkers
 } from "@jarv1s/notes";
+import {
+  usefulnessFeedbackModuleManifest,
+  usefulnessFeedbackModuleSqlMigrationDirectory
+} from "@jarv1s/usefulness-feedback";
 
 import { assertModulesCompatible } from "./compat-gate.js";
 import {
@@ -636,6 +640,11 @@ const BUILT_IN_MODULES: readonly BuiltInModuleRegistration[] = [
         dataContext: deps.dataContext,
         resolveAccessContext: deps.resolveAccessContext
       })
+  },
+  {
+    manifest: usefulnessFeedbackModuleManifest,
+    sqlMigrationDirectories: [usefulnessFeedbackModuleSqlMigrationDirectory],
+    queueDefinitions: []
   },
   {
     manifest: structuredStateModuleManifest,

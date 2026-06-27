@@ -37,6 +37,7 @@
       "@jarv1s/source-behaviors": ["packages/source-behaviors/src/index.ts"],
       "@jarv1s/tasks": ["packages/tasks/src/index.ts"],
       "@jarv1s/memory": ["packages/memory/src/index.ts"],
+      "@jarv1s/usefulness-feedback": ["packages/usefulness-feedback/src/index.ts"],
       "@jarv1s/vault": ["packages/vault/src/index.ts"],
       "@jarv1s/structured-state": ["packages/structured-state/src/index.ts"],
       "@jarv1s/web-research": ["packages/web-research/src/index.ts"],

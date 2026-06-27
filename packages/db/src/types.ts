@@ -428,6 +428,56 @@ export interface BriefingRunsTable {
   created_at: TimestampColumn;
 }
 
+export type UsefulnessFeedbackTargetKind =
+  | "chat_message"
+  | "briefing_run"
+  | "briefing_item"
+  | "proactive_card";
+export type UsefulnessFeedbackSurface = "chat" | "briefing" | "today" | "proactive";
+export type UsefulnessFeedbackKind =
+  | "more_like_this"
+  | "too_much"
+  | "wrong_priority"
+  | "not_useful"
+  | "remember_this"
+  | "dismiss";
+export type UsefulnessFeedbackStatus = "active" | "undone";
+export type UsefulnessFeedbackPriorityBand = "critical" | "high" | "normal" | "low";
+
+export interface UsefulnessFeedbackSignalsTable {
+  id: ColumnType<string, string | undefined, never>;
+  owner_user_id: string;
+  target_kind: UsefulnessFeedbackTargetKind;
+  target_ref: string;
+  surface: UsefulnessFeedbackSurface;
+  kind: UsefulnessFeedbackKind;
+  source_kind: string | null;
+  source_label: string | null;
+  priority_band: UsefulnessFeedbackPriorityBand | null;
+  effect_kind: string | null;
+  effect_ref: string | null;
+  metadata_json: JsonColumn;
+  status: ColumnType<
+    UsefulnessFeedbackStatus,
+    UsefulnessFeedbackStatus | undefined,
+    UsefulnessFeedbackStatus
+  >;
+  created_at: TimestampColumn;
+  resolved_at: NullableTimestampColumn;
+}
+
+export interface UsefulnessFeedbackTargetsTable {
+  owner_user_id: string;
+  target_kind: UsefulnessFeedbackTargetKind;
+  target_ref: string;
+  surface: UsefulnessFeedbackSurface;
+  source_kind: string | null;
+  source_label: string | null;
+  priority_band: UsefulnessFeedbackPriorityBand | null;
+  metadata_json: JsonColumn;
+  last_seen_at: TimestampColumn;
+}
+
 export interface MemoryChunksTable {
   id: string;
   owner_user_id: string;
@@ -636,6 +686,8 @@ export interface JarvisDatabase {
   "app.chat_messages": ChatMessagesTable;
   "app.briefing_definitions": BriefingDefinitionsTable;
   "app.briefing_runs": BriefingRunsTable;
+  "app.usefulness_feedback_signals": UsefulnessFeedbackSignalsTable;
+  "app.usefulness_feedback_targets": UsefulnessFeedbackTargetsTable;
   "app.memory_chunks": MemoryChunksTable;
   "app.memory_links": MemoryLinksTable;
   "app.memory_file_index": MemoryFileIndexTable;
@@ -675,6 +727,8 @@ export type ChatThread = Selectable<ChatThreadsTable>;
 export type ChatMessage = Selectable<ChatMessagesTable>;
 export type BriefingDefinition = Selectable<BriefingDefinitionsTable>;
 export type BriefingRun = Selectable<BriefingRunsTable>;
+export type UsefulnessFeedbackSignal = Selectable<UsefulnessFeedbackSignalsTable>;
+export type UsefulnessFeedbackTarget = Selectable<UsefulnessFeedbackTargetsTable>;
 export type JsonObject = JsonColumn;
 export type Commitment = Selectable<CommitmentsTable>;
 export type Entity = Selectable<EntitiesTable>;
