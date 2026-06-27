@@ -4,7 +4,7 @@
 **Date:** 2026-06-27
 **Owner:** Ben + Codex
 **Issue:** #530
-**Depends on:** #528 Jarvis memory graph substrate, #529 memory distillation pipeline.
+**Depends on:** #528 Jarvis memory graph substrate.
 **Related follow-ups:** #525 cross-tool reasoning, #532 confidence-aware memory, #539 source-backed
 answers, #541 data freshness visibility.
 
@@ -26,7 +26,7 @@ Add **per-turn passive memory retrieval** to chat.
 
 Before a user turn is submitted to the chat engine, Jarvis runs a cheap retrieval planner. When the
 turn appears context-dependent, Jarvis queries the #528 memory graph and injects a bounded
-`<retrieved_context>` block immediately before the user message.
+`<retrieved_context>` block into the same provider submission as the user message.
 
 V1 retrieves only from the memory graph. It does not search notes, email, calendar, or tasks. #525
 owns cross-tool reasoning. This keeps #530 focused and avoids building a general retrieval broker
@@ -44,6 +44,7 @@ Current chat flow:
 - `RecallService.recall()` currently loads flat facts and episodic chat chunks.
 
 #530 adds a pre-submit hook in `runTurn()` after `ensureSession()` and before `session.engine.submit(text)`.
+It computes an engine-only payload but records only the raw user text.
 
 ## 4. Retrieval Planner
 
@@ -79,38 +80,34 @@ Retrieve when any rule matches:
   `what's next`, `usual`, `again`;
 - project reference: a phrase ending in `project`, `remodel`, `launch`, `spec`, `plan`, `migration`,
   `issue`, `goal`;
-- person reference: capitalized name-like token or known relationship phrase such as `mom`, `dad`,
-  `contractor`, `doctor`, `Sarah`;
+- person reference: known memory graph person alias, or known relationship phrase such as `mom`,
+  `dad`, `contractor`, `doctor`;
 - decision reference: `decision`, `approved`, `we chose`, `why did we`, `what was the reasoning`;
 - pronoun continuation when recent turns mention a project/person and the user says `it`, `that`,
-  `this`, `they`, or `them` with an action request.
+  `this`, `they`, or `them` with a simple action verb: `call`, `email`, `text`, `send`, `schedule`,
+  `finish`, `review`, `find`, `check`, `update`.
 
 Skip when:
 
 - text is a greeting/status check with no concrete referent;
 - text is a direct local UI/control request such as `stop`, `cancel`, `new chat`;
-- text is shorter than 12 characters and has no explicit memory/continuity phrase.
+- text is shorter than 12 characters and has no explicit memory/continuity, project, person, or
+  decision reference.
 
 The planner must be pure and unit-tested. No model call is used for planning in V1.
 
 ## 5. Recall Query
 
-The recall query is not just raw user text. Build it as:
+The recall query is a focused string returned by the planner, not a transcript block. Build it from:
 
-```text
-Thread: <thread title or "Untitled">
-Recent context:
-- <last user turn, truncated>
-- <last assistant turn, truncated>
-User asks:
-<current user text>
-```
+- the concrete referent phrase from the user text;
+- a known person/project alias if detected;
+- the shortest relevant recent-turn fragment only for pronoun continuation.
 
 Hard caps:
 
-- recent context: last 2 turns;
-- each turn: 300 characters;
-- total query text: 1,200 characters.
+- recent-turn fragment: 160 characters;
+- total query text: 400 characters.
 
 Use `MemoryRecallService.recall(scopedDb, ownerUserId, query, { limit: 8 })`.
 
@@ -151,13 +148,14 @@ In `ChatSessionManager.runTurn()`:
 1. ensure session;
 2. plan retrieval;
 3. if needed, call memory graph recall under `DataContextDb`;
-4. submit `<retrieved_context>` to the engine;
-5. drain transcript so provider output does not leak into user-visible reply;
-6. submit the user's actual text;
-7. continue existing reply/read/record flow.
+4. render `<retrieved_context>`;
+5. prepend the rendered block to the user text for the engine submission;
+6. submit one combined payload to the engine;
+7. record only the raw user text in chat persistence;
+8. continue existing reply/read/record flow.
 
-This matches existing `seedContext()` mechanics but runs per turn and only when the planner says it
-is useful.
+Do not submit retrieved context as its own engine turn. Passive retrieval must not cause a second
+model invocation.
 
 If retrieval fails, times out, or throws, skip context injection and submit the user text normally.
 
@@ -189,6 +187,8 @@ too noisy.
 ## 10. Out Of Scope
 
 - Cross-tool retrieval from notes/email/calendar/tasks (#525).
+- Automatic memory distillation (#529). #530 can be implemented with manually seeded active graph
+  memory from #528.
 - User-visible citations/source cards (#539).
 - Data freshness warnings for connected tools (#541).
 - Pending memory candidate hints (#529/#533).
@@ -197,8 +197,7 @@ too noisy.
 
 ## 11. Acceptance Criteria
 
-- [ ] Chat launch still seeds compact core memory, preferably through #528 core memory once
-      available.
+- [ ] Chat launch still seeds compact core memory through #528 once available.
 - [ ] Before a context-dependent turn, chat injects a bounded `<retrieved_context>` block.
 - [ ] Simple greetings/control turns do not trigger passive retrieval.
 - [ ] Retrieval uses #528 memory graph recall and excludes pending/inactive memory.

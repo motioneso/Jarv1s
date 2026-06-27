@@ -167,6 +167,15 @@ Owner-scoped unique key:
 
 - `(owner_user_id, candidate_signature)` across all statuses.
 
+`candidate_signature` is `sha256` of a normalized tuple:
+
+```text
+kind | action | subject-name | predicate | object-name-or-text | alias | target-name
+```
+
+Normalization trims whitespace, lowercases, collapses internal whitespace, and omits absent fields
+as empty strings.
+
 Rejected/suppressed candidate signatures prevent the same noisy candidate from resurfacing. Inserts
 use `ON CONFLICT (owner_user_id, candidate_signature)` and preserve the existing status rather than
 creating a new pending row.
@@ -248,10 +257,14 @@ The job payload remains metadata-only:
 ```ts
 interface DistillMemoryJobPayload extends ActorScopedJobPayload {
   readonly threadId: string;
+  readonly userMessageId: string;
+  readonly assistantMessageId: string;
 }
 ```
 
-The worker loads the latest stored user+assistant turn from the thread under `DataContextDb`.
+The worker loads exactly those stored messages from the thread under `DataContextDb`. It must not
+process "latest turn" by thread alone, because queue lag or rapid user messages can otherwise cause
+duplicate processing and missed intermediate turns.
 
 Failures degrade to no-op:
 
