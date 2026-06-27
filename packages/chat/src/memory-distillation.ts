@@ -130,6 +130,14 @@ export function parseMemoryCandidates(text: string): MemoryCandidate[] {
   });
 }
 
+export function containsSensitiveMemoryText(value: string): boolean {
+  return SENSITIVE_MEMORY_TEXT.test(value);
+}
+
+export function rawTurnContainsSensitiveText(userText: string, assistantText: string): boolean {
+  return containsSensitiveMemoryText(userText) || containsSensitiveMemoryText(assistantText);
+}
+
 export function memoryCandidateContainsSensitiveText(candidate: MemoryCandidate): boolean {
   return [
     candidate.entity?.name,
@@ -141,7 +149,7 @@ export function memoryCandidateContainsSensitiveText(candidate: MemoryCandidate)
     candidate.alias?.targetName,
     candidate.sourceExcerpt,
     candidate.rationale
-  ].some((value) => typeof value === "string" && SENSITIVE_MEMORY_TEXT.test(value));
+  ].some((value) => typeof value === "string" && containsSensitiveMemoryText(value));
 }
 
 export function decideCandidatePromotion(input: PromotionDecisionInput): PromotionDecision {
