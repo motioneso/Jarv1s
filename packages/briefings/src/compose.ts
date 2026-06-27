@@ -24,14 +24,8 @@ import {
   type CalendarSignalSettings,
   type EmailSignalSettings
 } from "./signals.js";
-import { readPriorityModel, getFocusReadiness } from "./priority-consumer.js";
+import { readPriorityModel } from "./priority-consumer.js";
 import { rankPriorityCandidates, type PriorityCandidate } from "@jarv1s/priority";
-import {
-  tasksToCandidates,
-  calendarSignalsToCandidates,
-  emailSignalsToCandidates,
-  readPriorityModel
-} from "./priority-consumer.js";
 
 // ── Caps (one conservative economy budget) ─────────────────────────────────────
 const SECTION_ITEM_CAP = 8;
