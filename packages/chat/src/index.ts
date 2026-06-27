@@ -53,6 +53,7 @@ export type {
   RpcSubmitLoginTokenResult
 } from "./live/login-contract.js";
 export * from "./manifest.js";
+export * from "./memory-distillation.js";
 export * from "./memory-settings-repository.js";
 export * from "./recall-port.js";
 export * from "./repository.js";
