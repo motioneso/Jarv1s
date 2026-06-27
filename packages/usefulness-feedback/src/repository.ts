@@ -115,9 +115,21 @@ export class UsefulnessFeedbackRepository {
   async undo(
     scopedDb: DataContextDb,
     ownerUserId: string,
-    id: string
+    id: string,
+    options: { readonly cancelMemoryCandidate?: (candidateId: string) => Promise<boolean> } = {}
   ): Promise<UsefulnessFeedbackSignal | undefined> {
     assertDataContextDb(scopedDb);
+    const existing = await scopedDb.db
+      .selectFrom("app.usefulness_feedback_signals")
+      .selectAll()
+      .where("owner_user_id", "=", ownerUserId)
+      .where("id", "=", id)
+      .executeTakeFirst();
+    if (!existing) return undefined;
+    if (existing.status === "undone") return existing;
+    if (existing.effect_kind === "memory_candidate" && existing.effect_ref) {
+      await options.cancelMemoryCandidate?.(existing.effect_ref);
+    }
     return scopedDb.db
       .updateTable("app.usefulness_feedback_signals")
       .set({ status: "undone", resolved_at: new Date() })

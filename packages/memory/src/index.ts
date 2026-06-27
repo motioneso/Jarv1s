@@ -28,6 +28,10 @@ export {
   createMemoryCandidateSignature,
   MemoryCandidatesRepository
 } from "./candidates-repository.js";
+export {
+  ManualMemoryCandidateService,
+  type ManualMemoryCandidateInput
+} from "./manual-candidates.js";
 export type { ParsedDocument, TextChunk } from "./parser.js";
 export { parseDocument } from "./parser.js";
 export type { NewChunkData, RetrievedChunk } from "./repository.js";

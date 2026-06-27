@@ -22,6 +22,24 @@ export interface UsefulnessFeedbackRoutesDependencies {
   readonly registry: FeedbackTargetVerifierRegistry;
   readonly resolveAccessContext: (request: FastifyRequest) => Promise<AccessContext>;
   readonly repository?: UsefulnessFeedbackRepository;
+  readonly manualMemoryCandidates?: {
+    createPendingManualCandidate(
+      scopedDb: Parameters<Parameters<DataContextRunner["withDataContext"]>[1]>[0],
+      ownerUserId: string,
+      input: {
+        readonly targetKind: string;
+        readonly targetRef: string;
+        readonly excerpt: string;
+        readonly episodeId?: string | null;
+        readonly provenance?: "volunteered" | "inferred";
+      }
+    ): Promise<{ readonly id: string }>;
+    cancelPendingManualCandidate(
+      scopedDb: Parameters<Parameters<DataContextRunner["withDataContext"]>[1]>[0],
+      ownerUserId: string,
+      id: string
+    ): Promise<boolean>;
+  };
 }
 
 export function registerUsefulnessFeedbackRoutes(
@@ -63,6 +81,27 @@ export function registerUsefulnessFeedbackRoutes(
           if (input.kind === "remember_this" && !verification.canRemember) {
             throw new HttpError(400, "Feedback target cannot be remembered");
           }
+          let effectKind: string | null = null;
+          let effectRef: string | null = null;
+          if (input.kind === "remember_this") {
+            const excerpt = verification.rememberExcerpt?.replace(/\s+/g, " ").trim();
+            if (!excerpt || !dependencies.manualMemoryCandidates) {
+              throw new HttpError(400, "Feedback target cannot be remembered");
+            }
+            const candidate =
+              await dependencies.manualMemoryCandidates.createPendingManualCandidate(
+                scopedDb,
+                access.actorUserId,
+                {
+                  targetKind: input.targetKind,
+                  targetRef: input.targetRef,
+                  excerpt,
+                  provenance: input.targetKind === "chat_message" ? "volunteered" : "inferred"
+                }
+              );
+            effectKind = "memory_candidate";
+            effectRef = candidate.id;
+          }
 
           return {
             feedback: await repository.create(scopedDb, {
@@ -72,7 +111,9 @@ export function registerUsefulnessFeedbackRoutes(
               surface: input.surface,
               kind: input.kind,
               verification,
-              metadata: sanitizeFeedbackMetadata(verification.metadata)
+              metadata: sanitizeFeedbackMetadata(verification.metadata),
+              effectKind,
+              effectRef
             }),
             created: true
           };
@@ -112,7 +153,16 @@ export function registerUsefulnessFeedbackRoutes(
       try {
         const access = await dependencies.resolveAccessContext(request);
         const feedback = await dependencies.dataContext.withDataContext(access, (scopedDb) =>
-          repository.undo(scopedDb, access.actorUserId, request.params.id)
+          repository.undo(scopedDb, access.actorUserId, request.params.id, {
+            cancelMemoryCandidate: dependencies.manualMemoryCandidates
+              ? (candidateId) =>
+                  dependencies.manualMemoryCandidates!.cancelPendingManualCandidate(
+                    scopedDb,
+                    access.actorUserId,
+                    candidateId
+                  )
+              : undefined
+          })
         );
         if (!feedback) throw new HttpError(404, "Feedback not found");
         return { feedback: serializeFeedback(feedback) };

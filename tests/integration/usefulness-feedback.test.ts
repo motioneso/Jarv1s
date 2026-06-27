@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import Fastify, { type FastifyInstance } from "fastify";
 import pg from "pg";
-import type { Kysely } from "kysely";
+import { sql, type Kysely } from "kysely";
 
 import {
   createDatabase,
@@ -17,24 +17,43 @@ import {
   type FeedbackTargetVerifier,
   type FeedbackTargetVerification
 } from "../../packages/usefulness-feedback/src/index.js";
+import { ManualMemoryCandidateService } from "../../packages/memory/src/index.js";
 
-import { connectionStrings, resetFoundationDatabase } from "./test-database.js";
+import { connectionStrings, ids, resetFoundationDatabase } from "./test-database.js";
 
 const { Client } = pg;
+
+let appDb: Kysely<JarvisDatabase>;
+
+interface MemoryCandidateTestRow {
+  readonly id: string;
+  readonly kind: string;
+  readonly action: string;
+  readonly payload_json: unknown;
+  readonly status: string;
+  readonly confidence: string | number;
+  readonly importance: string | number;
+  readonly provenance: string;
+}
 
 function userAHeaders(): Record<string, string> {
   return { authorization: "Bearer user-a" };
 }
 
 function userAContext(): AccessContext {
-  return { actorUserId: "00000000-0000-4000-8000-000000000001", requestId: "req:feedback-a" };
+  return { actorUserId: ids.userA, requestId: "req:feedback-a" };
 }
 
-describe("usefulness feedback foundation", () => {
-  beforeAll(async () => {
-    await resetFoundationDatabase();
-  });
+beforeAll(async () => {
+  await resetFoundationDatabase();
+  appDb = createDatabase({ connectionString: connectionStrings.app, maxConnections: 1 });
+});
 
+afterAll(async () => {
+  await appDb?.destroy();
+});
+
+describe("usefulness feedback foundation", () => {
   it("registers the required module and applies owner-only RLS without runtime delete", async () => {
     expect(getBuiltInModuleManifests().map((manifest) => manifest.id)).toContain(
       "usefulness-feedback"
@@ -99,17 +118,6 @@ describe("usefulness feedback foundation", () => {
 });
 
 describe("usefulness feedback routes", () => {
-  let appDb: Kysely<JarvisDatabase>;
-
-  beforeAll(async () => {
-    await resetFoundationDatabase();
-    appDb = createDatabase({ connectionString: connectionStrings.app, maxConnections: 1 });
-  });
-
-  afterAll(async () => {
-    await appDb.destroy();
-  });
-
   it("rejects invalid target/action pairs, target/surface pairs, and unknown top-level keys", async () => {
     const { server } = await buildFeedbackTestServer(appDb);
     try {
@@ -210,6 +218,110 @@ describe("usefulness feedback routes", () => {
       await server.close();
     }
   });
+
+  it("remember_this creates one pending memory candidate without storing excerpt on feedback", async () => {
+    const { server, dataContext } = await buildFeedbackTestServer(
+      appDb,
+      rememberableVerifier("remember me safely")
+    );
+    try {
+      const payload = {
+        targetKind: "chat_message",
+        targetRef: "msg-memory",
+        surface: "chat",
+        kind: "remember_this"
+      };
+      const first = await server.inject({
+        method: "POST",
+        url: "/api/me/usefulness-feedback",
+        headers: userAHeaders(),
+        payload
+      });
+      const second = await server.inject({
+        method: "POST",
+        url: "/api/me/usefulness-feedback",
+        headers: userAHeaders(),
+        payload
+      });
+
+      expect(first.statusCode).toBe(201);
+      expect(second.statusCode).toBe(200);
+      expect(first.json().feedback.effectKind).toBe("memory_candidate");
+      expect(JSON.stringify(first.json().feedback)).not.toContain("remember me safely");
+
+      const candidates = await dataContext.withDataContext(
+        userAContext(),
+        async (scopedDb) =>
+          (
+            await sql<MemoryCandidateTestRow>`
+            SELECT id, kind, action, payload_json, status, confidence, importance, provenance
+            FROM app.memory_candidates
+            WHERE owner_user_id = ${ids.userA}::uuid
+          `.execute(scopedDb.db)
+          ).rows
+      );
+      expect(candidates).toHaveLength(1);
+      expect(candidates[0]).toMatchObject({
+        status: "pending",
+        kind: "fact",
+        action: "create",
+        confidence: "0.500",
+        importance: "0.500",
+        provenance: "volunteered"
+      });
+      expect(candidates[0]?.payload_json).toMatchObject({
+        manualRequest: true,
+        excerpt: "remember me safely",
+        targetKind: "chat_message",
+        targetRef: "msg-memory"
+      });
+    } finally {
+      await server.close();
+    }
+  });
+
+  it("undo of pending remember_this suppresses the linked memory candidate", async () => {
+    const { server, dataContext } = await buildFeedbackTestServer(
+      appDb,
+      rememberableVerifier("cancel me")
+    );
+    try {
+      const created = await server.inject({
+        method: "POST",
+        url: "/api/me/usefulness-feedback",
+        headers: userAHeaders(),
+        payload: {
+          targetKind: "chat_message",
+          targetRef: "msg-cancel",
+          surface: "chat",
+          kind: "remember_this"
+        }
+      });
+      expect(created.statusCode).toBe(201);
+
+      const undone = await server.inject({
+        method: "POST",
+        url: `/api/me/usefulness-feedback/${created.json().feedback.id}/undo`,
+        headers: userAHeaders()
+      });
+      expect(undone.statusCode).toBe(200);
+
+      const candidate = await dataContext.withDataContext(
+        userAContext(),
+        async (scopedDb) =>
+          (
+            await sql<MemoryCandidateTestRow>`
+            SELECT id, kind, action, payload_json, status, confidence, importance, provenance
+            FROM app.memory_candidates
+            WHERE id = ${created.json().feedback.effectRef}::uuid
+          `.execute(scopedDb.db)
+          ).rows[0]
+      );
+      expect(candidate?.status).toBe("suppressed");
+    } finally {
+      await server.close();
+    }
+  });
 });
 
 async function buildFeedbackTestServer(
@@ -234,8 +346,23 @@ async function buildFeedbackTestServer(
   registerUsefulnessFeedbackRoutes(server, {
     dataContext,
     registry,
+    manualMemoryCandidates: new ManualMemoryCandidateService(),
     resolveAccessContext: async () => userAContext()
   });
   await server.ready();
   return { server, dataContext };
+}
+
+function rememberableVerifier(excerpt: string): FeedbackTargetVerifier {
+  return async (_scopedDb, input) => ({
+    ownerUserId: input.actorUserId,
+    targetKind: input.targetKind,
+    targetRef: input.targetRef,
+    surface: input.surface,
+    sourceKind: "chat",
+    sourceLabel: "Chat",
+    metadata: { role: "user" },
+    canRemember: true,
+    rememberExcerpt: excerpt
+  });
 }
