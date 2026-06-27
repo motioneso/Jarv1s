@@ -38,36 +38,41 @@ describe("gateway policy", () => {
       risk
     }) satisfies ModuleAssistantToolManifest;
 
+  const dummyLookup = {
+    getFamilyTier: async () => null,
+    getFamilyManifest: async () => null
+  };
+
   it("runs reads and always confirms destructive tools", async () => {
     const prefs = { get: async () => true };
 
-    await expect(resolvePolicy(tool("read"), "example", prefs)).resolves.toBe("run");
+    await expect(resolvePolicy(tool("read"), "example", dummyLookup, prefs)).resolves.toBe("run");
     await expect(
-      resolvePolicy({ ...tool("destructive"), executionPolicy: "auto" }, "example", prefs)
+      resolvePolicy({ ...tool("destructive"), executionPolicy: "auto" }, "example", dummyLookup, prefs)
     ).resolves.toBe("confirm");
   });
 
   it("only auto-runs auto write tools when module trust is enabled", async () => {
     await expect(
-      resolvePolicy({ ...tool("write"), executionPolicy: "auto" }, "tasks", {
+      resolvePolicy({ ...tool("write"), executionPolicy: "auto" }, "tasks", dummyLookup, {
         get: async () => false
       })
     ).resolves.toBe("confirm");
 
     await expect(
-      resolvePolicy({ ...tool("write"), executionPolicy: "auto" }, "tasks", {
-        get: async (key) => key === "tasks.agency_auto_execute"
+      resolvePolicy({ ...tool("write"), executionPolicy: "auto" }, "tasks", dummyLookup, {
+        get: async (key: string) => key === "tasks.agency_auto_execute"
       })
     ).resolves.toBe("run");
 
-    await expect(resolvePolicy(tool("write"), "tasks", { get: async () => true })).resolves.toBe(
+    await expect(resolvePolicy(tool("write"), "tasks", dummyLookup, { get: async () => true })).resolves.toBe(
       "confirm"
     );
   });
 
   it("confirms writes when preference lookup fails", async () => {
     await expect(
-      resolvePolicy({ ...tool("write"), executionPolicy: "auto" }, "tasks", {
+      resolvePolicy({ ...tool("write"), executionPolicy: "auto" }, "tasks", dummyLookup, {
         get: async () => {
           throw new Error("db unavailable");
         }
