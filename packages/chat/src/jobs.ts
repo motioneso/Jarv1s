@@ -12,13 +12,12 @@ import {
 import type { AiSecretCipher, GenerateChatInput, ProviderKind } from "@jarv1s/ai";
 import type { DataContextDb, DataContextRunner } from "@jarv1s/db";
 import {
-  ChatMemoryFactsRepository,
-  ChatMemorySuppressionsRepository,
+  createMemoryCandidateSignature,
+  MemoryCandidatesRepository,
+  MemoryGraphRepository,
   MemoryRepository,
-  createMemoryFactSignature,
   type EmbeddingProvider,
-  type FactCategory,
-  type FactProvenance,
+  type MemoryCandidateRecord,
   type NewChunkData
 } from "@jarv1s/memory";
 import {
@@ -28,6 +27,16 @@ import {
 } from "@jarv1s/jobs";
 
 import { ChatRepository } from "./repository.js";
+import {
+  buildDistillationPrompt,
+  containsSensitiveMemoryText,
+  decideCandidatePromotion,
+  memoryCandidateContainsSensitiveText,
+  parseMemoryCandidates,
+  rawTurnContainsSensitiveText,
+  shouldDistillTurn,
+  type MemoryCandidate
+} from "./memory-distillation.js";
 
 // ── Queue names ───────────────────────────────────────────────────────────────
 
@@ -48,6 +57,8 @@ export interface EmbedTurnJobPayload extends ActorScopedJobPayload {
 
 export interface ExtractFactsJobPayload extends ActorScopedJobPayload {
   readonly threadId: string;
+  readonly userMessageId: string;
+  readonly assistantMessageId: string;
 }
 
 // ── Embed-turn handler ────────────────────────────────────────────────────────
@@ -111,16 +122,9 @@ export async function handleEmbedTurnJob(
   );
 }
 
-// ── Extract-facts handler ─────────────────────────────────────────────────────
+// ── Memory distillation handler ───────────────────────────────────────────────
 
-const FACT_CATEGORIES: ReadonlySet<FactCategory> = new Set([
-  "preference",
-  "fact",
-  "profile",
-  "goal"
-]);
-const EXTRACT_FACT_PROVENANCE: ReadonlySet<FactProvenance> = new Set(["volunteered", "inferred"]);
-const MAX_FACTS_PER_TURN = 8;
+const MAX_CANDIDATES_PER_TURN = 8;
 // Economy output budget for the extraction call — bounds cost on a side-effect job
 // that must never dominate a chat turn's spend (clamped by the adapter, see A5b).
 const EXTRACT_MAX_OUTPUT_TOKENS = 512;
@@ -128,8 +132,8 @@ const EXTRACT_MAX_OUTPUT_TOKENS = 512;
 export interface ExtractFactsDeps {
   readonly aiRepository: AiRepository;
   readonly cipher: AiSecretCipher;
-  readonly factsRepository: ChatMemoryFactsRepository;
-  readonly suppressionsRepository?: ChatMemorySuppressionsRepository;
+  readonly candidatesRepository?: MemoryCandidatesRepository;
+  readonly graphRepository?: MemoryGraphRepository;
   /**
    * Structured logger for extraction-failure observability
    * (chat_extract_facts_failed). Optional; production injects a module logger
@@ -145,30 +149,44 @@ export interface ExtractFactsDeps {
 }
 
 /**
- * LLM-driven durable-fact extraction from the most recent turn-pair. Synthesizes
- * structured facts via the provider-agnostic capability router (summarization /
- * economy tier), decrypts the credential in-process (never logged/forwarded), and
- * upserts into chat_memory_facts. Idempotent (dedupes by normalized content within
- * a category, F10) and grounded (supersedes ONLY a real, actor-owned active id, F11).
- * No-op degrade: any failure (no model, no credential, throw, non-JSON) writes nothing
- * and never throws — a flaky extraction must not block the chat turn.
+ * Chat memory distillation worker. Captures a bounded source episode for the exact
+ * queued turn, gates noise deterministically, stores candidates, and promotes only
+ * low-risk volunteered memories through the memory graph repository. Payload/logs
+ * stay metadata-only; extraction failures never block chat completion.
  */
 export async function handleExtractFactsJob(
   scopedDb: DataContextDb,
   ownerUserId: string,
-  threadId: string,
+  payload: ExtractFactsJobPayload,
   deps: ExtractFactsDeps,
   chatRepository: ChatRepository = new ChatRepository()
 ): Promise<void> {
+  const graphRepository = deps.graphRepository ?? new MemoryGraphRepository();
+  const candidatesRepository = deps.candidatesRepository ?? new MemoryCandidatesRepository();
   try {
-    const suppressionsRepository =
-      deps.suppressionsRepository ?? new ChatMemorySuppressionsRepository();
-    const messages = await chatRepository.listMessages(scopedDb, threadId);
-    const stored = messages.filter((m) => m.status === "stored");
-    const lastTwo = stored.slice(-2);
-    const userMsg = lastTwo.find((m) => m.role === "user");
-    const assistantMsg = lastTwo.find((m) => m.role === "assistant");
+    const thread = await chatRepository.getThreadById(scopedDb, payload.threadId);
+    const messages = await chatRepository.listMessages(scopedDb, payload.threadId);
+    const userMsg = messages.find(
+      (m) => m.id === payload.userMessageId && m.role === "user" && m.status === "stored"
+    );
+    const assistantMsg = messages.find(
+      (m) => m.id === payload.assistantMessageId && m.role === "assistant" && m.status === "stored"
+    );
     if (!userMsg || !assistantMsg) return;
+
+    if (rawTurnContainsSensitiveText(userMsg.body, assistantMsg.body)) return;
+
+    const threadTitle = safeThreadTitle(thread?.title ?? "");
+    const excerpt = boundedTurnExcerpt(userMsg.body, assistantMsg.body);
+    const episode = await graphRepository.createEpisode(scopedDb, ownerUserId, {
+      sourceKind: "chat",
+      sourceRef: payload.threadId,
+      sourceLabel: threadTitle,
+      occurredAt: assistantMsg.created_at,
+      excerpt
+    });
+
+    if (!shouldDistillTurn(userMsg.body, assistantMsg.body)) return;
 
     const model = await deps.aiRepository.selectModelForCapability(
       scopedDb,
@@ -187,31 +205,18 @@ export async function handleExtractFactsJob(
     );
     if (!credential) return;
 
-    // Ground supersession + dedupe against the actor's CURRENT active facts (F10/F11).
-    const activeFacts = await deps.factsRepository.listActiveFacts(scopedDb, ownerUserId);
-    const activeIds = new Set(activeFacts.map((f) => f.id));
-    const normalize = (s: string) => s.trim().toLowerCase().replace(/\s+/g, " ");
-    const existingByContent = new Set(
-      activeFacts.map((f) => `${f.category}::${normalize(f.content)}`)
+    const activeMemory = (await graphRepository.listCoreFacts(scopedDb, ownerUserId, 30)).map(
+      (fact) => ({
+        id: fact.id,
+        text: [fact.predicate, fact.objectText ?? fact.objectEntityId ?? ""].join(" ").trim()
+      })
     );
-    // Expose ONLY the actor's real active-fact ids (bounded) so the model can supersede
-    // a grounded fact instead of inventing an arbitrary id.
-    const supersedableList = activeFacts
-      .slice(0, 30)
-      .map((f) => `${f.id} :: ${f.content.slice(0, 120)}`)
-      .join("\n");
-
-    const prompt =
-      "Extract durable facts about the user from this conversation turn. Return ONLY a JSON array; " +
-      'each item: {"category": "preference|fact|profile|goal", "content": string, ' +
-      '"importance": number 0..1, "provenance": "volunteered|inferred", "supersedes": optional id, ' +
-      '"correction": optional {"supersedes": id, "before": string, "after": string}}. ' +
-      'Use "volunteered" only when the user directly stated the fact; otherwise use "inferred". ' +
-      "Use correction ONLY when the user explicitly corrects an existing listed belief and the replacement content should become the new durable fact. " +
-      "The OPTIONAL supersedes id MUST be one " +
-      "of the EXISTING FACT IDS listed below (omit it otherwise — never invent an id). No prose, no code fences.\n\n" +
-      `EXISTING FACT IDS (id :: content):\n${supersedableList || "(none)"}\n\n` +
-      `User: ${userMsg.body}\nAssistant: ${assistantMsg.body}`;
+    const prompt = buildDistillationPrompt({
+      userText: userMsg.body,
+      assistantText: assistantMsg.body,
+      threadTitle,
+      activeMemory
+    });
 
     const adapter = (
       deps.createAdapter ??
@@ -223,56 +228,37 @@ export async function handleExtractFactsJob(
       maxOutputTokens: EXTRACT_MAX_OUTPUT_TOKENS
     });
 
-    const parsed = parseFacts(text);
-    for (const fact of parsed.slice(0, MAX_FACTS_PER_TURN)) {
-      const signature = createMemoryFactSignature(fact.category, fact.content);
-      if (
-        fact.provenance === "inferred" &&
-        (await suppressionsRepository.isSuppressed(scopedDb, ownerUserId, signature))
-      ) {
-        continue;
-      }
-
-      // Dedupe: skip a fact whose (category, normalized content) already exists active (F10).
-      const contentKey = `${fact.category}::${normalize(fact.content)}`;
-      if (existingByContent.has(contentKey)) {
-        continue;
-      }
-      const supersedesId = fact.correction?.supersedes ?? fact.supersedes;
-      const oldFact =
-        typeof supersedesId === "string" && activeIds.has(supersedesId)
-          ? activeFacts.find((candidate) => candidate.id === supersedesId)
-          : undefined;
-
-      // Supersede ONLY a grounded, actor-owned active id (ignore hallucinated ids — F11).
-      if (oldFact) {
-        await deps.factsRepository.supersedeFact(scopedDb, oldFact.id);
-      }
-      const inserted = await deps.factsRepository.insertFact(scopedDb, ownerUserId, {
-        category: fact.category,
-        content: fact.content,
-        sourceThreadId: threadId,
-        importance: fact.importance,
-        provenance: fact.provenance
+    for (const candidate of parseMemoryCandidates(text).slice(0, MAX_CANDIDATES_PER_TURN)) {
+      if (candidate.isSensitive || memoryCandidateContainsSensitiveText(candidate)) continue;
+      const record = await candidatesRepository.insertPending(scopedDb, ownerUserId, {
+        episodeId: episode.id,
+        kind: candidate.kind,
+        action: candidate.action,
+        payloadJson: candidate,
+        candidateSignature: createSignature(candidate),
+        confidence: candidate.confidence,
+        importance: candidate.importance,
+        provenance: candidate.provenance
       });
-      if (oldFact && fact.correction) {
-        await suppressionsRepository.insertCorrection(scopedDb, ownerUserId, {
-          signature: createMemoryFactSignature(oldFact.category, oldFact.content),
-          category: oldFact.category,
-          content: oldFact.content,
-          factId: oldFact.id,
-          beforeContent: fact.correction.before,
-          afterContent: fact.correction.after || inserted.content
-        });
-      }
-      existingByContent.add(contentKey); // also dedupe within this same batch
+      if (record.status !== "pending") continue;
+      await maybePromoteCandidate(
+        scopedDb,
+        ownerUserId,
+        record,
+        candidate,
+        graphRepository,
+        candidatesRepository,
+        episode.id,
+        hasExplicitMemoryCommand(userMsg.body),
+        hasExplicitCorrection(userMsg.body)
+      );
     }
   } catch (error) {
     const e = error instanceof Error ? error : new Error(String(error));
     deps.logger?.error(
       {
         event: "chat_extract_facts_failed",
-        threadId,
+        threadId: payload.threadId,
         error: e.name,
         message: e.message.slice(0, 200)
       },
@@ -280,74 +266,6 @@ export async function handleExtractFactsJob(
     );
     // No-op degrade: never throw — a flaky extraction must not block the chat turn.
   }
-}
-
-interface ParsedFact {
-  readonly category: FactCategory;
-  readonly content: string;
-  readonly importance: number;
-  readonly provenance: FactProvenance;
-  readonly supersedes?: string;
-  readonly correction?: ParsedCorrection;
-}
-
-interface ParsedCorrection {
-  readonly supersedes: string;
-  readonly before: string;
-  readonly after: string;
-}
-
-function parseFacts(text: string): ParsedFact[] {
-  let json: unknown;
-  try {
-    json = JSON.parse(text.trim());
-  } catch {
-    return [];
-  }
-  if (!Array.isArray(json)) return [];
-  const out: ParsedFact[] = [];
-  for (const raw of json) {
-    if (!raw || typeof raw !== "object") continue;
-    const r = raw as Record<string, unknown>;
-    const category = r.category;
-    const content = r.content;
-    if (typeof category !== "string" || !FACT_CATEGORIES.has(category as FactCategory)) continue;
-    if (typeof content !== "string" || content.trim().length === 0) continue;
-    let importance = typeof r.importance === "number" ? r.importance : 0.5;
-    importance = Math.min(1, Math.max(0, importance));
-    const provenance = EXTRACT_FACT_PROVENANCE.has(r.provenance as FactProvenance)
-      ? (r.provenance as FactProvenance)
-      : "inferred";
-    const correction = parseCorrection(r.correction);
-    out.push({
-      category: category as FactCategory,
-      content: content.trim(),
-      importance,
-      provenance,
-      supersedes: typeof r.supersedes === "string" ? r.supersedes : undefined,
-      correction
-    });
-  }
-  return out;
-}
-
-function parseCorrection(value: unknown): ParsedCorrection | undefined {
-  if (!value || typeof value !== "object" || Array.isArray(value)) return undefined;
-  const correction = value as Record<string, unknown>;
-  if (typeof correction.supersedes !== "string" || correction.supersedes.trim().length === 0) {
-    return undefined;
-  }
-  if (typeof correction.before !== "string" || correction.before.trim().length === 0) {
-    return undefined;
-  }
-  if (typeof correction.after !== "string" || correction.after.trim().length === 0) {
-    return undefined;
-  }
-  return {
-    supersedes: correction.supersedes,
-    before: correction.before.trim(),
-    after: correction.after.trim()
-  };
 }
 
 // ── Worker registration ───────────────────────────────────────────────────────
@@ -374,7 +292,8 @@ function defaultExtractFactsDeps(): ExtractFactsDeps {
   return {
     aiRepository: new AiRepository(),
     cipher: createAiSecretCipher(),
-    factsRepository: new ChatMemoryFactsRepository()
+    candidatesRepository: new MemoryCandidatesRepository(),
+    graphRepository: new MemoryGraphRepository()
   };
 }
 
@@ -418,7 +337,7 @@ export async function registerChatJobWorkers(
       await handleExtractFactsJob(
         scopedDb,
         job.data.actorUserId,
-        job.data.threadId,
+        job.data,
         extractFactsDeps,
         chatRepo
       );
@@ -427,4 +346,101 @@ export async function registerChatJobWorkers(
   );
 
   return [embedWorkId, extractWorkId];
+}
+
+async function maybePromoteCandidate(
+  scopedDb: DataContextDb,
+  ownerUserId: string,
+  record: MemoryCandidateRecord,
+  candidate: MemoryCandidate,
+  graphRepository: MemoryGraphRepository,
+  candidatesRepository: MemoryCandidatesRepository,
+  episodeId: string,
+  explicitMemoryCommand: boolean,
+  explicitCorrection: boolean
+): Promise<void> {
+  const allowsSupersession =
+    explicitCorrection && candidate.kind === "supersession" && candidate.action === "supersede";
+  const groundedFact = allowsSupersession
+    ? await firstGroundedFact(scopedDb, ownerUserId, graphRepository, candidate.supersedesIds ?? [])
+    : undefined;
+  const decision = decideCandidatePromotion({
+    candidate,
+    explicitMemoryCommand,
+    explicitCorrection,
+    conflicts: false,
+    groundedSupersedes: Boolean(groundedFact)
+  });
+  if (decision.status !== "promote") return;
+
+  if (allowsSupersession && groundedFact) {
+    await graphRepository.supersedeFact(scopedDb, ownerUserId, groundedFact.id);
+  }
+
+  if (candidate.kind === "entity" && candidate.entity) {
+    await graphRepository.createEntity(scopedDb, ownerUserId, {
+      kind: candidate.entity.kind,
+      name: candidate.entity.name,
+      summary: candidate.entity.summary,
+      importance: candidate.importance
+    });
+    await candidatesRepository.markPromoted(scopedDb, ownerUserId, record.id, decision.reason);
+    return;
+  }
+
+  if (candidate.fact) {
+    const self = await graphRepository.ensureSelfEntity(scopedDb, ownerUserId);
+    await graphRepository.createFactFromEpisode(scopedDb, ownerUserId, {
+      episodeId,
+      subjectEntityId: self.id,
+      predicate: candidate.fact.predicate,
+      objectText: candidate.fact.objectText ?? candidate.fact.objectName,
+      confidence: candidate.confidence,
+      provenance: candidate.provenance,
+      importance: candidate.importance
+    });
+    await candidatesRepository.markPromoted(scopedDb, ownerUserId, record.id, decision.reason);
+  }
+}
+
+async function firstGroundedFact(
+  scopedDb: DataContextDb,
+  ownerUserId: string,
+  graphRepository: MemoryGraphRepository,
+  ids: readonly string[]
+) {
+  for (const id of ids) {
+    const fact = await graphRepository.getActiveFact(scopedDb, ownerUserId, id);
+    if (fact) return fact;
+  }
+  return undefined;
+}
+
+function createSignature(candidate: MemoryCandidate): string {
+  return createMemoryCandidateSignature({
+    kind: candidate.kind,
+    action: candidate.action,
+    entity: candidate.entity ? { name: candidate.entity.name } : undefined,
+    fact: candidate.fact,
+    alias: candidate.alias
+  });
+}
+
+function hasExplicitMemoryCommand(userText: string): boolean {
+  return /\b(remember|don't forget|note that|save this)\b/i.test(userText);
+}
+
+function hasExplicitCorrection(userText: string): boolean {
+  return /\b(actually|correction|correcting|that's wrong|that is wrong|instead|rather than)\b|(^|\W)no,\s|not\s+[^.?!\n]{1,80}\b(?:but|use|prefer|go with)\b/i.test(
+    userText
+  );
+}
+
+function safeThreadTitle(title: string): string {
+  return containsSensitiveMemoryText(title) ? "[redacted]" : title;
+}
+
+function boundedTurnExcerpt(userText: string, assistantText: string): string {
+  const text = `User: ${userText}\nAssistant: ${assistantText}`;
+  return text.length > 2000 ? text.slice(0, 2000) : text;
 }

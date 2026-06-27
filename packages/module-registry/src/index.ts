@@ -14,8 +14,9 @@ import {
   type ProviderKind
 } from "@jarv1s/ai";
 import {
-  ChatMemoryFactsRepository,
   GraphMemoryRecallService,
+  MemoryCandidatesRepository,
+  MemoryGraphRepository,
   MemoryRepository,
   MemoryRetriever,
   createEmbeddingProvider,
@@ -576,7 +577,8 @@ const BUILT_IN_MODULES: readonly BuiltInModuleRegistration[] = [
         extractFactsDeps: {
           aiRepository: new AiRepository(),
           cipher: createAiSecretCipher(),
-          factsRepository: new ChatMemoryFactsRepository()
+          candidatesRepository: new MemoryCandidatesRepository(),
+          graphRepository: new MemoryGraphRepository()
         },
         logger: deps.logger ? createModuleLogger(deps.logger, "chat") : undefined
       })

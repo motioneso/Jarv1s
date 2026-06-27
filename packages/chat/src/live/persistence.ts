@@ -21,6 +21,7 @@ import {
   type EmbedTurnJobPayload,
   type ExtractFactsJobPayload
 } from "../jobs.js";
+import { containsSensitiveMemoryText } from "../memory-distillation.js";
 import type { ChatPersistencePort } from "./chat-session-manager.js";
 import type { ChatRepository } from "../repository.js";
 
@@ -147,7 +148,9 @@ export class DataContextChatPersistence implements ChatPersistencePort {
         };
         const extractPayload: ExtractFactsJobPayload = {
           actorUserId,
-          threadId: thread.id
+          threadId: thread.id,
+          userMessageId: result.userMessage.id,
+          assistantMessageId: result.assistantMessage.id
         };
         await sendJob(this.boss, CHAT_EMBED_TURN_QUEUE, embedPayload);
         await sendJob(this.boss, CHAT_EXTRACT_FACTS_QUEUE, extractPayload);
@@ -222,7 +225,8 @@ function deriveChatTitle(userText: string): string {
   const cleaned = first.replace(/[^\S\r\n]+/g, " ").trim();
   const capped = cleaned.length > 60 ? `${cleaned.slice(0, 57).trimEnd()}…` : cleaned;
   const titled = capped.charAt(0).toUpperCase() + capped.slice(1);
-  return titled || DEFAULT_CONVERSATION_TITLE;
+  if (!titled || containsSensitiveMemoryText(titled)) return DEFAULT_CONVERSATION_TITLE;
+  return titled;
 }
 
 function buildRollingSummary(
