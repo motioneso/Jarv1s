@@ -29,4 +29,3 @@ export * from "./web-search-api.js";
 export * from "./runtime-config-api.js";
 export * from "./notes-api.js";
 export * from "./priority-model-api.js";
-export * from "./priority-model-api.js";

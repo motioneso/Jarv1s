@@ -69,6 +69,7 @@ import {
 } from "./onboarding-routes.js";
 import { registerPersonaRoutes } from "./persona-routes.js";
 import type { ProfilePreferencesPort, PersonaPreviewInput } from "./preferences-port.js";
+import { registerPriorityRoutes } from "./priority-routes.js";
 import { HttpRepositoryError, SettingsRepository } from "./repository.js";
 import { registerSourceBehaviorRoutes } from "./source-behavior-routes.js";
 import {
@@ -166,6 +167,7 @@ export function registerSettingsRoutes(
   });
   registerPersonaRoutes(server, { ...dependencies, repository, preferencesRepository });
   registerSourceBehaviorRoutes(server, { ...dependencies, preferencesRepository });
+  registerPriorityRoutes(server, { ...dependencies, preferencesRepository });
   registerDataExportRoutes(server, {
     dataContext: dependencies.dataContext,
     resolveAccessContext: dependencies.resolveAccessContext,

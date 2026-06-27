@@ -247,6 +247,9 @@ importers:
       '@jarv1s/notifications':
         specifier: workspace:*
         version: link:../notifications
+      '@jarv1s/priority':
+        specifier: workspace:*
+        version: link:../priority
       '@jarv1s/shared':
         specifier: workspace:*
         version: link:../shared
@@ -313,6 +316,9 @@ importers:
       '@jarv1s/module-sdk':
         specifier: workspace:*
         version: link:../module-sdk
+      '@jarv1s/priority':
+        specifier: workspace:*
+        version: link:../priority
       '@jarv1s/shared':
         specifier: workspace:*
         version: link:../shared
@@ -564,6 +570,9 @@ importers:
       '@jarv1s/module-sdk':
         specifier: workspace:*
         version: link:../module-sdk
+      '@jarv1s/priority':
+        specifier: workspace:*
+        version: link:../priority
       '@jarv1s/shared':
         specifier: workspace:*
         version: link:../shared
@@ -582,9 +591,15 @@ importers:
 
   packages/settings-ui:
     dependencies:
+      '@jarv1s/priority':
+        specifier: workspace:*
+        version: link:../priority
       '@jarv1s/shared':
         specifier: workspace:*
         version: link:../shared
+      '@tanstack/react-query':
+        specifier: ^5.0.0
+        version: 5.101.0(react@19.2.7)
       lucide-react:
         specifier: ^0.468.0
         version: 0.468.0(react@19.2.7)
@@ -599,7 +614,11 @@ importers:
         specifier: ^6.0.3
         version: 6.0.3
 
-  packages/shared: {}
+  packages/shared:
+    dependencies:
+      '@jarv1s/priority':
+        specifier: workspace:*
+        version: link:../priority
 
   packages/source-behaviors:
     dependencies:

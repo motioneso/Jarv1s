@@ -11,7 +11,9 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@jarv1s/priority": "workspace:*",
     "@jarv1s/shared": "workspace:*",
+    "@tanstack/react-query": "^5.0.0",
     "lucide-react": "^0.468.0",
     "react": "^19.0.0"
   },

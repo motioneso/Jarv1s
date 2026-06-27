@@ -1,6 +1,10 @@
 import { describe, it, expect } from "vitest";
 import { rankPriorityCandidates } from "@jarv1s/priority";
-import type { PriorityModelPreferenceV1, PriorityCandidate, FocusSignalInput } from "@jarv1s/priority";
+import type {
+  PriorityModelPreferenceV1,
+  PriorityCandidate,
+  FocusSignalInput
+} from "@jarv1s/priority";
 
 const DEFAULT_MODEL: PriorityModelPreferenceV1 = {
   version: 1,
@@ -90,8 +94,8 @@ describe("priority scoring", () => {
       focusReadiness: readiness
     });
 
-    expect(results[0].title).toBe("Due today large");
-    expect(results[0].score).toBeGreaterThanOrEqual(42);
+    expect(results[0]!.title).toBe("Due today large");
+    expect(results[0]!.score).toBeGreaterThanOrEqual(42);
   });
 
   it("energy_protective boosts quick and penalizes large at low readiness", () => {
@@ -165,7 +169,7 @@ describe("priority scoring", () => {
       focusReadiness: readiness
     });
 
-    expect(results[0].score).toBeLessThan(30);
+    expect(results[0]!.score).toBeLessThan(30);
   });
 
   it("anchor weight raises matching candidates", () => {
@@ -246,7 +250,7 @@ describe("priority scoring", () => {
       focusReadiness: []
     });
 
-    expect(results[0].reasons).toContain("1 anchor match");
+    expect(results[0]!.reasons).toContain("1 anchor match");
   });
 
   it("clamps multi-anchor contribution", () => {
@@ -302,7 +306,7 @@ describe("priority scoring", () => {
       focusReadiness: []
     });
 
-    expect(results[0].score).toBeLessThanOrEqual(100);
+    expect(results[0]!.score).toBeLessThanOrEqual(100);
   });
 
   it("compares date-only and instant timestamps in user timezone", () => {
@@ -323,7 +327,7 @@ describe("priority scoring", () => {
       focusReadiness: []
     });
 
-    expect(results[0].reasons).toContain("due tomorrow");
+    expect(results[0]!.reasons).toContain("due tomorrow");
   });
 
   it("rejects more than 200 candidates", () => {
@@ -425,7 +429,7 @@ describe("priority scoring", () => {
       focusReadiness: []
     });
 
-    expect(results[0].title).toBe("Alpha");
-    expect(results[1].title).toBe("Beta");
+    expect(results[0]!.title).toBe("Alpha");
+    expect(results[1]!.title).toBe("Beta");
   });
 });

@@ -196,6 +196,16 @@ export const settingsModuleManifest: JarvisModuleManifest = {
     },
     {
       method: "GET",
+      path: "/api/me/priority-model",
+      permissionId: "settings.view"
+    },
+    {
+      method: "PATCH",
+      path: "/api/me/priority-model",
+      permissionId: "settings.write"
+    },
+    {
+      method: "GET",
       path: "/api/admin/auth/providers",
       permissionId: "settings.manage"
     },

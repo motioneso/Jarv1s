@@ -46,6 +46,12 @@ export default defineConfig({
         replacement: fileURLToPath(new URL("./packages/calendar/src/index.ts", import.meta.url))
       },
       {
+        find: "@jarv1s/chat/priority-consumer",
+        replacement: fileURLToPath(
+          new URL("./packages/chat/src/priority-consumer.ts", import.meta.url)
+        )
+      },
+      {
         find: "@jarv1s/chat",
         replacement: fileURLToPath(new URL("./packages/chat/src/index.ts", import.meta.url))
       },

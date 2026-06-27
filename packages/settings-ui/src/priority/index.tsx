@@ -70,22 +70,6 @@ export function PrioritySettings({ onError, onSuccess }: PrioritySettingsProps) 
       updatedAt: new Date().toISOString()
     });
   };
-    const newAnchor: PriorityAnchor = {
-      id: crypto.randomUUID(),
-      kind: "project",
-      label: "",
-      aliases: [],
-      weight: 1,
-      enabled: true,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString()
-    };
-    mutation.mutate({
-      ...model,
-      anchors: [...model.anchors, newAnchor],
-      updatedAt: new Date().toISOString()
-    });
-  };
 
   const updateAnchor = (index: number, updates: Partial<PriorityAnchor>) => {
     const updated = [...model.anchors];
@@ -105,43 +89,7 @@ export function PrioritySettings({ onError, onSuccess }: PrioritySettingsProps) 
     });
   };
 
-  const addAnchor = () => {
-    const newAnchor: PriorityAnchor = {
-      id: crypto.randomUUID(),
-      kind: "project",
-      label: "",
-      aliases: [],
-      weight: 1,
-      enabled: true,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString()
-    };
-    mutation.mutate({
-      ...model,
-      anchors: [...model.anchors, newAnchor],
-      updatedAt: new Date().toISOString()
-    });
-  };
-
-  const updateAnchor = (index: number, updates: Partial<PriorityAnchor>) => {
-    const updated = [...model.anchors];
-    updated[index] = { ...updated[index]!, ...updates, updatedAt: new Date().toISOString() };
-    mutation.mutate({
-      ...model,
-      anchors: updated,
-      updatedAt: new Date().toISOString()
-    });
-  };
-
-  const removeAnchor = (index: number) => {
-    mutation.mutate({
-      ...model,
-      anchors: model.anchors.filter((_, i) => i !== index),
-      updatedAt: new Date().toISOString()
-    });
-  };
-
-  const toggleMutedSource = (source: typeof VALID_SOURCES[number]) => {
+  const toggleMutedSource = (source: (typeof VALID_SOURCES)[number]) => {
     const updated = model.mutedSources.includes(source)
       ? model.mutedSources.filter((s) => s !== source)
       : [...model.mutedSources, source];
@@ -189,7 +137,9 @@ export function PrioritySettings({ onError, onSuccess }: PrioritySettingsProps) 
             />
             <select
               value={anchor.kind}
-              onChange={(e) => updateAnchor(index, { kind: e.target.value as PriorityAnchor["kind"] })}
+              onChange={(e) =>
+                updateAnchor(index, { kind: e.target.value as PriorityAnchor["kind"] })
+              }
             >
               {VALID_KINDS.map((kind) => (
                 <option key={kind} value={kind}>
@@ -210,13 +160,18 @@ export function PrioritySettings({ onError, onSuccess }: PrioritySettingsProps) 
               value={anchor.aliases.join(", ")}
               onChange={(e) =>
                 updateAnchor(index, {
-                  aliases: e.target.value.split(",").map((s) => s.trim()).filter(Boolean)
+                  aliases: e.target.value
+                    .split(",")
+                    .map((s) => s.trim())
+                    .filter(Boolean)
                 })
               }
             />
             <select
               value={anchor.weight}
-              onChange={(e) => updateAnchor(index, { weight: Number(e.target.value) as PriorityAnchor["weight"] })}
+              onChange={(e) =>
+                updateAnchor(index, { weight: Number(e.target.value) as PriorityAnchor["weight"] })
+              }
             >
               {VALID_WEIGHTS.map((weight) => (
                 <option key={weight} value={weight}>

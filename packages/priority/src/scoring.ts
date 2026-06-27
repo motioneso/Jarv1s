@@ -6,13 +6,14 @@
  */
 
 import type {
+  PriorityAnchor,
   PriorityCandidate,
   PriorityModelPreferenceV1,
   PriorityResult,
   PriorityScoreInput,
-  FocusSignalInput,
-  CandidateLimitError
+  FocusSignalInput
 } from "./types.js";
+import { CandidateLimitError } from "./types.js";
 
 const MAX_CANDIDATES = 200;
 const HIGH_PRESSURE_SIGNALS = new Set([
@@ -70,40 +71,34 @@ function dayDiff(iso: string | undefined, nowIso: string, timeZone: string): num
   return Math.round((start - current) / 86400000);
 }
 
-function normalizeTokens(text: readonly string[]): Set<string> {
-  return new Set(
-    text
-      .flat()
-      .join(" ")
-      .toLowerCase()
-      .trim()
-      .split(/[^a-z0-9]+/)
-      .filter((t) => t.length >= 2)
-  );
+function normalizeTokens(text: string): string[] {
+  return text
+    .toLowerCase()
+    .trim()
+    .split(/[^a-z0-9]+/)
+    .filter((t) => t.length >= 2);
 }
 
-function matchAnchors(
-  candidate: PriorityCandidate,
-  anchors: readonly string[]
-): number {
-  const candidateTokens = normalizeTokens(candidate.textForAnchorMatch);
-  let total = 0;
+function containsSequence(tokens: readonly string[], sequence: readonly string[]): boolean {
+  if (sequence.length === 0 || sequence.length > tokens.length) return false;
+  for (let i = 0; i <= tokens.length - sequence.length; i++) {
+    if (sequence.every((token, offset) => tokens[i + offset] === token)) return true;
+  }
+  return false;
+}
+
+function matchAnchors(candidate: PriorityCandidate, anchors: readonly PriorityAnchor[]) {
+  const candidateTokens = candidate.textForAnchorMatch.flatMap((text) => normalizeTokens(text));
+  let score = 0;
   let matched = 0;
-  for (const anchorText of anchors) {
-    const anchorTokens = normalizeTokens([anchorText]);
-    let matches = false;
-    for (const token of anchorTokens) {
-      if (candidateTokens.has(token)) {
-        matches = true;
-        break;
-      }
-    }
-    if (matches) {
-      total += 1;
+  for (const anchor of anchors) {
+    const terms = [anchor.label, ...anchor.aliases];
+    if (terms.some((term) => containsSequence(candidateTokens, normalizeTokens(term)))) {
+      score += anchor.weight * 10;
       matched += 1;
     }
   }
-  return matched > 0 ? total : 0;
+  return { matched, score: Math.max(-20, Math.min(20, score)) };
 }
 
 function minReadiness(signals: readonly FocusSignalInput[]): number {
@@ -131,9 +126,9 @@ function computeScore(
   const startsDiff = dayDiff(candidate.startsAt, now, timeZone);
   const doDiff = dayDiff(candidate.doAt, now, timeZone);
 
-  const earliestTimeDiff = [dueDiff, startsDiff, doDiff]
-    .filter((d): d is number => d !== null)
-    .sort((a, b) => a - b)[0];
+  const earliestTimeDiff =
+    [dueDiff, startsDiff, doDiff].filter((d): d is number => d !== null).sort((a, b) => a - b)[0] ??
+    null;
 
   if (earliestTimeDiff !== null && earliestTimeDiff < 0) {
     score += 35;
@@ -157,12 +152,14 @@ function computeScore(
     reasons.push(candidate.signalType);
   }
 
-  const enabledAnchors = model.anchors.filter((a) => a.enabled);
-  const anchorTexts = enabledAnchors.map((a) => [a.label, ...a.aliases].flat());
-  const anchorMatches = matchAnchors(candidate, anchorTexts);
-  const anchorScore = anchorMatches * 10;
-  score += anchorScore;
-  if (anchorMatches > 0) reasons.push(`${anchorMatches} anchor match${anchorMatches > 1 ? "es" : ""}`);
+  const anchorMatches = matchAnchors(
+    candidate,
+    model.anchors.filter((anchor) => anchor.enabled)
+  );
+  score += anchorMatches.score;
+  if (anchorMatches.matched > 0) {
+    reasons.push(`${anchorMatches.matched} anchor match${anchorMatches.matched > 1 ? "es" : ""}`);
+  }
 
   const effort = candidate.effort ?? "medium";
   if (model.mode === "energy_protective" && readiness < 0.45) {
@@ -197,19 +194,16 @@ function tieBreakKey(
 ): readonly [number, number, number, number, string] {
   const pri = candidate.explicitPriority ?? 0;
   const eff = EFFORT_ORDER[candidate.effort ?? "medium"] ?? 3;
-  const time = [
-    candidate.dueAt,
-    candidate.startsAt,
-    candidate.doAt,
-    candidate.occurredAt
-  ].find((t) => t !== undefined);
+  const time = [candidate.dueAt, candidate.startsAt, candidate.doAt, candidate.occurredAt].find(
+    (t) => t !== undefined
+  );
   const timeMs = time ? new Date(time).getTime() : Infinity;
   return [-score, timeMs, -pri, eff, candidate.title];
 }
 
 export function rankPriorityCandidates(input: PriorityScoreInput): PriorityResult[] {
   if (input.candidates.length > MAX_CANDIDATES) {
-    throw new Object() as CandidateLimitError;
+    throw new CandidateLimitError(input.candidates.length);
   }
 
   const readiness = minReadiness(input.focusReadiness);
@@ -222,23 +216,20 @@ export function rankPriorityCandidates(input: PriorityScoreInput): PriorityResul
       readiness
     );
     return {
-      source: candidate.source,
-      title: candidate.title,
-      score,
-      band: toBand(score),
-      reasons: reasons.slice(0, 4)
+      candidate,
+      result: {
+        source: candidate.source,
+        title: candidate.title,
+        score,
+        band: toBand(score),
+        reasons: reasons.slice(0, 4)
+      }
     };
   });
 
   scored.sort((a, b) => {
-    const keyA = tieBreakKey(
-      input.candidates.find((c) => c.title === a.title && c.source === a.source)!,
-      a.score
-    );
-    const keyB = tieBreakKey(
-      input.candidates.find((c) => c.title === b.title && c.source === b.source)!,
-      b.score
-    );
+    const keyA = tieBreakKey(a.candidate, a.result.score);
+    const keyB = tieBreakKey(b.candidate, b.result.score);
     for (let i = 0; i < keyA.length; i++) {
       if (keyA[i]! !== keyB[i]!) {
         const ka = keyA[i]!;
@@ -251,5 +242,5 @@ export function rankPriorityCandidates(input: PriorityScoreInput): PriorityResul
     return 0;
   });
 
-  return scored;
+  return scored.map(({ result }) => result);
 }

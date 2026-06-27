@@ -46,7 +46,7 @@ describe("chat priority consumer", () => {
         source: "tasks" as const,
         title: "Overdue task",
         dueAt: "2026-06-26T12:00:00Z",
-        explicitPriority: 5,
+        explicitPriority: 5 as const,
         textForAnchorMatch: ["overdue task"]
       },
       {
@@ -55,7 +55,12 @@ describe("chat priority consumer", () => {
         textForAnchorMatch: ["meeting"]
       }
     ];
-    const ranked = rankChatContext(candidates, model, "2026-06-27T12:00:00Z", "America/Los_Angeles");
+    const ranked = rankChatContext(
+      candidates,
+      model,
+      "2026-06-27T12:00:00Z",
+      "America/Los_Angeles"
+    );
     expect(ranked[0]).toMatchObject({
       source: "tasks",
       band: "high"

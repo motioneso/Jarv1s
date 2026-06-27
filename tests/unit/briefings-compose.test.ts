@@ -14,10 +14,21 @@ import {
   type GenerateChatFn
 } from "../../packages/briefings/src/compose.js";
 
-// The compose pipeline never touches scopedDb directly — every read is mediated by a
-// tool `execute` or the injected retriever, both faked here — so a sentinel handle is
-// enough for these unit tests.
-const fakeScopedDb = { db: {} } as unknown as DataContextDb;
+function scopedDbWithPriorityModel(value: unknown = null): DataContextDb {
+  return {
+    db: {
+      selectFrom: () => ({
+        select: () => ({
+          where: () => ({
+            executeTakeFirst: async () => (value === null ? undefined : { value_json: value })
+          })
+        })
+      })
+    }
+  } as unknown as DataContextDb;
+}
+
+const fakeScopedDb = scopedDbWithPriorityModel();
 
 const FIXED_NOW = new Date("2026-06-13T12:00:00.000Z");
 
@@ -350,6 +361,48 @@ describe("composeBriefing — gathering", () => {
     );
     expect(md.chatTurnCount).toBe(1);
     expect(md.degraded).toBe(false);
+  });
+
+  it("orders task lines with the priority scorer before synthesis", async () => {
+    const capturedMessages: unknown[] = [];
+    const deps = makeFakeDeps({
+      generateChat: async (input: GenerateChatInput) => {
+        capturedMessages.push(input.messages);
+        return { text: "synth narrative" };
+      }
+    });
+    const manifests = deps.moduleManifests.map((m) => ({
+      ...m,
+      assistantTools: (m.assistantTools ?? []).map((t) =>
+        t.name === "tasks.list"
+          ? {
+              ...t,
+              execute: (async () => ({
+                data: {
+                  items: [
+                    { title: "Low paperwork", status: "todo", priority: 1 },
+                    { title: "Critical report", status: "todo", priority: 5 }
+                  ]
+                }
+              })) as ToolExecute
+            }
+          : t
+      )
+    }));
+
+    await composeBriefing(fakeScopedDb, definition(), runInput, {
+      ...deps,
+      moduleManifests: manifests
+    });
+
+    const prompt = (capturedMessages[0] as readonly { content: string }[])[0]!.content;
+    const tasksBlock = prompt.match(
+      /<external_source type="tasks">\n([\s\S]*?)\n<\/external_source>/
+    );
+    expect(tasksBlock, "tasks block must be present").not.toBeNull();
+    expect(tasksBlock![1]!.indexOf("Critical report")).toBeLessThan(
+      tasksBlock![1]!.indexOf("Low paperwork")
+    );
   });
 
   it("omits calendar and email when include-in-briefings behaviors are disabled", async () => {

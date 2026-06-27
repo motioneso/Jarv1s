@@ -1,13 +1,53 @@
-import { describe, it, expect } from "vitest";
-import { build } from "vite";
+import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import Fastify, { type FastifyInstance } from "fastify";
+import type { Kysely } from "kysely";
+
+import { DataContextRunner, createDatabase, type JarvisDatabase } from "@jarv1s/db";
+import { getBuiltInModuleManifests } from "@jarv1s/module-registry";
+import { HttpError } from "@jarv1s/module-sdk";
 import type { PriorityModelPreferenceV1 } from "@jarv1s/priority";
+import { PreferencesRepository } from "@jarv1s/structured-state";
+
+import { registerSettingsRoutes } from "../../packages/settings/src/routes.js";
+import { connectionStrings, ids, resetFoundationDatabase } from "./test-database.js";
+
+function userHeaders(sessionId: string): Record<string, string> {
+  return { authorization: `Bearer ${sessionId}` };
+}
 
 describe("priority model API", () => {
+  let appDb: Kysely<JarvisDatabase> | undefined;
+  let server: FastifyInstance | undefined;
+
+  beforeAll(async () => {
+    await resetFoundationDatabase();
+    appDb = createDatabase({ connectionString: connectionStrings.app, maxConnections: 1 });
+    const dataContext = new DataContextRunner(appDb);
+    server = Fastify({ logger: false });
+    registerSettingsRoutes(server, {
+      rootDb: appDb,
+      dataContext,
+      resolveAccessContext: async (request) => {
+        const token = request.headers.authorization?.replace(/^Bearer\s+/i, "");
+        if (token === ids.sessionA) return { actorUserId: ids.userA, requestId: "req:priority-a" };
+        if (token === ids.sessionB) return { actorUserId: ids.userB, requestId: "req:priority-b" };
+        throw new HttpError(401, "Unauthorized");
+      },
+      listModuleManifests: () => getBuiltInModuleManifests(),
+      preferencesRepository: new PreferencesRepository()
+    });
+    await server.ready();
+  });
+
+  afterAll(async () => {
+    await Promise.allSettled([server?.close(), appDb?.destroy()]);
+  });
+
   it("GET /api/me/priority-model returns defaults when empty", async () => {
-    const app = await build();
-    const response = await app.inject({
+    const response = await server!.inject({
       method: "GET",
-      url: "/api/me/priority-model"
+      url: "/api/me/priority-model",
+      headers: userHeaders(ids.sessionB)
     });
     expect(response.statusCode).toBe(200);
     const body = JSON.parse(response.body);
@@ -18,7 +58,6 @@ describe("priority model API", () => {
   });
 
   it("PATCH /api/me/priority-model validates and stores", async () => {
-    const app = await build();
     const input: PriorityModelPreferenceV1 = {
       version: 1,
       mode: "deadline_first",
@@ -37,9 +76,10 @@ describe("priority model API", () => {
       mutedSources: ["email"],
       updatedAt: "2026-06-27T00:00:00Z"
     };
-    const response = await app.inject({
+    const response = await server!.inject({
       method: "PATCH",
       url: "/api/me/priority-model",
+      headers: userHeaders(ids.sessionA),
       payload: input
     });
     expect(response.statusCode).toBe(200);
@@ -51,10 +91,10 @@ describe("priority model API", () => {
   });
 
   it("PATCH /api/me/priority-model rejects invalid mode", async () => {
-    const app = await build();
-    const response = await app.inject({
+    const response = await server!.inject({
       method: "PATCH",
       url: "/api/me/priority-model",
+      headers: userHeaders(ids.sessionA),
       payload: {
         version: 1,
         mode: "invalid",
@@ -63,11 +103,10 @@ describe("priority model API", () => {
         updatedAt: "2026-06-27T00:00:00Z"
       }
     });
-    expect(response.statusCode).toBe(500);
+    expect(response.statusCode).toBe(400);
   });
 
   it("PATCH /api/me/priority-model rejects too many anchors", async () => {
-    const app = await build();
     const anchors = Array.from({ length: 51 }, (_, i) => ({
       id: `a${i}`,
       kind: "project" as const,
@@ -78,9 +117,10 @@ describe("priority model API", () => {
       createdAt: "2026-06-01T00:00:00Z",
       updatedAt: "2026-06-01T00:00:00Z"
     }));
-    const response = await app.inject({
+    const response = await server!.inject({
       method: "PATCH",
       url: "/api/me/priority-model",
+      headers: userHeaders(ids.sessionA),
       payload: {
         version: 1,
         mode: "balanced",
@@ -89,14 +129,14 @@ describe("priority model API", () => {
         updatedAt: "2026-06-27T00:00:00Z"
       }
     });
-    expect(response.statusCode).toBe(500);
+    expect(response.statusCode).toBe(400);
   });
 
   it("PATCH /api/me/priority-model rejects invalid weight", async () => {
-    const app = await build();
-    const response = await app.inject({
+    const response = await server!.inject({
       method: "PATCH",
       url: "/api/me/priority-model",
+      headers: userHeaders(ids.sessionA),
       payload: {
         version: 1,
         mode: "balanced",
@@ -116,14 +156,14 @@ describe("priority model API", () => {
         updatedAt: "2026-06-27T00:00:00Z"
       }
     });
-    expect(response.statusCode).toBe(500);
+    expect(response.statusCode).toBe(400);
   });
 
   it("PATCH /api/me/priority-model rejects unknown source", async () => {
-    const app = await build();
-    const response = await app.inject({
+    const response = await server!.inject({
       method: "PATCH",
       url: "/api/me/priority-model",
+      headers: userHeaders(ids.sessionA),
       payload: {
         version: 1,
         mode: "balanced",
@@ -132,14 +172,14 @@ describe("priority model API", () => {
         updatedAt: "2026-06-27T00:00:00Z"
       }
     });
-    expect(response.statusCode).toBe(500);
+    expect(response.statusCode).toBe(400);
   });
 
   it("PATCH /api/me/priority-model rejects unknown top-level keys", async () => {
-    const app = await build();
-    const response = await app.inject({
+    const response = await server!.inject({
       method: "PATCH",
       url: "/api/me/priority-model",
+      headers: userHeaders(ids.sessionA),
       payload: {
         version: 1,
         mode: "balanced",
@@ -149,6 +189,6 @@ describe("priority model API", () => {
         unknown: "value"
       }
     });
-    expect(response.statusCode).toBe(500);
+    expect(response.statusCode).toBe(400);
   });
 });

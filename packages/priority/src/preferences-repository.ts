@@ -4,7 +4,7 @@
  * Wraps generic PreferencesRepository for priority.model.v1 key with defaults.
  */
 
-import type { PriorityModelPreferenceV1 } from "@jarv1s/priority";
+import type { PriorityModelPreferenceV1 } from "./types.js";
 
 const DEFAULT_MODEL: PriorityModelPreferenceV1 = {
   version: 1,

@@ -29,7 +29,13 @@ describe("PriorityPreferencesRepository", () => {
   });
 
   it("returns defaults for version != 1", () => {
-    const model = repo.get({ version: 2, mode: "balanced", anchors: [], mutedSources: [], updatedAt: "" });
+    const model = repo.get({
+      version: 2,
+      mode: "balanced",
+      anchors: [],
+      mutedSources: [],
+      updatedAt: ""
+    });
     expect(model.version).toBe(1);
     expect(model.mode).toBe("balanced");
   });
