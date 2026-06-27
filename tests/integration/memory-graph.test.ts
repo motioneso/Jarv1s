@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { sql, type Kysely } from "kysely";
 import pg from "pg";
@@ -8,7 +9,12 @@ import {
   type DataContextDb,
   type JarvisDatabase
 } from "@jarv1s/db";
-import { MemoryGraphRepository, type MemoryFactPredicate } from "@jarv1s/memory";
+import {
+  GraphMemoryRecallService,
+  MemoryGraphRepository,
+  StubEmbeddingProvider,
+  type MemoryFactPredicate
+} from "@jarv1s/memory";
 import { connectionStrings, ids, resetFoundationDatabase } from "./test-database.js";
 
 const { Client } = pg;
@@ -139,6 +145,77 @@ describe("MemoryGraphRepository", () => {
         expect(docs.map((d) => `${d.targetKind}:${d.targetId}`)).toContain(`fact:${fact.id}`);
       }
     );
+  });
+});
+
+describe("GraphMemoryRecallService", () => {
+  it("recalls ranked, active, source-backed memory for a query", async () => {
+    const service = new GraphMemoryRecallService(new StubEmbeddingProvider());
+
+    const result = await appDataContext.withDataContext(
+      { actorUserId: ids.userA, requestId: "memory-graph:recall" },
+      async (db) => {
+        const written = await service.remember(db, ids.userA, {
+          predicate: "prefers",
+          objectText: `concise mobile responses ${randomUUID()}`,
+          confidence: 0.95,
+          provenance: "confirmed",
+          importance: 0.9,
+          pinned: true,
+          source: {
+            sourceKind: "manual",
+            sourceRef: "manual:recall-test",
+            sourceLabel: "Manual memory",
+            excerpt: "Ben prefers concise mobile responses."
+          }
+        });
+        await service.remember(db, ids.userA, {
+          predicate: "related_to",
+          objectText: "low priority unrelated fact",
+          confidence: 0.4,
+          provenance: "inferred",
+          importance: 0.1,
+          source: {
+            sourceKind: "manual",
+            sourceRef: "manual:noise",
+            excerpt: "Noise"
+          }
+        });
+        return { written, recalled: await service.recall(db, ids.userA, "mobile responses") };
+      }
+    );
+
+    expect(result.recalled.items[0]).toMatchObject({
+      kind: "fact",
+      id: result.written.fact.id,
+      provenance: "confirmed",
+      confidence: 0.95
+    });
+    expect(result.recalled.items[0]?.sources.length).toBeGreaterThan(0);
+  });
+
+  it("returns capped core memory and excludes superseded facts", async () => {
+    const service = new GraphMemoryRecallService(new StubEmbeddingProvider());
+
+    const result = await appDataContext.withDataContext(
+      { actorUserId: ids.userA, requestId: "memory-graph:core" },
+      async (db) => {
+        const write = await service.remember(db, ids.userA, {
+          predicate: "has_goal",
+          objectText: `goal ${randomUUID()}`,
+          confidence: 0.9,
+          provenance: "confirmed",
+          importance: 0.9,
+          pinned: true,
+          source: { sourceKind: "manual", sourceRef: "manual:core", excerpt: "Core goal" }
+        });
+        await service.supersede(db, ids.userA, { factId: write.fact.id });
+        return { supersededId: write.fact.id, core: await service.core(db, ids.userA) };
+      }
+    );
+
+    expect(result.core.items.map((item) => item.id)).not.toContain(result.supersededId);
+    expect(result.core.items.length).toBeLessThanOrEqual(20);
   });
 });
 

@@ -99,6 +99,49 @@ export interface NewMemoryFact {
   readonly source: MemorySourceInput;
 }
 
+export interface MemoryRememberInput {
+  readonly subjectEntityId?: string;
+  readonly predicate: MemoryFactPredicate;
+  readonly objectEntityId?: string | null;
+  readonly objectText?: string | null;
+  readonly confidence?: number;
+  readonly provenance?: MemoryFactProvenance;
+  readonly importance?: number;
+  readonly pinned?: boolean;
+  readonly source: MemorySourceInput;
+}
+
+export interface MemoryWriteResult {
+  readonly fact: MemoryFactRecord;
+}
+
+export interface MemorySupersedeInput {
+  readonly factId: string;
+  readonly validTo?: Date | null;
+}
+
+export interface MemoryForgetResult {
+  readonly deleted: boolean;
+}
+
+export interface MemoryRecallResult {
+  readonly query: string;
+  readonly items: readonly MemoryRecallItem[];
+}
+
+export interface MemoryRecallItem {
+  readonly kind: "entity" | "fact" | "episode";
+  readonly id: string;
+  readonly title: string;
+  readonly text: string;
+  readonly score: number;
+  readonly confidence: number;
+  readonly provenance: MemoryFactProvenance;
+  readonly validFrom: Date | null;
+  readonly validTo: Date | null;
+  readonly sources: readonly MemorySourceSummary[];
+}
+
 export interface MemoryAliasRecord {
   readonly id: string;
   readonly ownerUserId: string;
@@ -121,4 +164,10 @@ export interface MemorySearchDocumentRecord {
   readonly status: "active" | "inactive";
   readonly createdAt: Date;
   readonly updatedAt: Date;
+}
+
+export interface MemoryFactRecallCandidate {
+  readonly fact: MemoryFactRecord;
+  readonly searchText: string;
+  readonly vectorSimilarity: number;
 }

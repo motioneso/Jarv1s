@@ -7,6 +7,7 @@ import type {
   MemoryEntityKind,
   MemoryEntityRecord,
   MemoryEntityStatus,
+  MemoryFactRecallCandidate,
   MemoryEpisodeKind,
   MemoryFactPredicate,
   MemoryFactProvenance,
@@ -252,23 +253,59 @@ export class MemoryGraphRepository {
     ownerUserId: string,
     targetKind: MemorySearchTargetKind,
     targetId: string,
-    searchText: string
+    searchText: string,
+    embedding?: readonly number[],
+    embedModelName?: string,
+    embedModelVersion?: string
   ): Promise<void> {
     assertDataContextDb(scopedDb);
+    const vectorSql = embedding ? sql`${toVectorLiteral(embedding)}::vector` : sql`NULL`;
     await sql`
       INSERT INTO app.memory_search_documents (
         owner_user_id,
         target_kind,
         target_id,
         search_text,
+        embedding,
+        embed_model_name,
+        embed_model_version,
         status,
         updated_at
       )
-      VALUES (${ownerUserId}::uuid, ${targetKind}, ${targetId}::uuid, ${searchText}, 'active', now())
+      VALUES (
+        ${ownerUserId}::uuid,
+        ${targetKind},
+        ${targetId}::uuid,
+        ${searchText},
+        ${vectorSql},
+        ${embedModelName ?? null},
+        ${embedModelVersion ?? null},
+        'active',
+        now()
+      )
       ON CONFLICT (owner_user_id, target_kind, target_id) DO UPDATE SET
         search_text = EXCLUDED.search_text,
+        embedding = EXCLUDED.embedding,
+        embed_model_name = EXCLUDED.embed_model_name,
+        embed_model_version = EXCLUDED.embed_model_version,
         status = 'active',
         updated_at = now()
+    `.execute(scopedDb.db);
+  }
+
+  async deactivateSearchDocument(
+    scopedDb: DataContextDb,
+    ownerUserId: string,
+    targetKind: MemorySearchTargetKind,
+    targetId: string
+  ): Promise<void> {
+    assertDataContextDb(scopedDb);
+    await sql`
+      UPDATE app.memory_search_documents
+      SET status = 'inactive', updated_at = now()
+      WHERE owner_user_id = ${ownerUserId}::uuid
+        AND target_kind = ${targetKind}
+        AND target_id = ${targetId}::uuid
     `.execute(scopedDb.db);
   }
 
@@ -317,10 +354,159 @@ export class MemoryGraphRepository {
       updatedAt: row.updated_at
     }));
   }
+
+  async listFactRecallCandidates(
+    scopedDb: DataContextDb,
+    ownerUserId: string,
+    queryEmbedding: readonly number[],
+    options: { readonly includeInactive?: boolean } = {}
+  ): Promise<MemoryFactRecallCandidate[]> {
+    assertDataContextDb(scopedDb);
+    const vectorLiteral = toVectorLiteral(queryEmbedding);
+    const result = await sql<
+      FactRow & {
+        search_text: string | null;
+        vector_similarity: string | number | null;
+      }
+    >`
+      SELECT f.*,
+             d.search_text,
+             CASE
+               WHEN d.embedding IS NULL THEN 0
+               ELSE 1 - (d.embedding <=> ${vectorLiteral}::vector)
+             END AS vector_similarity
+      FROM app.memory_facts f
+      LEFT JOIN app.memory_search_documents d
+        ON d.owner_user_id = f.owner_user_id
+       AND d.target_kind = 'fact'
+       AND d.target_id = f.id
+       AND d.status = 'active'
+      WHERE f.owner_user_id = ${ownerUserId}::uuid
+        AND (
+          ${options.includeInactive ?? false}
+          OR (
+            f.status = 'active'
+            AND (f.valid_to IS NULL OR f.valid_to > now())
+          )
+        )
+      ORDER BY f.pinned DESC, f.importance DESC, f.updated_at DESC
+      LIMIT 100
+    `.execute(scopedDb.db);
+
+    return Promise.all(
+      result.rows.map(async (row) => ({
+        fact: mapFact(row, await this.listSourcesForFact(scopedDb, ownerUserId, row.id)),
+        searchText: row.search_text ?? [row.predicate, row.object_text].filter(Boolean).join(" "),
+        vectorSimilarity: clamp01(Number(row.vector_similarity ?? 0))
+      }))
+    );
+  }
+
+  async listCoreFacts(
+    scopedDb: DataContextDb,
+    ownerUserId: string,
+    limit: number
+  ): Promise<MemoryFactRecord[]> {
+    assertDataContextDb(scopedDb);
+    const result = await sql<FactRow>`
+      SELECT *
+      FROM app.memory_facts
+      WHERE owner_user_id = ${ownerUserId}::uuid
+        AND status = 'active'
+        AND (valid_to IS NULL OR valid_to > now())
+        AND (pinned = true OR provenance IN ('confirmed', 'volunteered'))
+      ORDER BY pinned DESC, importance DESC, last_confirmed_at DESC NULLS LAST, updated_at DESC
+      LIMIT ${limit}
+    `.execute(scopedDb.db);
+
+    return Promise.all(
+      result.rows.map(async (row) =>
+        mapFact(row, await this.listSourcesForFact(scopedDb, ownerUserId, row.id))
+      )
+    );
+  }
+
+  async supersedeFact(
+    scopedDb: DataContextDb,
+    ownerUserId: string,
+    factId: string,
+    validTo: Date | null = new Date()
+  ): Promise<boolean> {
+    assertDataContextDb(scopedDb);
+    const result = await sql<{ id: string }>`
+      UPDATE app.memory_facts
+      SET status = 'superseded',
+          valid_to = ${validTo},
+          updated_at = now()
+      WHERE owner_user_id = ${ownerUserId}::uuid
+        AND id = ${factId}::uuid
+      RETURNING id
+    `.execute(scopedDb.db);
+    if (result.rows.length > 0) {
+      await this.deactivateSearchDocument(scopedDb, ownerUserId, "fact", factId);
+    }
+    return result.rows.length > 0;
+  }
+
+  async forgetFact(scopedDb: DataContextDb, ownerUserId: string, factId: string): Promise<boolean> {
+    assertDataContextDb(scopedDb);
+    await this.deactivateSearchDocument(scopedDb, ownerUserId, "fact", factId);
+    const result = await sql<{ id: string }>`
+      DELETE FROM app.memory_facts
+      WHERE owner_user_id = ${ownerUserId}::uuid
+        AND id = ${factId}::uuid
+      RETURNING id
+    `.execute(scopedDb.db);
+    return result.rows.length > 0;
+  }
+
+  async pinFact(
+    scopedDb: DataContextDb,
+    ownerUserId: string,
+    factId: string,
+    pinned: boolean
+  ): Promise<boolean> {
+    assertDataContextDb(scopedDb);
+    const result = await sql<{ id: string }>`
+      UPDATE app.memory_facts
+      SET pinned = ${pinned}, updated_at = now()
+      WHERE owner_user_id = ${ownerUserId}::uuid
+        AND id = ${factId}::uuid
+      RETURNING id
+    `.execute(scopedDb.db);
+    return result.rows.length > 0;
+  }
+
+  private async listSourcesForFact(
+    scopedDb: DataContextDb,
+    ownerUserId: string,
+    factId: string
+  ): Promise<MemorySourceSummary[]> {
+    const result = await sql<SourceRow>`
+      SELECT e.id, e.source_kind, e.source_ref, e.source_label, e.occurred_at, e.excerpt
+      FROM app.memory_episodes e
+      JOIN app.memory_fact_sources s
+        ON s.owner_user_id = e.owner_user_id
+       AND s.episode_id = e.id
+      WHERE s.owner_user_id = ${ownerUserId}::uuid
+        AND s.fact_id = ${factId}::uuid
+      ORDER BY e.occurred_at DESC NULLS LAST, e.created_at DESC
+    `.execute(scopedDb.db);
+    return result.rows.map(mapSource);
+  }
 }
 
 function normalizeAlias(alias: string): string {
   return alias.trim().toLocaleLowerCase();
+}
+
+function toVectorLiteral(vector: readonly number[]): string {
+  return `[${vector.join(",")}]`;
+}
+
+function clamp01(value: number): number {
+  if (!Number.isFinite(value)) return 0;
+  return Math.min(1, Math.max(0, value));
 }
 
 function mapEntity(row: EntityRow): MemoryEntityRecord {
