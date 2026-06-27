@@ -55,7 +55,7 @@ import {
   serializeTaskTag
 } from "./serialize.js";
 
-const TASKS_AGENCY_AUTO_EXECUTE_KEY = "tasks.agency_auto_execute";
+
 
 export interface TasksRoutesDependencies {
   readonly resolveAccessContext: (request: FastifyRequest) => Promise<AccessContext>;
