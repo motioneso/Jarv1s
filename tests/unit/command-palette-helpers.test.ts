@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  isCommandPaletteShortcut,
   nextFocusTrapIndex,
   restorePaletteFocus,
   shouldRunDialogEnter,
@@ -24,6 +25,16 @@ describe("command palette helpers", () => {
 
   it("falls back to Personal when there are no task lists", () => {
     expect(taskChoices([])).toEqual([{ id: null, name: "Personal" }]);
+  });
+
+  it("matches Ctrl/Cmd+K by key or physical code", () => {
+    expect(isCommandPaletteShortcut({ ctrlKey: true, metaKey: false, key: "k" })).toBe(true);
+    expect(isCommandPaletteShortcut({ ctrlKey: false, metaKey: true, key: "Dead", code: "KeyK" })).toBe(
+      true
+    );
+    expect(isCommandPaletteShortcut({ ctrlKey: false, metaKey: false, key: "k", code: "KeyK" })).toBe(
+      false
+    );
   });
 
   it("restores focus only for still-connected elements", () => {

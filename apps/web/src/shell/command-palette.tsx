@@ -131,6 +131,11 @@ export function CommandPalette(props: {
     }, 2900);
   }, []);
 
+  const openPalette = useCallback(() => {
+    lastFocusedRef.current = document.activeElement as HTMLElement | null;
+    setOpen(true);
+  }, []);
+
   const themeMutation = useMutation({
     mutationFn: (themeId: string) => setActiveTheme({ id: themeId }),
     onSuccess: (data) => {
@@ -155,19 +160,25 @@ export function CommandPalette(props: {
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
-      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k") {
+      if (isCommandPaletteShortcut(event)) {
         if (isEditableTarget(event.target)) return;
         event.preventDefault();
-        if (!open) lastFocusedRef.current = document.activeElement as HTMLElement | null;
-        setOpen((current) => !current);
+        event.stopPropagation();
+        if (open) closePalette();
+        else openPalette();
       } else if (event.key === "Escape" && open) {
         event.preventDefault();
         closePalette();
       }
     };
-    document.addEventListener("keydown", onKeyDown);
-    return () => document.removeEventListener("keydown", onKeyDown);
-  }, [closePalette, open]);
+    document.addEventListener("keydown", onKeyDown, { capture: true });
+    return () => document.removeEventListener("keydown", onKeyDown, { capture: true });
+  }, [closePalette, open, openPalette]);
+
+  useEffect(() => {
+    window.addEventListener("jarvis:open-command-palette", openPalette);
+    return () => window.removeEventListener("jarvis:open-command-palette", openPalette);
+  }, [openPalette]);
 
   useEffect(() => {
     if (!open) return;
@@ -448,6 +459,17 @@ function isEditableTarget(target: EventTarget | null): boolean {
   if (!element) return false;
   if (element.isContentEditable) return true;
   return ["INPUT", "TEXTAREA", "SELECT"].includes(element.tagName);
+}
+
+export function isCommandPaletteShortcut(event: {
+  readonly ctrlKey: boolean;
+  readonly metaKey: boolean;
+  readonly key: string;
+  readonly code?: string;
+}): boolean {
+  return (
+    (event.metaKey || event.ctrlKey) && (event.key.toLowerCase() === "k" || event.code === "KeyK")
+  );
 }
 
 function inputLabel(stage: Stage): string {
