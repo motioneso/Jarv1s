@@ -82,7 +82,10 @@ export class MemoryDashboardService {
           cursor: query.cursor
         })
       ]);
-      items = [...pending.items.map(candidateToItem), ...facts.items.map(factToItem)].slice(0, limit);
+      items = [...pending.items.map(candidateToItem), ...facts.items.map(factToItem)].slice(
+        0,
+        limit
+      );
       nextCursor = facts.nextCursor;
     } else {
       const factStatuses = statusFilterToFactStatuses(status);
@@ -124,7 +127,9 @@ export class MemoryDashboardService {
     if (kind === "fact" && factPayload) {
       const predicate = String(factPayload.predicate ?? "related_to");
       const objectText = String(edited?.summary ?? factPayload.objectText ?? "");
-      const recordKind = (edited?.recordKind ?? factPayload.recordKind ?? "preference") as MemoryRecordKind;
+      const recordKind = (edited?.recordKind ??
+        factPayload.recordKind ??
+        "preference") as MemoryRecordKind;
 
       const selfEntity = await this.graphRepo.ensureSelfEntity(scopedDb, ownerUserId);
       const result = await this.recallSvc.remember(scopedDb, ownerUserId, {
@@ -155,7 +160,12 @@ export class MemoryDashboardService {
       });
     }
 
-    await this.candidatesRepo.markPromoted(scopedDb, ownerUserId, candidateId, "accepted via dashboard");
+    await this.candidatesRepo.markPromoted(
+      scopedDb,
+      ownerUserId,
+      candidateId,
+      "accepted via dashboard"
+    );
     return { accepted: true };
   }
 
@@ -252,9 +262,8 @@ function statusFilterToFactStatuses(filter: string): string[] {
 function candidateToItem(c: MemoryCandidateRecord): MemoryDashboardItem {
   const payload = c.payloadJson as Record<string, unknown> | null;
   const title = extractCandidateTitle(payload);
-  const recordKind = typeof payload?.recordKind === "string"
-    ? (payload.recordKind as MemoryRecordKind)
-    : undefined;
+  const recordKind =
+    typeof payload?.recordKind === "string" ? (payload.recordKind as MemoryRecordKind) : undefined;
   return {
     itemKind: "candidate",
     id: c.id,
@@ -268,9 +277,8 @@ function candidateToItem(c: MemoryCandidateRecord): MemoryDashboardItem {
     sourceKind: "chat",
     createdAt: c.createdAt.toISOString(),
     updatedAt: c.updatedAt.toISOString(),
-    editableFields: c.status === "pending"
-      ? ["summary", "recordKind", "validFrom", "validTo", "staleAt"]
-      : []
+    editableFields:
+      c.status === "pending" ? ["summary", "recordKind", "validFrom", "validTo", "staleAt"] : []
   };
 }
 
@@ -304,7 +312,9 @@ function extractCandidateTitle(payload: Record<string, unknown> | null): string 
   if (!payload) return "Memory candidate";
   const fact = (payload.fact ?? null) as Record<string, unknown> | null;
   if (fact) {
-    const parts = [fact.subject, fact.predicate, fact.objectText ?? fact.objectName].filter(Boolean);
+    const parts = [fact.subject, fact.predicate, fact.objectText ?? fact.objectName].filter(
+      Boolean
+    );
     if (parts.length > 0) return (parts as string[]).join(" ");
   }
   const entity = (payload.entity ?? null) as Record<string, unknown> | null;

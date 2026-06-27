@@ -72,7 +72,8 @@ export function registerMemoryDashboardRoutes(
           const svc = await createDashboardService(scopedDb, graphRepo);
           return svc.acceptCandidate(scopedDb, access.actorUserId, id, body);
         });
-        if (!result.accepted) return reply.code(404).send({ error: "Candidate not found or not pending" });
+        if (!result.accepted)
+          return reply.code(404).send({ error: "Candidate not found or not pending" });
         return reply.code(200).send({ accepted: true });
       } catch (error) {
         return handleDashboardRouteError(error, reply);
@@ -195,7 +196,10 @@ function handleDashboardRouteError(error: unknown, reply: FastifyReply) {
   if (error instanceof Error && error.message === "Unauthorized") {
     return reply.code(401).send({ error: "Unauthorized" });
   }
-  if (error instanceof Error && (error as NodeJS.ErrnoException).code === "ENTITY_HAS_ACTIVE_FACTS") {
+  if (
+    error instanceof Error &&
+    (error as NodeJS.ErrnoException).code === "ENTITY_HAS_ACTIVE_FACTS"
+  ) {
     return reply.code(409).send({ error: error.message });
   }
   throw error;

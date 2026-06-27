@@ -2,11 +2,7 @@ import { sql } from "kysely";
 
 import { assertDataContextDb, type DataContextDb } from "@jarv1s/db";
 
-import type {
-  MemoryEntityRecord,
-  MemoryFactRecord,
-  MemorySourceSummary
-} from "./graph-types.js";
+import type { MemoryEntityRecord, MemoryFactRecord, MemorySourceSummary } from "./graph-types.js";
 import type { EntityRow, FactRow, MemoryGraphRepository, SourceRow } from "./graph-repository.js";
 import { mapEntity, mapFact, mapSource } from "./graph-repository.js";
 
@@ -121,10 +117,10 @@ export class MemoryGraphDashboardRepository {
     const result = await sql<FactRow>`
       UPDATE app.memory_facts
       SET
-        valid_from  = CASE WHEN ${patch.validFrom !== undefined}  THEN ${patch.validFrom  ?? null}::timestamptz ELSE valid_from  END,
-        valid_to    = CASE WHEN ${patch.validTo   !== undefined}  THEN ${patch.validTo    ?? null}::timestamptz ELSE valid_to    END,
-        stale_at    = CASE WHEN ${patch.staleAt   !== undefined}  THEN ${patch.staleAt    ?? null}::timestamptz ELSE stale_at    END,
-        pinned      = CASE WHEN ${patch.pinned    !== undefined}  THEN ${patch.pinned     ?? false}             ELSE pinned      END,
+        valid_from  = CASE WHEN ${patch.validFrom !== undefined}  THEN ${patch.validFrom ?? null}::timestamptz ELSE valid_from  END,
+        valid_to    = CASE WHEN ${patch.validTo !== undefined}  THEN ${patch.validTo ?? null}::timestamptz ELSE valid_to    END,
+        stale_at    = CASE WHEN ${patch.staleAt !== undefined}  THEN ${patch.staleAt ?? null}::timestamptz ELSE stale_at    END,
+        pinned      = CASE WHEN ${patch.pinned !== undefined}  THEN ${patch.pinned ?? false}             ELSE pinned      END,
         updated_at  = now()
       WHERE owner_user_id = ${ownerUserId}::uuid
         AND id = ${factId}::uuid
@@ -145,7 +141,11 @@ export class MemoryGraphDashboardRepository {
     scopedDb: DataContextDb,
     ownerUserId: string,
     entityId: string,
-    patch: { readonly name?: string; readonly summary?: string | null; readonly status?: "active" | "archived" }
+    patch: {
+      readonly name?: string;
+      readonly summary?: string | null;
+      readonly status?: "active" | "archived";
+    }
   ): Promise<MemoryEntityRecord | undefined> {
     assertDataContextDb(scopedDb);
 
@@ -158,16 +158,18 @@ export class MemoryGraphDashboardRepository {
           AND status = 'active'
       `.execute(scopedDb.db);
       if (Number(activeFactCount.rows[0]?.cnt ?? 0) > 0) {
-        throw Object.assign(new Error("entity has active facts"), { code: "ENTITY_HAS_ACTIVE_FACTS" });
+        throw Object.assign(new Error("entity has active facts"), {
+          code: "ENTITY_HAS_ACTIVE_FACTS"
+        });
       }
     }
 
     const result = await sql<EntityRow>`
       UPDATE app.memory_entities
       SET
-        name       = CASE WHEN ${patch.name !== undefined}    THEN ${patch.name    ?? ""}   ELSE name    END,
+        name       = CASE WHEN ${patch.name !== undefined}    THEN ${patch.name ?? ""}   ELSE name    END,
         summary    = CASE WHEN ${patch.summary !== undefined} THEN ${patch.summary ?? ""}   ELSE summary END,
-        status     = CASE WHEN ${patch.status !== undefined}  THEN ${patch.status  ?? "active"} ELSE status  END,
+        status     = CASE WHEN ${patch.status !== undefined}  THEN ${patch.status ?? "active"} ELSE status  END,
         updated_at = now()
       WHERE owner_user_id = ${ownerUserId}::uuid
         AND id = ${entityId}::uuid

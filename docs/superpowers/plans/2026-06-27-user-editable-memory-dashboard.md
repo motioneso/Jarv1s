@@ -25,7 +25,9 @@
 ## Tasks
 
 ### Task 1 — Dashboard types + shared schemas
+
 **Files:**
+
 - Create: `packages/memory/src/dashboard-types.ts`
 - Create: `packages/shared/src/memory-dashboard-api.ts`
 - Modify: `packages/shared/src/index.ts` (export new schemas)
@@ -34,7 +36,9 @@
 Define `MemoryDashboardItem`, `MemoryDashboardItemKind`, `MemoryDashboardResponse`, `MemoryDashboardQuery`, `AcceptMemoryCandidateRequest`, `RejectMemoryCandidateRequest`, `SuppressMemoryCandidateRequest`, `PatchMemoryFactDashboardRequest`, `PatchMemoryEntityDashboardRequest` exactly as in spec §4–5. Add Fastify JSON schemas for all 7 new routes. Commit green typecheck.
 
 ### Task 2 — Repository additions
+
 **Files:**
+
 - Modify: `packages/memory/src/candidates-repository.ts`
 - Modify: `packages/memory/src/graph-repository.ts`
 
@@ -45,10 +49,13 @@ Graph: add `listFactsForDashboard(scopedDb, ownerUserId, opts)`, `listEntitiesFo
 Commit green typecheck.
 
 ### Task 3 — Dashboard service
+
 **Files:**
+
 - Create: `packages/memory/src/dashboard-service.ts`
 
 `MemoryDashboardService` methods:
+
 - `listDashboard(scopedDb, ownerUserId, query)` — assemble DTO from candidates + facts + entities; apply ordering from spec §9
 - `acceptCandidate(scopedDb, ownerUserId, id, body)` — structured path (payloadJson has `kind`+`action`) → `createFactFromEpisode`/`createEntity`; manual path → `manualRememberHelper` (self entity + predicate from recordKind + confirmed provenance ≥ 0.90); mark promoted; create manual episode if `episodeId = null`
 - `rejectCandidate(scopedDb, ownerUserId, id, body)` — `markRejected`
@@ -57,28 +64,33 @@ Commit green typecheck.
 Helper `isStructuredCandidate(payloadJson)` — truthy when has valid `kind`/`action` fields. Helper `recordKindToPredicate(rk)` per spec §6. Commit green typecheck.
 
 ### Task 4 — Dashboard routes
+
 **Files:**
+
 - Create: `packages/memory/src/dashboard-routes.ts`
 
 Export `registerMemoryDashboardRoutes(server, deps)`. Wire 7 routes:
 
-| Route | Handler summary |
-|---|---|
-| `GET /api/memory/dashboard` | parse query, call `listDashboard`, return `MemoryDashboardResponse` |
-| `POST /api/memory/candidates/:id/accept` | validate body (unknown top-level fields → 400), call `acceptCandidate` |
-| `POST /api/memory/candidates/:id/reject` | call `rejectCandidate` |
-| `POST /api/memory/candidates/:id/suppress` | call `suppressCandidate` |
-| `PATCH /api/memory/graph/facts/:id` | call `patchFactLifecycle`; 404 if missing |
-| `PATCH /api/memory/graph/entities/:id` | call `updateEntity`; 403 if self entity; 409 if archived with active facts |
-| `DELETE /api/memory/graph/entities/:id` | call `forgetEntity`; 403 if self entity; 409 if facts exist |
+| Route                                      | Handler summary                                                            |
+| ------------------------------------------ | -------------------------------------------------------------------------- |
+| `GET /api/memory/dashboard`                | parse query, call `listDashboard`, return `MemoryDashboardResponse`        |
+| `POST /api/memory/candidates/:id/accept`   | validate body (unknown top-level fields → 400), call `acceptCandidate`     |
+| `POST /api/memory/candidates/:id/reject`   | call `rejectCandidate`                                                     |
+| `POST /api/memory/candidates/:id/suppress` | call `suppressCandidate`                                                   |
+| `PATCH /api/memory/graph/facts/:id`        | call `patchFactLifecycle`; 404 if missing                                  |
+| `PATCH /api/memory/graph/entities/:id`     | call `updateEntity`; 403 if self entity; 409 if archived with active facts |
+| `DELETE /api/memory/graph/entities/:id`    | call `forgetEntity`; 403 if self entity; 409 if facts exist                |
 
 All routes: `resolveAccessContext` → `withDataContext`. Commit green typecheck.
 
 ### Task 5 — Integration tests
+
 **Files:**
+
 - Create: `tests/integration/memory-dashboard.test.ts`
 
 Cover every acceptance criterion from spec §12. Key test cases:
+
 - Dashboard returns candidates + active facts + entities for actor only (not user B's)
 - Filter by status, kind, sourceKind, q
 - Accept → fact active with confidence ≥ 0.90, provenance = confirmed, candidate = promoted
@@ -98,38 +110,48 @@ Run: `JARVIS_PGDATABASE=jarvis_build_rfa_533_memory_dashboard pnpm test:memory`
 Commit green tests.
 
 ### Task 6 — Frontend client + query keys
+
 **Files:**
+
 - Modify: `apps/web/src/api/memory-client.ts` (add dashboard functions)
 - Modify: `apps/web/src/api/query-keys.ts` (add `memory.dashboard`, `memory.dashboardItem`)
 
 Add: `getMemoryDashboard(query)`, `acceptMemoryCandidate(id, body)`, `rejectMemoryCandidate(id, body)`, `suppressMemoryCandidate(id, body)`, `patchMemoryFact(id, body)`, `patchMemoryEntity(id, body)`, `deleteMemoryEntity(id)`. All call `requestJson`. Commit green typecheck.
 
 ### Task 7 — Dashboard UI
+
 **Files:**
+
 - Create: `apps/web/src/settings/settings-memory-dashboard.tsx` (≤ 950 lines)
 
 Three-tab layout using existing `jds-*` primitives, `Group`, `Row`, `PaneHead` from `settings-ui`. Tabs: **Review Queue** (`status=pending`), **Memory Records** (`status=active`), **History** (`status=history`). Item row: statement, kind badge, confidence tier, status, provenance, source summary, updatedAt. Detail drawer: full lifecycle timestamps, conflict/supersession info, editable fields (summary, recordKind, validFrom, validTo, staleAt, pinned). Action buttons per item kind per spec §6–7.1. Forget: `useFeedback().confirm(...)` before mutating. Accept with edit: inline form in drawer. Commit after working UI.
 
 ### Task 8 — Wire into settings pane + unit tests
+
 **Files:**
+
 - Modify: `apps/web/src/settings/settings-memory-pane.tsx`
 - Create: `tests/unit/settings-memory-dashboard.test.tsx`
 
 Replace legacy pane body with `<MemoryDashboardPane />` (keep settings toggles at top). Unit tests: empty review queue render, item row render with kind/tier/status, forget confirmation dialog, accept drawer shows editable fields, self-entity hides destructive actions. Run `pnpm test:web`. Commit green.
 
 ### Task 9 — Final gate
+
 Run:
+
 ```bash
 pnpm format:check && pnpm lint && pnpm typecheck
 JARVIS_PGDATABASE=jarvis_build_rfa_533_memory_dashboard pnpm test:memory
 pnpm test:chat && pnpm test:web && pnpm test:api
 git fetch origin main && git rebase origin/main
 ```
+
 Record all exit codes. Then invoke `coordinated-wrap-up`.
 
 ---
 
 ## Collision Notes (from handoff)
+
 - Do NOT modify `usefulness_feedback` table (#527 mid-build)
 - Do NOT assume migration number; this spec needs NO migration
 - `confidence_score`, `confirmed_at`, `needs_review`, `superseded_by` (#532) → already `confidence`, `lastConfirmedAt`, `conflictGroupId`, `supersededByFactId` in TypeScript
