@@ -53,6 +53,19 @@ export type { MemoryGraphRouteDependencies } from "./graph-routes.js";
 export { memoryForgetExecute, memoryRecallExecute, memoryRememberExecute } from "./graph-tools.js";
 export { createMemoryFactSignature, normalizeMemoryFactContent } from "./fact-signature.js";
 export type {
+  AcceptMemoryCandidateRequest,
+  MemoryDashboardItem,
+  MemoryDashboardItemKind,
+  MemoryDashboardQuery,
+  MemoryDashboardResponse,
+  MemoryDashboardStatusFilter,
+  MemoryEditableField,
+  PatchMemoryEntityDashboardRequest,
+  PatchMemoryFactDashboardRequest,
+  RejectMemoryCandidateRequest,
+  SuppressMemoryCandidateRequest
+} from "./dashboard-types.js";
+export type {
   MemoryCorrection,
   MemoryCorrectionSource,
   MemorySuppression,
