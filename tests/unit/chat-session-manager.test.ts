@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import {
   ChatSessionManager,
   ChatTurnInFlightError,
+  combineHiddenContextBlocks,
   renderReplayBlock,
   renderSummaryBlock
 } from "../../packages/chat/src/live/chat-session-manager.js";
@@ -920,5 +921,40 @@ describe("ChatSessionManager.stopTurn — user-driven Stop (#456 Task C)", () =>
     // No turn in flight — must not throw, must not emit anything.
     await expect(manager.stopTurn("u1")).resolves.toBeUndefined();
     expect(received).toHaveLength(0);
+  });
+});
+
+// ── combineHiddenContextBlocks ────────────────────────────────────────────────
+
+describe("combineHiddenContextBlocks", () => {
+  it("returns both blocks joined when combined tokens fit under cap", () => {
+    const passive = "<retrieved_context>short</retrieved_context>";
+    const crossTool = "<cross_tool_context>short</cross_tool_context>";
+    const result = combineHiddenContextBlocks(passive, crossTool);
+    expect(result).toContain("retrieved_context");
+    expect(result).toContain("cross_tool_context");
+  });
+
+  it("drops cross-tool block when combined exceeds 2000-token cap", () => {
+    const passive = "a".repeat(4000); // ~1000 tokens
+    // crossTool pushes combined over 2000 tokens
+    const crossTool = "b".repeat(5000); // ~1250 tokens (total ~2250 > 2000)
+    const result = combineHiddenContextBlocks(passive, crossTool);
+    expect(result).toBe(passive);
+    expect(result).not.toContain("b");
+  });
+
+  it("returns empty string when both blocks are empty", () => {
+    expect(combineHiddenContextBlocks("", "")).toBe("");
+  });
+
+  it("returns passive alone when cross-tool is empty", () => {
+    const passive = "<retrieved_context>memo</retrieved_context>";
+    expect(combineHiddenContextBlocks(passive, "")).toBe(passive);
+  });
+
+  it("returns cross-tool alone when passive is empty", () => {
+    const crossTool = "<cross_tool_context>event</cross_tool_context>";
+    expect(combineHiddenContextBlocks("", crossTool)).toBe(crossTool);
   });
 });
