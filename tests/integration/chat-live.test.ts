@@ -8,11 +8,19 @@ import {
   type AccessContext,
   type JarvisDatabase
 } from "@jarv1s/db";
-import { ChatRepository, chatModuleManifest, handleExtractFactsJob } from "@jarv1s/chat";
+import {
+  ChatRepository,
+  ChatUserMemorySettingsRepository,
+  PassiveContextRetriever,
+  chatModuleManifest,
+  handleExtractFactsJob
+} from "@jarv1s/chat";
 import { AiRepository, createAiSecretCipher, type GenerateChatInput } from "@jarv1s/ai";
 import {
   ChatMemoryFactsRepository,
   ChatMemorySuppressionsRepository,
+  GraphMemoryRecallService,
+  StubEmbeddingProvider,
   createMemoryFactSignature
 } from "@jarv1s/memory";
 import { connectionStrings, ids, resetFoundationDatabase } from "./test-database.js";
@@ -114,6 +122,80 @@ describe("chat live runtime repository (recency + executed-model stamp)", () => 
       repository.getCurrentThread(scopedDb, ids.userB)
     );
     expect(current).toBeUndefined();
+  });
+});
+
+describe("passive context retrieval integration", () => {
+  let appDb: Kysely<JarvisDatabase>;
+  let dataContext: DataContextRunner;
+  let graphRecall: GraphMemoryRecallService;
+
+  beforeAll(async () => {
+    await resetFoundationDatabase();
+    appDb = createDatabase({
+      connectionString: connectionStrings.app,
+      maxConnections: 1
+    });
+    dataContext = new DataContextRunner(appDb);
+    graphRecall = new GraphMemoryRecallService(new StubEmbeddingProvider());
+  });
+
+  it("renders graph memory for a context-dependent turn and hides private ids", async () => {
+    const write = await dataContext.withDataContext(userAContext(), (scopedDb) =>
+      graphRecall.remember(scopedDb, ids.userA, {
+        predicate: "decided",
+        objectText: "House project uses option A for cabinets",
+        confidence: 0.94,
+        provenance: "confirmed",
+        importance: 0.9,
+        source: {
+          sourceKind: "chat",
+          sourceRef: "chat:passive-private",
+          sourceLabel: "Chat 2026-06-27",
+          excerpt: "House project uses option A"
+        }
+      })
+    );
+    const retriever = new PassiveContextRetriever({ dataContext, graphRecall });
+
+    const block = await retriever.retrieve({
+      actorUserId: ids.userA,
+      userText: "remember House project uses option A for cabinets",
+      threadTitle: null,
+      recentTurns: []
+    });
+
+    expect(block).toContain("<retrieved_context>");
+    expect(block).toContain("House project uses option A");
+    expect(block).not.toContain(write.fact.id);
+    expect(block).not.toContain("chat:passive-private");
+  });
+
+  it("respects existing recall and facts settings", async () => {
+    const settings = new ChatUserMemorySettingsRepository();
+    await dataContext.withDataContext(userAContext(), (scopedDb) =>
+      settings.update(scopedDb, ids.userA, { recallEnabled: false })
+    );
+    const retriever = new PassiveContextRetriever({ dataContext, graphRecall });
+
+    const disabled = await retriever.retrieve({
+      actorUserId: ids.userA,
+      userText: "remember House project uses option A for cabinets",
+      threadTitle: null,
+      recentTurns: []
+    });
+    expect(disabled).toBe("");
+
+    await dataContext.withDataContext(userAContext(), (scopedDb) =>
+      settings.update(scopedDb, ids.userA, { recallEnabled: true, factsEnabled: false })
+    );
+    const factsDisabled = await retriever.retrieve({
+      actorUserId: ids.userA,
+      userText: "remember House project uses option A for cabinets",
+      threadTitle: null,
+      recentTurns: []
+    });
+    expect(factsDisabled).toBe("");
   });
 });
 
