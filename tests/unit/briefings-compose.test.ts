@@ -5,7 +5,7 @@ import type { GenerateChatInput } from "@jarv1s/ai";
 import type { BriefingDefinition, DataContextDb } from "@jarv1s/db";
 import type { MemoryRetriever } from "@jarv1s/memory";
 import type { JarvisModuleManifest, ToolExecute, ToolResult } from "@jarv1s/module-sdk";
-import type { PriorityModelPreferenceV1 } from "@jarv1s/priority";
+import type { FocusSignalInput, PriorityModelPreferenceV1 } from "@jarv1s/priority";
 
 import {
   composeBriefing,
@@ -94,6 +94,7 @@ interface FakeOptions {
   readonly noModel?: boolean;
   readonly personaPreference?: unknown;
   readonly priorityModel?: PriorityModelPreferenceV1;
+  readonly focusReadiness?: readonly FocusSignalInput[];
   readonly userName?: string;
   readonly disabledBehaviors?: ReadonlySet<string>;
   readonly preferences?: Readonly<Record<string, unknown>>;
@@ -224,6 +225,7 @@ function makeFakeDeps(options: FakeOptions = {}): ComposeDeps {
       get: async (_scopedDb, key) =>
         key === "priority.model.v1" ? (options.priorityModel ?? null) : null
     },
+    focusReadiness: async () => options.focusReadiness ?? [],
     resolveUserName: async () => options.userName ?? "Ben",
     sourceBehaviorPolicy: {
       manifests: makeFakeManifests(options.failTool),
@@ -462,6 +464,56 @@ describe("composeBriefing — gathering", () => {
     expect(tasksBlock, "tasks block must be present").not.toBeNull();
     expect(tasksBlock![1]!.indexOf("Anchor Project task")).toBeLessThan(
       tasksBlock![1]!.indexOf("Plain task")
+    );
+  });
+
+  it("uses focus readiness when priority scoring briefing tasks", async () => {
+    const capturedMessages: unknown[] = [];
+    const deps = makeFakeDeps({
+      priorityModel: {
+        version: 1,
+        mode: "energy_protective",
+        anchors: [],
+        mutedSources: [],
+        updatedAt: "2026-06-01T00:00:00.000Z"
+      },
+      focusReadiness: [{ moduleId: "wellness", readiness: 0.3, summary: "low energy" }],
+      generateChat: async (input: GenerateChatInput) => {
+        capturedMessages.push(input.messages);
+        return { text: "synth narrative" };
+      }
+    });
+    const manifests = deps.moduleManifests.map((m) => ({
+      ...m,
+      assistantTools: (m.assistantTools ?? []).map((t) =>
+        t.name === "tasks.list"
+          ? {
+              ...t,
+              execute: (async () => ({
+                data: {
+                  items: [
+                    { title: "Large report", status: "todo", priority: 3, effort: "large" },
+                    { title: "Quick admin", status: "todo", priority: 3, effort: "quick" }
+                  ]
+                }
+              })) as ToolExecute
+            }
+          : t
+      )
+    }));
+
+    await composeBriefing(fakeScopedDb, definition(), runInput, {
+      ...deps,
+      moduleManifests: manifests
+    });
+
+    const prompt = (capturedMessages[0] as readonly { content: string }[])[0]!.content;
+    const tasksBlock = prompt.match(
+      /<external_source type="tasks">\n([\s\S]*?)\n<\/external_source>/
+    );
+    expect(tasksBlock, "tasks block must be present").not.toBeNull();
+    expect(tasksBlock![1]!.indexOf("Quick admin")).toBeLessThan(
+      tasksBlock![1]!.indexOf("Large report")
     );
   });
 

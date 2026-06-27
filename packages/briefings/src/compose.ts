@@ -5,7 +5,12 @@ import type { FastifyBaseLogger } from "fastify";
 import type { AiRepository, AiSecretCipher } from "@jarv1s/ai";
 import { HttpApiAdapter, parseAiApiKeyCredential } from "@jarv1s/ai";
 import type { ChatTurn, GenerateChatInput, ProviderKind } from "@jarv1s/ai";
-import { rankPriorityCandidates, type PriorityResult, type PrioritySource } from "@jarv1s/priority";
+import {
+  rankPriorityCandidates,
+  type FocusSignalInput,
+  type PriorityResult,
+  type PrioritySource
+} from "@jarv1s/priority";
 import type {
   BriefingDefinition,
   BriefingRunStatus,
@@ -56,6 +61,10 @@ export interface ComposeDeps {
   readonly priorityPreferencesRepository?: {
     get(scopedDb: DataContextDb, key: string): Promise<unknown>;
   };
+  readonly focusReadiness?: (ctx: {
+    readonly actorUserId: string;
+    readonly requestId: string;
+  }) => Promise<readonly FocusSignalInput[]>;
   readonly sourceBehaviorPolicy?: SourceBehaviorPolicyDeps;
   readonly resolveUserName?: (scopedDb: DataContextDb, actorUserId: string) => Promise<string>;
   /**
@@ -583,13 +592,19 @@ export async function composeBriefing(
   ];
   let priorityResults: PriorityResult[] = [];
   try {
-    const priorityModel = await readPriorityModel(scopedDb, deps.priorityPreferencesRepository);
+    const [priorityModel, focusReadiness] = await Promise.all([
+      readPriorityModel(scopedDb, deps.priorityPreferencesRepository),
+      deps.focusReadiness?.({
+        actorUserId: definition.owner_user_id,
+        requestId: input.jobId ? `pgboss:${input.jobId}` : `briefing:${input.runId ?? "priority"}`
+      }) ?? Promise.resolve([])
+    ]);
     priorityResults = rankPriorityCandidates({
       model: priorityModel,
       candidates: priorityCandidates,
       now: now.toISOString(),
       timeZone,
-      focusReadiness: []
+      focusReadiness
     });
   } catch (error) {
     deps.logger?.error(

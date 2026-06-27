@@ -40,6 +40,30 @@ describe("PriorityPreferencesRepository", () => {
     expect(model.mode).toBe("balanced");
   });
 
+  it("returns defaults for malformed version 1 blobs", () => {
+    const model = repo.get({
+      version: 1,
+      mode: "energy_protective",
+      anchors: [
+        {
+          id: "a1",
+          kind: "project",
+          label: "Apollo",
+          aliases: ["moon"],
+          weight: 2,
+          enabled: true,
+          createdAt: "2026-06-01T00:00:00Z",
+          updatedAt: "2026-06-01T00:00:00Z",
+          rawSourceBody: "must not escape"
+        }
+      ],
+      mutedSources: [],
+      updatedAt: "2026-06-27T00:00:00Z"
+    });
+
+    expect(model).toEqual(repo.defaults());
+  });
+
   it("returns valid model as-is", () => {
     const input: PriorityModelPreferenceV1 = {
       version: 1,
