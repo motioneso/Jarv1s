@@ -76,8 +76,8 @@ describe("Tasks agency tools through AssistantToolGateway", () => {
               label: "Task Changes",
               description: "Create and update tasks",
               defaultTier: "ask_each_time",
-              allowedTiers: ["ask_each_time", "trusted_auto"] as const
-            } as any;
+              allowedTiers: ["ask_each_time", "trusted_auto"]
+            };
           }
           return null;
         }
