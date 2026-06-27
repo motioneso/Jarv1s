@@ -16,8 +16,8 @@ ALTER TABLE app.proactive_monitor_state ENABLE ROW LEVEL SECURITY;
 ALTER TABLE app.proactive_monitor_state FORCE ROW LEVEL SECURITY;
 
 CREATE POLICY proactive_monitor_state_owner ON app.proactive_monitor_state
-  USING (owner_user_id = current_setting('app.current_user_id')::uuid)
-  WITH CHECK (owner_user_id = current_setting('app.current_user_id')::uuid);
+  USING (owner_user_id = app.current_actor_user_id())
+  WITH CHECK (owner_user_id = app.current_actor_user_id());
 
 CREATE TABLE app.proactive_cards (
   id              uuid PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -52,9 +52,14 @@ ALTER TABLE app.proactive_cards ENABLE ROW LEVEL SECURITY;
 ALTER TABLE app.proactive_cards FORCE ROW LEVEL SECURITY;
 
 CREATE POLICY proactive_cards_owner ON app.proactive_cards
-  USING (owner_user_id = current_setting('app.current_user_id')::uuid)
-  WITH CHECK (owner_user_id = current_setting('app.current_user_id')::uuid);
+  USING (owner_user_id = app.current_actor_user_id())
+  WITH CHECK (owner_user_id = app.current_actor_user_id());
 
 -- Indexes for cap queries.
 CREATE INDEX proactive_cards_owner_created ON app.proactive_cards (owner_user_id, created_at);
 CREATE INDEX proactive_cards_owner_source ON app.proactive_cards (owner_user_id, source, created_at);
+
+-- Worker writes state and cards; app reads + dismisses cards.
+GRANT SELECT, INSERT, UPDATE ON app.proactive_monitor_state TO jarvis_worker_runtime;
+GRANT SELECT, INSERT, UPDATE, DELETE ON app.proactive_cards TO jarvis_worker_runtime;
+GRANT SELECT, INSERT, UPDATE, DELETE ON app.proactive_cards TO jarvis_app_runtime;
