@@ -8,6 +8,7 @@ import {
   type DataContextDb,
   type JarvisDatabase
 } from "@jarv1s/db";
+import { MemoryGraphRepository, type MemoryFactPredicate } from "@jarv1s/memory";
 import { connectionStrings, ids, resetFoundationDatabase } from "./test-database.js";
 
 const { Client } = pg;
@@ -80,6 +81,64 @@ describe("memory graph schema and RLS", () => {
   it("prevents cross-user reads and writes through app and worker roles", async () => {
     await expectGraphIsolation(appDataContext, "app");
     await expectGraphIsolation(workerDataContext, "worker");
+  });
+});
+
+describe("MemoryGraphRepository", () => {
+  const repo = new MemoryGraphRepository();
+
+  it("creates one self entity per owner and survives repeated calls", async () => {
+    const selfA = await appDataContext.withDataContext(
+      { actorUserId: ids.userA, requestId: "memory-graph:self-a" },
+      (db) => repo.ensureSelfEntity(db, ids.userA)
+    );
+    const selfB = await appDataContext.withDataContext(
+      { actorUserId: ids.userA, requestId: "memory-graph:self-b" },
+      (db) => repo.ensureSelfEntity(db, ids.userA)
+    );
+
+    expect(selfB.id).toBe(selfA.id);
+    expect(selfA.kind).toBe("self");
+    expect(selfA.name).toBe("Self");
+  });
+
+  it("creates source-backed facts, aliases, and search documents", async () => {
+    await appDataContext.withDataContext(
+      { actorUserId: ids.userA, requestId: "memory-graph:repo" },
+      async (db) => {
+        const project = await repo.createEntity(db, ids.userA, {
+          kind: "project",
+          name: "House project",
+          summary: "Kitchen remodel",
+          importance: 0.7,
+          pinned: false
+        });
+        const alias = await repo.addAlias(db, ids.userA, project.id, "remodel", false);
+        const fact = await repo.createFact(db, ids.userA, {
+          subjectEntityId: project.id,
+          predicate: "has_constraint" satisfies MemoryFactPredicate,
+          objectText: "budget ceiling is 50k",
+          confidence: 0.9,
+          provenance: "confirmed",
+          importance: 0.8,
+          pinned: true,
+          source: {
+            sourceKind: "manual",
+            sourceRef: "manual:test",
+            sourceLabel: "Manual test",
+            excerpt: "Budget ceiling is 50k"
+          }
+        });
+
+        const docs = await repo.listSearchDocumentsForOwner(db, ids.userA);
+        expect(alias.normalizedAlias).toBe("remodel");
+        expect(fact.sources).toHaveLength(1);
+        expect(docs.map((d) => `${d.targetKind}:${d.targetId}`)).toContain(
+          `entity:${project.id}`
+        );
+        expect(docs.map((d) => `${d.targetKind}:${d.targetId}`)).toContain(`fact:${fact.id}`);
+      }
+    );
   });
 });
 

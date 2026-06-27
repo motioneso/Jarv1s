@@ -28,6 +28,8 @@ export type {
   FactProvenance
 } from "./facts-repository.js";
 export { ChatMemoryFactsRepository } from "./facts-repository.js";
+export * from "./graph-types.js";
+export { MemoryGraphRepository } from "./graph-repository.js";
 export { createMemoryFactSignature, normalizeMemoryFactContent } from "./fact-signature.js";
 export type {
   MemoryCorrection,
