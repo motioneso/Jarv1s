@@ -14,7 +14,6 @@ import {
   type ProviderKind
 } from "@jarv1s/ai";
 import {
-  ChatMemoryFactsRepository,
   GraphMemoryRecallService,
   MemoryCandidatesRepository,
   MemoryGraphRepository,

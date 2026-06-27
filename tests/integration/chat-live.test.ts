@@ -20,13 +20,10 @@ import {
 } from "@jarv1s/chat";
 import { AiRepository, createAiSecretCipher, type GenerateChatInput } from "@jarv1s/ai";
 import {
-  ChatMemoryFactsRepository,
-  ChatMemorySuppressionsRepository,
   GraphMemoryRecallService,
   MemoryCandidatesRepository,
   MemoryGraphRepository,
-  StubEmbeddingProvider,
-  createMemoryFactSignature
+  StubEmbeddingProvider
 } from "@jarv1s/memory";
 import { connectionStrings, ids, resetFoundationDatabase } from "./test-database.js";
 const { Client } = pg;
