@@ -52,6 +52,8 @@ export { MemoryDashboardService } from "./dashboard-service.js";
 export { GraphMemoryRecallService } from "./graph-recall-service.js";
 export { registerMemoryGraphRoutes } from "./graph-routes.js";
 export type { MemoryGraphRouteDependencies } from "./graph-routes.js";
+export { registerMemoryDashboardRoutes } from "./dashboard-routes.js";
+export type { MemoryDashboardRouteDependencies } from "./dashboard-routes.js";
 export { memoryForgetExecute, memoryRecallExecute, memoryRememberExecute } from "./graph-tools.js";
 export { createMemoryFactSignature, normalizeMemoryFactContent } from "./fact-signature.js";
 export type {
