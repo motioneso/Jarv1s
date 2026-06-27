@@ -16,6 +16,7 @@ import {
   HttpError,
   handleRouteError as handleModuleRouteError,
   sessionRateLimitKey,
+  type JarvisActionPermissionTier,
   type ToolResult
 } from "@jarv1s/module-sdk";
 
@@ -70,6 +71,7 @@ import { cliAvailable, type ProviderKind as CliProviderKind } from "./cli-availa
 import { registerAiAdminPinRoutes } from "./admin-ai-pin-routes.js";
 import { registerAiCapabilityRouteRoutes } from "./capability-route-routes.js";
 import { registerCapabilityTierPreferenceRoutes } from "./capability-tier-preference-routes.js";
+import { registerActionPolicyRoutes } from "./action-policy-routes.js";
 import { registerProviderVisibilityRoutes } from "./provider-visibility-routes.js";
 import { createAiSecretCipher, type AiSecretCipher } from "./crypto.js";
 import { ModelDiscoveryService } from "./model-discovery.js";
@@ -89,6 +91,10 @@ export interface AiRoutesDependencies {
   readonly repository?: AiRepository;
   readonly secretCipher?: AiSecretCipher;
   readonly modelDiscovery?: ModelDiscoveryService;
+  readonly tasksCompatibility?: {
+    getResolvedTaskChangesPolicy: (db: DataContextDb) => Promise<JarvisActionPermissionTier>;
+    setTaskChangesPolicy: (db: DataContextDb, tier: JarvisActionPermissionTier) => Promise<void>;
+  };
 }
 
 type IdParams = { readonly id: string };
@@ -304,6 +310,7 @@ export function registerAiRoutes(
 
   registerAiCapabilityRouteRoutes(server, dependencies, repository);
   registerCapabilityTierPreferenceRoutes(server, dependencies, repository);
+  registerActionPolicyRoutes(server, dependencies, repository);
   registerAiAdminPinRoutes(server, dependencies, repository);
 
   server.get(

@@ -109,6 +109,7 @@ import {
   TASKS_QUEUE_DEFINITIONS,
   registerTasksJobWorkers,
   registerTasksRoutes,
+  TasksCompatibilityHelper,
   tasksModuleManifest,
   tasksModuleSqlMigrationDirectory
 } from "@jarv1s/tasks";
@@ -527,12 +528,16 @@ const BUILT_IN_MODULES: readonly BuiltInModuleRegistration[] = [
     manifest: aiModuleManifest,
     sqlMigrationDirectories: [aiModuleSqlMigrationDirectory],
     queueDefinitions: [],
-    registerRoutes: (server, deps) =>
-      registerAiRoutes(server, {
+    registerRoutes: (server, deps) => {
+      const preferencesRepository = new PreferencesRepository();
+      const tasksCompatibility = new TasksCompatibilityHelper(preferencesRepository);
+      return registerAiRoutes(server, {
         resolveAccessContext: deps.resolveAccessContext,
         dataContext: deps.dataContext,
-        resolveActiveModules: deps.resolveActiveModules
-      })
+        resolveActiveModules: deps.resolveActiveModules,
+        tasksCompatibility
+      });
+    }
   },
   {
     manifest: chatModuleManifest,

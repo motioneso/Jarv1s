@@ -45,6 +45,7 @@ import { TaskBreakdownRepository } from "./breakdown.js";
 import { TaskDriftRepository } from "./drift.js";
 import { TaskListsRepository } from "./lists.js";
 import { TaskPreferencesRepository } from "./preferences.js";
+import { TasksCompatibilityHelper } from "./action-policy.js";
 import { TasksRepository } from "./repository.js";
 import {
   serializeTask,
@@ -201,10 +202,11 @@ export function registerTasksRoutes(
           throw new Error("Task agency preferences repository not configured");
         }
         const accessContext = await dependencies.resolveAccessContext(request);
+        const compatibilityHelper = new TasksCompatibilityHelper(agencyPrefsRepository);
         const enabled = await dependencies.dataContext.withDataContext(
           accessContext,
           async (scopedDb) =>
-            (await agencyPrefsRepository.get(scopedDb, TASKS_AGENCY_AUTO_EXECUTE_KEY)) === true
+            (await compatibilityHelper.getResolvedTaskChangesPolicy(scopedDb)) === "trusted_auto"
         );
         return { enabled };
       } catch (error) {
@@ -223,8 +225,9 @@ export function registerTasksRoutes(
         }
         const accessContext = await dependencies.resolveAccessContext(request);
         const body = request.body as UpdateTaskAgencyAutoExecuteRequest;
+        const compatibilityHelper = new TasksCompatibilityHelper(agencyPrefsRepository);
         await dependencies.dataContext.withDataContext(accessContext, (scopedDb) =>
-          agencyPrefsRepository.upsert(scopedDb, TASKS_AGENCY_AUTO_EXECUTE_KEY, body.enabled)
+          compatibilityHelper.setTaskChangesPolicy(scopedDb, body.enabled ? "trusted_auto" : "ask_each_time")
         );
         return { enabled: body.enabled };
       } catch (error) {

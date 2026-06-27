@@ -5,6 +5,7 @@ export * from "./jobs.js";
 export * from "./lists.js";
 export * from "./manifest.js";
 export * from "./preferences.js";
+export * from "./action-policy.js";
 export * from "./recurrence.js";
 export * from "./recurrence-schedule.js";
 export * from "./repository.js";

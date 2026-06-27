@@ -897,3 +897,34 @@ export const patchAiCapabilityTierPreferenceRouteSchema = {
     401: errorResponseSchema
   }
 } as const;
+
+export const aiActionPolicyDtoSchema = {
+  type: "object",
+  additionalProperties: false,
+  required: ["moduleId", "actionFamilyId", "tier"],
+  properties: {
+    moduleId: { type: "string" },
+    actionFamilyId: { type: "string" },
+    tier: { type: "string", enum: ["ask_each_time", "trusted_auto", "always_confirm"] }
+  }
+} as const;
+
+export const getAiActionPoliciesResponseSchema = {
+  type: "object",
+  additionalProperties: false,
+  required: ["policies"],
+  properties: {
+    policies: { type: "array", items: aiActionPolicyDtoSchema }
+  }
+} as const;
+
+export const patchAiActionPolicyRequestSchema = {
+  type: "object",
+  additionalProperties: false,
+  required: ["tier"],
+  properties: {
+    tier: { type: "string", enum: ["ask_each_time", "trusted_auto", "always_confirm"] }
+  }
+} as const;
+
+export const patchAiActionPolicyResponseSchema = aiActionPolicyDtoSchema;

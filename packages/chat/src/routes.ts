@@ -49,6 +49,7 @@ import {
   type NotesSyncJobPayload,
   type NotesSyncToolService
 } from "@jarv1s/notes";
+import { TasksCompatibilityHelper } from "@jarv1s/tasks";
 
 import { buildCalendarWriteService } from "./calendar-write-impl.js";
 import { ChatGatewayNotifier } from "./gateway-notifier.js";
@@ -518,8 +519,41 @@ export function buildChatGatewayDependencies(args: {
       runner: args.runner,
       preferences: args.agencyPreferences
     }),
+    actionPolicy: buildActionPolicy({
+      runner: args.runner,
+      repository: args.repository,
+      preferences: args.agencyPreferences,
+      resolveActiveModules: args.resolveActiveModules
+    }),
     toolServices: buildChatToolServices(args.collaborators)
   };
+}
+
+function buildActionPolicy(args: {
+  runner: DataContextRunner;
+  repository: AiRepository;
+  preferences?: PreferencesPort;
+  resolveActiveModules: ActiveModulesResolver;
+}): AssistantToolGatewayDependencies["actionPolicy"] {
+  return (ctx) => ({
+    getFamilyTier: async (moduleId: string, familyId: string) => {
+      return args.runner.withDataContext({ actorUserId: ctx.actorUserId, requestId: ctx.requestId }, async (scopedDb) => {
+        if (moduleId === "tasks" && familyId === "task_changes" && args.preferences) {
+          const compat = new TasksCompatibilityHelper(args.preferences);
+          return compat.getResolvedTaskChangesPolicy(scopedDb);
+        }
+        const policies = await args.repository.listActionPolicies(scopedDb);
+        const policy = policies.find((p) => p.moduleId === moduleId && p.actionFamilyId === familyId);
+        return policy?.tier ?? null;
+      });
+    },
+    getFamilyManifest: async (moduleId: string, familyId: string) => {
+      const activeModules = await args.resolveActiveModules(ctx.actorUserId);
+      const manifest = activeModules.find((m) => m.id === moduleId);
+      if (!manifest || !manifest.assistantActionFamilies) return null;
+      return manifest.assistantActionFamilies.find((f) => f.id === familyId) ?? null;
+    }
+  });
 }
 
 function buildAgencyPrefs(args: {
