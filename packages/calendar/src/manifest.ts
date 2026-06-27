@@ -1,6 +1,7 @@
 import { fileURLToPath } from "node:url";
 
 import type { JarvisModuleManifest } from "@jarv1s/module-sdk";
+import { calendarMonitorProvider } from "./monitor-provider.js";
 import {
   getCalendarBriefingSettingsResponseSchema,
   getCalendarEventResponseSchema,
@@ -208,5 +209,6 @@ export const calendarModuleManifest = {
       execute: calendarProposeFocusBlockExecute,
       summarize: summarizeProposeFocusBlock
     }
-  ]
+  ],
+  proactiveMonitor: calendarMonitorProvider
 } satisfies JarvisModuleManifest;

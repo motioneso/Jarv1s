@@ -1,6 +1,7 @@
 import { fileURLToPath } from "node:url";
 
 import type { JarvisModuleManifest } from "@jarv1s/module-sdk";
+import { notesMonitorProvider } from "./monitor-provider.js";
 import {
   notesCreateInputSchema,
   notesDeleteInputSchema,
@@ -139,5 +140,6 @@ export const notesModuleManifest = {
       execute: notesDeleteExecute,
       summarize: (input) => `Delete note ${String(input.path)}.`
     }
-  ]
+  ],
+  proactiveMonitor: notesMonitorProvider
 } satisfies JarvisModuleManifest;
