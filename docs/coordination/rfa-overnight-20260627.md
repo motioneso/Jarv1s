@@ -30,11 +30,11 @@ one pane labelled `Coordinator`, and it is this session. Pane ids are routing hi
 
 | Issue | Spec | Tier | Status | Build | Review | Branch | PR |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| #528 | `docs/superpowers/specs/2026-06-26-jarvis-memory-graph-substrate.md` | security | corrected GLM security QA GREEN; image-build CI still pending, then Ben sign-off | Codex | opencode/GLM security QA | `rfa-528-memory-graph-substrate` | #545 |
+| #528 | `docs/superpowers/specs/2026-06-26-jarvis-memory-graph-substrate.md` | security | CI GREEN + security QA GREEN; awaiting Ben merge sign-off | Codex | opencode/GLM security QA | `rfa-528-memory-graph-substrate` | #545 |
 | #526 | `docs/superpowers/specs/2026-06-27-unified-priority-model.md` | sensitive | RED QA; build lane fixing CI image failure + two blocking findings (`w1:p3Q`) | Codex salvage after opencode/GLM | native Codex QA fallback | `rfa-526-unified-priority-model` | #544 |
 | #534 | `docs/superpowers/specs/2026-06-27-explicit-action-permission-tiers.md` | security | blocked: AGY quota until ~2026-06-27 00:55 PT (`w1:p3N`) | AGY | Codex security QA | `rfa-534-action-permission-tiers` | - |
 | #529 | `docs/superpowers/specs/2026-06-27-memory-distillation-pipeline.md` | security | queued after #528 | AGY | Codex security QA | `rfa-529-memory-distillation` | - |
-| #530 | `docs/superpowers/specs/2026-06-27-passive-context-retrieval.md` | sensitive | queued after #528 | Codex | opencode/GLM QA | `rfa-530-passive-context-retrieval` | - |
+| #530 | `docs/superpowers/specs/2026-06-27-passive-context-retrieval.md` | sensitive | spawned stacked on #528; premise-check done, plan being written (`w1:p3T`) | Codex | opencode/GLM QA | `rfa-530-passive-context-retrieval` | - |
 | #527 | `docs/superpowers/specs/2026-06-27-usefulness-feedback-signals.md` | security | queued after #526/#529 | opencode/GLM | Codex security QA | `rfa-527-usefulness-feedback` | - |
 | #532 | `docs/superpowers/specs/2026-06-27-confidence-aware-memory-records.md` | security | queued after #528/#529/#530 | Codex | AGY security QA | `rfa-532-confidence-aware-memory` | - |
 | #525 | `docs/superpowers/specs/2026-06-27-cross-tool-reasoning.md` | sensitive | queued after #530 | AGY | opencode/GLM QA | `rfa-525-cross-tool-reasoning` | - |
@@ -103,7 +103,11 @@ None.
   worker `Aquinas` was spawned as fallback. QA posted a RED verdict: image build CI failed; direct
   `app.preferences` query in `packages/briefings/src/priority-consumer.ts` violates module
   isolation; settings UI priority pane was not reachable/editable. Findings relayed to build pane
-  `w1:p3Q`; lane is back in rework.
+  `w1:p3Q`; lane went back to rework. Follow-up CI run `28282300873` on head `bdf4dcb` is fully
+  green, but rerun QA still found one blocking issue: `packages/settings/src/priority-routes.ts`
+  persisted nested anchor objects verbatim, allowing unknown nested fields and potential secret/raw
+  payload persistence inside `priority.model.v1`. That blocker is now routed to the build lane with
+  explicit regression-test requirement.
 - #528: plan approved from `docs/superpowers/plans/2026-06-26-memory-graph-substrate.md`;
   plan committed as `150544c`; coordinator assigned next free global migration number `0118` for
   `packages/memory/sql/0118_memory_graph_substrate.sql`. Task 1 schema, Task 2 repository, and Task 3
@@ -115,11 +119,19 @@ None.
   comment. Corrected GLM QA ran in verified detached worktree `/tmp/jarv1s-qa-545-glm-2` after
   confirming HEAD `519ad54` and graph files are present; it posted GREEN security verdict with
   0 blocking / 3 non-blocking findings. As of the verdict, Verify/app and compose smokes were green,
-  but `Build and publish images` was still in progress in GitHub checks. Security-tier merge remains
-  blocked on final green CI plus Ben's explicit sign-off.
+  and all GitHub CI checks are green. Security-tier merge is now blocked only on Ben's explicit
+  sign-off. Coordinator surfaced PR #545 and the valid QA verdict pointer to Ben, and must not merge
+  until Ben explicitly approves.
+- #530: spawned as a stacked dependent lane because #528 is QA/CI green but awaiting security-tier
+  sign-off. Branch `rfa-530-passive-context-retrieval` is based on `origin/rfa-528-memory-graph-substrate`
+  at `519ad54`; handoff commit `d3b7aaa`. PR base should stay `rfa-528-memory-graph-substrate` until
+  #528 lands. Initial Codex pane `w1:p3T` hit a model-limit prompt, switched to `gpt-5.5 medium`,
+  and resumed. The lane has verified the chat runtime seam can take a graph-recall port via route
+  deps/module registry and is writing its plan for coordinator approval.
 
 ## Reaped Sessions
 
 - Closed stalled opencode/GLM pane `w1:p3M` for #526 after it remained idle on a clean but red tree;
   replacement Codex salvage pane is `w1:p3Q`.
 - Closed native QA worker `Aquinas` after its RED verdict was posted to PR #544 and relayed.
+- Closed native QA worker `Volta` after its RED rerun verdict was posted to PR #544 and relayed.
