@@ -30,9 +30,9 @@ one pane labelled `Coordinator`, and it is this session. Pane ids are routing hi
 
 | Issue | Spec | Tier | Status | Build | Review | Branch | PR |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| #528 | `docs/superpowers/specs/2026-06-26-jarvis-memory-graph-substrate.md` | security | handoff committed (`1c5f27e`) | Codex | opencode/GLM security QA | `rfa-528-memory-graph-substrate` | - |
-| #526 | `docs/superpowers/specs/2026-06-27-unified-priority-model.md` | sensitive | handoff committed (`7f22c24`) | opencode/GLM | AGY QA | `rfa-526-unified-priority-model` | - |
-| #534 | `docs/superpowers/specs/2026-06-27-explicit-action-permission-tiers.md` | security | handoff committed (`7ba3cc8`) | AGY | Codex security QA | `rfa-534-action-permission-tiers` | - |
+| #528 | `docs/superpowers/specs/2026-06-26-jarvis-memory-graph-substrate.md` | security | building (`w1:p3K`) | Codex | opencode/GLM security QA | `rfa-528-memory-graph-substrate` | - |
+| #526 | `docs/superpowers/specs/2026-06-27-unified-priority-model.md` | sensitive | building (`w1:p3M`) | opencode/GLM | AGY QA | `rfa-526-unified-priority-model` | - |
+| #534 | `docs/superpowers/specs/2026-06-27-explicit-action-permission-tiers.md` | security | blocked: AGY quota until ~2026-06-27 00:55 PT (`w1:p3N`) | AGY | Codex security QA | `rfa-534-action-permission-tiers` | - |
 | #529 | `docs/superpowers/specs/2026-06-27-memory-distillation-pipeline.md` | security | queued after #528 | AGY | Codex security QA | `rfa-529-memory-distillation` | - |
 | #530 | `docs/superpowers/specs/2026-06-27-passive-context-retrieval.md` | sensitive | queued after #528 | Codex | opencode/GLM QA | `rfa-530-passive-context-retrieval` | - |
 | #527 | `docs/superpowers/specs/2026-06-27-usefulness-feedback-signals.md` | security | queued after #526/#529 | opencode/GLM | Codex security QA | `rfa-527-usefulness-feedback` | - |
@@ -89,6 +89,8 @@ None.
 - #520: RFA-labeled but missing approved spec. Do not spawn until a spec exists or Ben waives the
   spec gate.
 - Security-tier PRs: build and QA may proceed; merge waits for Ben's explicit sign-off.
+- #534: AGY quota reached at spawn; retry same pane after quota reset or reassign only if this
+  blocks useful progress after #526/#528 plan gates.
 
 ## Reaped Sessions
 
