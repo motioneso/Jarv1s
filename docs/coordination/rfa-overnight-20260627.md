@@ -30,7 +30,7 @@ one pane labelled `Coordinator`, and it is this session. Pane ids are routing hi
 
 | Issue | Spec | Tier | Status | Build | Review | Branch | PR |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| #528 | `docs/superpowers/specs/2026-06-26-jarvis-memory-graph-substrate.md` | security | building (`w1:p3K`) | Codex | opencode/GLM security QA | `rfa-528-memory-graph-substrate` | - |
+| #528 | `docs/superpowers/specs/2026-06-26-jarvis-memory-graph-substrate.md` | security | plan approved; migration `0118` assigned (`w1:p3K`) | Codex | opencode/GLM security QA | `rfa-528-memory-graph-substrate` | - |
 | #526 | `docs/superpowers/specs/2026-06-27-unified-priority-model.md` | sensitive | building Task 2; Task 1 commit `3f1abb1` | opencode/GLM | AGY QA | `rfa-526-unified-priority-model` | - |
 | #534 | `docs/superpowers/specs/2026-06-27-explicit-action-permission-tiers.md` | security | blocked: AGY quota until ~2026-06-27 00:55 PT (`w1:p3N`) | AGY | Codex security QA | `rfa-534-action-permission-tiers` | - |
 | #529 | `docs/superpowers/specs/2026-06-27-memory-distillation-pipeline.md` | security | queued after #528 | AGY | Codex security QA | `rfa-529-memory-distillation` | - |
@@ -94,6 +94,9 @@ None.
 - #526: plan approved from `docs/superpowers/plans/2026-06-27-unified-priority-model.md`; scope
   constrained to pure scorer, owner-scoped preference API/UI, and thin consumers over already-loaded
   candidates. Task 1 focused unit suite passed before commit `3f1abb1`.
+- #528: plan approved from `docs/superpowers/plans/2026-06-26-memory-graph-substrate.md`;
+  coordinator assigned next free global migration number `0118` for
+  `packages/memory/sql/0118_memory_graph_substrate.sql`.
 
 ## Reaped Sessions
 
