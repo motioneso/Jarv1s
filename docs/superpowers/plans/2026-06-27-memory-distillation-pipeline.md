@@ -38,6 +38,7 @@
 ### Task 1: Candidate Store
 
 **Files:**
+
 - Create: `packages/memory/sql/0119_memory_candidates.sql`
 - Create: `packages/memory/src/candidates-repository.ts`
 - Modify: `packages/memory/src/index.ts`
@@ -165,6 +166,7 @@ git commit -m "feat(memory): add memory candidate store" -m "Co-Authored-By: Cla
 ### Task 2: Distillation Helpers
 
 **Files:**
+
 - Create: `packages/chat/src/memory-distillation.ts`
 - Modify: `packages/chat/src/index.ts`
 - Add: `tests/unit/chat-memory-distillation.test.ts`
@@ -172,6 +174,7 @@ git commit -m "feat(memory): add memory candidate store" -m "Co-Authored-By: Cla
 - [ ] **Step 1: Write failing unit tests**
 
 Cover:
+
 - `shouldDistillTurn("hi", "hello") === false`
 - explicit `remember`, preference, decision, correction phrases return true
 - long concrete text with date/action returns true
@@ -215,6 +218,7 @@ git commit -m "feat(chat): add memory distillation helpers" -m "Co-Authored-By: 
 ### Task 3: Worker Integration And Promotion
 
 **Files:**
+
 - Modify: `packages/chat/src/jobs.ts`
 - Modify: `packages/chat/src/live/persistence.ts`
 - Modify: `tests/integration/chat-live.test.ts`
@@ -222,6 +226,7 @@ git commit -m "feat(chat): add memory distillation helpers" -m "Co-Authored-By: 
 - [ ] **Step 1: Write failing integration tests**
 
 Update existing `handleExtractFactsJob` tests to expect:
+
 - metadata payload uses `threadId`, `userMessageId`, `assistantMessageId`
 - handler loads those exact messages, not latest two
 - social/noise turn skips adapter call and writes no candidate
@@ -263,6 +268,7 @@ git commit -m "feat(chat): wire memory distillation worker" -m "Co-Authored-By: 
 ### Task 4: Export/Delete Coverage
 
 **Files:**
+
 - Modify: `packages/settings/src/data-export.ts`
 - Modify: `scripts/delete-user-data.ts`
 - Modify: `tests/integration/memory-graph-export-delete.test.ts`
