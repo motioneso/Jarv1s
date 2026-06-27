@@ -1,5 +1,9 @@
 export type { ProactiveMonitorStateRow, ProactiveCardRow, ResolvedMonitoringConfig } from "./types.js";
 export {
+  proactiveMonitoringModuleManifest,
+  proactiveMonitoringSqlMigrationDirectory
+} from "./manifest.js";
+export {
   ProactiveMonitoringPreferencesRepository,
   validateProactiveMonitoringPreference,
   resolveSourcePreference

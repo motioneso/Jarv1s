@@ -496,6 +496,9 @@ importers:
       '@jarv1s/notifications':
         specifier: workspace:*
         version: link:../notifications
+      '@jarv1s/proactive-monitoring':
+        specifier: workspace:*
+        version: link:../proactive-monitoring
       '@jarv1s/settings':
         specifier: workspace:*
         version: link:../settings
