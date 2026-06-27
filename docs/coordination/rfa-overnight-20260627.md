@@ -9,6 +9,13 @@ one pane labelled `Coordinator`, and it is this session. Pane ids are routing hi
 **Relay threshold:** security-tier merge -> relay immediately; routine/sensitive
 `merges_since_relay >= 2` -> relay. Compaction summary -> relay before merge.
 **merges_since_relay:** 0
+**Continuation note:** explicit user-requested coordinator relay in progress. Successor should
+update the coordinator lock to its own Codex session id before any merge, then continue in this
+order: rerun independent QA for PR #544 (`#526`) now that CI is green on head `9b063e6`;
+start security QA for PR #547 (`#529`) and PR #548 (`#534`) now that both are CI green;
+keep PR #545 (`#528`) blocked on Ben sign-off; keep PR #546 (`#530`) parked green behind `#528`
+stack order. After confirming it is driving, successor should reap old coordinator session id
+`019f0790-01da-70a2-a013-554a014c24b6`.
 
 ## Base
 
@@ -31,9 +38,9 @@ one pane labelled `Coordinator`, and it is this session. Pane ids are routing hi
 | Issue | Spec | Tier | Status | Build | Review | Branch | PR |
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | #528 | `docs/superpowers/specs/2026-06-26-jarvis-memory-graph-substrate.md` | security | CI GREEN + security QA GREEN; awaiting Ben merge sign-off | Codex | opencode/GLM security QA | `rfa-528-memory-graph-substrate` | #545 |
-| #526 | `docs/superpowers/specs/2026-06-27-unified-priority-model.md` | sensitive | blocker fixes pushed at `9b063e6`; CI run `28288166262` in progress, QA rerun pending green checks (`w1:p3Q`) | Codex salvage after opencode/GLM | Codex QA | `rfa-526-unified-priority-model` | #544 |
-| #534 | `docs/superpowers/specs/2026-06-27-explicit-action-permission-tiers.md` | security | PR #548 open on `main`; CI running, security QA pending green checks | AGY | Codex security QA | `rfa-534-action-permission-tiers` | #548 |
-| #529 | `docs/superpowers/specs/2026-06-27-memory-distillation-pipeline.md` | security | PR #547 open on #528 base; CI still running, QA pending green checks + stack order | Codex | opencode/GLM security QA | `rfa-529-memory-distillation` | #547 |
+| #526 | `docs/superpowers/specs/2026-06-27-unified-priority-model.md` | sensitive | PR #544 CI green on `9b063e6`; fresh QA rerun needed | Codex salvage after opencode/GLM | Codex QA | `rfa-526-unified-priority-model` | #544 |
+| #534 | `docs/superpowers/specs/2026-06-27-explicit-action-permission-tiers.md` | security | PR #548 CI green on `main`; security QA pending | AGY | Codex security QA | `rfa-534-action-permission-tiers` | #548 |
+| #529 | `docs/superpowers/specs/2026-06-27-memory-distillation-pipeline.md` | security | PR #547 CI green on #528 base; security QA pending + stack order | Codex | opencode/GLM security QA | `rfa-529-memory-distillation` | #547 |
 | #530 | `docs/superpowers/specs/2026-06-27-passive-context-retrieval.md` | sensitive | PR #546 QA GREEN; merge-ready after #528 lands, with 2 non-blocking follow-ups noted | Codex | Codex QA | `rfa-530-passive-context-retrieval` | #546 |
 | #527 | `docs/superpowers/specs/2026-06-27-usefulness-feedback-signals.md` | security | queued after #526/#529 | opencode/GLM | Codex security QA | `rfa-527-usefulness-feedback` | - |
 | #532 | `docs/superpowers/specs/2026-06-27-confidence-aware-memory-records.md` | security | queued after #528/#529/#530 | Codex | AGY security QA | `rfa-532-confidence-aware-memory` | - |
@@ -200,10 +207,16 @@ None.
   the pane into `coordinated-wrap-up`. The builder has now reported PR #548
   (`https://github.com/motioneso/Jarv1s/pull/548`) at head
   `2c253a599eff989333030d9bd7f22680ea01f367` with `VF_EXIT=0`, `AUDIT_EXIT=0`. GitHub CI run
-  `28287913187` is still in progress, so security QA has not started yet. One minor process drift
+  `28287913187` is now fully green, so security QA is the next action. One minor process drift
   to note: pane narration showed `git add .` during its local commit path; because this is an
   isolated worktree the blast radius is contained, but keep explicit-path staging standard on later
   nudges.
+- #529: PR #547 CI run `28287794279` is now fully green on head
+  `c02a047c56428f6614cd43409423866dca034c9b`. Because this is a security-tier PR stacked on #528,
+  the next action is security QA; merge remains blocked behind #528 even after QA passes.
+- #526: PR #544 rerun CI `28288166262` is now fully green on head
+  `9b063e6f65cdfe412daf51e11cfe947139b3506f`. Next action is a fresh independent QA rerun against
+  this head.
 
 ## Reaped Sessions
 
