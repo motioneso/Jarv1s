@@ -36,6 +36,7 @@
 ## Task 1: Contracts, Migration, And Module Shell
 
 **Files:**
+
 - Create: `packages/shared/src/usefulness-feedback-api.ts`
 - Create: `packages/usefulness-feedback/package.json`
 - Create: `packages/usefulness-feedback/src/index.ts`
@@ -123,7 +124,11 @@ export type UsefulnessFeedbackKind =
   | "not_useful"
   | "remember_this"
   | "dismiss";
-export type FeedbackTargetKind = "chat_message" | "briefing_run" | "briefing_item" | "proactive_card";
+export type FeedbackTargetKind =
+  | "chat_message"
+  | "briefing_run"
+  | "briefing_item"
+  | "proactive_card";
 export type FeedbackSurface = "chat" | "briefing" | "today" | "proactive";
 export type FeedbackStatus = "active" | "undone";
 ```
@@ -158,6 +163,7 @@ git commit -m "feat: add usefulness feedback ledger schema"
 ## Task 2: Repository, Routes, Validation, And Verifier Registry
 
 **Files:**
+
 - Create: `packages/usefulness-feedback/src/{repository.ts,routes.ts,target-verifiers.ts,metadata.ts}`
 - Modify: `packages/usefulness-feedback/src/index.ts`
 - Modify: `packages/module-registry/src/index.ts`
@@ -170,9 +176,47 @@ Extend `tests/integration/usefulness-feedback.test.ts` with:
 ```ts
 it("rejects invalid kinds, target/surface mismatches, and unknown top-level keys", async () => {
   const server = await buildFeedbackTestServer();
-  expect((await server.inject({ method: "POST", url: "/api/me/usefulness-feedback", headers: userAHeaders(), payload: { targetKind: "chat_message", targetRef: "x", surface: "chat", kind: "dismiss" } })).statusCode).toBe(400);
-  expect((await server.inject({ method: "POST", url: "/api/me/usefulness-feedback", headers: userAHeaders(), payload: { targetKind: "chat_message", targetRef: "x", surface: "today", kind: "not_useful" } })).statusCode).toBe(400);
-  expect((await server.inject({ method: "POST", url: "/api/me/usefulness-feedback", headers: userAHeaders(), payload: { targetKind: "chat_message", targetRef: "x", surface: "chat", kind: "not_useful", extra: true } })).statusCode).toBe(400);
+  expect(
+    (
+      await server.inject({
+        method: "POST",
+        url: "/api/me/usefulness-feedback",
+        headers: userAHeaders(),
+        payload: { targetKind: "chat_message", targetRef: "x", surface: "chat", kind: "dismiss" }
+      })
+    ).statusCode
+  ).toBe(400);
+  expect(
+    (
+      await server.inject({
+        method: "POST",
+        url: "/api/me/usefulness-feedback",
+        headers: userAHeaders(),
+        payload: {
+          targetKind: "chat_message",
+          targetRef: "x",
+          surface: "today",
+          kind: "not_useful"
+        }
+      })
+    ).statusCode
+  ).toBe(400);
+  expect(
+    (
+      await server.inject({
+        method: "POST",
+        url: "/api/me/usefulness-feedback",
+        headers: userAHeaders(),
+        payload: {
+          targetKind: "chat_message",
+          targetRef: "x",
+          surface: "chat",
+          kind: "not_useful",
+          extra: true
+        }
+      })
+    ).statusCode
+  ).toBe(400);
 });
 
 it("creates idempotent active feedback through a registered verifier and undoes it", async () => {
@@ -189,14 +233,33 @@ it("creates idempotent active feedback through a registered verifier and undoes 
       canRemember: false
     })
   });
-  const create = () => server.inject({ method: "POST", url: "/api/me/usefulness-feedback", headers: userAHeaders(), payload: { targetKind: "chat_message", targetRef: "msg-a", surface: "chat", kind: "not_useful" } });
+  const create = () =>
+    server.inject({
+      method: "POST",
+      url: "/api/me/usefulness-feedback",
+      headers: userAHeaders(),
+      payload: {
+        targetKind: "chat_message",
+        targetRef: "msg-a",
+        surface: "chat",
+        kind: "not_useful"
+      }
+    });
   const first = await create();
   const second = await create();
   expect(first.statusCode).toBe(201);
   expect(second.statusCode).toBe(200);
   expect(verifierCalls()).toBe(1);
   const id = first.json().feedback.id;
-  expect((await server.inject({ method: "POST", url: `/api/me/usefulness-feedback/${id}/undo`, headers: userAHeaders() })).statusCode).toBe(200);
+  expect(
+    (
+      await server.inject({
+        method: "POST",
+        url: `/api/me/usefulness-feedback/${id}/undo`,
+        headers: userAHeaders()
+      })
+    ).statusCode
+  ).toBe(200);
 });
 ```
 
@@ -243,6 +306,7 @@ git commit -m "feat: add usefulness feedback routes"
 ## Task 3: Memory Manual Intake For `remember_this`
 
 **Files:**
+
 - Create: `packages/memory/src/manual-candidates.ts`
 - Modify: `packages/memory/src/index.ts`
 - Modify: `packages/usefulness-feedback/src/{routes.ts,repository.ts}`
@@ -254,27 +318,78 @@ Add tests:
 
 ```ts
 it("remember_this creates one pending manual memory candidate and stores only candidate id on feedback", async () => {
-  const { server, dataContext } = await buildFeedbackTestServer({ verifier: rememberableVerifier("remember me safely") });
-  const first = await server.inject({ method: "POST", url: "/api/me/usefulness-feedback", headers: userAHeaders(), payload: { targetKind: "chat_message", targetRef: "msg-memory", surface: "chat", kind: "remember_this" } });
-  const second = await server.inject({ method: "POST", url: "/api/me/usefulness-feedback", headers: userAHeaders(), payload: { targetKind: "chat_message", targetRef: "msg-memory", surface: "chat", kind: "remember_this" } });
+  const { server, dataContext } = await buildFeedbackTestServer({
+    verifier: rememberableVerifier("remember me safely")
+  });
+  const first = await server.inject({
+    method: "POST",
+    url: "/api/me/usefulness-feedback",
+    headers: userAHeaders(),
+    payload: {
+      targetKind: "chat_message",
+      targetRef: "msg-memory",
+      surface: "chat",
+      kind: "remember_this"
+    }
+  });
+  const second = await server.inject({
+    method: "POST",
+    url: "/api/me/usefulness-feedback",
+    headers: userAHeaders(),
+    payload: {
+      targetKind: "chat_message",
+      targetRef: "msg-memory",
+      surface: "chat",
+      kind: "remember_this"
+    }
+  });
   expect(first.statusCode).toBe(201);
   expect(second.statusCode).toBe(200);
   expect(first.json().feedback.effectKind).toBe("memory_candidate");
   expect(JSON.stringify(first.json().feedback)).not.toContain("remember me safely");
   const rows = await dataContext.withDataContext(userAContext(), (scopedDb) =>
-    scopedDb.db.selectFrom("app.memory_candidates").selectAll().where("owner_user_id", "=", ids.userA).execute()
+    scopedDb.db
+      .selectFrom("app.memory_candidates")
+      .selectAll()
+      .where("owner_user_id", "=", ids.userA)
+      .execute()
   );
   expect(rows).toHaveLength(1);
   expect(rows[0].status).toBe("pending");
-  expect(rows[0].payload_json).toMatchObject({ manualRequest: true, excerpt: "remember me safely", targetKind: "chat_message", targetRef: "msg-memory" });
+  expect(rows[0].payload_json).toMatchObject({
+    manualRequest: true,
+    excerpt: "remember me safely",
+    targetKind: "chat_message",
+    targetRef: "msg-memory"
+  });
 });
 
 it("undo of pending remember_this suppresses the linked candidate", async () => {
-  const { server, dataContext } = await buildFeedbackTestServer({ verifier: rememberableVerifier("cancel me") });
-  const created = await server.inject({ method: "POST", url: "/api/me/usefulness-feedback", headers: userAHeaders(), payload: { targetKind: "chat_message", targetRef: "msg-cancel", surface: "chat", kind: "remember_this" } });
-  await server.inject({ method: "POST", url: `/api/me/usefulness-feedback/${created.json().feedback.id}/undo`, headers: userAHeaders() });
+  const { server, dataContext } = await buildFeedbackTestServer({
+    verifier: rememberableVerifier("cancel me")
+  });
+  const created = await server.inject({
+    method: "POST",
+    url: "/api/me/usefulness-feedback",
+    headers: userAHeaders(),
+    payload: {
+      targetKind: "chat_message",
+      targetRef: "msg-cancel",
+      surface: "chat",
+      kind: "remember_this"
+    }
+  });
+  await server.inject({
+    method: "POST",
+    url: `/api/me/usefulness-feedback/${created.json().feedback.id}/undo`,
+    headers: userAHeaders()
+  });
   const row = await dataContext.withDataContext(userAContext(), (scopedDb) =>
-    scopedDb.db.selectFrom("app.memory_candidates").selectAll().where("id", "=", created.json().feedback.effectRef).executeTakeFirstOrThrow()
+    scopedDb.db
+      .selectFrom("app.memory_candidates")
+      .selectAll()
+      .where("id", "=", created.json().feedback.effectRef)
+      .executeTakeFirstOrThrow()
   );
   expect(row.status).toBe("suppressed");
 });
@@ -321,6 +436,7 @@ git commit -m "feat: route remember feedback through memory candidates"
 ## Task 4: Chat Verifier And Live Message IDs
 
 **Files:**
+
 - Modify: `packages/chat/src/{repository.ts,routes.ts,index.ts,live/types.ts,live/chat-session-manager.ts,live-routes.ts,manifest.ts}`
 - Modify: `packages/shared/src/chat-api.ts`
 - Modify: `apps/web/src/chat/use-chat-stream.ts`
@@ -332,12 +448,32 @@ Create a chat message for user A, then assert:
 
 ```ts
 it("verifies chat_message through chat-owned verifier and rejects other owners/incognito remember", async () => {
-  const userAMessage = await createStoredChatMessage(ids.userA, { role: "assistant", incognito: false, body: "bounded reply" });
-  const userBMessage = await createStoredChatMessage(ids.userB, { role: "assistant", incognito: false, body: "private reply" });
-  expect(await postFeedback("chat_message", userAMessage.id, "chat", "not_useful", userAHeaders())).toMatchObject({ statusCode: 201 });
-  expect((await postFeedback("chat_message", userBMessage.id, "chat", "not_useful", userAHeaders())).statusCode).toBe(404);
-  const incognito = await createStoredChatMessage(ids.userA, { role: "assistant", incognito: true, body: "secret" });
-  expect((await postFeedback("chat_message", incognito.id, "chat", "remember_this", userAHeaders())).statusCode).toBe(400);
+  const userAMessage = await createStoredChatMessage(ids.userA, {
+    role: "assistant",
+    incognito: false,
+    body: "bounded reply"
+  });
+  const userBMessage = await createStoredChatMessage(ids.userB, {
+    role: "assistant",
+    incognito: false,
+    body: "private reply"
+  });
+  expect(
+    await postFeedback("chat_message", userAMessage.id, "chat", "not_useful", userAHeaders())
+  ).toMatchObject({ statusCode: 201 });
+  expect(
+    (await postFeedback("chat_message", userBMessage.id, "chat", "not_useful", userAHeaders()))
+      .statusCode
+  ).toBe(404);
+  const incognito = await createStoredChatMessage(ids.userA, {
+    role: "assistant",
+    incognito: true,
+    body: "secret"
+  });
+  expect(
+    (await postFeedback("chat_message", incognito.id, "chat", "remember_this", userAHeaders()))
+      .statusCode
+  ).toBe(400);
 });
 ```
 
@@ -375,6 +511,7 @@ git commit -m "feat: verify chat feedback targets"
 ## Task 5: Briefing Run/Item Targets And Dismissal
 
 **Files:**
+
 - Modify: `packages/briefings/src/{compose.ts,repository.ts,routes.ts,index.ts,manifest.ts}`
 - Modify: `packages/shared/src/briefings-api.ts`
 - Test: `tests/integration/usefulness-feedback.test.ts`, `tests/integration/briefings.test.ts`
@@ -390,12 +527,17 @@ it("creates stable safe briefing item ids and registry rows without raw source i
   expect(items[0].feedbackItemId).toMatch(/^[a-z]+:[a-z_]+:[a-f0-9]{16}$/);
   expect(items[0].feedbackItemId).not.toContain("email");
   const listed = await listRunsAsUserA();
-  expect(listed.runs[0].feedbackItems[0]).toMatchObject({ targetKind: "briefing_item", surface: "briefing" });
+  expect(listed.runs[0].feedbackItems[0]).toMatchObject({
+    targetKind: "briefing_item",
+    surface: "briefing"
+  });
 });
 
 it("dismiss hides exact briefing item for owner only", async () => {
   const itemRef = await createRegisteredBriefingItem(ids.userA);
-  expect((await postFeedback("briefing_item", itemRef, "briefing", "dismiss", userAHeaders())).statusCode).toBe(201);
+  expect(
+    (await postFeedback("briefing_item", itemRef, "briefing", "dismiss", userAHeaders())).statusCode
+  ).toBe(201);
   expect(await listBriefingItemRefs(ids.userA)).not.toContain(itemRef);
   expect(await listBriefingItemRefs(ids.userB)).toContain(itemRef);
 });
@@ -409,7 +551,7 @@ Expected: FAIL because feedback item ids and dismissal suppression are absent.
 In briefings, derive `feedbackItemId` as:
 
 ```ts
-`${source}:${signalType}:${sha256(sourceIds + normalizedSummary).slice(0, 16)}`
+`${source}:${signalType}:${sha256(sourceIds + normalizedSummary).slice(0, 16)}`;
 ```
 
 Expose only the id, source label, signal type, and priority band. Do not expose raw source ids or summaries inside `targetRef`.
@@ -442,6 +584,7 @@ git commit -m "feat: add briefing feedback targets"
 ## Task 6: Web UI Actions And Undo
 
 **Files:**
+
 - Modify: `apps/web/src/api/{client.ts,query-keys.ts}`
 - Modify: `apps/web/src/chat/chat-drawer.tsx`
 - Modify: `apps/web/src/today/today-page.tsx`
@@ -474,6 +617,7 @@ git commit -m "feat: add usefulness feedback controls"
 ## Task 7: Export Coverage, Security Tests, And Final Gate
 
 **Files:**
+
 - Modify: `packages/settings/src/data-export.ts`
 - Test: `tests/integration/usefulness-feedback.test.ts`
 
