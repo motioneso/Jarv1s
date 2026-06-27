@@ -112,6 +112,109 @@ export class UsefulnessFeedbackRepository {
       .execute();
   }
 
+  async upsertTarget(
+    scopedDb: DataContextDb,
+    input: {
+      readonly ownerUserId: string;
+      readonly targetKind: FeedbackTargetKind;
+      readonly targetRef: string;
+      readonly surface: FeedbackSurface;
+      readonly sourceKind?: string | null;
+      readonly sourceLabel?: string | null;
+      readonly priorityBand?: "critical" | "high" | "normal" | "low" | null;
+      readonly metadata?: Record<string, unknown>;
+    }
+  ): Promise<void> {
+    assertDataContextDb(scopedDb);
+    await sql`
+      INSERT INTO app.usefulness_feedback_targets (
+        owner_user_id,
+        target_kind,
+        target_ref,
+        surface,
+        source_kind,
+        source_label,
+        priority_band,
+        metadata_json,
+        last_seen_at
+      )
+      VALUES (
+        ${input.ownerUserId}::uuid,
+        ${input.targetKind},
+        ${input.targetRef},
+        ${input.surface},
+        ${input.sourceKind ?? null},
+        ${input.sourceLabel ?? null},
+        ${input.priorityBand ?? null},
+        ${JSON.stringify(input.metadata ?? {})}::jsonb,
+        now()
+      )
+      ON CONFLICT (owner_user_id, target_kind, target_ref, surface) DO UPDATE
+      SET source_kind = EXCLUDED.source_kind,
+          source_label = EXCLUDED.source_label,
+          priority_band = EXCLUDED.priority_band,
+          metadata_json = EXCLUDED.metadata_json,
+          last_seen_at = now()
+    `.execute(scopedDb.db);
+  }
+
+  async findTarget(
+    scopedDb: DataContextDb,
+    ownerUserId: string,
+    targetKind: FeedbackTargetKind,
+    targetRef: string,
+    surface: FeedbackSurface
+  ): Promise<{
+    readonly owner_user_id: string;
+    readonly target_kind: FeedbackTargetKind;
+    readonly target_ref: string;
+    readonly surface: FeedbackSurface;
+    readonly source_kind: string | null;
+    readonly source_label: string | null;
+    readonly priority_band: "critical" | "high" | "normal" | "low" | null;
+    readonly metadata_json: Record<string, unknown>;
+  } | null> {
+    assertDataContextDb(scopedDb);
+    const result = await sql<{
+      readonly owner_user_id: string;
+      readonly target_kind: FeedbackTargetKind;
+      readonly target_ref: string;
+      readonly surface: FeedbackSurface;
+      readonly source_kind: string | null;
+      readonly source_label: string | null;
+      readonly priority_band: "critical" | "high" | "normal" | "low" | null;
+      readonly metadata_json: Record<string, unknown>;
+    }>`
+      SELECT owner_user_id, target_kind, target_ref, surface, source_kind, source_label,
+             priority_band, metadata_json
+      FROM app.usefulness_feedback_targets
+      WHERE owner_user_id = ${ownerUserId}::uuid
+        AND target_kind = ${targetKind}
+        AND target_ref = ${targetRef}
+        AND surface = ${surface}
+    `.execute(scopedDb.db);
+    return result.rows[0] ?? null;
+  }
+
+  async listActiveDismissedRefs(
+    scopedDb: DataContextDb,
+    ownerUserId: string,
+    targetKind: FeedbackTargetKind,
+    surface: FeedbackSurface
+  ): Promise<Set<string>> {
+    assertDataContextDb(scopedDb);
+    const result = await sql<{ target_ref: string }>`
+      SELECT target_ref
+      FROM app.usefulness_feedback_signals
+      WHERE owner_user_id = ${ownerUserId}::uuid
+        AND target_kind = ${targetKind}
+        AND surface = ${surface}
+        AND kind = 'dismiss'
+        AND status = 'active'
+    `.execute(scopedDb.db);
+    return new Set(result.rows.map((row) => row.target_ref));
+  }
+
   async undo(
     scopedDb: DataContextDb,
     ownerUserId: string,

@@ -19,6 +19,7 @@ import {
 } from "../../packages/usefulness-feedback/src/index.js";
 import { ManualMemoryCandidateService } from "../../packages/memory/src/index.js";
 import { ChatRepository, createChatFeedbackTargetVerifier } from "../../packages/chat/src/index.js";
+import { deriveBriefingFeedbackItems } from "../../packages/briefings/src/index.js";
 
 import { connectionStrings, ids, resetFoundationDatabase } from "./test-database.js";
 
@@ -378,6 +379,35 @@ describe("usefulness feedback routes", () => {
     } finally {
       await server.close();
     }
+  });
+});
+
+describe("briefing feedback target helpers", () => {
+  it("derives stable briefing item refs without exposing raw source ids or summary text", () => {
+    const items = deriveBriefingFeedbackItems({
+      calendarSignals: [
+        {
+          type: "time_sensitive",
+          summary: "Private appointment with raw source event cal_evt_123",
+          eventIds: ["cal_evt_123"]
+        }
+      ],
+      emailSignals: [
+        {
+          type: "needs_reply",
+          summary: "Private sender needs a reply",
+          messageIds: ["email_msg_456"]
+        }
+      ]
+    });
+
+    expect(items).toHaveLength(2);
+    expect(items[0]?.feedbackItemId).toMatch(/^calendar:time_sensitive:[a-f0-9]{16}$/);
+    expect(items[1]?.feedbackItemId).toMatch(/^email:needs_reply:[a-f0-9]{16}$/);
+    expect(JSON.stringify(items)).not.toContain("cal_evt_123");
+    expect(JSON.stringify(items)).not.toContain("email_msg_456");
+    expect(JSON.stringify(items)).not.toContain("Private appointment");
+    expect(items[0]?.metadata).toEqual({ signalType: "time_sensitive" });
   });
 });
 

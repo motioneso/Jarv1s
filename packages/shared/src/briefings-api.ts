@@ -28,7 +28,18 @@ export interface BriefingRunDto {
   readonly briefingType: BriefingType;
   readonly summaryText: string;
   readonly sourceMetadata: Record<string, unknown>;
+  readonly feedbackItems: readonly BriefingFeedbackItemDto[];
   readonly createdAt: string;
+}
+
+export interface BriefingFeedbackItemDto {
+  readonly feedbackItemId: string;
+  readonly targetKind: "briefing_item";
+  readonly surface: "briefing";
+  readonly sourceKind: string;
+  readonly sourceLabel: string;
+  readonly priorityBand: "critical" | "high" | "normal" | "low" | null;
+  readonly metadata: Record<string, unknown>;
 }
 
 export interface ListBriefingDefinitionsResponse {
@@ -152,6 +163,7 @@ const briefingRunSchema = {
     "briefingType",
     "summaryText",
     "sourceMetadata",
+    "feedbackItems",
     "createdAt"
   ],
   properties: {
@@ -163,6 +175,34 @@ const briefingRunSchema = {
     briefingType: briefingTypeSchema,
     summaryText: { type: "string" },
     sourceMetadata: jsonObjectSchema,
+    feedbackItems: {
+      type: "array",
+      items: {
+        type: "object",
+        additionalProperties: false,
+        required: [
+          "feedbackItemId",
+          "targetKind",
+          "surface",
+          "sourceKind",
+          "sourceLabel",
+          "priorityBand",
+          "metadata"
+        ],
+        properties: {
+          feedbackItemId: { type: "string" },
+          targetKind: { type: "string", enum: ["briefing_item"] },
+          surface: { type: "string", enum: ["briefing"] },
+          sourceKind: { type: "string" },
+          sourceLabel: { type: "string" },
+          priorityBand: {
+            type: ["string", "null"],
+            enum: ["critical", "high", "normal", "low", null]
+          },
+          metadata: jsonObjectSchema
+        }
+      }
+    },
     createdAt: { type: "string" }
   }
 } as const;
