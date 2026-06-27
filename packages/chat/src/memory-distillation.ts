@@ -33,7 +33,7 @@ const CONCRETE_MARKER =
   /\b(approved|decided|deadline|today|tomorrow|yesterday|\d{4}-\d{2}-\d{2}|january|february|march|april|may|june|july|august|september|october|november|december|need to|will|shipped|blocked)\b/i;
 const NAMED_SUBJECT = /\b(project|person|client|team|ben|jarvis|rfa-\d+|#[0-9]+)\b/i;
 const SENSITIVE_MEMORY_TEXT =
-  /\b(api[-_\s]?key|access[-_\s]?token|refresh[-_\s]?token|bearer\s+[a-z0-9._~-]+|oauth|password|passphrase|secret|private[-_\s]?key|credit[-_\s]?card|bank[-_\s]?account)\b|(?:sk|ghp|github_pat|xox[baprs]|AKIA)[-_A-Za-z0-9]{8,}/i;
+  /\b(api[-_\s]?key|access[-_\s]?token|refresh[-_\s]?token|id[-_\s]?token|auth(?:orization)?[-_\s]?token|bearer\s+[a-z0-9._~+/=-]+|oauth|password|passwd|pwd|passphrase|client[-_\s]?secret|secret[-_\s]?key|secret|private[-_\s]?key|credit[-_\s]?card|bank[-_\s]?account|database[-_\s]?url)\b|(?:^|[\s;,"'`])(?:[A-Z0-9_]*(?:TOKEN|SECRET|PASSWORD|PASSWD|PWD|API_KEY|PRIVATE_KEY|DATABASE_URL))\s*[:=]|[a-z][a-z0-9+.-]*:\/\/[^/\s:@]+:[^/\s@]+@|-----BEGIN [A-Z ]*PRIVATE KEY-----|(?:sk|pk|rk)_(?:live|test)_[A-Za-z0-9]{8,}|(?:sk|ghp|github_pat|xox[baprs]|AKIA)[-_A-Za-z0-9]{8,}/i;
 
 export type MemoryCandidateKind = "entity" | "fact" | "alias" | "supersession" | "conflict";
 export type MemoryCandidateAction = "create" | "update" | "link" | "supersede" | "reject";
@@ -76,6 +76,7 @@ export interface BuildDistillationPromptInput {
 export interface PromotionDecisionInput {
   readonly candidate: MemoryCandidate;
   readonly explicitMemoryCommand: boolean;
+  readonly explicitCorrection?: boolean;
   readonly conflicts: boolean;
   readonly groundedSupersedes: boolean;
 }
@@ -161,7 +162,9 @@ export function decideCandidatePromotion(input: PromotionDecisionInput): Promoti
     return { status: "pending", reason: "conflict" };
 
   if (candidate.kind === "supersession") {
-    return input.groundedSupersedes && candidate.confidence >= 0.85
+    return input.groundedSupersedes &&
+      input.explicitCorrection === true &&
+      candidate.confidence >= 0.85
       ? { status: "promote", reason: "grounded_correction" }
       : { status: "pending", reason: "ungrounded_correction" };
   }

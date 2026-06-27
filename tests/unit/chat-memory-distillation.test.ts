@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   buildDistillationPrompt,
+  containsSensitiveMemoryText,
   decideCandidatePromotion,
   parseMemoryCandidates,
   memoryCandidateContainsSensitiveText,
@@ -91,6 +92,16 @@ describe("chat memory distillation helpers", () => {
 
     expect(candidate?.isSensitive).toBe(true);
     expect(candidate && memoryCandidateContainsSensitiveText(candidate)).toBe(true);
+  });
+
+  it("matches common credential and token forms", () => {
+    expect(containsSensitiveMemoryText("Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI")).toBe(
+      true
+    );
+    expect(containsSensitiveMemoryText("client_secret=abc123")).toBe(true);
+    expect(containsSensitiveMemoryText("DATABASE_URL=postgres://user:pass@host/db")).toBe(true);
+    expect(containsSensitiveMemoryText("-----BEGIN PRIVATE KEY-----")).toBe(true);
+    expect(containsSensitiveMemoryText("Stripe token pk_live_1234567890")).toBe(true);
   });
 
   it("normalizes candidate signatures", () => {

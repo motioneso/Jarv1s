@@ -29,6 +29,7 @@ import {
 import { ChatRepository } from "./repository.js";
 import {
   buildDistillationPrompt,
+  containsSensitiveMemoryText,
   decideCandidatePromotion,
   memoryCandidateContainsSensitiveText,
   parseMemoryCandidates,
@@ -175,11 +176,12 @@ export async function handleExtractFactsJob(
 
     if (rawTurnContainsSensitiveText(userMsg.body, assistantMsg.body)) return;
 
+    const threadTitle = safeThreadTitle(thread?.title ?? "");
     const excerpt = boundedTurnExcerpt(userMsg.body, assistantMsg.body);
     const episode = await graphRepository.createEpisode(scopedDb, ownerUserId, {
       sourceKind: "chat",
       sourceRef: payload.threadId,
-      sourceLabel: thread?.title ?? "",
+      sourceLabel: threadTitle,
       occurredAt: assistantMsg.created_at,
       excerpt
     });
@@ -212,7 +214,7 @@ export async function handleExtractFactsJob(
     const prompt = buildDistillationPrompt({
       userText: userMsg.body,
       assistantText: assistantMsg.body,
-      threadTitle: thread?.title ?? "",
+      threadTitle,
       activeMemory
     });
 
@@ -247,7 +249,8 @@ export async function handleExtractFactsJob(
         graphRepository,
         candidatesRepository,
         episode.id,
-        hasExplicitMemoryCommand(userMsg.body)
+        hasExplicitMemoryCommand(userMsg.body),
+        hasExplicitCorrection(userMsg.body)
       );
     }
   } catch (error) {
@@ -353,15 +356,18 @@ async function maybePromoteCandidate(
   graphRepository: MemoryGraphRepository,
   candidatesRepository: MemoryCandidatesRepository,
   episodeId: string,
-  explicitMemoryCommand: boolean
+  explicitMemoryCommand: boolean,
+  explicitCorrection: boolean
 ): Promise<void> {
-  const allowsSupersession = candidate.kind === "supersession" && candidate.action === "supersede";
+  const allowsSupersession =
+    explicitCorrection && candidate.kind === "supersession" && candidate.action === "supersede";
   const groundedFact = allowsSupersession
     ? await firstGroundedFact(scopedDb, ownerUserId, graphRepository, candidate.supersedesIds ?? [])
     : undefined;
   const decision = decideCandidatePromotion({
     candidate,
     explicitMemoryCommand,
+    explicitCorrection,
     conflicts: false,
     groundedSupersedes: Boolean(groundedFact)
   });
@@ -422,6 +428,16 @@ function createSignature(candidate: MemoryCandidate): string {
 
 function hasExplicitMemoryCommand(userText: string): boolean {
   return /\b(remember|don't forget|note that|save this)\b/i.test(userText);
+}
+
+function hasExplicitCorrection(userText: string): boolean {
+  return /\b(actually|correction|correcting|that's wrong|that is wrong|instead|rather than)\b|(^|\W)no,\s|not\s+[^.?!\n]{1,80}\b(?:but|use|prefer|go with)\b/i.test(
+    userText
+  );
+}
+
+function safeThreadTitle(title: string): string {
+  return containsSensitiveMemoryText(title) ? "[redacted]" : title;
 }
 
 function boundedTurnExcerpt(userText: string, assistantText: string): string {

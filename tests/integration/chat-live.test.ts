@@ -525,6 +525,49 @@ describe("handleExtractFactsJob — memory distillation candidates + no-op degra
     });
   });
 
+  it("scrubs secret-like thread titles from episode labels and extraction prompts", async () => {
+    await seedEconomyModel("title-secret-filter");
+    await dataContext.withDataContext(userAContext(), async (scopedDb) => {
+      const thread = await repository.openNewThread(scopedDb, {
+        title: "sk-titleSecret1234567890"
+      });
+      const result = await repository.recordCompletedTurn(
+        scopedDb,
+        thread.id,
+        "Remember that I prefer release notes on Fridays.",
+        "Noted.",
+        { provider: "anthropic", model: "claude-economy" }
+      );
+      if (!result) throw new Error("turn not recorded");
+
+      let prompt = "";
+      await handleExtractFactsJob(
+        scopedDb,
+        ids.userA,
+        {
+          actorUserId: ids.userA,
+          threadId: thread.id,
+          userMessageId: result.userMessage.id,
+          assistantMessageId: result.assistantMessage.id
+        },
+        makeDeps(async (input) => {
+          prompt = input.messages[0]?.content ?? "";
+          return { text: "[]" };
+        })
+      );
+
+      const leakedLabels = await sql<{ count: string }>`
+        SELECT count(*)::text AS count
+        FROM app.memory_episodes
+        WHERE owner_user_id = ${ids.userA}::uuid
+          AND source_label ILIKE '%sk-titleSecret1234567890%'
+      `.execute(scopedDb.db);
+
+      expect(prompt).not.toContain("sk-titleSecret1234567890");
+      expect(leakedLabels.rows[0]?.count).toBe("0");
+    });
+  });
+
   it("does not throw when generateChat throws", async () => {
     await seedEconomyModel("degrade-throw");
     await dataContext.withDataContext(userAContext(), async (scopedDb) => {
@@ -598,6 +641,59 @@ describe("handleExtractFactsJob — memory distillation candidates + no-op degra
       const active = await graphRepository.listCoreFacts(scopedDb, ids.userA, 50);
       expect(active.some((fact) => fact.id === old.id)).toBe(false);
       expect(active.some((fact) => fact.objectText === "coffee")).toBe(true);
+    });
+  });
+
+  it("does not supersede when only the model claims correction", async () => {
+    await seedEconomyModel("model-only-supersede");
+    await dataContext.withDataContext(userAContext(), async (scopedDb) => {
+      const self = await graphRepository.ensureSelfEntity(scopedDb, ids.userA);
+      const old = await graphRepository.createFact(scopedDb, ids.userA, {
+        subjectEntityId: self.id,
+        predicate: "prefers",
+        objectText: "tea",
+        provenance: "volunteered",
+        confidence: 0.9,
+        source: {
+          sourceKind: "manual",
+          sourceRef: "test:model-only-old",
+          excerpt: "Prefers tea"
+        }
+      });
+      const turn = await createTurn(scopedDb, {
+        title: "Distill-model-only-supersede",
+        user: "Remember that I prefer coffee."
+      });
+
+      await handleExtractFactsJob(
+        scopedDb,
+        ids.userA,
+        {
+          actorUserId: ids.userA,
+          threadId: turn.threadId,
+          userMessageId: turn.userMessage.id,
+          assistantMessageId: turn.assistantMessage.id
+        },
+        makeDeps(async () => ({
+          text: JSON.stringify([
+            {
+              kind: "supersession",
+              action: "supersede",
+              fact: { subject: "Ben", predicate: "prefers", objectText: "coffee" },
+              provenance: "volunteered",
+              confidence: 0.9,
+              importance: 0.9,
+              sourceExcerpt: "Remember that I prefer coffee.",
+              rationale: "Model inferred correction",
+              isSensitive: false,
+              supersedesIds: [old.id]
+            }
+          ])
+        }))
+      );
+
+      const active = await graphRepository.listCoreFacts(scopedDb, ids.userA, 50);
+      expect(active.some((fact) => fact.id === old.id)).toBe(true);
     });
   });
 
@@ -828,6 +924,26 @@ describe("handleExtractFactsJob — memory distillation candidates + no-op degra
       model: "claude-economy"
     });
     expect(sent).toEqual([]);
+  });
+
+  it("does not derive a stored thread title from a secret-like first turn", async () => {
+    const persistence = new DataContextChatPersistence({
+      dataContext,
+      chatRepository: repository,
+      aiRepository
+    });
+
+    await persistence.openNewConversation(ids.userA);
+    await persistence.recordTurn(ids.userA, "sk-titleSecret1234567890", "Noted.", {
+      provider: "anthropic",
+      model: "claude-economy"
+    });
+
+    await dataContext.withDataContext(userAContext(), async (scopedDb) => {
+      const current = await repository.getCurrentThread(scopedDb, ids.userA);
+      expect(current?.title).toBe("Conversation");
+      expect(current?.title).not.toContain("sk-titleSecret1234567890");
+    });
   });
 });
 
