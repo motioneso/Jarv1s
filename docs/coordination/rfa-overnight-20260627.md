@@ -31,10 +31,10 @@ one pane labelled `Coordinator`, and it is this session. Pane ids are routing hi
 | Issue | Spec | Tier | Status | Build | Review | Branch | PR |
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | #528 | `docs/superpowers/specs/2026-06-26-jarvis-memory-graph-substrate.md` | security | CI GREEN + security QA GREEN; awaiting Ben merge sign-off | Codex | opencode/GLM security QA | `rfa-528-memory-graph-substrate` | #545 |
-| #526 | `docs/superpowers/specs/2026-06-27-unified-priority-model.md` | sensitive | PR #544 CI green; detached Codex QA running (`w1:p30`) | Codex salvage after opencode/GLM | Codex QA | `rfa-526-unified-priority-model` | #544 |
+| #526 | `docs/superpowers/specs/2026-06-27-unified-priority-model.md` | sensitive | QA RED on PR #544; blockers routed back to rework pane `w1:p3Q` | Codex salvage after opencode/GLM | Codex QA | `rfa-526-unified-priority-model` | #544 |
 | #534 | `docs/superpowers/specs/2026-06-27-explicit-action-permission-tiers.md` | security | implementation committed; AGY wrap-up/push/PR requested (`w1:p3N`) | AGY | Codex security QA | `rfa-534-action-permission-tiers` | - |
 | #529 | `docs/superpowers/specs/2026-06-27-memory-distillation-pipeline.md` | security | PR #547 open on #528 base; CI running, QA pending green checks + stack order | Codex | opencode/GLM security QA | `rfa-529-memory-distillation` | #547 |
-| #530 | `docs/superpowers/specs/2026-06-27-passive-context-retrieval.md` | sensitive | PR #546 CI green; detached Codex QA running (`w1:p42`), merge still blocked by #528 stack order | Codex | Codex QA | `rfa-530-passive-context-retrieval` | #546 |
+| #530 | `docs/superpowers/specs/2026-06-27-passive-context-retrieval.md` | sensitive | PR #546 QA GREEN; merge-ready after #528 lands, with 2 non-blocking follow-ups noted | Codex | Codex QA | `rfa-530-passive-context-retrieval` | #546 |
 | #527 | `docs/superpowers/specs/2026-06-27-usefulness-feedback-signals.md` | security | queued after #526/#529 | opencode/GLM | Codex security QA | `rfa-527-usefulness-feedback` | - |
 | #532 | `docs/superpowers/specs/2026-06-27-confidence-aware-memory-records.md` | security | queued after #528/#529/#530 | Codex | AGY security QA | `rfa-532-confidence-aware-memory` | - |
 | #525 | `docs/superpowers/specs/2026-06-27-cross-tool-reasoning.md` | sensitive | queued after #530 | AGY | opencode/GLM QA | `rfa-525-cross-tool-reasoning` | - |
@@ -171,11 +171,23 @@ None.
   `AUDIT_EXIT=0`, and focused `lint`, `format:check`, `typecheck`, `test:chat`, `test:memory`
   green. GitHub CI run `28287158764` is now fully green. Detached QA worktree
   `/tmp/jarv1s-qa-546-opencode` was prepared; an initial opencode QA spawn did not stick, so a
-  fallback Codex QA lane was launched in pane `w1:p42`. Because this PR is stacked on #528, merge
-  remains blocked on #528 landing first even after QA passes.
+  fallback Codex QA lane was launched in pane `w1:p42`. QA returned GREEN and posted
+  `https://github.com/motioneso/Jarv1s/pull/546#issuecomment-4817163105`: 0 blocking, 2
+  non-blocking findings (`packages/chat/src/live/passive-retrieval.ts:76` lacks structured fail-soft
+  retrieval logging; `packages/chat/src/live/passive-retrieval.ts:33` person trigger does not yet
+  use memory-graph person aliases from the spec). Exit criteria are met for V1. Because this PR is
+  stacked on #528, merge remains blocked on #528 landing first even after QA passes.
 - #526: PR #544 CI is now fully green on head `e9234242e090df8bd523db223c851b357f42e853`. Detached
-  QA worktree `/tmp/jarv1s-qa-544-codex` was created and Codex QA lane `w1:p30` is running against
-  the green PR. If QA returns GREEN, this sensitive-tier PR becomes mergeable immediately.
+  QA worktree `/tmp/jarv1s-qa-544-codex` was created and Codex QA lane `w1:p30` ran against the
+  green PR. QA returned RED with 2 blockers and posted
+  `https://github.com/motioneso/Jarv1s/pull/544#issuecomment-4817159661`: (1)
+  `packages/priority/src/preferences-repository.ts:18` returns persisted `version: 1` priority
+  model JSON without shape validation, so malformed stored data can reach GET/scorer instead of
+  failing soft to defaults; (2) `packages/briefings/src/compose.ts:587` still gets
+  `focusReadiness: []` because `packages/briefings/src/priority-consumer.ts:96` stubs readiness,
+  so `energy_protective` / readiness behavior never affects real briefings. Coordinator routed both
+  blockers back to build pane `w1:p3Q` with instruction to fix, rerun focused + full gate, push,
+  and report new head/evidence.
 - #534: AGY finished implementation and reported local `typecheck` plus unit/integration suites
   green after commit `feat(core): implement rfa-534 action permission tiers`. Coordinator nudged
   the pane into `coordinated-wrap-up`: full gate if needed, pre-push trio, rebase, push, PR open,
