@@ -37,10 +37,6 @@ import {
   startEveningInterview,
   updateTask
 } from "../api/client";
-import {
-  createUsefulnessFeedback,
-  undoUsefulnessFeedback
-} from "../api/usefulness-feedback-client";
 import { findDefinition } from "../briefings/briefing-settings-model";
 import { useChatControls } from "../shell/chat-controls-context";
 import { MedToday } from "../wellness/wellness-today";
