@@ -52,14 +52,7 @@ export interface ListUsefulnessFeedbackResponse {
 
 export const usefulnessFeedbackKindSchema = {
   type: "string",
-  enum: [
-    "more_like_this",
-    "too_much",
-    "wrong_priority",
-    "not_useful",
-    "remember_this",
-    "dismiss"
-  ]
+  enum: ["more_like_this", "too_much", "wrong_priority", "not_useful", "remember_this", "dismiss"]
 } as const;
 
 export const feedbackTargetKindSchema = {
