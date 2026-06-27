@@ -73,8 +73,10 @@ describe("Tasks agency tools through AssistantToolGateway", () => {
             return {
               id: "task_changes",
               displayName: "Task Changes",
+              label: "Task Changes",
               description: "Create and update tasks",
-              defaultTier: "confirm"
+              defaultTier: "confirm",
+              allowedTiers: ["confirm", "trusted_auto"]
             };
           }
           return null;
