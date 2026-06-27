@@ -22,6 +22,18 @@ export interface UsefulnessFeedbackRoutesDependencies {
   readonly registry: FeedbackTargetVerifierRegistry;
   readonly resolveAccessContext: (request: FastifyRequest) => Promise<AccessContext>;
   readonly repository?: UsefulnessFeedbackRepository;
+  readonly cardSideEffects?: {
+    applyDismiss(
+      scopedDb: Parameters<Parameters<DataContextRunner["withDataContext"]>[1]>[0],
+      actorUserId: string,
+      cardId: string
+    ): Promise<void>;
+    undoDismissCard(
+      scopedDb: Parameters<Parameters<DataContextRunner["withDataContext"]>[1]>[0],
+      actorUserId: string,
+      cardId: string
+    ): Promise<void>;
+  };
   readonly manualMemoryCandidates?: {
     createPendingManualCandidate(
       scopedDb: Parameters<Parameters<DataContextRunner["withDataContext"]>[1]>[0],
@@ -102,6 +114,15 @@ export function registerUsefulnessFeedbackRoutes(
             effectKind = "memory_candidate";
             effectRef = candidate.id;
           }
+          if (input.kind === "dismiss" && input.targetKind === "proactive_card") {
+            await dependencies.cardSideEffects?.applyDismiss(
+              scopedDb,
+              access.actorUserId,
+              input.targetRef
+            );
+            effectKind = "proactive_card_dismissed";
+            effectRef = input.targetRef;
+          }
 
           return {
             feedback: await repository.create(scopedDb, {
@@ -161,6 +182,10 @@ export function registerUsefulnessFeedbackRoutes(
                     access.actorUserId,
                     candidateId
                   )
+              : undefined,
+            undoDismissCard: dependencies.cardSideEffects
+              ? (cardId) =>
+                  dependencies.cardSideEffects!.undoDismissCard(scopedDb, access.actorUserId, cardId)
               : undefined
           })
         );

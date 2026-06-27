@@ -219,7 +219,10 @@ export class UsefulnessFeedbackRepository {
     scopedDb: DataContextDb,
     ownerUserId: string,
     id: string,
-    options: { readonly cancelMemoryCandidate?: (candidateId: string) => Promise<boolean> } = {}
+    options: {
+      readonly cancelMemoryCandidate?: (candidateId: string) => Promise<boolean>;
+      readonly undoDismissCard?: (cardId: string) => Promise<void>;
+    } = {}
   ): Promise<UsefulnessFeedbackSignal | undefined> {
     assertDataContextDb(scopedDb);
     const existing = await scopedDb.db
@@ -232,6 +235,9 @@ export class UsefulnessFeedbackRepository {
     if (existing.status === "undone") return existing;
     if (existing.effect_kind === "memory_candidate" && existing.effect_ref) {
       await options.cancelMemoryCandidate?.(existing.effect_ref);
+    }
+    if (existing.effect_kind === "proactive_card_dismissed" && existing.effect_ref) {
+      await options.undoDismissCard?.(existing.effect_ref);
     }
     return scopedDb.db
       .updateTable("app.usefulness_feedback_signals")
