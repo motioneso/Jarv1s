@@ -25,3 +25,4 @@ export {
   registerProactiveMonitoringRoutes,
   type ProactiveMonitoringRoutesDependencies
 } from "./routes.js";
+export { makeProactiveCardVerifier } from "./target-verifier.js";
