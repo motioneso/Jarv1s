@@ -11,3 +11,5 @@ export type {
 export { CandidateLimitError, InvalidPreferenceError } from "./types.js";
 
 export { rankPriorityCandidates } from "./scoring.js";
+
+export { PriorityPreferencesRepository } from "./preferences-repository.js";
