@@ -147,7 +147,7 @@ export const postMemoryCandidateAcceptRouteSchema = {
   response: {
     200: {
       type: "object",
-      properties: { factId: { type: "string" }, entityId: { type: "string" } }
+      properties: { accepted: { type: "boolean" } }
     },
     400: errorResponseSchema,
     401: errorResponseSchema,
@@ -200,8 +200,7 @@ export const patchMemoryFactDashboardRouteSchema = {
   response: {
     200: {
       type: "object",
-      required: ["fact"],
-      properties: { fact: { type: "object", additionalProperties: true } }
+      properties: { patched: { type: "boolean" } }
     },
     401: errorResponseSchema,
     404: errorResponseSchema
@@ -221,8 +220,7 @@ export const patchMemoryEntityDashboardRouteSchema = {
   response: {
     200: {
       type: "object",
-      required: ["entity"],
-      properties: { entity: { type: "object", additionalProperties: true } }
+      properties: { patched: { type: "boolean" } }
     },
     401: errorResponseSchema,
     403: errorResponseSchema,

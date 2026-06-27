@@ -68,12 +68,12 @@ export function registerMemoryDashboardRoutes(
         const access = await dependencies.resolveAccessContext(request);
         const { id } = request.params as { id: string };
         const body = (request.body ?? {}) as AcceptMemoryCandidateRequest;
-        return dependencies.dataContext.withDataContext(access, async (scopedDb) => {
+        const result = await dependencies.dataContext.withDataContext(access, async (scopedDb) => {
           const svc = await createDashboardService(scopedDb, graphRepo);
-          const result = await svc.acceptCandidate(scopedDb, access.actorUserId, id, body);
-          if (!result.accepted) return reply.code(404).send({ error: "Candidate not found or not pending" });
-          return reply.code(200).send({ accepted: true });
+          return svc.acceptCandidate(scopedDb, access.actorUserId, id, body);
         });
+        if (!result.accepted) return reply.code(404).send({ error: "Candidate not found or not pending" });
+        return reply.code(200).send({ accepted: true });
       } catch (error) {
         return handleDashboardRouteError(error, reply);
       }
@@ -88,17 +88,12 @@ export function registerMemoryDashboardRoutes(
         const access = await dependencies.resolveAccessContext(request);
         const { id } = request.params as { id: string };
         const body = (request.body ?? {}) as { reason?: string };
-        return dependencies.dataContext.withDataContext(access, async (scopedDb) => {
+        const result = await dependencies.dataContext.withDataContext(access, async (scopedDb) => {
           const svc = await createDashboardService(scopedDb, graphRepo);
-          const result = await svc.rejectCandidate(
-            scopedDb,
-            access.actorUserId,
-            id,
-            body.reason ?? ""
-          );
-          if (!result.rejected) return reply.code(404).send({ error: "Candidate not found" });
-          return reply.code(204).send();
+          return svc.rejectCandidate(scopedDb, access.actorUserId, id, body.reason ?? "");
         });
+        if (!result.rejected) return reply.code(404).send({ error: "Candidate not found" });
+        return reply.code(204).send();
       } catch (error) {
         return handleDashboardRouteError(error, reply);
       }
@@ -113,17 +108,12 @@ export function registerMemoryDashboardRoutes(
         const access = await dependencies.resolveAccessContext(request);
         const { id } = request.params as { id: string };
         const body = (request.body ?? {}) as { reason?: string };
-        return dependencies.dataContext.withDataContext(access, async (scopedDb) => {
+        const result = await dependencies.dataContext.withDataContext(access, async (scopedDb) => {
           const svc = await createDashboardService(scopedDb, graphRepo);
-          const result = await svc.suppressCandidate(
-            scopedDb,
-            access.actorUserId,
-            id,
-            body.reason ?? ""
-          );
-          if (!result.suppressed) return reply.code(404).send({ error: "Candidate not found" });
-          return reply.code(204).send();
+          return svc.suppressCandidate(scopedDb, access.actorUserId, id, body.reason ?? "");
         });
+        if (!result.suppressed) return reply.code(404).send({ error: "Candidate not found" });
+        return reply.code(204).send();
       } catch (error) {
         return handleDashboardRouteError(error, reply);
       }
@@ -138,12 +128,12 @@ export function registerMemoryDashboardRoutes(
         const access = await dependencies.resolveAccessContext(request);
         const { id } = request.params as { id: string };
         const patch = (request.body ?? {}) as PatchMemoryFactDashboardRequest;
-        return dependencies.dataContext.withDataContext(access, async (scopedDb) => {
+        const result = await dependencies.dataContext.withDataContext(access, async (scopedDb) => {
           const svc = await createDashboardService(scopedDb, graphRepo);
-          const result = await svc.patchFact(scopedDb, access.actorUserId, id, patch);
-          if (!result.patched) return reply.code(404).send({ error: "Fact not found" });
-          return reply.code(200).send({ patched: true });
+          return svc.patchFact(scopedDb, access.actorUserId, id, patch);
         });
+        if (!result.patched) return reply.code(404).send({ error: "Fact not found" });
+        return reply.code(200).send({ patched: true });
       } catch (error) {
         return handleDashboardRouteError(error, reply);
       }
@@ -158,12 +148,12 @@ export function registerMemoryDashboardRoutes(
         const access = await dependencies.resolveAccessContext(request);
         const { id } = request.params as { id: string };
         const patch = (request.body ?? {}) as PatchMemoryEntityDashboardRequest;
-        return dependencies.dataContext.withDataContext(access, async (scopedDb) => {
+        const result = await dependencies.dataContext.withDataContext(access, async (scopedDb) => {
           const svc = await createDashboardService(scopedDb, graphRepo);
-          const result = await svc.patchEntity(scopedDb, access.actorUserId, id, patch);
-          if (!result.patched) return reply.code(404).send({ error: "Entity not found" });
-          return reply.code(200).send({ patched: true });
+          return svc.patchEntity(scopedDb, access.actorUserId, id, patch);
         });
+        if (!result.patched) return reply.code(404).send({ error: "Entity not found" });
+        return reply.code(200).send({ patched: true });
       } catch (error) {
         return handleDashboardRouteError(error, reply);
       }
@@ -177,15 +167,15 @@ export function registerMemoryDashboardRoutes(
       try {
         const access = await dependencies.resolveAccessContext(request);
         const { id } = request.params as { id: string };
-        return dependencies.dataContext.withDataContext(access, async (scopedDb) => {
+        const result = await dependencies.dataContext.withDataContext(access, async (scopedDb) => {
           const svc = await createDashboardService(scopedDb, graphRepo);
-          const result = await svc.deleteEntity(scopedDb, access.actorUserId, id);
-          if (result.blockedByFacts) {
-            return reply.code(409).send({ error: "Entity has associated facts; delete facts first" });
-          }
-          if (!result.deleted) return reply.code(404).send({ error: "Entity not found" });
-          return reply.code(204).send();
+          return svc.deleteEntity(scopedDb, access.actorUserId, id);
         });
+        if (result.blockedByFacts) {
+          return reply.code(409).send({ error: "Entity has associated facts; delete facts first" });
+        }
+        if (!result.deleted) return reply.code(404).send({ error: "Entity not found" });
+        return reply.code(204).send();
       } catch (error) {
         return handleDashboardRouteError(error, reply);
       }
