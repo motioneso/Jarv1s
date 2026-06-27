@@ -37,7 +37,7 @@ builder; PR #548 (`#534`) security QA rerun is in progress; PR #546 (`#530`) rem
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | #528 | `docs/superpowers/specs/2026-06-26-jarvis-memory-graph-substrate.md` | security | Ben approved; rebase onto current `main` blocked by conflicts, routed to build pane `w1:p3K` | Codex | opencode/GLM security QA | `rfa-528-memory-graph-substrate` | #545 |
 | #526 | `docs/superpowers/specs/2026-06-27-unified-priority-model.md` | sensitive | MERGED via PR #544 at merge commit `5f7cc42`; issue #526 closed; pane/worktree reaped | Codex salvage after opencode/GLM | Codex QA | `rfa-526-unified-priority-model` | #544 |
-| #534 | `docs/superpowers/specs/2026-06-27-explicit-action-permission-tiers.md` | security | PR #548 CI green on head `2a89b09`; security QA rerun in progress via subagent `Ptolemy` (`019f0a29-3c95-7301-894d-ecd87875eb08`) | AGY | Codex security QA | `rfa-534-action-permission-tiers` | #548 |
+| #534 | `docs/superpowers/specs/2026-06-27-explicit-action-permission-tiers.md` | security | Security QA rerun RED on PR #548; blockers routed to build pane `w1:p3N` | AGY | Codex security QA | `rfa-534-action-permission-tiers` | #548 |
 | #529 | `docs/superpowers/specs/2026-06-27-memory-distillation-pipeline.md` | security | Security QA rerun RED on PR #547; blockers routed to build pane `w1:p3Z` + stack order | Codex | opencode/GLM security QA | `rfa-529-memory-distillation` | #547 |
 | #530 | `docs/superpowers/specs/2026-06-27-passive-context-retrieval.md` | sensitive | PR #546 QA GREEN; merge-ready after #528 lands, with 2 non-blocking follow-ups noted | Codex | Codex QA | `rfa-530-passive-context-retrieval` | #546 |
 | #527 | `docs/superpowers/specs/2026-06-27-usefulness-feedback-signals.md` | security | queued after #526/#529 | opencode/GLM | Codex security QA | `rfa-527-usefulness-feedback` | - |
@@ -251,7 +251,11 @@ None.
   reaches the extraction AI prompt before deterministic sensitivity filtering, and raw secret-like
   excerpts are stored/exported before filtering. Routed to build pane `w1:p3Z`.
 - #534: PR #548 head `2a89b09` now has green CI run `28295984746`; security QA rerun subagent
-  `Ptolemy` (`019f0a29-3c95-7301-894d-ecd87875eb08`) is in progress.
+  `Ptolemy` (`019f0a29-3c95-7301-894d-ecd87875eb08`) returned RED and posted
+  `https://github.com/motioneso/Jarv1s/pull/548#issuecomment-4819802352`: production gateway omits
+  `agencyPreferences` for `buildActionPolicy`, so legacy-only `tasks.agency_auto_execute=true` is
+  ignored by chat/MCP gateway; canonical PATCH persists policy without active
+  module/family/allowedTiers validation. Routed to AGY build pane `w1:p3N`.
 
 ## Reaped Sessions
 
@@ -262,6 +266,7 @@ None.
   (`019f09e9-4f55-7341-826a-14248ece0bf6`).
 - Closed completed native QA subagents `Descartes` (`019f0a1c-4f8e-73f2-a037-cfbca06f10d5`) and
   `Feynman` (`019f0a1c-5026-79c2-9148-9fb3d173fbf7`).
+- Closed completed native QA subagent `Ptolemy` (`019f0a29-3c95-7301-894d-ecd87875eb08`).
 - Closed merged #526 build pane `RFA-526 Codex salvage` (`w1:p3Q`) and removed worktree
   `~/Jarv1s/.claude/worktrees/rfa-526-unified-priority-model`.
 - Closed completed Herdr QA panes `QA-546 Codex` (`w1:p42`) and `QA-544 Codex` (`w1:p30`).
