@@ -32,9 +32,9 @@ one pane labelled `Coordinator`, and it is this session. Pane ids are routing hi
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | #528 | `docs/superpowers/specs/2026-06-26-jarvis-memory-graph-substrate.md` | security | CI GREEN + security QA GREEN; awaiting Ben merge sign-off | Codex | opencode/GLM security QA | `rfa-528-memory-graph-substrate` | #545 |
 | #526 | `docs/superpowers/specs/2026-06-27-unified-priority-model.md` | sensitive | blocker fix pushed at `e923424`; CI run `28286935159` in progress, QA rerun pending green checks (`w1:p3Q`) | Codex salvage after opencode/GLM | native Codex QA fallback | `rfa-526-unified-priority-model` | #544 |
-| #534 | `docs/superpowers/specs/2026-06-27-explicit-action-permission-tiers.md` | security | plan approved; AGY implementation active in policy/gateway/tests (`w1:p3N`) | AGY | Codex security QA | `rfa-534-action-permission-tiers` | - |
-| #529 | `docs/superpowers/specs/2026-06-27-memory-distillation-pipeline.md` | security | stacked on #528; Codex lane spawned and reading handoff/spec (`w1:p3Z`) | Codex | opencode/GLM security QA | `rfa-529-memory-distillation` | - |
-| #530 | `docs/superpowers/specs/2026-06-27-passive-context-retrieval.md` | sensitive | stacked on #528; passive recall commits landed, lane DB full gate running (`w1:p3T`) | Codex | opencode/GLM QA | `rfa-530-passive-context-retrieval` | - |
+| #534 | `docs/superpowers/specs/2026-06-27-explicit-action-permission-tiers.md` | security | implementation committed; AGY wrap-up/push/PR requested (`w1:p3N`) | AGY | Codex security QA | `rfa-534-action-permission-tiers` | - |
+| #529 | `docs/superpowers/specs/2026-06-27-memory-distillation-pipeline.md` | security | stacked on #528; plan approved, build active (`w1:p3Z`) | Codex | opencode/GLM security QA | `rfa-529-memory-distillation` | - |
+| #530 | `docs/superpowers/specs/2026-06-27-passive-context-retrieval.md` | sensitive | PR #546 open on #528 base; branch pushed at `8877e5e`, CI running, QA pending green checks + stack order (`w1:p3T`) | Codex | opencode/GLM QA | `rfa-530-passive-context-retrieval` | #546 |
 | #527 | `docs/superpowers/specs/2026-06-27-usefulness-feedback-signals.md` | security | queued after #526/#529 | opencode/GLM | Codex security QA | `rfa-527-usefulness-feedback` | - |
 | #532 | `docs/superpowers/specs/2026-06-27-confidence-aware-memory-records.md` | security | queued after #528/#529/#530 | Codex | AGY security QA | `rfa-532-confidence-aware-memory` | - |
 | #525 | `docs/superpowers/specs/2026-06-27-cross-tool-reasoning.md` | sensitive | queued after #530 | AGY | opencode/GLM QA | `rfa-525-cross-tool-reasoning` | - |
@@ -102,8 +102,14 @@ None.
   payload, deterministic gate, pending-vs-promoted, and no-raw-graph-SQL constraints. An initial
   opencode spawn failed to stick; a Codex build lane was then launched successfully on
   `gpt-5.5` default-medium reasoning as pane `w1:p3Z` / session
-  `019f08b7-6e1f-7480-9fd4-c784c2741968`. It is now reading the handoff/spec and should escalate
-  once the plan is ready.
+  `019f08b7-6e1f-7480-9fd4-c784c2741968`. The lane grounded the spec on-branch, wrote
+  `docs/superpowers/plans/2026-06-27-memory-distillation-pipeline.md`, and escalated for approval.
+  Coordinator approved with no fork: keep queue name `chat.extract-facts`, keep PR base on
+  `rfa-528-memory-graph-substrate`, use `0119` only for `memory_candidates`, keep graph writes on
+  #528 public APIs/repository (candidate store direct SQL only), never distill incognito turns,
+  keep pending candidates out of normal recall, leave commitment/task actioning to #537, and keep
+  payload/logging metadata-only. Build is now active; next expected signal is first material commit
+  or blocker.
 - #526: plan approved from `docs/superpowers/plans/2026-06-27-unified-priority-model.md`; scope
   constrained to pure scorer, owner-scoped preference API/UI, and thin consumers over already-loaded
   candidates. Task 1 focused unit suite passed before commit `3f1abb1`. After Task 5, gate was red
@@ -151,7 +157,20 @@ None.
   initially failed because the stub embedding threshold was too fuzzy for the test phrase; the lane
   narrowed the query to the exact remembered phrase without changing runtime behavior, committed
   cleanup `8877e5e` (`chore(chat): format passive retrieval plan`), and is now running the longer
-  lane-DB full gate before PR/open report.
+  lane-DB full gate before PR/open report. The lane has now reported DONE with PR #546
+  (`https://github.com/motioneso/Jarv1s/pull/546`), branch `rfa-530-passive-context-retrieval`
+  pushed at head `8877e5e31c3ee6d8292368a7bdb3602c88c273ca`, base
+  `rfa-528-memory-graph-substrate`, `VF_EXIT=0` on lane DB `jarvis_build_rfa_530_passive_context`,
+  `AUDIT_EXIT=0`, and focused `lint`, `format:check`, `typecheck`, `test:chat`, `test:memory`
+  green. GitHub CI run `28287158764` is still in progress, so independent QA waits for green
+  checks. Because this PR is stacked on #528, merge remains blocked on #528 landing first even
+  after QA passes.
+- #534: AGY finished implementation and reported local `typecheck` plus unit/integration suites
+  green after commit `feat(core): implement rfa-534 action permission tiers`. Coordinator nudged
+  the pane into `coordinated-wrap-up`: full gate if needed, pre-push trio, rebase, push, PR open,
+  then report. Await branch/PR/evidence. One minor process drift to note: pane narration showed
+  `git add .` during its local commit path; because this is an isolated worktree the blast radius
+  is contained, but keep explicit-path staging standard on later nudges.
 
 ## Reaped Sessions
 
