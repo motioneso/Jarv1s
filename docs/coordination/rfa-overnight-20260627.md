@@ -31,7 +31,7 @@ one pane labelled `Coordinator`, and it is this session. Pane ids are routing hi
 | Issue | Spec | Tier | Status | Build | Review | Branch | PR |
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | #528 | `docs/superpowers/specs/2026-06-26-jarvis-memory-graph-substrate.md` | security | full foundation gate running after implementation commits through `2abf87c` (`w1:p3K`) | Codex | opencode/GLM security QA | `rfa-528-memory-graph-substrate` | - |
-| #526 | `docs/superpowers/specs/2026-06-27-unified-priority-model.md` | sensitive | wrap-up gate running after Codex salvage commit `67ca551` (`w1:p3Q`) | Codex salvage after opencode/GLM | AGY QA | `rfa-526-unified-priority-model` | - |
+| #526 | `docs/superpowers/specs/2026-06-27-unified-priority-model.md` | sensitive | PR opened; independent QA running while CI pending (`Aquinas`) | Codex salvage after opencode/GLM | native Codex QA fallback | `rfa-526-unified-priority-model` | #544 |
 | #534 | `docs/superpowers/specs/2026-06-27-explicit-action-permission-tiers.md` | security | blocked: AGY quota until ~2026-06-27 00:55 PT (`w1:p3N`) | AGY | Codex security QA | `rfa-534-action-permission-tiers` | - |
 | #529 | `docs/superpowers/specs/2026-06-27-memory-distillation-pipeline.md` | security | queued after #528 | AGY | Codex security QA | `rfa-529-memory-distillation` | - |
 | #530 | `docs/superpowers/specs/2026-06-27-passive-context-retrieval.md` | sensitive | queued after #528 | Codex | opencode/GLM QA | `rfa-530-passive-context-retrieval` | - |
@@ -97,9 +97,11 @@ None.
   on parse/lint issues. GLM left a clean tree with committed lint/parse failures after several
   rework commits, so the stalled pane was closed and a single Codex salvage pane `w1:p3Q` was started
   on the same worktree to fix the red gate only. Salvage commit `67ca551` repaired package wiring,
-  settings routes/manifests, scorer strictness, chat/briefings consumers, and focused tests. Full
-  coordinated-wrap-up gate is running in lane DB `jarvis_build_rfa_526_priority`; must not open PR
-  until the gate passes from a clean tree.
+  settings routes/manifests, scorer strictness, chat/briefings consumers, and focused tests. Build
+  agent reported PR #544 at head `3e1cf2d`, rebased on `origin/main@a655128`, with
+  `VF_EXIT=0`/`AUDIT_EXIT=0`. GitHub CI for #544 was pending at QA launch. Planned AGY QA remains
+  blocked by quota, so native independent QA worker `Aquinas` was spawned as fallback for this
+  sensitive-tier PR; it must post a compact verdict to the PR before any auto-merge.
 - #528: plan approved from `docs/superpowers/plans/2026-06-26-memory-graph-substrate.md`;
   plan committed as `150544c`; coordinator assigned next free global migration number `0118` for
   `packages/memory/sql/0118_memory_graph_substrate.sql`. Task 1 schema, Task 2 repository, and Task 3
