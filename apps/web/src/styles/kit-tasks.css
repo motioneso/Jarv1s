@@ -608,18 +608,6 @@
 }
 
 /* ---- Matrix (Eisenhower) ---- */
-.tk-matrix-cap {
-  font-size: 13px;
-  color: var(--text-subtle);
-  margin: 14px 0 12px;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-.tk-matrix-cap .ic {
-  color: var(--text-faint);
-  display: inline-flex;
-}
 .tk-matrix {
   display: grid;
   grid-template-columns: 1fr 1fr;
