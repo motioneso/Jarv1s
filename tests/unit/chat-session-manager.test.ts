@@ -170,7 +170,7 @@ describe("ChatSessionManager.launchSession — personaText + replayBatch + offse
         listPriorTurns: vi.fn().mockResolvedValue(priorTurns),
         recordTurn: vi.fn().mockResolvedValue(undefined),
         openNewConversation: vi.fn().mockResolvedValue(undefined),
-          getThreadContext: vi.fn().mockResolvedValue({ threadTitle: null, localTimezone: null })
+        getThreadContext: vi.fn().mockResolvedValue({ threadTitle: null, localTimezone: null })
       }
     });
   }
@@ -378,7 +378,7 @@ describe("ChatSessionManager.submitTurn turn-lock release (#445)", () => {
         listPriorTurns: vi.fn().mockResolvedValue({ recent: [], oldSummary: null }),
         recordTurn: vi.fn().mockResolvedValue(undefined),
         openNewConversation: vi.fn().mockResolvedValue(undefined),
-          getThreadContext: vi.fn().mockResolvedValue({ threadTitle: null, localTimezone: null })
+        getThreadContext: vi.fn().mockResolvedValue({ threadTitle: null, localTimezone: null })
       }
     });
   }
@@ -412,7 +412,7 @@ describe("ChatSessionManager passive retrieval", () => {
         listPriorTurns: vi.fn().mockResolvedValue({ recent: [], oldSummary: null }),
         recordTurn: vi.fn().mockResolvedValue(undefined),
         openNewConversation: vi.fn().mockResolvedValue(undefined),
-          getThreadContext: vi.fn().mockResolvedValue({ threadTitle: null, localTimezone: null })
+        getThreadContext: vi.fn().mockResolvedValue({ threadTitle: null, localTimezone: null })
       },
       ...overrides
     });
@@ -736,7 +736,7 @@ describe("ChatSessionManager.runTurn idle watchdog (#456 Task A)", () => {
         listPriorTurns: vi.fn().mockResolvedValue({ recent: [], oldSummary: null }),
         recordTurn: vi.fn().mockResolvedValue(undefined),
         openNewConversation: vi.fn().mockResolvedValue(undefined),
-          getThreadContext: vi.fn().mockResolvedValue({ threadTitle: null, localTimezone: null })
+        getThreadContext: vi.fn().mockResolvedValue({ threadTitle: null, localTimezone: null })
       }
     });
   }
@@ -869,7 +869,7 @@ describe("ChatSessionManager.stopTurn — user-driven Stop (#456 Task C)", () =>
         listPriorTurns: vi.fn().mockResolvedValue({ recent: [], oldSummary: null }),
         recordTurn: vi.fn().mockResolvedValue(undefined),
         openNewConversation: vi.fn().mockResolvedValue(undefined),
-          getThreadContext: vi.fn().mockResolvedValue({ threadTitle: null, localTimezone: null })
+        getThreadContext: vi.fn().mockResolvedValue({ threadTitle: null, localTimezone: null })
       }
     });
   }

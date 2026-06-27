@@ -181,8 +181,7 @@ export class DataContextChatPersistence implements ChatPersistencePort {
       const title = thread?.title ?? null;
       // V1: timezone from thread not yet stored; fall back to instance default via env.
       return {
-        threadTitle:
-          title && title !== DEFAULT_CONVERSATION_TITLE ? title : null,
+        threadTitle: title && title !== DEFAULT_CONVERSATION_TITLE ? title : null,
         localTimezone: null
       };
     });

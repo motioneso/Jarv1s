@@ -2,9 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import { AssistantToolGateway } from "@jarv1s/ai";
 
-function makeDeps(
-  overrides: Partial<ConstructorParameters<typeof AssistantToolGateway>[0]> = {}
-) {
+function makeDeps(overrides: Partial<ConstructorParameters<typeof AssistantToolGateway>[0]> = {}) {
   return {
     resolveActiveModules: vi.fn().mockResolvedValue([]),
     repository: {
@@ -13,9 +11,7 @@ function makeDeps(
     } as never,
     runner: {
       rootDb: {} as never,
-      withDataContext: vi.fn(async (_ctx: unknown, fn: (db: never) => unknown) =>
-        fn({} as never)
-      )
+      withDataContext: vi.fn(async (_ctx: unknown, fn: (db: never) => unknown) => fn({} as never))
     } as never,
     tokens: { verify: vi.fn(), mint: vi.fn() } as never,
     confirmations: {

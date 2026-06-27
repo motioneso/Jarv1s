@@ -193,9 +193,7 @@ export function normalizeEmailResult(
     const keywordsMatch = qLower
       .split(/\s+/)
       .some((w) => w.length > 3 && (subjectLower.includes(w) || senderLower.includes(w)));
-    const snippetMatch = qLower
-      .split(/\s+/)
-      .some((w) => w.length > 3 && snippetLower.includes(w));
+    const snippetMatch = qLower.split(/\s+/).some((w) => w.length > 3 && snippetLower.includes(w));
     if (!keywordsMatch && !snippetMatch) continue;
     items.push({
       source: "email",
@@ -225,9 +223,7 @@ export function normalizeCalendarResult(
     const startsAt = extractString(e.starts_at);
     const summary = extractString(e.summary) ?? title;
     const titleLower = title.toLowerCase();
-    const titleOverlap = qLower
-      .split(/\s+/)
-      .some((w) => w.length > 3 && titleLower.includes(w));
+    const titleOverlap = qLower.split(/\s+/).some((w) => w.length > 3 && titleLower.includes(w));
     let relevance: "high" | "medium" | "low" = "low";
     if (startsAt) {
       const eventDate = new Date(startsAt);
@@ -271,8 +267,7 @@ export function normalizeTasksResult(
     const isOverdue = toolName === "tasks.overdue";
     const isAtRisk = toolName === "tasks.atRisk";
     const priority = typeof t.priority === "number" ? t.priority : 3;
-    const relevance: "high" | "medium" =
-      isOverdue || isAtRisk || priority <= 2 ? "high" : "medium";
+    const relevance: "high" | "medium" = isOverdue || isAtRisk || priority <= 2 ? "high" : "medium";
     return {
       source: "tasks" as const,
       title,
@@ -336,8 +331,7 @@ export function renderCrossToolContextBlock(items: readonly CrossToolEvidenceIte
   ].join("\n");
 
   const lines: string[] = [];
-  let usedTokens =
-    estimateTokens(header) + estimateTokens("</cross_tool_context>");
+  let usedTokens = estimateTokens(header) + estimateTokens("</cross_tool_context>");
 
   for (const item of items.slice(0, MAX_TOTAL_ITEMS)) {
     const safeSummary = neutralizeSeedFraming(item.summary);
