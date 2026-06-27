@@ -2,7 +2,7 @@
 
 **Date:** 2026-06-27
 **Coordinator lock:** label `Coordinator`, stable anchor = Codex session id
-`019f0ad6-e0f5-7ab3-af48-e4e06b175eba`. Single-coordinator lock verified: exactly
+`019f0ae5-0afd-7092-911e-6c2e987df7f2`. Single-coordinator lock verified: exactly
 one pane labelled `Coordinator`, and it is this session. Pane ids are routing hints only.
 **Merge policy:** `routine`/`sensitive` may auto-merge after independent green QA;
 `security` requires Ben's explicit merge sign-off after posted QA verdict.
@@ -14,11 +14,12 @@ all CI green, and Opus security QA GREEN
 (`https://github.com/motioneso/Jarv1s/pull/551#issuecomment-4821615188`); issue #529 is closed,
 builder pane `w1:p3Z` was closed, and its worktree/local+remote branch were removed. This triggered
 mandatory coordinator relay. Successor must first claim the `Coordinator` lock with its own session
-id, then reap old coordinator session `019f0ad6-e0f5-7ab3-af48-e4e06b175eba` after verifying this
-handoff. Continue by releasing newly unblocked queued lanes: #527 is unblocked by #526/#529, #532
-is unblocked by #528/#529/#530, and #525 was already unblocked by #530; respect the collision map
-and migration ordering. Design PR #549 is outside the RFA queue, fully green, and local shared
-`main` in the design pane was left unpushed/unreset.
+id. New coordinator session `019f0ae5-0afd-7092-911e-6c2e987df7f2` has claimed the lock; old
+coordinator session `019f0ad6-e0f5-7ab3-af48-e4e06b175eba` was reaped after handoff verification.
+Continue by releasing newly unblocked queued lanes: #527 is unblocked by #526/#529, #532 is
+unblocked by #528/#529/#530, and #525 was already unblocked by #530; respect the collision map and
+migration ordering. Design PR #549 is outside the RFA queue, fully green, and local shared `main`
+in the design pane was left unpushed/unreset.
 
 ## Base
 
