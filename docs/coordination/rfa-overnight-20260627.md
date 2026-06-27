@@ -2,7 +2,7 @@
 
 **Date:** 2026-06-27
 **Coordinator lock:** label `Coordinator`, stable anchor = Claude session id
-`14390eec-c4ea-4e6d-af99-3063509759e9`. Single-coordinator lock verified: exactly
+`6502bd00-7c52-4e73-9ed5-d95a42f54dd8`. Single-coordinator lock verified: exactly
 one pane labelled `Coordinator`, and it is this session. Pane ids are routing hints only.
 **Merge policy:** `routine`/`sensitive` may auto-merge after independent green QA;
 `security` auto-merges after cross-model QA (GLM + Codex both green) — Ben sign-off
@@ -10,8 +10,8 @@ waived for this run (2026-06-27 explicit directive: "get GLM and Codex to review
 when on level").
 **Relay threshold:** security-tier merge -> relay immediately; routine/sensitive
 `merges_since_relay >= 2` -> relay. Compaction summary -> relay before merge.
-**merges_since_relay:** 2 (security-tier merge of #532 → RELAY NOW per policy)
-**Continuation note (latest — successor reads this):** Claude coordinator `14390eec` merged #532 (PR #553, `d06d684`) after dual-pass security QA both GREEN; #520 (PR #552, `77e6fe5`) also merged this session (routine). Security-tier merge of #532 triggered mandatory relay. Active lane: #527 STILL BUILDING in pane `w1:p4C` (Codex session `019f0ae9-74e4-7011-8f1c-408f0e702cd8`, worktree `~/Jarv1s/.claude/worktrees/rfa-527-usefulness-feedback`) — agent was running full verify:foundation, seeing manifest expectation failures from new usefulness-feedback module in registry (expected, agent fixing assertions). DO NOT REAP #527 PANE — it is mid-build. Next actions for successor: (1) re-adopt #527 lane, watch for DONE report, spawn dual-pass security QA on its PR; (2) after #532 merges to main, #525 is unblocked (shared chat surface cleared) and #533 is unblocked (queued after #532); spawn those next wave. (3) file two follow-up issues for #532 MEDIUMs: missing transaction atomicity + patchFactStatus reactivation guard. Ben merge-policy: security-tier auto-merges after dual-pass (two independent agents) both GREEN — no Ben sign-off needed. merges_since_relay resets to 0 for successor.
+**merges_since_relay:** 0
+**Continuation note (latest — successor reads this):** Claude coordinator `6502bd00` (Sonnet 4.6) claimed lock from `14390eec` and reaped old coordinator pane. merges_since_relay reset to 0. Active lane: #527 STILL BUILDING — Codex session `019f0ae9-74e4-7011-8f1c-408f0e702cd8`, worktree `~/Jarv1s/.claude/worktrees/rfa-527-usefulness-feedback`, running `pnpm verify:foundation` in background (~57m elapsed at handoff). DO NOT REAP #527 PANE. #532 Codex pane (session `019f0ae9-7574-7fe2-84a8-84847e1824d2`) is `done`, worktree already deleted — reap it. Next actions: (1) monitor #527 for DONE report, then spawn dual-pass security QA; (2) spawn #525 (sensitive, unblocked — #532 chat surface cleared) and #533 (security, unblocked — queued after #532) as next wave; (3) file 2 follow-up issues for #532 MEDIUMs: missing transaction atomicity on confirmFact/correctFact/patchFactStatus, patchFactStatus can reactivate superseded fact. Ben merge-policy: security-tier auto-merges after dual-pass (two independent agents, Opus+cross-model) both GREEN — no Ben sign-off needed for this run.
 **Previous continuation note:** security-tier PR #551 (`#529`) merged at `4e9f128` after Ben approval,
 all CI green, and Opus security QA GREEN
 (`https://github.com/motioneso/Jarv1s/pull/551#issuecomment-4821615188`); issue #529 is closed,
