@@ -12,7 +12,9 @@ one pane labelled `Coordinator`, and it is this session. Pane ids are routing hi
 **Continuation note:** successor coordinator claimed the `Coordinator` lock as Codex session
 `019f0a96-2978-7c63-93ea-0221bb1666a0`, closed issue #528, signaled design-session pane `w1:p1B`
 to proceed only after checking current `main`, and reaped the old coordinator plus merged #528
-builder/worktree. Continue: PR #547 (`#529`) and PR #546 (`#530`) are CLOSED unmerged because their
+builder/worktree. Design-session was later blocked from pushing a 10-commit local `main` range and
+instead isolated its apps/web-only change onto PR #549. Continue: PR #547 (`#529`) and PR #546
+(`#530`) are CLOSED unmerged because their
 stack base branch was removed after #528 merged; owning panes `w1:p3Z` and `w1:p3T` were told to
 fetch/rebase onto current `origin/main`, rerun checks, and retarget/reopen or replace the PRs.
 PR #548 (`#534`) remains open with red `Verify foundation and app` and is back with AGY pane
