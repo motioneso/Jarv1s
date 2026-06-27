@@ -173,6 +173,21 @@ export class DataContextChatPersistence implements ChatPersistencePort {
     );
   }
 
+  async getThreadContext(
+    actorUserId: string
+  ): Promise<{ threadTitle: string | null; localTimezone: string | null }> {
+    return this.run(actorUserId, "get-thread-context", async (scopedDb) => {
+      const thread = await this.chat.getCurrentThread(scopedDb, actorUserId);
+      const title = thread?.title ?? null;
+      // V1: timezone from thread not yet stored; fall back to instance default via env.
+      return {
+        threadTitle:
+          title && title !== DEFAULT_CONVERSATION_TITLE ? title : null,
+        localTimezone: null
+      };
+    });
+  }
+
   /**
    * Resolve the acting user's display name (for persona rendering). Reads the
    * foundation app.users row under the actor's data context; falls back to the

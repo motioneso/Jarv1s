@@ -17,7 +17,8 @@ function makeMinimalDeps(
       resolveActiveProvider: vi.fn(),
       listPriorTurns: vi.fn().mockResolvedValue({ recent: [], oldSummary: null }),
       recordTurn: vi.fn(),
-      openNewConversation: vi.fn()
+      openNewConversation: vi.fn(),
+      getThreadContext: vi.fn().mockResolvedValue({ threadTitle: null, localTimezone: null })
     },
     personaFs: {
       mkdir: vi.fn().mockResolvedValue(undefined),
@@ -167,7 +168,8 @@ describe("ChatSessionManager.launchSession — personaText + replayBatch + offse
           .mockResolvedValue({ provider: "anthropic", model: "sonnet" }),
         listPriorTurns: vi.fn().mockResolvedValue(priorTurns),
         recordTurn: vi.fn().mockResolvedValue(undefined),
-        openNewConversation: vi.fn().mockResolvedValue(undefined)
+        openNewConversation: vi.fn().mockResolvedValue(undefined),
+          getThreadContext: vi.fn().mockResolvedValue({ threadTitle: null, localTimezone: null })
       }
     });
   }
@@ -333,7 +335,8 @@ describe("ChatSessionManager.launchSession — personaText + replayBatch + offse
             .mockResolvedValue({ provider: "anthropic", model: "sonnet" }),
           listPriorTurns: vi.fn().mockResolvedValue({ recent: [], oldSummary: null }),
           recordTurn,
-          openNewConversation: vi.fn().mockResolvedValue(undefined)
+          openNewConversation: vi.fn().mockResolvedValue(undefined),
+          getThreadContext: vi.fn().mockResolvedValue({ threadTitle: null, localTimezone: null })
         }
       })
     );
@@ -373,7 +376,8 @@ describe("ChatSessionManager.submitTurn turn-lock release (#445)", () => {
           .mockResolvedValue({ provider: "anthropic", model: "sonnet" }),
         listPriorTurns: vi.fn().mockResolvedValue({ recent: [], oldSummary: null }),
         recordTurn: vi.fn().mockResolvedValue(undefined),
-        openNewConversation: vi.fn().mockResolvedValue(undefined)
+        openNewConversation: vi.fn().mockResolvedValue(undefined),
+          getThreadContext: vi.fn().mockResolvedValue({ threadTitle: null, localTimezone: null })
       }
     });
   }
@@ -406,7 +410,8 @@ describe("ChatSessionManager passive retrieval", () => {
           .mockResolvedValue({ provider: "anthropic", model: "sonnet" }),
         listPriorTurns: vi.fn().mockResolvedValue({ recent: [], oldSummary: null }),
         recordTurn: vi.fn().mockResolvedValue(undefined),
-        openNewConversation: vi.fn().mockResolvedValue(undefined)
+        openNewConversation: vi.fn().mockResolvedValue(undefined),
+          getThreadContext: vi.fn().mockResolvedValue({ threadTitle: null, localTimezone: null })
       },
       ...overrides
     });
@@ -428,7 +433,8 @@ describe("ChatSessionManager passive retrieval", () => {
             .mockResolvedValue({ provider: "anthropic", model: "sonnet" }),
           listPriorTurns: vi.fn().mockResolvedValue({ recent: [], oldSummary: null }),
           recordTurn,
-          openNewConversation: vi.fn().mockResolvedValue(undefined)
+          openNewConversation: vi.fn().mockResolvedValue(undefined),
+          getThreadContext: vi.fn().mockResolvedValue({ threadTitle: null, localTimezone: null })
         }
       })
     );
@@ -520,7 +526,8 @@ describe("ChatSessionManager.reconcileLiveSessions (#342 §5.3)", () => {
             .mockResolvedValue({ provider: "anthropic", model: "sonnet" }),
           listPriorTurns: vi.fn().mockResolvedValue({ recent: [], oldSummary: null }),
           recordTurn: vi.fn().mockResolvedValue(undefined),
-          openNewConversation: vi.fn().mockResolvedValue(undefined)
+          openNewConversation: vi.fn().mockResolvedValue(undefined),
+          getThreadContext: vi.fn().mockResolvedValue({ threadTitle: null, localTimezone: null })
         },
         reconcileMcpTokens: vi.fn(),
         listMcpTokenSessionIds: () => [],
@@ -571,7 +578,8 @@ describe("ChatSessionManager.reconcileLiveSessions (#342 §5.3)", () => {
             .mockResolvedValue({ provider: "anthropic", model: "sonnet" }),
           listPriorTurns: vi.fn().mockResolvedValue({ recent: [], oldSummary: null }),
           recordTurn: vi.fn().mockResolvedValue(undefined),
-          openNewConversation: vi.fn().mockResolvedValue(undefined)
+          openNewConversation: vi.fn().mockResolvedValue(undefined),
+          getThreadContext: vi.fn().mockResolvedValue({ threadTitle: null, localTimezone: null })
         },
         revokeMcpToken,
         reconcileMcpTokens: vi.fn(),
@@ -640,7 +648,8 @@ describe("ChatSessionManager maintenance mutex (#342 §5.4)", () => {
             .mockResolvedValue({ provider: "anthropic", model: "sonnet" }),
           listPriorTurns: vi.fn().mockResolvedValue({ recent: [], oldSummary: null }),
           recordTurn: vi.fn().mockResolvedValue(undefined),
-          openNewConversation: vi.fn().mockResolvedValue(undefined)
+          openNewConversation: vi.fn().mockResolvedValue(undefined),
+          getThreadContext: vi.fn().mockResolvedValue({ threadTitle: null, localTimezone: null })
         }
       })
     );
@@ -725,7 +734,8 @@ describe("ChatSessionManager.runTurn idle watchdog (#456 Task A)", () => {
           .mockResolvedValue({ provider: "anthropic", model: "sonnet" }),
         listPriorTurns: vi.fn().mockResolvedValue({ recent: [], oldSummary: null }),
         recordTurn: vi.fn().mockResolvedValue(undefined),
-        openNewConversation: vi.fn().mockResolvedValue(undefined)
+        openNewConversation: vi.fn().mockResolvedValue(undefined),
+          getThreadContext: vi.fn().mockResolvedValue({ threadTitle: null, localTimezone: null })
       }
     });
   }
@@ -857,7 +867,8 @@ describe("ChatSessionManager.stopTurn — user-driven Stop (#456 Task C)", () =>
           .mockResolvedValue({ provider: "anthropic", model: "sonnet" }),
         listPriorTurns: vi.fn().mockResolvedValue({ recent: [], oldSummary: null }),
         recordTurn: vi.fn().mockResolvedValue(undefined),
-        openNewConversation: vi.fn().mockResolvedValue(undefined)
+        openNewConversation: vi.fn().mockResolvedValue(undefined),
+          getThreadContext: vi.fn().mockResolvedValue({ threadTitle: null, localTimezone: null })
       }
     });
   }

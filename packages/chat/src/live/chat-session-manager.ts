@@ -48,6 +48,10 @@ export interface ChatPersistencePort {
   ): Promise<{ readonly userMessageId: string; readonly assistantMessageId: string } | undefined>;
   /** Close the current conversation and open a fresh one (for /clear). */
   openNewConversation(actorUserId: string, options?: { incognito?: boolean }): Promise<void>;
+  /** Return the current thread title and the user's persisted timezone (null if unset). */
+  getThreadContext(
+    actorUserId: string
+  ): Promise<{ threadTitle: string | null; localTimezone: string | null }>;
 }
 
 export interface PassiveRetrievalPort {
