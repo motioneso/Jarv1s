@@ -58,6 +58,15 @@ const memoryRecallItemSchema = {
   }
 } as const;
 
+const memoryGraphErrorResponseSchema = {
+  type: "object",
+  additionalProperties: false,
+  required: ["error"],
+  properties: {
+    error: { type: "string" }
+  }
+} as const;
+
 export const memoryGraphRecallResponseSchema = {
   type: "object",
   additionalProperties: false,
@@ -80,7 +89,8 @@ export const getMemoryGraphRecallRouteSchema = {
     }
   },
   response: {
-    200: memoryGraphRecallResponseSchema
+    200: memoryGraphRecallResponseSchema,
+    400: memoryGraphErrorResponseSchema
   }
 } as const;
 

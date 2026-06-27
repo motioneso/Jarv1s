@@ -11,7 +11,10 @@ import {
 } from "@jarv1s/shared";
 import { RuntimeConfigResolver } from "@jarv1s/settings";
 
-import { createEmbeddingProvider, getEmbeddingProviderConfig } from "./embedding-provider-config.js";
+import {
+  createEmbeddingProvider,
+  getEmbeddingProviderConfig
+} from "./embedding-provider-config.js";
 import { GraphMemoryRecallService } from "./graph-recall-service.js";
 import { MemoryGraphRepository } from "./graph-repository.js";
 import type { MemoryRememberInput, NewMemoryEntity } from "./graph-types.js";
@@ -36,7 +39,8 @@ export function registerMemoryGraphRoutes(
         const query = String((request.query as { q?: unknown }).q ?? "").trim();
         const rawLimit = Number((request.query as { limit?: unknown }).limit);
         const limit = Number.isFinite(rawLimit) ? Math.max(1, Math.trunc(rawLimit)) : undefined;
-        const includeInactive = (request.query as { includeInactive?: unknown }).includeInactive === true;
+        const includeInactive =
+          (request.query as { includeInactive?: unknown }).includeInactive === true;
         if (!query) return reply.code(400).send({ error: "q is required" });
         return dependencies.dataContext.withDataContext(access, async (scopedDb) =>
           (await createGraphService(scopedDb)).recall(scopedDb, access.actorUserId, query, {

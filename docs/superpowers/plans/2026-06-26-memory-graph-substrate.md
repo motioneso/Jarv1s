@@ -49,6 +49,7 @@ Approve or replace migration filename `packages/memory/sql/0118_memory_graph_sub
 ### Task 1: Schema, RLS, and Legacy Backfill
 
 **Files:**
+
 - Create: `packages/memory/sql/0118_memory_graph_substrate.sql`
 - Create: `tests/integration/memory-graph.test.ts`
 - Modify: `packages/memory/src/manifest.ts`
@@ -89,7 +90,10 @@ beforeAll(async () => {
   await resetFoundationDatabase();
   appDb = createDatabase({ connectionString: connectionStrings.app, maxConnections: 1 });
   workerDb = createDatabase({ connectionString: connectionStrings.worker, maxConnections: 1 });
-  migrationDb = createDatabase({ connectionString: connectionStrings.migration, maxConnections: 1 });
+  migrationDb = createDatabase({
+    connectionString: connectionStrings.migration,
+    maxConnections: 1
+  });
   appDataContext = new DataContextRunner(appDb);
   workerDataContext = new DataContextRunner(workerDb);
 });
@@ -313,6 +317,7 @@ SELECT 1;
 ```
 
 Use the real column list from the final schema. Continue with `INSERT ... SELECT` for active legacy facts:
+
 - predicate mapping: `preference -> prefers`, `goal -> has_goal`, `profile -> related_to`, `fact -> related_to`;
 - `object_text = chat_memory_facts.content`;
 - `source_kind = 'chat'` when `source_thread_id IS NOT NULL`, else `'manual'`;
@@ -350,6 +355,7 @@ git commit -m "feat: add memory graph schema"
 ### Task 2: Graph Repository and Types
 
 **Files:**
+
 - Create: `packages/memory/src/graph-types.ts`
 - Create: `packages/memory/src/graph-repository.ts`
 - Modify: `packages/memory/src/index.ts`
@@ -360,10 +366,7 @@ git commit -m "feat: add memory graph schema"
 Extend `tests/integration/memory-graph.test.ts`:
 
 ```ts
-import {
-  MemoryGraphRepository,
-  type MemoryFactPredicate
-} from "@jarv1s/memory";
+import { MemoryGraphRepository, type MemoryFactPredicate } from "@jarv1s/memory";
 
 describe("MemoryGraphRepository", () => {
   const repo = new MemoryGraphRepository();
@@ -511,6 +514,7 @@ export interface MemoryFactRecord {
 Create `packages/memory/src/graph-repository.ts` using `assertDataContextDb(scopedDb)` and raw `sql`.
 
 Required methods:
+
 - `ensureSelfEntity(scopedDb, ownerUserId)`;
 - `createEntity(scopedDb, ownerUserId, input)`;
 - `addAlias(scopedDb, ownerUserId, entityId, alias, ambiguous)`;
@@ -553,6 +557,7 @@ git commit -m "feat: add memory graph repository"
 ### Task 3: Recall Service and Ranking
 
 **Files:**
+
 - Create: `packages/memory/src/graph-recall-service.ts`
 - Modify: `packages/memory/src/index.ts`
 - Modify: `tests/integration/memory-graph.test.ts`
@@ -712,7 +717,12 @@ export class GraphMemoryRecallService {
     return this.remember(scopedDb, ownerUserId, input);
   }
 
-  async pin(scopedDb: unknown, ownerUserId: string, target: { readonly factId: string }, pinned: boolean) {
+  async pin(
+    scopedDb: unknown,
+    ownerUserId: string,
+    target: { readonly factId: string },
+    pinned: boolean
+  ) {
     assertDataContextDb(scopedDb);
     await this.repository.pinFact(scopedDb, ownerUserId, target.factId, pinned);
   }
@@ -755,6 +765,7 @@ git commit -m "feat: add graph memory recall service"
 ### Task 4: Backend Graph API Routes
 
 **Files:**
+
 - Create: `packages/shared/src/memory-graph-api.ts`
 - Create: `packages/memory/src/graph-routes.ts`
 - Modify: `packages/memory/package.json`
@@ -768,6 +779,7 @@ git commit -m "feat: add graph memory recall service"
 - [ ] **Step 1: Write failing route tests**
 
 Add Fastify route tests in `tests/integration/memory-graph.test.ts` that register `registerMemoryGraphRoutes()` and assert:
+
 - `GET /api/memory/graph/recall?q=mobile` returns only actor-owned items;
 - `GET /api/memory/graph/core` returns max 20;
 - `POST /api/memory/graph/entities` creates an owned entity;
@@ -830,20 +842,31 @@ export interface MemoryGraphRouteDependencies {
   readonly resolveAccessContext: (request: FastifyRequest) => Promise<AccessContext>;
 }
 
-export function registerMemoryGraphRoutes(server: FastifyInstance, deps: MemoryGraphRouteDependencies): void {
-  server.get("/api/memory/graph/recall", { schema: getMemoryGraphRecallRouteSchema }, async (request, reply) => {
-    try {
-      const access = await deps.resolveAccessContext(request);
-      const query = String((request.query as { q?: unknown }).q ?? "").trim();
-      if (!query) return reply.code(400).send({ error: "q is required" });
-      return deps.dataContext.withDataContext(access, async (db) => {
-        const config = await getEmbeddingProviderConfig(new RuntimeConfigResolver(db));
-        return new GraphMemoryRecallService(createEmbeddingProvider(config)).recall(db, access.actorUserId, query);
-      });
-    } catch (error) {
-      return handleMemoryGraphRouteError(error, reply);
+export function registerMemoryGraphRoutes(
+  server: FastifyInstance,
+  deps: MemoryGraphRouteDependencies
+): void {
+  server.get(
+    "/api/memory/graph/recall",
+    { schema: getMemoryGraphRecallRouteSchema },
+    async (request, reply) => {
+      try {
+        const access = await deps.resolveAccessContext(request);
+        const query = String((request.query as { q?: unknown }).q ?? "").trim();
+        if (!query) return reply.code(400).send({ error: "q is required" });
+        return deps.dataContext.withDataContext(access, async (db) => {
+          const config = await getEmbeddingProviderConfig(new RuntimeConfigResolver(db));
+          return new GraphMemoryRecallService(createEmbeddingProvider(config)).recall(
+            db,
+            access.actorUserId,
+            query
+          );
+        });
+      } catch (error) {
+        return handleMemoryGraphRouteError(error, reply);
+      }
     }
-  });
+  );
 }
 ```
 
@@ -852,6 +875,7 @@ Use the same `try/catch -> handleRouteError` style as chat/settings. Keep helper
 - [ ] **Step 5: Wire module manifest and registry**
 
 In `packages/memory/src/manifest.ts`, add graph route declarations with permission IDs:
+
 - read routes: `memory.view`;
 - create/update/delete fact routes: `memory.manage`.
 
@@ -862,7 +886,7 @@ registerRoutes: (server, deps) =>
   registerMemoryGraphRoutes(server, {
     dataContext: deps.dataContext,
     resolveAccessContext: deps.resolveAccessContext
-  })
+  });
 ```
 
 - [ ] **Step 6: Run route tests**
@@ -885,6 +909,7 @@ git commit -m "feat: expose memory graph API"
 ### Task 5: Assistant Tools
 
 **Files:**
+
 - Create: `packages/memory/src/graph-tools.ts`
 - Modify: `packages/memory/package.json`
 - Modify: `packages/memory/src/index.ts`
@@ -943,7 +968,10 @@ Create `packages/memory/src/graph-tools.ts`:
 import { assertDataContextDb } from "@jarv1s/db";
 import { RuntimeConfigResolver } from "@jarv1s/settings";
 import type { ToolExecute, ToolResult } from "@jarv1s/module-sdk";
-import { createEmbeddingProvider, getEmbeddingProviderConfig } from "./embedding-provider-config.js";
+import {
+  createEmbeddingProvider,
+  getEmbeddingProviderConfig
+} from "./embedding-provider-config.js";
 import { GraphMemoryRecallService } from "./graph-recall-service.js";
 
 async function service(scopedDb: Parameters<ToolExecute>[0]): Promise<GraphMemoryRecallService> {
@@ -952,22 +980,42 @@ async function service(scopedDb: Parameters<ToolExecute>[0]): Promise<GraphMemor
   return new GraphMemoryRecallService(createEmbeddingProvider(config));
 }
 
-export const memoryRecallExecute: ToolExecute = async (scopedDb, input, ctx): Promise<ToolResult> => {
+export const memoryRecallExecute: ToolExecute = async (
+  scopedDb,
+  input,
+  ctx
+): Promise<ToolResult> => {
   assertDataContextDb(scopedDb);
-  const query = typeof (input as { query?: unknown }).query === "string" ? (input as { query: string }).query.trim() : "";
+  const query =
+    typeof (input as { query?: unknown }).query === "string"
+      ? (input as { query: string }).query.trim()
+      : "";
   if (!query) return { data: { query: "", items: [] } };
   return { data: await (await service(scopedDb)).recall(scopedDb, ctx.actorUserId, query) };
 };
 
-export const memoryRememberExecute: ToolExecute = async (scopedDb, input, ctx): Promise<ToolResult> => {
+export const memoryRememberExecute: ToolExecute = async (
+  scopedDb,
+  input,
+  ctx
+): Promise<ToolResult> => {
   assertDataContextDb(scopedDb);
-  const result = await (await service(scopedDb)).remember(scopedDb, ctx.actorUserId, parseRememberInput(input));
+  const result = await (
+    await service(scopedDb)
+  ).remember(scopedDb, ctx.actorUserId, parseRememberInput(input));
   return { data: { factId: result.fact.id } };
 };
 
-export const memoryForgetExecute: ToolExecute = async (scopedDb, input, ctx): Promise<ToolResult> => {
+export const memoryForgetExecute: ToolExecute = async (
+  scopedDb,
+  input,
+  ctx
+): Promise<ToolResult> => {
   assertDataContextDb(scopedDb);
-  const factId = typeof (input as { factId?: unknown }).factId === "string" ? (input as { factId: string }).factId : "";
+  const factId =
+    typeof (input as { factId?: unknown }).factId === "string"
+      ? (input as { factId: string }).factId
+      : "";
   if (!factId) return { data: { deleted: false } };
   return { data: await (await service(scopedDb)).forget(scopedDb, ctx.actorUserId, { factId }) };
 };
@@ -1015,7 +1063,7 @@ assistantTools: [
     },
     execute: memoryForgetExecute
   }
-]
+];
 ```
 
 - [ ] **Step 5: Run assistant tool tests**
@@ -1038,6 +1086,7 @@ git commit -m "feat: add memory graph assistant tools"
 ### Task 6: Export and Account Deletion
 
 **Files:**
+
 - Modify: `packages/settings/src/data-export.ts`
 - Modify: `scripts/delete-user-data.ts`
 - Modify: `tests/integration/release-hardening.test.ts`
@@ -1045,6 +1094,7 @@ git commit -m "feat: add memory graph assistant tools"
 - [ ] **Step 1: Write failing export/delete tests**
 
 Extend `tests/integration/release-hardening.test.ts`:
+
 - seed one graph entity/fact/episode/source/search document for `ids.userA`;
 - assert `exportUserData()` includes `memoryEntities`, `memoryFacts`, `memoryEpisodes`, `memoryFactSources`, `memoryAliases`, and `memorySearchDocuments`;
 - assert exported search docs do not include `embedding`;
@@ -1115,6 +1165,7 @@ git commit -m "feat: include memory graph in export and deletion"
 ### Task 7: Final Verification
 
 **Files:**
+
 - No new files unless fixes are required.
 
 - [ ] **Step 1: Run targeted memory/chat gates**

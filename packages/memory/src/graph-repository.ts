@@ -62,7 +62,10 @@ interface SourceRow {
 }
 
 export class MemoryGraphRepository {
-  async ensureSelfEntity(scopedDb: DataContextDb, ownerUserId: string): Promise<MemoryEntityRecord> {
+  async ensureSelfEntity(
+    scopedDb: DataContextDb,
+    ownerUserId: string
+  ): Promise<MemoryEntityRecord> {
     assertDataContextDb(scopedDb);
     await sql`
       INSERT INTO app.memory_entities (owner_user_id, kind, name, summary)
@@ -237,13 +240,7 @@ export class MemoryGraphRepository {
       factRow.id,
       [factRow.predicate, factRow.object_text].filter(Boolean).join(" ")
     );
-    await this.upsertSearchDocument(
-      scopedDb,
-      ownerUserId,
-      "episode",
-      source.id,
-      source.excerpt
-    );
+    await this.upsertSearchDocument(scopedDb, ownerUserId, "episode", source.id, source.excerpt);
 
     return mapFact(factRow, [mapSource(source)]);
   }

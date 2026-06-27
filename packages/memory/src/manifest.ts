@@ -9,11 +9,7 @@ import {
   postMemoryGraphPinRouteSchema,
   postMemoryGraphSupersedeRouteSchema
 } from "@jarv1s/shared";
-import {
-  memoryForgetExecute,
-  memoryRecallExecute,
-  memoryRememberExecute
-} from "./graph-tools.js";
+import { memoryForgetExecute, memoryRecallExecute, memoryRememberExecute } from "./graph-tools.js";
 
 const memoryRememberToolInputSchema = {
   type: "object",
