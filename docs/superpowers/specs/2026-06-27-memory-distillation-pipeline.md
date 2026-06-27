@@ -61,12 +61,15 @@ Incognito turns create no episode and enqueue no distillation job.
 
 Before spending a model call, run a deterministic prefilter over the latest turn pair.
 
-Skip when all are true:
+Evaluation order:
 
-- user text is short social/status chatter;
-- assistant reply contains no decision, action, or correction;
-- no memory trigger phrase is present;
-- no obvious person/project/commitment/date phrase is present.
+1. If an explicit trigger phrase is present, distill.
+2. Else if a named project/person plus concrete state is present, distill.
+3. Else if the user text is at least 240 characters and contains an action/date/decision marker,
+   distill.
+4. Else skip.
+
+Social/status chatter always skips unless rule 1 is true.
 
 Trigger when any are true:
 
@@ -132,6 +135,7 @@ interface MemoryCandidate {
   readonly importance: number;
   readonly sourceExcerpt: string;
   readonly rationale: string;
+  readonly isSensitive: boolean;
   readonly supersedesIds?: readonly string[];
 }
 ```
@@ -161,9 +165,11 @@ Fields:
 
 Owner-scoped unique key:
 
-- `(owner_user_id, candidate_signature)` for active `pending/promoted/merged` candidates.
+- `(owner_user_id, candidate_signature)` across all statuses.
 
-Rejected/suppressed candidate signatures prevent the same noisy candidate from resurfacing.
+Rejected/suppressed candidate signatures prevent the same noisy candidate from resurfacing. Inserts
+use `ON CONFLICT (owner_user_id, candidate_signature)` and preserve the existing status rather than
+creating a new pending row.
 
 ### 3.5 Consolidation
 
@@ -178,6 +184,7 @@ It must:
 - reject candidates suppressed by prior user rejection;
 - ground supersessions to real owner-scoped active memory ids;
 - mark conflicting candidates as `pending` unless the user explicitly corrected a known memory.
+- mark candidates with ambiguous alias resolution as `pending`.
 
 The consolidation step writes through #528 graph repositories/services, not direct SQL, except for
 the candidate store itself.
@@ -196,9 +203,9 @@ Promote automatically only when the candidate is low-risk:
 Leave pending when:
 
 - provenance is `inferred`;
+- `isSensitive` is true;
 - confidence is below the relevant threshold;
 - candidate conflicts with active memory without a grounded correction;
-- candidate affects another person in a way that may be sensitive;
 - candidate would create a commitment/task/reminder. #537 owns commitment actioning.
 
 Pending candidates are not included in core memory or normal recall. #533 will surface them for
