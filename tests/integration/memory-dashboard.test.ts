@@ -56,7 +56,7 @@ function resolveAccessContext(request: FastifyRequest): Promise<AccessContext> {
   return Promise.resolve({ actorUserId: userId, requestId: "test" });
 }
 
-function authHeaders(userId = ids.userA) {
+function authHeaders(userId: string = ids.userA) {
   return { "x-user-id": userId };
 }
 

@@ -91,5 +91,9 @@ export const queryKeys = {
     insights: ["wellness", "insights"] as const,
     therapyNotes: ["wellness", "therapy-notes"] as const,
     adherenceSummary: (sinceDays: number) => ["wellness", "adherence-summary", sinceDays] as const
+  },
+  memory: {
+    dashboard: (query?: object) => ["memory", "dashboard", query] as const,
+    dashboardItem: (id: string) => ["memory", "dashboard", "item", id] as const
   }
 };
