@@ -210,6 +210,31 @@ describe("GraphMemoryRecallService", () => {
     expect(result.recalled.items[0]?.sources.length).toBeGreaterThan(0);
   });
 
+  it("does not recall another user's graph memory", async () => {
+    const service = new GraphMemoryRecallService(new StubEmbeddingProvider());
+    const privateText = `User B graph memory ${randomUUID()}`;
+
+    await appDataContext.withDataContext(
+      { actorUserId: ids.userB, requestId: "memory-graph:recall-user-b" },
+      (db) =>
+        service.remember(db, ids.userB, {
+          predicate: "related_to",
+          objectText: privateText,
+          confidence: 0.9,
+          provenance: "confirmed",
+          importance: 0.9,
+          source: { sourceKind: "manual", sourceRef: "manual:user-b-private", excerpt: privateText }
+        })
+    );
+
+    const recalledAsA = await appDataContext.withDataContext(
+      { actorUserId: ids.userA, requestId: "memory-graph:passive-isolation" },
+      (db) => service.recall(db, ids.userA, privateText, { limit: 8 })
+    );
+
+    expect(recalledAsA.items.some((item) => item.text.includes(privateText))).toBe(false);
+  });
+
   it("returns capped core memory and excludes superseded facts", async () => {
     const service = new GraphMemoryRecallService(new StubEmbeddingProvider());
 
