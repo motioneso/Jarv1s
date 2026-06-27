@@ -401,7 +401,9 @@ describe("ChatSessionManager passive retrieval", () => {
       engineFactory: () => engine,
       pollMs: 0,
       persistence: {
-        resolveActiveProvider: vi.fn().mockResolvedValue({ provider: "anthropic", model: "sonnet" }),
+        resolveActiveProvider: vi
+          .fn()
+          .mockResolvedValue({ provider: "anthropic", model: "sonnet" }),
         listPriorTurns: vi.fn().mockResolvedValue({ recent: [], oldSummary: null }),
         recordTurn: vi.fn().mockResolvedValue(undefined),
         openNewConversation: vi.fn().mockResolvedValue(undefined)
@@ -418,9 +420,7 @@ describe("ChatSessionManager passive retrieval", () => {
     const manager = new ChatSessionManager(
       depsForPassive(engine, {
         passiveRetrieval: {
-          retrieve: vi
-            .fn()
-            .mockResolvedValue("<retrieved_context>\n- memory\n</retrieved_context>")
+          retrieve: vi.fn().mockResolvedValue("<retrieved_context>\n- memory\n</retrieved_context>")
         },
         persistence: {
           resolveActiveProvider: vi
